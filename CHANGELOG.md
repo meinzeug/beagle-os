@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.1 - 2026-03-15
+
+- Added explicit packaging dependency checks for `zip`, `tar` and `sha256sum`.
+- Hardened the Proxmox host deployment path after validating installation on a live Proxmox VE 8.4 host.
+
 ## v0.2.0 - 2026-03-15
 
 - Added a production-oriented repository layout for the browser extension, thin-client assistant, docs and release scripts.

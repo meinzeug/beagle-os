@@ -10,6 +10,18 @@ ZIP_NAME="pve-dcv-integration-extension-v${VERSION}.zip"
 TARBALL_NAME="pve-dcv-thin-client-assistant-v${VERSION}.tar.gz"
 CHECKSUM_FILE="SHA256SUMS"
 
+require_tool() {
+  local tool="$1"
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "Missing required tool: $tool" >&2
+    exit 1
+  fi
+}
+
+require_tool zip
+require_tool tar
+require_tool sha256sum
+
 mkdir -p "$DIST_DIR"
 rm -f "$DIST_DIR/$ZIP_NAME" "$DIST_DIR/$TARBALL_NAME" "$DIST_DIR/$CHECKSUM_FILE"
 
