@@ -16,6 +16,12 @@ The project is intentionally independent from Proxmox core. It does not patch Pr
 - Hooks the existing Proxmox `Konsole` dropdown and appends a `DCV` menu item next to `noVNC` and `SPICE`.
 - Adds a `USB Installer` toolbar button beside the console menu for downloading the thin-client USB writer script.
 
+### 1b. Proxmox host UI integration
+
+- Can deploy the same UI behavior directly on a Proxmox host without requiring a browser extension.
+- Installs a server-side JavaScript asset into `/usr/share/pve-manager/js/`.
+- Patches `index.html.tpl` with a backup and restarts `pveproxy`.
+
 ### 2. Linux thin-client assistant
 
 - Provides an installer-oriented base for local deployment onto a Linux-backed thin client.
@@ -30,6 +36,7 @@ The project is intentionally independent from Proxmox core. It does not patch Pr
 - `thin-client-assistant/` installer, runtime, templates, systemd unit and sample configs
 - `docs/` architecture, security and installation documentation
 - `scripts/` release packaging helpers
+- `proxmox-ui/` server-side Proxmox UI integration asset
 
 ## Browser extension behavior
 
@@ -98,6 +105,12 @@ sudo ./scripts/install-proxmox-host.sh
 ```
 
 This deploys the current repository state under `/opt/pve-dcv-integration` and refreshes packaged artifacts there for admin-side distribution.
+
+Install only the Proxmox UI integration on a host:
+
+```bash
+sudo ./scripts/install-proxmox-ui-integration.sh
+```
 
 ## Documentation
 
