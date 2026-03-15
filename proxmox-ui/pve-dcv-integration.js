@@ -34,7 +34,7 @@
   }
 
   function parseDescriptionMeta(description, metadataKeys) {
-    var text = String(description || "");
+    var text = String(description || "").replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n");
     var result = {
       dcvUrl: null,
       dcvHost: null,
@@ -149,7 +149,7 @@
         var baseUrl = meta.dcvUrl;
         if (!ip && meta.dcvIp) ip = meta.dcvIp;
         if (!ip && meta.dcvHost) ip = meta.dcvHost;
-        if (ip) {
+        if (!baseUrl && ip) {
           baseUrl = fillTemplate(config.urlTemplate, {
             ip: ip,
             node: ctx.node,

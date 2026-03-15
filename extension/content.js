@@ -179,7 +179,7 @@
       dcvSession: null,
       dcvAutoSubmit: true
     };
-    const text = String(description || "");
+    const text = String(description || "").replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n");
     const keys = Array.from(
       new Set(
         [...DEFAULT_METADATA_KEYS, ...(metadataKeys || []).map((key) => key.trim()).filter(Boolean)]
@@ -286,7 +286,7 @@
     if (!ip && meta.dcvIp) ip = meta.dcvIp;
     if (!ip && meta.dcvHost) ip = meta.dcvHost;
 
-    if (ip) {
+    if (!baseUrl && ip) {
       baseUrl = fillTemplate(options.urlTemplate || DEFAULT_TEMPLATE, {
         ip,
         node: ctx.node,

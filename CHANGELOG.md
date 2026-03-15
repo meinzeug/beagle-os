@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.5 - 2026-03-15
+
+- Fixed DCV launch URL generation so `dcv-url` in VM metadata always overrides the internal guest IP template path.
+- Fixed metadata parsing for VM descriptions that contain literal `\\n` separators, preventing `dcv-user` and `dcv-password` from being merged into one query value.
+- Revalidated the server-installed Proxmox UI integration on `srv.thinover.net` with the public DCV proxy URL `https://srv.thinover.net:8443/`.
+
 ## v0.4.4 - 2026-03-15
 
 - Fixed the standalone USB writer bootstrap path by moving large release extraction out of space-constrained `/tmp` defaults and into a more suitable temporary location.

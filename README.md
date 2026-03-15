@@ -64,6 +64,8 @@ If guest-agent IP lookup fails, the extension parses VM description metadata suc
 - `dcv-auth-token: short-lived-token`
 - `dcv-session: console`
 
+If `dcv-url` is present, it takes precedence over any guest-agent IP so internet-facing Proxmox deployments can force the public DCV proxy URL instead of an internal VM address.
+
 ## Thin-client assistant behavior
 
 The thin-client assistant installs a first real implementation baseline:
