@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.0 - 2026-03-15
+
+- Rebuilt the USB installer flow around a bootable live installer architecture inspired by the existing ThinOverNet approach.
+- Replaced the old root-only USB writer with a sudo-escalating writer that selects target devices interactively and can bootstrap the release payload automatically.
+- Added a live-build based thin-client installer environment, a live setup menu and a local disk installer that copies a bootable thin-client runtime to the target disk.
+- Expanded the thin-client configuration model with network, credentials, Proxmox SPICE ticket mode and generated DCV connection files.
+- Added runtime helpers for Proxmox-backed SPICE auto-connect and direct DCV connection-file generation.
+- Fixed BIOS+UEFI USB and local-disk partition layouts by adding explicit `bios_grub` partitions for GRUB-on-GPT boot paths.
+- Added runtime hostname/network application through generated `systemd-networkd` config and enabled the live image to run that preparation path before launching the kiosk session.
+- Added NICE DCV Viewer installation to the live-build image so the DCV runtime path is usable from the generated installer media.
+
 ## v0.3.0 - 2026-03-15
 
 - Reworked the extension to inject `DCV` into the existing Proxmox console dropdown instead of using only a floating page button.

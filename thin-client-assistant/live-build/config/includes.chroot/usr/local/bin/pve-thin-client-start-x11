@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eu
+startx /usr/local/bin/start-pve-thin-client-session -- :0 vt1 -keeptty -nolisten tcp

@@ -29,6 +29,7 @@ The project is intentionally independent from Proxmox core. It does not patch Pr
 - Stores the target runtime configuration in a dedicated config file.
 - Installs runtime launchers, XDG autostart integration and systemd preparation logic.
 - Separates installer logic, runtime logic, templates and system assets.
+- Adds a bootable USB/live installer path inspired by the existing ThinOverNet provisioning flow.
 
 ## Repository layout
 
@@ -62,18 +63,31 @@ If guest-agent IP lookup fails, the extension parses VM description metadata suc
 The thin-client assistant installs a first real implementation baseline:
 
 - `installer/install.sh` performs installation and asset deployment
-- `installer/setup-menu.sh` collects the target mode and launch values
+- `installer/setup-menu.sh` collects mode, connection, network and credential values
+- `installer/write-config.sh` writes runtime, network and credential state
 - `runtime/launch-session.sh` starts the chosen client mode
 - `runtime/prepare-runtime.sh` validates runtime prerequisites on boot
+- `runtime/apply-network-config.sh` applies persisted hostname and systemd-networkd settings during runtime boot
 - `systemd/pve-thin-client-prepare.service` prepares the environment before graphical login
 - `templates/` provides config, autostart and environment file templates
-- `usb/pve-thin-client-usb-installer.sh` writes a USB installer payload to a removable drive
+- `usb/pve-thin-client-usb-installer.sh` writes a bootable BIOS+UEFI installer USB, can list/select target devices interactively and self-escalates to `sudo`
+- `usb/pve-thin-client-live-menu.sh` provides the USB-side setup menu
+- `usb/pve-thin-client-local-installer.sh` installs a local bootable thin-client disk from the live environment
+- `live-build/` defines the live installer image that is written to USB
 
 Runtime modes:
 
-- `SPICE` launches `remote-viewer`
+- `SPICE` launches `remote-viewer`, optionally with fresh Proxmox API tickets
 - `noVNC` launches Chromium in kiosk mode against a configured URL
-- `DCV` launches the native `dcvviewer` client
+- `DCV` launches the native `dcvviewer` client with generated connection files when credentials are provided
+
+USB/live installer highlights:
+
+- rootless launcher path with `sudo` escalation only for disk writes
+- interactive disk discovery with `--list-devices`
+- bootable GPT layout with both BIOS GRUB and EFI support
+- live installer menu that collects connection mode, network and credentials before local-disk installation
+- local-disk runtime that boots the live image from disk and re-applies the saved network profile on startup
 
 ## Installation and packaging
 
@@ -96,7 +110,27 @@ Artifacts are written to `dist/`:
 - browser extension zip
 - thin-client assistant tarball
 - USB installer shell script
+- thin-client assistant `latest` tarball for the standalone USB writer bootstrap path
 - `SHA256SUMS`
+
+Build the live installer assets used by the USB writer:
+
+```bash
+cd ~/pve-dcv-integration
+./scripts/build-thin-client-installer.sh
+```
+
+Write a bootable installer stick as a normal user:
+
+```bash
+./thin-client-assistant/usb/pve-thin-client-usb-installer.sh
+```
+
+List candidate disks before writing:
+
+```bash
+./thin-client-assistant/usb/pve-thin-client-usb-installer.sh --list-devices
+```
 
 Install the packaged project assets onto a Proxmox host:
 

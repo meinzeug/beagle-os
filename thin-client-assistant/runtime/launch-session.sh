@@ -1,35 +1,42 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CONFIG_FILE="${CONFIG_FILE:-/etc/pve-thin-client/thinclient.conf}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/common.sh"
 
-if [[ ! -f "$CONFIG_FILE" ]]; then
-  echo "Missing config file: $CONFIG_FILE" >&2
-  exit 1
-fi
-
-# shellcheck disable=SC1090
-source "$CONFIG_FILE"
+load_runtime_config
 
 if [[ "${PVE_THIN_CLIENT_AUTOSTART:-1}" != "1" ]]; then
   exit 0
 fi
 
 launch_spice() {
-  exec remote-viewer "${PVE_THIN_CLIENT_SPICE_URL}"
+  local url
+  url="$(render_template "${PVE_THIN_CLIENT_SPICE_URL:-}")"
+
+  if [[ "${PVE_THIN_CLIENT_CONNECTION_METHOD:-direct}" == "proxmox-ticket" ]]; then
+    exec "$SCRIPT_DIR/connect-proxmox-spice.sh"
+  fi
+
+  exec "${PVE_THIN_CLIENT_REMOTE_VIEWER_BIN:-remote-viewer}" "$url"
 }
 
 launch_novnc() {
+  local url
+  url="$(render_template "${PVE_THIN_CLIENT_NOVNC_URL:-}")"
+  BROWSER_FLAG_ARRAY=()
+  split_browser_flags
+
   exec "${PVE_THIN_CLIENT_BROWSER_BIN}" \
-    --kiosk \
-    --incognito \
-    --no-first-run \
-    --disable-session-crashed-bubble \
-    "${PVE_THIN_CLIENT_NOVNC_URL}"
+    "${BROWSER_FLAG_ARRAY[@]}" \
+    "$url"
 }
 
 launch_dcv() {
-  exec dcvviewer "${PVE_THIN_CLIENT_DCV_URL}"
+  local connection_file
+  connection_file="$("$SCRIPT_DIR/build-dcv-connection-file.sh")"
+  exec "${PVE_THIN_CLIENT_DCV_VIEWER_BIN:-dcvviewer}" "$connection_file"
 }
 
 case "${PVE_THIN_CLIENT_MODE:-}" in

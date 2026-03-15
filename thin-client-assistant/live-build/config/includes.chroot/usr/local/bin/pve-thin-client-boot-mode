@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+for token in $(cat /proc/cmdline 2>/dev/null); do
+  case "$token" in
+    pve_thin_client.mode=*)
+      printf '%s\n' "${token#*=}"
+      exit 0
+      ;;
+  esac
+done
+
+printf 'installer\n'

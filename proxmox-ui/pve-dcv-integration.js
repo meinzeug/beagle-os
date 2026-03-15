@@ -7,22 +7,6 @@
     metadataKeys: ["dcv-url", "dcv-host", "dcv-ip"],
     usbInstallerUrl: "https://github.com/meinzeug/pve-dcv-integration/releases/latest/download/pve-thin-client-usb-installer-latest.sh"
   };
-  var MARKER = "data-pve-dcv-integration";
-  var CONSOLE_LABEL = "Konsole";
-  var DCV_LABEL = "DCV";
-  var USB_LABEL = "USB Installer";
-
-  function decodeHash() {
-    try {
-      return decodeURIComponent(window.location.hash || "");
-    } catch (_error) {
-      return window.location.hash || "";
-    }
-  }
-
-  function isVmView() {
-    return /qemu\/(\d+)/i.test(decodeHash());
-  }
 
   function getConfig() {
     var runtimeConfig = window.PVEDCVIntegrationConfig || {};
@@ -32,43 +16,6 @@
       metadataKeys: Array.isArray(runtimeConfig.metadataKeys) ? runtimeConfig.metadataKeys : DEFAULTS.metadataKeys,
       usbInstallerUrl: runtimeConfig.usbInstallerUrl || DEFAULTS.usbInstallerUrl
     };
-  }
-
-  function parseVmContext() {
-    var hash = decodeHash();
-    var vmidMatch = hash.match(/qemu\/(\d+)/i);
-    var nodeMatch = hash.match(/[?&]node=([a-zA-Z0-9._-]+)/i);
-    var vmid = vmidMatch ? Number(vmidMatch[1]) : null;
-    var node = nodeMatch ? nodeMatch[1] : null;
-
-    if (!vmid) {
-      return Promise.resolve(null);
-    }
-
-    if (node) {
-      return Promise.resolve({ node: node, vmid: vmid });
-    }
-
-    return fetch("/api2/json/cluster/resources?type=vm", { credentials: "same-origin" })
-      .then(function(res) {
-        return res.ok ? res.json() : { data: [] };
-      })
-      .then(function(payload) {
-        var vm = (payload.data || []).find(function(item) {
-          return item.vmid === vmid && item.type === "qemu";
-        });
-        node = vm && vm.node ? vm.node : null;
-        if (!node) {
-          var guessed = hash.match(/node[:=]([a-zA-Z0-9._-]+)/i);
-          node = guessed ? guessed[1] : null;
-        }
-        return node ? { node: node, vmid: vmid } : null;
-      })
-      .catch(function() {
-        var guessed = hash.match(/node[:=]([a-zA-Z0-9._-]+)/i);
-        node = guessed ? guessed[1] : null;
-        return node ? { node: node, vmid: vmid } : null;
-      });
   }
 
   function firstUsefulIp(ifaces) {
@@ -170,20 +117,21 @@
       });
   }
 
-  function openDcv() {
-    parseVmContext().then(function(ctx) {
-      if (!ctx) {
-        window.alert("DCV: Keine VM-Ansicht erkannt.");
+  function showError(message) {
+    if (window.Ext && Ext.Msg && Ext.Msg.alert) {
+      Ext.Msg.alert("PVE DCV Integration", message);
+    } else {
+      window.alert(message);
+    }
+  }
+
+  function openDcvForContext(ctx) {
+    buildLaunchUrl(ctx).then(function(url) {
+      if (!url) {
+        showError("DCV URL konnte nicht ermittelt werden. Pruefe Guest Agent oder VM-Beschreibung.");
         return;
       }
-
-      buildLaunchUrl(ctx).then(function(url) {
-        if (!url) {
-          window.alert("DCV URL konnte nicht ermittelt werden. Pruefe Guest Agent oder VM-Beschreibung.");
-          return;
-        }
-        window.open(url, "_blank", "noopener,noreferrer");
-      });
+      window.open(url, "_blank", "noopener,noreferrer");
     });
   }
 
@@ -191,98 +139,54 @@
     window.open(getConfig().usbInstallerUrl, "_blank", "noopener,noreferrer");
   }
 
-  function findToolbar() {
-    var all = Array.from(document.querySelectorAll("button, a, div, span"));
-    for (var i = 0; i < all.length; i += 1) {
-      var node = all[i];
-      var text = String(node.textContent || "").trim();
-      if (text === CONSOLE_LABEL || text.indexOf(CONSOLE_LABEL) !== -1) {
-        return node.closest(".x-toolbar") || node.closest(".x-box-inner") || node.parentElement;
-      }
+  function ensureConsoleButtonIntegration(button) {
+    if (!button || !button.vmid || button.consoleType !== "kvm" || button.__pveDcvIntegrated) {
+      return;
     }
-    return null;
-  }
 
-  function createToolbarButton(label, handler) {
-    var button = document.createElement("button");
-    button.type = "button";
-    button.textContent = label;
-    button.setAttribute(MARKER, label);
-    button.className = "x-btn-text";
-    button.style.marginLeft = "6px";
-    button.style.padding = "4px 10px";
-    button.style.border = "1px solid #b5b8c8";
-    button.style.background = "#f5f5f5";
-    button.style.borderRadius = "3px";
-    button.style.cursor = "pointer";
-    button.addEventListener("click", function(event) {
-      event.preventDefault();
-      event.stopPropagation();
-      handler();
-    });
-    return button;
-  }
-
-  function ensureToolbarButtons() {
-    if (!isVmView()) return;
-    var toolbar = findToolbar();
-    if (!toolbar) return;
-
-    if (!toolbar.querySelector("[" + MARKER + "='" + USB_LABEL + "']")) {
-      toolbar.appendChild(createToolbarButton(USB_LABEL, openUsbInstaller));
+    var menu = button.getMenu ? button.getMenu() : button.menu;
+    if (menu && !menu.down("#pveDcvMenuItem")) {
+      menu.add({
+        itemId: "pveDcvMenuItem",
+        text: "DCV",
+        iconCls: "fa fa-desktop",
+        handler: function() {
+          openDcvForContext({ node: button.nodename, vmid: button.vmid });
+        }
+      });
     }
-  }
 
-  function getVisibleMenu() {
-    var menus = Array.from(document.querySelectorAll(".x-menu"));
-    for (var i = 0; i < menus.length; i += 1) {
-      if (menus[i].offsetParent !== null) return menus[i];
+    var toolbar = button.up && button.up("toolbar");
+    if (toolbar && !toolbar.down("#pveUsbInstallerButton")) {
+      var index = toolbar.items.indexOf(button);
+      toolbar.insert(index + 1, {
+        xtype: "button",
+        itemId: "pveUsbInstallerButton",
+        text: "USB Installer",
+        iconCls: "fa fa-download",
+        handler: openUsbInstaller
+      });
     }
-    return null;
+
+    button.__pveDcvIntegrated = true;
   }
 
-  function createMenuItem() {
-    var item = document.createElement("a");
-    item.href = "#";
-    item.textContent = DCV_LABEL;
-    item.className = "x-menu-item";
-    item.setAttribute(MARKER, DCV_LABEL);
-    item.style.display = "block";
-    item.style.padding = "4px 24px";
-    item.addEventListener("click", function(event) {
-      event.preventDefault();
-      event.stopPropagation();
-      openDcv();
-    });
-    return item;
-  }
-
-  function ensureConsoleMenuEntry() {
-    if (!isVmView()) return;
-    var menu = getVisibleMenu();
-    if (!menu) return;
-    var text = menu.textContent || "";
-    if (text.indexOf("noVNC") === -1 && text.indexOf("SPICE") === -1) return;
-    if (!menu.querySelector("[" + MARKER + "='" + DCV_LABEL + "']")) {
-      menu.appendChild(createMenuItem());
+  function integrate() {
+    if (!(window.Ext && Ext.ComponentQuery)) {
+      return;
     }
-  }
 
-  function refresh() {
-    ensureToolbarButtons();
-    ensureConsoleMenuEntry();
+    Ext.ComponentQuery.query("pveConsoleButton").forEach(ensureConsoleButtonIntegration);
   }
 
   function boot() {
-    refresh();
-    window.addEventListener("hashchange", refresh);
-    document.addEventListener("click", function() {
-      window.setTimeout(refresh, 25);
-    }, true);
-    var observer = new MutationObserver(refresh);
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-    window.setInterval(refresh, 1000);
+    integrate();
+    window.setInterval(integrate, 1000);
   }
 
-  boot();
+  if (window.Ext && Ext.onReady) {
+    Ext.onReady(boot);
+  } else {
+    boot();
+  }
 })();

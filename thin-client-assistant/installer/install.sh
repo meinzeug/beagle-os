@@ -9,11 +9,34 @@ BIN_DIR="/usr/local/bin"
 AUTOSTART_DIR="/etc/xdg/autostart"
 SYSTEMD_DIR="/etc/systemd/system"
 MODE=""
+CONNECTION_METHOD=""
+PROFILE_NAME="default"
 RUNTIME_USER="thinclient"
+HOSTNAME_VALUE="pve-thin-client"
+AUTOSTART="1"
+NETWORK_MODE="dhcp"
+NETWORK_INTERFACE="eth0"
+NETWORK_STATIC_ADDRESS=""
+NETWORK_STATIC_PREFIX="24"
+NETWORK_GATEWAY=""
+NETWORK_DNS_SERVERS="1.1.1.1 8.8.8.8"
 SPICE_URL=""
 NOVNC_URL=""
 DCV_URL=""
+REMOTE_VIEWER_BIN="remote-viewer"
 BROWSER_BIN="chromium"
+BROWSER_FLAGS="--kiosk --incognito --no-first-run --disable-session-crashed-bubble"
+DCV_VIEWER_BIN="dcvviewer"
+PROXMOX_SCHEME="https"
+PROXMOX_HOST=""
+PROXMOX_PORT="8006"
+PROXMOX_NODE=""
+PROXMOX_VMID=""
+PROXMOX_REALM="pam"
+PROXMOX_VERIFY_TLS="0"
+CONNECTION_USERNAME=""
+CONNECTION_PASSWORD=""
+CONNECTION_TOKEN=""
 
 usage() {
   cat <<EOF
@@ -44,11 +67,34 @@ parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --mode) MODE="$2"; shift 2 ;;
+      --connection-method) CONNECTION_METHOD="$2"; shift 2 ;;
+      --profile-name) PROFILE_NAME="$2"; shift 2 ;;
       --runtime-user) RUNTIME_USER="$2"; shift 2 ;;
+      --hostname) HOSTNAME_VALUE="$2"; shift 2 ;;
+      --autostart) AUTOSTART="$2"; shift 2 ;;
+      --network-mode) NETWORK_MODE="$2"; shift 2 ;;
+      --network-interface) NETWORK_INTERFACE="$2"; shift 2 ;;
+      --network-address) NETWORK_STATIC_ADDRESS="$2"; shift 2 ;;
+      --network-prefix) NETWORK_STATIC_PREFIX="$2"; shift 2 ;;
+      --network-gateway) NETWORK_GATEWAY="$2"; shift 2 ;;
+      --network-dns) NETWORK_DNS_SERVERS="$2"; shift 2 ;;
       --spice-url) SPICE_URL="$2"; shift 2 ;;
       --novnc-url) NOVNC_URL="$2"; shift 2 ;;
       --dcv-url) DCV_URL="$2"; shift 2 ;;
+      --remote-viewer-bin) REMOTE_VIEWER_BIN="$2"; shift 2 ;;
       --browser-bin) BROWSER_BIN="$2"; shift 2 ;;
+      --browser-flags) BROWSER_FLAGS="$2"; shift 2 ;;
+      --dcv-viewer-bin) DCV_VIEWER_BIN="$2"; shift 2 ;;
+      --proxmox-scheme) PROXMOX_SCHEME="$2"; shift 2 ;;
+      --proxmox-host) PROXMOX_HOST="$2"; shift 2 ;;
+      --proxmox-port) PROXMOX_PORT="$2"; shift 2 ;;
+      --proxmox-node) PROXMOX_NODE="$2"; shift 2 ;;
+      --proxmox-vmid) PROXMOX_VMID="$2"; shift 2 ;;
+      --proxmox-realm) PROXMOX_REALM="$2"; shift 2 ;;
+      --proxmox-verify-tls) PROXMOX_VERIFY_TLS="$2"; shift 2 ;;
+      --connection-username) CONNECTION_USERNAME="$2"; shift 2 ;;
+      --connection-password) CONNECTION_PASSWORD="$2"; shift 2 ;;
+      --connection-token) CONNECTION_TOKEN="$2"; shift 2 ;;
       -h|--help) usage; exit 0 ;;
       *)
         echo "Unknown argument: $1" >&2
@@ -63,20 +109,52 @@ load_answers() {
   local output
   output="$(
     MODE="$MODE" \
+    CONNECTION_METHOD="$CONNECTION_METHOD" \
+    PROFILE_NAME="$PROFILE_NAME" \
     RUNTIME_USER="$RUNTIME_USER" \
+    HOSTNAME_VALUE="$HOSTNAME_VALUE" \
+    AUTOSTART="$AUTOSTART" \
+    NETWORK_MODE="$NETWORK_MODE" \
+    NETWORK_INTERFACE="$NETWORK_INTERFACE" \
+    NETWORK_STATIC_ADDRESS="$NETWORK_STATIC_ADDRESS" \
+    NETWORK_STATIC_PREFIX="$NETWORK_STATIC_PREFIX" \
+    NETWORK_GATEWAY="$NETWORK_GATEWAY" \
+    NETWORK_DNS_SERVERS="$NETWORK_DNS_SERVERS" \
     SPICE_URL="$SPICE_URL" \
     NOVNC_URL="$NOVNC_URL" \
     DCV_URL="$DCV_URL" \
+    REMOTE_VIEWER_BIN="$REMOTE_VIEWER_BIN" \
     BROWSER_BIN="$BROWSER_BIN" \
+    BROWSER_FLAGS="$BROWSER_FLAGS" \
+    DCV_VIEWER_BIN="$DCV_VIEWER_BIN" \
+    PROXMOX_SCHEME="$PROXMOX_SCHEME" \
+    PROXMOX_HOST="$PROXMOX_HOST" \
+    PROXMOX_PORT="$PROXMOX_PORT" \
+    PROXMOX_NODE="$PROXMOX_NODE" \
+    PROXMOX_VMID="$PROXMOX_VMID" \
+    PROXMOX_REALM="$PROXMOX_REALM" \
+    PROXMOX_VERIFY_TLS="$PROXMOX_VERIFY_TLS" \
+    CONNECTION_USERNAME="$CONNECTION_USERNAME" \
+    CONNECTION_PASSWORD="$CONNECTION_PASSWORD" \
+    CONNECTION_TOKEN="$CONNECTION_TOKEN" \
     "$ROOT_DIR/installer/setup-menu.sh"
   )"
   eval "$output"
 }
 
 install_runtime_assets() {
+  install -d -m 0755 "$INSTALL_ROOT"
+  cp -a "$ROOT_DIR/runtime" "$INSTALL_ROOT/"
+  cp -a "$ROOT_DIR/installer" "$INSTALL_ROOT/"
+  cp -a "$ROOT_DIR/templates" "$INSTALL_ROOT/"
   copy_file "$ROOT_DIR/runtime/launch-session.sh" "$INSTALL_ROOT/launch-session.sh"
   copy_file "$ROOT_DIR/runtime/prepare-runtime.sh" "$INSTALL_ROOT/prepare-runtime.sh"
+  copy_file "$ROOT_DIR/runtime/connect-proxmox-spice.sh" "$INSTALL_ROOT/connect-proxmox-spice.sh"
+  copy_file "$ROOT_DIR/runtime/build-dcv-connection-file.sh" "$INSTALL_ROOT/build-dcv-connection-file.sh"
+  copy_file "$ROOT_DIR/runtime/common.sh" "$INSTALL_ROOT/common.sh"
+  copy_file "$ROOT_DIR/runtime/apply-network-config.sh" "$INSTALL_ROOT/apply-network-config.sh"
   copy_file "$ROOT_DIR/installer/setup-menu.sh" "$INSTALL_ROOT/setup-menu.sh"
+  copy_file "$ROOT_DIR/installer/write-config.sh" "$INSTALL_ROOT/write-config.sh"
   copy_readonly "$ROOT_DIR/systemd/pve-thin-client-prepare.service" "$SYSTEMD_DIR/pve-thin-client-prepare.service"
   copy_readonly "$ROOT_DIR/templates/pve-thin-client.desktop" "$AUTOSTART_DIR/pve-thin-client.desktop"
   install -d -m 0755 "$BIN_DIR"
@@ -85,16 +163,36 @@ install_runtime_assets() {
 }
 
 write_config() {
-  install -d -m 0755 "$CONFIG_DIR"
-  sed \
-    -e "s|@MODE@|$MODE|g" \
-    -e "s|@RUNTIME_USER@|$RUNTIME_USER|g" \
-    -e "s|@SPICE_URL@|$SPICE_URL|g" \
-    -e "s|@NOVNC_URL@|$NOVNC_URL|g" \
-    -e "s|@DCV_URL@|$DCV_URL|g" \
-    -e "s|@BROWSER_BIN@|$BROWSER_BIN|g" \
-    "$ROOT_DIR/templates/thinclient.conf" > "$CONFIG_FILE"
-  chmod 0644 "$CONFIG_FILE"
+  MODE="$MODE" \
+  CONNECTION_METHOD="$CONNECTION_METHOD" \
+  PROFILE_NAME="$PROFILE_NAME" \
+  RUNTIME_USER="$RUNTIME_USER" \
+  HOSTNAME_VALUE="$HOSTNAME_VALUE" \
+  AUTOSTART="$AUTOSTART" \
+  NETWORK_MODE="$NETWORK_MODE" \
+  NETWORK_INTERFACE="$NETWORK_INTERFACE" \
+  NETWORK_STATIC_ADDRESS="$NETWORK_STATIC_ADDRESS" \
+  NETWORK_STATIC_PREFIX="$NETWORK_STATIC_PREFIX" \
+  NETWORK_GATEWAY="$NETWORK_GATEWAY" \
+  NETWORK_DNS_SERVERS="$NETWORK_DNS_SERVERS" \
+  SPICE_URL="$SPICE_URL" \
+  NOVNC_URL="$NOVNC_URL" \
+  DCV_URL="$DCV_URL" \
+  REMOTE_VIEWER_BIN="$REMOTE_VIEWER_BIN" \
+  BROWSER_BIN="$BROWSER_BIN" \
+  BROWSER_FLAGS="$BROWSER_FLAGS" \
+  DCV_VIEWER_BIN="$DCV_VIEWER_BIN" \
+  PROXMOX_SCHEME="$PROXMOX_SCHEME" \
+  PROXMOX_HOST="$PROXMOX_HOST" \
+  PROXMOX_PORT="$PROXMOX_PORT" \
+  PROXMOX_NODE="$PROXMOX_NODE" \
+  PROXMOX_VMID="$PROXMOX_VMID" \
+  PROXMOX_REALM="$PROXMOX_REALM" \
+  PROXMOX_VERIFY_TLS="$PROXMOX_VERIFY_TLS" \
+  CONNECTION_USERNAME="$CONNECTION_USERNAME" \
+  CONNECTION_PASSWORD="$CONNECTION_PASSWORD" \
+  CONNECTION_TOKEN="$CONNECTION_TOKEN" \
+  "$ROOT_DIR/installer/write-config.sh" "$CONFIG_DIR"
 }
 
 ensure_user_exists() {
@@ -134,6 +232,7 @@ Installed pve-thin-client assets.
 Config: $CONFIG_FILE
 Mode: $MODE
 Runtime user: $RUNTIME_USER
+Connection method: $CONNECTION_METHOD
 EOF
   install_packages_hint
 }

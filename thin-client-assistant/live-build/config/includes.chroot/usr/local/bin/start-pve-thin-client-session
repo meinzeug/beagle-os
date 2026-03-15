@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+if command -v xsetroot >/dev/null 2>&1; then
+  xsetroot -solid "#071a2c" >/dev/null 2>&1 || true
+fi
+
+if command -v xset >/dev/null 2>&1; then
+  xset -dpms >/dev/null 2>&1 || true
+  xset s off >/dev/null 2>&1 || true
+  xset s noblank >/dev/null 2>&1 || true
+fi
+
+if command -v openbox-session >/dev/null 2>&1; then
+  openbox-session >/tmp/pve-thin-client-openbox.log 2>&1 &
+fi
+
+if [ -x /usr/local/lib/pve-thin-client/runtime/prepare-runtime.sh ]; then
+  if command -v sudo >/dev/null 2>&1; then
+    sudo -n /usr/local/lib/pve-thin-client/runtime/prepare-runtime.sh >/tmp/pve-thin-client-prepare.log 2>&1 || true
+  else
+    /usr/local/lib/pve-thin-client/runtime/prepare-runtime.sh >/tmp/pve-thin-client-prepare.log 2>&1 || true
+  fi
+fi
+
+exec /usr/local/lib/pve-thin-client/runtime/launch-session.sh

@@ -40,36 +40,51 @@ The thin-client assistant is intentionally split into installer, runtime, system
 - `systemd/` contains the system service unit
 - `templates/` contains default config, environment and XDG autostart assets
 - `examples/` contains sample configuration profiles
+- `usb/` contains the USB writer, live menu and local disk installer
+- `live-build/` contains the bootable live installer definition
 
 ### Runtime model
 
 The current implementation baseline assumes:
 
-- a Linux host with a graphical session
+- either an existing Linux system converted in place
+- or a bootable live installer / local-disk runtime created from the repository
 - a dedicated local user account for kiosk operation
-- autologin or otherwise guaranteed local session startup
+- tty1 autologin and `startx` based session startup in the live/local-disk image
 
 Boot flow:
 
-1. `pve-thin-client-prepare.service` runs as root after networking is available.
-2. `prepare-runtime.sh` validates the runtime configuration and writes a status file.
-3. the desktop session reads the installed XDG autostart entry
-4. `launch-session.sh` loads `/etc/pve-thin-client/thinclient.conf`
-5. the chosen mode starts one of:
+1. the live or local-disk boot medium exposes `vmlinuz`, `initrd.img` and `filesystem.squashfs`
+2. tty1 autologin enters the `thinclient` shell wrapper
+3. installer boots dispatch into the USB/live menu
+4. runtime boots dispatch into `startx`
+5. `prepare-runtime.sh` validates the selected runtime configuration, applies hostname/network state and writes a status file
+6. `launch-session.sh` loads config from `/etc/pve-thin-client` or from the live medium state directory
+7. the chosen mode starts one of:
    - `remote-viewer`
    - `chromium --kiosk`
    - `dcvviewer`
+
+Storage / boot layout:
+
+- installer USB media uses GPT with a dedicated `bios_grub` partition plus a FAT32 EFI/data partition
+- local installs use GPT with `bios_grub`, EFI system partition and ext4 runtime partition
+- local GRUB entries pin `live-media=UUID=...` so the disk runtime does not accidentally boot from a still-inserted USB stick
 
 ## Configuration model
 
 Primary config file:
 
 - `/etc/pve-thin-client/thinclient.conf`
+- `/run/live/medium/pve-thin-client/state/thinclient.conf`
 
 The config file defines:
 
 - mode selection: `SPICE`, `NOVNC`, `DCV`
 - target URLs
+- connection method such as direct URLs or Proxmox-backed SPICE tickets
+- Proxmox host/node/vmid settings
+- stored username/password/token fields
 - kiosk browser path and flags
 - local runtime user and autostart toggles
 
