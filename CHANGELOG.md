@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.2.1 - 2026-03-16
+
+- Fixed the host installer so `/opt/pve-dcv-integration` is always normalized to `root:root` with world-executable directory permissions after deployment, preventing `nginx` from returning `403 Forbidden` on hosted USB download artifacts.
+
 ## v3.2.0 - 2026-03-16
 
 - Replaced the old text-only installer boot path with a local Chromium app front end that serves a richer USB installer dashboard from the live medium itself.

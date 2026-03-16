@@ -109,6 +109,8 @@ rsync -a --delete \
   --exclude '.build' \
   --exclude 'dist' \
   "$ROOT_DIR/" "$INSTALL_DIR/"
+chown -R root:root "$INSTALL_DIR"
+find "$INSTALL_DIR" -type d -exec chmod 0755 {} +
 
 "$INSTALL_DIR/scripts/package.sh"
 "$INSTALL_DIR/scripts/prepare-host-downloads.sh"
