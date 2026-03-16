@@ -23,6 +23,11 @@ for file in "${shell_files[@]}"; do
   bash -n "$file"
 done
 
+mapfile -t python_files < <(find "$ROOT_DIR/thin-client-assistant" -type f -name '*.py' | sort)
+if (( ${#python_files[@]} > 0 )); then
+  python3 -m py_compile "${python_files[@]}"
+fi
+
 node --check "$ROOT_DIR/proxmox-ui/pve-dcv-integration.js"
 node --check "$ROOT_DIR/proxmox-ui/pve-dcv-autologin.js"
 node --check "$ROOT_DIR/extension/content.js"

@@ -19,6 +19,7 @@ BOOTSTRAP_DIR=""
 MIN_DEVICE_BYTES="${MIN_DEVICE_BYTES:-4294967296}"
 PVE_THIN_CLIENT_PRESET_NAME="${PVE_THIN_CLIENT_PRESET_NAME:-}"
 PVE_THIN_CLIENT_PRESET_B64="${PVE_THIN_CLIENT_PRESET_B64:-}"
+GRUB_BACKGROUND_SRC="$REPO_ROOT/thin-client-assistant/usb/assets/grub-background.jpg"
 
 project_version_from_root() {
   if [[ -f "$REPO_ROOT/VERSION" ]]; then
@@ -156,6 +157,7 @@ bootstrap_repo_root() {
   DIST_DIR="$REPO_ROOT/dist/pve-thin-client-installer"
   ASSET_DIR="$DIST_DIR/live"
   PROJECT_VERSION="$(project_version_from_root)"
+  GRUB_BACKGROUND_SRC="$REPO_ROOT/thin-client-assistant/usb/assets/grub-background.jpg"
 }
 
 parse_args() {
@@ -253,8 +255,13 @@ EOF
   printf '%s\n' "$count"
 }
 
+have_graphical_dialog() {
+  [[ -n "${DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1
+}
+
 choose_device() {
   local options=()
+  local zenity_rows=()
   local device tty_path usb_candidates name size model type rm transport answer index
 
   tty_path="/dev/tty"
@@ -268,6 +275,7 @@ choose_device() {
     device="/dev/${NAME}"
     [[ "$device" == /dev/loop* || "$device" == /dev/sr* || "$device" == /dev/ram* || "$device" == /dev/zram* ]] && continue
     options+=("$device" "${MODEL:-disk} ${SIZE:-unknown} usb=${TRAN:-}")
+    zenity_rows+=("$device" "${SIZE:-unknown}" "${MODEL:-disk}" "${TRAN:-unknown}")
   done <<EOF
 $(list_candidate_devices)
 EOF
@@ -275,6 +283,20 @@ EOF
   if (( ${#options[@]} == 0 )); then
     echo "No writable block device found." >&2
     exit 1
+  fi
+
+  if have_graphical_dialog; then
+    zenity --list \
+      --title="PVE Thin Client USB Writer" \
+      --text="Choose the USB target device for the installer media." \
+      --width=920 \
+      --height=520 \
+      --column="Device" \
+      --column="Size" \
+      --column="Model" \
+      --column="Transport" \
+      "${zenity_rows[@]}"
+    return 0
   fi
 
   usb_candidates="$(count_usb_candidates)"
@@ -408,6 +430,16 @@ confirm_device() {
   fi
   if [[ "$ASSUME_YES" == "1" ]]; then
     return 0
+  fi
+
+  if have_graphical_dialog; then
+    zenity --question \
+      --title="Write USB Installer" \
+      --width=760 \
+      --text="The selected drive will be erased completely and turned into a bootable PVE Thin Client installer.\n\nTarget: ${TARGET_DEVICE}\nPreset: ${PVE_THIN_CLIENT_PRESET_NAME:-generic}" \
+      --ok-label="Write USB" \
+      --cancel-label="Cancel"
+    return $?
   fi
 
   read -r -p "Erase and re-create $TARGET_DEVICE as PVE Thin Client USB? [y/N]: " answer
@@ -622,10 +654,21 @@ write_usb() {
   install -m 0644 "$REPO_ROOT/LICENSE" "$mount_dir/pve-dcv-integration/LICENSE"
   install -m 0644 "$REPO_ROOT/CHANGELOG.md" "$mount_dir/pve-dcv-integration/CHANGELOG.md"
   install -m 0755 "$REPO_ROOT/thin-client-assistant/usb/start-installer-menu.sh" "$mount_dir/start-installer-menu.sh"
+  if [[ -f "$GRUB_BACKGROUND_SRC" ]]; then
+    install -m 0644 "$GRUB_BACKGROUND_SRC" "$mount_dir/boot/grub/background.jpg"
+  fi
   write_usb_preset "$mount_dir"
   write_usb_manifest "$mount_dir"
 
   cat > "$mount_dir/boot/grub/grub.cfg" <<'EOF'
+insmod all_video
+insmod gfxterm
+insmod jpeg
+terminal_output gfxterm
+if background_image /boot/grub/background.jpg; then
+  set color_normal=white/black
+  set color_highlight=black/light-gray
+fi
 set default=0
 set timeout=5
 

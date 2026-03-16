@@ -121,6 +121,7 @@ https://<proxmox-host>:8443/pve-dcv-downloads/pve-thin-client-usb-installer-host
 ```
 
 On preseeded USB media, the local installer only asks for the streaming mode (`SPICE`, `NOVNC`, `DCV`) and the target disk. Connection URLs, VM IDs and credentials come from the bundled preset instead of being entered interactively on the target machine.
+The boot flow itself is now graphical as well: the stick ships with a JPEG-backed GRUB screen and a local Chromium-based installer dashboard that runs fully offline from the live medium.
 
 On installed hosts, a systemd timer refreshes these hosted artifacts periodically. You can also run the refresh manually:
 

@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+BOOT_MODE="${PVE_THIN_CLIENT_BOOT_MODE:-$(/usr/local/bin/pve-thin-client-boot-mode 2>/dev/null || printf runtime)}"
+
 if command -v xsetroot >/dev/null 2>&1; then
   xsetroot -solid "#071a2c" >/dev/null 2>&1 || true
 fi
@@ -13,6 +15,10 @@ fi
 
 if command -v openbox-session >/dev/null 2>&1; then
   openbox-session >/tmp/pve-thin-client-openbox.log 2>&1 &
+fi
+
+if [ "${BOOT_MODE}" = "installer" ] && [ -x /usr/local/lib/pve-thin-client/usb/pve-thin-client-installer-ui.py ]; then
+  exec /usr/local/lib/pve-thin-client/usb/pve-thin-client-installer-ui.py
 fi
 
 if [ -x /usr/local/lib/pve-thin-client/runtime/prepare-runtime.sh ]; then

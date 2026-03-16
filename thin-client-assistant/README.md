@@ -33,6 +33,7 @@ The standalone writer script can be started as a normal user:
 ```
 
 It escalates to `sudo` only for partitioning and writing the selected USB device. If it is executed outside the repository, prefer the host-provided per-VM standalone script from `https://<proxmox-host>:8443/pve-dcv-downloads/`, which already knows the matching local payload URL and can embed a bundled VM preset into the USB stick.
+When a graphical desktop is available, the writer prefers a GUI selection flow, and the generated live media boots into a graphical installer dashboard instead of a plain text-only menu.
 It can also show candidate targets up front:
 
 ```bash

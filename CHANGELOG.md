@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.2.0 - 2026-03-16
+
+- Replaced the old text-only installer boot path with a local Chromium app front end that serves a richer USB installer dashboard from the live medium itself.
+- Added bundled Unsplash-backed JPEG artwork for the boot medium and installer UI so the USB experience has a graphical hero background and mode cards without relying on live internet access.
+- Added graphical installer actions for install, preset inspection, shell, reboot and poweroff while keeping the existing shell-based installer as a fallback underneath.
+- Extended the local installer with JSON/state endpoints and noninteractive flags so the graphical front end can drive mode selection and disk targeting without re-asking the user in text dialogs.
+- Upgraded the USB writer on graphical Linux desktops to prefer `zenity`-based target selection and confirmation instead of falling straight back to `whiptail`.
+- Styled GRUB on both the USB stick and installed thin-client target with a bundled JPEG background so the media looks intentional from first boot onward.
+
 ## v3.1.0 - 2026-03-16
 
 - Reworked the USB deployment flow around backend-generated per-VM installer launchers named `pve-thin-client-usb-installer-vm-<vmid>.sh`, so the Proxmox toolbar can hand each VM its own preseeded thin-client installer download.

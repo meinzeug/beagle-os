@@ -10,6 +10,12 @@ LIVE_ASSET_DIR="${LIVE_MEDIUM}/pve-thin-client/live"
 STATE_DIR="$TARGET_MOUNT/pve-thin-client/state"
 PRESET_FILE="${LIVE_MEDIUM}/pve-thin-client/preset.env"
 PRESET_ACTIVE="0"
+GRUB_BACKGROUND_SRC="$ROOT_DIR/usb/assets/grub-background.jpg"
+TARGET_DISK_OVERRIDE=""
+ASSUME_YES="0"
+PRINT_TARGETS_JSON="0"
+PRINT_PRESET_JSON="0"
+PRINT_PRESET_SUMMARY="0"
 
 MODE=""
 CONNECTION_METHOD=""
@@ -104,8 +110,90 @@ current_live_disk() {
   return 1
 }
 
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --mode)
+        MODE="$2"
+        shift 2
+        ;;
+      --target-disk)
+        TARGET_DISK_OVERRIDE="$2"
+        shift 2
+        ;;
+      --yes|--force)
+        ASSUME_YES="1"
+        shift
+        ;;
+      --list-targets-json)
+        PRINT_TARGETS_JSON="1"
+        shift
+        ;;
+      --print-preset-json)
+        PRINT_PRESET_JSON="1"
+        shift
+        ;;
+      --print-preset-summary)
+        PRINT_PRESET_SUMMARY="1"
+        shift
+        ;;
+      *)
+        echo "Unknown argument: $1" >&2
+        exit 1
+        ;;
+    esac
+  done
+}
+
+print_target_disks_json() {
+  local live_disk
+  live_disk="$(current_live_disk 2>/dev/null || true)"
+
+  python3 - "$live_disk" <<'PY'
+import json
+import shlex
+import subprocess
+import sys
+
+live_disk = sys.argv[1]
+result = []
+output = subprocess.check_output(
+    ["lsblk", "-dn", "-P", "-o", "NAME,SIZE,MODEL,TYPE,RM,TRAN"], text=True
+)
+
+for line in output.splitlines():
+    entry = {}
+    for token in shlex.split(line):
+      key, value = token.split("=", 1)
+      entry[key] = value
+    if entry.get("TYPE") != "disk":
+        continue
+    device = f"/dev/{entry['NAME']}"
+    if device == live_disk:
+        continue
+    if any(device.startswith(prefix) for prefix in ("/dev/loop", "/dev/sr", "/dev/ram", "/dev/zram")):
+        continue
+    result.append(
+        {
+            "device": device,
+            "size": entry.get("SIZE", "unknown"),
+            "model": entry.get("MODEL", "disk"),
+            "removable": entry.get("RM", "0"),
+            "transport": entry.get("TRAN", ""),
+        }
+    )
+
+print(json.dumps(result, indent=2))
+PY
+}
+
 choose_target_disk() {
   local live_disk menu_items device label name size model type rm transport answer tty_path
+  if [[ -n "$TARGET_DISK_OVERRIDE" ]]; then
+    printf '%s\n' "$TARGET_DISK_OVERRIDE"
+    return 0
+  fi
+
   live_disk="$(current_live_disk 2>/dev/null || true)"
   menu_items=()
   tty_path="/dev/tty"
@@ -165,6 +253,10 @@ EOF
 
 confirm_wipe() {
   local target_disk="$1"
+  if [[ "$ASSUME_YES" == "1" ]]; then
+    return 0
+  fi
+
   if command -v whiptail >/dev/null 2>&1; then
     whiptail --title "PVE Thin Client Installation" --yesno \
       "The disk ${target_disk} will be fully erased and turned into a local thin-client boot disk." 14 88
@@ -291,6 +383,55 @@ print_preset_summary() {
   fi
 }
 
+print_preset_json() {
+  python3 - "$PRESET_ACTIVE" "${PVE_THIN_CLIENT_PRESET_VM_NAME:-}" "${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}" "${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-}" "${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-}" "${PVE_THIN_CLIENT_PRESET_NOVNC_URL:-}" "${PVE_THIN_CLIENT_PRESET_DCV_URL:-}" <<'PY'
+import json
+import sys
+
+(
+    preset_active,
+    vm_name,
+    profile_name,
+    proxmox_host,
+    proxmox_node,
+    proxmox_vmid,
+    spice_url,
+    proxmox_username,
+    proxmox_password,
+    spice_username,
+    spice_password,
+    novnc_url,
+    dcv_url,
+) = sys.argv[1:14]
+
+def mode_available(name: str) -> bool:
+    if name == "SPICE":
+        return bool(spice_url) or (
+            bool(proxmox_host)
+            and bool(proxmox_node)
+            and bool(proxmox_vmid)
+            and bool(spice_username or proxmox_username)
+            and bool(spice_password or proxmox_password)
+        )
+    if name == "NOVNC":
+        return bool(novnc_url)
+    if name == "DCV":
+        return bool(dcv_url)
+    return False
+
+payload = {
+    "preset_active": preset_active == "1",
+    "vm_name": vm_name,
+    "profile_name": profile_name,
+    "proxmox_host": proxmox_host,
+    "proxmox_node": proxmox_node,
+    "proxmox_vmid": proxmox_vmid,
+    "available_modes": [name for name in ("SPICE", "NOVNC", "DCV") if mode_available(name)],
+}
+print(json.dumps(payload, indent=2))
+PY
+}
+
 choose_streaming_mode_from_preset() {
   local modes=()
   local menu_items=()
@@ -410,7 +551,14 @@ apply_preset_mode() {
 
 load_install_profile() {
   if [[ "$PRESET_ACTIVE" == "1" ]]; then
-    MODE="$(choose_streaming_mode_from_preset)"
+    if [[ -n "$MODE" ]]; then
+      mode_is_available "$MODE" || {
+        echo "Requested mode '$MODE' is not available in the bundled preset." >&2
+        exit 1
+      }
+    else
+      MODE="$(choose_streaming_mode_from_preset)"
+    fi
     apply_preset_mode "$MODE"
     return 0
   fi
@@ -451,6 +599,14 @@ write_grub_cfg() {
   ip_arg="$(boot_ip_arg)"
 
   cat > "$TARGET_MOUNT/boot/grub/grub.cfg" <<EOF
+insmod all_video
+insmod gfxterm
+insmod jpeg
+terminal_output gfxterm
+if background_image /boot/grub/background.jpg; then
+  set color_normal=white/black
+  set color_highlight=black/light-gray
+fi
 set default=0
 set timeout=4
 
@@ -467,6 +623,9 @@ copy_assets() {
   install -m 0644 "$LIVE_ASSET_DIR/vmlinuz" "$TARGET_MOUNT/pve-thin-client/live/vmlinuz"
   install -m 0644 "$LIVE_ASSET_DIR/initrd.img" "$TARGET_MOUNT/pve-thin-client/live/initrd.img"
   install -m 0644 "$LIVE_ASSET_DIR/filesystem.squashfs" "$TARGET_MOUNT/pve-thin-client/live/filesystem.squashfs"
+  if [[ -f "$GRUB_BACKGROUND_SRC" ]]; then
+    install -D -m 0644 "$GRUB_BACKGROUND_SRC" "$TARGET_MOUNT/boot/grub/background.jpg"
+  fi
   MODE="$MODE" \
   CONNECTION_METHOD="$CONNECTION_METHOD" \
   PROFILE_NAME="$PROFILE_NAME" \
@@ -513,8 +672,17 @@ install_bootloader() {
 main() {
   local target_disk bios_part boot_part root_part root_uuid
 
+  parse_args "$@"
   load_embedded_preset
-  if [[ "${1:-}" == "--print-preset-summary" ]]; then
+  if [[ "$PRINT_TARGETS_JSON" == "1" ]]; then
+    print_target_disks_json
+    return 0
+  fi
+  if [[ "$PRINT_PRESET_JSON" == "1" ]]; then
+    print_preset_json
+    return 0
+  fi
+  if [[ "$PRINT_PRESET_SUMMARY" == "1" ]]; then
     print_preset_summary
     return 0
   fi

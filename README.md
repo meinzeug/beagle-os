@@ -81,6 +81,7 @@ For the USB workflow, the preferred operator path is now host-local and VM-speci
 - `https://<proxmox-host>:8443/pve-dcv-downloads/SHA256SUMS`
 
 The VM-specific launcher is the primary path from the Proxmox UI. It embeds that VM's URLs and credentials into the USB image so the on-stick installer only needs the streaming mode and the target disk. The generic host launcher remains available as a fallback.
+On current media builds, both the bootloader and the live installer UI are also skinned with bundled JPEG artwork from Unsplash, so the stick no longer boots into a plain text-first installer experience.
 
 ## Thin-client assistant behavior
 

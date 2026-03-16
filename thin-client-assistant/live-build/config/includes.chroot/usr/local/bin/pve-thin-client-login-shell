@@ -6,14 +6,7 @@ BOOT_MODE="$("/usr/local/bin/pve-thin-client-boot-mode" 2>/dev/null || printf 'i
 export PVE_THIN_CLIENT_BOOT_MODE="${BOOT_MODE}"
 
 if [ -z "${DISPLAY:-}" ] && [ "${TTY_PATH}" = "/dev/tty1" ]; then
-  case "${BOOT_MODE}" in
-    installer)
-      exec /usr/local/bin/pve-thin-client-live-menu
-      ;;
-    *)
-      exec /usr/local/bin/pve-thin-client-start-x11
-      ;;
-  esac
+  exec /usr/local/bin/pve-thin-client-start-x11
 fi
 
 exec /bin/bash --login
