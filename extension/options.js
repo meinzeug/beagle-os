@@ -2,7 +2,7 @@ const DEFAULT_TEMPLATE = "https://{ip}:8443/";
 const DEFAULT_METADATA_KEYS = "dcv-url,dcv-host,dcv-ip,dcv-user,dcv-password,dcv-auth-token,dcv-session,dcv-auto-submit";
 
 function defaultUsbInstallerUrl() {
-  return `https://${window.location.hostname}:8443/pve-dcv-downloads/pve-thin-client-usb-installer-host-latest.sh`;
+  return "https://{host}:8443/pve-dcv-downloads/pve-thin-client-usb-installer-vm-{vmid}.sh";
 }
 
 function loadOptions() {

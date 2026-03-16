@@ -27,6 +27,7 @@ The project is intentionally independent from Proxmox core. It does not patch Pr
 - Can inject a lightweight DCV web auto-login helper on the proxied DCV page when VM metadata provides per-VM credentials.
 - Publishes packaged thin-client artifacts on `https://<proxmox-host>:8443/pve-dcv-downloads/`.
 - Installs a recurring host refresh timer so those hosted artifacts can be rebuilt automatically.
+- Publishes richer host status metadata including artifact sizes and SHA256 checksums for operational verification.
 
 ### 2. Linux thin-client assistant
 
@@ -71,13 +72,15 @@ If guest-agent IP lookup fails, the extension parses VM description metadata suc
 
 If `dcv-url` is present, it takes precedence over any guest-agent IP so internet-facing Proxmox deployments can force the public DCV proxy URL instead of an internal VM address.
 
-For the USB workflow, the preferred operator path is now host-local:
+For the USB workflow, the preferred operator path is now host-local and VM-specific:
 
+- `https://<proxmox-host>:8443/pve-dcv-downloads/pve-thin-client-usb-installer-vm-<vmid>.sh`
 - `https://<proxmox-host>:8443/pve-dcv-downloads/pve-thin-client-usb-installer-host-latest.sh`
 - `https://<proxmox-host>:8443/pve-dcv-downloads/pve-thin-client-usb-payload-latest.tar.gz`
 - `https://<proxmox-host>:8443/pve-dcv-downloads/pve-dcv-downloads-status.json`
+- `https://<proxmox-host>:8443/pve-dcv-downloads/SHA256SUMS`
 
-This keeps the large payload off GitHub releases and lets each Proxmox host distribute the exact thin-client image it currently serves.
+The VM-specific launcher is the primary path from the Proxmox UI. It embeds that VM's URLs and credentials into the USB image so the on-stick installer only needs the streaming mode and the target disk. The generic host launcher remains available as a fallback.
 
 ## Thin-client assistant behavior
 
@@ -209,16 +212,25 @@ Install the packaged project assets from a local checkout onto a Proxmox host:
 ```
 
 This deploys the current repository state under `/opt/pve-dcv-integration` and refreshes packaged artifacts there for admin-side distribution.
-The resulting host-local USB writer endpoint is:
+The resulting host-local USB writer endpoints are:
 
 ```text
+https://<proxmox-host>:8443/pve-dcv-downloads/pve-thin-client-usb-installer-vm-<vmid>.sh
 https://<proxmox-host>:8443/pve-dcv-downloads/pve-thin-client-usb-installer-host-latest.sh
 ```
+
+The host installation also installs persistent systemd reapply units so a Proxmox package update can replace `pve-manager` files without permanently removing the integration. The UI hook is reinstalled automatically after watched file changes and again on later boots.
 
 Refresh hosted artifacts manually on an installed Proxmox host:
 
 ```bash
 sudo /opt/pve-dcv-integration/scripts/refresh-host-artifacts.sh
+```
+
+Inspect the last refresh result:
+
+```bash
+cat /var/lib/pve-dcv-integration/refresh.status.json
 ```
 
 Run the installed host healthcheck:

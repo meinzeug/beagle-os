@@ -9,12 +9,32 @@ USB_LABEL="${USB_LABEL:-PVETHIN}"
 TARGET_DEVICE="${TARGET_DEVICE:-}"
 ASSUME_YES="0"
 LIST_DEVICES="0"
+LIST_JSON="0"
+DRY_RUN="0"
+REQUIRE_CHECKSUMS="0"
+ALLOW_NON_USB_DEVICE="0"
+ALLOW_SYSTEM_DISK="0"
 RELEASE_PAYLOAD_URL="${RELEASE_PAYLOAD_URL:-}"
 BOOTSTRAP_DIR=""
+MIN_DEVICE_BYTES="${MIN_DEVICE_BYTES:-4294967296}"
+PVE_THIN_CLIENT_PRESET_NAME="${PVE_THIN_CLIENT_PRESET_NAME:-}"
+PVE_THIN_CLIENT_PRESET_B64="${PVE_THIN_CLIENT_PRESET_B64:-}"
+
+project_version_from_root() {
+  if [[ -f "$REPO_ROOT/VERSION" ]]; then
+    tr -d ' \n\r' < "$REPO_ROOT/VERSION"
+    return 0
+  fi
+
+  printf 'dev\n'
+}
+
+PROJECT_VERSION="$(project_version_from_root)"
 
 usage() {
   cat <<EOF
-Usage: $0 [--device /dev/sdX] [--list-devices] [--yes]
+Usage: $0 [--device /dev/sdX] [--list-devices] [--yes] [--allow-non-usb] [--allow-system-disk]
+       [--json] [--dry-run] [--label NAME] [--require-checksums]
 
 Writes a bootable PVE Thin Client installer USB stick.
 The script can be started as a normal user and escalates to sudo only for the write phase.
@@ -41,11 +61,19 @@ rerun_as_root() {
 
   [[ -n "$TARGET_DEVICE" ]] && sudo_args+=(--device "$TARGET_DEVICE")
   [[ "$LIST_DEVICES" == "1" ]] && sudo_args+=(--list-devices)
+  [[ "$LIST_JSON" == "1" ]] && sudo_args+=(--json)
   [[ "$ASSUME_YES" == "1" ]] && sudo_args+=(--yes)
+  [[ "$DRY_RUN" == "1" ]] && sudo_args+=(--dry-run)
+  [[ "$REQUIRE_CHECKSUMS" == "1" ]] && sudo_args+=(--require-checksums)
+  [[ "$ALLOW_NON_USB_DEVICE" == "1" ]] && sudo_args+=(--allow-non-usb)
+  [[ "$ALLOW_SYSTEM_DISK" == "1" ]] && sudo_args+=(--allow-system-disk)
   exec sudo \
     USB_LABEL="$USB_LABEL" \
     RELEASE_PAYLOAD_URL="$RELEASE_PAYLOAD_URL" \
     PVE_DCV_BOOTSTRAP_BASE="${PVE_DCV_BOOTSTRAP_BASE:-}" \
+    MIN_DEVICE_BYTES="$MIN_DEVICE_BYTES" \
+    PVE_THIN_CLIENT_PRESET_NAME="$PVE_THIN_CLIENT_PRESET_NAME" \
+    PVE_THIN_CLIENT_PRESET_B64="$PVE_THIN_CLIENT_PRESET_B64" \
     "$0" "${sudo_args[@]}"
 }
 
@@ -79,7 +107,7 @@ allocate_bootstrap_dir() {
 }
 
 bootstrap_repo_root() {
-  local tarball extracted
+  local tarball extracted checksum_file payload_name
   if [[ -d "$REPO_ROOT/thin-client-assistant" && -x "$REPO_ROOT/scripts/build-thin-client-installer.sh" ]]; then
     return 0
   fi
@@ -88,7 +116,6 @@ bootstrap_repo_root() {
   require_tool tar
 
   BOOTSTRAP_DIR="$(allocate_bootstrap_dir)"
-  tarball="$BOOTSTRAP_DIR/payload.tar.gz"
   extracted="$BOOTSTRAP_DIR/extracted"
   mkdir -p "$extracted"
   chmod 0755 "$BOOTSTRAP_DIR" "$extracted"
@@ -99,12 +126,36 @@ bootstrap_repo_root() {
     exit 1
   }
 
+  payload_name="$(basename "$RELEASE_PAYLOAD_URL")"
+  tarball="$BOOTSTRAP_DIR/$payload_name"
   echo "Downloading thin-client payload bundle from $RELEASE_PAYLOAD_URL ..."
-  curl -fsSL "$RELEASE_PAYLOAD_URL" -o "$tarball"
+  curl --fail --show-error --location --retry 3 --retry-delay 2 "$RELEASE_PAYLOAD_URL" -o "$tarball"
+  checksum_file="$BOOTSTRAP_DIR/SHA256SUMS"
+  if curl --fail --show-error --location --retry 2 --retry-delay 1 "${RELEASE_PAYLOAD_URL%/*}/SHA256SUMS" -o "$checksum_file"; then
+    if grep -F " ${payload_name}" "$checksum_file" >"$BOOTSTRAP_DIR/payload.sha256"; then
+      (
+        cd "$BOOTSTRAP_DIR"
+        sha256sum -c payload.sha256
+      )
+    else
+      if [[ "$REQUIRE_CHECKSUMS" == "1" ]]; then
+        echo "Checksum verification is required but SHA256SUMS has no entry for $payload_name." >&2
+        exit 1
+      fi
+      echo "Warning: no checksum entry found for $payload_name, continuing without SHA256 verification." >&2
+    fi
+  else
+    if [[ "$REQUIRE_CHECKSUMS" == "1" ]]; then
+      echo "Checksum verification is required but companion SHA256SUMS could not be downloaded." >&2
+      exit 1
+    fi
+    echo "Warning: unable to download companion SHA256SUMS, continuing without payload verification." >&2
+  fi
   tar -xzf "$tarball" -C "$extracted"
   REPO_ROOT="$extracted"
   DIST_DIR="$REPO_ROOT/dist/pve-thin-client-installer"
   ASSET_DIR="$DIST_DIR/live"
+  PROJECT_VERSION="$(project_version_from_root)"
 }
 
 parse_args() {
@@ -118,8 +169,32 @@ parse_args() {
         LIST_DEVICES="1"
         shift
         ;;
+      --json)
+        LIST_JSON="1"
+        shift
+        ;;
       --yes|--force)
         ASSUME_YES="1"
+        shift
+        ;;
+      --dry-run)
+        DRY_RUN="1"
+        shift
+        ;;
+      --require-checksums)
+        REQUIRE_CHECKSUMS="1"
+        shift
+        ;;
+      --label)
+        USB_LABEL="$2"
+        shift 2
+        ;;
+      --allow-non-usb)
+        ALLOW_NON_USB_DEVICE="1"
+        shift
+        ;;
+      --allow-system-disk)
+        ALLOW_SYSTEM_DISK="1"
         shift
         ;;
       -h|--help)
@@ -137,6 +212,10 @@ parse_args() {
 
 list_candidate_devices() {
   lsblk -dn -P -o NAME,SIZE,MODEL,TYPE,RM,TRAN
+}
+
+print_devices_json() {
+  lsblk -J -d -o PATH,SIZE,MODEL,TYPE,RM,TRAN
 }
 
 print_devices() {
@@ -260,6 +339,60 @@ partition_suffix() {
   fi
 }
 
+device_is_usb_like() {
+  local device="$1"
+  local rm transport
+
+  rm="$(lsblk -dn -o RM "$device" 2>/dev/null | head -n1 | tr -d ' ')"
+  transport="$(lsblk -dn -o TRAN "$device" 2>/dev/null | head -n1 | tr -d ' ')"
+  [[ "$rm" == "1" || "$transport" == "usb" ]]
+}
+
+root_backing_disk() {
+  local source pkname
+  source="$(findmnt -no SOURCE / 2>/dev/null || true)"
+  [[ -n "$source" ]] || return 1
+  pkname="$(lsblk -ndo PKNAME "$source" 2>/dev/null | head -n1)"
+  [[ -n "$pkname" ]] || return 1
+  printf '/dev/%s\n' "$pkname"
+}
+
+device_contains_path_source() {
+  local path="$1"
+  local source
+
+  source="$(findmnt -no SOURCE "$path" 2>/dev/null || true)"
+  [[ -n "$source" ]] || return 1
+  lsblk -nrpo NAME "$TARGET_DEVICE" 2>/dev/null | grep -Fxq "$source"
+}
+
+ensure_target_is_safe() {
+  local root_disk device_size
+
+  if [[ "$ALLOW_NON_USB_DEVICE" != "1" ]] && ! device_is_usb_like "$TARGET_DEVICE"; then
+    echo "Refusing to write non-USB/non-removable device $TARGET_DEVICE. Use --allow-non-usb to override." >&2
+    exit 1
+  fi
+
+  root_disk="$(root_backing_disk || true)"
+  if [[ "$ALLOW_SYSTEM_DISK" != "1" ]]; then
+    if [[ -n "$root_disk" && "$TARGET_DEVICE" == "$root_disk" ]]; then
+      echo "Refusing to overwrite the current system disk $TARGET_DEVICE. Use --allow-system-disk to override." >&2
+      exit 1
+    fi
+    if device_contains_path_source / || device_contains_path_source /boot || device_contains_path_source /boot/efi; then
+      echo "Refusing to overwrite a disk backing the running system. Use --allow-system-disk to override." >&2
+      exit 1
+    fi
+  fi
+
+  device_size="$(blockdev --getsize64 "$TARGET_DEVICE")"
+  if (( device_size < MIN_DEVICE_BYTES )); then
+    echo "Target device $TARGET_DEVICE is too small (${device_size} bytes). Need at least ${MIN_DEVICE_BYTES} bytes." >&2
+    exit 1
+  fi
+}
+
 confirm_device() {
   [[ -b "$TARGET_DEVICE" ]] || {
     echo "Block device not found: $TARGET_DEVICE" >&2
@@ -267,7 +400,12 @@ confirm_device() {
     exit 1
   }
 
+  ensure_target_is_safe
+
   lsblk "$TARGET_DEVICE"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    return 0
+  fi
   if [[ "$ASSUME_YES" == "1" ]]; then
     return 0
   fi
@@ -301,6 +439,18 @@ ensure_live_assets() {
   "$REPO_ROOT/scripts/build-thin-client-installer.sh"
 }
 
+validate_live_assets() {
+  if [[ ! -f "$ASSET_DIR/SHA256SUMS" ]]; then
+    echo "Missing live asset checksum file: $ASSET_DIR/SHA256SUMS" >&2
+    exit 1
+  fi
+
+  (
+    cd "$ASSET_DIR"
+    sha256sum -c SHA256SUMS
+  )
+}
+
 install_dependencies() {
   local missing=()
   local tool
@@ -326,8 +476,95 @@ install_dependencies() {
     rsync
 }
 
+write_usb_manifest() {
+  local mount_dir="$1"
+  local payload_source installer_sha payload_sha
+
+  payload_source="${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}"
+  installer_sha="$(sha256sum "$mount_dir/start-installer-menu.sh" | awk '{print $1}')"
+  payload_sha="$(sha256sum "$mount_dir/pve-thin-client/live/filesystem.squashfs" | awk '{print $1}')"
+
+  python3 - "$mount_dir/.pve-dcv-usb-manifest.json" "$PROJECT_VERSION" "$USB_LABEL" "$TARGET_DEVICE" "$payload_source" "$installer_sha" "$payload_sha" "${PVE_THIN_CLIENT_PRESET_NAME:-}" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+path = Path(sys.argv[1])
+version = sys.argv[2]
+label = sys.argv[3]
+device = sys.argv[4]
+payload_source = sys.argv[5]
+installer_sha = sys.argv[6]
+payload_sha = sys.argv[7]
+preset_name = sys.argv[8]
+
+payload = {
+    "project_version": version,
+    "usb_label": label,
+    "target_device": device,
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "payload_source": payload_source,
+    "start_installer_menu_sha256": installer_sha,
+    "filesystem_squashfs_sha256": payload_sha,
+    "preset_name": preset_name,
+}
+path.write_text(json.dumps(payload, indent=2) + "\n")
+PY
+}
+
+write_usb_preset() {
+  local mount_dir="$1"
+  local preset_file
+
+  [[ -n "$PVE_THIN_CLIENT_PRESET_B64" ]] || return 0
+
+  preset_file="$mount_dir/pve-thin-client/preset.env"
+  install -d -m 0755 "$mount_dir/pve-thin-client"
+  python3 - "$preset_file" "$PVE_THIN_CLIENT_PRESET_B64" <<'PY'
+import base64
+import sys
+from pathlib import Path
+
+target = Path(sys.argv[1])
+payload = sys.argv[2].strip()
+if not payload:
+    raise SystemExit(0)
+
+decoded = base64.b64decode(payload.encode("ascii"), validate=True)
+target.write_bytes(decoded)
+target.chmod(0o600)
+PY
+}
+
+print_write_plan() {
+  cat <<EOF
+Dry run only. No changes were written.
+Target device: $TARGET_DEVICE
+USB label: $USB_LABEL
+Project version: $PROJECT_VERSION
+Payload source: ${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}
+Preset profile: ${PVE_THIN_CLIENT_PRESET_NAME:-generic}
+Planned partitions:
+  1. BIOS boot partition (1 MiB - 3 MiB)
+  2. FAT32 EFI/data partition (3 MiB - 100%)
+Copied assets:
+  - live kernel, initrd and squashfs
+  - thin-client assistant sources
+  - embedded VM preset profile
+  - docs, README, LICENSE, CHANGELOG
+  - generated USB manifest
+EOF
+}
+
 write_usb() {
   local mount_dir bios_partition usb_partition
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    print_write_plan
+    return 0
+  fi
+
   mount_dir="$(mktemp -d)"
   trap 'umount "$mount_dir" >/dev/null 2>&1 || true; rmdir "$mount_dir" >/dev/null 2>&1 || true' RETURN
 
@@ -346,6 +583,15 @@ write_usb() {
   usb_partition="$(partition_suffix "$TARGET_DEVICE" 2)"
   [[ -b "$bios_partition" ]] || {
     echo "BIOS boot partition was not created on $TARGET_DEVICE" >&2
+    exit 1
+  }
+  for _ in $(seq 1 20); do
+    [[ -b "$usb_partition" ]] && break
+    sleep 1
+    udevadm settle || true
+  done
+  [[ -b "$usb_partition" ]] || {
+    echo "EFI/data partition was not created on $TARGET_DEVICE" >&2
     exit 1
   }
   mkfs.vfat -F 32 -n "$USB_LABEL" "$usb_partition"
@@ -376,6 +622,8 @@ write_usb() {
   install -m 0644 "$REPO_ROOT/LICENSE" "$mount_dir/pve-dcv-integration/LICENSE"
   install -m 0644 "$REPO_ROOT/CHANGELOG.md" "$mount_dir/pve-dcv-integration/CHANGELOG.md"
   install -m 0755 "$REPO_ROOT/thin-client-assistant/usb/start-installer-menu.sh" "$mount_dir/start-installer-menu.sh"
+  write_usb_preset "$mount_dir"
+  write_usb_manifest "$mount_dir"
 
   cat > "$mount_dir/boot/grub/grub.cfg" <<'EOF'
 set default=0
@@ -404,12 +652,21 @@ EOF
     --removable \
     --no-nvram
 
+  (
+    cd "$mount_dir/pve-thin-client/live"
+    sha256sum -c SHA256SUMS
+  )
+
   sync
 }
 
 parse_args "$@"
 if [[ "$LIST_DEVICES" == "1" ]]; then
-  print_devices
+  if [[ "$LIST_JSON" == "1" ]]; then
+    print_devices_json
+  else
+    print_devices
+  fi
   exit 0
 fi
 if [[ -z "$TARGET_DEVICE" ]]; then
@@ -417,9 +674,10 @@ if [[ -z "$TARGET_DEVICE" ]]; then
 fi
 rerun_as_root
 require_tool lsblk
-confirm_device
 bootstrap_repo_root
 install_dependencies
 ensure_live_assets
+validate_live_assets
+confirm_device
 write_usb
 echo "USB installer media prepared on $TARGET_DEVICE"

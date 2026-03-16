@@ -26,9 +26,11 @@ require_tool() {
 require_tool zip
 require_tool tar
 require_tool sha256sum
+require_tool python3
 
 mkdir -p "$DIST_DIR"
 rm -f "$DIST_DIR"/pve-thin-client-usb-installer-host-v*.sh
+rm -f "$DIST_DIR"/pve-thin-client-usb-installer-vm-*.sh
 rm -f \
   "$DIST_DIR/$ZIP_NAME" \
   "$DIST_DIR/$TARBALL_NAME" \
@@ -38,6 +40,7 @@ rm -f \
   "$DIST_DIR/$USB_INSTALLER_NAME" \
   "$DIST_DIR/$USB_INSTALLER_LATEST_NAME" \
   "$DIST_DIR/pve-thin-client-usb-installer-host-latest.sh" \
+  "$DIST_DIR/pve-dcv-vm-installers.json" \
   "$DIST_DIR/pve-dcv-downloads-index.html" \
   "$DIST_DIR/pve-dcv-downloads-status.json" \
   "$DIST_DIR/$CHECKSUM_FILE"
@@ -46,8 +49,22 @@ if [[ ! -f "$DIST_DIR/pve-thin-client-installer/live/filesystem.squashfs" || ! -
   "$ROOT_DIR/scripts/build-thin-client-installer.sh"
 fi
 
+EXT_BUILD_DIR="$(mktemp -d)"
+trap 'rm -rf "$EXT_BUILD_DIR"' EXIT
+cp -a "$EXT_DIR/." "$EXT_BUILD_DIR/"
+python3 - "$EXT_BUILD_DIR/manifest.json" "$VERSION" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+version = sys.argv[2]
+data = json.loads(path.read_text())
+data["version"] = version
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
 (
-  cd "$EXT_DIR"
+  cd "$EXT_BUILD_DIR"
   zip -qr "$DIST_DIR/$ZIP_NAME" .
 )
 

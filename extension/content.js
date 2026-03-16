@@ -2,12 +2,19 @@
   const MENU_TEXT = "Konsole";
   const DCV_MENU_LABEL = "DCV";
   const USB_BUTTON_LABEL = "USB Installer";
+  const COPY_BUTTON_LABEL = "Copy DCV URL";
+  const INFO_BUTTON_LABEL = "DCV Info";
+  const STATUS_BUTTON_LABEL = "Downloads Status";
   const BUTTON_MARKER = "data-pve-dcv-integration";
   const DEFAULT_TEMPLATE = "https://{ip}:8443/";
   const DEFAULT_METADATA_KEYS = ["dcv-url", "dcv-host", "dcv-ip", "dcv-user", "dcv-password", "dcv-auth-token", "dcv-session", "dcv-auto-submit"];
 
   function defaultUsbInstallerUrl() {
-    return `https://${window.location.hostname}:8443/pve-dcv-downloads/pve-thin-client-usb-installer-host-latest.sh`;
+    return "https://{host}:8443/pve-dcv-downloads/pve-thin-client-usb-installer-vm-{vmid}.sh";
+  }
+
+  function defaultDownloadsStatusUrl() {
+    return `https://${window.location.hostname}:8443/pve-dcv-downloads/pve-dcv-downloads-status.json`;
   }
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -134,7 +141,8 @@
           urlTemplate: DEFAULT_TEMPLATE,
           fallbackUrl: "",
           metadataKeys: DEFAULT_METADATA_KEYS.join(","),
-          usbInstallerUrl: defaultUsbInstallerUrl()
+          usbInstallerUrl: defaultUsbInstallerUrl(),
+          downloadsStatusUrl: defaultDownloadsStatusUrl()
         },
         (data) => resolve(data)
       );
@@ -225,6 +233,15 @@
       .replaceAll("{host}", values.host || "");
   }
 
+  function resolveUsbInstallerUrl(ctx, template) {
+    return fillTemplate(String(template || defaultUsbInstallerUrl()).trim(), {
+      ip: "",
+      node: ctx?.node || "",
+      vmid: ctx?.vmid || "",
+      host: window.location.hostname
+    });
+  }
+
   function applyDcvLaunchMetadata(rawUrl, meta) {
     let url;
 
@@ -251,7 +268,7 @@
     return url.toString();
   }
 
-  async function buildLaunchUrl(ctx) {
+  async function resolveLaunchState(ctx) {
     const options = await getOptions();
     const host = window.location.hostname;
     const metadataKeys = String(options.metadataKeys || "")
@@ -285,10 +302,12 @@
     }
 
     let baseUrl = meta.dcvUrl;
+    let source = "metadata:dcv-url";
     if (!ip && meta.dcvIp) ip = meta.dcvIp;
     if (!ip && meta.dcvHost) ip = meta.dcvHost;
 
     if (!baseUrl && ip) {
+      source = meta.dcvIp ? "metadata:dcv-ip" : (meta.dcvHost ? "metadata:dcv-host" : "agent-or-template");
       baseUrl = fillTemplate(options.urlTemplate || DEFAULT_TEMPLATE, {
         ip,
         node: ctx.node,
@@ -298,11 +317,92 @@
     }
 
     if (!baseUrl && options.fallbackUrl) {
+      source = "fallback-url";
       baseUrl = options.fallbackUrl;
     }
 
-    if (!baseUrl) return null;
-    return applyDcvLaunchMetadata(baseUrl, meta);
+    return {
+      launchUrl: baseUrl ? applyDcvLaunchMetadata(baseUrl, meta) : null,
+      baseUrl,
+      ip,
+      source: baseUrl ? source : "unresolved",
+      meta,
+      downloadsStatusUrl: String(options.downloadsStatusUrl || defaultDownloadsStatusUrl()).trim(),
+      usbInstallerUrl: String(options.usbInstallerUrl || defaultUsbInstallerUrl()).trim()
+    };
+  }
+
+  async function buildLaunchUrl(ctx) {
+    const state = await resolveLaunchState(ctx);
+    return state.launchUrl;
+  }
+
+  async function copyText(text, successMessage) {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const input = document.createElement("textarea");
+    input.value = text;
+    document.body.appendChild(input);
+    input.select();
+    try {
+      document.execCommand("copy");
+    } finally {
+      document.body.removeChild(input);
+    }
+    if (successMessage) {
+      console.info(successMessage);
+    }
+  }
+
+  async function showDcvInfo() {
+    const ctx = await parseVmContext();
+    if (!ctx) {
+      alert("DCV: Keine VM-Ansicht erkannt.");
+      return;
+    }
+
+    const state = await resolveLaunchState(ctx);
+    const lines = [
+      `VM: ${ctx.vmid} auf ${ctx.node}`,
+      `Quelle: ${state.source}`,
+      `IP/Host: ${state.ip || state.meta.dcvHost || "n/a"}`,
+      `Session: ${state.meta.dcvSession || "n/a"}`,
+      `Auth-Token: ${state.meta.dcvAuthToken ? "ja" : "nein"}`,
+      `Auto-Submit: ${state.meta.dcvAutoSubmit ? "ja" : "nein"}`,
+      `Downloads Status: ${state.downloadsStatusUrl}`,
+      `Launch-URL: ${state.launchUrl || "nicht aufloesbar"}`
+    ];
+    alert(lines.join("\n"));
+  }
+
+  async function copyDcvUrl() {
+    const ctx = await parseVmContext();
+    if (!ctx) {
+      alert("DCV: Keine VM-Ansicht erkannt.");
+      return;
+    }
+
+    const state = await resolveLaunchState(ctx);
+    if (!state.launchUrl) {
+      alert("DCV URL konnte nicht ermittelt werden.");
+      return;
+    }
+
+    try {
+      await copyText(state.launchUrl, "DCV URL copied");
+      alert("DCV URL wurde in die Zwischenablage kopiert.");
+    } catch {
+      alert("DCV URL konnte nicht in die Zwischenablage kopiert werden.");
+    }
+  }
+
+  async function openDownloadsStatus() {
+    const options = await getOptions();
+    const url = String(options.downloadsStatusUrl || defaultDownloadsStatusUrl()).trim();
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   async function openDcv() {
@@ -325,8 +425,14 @@
   }
 
   async function downloadUsbInstaller() {
+    const ctx = await parseVmContext();
+    if (!ctx) {
+      alert("USB Installer: Keine VM-Ansicht erkannt.");
+      return;
+    }
+
     const options = await getOptions();
-    const url = String(options.usbInstallerUrl || defaultUsbInstallerUrl()).trim();
+    const url = resolveUsbInstallerUrl(ctx, options.usbInstallerUrl || defaultUsbInstallerUrl());
     if (!url) {
       alert("USB Installer URL ist nicht konfiguriert.");
       return;
@@ -384,10 +490,34 @@
     const toolbar = findToolbarRow();
     if (!toolbar) return;
 
+    const existingDcv = toolbar.querySelector(`[${BUTTON_MARKER}="${DCV_MENU_LABEL}"]`);
+    if (!existingDcv) {
+      const dcvButton = createToolbarButton(DCV_MENU_LABEL, openDcv);
+      toolbar.appendChild(dcvButton);
+    }
+
+    const existingCopy = toolbar.querySelector(`[${BUTTON_MARKER}="${COPY_BUTTON_LABEL}"]`);
+    if (!existingCopy) {
+      const copyButton = createToolbarButton(COPY_BUTTON_LABEL, copyDcvUrl);
+      toolbar.appendChild(copyButton);
+    }
+
+    const existingInfo = toolbar.querySelector(`[${BUTTON_MARKER}="${INFO_BUTTON_LABEL}"]`);
+    if (!existingInfo) {
+      const infoButton = createToolbarButton(INFO_BUTTON_LABEL, showDcvInfo);
+      toolbar.appendChild(infoButton);
+    }
+
     const existingUsb = toolbar.querySelector(`[${BUTTON_MARKER}="${USB_BUTTON_LABEL}"]`);
     if (!existingUsb) {
       const usbButton = createToolbarButton(USB_BUTTON_LABEL, downloadUsbInstaller);
       toolbar.appendChild(usbButton);
+    }
+
+    const existingStatus = toolbar.querySelector(`[${BUTTON_MARKER}="${STATUS_BUTTON_LABEL}"]`);
+    if (!existingStatus) {
+      const statusButton = createToolbarButton(STATUS_BUTTON_LABEL, openDownloadsStatus);
+      toolbar.appendChild(statusButton);
     }
   }
 
@@ -396,23 +526,23 @@
     return menus.find((menu) => menu.offsetParent !== null) || null;
   }
 
-  function menuAlreadyHasDcv(menu) {
-    return Array.from(menu.querySelectorAll("*")).some((node) => String(node.textContent || "").trim() === DCV_MENU_LABEL);
+  function menuAlreadyHasLabel(menu, label) {
+    return Array.from(menu.querySelectorAll("*")).some((node) => String(node.textContent || "").trim() === label);
   }
 
-  function createDcvMenuItem() {
+  function createMenuItem(label, onClick) {
     const item = document.createElement("a");
     item.href = "#";
-    item.setAttribute(BUTTON_MARKER, DCV_MENU_LABEL);
+    item.setAttribute(BUTTON_MARKER, label);
     item.className = "x-menu-item";
     item.style.display = "block";
     item.style.padding = "4px 24px 4px 24px";
     item.style.cursor = "pointer";
-    item.textContent = DCV_MENU_LABEL;
+    item.textContent = label;
     item.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      openDcv();
+      onClick();
     });
     return item;
   }
@@ -427,8 +557,11 @@
       return text === "noVNC" || text === "SPICE";
     });
 
-    if (!hasConsoleItems || menuAlreadyHasDcv(menu)) return;
-    menu.appendChild(createDcvMenuItem());
+    if (!hasConsoleItems) return;
+    if (!menuAlreadyHasLabel(menu, DCV_MENU_LABEL)) menu.appendChild(createMenuItem(DCV_MENU_LABEL, openDcv));
+    if (!menuAlreadyHasLabel(menu, COPY_BUTTON_LABEL)) menu.appendChild(createMenuItem(COPY_BUTTON_LABEL, copyDcvUrl));
+    if (!menuAlreadyHasLabel(menu, INFO_BUTTON_LABEL)) menu.appendChild(createMenuItem(INFO_BUTTON_LABEL, showDcvInfo));
+    if (!menuAlreadyHasLabel(menu, STATUS_BUTTON_LABEL)) menu.appendChild(createMenuItem(STATUS_BUTTON_LABEL, openDownloadsStatus));
   }
 
   async function boot() {

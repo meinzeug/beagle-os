@@ -16,6 +16,7 @@ check_tool() {
 check_tool bash
 check_tool node
 check_tool rg
+check_tool python3
 
 mapfile -t shell_files < <(find "$ROOT_DIR/scripts" "$ROOT_DIR/thin-client-assistant" -type f -name '*.sh' | sort)
 for file in "${shell_files[@]}"; do
@@ -26,6 +27,18 @@ node --check "$ROOT_DIR/proxmox-ui/pve-dcv-integration.js"
 node --check "$ROOT_DIR/proxmox-ui/pve-dcv-autologin.js"
 node --check "$ROOT_DIR/extension/content.js"
 node --check "$ROOT_DIR/extension/options.js"
+
+python3 - "$ROOT_DIR/extension/manifest.json" "$VERSION" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+version = sys.argv[2]
+manifest = json.loads(path.read_text())
+if manifest.get("version") != version:
+    raise SystemExit(f"extension manifest version mismatch: {manifest.get('version')} != {version}")
+PY
 
 rg -q "^## v${VERSION} -" "$ROOT_DIR/CHANGELOG.md"
 

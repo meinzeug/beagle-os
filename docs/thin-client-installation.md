@@ -108,13 +108,19 @@ Prepare a USB installer stick:
 ./thin-client-assistant/usb/pve-thin-client-usb-installer.sh --device /dev/sdX
 ```
 
-The preferred standalone entrypoint is the host-distributed `pve-thin-client-usb-installer-host-latest.sh`, which is preconfigured to fetch the matching payload from the same Proxmox host:
+The preferred standalone entrypoint is the host-distributed per-VM launcher `pve-thin-client-usb-installer-vm-<vmid>.sh`, which is preconfigured to fetch the matching payload from the same Proxmox host and embed that VM's preset directly into the USB image:
+
+```text
+https://<proxmox-host>:8443/pve-dcv-downloads/pve-thin-client-usb-installer-vm-<vmid>.sh
+```
+
+The generic host-wide fallback remains available:
 
 ```text
 https://<proxmox-host>:8443/pve-dcv-downloads/pve-thin-client-usb-installer-host-latest.sh
 ```
 
-This avoids pushing the large payload through GitHub releases and keeps the writer aligned with the exact host-side build.
+On preseeded USB media, the local installer only asks for the streaming mode (`SPICE`, `NOVNC`, `DCV`) and the target disk. Connection URLs, VM IDs and credentials come from the bundled preset instead of being entered interactively on the target machine.
 
 On installed hosts, a systemd timer refreshes these hosted artifacts periodically. You can also run the refresh manually:
 

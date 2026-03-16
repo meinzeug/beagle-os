@@ -1,5 +1,52 @@
 # Changelog
 
+## v3.1.0 - 2026-03-16
+
+- Reworked the USB deployment flow around backend-generated per-VM installer launchers named `pve-thin-client-usb-installer-vm-<vmid>.sh`, so the Proxmox toolbar can hand each VM its own preseeded thin-client installer download.
+- Embedded VM-specific connection presets directly into the hosted USB installer and wrote them onto the USB medium as `pve-thin-client/preset.env`, preserving those presets across the writer's `sudo` escalation boundary.
+- Simplified the USB local-install path so bundled media now asks only for the streaming mode and the target disk; the previous full questionnaire remains only as a fallback for non-preseeded media.
+- Added preset-aware mode validation for `SPICE`, `NOVNC` and `DCV`, including automatic single-mode selection when only one streaming target is configured for the chosen VM.
+- Updated the Proxmox host UI and browser extension so the `USB Installer` action resolves a VM-specific download URL template with `{host}`, `{node}` and `{vmid}` placeholders instead of always pointing to a generic host-wide launcher.
+- Expanded hosted download metadata with a VM installer URL template and machine-readable VM installer inventory under `dist/pve-dcv-vm-installers.json` and the published downloads status JSON.
+- Added persistent Proxmox UI reapply units so package updates or replaced `/usr/share/pve-manager` assets automatically reinstall the integration on the next file change and again on subsequent boots.
+
+## v3.0.2 - 2026-03-16
+
+- Fixed hosted USB payload checksum verification in standalone mode by downloading the payload under its original release filename, so `SHA256SUMS` can be checked successfully before extraction.
+
+## v3.0.1 - 2026-03-16
+
+- Fixed the standalone USB installer launcher so it no longer tries to read `VERSION` from a non-repository path before the hosted payload bundle has been downloaded and extracted.
+
+## v3.0.0 - 2026-03-15
+
+- Expanded the Proxmox host UI from a single `DCV` action into a small operator toolset with dedicated toolbar buttons for `DCV`, `Copy DCV URL`, `DCV Info`, `USB Installer` and `Downloads Status`.
+- Added matching Proxmox console-menu actions for `Copy DCV URL`, `DCV Info` and `DCV Downloads` in the host-installed UI integration.
+- Added resolved-launch introspection in the host UI so operators can see whether a DCV launch came from `dcv-url`, metadata fallbacks, guest-agent IP discovery or the configured fallback URL.
+- Added clipboard integration in the host UI for copying fully resolved DCV URLs without launching the session immediately.
+- Added a host-side `DCV Info` dialog that exposes VM, source, session, token presence, auto-submit state and the hosted download-status endpoint.
+- Expanded the browser extension toolbar with direct `DCV`, `Copy DCV URL`, `DCV Info`, `USB Installer` and `Downloads Status` buttons on VM views.
+- Added matching browser-extension console-menu actions for `Copy DCV URL`, `DCV Info` and `Downloads Status`.
+- Added extension-side resolved-launch inspection so operators can inspect the computed target and metadata source even when they are not using the host-installed UI integration.
+- Added extension-side clipboard copying for the resolved DCV URL, reducing trial launches during admin work.
+- Added extension-side direct access to the host-local download status JSON so frontend operators can jump from a VM view straight to the published thin-client artifact status.
+
+## v2.0.0 - 2026-03-15
+
+- Promoted the project to a major operational release with stricter host-side health validation, richer hosted download metadata and persistent refresh run-state tracking.
+- Expanded `/pve-dcv-downloads/pve-dcv-downloads-status.json` to include server identity, published paths, artifact filenames, sizes and SHA256 checksums for both the hosted installer and payload bundle.
+- Upgraded the hosted download index page so operators can inspect release version, host endpoint and checksums directly from the browser without opening raw JSON.
+- Added persistent refresh result logging under `/var/lib/pve-dcv-integration/refresh.status.json` so automated artifact rebuilds leave a machine-readable success/failure record behind.
+- Hardened `check-proxmox-host.sh` to verify service activity, hosted URL binding, status JSON consistency and on-disk SHA256 parity instead of only checking for file presence.
+- Carried forward the previous USB and DCV runtime hardening as the stable baseline for the 2.0 line.
+
+## v0.5.1 - 2026-03-15
+
+- Hardened the USB writer so it refuses non-removable or system disks by default, enforces a minimum device size and waits for freshly created partitions before formatting them.
+- Added SHA256 verification for hosted USB payload downloads when `SHA256SUMS` is available and now validates live installer assets both before and after they are copied to the target media.
+- Hardened the DCV thin-client launch path by enforcing safer `.dcv` file permissions, validating token/session combinations and supporting browser fallback when `dcvviewer` is unavailable but a proxied HTTPS DCV endpoint exists.
+- Restored the Proxmox host UI asset in the working tree so host deployments remain reproducible after the local interrupted edit sequence.
+
 ## v0.5.0 - 2026-03-15
 
 - Added production-oriented host operations tooling: a hosted-artifact refresh script, an installable systemd service/timer and a host healthcheck command.

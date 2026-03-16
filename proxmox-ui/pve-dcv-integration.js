@@ -2,7 +2,11 @@
   "use strict";
 
   function defaultUsbInstallerUrl() {
-    return "https://" + window.location.hostname + ":8443/pve-dcv-downloads/pve-thin-client-usb-installer-host-latest.sh";
+    return "https://{host}:8443/pve-dcv-downloads/pve-thin-client-usb-installer-vm-{vmid}.sh";
+  }
+
+  function defaultDownloadsStatusUrl() {
+    return "https://" + window.location.hostname + ":8443/pve-dcv-downloads/pve-dcv-downloads-status.json";
   }
 
   var DEFAULTS = {
@@ -18,7 +22,8 @@
       urlTemplate: runtimeConfig.urlTemplate || DEFAULTS.urlTemplate,
       fallbackUrl: runtimeConfig.fallbackUrl || DEFAULTS.fallbackUrl,
       metadataKeys: Array.isArray(runtimeConfig.metadataKeys) ? runtimeConfig.metadataKeys : DEFAULTS.metadataKeys,
-      usbInstallerUrl: runtimeConfig.usbInstallerUrl || defaultUsbInstallerUrl()
+      usbInstallerUrl: runtimeConfig.usbInstallerUrl || defaultUsbInstallerUrl(),
+      downloadsStatusUrl: runtimeConfig.downloadsStatusUrl || defaultDownloadsStatusUrl()
     };
   }
 
@@ -102,7 +107,18 @@
       .replaceAll("{host}", values.host || "");
   }
 
-  function buildLaunchUrl(ctx) {
+  function resolveUsbInstallerUrl(ctx) {
+    var config = getConfig();
+    var template = config.usbInstallerUrl || defaultUsbInstallerUrl();
+    return fillTemplate(template, {
+      ip: "",
+      node: ctx && ctx.node,
+      vmid: ctx && ctx.vmid,
+      host: window.location.hostname
+    });
+  }
+
+  function resolveLaunchState(ctx) {
     var config = getConfig();
     var host = window.location.hostname;
     var ip = null;
@@ -151,9 +167,11 @@
       .then(loadConfig)
       .then(function() {
         var baseUrl = meta.dcvUrl;
+        var source = "metadata:dcv-url";
         if (!ip && meta.dcvIp) ip = meta.dcvIp;
         if (!ip && meta.dcvHost) ip = meta.dcvHost;
         if (!baseUrl && ip) {
+          source = meta.dcvIp ? "metadata:dcv-ip" : (meta.dcvHost ? "metadata:dcv-host" : "agent-or-template");
           baseUrl = fillTemplate(config.urlTemplate, {
             ip: ip,
             node: ctx.node,
@@ -161,9 +179,24 @@
             host: host
           });
         }
-        if (!baseUrl) baseUrl = config.fallbackUrl || null;
-        return baseUrl ? applyDcvLaunchMetadata(baseUrl, meta) : null;
+        if (!baseUrl && config.fallbackUrl) {
+          source = "fallback-url";
+          baseUrl = config.fallbackUrl;
+        }
+        return {
+          launchUrl: baseUrl ? applyDcvLaunchMetadata(baseUrl, meta) : null,
+          baseUrl: baseUrl,
+          ip: ip,
+          source: baseUrl ? source : "unresolved",
+          meta: meta
+        };
       });
+  }
+
+  function buildLaunchUrl(ctx) {
+    return resolveLaunchState(ctx).then(function(state) {
+      return state.launchUrl;
+    });
   }
 
   function showError(message) {
@@ -184,8 +217,79 @@
     });
   }
 
-  function openUsbInstaller() {
-    window.open(getConfig().usbInstallerUrl, "_blank", "noopener,noreferrer");
+  function openDownloadsStatus() {
+    window.open(getConfig().downloadsStatusUrl, "_blank", "noopener,noreferrer");
+  }
+
+  function copyText(text, successMessage) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).then(function() {
+        if (window.Ext && Ext.toast) {
+          Ext.toast(successMessage);
+        }
+      });
+    }
+
+    var input = document.createElement("textarea");
+    input.value = text;
+    document.body.appendChild(input);
+    input.select();
+    try {
+      document.execCommand("copy");
+      if (window.Ext && Ext.toast) {
+        Ext.toast(successMessage);
+      }
+      return Promise.resolve();
+    } catch (error) {
+      return Promise.reject(error);
+    } finally {
+      document.body.removeChild(input);
+    }
+  }
+
+  function copyDcvUrlForContext(ctx) {
+    resolveLaunchState(ctx).then(function(state) {
+      if (!state.launchUrl) {
+        showError("DCV URL konnte nicht ermittelt werden. Pruefe Guest Agent oder VM-Beschreibung.");
+        return;
+      }
+      copyText(state.launchUrl, "DCV URL in die Zwischenablage kopiert.").catch(function() {
+        showError("DCV URL konnte nicht in die Zwischenablage kopiert werden.");
+      });
+    });
+  }
+
+  function showDcvInfoForContext(ctx) {
+    resolveLaunchState(ctx).then(function(state) {
+      var lines = [
+        "VM: " + ctx.vmid + " auf " + ctx.node,
+        "Quelle: " + state.source,
+        "IP/Host: " + (state.ip || state.meta.dcvHost || "n/a"),
+        "Session: " + (state.meta.dcvSession || "n/a"),
+        "Auth-Token: " + (state.meta.dcvAuthToken ? "ja" : "nein"),
+        "Auto-Submit: " + (state.meta.dcvAutoSubmit ? "ja" : "nein"),
+        "Download-Status: " + getConfig().downloadsStatusUrl,
+        "Launch-URL: " + (state.launchUrl || "nicht aufloesbar")
+      ];
+      if (window.Ext && Ext.Msg && Ext.Msg.show) {
+        Ext.Msg.show({
+          title: "PVE DCV Info",
+          message: "<pre style=\"white-space:pre-wrap;line-height:1.4\">" + Ext.String.htmlEncode(lines.join("\n")) + "</pre>",
+          buttons: Ext.Msg.OK
+        });
+      } else {
+        window.alert(lines.join("\n"));
+      }
+    });
+  }
+
+  function openUsbInstaller(ctx) {
+    var url = resolveUsbInstallerUrl(ctx || {});
+    if (!url) {
+      showError("USB Installer URL konnte nicht ermittelt werden.");
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   function ensureConsoleButtonIntegration(button) {
@@ -203,17 +307,83 @@
           openDcvForContext({ node: button.nodename, vmid: button.vmid });
         }
       });
+      menu.add({
+        itemId: "pveDcvCopyMenuItem",
+        text: "Copy DCV URL",
+        iconCls: "fa fa-clipboard",
+        handler: function() {
+          copyDcvUrlForContext({ node: button.nodename, vmid: button.vmid });
+        }
+      });
+      menu.add({
+        itemId: "pveDcvInfoMenuItem",
+        text: "DCV Info",
+        iconCls: "fa fa-info-circle",
+        handler: function() {
+          showDcvInfoForContext({ node: button.nodename, vmid: button.vmid });
+        }
+      });
+      menu.add({
+        itemId: "pveDcvDownloadsMenuItem",
+        text: "DCV Downloads",
+        iconCls: "fa fa-download",
+        handler: openDownloadsStatus
+      });
+      menu.add({
+        itemId: "pveUsbInstallerMenuItem",
+        text: "USB Installer",
+        iconCls: "fa fa-download",
+        handler: function() {
+          openUsbInstaller({ node: button.nodename, vmid: button.vmid });
+        }
+      });
     }
 
     var toolbar = button.up && button.up("toolbar");
-    if (toolbar && !toolbar.down("#pveUsbInstallerButton")) {
+    if (toolbar && !toolbar.down("#pveDcvLaunchButton")) {
       var index = toolbar.items.indexOf(button);
       toolbar.insert(index + 1, {
+        xtype: "button",
+        itemId: "pveDcvLaunchButton",
+        text: "DCV",
+        iconCls: "fa fa-desktop",
+        handler: function() {
+          openDcvForContext({ node: button.nodename, vmid: button.vmid });
+        }
+      });
+      toolbar.insert(index + 2, {
+        xtype: "button",
+        itemId: "pveDcvCopyButton",
+        text: "Copy DCV URL",
+        iconCls: "fa fa-clipboard",
+        handler: function() {
+          copyDcvUrlForContext({ node: button.nodename, vmid: button.vmid });
+        }
+      });
+      toolbar.insert(index + 3, {
+        xtype: "button",
+        itemId: "pveDcvInfoButton",
+        text: "DCV Info",
+        iconCls: "fa fa-info-circle",
+        handler: function() {
+          showDcvInfoForContext({ node: button.nodename, vmid: button.vmid });
+        }
+      });
+      toolbar.insert(index + 4, {
         xtype: "button",
         itemId: "pveUsbInstallerButton",
         text: "USB Installer",
         iconCls: "fa fa-download",
-        handler: openUsbInstaller
+        handler: function() {
+          openUsbInstaller({ node: button.nodename, vmid: button.vmid });
+        }
+      });
+      toolbar.insert(index + 5, {
+        xtype: "button",
+        itemId: "pveDownloadsStatusButton",
+        text: "Downloads Status",
+        iconCls: "fa fa-list-alt",
+        handler: openDownloadsStatus
       });
     }
 

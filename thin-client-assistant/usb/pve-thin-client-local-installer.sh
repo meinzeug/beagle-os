@@ -8,6 +8,8 @@ TARGET_MOUNT="/mnt/pve-thin-client-target"
 EFI_MOUNT="$TARGET_MOUNT/boot/efi"
 LIVE_ASSET_DIR="${LIVE_MEDIUM}/pve-thin-client/live"
 STATE_DIR="$TARGET_MOUNT/pve-thin-client/state"
+PRESET_FILE="${LIVE_MEDIUM}/pve-thin-client/preset.env"
+PRESET_ACTIVE="0"
 
 MODE=""
 CONNECTION_METHOD=""
@@ -210,6 +212,212 @@ load_profile() {
   eval "$output"
 }
 
+load_embedded_preset() {
+  if [[ -f "$PRESET_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$PRESET_FILE"
+    PRESET_ACTIVE="1"
+  fi
+}
+
+mode_is_available() {
+  local mode="$1"
+
+  case "$mode" in
+    SPICE)
+      [[ -n "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" ]] || {
+        [[ -n "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" ]] && \
+        [[ -n "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" ]] && \
+        [[ -n "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" ]] && \
+        [[ -n "${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}}" ]] && \
+        [[ -n "${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}}" ]]
+      }
+      ;;
+    NOVNC)
+      [[ -n "${PVE_THIN_CLIENT_PRESET_NOVNC_URL:-}" ]]
+      ;;
+    DCV)
+      [[ -n "${PVE_THIN_CLIENT_PRESET_DCV_URL:-}" ]]
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+mode_label() {
+  local mode="$1"
+  case "$mode" in
+    SPICE)
+      if [[ -n "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" ]]; then
+        printf 'SPICE direct launcher\n'
+      else
+        printf 'SPICE via Proxmox ticket\n'
+      fi
+      ;;
+    NOVNC)
+      printf 'noVNC browser session\n'
+      ;;
+    DCV)
+      printf 'Amazon DCV session\n'
+      ;;
+    *)
+      printf '%s\n' "$mode"
+      ;;
+  esac
+}
+
+print_preset_summary() {
+  if [[ "$PRESET_ACTIVE" != "1" ]]; then
+    echo "No bundled VM preset was found on this USB stick."
+    return 0
+  fi
+
+  local available=()
+  local mode
+  for mode in SPICE NOVNC DCV; do
+    if mode_is_available "$mode"; then
+      available+=("$mode")
+    fi
+  done
+
+  printf 'Bundled VM preset: %s\n' "${PVE_THIN_CLIENT_PRESET_VM_NAME:-${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-unnamed}}"
+  printf 'VMID/Node: %s / %s\n' "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-n/a}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-n/a}"
+  printf 'Proxmox host: %s\n' "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-n/a}"
+  if (( ${#available[@]} > 0 )); then
+    printf 'Configured streaming modes: %s\n' "${available[*]}"
+  else
+    printf 'Configured streaming modes: none\n'
+  fi
+}
+
+choose_streaming_mode_from_preset() {
+  local modes=()
+  local menu_items=()
+  local tty_path="/dev/tty"
+  local mode answer index
+
+  for mode in SPICE NOVNC DCV; do
+    if mode_is_available "$mode"; then
+      modes+=("$mode")
+      menu_items+=("$mode" "$(mode_label "$mode")")
+    fi
+  done
+
+  if (( ${#modes[@]} == 0 )); then
+    echo "The bundled VM preset does not contain a usable SPICE, noVNC or DCV target." >&2
+    exit 1
+  fi
+
+  if (( ${#modes[@]} == 1 )); then
+    printf '%s\n' "${modes[0]}"
+    return 0
+  fi
+
+  if command -v whiptail >/dev/null 2>&1; then
+    whiptail --title "PVE Thin Client Installation" --menu \
+      "Choose the streaming mode for ${PVE_THIN_CLIENT_PRESET_VM_NAME:-this VM}." 20 88 8 \
+      "${menu_items[@]}" 3>&1 1>&2 2>&3
+    return 0
+  fi
+
+  if [[ ! -r "$tty_path" || ! -w "$tty_path" ]]; then
+    echo "Interactive mode selection requires a TTY." >&2
+    exit 1
+  fi
+
+  printf 'Available streaming modes for %s:\n' "${PVE_THIN_CLIENT_PRESET_VM_NAME:-this VM}" >"$tty_path"
+  index=1
+  while (( index <= ${#menu_items[@]} / 2 )); do
+    printf '%s) %s %s\n' "$index" "${menu_items[$(( (index - 1) * 2 ))]}" "${menu_items[$(( (index - 1) * 2 + 1 ))]}" >"$tty_path"
+    index=$((index + 1))
+  done
+  printf 'Choice: ' >"$tty_path"
+  read -r answer <"$tty_path"
+  [[ "$answer" =~ ^[0-9]+$ ]] || {
+    echo "Invalid selection: $answer" >&2
+    exit 1
+  }
+  (( answer >= 1 && answer <= ${#menu_items[@]} / 2 )) || {
+    echo "Selection out of range: $answer" >&2
+    exit 1
+  }
+  printf '%s\n' "${menu_items[$(( (answer - 1) * 2 ))]}"
+}
+
+apply_preset_defaults() {
+  PROFILE_NAME="${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-default}"
+  HOSTNAME_VALUE="${PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE:-pve-thin-client}"
+  AUTOSTART="${PVE_THIN_CLIENT_PRESET_AUTOSTART:-1}"
+  NETWORK_MODE="${PVE_THIN_CLIENT_PRESET_NETWORK_MODE:-dhcp}"
+  NETWORK_INTERFACE="${PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE:-eth0}"
+  NETWORK_STATIC_ADDRESS="${PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_ADDRESS:-}"
+  NETWORK_STATIC_PREFIX="${PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_PREFIX:-24}"
+  NETWORK_GATEWAY="${PVE_THIN_CLIENT_PRESET_NETWORK_GATEWAY:-}"
+  NETWORK_DNS_SERVERS="${PVE_THIN_CLIENT_PRESET_NETWORK_DNS_SERVERS:-1.1.1.1 8.8.8.8}"
+  PROXMOX_SCHEME="${PVE_THIN_CLIENT_PRESET_PROXMOX_SCHEME:-https}"
+  PROXMOX_HOST="${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}"
+  PROXMOX_PORT="${PVE_THIN_CLIENT_PRESET_PROXMOX_PORT:-8006}"
+  PROXMOX_NODE="${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}"
+  PROXMOX_VMID="${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}"
+  PROXMOX_REALM="${PVE_THIN_CLIENT_PRESET_PROXMOX_REALM:-pam}"
+  PROXMOX_VERIFY_TLS="${PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS:-0}"
+}
+
+apply_preset_mode() {
+  local selected_mode="$1"
+
+  apply_preset_defaults
+  MODE="$selected_mode"
+  CONNECTION_METHOD="direct"
+  SPICE_URL=""
+  NOVNC_URL=""
+  DCV_URL=""
+  CONNECTION_USERNAME=""
+  CONNECTION_PASSWORD=""
+  CONNECTION_TOKEN=""
+
+  case "$selected_mode" in
+    SPICE)
+      CONNECTION_USERNAME="${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}}"
+      CONNECTION_PASSWORD="${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}}"
+      CONNECTION_TOKEN="${PVE_THIN_CLIENT_PRESET_SPICE_TOKEN:-${PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN:-}}"
+      if [[ -n "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" ]]; then
+        CONNECTION_METHOD="${PVE_THIN_CLIENT_PRESET_SPICE_METHOD:-direct}"
+        SPICE_URL="${PVE_THIN_CLIENT_PRESET_SPICE_URL}"
+      else
+        CONNECTION_METHOD="proxmox-ticket"
+      fi
+      ;;
+    NOVNC)
+      NOVNC_URL="${PVE_THIN_CLIENT_PRESET_NOVNC_URL:-}"
+      CONNECTION_USERNAME="${PVE_THIN_CLIENT_PRESET_NOVNC_USERNAME:-${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}}"
+      CONNECTION_PASSWORD="${PVE_THIN_CLIENT_PRESET_NOVNC_PASSWORD:-${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}}"
+      CONNECTION_TOKEN="${PVE_THIN_CLIENT_PRESET_NOVNC_TOKEN:-${PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN:-}}"
+      ;;
+    DCV)
+      DCV_URL="${PVE_THIN_CLIENT_PRESET_DCV_URL:-}"
+      CONNECTION_USERNAME="${PVE_THIN_CLIENT_PRESET_DCV_USERNAME:-}"
+      CONNECTION_PASSWORD="${PVE_THIN_CLIENT_PRESET_DCV_PASSWORD:-}"
+      CONNECTION_TOKEN="${PVE_THIN_CLIENT_PRESET_DCV_TOKEN:-}"
+      ;;
+    *)
+      echo "Unsupported preset mode: $selected_mode" >&2
+      exit 1
+      ;;
+  esac
+}
+
+load_install_profile() {
+  if [[ "$PRESET_ACTIVE" == "1" ]]; then
+    MODE="$(choose_streaming_mode_from_preset)"
+    apply_preset_mode "$MODE"
+    return 0
+  fi
+
+  load_profile
+}
+
 prefix_to_netmask() {
   python3 - "$1" <<'PY'
 import ipaddress
@@ -305,6 +513,12 @@ install_bootloader() {
 main() {
   local target_disk bios_part boot_part root_part root_uuid
 
+  load_embedded_preset
+  if [[ "${1:-}" == "--print-preset-summary" ]]; then
+    print_preset_summary
+    return 0
+  fi
+
   require_root "$@"
   require_tools
 
@@ -313,7 +527,7 @@ main() {
     exit 1
   fi
 
-  load_profile
+  load_install_profile
   target_disk="$(choose_target_disk)"
   [[ -n "$target_disk" ]] || exit 0
   confirm_wipe "$target_disk" || exit 0

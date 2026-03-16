@@ -7,7 +7,7 @@ SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)
 LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-8443}"
 DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/pve-dcv-downloads}"
 DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-https://${SERVER_NAME}:${LISTEN_PORT}${DOWNLOADS_PATH}}"
-USB_INSTALLER_URL="${PVE_DCV_USB_INSTALLER_URL:-${DOWNLOADS_BASE_URL%/}/pve-thin-client-usb-installer-host-latest.sh}"
+USB_INSTALLER_URL="${PVE_DCV_USB_INSTALLER_URL:-https://{host}:${LISTEN_PORT}${DOWNLOADS_PATH%/}/pve-thin-client-usb-installer-vm-{vmid}.sh}"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/pve-dcv-integration}"
 
 ensure_root() {
