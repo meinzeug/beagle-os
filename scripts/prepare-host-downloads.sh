@@ -153,6 +153,9 @@ def build_preset(vm, config):
     dcv_host = meta.get("dcv-host") or meta.get("dcv-ip") or ""
     dcv_url = meta.get("dcv-url") or (f"https://{dcv_host}:{listen_port}/" if dcv_host else "")
     dcv_url = with_auth_token_and_session(dcv_url, meta.get("dcv-auth-token", ""), meta.get("dcv-session", ""))
+    moonlight_host = meta.get("moonlight-host") or meta.get("sunshine-host") or meta.get("sunshine-ip") or dcv_host
+    sunshine_api_url = meta.get("sunshine-api-url") or (f"https://{moonlight_host}:47990" if moonlight_host else "")
+    moonlight_default_mode = meta.get("thinclient-default-mode", "MOONLIGHT" if moonlight_host else "")
 
     spice_url = meta.get("spice-url", "")
     novnc_url = meta.get("novnc-url", "")
@@ -163,6 +166,7 @@ def build_preset(vm, config):
         "PVE_THIN_CLIENT_PRESET_VM_NAME": vm_name,
         "PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE": safe_hostname(vm_name, vmid),
         "PVE_THIN_CLIENT_PRESET_AUTOSTART": meta.get("thinclient-autostart", "1"),
+        "PVE_THIN_CLIENT_PRESET_DEFAULT_MODE": moonlight_default_mode,
         "PVE_THIN_CLIENT_PRESET_NETWORK_MODE": meta.get("thinclient-network-mode", "dhcp"),
         "PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE": meta.get("thinclient-network-interface", "eth0"),
         "PVE_THIN_CLIENT_PRESET_PROXMOX_SCHEME": proxmox_scheme,
@@ -189,9 +193,26 @@ def build_preset(vm, config):
         "PVE_THIN_CLIENT_PRESET_DCV_PASSWORD": meta.get("dcv-password", ""),
         "PVE_THIN_CLIENT_PRESET_DCV_TOKEN": meta.get("dcv-auth-token", ""),
         "PVE_THIN_CLIENT_PRESET_DCV_SESSION": meta.get("dcv-session", ""),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST": moonlight_host,
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP": meta.get("moonlight-app", meta.get("sunshine-app", "Desktop")),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN": meta.get("moonlight-bin", "moonlight"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION": meta.get("moonlight-resolution", "1080"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS": meta.get("moonlight-fps", "60"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE": meta.get("moonlight-bitrate", "20000"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC": meta.get("moonlight-video-codec", "H.264"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER": meta.get("moonlight-video-decoder", "auto"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG": meta.get("moonlight-audio-config", "stereo"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE": meta.get("moonlight-absolute-mouse", "1"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER": meta.get("moonlight-quit-after", "0"),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL": sunshine_api_url,
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": meta.get("sunshine-user", ""),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": meta.get("sunshine-password", ""),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": meta.get("sunshine-pin", f"{vmid % 10000:04d}"),
     }
 
     available_modes = []
+    if preset["PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST"]:
+        available_modes.append("MOONLIGHT")
     if preset["PVE_THIN_CLIENT_PRESET_SPICE_URL"] or (
         preset["PVE_THIN_CLIENT_PRESET_PROXMOX_HOST"]
         and preset["PVE_THIN_CLIENT_PRESET_PROXMOX_NODE"]
@@ -278,7 +299,7 @@ cat > "$DIST_DIR/pve-dcv-downloads-index.html" <<EOF
     <li><a href="${DOWNLOADS_PATH%/}/pve-dcv-downloads-status.json">Status JSON</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/SHA256SUMS">SHA256SUMS</a></li>
   </ul>
-  <p>The hosted USB installers are preconfigured to download their large payload from this same Proxmox host instead of GitHub. VM-specific variants also embed the chosen VM connection profile directly into the USB stick.</p>
+  <p>The hosted USB installers are preconfigured to download their large payload from this same Proxmox host instead of GitHub. VM-specific variants also embed the chosen VM connection profile directly into the USB stick, including Moonlight plus Sunshine pairing defaults where configured.</p>
   <table>
     <tr><th>Release version</th><td><code>${VERSION}</code></td></tr>
     <tr><th>Server</th><td><code>${SERVER_NAME}:${LISTEN_PORT}</code></td></tr>

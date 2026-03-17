@@ -102,10 +102,19 @@ launch_dcv() {
   exit 1
 }
 
+launch_moonlight() {
+  local host app
+  host="$(render_template "${PVE_THIN_CLIENT_MOONLIGHT_HOST:-}")"
+  app="$(render_template "${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}")"
+  write_launch_status "MOONLIGHT" "sunshine" "${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}" "${host}:${app}"
+  exec "$SCRIPT_DIR/launch-moonlight.sh"
+}
+
 case "${PVE_THIN_CLIENT_MODE:-}" in
   SPICE) launch_spice ;;
   NOVNC) launch_novnc ;;
   DCV) launch_dcv ;;
+  MOONLIGHT) launch_moonlight ;;
   *)
     echo "Unsupported mode: ${PVE_THIN_CLIENT_MODE:-UNSET}" >&2
     exit 1

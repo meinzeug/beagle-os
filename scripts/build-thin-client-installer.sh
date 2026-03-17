@@ -8,6 +8,8 @@ DIST_DIR="$ROOT_DIR/dist/pve-thin-client-installer"
 THINCLIENT_ARCH="${THINCLIENT_ARCH:-amd64}"
 OWNER_UID="${SUDO_UID:-$(id -u)}"
 OWNER_GID="${SUDO_GID:-$(id -g)}"
+MOONLIGHT_URL="${PVE_THIN_CLIENT_MOONLIGHT_URL:-https://github.com/moonlight-stream/moonlight-qt/releases/download/v6.1.0/Moonlight-6.1.0-x86_64.AppImage}"
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -70,12 +72,65 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
   curl \
   ca-certificates
 
+stage_moonlight_assets() {
+  local work_dir target_dir wrapper_path
+
+  work_dir="$(mktemp -d)"
+  target_dir="$BUILD_DIR/config/includes.chroot/opt/moonlight"
+  wrapper_path="$BUILD_DIR/config/includes.chroot/usr/local/bin/moonlight"
+
+  cleanup_stage() {
+    rm -rf "$work_dir"
+  }
+  trap cleanup_stage RETURN
+
+  curl -fL \
+    --retry 8 \
+    --retry-delay 3 \
+    --retry-connrefused \
+    --continue-at - \
+    --speed-limit 5000 \
+    --speed-time 30 \
+    -o "$work_dir/Moonlight.AppImage" \
+    "$MOONLIGHT_URL"
+
+  chmod +x "$work_dir/Moonlight.AppImage"
+  (
+    cd "$work_dir"
+    ./Moonlight.AppImage --appimage-extract >/dev/null
+  )
+
+  rm -rf "$target_dir"
+  install -d -m 0755 "$target_dir" "$(dirname "$wrapper_path")"
+  cp -a "$work_dir/squashfs-root/." "$target_dir/"
+
+  cat > "$wrapper_path" <<'EOF'
+#!/bin/sh
+set -eu
+
+APPDIR="/opt/moonlight"
+export APPDIR
+export QT_PLUGIN_PATH="${APPDIR}/usr/plugins"
+export QML2_IMPORT_PATH="${APPDIR}/usr/qml"
+export QT_XKB_CONFIG_ROOT="/usr/share/X11/xkb"
+export LD_LIBRARY_PATH="${APPDIR}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+
+exec "${APPDIR}/usr/bin/moonlight" "$@"
+EOF
+  chmod 0755 "$wrapper_path"
+}
+
 rm -rf "$BUILD_DIR"
 install -d -m 0755 "$BUILD_DIR" "$DIST_DIR/live"
 rsync -a --delete "$LB_TEMPLATE_DIR/" "$BUILD_DIR/"
 
 install -d -m 0755 "$BUILD_DIR/config/includes.chroot/usr/local/lib"
-rsync -a --delete "$ROOT_DIR/thin-client-assistant/" "$BUILD_DIR/config/includes.chroot/usr/local/lib/pve-thin-client/"
+rsync -a --delete \
+  --exclude '__pycache__/' \
+  --exclude '*.pyc' \
+  "$ROOT_DIR/thin-client-assistant/" \
+  "$BUILD_DIR/config/includes.chroot/usr/local/lib/pve-thin-client/"
+stage_moonlight_assets
 chmod 0755 "$BUILD_DIR"
 
 pushd "$BUILD_DIR" >/dev/null

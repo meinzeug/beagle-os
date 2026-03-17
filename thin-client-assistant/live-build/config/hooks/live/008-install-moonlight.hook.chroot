@@ -1,0 +1,58 @@
+#!/bin/sh
+set -e
+
+MOONLIGHT_URL="${PVE_THIN_CLIENT_MOONLIGHT_URL:-https://github.com/moonlight-stream/moonlight-qt/releases/download/v6.1.0/Moonlight-6.1.0-x86_64.AppImage}"
+WORK_DIR="$(mktemp -d)"
+TARGET_DIR="/opt/moonlight"
+
+cleanup() {
+  rm -rf "${WORK_DIR}"
+}
+trap cleanup EXIT INT TERM
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y --no-install-recommends \
+  ca-certificates \
+  curl \
+  squashfs-tools
+
+curl -fL \
+  --retry 8 \
+  --retry-delay 3 \
+  --retry-connrefused \
+  --continue-at - \
+  --speed-limit 5000 \
+  --speed-time 30 \
+  -o "${WORK_DIR}/Moonlight.AppImage" \
+  "${MOONLIGHT_URL}"
+
+chmod +x "${WORK_DIR}/Moonlight.AppImage"
+(
+  cd "${WORK_DIR}"
+  ./Moonlight.AppImage --appimage-extract >/dev/null
+)
+
+rm -rf "${TARGET_DIR}"
+mkdir -p "${TARGET_DIR}"
+cp -a "${WORK_DIR}/squashfs-root/." "${TARGET_DIR}/"
+
+cat > /usr/local/bin/moonlight <<'EOF'
+#!/bin/sh
+set -eu
+
+APPDIR="/opt/moonlight"
+export APPDIR
+export QT_PLUGIN_PATH="${APPDIR}/usr/plugins"
+export QML2_IMPORT_PATH="${APPDIR}/usr/qml"
+export QT_XKB_CONFIG_ROOT="/usr/share/X11/xkb"
+export LD_LIBRARY_PATH="${APPDIR}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+
+exec "${APPDIR}/usr/bin/moonlight" "$@"
+EOF
+chmod 0755 /usr/local/bin/moonlight
+
+if [ ! -x /usr/local/bin/moonlight ]; then
+  echo "moonlight wrapper missing after installation" >&2
+  exit 1
+fi

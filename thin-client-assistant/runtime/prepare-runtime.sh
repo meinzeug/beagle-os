@@ -21,6 +21,9 @@ dcv_launch_mode="native"
 case "${PVE_THIN_CLIENT_MODE:-}" in
   SPICE) required_binary="${PVE_THIN_CLIENT_REMOTE_VIEWER_BIN:-remote-viewer}" ;;
   NOVNC) required_binary="${PVE_THIN_CLIENT_BROWSER_BIN:-chromium}" ;;
+  MOONLIGHT)
+    required_binary="${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}"
+    ;;
   DCV)
     if command -v "${PVE_THIN_CLIENT_DCV_VIEWER_BIN:-dcvviewer}" >/dev/null 2>&1; then
       required_binary="${PVE_THIN_CLIENT_DCV_VIEWER_BIN:-dcvviewer}"
@@ -51,6 +54,10 @@ esac
   echo "required_binary=$required_binary"
   if [[ "${PVE_THIN_CLIENT_MODE:-}" == "DCV" ]]; then
     echo "dcv_launch_mode=$dcv_launch_mode"
+  fi
+  if [[ "${PVE_THIN_CLIENT_MODE:-}" == "MOONLIGHT" ]]; then
+    echo "moonlight_host=${PVE_THIN_CLIENT_MOONLIGHT_HOST:-UNSET}"
+    echo "moonlight_app=${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}"
   fi
   if command -v "$required_binary" >/dev/null 2>&1; then
     echo "binary_available=1"

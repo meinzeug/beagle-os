@@ -40,6 +40,8 @@ for asset in \
   "$DIST_DIR/pve-dcv-integration-extension-$TAG.zip" \
   "$DIST_DIR/pve-dcv-thin-client-assistant-$TAG.tar.gz" \
   "$DIST_DIR/pve-dcv-thin-client-assistant-latest.tar.gz" \
+  "$DIST_DIR/pve-thin-client-usb-payload-$TAG.tar.gz" \
+  "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" \
   "$DIST_DIR/pve-thin-client-usb-installer-$TAG.sh" \
   "$DIST_DIR/pve-thin-client-usb-installer-latest.sh" \
   "$DIST_DIR/SHA256SUMS"; do
@@ -63,6 +65,8 @@ if [[ -n "$NOTES_FILE" ]]; then
     "$DIST_DIR/pve-dcv-integration-extension-$TAG.zip" \
     "$DIST_DIR/pve-dcv-thin-client-assistant-$TAG.tar.gz" \
     "$DIST_DIR/pve-dcv-thin-client-assistant-latest.tar.gz" \
+    "$DIST_DIR/pve-thin-client-usb-payload-$TAG.tar.gz" \
+    "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" \
     "$DIST_DIR/pve-thin-client-usb-installer-$TAG.sh" \
     "$DIST_DIR/pve-thin-client-usb-installer-latest.sh" \
     "$DIST_DIR/SHA256SUMS" \
@@ -74,6 +78,8 @@ else
     "$DIST_DIR/pve-dcv-integration-extension-$TAG.zip" \
     "$DIST_DIR/pve-dcv-thin-client-assistant-$TAG.tar.gz" \
     "$DIST_DIR/pve-dcv-thin-client-assistant-latest.tar.gz" \
+    "$DIST_DIR/pve-thin-client-usb-payload-$TAG.tar.gz" \
+    "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" \
     "$DIST_DIR/pve-thin-client-usb-installer-$TAG.sh" \
     "$DIST_DIR/pve-thin-client-usb-installer-latest.sh" \
     "$DIST_DIR/SHA256SUMS" \

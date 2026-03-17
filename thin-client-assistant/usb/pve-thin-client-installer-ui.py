@@ -153,7 +153,7 @@ HTML = """<!doctype html>
     }
     .mode-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 14px;
     }
     .mode-card {
@@ -295,7 +295,7 @@ HTML = """<!doctype html>
     <aside class="panel">
       <div>
         <h2>Installationsziel</h2>
-        <p class="hint">SPICE, noVNC oder DCV waehlen und direkt auf eine leere Zielplatte schreiben.</p>
+        <p class="hint">Moonlight, SPICE, noVNC oder DCV waehlen und direkt auf eine leere Zielplatte schreiben.</p>
       </div>
 
       <div class="mode-grid" id="mode-grid"></div>
@@ -327,6 +327,11 @@ HTML = """<!doctype html>
 
   <script>
     const MODE_META = {
+      MOONLIGHT: {
+        title: "Moonlight",
+        image: "url('/assets/card-server.jpg')",
+        description: "Sunshine-Streaming mit H.264, 1080p60 und Auto-Pairing gegen das vorkonfigurierte VM-Ziel."
+      },
       SPICE: {
         title: "SPICE",
         image: "url('/assets/card-server.jpg')",
@@ -379,11 +384,11 @@ HTML = """<!doctype html>
       document.getElementById("meta-host").textContent = preset.proxmox_host || "n/a";
       document.getElementById("meta-node").textContent =
         preset.proxmox_node && preset.proxmox_vmid ? `${preset.proxmox_node} / ${preset.proxmox_vmid}` : "n/a";
-      document.getElementById("meta-modes").textContent = modes.length ? modes.join(" ") : "keine";
+      document.getElementById("meta-modes").textContent = modes.length ? modes.join("  ") : "keine";
 
       const grid = document.getElementById("mode-grid");
       grid.innerHTML = "";
-      Object.keys(MODE_META).forEach((mode) => {
+      ["MOONLIGHT", "SPICE", "NOVNC", "DCV"].forEach((mode) => {
         const meta = MODE_META[mode];
         const available = modes.includes(mode);
         const card = document.createElement("button");
@@ -400,7 +405,7 @@ HTML = """<!doctype html>
       });
 
       if (!selectedMode || !modes.includes(selectedMode)) {
-        selectedMode = modes[0] || null;
+        selectedMode = preset.default_mode && modes.includes(preset.default_mode) ? preset.default_mode : (modes[0] || null);
       }
 
       const select = document.getElementById("disk-select");
@@ -460,7 +465,10 @@ HTML = """<!doctype html>
         `Host: ${preset.proxmox_host || "n/a"}`,
         `Node: ${preset.proxmox_node || "n/a"}`,
         `VMID: ${preset.proxmox_vmid || "n/a"}`,
-        `Modi: ${(preset.available_modes || []).join(" ") || "keine"}`
+        `Modi: ${(preset.available_modes || []).join(" ") || "keine"}`,
+        `Default: ${preset.default_mode || "n/a"}`,
+        `Moonlight Host: ${preset.moonlight_host || "n/a"}`,
+        `Moonlight App: ${preset.moonlight_app || "n/a"}`
       ];
       window.alert(lines.join("\\n"));
     });
@@ -518,7 +526,7 @@ def spawn_terminal(command, title):
 
 
 def install_target(mode, disk):
-    if mode not in {"SPICE", "NOVNC", "DCV"}:
+    if mode not in {"MOONLIGHT", "SPICE", "NOVNC", "DCV"}:
         raise RuntimeError(f"unsupported mode: {mode}")
     if not disk.startswith("/dev/"):
         raise RuntimeError(f"invalid disk: {disk}")

@@ -23,10 +23,22 @@ NETWORK_DNS_SERVERS="1.1.1.1 8.8.8.8"
 SPICE_URL=""
 NOVNC_URL=""
 DCV_URL=""
+MOONLIGHT_HOST=""
+MOONLIGHT_APP="Desktop"
 REMOTE_VIEWER_BIN="remote-viewer"
 BROWSER_BIN="chromium"
 BROWSER_FLAGS="--kiosk --incognito --no-first-run --disable-session-crashed-bubble"
 DCV_VIEWER_BIN="dcvviewer"
+MOONLIGHT_BIN="moonlight"
+MOONLIGHT_RESOLUTION="1080"
+MOONLIGHT_FPS="60"
+MOONLIGHT_BITRATE="20000"
+MOONLIGHT_VIDEO_CODEC="H.264"
+MOONLIGHT_VIDEO_DECODER="auto"
+MOONLIGHT_AUDIO_CONFIG="stereo"
+MOONLIGHT_ABSOLUTE_MOUSE="1"
+MOONLIGHT_QUIT_AFTER="0"
+SUNSHINE_API_URL=""
 PROXMOX_SCHEME="https"
 PROXMOX_HOST=""
 PROXMOX_PORT="8006"
@@ -37,10 +49,13 @@ PROXMOX_VERIFY_TLS="0"
 CONNECTION_USERNAME=""
 CONNECTION_PASSWORD=""
 CONNECTION_TOKEN=""
+SUNSHINE_USERNAME=""
+SUNSHINE_PASSWORD=""
+SUNSHINE_PIN=""
 
 usage() {
   cat <<EOF
-Usage: $0 [--mode SPICE|NOVNC|DCV] [--runtime-user USER] [--spice-url URL] [--novnc-url URL] [--dcv-url URL] [--browser-bin PATH]
+Usage: $0 [--mode SPICE|NOVNC|DCV|MOONLIGHT] [--runtime-user USER] [--spice-url URL] [--novnc-url URL] [--dcv-url URL] [--moonlight-host HOST] [--browser-bin PATH]
 EOF
 }
 
@@ -81,10 +96,22 @@ parse_args() {
       --spice-url) SPICE_URL="$2"; shift 2 ;;
       --novnc-url) NOVNC_URL="$2"; shift 2 ;;
       --dcv-url) DCV_URL="$2"; shift 2 ;;
+      --moonlight-host) MOONLIGHT_HOST="$2"; shift 2 ;;
+      --moonlight-app) MOONLIGHT_APP="$2"; shift 2 ;;
       --remote-viewer-bin) REMOTE_VIEWER_BIN="$2"; shift 2 ;;
       --browser-bin) BROWSER_BIN="$2"; shift 2 ;;
       --browser-flags) BROWSER_FLAGS="$2"; shift 2 ;;
       --dcv-viewer-bin) DCV_VIEWER_BIN="$2"; shift 2 ;;
+      --moonlight-bin) MOONLIGHT_BIN="$2"; shift 2 ;;
+      --moonlight-resolution) MOONLIGHT_RESOLUTION="$2"; shift 2 ;;
+      --moonlight-fps) MOONLIGHT_FPS="$2"; shift 2 ;;
+      --moonlight-bitrate) MOONLIGHT_BITRATE="$2"; shift 2 ;;
+      --moonlight-video-codec) MOONLIGHT_VIDEO_CODEC="$2"; shift 2 ;;
+      --moonlight-video-decoder) MOONLIGHT_VIDEO_DECODER="$2"; shift 2 ;;
+      --moonlight-audio-config) MOONLIGHT_AUDIO_CONFIG="$2"; shift 2 ;;
+      --moonlight-absolute-mouse) MOONLIGHT_ABSOLUTE_MOUSE="$2"; shift 2 ;;
+      --moonlight-quit-after) MOONLIGHT_QUIT_AFTER="$2"; shift 2 ;;
+      --sunshine-api-url) SUNSHINE_API_URL="$2"; shift 2 ;;
       --proxmox-scheme) PROXMOX_SCHEME="$2"; shift 2 ;;
       --proxmox-host) PROXMOX_HOST="$2"; shift 2 ;;
       --proxmox-port) PROXMOX_PORT="$2"; shift 2 ;;
@@ -95,6 +122,9 @@ parse_args() {
       --connection-username) CONNECTION_USERNAME="$2"; shift 2 ;;
       --connection-password) CONNECTION_PASSWORD="$2"; shift 2 ;;
       --connection-token) CONNECTION_TOKEN="$2"; shift 2 ;;
+      --sunshine-username) SUNSHINE_USERNAME="$2"; shift 2 ;;
+      --sunshine-password) SUNSHINE_PASSWORD="$2"; shift 2 ;;
+      --sunshine-pin) SUNSHINE_PIN="$2"; shift 2 ;;
       -h|--help) usage; exit 0 ;;
       *)
         echo "Unknown argument: $1" >&2
@@ -123,10 +153,22 @@ load_answers() {
     SPICE_URL="$SPICE_URL" \
     NOVNC_URL="$NOVNC_URL" \
     DCV_URL="$DCV_URL" \
+    MOONLIGHT_HOST="$MOONLIGHT_HOST" \
+    MOONLIGHT_APP="$MOONLIGHT_APP" \
     REMOTE_VIEWER_BIN="$REMOTE_VIEWER_BIN" \
     BROWSER_BIN="$BROWSER_BIN" \
     BROWSER_FLAGS="$BROWSER_FLAGS" \
     DCV_VIEWER_BIN="$DCV_VIEWER_BIN" \
+    MOONLIGHT_BIN="$MOONLIGHT_BIN" \
+    MOONLIGHT_RESOLUTION="$MOONLIGHT_RESOLUTION" \
+    MOONLIGHT_FPS="$MOONLIGHT_FPS" \
+    MOONLIGHT_BITRATE="$MOONLIGHT_BITRATE" \
+    MOONLIGHT_VIDEO_CODEC="$MOONLIGHT_VIDEO_CODEC" \
+    MOONLIGHT_VIDEO_DECODER="$MOONLIGHT_VIDEO_DECODER" \
+    MOONLIGHT_AUDIO_CONFIG="$MOONLIGHT_AUDIO_CONFIG" \
+    MOONLIGHT_ABSOLUTE_MOUSE="$MOONLIGHT_ABSOLUTE_MOUSE" \
+    MOONLIGHT_QUIT_AFTER="$MOONLIGHT_QUIT_AFTER" \
+    SUNSHINE_API_URL="$SUNSHINE_API_URL" \
     PROXMOX_SCHEME="$PROXMOX_SCHEME" \
     PROXMOX_HOST="$PROXMOX_HOST" \
     PROXMOX_PORT="$PROXMOX_PORT" \
@@ -137,6 +179,9 @@ load_answers() {
     CONNECTION_USERNAME="$CONNECTION_USERNAME" \
     CONNECTION_PASSWORD="$CONNECTION_PASSWORD" \
     CONNECTION_TOKEN="$CONNECTION_TOKEN" \
+    SUNSHINE_USERNAME="$SUNSHINE_USERNAME" \
+    SUNSHINE_PASSWORD="$SUNSHINE_PASSWORD" \
+    SUNSHINE_PIN="$SUNSHINE_PIN" \
     "$ROOT_DIR/installer/setup-menu.sh"
   )"
   eval "$output"
@@ -151,6 +196,7 @@ install_runtime_assets() {
   copy_file "$ROOT_DIR/runtime/prepare-runtime.sh" "$INSTALL_ROOT/prepare-runtime.sh"
   copy_file "$ROOT_DIR/runtime/connect-proxmox-spice.sh" "$INSTALL_ROOT/connect-proxmox-spice.sh"
   copy_file "$ROOT_DIR/runtime/build-dcv-connection-file.sh" "$INSTALL_ROOT/build-dcv-connection-file.sh"
+  copy_file "$ROOT_DIR/runtime/launch-moonlight.sh" "$INSTALL_ROOT/launch-moonlight.sh"
   copy_file "$ROOT_DIR/runtime/common.sh" "$INSTALL_ROOT/common.sh"
   copy_file "$ROOT_DIR/runtime/apply-network-config.sh" "$INSTALL_ROOT/apply-network-config.sh"
   copy_file "$ROOT_DIR/installer/setup-menu.sh" "$INSTALL_ROOT/setup-menu.sh"
@@ -178,10 +224,22 @@ write_config() {
   SPICE_URL="$SPICE_URL" \
   NOVNC_URL="$NOVNC_URL" \
   DCV_URL="$DCV_URL" \
+  MOONLIGHT_HOST="$MOONLIGHT_HOST" \
+  MOONLIGHT_APP="$MOONLIGHT_APP" \
   REMOTE_VIEWER_BIN="$REMOTE_VIEWER_BIN" \
   BROWSER_BIN="$BROWSER_BIN" \
   BROWSER_FLAGS="$BROWSER_FLAGS" \
   DCV_VIEWER_BIN="$DCV_VIEWER_BIN" \
+  MOONLIGHT_BIN="$MOONLIGHT_BIN" \
+  MOONLIGHT_RESOLUTION="$MOONLIGHT_RESOLUTION" \
+  MOONLIGHT_FPS="$MOONLIGHT_FPS" \
+  MOONLIGHT_BITRATE="$MOONLIGHT_BITRATE" \
+  MOONLIGHT_VIDEO_CODEC="$MOONLIGHT_VIDEO_CODEC" \
+  MOONLIGHT_VIDEO_DECODER="$MOONLIGHT_VIDEO_DECODER" \
+  MOONLIGHT_AUDIO_CONFIG="$MOONLIGHT_AUDIO_CONFIG" \
+  MOONLIGHT_ABSOLUTE_MOUSE="$MOONLIGHT_ABSOLUTE_MOUSE" \
+  MOONLIGHT_QUIT_AFTER="$MOONLIGHT_QUIT_AFTER" \
+  SUNSHINE_API_URL="$SUNSHINE_API_URL" \
   PROXMOX_SCHEME="$PROXMOX_SCHEME" \
   PROXMOX_HOST="$PROXMOX_HOST" \
   PROXMOX_PORT="$PROXMOX_PORT" \
@@ -192,6 +250,9 @@ write_config() {
   CONNECTION_USERNAME="$CONNECTION_USERNAME" \
   CONNECTION_PASSWORD="$CONNECTION_PASSWORD" \
   CONNECTION_TOKEN="$CONNECTION_TOKEN" \
+  SUNSHINE_USERNAME="$SUNSHINE_USERNAME" \
+  SUNSHINE_PASSWORD="$SUNSHINE_PASSWORD" \
+  SUNSHINE_PIN="$SUNSHINE_PIN" \
   "$ROOT_DIR/installer/write-config.sh" "$CONFIG_DIR"
 }
 
@@ -213,6 +274,9 @@ install_packages_hint() {
       ;;
     DCV)
       echo "Install the NICE DCV Viewer package so 'dcvviewer' is available."
+      ;;
+    MOONLIGHT)
+      echo "Suggested package or wrapper: moonlight"
       ;;
     *)
       echo "Unsupported mode in summary: $MODE" >&2

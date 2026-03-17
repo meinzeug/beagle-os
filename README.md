@@ -1,6 +1,6 @@
 # pve-dcv-integration
 
-`pve-dcv-integration` is an external, open-source enhancement layer for Proxmox VE. It adds a visible DCV action to VM views in the Proxmox web UI and ships a Linux thin-client assistant that can turn a local device into a dedicated SPICE, noVNC or NICE DCV endpoint.
+`pve-dcv-integration` is an external, open-source enhancement layer for Proxmox VE. It adds a visible DCV action to VM views in the Proxmox web UI and ships a Linux thin-client assistant that can turn a local device into a dedicated Moonlight, SPICE, noVNC or NICE DCV endpoint.
 
 The project is intentionally independent from Proxmox core. It does not patch Proxmox packages and can be versioned, deployed and packaged on its own.
 
@@ -32,7 +32,7 @@ The project is intentionally independent from Proxmox core. It does not patch Pr
 ### 2. Linux thin-client assistant
 
 - Provides an installer-oriented base for local deployment onto a Linux-backed thin client.
-- Includes an interactive setup menu with three target modes: `SPICE`, `noVNC`, `DCV`.
+- Includes an interactive setup menu with four target modes: `MOONLIGHT`, `SPICE`, `noVNC`, `DCV`.
 - Stores the target runtime configuration in a dedicated config file.
 - Installs runtime launchers, XDG autostart integration and systemd preparation logic.
 - Separates installer logic, runtime logic, templates and system assets.
@@ -80,7 +80,7 @@ For the USB workflow, the preferred operator path is now host-local and VM-speci
 - `https://<proxmox-host>:8443/pve-dcv-downloads/pve-dcv-downloads-status.json`
 - `https://<proxmox-host>:8443/pve-dcv-downloads/SHA256SUMS`
 
-The VM-specific launcher is the primary path from the Proxmox UI. It embeds that VM's URLs and credentials into the USB image so the on-stick installer only needs the streaming mode and the target disk. The generic host launcher remains available as a fallback.
+The VM-specific launcher is the primary path from the Proxmox UI. It embeds that VM's URLs and credentials into the USB image so the on-stick installer only needs the streaming mode and the target disk. That preset can now carry Moonlight plus Sunshine pairing data as well. The generic host launcher remains available as a fallback.
 On current media builds, both the bootloader and the live installer UI are also skinned with bundled JPEG artwork from Unsplash, so the stick no longer boots into a plain text-first installer experience.
 
 ## Thin-client assistant behavior
@@ -102,9 +102,17 @@ The thin-client assistant installs a first real implementation baseline:
 
 Runtime modes:
 
+- `MOONLIGHT` launches Moonlight against a Sunshine target, can auto-pair through the Sunshine API and defaults to H.264 at `1080p60`
 - `SPICE` launches `remote-viewer`, optionally with fresh Proxmox API tickets
 - `noVNC` launches Chromium in kiosk mode against a configured URL
 - `DCV` launches the native `dcvviewer` client with generated connection files when credentials are provided
+
+Recommended low-latency topology for CPU-only Proxmox hosts:
+
+- provision the guest with `scripts/configure-sunshine-guest.sh`
+- use `MOONLIGHT` as the default USB preset mode
+- keep the guest on Xfce/LightDM with compositor overhead disabled
+- run the thin client over wired Ethernet
 
 USB/live installer highlights:
 
@@ -160,6 +168,20 @@ tar -xzf pve-dcv.tar.gz
 This installs the project under `/opt/pve-dcv-integration`, rebuilds the packaged artifacts there and deploys the Proxmox UI integration if `/usr/share/pve-manager/` is present.
 It also prepares host-local thin-client download artifacts and publishes them on `https://<proxmox-host>:8443/pve-dcv-downloads/`.
 If a DCV backend can be identified, the same HTTPS endpoint also proxies `https://<proxmox-host>:8443/` to the backend DCV service using the same certificate as the Proxmox web UI.
+When the installer is run from a published release tarball, it now prefers the already published USB installer and payload artifacts from the matching GitHub release before falling back to a local live-build run.
+
+Prepare an Ubuntu guest VM for Sunshine + Moonlight:
+
+```bash
+./scripts/configure-sunshine-guest.sh \
+  --proxmox-host thinovernet \
+  --vmid 100 \
+  --guest-user dennis \
+  --sunshine-user sunshine \
+  --sunshine-password 'choose-a-strong-password'
+```
+
+That helper installs Xfce + LightDM, configures autologin, writes a Sunshine software-encoding profile pinned to H.264, disables Xfce compositing overhead and updates the VM description with the metadata consumed by the per-VM USB installer.
 
 To force the DCV proxy installation for a specific VM or backend:
 

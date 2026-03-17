@@ -32,10 +32,22 @@ NETWORK_DNS_SERVERS="1.1.1.1 8.8.8.8"
 SPICE_URL=""
 NOVNC_URL=""
 DCV_URL=""
+MOONLIGHT_HOST=""
+MOONLIGHT_APP="Desktop"
 REMOTE_VIEWER_BIN="remote-viewer"
 BROWSER_BIN="chromium"
 BROWSER_FLAGS="--kiosk --incognito --no-first-run --disable-session-crashed-bubble"
 DCV_VIEWER_BIN="dcvviewer"
+MOONLIGHT_BIN="moonlight"
+MOONLIGHT_RESOLUTION="1080"
+MOONLIGHT_FPS="60"
+MOONLIGHT_BITRATE="20000"
+MOONLIGHT_VIDEO_CODEC="H.264"
+MOONLIGHT_VIDEO_DECODER="auto"
+MOONLIGHT_AUDIO_CONFIG="stereo"
+MOONLIGHT_ABSOLUTE_MOUSE="1"
+MOONLIGHT_QUIT_AFTER="0"
+SUNSHINE_API_URL=""
 PROXMOX_SCHEME="https"
 PROXMOX_HOST=""
 PROXMOX_PORT="8006"
@@ -46,6 +58,9 @@ PROXMOX_VERIFY_TLS="0"
 CONNECTION_USERNAME=""
 CONNECTION_PASSWORD=""
 CONNECTION_TOKEN=""
+SUNSHINE_USERNAME=""
+SUNSHINE_PASSWORD=""
+SUNSHINE_PIN=""
 
 cleanup() {
   umount "$EFI_MOUNT" >/dev/null 2>&1 || true
@@ -285,10 +300,22 @@ load_profile() {
     SPICE_URL="$SPICE_URL" \
     NOVNC_URL="$NOVNC_URL" \
     DCV_URL="$DCV_URL" \
+    MOONLIGHT_HOST="$MOONLIGHT_HOST" \
+    MOONLIGHT_APP="$MOONLIGHT_APP" \
     REMOTE_VIEWER_BIN="$REMOTE_VIEWER_BIN" \
     BROWSER_BIN="$BROWSER_BIN" \
     BROWSER_FLAGS="$BROWSER_FLAGS" \
     DCV_VIEWER_BIN="$DCV_VIEWER_BIN" \
+    MOONLIGHT_BIN="$MOONLIGHT_BIN" \
+    MOONLIGHT_RESOLUTION="$MOONLIGHT_RESOLUTION" \
+    MOONLIGHT_FPS="$MOONLIGHT_FPS" \
+    MOONLIGHT_BITRATE="$MOONLIGHT_BITRATE" \
+    MOONLIGHT_VIDEO_CODEC="$MOONLIGHT_VIDEO_CODEC" \
+    MOONLIGHT_VIDEO_DECODER="$MOONLIGHT_VIDEO_DECODER" \
+    MOONLIGHT_AUDIO_CONFIG="$MOONLIGHT_AUDIO_CONFIG" \
+    MOONLIGHT_ABSOLUTE_MOUSE="$MOONLIGHT_ABSOLUTE_MOUSE" \
+    MOONLIGHT_QUIT_AFTER="$MOONLIGHT_QUIT_AFTER" \
+    SUNSHINE_API_URL="$SUNSHINE_API_URL" \
     PROXMOX_SCHEME="$PROXMOX_SCHEME" \
     PROXMOX_HOST="$PROXMOX_HOST" \
     PROXMOX_PORT="$PROXMOX_PORT" \
@@ -299,6 +326,9 @@ load_profile() {
     CONNECTION_USERNAME="$CONNECTION_USERNAME" \
     CONNECTION_PASSWORD="$CONNECTION_PASSWORD" \
     CONNECTION_TOKEN="$CONNECTION_TOKEN" \
+    SUNSHINE_USERNAME="$SUNSHINE_USERNAME" \
+    SUNSHINE_PASSWORD="$SUNSHINE_PASSWORD" \
+    SUNSHINE_PIN="$SUNSHINE_PIN" \
     "$ROOT_DIR/installer/setup-menu.sh"
   )"
   eval "$output"
@@ -331,6 +361,9 @@ mode_is_available() {
     DCV)
       [[ -n "${PVE_THIN_CLIENT_PRESET_DCV_URL:-}" ]]
       ;;
+    MOONLIGHT)
+      [[ -n "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" ]]
+      ;;
     *)
       return 1
       ;;
@@ -353,6 +386,9 @@ mode_label() {
     DCV)
       printf 'Amazon DCV session\n'
       ;;
+    MOONLIGHT)
+      printf 'Moonlight + Sunshine low-latency stream\n'
+      ;;
     *)
       printf '%s\n' "$mode"
       ;;
@@ -367,7 +403,7 @@ print_preset_summary() {
 
   local available=()
   local mode
-  for mode in SPICE NOVNC DCV; do
+  for mode in MOONLIGHT SPICE NOVNC DCV; do
     if mode_is_available "$mode"; then
       available+=("$mode")
     fi
@@ -384,7 +420,7 @@ print_preset_summary() {
 }
 
 print_preset_json() {
-  python3 - "$PRESET_ACTIVE" "${PVE_THIN_CLIENT_PRESET_VM_NAME:-}" "${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}" "${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-}" "${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-}" "${PVE_THIN_CLIENT_PRESET_NOVNC_URL:-}" "${PVE_THIN_CLIENT_PRESET_DCV_URL:-}" <<'PY'
+  python3 - "$PRESET_ACTIVE" "${PVE_THIN_CLIENT_PRESET_VM_NAME:-}" "${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}" "${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-}" "${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-}" "${PVE_THIN_CLIENT_PRESET_NOVNC_URL:-}" "${PVE_THIN_CLIENT_PRESET_DCV_URL:-}" "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" "${PVE_THIN_CLIENT_PRESET_DEFAULT_MODE:-}" "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP:-Desktop}" <<'PY'
 import json
 import sys
 
@@ -402,9 +438,14 @@ import sys
     spice_password,
     novnc_url,
     dcv_url,
-) = sys.argv[1:14]
+    moonlight_host,
+    default_mode,
+    moonlight_app,
+) = sys.argv[1:17]
 
 def mode_available(name: str) -> bool:
+    if name == "MOONLIGHT":
+        return bool(moonlight_host)
     if name == "SPICE":
         return bool(spice_url) or (
             bool(proxmox_host)
@@ -426,7 +467,10 @@ payload = {
     "proxmox_host": proxmox_host,
     "proxmox_node": proxmox_node,
     "proxmox_vmid": proxmox_vmid,
-    "available_modes": [name for name in ("SPICE", "NOVNC", "DCV") if mode_available(name)],
+    "moonlight_host": moonlight_host,
+    "moonlight_app": moonlight_app,
+    "default_mode": default_mode,
+    "available_modes": [name for name in ("MOONLIGHT", "SPICE", "NOVNC", "DCV") if mode_available(name)],
 }
 print(json.dumps(payload, indent=2))
 PY
@@ -438,7 +482,7 @@ choose_streaming_mode_from_preset() {
   local tty_path="/dev/tty"
   local mode answer index
 
-  for mode in SPICE NOVNC DCV; do
+  for mode in MOONLIGHT SPICE NOVNC DCV; do
     if mode_is_available "$mode"; then
       modes+=("$mode")
       menu_items+=("$mode" "$(mode_label "$mode")")
@@ -446,7 +490,7 @@ choose_streaming_mode_from_preset() {
   done
 
   if (( ${#modes[@]} == 0 )); then
-    echo "The bundled VM preset does not contain a usable SPICE, noVNC or DCV target." >&2
+    echo "The bundled VM preset does not contain a usable Moonlight, SPICE, noVNC or DCV target." >&2
     exit 1
   fi
 
@@ -503,6 +547,16 @@ apply_preset_defaults() {
   PROXMOX_VMID="${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}"
   PROXMOX_REALM="${PVE_THIN_CLIENT_PRESET_PROXMOX_REALM:-pam}"
   PROXMOX_VERIFY_TLS="${PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS:-0}"
+  MOONLIGHT_BIN="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN:-moonlight}"
+  MOONLIGHT_RESOLUTION="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION:-1080}"
+  MOONLIGHT_FPS="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS:-60}"
+  MOONLIGHT_BITRATE="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE:-20000}"
+  MOONLIGHT_VIDEO_CODEC="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC:-H.264}"
+  MOONLIGHT_VIDEO_DECODER="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER:-auto}"
+  MOONLIGHT_AUDIO_CONFIG="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG:-stereo}"
+  MOONLIGHT_ABSOLUTE_MOUSE="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE:-1}"
+  MOONLIGHT_QUIT_AFTER="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER:-0}"
+  SUNSHINE_API_URL="${PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL:-}"
 }
 
 apply_preset_mode() {
@@ -514,11 +568,24 @@ apply_preset_mode() {
   SPICE_URL=""
   NOVNC_URL=""
   DCV_URL=""
+  MOONLIGHT_HOST=""
+  MOONLIGHT_APP="Desktop"
   CONNECTION_USERNAME=""
   CONNECTION_PASSWORD=""
   CONNECTION_TOKEN=""
+  SUNSHINE_USERNAME=""
+  SUNSHINE_PASSWORD=""
+  SUNSHINE_PIN=""
 
   case "$selected_mode" in
+    MOONLIGHT)
+      MOONLIGHT_HOST="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}"
+      MOONLIGHT_APP="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP:-Desktop}"
+      SUNSHINE_API_URL="${PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL:-}"
+      SUNSHINE_USERNAME="${PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME:-}"
+      SUNSHINE_PASSWORD="${PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD:-}"
+      SUNSHINE_PIN="${PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN:-}"
+      ;;
     SPICE)
       CONNECTION_USERNAME="${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}}"
       CONNECTION_PASSWORD="${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}}"
@@ -557,7 +624,13 @@ load_install_profile() {
         exit 1
       }
     else
-      MODE="$(choose_streaming_mode_from_preset)"
+      MODE="${PVE_THIN_CLIENT_PRESET_DEFAULT_MODE:-}"
+      if [[ -n "$MODE" ]]; then
+        mode_is_available "$MODE" || MODE=""
+      fi
+      if [[ -z "$MODE" ]]; then
+        MODE="$(choose_streaming_mode_from_preset)"
+      fi
     fi
     apply_preset_mode "$MODE"
     return 0
@@ -641,10 +714,22 @@ copy_assets() {
   SPICE_URL="$SPICE_URL" \
   NOVNC_URL="$NOVNC_URL" \
   DCV_URL="$DCV_URL" \
+  MOONLIGHT_HOST="$MOONLIGHT_HOST" \
+  MOONLIGHT_APP="$MOONLIGHT_APP" \
   REMOTE_VIEWER_BIN="$REMOTE_VIEWER_BIN" \
   BROWSER_BIN="$BROWSER_BIN" \
   BROWSER_FLAGS="$BROWSER_FLAGS" \
   DCV_VIEWER_BIN="$DCV_VIEWER_BIN" \
+  MOONLIGHT_BIN="$MOONLIGHT_BIN" \
+  MOONLIGHT_RESOLUTION="$MOONLIGHT_RESOLUTION" \
+  MOONLIGHT_FPS="$MOONLIGHT_FPS" \
+  MOONLIGHT_BITRATE="$MOONLIGHT_BITRATE" \
+  MOONLIGHT_VIDEO_CODEC="$MOONLIGHT_VIDEO_CODEC" \
+  MOONLIGHT_VIDEO_DECODER="$MOONLIGHT_VIDEO_DECODER" \
+  MOONLIGHT_AUDIO_CONFIG="$MOONLIGHT_AUDIO_CONFIG" \
+  MOONLIGHT_ABSOLUTE_MOUSE="$MOONLIGHT_ABSOLUTE_MOUSE" \
+  MOONLIGHT_QUIT_AFTER="$MOONLIGHT_QUIT_AFTER" \
+  SUNSHINE_API_URL="$SUNSHINE_API_URL" \
   PROXMOX_SCHEME="$PROXMOX_SCHEME" \
   PROXMOX_HOST="$PROXMOX_HOST" \
   PROXMOX_PORT="$PROXMOX_PORT" \
@@ -655,6 +740,9 @@ copy_assets() {
   CONNECTION_USERNAME="$CONNECTION_USERNAME" \
   CONNECTION_PASSWORD="$CONNECTION_PASSWORD" \
   CONNECTION_TOKEN="$CONNECTION_TOKEN" \
+  SUNSHINE_USERNAME="$SUNSHINE_USERNAME" \
+  SUNSHINE_PASSWORD="$SUNSHINE_PASSWORD" \
+  SUNSHINE_PIN="$SUNSHINE_PIN" \
   "$ROOT_DIR/installer/write-config.sh" "$STATE_DIR"
 }
 

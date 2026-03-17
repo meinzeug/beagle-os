@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.3.1 - 2026-03-17
+
+- Fixed the Sunshine guest provisioning path so LightDM is forced in as the actual `display-manager.service`, replacing the stale `gdm3` default that kept the Xfce autologin desktop from coming up after the first reboot.
+- Locked Sunshine guest defaults to H.264-only software streaming by explicitly disabling HEVC and AV1 in the generated `sunshine.conf`, matching the low-latency CPU-only target profile for this host.
+- Tightened the Xfce autostart path so Sunshine starts only inside the intended Xfce session rather than relying on generic desktop autostart semantics.
+- Added a lightweight Xfce window-manager profile for provisioned guests that disables compositor overhead by default, leaving more CPU budget available for software capture and encoding.
+- Updated the Proxmox host installer to reuse packaged GitHub release assets for the USB installer and payload when they are available, so release-tarball installs no longer have to rebuild the live image locally on every host.
+
+## v3.3.0 - 2026-03-17
+
+- Added a first-class `MOONLIGHT` runtime mode that auto-pairs against Sunshine through its authenticated `/api/pin` endpoint and then starts a preseeded Moonlight desktop stream without asking the operator for any extra runtime details.
+- Extended the thin-client configuration model with Moonlight host/app, codec, decoder, bitrate, resolution, FPS and Sunshine API credentials so the installed target keeps all Sunshine-specific state outside the old SPICE/noVNC/DCV-only path.
+- Added a live-build hook that bundles Moonlight from the official upstream AppImage into the installer image as a local wrapper binary, removing any dependency on distro packaging for the client itself.
+- Expanded VM preset generation so host-served per-VM USB installers can embed Sunshine/Moonlight defaults including auto-pairing PIN, Sunshine API URL, default mode and a low-latency H.264 1080p60 profile.
+- Upgraded the graphical USB installer dashboard and local installer preset flow to understand `MOONLIGHT`, prefer preset-defined default modes and surface Sunshine target metadata directly in the on-stick UI.
+- Kept the old SPICE, noVNC and DCV paths intact as secondary modes, so mixed environments can publish Moonlight first while still exposing the legacy fallbacks per VM.
+
 ## v3.2.1 - 2026-03-16
 
 - Fixed the host installer so `/opt/pve-dcv-integration` is always normalized to `root:root` with world-executable directory permissions after deployment, preventing `nginx` from returning `403 Forbidden` on hosted USB download artifacts.

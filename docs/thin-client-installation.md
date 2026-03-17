@@ -6,12 +6,13 @@ This assistant is designed as a first implementation base for a Linux-backed thi
 
 Supported runtime choices:
 
+- `MOONLIGHT`
 - `SPICE`
 - `NOVNC`
 - `DCV`
 
 The repository also ships a USB writer helper that prepares a removable drive with the thin-client installer payload and a local start menu.
-The current USB flow now consists of three layers:
+The current USB flow now consists of four layers:
 
 - a local USB writer that can self-escalate to `sudo`
 - a host-served payload bundle with prebuilt live assets for the standalone writer path
@@ -40,6 +41,13 @@ The current USB flow now consists of three layers:
 The repository still keeps `thin-client-assistant/installer/install.sh` for cases where an existing Linux system should be converted in place.
 
 ## Mode-specific notes
+
+### MOONLIGHT
+
+- requires the bundled `moonlight` wrapper in the live image or an installed `moonlight` binary
+- supports preseeded Sunshine API credentials plus a fixed pairing PIN so the client can pair itself automatically
+- the preferred profile is H.264 at `1080p60` over wired Ethernet
+- the companion guest helper configures Xfce + LightDM and disables Xfce compositing to reduce software-encoding overhead
 
 ### SPICE
 
@@ -71,6 +79,17 @@ Install project assets on a Proxmox host for local operator distribution:
 
 ```bash
 ./scripts/install-proxmox-host.sh
+```
+
+Provision an Ubuntu guest for the preferred Moonlight path:
+
+```bash
+./scripts/configure-sunshine-guest.sh \
+  --proxmox-host thinovernet \
+  --vmid 100 \
+  --guest-user dennis \
+  --sunshine-user sunshine \
+  --sunshine-password 'choose-a-strong-password'
 ```
 
 Install the latest published release on any Proxmox host without cloning the repository:
@@ -120,7 +139,7 @@ The generic host-wide fallback remains available:
 https://<proxmox-host>:8443/pve-dcv-downloads/pve-thin-client-usb-installer-host-latest.sh
 ```
 
-On preseeded USB media, the local installer only asks for the streaming mode (`SPICE`, `NOVNC`, `DCV`) and the target disk. Connection URLs, VM IDs and credentials come from the bundled preset instead of being entered interactively on the target machine.
+On preseeded USB media, the local installer only asks for the streaming mode (`MOONLIGHT`, `SPICE`, `NOVNC`, `DCV`) and the target disk. Connection URLs, VM IDs and credentials come from the bundled preset instead of being entered interactively on the target machine.
 The boot flow itself is now graphical as well: the stick ships with a JPEG-backed GRUB screen and a local Chromium-based installer dashboard that runs fully offline from the live medium.
 
 On installed hosts, a systemd timer refreshes these hosted artifacts periodically. You can also run the refresh manually:
@@ -153,5 +172,5 @@ Build the live installer assets explicitly:
 - inspect `/run/live/medium/pve-thin-client/state/*.env` on live/local-disk boots
 - run `systemctl status pve-thin-client-prepare.service`
 - inspect `/run/systemd/network/90-pve-thin-client.network` when booting the live/local runtime
-- verify `remote-viewer`, `chromium` or `dcvviewer` is available depending on the mode
+- verify `moonlight`, `remote-viewer`, `chromium` or `dcvviewer` is available depending on the mode
 - log into the thin-client desktop session and verify the intended client autostarts

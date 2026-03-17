@@ -6,7 +6,7 @@ The repository is split into two deployable product surfaces:
 
 - `extension/` adds a DCV action to the Proxmox VE web UI
 - `proxmox-ui/` and `scripts/` install the same UI behavior plus optional host-side DCV TLS proxying directly on a Proxmox host
-- `thin-client-assistant/` prepares a Linux endpoint for SPICE, noVNC or DCV access
+- `thin-client-assistant/` prepares a Linux endpoint for Moonlight, SPICE, noVNC or DCV access
 
 These components are intentionally decoupled. The browser extension enhances the Proxmox operator workflow, while the thin-client assistant standardizes endpoint behavior on dedicated client devices.
 
@@ -83,6 +83,7 @@ Boot flow:
 5. `prepare-runtime.sh` validates the selected runtime configuration, applies hostname/network state and writes a status file
 6. `launch-session.sh` loads config from `/etc/pve-thin-client` or from the live medium state directory
 7. the chosen mode starts one of:
+   - `moonlight`
    - `remote-viewer`
    - `chromium --kiosk`
    - `dcvviewer`
@@ -102,11 +103,12 @@ Primary config file:
 
 The config file defines:
 
-- mode selection: `SPICE`, `NOVNC`, `DCV`
+- mode selection: `MOONLIGHT`, `SPICE`, `NOVNC`, `DCV`
 - target URLs
 - connection method such as direct URLs or Proxmox-backed SPICE tickets
 - Proxmox host/node/vmid settings
 - stored username/password/token fields
+- Moonlight and Sunshine pairing settings
 - kiosk browser path and flags
 - local runtime user and autostart toggles
 

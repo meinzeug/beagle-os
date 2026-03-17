@@ -53,6 +53,8 @@ render_template() {
   output="${output//\{host\}/${PVE_THIN_CLIENT_PROXMOX_HOST:-}}"
   output="${output//\{node\}/${PVE_THIN_CLIENT_PROXMOX_NODE:-}}"
   output="${output//\{vmid\}/${PVE_THIN_CLIENT_PROXMOX_VMID:-}}"
+  output="${output//\{moonlight_host\}/${PVE_THIN_CLIENT_MOONLIGHT_HOST:-}}"
+  output="${output//\{sunshine_api_url\}/${PVE_THIN_CLIENT_SUNSHINE_API_URL:-}}"
 
   printf '%s\n' "$output"
 }
