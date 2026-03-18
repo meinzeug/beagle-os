@@ -109,7 +109,7 @@ allocate_bootstrap_dir() {
 }
 
 bootstrap_repo_root() {
-  local tarball extracted checksum_file payload_name
+  local tarball extracted checksum_file payload_name checksum_url checksum_log
   if [[ -d "$REPO_ROOT/thin-client-assistant" && -x "$REPO_ROOT/scripts/build-thin-client-installer.sh" ]]; then
     return 0
   fi
@@ -133,7 +133,9 @@ bootstrap_repo_root() {
   echo "Downloading thin-client payload bundle from $RELEASE_PAYLOAD_URL ..."
   curl --fail --show-error --location --retry 3 --retry-delay 2 "$RELEASE_PAYLOAD_URL" -o "$tarball"
   checksum_file="$BOOTSTRAP_DIR/SHA256SUMS"
-  if curl --fail --show-error --location --retry 2 --retry-delay 1 "${RELEASE_PAYLOAD_URL%/*}/SHA256SUMS" -o "$checksum_file"; then
+  checksum_url="${RELEASE_PAYLOAD_URL%/*}/SHA256SUMS"
+  checksum_log="$BOOTSTRAP_DIR/checksum-download.log"
+  if curl --fail --silent --location --retry 2 --retry-delay 1 "$checksum_url" -o "$checksum_file" 2>"$checksum_log"; then
     if grep -F " ${payload_name}" "$checksum_file" >"$BOOTSTRAP_DIR/payload.sha256"; then
       (
         cd "$BOOTSTRAP_DIR"
@@ -148,7 +150,10 @@ bootstrap_repo_root() {
     fi
   else
     if [[ "$REQUIRE_CHECKSUMS" == "1" ]]; then
-      echo "Checksum verification is required but companion SHA256SUMS could not be downloaded." >&2
+      echo "Checksum verification is required but companion SHA256SUMS could not be downloaded from $checksum_url." >&2
+      if [[ -s "$checksum_log" ]]; then
+        cat "$checksum_log" >&2
+      fi
       exit 1
     fi
     echo "Warning: unable to download companion SHA256SUMS, continuing without payload verification." >&2
@@ -261,40 +266,66 @@ have_graphical_dialog() {
   [[ -n "${DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1
 }
 
+zenity_env() {
+  local zenity_config_dir="$1"
+
+  env \
+    HOME="$zenity_config_dir" \
+    XDG_CONFIG_HOME="$zenity_config_dir" \
+    XDG_CACHE_HOME="$zenity_config_dir/.cache" \
+    XDG_DATA_HOME="$zenity_config_dir/.local/share" \
+    XDG_RUNTIME_DIR="$zenity_config_dir/runtime" \
+    XDG_CURRENT_DESKTOP="" \
+    DESKTOP_SESSION="" \
+    GSETTINGS_BACKEND=memory \
+    GIO_USE_VFS=local \
+    GTK_THEME="${PVE_DCV_ZENITY_THEME:-Adwaita}" \
+    GTK_PATH="" \
+    GTK_RC_FILES=/dev/null \
+    GTK2_RC_FILES=/dev/null \
+    GTK_USE_PORTAL=0 \
+    NO_AT_BRIDGE=1
+}
+
+extract_block_device_from_text() {
+  local text="$1"
+  printf '%s\n' "$text" | grep -Eo '/dev/[[:alnum:]_.+:/-]+' | tail -n1
+}
+
 run_zenity() {
   local zenity_config_dir=""
+  local zenity_stderr=""
+  local output=""
   local status=0
 
   zenity_config_dir="$(mktemp -d "${TMPDIR:-/tmp}/pve-dcv-zenity.XXXXXX")"
-  mkdir -p "$zenity_config_dir/gtk-3.0" "$zenity_config_dir/.cache" "$zenity_config_dir/.local/share"
+  zenity_stderr="$zenity_config_dir/stderr.log"
+  mkdir -p \
+    "$zenity_config_dir/gtk-3.0" \
+    "$zenity_config_dir/.cache" \
+    "$zenity_config_dir/.local/share" \
+    "$zenity_config_dir/runtime"
+  chmod 0700 "$zenity_config_dir/runtime"
 
-  if command -v dbus-run-session >/dev/null 2>&1; then
-    DBUS_SESSION_BUS_ADDRESS="" \
-    dbus-run-session -- env \
-      HOME="$zenity_config_dir" \
-      XDG_CONFIG_HOME="$zenity_config_dir" \
-      XDG_CACHE_HOME="$zenity_config_dir/.cache" \
-      XDG_DATA_HOME="$zenity_config_dir/.local/share" \
-      GTK_THEME="${PVE_DCV_ZENITY_THEME:-Adwaita}" \
-      GTK_PATH="" \
-      GTK_RC_FILES=/dev/null \
-      GTK2_RC_FILES=/dev/null \
-      GTK_USE_PORTAL=0 \
-      NO_AT_BRIDGE=1 \
-      zenity "$@" || status=$?
-  else
-    env \
-      HOME="$zenity_config_dir" \
-      XDG_CONFIG_HOME="$zenity_config_dir" \
-      XDG_CACHE_HOME="$zenity_config_dir/.cache" \
-      XDG_DATA_HOME="$zenity_config_dir/.local/share" \
-      GTK_THEME="${PVE_DCV_ZENITY_THEME:-Adwaita}" \
-      GTK_PATH="" \
-      GTK_RC_FILES=/dev/null \
-      GTK2_RC_FILES=/dev/null \
-      GTK_USE_PORTAL=0 \
-      NO_AT_BRIDGE=1 \
-      zenity "$@" || status=$?
+  output="$(zenity_env "$zenity_config_dir" zenity "$@" 2>"$zenity_stderr")" || status=$?
+
+  if [[ "$status" -ne 0 && "$status" -ne 1 ]] && command -v dbus-run-session >/dev/null 2>&1; then
+    status=0
+    : >"$zenity_stderr"
+    output="$(
+      DBUS_SESSION_BUS_ADDRESS="" \
+      zenity_env "$zenity_config_dir" \
+      dbus-run-session -- \
+      zenity "$@" 2>"$zenity_stderr"
+    )" || status=$?
+  fi
+
+  if [[ -n "$output" ]]; then
+    printf '%s\n' "$output"
+  fi
+
+  if [[ "$status" -ne 0 && "$status" -ne 1 && -s "$zenity_stderr" ]]; then
+    cat "$zenity_stderr" >&2
   fi
 
   rm -rf "$zenity_config_dir"
@@ -308,7 +339,7 @@ payload_has_live_assets() {
 choose_device() {
   local options=()
   local zenity_rows=()
-  local device tty_path usb_candidates name size model type rm transport answer index zenity_status
+  local device tty_path usb_candidates name size model type rm transport answer index zenity_status selected_device
 
   tty_path="/dev/tty"
   if [[ ! -r "$tty_path" || ! -w "$tty_path" ]]; then
@@ -320,6 +351,9 @@ choose_device() {
     [[ "${TYPE:-}" == "disk" ]] || continue
     device="/dev/${NAME}"
     [[ "$device" == /dev/loop* || "$device" == /dev/sr* || "$device" == /dev/ram* || "$device" == /dev/zram* ]] && continue
+    if [[ "$ALLOW_NON_USB_DEVICE" != "1" && "${RM:-0}" != "1" && "${TRAN:-}" != "usb" ]]; then
+      continue
+    fi
     options+=("$device" "${MODEL:-disk} ${SIZE:-unknown} usb=${TRAN:-}")
     zenity_rows+=("$device" "${SIZE:-unknown}" "${MODEL:-disk}" "${TRAN:-unknown}")
   done <<EOF
@@ -327,6 +361,10 @@ $(list_candidate_devices)
 EOF
 
   if (( ${#options[@]} == 0 )); then
+    if [[ "$ALLOW_NON_USB_DEVICE" != "1" ]]; then
+      echo "No removable/USB target device found. Re-run with --allow-non-usb to show all disks." >&2
+      exit 1
+    fi
     echo "No writable block device found." >&2
     exit 1
   fi
@@ -342,8 +380,12 @@ EOF
       --column="Model" \
       --column="Transport" \
       "${zenity_rows[@]}")"; then
-      printf '%s\n' "$answer"
-      return 0
+      selected_device="$(extract_block_device_from_text "$answer")"
+      if [[ -n "$selected_device" ]]; then
+        printf '%s\n' "$selected_device"
+        return 0
+      fi
+      echo "Graphical device picker returned an invalid selection, falling back to terminal selection." >&2
     fi
     zenity_status=$?
     if [[ "$zenity_status" -eq 1 ]]; then
@@ -369,9 +411,15 @@ EOF
   fi
 
   if command -v whiptail >/dev/null 2>&1; then
-    whiptail --title "PVE Thin Client USB Writer" --menu \
+    answer="$(whiptail --title "PVE Thin Client USB Writer" --menu \
       "Select the USB target device" 20 90 10 \
-      "${options[@]}" 3>&1 1>&2 2>&3
+      "${options[@]}" 3>&1 1>&2 2>&3)" || return $?
+    selected_device="$(extract_block_device_from_text "$answer")"
+    [[ -n "$selected_device" ]] || {
+      echo "Terminal device picker returned an invalid selection." >&2
+      exit 1
+    }
+    printf '%s\n' "$selected_device"
     return 0
   fi
 
