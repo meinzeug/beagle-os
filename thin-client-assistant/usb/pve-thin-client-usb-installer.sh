@@ -259,10 +259,40 @@ have_graphical_dialog() {
   [[ -n "${DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1
 }
 
+run_zenity() {
+  local zenity_config_dir=""
+  local status=0
+
+  zenity_config_dir="$(mktemp -d "${TMPDIR:-/tmp}/pve-dcv-zenity.XXXXXX")"
+  mkdir -p "$zenity_config_dir/gtk-3.0"
+
+  if command -v dbus-run-session >/dev/null 2>&1; then
+    DBUS_SESSION_BUS_ADDRESS="" \
+    dbus-run-session -- env \
+      HOME="${HOME:-$zenity_config_dir}" \
+      XDG_CONFIG_HOME="$zenity_config_dir" \
+      GTK_THEME="${PVE_DCV_ZENITY_THEME:-Adwaita}" \
+      GTK_USE_PORTAL=0 \
+      NO_AT_BRIDGE=1 \
+      zenity "$@" || status=$?
+  else
+    env \
+      HOME="${HOME:-$zenity_config_dir}" \
+      XDG_CONFIG_HOME="$zenity_config_dir" \
+      GTK_THEME="${PVE_DCV_ZENITY_THEME:-Adwaita}" \
+      GTK_USE_PORTAL=0 \
+      NO_AT_BRIDGE=1 \
+      zenity "$@" || status=$?
+  fi
+
+  rm -rf "$zenity_config_dir"
+  return "$status"
+}
+
 choose_device() {
   local options=()
   local zenity_rows=()
-  local device tty_path usb_candidates name size model type rm transport answer index
+  local device tty_path usb_candidates name size model type rm transport answer index zenity_status
 
   tty_path="/dev/tty"
   if [[ ! -r "$tty_path" || ! -w "$tty_path" ]]; then
@@ -286,7 +316,7 @@ EOF
   fi
 
   if have_graphical_dialog; then
-    zenity --list \
+    if answer="$(run_zenity --list \
       --title="PVE Thin Client USB Writer" \
       --text="Choose the USB target device for the installer media." \
       --width=920 \
@@ -295,8 +325,15 @@ EOF
       --column="Size" \
       --column="Model" \
       --column="Transport" \
-      "${zenity_rows[@]}"
-    return 0
+      "${zenity_rows[@]}")"; then
+      printf '%s\n' "$answer"
+      return 0
+    fi
+    zenity_status=$?
+    if [[ "$zenity_status" -eq 1 ]]; then
+      exit 1
+    fi
+    echo "Graphical device picker failed, falling back to terminal selection." >&2
   fi
 
   usb_candidates="$(count_usb_candidates)"
@@ -416,6 +453,8 @@ ensure_target_is_safe() {
 }
 
 confirm_device() {
+  local answer zenity_status
+
   [[ -b "$TARGET_DEVICE" ]] || {
     echo "Block device not found: $TARGET_DEVICE" >&2
     print_devices >&2
@@ -433,13 +472,19 @@ confirm_device() {
   fi
 
   if have_graphical_dialog; then
-    zenity --question \
+    if run_zenity --question \
       --title="Write USB Installer" \
       --width=760 \
       --text="The selected drive will be erased completely and turned into a bootable PVE Thin Client installer.\n\nTarget: ${TARGET_DEVICE}\nPreset: ${PVE_THIN_CLIENT_PRESET_NAME:-generic}" \
       --ok-label="Write USB" \
-      --cancel-label="Cancel"
-    return $?
+      --cancel-label="Cancel"; then
+      return 0
+    fi
+    zenity_status=$?
+    if [[ "$zenity_status" -eq 1 ]]; then
+      return 1
+    fi
+    echo "Graphical confirmation dialog failed, falling back to terminal prompt." >&2
   fi
 
   read -r -p "Erase and re-create $TARGET_DEVICE as PVE Thin Client USB? [y/N]: " answer
