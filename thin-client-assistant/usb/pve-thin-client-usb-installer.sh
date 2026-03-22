@@ -17,6 +17,7 @@ ALLOW_SYSTEM_DISK="0"
 RELEASE_PAYLOAD_URL="${RELEASE_PAYLOAD_URL:-}"
 INSTALL_PAYLOAD_URL="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-}}"
 RELEASE_BOOTSTRAP_URL="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-}}"
+BOOTSTRAP_CACHE_DIR="${PVE_DCV_BOOTSTRAP_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/pve-dcv-usb}"
 BOOTSTRAP_DIR=""
 BOOTSTRAPPED_STANDALONE="0"
 MIN_DEVICE_BYTES="${MIN_DEVICE_BYTES:-4294967296}"
@@ -76,6 +77,7 @@ rerun_as_root() {
     RELEASE_PAYLOAD_URL="$RELEASE_PAYLOAD_URL" \
     INSTALL_PAYLOAD_URL="$INSTALL_PAYLOAD_URL" \
     RELEASE_BOOTSTRAP_URL="$RELEASE_BOOTSTRAP_URL" \
+    PVE_DCV_BOOTSTRAP_CACHE_DIR="$BOOTSTRAP_CACHE_DIR" \
     PVE_DCV_BOOTSTRAP_BASE="${PVE_DCV_BOOTSTRAP_BASE:-}" \
     MIN_DEVICE_BYTES="$MIN_DEVICE_BYTES" \
     PVE_THIN_CLIENT_PRESET_NAME="$PVE_THIN_CLIENT_PRESET_NAME" \
@@ -114,6 +116,7 @@ allocate_bootstrap_dir() {
 
 bootstrap_repo_root() {
   local tarball extracted checksum_file payload_name checksum_url checksum_log bootstrap_url
+  local cache_dir cached_tarball download_target used_cached checksum_entry_found checksum_ok
   if [[ -d "$REPO_ROOT/thin-client-assistant" && -x "$REPO_ROOT/scripts/build-thin-client-installer.sh" ]]; then
     return 0
   fi
@@ -135,17 +138,41 @@ bootstrap_repo_root() {
 
   payload_name="$(basename "$bootstrap_url")"
   tarball="$BOOTSTRAP_DIR/$payload_name"
-  echo "Downloading thin-client bootstrap bundle from $bootstrap_url ..."
-  curl --fail --show-error --location --retry 3 --retry-delay 2 "$bootstrap_url" -o "$tarball"
+  cache_dir="$BOOTSTRAP_CACHE_DIR"
+  cached_tarball=""
+  used_cached="0"
+  checksum_entry_found="0"
+  checksum_ok="0"
+
+  if [[ -n "$cache_dir" ]]; then
+    if mkdir -p "$cache_dir" 2>/dev/null; then
+      cached_tarball="$cache_dir/$payload_name"
+    fi
+  fi
+
   checksum_file="$BOOTSTRAP_DIR/SHA256SUMS"
   checksum_url="${bootstrap_url%/*}/SHA256SUMS"
   checksum_log="$BOOTSTRAP_DIR/checksum-download.log"
+
+  if [[ -n "$cached_tarball" && -f "$cached_tarball" ]]; then
+    echo "Using cached bootstrap candidate: $cached_tarball"
+    cp -f "$cached_tarball" "$tarball"
+    used_cached="1"
+  fi
+
   if curl --fail --silent --location --retry 2 --retry-delay 1 "$checksum_url" -o "$checksum_file" 2>"$checksum_log"; then
     if grep -F " ${payload_name}" "$checksum_file" >"$BOOTSTRAP_DIR/payload.sha256"; then
-      (
-        cd "$BOOTSTRAP_DIR"
-        sha256sum -c payload.sha256
-      )
+      checksum_entry_found="1"
+      if [[ "$used_cached" == "1" ]]; then
+        if (
+          cd "$BOOTSTRAP_DIR"
+          sha256sum -c payload.sha256 >/dev/null
+        ); then
+          checksum_ok="1"
+        else
+          checksum_ok="0"
+        fi
+      fi
     else
       if [[ "$REQUIRE_CHECKSUMS" == "1" ]]; then
         echo "Checksum verification is required but SHA256SUMS has no entry for $payload_name." >&2
@@ -163,6 +190,37 @@ bootstrap_repo_root() {
     fi
     echo "Warning: unable to download companion SHA256SUMS, continuing without payload verification." >&2
   fi
+
+  if [[ "$used_cached" == "1" ]]; then
+    if [[ "$checksum_entry_found" == "1" && "$checksum_ok" == "1" ]]; then
+      echo "Cached bootstrap verified successfully."
+    elif [[ "$checksum_entry_found" == "1" ]]; then
+      echo "Cached bootstrap checksum failed, re-downloading..." >&2
+      used_cached="0"
+    else
+      echo "Proceeding with unverified cached bootstrap (no checksum entry)." >&2
+    fi
+  fi
+
+  if [[ "$used_cached" != "1" ]]; then
+    download_target="$tarball"
+    if [[ -n "$cached_tarball" ]]; then
+      download_target="$cached_tarball"
+    fi
+    echo "Downloading thin-client bootstrap bundle from $bootstrap_url ..."
+    curl --fail --show-error --location --retry 3 --retry-delay 2 --continue-at - "$bootstrap_url" -o "$download_target"
+    if [[ "$download_target" != "$tarball" ]]; then
+      cp -f "$download_target" "$tarball"
+    fi
+
+    if [[ "$checksum_entry_found" == "1" ]]; then
+      (
+        cd "$BOOTSTRAP_DIR"
+        sha256sum -c payload.sha256 >/dev/null
+      )
+    fi
+  fi
+
   tar -xzf "$tarball" -C "$extracted"
   REPO_ROOT="$extracted"
   DIST_DIR="$REPO_ROOT/dist/pve-thin-client-installer"
