@@ -3,83 +3,1147 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-INSTALLER="$SCRIPT_DIR/pve-thin-client-local-installer.sh"
-LIVE_MEDIUM="${LIVE_MEDIUM:-/run/live/medium}"
-PRESET_FILE="${LIVE_MEDIUM}/pve-thin-client/preset.env"
+INSTALLER="${PVE_THIN_CLIENT_INSTALLER_BIN:-$SCRIPT_DIR/pve-thin-client-local-installer.sh}"
+PROXMOX_API_HELPER="${PVE_THIN_CLIENT_PROXMOX_API_HELPER:-$SCRIPT_DIR/pve-thin-client-proxmox-api.py}"
+LIVE_MEDIUM_DEFAULT="${LIVE_MEDIUM:-/run/live/medium}"
+TEMP_LIVE_MEDIUM_MOUNT=""
+BOOT_STAMP="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date +%Y%m%dT%H%M%SZ)"
+LOG_SESSION_ID="${PVE_THIN_CLIENT_LOG_SESSION_ID:-${BOOT_STAMP}-installer-menu}"
+LOG_ROOT="${PVE_THIN_CLIENT_LOG_ROOT:-/tmp/pve-thin-client-logs}"
+LOG_DIR="${PVE_THIN_CLIENT_LOG_DIR:-$LOG_ROOT/$LOG_SESSION_ID}"
+LOG_FILE="$LOG_DIR/live-menu.log"
+LOGIN_STATE_FILE="/run/pve-thin-client/proxmox-login.env"
+NETWORK_STATE_FILE="/run/pve-thin-client/installer-network.env"
+RUNTIME_NETWORK_DIR="/run/systemd/network"
+RUNTIME_NETWORK_FILE="$RUNTIME_NETWORK_DIR/10-pve-thin-client-installer.network"
+WPA_RUNTIME_DIR="/run/pve-thin-client"
+WPA_CONFIG_FILE="$WPA_RUNTIME_DIR/wpa_supplicant-installer.conf"
+WPA_PID_FILE="$WPA_RUNTIME_DIR/wpa_supplicant-installer.pid"
+DEFAULT_DNS_SERVERS=("1.1.1.1" "9.9.9.9" "8.8.8.8")
+DEFAULT_API_SCHEME="https"
+DEFAULT_API_PORT="8006"
+DEFAULT_API_VERIFY_TLS="0"
+NETWORK_SETUP_COMPLETE=0
+BUNDLED_PRESET_MODE=0
 
-ensure_root() {
-  if [[ "${EUID}" -eq 0 ]]; then
-    return 0
-  fi
-
-  if command -v sudo >/dev/null 2>&1; then
-    exec sudo "$0" "$@"
-  fi
-
-  echo "This action requires root privileges and sudo is unavailable." >&2
-  exit 1
+have_passwordless_sudo() {
+  [[ "${EUID}" -eq 0 ]] || (command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1)
 }
 
-menu_prompt() {
-  local action_two_label="Open setup questionnaire only"
-
-  if [[ -f "$PRESET_FILE" ]]; then
-    action_two_label="Show bundled VM preset"
+cleanup() {
+  if [[ -n "$TEMP_LIVE_MEDIUM_MOUNT" ]]; then
+    if [[ "${EUID}" -eq 0 ]]; then
+      umount "$TEMP_LIVE_MEDIUM_MOUNT" >/dev/null 2>&1 || true
+    else
+      sudo -n umount "$TEMP_LIVE_MEDIUM_MOUNT" >/dev/null 2>&1 || true
+    fi
+    rmdir "$TEMP_LIVE_MEDIUM_MOUNT" >/dev/null 2>&1 || true
   fi
+}
+trap cleanup EXIT
 
-  if command -v whiptail >/dev/null 2>&1; then
-    whiptail --title "PVE Thin Client Installer" --menu \
-      "Select an action" 18 88 8 \
-      "1" "Install thin client to local disk" \
-      "2" "$action_two_label" \
-      "3" "Open shell" \
-      "4" "Reboot" \
-      "5" "Power off" \
-      3>&1 1>&2 2>&3
+setup_logging() {
+  mkdir -p "$LOG_DIR"
+  touch "$LOG_FILE"
+  chmod 0644 "$LOG_FILE" >/dev/null 2>&1 || true
+  mkdir -p "$(dirname "$LOGIN_STATE_FILE")"
+  {
+    printf 'LOG_SESSION_ID=%s\n' "$LOG_SESSION_ID"
+    printf 'LOG_DIR=%s\n' "$LOG_DIR"
+    printf 'DATE=%s\n' "$(date -Is 2>/dev/null || date)"
+  } >"$LOG_DIR/session.env" 2>/dev/null || true
+}
+
+log_msg() {
+  setup_logging
+  printf '[%s] %s\n' "$(date -Is 2>/dev/null || date)" "$*" >>"$LOG_FILE"
+}
+
+log_network_snapshot() {
+  local label="${1:-network}"
+  setup_logging
+  {
+    echo "=== $label ==="
+    date -Is 2>/dev/null || date
+    echo
+    echo "=== ip -br link ==="
+    ip -br link 2>/dev/null || true
+    echo
+    echo "=== ip -br addr ==="
+    ip -br addr 2>/dev/null || true
+    echo
+    echo "=== ip route ==="
+    ip route 2>/dev/null || true
+    echo
+    echo "=== /etc/resolv.conf ==="
+    cat /etc/resolv.conf 2>/dev/null || true
+    echo
+    echo "=== networkctl ==="
+    networkctl --no-pager --all 2>/dev/null || true
+    echo
+  } >>"$LOG_DIR/network-status.log" 2>&1 || true
+}
+
+detect_tty_path() {
+  local tty_path="/dev/tty"
+  if [[ -r "$tty_path" && -w "$tty_path" ]]; then
+    printf '%s\n' "$tty_path"
+  fi
+}
+
+TTY_PATH="$(detect_tty_path || true)"
+
+have_tui_dialog() {
+  [[ -n "$TTY_PATH" ]] && command -v whiptail >/dev/null 2>&1
+}
+
+run_whiptail() {
+  whiptail "$@" --output-fd 3 \
+    3>&1 \
+    1>"$TTY_PATH" \
+    2>"$TTY_PATH" \
+    <"$TTY_PATH"
+}
+
+dialog_msgbox() {
+  local title="$1"
+  local text="$2"
+  if have_tui_dialog; then
+    run_whiptail --title "$title" --msgbox "$text" 18 90
     return 0
   fi
 
-  echo "1) Install thin client to local disk"
-  echo "2) $action_two_label"
-  echo "3) Open shell"
-  echo "4) Reboot"
-  echo "5) Power off"
-  read -r -p "Choice: " answer
+  printf '\n[%s]\n%s\n' "$title" "$text"
+  if [[ -n "$TTY_PATH" ]]; then
+    printf 'Press ENTER to continue. ' >"$TTY_PATH"
+    read -r _ <"$TTY_PATH"
+  fi
+}
+
+dialog_input() {
+  local title="$1"
+  local text="$2"
+  local default_value="${3:-}"
+  local answer=""
+
+  if have_tui_dialog; then
+    run_whiptail --title "$title" --inputbox "$text" 12 90 "$default_value"
+    return 0
+  fi
+
+  [[ -n "$TTY_PATH" ]] || return 1
+  printf '\n[%s]\n%s\n> ' "$title" "$text" >"$TTY_PATH"
+  read -r answer <"$TTY_PATH" || return 1
+  if [[ -z "$answer" ]]; then
+    answer="$default_value"
+  fi
   printf '%s\n' "$answer"
 }
 
+dialog_password() {
+  local title="$1"
+  local text="$2"
+  local answer=""
+
+  if have_tui_dialog; then
+    run_whiptail --title "$title" --passwordbox "$text" 12 90
+    return 0
+  fi
+
+  [[ -n "$TTY_PATH" ]] || return 1
+  printf '\n[%s]\n%s\n> ' "$title" "$text" >"$TTY_PATH"
+  read -rs answer <"$TTY_PATH" || return 1
+  printf '\n' >"$TTY_PATH"
+  printf '%s\n' "$answer"
+}
+
+dialog_menu() {
+  local title="$1"
+  local text="$2"
+  shift 2
+  local -a items=("$@")
+  local count=0
+  local index=1
+  local answer=""
+
+  count=$(( ${#items[@]} / 2 ))
+  if have_tui_dialog; then
+    run_whiptail --title "$title" --menu "$text" 22 100 "$count" "${items[@]}"
+    return 0
+  fi
+
+  [[ -n "$TTY_PATH" ]] || return 1
+  printf '\n[%s]\n%s\n' "$title" "$text" >"$TTY_PATH"
+  while (( index <= count )); do
+    printf '%s) %s %s\n' \
+      "$index" \
+      "${items[$(( (index - 1) * 2 ))]}" \
+      "${items[$(( (index - 1) * 2 + 1 ))]}" >"$TTY_PATH"
+    index=$((index + 1))
+  done
+  printf 'Choice: ' >"$TTY_PATH"
+  read -r answer <"$TTY_PATH" || return 1
+  [[ "$answer" =~ ^[0-9]+$ ]] || return 1
+  (( answer >= 1 && answer <= count )) || return 1
+  printf '%s\n' "${items[$(( (answer - 1) * 2 ))]}"
+}
+
+is_ip_literal() {
+  local value="${1:-}"
+  [[ "$value" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ || "$value" =~ : ]]
+}
+
+resolve_ipv4_address() {
+  local host="${1:-}"
+  [[ -n "$host" ]] || return 1
+  python3 - "$host" <<'PY'
+import socket
+import sys
+
+host = sys.argv[1].strip()
+if not host:
+    raise SystemExit(1)
+
+seen = set()
+try:
+    infos = socket.getaddrinfo(host, None, family=socket.AF_INET, type=socket.SOCK_STREAM)
+except OSError:
+    raise SystemExit(1)
+
+for info in infos:
+    address = info[4][0]
+    if address not in seen:
+        seen.add(address)
+        print(address)
+        raise SystemExit(0)
+
+raise SystemExit(1)
+PY
+}
+
+wired_interfaces() {
+  local iface
+  for iface in /sys/class/net/*; do
+    iface="$(basename "$iface")"
+    [[ "$iface" == "lo" ]] && continue
+    [[ -d "/sys/class/net/$iface/wireless" ]] && continue
+    case "$iface" in
+      docker*|virbr*|veth*|br-*|tun*|tap*|wg*|zt*|vmnet*|tailscale*) continue ;;
+    esac
+    printf '%s\n' "$iface"
+  done
+}
+
+wifi_interfaces() {
+  local iface
+  for iface in /sys/class/net/*; do
+    iface="$(basename "$iface")"
+    [[ "$iface" == "lo" ]] && continue
+    [[ -d "/sys/class/net/$iface/wireless" ]] || continue
+    printf '%s\n' "$iface"
+  done
+}
+
+choose_interface() {
+  local title="$1"
+  local text="$2"
+  shift 2
+  local -a interfaces=("$@")
+  local -a menu_items=()
+  local iface=""
+
+  if (( ${#interfaces[@]} == 0 )); then
+    return 1
+  fi
+
+  if (( ${#interfaces[@]} == 1 )); then
+    printf '%s\n' "${interfaces[0]}"
+    return 0
+  fi
+
+  for iface in "${interfaces[@]}"; do
+    menu_items+=("$iface" "MAC $(cat "/sys/class/net/$iface/address" 2>/dev/null || printf 'unknown')")
+  done
+
+  dialog_menu "$title" "$text" "${menu_items[@]}"
+}
+
+write_runtime_network_file() {
+  local iface="$1"
+  local dns_block=""
+  local dns_server=""
+  install -d -m 0755 "$RUNTIME_NETWORK_DIR"
+  install -d -m 0700 "$WPA_RUNTIME_DIR"
+  for dns_server in "${DEFAULT_DNS_SERVERS[@]}"; do
+    dns_block="${dns_block}DNS=${dns_server}"$'\n'
+  done
+  cat >"$RUNTIME_NETWORK_FILE" <<EOF
+[Match]
+Name=$iface
+
+[Network]
+DHCP=yes
+${dns_block}Domains=~.
+
+[DHCPv4]
+UseDNS=yes
+EOF
+}
+
+restart_network_stack() {
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl restart systemd-networkd.service >/dev/null 2>&1 || true
+    systemctl restart systemd-resolved.service >/dev/null 2>&1 || true
+  fi
+}
+
+write_runtime_resolv_conf() {
+  local iface="${1:-}"
+  local dns_server=""
+
+  install -d -m 0700 "$WPA_RUNTIME_DIR"
+  {
+    printf '# Generated by Thinclient Installer\n'
+    for dns_server in "${DEFAULT_DNS_SERVERS[@]}"; do
+      printf 'nameserver %s\n' "$dns_server"
+    done
+    printf 'options timeout:2 attempts:2 rotate\n'
+  } >"$WPA_RUNTIME_DIR/resolv.conf"
+
+  if [[ "${EUID}" -eq 0 ]]; then
+    cp "$WPA_RUNTIME_DIR/resolv.conf" /etc/resolv.conf >/dev/null 2>&1 || true
+  elif have_passwordless_sudo; then
+    sudo -n cp "$WPA_RUNTIME_DIR/resolv.conf" /etc/resolv.conf >/dev/null 2>&1 || true
+  fi
+
+  if [[ -n "$iface" ]] && command -v resolvectl >/dev/null 2>&1; then
+    resolvectl dns "$iface" "${DEFAULT_DNS_SERVERS[@]}" >/dev/null 2>&1 || true
+    resolvectl domain "$iface" "~." >/dev/null 2>&1 || true
+    resolvectl flush-caches >/dev/null 2>&1 || true
+  fi
+}
+
+save_network_state() {
+  local mode="$1"
+  local iface="$2"
+  local ssid="${3:-}"
+  mkdir -p "$(dirname "$NETWORK_STATE_FILE")"
+  cat >"$NETWORK_STATE_FILE" <<EOF
+PVE_INSTALLER_NETWORK_MODE=$mode
+PVE_INSTALLER_NETWORK_INTERFACE=$iface
+PVE_INSTALLER_WIFI_SSID=$ssid
+EOF
+}
+
+wait_for_interface_network() {
+  local iface="$1"
+  local timeout="${2:-25}"
+  local elapsed=0
+
+  while (( elapsed < timeout )); do
+    if ip -4 addr show dev "$iface" scope global 2>/dev/null | grep -q 'inet ' && ip route show default 2>/dev/null | grep -q .; then
+      return 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+
+  return 1
+}
+
+wait_for_dns_resolution() {
+  local host="$1"
+  local timeout="${2:-15}"
+  local elapsed=0
+
+  is_ip_literal "$host" && return 0
+
+  while (( elapsed < timeout )); do
+    if resolve_ipv4_address "$host" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+
+  return 1
+}
+
+stop_wifi_stack() {
+  if [[ -f "$WPA_PID_FILE" ]]; then
+    kill "$(cat "$WPA_PID_FILE" 2>/dev/null || printf '')" >/dev/null 2>&1 || true
+    rm -f "$WPA_PID_FILE"
+  fi
+
+  if command -v wpa_cli >/dev/null 2>&1; then
+    wpa_cli terminate >/dev/null 2>&1 || true
+  fi
+}
+
+build_wpa_supplicant_config() {
+  local ssid="$1"
+  local password="$2"
+
+  install -d -m 0700 "$WPA_RUNTIME_DIR"
+  if [[ -n "$password" ]]; then
+    wpa_passphrase "$ssid" "$password" >"$WPA_CONFIG_FILE"
+  else
+    python3 - "$WPA_CONFIG_FILE" "$ssid" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+target = Path(sys.argv[1])
+ssid = sys.argv[2]
+quoted = json.dumps(ssid)
+target.write_text(
+    "ctrl_interface=/run/wpa_supplicant\n"
+    "update_config=0\n"
+    "network={\n"
+    f"    ssid={quoted}\n"
+    "    key_mgmt=NONE\n"
+    "    scan_ssid=1\n"
+    "}\n",
+    encoding="utf-8",
+)
+PY
+  fi
+  chmod 0600 "$WPA_CONFIG_FILE" >/dev/null 2>&1 || true
+}
+
+scan_wifi_ssids() {
+  local iface="$1"
+  ip link set "$iface" up >/dev/null 2>&1 || true
+  if command -v rfkill >/dev/null 2>&1; then
+    rfkill unblock wifi >/dev/null 2>&1 || true
+  fi
+  iw dev "$iface" scan 2>/dev/null | awk -F'SSID: ' '/SSID: / {print $2}' | sed '/^$/d' | awk '!seen[$0]++'
+}
+
+choose_wifi_ssid() {
+  local iface="$1"
+  local -a ssids=()
+  local -a menu_items=()
+  local ssid=""
+  local choice=""
+  local index=1
+
+  mapfile -t ssids < <(scan_wifi_ssids "$iface" | sed -n '1,20p')
+  if (( ${#ssids[@]} == 0 )); then
+    dialog_input "WLAN SSID" "No WLANs were discovered automatically. Enter the SSID manually." ""
+    return 0
+  fi
+
+  for ssid in "${ssids[@]}"; do
+    menu_items+=("ssid-$index" "$ssid")
+    index=$((index + 1))
+  done
+  menu_items+=("manual" "Hidden or other WLAN")
+
+  choice="$(dialog_menu "Choose WLAN" "Select the Wi-Fi network for internet access." "${menu_items[@]}")" || return 1
+  if [[ "$choice" == "manual" ]]; then
+    dialog_input "WLAN SSID" "Enter the WLAN SSID." ""
+    return 0
+  fi
+
+  index="${choice#ssid-}"
+  [[ "$index" =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "${ssids[$((index - 1))]}"
+}
+
+prepare_ethernet_network() {
+  local -a ifaces=()
+  local iface=""
+
+  mapfile -t ifaces < <(wired_interfaces)
+  if (( ${#ifaces[@]} == 0 )); then
+    dialog_msgbox "No Ethernet Found" "No wired network interface was detected on this machine."
+    return 1
+  fi
+
+  iface="$(choose_interface "Ethernet" "Select the wired interface to use." "${ifaces[@]}")" || return 1
+  log_msg "selected ethernet interface: $iface"
+  ip link set "$iface" up >/dev/null 2>&1 || true
+  stop_wifi_stack
+  write_runtime_network_file "$iface"
+  restart_network_stack
+  write_runtime_resolv_conf "$iface"
+  log_network_snapshot "ethernet-before-wait"
+  if ! wait_for_interface_network "$iface" 25; then
+    log_network_snapshot "ethernet-timeout"
+    dialog_msgbox "Ethernet Not Ready" "No DHCP lease or default route appeared on $iface. Check the cable and switch port, then try again."
+    return 1
+  fi
+
+  write_runtime_resolv_conf "$iface"
+  save_network_state "ethernet" "$iface"
+  NETWORK_SETUP_COMPLETE=1
+  log_network_snapshot "ethernet-ready"
+  return 0
+}
+
+prepare_wifi_network() {
+  local -a ifaces=()
+  local iface=""
+  local ssid=""
+  local password=""
+
+  if ! command -v iw >/dev/null 2>&1 || ! command -v wpa_supplicant >/dev/null 2>&1 || ! command -v wpa_passphrase >/dev/null 2>&1; then
+    dialog_msgbox "WLAN Unsupported" "This installer image does not contain the Wi-Fi tools it needs. Rebuild the image with WLAN support."
+    return 1
+  fi
+
+  mapfile -t ifaces < <(wifi_interfaces)
+  if (( ${#ifaces[@]} == 0 )); then
+    dialog_msgbox "No WLAN Found" "No wireless interface was detected on this machine."
+    return 1
+  fi
+
+  iface="$(choose_interface "WLAN" "Select the wireless interface to use." "${ifaces[@]}")" || return 1
+  log_msg "selected wifi interface: $iface"
+  ssid="$(choose_wifi_ssid "$iface")" || return 1
+  [[ -n "$ssid" ]] || {
+    dialog_msgbox "Missing WLAN SSID" "A WLAN name is required."
+    return 1
+  }
+  password="$(dialog_password "WLAN Password" "Enter the WLAN password for ${ssid}. Leave blank for an open network.")" || return 1
+
+  if command -v rfkill >/dev/null 2>&1; then
+    rfkill unblock wifi >/dev/null 2>&1 || true
+  fi
+  ip link set "$iface" up >/dev/null 2>&1 || true
+  stop_wifi_stack
+  build_wpa_supplicant_config "$ssid" "$password"
+  if ! wpa_supplicant -B -P "$WPA_PID_FILE" -i "$iface" -c "$WPA_CONFIG_FILE" >/dev/null 2>&1; then
+    dialog_msgbox "WLAN Failed" "wpa_supplicant could not start for ${iface}. Check the adapter and try again."
+    return 1
+  fi
+
+  write_runtime_network_file "$iface"
+  restart_network_stack
+  write_runtime_resolv_conf "$iface"
+  log_network_snapshot "wifi-before-wait"
+  if ! wait_for_interface_network "$iface" 35; then
+    log_network_snapshot "wifi-timeout"
+    dialog_msgbox "WLAN Not Ready" "No DHCP lease or default route appeared on ${iface}. Check the password and signal quality, then try again."
+    return 1
+  fi
+
+  write_runtime_resolv_conf "$iface"
+  save_network_state "wifi" "$iface" "$ssid"
+  NETWORK_SETUP_COMPLETE=1
+  log_network_snapshot "wifi-ready"
+  return 0
+}
+
+configure_network_access() {
+  local -a items=()
+  local choice=""
+
+  if [[ "$NETWORK_SETUP_COMPLETE" == "1" ]]; then
+    return 0
+  fi
+
+  if wired_interfaces | grep -q .; then
+    items+=("ethernet" "Cable (Ethernet)")
+  fi
+  if wifi_interfaces | grep -q .; then
+    items+=("wifi" "WLAN")
+  fi
+
+  if (( ${#items[@]} == 0 )); then
+    dialog_msgbox "No Network Hardware" "No wired or wireless network interface was detected."
+    return 1
+  fi
+
+  choice="$(dialog_menu "Internet Connection" "Choose how this installer should reach the internet and Proxmox." "${items[@]}")" || return 1
+  case "$choice" in
+    ethernet)
+      prepare_ethernet_network
+      ;;
+    wifi)
+      prepare_wifi_network
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+effective_api_host() {
+  local host="$1"
+  local host_ip="$2"
+
+  if [[ -z "$host" ]]; then
+    printf '%s\n' "$host_ip"
+    return 0
+  fi
+
+  if is_ip_literal "$host"; then
+    printf '%s\n' "$host"
+    return 0
+  fi
+
+  if wait_for_dns_resolution "$host" 8; then
+    printf '%s\n' "$host"
+    return 0
+  fi
+
+  if [[ -n "$host_ip" ]]; then
+    log_msg "DNS lookup failed for $host, falling back to $host_ip"
+    printf '%s\n' "$host_ip"
+    return 0
+  fi
+
+  return 1
+}
+
+candidate_live_mounts() {
+  local target
+  local -a candidates=("$LIVE_MEDIUM_DEFAULT" "/run/live/medium" "/lib/live/mount/medium")
+
+  if command -v findmnt >/dev/null 2>&1; then
+    while IFS= read -r target; do
+      [[ -n "$target" ]] || continue
+      candidates+=("$target")
+    done < <(findmnt -rn -o TARGET 2>/dev/null || true)
+  fi
+
+  for target in "${candidates[@]}"; do
+    [[ -d "$target" ]] || continue
+    printf '%s\n' "$target"
+  done
+}
+
+candidate_live_asset_dir() {
+  local target="$1"
+
+  if [[ -f "$target/pve-thin-client/live/filesystem.squashfs" ]]; then
+    printf '%s\n' "$target/pve-thin-client/live"
+    return 0
+  fi
+
+  if [[ -f "$target/filesystem.squashfs" ]]; then
+    printf '%s\n' "$target"
+    return 0
+  fi
+
+  return 1
+}
+
+candidate_manifest_path() {
+  local target="$1"
+
+  if [[ -f "$target/.pve-dcv-usb-manifest.json" ]]; then
+    printf '%s\n' "$target/.pve-dcv-usb-manifest.json"
+    return 0
+  fi
+
+  if candidate_live_asset_dir "$target" >/dev/null 2>&1 && [[ -f "$target/.pve-dcv-usb-manifest.json" ]]; then
+    printf '%s\n' "$target/.pve-dcv-usb-manifest.json"
+    return 0
+  fi
+
+  return 1
+}
+
+candidate_live_devices() {
+  local token value
+
+  if [[ -r /proc/cmdline ]]; then
+    for token in $(< /proc/cmdline); do
+      case "$token" in
+        live-media=*)
+          value="${token#live-media=}"
+          case "$value" in
+            /dev/*)
+              printf '%s\n' "$value"
+              ;;
+            UUID=*)
+              blkid -U "${value#UUID=}" 2>/dev/null || true
+              ;;
+            LABEL=*)
+              blkid -L "${value#LABEL=}" 2>/dev/null || true
+              ;;
+          esac
+          ;;
+      esac
+    done
+  fi
+
+  blkid -L PVETHIN 2>/dev/null || true
+  lsblk -lnpo PATH,TYPE,FSTYPE,LABEL,RM,TRAN 2>/dev/null | awk '
+    $2 == "part" {
+      if ($4 == "PVETHIN" || $3 == "vfat" || $5 == "1" || $6 == "usb") {
+        print $1
+      }
+    }
+  '
+}
+
+mount_discovered_live_medium() {
+  local device mount_dir
+
+  have_passwordless_sudo || return 1
+
+  while IFS= read -r device; do
+    [[ -n "$device" && -b "$device" ]] || continue
+    mount_dir="$(mktemp -d /tmp/pve-live-medium.XXXXXX)"
+    if { [[ "${EUID}" -eq 0 ]] && mount -o ro "$device" "$mount_dir" >/dev/null 2>&1; } || \
+       { [[ "${EUID}" -ne 0 ]] && sudo -n mount -o ro "$device" "$mount_dir" >/dev/null 2>&1; }; then
+      if candidate_manifest_path "$mount_dir" >/dev/null 2>&1 || candidate_live_asset_dir "$mount_dir" >/dev/null 2>&1; then
+        TEMP_LIVE_MEDIUM_MOUNT="$mount_dir"
+        printf '%s\n' "$mount_dir"
+        return 0
+      fi
+      if [[ "${EUID}" -eq 0 ]]; then
+        umount "$mount_dir" >/dev/null 2>&1 || true
+      else
+        sudo -n umount "$mount_dir" >/dev/null 2>&1 || true
+      fi
+    fi
+    rmdir "$mount_dir" >/dev/null 2>&1 || true
+  done < <(candidate_live_devices | awk 'NF && !seen[$0]++')
+
+  return 1
+}
+
+resolve_manifest_file() {
+  local target=""
+
+  while IFS= read -r target; do
+    if target="$(candidate_manifest_path "$target" 2>/dev/null || true)" && [[ -n "$target" ]]; then
+      printf '%s\n' "$target"
+      return 0
+    fi
+  done < <(candidate_live_mounts | awk 'NF && !seen[$0]++')
+
+  if target="$(mount_discovered_live_medium 2>/dev/null || true)" && [[ -n "$target" ]]; then
+    if target="$(candidate_manifest_path "$target" 2>/dev/null || true)" && [[ -n "$target" ]]; then
+      printf '%s\n' "$target"
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+default_api_settings_json() {
+  local manifest_file=""
+  manifest_file="$(resolve_manifest_file || true)"
+  python3 - "$manifest_file" "$LOGIN_STATE_FILE" "$DEFAULT_API_SCHEME" "$DEFAULT_API_PORT" "$DEFAULT_API_VERIFY_TLS" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+from urllib.parse import urlparse
+
+manifest_file, login_state_file, default_scheme, default_port, default_verify_tls = sys.argv[1:6]
+payload = {
+    "scheme": default_scheme,
+    "host": "",
+    "host_ip": "",
+    "port": default_port,
+    "verify_tls": default_verify_tls,
+    "username": "",
+}
+
+if manifest_file and Path(manifest_file).is_file():
+    try:
+        manifest = json.loads(Path(manifest_file).read_text(encoding="utf-8"))
+        payload["scheme"] = str(manifest.get("proxmox_api_scheme", payload["scheme"]) or payload["scheme"])
+        payload["host"] = str(manifest.get("proxmox_api_host", payload["host"]) or payload["host"])
+        payload["host_ip"] = str(manifest.get("proxmox_api_host_ip", payload["host_ip"]) or payload["host_ip"])
+        payload["port"] = str(manifest.get("proxmox_api_port", payload["port"]) or payload["port"])
+        payload["verify_tls"] = str(manifest.get("proxmox_api_verify_tls", payload["verify_tls"]) or payload["verify_tls"])
+        source = manifest.get("payload_source", "")
+        if source and not payload["host"]:
+            parsed = urlparse(source)
+            if parsed.scheme:
+                payload["scheme"] = parsed.scheme
+            if parsed.hostname:
+                payload["host"] = parsed.hostname
+    except Exception:
+        pass
+
+if login_state_file and Path(login_state_file).is_file():
+    state = {}
+    for raw_line in Path(login_state_file).read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        state[key] = value
+    payload["scheme"] = state.get("PVE_LOGIN_SCHEME", payload["scheme"])
+    payload["host"] = state.get("PVE_LOGIN_HOST", payload["host"])
+    payload["host_ip"] = state.get("PVE_LOGIN_HOST_IP", payload["host_ip"])
+    payload["port"] = state.get("PVE_LOGIN_PORT", payload["port"])
+    payload["verify_tls"] = state.get("PVE_LOGIN_VERIFY_TLS", payload["verify_tls"])
+    payload["username"] = state.get("PVE_LOGIN_USERNAME", payload["username"])
+
+print(json.dumps(payload))
+PY
+}
+
+save_login_defaults() {
+  local scheme="$1"
+  local host="$2"
+  local host_ip="$3"
+  local port="$4"
+  local verify_tls="$5"
+  local username="$6"
+
+  mkdir -p "$(dirname "$LOGIN_STATE_FILE")"
+  cat >"$LOGIN_STATE_FILE" <<EOF
+PVE_LOGIN_SCHEME=$scheme
+PVE_LOGIN_HOST=$host
+PVE_LOGIN_HOST_IP=$host_ip
+PVE_LOGIN_PORT=$port
+PVE_LOGIN_VERIFY_TLS=$verify_tls
+PVE_LOGIN_USERNAME=$username
+EOF
+}
+
+run_installer_command() {
+  env \
+    PVE_THIN_CLIENT_LOG_DIR="$LOG_DIR" \
+    PVE_THIN_CLIENT_LOG_SESSION_ID="${PVE_THIN_CLIENT_LOG_SESSION_ID:-$(basename "$LOG_DIR")}" \
+    "$INSTALLER" "$@"
+}
+
+run_installer_as_root() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    run_installer_command "$@"
+    return 0
+  fi
+
+  if have_passwordless_sudo; then
+    sudo -n env \
+      PVE_THIN_CLIENT_LOG_DIR="$LOG_DIR" \
+      PVE_THIN_CLIENT_LOG_SESSION_ID="${PVE_THIN_CLIENT_LOG_SESSION_ID:-$(basename "$LOG_DIR")}" \
+      "$INSTALLER" "$@"
+    return 0
+  fi
+
+  dialog_msgbox "Missing Privileges" "Passwordless sudo is required for disk installation in the live environment."
+  return 1
+}
+
+list_proxmox_vms_json_direct() {
+  env \
+    PVE_THIN_CLIENT_LOG_DIR="$LOG_DIR" \
+    PVE_THIN_CLIENT_LOG_SESSION_ID="${PVE_THIN_CLIENT_LOG_SESSION_ID:-$(basename "$LOG_DIR")}" \
+    "$PROXMOX_API_HELPER" \
+      --host "$1" \
+      --scheme "$2" \
+      --port "$3" \
+      --verify-tls "$4" \
+      --username "$5" \
+      --password "$6" \
+      list-vms-json
+}
+
+show_current_preset_summary() {
+  local summary=""
+  if [[ "${EUID}" -eq 0 ]] || have_passwordless_sudo; then
+    summary="$(run_installer_as_root --print-preset-summary 2>/dev/null || true)"
+  else
+    summary="$(run_installer_command --print-preset-summary 2>/dev/null || true)"
+  fi
+  [[ -n "$summary" ]] || summary="No VM preset is currently cached or bundled."
+  dialog_msgbox "Current Preset" "$summary"
+}
+
+has_bundled_preset() {
+  local payload=""
+  if [[ "${EUID}" -eq 0 ]] || have_passwordless_sudo; then
+    payload="$(run_installer_as_root --print-preset-json 2>/dev/null || true)"
+  else
+    payload="$(run_installer_command --print-preset-json 2>/dev/null || true)"
+  fi
+  [[ -n "$payload" ]] || return 1
+
+  printf '%s\n' "$payload" | python3 - <<'PY'
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+
+raise SystemExit(0 if payload.get("preset_active") else 1)
+PY
+}
+
+install_from_bundled_preset_auto() {
+  if ! has_bundled_preset; then
+    return 1
+  fi
+
+  if ! have_passwordless_sudo; then
+    dialog_msgbox "Missing Privileges" "Passwordless sudo is required for automatic disk installation."
+    return 1
+  fi
+
+  log_msg "bundled preset detected, starting auto install"
+  run_installer_as_root --cache-bundled-preset >/dev/null 2>&1 || true
+  run_installer_as_root --auto-install --yes
+}
+
+reboot_after_successful_install() {
+  dialog_msgbox "Installation Complete" "Installation is complete. Remove the USB stick now. The system will reboot."
+  if [[ "${EUID}" -eq 0 ]]; then
+    exec reboot
+  fi
+  if have_passwordless_sudo; then
+    exec sudo -n reboot
+  fi
+}
+
+choose_vm_from_json() {
+  local vm_json="$1"
+  local -a menu_items=()
+  local selection=""
+
+  if ! mapfile -t menu_items < <(python3 -c '
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+for vm in payload.get("vms", []):
+    tag = f"{vm['vmid']}@{vm['node']}"
+    label = f"{vm['name']} (node {vm['node']}, status {vm['status']})"
+    print(tag)
+    print(label)
+  ' "$vm_json"
+  ); then
+    dialog_msgbox "Invalid Proxmox Response" "The installer received an invalid VM list from the Proxmox API helper."
+    return 2
+  fi
+
+  if (( ${#menu_items[@]} == 0 )); then
+    return 3
+  fi
+
+  selection="$(dialog_menu "Choose VM" "Select the VM that should be installed onto this thin client." "${menu_items[@]}")" || return 1
+  printf '%s\n' "$selection"
+}
+
+prompt_manual_vm_selection() {
+  local default_node="${1:-srv}"
+  local node=""
+  local vmid=""
+
+  node="$(dialog_input "Proxmox Node" "Enter the Proxmox node name for the VM." "$default_node")" || return 1
+  vmid="$(dialog_input "Proxmox VMID" "Enter the VMID that should be installed onto this thin client." "100")" || return 1
+  if [[ ! "$vmid" =~ ^[0-9]+$ ]]; then
+    dialog_msgbox "Invalid VMID" "The VMID must be numeric."
+    return 1
+  fi
+  printf '%s@%s\n' "$vmid" "$node"
+}
+
+install_from_proxmox_vm() {
+  local defaults_json=""
+  local host=""
+  local host_ip=""
+  local effective_host=""
+  local username=""
+  local password=""
+  local scheme="$DEFAULT_API_SCHEME"
+  local port="$DEFAULT_API_PORT"
+  local verify_tls="$DEFAULT_API_VERIFY_TLS"
+  local vm_json=""
+  local choice=""
+  local vmid=""
+  local node=""
+  local err_file=""
+  local summary=""
+  local choice_rc=0
+
+  defaults_json="$(default_api_settings_json)"
+  host="$(printf '%s' "$defaults_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("host",""))')"
+  host_ip="$(printf '%s' "$defaults_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("host_ip",""))')"
+  username="$(printf '%s' "$defaults_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("username",""))')"
+  scheme="$(printf '%s' "$defaults_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("scheme","https"))')"
+  port="$(printf '%s' "$defaults_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("port","8006"))')"
+  verify_tls="$(printf '%s' "$defaults_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("verify_tls","0"))')"
+
+  configure_network_access || return 1
+
+  if [[ -z "$host" ]]; then
+    host="$(dialog_input "Proxmox Host" "Enter the Proxmox host name or IP address." "$host")" || return 1
+  fi
+  if [[ -z "$host_ip" ]] && ! is_ip_literal "$host"; then
+    host_ip="$(resolve_ipv4_address "$host" 2>/dev/null || true)"
+  fi
+  username="$(dialog_input "Proxmox Login" "Log in to ${host} as user@realm." "$username")" || return 1
+  password="$(dialog_password "Proxmox Password" "Enter the Proxmox password for ${username} on ${host}.")" || return 1
+  effective_host="$(effective_api_host "$host" "$host_ip" || true)"
+  if [[ -z "$effective_host" ]]; then
+    log_network_snapshot "dns-resolution-failed"
+    dialog_msgbox "Proxmox Host Unreachable" "The installer has network connectivity, but DNS cannot resolve ${host}. Reconfigure the network or use an IP-based host entry."
+    NETWORK_SETUP_COMPLETE=0
+    return 1
+  fi
+
+  save_login_defaults "$scheme" "$host" "$host_ip" "$port" "$verify_tls" "$username"
+  err_file="$(mktemp)"
+  if ! vm_json="$(list_proxmox_vms_json_direct \
+      "$effective_host" \
+      "$scheme" \
+      "$port" \
+      "$verify_tls" \
+      "$username" \
+      "$password" 2>"$err_file")"; then
+    dialog_msgbox "Proxmox Login Failed" "$(sed -n '1,30p' "$err_file" 2>/dev/null || printf 'Unable to contact Proxmox API.')"
+    rm -f "$err_file"
+    return 1
+  fi
+  rm -f "$err_file"
+
+  set +e
+  choice="$(choose_vm_from_json "$vm_json")"
+  choice_rc=$?
+  set -e
+  if (( choice_rc != 0 )); then
+    if (( choice_rc == 2 || choice_rc == 3 )); then
+      dialog_msgbox "Manual VM Selection" "Automatic VM listing failed or returned no visible QEMU VMs. Enter the target node and VMID directly."
+      choice="$(prompt_manual_vm_selection "srv")" || return 1
+    else
+      return 1
+    fi
+  fi
+  vmid="${choice%@*}"
+  node="${choice#*@}"
+  [[ -n "$vmid" && -n "$node" ]] || {
+    dialog_msgbox "Invalid Selection" "The VM selection could not be parsed."
+    return 1
+  }
+
+  run_installer_as_root --clear-cached-preset >/dev/null
+  err_file="$(mktemp)"
+  if ! run_installer_as_root \
+      --cache-proxmox-vm-preset \
+      --proxmox-api-host "$effective_host" \
+      --proxmox-api-scheme "$scheme" \
+      --proxmox-api-port "$port" \
+      --proxmox-api-verify-tls "$verify_tls" \
+      --proxmox-api-username "$username" \
+      --proxmox-api-password "$password" \
+      --proxmox-api-node "$node" \
+      --proxmox-api-vmid "$vmid" > /dev/null 2>"$err_file"; then
+    dialog_msgbox "Preset Build Failed" "$(sed -n '1,30p' "$err_file" 2>/dev/null || printf 'Unable to build VM preset from Proxmox.')"
+    rm -f "$err_file"
+    return 1
+  fi
+  rm -f "$err_file"
+
+  summary="$(run_installer_command --print-preset-summary 2>/dev/null || true)"
+  if [[ -n "$summary" ]]; then
+    dialog_msgbox "VM Preset Loaded" "$summary"
+  fi
+
+  run_installer_as_root
+}
+
+install_manual_profile() {
+  run_installer_as_root --clear-cached-preset >/dev/null
+  run_installer_as_root
+}
+
+main_menu() {
+  local answer=""
+  if have_tui_dialog; then
+    local menu_text="Automatic installer mode (bundled VM preset)."
+    if [[ "$BUNDLED_PRESET_MODE" != "1" ]]; then
+      menu_text="No bundled VM preset found. Re-plug USB stick or recreate it with a VM-specific installer package."
+    fi
+    run_whiptail \
+      --title "Thinclient Installer" \
+      --menu "$menu_text" 20 90 8 \
+      "1" "Retry preset detection + auto install" \
+      "2" "Set up network" \
+      "3" "Show current preset" \
+      "4" "Open shell" \
+      "5" "Reboot" \
+      "6" "Power off"
+    return 0
+  fi
+
+  [[ -n "$TTY_PATH" ]] || return 1
+  {
+    printf '\n[Thinclient Installer]\n'
+    if [[ "$BUNDLED_PRESET_MODE" == "1" ]]; then
+      printf 'Automatic installer mode (bundled VM preset).\n'
+    else
+      printf 'No bundled VM preset found. Recreate the USB stick with a VM-specific installer package.\n'
+    fi
+    printf '1) Retry preset detection + auto install\n'
+    printf '2) Set up network\n'
+    printf '3) Show current preset\n'
+    printf '4) Open shell\n'
+    printf '5) Reboot\n'
+    printf '6) Power off\n'
+    printf 'Choice: '
+  } >"$TTY_PATH"
+  read -r answer <"$TTY_PATH" || return 1
+  printf '%s\n' "$answer"
+}
+
+setup_logging
+log_msg "starting live menu"
+
+if has_bundled_preset; then
+  BUNDLED_PRESET_MODE=1
+  if install_from_bundled_preset_auto; then
+    reboot_after_successful_install
+  fi
+  dialog_msgbox "Automatic Install Failed" "Automatic install from the bundled VM preset failed. Use 'Retry automatic install' or open a shell and inspect logs under /tmp/pve-thin-client-logs."
+fi
+
 while true; do
-  choice="$(menu_prompt || true)"
+  choice="$(main_menu || true)"
   case "$choice" in
     1)
-      ensure_root "$@"
-      exec "$INSTALLER"
-      ;;
-    2)
-      if [[ -f "$PRESET_FILE" ]]; then
-        summary="$("$INSTALLER" --print-preset-summary)"
-        if command -v whiptail >/dev/null 2>&1; then
-          whiptail --title "Bundled VM Preset" --msgbox "$summary" 16 88
-        else
-          printf '%s\n' "$summary"
-          read -r -p "Press ENTER to continue. " _
+      if has_bundled_preset; then
+        BUNDLED_PRESET_MODE=1
+        if install_from_bundled_preset_auto; then
+          reboot_after_successful_install
         fi
+        dialog_msgbox "Automatic Install Failed" "Automatic install failed. Check logs under /tmp/pve-thin-client-logs."
       else
-        "$ROOT_DIR/installer/setup-menu.sh" >/tmp/pve-thin-client-profile.env
-        cat /tmp/pve-thin-client-profile.env
-        read -r -p "Saved questionnaire to /tmp/pve-thin-client-profile.env. Press ENTER to continue. " _
+        BUNDLED_PRESET_MODE=0
+        dialog_msgbox "No Bundled Preset Found" "No bundled VM preset is available on this USB stick. Recreate the stick from the VM-specific installer package."
       fi
       ;;
+    2)
+      configure_network_access || true
+      ;;
     3)
-      exec "${SHELL:-/bin/bash}"
+      show_current_preset_summary
       ;;
     4)
-      ensure_root "$@"
-      reboot
-      ;;
+      exec "${SHELL:-/bin/bash}"
+    ;;
     5)
-      ensure_root "$@"
-      poweroff
+      if [[ "${EUID}" -eq 0 ]]; then
+        exec reboot
+      fi
+      if have_passwordless_sudo; then
+        exec sudo -n reboot
+      fi
+      dialog_msgbox "Missing Privileges" "Passwordless sudo is required to reboot from the installer menu."
+      ;;
+    6)
+      if [[ "${EUID}" -eq 0 ]]; then
+        exec poweroff
+      fi
+      if have_passwordless_sudo; then
+        exec sudo -n poweroff
+      fi
+      dialog_msgbox "Missing Privileges" "Passwordless sudo is required to power off from the installer menu."
       ;;
   esac
 done

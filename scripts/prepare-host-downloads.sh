@@ -20,6 +20,25 @@ STATUS_JSON_PATH="$DIST_DIR/pve-dcv-downloads-status.json"
 VM_INSTALLERS_METADATA_PATH="$DIST_DIR/pve-dcv-vm-installers.json"
 INSTALLER_SHA256=""
 PAYLOAD_SHA256=""
+CREDENTIALS_ENV_FILE="${PVE_DCV_CREDENTIALS_ENV_FILE:-/etc/pve-dcv-integration/credentials.env}"
+
+if [[ -f "$CREDENTIALS_ENV_FILE" ]]; then
+  # Optional operator-managed defaults for VM installer preset generation.
+  # Expected keys: PVE_THIN_CLIENT_DEFAULT_PROXMOX_USERNAME / PASSWORD / TOKEN
+  # shellcheck disable=SC1090
+  source "$CREDENTIALS_ENV_FILE"
+fi
+
+DEFAULT_PROXMOX_USERNAME="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_USERNAME:-${PVE_DCV_PROXMOX_USERNAME:-}}"
+DEFAULT_PROXMOX_PASSWORD="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_PASSWORD:-${PVE_DCV_PROXMOX_PASSWORD:-}}"
+DEFAULT_PROXMOX_TOKEN="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_TOKEN:-${PVE_DCV_PROXMOX_TOKEN:-}}"
+
+ensure_dist_permissions() {
+  install -d -m 0755 "$DIST_DIR"
+  find "$DIST_DIR" -type d -exec chmod 0755 {} +
+  find "$DIST_DIR" -type f -exec chmod 0644 {} +
+  find "$DIST_DIR" -type f -name '*.sh' -exec chmod 0755 {} +
+}
 
 [[ -f "$GENERIC_INSTALLER" ]] || {
   echo "Missing packaged USB installer: $GENERIC_INSTALLER" >&2
@@ -52,7 +71,7 @@ PY
 
 install -m 0755 "$HOST_INSTALLER_VERSIONED" "$HOST_INSTALLER_LATEST"
 
-python3 - "$HOST_INSTALLER_VERSIONED" "$DIST_DIR" "$VM_INSTALLERS_METADATA_PATH" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$VM_INSTALLER_URL_TEMPLATE" <<'PY'
+python3 - "$HOST_INSTALLER_VERSIONED" "$DIST_DIR" "$VM_INSTALLERS_METADATA_PATH" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$VM_INSTALLER_URL_TEMPLATE" "$PAYLOAD_URL" "$DEFAULT_PROXMOX_USERNAME" "$DEFAULT_PROXMOX_PASSWORD" "$DEFAULT_PROXMOX_TOKEN" <<'PY'
 import base64
 import json
 import re
@@ -69,6 +88,10 @@ server_name = sys.argv[4]
 listen_port = int(sys.argv[5])
 downloads_path = sys.argv[6]
 installer_url_template = sys.argv[7]
+payload_url = sys.argv[8]
+default_proxmox_username = sys.argv[9]
+default_proxmox_password = sys.argv[10]
+default_proxmox_token = sys.argv[11]
 template = template_path.read_text()
 
 resources_cmd = ["pvesh", "get", "/cluster/resources", "--type", "vm", "--output-format", "json"]
@@ -119,22 +142,32 @@ def with_auth_token_and_session(url, auth_token, session_id):
         fragment = session_id
     return urlunparse(parsed._replace(query=urlencode(query), fragment=fragment))
 
+def shell_double_quoted(value):
+    return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`")
 
-def patch_installer(text, preset_name, preset_b64):
+def patch_installer_defaults(script_text, payload, preset_name, preset_b64):
     replacements = {
-        'PVE_THIN_CLIENT_PRESET_NAME="${PVE_THIN_CLIENT_PRESET_NAME:-}"': f'PVE_THIN_CLIENT_PRESET_NAME="${{PVE_THIN_CLIENT_PRESET_NAME:-{preset_name}}}"',
-        'PVE_THIN_CLIENT_PRESET_B64="${PVE_THIN_CLIENT_PRESET_B64:-}"': f'PVE_THIN_CLIENT_PRESET_B64="${{PVE_THIN_CLIENT_PRESET_B64:-{preset_b64}}}"',
+        r'^RELEASE_PAYLOAD_URL="\$\{RELEASE_PAYLOAD_URL:-[^"]*}"$':
+            f'RELEASE_PAYLOAD_URL="${{RELEASE_PAYLOAD_URL:-{shell_double_quoted(payload)}}}"',
+        r'^PVE_THIN_CLIENT_PRESET_NAME="\$\{PVE_THIN_CLIENT_PRESET_NAME:-[^"]*}"$':
+            f'PVE_THIN_CLIENT_PRESET_NAME="${{PVE_THIN_CLIENT_PRESET_NAME:-{shell_double_quoted(preset_name)}}}"',
+        r'^PVE_THIN_CLIENT_PRESET_B64="\$\{PVE_THIN_CLIENT_PRESET_B64:-[^"]*}"$':
+            f'PVE_THIN_CLIENT_PRESET_B64="${{PVE_THIN_CLIENT_PRESET_B64:-{shell_double_quoted(preset_b64)}}}"',
     }
-    patched = text
-    for old, new in replacements.items():
-        if old not in patched:
-            raise SystemExit(f"unable to locate preset placeholder: {old}")
-        patched = patched.replace(old, new, 1)
-    return patched
+    updated = script_text
+    for pattern, replacement in replacements.items():
+        updated, count = re.subn(pattern, replacement, updated, count=1, flags=re.MULTILINE)
+        if count != 1:
+            raise SystemExit(f"failed to patch installer default for pattern: {pattern}")
+    return updated
 
-
-def shell_line(key, value):
-    return f"{key}={shlex.quote(str(value))}\n"
+def encode_preset(preset):
+    lines = ["# Auto-generated VM preset for the thin-client USB installer"]
+    for key in sorted(preset):
+        value = str(preset.get(key, ""))
+        lines.append(f"{key}={shlex.quote(value)}")
+    payload = "\n".join(lines) + "\n"
+    return base64.b64encode(payload.encode("utf-8")).decode("ascii")
 
 
 def build_preset(vm, config):
@@ -146,9 +179,9 @@ def build_preset(vm, config):
     proxmox_port = meta.get("proxmox-port", "8006")
     proxmox_realm = meta.get("proxmox-realm", "pam")
     proxmox_verify_tls = meta.get("proxmox-verify-tls", "0")
-    proxmox_username = meta.get("proxmox-user", "")
-    proxmox_password = meta.get("proxmox-password", "")
-    proxmox_token = meta.get("proxmox-token", "")
+    proxmox_username = meta.get("proxmox-user", default_proxmox_username)
+    proxmox_password = meta.get("proxmox-password", default_proxmox_password)
+    proxmox_token = meta.get("proxmox-token", default_proxmox_token)
 
     dcv_host = meta.get("dcv-host") or meta.get("dcv-ip") or ""
     dcv_url = meta.get("dcv-url") or (f"https://{dcv_host}:{listen_port}/" if dcv_host else "")
@@ -156,6 +189,9 @@ def build_preset(vm, config):
     moonlight_host = meta.get("moonlight-host") or meta.get("sunshine-host") or meta.get("sunshine-ip") or dcv_host
     sunshine_api_url = meta.get("sunshine-api-url") or (f"https://{moonlight_host}:47990" if moonlight_host else "")
     moonlight_default_mode = meta.get("thinclient-default-mode", "MOONLIGHT" if moonlight_host else "")
+    moonlight_resolution = (meta.get("moonlight-resolution") or "").strip()
+    if not moonlight_resolution or moonlight_resolution in ("1080", "native", "auto"):
+        moonlight_resolution = "auto"
 
     spice_url = meta.get("spice-url", "")
     novnc_url = meta.get("novnc-url", "")
@@ -196,7 +232,7 @@ def build_preset(vm, config):
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST": moonlight_host,
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP": meta.get("moonlight-app", meta.get("sunshine-app", "Desktop")),
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN": meta.get("moonlight-bin", "moonlight"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION": meta.get("moonlight-resolution", "1080"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION": moonlight_resolution,
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS": meta.get("moonlight-fps", "60"),
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE": meta.get("moonlight-bitrate", "20000"),
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC": meta.get("moonlight-video-codec", "H.264"),
@@ -226,6 +262,14 @@ def build_preset(vm, config):
     if preset["PVE_THIN_CLIENT_PRESET_DCV_URL"]:
         available_modes.append("DCV")
 
+    default_mode = (preset.get("PVE_THIN_CLIENT_PRESET_DEFAULT_MODE") or "").strip().upper()
+    if default_mode not in available_modes:
+        for preferred_mode in ("MOONLIGHT", "SPICE", "NOVNC", "DCV"):
+            if preferred_mode in available_modes:
+                default_mode = preferred_mode
+                break
+    preset["PVE_THIN_CLIENT_PRESET_DEFAULT_MODE"] = default_mode
+
     return preset, available_modes
 
 
@@ -250,18 +294,19 @@ for vm in resources:
         ]
     ) or {}
     preset, available_modes = build_preset(vm, config)
-    preset_name = f"vm-{vm['vmid']}"
-    preset_text = "".join(shell_line(key, value) for key, value in preset.items())
-    preset_b64 = base64.b64encode(preset_text.encode("utf-8")).decode("ascii")
+    preset_name = preset.get("PVE_THIN_CLIENT_PRESET_PROFILE_NAME") or f"vm-{vm['vmid']}"
+    preset_b64 = encode_preset(preset)
     installer_name = f"pve-thin-client-usb-installer-vm-{vm['vmid']}.sh"
     installer_path = dist_dir / installer_name
-    installer_path.write_text(patch_installer(template, preset_name, preset_b64))
+    installer_path.write_text(patch_installer_defaults(template, payload_url, preset_name, preset_b64))
     installer_path.chmod(0o755)
     vm_installers.append(
         {
             "vmid": int(vm["vmid"]),
             "node": vm["node"],
             "name": preset["PVE_THIN_CLIENT_PRESET_VM_NAME"],
+            "preset_name": preset_name,
+            "default_mode": preset.get("PVE_THIN_CLIENT_PRESET_DEFAULT_MODE", ""),
             "installer_filename": installer_name,
             "installer_url": installer_url_template.replace("{vmid}", str(vm["vmid"])),
             "available_modes": available_modes,
@@ -270,6 +315,8 @@ for vm in resources:
 
 metadata_path.write_text(json.dumps(sorted(vm_installers, key=lambda item: item["vmid"]), indent=2) + "\n")
 PY
+
+ensure_dist_permissions
 
 INSTALLER_SHA256="$(sha256sum "$HOST_INSTALLER_LATEST" | awk '{print $1}')"
 PAYLOAD_SHA256="$(sha256sum "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" | awk '{print $1}')"
@@ -293,13 +340,14 @@ cat > "$DIST_DIR/pve-dcv-downloads-index.html" <<EOF
   <h1>PVE DCV Integration Downloads</h1>
   <p>Host-local thin-client media downloads for this Proxmox server.</p>
   <ul>
-    <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-usb-installer-host-latest.sh">Generic USB installer launcher</a></li>
+    <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-usb-installer-host-latest.sh">Generic USB installer launcher (fallback)</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-usb-payload-latest.tar.gz">USB payload bundle</a></li>
-    <li>VM-specific USB installers are generated as <code>pve-thin-client-usb-installer-vm-&lt;vmid&gt;.sh</code> and linked from the Proxmox VM toolbar.</li>
+    <li>VM-specific installer URLs now embed a full preset (host, vmid, node, credentials, stream defaults) so the thin client install can run without manual VM data entry.</li>
+    <li>The generic installer remains available as fallback when no VM-specific preset should be embedded.</li>
     <li><a href="${DOWNLOADS_PATH%/}/pve-dcv-downloads-status.json">Status JSON</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/SHA256SUMS">SHA256SUMS</a></li>
   </ul>
-  <p>The hosted USB installers are preconfigured to download their large payload from this same Proxmox host instead of GitHub. VM-specific variants also embed the chosen VM connection profile directly into the USB stick, including Moonlight plus Sunshine pairing defaults where configured.</p>
+  <p>The hosted USB installers are preconfigured to download their large payload from this same Proxmox host instead of GitHub. VM-specific installers ship with embedded presets so thin clients can be installed without manual profile input.</p>
   <table>
     <tr><th>Release version</th><td><code>${VERSION}</code></td></tr>
     <tr><th>Server</th><td><code>${SERVER_NAME}:${LISTEN_PORT}</code></td></tr>

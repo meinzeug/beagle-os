@@ -4,15 +4,20 @@ set -euo pipefail
 PROXMOX_HOST="${PROXMOX_HOST:-thinovernet}"
 VMID="${VMID:-}"
 GUEST_USER="${GUEST_USER:-dennis}"
+PROXMOX_USER="${PROXMOX_USER:-}"
+PROXMOX_PASSWORD="${PROXMOX_PASSWORD:-}"
+PROXMOX_TOKEN="${PROXMOX_TOKEN:-}"
 SUNSHINE_USER="${SUNSHINE_USER:-sunshine}"
 SUNSHINE_PASSWORD="${SUNSHINE_PASSWORD:-}"
 SUNSHINE_PIN="${SUNSHINE_PIN:-}"
 SUNSHINE_URL="${SUNSHINE_URL:-https://github.com/LizardByte/Sunshine/releases/download/v2025.924.154138/sunshine-ubuntu-24.04-amd64.deb}"
+SUNSHINE_ORIGIN_WEB_UI_ALLOWED="${SUNSHINE_ORIGIN_WEB_UI_ALLOWED:-wan}"
+PUBLIC_STREAM_HOST="${PUBLIC_STREAM_HOST:-}"
 UPDATE_METADATA="${UPDATE_METADATA:-1}"
 
 usage() {
   cat <<EOF
-Usage: $0 --vmid VMID [--proxmox-host HOST] [--guest-user USER] [--sunshine-user USER] --sunshine-password PASS [--sunshine-pin PIN]
+Usage: $0 --vmid VMID [--proxmox-host HOST] [--guest-user USER] [--proxmox-user USER@REALM] [--proxmox-password PASS|--proxmox-token TOKEN] [--sunshine-user USER] --sunshine-password PASS [--sunshine-pin PIN] [--public-stream-host HOST]
 EOF
 }
 
@@ -30,10 +35,15 @@ parse_args() {
       --proxmox-host) PROXMOX_HOST="$2"; shift 2 ;;
       --vmid) VMID="$2"; shift 2 ;;
       --guest-user) GUEST_USER="$2"; shift 2 ;;
+      --proxmox-user) PROXMOX_USER="$2"; shift 2 ;;
+      --proxmox-password) PROXMOX_PASSWORD="$2"; shift 2 ;;
+      --proxmox-token) PROXMOX_TOKEN="$2"; shift 2 ;;
       --sunshine-user) SUNSHINE_USER="$2"; shift 2 ;;
       --sunshine-password) SUNSHINE_PASSWORD="$2"; shift 2 ;;
       --sunshine-pin) SUNSHINE_PIN="$2"; shift 2 ;;
       --sunshine-url) SUNSHINE_URL="$2"; shift 2 ;;
+      --sunshine-origin-web-ui-allowed) SUNSHINE_ORIGIN_WEB_UI_ALLOWED="$2"; shift 2 ;;
+      --public-stream-host) PUBLIC_STREAM_HOST="$2"; shift 2 ;;
       --no-metadata) UPDATE_METADATA="0"; shift ;;
       -h|--help) usage; exit 0 ;;
       *)
@@ -81,18 +91,19 @@ PY
 
 update_vm_metadata() {
   local guest_ip="$1"
+  local stream_host="${PUBLIC_STREAM_HOST:-$guest_ip}"
   local encoded_desc new_desc_b64
   encoded_desc="$(
     ssh_host "sudo /usr/sbin/qm config '$VMID'" | sed -n 's/^description: //p'
   )"
 
   new_desc_b64="$(
-    python3 - "$encoded_desc" "$guest_ip" "$SUNSHINE_USER" "$SUNSHINE_PASSWORD" "$SUNSHINE_PIN" <<'PY'
+    python3 - "$encoded_desc" "$guest_ip" "$stream_host" "$SUNSHINE_USER" "$SUNSHINE_PASSWORD" "$SUNSHINE_PIN" "$PROXMOX_USER" "$PROXMOX_PASSWORD" "$PROXMOX_TOKEN" <<'PY'
 import base64
 import sys
 from urllib.parse import unquote
 
-encoded, guest_ip, sunshine_user, sunshine_password, sunshine_pin = sys.argv[1:6]
+encoded, guest_ip, stream_host, sunshine_user, sunshine_password, sunshine_pin, proxmox_user, proxmox_password, proxmox_token = sys.argv[1:10]
 skip = {
     "sunshine-host",
     "sunshine-ip",
@@ -110,6 +121,9 @@ skip = {
     "moonlight-video-decoder",
     "moonlight-audio-config",
     "thinclient-default-mode",
+    "proxmox-user",
+    "proxmox-password",
+    "proxmox-token",
 }
 
 text = unquote(encoded) if encoded else ""
@@ -125,16 +139,19 @@ for raw_line in text.splitlines():
 
 lines.extend(
     [
-        f"sunshine-host: {guest_ip}",
+        f"proxmox-user: {proxmox_user}",
+        f"proxmox-password: {proxmox_password}",
+        f"proxmox-token: {proxmox_token}",
+        f"sunshine-host: {stream_host}",
         f"sunshine-ip: {guest_ip}",
-        f"sunshine-api-url: https://{guest_ip}:47990",
+        f"sunshine-api-url: https://{stream_host}:47990",
         f"sunshine-user: {sunshine_user}",
         f"sunshine-password: {sunshine_password}",
         f"sunshine-pin: {sunshine_pin}",
         "sunshine-app: Desktop",
-        f"moonlight-host: {guest_ip}",
+        f"moonlight-host: {stream_host}",
         "moonlight-app: Desktop",
-        "moonlight-resolution: 1080",
+        "moonlight-resolution: auto",
         "moonlight-fps: 60",
         "moonlight-bitrate: 20000",
         "moonlight-video-codec: H.264",
@@ -191,6 +208,7 @@ GUEST_USER='${GUEST_USER}'
 SUNSHINE_USER='${SUNSHINE_USER}'
 SUNSHINE_PASSWORD='${SUNSHINE_PASSWORD}'
 SUNSHINE_URL='${SUNSHINE_URL}'
+SUNSHINE_ORIGIN_WEB_UI_ALLOWED='${SUNSHINE_ORIGIN_WEB_UI_ALLOWED}'
 
 echo 'lightdm shared/default-x-display-manager select lightdm' | debconf-set-selections
 apt-get update
@@ -234,7 +252,7 @@ AUTOSTART
 cat > "/home/\$GUEST_USER/.config/sunshine/sunshine.conf" <<'SUNCONF'
 sunshine_name = ${GUEST_USER}-sunshine
 min_log_level = warning
-origin_web_ui_allowed = lan
+origin_web_ui_allowed = ${SUNSHINE_ORIGIN_WEB_UI_ALLOWED}
 encoder = software
 sw_preset = superfast
 sw_tune = zerolatency
@@ -278,6 +296,11 @@ systemctl daemon-reload
 systemctl set-default graphical.target >/dev/null
 
 su - "\$GUEST_USER" -c "HOME=/home/\$GUEST_USER XDG_CONFIG_HOME=/home/\$GUEST_USER/.config sunshine --creds '\$SUNSHINE_USER' '\$SUNSHINE_PASSWORD'"
+systemctl enable sunshine >/dev/null 2>&1 || true
+systemctl restart sunshine >/dev/null 2>&1 || true
+if ! pgrep -u "\$GUEST_USER" -x sunshine >/dev/null 2>&1; then
+  su - "\$GUEST_USER" -c "HOME=/home/\$GUEST_USER XDG_CONFIG_HOME=/home/\$GUEST_USER/.config nohup sunshine >/tmp/sunshine-user.log 2>&1 &" >/dev/null 2>&1 || true
+fi
 systemctl restart display-manager.service >/dev/null 2>&1 || true
 EOF
 )"

@@ -266,6 +266,30 @@ have_graphical_dialog() {
   [[ -n "${DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1
 }
 
+detect_tty_path() {
+  local tty_path="/dev/tty"
+
+  if [[ -r "$tty_path" && -w "$tty_path" ]]; then
+    printf '%s\n' "$tty_path"
+  fi
+}
+
+have_tui_dialog() {
+  local tty_path="${1:-}"
+  [[ -n "$tty_path" ]] && command -v whiptail >/dev/null 2>&1
+}
+
+run_whiptail() {
+  local tty_path="$1"
+  shift
+
+  whiptail "$@" --output-fd 3 \
+    3>&1 \
+    1>"$tty_path" \
+    2>"$tty_path" \
+    <"$tty_path"
+}
+
 zenity_env() {
   local zenity_config_dir="$1"
 
@@ -339,12 +363,10 @@ payload_has_live_assets() {
 choose_device() {
   local options=()
   local zenity_rows=()
-  local device tty_path usb_candidates name size model type rm transport answer index zenity_status selected_device
+  local device tty_path name size model type rm transport answer index zenity_status selected_device
+  local menu_height=16
 
-  tty_path="/dev/tty"
-  if [[ ! -r "$tty_path" || ! -w "$tty_path" ]]; then
-    tty_path=""
-  fi
+  tty_path="$(detect_tty_path || true)"
 
   while IFS= read -r line; do
     eval "$line"
@@ -367,6 +389,25 @@ EOF
     fi
     echo "No writable block device found." >&2
     exit 1
+  fi
+
+  if have_tui_dialog "$tty_path"; then
+    if (( ${#options[@]} / 2 < menu_height )); then
+      menu_height=$(( ${#options[@]} / 2 + 6 ))
+    fi
+    answer="$(run_whiptail "$tty_path" \
+      --title "PVE Thin Client USB Writer" \
+      --backtitle "Bootable USB installer creation" \
+      --menu "Select the USB target device. The selected drive will be erased completely." \
+      22 100 "$menu_height" \
+      "${options[@]}")" || return $?
+    selected_device="$(extract_block_device_from_text "$answer")"
+    [[ -n "$selected_device" && -b "$selected_device" ]] || {
+      echo "Terminal device picker returned an invalid selection: ${answer:-<empty>}" >&2
+      exit 1
+    }
+    printf '%s\n' "$selected_device"
+    return 0
   fi
 
   if have_graphical_dialog; then
@@ -392,35 +433,6 @@ EOF
       exit 1
     fi
     echo "Graphical device picker failed, falling back to terminal selection." >&2
-  fi
-
-  usb_candidates="$(count_usb_candidates)"
-  if [[ "$usb_candidates" == "1" ]]; then
-    while IFS= read -r line; do
-      eval "$line"
-      [[ "${TYPE:-}" == "disk" ]] || continue
-      device="/dev/${NAME}"
-      [[ "$device" == /dev/loop* || "$device" == /dev/sr* || "$device" == /dev/ram* || "$device" == /dev/zram* ]] && continue
-      if [[ "${RM:-0}" == "1" || "${TRAN:-}" == "usb" ]]; then
-        printf '%s\n' "$device"
-        return 0
-      fi
-    done <<EOF
-$(list_candidate_devices)
-EOF
-  fi
-
-  if command -v whiptail >/dev/null 2>&1; then
-    answer="$(whiptail --title "PVE Thin Client USB Writer" --menu \
-      "Select the USB target device" 20 90 10 \
-      "${options[@]}" 3>&1 1>&2 2>&3)" || return $?
-    selected_device="$(extract_block_device_from_text "$answer")"
-    [[ -n "$selected_device" ]] || {
-      echo "Terminal device picker returned an invalid selection." >&2
-      exit 1
-    }
-    printf '%s\n' "$selected_device"
-    return 0
   fi
 
   if [[ -z "$tty_path" ]]; then
@@ -517,7 +529,7 @@ ensure_target_is_safe() {
 }
 
 confirm_device() {
-  local answer zenity_status
+  local answer zenity_status tty_path
 
   [[ -b "$TARGET_DEVICE" ]] || {
     echo "Block device not found: $TARGET_DEVICE" >&2
@@ -533,6 +545,16 @@ confirm_device() {
   fi
   if [[ "$ASSUME_YES" == "1" ]]; then
     return 0
+  fi
+
+  tty_path="$(detect_tty_path || true)"
+  if have_tui_dialog "$tty_path"; then
+    run_whiptail "$tty_path" \
+      --title "Write USB Installer" \
+      --backtitle "PVE Thin Client USB Writer" \
+      --yesno "The selected drive will be erased completely and turned into a bootable PVE Thin Client installer.\n\nTarget: ${TARGET_DEVICE}\nPreset: ${PVE_THIN_CLIENT_PRESET_NAME:-generic}" \
+      16 84
+    return $?
   fi
 
   if have_graphical_dialog; then
@@ -633,9 +655,11 @@ write_usb_manifest() {
 
   python3 - "$mount_dir/.pve-dcv-usb-manifest.json" "$PROJECT_VERSION" "$USB_LABEL" "$TARGET_DEVICE" "$payload_source" "$installer_sha" "$payload_sha" "${PVE_THIN_CLIENT_PRESET_NAME:-}" <<'PY'
 import json
+import socket
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 path = Path(sys.argv[1])
 version = sys.argv[2]
@@ -645,6 +669,19 @@ payload_source = sys.argv[5]
 installer_sha = sys.argv[6]
 payload_sha = sys.argv[7]
 preset_name = sys.argv[8]
+parsed = urlparse(payload_source) if payload_source else None
+proxmox_host = parsed.hostname if parsed and parsed.hostname else ""
+proxmox_host_ip = ""
+if proxmox_host:
+    try:
+        infos = socket.getaddrinfo(proxmox_host, None, family=socket.AF_INET, type=socket.SOCK_STREAM)
+    except OSError:
+        infos = []
+    for info in infos:
+        candidate = info[4][0]
+        if candidate:
+            proxmox_host_ip = candidate
+            break
 
 payload = {
     "project_version": version,
@@ -655,9 +692,16 @@ payload = {
     "start_installer_menu_sha256": installer_sha,
     "filesystem_squashfs_sha256": payload_sha,
     "preset_name": preset_name,
+    "proxmox_api_scheme": "https",
+    "proxmox_api_host": proxmox_host,
+    "proxmox_api_host_ip": proxmox_host_ip,
+    "proxmox_api_port": "8006",
+    "proxmox_api_verify_tls": "0",
 }
 path.write_text(json.dumps(payload, indent=2) + "\n")
 PY
+
+  install -m 0644 "$mount_dir/.pve-dcv-usb-manifest.json" "$mount_dir/pve-thin-client/live/.pve-dcv-usb-manifest.json"
 }
 
 write_usb_preset() {
@@ -682,6 +726,32 @@ decoded = base64.b64decode(payload.encode("ascii"), validate=True)
 target.write_bytes(decoded)
 target.chmod(0o600)
 PY
+
+  install -m 0600 "$preset_file" "$mount_dir/pve-thin-client/live/preset.env"
+}
+
+build_preset_kernel_args() {
+  [[ -n "$PVE_THIN_CLIENT_PRESET_B64" ]] || return 0
+
+  python3 - "$PVE_THIN_CLIENT_PRESET_B64" <<'PY'
+import base64
+import gzip
+import sys
+import textwrap
+
+payload = sys.argv[1].strip()
+if not payload:
+    raise SystemExit(0)
+
+decoded = base64.b64decode(payload.encode("ascii"), validate=True)
+encoded = base64.urlsafe_b64encode(gzip.compress(decoded, compresslevel=9)).decode("ascii").rstrip("=")
+
+parts = ["pve_thin_client.preset_codec=gzip+base64url"]
+for index, chunk in enumerate(textwrap.wrap(encoded, 180)):
+    parts.append(f"pve_thin_client.preset_b64_{index:03d}={chunk}")
+
+print(" ".join(parts))
+PY
 }
 
 print_write_plan() {
@@ -705,7 +775,7 @@ EOF
 }
 
 write_usb() {
-  local mount_dir bios_partition usb_partition
+  local mount_dir bios_partition usb_partition usb_uuid preset_kernel_args
 
   if [[ "$DRY_RUN" == "1" ]]; then
     print_write_plan
@@ -742,6 +812,11 @@ write_usb() {
     exit 1
   }
   mkfs.vfat -F 32 -n "$USB_LABEL" "$usb_partition"
+  usb_uuid="$(blkid -s UUID -o value "$usb_partition" 2>/dev/null || true)"
+  [[ -n "$usb_uuid" ]] || {
+    echo "Unable to determine UUID for USB installer partition $usb_partition" >&2
+    exit 1
+  }
   mount "$usb_partition" "$mount_dir"
 
   install -d -m 0755 \
@@ -774,8 +849,9 @@ write_usb() {
   fi
   write_usb_preset "$mount_dir"
   write_usb_manifest "$mount_dir"
+  preset_kernel_args="$(build_preset_kernel_args || true)"
 
-  cat > "$mount_dir/boot/grub/grub.cfg" <<'EOF'
+  cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
 insmod all_video
 insmod gfxterm
 insmod jpeg
@@ -786,14 +862,20 @@ if background_image /boot/grub/background.jpg; then
 fi
 set default=0
 set timeout=5
+set preset_args="${preset_kernel_args}"
 
-menuentry 'PVE Thin Client Installer' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=pve-thin-client live-media-path=/pve-thin-client/live ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash pve_thin_client.mode=installer
+menuentry 'Thinclient Installer' {
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=pve-thin-client live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash irqpoll pci=nomsi noapic \${preset_args} pve_thin_client.mode=installer
   initrd /pve-thin-client/live/initrd.img
 }
 
-menuentry 'PVE Thin Client Installer (compatibility mode)' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=pve-thin-client live-media-path=/pve-thin-client/live ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash nomodeset pve_thin_client.mode=installer
+menuentry 'Thinclient Installer (compatibility mode)' {
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=pve-thin-client live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash nomodeset irqpoll pci=nomsi noapic \${preset_args} pve_thin_client.mode=installer
+  initrd /pve-thin-client/live/initrd.img
+}
+
+menuentry 'Thinclient Installer (legacy IRQ mode)' {
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=pve-thin-client live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash nomodeset irqpoll noapic nolapic \${preset_args} pve_thin_client.mode=installer
   initrd /pve-thin-client/live/initrd.img
 }
 
