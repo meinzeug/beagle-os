@@ -863,12 +863,12 @@ has_bundled_preset() {
   fi
   [[ -n "$payload" ]] || return 1
 
-  printf '%s\n' "$payload" | python3 - <<'PY'
+  python3 - "$payload" <<'PY'
 import json
 import sys
 
 try:
-    payload = json.load(sys.stdin)
+    payload = json.loads(sys.argv[1])
 except Exception:
     raise SystemExit(1)
 
