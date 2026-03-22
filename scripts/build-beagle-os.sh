@@ -520,6 +520,7 @@ enable_rootfs_services() {
   chroot_run_rootfs "systemctl enable ssh.service"
   chroot_run_rootfs "systemctl enable beagle-firstboot.service"
   chroot_run_rootfs "systemctl enable beagle-healthcheck.timer"
+  chroot_run_rootfs "systemctl enable beagle-endpoint-dispatch.timer"
   chroot_run_rootfs "systemctl enable beagle-endpoint-report.timer"
   chroot_run_rootfs "systemctl enable pve-thin-client-prepare.service"
   chroot_run_rootfs "systemctl enable beagle-autologin.service"

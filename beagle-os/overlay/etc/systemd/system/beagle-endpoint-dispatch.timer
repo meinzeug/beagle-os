@@ -1,0 +1,10 @@
+[Unit]
+Description=Poll queued Beagle OS endpoint actions periodically
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=1min
+Unit=beagle-endpoint-dispatch.service
+
+[Install]
+WantedBy=timers.target

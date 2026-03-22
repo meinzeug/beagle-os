@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+STATE_DIR="/var/lib/beagle-os"
+LOG_DIR="/var/log/beagle-os"
+STATUS_FILE="$STATE_DIR/endpoint-action.status"
+ENDPOINT_FILE="/etc/beagle-os/endpoint.env"
+COMMON_SH="/usr/local/lib/pve-thin-client/common.sh"
+
+install -d -m 0755 "$STATE_DIR" "$LOG_DIR"
+
+write_status_file() {
+  local action_name="$1"
+  local status="$2"
+  local completed_at="$3"
+  local message="$4"
+  local artifact_path="$5"
+  cat >"$STATUS_FILE" <<EOF
+action=${action_name:-UNSET}
+status=${status:-unknown}
+completed_at=${completed_at:-UNSET}
+message=${message:-UNSET}
+artifact_path=${artifact_path:-UNSET}
+EOF
+  chmod 0644 "$STATUS_FILE"
+}
+
+if [[ -r "$ENDPOINT_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$ENDPOINT_FILE"
+fi
+
+if [[ -r "$COMMON_SH" ]]; then
+  # shellcheck disable=SC1090
+  source "$COMMON_SH"
+  load_runtime_config >/dev/null 2>&1 || true
+fi
+
+manager_url="${BEAGLE_ENDPOINT_MANAGER_URL:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}}"
+manager_token="${BEAGLE_ENDPOINT_MANAGER_TOKEN:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}}"
+vmid="${BEAGLE_ENDPOINT_PROXMOX_VMID:-${PVE_THIN_CLIENT_PROXMOX_VMID:-}}"
+node="${BEAGLE_ENDPOINT_PROXMOX_NODE:-${PVE_THIN_CLIENT_PROXMOX_NODE:-}}"
+
+if [[ -z "$manager_url" || -z "$manager_token" || -z "$vmid" || -z "$node" ]]; then
+  write_status_file "" "skipped" "$(date -Iseconds)" "missing manager endpoint configuration" ""
+  exit 0
+fi
+
+pull_payload="$(mktemp)"
+response_file="$(mktemp)"
+cleanup() {
+  rm -f "$pull_payload" "$response_file"
+}
+trap cleanup EXIT
+
+cat >"$pull_payload" <<EOF
+{"node":"$node","vmid":$vmid}
+EOF
+
+http_status="$(
+  curl -kfsS \
+    --connect-timeout 4 \
+    --max-time 10 \
+    --output "$response_file" \
+    --write-out '%{http_code}' \
+    -H "Authorization: Bearer $manager_token" \
+    -H 'Content-Type: application/json' \
+    --data @"$pull_payload" \
+    "${manager_url%/}/api/v1/endpoints/actions/pull" || true
+)"
+
+if [[ "$http_status" != "200" ]]; then
+  write_status_file "" "pull-error" "$(date -Iseconds)" "action pull failed" ""
+  exit 0
+fi
+
+python3 - "$response_file" <<'PY' >"$STATE_DIR/.beagle-endpoint-actions.list"
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for item in payload.get("actions", []):
+    print(json.dumps(item))
+PY
+
+if [[ ! -s "$STATE_DIR/.beagle-endpoint-actions.list" ]]; then
+  exit 0
+fi
+
+while IFS= read -r action_json; do
+  [[ -n "$action_json" ]] || continue
+  action_name="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("action",""))' "$action_json")"
+  action_id="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("action_id",""))' "$action_json")"
+  requested_at="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("requested_at",""))' "$action_json")"
+  ok="1"
+  message="completed"
+  artifact_path=""
+  case "$action_name" in
+    healthcheck)
+      /usr/local/sbin/beagle-healthcheck >/dev/null 2>&1 || ok="0"
+      message="healthcheck completed"
+      ;;
+    recheckin)
+      /usr/local/sbin/beagle-endpoint-report >/dev/null 2>&1 || ok="0"
+      message="endpoint re-check-in completed"
+      ;;
+    restart-session)
+      systemctl restart beagle-autologin.service >/dev/null 2>&1 || ok="0"
+      message="autologin session restarted"
+      ;;
+    restart-runtime)
+      systemctl restart pve-thin-client-prepare.service >/dev/null 2>&1 || ok="0"
+      systemctl restart beagle-autologin.service >/dev/null 2>&1 || ok="0"
+      message="runtime preparation restarted"
+      ;;
+    support-bundle)
+      artifact_path="$(/usr/local/sbin/beagle-support-bundle 2>/dev/null || true)"
+      if [[ -z "$artifact_path" ]]; then
+        ok="0"
+        message="support bundle failed"
+      else
+        message="support bundle created"
+      fi
+      ;;
+    *)
+      ok="0"
+      message="unsupported action"
+      ;;
+  esac
+
+  completed_at="$(date -Iseconds)"
+  if [[ "$ok" == "1" ]]; then
+    write_status_file "$action_name" "ok" "$completed_at" "$message" "$artifact_path"
+  else
+    write_status_file "$action_name" "error" "$completed_at" "$message" "$artifact_path"
+  fi
+
+  result_payload="$(mktemp)"
+  cat >"$result_payload" <<EOF
+{
+  "action_id": "$action_id",
+  "action": "$action_name",
+  "vmid": $vmid,
+  "node": "$node",
+  "requested_at": "$requested_at",
+  "completed_at": "$completed_at",
+  "ok": $([[ "$ok" == "1" ]] && printf 'true' || printf 'false'),
+  "message": "$message",
+  "artifact_path": "$artifact_path"
+}
+EOF
+  curl -kfsS \
+    --connect-timeout 4 \
+    --max-time 10 \
+    --output /dev/null \
+    -H "Authorization: Bearer $manager_token" \
+    -H 'Content-Type: application/json' \
+    --data @"$result_payload" \
+    "${manager_url%/}/api/v1/endpoints/actions/result" >/dev/null 2>&1 || true
+  rm -f "$result_payload"
+done <"$STATE_DIR/.beagle-endpoint-actions.list"
+
+rm -f "$STATE_DIR/.beagle-endpoint-actions.list"

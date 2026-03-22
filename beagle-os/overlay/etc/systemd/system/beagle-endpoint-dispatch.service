@@ -1,0 +1,8 @@
+[Unit]
+Description=Dispatch queued Beagle OS endpoint actions
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/beagle-endpoint-dispatch

@@ -246,7 +246,15 @@
     if (profile.assignedTarget) notes.push(`Endpoint ist auf Ziel-VM ${profile.assignedTarget.name} (#${profile.assignedTarget.vmid}) zugewiesen.`);
     if (profile.compliance?.status === "drifted") notes.push(`Endpoint driftet vom gewuenschten Profil ab (${String(profile.compliance.drift_count || 0)} Abweichungen).`);
     if (profile.compliance?.status === "degraded") notes.push(`Endpoint ist konfigurationsgleich, aber betrieblich degradiert (${String(profile.compliance.alert_count || 0)} Warnungen).`);
+    if (Number(profile.pendingActionCount || 0) > 0) notes.push(`Fuer diesen Endpoint warten ${String(profile.pendingActionCount)} Beagle-Aktion(en) auf Ausfuehrung.`);
+    if (profile.lastAction?.action) notes.push(`Letzte Endpoint-Aktion: ${profile.lastAction.action} (${formatActionState(profile.lastAction.ok)}).`);
     return notes;
+  }
+
+  function formatActionState(ok) {
+    if (ok === true) return "ok";
+    if (ok === false) return "error";
+    return "pending";
   }
 
   async function resolveVmProfile(ctx) {
@@ -293,6 +301,8 @@
       managerUrl: managerUrlFromHealthUrl(controlPlaneHealthUrl),
       endpointSummary: endpointPayload?.endpoint || null,
       compliance: endpointPayload?.compliance || null,
+      lastAction: endpointPayload?.last_action || null,
+      pendingActionCount: endpointPayload?.pending_action_count || 0,
       assignedTarget: controlPlaneProfile?.assigned_target || null,
       expectedProfileName: controlPlaneProfile?.expected_profile_name || ""
     };
@@ -333,7 +343,9 @@
         assigned_target: profile.assignedTarget,
         expected_profile_name: profile.expectedProfileName,
         endpoint_summary: profile.endpointSummary,
-        compliance: profile.compliance
+        compliance: profile.compliance,
+        last_action: profile.lastAction,
+        pending_action_count: profile.pendingActionCount
       },
       null,
       2
@@ -392,12 +404,17 @@
               ${kvRow("Compliance", escapeHtml(profile.compliance?.status || ""))}
               ${kvRow("Drift Count", escapeHtml(String(profile.compliance?.drift_count || 0)))}
               ${kvRow("Alert Count", escapeHtml(String(profile.compliance?.alert_count || 0)))}
+              ${kvRow("Pending Actions", escapeHtml(String(profile.pendingActionCount || 0)))}
               ${kvRow("Last Seen", escapeHtml(profile.endpointSummary?.reported_at || ""))}
               ${kvRow("Target Reachable", escapeHtml(profile.endpointSummary?.moonlight_target_reachable || ""))}
               ${kvRow("Sunshine Reachable", escapeHtml(profile.endpointSummary?.sunshine_api_reachable || ""))}
               ${kvRow("Prepare", escapeHtml(profile.endpointSummary?.prepare_state || ""))}
               ${kvRow("Last Launch", escapeHtml(profile.endpointSummary?.last_launch_mode || ""))}
               ${kvRow("Launch Target", escapeHtml(profile.endpointSummary?.last_launch_target || ""))}
+              ${kvRow("Last Action", escapeHtml(profile.lastAction?.action || ""))}
+              ${kvRow("Action Result", escapeHtml(formatActionState(profile.lastAction?.ok)))}
+              ${kvRow("Action Time", escapeHtml(profile.lastAction?.completed_at || ""))}
+              ${kvRow("Action Message", escapeHtml(profile.lastAction?.message || ""))}
             </div></section>
           </div>
           <section class="beagle-card"><h3>Operator Notes</h3><ul class="beagle-notes">${notesHtml}</ul></section>

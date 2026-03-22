@@ -87,6 +87,84 @@ def endpoints_dir() -> Path:
     return path
 
 
+def actions_dir() -> Path:
+    path = EFFECTIVE_DATA_DIR / "actions"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def action_queue_path(node: str, vmid: int) -> Path:
+    safe_node = re.sub(r"[^A-Za-z0-9._-]+", "-", str(node or "unknown")).strip("-") or "unknown"
+    return actions_dir() / f"{safe_node}-{int(vmid)}-queue.json"
+
+
+def action_result_path(node: str, vmid: int) -> Path:
+    safe_node = re.sub(r"[^A-Za-z0-9._-]+", "-", str(node or "unknown")).strip("-") or "unknown"
+    return actions_dir() / f"{safe_node}-{int(vmid)}-last-result.json"
+
+
+def load_action_queue(node: str, vmid: int) -> list[dict[str, Any]]:
+    payload = load_json_file(action_queue_path(node, vmid), [])
+    return payload if isinstance(payload, list) else []
+
+
+def save_action_queue(node: str, vmid: int, queue: list[dict[str, Any]]) -> None:
+    action_queue_path(node, vmid).write_text(json.dumps(queue, indent=2) + "\n", encoding="utf-8")
+
+
+def load_action_result(node: str, vmid: int) -> dict[str, Any] | None:
+    payload = load_json_file(action_result_path(node, vmid), None)
+    return payload if isinstance(payload, dict) else None
+
+
+def store_action_result(node: str, vmid: int, payload: dict[str, Any]) -> None:
+    action_result_path(node, vmid).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def queue_vm_action(vm: VmSummary, action_name: str, requested_by: str) -> dict[str, Any]:
+    queue = load_action_queue(vm.node, vm.vmid)
+    action_id = f"{vm.node}-{vm.vmid}-{int(datetime.now(timezone.utc).timestamp())}-{len(queue) + 1}"
+    payload = {
+        "action_id": action_id,
+        "action": action_name,
+        "vmid": vm.vmid,
+        "node": vm.node,
+        "requested_at": utcnow(),
+        "requested_by": requested_by,
+    }
+    queue.append(payload)
+    save_action_queue(vm.node, vm.vmid, queue)
+    return payload
+
+
+def dequeue_vm_actions(node: str, vmid: int) -> list[dict[str, Any]]:
+    queue = load_action_queue(node, vmid)
+    save_action_queue(node, vmid, [])
+    return queue
+
+
+def summarize_action_result(payload: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {
+            "action_id": "",
+            "action": "",
+            "ok": None,
+            "message": "",
+            "artifact_path": "",
+            "requested_at": "",
+            "completed_at": "",
+        }
+    return {
+        "action_id": payload.get("action_id", ""),
+        "action": payload.get("action", ""),
+        "ok": payload.get("ok"),
+        "message": payload.get("message", ""),
+        "artifact_path": payload.get("artifact_path", ""),
+        "requested_at": payload.get("requested_at", ""),
+        "completed_at": payload.get("completed_at", ""),
+    }
+
+
 def parse_description_meta(description: str) -> dict[str, str]:
     meta: dict[str, str] = {}
     text = str(description or "").replace("\\r\\n", "\n").replace("\\n", "\n")
@@ -304,7 +382,15 @@ def build_vm_state(vm: VmSummary) -> dict[str, Any]:
     report = load_endpoint_report(vm.node, vm.vmid)
     endpoint = summarize_endpoint_report(report or {})
     compliance = evaluate_endpoint_compliance(profile, report)
-    return {"profile": profile, "endpoint": endpoint, "compliance": compliance}
+    last_action = summarize_action_result(load_action_result(vm.node, vm.vmid))
+    pending_actions = load_action_queue(vm.node, vm.vmid)
+    return {
+        "profile": profile,
+        "endpoint": endpoint,
+        "compliance": compliance,
+        "last_action": last_action,
+        "pending_action_count": len(pending_actions),
+    }
 
 
 def build_health_payload() -> dict[str, Any]:
@@ -482,6 +568,11 @@ class Handler(BaseHTTPRequestHandler):
             return None
         return build_vm_state(vm)
 
+    def _requester_identity(self) -> str:
+        if self.client_address and self.client_address[0]:
+            return self.client_address[0]
+        return "unknown"
+
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(HTTPStatus.NO_CONTENT)
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -578,6 +669,29 @@ class Handler(BaseHTTPRequestHandler):
                     },
                 )
                 return
+            if path.endswith("/actions"):
+                vmid_text = path.split("/")[-2]
+                if not vmid_text.isdigit():
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                    return
+                vmid = int(vmid_text)
+                state = self._vm_state_for_vmid(vmid)
+                if state is None:
+                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                    return
+                vm = find_vm(vmid)
+                assert vm is not None
+                self._write_json(
+                    HTTPStatus.OK,
+                    {
+                        "service": "beagle-control-plane",
+                        "version": VERSION,
+                        "generated_at": utcnow(),
+                        "pending_actions": load_action_queue(vm.node, vm.vmid),
+                        "last_action": state["last_action"],
+                    },
+                )
+                return
             if path.endswith("/endpoint"):
                 vmid_text = path.split("/")[-2]
                 if not vmid_text.isdigit():
@@ -622,6 +736,97 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
+
+        if path == "/api/v1/endpoints/actions/pull":
+            if not self._is_endpoint_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            try:
+                payload = self._read_json_body()
+                vmid = int(payload.get("vmid"))
+                node = str(payload.get("node", "")).strip()
+                if not node:
+                    raise ValueError("missing node")
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            actions = dequeue_vm_actions(node, vmid)
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "actions": actions,
+                },
+            )
+            return
+
+        if path == "/api/v1/endpoints/actions/result":
+            if not self._is_endpoint_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            try:
+                payload = self._read_json_body()
+                vmid = int(payload.get("vmid"))
+                node = str(payload.get("node", "")).strip()
+                action_name = str(payload.get("action", "")).strip()
+                action_id = str(payload.get("action_id", "")).strip()
+                if not node or not action_name or not action_id:
+                    raise ValueError("missing action result fields")
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+
+            payload["vmid"] = vmid
+            payload["node"] = node
+            payload["received_at"] = utcnow()
+            store_action_result(node, vmid, payload)
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "last_action": summarize_action_result(payload),
+                },
+            )
+            return
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/actions"):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            vmid_text = path.split("/")[-2]
+            if not vmid_text.isdigit():
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                return
+            vm = find_vm(int(vmid_text))
+            if vm is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                return
+            try:
+                payload = self._read_json_body()
+                action_name = str(payload.get("action", "")).strip().lower()
+                if action_name not in {"healthcheck", "recheckin", "restart-session", "restart-runtime", "support-bundle"}:
+                    raise ValueError("unsupported action")
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            queued = queue_vm_action(vm, action_name, self._requester_identity())
+            self._write_json(
+                HTTPStatus.ACCEPTED,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "queued_action": queued,
+                },
+            )
+            return
 
         if path != "/api/v1/endpoints/check-in":
             self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
