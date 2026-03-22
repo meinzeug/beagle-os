@@ -211,9 +211,10 @@
   }
 
   function buildEndpointEnv(profile) {
+    const endpointProfileName = profile.expectedProfileName || `vm-${profile.vmid}`;
     return [
       'PVE_THIN_CLIENT_MODE="MOONLIGHT"',
-      `PVE_THIN_CLIENT_PROFILE_NAME="vm-${profile.vmid}"`,
+      `PVE_THIN_CLIENT_PROFILE_NAME="${endpointProfileName}"`,
       'PVE_THIN_CLIENT_AUTOSTART="1"',
       `PVE_THIN_CLIENT_PROXMOX_HOST="${profile.proxmoxHost || window.location.hostname}"`,
       'PVE_THIN_CLIENT_PROXMOX_PORT="8006"',
@@ -242,6 +243,9 @@
     if (!profile.sunshinePassword) notes.push("Kein Sunshine-Passwort hinterlegt. Fuer direkte API-Aktionen ist dann ein vorregistriertes Zertifikat oder manuelles Pairing noetig.");
     if (!profile.guestIp) notes.push("Keine Guest-Agent-IPv4 erkannt. Beagle kann dann nur mit Metadaten arbeiten.");
     if (!notes.length) notes.push("VM-Profil ist vollstaendig genug fuer einen vorkonfigurierten Beagle-Endpoint mit Moonlight-Autostart.");
+    if (profile.assignedTarget) notes.push(`Endpoint ist auf Ziel-VM ${profile.assignedTarget.name} (#${profile.assignedTarget.vmid}) zugewiesen.`);
+    if (profile.compliance?.status === "drifted") notes.push(`Endpoint driftet vom gewuenschten Profil ab (${String(profile.compliance.drift_count || 0)} Abweichungen).`);
+    if (profile.compliance?.status === "degraded") notes.push(`Endpoint ist konfigurationsgleich, aber betrieblich degradiert (${String(profile.compliance.alert_count || 0)} Warnungen).`);
     return notes;
   }
 
@@ -252,7 +256,7 @@
       apiGetJson(`/api2/json/nodes/${encodeURIComponent(ctx.node)}/qemu/${encodeURIComponent(ctx.vmid)}/agent/network-get-interfaces`).catch(() => []),
       resolveUsbInstallerUrl(ctx),
       resolveControlPlaneHealthUrl(),
-      fetch(`/beagle-api/api/v1/public/vms/${encodeURIComponent(ctx.vmid)}/endpoint`, { credentials: "same-origin" })
+      fetch(`/beagle-api/api/v1/public/vms/${encodeURIComponent(ctx.vmid)}/state`, { credentials: "same-origin" })
         .then((response) => (response.ok ? response.json() : null))
         .catch(() => null)
     ]);
@@ -262,8 +266,9 @@
     ) || {};
     const meta = parseDescriptionMeta(config?.description || "");
     const guestIp = firstGuestIpv4(guestInterfaces);
-    const streamHost = meta["moonlight-host"] || meta["sunshine-host"] || meta["sunshine-ip"] || guestIp || "";
-    const sunshineApiUrl = meta["sunshine-api-url"] || (streamHost ? `https://${streamHost}:47990` : "");
+    const controlPlaneProfile = endpointPayload?.profile || null;
+    const streamHost = controlPlaneProfile?.stream_host || meta["moonlight-host"] || meta["sunshine-ip"] || meta["sunshine-host"] || guestIp || "";
+    const sunshineApiUrl = controlPlaneProfile?.sunshine_api_url || meta["sunshine-api-url"] || (streamHost ? `https://${streamHost}:47990` : "");
     const profile = {
       vmid: Number(ctx.vmid),
       node: ctx.node,
@@ -272,21 +277,24 @@
       guestIp,
       streamHost,
       sunshineApiUrl,
-      sunshineUsername: meta["sunshine-user"] || "",
+      sunshineUsername: controlPlaneProfile?.sunshine_username || meta["sunshine-user"] || "",
       sunshinePassword: meta["sunshine-password"] || "",
       sunshinePin: meta["sunshine-pin"] || String(ctx.vmid % 10000).padStart(4, "0"),
-      app: meta["moonlight-app"] || meta["sunshine-app"] || "Desktop",
-      resolution: meta["moonlight-resolution"] || "auto",
-      fps: meta["moonlight-fps"] || "60",
-      bitrate: meta["moonlight-bitrate"] || "20000",
-      codec: meta["moonlight-video-codec"] || "H.264",
-      decoder: meta["moonlight-video-decoder"] || "auto",
-      audio: meta["moonlight-audio-config"] || "stereo",
+      app: controlPlaneProfile?.moonlight_app || meta["moonlight-app"] || meta["sunshine-app"] || "Desktop",
+      resolution: controlPlaneProfile?.moonlight_resolution || meta["moonlight-resolution"] || "auto",
+      fps: controlPlaneProfile?.moonlight_fps || meta["moonlight-fps"] || "60",
+      bitrate: controlPlaneProfile?.moonlight_bitrate || meta["moonlight-bitrate"] || "20000",
+      codec: controlPlaneProfile?.moonlight_video_codec || meta["moonlight-video-codec"] || "H.264",
+      decoder: controlPlaneProfile?.moonlight_video_decoder || meta["moonlight-video-decoder"] || "auto",
+      audio: controlPlaneProfile?.moonlight_audio_config || meta["moonlight-audio-config"] || "stereo",
       proxmoxHost: meta["proxmox-host"] || window.location.hostname,
       installerUrl,
       controlPlaneHealthUrl,
       managerUrl: managerUrlFromHealthUrl(controlPlaneHealthUrl),
-      endpointSummary: endpointPayload?.endpoint || null
+      endpointSummary: endpointPayload?.endpoint || null,
+      compliance: endpointPayload?.compliance || null,
+      assignedTarget: controlPlaneProfile?.assigned_target || null,
+      expectedProfileName: controlPlaneProfile?.expected_profile_name || ""
     };
     profile.notes = buildNotes(profile);
     if (!profile.endpointSummary) profile.notes.push("Endpoint hat noch keinen Check-in an die Beagle Control Plane geliefert.");
@@ -322,7 +330,10 @@
         manager_url: profile.managerUrl,
         installer_url: profile.installerUrl,
         control_plane_health_url: profile.controlPlaneHealthUrl,
-        endpoint_summary: profile.endpointSummary
+        assigned_target: profile.assignedTarget,
+        expected_profile_name: profile.expectedProfileName,
+        endpoint_summary: profile.endpointSummary,
+        compliance: profile.compliance
       },
       null,
       2
@@ -360,6 +371,7 @@
               ${kvRow("Sunshine API", escapeHtml(profile.sunshineApiUrl || ""))}
               ${kvRow("App", escapeHtml(profile.app))}
               ${kvRow("Manager", escapeHtml(profile.managerUrl || ""))}
+              ${kvRow("Assigned Target", escapeHtml(profile.assignedTarget ? `${profile.assignedTarget.name} (#${profile.assignedTarget.vmid})` : ""))}
               ${kvRow("Installer", escapeHtml(profile.installerUrl))}
               ${kvRow("Health", escapeHtml(profile.controlPlaneHealthUrl))}
             </div></section>
@@ -377,6 +389,9 @@
               ${kvRow("Pairing PIN", escapeHtml(profile.sunshinePin || ""))}
             </div></section>
             <section class="beagle-card"><h3>Endpoint State</h3><div class="beagle-kv">
+              ${kvRow("Compliance", escapeHtml(profile.compliance?.status || ""))}
+              ${kvRow("Drift Count", escapeHtml(String(profile.compliance?.drift_count || 0)))}
+              ${kvRow("Alert Count", escapeHtml(String(profile.compliance?.alert_count || 0)))}
               ${kvRow("Last Seen", escapeHtml(profile.endpointSummary?.reported_at || ""))}
               ${kvRow("Target Reachable", escapeHtml(profile.endpointSummary?.moonlight_target_reachable || ""))}
               ${kvRow("Sunshine Reachable", escapeHtml(profile.endpointSummary?.sunshine_api_reachable || ""))}

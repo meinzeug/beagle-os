@@ -223,9 +223,10 @@
   }
 
   function buildEndpointEnv(profile) {
+    var endpointProfileName = profile.expectedProfileName || ("vm-" + profile.vmid);
     var lines = [
       "PVE_THIN_CLIENT_MODE=\"MOONLIGHT\"",
-      "PVE_THIN_CLIENT_PROFILE_NAME=\"vm-" + profile.vmid + "\"",
+      "PVE_THIN_CLIENT_PROFILE_NAME=\"" + endpointProfileName + "\"",
       "PVE_THIN_CLIENT_AUTOSTART=\"1\"",
       "PVE_THIN_CLIENT_PROXMOX_HOST=\"" + (profile.proxmoxHost || window.location.hostname) + "\"",
       "PVE_THIN_CLIENT_PROXMOX_PORT=\"8006\"",
@@ -265,6 +266,15 @@
     if (!notes.length) {
       notes.push("VM-Profil ist vollstaendig genug fuer einen vorkonfigurierten Beagle-Endpoint mit Moonlight-Autostart.");
     }
+    if (profile.assignedTarget) {
+      notes.push("Endpoint ist auf Ziel-VM " + profile.assignedTarget.name + " (#" + profile.assignedTarget.vmid + ") zugewiesen.");
+    }
+    if (profile.compliance && profile.compliance.status === "drifted") {
+      notes.push("Endpoint driftet vom gewuenschten Profil ab (" + String(profile.compliance.drift_count || 0) + " Abweichungen).");
+    }
+    if (profile.compliance && profile.compliance.status === "degraded") {
+      notes.push("Endpoint ist konfigurationsgleich, aber betrieblich degradiert (" + String(profile.compliance.alert_count || 0) + " Warnungen).");
+    }
     return notes;
   }
 
@@ -273,7 +283,7 @@
       apiGetJson("/api2/json/nodes/" + encodeURIComponent(ctx.node) + "/qemu/" + encodeURIComponent(ctx.vmid) + "/config"),
       apiGetJson("/api2/json/cluster/resources?type=vm").catch(function() { return []; }),
       apiGetJson("/api2/json/nodes/" + encodeURIComponent(ctx.node) + "/qemu/" + encodeURIComponent(ctx.vmid) + "/agent/network-get-interfaces").catch(function() { return []; }),
-      fetch("/beagle-api/api/v1/public/vms/" + encodeURIComponent(ctx.vmid) + "/endpoint", { credentials: "same-origin" }).then(function(response) {
+      fetch("/beagle-api/api/v1/public/vms/" + encodeURIComponent(ctx.vmid) + "/state", { credentials: "same-origin" }).then(function(response) {
         if (!response.ok) {
           return null;
         }
@@ -284,13 +294,16 @@
       var resources = Array.isArray(results[1]) ? results[1] : [];
       var guestInterfaces = Array.isArray(results[2]) ? results[2] : [];
       var endpointPayload = results[3] || null;
+      var controlPlaneProfile = endpointPayload && endpointPayload.profile ? endpointPayload.profile : null;
+      var endpointSummary = endpointPayload && endpointPayload.endpoint ? endpointPayload.endpoint : null;
+      var compliance = endpointPayload && endpointPayload.compliance ? endpointPayload.compliance : null;
       var resource = resources.find(function(item) {
         return item && item.type === "qemu" && Number(item.vmid) === Number(ctx.vmid);
       }) || {};
       var meta = parseDescriptionMeta(config.description || "");
       var guestIp = firstGuestIpv4(guestInterfaces);
-      var streamHost = meta["moonlight-host"] || meta["sunshine-host"] || meta["sunshine-ip"] || guestIp || "";
-      var sunshineApiUrl = meta["sunshine-api-url"] || (streamHost ? "https://" + streamHost + ":47990" : "");
+      var streamHost = controlPlaneProfile && controlPlaneProfile.stream_host || meta["moonlight-host"] || meta["sunshine-ip"] || meta["sunshine-host"] || guestIp || "";
+      var sunshineApiUrl = controlPlaneProfile && controlPlaneProfile.sunshine_api_url || meta["sunshine-api-url"] || (streamHost ? "https://" + streamHost + ":47990" : "");
       var profile = {
         vmid: Number(ctx.vmid),
         node: ctx.node,
@@ -299,21 +312,24 @@
         guestIp: guestIp,
         streamHost: streamHost,
         sunshineApiUrl: sunshineApiUrl,
-        sunshineUsername: meta["sunshine-user"] || "",
+        sunshineUsername: controlPlaneProfile && controlPlaneProfile.sunshine_username || meta["sunshine-user"] || "",
         sunshinePassword: meta["sunshine-password"] || "",
         sunshinePin: meta["sunshine-pin"] || String(ctx.vmid % 10000).padStart(4, "0"),
-        app: meta["moonlight-app"] || meta["sunshine-app"] || "Desktop",
-        resolution: meta["moonlight-resolution"] || "auto",
-        fps: meta["moonlight-fps"] || "60",
-        bitrate: meta["moonlight-bitrate"] || "20000",
-        codec: meta["moonlight-video-codec"] || "H.264",
-        decoder: meta["moonlight-video-decoder"] || "auto",
-        audio: meta["moonlight-audio-config"] || "stereo",
+        app: controlPlaneProfile && controlPlaneProfile.moonlight_app || meta["moonlight-app"] || meta["sunshine-app"] || "Desktop",
+        resolution: controlPlaneProfile && controlPlaneProfile.moonlight_resolution || meta["moonlight-resolution"] || "auto",
+        fps: controlPlaneProfile && controlPlaneProfile.moonlight_fps || meta["moonlight-fps"] || "60",
+        bitrate: controlPlaneProfile && controlPlaneProfile.moonlight_bitrate || meta["moonlight-bitrate"] || "20000",
+        codec: controlPlaneProfile && controlPlaneProfile.moonlight_video_codec || meta["moonlight-video-codec"] || "H.264",
+        decoder: controlPlaneProfile && controlPlaneProfile.moonlight_video_decoder || meta["moonlight-video-decoder"] || "auto",
+        audio: controlPlaneProfile && controlPlaneProfile.moonlight_audio_config || meta["moonlight-audio-config"] || "stereo",
         proxmoxHost: meta["proxmox-host"] || window.location.hostname,
         installerUrl: resolveUsbInstallerUrl(ctx),
         controlPlaneHealthUrl: resolveControlPlaneHealthUrl(),
         managerUrl: managerUrlFromHealthUrl(resolveControlPlaneHealthUrl()),
-        endpointSummary: endpointPayload && endpointPayload.endpoint ? endpointPayload.endpoint : null,
+        endpointSummary: endpointSummary,
+        compliance: compliance,
+        assignedTarget: controlPlaneProfile && controlPlaneProfile.assigned_target || null,
+        expectedProfileName: controlPlaneProfile && controlPlaneProfile.expected_profile_name || "",
         metadata: meta
       };
       profile.notes = buildNotes(profile);
@@ -363,7 +379,10 @@
       manager_url: profile.managerUrl,
       installer_url: profile.installerUrl,
       control_plane_health_url: profile.controlPlaneHealthUrl,
-      endpoint_summary: profile.endpointSummary
+      assigned_target: profile.assignedTarget,
+      expected_profile_name: profile.expectedProfileName,
+      endpoint_summary: profile.endpointSummary,
+      compliance: profile.compliance
     }, null, 2);
 
     overlay.id = OVERLAY_ID;
@@ -398,6 +417,7 @@
                 kvRow('Sunshine API', escapeHtml(profile.sunshineApiUrl || '')) +
                 kvRow('App', escapeHtml(profile.app)) +
                 kvRow('Manager', escapeHtml(profile.managerUrl || '')) +
+                kvRow('Assigned Target', escapeHtml(profile.assignedTarget ? (profile.assignedTarget.name + " (#" + profile.assignedTarget.vmid + ")") : '')) +
                 kvRow('Installer', escapeHtml(profile.installerUrl)) +
                 kvRow('Health', escapeHtml(profile.controlPlaneHealthUrl)) +
       '      </div></section>' +
@@ -415,6 +435,9 @@
                 kvRow('Pairing PIN', escapeHtml(profile.sunshinePin || '')) +
       '      </div></section>' +
       '      <section class="beagle-card"><h3>Endpoint State</h3><div class="beagle-kv">' +
+                kvRow('Compliance', escapeHtml(profile.compliance && profile.compliance.status || '')) +
+                kvRow('Drift Count', escapeHtml(profile.compliance ? String(profile.compliance.drift_count || 0) : '')) +
+                kvRow('Alert Count', escapeHtml(profile.compliance ? String(profile.compliance.alert_count || 0) : '')) +
                 kvRow('Last Seen', escapeHtml(profile.endpointSummary && profile.endpointSummary.reported_at || '')) +
                 kvRow('Target Reachable', escapeHtml(profile.endpointSummary && profile.endpointSummary.moonlight_target_reachable || '')) +
                 kvRow('Sunshine Reachable', escapeHtml(profile.endpointSummary && profile.endpointSummary.sunshine_api_reachable || '')) +

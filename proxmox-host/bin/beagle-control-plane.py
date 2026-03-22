@@ -151,16 +151,20 @@ def get_vm_config(node: str, vmid: int) -> dict[str, Any]:
     return {}
 
 
-def build_profile(vm: VmSummary) -> dict[str, Any]:
+def find_vm(vmid: int) -> VmSummary | None:
+    return next((candidate for candidate in list_vms() if candidate.vmid == vmid), None)
+
+
+def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, Any]:
     config = get_vm_config(vm.node, vm.vmid)
     meta = parse_description_meta(config.get("description", ""))
     guest_ip = first_guest_ipv4(vm.vmid)
-    stream_host = meta.get("moonlight-host") or meta.get("sunshine-host") or meta.get("sunshine-ip") or guest_ip
+    stream_host = meta.get("moonlight-host") or meta.get("sunshine-ip") or meta.get("sunshine-host") or guest_ip
     sunshine_api_url = meta.get("sunshine-api-url") or (f"https://{stream_host}:47990" if stream_host else "")
     installer_url = f"/beagle-downloads/pve-thin-client-usb-installer-vm-{vm.vmid}.sh"
     has_sunshine_password = bool(meta.get("sunshine-password"))
-
-    return {
+    expected_profile_name = meta.get("beagle-profile-name", "")
+    profile = {
         "vmid": vm.vmid,
         "node": vm.node,
         "name": config.get("name") or vm.name,
@@ -179,8 +183,11 @@ def build_profile(vm: VmSummary) -> dict[str, Any]:
         "moonlight_video_codec": meta.get("moonlight-video-codec", "H.264"),
         "moonlight_video_decoder": meta.get("moonlight-video-decoder", "auto"),
         "moonlight_audio_config": meta.get("moonlight-audio-config", "stereo"),
+        "network_mode": meta.get("thinclient-network-mode", "dhcp"),
         "default_mode": "MOONLIGHT" if stream_host else "",
         "beagle_hostname": safe_hostname(config.get("name") or vm.name, vm.vmid),
+        "beagle_role": meta.get("beagle-role", "desktop" if stream_host else ""),
+        "expected_profile_name": expected_profile_name,
         "installer_url": installer_url,
         "metadata_keys": sorted(meta.keys()),
         "config_digest": {
@@ -193,12 +200,122 @@ def build_profile(vm: VmSummary) -> dict[str, Any]:
             "vga": config.get("vga"),
         },
     }
+    if allow_assignment:
+        assigned_vmid = meta.get("beagle-target-vmid", "").strip()
+        if assigned_vmid.isdigit():
+            target_vmid = int(assigned_vmid)
+            target_node = meta.get("beagle-target-node", "").strip()
+            target_vm = find_vm(target_vmid)
+            if target_vm is not None and (not target_node or target_node == target_vm.node):
+                target_profile = build_profile(target_vm, allow_assignment=False)
+                profile["assigned_target"] = {
+                    "vmid": target_vm.vmid,
+                    "node": target_vm.node,
+                    "name": target_vm.name,
+                    "stream_host": target_profile["stream_host"],
+                    "sunshine_api_url": target_profile["sunshine_api_url"],
+                    "moonlight_app": target_profile["moonlight_app"],
+                }
+                profile["beagle_role"] = "endpoint"
+                if not meta.get("moonlight-host") and target_profile["stream_host"]:
+                    profile["stream_host"] = target_profile["stream_host"]
+                if not meta.get("sunshine-api-url") and target_profile["sunshine_api_url"]:
+                    profile["sunshine_api_url"] = target_profile["sunshine_api_url"]
+                if not meta.get("moonlight-app") and target_profile["moonlight_app"]:
+                    profile["moonlight_app"] = target_profile["moonlight_app"]
+                if not expected_profile_name:
+                    profile["expected_profile_name"] = f"vm-{target_vmid}"
+                profile["default_mode"] = "MOONLIGHT" if profile["stream_host"] else ""
+    return profile
+
+
+def evaluate_endpoint_compliance(profile: dict[str, Any], report: dict[str, Any] | None) -> dict[str, Any]:
+    managed = bool(profile.get("stream_host") or profile.get("assigned_target") or profile.get("expected_profile_name"))
+    desired = {
+        "stream_host": profile.get("stream_host", ""),
+        "moonlight_app": profile.get("moonlight_app", ""),
+        "network_mode": profile.get("network_mode", ""),
+        "profile_name": profile.get("expected_profile_name", ""),
+        "assigned_target": profile.get("assigned_target"),
+    }
+    if not isinstance(report, dict):
+        return {
+            "managed": managed,
+            "endpoint_seen": False,
+            "status": "pending" if managed else "unmanaged",
+            "compliant": False,
+            "drift_count": 0,
+            "alert_count": 0,
+            "drift": [],
+            "alerts": [],
+            "desired": desired,
+        }
+
+    summary = summarize_endpoint_report(report)
+    drift: list[dict[str, Any]] = []
+    alerts: list[dict[str, Any]] = []
+
+    def compare(field: str, expected: str, actual: str, label: str) -> None:
+        if not expected:
+            return
+        if str(expected).strip() == str(actual).strip():
+            return
+        drift.append({"field": field, "label": label, "expected": expected, "actual": actual})
+
+    compare("stream_host", str(profile.get("stream_host", "")), str(summary.get("stream_host", "")), "Stream Host")
+    compare("moonlight_app", str(profile.get("moonlight_app", "")), str(summary.get("moonlight_app", "")), "Moonlight App")
+    compare("network_mode", str(profile.get("network_mode", "")), str(summary.get("network_mode", "")), "Network Mode")
+    compare("profile_name", str(profile.get("expected_profile_name", "")), str(summary.get("profile_name", "")), "Profile Name")
+
+    def alert(field: str, label: str, actual: str, expected: str = "1") -> None:
+        if str(actual).strip() == str(expected).strip():
+            return
+        alerts.append({"field": field, "label": label, "expected": expected, "actual": actual})
+
+    alert("moonlight_target_reachable", "Target Reachable", str(summary.get("moonlight_target_reachable", "")))
+    alert("sunshine_api_reachable", "Sunshine API Reachable", str(summary.get("sunshine_api_reachable", "")))
+    alert("runtime_binary_available", "Moonlight Runtime", str(summary.get("runtime_binary_available", "")))
+
+    autologin_state = str(summary.get("autologin_state", "")).strip()
+    if autologin_state and autologin_state != "active":
+        alerts.append({"field": "autologin_state", "label": "Autologin", "expected": "active", "actual": autologin_state})
+
+    status = "healthy"
+    if drift:
+        status = "drifted"
+    elif alerts:
+        status = "degraded"
+
+    return {
+        "managed": managed,
+        "endpoint_seen": True,
+        "status": status,
+        "compliant": not drift,
+        "drift_count": len(drift),
+        "alert_count": len(alerts),
+        "drift": drift,
+        "alerts": alerts,
+        "desired": desired,
+    }
+
+
+def build_vm_state(vm: VmSummary) -> dict[str, Any]:
+    profile = build_profile(vm)
+    report = load_endpoint_report(vm.node, vm.vmid)
+    endpoint = summarize_endpoint_report(report or {})
+    compliance = evaluate_endpoint_compliance(profile, report)
+    return {"profile": profile, "endpoint": endpoint, "compliance": compliance}
 
 
 def build_health_payload() -> dict[str, Any]:
     downloads_status = load_json_file(DOWNLOADS_STATUS_FILE, {})
     vm_installers = load_json_file(VM_INSTALLERS_FILE, [])
     endpoint_reports = list_endpoint_reports()
+    status_counts = {"healthy": 0, "degraded": 0, "drifted": 0, "pending": 0, "unmanaged": 0}
+    for vm in list_vms():
+        compliance = build_vm_state(vm)["compliance"]
+        status = str(compliance.get("status", "unmanaged"))
+        status_counts[status] = status_counts.get(status, 0) + 1
     return {
         "service": "beagle-control-plane",
         "ok": True,
@@ -209,6 +326,7 @@ def build_health_payload() -> dict[str, Any]:
         "vm_installer_inventory_present": VM_INSTALLERS_FILE.exists(),
         "vm_installer_count": len(vm_installers) if isinstance(vm_installers, list) else 0,
         "endpoint_count": len(endpoint_reports),
+        "endpoint_status_counts": status_counts,
         "data_dir": str(EFFECTIVE_DATA_DIR),
     }
 
@@ -271,7 +389,8 @@ def build_vm_inventory() -> dict[str, Any]:
         int(item.get("vmid")): item for item in installers if isinstance(item, dict) and item.get("vmid") is not None
     }
     for vm in list_vms():
-        profile = build_profile(vm)
+        state = build_vm_state(vm)
+        profile = state["profile"]
         installer = installers_by_vmid.get(vm.vmid, {})
         inventory.append(
             {
@@ -285,7 +404,9 @@ def build_vm_inventory() -> dict[str, Any]:
                 "default_mode": "MOONLIGHT" if profile["stream_host"] else "",
                 "installer_url": installer.get("installer_url") or profile["installer_url"],
                 "available_modes": installer.get("available_modes") or (["MOONLIGHT"] if profile["stream_host"] else []),
-                "endpoint": summarize_endpoint_report(load_endpoint_report(vm.node, vm.vmid) or {}),
+                "assigned_target": profile.get("assigned_target"),
+                "endpoint": state["endpoint"],
+                "compliance": state["compliance"],
             }
         )
     return {
@@ -355,6 +476,12 @@ class Handler(BaseHTTPRequestHandler):
                 return summarize_endpoint_report(report)
         return None
 
+    def _vm_state_for_vmid(self, vmid: int) -> dict[str, Any] | None:
+        vm = find_vm(vmid)
+        if vm is None:
+            return None
+        return build_vm_state(vm)
+
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(HTTPStatus.NO_CONTENT)
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -367,13 +494,33 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
 
+        if path.startswith("/api/v1/public/vms/") and path.endswith("/state"):
+            vmid_text = path.split("/")[-2]
+            if not vmid_text.isdigit():
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                return
+            state = self._vm_state_for_vmid(int(vmid_text))
+            if state is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                return
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    **state,
+                },
+            )
+            return
+
         if path.startswith("/api/v1/public/vms/") and path.endswith("/endpoint"):
             vmid_text = path.split("/")[-2]
             if not vmid_text.isdigit():
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
                 return
-            summary = self._endpoint_summary_for_vmid(int(vmid_text))
-            if summary is None:
+            state = self._vm_state_for_vmid(int(vmid_text))
+            if state is None or not state["endpoint"].get("reported_at"):
                 self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "endpoint not found"})
                 return
             self._write_json(
@@ -382,7 +529,7 @@ class Handler(BaseHTTPRequestHandler):
                     "service": "beagle-control-plane",
                     "version": VERSION,
                     "generated_at": utcnow(),
-                    "endpoint": summary,
+                    **state,
                 },
             )
             return
@@ -412,13 +559,32 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         if path.startswith("/api/v1/vms/"):
+            if path.endswith("/state"):
+                vmid_text = path.split("/")[-2]
+                if not vmid_text.isdigit():
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                    return
+                state = self._vm_state_for_vmid(int(vmid_text))
+                if state is None:
+                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                    return
+                self._write_json(
+                    HTTPStatus.OK,
+                    {
+                        "service": "beagle-control-plane",
+                        "version": VERSION,
+                        "generated_at": utcnow(),
+                        **state,
+                    },
+                )
+                return
             if path.endswith("/endpoint"):
                 vmid_text = path.split("/")[-2]
                 if not vmid_text.isdigit():
                     self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
                     return
-                summary = self._endpoint_summary_for_vmid(int(vmid_text))
-                if summary is None:
+                state = self._vm_state_for_vmid(int(vmid_text))
+                if state is None or not state["endpoint"].get("reported_at"):
                     self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "endpoint not found"})
                     return
                 self._write_json(
@@ -427,7 +593,7 @@ class Handler(BaseHTTPRequestHandler):
                         "service": "beagle-control-plane",
                         "version": VERSION,
                         "generated_at": utcnow(),
-                        "endpoint": summary,
+                        **state,
                     },
                 )
                 return
