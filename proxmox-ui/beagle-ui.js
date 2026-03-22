@@ -117,9 +117,12 @@
       "#" + OVERLAY_ID + " .beagle-badge.healthy { background: #ecfdf5; color: #047857; }",
       "#" + OVERLAY_ID + " .beagle-badge.degraded { background: #fffbeb; color: #b45309; }",
       "#" + OVERLAY_ID + " .beagle-badge.drifted { background: #fef2f2; color: #b91c1c; }",
+      "#" + OVERLAY_ID + " .beagle-badge.stale { background: #eef2ff; color: #4338ca; }",
       "#" + OVERLAY_ID + " .beagle-badge.pending, #" + OVERLAY_ID + " .beagle-badge.unmanaged { background: #eff6ff; color: #1d4ed8; }",
       "#" + OVERLAY_ID + " .beagle-inline-actions { display: flex; flex-wrap: wrap; gap: 8px; }",
       "#" + OVERLAY_ID + " .beagle-mini-btn { border: 1px solid #d1d5db; background: #fff; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700; cursor: pointer; }",
+      "#" + OVERLAY_ID + " .beagle-select-cell { width: 36px; }",
+      "#" + OVERLAY_ID + " .beagle-row-select { width: 16px; height: 16px; accent-color: #ea580c; }",
       "#" + FLEET_LAUNCHER_ID + " { position: fixed; right: 22px; bottom: 22px; z-index: 99999; border: 0; border-radius: 999px; padding: 12px 18px; font: 700 14px/1 'Trebuchet MS', 'Segoe UI', sans-serif; color: #fff; background: linear-gradient(135deg, #f97316, #0ea5e9); box-shadow: 0 18px 40px rgba(15, 23, 42, 0.28); cursor: pointer; }"
     ].join("\n");
     document.head.appendChild(style);
@@ -411,6 +414,31 @@
     };
   }
 
+  function selectedFleetVmids(overlay) {
+    return Array.prototype.slice.call(overlay.querySelectorAll('.beagle-row-select[data-vmid]:checked')).map(function(element) {
+      return Number(element.getAttribute('data-vmid'));
+    }).filter(function(value) {
+      return Number.isFinite(value) && value > 0;
+    });
+  }
+
+  function selectedFleetItems(overlay, vms) {
+    var selected = new Set(selectedFleetVmids(overlay));
+    return vms.filter(function(item) {
+      return selected.has(Number(item.vmid));
+    });
+  }
+
+  function queueBulkAction(vmids, actionName) {
+    if (!vmids.length) {
+      throw new Error('Keine Endpoints ausgewaehlt.');
+    }
+    return apiPostBeagleJson('/beagle-api/api/v1/actions/bulk', {
+      vmids: vmids,
+      action: actionName
+    });
+  }
+
   function renderFleetModal(payload) {
     var overlay = document.createElement("div");
     var vms = payload && Array.isArray(payload.vms) ? payload.vms : [];
@@ -423,11 +451,12 @@
       var policyName = item.applied_policy && item.applied_policy.name || "";
       return '' +
         '<tr>' +
+        '  <td class="beagle-select-cell"><input class="beagle-row-select" type="checkbox" data-vmid="' + escapeHtml(String(item.vmid || "")) + '"></td>' +
         '  <td><strong>' + escapeHtml(item.name || ("vm-" + item.vmid)) + '</strong><br><span class="beagle-muted">#' + escapeHtml(String(item.vmid || "")) + ' / ' + escapeHtml(item.node || "") + '</span></td>' +
         '  <td>' + renderStatusBadge(item.compliance && item.compliance.status || "unknown") + '<br><span class="beagle-muted">' + escapeHtml(item.assignment_source || "unassigned") + '</span></td>' +
         '  <td>' + escapeHtml(item.assigned_target ? (item.assigned_target.name + " (#" + item.assigned_target.vmid + ")") : "") + '<br><span class="beagle-muted">' + escapeHtml(item.stream_host || "") + '</span></td>' +
         '  <td>' + escapeHtml(policyName || "keine") + '<br><span class="beagle-muted">Bundles: ' + escapeHtml(String(item.support_bundle_count || 0)) + '</span></td>' +
-        '  <td>' + escapeHtml(item.endpoint && item.endpoint.reported_at || "") + '<br><span class="beagle-muted">' + escapeHtml(lastAction.action || "") + " " + escapeHtml(formatActionState(lastAction.ok)) + '</span></td>' +
+        '  <td>' + escapeHtml(item.endpoint && item.endpoint.reported_at || "") + '<br><span class="beagle-muted">Age: ' + escapeHtml(String(item.endpoint && item.endpoint.report_age_seconds || 0)) + 's</span><br><span class="beagle-muted">' + escapeHtml(lastAction.action || "") + " " + escapeHtml(formatActionState(lastAction.ok)) + '</span></td>' +
         '  <td><div class="beagle-inline-actions">' +
         '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="profile" data-vmid="' + escapeHtml(String(item.vmid || "")) + '" data-node="' + escapeHtml(item.node || "") + '">Profil</button>' +
         '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="healthcheck" data-vmid="' + escapeHtml(String(item.vmid || "")) + '">Check</button>' +
@@ -460,6 +489,9 @@
       '  <div class="beagle-body">' +
       '    <div class="beagle-actions">' +
       '      <button type="button" class="beagle-btn primary" data-beagle-fleet-action="refresh">Aktualisieren</button>' +
+      '      <button type="button" class="beagle-btn secondary" data-beagle-fleet-action="bulk-healthcheck">Bulk Check</button>' +
+      '      <button type="button" class="beagle-btn secondary" data-beagle-fleet-action="bulk-support-bundle">Bulk Bundle</button>' +
+      '      <button type="button" class="beagle-btn secondary" data-beagle-fleet-action="bulk-create-policy">Bulk Policy</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-fleet-action="open-health">Health</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-fleet-action="copy-policies">Policies JSON</button>' +
       '    </div>' +
@@ -471,13 +503,14 @@
                 kvRow('Pending', escapeHtml(String(endpointCounts.pending || 0))) +
       '      </div></section>' +
       '      <section class="beagle-card"><h3>Compliance</h3><div class="beagle-kv">' +
+                kvRow('Stale', escapeHtml(String(endpointCounts.stale || 0))) +
                 kvRow('Degraded', escapeHtml(String(endpointCounts.degraded || 0))) +
                 kvRow('Drifted', escapeHtml(String(endpointCounts.drifted || 0))) +
                 kvRow('Unmanaged', escapeHtml(String(endpointCounts.unmanaged || 0))) +
                 kvRow('Generated', escapeHtml(health.generated_at || '')) +
       '      </div></section>' +
       '    </div>' +
-      '    <section class="beagle-card"><h3>Endpoints</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>VM</th><th>Status</th><th>Ziel</th><th>Policy</th><th>Letzter Kontakt</th><th>Aktionen</th></tr></thead><tbody>' + vmRows + '</tbody></table></div></section>' +
+      '    <section class="beagle-card"><h3>Endpoints</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th class="beagle-select-cell"><input class="beagle-row-select" type="checkbox" data-beagle-fleet-action="toggle-all"></th><th>VM</th><th>Status</th><th>Ziel</th><th>Policy</th><th>Letzter Kontakt</th><th>Aktionen</th></tr></thead><tbody>' + vmRows + '</tbody></table></div></section>' +
       '    <section class="beagle-card"><h3>Policies</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>Name</th><th>Prioritaet</th><th>Selektor</th><th>Profil</th><th>Aktion</th></tr></thead><tbody>' + policyRows + '</tbody></table></div></section>' +
       '  </div>' +
       '</div>';
@@ -497,11 +530,35 @@
         case 'refresh':
           showFleetModal();
           break;
+        case 'toggle-all':
+          Array.prototype.slice.call(overlay.querySelectorAll('.beagle-row-select[data-vmid]')).forEach(function(checkbox) {
+            checkbox.checked = target.checked;
+          });
+          break;
         case 'open-health':
           openUrl(resolveControlPlaneHealthUrl());
           break;
         case 'copy-policies':
           copyText(JSON.stringify(policies, null, 2), 'Beagle Policies kopiert.');
+          break;
+        case 'bulk-healthcheck':
+        case 'bulk-support-bundle':
+          queueBulkAction(selectedFleetVmids(overlay), target.getAttribute('data-beagle-fleet-action') === 'bulk-healthcheck' ? 'healthcheck' : 'support-bundle').then(function(result) {
+            showToast('Beagle Bulk-Aktion gequeued: ' + String(result.queued_count || 0));
+            showFleetModal();
+          }).catch(function(error) {
+            showError(error.message);
+          });
+          break;
+        case 'bulk-create-policy':
+          Promise.all(selectedFleetItems(overlay, vms).map(function(item) {
+            return apiPostBeagleJson('/beagle-api/api/v1/policies', createPolicyFromInventoryItem(item));
+          })).then(function(result) {
+            showToast('Beagle Policies erzeugt: ' + String(result.length || 0));
+            showFleetModal();
+          }).catch(function(error) {
+            showError(error.message);
+          });
           break;
         case 'profile':
           showProfileModal({ vmid: Number(target.getAttribute('data-vmid')), node: target.getAttribute('data-node') });

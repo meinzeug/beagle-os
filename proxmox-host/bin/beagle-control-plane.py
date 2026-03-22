@@ -27,6 +27,7 @@ EFFECTIVE_DATA_DIR = DATA_DIR
 API_TOKEN = os.environ.get("BEAGLE_MANAGER_API_TOKEN", "").strip()
 ENDPOINT_SHARED_TOKEN = os.environ.get("BEAGLE_ENDPOINT_SHARED_TOKEN", "").strip()
 ALLOW_LOCALHOST_NOAUTH = os.environ.get("BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH", "0").strip().lower() in {"1", "true", "yes", "on"}
+STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECONDS", "600"))
 DOWNLOADS_STATUS_FILE = ROOT_DIR / "dist" / "beagle-downloads-status.json"
 VM_INSTALLERS_FILE = ROOT_DIR / "dist" / "beagle-vm-installers.json"
 
@@ -42,6 +43,23 @@ class VmSummary:
 
 def utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def parse_utc_timestamp(value: str) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def timestamp_age_seconds(value: str) -> int | None:
+    parsed = parse_utc_timestamp(value)
+    if parsed is None:
+        return None
+    return max(0, int((datetime.now(timezone.utc) - parsed).total_seconds()))
 
 
 def load_json_file(path: Path, fallback: Any) -> Any:
@@ -167,6 +185,20 @@ def queue_vm_action(vm: VmSummary, action_name: str, requested_by: str) -> dict[
     queue.append(payload)
     save_action_queue(vm.node, vm.vmid, queue)
     return payload
+
+
+def queue_bulk_actions(vmids: list[int], action_name: str, requested_by: str) -> list[dict[str, Any]]:
+    queued: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for vmid in vmids:
+        if vmid in seen:
+            continue
+        seen.add(vmid)
+        vm = find_vm(vmid)
+        if vm is None:
+            continue
+        queued.append(queue_vm_action(vm, action_name, requested_by))
+    return queued
 
 
 def dequeue_vm_actions(node: str, vmid: int) -> list[dict[str, Any]]:
@@ -549,6 +581,8 @@ def evaluate_endpoint_compliance(profile: dict[str, Any], report: dict[str, Any]
     summary = summarize_endpoint_report(report)
     drift: list[dict[str, Any]] = []
     alerts: list[dict[str, Any]] = []
+    reported_at = str(summary.get("reported_at", ""))
+    report_age_seconds = timestamp_age_seconds(reported_at)
 
     def compare(field: str, expected: str, actual: str, label: str) -> None:
         if not expected:
@@ -578,6 +612,14 @@ def evaluate_endpoint_compliance(profile: dict[str, Any], report: dict[str, Any]
     status = "healthy"
     if drift:
         status = "drifted"
+    elif report_age_seconds is not None and report_age_seconds > STALE_ENDPOINT_SECONDS:
+        status = "stale"
+        alerts.append({
+            "field": "reported_at",
+            "label": "Last Check-In",
+            "expected": f"<={STALE_ENDPOINT_SECONDS}s",
+            "actual": f"{report_age_seconds}s",
+        })
     elif alerts:
         status = "degraded"
 
@@ -586,6 +628,8 @@ def evaluate_endpoint_compliance(profile: dict[str, Any], report: dict[str, Any]
         "endpoint_seen": True,
         "status": status,
         "compliant": not drift,
+        "stale": bool(report_age_seconds is not None and report_age_seconds > STALE_ENDPOINT_SECONDS),
+        "report_age_seconds": report_age_seconds,
         "drift_count": len(drift),
         "alert_count": len(alerts),
         "drift": drift,
@@ -615,7 +659,7 @@ def build_health_payload() -> dict[str, Any]:
     vm_installers = load_json_file(VM_INSTALLERS_FILE, [])
     endpoint_reports = list_endpoint_reports()
     policies = list_policies()
-    status_counts = {"healthy": 0, "degraded": 0, "drifted": 0, "pending": 0, "unmanaged": 0}
+    status_counts = {"healthy": 0, "degraded": 0, "drifted": 0, "stale": 0, "pending": 0, "unmanaged": 0}
     for vm in list_vms():
         compliance = build_vm_state(vm)["compliance"]
         status = str(compliance.get("status", "unmanaged"))
@@ -662,6 +706,7 @@ def summarize_endpoint_report(payload: dict[str, Any]) -> dict[str, Any]:
         "last_launch_mode": session.get("mode", ""),
         "last_launch_target": session.get("target", ""),
         "last_launch_time": session.get("timestamp", ""),
+        "report_age_seconds": timestamp_age_seconds(payload.get("reported_at", "")),
     }
 
 
@@ -1141,6 +1186,36 @@ class Handler(BaseHTTPRequestHandler):
                     "version": VERSION,
                     "generated_at": utcnow(),
                     "policy": policy,
+                },
+            )
+            return
+
+        if path == "/api/v1/actions/bulk":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            try:
+                payload = self._read_json_body()
+                action_name = str(payload.get("action", "")).strip().lower()
+                vmid_values = payload.get("vmids", [])
+                if action_name not in {"healthcheck", "recheckin", "restart-session", "restart-runtime", "support-bundle"}:
+                    raise ValueError("unsupported action")
+                if not isinstance(vmid_values, list) or not vmid_values:
+                    raise ValueError("missing vmids")
+                vmids = [int(item) for item in vmid_values]
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid bulk action: {exc}"})
+                return
+            queued = queue_bulk_actions(vmids, action_name, self._requester_identity())
+            self._write_json(
+                HTTPStatus.ACCEPTED,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "queued_actions": queued,
+                    "queued_count": len(queued),
                 },
             )
             return
