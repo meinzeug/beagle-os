@@ -281,6 +281,9 @@
     if (profile.lastAction && profile.lastAction.action) {
       notes.push("Letzte Endpoint-Aktion: " + profile.lastAction.action + " (" + formatActionState(profile.lastAction.ok) + ").");
     }
+    if (profile.lastAction && profile.lastAction.stored_artifact_path) {
+      notes.push("Diagnoseartefakt ist zentral auf dem Beagle-Manager gespeichert.");
+    }
     return notes;
   }
 
@@ -471,6 +474,8 @@
                 kvRow('Action Result', escapeHtml(formatActionState(profile.lastAction && profile.lastAction.ok))) +
                 kvRow('Action Time', escapeHtml(profile.lastAction && profile.lastAction.completed_at || '')) +
                 kvRow('Action Message', escapeHtml(profile.lastAction && profile.lastAction.message || '')) +
+                kvRow('Stored Artifact', escapeHtml(profile.lastAction && profile.lastAction.stored_artifact_path || '')) +
+                kvRow('Artifact Size', escapeHtml(profile.lastAction ? String(profile.lastAction.stored_artifact_size || 0) : '')) +
       '      </div></section>' +
       '    </div>' +
       '    <section class="beagle-card"><h3>Operator Notes</h3><ul class="beagle-notes">' + notesHtml + '</ul></section>' +

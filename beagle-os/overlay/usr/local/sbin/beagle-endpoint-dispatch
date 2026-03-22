@@ -15,14 +15,46 @@ write_status_file() {
   local completed_at="$3"
   local message="$4"
   local artifact_path="$5"
+  local stored_artifact_path="$6"
   cat >"$STATUS_FILE" <<EOF
 action=${action_name:-UNSET}
 status=${status:-unknown}
 completed_at=${completed_at:-UNSET}
 message=${message:-UNSET}
 artifact_path=${artifact_path:-UNSET}
+stored_artifact_path=${stored_artifact_path:-UNSET}
 EOF
   chmod 0644 "$STATUS_FILE"
+}
+
+upload_support_bundle() {
+  local action_id="$1"
+  local local_artifact_path="$2"
+  local response_file upload_status
+  local filename bundle_id stored_path stored_download_path stored_size
+  filename="$(basename "$local_artifact_path")"
+  response_file="$(mktemp)"
+  upload_status="$(
+    curl -kfsS \
+      --connect-timeout 8 \
+      --max-time 300 \
+      --output "$response_file" \
+      --write-out '%{http_code}' \
+      -H "Authorization: Bearer $manager_token" \
+      -H 'Content-Type: application/gzip' \
+      --data-binary @"$local_artifact_path" \
+      "${manager_url%/}/api/v1/endpoints/support-bundles/upload?node=${node}&vmid=${vmid}&action_id=${action_id}&filename=${filename}" || true
+  )"
+  if [[ "$upload_status" != "201" ]]; then
+    rm -f "$response_file"
+    return 1
+  fi
+  bundle_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("support_bundle", {}).get("bundle_id", ""))' "$response_file")"
+  stored_path="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("support_bundle", {}).get("stored_path", ""))' "$response_file")"
+  stored_download_path="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("support_bundle", {}).get("download_path", ""))' "$response_file")"
+  stored_size="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("support_bundle", {}).get("size", 0))' "$response_file")"
+  rm -f "$response_file"
+  printf '%s\t%s\t%s\t%s\n' "$bundle_id" "$stored_path" "$stored_download_path" "$stored_size"
 }
 
 if [[ -r "$ENDPOINT_FILE" ]]; then
@@ -42,7 +74,7 @@ vmid="${BEAGLE_ENDPOINT_PROXMOX_VMID:-${PVE_THIN_CLIENT_PROXMOX_VMID:-}}"
 node="${BEAGLE_ENDPOINT_PROXMOX_NODE:-${PVE_THIN_CLIENT_PROXMOX_NODE:-}}"
 
 if [[ -z "$manager_url" || -z "$manager_token" || -z "$vmid" || -z "$node" ]]; then
-  write_status_file "" "skipped" "$(date -Iseconds)" "missing manager endpoint configuration" ""
+  write_status_file "" "skipped" "$(date -Iseconds)" "missing manager endpoint configuration" "" ""
   exit 0
 fi
 
@@ -70,7 +102,7 @@ http_status="$(
 )"
 
 if [[ "$http_status" != "200" ]]; then
-  write_status_file "" "pull-error" "$(date -Iseconds)" "action pull failed" ""
+  write_status_file "" "pull-error" "$(date -Iseconds)" "action pull failed" "" ""
   exit 0
 fi
 
@@ -96,6 +128,10 @@ while IFS= read -r action_json; do
   ok="1"
   message="completed"
   artifact_path=""
+  stored_artifact_path=""
+  stored_artifact_bundle_id=""
+  stored_artifact_download_path=""
+  stored_artifact_size="0"
   case "$action_name" in
     healthcheck)
       /usr/local/sbin/beagle-healthcheck >/dev/null 2>&1 || ok="0"
@@ -120,7 +156,12 @@ while IFS= read -r action_json; do
         ok="0"
         message="support bundle failed"
       else
-        message="support bundle created"
+        if upload_result="$(upload_support_bundle "$action_id" "$artifact_path" 2>/dev/null)"; then
+          IFS=$'\t' read -r stored_artifact_bundle_id stored_artifact_path stored_artifact_download_path stored_artifact_size <<<"$upload_result"
+          message="support bundle uploaded to manager"
+        else
+          message="support bundle created locally"
+        fi
       fi
       ;;
     *)
@@ -131,9 +172,9 @@ while IFS= read -r action_json; do
 
   completed_at="$(date -Iseconds)"
   if [[ "$ok" == "1" ]]; then
-    write_status_file "$action_name" "ok" "$completed_at" "$message" "$artifact_path"
+    write_status_file "$action_name" "ok" "$completed_at" "$message" "$artifact_path" "$stored_artifact_path"
   else
-    write_status_file "$action_name" "error" "$completed_at" "$message" "$artifact_path"
+    write_status_file "$action_name" "error" "$completed_at" "$message" "$artifact_path" "$stored_artifact_path"
   fi
 
   result_payload="$(mktemp)"
@@ -147,7 +188,11 @@ while IFS= read -r action_json; do
   "completed_at": "$completed_at",
   "ok": $([[ "$ok" == "1" ]] && printf 'true' || printf 'false'),
   "message": "$message",
-  "artifact_path": "$artifact_path"
+  "artifact_path": "$artifact_path",
+  "stored_artifact_path": "$stored_artifact_path",
+  "stored_artifact_bundle_id": "$stored_artifact_bundle_id",
+  "stored_artifact_download_path": "$stored_artifact_download_path",
+  "stored_artifact_size": $stored_artifact_size
 }
 EOF
   curl -kfsS \

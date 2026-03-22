@@ -5,13 +5,14 @@ import json
 import os
 import re
 import subprocess
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 VERSION = "dev"
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -93,14 +94,35 @@ def actions_dir() -> Path:
     return path
 
 
+def support_bundles_dir() -> Path:
+    path = EFFECTIVE_DATA_DIR / "support-bundles"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def safe_slug(value: str, default: str = "item") -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value or "")).strip("-")
+    return cleaned or default
+
+
 def action_queue_path(node: str, vmid: int) -> Path:
-    safe_node = re.sub(r"[^A-Za-z0-9._-]+", "-", str(node or "unknown")).strip("-") or "unknown"
+    safe_node = safe_slug(node, "unknown")
     return actions_dir() / f"{safe_node}-{int(vmid)}-queue.json"
 
 
 def action_result_path(node: str, vmid: int) -> Path:
-    safe_node = re.sub(r"[^A-Za-z0-9._-]+", "-", str(node or "unknown")).strip("-") or "unknown"
+    safe_node = safe_slug(node, "unknown")
     return actions_dir() / f"{safe_node}-{int(vmid)}-last-result.json"
+
+
+def support_bundle_metadata_path(bundle_id: str) -> Path:
+    return support_bundles_dir() / f"{safe_slug(bundle_id, 'bundle')}.json"
+
+
+def support_bundle_archive_path(bundle_id: str, filename: str) -> Path:
+    suffix = Path(filename or "support-bundle.tar.gz").suffixes
+    extension = "".join(suffix) if suffix else ".bin"
+    return support_bundles_dir() / f"{safe_slug(bundle_id, 'bundle')}{extension}"
 
 
 def load_action_queue(node: str, vmid: int) -> list[dict[str, Any]]:
@@ -151,6 +173,10 @@ def summarize_action_result(payload: dict[str, Any] | None) -> dict[str, Any]:
             "ok": None,
             "message": "",
             "artifact_path": "",
+            "stored_artifact_path": "",
+            "stored_artifact_bundle_id": "",
+            "stored_artifact_download_path": "",
+            "stored_artifact_size": 0,
             "requested_at": "",
             "completed_at": "",
         }
@@ -160,9 +186,58 @@ def summarize_action_result(payload: dict[str, Any] | None) -> dict[str, Any]:
         "ok": payload.get("ok"),
         "message": payload.get("message", ""),
         "artifact_path": payload.get("artifact_path", ""),
+        "stored_artifact_path": payload.get("stored_artifact_path", ""),
+        "stored_artifact_bundle_id": payload.get("stored_artifact_bundle_id", ""),
+        "stored_artifact_download_path": payload.get("stored_artifact_download_path", ""),
+        "stored_artifact_size": payload.get("stored_artifact_size", 0),
         "requested_at": payload.get("requested_at", ""),
         "completed_at": payload.get("completed_at", ""),
     }
+
+
+def list_support_bundle_metadata(*, node: str | None = None, vmid: int | None = None) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for path in sorted(support_bundles_dir().glob("*.json")):
+        payload = load_json_file(path, None)
+        if not isinstance(payload, dict):
+            continue
+        if node is not None and str(payload.get("node", "")).strip() != str(node).strip():
+            continue
+        if vmid is not None and int(payload.get("vmid", -1)) != int(vmid):
+            continue
+        items.append(payload)
+    items.sort(key=lambda item: str(item.get("uploaded_at", "")), reverse=True)
+    return items
+
+
+def find_support_bundle_metadata(bundle_id: str) -> dict[str, Any] | None:
+    payload = load_json_file(support_bundle_metadata_path(bundle_id), None)
+    return payload if isinstance(payload, dict) else None
+
+
+def store_support_bundle(node: str, vmid: int, action_id: str, filename: str, content: bytes) -> dict[str, Any]:
+    safe_node = safe_slug(node, "unknown")
+    safe_name = safe_slug(filename, "support-bundle.tar.gz")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    bundle_id = f"{safe_node}-{int(vmid)}-{timestamp}-{safe_slug(action_id, 'action')}"
+    archive_path = support_bundle_archive_path(bundle_id, safe_name)
+    archive_path.write_bytes(content)
+    sha256 = hashlib.sha256(content).hexdigest()
+    payload = {
+        "bundle_id": bundle_id,
+        "node": node,
+        "vmid": int(vmid),
+        "action_id": action_id,
+        "filename": filename,
+        "stored_filename": archive_path.name,
+        "stored_path": str(archive_path),
+        "size": len(content),
+        "sha256": sha256,
+        "uploaded_at": utcnow(),
+        "download_path": f"/api/v1/support-bundles/{bundle_id}/download",
+    }
+    support_bundle_metadata_path(bundle_id).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return payload
 
 
 def parse_description_meta(description: str) -> dict[str, str]:
@@ -553,6 +628,23 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("invalid payload")
         return payload
 
+    def _read_binary_body(self, *, max_bytes: int) -> bytes:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0 or length > max_bytes:
+            raise ValueError("invalid content length")
+        return self.rfile.read(length)
+
+    def _write_bytes(self, status: HTTPStatus, body: bytes, *, content_type: str, filename: str | None = None) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        if filename:
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def _endpoint_summary_for_vmid(self, vmid: int) -> dict[str, Any] | None:
         for vm in list_vms():
             if vm.vmid == vmid:
@@ -649,7 +741,43 @@ class Handler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if path.startswith("/api/v1/support-bundles/") and path.endswith("/download"):
+            bundle_id = path.split("/")[-2]
+            metadata = find_support_bundle_metadata(bundle_id)
+            if metadata is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "support bundle not found"})
+                return
+            archive_path = Path(str(metadata.get("stored_path", "")))
+            if not archive_path.is_file():
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "support bundle payload missing"})
+                return
+            self._write_bytes(
+                HTTPStatus.OK,
+                archive_path.read_bytes(),
+                content_type="application/gzip",
+                filename=str(metadata.get("stored_filename") or archive_path.name),
+            )
+            return
         if path.startswith("/api/v1/vms/"):
+            if path.endswith("/support-bundles"):
+                vmid_text = path.split("/")[-2]
+                if not vmid_text.isdigit():
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                    return
+                vm = find_vm(int(vmid_text))
+                if vm is None:
+                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                    return
+                self._write_json(
+                    HTTPStatus.OK,
+                    {
+                        "service": "beagle-control-plane",
+                        "version": VERSION,
+                        "generated_at": utcnow(),
+                        "support_bundles": list_support_bundle_metadata(node=vm.node, vmid=vm.vmid),
+                    },
+                )
+                return
             if path.endswith("/state"):
                 vmid_text = path.split("/")[-2]
                 if not vmid_text.isdigit():
@@ -736,6 +864,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
+        query = parse_qs(parsed.query or "")
 
         if path == "/api/v1/endpoints/actions/pull":
             if not self._is_endpoint_authenticated():
@@ -791,6 +920,38 @@ class Handler(BaseHTTPRequestHandler):
                     "version": VERSION,
                     "generated_at": utcnow(),
                     "last_action": summarize_action_result(payload),
+                },
+            )
+            return
+
+        if path == "/api/v1/endpoints/support-bundles/upload":
+            if not self._is_endpoint_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            try:
+                vmid_values = query.get("vmid", [])
+                node_values = query.get("node", [])
+                action_values = query.get("action_id", [])
+                filename_values = query.get("filename", [])
+                vmid = int(vmid_values[0])
+                node = str(node_values[0]).strip()
+                action_id = str(action_values[0]).strip()
+                filename = str(filename_values[0]).strip() or "support-bundle.tar.gz"
+                if not node or not action_id:
+                    raise ValueError("missing upload fields")
+                payload = self._read_binary_body(max_bytes=128 * 1024 * 1024)
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid upload: {exc}"})
+                return
+            bundle = store_support_bundle(node, vmid, action_id, filename, payload)
+            self._write_json(
+                HTTPStatus.CREATED,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "support_bundle": bundle,
                 },
             )
             return

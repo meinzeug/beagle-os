@@ -32,6 +32,7 @@ capture_command journal-beagle-firstboot journalctl -u beagle-firstboot.service 
 capture_command journal-beagle-autologin journalctl -u beagle-autologin.service -b --no-pager
 capture_command journal-beagle-healthcheck journalctl -u beagle-healthcheck.service -b --no-pager
 capture_command journal-beagle-endpoint-report journalctl -u beagle-endpoint-report.service -b --no-pager
+capture_command journal-beagle-endpoint-dispatch journalctl -u beagle-endpoint-dispatch.service -b --no-pager
 capture_command journal-prepare-runtime journalctl -u pve-thin-client-prepare.service -b --no-pager
 capture_command process-list ps -ef
 
