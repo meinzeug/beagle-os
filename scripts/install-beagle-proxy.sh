@@ -304,6 +304,14 @@ server {
         }
     }
 
+    location = /pve-dcv-downloads {
+        return 302 ${DOWNLOADS_PATH}/;
+    }
+
+    location ^~ /pve-dcv-downloads/ {
+        rewrite ^/pve-dcv-downloads/(.*)$ ${DOWNLOADS_PATH}/\$1 permanent;
+    }
+
     location /beagle-api/ {
         proxy_pass ${BEAGLE_API_UPSTREAM}/;
         proxy_http_version 1.1;
@@ -357,6 +365,9 @@ link_nginx_config() {
   ln -sfn "$NGINX_SITE" "$NGINX_ENABLED"
   if [[ -f /etc/nginx/sites-enabled/default ]]; then
     rm -f /etc/nginx/sites-enabled/default
+  fi
+  if [[ -L /etc/nginx/sites-enabled/pve-dcv-integration-dcv-proxy.conf ]]; then
+    rm -f /etc/nginx/sites-enabled/pve-dcv-integration-dcv-proxy.conf
   fi
 }
 
