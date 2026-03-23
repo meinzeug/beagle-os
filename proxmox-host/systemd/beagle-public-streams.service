@@ -1,0 +1,14 @@
+[Unit]
+Description=Reconcile Beagle public Moonlight/Sunshine streams
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/beagle/host.env
+EnvironmentFile=-/etc/beagle/beagle-manager.env
+ExecStart=__INSTALL_DIR__/scripts/reconcile-public-streams.sh
+WorkingDirectory=__INSTALL_DIR__
+
+[Install]
+WantedBy=multi-user.target

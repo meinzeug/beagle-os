@@ -14,7 +14,7 @@ GENERIC_INSTALLER="$DIST_DIR/pve-thin-client-usb-installer-v${VERSION}.sh"
 PAYLOAD_URL="${BASE_URL%/}/pve-thin-client-usb-payload-latest.tar.gz"
 BOOTSTRAP_URL="${BASE_URL%/}/pve-thin-client-usb-bootstrap-latest.tar.gz"
 INSTALLER_URL="${BASE_URL%/}/pve-thin-client-usb-installer-host-latest.sh"
-VM_INSTALLER_URL_TEMPLATE="${BASE_URL%/}/pve-thin-client-usb-installer-vm-{vmid}.sh"
+VM_INSTALLER_URL_TEMPLATE="https://${SERVER_NAME}:${LISTEN_PORT}/beagle-api/api/v1/public/vms/{vmid}/installer.sh"
 STATUS_URL="${BASE_URL%/}/beagle-downloads-status.json"
 SHA256SUMS_URL="${BASE_URL%/}/SHA256SUMS"
 STATUS_JSON_PATH="$DIST_DIR/beagle-downloads-status.json"
@@ -168,6 +168,8 @@ def patch_installer_defaults(script_text, bootstrap, payload, preset_name, prese
             f'RELEASE_PAYLOAD_URL="${{RELEASE_PAYLOAD_URL:-{shell_double_quoted(payload)}}}"',
         r'^INSTALL_PAYLOAD_URL="\$\{INSTALL_PAYLOAD_URL:-[^"]*}"$':
             f'INSTALL_PAYLOAD_URL="${{INSTALL_PAYLOAD_URL:-{shell_double_quoted(payload)}}}"',
+        r'^BOOTSTRAP_DISABLE_CACHE="\$\{PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-[^"]*}"$':
+            'BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-1}"',
         r'^PVE_THIN_CLIENT_PRESET_NAME="\$\{PVE_THIN_CLIENT_PRESET_NAME:-[^"]*}"$':
             f'PVE_THIN_CLIENT_PRESET_NAME="${{PVE_THIN_CLIENT_PRESET_NAME:-{shell_double_quoted(preset_name)}}}"',
         r'^PVE_THIN_CLIENT_PRESET_B64="\$\{PVE_THIN_CLIENT_PRESET_B64:-[^"]*}"$':
@@ -189,8 +191,50 @@ def encode_preset(preset):
     return base64.b64encode(payload.encode("utf-8")).decode("ascii")
 
 
-def build_preset(vm, config):
+def merge_stream_meta(vm, meta, load_vm_config):
+    stream_keys = [
+        "moonlight-host",
+        "moonlight-app",
+        "moonlight-resolution",
+        "moonlight-fps",
+        "moonlight-bitrate",
+        "moonlight-video-codec",
+        "moonlight-video-decoder",
+        "moonlight-audio-config",
+        "moonlight-absolute-mouse",
+        "moonlight-quit-after",
+        "sunshine-host",
+        "sunshine-ip",
+        "sunshine-api-url",
+        "sunshine-user",
+        "sunshine-password",
+        "sunshine-pin",
+        "sunshine-app",
+        "thinclient-default-mode",
+    ]
+    if any(meta.get(key) for key in ("moonlight-host", "sunshine-host", "sunshine-ip")):
+        return dict(meta)
+
+    target_vmid = (meta.get("beagle-target-vmid") or meta.get("thinclient-target-vmid") or "").strip()
+    if not target_vmid.isdigit():
+        return dict(meta)
+
+    target_node = (meta.get("beagle-target-node") or vm.get("node") or "").strip()
+    target_config = load_vm_config(target_node, int(target_vmid))
+    if not target_config:
+        return dict(meta)
+
+    target_meta = parse_description_meta(target_config.get("description", ""))
+    merged = dict(meta)
+    for key in stream_keys:
+        if not merged.get(key) and target_meta.get(key):
+            merged[key] = target_meta[key]
+    return merged
+
+
+def build_preset(vm, config, load_vm_config):
     meta = parse_description_meta(config.get("description", ""))
+    stream_meta = merge_stream_meta(vm, meta, load_vm_config)
     vmid = int(vm["vmid"])
     vm_name = config.get("name") or vm.get("name") or f"vm-{vmid}"
     proxmox_scheme = meta.get("proxmox-scheme", "https")
@@ -202,10 +246,10 @@ def build_preset(vm, config):
     proxmox_password = meta.get("proxmox-password", default_proxmox_password)
     proxmox_token = meta.get("proxmox-token", default_proxmox_token)
 
-    moonlight_host = meta.get("moonlight-host") or meta.get("sunshine-host") or meta.get("sunshine-ip") or ""
-    sunshine_api_url = meta.get("sunshine-api-url") or (f"https://{moonlight_host}:47990" if moonlight_host else "")
+    moonlight_host = stream_meta.get("moonlight-host") or stream_meta.get("sunshine-host") or stream_meta.get("sunshine-ip") or ""
+    sunshine_api_url = stream_meta.get("sunshine-api-url") or (f"https://{moonlight_host}:47990" if moonlight_host else "")
     moonlight_default_mode = "MOONLIGHT" if moonlight_host else ""
-    moonlight_resolution = (meta.get("moonlight-resolution") or "").strip()
+    moonlight_resolution = (stream_meta.get("moonlight-resolution") or "").strip()
     if not moonlight_resolution or moonlight_resolution in ("1080", "native", "auto"):
         moonlight_resolution = "auto"
 
@@ -244,20 +288,20 @@ def build_preset(vm, config):
         "PVE_THIN_CLIENT_PRESET_DCV_TOKEN": "",
         "PVE_THIN_CLIENT_PRESET_DCV_SESSION": "",
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST": moonlight_host,
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP": meta.get("moonlight-app", meta.get("sunshine-app", "Desktop")),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN": meta.get("moonlight-bin", "moonlight"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP": stream_meta.get("moonlight-app", stream_meta.get("sunshine-app", "Desktop")),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN": stream_meta.get("moonlight-bin", "moonlight"),
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION": moonlight_resolution,
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS": meta.get("moonlight-fps", "60"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE": meta.get("moonlight-bitrate", "20000"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC": meta.get("moonlight-video-codec", "H.264"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER": meta.get("moonlight-video-decoder", "auto"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG": meta.get("moonlight-audio-config", "stereo"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE": meta.get("moonlight-absolute-mouse", "1"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER": meta.get("moonlight-quit-after", "0"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS": stream_meta.get("moonlight-fps", "60"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE": stream_meta.get("moonlight-bitrate", "20000"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC": stream_meta.get("moonlight-video-codec", "H.264"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER": stream_meta.get("moonlight-video-decoder", "auto"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG": stream_meta.get("moonlight-audio-config", "stereo"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE": stream_meta.get("moonlight-absolute-mouse", "1"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER": stream_meta.get("moonlight-quit-after", "0"),
         "PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL": sunshine_api_url,
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": meta.get("sunshine-user", ""),
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": meta.get("sunshine-password", ""),
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": meta.get("sunshine-pin", f"{vmid % 10000:04d}"),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": stream_meta.get("sunshine-user", ""),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": stream_meta.get("sunshine-password", ""),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": stream_meta.get("sunshine-pin", f"{vmid % 10000:04d}"),
     }
 
     available_modes = ["MOONLIGHT"] if preset["PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST"] else []
@@ -268,25 +312,33 @@ def build_preset(vm, config):
 
 resources = run_json(resources_cmd)
 vm_installers = []
+config_cache = {}
 
 if not resources:
     metadata_path.write_text("[]\n")
     raise SystemExit(0)
 
+
+def load_vm_config(node, vmid):
+    key = (str(node or ""), int(vmid))
+    if key not in config_cache:
+        config_cache[key] = run_json(
+            [
+                "pvesh",
+                "get",
+                f"/nodes/{key[0]}/qemu/{key[1]}/config",
+                "--output-format",
+                "json",
+            ]
+        ) or {}
+    return config_cache[key]
+
 for vm in resources:
     if vm.get("type") != "qemu" or vm.get("vmid") is None or not vm.get("node"):
         continue
 
-    config = run_json(
-        [
-            "pvesh",
-            "get",
-            f"/nodes/{vm['node']}/qemu/{vm['vmid']}/config",
-            "--output-format",
-            "json",
-        ]
-    ) or {}
-    preset, available_modes = build_preset(vm, config)
+    config = load_vm_config(vm["node"], vm["vmid"])
+    preset, available_modes = build_preset(vm, config, load_vm_config)
     preset_name = preset.get("PVE_THIN_CLIENT_PRESET_PROFILE_NAME") or f"vm-{vm['vmid']}"
     preset_b64 = encode_preset(preset)
     installer_name = f"pve-thin-client-usb-installer-vm-{vm['vmid']}.sh"

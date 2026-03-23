@@ -17,6 +17,7 @@ ALLOW_SYSTEM_DISK="0"
 RELEASE_PAYLOAD_URL="${RELEASE_PAYLOAD_URL:-}"
 INSTALL_PAYLOAD_URL="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-}}"
 RELEASE_BOOTSTRAP_URL="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-}}"
+BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-0}"
 BOOTSTRAP_CACHE_DIR="${PVE_DCV_BOOTSTRAP_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/pve-dcv-usb}"
 BOOTSTRAP_DIR=""
 BOOTSTRAPPED_STANDALONE="0"
@@ -117,6 +118,7 @@ allocate_bootstrap_dir() {
 bootstrap_repo_root() {
   local tarball extracted checksum_file payload_name checksum_url checksum_log bootstrap_url
   local cache_dir cached_tarball download_target used_cached checksum_entry_found checksum_ok
+  local -a checksum_curl_args download_curl_args
   if [[ -d "$REPO_ROOT/thin-client-assistant" && -x "$REPO_ROOT/scripts/build-thin-client-installer.sh" ]]; then
     return 0
   fi
@@ -144,6 +146,16 @@ bootstrap_repo_root() {
   checksum_entry_found="0"
   checksum_ok="0"
 
+  checksum_curl_args=(--fail --silent --location --retry 2 --retry-delay 1)
+  download_curl_args=(--fail --show-error --location --retry 3 --retry-delay 2)
+  if [[ "$BOOTSTRAP_DISABLE_CACHE" == "1" ]]; then
+    cache_dir=""
+    checksum_curl_args+=(-H 'Cache-Control: no-cache' -H 'Pragma: no-cache')
+    download_curl_args+=(-H 'Cache-Control: no-cache' -H 'Pragma: no-cache')
+  else
+    download_curl_args+=(--continue-at -)
+  fi
+
   if [[ -n "$cache_dir" ]]; then
     if mkdir -p "$cache_dir" 2>/dev/null; then
       cached_tarball="$cache_dir/$payload_name"
@@ -160,7 +172,7 @@ bootstrap_repo_root() {
     used_cached="1"
   fi
 
-  if curl --fail --silent --location --retry 2 --retry-delay 1 "$checksum_url" -o "$checksum_file" 2>"$checksum_log"; then
+  if curl "${checksum_curl_args[@]}" "$checksum_url" -o "$checksum_file" 2>"$checksum_log"; then
     if grep -F " ${payload_name}" "$checksum_file" >"$BOOTSTRAP_DIR/payload.sha256"; then
       checksum_entry_found="1"
       if [[ "$used_cached" == "1" ]]; then
@@ -208,7 +220,7 @@ bootstrap_repo_root() {
       download_target="$cached_tarball"
     fi
     echo "Downloading thin-client bootstrap bundle from $bootstrap_url ..."
-    curl --fail --show-error --location --retry 3 --retry-delay 2 --continue-at - "$bootstrap_url" -o "$download_target"
+    curl "${download_curl_args[@]}" "$bootstrap_url" -o "$download_target"
     if [[ "$download_target" != "$tarball" ]]; then
       cp -f "$download_target" "$tarball"
     fi

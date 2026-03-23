@@ -36,11 +36,28 @@ pick_interface() {
   return 1
 }
 
+static_ipv4_cidr() {
+  python3 - "${PVE_THIN_CLIENT_NETWORK_STATIC_ADDRESS:-}" "${PVE_THIN_CLIENT_NETWORK_STATIC_PREFIX:-24}" <<'PY'
+import ipaddress
+import sys
+
+address = (sys.argv[1] or "").strip()
+prefix = int((sys.argv[2] or "24").strip() or "24")
+
+if not address:
+    raise SystemExit(1)
+
+network = ipaddress.ip_network(f"{address}/{prefix}", strict=False)
+print(network.with_prefixlen)
+PY
+}
+
 write_network_file() {
   local iface="$1"
-  local dns_servers
+  local dns_servers static_cidr
   install -d -m 0755 "$RUNTIME_NETWORK_DIR"
   dns_servers="$(resolve_dns_servers)"
+  static_cidr="$(static_ipv4_cidr 2>/dev/null || true)"
 
   {
     echo "[Match]"
@@ -57,6 +74,19 @@ write_network_file() {
     for dns in $dns_servers; do
       echo "DNS=$dns"
     done
+    if [[ "${PVE_THIN_CLIENT_NETWORK_MODE:-dhcp}" == "static" && -n "$static_cidr" ]]; then
+      echo
+      echo "[Route]"
+      echo "Destination=$static_cidr"
+      echo "Scope=link"
+      if [[ -n "${PVE_THIN_CLIENT_NETWORK_GATEWAY:-}" ]]; then
+        echo
+        echo "[Route]"
+        echo "Destination=0.0.0.0/0"
+        echo "Gateway=${PVE_THIN_CLIENT_NETWORK_GATEWAY}"
+        echo "GatewayOnLink=yes"
+      fi
+    fi
   } >"$NETWORK_FILE"
 }
 
@@ -165,11 +195,13 @@ host_has_ipv4() {
 }
 
 wait_for_default_route() {
+  local iface="$1"
   local remaining="$NETWORK_WAIT_TIMEOUT"
   while (( remaining > 0 )); do
     if ip route show default 2>/dev/null | grep -q .; then
       return 0
     fi
+    ensure_static_routes "$iface"
     sleep 1
     remaining=$((remaining - 1))
   done
@@ -251,6 +283,25 @@ write_resolv_conf() {
   chmod 0644 "$RESOLV_CONF"
 }
 
+ensure_static_routes() {
+  local iface="$1"
+  local static_cidr gateway address
+
+  [[ "${PVE_THIN_CLIENT_NETWORK_MODE:-dhcp}" == "static" ]] || return 0
+  address="${PVE_THIN_CLIENT_NETWORK_STATIC_ADDRESS:-}"
+  [[ -n "$address" ]] || return 0
+
+  static_cidr="$(static_ipv4_cidr 2>/dev/null || true)"
+  gateway="${PVE_THIN_CLIENT_NETWORK_GATEWAY:-}"
+
+  if [[ -n "$static_cidr" ]]; then
+    ip route replace "$static_cidr" dev "$iface" src "$address" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$gateway" ]]; then
+    ip route replace default via "$gateway" dev "$iface" >/dev/null 2>&1 || true
+  fi
+}
+
 main() {
   local iface
 
@@ -262,9 +313,10 @@ main() {
     write_network_file "$iface"
     restart_networkd
   fi
+  ensure_static_routes "$iface"
   apply_hostname
   write_resolv_conf || true
-  wait_for_default_route || true
+  wait_for_default_route "$iface" || true
   wait_for_dns_targets || true
 }
 

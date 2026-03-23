@@ -6,6 +6,9 @@ import os
 import re
 import subprocess
 import hashlib
+import ipaddress
+import base64
+import shlex
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -30,6 +33,17 @@ ALLOW_LOCALHOST_NOAUTH = os.environ.get("BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH",
 STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECONDS", "600"))
 DOWNLOADS_STATUS_FILE = ROOT_DIR / "dist" / "beagle-downloads-status.json"
 VM_INSTALLERS_FILE = ROOT_DIR / "dist" / "beagle-vm-installers.json"
+HOSTED_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-usb-installer-host-latest.sh"
+INSTALLER_PREP_SCRIPT_FILE = ROOT_DIR / "scripts" / "ensure-vm-stream-ready.sh"
+CREDENTIALS_ENV_FILE = Path(os.environ.get("PVE_DCV_CREDENTIALS_ENV_FILE", "/etc/beagle/credentials.env"))
+PUBLIC_SERVER_NAME = os.environ.get("PVE_DCV_PROXY_SERVER_NAME", "").strip() or os.uname().nodename
+PUBLIC_DOWNLOADS_PORT = int(os.environ.get("PVE_DCV_PROXY_LISTEN_PORT", "8443"))
+PUBLIC_DOWNLOADS_PATH = os.environ.get("PVE_DCV_DOWNLOADS_PATH", "/beagle-downloads").strip() or "/beagle-downloads"
+PUBLIC_STREAM_HOST = os.environ.get("BEAGLE_PUBLIC_STREAM_HOST", "").strip() or PUBLIC_SERVER_NAME
+PUBLIC_STREAM_BASE_PORT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_BASE_PORT", "50000"))
+PUBLIC_STREAM_PORT_STEP = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_STEP", "32"))
+PUBLIC_STREAM_PORT_COUNT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_COUNT", "256"))
+PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
 
 
 @dataclass
@@ -147,6 +161,293 @@ def support_bundle_archive_path(bundle_id: str, filename: str) -> Path:
     suffix = Path(filename or "support-bundle.tar.gz").suffixes
     extension = "".join(suffix) if suffix else ".bin"
     return support_bundles_dir() / f"{safe_slug(bundle_id, 'bundle')}{extension}"
+
+
+def load_shell_env_file(path: Path) -> dict[str, str]:
+    data: dict[str, str] = {}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return data
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            data[key] = value
+    return data
+
+
+DEFAULT_CREDENTIALS = load_shell_env_file(CREDENTIALS_ENV_FILE)
+DEFAULT_PROXMOX_USERNAME = (
+    DEFAULT_CREDENTIALS.get("PVE_THIN_CLIENT_DEFAULT_PROXMOX_USERNAME")
+    or DEFAULT_CREDENTIALS.get("PVE_DCV_PROXMOX_USERNAME")
+    or ""
+).strip()
+DEFAULT_PROXMOX_PASSWORD = (
+    DEFAULT_CREDENTIALS.get("PVE_THIN_CLIENT_DEFAULT_PROXMOX_PASSWORD")
+    or DEFAULT_CREDENTIALS.get("PVE_DCV_PROXMOX_PASSWORD")
+    or ""
+).strip()
+DEFAULT_PROXMOX_TOKEN = (
+    DEFAULT_CREDENTIALS.get("PVE_THIN_CLIENT_DEFAULT_PROXMOX_TOKEN")
+    or DEFAULT_CREDENTIALS.get("PVE_DCV_PROXMOX_TOKEN")
+    or ""
+).strip()
+
+
+def public_streams_file() -> Path:
+    return EFFECTIVE_DATA_DIR / "public-streams.json"
+
+
+def load_public_streams() -> dict[str, int]:
+    payload = load_json_file(public_streams_file(), {})
+    if not isinstance(payload, dict):
+        return {}
+    streams: dict[str, int] = {}
+    for key, value in payload.items():
+        try:
+            streams[str(key)] = int(value)
+        except (TypeError, ValueError):
+            continue
+    return streams
+
+
+def save_public_streams(payload: dict[str, int]) -> None:
+    public_streams_file().write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def public_stream_key(node: str, vmid: int) -> str:
+    return f"{safe_slug(node, 'node')}:{int(vmid)}"
+
+
+def allocate_public_stream_base_port(node: str, vmid: int) -> int | None:
+    if not PUBLIC_STREAM_HOST:
+        return None
+    mappings = load_public_streams()
+    key = public_stream_key(node, vmid)
+    existing = mappings.get(key)
+    if existing is not None:
+        return int(existing)
+    used = {int(value) for value in mappings.values()}
+    upper_bound = PUBLIC_STREAM_BASE_PORT + (PUBLIC_STREAM_PORT_STEP * PUBLIC_STREAM_PORT_COUNT)
+    for candidate in range(PUBLIC_STREAM_BASE_PORT, upper_bound, PUBLIC_STREAM_PORT_STEP):
+        if candidate in used:
+            continue
+        mappings[key] = candidate
+        save_public_streams(mappings)
+        return candidate
+    return None
+
+
+def stream_ports(base_port: int) -> dict[str, int]:
+    base = int(base_port)
+    return {
+        "moonlight_port": base,
+        "sunshine_api_port": base + 1,
+        "https_port": base + 1,
+        "rtsp_port": base + 21,
+    }
+
+
+def shell_double_quoted(value: str) -> str:
+    return (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("$", "\\$")
+        .replace("`", "\\`")
+    )
+
+
+def patch_installer_defaults(script_text: str, preset_name: str, preset_b64: str) -> str:
+    replacements = {
+        r'^PVE_THIN_CLIENT_PRESET_NAME="\$\{PVE_THIN_CLIENT_PRESET_NAME:-[^"]*}"$':
+            f'PVE_THIN_CLIENT_PRESET_NAME="${{PVE_THIN_CLIENT_PRESET_NAME:-{shell_double_quoted(preset_name)}}}"',
+        r'^PVE_THIN_CLIENT_PRESET_B64="\$\{PVE_THIN_CLIENT_PRESET_B64:-[^"]*}"$':
+            f'PVE_THIN_CLIENT_PRESET_B64="${{PVE_THIN_CLIENT_PRESET_B64:-{shell_double_quoted(preset_b64)}}}"',
+        r'^BOOTSTRAP_DISABLE_CACHE="\$\{PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-[^"]*}"$':
+            'BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-1}"',
+    }
+    updated = script_text
+    for pattern, replacement in replacements.items():
+        updated, count = re.subn(pattern, replacement, updated, count=1, flags=re.MULTILINE)
+        if count != 1:
+            raise ValueError(f"failed to patch installer template for pattern: {pattern}")
+    return updated
+
+
+def encode_installer_preset(preset: dict[str, Any]) -> str:
+    lines = ["# Auto-generated Beagle OS VM preset"]
+    for key in sorted(preset):
+        lines.append(f"{key}={shlex.quote(str(preset.get(key, '')))}")
+    payload = "\n".join(lines) + "\n"
+    return base64.b64encode(payload.encode("utf-8")).decode("ascii")
+
+
+def installer_prep_dir() -> Path:
+    path = EFFECTIVE_DATA_DIR / "installer-prep"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def installer_prep_path(node: str, vmid: int) -> Path:
+    safe_node = safe_slug(node, "unknown")
+    return installer_prep_dir() / f"{safe_node}-{int(vmid)}.json"
+
+
+def installer_prep_log_path(node: str, vmid: int) -> Path:
+    safe_node = safe_slug(node, "unknown")
+    return installer_prep_dir() / f"{safe_node}-{int(vmid)}.log"
+
+
+def load_installer_prep_state(node: str, vmid: int) -> dict[str, Any] | None:
+    payload = load_json_file(installer_prep_path(node, vmid), None)
+    return payload if isinstance(payload, dict) else None
+
+
+def guest_exec_out_data(vmid: int, command: str) -> str:
+    payload = run_json(["qm", "guest", "exec", str(vmid), "--", "bash", "-lc", command])
+    if not isinstance(payload, dict):
+        return ""
+    return str(payload.get("out-data", "") or "")
+
+
+def quick_sunshine_status(vmid: int) -> dict[str, Any]:
+    output = guest_exec_out_data(
+        vmid,
+        "binary=0; service=0; process=0; "
+        "command -v sunshine >/dev/null 2>&1 && binary=1; "
+        "systemctl is-active sunshine >/dev/null 2>&1 && service=1; "
+        "pgrep -x sunshine >/dev/null 2>&1 && process=1; "
+        "printf '{\"binary\":%s,\"service\":%s,\"process\":%s}\\n' \"$binary\" \"$service\" \"$process\"",
+    )
+    text = output.strip().splitlines()[-1] if output.strip() else ""
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        payload = {"binary": 0, "service": 0, "process": 0}
+    return {
+        "binary": bool(payload.get("binary")),
+        "service": bool(payload.get("service")),
+        "process": bool(payload.get("process")),
+    }
+
+
+def default_installer_prep_state(vm: VmSummary, sunshine_status: dict[str, Any] | None = None) -> dict[str, Any]:
+    profile = build_profile(vm)
+    quick = sunshine_status if isinstance(sunshine_status, dict) else quick_sunshine_status(vm.vmid)
+    ready = bool(quick.get("binary")) and bool(quick.get("service")) and bool(profile.get("stream_host")) and bool(profile.get("moonlight_port"))
+    if ready:
+        status = "ready"
+        phase = "complete"
+        progress = 100
+        message = "Sunshine ist bereits aktiv. Der Beagle-USB-Installer ist sofort verfuegbar."
+    else:
+        status = "idle"
+        phase = "inspect"
+        progress = 0
+        message = "Download startet zuerst die Sunshine-Pruefung und die Stream-Vorbereitung fuer diese VM."
+    return {
+        "vmid": vm.vmid,
+        "node": vm.node,
+        "status": status,
+        "phase": phase,
+        "progress": progress,
+        "message": message,
+        "updated_at": utcnow(),
+        "installer_url": f"/beagle-api/api/v1/public/vms/{vm.vmid}/installer.sh",
+        "stream_host": str(profile.get("stream_host", "") or ""),
+        "moonlight_port": str(profile.get("moonlight_port", "") or ""),
+        "sunshine_api_url": str(profile.get("sunshine_api_url", "") or ""),
+        "sunshine_status": {
+            "binary": bool(quick.get("binary")),
+            "service": bool(quick.get("service")),
+            "process": bool(quick.get("process")),
+        },
+        "ready": ready,
+    }
+
+
+def summarize_installer_prep_state(vm: VmSummary, state: dict[str, Any] | None = None) -> dict[str, Any]:
+    profile = build_profile(vm)
+    payload = dict(state) if isinstance(state, dict) else default_installer_prep_state(vm)
+    quick = payload.get("sunshine_status")
+    if not isinstance(quick, dict):
+        quick = quick_sunshine_status(vm.vmid)
+    payload["sunshine_status"] = {
+        "binary": bool(quick.get("binary")),
+        "service": bool(quick.get("service")),
+        "process": bool(quick.get("process")),
+    }
+    payload["ready"] = str(payload.get("status", "")).strip().lower() == "ready"
+    payload.setdefault("vmid", vm.vmid)
+    payload.setdefault("node", vm.node)
+    payload["installer_url"] = str(payload.get("installer_url") or f"/beagle-api/api/v1/public/vms/{vm.vmid}/installer.sh")
+    payload["stream_host"] = str(payload.get("stream_host") or profile.get("stream_host") or "")
+    payload["moonlight_port"] = str(payload.get("moonlight_port") or profile.get("moonlight_port") or "")
+    payload["sunshine_api_url"] = str(payload.get("sunshine_api_url") or profile.get("sunshine_api_url") or "")
+    return payload
+
+
+def installer_prep_running(state: dict[str, Any] | None) -> bool:
+    if not isinstance(state, dict):
+        return False
+    if str(state.get("status", "")).strip().lower() != "running":
+        return False
+    age = timestamp_age_seconds(str(state.get("updated_at", "")))
+    return age is None or age < 900
+
+
+def start_installer_prep(vm: VmSummary) -> dict[str, Any]:
+    state_path = installer_prep_path(vm.node, vm.vmid)
+    log_path = installer_prep_log_path(vm.node, vm.vmid)
+    state = load_installer_prep_state(vm.node, vm.vmid)
+    if installer_prep_running(state):
+        return summarize_installer_prep_state(vm, state)
+    if not INSTALLER_PREP_SCRIPT_FILE.is_file():
+        raise FileNotFoundError(f"installer prep script missing: {INSTALLER_PREP_SCRIPT_FILE}")
+
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_handle = log_path.open("ab")
+    env = os.environ.copy()
+    env.update(
+        {
+            "VMID": str(vm.vmid),
+            "NODE": vm.node,
+            "BEAGLE_INSTALLER_PREP_STATE_FILE": str(state_path),
+        }
+    )
+    try:
+        subprocess.Popen(
+            [str(INSTALLER_PREP_SCRIPT_FILE), "--vmid", str(vm.vmid), "--node", vm.node],
+            cwd=str(ROOT_DIR),
+            env=env,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    finally:
+        log_handle.close()
+    bootstrap_state = summarize_installer_prep_state(
+        vm,
+        {
+            "vmid": vm.vmid,
+            "node": vm.node,
+            "status": "running",
+            "phase": "queue",
+            "progress": 1,
+            "message": f"Sunshine-Pruefung fuer VM {vm.vmid} wurde gestartet.",
+            "requested_at": utcnow(),
+            "started_at": utcnow(),
+            "updated_at": utcnow(),
+        },
+    )
+    state_path.write_text(json.dumps(bootstrap_state, indent=2) + "\n", encoding="utf-8")
+    return bootstrap_state
 
 
 def policy_path(name: str) -> Path:
@@ -314,6 +615,7 @@ def normalize_policy_payload(payload: dict[str, Any], *, policy_name: str | None
             "network_mode": str(profile.get("network_mode", "")).strip(),
             "moonlight_app": str(profile.get("moonlight_app", "")).strip(),
             "stream_host": str(profile.get("stream_host", "")).strip(),
+            "moonlight_port": str(profile.get("moonlight_port", "")).strip(),
             "sunshine_api_url": str(profile.get("sunshine_api_url", "")).strip(),
             "moonlight_resolution": str(profile.get("moonlight_resolution", "")).strip(),
             "moonlight_fps": str(profile.get("moonlight_fps", "")).strip(),
@@ -430,6 +732,45 @@ def find_vm(vmid: int) -> VmSummary | None:
     return next((candidate for candidate in list_vms() if candidate.vmid == vmid), None)
 
 
+def should_use_public_stream(meta: dict[str, str], guest_ip: str) -> bool:
+    if not PUBLIC_STREAM_HOST:
+        return False
+    if str(meta.get("beagle-public-stream", "1")).strip().lower() in {"0", "false", "no", "off"}:
+        return False
+    if meta.get("beagle-public-moonlight-port"):
+        return True
+    if meta.get("sunshine-user") or meta.get("sunshine-password") or meta.get("sunshine-api-url"):
+        return True
+    if meta.get("moonlight-host") or meta.get("sunshine-host") or meta.get("sunshine-ip"):
+        return True
+    if guest_ip and str(meta.get("beagle-role", "")).strip().lower() == "desktop":
+        return True
+    return False
+
+
+def build_public_stream_details(vm: VmSummary, meta: dict[str, str], guest_ip: str) -> dict[str, Any] | None:
+    if not should_use_public_stream(meta, guest_ip):
+        return None
+    explicit_port = str(meta.get("beagle-public-moonlight-port", "")).strip()
+    if explicit_port.isdigit():
+        base_port = int(explicit_port)
+    else:
+        allocated = allocate_public_stream_base_port(vm.node, vm.vmid)
+        if allocated is None:
+            return None
+        base_port = int(allocated)
+    public_host = str(meta.get("beagle-public-stream-host", "")).strip() or PUBLIC_STREAM_HOST
+    ports = stream_ports(base_port)
+    return {
+        "enabled": True,
+        "host": public_host,
+        "guest_ip": guest_ip,
+        "moonlight_port": ports["moonlight_port"],
+        "sunshine_api_url": str(meta.get("beagle-public-sunshine-api-url", "")).strip() or f"https://{public_host}:{ports['sunshine_api_port']}",
+        "ports": ports,
+    }
+
+
 def resolve_assigned_target(target_vmid: int, target_node: str, *, allow_assignment: bool) -> dict[str, Any] | None:
     target_vm = find_vm(target_vmid)
     if target_vm is None:
@@ -442,6 +783,7 @@ def resolve_assigned_target(target_vmid: int, target_node: str, *, allow_assignm
         "node": target_vm.node,
         "name": target_vm.name,
         "stream_host": target_profile["stream_host"],
+        "moonlight_port": target_profile.get("moonlight_port", ""),
         "sunshine_api_url": target_profile["sunshine_api_url"],
         "moonlight_app": target_profile["moonlight_app"],
     }
@@ -478,8 +820,14 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
     policy_profile = matched_policy.get("profile", {}) if isinstance(matched_policy, dict) and isinstance(matched_policy.get("profile"), dict) else {}
     guest_ip = first_guest_ipv4(vm.vmid)
     stream_host = policy_profile.get("stream_host") or meta.get("moonlight-host") or meta.get("sunshine-ip") or meta.get("sunshine-host") or guest_ip
+    moonlight_port = str(policy_profile.get("moonlight_port") or meta.get("moonlight-port") or meta.get("beagle-public-moonlight-port") or "").strip()
     sunshine_api_url = policy_profile.get("sunshine_api_url") or meta.get("sunshine-api-url") or (f"https://{stream_host}:47990" if stream_host else "")
-    installer_url = f"/beagle-downloads/pve-thin-client-usb-installer-vm-{vm.vmid}.sh"
+    public_stream = build_public_stream_details(vm, meta, guest_ip)
+    if public_stream is not None:
+        stream_host = public_stream["host"]
+        moonlight_port = str(public_stream["moonlight_port"])
+        sunshine_api_url = public_stream["sunshine_api_url"]
+    installer_url = f"/beagle-api/api/v1/public/vms/{vm.vmid}/installer.sh"
     has_sunshine_password = bool(meta.get("sunshine-password"))
     expected_profile_name = policy_profile.get("expected_profile_name") or meta.get("beagle-profile-name", "")
     moonlight_app = policy_profile.get("moonlight_app") or meta.get("moonlight-app", meta.get("sunshine-app", "Desktop"))
@@ -491,6 +839,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         "tags": vm.tags,
         "guest_ip": guest_ip,
         "stream_host": stream_host,
+        "moonlight_port": moonlight_port,
         "sunshine_api_url": sunshine_api_url,
         "sunshine_username": meta.get("sunshine-user", ""),
         "sunshine_password_configured": has_sunshine_password,
@@ -508,6 +857,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         "beagle_role": policy_profile.get("beagle_role") or meta.get("beagle-role", "desktop" if stream_host else ""),
         "expected_profile_name": expected_profile_name,
         "installer_url": installer_url,
+        "public_stream": public_stream,
         "metadata_keys": sorted(meta.keys()),
         "applied_policy": {
             "name": matched_policy.get("name", ""),
@@ -546,6 +896,8 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
                 profile["beagle_role"] = "endpoint"
                 if (assignment_source == "manager-policy" or not meta.get("moonlight-host")) and assigned_target["stream_host"]:
                     profile["stream_host"] = assigned_target["stream_host"]
+                if (assignment_source == "manager-policy" or not meta.get("moonlight-port")) and assigned_target.get("moonlight_port"):
+                    profile["moonlight_port"] = assigned_target["moonlight_port"]
                 if (assignment_source == "manager-policy" or not meta.get("sunshine-api-url")) and assigned_target["sunshine_api_url"]:
                     profile["sunshine_api_url"] = assigned_target["sunshine_api_url"]
                 if (assignment_source == "manager-policy" or not meta.get("moonlight-app")) and assigned_target["moonlight_app"]:
@@ -553,6 +905,13 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
                 if not expected_profile_name:
                     profile["expected_profile_name"] = f"vm-{target_vmid}"
                 profile["default_mode"] = "MOONLIGHT" if profile["stream_host"] else ""
+                if assigned_target.get("moonlight_port"):
+                    profile["public_stream"] = {
+                        "enabled": True,
+                        "host": profile["stream_host"],
+                        "moonlight_port": profile["moonlight_port"],
+                        "sunshine_api_url": profile["sunshine_api_url"],
+                    }
     return profile
 
 
@@ -560,6 +919,7 @@ def evaluate_endpoint_compliance(profile: dict[str, Any], report: dict[str, Any]
     managed = bool(profile.get("stream_host") or profile.get("assigned_target") or profile.get("expected_profile_name"))
     desired = {
         "stream_host": profile.get("stream_host", ""),
+        "moonlight_port": profile.get("moonlight_port", ""),
         "moonlight_app": profile.get("moonlight_app", ""),
         "network_mode": profile.get("network_mode", ""),
         "profile_name": profile.get("expected_profile_name", ""),
@@ -592,6 +952,7 @@ def evaluate_endpoint_compliance(profile: dict[str, Any], report: dict[str, Any]
         drift.append({"field": field, "label": label, "expected": expected, "actual": actual})
 
     compare("stream_host", str(profile.get("stream_host", "")), str(summary.get("stream_host", "")), "Stream Host")
+    compare("moonlight_port", str(profile.get("moonlight_port", "")), str(summary.get("moonlight_port", "")), "Moonlight Port")
     compare("moonlight_app", str(profile.get("moonlight_app", "")), str(summary.get("moonlight_app", "")), "Moonlight App")
     compare("network_mode", str(profile.get("network_mode", "")), str(summary.get("network_mode", "")), "Network Mode")
     compare("profile_name", str(profile.get("expected_profile_name", "")), str(summary.get("profile_name", "")), "Profile Name")
@@ -645,12 +1006,14 @@ def build_vm_state(vm: VmSummary) -> dict[str, Any]:
     compliance = evaluate_endpoint_compliance(profile, report)
     last_action = summarize_action_result(load_action_result(vm.node, vm.vmid))
     pending_actions = load_action_queue(vm.node, vm.vmid)
+    installer_prep = summarize_installer_prep_state(vm, load_installer_prep_state(vm.node, vm.vmid))
     return {
         "profile": profile,
         "endpoint": endpoint,
         "compliance": compliance,
         "last_action": last_action,
         "pending_action_count": len(pending_actions),
+        "installer_prep": installer_prep,
     }
 
 
@@ -692,6 +1055,7 @@ def summarize_endpoint_report(payload: dict[str, Any]) -> dict[str, Any]:
         "node": payload.get("node", ""),
         "reported_at": payload.get("reported_at", ""),
         "stream_host": payload.get("stream_host", ""),
+        "moonlight_port": payload.get("moonlight_port", ""),
         "moonlight_app": payload.get("moonlight_app", ""),
         "network_mode": payload.get("network_mode", ""),
         "ip_summary": health.get("ip_summary", ""),
@@ -749,12 +1113,13 @@ def build_vm_inventory() -> dict[str, Any]:
                 "name": vm.name,
                 "status": vm.status,
                 "stream_host": profile["stream_host"],
+                "moonlight_port": profile.get("moonlight_port", ""),
                 "sunshine_api_url": profile["sunshine_api_url"],
                 "moonlight_app": profile["moonlight_app"],
                 "network_mode": profile["network_mode"],
                 "expected_profile_name": profile["expected_profile_name"],
                 "default_mode": "MOONLIGHT" if profile["stream_host"] else "",
-                "installer_url": installer.get("installer_url") or profile["installer_url"],
+                "installer_url": profile["installer_url"],
                 "available_modes": installer.get("available_modes") or (["MOONLIGHT"] if profile["stream_host"] else []),
                 "assigned_target": profile.get("assigned_target"),
                 "assignment_source": profile.get("assignment_source", ""),
@@ -772,6 +1137,101 @@ def build_vm_inventory() -> dict[str, Any]:
         "generated_at": utcnow(),
         "vms": inventory,
     }
+
+
+def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[str, Any]) -> dict[str, str]:
+    meta = parse_description_meta(config.get("description", ""))
+    vm_name = str(config.get("name") or vm.name or f"vm-{vm.vmid}")
+    proxmox_scheme = meta.get("proxmox-scheme", "https")
+    proxmox_host = meta.get("proxmox-host", PUBLIC_SERVER_NAME)
+    proxmox_port = meta.get("proxmox-port", "8006")
+    proxmox_realm = meta.get("proxmox-realm", "pam")
+    proxmox_verify_tls = meta.get("proxmox-verify-tls", "0")
+    proxmox_username = meta.get("proxmox-user", DEFAULT_PROXMOX_USERNAME)
+    proxmox_password = meta.get("proxmox-password", DEFAULT_PROXMOX_PASSWORD)
+    proxmox_token = meta.get("proxmox-token", DEFAULT_PROXMOX_TOKEN)
+    expected_profile_name = str(profile.get("expected_profile_name") or f"vm-{vm.vmid}")
+    moonlight_host = str(profile.get("stream_host", "") or "")
+    moonlight_port = str(profile.get("moonlight_port", "") or "")
+    sunshine_api_url = str(profile.get("sunshine_api_url", "") or "")
+    if not sunshine_api_url and moonlight_host:
+        if moonlight_port.isdigit():
+            sunshine_api_url = f"https://{moonlight_host}:{int(moonlight_port) + 1}"
+        else:
+            sunshine_api_url = f"https://{moonlight_host}:47990"
+
+    return {
+        "PVE_THIN_CLIENT_PRESET_PROFILE_NAME": expected_profile_name,
+        "PVE_THIN_CLIENT_PRESET_VM_NAME": vm_name,
+        "PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE": safe_hostname(vm_name, vm.vmid),
+        "PVE_THIN_CLIENT_PRESET_AUTOSTART": meta.get("thinclient-autostart", "1"),
+        "PVE_THIN_CLIENT_PRESET_DEFAULT_MODE": "MOONLIGHT" if moonlight_host else "",
+        "PVE_THIN_CLIENT_PRESET_NETWORK_MODE": meta.get("thinclient-network-mode", "dhcp"),
+        "PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE": meta.get("thinclient-network-interface", "eth0"),
+        "PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_ADDRESS": meta.get("thinclient-network-static-address", ""),
+        "PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_PREFIX": meta.get("thinclient-network-static-prefix", "24"),
+        "PVE_THIN_CLIENT_PRESET_NETWORK_GATEWAY": meta.get("thinclient-network-gateway", ""),
+        "PVE_THIN_CLIENT_PRESET_NETWORK_DNS_SERVERS": meta.get("thinclient-network-dns-servers", "1.1.1.1 8.8.8.8"),
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_SCHEME": proxmox_scheme,
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_HOST": proxmox_host,
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_PORT": proxmox_port,
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_NODE": vm.node,
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_VMID": str(vm.vmid),
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_REALM": proxmox_realm,
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS": proxmox_verify_tls,
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME": proxmox_username,
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD": proxmox_password,
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN": proxmox_token,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL": PUBLIC_MANAGER_URL,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": ENDPOINT_SHARED_TOKEN,
+        "PVE_THIN_CLIENT_PRESET_SPICE_METHOD": "",
+        "PVE_THIN_CLIENT_PRESET_SPICE_URL": "",
+        "PVE_THIN_CLIENT_PRESET_SPICE_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_SPICE_TOKEN": "",
+        "PVE_THIN_CLIENT_PRESET_NOVNC_URL": "",
+        "PVE_THIN_CLIENT_PRESET_NOVNC_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_NOVNC_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_NOVNC_TOKEN": "",
+        "PVE_THIN_CLIENT_PRESET_DCV_URL": "",
+        "PVE_THIN_CLIENT_PRESET_DCV_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_DCV_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_DCV_TOKEN": "",
+        "PVE_THIN_CLIENT_PRESET_DCV_SESSION": "",
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST": moonlight_host,
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_PORT": moonlight_port,
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP": str(profile.get("moonlight_app", "Desktop") or "Desktop"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN": meta.get("moonlight-bin", "moonlight"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION": str(profile.get("moonlight_resolution", "auto") or "auto"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS": str(profile.get("moonlight_fps", "60") or "60"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE": str(profile.get("moonlight_bitrate", "20000") or "20000"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC": str(profile.get("moonlight_video_codec", "H.264") or "H.264"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER": str(profile.get("moonlight_video_decoder", "auto") or "auto"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG": str(profile.get("moonlight_audio_config", "stereo") or "stereo"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE": meta.get("moonlight-absolute-mouse", "1"),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER": meta.get("moonlight-quit-after", "0"),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL": sunshine_api_url,
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": meta.get("sunshine-user", ""),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": meta.get("sunshine-password", ""),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": meta.get("sunshine-pin", f"{vm.vmid % 10000:04d}"),
+    }
+
+
+def render_vm_installer_script(vm: VmSummary) -> tuple[bytes, str]:
+    if not HOSTED_INSTALLER_TEMPLATE_FILE.is_file():
+        raise FileNotFoundError(f"missing installer template: {HOSTED_INSTALLER_TEMPLATE_FILE}")
+    config = get_vm_config(vm.node, vm.vmid)
+    profile = build_profile(vm)
+    preset = build_installer_preset(vm, profile, config)
+    preset_name = preset.get("PVE_THIN_CLIENT_PRESET_PROFILE_NAME") or f"vm-{vm.vmid}"
+    preset_b64 = encode_installer_preset(preset)
+    rendered = patch_installer_defaults(
+        HOSTED_INSTALLER_TEMPLATE_FILE.read_text(encoding="utf-8"),
+        preset_name,
+        preset_b64,
+    )
+    filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.sh"
+    return rendered.encode("utf-8"), filename
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -913,6 +1373,31 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
 
+        if path.startswith("/api/v1/public/vms/") and path.endswith("/installer.sh"):
+            vmid_text = path.split("/")[-2]
+            if not vmid_text.isdigit():
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                return
+            vm = find_vm(int(vmid_text))
+            if vm is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                return
+            try:
+                body, filename = render_vm_installer_script(vm)
+            except FileNotFoundError as exc:
+                self._write_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
+                return
+            except ValueError as exc:
+                self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(exc)})
+                return
+            self._write_bytes(
+                HTTPStatus.OK,
+                body,
+                content_type="text/x-shellscript; charset=utf-8",
+                filename=filename,
+            )
+            return
+
         if not self._is_authenticated():
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
             return
@@ -982,6 +1467,26 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         if path.startswith("/api/v1/vms/"):
+            if path.endswith("/installer-prep"):
+                vmid_text = path.split("/")[-2]
+                if not vmid_text.isdigit():
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                    return
+                vm = find_vm(int(vmid_text))
+                if vm is None:
+                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                    return
+                state = summarize_installer_prep_state(vm, load_installer_prep_state(vm.node, vm.vmid))
+                self._write_json(
+                    HTTPStatus.OK,
+                    {
+                        "service": "beagle-control-plane",
+                        "version": VERSION,
+                        "generated_at": utcnow(),
+                        "installer_prep": state,
+                    },
+                )
+                return
             if path.endswith("/policy"):
                 vmid_text = path.split("/")[-2]
                 if not vmid_text.isdigit():
@@ -1216,6 +1721,36 @@ class Handler(BaseHTTPRequestHandler):
                     "generated_at": utcnow(),
                     "queued_actions": queued,
                     "queued_count": len(queued),
+                },
+            )
+            return
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/installer-prep"):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            vmid_text = path.split("/")[-2]
+            if not vmid_text.isdigit():
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                return
+            vm = find_vm(int(vmid_text))
+            if vm is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                return
+            try:
+                state = start_installer_prep(vm)
+            except Exception as exc:
+                self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"failed to start installer prep: {exc}"})
+                return
+            status = HTTPStatus.ACCEPTED if str(state.get("status", "")).lower() == "running" else HTTPStatus.OK
+            self._write_json(
+                status,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "installer_prep": state,
                 },
             )
             return

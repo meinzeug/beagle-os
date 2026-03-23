@@ -41,6 +41,10 @@ moonlight_host() {
   render_template "${PVE_THIN_CLIENT_MOONLIGHT_HOST:-}"
 }
 
+moonlight_port() {
+  render_template "${PVE_THIN_CLIENT_MOONLIGHT_PORT:-}"
+}
+
 resolve_ipv4_host() {
   python3 - "$1" <<'PY'
 import socket
@@ -205,17 +209,26 @@ PY
 }
 
 moonlight_list() {
-  local bin host timeout_value
+  local bin host port timeout_value
   bin="$(moonlight_bin)"
   host="$(moonlight_connect_host)"
+  port="$(moonlight_port)"
   timeout_value="$(moonlight_list_timeout)"
 
   if command -v timeout >/dev/null 2>&1; then
-    timeout --preserve-status "$timeout_value" "$bin" list "$host" >"$MOONLIGHT_LIST_LOG" 2>&1
+    if [[ -n "$port" ]]; then
+      timeout --preserve-status "$timeout_value" "$bin" list "$host" -port "$port" >"$MOONLIGHT_LIST_LOG" 2>&1
+    else
+      timeout --preserve-status "$timeout_value" "$bin" list "$host" >"$MOONLIGHT_LIST_LOG" 2>&1
+    fi
     return $?
   fi
 
-  "$bin" list "$host" >"$MOONLIGHT_LIST_LOG" 2>&1
+  if [[ -n "$port" ]]; then
+    "$bin" list "$host" -port "$port" >"$MOONLIGHT_LIST_LOG" 2>&1
+  else
+    "$bin" list "$host" >"$MOONLIGHT_LIST_LOG" 2>&1
+  fi
 }
 
 submit_sunshine_pin() {
@@ -243,10 +256,11 @@ submit_sunshine_pin() {
 }
 
 ensure_paired() {
-  local bin host pin pair_pid paired_ok attempt pair_status
+  local bin host port pin pair_pid paired_ok attempt pair_status
 
   bin="$(moonlight_bin)"
   host="$(moonlight_connect_host)"
+  port="$(moonlight_port)"
   pin="${PVE_THIN_CLIENT_SUNSHINE_PIN:-}"
 
   moonlight_list && return 0
@@ -254,9 +268,17 @@ ensure_paired() {
   [[ -n "$pin" ]] || return 1
 
   if command -v timeout >/dev/null 2>&1; then
-    timeout --preserve-status "$(moonlight_list_timeout)" "$bin" pair "$host" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
+    if [[ -n "$port" ]]; then
+      timeout --preserve-status "$(moonlight_list_timeout)" "$bin" pair "$host" -port "$port" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
+    else
+      timeout --preserve-status "$(moonlight_list_timeout)" "$bin" pair "$host" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
+    fi
   else
-    "$bin" pair "$host" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
+    if [[ -n "$port" ]]; then
+      "$bin" pair "$host" -port "$port" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
+    else
+      "$bin" pair "$host" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
+    fi
   fi
   pair_pid=$!
   paired_ok="0"
@@ -278,11 +300,12 @@ ensure_paired() {
 }
 
 build_stream_args() {
-  local resolution fps bitrate codec decoder audio_config app host connect_host
+  local resolution fps bitrate codec decoder audio_config app host connect_host port
   local -n out_ref="$1"
 
   host="$(moonlight_host)"
   connect_host="$(moonlight_connect_host)"
+  port="$(moonlight_port)"
   app="$(moonlight_app)"
   resolution="$(moonlight_resolution)"
   fps="${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}"
@@ -292,6 +315,7 @@ build_stream_args() {
   audio_config="${PVE_THIN_CLIENT_MOONLIGHT_AUDIO_CONFIG:-stereo}"
 
   out_ref=("$(moonlight_bin)" stream "${connect_host:-$host}" "$app")
+  [[ -n "$port" ]] && out_ref+=(-port "$port")
 
   case "$resolution" in
     720|1080|1440|4K)
@@ -327,12 +351,13 @@ configure_graphics_runtime() {
 }
 
 main() {
-  local bin host connect_host app audio_driver
+  local bin host connect_host app audio_driver port
   local -a args=()
 
   bin="$(moonlight_bin)"
   host="$(moonlight_host)"
   connect_host="$(moonlight_connect_host)"
+  port="$(moonlight_port)"
   app="$(moonlight_app)"
 
   [[ -n "$host" ]] || {
@@ -376,9 +401,9 @@ main() {
 
   build_stream_args args
   if [[ -n "$connect_host" && "$connect_host" != "$host" ]]; then
-    echo "Starting Moonlight stream: host=$host resolved_ipv4=$connect_host app=$app resolution=$(moonlight_resolution) fps=${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}" >&2
+    echo "Starting Moonlight stream: host=$host resolved_ipv4=$connect_host port=${port:-default} app=$app resolution=$(moonlight_resolution) fps=${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}" >&2
   else
-    echo "Starting Moonlight stream: host=$host app=$app resolution=$(moonlight_resolution) fps=${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}" >&2
+    echo "Starting Moonlight stream: host=$host port=${port:-default} app=$app resolution=$(moonlight_resolution) fps=${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}" >&2
   fi
   exec "${args[@]}"
 }

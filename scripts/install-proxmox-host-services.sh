@@ -10,6 +10,8 @@ TIMER_NAME="beagle-artifacts-refresh.timer"
 UI_REAPPLY_SERVICE="beagle-ui-reapply.service"
 UI_REAPPLY_PATH="beagle-ui-reapply.path"
 BEAGLE_CONTROL_SERVICE="beagle-control-plane.service"
+BEAGLE_PUBLIC_STREAM_SERVICE="beagle-public-streams.service"
+BEAGLE_PUBLIC_STREAM_TIMER="beagle-public-streams.timer"
 BEAGLE_CONTROL_ENV_FILE="$CONFIG_DIR/beagle-manager.env"
 
 ensure_root() {
@@ -56,7 +58,11 @@ install -m 0644 "$ROOT_DIR/proxmox-host/systemd/$TIMER_NAME" "$SYSTEMD_DIR/$TIME
 install_unit "$ROOT_DIR/proxmox-host/systemd/$UI_REAPPLY_SERVICE" "$SYSTEMD_DIR/$UI_REAPPLY_SERVICE"
 install -m 0644 "$ROOT_DIR/proxmox-host/systemd/$UI_REAPPLY_PATH" "$SYSTEMD_DIR/$UI_REAPPLY_PATH"
 install_unit "$ROOT_DIR/proxmox-host/systemd/$BEAGLE_CONTROL_SERVICE" "$SYSTEMD_DIR/$BEAGLE_CONTROL_SERVICE"
-install -m 0755 "$ROOT_DIR/proxmox-host/bin/beagle-control-plane.py" "$INSTALL_DIR/proxmox-host/bin/beagle-control-plane.py"
+install_unit "$ROOT_DIR/proxmox-host/systemd/$BEAGLE_PUBLIC_STREAM_SERVICE" "$SYSTEMD_DIR/$BEAGLE_PUBLIC_STREAM_SERVICE"
+install -m 0644 "$ROOT_DIR/proxmox-host/systemd/$BEAGLE_PUBLIC_STREAM_TIMER" "$SYSTEMD_DIR/$BEAGLE_PUBLIC_STREAM_TIMER"
+if [[ "$(readlink -f "$ROOT_DIR/proxmox-host/bin/beagle-control-plane.py")" != "$(readlink -f "$INSTALL_DIR/proxmox-host/bin/beagle-control-plane.py" 2>/dev/null || true)" ]]; then
+  install -m 0755 "$ROOT_DIR/proxmox-host/bin/beagle-control-plane.py" "$INSTALL_DIR/proxmox-host/bin/beagle-control-plane.py"
+fi
 
 install -d -m 0755 "$CONFIG_DIR"
 if [[ ! -f "$BEAGLE_CONTROL_ENV_FILE" ]]; then
@@ -78,5 +84,7 @@ systemctl enable --now "$TIMER_NAME"
 systemctl enable "$UI_REAPPLY_SERVICE"
 systemctl enable --now "$UI_REAPPLY_PATH"
 systemctl enable --now "$BEAGLE_CONTROL_SERVICE"
+systemctl enable --now "$BEAGLE_PUBLIC_STREAM_TIMER"
+systemctl start "$BEAGLE_PUBLIC_STREAM_SERVICE" >/dev/null 2>&1 || true
 
-echo "Installed host services: $SERVICE_NAME, $TIMER_NAME, $UI_REAPPLY_SERVICE, $UI_REAPPLY_PATH, $BEAGLE_CONTROL_SERVICE"
+echo "Installed host services: $SERVICE_NAME, $TIMER_NAME, $UI_REAPPLY_SERVICE, $UI_REAPPLY_PATH, $BEAGLE_CONTROL_SERVICE, $BEAGLE_PUBLIC_STREAM_SERVICE, $BEAGLE_PUBLIC_STREAM_TIMER"

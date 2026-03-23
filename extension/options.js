@@ -1,5 +1,5 @@
 function defaultUsbInstallerUrl() {
-  return "https://{host}:8443/beagle-downloads/pve-thin-client-usb-installer-vm-{vmid}.sh";
+  return "https://{host}:8443/beagle-api/api/v1/public/vms/{vmid}/installer.sh";
 }
 
 function defaultControlPlaneHealthUrl() {

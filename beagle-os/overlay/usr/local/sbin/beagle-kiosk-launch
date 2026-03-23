@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RUNTIME_USER="${BEAGLE_RUNTIME_USER:-thinclient}"
+ENDPOINT_FILE="/etc/beagle-os/endpoint.env"
+APPLY_NETWORK="/usr/local/lib/pve-thin-client/runtime/apply-network-config.sh"
+NETWORK_WAIT_TIMEOUT="${BEAGLE_KIOSK_NETWORK_WAIT_TIMEOUT:-20}"
+BOOT_SETTLE_SECONDS="${BEAGLE_KIOSK_BOOT_SETTLE_SECONDS:-12}"
+
+NETWORK_MODE="dhcp"
+NETWORK_INTERFACE=""
+NETWORK_STATIC_ADDRESS=""
+NETWORK_STATIC_PREFIX="24"
+NETWORK_GATEWAY=""
+
+if [[ -r "$ENDPOINT_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$ENDPOINT_FILE"
+  NETWORK_MODE="${BEAGLE_ENDPOINT_NETWORK_MODE:-$NETWORK_MODE}"
+  NETWORK_INTERFACE="${BEAGLE_ENDPOINT_NETWORK_INTERFACE:-$NETWORK_INTERFACE}"
+  NETWORK_STATIC_ADDRESS="${BEAGLE_ENDPOINT_NETWORK_STATIC_ADDRESS:-$NETWORK_STATIC_ADDRESS}"
+  NETWORK_STATIC_PREFIX="${BEAGLE_ENDPOINT_NETWORK_STATIC_PREFIX:-$NETWORK_STATIC_PREFIX}"
+  NETWORK_GATEWAY="${BEAGLE_ENDPOINT_NETWORK_GATEWAY:-$NETWORK_GATEWAY}"
+fi
+
+pick_interface() {
+  local iface
+
+  if [[ -n "$NETWORK_INTERFACE" && -d "/sys/class/net/$NETWORK_INTERFACE" ]]; then
+    printf '%s\n' "$NETWORK_INTERFACE"
+    return 0
+  fi
+
+  while IFS= read -r iface; do
+    [[ "$iface" == "lo" ]] && continue
+    case "$iface" in
+      docker*|virbr*|veth*|br-*|tun*|tap*|wg*|zt*|vmnet*|tailscale*) continue ;;
+    esac
+    printf '%s\n' "$iface"
+    return 0
+  done < <(ls /sys/class/net)
+
+  return 1
+}
+
+network_cidr() {
+  python3 - "$NETWORK_STATIC_ADDRESS" "$NETWORK_STATIC_PREFIX" <<'PY'
+import ipaddress
+import sys
+
+address = (sys.argv[1] or "").strip()
+prefix = int((sys.argv[2] or "24").strip() or "24")
+
+if not address:
+    raise SystemExit(1)
+
+print(ipaddress.ip_network(f"{address}/{prefix}", strict=False).with_prefixlen)
+PY
+}
+
+ensure_static_routes() {
+  local iface="$1"
+  local cidr
+
+  [[ "$NETWORK_MODE" == "static" ]] || return 0
+  [[ -n "$NETWORK_STATIC_ADDRESS" ]] || return 0
+
+  cidr="$(network_cidr 2>/dev/null || true)"
+  if [[ -n "$cidr" ]]; then
+    ip route replace "$cidr" dev "$iface" src "$NETWORK_STATIC_ADDRESS" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$NETWORK_GATEWAY" ]]; then
+    ip route replace default via "$NETWORK_GATEWAY" dev "$iface" >/dev/null 2>&1 || true
+  fi
+}
+
+wait_for_routes() {
+  local iface="$1"
+  local remaining="$NETWORK_WAIT_TIMEOUT"
+
+  while (( remaining > 0 )); do
+    ensure_static_routes "$iface"
+    if ip route show default 2>/dev/null | grep -q .; then
+      return 0
+    fi
+    sleep 1
+    remaining=$((remaining - 1))
+  done
+
+  return 1
+}
+
+session_running() {
+  pgrep -f "/opt/moonlight/usr/bin/moonlight stream" >/dev/null 2>&1 && return 0
+  pgrep -f "/usr/lib/xorg/Xorg :0" >/dev/null 2>&1 && return 0
+  return 1
+}
+
+prepare_runtime_dir() {
+  local uid gid runtime_dir
+
+  uid="$(id -u "$RUNTIME_USER")"
+  gid="$(id -g "$RUNTIME_USER")"
+  runtime_dir="/run/user/$uid"
+  install -d -m 0700 -o "$uid" -g "$gid" "$runtime_dir"
+  printf '%s\n' "$runtime_dir"
+}
+
+main() {
+  local iface runtime_dir
+
+  iface="$(pick_interface)" || exit 0
+  sleep "$BOOT_SETTLE_SECONDS"
+  if [[ -x "$APPLY_NETWORK" ]]; then
+    "$APPLY_NETWORK" >/dev/null 2>&1 || true
+  fi
+  wait_for_routes "$iface" || true
+
+  if session_running; then
+    exit 0
+  fi
+
+  runtime_dir="$(prepare_runtime_dir)"
+  loginctl enable-linger "$RUNTIME_USER" >/dev/null 2>&1 || true
+  su - "$RUNTIME_USER" -c "XDG_RUNTIME_DIR=$runtime_dir /usr/local/bin/beagle-start-x11"
+
+  if session_running; then
+    exit 0
+  fi
+
+  exit 1
+}
+
+main "$@"

@@ -1,0 +1,15 @@
+[Unit]
+Description=Beagle OS kiosk session
+After=network-online.target pve-thin-client-prepare.service
+Wants=network-online.target
+Requires=pve-thin-client-prepare.service
+ConditionPathExists=/etc/pve-thin-client/thinclient.conf
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/beagle-kiosk-launch
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

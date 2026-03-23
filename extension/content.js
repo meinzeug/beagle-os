@@ -6,7 +6,7 @@
   const OVERLAY_ID = "beagle-os-extension-overlay";
 
   function defaultUsbInstallerUrl() {
-    return "https://{host}:8443/beagle-downloads/pve-thin-client-usb-installer-vm-{vmid}.sh";
+    return "https://{host}:8443/beagle-api/api/v1/public/vms/{vmid}/installer.sh";
   }
 
   function defaultControlPlaneHealthUrl() {
@@ -87,6 +87,18 @@
       vmid: ctx?.vmid || "",
       host: window.location.hostname
     });
+  }
+
+  function withNoCache(url) {
+    if (!url) return url;
+    try {
+      const parsed = new URL(url, window.location.origin);
+      parsed.searchParams.set("_beagle_ts", String(Date.now()));
+      return parsed.toString();
+    } catch {
+      const separator = String(url).includes("?") ? "&" : "?";
+      return `${url}${separator}_beagle_ts=${Date.now()}`;
+    }
   }
 
   async function resolveControlPlaneHealthUrl() {
@@ -222,6 +234,7 @@
       `PVE_THIN_CLIENT_PROXMOX_VMID="${String(profile.vmid || "")}"`,
       `PVE_THIN_CLIENT_BEAGLE_MANAGER_URL="${profile.managerUrl || ""}"`,
       `PVE_THIN_CLIENT_MOONLIGHT_HOST="${profile.streamHost || ""}"`,
+      `PVE_THIN_CLIENT_MOONLIGHT_PORT="${profile.moonlightPort || ""}"`,
       `PVE_THIN_CLIENT_MOONLIGHT_APP="${profile.app || "Desktop"}"`,
       `PVE_THIN_CLIENT_MOONLIGHT_RESOLUTION="${profile.resolution || "auto"}"`,
       `PVE_THIN_CLIENT_MOONLIGHT_FPS="${profile.fps || "60"}"`,
@@ -278,7 +291,8 @@
     const guestIp = firstGuestIpv4(guestInterfaces);
     const controlPlaneProfile = endpointPayload?.profile || null;
     const streamHost = controlPlaneProfile?.stream_host || meta["moonlight-host"] || meta["sunshine-ip"] || meta["sunshine-host"] || guestIp || "";
-    const sunshineApiUrl = controlPlaneProfile?.sunshine_api_url || meta["sunshine-api-url"] || (streamHost ? `https://${streamHost}:47990` : "");
+    const moonlightPort = controlPlaneProfile?.moonlight_port || meta["moonlight-port"] || meta["beagle-public-moonlight-port"] || "";
+    const sunshineApiUrl = controlPlaneProfile?.sunshine_api_url || meta["sunshine-api-url"] || (streamHost ? `https://${streamHost}:${moonlightPort ? Number(moonlightPort) + 1 : 47990}` : "");
     const profile = {
       vmid: Number(ctx.vmid),
       node: ctx.node,
@@ -286,6 +300,7 @@
       status: resource?.status || "unknown",
       guestIp,
       streamHost,
+      moonlightPort,
       sunshineApiUrl,
       sunshineUsername: controlPlaneProfile?.sunshine_username || meta["sunshine-user"] || "",
       sunshinePassword: meta["sunshine-password"] || "",
@@ -386,6 +401,7 @@
             </div></section>
             <section class="beagle-card"><h3>Streaming</h3><div class="beagle-kv">
               ${kvRow("Stream Host", escapeHtml(profile.streamHost || ""))}
+              ${kvRow("Moonlight Port", escapeHtml(profile.moonlightPort || "default"))}
               ${kvRow("Sunshine API", escapeHtml(profile.sunshineApiUrl || ""))}
               ${kvRow("App", escapeHtml(profile.app))}
               ${kvRow("Manager", escapeHtml(profile.managerUrl || ""))}
@@ -442,7 +458,7 @@
       if (!(event.target instanceof HTMLElement)) return;
       switch (event.target.getAttribute("data-beagle-action")) {
         case "download":
-          window.open(profile.installerUrl, "_blank", "noopener,noreferrer");
+          window.open(withNoCache(profile.installerUrl), "_blank", "noopener,noreferrer");
           break;
         case "copy-json":
           await copyText(profileJson, "Beagle Profil als JSON kopiert.");
@@ -503,7 +519,7 @@
       return;
     }
     const url = await resolveUsbInstallerUrl(ctx);
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.open(withNoCache(url), "_blank", "noopener,noreferrer");
   }
 
   function createToolbarButton(label, onClick) {
