@@ -38,6 +38,8 @@ The standalone writer script can be started as a normal user:
 ```
 
 It escalates to `sudo` only for partitioning and writing the selected USB device.
+
+When you download a VM-specific installer from the Proxmox UI, Beagle first verifies the selected VM as a valid streaming target, prepares Sunshine if needed, and only then releases the installer download.
 For operator rollouts, prefer the host-provided per-VM installer from:
 
 ```text

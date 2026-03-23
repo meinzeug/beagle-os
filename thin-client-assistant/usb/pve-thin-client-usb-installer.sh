@@ -134,7 +134,7 @@ bootstrap_repo_root() {
   bootstrap_url="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-}}"
   [[ -n "$bootstrap_url" ]] || {
     echo "Standalone mode requires RELEASE_BOOTSTRAP_URL to point at a hosted thin-client USB bootstrap tarball." >&2
-    echo "Use the host-provided installer from https://<proxmox-host>:8443/pve-dcv-downloads/ or export RELEASE_BOOTSTRAP_URL manually." >&2
+    echo "Use the host-provided installer from https://<proxmox-host>:8443/beagle-downloads/ or export RELEASE_BOOTSTRAP_URL manually." >&2
     exit 1
   }
 

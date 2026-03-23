@@ -95,6 +95,12 @@ The Beagle host publishes these operator-facing endpoints:
 - hosted status JSON: `https://<proxmox-host>:8443/beagle-downloads/beagle-downloads-status.json`
 - Beagle control-plane health: `https://<proxmox-host>:8443/beagle-api/api/v1/health`
 
+In the Proxmox UI, the VM-specific download path is guarded by Beagle's installer preparation flow:
+
+- `USB Installer bereit`: the target VM is ready and the installer can be downloaded immediately
+- `Sunshine wird vorbereitet`: Beagle is still checking or configuring Sunshine for the selected VM
+- `Ziel ungeeignet`: the selected VM is not offered as a final streaming target
+
 ## Build and validation commands
 
 Prepare a USB installer stick:
