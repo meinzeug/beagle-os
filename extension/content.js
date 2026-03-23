@@ -112,6 +112,20 @@
     return String(healthUrl || "").replace(/\/api\/v1\/health\/?$/, "");
   }
 
+  function normalizeBeagleApiPath(path) {
+    const value = String(path || "").trim() || "/";
+    return value.startsWith("/beagle-api/") ? value.slice("/beagle-api".length) : value;
+  }
+
+  async function resolveBeagleApiUrl(path) {
+    const healthUrl = await resolveControlPlaneHealthUrl();
+    const base = managerUrlFromHealthUrl(healthUrl);
+    let normalizedPath = normalizeBeagleApiPath(path);
+    if (!base) return normalizedPath;
+    if (!normalizedPath.startsWith("/")) normalizedPath = `/${normalizedPath}`;
+    return `${String(base).replace(/\/$/, "")}${normalizedPath}`;
+  }
+
   function ensureStyles() {
     if (document.getElementById(STYLE_ID)) return;
     const style = document.createElement("style");
@@ -279,7 +293,9 @@
       apiGetJson(`/api2/json/nodes/${encodeURIComponent(ctx.node)}/qemu/${encodeURIComponent(ctx.vmid)}/agent/network-get-interfaces`).catch(() => []),
       resolveUsbInstallerUrl(ctx),
       resolveControlPlaneHealthUrl(),
-      fetch(`/beagle-api/api/v1/public/vms/${encodeURIComponent(ctx.vmid)}/state`, { credentials: "same-origin" })
+      resolveBeagleApiUrl(`/api/v1/public/vms/${encodeURIComponent(ctx.vmid)}/state`).then((url) =>
+        fetch(url, { credentials: "same-origin" })
+      )
         .then((response) => (response.ok ? response.json() : null))
         .catch(() => null)
     ]);

@@ -68,6 +68,26 @@
     return String(healthUrl || "").replace(/\/api\/v1\/health\/?$/, "");
   }
 
+  function normalizeBeagleApiPath(path) {
+    var value = String(path || "").trim() || "/";
+    if (value.indexOf("/beagle-api/") === 0) {
+      return value.slice("/beagle-api".length);
+    }
+    return value;
+  }
+
+  function resolveBeagleApiUrl(path) {
+    var base = managerUrlFromHealthUrl(resolveControlPlaneHealthUrl());
+    var normalizedPath = normalizeBeagleApiPath(path);
+    if (!base) {
+      return normalizedPath;
+    }
+    if (normalizedPath.indexOf("/") !== 0) {
+      normalizedPath = "/" + normalizedPath;
+    }
+    return String(base).replace(/\/$/, "") + normalizedPath;
+  }
+
   function showError(message) {
     if (window.Ext && Ext.Msg && Ext.Msg.alert) {
       Ext.Msg.alert(PRODUCT_LABEL, message);
@@ -250,7 +270,7 @@
   }
 
   function apiBeagleJson(path, options) {
-    return fetch(path, Object.assign({ credentials: "same-origin" }, options || {})).then(function(response) {
+    return fetch(resolveBeagleApiUrl(path), Object.assign({ credentials: "same-origin" }, options || {})).then(function(response) {
       if (!response.ok) {
         throw new Error("Beagle API request failed: " + response.status + " " + response.statusText);
       }
@@ -278,7 +298,7 @@
   }
 
   function downloadProtectedFile(path, filename) {
-    return fetch(path, {
+    return fetch(resolveBeagleApiUrl(path), {
       credentials: "same-origin",
       headers: buildBeagleRequestHeaders()
     }).then(function(response) {
@@ -748,9 +768,9 @@
     });
     document.body.appendChild(overlay);
     Promise.all([
-      apiGetJson('/beagle-api/api/v1/health'),
-      apiGetBeagleJson('/beagle-api/api/v1/vms'),
-      apiGetBeagleJson('/beagle-api/api/v1/policies')
+      apiGetBeagleJson('/api/v1/health'),
+      apiGetBeagleJson('/api/v1/vms'),
+      apiGetBeagleJson('/api/v1/policies')
     ]).then(function(results) {
       removeOverlay();
       renderFleetModal({
@@ -769,7 +789,7 @@
       apiGetJson("/api2/json/nodes/" + encodeURIComponent(ctx.node) + "/qemu/" + encodeURIComponent(ctx.vmid) + "/config"),
       apiGetJson("/api2/json/cluster/resources?type=vm").catch(function() { return []; }),
       apiGetJson("/api2/json/nodes/" + encodeURIComponent(ctx.node) + "/qemu/" + encodeURIComponent(ctx.vmid) + "/agent/network-get-interfaces").catch(function() { return []; }),
-      fetch("/beagle-api/api/v1/public/vms/" + encodeURIComponent(ctx.vmid) + "/state", { credentials: "same-origin" }).then(function(response) {
+      fetch(resolveBeagleApiUrl("/api/v1/public/vms/" + encodeURIComponent(ctx.vmid) + "/state"), { credentials: "same-origin" }).then(function(response) {
         if (!response.ok) {
           return null;
         }
