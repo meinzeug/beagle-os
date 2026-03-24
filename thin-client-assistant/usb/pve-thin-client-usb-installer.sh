@@ -22,6 +22,7 @@ BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-0}"
 BOOTSTRAP_CACHE_DIR="${PVE_DCV_BOOTSTRAP_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/pve-dcv-usb}"
 BOOTSTRAP_DIR=""
 BOOTSTRAPPED_STANDALONE="0"
+SKIP_CONFIRMATION="${PVE_DCV_SKIP_CONFIRMATION:-0}"
 MIN_DEVICE_BYTES="${MIN_DEVICE_BYTES:-4294967296}"
 PVE_THIN_CLIENT_PRESET_NAME="${PVE_THIN_CLIENT_PRESET_NAME:-}"
 PVE_THIN_CLIENT_PRESET_B64="${PVE_THIN_CLIENT_PRESET_B64:-}"
@@ -80,6 +81,7 @@ rerun_as_root() {
     INSTALL_PAYLOAD_URL="$INSTALL_PAYLOAD_URL" \
     RELEASE_BOOTSTRAP_URL="$RELEASE_BOOTSTRAP_URL" \
     RELEASE_ISO_URL="$RELEASE_ISO_URL" \
+    PVE_DCV_SKIP_CONFIRMATION="$SKIP_CONFIRMATION" \
     PVE_DCV_BOOTSTRAP_CACHE_DIR="$BOOTSTRAP_CACHE_DIR" \
     PVE_DCV_BOOTSTRAP_BASE="${PVE_DCV_BOOTSTRAP_BASE:-}" \
     MIN_DEVICE_BYTES="$MIN_DEVICE_BYTES" \
@@ -1097,15 +1099,18 @@ if [[ "$LIST_DEVICES" == "1" ]]; then
   fi
   exit 0
 fi
+require_tool lsblk
 if [[ -z "$TARGET_DEVICE" ]]; then
   TARGET_DEVICE="$(choose_device)"
 fi
+if [[ "$SKIP_CONFIRMATION" != "1" ]]; then
+  confirm_device
+  SKIP_CONFIRMATION="1"
+fi
 rerun_as_root
-require_tool lsblk
 bootstrap_repo_root
 install_dependencies
 ensure_live_assets
 validate_live_assets
-confirm_device
 write_usb
 echo "USB installer media prepared on $TARGET_DEVICE"
