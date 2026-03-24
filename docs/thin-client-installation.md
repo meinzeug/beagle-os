@@ -91,6 +91,7 @@ tar -xzf beagle-os.tar.gz
 The Beagle host publishes these operator-facing endpoints:
 
 - VM-specific installer: `https://<proxmox-host>:8443/beagle-downloads/pve-thin-client-usb-installer-vm-<vmid>.sh`
+- Beagle installer ISO: `https://<proxmox-host>:8443/beagle-downloads/beagle-os-installer-amd64.iso`
 - generic fallback installer: `https://<proxmox-host>:8443/beagle-downloads/pve-thin-client-usb-installer-host-latest.sh`
 - hosted status JSON: `https://<proxmox-host>:8443/beagle-downloads/beagle-downloads-status.json`
 - Beagle control-plane health: `https://<proxmox-host>:8443/beagle-api/api/v1/health`
@@ -100,6 +101,15 @@ In the Proxmox UI, the VM-specific download path is guarded by Beagle's installe
 - `USB Installer bereit`: the target VM is ready and the installer can be downloaded immediately
 - `Sunshine wird vorbereitet`: Beagle is still checking or configuring Sunshine for the selected VM
 - `Ziel ungeeignet`: the selected VM is not offered as a final streaming target
+
+The intended VM-centric flow is:
+
+1. Download the VM-specific `USB Installer Skript` in Proxmox.
+2. Run the script on the workstation that has the target USB stick attached.
+3. The script downloads the current Beagle installer ISO from the Proxmox host.
+4. The script writes the bootable USB stick and embeds the selected VM profile.
+5. Install Beagle OS on the thin client.
+6. The installed endpoint boots with Moonlight defaults for that VM.
 
 ## Build and validation commands
 

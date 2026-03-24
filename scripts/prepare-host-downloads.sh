@@ -13,6 +13,7 @@ HOST_INSTALLER_LATEST="$DIST_DIR/pve-thin-client-usb-installer-host-latest.sh"
 GENERIC_INSTALLER="$DIST_DIR/pve-thin-client-usb-installer-v${VERSION}.sh"
 PAYLOAD_URL="${BASE_URL%/}/pve-thin-client-usb-payload-latest.tar.gz"
 BOOTSTRAP_URL="${BASE_URL%/}/pve-thin-client-usb-bootstrap-latest.tar.gz"
+INSTALLER_ISO_URL="${BASE_URL%/}/beagle-os-installer-amd64.iso"
 INSTALLER_URL="${BASE_URL%/}/pve-thin-client-usb-installer-host-latest.sh"
 VM_INSTALLER_URL_TEMPLATE="https://${SERVER_NAME}:${LISTEN_PORT}/beagle-api/api/v1/public/vms/{vmid}/installer.sh"
 STATUS_URL="${BASE_URL%/}/beagle-downloads-status.json"
@@ -63,11 +64,15 @@ ensure_dist_permissions() {
   echo "Missing packaged USB bootstrap: $DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz" >&2
   exit 1
 }
+[[ -f "$DIST_DIR/beagle-os-installer-amd64.iso" ]] || {
+  echo "Missing packaged installer ISO: $DIST_DIR/beagle-os-installer-amd64.iso" >&2
+  exit 1
+}
 
 rm -f "$DIST_DIR"/pve-thin-client-usb-installer-vm-*.sh "$VM_INSTALLERS_METADATA_PATH"
 install -m 0755 "$GENERIC_INSTALLER" "$HOST_INSTALLER_VERSIONED"
 
-python3 - "$HOST_INSTALLER_VERSIONED" "$BOOTSTRAP_URL" "$PAYLOAD_URL" <<'PY'
+python3 - "$HOST_INSTALLER_VERSIONED" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$INSTALLER_ISO_URL" <<'PY'
 import re
 import sys
 from pathlib import Path
@@ -75,6 +80,7 @@ from pathlib import Path
 path = Path(sys.argv[1])
 bootstrap_url = sys.argv[2]
 payload_url = sys.argv[3]
+installer_iso_url = sys.argv[4]
 text = path.read_text()
 
 replacements = {
@@ -84,6 +90,8 @@ replacements = {
         f'RELEASE_PAYLOAD_URL="${{RELEASE_PAYLOAD_URL:-{payload_url}}}"',
     r'^INSTALL_PAYLOAD_URL="\$\{INSTALL_PAYLOAD_URL:-[^"]*}"$':
         f'INSTALL_PAYLOAD_URL="${{INSTALL_PAYLOAD_URL:-{payload_url}}}"',
+    r'^RELEASE_ISO_URL="\$\{RELEASE_ISO_URL:-[^"]*}"$':
+        f'RELEASE_ISO_URL="${{RELEASE_ISO_URL:-{installer_iso_url}}}"',
 }
 updated = text
 for pattern, replacement in replacements.items():
@@ -95,7 +103,7 @@ PY
 
 install -m 0755 "$HOST_INSTALLER_VERSIONED" "$HOST_INSTALLER_LATEST"
 
-python3 - "$HOST_INSTALLER_VERSIONED" "$DIST_DIR" "$VM_INSTALLERS_METADATA_PATH" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$VM_INSTALLER_URL_TEMPLATE" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$DEFAULT_PROXMOX_USERNAME" "$DEFAULT_PROXMOX_PASSWORD" "$DEFAULT_PROXMOX_TOKEN" "$BEAGLE_MANAGER_URL" "$BEAGLE_ENDPOINT_TOKEN" <<'PY'
+python3 - "$HOST_INSTALLER_VERSIONED" "$DIST_DIR" "$VM_INSTALLERS_METADATA_PATH" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$VM_INSTALLER_URL_TEMPLATE" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$INSTALLER_ISO_URL" "$DEFAULT_PROXMOX_USERNAME" "$DEFAULT_PROXMOX_PASSWORD" "$DEFAULT_PROXMOX_TOKEN" "$BEAGLE_MANAGER_URL" "$BEAGLE_ENDPOINT_TOKEN" <<'PY'
 import base64
 import json
 import re
@@ -114,11 +122,12 @@ downloads_path = sys.argv[6]
 installer_url_template = sys.argv[7]
 bootstrap_url = sys.argv[8]
 payload_url = sys.argv[9]
-default_proxmox_username = sys.argv[10]
-default_proxmox_password = sys.argv[11]
-default_proxmox_token = sys.argv[12]
-beagle_manager_url = sys.argv[13]
-beagle_endpoint_token = sys.argv[14]
+installer_iso_url = sys.argv[10]
+default_proxmox_username = sys.argv[11]
+default_proxmox_password = sys.argv[12]
+default_proxmox_token = sys.argv[13]
+beagle_manager_url = sys.argv[14]
+beagle_endpoint_token = sys.argv[15]
 template = template_path.read_text()
 
 resources_cmd = ["pvesh", "get", "/cluster/resources", "--type", "vm", "--output-format", "json"]
@@ -160,7 +169,7 @@ def safe_hostname(name, vmid):
 def shell_double_quoted(value):
     return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`")
 
-def patch_installer_defaults(script_text, bootstrap, payload, preset_name, preset_b64):
+def patch_installer_defaults(script_text, bootstrap, payload, installer_iso, preset_name, preset_b64):
     replacements = {
         r'^RELEASE_BOOTSTRAP_URL="\$\{RELEASE_BOOTSTRAP_URL:-[^"]*}"$':
             f'RELEASE_BOOTSTRAP_URL="${{RELEASE_BOOTSTRAP_URL:-{shell_double_quoted(bootstrap)}}}"',
@@ -168,6 +177,8 @@ def patch_installer_defaults(script_text, bootstrap, payload, preset_name, prese
             f'RELEASE_PAYLOAD_URL="${{RELEASE_PAYLOAD_URL:-{shell_double_quoted(payload)}}}"',
         r'^INSTALL_PAYLOAD_URL="\$\{INSTALL_PAYLOAD_URL:-[^"]*}"$':
             f'INSTALL_PAYLOAD_URL="${{INSTALL_PAYLOAD_URL:-{shell_double_quoted(payload)}}}"',
+        r'^RELEASE_ISO_URL="\$\{RELEASE_ISO_URL:-[^"]*}"$':
+            f'RELEASE_ISO_URL="${{RELEASE_ISO_URL:-{shell_double_quoted(installer_iso)}}}"',
         r'^BOOTSTRAP_DISABLE_CACHE="\$\{PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-[^"]*}"$':
             'BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-1}"',
         r'^PVE_THIN_CLIENT_PRESET_NAME="\$\{PVE_THIN_CLIENT_PRESET_NAME:-[^"]*}"$':
@@ -343,7 +354,7 @@ for vm in resources:
     preset_b64 = encode_preset(preset)
     installer_name = f"pve-thin-client-usb-installer-vm-{vm['vmid']}.sh"
     installer_path = dist_dir / installer_name
-    installer_path.write_text(patch_installer_defaults(template, bootstrap_url, payload_url, preset_name, preset_b64))
+    installer_path.write_text(patch_installer_defaults(template, bootstrap_url, payload_url, installer_iso_url, preset_name, preset_b64))
     installer_path.chmod(0o755)
     vm_installers.append(
         {
@@ -354,6 +365,7 @@ for vm in resources:
             "default_mode": preset.get("PVE_THIN_CLIENT_PRESET_DEFAULT_MODE", ""),
             "installer_filename": installer_name,
             "installer_url": installer_url_template.replace("{vmid}", str(vm["vmid"])),
+            "installer_iso_url": installer_iso_url,
             "available_modes": available_modes,
         }
     )
@@ -387,14 +399,15 @@ cat > "$DIST_DIR/beagle-downloads-index.html" <<EOF
   <p>Host-local thin-client media downloads for this Proxmox server.</p>
   <ul>
     <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-usb-installer-host-latest.sh">Generic USB installer launcher (fallback)</a></li>
+    <li><a href="${DOWNLOADS_PATH%/}/beagle-os-installer-amd64.iso">Beagle OS installer ISO</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-usb-bootstrap-latest.tar.gz">USB bootstrap bundle (used while creating installer media)</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-usb-payload-latest.tar.gz">USB payload bundle</a></li>
-    <li>VM-specific installer URLs now embed a full preset (host, vmid, node, credentials, stream defaults) so the thin client install can run without manual VM data entry.</li>
+    <li>VM-specific installer scripts now download the installer ISO, write the USB stick and embed the selected VM profile for unattended Beagle deployment.</li>
     <li>The generic installer remains available as fallback when no VM-specific preset should be embedded.</li>
     <li><a href="${DOWNLOADS_PATH%/}/beagle-downloads-status.json">Status JSON</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/SHA256SUMS">SHA256SUMS</a></li>
   </ul>
-  <p>The hosted USB installers download only a bootstrap bundle during USB creation. During target installation, the thin client fetches the latest payload directly from this Proxmox host. VM-specific installers ship with embedded presets so thin clients can be installed without manual profile input.</p>
+  <p>The hosted USB installers pull the Beagle installer ISO during USB creation, then embed the selected VM profile so the installed thin client boots directly into Moonlight for that target VM.</p>
   <table>
     <tr><th>Release version</th><td><code>${VERSION}</code></td></tr>
     <tr><th>Server</th><td><code>${SERVER_NAME}:${LISTEN_PORT}</code></td></tr>
@@ -409,7 +422,7 @@ cat > "$DIST_DIR/beagle-downloads-index.html" <<EOF
 </html>
 EOF
 
-python3 - "$STATUS_JSON_PATH" "$VERSION" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$INSTALLER_URL" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$STATUS_URL" "$SHA256SUMS_URL" "$HOST_INSTALLER_LATEST" "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz" "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" "$INSTALLER_SHA256" "$BOOTSTRAP_SHA256" "$PAYLOAD_SHA256" "$VM_INSTALLER_URL_TEMPLATE" "$VM_INSTALLERS_METADATA_PATH" <<'PY'
+python3 - "$STATUS_JSON_PATH" "$VERSION" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$INSTALLER_URL" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$INSTALLER_ISO_URL" "$STATUS_URL" "$SHA256SUMS_URL" "$HOST_INSTALLER_LATEST" "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz" "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" "$DIST_DIR/beagle-os-installer-amd64.iso" "$INSTALLER_SHA256" "$BOOTSTRAP_SHA256" "$PAYLOAD_SHA256" "$VM_INSTALLER_URL_TEMPLATE" "$VM_INSTALLERS_METADATA_PATH" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -423,16 +436,18 @@ downloads_path = sys.argv[5]
 installer_url = sys.argv[6]
 bootstrap_url = sys.argv[7]
 payload_url = sys.argv[8]
-status_url = sys.argv[9]
-sha256sums_url = sys.argv[10]
-installer_path = Path(sys.argv[11])
-bootstrap_path = Path(sys.argv[12])
-payload_path = Path(sys.argv[13])
-installer_sha256 = sys.argv[14]
-bootstrap_sha256 = sys.argv[15]
-payload_sha256 = sys.argv[16]
-vm_installer_url_template = sys.argv[17]
-vm_installers_path = Path(sys.argv[18])
+installer_iso_url = sys.argv[9]
+status_url = sys.argv[10]
+sha256sums_url = sys.argv[11]
+installer_path = Path(sys.argv[12])
+bootstrap_path = Path(sys.argv[13])
+payload_path = Path(sys.argv[14])
+installer_iso_path = Path(sys.argv[15])
+installer_sha256 = sys.argv[16]
+bootstrap_sha256 = sys.argv[17]
+payload_sha256 = sys.argv[18]
+vm_installer_url_template = sys.argv[19]
+vm_installers_path = Path(sys.argv[20])
 vm_installers = json.loads(vm_installers_path.read_text()) if vm_installers_path.exists() else []
 
 payload = {
@@ -442,6 +457,7 @@ payload = {
     "listen_port": listen_port,
     "downloads_path": downloads_path,
     "installer_url": installer_url,
+    "installer_iso_url": installer_iso_url,
     "bootstrap_url": bootstrap_url,
     "payload_url": payload_url,
     "status_url": status_url,
@@ -449,10 +465,12 @@ payload = {
     "installer_size": installer_path.stat().st_size,
     "bootstrap_size": bootstrap_path.stat().st_size,
     "payload_size": payload_path.stat().st_size,
+    "installer_iso_size": installer_iso_path.stat().st_size,
     "installer_sha256": installer_sha256,
     "bootstrap_sha256": bootstrap_sha256,
     "payload_sha256": payload_sha256,
     "installer_filename": installer_path.name,
+    "installer_iso_filename": installer_iso_path.name,
     "bootstrap_filename": bootstrap_path.name,
     "payload_filename": payload_path.name,
     "vm_installer_url_template": vm_installer_url_template,

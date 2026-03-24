@@ -9,6 +9,10 @@
     return "https://{host}:8443/beagle-api/api/v1/public/vms/{vmid}/installer.sh";
   }
 
+  function defaultInstallerIsoUrl() {
+    return "https://{host}:8443/beagle-downloads/beagle-os-installer-amd64.iso";
+  }
+
   function defaultControlPlaneHealthUrl() {
     return "https://{host}:8443/beagle-api/api/v1/health";
   }
@@ -66,6 +70,7 @@
       chrome.storage.sync.get(
         {
           usbInstallerUrl: defaultUsbInstallerUrl(),
+          installerIsoUrl: defaultInstallerIsoUrl(),
           controlPlaneHealthUrl: defaultControlPlaneHealthUrl()
         },
         (data) => resolve(data)
@@ -83,6 +88,15 @@
   async function resolveUsbInstallerUrl(ctx) {
     const options = await getOptions();
     return fillTemplate(options.usbInstallerUrl || defaultUsbInstallerUrl(), {
+      node: ctx?.node || "",
+      vmid: ctx?.vmid || "",
+      host: window.location.hostname
+    });
+  }
+
+  async function resolveInstallerIsoUrl(ctx) {
+    const options = await getOptions();
+    return fillTemplate(options.installerIsoUrl || defaultInstallerIsoUrl(), {
       node: ctx?.node || "",
       vmid: ctx?.vmid || "",
       host: window.location.hostname
@@ -124,6 +138,32 @@
     if (!base) return normalizedPath;
     if (!normalizedPath.startsWith("/")) normalizedPath = `/${normalizedPath}`;
     return `${String(base).replace(/\/$/, "")}${normalizedPath}`;
+  }
+
+  async function apiGetBeagleJson(path) {
+    const url = await resolveBeagleApiUrl(path);
+    const response = await fetch(url, { credentials: "same-origin" });
+    if (!response.ok) {
+      throw new Error(`Beagle API request failed: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  function unwrapInstallerPrep(payload) {
+    return payload?.installer_prep || payload;
+  }
+
+  async function apiGetInstallerPrep(vmid) {
+    return unwrapInstallerPrep(await apiGetBeagleJson(`/api/v1/vms/${encodeURIComponent(vmid)}/installer-prep`));
+  }
+
+  async function apiStartInstallerPrep(vmid) {
+    const url = await resolveBeagleApiUrl(`/api/v1/vms/${encodeURIComponent(vmid)}/installer-prep`);
+    const response = await fetch(url, { method: "POST", credentials: "same-origin" });
+    if (!response.ok) {
+      throw new Error(`Beagle API request failed: ${response.status} ${response.statusText}`);
+    }
+    return unwrapInstallerPrep(await response.json());
   }
 
   function ensureStyles() {
@@ -286,18 +326,42 @@
     return "pending";
   }
 
+  function installerTargetState(profile, state) {
+    if (profile?.installerTargetEligible === false) {
+      return {
+        label: "Ziel ungeeignet",
+        message: profile.installerTargetMessage || "Diese VM wird nicht als Streaming-Ziel angeboten.",
+        unsupported: true
+      };
+    }
+    if (String(state?.status || "").toLowerCase() === "ready") {
+      return {
+        label: "USB Installer bereit",
+        message: state?.message || "Das VM-spezifische USB-Installer-Skript kann direkt geladen werden.",
+        unsupported: false
+      };
+    }
+    return {
+      label: "Sunshine wird vorbereitet",
+      message: state?.message || "Die VM wird fuer Sunshine und den Internet-Stream vorbereitet.",
+      unsupported: false
+    };
+  }
+
   async function resolveVmProfile(ctx) {
-    const [config, resources, guestInterfaces, installerUrl, controlPlaneHealthUrl, endpointPayload] = await Promise.all([
+    const [config, resources, guestInterfaces, installerUrl, installerIsoUrl, controlPlaneHealthUrl, endpointPayload, installerPrep] = await Promise.all([
       apiGetJson(`/api2/json/nodes/${encodeURIComponent(ctx.node)}/qemu/${encodeURIComponent(ctx.vmid)}/config`),
       apiGetJson("/api2/json/cluster/resources?type=vm").catch(() => []),
       apiGetJson(`/api2/json/nodes/${encodeURIComponent(ctx.node)}/qemu/${encodeURIComponent(ctx.vmid)}/agent/network-get-interfaces`).catch(() => []),
       resolveUsbInstallerUrl(ctx),
+      resolveInstallerIsoUrl(ctx),
       resolveControlPlaneHealthUrl(),
       resolveBeagleApiUrl(`/api/v1/public/vms/${encodeURIComponent(ctx.vmid)}/state`).then((url) =>
         fetch(url, { credentials: "same-origin" })
       )
         .then((response) => (response.ok ? response.json() : null))
-        .catch(() => null)
+        .catch(() => null),
+      apiGetInstallerPrep(ctx.vmid).catch(() => null)
     ]);
 
     const resource = (Array.isArray(resources) ? resources : []).find(
@@ -330,12 +394,16 @@
       audio: controlPlaneProfile?.moonlight_audio_config || meta["moonlight-audio-config"] || "stereo",
       proxmoxHost: meta["proxmox-host"] || window.location.hostname,
       installerUrl,
+      installerIsoUrl: controlPlaneProfile?.installer_iso_url || installerIsoUrl,
       controlPlaneHealthUrl,
       managerUrl: managerUrlFromHealthUrl(controlPlaneHealthUrl),
       endpointSummary: endpointPayload?.endpoint || null,
       compliance: endpointPayload?.compliance || null,
       lastAction: endpointPayload?.last_action || null,
       pendingActionCount: endpointPayload?.pending_action_count || 0,
+      installerPrep,
+      installerTargetEligible: typeof controlPlaneProfile?.installer_target_eligible === "boolean" ? controlPlaneProfile.installer_target_eligible : Boolean(streamHost),
+      installerTargetMessage: controlPlaneProfile?.installer_target_message || "",
       assignedTarget: controlPlaneProfile?.assigned_target || null,
       assignmentSource: controlPlaneProfile?.assignment_source || "",
       appliedPolicy: controlPlaneProfile?.applied_policy || null,
@@ -374,6 +442,7 @@
         moonlight_audio_config: profile.audio,
         manager_url: profile.managerUrl,
         installer_url: profile.installerUrl,
+        installer_iso_url: profile.installerIsoUrl,
         control_plane_health_url: profile.controlPlaneHealthUrl,
         assigned_target: profile.assignedTarget,
         assignment_source: profile.assignmentSource,
@@ -400,8 +469,10 @@
         </div>
         <div class="beagle-body">
           <div class="beagle-banner ${profile.streamHost ? "info" : "warn"}">${escapeHtml(profile.streamHost ? `Streaming-Ziel erkannt: ${profile.streamHost}` : "Streaming-Ziel fehlt in den VM-Metadaten.")}</div>
+          <div class="beagle-banner ${profile.installerTargetEligible === false ? "warn" : "info"}"><strong>${escapeHtml(installerTargetState(profile, profile.installerPrep).label)}</strong>: ${escapeHtml(installerTargetState(profile, profile.installerPrep).message)}</div>
           <div class="beagle-actions">
-            <button type="button" class="beagle-btn primary" data-beagle-action="download">USB Installer</button>
+            <button type="button" class="beagle-btn primary" data-beagle-action="download"${profile.installerTargetEligible === false ? " disabled" : ""}>USB Installer Skript</button>
+            <button type="button" class="beagle-btn secondary" data-beagle-action="download-iso"${profile.installerTargetEligible === false ? " disabled" : ""}>ISO Download</button>
             <button type="button" class="beagle-btn secondary" data-beagle-action="copy-json">Profil JSON kopieren</button>
             <button type="button" class="beagle-btn secondary" data-beagle-action="copy-env">Endpoint Env kopieren</button>
             <button type="button" class="beagle-btn secondary" data-beagle-action="open-sunshine">Sunshine Web UI</button>
@@ -424,7 +495,8 @@
               ${kvRow("Assigned Target", escapeHtml(profile.assignedTarget ? `${profile.assignedTarget.name} (#${profile.assignedTarget.vmid})` : ""))}
               ${kvRow("Assignment Source", escapeHtml(profile.assignmentSource || ""))}
               ${kvRow("Applied Policy", escapeHtml(profile.appliedPolicy?.name || ""))}
-              ${kvRow("Installer", escapeHtml(profile.installerUrl))}
+              ${kvRow("USB Script", escapeHtml(profile.installerUrl))}
+              ${kvRow("Installer ISO", escapeHtml(profile.installerIsoUrl))}
               ${kvRow("Health", escapeHtml(profile.controlPlaneHealthUrl))}
             </div></section>
             <section class="beagle-card"><h3>Endpoint Defaults</h3><div class="beagle-kv">
@@ -458,6 +530,13 @@
               ${kvRow("Stored Artifact", escapeHtml(profile.lastAction?.stored_artifact_path || ""))}
               ${kvRow("Artifact Size", escapeHtml(String(profile.lastAction?.stored_artifact_size || 0)))}
             </div></section>
+            <section class="beagle-card"><h3>Installer Readiness</h3><div class="beagle-kv">
+              ${kvRow("Zielstatus", escapeHtml(installerTargetState(profile, profile.installerPrep).label))}
+              ${kvRow("Prepare", escapeHtml(profile.installerPrep?.status || "idle"))}
+              ${kvRow("Phase", escapeHtml(profile.installerPrep?.phase || "inspect"))}
+              ${kvRow("Progress", escapeHtml(`${String(profile.installerPrep?.progress || 0)}%`))}
+              ${kvRow("Message", escapeHtml(profile.installerPrep?.message || profile.installerTargetMessage || ""))}
+            </div></section>
           </div>
           <section class="beagle-card"><h3>Operator Notes</h3><ul class="beagle-notes">${notesHtml}</ul></section>
           <section class="beagle-card"><h3>Beagle Endpoint Env</h3><textarea class="beagle-code" readonly>${escapeHtml(profile.endpointEnv)}</textarea></section>
@@ -474,7 +553,28 @@
       if (!(event.target instanceof HTMLElement)) return;
       switch (event.target.getAttribute("data-beagle-action")) {
         case "download":
-          window.open(withNoCache(profile.installerUrl), "_blank", "noopener,noreferrer");
+          if (profile.installerTargetEligible === false) break;
+          try {
+            let state = await apiStartInstallerPrep(profile.vmid);
+            for (let attempt = 0; attempt < 180; attempt += 1) {
+              if (String(state?.status || "").toLowerCase() === "ready") {
+                window.open(withNoCache(profile.installerUrl), "_blank", "noopener,noreferrer");
+                return;
+              }
+              if (String(state?.status || "").toLowerCase() === "error") {
+                throw new Error(state?.message || "Installer-Vorbereitung fehlgeschlagen.");
+              }
+              await sleep(2000);
+              state = await apiGetInstallerPrep(profile.vmid);
+            }
+            throw new Error("Installer-Vorbereitung hat das Zeitlimit ueberschritten.");
+          } catch (error) {
+            window.alert(`USB Installer konnte nicht vorbereitet werden: ${error?.message || error}`);
+          }
+          break;
+        case "download-iso":
+          if (profile.installerTargetEligible === false) break;
+          window.open(withNoCache(profile.installerIsoUrl), "_blank", "noopener,noreferrer");
           break;
         case "copy-json":
           await copyText(profileJson, "Beagle Profil als JSON kopiert.");

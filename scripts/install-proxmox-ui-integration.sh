@@ -14,6 +14,8 @@ LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-8443}"
 DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/beagle-downloads}"
 DEFAULT_USB_INSTALLER_URL="https://{host}:${LISTEN_PORT}/beagle-api/api/v1/public/vms/{vmid}/installer.sh"
 USB_INSTALLER_URL="${PVE_DCV_USB_INSTALLER_URL:-$DEFAULT_USB_INSTALLER_URL}"
+DEFAULT_INSTALLER_ISO_URL="https://{host}:${LISTEN_PORT}${DOWNLOADS_PATH}/beagle-os-installer-amd64.iso"
+INSTALLER_ISO_URL="${PVE_DCV_INSTALLER_ISO_URL:-$DEFAULT_INSTALLER_ISO_URL}"
 DEFAULT_CONTROL_PLANE_HEALTH_URL="https://{host}:${LISTEN_PORT}/beagle-api/api/v1/health"
 CONTROL_PLANE_HEALTH_URL="${BEAGLE_CONTROL_PLANE_HEALTH_URL:-$DEFAULT_CONTROL_PLANE_HEALTH_URL}"
 BEAGLE_API_TOKEN="${BEAGLE_MANAGER_API_TOKEN:-}"
@@ -50,6 +52,7 @@ install -D -m 0644 "$ROOT_DIR/proxmox-ui/beagle-ui.js" "$JS_TARGET"
 cat > "$CONFIG_TARGET" <<EOF
 window.BeagleIntegrationConfig = Object.assign({}, window.BeagleIntegrationConfig || {}, {
   usbInstallerUrl: ${USB_INSTALLER_URL@Q},
+  installerIsoUrl: ${INSTALLER_ISO_URL@Q},
   controlPlaneHealthUrl: ${CONTROL_PLANE_HEALTH_URL@Q},
   apiToken: ${BEAGLE_API_TOKEN@Q}
 });

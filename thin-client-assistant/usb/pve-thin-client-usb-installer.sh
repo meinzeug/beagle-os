@@ -17,6 +17,7 @@ ALLOW_SYSTEM_DISK="0"
 RELEASE_PAYLOAD_URL="${RELEASE_PAYLOAD_URL:-}"
 INSTALL_PAYLOAD_URL="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-}}"
 RELEASE_BOOTSTRAP_URL="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-}}"
+RELEASE_ISO_URL="${RELEASE_ISO_URL:-}"
 BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-0}"
 BOOTSTRAP_CACHE_DIR="${PVE_DCV_BOOTSTRAP_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/pve-dcv-usb}"
 BOOTSTRAP_DIR=""
@@ -78,6 +79,7 @@ rerun_as_root() {
     RELEASE_PAYLOAD_URL="$RELEASE_PAYLOAD_URL" \
     INSTALL_PAYLOAD_URL="$INSTALL_PAYLOAD_URL" \
     RELEASE_BOOTSTRAP_URL="$RELEASE_BOOTSTRAP_URL" \
+    RELEASE_ISO_URL="$RELEASE_ISO_URL" \
     PVE_DCV_BOOTSTRAP_CACHE_DIR="$BOOTSTRAP_CACHE_DIR" \
     PVE_DCV_BOOTSTRAP_BASE="${PVE_DCV_BOOTSTRAP_BASE:-}" \
     MIN_DEVICE_BYTES="$MIN_DEVICE_BYTES" \
@@ -435,6 +437,104 @@ payload_has_live_assets() {
   [[ -f "$ASSET_DIR/filesystem.squashfs" && -f "$ASSET_DIR/vmlinuz" && -f "$ASSET_DIR/initrd.img" && -f "$ASSET_DIR/SHA256SUMS" ]]
 }
 
+download_installer_iso() {
+  local iso_url iso_name iso_path cache_dir cached_iso checksum_file checksum_url download_target
+  local checksum_entry_found used_cached checksum_ok
+  local -a checksum_curl_args download_curl_args
+
+  iso_url="${RELEASE_ISO_URL:-}"
+  [[ -n "$iso_url" ]] || return 1
+
+  require_tool curl
+  require_tool xorriso
+
+  [[ -n "$BOOTSTRAP_DIR" && -d "$BOOTSTRAP_DIR" ]] || BOOTSTRAP_DIR="$(allocate_bootstrap_dir)"
+
+  iso_name="$(basename "${iso_url%%\?*}")"
+  [[ -n "$iso_name" ]] || iso_name="beagle-os-installer-amd64.iso"
+  iso_path="$BOOTSTRAP_DIR/$iso_name"
+  cache_dir="$BOOTSTRAP_CACHE_DIR/iso"
+  cached_iso=""
+  used_cached="0"
+  checksum_entry_found="0"
+  checksum_ok="0"
+
+  checksum_curl_args=(--fail --silent --location --retry 2 --retry-delay 1)
+  download_curl_args=(--fail --show-error --location --retry 3 --retry-delay 2)
+  if [[ "$BOOTSTRAP_DISABLE_CACHE" == "1" ]]; then
+    cache_dir=""
+    checksum_curl_args+=(-H 'Cache-Control: no-cache' -H 'Pragma: no-cache')
+    download_curl_args+=(-H 'Cache-Control: no-cache' -H 'Pragma: no-cache')
+  else
+    download_curl_args+=(--continue-at -)
+  fi
+
+  if [[ -n "$cache_dir" ]] && mkdir -p "$cache_dir" 2>/dev/null; then
+    cached_iso="$cache_dir/$iso_name"
+  fi
+
+  checksum_file="$BOOTSTRAP_DIR/${iso_name}.sha256sums"
+  checksum_url="${iso_url%/*}/SHA256SUMS"
+  if [[ -n "$cached_iso" && -f "$cached_iso" ]]; then
+    cp -f "$cached_iso" "$iso_path"
+    used_cached="1"
+  fi
+
+  if curl "${checksum_curl_args[@]}" "$checksum_url" -o "$checksum_file" 2>/dev/null; then
+    if grep -F " ${iso_name}" "$checksum_file" >"$BOOTSTRAP_DIR/${iso_name}.sha256"; then
+      checksum_entry_found="1"
+      if [[ "$used_cached" == "1" ]]; then
+        if (
+          cd "$BOOTSTRAP_DIR"
+          sha256sum -c "${iso_name}.sha256" >/dev/null
+        ); then
+          checksum_ok="1"
+        else
+          checksum_ok="0"
+        fi
+      fi
+    fi
+  fi
+
+  if [[ "$used_cached" == "1" && "$checksum_entry_found" == "1" && "$checksum_ok" != "1" ]]; then
+    used_cached="0"
+  fi
+
+  if [[ "$used_cached" != "1" ]]; then
+    download_target="$iso_path"
+    if [[ -n "$cached_iso" ]]; then
+      download_target="$cached_iso"
+    fi
+    echo "Downloading Beagle installer ISO from $iso_url ..."
+    curl "${download_curl_args[@]}" "$iso_url" -o "$download_target"
+    if [[ "$download_target" != "$iso_path" ]]; then
+      cp -f "$download_target" "$iso_path"
+    fi
+    if [[ "$checksum_entry_found" == "1" ]]; then
+      (
+        cd "$BOOTSTRAP_DIR"
+        sha256sum -c "${iso_name}.sha256" >/dev/null
+      )
+    fi
+  fi
+
+  printf '%s\n' "$iso_path"
+}
+
+populate_live_assets_from_iso() {
+  local iso_path
+
+  [[ -n "${RELEASE_ISO_URL:-}" ]] || return 1
+
+  iso_path="$(download_installer_iso)"
+  install -d -m 0755 "$ASSET_DIR"
+  rm -f "$ASSET_DIR"/vmlinuz "$ASSET_DIR"/initrd.img "$ASSET_DIR"/filesystem.squashfs "$ASSET_DIR"/SHA256SUMS
+  xorriso -osirrox on -indev "$iso_path" -extract /live/vmlinuz "$ASSET_DIR/vmlinuz" >/dev/null 2>&1
+  xorriso -osirrox on -indev "$iso_path" -extract /live/initrd.img "$ASSET_DIR/initrd.img" >/dev/null 2>&1
+  xorriso -osirrox on -indev "$iso_path" -extract /live/filesystem.squashfs "$ASSET_DIR/filesystem.squashfs" >/dev/null 2>&1
+  xorriso -osirrox on -indev "$iso_path" -extract /live/SHA256SUMS "$ASSET_DIR/SHA256SUMS" >/dev/null 2>&1
+}
+
 choose_device() {
   local options=()
   local zenity_rows=()
@@ -670,6 +770,11 @@ release_target_device() {
 }
 
 ensure_live_assets() {
+  if [[ -n "${RELEASE_ISO_URL:-}" ]]; then
+    populate_live_assets_from_iso
+    return 0
+  fi
+
   if payload_has_live_assets; then
     return 0
   fi
@@ -699,7 +804,7 @@ install_dependencies() {
   local missing=()
   local tool
 
-  for tool in wipefs parted mkfs.vfat grub-install rsync partprobe udevadm; do
+  for tool in wipefs parted mkfs.vfat grub-install rsync partprobe udevadm xorriso; do
     if ! command -v "$tool" >/dev/null 2>&1; then
       missing+=("$tool")
     fi
@@ -717,6 +822,7 @@ install_dependencies() {
     grub-pc-bin \
     grub-efi-amd64-bin \
     efibootmgr \
+    xorriso \
     rsync
 }
 
@@ -724,7 +830,7 @@ write_usb_manifest() {
   local mount_dir="$1"
   local payload_source installer_sha payload_sha
 
-  payload_source="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}"
+  payload_source="${RELEASE_ISO_URL:-${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}}"
   installer_sha="$(sha256sum "$mount_dir/start-installer-menu.sh" | awk '{print $1}')"
   payload_sha="$(sha256sum "$mount_dir/pve-thin-client/live/filesystem.squashfs" | awk '{print $1}')"
 
@@ -835,7 +941,7 @@ print_write_plan() {
   local bootstrap_source install_payload_source
 
   bootstrap_source="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}"
-  install_payload_source="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}"
+  install_payload_source="${RELEASE_ISO_URL:-${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}}"
   cat <<EOF
 Dry run only. No changes were written.
 Target device: $TARGET_DEVICE
@@ -848,7 +954,7 @@ Planned partitions:
   1. BIOS boot partition (1 MiB - 3 MiB)
   2. FAT32 EFI/data partition (3 MiB - 100%)
 Copied assets:
-  - live kernel, initrd and squashfs
+  - live kernel, initrd and squashfs from ${install_payload_source}
   - thin-client assistant sources
   - embedded VM preset profile
   - docs, README, LICENSE, CHANGELOG

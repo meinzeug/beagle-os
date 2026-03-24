@@ -67,6 +67,15 @@ Der operative Ablauf ist bewusst einfach:
 4. Einen Beagle-OS-Installer oder ein Beagle-OS-Image ausrollen.
 5. Den Client booten und direkt gegen die zugeordnete VM streamen.
 
+Der bevorzugte Operator-Pfad pro VM ist jetzt konkret:
+
+1. In Proxmox die Ziel-VM auswaehlen.
+2. Das VM-spezifische `USB Installer Skript` herunterladen.
+3. Das Skript laedt die aktuelle Beagle-Installer-ISO vom Proxmox-Host.
+4. Das Skript schreibt daraus einen bootfaehigen USB-Stick.
+5. Das VM-Profil wird direkt in den Stick eingebettet.
+6. Nach der Installation bootet Beagle OS mit Moonlight-Autostart gegen genau diese VM.
+
 Damit wird Proxmox nicht nur Compute-Plattform, sondern zugleich:
 
 - Inventar fuer Streaming-VMs
@@ -84,6 +93,7 @@ Die Host-Seite liefert die Management-Funktionen:
 - Beagle-Profil-Dialoge mit Export-, Download- und Health-Aktionen pro VM
 - VM-spezifische Artefakt-Erzeugung
 - Download-Endpunkte fuer Installer und Images
+- VM-spezifische USB-Skripte, die die Installer-ISO laden und mit eingebettetem Zielprofil auf USB schreiben
 - lokale Control-Plane-API fuer Health und Inventar
 - Reapply-/Refresh-Mechanismen nach Host-Aenderungen
 
@@ -111,7 +121,8 @@ Die Bereitstellung ist VM-zentriert statt benutzerzentriert.
 Eine konkrete VM in Proxmox ist das Streaming-Ziel.
 Daraus entstehen:
 
-- ein VM-spezifischer USB-Installer
+- ein VM-spezifisches USB-Installer-Skript
+- eine zentrale Beagle-Installer-ISO
 - ein gebuendeltes Preset mit Host, App und Pairing-Daten
 - ein reproduzierbarer Endpunkt, der nach Installation direkt die richtige VM startet
 

@@ -34,6 +34,7 @@ STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECON
 DOWNLOADS_STATUS_FILE = ROOT_DIR / "dist" / "beagle-downloads-status.json"
 VM_INSTALLERS_FILE = ROOT_DIR / "dist" / "beagle-vm-installers.json"
 HOSTED_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-usb-installer-host-latest.sh"
+HOSTED_INSTALLER_ISO_FILE = ROOT_DIR / "dist" / "beagle-os-installer-amd64.iso"
 INSTALLER_PREP_SCRIPT_FILE = ROOT_DIR / "scripts" / "ensure-vm-stream-ready.sh"
 CREDENTIALS_ENV_FILE = Path(os.environ.get("PVE_DCV_CREDENTIALS_ENV_FILE", "/etc/beagle/credentials.env"))
 PUBLIC_SERVER_NAME = os.environ.get("PVE_DCV_PROXY_SERVER_NAME", "").strip() or os.uname().nodename
@@ -44,6 +45,10 @@ PUBLIC_STREAM_BASE_PORT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_BASE_PORT", "
 PUBLIC_STREAM_PORT_STEP = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_STEP", "32"))
 PUBLIC_STREAM_PORT_COUNT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_COUNT", "256"))
 PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
+
+
+def public_installer_iso_url() -> str:
+    return f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}{PUBLIC_DOWNLOADS_PATH}/beagle-os-installer-amd64.iso"
 
 
 @dataclass
@@ -263,12 +268,14 @@ def shell_double_quoted(value: str) -> str:
     )
 
 
-def patch_installer_defaults(script_text: str, preset_name: str, preset_b64: str) -> str:
+def patch_installer_defaults(script_text: str, preset_name: str, preset_b64: str, installer_iso_url: str) -> str:
     replacements = {
         r'^PVE_THIN_CLIENT_PRESET_NAME="\$\{PVE_THIN_CLIENT_PRESET_NAME:-[^"]*}"$':
             f'PVE_THIN_CLIENT_PRESET_NAME="${{PVE_THIN_CLIENT_PRESET_NAME:-{shell_double_quoted(preset_name)}}}"',
         r'^PVE_THIN_CLIENT_PRESET_B64="\$\{PVE_THIN_CLIENT_PRESET_B64:-[^"]*}"$':
             f'PVE_THIN_CLIENT_PRESET_B64="${{PVE_THIN_CLIENT_PRESET_B64:-{shell_double_quoted(preset_b64)}}}"',
+        r'^RELEASE_ISO_URL="\$\{RELEASE_ISO_URL:-[^"]*}"$':
+            f'RELEASE_ISO_URL="${{RELEASE_ISO_URL:-{shell_double_quoted(installer_iso_url)}}}"',
         r'^BOOTSTRAP_DISABLE_CACHE="\$\{PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-[^"]*}"$':
             'BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-1}"',
     }
@@ -340,12 +347,18 @@ def quick_sunshine_status(vmid: int) -> dict[str, Any]:
 def default_installer_prep_state(vm: VmSummary, sunshine_status: dict[str, Any] | None = None) -> dict[str, Any]:
     profile = build_profile(vm)
     quick = sunshine_status if isinstance(sunshine_status, dict) else quick_sunshine_status(vm.vmid)
-    ready = bool(quick.get("binary")) and bool(quick.get("service")) and bool(profile.get("stream_host")) and bool(profile.get("moonlight_port"))
-    if ready:
+    eligible = bool(profile.get("installer_target_eligible"))
+    ready = eligible and bool(quick.get("binary")) and bool(quick.get("service")) and bool(profile.get("stream_host")) and bool(profile.get("moonlight_port"))
+    if not eligible:
+        status = "unsupported"
+        phase = "target"
+        progress = 100
+        message = str(profile.get("installer_target_message") or "Diese VM ist kein geeignetes Sunshine-Streaming-Ziel.")
+    elif ready:
         status = "ready"
         phase = "complete"
         progress = 100
-        message = "Sunshine ist bereits aktiv. Der Beagle-USB-Installer ist sofort verfuegbar."
+        message = "Sunshine ist aktiv. Das VM-spezifische USB-Installer-Skript ist sofort verfuegbar."
     else:
         status = "idle"
         phase = "inspect"
@@ -360,9 +373,12 @@ def default_installer_prep_state(vm: VmSummary, sunshine_status: dict[str, Any] 
         "message": message,
         "updated_at": utcnow(),
         "installer_url": f"/beagle-api/api/v1/public/vms/{vm.vmid}/installer.sh",
+        "installer_iso_url": str(profile.get("installer_iso_url") or public_installer_iso_url()),
         "stream_host": str(profile.get("stream_host", "") or ""),
         "moonlight_port": str(profile.get("moonlight_port", "") or ""),
         "sunshine_api_url": str(profile.get("sunshine_api_url", "") or ""),
+        "installer_target_eligible": eligible,
+        "installer_target_status": "ready" if ready else ("preparing" if eligible else "unsupported"),
         "sunshine_status": {
             "binary": bool(quick.get("binary")),
             "service": bool(quick.get("service")),
@@ -387,9 +403,12 @@ def summarize_installer_prep_state(vm: VmSummary, state: dict[str, Any] | None =
     payload.setdefault("vmid", vm.vmid)
     payload.setdefault("node", vm.node)
     payload["installer_url"] = str(payload.get("installer_url") or f"/beagle-api/api/v1/public/vms/{vm.vmid}/installer.sh")
+    payload["installer_iso_url"] = str(payload.get("installer_iso_url") or profile.get("installer_iso_url") or public_installer_iso_url())
     payload["stream_host"] = str(payload.get("stream_host") or profile.get("stream_host") or "")
     payload["moonlight_port"] = str(payload.get("moonlight_port") or profile.get("moonlight_port") or "")
     payload["sunshine_api_url"] = str(payload.get("sunshine_api_url") or profile.get("sunshine_api_url") or "")
+    payload["installer_target_eligible"] = bool(payload.get("installer_target_eligible", profile.get("installer_target_eligible")))
+    payload["installer_target_status"] = str(payload.get("installer_target_status") or ("ready" if payload["ready"] else ("preparing" if payload["installer_target_eligible"] else "unsupported")))
     return payload
 
 
@@ -406,6 +425,9 @@ def start_installer_prep(vm: VmSummary) -> dict[str, Any]:
     state_path = installer_prep_path(vm.node, vm.vmid)
     log_path = installer_prep_log_path(vm.node, vm.vmid)
     state = load_installer_prep_state(vm.node, vm.vmid)
+    default_state = default_installer_prep_state(vm)
+    if not bool(default_state.get("installer_target_eligible")):
+        return summarize_installer_prep_state(vm, default_state)
     if installer_prep_running(state):
         return summarize_installer_prep_state(vm, state)
     if not INSTALLER_PREP_SCRIPT_FILE.is_file():
@@ -828,6 +850,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         moonlight_port = str(public_stream["moonlight_port"])
         sunshine_api_url = public_stream["sunshine_api_url"]
     installer_url = f"/beagle-api/api/v1/public/vms/{vm.vmid}/installer.sh"
+    installer_iso_url = public_installer_iso_url()
     has_sunshine_password = bool(meta.get("sunshine-password"))
     expected_profile_name = policy_profile.get("expected_profile_name") or meta.get("beagle-profile-name", "")
     moonlight_app = policy_profile.get("moonlight_app") or meta.get("moonlight-app", meta.get("sunshine-app", "Desktop"))
@@ -857,6 +880,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         "beagle_role": policy_profile.get("beagle_role") or meta.get("beagle-role", "desktop" if stream_host else ""),
         "expected_profile_name": expected_profile_name,
         "installer_url": installer_url,
+        "installer_iso_url": installer_iso_url,
         "public_stream": public_stream,
         "metadata_keys": sorted(meta.keys()),
         "applied_policy": {
@@ -912,6 +936,16 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
                         "moonlight_port": profile["moonlight_port"],
                         "sunshine_api_url": profile["sunshine_api_url"],
                     }
+    role_text = str(profile.get("beagle_role", "")).strip().lower()
+    installer_target_eligible = bool(profile.get("stream_host")) and role_text not in {"endpoint", "thinclient", "client"}
+    if installer_target_eligible:
+        installer_target_message = "Diese VM kann als Sunshine-Ziel vorbereitet und als Beagle-Profil installiert werden."
+    elif role_text in {"endpoint", "thinclient", "client"}:
+        installer_target_message = "Diese VM ist als Beagle-Endpunkt klassifiziert und wird nicht als Streaming-Ziel angeboten."
+    else:
+        installer_target_message = "Diese VM hat aktuell kein verwertbares Sunshine-/Moonlight-Streaming-Ziel."
+    profile["installer_target_eligible"] = installer_target_eligible
+    profile["installer_target_message"] = installer_target_message
     return profile
 
 
@@ -1120,6 +1154,9 @@ def build_vm_inventory() -> dict[str, Any]:
                 "expected_profile_name": profile["expected_profile_name"],
                 "default_mode": "MOONLIGHT" if profile["stream_host"] else "",
                 "installer_url": profile["installer_url"],
+                "installer_iso_url": profile.get("installer_iso_url", public_installer_iso_url()),
+                "installer_target_eligible": profile.get("installer_target_eligible", False),
+                "installer_target_message": profile.get("installer_target_message", ""),
                 "available_modes": installer.get("available_modes") or (["MOONLIGHT"] if profile["stream_host"] else []),
                 "assigned_target": profile.get("assigned_target"),
                 "assignment_source": profile.get("assignment_source", ""),
@@ -1220,6 +1257,8 @@ def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[
 def render_vm_installer_script(vm: VmSummary) -> tuple[bytes, str]:
     if not HOSTED_INSTALLER_TEMPLATE_FILE.is_file():
         raise FileNotFoundError(f"missing installer template: {HOSTED_INSTALLER_TEMPLATE_FILE}")
+    if not HOSTED_INSTALLER_ISO_FILE.is_file():
+        raise FileNotFoundError(f"missing installer ISO: {HOSTED_INSTALLER_ISO_FILE}")
     config = get_vm_config(vm.node, vm.vmid)
     profile = build_profile(vm)
     preset = build_installer_preset(vm, profile, config)
@@ -1229,6 +1268,7 @@ def render_vm_installer_script(vm: VmSummary) -> tuple[bytes, str]:
         HOSTED_INSTALLER_TEMPLATE_FILE.read_text(encoding="utf-8"),
         preset_name,
         preset_b64,
+        str(profile.get("installer_iso_url") or public_installer_iso_url()),
     )
     filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.sh"
     return rendered.encode("utf-8"), filename
