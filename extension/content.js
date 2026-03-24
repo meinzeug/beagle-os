@@ -348,6 +348,53 @@
     };
   }
 
+  function triggerDownload(url) {
+    if (!url) {
+      window.alert("Beagle OS: Download-URL konnte nicht ermittelt werden.");
+      return;
+    }
+    const anchor = document.createElement("a");
+    anchor.href = withNoCache(url);
+    anchor.rel = "noopener noreferrer";
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+
+  const installerEligibilityCache = new Map();
+
+  function getInstallerEligibilityKey(ctx) {
+    return `${String(ctx?.node || "")}:${String(ctx?.vmid || "")}`;
+  }
+
+  async function getVmInstallerEligibility(ctx) {
+    const key = getInstallerEligibilityKey(ctx);
+    if (installerEligibilityCache.has(key)) {
+      return installerEligibilityCache.get(key);
+    }
+    const pending = resolveBeagleApiUrl(`/api/v1/public/vms/${encodeURIComponent(ctx.vmid)}/state`)
+      .then((url) => fetch(url, { credentials: "same-origin" }))
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Installer-Status nicht verfuegbar");
+        }
+        return response.json();
+      })
+      .then((payload) => {
+        const profile = payload?.profile || {};
+        const roleText = String(profile.beagle_role || "").trim().toLowerCase();
+        const fallbackEligible = Boolean(profile.stream_host) && !["endpoint", "thinclient", "client"].includes(roleText);
+        return {
+          eligible: typeof profile.installer_target_eligible === "boolean" ? profile.installer_target_eligible : fallbackEligible,
+          message: profile.installer_target_message || (fallbackEligible ? "" : "Diese VM wird nicht als Streaming-Ziel angeboten.")
+        };
+      })
+      .catch(() => ({ eligible: false, message: "" }));
+    installerEligibilityCache.set(key, pending);
+    return pending;
+  }
+
   async function resolveVmProfile(ctx) {
     const [config, resources, guestInterfaces, installerUrl, installerIsoUrl, controlPlaneHealthUrl, endpointPayload, installerPrep] = await Promise.all([
       apiGetJson(`/api2/json/nodes/${encodeURIComponent(ctx.node)}/qemu/${encodeURIComponent(ctx.vmid)}/config`),
@@ -471,8 +518,8 @@
           <div class="beagle-banner ${profile.streamHost ? "info" : "warn"}">${escapeHtml(profile.streamHost ? `Streaming-Ziel erkannt: ${profile.streamHost}` : "Streaming-Ziel fehlt in den VM-Metadaten.")}</div>
           <div class="beagle-banner ${profile.installerTargetEligible === false ? "warn" : "info"}"><strong>${escapeHtml(installerTargetState(profile, profile.installerPrep).label)}</strong>: ${escapeHtml(installerTargetState(profile, profile.installerPrep).message)}</div>
           <div class="beagle-actions">
-            <button type="button" class="beagle-btn primary" data-beagle-action="download"${profile.installerTargetEligible === false ? " disabled" : ""}>USB Installer Skript</button>
-            <button type="button" class="beagle-btn secondary" data-beagle-action="download-iso"${profile.installerTargetEligible === false ? " disabled" : ""}>ISO Download</button>
+            ${profile.installerTargetEligible === false ? "" : '<button type="button" class="beagle-btn primary" data-beagle-action="download">USB Installer Skript</button>'}
+            <button type="button" class="beagle-btn secondary" data-beagle-action="download-iso">ISO Download</button>
             <button type="button" class="beagle-btn secondary" data-beagle-action="copy-json">Profil JSON kopieren</button>
             <button type="button" class="beagle-btn secondary" data-beagle-action="copy-env">Endpoint Env kopieren</button>
             <button type="button" class="beagle-btn secondary" data-beagle-action="open-sunshine">Sunshine Web UI</button>
@@ -558,7 +605,7 @@
             let state = await apiStartInstallerPrep(profile.vmid);
             for (let attempt = 0; attempt < 180; attempt += 1) {
               if (String(state?.status || "").toLowerCase() === "ready") {
-                window.open(withNoCache(profile.installerUrl), "_blank", "noopener,noreferrer");
+                triggerDownload(profile.installerUrl);
                 return;
               }
               if (String(state?.status || "").toLowerCase() === "error") {
@@ -573,8 +620,7 @@
           }
           break;
         case "download-iso":
-          if (profile.installerTargetEligible === false) break;
-          window.open(withNoCache(profile.installerIsoUrl), "_blank", "noopener,noreferrer");
+          triggerDownload(profile.installerIsoUrl);
           break;
         case "copy-json":
           await copyText(profileJson, "Beagle Profil als JSON kopiert.");
@@ -634,8 +680,12 @@
       window.alert("Beagle OS: Keine VM-Ansicht erkannt.");
       return;
     }
-    const url = await resolveUsbInstallerUrl(ctx);
-    window.open(withNoCache(url), "_blank", "noopener,noreferrer");
+    const profile = await resolveVmProfile(ctx);
+    if (profile.installerTargetEligible === false) {
+      window.alert(profile.installerTargetMessage || "Diese VM ist kein geeignetes Streaming-Ziel.");
+      return;
+    }
+    triggerDownload(profile.installerUrl);
   }
 
   function createToolbarButton(label, onClick) {
@@ -736,9 +786,23 @@
     if (!menuAlreadyHasLabel(menu, `${PRODUCT_LABEL} Profil`)) {
       menu.appendChild(createMenuItem(`${PRODUCT_LABEL} Profil`, showProfileModal));
     }
-    if (!menuAlreadyHasLabel(menu, `${PRODUCT_LABEL} Installer`)) {
-      menu.appendChild(createMenuItem(`${PRODUCT_LABEL} Installer`, downloadUsbInstaller));
-    }
+    parseVmContext().then((ctx) => {
+      if (!ctx) return;
+      return getVmInstallerEligibility(ctx).then((result) => {
+        const existingInstaller = Array.from(menu.querySelectorAll(`[${BUTTON_MARKER}]`)).find(
+          (node) => String(node.textContent || "").trim() === `${PRODUCT_LABEL} Installer`
+        );
+        if (result?.eligible) {
+          if (!existingInstaller) {
+            menu.appendChild(createMenuItem(`${PRODUCT_LABEL} Installer`, downloadUsbInstaller));
+          }
+          return;
+        }
+        if (existingInstaller) {
+          existingInstaller.remove();
+        }
+      });
+    }).catch(() => {});
   }
 
   async function boot() {

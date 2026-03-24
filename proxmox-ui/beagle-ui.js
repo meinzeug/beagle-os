@@ -125,6 +125,52 @@
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  function triggerDownload(url) {
+    if (!url) {
+      showError("Download-URL konnte nicht ermittelt werden.");
+      return;
+    }
+    var anchor = document.createElement("a");
+    anchor.href = withNoCache(url);
+    anchor.rel = "noopener noreferrer";
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+
+  var installerEligibilityCache = {};
+
+  function getInstallerEligibilityKey(ctx) {
+    return String(ctx && ctx.node || "") + ":" + String(ctx && ctx.vmid || "");
+  }
+
+  function getVmInstallerEligibility(ctx) {
+    var key = getInstallerEligibilityKey(ctx);
+    if (installerEligibilityCache[key]) {
+      return installerEligibilityCache[key];
+    }
+    installerEligibilityCache[key] = fetch(resolveBeagleApiUrl("/api/v1/public/vms/" + encodeURIComponent(String(ctx && ctx.vmid || "")) + "/state"), {
+      credentials: "same-origin"
+    }).then(function(response) {
+      if (!response.ok) {
+        throw new Error("Installer-Status nicht verfuegbar");
+      }
+      return response.json();
+    }).then(function(payload) {
+      var profile = payload && payload.profile ? payload.profile : {};
+      var roleText = String(profile && profile.beagle_role || "").trim().toLowerCase();
+      var fallbackEligible = Boolean(profile && profile.stream_host) && ["endpoint", "thinclient", "client"].indexOf(roleText) === -1;
+      return {
+        eligible: profile && typeof profile.installer_target_eligible === "boolean" ? profile.installer_target_eligible : fallbackEligible,
+        message: profile && profile.installer_target_message ? profile.installer_target_message : (fallbackEligible ? "" : "Diese VM wird nicht als Streaming-Ziel angeboten.")
+      };
+    }).catch(function() {
+      return { eligible: false, message: "" };
+    });
+    return installerEligibilityCache[key];
+  }
+
   function openUsbInstaller(ctx) {
     showProfileModal(ctx || {}, { autoPrepareDownload: true });
   }
@@ -391,9 +437,10 @@
     statusNodes.forEach(function(statusNode) { statusNode.textContent = resolved.label; });
     if (usbButton) {
       usbButton.disabled = resolved.unsupported;
+      usbButton.hidden = resolved.unsupported;
     }
     if (isoButton) {
-      isoButton.disabled = resolved.unsupported;
+      isoButton.disabled = false;
     }
   }
 
@@ -457,7 +504,7 @@
       applyInstallerPrepState(overlay, state);
       for (attempt = 0; attempt < 180; attempt += 1) {
         if (String(state && state.status || "").toLowerCase() === "ready") {
-          openUrl(withNoCache(profile[artifactKey]));
+          triggerDownload(profile[artifactKey]);
           showToast(successMessage);
           return;
         }
@@ -997,7 +1044,7 @@
       '    <div class="beagle-banner ' + installerTargetState(profile, installerPrep).bannerClass + '"><strong data-beagle-download-state>' + escapeHtml(installerTargetState(profile, installerPrep).label) + '</strong>: ' + escapeHtml(installerTargetState(profile, installerPrep).message) + '</div>' +
       '    <div class="beagle-banner ' + installerPrepBannerClass(installerPrep) + '" data-beagle-installer-banner>' + escapeHtml(installerPrep.message || 'Installer-Vorbereitung wird initialisiert.') + '</div>' +
       '    <div class="beagle-actions">' +
-      '      <button type="button" class="beagle-btn primary" data-beagle-action="download">USB Installer Skript</button>' +
+      (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn primary" data-beagle-action="download">USB Installer Skript</button>') +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-iso">ISO Download</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="copy-json">Profil JSON kopieren</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="copy-env">Endpoint Env kopieren</button>' +
@@ -1155,12 +1202,26 @@
           showProfileModal({ node: button.nodename, vmid: button.vmid });
         }
       });
-      menu.add({
-        itemId: "beagleOsInstallerMenuItem",
-        text: PRODUCT_LABEL + " Installer",
-        iconCls: "fa fa-usb",
-        handler: function() {
-          openUsbInstaller({ node: button.nodename, vmid: button.vmid });
+    }
+
+    if (menu) {
+      getVmInstallerEligibility({ node: button.nodename, vmid: button.vmid }).then(function(result) {
+        var existingInstallerItem = menu.down("#beagleOsInstallerMenuItem");
+        if (result && result.eligible) {
+          if (!existingInstallerItem) {
+            menu.add({
+              itemId: "beagleOsInstallerMenuItem",
+              text: PRODUCT_LABEL + " Installer",
+              iconCls: "fa fa-usb",
+              handler: function() {
+                openUsbInstaller({ node: button.nodename, vmid: button.vmid });
+              }
+            });
+          }
+          return;
+        }
+        if (existingInstallerItem) {
+          menu.remove(existingInstallerItem);
         }
       });
     }
