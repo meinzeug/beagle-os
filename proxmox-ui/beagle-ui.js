@@ -428,13 +428,28 @@
     };
   }
 
+  function shouldReuseInstallerPrepState(state) {
+    var status = String(state && state.status || "").toLowerCase();
+    if (!state) {
+      return false;
+    }
+    if (state.ready) {
+      return true;
+    }
+    return Boolean(status) && ["idle", "error", "failed"].indexOf(status) === -1;
+  }
+
   function syncInstallerButtons(overlay, state) {
     var profile = overlay && overlay.__beagleProfile || {};
     var resolved = installerTargetState(profile, state);
     var statusNodes = overlay.querySelectorAll("[data-beagle-download-state]");
+    var messageNodes = overlay.querySelectorAll("[data-beagle-download-message]");
+    var stateBanners = overlay.querySelectorAll("[data-beagle-download-banner]");
     var usbButton = overlay.querySelector('[data-beagle-action="download"]');
     var isoButton = overlay.querySelector('[data-beagle-action="download-iso"]');
     statusNodes.forEach(function(statusNode) { statusNode.textContent = resolved.label; });
+    messageNodes.forEach(function(messageNode) { messageNode.textContent = resolved.message; });
+    stateBanners.forEach(function(stateBanner) { stateBanner.className = "beagle-banner " + resolved.bannerClass; });
     if (usbButton) {
       usbButton.disabled = resolved.unsupported;
       usbButton.hidden = resolved.unsupported;
@@ -447,7 +462,6 @@
   function applyInstallerPrepState(overlay, state) {
     var payload = state || {};
     var resolved = installerTargetState(overlay && overlay.__beagleProfile || {}, payload);
-    var banner = overlay.querySelector("[data-beagle-installer-banner]");
     var statusNode = overlay.querySelector("[data-beagle-installer-status]");
     var phaseNode = overlay.querySelector("[data-beagle-installer-phase]");
     var progressNode = overlay.querySelector("[data-beagle-installer-progress]");
@@ -455,10 +469,6 @@
     var binaryNode = overlay.querySelector("[data-beagle-installer-binary]");
     var serviceNode = overlay.querySelector("[data-beagle-installer-service]");
     var processNode = overlay.querySelector("[data-beagle-installer-process]");
-    if (banner) {
-      banner.className = "beagle-banner " + resolved.bannerClass;
-      banner.textContent = resolved.message;
-    }
     if (statusNode) {
       statusNode.textContent = formatInstallerPrepValue(payload.status, "idle");
     }
@@ -488,6 +498,7 @@
     var originalText = downloadButton ? downloadButton.textContent : "USB Installer";
     var state = null;
     var attempt;
+    var status;
 
     if (profile && profile.installerTargetEligible === false) {
       applyInstallerPrepState(overlay, profile.installerPrep || {});
@@ -500,8 +511,22 @@
     }
 
     try {
-      state = await apiStartInstallerPrep(profile.vmid);
-      applyInstallerPrepState(overlay, state);
+      state = await apiGetInstallerPrep(profile.vmid).catch(function() {
+        return profile.installerPrep || null;
+      });
+      if (state) {
+        applyInstallerPrepState(overlay, state);
+      }
+      status = String(state && state.status || "").toLowerCase();
+      if (state && String(state && state.status || "").toLowerCase() === "ready") {
+        triggerDownload(profile[artifactKey]);
+        showToast(successMessage);
+        return;
+      }
+      if (!shouldReuseInstallerPrepState(state)) {
+        state = await apiStartInstallerPrep(profile.vmid);
+        applyInstallerPrepState(overlay, state);
+      }
       for (attempt = 0; attempt < 180; attempt += 1) {
         if (String(state && state.status || "").toLowerCase() === "ready") {
           triggerDownload(profile[artifactKey]);
@@ -1041,8 +1066,7 @@
       '  </div>' +
       '  <div class="beagle-body">' +
       '    <div class="beagle-banner ' + (profile.streamHost ? 'info' : 'warn') + '">' + escapeHtml(profile.streamHost ? 'Streaming-Ziel erkannt: ' + profile.streamHost : 'Streaming-Ziel fehlt in den VM-Metadaten.') + '</div>' +
-      '    <div class="beagle-banner ' + installerTargetState(profile, installerPrep).bannerClass + '"><strong data-beagle-download-state>' + escapeHtml(installerTargetState(profile, installerPrep).label) + '</strong>: ' + escapeHtml(installerTargetState(profile, installerPrep).message) + '</div>' +
-      '    <div class="beagle-banner ' + installerPrepBannerClass(installerPrep) + '" data-beagle-installer-banner>' + escapeHtml(installerPrep.message || 'Installer-Vorbereitung wird initialisiert.') + '</div>' +
+      '    <div class="beagle-banner ' + installerTargetState(profile, installerPrep).bannerClass + '" data-beagle-download-banner><strong data-beagle-download-state>' + escapeHtml(installerTargetState(profile, installerPrep).label) + '</strong>: <span data-beagle-download-message>' + escapeHtml(installerTargetState(profile, installerPrep).message) + '</span></div>' +
       '    <div class="beagle-actions">' +
       (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn primary" data-beagle-action="download">USB Installer Skript</button>') +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-iso">ISO Download</button>' +

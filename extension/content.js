@@ -348,6 +348,13 @@
     };
   }
 
+  function shouldReuseInstallerPrepState(state) {
+    const status = String(state?.status || "").toLowerCase();
+    if (!state) return false;
+    if (state.ready) return true;
+    return Boolean(status) && !["idle", "error", "failed"].includes(status);
+  }
+
   function triggerDownload(url) {
     if (!url) {
       window.alert("Beagle OS: Download-URL konnte nicht ermittelt werden.");
@@ -602,7 +609,14 @@
         case "download":
           if (profile.installerTargetEligible === false) break;
           try {
-            let state = await apiStartInstallerPrep(profile.vmid);
+            let state = await apiGetInstallerPrep(profile.vmid).catch(() => profile.installerPrep || null);
+            if (String(state?.status || "").toLowerCase() === "ready") {
+              triggerDownload(profile.installerUrl);
+              return;
+            }
+            if (!shouldReuseInstallerPrepState(state)) {
+              state = await apiStartInstallerPrep(profile.vmid);
+            }
             for (let attempt = 0; attempt < 180; attempt += 1) {
               if (String(state?.status || "").toLowerCase() === "ready") {
                 triggerDownload(profile.installerUrl);
