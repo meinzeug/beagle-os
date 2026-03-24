@@ -15,9 +15,12 @@ wireplumber
 pulseaudio-utils
 openssh-client
 openssh-server
+dbus
 sudo
 dbus-x11
 xterm
+chromium
+chromium-sandbox
 curl
 ca-certificates
 unclutter

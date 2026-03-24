@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
+INSTALLER_BUILD_DIR="$DIST_DIR/pve-thin-client-installer"
 EXT_DIR="$ROOT_DIR/extension"
 THIN_CLIENT_DIR="$ROOT_DIR/thin-client-assistant"
 BEAGLE_OS_DIST_DIR="${BEAGLE_OS_DIST_DIR:-$DIST_DIR/beagle-os}"
@@ -16,6 +17,8 @@ USB_BOOTSTRAP_NAME="pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
 USB_BOOTSTRAP_LATEST_NAME="pve-thin-client-usb-bootstrap-latest.tar.gz"
 USB_INSTALLER_NAME="pve-thin-client-usb-installer-v${VERSION}.sh"
 USB_INSTALLER_LATEST_NAME="pve-thin-client-usb-installer-latest.sh"
+INSTALLER_ISO_NAME="beagle-os-installer.iso"
+INSTALLER_ISO_ARCH_NAME="beagle-os-installer-amd64.iso"
 CHECKSUM_FILE="SHA256SUMS"
 BUILD_BEAGLE_OS="${BUILD_BEAGLE_OS:-0}"
 
@@ -59,15 +62,20 @@ rm -f \
   "$DIST_DIR/$USB_BOOTSTRAP_LATEST_NAME" \
   "$DIST_DIR/$USB_INSTALLER_NAME" \
   "$DIST_DIR/$USB_INSTALLER_LATEST_NAME" \
+  "$DIST_DIR/$INSTALLER_ISO_NAME" \
+  "$DIST_DIR/$INSTALLER_ISO_ARCH_NAME" \
   "$DIST_DIR/pve-thin-client-usb-installer-host-latest.sh" \
   "$DIST_DIR/beagle-vm-installers.json" \
   "$DIST_DIR/beagle-downloads-index.html" \
   "$DIST_DIR/beagle-downloads-status.json" \
   "$DIST_DIR/$CHECKSUM_FILE"
 
-if [[ ! -f "$DIST_DIR/pve-thin-client-installer/live/filesystem.squashfs" || ! -f "$DIST_DIR/pve-thin-client-installer/live/initrd.img" || ! -f "$DIST_DIR/pve-thin-client-installer/live/vmlinuz" ]]; then
+if [[ ! -f "$INSTALLER_BUILD_DIR/live/filesystem.squashfs" || ! -f "$INSTALLER_BUILD_DIR/live/initrd.img" || ! -f "$INSTALLER_BUILD_DIR/live/vmlinuz" ]]; then
   "$ROOT_DIR/scripts/build-thin-client-installer.sh"
 fi
+
+install -m 0644 "$INSTALLER_BUILD_DIR/$INSTALLER_ISO_NAME" "$DIST_DIR/$INSTALLER_ISO_NAME"
+install -m 0644 "$INSTALLER_BUILD_DIR/$INSTALLER_ISO_ARCH_NAME" "$DIST_DIR/$INSTALLER_ISO_ARCH_NAME"
 
 if [[ "$BUILD_BEAGLE_OS" == "1" ]]; then
   "$ROOT_DIR/scripts/build-beagle-os.sh"
@@ -111,7 +119,7 @@ install -m 0644 "$DIST_DIR/$TARBALL_NAME" "$DIST_DIR/$TARBALL_LATEST_NAME"
     LICENSE \
     CHANGELOG.md \
     VERSION \
-    dist/pve-thin-client-installer/live
+    "dist/$(basename "$INSTALLER_BUILD_DIR")/live"
 )
 
 install -m 0644 "$DIST_DIR/$USB_PAYLOAD_NAME" "$DIST_DIR/$USB_PAYLOAD_LATEST_NAME"
@@ -133,6 +141,8 @@ install -m 0755 "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-install
     "$USB_BOOTSTRAP_LATEST_NAME" \
     "$USB_INSTALLER_NAME" \
     "$USB_INSTALLER_LATEST_NAME" \
+    "$INSTALLER_ISO_NAME" \
+    "$INSTALLER_ISO_ARCH_NAME" \
     "${BEAGLE_OS_ASSETS[@]}" > "$CHECKSUM_FILE"
 )
 
@@ -145,6 +155,8 @@ echo "Created: $DIST_DIR/$USB_BOOTSTRAP_NAME"
 echo "Created: $DIST_DIR/$USB_BOOTSTRAP_LATEST_NAME"
 echo "Created: $DIST_DIR/$USB_INSTALLER_NAME"
 echo "Created: $DIST_DIR/$USB_INSTALLER_LATEST_NAME"
+echo "Created: $DIST_DIR/$INSTALLER_ISO_NAME"
+echo "Created: $DIST_DIR/$INSTALLER_ISO_ARCH_NAME"
 echo "Created: $DIST_DIR/$CHECKSUM_FILE"
 for asset in "${BEAGLE_OS_ASSETS[@]}"; do
   echo "Included: $DIST_DIR/$asset"

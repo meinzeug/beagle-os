@@ -40,10 +40,6 @@ export PVE_THIN_CLIENT_LOG_SESSION_ID="$LOG_SESSION_ID"
   blkid 2>/dev/null || true
 } >>"$LOG_DIR/boot-session.log" 2>&1 || true
 
-if [ "${BOOT_MODE}" = "installer" ] && [ -x /usr/local/bin/pve-thin-client-live-menu ]; then
-  exec /usr/local/bin/pve-thin-client-live-menu >>"$LOG_DIR/live-menu-launch.log" 2>&1
-fi
-
 if command -v xsetroot >/dev/null 2>&1; then
   xsetroot -solid "#071a2c" >/dev/null 2>&1 || true
 fi
@@ -56,6 +52,15 @@ fi
 
 if command -v openbox-session >/dev/null 2>&1; then
   openbox-session >"$LOG_DIR/openbox.log" 2>&1 &
+fi
+
+if [ "${BOOT_MODE}" = "installer" ]; then
+  if [ -x /usr/local/bin/pve-thin-client-installer-ui ]; then
+    exec /usr/local/bin/pve-thin-client-installer-ui >>"$LOG_DIR/installer-ui-launch.log" 2>&1
+  fi
+  if [ -x /usr/local/bin/pve-thin-client-live-menu ]; then
+    exec /usr/local/bin/pve-thin-client-live-menu >>"$LOG_DIR/live-menu-launch.log" 2>&1
+  fi
 fi
 
 if [ -x /usr/local/bin/pve-thin-client-display-init ]; then

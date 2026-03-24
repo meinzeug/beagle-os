@@ -10,7 +10,10 @@ if [ "${1:-}" = "-c" ]; then
 fi
 
 should_autostart_x11() {
-  [ "${BOOT_MODE}" = "runtime" ] || return 1
+  case "${BOOT_MODE}" in
+    runtime|installer) ;;
+    *) return 1 ;;
+  esac
   [ -z "${SSH_CONNECTION:-}" ] || return 1
   [ -z "${DISPLAY:-}" ] || return 1
   [ "${PVE_THIN_CLIENT_NO_AUTO_X11:-0}" != "1" ] || return 1

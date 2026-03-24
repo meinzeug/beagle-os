@@ -671,10 +671,10 @@ candidate_live_devices() {
     done
   fi
 
-  blkid -L PVETHIN 2>/dev/null || true
+  blkid -L BEAGLEOS 2>/dev/null || blkid -L PVETHIN 2>/dev/null || true
   lsblk -lnpo PATH,TYPE,FSTYPE,LABEL,RM,TRAN 2>/dev/null | awk '
     $2 == "part" {
-      if ($4 == "PVETHIN" || $3 == "vfat" || $5 == "1" || $6 == "usb") {
+      if ($4 == "BEAGLEOS" || $4 == "PVETHIN" || $3 == "vfat" || $5 == "1" || $6 == "usb") {
         print $1
       }
     }
@@ -1061,7 +1061,7 @@ main_menu() {
       menu_text="No bundled VM preset found. Re-plug USB stick or recreate it with a VM-specific installer package."
     fi
     run_whiptail \
-      --title "Thinclient Installer" \
+      --title "Beagle OS Installer" \
       --menu "$menu_text" 20 90 8 \
       "1" "Retry preset detection + auto install" \
       "2" "Set up network" \
@@ -1074,7 +1074,7 @@ main_menu() {
 
   [[ -n "$TTY_PATH" ]] || return 1
   {
-    printf '\n[Thinclient Installer]\n'
+    printf '\n[Beagle OS Installer]\n'
     if [[ "$BUNDLED_PRESET_MODE" == "1" ]]; then
       printf 'Automatic installer mode (bundled VM preset).\n'
     else

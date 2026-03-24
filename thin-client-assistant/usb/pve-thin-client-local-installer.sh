@@ -51,7 +51,7 @@ MODE="${MODE:-MOONLIGHT}"
 CONNECTION_METHOD=""
 PROFILE_NAME="default"
 RUNTIME_USER="thinclient"
-HOSTNAME_VALUE="pve-thin-client"
+HOSTNAME_VALUE="beagle-os"
 AUTOSTART="1"
 NETWORK_MODE="dhcp"
 NETWORK_INTERFACE="eth0"
@@ -582,10 +582,10 @@ candidate_live_devices() {
     done
   fi
 
-  blkid -L PVETHIN 2>/dev/null || true
+  blkid -L BEAGLEOS 2>/dev/null || blkid -L PVETHIN 2>/dev/null || true
   lsblk -lnpo PATH,TYPE,FSTYPE,LABEL,RM,TRAN 2>/dev/null | awk '
     $2 == "part" {
-      if ($4 == "PVETHIN" || $3 == "vfat" || $5 == "1" || $6 == "usb") {
+      if ($4 == "BEAGLEOS" || $4 == "PVETHIN" || $3 == "vfat" || $5 == "1" || $6 == "usb") {
         print $1
       }
     }
@@ -1477,7 +1477,7 @@ first_available_mode() {
 
 apply_preset_defaults() {
   PROFILE_NAME="${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-default}"
-  HOSTNAME_VALUE="${PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE:-pve-thin-client}"
+  HOSTNAME_VALUE="${PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE:-beagle-os}"
   AUTOSTART="${PVE_THIN_CLIENT_PRESET_AUTOSTART:-1}"
   NETWORK_MODE="${PVE_THIN_CLIENT_PRESET_NETWORK_MODE:-dhcp}"
   NETWORK_INTERFACE="${PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE:-eth0}"
@@ -1645,19 +1645,19 @@ fi
 set default=0
 set timeout=4
 
-menuentry 'Thinclient' {
+menuentry 'Beagle OS' {
   search --no-floppy --fs-uuid --set=root $root_uuid
   linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash $irq_args_default $ip_arg pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 
-menuentry 'Thinclient (safe mode)' {
+menuentry 'Beagle OS (safe mode)' {
   search --no-floppy --fs-uuid --set=root $root_uuid
   linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash $irq_args_safe $ip_arg pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 
-menuentry 'Thinclient (legacy IRQ mode)' {
+menuentry 'Beagle OS (legacy IRQ mode)' {
   search --no-floppy --fs-uuid --set=root $root_uuid
   linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash $irq_args_legacy $ip_arg pve_thin_client.mode=runtime
   initrd /live/initrd.img
@@ -1812,8 +1812,8 @@ main() {
     exit 1
   }
 
-  mkfs.vfat -F 32 -n PVETHINBOOT "$boot_part"
-  mkfs.ext4 -F -L PVETHINROOT "$root_part"
+  mkfs.vfat -F 32 -n BEAGLEBOOT "$boot_part"
+  mkfs.ext4 -F -L BEAGLEROOT "$root_part"
 
   install -d -m 0755 "$TARGET_MOUNT" "$EFI_MOUNT"
   mount "$root_part" "$TARGET_MOUNT"
@@ -1827,7 +1827,7 @@ main() {
   sync
 
   if command -v whiptail >/dev/null 2>&1; then
-    whiptail --title "Thinclient Installation" --msgbox \
+    whiptail --title "Beagle OS Installation" --msgbox \
       "Installation complete. Remove the USB stick and boot from the target disk." 12 72
   else
     echo "Installation complete. Remove the USB stick and boot from the target disk."

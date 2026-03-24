@@ -364,15 +364,44 @@ HOSTS
 
 write_os_release() {
   cat > "$ROOTFS_DIR/etc/os-release" <<EOF
-PRETTY_NAME="Beagle OS"
+PRETTY_NAME="Beagle OS ${DEBIAN_RELEASE}"
 NAME="Beagle OS"
 VERSION="${DEBIAN_RELEASE}"
 VERSION_ID="${DEBIAN_RELEASE}"
+VERSION_CODENAME="${DEBIAN_RELEASE}"
 ID=beagle
 ID_LIKE=debian
+VARIANT="Endpoint OS"
+VARIANT_ID=endpoint
 HOME_URL="https://github.com/meinzeug/beagle-os"
 SUPPORT_URL="https://github.com/meinzeug/beagle-os/issues"
 BUG_REPORT_URL="https://github.com/meinzeug/beagle-os/issues"
+EOF
+
+  cat > "$ROOTFS_DIR/etc/lsb-release" <<EOF
+DISTRIB_ID=BeagleOS
+DISTRIB_RELEASE=${DEBIAN_RELEASE}
+DISTRIB_CODENAME=${DEBIAN_RELEASE}
+DISTRIB_DESCRIPTION="Beagle OS ${DEBIAN_RELEASE}"
+EOF
+
+  cat > "$ROOTFS_DIR/etc/issue" <<EOF
+Beagle OS ${DEBIAN_RELEASE} \\n \\l
+EOF
+
+  cat > "$ROOTFS_DIR/etc/issue.net" <<EOF
+Beagle OS ${DEBIAN_RELEASE}
+EOF
+}
+
+write_grub_identity() {
+  mkdir -p "$ROOTFS_DIR/etc/default"
+  cat > "$ROOTFS_DIR/etc/default/grub" <<'EOF'
+GRUB_DEFAULT=0
+GRUB_TIMEOUT=2
+GRUB_DISTRIBUTOR="Beagle OS"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+GRUB_CMDLINE_LINUX=""
 EOF
 }
 
@@ -637,6 +666,7 @@ main() {
 
   prepare_rootfs
   write_os_release
+  write_grub_identity
   install_project_payload
   install_thin_client_runtime
   apply_profile_overlay

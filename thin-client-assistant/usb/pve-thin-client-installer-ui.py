@@ -38,7 +38,7 @@ HTML = """<!doctype html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PVE Thin Client Installer</title>
+  <title>Beagle OS Installer</title>
   <style>
     :root {
       --bg: #06111b;
@@ -288,7 +288,7 @@ HTML = """<!doctype html>
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="eyebrow">PVE Thin Client USB</div>
+          <div class="eyebrow">Beagle OS Installer</div>
           <h1>Installer media with a real front end.</h1>
           <p class="lead">
             Waehle nur Streaming-Modus und Zielplatte. VM-Zugangsdaten, Endpunkte und Profile kommen direkt aus dem gebuendelten Preset dieses Sticks.
@@ -611,13 +611,13 @@ def install_target(mode, disk):
             disk,
             "--yes",
         ],
-        f"PVE Thin Client Install {mode}",
+        f"Beagle OS Install {mode}",
     )
     logging.info("requested install mode=%s disk=%s", mode, disk)
 
 
 def launch_shell():
-    spawn_terminal(["bash", "--login"], "PVE Thin Client Shell")
+    spawn_terminal(["bash", "--login"], "Beagle OS Shell")
     logging.info("requested shell")
 
 

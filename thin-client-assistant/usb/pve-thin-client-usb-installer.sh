@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DIST_DIR="$REPO_ROOT/dist/pve-thin-client-installer"
 ASSET_DIR="$DIST_DIR/live"
-USB_LABEL="${USB_LABEL:-PVETHIN}"
+USB_LABEL="${USB_LABEL:-BEAGLEOS}"
 TARGET_DEVICE="${TARGET_DEVICE:-}"
 ASSUME_YES="0"
 LIST_DEVICES="0"
@@ -42,7 +42,7 @@ usage() {
 Usage: $0 [--device /dev/sdX] [--list-devices] [--yes] [--allow-non-usb] [--allow-system-disk]
        [--json] [--dry-run] [--label NAME] [--require-checksums]
 
-Writes a bootable PVE Thin Client installer USB stick.
+Writes a bootable Beagle OS installer USB stick.
 The script can be started as a normal user and escalates to sudo only for the write phase.
 EOF
 }
@@ -471,7 +471,7 @@ EOF
       menu_height=$(( ${#options[@]} / 2 + 6 ))
     fi
     answer="$(run_whiptail "$tty_path" \
-      --title "PVE Thin Client USB Writer" \
+      --title "Beagle OS USB Writer" \
       --backtitle "Bootable USB installer creation" \
       --menu "Select the USB target device. The selected drive will be erased completely." \
       22 100 "$menu_height" \
@@ -487,7 +487,7 @@ EOF
 
   if have_graphical_dialog; then
     if answer="$(run_zenity --list \
-      --title="PVE Thin Client USB Writer" \
+      --title="Beagle OS USB Writer" \
       --text="Choose the USB target device for the installer media." \
       --width=920 \
       --height=520 \
@@ -626,8 +626,8 @@ confirm_device() {
   if have_tui_dialog "$tty_path"; then
     run_whiptail "$tty_path" \
       --title "Write USB Installer" \
-      --backtitle "PVE Thin Client USB Writer" \
-      --yesno "The selected drive will be erased completely and turned into a bootable PVE Thin Client installer.\n\nTarget: ${TARGET_DEVICE}\nPreset: ${PVE_THIN_CLIENT_PRESET_NAME:-generic}" \
+      --backtitle "Beagle OS USB Writer" \
+      --yesno "The selected drive will be erased completely and turned into a bootable Beagle OS installer.\n\nTarget: ${TARGET_DEVICE}\nPreset: ${PVE_THIN_CLIENT_PRESET_NAME:-generic}" \
       16 84
     return $?
   fi
@@ -636,7 +636,7 @@ confirm_device() {
     if run_zenity --question \
       --title="Write USB Installer" \
       --width=760 \
-      --text="The selected drive will be erased completely and turned into a bootable PVE Thin Client installer.\n\nTarget: ${TARGET_DEVICE}\nPreset: ${PVE_THIN_CLIENT_PRESET_NAME:-generic}" \
+      --text="The selected drive will be erased completely and turned into a bootable Beagle OS installer.\n\nTarget: ${TARGET_DEVICE}\nPreset: ${PVE_THIN_CLIENT_PRESET_NAME:-generic}" \
       --ok-label="Write USB" \
       --cancel-label="Cancel"; then
       return 0
@@ -648,7 +648,7 @@ confirm_device() {
     echo "Graphical confirmation dialog failed, falling back to terminal prompt." >&2
   fi
 
-  read -r -p "Erase and re-create $TARGET_DEVICE as PVE Thin Client USB? [y/N]: " answer
+  read -r -p "Erase and re-create $TARGET_DEVICE as Beagle OS USB? [y/N]: " answer
   [[ "$answer" =~ ^[Yy]$ ]]
 }
 
@@ -946,18 +946,18 @@ set default=0
 set timeout=5
 set preset_args="${preset_kernel_args}"
 
-menuentry 'Thinclient Installer' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=pve-thin-client live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash \${preset_args} pve_thin_client.mode=installer
+menuentry 'Beagle OS Installer' {
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash \${preset_args} pve_thin_client.mode=installer
   initrd /pve-thin-client/live/initrd.img
 }
 
-menuentry 'Thinclient Installer (compatibility mode)' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=pve-thin-client live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash nomodeset irqpoll pci=nomsi noapic \${preset_args} pve_thin_client.mode=installer
+menuentry 'Beagle OS Installer (compatibility mode)' {
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash nomodeset irqpoll pci=nomsi noapic \${preset_args} pve_thin_client.mode=installer
   initrd /pve-thin-client/live/initrd.img
 }
 
-menuentry 'Thinclient Installer (legacy IRQ mode)' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=pve-thin-client live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash nomodeset irqpoll noapic nolapic \${preset_args} pve_thin_client.mode=installer
+menuentry 'Beagle OS Installer (legacy IRQ mode)' {
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash nomodeset irqpoll noapic nolapic \${preset_args} pve_thin_client.mode=installer
   initrd /pve-thin-client/live/initrd.img
 }
 

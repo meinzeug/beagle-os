@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.0.0 - 2026-03-23
+
+- Promoted Beagle OS to a first-class distro-branded release with stronger on-system identity: `/etc/os-release`, `lsb-release`, login banner and GRUB now present the installed endpoint as `Beagle OS`.
+- Rebranded the install media path around `Beagle OS Installer`, including Beagle-specific boot menu titles, hostnames and USB labels instead of the old thin-client-facing wording.
+- Added direct `beagle-os-installer.iso` and `beagle-os-installer-amd64.iso` outputs to the installer build, so the project now ships a real downloadable installer ISO in addition to the USB writer scripts.
+- Extended the release packaging path to include the Beagle installer ISO in `SHA256SUMS` and GitHub release assets.
+
 ## v3.4.0 - 2026-03-22
 
 - Added a first-class Beagle VM profile dialog to both the host-installed Proxmox UI and the browser extension, so operators can inspect a fully resolved Moonlight/Sunshine endpoint profile per VM and export it directly from the Proxmox workflow.
