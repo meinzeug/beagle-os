@@ -705,18 +705,20 @@ ensure_target_is_safe() {
   fi
 }
 
-confirm_device() {
-  local answer zenity_status tty_path
-
+show_target_device() {
   [[ -b "$TARGET_DEVICE" ]] || {
     echo "Block device not found: $TARGET_DEVICE" >&2
     print_devices >&2
     exit 1
   }
 
-  ensure_target_is_safe
+  lsblk "$TARGET_DEVICE" 2>/dev/null || true
+}
 
-  lsblk "$TARGET_DEVICE"
+confirm_device_selection() {
+  local answer zenity_status tty_path
+
+  show_target_device
   if [[ "$DRY_RUN" == "1" ]]; then
     return 0
   fi
@@ -752,6 +754,11 @@ confirm_device() {
 
   read -r -p "Erase and re-create $TARGET_DEVICE as Beagle OS USB? [y/N]: " answer
   [[ "$answer" =~ ^[Yy]$ ]]
+}
+
+confirm_device() {
+  show_target_device
+  ensure_target_is_safe
 }
 
 release_target_device() {
@@ -1104,10 +1111,11 @@ if [[ -z "$TARGET_DEVICE" ]]; then
   TARGET_DEVICE="$(choose_device)"
 fi
 if [[ "$SKIP_CONFIRMATION" != "1" ]]; then
-  confirm_device
+  confirm_device_selection
   SKIP_CONFIRMATION="1"
 fi
 rerun_as_root
+confirm_device
 bootstrap_repo_root
 install_dependencies
 ensure_live_assets
