@@ -1076,6 +1076,13 @@ menuentry 'Beagle OS Installer (legacy IRQ mode)' {
   initrd /pve-thin-client/live/initrd.img
 }
 
+menuentry 'Beagle OS Installer (text mode)' {
+  terminal_output console
+  set gfxpayload=text
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp console=tty0 console=ttyS0,115200n8 systemd.unit=multi-user.target \${preset_args} pve_thin_client.mode=installer pve_thin_client.installer_ui=text
+  initrd /pve-thin-client/live/initrd.img
+}
+
 menuentry 'Boot from local disk' {
   exit
 }

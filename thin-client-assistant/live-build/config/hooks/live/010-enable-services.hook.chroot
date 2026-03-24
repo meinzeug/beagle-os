@@ -18,6 +18,8 @@ ensure_wantedby_symlink() {
 systemctl enable systemd-networkd.service
 systemctl enable systemd-networkd-wait-online.service
 ensure_wantedby_symlink /etc/systemd/system/pve-thin-client-installer-gui.service multi-user.target
+ensure_wantedby_symlink /etc/systemd/system/pve-thin-client-installer-menu.service multi-user.target
+ensure_wantedby_symlink /etc/systemd/system/pve-thin-client-installer-menu-serial.service multi-user.target
 ensure_wantedby_symlink /etc/systemd/system/pve-thin-client-runtime.service multi-user.target
 systemctl enable getty@tty1.service
 systemctl enable ssh.service

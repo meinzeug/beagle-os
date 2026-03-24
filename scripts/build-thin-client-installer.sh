@@ -121,6 +121,13 @@ menuentry 'Beagle OS Installer (legacy IRQ mode)' {
   linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash nomodeset irqpoll noapic nolapic pve_thin_client.mode=installer
   initrd /live/initrd.img
 }
+
+menuentry 'Beagle OS Installer (text mode)' {
+  terminal_output console
+  set gfxpayload=text
+  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp console=tty0 console=ttyS0,115200n8 systemd.unit=multi-user.target pve_thin_client.mode=installer pve_thin_client.installer_ui=text
+  initrd /live/initrd.img
+}
 EOF
 
   grub-mkrescue -o "$iso_output" "$iso_root" -- -volid "BEAGLE_OS" >/dev/null
@@ -170,9 +177,10 @@ prepare_rootfs_stage() {
     chmod 0440 "$ROOTFS_STAGE_DIR/etc/sudoers.d/pve-thin-client"
   fi
 
-  rm -f "$ROOTFS_STAGE_DIR/etc/systemd/system/multi-user.target.wants/pve-thin-client-installer-menu.service"
   systemctl --root="$ROOTFS_STAGE_DIR" enable \
     pve-thin-client-installer-gui.service \
+    pve-thin-client-installer-menu.service \
+    pve-thin-client-installer-menu-serial.service \
     pve-thin-client-runtime.service \
     systemd-networkd.service \
     systemd-networkd-wait-online.service \
