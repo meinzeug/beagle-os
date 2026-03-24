@@ -75,7 +75,7 @@ if needle not in text:
     raise SystemExit("needle not found in index.html.tpl")
 lines = []
 for line in text.splitlines():
-    if '/pve2/js/beagle-ui.js' in line or '/pve2/js/beagle-ui-config.js' in line:
+    if '/pve2/js/beagle-ui.js' in line or '/pve2/js/beagle-ui-config.js' in line or '/pve2/js/pve-dcv-integration.js' in line or '/pve2/js/pve-dcv-integration-config.js' in line:
         continue
     lines.append(line)
 text = "\n".join(lines) + "\n"
