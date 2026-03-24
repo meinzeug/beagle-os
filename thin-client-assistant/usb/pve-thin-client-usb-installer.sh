@@ -507,7 +507,7 @@ download_installer_iso() {
     if [[ -n "$cached_iso" ]]; then
       download_target="$cached_iso"
     fi
-    echo "Downloading Beagle installer ISO from $iso_url ..."
+    echo "Downloading Beagle installer ISO from $iso_url ..." >&2
     curl "${download_curl_args[@]}" "$iso_url" -o "$download_target"
     if [[ "$download_target" != "$iso_path" ]]; then
       cp -f "$download_target" "$iso_path"
@@ -1120,5 +1120,7 @@ bootstrap_repo_root
 install_dependencies
 ensure_live_assets
 validate_live_assets
+echo "Downloads completed. Writing Beagle OS installer USB to $TARGET_DEVICE ..."
 write_usb
+echo "USB stick completed: $TARGET_DEVICE"
 echo "USB installer media prepared on $TARGET_DEVICE"
