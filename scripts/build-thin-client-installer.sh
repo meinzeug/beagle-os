@@ -278,11 +278,11 @@ if ! lb build; then
 fi
 popd >/dev/null
 
-chown -R "$OWNER_UID:$OWNER_GID" "$BUILD_DIR" "$DIST_DIR"
-chmod -R u+rwX,go+rX "$DIST_DIR"
-find "$DIST_DIR" -type f -name '*.sh' -exec chmod 0755 {} +
-
 build_live_assets_from_stage
 build_manual_iso
+
+chown -R "$OWNER_UID:$OWNER_GID" "$DIST_DIR"
+chmod -R u+rwX,go+rX "$DIST_DIR"
+find "$DIST_DIR" -type f -name '*.sh' -exec chmod 0755 {} +
 
 echo "Built Beagle OS installer assets in $DIST_DIR"

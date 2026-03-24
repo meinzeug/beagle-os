@@ -34,6 +34,7 @@ PRINT_TARGETS_JSON="0"
 PRINT_PRESET_JSON="0"
 PRINT_PRESET_SUMMARY="0"
 PRINT_DEBUG_JSON="0"
+PRINT_UI_STATE_JSON="0"
 CACHE_PRESET_ONLY="0"
 LIST_PROXMOX_VMS_JSON="0"
 CACHE_PROXMOX_VM_PRESET="0"
@@ -46,6 +47,8 @@ PROXMOX_API_USERNAME=""
 PROXMOX_API_PASSWORD=""
 PROXMOX_API_NODE=""
 PROXMOX_API_VMID=""
+PRESET_LOAD_RETRIES="${PVE_THIN_CLIENT_PRESET_LOAD_RETRIES:-6}"
+PRESET_LOAD_RETRY_DELAY="${PVE_THIN_CLIENT_PRESET_LOAD_RETRY_DELAY:-1}"
 
 MODE="${MODE:-MOONLIGHT}"
 CONNECTION_METHOD=""
@@ -789,6 +792,10 @@ parse_args() {
         PRINT_DEBUG_JSON="1"
         shift
         ;;
+      --print-ui-state-json)
+        PRINT_UI_STATE_JSON="1"
+        shift
+        ;;
       --cache-bundled-preset)
         CACHE_PRESET_ONLY="1"
         shift
@@ -1154,8 +1161,15 @@ load_profile() {
 
 load_embedded_preset() {
   local attempt=1
+  local max_attempts delay_seconds
 
-  while (( attempt <= 6 )); do
+  max_attempts="$PRESET_LOAD_RETRIES"
+  delay_seconds="$PRESET_LOAD_RETRY_DELAY"
+  [[ "$max_attempts" =~ ^[0-9]+$ ]] || max_attempts=6
+  [[ "$delay_seconds" =~ ^([0-9]+([.][0-9]+)?)$ ]] || delay_seconds=1
+  (( max_attempts > 0 )) || max_attempts=1
+
+  while (( attempt <= max_attempts )); do
     if [[ -f "$PRESET_FILE" ]]; then
       log_msg "loading bundled preset from $PRESET_FILE (attempt $attempt)"
       # shellcheck disable=SC1090
@@ -1167,8 +1181,8 @@ load_embedded_preset() {
     fi
 
     log_msg "preset file missing on attempt $attempt: $PRESET_FILE"
-    if (( attempt < 6 )); then
-      sleep 1
+    if (( attempt < max_attempts )); then
+      sleep "$delay_seconds"
       PRESET_FILE=""
       LIVE_MEDIUM=""
       initialize_live_medium
@@ -1390,6 +1404,158 @@ payload = {
     "cached_preset_source": cached_preset_source,
     "live_disk": live_disk,
     "log_session_id": log_session_id,
+}
+print(json.dumps(payload, indent=2))
+PY
+}
+
+print_ui_state_json() {
+  local live_disk
+  live_disk="$(current_live_disk 2>/dev/null || true)"
+
+  python3 - "$PRESET_ACTIVE" \
+    "${PVE_THIN_CLIENT_PRESET_VM_NAME:-}" \
+    "${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-}" \
+    "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" \
+    "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" \
+    "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" \
+    "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" \
+    "${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}" \
+    "${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}" \
+    "${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-}" \
+    "${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-}" \
+    "${PVE_THIN_CLIENT_PRESET_NOVNC_URL:-}" \
+    "${PVE_THIN_CLIENT_PRESET_DCV_URL:-}" \
+    "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" \
+    "${PVE_THIN_CLIENT_PRESET_DEFAULT_MODE:-}" \
+    "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP:-Desktop}" \
+    "$LIVE_MEDIUM_DEFAULT" \
+    "$LIVE_MEDIUM" \
+    "$LIVE_ASSET_DIR" \
+    "$PRESET_FILE" \
+    "$LOG_FILE" \
+    "$LOG_DIR" \
+    "$PRESET_SOURCE" \
+    "$CACHED_PRESET_FILE" \
+    "$(cached_preset_source)" \
+    "$live_disk" \
+    "$LOG_SESSION_ID" <<'PY'
+import json
+import os
+import shlex
+import subprocess
+import sys
+
+(
+    preset_active,
+    vm_name,
+    profile_name,
+    proxmox_host,
+    proxmox_node,
+    proxmox_vmid,
+    spice_url,
+    proxmox_username,
+    proxmox_password,
+    spice_username,
+    spice_password,
+    novnc_url,
+    dcv_url,
+    moonlight_host,
+    default_mode,
+    moonlight_app,
+    live_medium_default,
+    live_medium,
+    live_asset_dir,
+    preset_file,
+    log_file,
+    log_dir,
+    preset_source,
+    cached_preset_file,
+    cached_preset_source,
+    live_disk,
+    log_session_id,
+) = sys.argv[1:28]
+
+def mode_available(name: str) -> bool:
+    if name == "MOONLIGHT":
+        return bool(moonlight_host)
+    if name == "SPICE":
+        return bool(spice_url) or (
+            bool(proxmox_host)
+            and bool(proxmox_node)
+            and bool(proxmox_vmid)
+            and bool(spice_username or proxmox_username)
+            and bool(spice_password or proxmox_password)
+        )
+    if name == "NOVNC":
+        return bool(novnc_url)
+    if name == "DCV":
+        return bool(dcv_url)
+    return False
+
+disks = []
+try:
+    output = subprocess.check_output(
+        ["lsblk", "-dn", "-P", "-o", "NAME,SIZE,MODEL,TYPE,RM,TRAN"], text=True
+    )
+    for line in output.splitlines():
+        entry = {}
+        for token in shlex.split(line):
+            key, value = token.split("=", 1)
+            entry[key] = value
+        if entry.get("TYPE") != "disk":
+            continue
+        device = f"/dev/{entry['NAME']}"
+        if device == live_disk:
+            continue
+        if any(device.startswith(prefix) for prefix in ("/dev/loop", "/dev/sr", "/dev/ram", "/dev/zram")):
+            continue
+        disks.append(
+            {
+                "device": device,
+                "size": entry.get("SIZE", "unknown"),
+                "model": entry.get("MODEL", "disk"),
+                "removable": entry.get("RM", "0"),
+                "transport": entry.get("TRAN", ""),
+            }
+        )
+except Exception as exc:  # noqa: BLE001
+    disks = [{"device": "", "size": "", "model": f"lsblk failed: {exc}", "removable": "0", "transport": ""}]
+
+payload = {
+    "ok": True,
+    "preset": {
+        "preset_active": preset_active == "1",
+        "vm_name": vm_name,
+        "profile_name": profile_name,
+        "proxmox_host": proxmox_host,
+        "proxmox_node": proxmox_node,
+        "proxmox_vmid": proxmox_vmid,
+        "moonlight_host": moonlight_host,
+        "moonlight_app": moonlight_app,
+        "default_mode": default_mode,
+        "available_modes": [name for name in ("MOONLIGHT", "SPICE", "NOVNC", "DCV") if mode_available(name)],
+    },
+    "debug": {
+        "preset_active": preset_active == "1",
+        "live_medium_default": live_medium_default,
+        "live_medium": live_medium,
+        "live_asset_dir": live_asset_dir,
+        "preset_file": preset_file,
+        "preset_exists": bool(preset_file and os.path.isfile(preset_file)),
+        "log_file": log_file,
+        "log_exists": bool(log_file and os.path.isfile(log_file)),
+        "log_dir": log_dir,
+        "log_dir_exists": bool(log_dir and os.path.isdir(log_dir)),
+        "preset_source": preset_source,
+        "cached_preset_file": cached_preset_file,
+        "cached_preset_exists": bool(cached_preset_file and os.path.isfile(cached_preset_file)),
+        "cached_preset_source": cached_preset_source,
+        "live_disk": live_disk,
+        "log_session_id": log_session_id,
+    },
+    "disks": disks,
+    "log_dir": log_dir,
 }
 print(json.dumps(payload, indent=2))
 PY
@@ -1774,6 +1940,10 @@ main() {
   fi
   if [[ "$PRINT_DEBUG_JSON" == "1" ]]; then
     print_debug_json
+    return 0
+  fi
+  if [[ "$PRINT_UI_STATE_JSON" == "1" ]]; then
+    print_ui_state_json
     return 0
   fi
 

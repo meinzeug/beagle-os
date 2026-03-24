@@ -6,7 +6,6 @@ import shlex
 import shutil
 import subprocess
 import threading
-import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -34,10 +33,12 @@ def setup_logging() -> None:
 setup_logging()
 
 HTML = """<!doctype html>
-<html lang="de">
+<html lang="de" translate="no" class="notranslate">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="google" content="notranslate" />
+  <meta http-equiv="Content-Language" content="de" />
   <title>Beagle OS Installer</title>
   <style>
     :root {
@@ -61,6 +62,8 @@ HTML = """<!doctype html>
         linear-gradient(135deg, rgba(4, 15, 24, 0.95), rgba(5, 12, 19, 0.78)),
         url("/assets/grub-background.jpg") center/cover fixed no-repeat;
       min-height: 100vh;
+      overscroll-behavior: none;
+      user-select: none;
     }
     .shell {
       min-height: 100vh;
@@ -79,11 +82,12 @@ HTML = """<!doctype html>
     }
     .hero {
       display: grid;
-      grid-template-rows: 300px auto;
+      grid-template-rows: minmax(380px, auto) auto;
     }
     .hero-top {
       position: relative;
       padding: 36px;
+      min-height: 380px;
       background:
         linear-gradient(135deg, rgba(5, 14, 20, 0.22), rgba(255, 143, 61, 0.12)),
         url("/assets/grub-background.jpg") center/cover no-repeat;
@@ -111,10 +115,10 @@ HTML = """<!doctype html>
       color: #e9ded0;
     }
     h1 {
-      font-size: 52px;
+      font-size: clamp(40px, 4.8vw, 52px);
       line-height: 0.95;
       margin: 18px 0 14px;
-      max-width: 10ch;
+      max-width: 11ch;
     }
     .lead {
       font-size: 18px;
@@ -278,18 +282,20 @@ HTML = """<!doctype html>
     }
     @media (max-width: 1180px) {
       .shell { grid-template-columns: 1fr; }
+      .hero { grid-template-rows: auto auto; }
+      .hero-top { min-height: 320px; }
       .mode-grid, .meta-grid, .actions { grid-template-columns: 1fr; }
       h1 { font-size: 40px; }
     }
   </style>
 </head>
-<body>
+<body class="notranslate">
   <div class="shell">
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
           <div class="eyebrow">Beagle OS Installer</div>
-          <h1>Installer media with a real front end.</h1>
+          <h1>Installationsmedium mit echter Bedienoberflaeche.</h1>
           <p class="lead">
             Waehle nur Streaming-Modus und Zielplatte. VM-Zugangsdaten, Endpunkte und Profile kommen direkt aus dem gebuendelten Preset dieses Sticks.
           </p>
@@ -513,10 +519,12 @@ def run_json_command(*args):
             "env",
             f"PVE_THIN_CLIENT_LOG_DIR={LOG_DIR}",
             f"PVE_THIN_CLIENT_LOG_SESSION_ID={os.environ.get('PVE_THIN_CLIENT_LOG_SESSION_ID', LOG_DIR.name)}",
+            "PVE_THIN_CLIENT_PRESET_LOAD_RETRIES=1",
+            "PVE_THIN_CLIENT_PRESET_LOAD_RETRY_DELAY=0",
             *command,
         ]
     logging.info("run_json_command: %s", " ".join(shlex.quote(part) for part in command))
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = subprocess.run(command, capture_output=True, text=True, timeout=45)
     logging.info(
         "command result rc=%s stdout=%s stderr=%s",
         result.returncode,
@@ -529,37 +537,7 @@ def run_json_command(*args):
 
 
 def build_state():
-    preset = {}
-    debug = {}
-    for attempt in range(1, 16):
-        try:
-            if shutil.which("sudo") and os.geteuid() != 0:
-                subprocess.run(
-                    [
-                        "sudo",
-                        "-n",
-                        "env",
-                        f"PVE_THIN_CLIENT_LOG_DIR={LOG_DIR}",
-                        f"PVE_THIN_CLIENT_LOG_SESSION_ID={os.environ.get('PVE_THIN_CLIENT_LOG_SESSION_ID', LOG_DIR.name)}",
-                        str(LOCAL_INSTALLER),
-                        "--cache-bundled-preset",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-        except Exception as exc:
-            logging.warning("cache-bundled-preset warmup failed on attempt %s: %s", attempt, exc)
-        preset = run_json_command(str(LOCAL_INSTALLER), "--print-preset-json")
-        debug = run_json_command(str(LOCAL_INSTALLER), "--print-debug-json")
-        if preset.get("preset_active"):
-            logging.info("preset active after attempt %s: %s", attempt, preset)
-            break
-        logging.warning("preset missing on attempt %s: %s", attempt, debug)
-        if attempt < 15:
-            time.sleep(1)
-    disks = run_json_command(str(LOCAL_INSTALLER), "--list-targets-json")
-    state = {"ok": True, "preset": preset, "debug": debug, "disks": disks, "log_dir": str(LOG_DIR)}
+    state = run_json_command(str(LOCAL_INSTALLER), "--print-ui-state-json")
     logging.info("build_state: %s", state)
     return state
 
@@ -720,17 +698,35 @@ def main():
     server_thread.start()
 
     try:
+        browser_env = os.environ.copy()
+        browser_env.setdefault("LANG", "de_DE.UTF-8")
+        browser_env.setdefault("LC_ALL", "de_DE.UTF-8")
         subprocess.run(
             [
                 browser,
                 f"--app=http://{HOST}:{PORT}/",
+                "--kiosk",
                 "--incognito",
                 "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-default-apps",
+                "--disable-extensions",
+                "--disable-background-networking",
+                "--disable-component-update",
+                "--disable-translate",
+                "--disable-features=Translate,TranslateUI,OptimizationGuideModelDownloading,OnDeviceTranslation,MediaRouter,GlobalMediaControls",
+                "--disable-gpu",
+                "--disable-gpu-compositing",
+                "--disable-gpu-rasterization",
                 "--disable-session-crashed-bubble",
                 "--disable-infobars",
+                "--noerrdialogs",
+                "--password-store=basic",
+                "--lang=de-DE",
                 "--check-for-update-interval=31536000",
                 "--window-size=1440,900",
             ],
+            env=browser_env,
             check=False,
         )
     finally:
