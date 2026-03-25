@@ -58,6 +58,30 @@ ensure_runtime_user() {
   fi
 }
 
+sync_local_hostname() {
+  local desired_hostname hosts_file temp_file
+
+  desired_hostname="${PVE_THIN_CLIENT_HOSTNAME_VALUE:-${PVE_THIN_CLIENT_HOSTNAME:-}}"
+  [[ -n "$desired_hostname" ]] || return 0
+
+  printf '%s\n' "$desired_hostname" >/etc/hostname
+  hostname "$desired_hostname" >/dev/null 2>&1 || true
+
+  hosts_file="/etc/hosts"
+  [[ -f "$hosts_file" ]] || return 0
+
+  temp_file="$(mktemp)"
+  awk '
+    $1 == "127.0.1.1" {next}
+    {print}
+  ' "$hosts_file" >"$temp_file"
+  {
+    cat "$temp_file"
+    printf '127.0.1.1 %s\n' "$desired_hostname"
+  } >"$hosts_file"
+  rm -f "$temp_file"
+}
+
 strip_managed_ssh_block() {
   local src_file="$1"
   local begin_marker="$2"
@@ -131,6 +155,7 @@ fi
 
 sync_runtime_config_to_system
 ensure_runtime_user
+sync_local_hostname
 apply_runtime_ssh_config
 normalize_boot_services
 

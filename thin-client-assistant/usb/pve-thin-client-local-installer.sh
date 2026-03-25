@@ -127,6 +127,38 @@ require_root() {
   fi
 }
 
+write_installer_resolv_conf() {
+  local dns_servers="${NETWORK_DNS_SERVERS:-1.1.1.1 9.9.9.9 8.8.8.8}"
+  local resolver="/etc/resolv.conf"
+  local dns=""
+
+  if [[ -L "$resolver" ]]; then
+    rm -f "$resolver" >/dev/null 2>&1 || true
+  fi
+
+  : >"$resolver"
+  for dns in $dns_servers; do
+    [[ -n "$dns" ]] || continue
+    printf 'nameserver %s\n' "$dns" >>"$resolver"
+  done
+  printf 'options timeout:1 attempts:3 rotate\n' >>"$resolver"
+}
+
+have_apt_dns() {
+  getent ahostsv4 deb.debian.org >/dev/null 2>&1 || \
+    getent ahostsv4 security.debian.org >/dev/null 2>&1
+}
+
+ensure_apt_dns() {
+  if have_apt_dns; then
+    return 0
+  fi
+
+  write_installer_resolv_conf
+  sleep 1
+  have_apt_dns
+}
+
 require_tools() {
   local missing=()
   local tool
@@ -137,11 +169,25 @@ require_tools() {
   done
 
   if (( ${#missing[@]} > 0 )); then
+    if ! ensure_apt_dns; then
+      setup_logging
+      log_msg "DNS preflight failed before apt-get update"
+      {
+        echo "=== /etc/resolv.conf ==="
+        cat /etc/resolv.conf 2>/dev/null || true
+        echo
+        echo "=== ip route ==="
+        ip route 2>/dev/null || true
+      } >>"$LOG_FILE" 2>&1 || true
+      echo "DNS resolution for Debian mirrors is unavailable in the installer environment." >&2
+      exit 1
+    fi
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
       dosfstools \
       e2fsprogs \
       parted \
+      grub2-common \
       grub-pc-bin \
       grub-efi-amd64-bin \
       efibootmgr \
@@ -1793,39 +1839,32 @@ boot_ip_arg() {
 
 write_grub_cfg() {
   local root_uuid="$1"
-  local ip_arg
   local irq_args_default=""
   local irq_args_safe="nomodeset irqpoll pci=nomsi noapic"
   local irq_args_legacy="nomodeset irqpoll noapic nolapic"
-  ip_arg="$(boot_ip_arg)"
 
   cat > "$TARGET_MOUNT/boot/grub/grub.cfg" <<EOF
-insmod all_video
-insmod gfxterm
-insmod jpeg
-terminal_output gfxterm
-if background_image /boot/grub/background.jpg; then
-  set color_normal=white/black
-  set color_highlight=black/light-gray
-fi
+insmod part_gpt
+insmod ext2
+terminal_output console
 set default=0
 set timeout=4
 
 menuentry 'Beagle OS' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash $irq_args_default $ip_arg pve_thin_client.mode=runtime
+  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 $irq_args_default pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS (safe mode)' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash $irq_args_safe $ip_arg pve_thin_client.mode=runtime
+  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 $irq_args_safe pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS (legacy IRQ mode)' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash $irq_args_legacy $ip_arg pve_thin_client.mode=runtime
+  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 $irq_args_legacy pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 EOF

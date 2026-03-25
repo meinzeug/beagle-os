@@ -373,6 +373,35 @@ for vm in resources:
 metadata_path.write_text(json.dumps(sorted(vm_installers, key=lambda item: item["vmid"]), indent=2) + "\n")
 PY
 
+CHECKSUM_FILE="$DIST_DIR/SHA256SUMS"
+checksum_entries=(
+  "beagle-extension-v${VERSION}.zip"
+  "beagle-os-v${VERSION}.tar.gz"
+  "beagle-os-latest.tar.gz"
+  "pve-thin-client-usb-payload-v${VERSION}.tar.gz"
+  "pve-thin-client-usb-payload-latest.tar.gz"
+  "pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
+  "pve-thin-client-usb-bootstrap-latest.tar.gz"
+  "pve-thin-client-usb-installer-v${VERSION}.sh"
+  "pve-thin-client-usb-installer-latest.sh"
+  "pve-thin-client-usb-installer-host-v${VERSION}.sh"
+  "pve-thin-client-usb-installer-host-latest.sh"
+  "beagle-os-installer.iso"
+  "beagle-os-installer-amd64.iso"
+)
+
+while IFS= read -r installer_name; do
+  checksum_entries+=("$installer_name")
+done < <(
+  cd "$DIST_DIR"
+  compgen -G 'pve-thin-client-usb-installer-vm-*.sh' | sort || true
+)
+
+(
+  cd "$DIST_DIR"
+  sha256sum "${checksum_entries[@]}" > "$(basename "$CHECKSUM_FILE")"
+)
+
 ensure_dist_permissions
 
 INSTALLER_SHA256="$(sha256sum "$HOST_INSTALLER_LATEST" | awk '{print $1}')"

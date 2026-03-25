@@ -302,6 +302,19 @@ ensure_static_routes() {
   fi
 }
 
+apply_static_address() {
+  local iface="$1"
+  local address prefix
+
+  [[ "${PVE_THIN_CLIENT_NETWORK_MODE:-dhcp}" == "static" ]] || return 0
+  address="${PVE_THIN_CLIENT_NETWORK_STATIC_ADDRESS:-}"
+  prefix="${PVE_THIN_CLIENT_NETWORK_STATIC_PREFIX:-24}"
+  [[ -n "$address" ]] || return 0
+
+  ip link set "$iface" up >/dev/null 2>&1 || true
+  ip addr replace "${address}/${prefix}" dev "$iface" >/dev/null 2>&1 || true
+}
+
 main() {
   local iface
 
@@ -313,6 +326,7 @@ main() {
     write_network_file "$iface"
     restart_networkd
   fi
+  apply_static_address "$iface"
   ensure_static_routes "$iface"
   apply_hostname
   write_resolv_conf || true

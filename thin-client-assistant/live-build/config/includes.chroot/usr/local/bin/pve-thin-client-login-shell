@@ -3,6 +3,7 @@ set -eu
 
 BOOT_MODE="$("/usr/local/bin/pve-thin-client-boot-mode" 2>/dev/null || printf 'installer')"
 export PVE_THIN_CLIENT_BOOT_MODE="${BOOT_MODE}"
+CMDLINE_FILE="${PVE_THIN_CLIENT_CMDLINE_FILE:-/proc/cmdline}"
 
 # Preserve SSH remote-command behavior (shell gets called with "-c <cmd>").
 if [ "${1:-}" = "-c" ]; then
@@ -14,6 +15,12 @@ should_autostart_x11() {
     runtime|installer) ;;
     *) return 1 ;;
   esac
+  if [ -r "${CMDLINE_FILE}" ] && grep -Eq '(^|[[:space:]])pve_thin_client\.installer_ui=text($|[[:space:]])' "${CMDLINE_FILE}"; then
+    return 1
+  fi
+  if [ -r "${CMDLINE_FILE}" ] && grep -Eq '(^|[[:space:]])pve_thin_client\.(no_x11|no_auto_x11)=1($|[[:space:]])' "${CMDLINE_FILE}"; then
+    return 1
+  fi
   [ -z "${SSH_CONNECTION:-}" ] || return 1
   [ -z "${DISPLAY:-}" ] || return 1
   [ "${PVE_THIN_CLIENT_NO_AUTO_X11:-0}" != "1" ] || return 1

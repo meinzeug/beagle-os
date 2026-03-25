@@ -84,7 +84,8 @@ fi
 collect_beagle_os_assets
 
 EXT_BUILD_DIR="$(mktemp -d)"
-trap 'rm -rf "$EXT_BUILD_DIR"' EXIT
+USB_PAYLOAD_STAGE_DIR="$(mktemp -d)"
+trap 'rm -rf "$EXT_BUILD_DIR" "$USB_PAYLOAD_STAGE_DIR"' EXIT
 cp -a "$EXT_DIR/." "$EXT_BUILD_DIR/"
 python3 - "$EXT_BUILD_DIR/manifest.json" "$VERSION" <<'PY'
 import json
@@ -109,17 +110,22 @@ PY
 
 install -m 0644 "$DIST_DIR/$TARBALL_NAME" "$DIST_DIR/$TARBALL_LATEST_NAME"
 
+install -d -m 0755 "$USB_PAYLOAD_STAGE_DIR/dist/$(basename "$INSTALLER_BUILD_DIR")"
+rsync -a --delete \
+  "$INSTALLER_BUILD_DIR/live/" \
+  "$USB_PAYLOAD_STAGE_DIR/dist/$(basename "$INSTALLER_BUILD_DIR")/live/"
+
 (
-  cd "$ROOT_DIR"
+  cd /
   tar -czf "$DIST_DIR/$USB_PAYLOAD_NAME" \
-    thin-client-assistant \
-    docs \
-    scripts \
-    README.md \
-    LICENSE \
-    CHANGELOG.md \
-    VERSION \
-    "dist/$(basename "$INSTALLER_BUILD_DIR")/live"
+    -C "$ROOT_DIR" thin-client-assistant \
+    -C "$ROOT_DIR" docs \
+    -C "$ROOT_DIR" scripts \
+    -C "$ROOT_DIR" README.md \
+    -C "$ROOT_DIR" LICENSE \
+    -C "$ROOT_DIR" CHANGELOG.md \
+    -C "$ROOT_DIR" VERSION \
+    -C "$USB_PAYLOAD_STAGE_DIR" "dist/$(basename "$INSTALLER_BUILD_DIR")/live"
 )
 
 install -m 0644 "$DIST_DIR/$USB_PAYLOAD_NAME" "$DIST_DIR/$USB_PAYLOAD_LATEST_NAME"

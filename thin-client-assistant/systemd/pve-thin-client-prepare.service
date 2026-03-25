@@ -5,7 +5,7 @@ Before=getty@tty1.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/lib/pve-thin-client/prepare-runtime.sh
+ExecStart=/usr/local/lib/pve-thin-client/runtime/prepare-runtime.sh
 
 [Install]
 WantedBy=multi-user.target

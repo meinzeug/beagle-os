@@ -3,6 +3,8 @@ Description=Beagle OS Installer GUI
 Documentation=file:///usr/local/lib/pve-thin-client/README.md
 ConditionKernelCommandLine=pve_thin_client.mode=installer
 ConditionKernelCommandLine=!pve_thin_client.installer_ui=text
+ConditionKernelCommandLine=!pve_thin_client.no_x11=1
+ConditionKernelCommandLine=!pve_thin_client.no_auto_x11=1
 ConditionPathExists=/usr/local/bin/pve-thin-client-start-x11
 After=local-fs.target systemd-user-sessions.service plymouth-quit-wait.service getty-pre.target
 Wants=plymouth-quit-wait.service

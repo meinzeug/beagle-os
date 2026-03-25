@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ASSET_ROOT="${PVE_DCV_PROXY_ASSET_ROOT:-}"
 CONFIG_DIR="${PVE_DCV_PROXY_CONFIG_DIR:-/etc/beagle}"
 ENV_FILE="$CONFIG_DIR/beagle-proxy.env"
 LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-8443}"
@@ -16,6 +17,14 @@ CERT_FILE="${PVE_DCV_PROXY_CERT_FILE:-/etc/pve/local/pveproxy-ssl.pem}"
 KEY_FILE="${PVE_DCV_PROXY_KEY_FILE:-/etc/pve/local/pveproxy-ssl.key}"
 NGINX_SITE="/etc/nginx/sites-available/beagle-proxy.conf"
 NGINX_ENABLED="/etc/nginx/sites-enabled/beagle-proxy.conf"
+
+if [[ -z "$ASSET_ROOT" ]]; then
+  if [[ -d /opt/beagle/dist && -f /opt/beagle/proxmox-ui/beagle-autologin.js ]]; then
+    ASSET_ROOT="/opt/beagle"
+  else
+    ASSET_ROOT="$ROOT_DIR"
+  fi
+fi
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -285,7 +294,7 @@ server {
     ssl_session_timeout 1d;
 
     location = /beagle-autologin.js {
-        alias ${ROOT_DIR}/proxmox-ui/beagle-autologin.js;
+        alias ${ASSET_ROOT}/proxmox-ui/beagle-autologin.js;
         add_header Cache-Control "no-store";
     }
 
@@ -294,7 +303,7 @@ server {
     }
 
     location ^~ ${DOWNLOADS_PATH}/ {
-        alias ${ROOT_DIR}/dist/;
+        alias ${ASSET_ROOT}/dist/;
         index beagle-downloads-index.html;
         add_header Cache-Control "no-store";
         autoindex on;

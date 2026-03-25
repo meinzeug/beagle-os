@@ -70,6 +70,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
   debootstrap \
   squashfs-tools \
   xorriso \
+  grub2-common \
   grub-pc-bin \
   grub-efi-amd64-bin \
   dosfstools \
@@ -125,7 +126,7 @@ menuentry 'Beagle OS Installer (legacy IRQ mode)' {
 menuentry 'Beagle OS Installer (text mode)' {
   terminal_output console
   set gfxpayload=text
-  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp console=tty0 console=ttyS0,115200n8 systemd.unit=multi-user.target pve_thin_client.mode=installer pve_thin_client.installer_ui=text
+  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp console=tty0 console=ttyS0,115200n8 systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
   initrd /live/initrd.img
 }
 EOF
@@ -152,6 +153,9 @@ prepare_rootfs_stage() {
   # live-build can fail before chroot includes are copied into the rootfs.
   # Normalize ownership here so the staged filesystem matches a real image.
   rsync -a --chown=root:root "$BUILD_DIR/config/includes.chroot/" "$ROOTFS_STAGE_DIR/"
+  install -D -m 0644 \
+    "$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-prepare.service" \
+    "$ROOTFS_STAGE_DIR/etc/systemd/system/pve-thin-client-prepare.service"
 
   install -d -m 1777 "$ROOTFS_STAGE_DIR/tmp"
   install -d -m 0755 \
@@ -168,6 +172,12 @@ prepare_rootfs_stage() {
     install -d -m 0755 -o '$THINCLIENT_USER' -g '$THINCLIENT_USER' '/home/$THINCLIENT_USER'
   "
 
+  chroot "$ROOTFS_STAGE_DIR" /bin/sh -lc "
+    command -v grub-install >/dev/null 2>&1
+    command -v mkfs.vfat >/dev/null 2>&1
+    command -v parted >/dev/null 2>&1
+  "
+
   if [[ -e "$ROOTFS_STAGE_DIR/etc/sudoers.d" ]]; then
     chown root:root "$ROOTFS_STAGE_DIR/etc/sudoers.d"
     chmod 0755 "$ROOTFS_STAGE_DIR/etc/sudoers.d"
@@ -178,6 +188,7 @@ prepare_rootfs_stage() {
   fi
 
   systemctl --root="$ROOTFS_STAGE_DIR" enable \
+    pve-thin-client-prepare.service \
     pve-thin-client-installer-gui.service \
     pve-thin-client-installer-menu.service \
     pve-thin-client-installer-menu-serial.service \
@@ -263,6 +274,21 @@ EOF
   chmod 0755 "$wrapper_path"
 }
 
+cleanup_stale_build_mounts() {
+  local mount_root="$BUILD_DIR/chroot"
+  local mountpoint=""
+
+  if ! command -v findmnt >/dev/null 2>&1; then
+    return 0
+  fi
+
+  while IFS= read -r mountpoint; do
+    [[ -n "$mountpoint" ]] || continue
+    umount -lf "$mountpoint" >/dev/null 2>&1 || true
+  done < <(findmnt -rn -R -o TARGET "$mount_root" 2>/dev/null | awk 'length($0) > 0' | sort -r)
+}
+
+cleanup_stale_build_mounts
 rm -rf "$BUILD_DIR"
 install -d -m 0755 "$BUILD_DIR" "$DIST_DIR/live"
 rsync -a --delete "$LB_TEMPLATE_DIR/" "$BUILD_DIR/"

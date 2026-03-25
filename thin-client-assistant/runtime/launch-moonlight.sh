@@ -17,6 +17,41 @@ have_binary() {
   command -v "$1" >/dev/null 2>&1
 }
 
+detect_xauthority() {
+  local auth_candidate=""
+
+  auth_candidate="$(
+    ps -eo args= 2>/dev/null | awk '
+      /[X]org/ && /(^|[[:space:]]):0($|[[:space:]])/ {
+        for (i = 1; i <= NF; i++) {
+          if ($i == "-auth" && (i + 1) <= NF) {
+            print $(i + 1)
+            exit
+          }
+        }
+      }
+    '
+  )"
+  if [[ -n "$auth_candidate" && -r "$auth_candidate" ]]; then
+    printf '%s\n' "$auth_candidate"
+    return 0
+  fi
+
+  if [[ -n "${XAUTHORITY:-}" && -r "${XAUTHORITY}" ]]; then
+    printf '%s\n' "${XAUTHORITY}"
+    return 0
+  fi
+
+  auth_candidate="${HOME:-/home/thinclient}/.Xauthority"
+  if [[ -r "$auth_candidate" ]]; then
+    printf '%s\n' "$auth_candidate"
+    return 0
+  fi
+
+  auth_candidate="$(find /tmp -maxdepth 1 -type f -name 'serverauth.*' 2>/dev/null | head -n 1 || true)"
+  printf '%s\n' "${auth_candidate:-${HOME:-/home/thinclient}/.Xauthority}"
+}
+
 moonlight_bin() {
   printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}"
 }
@@ -41,8 +76,41 @@ moonlight_host() {
   render_template "${PVE_THIN_CLIENT_MOONLIGHT_HOST:-}"
 }
 
+moonlight_gateway_fallback_host() {
+  local gateway host
+  gateway="${PVE_THIN_CLIENT_NETWORK_GATEWAY:-}"
+  host="$(moonlight_host)"
+
+  [[ -n "$gateway" ]] || return 1
+  [[ "$gateway" != "$host" ]] || return 1
+  printf '%s\n' "$gateway"
+}
+
 moonlight_port() {
   render_template "${PVE_THIN_CLIENT_MOONLIGHT_PORT:-}"
+}
+
+format_moonlight_target() {
+  local host="$1"
+  local port="$2"
+
+  [[ -n "$host" ]] || return 1
+  if [[ -z "$port" ]]; then
+    printf '%s\n' "$host"
+    return 0
+  fi
+
+  if [[ "$host" == \[*\] ]]; then
+    printf '%s:%s\n' "$host" "$port"
+    return 0
+  fi
+
+  if [[ "$host" == *:* ]]; then
+    printf '[%s]:%s\n' "$host" "$port"
+    return 0
+  fi
+
+  printf '%s:%s\n' "$host" "$port"
 }
 
 resolve_ipv4_host() {
@@ -63,7 +131,7 @@ raise SystemExit(1)
 PY
 }
 
-moonlight_connect_host() {
+moonlight_primary_connect_host() {
   local host resolved
   host="$(moonlight_host)"
   [[ -n "$host" ]] || return 0
@@ -77,12 +145,50 @@ moonlight_connect_host() {
   printf '%s\n' "$host"
 }
 
+rewrite_url_host() {
+  python3 - "$1" "$2" <<'PY'
+from urllib.parse import urlsplit, urlunsplit
+import sys
+
+url = (sys.argv[1] or "").strip()
+host = (sys.argv[2] or "").strip()
+if not url or not host:
+    raise SystemExit(1)
+
+parts = urlsplit(url)
+if not parts.scheme or not parts.netloc:
+    raise SystemExit(1)
+
+userinfo = ""
+if "@" in parts.netloc:
+    userinfo, _, _ = parts.netloc.rpartition("@")
+    userinfo = f"{userinfo}@"
+
+hostname = parts.hostname or ""
+port = f":{parts.port}" if parts.port else ""
+netloc = f"{userinfo}{host}{port}"
+print(urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment)))
+PY
+}
+
 moonlight_app() {
   render_template "${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}"
 }
 
 moonlight_audio_driver() {
   printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_AUDIO_DRIVER:-alsa}"
+}
+
+moonlight_video_decoder() {
+  local configured
+  configured="${PVE_THIN_CLIENT_MOONLIGHT_VIDEO_DECODER:-auto}"
+
+  if [[ "$configured" == "auto" ]] && [[ ! -e /dev/dri/renderD128 ]] && [[ ! -e /dev/dri/card0 ]]; then
+    printf 'software\n'
+    return 0
+  fi
+
+  printf '%s\n' "$configured"
 }
 
 local_display_resolution() {
@@ -161,12 +267,13 @@ sunshine_api_url() {
   fi
 }
 
-moonlight_target_reachable() {
+probe_stream_target() {
   local api_url host
   local -a curl_opts
   local username password
 
-  api_url="$(sunshine_api_url)"
+  api_url="$1"
+  host="$2"
   curl_opts=(-ksS -o /dev/null --connect-timeout 2 --max-time 4)
   username="${PVE_THIN_CLIENT_SUNSHINE_USERNAME:-}"
   password="${PVE_THIN_CLIENT_SUNSHINE_PASSWORD:-}"
@@ -180,7 +287,6 @@ moonlight_target_reachable() {
     curl "${curl_opts[@]}" "${api_url%/}/api/apps" && return 0
   fi
 
-  host="$(moonlight_connect_host)"
   [[ -n "$host" ]] || return 1
 
   if command -v ping >/dev/null 2>&1; then
@@ -191,6 +297,50 @@ moonlight_target_reachable() {
   fi
 
   return 1
+}
+
+selected_sunshine_api_url() {
+  local api_url fallback_host rewritten
+
+  api_url="$(sunshine_api_url)"
+  if probe_stream_target "$api_url" "$(moonlight_primary_connect_host)"; then
+    printf '%s\n' "$api_url"
+    return 0
+  fi
+
+  fallback_host="$(moonlight_gateway_fallback_host 2>/dev/null || true)"
+  if [[ -n "$fallback_host" && -n "$api_url" ]]; then
+    rewritten="$(rewrite_url_host "$api_url" "$fallback_host" 2>/dev/null || true)"
+    if [[ -n "$rewritten" ]]; then
+      printf '%s\n' "$rewritten"
+      return 0
+    fi
+  fi
+
+  printf '%s\n' "$api_url"
+}
+
+moonlight_connect_host() {
+  local host fallback_host api_url
+
+  host="$(moonlight_primary_connect_host)"
+  api_url="$(sunshine_api_url)"
+  if probe_stream_target "$api_url" "$host"; then
+    printf '%s\n' "$host"
+    return 0
+  fi
+
+  fallback_host="$(moonlight_gateway_fallback_host 2>/dev/null || true)"
+  if [[ -n "$fallback_host" ]]; then
+    printf '%s\n' "$fallback_host"
+    return 0
+  fi
+
+  printf '%s\n' "$host"
+}
+
+moonlight_target_reachable() {
+  probe_stream_target "$(selected_sunshine_api_url)" "$(moonlight_connect_host)"
 }
 
 json_bool() {
@@ -209,26 +359,19 @@ PY
 }
 
 moonlight_list() {
-  local bin host port timeout_value
+  local bin host port timeout_value target
   bin="$(moonlight_bin)"
   host="$(moonlight_connect_host)"
   port="$(moonlight_port)"
   timeout_value="$(moonlight_list_timeout)"
+  target="$(format_moonlight_target "$host" "$port")"
 
   if command -v timeout >/dev/null 2>&1; then
-    if [[ -n "$port" ]]; then
-      timeout --preserve-status "$timeout_value" "$bin" list "$host" -port "$port" >"$MOONLIGHT_LIST_LOG" 2>&1
-    else
-      timeout --preserve-status "$timeout_value" "$bin" list "$host" >"$MOONLIGHT_LIST_LOG" 2>&1
-    fi
+    timeout --preserve-status "$timeout_value" "$bin" list "$target" >"$MOONLIGHT_LIST_LOG" 2>&1
     return $?
   fi
 
-  if [[ -n "$port" ]]; then
-    "$bin" list "$host" -port "$port" >"$MOONLIGHT_LIST_LOG" 2>&1
-  else
-    "$bin" list "$host" >"$MOONLIGHT_LIST_LOG" 2>&1
-  fi
+  "$bin" list "$target" >"$MOONLIGHT_LIST_LOG" 2>&1
 }
 
 submit_sunshine_pin() {
@@ -256,29 +399,22 @@ submit_sunshine_pin() {
 }
 
 ensure_paired() {
-  local bin host port pin pair_pid paired_ok attempt pair_status
+  local bin host port pin pair_pid paired_ok attempt pair_status target
 
   bin="$(moonlight_bin)"
   host="$(moonlight_connect_host)"
   port="$(moonlight_port)"
   pin="${PVE_THIN_CLIENT_SUNSHINE_PIN:-}"
+  target="$(format_moonlight_target "$host" "$port")"
 
   moonlight_list && return 0
 
   [[ -n "$pin" ]] || return 1
 
   if command -v timeout >/dev/null 2>&1; then
-    if [[ -n "$port" ]]; then
-      timeout --preserve-status "$(moonlight_list_timeout)" "$bin" pair "$host" -port "$port" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
-    else
-      timeout --preserve-status "$(moonlight_list_timeout)" "$bin" pair "$host" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
-    fi
+    timeout --preserve-status "$(moonlight_list_timeout)" "$bin" pair "$target" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
   else
-    if [[ -n "$port" ]]; then
-      "$bin" pair "$host" -port "$port" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
-    else
-      "$bin" pair "$host" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
-    fi
+    "$bin" pair "$target" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
   fi
   pair_pid=$!
   paired_ok="0"
@@ -300,22 +436,22 @@ ensure_paired() {
 }
 
 build_stream_args() {
-  local resolution fps bitrate codec decoder audio_config app host connect_host port
+  local resolution fps bitrate codec decoder audio_config app host connect_host port target
   local -n out_ref="$1"
 
   host="$(moonlight_host)"
   connect_host="$(moonlight_connect_host)"
   port="$(moonlight_port)"
+  target="$(format_moonlight_target "${connect_host:-$host}" "$port")"
   app="$(moonlight_app)"
   resolution="$(moonlight_resolution)"
   fps="${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}"
   bitrate="${PVE_THIN_CLIENT_MOONLIGHT_BITRATE:-20000}"
   codec="${PVE_THIN_CLIENT_MOONLIGHT_VIDEO_CODEC:-H.264}"
-  decoder="${PVE_THIN_CLIENT_MOONLIGHT_VIDEO_DECODER:-auto}"
+  decoder="$(moonlight_video_decoder)"
   audio_config="${PVE_THIN_CLIENT_MOONLIGHT_AUDIO_CONFIG:-stereo}"
 
-  out_ref=("$(moonlight_bin)" stream "${connect_host:-$host}" "$app")
-  [[ -n "$port" ]] && out_ref+=(-port "$port")
+  out_ref=("$(moonlight_bin)" stream "$target" "$app")
 
   case "$resolution" in
     720|1080|1440|4K)
@@ -343,7 +479,13 @@ build_stream_args() {
 }
 
 configure_graphics_runtime() {
-  if [[ "${PVE_THIN_CLIENT_MOONLIGHT_VIDEO_DECODER:-auto}" == "software" ]]; then
+  export DISPLAY="${DISPLAY:-:0}"
+  export XAUTHORITY="$(detect_xauthority)"
+  export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+  export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-x11}"
+  export SDL_VIDEODRIVER="${SDL_VIDEODRIVER:-x11}"
+
+  if [[ "$(moonlight_video_decoder)" == "software" ]]; then
     export QT_QUICK_BACKEND="${QT_QUICK_BACKEND:-software}"
     export LIBVA_DRIVER_NAME="${LIBVA_DRIVER_NAME:-none}"
     export VDPAU_DRIVER="${VDPAU_DRIVER:-noop}"

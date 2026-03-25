@@ -2,6 +2,8 @@
 set -eu
 
 BOOT_MODE="${PVE_THIN_CLIENT_BOOT_MODE:-$(/usr/local/bin/pve-thin-client-boot-mode 2>/dev/null || printf runtime)}"
+export DISPLAY="${DISPLAY:-:0}"
+export HOME="${HOME:-/home/thinclient}"
 HOST_TAG="$(hostname -s 2>/dev/null || hostname 2>/dev/null || printf thinclient)"
 HOST_TAG="$(printf '%s' "$HOST_TAG" | tr -cs 'A-Za-z0-9._-' '-')"
 BOOT_STAMP="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date +%Y%m%dT%H%M%SZ)"
@@ -11,6 +13,41 @@ LOG_DIR="${PVE_THIN_CLIENT_LOG_DIR:-$LOG_ROOT/$LOG_SESSION_ID}"
 mkdir -p "$LOG_DIR"
 export PVE_THIN_CLIENT_LOG_DIR="$LOG_DIR"
 export PVE_THIN_CLIENT_LOG_SESSION_ID="$LOG_SESSION_ID"
+
+detect_xauthority() {
+  auth_candidate="$(
+    ps -eo args= 2>/dev/null | awk '
+      /[X]org/ && /(^|[[:space:]]):0($|[[:space:]])/ {
+        for (i = 1; i <= NF; i++) {
+          if ($i == "-auth" && (i + 1) <= NF) {
+            print $(i + 1)
+            exit
+          }
+        }
+      }
+    '
+  )"
+  if [ -n "${auth_candidate}" ] && [ -r "${auth_candidate}" ]; then
+    printf '%s\n' "${auth_candidate}"
+    return 0
+  fi
+  if [ -n "${XAUTHORITY:-}" ] && [ -r "${XAUTHORITY}" ]; then
+    printf '%s\n' "${XAUTHORITY}"
+    return 0
+  fi
+  if [ -r "$HOME/.Xauthority" ]; then
+    printf '%s\n' "$HOME/.Xauthority"
+    return 0
+  fi
+  auth_candidate="$(find /tmp -maxdepth 1 -type f -name 'serverauth.*' 2>/dev/null | head -n 1 || true)"
+  if [ -n "${auth_candidate}" ] && [ -r "${auth_candidate}" ]; then
+    printf '%s\n' "${auth_candidate}"
+    return 0
+  fi
+  printf '%s\n' "$HOME/.Xauthority"
+}
+
+export XAUTHORITY="$(detect_xauthority)"
 
 {
   printf 'BOOT_MODE=%s\n' "$BOOT_MODE"
@@ -48,6 +85,11 @@ if command -v xset >/dev/null 2>&1; then
   xset -dpms >/dev/null 2>&1 || true
   xset s off >/dev/null 2>&1 || true
   xset s noblank >/dev/null 2>&1 || true
+fi
+
+if command -v xhost >/dev/null 2>&1; then
+  xhost +SI:localuser:thinclient >/dev/null 2>&1 || true
+  xhost +local: >/dev/null 2>&1 || true
 fi
 
 if command -v openbox-session >/dev/null 2>&1; then
