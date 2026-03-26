@@ -10,6 +10,7 @@ import ipaddress
 import base64
 import secrets
 import shlex
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -318,6 +319,118 @@ def fetch_https_pinned_pubkey(url: str) -> str:
     except (FileNotFoundError, subprocess.CalledProcessError):
         return ""
     return f"sha256//{output}" if output else ""
+
+
+def guest_exec_text(vmid: int, script: str) -> tuple[int, str, str]:
+    encoded = base64.b64encode(script.encode("utf-8")).decode("ascii")
+    runner = (
+        "set -euo pipefail\n"
+        "tmp_script=$(mktemp /tmp/beagle-guest-XXXXXX.sh)\n"
+        "tmp_b64=$(mktemp /tmp/beagle-guest-XXXXXX.b64)\n"
+        "cleanup() { rm -f \"$tmp_script\" \"$tmp_b64\"; }\n"
+        "trap cleanup EXIT\n"
+        "cat > \"$tmp_b64\" <<'__BEAGLE_B64__'\n"
+        f"{encoded}\n"
+        "__BEAGLE_B64__\n"
+        "base64 -d \"$tmp_b64\" > \"$tmp_script\"\n"
+        "chmod +x \"$tmp_script\"\n"
+        "\"$tmp_script\"\n"
+    )
+    try:
+        result = subprocess.run(
+            ["qm", "guest", "exec", str(vmid), "--", "bash", "-lc", runner],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+        output = ""
+        if isinstance(exc, subprocess.CalledProcessError):
+            output = exc.stdout or exc.stderr or ""
+        return 1, "", output.strip()
+
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError:
+        return 1, "", (result.stdout or result.stderr or "").strip()
+
+    exitcode = int(payload.get("exitcode", 0) or 0)
+    stdout = str(payload.get("out-data", "") or "").strip()
+    stderr = str(payload.get("err-data", "") or "").strip()
+    return exitcode, stdout, stderr
+
+
+def sunshine_guest_user(vm: VmSummary, config: dict[str, Any] | None = None) -> str:
+    vm_config = config if isinstance(config, dict) else get_vm_config(vm.node, vm.vmid)
+    meta = parse_description_meta(vm_config.get("description", ""))
+    return str(meta.get("sunshine-guest-user", "")).strip() or "dennis"
+
+
+def register_moonlight_certificate_on_vm(vm: VmSummary, client_cert_pem: str, *, device_name: str) -> dict[str, Any]:
+    config = get_vm_config(vm.node, vm.vmid)
+    guest_user = sunshine_guest_user(vm, config)
+    cert_b64 = base64.b64encode(client_cert_pem.encode("utf-8")).decode("ascii")
+    device_name = safe_slug(device_name or f"beagle-vm{vm.vmid}-client", f"beagle-vm{vm.vmid}-client")
+    script = f"""#!/usr/bin/env bash
+set -euo pipefail
+
+guest_user={shlex.quote(guest_user)}
+device_name={shlex.quote(device_name)}
+state_file="/home/$guest_user/.config/sunshine/sunshine_state.json"
+cert_file="$(mktemp /tmp/beagle-cert-XXXXXX.pem)"
+trap 'rm -f "$cert_file"' EXIT
+cat > "$cert_file.b64" <<'__BEAGLE_CERT__'
+{cert_b64}
+__BEAGLE_CERT__
+base64 -d "$cert_file.b64" > "$cert_file"
+rm -f "$cert_file.b64"
+
+python3 - "$state_file" "$device_name" "$cert_file" <<'PY'
+import json
+import sys
+import uuid
+from pathlib import Path
+
+state_path = Path(sys.argv[1])
+device_name = sys.argv[2]
+cert_path = Path(sys.argv[3])
+
+if not state_path.exists():
+    raise SystemExit(f"sunshine state file missing: {{state_path}}")
+
+cert = cert_path.read_text(encoding="utf-8")
+state = json.loads(state_path.read_text(encoding="utf-8"))
+root = state.setdefault("root", {{}})
+named = root.setdefault("named_devices", [])
+
+for entry in named:
+    if entry.get("cert") == cert:
+        entry["name"] = device_name
+        state_path.write_text(json.dumps(state, indent=4) + "\\n", encoding="utf-8")
+        print("updated-existing")
+        raise SystemExit(0)
+
+named.append({{
+    "name": device_name,
+    "cert": cert,
+    "uuid": str(uuid.uuid4()).upper(),
+}})
+state_path.write_text(json.dumps(state, indent=4) + "\\n", encoding="utf-8")
+print("registered-new")
+PY
+
+pkill -x sunshine >/dev/null 2>&1 || true
+su - "$guest_user" -c 'systemctl --user restart sunshine.service >/dev/null 2>&1 || (nohup sunshine >/dev/null 2>&1 </dev/null &)'
+sleep 2
+"""
+    exitcode, stdout, stderr = guest_exec_text(vm.vmid, script)
+    return {
+        "ok": exitcode == 0,
+        "guest_user": guest_user,
+        "exitcode": exitcode,
+        "stdout": stdout,
+        "stderr": stderr,
+    }
 
 
 def internal_sunshine_api_url(vm: VmSummary, profile: dict[str, Any]) -> str:
@@ -1964,6 +2077,47 @@ class Handler(BaseHTTPRequestHandler):
                         "moonlight_port": str(profile.get("moonlight_port", "") or ""),
                         "moonlight_app": str(profile.get("moonlight_app", "Desktop") or "Desktop"),
                     },
+                },
+            )
+            return
+
+        if path == "/api/v1/endpoints/moonlight/register":
+            if not self._is_endpoint_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            identity = self._endpoint_identity() or {}
+            vmid = int(identity.get("vmid", 0) or 0)
+            vm = find_vm(vmid)
+            if vm is None or str(identity.get("node", "")).strip() != vm.node:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                return
+            try:
+                payload = self._read_json_body()
+                client_cert_pem = str(payload.get("client_cert_pem", "")).strip()
+                device_name = (
+                    str(payload.get("device_name", "")).strip()
+                    or str(identity.get("hostname", "")).strip()
+                    or f"beagle-vm{vmid}-client"
+                )
+                if not client_cert_pem or "BEGIN CERTIFICATE" not in client_cert_pem:
+                    raise ValueError("missing client certificate")
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            result = register_moonlight_certificate_on_vm(vm, client_cert_pem, device_name=device_name)
+            self._write_json(
+                HTTPStatus.CREATED if result.get("ok") else HTTPStatus.BAD_GATEWAY,
+                {
+                    "ok": bool(result.get("ok")),
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "vmid": vm.vmid,
+                    "node": vm.node,
+                    "device_name": device_name,
+                    "guest_user": result.get("guest_user", ""),
+                    "stdout": result.get("stdout", ""),
+                    "stderr": result.get("stderr", ""),
                 },
             )
             return

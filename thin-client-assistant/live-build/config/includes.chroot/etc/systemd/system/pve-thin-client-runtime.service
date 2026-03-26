@@ -30,7 +30,7 @@ TTYPath=/dev/tty1
 TTYReset=yes
 TTYVHangup=yes
 TTYVTDisallocate=yes
-Restart=on-failure
+Restart=always
 RestartSec=2
 
 [Install]

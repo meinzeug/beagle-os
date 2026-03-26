@@ -564,6 +564,10 @@ enable_rootfs_services() {
   chroot_run_rootfs "systemctl disable lightdm.service >/dev/null 2>&1 || true"
 }
 
+configure_rootfs_plymouth() {
+  chroot_run_rootfs "command -v plymouth-set-default-theme >/dev/null 2>&1 && plymouth-set-default-theme spinner >/dev/null 2>&1 || true"
+}
+
 install_kernel_into_rootfs() {
   local kernel_pkg_name kernel_release
 
@@ -679,6 +683,7 @@ main() {
   install_moonlight_into_rootfs
   chroot_run_rootfs "/usr/local/sbin/beagle-render-config"
   write_build_metadata
+  configure_rootfs_plymouth
   install_kernel_into_rootfs
   enable_rootfs_services
   cleanup_mounts ROOTFS_CHROOT_MOUNTS

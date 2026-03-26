@@ -14,6 +14,8 @@ grub-efi-amd64-bin
 grub2-common
 initramfs-tools
 linux-base
+plymouth
+plymouth-themes
 dosfstools
 e2fsprogs
 
@@ -42,6 +44,19 @@ xfonts-base
 xfonts-terminus
 pulseaudio
 mesa-utils
+mesa-va-drivers
+mesa-vdpau-drivers
+mesa-vulkan-drivers
+va-driver-all
+vdpau-driver-all
+libvdpau1
+libvdpau-va-gl1
+vainfo
+firmware-linux-free
+firmware-amd-graphics
+firmware-misc-nonfree
+firmware-iwlwifi
+firmware-realtek
 pciutils
 usbutils
 htop

@@ -1,6 +1,8 @@
 live-boot
 linux-image-amd64
 systemd-sysv
+plymouth
+plymouth-themes
 python3
 xserver-xorg-core
 xserver-xorg-input-libinput
@@ -21,6 +23,7 @@ dbus-x11
 xterm
 chromium
 chromium-sandbox
+feh
 curl
 ca-certificates
 unclutter
@@ -31,11 +34,19 @@ iw
 util-linux
 pciutils
 mesa-utils
+mesa-va-drivers
 mesa-vulkan-drivers
+mesa-vdpau-drivers
+va-driver-all
+vdpau-driver-all
+libvdpau1
+libvdpau-va-gl1
+vainfo
 whiptail
 wpasupplicant
 rfkill
 wireless-regdb
+firmware-linux-free
 firmware-amd-graphics
 firmware-sof-signed
 firmware-misc-nonfree

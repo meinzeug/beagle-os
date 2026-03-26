@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+  plymouth-set-default-theme spinner >/dev/null 2>&1 || true
+fi
+
+if command -v update-initramfs >/dev/null 2>&1; then
+  update-initramfs -u >/dev/null 2>&1 || true
+fi

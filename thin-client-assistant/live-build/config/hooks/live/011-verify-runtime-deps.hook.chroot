@@ -9,8 +9,15 @@ pipewire
 pipewire-pulse
 pipewire-alsa
 wireplumber
+plymouth
+feh
 mesa-vulkan-drivers
+mesa-va-drivers
+mesa-vdpau-drivers
+va-driver-all
+vdpau-driver-all
 pciutils
+firmware-linux-free
 firmware-amd-graphics
 firmware-sof-signed
 xserver-xorg-video-amdgpu

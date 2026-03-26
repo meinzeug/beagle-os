@@ -24,9 +24,22 @@ beagle_last_marker_file() {
 }
 
 ensure_beagle_state_dir() {
-  local state_dir
+  local state_dir candidate
   state_dir="$(beagle_state_dir)"
-  mkdir -p "$state_dir" >/dev/null 2>&1 || true
+
+  for candidate in \
+    "$state_dir" \
+    "/run/beagle-os" \
+    "${XDG_RUNTIME_DIR:-/run/user/$(id -u 2>/dev/null || echo 1000)}/beagle-os" \
+    "/tmp/beagle-os"
+  do
+    [[ -n "$candidate" ]] || continue
+    if mkdir -p "$candidate" >/dev/null 2>&1 && touch "$candidate/.write-test" >/dev/null 2>&1; then
+      rm -f "$candidate/.write-test" >/dev/null 2>&1 || true
+      export BEAGLE_STATE_DIR="$candidate"
+      return 0
+    fi
+  done
 }
 
 beagle_log_event() {

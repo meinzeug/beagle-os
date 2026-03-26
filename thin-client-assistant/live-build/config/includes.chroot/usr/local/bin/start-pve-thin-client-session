@@ -14,40 +14,7 @@ mkdir -p "$LOG_DIR"
 export PVE_THIN_CLIENT_LOG_DIR="$LOG_DIR"
 export PVE_THIN_CLIENT_LOG_SESSION_ID="$LOG_SESSION_ID"
 
-detect_xauthority() {
-  auth_candidate="$(
-    ps -eo args= 2>/dev/null | awk '
-      /[X]org/ && /(^|[[:space:]]):0($|[[:space:]])/ {
-        for (i = 1; i <= NF; i++) {
-          if ($i == "-auth" && (i + 1) <= NF) {
-            print $(i + 1)
-            exit
-          }
-        }
-      }
-    '
-  )"
-  if [ -n "${auth_candidate}" ] && [ -r "${auth_candidate}" ]; then
-    printf '%s\n' "${auth_candidate}"
-    return 0
-  fi
-  if [ -n "${XAUTHORITY:-}" ] && [ -r "${XAUTHORITY}" ]; then
-    printf '%s\n' "${XAUTHORITY}"
-    return 0
-  fi
-  if [ -r "$HOME/.Xauthority" ]; then
-    printf '%s\n' "$HOME/.Xauthority"
-    return 0
-  fi
-  auth_candidate="$(find /tmp -maxdepth 1 -type f -name 'serverauth.*' 2>/dev/null | head -n 1 || true)"
-  if [ -n "${auth_candidate}" ] && [ -r "${auth_candidate}" ]; then
-    printf '%s\n' "${auth_candidate}"
-    return 0
-  fi
-  printf '%s\n' "$HOME/.Xauthority"
-}
-
-export XAUTHORITY="$(detect_xauthority)"
+export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
 
 {
   printf 'BOOT_MODE=%s\n' "$BOOT_MODE"
@@ -79,6 +46,10 @@ export XAUTHORITY="$(detect_xauthority)"
 
 if command -v xsetroot >/dev/null 2>&1; then
   xsetroot -solid "#071a2c" >/dev/null 2>&1 || true
+fi
+
+if command -v feh >/dev/null 2>&1 && [ -f /usr/local/share/beagle-os/beagleos.png ]; then
+  feh --no-fehbg --bg-fill /usr/local/share/beagle-os/beagleos.png >/dev/null 2>&1 || true
 fi
 
 if command -v xset >/dev/null 2>&1; then
@@ -113,16 +84,8 @@ if [ -x /usr/local/bin/pve-thin-client-audio-init ]; then
   /usr/local/bin/pve-thin-client-audio-init >"$LOG_DIR/audio-init.log" 2>&1 || true
 fi
 
-if [ -x /usr/local/lib/pve-thin-client/runtime/prepare-runtime.sh ]; then
-  if command -v sudo >/dev/null 2>&1; then
-    sudo -n env \
-      PVE_THIN_CLIENT_LOG_DIR="$LOG_DIR" \
-      PVE_THIN_CLIENT_LOG_SESSION_ID="$LOG_SESSION_ID" \
-      /usr/local/lib/pve-thin-client/runtime/prepare-runtime.sh >"$LOG_DIR/prepare-runtime.log" 2>&1 || true
-  else
-    /usr/local/lib/pve-thin-client/runtime/prepare-runtime.sh >"$LOG_DIR/prepare-runtime.log" 2>&1 || true
-  fi
-fi
+# prepare-runtime already ran as root via systemd before the session starts.
+# Re-running it here through sudo causes password prompts and boot delays.
 
 if /usr/local/lib/pve-thin-client/runtime/launch-session.sh >>"$LOG_DIR/runtime-session.log" 2>&1; then
   exit 0

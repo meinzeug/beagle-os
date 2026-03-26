@@ -118,12 +118,12 @@ update_vm_metadata() {
   )"
 
   new_desc_b64="$(
-    python3 - "$encoded_desc" "$guest_ip" "$stream_host" "$stream_port" "$stream_api_url" "$SUNSHINE_USER" "$SUNSHINE_PASSWORD" "$SUNSHINE_PIN" "$PROXMOX_USER" "$PROXMOX_PASSWORD" "$PROXMOX_TOKEN" <<'PY'
+    python3 - "$encoded_desc" "$guest_ip" "$stream_host" "$stream_port" "$stream_api_url" "$SUNSHINE_USER" "$SUNSHINE_PASSWORD" "$SUNSHINE_PIN" "$PROXMOX_USER" "$PROXMOX_PASSWORD" "$PROXMOX_TOKEN" "$GUEST_USER" <<'PY'
 import base64
 import sys
 from urllib.parse import unquote
 
-encoded, guest_ip, stream_host, stream_port, stream_api_url, sunshine_user, sunshine_password, sunshine_pin, proxmox_user, proxmox_password, proxmox_token = sys.argv[1:12]
+encoded, guest_ip, stream_host, stream_port, stream_api_url, sunshine_user, sunshine_password, sunshine_pin, proxmox_user, proxmox_password, proxmox_token, guest_user = sys.argv[1:13]
 skip = {
     "sunshine-host",
     "sunshine-ip",
@@ -157,6 +157,7 @@ for raw_line in text.splitlines():
 
 lines.extend(
     [
+        f"sunshine-guest-user: {guest_user}",
         f"sunshine-host: {stream_host}",
         f"sunshine-ip: {guest_ip}",
         f"sunshine-api-url: {stream_api_url}",
@@ -288,7 +289,7 @@ AUTOSTART
 
 cat > "/home/\$GUEST_USER/.config/sunshine/sunshine.conf" <<'SUNCONF'
 sunshine_name = ${GUEST_USER}-sunshine
-min_log_level = warning
+min_log_level = info
 origin_web_ui_allowed = ${SUNSHINE_ORIGIN_WEB_UI_ALLOWED}
 origin_pin_allowed = ${SUNSHINE_ORIGIN_WEB_UI_ALLOWED}
 encoder = software
