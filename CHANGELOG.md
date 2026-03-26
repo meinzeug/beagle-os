@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.0.1 - 2026-03-26
+
+- Fixed runtime device access for installed thin clients by ensuring `thinclient` gets `input` and `render` group membership during autologin setup.
+- Added a `pve-thin-client-runtime.service` session override path so the runtime starts with `PAMName=login` and the required supplementary groups on tty1.
+- Added `Xwrapper.config` to the installer/live image and Beagle OS overlay so Xorg can start with the required device access on kiosk hardware.
+- Hardened Moonlight decoder selection to fall back to software decoding when DRM render nodes exist but are not accessible.
+
 ## v4.0.0 - 2026-03-23
 
 - Promoted Beagle OS to a first-class distro-branded release with stronger on-system identity: `/etc/os-release`, `lsb-release`, login banner and GRUB now present the installed endpoint as `Beagle OS`.

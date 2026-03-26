@@ -3,6 +3,14 @@ set -eu
 
 LOG_DIR="${BEAGLE_X11_LOG_DIR:-/var/log/beagle-os}"
 LOG_FILE=""
+TRACE_FILE="/var/lib/beagle-os/runtime-trace.log"
+
+trace_event() {
+  local phase="$1"
+  shift || true
+  mkdir -p /var/lib/beagle-os >/dev/null 2>&1 || true
+  printf '[%s] phase=%s %s\n' "$(date -Iseconds 2>/dev/null || date)" "$phase" "$*" >>"$TRACE_FILE" 2>/dev/null || true
+}
 
 setup_logging() {
   for candidate in \
@@ -54,6 +62,7 @@ clear_stale_x_locks() {
 }
 
 launch_x_once() {
+  trace_event "x11.start" "launcher=beagle-start-x11"
   startx /usr/local/bin/start-beagle-session -- :0 vt1 -keeptty -nolisten tcp
 }
 
@@ -63,12 +72,15 @@ clear_stale_x_locks
 attempt=1
 while [ "$attempt" -le 2 ]; do
   if launch_x_once; then
+    trace_event "x11.exit" "status=0"
     exit 0
   fi
   status=$?
+  trace_event "x11.failed" "status=$status attempt=$attempt"
   clear_stale_x_locks
   attempt=$((attempt + 1))
   sleep 1
 done
 
+trace_event "x11.give-up" "status=$status"
 exit "$status"

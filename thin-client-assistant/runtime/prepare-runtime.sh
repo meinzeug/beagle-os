@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 load_runtime_config
+beagle_log_event "prepare-runtime.start" "profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default} mode=${PVE_THIN_CLIENT_MODE:-UNSET}"
 
 sync_runtime_config_to_system() {
   local target_dir="/etc/pve-thin-client"
@@ -150,6 +151,7 @@ normalize_boot_services() {
 }
 
 if [[ -x "$SCRIPT_DIR/apply-network-config.sh" ]]; then
+  beagle_log_event "prepare-runtime.network" "applying network configuration"
   "$SCRIPT_DIR/apply-network-config.sh"
 fi
 
@@ -158,11 +160,13 @@ ensure_runtime_user
 sync_local_hostname
 apply_runtime_ssh_config
 normalize_boot_services
+beagle_log_event "prepare-runtime.system" "runtime_user=${PVE_THIN_CLIENT_RUNTIME_USER:-UNSET} hostname=${PVE_THIN_CLIENT_HOSTNAME_VALUE:-UNSET}"
 
 mkdir -p "$STATUS_DIR"
 chmod 0755 "$STATUS_DIR"
 
 required_binary=""
+binary_available="0"
 case "${PVE_THIN_CLIENT_MODE:-MOONLIGHT}" in
   MOONLIGHT)
     required_binary="${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}"
@@ -183,6 +187,7 @@ esac
   echo "moonlight_host=${PVE_THIN_CLIENT_MOONLIGHT_HOST:-UNSET}"
   echo "moonlight_app=${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}"
   if command -v "$required_binary" >/dev/null 2>&1; then
+    binary_available="1"
     echo "binary_available=1"
   else
     echo "binary_available=0"
@@ -190,3 +195,4 @@ esac
 } > "$STATUS_FILE"
 
 chmod 0644 "$STATUS_FILE"
+beagle_log_event "prepare-runtime.ready" "binary=${required_binary} binary_available=${binary_available}"

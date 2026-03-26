@@ -5,7 +5,7 @@ THINCLIENT_USER="thinclient"
 THINCLIENT_PASSWORD="thinclient"
 
 if ! id "${THINCLIENT_USER}" >/dev/null 2>&1; then
-  useradd -m -s /usr/local/bin/pve-thin-client-login-shell -G audio,video,plugdev,users,netdev "${THINCLIENT_USER}" || true
+  useradd -m -s /usr/local/bin/pve-thin-client-login-shell -G audio,video,input,render,plugdev,users,netdev "${THINCLIENT_USER}" || true
 fi
 
 usermod -s /usr/local/bin/pve-thin-client-login-shell "${THINCLIENT_USER}" >/dev/null 2>&1 || true

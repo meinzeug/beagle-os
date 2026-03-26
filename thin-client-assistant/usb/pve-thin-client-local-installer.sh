@@ -1929,15 +1929,62 @@ copy_assets() {
   "$INSTALL_ROOT_DIR/installer/write-config.sh" "$STATE_DIR"
 }
 
+ensure_efivars_mounted() {
+  [[ -d /sys/firmware/efi/efivars ]] || return 1
+
+  if mountpoint -q /sys/firmware/efi/efivars; then
+    return 0
+  fi
+
+  mount -t efivarfs efivarfs /sys/firmware/efi/efivars
+}
+
+install_efi_boot_entry() {
+  local target_disk="$1"
+  local boot_part="$2"
+  local partnum=""
+
+  [[ -d /sys/firmware/efi ]] || return 0
+
+  ensure_efivars_mounted
+
+  partnum="$(lsblk -no PARTN "$boot_part" 2>/dev/null | head -n1 | tr -d '[:space:]')"
+  [[ -n "$partnum" ]] || {
+    echo "Unable to determine EFI partition number for $boot_part" >&2
+    return 1
+  }
+
+  if efibootmgr -v 2>/dev/null | grep -Fq '\EFI\BEAGLEOS\grubx64.efi'; then
+    return 0
+  fi
+
+  efibootmgr \
+    --create \
+    --disk "$target_disk" \
+    --part "$partnum" \
+    --label "Beagle OS" \
+    --loader '\EFI\BEAGLEOS\grubx64.efi'
+}
+
 install_bootloader() {
   local target_disk="$1"
+  local boot_part="$2"
+
   grub-install --target=i386-pc --boot-directory="$TARGET_MOUNT/boot" "$target_disk"
   grub-install \
     --target=x86_64-efi \
     --efi-directory="$EFI_MOUNT" \
     --boot-directory="$TARGET_MOUNT/boot" \
+    --bootloader-id=BEAGLEOS \
+    --recheck
+  grub-install \
+    --target=x86_64-efi \
+    --efi-directory="$EFI_MOUNT" \
+    --boot-directory="$TARGET_MOUNT/boot" \
     --removable \
-    --no-nvram
+    --no-nvram \
+    --recheck
+  install_efi_boot_entry "$target_disk" "$boot_part"
 }
 
 main() {
@@ -2032,7 +2079,7 @@ main() {
   copy_assets
   root_uuid="$(blkid -s UUID -o value "$root_part")"
   write_grub_cfg "$root_uuid"
-  install_bootloader "$target_disk"
+  install_bootloader "$target_disk" "$boot_part"
   sync
 
   if command -v whiptail >/dev/null 2>&1; then

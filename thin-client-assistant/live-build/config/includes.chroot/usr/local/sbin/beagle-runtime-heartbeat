@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+STATE_DIR="/var/lib/beagle-os"
+STATUS_FILE="$STATE_DIR/runtime-heartbeat.status"
+TRACE_FILE="$STATE_DIR/runtime-trace.log"
+PREV_FILE="$STATE_DIR/runtime-heartbeat.prev"
+
+install -d -m 0755 "$STATE_DIR"
+
+xorg_state="$(pgrep -f '/usr/lib/xorg/Xorg :0' >/dev/null 2>&1 && printf 1 || printf 0)"
+moonlight_state="$(pgrep -x moonlight >/dev/null 2>&1 && printf 1 || printf 0)"
+openbox_state="$(pgrep -x openbox >/dev/null 2>&1 && printf 1 || printf 0)"
+route_state="$(ip route show default 2>/dev/null | head -n 1 || true)"
+drm_tail="$(journalctl -k -b --no-pager 2>/dev/null | tail -n 20 | tr '\n' ' ' | sed 's/[[:space:]]\\+/ /g' | cut -c1-800)"
+last_trace="$(tail -n 1 "$TRACE_FILE" 2>/dev/null || true)"
+timestamp="$(date -Iseconds 2>/dev/null || date)"
+
+{
+  printf 'timestamp=%q\n' "$timestamp"
+  printf 'xorg=%q\n' "$xorg_state"
+  printf 'moonlight=%q\n' "$moonlight_state"
+  printf 'openbox=%q\n' "$openbox_state"
+  printf 'default_route=%q\n' "$route_state"
+  printf 'last_trace=%q\n' "$last_trace"
+  printf 'kernel_tail=%q\n' "$drm_tail"
+} >"$STATUS_FILE"
+
+state_signature="xorg=${xorg_state};moonlight=${moonlight_state};openbox=${openbox_state};route=${route_state}"
+prev_signature="$(cat "$PREV_FILE" 2>/dev/null || true)"
+if [[ "$state_signature" != "$prev_signature" ]]; then
+  printf '[%s] phase=heartbeat %s\n' "$timestamp" "$state_signature" >>"$TRACE_FILE" 2>/dev/null || true
+  printf '%s\n' "$state_signature" >"$PREV_FILE"
+fi

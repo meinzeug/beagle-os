@@ -18,6 +18,8 @@ Environment=USER=thinclient
 Environment=LOGNAME=thinclient
 Environment=SHELL=/bin/bash
 Environment=XDG_RUNTIME_DIR=/run/user/1000
+SupplementaryGroups=audio video render input plugdev users netdev tty
+PAMName=login
 PermissionsStartOnly=yes
 ExecStartPre=/usr/bin/install -d -m 0700 -o thinclient -g thinclient /run/user/1000
 ExecStart=/usr/local/bin/pve-thin-client-start-x11

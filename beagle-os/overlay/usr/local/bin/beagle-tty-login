@@ -4,7 +4,7 @@ set -eu
 RUNTIME_USER="thinclient"
 
 if ! id "${RUNTIME_USER}" >/dev/null 2>&1; then
-  useradd -m -s /usr/local/bin/beagle-login-shell -G audio,video,plugdev,users,netdev "${RUNTIME_USER}" || true
+  useradd -m -s /usr/local/bin/beagle-login-shell -G audio,video,input,render,plugdev,users,netdev "${RUNTIME_USER}" || true
 fi
 
 usermod -s /usr/local/bin/beagle-login-shell "${RUNTIME_USER}" >/dev/null 2>&1 || true

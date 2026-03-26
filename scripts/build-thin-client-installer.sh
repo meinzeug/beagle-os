@@ -188,6 +188,7 @@ prepare_rootfs_stage() {
   fi
 
   systemctl --root="$ROOTFS_STAGE_DIR" enable \
+    beagle-runtime-heartbeat.timer \
     pve-thin-client-prepare.service \
     pve-thin-client-installer-gui.service \
     pve-thin-client-installer-menu.service \

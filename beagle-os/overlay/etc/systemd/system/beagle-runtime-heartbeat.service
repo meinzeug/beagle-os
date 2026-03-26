@@ -1,0 +1,7 @@
+[Unit]
+Description=Beagle OS runtime heartbeat
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/beagle-runtime-heartbeat

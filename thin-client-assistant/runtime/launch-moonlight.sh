@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 load_runtime_config
+beagle_log_event "moonlight.start" "profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default} host=${PVE_THIN_CLIENT_MOONLIGHT_HOST:-UNSET} app=${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}"
 
 MOONLIGHT_LOG_DIR="${PVE_THIN_CLIENT_LOG_DIR:-${XDG_RUNTIME_DIR:-/tmp}/pve-thin-client}"
 MOONLIGHT_LIST_LOG="$MOONLIGHT_LOG_DIR/moonlight-list.log"
@@ -188,7 +189,22 @@ moonlight_video_decoder() {
     return 0
   fi
 
+  if [[ "$configured" == "auto" ]] && [[ -e /dev/dri/renderD128 ]] && [[ ! -r /dev/dri/renderD128 || ! -w /dev/dri/renderD128 ]]; then
+    printf 'software\n'
+    return 0
+  fi
+
+  if [[ "$configured" == "auto" ]] && [[ ! -e /dev/dri/renderD128 ]] && [[ -e /dev/dri/card0 ]] && [[ ! -r /dev/dri/card0 || ! -w /dev/dri/card0 ]]; then
+    printf 'software\n'
+    return 0
+  fi
+
   printf '%s\n' "$configured"
+}
+
+record_decoder_choice() {
+  local decoder="$1"
+  beagle_log_event "moonlight.decoder" "decoder=${decoder} codec=${PVE_THIN_CLIENT_MOONLIGHT_VIDEO_CODEC:-auto}"
 }
 
 local_display_resolution() {
@@ -518,8 +534,10 @@ main() {
   fi
 
   configure_graphics_runtime
+  record_decoder_choice "$(moonlight_video_decoder)"
 
   moonlight_target_reachable || {
+    beagle_log_event "moonlight.unreachable" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
     echo "Moonlight host '$host' is unreachable from this network." >&2
     exit 1
   }
@@ -536,6 +554,7 @@ main() {
 
   if ! moonlight_list; then
     ensure_paired || {
+      beagle_log_event "moonlight.pairing-failed" "host=${host} port=${port:-default} pin=${PVE_THIN_CLIENT_SUNSHINE_PIN:-unset}"
       echo "Moonlight pairing failed for host '$host'." >&2
       exit 1
     }
@@ -547,6 +566,7 @@ main() {
   else
     echo "Starting Moonlight stream: host=$host port=${port:-default} app=$app resolution=$(moonlight_resolution) fps=${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}" >&2
   fi
+  beagle_log_event "moonlight.exec" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} app=${app} resolution=$(moonlight_resolution) fps=${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}"
   exec "${args[@]}"
 }
 

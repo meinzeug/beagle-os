@@ -273,6 +273,21 @@ install -d -m 0700 -o "\$GUEST_USER" -g "\$GUEST_USER" \
   "/home/\$GUEST_USER/.config/autostart" \
   "/home/\$GUEST_USER/.config/sunshine" \
   "/home/\$GUEST_USER/.config/xfce4/xfconf/xfce-perchannel-xml"
+install -d -m 0755 /etc/X11/xorg.conf.d
+
+cat > /etc/X11/xorg.conf.d/90-beagle-ignore-virtual-input.conf <<'XORGCONF'
+Section "InputClass"
+    Identifier "beagle-ignore-touch-passthrough"
+    MatchProduct "Touch passthrough"
+    Option "Ignore" "on"
+EndSection
+
+Section "InputClass"
+    Identifier "beagle-ignore-pen-passthrough"
+    MatchProduct "Pen passthrough"
+    Option "Ignore" "on"
+EndSection
+XORGCONF
 
 cat > "/home/\$GUEST_USER/.config/autostart/sunshine.desktop" <<'AUTOSTART'
 [Desktop Entry]

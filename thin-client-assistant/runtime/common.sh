@@ -3,6 +3,54 @@ set -euo pipefail
 
 DEFAULT_CONFIG_DIR="/etc/pve-thin-client"
 LIVE_STATE_DIR_DEFAULT="/run/live/medium/pve-thin-client/state"
+BEAGLE_STATE_DIR_DEFAULT="/var/lib/beagle-os"
+BEAGLE_TRACE_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/runtime-trace.log"
+BEAGLE_LAST_MARKER_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/last-marker.env"
+
+beagle_state_dir() {
+  printf '%s\n' "${BEAGLE_STATE_DIR:-$BEAGLE_STATE_DIR_DEFAULT}"
+}
+
+beagle_trace_file() {
+  local state_dir
+  state_dir="$(beagle_state_dir)"
+  printf '%s\n' "${BEAGLE_TRACE_FILE:-$state_dir/runtime-trace.log}"
+}
+
+beagle_last_marker_file() {
+  local state_dir
+  state_dir="$(beagle_state_dir)"
+  printf '%s\n' "${BEAGLE_LAST_MARKER_FILE:-$state_dir/last-marker.env}"
+}
+
+ensure_beagle_state_dir() {
+  local state_dir
+  state_dir="$(beagle_state_dir)"
+  mkdir -p "$state_dir" >/dev/null 2>&1 || true
+}
+
+beagle_log_event() {
+  local phase="${1:-event}"
+  shift || true
+  local message="${*:-}"
+  local timestamp trace_file marker_file
+
+  timestamp="$(date -Iseconds 2>/dev/null || date)"
+  ensure_beagle_state_dir
+  trace_file="$(beagle_trace_file)"
+  marker_file="$(beagle_last_marker_file)"
+
+  printf '[%s] phase=%s %s\n' "$timestamp" "$phase" "$message" >>"$trace_file" 2>/dev/null || true
+  {
+    printf 'timestamp=%q\n' "$timestamp"
+    printf 'phase=%q\n' "$phase"
+    printf 'message=%q\n' "$message"
+  } >"$marker_file" 2>/dev/null || true
+
+  if command -v logger >/dev/null 2>&1; then
+    logger -t beagle-runtime "phase=$phase $message" >/dev/null 2>&1 || true
+  fi
+}
 
 find_live_state_dir() {
   local dir
