@@ -12,7 +12,6 @@ MOONLIGHT_URL="${PVE_THIN_CLIENT_MOONLIGHT_URL:-https://github.com/moonlight-str
 GRUB_BACKGROUND_SRC="$ROOT_DIR/thin-client-assistant/usb/assets/grub-background.jpg"
 ROOTFS_STAGE_DIR="$BUILD_DIR/rootfs-stage"
 THINCLIENT_USER="thinclient"
-THINCLIENT_PASSWORD="thinclient"
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 ensure_root() {
@@ -166,9 +165,9 @@ prepare_rootfs_stage() {
 
   chroot "$ROOTFS_STAGE_DIR" /bin/sh -lc "
     id '$THINCLIENT_USER' >/dev/null 2>&1 || \
-      useradd -m -s /usr/local/bin/pve-thin-client-login-shell -G audio,video,plugdev,users,netdev '$THINCLIENT_USER'
+      useradd -m -s /usr/local/bin/pve-thin-client-login-shell -G audio,video,input,render,plugdev,users,netdev '$THINCLIENT_USER'
     usermod -s /usr/local/bin/pve-thin-client-login-shell '$THINCLIENT_USER'
-    echo '$THINCLIENT_USER:$THINCLIENT_PASSWORD' | chpasswd
+    passwd -l '$THINCLIENT_USER' >/dev/null 2>&1 || true
     install -d -m 0755 -o '$THINCLIENT_USER' -g '$THINCLIENT_USER' '/home/$THINCLIENT_USER'
   "
 

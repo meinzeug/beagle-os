@@ -15,7 +15,7 @@ PAYLOAD_URL="${BASE_URL%/}/pve-thin-client-usb-payload-latest.tar.gz"
 BOOTSTRAP_URL="${BASE_URL%/}/pve-thin-client-usb-bootstrap-latest.tar.gz"
 INSTALLER_ISO_URL="${BASE_URL%/}/beagle-os-installer-amd64.iso"
 INSTALLER_URL="${BASE_URL%/}/pve-thin-client-usb-installer-host-latest.sh"
-VM_INSTALLER_URL_TEMPLATE="https://${SERVER_NAME}:${LISTEN_PORT}/beagle-api/api/v1/public/vms/{vmid}/installer.sh"
+VM_INSTALLER_URL_TEMPLATE="https://${SERVER_NAME}:${LISTEN_PORT}/beagle-api/api/v1/vms/{vmid}/installer.sh"
 STATUS_URL="${BASE_URL%/}/beagle-downloads-status.json"
 SHA256SUMS_URL="${BASE_URL%/}/SHA256SUMS"
 STATUS_JSON_PATH="$DIST_DIR/beagle-downloads-status.json"
@@ -42,7 +42,6 @@ DEFAULT_PROXMOX_USERNAME="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_USERNAME:-${PVE_DCV_
 DEFAULT_PROXMOX_PASSWORD="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_PASSWORD:-${PVE_DCV_PROXMOX_PASSWORD:-}}"
 DEFAULT_PROXMOX_TOKEN="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_TOKEN:-${PVE_DCV_PROXMOX_TOKEN:-}}"
 BEAGLE_MANAGER_URL="${PVE_DCV_BEAGLE_MANAGER_URL:-https://${SERVER_NAME}:${LISTEN_PORT}/beagle-api}"
-BEAGLE_ENDPOINT_TOKEN="${BEAGLE_ENDPOINT_SHARED_TOKEN:-}"
 
 ensure_dist_permissions() {
   install -d -m 0755 "$DIST_DIR"
@@ -103,7 +102,7 @@ PY
 
 install -m 0755 "$HOST_INSTALLER_VERSIONED" "$HOST_INSTALLER_LATEST"
 
-python3 - "$HOST_INSTALLER_VERSIONED" "$DIST_DIR" "$VM_INSTALLERS_METADATA_PATH" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$VM_INSTALLER_URL_TEMPLATE" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$INSTALLER_ISO_URL" "$DEFAULT_PROXMOX_USERNAME" "$DEFAULT_PROXMOX_PASSWORD" "$DEFAULT_PROXMOX_TOKEN" "$BEAGLE_MANAGER_URL" "$BEAGLE_ENDPOINT_TOKEN" <<'PY'
+python3 - "$HOST_INSTALLER_VERSIONED" "$DIST_DIR" "$VM_INSTALLERS_METADATA_PATH" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$VM_INSTALLER_URL_TEMPLATE" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$INSTALLER_ISO_URL" "$DEFAULT_PROXMOX_USERNAME" "$DEFAULT_PROXMOX_PASSWORD" "$DEFAULT_PROXMOX_TOKEN" "$BEAGLE_MANAGER_URL" <<'PY'
 import base64
 import json
 import re
@@ -127,7 +126,6 @@ default_proxmox_username = sys.argv[11]
 default_proxmox_password = sys.argv[12]
 default_proxmox_token = sys.argv[13]
 beagle_manager_url = sys.argv[14]
-beagle_endpoint_token = sys.argv[15]
 template = template_path.read_text()
 
 resources_cmd = ["pvesh", "get", "/cluster/resources", "--type", "vm", "--output-format", "json"]
@@ -279,11 +277,11 @@ def build_preset(vm, config, load_vm_config):
         "PVE_THIN_CLIENT_PRESET_PROXMOX_VMID": str(vmid),
         "PVE_THIN_CLIENT_PRESET_PROXMOX_REALM": proxmox_realm,
         "PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS": proxmox_verify_tls,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME": proxmox_username,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD": proxmox_password,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN": proxmox_token,
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN": "",
         "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL": beagle_manager_url,
-        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": beagle_endpoint_token,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_METHOD": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_URL": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_USERNAME": "",
@@ -310,9 +308,9 @@ def build_preset(vm, config, load_vm_config):
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE": stream_meta.get("moonlight-absolute-mouse", "1"),
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER": stream_meta.get("moonlight-quit-after", "0"),
         "PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL": sunshine_api_url,
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": stream_meta.get("sunshine-user", ""),
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": stream_meta.get("sunshine-password", ""),
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": stream_meta.get("sunshine-pin", f"{vmid % 10000:04d}"),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": "",
     }
 
     available_modes = ["MOONLIGHT"] if preset["PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST"] else []
@@ -352,10 +350,6 @@ for vm in resources:
     preset, available_modes = build_preset(vm, config, load_vm_config)
     preset_name = preset.get("PVE_THIN_CLIENT_PRESET_PROFILE_NAME") or f"vm-{vm['vmid']}"
     preset_b64 = encode_preset(preset)
-    installer_name = f"pve-thin-client-usb-installer-vm-{vm['vmid']}.sh"
-    installer_path = dist_dir / installer_name
-    installer_path.write_text(patch_installer_defaults(template, bootstrap_url, payload_url, installer_iso_url, preset_name, preset_b64))
-    installer_path.chmod(0o755)
     vm_installers.append(
         {
             "vmid": int(vm["vmid"]),
@@ -363,8 +357,8 @@ for vm in resources:
             "name": preset["PVE_THIN_CLIENT_PRESET_VM_NAME"],
             "preset_name": preset_name,
             "default_mode": preset.get("PVE_THIN_CLIENT_PRESET_DEFAULT_MODE", ""),
-            "installer_filename": installer_name,
-            "installer_url": installer_url_template.replace("{vmid}", str(vm["vmid"])),
+            "installer_filename": "",
+            "installer_url": f"/beagle-api/api/v1/vms/{int(vm['vmid'])}/installer.sh",
             "installer_iso_url": installer_iso_url,
             "available_modes": available_modes,
         }

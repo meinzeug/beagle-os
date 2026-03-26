@@ -145,17 +145,24 @@ payload = {
 payload_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 PY
 
-http_status="$(
-  curl -kfsS \
-    --connect-timeout 4 \
-    --max-time 12 \
-    --output "$response_file" \
-    --write-out '%{http_code}' \
-    -H "Authorization: Bearer $manager_token" \
-    -H 'Content-Type: application/json' \
-    --data @"$payload_file" \
-    "${manager_url%/}/api/v1/endpoints/check-in" || true
-)"
+curl_args=(curl -fsS --connect-timeout 4 --max-time 12 --output "$response_file" --write-out '%{http_code}' -H "Authorization: Bearer $manager_token" -H 'Content-Type: application/json')
+if [[ "$manager_url" == https://* ]]; then
+  if [[ -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}" ]]; then
+    curl_args+=(--pinnedpubkey "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY}")
+  elif [[ "${PVE_THIN_CLIENT_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
+    curl_args+=(-k)
+  else
+    http_status="495"
+    curl_args=()
+  fi
+fi
+if [[ "${#curl_args[@]}" -gt 0 ]]; then
+  http_status="$(
+    "${curl_args[@]}" \
+      --data @"$payload_file" \
+      "${manager_url%/}/api/v1/endpoints/check-in" || true
+  )"
+fi
 
 if [[ "$http_status" != "200" ]]; then
   error_message="check-in failed"

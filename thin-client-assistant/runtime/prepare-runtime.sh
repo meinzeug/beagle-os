@@ -21,9 +21,9 @@ sync_runtime_config_to_system() {
   [[ -d "$source_dir" ]] || return 0
 
   install -d -m 0755 "$target_dir"
-  for file in thinclient.conf network.env credentials.env; do
+  for file in thinclient.conf network.env credentials.env local-auth.env; do
     if [[ -f "$source_dir/$file" ]]; then
-      install -m 0644 "$source_dir/$file" "$target_dir/$file"
+      install -m 0600 "$source_dir/$file" "$target_dir/$file"
       copied=1
     fi
   done
@@ -33,11 +33,13 @@ sync_runtime_config_to_system() {
     CONFIG_FILE="$target_dir/thinclient.conf"
     NETWORK_FILE="$target_dir/network.env"
     CREDENTIALS_FILE="$target_dir/credentials.env"
+    LOCAL_AUTH_FILE="$target_dir/local-auth.env"
   fi
+  chmod 0644 "$target_dir/thinclient.conf" "$target_dir/network.env" >/dev/null 2>&1 || true
 }
 
 ensure_runtime_user() {
-  local runtime_user shell_path
+  local runtime_user shell_path runtime_password
 
   runtime_user="${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}"
   if [[ -x /usr/local/bin/beagle-login-shell ]]; then
@@ -49,14 +51,101 @@ ensure_runtime_user() {
   fi
 
   if ! id "$runtime_user" >/dev/null 2>&1; then
-    useradd -m -s "$shell_path" -G audio,video,plugdev,users,netdev "$runtime_user" >/dev/null 2>&1 || true
+    useradd -m -s "$shell_path" -G audio,video,input,render,plugdev,users,netdev "$runtime_user" >/dev/null 2>&1 || true
   fi
 
   usermod -s "$shell_path" "$runtime_user" >/dev/null 2>&1 || true
+  usermod -a -G audio,video,input,render,plugdev,users,netdev "$runtime_user" >/dev/null 2>&1 || true
 
-  if [[ "$runtime_user" == "thinclient" ]]; then
-    printf '%s:%s\n' "thinclient" "thinclient" | chpasswd >/dev/null 2>&1 || true
+  runtime_password=""
+  if [[ -r "${LOCAL_AUTH_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/local-auth.env}" ]]; then
+    # shellcheck disable=SC1090
+    source "${LOCAL_AUTH_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/local-auth.env}"
+    runtime_password="${PVE_THIN_CLIENT_RUNTIME_PASSWORD:-}"
   fi
+  if [[ -n "$runtime_password" ]]; then
+    printf '%s:%s\n' "$runtime_user" "$runtime_password" | chpasswd >/dev/null 2>&1 || true
+  fi
+}
+
+adjust_secret_permissions() {
+  local runtime_user credentials_file
+  runtime_user="${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}"
+  credentials_file="${CREDENTIALS_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/credentials.env}"
+  [[ -f "$credentials_file" ]] || return 0
+  chown root:"$runtime_user" "$credentials_file" >/dev/null 2>&1 || true
+  chmod 0640 "$credentials_file" >/dev/null 2>&1 || true
+  if [[ -f "${LOCAL_AUTH_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/local-auth.env}" ]]; then
+    chmod 0600 "${LOCAL_AUTH_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/local-auth.env}" >/dev/null 2>&1 || true
+  fi
+}
+
+enroll_endpoint_if_needed() {
+  local credentials_file response_file enroll_url enrollment_token endpoint_id hostname_value http_status manager_pin
+  local -a curl_args
+
+  credentials_file="${CREDENTIALS_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/credentials.env}"
+  [[ -f "$credentials_file" ]] || return 0
+  enrollment_token="${PVE_THIN_CLIENT_BEAGLE_ENROLLMENT_TOKEN:-}"
+  [[ -n "$enrollment_token" ]] || return 0
+  [[ -z "${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}" ]] || return 0
+
+  enroll_url="${PVE_THIN_CLIENT_BEAGLE_ENROLLMENT_URL:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}/api/v1/endpoints/enroll}"
+  [[ -n "$enroll_url" ]] || return 1
+  endpoint_id="${PVE_THIN_CLIENT_HOSTNAME:-$(hostname)}-${PVE_THIN_CLIENT_PROXMOX_VMID:-0}"
+  hostname_value="${PVE_THIN_CLIENT_HOSTNAME:-$(hostname)}"
+  manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
+  response_file="$(mktemp)"
+  curl_args=(curl -fsS --connect-timeout 8 --max-time 20 --output "$response_file" --write-out '%{http_code}' -H 'Content-Type: application/json')
+  if [[ "$enroll_url" == https://* ]]; then
+    if [[ -n "$manager_pin" ]]; then
+      curl_args+=(--pinnedpubkey "$manager_pin")
+    elif [[ "${PVE_THIN_CLIENT_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
+      curl_args+=(-k)
+    else
+      beagle_log_event "prepare-runtime.enroll-skip" "missing manager tls pin"
+      rm -f "$response_file"
+      return 1
+    fi
+  fi
+  http_status="$(
+    "${curl_args[@]}" \
+      --data "{\"enrollment_token\":\"${enrollment_token}\",\"endpoint_id\":\"${endpoint_id}\",\"hostname\":\"${hostname_value}\"}" \
+      "${enroll_url%/}" || true
+  )"
+  if [[ "$http_status" != "201" ]]; then
+    rm -f "$response_file"
+    return 1
+  fi
+  python3 - "$response_file" "$credentials_file" <<'PY'
+import json, sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+cred_path = Path(sys.argv[2])
+config = payload.get("config", {}) if isinstance(payload, dict) else {}
+existing = {}
+if cred_path.exists():
+    for raw_line in cred_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        if "=" not in raw_line:
+            continue
+        key, value = raw_line.split("=", 1)
+        existing[key.strip()] = value.strip()
+for key, value in (
+    ("PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN", config.get("beagle_manager_token", "")),
+    ("PVE_THIN_CLIENT_SUNSHINE_USERNAME", config.get("sunshine_username", "")),
+    ("PVE_THIN_CLIENT_SUNSHINE_PASSWORD", config.get("sunshine_password", "")),
+    ("PVE_THIN_CLIENT_SUNSHINE_PIN", config.get("sunshine_pin", "")),
+    ("PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY", config.get("sunshine_pinned_pubkey", "")),
+):
+    existing[key] = json.dumps(str(value))
+existing["PVE_THIN_CLIENT_BEAGLE_ENROLLMENT_TOKEN"] = json.dumps("")
+cred_path.write_text("".join(f"{key}={value}\n" for key, value in existing.items()), encoding="utf-8")
+PY
+  rm -f "$response_file"
+  # Reload freshly written credentials for subsequent steps.
+  # shellcheck disable=SC1090
+  source "$credentials_file"
 }
 
 sync_local_hostname() {
@@ -157,6 +246,9 @@ fi
 
 sync_runtime_config_to_system
 ensure_runtime_user
+adjust_secret_permissions
+enroll_endpoint_if_needed || beagle_log_event "prepare-runtime.enroll-error" "endpoint enrollment failed"
+adjust_secret_permissions
 sync_local_hostname
 apply_runtime_ssh_config
 normalize_boot_services

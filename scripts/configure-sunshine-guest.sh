@@ -131,9 +131,6 @@ skip = {
     "beagle-public-stream-host",
     "beagle-public-moonlight-port",
     "beagle-public-sunshine-api-url",
-    "sunshine-user",
-    "sunshine-password",
-    "sunshine-pin",
     "sunshine-app",
     "moonlight-host",
     "moonlight-port",
@@ -145,9 +142,6 @@ skip = {
     "moonlight-video-decoder",
     "moonlight-audio-config",
     "thinclient-default-mode",
-    "proxmox-user",
-    "proxmox-password",
-    "proxmox-token",
 }
 
 text = unquote(encoded) if encoded else ""
@@ -163,15 +157,9 @@ for raw_line in text.splitlines():
 
 lines.extend(
     [
-        f"proxmox-user: {proxmox_user}",
-        f"proxmox-password: {proxmox_password}",
-        f"proxmox-token: {proxmox_token}",
         f"sunshine-host: {stream_host}",
         f"sunshine-ip: {guest_ip}",
         f"sunshine-api-url: {stream_api_url}",
-        f"sunshine-user: {sunshine_user}",
-        f"sunshine-password: {sunshine_password}",
-        f"sunshine-pin: {sunshine_pin}",
         "sunshine-app: Desktop",
         f"moonlight-host: {stream_host}",
         f"moonlight-port: {stream_port}",

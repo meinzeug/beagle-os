@@ -12,6 +12,8 @@ BASE_URL="https://${SERVER_NAME}:${LISTEN_PORT}"
 FAILURES=0
 STATUS_JSON_FILE="$INSTALL_DIR/dist/beagle-downloads-status.json"
 REFRESH_STATUS_FILE="${PVE_DCV_STATUS_DIR:-/var/lib/beagle}/refresh.status.json"
+BEAGLE_MANAGER_ENV_FILE="${PVE_DCV_BEAGLE_MANAGER_ENV_FILE:-$CONFIG_DIR/beagle-manager.env}"
+BEAGLE_API_TOKEN=""
 
 load_host_env() {
   if [[ -f "$HOST_ENV_FILE" ]]; then
@@ -23,6 +25,12 @@ load_host_env() {
   LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-$LISTEN_PORT}"
   DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-$DOWNLOADS_PATH}"
   BASE_URL="https://${SERVER_NAME}:${LISTEN_PORT}"
+
+  if [[ -f "$BEAGLE_MANAGER_ENV_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$BEAGLE_MANAGER_ENV_FILE"
+    BEAGLE_API_TOKEN="${BEAGLE_MANAGER_API_TOKEN:-}"
+  fi
 }
 
 record_failure() {
@@ -41,7 +49,22 @@ check_file() {
 
 check_http() {
   local url="$1"
-  if curl -kfsSI "$url" >/dev/null 2>&1; then
+  local auth_header="${2:-}"
+  local method="${3:-HEAD}"
+  local tls_cert_file="${BEAGLE_HOST_TLS_CERT_FILE:-/etc/pve/local/pve-ssl.pem}"
+  local -a curl_args=(curl -fsS --output /dev/null)
+  [[ -n "$auth_header" ]] && curl_args+=(-H "$auth_header")
+  if [[ "$method" == "HEAD" ]]; then
+    curl_args+=(-I)
+  fi
+  if [[ "$url" == https://* ]]; then
+    if [[ -f "$tls_cert_file" ]]; then
+      curl_args+=(--cacert "$tls_cert_file")
+    elif [[ "${BEAGLE_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
+      curl_args+=(-k)
+    fi
+  fi
+  if "${curl_args[@]}" "$url" >/dev/null 2>&1; then
     echo "OK  http  $url"
     return 0
   fi
@@ -160,13 +183,12 @@ check_service_active "beagle-artifacts-refresh.timer"
 check_service_active "beagle-ui-reapply.path"
 check_service_active "beagle-control-plane"
 
-check_http "$BASE_URL/"
 check_http "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-installer-host-latest.sh"
 check_http "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-bootstrap-latest.tar.gz"
 check_http "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-payload-latest.tar.gz"
 check_http "$BASE_URL${DOWNLOADS_PATH}/beagle-downloads-status.json"
 check_http "$BASE_URL${DOWNLOADS_PATH}/SHA256SUMS"
-check_http "$BASE_URL/beagle-api/api/v1/health"
+check_http "$BASE_URL/beagle-api/healthz" "Authorization: Bearer $BEAGLE_API_TOKEN" "GET"
 
 if check_status_json; then
   echo "OK  json  $STATUS_JSON_FILE"

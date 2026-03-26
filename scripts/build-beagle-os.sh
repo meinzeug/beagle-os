@@ -357,7 +357,11 @@ prepare_rootfs() {
 HOSTS
 
   chroot_run_rootfs "id -u '$RUNTIME_USER' >/dev/null 2>&1 || useradd -m -s /bin/bash -G sudo '$RUNTIME_USER'"
-  chroot_run_rootfs "echo '$RUNTIME_USER:$RUNTIME_USER' | chpasswd"
+  if [[ -n "${BEAGLE_OS_RUNTIME_PASSWORD:-}" ]]; then
+    chroot_run_rootfs "echo '$RUNTIME_USER:${BEAGLE_OS_RUNTIME_PASSWORD}' | chpasswd"
+  else
+    chroot_run_rootfs "passwd -l '$RUNTIME_USER' || true"
+  fi
   chroot_run_rootfs "passwd -l root || true"
   rm -f "$ROOTFS_DIR/etc/.pwd.lock"
 }

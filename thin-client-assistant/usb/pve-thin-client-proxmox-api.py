@@ -13,7 +13,6 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import Request, build_opener, HTTPSHandler
 
 DEFAULT_BEAGLE_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "")
-DEFAULT_BEAGLE_ENDPOINT_TOKEN = os.environ.get("BEAGLE_ENDPOINT_SHARED_TOKEN", "")
 
 
 def parse_bool(value: str) -> bool:
@@ -137,11 +136,11 @@ def build_preset(
         "PVE_THIN_CLIENT_PRESET_PROXMOX_VMID": str(vmid),
         "PVE_THIN_CLIENT_PRESET_PROXMOX_REALM": proxmox_realm,
         "PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS": proxmox_verify_tls,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME": proxmox_user,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD": password,
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD": "",
         "PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN": "",
         "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL": DEFAULT_BEAGLE_MANAGER_URL,
-        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": DEFAULT_BEAGLE_ENDPOINT_TOKEN,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_METHOD": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_URL": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_USERNAME": "",
@@ -168,9 +167,9 @@ def build_preset(
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE": meta.get("moonlight-absolute-mouse", "1"),
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER": meta.get("moonlight-quit-after", "0"),
         "PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL": sunshine_api_url,
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": meta.get("sunshine-user", ""),
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": meta.get("sunshine-password", ""),
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": meta.get("sunshine-pin", f"{vmid % 10000:04d}"),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": "",
     }
 
     return preset, available_modes_from_preset(preset)

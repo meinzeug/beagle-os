@@ -7,7 +7,7 @@
   var FLEET_LAUNCHER_ID = "beagle-os-fleet-launcher";
 
   function defaultUsbInstallerUrl() {
-    return "https://{host}:8443/beagle-api/api/v1/public/vms/{vmid}/installer.sh";
+    return "https://{host}:8443/beagle-api/api/v1/vms/{vmid}/installer.sh";
   }
 
   function defaultInstallerIsoUrl() {
@@ -392,6 +392,12 @@
     return apiPostBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(vmid)) + "/installer-prep", {}).then(unwrapInstallerPrep);
   }
 
+  function apiGetVmCredentials(vmid) {
+    return apiGetBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(vmid)) + "/credentials").then(function(payload) {
+      return payload && payload.credentials ? payload.credentials : payload;
+    });
+  }
+
   function installerPrepBannerClass(state) {
     return String(state && state.status || "").toLowerCase() === "error" ? "warn" : "info";
   }
@@ -520,7 +526,11 @@
       }
       status = String(state && state.status || "").toLowerCase();
       if (state && String(state && state.status || "").toLowerCase() === "ready") {
-        triggerDownload(profile[artifactKey]);
+        if (artifactKey === "installerUrl") {
+          await downloadProtectedFile(normalizeBeagleApiPath(profile[artifactKey]), "pve-thin-client-usb-installer-vm-" + profile.vmid + ".sh");
+        } else {
+          triggerDownload(profile[artifactKey]);
+        }
         showToast(successMessage);
         return;
       }
@@ -530,7 +540,11 @@
       }
       for (attempt = 0; attempt < 180; attempt += 1) {
         if (String(state && state.status || "").toLowerCase() === "ready") {
-          triggerDownload(profile[artifactKey]);
+          if (artifactKey === "installerUrl") {
+            await downloadProtectedFile(normalizeBeagleApiPath(profile[artifactKey]), "pve-thin-client-usb-installer-vm-" + profile.vmid + ".sh");
+          } else {
+            triggerDownload(profile[artifactKey]);
+          }
           showToast(successMessage);
           return;
         }
@@ -594,6 +608,7 @@
       "PVE_THIN_CLIENT_PROXMOX_NODE=\"" + (profile.node || "") + "\"",
       "PVE_THIN_CLIENT_PROXMOX_VMID=\"" + String(profile.vmid || "") + "\"",
       "PVE_THIN_CLIENT_BEAGLE_MANAGER_URL=\"" + (profile.managerUrl || "") + "\"",
+      "PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY=\"" + (profile.managerPinnedPubkey || "") + "\"",
       "PVE_THIN_CLIENT_MOONLIGHT_HOST=\"" + (profile.streamHost || "") + "\"",
       "PVE_THIN_CLIENT_MOONLIGHT_PORT=\"" + (profile.moonlightPort || "") + "\"",
       "PVE_THIN_CLIENT_MOONLIGHT_APP=\"" + (profile.app || "Desktop") + "\"",
@@ -925,6 +940,7 @@
       apiGetJson("/api2/json/nodes/" + encodeURIComponent(ctx.node) + "/qemu/" + encodeURIComponent(ctx.vmid) + "/config"),
       apiGetJson("/api2/json/cluster/resources?type=vm").catch(function() { return []; }),
       apiGetJson("/api2/json/nodes/" + encodeURIComponent(ctx.node) + "/qemu/" + encodeURIComponent(ctx.vmid) + "/agent/network-get-interfaces").catch(function() { return []; }),
+      apiGetVmCredentials(ctx.vmid).catch(function() { return null; }),
       fetch(resolveBeagleApiUrl("/api/v1/public/vms/" + encodeURIComponent(ctx.vmid) + "/state"), { credentials: "same-origin" }).then(function(response) {
         if (!response.ok) {
           return null;
@@ -935,7 +951,8 @@
       var config = results[0] || {};
       var resources = Array.isArray(results[1]) ? results[1] : [];
       var guestInterfaces = Array.isArray(results[2]) ? results[2] : [];
-      var endpointPayload = results[3] || null;
+      var credentials = results[3] || null;
+      var endpointPayload = results[4] || null;
       var controlPlaneProfile = endpointPayload && endpointPayload.profile ? endpointPayload.profile : null;
       var endpointSummary = endpointPayload && endpointPayload.endpoint ? endpointPayload.endpoint : null;
       var compliance = endpointPayload && endpointPayload.compliance ? endpointPayload.compliance : null;
@@ -959,9 +976,11 @@
         streamHost: streamHost,
         moonlightPort: moonlightPort,
         sunshineApiUrl: sunshineApiUrl,
-        sunshineUsername: controlPlaneProfile && controlPlaneProfile.sunshine_username || meta["sunshine-user"] || "",
-        sunshinePassword: meta["sunshine-password"] || "",
-        sunshinePin: meta["sunshine-pin"] || String(ctx.vmid % 10000).padStart(4, "0"),
+        sunshineUsername: credentials && credentials.sunshine_username || "",
+        sunshinePassword: credentials && credentials.sunshine_password || "",
+        sunshinePin: credentials && credentials.sunshine_pin || "",
+        thinclientUsername: credentials && credentials.thinclient_username || "thinclient",
+        thinclientPassword: credentials && credentials.thinclient_password || "",
         app: controlPlaneProfile && controlPlaneProfile.moonlight_app || meta["moonlight-app"] || meta["sunshine-app"] || "Desktop",
         resolution: controlPlaneProfile && controlPlaneProfile.moonlight_resolution || meta["moonlight-resolution"] || "auto",
         fps: controlPlaneProfile && controlPlaneProfile.moonlight_fps || meta["moonlight-fps"] || "60",
@@ -970,7 +989,8 @@
         decoder: controlPlaneProfile && controlPlaneProfile.moonlight_video_decoder || meta["moonlight-video-decoder"] || "auto",
         audio: controlPlaneProfile && controlPlaneProfile.moonlight_audio_config || meta["moonlight-audio-config"] || "stereo",
         proxmoxHost: meta["proxmox-host"] || window.location.hostname,
-        installerUrl: resolveUsbInstallerUrl(ctx),
+        managerPinnedPubkey: controlPlaneProfile && controlPlaneProfile.beagle_manager_pinned_pubkey || "",
+        installerUrl: controlPlaneProfile && controlPlaneProfile.installer_url || resolveUsbInstallerUrl(ctx),
         installerIsoUrl: controlPlaneProfile && controlPlaneProfile.installer_iso_url || resolveInstallerIsoUrl(ctx),
         controlPlaneHealthUrl: resolveControlPlaneHealthUrl(),
         managerUrl: managerUrlFromHealthUrl(resolveControlPlaneHealthUrl()),
@@ -1105,9 +1125,11 @@
                 kvRow('Decoder', escapeHtml(profile.decoder)) +
                 kvRow('Audio', escapeHtml(profile.audio)) +
       '      </div></section>' +
-      '      <section class="beagle-card"><h3>Pairing</h3><div class="beagle-kv">' +
+      '      <section class="beagle-card"><h3>Credentials</h3><div class="beagle-kv">' +
+                kvRow('Thin Client User', escapeHtml(profile.thinclientUsername || 'thinclient')) +
+                kvRow('Thin Client Password', escapeHtml(profile.thinclientPassword || '')) +
                 kvRow('Sunshine User', escapeHtml(profile.sunshineUsername || '')) +
-                kvRow('Sunshine Password', escapeHtml(maskSecret(profile.sunshinePassword))) +
+                kvRow('Sunshine Password', escapeHtml(profile.sunshinePassword || '')) +
                 kvRow('Pairing PIN', escapeHtml(profile.sunshinePin || '')) +
       '      </div></section>' +
       '      <section class="beagle-card"><h3>Endpoint State</h3><div class="beagle-kv">' +

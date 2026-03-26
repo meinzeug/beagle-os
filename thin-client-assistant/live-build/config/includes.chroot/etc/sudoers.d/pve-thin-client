@@ -1,1 +1,1 @@
-thinclient ALL=(ALL) NOPASSWD:ALL
+thinclient ALL=(ALL) ALL

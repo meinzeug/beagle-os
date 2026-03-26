@@ -8,6 +8,7 @@ import subprocess
 import hashlib
 import ipaddress
 import base64
+import secrets
 import shlex
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -28,7 +29,6 @@ LISTEN_PORT = int(os.environ.get("BEAGLE_MANAGER_LISTEN_PORT", "9088"))
 DATA_DIR = Path(os.environ.get("BEAGLE_MANAGER_DATA_DIR", "/var/lib/beagle/beagle-manager"))
 EFFECTIVE_DATA_DIR = DATA_DIR
 API_TOKEN = os.environ.get("BEAGLE_MANAGER_API_TOKEN", "").strip()
-ENDPOINT_SHARED_TOKEN = os.environ.get("BEAGLE_ENDPOINT_SHARED_TOKEN", "").strip()
 ALLOW_LOCALHOST_NOAUTH = os.environ.get("BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH", "0").strip().lower() in {"1", "true", "yes", "on"}
 STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECONDS", "600"))
 DOWNLOADS_STATUS_FILE = ROOT_DIR / "dist" / "beagle-downloads-status.json"
@@ -37,6 +37,7 @@ HOSTED_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-usb-instal
 HOSTED_INSTALLER_ISO_FILE = ROOT_DIR / "dist" / "beagle-os-installer-amd64.iso"
 INSTALLER_PREP_SCRIPT_FILE = ROOT_DIR / "scripts" / "ensure-vm-stream-ready.sh"
 CREDENTIALS_ENV_FILE = Path(os.environ.get("PVE_DCV_CREDENTIALS_ENV_FILE", "/etc/beagle/credentials.env"))
+MANAGER_CERT_FILE = Path(os.environ.get("BEAGLE_MANAGER_CERT_FILE", "/etc/pve/local/pveproxy-ssl.pem"))
 PUBLIC_SERVER_NAME = os.environ.get("PVE_DCV_PROXY_SERVER_NAME", "").strip() or os.uname().nodename
 PUBLIC_DOWNLOADS_PORT = int(os.environ.get("PVE_DCV_PROXY_LISTEN_PORT", "8443"))
 PUBLIC_DOWNLOADS_PATH = os.environ.get("PVE_DCV_DOWNLOADS_PATH", "/beagle-downloads").strip() or "/beagle-downloads"
@@ -45,6 +46,7 @@ PUBLIC_STREAM_BASE_PORT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_BASE_PORT", "
 PUBLIC_STREAM_PORT_STEP = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_STEP", "32"))
 PUBLIC_STREAM_PORT_COUNT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_COUNT", "256"))
 PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
+ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_SECONDS", "86400"))
 
 
 def public_installer_iso_url() -> str:
@@ -143,6 +145,24 @@ def policies_dir() -> Path:
     return path
 
 
+def vm_secrets_dir() -> Path:
+    path = EFFECTIVE_DATA_DIR / "vm-secrets"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def enrollment_tokens_dir() -> Path:
+    path = EFFECTIVE_DATA_DIR / "enrollment-tokens"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def endpoint_tokens_dir() -> Path:
+    path = EFFECTIVE_DATA_DIR / "endpoint-tokens"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def safe_slug(value: str, default: str = "item") -> str:
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value or "")).strip("-")
     return cleaned or default
@@ -184,6 +204,190 @@ def load_shell_env_file(path: Path) -> dict[str, str]:
         if key:
             data[key] = value
     return data
+
+
+def write_json_file(path: Path, payload: Any, *, mode: int = 0o600) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    try:
+        os.chmod(path, mode)
+    except OSError:
+        pass
+
+
+def random_secret(length: int = 24) -> str:
+    alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return "".join(secrets.choice(alphabet) for _ in range(max(12, length)))
+
+
+def random_pin() -> str:
+    return f"{secrets.randbelow(10000):04d}"
+
+
+def vm_secret_path(node: str, vmid: int) -> Path:
+    return vm_secrets_dir() / f"{safe_slug(node, 'unknown')}-{int(vmid)}.json"
+
+
+def load_vm_secret(node: str, vmid: int) -> dict[str, Any] | None:
+    payload = load_json_file(vm_secret_path(node, vmid), None)
+    return payload if isinstance(payload, dict) else None
+
+
+def save_vm_secret(node: str, vmid: int, payload: dict[str, Any]) -> dict[str, Any]:
+    clean = dict(payload)
+    clean["node"] = node
+    clean["vmid"] = int(vmid)
+    clean["updated_at"] = utcnow()
+    write_json_file(vm_secret_path(node, vmid), clean)
+    return clean
+
+
+def ensure_vm_secret(vm: VmSummary) -> dict[str, Any]:
+    existing = load_vm_secret(vm.node, vm.vmid)
+    if existing:
+        changed = False
+        if not str(existing.get("sunshine_username", "")).strip():
+            existing["sunshine_username"] = f"sunshine-vm{vm.vmid}"
+            changed = True
+        if not str(existing.get("sunshine_password", "")).strip():
+            existing["sunshine_password"] = random_secret(26)
+            changed = True
+        if not str(existing.get("sunshine_pin", "")).strip():
+            existing["sunshine_pin"] = random_pin()
+            changed = True
+        if not str(existing.get("thinclient_password", "")).strip():
+            existing["thinclient_password"] = random_secret(22)
+            changed = True
+        if changed:
+            return save_vm_secret(vm.node, vm.vmid, existing)
+        return existing
+    return save_vm_secret(
+        vm.node,
+        vm.vmid,
+        {
+            "sunshine_username": f"sunshine-vm{vm.vmid}",
+            "sunshine_password": random_secret(26),
+            "sunshine_pin": random_pin(),
+            "thinclient_password": random_secret(22),
+            "sunshine_pinned_pubkey": "",
+        },
+    )
+
+
+def manager_pinned_pubkey() -> str:
+    if not MANAGER_CERT_FILE.is_file():
+        return ""
+    try:
+        pubkey = subprocess.run(
+            ["openssl", "x509", "-in", str(MANAGER_CERT_FILE), "-pubkey", "-noout"],
+            check=True,
+            capture_output=True,
+            text=False,
+        ).stdout
+        der = subprocess.run(
+            ["openssl", "pkey", "-pubin", "-outform", "der"],
+            check=True,
+            input=pubkey,
+            capture_output=True,
+            text=False,
+        ).stdout
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return ""
+    digest = hashlib.sha256(der).digest()
+    return "sha256//" + base64.b64encode(digest).decode("ascii")
+
+
+MANAGER_PINNED_PUBKEY = manager_pinned_pubkey()
+
+
+def fetch_https_pinned_pubkey(url: str) -> str:
+    parsed = urlparse(str(url or "").strip())
+    host = str(parsed.hostname or "").strip()
+    if not host:
+        return ""
+    port = parsed.port or 443
+    script = (
+        "set -euo pipefail; "
+        f"openssl s_client -connect {shlex.quote(host)}:{int(port)} -servername {shlex.quote(host)} </dev/null 2>/dev/null "
+        "| openssl x509 -pubkey -noout "
+        "| openssl pkey -pubin -outform der 2>/dev/null "
+        "| openssl dgst -sha256 -binary | base64"
+    )
+    try:
+        output = subprocess.run(["bash", "-lc", script], check=True, capture_output=True, text=True).stdout.strip()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return ""
+    return f"sha256//{output}" if output else ""
+
+
+def internal_sunshine_api_url(vm: VmSummary, profile: dict[str, Any]) -> str:
+    public_stream = profile.get("public_stream") if isinstance(profile.get("public_stream"), dict) else None
+    if public_stream:
+        guest_ip = str(public_stream.get("guest_ip", "")).strip()
+        ports = public_stream.get("ports", {}) if isinstance(public_stream.get("ports"), dict) else {}
+        api_port = ports.get("sunshine_api_port")
+        if guest_ip and api_port:
+            return f"https://{guest_ip}:{int(api_port)}"
+    return str(profile.get("sunshine_api_url", "") or "")
+
+
+def enrollment_token_path(token: str) -> Path:
+    return enrollment_tokens_dir() / f"{hashlib.sha256(token.encode('utf-8')).hexdigest()}.json"
+
+
+def issue_enrollment_token(vm: VmSummary) -> tuple[str, dict[str, Any]]:
+    record = ensure_vm_secret(vm)
+    token = secrets.token_urlsafe(32)
+    payload = {
+        "vmid": vm.vmid,
+        "node": vm.node,
+        "profile_name": f"vm-{vm.vmid}",
+        "expires_at": datetime.fromtimestamp(datetime.now(timezone.utc).timestamp() + ENROLLMENT_TOKEN_TTL_SECONDS, tz=timezone.utc).isoformat(),
+        "issued_at": utcnow(),
+        "used_at": "",
+        "thinclient_password": str(record.get("thinclient_password", "")),
+    }
+    write_json_file(enrollment_token_path(token), payload)
+    return token, payload
+
+
+def load_enrollment_token(token: str) -> dict[str, Any] | None:
+    payload = load_json_file(enrollment_token_path(token), None)
+    return payload if isinstance(payload, dict) else None
+
+
+def mark_enrollment_token_used(token: str, payload: dict[str, Any], *, endpoint_id: str) -> None:
+    clean = dict(payload)
+    clean["used_at"] = utcnow()
+    clean["endpoint_id"] = endpoint_id
+    write_json_file(enrollment_token_path(token), clean)
+
+
+def enrollment_token_is_valid(payload: dict[str, Any] | None) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    if str(payload.get("used_at", "")).strip():
+        return False
+    expires_at = parse_utc_timestamp(str(payload.get("expires_at", "")))
+    if expires_at is None:
+        return False
+    return expires_at > datetime.now(timezone.utc)
+
+
+def endpoint_token_path(token: str) -> Path:
+    return endpoint_tokens_dir() / f"{hashlib.sha256(token.encode('utf-8')).hexdigest()}.json"
+
+
+def store_endpoint_token(token: str, payload: dict[str, Any]) -> dict[str, Any]:
+    clean = dict(payload)
+    clean["token_issued_at"] = utcnow()
+    write_json_file(endpoint_token_path(token), clean)
+    return clean
+
+
+def load_endpoint_token(token: str) -> dict[str, Any] | None:
+    payload = load_json_file(endpoint_token_path(token), None)
+    return payload if isinstance(payload, dict) else None
 
 
 DEFAULT_CREDENTIALS = load_shell_env_file(CREDENTIALS_ENV_FILE)
@@ -372,7 +576,7 @@ def default_installer_prep_state(vm: VmSummary, sunshine_status: dict[str, Any] 
         "progress": progress,
         "message": message,
         "updated_at": utcnow(),
-        "installer_url": f"/beagle-api/api/v1/public/vms/{vm.vmid}/installer.sh",
+        "installer_url": f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh",
         "installer_iso_url": str(profile.get("installer_iso_url") or public_installer_iso_url()),
         "stream_host": str(profile.get("stream_host", "") or ""),
         "moonlight_port": str(profile.get("moonlight_port", "") or ""),
@@ -402,7 +606,7 @@ def summarize_installer_prep_state(vm: VmSummary, state: dict[str, Any] | None =
     payload["ready"] = str(payload.get("status", "")).strip().lower() == "ready"
     payload.setdefault("vmid", vm.vmid)
     payload.setdefault("node", vm.node)
-    payload["installer_url"] = str(payload.get("installer_url") or f"/beagle-api/api/v1/public/vms/{vm.vmid}/installer.sh")
+    payload["installer_url"] = str(payload.get("installer_url") or f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh")
     payload["installer_iso_url"] = str(payload.get("installer_iso_url") or profile.get("installer_iso_url") or public_installer_iso_url())
     payload["stream_host"] = str(payload.get("stream_host") or profile.get("stream_host") or "")
     payload["moonlight_port"] = str(payload.get("moonlight_port") or profile.get("moonlight_port") or "")
@@ -426,6 +630,7 @@ def start_installer_prep(vm: VmSummary) -> dict[str, Any]:
     log_path = installer_prep_log_path(vm.node, vm.vmid)
     state = load_installer_prep_state(vm.node, vm.vmid)
     default_state = default_installer_prep_state(vm)
+    vm_secret = ensure_vm_secret(vm)
     if not bool(default_state.get("installer_target_eligible")):
         return summarize_installer_prep_state(vm, default_state)
     if installer_prep_running(state):
@@ -441,6 +646,9 @@ def start_installer_prep(vm: VmSummary) -> dict[str, Any]:
             "VMID": str(vm.vmid),
             "NODE": vm.node,
             "BEAGLE_INSTALLER_PREP_STATE_FILE": str(state_path),
+            "BEAGLE_SUNSHINE_DEFAULT_USER": str(vm_secret.get("sunshine_username", "")),
+            "BEAGLE_SUNSHINE_DEFAULT_PASSWORD": str(vm_secret.get("sunshine_password", "")),
+            "BEAGLE_SUNSHINE_DEFAULT_PIN": str(vm_secret.get("sunshine_pin", "")),
         }
     )
     try:
@@ -849,9 +1057,10 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         stream_host = public_stream["host"]
         moonlight_port = str(public_stream["moonlight_port"])
         sunshine_api_url = public_stream["sunshine_api_url"]
-    installer_url = f"/beagle-api/api/v1/public/vms/{vm.vmid}/installer.sh"
+    installer_url = f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh"
     installer_iso_url = public_installer_iso_url()
-    has_sunshine_password = bool(meta.get("sunshine-password"))
+    vm_secret = load_vm_secret(vm.node, vm.vmid)
+    has_sunshine_password = bool((vm_secret or {}).get("sunshine_password"))
     expected_profile_name = policy_profile.get("expected_profile_name") or meta.get("beagle-profile-name", "")
     moonlight_app = policy_profile.get("moonlight_app") or meta.get("moonlight-app", meta.get("sunshine-app", "Desktop"))
     profile = {
@@ -864,9 +1073,9 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         "stream_host": stream_host,
         "moonlight_port": moonlight_port,
         "sunshine_api_url": sunshine_api_url,
-        "sunshine_username": meta.get("sunshine-user", ""),
+        "sunshine_username": "",
         "sunshine_password_configured": has_sunshine_password,
-        "sunshine_pin": meta.get("sunshine-pin", f"{vm.vmid % 10000:04d}"),
+        "sunshine_pin": "",
         "moonlight_app": moonlight_app,
         "moonlight_resolution": policy_profile.get("moonlight_resolution") or meta.get("moonlight-resolution", "auto"),
         "moonlight_fps": policy_profile.get("moonlight_fps") or meta.get("moonlight-fps", "60"),
@@ -877,6 +1086,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         "network_mode": policy_profile.get("network_mode") or meta.get("thinclient-network-mode", "dhcp"),
         "default_mode": "MOONLIGHT" if stream_host else "",
         "beagle_hostname": safe_hostname(config.get("name") or vm.name, vm.vmid),
+        "beagle_manager_pinned_pubkey": MANAGER_PINNED_PUBKEY,
         "beagle_role": policy_profile.get("beagle_role") or meta.get("beagle-role", "desktop" if stream_host else ""),
         "expected_profile_name": expected_profile_name,
         "installer_url": installer_url,
@@ -1176,26 +1386,18 @@ def build_vm_inventory() -> dict[str, Any]:
     }
 
 
-def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[str, Any]) -> dict[str, str]:
+def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[str, Any], *, enrollment_token: str, thinclient_password: str) -> dict[str, str]:
     meta = parse_description_meta(config.get("description", ""))
     vm_name = str(config.get("name") or vm.name or f"vm-{vm.vmid}")
     proxmox_scheme = meta.get("proxmox-scheme", "https")
     proxmox_host = meta.get("proxmox-host", PUBLIC_SERVER_NAME)
     proxmox_port = meta.get("proxmox-port", "8006")
     proxmox_realm = meta.get("proxmox-realm", "pam")
-    proxmox_verify_tls = meta.get("proxmox-verify-tls", "0")
-    proxmox_username = meta.get("proxmox-user", DEFAULT_PROXMOX_USERNAME)
-    proxmox_password = meta.get("proxmox-password", DEFAULT_PROXMOX_PASSWORD)
-    proxmox_token = meta.get("proxmox-token", DEFAULT_PROXMOX_TOKEN)
+    proxmox_verify_tls = meta.get("proxmox-verify-tls", "1")
     expected_profile_name = str(profile.get("expected_profile_name") or f"vm-{vm.vmid}")
     moonlight_host = str(profile.get("stream_host", "") or "")
     moonlight_port = str(profile.get("moonlight_port", "") or "")
     sunshine_api_url = str(profile.get("sunshine_api_url", "") or "")
-    if not sunshine_api_url and moonlight_host:
-        if moonlight_port.isdigit():
-            sunshine_api_url = f"https://{moonlight_host}:{int(moonlight_port) + 1}"
-        else:
-            sunshine_api_url = f"https://{moonlight_host}:47990"
 
     return {
         "PVE_THIN_CLIENT_PRESET_PROFILE_NAME": expected_profile_name,
@@ -1216,11 +1418,14 @@ def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[
         "PVE_THIN_CLIENT_PRESET_PROXMOX_VMID": str(vm.vmid),
         "PVE_THIN_CLIENT_PRESET_PROXMOX_REALM": proxmox_realm,
         "PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS": proxmox_verify_tls,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME": proxmox_username,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD": proxmox_password,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN": proxmox_token,
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN": "",
         "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL": PUBLIC_MANAGER_URL,
-        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": ENDPOINT_SHARED_TOKEN,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_PINNED_PUBKEY": MANAGER_PINNED_PUBKEY,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_URL": f"{PUBLIC_MANAGER_URL}/api/v1/endpoints/enroll",
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_TOKEN": enrollment_token,
+        "PVE_THIN_CLIENT_PRESET_THINCLIENT_PASSWORD": thinclient_password,
         "PVE_THIN_CLIENT_PRESET_SPICE_METHOD": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_URL": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_USERNAME": "",
@@ -1248,9 +1453,10 @@ def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE": meta.get("moonlight-absolute-mouse", "1"),
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER": meta.get("moonlight-quit-after", "0"),
         "PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL": sunshine_api_url,
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": meta.get("sunshine-user", ""),
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": meta.get("sunshine-password", ""),
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": meta.get("sunshine-pin", f"{vm.vmid % 10000:04d}"),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": "",
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PINNED_PUBKEY": "",
     }
 
 
@@ -1261,7 +1467,14 @@ def render_vm_installer_script(vm: VmSummary) -> tuple[bytes, str]:
         raise FileNotFoundError(f"missing installer ISO: {HOSTED_INSTALLER_ISO_FILE}")
     config = get_vm_config(vm.node, vm.vmid)
     profile = build_profile(vm)
-    preset = build_installer_preset(vm, profile, config)
+    enrollment_token, enrollment_record = issue_enrollment_token(vm)
+    preset = build_installer_preset(
+        vm,
+        profile,
+        config,
+        enrollment_token=enrollment_token,
+        thinclient_password=str(enrollment_record.get("thinclient_password", "")),
+    )
     preset_name = preset.get("PVE_THIN_CLIENT_PRESET_PROFILE_NAME") or f"vm-{vm.vmid}"
     preset_b64 = encode_installer_preset(preset)
     rendered = patch_installer_defaults(
@@ -1272,6 +1485,13 @@ def render_vm_installer_script(vm: VmSummary) -> tuple[bytes, str]:
     )
     filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.sh"
     return rendered.encode("utf-8"), filename
+
+
+def extract_bearer_token(header_value: str) -> str:
+    header = str(header_value or "").strip()
+    if header.startswith("Bearer "):
+        return header[7:].strip()
+    return ""
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1292,17 +1512,19 @@ class Handler(BaseHTTPRequestHandler):
             return True
         return False
 
+    def _endpoint_identity(self) -> dict[str, Any] | None:
+        token = extract_bearer_token(self.headers.get("Authorization", ""))
+        if not token:
+            token = self.headers.get("X-Beagle-Endpoint-Token", "").strip()
+        if not token:
+            return None
+        payload = load_endpoint_token(token)
+        return payload if isinstance(payload, dict) else None
+
     def _is_endpoint_authenticated(self) -> bool:
         if ALLOW_LOCALHOST_NOAUTH and self.client_address[0] in {"127.0.0.1", "::1"}:
             return True
-        if not ENDPOINT_SHARED_TOKEN:
-            return False
-        header = self.headers.get("Authorization", "")
-        if header.startswith("Bearer ") and header[7:].strip() == ENDPOINT_SHARED_TOKEN:
-            return True
-        if self.headers.get("X-Beagle-Endpoint-Token", "").strip() == ENDPOINT_SHARED_TOKEN:
-            return True
-        return False
+        return self._endpoint_identity() is not None
 
     def _write_json(self, status: HTTPStatus, payload: Any) -> None:
         body = json.dumps(payload, indent=2).encode("utf-8") + b"\n"
@@ -1414,28 +1636,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path.startswith("/api/v1/public/vms/") and path.endswith("/installer.sh"):
-            vmid_text = path.split("/")[-2]
-            if not vmid_text.isdigit():
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                return
-            vm = find_vm(int(vmid_text))
-            if vm is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                return
-            try:
-                body, filename = render_vm_installer_script(vm)
-            except FileNotFoundError as exc:
-                self._write_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
-                return
-            except ValueError as exc:
-                self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(exc)})
-                return
-            self._write_bytes(
-                HTTPStatus.OK,
-                body,
-                content_type="text/x-shellscript; charset=utf-8",
-                filename=filename,
-            )
+            self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "public installer download disabled"})
             return
 
         if not self._is_authenticated():
@@ -1507,6 +1708,58 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         if path.startswith("/api/v1/vms/"):
+            if path.endswith("/installer.sh"):
+                vmid_text = path.split("/")[-2]
+                if not vmid_text.isdigit():
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                    return
+                vm = find_vm(int(vmid_text))
+                if vm is None:
+                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                    return
+                try:
+                    body, filename = render_vm_installer_script(vm)
+                except FileNotFoundError as exc:
+                    self._write_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
+                    return
+                except ValueError as exc:
+                    self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(exc)})
+                    return
+                self._write_bytes(
+                    HTTPStatus.OK,
+                    body,
+                    content_type="text/x-shellscript; charset=utf-8",
+                    filename=filename,
+                )
+                return
+            if path.endswith("/credentials"):
+                vmid_text = path.split("/")[-2]
+                if not vmid_text.isdigit():
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                    return
+                vm = find_vm(int(vmid_text))
+                if vm is None:
+                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                    return
+                secret = ensure_vm_secret(vm)
+                self._write_json(
+                    HTTPStatus.OK,
+                    {
+                        "service": "beagle-control-plane",
+                        "version": VERSION,
+                        "generated_at": utcnow(),
+                        "credentials": {
+                            "vmid": vm.vmid,
+                            "node": vm.node,
+                            "thinclient_username": "thinclient",
+                            "thinclient_password": str(secret.get("thinclient_password", "")),
+                            "sunshine_username": str(secret.get("sunshine_username", "")),
+                            "sunshine_password": str(secret.get("sunshine_password", "")),
+                            "sunshine_pin": str(secret.get("sunshine_pin", "")),
+                        },
+                    },
+                )
+                return
             if path.endswith("/installer-prep"):
                 vmid_text = path.split("/")[-2]
                 if not vmid_text.isdigit():
@@ -1655,10 +1908,71 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query or "")
 
+        if path == "/api/v1/endpoints/enroll":
+            try:
+                payload = self._read_json_body()
+                enrollment_token = str(payload.get("enrollment_token", "")).strip()
+                endpoint_id = str(payload.get("endpoint_id", "")).strip() or str(payload.get("hostname", "")).strip()
+                if not enrollment_token or not endpoint_id:
+                    raise ValueError("missing enrollment_token or endpoint_id")
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            enrollment = load_enrollment_token(enrollment_token)
+            if not enrollment_token_is_valid(enrollment):
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "invalid or expired enrollment token"})
+                return
+            vm = find_vm(int(enrollment.get("vmid", 0)))
+            if vm is None or vm.node != str(enrollment.get("node", "")).strip():
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                return
+            profile = build_profile(vm)
+            secret = ensure_vm_secret(vm)
+            sunshine_pinned_pubkey = fetch_https_pinned_pubkey(internal_sunshine_api_url(vm, profile))
+            if sunshine_pinned_pubkey and sunshine_pinned_pubkey != str(secret.get("sunshine_pinned_pubkey", "")):
+                secret["sunshine_pinned_pubkey"] = sunshine_pinned_pubkey
+                secret = save_vm_secret(vm.node, vm.vmid, secret)
+            endpoint_token = secrets.token_urlsafe(32)
+            endpoint_payload = store_endpoint_token(
+                endpoint_token,
+                {
+                    "endpoint_id": endpoint_id,
+                    "hostname": str(payload.get("hostname", "")).strip(),
+                    "vmid": vm.vmid,
+                    "node": vm.node,
+                },
+            )
+            mark_enrollment_token_used(enrollment_token, enrollment, endpoint_id=endpoint_id)
+            self._write_json(
+                HTTPStatus.CREATED,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "endpoint": endpoint_payload,
+                    "config": {
+                        "beagle_manager_url": PUBLIC_MANAGER_URL,
+                        "beagle_manager_token": endpoint_token,
+                        "beagle_manager_pinned_pubkey": MANAGER_PINNED_PUBKEY,
+                        "sunshine_api_url": str(profile.get("sunshine_api_url", "") or ""),
+                        "sunshine_username": str(secret.get("sunshine_username", "")),
+                        "sunshine_password": str(secret.get("sunshine_password", "")),
+                        "sunshine_pin": str(secret.get("sunshine_pin", "")),
+                        "sunshine_pinned_pubkey": str(secret.get("sunshine_pinned_pubkey", "")),
+                        "moonlight_host": str(profile.get("stream_host", "") or ""),
+                        "moonlight_port": str(profile.get("moonlight_port", "") or ""),
+                        "moonlight_app": str(profile.get("moonlight_app", "Desktop") or "Desktop"),
+                    },
+                },
+            )
+            return
+
         if path == "/api/v1/endpoints/actions/pull":
             if not self._is_endpoint_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
+            identity = self._endpoint_identity() or {}
             try:
                 payload = self._read_json_body()
                 vmid = int(payload.get("vmid"))
@@ -1667,6 +1981,9 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("missing node")
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            if identity and (int(identity.get("vmid", -1)) != vmid or str(identity.get("node", "")).strip() != node):
+                self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "endpoint scope mismatch"})
                 return
             actions = dequeue_vm_actions(node, vmid)
             self._write_json(
@@ -1685,6 +2002,7 @@ class Handler(BaseHTTPRequestHandler):
             if not self._is_endpoint_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
+            identity = self._endpoint_identity() or {}
             try:
                 payload = self._read_json_body()
                 vmid = int(payload.get("vmid"))
@@ -1695,6 +2013,9 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("missing action result fields")
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            if identity and (int(identity.get("vmid", -1)) != vmid or str(identity.get("node", "")).strip() != node):
+                self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "endpoint scope mismatch"})
                 return
 
             payload["vmid"] = vmid
@@ -1799,6 +2120,7 @@ class Handler(BaseHTTPRequestHandler):
             if not self._is_endpoint_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
+            identity = self._endpoint_identity() or {}
             try:
                 vmid_values = query.get("vmid", [])
                 node_values = query.get("node", [])
@@ -1813,6 +2135,9 @@ class Handler(BaseHTTPRequestHandler):
                 payload = self._read_binary_body(max_bytes=128 * 1024 * 1024)
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid upload: {exc}"})
+                return
+            if identity and (int(identity.get("vmid", -1)) != vmid or str(identity.get("node", "")).strip() != node):
+                self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "endpoint scope mismatch"})
                 return
             bundle = store_support_bundle(node, vmid, action_id, filename, payload)
             self._write_json(
@@ -1866,6 +2191,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._is_endpoint_authenticated():
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
             return
+        identity = self._endpoint_identity() or {}
 
         try:
             payload = self._read_json_body()
@@ -1875,6 +2201,9 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("missing node")
         except Exception as exc:
             self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+            return
+        if identity and (int(identity.get("vmid", -1)) != vmid or str(identity.get("node", "")).strip() != node):
+            self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "endpoint scope mismatch"})
             return
 
         payload["vmid"] = vmid

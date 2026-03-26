@@ -9,9 +9,11 @@ STATE_DIR="${BEAGLE_INSTALLER_PREP_DIR:-$MANAGER_DATA_DIR/installer-prep}"
 STATE_FILE="${BEAGLE_INSTALLER_PREP_STATE_FILE:-}"
 PUBLIC_STREAM_HOST="${BEAGLE_PUBLIC_STREAM_HOST:-${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}}"
 STREAMS_FILE="${BEAGLE_PUBLIC_STREAMS_FILE:-$MANAGER_DATA_DIR/public-streams.json}"
-SUNSHINE_DEFAULT_USER="${BEAGLE_SUNSHINE_DEFAULT_USER:-sunshine}"
-SUNSHINE_DEFAULT_PASSWORD="${BEAGLE_SUNSHINE_DEFAULT_PASSWORD:-beagleos}"
+SUNSHINE_DEFAULT_USER="${BEAGLE_SUNSHINE_DEFAULT_USER:-}"
+SUNSHINE_DEFAULT_PASSWORD="${BEAGLE_SUNSHINE_DEFAULT_PASSWORD:-}"
+SUNSHINE_DEFAULT_PIN="${BEAGLE_SUNSHINE_DEFAULT_PIN:-}"
 SUNSHINE_DEFAULT_GUEST_USER="${BEAGLE_SUNSHINE_DEFAULT_GUEST_USER:-dennis}"
+HOST_TLS_CERT_FILE="${BEAGLE_HOST_TLS_CERT_FILE:-/etc/pve/local/pve-ssl.pem}"
 
 usage() {
   echo "Usage: $0 --vmid VMID --node NODE" >&2
@@ -212,7 +214,21 @@ verify_public_api() {
   local api_url="$1"
   local sunshine_user="$2"
   local sunshine_password="$3"
-  curl -kfsS --connect-timeout 4 --max-time 10 --user "${sunshine_user}:${sunshine_password}" "${api_url%/}/api/apps" >/dev/null
+  local -a curl_args=(curl -fsS --connect-timeout 4 --max-time 10 --user "${sunshine_user}:${sunshine_password}")
+
+  if [[ "$api_url" == https://* ]]; then
+    if [[ -n "${BEAGLE_PUBLIC_TLS_PINNED_PUBKEY:-}" ]]; then
+      curl_args+=(--pinnedpubkey "${BEAGLE_PUBLIC_TLS_PINNED_PUBKEY}")
+    elif [[ -f "$HOST_TLS_CERT_FILE" ]]; then
+      curl_args+=(--cacert "$HOST_TLS_CERT_FILE")
+    elif [[ "${BEAGLE_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
+      curl_args+=(-k)
+    else
+      return 1
+    fi
+  fi
+
+  "${curl_args[@]}" "${api_url%/}/api/apps" >/dev/null
 }
 
 main() {
@@ -226,12 +242,18 @@ main() {
   if [[ -z "$stream_port" ]]; then
     stream_port="$(allocate_stream_port)"
   fi
-  sunshine_user="$(meta_get sunshine-user)"
-  sunshine_password="$(meta_get sunshine-password)"
-  sunshine_pin="$(meta_get sunshine-pin)"
+  sunshine_user=""
+  sunshine_password=""
+  sunshine_pin=""
   guest_user="$(meta_get sunshine-guest-user)"
   [[ -n "$sunshine_user" ]] || sunshine_user="$SUNSHINE_DEFAULT_USER"
   [[ -n "$sunshine_password" ]] || sunshine_password="$SUNSHINE_DEFAULT_PASSWORD"
+  [[ -n "$sunshine_pin" ]] || sunshine_pin="$SUNSHINE_DEFAULT_PIN"
+  [[ -n "$sunshine_user" ]] || sunshine_user="sunshine-vm${VMID}"
+  [[ -n "$sunshine_password" ]] || {
+    echo "Missing per-VM Sunshine password for VM ${VMID}." >&2
+    exit 1
+  }
   [[ -n "$sunshine_pin" ]] || sunshine_pin="$(printf '%04d' $(( VMID % 10000 )))"
   [[ -n "$guest_user" ]] || guest_user="$SUNSHINE_DEFAULT_GUEST_USER"
   public_api_url="https://${PUBLIC_STREAM_HOST}:$((stream_port + 1))"
@@ -241,7 +263,7 @@ import sys
 
 vmid, stream_host, moonlight_port, sunshine_api_url = sys.argv[1:5]
 print(json.dumps({
-    "installer_url": f"/beagle-api/api/v1/public/vms/{vmid}/installer.sh",
+    "installer_url": f"/beagle-api/api/v1/vms/{vmid}/installer.sh",
     "stream_host": stream_host,
     "moonlight_port": moonlight_port,
     "sunshine_api_url": sunshine_api_url,

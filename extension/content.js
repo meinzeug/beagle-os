@@ -6,7 +6,7 @@
   const OVERLAY_ID = "beagle-os-extension-overlay";
 
   function defaultUsbInstallerUrl() {
-    return "https://{host}:8443/beagle-api/api/v1/public/vms/{vmid}/installer.sh";
+    return "https://{host}:8443/beagle-api/api/v1/vms/{vmid}/installer.sh";
   }
 
   function defaultInstallerIsoUrl() {
@@ -126,6 +126,32 @@
     return String(healthUrl || "").replace(/\/api\/v1\/health\/?$/, "");
   }
 
+  let beagleUiConfigPromise = null;
+
+  async function getBeagleUiConfig() {
+    if (!beagleUiConfigPromise) {
+      beagleUiConfigPromise = fetch("/pve2/js/beagle-ui-config.js", { credentials: "same-origin" })
+        .then((response) => (response.ok ? response.text() : ""))
+        .then((text) => {
+          const apiTokenMatch = text.match(/apiToken:\s*["']([^"']*)["']/);
+          return {
+            apiToken: apiTokenMatch ? apiTokenMatch[1] : ""
+          };
+        })
+        .catch(() => ({ apiToken: "" }));
+    }
+    return beagleUiConfigPromise;
+  }
+
+  async function buildBeagleApiHeaders(extraHeaders = {}) {
+    const headers = Object.assign({}, extraHeaders);
+    const config = await getBeagleUiConfig();
+    if (config.apiToken) {
+      headers.Authorization = `Bearer ${config.apiToken}`;
+    }
+    return headers;
+  }
+
   function normalizeBeagleApiPath(path) {
     const value = String(path || "").trim() || "/";
     return value.startsWith("/beagle-api/") ? value.slice("/beagle-api".length) : value;
@@ -142,7 +168,7 @@
 
   async function apiGetBeagleJson(path) {
     const url = await resolveBeagleApiUrl(path);
-    const response = await fetch(url, { credentials: "same-origin" });
+    const response = await fetch(url, { credentials: "include", headers: await buildBeagleApiHeaders() });
     if (!response.ok) {
       throw new Error(`Beagle API request failed: ${response.status} ${response.statusText}`);
     }
@@ -159,7 +185,7 @@
 
   async function apiStartInstallerPrep(vmid) {
     const url = await resolveBeagleApiUrl(`/api/v1/vms/${encodeURIComponent(vmid)}/installer-prep`);
-    const response = await fetch(url, { method: "POST", credentials: "same-origin" });
+    const response = await fetch(url, { method: "POST", credentials: "include", headers: await buildBeagleApiHeaders() });
     if (!response.ok) {
       throw new Error(`Beagle API request failed: ${response.status} ${response.statusText}`);
     }
@@ -356,13 +382,35 @@
     return Boolean(status) && !["idle", "error", "failed"].includes(status);
   }
 
-  function triggerDownload(url) {
+  async function triggerDownload(url) {
     if (!url) {
       window.alert("Beagle OS: Download-URL konnte nicht ermittelt werden.");
       return;
     }
+    const absoluteUrl = withNoCache(url);
+    if (/\/beagle-api\/|\/api\/v1\/vms\/.+\/installer\.sh(?:\?|$)/.test(absoluteUrl)) {
+      const response = await fetch(absoluteUrl, {
+        credentials: "include",
+        headers: await buildBeagleApiHeaders()
+      });
+      if (!response.ok) {
+        throw new Error(`Beagle API request failed: ${response.status} ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = `pve-thin-client-usb-installer-vm-${String(url).match(/\/vms\/(\d+)\//)?.[1] || "download"}.sh`;
+      anchor.rel = "noopener noreferrer";
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      return;
+    }
     const anchor = document.createElement("a");
-    anchor.href = withNoCache(url);
+    anchor.href = absoluteUrl;
     anchor.rel = "noopener noreferrer";
     anchor.style.display = "none";
     document.body.appendChild(anchor);
@@ -612,7 +660,7 @@
           try {
             let state = await apiGetInstallerPrep(profile.vmid).catch(() => profile.installerPrep || null);
             if (String(state?.status || "").toLowerCase() === "ready") {
-              triggerDownload(profile.installerUrl);
+              await triggerDownload(profile.installerUrl);
               return;
             }
             if (!shouldReuseInstallerPrepState(state)) {
@@ -620,7 +668,7 @@
             }
             for (let attempt = 0; attempt < 180; attempt += 1) {
               if (String(state?.status || "").toLowerCase() === "ready") {
-                triggerDownload(profile.installerUrl);
+                await triggerDownload(profile.installerUrl);
                 return;
               }
               if (String(state?.status || "").toLowerCase() === "error") {
@@ -635,7 +683,7 @@
           }
           break;
         case "download-iso":
-          triggerDownload(profile.installerIsoUrl);
+          await triggerDownload(profile.installerIsoUrl);
           break;
         case "copy-json":
           await copyText(profileJson, "Beagle Profil als JSON kopiert.");
@@ -700,7 +748,9 @@
       window.alert(profile.installerTargetMessage || "Diese VM ist kein geeignetes Streaming-Ziel.");
       return;
     }
-    triggerDownload(profile.installerUrl);
+    triggerDownload(profile.installerUrl).catch((error) => {
+      window.alert(`Beagle OS Installer konnte nicht geladen werden: ${error?.message || error}`);
+    });
   }
 
   function createToolbarButton(label, onClick) {

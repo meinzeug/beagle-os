@@ -336,21 +336,7 @@ EOF
   if [[ -n "$BACKEND_HOST" ]]; then
     cat >> "$NGINX_SITE" <<EOF
     location / {
-        proxy_pass https://${BACKEND_HOST}:${BACKEND_PORT};
-        proxy_http_version 1.1;
-        proxy_set_header Accept-Encoding "";
-        proxy_ssl_server_name on;
-        proxy_ssl_verify off;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_buffering off;
-        proxy_read_timeout 86400;
-        proxy_send_timeout 86400;
-        sub_filter_once on;
-        sub_filter '</body>' '<script src="/beagle-autologin.js"></script></body>';
+        return 404;
     }
 }
 EOF

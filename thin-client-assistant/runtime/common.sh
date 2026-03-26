@@ -106,6 +106,7 @@ load_runtime_config() {
   CONFIG_FILE="$dir/thinclient.conf"
   NETWORK_FILE="$dir/network.env"
   CREDENTIALS_FILE="$dir/credentials.env"
+  LOCAL_AUTH_FILE="$dir/local-auth.env"
 
   if [[ ! -r "$CONFIG_FILE" ]]; then
     echo "Thin-client config is not readable: $CONFIG_FILE" >&2

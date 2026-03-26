@@ -392,6 +392,7 @@ moonlight_list() {
 
 submit_sunshine_pin() {
   local api_url username password pin name response
+  local -a curl_args
 
   api_url="$(sunshine_api_url)"
   username="${PVE_THIN_CLIENT_SUNSHINE_USERNAME:-}"
@@ -401,12 +402,19 @@ submit_sunshine_pin() {
 
   [[ -n "$api_url" && -n "$username" && -n "$password" && -n "$pin" ]] || return 1
 
+  curl_args=(curl -fsS --connect-timeout 2 --max-time 4 --user "${username}:${password}" -H 'Content-Type: application/json')
+  if [[ "$api_url" == https://* ]]; then
+    if [[ -n "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" ]]; then
+      curl_args+=(--pinnedpubkey "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY}")
+    elif [[ "${PVE_THIN_CLIENT_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
+      curl_args+=(-k)
+    else
+      return 1
+    fi
+  fi
+
   response="$(
-    curl -kfsS \
-      --connect-timeout 2 \
-      --max-time 4 \
-      --user "${username}:${password}" \
-      -H 'Content-Type: application/json' \
+    "${curl_args[@]}" \
       --data "{\"pin\":\"${pin}\",\"name\":\"${name}\"}" \
       "${api_url%/}/api/pin"
   )" || return 1
