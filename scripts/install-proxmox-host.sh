@@ -6,15 +6,27 @@ INSTALL_DIR="${INSTALL_DIR:-/opt/beagle}"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}"
 LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-8443}"
+SITE_PORT="${BEAGLE_SITE_PORT:-443}"
 DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/beagle-downloads}"
 DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-https://${SERVER_NAME}:${LISTEN_PORT}${DOWNLOADS_PATH}}"
 DEFAULT_USB_INSTALLER_URL="https://{host}:${LISTEN_PORT}/beagle-api/api/v1/vms/{vmid}/installer.sh"
 USB_INSTALLER_URL="${PVE_DCV_USB_INSTALLER_URL:-$DEFAULT_USB_INSTALLER_URL}"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 GITHUB_REPO="${GITHUB_REPO:-meinzeug/beagle-os}"
+WEB_UI_TITLE="${BEAGLE_WEB_UI_TITLE:-Beagle OS Web UI}"
 DEFAULT_PROXMOX_USERNAME="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_USERNAME:-${PVE_DCV_PROXMOX_USERNAME:-}}"
 DEFAULT_PROXMOX_PASSWORD="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_PASSWORD:-${PVE_DCV_PROXMOX_PASSWORD:-}}"
 DEFAULT_PROXMOX_TOKEN="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_TOKEN:-${PVE_DCV_PROXMOX_TOKEN:-}}"
+
+default_web_ui_url() {
+  if [[ "$SITE_PORT" == "443" ]]; then
+    printf 'https://%s\n' "$SERVER_NAME"
+    return 0
+  fi
+  printf 'https://%s:%s\n' "$SERVER_NAME" "$SITE_PORT"
+}
+
+WEB_UI_URL="${BEAGLE_WEB_UI_URL:-$(default_web_ui_url)}"
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -26,6 +38,9 @@ ensure_root() {
       INSTALL_DIR="$INSTALL_DIR" \
       PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME" \
       PVE_DCV_PROXY_LISTEN_PORT="$LISTEN_PORT" \
+      BEAGLE_SITE_PORT="$SITE_PORT" \
+      BEAGLE_WEB_UI_URL="$WEB_UI_URL" \
+      BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE" \
       PVE_DCV_DOWNLOADS_PATH="$DOWNLOADS_PATH" \
       PVE_DCV_DOWNLOADS_BASE_URL="$DOWNLOADS_BASE_URL" \
       PVE_DCV_USB_INSTALLER_URL="$USB_INSTALLER_URL" \
@@ -38,6 +53,33 @@ ensure_root() {
 
   echo "This installer must run as root or use sudo." >&2
   exit 1
+}
+
+prompt_value() {
+  local prompt="$1"
+  local current="$2"
+  local response=""
+
+  [[ -t 0 ]] || {
+    printf '%s\n' "$current"
+    return 0
+  }
+
+  read -r -p "$prompt [$current]: " response
+  if [[ -n "$response" ]]; then
+    printf '%s\n' "$response"
+    return 0
+  fi
+  printf '%s\n' "$current"
+}
+
+prompt_install_endpoints() {
+  [[ -t 0 ]] || return 0
+
+  SERVER_NAME="$(prompt_value 'Public Beagle host name' "$SERVER_NAME")"
+  SITE_PORT="$(prompt_value 'Beagle Web UI HTTPS port' "$SITE_PORT")"
+  LISTEN_PORT="$(prompt_value 'Beagle API/download HTTPS port' "$LISTEN_PORT")"
+  WEB_UI_URL="$(prompt_value 'Public Beagle Web UI URL' "$(default_web_ui_url)")"
 }
 
 ensure_dependencies() {
@@ -119,6 +161,9 @@ write_host_env_file() {
 INSTALL_DIR="$INSTALL_DIR"
 PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME"
 PVE_DCV_PROXY_LISTEN_PORT="$LISTEN_PORT"
+BEAGLE_SITE_PORT="$SITE_PORT"
+BEAGLE_WEB_UI_URL="$WEB_UI_URL"
+BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE"
 PVE_DCV_DOWNLOADS_PATH="$DOWNLOADS_PATH"
 PVE_DCV_DOWNLOADS_BASE_URL="$DOWNLOADS_BASE_URL"
 PVE_DCV_USB_INSTALLER_URL="$USB_INSTALLER_URL"
@@ -135,6 +180,7 @@ EOF
 
 ensure_root "$@"
 ensure_dependencies
+prompt_install_endpoints
 
 case "$INSTALL_DIR/" in
   "$ROOT_DIR"/*)
@@ -162,12 +208,18 @@ write_host_env_file
 if [[ -d /usr/share/pve-manager/js ]]; then
   PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME" \
   PVE_DCV_PROXY_LISTEN_PORT="$LISTEN_PORT" \
+  BEAGLE_SITE_PORT="$SITE_PORT" \
+  BEAGLE_WEB_UI_URL="$WEB_UI_URL" \
+  BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE" \
   PVE_DCV_DOWNLOADS_PATH="$DOWNLOADS_PATH" \
   PVE_DCV_USB_INSTALLER_URL="$USB_INSTALLER_URL" \
   "$INSTALL_DIR/scripts/install-proxmox-ui-integration.sh"
 
   PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME" \
   PVE_DCV_PROXY_LISTEN_PORT="$LISTEN_PORT" \
+  BEAGLE_SITE_PORT="$SITE_PORT" \
+  BEAGLE_WEB_UI_URL="$WEB_UI_URL" \
+  BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE" \
   PVE_DCV_DOWNLOADS_PATH="$DOWNLOADS_PATH" \
   PVE_DCV_DOWNLOADS_BASE_URL="$DOWNLOADS_BASE_URL" \
   "$INSTALL_DIR/scripts/install-beagle-proxy.sh"

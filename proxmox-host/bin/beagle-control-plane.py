@@ -11,6 +11,7 @@ import base64
 import secrets
 import shlex
 import tempfile
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -52,6 +53,14 @@ PUBLIC_STREAM_PORT_COUNT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_COUNT",
 PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
 ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_SECONDS", "86400"))
 SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_TOKEN_TTL_SECONDS", "600"))
+COMMAND_TIMEOUT_SECONDS = float(os.environ.get("BEAGLE_MANAGER_COMMAND_TIMEOUT_SECONDS", "8"))
+GUEST_AGENT_TIMEOUT_SECONDS = float(os.environ.get("BEAGLE_MANAGER_GUEST_AGENT_TIMEOUT_SECONDS", "2.5"))
+LIST_VMS_CACHE_SECONDS = float(os.environ.get("BEAGLE_MANAGER_LIST_VMS_CACHE_SECONDS", "3"))
+VM_CONFIG_CACHE_SECONDS = float(os.environ.get("BEAGLE_MANAGER_VM_CONFIG_CACHE_SECONDS", "5"))
+GUEST_IPV4_CACHE_SECONDS = float(os.environ.get("BEAGLE_MANAGER_GUEST_IPV4_CACHE_SECONDS", "10"))
+ENABLE_GUEST_IP_LOOKUP = os.environ.get("BEAGLE_MANAGER_ENABLE_GUEST_IP_LOOKUP", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+_CACHE: dict[str, tuple[float, Any]] = {}
 
 
 def public_installer_iso_url() -> str:
@@ -101,6 +110,22 @@ def load_json_file(path: Path, fallback: Any) -> Any:
         return fallback
 
 
+def cache_get(key: str, ttl_seconds: float) -> Any:
+    entry = _CACHE.get(key)
+    if entry is None:
+        return None
+    created_at, value = entry
+    if time.monotonic() - created_at > ttl_seconds:
+        _CACHE.pop(key, None)
+        return None
+    return value
+
+
+def cache_put(key: str, value: Any) -> Any:
+    _CACHE[key] = (time.monotonic(), value)
+    return value
+
+
 def listify(value: Any) -> list[str]:
     if isinstance(value, list):
         items = value
@@ -121,10 +146,16 @@ def ensure_data_dir() -> Path:
         return fallback
 
 
-def run_json(command: list[str]) -> Any:
+def run_json(command: list[str], *, timeout: float | None = None) -> Any:
     try:
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-    except (FileNotFoundError, subprocess.CalledProcessError):
+        result = subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=COMMAND_TIMEOUT_SECONDS if timeout is None else timeout,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
     try:
         return json.loads(result.stdout or "null")
@@ -132,10 +163,16 @@ def run_json(command: list[str]) -> Any:
         return None
 
 
-def run_text(command: list[str]) -> str:
+def run_text(command: list[str], *, timeout: float | None = None) -> str:
     try:
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-    except (FileNotFoundError, subprocess.CalledProcessError):
+        result = subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=COMMAND_TIMEOUT_SECONDS if timeout is None else timeout,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return ""
     return result.stdout
 
@@ -1201,7 +1238,13 @@ def safe_hostname(name: str, vmid: int) -> str:
 
 
 def first_guest_ipv4(vmid: int) -> str:
-    payload = run_json(["qm", "guest", "cmd", str(vmid), "network-get-interfaces"])
+    if not ENABLE_GUEST_IP_LOOKUP:
+        return ""
+    cache_key = f"guest-ipv4:{int(vmid)}"
+    cached = cache_get(cache_key, GUEST_IPV4_CACHE_SECONDS)
+    if isinstance(cached, str):
+        return cached
+    payload = run_json(["qm", "guest", "cmd", str(vmid), "network-get-interfaces"], timeout=GUEST_AGENT_TIMEOUT_SECONDS)
     if not isinstance(payload, list):
         return ""
     for iface in payload:
@@ -1211,11 +1254,14 @@ def first_guest_ipv4(vmid: int) -> str:
                 continue
             if not ip or ip.startswith("127.") or ip.startswith("169.254."):
                 continue
-            return ip
+            return cache_put(cache_key, ip)
     return ""
 
 
 def list_vms() -> list[VmSummary]:
+    cached = cache_get("list-vms", LIST_VMS_CACHE_SECONDS)
+    if isinstance(cached, list):
+        return cached
     resources = run_json(["pvesh", "get", "/cluster/resources", "--type", "vm", "--output-format", "json"])
     vms: list[VmSummary] = []
     if not isinstance(resources, list):
@@ -1232,13 +1278,17 @@ def list_vms() -> list[VmSummary]:
                 tags=str(item.get("tags") or ""),
             )
         )
-    return sorted(vms, key=lambda vm: vm.vmid)
+    return cache_put("list-vms", sorted(vms, key=lambda vm: vm.vmid))
 
 
 def get_vm_config(node: str, vmid: int) -> dict[str, Any]:
+    cache_key = f"vm-config:{node}:{int(vmid)}"
+    cached = cache_get(cache_key, VM_CONFIG_CACHE_SECONDS)
+    if isinstance(cached, dict):
+        return cached
     payload = run_json(["pvesh", "get", f"/nodes/{node}/qemu/{vmid}/config", "--output-format", "json"])
     if isinstance(payload, dict):
-        return payload
+        return cache_put(cache_key, payload)
     return {}
 
 
@@ -1367,7 +1417,18 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
     meta = parse_description_meta(config.get("description", ""))
     matched_policy = resolve_policy_for_vm(vm, meta) if allow_assignment else None
     policy_profile = matched_policy.get("profile", {}) if isinstance(matched_policy, dict) and isinstance(matched_policy.get("profile"), dict) else {}
-    guest_ip = first_guest_ipv4(vm.vmid)
+    needs_guest_ip = not any(
+        [
+            policy_profile.get("stream_host"),
+            meta.get("moonlight-host"),
+            meta.get("sunshine-ip"),
+            meta.get("sunshine-host"),
+            meta.get("sunshine-api-url"),
+            meta.get("beagle-public-stream-host"),
+            meta.get("beagle-public-moonlight-port"),
+        ]
+    )
+    guest_ip = first_guest_ipv4(vm.vmid) if vm.status == "running" and needs_guest_ip else ""
     stream_host = policy_profile.get("stream_host") or meta.get("moonlight-host") or meta.get("sunshine-ip") or meta.get("sunshine-host") or guest_ip
     moonlight_port = str(policy_profile.get("moonlight_port") or meta.get("moonlight-port") or meta.get("beagle-public-moonlight-port") or "").strip()
     sunshine_api_url = policy_profile.get("sunshine_api_url") or meta.get("sunshine-api-url") or (f"https://{stream_host}:47990" if stream_host else "")
@@ -1623,11 +1684,29 @@ def build_health_payload() -> dict[str, Any]:
     vm_installers = load_json_file(VM_INSTALLERS_FILE, [])
     endpoint_reports = list_endpoint_reports()
     policies = list_policies()
+    vms = list_vms()
     status_counts = {"healthy": 0, "degraded": 0, "drifted": 0, "stale": 0, "pending": 0, "unmanaged": 0}
-    for vm in list_vms():
-        compliance = build_vm_state(vm)["compliance"]
-        status = str(compliance.get("status", "unmanaged"))
+    pending_action_count = 0
+    for vm in vms:
+        profile = build_profile(vm)
+        endpoint = summarize_endpoint_report(load_endpoint_report(vm.node, vm.vmid) or {})
+        role = str(profile.get("beagle_role", "")).strip().lower()
+        report_age = endpoint.get("report_age_seconds")
+        if role in {"endpoint", "thinclient", "client"}:
+            if not endpoint.get("reported_at"):
+                status = "pending"
+            elif report_age is not None and int(report_age) > STALE_ENDPOINT_SECONDS:
+                status = "stale"
+            elif endpoint.get("moonlight_target_reachable") not in {"1", 1, True}:
+                status = "degraded"
+            else:
+                status = "healthy"
+        elif profile.get("installer_target_eligible"):
+            status = "healthy" if vm.status == "running" else "degraded"
+        else:
+            status = "unmanaged"
         status_counts[status] = status_counts.get(status, 0) + 1
+        pending_action_count += len(load_action_queue(vm.node, vm.vmid))
     return {
         "service": "beagle-control-plane",
         "ok": True,
@@ -1637,8 +1716,10 @@ def build_health_payload() -> dict[str, Any]:
         "downloads_status": downloads_status,
         "vm_installer_inventory_present": VM_INSTALLERS_FILE.exists(),
         "vm_installer_count": len(vm_installers) if isinstance(vm_installers, list) else 0,
+        "vm_count": len(vms),
         "endpoint_count": len(endpoint_reports),
         "policy_count": len(policies),
+        "pending_action_count": pending_action_count,
         "endpoint_status_counts": status_counts,
         "data_dir": str(EFFECTIVE_DATA_DIR),
     }
@@ -1715,9 +1796,11 @@ def build_vm_inventory() -> dict[str, Any]:
         int(item.get("vmid")): item for item in installers if isinstance(item, dict) and item.get("vmid") is not None
     }
     for vm in list_vms():
-        state = build_vm_state(vm)
-        profile = state["profile"]
+        profile = build_profile(vm)
         installer = installers_by_vmid.get(vm.vmid, {})
+        endpoint = summarize_endpoint_report(load_endpoint_report(vm.node, vm.vmid) or {})
+        last_action = summarize_action_result(load_action_result(vm.node, vm.vmid))
+        pending_action_count = len(load_action_queue(vm.node, vm.vmid))
         inventory.append(
             {
                 "vmid": vm.vmid,
@@ -1744,10 +1827,10 @@ def build_vm_inventory() -> dict[str, Any]:
                 "assigned_target": profile.get("assigned_target"),
                 "assignment_source": profile.get("assignment_source", ""),
                 "applied_policy": profile.get("applied_policy"),
-                "endpoint": state["endpoint"],
-                "compliance": state["compliance"],
-                "last_action": state["last_action"],
-                "pending_action_count": state["pending_action_count"],
+                "endpoint": endpoint,
+                "compliance": {},
+                "last_action": last_action,
+                "pending_action_count": pending_action_count,
                 "support_bundle_count": len(list_support_bundle_metadata(node=vm.node, vmid=vm.vmid)),
             }
         )

@@ -1,63 +1,532 @@
 (function () {
-  "use strict";
+  'use strict';
 
-  function setText(id, value) {
-    var element = document.getElementById(id);
-    if (element) {
-      element.textContent = value;
+  var config = window.BEAGLE_WEB_UI_CONFIG || {};
+  var state = {
+    token: window.localStorage.getItem('beagle.webUi.apiToken') || '',
+    inventory: [],
+    policies: [],
+    selectedVmid: null,
+    detailCache: Object.create(null)
+  };
+
+  function qs(id) {
+    return document.getElementById(id);
+  }
+
+  function text(id, value) {
+    var node = qs(id);
+    if (node) {
+      node.textContent = value;
     }
   }
 
-  function fetchJson(url) {
-    return fetch(url, { credentials: "same-origin" }).then(function (response) {
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function apiBase() {
+    return String(config.apiBase || '/beagle-api/api/v1').replace(/\/$/, '');
+  }
+
+  function downloadsBase() {
+    return String(config.downloadsBase || '/beagle-downloads').replace(/\/$/, '');
+  }
+
+  function webUiUrl() {
+    return String(config.webUiUrl || window.location.origin);
+  }
+
+  function applyTitle() {
+    var title = String(config.title || 'Beagle OS Web UI');
+    document.title = title;
+    var heading = document.querySelector('.masthead h1');
+    if (heading) {
+      heading.textContent = title;
+    }
+  }
+
+  function setBanner(message, tone) {
+    var node = qs('auth-status');
+    if (!node) {
+      return;
+    }
+    node.className = 'banner ' + (tone || 'info');
+    node.textContent = message;
+  }
+
+  function request(path, options) {
+    var target = path.indexOf('http') === 0 ? path : apiBase() + path;
+    var finalOptions = Object.assign({ method: 'GET', credentials: 'same-origin' }, options || {});
+    finalOptions.headers = Object.assign({}, finalOptions.headers || {});
+    if (state.token) {
+      finalOptions.headers['X-Beagle-Api-Token'] = state.token;
+    }
+    return fetch(target, finalOptions).then(function (response) {
       if (!response.ok) {
-        throw new Error("HTTP " + response.status);
+        return response.text().then(function (body) {
+          var detail = body;
+          try {
+            var parsed = JSON.parse(body);
+            detail = parsed.error || parsed.message || body;
+          } catch (error) {
+            void error;
+          }
+          throw new Error('HTTP ' + response.status + ': ' + detail);
+        });
       }
       return response.json();
     });
   }
 
-  function fetchControlPlaneStatus() {
-    return fetchJson("/beagle-api/healthz")
-      .then(function (payload) {
-        if (!payload || !payload.ok) {
-          throw new Error("healthz unavailable");
-        }
-
-        setText("health-state", "Operational");
-        setText("health-meta", "Control plane version " + String(payload.version || "unknown"));
-
-        return fetchJson("/beagle-api/api/v1/health")
-          .then(function (details) {
-            setText(
-              "health-meta",
-              "Endpoints: " +
-                String(details && details.endpoint_count ? details.endpoint_count : 0) +
-                " | Policies: " +
-                String(details && details.policy_count ? details.policy_count : 0)
-            );
-          })
-          .catch(function () {
-            return null;
-          });
-      })
-      .catch(function () {
-        setText("health-state", "Offline");
-        setText("health-meta", "Control plane unavailable");
+  function blobRequest(path, filename) {
+    var target = path.indexOf('http') === 0 ? path : apiBase() + path;
+    return fetch(target, {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: state.token ? { 'X-Beagle-Api-Token': state.token } : {}
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error('HTTP ' + response.status + ' beim Download');
+      }
+      return response.blob().then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        window.setTimeout(function () {
+          URL.revokeObjectURL(url);
+          link.remove();
+        }, 1000);
       });
+    });
   }
 
-  fetchJson("/beagle-downloads/beagle-downloads-status.json")
-    .then(function (payload) {
-      var version = payload && payload.version ? "v" + payload.version : "Unavailable";
-      var generated = payload && payload.generated_at ? payload.generated_at : "Host metadata online";
-      setText("release-version", version);
-      setText("release-updated", generated);
-    })
-    .catch(function () {
-      setText("release-version", "Unavailable");
-      setText("release-updated", "Host metadata unavailable");
-    });
+  function formatDate(value) {
+    if (!value) {
+      return 'n/a';
+    }
+    var date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return String(value);
+    }
+    return date.toLocaleString('de-DE');
+  }
 
-  fetchControlPlaneStatus();
+  function profileOf(vm) {
+    return vm && vm.profile ? vm.profile : vm || {};
+  }
+
+  function roleOf(vm) {
+    var profile = profileOf(vm);
+    return String(profile.beagle_role || profile.role || '').trim().toLowerCase();
+  }
+
+  function isBeagleVm(vm) {
+    var profile = profileOf(vm);
+    return Boolean(
+      profile.beagle_role ||
+      profile.stream_host ||
+      profile.installer_target_eligible ||
+      (vm && vm.endpoint && vm.endpoint.reported_at)
+    );
+  }
+
+  function isEligible(vm) {
+    var profile = profileOf(vm);
+    return Boolean(profile.installer_target_eligible);
+  }
+
+  function matchesRoleFilter(vm, value) {
+    var role = roleOf(vm);
+    if (value === 'all') {
+      return true;
+    }
+    if (value === 'endpoint') {
+      return role === 'endpoint' || role === 'thinclient' || role === 'client';
+    }
+    if (value === 'desktop') {
+      return role === 'desktop';
+    }
+    return role !== 'desktop' && role !== 'endpoint' && role !== 'thinclient' && role !== 'client';
+  }
+
+  function filteredInventory() {
+    var query = String(qs('search-input') ? qs('search-input').value : '').trim().toLowerCase();
+    var roleFilter = String(qs('role-filter') ? qs('role-filter').value : 'all');
+    var eligibleOnly = Boolean(qs('eligible-only') && qs('eligible-only').checked);
+    return state.inventory.filter(function (vm) {
+      var profile = profileOf(vm);
+      if (!isBeagleVm(vm)) {
+        return false;
+      }
+      if (!matchesRoleFilter(vm, roleFilter)) {
+        return false;
+      }
+      if (eligibleOnly && !isEligible(vm)) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      var haystack = [
+        profile.name,
+        profile.identity_hostname,
+        profile.stream_host,
+        profile.node,
+        profile.vmid,
+        profile.beagle_role,
+        profile.assignment_source,
+        profile.moonlight_app
+      ].join(' ').toLowerCase();
+      return haystack.indexOf(query) !== -1;
+    }).sort(function (left, right) {
+      var leftProfile = profileOf(left);
+      var rightProfile = profileOf(right);
+      var leftRunning = leftProfile.status === 'running' ? 0 : 1;
+      var rightRunning = rightProfile.status === 'running' ? 0 : 1;
+      if (leftRunning !== rightRunning) {
+        return leftRunning - rightRunning;
+      }
+      return String(leftProfile.name || leftProfile.vmid).localeCompare(String(rightProfile.name || rightProfile.vmid), 'de');
+    });
+  }
+
+  function chip(label, tone) {
+    return '<span class="chip ' + tone + '">' + escapeHtml(label) + '</span>';
+  }
+
+  function renderInventory() {
+    var rows = filteredInventory();
+    var body = qs('inventory-body');
+    if (!body) {
+      return;
+    }
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="6" class="empty">Keine passenden Beagle VMs gefunden.</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(function (vm) {
+      var profile = profileOf(vm);
+      var statusTone = profile.status === 'running' ? 'ok' : 'warn';
+      var installerTone = profile.installer_target_eligible ? 'ok' : 'muted';
+      var lastAction = vm.last_action && vm.last_action.action ? vm.last_action.action + (vm.last_action.ok ? ' ok' : ' fail') : 'n/a';
+      return '' +
+        '<tr class="inventory-row' + (state.selectedVmid === profile.vmid ? ' selected' : '') + '" data-vmid="' + escapeHtml(profile.vmid) + '">' +
+        '  <td><strong>' + escapeHtml(profile.name || ('VM ' + profile.vmid)) + '</strong><div class="subtle">#' + escapeHtml(profile.vmid) + ' · ' + escapeHtml(profile.node || '') + '</div></td>' +
+        '  <td>' + chip(roleOf(vm) || 'unassigned', roleOf(vm) === 'desktop' ? 'info' : 'muted') + '</td>' +
+        '  <td>' + chip(profile.status || 'unknown', statusTone) + '</td>' +
+        '  <td><div>' + escapeHtml(profile.stream_host || 'n/a') + '</div><div class="subtle">' + escapeHtml(profile.moonlight_port || '') + '</div></td>' +
+        '  <td>' + chip(profile.installer_target_status || (profile.installer_target_eligible ? 'ready' : 'not eligible'), installerTone) + '</td>' +
+        '  <td>' + escapeHtml(lastAction) + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function statCardFromHealth(payload) {
+    var counts = (payload && payload.endpoint_status_counts) || {};
+    text('stat-manager', 'Online');
+    text('stat-manager-meta', 'Version ' + String(payload.version || 'unknown'));
+    text('stat-vms', String(payload.vm_count || state.inventory.length || 0));
+    text('stat-vms-meta', 'Aktive Beagle VMs: ' + String(filteredInventory().length));
+    text('stat-endpoints', String(payload.endpoint_count || 0));
+    text('stat-endpoints-meta', 'healthy ' + String(counts.healthy || 0) + ' · stale ' + String(counts.stale || 0) + ' · offline ' + String(counts.offline || 0));
+    text('stat-policies', String(payload.policy_count || 0));
+    text('stat-policies-meta', 'queued actions ' + String(payload.pending_action_count || 0));
+  }
+
+  function fieldBlock(label, value, tone) {
+    return '<div class="kv ' + (tone || '') + '"><div class="kv-label">' + escapeHtml(label) + '</div><div class="kv-value">' + escapeHtml(value || 'n/a') + '</div></div>';
+  }
+
+  function actionButton(action, label, tone) {
+    return '<button type="button" class="button ' + (tone || 'ghost') + '" data-action="' + escapeHtml(action) + '">' + escapeHtml(label) + '</button>';
+  }
+
+  function renderPolicies() {
+    var node = qs('policies-list');
+    if (!node) {
+      return;
+    }
+    if (!state.policies.length) {
+      node.innerHTML = '<div class="empty-card">Keine Policies vorhanden.</div>';
+      return;
+    }
+    node.innerHTML = state.policies.map(function (policy) {
+      var selector = policy.selector || {};
+      var profile = policy.profile || {};
+      return '' +
+        '<article class="policy-card">' +
+        '  <div class="policy-head"><strong>' + escapeHtml(policy.name || 'policy') + '</strong>' + chip('prio ' + String(policy.priority || 0), 'muted') + '</div>' +
+        '  <div class="policy-grid">' +
+        fieldBlock('Selector', JSON.stringify(selector), 'mono') +
+        fieldBlock('Profile', JSON.stringify(profile), 'mono') +
+        '  </div>' +
+        '</article>';
+    }).join('');
+  }
+
+  function renderDetail(detail) {
+    var profile = detail.profile || {};
+    var credentials = detail.credentials || {};
+    var installerPrep = detail.installerPrep || {};
+    var actions = detail.actions || {};
+    var bundles = detail.supportBundles || [];
+    var endpoint = detail.state && detail.state.endpoint ? detail.state.endpoint : {};
+    var lastAction = detail.state && detail.state.last_action ? detail.state.last_action : {};
+    var node = qs('detail-stack');
+    var actionsNode = qs('detail-actions');
+    text('detail-title', (profile.name || ('VM ' + profile.vmid)) + ' (#' + profile.vmid + ')');
+    if (actionsNode) {
+      actionsNode.innerHTML = actionButton('refresh-detail', 'Neu laden', 'ghost') + actionButton('sunshine-ui', 'Sunshine Web UI', 'ghost');
+    }
+    if (!node) {
+      return;
+    }
+    node.innerHTML = '' +
+      '<div class="banner ' + (installerPrep.status === 'ready' ? 'ok' : installerPrep.status === 'failed' || installerPrep.status === 'error' ? 'warn' : 'info') + '">Installer Readiness: ' + escapeHtml(installerPrep.target_status || installerPrep.status || 'unknown') + ' · ' + escapeHtml(installerPrep.message || 'Keine Detailmeldung') + '</div>' +
+      '<div class="detail-grid">' +
+      '  <section class="detail-card"><h3>Profil</h3>' +
+           fieldBlock('Rolle', profile.beagle_role) +
+           fieldBlock('Status', profile.status) +
+           fieldBlock('Hostname', profile.identity_hostname) +
+           fieldBlock('Assignment', profile.assignment_source || 'n/a') +
+           fieldBlock('Policy', profile.applied_policy && profile.applied_policy.name ? profile.applied_policy.name : 'none') +
+      '  </section>' +
+      '  <section class="detail-card"><h3>Streaming</h3>' +
+           fieldBlock('Stream Host', profile.stream_host) +
+           fieldBlock('Moonlight Port', profile.moonlight_port) +
+           fieldBlock('App', profile.moonlight_app) +
+           fieldBlock('Sunshine API', profile.sunshine_api_url, 'mono') +
+           fieldBlock('Installer Linux', profile.installer_url, 'mono') +
+           fieldBlock('Installer Windows', profile.installer_windows_url, 'mono') +
+      '  </section>' +
+      '  <section class="detail-card"><h3>Endpoint</h3>' +
+           fieldBlock('Reported', endpoint.reported_at ? formatDate(endpoint.reported_at) : 'n/a') +
+           fieldBlock('Endpoint Host', endpoint.hostname || endpoint.endpoint_id || 'n/a') +
+           fieldBlock('Last Action', lastAction.action || 'n/a') +
+           fieldBlock('Last Result', lastAction.message || (lastAction.ok == null ? 'n/a' : String(lastAction.ok))) +
+           fieldBlock('Pending Actions', String((actions.pending_actions || []).length)) +
+           fieldBlock('Support Bundles', String(bundles.length)) +
+      '  </section>' +
+      '  <section class="detail-card"><h3>Credentials</h3>' +
+           fieldBlock('Thin Client User', credentials.thinclient_username) +
+           fieldBlock('Thin Client Password', credentials.thinclient_password) +
+           fieldBlock('Sunshine User', credentials.sunshine_username) +
+           fieldBlock('Sunshine Password', credentials.sunshine_password) +
+           fieldBlock('Sunshine PIN', credentials.sunshine_pin) +
+      '  </section>' +
+      '</div>' +
+      '<section class="detail-card action-card"><h3>Aktionen</h3><div class="button-row">' +
+           actionButton('installer-prep', 'Installer vorbereiten', 'primary') +
+           actionButton('download-linux', 'Linux Installer', 'ghost') +
+           actionButton('download-windows', 'Windows Installer', 'ghost') +
+           actionButton('healthcheck', 'Healthcheck', 'ghost') +
+           actionButton('support-bundle', 'Support Bundle', 'ghost') +
+           actionButton('restart-session', 'Session neu starten', 'ghost') +
+           actionButton('restart-runtime', 'Runtime neu starten', 'ghost') +
+      '</div></section>' +
+      '<section class="detail-card"><h3>Support Bundles</h3><div class="bundle-list">' +
+        (bundles.length ? bundles.map(function (bundle) {
+          return '<div class="bundle-row"><strong>' + escapeHtml(bundle.stored_filename || bundle.bundle_id || 'bundle') + '</strong><span>' + escapeHtml(formatDate(bundle.generated_at || bundle.stored_at)) + '</span></div>';
+        }).join('') : '<div class="empty-card">Keine Bundles vorhanden.</div>') +
+      '</div></section>';
+  }
+
+  function loadDetail(vmid) {
+    var numericVmid = Number(vmid);
+    state.selectedVmid = numericVmid;
+    renderInventory();
+    setBanner('Lade Details fuer VM ' + numericVmid + ' ...', 'info');
+    return Promise.all([
+      request('/vms/' + numericVmid),
+      request('/vms/' + numericVmid + '/state'),
+      request('/vms/' + numericVmid + '/credentials'),
+      request('/vms/' + numericVmid + '/actions'),
+      request('/vms/' + numericVmid + '/installer-prep'),
+      request('/vms/' + numericVmid + '/support-bundles')
+    ]).then(function (results) {
+      var detail = {
+        profile: results[0].profile || {},
+        state: results[1] || {},
+        credentials: results[2].credentials || {},
+        actions: results[3] || {},
+        installerPrep: results[4].installer_prep || {},
+        supportBundles: results[5].support_bundles || []
+      };
+      state.detailCache[numericVmid] = detail;
+      renderDetail(detail);
+      setBanner('Details fuer VM ' + numericVmid + ' geladen.', 'ok');
+      return detail;
+    }).catch(function (error) {
+      setBanner('VM-Detail konnte nicht geladen werden: ' + error.message, 'warn');
+    });
+  }
+
+  function saveToken() {
+    var input = qs('api-token');
+    state.token = input ? String(input.value || '').trim() : '';
+    if (state.token) {
+      window.localStorage.setItem('beagle.webUi.apiToken', state.token);
+    } else {
+      window.localStorage.removeItem('beagle.webUi.apiToken');
+    }
+  }
+
+  function loadDashboard() {
+    if (!state.token) {
+      setBanner('Noch kein API-Token gesetzt.', 'warn');
+      return Promise.resolve();
+    }
+    setBanner('Beagle Manager wird geladen ...', 'info');
+    return Promise.all([
+      request('/health'),
+      request('/vms'),
+      request('/policies')
+    ]).then(function (results) {
+      var health = results[0] || {};
+      state.inventory = (results[1] && results[1].vms) || [];
+      state.policies = (results[2] && results[2].policies) || [];
+      statCardFromHealth(health);
+      renderInventory();
+      renderPolicies();
+      setBanner('Beagle Manager verbunden. Inventar und Policies sind aktuell.', 'ok');
+      if (state.selectedVmid) {
+        return loadDetail(state.selectedVmid);
+      }
+      if (filteredInventory().length) {
+        return loadDetail(filteredInventory()[0].profile.vmid);
+      }
+      return null;
+    }).catch(function (error) {
+      text('stat-manager', 'Fehler');
+      text('stat-manager-meta', error.message);
+      setBanner('Verbindung fehlgeschlagen: ' + error.message, 'warn');
+    });
+  }
+
+  function postJson(path, payload) {
+    return request(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {})
+    });
+  }
+
+  function executeAction(action) {
+    var vmid = state.selectedVmid;
+    if (!vmid) {
+      return;
+    }
+    if (action === 'refresh-detail') {
+      loadDetail(vmid);
+      return;
+    }
+    if (action === 'download-linux') {
+      blobRequest('/vms/' + vmid + '/installer.sh', 'pve-thin-client-usb-installer-vm-' + vmid + '.sh').catch(function (error) {
+        setBanner('Linux-Installer Download fehlgeschlagen: ' + error.message, 'warn');
+      });
+      return;
+    }
+    if (action === 'download-windows') {
+      blobRequest('/vms/' + vmid + '/installer.ps1', 'pve-thin-client-usb-installer-vm-' + vmid + '.ps1').catch(function (error) {
+        setBanner('Windows-Installer Download fehlgeschlagen: ' + error.message, 'warn');
+      });
+      return;
+    }
+    if (action === 'installer-prep') {
+      setBanner('Installer-Vorbereitung fuer VM ' + vmid + ' gestartet ...', 'info');
+      postJson('/vms/' + vmid + '/installer-prep', {}).then(function () {
+        return loadDetail(vmid);
+      }).catch(function (error) {
+        setBanner('Installer-Vorbereitung fehlgeschlagen: ' + error.message, 'warn');
+      });
+      return;
+    }
+    if (action === 'sunshine-ui') {
+      postJson('/vms/' + vmid + '/sunshine-access', {}).then(function (payload) {
+        var url = payload && payload.sunshine_access ? payload.sunshine_access.url : '';
+        if (!url) {
+          throw new Error('keine Sunshine-URL erhalten');
+        }
+        window.open(url, '_blank', 'noopener');
+      }).catch(function (error) {
+        setBanner('Sunshine-Zugang fehlgeschlagen: ' + error.message, 'warn');
+      });
+      return;
+    }
+    setBanner('Aktion ' + action + ' wird fuer VM ' + vmid + ' gequeued ...', 'info');
+    postJson('/vms/' + vmid + '/actions', { action: action }).then(function () {
+      setBanner('Aktion ' + action + ' fuer VM ' + vmid + ' gequeued.', 'ok');
+      return loadDetail(vmid);
+    }).catch(function (error) {
+      setBanner('Aktion fehlgeschlagen: ' + error.message, 'warn');
+    });
+  }
+
+  function bindEvents() {
+    var tokenField = qs('api-token');
+    if (tokenField) {
+      tokenField.value = state.token;
+      tokenField.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          saveToken();
+          loadDashboard();
+        }
+      });
+    }
+    qs('web-ui-url').value = webUiUrl();
+    qs('api-base').value = apiBase();
+    qs('connect-button').addEventListener('click', function () {
+      saveToken();
+      loadDashboard();
+    });
+    qs('clear-token').addEventListener('click', function () {
+      state.token = '';
+      window.localStorage.removeItem('beagle.webUi.apiToken');
+      if (tokenField) {
+        tokenField.value = '';
+      }
+      setBanner('API-Token geloescht.', 'info');
+    });
+    qs('refresh-all').addEventListener('click', function () {
+      loadDashboard();
+    });
+    qs('search-input').addEventListener('input', renderInventory);
+    qs('role-filter').addEventListener('change', renderInventory);
+    qs('eligible-only').addEventListener('change', renderInventory);
+    qs('inventory-body').addEventListener('click', function (event) {
+      var row = event.target.closest('tr[data-vmid]');
+      if (!row) {
+        return;
+      }
+      loadDetail(row.getAttribute('data-vmid'));
+    });
+    qs('detail-stack').addEventListener('click', function (event) {
+      var button = event.target.closest('button[data-action]');
+      if (!button) {
+        return;
+      }
+      executeAction(button.getAttribute('data-action'));
+    });
+    qs('detail-actions').addEventListener('click', function (event) {
+      var button = event.target.closest('button[data-action]');
+      if (!button) {
+        return;
+      }
+      executeAction(button.getAttribute('data-action'));
+    });
+  }
+
+  applyTitle();
+  bindEvents();
+  loadDashboard();
+  window.setInterval(loadDashboard, 30000);
 })();

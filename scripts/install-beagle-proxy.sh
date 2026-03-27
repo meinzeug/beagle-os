@@ -14,10 +14,21 @@ DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/beagle-downloads}"
 DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-https://${SERVER_NAME}:${LISTEN_PORT}${DOWNLOADS_PATH}}"
 BEAGLE_API_UPSTREAM="${BEAGLE_API_UPSTREAM:-http://127.0.0.1:9088}"
 SITE_PORT="${BEAGLE_SITE_PORT:-443}"
+WEB_UI_TITLE="${BEAGLE_WEB_UI_TITLE:-Beagle OS Web UI}"
 CERT_FILE="${PVE_DCV_PROXY_CERT_FILE:-/etc/pve/local/pveproxy-ssl.pem}"
 KEY_FILE="${PVE_DCV_PROXY_KEY_FILE:-/etc/pve/local/pveproxy-ssl.key}"
 NGINX_SITE="/etc/nginx/sites-available/beagle-proxy.conf"
 NGINX_ENABLED="/etc/nginx/sites-enabled/beagle-proxy.conf"
+
+default_web_ui_url() {
+  if [[ "$SITE_PORT" == "443" ]]; then
+    printf 'https://%s\n' "$SERVER_NAME"
+    return 0
+  fi
+  printf 'https://%s:%s\n' "$SERVER_NAME" "$SITE_PORT"
+}
+
+WEB_UI_URL="${BEAGLE_WEB_UI_URL:-$(default_web_ui_url)}"
 
 if [[ -z "$ASSET_ROOT" ]]; then
   if [[ -d /opt/beagle/dist && -f /opt/beagle/proxmox-ui/beagle-autologin.js ]]; then
@@ -44,6 +55,8 @@ ensure_root() {
       PVE_DCV_DOWNLOADS_BASE_URL="$DOWNLOADS_BASE_URL" \
       BEAGLE_API_UPSTREAM="$BEAGLE_API_UPSTREAM" \
       BEAGLE_SITE_PORT="$SITE_PORT" \
+      BEAGLE_WEB_UI_URL="$WEB_UI_URL" \
+      BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE" \
       PVE_DCV_PROXY_CERT_FILE="$CERT_FILE" \
       PVE_DCV_PROXY_KEY_FILE="$KEY_FILE" \
       "$0" "$@"
@@ -126,6 +139,8 @@ load_env_file() {
   DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-${DOWNLOADS_BASE_URL}}"
   BEAGLE_API_UPSTREAM="${BEAGLE_API_UPSTREAM:-${BEAGLE_API_UPSTREAM}}"
   SITE_PORT="${BEAGLE_SITE_PORT:-${SITE_PORT}}"
+  WEB_UI_URL="${BEAGLE_WEB_UI_URL:-${WEB_UI_URL}}"
+  WEB_UI_TITLE="${BEAGLE_WEB_UI_TITLE:-${WEB_UI_TITLE}}"
   CERT_FILE="${PVE_DCV_PROXY_CERT_FILE:-${CERT_FILE}}"
   KEY_FILE="${PVE_DCV_PROXY_KEY_FILE:-${KEY_FILE}}"
 }
@@ -254,8 +269,22 @@ PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME"
 PVE_DCV_DOWNLOADS_PATH="$DOWNLOADS_PATH"
 PVE_DCV_DOWNLOADS_BASE_URL="$DOWNLOADS_BASE_URL"
 BEAGLE_SITE_PORT="$SITE_PORT"
+BEAGLE_WEB_UI_URL="$WEB_UI_URL"
+BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE"
 PVE_DCV_PROXY_CERT_FILE="$CERT_FILE"
 PVE_DCV_PROXY_KEY_FILE="$KEY_FILE"
+EOF
+}
+
+write_web_ui_config() {
+  install -d -m 0755 "${ASSET_ROOT}/website"
+  cat > "${ASSET_ROOT}/website/beagle-web-ui-config.js" <<EOF
+window.BEAGLE_WEB_UI_CONFIG = {
+  title: ${WEB_UI_TITLE@Q},
+  webUiUrl: ${WEB_UI_URL@Q},
+  apiBase: '/beagle-api/api/v1',
+  downloadsBase: ${DOWNLOADS_PATH@Q}
+};
 EOF
 }
 
@@ -437,6 +466,7 @@ if [[ -z "$BACKEND_HOST" ]]; then
 fi
 
 write_env_file
+write_web_ui_config
 cleanup_legacy_port_forward
 write_nginx_config
 link_nginx_config
