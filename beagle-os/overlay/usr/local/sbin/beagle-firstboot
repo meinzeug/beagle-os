@@ -22,6 +22,14 @@ if [[ -x /usr/local/sbin/beagle-render-config ]]; then
   /usr/local/sbin/beagle-render-config >/dev/null 2>&1 || true
 fi
 
+if [[ -x /usr/local/sbin/beagle-identity-apply ]]; then
+  /usr/local/sbin/beagle-identity-apply >/dev/null 2>&1 || true
+fi
+
+if [[ -x /usr/local/sbin/beagle-egress-apply ]]; then
+  /usr/local/sbin/beagle-egress-apply >/dev/null 2>&1 || true
+fi
+
 if [[ -x /usr/local/sbin/beagle-healthcheck ]]; then
   /usr/local/sbin/beagle-healthcheck >/dev/null 2>&1 || true
 fi

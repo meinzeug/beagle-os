@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Beagle OS | Proxmox-Native Endpoint OS</title>
+    <meta name="description" content="Beagle OS is a Proxmox-native endpoint distribution for streamed desktops, fleet-ready thin clients and GitHub-backed release delivery.">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <nav class="topbar">
+          <a class="brand" href="/">
+            <img src="/favicon.svg" alt="" width="28" height="28">
+            <span>Beagle OS</span>
+          </a>
+          <div class="topbar-links">
+            <a href="#platform">Platform</a>
+            <a href="#fleet">Fleet</a>
+            <a href="#release">Release</a>
+            <a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noopener noreferrer">GitHub</a>
+          </div>
+        </nav>
+
+        <div class="hero-grid">
+          <section class="hero-copy">
+            <p class="eyebrow">Proxmox-Native Endpoint Distribution</p>
+            <h1>The Beagle OS release that behaves like a real product, not a side project.</h1>
+            <p class="lede">
+              Beagle OS turns Proxmox into an endpoint platform: streamed desktops, installer-driven rollout,
+              policy-controlled identity, residential egress support and GitHub-backed releases in one stack.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="/beagle-downloads/">Open Downloads</a>
+              <a class="button secondary" href="https://github.com/meinzeug/beagle-os/releases" target="_blank" rel="noopener noreferrer">View Releases</a>
+            </div>
+            <ul class="hero-points">
+              <li>Real installer ISO and USB workflow</li>
+              <li>Control plane for endpoint enrollment and fleet health</li>
+              <li>Split/full residential egress for high-friction web targets</li>
+            </ul>
+          </section>
+
+          <aside class="hero-panel">
+            <div class="status-card">
+              <p class="card-label">Current Release</p>
+              <p class="card-value" id="release-version">Loading...</p>
+              <p class="card-meta" id="release-updated">Fetching host metadata</p>
+            </div>
+            <div class="status-card">
+              <p class="card-label">Control Plane</p>
+              <p class="card-value" id="health-state">Checking...</p>
+              <p class="card-meta" id="health-meta">/beagle-api/api/v1/health</p>
+            </div>
+            <div class="status-card accent">
+              <p class="card-label">Why It Exists</p>
+              <p class="card-copy">
+                IGEL-class endpoint management, but built around Proxmox, Moonlight/Sunshine, GitHub releases and
+                operator-owned infrastructure.
+              </p>
+            </div>
+          </aside>
+        </div>
+      </header>
+
+      <main>
+        <section class="section" id="platform">
+          <div class="section-heading">
+            <p class="eyebrow">Product Platform</p>
+            <h2>A Linux distribution for streamed desktops, not a generic repackaged live image.</h2>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <h3>Endpoint Identity</h3>
+              <p>Ship a stable hostname, locale, timezone, keyboard map and browser profile per endpoint so sessions look persistent and operator-managed.</p>
+            </article>
+            <article class="feature-card">
+              <h3>Residential Egress</h3>
+              <p>Run `direct`, `split` or `full` egress modes with WireGuard-backed exits for sensitive web properties that distrust datacenter IP space.</p>
+            </article>
+            <article class="feature-card">
+              <h3>Installer-First Delivery</h3>
+              <p>Generate VM-specific installer scripts, ship a branded installer ISO and embed endpoint policy directly into rollout media.</p>
+            </article>
+            <article class="feature-card">
+              <h3>Proxmox Control Surface</h3>
+              <p>Expose VM health, profile generation, endpoint drift, support bundles and stream readiness from the host itself.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section contrast" id="fleet">
+          <div class="section-heading">
+            <p class="eyebrow">Fleet Operations</p>
+            <h2>What makes Beagle OS a real endpoint product.</h2>
+          </div>
+          <div class="comparison">
+            <div class="comparison-card">
+              <h3>Beagle OS</h3>
+              <ul>
+                <li>Proxmox-native profile generation</li>
+                <li>GitHub release artifacts and host-served downloads</li>
+                <li>Moonlight/Sunshine streaming as the primary runtime</li>
+                <li>Endpoint enrollment, reporting and action queue</li>
+                <li>Operator-owned web surface on the same host</li>
+              </ul>
+            </div>
+            <div class="comparison-card muted">
+              <h3>Typical Thin Client Stack</h3>
+              <ul>
+                <li>Separate build system, separate portal, separate release channel</li>
+                <li>Weak endpoint identity and no policy-driven egress</li>
+                <li>Remote desktop protocols bolted on after imaging</li>
+                <li>Little visibility into stream readiness and drift</li>
+                <li>No GitHub-native distribution path</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="release">
+          <div class="section-heading">
+            <p class="eyebrow">Release 5.0</p>
+            <h2>A real public face for the distribution.</h2>
+          </div>
+          <div class="release-layout">
+            <div class="release-copy">
+              <p>
+                Release 5.0 makes Beagle OS presentable as a distribution: a host-local website on `443`, a branded
+                installer path, GitHub-backed releases and a clearer product narrative around endpoints instead of
+                generic thin clients.
+              </p>
+              <p>
+                The website is served directly from the Beagle installation and consumes the same host health and
+                download metadata as the rest of the product.
+              </p>
+            </div>
+            <div class="release-links">
+              <a class="button primary wide" href="/beagle-downloads/">Download Artifacts</a>
+              <a class="button secondary wide" href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noopener noreferrer">Open Source Repository</a>
+              <a class="button secondary wide" href="/beagle-api/api/v1/health" target="_blank" rel="noopener noreferrer">Control Plane Health</a>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

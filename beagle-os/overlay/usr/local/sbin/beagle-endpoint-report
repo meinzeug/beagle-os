@@ -5,6 +5,8 @@ STATE_DIR="/var/lib/beagle-os"
 LOG_DIR="/var/log/beagle-os"
 STATUS_FILE="$STATE_DIR/endpoint-report.status"
 HEALTH_FILE="$STATE_DIR/health.status"
+EGRESS_FILE="$STATE_DIR/egress.status"
+IDENTITY_FILE="$STATE_DIR/identity.status"
 ENDPOINT_FILE="/etc/beagle-os/endpoint.env"
 COMMON_SH="/usr/local/lib/pve-thin-client/common.sh"
 RUNTIME_STATUS_FILE="/var/lib/pve-thin-client/runtime.status"
@@ -66,6 +68,12 @@ stream_host="${BEAGLE_ENDPOINT_MOONLIGHT_HOST:-${PVE_THIN_CLIENT_MOONLIGHT_HOST:
 moonlight_port="${BEAGLE_ENDPOINT_MOONLIGHT_PORT:-${PVE_THIN_CLIENT_MOONLIGHT_PORT:-}}"
 moonlight_app="${BEAGLE_ENDPOINT_MOONLIGHT_APP:-${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}}"
 network_mode="${BEAGLE_ENDPOINT_NETWORK_MODE:-${PVE_THIN_CLIENT_NETWORK_MODE:-dhcp}}"
+egress_mode="${BEAGLE_ENDPOINT_EGRESS_MODE:-${PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE:-direct}}"
+identity_hostname="${BEAGLE_ENDPOINT_IDENTITY_HOSTNAME:-${PVE_THIN_CLIENT_IDENTITY_HOSTNAME:-}}"
+identity_timezone="${BEAGLE_ENDPOINT_IDENTITY_TIMEZONE:-${PVE_THIN_CLIENT_IDENTITY_TIMEZONE:-}}"
+identity_locale="${BEAGLE_ENDPOINT_IDENTITY_LOCALE:-${PVE_THIN_CLIENT_IDENTITY_LOCALE:-}}"
+identity_keymap="${BEAGLE_ENDPOINT_IDENTITY_KEYMAP:-${PVE_THIN_CLIENT_IDENTITY_KEYMAP:-}}"
+identity_chrome_profile="${BEAGLE_ENDPOINT_IDENTITY_CHROME_PROFILE:-${PVE_THIN_CLIENT_IDENTITY_CHROME_PROFILE:-default}}"
 launch_status_file="$(find_launch_status_file || true)"
 timestamp="$(date -Iseconds)"
 
@@ -89,8 +97,14 @@ export BEAGLE_REPORT_STREAM_HOST="$stream_host"
 export BEAGLE_REPORT_MOONLIGHT_PORT="$moonlight_port"
 export BEAGLE_REPORT_MOONLIGHT_APP="$moonlight_app"
 export BEAGLE_REPORT_NETWORK_MODE="$network_mode"
+export BEAGLE_REPORT_EGRESS_MODE="$egress_mode"
+export BEAGLE_REPORT_IDENTITY_HOSTNAME="$identity_hostname"
+export BEAGLE_REPORT_IDENTITY_TIMEZONE="$identity_timezone"
+export BEAGLE_REPORT_IDENTITY_LOCALE="$identity_locale"
+export BEAGLE_REPORT_IDENTITY_KEYMAP="$identity_keymap"
+export BEAGLE_REPORT_IDENTITY_CHROME_PROFILE="$identity_chrome_profile"
 
-python3 - "$payload_file" "$HEALTH_FILE" "$RUNTIME_STATUS_FILE" "$launch_status_file" <<'PY'
+python3 - "$payload_file" "$HEALTH_FILE" "$RUNTIME_STATUS_FILE" "$EGRESS_FILE" "$IDENTITY_FILE" "$launch_status_file" <<'PY'
 import json
 import os
 import sys
@@ -99,7 +113,9 @@ from pathlib import Path
 payload_path = Path(sys.argv[1])
 health_path = Path(sys.argv[2])
 runtime_path = Path(sys.argv[3])
-launch_path = Path(sys.argv[4]) if sys.argv[4] else None
+egress_path = Path(sys.argv[4])
+identity_path = Path(sys.argv[5])
+launch_path = Path(sys.argv[6]) if sys.argv[6] else None
 
 def read_kv(path: Path) -> dict[str, str]:
     data: dict[str, str] = {}
@@ -123,6 +139,8 @@ def read_json(path: Path | None) -> dict[str, object]:
 
 health = read_kv(health_path)
 runtime = read_kv(runtime_path)
+egress = read_kv(egress_path)
+identity = read_kv(identity_path)
 session = read_json(launch_path)
 
 payload = {
@@ -137,8 +155,18 @@ payload = {
     "moonlight_port": os.environ.get("BEAGLE_REPORT_MOONLIGHT_PORT") or "",
     "moonlight_app": os.environ.get("BEAGLE_REPORT_MOONLIGHT_APP") or "Desktop",
     "network_mode": os.environ.get("BEAGLE_REPORT_NETWORK_MODE") or "dhcp",
+    "egress_mode": os.environ.get("BEAGLE_REPORT_EGRESS_MODE") or "direct",
     "health": health,
     "runtime": runtime,
+    "egress": egress,
+    "identity": {
+        "hostname": os.environ.get("BEAGLE_REPORT_IDENTITY_HOSTNAME") or identity.get("hostname", ""),
+        "timezone": os.environ.get("BEAGLE_REPORT_IDENTITY_TIMEZONE") or identity.get("timezone", ""),
+        "locale": os.environ.get("BEAGLE_REPORT_IDENTITY_LOCALE") or identity.get("locale", ""),
+        "keymap": os.environ.get("BEAGLE_REPORT_IDENTITY_KEYMAP") or identity.get("keymap", ""),
+        "chrome_profile": os.environ.get("BEAGLE_REPORT_IDENTITY_CHROME_PROFILE") or identity.get("chrome_profile", "default"),
+        "machine_id": identity.get("machine_id", ""),
+    },
     "session": session,
 }
 

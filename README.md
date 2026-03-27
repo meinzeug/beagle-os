@@ -96,6 +96,9 @@ Die Host-Seite liefert die Management-Funktionen:
 - VM-spezifische USB-Skripte, die die Installer-ISO laden und mit eingebettetem Zielprofil auf USB schreiben
 - lokale Control-Plane-API fuer Health und Inventar
 - Reapply-/Refresh-Mechanismen nach Host-Aenderungen
+- residential-exit-Policies fuer sensible Web-Ziele
+- stabile Endpoint-Identitaet mit Hostname-, Locale- und Timezone-Steuerung
+- Produktwebsite direkt auf dem Beagle-Host unter HTTPS/443
 
 Wichtig ist dabei die Produktlogik:
 
@@ -188,6 +191,12 @@ Dieses Repository baut die benoetigten Bausteine:
 - Beagle-OS-Image bauen: [`scripts/build-beagle-os.sh`](./scripts/build-beagle-os.sh)
 - Build-Doku: [`docs/beagle-os-build.md`](./docs/beagle-os-build.md)
 - Thin-Client-Komponenten: [`thin-client-assistant/`](./thin-client-assistant/)
+
+## Release 5.0 Schwerpunkte
+
+- Residential Egress: Endpoint-Profile koennen jetzt `direct`, `split` oder `full` Egress steuern. Fuer sensible Ziele laesst sich ein WireGuard-Exit mit Domain-/CIDR-basiertem Routing hinterlegen.
+- Endpoint Identity: Beagle OS kann Hostname, Timezone, Locale, Keymap und ein persistentes Browser-Profil pro Endpoint anwenden und reporten.
+- Fingerprint-Awareness: Die Control Plane bewertet VM-Konfigurationen auf offensichtliche Server-/Virtio-Merkmale und zeigt das als operativen Risikohinweis an.
 
 ## Aktuelle Produktausrichtung
 

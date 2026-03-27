@@ -27,6 +27,8 @@ sunshine_password="${BEAGLE_ENDPOINT_SUNSHINE_PASSWORD:-${PVE_THIN_CLIENT_SUNSHI
 network_mode="${BEAGLE_ENDPOINT_NETWORK_MODE:-${PVE_THIN_CLIENT_NETWORK_MODE:-dhcp}}"
 autostart="${BEAGLE_ENDPOINT_AUTOSTART:-${PVE_THIN_CLIENT_AUTOSTART:-0}}"
 manager_url="${BEAGLE_ENDPOINT_MANAGER_URL:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}}"
+egress_mode="${BEAGLE_ENDPOINT_EGRESS_MODE:-${PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE:-direct}}"
+identity_timezone="${BEAGLE_ENDPOINT_IDENTITY_TIMEZONE:-${PVE_THIN_CLIENT_IDENTITY_TIMEZONE:-}}"
 hostname_value="$(hostname)"
 ip_summary="$(ip -br addr 2>/dev/null | tr '\n' ';' | sed 's/;$/\n/' || true)"
 default_route="$(ip route show default 2>/dev/null | head -n 1 || true)"
@@ -38,6 +40,13 @@ guest_agent_state="$(systemctl is-active qemu-guest-agent.service 2>/dev/null ||
 moonlight_binary="0"
 moonlight_target_reachable="0"
 sunshine_api_reachable="0"
+external_ip="$(curl -4fsS --connect-timeout 3 --max-time 6 https://api.ipify.org 2>/dev/null || true)"
+virtualization_type="$(systemd-detect-virt 2>/dev/null || true)"
+monitor_summary="$(xrandr --listmonitors 2>/dev/null | tr '\n' ';' | sed 's/;$/\n/' || true)"
+egress_state="$(awk -F= '$1 == "state" {print substr($0, index($0, "=") + 1); exit}' /var/lib/beagle-os/egress.status 2>/dev/null || true)"
+egress_public_ip="$(awk -F= '$1 == "public_ip" {print substr($0, index($0, "=") + 1); exit}' /var/lib/beagle-os/egress.status 2>/dev/null || true)"
+identity_locale="$(awk -F= '$1 == "locale" {print substr($0, index($0, "=") + 1); exit}' /var/lib/beagle-os/identity.status 2>/dev/null || true)"
+identity_keymap="$(awk -F= '$1 == "keymap" {print substr($0, index($0, "=") + 1); exit}' /var/lib/beagle-os/identity.status 2>/dev/null || true)"
 
 if command -v moonlight >/dev/null 2>&1; then
   moonlight_binary="1"
@@ -75,8 +84,17 @@ autologin_state=${autologin_state:-unknown}
 prepare_state=${prepare_state:-unknown}
 guest_agent_state=${guest_agent_state:-unknown}
 manager_url=${manager_url:-UNSET}
+egress_mode=${egress_mode:-direct}
+egress_state=${egress_state:-unknown}
+egress_public_ip=${egress_public_ip:-UNSET}
+external_ip=${external_ip:-UNSET}
+virtualization_type=${virtualization_type:-none}
+identity_timezone=${identity_timezone:-UNSET}
+identity_locale=${identity_locale:-UNSET}
+identity_keymap=${identity_keymap:-UNSET}
 default_route=${default_route:-UNSET}
 ip_summary=${ip_summary:-UNSET}
+monitor_summary=${monitor_summary:-UNSET}
 EOF
 
 cp "$HEALTH_FILE" "$LOG_DIR/health.status"

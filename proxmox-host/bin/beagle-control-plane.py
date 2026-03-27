@@ -93,6 +93,16 @@ def load_json_file(path: Path, fallback: Any) -> Any:
         return fallback
 
 
+def listify(value: Any) -> list[str]:
+    if isinstance(value, list):
+        items = value
+    elif value is None:
+        items = []
+    else:
+        items = re.split(r"[\s,]+", str(value))
+    return [str(item).strip() for item in items if str(item).strip()]
+
+
 def ensure_data_dir() -> Path:
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -966,6 +976,24 @@ def normalize_policy_payload(payload: dict[str, Any], *, policy_name: str | None
             "moonlight_video_codec": str(profile.get("moonlight_video_codec", "")).strip(),
             "moonlight_video_decoder": str(profile.get("moonlight_video_decoder", "")).strip(),
             "moonlight_audio_config": str(profile.get("moonlight_audio_config", "")).strip(),
+            "egress_mode": str(profile.get("egress_mode", "")).strip(),
+            "egress_type": str(profile.get("egress_type", "")).strip(),
+            "egress_interface": str(profile.get("egress_interface", "")).strip(),
+            "egress_domains": listify(profile.get("egress_domains", [])),
+            "egress_resolvers": listify(profile.get("egress_resolvers", [])),
+            "egress_allowed_ips": listify(profile.get("egress_allowed_ips", [])),
+            "egress_wg_address": str(profile.get("egress_wg_address", "")).strip(),
+            "egress_wg_dns": str(profile.get("egress_wg_dns", "")).strip(),
+            "egress_wg_public_key": str(profile.get("egress_wg_public_key", "")).strip(),
+            "egress_wg_endpoint": str(profile.get("egress_wg_endpoint", "")).strip(),
+            "egress_wg_private_key": str(profile.get("egress_wg_private_key", "")).strip(),
+            "egress_wg_preshared_key": str(profile.get("egress_wg_preshared_key", "")).strip(),
+            "egress_wg_persistent_keepalive": str(profile.get("egress_wg_persistent_keepalive", "")).strip(),
+            "identity_hostname": str(profile.get("identity_hostname", "")).strip(),
+            "identity_timezone": str(profile.get("identity_timezone", "")).strip(),
+            "identity_locale": str(profile.get("identity_locale", "")).strip(),
+            "identity_keymap": str(profile.get("identity_keymap", "")).strip(),
+            "identity_chrome_profile": str(profile.get("identity_chrome_profile", "")).strip(),
             "beagle_role": str(profile.get("beagle_role", "")).strip(),
             "assigned_target": {
                 "vmid": int(profile.get("assigned_target", {}).get("vmid")) if str(profile.get("assigned_target", {}).get("vmid", "")).strip() else None,
@@ -1156,6 +1184,41 @@ def resolve_policy_for_vm(vm: VmSummary, meta: dict[str, str]) -> dict[str, Any]
     return None
 
 
+def assess_vm_fingerprint(config: dict[str, Any], meta: dict[str, str], guest_ip: str) -> dict[str, Any]:
+    vga = str(config.get("vga", "") or "").strip()
+    machine = str(config.get("machine", "") or "").strip()
+    cpu = str(config.get("cpu", "") or "").strip()
+    tags = str(config.get("tags", "") or "")
+    risk_flags: list[str] = []
+    recommendations: list[str] = []
+    if "virtio" in vga.lower():
+      risk_flags.append("virtio-gpu")
+      recommendations.append("Use GPU passthrough or a less generic virtual display path.")
+    if "q35" in machine.lower():
+      risk_flags.append("q35-machine")
+    if not cpu or cpu.lower() in {"kvm64", "x86-64-v2-aes"}:
+      risk_flags.append("generic-cpu")
+      recommendations.append("Set CPU type to host for more realistic guest characteristics.")
+    if guest_ip:
+      risk_flags.append("guest-networked")
+    if meta.get("beagle-public-stream-host") or meta.get("beagle-public-moonlight-port"):
+      risk_flags.append("public-stream")
+    risk_level = "low"
+    if len(risk_flags) >= 4:
+      risk_level = "high"
+    elif len(risk_flags) >= 2:
+      risk_level = "medium"
+    return {
+      "risk_level": risk_level,
+      "flags": risk_flags,
+      "recommendations": recommendations,
+      "vga": vga,
+      "machine": machine,
+      "cpu": cpu,
+      "tags": tags,
+    }
+
+
 def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, Any]:
     config = get_vm_config(vm.node, vm.vmid)
     meta = parse_description_meta(config.get("description", ""))
@@ -1176,6 +1239,9 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
     has_sunshine_password = bool((vm_secret or {}).get("sunshine_password"))
     expected_profile_name = policy_profile.get("expected_profile_name") or meta.get("beagle-profile-name", "")
     moonlight_app = policy_profile.get("moonlight_app") or meta.get("moonlight-app", meta.get("sunshine-app", "Desktop"))
+    egress_domains = listify(policy_profile.get("egress_domains") or meta.get("beagle-egress-domains", ""))
+    egress_resolvers = listify(policy_profile.get("egress_resolvers") or meta.get("beagle-egress-resolvers", ""))
+    egress_allowed_ips = listify(policy_profile.get("egress_allowed_ips") or meta.get("beagle-egress-allowed-ips", ""))
     profile = {
         "vmid": vm.vmid,
         "node": vm.node,
@@ -1196,6 +1262,24 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         "moonlight_video_codec": policy_profile.get("moonlight_video_codec") or meta.get("moonlight-video-codec", "H.264"),
         "moonlight_video_decoder": policy_profile.get("moonlight_video_decoder") or meta.get("moonlight-video-decoder", "auto"),
         "moonlight_audio_config": policy_profile.get("moonlight_audio_config") or meta.get("moonlight-audio-config", "stereo"),
+        "egress_mode": policy_profile.get("egress_mode") or meta.get("beagle-egress-mode", "direct"),
+        "egress_type": policy_profile.get("egress_type") or meta.get("beagle-egress-type", ""),
+        "egress_interface": policy_profile.get("egress_interface") or meta.get("beagle-egress-interface", "beagle-egress"),
+        "egress_domains": egress_domains,
+        "egress_resolvers": egress_resolvers,
+        "egress_allowed_ips": egress_allowed_ips,
+        "egress_wg_address": policy_profile.get("egress_wg_address") or meta.get("beagle-egress-wg-address", ""),
+        "egress_wg_dns": policy_profile.get("egress_wg_dns") or meta.get("beagle-egress-wg-dns", ""),
+        "egress_wg_public_key": policy_profile.get("egress_wg_public_key") or meta.get("beagle-egress-wg-public-key", ""),
+        "egress_wg_endpoint": policy_profile.get("egress_wg_endpoint") or meta.get("beagle-egress-wg-endpoint", ""),
+        "egress_wg_private_key": policy_profile.get("egress_wg_private_key") or meta.get("beagle-egress-wg-private-key", ""),
+        "egress_wg_preshared_key": policy_profile.get("egress_wg_preshared_key") or meta.get("beagle-egress-wg-preshared-key", ""),
+        "egress_wg_persistent_keepalive": policy_profile.get("egress_wg_persistent_keepalive") or meta.get("beagle-egress-wg-persistent-keepalive", "25"),
+        "identity_hostname": policy_profile.get("identity_hostname") or meta.get("beagle-identity-hostname", safe_hostname(config.get("name") or vm.name, vm.vmid)),
+        "identity_timezone": policy_profile.get("identity_timezone") or meta.get("beagle-identity-timezone", "UTC"),
+        "identity_locale": policy_profile.get("identity_locale") or meta.get("beagle-identity-locale", "en_US.UTF-8"),
+        "identity_keymap": policy_profile.get("identity_keymap") or meta.get("beagle-identity-keymap", ""),
+        "identity_chrome_profile": policy_profile.get("identity_chrome_profile") or meta.get("beagle-identity-chrome-profile", expected_profile_name or f"vm-{vm.vmid}"),
         "network_mode": policy_profile.get("network_mode") or meta.get("thinclient-network-mode", "dhcp"),
         "default_mode": "MOONLIGHT" if stream_host else "",
         "beagle_hostname": safe_hostname(config.get("name") or vm.name, vm.vmid),
@@ -1219,6 +1303,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
             "agent": config.get("agent"),
             "vga": config.get("vga"),
         },
+        "vm_fingerprint": assess_vm_fingerprint(config, meta, guest_ip),
     }
     if allow_assignment:
         target_vmid = None
@@ -1279,6 +1364,9 @@ def evaluate_endpoint_compliance(profile: dict[str, Any], report: dict[str, Any]
         "moonlight_port": profile.get("moonlight_port", ""),
         "moonlight_app": profile.get("moonlight_app", ""),
         "network_mode": profile.get("network_mode", ""),
+        "egress_mode": profile.get("egress_mode", ""),
+        "identity_timezone": profile.get("identity_timezone", ""),
+        "identity_locale": profile.get("identity_locale", ""),
         "profile_name": profile.get("expected_profile_name", ""),
         "assigned_target": profile.get("assigned_target"),
     }
@@ -1312,6 +1400,9 @@ def evaluate_endpoint_compliance(profile: dict[str, Any], report: dict[str, Any]
     compare("moonlight_port", str(profile.get("moonlight_port", "")), str(summary.get("moonlight_port", "")), "Moonlight Port")
     compare("moonlight_app", str(profile.get("moonlight_app", "")), str(summary.get("moonlight_app", "")), "Moonlight App")
     compare("network_mode", str(profile.get("network_mode", "")), str(summary.get("network_mode", "")), "Network Mode")
+    compare("egress_mode", str(profile.get("egress_mode", "")), str(summary.get("egress_mode", "")), "Egress Mode")
+    compare("identity_timezone", str(profile.get("identity_timezone", "")), str(summary.get("identity_timezone", "")), "Timezone")
+    compare("identity_locale", str(profile.get("identity_locale", "")), str(summary.get("identity_locale", "")), "Locale")
     compare("profile_name", str(profile.get("expected_profile_name", "")), str(summary.get("profile_name", "")), "Profile Name")
 
     def alert(field: str, label: str, actual: str, expected: str = "1") -> None:
@@ -1322,6 +1413,14 @@ def evaluate_endpoint_compliance(profile: dict[str, Any], report: dict[str, Any]
     alert("moonlight_target_reachable", "Target Reachable", str(summary.get("moonlight_target_reachable", "")))
     alert("sunshine_api_reachable", "Sunshine API Reachable", str(summary.get("sunshine_api_reachable", "")))
     alert("runtime_binary_available", "Moonlight Runtime", str(summary.get("runtime_binary_available", "")))
+    vm_fingerprint = profile.get("vm_fingerprint", {}) if isinstance(profile.get("vm_fingerprint"), dict) else {}
+    if str(vm_fingerprint.get("risk_level", "")).lower() == "high":
+        alerts.append({
+            "field": "vm_fingerprint",
+            "label": "VM Fingerprint",
+            "expected": "low/medium risk",
+            "actual": "high risk",
+        })
 
     autologin_state = str(summary.get("autologin_state", "")).strip()
     if autologin_state and autologin_state != "active":
@@ -1404,6 +1503,8 @@ def summarize_endpoint_report(payload: dict[str, Any]) -> dict[str, Any]:
     health = payload.get("health", {}) if isinstance(payload.get("health"), dict) else {}
     session = payload.get("session", {}) if isinstance(payload.get("session"), dict) else {}
     runtime = payload.get("runtime", {}) if isinstance(payload.get("runtime"), dict) else {}
+    egress = payload.get("egress", {}) if isinstance(payload.get("egress"), dict) else {}
+    identity = payload.get("identity", {}) if isinstance(payload.get("identity"), dict) else {}
     return {
         "endpoint_id": payload.get("endpoint_id", ""),
         "hostname": payload.get("hostname", ""),
@@ -1415,7 +1516,16 @@ def summarize_endpoint_report(payload: dict[str, Any]) -> dict[str, Any]:
         "moonlight_port": payload.get("moonlight_port", ""),
         "moonlight_app": payload.get("moonlight_app", ""),
         "network_mode": payload.get("network_mode", ""),
+        "egress_mode": payload.get("egress_mode", "") or egress.get("mode", ""),
+        "egress_state": egress.get("state", ""),
+        "egress_public_ip": egress.get("public_ip", ""),
+        "identity_timezone": identity.get("timezone", ""),
+        "identity_locale": identity.get("locale", ""),
+        "identity_keymap": identity.get("keymap", ""),
+        "identity_chrome_profile": identity.get("chrome_profile", ""),
         "ip_summary": health.get("ip_summary", ""),
+        "external_ip": health.get("external_ip", ""),
+        "virtualization_type": health.get("virtualization_type", ""),
         "networkmanager_state": health.get("networkmanager_state", ""),
         "autologin_state": health.get("autologin_state", ""),
         "prepare_state": health.get("prepare_state", ""),
@@ -1474,6 +1584,10 @@ def build_vm_inventory() -> dict[str, Any]:
                 "sunshine_api_url": profile["sunshine_api_url"],
                 "moonlight_app": profile["moonlight_app"],
                 "network_mode": profile["network_mode"],
+                "egress_mode": profile.get("egress_mode", "direct"),
+                "identity_timezone": profile.get("identity_timezone", ""),
+                "identity_locale": profile.get("identity_locale", ""),
+                "vm_fingerprint": profile.get("vm_fingerprint"),
                 "expected_profile_name": profile["expected_profile_name"],
                 "default_mode": "MOONLIGHT" if profile["stream_host"] else "",
                 "installer_url": profile["installer_url"],
@@ -1539,6 +1653,24 @@ def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[
         "PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_URL": f"{PUBLIC_MANAGER_URL}/api/v1/endpoints/enroll",
         "PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_TOKEN": enrollment_token,
         "PVE_THIN_CLIENT_PRESET_THINCLIENT_PASSWORD": thinclient_password,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_MODE": str(profile.get("egress_mode", "direct") or "direct"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_TYPE": str(profile.get("egress_type", "") or ""),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_INTERFACE": str(profile.get("egress_interface", "beagle-egress") or "beagle-egress"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_DOMAINS": " ".join(profile.get("egress_domains", []) or []),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_RESOLVERS": " ".join(profile.get("egress_resolvers", []) or []),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_ALLOWED_IPS": " ".join(profile.get("egress_allowed_ips", []) or []),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_ADDRESS": str(profile.get("egress_wg_address", "") or ""),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_DNS": str(profile.get("egress_wg_dns", "") or ""),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PUBLIC_KEY": str(profile.get("egress_wg_public_key", "") or ""),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_ENDPOINT": str(profile.get("egress_wg_endpoint", "") or ""),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRIVATE_KEY": str(profile.get("egress_wg_private_key", "") or ""),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRESHARED_KEY": str(profile.get("egress_wg_preshared_key", "") or ""),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE": str(profile.get("egress_wg_persistent_keepalive", "25") or "25"),
+        "PVE_THIN_CLIENT_PRESET_IDENTITY_HOSTNAME": str(profile.get("identity_hostname", "") or ""),
+        "PVE_THIN_CLIENT_PRESET_IDENTITY_TIMEZONE": str(profile.get("identity_timezone", "") or ""),
+        "PVE_THIN_CLIENT_PRESET_IDENTITY_LOCALE": str(profile.get("identity_locale", "") or ""),
+        "PVE_THIN_CLIENT_PRESET_IDENTITY_KEYMAP": str(profile.get("identity_keymap", "") or ""),
+        "PVE_THIN_CLIENT_PRESET_IDENTITY_CHROME_PROFILE": str(profile.get("identity_chrome_profile", "") or ""),
         "PVE_THIN_CLIENT_PRESET_SPICE_METHOD": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_URL": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_USERNAME": "",
@@ -2076,6 +2208,24 @@ class Handler(BaseHTTPRequestHandler):
                         "moonlight_host": str(profile.get("stream_host", "") or ""),
                         "moonlight_port": str(profile.get("moonlight_port", "") or ""),
                         "moonlight_app": str(profile.get("moonlight_app", "Desktop") or "Desktop"),
+                        "egress_mode": str(profile.get("egress_mode", "direct") or "direct"),
+                        "egress_type": str(profile.get("egress_type", "") or ""),
+                        "egress_interface": str(profile.get("egress_interface", "beagle-egress") or "beagle-egress"),
+                        "egress_domains": list(profile.get("egress_domains", []) or []),
+                        "egress_resolvers": list(profile.get("egress_resolvers", []) or []),
+                        "egress_allowed_ips": list(profile.get("egress_allowed_ips", []) or []),
+                        "egress_wg_address": str(profile.get("egress_wg_address", "") or ""),
+                        "egress_wg_dns": str(profile.get("egress_wg_dns", "") or ""),
+                        "egress_wg_public_key": str(profile.get("egress_wg_public_key", "") or ""),
+                        "egress_wg_endpoint": str(profile.get("egress_wg_endpoint", "") or ""),
+                        "egress_wg_private_key": str(profile.get("egress_wg_private_key", "") or ""),
+                        "egress_wg_preshared_key": str(profile.get("egress_wg_preshared_key", "") or ""),
+                        "egress_wg_persistent_keepalive": str(profile.get("egress_wg_persistent_keepalive", "25") or "25"),
+                        "identity_hostname": str(profile.get("identity_hostname", "") or ""),
+                        "identity_timezone": str(profile.get("identity_timezone", "") or ""),
+                        "identity_locale": str(profile.get("identity_locale", "") or ""),
+                        "identity_keymap": str(profile.get("identity_keymap", "") or ""),
+                        "identity_chrome_profile": str(profile.get("identity_chrome_profile", "") or ""),
                     },
                 },
             )

@@ -1,5 +1,13 @@
 # Changelog
 
+## v5.0.0 - 2026-03-26
+
+- Added production-facing endpoint egress controls with `direct`, `split` and `full` modes, including WireGuard-backed residential exit configuration, route application and runtime status reporting.
+- Added endpoint identity controls for hostname, timezone, locale, keymap and persistent Chrome-profile naming, applied during first boot and runtime preparation.
+- Extended the Beagle control plane policy model, VM profiles, enrollment payloads and installer presets so egress and identity settings flow end-to-end from Proxmox policy to endpoint check-in.
+- Added VM fingerprint risk assessment to the control plane inventory and compliance path so obviously server-like guest configurations can be surfaced before operators hit service trust issues.
+- Added a real Beagle OS product website served from the host installation on HTTPS port `443`, backed by live control-plane and downloads metadata instead of a placeholder page.
+
 ## v4.0.1 - 2026-03-26
 
 - Fixed runtime device access for installed thin clients by ensuring `thinclient` gets `input` and `render` group membership during autologin setup.

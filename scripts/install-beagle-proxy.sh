@@ -13,6 +13,7 @@ SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)
 DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/beagle-downloads}"
 DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-https://${SERVER_NAME}:${LISTEN_PORT}${DOWNLOADS_PATH}}"
 BEAGLE_API_UPSTREAM="${BEAGLE_API_UPSTREAM:-http://127.0.0.1:9088}"
+SITE_PORT="${BEAGLE_SITE_PORT:-443}"
 CERT_FILE="${PVE_DCV_PROXY_CERT_FILE:-/etc/pve/local/pveproxy-ssl.pem}"
 KEY_FILE="${PVE_DCV_PROXY_KEY_FILE:-/etc/pve/local/pveproxy-ssl.key}"
 NGINX_SITE="/etc/nginx/sites-available/beagle-proxy.conf"
@@ -42,6 +43,7 @@ ensure_root() {
       PVE_DCV_DOWNLOADS_PATH="$DOWNLOADS_PATH" \
       PVE_DCV_DOWNLOADS_BASE_URL="$DOWNLOADS_BASE_URL" \
       BEAGLE_API_UPSTREAM="$BEAGLE_API_UPSTREAM" \
+      BEAGLE_SITE_PORT="$SITE_PORT" \
       PVE_DCV_PROXY_CERT_FILE="$CERT_FILE" \
       PVE_DCV_PROXY_KEY_FILE="$KEY_FILE" \
       "$0" "$@"
@@ -123,6 +125,7 @@ load_env_file() {
   DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-${DOWNLOADS_PATH}}"
   DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-${DOWNLOADS_BASE_URL}}"
   BEAGLE_API_UPSTREAM="${BEAGLE_API_UPSTREAM:-${BEAGLE_API_UPSTREAM}}"
+  SITE_PORT="${BEAGLE_SITE_PORT:-${SITE_PORT}}"
   CERT_FILE="${PVE_DCV_PROXY_CERT_FILE:-${CERT_FILE}}"
   KEY_FILE="${PVE_DCV_PROXY_KEY_FILE:-${KEY_FILE}}"
 }
@@ -250,6 +253,7 @@ PVE_DCV_PROXY_VMID="$BACKEND_VMID"
 PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME"
 PVE_DCV_DOWNLOADS_PATH="$DOWNLOADS_PATH"
 PVE_DCV_DOWNLOADS_BASE_URL="$DOWNLOADS_BASE_URL"
+BEAGLE_SITE_PORT="$SITE_PORT"
 PVE_DCV_PROXY_CERT_FILE="$CERT_FILE"
 PVE_DCV_PROXY_KEY_FILE="$KEY_FILE"
 EOF
@@ -283,6 +287,54 @@ cleanup_legacy_port_forward() {
 
 write_nginx_config() {
   cat > "$NGINX_SITE" <<EOF
+server {
+    listen ${SITE_PORT} ssl;
+    listen [::]:${SITE_PORT} ssl;
+    server_name ${SERVER_NAME};
+
+    ssl_certificate ${CERT_FILE};
+    ssl_certificate_key ${KEY_FILE};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_timeout 1d;
+
+    root ${ASSET_ROOT}/website;
+    index index.html;
+
+    location = /beagle-downloads {
+        return 302 /beagle-downloads/;
+    }
+
+    location ^~ /beagle-downloads/ {
+        alias ${ASSET_ROOT}/dist/;
+        index beagle-downloads-index.html;
+        add_header Cache-Control "no-store";
+        autoindex on;
+        types {
+            application/x-sh sh;
+            text/plain txt;
+        }
+    }
+
+    location /beagle-api/ {
+        proxy_pass ${BEAGLE_API_UPSTREAM}/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 30;
+        proxy_send_timeout 30;
+    }
+
+    location = /favicon.svg {
+        try_files /favicon.svg =404;
+        add_header Cache-Control "public, max-age=3600";
+    }
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+}
+
 server {
     listen ${LISTEN_PORT} ssl;
     listen [::]:${LISTEN_PORT} ssl;
@@ -345,8 +397,7 @@ EOF
 
   cat >> "$NGINX_SITE" <<EOF
     location = / {
-        default_type text/html;
-        return 200 '<!doctype html><html><head><meta charset="utf-8"><title>Beagle OS</title></head><body><h1>Beagle OS</h1><p>Host-local downloads are available under <a href="${DOWNLOADS_PATH}/">${DOWNLOADS_PATH}/</a>.</p></body></html>';
+        return 302 https://${SERVER_NAME}:${SITE_PORT}/;
     }
 
     location / {

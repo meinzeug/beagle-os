@@ -117,12 +117,13 @@ enroll_endpoint_if_needed() {
     rm -f "$response_file"
     return 1
   fi
-  python3 - "$response_file" "$credentials_file" <<'PY'
+  python3 - "$response_file" "${CONFIG_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/thinclient.conf}" "$credentials_file" <<'PY'
 import json, sys
 from pathlib import Path
 
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-cred_path = Path(sys.argv[2])
+config_path = Path(sys.argv[2])
+cred_path = Path(sys.argv[3])
 config = payload.get("config", {}) if isinstance(payload, dict) else {}
 existing = {}
 if cred_path.exists():
@@ -137,10 +138,42 @@ for key, value in (
     ("PVE_THIN_CLIENT_SUNSHINE_PASSWORD", config.get("sunshine_password", "")),
     ("PVE_THIN_CLIENT_SUNSHINE_PIN", config.get("sunshine_pin", "")),
     ("PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY", config.get("sunshine_pinned_pubkey", "")),
+    ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PRIVATE_KEY", config.get("egress_wg_private_key", "")),
+    ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PRESHARED_KEY", config.get("egress_wg_preshared_key", "")),
 ):
     existing[key] = json.dumps(str(value))
 existing["PVE_THIN_CLIENT_BEAGLE_ENROLLMENT_TOKEN"] = json.dumps("")
 cred_path.write_text("".join(f"{key}={value}\n" for key, value in existing.items()), encoding="utf-8")
+
+config_existing = {}
+if config_path.exists():
+    for raw_line in config_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        if "=" not in raw_line:
+            continue
+        key, value = raw_line.split("=", 1)
+        config_existing[key.strip()] = value.strip()
+
+for key, value in (
+    ("PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE", config.get("egress_mode", "direct")),
+    ("PVE_THIN_CLIENT_BEAGLE_EGRESS_TYPE", config.get("egress_type", "")),
+    ("PVE_THIN_CLIENT_BEAGLE_EGRESS_INTERFACE", config.get("egress_interface", "beagle-egress")),
+    ("PVE_THIN_CLIENT_BEAGLE_EGRESS_DOMAINS", " ".join(config.get("egress_domains", []) or [])),
+    ("PVE_THIN_CLIENT_BEAGLE_EGRESS_RESOLVERS", " ".join(config.get("egress_resolvers", []) or [])),
+    ("PVE_THIN_CLIENT_BEAGLE_EGRESS_ALLOWED_IPS", " ".join(config.get("egress_allowed_ips", []) or [])),
+    ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_ADDRESS", config.get("egress_wg_address", "")),
+    ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_DNS", config.get("egress_wg_dns", "")),
+    ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PUBLIC_KEY", config.get("egress_wg_public_key", "")),
+    ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_ENDPOINT", config.get("egress_wg_endpoint", "")),
+    ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE", config.get("egress_wg_persistent_keepalive", "25")),
+    ("PVE_THIN_CLIENT_IDENTITY_HOSTNAME", config.get("identity_hostname", "")),
+    ("PVE_THIN_CLIENT_IDENTITY_TIMEZONE", config.get("identity_timezone", "")),
+    ("PVE_THIN_CLIENT_IDENTITY_LOCALE", config.get("identity_locale", "")),
+    ("PVE_THIN_CLIENT_IDENTITY_KEYMAP", config.get("identity_keymap", "")),
+    ("PVE_THIN_CLIENT_IDENTITY_CHROME_PROFILE", config.get("identity_chrome_profile", "default")),
+):
+    config_existing[key] = json.dumps(str(value))
+
+config_path.write_text("".join(f"{key}={value}\n" for key, value in config_existing.items()), encoding="utf-8")
 PY
   rm -f "$response_file"
   # Reload freshly written credentials for subsequent steps.
@@ -252,6 +285,12 @@ adjust_secret_permissions
 sync_local_hostname
 apply_runtime_ssh_config
 normalize_boot_services
+if [[ -x /usr/local/sbin/beagle-identity-apply ]]; then
+  /usr/local/sbin/beagle-identity-apply >/dev/null 2>&1 || true
+fi
+if [[ -x /usr/local/sbin/beagle-egress-apply ]]; then
+  /usr/local/sbin/beagle-egress-apply >/dev/null 2>&1 || true
+fi
 beagle_log_event "prepare-runtime.system" "runtime_user=${PVE_THIN_CLIENT_RUNTIME_USER:-UNSET} hostname=${PVE_THIN_CLIENT_HOSTNAME_VALUE:-UNSET}"
 
 mkdir -p "$STATUS_DIR"
