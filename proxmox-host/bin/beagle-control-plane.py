@@ -514,15 +514,20 @@ def mark_enrollment_token_used(token: str, payload: dict[str, Any], *, endpoint_
     write_json_file(enrollment_token_path(token), clean)
 
 
-def enrollment_token_is_valid(payload: dict[str, Any] | None) -> bool:
+def enrollment_token_is_valid(payload: dict[str, Any] | None, *, endpoint_id: str = "") -> bool:
     if not isinstance(payload, dict):
-        return False
-    if str(payload.get("used_at", "")).strip():
         return False
     expires_at = parse_utc_timestamp(str(payload.get("expires_at", "")))
     if expires_at is None:
         return False
-    return expires_at > datetime.now(timezone.utc)
+    if expires_at <= datetime.now(timezone.utc):
+        return False
+    used_at = str(payload.get("used_at", "")).strip()
+    if not used_at:
+        return True
+    if endpoint_id and str(payload.get("endpoint_id", "")).strip() == endpoint_id:
+        return True
+    return False
 
 
 def sunshine_access_token_is_valid(payload: dict[str, Any] | None) -> bool:
@@ -2358,7 +2363,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
             enrollment = load_enrollment_token(enrollment_token)
-            if not enrollment_token_is_valid(enrollment):
+            if not enrollment_token_is_valid(enrollment, endpoint_id=endpoint_id):
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "invalid or expired enrollment token"})
                 return
             vm = find_vm(int(enrollment.get("vmid", 0)))

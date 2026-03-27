@@ -4,12 +4,13 @@ set -eu
 LOG_DIR="${PVE_THIN_CLIENT_X11_LOG_DIR:-}"
 LOG_FILE=""
 CMDLINE_FILE="${PVE_THIN_CLIENT_CMDLINE_FILE:-/proc/cmdline}"
-TRACE_FILE="/var/lib/beagle-os/runtime-trace.log"
+TRACE_FILE="${PVE_THIN_CLIENT_TRACE_FILE:-${XDG_RUNTIME_DIR:-/tmp}/pve-thin-client-runtime-trace.log}"
 
 trace_event() {
   phase="$1"
   shift || true
-  mkdir -p /var/lib/beagle-os >/dev/null 2>&1 || true
+  trace_dir="$(dirname "$TRACE_FILE")"
+  mkdir -p "$trace_dir" >/dev/null 2>&1 || true
   printf '[%s] phase=%s %s\n' "$(date -Iseconds 2>/dev/null || date)" "$phase" "$*" >>"$TRACE_FILE" 2>/dev/null || true
 }
 
@@ -36,14 +37,9 @@ setup_logging || true
 
 ensure_xauth_context() {
   home_dir="${HOME:-/home/thinclient}"
-  auth_file="${XAUTHORITY:-$home_dir/.Xauthority}"
-
   mkdir -p "$home_dir" >/dev/null 2>&1 || true
-  touch "$auth_file" >/dev/null 2>&1 || true
-  chmod 0600 "$auth_file" >/dev/null 2>&1 || true
-
   export HOME="$home_dir"
-  export XAUTHORITY="$auth_file"
+  unset XAUTHORITY
 }
 
 ensure_xauth_context
@@ -97,7 +93,7 @@ clear_stale_x_locks() {
 launch_x_once() {
   echo "[start-x11] invoking startx (attempt=${1:-1})"
   trace_event "x11.start" "launcher=pve-thin-client-start-x11 attempt=${1:-1}"
-  startx /usr/local/bin/start-pve-thin-client-session -- :0 vt1 -keeptty -nolisten tcp -auth "${XAUTHORITY:-/home/thinclient/.Xauthority}"
+  startx /usr/local/bin/start-pve-thin-client-session -- :0 vt1 -keeptty -nolisten tcp
 }
 
 wait_for_graphics

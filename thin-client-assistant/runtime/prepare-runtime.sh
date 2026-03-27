@@ -10,6 +10,13 @@ source "$SCRIPT_DIR/common.sh"
 load_runtime_config
 beagle_log_event "prepare-runtime.start" "profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default} mode=${PVE_THIN_CLIENT_MODE:-UNSET}"
 
+plymouth_status() {
+  local message="$1"
+  command -v plymouth >/dev/null 2>&1 || return 0
+  plymouth --ping >/dev/null 2>&1 || return 0
+  plymouth display-message --text="$message" >/dev/null 2>&1 || true
+}
+
 sync_runtime_config_to_system() {
   local target_dir="/etc/pve-thin-client"
   local source_dir="${CONFIG_DIR:-}"
@@ -247,12 +254,36 @@ apply_runtime_ssh_config() {
   fi
 }
 
+ensure_getty_overrides() {
+  local tty1_dir="/etc/systemd/system/getty@tty1.service.d"
+  local default_dir="/etc/systemd/system/getty@.service.d"
+
+  install -d -m 0755 "$tty1_dir" "$default_dir"
+
+  cat >"$default_dir/zz-beagle-default.conf" <<'EOF'
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty -o '-p -- \u' --noclear - $TERM
+EOF
+
+  cat >"$tty1_dir/zz-beagle-autologin.conf" <<'EOF'
+[Service]
+ExecStart=
+ExecStart=-/usr/local/bin/pve-thin-client-tty-login %I $TERM
+EOF
+
+  rm -f "$tty1_dir/autologin.conf" >/dev/null 2>&1 || true
+  systemctl daemon-reload >/dev/null 2>&1 || true
+}
+
 normalize_boot_services() {
   local boot_mode
   boot_mode="$(/usr/local/bin/pve-thin-client-boot-mode 2>/dev/null || printf 'runtime')"
 
   case "$boot_mode" in
     runtime)
+      systemctl list-unit-files pve-thin-client-prepare.service >/dev/null 2>&1 && \
+        systemctl enable pve-thin-client-prepare.service >/dev/null 2>&1 || true
       systemctl list-unit-files pve-thin-client-runtime.service >/dev/null 2>&1 && \
         systemctl enable pve-thin-client-runtime.service >/dev/null 2>&1 || true
       systemctl list-unit-files pve-thin-client-installer-menu.service >/dev/null 2>&1 && \
@@ -260,6 +291,8 @@ normalize_boot_services() {
       systemctl disable getty@tty1.service >/dev/null 2>&1 || true
       ;;
     installer)
+      systemctl list-unit-files pve-thin-client-prepare.service >/dev/null 2>&1 && \
+        systemctl enable pve-thin-client-prepare.service >/dev/null 2>&1 || true
       systemctl list-unit-files pve-thin-client-installer-menu.service >/dev/null 2>&1 && \
         systemctl enable pve-thin-client-installer-menu.service >/dev/null 2>&1 || true
       systemctl list-unit-files pve-thin-client-runtime.service >/dev/null 2>&1 && \
@@ -273,22 +306,28 @@ normalize_boot_services() {
 }
 
 if [[ -x "$SCRIPT_DIR/apply-network-config.sh" ]]; then
+  plymouth_status "Configuring network..."
   beagle_log_event "prepare-runtime.network" "applying network configuration"
   "$SCRIPT_DIR/apply-network-config.sh"
 fi
 
+plymouth_status "Loading Beagle OS profile..."
 sync_runtime_config_to_system
 ensure_runtime_user
 adjust_secret_permissions
+plymouth_status "Connecting device to Beagle Manager..."
 enroll_endpoint_if_needed || beagle_log_event "prepare-runtime.enroll-error" "endpoint enrollment failed"
 adjust_secret_permissions
 sync_local_hostname
 apply_runtime_ssh_config
+ensure_getty_overrides
 normalize_boot_services
 if [[ -x /usr/local/sbin/beagle-identity-apply ]]; then
+  plymouth_status "Applying system identity..."
   /usr/local/sbin/beagle-identity-apply >/dev/null 2>&1 || true
 fi
 if [[ -x /usr/local/sbin/beagle-egress-apply ]]; then
+  plymouth_status "Preparing secure connection..."
   /usr/local/sbin/beagle-egress-apply >/dev/null 2>&1 || true
 fi
 beagle_log_event "prepare-runtime.system" "runtime_user=${PVE_THIN_CLIENT_RUNTIME_USER:-UNSET} hostname=${PVE_THIN_CLIENT_HOSTNAME_VALUE:-UNSET}"

@@ -2,7 +2,7 @@
 set -eu
 
 if command -v plymouth-set-default-theme >/dev/null 2>&1; then
-  plymouth-set-default-theme spinner >/dev/null 2>&1 || true
+  plymouth-set-default-theme beagle >/dev/null 2>&1 || true
 fi
 
 if command -v update-initramfs >/dev/null 2>&1; then

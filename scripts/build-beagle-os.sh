@@ -565,7 +565,7 @@ enable_rootfs_services() {
 }
 
 configure_rootfs_plymouth() {
-  chroot_run_rootfs "command -v plymouth-set-default-theme >/dev/null 2>&1 && plymouth-set-default-theme spinner >/dev/null 2>&1 || true"
+  chroot_run_rootfs "command -v plymouth-set-default-theme >/dev/null 2>&1 && plymouth-set-default-theme beagle >/dev/null 2>&1 || true"
 }
 
 install_kernel_into_rootfs() {

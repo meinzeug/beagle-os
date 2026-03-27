@@ -14,7 +14,7 @@ if [[ -z "$THINCLIENT_LINUX_FLAVOUR" ]]; then
   esac
 fi
 
-BOOT_ARGS="boot=live components username=thinclient hostname=beagle-installer ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash pve_thin_client.mode=installer"
+BOOT_ARGS="boot=live components username=thinclient hostname=beagle-installer ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles live-config.noautologin live-config.nox11autologin noautologin nox11autologin pve_thin_client.mode=installer"
 
 lb config noauto \
   --mode debian \

@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Beagle OS
+Description=Beagle OS white splash screen
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/beagle
+ScriptFile=/usr/share/plymouth/themes/beagle/beagle.script

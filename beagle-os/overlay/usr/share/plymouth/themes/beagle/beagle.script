@@ -1,0 +1,85 @@
+Window.SetBackgroundTopColor(1.0, 1.0, 1.0);
+Window.SetBackgroundBottomColor(1.0, 1.0, 1.0);
+
+logo.image = Image("beagleos.png");
+logo.sprite = Sprite(logo.image);
+logo.sprite.SetZ(100);
+logo.sprite.SetX((Window.GetWidth() - logo.image.GetWidth()) / 2);
+logo.sprite.SetY((Window.GetHeight() - logo.image.GetHeight()) / 2 - 60);
+
+spinner.frames[0] = Image("/usr/share/plymouth/themes/spinner/throbber-0001.png");
+spinner.frames[1] = Image("/usr/share/plymouth/themes/spinner/throbber-0002.png");
+spinner.frames[2] = Image("/usr/share/plymouth/themes/spinner/throbber-0003.png");
+spinner.frames[3] = Image("/usr/share/plymouth/themes/spinner/throbber-0004.png");
+spinner.frames[4] = Image("/usr/share/plymouth/themes/spinner/throbber-0005.png");
+spinner.frames[5] = Image("/usr/share/plymouth/themes/spinner/throbber-0006.png");
+spinner.frames[6] = Image("/usr/share/plymouth/themes/spinner/throbber-0007.png");
+spinner.frames[7] = Image("/usr/share/plymouth/themes/spinner/throbber-0008.png");
+spinner.frames[8] = Image("/usr/share/plymouth/themes/spinner/throbber-0009.png");
+spinner.frames[9] = Image("/usr/share/plymouth/themes/spinner/throbber-0010.png");
+spinner.frames[10] = Image("/usr/share/plymouth/themes/spinner/throbber-0011.png");
+spinner.frames[11] = Image("/usr/share/plymouth/themes/spinner/throbber-0012.png");
+spinner.frames[12] = Image("/usr/share/plymouth/themes/spinner/throbber-0013.png");
+spinner.frames[13] = Image("/usr/share/plymouth/themes/spinner/throbber-0014.png");
+spinner.frames[14] = Image("/usr/share/plymouth/themes/spinner/throbber-0015.png");
+spinner.frames[15] = Image("/usr/share/plymouth/themes/spinner/throbber-0016.png");
+spinner.frames[16] = Image("/usr/share/plymouth/themes/spinner/throbber-0017.png");
+spinner.frames[17] = Image("/usr/share/plymouth/themes/spinner/throbber-0018.png");
+spinner.frames[18] = Image("/usr/share/plymouth/themes/spinner/throbber-0019.png");
+spinner.frames[19] = Image("/usr/share/plymouth/themes/spinner/throbber-0020.png");
+spinner.frames[20] = Image("/usr/share/plymouth/themes/spinner/throbber-0021.png");
+spinner.frames[21] = Image("/usr/share/plymouth/themes/spinner/throbber-0022.png");
+spinner.frames[22] = Image("/usr/share/plymouth/themes/spinner/throbber-0023.png");
+spinner.frames[23] = Image("/usr/share/plymouth/themes/spinner/throbber-0024.png");
+spinner.frames[24] = Image("/usr/share/plymouth/themes/spinner/throbber-0025.png");
+spinner.frames[25] = Image("/usr/share/plymouth/themes/spinner/throbber-0026.png");
+spinner.frames[26] = Image("/usr/share/plymouth/themes/spinner/throbber-0027.png");
+spinner.frames[27] = Image("/usr/share/plymouth/themes/spinner/throbber-0028.png");
+spinner.frames[28] = Image("/usr/share/plymouth/themes/spinner/throbber-0029.png");
+spinner.frames[29] = Image("/usr/share/plymouth/themes/spinner/throbber-0030.png");
+
+spinner.index = 0;
+spinner.tick = 0;
+spinner.sprite = Sprite(spinner.frames[0]);
+spinner.sprite.SetZ(90);
+spinner.sprite.SetX((Window.GetWidth() - spinner.frames[0].GetWidth()) / 2);
+spinner.sprite.SetY(logo.sprite.GetY() + logo.image.GetHeight() + 28);
+
+fun set_message(text)
+{
+  if (!text || text == "")
+    text = "Starting Beagle OS...";
+
+  message.image = Image.Text(text, 0.18, 0.22, 0.28, 1.0);
+
+  if (!message.sprite)
+    message.sprite = Sprite(message.image);
+  else
+    message.sprite.SetImage(message.image);
+
+  message.sprite.SetZ(95);
+  message.sprite.SetX((Window.GetWidth() - message.image.GetWidth()) / 2);
+  message.sprite.SetY(spinner.sprite.GetY() + spinner.frames[0].GetHeight() + 18);
+}
+
+fun refresh_callback()
+{
+  spinner.tick++;
+  if (spinner.tick < 2)
+    return;
+
+  spinner.tick = 0;
+  spinner.index++;
+  if (spinner.index >= 30)
+    spinner.index = 0;
+  spinner.sprite.SetImage(spinner.frames[spinner.index]);
+}
+
+fun message_callback(text)
+{
+  set_message(text);
+}
+
+set_message("Starting Beagle OS...");
+Plymouth.SetMessageFunction(message_callback);
+Plymouth.SetRefreshFunction(refresh_callback);

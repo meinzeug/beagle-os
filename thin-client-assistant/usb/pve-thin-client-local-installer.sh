@@ -1875,22 +1875,37 @@ set timeout=4
 
 menuentry 'Beagle OS' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 $irq_args_default pve_thin_client.mode=runtime
+  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles live-config.noautologin live-config.nox11autologin noautologin nox11autologin $irq_args_default pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS (safe mode)' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 $irq_args_safe pve_thin_client.mode=runtime
+  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles live-config.noautologin live-config.nox11autologin noautologin nox11autologin $irq_args_safe pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS (legacy IRQ mode)' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 $irq_args_legacy pve_thin_client.mode=runtime
+  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles live-config.noautologin live-config.nox11autologin noautologin nox11autologin $irq_args_legacy pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 EOF
+}
+
+write_efi_grub_stub() {
+  local root_uuid="$1"
+  local stub_dir="$EFI_MOUNT/EFI/BEAGLEOS"
+  local fallback_dir="$EFI_MOUNT/EFI/BOOT"
+
+  install -d -m 0755 "$stub_dir" "$fallback_dir"
+  cat >"$stub_dir/grub.cfg" <<EOF
+search --no-floppy --fs-uuid --set=root $root_uuid
+set prefix=(\$root)/boot/grub
+terminal_output console
+configfile \$prefix/grub.cfg
+EOF
+  install -m 0644 "$stub_dir/grub.cfg" "$fallback_dir/grub.cfg"
 }
 
 copy_assets() {
@@ -2015,21 +2030,27 @@ install_efi_boot_entry() {
 install_bootloader() {
   local target_disk="$1"
   local boot_part="$2"
+  local root_uuid="$3"
+  local bios_modules="biosdisk part_gpt part_msdos ext2 normal linux search search_fs_uuid configfile"
+  local efi_modules="part_gpt part_msdos fat ext2 normal linux search search_fs_uuid configfile"
 
-  grub-install --target=i386-pc --boot-directory="$TARGET_MOUNT/boot" "$target_disk"
+  grub-install --target=i386-pc --modules="$bios_modules" --boot-directory="$TARGET_MOUNT/boot" "$target_disk"
   grub-install \
     --target=x86_64-efi \
+    --modules="$efi_modules" \
     --efi-directory="$EFI_MOUNT" \
     --boot-directory="$TARGET_MOUNT/boot" \
     --bootloader-id=BEAGLEOS \
     --recheck
   grub-install \
     --target=x86_64-efi \
+    --modules="$efi_modules" \
     --efi-directory="$EFI_MOUNT" \
     --boot-directory="$TARGET_MOUNT/boot" \
     --removable \
     --no-nvram \
     --recheck
+  write_efi_grub_stub "$root_uuid"
   install_efi_boot_entry "$target_disk" "$boot_part"
 }
 
@@ -2125,7 +2146,7 @@ main() {
   copy_assets
   root_uuid="$(blkid -s UUID -o value "$root_part")"
   write_grub_cfg "$root_uuid"
-  install_bootloader "$target_disk" "$boot_part"
+  install_bootloader "$target_disk" "$boot_part" "$root_uuid"
   sync
 
   if command -v whiptail >/dev/null 2>&1; then

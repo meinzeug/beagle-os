@@ -1,5 +1,14 @@
 # Changelog
 
+## v5.0.1 - 2026-03-27
+
+- Fixed the Beagle OS runtime X11 startup path so installed endpoints no longer race on a stale `XAUTHORITY` file before Moonlight and Openbox come up.
+- Reworked the live and installed boot experience around a Beagle-branded Plymouth theme with a white background, centered Beagle logo, animated spinner and live status messages during runtime preparation.
+- Removed the competing tty1 autologin/getty boot path from the runtime flow so the installed endpoint starts through a single deterministic graphics session instead of showing long black screens.
+- Updated both installer and installed GRUB/runtime boot arguments to suppress live-config autologin side effects and carry the same polished splash behavior across safe, legacy IRQ and text-mode boots.
+- Hardened runtime Moonlight reachability checks to wait for the real target/API path before failing, reducing slow-start and false-negative connection attempts on Internet-routed endpoints.
+- Fixed host download publishing so rebuilding the installer also refreshes the publicly served `latest` ISO, payload and bootstrap artifacts instead of leaving stale USB media behind.
+
 ## v5.0.0 - 2026-03-26
 
 - Added production-facing endpoint egress controls with `direct`, `split` and `full` modes, including WireGuard-backed residential exit configuration, route application and runtime status reporting.

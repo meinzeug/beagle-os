@@ -50,6 +50,39 @@ ensure_dist_permissions() {
   find "$DIST_DIR" -type f -name '*.sh' -exec chmod 0755 {} +
 }
 
+ensure_current_packaged_artifacts() {
+  local needs_package=0
+  local installer_build_iso="$DIST_DIR/pve-thin-client-installer/beagle-os-installer-amd64.iso"
+  local installer_build_rootfs="$DIST_DIR/pve-thin-client-installer/live/filesystem.squashfs"
+  local root_iso="$DIST_DIR/beagle-os-installer-amd64.iso"
+  local packaged_payload="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
+  local packaged_bootstrap="$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
+  local packaged_installer="$DIST_DIR/pve-thin-client-usb-installer-latest.sh"
+  local source_installer="$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.sh"
+
+  if [[ ! -f "$root_iso" || ! -f "$packaged_payload" || ! -f "$packaged_bootstrap" || ! -f "$packaged_installer" ]]; then
+    needs_package=1
+  fi
+
+  if [[ "$needs_package" -eq 0 && -f "$installer_build_iso" && "$installer_build_iso" -nt "$root_iso" ]]; then
+    needs_package=1
+  fi
+
+  if [[ "$needs_package" -eq 0 && -f "$installer_build_rootfs" && "$installer_build_rootfs" -nt "$packaged_payload" ]]; then
+    needs_package=1
+  fi
+
+  if [[ "$needs_package" -eq 0 && -f "$source_installer" && "$source_installer" -nt "$packaged_installer" ]]; then
+    needs_package=1
+  fi
+
+  if [[ "$needs_package" -eq 1 ]]; then
+    "$ROOT_DIR/scripts/package.sh"
+  fi
+}
+
+ensure_current_packaged_artifacts
+
 [[ -f "$GENERIC_INSTALLER" ]] || {
   echo "Missing packaged USB installer: $GENERIC_INSTALLER" >&2
   exit 1

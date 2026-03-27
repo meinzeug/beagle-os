@@ -18,11 +18,11 @@ export FONTCONFIG_FILE="${FONTCONFIG_FILE:-/etc/fonts/fonts.conf}"
 export FONTCONFIG_CACHE="$FONTCONFIG_CACHE_DIR"
 
 if command -v xsetroot >/dev/null 2>&1; then
-  xsetroot -solid "#0f1720" >/dev/null 2>&1 || true
+  xsetroot -solid "#ffffff" >/dev/null 2>&1 || true
 fi
 
 if command -v feh >/dev/null 2>&1 && [ -f /usr/local/share/beagle-os/beagleos.png ]; then
-  feh --no-fehbg --bg-fill /usr/local/share/beagle-os/beagleos.png >/dev/null 2>&1 || true
+  feh --no-fehbg --image-bg white --bg-center /usr/local/share/beagle-os/beagleos.png >/dev/null 2>&1 || true
 fi
 
 if command -v xset >/dev/null 2>&1; then

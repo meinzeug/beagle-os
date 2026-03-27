@@ -284,23 +284,29 @@ sunshine_api_url() {
 }
 
 probe_stream_target() {
-  local api_url host
+  local api_url host port connect_host effective_api_url
   local -a curl_opts
   local username password
 
   api_url="$1"
   host="$2"
+  port="$(moonlight_port)"
+  connect_host="${3:-$(moonlight_primary_connect_host)}"
+  effective_api_url="$api_url"
   curl_opts=(-fsS -o /dev/null --connect-timeout 2 --max-time 4)
   username="${PVE_THIN_CLIENT_SUNSHINE_USERNAME:-}"
   password="${PVE_THIN_CLIENT_SUNSHINE_PASSWORD:-}"
-  if prefer_ipv4; then
+  if prefer_ipv4 && [[ -n "$connect_host" ]] && [[ "$connect_host" != "$host" ]]; then
     curl_opts+=(-4)
+    if [[ -n "$api_url" ]]; then
+      effective_api_url="$(rewrite_url_host "$api_url" "$connect_host" 2>/dev/null || printf '%s\n' "$api_url")"
+    fi
   fi
   if [[ -n "$username" && -n "$password" ]]; then
     curl_opts+=(--user "${username}:${password}")
   fi
-  if [[ -n "$api_url" ]]; then
-    if [[ "$api_url" == https://* ]]; then
+  if [[ -n "$effective_api_url" ]]; then
+    if [[ "$effective_api_url" == https://* ]]; then
       if [[ -n "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT:-}" && -r "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT}" ]]; then
         curl_opts+=(--cacert "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT}")
         if [[ -n "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" ]]; then
@@ -311,30 +317,81 @@ probe_stream_target() {
       elif [[ "${PVE_THIN_CLIENT_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
         curl_opts+=(-k)
       else
-        return 1
+        effective_api_url=""
       fi
     fi
-    curl "${curl_opts[@]}" "${api_url%/}/api/apps" && return 0
+    if [[ -n "$effective_api_url" ]]; then
+      curl "${curl_opts[@]}" "${effective_api_url%/}/api/apps" && return 0
+    fi
   fi
 
   [[ -n "$host" ]] || return 1
 
-  if command -v ping >/dev/null 2>&1; then
-    if prefer_ipv4; then
-      ping -4 -c 1 -W 2 "$host" >/dev/null 2>&1 && return 0
-    fi
-    ping -c 1 -W 2 "$host" >/dev/null 2>&1 && return 0
+  if [[ -n "$port" ]]; then
+    python3 - "$host" "$port" "$connect_host" <<'PY' && return 0
+import socket
+import sys
+
+candidates = [value for value in sys.argv[1:] if value]
+port = int(candidates[1]) if len(candidates) > 1 else 0
+hosts = [candidates[0]]
+if len(candidates) > 2 and candidates[2] not in hosts:
+    hosts.insert(0, candidates[2])
+
+for host in hosts:
+    try:
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except OSError:
+        continue
+    for family, socktype, proto, _, sockaddr in infos:
+        try:
+            with socket.socket(family, socktype, proto) as sock:
+                sock.settimeout(2.5)
+                sock.connect(sockaddr)
+            raise SystemExit(0)
+        except OSError:
+            continue
+
+raise SystemExit(1)
+PY
   fi
 
   return 1
 }
 
+effective_sunshine_api_url() {
+  local api_url host connect_host rewritten
+
+  api_url="$1"
+  host="$2"
+  connect_host="${3:-}"
+
+  [[ -n "$api_url" ]] || return 1
+  [[ -n "$host" ]] || {
+    printf '%s\n' "$api_url"
+    return 0
+  }
+
+  if prefer_ipv4 && [[ -n "$connect_host" ]] && [[ "$connect_host" != "$host" ]]; then
+    rewritten="$(rewrite_url_host "$api_url" "$connect_host" 2>/dev/null || true)"
+    if [[ -n "$rewritten" ]]; then
+      printf '%s\n' "$rewritten"
+      return 0
+    fi
+  fi
+
+  printf '%s\n' "$api_url"
+}
+
 selected_sunshine_api_url() {
-  local api_url fallback_host rewritten
+  local api_url host connect_host effective_api_url fallback_host rewritten
 
   api_url="$(sunshine_api_url)"
-  if probe_stream_target "$api_url" "$(moonlight_primary_connect_host)"; then
-    printf '%s\n' "$api_url"
+  host="$(moonlight_host)"
+  connect_host="$(moonlight_primary_connect_host)"
+  effective_api_url="$(effective_sunshine_api_url "$api_url" "$host" "$connect_host" 2>/dev/null || printf '%s\n' "$api_url")"
+  if probe_stream_target "$api_url" "$host" "$connect_host"; then
+    printf '%s\n' "$effective_api_url"
     return 0
   fi
 
@@ -446,7 +503,7 @@ moonlight_connect_host() {
 
   host="$(moonlight_primary_connect_host)"
   api_url="$(sunshine_api_url)"
-  if probe_stream_target "$api_url" "$host"; then
+  if probe_stream_target "$api_url" "$(moonlight_host)" "$host"; then
     printf '%s\n' "$host"
     return 0
   fi
@@ -461,7 +518,34 @@ moonlight_connect_host() {
 }
 
 moonlight_target_reachable() {
-  probe_stream_target "$(selected_sunshine_api_url)" "$(moonlight_connect_host)"
+  local host connect_host api_url
+
+  host="$(moonlight_host)"
+  connect_host="$(moonlight_connect_host)"
+  api_url="$(selected_sunshine_api_url)"
+  probe_stream_target "$api_url" "$host" "$connect_host"
+}
+
+wait_for_stream_target() {
+  local attempts delay attempt host connect_host port
+
+  attempts="${PVE_THIN_CLIENT_STREAM_WAIT_RETRIES:-15}"
+  delay="${PVE_THIN_CLIENT_STREAM_WAIT_DELAY:-2}"
+  host="$(moonlight_host)"
+  connect_host="$(moonlight_connect_host)"
+  port="$(moonlight_port)"
+
+  for attempt in $(seq 1 "$attempts"); do
+    if moonlight_target_reachable; then
+      beagle_log_event "moonlight.reachable" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} attempt=${attempt}"
+      return 0
+    fi
+    beagle_log_event "moonlight.waiting" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} attempt=${attempt}/${attempts}"
+    [[ "$attempt" -lt "$attempts" ]] || break
+    sleep "$delay"
+  done
+
+  return 1
 }
 
 json_bool() {
@@ -664,7 +748,7 @@ main() {
   configure_graphics_runtime
   record_decoder_choice "$(moonlight_video_decoder)"
 
-  moonlight_target_reachable || {
+  wait_for_stream_target || {
     beagle_log_event "moonlight.unreachable" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
     echo "Moonlight host '$host' is unreachable from this network." >&2
     exit 1
