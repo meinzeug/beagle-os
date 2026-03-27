@@ -512,6 +512,9 @@
     var state = null;
     var attempt;
     var status;
+    var filename = artifactKey === "installerWindowsUrl"
+      ? ("pve-thin-client-usb-installer-vm-" + profile.vmid + ".ps1")
+      : ("pve-thin-client-usb-installer-vm-" + profile.vmid + ".sh");
 
     if (profile && profile.installerTargetEligible === false) {
       applyInstallerPrepState(overlay, profile.installerPrep || {});
@@ -532,8 +535,8 @@
       }
       status = String(state && state.status || "").toLowerCase();
       if (state && String(state && state.status || "").toLowerCase() === "ready") {
-        if (artifactKey === "installerUrl") {
-          await downloadProtectedFile(normalizeBeagleApiPath(profile[artifactKey]), "pve-thin-client-usb-installer-vm-" + profile.vmid + ".sh");
+        if (artifactKey === "installerUrl" || artifactKey === "installerWindowsUrl") {
+          await downloadProtectedFile(normalizeBeagleApiPath(profile[artifactKey]), filename);
         } else {
           triggerDownload(profile[artifactKey]);
         }
@@ -546,8 +549,8 @@
       }
       for (attempt = 0; attempt < 180; attempt += 1) {
         if (String(state && state.status || "").toLowerCase() === "ready") {
-          if (artifactKey === "installerUrl") {
-            await downloadProtectedFile(normalizeBeagleApiPath(profile[artifactKey]), "pve-thin-client-usb-installer-vm-" + profile.vmid + ".sh");
+          if (artifactKey === "installerUrl" || artifactKey === "installerWindowsUrl") {
+            await downloadProtectedFile(normalizeBeagleApiPath(profile[artifactKey]), filename);
           } else {
             triggerDownload(profile[artifactKey]);
           }
@@ -997,6 +1000,7 @@
         proxmoxHost: meta["proxmox-host"] || window.location.hostname,
         managerPinnedPubkey: controlPlaneProfile && controlPlaneProfile.beagle_manager_pinned_pubkey || "",
         installerUrl: controlPlaneProfile && controlPlaneProfile.installer_url || resolveUsbInstallerUrl(ctx),
+        installerWindowsUrl: controlPlaneProfile && controlPlaneProfile.installer_windows_url || ("/beagle-api/api/v1/vms/" + encodeURIComponent(String(ctx.vmid)) + "/installer.ps1"),
         installerIsoUrl: controlPlaneProfile && controlPlaneProfile.installer_iso_url || resolveInstallerIsoUrl(ctx),
         controlPlaneHealthUrl: resolveControlPlaneHealthUrl(),
         managerUrl: managerUrlFromHealthUrl(resolveControlPlaneHealthUrl()),
@@ -1066,6 +1070,7 @@
       moonlight_audio_config: profile.audio,
       manager_url: profile.managerUrl,
       installer_url: profile.installerUrl,
+      installer_windows_url: profile.installerWindowsUrl,
       installer_iso_url: profile.installerIsoUrl,
       control_plane_health_url: profile.controlPlaneHealthUrl,
       assigned_target: profile.assignedTarget,
@@ -1096,6 +1101,7 @@
       '    <div class="beagle-banner ' + installerTargetState(profile, installerPrep).bannerClass + '" data-beagle-download-banner><strong data-beagle-download-state>' + escapeHtml(installerTargetState(profile, installerPrep).label) + '</strong>: <span data-beagle-download-message>' + escapeHtml(installerTargetState(profile, installerPrep).message) + '</span></div>' +
       '    <div class="beagle-actions">' +
       (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn primary" data-beagle-action="download">USB Installer Skript</button>') +
+      (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-windows">Windows USB Installer</button>') +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-iso">ISO Download</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="copy-json">Profil JSON kopieren</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="copy-env">Endpoint Env kopieren</button>' +
@@ -1120,6 +1126,7 @@
                 kvRow('Assignment Source', escapeHtml(profile.assignmentSource || '')) +
                 kvRow('Applied Policy', escapeHtml(profile.appliedPolicy && profile.appliedPolicy.name || '')) +
                 kvRow('USB Script', escapeHtml(profile.installerUrl)) +
+                kvRow('Windows USB Script', escapeHtml(profile.installerWindowsUrl)) +
                 kvRow('Installer ISO', escapeHtml(profile.installerIsoUrl)) +
                 kvRow('Health', escapeHtml(profile.controlPlaneHealthUrl)) +
       '      </div></section>' +
@@ -1189,6 +1196,9 @@
       switch (event.target.getAttribute('data-beagle-action')) {
         case 'download':
           prepareInstallerDownload(profile, overlay, 'installerUrl', 'download', 'Installer wird vorbereitet', 'Beagle USB Installer Skript wird heruntergeladen.');
+          break;
+        case 'download-windows':
+          prepareInstallerDownload(profile, overlay, 'installerWindowsUrl', 'download-windows', 'Windows Installer wird vorbereitet', 'Beagle Windows USB Installer wird heruntergeladen.');
           break;
         case 'download-iso':
           openUrl(withNoCache(profile.installerIsoUrl));

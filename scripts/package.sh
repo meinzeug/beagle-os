@@ -17,6 +17,8 @@ USB_BOOTSTRAP_NAME="pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
 USB_BOOTSTRAP_LATEST_NAME="pve-thin-client-usb-bootstrap-latest.tar.gz"
 USB_INSTALLER_NAME="pve-thin-client-usb-installer-v${VERSION}.sh"
 USB_INSTALLER_LATEST_NAME="pve-thin-client-usb-installer-latest.sh"
+WINDOWS_USB_INSTALLER_NAME="pve-thin-client-usb-installer-v${VERSION}.ps1"
+WINDOWS_USB_INSTALLER_LATEST_NAME="pve-thin-client-usb-installer-latest.ps1"
 INSTALLER_ISO_NAME="beagle-os-installer.iso"
 INSTALLER_ISO_ARCH_NAME="beagle-os-installer-amd64.iso"
 CHECKSUM_FILE="SHA256SUMS"
@@ -51,7 +53,9 @@ require_tool python3
 mkdir -p "$DIST_DIR"
 BEAGLE_OS_ASSETS=()
 rm -f "$DIST_DIR"/pve-thin-client-usb-installer-host-v*.sh
+rm -f "$DIST_DIR"/pve-thin-client-usb-installer-host-v*.ps1
 rm -f "$DIST_DIR"/pve-thin-client-usb-installer-vm-*.sh
+rm -f "$DIST_DIR"/pve-thin-client-usb-installer-vm-*.ps1
 rm -f \
   "$DIST_DIR/$ZIP_NAME" \
   "$DIST_DIR/$TARBALL_NAME" \
@@ -62,9 +66,12 @@ rm -f \
   "$DIST_DIR/$USB_BOOTSTRAP_LATEST_NAME" \
   "$DIST_DIR/$USB_INSTALLER_NAME" \
   "$DIST_DIR/$USB_INSTALLER_LATEST_NAME" \
+  "$DIST_DIR/$WINDOWS_USB_INSTALLER_NAME" \
+  "$DIST_DIR/$WINDOWS_USB_INSTALLER_LATEST_NAME" \
   "$DIST_DIR/$INSTALLER_ISO_NAME" \
   "$DIST_DIR/$INSTALLER_ISO_ARCH_NAME" \
   "$DIST_DIR/pve-thin-client-usb-installer-host-latest.sh" \
+  "$DIST_DIR/pve-thin-client-usb-installer-host-latest.ps1" \
   "$DIST_DIR/beagle-vm-installers.json" \
   "$DIST_DIR/beagle-downloads-index.html" \
   "$DIST_DIR/beagle-downloads-status.json" \
@@ -134,6 +141,8 @@ install -m 0644 "$DIST_DIR/$USB_PAYLOAD_NAME" "$DIST_DIR/$USB_BOOTSTRAP_LATEST_N
 
 install -m 0755 "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.sh" "$DIST_DIR/$USB_INSTALLER_NAME"
 install -m 0755 "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.sh" "$DIST_DIR/$USB_INSTALLER_LATEST_NAME"
+install -m 0644 "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.ps1" "$DIST_DIR/$WINDOWS_USB_INSTALLER_NAME"
+install -m 0644 "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.ps1" "$DIST_DIR/$WINDOWS_USB_INSTALLER_LATEST_NAME"
 
 (
   cd "$DIST_DIR"
@@ -147,6 +156,8 @@ install -m 0755 "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-install
     "$USB_BOOTSTRAP_LATEST_NAME" \
     "$USB_INSTALLER_NAME" \
     "$USB_INSTALLER_LATEST_NAME" \
+    "$WINDOWS_USB_INSTALLER_NAME" \
+    "$WINDOWS_USB_INSTALLER_LATEST_NAME" \
     "$INSTALLER_ISO_NAME" \
     "$INSTALLER_ISO_ARCH_NAME" \
     "${BEAGLE_OS_ASSETS[@]}" > "$CHECKSUM_FILE"
@@ -161,6 +172,8 @@ echo "Created: $DIST_DIR/$USB_BOOTSTRAP_NAME"
 echo "Created: $DIST_DIR/$USB_BOOTSTRAP_LATEST_NAME"
 echo "Created: $DIST_DIR/$USB_INSTALLER_NAME"
 echo "Created: $DIST_DIR/$USB_INSTALLER_LATEST_NAME"
+echo "Created: $DIST_DIR/$WINDOWS_USB_INSTALLER_NAME"
+echo "Created: $DIST_DIR/$WINDOWS_USB_INSTALLER_LATEST_NAME"
 echo "Created: $DIST_DIR/$INSTALLER_ISO_NAME"
 echo "Created: $DIST_DIR/$INSTALLER_ISO_ARCH_NAME"
 echo "Created: $DIST_DIR/$CHECKSUM_FILE"

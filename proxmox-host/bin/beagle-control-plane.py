@@ -36,6 +36,8 @@ STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECON
 DOWNLOADS_STATUS_FILE = ROOT_DIR / "dist" / "beagle-downloads-status.json"
 VM_INSTALLERS_FILE = ROOT_DIR / "dist" / "beagle-vm-installers.json"
 HOSTED_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-usb-installer-host-latest.sh"
+HOSTED_WINDOWS_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-usb-installer-host-latest.ps1"
+RAW_WINDOWS_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "thin-client-assistant" / "usb" / "pve-thin-client-usb-installer.ps1"
 HOSTED_INSTALLER_ISO_FILE = ROOT_DIR / "dist" / "beagle-os-installer-amd64.iso"
 INSTALLER_PREP_SCRIPT_FILE = ROOT_DIR / "scripts" / "ensure-vm-stream-ready.sh"
 CREDENTIALS_ENV_FILE = Path(os.environ.get("PVE_DCV_CREDENTIALS_ENV_FILE", "/etc/beagle/credentials.env"))
@@ -54,6 +56,10 @@ SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_T
 
 def public_installer_iso_url() -> str:
     return f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}{PUBLIC_DOWNLOADS_PATH}/beagle-os-installer-amd64.iso"
+
+
+def public_windows_installer_url() -> str:
+    return f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}{PUBLIC_DOWNLOADS_PATH}/pve-thin-client-usb-installer-host-latest.ps1"
 
 
 @dataclass
@@ -742,6 +748,15 @@ def patch_installer_defaults(script_text: str, preset_name: str, preset_b64: str
     return updated
 
 
+def patch_windows_installer_defaults(script_text: str, preset_name: str, preset_b64: str, installer_iso_url: str) -> str:
+    return (
+        script_text
+        .replace("__BEAGLE_DEFAULT_RELEASE_ISO_URL__", str(installer_iso_url or ""))
+        .replace("__BEAGLE_DEFAULT_PRESET_NAME__", str(preset_name or ""))
+        .replace("__BEAGLE_DEFAULT_PRESET_B64__", str(preset_b64 or ""))
+    )
+
+
 def encode_installer_preset(preset: dict[str, Any]) -> str:
     lines = ["# Auto-generated Beagle OS VM preset"]
     for key in sorted(preset):
@@ -828,6 +843,7 @@ def default_installer_prep_state(vm: VmSummary, sunshine_status: dict[str, Any] 
         "message": message,
         "updated_at": utcnow(),
         "installer_url": f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh",
+        "installer_windows_url": f"/beagle-api/api/v1/vms/{vm.vmid}/installer.ps1",
         "installer_iso_url": str(profile.get("installer_iso_url") or public_installer_iso_url()),
         "stream_host": str(profile.get("stream_host", "") or ""),
         "moonlight_port": str(profile.get("moonlight_port", "") or ""),
@@ -856,6 +872,7 @@ def summarize_installer_prep_state(vm: VmSummary, state: dict[str, Any] | None =
     payload.setdefault("vmid", vm.vmid)
     payload.setdefault("node", vm.node)
     payload["installer_url"] = str(payload.get("installer_url") or f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh")
+    payload["installer_windows_url"] = str(payload.get("installer_windows_url") or f"/beagle-api/api/v1/vms/{vm.vmid}/installer.ps1")
     payload["installer_iso_url"] = str(payload.get("installer_iso_url") or profile.get("installer_iso_url") or public_installer_iso_url())
     payload["stream_host"] = str(payload.get("stream_host") or profile.get("stream_host") or "")
     payload["moonlight_port"] = str(payload.get("moonlight_port") or profile.get("moonlight_port") or "")
@@ -1360,6 +1377,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         moonlight_port = str(public_stream["moonlight_port"])
         sunshine_api_url = public_stream["sunshine_api_url"]
     installer_url = f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh"
+    installer_windows_url = f"/beagle-api/api/v1/vms/{vm.vmid}/installer.ps1"
     installer_iso_url = public_installer_iso_url()
     vm_secret = load_vm_secret(vm.node, vm.vmid)
     has_sunshine_password = bool((vm_secret or {}).get("sunshine_password"))
@@ -1413,6 +1431,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         "beagle_role": policy_profile.get("beagle_role") or meta.get("beagle-role", "desktop" if stream_host else ""),
         "expected_profile_name": expected_profile_name,
         "installer_url": installer_url,
+        "installer_windows_url": installer_windows_url,
         "installer_iso_url": installer_iso_url,
         "public_stream": public_stream,
         "metadata_keys": sorted(meta.keys()),
@@ -1717,6 +1736,7 @@ def build_vm_inventory() -> dict[str, Any]:
                 "expected_profile_name": profile["expected_profile_name"],
                 "default_mode": "MOONLIGHT" if profile["stream_host"] else "",
                 "installer_url": profile["installer_url"],
+                "installer_windows_url": profile.get("installer_windows_url", f"/beagle-api/api/v1/vms/{vm.vmid}/installer.ps1"),
                 "installer_iso_url": profile.get("installer_iso_url", public_installer_iso_url()),
                 "installer_target_eligible": profile.get("installer_target_eligible", False),
                 "installer_target_message": profile.get("installer_target_message", ""),
@@ -1855,6 +1875,33 @@ def render_vm_installer_script(vm: VmSummary) -> tuple[bytes, str]:
         str(profile.get("installer_iso_url") or public_installer_iso_url()),
     )
     filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.sh"
+    return rendered.encode("utf-8"), filename
+
+
+def render_vm_windows_installer_script(vm: VmSummary) -> tuple[bytes, str]:
+    if not RAW_WINDOWS_INSTALLER_TEMPLATE_FILE.is_file():
+        raise FileNotFoundError(f"missing windows installer template: {RAW_WINDOWS_INSTALLER_TEMPLATE_FILE}")
+    if not HOSTED_INSTALLER_ISO_FILE.is_file():
+        raise FileNotFoundError(f"missing installer ISO: {HOSTED_INSTALLER_ISO_FILE}")
+    config = get_vm_config(vm.node, vm.vmid)
+    profile = build_profile(vm)
+    enrollment_token, enrollment_record = issue_enrollment_token(vm)
+    preset = build_installer_preset(
+        vm,
+        profile,
+        config,
+        enrollment_token=enrollment_token,
+        thinclient_password=str(enrollment_record.get("thinclient_password", "")),
+    )
+    preset_name = preset.get("PVE_THIN_CLIENT_PRESET_PROFILE_NAME") or f"vm-{vm.vmid}"
+    preset_b64 = encode_installer_preset(preset)
+    rendered = patch_windows_installer_defaults(
+        RAW_WINDOWS_INSTALLER_TEMPLATE_FILE.read_text(encoding="utf-8"),
+        preset_name,
+        preset_b64,
+        str(profile.get("installer_iso_url") or public_installer_iso_url()),
+    )
+    filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.ps1"
     return rendered.encode("utf-8"), filename
 
 
@@ -2058,6 +2105,9 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/v1/public/vms/") and path.endswith("/installer.sh"):
             self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "public installer download disabled"})
             return
+        if path.startswith("/api/v1/public/vms/") and path.endswith("/installer.ps1"):
+            self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "public installer download disabled"})
+            return
 
         if not self._is_authenticated():
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
@@ -2128,12 +2178,9 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         if path.startswith("/api/v1/vms/"):
-            if path.endswith("/installer.sh"):
-                vmid_text = path.split("/")[-2]
-                if not vmid_text.isdigit():
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                    return
-                vm = find_vm(int(vmid_text))
+            match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/installer\.sh$", path)
+            if match:
+                vm = find_vm(int(match.group("vmid")))
                 if vm is None:
                     self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
                     return
@@ -2151,6 +2198,33 @@ class Handler(BaseHTTPRequestHandler):
                     content_type="text/x-shellscript; charset=utf-8",
                     filename=filename,
                 )
+                return
+            if path.endswith("/installer.sh"):
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                return
+            match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/installer\.ps1$", path)
+            if match:
+                vm = find_vm(int(match.group("vmid")))
+                if vm is None:
+                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                    return
+                try:
+                    body, filename = render_vm_windows_installer_script(vm)
+                except FileNotFoundError as exc:
+                    self._write_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
+                    return
+                except ValueError as exc:
+                    self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(exc)})
+                    return
+                self._write_bytes(
+                    HTTPStatus.OK,
+                    body,
+                    content_type="text/plain; charset=utf-8",
+                    filename=filename,
+                )
+                return
+            if path.endswith("/installer.ps1"):
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
                 return
             if path.endswith("/credentials"):
                 vmid_text = path.split("/")[-2]

@@ -398,7 +398,7 @@
       return;
     }
     const absoluteUrl = withNoCache(url);
-    if (/\/beagle-api\/|\/api\/v1\/vms\/.+\/installer\.sh(?:\?|$)/.test(absoluteUrl)) {
+    if (/\/beagle-api\/|\/api\/v1\/vms\/.+\/installer\.(?:sh|ps1)(?:\?|$)/.test(absoluteUrl)) {
       const response = await fetch(absoluteUrl, {
         credentials: "include",
         headers: await buildBeagleApiHeaders()
@@ -410,7 +410,9 @@
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
-      anchor.download = `pve-thin-client-usb-installer-vm-${String(url).match(/\/vms\/(\d+)\//)?.[1] || "download"}.sh`;
+      const vmid = String(url).match(/\/vms\/(\d+)\//)?.[1] || "download";
+      const suffix = /installer\.ps1(?:\?|$)/.test(absoluteUrl) ? ".ps1" : ".sh";
+      anchor.download = `pve-thin-client-usb-installer-vm-${vmid}${suffix}`;
       anchor.rel = "noopener noreferrer";
       anchor.style.display = "none";
       document.body.appendChild(anchor);
@@ -507,6 +509,7 @@
       audio: controlPlaneProfile?.moonlight_audio_config || meta["moonlight-audio-config"] || "stereo",
       proxmoxHost: meta["proxmox-host"] || window.location.hostname,
       installerUrl,
+      installerWindowsUrl: controlPlaneProfile?.installer_windows_url || `/beagle-api/api/v1/vms/${encodeURIComponent(String(ctx.vmid))}/installer.ps1`,
       installerIsoUrl: controlPlaneProfile?.installer_iso_url || installerIsoUrl,
       controlPlaneHealthUrl,
       managerUrl: managerUrlFromHealthUrl(controlPlaneHealthUrl),
@@ -555,6 +558,7 @@
         moonlight_audio_config: profile.audio,
         manager_url: profile.managerUrl,
         installer_url: profile.installerUrl,
+        installer_windows_url: profile.installerWindowsUrl,
         installer_iso_url: profile.installerIsoUrl,
         control_plane_health_url: profile.controlPlaneHealthUrl,
         assigned_target: profile.assignedTarget,
@@ -585,6 +589,7 @@
           <div class="beagle-banner ${profile.installerTargetEligible === false ? "warn" : "info"}"><strong>${escapeHtml(installerTargetState(profile, profile.installerPrep).label)}</strong>: ${escapeHtml(installerTargetState(profile, profile.installerPrep).message)}</div>
           <div class="beagle-actions">
             ${profile.installerTargetEligible === false ? "" : '<button type="button" class="beagle-btn primary" data-beagle-action="download">USB Installer Skript</button>'}
+            ${profile.installerTargetEligible === false ? "" : '<button type="button" class="beagle-btn secondary" data-beagle-action="download-windows">Windows USB Installer</button>'}
             <button type="button" class="beagle-btn secondary" data-beagle-action="download-iso">ISO Download</button>
             <button type="button" class="beagle-btn secondary" data-beagle-action="copy-json">Profil JSON kopieren</button>
             <button type="button" class="beagle-btn secondary" data-beagle-action="copy-env">Endpoint Env kopieren</button>
@@ -609,6 +614,7 @@
               ${kvRow("Assignment Source", escapeHtml(profile.assignmentSource || ""))}
               ${kvRow("Applied Policy", escapeHtml(profile.appliedPolicy?.name || ""))}
               ${kvRow("USB Script", escapeHtml(profile.installerUrl))}
+              ${kvRow("Windows USB Script", escapeHtml(profile.installerWindowsUrl))}
               ${kvRow("Installer ISO", escapeHtml(profile.installerIsoUrl))}
               ${kvRow("Health", escapeHtml(profile.controlPlaneHealthUrl))}
             </div></section>
@@ -690,6 +696,33 @@
             throw new Error("Installer-Vorbereitung hat das Zeitlimit ueberschritten.");
           } catch (error) {
             window.alert(`USB Installer konnte nicht vorbereitet werden: ${error?.message || error}`);
+          }
+          break;
+        case "download-windows":
+          if (profile.installerTargetEligible === false) break;
+          try {
+            let state = await apiGetInstallerPrep(profile.vmid).catch(() => profile.installerPrep || null);
+            if (String(state?.status || "").toLowerCase() === "ready") {
+              await triggerDownload(profile.installerWindowsUrl);
+              return;
+            }
+            if (!shouldReuseInstallerPrepState(state)) {
+              state = await apiStartInstallerPrep(profile.vmid);
+            }
+            for (let attempt = 0; attempt < 180; attempt += 1) {
+              if (String(state?.status || "").toLowerCase() === "ready") {
+                await triggerDownload(profile.installerWindowsUrl);
+                return;
+              }
+              if (String(state?.status || "").toLowerCase() === "error") {
+                throw new Error(state?.message || "Installer-Vorbereitung fehlgeschlagen.");
+              }
+              await sleep(2000);
+              state = await apiGetInstallerPrep(profile.vmid);
+            }
+            throw new Error("Installer-Vorbereitung hat das Zeitlimit ueberschritten.");
+          } catch (error) {
+            window.alert(`Windows USB Installer konnte nicht vorbereitet werden: ${error?.message || error}`);
           }
           break;
         case "download-iso":
