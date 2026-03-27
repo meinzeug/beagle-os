@@ -125,9 +125,16 @@ from urllib.parse import unquote
 
 encoded, guest_ip, stream_host, stream_port, stream_api_url, sunshine_user, sunshine_password, sunshine_pin, proxmox_user, proxmox_password, proxmox_token, guest_user = sys.argv[1:13]
 skip = {
+    "sunshine-guest-user",
     "sunshine-host",
     "sunshine-ip",
     "sunshine-api-url",
+    "sunshine-user",
+    "sunshine-password",
+    "sunshine-pin",
+    "proxmox-user",
+    "proxmox-password",
+    "proxmox-token",
     "beagle-public-stream-host",
     "beagle-public-moonlight-port",
     "beagle-public-sunshine-api-url",
@@ -259,7 +266,6 @@ GUESTCFG
 
 install -d -m 0700 -o "\$GUEST_USER" -g "\$GUEST_USER" \
   "/home/\$GUEST_USER/.config" \
-  "/home/\$GUEST_USER/.config/autostart" \
   "/home/\$GUEST_USER/.config/sunshine" \
   "/home/\$GUEST_USER/.config/xfce4/xfconf/xfce-perchannel-xml"
 install -d -m 0755 /etc/X11/xorg.conf.d
@@ -277,15 +283,6 @@ Section "InputClass"
     Option "Ignore" "on"
 EndSection
 XORGCONF
-
-cat > "/home/\$GUEST_USER/.config/autostart/sunshine.desktop" <<'AUTOSTART'
-[Desktop Entry]
-Type=Application
-Name=Sunshine
-Exec=sunshine
-X-GNOME-Autostart-enabled=true
-OnlyShowIn=XFCE;
-AUTOSTART
 
 cat > "/home/\$GUEST_USER/.config/sunshine/sunshine.conf" <<'SUNCONF'
 sunshine_name = ${GUEST_USER}-sunshine
@@ -327,8 +324,33 @@ XFWM4
 
 chown -R "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.config"
 
+cat > /etc/systemd/system/beagle-sunshine.service <<SUNSHINESVC
+[Unit]
+Description=Beagle Sunshine
+After=network-online.target display-manager.service graphical.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=\$GUEST_USER
+Group=\$GUEST_USER
+Environment=HOME=/home/\$GUEST_USER
+Environment=XDG_CONFIG_HOME=/home/\$GUEST_USER/.config
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/\$GUEST_USER/.Xauthority
+ExecStart=/usr/bin/sunshine
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical.target
+SUNSHINESVC
+
 systemctl disable sunshine >/dev/null 2>&1 || true
 systemctl stop sunshine >/dev/null 2>&1 || true
+su - "\$GUEST_USER" -c "systemctl --user disable --now sunshine.service >/dev/null 2>&1 || true" || true
+rm -f "/home/\$GUEST_USER/.config/autostart/sunshine.desktop"
+pkill -u "\$GUEST_USER" -x sunshine >/dev/null 2>&1 || true
 systemctl disable gdm3 >/dev/null 2>&1 || true
 printf '/usr/sbin/lightdm\n' > /etc/X11/default-display-manager
 ln -sf /usr/lib/systemd/system/lightdm.service /etc/systemd/system/display-manager.service
@@ -336,12 +358,8 @@ systemctl daemon-reload
 systemctl set-default graphical.target >/dev/null
 
 su - "\$GUEST_USER" -c "HOME=/home/\$GUEST_USER XDG_CONFIG_HOME=/home/\$GUEST_USER/.config sunshine --creds '\$SUNSHINE_USER' '\$SUNSHINE_PASSWORD'"
-systemctl enable sunshine >/dev/null 2>&1 || true
-systemctl restart sunshine >/dev/null 2>&1 || true
-if ! pgrep -u "\$GUEST_USER" -x sunshine >/dev/null 2>&1; then
-  su - "\$GUEST_USER" -c "HOME=/home/\$GUEST_USER XDG_CONFIG_HOME=/home/\$GUEST_USER/.config nohup sunshine >/tmp/sunshine-user.log 2>&1 &" >/dev/null 2>&1 || true
-fi
 systemctl restart display-manager.service >/dev/null 2>&1 || true
+systemctl enable --now beagle-sunshine.service >/dev/null 2>&1 || true
 EOF
 )"
 

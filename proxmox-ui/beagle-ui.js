@@ -398,6 +398,12 @@
     });
   }
 
+  function apiCreateSunshineAccess(vmid) {
+    return apiPostBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(vmid)) + "/sunshine-access", {}).then(function(payload) {
+      return payload && payload.sunshine_access ? payload.sunshine_access : payload;
+    });
+  }
+
   function installerPrepBannerClass(state) {
     return String(state && state.status || "").toLowerCase() === "error" ? "warn" : "info";
   }
@@ -1194,7 +1200,11 @@
           copyText(profile.endpointEnv, 'Beagle Endpoint-Umgebung kopiert.');
           break;
         case 'open-sunshine':
-          openUrl(profile.sunshineApiUrl);
+          apiCreateSunshineAccess(profile.vmid).then(function(access) {
+            openUrl(access && access.url ? access.url : profile.sunshineApiUrl);
+          }).catch(function(error) {
+            showError("Sunshine Web UI konnte nicht geoeffnet werden: " + (error && error.message ? error.message : error));
+          });
           break;
         case 'open-health':
           openUrl(profile.controlPlaneHealthUrl);

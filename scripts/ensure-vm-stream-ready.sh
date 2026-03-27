@@ -9,6 +9,7 @@ STATE_DIR="${BEAGLE_INSTALLER_PREP_DIR:-$MANAGER_DATA_DIR/installer-prep}"
 STATE_FILE="${BEAGLE_INSTALLER_PREP_STATE_FILE:-}"
 PUBLIC_STREAM_HOST="${BEAGLE_PUBLIC_STREAM_HOST:-${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}}"
 STREAMS_FILE="${BEAGLE_PUBLIC_STREAMS_FILE:-$MANAGER_DATA_DIR/public-streams.json}"
+VM_SECRETS_DIR="${BEAGLE_VM_SECRETS_DIR:-$MANAGER_DATA_DIR/vm-secrets}"
 SUNSHINE_DEFAULT_USER="${BEAGLE_SUNSHINE_DEFAULT_USER:-}"
 SUNSHINE_DEFAULT_PASSWORD="${BEAGLE_SUNSHINE_DEFAULT_PASSWORD:-}"
 SUNSHINE_DEFAULT_PIN="${BEAGLE_SUNSHINE_DEFAULT_PIN:-}"
@@ -181,7 +182,7 @@ PY
 }
 
 sunshine_guest_status_json() {
-  qm guest exec "$VMID" -- bash -lc 'binary=0; service=0; process=0; command -v sunshine >/dev/null 2>&1 && binary=1; systemctl is-active sunshine >/dev/null 2>&1 && service=1; pgrep -x sunshine >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
+  qm guest exec "$VMID" -- bash -lc 'binary=0; service=0; process=0; command -v sunshine >/dev/null 2>&1 && binary=1; (systemctl is-active sunshine >/dev/null 2>&1 || systemctl is-active beagle-sunshine.service >/dev/null 2>&1) && service=1; pgrep -x sunshine >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
 }
 
 guest_ipv4() {
@@ -210,14 +211,39 @@ raise SystemExit(1)
 PY
 }
 
+vm_secret_get() {
+  local field="$1"
+  python3 - "$VM_SECRETS_DIR" "$NODE" "$VMID" "$field" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+secrets_dir, node, vmid, field = sys.argv[1:5]
+path = Path(secrets_dir) / f"{node}-{vmid}.json"
+if not path.is_file():
+    raise SystemExit(0)
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(0)
+value = payload.get(field)
+if value is None:
+    raise SystemExit(0)
+print(str(value))
+PY
+}
+
 verify_public_api() {
   local api_url="$1"
   local sunshine_user="$2"
   local sunshine_password="$3"
+  local pinned_pubkey="${4:-}"
   local -a curl_args=(curl -fsS --connect-timeout 4 --max-time 10 --user "${sunshine_user}:${sunshine_password}")
 
   if [[ "$api_url" == https://* ]]; then
-    if [[ -n "${BEAGLE_PUBLIC_TLS_PINNED_PUBKEY:-}" ]]; then
+    if [[ -n "$pinned_pubkey" ]]; then
+      curl_args+=(-k --pinnedpubkey "$pinned_pubkey")
+    elif [[ -n "${BEAGLE_PUBLIC_TLS_PINNED_PUBKEY:-}" ]]; then
       curl_args+=(--pinnedpubkey "${BEAGLE_PUBLIC_TLS_PINNED_PUBKEY}")
     elif [[ -f "$HOST_TLS_CERT_FILE" ]]; then
       curl_args+=(--cacert "$HOST_TLS_CERT_FILE")
@@ -232,7 +258,7 @@ verify_public_api() {
 }
 
 main() {
-  local stream_port sunshine_user sunshine_password sunshine_pin guest_user sunshine_status_raw sunshine_status_json public_api_url direct_api_url guest_ip extra_json
+  local stream_port sunshine_user sunshine_password sunshine_pin sunshine_pinned_pubkey guest_user sunshine_status_raw sunshine_status_json public_api_url direct_api_url guest_ip extra_json verify_extra_json
 
   parse_args "$@"
   [[ -n "$VMID" && -n "$NODE" ]] || { usage; exit 1; }
@@ -242,9 +268,10 @@ main() {
   if [[ -z "$stream_port" ]]; then
     stream_port="$(allocate_stream_port)"
   fi
-  sunshine_user=""
-  sunshine_password=""
-  sunshine_pin=""
+  sunshine_user="$(vm_secret_get sunshine_username)"
+  sunshine_password="$(vm_secret_get sunshine_password)"
+  sunshine_pin="$(vm_secret_get sunshine_pin)"
+  sunshine_pinned_pubkey="$(vm_secret_get sunshine_pinned_pubkey)"
   guest_user="$(meta_get sunshine-guest-user)"
   [[ -n "$sunshine_user" ]] || sunshine_user="$SUNSHINE_DEFAULT_USER"
   [[ -n "$sunshine_password" ]] || sunshine_password="$SUNSHINE_DEFAULT_PASSWORD"
@@ -294,6 +321,20 @@ except Exception:
 print(json.dumps(inner))
 PY
 )"
+  verify_extra_json="$(python3 - "$extra_json" "$sunshine_status_json" <<'PY'
+import json
+import sys
+
+base = json.loads(sys.argv[1])
+status = json.loads(sys.argv[2])
+base["sunshine_status"] = {
+    "binary": bool(status.get("binary")),
+    "service": bool(status.get("service")),
+    "process": bool(status.get("process")),
+}
+print(json.dumps(base))
+PY
+)"
 
   if python3 - "$sunshine_status_json" <<'PY'
 import json, sys
@@ -301,9 +342,9 @@ payload=json.loads(sys.argv[1])
 raise SystemExit(0 if payload.get('binary') and payload.get('service') else 1)
 PY
   then
-    write_state running verify 65 "Sunshine ist bereits installiert. Pruefe oeffentlichen Zugriff." "$extra_json"
+    write_state running verify 65 "Sunshine ist bereits installiert. Pruefe Sunshine API." "$verify_extra_json"
   else
-    write_state running install 25 "Sunshine fehlt oder ist nicht aktiv. Installation wird gestartet." "$extra_json"
+    write_state running install 25 "Sunshine fehlt oder ist nicht aktiv. Installation wird gestartet." "$verify_extra_json"
     /opt/beagle/scripts/configure-sunshine-guest.sh \
       --proxmox-host localhost \
       --vmid "$VMID" \
@@ -314,29 +355,74 @@ PY
       --sunshine-port "$stream_port" \
       --public-stream-host "$PUBLIC_STREAM_HOST" \
       --no-reboot
+    sunshine_status_raw="$(sunshine_guest_status_json)"
+    sunshine_status_json="$(python3 - "$sunshine_status_raw" <<'PY'
+import json, sys
+raw=sys.argv[1].strip()
+if not raw:
+    print('{"binary":0,"service":0,"process":0}')
+    raise SystemExit(0)
+try:
+    payload=json.loads(raw)
+except Exception:
+    payload={"binary":0,"service":0,"process":0}
+out=payload.get('out-data','') if isinstance(payload,dict) else ''
+try:
+    if out:
+        inner=json.loads(out.strip().splitlines()[-1])
+    else:
+        inner={"binary":0,"service":0,"process":0}
+except Exception:
+    inner={"binary":0,"service":0,"process":0}
+print(json.dumps(inner))
+PY
+)"
+    verify_extra_json="$(python3 - "$extra_json" "$sunshine_status_json" <<'PY'
+import json
+import sys
+
+base = json.loads(sys.argv[1])
+status = json.loads(sys.argv[2])
+base["sunshine_status"] = {
+    "binary": bool(status.get("binary")),
+    "service": bool(status.get("service")),
+    "process": bool(status.get("process")),
+}
+print(json.dumps(base))
+PY
+)"
   fi
 
-  write_state running expose 75 "Aktiviere oeffentliche Stream-Ports auf dem Proxmox-Host." "$extra_json"
+  write_state running expose 75 "Aktiviere oeffentliche Stream-Ports auf dem Proxmox-Host." "$verify_extra_json"
   /opt/beagle/scripts/reconcile-public-streams.sh >/dev/null
 
-  write_state running verify 90 "Pruefe Sunshine API ueber ${PUBLIC_STREAM_HOST}." "$extra_json"
-  if ! verify_public_api "$public_api_url" "$sunshine_user" "$sunshine_password"; then
-    guest_ip="$(meta_get sunshine-ip)"
-    if [[ -z "$guest_ip" ]]; then
-      guest_ip="$(guest_ipv4 2>/dev/null || true)"
-    fi
-    if [[ -n "$guest_ip" ]]; then
-      direct_api_url="https://${guest_ip}:$((stream_port + 1))"
-      if verify_public_api "$direct_api_url" "$sunshine_user" "$sunshine_password"; then
-        write_state ready complete 100 "Sunshine ist bereit. Direkter API-Check in der VM war erfolgreich; oeffentlicher Self-Check wurde auf dem Host uebersprungen." "$extra_json"
-        exit 0
+  guest_ip="$(meta_get sunshine-ip)"
+  if [[ -z "$guest_ip" ]]; then
+    guest_ip="$(guest_ipv4 2>/dev/null || true)"
+  fi
+  if [[ -n "$guest_ip" ]]; then
+    direct_api_url="https://${guest_ip}:$((stream_port + 1))"
+    write_state running verify 90 "Pruefe Sunshine API direkt in der VM." "$verify_extra_json"
+    if verify_public_api "$direct_api_url" "$sunshine_user" "$sunshine_password" "$sunshine_pinned_pubkey"; then
+      verify_extra_json="$(python3 - "$verify_extra_json" <<'PY'
+import json, sys
+base = json.loads(sys.argv[1])
+base["ready"] = True
+base["installer_target_status"] = "ready"
+print(json.dumps(base))
+PY
+)"
+      if verify_public_api "$public_api_url" "$sunshine_user" "$sunshine_password" "$sunshine_pinned_pubkey"; then
+        write_state ready complete 100 "Sunshine ist bereit. Oeffentlicher API-Check war erfolgreich." "$verify_extra_json"
+      else
+        write_state ready complete 100 "Sunshine ist bereit. Direkter API-Check in der VM war erfolgreich; oeffentlicher Self-Check wurde auf dem Host uebersprungen." "$verify_extra_json"
       fi
+      exit 0
     fi
-    write_state error verify 100 "Sunshine API ist nach der Vorbereitung noch nicht erreichbar." "$extra_json"
-    exit 1
   fi
 
-  write_state ready complete 100 "Sunshine ist bereit. Der Beagle-USB-Installer kann heruntergeladen werden." "$extra_json"
+  write_state error verify 100 "Sunshine API ist nach der Vorbereitung noch nicht erreichbar." "$verify_extra_json"
+  exit 1
 }
 
 main "$@"

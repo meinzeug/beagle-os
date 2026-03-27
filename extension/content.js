@@ -192,6 +192,16 @@
     return unwrapInstallerPrep(await response.json());
   }
 
+  async function apiCreateSunshineAccess(vmid) {
+    const url = await resolveBeagleApiUrl(`/api/v1/vms/${encodeURIComponent(vmid)}/sunshine-access`);
+    const response = await fetch(url, { method: "POST", credentials: "include", headers: await buildBeagleApiHeaders() });
+    if (!response.ok) {
+      throw new Error(`Beagle API request failed: ${response.status} ${response.statusText}`);
+    }
+    const payload = await response.json();
+    return payload?.sunshine_access || payload;
+  }
+
   function ensureStyles() {
     if (document.getElementById(STYLE_ID)) return;
     const style = document.createElement("style");
@@ -692,8 +702,11 @@
           await copyText(profile.endpointEnv, "Beagle Endpoint-Umgebung kopiert.");
           break;
         case "open-sunshine":
-          if (profile.sunshineApiUrl) {
-            window.open(profile.sunshineApiUrl, "_blank", "noopener,noreferrer");
+          try {
+            const access = await apiCreateSunshineAccess(profile.vmid);
+            window.open(access?.url || profile.sunshineApiUrl, "_blank", "noopener,noreferrer");
+          } catch (error) {
+            window.alert(`Sunshine Web UI konnte nicht geoeffnet werden: ${error?.message || error}`);
           }
           break;
         case "open-health":

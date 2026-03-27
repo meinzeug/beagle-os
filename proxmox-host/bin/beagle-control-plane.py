@@ -10,6 +10,7 @@ import ipaddress
 import base64
 import secrets
 import shlex
+import tempfile
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -48,6 +49,7 @@ PUBLIC_STREAM_PORT_STEP = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_STEP", "
 PUBLIC_STREAM_PORT_COUNT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_COUNT", "256"))
 PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
 ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_SECONDS", "86400"))
+SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_TOKEN_TTL_SECONDS", "600"))
 
 
 def public_installer_iso_url() -> str:
@@ -170,6 +172,12 @@ def enrollment_tokens_dir() -> Path:
 
 def endpoint_tokens_dir() -> Path:
     path = EFFECTIVE_DATA_DIR / "endpoint-tokens"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def sunshine_access_tokens_dir() -> Path:
+    path = EFFECTIVE_DATA_DIR / "sunshine-access-tokens"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -429,8 +437,7 @@ state_path.write_text(json.dumps(state, indent=4) + "\\n", encoding="utf-8")
 print("registered-new")
 PY
 
-pkill -x sunshine >/dev/null 2>&1 || true
-su - "$guest_user" -c 'systemctl --user restart sunshine.service >/dev/null 2>&1 || (nohup sunshine >/dev/null 2>&1 </dev/null &)'
+systemctl restart beagle-sunshine.service >/dev/null 2>&1 || true
 sleep 2
 """
     exitcode, stdout, stderr = guest_exec_text(vm.vmid, script)
@@ -458,6 +465,10 @@ def enrollment_token_path(token: str) -> Path:
     return enrollment_tokens_dir() / f"{hashlib.sha256(token.encode('utf-8')).hexdigest()}.json"
 
 
+def sunshine_access_token_path(token: str) -> Path:
+    return sunshine_access_tokens_dir() / f"{hashlib.sha256(token.encode('utf-8')).hexdigest()}.json"
+
+
 def issue_enrollment_token(vm: VmSummary) -> tuple[str, dict[str, Any]]:
     record = ensure_vm_secret(vm)
     token = secrets.token_urlsafe(32)
@@ -479,6 +490,23 @@ def load_enrollment_token(token: str) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def issue_sunshine_access_token(vm: VmSummary) -> tuple[str, dict[str, Any]]:
+    token = secrets.token_urlsafe(32)
+    payload = {
+        "vmid": vm.vmid,
+        "node": vm.node,
+        "issued_at": utcnow(),
+        "expires_at": datetime.fromtimestamp(datetime.now(timezone.utc).timestamp() + SUNSHINE_ACCESS_TOKEN_TTL_SECONDS, tz=timezone.utc).isoformat(),
+    }
+    write_json_file(sunshine_access_token_path(token), payload)
+    return token, payload
+
+
+def load_sunshine_access_token(token: str) -> dict[str, Any] | None:
+    payload = load_json_file(sunshine_access_token_path(token), None)
+    return payload if isinstance(payload, dict) else None
+
+
 def mark_enrollment_token_used(token: str, payload: dict[str, Any], *, endpoint_id: str) -> None:
     clean = dict(payload)
     clean["used_at"] = utcnow()
@@ -490,6 +518,15 @@ def enrollment_token_is_valid(payload: dict[str, Any] | None) -> bool:
     if not isinstance(payload, dict):
         return False
     if str(payload.get("used_at", "")).strip():
+        return False
+    expires_at = parse_utc_timestamp(str(payload.get("expires_at", "")))
+    if expires_at is None:
+        return False
+    return expires_at > datetime.now(timezone.utc)
+
+
+def sunshine_access_token_is_valid(payload: dict[str, Any] | None) -> bool:
+    if not isinstance(payload, dict):
         return False
     expires_at = parse_utc_timestamp(str(payload.get("expires_at", "")))
     if expires_at is None:
@@ -511,6 +548,92 @@ def store_endpoint_token(token: str, payload: dict[str, Any]) -> dict[str, Any]:
 def load_endpoint_token(token: str) -> dict[str, Any] | None:
     payload = load_json_file(endpoint_token_path(token), None)
     return payload if isinstance(payload, dict) else None
+
+
+def sunshine_proxy_ticket_url(token: str) -> str:
+    return f"{PUBLIC_MANAGER_URL}/api/v1/public/sunshine/{token}/"
+
+
+def proxy_sunshine_request(vm: VmSummary, *, request_path: str, query: str, method: str, body: bytes | None, request_headers: dict[str, str]) -> tuple[int, dict[str, str], bytes]:
+    profile = build_profile(vm)
+    base_url = internal_sunshine_api_url(vm, profile).rstrip("/")
+    if not base_url:
+        raise RuntimeError("missing sunshine api url")
+    secret = ensure_vm_secret(vm)
+    sunshine_user = str(secret.get("sunshine_username", "") or "")
+    sunshine_password = str(secret.get("sunshine_password", "") or "")
+    pinned_pubkey = str(secret.get("sunshine_pinned_pubkey", "") or "")
+    if not sunshine_user or not sunshine_password:
+        raise RuntimeError("missing sunshine credentials")
+
+    relative = "/" + str(request_path or "").lstrip("/")
+    target_url = f"{base_url}{relative}"
+    if query:
+        target_url = f"{target_url}?{query}"
+
+    header_file = tempfile.NamedTemporaryFile(prefix="beagle-sunshine-hdr-", delete=False)
+    body_file = tempfile.NamedTemporaryFile(prefix="beagle-sunshine-body-", delete=False)
+    header_file.close()
+    body_file.close()
+    input_name = ""
+    try:
+        command = [
+            "curl",
+            "-sS",
+            "-D",
+            header_file.name,
+            "-o",
+            body_file.name,
+            "-X",
+            method.upper(),
+            "-u",
+            f"{sunshine_user}:{sunshine_password}",
+            "-k",
+            "--connect-timeout",
+            "5",
+            "--max-time",
+            "30",
+        ]
+        if pinned_pubkey:
+            command.extend(["--pinnedpubkey", pinned_pubkey])
+        for key in ("Content-Type", "Accept"):
+            value = str(request_headers.get(key, "") or "").strip()
+            if value:
+                command.extend(["-H", f"{key}: {value}"])
+        if body is not None:
+            input_file = tempfile.NamedTemporaryFile(prefix="beagle-sunshine-in-", delete=False)
+            input_file.write(body)
+            input_file.flush()
+            input_name = input_file.name
+            input_file.close()
+            command.extend(["--data-binary", f"@{input_name}"])
+        command.append(target_url)
+        result = subprocess.run(command, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError((result.stderr or result.stdout or "curl failed").strip())
+
+        raw_headers = Path(header_file.name).read_text(encoding="utf-8", errors="replace")
+        raw_body = Path(body_file.name).read_bytes()
+        blocks = [block for block in re.split(r"\r?\n\r?\n", raw_headers.strip()) if block.strip()]
+        header_block = blocks[-1] if blocks else ""
+        lines = [line for line in re.split(r"\r?\n", header_block) if line.strip()]
+        if not lines or not lines[0].startswith("HTTP/"):
+            raise RuntimeError("invalid sunshine proxy response")
+        status_code = int(lines[0].split()[1])
+        response_headers: dict[str, str] = {}
+        for line in lines[1:]:
+            if ":" not in line:
+                continue
+            key, value = line.split(":", 1)
+            response_headers[key.strip()] = value.strip()
+        return status_code, response_headers, raw_body
+    finally:
+        for path in (header_file.name, body_file.name, input_name):
+            if path:
+                try:
+                    Path(path).unlink(missing_ok=True)
+                except Exception:
+                    pass
 
 
 DEFAULT_CREDENTIALS = load_shell_env_file(CREDENTIALS_ENV_FILE)
@@ -655,7 +778,7 @@ def quick_sunshine_status(vmid: int) -> dict[str, Any]:
         vmid,
         "binary=0; service=0; process=0; "
         "command -v sunshine >/dev/null 2>&1 && binary=1; "
-        "systemctl is-active sunshine >/dev/null 2>&1 && service=1; "
+        "(systemctl is-active sunshine >/dev/null 2>&1 || systemctl is-active beagle-sunshine.service >/dev/null 2>&1) && service=1; "
         "pgrep -x sunshine >/dev/null 2>&1 && process=1; "
         "printf '{\"binary\":%s,\"service\":%s,\"process\":%s}\\n' \"$binary\" \"$service\" \"$process\"",
     )
@@ -718,9 +841,7 @@ def default_installer_prep_state(vm: VmSummary, sunshine_status: dict[str, Any] 
 def summarize_installer_prep_state(vm: VmSummary, state: dict[str, Any] | None = None) -> dict[str, Any]:
     profile = build_profile(vm)
     payload = dict(state) if isinstance(state, dict) else default_installer_prep_state(vm)
-    quick = payload.get("sunshine_status")
-    if not isinstance(quick, dict):
-        quick = quick_sunshine_status(vm.vmid)
+    quick = quick_sunshine_status(vm.vmid)
     payload["sunshine_status"] = {
         "binary": bool(quick.get("binary")),
         "service": bool(quick.get("service")),
@@ -735,7 +856,7 @@ def summarize_installer_prep_state(vm: VmSummary, state: dict[str, Any] | None =
     payload["moonlight_port"] = str(payload.get("moonlight_port") or profile.get("moonlight_port") or "")
     payload["sunshine_api_url"] = str(payload.get("sunshine_api_url") or profile.get("sunshine_api_url") or "")
     payload["installer_target_eligible"] = bool(payload.get("installer_target_eligible", profile.get("installer_target_eligible")))
-    payload["installer_target_status"] = str(payload.get("installer_target_status") or ("ready" if payload["ready"] else ("preparing" if payload["installer_target_eligible"] else "unsupported")))
+    payload["installer_target_status"] = "ready" if payload["ready"] else ("preparing" if payload["installer_target_eligible"] else "unsupported")
     return payload
 
 
@@ -1828,6 +1949,34 @@ class Handler(BaseHTTPRequestHandler):
             return self.client_address[0]
         return "unknown"
 
+    def _sunshine_ticket_vm(self, path: str) -> tuple[VmSummary | None, str]:
+        prefix = "/api/v1/public/sunshine/"
+        if not path.startswith(prefix):
+            return None, ""
+        remainder = path[len(prefix):]
+        parts = remainder.split("/", 1)
+        token = parts[0].strip()
+        if not token:
+            return None, ""
+        payload = load_sunshine_access_token(token)
+        if not sunshine_access_token_is_valid(payload):
+            return None, ""
+        vm = find_vm(int(payload.get("vmid", -1))) if payload else None
+        relative = "/" if len(parts) == 1 or not parts[1] else f"/{parts[1]}"
+        return vm, relative
+
+    def _write_proxy_response(self, status_code: int, headers: dict[str, str], body: bytes) -> None:
+        self.send_response(status_code)
+        for key, value in headers.items():
+            lower = key.lower()
+            if lower in {"transfer-encoding", "connection", "content-length", "content-encoding"}:
+                continue
+            self.send_header(key, value)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(HTTPStatus.NO_CONTENT)
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -1839,6 +1988,27 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
+        query_text = parsed.query
+
+        if path.startswith("/api/v1/public/sunshine/"):
+            vm, relative = self._sunshine_ticket_vm(parsed.path)
+            if vm is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "sunshine ticket not found"})
+                return
+            try:
+                status_code, headers, body = proxy_sunshine_request(
+                    vm,
+                    request_path=relative,
+                    query=query_text,
+                    method="GET",
+                    body=None,
+                    request_headers={"Accept": self.headers.get("Accept", "")},
+                )
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": f"sunshine proxy failed: {exc}"})
+                return
+            self._write_proxy_response(status_code, headers, body)
+            return
 
         if path.startswith("/api/v1/public/vms/") and path.endswith("/state"):
             vmid_text = path.split("/")[-2]
@@ -2152,6 +2322,30 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query or "")
+
+        if path.startswith("/api/v1/public/sunshine/"):
+            vm, relative = self._sunshine_ticket_vm(parsed.path)
+            if vm is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "sunshine ticket not found"})
+                return
+            try:
+                body = self._read_binary_body(max_bytes=16 * 1024 * 1024)
+                status_code, headers, response_body = proxy_sunshine_request(
+                    vm,
+                    request_path=relative,
+                    query=parsed.query,
+                    method="POST",
+                    body=body,
+                    request_headers={
+                        "Content-Type": self.headers.get("Content-Type", ""),
+                        "Accept": self.headers.get("Accept", ""),
+                    },
+                )
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": f"sunshine proxy failed: {exc}"})
+                return
+            self._write_proxy_response(status_code, headers, response_body)
+            return
 
         if path == "/api/v1/endpoints/enroll":
             try:
@@ -2485,6 +2679,34 @@ class Handler(BaseHTTPRequestHandler):
                     "version": VERSION,
                     "generated_at": utcnow(),
                     "queued_action": queued,
+                },
+            )
+            return
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/sunshine-access"):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            vmid_text = path.split("/")[-2]
+            if not vmid_text.isdigit():
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                return
+            vm = find_vm(int(vmid_text))
+            if vm is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                return
+            token, payload = issue_sunshine_access_token(vm)
+            self._write_json(
+                HTTPStatus.CREATED,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "sunshine_access": {
+                        **payload,
+                        "url": sunshine_proxy_ticket_url(token),
+                    },
                 },
             )
             return
