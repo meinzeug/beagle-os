@@ -85,13 +85,19 @@ a:hover { text-decoration: underline; }
 }
 
 .nav-item {
+  appearance: none;
   display: flex;
   align-items: center;
   min-height: 42px;
   padding: 0 14px;
   border-radius: 10px;
+  border: 0;
+  background: transparent;
   color: rgba(255,255,255,0.82);
+  font: inherit;
   font-weight: 600;
+  text-align: left;
+  cursor: pointer;
 }
 
 .nav-item:hover,
@@ -265,6 +271,9 @@ a:hover { text-decoration: underline; }
 .menu-button:hover { background: var(--card-soft); }
 
 .status-strip { margin: 16px 0; }
+.panel-section { display: none; }
+.panel-section.panel-section-active { display: grid; }
+#policies-section.panel-section-active { display: block; }
 .banner {
   padding: 13px 16px;
   border-radius: 14px;

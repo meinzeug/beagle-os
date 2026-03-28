@@ -9,7 +9,26 @@
     selectedVmid: null,
     selectedVmids: [],
     selectedPolicyName: '',
+    activePanel: 'overview',
     detailCache: Object.create(null)
+  };
+
+  var panelMeta = {
+    overview: {
+      eyebrow: 'Host Control Surface',
+      title: 'Beagle OS Web UI',
+      description: 'Zentrale Bedienoberflaeche fuer aktive Beagle-VMs, Endpoint-Zustand, Installer-Bereitschaft, Credentials und Operator-Aktionen.'
+    },
+    inventory: {
+      eyebrow: 'Inventory Workspace',
+      title: 'Beagle Inventar',
+      description: 'Arbeite direkt mit den aktiven Beagle-VMs, Filterung, Bulk-Aktionen und Detailansicht.'
+    },
+    policies: {
+      eyebrow: 'Configuration Workspace',
+      title: 'Beagle Policies',
+      description: 'Verwalte Zuweisungen, Profile und Prioritaeten fuer deine Endpoint- und Desktop-Flotte.'
+    }
   };
 
   function qs(id) {
@@ -99,6 +118,23 @@
     if (chip) {
       chip.textContent = state.token ? 'Verbunden' : 'Nicht verbunden';
     }
+  }
+
+  function setActivePanel(panelName) {
+    var next = panelMeta[panelName] ? panelName : 'overview';
+    state.activePanel = next;
+    document.querySelectorAll('[data-panel]').forEach(function (node) {
+      node.classList.toggle('nav-item-active', node.getAttribute('data-panel') === next);
+    });
+    document.querySelectorAll('[data-panel-section]').forEach(function (node) {
+      var sectionPanel = node.getAttribute('data-panel-section');
+      var visible = sectionPanel === 'overview' ? next === 'overview' : sectionPanel === next;
+      node.classList.toggle('panel-section-active', visible);
+    });
+    var meta = panelMeta[next] || panelMeta.overview;
+    text('panel-eyebrow', meta.eyebrow);
+    text('panel-title', meta.title);
+    text('panel-description', meta.description);
   }
 
   function openAuthModal() {
@@ -803,6 +839,15 @@
         shell.classList.remove('menu-open');
       }
     });
+    if (qs('sidebar-nav')) {
+      qs('sidebar-nav').addEventListener('click', function (event) {
+        var trigger = event.target.closest('[data-panel]');
+        if (!trigger) {
+          return;
+        }
+        setActivePanel(trigger.getAttribute('data-panel'));
+      });
+    }
     qs('clear-token').addEventListener('click', function () {
       state.token = '';
       window.localStorage.removeItem('beagle.webUi.apiToken');
@@ -910,6 +955,7 @@
   consumeTokenFromLocation();
   bindEvents();
   resetPolicyEditor();
+  setActivePanel(state.activePanel);
   setAuthMode(Boolean(state.token));
   updateSessionChrome();
   loadDashboard();
