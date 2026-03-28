@@ -18,6 +18,10 @@
     return "https://{host}:8443/beagle-api/api/v1/health";
   }
 
+  function defaultWebUiUrl() {
+    return "https://{host}";
+  }
+
   function sleep(ms) {
     return new Promise(function(resolve) {
       window.setTimeout(resolve, ms);
@@ -30,6 +34,7 @@
       usbInstallerUrl: runtimeConfig.usbInstallerUrl || defaultUsbInstallerUrl(),
       installerIsoUrl: runtimeConfig.installerIsoUrl || defaultInstallerIsoUrl(),
       controlPlaneHealthUrl: runtimeConfig.controlPlaneHealthUrl || defaultControlPlaneHealthUrl(),
+      webUiUrl: runtimeConfig.webUiUrl || defaultWebUiUrl(),
       apiToken: runtimeConfig.apiToken || ""
     };
   }
@@ -73,6 +78,12 @@
 
   function resolveControlPlaneHealthUrl() {
     return fillTemplate(getConfig().controlPlaneHealthUrl, {
+      host: window.location.hostname
+    });
+  }
+
+  function resolveWebUiUrl() {
+    return fillTemplate(getConfig().webUiUrl, {
       host: window.location.hostname
     });
   }
@@ -137,6 +148,21 @@
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
+  }
+
+  function webUiUrlWithToken() {
+    var token = getConfig().apiToken || "";
+    var target = resolveWebUiUrl();
+    if (!token) {
+      return target;
+    }
+    try {
+      var parsed = new URL(target, window.location.origin);
+      parsed.hash = "beagle_token=" + encodeURIComponent(token);
+      return parsed.toString();
+    } catch (error) {
+      return String(target || "") + "#beagle_token=" + encodeURIComponent(token);
+    }
   }
 
   var installerEligibilityCache = {};
@@ -1103,6 +1129,7 @@
       (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn primary" data-beagle-action="download">USB Installer Skript</button>') +
       (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-windows">Windows USB Installer</button>') +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-iso">ISO Download</button>' +
+      '      <button type="button" class="beagle-btn secondary" data-beagle-action="open-web-ui">Open Web UI</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="copy-json">Profil JSON kopieren</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="copy-env">Endpoint Env kopieren</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="open-sunshine">Sunshine Web UI</button>' +
@@ -1202,6 +1229,9 @@
           break;
         case 'download-iso':
           openUrl(withNoCache(profile.installerIsoUrl));
+          break;
+        case 'open-web-ui':
+          openUrl(webUiUrlWithToken());
           break;
         case 'copy-json':
           copyText(profileJson, 'Beagle Profil als JSON kopiert.');
@@ -1305,6 +1335,19 @@
           showProfileModal({ node: button.nodename, vmid: button.vmid });
         },
         tooltip: "Zeigt das aufgeloeste Beagle-Profil fuer diese VM und bietet Download-, Export- und Health-Aktionen."
+      });
+    }
+    if (toolbar && !toolbar.down("#beagleOsWebUIButton")) {
+      var webIndex = toolbar.items.indexOf(button);
+      toolbar.insert(webIndex + 2, {
+        xtype: "button",
+        itemId: "beagleOsWebUIButton",
+        text: "Beagle Web UI",
+        iconCls: "fa fa-globe",
+        handler: function() {
+          openUrl(webUiUrlWithToken());
+        },
+        tooltip: "Oeffnet die zentrale Beagle Web UI auf diesem Host."
       });
     }
 

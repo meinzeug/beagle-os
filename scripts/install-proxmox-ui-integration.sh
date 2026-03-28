@@ -18,6 +18,8 @@ DEFAULT_INSTALLER_ISO_URL="https://{host}:${LISTEN_PORT}${DOWNLOADS_PATH}/beagle
 INSTALLER_ISO_URL="${PVE_DCV_INSTALLER_ISO_URL:-$DEFAULT_INSTALLER_ISO_URL}"
 DEFAULT_CONTROL_PLANE_HEALTH_URL="https://{host}:${LISTEN_PORT}/beagle-api/api/v1/health"
 CONTROL_PLANE_HEALTH_URL="${BEAGLE_CONTROL_PLANE_HEALTH_URL:-$DEFAULT_CONTROL_PLANE_HEALTH_URL}"
+DEFAULT_WEB_UI_URL="https://{host}"
+WEB_UI_URL="${BEAGLE_WEB_UI_URL:-$DEFAULT_WEB_UI_URL}"
 BEAGLE_API_TOKEN="${BEAGLE_MANAGER_API_TOKEN:-}"
 CONFIG_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-config.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
 INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
@@ -54,6 +56,7 @@ window.BeagleIntegrationConfig = Object.assign({}, window.BeagleIntegrationConfi
   usbInstallerUrl: ${USB_INSTALLER_URL@Q},
   installerIsoUrl: ${INSTALLER_ISO_URL@Q},
   controlPlaneHealthUrl: ${CONTROL_PLANE_HEALTH_URL@Q},
+  webUiUrl: ${WEB_UI_URL@Q},
   apiToken: ${BEAGLE_API_TOKEN@Q}
 });
 EOF

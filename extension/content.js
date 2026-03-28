@@ -17,6 +17,10 @@
     return "https://{host}:8443/beagle-api/api/v1/health";
   }
 
+  function defaultWebUiUrl() {
+    return "https://{host}";
+  }
+
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -71,7 +75,8 @@
         {
           usbInstallerUrl: defaultUsbInstallerUrl(),
           installerIsoUrl: defaultInstallerIsoUrl(),
-          controlPlaneHealthUrl: defaultControlPlaneHealthUrl()
+          controlPlaneHealthUrl: defaultControlPlaneHealthUrl(),
+          webUiUrl: defaultWebUiUrl()
         },
         (data) => resolve(data)
       );
@@ -115,9 +120,30 @@
     }
   }
 
+  async function webUiUrlWithToken() {
+    const config = await getBeagleUiConfig();
+    const token = config.apiToken || "";
+    const target = config.webUiUrl || await resolveWebUiUrl();
+    if (!token) return target;
+    try {
+      const parsed = new URL(target, window.location.origin);
+      parsed.hash = `beagle_token=${encodeURIComponent(token)}`;
+      return parsed.toString();
+    } catch {
+      return `${String(target || "")}#beagle_token=${encodeURIComponent(token)}`;
+    }
+  }
+
   async function resolveControlPlaneHealthUrl() {
     const options = await getOptions();
     return fillTemplate(options.controlPlaneHealthUrl || defaultControlPlaneHealthUrl(), {
+      host: window.location.hostname
+    });
+  }
+
+  async function resolveWebUiUrl() {
+    const options = await getOptions();
+    return fillTemplate(options.webUiUrl || defaultWebUiUrl(), {
       host: window.location.hostname
     });
   }
@@ -134,11 +160,13 @@
         .then((response) => (response.ok ? response.text() : ""))
         .then((text) => {
           const apiTokenMatch = text.match(/apiToken:\s*["']([^"']*)["']/);
+          const webUiUrlMatch = text.match(/webUiUrl:\s*["']([^"']*)["']/);
           return {
-            apiToken: apiTokenMatch ? apiTokenMatch[1] : ""
+            apiToken: apiTokenMatch ? apiTokenMatch[1] : "",
+            webUiUrl: webUiUrlMatch ? webUiUrlMatch[1] : ""
           };
         })
-        .catch(() => ({ apiToken: "" }));
+        .catch(() => ({ apiToken: "", webUiUrl: "" }));
     }
     return beagleUiConfigPromise;
   }
@@ -591,6 +619,7 @@
             ${profile.installerTargetEligible === false ? "" : '<button type="button" class="beagle-btn primary" data-beagle-action="download">USB Installer Skript</button>'}
             ${profile.installerTargetEligible === false ? "" : '<button type="button" class="beagle-btn secondary" data-beagle-action="download-windows">Windows USB Installer</button>'}
             <button type="button" class="beagle-btn secondary" data-beagle-action="download-iso">ISO Download</button>
+            <button type="button" class="beagle-btn secondary" data-beagle-action="open-web-ui">Open Web UI</button>
             <button type="button" class="beagle-btn secondary" data-beagle-action="copy-json">Profil JSON kopieren</button>
             <button type="button" class="beagle-btn secondary" data-beagle-action="copy-env">Endpoint Env kopieren</button>
             <button type="button" class="beagle-btn secondary" data-beagle-action="open-sunshine">Sunshine Web UI</button>
@@ -728,6 +757,12 @@
         case "download-iso":
           await triggerDownload(profile.installerIsoUrl);
           break;
+        case "open-web-ui":
+          {
+            const url = await webUiUrlWithToken();
+            window.open(url, "_blank", "noopener,noreferrer");
+          }
+          break;
         case "copy-json":
           await copyText(profileJson, "Beagle Profil als JSON kopiert.");
           break;
@@ -850,11 +885,21 @@
     if (!toolbar) return;
 
     const existingButton = toolbar.querySelector(`[${BUTTON_MARKER}="${PRODUCT_LABEL}"]`);
-    if (existingButton) return;
+    const existingWebButton = toolbar.querySelector(`[${BUTTON_MARKER}="${PRODUCT_LABEL} Web UI"]`);
 
-    const profileButton = createToolbarButton(PRODUCT_LABEL, showProfileModal);
-    profileButton.title = "Zeigt das aufgeloeste Beagle-Profil fuer diese VM und bietet Download-, Export- und Health-Aktionen.";
-    toolbar.appendChild(profileButton);
+    if (!existingButton) {
+      const profileButton = createToolbarButton(PRODUCT_LABEL, showProfileModal);
+      profileButton.title = "Zeigt das aufgeloeste Beagle-Profil fuer diese VM und bietet Download-, Export- und Health-Aktionen.";
+      toolbar.appendChild(profileButton);
+    }
+    if (!existingWebButton) {
+      const webUiButton = createToolbarButton(`${PRODUCT_LABEL} Web UI`, async () => {
+        const url = await webUiUrlWithToken();
+        window.open(url, "_blank", "noopener,noreferrer");
+      });
+      webUiButton.title = "Oeffnet die zentrale Beagle Web UI auf diesem Host.";
+      toolbar.appendChild(webUiButton);
+    }
   }
 
   function getVisibleMenu() {

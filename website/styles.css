@@ -139,7 +139,8 @@ h3 {
 .masthead-actions,
 .auth-actions,
 .detail-actions,
-.button-row {
+.button-row,
+.bulk-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -182,6 +183,12 @@ h3 {
 .auth-panel,
 .policies-panel {
   margin-bottom: 24px;
+}
+
+body.auth-only #stats-section,
+body.auth-only #inventory-section,
+body.auth-only #policies-section {
+  display: none;
 }
 
 .auth-panel {
@@ -335,6 +342,10 @@ h3 {
   border-spacing: 0 10px;
 }
 
+.select-col {
+  width: 42px;
+}
+
 .inventory-table th {
   padding: 0 14px 6px;
   text-align: left;
@@ -366,6 +377,11 @@ h3 {
   border-right: 1px solid var(--line);
   border-top-right-radius: 18px;
   border-bottom-right-radius: 18px;
+}
+
+.inventory-row .row-select {
+  width: 18px;
+  height: 18px;
 }
 
 .inventory-row:nth-child(odd) td {
@@ -417,6 +433,13 @@ h3 {
 .policy-list {
   display: grid;
   gap: 16px;
+}
+
+.policy-editor {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
 .detail-grid {
@@ -487,6 +510,23 @@ h3 {
   margin-bottom: 14px;
 }
 
+.policy-editor textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  resize: vertical;
+  font: 0.92rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.policy-card.active {
+  border-color: rgba(15, 128, 147, 0.4);
+  box-shadow: 0 0 0 2px rgba(15, 128, 147, 0.12), var(--shadow);
+}
+
 .empty,
 .empty-card {
   text-align: center;
@@ -532,8 +572,13 @@ h3 {
   .masthead-actions,
   .auth-actions,
   .detail-actions,
-  .button-row {
+  .button-row,
+  .bulk-actions {
     width: 100%;
+  }
+
+  .policy-editor {
+    grid-template-columns: 1fr;
   }
 
   .button {

@@ -7,6 +7,8 @@
     inventory: [],
     policies: [],
     selectedVmid: null,
+    selectedVmids: [],
+    selectedPolicyName: '',
     detailCache: Object.create(null)
   };
 
@@ -49,6 +51,32 @@
     if (heading) {
       heading.textContent = title;
     }
+  }
+
+  function consumeTokenFromLocation() {
+    var hash = String(window.location.hash || '').replace(/^#/, '');
+    if (!hash) {
+      return;
+    }
+    var params = new URLSearchParams(hash);
+    var token = String(params.get('beagle_token') || '').trim();
+    if (!token) {
+      return;
+    }
+    state.token = token;
+    window.localStorage.setItem('beagle.webUi.apiToken', token);
+    if (qs('api-token')) {
+      qs('api-token').value = token;
+    }
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    } else {
+      window.location.hash = '';
+    }
+  }
+
+  function setAuthMode(connected) {
+    document.body.classList.toggle('auth-only', !connected);
   }
 
   function setBanner(message, tone) {
@@ -210,7 +238,7 @@
       return;
     }
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="6" class="empty">Keine passenden Beagle VMs gefunden.</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="empty">Keine passenden Beagle VMs gefunden.</td></tr>';
       return;
     }
     body.innerHTML = rows.map(function (vm) {
@@ -220,6 +248,7 @@
       var lastAction = vm.last_action && vm.last_action.action ? vm.last_action.action + (vm.last_action.ok ? ' ok' : ' fail') : 'n/a';
       return '' +
         '<tr class="inventory-row' + (state.selectedVmid === profile.vmid ? ' selected' : '') + '" data-vmid="' + escapeHtml(profile.vmid) + '">' +
+        '  <td><input class="row-select" type="checkbox" data-select-vmid="' + escapeHtml(profile.vmid) + '"' + (state.selectedVmids.indexOf(profile.vmid) !== -1 ? ' checked' : '') + '></td>' +
         '  <td><strong>' + escapeHtml(profile.name || ('VM ' + profile.vmid)) + '</strong><div class="subtle">#' + escapeHtml(profile.vmid) + ' · ' + escapeHtml(profile.node || '') + '</div></td>' +
         '  <td>' + chip(roleOf(vm) || 'unassigned', roleOf(vm) === 'desktop' ? 'info' : 'muted') + '</td>' +
         '  <td>' + chip(profile.status || 'unknown', statusTone) + '</td>' +
@@ -228,6 +257,11 @@
         '  <td>' + escapeHtml(lastAction) + '</td>' +
         '</tr>';
     }).join('');
+    if (qs('inventory-select-all')) {
+      qs('inventory-select-all').checked = rows.length > 0 && rows.every(function (vm) {
+        return state.selectedVmids.indexOf(profileOf(vm).vmid) !== -1;
+      });
+    }
   }
 
   function statCardFromHealth(payload) {
@@ -263,7 +297,7 @@
       var selector = policy.selector || {};
       var profile = policy.profile || {};
       return '' +
-        '<article class="policy-card">' +
+        '<article class="policy-card' + (state.selectedPolicyName === policy.name ? ' active' : '') + '" data-policy-name="' + escapeHtml(policy.name || '') + '">' +
         '  <div class="policy-head"><strong>' + escapeHtml(policy.name || 'policy') + '</strong>' + chip('prio ' + String(policy.priority || 0), 'muted') + '</div>' +
         '  <div class="policy-grid">' +
         fieldBlock('Selector', JSON.stringify(selector), 'mono') +
@@ -271,6 +305,52 @@
         '  </div>' +
         '</article>';
     }).join('');
+  }
+
+  function resetPolicyEditor() {
+    state.selectedPolicyName = '';
+    if (qs('policy-name')) {
+      qs('policy-name').value = '';
+    }
+    if (qs('policy-priority')) {
+      qs('policy-priority').value = '100';
+    }
+    if (qs('policy-enabled')) {
+      qs('policy-enabled').checked = true;
+    }
+    if (qs('policy-selector')) {
+      qs('policy-selector').value = '{\n  "vmid": 100\n}';
+    }
+    if (qs('policy-profile')) {
+      qs('policy-profile').value = '{\n  "assigned_target": {\n    "vmid": 100\n  },\n  "beagle_role": "endpoint"\n}';
+    }
+    renderPolicies();
+  }
+
+  function loadPolicyIntoEditor(name) {
+    var policy = state.policies.find(function (item) {
+      return item.name === name;
+    });
+    if (!policy) {
+      return;
+    }
+    state.selectedPolicyName = policy.name || '';
+    if (qs('policy-name')) {
+      qs('policy-name').value = policy.name || '';
+    }
+    if (qs('policy-priority')) {
+      qs('policy-priority').value = String(policy.priority == null ? 100 : policy.priority);
+    }
+    if (qs('policy-enabled')) {
+      qs('policy-enabled').checked = policy.enabled !== false;
+    }
+    if (qs('policy-selector')) {
+      qs('policy-selector').value = JSON.stringify(policy.selector || {}, null, 2);
+    }
+    if (qs('policy-profile')) {
+      qs('policy-profile').value = JSON.stringify(policy.profile || {}, null, 2);
+    }
+    renderPolicies();
   }
 
   function renderDetail(detail) {
@@ -380,8 +460,104 @@
     }
   }
 
+  function selectedVmidsFromInventory() {
+    return state.selectedVmids.slice().sort(function (left, right) {
+      return Number(left) - Number(right);
+    });
+  }
+
+  function bulkAction(action) {
+    var vmids = selectedVmidsFromInventory();
+    if (!vmids.length) {
+      setBanner('Keine VMs fuer Bulk-Aktion ausgewaehlt.', 'warn');
+      return;
+    }
+    setBanner('Bulk-Aktion ' + action + ' fuer ' + vmids.length + ' VM(s) wird gequeued ...', 'info');
+    postJson('/actions/bulk', {
+      vmids: vmids,
+      action: action
+    }).then(function (payload) {
+      var queued = payload && payload.queued_count != null ? payload.queued_count : vmids.length;
+      setBanner('Bulk-Aktion ' + action + ' gequeued: ' + queued + ' VM(s).', 'ok');
+      return loadDashboard();
+    }).catch(function (error) {
+      setBanner('Bulk-Aktion fehlgeschlagen: ' + error.message, 'warn');
+    });
+  }
+
+  function parseJsonField(id, label) {
+    var raw = String(qs(id) ? qs(id).value : '').trim();
+    if (!raw) {
+      return {};
+    }
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      throw new Error(label + ' ist kein gueltiges JSON');
+    }
+  }
+
+  function savePolicy() {
+    var name = String(qs('policy-name') ? qs('policy-name').value : '').trim();
+    var payload;
+    if (!name) {
+      setBanner('Policy-Name fehlt.', 'warn');
+      return;
+    }
+    try {
+      payload = {
+        name: name,
+        priority: Number(qs('policy-priority') ? qs('policy-priority').value : '100') || 0,
+        enabled: Boolean(qs('policy-enabled') && qs('policy-enabled').checked),
+        selector: parseJsonField('policy-selector', 'Selector'),
+        profile: parseJsonField('policy-profile', 'Profile')
+      };
+    } catch (error) {
+      setBanner(error.message, 'warn');
+      return;
+    }
+
+    var updateExisting = Boolean(state.selectedPolicyName && state.selectedPolicyName === name);
+    var path = updateExisting ? '/policies/' + encodeURIComponent(name) : '/policies';
+    var method = updateExisting ? 'PUT' : 'POST';
+    setBanner('Policy ' + name + ' wird gespeichert ...', 'info');
+    request(path, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function () {
+      state.selectedPolicyName = name;
+      return loadDashboard();
+    }).then(function () {
+      loadPolicyIntoEditor(name);
+      setBanner('Policy ' + name + ' gespeichert.', 'ok');
+    }).catch(function (error) {
+      setBanner('Policy konnte nicht gespeichert werden: ' + error.message, 'warn');
+    });
+  }
+
+  function deleteSelectedPolicy() {
+    var name = String(qs('policy-name') ? qs('policy-name').value : '').trim() || state.selectedPolicyName;
+    if (!name) {
+      setBanner('Keine Policy ausgewaehlt.', 'warn');
+      return;
+    }
+    setBanner('Policy ' + name + ' wird geloescht ...', 'info');
+    request('/policies/' + encodeURIComponent(name), {
+      method: 'DELETE'
+    }).then(function () {
+      resetPolicyEditor();
+      return loadDashboard();
+    }).then(function () {
+      setBanner('Policy ' + name + ' geloescht.', 'ok');
+    }).catch(function (error) {
+      setBanner('Policy konnte nicht geloescht werden: ' + error.message, 'warn');
+    });
+  }
+
   function loadDashboard() {
     if (!state.token) {
+      setAuthMode(false);
       setBanner('Noch kein API-Token gesetzt.', 'warn');
       return Promise.resolve();
     }
@@ -394,6 +570,7 @@
       var health = results[0] || {};
       state.inventory = (results[1] && results[1].vms) || [];
       state.policies = (results[2] && results[2].policies) || [];
+      setAuthMode(true);
       statCardFromHealth(health);
       renderInventory();
       renderPolicies();
@@ -406,6 +583,7 @@
       }
       return null;
     }).catch(function (error) {
+      setAuthMode(false);
       text('stat-manager', 'Fehler');
       text('stat-manager-meta', error.message);
       setBanner('Verbindung fehlgeschlagen: ' + error.message, 'warn');
@@ -502,7 +680,47 @@
     qs('search-input').addEventListener('input', renderInventory);
     qs('role-filter').addEventListener('change', renderInventory);
     qs('eligible-only').addEventListener('change', renderInventory);
+    qs('inventory-select-all').addEventListener('change', function (event) {
+      var vmids = filteredInventory().map(function (vm) {
+        return profileOf(vm).vmid;
+      });
+      if (event.target.checked) {
+        state.selectedVmids = Array.from(new Set(state.selectedVmids.concat(vmids)));
+      } else {
+        state.selectedVmids = state.selectedVmids.filter(function (vmid) {
+          return vmids.indexOf(vmid) === -1;
+        });
+      }
+      renderInventory();
+    });
+    qs('bulk-healthcheck').addEventListener('click', function () {
+      bulkAction('healthcheck');
+    });
+    qs('bulk-support-bundle').addEventListener('click', function () {
+      bulkAction('support-bundle');
+    });
+    qs('bulk-restart-session').addEventListener('click', function () {
+      bulkAction('restart-session');
+    });
+    qs('bulk-restart-runtime').addEventListener('click', function () {
+      bulkAction('restart-runtime');
+    });
     qs('inventory-body').addEventListener('click', function (event) {
+      var select = event.target.closest('input[data-select-vmid]');
+      if (select) {
+        var selectedVmid = Number(select.getAttribute('data-select-vmid'));
+        if (select.checked) {
+          if (state.selectedVmids.indexOf(selectedVmid) === -1) {
+            state.selectedVmids.push(selectedVmid);
+          }
+        } else {
+          state.selectedVmids = state.selectedVmids.filter(function (vmid) {
+            return vmid !== selectedVmid;
+          });
+        }
+        renderInventory();
+        return;
+      }
       var row = event.target.closest('tr[data-vmid]');
       if (!row) {
         return;
@@ -523,10 +741,26 @@
       }
       executeAction(button.getAttribute('data-action'));
     });
+    qs('policies-list').addEventListener('click', function (event) {
+      var card = event.target.closest('[data-policy-name]');
+      if (!card) {
+        return;
+      }
+      loadPolicyIntoEditor(card.getAttribute('data-policy-name'));
+    });
+    qs('policy-save').addEventListener('click', savePolicy);
+    qs('policy-new').addEventListener('click', function () {
+      resetPolicyEditor();
+      setBanner('Policy-Editor zurueckgesetzt.', 'info');
+    });
+    qs('policy-delete').addEventListener('click', deleteSelectedPolicy);
   }
 
   applyTitle();
+  consumeTokenFromLocation();
   bindEvents();
+  resetPolicyEditor();
+  setAuthMode(Boolean(state.token));
   loadDashboard();
   window.setInterval(loadDashboard, 30000);
 })();
