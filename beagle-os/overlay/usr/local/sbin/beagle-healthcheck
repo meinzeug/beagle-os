@@ -5,7 +5,7 @@ STATE_DIR="/var/lib/beagle-os"
 LOG_DIR="/var/log/beagle-os"
 HEALTH_FILE="$STATE_DIR/health.status"
 ENDPOINT_FILE="/etc/beagle-os/endpoint.env"
-COMMON_SH="/usr/local/lib/pve-thin-client/common.sh"
+COMMON_SH="/usr/local/lib/pve-thin-client/runtime/common.sh"
 
 install -d -m 0755 "$STATE_DIR" "$LOG_DIR"
 

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ -n "${SSH_ORIGINAL_COMMAND:-}" ]]; then
+  echo "beagle-usb tunnel does not allow remote commands" >&2
+  exit 126
+fi
+
+trap 'exit 0' TERM INT
+while sleep 3600; do
+  :
+done

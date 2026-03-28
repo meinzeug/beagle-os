@@ -981,13 +981,15 @@
           return null;
         }
         return response.json();
-      }).catch(function() { return null; })
+      }).catch(function() { return null; }),
+      apiGetBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(ctx.vmid)) + "/usb").catch(function() { return null; })
     ]).then(function(results) {
       var config = results[0] || {};
       var resources = Array.isArray(results[1]) ? results[1] : [];
       var guestInterfaces = Array.isArray(results[2]) ? results[2] : [];
       var credentials = results[3] || null;
       var endpointPayload = results[4] || null;
+      var usbPayload = results[5] || null;
       var controlPlaneProfile = endpointPayload && endpointPayload.profile ? endpointPayload.profile : null;
       var endpointSummary = endpointPayload && endpointPayload.endpoint ? endpointPayload.endpoint : null;
       var compliance = endpointPayload && endpointPayload.compliance ? endpointPayload.compliance : null;
@@ -1031,6 +1033,7 @@
         controlPlaneHealthUrl: resolveControlPlaneHealthUrl(),
         managerUrl: managerUrlFromHealthUrl(resolveControlPlaneHealthUrl()),
         endpointSummary: endpointSummary,
+        usbState: usbPayload && usbPayload.usb ? usbPayload.usb : null,
         compliance: compliance,
         lastAction: lastAction,
         pendingActionCount: pendingActionCount,
@@ -1067,6 +1070,9 @@
 
   function renderProfileModal(profile, options) {
     var overlay = document.createElement("div");
+    var usbState = profile.usbState || {};
+    var usbDevices = Array.isArray(usbState.devices) ? usbState.devices : [];
+    var usbAttached = Array.isArray(usbState.attached) ? usbState.attached : [];
     var notesHtml = profile.notes.map(function(note) {
       return "<li>" + escapeHtml(note) + "</li>";
     }).join("");
@@ -1109,8 +1115,23 @@
       pending_action_count: profile.pendingActionCount,
       installer_prep: installerPrep,
       installer_target_eligible: profile.installerTargetEligible,
-      installer_target_message: profile.installerTargetMessage
+      installer_target_message: profile.installerTargetMessage,
+      usb_state: usbState
     }, null, 2);
+    var usbDevicesHtml = usbDevices.length ? usbDevices.map(function(device) {
+      var busid = String(device.busid || "");
+      return '<div class="beagle-kv-row"><strong>' + escapeHtml(busid) + '</strong><span>' + escapeHtml(device.description || "") + '</span><span>' +
+        '<button type="button" class="beagle-mini-btn" data-beagle-action="usb-attach" data-beagle-usb-busid="' + escapeHtml(busid) + '">Attach</button>' +
+        (device.bound ? ' <span class="beagle-muted">exported</span>' : '') +
+      '</span></div>';
+    }).join("") : '<div class="beagle-kv-row"><strong>USB</strong><span class="beagle-muted">Keine exportierbaren USB-Geraete gemeldet.</span></div>';
+    var usbAttachedHtml = usbAttached.length ? usbAttached.map(function(item) {
+      var busid = String(item.busid || "");
+      var port = String(item.port || "");
+      return '<div class="beagle-kv-row"><strong>Port ' + escapeHtml(port) + '</strong><span>' + escapeHtml(busid || item.device || "") + '</span><span>' +
+        '<button type="button" class="beagle-mini-btn" data-beagle-action="usb-detach" data-beagle-usb-busid="' + escapeHtml(busid) + '" data-beagle-usb-port="' + escapeHtml(port) + '">Detach</button>' +
+      '</span></div>';
+    }).join("") : '<div class="beagle-kv-row"><strong>USB</strong><span class="beagle-muted">Keine USB-Geraete in der VM angehaengt.</span></div>';
 
     overlay.id = OVERLAY_ID;
     overlay.innerHTML = '' +
@@ -1133,6 +1154,7 @@
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="copy-json">Profil JSON kopieren</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="copy-env">Endpoint Env kopieren</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="open-sunshine">Sunshine Web UI</button>' +
+      '      <button type="button" class="beagle-btn secondary" data-beagle-action="usb-refresh">USB Refresh</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="open-health">Control Plane Status</button>' +
       '    </div>' +
       '    <div class="beagle-grid">' +
@@ -1190,6 +1212,13 @@
                 kvRow('Stored Artifact', escapeHtml(profile.lastAction && profile.lastAction.stored_artifact_path || '')) +
                 kvRow('Artifact Size', escapeHtml(profile.lastAction ? String(profile.lastAction.stored_artifact_size || 0) : '')) +
       '      </div></section>' +
+      '      <section class="beagle-card"><h3>USB Tunnel</h3><div class="beagle-kv">' +
+                kvRow('Tunnel State', escapeHtml(usbState.tunnel_state || '')) +
+                kvRow('Tunnel Host', escapeHtml(usbState.tunnel_host || '')) +
+                kvRow('Tunnel Port', escapeHtml(String(usbState.tunnel_port || ''))) +
+                kvRow('Exportable', escapeHtml(String(usbState.device_count || 0))) +
+                kvRow('Attached in VM', escapeHtml(String(usbState.attached_count || 0))) +
+      '      </div></section>' +
       '      <section class="beagle-card"><h3>Installer Readiness</h3><div class="beagle-kv">' +
                 kvRow('Status', '<span data-beagle-installer-status>' + escapeHtml(installerPrep.status || 'idle') + '</span>') +
                 kvRow('Zielstatus', '<span data-beagle-download-state>' + escapeHtml(installerTargetState(profile, installerPrep).label) + '</span>') +
@@ -1201,6 +1230,8 @@
                 kvRow('Sunshine Process', '<span data-beagle-installer-process>' + escapeHtml(installerPrep.sunshine_status && installerPrep.sunshine_status.process ? 'running' : 'stopped') + '</span>') +
       '      </div></section>' +
       '    </div>' +
+      '    <section class="beagle-card"><h3>USB-Geraete vom Thin Client</h3><div class="beagle-kv">' + usbDevicesHtml + '</div></section>' +
+      '    <section class="beagle-card"><h3>USB-Geraete in der VM</h3><div class="beagle-kv">' + usbAttachedHtml + '</div></section>' +
       '    <section class="beagle-card"><h3>Operator Notes</h3><ul class="beagle-notes">' + notesHtml + '</ul></section>' +
       '    <section class="beagle-card"><h3>Beagle Endpoint Env</h3><textarea class="beagle-code" readonly>' + escapeHtml(profile.endpointEnv) + '</textarea></section>' +
       '    <section class="beagle-card"><h3>Profile JSON</h3><textarea class="beagle-code" readonly>' + escapeHtml(profileJson) + '</textarea></section>' +
@@ -1244,6 +1275,35 @@
             openUrl(access && access.url ? access.url : profile.sunshineApiUrl);
           }).catch(function(error) {
             showError("Sunshine Web UI konnte nicht geoeffnet werden: " + (error && error.message ? error.message : error));
+          });
+          break;
+        case 'usb-refresh':
+          apiPostBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(profile.vmid)) + "/usb/refresh", {}).then(function() {
+            removeOverlay();
+            showProfileModal({ node: profile.node, vmid: profile.vmid });
+          }).catch(function(error) {
+            showError("USB-Refresh fehlgeschlagen: " + (error && error.message ? error.message : error));
+          });
+          break;
+        case 'usb-attach':
+          apiPostBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(profile.vmid)) + "/usb/attach", {
+            busid: String(event.target.getAttribute("data-beagle-usb-busid") || "")
+          }).then(function() {
+            removeOverlay();
+            showProfileModal({ node: profile.node, vmid: profile.vmid });
+          }).catch(function(error) {
+            showError("USB-Attach fehlgeschlagen: " + (error && error.message ? error.message : error));
+          });
+          break;
+        case 'usb-detach':
+          apiPostBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(profile.vmid)) + "/usb/detach", {
+            busid: String(event.target.getAttribute("data-beagle-usb-busid") || ""),
+            port: String(event.target.getAttribute("data-beagle-usb-port") || "")
+          }).then(function() {
+            removeOverlay();
+            showProfileModal({ node: profile.node, vmid: profile.vmid });
+          }).catch(function(error) {
+            showError("USB-Detach fehlgeschlagen: " + (error && error.message ? error.message : error));
           });
           break;
         case 'open-health':

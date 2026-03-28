@@ -13,6 +13,12 @@ BEAGLE_CONTROL_SERVICE="beagle-control-plane.service"
 BEAGLE_PUBLIC_STREAM_SERVICE="beagle-public-streams.service"
 BEAGLE_PUBLIC_STREAM_TIMER="beagle-public-streams.timer"
 BEAGLE_CONTROL_ENV_FILE="$CONFIG_DIR/beagle-manager.env"
+USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-thinovernet}"
+USB_TUNNEL_HOME="${BEAGLE_USB_TUNNEL_HOME:-}"
+USB_TUNNEL_ATTACH_HOST="${BEAGLE_USB_TUNNEL_ATTACH_HOST:-10.10.10.1}"
+USB_TUNNEL_SSHD_DROPIN="/etc/ssh/sshd_config.d/90-beagle-usb-tunnel.conf"
+USB_TUNNEL_TEST_DROPIN="/etc/ssh/sshd_config.d/91-beagle-tunnel-test.conf"
+USB_TUNNEL_AUTH_COMMAND="/usr/local/libexec/beagle-usb-authorized-keys"
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -49,7 +55,48 @@ print(secrets.token_hex(32))
 PY
 }
 
+generate_password_hash() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl passwd -6 "$(openssl rand -base64 24)"
+    return 0
+  fi
+
+  python3 - <<'PY'
+import crypt
+import secrets
+import string
+
+alphabet = string.ascii_letters + string.digits
+password = "".join(secrets.choice(alphabet) for _ in range(32))
+salt = "".join(secrets.choice(alphabet) for _ in range(16))
+print(crypt.crypt(password, f"$6${salt}$"))
+PY
+}
+
 ensure_root "$@"
+
+if ! id "$USB_TUNNEL_USER" >/dev/null 2>&1; then
+  if [[ -z "$USB_TUNNEL_HOME" ]]; then
+    USB_TUNNEL_HOME="/var/lib/beagle/${USB_TUNNEL_USER}"
+  fi
+  useradd --system --home-dir "$USB_TUNNEL_HOME" --create-home --shell /bin/bash "$USB_TUNNEL_USER"
+  usermod -p "$(generate_password_hash)" "$USB_TUNNEL_USER"
+fi
+if [[ -z "$USB_TUNNEL_HOME" ]]; then
+  USB_TUNNEL_HOME="$(getent passwd "$USB_TUNNEL_USER" | cut -d: -f6)"
+fi
+install -d -m 0755 "$USB_TUNNEL_HOME"
+install -d -m 0700 "$USB_TUNNEL_HOME/.ssh" "$USB_TUNNEL_HOME/.ssh/authorized_keys.d"
+touch "$USB_TUNNEL_HOME/.ssh/authorized_keys"
+chmod 0600 "$USB_TUNNEL_HOME/.ssh/authorized_keys"
+chown "$USB_TUNNEL_USER:$USB_TUNNEL_USER" "$USB_TUNNEL_HOME/.ssh" "$USB_TUNNEL_HOME/.ssh/authorized_keys.d" "$USB_TUNNEL_HOME/.ssh/authorized_keys"
+
+cat >"$USB_TUNNEL_SSHD_DROPIN" <<EOF
+Match User $USB_TUNNEL_USER
+    AllowTcpForwarding remote
+    GatewayPorts clientspecified
+EOF
+chmod 0644 "$USB_TUNNEL_SSHD_DROPIN"
 
 install -d -m 0755 "$SYSTEMD_DIR"
 install -d -m 0755 "$INSTALL_DIR/proxmox-host/bin"
@@ -63,6 +110,10 @@ install -m 0644 "$ROOT_DIR/proxmox-host/systemd/$BEAGLE_PUBLIC_STREAM_TIMER" "$S
 if [[ "$(readlink -f "$ROOT_DIR/proxmox-host/bin/beagle-control-plane.py")" != "$(readlink -f "$INSTALL_DIR/proxmox-host/bin/beagle-control-plane.py" 2>/dev/null || true)" ]]; then
   install -m 0755 "$ROOT_DIR/proxmox-host/bin/beagle-control-plane.py" "$INSTALL_DIR/proxmox-host/bin/beagle-control-plane.py"
 fi
+if [[ "$(readlink -f "$ROOT_DIR/proxmox-host/bin/beagle-usb-tunnel-session")" != "$(readlink -f "$INSTALL_DIR/proxmox-host/bin/beagle-usb-tunnel-session" 2>/dev/null || true)" ]]; then
+  install -m 0755 "$ROOT_DIR/proxmox-host/bin/beagle-usb-tunnel-session" "$INSTALL_DIR/proxmox-host/bin/beagle-usb-tunnel-session"
+fi
+rm -f "$USB_TUNNEL_TEST_DROPIN" "$USB_TUNNEL_AUTH_COMMAND"
 
 install -d -m 0755 "$CONFIG_DIR"
 if [[ ! -f "$BEAGLE_CONTROL_ENV_FILE" ]]; then
@@ -81,6 +132,7 @@ if grep -q '^BEAGLE_ENDPOINT_SHARED_TOKEN=' "$BEAGLE_CONTROL_ENV_FILE"; then
 fi
 
 systemctl daemon-reload
+systemctl restart ssh.service >/dev/null 2>&1 || systemctl restart sshd.service >/dev/null 2>&1 || true
 systemctl enable --now "$TIMER_NAME"
 systemctl enable "$UI_REAPPLY_SERVICE"
 systemctl enable --now "$UI_REAPPLY_PATH"

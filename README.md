@@ -40,6 +40,7 @@ Im Ergebnis entsteht kein klassischer "Remote-Desktop-Baukasten", sondern eine g
 - Betriebsmodell für viele Clients mit gleichem Zielbild
 - Geräte-Diagnostik und Support-Bundles direkt im Endpoint-OS
 - vorbereitbare Moonlight-Client-Identitäten für reproduzierbare Sunshine-Freischaltung
+- sicherer USB-Geraetepfad vom Thin Client in die zugeordnete VM
 
 ## Zielbild
 
@@ -95,6 +96,7 @@ Die Host-Seite liefert die Management-Funktionen:
 - Download-Endpunkte fuer Installer und Images
 - VM-spezifische USB-Skripte, die die Installer-ISO laden und mit eingebettetem Zielprofil auf USB schreiben
 - lokale Control-Plane-API fuer Health und Inventar
+- USB-Control-Plane fuer Export, Attach, Detach und Guest-State pro VM
 - Reapply-/Refresh-Mechanismen nach Host-Aenderungen
 - residential-exit-Policies fuer sensible Web-Ziele
 - stabile Endpoint-Identitaet mit Hostname-, Locale- und Timezone-Steuerung
@@ -117,6 +119,7 @@ Kernpunkte:
 - eigener Kernel-Paketpfad (`-beagle`)
 - bootfaehige Images fuer Test, Rollout und VM-Betrieb
 - Runtime fuer Netzwerk, Autostart und Moonlight-Sessionstart
+- Runtime fuer sicheren USB-Export ueber `usbip` und Reverse-SSH-Tunnel
 
 ### 3. VM-gebundene Bereitstellung
 
@@ -128,6 +131,7 @@ Daraus entstehen:
 - eine zentrale Beagle-Installer-ISO
 - ein gebuendeltes Preset mit Host, App und Pairing-Daten
 - ein reproduzierbarer Endpunkt, der nach Installation direkt die richtige VM startet
+- ein per-VM abgesicherter USB-Tunnel fuer lokale Geraete
 
 ## Warum nur Moonlight und Sunshine
 
@@ -179,8 +183,31 @@ Dieses Repository baut die benoetigten Bausteine:
 - Host-seitige Artefakt-Erzeugung
 - Thin-Client-Runtime
 - USB- und Installationspfad
+- sichere USB-Geraete-Durchreichung vom Endpoint in die Ziel-VM
 - Beagle-OS-Image-Build
 - Sunshine-Gastkonfiguration fuer Ziel-VMs
+
+## Sichere USB-Geraete-Durchreichung
+
+Beagle OS stellt USB-Geraete nicht als offen erreichbares `usbip` ins Internet.
+Der Produktpfad ist bewusst gehaertet:
+
+- pro VM eigener SSH-Tunnel-Key
+- pro VM eigener Reverse-Tunnel-Port
+- Reverse-SSH-Tunnel vom Thin Client zum Proxmox-Host
+- Attach des USB-Geraets nur aus der zugeordneten VM
+- keine oeffentliche `usbip`-Freigabe am Host
+- Steuerung ueber die Beagle Control Plane statt ueber manuelle Shell-Kommandos
+
+Der Ablauf ist:
+
+1. Der Thin Client exportiert ein lokal gebundenes USB-Geraet.
+2. Beagle baut einen Reverse-SSH-Tunnel zum Host auf.
+3. Der Host stellt den Tunnel nur intern auf dem Attach-Host bereit.
+4. Die Ziel-VM bindet das Geraet ueber die Control Plane ein.
+5. Der Operator sieht den Attach-Status in Proxmox oder im Beagle Web UI.
+
+Damit bleibt die USB-Strecke internetfaehig, aber ohne rohe, oeffentliche USBIP-Angriffsoberflaeche.
 
 ## Wichtige Einstiege
 

@@ -360,12 +360,35 @@
     var actions = detail.actions || {};
     var bundles = detail.supportBundles || [];
     var endpoint = detail.state && detail.state.endpoint ? detail.state.endpoint : {};
+    var usb = detail.state && detail.state.usb ? detail.state.usb : {};
     var lastAction = detail.state && detail.state.last_action ? detail.state.last_action : {};
     var node = qs('detail-stack');
     var actionsNode = qs('detail-actions');
+    var usbDevices = Array.isArray(usb.devices) ? usb.devices : [];
+    var attachedDevices = Array.isArray(usb.attached) ? usb.attached : [];
+    var usbDevicesHtml = usbDevices.length ? usbDevices.map(function (device) {
+      var busid = String(device.busid || '');
+      return '<div class="bundle-row">' +
+        '<strong>' + escapeHtml(busid) + '</strong><span>' + escapeHtml(device.description || '') + '</span>' +
+        '<div class="button-row">' +
+        '<button class="button ghost" type="button" data-action="usb-attach" data-usb-busid="' + escapeHtml(busid) + '">Attach</button>' +
+        (device.bound ? '<span class="chip ok">exported</span>' : '<span class="chip muted">local</span>') +
+        '</div>' +
+      '</div>';
+    }).join('') : '<div class="empty-card">Keine exportierbaren USB-Geräte gemeldet.</div>';
+    var attachedDevicesHtml = attachedDevices.length ? attachedDevices.map(function (item) {
+      var port = String(item.port || '');
+      var busid = String(item.busid || '');
+      return '<div class="bundle-row">' +
+        '<strong>Port ' + escapeHtml(port) + '</strong><span>' + escapeHtml(busid || item.device || '') + '</span>' +
+        '<div class="button-row">' +
+        '<button class="button ghost" type="button" data-action="usb-detach" data-usb-port="' + escapeHtml(port) + '" data-usb-busid="' + escapeHtml(busid) + '">Detach</button>' +
+        '</div>' +
+      '</div>';
+    }).join('') : '<div class="empty-card">Keine USB-Geräte in der VM angehaengt.</div>';
     text('detail-title', (profile.name || ('VM ' + profile.vmid)) + ' (#' + profile.vmid + ')');
     if (actionsNode) {
-      actionsNode.innerHTML = actionButton('refresh-detail', 'Neu laden', 'ghost') + actionButton('sunshine-ui', 'Sunshine Web UI', 'ghost');
+      actionsNode.innerHTML = actionButton('refresh-detail', 'Neu laden', 'ghost') + actionButton('sunshine-ui', 'Sunshine Web UI', 'ghost') + actionButton('usb-refresh', 'USB Refresh', 'ghost');
     }
     if (!node) {
       return;
@@ -396,6 +419,13 @@
            fieldBlock('Pending Actions', String((actions.pending_actions || []).length)) +
            fieldBlock('Support Bundles', String(bundles.length)) +
       '  </section>' +
+      '  <section class="detail-card"><h3>USB</h3>' +
+           fieldBlock('Tunnel', usb.tunnel_state || 'n/a') +
+           fieldBlock('Tunnel Host', usb.tunnel_host || 'n/a') +
+           fieldBlock('Tunnel Port', String(usb.tunnel_port || '')) +
+           fieldBlock('Exportable Devices', String(usb.device_count || 0)) +
+           fieldBlock('Guest Attachments', String(usb.attached_count || 0)) +
+      '  </section>' +
       '  <section class="detail-card"><h3>Credentials</h3>' +
            fieldBlock('Thin Client User', credentials.thinclient_username) +
            fieldBlock('Thin Client Password', credentials.thinclient_password) +
@@ -408,11 +438,14 @@
            actionButton('installer-prep', 'Installer vorbereiten', 'primary') +
            actionButton('download-linux', 'Linux Installer', 'ghost') +
            actionButton('download-windows', 'Windows Installer', 'ghost') +
+           actionButton('usb-refresh', 'USB Refresh', 'ghost') +
            actionButton('healthcheck', 'Healthcheck', 'ghost') +
            actionButton('support-bundle', 'Support Bundle', 'ghost') +
            actionButton('restart-session', 'Session neu starten', 'ghost') +
            actionButton('restart-runtime', 'Runtime neu starten', 'ghost') +
       '</div></section>' +
+      '<section class="detail-card"><h3>USB-Geräte vom Thin Client</h3><div class="bundle-list">' + usbDevicesHtml + '</div></section>' +
+      '<section class="detail-card"><h3>USB-Geräte in der VM</h3><div class="bundle-list">' + attachedDevicesHtml + '</div></section>' +
       '<section class="detail-card"><h3>Support Bundles</h3><div class="bundle-list">' +
         (bundles.length ? bundles.map(function (bundle) {
           return '<div class="bundle-row"><strong>' + escapeHtml(bundle.stored_filename || bundle.bundle_id || 'bundle') + '</strong><span>' + escapeHtml(formatDate(bundle.generated_at || bundle.stored_at)) + '</span></div>';
@@ -431,7 +464,8 @@
       request('/vms/' + numericVmid + '/credentials'),
       request('/vms/' + numericVmid + '/actions'),
       request('/vms/' + numericVmid + '/installer-prep'),
-      request('/vms/' + numericVmid + '/support-bundles')
+      request('/vms/' + numericVmid + '/support-bundles'),
+      request('/vms/' + numericVmid + '/usb')
     ]).then(function (results) {
       var detail = {
         profile: results[0].profile || {},
@@ -441,6 +475,9 @@
         installerPrep: results[4].installer_prep || {},
         supportBundles: results[5].support_bundles || []
       };
+      if (!detail.state.usb && results[6] && results[6].usb) {
+        detail.state.usb = results[6].usb;
+      }
       state.detailCache[numericVmid] = detail;
       renderDetail(detail);
       setBanner('Details fuer VM ' + numericVmid + ' geladen.', 'ok');
@@ -598,7 +635,7 @@
     });
   }
 
-  function executeAction(action) {
+  function executeAction(action, sourceButton) {
     var vmid = state.selectedVmid;
     if (!vmid) {
       return;
@@ -616,6 +653,38 @@
     if (action === 'download-windows') {
       blobRequest('/vms/' + vmid + '/installer.ps1', 'pve-thin-client-usb-installer-vm-' + vmid + '.ps1').catch(function (error) {
         setBanner('Windows-Installer Download fehlgeschlagen: ' + error.message, 'warn');
+      });
+      return;
+    }
+    if (action === 'usb-refresh') {
+      setBanner('USB-Inventar fuer VM ' + vmid + ' wird aktualisiert ...', 'info');
+      postJson('/vms/' + vmid + '/usb/refresh', {}).then(function () {
+        return loadDetail(vmid);
+      }).catch(function (error) {
+        setBanner('USB-Refresh fehlgeschlagen: ' + error.message, 'warn');
+      });
+      return;
+    }
+    if (action === 'usb-attach') {
+      setBanner('USB-Gerät wird an VM ' + vmid + ' angehaengt ...', 'info');
+      postJson('/vms/' + vmid + '/usb/attach', {
+        busid: sourceButton && sourceButton.getAttribute('data-usb-busid') || ''
+      }).then(function () {
+        return loadDetail(vmid);
+      }).catch(function (error) {
+        setBanner('USB-Attach fehlgeschlagen: ' + error.message, 'warn');
+      });
+      return;
+    }
+    if (action === 'usb-detach') {
+      setBanner('USB-Gerät wird aus VM ' + vmid + ' geloest ...', 'info');
+      postJson('/vms/' + vmid + '/usb/detach', {
+        busid: sourceButton && sourceButton.getAttribute('data-usb-busid') || '',
+        port: sourceButton && sourceButton.getAttribute('data-usb-port') || ''
+      }).then(function () {
+        return loadDetail(vmid);
+      }).catch(function (error) {
+        setBanner('USB-Detach fehlgeschlagen: ' + error.message, 'warn');
       });
       return;
     }
@@ -732,14 +801,14 @@
       if (!button) {
         return;
       }
-      executeAction(button.getAttribute('data-action'));
+      executeAction(button.getAttribute('data-action'), button);
     });
     qs('detail-actions').addEventListener('click', function (event) {
       var button = event.target.closest('button[data-action]');
       if (!button) {
         return;
       }
-      executeAction(button.getAttribute('data-action'));
+      executeAction(button.getAttribute('data-action'), button);
     });
     qs('policies-list').addEventListener('click', function (event) {
       var card = event.target.closest('[data-policy-name]');

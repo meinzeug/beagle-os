@@ -13,6 +13,7 @@ import shlex
 import tempfile
 import time
 import uuid
+import pwd
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -53,6 +54,15 @@ PUBLIC_STREAM_PORT_COUNT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_COUNT",
 PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
 ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_SECONDS", "86400"))
 SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_TOKEN_TTL_SECONDS", "600"))
+USB_TUNNEL_SSH_USER = os.environ.get("BEAGLE_USB_TUNNEL_SSH_USER", "thinovernet").strip() or "thinovernet"
+USB_TUNNEL_HOME_RAW = os.environ.get("BEAGLE_USB_TUNNEL_HOME", "").strip()
+USB_TUNNEL_HOME = Path(USB_TUNNEL_HOME_RAW) if USB_TUNNEL_HOME_RAW else None
+USB_TUNNEL_AUTH_DIR_RAW = os.environ.get("BEAGLE_USB_TUNNEL_AUTH_DIR", "").strip()
+USB_TUNNEL_AUTH_DIR = Path(USB_TUNNEL_AUTH_DIR_RAW) if USB_TUNNEL_AUTH_DIR_RAW else None
+USB_TUNNEL_HOSTKEY_FILE = Path(os.environ.get("BEAGLE_USB_TUNNEL_HOSTKEY_FILE", "/etc/ssh/ssh_host_ed25519_key.pub"))
+USB_TUNNEL_ATTACH_HOST = os.environ.get("BEAGLE_USB_TUNNEL_ATTACH_HOST", "10.10.10.1").strip() or "10.10.10.1"
+USB_TUNNEL_BASE_PORT = int(os.environ.get("BEAGLE_USB_TUNNEL_BASE_PORT", "43000"))
+USB_ACTION_WAIT_SECONDS = float(os.environ.get("BEAGLE_USB_ACTION_WAIT_SECONDS", "25"))
 COMMAND_TIMEOUT_SECONDS = float(os.environ.get("BEAGLE_MANAGER_COMMAND_TIMEOUT_SECONDS", "8"))
 GUEST_AGENT_TIMEOUT_SECONDS = float(os.environ.get("BEAGLE_MANAGER_GUEST_AGENT_TIMEOUT_SECONDS", "2.5"))
 LIST_VMS_CACHE_SECONDS = float(os.environ.get("BEAGLE_MANAGER_LIST_VMS_CACHE_SECONDS", "3"))
@@ -304,6 +314,134 @@ def save_vm_secret(node: str, vmid: int, payload: dict[str, Any]) -> dict[str, A
     return clean
 
 
+def default_usb_tunnel_port(vmid: int) -> int:
+    candidate = USB_TUNNEL_BASE_PORT + int(vmid)
+    if 1024 <= candidate <= 65535:
+        return candidate
+    return 43000 + (int(vmid) % 20000)
+
+
+def generate_ssh_keypair(comment: str) -> tuple[str, str]:
+    with tempfile.TemporaryDirectory(prefix="beagle-usb-keygen-") as tmp_dir:
+        key_path = Path(tmp_dir) / "id_ed25519"
+        subprocess.run(
+            ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", comment, "-f", str(key_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        private_key = key_path.read_text(encoding="utf-8")
+        public_key = key_path.with_suffix(".pub").read_text(encoding="utf-8").strip()
+        return private_key, public_key
+
+
+def usb_tunnel_known_host_line() -> str:
+    try:
+        raw = USB_TUNNEL_HOSTKEY_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+    parts = raw.split()
+    if len(parts) < 2:
+        return ""
+    hostnames = [PUBLIC_SERVER_NAME]
+    if PUBLIC_STREAM_HOST and PUBLIC_STREAM_HOST not in hostnames:
+        hostnames.append(PUBLIC_STREAM_HOST)
+    host_field = ",".join(hostnames)
+    return f"{host_field} {parts[0]} {parts[1]}"
+
+
+def usb_tunnel_user_info() -> pwd.struct_passwd:
+    return pwd.getpwnam(USB_TUNNEL_SSH_USER)
+
+
+def usb_tunnel_home() -> Path:
+    if USB_TUNNEL_HOME is not None:
+        return USB_TUNNEL_HOME
+    return Path(usb_tunnel_user_info().pw_dir)
+
+
+def usb_tunnel_auth_dir() -> Path:
+    if USB_TUNNEL_AUTH_DIR is not None:
+        return USB_TUNNEL_AUTH_DIR
+    return usb_tunnel_home() / ".ssh" / "authorized_keys.d"
+
+
+def usb_tunnel_authorized_keys_path() -> Path:
+    return usb_tunnel_home() / ".ssh" / "authorized_keys"
+
+
+def usb_tunnel_authorized_key_line(vm: VmSummary, secret: dict[str, Any]) -> str:
+    public_key = str(secret.get("usb_tunnel_public_key", "")).strip()
+    port = int(secret.get("usb_tunnel_port", 0) or 0)
+    session_script = (Path(__file__).resolve().parent / "beagle-usb-tunnel-session").as_posix()
+    return (
+        f'command="{session_script}",no-agent-forwarding,no-pty,no-user-rc,no-X11-forwarding,'
+        f'permitlisten="{USB_TUNNEL_ATTACH_HOST}:{port}" '
+        f"{public_key}"
+    )
+
+
+def sync_usb_tunnel_authorized_key(vm: VmSummary, secret: dict[str, Any]) -> None:
+    public_key = str(secret.get("usb_tunnel_public_key", "")).strip()
+    port = int(secret.get("usb_tunnel_port", 0) or 0)
+    if not public_key or port <= 0:
+        return
+    try:
+        user_info = usb_tunnel_user_info()
+    except KeyError:
+        return
+    tunnel_home = usb_tunnel_home()
+    ssh_dir = tunnel_home / ".ssh"
+    ssh_dir.mkdir(parents=True, exist_ok=True)
+    auth_dir = usb_tunnel_auth_dir()
+    auth_dir.mkdir(parents=True, exist_ok=True)
+    key_line = usb_tunnel_authorized_key_line(vm, secret) + "\n"
+    snippet_path = auth_dir / f"{safe_slug(vm.node, 'node')}-{int(vm.vmid)}.pub"
+    snippet_path.write_text(key_line, encoding="utf-8")
+    authorized_keys = usb_tunnel_authorized_keys_path()
+    managed_lines: list[str] = []
+    for item in sorted(auth_dir.glob("*.pub")):
+        try:
+            text = item.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if text:
+            managed_lines.append(text)
+    existing_text = ""
+    if authorized_keys.exists():
+        try:
+            existing_text = authorized_keys.read_text(encoding="utf-8")
+        except OSError:
+            existing_text = ""
+    begin_marker = "# BEGIN BEAGLE USB TUNNELS"
+    end_marker = "# END BEAGLE USB TUNNELS"
+    if begin_marker in existing_text and end_marker in existing_text:
+        prefix, _, remainder = existing_text.partition(begin_marker)
+        _, _, suffix = remainder.partition(end_marker)
+        existing_text = prefix.rstrip("\n")
+        suffix = suffix.lstrip("\n")
+        if suffix:
+            existing_text = (existing_text + "\n" + suffix).strip("\n")
+    else:
+        existing_text = existing_text.strip("\n")
+    with authorized_keys.open("w", encoding="utf-8") as handle:
+        if existing_text:
+            handle.write(existing_text.rstrip("\n") + "\n")
+        if managed_lines:
+            handle.write(begin_marker + "\n")
+            for line in managed_lines:
+                handle.write(line + "\n")
+            handle.write(end_marker + "\n")
+    os.chmod(ssh_dir, 0o700)
+    os.chmod(authorized_keys, 0o600)
+    os.chmod(snippet_path, 0o600)
+    for path in (tunnel_home, ssh_dir, auth_dir, authorized_keys, snippet_path):
+        try:
+            os.chown(path, user_info.pw_uid, user_info.pw_gid)
+        except OSError:
+            pass
+
+
 def ensure_vm_secret(vm: VmSummary) -> dict[str, Any]:
     existing = load_vm_secret(vm.node, vm.vmid)
     if existing:
@@ -320,10 +458,19 @@ def ensure_vm_secret(vm: VmSummary) -> dict[str, Any]:
         if not str(existing.get("thinclient_password", "")).strip():
             existing["thinclient_password"] = random_secret(22)
             changed = True
-        if changed:
-            return save_vm_secret(vm.node, vm.vmid, existing)
-        return existing
-    return save_vm_secret(
+        if not str(existing.get("usb_tunnel_public_key", "")).strip() or not str(existing.get("usb_tunnel_private_key", "")).strip():
+            private_key, public_key = generate_ssh_keypair(f"beagle-vm{vm.vmid}-usb")
+            existing["usb_tunnel_private_key"] = private_key
+            existing["usb_tunnel_public_key"] = public_key
+            changed = True
+        if int(existing.get("usb_tunnel_port", 0) or 0) <= 0:
+            existing["usb_tunnel_port"] = default_usb_tunnel_port(vm.vmid)
+            changed = True
+        secret = save_vm_secret(vm.node, vm.vmid, existing) if changed else existing
+        sync_usb_tunnel_authorized_key(vm, secret)
+        return secret
+    private_key, public_key = generate_ssh_keypair(f"beagle-vm{vm.vmid}-usb")
+    secret = save_vm_secret(
         vm.node,
         vm.vmid,
         {
@@ -332,8 +479,13 @@ def ensure_vm_secret(vm: VmSummary) -> dict[str, Any]:
             "sunshine_pin": random_pin(),
             "thinclient_password": random_secret(22),
             "sunshine_pinned_pubkey": "",
+            "usb_tunnel_port": default_usb_tunnel_port(vm.vmid),
+            "usb_tunnel_private_key": private_key,
+            "usb_tunnel_public_key": public_key,
         },
     )
+    sync_usb_tunnel_authorized_key(vm, secret)
+    return secret
 
 
 def manager_pinned_pubkey() -> str:
@@ -830,6 +982,209 @@ def guest_exec_out_data(vmid: int, command: str) -> str:
     return str(payload.get("out-data", "") or "")
 
 
+def guest_exec_payload(vmid: int, command: str, *, timeout_seconds: int = 20) -> dict[str, Any]:
+    payload = run_json(["qm", "guest", "exec", str(vmid), "--timeout", str(int(timeout_seconds)), "--", "bash", "-lc", command], timeout=timeout_seconds + 5)
+    return payload if isinstance(payload, dict) else {}
+
+
+def parse_usbip_port_output(output: str) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    for raw_line in str(output or "").splitlines():
+        line = raw_line.rstrip()
+        if not line.strip():
+            continue
+        port_match = re.match(r"Port (\d+):", line.strip())
+        if port_match:
+            if current:
+                items.append(current)
+            current = {"port": int(port_match.group(1))}
+            continue
+        if current is None:
+            continue
+        if "Remote Bus ID" in line:
+            current["busid"] = line.split("Remote Bus ID:", 1)[1].strip()
+        elif "Remote bus/dev" in line:
+            current["remote_device"] = line.split("Remote bus/dev", 1)[1].strip(": ").strip()
+        elif "Remote Bus ID" not in line and "-> usbip" in line:
+            current["device"] = line.strip()
+            match = re.search(r"/([^/\s]+)\s*$", line.strip())
+            if match and not current.get("busid"):
+                current["busid"] = match.group(1)
+        elif "1-" in line and "usbip" not in line and not current.get("busid"):
+            current["device"] = line.strip()
+    if current:
+        items.append(current)
+    return items
+
+
+def parse_vhci_status_output(output: str) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for raw_line in str(output or "").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("hub ") or line.startswith("hs  ") is False and line.startswith("ss  ") is False:
+            continue
+        parts = line.split()
+        if len(parts) < 6:
+            continue
+        local_busid = parts[-1]
+        if local_busid in {"0-0", "000000"}:
+            continue
+        try:
+            port = int(parts[1])
+        except ValueError:
+            port = 0
+        items.append(
+            {
+                "port": port,
+                "local_busid": local_busid,
+                "device": line,
+            }
+        )
+    return items
+
+
+def guest_usb_attachment_state(vmid: int) -> dict[str, Any]:
+    output = guest_exec_out_data(vmid, "command -v usbip >/dev/null 2>&1 && usbip port || true")
+    attached = parse_usbip_port_output(output)
+    vhci_output = guest_exec_out_data(vmid, "cat /sys/devices/platform/vhci_hcd.0/status 2>/dev/null || true")
+    vhci_attached = parse_vhci_status_output(vhci_output)
+    return {
+        "attached": attached if attached else vhci_attached,
+        "attached_count": len(attached if attached else vhci_attached),
+        "usbip_available": bool(guest_exec_out_data(vmid, "command -v usbip >/dev/null 2>&1 && echo yes || true").strip()),
+        "vhci_attached": vhci_attached,
+    }
+
+
+def wait_for_guest_usb_attachment(vmid: int, busid: str, *, timeout_seconds: float) -> dict[str, Any]:
+    deadline = time.monotonic() + max(1.0, timeout_seconds)
+    last_state: dict[str, Any] = guest_usb_attachment_state(vmid)
+    expected = str(busid).strip()
+    while time.monotonic() < deadline:
+        attached = last_state.get("attached", []) if isinstance(last_state, dict) else []
+        if any(str(item.get("busid", "")).strip() == expected for item in attached):
+            return last_state
+        vhci_attached = last_state.get("vhci_attached", []) if isinstance(last_state, dict) else []
+        if vhci_attached:
+            return last_state
+        time.sleep(1)
+        last_state = guest_usb_attachment_state(vmid)
+    return last_state
+
+
+def wait_for_action_result(node: str, vmid: int, action_id: str, *, timeout_seconds: float) -> dict[str, Any] | None:
+    deadline = time.monotonic() + max(1.0, timeout_seconds)
+    while time.monotonic() < deadline:
+        payload = load_action_result(node, vmid)
+        if isinstance(payload, dict) and str(payload.get("action_id", "")).strip() == action_id:
+            return payload
+        time.sleep(1)
+    return None
+
+
+def build_vm_usb_state(vm: VmSummary, report: dict[str, Any] | None = None) -> dict[str, Any]:
+    secret = ensure_vm_secret(vm)
+    endpoint_payload = report if isinstance(report, dict) else (load_endpoint_report(vm.node, vm.vmid) or {})
+    endpoint_summary = summarize_endpoint_report(endpoint_payload)
+    guest_state = guest_usb_attachment_state(vm.vmid)
+    return {
+        "enabled": True,
+        "tunnel_host": PUBLIC_SERVER_NAME,
+        "attach_host": USB_TUNNEL_ATTACH_HOST,
+        "tunnel_user": USB_TUNNEL_SSH_USER,
+        "tunnel_port": int(secret.get("usb_tunnel_port", 0) or 0),
+        "tunnel_state": endpoint_summary.get("usb_tunnel_state", ""),
+        "device_count": endpoint_summary.get("usb_device_count", 0),
+        "bound_count": endpoint_summary.get("usb_bound_count", 0),
+        "devices": endpoint_summary.get("usb_devices", []),
+        "attached": guest_state.get("attached", []),
+        "attached_count": guest_state.get("attached_count", 0),
+        "guest_usbip_available": guest_state.get("usbip_available", False),
+    }
+
+
+def attach_usb_to_guest(vm: VmSummary, busid: str) -> dict[str, Any]:
+    secret = ensure_vm_secret(vm)
+    tunnel_port = int(secret.get("usb_tunnel_port", 0) or 0)
+    if tunnel_port <= 0:
+        raise RuntimeError("missing usb tunnel port")
+    escaped_busid = shlex.quote(str(busid))
+    command = (
+        "set -euo pipefail; "
+        "command -v usbip >/dev/null 2>&1 || { echo 'usbip missing in guest' >&2; exit 40; }; "
+        "modprobe vhci-hcd >/dev/null 2>&1 || true; "
+        f"if usbip port 2>/dev/null | grep -Fq 'Remote Bus ID: {str(busid)}'; then "
+        "  usbip port; "
+        "  exit 0; "
+        "fi; "
+        "ready=0; "
+        "for _attempt in $(seq 1 12); do "
+        f"  if timeout 2 bash -lc 'exec 3<>/dev/tcp/{USB_TUNNEL_ATTACH_HOST}/{tunnel_port}' >/dev/null 2>&1; then "
+        "    ready=1; "
+        "    break; "
+        "  fi; "
+        "  sleep 1; "
+        "done; "
+        "[ \"$ready\" = \"1\" ] || { echo 'usb tunnel not reachable from guest' >&2; exit 41; }; "
+        f"usbip --tcp-port {tunnel_port} attach -r {shlex.quote(USB_TUNNEL_ATTACH_HOST)} -b {escaped_busid}; "
+        "usbip port"
+    )
+    payload = guest_exec_payload(vm.vmid, command, timeout_seconds=30)
+    output = str(payload.get("out-data", "") or "")
+    error_output = str(payload.get("err-data", "") or "").strip()
+    exit_code = int(payload.get("exitcode", 1) or 1)
+    guest_state = wait_for_guest_usb_attachment(vm.vmid, busid, timeout_seconds=8)
+    attached = guest_state.get("attached", []) if isinstance(guest_state, dict) else []
+    vhci_attached = guest_state.get("vhci_attached", []) if isinstance(guest_state, dict) else []
+    if exit_code != 0 and not attached and not vhci_attached:
+        raise RuntimeError(error_output or output or "usb attach failed")
+    if not attached and not vhci_attached:
+        raise RuntimeError(error_output or "usb attach completed but guest state did not confirm attachment")
+    return {
+        "busid": busid,
+        "tunnel_port": tunnel_port,
+        "attach_host": USB_TUNNEL_ATTACH_HOST,
+        "attached": attached or vhci_attached or parse_usbip_port_output(output),
+        "guest_state": guest_state,
+        "raw_output": output,
+        "raw_error": error_output,
+    }
+
+
+def detach_usb_from_guest(vm: VmSummary, *, port: int | None = None, busid: str = "") -> dict[str, Any]:
+    guest_state = guest_usb_attachment_state(vm.vmid)
+    attached = guest_state.get("attached", []) if isinstance(guest_state, dict) else []
+    detach_port = int(port) if port is not None else None
+    if detach_port is None and busid:
+        for item in attached:
+            if str(item.get("busid", "")).strip() == str(busid).strip():
+                detach_port = int(item.get("port", 0) or 0)
+                break
+    if detach_port is None or detach_port < 0:
+        raise RuntimeError("usb device is not attached in guest")
+    command = f"set -euo pipefail; usbip detach -p {int(detach_port)}; usbip port || true"
+    payload = guest_exec_payload(vm.vmid, command, timeout_seconds=15)
+    output = str(payload.get("out-data", "") or "")
+    error_output = str(payload.get("err-data", "") or "").strip()
+    exit_code = int(payload.get("exitcode", 1) or 1)
+    post_state = guest_usb_attachment_state(vm.vmid)
+    remaining = post_state.get("attached", []) if isinstance(post_state, dict) else []
+    if busid:
+        still_attached = any(str(item.get("busid", "")).strip() == str(busid).strip() for item in remaining)
+    else:
+        still_attached = any(int(item.get("port", -1) or -1) == int(detach_port) for item in remaining)
+    if exit_code != 0 and still_attached:
+        raise RuntimeError(error_output or output or "usb detach failed")
+    return {
+        "detached_port": int(detach_port),
+        "busid": busid,
+        "attached": remaining or parse_usbip_port_output(output),
+        "raw_output": output,
+        "raw_error": error_output,
+    }
+
+
 def quick_sunshine_status(vmid: int) -> dict[str, Any]:
     output = guest_exec_out_data(
         vmid,
@@ -1005,7 +1360,7 @@ def store_action_result(node: str, vmid: int, payload: dict[str, Any]) -> None:
     action_result_path(node, vmid).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-def queue_vm_action(vm: VmSummary, action_name: str, requested_by: str) -> dict[str, Any]:
+def queue_vm_action(vm: VmSummary, action_name: str, requested_by: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     queue = load_action_queue(vm.node, vm.vmid)
     action_id = f"{vm.node}-{vm.vmid}-{int(datetime.now(timezone.utc).timestamp())}-{len(queue) + 1}"
     payload = {
@@ -1016,6 +1371,8 @@ def queue_vm_action(vm: VmSummary, action_name: str, requested_by: str) -> dict[
         "requested_at": utcnow(),
         "requested_by": requested_by,
     }
+    if isinstance(params, dict) and params:
+        payload["params"] = params
     queue.append(payload)
     save_action_queue(vm.node, vm.vmid, queue)
     return payload
@@ -1059,6 +1416,7 @@ def summarize_action_result(payload: dict[str, Any] | None) -> dict[str, Any]:
     return {
         "action_id": payload.get("action_id", ""),
         "action": payload.get("action", ""),
+        "busid": payload.get("busid", ""),
         "ok": payload.get("ok"),
         "message": payload.get("message", ""),
         "artifact_path": payload.get("artifact_path", ""),
@@ -1763,6 +2121,11 @@ def summarize_endpoint_report(payload: dict[str, Any]) -> dict[str, Any]:
         "last_launch_mode": session.get("mode", ""),
         "last_launch_target": session.get("target", ""),
         "last_launch_time": session.get("timestamp", ""),
+        "usb_tunnel_state": (payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("tunnel_state", ""),
+        "usb_tunnel_port": (payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("tunnel_port", ""),
+        "usb_device_count": int((payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("device_count", 0) or 0),
+        "usb_bound_count": int((payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("bound_count", 0) or 0),
+        "usb_devices": (payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("devices", []) or [],
         "report_age_seconds": timestamp_age_seconds(payload.get("reported_at", "")),
     }
 
@@ -2333,6 +2696,9 @@ class Handler(BaseHTTPRequestHandler):
                             "sunshine_username": str(secret.get("sunshine_username", "")),
                             "sunshine_password": str(secret.get("sunshine_password", "")),
                             "sunshine_pin": str(secret.get("sunshine_pin", "")),
+                            "usb_tunnel_host": PUBLIC_SERVER_NAME,
+                            "usb_tunnel_user": USB_TUNNEL_SSH_USER,
+                            "usb_tunnel_port": int(secret.get("usb_tunnel_port", 0) or 0),
                         },
                     },
                 )
@@ -2394,6 +2760,26 @@ class Handler(BaseHTTPRequestHandler):
                         "version": VERSION,
                         "generated_at": utcnow(),
                         "support_bundles": list_support_bundle_metadata(node=vm.node, vmid=vm.vmid),
+                    },
+                )
+                return
+            if path.endswith("/usb"):
+                vmid_text = path.split("/")[-2]
+                if not vmid_text.isdigit():
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                    return
+                vm = find_vm(int(vmid_text))
+                if vm is None:
+                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                    return
+                report = load_endpoint_report(vm.node, vm.vmid)
+                self._write_json(
+                    HTTPStatus.OK,
+                    {
+                        "service": "beagle-control-plane",
+                        "version": VERSION,
+                        "generated_at": utcnow(),
+                        "usb": build_vm_usb_state(vm, report),
                     },
                 )
                 return
@@ -2561,6 +2947,13 @@ class Handler(BaseHTTPRequestHandler):
                         "sunshine_password": str(secret.get("sunshine_password", "")),
                         "sunshine_pin": str(secret.get("sunshine_pin", "")),
                         "sunshine_pinned_pubkey": str(secret.get("sunshine_pinned_pubkey", "")),
+                        "usb_enabled": True,
+                        "usb_tunnel_host": PUBLIC_SERVER_NAME,
+                        "usb_tunnel_user": USB_TUNNEL_SSH_USER,
+                        "usb_tunnel_port": int(secret.get("usb_tunnel_port", 0) or 0),
+                        "usb_tunnel_attach_host": USB_TUNNEL_ATTACH_HOST,
+                        "usb_tunnel_private_key": str(secret.get("usb_tunnel_private_key", "")),
+                        "usb_tunnel_known_host": usb_tunnel_known_host_line(),
                         "moonlight_host": str(profile.get("stream_host", "") or ""),
                         "moonlight_port": str(profile.get("moonlight_port", "") or ""),
                         "moonlight_app": str(profile.get("moonlight_app", "Desktop") or "Desktop"),
@@ -2841,6 +3234,175 @@ class Handler(BaseHTTPRequestHandler):
                     "version": VERSION,
                     "generated_at": utcnow(),
                     "queued_action": queued,
+                },
+            )
+            return
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/usb/refresh"):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            vmid_text = path.split("/")[-3]
+            if not vmid_text.isdigit():
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                return
+            vm = find_vm(int(vmid_text))
+            if vm is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                return
+            queued = queue_vm_action(vm, "usb-refresh", self._requester_identity())
+            self._write_json(
+                HTTPStatus.ACCEPTED,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "queued_action": queued,
+                },
+            )
+            return
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/usb/attach"):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            vmid_text = path.split("/")[-3]
+            if not vmid_text.isdigit():
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                return
+            vm = find_vm(int(vmid_text))
+            if vm is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                return
+            try:
+                payload = self._read_json_body()
+                busid = str(payload.get("busid", "")).strip()
+                if not busid:
+                    raise ValueError("missing busid")
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            queued = queue_vm_action(vm, "usb-bind", self._requester_identity(), {"busid": busid})
+            result = wait_for_action_result(vm.node, vm.vmid, queued["action_id"], timeout_seconds=USB_ACTION_WAIT_SECONDS)
+            if result is None:
+                self._write_json(
+                    HTTPStatus.ACCEPTED,
+                    {
+                        "ok": True,
+                        "service": "beagle-control-plane",
+                        "version": VERSION,
+                        "generated_at": utcnow(),
+                        "queued_action": queued,
+                        "message": "USB export queued on endpoint; refresh in a few seconds.",
+                    },
+                )
+                return
+            if not bool(result.get("ok")):
+                self._write_json(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "ok": False,
+                        "error": str(result.get("message", "") or "endpoint usb export failed"),
+                        "queued_action": queued,
+                        "endpoint_result": summarize_action_result(result),
+                    },
+                )
+                return
+            try:
+                attach_result = attach_usb_to_guest(vm, busid)
+            except Exception as exc:
+                message = str(exc)
+                if "Device busy (exported)" in message:
+                    retry = queue_vm_action(vm, "usb-bind", self._requester_identity(), {"busid": busid})
+                    retry_result = wait_for_action_result(vm.node, vm.vmid, retry["action_id"], timeout_seconds=USB_ACTION_WAIT_SECONDS)
+                    if retry_result is not None and bool(retry_result.get("ok")):
+                        try:
+                            attach_result = attach_usb_to_guest(vm, busid)
+                        except Exception as retry_exc:
+                            message = str(retry_exc)
+                        else:
+                            self._write_json(
+                                HTTPStatus.OK,
+                                {
+                                    "ok": True,
+                                    "service": "beagle-control-plane",
+                                    "version": VERSION,
+                                    "generated_at": utcnow(),
+                                    "queued_action": queued,
+                                    "endpoint_result": summarize_action_result(result),
+                                    "retry_action": retry,
+                                    "retry_endpoint_result": summarize_action_result(retry_result),
+                                    "attach_result": attach_result,
+                                },
+                            )
+                            return
+                self._write_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    {
+                        "ok": False,
+                        "error": f"guest usb attach failed: {message}",
+                        "queued_action": queued,
+                        "endpoint_result": summarize_action_result(result),
+                    },
+                )
+                return
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "queued_action": queued,
+                    "endpoint_result": summarize_action_result(result),
+                    "guest_attach": attach_result,
+                    "usb": build_vm_usb_state(vm),
+                },
+            )
+            return
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/usb/detach"):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            vmid_text = path.split("/")[-3]
+            if not vmid_text.isdigit():
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                return
+            vm = find_vm(int(vmid_text))
+            if vm is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                return
+            try:
+                payload = self._read_json_body()
+                busid = str(payload.get("busid", "")).strip()
+                port_value = payload.get("port")
+                port = int(port_value) if port_value is not None and str(port_value).strip() else None
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            try:
+                detach_result = detach_usb_from_guest(vm, port=port, busid=busid)
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": f"guest usb detach failed: {exc}"})
+                return
+            queued = None
+            endpoint_result = None
+            if busid:
+                queued = queue_vm_action(vm, "usb-unbind", self._requester_identity(), {"busid": busid})
+                endpoint_result = wait_for_action_result(vm.node, vm.vmid, queued["action_id"], timeout_seconds=USB_ACTION_WAIT_SECONDS)
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "guest_detach": detach_result,
+                    "queued_action": queued,
+                    "endpoint_result": summarize_action_result(endpoint_result),
+                    "usb": build_vm_usb_state(vm),
                 },
             )
             return

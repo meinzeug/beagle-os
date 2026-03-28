@@ -34,6 +34,7 @@ capture_command journal-beagle-healthcheck journalctl -u beagle-healthcheck.serv
 capture_command journal-beagle-endpoint-report journalctl -u beagle-endpoint-report.service -b --no-pager
 capture_command journal-beagle-endpoint-dispatch journalctl -u beagle-endpoint-dispatch.service -b --no-pager
 capture_command journal-beagle-runtime-heartbeat journalctl -u beagle-runtime-heartbeat.service -b --no-pager
+capture_command journal-beagle-usb-tunnel journalctl -u beagle-usb-tunnel.service -b --no-pager
 capture_command journal-prepare-runtime journalctl -u pve-thin-client-prepare.service -b --no-pager
 capture_command journal-kernel journalctl -k -b --no-pager
 capture_command process-list ps -ef
@@ -49,6 +50,7 @@ copy_if_exists /var/lib/beagle-os/endpoint-report.response.json endpoint-report.
 copy_if_exists /var/lib/beagle-os/runtime-heartbeat.status runtime-heartbeat.status
 copy_if_exists /var/lib/beagle-os/runtime-trace.log runtime-trace.log
 copy_if_exists /var/lib/beagle-os/last-marker.env last-marker.env
+copy_if_exists /var/lib/beagle-os/usb/state.env usb/state.env
 copy_if_exists /var/log/beagle-os/endpoint-report.last.json endpoint-report.last.json
 copy_if_exists /var/lib/pve-thin-client/runtime.status runtime.status
 

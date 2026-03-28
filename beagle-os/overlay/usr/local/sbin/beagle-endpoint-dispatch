@@ -5,7 +5,7 @@ STATE_DIR="/var/lib/beagle-os"
 LOG_DIR="/var/log/beagle-os"
 STATUS_FILE="$STATE_DIR/endpoint-action.status"
 ENDPOINT_FILE="/etc/beagle-os/endpoint.env"
-COMMON_SH="/usr/local/lib/pve-thin-client/common.sh"
+COMMON_SH="/usr/local/lib/pve-thin-client/runtime/common.sh"
 
 install -d -m 0755 "$STATE_DIR" "$LOG_DIR"
 
@@ -136,6 +136,7 @@ while IFS= read -r action_json; do
   action_name="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("action",""))' "$action_json")"
   action_id="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("action_id",""))' "$action_json")"
   requested_at="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("requested_at",""))' "$action_json")"
+  action_busid="$(python3 -c 'import json,sys; print((json.loads(sys.argv[1]).get("params", {}) or {}).get("busid",""))' "$action_json")"
   ok="1"
   message="completed"
   artifact_path=""
@@ -175,6 +176,28 @@ while IFS= read -r action_json; do
         fi
       fi
       ;;
+    usb-refresh)
+      /usr/local/lib/pve-thin-client/runtime/beagle-usbctl.sh list-json >/dev/null 2>&1 || ok="0"
+      message="usb inventory refreshed"
+      ;;
+    usb-bind)
+      if [[ -z "$action_busid" ]]; then
+        ok="0"
+        message="missing usb busid"
+      else
+        /usr/local/lib/pve-thin-client/runtime/beagle-usbctl.sh bind "$action_busid" >/dev/null 2>&1 || ok="0"
+        message="usb device exported"
+      fi
+      ;;
+    usb-unbind)
+      if [[ -z "$action_busid" ]]; then
+        ok="0"
+        message="missing usb busid"
+      else
+        /usr/local/lib/pve-thin-client/runtime/beagle-usbctl.sh unbind "$action_busid" >/dev/null 2>&1 || ok="0"
+        message="usb device unexported"
+      fi
+      ;;
     *)
       ok="0"
       message="unsupported action"
@@ -199,6 +222,7 @@ while IFS= read -r action_json; do
   "completed_at": "$completed_at",
   "ok": $([[ "$ok" == "1" ]] && printf 'true' || printf 'false'),
   "message": "$message",
+  "busid": "$action_busid",
   "artifact_path": "$artifact_path",
   "stored_artifact_path": "$stored_artifact_path",
   "stored_artifact_bundle_id": "$stored_artifact_bundle_id",

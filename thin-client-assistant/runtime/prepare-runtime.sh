@@ -177,13 +177,34 @@ for key, value in (
     ("PVE_THIN_CLIENT_IDENTITY_LOCALE", config.get("identity_locale", "")),
     ("PVE_THIN_CLIENT_IDENTITY_KEYMAP", config.get("identity_keymap", "")),
     ("PVE_THIN_CLIENT_IDENTITY_CHROME_PROFILE", config.get("identity_chrome_profile", "default")),
+    ("PVE_THIN_CLIENT_BEAGLE_USB_ENABLED", "1" if config.get("usb_enabled", True) else "0"),
+    ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_HOST", config.get("usb_tunnel_host", "")),
+    ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_USER", config.get("usb_tunnel_user", "thinovernet")),
+    ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_PORT", config.get("usb_tunnel_port", "")),
+    ("PVE_THIN_CLIENT_BEAGLE_USB_ATTACH_HOST", config.get("usb_tunnel_attach_host", "")),
+    ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_PRIVATE_KEY_FILE", str(config_path.parent / "usb-tunnel.key")),
+    ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_KNOWN_HOSTS_FILE", str(config_path.parent / "usb-tunnel-known_hosts")),
 ):
     config_existing[key] = json.dumps(str(value))
 
 config_path.write_text("".join(f"{key}={value}\n" for key, value in config_existing.items()), encoding="utf-8")
+
+usb_key = str(config.get("usb_tunnel_private_key", "") or "")
+if usb_key:
+    usb_key_path = config_path.parent / "usb-tunnel.key"
+    usb_key_path.write_text(usb_key, encoding="utf-8")
+    usb_key_path.chmod(0o600)
+
+usb_known_host = str(config.get("usb_tunnel_known_host", "") or "")
+if usb_known_host:
+    known_hosts_path = config_path.parent / "usb-tunnel-known_hosts"
+    known_hosts_path.write_text(usb_known_host.rstrip() + "\n", encoding="utf-8")
+    known_hosts_path.chmod(0o644)
 PY
   rm -f "$response_file"
   # Reload freshly written credentials for subsequent steps.
+  # shellcheck disable=SC1090
+  source "${CONFIG_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/thinclient.conf}"
   # shellcheck disable=SC1090
   source "$credentials_file"
 }
@@ -251,6 +272,18 @@ apply_runtime_ssh_config() {
 
   if command -v sshd >/dev/null 2>&1 && sshd -t -f "$sshd_config" >/dev/null 2>&1; then
     systemctl restart ssh.service >/dev/null 2>&1 || true
+  fi
+}
+
+ensure_usb_tunnel_service() {
+  if ! systemctl list-unit-files beagle-usb-tunnel.service >/dev/null 2>&1; then
+    return 0
+  fi
+  systemctl enable beagle-usb-tunnel.service >/dev/null 2>&1 || true
+  if [[ "${PVE_THIN_CLIENT_BEAGLE_USB_ENABLED:-0}" == "1" ]]; then
+    systemctl restart beagle-usb-tunnel.service >/dev/null 2>&1 || true
+  else
+    systemctl stop beagle-usb-tunnel.service >/dev/null 2>&1 || true
   fi
 }
 
@@ -322,6 +355,7 @@ sync_local_hostname
 apply_runtime_ssh_config
 ensure_getty_overrides
 normalize_boot_services
+ensure_usb_tunnel_service
 if [[ -x /usr/local/sbin/beagle-identity-apply ]]; then
   plymouth_status "Applying system identity..."
   /usr/local/sbin/beagle-identity-apply >/dev/null 2>&1 || true

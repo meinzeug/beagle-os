@@ -558,6 +558,7 @@ enable_rootfs_services() {
   chroot_run_rootfs "systemctl enable beagle-healthcheck.timer"
   chroot_run_rootfs "systemctl enable beagle-endpoint-dispatch.timer"
   chroot_run_rootfs "systemctl enable beagle-endpoint-report.timer"
+  chroot_run_rootfs "systemctl enable beagle-usb-tunnel.service >/dev/null 2>&1 || true"
   chroot_run_rootfs "systemctl enable pve-thin-client-prepare.service"
   chroot_run_rootfs "systemctl enable beagle-autologin.service"
   chroot_run_rootfs "systemctl enable beagle-kiosk.service"

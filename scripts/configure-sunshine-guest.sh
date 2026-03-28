@@ -249,7 +249,9 @@ apt-get install -y --no-install-recommends \
   lightdm-gtk-greeter \
   curl \
   ca-certificates \
-  pulseaudio-utils
+  pulseaudio-utils \
+  usbip \
+  usbutils
 
 tmpdir=\$(mktemp -d)
 trap 'rm -rf "\$tmpdir"' EXIT

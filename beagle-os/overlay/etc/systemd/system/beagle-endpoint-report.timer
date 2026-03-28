@@ -2,8 +2,9 @@
 Description=Run Beagle OS endpoint reporting periodically
 
 [Timer]
-OnBootSec=75s
-OnUnitActiveSec=2min
+OnBootSec=25s
+OnUnitActiveSec=30s
+AccuracySec=5s
 Unit=beagle-endpoint-report.service
 
 [Install]

@@ -14,6 +14,8 @@ STATUS_JSON_FILE="$INSTALL_DIR/dist/beagle-downloads-status.json"
 REFRESH_STATUS_FILE="${PVE_DCV_STATUS_DIR:-/var/lib/beagle}/refresh.status.json"
 BEAGLE_MANAGER_ENV_FILE="${PVE_DCV_BEAGLE_MANAGER_ENV_FILE:-$CONFIG_DIR/beagle-manager.env}"
 BEAGLE_API_TOKEN=""
+USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-thinovernet}"
+USB_TUNNEL_HOME="${BEAGLE_USB_TUNNEL_HOME:-}"
 
 load_host_env() {
   if [[ -f "$HOST_ENV_FILE" ]]; then
@@ -163,6 +165,10 @@ check_hosted_installer_binding() {
 
 load_host_env
 
+if [[ -z "$USB_TUNNEL_HOME" ]] && id "$USB_TUNNEL_USER" >/dev/null 2>&1; then
+  USB_TUNNEL_HOME="$(getent passwd "$USB_TUNNEL_USER" | cut -d: -f6)"
+fi
+
 check_file "$INSTALL_DIR/VERSION"
 check_file "$INSTALL_DIR/dist/pve-thin-client-usb-installer-host-latest.sh"
 check_file "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-latest.tar.gz"
@@ -176,6 +182,16 @@ check_file "/etc/nginx/sites-available/beagle-proxy.conf"
 check_file "/etc/systemd/system/beagle-ui-reapply.service"
 check_file "/etc/systemd/system/beagle-ui-reapply.path"
 check_file "/etc/systemd/system/beagle-control-plane.service"
+check_file "$INSTALL_DIR/proxmox-host/bin/beagle-usb-tunnel-session"
+check_file "$USB_TUNNEL_HOME/.ssh/authorized_keys"
+check_file "/etc/ssh/sshd_config.d/90-beagle-usb-tunnel.conf"
+
+if id "$USB_TUNNEL_USER" >/dev/null 2>&1; then
+  echo "OK  user  $USB_TUNNEL_USER"
+else
+  echo "ERR user  $USB_TUNNEL_USER"
+  record_failure
+fi
 
 check_service_active "pveproxy"
 check_service_active "nginx"

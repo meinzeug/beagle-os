@@ -1,0 +1,13 @@
+[Unit]
+Description=Maintain secure Beagle USB reverse tunnel
+After=network-online.target ssh.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/lib/pve-thin-client/runtime/beagle-usbctl.sh daemon
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
