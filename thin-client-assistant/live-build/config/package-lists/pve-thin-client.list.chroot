@@ -17,6 +17,8 @@ wireplumber
 pulseaudio-utils
 openssh-client
 openssh-server
+usbip
+usbutils
 dbus
 sudo
 dbus-x11
