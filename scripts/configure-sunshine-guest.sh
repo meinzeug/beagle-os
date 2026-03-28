@@ -248,7 +248,8 @@ apt-get install -y --no-install-recommends \
   lightdm \
   lightdm-gtk-greeter \
   curl \
-  ca-certificates
+  ca-certificates \
+  pulseaudio-utils
 
 tmpdir=\$(mktemp -d)
 trap 'rm -rf "\$tmpdir"' EXIT
@@ -269,6 +270,7 @@ install -d -m 0700 -o "\$GUEST_USER" -g "\$GUEST_USER" \
   "/home/\$GUEST_USER/.config/sunshine" \
   "/home/\$GUEST_USER/.config/xfce4/xfconf/xfce-perchannel-xml"
 install -d -m 0755 /etc/X11/xorg.conf.d
+GUEST_UID="\$(id -u "\$GUEST_USER")"
 
 cat > /etc/X11/xorg.conf.d/90-beagle-ignore-virtual-input.conf <<'XORGCONF'
 Section "InputClass"
@@ -327,7 +329,7 @@ chown -R "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.config"
 cat > /etc/systemd/system/beagle-sunshine.service <<SUNSHINESVC
 [Unit]
 Description=Beagle Sunshine
-After=network-online.target display-manager.service graphical.target
+After=network-online.target display-manager.service graphical.target sound.target
 Wants=network-online.target
 
 [Service]
@@ -338,6 +340,9 @@ Environment=HOME=/home/\$GUEST_USER
 Environment=XDG_CONFIG_HOME=/home/\$GUEST_USER/.config
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/\$GUEST_USER/.Xauthority
+Environment=XDG_RUNTIME_DIR=/run/user/\$GUEST_UID
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$GUEST_UID/bus
+Environment=PULSE_SERVER=unix:/run/user/\$GUEST_UID/pulse/native
 ExecStart=/usr/bin/sunshine
 Restart=always
 RestartSec=2
