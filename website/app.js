@@ -9,6 +9,7 @@
     selectedVmid: null,
     selectedVmids: [],
     selectedPolicyName: '',
+    activeDetailPanel: 'summary',
     activePanel: 'overview',
     detailCache: Object.create(null)
   };
@@ -77,6 +78,10 @@
     if (!hash) {
       return;
     }
+    var tokenMatch = hash.match(/(?:^|&)beagle_token=([^&]+)/);
+    if (!tokenMatch) {
+      return;
+    }
     var params = new URLSearchParams(hash);
     var token = String(params.get('beagle_token') || '').trim();
     if (!token) {
@@ -91,6 +96,44 @@
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
     } else {
       window.location.hash = '';
+    }
+  }
+
+  function parseAppHash() {
+    var raw = String(window.location.hash || '').replace(/^#/, '');
+    if (!raw) {
+      return {};
+    }
+    if (raw.indexOf('beagle_token=') !== -1) {
+      return {};
+    }
+    var params = new URLSearchParams(raw);
+    return {
+      panel: String(params.get('panel') || '').trim(),
+      vmid: String(params.get('vmid') || '').trim(),
+      detail: String(params.get('detail') || '').trim()
+    };
+  }
+
+  function syncHash() {
+    var params = new URLSearchParams();
+    if (state.activePanel && state.activePanel !== 'overview') {
+      params.set('panel', state.activePanel);
+    }
+    if (state.activePanel === 'inventory' && state.selectedVmid) {
+      params.set('vmid', String(state.selectedVmid));
+    }
+    if (state.activePanel === 'inventory' && state.activeDetailPanel && state.activeDetailPanel !== 'summary') {
+      params.set('detail', state.activeDetailPanel);
+    }
+    var next = params.toString();
+    var current = String(window.location.hash || '').replace(/^#/, '');
+    if (current !== next) {
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search + (next ? '#' + next : ''));
+      } else {
+        window.location.hash = next;
+      }
     }
   }
 
@@ -135,6 +178,19 @@
     text('panel-eyebrow', meta.eyebrow);
     text('panel-title', meta.title);
     text('panel-description', meta.description);
+    syncHash();
+  }
+
+  function setActiveDetailPanel(panelName) {
+    var next = panelName || 'summary';
+    state.activeDetailPanel = next;
+    document.querySelectorAll('[data-detail-panel]').forEach(function(node) {
+      node.classList.toggle('detail-tab-active', node.getAttribute('data-detail-panel') === next);
+    });
+    document.querySelectorAll('.detail-panel').forEach(function(node) {
+      node.classList.toggle('detail-panel-active', node.getAttribute('data-detail-panel') === next);
+    });
+    syncHash();
   }
 
   function openAuthModal() {
@@ -473,6 +529,7 @@
     }
     node.innerHTML = '' +
       '<div class="banner ' + (installerPrep.status === 'ready' ? 'ok' : installerPrep.status === 'failed' || installerPrep.status === 'error' ? 'warn' : 'info') + '">Installer Readiness: ' + escapeHtml(installerPrep.target_status || installerPrep.status || 'unknown') + ' · ' + escapeHtml(installerPrep.message || 'No detail message') + '</div>' +
+      '<div class="detail-panel detail-panel-active" data-detail-panel="summary">' +
       '<div class="detail-grid">' +
       '  <section class="detail-section"><h3>Profil</h3>' +
            fieldBlock('Role', profile.beagle_role) +
@@ -497,20 +554,6 @@
            fieldBlock('Pending Actions', String((actions.pending_actions || []).length)) +
            fieldBlock('Support Bundles', String(bundles.length)) +
       '  </section>' +
-      '  <section class="detail-section"><h3>USB</h3>' +
-           fieldBlock('Tunnel', usb.tunnel_state || 'n/a') +
-           fieldBlock('Tunnel Host', usb.tunnel_host || 'n/a') +
-           fieldBlock('Tunnel Port', String(usb.tunnel_port || '')) +
-           fieldBlock('Exportable Devices', String(usb.device_count || 0)) +
-           fieldBlock('Guest Attachments', String(usb.attached_count || 0)) +
-      '  </section>' +
-      '  <section class="detail-section"><h3>Credentials</h3>' +
-           fieldBlock('Thin Client User', credentials.thinclient_username) +
-           fieldBlock('Thin Client Password', credentials.thinclient_password) +
-           fieldBlock('Sunshine User', credentials.sunshine_username) +
-           fieldBlock('Sunshine Password', credentials.sunshine_password) +
-           fieldBlock('Sunshine PIN', credentials.sunshine_pin) +
-      '  </section>' +
       '</div>' +
       '<section class="detail-card action-card"><h3>Actions</h3><div class="btn-row">' +
            actionButton('installer-prep', 'Prepare Installer', 'primary') +
@@ -522,18 +565,41 @@
            actionButton('restart-session', 'Restart Session', 'ghost') +
            actionButton('restart-runtime', 'Restart Runtime', 'ghost') +
       '</div></section>' +
+      '</div>' +
+      '<div class="detail-panel" data-detail-panel="usb">' +
+      '  <section class="detail-section"><h3>USB</h3>' +
+           fieldBlock('Tunnel', usb.tunnel_state || 'n/a') +
+           fieldBlock('Tunnel Host', usb.tunnel_host || 'n/a') +
+           fieldBlock('Tunnel Port', String(usb.tunnel_port || '')) +
+           fieldBlock('Exportable Devices', String(usb.device_count || 0)) +
+           fieldBlock('Guest Attachments', String(usb.attached_count || 0)) +
+      '  </section>' +
       '<section class="detail-section"><h3>USB Devices from Endpoint</h3><div class="bundle-list">' + usbDevicesHtml + '</div></section>' +
       '<section class="detail-section"><h3>USB Devices in VM</h3><div class="bundle-list">' + attachedDevicesHtml + '</div></section>' +
+      '</div>' +
+      '<div class="detail-panel" data-detail-panel="credentials">' +
+      '  <section class="detail-section"><h3>Credentials</h3>' +
+           fieldBlock('Thin Client User', credentials.thinclient_username) +
+           fieldBlock('Thin Client Password', credentials.thinclient_password) +
+           fieldBlock('Sunshine User', credentials.sunshine_username) +
+           fieldBlock('Sunshine Password', credentials.sunshine_password) +
+           fieldBlock('Sunshine PIN', credentials.sunshine_pin) +
+      '  </section>' +
+      '</div>' +
+      '<div class="detail-panel" data-detail-panel="bundles">' +
       '<section class="detail-section"><h3>Support Bundles</h3><div class="bundle-list">' +
         (bundles.length ? bundles.map(function (bundle) {
           return '<div class="bundle-row"><strong>' + escapeHtml(bundle.stored_filename || bundle.bundle_id || 'bundle') + '</strong><span>' + escapeHtml(formatDate(bundle.generated_at || bundle.stored_at)) + '</span></div>';
         }).join('') : '<div class="empty-card">No bundles available.</div>') +
-      '</div></section>';
+      '</div></section>' +
+      '</div>';
+    setActiveDetailPanel(state.activeDetailPanel);
   }
 
   function loadDetail(vmid) {
     var numericVmid = Number(vmid);
     state.selectedVmid = numericVmid;
+    setActivePanel('inventory');
     renderInventory();
     setBanner('Loading details for VM' + numericVmid + ' ...', 'info');
     return Promise.all([
@@ -922,6 +988,15 @@
       }
       loadDetail(row.getAttribute('data-vmid'));
     });
+    if (qs('detail-tabbar')) {
+      qs('detail-tabbar').addEventListener('click', function(event) {
+        var trigger = event.target.closest('[data-detail-panel]');
+        if (!trigger) {
+          return;
+        }
+        setActiveDetailPanel(trigger.getAttribute('data-detail-panel'));
+      });
+    }
     qs('detail-stack').addEventListener('click', function (event) {
       var button = event.target.closest('button[data-action]');
       if (!button) {
@@ -955,9 +1030,33 @@
   consumeTokenFromLocation();
   bindEvents();
   resetPolicyEditor();
+  (function bootstrapHashState() {
+    var hashState = parseAppHash();
+    if (hashState.panel) {
+      state.activePanel = hashState.panel;
+    }
+    if (hashState.detail) {
+      state.activeDetailPanel = hashState.detail;
+    }
+    if (hashState.vmid && /^\\d+$/.test(hashState.vmid)) {
+      state.selectedVmid = Number(hashState.vmid);
+    }
+  })();
   setActivePanel(state.activePanel);
   setAuthMode(Boolean(state.token));
   updateSessionChrome();
   loadDashboard();
+  window.addEventListener('hashchange', function() {
+    var hashState = parseAppHash();
+    if (hashState.panel && hashState.panel !== state.activePanel) {
+      setActivePanel(hashState.panel);
+    }
+    if (hashState.detail && hashState.detail !== state.activeDetailPanel) {
+      setActiveDetailPanel(hashState.detail);
+    }
+    if (hashState.vmid && /^\\d+$/.test(hashState.vmid) && Number(hashState.vmid) !== state.selectedVmid) {
+      loadDetail(hashState.vmid);
+    }
+  });
   window.setInterval(loadDashboard, 30000);
 })();

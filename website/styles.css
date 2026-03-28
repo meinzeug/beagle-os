@@ -401,6 +401,32 @@ a:hover { text-decoration: underline; }
 
 .detail-body,
 .policy-list { display: flex; flex-direction: column; gap: 14px; }
+.detail-tabbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -4px 0 14px;
+}
+.detail-tab {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-soft);
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.detail-tab-active {
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+  border-color: #f0c5ad;
+}
+.detail-panel { display: none; }
+.detail-panel.detail-panel-active { display: block; }
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
