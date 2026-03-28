@@ -1,182 +1,228 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Beagle OS Control</title>
-    <meta name="description" content="Beagle OS management dashboard for VM inventory, streaming, endpoints, and fleet operations.">
+    <meta name="description" content="Beagle OS Web UI fuer Inventar, Streams, Endpoints, Aktionen und Installer auf dem Proxmox-Host.">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/styles.css?v=20260328-1240">
   </head>
   <body class="auth-only">
-    <div class="shell">
-
-      <nav class="topbar">
-        <div class="topbar-brand">
-          <img class="brand-mark" src="/beagleos.png" alt="Beagle OS" width="36" height="36">
-          <span class="brand-name">Beagle OS</span>
-          <span class="brand-tag">Control Plane</span>
+    <div class="auth-modal" id="auth-modal" aria-hidden="true">
+      <div class="auth-dialog card">
+        <div class="auth-dialog-head">
+          <div>
+            <span class="eyebrow">Manager Access</span>
+            <h2>Beagle Manager verbinden</h2>
+            <p>Die Web UI bleibt ohne Token gesperrt. Verbinde dich mit dem API-Token deines Hosts und arbeite dann direkt im Dashboard.</p>
+          </div>
+          <button class="icon-button" id="close-auth-modal" type="button" aria-label="Schliessen">×</button>
         </div>
-        <div class="topbar-actions">
-          <button class="btn btn-ghost" id="refresh-all" type="button">Refresh</button>
-          <a class="btn btn-ghost" href="/beagle-downloads/" target="_blank" rel="noopener noreferrer">Downloads</a>
-          <a class="btn btn-ghost" href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noopener noreferrer">GitHub</a>
-        </div>
-      </nav>
-
-      <section class="auth-panel card" id="auth-panel">
-        <div class="auth-header">
-          <h2>Connect to Manager API</h2>
-          <p class="text-muted">Enter the API token from your Proxmox host to access the management dashboard.</p>
-        </div>
-        <div class="auth-form">
+        <div class="auth-form-grid">
           <label class="field field-wide">
-            <span>API Token</span>
+            <span>API-Token</span>
             <input id="api-token" type="password" autocomplete="off" placeholder="BEAGLE_MANAGER_API_TOKEN">
           </label>
-          <div class="auth-info-row">
-            <label class="field">
-              <span>Web UI URL</span>
-              <input id="web-ui-url" type="text" readonly>
-            </label>
-            <label class="field">
-              <span>API Base</span>
-              <input id="api-base" type="text" readonly>
-            </label>
-          </div>
-          <div class="auth-btn-row">
-            <button class="btn btn-primary" id="connect-button" type="button">Connect</button>
-            <button class="btn btn-ghost" id="clear-token" type="button">Clear Token</button>
+          <label class="field">
+            <span>Web UI URL</span>
+            <input id="web-ui-url" type="text" readonly>
+          </label>
+          <label class="field">
+            <span>API Basis</span>
+            <input id="api-base" type="text" readonly>
+          </label>
+        </div>
+        <div class="button-row auth-button-row">
+          <button class="button primary" id="connect-button" type="button">Verbinden</button>
+          <button class="button ghost" id="clear-token" type="button">Token loeschen</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <img class="sidebar-logo" src="/beagleos.png" alt="Beagle OS" width="44" height="44">
+          <div>
+            <strong>Beagle OS</strong>
+            <span>Host Control Surface</span>
           </div>
         </div>
-        <div class="banner banner-info" id="auth-status">Not connected.</div>
-      </section>
 
-      <section class="stats-row" id="stats-section">
-        <article class="stat-card card">
-          <span class="stat-label">Manager</span>
-          <span class="stat-value" id="stat-manager">Offline</span>
-          <span class="stat-meta" id="stat-manager-meta">Waiting for connection</span>
-        </article>
-        <article class="stat-card card">
-          <span class="stat-label">VM Inventory</span>
-          <span class="stat-value" id="stat-vms">0</span>
-          <span class="stat-meta" id="stat-vms-meta">No data</span>
-        </article>
-        <article class="stat-card card">
-          <span class="stat-label">Endpoints</span>
-          <span class="stat-value" id="stat-endpoints">0</span>
-          <span class="stat-meta" id="stat-endpoints-meta">No data</span>
-        </article>
-        <article class="stat-card card stat-card-accent">
-          <span class="stat-label">Policies</span>
-          <span class="stat-value" id="stat-policies">0</span>
-          <span class="stat-meta" id="stat-policies-meta">No data</span>
-        </article>
-      </section>
+        <nav class="sidebar-nav">
+          <a href="#overview" class="nav-item nav-item-active">Uebersicht</a>
+          <a href="#inventory-section" class="nav-item">Inventar</a>
+          <a href="#policies-section" class="nav-item">Policies</a>
+          <a href="/beagle-downloads/" class="nav-item" target="_blank" rel="noopener noreferrer">Downloads</a>
+          <a href="https://github.com/meinzeug/beagle-os" class="nav-item" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </nav>
 
-      <section class="main-grid" id="inventory-section">
-        <section class="card inventory-card">
-          <div class="card-head">
-            <div>
-              <span class="label-upper">Inventory</span>
-              <h2>Beagle VMs</h2>
-            </div>
-            <div class="toolbar">
-              <div class="bulk-bar">
-                <button class="btn btn-sm btn-ghost" id="bulk-healthcheck" type="button">Health Check</button>
-                <button class="btn btn-sm btn-ghost" id="bulk-support-bundle" type="button">Bundle</button>
-                <button class="btn btn-sm btn-ghost" id="bulk-restart-session" type="button">Restart Session</button>
-                <button class="btn btn-sm btn-ghost" id="bulk-restart-runtime" type="button">Restart Runtime</button>
+        <div class="sidebar-footer">
+          <div class="sidebar-foot-label">Manager Status</div>
+          <div class="sidebar-foot-value" id="stat-manager">Offline</div>
+          <div class="sidebar-foot-meta" id="stat-manager-meta">Warte auf Verbindung</div>
+          <button class="button ghost sidebar-connect" id="open-connect-modal" type="button">API verbinden</button>
+        </div>
+      </aside>
+
+      <main class="app-main">
+        <header class="app-header" id="overview">
+          <div>
+            <span class="eyebrow">Host Control Surface</span>
+            <h1>Beagle OS Web UI</h1>
+            <p>Zentrale Bedienoberflaeche fuer aktive Beagle-VMs, Endpoint-Zustand, Installer-Bereitschaft, Credentials und Operator-Aktionen.</p>
+          </div>
+
+          <div class="header-actions">
+            <div class="session-chip" id="session-chip">Nicht verbunden</div>
+            <button class="button ghost" id="refresh-all" type="button">Aktualisieren</button>
+            <a class="button ghost" href="/beagle-downloads/" target="_blank" rel="noopener noreferrer">Downloads</a>
+            <a class="button ghost" href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <div class="account-shell">
+              <button class="avatar-button" id="avatar-toggle" type="button" aria-haspopup="true" aria-expanded="false">
+                <span class="avatar-dot"></span>
+                <span class="avatar-label">Host</span>
+              </button>
+              <div class="account-menu" id="account-menu">
+                <div class="account-menu-head">
+                  <strong>Beagle Manager</strong>
+                  <span>API Sitzung</span>
+                </div>
+                <button class="menu-button" id="open-connect-menu" type="button">API Token verwalten</button>
+                <button class="menu-button danger" id="clear-token-menu" type="button">Token loeschen</button>
               </div>
-              <input id="search-input" class="input-search" type="search" placeholder="Search VMs...">
-              <select id="role-filter" class="input-select">
-                <option value="all">All Roles</option>
-                <option value="endpoint">Endpoints</option>
-                <option value="desktop">Desktops</option>
-                <option value="other">Other</option>
-              </select>
-              <label class="check-label">
-                <input id="eligible-only" type="checkbox">
-                <span>Eligible only</span>
-              </label>
             </div>
           </div>
-          <div class="table-wrap">
-            <table class="vm-table">
-              <thead>
-                <tr>
-                  <th class="col-check"><input id="inventory-select-all" type="checkbox" aria-label="Select all"></th>
-                  <th>VM</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Stream Target</th>
-                  <th>Installer</th>
-                  <th>Last Action</th>
-                </tr>
-              </thead>
-              <tbody id="inventory-body">
-                <tr><td colspan="7" class="empty-cell">No data loaded yet.</td></tr>
-              </tbody>
-            </table>
-          </div>
+        </header>
+
+        <div class="status-strip">
+          <div class="banner banner-info" id="auth-status">Noch kein API-Token gesetzt.</div>
+        </div>
+
+        <section class="stats-row" id="stats-section">
+          <article class="stat-card card">
+            <span class="stat-label">VM Inventar</span>
+            <span class="stat-value" id="stat-vms">0</span>
+            <span class="stat-meta" id="stat-vms-meta">Keine Daten</span>
+          </article>
+          <article class="stat-card card">
+            <span class="stat-label">Endpoints</span>
+            <span class="stat-value" id="stat-endpoints">0</span>
+            <span class="stat-meta" id="stat-endpoints-meta">Keine Daten</span>
+          </article>
+          <article class="stat-card card stat-card-accent">
+            <span class="stat-label">Policies</span>
+            <span class="stat-value" id="stat-policies">0</span>
+            <span class="stat-meta" id="stat-policies-meta">Keine Daten</span>
+          </article>
         </section>
 
-        <aside class="card detail-card">
+        <section class="workspace-grid" id="inventory-section">
+          <section class="card inventory-card">
+            <div class="card-head">
+              <div>
+                <span class="eyebrow">Inventory</span>
+                <h2>Beagle VMs</h2>
+              </div>
+              <div class="toolbar">
+                <div class="button-row bulk-bar">
+                  <button class="button ghost small" id="bulk-healthcheck" type="button">Health Check</button>
+                  <button class="button ghost small" id="bulk-support-bundle" type="button">Bundle</button>
+                  <button class="button ghost small" id="bulk-restart-session" type="button">Restart Session</button>
+                  <button class="button ghost small" id="bulk-restart-runtime" type="button">Restart Runtime</button>
+                </div>
+                <input id="search-input" class="input-search" type="search" placeholder="VMs durchsuchen ...">
+                <select id="role-filter" class="input-select">
+                  <option value="all">Alle Rollen</option>
+                  <option value="endpoint">Endpoints</option>
+                  <option value="desktop">Desktops</option>
+                  <option value="other">Andere</option>
+                </select>
+                <label class="check-label">
+                  <input id="eligible-only" type="checkbox">
+                  <span>Nur geeignet</span>
+                </label>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="vm-table">
+                <thead>
+                  <tr>
+                    <th class="col-check"><input id="inventory-select-all" type="checkbox" aria-label="Alle auswaehlen"></th>
+                    <th>VM</th>
+                    <th>Rolle</th>
+                    <th>Status</th>
+                    <th>Stream</th>
+                    <th>Installer</th>
+                    <th>Letzte Aktion</th>
+                  </tr>
+                </thead>
+                <tbody id="inventory-body">
+                  <tr><td colspan="7" class="empty-cell">Noch keine Daten geladen.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <aside class="card detail-card detail-pane">
+            <div class="card-head">
+              <div>
+                <span class="eyebrow">VM Detail</span>
+                <h2 id="detail-title">VM auswaehlen</h2>
+              </div>
+              <div class="detail-actions" id="detail-actions"></div>
+            </div>
+            <div class="detail-body" id="detail-stack">
+              <div class="banner banner-info">Wähle eine VM aus dem Inventar, um Details, Credentials und Operator-Aktionen zu sehen.</div>
+            </div>
+          </aside>
+        </section>
+
+        <section class="card policies-card" id="policies-section">
           <div class="card-head">
             <div>
-              <span class="label-upper">VM Detail</span>
-              <h2 id="detail-title">Select a VM</h2>
+              <span class="eyebrow">Configuration</span>
+              <h2>Policies</h2>
             </div>
-            <div class="detail-actions" id="detail-actions"></div>
           </div>
-          <div class="detail-body" id="detail-stack">
-            <div class="banner banner-info">Select a VM from the inventory to view details, credentials, and actions.</div>
+          <div class="policy-layout">
+            <div class="policy-form">
+              <label class="field">
+                <span>Name</span>
+                <input id="policy-name" type="text" placeholder="desktop-vm100">
+              </label>
+              <label class="field field-narrow">
+                <span>Priority</span>
+                <input id="policy-priority" type="number" value="100">
+              </label>
+              <label class="check-label check-label-padded">
+                <input id="policy-enabled" type="checkbox" checked>
+                <span>Aktiv</span>
+              </label>
+              <label class="field field-wide">
+                <span>Selector JSON</span>
+                <textarea id="policy-selector" rows="4" placeholder='{"vmid": 100}'></textarea>
+              </label>
+              <label class="field field-wide">
+                <span>Profile JSON</span>
+                <textarea id="policy-profile" rows="6" placeholder='{"assigned_target":{"vmid":100},"beagle_role":"endpoint"}'></textarea>
+              </label>
+              <div class="button-row">
+                <button class="button primary" id="policy-save" type="button">Speichern</button>
+                <button class="button ghost" id="policy-new" type="button">Neu</button>
+                <button class="button ghost danger" id="policy-delete" type="button">Loeschen</button>
+              </div>
+            </div>
+            <div id="policies-list" class="policy-list">
+              <div class="empty-cell">Keine Policies geladen.</div>
+            </div>
           </div>
-        </aside>
-      </section>
-
-      <section class="card policies-card" id="policies-section">
-        <div class="card-head">
-          <div>
-            <span class="label-upper">Configuration</span>
-            <h2>Policies</h2>
-          </div>
-        </div>
-        <div class="policy-form">
-          <label class="field">
-            <span>Name</span>
-            <input id="policy-name" type="text" placeholder="desktop-vm100">
-          </label>
-          <label class="field field-narrow">
-            <span>Priority</span>
-            <input id="policy-priority" type="number" value="100">
-          </label>
-          <label class="check-label check-label-padded">
-            <input id="policy-enabled" type="checkbox" checked>
-            <span>Enabled</span>
-          </label>
-          <label class="field field-wide">
-            <span>Selector JSON</span>
-            <textarea id="policy-selector" rows="4" placeholder='{"vmid": 100}'></textarea>
-          </label>
-          <label class="field field-wide">
-            <span>Profile JSON</span>
-            <textarea id="policy-profile" rows="6" placeholder='{"assigned_target":{"vmid":100},"beagle_role":"endpoint"}'></textarea>
-          </label>
-          <div class="btn-row">
-            <button class="btn btn-primary" id="policy-save" type="button">Save Policy</button>
-            <button class="btn btn-ghost" id="policy-new" type="button">New</button>
-            <button class="btn btn-ghost btn-danger" id="policy-delete" type="button">Delete</button>
-          </div>
-        </div>
-        <div id="policies-list" class="policy-list">
-          <div class="empty-cell">No policies loaded.</div>
-        </div>
-      </section>
+        </section>
+      </main>
     </div>
 
     <script src="/beagle-web-ui-config.js"></script>
-    <script src="/app.js"></script>
+    <script src="/app.js?v=20260328-1240"></script>
   </body>
 </html>
