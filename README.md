@@ -236,3 +236,12 @@ Die Zielrichtung fuer dieses Repository ist eindeutig:
 - der Proxmox-Host uebernimmt die Management- und Bereitstellungsrolle
 
 Alles andere ist fuer das Produkt zweitrangig.
+
+## Lizenz
+
+Beagle OS ist unter der **Beagle OS Source Available License** verfuegbar:
+
+- **Privat / Nicht-kommerziell**: Kostenlos nutzbar
+- **Kommerziell**: Nur ueber das offizielle Beagle OS SaaS-Angebot unter [beagle-os.com](https://beagle-os.com)
+
+Details siehe [LICENSE](./LICENSE).

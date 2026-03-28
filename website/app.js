@@ -120,7 +120,7 @@
       headers: state.token ? { 'X-Beagle-Api-Token': state.token } : {}
     }).then(function (response) {
       if (!response.ok) {
-        throw new Error('HTTP ' + response.status + ' beim Download');
+        throw new Error('HTTP ' + response.status + ' downloading');
       }
       return response.blob().then(function (blob) {
         var url = URL.createObjectURL(blob);
@@ -145,7 +145,7 @@
     if (Number.isNaN(date.getTime())) {
       return String(value);
     }
-    return date.toLocaleString('de-DE');
+    return date.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
   }
 
   function profileOf(vm) {
@@ -238,7 +238,7 @@
       return;
     }
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="7" class="empty">Keine passenden Beagle VMs gefunden.</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="empty-cell">No matching Beagle VMs found.</td></tr>';
       return;
     }
     body.innerHTML = rows.map(function (vm) {
@@ -247,12 +247,12 @@
       var installerTone = profile.installer_target_eligible ? 'ok' : 'muted';
       var lastAction = vm.last_action && vm.last_action.action ? vm.last_action.action + (vm.last_action.ok ? ' ok' : ' fail') : 'n/a';
       return '' +
-        '<tr class="inventory-row' + (state.selectedVmid === profile.vmid ? ' selected' : '') + '" data-vmid="' + escapeHtml(profile.vmid) + '">' +
+        '<tr class="vm-row' + (state.selectedVmid === profile.vmid ? ' selected' : '') + '" data-vmid="' + escapeHtml(profile.vmid) + '">' +
         '  <td><input class="row-select" type="checkbox" data-select-vmid="' + escapeHtml(profile.vmid) + '"' + (state.selectedVmids.indexOf(profile.vmid) !== -1 ? ' checked' : '') + '></td>' +
-        '  <td><strong>' + escapeHtml(profile.name || ('VM ' + profile.vmid)) + '</strong><div class="subtle">#' + escapeHtml(profile.vmid) + ' · ' + escapeHtml(profile.node || '') + '</div></td>' +
+        '  <td><span class="vm-name">' + escapeHtml(profile.name || ('VM ' + profile.vmid)) + '</span><div class="vm-sub">#' + escapeHtml(profile.vmid) + ' · ' + escapeHtml(profile.node || '') + '</div></td>' +
         '  <td>' + chip(roleOf(vm) || 'unassigned', roleOf(vm) === 'desktop' ? 'info' : 'muted') + '</td>' +
         '  <td>' + chip(profile.status || 'unknown', statusTone) + '</td>' +
-        '  <td><div>' + escapeHtml(profile.stream_host || 'n/a') + '</div><div class="subtle">' + escapeHtml(profile.moonlight_port || '') + '</div></td>' +
+        '  <td><div>' + escapeHtml(profile.stream_host || 'n/a') + '</div><div class="vm-sub">' + escapeHtml(profile.moonlight_port || '') + '</div></td>' +
         '  <td>' + chip(profile.installer_target_status || (profile.installer_target_eligible ? 'ready' : 'not eligible'), installerTone) + '</td>' +
         '  <td>' + escapeHtml(lastAction) + '</td>' +
         '</tr>';
@@ -267,9 +267,9 @@
   function statCardFromHealth(payload) {
     var counts = (payload && payload.endpoint_status_counts) || {};
     text('stat-manager', 'Online');
-    text('stat-manager-meta', 'Version ' + String(payload.version || 'unknown'));
+    text('stat-manager-meta', 'v' + String(payload.version || 'unknown'));
     text('stat-vms', String(payload.vm_count || state.inventory.length || 0));
-    text('stat-vms-meta', 'Aktive Beagle VMs: ' + String(filteredInventory().length));
+    text('stat-vms-meta', 'Active Beagle VMs: ' + String(filteredInventory().length));
     text('stat-endpoints', String(payload.endpoint_count || 0));
     text('stat-endpoints-meta', 'healthy ' + String(counts.healthy || 0) + ' · stale ' + String(counts.stale || 0) + ' · offline ' + String(counts.offline || 0));
     text('stat-policies', String(payload.policy_count || 0));
@@ -281,7 +281,7 @@
   }
 
   function actionButton(action, label, tone) {
-    return '<button type="button" class="button ' + (tone || 'ghost') + '" data-action="' + escapeHtml(action) + '">' + escapeHtml(label) + '</button>';
+    return '<button type="button" class="btn btn-' + (tone || 'ghost') + '" data-action="' + escapeHtml(action) + '">' + escapeHtml(label) + '</button>';
   }
 
   function renderPolicies() {
@@ -290,7 +290,7 @@
       return;
     }
     if (!state.policies.length) {
-      node.innerHTML = '<div class="empty-card">Keine Policies vorhanden.</div>';
+      node.innerHTML = '<div class="empty-card">No policies found.</div>';
       return;
     }
     node.innerHTML = state.policies.map(function (policy) {
@@ -370,40 +370,40 @@
       var busid = String(device.busid || '');
       return '<div class="bundle-row">' +
         '<strong>' + escapeHtml(busid) + '</strong><span>' + escapeHtml(device.description || '') + '</span>' +
-        '<div class="button-row">' +
-        '<button class="button ghost" type="button" data-action="usb-attach" data-usb-busid="' + escapeHtml(busid) + '">Attach</button>' +
+        '<div class="btn-row">' +
+        '<button class="btn btn-ghost" type="button" data-action="usb-attach" data-usb-busid="' + escapeHtml(busid) + '">Attach</button>' +
         (device.bound ? '<span class="chip ok">exported</span>' : '<span class="chip muted">local</span>') +
         '</div>' +
       '</div>';
-    }).join('') : '<div class="empty-card">Keine exportierbaren USB-Geräte gemeldet.</div>';
+    }).join('') : '<div class="empty-card">No exportable USB devices reported.</div>';
     var attachedDevicesHtml = attachedDevices.length ? attachedDevices.map(function (item) {
       var port = String(item.port || '');
       var busid = String(item.busid || '');
       return '<div class="bundle-row">' +
         '<strong>Port ' + escapeHtml(port) + '</strong><span>' + escapeHtml(busid || item.device || '') + '</span>' +
-        '<div class="button-row">' +
-        '<button class="button ghost" type="button" data-action="usb-detach" data-usb-port="' + escapeHtml(port) + '" data-usb-busid="' + escapeHtml(busid) + '">Detach</button>' +
+        '<div class="btn-row">' +
+        '<button class="btn btn-ghost" type="button" data-action="usb-detach" data-usb-port="' + escapeHtml(port) + '" data-usb-busid="' + escapeHtml(busid) + '">Detach</button>' +
         '</div>' +
       '</div>';
-    }).join('') : '<div class="empty-card">Keine USB-Geräte in der VM angehaengt.</div>';
+    }).join('') : '<div class="empty-card">No USB devices attached to VM.</div>';
     text('detail-title', (profile.name || ('VM ' + profile.vmid)) + ' (#' + profile.vmid + ')');
     if (actionsNode) {
-      actionsNode.innerHTML = actionButton('refresh-detail', 'Neu laden', 'ghost') + actionButton('sunshine-ui', 'Sunshine Web UI', 'ghost') + actionButton('usb-refresh', 'USB Refresh', 'ghost');
+      actionsNode.innerHTML = actionButton('refresh-detail', 'Reload', 'ghost') + actionButton('sunshine-ui', 'Sunshine Web UI', 'ghost') + actionButton('usb-refresh', 'USB Refresh', 'ghost');
     }
     if (!node) {
       return;
     }
     node.innerHTML = '' +
-      '<div class="banner ' + (installerPrep.status === 'ready' ? 'ok' : installerPrep.status === 'failed' || installerPrep.status === 'error' ? 'warn' : 'info') + '">Installer Readiness: ' + escapeHtml(installerPrep.target_status || installerPrep.status || 'unknown') + ' · ' + escapeHtml(installerPrep.message || 'Keine Detailmeldung') + '</div>' +
+      '<div class="banner ' + (installerPrep.status === 'ready' ? 'ok' : installerPrep.status === 'failed' || installerPrep.status === 'error' ? 'warn' : 'info') + '">Installer Readiness: ' + escapeHtml(installerPrep.target_status || installerPrep.status || 'unknown') + ' · ' + escapeHtml(installerPrep.message || 'No detail message') + '</div>' +
       '<div class="detail-grid">' +
-      '  <section class="detail-card"><h3>Profil</h3>' +
-           fieldBlock('Rolle', profile.beagle_role) +
+      '  <section class="detail-section"><h3>Profil</h3>' +
+           fieldBlock('Role', profile.beagle_role) +
            fieldBlock('Status', profile.status) +
            fieldBlock('Hostname', profile.identity_hostname) +
            fieldBlock('Assignment', profile.assignment_source || 'n/a') +
            fieldBlock('Policy', profile.applied_policy && profile.applied_policy.name ? profile.applied_policy.name : 'none') +
       '  </section>' +
-      '  <section class="detail-card"><h3>Streaming</h3>' +
+      '  <section class="detail-section"><h3>Streaming</h3>' +
            fieldBlock('Stream Host', profile.stream_host) +
            fieldBlock('Moonlight Port', profile.moonlight_port) +
            fieldBlock('App', profile.moonlight_app) +
@@ -411,7 +411,7 @@
            fieldBlock('Installer Linux', profile.installer_url, 'mono') +
            fieldBlock('Installer Windows', profile.installer_windows_url, 'mono') +
       '  </section>' +
-      '  <section class="detail-card"><h3>Endpoint</h3>' +
+      '  <section class="detail-section"><h3>Endpoint</h3>' +
            fieldBlock('Reported', endpoint.reported_at ? formatDate(endpoint.reported_at) : 'n/a') +
            fieldBlock('Endpoint Host', endpoint.hostname || endpoint.endpoint_id || 'n/a') +
            fieldBlock('Last Action', lastAction.action || 'n/a') +
@@ -419,14 +419,14 @@
            fieldBlock('Pending Actions', String((actions.pending_actions || []).length)) +
            fieldBlock('Support Bundles', String(bundles.length)) +
       '  </section>' +
-      '  <section class="detail-card"><h3>USB</h3>' +
+      '  <section class="detail-section"><h3>USB</h3>' +
            fieldBlock('Tunnel', usb.tunnel_state || 'n/a') +
            fieldBlock('Tunnel Host', usb.tunnel_host || 'n/a') +
            fieldBlock('Tunnel Port', String(usb.tunnel_port || '')) +
            fieldBlock('Exportable Devices', String(usb.device_count || 0)) +
            fieldBlock('Guest Attachments', String(usb.attached_count || 0)) +
       '  </section>' +
-      '  <section class="detail-card"><h3>Credentials</h3>' +
+      '  <section class="detail-section"><h3>Credentials</h3>' +
            fieldBlock('Thin Client User', credentials.thinclient_username) +
            fieldBlock('Thin Client Password', credentials.thinclient_password) +
            fieldBlock('Sunshine User', credentials.sunshine_username) +
@@ -434,22 +434,22 @@
            fieldBlock('Sunshine PIN', credentials.sunshine_pin) +
       '  </section>' +
       '</div>' +
-      '<section class="detail-card action-card"><h3>Aktionen</h3><div class="button-row">' +
-           actionButton('installer-prep', 'Installer vorbereiten', 'primary') +
+      '<section class="detail-card action-card"><h3>Actions</h3><div class="btn-row">' +
+           actionButton('installer-prep', 'Prepare Installer', 'primary') +
            actionButton('download-linux', 'Linux Installer', 'ghost') +
            actionButton('download-windows', 'Windows Installer', 'ghost') +
            actionButton('usb-refresh', 'USB Refresh', 'ghost') +
            actionButton('healthcheck', 'Healthcheck', 'ghost') +
            actionButton('support-bundle', 'Support Bundle', 'ghost') +
-           actionButton('restart-session', 'Session neu starten', 'ghost') +
-           actionButton('restart-runtime', 'Runtime neu starten', 'ghost') +
+           actionButton('restart-session', 'Restart Session', 'ghost') +
+           actionButton('restart-runtime', 'Restart Runtime', 'ghost') +
       '</div></section>' +
-      '<section class="detail-card"><h3>USB-Geräte vom Thin Client</h3><div class="bundle-list">' + usbDevicesHtml + '</div></section>' +
-      '<section class="detail-card"><h3>USB-Geräte in der VM</h3><div class="bundle-list">' + attachedDevicesHtml + '</div></section>' +
-      '<section class="detail-card"><h3>Support Bundles</h3><div class="bundle-list">' +
+      '<section class="detail-section"><h3>USB Devices from Endpoint</h3><div class="bundle-list">' + usbDevicesHtml + '</div></section>' +
+      '<section class="detail-section"><h3>USB Devices in VM</h3><div class="bundle-list">' + attachedDevicesHtml + '</div></section>' +
+      '<section class="detail-section"><h3>Support Bundles</h3><div class="bundle-list">' +
         (bundles.length ? bundles.map(function (bundle) {
           return '<div class="bundle-row"><strong>' + escapeHtml(bundle.stored_filename || bundle.bundle_id || 'bundle') + '</strong><span>' + escapeHtml(formatDate(bundle.generated_at || bundle.stored_at)) + '</span></div>';
-        }).join('') : '<div class="empty-card">Keine Bundles vorhanden.</div>') +
+        }).join('') : '<div class="empty-card">No bundles available.</div>') +
       '</div></section>';
   }
 
@@ -457,7 +457,7 @@
     var numericVmid = Number(vmid);
     state.selectedVmid = numericVmid;
     renderInventory();
-    setBanner('Lade Details fuer VM ' + numericVmid + ' ...', 'info');
+    setBanner('Loading details for VM' + numericVmid + ' ...', 'info');
     return Promise.all([
       request('/vms/' + numericVmid),
       request('/vms/' + numericVmid + '/state'),
@@ -480,10 +480,10 @@
       }
       state.detailCache[numericVmid] = detail;
       renderDetail(detail);
-      setBanner('Details fuer VM ' + numericVmid + ' geladen.', 'ok');
+      setBanner('Details for VM' + numericVmid + ' loaded.', 'ok');
       return detail;
     }).catch(function (error) {
-      setBanner('VM-Detail konnte nicht geladen werden: ' + error.message, 'warn');
+      setBanner('Failed to load VM details:' + error.message, 'warn');
     });
   }
 
@@ -506,19 +506,19 @@
   function bulkAction(action) {
     var vmids = selectedVmidsFromInventory();
     if (!vmids.length) {
-      setBanner('Keine VMs fuer Bulk-Aktion ausgewaehlt.', 'warn');
+      setBanner('No VMs selected for bulk action.', 'warn');
       return;
     }
-    setBanner('Bulk-Aktion ' + action + ' fuer ' + vmids.length + ' VM(s) wird gequeued ...', 'info');
+    setBanner('Bulk action' + action + ' for' + vmids.length + ' VM(s) queuing...', 'info');
     postJson('/actions/bulk', {
       vmids: vmids,
       action: action
     }).then(function (payload) {
       var queued = payload && payload.queued_count != null ? payload.queued_count : vmids.length;
-      setBanner('Bulk-Aktion ' + action + ' gequeued: ' + queued + ' VM(s).', 'ok');
+      setBanner('Bulk action' + action + ' queued:' + queued + ' VM(s).', 'ok');
       return loadDashboard();
     }).catch(function (error) {
-      setBanner('Bulk-Aktion fehlgeschlagen: ' + error.message, 'warn');
+      setBanner('Bulk actionfehlgeschlagen: ' + error.message, 'warn');
     });
   }
 
@@ -530,7 +530,7 @@
     try {
       return JSON.parse(raw);
     } catch (error) {
-      throw new Error(label + ' ist kein gueltiges JSON');
+      throw new Error(label + ' is not valid JSON');
     }
   }
 
@@ -538,7 +538,7 @@
     var name = String(qs('policy-name') ? qs('policy-name').value : '').trim();
     var payload;
     if (!name) {
-      setBanner('Policy-Name fehlt.', 'warn');
+      setBanner('Policy name is required.', 'warn');
       return;
     }
     try {
@@ -557,7 +557,7 @@
     var updateExisting = Boolean(state.selectedPolicyName && state.selectedPolicyName === name);
     var path = updateExisting ? '/policies/' + encodeURIComponent(name) : '/policies';
     var method = updateExisting ? 'PUT' : 'POST';
-    setBanner('Policy ' + name + ' wird gespeichert ...', 'info');
+    setBanner('Policy ' + name + ' saving...', 'info');
     request(path, {
       method: method,
       headers: { 'Content-Type': 'application/json' },
@@ -567,38 +567,38 @@
       return loadDashboard();
     }).then(function () {
       loadPolicyIntoEditor(name);
-      setBanner('Policy ' + name + ' gespeichert.', 'ok');
+      setBanner('Policy ' + name + ' saved.', 'ok');
     }).catch(function (error) {
-      setBanner('Policy konnte nicht gespeichert werden: ' + error.message, 'warn');
+      setBanner('Failed to save policy:' + error.message, 'warn');
     });
   }
 
   function deleteSelectedPolicy() {
     var name = String(qs('policy-name') ? qs('policy-name').value : '').trim() || state.selectedPolicyName;
     if (!name) {
-      setBanner('Keine Policy ausgewaehlt.', 'warn');
+      setBanner('No policy selected.', 'warn');
       return;
     }
-    setBanner('Policy ' + name + ' wird geloescht ...', 'info');
+    setBanner('Policy ' + name + ' deleting...', 'info');
     request('/policies/' + encodeURIComponent(name), {
       method: 'DELETE'
     }).then(function () {
       resetPolicyEditor();
       return loadDashboard();
     }).then(function () {
-      setBanner('Policy ' + name + ' geloescht.', 'ok');
+      setBanner('Policy ' + name + ' deleted.', 'ok');
     }).catch(function (error) {
-      setBanner('Policy konnte nicht geloescht werden: ' + error.message, 'warn');
+      setBanner('Failed to delete policy:' + error.message, 'warn');
     });
   }
 
   function loadDashboard() {
     if (!state.token) {
       setAuthMode(false);
-      setBanner('Noch kein API-Token gesetzt.', 'warn');
+      setBanner('No API token set.', 'warn');
       return Promise.resolve();
     }
-    setBanner('Beagle Manager wird geladen ...', 'info');
+    setBanner('Loading Beagle Manager...', 'info');
     return Promise.all([
       request('/health'),
       request('/vms'),
@@ -611,7 +611,7 @@
       statCardFromHealth(health);
       renderInventory();
       renderPolicies();
-      setBanner('Beagle Manager verbunden. Inventar und Policies sind aktuell.', 'ok');
+      setBanner('Connected. Inventory and policies up to date.', 'ok');
       if (state.selectedVmid) {
         return loadDetail(state.selectedVmid);
       }
@@ -621,9 +621,9 @@
       return null;
     }).catch(function (error) {
       setAuthMode(false);
-      text('stat-manager', 'Fehler');
+      text('stat-manager', 'Error');
       text('stat-manager-meta', error.message);
-      setBanner('Verbindung fehlgeschlagen: ' + error.message, 'warn');
+      setBanner('Connection failed:' + error.message, 'warn');
     });
   }
 
@@ -646,54 +646,54 @@
     }
     if (action === 'download-linux') {
       blobRequest('/vms/' + vmid + '/installer.sh', 'pve-thin-client-usb-installer-vm-' + vmid + '.sh').catch(function (error) {
-        setBanner('Linux-Installer Download fehlgeschlagen: ' + error.message, 'warn');
+        setBanner('Linux-Installer Download failed:' + error.message, 'warn');
       });
       return;
     }
     if (action === 'download-windows') {
       blobRequest('/vms/' + vmid + '/installer.ps1', 'pve-thin-client-usb-installer-vm-' + vmid + '.ps1').catch(function (error) {
-        setBanner('Windows-Installer Download fehlgeschlagen: ' + error.message, 'warn');
+        setBanner('Windows-Installer Download failed:' + error.message, 'warn');
       });
       return;
     }
     if (action === 'usb-refresh') {
-      setBanner('USB-Inventar fuer VM ' + vmid + ' wird aktualisiert ...', 'info');
+      setBanner('Refreshing USB inventory for VM ' + vmid + '...', 'info');
       postJson('/vms/' + vmid + '/usb/refresh', {}).then(function () {
         return loadDetail(vmid);
       }).catch(function (error) {
-        setBanner('USB-Refresh fehlgeschlagen: ' + error.message, 'warn');
+        setBanner('USB-Refresh failed:' + error.message, 'warn');
       });
       return;
     }
     if (action === 'usb-attach') {
-      setBanner('USB-Gerät wird an VM ' + vmid + ' angehaengt ...', 'info');
+      setBanner('Attaching USB device to VM ' + vmid + '...', 'info');
       postJson('/vms/' + vmid + '/usb/attach', {
         busid: sourceButton && sourceButton.getAttribute('data-usb-busid') || ''
       }).then(function () {
         return loadDetail(vmid);
       }).catch(function (error) {
-        setBanner('USB-Attach fehlgeschlagen: ' + error.message, 'warn');
+        setBanner('USB-Attach failed:' + error.message, 'warn');
       });
       return;
     }
     if (action === 'usb-detach') {
-      setBanner('USB-Gerät wird aus VM ' + vmid + ' geloest ...', 'info');
+      setBanner('Detaching USB device from VM ' + vmid + '...', 'info');
       postJson('/vms/' + vmid + '/usb/detach', {
         busid: sourceButton && sourceButton.getAttribute('data-usb-busid') || '',
         port: sourceButton && sourceButton.getAttribute('data-usb-port') || ''
       }).then(function () {
         return loadDetail(vmid);
       }).catch(function (error) {
-        setBanner('USB-Detach fehlgeschlagen: ' + error.message, 'warn');
+        setBanner('USB-Detach failed:' + error.message, 'warn');
       });
       return;
     }
     if (action === 'installer-prep') {
-      setBanner('Installer-Vorbereitung fuer VM ' + vmid + ' gestartet ...', 'info');
+      setBanner('Preparing installer for VM ' + vmid + '...', 'info');
       postJson('/vms/' + vmid + '/installer-prep', {}).then(function () {
         return loadDetail(vmid);
       }).catch(function (error) {
-        setBanner('Installer-Vorbereitung fehlgeschlagen: ' + error.message, 'warn');
+        setBanner('Installer preparation failed: ' + error.message, 'warn');
       });
       return;
     }
@@ -701,20 +701,20 @@
       postJson('/vms/' + vmid + '/sunshine-access', {}).then(function (payload) {
         var url = payload && payload.sunshine_access ? payload.sunshine_access.url : '';
         if (!url) {
-          throw new Error('keine Sunshine-URL erhalten');
+          throw new Error('No Sunshine URL received');
         }
         window.open(url, '_blank', 'noopener');
       }).catch(function (error) {
-        setBanner('Sunshine-Zugang fehlgeschlagen: ' + error.message, 'warn');
+        setBanner('Sunshine access failed: ' + error.message, 'warn');
       });
       return;
     }
-    setBanner('Aktion ' + action + ' wird fuer VM ' + vmid + ' gequeued ...', 'info');
+    setBanner('Queuing action ' + action + ' for VM ' + vmid + '...', 'info');
     postJson('/vms/' + vmid + '/actions', { action: action }).then(function () {
-      setBanner('Aktion ' + action + ' fuer VM ' + vmid + ' gequeued.', 'ok');
+      setBanner('Action ' + action + ' queued for VM ' + vmid + '.', 'ok');
       return loadDetail(vmid);
     }).catch(function (error) {
-      setBanner('Aktion fehlgeschlagen: ' + error.message, 'warn');
+      setBanner('Action failed: ' + error.message, 'warn');
     });
   }
 
@@ -741,7 +741,7 @@
       if (tokenField) {
         tokenField.value = '';
       }
-      setBanner('API-Token geloescht.', 'info');
+      setBanner('API-Token deleted.', 'info');
     });
     qs('refresh-all').addEventListener('click', function () {
       loadDashboard();
@@ -820,7 +820,7 @@
     qs('policy-save').addEventListener('click', savePolicy);
     qs('policy-new').addEventListener('click', function () {
       resetPolicyEditor();
-      setBanner('Policy-Editor zurueckgesetzt.', 'info');
+      setBanner('Policy editor reset.', 'info');
     });
     qs('policy-delete').addEventListener('click', deleteSelectedPolicy);
   }

@@ -1,5 +1,14 @@
 # Changelog
 
+## v5.0.2 - 2026-03-28
+
+- Changed license from MIT to Beagle OS Source Available License: free for personal and non-commercial use, commercial use requires a SaaS license via beagle-os.com.
+- Completely redesigned the management Web UI with a modern dark theme, cleaner layout, sticky detail panel, and English-language interface replacing the previous German UI.
+- Improved CORS policy in the control plane API to reflect the request Origin header instead of allowing all origins with a wildcard.
+- Added CLAUDE.md project conventions file for contributor tooling.
+- Updated extension manifest version to 5.0.2.
+- Added license section to README.
+
 ## v5.0.1 - 2026-03-27
 
 - Fixed the Beagle OS runtime X11 startup path so installed endpoints no longer race on a stale `XAUTHORITY` file before Moonlight and Openbox come up.
