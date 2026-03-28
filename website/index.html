@@ -50,10 +50,10 @@
           </div>
         </div>
 
-        <nav class="sidebar-nav">
-          <a href="#overview" class="nav-item nav-item-active">Uebersicht</a>
-          <a href="#inventory-section" class="nav-item">Inventar</a>
-          <a href="#policies-section" class="nav-item">Policies</a>
+        <nav class="sidebar-nav" id="sidebar-nav">
+          <button type="button" class="nav-item nav-item-active" data-panel="overview">Uebersicht</button>
+          <button type="button" class="nav-item" data-panel="inventory">Inventar</button>
+          <button type="button" class="nav-item" data-panel="policies">Policies</button>
           <a href="/beagle-downloads/" class="nav-item" target="_blank" rel="noopener noreferrer">Downloads</a>
           <a href="https://github.com/meinzeug/beagle-os" class="nav-item" target="_blank" rel="noopener noreferrer">GitHub</a>
         </nav>
@@ -67,11 +67,11 @@
       </aside>
 
       <main class="app-main">
-        <header class="app-header" id="overview">
+        <header class="app-header">
           <div>
-            <span class="eyebrow">Host Control Surface</span>
-            <h1>Beagle OS Web UI</h1>
-            <p>Zentrale Bedienoberflaeche fuer aktive Beagle-VMs, Endpoint-Zustand, Installer-Bereitschaft, Credentials und Operator-Aktionen.</p>
+            <span class="eyebrow" id="panel-eyebrow">Host Control Surface</span>
+            <h1 id="panel-title">Beagle OS Web UI</h1>
+            <p id="panel-description">Zentrale Bedienoberflaeche fuer aktive Beagle-VMs, Endpoint-Zustand, Installer-Bereitschaft, Credentials und Operator-Aktionen.</p>
           </div>
 
           <div class="header-actions">
@@ -96,11 +96,11 @@
           </div>
         </header>
 
-        <div class="status-strip">
+        <div class="status-strip" data-panel-section="overview">
           <div class="banner banner-info" id="auth-status">Noch kein API-Token gesetzt.</div>
         </div>
 
-        <section class="stats-row" id="stats-section">
+        <section class="stats-row panel-section panel-section-active" id="stats-section" data-panel-section="overview">
           <article class="stat-card card">
             <span class="stat-label">VM Inventar</span>
             <span class="stat-value" id="stat-vms">0</span>
@@ -118,7 +118,7 @@
           </article>
         </section>
 
-        <section class="workspace-grid" id="inventory-section">
+        <section class="workspace-grid panel-section" id="inventory-section" data-panel-section="inventory">
           <section class="card inventory-card">
             <div class="card-head">
               <div>
@@ -179,7 +179,7 @@
           </aside>
         </section>
 
-        <section class="card policies-card" id="policies-section">
+        <section class="card policies-card panel-section" id="policies-section" data-panel-section="policies">
           <div class="card-head">
             <div>
               <span class="eyebrow">Configuration</span>
