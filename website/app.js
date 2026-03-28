@@ -47,7 +47,7 @@
   function applyTitle() {
     var title = String(config.title || 'Beagle OS Web UI');
     document.title = title;
-    var heading = document.querySelector('.masthead h1');
+    var heading = document.querySelector('.app-header h1');
     if (heading) {
       heading.textContent = title;
     }
@@ -77,6 +77,12 @@
 
   function setAuthMode(connected) {
     document.body.classList.toggle('auth-only', !connected);
+    if (connected) {
+      document.body.classList.remove('auth-modal-open');
+    } else {
+      document.body.classList.add('auth-modal-open');
+    }
+    updateSessionChrome();
   }
 
   function setBanner(message, tone) {
@@ -86,6 +92,42 @@
     }
     node.className = 'banner ' + (tone || 'info');
     node.textContent = message;
+  }
+
+  function updateSessionChrome() {
+    var chip = qs('session-chip');
+    if (chip) {
+      chip.textContent = state.token ? 'Verbunden' : 'Nicht verbunden';
+    }
+  }
+
+  function openAuthModal() {
+    document.body.classList.add('auth-modal-open');
+    var field = qs('api-token');
+    if (field) {
+      window.setTimeout(function () {
+        field.focus();
+        field.select();
+      }, 30);
+    }
+  }
+
+  function closeAuthModal() {
+    if (!document.body.classList.contains('auth-only')) {
+      document.body.classList.remove('auth-modal-open');
+    }
+  }
+
+  function accountShell() {
+    var toggle = qs('avatar-toggle');
+    return toggle ? toggle.closest('.account-shell') : null;
+  }
+
+  function closeAccountMenu() {
+    var shell = accountShell();
+    if (shell) {
+      shell.classList.remove('menu-open');
+    }
   }
 
   function request(path, options) {
@@ -616,7 +658,7 @@
         return loadDetail(state.selectedVmid);
       }
       if (filteredInventory().length) {
-        return loadDetail(filteredInventory()[0].profile.vmid);
+        return loadDetail(profileOf(filteredInventory()[0]).vmid);
       }
       return null;
     }).catch(function (error) {
@@ -735,14 +777,53 @@
       saveToken();
       loadDashboard();
     });
+    if (qs('open-connect-modal')) {
+      qs('open-connect-modal').addEventListener('click', openAuthModal);
+    }
+    if (qs('open-connect-menu')) {
+      qs('open-connect-menu').addEventListener('click', function () {
+        closeAccountMenu();
+        openAuthModal();
+      });
+    }
+    if (qs('close-auth-modal')) {
+      qs('close-auth-modal').addEventListener('click', closeAuthModal);
+    }
+    if (qs('avatar-toggle')) {
+      qs('avatar-toggle').addEventListener('click', function () {
+        var shell = accountShell();
+        if (shell) {
+          shell.classList.toggle('menu-open');
+        }
+      });
+    }
+    document.addEventListener('click', function (event) {
+      var shell = accountShell();
+      if (shell && !shell.contains(event.target)) {
+        shell.classList.remove('menu-open');
+      }
+    });
     qs('clear-token').addEventListener('click', function () {
       state.token = '';
       window.localStorage.removeItem('beagle.webUi.apiToken');
       if (tokenField) {
         tokenField.value = '';
       }
+      state.inventory = [];
+      state.selectedVmid = null;
+      state.selectedVmids = [];
+      renderInventory();
       setBanner('API-Token deleted.', 'info');
+      setAuthMode(false);
+      closeAccountMenu();
     });
+    if (qs('clear-token-menu')) {
+      qs('clear-token-menu').addEventListener('click', function () {
+        if (qs('clear-token')) {
+          qs('clear-token').click();
+        }
+      });
+    }
     qs('refresh-all').addEventListener('click', function () {
       loadDashboard();
     });
@@ -830,6 +911,7 @@
   bindEvents();
   resetPolicyEditor();
   setAuthMode(Boolean(state.token));
+  updateSessionChrome();
   loadDashboard();
   window.setInterval(loadDashboard, 30000);
 })();
