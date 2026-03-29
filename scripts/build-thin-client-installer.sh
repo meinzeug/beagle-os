@@ -326,8 +326,12 @@ chmod +x auto/config
 THINCLIENT_ARCH="$THINCLIENT_ARCH" ./auto/config
 lb clean --purge || true
 BUILD_RC=0
-if ! lb build; then
-  BUILD_RC=$?
+set +e
+lb build
+BUILD_RC=$?
+set -e
+if [[ "$BUILD_RC" -ne 0 ]]; then
+  echo "live-build exited with status $BUILD_RC; rebuilding final live assets and installer ISO from the staged rootfs." >&2
 fi
 popd >/dev/null
 

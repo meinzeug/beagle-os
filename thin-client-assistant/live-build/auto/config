@@ -35,5 +35,6 @@ lb config noauto \
   --mirror-chroot-security "http://deb.debian.org/debian-security" \
   --mirror-binary-security "http://deb.debian.org/debian-security" \
   --security false \
+  --bootloaders "grub-pc grub-efi" \
   --bootappend-live "$BOOT_ARGS" \
   "$@"
