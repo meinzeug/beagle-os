@@ -1,7 +1,7 @@
 [Unit]
 Description=Prepare PVE thin-client runtime
 After=local-fs.target
-Before=getty@tty1.service
+Before=pve-thin-client-runtime.service getty@tty1.service
 
 [Service]
 Type=oneshot
