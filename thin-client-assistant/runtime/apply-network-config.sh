@@ -267,8 +267,18 @@ restart_networkmanager() {
 }
 
 write_resolv_conf() {
-  local dns_servers
-  if [[ -L "$RESOLV_CONF" || ( -e "$RESOLV_CONF" && ! -w "$RESOLV_CONF" ) ]]; then
+  local dns_servers target_path
+
+  if [[ -L "$RESOLV_CONF" ]]; then
+    target_path="$(readlink -f "$RESOLV_CONF" 2>/dev/null || true)"
+    case "$target_path" in
+      /run/systemd/resolve/stub-resolv.conf|/run/systemd/resolve/resolv.conf|"")
+        rm -f "$RESOLV_CONF" >/dev/null 2>&1 || true
+        ;;
+    esac
+  fi
+
+  if [[ -e "$RESOLV_CONF" && ! -w "$RESOLV_CONF" ]]; then
     return 0
   fi
 
@@ -278,6 +288,7 @@ write_resolv_conf() {
     for dns in $dns_servers; do
       printf 'nameserver %s\n' "$dns"
     done
+    printf 'options timeout:1 attempts:3 rotate\n'
   } >"$RESOLV_CONF"
 
   chmod 0644 "$RESOLV_CONF"
