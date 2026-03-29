@@ -109,24 +109,24 @@ set timeout_style=menu
 set timeout=5
 
 menuentry 'Beagle OS Installer' {
-  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles live-config.noautologin live-config.nox11autologin noautologin nox11autologin pve_thin_client.mode=installer
+  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles pve_thin_client.mode=installer
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS Installer (compatibility mode)' {
-  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles live-config.noautologin live-config.nox11autologin noautologin nox11autologin nomodeset irqpoll pci=nomsi noapic pve_thin_client.mode=installer
+  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles nomodeset irqpoll pci=nomsi noapic pve_thin_client.mode=installer
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS Installer (legacy IRQ mode)' {
-  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles live-config.noautologin live-config.nox11autologin noautologin nox11autologin nomodeset irqpoll noapic nolapic pve_thin_client.mode=installer
+  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles nomodeset irqpoll noapic nolapic pve_thin_client.mode=installer
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS Installer (text mode)' {
   terminal_output console
   set gfxpayload=text
-  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles live-config.noautologin live-config.nox11autologin noautologin nox11autologin systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
+  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
   initrd /live/initrd.img
 }
 EOF
@@ -187,17 +187,35 @@ prepare_rootfs_stage() {
     chmod 0440 "$ROOTFS_STAGE_DIR/etc/sudoers.d/pve-thin-client"
   fi
 
-  systemctl --root="$ROOTFS_STAGE_DIR" enable \
+  enable_rootfs_units \
     beagle-runtime-heartbeat.timer \
     beagle-usb-tunnel.service \
     pve-thin-client-prepare.service \
+    pve-thin-client-runtime.service \
     pve-thin-client-installer-gui.service \
     pve-thin-client-installer-menu.service \
     pve-thin-client-installer-menu-serial.service \
     systemd-networkd.service \
     systemd-networkd-wait-online.service \
     ssh.service \
-    getty@tty1.service >/dev/null
+    getty@tty1.service
+}
+
+enable_rootfs_units() {
+  local unit unit_path had_units=0
+  local -a units_to_enable=()
+
+  for unit in "$@"; do
+    unit_path="$ROOTFS_STAGE_DIR/etc/systemd/system/$unit"
+    if [[ -e "$unit_path" || -e "$ROOTFS_STAGE_DIR/usr/lib/systemd/system/$unit" || -e "$ROOTFS_STAGE_DIR/lib/systemd/system/$unit" ]]; then
+      units_to_enable+=("$unit")
+      had_units=1
+    fi
+  done
+
+  if [[ "$had_units" -eq 1 ]]; then
+    systemctl --root="$ROOTFS_STAGE_DIR" enable "${units_to_enable[@]}" >/dev/null
+  fi
 }
 
 build_live_assets_from_stage() {
