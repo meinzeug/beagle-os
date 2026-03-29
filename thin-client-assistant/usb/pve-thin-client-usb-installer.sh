@@ -1292,19 +1292,19 @@ set preset_args="${preset_kernel_args}"
 
 menuentry 'Beagle OS Live' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
-  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} quiet splash loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles \${preset_args} pve_thin_client.mode=runtime
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles \${preset_args} pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS Live (safe mode)' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
-  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic \${preset_args} pve_thin_client.mode=runtime
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic \${preset_args} pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS Live (legacy IRQ mode)' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
-  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic \${preset_args} pve_thin_client.mode=runtime
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic \${preset_args} pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 EOF
