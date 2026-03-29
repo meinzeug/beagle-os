@@ -1069,7 +1069,7 @@ PY
     "$REPO_ROOT/thin-client-assistant/installer/write-config.sh" "$live_state_dir"
 
   if [[ ! -f "$live_state_dir/local-auth.env" ]]; then
-    log_msg "local-auth.env missing after write-config; restoring runtime password file"
+    printf '%s\n' "local-auth.env missing after write-config; restoring runtime password file" >&2
     cat >"$live_state_dir/local-auth.env" <<EOF
 PVE_THIN_CLIENT_RUNTIME_PASSWORD="${PVE_THIN_CLIENT_PRESET_THINCLIENT_PASSWORD:-}"
 EOF
