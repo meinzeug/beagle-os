@@ -42,285 +42,269 @@ HTML = """<!doctype html>
   <title>Beagle OS Installer</title>
   <style>
     :root {
-      --bg: #06111b;
-      --panel: rgba(9, 23, 34, 0.84);
-      --panel-soft: rgba(10, 27, 40, 0.66);
-      --border: rgba(255, 255, 255, 0.12);
-      --text: #f6efe5;
-      --muted: #c8bba8;
-      --accent: #ff8f3d;
-      --accent-2: #43b7ff;
-      --danger: #d1583d;
-      --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+      color-scheme: dark;
+      --bg: #10161c;
+      --panel: #18212a;
+      --panel-soft: #131a21;
+      --border: #2c3947;
+      --text: #eff4f7;
+      --muted: #aab8c4;
+      --accent: #2da3ff;
+      --accent-strong: #1676c8;
+      --warn: #ffcc6b;
+      --danger: #e06666;
+      --ok: #69c27d;
       font-family: "DejaVu Sans", "Segoe UI", sans-serif;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(180deg, #0c1117, #151d26);
       color: var(--text);
-      background:
-        linear-gradient(135deg, rgba(4, 15, 24, 0.95), rgba(5, 12, 19, 0.78)),
-        url("/assets/grub-background.jpg") center/cover fixed no-repeat;
-      min-height: 100vh;
-      overscroll-behavior: none;
-      user-select: none;
     }
-    .shell {
-      min-height: 100vh;
-      padding: 36px;
+    .layout {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 28px;
       display: grid;
-      grid-template-columns: 1.2fr 0.8fr;
-      gap: 28px;
-      backdrop-filter: blur(10px);
+      grid-template-columns: minmax(0, 1.1fr) minmax(380px, 0.9fr);
+      gap: 22px;
     }
-    .hero, .panel {
+    .panel {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 28px;
-      box-shadow: var(--shadow);
-      overflow: hidden;
+      border-radius: 18px;
+      padding: 22px;
     }
-    .hero {
-      display: grid;
-      grid-template-rows: minmax(380px, auto) auto;
-    }
-    .hero-top {
-      position: relative;
-      padding: 36px;
-      min-height: 380px;
-      background:
-        linear-gradient(135deg, rgba(5, 14, 20, 0.22), rgba(255, 143, 61, 0.12)),
-        url("/assets/grub-background.jpg") center/cover no-repeat;
-    }
-    .hero-top::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(180deg, rgba(8, 18, 26, 0.12), rgba(8, 18, 26, 0.8));
-    }
-    .hero-copy {
-      position: relative;
-      z-index: 1;
-      max-width: 720px;
-    }
-    .eyebrow {
-      display: inline-flex;
-      padding: 8px 14px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-      font-size: 12px;
-      color: #e9ded0;
-    }
-    h1 {
-      font-size: clamp(40px, 4.8vw, 52px);
-      line-height: 0.95;
-      margin: 18px 0 14px;
-      max-width: 11ch;
-    }
-    .lead {
-      font-size: 18px;
-      line-height: 1.55;
-      max-width: 58ch;
-      color: #f2e7da;
-    }
-    .hero-bottom {
-      padding: 28px 30px 30px;
+    .stack {
       display: grid;
       gap: 18px;
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)),
-        var(--panel);
     }
-    .meta-grid {
+    .tag {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #0f2435;
+      border: 1px solid #284055;
+      color: #9ed2ff;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, p {
+      margin: 0;
+    }
+    h1 {
+      font-size: 38px;
+      line-height: 1.05;
+      margin-top: 10px;
+    }
+    .lede {
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.5;
+      max-width: 52ch;
+    }
+    .summary-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
     }
-    .meta-card {
-      padding: 18px 20px;
-      border-radius: 20px;
+    .summary-card {
       background: var(--panel-soft);
       border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
     }
-    .meta-card strong {
+    .summary-card strong {
       display: block;
-      font-size: 14px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
       color: var(--muted);
       margin-bottom: 8px;
     }
-    .meta-card span {
+    .summary-card span {
       display: block;
-      font-size: 24px;
-      font-weight: 700;
-    }
-    .panel {
-      display: grid;
-      grid-template-rows: auto auto 1fr auto;
-      padding: 28px;
-      gap: 22px;
-    }
-    .panel h2, .hero-bottom h2 {
       font-size: 22px;
-      margin: 0 0 6px;
+      font-weight: 700;
+      line-height: 1.2;
+      word-break: break-word;
     }
-    .hint {
-      margin: 0;
-      color: var(--muted);
+    .banner {
+      border-radius: 14px;
+      padding: 16px 18px;
+      border: 1px solid var(--border);
+      background: #132230;
+      color: #dbe8f2;
       line-height: 1.5;
     }
-    .mode-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
+    .banner.warn {
+      background: #2a2114;
+      border-color: #5e4722;
+      color: #ffe3a8;
     }
-    .mode-card {
-      position: relative;
-      min-height: 190px;
-      padding: 18px;
-      border-radius: 22px;
-      border: 1px solid var(--border);
-      cursor: pointer;
-      overflow: hidden;
-      transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-      background: var(--panel-soft);
+    .banner.ok {
+      background: #15251a;
+      border-color: #2d5a39;
+      color: #d8f2de;
     }
-    .mode-card:hover { transform: translateY(-3px); }
-    .mode-card.selected {
-      border-color: rgba(255, 143, 61, 0.9);
-      box-shadow: 0 18px 48px rgba(255, 143, 61, 0.24);
-    }
-    .mode-card.unavailable {
-      opacity: 0.36;
-      filter: grayscale(0.8);
-      cursor: not-allowed;
-    }
-    .mode-card::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(180deg, rgba(7, 17, 27, 0.08), rgba(7, 17, 27, 0.88)),
-        var(--image) center/cover no-repeat;
-    }
-    .mode-card > * { position: relative; z-index: 1; }
-    .mode-card h3 { margin: 72px 0 8px; font-size: 22px; }
-    .mode-card p { margin: 0; color: #e4d6c8; line-height: 1.45; }
-    .pill {
-      display: inline-flex;
-      padding: 7px 11px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.14);
-      border: 1px solid rgba(255,255,255,0.18);
-      font-size: 11px;
-      letter-spacing: 0.08em;
+    .section-title {
+      font-size: 14px;
       text-transform: uppercase;
-    }
-    label {
-      display: block;
-      font-size: 13px;
       letter-spacing: 0.08em;
-      text-transform: uppercase;
       color: var(--muted);
       margin-bottom: 10px;
     }
+    .mode-list {
+      display: grid;
+      gap: 10px;
+    }
+    .mode-card {
+      width: 100%;
+      text-align: left;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--panel-soft);
+      color: var(--text);
+      padding: 16px;
+      cursor: pointer;
+    }
+    .mode-card.selected {
+      border-color: var(--accent);
+      background: #15293a;
+    }
+    .mode-card.unavailable {
+      opacity: 0.45;
+      cursor: default;
+    }
+    .mode-card strong {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+    .mode-card span {
+      display: block;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    label {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: var(--muted);
+    }
     select {
       width: 100%;
-      border-radius: 16px;
+      padding: 14px 16px;
+      border-radius: 12px;
       border: 1px solid var(--border);
-      background: rgba(0, 0, 0, 0.2);
+      background: #0f151b;
       color: var(--text);
-      padding: 16px 18px;
-      font-size: 17px;
-      outline: none;
+      font-size: 16px;
     }
     .actions {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
     }
     button {
       appearance: none;
-      border: 0;
-      border-radius: 18px;
-      padding: 15px 18px;
-      font-size: 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel-soft);
+      color: var(--text);
+      padding: 14px 16px;
+      font-size: 15px;
       font-weight: 700;
       cursor: pointer;
-      transition: transform 0.16s ease, opacity 0.16s ease;
     }
-    button:hover { transform: translateY(-1px); }
     button.primary {
-      background: linear-gradient(135deg, var(--accent), #f25a32);
-      color: #fff8f0;
-    }
-    button.secondary {
-      background: rgba(255, 255, 255, 0.08);
-      color: var(--text);
-      border: 1px solid var(--border);
+      background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+      border-color: #1b6eb7;
+      color: #f8fbff;
     }
     button.danger {
-      background: rgba(209, 88, 61, 0.16);
-      color: #ffd2c7;
-      border: 1px solid rgba(209, 88, 61, 0.3);
+      background: #2b1717;
+      border-color: #6a3535;
+      color: #ffd1d1;
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
     .status {
-      min-height: 26px;
-      color: #eedec7;
-    }
-    .status.error { color: #ffb7a5; }
-    footer {
-      font-size: 12px;
+      min-height: 24px;
       color: var(--muted);
-      line-height: 1.5;
+      font-size: 14px;
     }
-    footer a {
-      color: #9ed4ff;
-      text-decoration: none;
+    .status.error {
+      color: #ffb3b3;
     }
-    @media (max-width: 1180px) {
-      .shell { grid-template-columns: 1fr; }
-      .hero { grid-template-rows: auto auto; }
-      .hero-top { min-height: 320px; }
-      .mode-grid, .meta-grid, .actions { grid-template-columns: 1fr; }
-      h1 { font-size: 40px; }
+    .details {
+      display: grid;
+      gap: 8px;
+      font-size: 14px;
+    }
+    .details div {
+      display: grid;
+      grid-template-columns: 130px minmax(0, 1fr);
+      gap: 12px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .details strong {
+      color: var(--muted);
+      font-weight: 600;
+    }
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+        padding: 18px;
+      }
+      .summary-grid,
+      .actions {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body class="notranslate">
-  <div class="shell">
-    <section class="hero">
-      <div class="hero-top">
-        <div class="hero-copy">
-          <div class="eyebrow">Beagle OS Installer</div>
-          <h1>Installationsmedium mit echter Bedienoberflaeche.</h1>
-          <p class="lead">
-            Waehle nur Streaming-Modus und Zielplatte. VM-Zugangsdaten, Endpunkte und Profile kommen direkt aus dem gebuendelten Preset dieses Sticks.
-          </p>
+  <main class="layout">
+    <section class="stack">
+      <div class="panel stack">
+        <div class="tag">Beagle OS Installer</div>
+        <div class="stack">
+          <h1 id="vm-name">Installer wird vorbereitet</h1>
+          <p class="lede" id="vm-hint">Der Stick liest sein gebuendeltes VM-Profil und die verfuegbaren Installationsziele ein.</p>
         </div>
+        <div class="summary-grid">
+          <div class="summary-card"><strong>Preset</strong><span id="meta-preset">-</span></div>
+          <div class="summary-card"><strong>Host</strong><span id="meta-host">-</span></div>
+          <div class="summary-card"><strong>Node / VMID</strong><span id="meta-node">-</span></div>
+          <div class="summary-card"><strong>Verfuegbare Modi</strong><span id="meta-modes">-</span></div>
+        </div>
+        <div class="banner" id="banner">Initialisiere Installer-Zustand...</div>
       </div>
-      <div class="hero-bottom">
-        <div>
-          <h2 id="vm-name">Lade VM-Profil...</h2>
-          <p class="hint" id="vm-hint">Der USB-Stick liest gerade sein gebuendeltes Preset und die verfuegbaren Ziele ein.</p>
-        </div>
-        <div class="meta-grid">
-          <div class="meta-card"><strong>Proxmox Host</strong><span id="meta-host">-</span></div>
-          <div class="meta-card"><strong>Node / VMID</strong><span id="meta-node">-</span></div>
-          <div class="meta-card"><strong>Modi bereit</strong><span id="meta-modes">-</span></div>
+
+      <div class="panel">
+        <div class="section-title">Diagnose</div>
+        <div class="details">
+          <div><strong>Preset-Datei</strong><span id="detail-preset-file">-</span></div>
+          <div><strong>Preset-Quelle</strong><span id="detail-preset-source">-</span></div>
+          <div><strong>Live-Medium</strong><span id="detail-live-medium">-</span></div>
+          <div><strong>Live-Assets</strong><span id="detail-live-assets">-</span></div>
+          <div><strong>Log-Verzeichnis</strong><span id="detail-log-dir">-</span></div>
         </div>
       </div>
     </section>
 
-    <aside class="panel">
+    <aside class="panel stack">
       <div>
-        <h2>Installationsziel</h2>
-        <p class="hint">Moonlight, SPICE, noVNC oder DCV waehlen und direkt auf eine leere Zielplatte schreiben.</p>
+        <div class="section-title">Streaming-Modus</div>
+        <div class="mode-list" id="mode-grid"></div>
       </div>
-
-      <div class="mode-grid" id="mode-grid"></div>
 
       <div>
         <label for="disk-select">Zielplatte</label>
@@ -328,47 +312,24 @@ HTML = """<!doctype html>
       </div>
 
       <div class="actions">
-        <button class="primary" id="install-btn">Jetzt installieren</button>
-        <button class="secondary" id="shell-btn">Shell</button>
-        <button class="secondary" id="reload-btn">Neu laden</button>
-        <button class="secondary" id="preset-btn">Preset anzeigen</button>
-        <button class="secondary" id="reboot-btn">Neustart</button>
+        <button class="primary" id="install-btn">Installation starten</button>
+        <button id="reload-btn">Zustand neu laden</button>
+        <button id="preset-btn">Preset anzeigen</button>
+        <button id="shell-btn">Shell oeffnen</button>
+        <button id="reboot-btn">Neustart</button>
         <button class="danger" id="poweroff-btn">Ausschalten</button>
       </div>
 
       <div class="status" id="status"></div>
-
-      <footer>
-        Bilder fest eingebunden von Unsplash:
-        <a href="https://unsplash.com/photos/QFUTkzaijA0" target="_blank" rel="noreferrer">Background</a>,
-        <a href="https://unsplash.com/photos/oxwPGUnsfpE" target="_blank" rel="noreferrer">Server</a>,
-        <a href="https://unsplash.com/photos/uqFPSwtCXqg" target="_blank" rel="noreferrer">Keyboard</a>.
-      </footer>
     </aside>
-  </div>
+  </main>
 
   <script>
     const MODE_META = {
-      MOONLIGHT: {
-        title: "Moonlight",
-        image: "url('/assets/card-server.jpg')",
-        description: "Sunshine-Streaming mit H.264, 1080p60 und Auto-Pairing gegen das vorkonfigurierte VM-Ziel."
-      },
-      SPICE: {
-        title: "SPICE",
-        image: "url('/assets/card-server.jpg')",
-        description: "Direkter Viewer oder Proxmox-Ticket-Flow fuer klassische Remote-Console-Sessions."
-      },
-      NOVNC: {
-        title: "noVNC",
-        image: "url('/assets/card-keyboard.jpg')",
-        description: "Browserbasierte Konsole fuer Hosts oder Setups ohne nativen Viewer."
-      },
-      DCV: {
-        title: "DCV",
-        image: "url('/assets/grub-background.jpg')",
-        description: "Low-latency Streaming mit dem bereits vorkonfigurierten DCV-Ziel dieser VM."
-      }
+      MOONLIGHT: "Sunshine-Streaming mit dem vorkonfigurierten Ziel.",
+      SPICE: "Klassische Proxmox- oder SPICE-Konsole.",
+      NOVNC: "Browserbasierte Konsole fuer Notfaelle.",
+      DCV: "Low-latency Streaming mit DCV."
     };
 
     let state = null;
@@ -393,57 +354,101 @@ HTML = """<!doctype html>
       node.className = isError ? "status error" : "status";
     }
 
-    function renderState() {
-      const preset = state.preset || {};
-      const debug = state.debug || {};
-      const disks = state.disks || [];
-      const modes = preset.available_modes || [];
+    function setBanner(text, tone = "") {
+      const node = document.getElementById("banner");
+      node.textContent = text;
+      node.className = tone ? `banner ${tone}` : "banner";
+    }
 
-      document.getElementById("vm-name").textContent = preset.vm_name || preset.profile_name || "Generisches Installationsmedium";
-      document.getElementById("vm-hint").textContent =
-        preset.preset_active
-          ? "Dieses Medium ist bereits an eine VM gebunden. Weitere Zugangsdaten sind nicht noetig."
-          : `Kein gebuendeltes VM-Preset gefunden. Quelle: ${debug.preset_source || "unbekannt"}, Datei: ${debug.preset_file || "n/a"}, Logs: ${state.log_dir || "/tmp/pve-thin-client-logs"}`;
-      document.getElementById("meta-host").textContent = preset.proxmox_host || "n/a";
-      document.getElementById("meta-node").textContent =
-        preset.proxmox_node && preset.proxmox_vmid ? `${preset.proxmox_node} / ${preset.proxmox_vmid}` : "n/a";
-      document.getElementById("meta-modes").textContent = modes.length ? modes.join("  ") : "keine";
+    function buildPresetLines() {
+      const preset = state?.preset || {};
+      const debug = state?.debug || {};
+      return [
+        `VM: ${preset.vm_name || preset.profile_name || "n/a"}`,
+        `Host: ${preset.proxmox_host || "n/a"}`,
+        `Node: ${preset.proxmox_node || "n/a"}`,
+        `VMID: ${preset.proxmox_vmid || "n/a"}`,
+        `Modi: ${(preset.available_modes || []).join(" ") || "keine"}`,
+        `Default: ${preset.default_mode || "n/a"}`,
+        `Moonlight Host: ${preset.moonlight_host || "n/a"}`,
+        `Preset Quelle: ${debug.preset_source || "n/a"}`,
+        `Preset Datei: ${debug.preset_file || "n/a"}`,
+        `Live Medium: ${debug.live_medium || "n/a"}`,
+        `Log-Verzeichnis: ${state?.log_dir || "/tmp/pve-thin-client-logs"}`
+      ];
+    }
 
+    function renderModeCards(modes) {
       const grid = document.getElementById("mode-grid");
       grid.innerHTML = "";
       ["MOONLIGHT", "SPICE", "NOVNC", "DCV"].forEach((mode) => {
-        const meta = MODE_META[mode];
         const available = modes.includes(mode);
-        const card = document.createElement("button");
-        card.type = "button";
-        card.className = `mode-card${available ? "" : " unavailable"}${selectedMode === mode ? " selected" : ""}`;
-        card.style.setProperty("--image", meta.image);
-        card.innerHTML = `<span class="pill">${available ? "bereit" : "nicht konfiguriert"}</span><h3>${meta.title}</h3><p>${meta.description}</p>`;
-        card.addEventListener("click", () => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `mode-card${available ? "" : " unavailable"}${selectedMode === mode ? " selected" : ""}`;
+        button.innerHTML = `<strong>${mode}</strong><span>${MODE_META[mode]}</span>`;
+        button.addEventListener("click", () => {
           if (!available) return;
           selectedMode = mode;
           renderState();
         });
-        grid.appendChild(card);
+        grid.appendChild(button);
       });
+    }
 
-      if (!selectedMode || !modes.includes(selectedMode)) {
-        selectedMode = preset.default_mode && modes.includes(preset.default_mode) ? preset.default_mode : (modes[0] || null);
-      }
-
+    function renderDisks(disks) {
       const select = document.getElementById("disk-select");
       select.innerHTML = "";
+      if (!disks.length) {
+        const option = document.createElement("option");
+        option.textContent = "Keine Zielplatten gefunden";
+        select.appendChild(option);
+        return;
+      }
       disks.forEach((disk) => {
         const option = document.createElement("option");
         option.value = disk.device;
         option.textContent = `${disk.device}  ${disk.model || "disk"}  ${disk.size || ""}  ${disk.transport || ""}`;
         select.appendChild(option);
       });
-      if (!disks.length) {
-        const option = document.createElement("option");
-        option.textContent = "Keine Zielplatten gefunden";
-        select.appendChild(option);
+    }
+
+    function renderState() {
+      const preset = state?.preset || {};
+      const debug = state?.debug || {};
+      const disks = state?.disks || [];
+      const modes = preset.available_modes || [];
+      const presetReady = Boolean(preset.preset_active);
+
+      if (!selectedMode || !modes.includes(selectedMode)) {
+        selectedMode = preset.default_mode && modes.includes(preset.default_mode) ? preset.default_mode : (modes[0] || null);
       }
+
+      document.getElementById("vm-name").textContent = preset.vm_name || preset.profile_name || "VM-Profil nicht erkannt";
+      document.getElementById("vm-hint").textContent = presetReady
+        ? "Dieses Medium ist an eine bestimmte VM gebunden. Waehle nur Modus und Zielplatte."
+        : "Das gebuendelte VM-Preset wurde nicht gefunden. In diesem Fall ist das Textmenue der sichere Fallback.";
+      document.getElementById("meta-preset").textContent = presetReady ? "bereit" : "fehlt";
+      document.getElementById("meta-host").textContent = preset.proxmox_host || "n/a";
+      document.getElementById("meta-node").textContent =
+        preset.proxmox_node && preset.proxmox_vmid ? `${preset.proxmox_node} / ${preset.proxmox_vmid}` : "n/a";
+      document.getElementById("meta-modes").textContent = modes.length ? modes.join("  ") : "keine";
+      document.getElementById("detail-preset-file").textContent = debug.preset_file || "n/a";
+      document.getElementById("detail-preset-source").textContent = debug.preset_source || "n/a";
+      document.getElementById("detail-live-medium").textContent = debug.live_medium || "n/a";
+      document.getElementById("detail-live-assets").textContent = debug.live_asset_dir || "n/a";
+      document.getElementById("detail-log-dir").textContent = state?.log_dir || "/tmp/pve-thin-client-logs";
+
+      if (presetReady) {
+        setBanner("Preset erkannt. Die grafische Ansicht bleibt bewusst schlank und startet die eigentliche Installation nur in einem separaten Terminal.", "ok");
+      } else {
+        setBanner(`Preset fehlt. Quelle: ${debug.preset_source || "unbekannt"}, Datei: ${debug.preset_file || "n/a"}. Nutze in diesem Fall das Textmenue oder pruefe die USB-Logs.`, "warn");
+      }
+
+      renderModeCards(modes);
+      renderDisks(disks);
+
+      document.getElementById("install-btn").disabled = !presetReady || !selectedMode || !disks.length;
     }
 
     async function loadState() {
@@ -473,37 +478,22 @@ HTML = """<!doctype html>
         setStatus("Keine Zielplatte ausgewaehlt.", true);
         return;
       }
-      setStatus("Installation wird in einem Terminalfenster gestartet...");
+      setStatus("Installation wird in einem Terminal gestartet...");
       if (await postAction("install", { mode: selectedMode, disk })) {
-        setStatus(`Installationslauf fuer ${selectedMode} auf ${disk} wurde gestartet.`);
+        setStatus(`Installation fuer ${selectedMode} auf ${disk} gestartet.`);
       }
     });
 
     document.getElementById("shell-btn").addEventListener("click", () => postAction("shell"));
     document.getElementById("reload-btn").addEventListener("click", () => loadState().catch((error) => setStatus(error.message, true)));
-    document.getElementById("preset-btn").addEventListener("click", () => {
-      const preset = state?.preset || {};
-      const debug = state?.debug || {};
-      const lines = [
-        `VM: ${preset.vm_name || preset.profile_name || "n/a"}`,
-        `Host: ${preset.proxmox_host || "n/a"}`,
-        `Node: ${preset.proxmox_node || "n/a"}`,
-        `VMID: ${preset.proxmox_vmid || "n/a"}`,
-        `Modi: ${(preset.available_modes || []).join(" ") || "keine"}`,
-        `Default: ${preset.default_mode || "n/a"}`,
-        `Moonlight Host: ${preset.moonlight_host || "n/a"}`,
-        `Moonlight App: ${preset.moonlight_app || "n/a"}`,
-        `Preset Quelle: ${debug.preset_source || "n/a"}`,
-        `Preset Datei: ${debug.preset_file || "n/a"}`,
-        `Cache Datei: ${debug.cached_preset_file || "n/a"}`,
-        `Logs: ${state?.log_dir || "/tmp/pve-thin-client-logs"}`
-      ];
-      window.alert(lines.join("\\n"));
-    });
+    document.getElementById("preset-btn").addEventListener("click", () => window.alert(buildPresetLines().join("\\n")));
     document.getElementById("reboot-btn").addEventListener("click", () => postAction("reboot"));
     document.getElementById("poweroff-btn").addEventListener("click", () => postAction("poweroff"));
 
-    loadState().catch((error) => setStatus(error.message, true));
+    loadState().catch((error) => {
+      setBanner("Der grafische Installer konnte den Initialzustand nicht lesen. Wechsle in das Textmenue oder pruefe die Logs unter /tmp/pve-thin-client-logs.", "warn");
+      setStatus(error.message, true);
+    });
   </script>
 </body>
 </html>
@@ -684,6 +674,11 @@ def fallback_to_tui():
     os.execv(str(FALLBACK_MENU), [str(FALLBACK_MENU)])
 
 
+def should_use_graphical_ui(state):
+    preset = state.get("preset", {}) if isinstance(state, dict) else {}
+    return bool(preset.get("preset_active"))
+
+
 def main():
     if not LOCAL_INSTALLER.is_file() or not FALLBACK_MENU.is_file():
         raise SystemExit("Installer UI dependencies are missing.")
@@ -692,6 +687,18 @@ def main():
     browser = shutil.which("chromium") or shutil.which("chromium-browser")
     if not browser or not os.environ.get("DISPLAY"):
         fallback_to_tui()
+
+    try:
+        initial_state = build_state()
+    except Exception:  # noqa: BLE001
+        logging.exception("unable to build initial graphical installer state")
+        fallback_to_tui()
+        return
+
+    if not should_use_graphical_ui(initial_state):
+        logging.warning("graphical installer disabled because no bundled preset is active")
+        fallback_to_tui()
+        return
 
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)

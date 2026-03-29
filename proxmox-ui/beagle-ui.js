@@ -532,15 +532,17 @@
     syncInstallerButtons(overlay, payload);
   }
 
-  async function prepareInstallerDownload(profile, overlay, artifactKey, actionName, loadingLabel, successMessage) {
+  async function prepareInstallerDownload(profile, overlay, artifactKey, actionName, loadingLabel, successMessage, filenameOverride) {
     var downloadButton = overlay.querySelector('[data-beagle-action="' + actionName + '"]');
     var originalText = downloadButton ? downloadButton.textContent : "USB Installer";
     var state = null;
     var attempt;
     var status;
-    var filename = artifactKey === "installerWindowsUrl"
+    var artifactUrl = profile && profile[artifactKey] ? String(profile[artifactKey]) : "";
+    var filename = filenameOverride || (artifactKey === "installerWindowsUrl"
       ? ("pve-thin-client-usb-installer-vm-" + profile.vmid + ".ps1")
-      : ("pve-thin-client-usb-installer-vm-" + profile.vmid + ".sh");
+      : ("pve-thin-client-usb-installer-vm-" + profile.vmid + ".sh"));
+    var requiresProtectedDownload = /^\/beagle-api\//.test(artifactUrl);
 
     if (profile && profile.installerTargetEligible === false) {
       applyInstallerPrepState(overlay, profile.installerPrep || {});
@@ -561,7 +563,7 @@
       }
       status = String(state && state.status || "").toLowerCase();
       if (state && String(state && state.status || "").toLowerCase() === "ready") {
-        if (artifactKey === "installerUrl" || artifactKey === "installerWindowsUrl") {
+        if (requiresProtectedDownload) {
           await downloadProtectedFile(normalizeBeagleApiPath(profile[artifactKey]), filename);
         } else {
           triggerDownload(profile[artifactKey]);
@@ -575,7 +577,7 @@
       }
       for (attempt = 0; attempt < 180; attempt += 1) {
         if (String(state && state.status || "").toLowerCase() === "ready") {
-          if (artifactKey === "installerUrl" || artifactKey === "installerWindowsUrl") {
+          if (requiresProtectedDownload) {
             await downloadProtectedFile(normalizeBeagleApiPath(profile[artifactKey]), filename);
           } else {
             triggerDownload(profile[artifactKey]);
@@ -1028,6 +1030,7 @@
         proxmoxHost: meta["proxmox-host"] || window.location.hostname,
         managerPinnedPubkey: controlPlaneProfile && controlPlaneProfile.beagle_manager_pinned_pubkey || "",
         installerUrl: controlPlaneProfile && controlPlaneProfile.installer_url || resolveUsbInstallerUrl(ctx),
+        liveUsbUrl: controlPlaneProfile && controlPlaneProfile.live_usb_url || ("/beagle-api/api/v1/vms/" + encodeURIComponent(String(ctx.vmid)) + "/live-usb.sh"),
         installerWindowsUrl: controlPlaneProfile && controlPlaneProfile.installer_windows_url || ("/beagle-api/api/v1/vms/" + encodeURIComponent(String(ctx.vmid)) + "/installer.ps1"),
         installerIsoUrl: controlPlaneProfile && controlPlaneProfile.installer_iso_url || resolveInstallerIsoUrl(ctx),
         controlPlaneHealthUrl: resolveControlPlaneHealthUrl(),
@@ -1102,6 +1105,7 @@
       moonlight_audio_config: profile.audio,
       manager_url: profile.managerUrl,
       installer_url: profile.installerUrl,
+      live_usb_url: profile.liveUsbUrl,
       installer_windows_url: profile.installerWindowsUrl,
       installer_iso_url: profile.installerIsoUrl,
       control_plane_health_url: profile.controlPlaneHealthUrl,
@@ -1148,6 +1152,7 @@
       '    <div class="beagle-banner ' + installerTargetState(profile, installerPrep).bannerClass + '" data-beagle-download-banner><strong data-beagle-download-state>' + escapeHtml(installerTargetState(profile, installerPrep).label) + '</strong>: <span data-beagle-download-message>' + escapeHtml(installerTargetState(profile, installerPrep).message) + '</span></div>' +
       '    <div class="beagle-actions">' +
       (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn primary" data-beagle-action="download">USB Installer Skript</button>') +
+      (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-live">Live USB Skript</button>') +
       (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-windows">Windows USB Installer</button>') +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-iso">ISO Download</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-action="open-web-ui">Open Web UI</button>' +
@@ -1175,6 +1180,7 @@
                 kvRow('Assignment Source', escapeHtml(profile.assignmentSource || '')) +
                 kvRow('Applied Policy', escapeHtml(profile.appliedPolicy && profile.appliedPolicy.name || '')) +
                 kvRow('USB Script', escapeHtml(profile.installerUrl)) +
+                kvRow('Live USB Script', escapeHtml(profile.liveUsbUrl)) +
                 kvRow('Windows USB Script', escapeHtml(profile.installerWindowsUrl)) +
                 kvRow('Installer ISO', escapeHtml(profile.installerIsoUrl)) +
                 kvRow('Health', escapeHtml(profile.controlPlaneHealthUrl)) +
@@ -1254,6 +1260,9 @@
       switch (event.target.getAttribute('data-beagle-action')) {
         case 'download':
           prepareInstallerDownload(profile, overlay, 'installerUrl', 'download', 'Installer wird vorbereitet', 'Beagle USB Installer Skript wird heruntergeladen.');
+          break;
+        case 'download-live':
+          prepareInstallerDownload(profile, overlay, 'liveUsbUrl', 'download-live', 'Live USB wird vorbereitet', 'Beagle Live USB Skript wird heruntergeladen.', 'pve-thin-client-live-usb-vm-' + profile.vmid + '.sh');
           break;
         case 'download-windows':
           prepareInstallerDownload(profile, overlay, 'installerWindowsUrl', 'download-windows', 'Windows Installer wird vorbereitet', 'Beagle Windows USB Installer wird heruntergeladen.');
