@@ -1110,30 +1110,6 @@ PY
     "$network_interface"
 }
 
-build_preset_kernel_args() {
-  [[ -n "$PVE_THIN_CLIENT_PRESET_B64" ]] || return 0
-
-  python3 - "$PVE_THIN_CLIENT_PRESET_B64" <<'PY'
-import base64
-import gzip
-import sys
-import textwrap
-
-payload = sys.argv[1].strip()
-if not payload:
-    raise SystemExit(0)
-
-decoded = base64.b64decode(payload.encode("ascii"), validate=True)
-encoded = base64.urlsafe_b64encode(gzip.compress(decoded, compresslevel=9)).decode("ascii").rstrip("=")
-
-parts = ["pve_thin_client.preset_codec=gzip+base64url"]
-for index, chunk in enumerate(textwrap.wrap(encoded, 180)):
-    parts.append(f"pve_thin_client.preset_b64_{index:03d}={chunk}")
-
-print(" ".join(parts))
-PY
-}
-
 print_write_plan() {
   local bootstrap_source install_payload_source media_label live_assets_path
 
@@ -1170,7 +1146,7 @@ EOF
 }
 
 write_usb() {
-  local mount_dir bios_partition usb_partition usb_uuid preset_kernel_args runtime_ip_args
+  local mount_dir bios_partition usb_partition usb_uuid runtime_ip_args
   local live_mount_dir hostname_value network_mode network_static_address network_static_prefix network_gateway network_interface
 
   if [[ "$DRY_RUN" == "1" ]]; then
@@ -1257,8 +1233,6 @@ write_usb() {
     write_live_state_config "$mount_dir"
   fi
   write_usb_manifest "$mount_dir"
-  preset_kernel_args="$(build_preset_kernel_args || true)"
-
   if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
     hostname_value="beagle-live"
     network_mode="dhcp"
@@ -1282,29 +1256,28 @@ write_usb() {
     [[ -n "$network_interface" ]] || network_interface="eth0"
     runtime_ip_args="$(boot_ip_arg "$network_mode" "$network_static_address" "$network_static_prefix" "$network_gateway" "$hostname_value" "$network_interface")"
 
-    cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
+cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
 insmod part_gpt
 insmod fat
 terminal_output console
 set default=0
 set timeout=5
-set preset_args="${preset_kernel_args}"
 
 menuentry 'Beagle OS Live' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
-  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime \${preset_args}
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS Live (safe mode)' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
-  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic pve_thin_client.mode=runtime \${preset_args}
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS Live (legacy IRQ mode)' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
-  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic pve_thin_client.mode=runtime \${preset_args}
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 EOF
@@ -1313,27 +1286,26 @@ EOF
 terminal_output console
 set default=0
 set timeout=5
-set preset_args="${preset_kernel_args}"
 
 menuentry 'Beagle OS Installer' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles pve_thin_client.mode=installer \${preset_args}
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles pve_thin_client.mode=installer
   initrd /pve-thin-client/live/initrd.img
 }
 
 menuentry 'Beagle OS Installer (compatibility mode)' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 splash plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic pve_thin_client.mode=installer \${preset_args}
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 splash plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic pve_thin_client.mode=installer
   initrd /pve-thin-client/live/initrd.img
 }
 
 menuentry 'Beagle OS Installer (legacy IRQ mode)' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 splash plymouth.enable=0 nomodeset irqpoll noapic nolapic pve_thin_client.mode=installer \${preset_args}
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 splash plymouth.enable=0 nomodeset irqpoll noapic nolapic pve_thin_client.mode=installer
   initrd /pve-thin-client/live/initrd.img
 }
 
 menuentry 'Beagle OS Installer (text mode)' {
   terminal_output console
   set gfxpayload=text
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 plymouth.ignore-serial-consoles systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1 \${preset_args}
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 plymouth.ignore-serial-consoles systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
   initrd /pve-thin-client/live/initrd.img
 }
 
