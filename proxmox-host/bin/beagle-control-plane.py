@@ -666,6 +666,89 @@ sleep 2
     }
 
 
+def fetch_sunshine_server_identity(vm: VmSummary, guest_user: str) -> dict[str, Any]:
+    state_file = f"/home/{guest_user}/.config/sunshine/sunshine_state.json"
+    cert_file = f"/home/{guest_user}/.config/sunshine/credentials/cacert.pem"
+    conf_file = f"/home/{guest_user}/.config/sunshine/sunshine.conf"
+    script = f"""#!/usr/bin/env bash
+set -euo pipefail
+
+python3 - {shlex.quote(state_file)} {shlex.quote(cert_file)} {shlex.quote(conf_file)} <<'PY'
+import json
+import sys
+from pathlib import Path
+
+state_path = Path(sys.argv[1])
+cert_path = Path(sys.argv[2])
+conf_path = Path(sys.argv[3])
+
+payload = {{
+    "uniqueid": "",
+    "server_cert_pem": "",
+    "sunshine_name": "",
+    "stream_port": "",
+}}
+
+if state_path.exists():
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        payload["uniqueid"] = str(((state.get("root") or {{}}).get("uniqueid") or "")).strip()
+    except Exception:
+        pass
+
+if cert_path.exists():
+    try:
+        payload["server_cert_pem"] = cert_path.read_text(encoding="utf-8")
+    except Exception:
+        pass
+
+if conf_path.exists():
+    try:
+        for raw_line in conf_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if key == "sunshine_name":
+                payload["sunshine_name"] = value
+            elif key == "port":
+                payload["stream_port"] = value
+    except Exception:
+        pass
+
+print(json.dumps(payload))
+PY
+"""
+    exitcode, stdout, stderr = guest_exec_text(vm.vmid, script)
+    if exitcode != 0:
+        return {
+            "ok": False,
+            "exitcode": exitcode,
+            "stdout": stdout,
+            "stderr": stderr,
+            "uniqueid": "",
+            "server_cert_pem": "",
+            "sunshine_name": "",
+            "stream_port": "",
+        }
+    try:
+        payload = json.loads((stdout or "{}").strip() or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    return {
+        "ok": True,
+        "exitcode": exitcode,
+        "stdout": stdout,
+        "stderr": stderr,
+        "uniqueid": str(payload.get("uniqueid", "") or "").strip(),
+        "server_cert_pem": str(payload.get("server_cert_pem", "") or ""),
+        "sunshine_name": str(payload.get("sunshine_name", "") or "").strip(),
+        "stream_port": str(payload.get("stream_port", "") or "").strip(),
+    }
+
+
 def internal_sunshine_api_url(vm: VmSummary, profile: dict[str, Any]) -> str:
     public_stream = profile.get("public_stream") if isinstance(profile.get("public_stream"), dict) else None
     guest_ip = str(profile.get("guest_ip", "") or "").strip()
@@ -3102,10 +3185,25 @@ class Handler(BaseHTTPRequestHandler):
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
             result = register_moonlight_certificate_on_vm(vm, client_cert_pem, device_name=device_name)
+            guest_user = str(result.get("guest_user", "") or "").strip()
+            sunshine_server: dict[str, Any] = {
+                "ok": False,
+                "uniqueid": "",
+                "server_cert_pem": "",
+                "sunshine_name": "",
+                "stream_port": "",
+                "stdout": "",
+                "stderr": "",
+            }
+            if bool(result.get("ok")) and guest_user:
+                sunshine_server = fetch_sunshine_server_identity(vm, guest_user)
+            overall_ok = bool(result.get("ok")) and bool(sunshine_server.get("ok")) and bool(
+                sunshine_server.get("uniqueid")
+            ) and bool(sunshine_server.get("server_cert_pem"))
             self._write_json(
-                HTTPStatus.CREATED if result.get("ok") else HTTPStatus.BAD_GATEWAY,
+                HTTPStatus.CREATED if overall_ok else HTTPStatus.BAD_GATEWAY,
                 {
-                    "ok": bool(result.get("ok")),
+                    "ok": overall_ok,
                     "service": "beagle-control-plane",
                     "version": VERSION,
                     "generated_at": utcnow(),
@@ -3115,6 +3213,15 @@ class Handler(BaseHTTPRequestHandler):
                     "guest_user": result.get("guest_user", ""),
                     "stdout": result.get("stdout", ""),
                     "stderr": result.get("stderr", ""),
+                    "sunshine_server": {
+                        "ok": bool(sunshine_server.get("ok")),
+                        "uniqueid": sunshine_server.get("uniqueid", ""),
+                        "server_cert_pem": sunshine_server.get("server_cert_pem", ""),
+                        "sunshine_name": sunshine_server.get("sunshine_name", ""),
+                        "stream_port": sunshine_server.get("stream_port", ""),
+                        "stdout": sunshine_server.get("stdout", ""),
+                        "stderr": sunshine_server.get("stderr", ""),
+                    },
                 },
             )
             return

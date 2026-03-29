@@ -95,7 +95,14 @@ clear_stale_x_locks() {
 launch_x_once() {
   echo "[start-x11] invoking startx (attempt=${1:-1})"
   trace_event "x11.start" "launcher=pve-thin-client-start-x11 attempt=${1:-1}"
-  startx /usr/local/bin/start-pve-thin-client-session -- :0 vt1 -keeptty -nolisten tcp -auth "$XAUTHORITY"
+  if command -v xauth >/dev/null 2>&1 && command -v mcookie >/dev/null 2>&1; then
+    cookie="$(mcookie)"
+    xauth -f "$XAUTHORITY" remove :0 >/dev/null 2>&1 || true
+    xauth -f "$XAUTHORITY" remove unix:0 >/dev/null 2>&1 || true
+    xauth -f "$XAUTHORITY" add :0 . "$cookie" >/dev/null 2>&1 || true
+    xauth -f "$XAUTHORITY" add unix:0 . "$cookie" >/dev/null 2>&1 || true
+  fi
+  exec xinit /usr/local/bin/start-pve-thin-client-session -- /usr/bin/X :0 vt1 -keeptty -nolisten tcp -auth "$XAUTHORITY"
 }
 
 wait_for_graphics
