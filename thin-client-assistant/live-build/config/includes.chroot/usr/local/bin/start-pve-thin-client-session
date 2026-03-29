@@ -13,6 +13,7 @@ LOG_DIR="${PVE_THIN_CLIENT_LOG_DIR:-$LOG_ROOT/$LOG_SESSION_ID}"
 mkdir -p "$LOG_DIR"
 export PVE_THIN_CLIENT_LOG_DIR="$LOG_DIR"
 export PVE_THIN_CLIENT_LOG_SESSION_ID="$LOG_SESSION_ID"
+export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
 
 {
   printf 'BOOT_MODE=%s\n' "$BOOT_MODE"
@@ -41,6 +42,47 @@ export PVE_THIN_CLIENT_LOG_SESSION_ID="$LOG_SESSION_ID"
   echo "=== blkid ==="
   blkid 2>/dev/null || true
 } >>"$LOG_DIR/boot-session.log" 2>&1 || true
+
+normalize_xauthority_aliases() {
+  local serverauth=""
+  local cookie=""
+  local hostname_short=""
+  local hostname_fqdn=""
+  local entry=""
+
+  command -v xauth >/dev/null 2>&1 || return 0
+  touch "$XAUTHORITY" >/dev/null 2>&1 || return 0
+  chmod 0600 "$XAUTHORITY" >/dev/null 2>&1 || true
+
+  for serverauth in /tmp/serverauth.*; do
+    [ -f "$serverauth" ] || continue
+    cookie="$(xauth -f "$serverauth" list 2>/dev/null | awk 'NR==1 {print $3}')"
+    [ -n "$cookie" ] && break
+  done
+
+  if [ -z "$cookie" ]; then
+    cookie="$(xauth -f "$XAUTHORITY" list 2>/dev/null | awk 'NR==1 {print $3}')"
+  fi
+  [ -n "$cookie" ] || return 0
+
+  hostname_short="$(hostname 2>/dev/null || printf '')"
+  hostname_fqdn="$(hostname -f 2>/dev/null || printf '%s' "$hostname_short")"
+
+  for entry in \
+    ":0" \
+    "unix:0" \
+    "localhost/unix:0" \
+    "localhost.localdomain/unix:0" \
+    "${hostname_short}/unix:0" \
+    "${hostname_fqdn}/unix:0"
+  do
+    [ -n "$entry" ] || continue
+    xauth -f "$XAUTHORITY" remove "$entry" >/dev/null 2>&1 || true
+    xauth -f "$XAUTHORITY" add "$entry" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 || true
+  done
+}
+
+normalize_xauthority_aliases
 
 if command -v xsetroot >/dev/null 2>&1; then
   xsetroot -solid "#ffffff" >/dev/null 2>&1 || true
