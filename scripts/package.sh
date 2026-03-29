@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
-INSTALLER_BUILD_DIR="$DIST_DIR/pve-thin-client-installer"
+INSTALLER_BUILD_DIR="${INSTALLER_BUILD_DIR:-${THINCLIENT_DIST_DIR:-$DIST_DIR/pve-thin-client-installer}}"
 EXT_DIR="$ROOT_DIR/extension"
 THIN_CLIENT_DIR="$ROOT_DIR/thin-client-assistant"
 BEAGLE_OS_DIST_DIR="${BEAGLE_OS_DIST_DIR:-$DIST_DIR/beagle-os}"

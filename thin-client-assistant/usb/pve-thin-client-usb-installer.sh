@@ -803,12 +803,12 @@ release_target_device() {
 }
 
 ensure_live_assets() {
-  if [[ -n "${RELEASE_ISO_URL:-}" ]]; then
-    populate_live_assets_from_iso
+  if payload_has_live_assets; then
     return 0
   fi
 
-  if payload_has_live_assets; then
+  if [[ -n "${RELEASE_ISO_URL:-}" ]]; then
+    populate_live_assets_from_iso
     return 0
   fi
 
