@@ -1028,8 +1028,16 @@ def shell_double_quoted(value: str) -> str:
     )
 
 
-def patch_installer_defaults(script_text: str, preset_name: str, preset_b64: str, installer_iso_url: str) -> str:
+def patch_installer_defaults(
+    script_text: str,
+    preset_name: str,
+    preset_b64: str,
+    installer_iso_url: str,
+    writer_variant: str,
+) -> str:
     replacements = {
+        r'^USB_WRITER_VARIANT="\$\{PVE_THIN_CLIENT_USB_WRITER_VARIANT:-[^"]*}"$':
+            f'USB_WRITER_VARIANT="${{PVE_THIN_CLIENT_USB_WRITER_VARIANT:-{shell_double_quoted(writer_variant)}}}"',
         r'^PVE_THIN_CLIENT_PRESET_NAME="\$\{PVE_THIN_CLIENT_PRESET_NAME:-[^"]*}"$':
             f'PVE_THIN_CLIENT_PRESET_NAME="${{PVE_THIN_CLIENT_PRESET_NAME:-{shell_double_quoted(preset_name)}}}"',
         r'^PVE_THIN_CLIENT_PRESET_B64="\$\{PVE_THIN_CLIENT_PRESET_B64:-[^"]*}"$':
@@ -2440,6 +2448,7 @@ def render_vm_installer_script(vm: VmSummary) -> tuple[bytes, str]:
         preset_name,
         preset_b64,
         str(profile.get("installer_iso_url") or public_installer_iso_url()),
+        "installer",
     )
     filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.sh"
     return rendered.encode("utf-8"), filename
@@ -2467,6 +2476,7 @@ def render_vm_live_usb_script(vm: VmSummary) -> tuple[bytes, str]:
         preset_name,
         preset_b64,
         str(profile.get("installer_iso_url") or public_installer_iso_url()),
+        "live",
     )
     filename = f"pve-thin-client-live-usb-vm-{vm.vmid}.sh"
     return rendered.encode("utf-8"), filename

@@ -82,6 +82,44 @@ normalize_xauthority_aliases() {
   done
 }
 
+wait_for_session_display() {
+  attempt=1
+  attempts="${PVE_THIN_CLIENT_X11_READY_RETRIES:-20}"
+
+  if ! command -v xset >/dev/null 2>&1; then
+    return 0
+  fi
+
+  while [ "$attempt" -le "$attempts" ]; do
+    if DISPLAY="$DISPLAY" XAUTHORITY="$XAUTHORITY" xset q >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+    attempt=$((attempt + 1))
+  done
+
+  return 1
+}
+
+allow_local_x_clients() {
+  attempt=1
+  attempts="${PVE_THIN_CLIENT_XHOST_RETRIES:-10}"
+
+  command -v xhost >/dev/null 2>&1 || return 0
+
+  while [ "$attempt" -le "$attempts" ]; do
+    if DISPLAY="$DISPLAY" XAUTHORITY="$XAUTHORITY" xhost +SI:localuser:thinclient >/dev/null 2>&1 &&
+       DISPLAY="$DISPLAY" XAUTHORITY="$XAUTHORITY" xhost +local: >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+    attempt=$((attempt + 1))
+  done
+
+  return 1
+}
+
+wait_for_session_display || true
 normalize_xauthority_aliases
 
 if command -v xsetroot >/dev/null 2>&1; then
@@ -98,10 +136,7 @@ if command -v xset >/dev/null 2>&1; then
   xset s noblank >/dev/null 2>&1 || true
 fi
 
-if command -v xhost >/dev/null 2>&1; then
-  xhost +SI:localuser:thinclient >/dev/null 2>&1 || true
-  xhost +local: >/dev/null 2>&1 || true
-fi
+allow_local_x_clients || true
 
 if command -v openbox-session >/dev/null 2>&1; then
   openbox-session >"$LOG_DIR/openbox.log" 2>&1 &
@@ -132,6 +167,10 @@ if /usr/local/lib/pve-thin-client/runtime/launch-session.sh >>"$LOG_DIR/runtime-
 fi
 status=$?
 printf '\n[thinclient] runtime launcher exited with status %s\n' "$status" >>"$LOG_DIR/runtime-session.log" 2>&1 || true
+
+if [ "${BOOT_MODE}" = "runtime" ]; then
+  exit "$status"
+fi
 
 if command -v xterm >/dev/null 2>&1; then
   exec xterm -T "Thinclient Session Failed" -fa Monospace -fs 11 -fg white -bg black -hold \
