@@ -1286,7 +1286,7 @@ write_usb() {
 insmod part_gpt
 insmod fat
 terminal_output console
-set default=0
+set default=1
 set timeout=5
 set preset_args="${preset_kernel_args}"
 
@@ -1311,7 +1311,7 @@ EOF
   else
     cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
 terminal_output console
-set default=0
+set default=1
 set timeout=5
 set preset_args="${preset_kernel_args}"
 

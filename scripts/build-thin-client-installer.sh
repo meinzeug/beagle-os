@@ -104,7 +104,7 @@ build_manual_iso() {
 
 cat > "$grub_cfg" <<'EOF'
 terminal_output console
-set default=0
+set default=1
 set timeout_style=menu
 set timeout=5
 

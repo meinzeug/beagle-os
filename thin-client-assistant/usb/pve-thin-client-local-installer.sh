@@ -1870,7 +1870,7 @@ write_grub_cfg() {
 insmod part_gpt
 insmod ext2
 terminal_output console
-set default=0
+set default=1
 set timeout=4
 
 menuentry 'Beagle OS' {
