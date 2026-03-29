@@ -20,7 +20,27 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urlunparse
+
+def load_env_defaults(path: str) -> None:
+    env_path = Path(path)
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+            value = value[1:-1]
+        os.environ[key] = value
+
+load_env_defaults("/etc/beagle/host.env")
+load_env_defaults("/etc/beagle/beagle-proxy.env")
 
 VERSION = "dev"
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -38,6 +58,7 @@ STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECON
 DOWNLOADS_STATUS_FILE = ROOT_DIR / "dist" / "beagle-downloads-status.json"
 VM_INSTALLERS_FILE = ROOT_DIR / "dist" / "beagle-vm-installers.json"
 HOSTED_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-usb-installer-host-latest.sh"
+HOSTED_LIVE_USB_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-live-usb-host-latest.sh"
 HOSTED_WINDOWS_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-usb-installer-host-latest.ps1"
 RAW_WINDOWS_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "thin-client-assistant" / "usb" / "pve-thin-client-usb-installer.ps1"
 HOSTED_INSTALLER_ISO_FILE = ROOT_DIR / "dist" / "beagle-os-installer-amd64.iso"
@@ -647,13 +668,19 @@ sleep 2
 
 def internal_sunshine_api_url(vm: VmSummary, profile: dict[str, Any]) -> str:
     public_stream = profile.get("public_stream") if isinstance(profile.get("public_stream"), dict) else None
+    guest_ip = str(profile.get("guest_ip", "") or "").strip()
     if public_stream:
-        guest_ip = str(public_stream.get("guest_ip", "")).strip()
+        guest_ip = str(public_stream.get("guest_ip", "") or guest_ip).strip()
         ports = public_stream.get("ports", {}) if isinstance(public_stream.get("ports"), dict) else {}
         api_port = ports.get("sunshine_api_port")
         if guest_ip and api_port:
             return f"https://{guest_ip}:{int(api_port)}"
-    return str(profile.get("sunshine_api_url", "") or "")
+    base_url = str(profile.get("sunshine_api_url", "") or "")
+    if guest_ip and base_url:
+        parsed = urlparse(base_url)
+        if parsed.scheme and parsed.port:
+            return urlunparse(parsed._replace(netloc=f"{guest_ip}:{parsed.port}"))
+    return base_url
 
 
 def enrollment_token_path(token: str) -> Path:
@@ -1235,6 +1262,7 @@ def default_installer_prep_state(vm: VmSummary, sunshine_status: dict[str, Any] 
         "message": message,
         "updated_at": utcnow(),
         "installer_url": f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh",
+        "live_usb_url": f"/beagle-api/api/v1/vms/{vm.vmid}/live-usb.sh",
         "installer_windows_url": f"/beagle-api/api/v1/vms/{vm.vmid}/installer.ps1",
         "installer_iso_url": str(profile.get("installer_iso_url") or public_installer_iso_url()),
         "stream_host": str(profile.get("stream_host", "") or ""),
@@ -1264,6 +1292,7 @@ def summarize_installer_prep_state(vm: VmSummary, state: dict[str, Any] | None =
     payload.setdefault("vmid", vm.vmid)
     payload.setdefault("node", vm.node)
     payload["installer_url"] = str(payload.get("installer_url") or f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh")
+    payload["live_usb_url"] = str(payload.get("live_usb_url") or f"/beagle-api/api/v1/vms/{vm.vmid}/live-usb.sh")
     payload["installer_windows_url"] = str(payload.get("installer_windows_url") or f"/beagle-api/api/v1/vms/{vm.vmid}/installer.ps1")
     payload["installer_iso_url"] = str(payload.get("installer_iso_url") or profile.get("installer_iso_url") or public_installer_iso_url())
     payload["stream_host"] = str(payload.get("stream_host") or profile.get("stream_host") or "")
@@ -1787,6 +1816,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         ]
     )
     guest_ip = first_guest_ipv4(vm.vmid) if vm.status == "running" and needs_guest_ip else ""
+    guest_ip = guest_ip or str(meta.get("sunshine-ip", "")).strip()
     stream_host = policy_profile.get("stream_host") or meta.get("moonlight-host") or meta.get("sunshine-ip") or meta.get("sunshine-host") or guest_ip
     moonlight_port = str(policy_profile.get("moonlight_port") or meta.get("moonlight-port") or meta.get("beagle-public-moonlight-port") or "").strip()
     sunshine_api_url = policy_profile.get("sunshine_api_url") or meta.get("sunshine-api-url") or (f"https://{stream_host}:47990" if stream_host else "")
@@ -1796,6 +1826,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         moonlight_port = str(public_stream["moonlight_port"])
         sunshine_api_url = public_stream["sunshine_api_url"]
     installer_url = f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh"
+    live_usb_url = f"/beagle-api/api/v1/vms/{vm.vmid}/live-usb.sh"
     installer_windows_url = f"/beagle-api/api/v1/vms/{vm.vmid}/installer.ps1"
     installer_iso_url = public_installer_iso_url()
     vm_secret = load_vm_secret(vm.node, vm.vmid)
@@ -1850,6 +1881,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         "beagle_role": policy_profile.get("beagle_role") or meta.get("beagle-role", "desktop" if stream_host else ""),
         "expected_profile_name": expected_profile_name,
         "installer_url": installer_url,
+        "live_usb_url": live_usb_url,
         "installer_windows_url": installer_windows_url,
         "installer_iso_url": installer_iso_url,
         "public_stream": public_stream,
@@ -2182,6 +2214,7 @@ def build_vm_inventory() -> dict[str, Any]:
                 "expected_profile_name": profile["expected_profile_name"],
                 "default_mode": "MOONLIGHT" if profile["stream_host"] else "",
                 "installer_url": profile["installer_url"],
+                "live_usb_url": profile.get("live_usb_url", f"/beagle-api/api/v1/vms/{vm.vmid}/live-usb.sh"),
                 "installer_windows_url": profile.get("installer_windows_url", f"/beagle-api/api/v1/vms/{vm.vmid}/installer.ps1"),
                 "installer_iso_url": profile.get("installer_iso_url", public_installer_iso_url()),
                 "installer_target_eligible": profile.get("installer_target_eligible", False),
@@ -2321,6 +2354,33 @@ def render_vm_installer_script(vm: VmSummary) -> tuple[bytes, str]:
         str(profile.get("installer_iso_url") or public_installer_iso_url()),
     )
     filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.sh"
+    return rendered.encode("utf-8"), filename
+
+
+def render_vm_live_usb_script(vm: VmSummary) -> tuple[bytes, str]:
+    if not HOSTED_LIVE_USB_TEMPLATE_FILE.is_file():
+        raise FileNotFoundError(f"missing live USB template: {HOSTED_LIVE_USB_TEMPLATE_FILE}")
+    if not HOSTED_INSTALLER_ISO_FILE.is_file():
+        raise FileNotFoundError(f"missing installer ISO: {HOSTED_INSTALLER_ISO_FILE}")
+    config = get_vm_config(vm.node, vm.vmid)
+    profile = build_profile(vm)
+    enrollment_token, enrollment_record = issue_enrollment_token(vm)
+    preset = build_installer_preset(
+        vm,
+        profile,
+        config,
+        enrollment_token=enrollment_token,
+        thinclient_password=str(enrollment_record.get("thinclient_password", "")),
+    )
+    preset_name = preset.get("PVE_THIN_CLIENT_PRESET_PROFILE_NAME") or f"vm-{vm.vmid}"
+    preset_b64 = encode_installer_preset(preset)
+    rendered = patch_installer_defaults(
+        HOSTED_LIVE_USB_TEMPLATE_FILE.read_text(encoding="utf-8"),
+        preset_name,
+        preset_b64,
+        str(profile.get("installer_iso_url") or public_installer_iso_url()),
+    )
+    filename = f"pve-thin-client-live-usb-vm-{vm.vmid}.sh"
     return rendered.encode("utf-8"), filename
 
 
@@ -2557,6 +2617,9 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/v1/public/vms/") and path.endswith("/installer.sh"):
             self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "public installer download disabled"})
             return
+        if path.startswith("/api/v1/public/vms/") and path.endswith("/live-usb.sh"):
+            self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "public live USB download disabled"})
+            return
         if path.startswith("/api/v1/public/vms/") and path.endswith("/installer.ps1"):
             self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "public installer download disabled"})
             return
@@ -2652,6 +2715,30 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
             if path.endswith("/installer.sh"):
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                return
+            match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/live-usb\.sh$", path)
+            if match:
+                vm = find_vm(int(match.group("vmid")))
+                if vm is None:
+                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                    return
+                try:
+                    body, filename = render_vm_live_usb_script(vm)
+                except FileNotFoundError as exc:
+                    self._write_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
+                    return
+                except ValueError as exc:
+                    self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(exc)})
+                    return
+                self._write_bytes(
+                    HTTPStatus.OK,
+                    body,
+                    content_type="text/x-shellscript; charset=utf-8",
+                    filename=filename,
+                )
+                return
+            if path.endswith("/live-usb.sh"):
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
                 return
             match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/installer\.ps1$", path)

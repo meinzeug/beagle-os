@@ -2,10 +2,30 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_BASENAME="$(basename "${BASH_SOURCE[0]}")"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DIST_DIR="$REPO_ROOT/dist/pve-thin-client-installer"
 ASSET_DIR="$DIST_DIR/live"
-USB_LABEL="${USB_LABEL:-BEAGLEOS}"
+USB_WRITER_VARIANT="${PVE_THIN_CLIENT_USB_WRITER_VARIANT:-}"
+if [[ -z "$USB_WRITER_VARIANT" ]]; then
+  case "$SCRIPT_BASENAME" in
+    *live-usb*.sh)
+      USB_WRITER_VARIANT="live"
+      ;;
+    *)
+      USB_WRITER_VARIANT="installer"
+      ;;
+  esac
+fi
+case "$USB_WRITER_VARIANT" in
+  installer|live)
+    ;;
+  *)
+    echo "Unsupported USB writer variant: $USB_WRITER_VARIANT" >&2
+    exit 1
+    ;;
+esac
+USB_LABEL="${USB_LABEL:-$([[ "$USB_WRITER_VARIANT" == "live" ]] && printf 'BEAGLELIVE' || printf 'BEAGLEOS')}"
 TARGET_DEVICE="${TARGET_DEVICE:-}"
 ASSUME_YES="0"
 LIST_DEVICES="0"
@@ -40,11 +60,15 @@ project_version_from_root() {
 PROJECT_VERSION="$(project_version_from_root)"
 
 usage() {
+  local media_label="installer"
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    media_label="live"
+  fi
   cat <<EOF
 Usage: $0 [--device /dev/sdX] [--list-devices] [--yes] [--allow-non-usb] [--allow-system-disk]
        [--json] [--dry-run] [--label NAME] [--require-checksums]
 
-Writes a bootable Beagle OS installer USB stick.
+Writes a bootable Beagle OS ${media_label} USB stick.
 The script can be started as a normal user and escalates to sudo only for the write phase.
 EOF
 }
@@ -838,12 +862,22 @@ install_dependencies() {
 write_usb_manifest() {
   local mount_dir="$1"
   local payload_source installer_sha payload_sha
+  local live_dir
 
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    live_dir="$mount_dir/live"
+  else
+    live_dir="$mount_dir/pve-thin-client/live"
+  fi
   payload_source="${RELEASE_ISO_URL:-${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}}"
-  installer_sha="$(sha256sum "$mount_dir/start-installer-menu.sh" | awk '{print $1}')"
-  payload_sha="$(sha256sum "$mount_dir/pve-thin-client/live/filesystem.squashfs" | awk '{print $1}')"
+  if [[ -f "$mount_dir/start-installer-menu.sh" ]]; then
+    installer_sha="$(sha256sum "$mount_dir/start-installer-menu.sh" | awk '{print $1}')"
+  else
+    installer_sha=""
+  fi
+  payload_sha="$(sha256sum "$live_dir/filesystem.squashfs" | awk '{print $1}')"
 
-  python3 - "$mount_dir/.pve-dcv-usb-manifest.json" "$PROJECT_VERSION" "$USB_LABEL" "$TARGET_DEVICE" "$payload_source" "$installer_sha" "$payload_sha" "${PVE_THIN_CLIENT_PRESET_NAME:-}" <<'PY'
+  python3 - "$mount_dir/.pve-dcv-usb-manifest.json" "$PROJECT_VERSION" "$USB_LABEL" "$TARGET_DEVICE" "$payload_source" "$installer_sha" "$payload_sha" "${PVE_THIN_CLIENT_PRESET_NAME:-}" "$USB_WRITER_VARIANT" <<'PY'
 import json
 import socket
 import sys
@@ -859,6 +893,7 @@ payload_source = sys.argv[5]
 installer_sha = sys.argv[6]
 payload_sha = sys.argv[7]
 preset_name = sys.argv[8]
+usb_writer_variant = sys.argv[9]
 parsed = urlparse(payload_source) if payload_source else None
 proxmox_host = parsed.hostname if parsed and parsed.hostname else ""
 proxmox_host_ip = ""
@@ -875,6 +910,7 @@ if proxmox_host:
 
 payload = {
     "project_version": version,
+    "usb_writer_variant": usb_writer_variant,
     "usb_label": label,
     "target_device": device,
     "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -891,16 +927,26 @@ payload = {
 path.write_text(json.dumps(payload, indent=2) + "\n")
 PY
 
-  install -m 0644 "$mount_dir/.pve-dcv-usb-manifest.json" "$mount_dir/pve-thin-client/live/.pve-dcv-usb-manifest.json"
+  if [[ -d "$mount_dir/pve-thin-client/live" ]]; then
+    install -m 0644 "$mount_dir/.pve-dcv-usb-manifest.json" "$mount_dir/pve-thin-client/live/.pve-dcv-usb-manifest.json"
+  elif [[ -d "$mount_dir/live" ]]; then
+    install -m 0644 "$mount_dir/.pve-dcv-usb-manifest.json" "$mount_dir/live/.pve-dcv-usb-manifest.json"
+  fi
 }
 
 write_usb_preset() {
   local mount_dir="$1"
   local preset_file
+  local preset_live_file
 
   [[ -n "$PVE_THIN_CLIENT_PRESET_B64" ]] || return 0
 
   preset_file="$mount_dir/pve-thin-client/preset.env"
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    preset_live_file="$mount_dir/live/preset.env"
+  else
+    preset_live_file="$mount_dir/pve-thin-client/live/preset.env"
+  fi
   install -d -m 0755 "$mount_dir/pve-thin-client"
   python3 - "$preset_file" "$PVE_THIN_CLIENT_PRESET_B64" <<'PY'
 import base64
@@ -919,7 +965,149 @@ PY
 
   # The live installer UI probes presets before escalating privileges.
   # Keep preset readable inside the live medium to avoid false "no preset" states.
-  install -m 0644 "$preset_file" "$mount_dir/pve-thin-client/live/preset.env"
+  install -m 0644 "$preset_file" "$preset_live_file"
+}
+
+write_live_state_config() {
+  local mount_dir="$1"
+  local preset_file=""
+  local live_state_dir="$mount_dir/pve-thin-client/state"
+
+  [[ -n "$PVE_THIN_CLIENT_PRESET_B64" ]] || {
+    echo "Live USB creation requires an embedded VM preset." >&2
+    exit 1
+  }
+
+  preset_file="$(mktemp)"
+  python3 - "$preset_file" "$PVE_THIN_CLIENT_PRESET_B64" <<'PY'
+import base64
+import sys
+from pathlib import Path
+
+Path(sys.argv[1]).write_bytes(base64.b64decode(sys.argv[2].encode("ascii"), validate=True))
+PY
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$preset_file"
+  set +a
+
+  install -d -m 0755 "$live_state_dir"
+
+  MODE="${PVE_THIN_CLIENT_PRESET_DEFAULT_MODE:-MOONLIGHT}"
+  if [[ -z "$MODE" && -n "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" ]]; then
+    MODE="MOONLIGHT"
+  fi
+  [[ -n "$MODE" ]] || {
+    echo "Live USB preset does not define a supported default mode." >&2
+    exit 1
+  }
+
+  MODE="$MODE" \
+  PROFILE_NAME="${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-default}" \
+  RUNTIME_USER="thinclient" \
+  AUTOSTART="${PVE_THIN_CLIENT_PRESET_AUTOSTART:-1}" \
+  HOSTNAME_VALUE="${PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE:-beagle-live}" \
+  CONNECTION_METHOD="${PVE_THIN_CLIENT_PRESET_CONNECTION_METHOD:-direct}" \
+  NETWORK_MODE="${PVE_THIN_CLIENT_PRESET_NETWORK_MODE:-dhcp}" \
+  NETWORK_INTERFACE="${PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE:-eth0}" \
+  NETWORK_STATIC_ADDRESS="${PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_ADDRESS:-}" \
+  NETWORK_STATIC_PREFIX="${PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_PREFIX:-24}" \
+  NETWORK_GATEWAY="${PVE_THIN_CLIENT_PRESET_NETWORK_GATEWAY:-}" \
+  NETWORK_DNS_SERVERS="${PVE_THIN_CLIENT_PRESET_NETWORK_DNS_SERVERS:-1.1.1.1 8.8.8.8}" \
+  MOONLIGHT_HOST="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" \
+  MOONLIGHT_PORT="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_PORT:-}" \
+  MOONLIGHT_APP="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP:-Desktop}" \
+  MOONLIGHT_BIN="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN:-moonlight}" \
+  MOONLIGHT_RESOLUTION="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION:-auto}" \
+  MOONLIGHT_FPS="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS:-60}" \
+  MOONLIGHT_BITRATE="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE:-20000}" \
+  MOONLIGHT_VIDEO_CODEC="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC:-H.264}" \
+  MOONLIGHT_VIDEO_DECODER="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER:-auto}" \
+  MOONLIGHT_AUDIO_CONFIG="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG:-stereo}" \
+  MOONLIGHT_ABSOLUTE_MOUSE="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE:-1}" \
+  MOONLIGHT_QUIT_AFTER="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER:-0}" \
+  SUNSHINE_API_URL="${PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL:-}" \
+  PROXMOX_SCHEME="${PVE_THIN_CLIENT_PRESET_PROXMOX_SCHEME:-https}" \
+  PROXMOX_HOST="${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" \
+  PROXMOX_PORT="${PVE_THIN_CLIENT_PRESET_PROXMOX_PORT:-8006}" \
+  PROXMOX_NODE="${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" \
+  PROXMOX_VMID="${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" \
+  PROXMOX_REALM="${PVE_THIN_CLIENT_PRESET_PROXMOX_REALM:-pam}" \
+  PROXMOX_VERIFY_TLS="${PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS:-1}" \
+  CONNECTION_USERNAME="${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}" \
+  CONNECTION_PASSWORD="${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}" \
+  CONNECTION_TOKEN="${PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN:-}" \
+  BEAGLE_MANAGER_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL:-}" \
+  BEAGLE_MANAGER_PINNED_PUBKEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_PINNED_PUBKEY:-}" \
+  BEAGLE_ENROLLMENT_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_URL:-}" \
+  BEAGLE_MANAGER_TOKEN="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN:-}" \
+  BEAGLE_ENROLLMENT_TOKEN="${PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_TOKEN:-}" \
+  BEAGLE_EGRESS_MODE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_MODE:-direct}" \
+  BEAGLE_EGRESS_TYPE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_TYPE:-}" \
+  BEAGLE_EGRESS_INTERFACE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_INTERFACE:-beagle-egress}" \
+  BEAGLE_EGRESS_DOMAINS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_DOMAINS:-}" \
+  BEAGLE_EGRESS_RESOLVERS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_RESOLVERS:-}" \
+  BEAGLE_EGRESS_ALLOWED_IPS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_ALLOWED_IPS:-}" \
+  BEAGLE_EGRESS_WG_ADDRESS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_ADDRESS:-}" \
+  BEAGLE_EGRESS_WG_DNS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_DNS:-}" \
+  BEAGLE_EGRESS_WG_PUBLIC_KEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PUBLIC_KEY:-}" \
+  BEAGLE_EGRESS_WG_ENDPOINT="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_ENDPOINT:-}" \
+  BEAGLE_EGRESS_WG_PRIVATE_KEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRIVATE_KEY:-}" \
+  BEAGLE_EGRESS_WG_PRESHARED_KEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRESHARED_KEY:-}" \
+  BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE:-25}" \
+  IDENTITY_HOSTNAME="${PVE_THIN_CLIENT_PRESET_IDENTITY_HOSTNAME:-${PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE:-}}" \
+  IDENTITY_TIMEZONE="${PVE_THIN_CLIENT_PRESET_IDENTITY_TIMEZONE:-}" \
+  IDENTITY_LOCALE="${PVE_THIN_CLIENT_PRESET_IDENTITY_LOCALE:-}" \
+  IDENTITY_KEYMAP="${PVE_THIN_CLIENT_PRESET_IDENTITY_KEYMAP:-}" \
+  IDENTITY_CHROME_PROFILE="${PVE_THIN_CLIENT_PRESET_IDENTITY_CHROME_PROFILE:-default}" \
+  SUNSHINE_USERNAME="${PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME:-}" \
+  SUNSHINE_PASSWORD="${PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD:-}" \
+  SUNSHINE_PIN="${PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN:-}" \
+  SUNSHINE_PINNED_PUBKEY="${PVE_THIN_CLIENT_PRESET_SUNSHINE_PINNED_PUBKEY:-}" \
+  RUNTIME_PASSWORD="${PVE_THIN_CLIENT_PRESET_THINCLIENT_PASSWORD:-}" \
+    "$REPO_ROOT/thin-client-assistant/installer/write-config.sh" "$live_state_dir"
+
+  if [[ ! -f "$live_state_dir/local-auth.env" ]]; then
+    log_msg "local-auth.env missing after write-config; restoring runtime password file"
+    cat >"$live_state_dir/local-auth.env" <<EOF
+PVE_THIN_CLIENT_RUNTIME_PASSWORD="${PVE_THIN_CLIENT_PRESET_THINCLIENT_PASSWORD:-}"
+EOF
+  fi
+
+  if [[ ! -f "$live_state_dir/local-auth.env" ]]; then
+    fail "Failed to persist local-auth.env to $live_state_dir"
+  fi
+
+  rm -f "$preset_file"
+}
+
+boot_ip_arg() {
+  local network_mode="$1"
+  local network_static_address="$2"
+  local network_static_prefix="$3"
+  local network_gateway="$4"
+  local hostname_value="$5"
+  local network_interface="$6"
+  local netmask=""
+
+  if [[ "$network_mode" == "dhcp" || -z "$network_static_address" || -z "$network_interface" ]]; then
+    printf 'ip=dhcp'
+    return 0
+  fi
+
+  netmask="$(python3 - "$network_static_prefix" <<'PY'
+import ipaddress
+import sys
+print(ipaddress.ip_network(f"0.0.0.0/{int(sys.argv[1])}").netmask)
+PY
+)"
+  printf 'ip=%s::%s:%s:%s:%s:none' \
+    "$network_static_address" \
+    "$network_gateway" \
+    "$netmask" \
+    "$hostname_value" \
+    "$network_interface"
 }
 
 build_preset_kernel_args() {
@@ -947,10 +1135,17 @@ PY
 }
 
 print_write_plan() {
-  local bootstrap_source install_payload_source
+  local bootstrap_source install_payload_source media_label live_assets_path
 
   bootstrap_source="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}"
   install_payload_source="${RELEASE_ISO_URL:-${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}}"
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    media_label="live"
+    live_assets_path="/live"
+  else
+    media_label="installer"
+    live_assets_path="/pve-thin-client/live"
+  fi
   cat <<EOF
 Dry run only. No changes were written.
 Target device: $TARGET_DEVICE
@@ -959,20 +1154,24 @@ Project version: $PROJECT_VERSION
 Bootstrap source: ${bootstrap_source}
 Install payload source: ${install_payload_source}
 Preset profile: ${PVE_THIN_CLIENT_PRESET_NAME:-generic}
+USB variant: ${USB_WRITER_VARIANT}
 Planned partitions:
   1. BIOS boot partition (1 MiB - 3 MiB)
   2. FAT32 EFI/data partition (3 MiB - 100%)
 Copied assets:
-  - live kernel, initrd and squashfs from ${install_payload_source}
+  - live kernel, initrd and squashfs from ${install_payload_source} to ${live_assets_path}
   - thin-client assistant sources
-  - embedded VM preset profile
+  - embedded VM preset profile$( [[ "$USB_WRITER_VARIANT" == "live" ]] && printf ' and runtime state' )
   - docs, README, LICENSE, CHANGELOG
   - generated USB manifest
+Result:
+  - bootable Beagle OS ${media_label} USB medium
 EOF
 }
 
 write_usb() {
-  local mount_dir bios_partition usb_partition usb_uuid preset_kernel_args
+  local mount_dir bios_partition usb_partition usb_uuid preset_kernel_args runtime_ip_args
+  local live_mount_dir hostname_value network_mode network_static_address network_static_prefix network_gateway network_interface
 
   if [[ "$DRY_RUN" == "1" ]]; then
     print_write_plan
@@ -1016,15 +1215,22 @@ write_usb() {
   }
   mount "$usb_partition" "$mount_dir"
 
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    live_mount_dir="$mount_dir/live"
+  else
+    live_mount_dir="$mount_dir/pve-thin-client/live"
+  fi
+
   install -d -m 0755 \
     "$mount_dir/boot/grub" \
-    "$mount_dir/pve-thin-client/live" \
+    "$live_mount_dir" \
     "$mount_dir/pve-dcv-integration"
+  install -d -m 0755 "$mount_dir/pve-thin-client"
 
-  install -m 0644 "$ASSET_DIR/vmlinuz" "$mount_dir/pve-thin-client/live/vmlinuz"
-  install -m 0644 "$ASSET_DIR/initrd.img" "$mount_dir/pve-thin-client/live/initrd.img"
-  install -m 0644 "$ASSET_DIR/filesystem.squashfs" "$mount_dir/pve-thin-client/live/filesystem.squashfs"
-  install -m 0644 "$ASSET_DIR/SHA256SUMS" "$mount_dir/pve-thin-client/live/SHA256SUMS"
+  install -m 0644 "$ASSET_DIR/vmlinuz" "$live_mount_dir/vmlinuz"
+  install -m 0644 "$ASSET_DIR/initrd.img" "$live_mount_dir/initrd.img"
+  install -m 0644 "$ASSET_DIR/filesystem.squashfs" "$live_mount_dir/filesystem.squashfs"
+  install -m 0644 "$ASSET_DIR/SHA256SUMS" "$live_mount_dir/SHA256SUMS"
 
   rsync -rlt --delete \
     --no-owner \
@@ -1040,39 +1246,94 @@ write_usb() {
   install -m 0644 "$REPO_ROOT/README.md" "$mount_dir/pve-dcv-integration/README.md"
   install -m 0644 "$REPO_ROOT/LICENSE" "$mount_dir/pve-dcv-integration/LICENSE"
   install -m 0644 "$REPO_ROOT/CHANGELOG.md" "$mount_dir/pve-dcv-integration/CHANGELOG.md"
-  install -m 0755 "$REPO_ROOT/thin-client-assistant/usb/start-installer-menu.sh" "$mount_dir/start-installer-menu.sh"
+  if [[ "$USB_WRITER_VARIANT" == "installer" ]]; then
+    install -m 0755 "$REPO_ROOT/thin-client-assistant/usb/start-installer-menu.sh" "$mount_dir/start-installer-menu.sh"
+  fi
   if [[ -f "$GRUB_BACKGROUND_SRC" ]]; then
     install -m 0644 "$GRUB_BACKGROUND_SRC" "$mount_dir/boot/grub/background.jpg"
   fi
   write_usb_preset "$mount_dir"
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    write_live_state_config "$mount_dir"
+  fi
   write_usb_manifest "$mount_dir"
   preset_kernel_args="$(build_preset_kernel_args || true)"
 
-  cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    hostname_value="beagle-live"
+    network_mode="dhcp"
+    network_static_address=""
+    network_static_prefix="24"
+    network_gateway=""
+    network_interface="eth0"
+
+    if [[ -f "$mount_dir/pve-thin-client/state/thinclient.conf" ]]; then
+      hostname_value="$(sed -n 's/^HOSTNAME=//p' "$mount_dir/pve-thin-client/state/thinclient.conf" | head -n1)"
+      [[ -n "$hostname_value" ]] || hostname_value="beagle-live"
+    fi
+    if [[ -f "$mount_dir/pve-thin-client/state/network.env" ]]; then
+      network_mode="$(sed -n 's/^NETWORK_MODE=//p' "$mount_dir/pve-thin-client/state/network.env" | head -n1)"
+      network_static_address="$(sed -n 's/^STATIC_IP=//p' "$mount_dir/pve-thin-client/state/network.env" | head -n1)"
+      network_static_prefix="$(sed -n 's/^STATIC_PREFIX=//p' "$mount_dir/pve-thin-client/state/network.env" | head -n1)"
+      network_gateway="$(sed -n 's/^GATEWAY=//p' "$mount_dir/pve-thin-client/state/network.env" | head -n1)"
+      network_interface="$(sed -n 's/^INTERFACE=//p' "$mount_dir/pve-thin-client/state/network.env" | head -n1)"
+    fi
+    [[ -n "$network_static_prefix" ]] || network_static_prefix="24"
+    [[ -n "$network_interface" ]] || network_interface="eth0"
+    runtime_ip_args="$(boot_ip_arg "$network_mode" "$network_static_address" "$network_static_prefix" "$network_gateway" "$hostname_value" "$network_interface")"
+
+    cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
+insmod part_gpt
+insmod fat
+terminal_output console
+set default=0
+set timeout=5
+set preset_args="${preset_kernel_args}"
+
+menuentry 'Beagle OS Live' {
+  search --no-floppy --fs-uuid --set=root ${usb_uuid}
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} quiet splash loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles \${preset_args} pve_thin_client.mode=runtime
+  initrd /live/initrd.img
+}
+
+menuentry 'Beagle OS Live (safe mode)' {
+  search --no-floppy --fs-uuid --set=root ${usb_uuid}
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} quiet splash loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles nomodeset irqpoll pci=nomsi noapic \${preset_args} pve_thin_client.mode=runtime
+  initrd /live/initrd.img
+}
+
+menuentry 'Beagle OS Live (legacy IRQ mode)' {
+  search --no-floppy --fs-uuid --set=root ${usb_uuid}
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} quiet splash loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles nomodeset irqpoll noapic nolapic \${preset_args} pve_thin_client.mode=runtime
+  initrd /live/initrd.img
+}
+EOF
+  else
+    cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
 terminal_output console
 set default=0
 set timeout=5
 set preset_args="${preset_kernel_args}"
 
 menuentry 'Beagle OS Installer' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles live-config.noautologin live-config.nox11autologin noautologin nox11autologin \${preset_args} pve_thin_client.mode=installer
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles \${preset_args} pve_thin_client.mode=installer
   initrd /pve-thin-client/live/initrd.img
 }
 
 menuentry 'Beagle OS Installer (compatibility mode)' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles live-config.noautologin live-config.nox11autologin noautologin nox11autologin nomodeset irqpoll pci=nomsi noapic \${preset_args} pve_thin_client.mode=installer
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles nomodeset irqpoll pci=nomsi noapic \${preset_args} pve_thin_client.mode=installer
   initrd /pve-thin-client/live/initrd.img
 }
 
 menuentry 'Beagle OS Installer (legacy IRQ mode)' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles live-config.noautologin live-config.nox11autologin noautologin nox11autologin nomodeset irqpoll noapic nolapic \${preset_args} pve_thin_client.mode=installer
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles nomodeset irqpoll noapic nolapic \${preset_args} pve_thin_client.mode=installer
   initrd /pve-thin-client/live/initrd.img
 }
 
 menuentry 'Beagle OS Installer (text mode)' {
   terminal_output console
   set gfxpayload=text
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles live-config.noautologin live-config.nox11autologin noautologin nox11autologin systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service \${preset_args} pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service \${preset_args} pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
   initrd /pve-thin-client/live/initrd.img
 }
 
@@ -1080,6 +1341,7 @@ menuentry 'Boot from local disk' {
   exit
 }
 EOF
+  fi
 
   grub-install --target=i386-pc --boot-directory="$mount_dir/boot" "$TARGET_DEVICE"
   grub-install \
@@ -1090,7 +1352,7 @@ EOF
     --no-nvram
 
   (
-    cd "$mount_dir/pve-thin-client/live"
+    cd "$live_mount_dir"
     sha256sum -c SHA256SUMS
   )
 
