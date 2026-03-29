@@ -39,7 +39,9 @@ ensure_xauth_context() {
   home_dir="${HOME:-/home/thinclient}"
   mkdir -p "$home_dir" >/dev/null 2>&1 || true
   export HOME="$home_dir"
-  unset XAUTHORITY
+  export XAUTHORITY="${XAUTHORITY:-$home_dir/.Xauthority}"
+  touch "$XAUTHORITY" >/dev/null 2>&1 || true
+  chmod 0600 "$XAUTHORITY" >/dev/null 2>&1 || true
 }
 
 ensure_xauth_context
