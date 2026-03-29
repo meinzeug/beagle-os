@@ -1,5 +1,13 @@
 # Changelog
 
+## v5.0.4 - 2026-03-29
+
+- Fixed the live and installed Moonlight runtime so it now validates and selects a working `XAUTHORITY` before pairing or streaming, preventing the black-screen boot loop where Moonlight could not open `DISPLAY=:0`.
+- Fixed the standalone and VM-rendered USB live writers so they no longer depend on the downloaded filename to decide between `live` and `installer` mode.
+- Fixed the hosted USB bootstrap so current runtime and installer helper scripts are always repacked into the published payload instead of leaking stale cached files into new USB media.
+- Fixed the published VM USB presets and EFI boot path so large per-VM presets stay off the kernel command line while runtime mode, Moonlight host/port and Sunshine secrets still land on the stick.
+- Rebuilt and verified the Internet-routed live USB flow end-to-end in a Proxmox test VM until Moonlight streamed the VM100 desktop successfully.
+
 ## v5.0.2 - 2026-03-28
 
 - Changed license from MIT to Beagle OS Source Available License: free for personal and non-commercial use, commercial use requires a SaaS license via beagle-os.com.

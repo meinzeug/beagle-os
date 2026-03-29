@@ -148,6 +148,8 @@ installer_iso_url = sys.argv[4]
 text = path.read_text()
 
 replacements = {
+    r'^USB_WRITER_VARIANT="\$\{PVE_THIN_CLIENT_USB_WRITER_VARIANT:-\$\{PVE_THIN_CLIENT_USB_WRITER_VARIANT_DEFAULT:-\}\}"$':
+        'USB_WRITER_VARIANT="${PVE_THIN_CLIENT_USB_WRITER_VARIANT:-installer}"',
     r'^RELEASE_BOOTSTRAP_URL="\$\{RELEASE_BOOTSTRAP_URL:-[^"]*}"$':
         f'RELEASE_BOOTSTRAP_URL="${{RELEASE_BOOTSTRAP_URL:-{bootstrap_url}}}"',
     r'^RELEASE_PAYLOAD_URL="\$\{RELEASE_PAYLOAD_URL:-[^"]*}"$':
@@ -178,6 +180,8 @@ installer_iso_url = sys.argv[4]
 text = path.read_text()
 
 replacements = {
+    r'^USB_WRITER_VARIANT="\$\{PVE_THIN_CLIENT_USB_WRITER_VARIANT:-\$\{PVE_THIN_CLIENT_USB_WRITER_VARIANT_DEFAULT:-\}\}"$':
+        'USB_WRITER_VARIANT="${PVE_THIN_CLIENT_USB_WRITER_VARIANT:-live}"',
     r'^RELEASE_BOOTSTRAP_URL="\$\{RELEASE_BOOTSTRAP_URL:-[^"]*}"$':
         f'RELEASE_BOOTSTRAP_URL="${{RELEASE_BOOTSTRAP_URL:-{bootstrap_url}}}"',
     r'^RELEASE_PAYLOAD_URL="\$\{RELEASE_PAYLOAD_URL:-[^"]*}"$':

@@ -84,9 +84,9 @@ rm -f \
   "$DIST_DIR/beagle-downloads-status.json" \
   "$DIST_DIR/$CHECKSUM_FILE"
 
-if [[ ! -f "$INSTALLER_BUILD_DIR/live/filesystem.squashfs" || ! -f "$INSTALLER_BUILD_DIR/live/initrd.img" || ! -f "$INSTALLER_BUILD_DIR/live/vmlinuz" ]]; then
-  "$ROOT_DIR/scripts/build-thin-client-installer.sh"
-fi
+# The live payload must be rebuilt for every package run so runtime/script
+# changes are guaranteed to land in the published squashfs and USB bootstrap.
+"$ROOT_DIR/scripts/build-thin-client-installer.sh"
 
 install -m 0644 "$INSTALLER_BUILD_DIR/$INSTALLER_ISO_NAME" "$DIST_DIR/$INSTALLER_ISO_NAME"
 install -m 0644 "$INSTALLER_BUILD_DIR/$INSTALLER_ISO_ARCH_NAME" "$DIST_DIR/$INSTALLER_ISO_ARCH_NAME"
