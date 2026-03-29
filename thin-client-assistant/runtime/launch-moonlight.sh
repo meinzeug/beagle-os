@@ -492,6 +492,75 @@ moonlight_client_config_path() {
   return 1
 }
 
+moonlight_host_configured() {
+  local config_path host connect_host port
+
+  config_path="$(moonlight_client_config_path 2>/dev/null || true)"
+  [[ -n "$config_path" && -r "$config_path" ]] || return 1
+
+  host="$(moonlight_host)"
+  connect_host="$(moonlight_connect_host)"
+  port="$(moonlight_port)"
+
+  python3 - "$config_path" "$host" "$connect_host" "$port" <<'PY'
+from pathlib import Path
+import sys
+
+config_path = Path(sys.argv[1])
+host = (sys.argv[2] or "").strip()
+connect_host = (sys.argv[3] or "").strip()
+port = (sys.argv[4] or "").strip()
+
+text = config_path.read_text(encoding="utf-8", errors="ignore")
+lines = text.splitlines()
+section_start = None
+section_end = len(lines)
+for idx, line in enumerate(lines):
+    if line.strip() == "[hosts]":
+        section_start = idx
+        for next_idx in range(idx + 1, len(lines)):
+            if lines[next_idx].startswith("[") and lines[next_idx].endswith("]"):
+                section_end = next_idx
+                break
+        break
+
+if section_start is None:
+    raise SystemExit(1)
+
+entries = {}
+for raw in lines[section_start + 1:section_end]:
+    if "=" not in raw:
+        continue
+    key, value = raw.split("=", 1)
+    entries[key.strip()] = value.strip()
+
+size = int(entries.get("size", "0") or "0")
+expected_hosts = {value for value in (host, connect_host) if value}
+expected_ports = {value for value in (port, "47984", "50100") if value}
+
+for idx in range(1, size + 1):
+    uuid_value = entries.get(f"{idx}\\uuid", "").strip()
+    cert_value = entries.get(f"{idx}\\srvcert", "").strip()
+    if not uuid_value or "BEGIN CERTIFICATE" not in cert_value:
+        continue
+
+    manual_host = entries.get(f"{idx}\\manualaddress", "").strip()
+    local_host = entries.get(f"{idx}\\localaddress", "").strip()
+    manual_port = entries.get(f"{idx}\\manualport", "").strip()
+    local_port = entries.get(f"{idx}\\localport", "").strip()
+
+    if expected_hosts and manual_host not in expected_hosts and local_host not in expected_hosts:
+        continue
+
+    if expected_ports and manual_port and manual_port not in expected_ports and local_port and local_port not in expected_ports:
+        continue
+
+    raise SystemExit(0)
+
+raise SystemExit(1)
+PY
+}
+
 extract_moonlight_certificate_pem() {
   local config_path
   config_path="$(moonlight_client_config_path 2>/dev/null || true)"
@@ -939,7 +1008,9 @@ main() {
     /usr/local/bin/pve-thin-client-audio-init --watch "${PVE_THIN_CLIENT_AUDIO_WATCH_LOOPS:-0}" >/dev/null 2>&1 &
   fi
 
-  if ! moonlight_list; then
+  if moonlight_host_configured; then
+    beagle_log_event "moonlight.cached-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+  elif ! moonlight_list; then
     ensure_paired || {
       beagle_log_event "moonlight.pairing-failed" "host=${host} port=${port:-default} pin=${PVE_THIN_CLIENT_SUNSHINE_PIN:-unset}"
       echo "Moonlight pairing failed for host '$host'." >&2
