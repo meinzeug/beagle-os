@@ -95,7 +95,7 @@ clear_stale_x_locks() {
 launch_x_once() {
   echo "[start-x11] invoking startx (attempt=${1:-1})"
   trace_event "x11.start" "launcher=pve-thin-client-start-x11 attempt=${1:-1}"
-  startx /usr/local/bin/start-pve-thin-client-session -- :0 vt1 -keeptty -nolisten tcp
+  startx /usr/local/bin/start-pve-thin-client-session -- :0 vt1 -keeptty -nolisten tcp -auth "$XAUTHORITY"
 }
 
 wait_for_graphics
