@@ -2250,6 +2250,11 @@ def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[
     moonlight_host = str(profile.get("stream_host", "") or "")
     moonlight_port = str(profile.get("moonlight_port", "") or "")
     sunshine_api_url = str(profile.get("sunshine_api_url", "") or "")
+    vm_secret = ensure_vm_secret(vm)
+    sunshine_username = str(vm_secret.get("sunshine_username", "") or "")
+    sunshine_password = str(vm_secret.get("sunshine_password", "") or "")
+    sunshine_pin = str(vm_secret.get("sunshine_pin", "") or "")
+    sunshine_pinned_pubkey = str(vm_secret.get("sunshine_pinned_pubkey", "") or "")
 
     return {
         "PVE_THIN_CLIENT_PRESET_PROFILE_NAME": expected_profile_name,
@@ -2323,10 +2328,10 @@ def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE": meta.get("moonlight-absolute-mouse", "1"),
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER": meta.get("moonlight-quit-after", "0"),
         "PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL": sunshine_api_url,
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": "",
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PINNED_PUBKEY": "",
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": sunshine_username,
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": sunshine_password,
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": sunshine_pin,
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PINNED_PUBKEY": sunshine_pinned_pubkey,
     }
 
 
