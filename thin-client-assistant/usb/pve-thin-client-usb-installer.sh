@@ -1286,7 +1286,7 @@ write_usb() {
 insmod part_gpt
 insmod fat
 terminal_output console
-set default=2
+set default=0
 set timeout=5
 set preset_args="${preset_kernel_args}"
 
