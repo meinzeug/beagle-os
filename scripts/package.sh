@@ -25,6 +25,7 @@ INSTALLER_ISO_NAME="beagle-os-installer.iso"
 INSTALLER_ISO_ARCH_NAME="beagle-os-installer-amd64.iso"
 CHECKSUM_FILE="SHA256SUMS"
 BUILD_BEAGLE_OS="${BUILD_BEAGLE_OS:-0}"
+SKIP_THIN_CLIENT_BUILD="${SKIP_THIN_CLIENT_BUILD:-0}"
 
 collect_beagle_os_assets() {
   local path
@@ -84,9 +85,14 @@ rm -f \
   "$DIST_DIR/beagle-downloads-status.json" \
   "$DIST_DIR/$CHECKSUM_FILE"
 
-# The live payload must be rebuilt for every package run so runtime/script
-# changes are guaranteed to land in the published squashfs and USB bootstrap.
-"$ROOT_DIR/scripts/build-thin-client-installer.sh"
+if [[ "$SKIP_THIN_CLIENT_BUILD" != "1" ]]; then
+  # The live payload is usually rebuilt for every package run so runtime/script
+  # changes land in the published squashfs and USB bootstrap.
+  "$ROOT_DIR/scripts/build-thin-client-installer.sh"
+elif [[ ! -f "$INSTALLER_BUILD_DIR/$INSTALLER_ISO_NAME" || ! -f "$INSTALLER_BUILD_DIR/$INSTALLER_ISO_ARCH_NAME" || ! -f "$INSTALLER_BUILD_DIR/live/filesystem.squashfs" ]]; then
+  echo "SKIP_THIN_CLIENT_BUILD=1 requires an existing installer build under $INSTALLER_BUILD_DIR" >&2
+  exit 1
+fi
 
 install -m 0644 "$INSTALLER_BUILD_DIR/$INSTALLER_ISO_NAME" "$DIST_DIR/$INSTALLER_ISO_NAME"
 install -m 0644 "$INSTALLER_BUILD_DIR/$INSTALLER_ISO_ARCH_NAME" "$DIST_DIR/$INSTALLER_ISO_ARCH_NAME"
