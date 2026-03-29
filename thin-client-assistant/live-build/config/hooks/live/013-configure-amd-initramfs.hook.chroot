@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+
+mkdir -p /etc/initramfs-tools
+
+cat >/etc/initramfs-tools/modules <<'EOF'
+# Beagle thin clients should bring up the primary GPU early on AMD hardware.
+amdgpu
+drm
+drm_kms_helper
+ttm
+gpu_sched
+i2c-algo-bit
+EOF
+
+if command -v update-initramfs >/dev/null 2>&1; then
+  update-initramfs -u >/dev/null 2>&1 || true
+fi

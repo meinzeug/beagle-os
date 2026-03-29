@@ -3,7 +3,7 @@ set -euo pipefail
 
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 MANAGER_ENV_FILE="${BEAGLE_MANAGER_ENV_FILE:-$CONFIG_DIR/beagle-manager.env}"
-PUBLIC_STREAM_HOST="${BEAGLE_PUBLIC_STREAM_HOST:-${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}}"
+PUBLIC_STREAM_HOST_RAW="${BEAGLE_PUBLIC_STREAM_HOST:-${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}}"
 PUBLIC_STREAM_BASE_PORT="${BEAGLE_PUBLIC_STREAM_BASE_PORT:-50000}"
 PUBLIC_STREAM_PORT_STEP="${BEAGLE_PUBLIC_STREAM_PORT_STEP:-32}"
 PUBLIC_STREAM_PORT_COUNT="${BEAGLE_PUBLIC_STREAM_PORT_COUNT:-256}"
@@ -16,6 +16,41 @@ if [[ -f "$MANAGER_ENV_FILE" ]]; then
   # shellcheck disable=SC1090
   source "$MANAGER_ENV_FILE"
 fi
+
+resolve_public_stream_host() {
+  python3 - "$1" <<'PY'
+import ipaddress
+import socket
+import sys
+
+host = str(sys.argv[1] or "").strip()
+if not host:
+    print("")
+    raise SystemExit(0)
+try:
+    ipaddress.ip_address(host)
+except ValueError:
+    pass
+else:
+    print(host)
+    raise SystemExit(0)
+
+try:
+    infos = socket.getaddrinfo(host, None, family=socket.AF_INET, type=socket.SOCK_STREAM)
+except socket.gaierror:
+    print(host)
+    raise SystemExit(0)
+
+for item in infos:
+    ip = str(item[4][0]).strip()
+    if ip:
+        print(ip)
+        raise SystemExit(0)
+print(host)
+PY
+}
+
+PUBLIC_STREAM_HOST="$(resolve_public_stream_host "$PUBLIC_STREAM_HOST_RAW")"
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then

@@ -92,16 +92,33 @@ clear_stale_x_locks() {
   rm -f /tmp/.X11-unix/X0 >/dev/null 2>&1 || true
 }
 
+seed_xauthority_aliases() {
+  [ -n "${XAUTHORITY:-}" ] || return 0
+  command -v xauth >/dev/null 2>&1 || return 0
+  command -v mcookie >/dev/null 2>&1 || return 0
+
+  cookie="$(mcookie)"
+  hostname_short="$(hostname 2>/dev/null || printf '')"
+  hostname_fqdn="$(hostname -f 2>/dev/null || printf '%s' "$hostname_short")"
+
+  for entry in \
+    ":0" \
+    "unix:0" \
+    "localhost/unix:0" \
+    "localhost.localdomain/unix:0" \
+    "${hostname_short}/unix:0" \
+    "${hostname_fqdn}/unix:0"
+  do
+    [ -n "$entry" ] || continue
+    xauth -f "$XAUTHORITY" remove "$entry" >/dev/null 2>&1 || true
+    xauth -f "$XAUTHORITY" add "$entry" . "$cookie" >/dev/null 2>&1 || true
+  done
+}
+
 launch_x_once() {
   echo "[start-x11] invoking startx (attempt=${1:-1})"
   trace_event "x11.start" "launcher=pve-thin-client-start-x11 attempt=${1:-1}"
-  if command -v xauth >/dev/null 2>&1 && command -v mcookie >/dev/null 2>&1; then
-    cookie="$(mcookie)"
-    xauth -f "$XAUTHORITY" remove :0 >/dev/null 2>&1 || true
-    xauth -f "$XAUTHORITY" remove unix:0 >/dev/null 2>&1 || true
-    xauth -f "$XAUTHORITY" add :0 . "$cookie" >/dev/null 2>&1 || true
-    xauth -f "$XAUTHORITY" add unix:0 . "$cookie" >/dev/null 2>&1 || true
-  fi
+  seed_xauthority_aliases
   exec xinit /usr/local/bin/start-pve-thin-client-session -- /usr/bin/X :0 vt1 -keeptty -nolisten tcp -auth "$XAUTHORITY"
 }
 

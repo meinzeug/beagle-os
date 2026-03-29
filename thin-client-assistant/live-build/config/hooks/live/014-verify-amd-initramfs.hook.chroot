@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+if ! command -v lsinitramfs >/dev/null 2>&1; then
+  exit 0
+fi
+
+latest_initrd="$(ls -1 /boot/initrd.img-* 2>/dev/null | tail -n 1)"
+if [ -z "${latest_initrd:-}" ] || [ ! -f "$latest_initrd" ]; then
+  echo "Missing initramfs image in thin-client build." >&2
+  exit 1
+fi
+
+if ! lsinitramfs "$latest_initrd" | grep -q '/amdgpu\.ko'; then
+  echo "AMDGPU kernel module missing from initramfs: $latest_initrd" >&2
+  exit 1
+fi
