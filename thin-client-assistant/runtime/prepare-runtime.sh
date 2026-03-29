@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 load_runtime_config
+BOOT_MODE="${PVE_THIN_CLIENT_BOOT_MODE:-$(/usr/local/bin/pve-thin-client-boot-mode 2>/dev/null || printf 'runtime')}"
 beagle_log_event "prepare-runtime.start" "profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default} mode=${PVE_THIN_CLIENT_MODE:-UNSET}"
 
 plymouth_status() {
@@ -371,18 +372,24 @@ chmod 0755 "$STATUS_DIR"
 
 required_binary=""
 binary_available="0"
-case "${PVE_THIN_CLIENT_MODE:-MOONLIGHT}" in
-  MOONLIGHT)
-    required_binary="${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}"
-    ;;
-  *)
-    echo "Unsupported mode for Beagle OS: ${PVE_THIN_CLIENT_MODE:-UNSET}" >&2
-    exit 1
-    ;;
-esac
+if [[ "$BOOT_MODE" == "installer" ]]; then
+  required_binary="installer-mode"
+  binary_available="1"
+else
+  case "${PVE_THIN_CLIENT_MODE:-MOONLIGHT}" in
+    MOONLIGHT)
+      required_binary="${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}"
+      ;;
+    *)
+      echo "Unsupported mode for Beagle OS: ${PVE_THIN_CLIENT_MODE:-UNSET}" >&2
+      exit 1
+      ;;
+  esac
+fi
 
 {
   echo "timestamp=$(date -Iseconds)"
+  echo "boot_mode=$BOOT_MODE"
   echo "mode=${PVE_THIN_CLIENT_MODE:-UNSET}"
   echo "runtime_user=${PVE_THIN_CLIENT_RUNTIME_USER:-UNSET}"
   echo "connection_method=${PVE_THIN_CLIENT_CONNECTION_METHOD:-UNSET}"
@@ -390,7 +397,9 @@ esac
   echo "required_binary=$required_binary"
   echo "moonlight_host=${PVE_THIN_CLIENT_MOONLIGHT_HOST:-UNSET}"
   echo "moonlight_app=${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}"
-  if command -v "$required_binary" >/dev/null 2>&1; then
+  if [[ "$BOOT_MODE" == "installer" ]]; then
+    echo "binary_available=1"
+  elif command -v "$required_binary" >/dev/null 2>&1; then
     binary_available="1"
     echo "binary_available=1"
   else

@@ -3,7 +3,9 @@ set -euo pipefail
 
 DEFAULT_CONFIG_DIR="/etc/pve-thin-client"
 LIVE_STATE_DIR_DEFAULT="/run/live/medium/pve-thin-client/state"
+LIVE_PRESET_FILE_DEFAULT="/run/live/medium/pve-thin-client/preset.env"
 BEAGLE_STATE_DIR_DEFAULT="/var/lib/beagle-os"
+PRESET_STATE_DIR_DEFAULT="/run/beagle-os/preset-state"
 BEAGLE_TRACE_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/runtime-trace.log"
 BEAGLE_LAST_MARKER_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/last-marker.env"
 
@@ -94,6 +96,165 @@ find_live_state_dir() {
   return 1
 }
 
+find_preset_file() {
+  local file
+  local -a candidates=(
+    "${PVE_THIN_CLIENT_PRESET_FILE:-$LIVE_PRESET_FILE_DEFAULT}"
+    "$LIVE_PRESET_FILE_DEFAULT"
+    "/run/live/medium/pve-thin-client/live/preset.env"
+    "/lib/live/mount/medium/pve-thin-client/preset.env"
+    "/lib/live/mount/medium/pve-thin-client/live/preset.env"
+  )
+
+  for file in "${candidates[@]}"; do
+    if [[ -f "$file" ]]; then
+      printf '%s\n' "$file"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+restore_preset_from_cmdline() {
+  local target_file="${1:-}"
+  [[ -n "$target_file" ]] || return 1
+
+  python3 - "$target_file" <<'PY'
+import base64
+import gzip
+import re
+import sys
+from pathlib import Path
+
+target = Path(sys.argv[1])
+cmdline = Path("/proc/cmdline").read_text(encoding="utf-8").strip()
+
+codec = ""
+chunks = {}
+
+for token in cmdline.split():
+    if token.startswith("pve_thin_client.preset_codec="):
+        codec = token.split("=", 1)[1]
+        continue
+
+    match = re.match(r"pve_thin_client\.preset_b64_(\d+)=([A-Za-z0-9_-]+)$", token)
+    if match:
+        chunks[int(match.group(1))] = match.group(2)
+        continue
+
+    if token.startswith("pve_thin_client.preset_b64="):
+        chunks[0] = token.split("=", 1)[1]
+
+if not chunks:
+    raise SystemExit(1)
+
+payload = "".join(chunks[index] for index in sorted(chunks))
+payload += "=" * (-len(payload) % 4)
+data = base64.urlsafe_b64decode(payload.encode("ascii"))
+
+if codec in ("", "base64url"):
+    decoded = data
+elif codec in ("gzip+base64url", "gz+base64url", "gzip"):
+    decoded = gzip.decompress(data)
+else:
+    raise SystemExit(f"unsupported preset codec: {codec}")
+
+target.parent.mkdir(parents=True, exist_ok=True)
+target.write_bytes(decoded)
+target.chmod(0o644)
+PY
+}
+
+generate_config_dir_from_preset() {
+  local preset_file="${1:-}"
+  local state_dir="${2:-${PRESET_STATE_DIR:-$PRESET_STATE_DIR_DEFAULT}}"
+  local installer_dir installer_script
+
+  [[ -f "$preset_file" ]] || return 1
+
+  installer_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../installer" && pwd)"
+  installer_script="$installer_dir/write-config.sh"
+  [[ -x "$installer_script" ]] || return 1
+
+  # shellcheck disable=SC1090
+  source "$preset_file"
+
+  install -d -m 0755 "$state_dir"
+
+  MODE="${PVE_THIN_CLIENT_PRESET_DEFAULT_MODE:-MOONLIGHT}" \
+  RUNTIME_USER="${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}" \
+  AUTOSTART="${PVE_THIN_CLIENT_PRESET_AUTOSTART:-1}" \
+  PROFILE_NAME="${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-default}" \
+  HOSTNAME_VALUE="${PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE:-beagle-os}" \
+  CONNECTION_METHOD="direct" \
+  MOONLIGHT_HOST="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" \
+  MOONLIGHT_PORT="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_PORT:-}" \
+  MOONLIGHT_APP="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP:-Desktop}" \
+  MOONLIGHT_BIN="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN:-moonlight}" \
+  MOONLIGHT_RESOLUTION="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION:-auto}" \
+  MOONLIGHT_FPS="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS:-60}" \
+  MOONLIGHT_BITRATE="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE:-20000}" \
+  MOONLIGHT_VIDEO_CODEC="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC:-H.264}" \
+  MOONLIGHT_VIDEO_DECODER="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER:-auto}" \
+  MOONLIGHT_AUDIO_CONFIG="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG:-stereo}" \
+  MOONLIGHT_ABSOLUTE_MOUSE="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE:-1}" \
+  MOONLIGHT_QUIT_AFTER="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER:-0}" \
+  SUNSHINE_API_URL="${PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL:-}" \
+  PROXMOX_SCHEME="${PVE_THIN_CLIENT_PRESET_PROXMOX_SCHEME:-https}" \
+  PROXMOX_HOST="${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" \
+  PROXMOX_PORT="${PVE_THIN_CLIENT_PRESET_PROXMOX_PORT:-8006}" \
+  PROXMOX_NODE="${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" \
+  PROXMOX_VMID="${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" \
+  PROXMOX_REALM="${PVE_THIN_CLIENT_PRESET_PROXMOX_REALM:-pam}" \
+  PROXMOX_VERIFY_TLS="${PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS:-1}" \
+  BEAGLE_MANAGER_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL:-}" \
+  BEAGLE_MANAGER_PINNED_PUBKEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_PINNED_PUBKEY:-}" \
+  BEAGLE_ENROLLMENT_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_URL:-}" \
+  BEAGLE_EGRESS_MODE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_MODE:-direct}" \
+  BEAGLE_EGRESS_TYPE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_TYPE:-}" \
+  BEAGLE_EGRESS_INTERFACE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_INTERFACE:-beagle-egress}" \
+  BEAGLE_EGRESS_DOMAINS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_DOMAINS:-}" \
+  BEAGLE_EGRESS_RESOLVERS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_RESOLVERS:-1.1.1.1 8.8.8.8}" \
+  BEAGLE_EGRESS_ALLOWED_IPS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_ALLOWED_IPS:-}" \
+  BEAGLE_EGRESS_WG_ADDRESS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_ADDRESS:-}" \
+  BEAGLE_EGRESS_WG_DNS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_DNS:-}" \
+  BEAGLE_EGRESS_WG_PUBLIC_KEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PUBLIC_KEY:-}" \
+  BEAGLE_EGRESS_WG_ENDPOINT="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_ENDPOINT:-}" \
+  BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE:-25}" \
+  IDENTITY_HOSTNAME="${PVE_THIN_CLIENT_PRESET_IDENTITY_HOSTNAME:-}" \
+  IDENTITY_TIMEZONE="${PVE_THIN_CLIENT_PRESET_IDENTITY_TIMEZONE:-}" \
+  IDENTITY_LOCALE="${PVE_THIN_CLIENT_PRESET_IDENTITY_LOCALE:-}" \
+  IDENTITY_KEYMAP="${PVE_THIN_CLIENT_PRESET_IDENTITY_KEYMAP:-}" \
+  IDENTITY_CHROME_PROFILE="${PVE_THIN_CLIENT_PRESET_IDENTITY_CHROME_PROFILE:-default}" \
+  BEAGLE_USB_ENABLED="${PVE_THIN_CLIENT_PRESET_BEAGLE_USB_ENABLED:-1}" \
+  BEAGLE_USB_TUNNEL_HOST="${PVE_THIN_CLIENT_PRESET_BEAGLE_USB_TUNNEL_HOST:-}" \
+  BEAGLE_USB_TUNNEL_USER="${PVE_THIN_CLIENT_PRESET_BEAGLE_USB_TUNNEL_USER:-thinovernet}" \
+  BEAGLE_USB_TUNNEL_PORT="${PVE_THIN_CLIENT_PRESET_BEAGLE_USB_TUNNEL_PORT:-}" \
+  BEAGLE_USB_ATTACH_HOST="${PVE_THIN_CLIENT_PRESET_BEAGLE_USB_ATTACH_HOST:-10.10.10.1}" \
+  NETWORK_MODE="${PVE_THIN_CLIENT_PRESET_NETWORK_MODE:-dhcp}" \
+  NETWORK_INTERFACE="${PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE:-eth0}" \
+  NETWORK_STATIC_ADDRESS="${PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_ADDRESS:-}" \
+  NETWORK_STATIC_PREFIX="${PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_PREFIX:-24}" \
+  NETWORK_GATEWAY="${PVE_THIN_CLIENT_PRESET_NETWORK_GATEWAY:-}" \
+  NETWORK_DNS_SERVERS="${PVE_THIN_CLIENT_PRESET_NETWORK_DNS_SERVERS:-1.1.1.1 8.8.8.8}" \
+  CONNECTION_USERNAME="${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}" \
+  CONNECTION_PASSWORD="${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}" \
+  CONNECTION_TOKEN="${PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN:-}" \
+  BEAGLE_MANAGER_TOKEN="" \
+  BEAGLE_ENROLLMENT_TOKEN="${PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_TOKEN:-}" \
+  BEAGLE_EGRESS_WG_PRIVATE_KEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRIVATE_KEY:-}" \
+  BEAGLE_EGRESS_WG_PRESHARED_KEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRESHARED_KEY:-}" \
+  SUNSHINE_USERNAME="${PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME:-}" \
+  SUNSHINE_PASSWORD="${PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD:-}" \
+  SUNSHINE_PIN="${PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN:-}" \
+  SUNSHINE_PINNED_PUBKEY="${PVE_THIN_CLIENT_PRESET_SUNSHINE_PINNED_PUBKEY:-}" \
+  RUNTIME_PASSWORD="${PVE_THIN_CLIENT_PRESET_THINCLIENT_PASSWORD:-}" \
+    "$installer_script" "$state_dir"
+
+  printf '%s\n' "$state_dir"
+}
+
 find_config_dir() {
   if [[ -f "${CONFIG_DIR:-$DEFAULT_CONFIG_DIR}/thinclient.conf" ]]; then
     printf '%s\n' "${CONFIG_DIR:-$DEFAULT_CONFIG_DIR}"
@@ -103,6 +264,23 @@ find_config_dir() {
   if LIVE_STATE_DIR="$(find_live_state_dir)"; then
     printf '%s\n' "$LIVE_STATE_DIR"
     return 0
+  fi
+
+  if preset_file="$(find_preset_file 2>/dev/null || true)" && [[ -n "$preset_file" ]]; then
+    if generated_dir="$(generate_config_dir_from_preset "$preset_file" 2>/dev/null || true)" && [[ -f "$generated_dir/thinclient.conf" ]]; then
+      printf '%s\n' "$generated_dir"
+      return 0
+    fi
+  fi
+
+  if preset_cache_dir="$(beagle_state_dir 2>/dev/null || printf '%s\n' "$PRESET_STATE_DIR_DEFAULT")"; then
+    preset_cache_file="$preset_cache_dir/cmdline-preset.env"
+    if restore_preset_from_cmdline "$preset_cache_file" 2>/dev/null; then
+      if generated_dir="$(generate_config_dir_from_preset "$preset_cache_file" 2>/dev/null || true)" && [[ -f "$generated_dir/thinclient.conf" ]]; then
+        printf '%s\n' "$generated_dir"
+        return 0
+      fi
+    fi
   fi
 
   return 1
