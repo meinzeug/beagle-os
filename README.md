@@ -187,6 +187,37 @@ Dieses Repository baut die benoetigten Bausteine:
 - Beagle-OS-Image-Build
 - Sunshine-Gastkonfiguration fuer Ziel-VMs
 
+## Setup Auf Bestehendem Proxmox
+
+Fuer einen bestehenden Proxmox-Host gibt es jetzt einen klaren Einstieg:
+
+1. Repository auf den Host oder einen Admin-Rechner klonen
+2. Setup-Skript starten:
+
+```bash
+./scripts/setup-proxmox-host.sh
+```
+
+Das Setup-Skript macht den Standardpfad in einem Schritt:
+
+- installiert Beagle nach `/opt/beagle`
+- richtet Control Plane, Timer und Services auf dem Proxmox-Host ein
+- integriert die Proxmox-UI
+- bereitet die gehosteten Download-Artefakte vor
+- fuehrt direkt danach einen Host-Health-Check aus
+
+Typische optionale Variablen:
+
+```bash
+INSTALL_DIR=/opt/beagle \
+PVE_DCV_PROXY_SERVER_NAME=srv.example.net \
+PVE_DCV_PROXY_LISTEN_PORT=8443 \
+BEAGLE_SITE_PORT=443 \
+./scripts/setup-proxmox-host.sh
+```
+
+Nach erfolgreichem Setup sollte in der Proxmox-Oberflaeche neben `Erstelle VM` ein eigener Button `Erstelle Beagle VM` erscheinen. Darueber wird eine Ubuntu-Desktop-VM mit Beagle-/Sunshine-Voreinstellungen angelegt. Anschliessend kann fuer diese VM direkt das Beagle-Profil inklusive Live-USB- und USB-Installer-Downloads fuer Linux und Windows aufgerufen werden.
+
 ## Sichere USB-Geraete-Durchreichung
 
 Beagle OS stellt USB-Geraete nicht als offen erreichbares `usbip` ins Internet.
@@ -211,6 +242,7 @@ Damit bleibt die USB-Strecke internetfaehig, aber ohne rohe, oeffentliche USBIP-
 
 ## Wichtige Einstiege
 
+- Bestehenden Proxmox-Host komplett vorbereiten: [`scripts/setup-proxmox-host.sh`](./scripts/setup-proxmox-host.sh)
 - Host-Installation: [`scripts/install-proxmox-host.sh`](./scripts/install-proxmox-host.sh)
 - Host-Gesundheit pruefen: [`scripts/check-proxmox-host.sh`](./scripts/check-proxmox-host.sh)
 - Sunshine-Gast vorbereiten: [`scripts/configure-sunshine-guest.sh`](./scripts/configure-sunshine-guest.sh)

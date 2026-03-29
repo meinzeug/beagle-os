@@ -7,14 +7,49 @@ CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 MANAGER_DATA_DIR="${BEAGLE_MANAGER_DATA_DIR:-/var/lib/beagle/beagle-manager}"
 STATE_DIR="${BEAGLE_INSTALLER_PREP_DIR:-$MANAGER_DATA_DIR/installer-prep}"
 STATE_FILE="${BEAGLE_INSTALLER_PREP_STATE_FILE:-}"
-PUBLIC_STREAM_HOST="${BEAGLE_PUBLIC_STREAM_HOST:-${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}}"
+PUBLIC_STREAM_HOST_RAW="${BEAGLE_PUBLIC_STREAM_HOST:-${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}}"
 STREAMS_FILE="${BEAGLE_PUBLIC_STREAMS_FILE:-$MANAGER_DATA_DIR/public-streams.json}"
 VM_SECRETS_DIR="${BEAGLE_VM_SECRETS_DIR:-$MANAGER_DATA_DIR/vm-secrets}"
 SUNSHINE_DEFAULT_USER="${BEAGLE_SUNSHINE_DEFAULT_USER:-}"
 SUNSHINE_DEFAULT_PASSWORD="${BEAGLE_SUNSHINE_DEFAULT_PASSWORD:-}"
 SUNSHINE_DEFAULT_PIN="${BEAGLE_SUNSHINE_DEFAULT_PIN:-}"
-SUNSHINE_DEFAULT_GUEST_USER="${BEAGLE_SUNSHINE_DEFAULT_GUEST_USER:-dennis}"
+SUNSHINE_DEFAULT_GUEST_USER="${BEAGLE_SUNSHINE_DEFAULT_GUEST_USER:-beagle}"
 HOST_TLS_CERT_FILE="${BEAGLE_HOST_TLS_CERT_FILE:-/etc/pve/local/pve-ssl.pem}"
+
+resolve_public_stream_host() {
+  python3 - "$1" <<'PY'
+import ipaddress
+import socket
+import sys
+
+host = str(sys.argv[1] or "").strip()
+if not host:
+    print("")
+    raise SystemExit(0)
+try:
+    ipaddress.ip_address(host)
+except ValueError:
+    pass
+else:
+    print(host)
+    raise SystemExit(0)
+
+try:
+    infos = socket.getaddrinfo(host, None, family=socket.AF_INET, type=socket.SOCK_STREAM)
+except socket.gaierror:
+    print(host)
+    raise SystemExit(0)
+
+for item in infos:
+    ip = str(item[4][0]).strip()
+    if ip:
+        print(ip)
+        raise SystemExit(0)
+print(host)
+PY
+}
+
+PUBLIC_STREAM_HOST="$(resolve_public_stream_host "$PUBLIC_STREAM_HOST_RAW")"
 
 usage() {
   echo "Usage: $0 --vmid VMID --node NODE" >&2

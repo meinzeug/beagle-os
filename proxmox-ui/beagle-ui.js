@@ -201,6 +201,190 @@
     showProfileModal(ctx || {}, { autoPrepareDownload: true });
   }
 
+  function listAvailableNodes() {
+    if (!(window.PVE && PVE.data && PVE.data.ResourceStore && PVE.data.ResourceStore.getNodes)) {
+      return [];
+    }
+    return PVE.data.ResourceStore.getNodes().map(function(node) {
+      return {
+        value: String(node.node || ""),
+        label: String(node.node || "")
+      };
+    }).filter(function(node) {
+      return Boolean(node.value);
+    });
+  }
+
+  function showUbuntuBeagleCreateModal(ctx) {
+    if (!(window.Ext && Ext.create)) {
+      showError("Proxmox UI-Komponenten sind noch nicht bereit.");
+      return;
+    }
+    var nodes = listAvailableNodes();
+    var initialNode = String(ctx && ctx.node || (nodes[0] && nodes[0].value) || "");
+    var store = Ext.create("Ext.data.Store", {
+      fields: ["value", "label"],
+      data: nodes
+    });
+    var windowRef = Ext.create("Ext.window.Window", {
+      title: "Erstelle Beagle VM",
+      modal: true,
+      width: 620,
+      layout: "fit",
+      items: [
+        {
+          xtype: "form",
+          bodyPadding: 16,
+          defaults: {
+            anchor: "100%",
+            labelWidth: 180
+          },
+          items: [
+            {
+              xtype: "displayfield",
+              value: "Erstellt eine komplette Ubuntu-Desktop-VM mit Beagle OS, Sunshine und vorbereiteten Download-Pfaden fuer Live-USB sowie USB-Installer fuer Linux und Windows."
+            },
+            {
+              xtype: "displayfield",
+              fieldLabel: "Desktop",
+              value: "Ubuntu Desktop mit GNOME"
+            },
+            {
+              xtype: "displayfield",
+              fieldLabel: "Streaming",
+              value: "Sunshine + Beagle VM-Profil"
+            },
+            {
+              xtype: "displayfield",
+              fieldLabel: "ISO-Quelle",
+              value: "Originale Ubuntu-ISO vom Ubuntu-Release-Server, mit Host-Cache wenn bereits vorhanden."
+            },
+            {
+              xtype: "combo",
+              name: "node",
+              fieldLabel: "Node",
+              allowBlank: false,
+              editable: false,
+              forceSelection: true,
+              queryMode: "local",
+              displayField: "label",
+              valueField: "value",
+              store: store,
+              value: initialNode
+            },
+            {
+              xtype: "numberfield",
+              name: "vmid",
+              fieldLabel: "VMID",
+              minValue: 1,
+              allowBlank: true,
+              emptyText: "automatisch"
+            },
+            {
+              xtype: "textfield",
+              name: "name",
+              fieldLabel: "Name",
+              allowBlank: false,
+              value: ""
+            },
+            {
+              xtype: "numberfield",
+              name: "memory",
+              fieldLabel: "RAM (MiB)",
+              minValue: 2048,
+              value: 8192
+            },
+            {
+              xtype: "numberfield",
+              name: "cores",
+              fieldLabel: "Cores",
+              minValue: 2,
+              value: 4
+            },
+            {
+              xtype: "numberfield",
+              name: "disk_gb",
+              fieldLabel: "Festplatte (GB)",
+              minValue: 32,
+              value: 64
+            },
+            {
+              xtype: "textfield",
+              name: "bridge",
+              fieldLabel: "Bridge",
+              value: "vmbr1"
+            },
+            {
+              xtype: "textfield",
+              name: "guest_user",
+              fieldLabel: "Ubuntu-User",
+              value: "beagle"
+            },
+            {
+              xtype: "checkboxfield",
+              name: "start",
+              fieldLabel: "Nach Erstellung starten",
+              checked: true,
+              inputValue: "1",
+              uncheckedValue: "0"
+            }
+          ]
+        }
+      ],
+      buttons: [
+        {
+          text: "Abbrechen",
+          handler: function() {
+            windowRef.close();
+          }
+        },
+        {
+          text: "Erstellen",
+          ui: "primary",
+          handler: function() {
+            var form = windowRef.down("form").getForm();
+            if (!form.isValid()) {
+              return;
+            }
+            var values = form.getValues();
+            var payload = {
+              node: String(values.node || ""),
+              name: String(values.name || ""),
+              bridge: String(values.bridge || ""),
+              guest_user: String(values.guest_user || ""),
+              start: values.start ? "1" : "0",
+              memory: Number(values.memory || 8192),
+              cores: Number(values.cores || 4),
+              disk_gb: Number(values.disk_gb || 64)
+            };
+            if (String(values.vmid || "").trim()) {
+              payload.vmid = Number(values.vmid);
+            }
+            windowRef.setLoading("Beagle VM wird erstellt ...");
+            apiPostBeagleJson("/beagle-api/api/v1/ubuntu-beagle-vms", payload).then(function(response) {
+              windowRef.setLoading(false);
+              windowRef.close();
+              var created = response && response.ubuntu_beagle_vm ? response.ubuntu_beagle_vm : response;
+              showToast("Beagle VM " + String(created && created.vmid || "") + " wird erstellt. Guest user: " + String(created && created.guest_user || "") + ".");
+              if (created && created.vmid) {
+                window.setTimeout(function() {
+                  showProfileModal({
+                    node: String(created.node || payload.node || ""),
+                    vmid: Number(created.vmid)
+                  });
+                }, 800);
+              }
+            }).catch(function(error) {
+              windowRef.setLoading(false);
+              showError("Beagle VM konnte nicht erstellt werden: " + error.message);
+            });
+          }
+        }
+      ]
+    });
+    windowRef.show();
+  }
+
   function ensureStyles() {
     if (document.getElementById(STYLE_ID)) {
       return;
@@ -1437,12 +1621,52 @@
     document.body.appendChild(button);
   }
 
+  function ensureCreateVmIntegration(component) {
+    if (!component || component.__beagleUbuntuCreateIntegrated) {
+      return;
+    }
+
+    if (component.itemId === "createvm" && component.up && component.up("menu")) {
+      var menu = component.up("menu");
+      if (!menu.down("#beagleUbuntuCreateVmMenuItem")) {
+        menu.insert(menu.items.indexOf(component), {
+          itemId: "beagleUbuntuCreateVmMenuItem",
+          text: "Erstelle Beagle VM",
+          iconCls: "fa fa-television",
+          handler: function() {
+            showUbuntuBeagleCreateModal({ node: menu.nodename || "" });
+          }
+        });
+      }
+      component.__beagleUbuntuCreateIntegrated = true;
+      return;
+    }
+
+    if (component.xtype === "button" && component.text === gettext("Create VM")) {
+      var toolbar = component.up && component.up("toolbar");
+      if (toolbar && !toolbar.down("#beagleUbuntuCreateVmButton")) {
+        toolbar.insert(toolbar.items.indexOf(component), {
+          xtype: "button",
+          itemId: "beagleUbuntuCreateVmButton",
+          text: "Erstelle Beagle VM",
+          iconCls: "fa fa-television",
+          handler: function() {
+            showUbuntuBeagleCreateModal({});
+          }
+        });
+      }
+      component.__beagleUbuntuCreateIntegrated = true;
+    }
+  }
+
   function integrate() {
     if (!(window.Ext && Ext.ComponentQuery)) {
       return;
     }
 
     Ext.ComponentQuery.query("pveConsoleButton").forEach(ensureConsoleButtonIntegration);
+    Ext.ComponentQuery.query("#createvm").forEach(ensureCreateVmIntegration);
+    Ext.ComponentQuery.query("button").forEach(ensureCreateVmIntegration);
     ensureFleetLauncher();
   }
 

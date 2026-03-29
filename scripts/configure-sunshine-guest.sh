@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROXMOX_HOST="${PROXMOX_HOST:-thinovernet}"
 VMID="${VMID:-}"
-GUEST_USER="${GUEST_USER:-dennis}"
+GUEST_USER="${GUEST_USER:-beagle}"
 PROXMOX_USER="${PROXMOX_USER:-}"
 PROXMOX_PASSWORD="${PROXMOX_PASSWORD:-}"
 PROXMOX_TOKEN="${PROXMOX_TOKEN:-}"
@@ -13,9 +13,44 @@ SUNSHINE_PIN="${SUNSHINE_PIN:-}"
 SUNSHINE_PORT="${SUNSHINE_PORT:-}"
 SUNSHINE_URL="${SUNSHINE_URL:-https://github.com/LizardByte/Sunshine/releases/download/v2025.924.154138/sunshine-ubuntu-24.04-amd64.deb}"
 SUNSHINE_ORIGIN_WEB_UI_ALLOWED="${SUNSHINE_ORIGIN_WEB_UI_ALLOWED:-wan}"
-PUBLIC_STREAM_HOST="${PUBLIC_STREAM_HOST:-}"
+PUBLIC_STREAM_HOST_RAW="${PUBLIC_STREAM_HOST:-}"
 UPDATE_METADATA="${UPDATE_METADATA:-1}"
 VM_REBOOT="${VM_REBOOT:-1}"
+
+resolve_public_stream_host() {
+  python3 - "$1" <<'PY'
+import ipaddress
+import socket
+import sys
+
+host = str(sys.argv[1] or "").strip()
+if not host:
+    print("")
+    raise SystemExit(0)
+try:
+    ipaddress.ip_address(host)
+except ValueError:
+    pass
+else:
+    print(host)
+    raise SystemExit(0)
+
+try:
+    infos = socket.getaddrinfo(host, None, family=socket.AF_INET, type=socket.SOCK_STREAM)
+except socket.gaierror:
+    print(host)
+    raise SystemExit(0)
+
+for item in infos:
+    ip = str(item[4][0]).strip()
+    if ip:
+        print(ip)
+        raise SystemExit(0)
+print(host)
+PY
+}
+
+PUBLIC_STREAM_HOST="$(resolve_public_stream_host "$PUBLIC_STREAM_HOST_RAW")"
 
 usage() {
   cat <<EOF
@@ -71,17 +106,109 @@ ssh_host() {
   esac
 }
 
+qm_guest_exec_sync() {
+  local command="$1"
+  local raw_output payload_json pid status_raw status_json exitcode
+  raw_output="$(ssh_host "sudo /usr/sbin/qm guest exec '$VMID' -- bash -lc $(printf '%q' "$command")")"
+  payload_json="$(python3 - "$raw_output" <<'PY'
+import json
+import sys
+
+raw = sys.argv[1]
+payload = {}
+for line in reversed([line.strip() for line in raw.splitlines() if line.strip()]):
+    try:
+        payload = json.loads(line)
+        break
+    except json.JSONDecodeError:
+        continue
+print(json.dumps(payload))
+PY
+)"
+
+  pid="$(python3 - "$payload_json" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1] or "{}")
+pid = payload.get("pid")
+print("" if pid is None else str(pid))
+PY
+)"
+
+  if [[ -z "$pid" ]]; then
+    status_json="$payload_json"
+  else
+    while true; do
+      sleep 2
+      status_raw="$(ssh_host "sudo /usr/sbin/qm guest exec-status '$VMID' '$pid'")"
+      status_json="$(python3 - "$status_raw" <<'PY'
+import json
+import sys
+
+raw = sys.argv[1]
+payload = {}
+for line in reversed([line.strip() for line in raw.splitlines() if line.strip()]):
+    try:
+        payload = json.loads(line)
+        break
+    except json.JSONDecodeError:
+        continue
+print(json.dumps(payload))
+PY
+)"
+      if python3 - "$status_json" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1] or "{}")
+raise SystemExit(0 if payload.get("exited") else 1)
+PY
+      then
+        break
+      fi
+    done
+  fi
+
+  exitcode="$(python3 - "$status_json" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1] or "{}")
+print(int(payload.get("exitcode", 0) or 0))
+PY
+)"
+  if [[ "$exitcode" != "0" ]]; then
+    python3 - "$status_json" <<'PY' >&2
+import json
+import sys
+
+payload = json.loads(sys.argv[1] or "{}")
+stdout = str(payload.get("out-data", "") or "").strip()
+stderr = str(payload.get("err-data", "") or "").strip()
+if stdout:
+    print(stdout)
+if stderr:
+    print(stderr, file=sys.stderr)
+PY
+    return 1
+  fi
+
+  printf '%s\n' "$status_json"
+  return 0
+}
+
 guest_exec_script() {
   local script="$1"
   local script_b64
   script_b64="$(printf '%s' "$script" | base64 -w0)"
 
-  ssh_host "sudo /usr/sbin/qm guest exec '$VMID' -- bash -lc 'echo $script_b64 | base64 -d >/tmp/pve-sunshine-setup.sh && chmod +x /tmp/pve-sunshine-setup.sh && /tmp/pve-sunshine-setup.sh'"
+  qm_guest_exec_sync "echo $script_b64 | base64 -d >/tmp/pve-sunshine-setup.sh && chmod +x /tmp/pve-sunshine-setup.sh && /tmp/pve-sunshine-setup.sh" >/dev/null
 }
 
 detect_guest_ip() {
   local raw_output
-  raw_output="$(ssh_host "sudo /usr/sbin/qm guest exec '$VMID' -- bash -lc 'hostname -I | tr \" \" \"\\n\" | sed \"/^$/d\" | head -n1'")"
+  raw_output="$(ssh_host "sudo /usr/sbin/qm guest cmd '$VMID' network-get-interfaces" 2>/dev/null || true)"
   python3 - "$raw_output" <<'PY'
 import json
 import sys
@@ -93,12 +220,19 @@ if not raw:
 try:
     payload = json.loads(raw)
 except json.JSONDecodeError:
-    print(raw.splitlines()[-1].strip())
-    raise SystemExit(0)
+    raise SystemExit(1)
 
-out = str(payload.get("out-data", "")).strip()
-if out:
-    print(out.splitlines()[-1].strip())
+for iface in payload if isinstance(payload, list) else []:
+    for address in iface.get("ip-addresses", []):
+        ip = str(address.get("ip-address", "")).strip()
+        if address.get("ip-address-type") != "ipv4":
+            continue
+        if not ip or ip.startswith("127.") or ip.startswith("169.254."):
+            continue
+        print(ip)
+        raise SystemExit(0)
+
+raise SystemExit(1)
 PY
 }
 
@@ -259,7 +393,7 @@ curl -fsSLo "\$tmpdir/sunshine.deb" "\$SUNSHINE_URL"
 apt-get install -y "\$tmpdir/sunshine.deb"
 
 install -d -m 0755 /etc/lightdm/lightdm.conf.d
-cat > /etc/lightdm/lightdm.conf.d/60-pve-thin-client.conf <<'GUESTCFG'
+cat > /etc/lightdm/lightdm.conf.d/60-pve-thin-client.conf <<GUESTCFG
 [Seat:*]
 autologin-user=${GUEST_USER}
 autologin-session=xfce
@@ -288,7 +422,7 @@ Section "InputClass"
 EndSection
 XORGCONF
 
-cat > "/home/\$GUEST_USER/.config/sunshine/sunshine.conf" <<'SUNCONF'
+cat > "/home/\$GUEST_USER/.config/sunshine/sunshine.conf" <<SUNCONF
 sunshine_name = ${GUEST_USER}-sunshine
 min_log_level = info
 origin_web_ui_allowed = ${SUNSHINE_ORIGIN_WEB_UI_ALLOWED}
