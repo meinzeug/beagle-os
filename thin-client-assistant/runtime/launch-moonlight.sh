@@ -338,6 +338,10 @@ moonlight_list_timeout() {
   printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_LIST_TIMEOUT:-12}"
 }
 
+moonlight_bootstrap_timeout() {
+  printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_BOOTSTRAP_TIMEOUT:-3}"
+}
+
 sunshine_api_url() {
   local configured host
   configured="$(render_template "${PVE_THIN_CLIENT_SUNSHINE_API_URL:-}" 2>/dev/null || true)"
@@ -820,6 +824,28 @@ moonlight_list() {
   "$bin" list "$target" >"$MOONLIGHT_LIST_LOG" 2>&1
 }
 
+bootstrap_moonlight_client() {
+  local bin host port timeout_value target
+
+  moonlight_host_configured && return 0
+  extract_moonlight_certificate_pem >/dev/null 2>&1 && return 0
+
+  bin="$(moonlight_bin)"
+  host="$(moonlight_connect_host)"
+  port="$(moonlight_port)"
+  timeout_value="$(moonlight_bootstrap_timeout)"
+  target="$(format_moonlight_target "$host" "$port")"
+
+  [[ -n "$target" ]] || return 1
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --preserve-status "$timeout_value" "$bin" list "$target" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  "$bin" list "$target" >/dev/null 2>&1 || true
+}
+
 submit_sunshine_pin() {
   local api_url username password pin name response
   local -a curl_args
@@ -1008,8 +1034,12 @@ main() {
     /usr/local/bin/pve-thin-client-audio-init --watch "${PVE_THIN_CLIENT_AUDIO_WATCH_LOOPS:-0}" >/dev/null 2>&1 &
   fi
 
+  bootstrap_moonlight_client || true
+
   if moonlight_host_configured; then
     beagle_log_event "moonlight.cached-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+  elif register_moonlight_client_via_manager; then
+    beagle_log_event "moonlight.registered" "host=${host} port=${port:-default}"
   elif ! moonlight_list; then
     ensure_paired || {
       beagle_log_event "moonlight.pairing-failed" "host=${host} port=${port:-default} pin=${PVE_THIN_CLIENT_SUNSHINE_PIN:-unset}"
