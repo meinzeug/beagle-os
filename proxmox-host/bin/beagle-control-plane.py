@@ -2901,6 +2901,10 @@ def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[
     sunshine_password = str(vm_secret.get("sunshine_password", "") or "")
     sunshine_pin = str(vm_secret.get("sunshine_pin", "") or "")
     sunshine_pinned_pubkey = str(vm_secret.get("sunshine_pinned_pubkey", "") or "")
+    guest_user = sunshine_guest_user(vm, config)
+    sunshine_server = fetch_sunshine_server_identity(vm, guest_user) if vm.status == "running" and guest_user else {}
+    sunshine_server_cert_pem = str(sunshine_server.get("server_cert_pem", "") or "")
+    sunshine_server_cert_b64 = base64.b64encode(sunshine_server_cert_pem.encode("utf-8")).decode("ascii") if sunshine_server_cert_pem else ""
 
     return {
         "PVE_THIN_CLIENT_PRESET_PROFILE_NAME": expected_profile_name,
@@ -2978,6 +2982,10 @@ def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[
         "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": sunshine_password,
         "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": sunshine_pin,
         "PVE_THIN_CLIENT_PRESET_SUNSHINE_PINNED_PUBKEY": sunshine_pinned_pubkey,
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_NAME": str(sunshine_server.get("sunshine_name", "") or ""),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_STREAM_PORT": str(sunshine_server.get("stream_port", "") or moonlight_port or ""),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_UNIQUEID": str(sunshine_server.get("uniqueid", "") or ""),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_CERT_B64": sunshine_server_cert_b64,
     }
 
 

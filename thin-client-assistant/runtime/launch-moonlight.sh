@@ -496,6 +496,63 @@ moonlight_client_config_path() {
   return 1
 }
 
+seed_moonlight_host_from_runtime_config() {
+  local config_path uniqueid cert_b64 sunshine_name stream_port response_file
+
+  uniqueid="${PVE_THIN_CLIENT_SUNSHINE_SERVER_UNIQUEID:-}"
+  cert_b64="${PVE_THIN_CLIENT_SUNSHINE_SERVER_CERT_B64:-}"
+  sunshine_name="${PVE_THIN_CLIENT_SUNSHINE_SERVER_NAME:-}"
+  stream_port="${PVE_THIN_CLIENT_SUNSHINE_SERVER_STREAM_PORT:-$(moonlight_port)}"
+  config_path="$(moonlight_client_config_path 2>/dev/null || true)"
+
+  [[ -n "$config_path" && -r "$config_path" ]] || return 1
+  [[ -n "$uniqueid" && -n "$cert_b64" ]] || return 1
+
+  response_file="$(mktemp)"
+  if ! python3 - "$response_file" "$uniqueid" "$cert_b64" "$sunshine_name" "$stream_port" <<'PY'
+from pathlib import Path
+import base64
+import json
+import sys
+
+response_path = Path(sys.argv[1])
+uniqueid = (sys.argv[2] or "").strip()
+cert_b64 = (sys.argv[3] or "").strip()
+sunshine_name = (sys.argv[4] or "").strip()
+stream_port = (sys.argv[5] or "").strip()
+
+try:
+    server_cert_pem = base64.b64decode(cert_b64.encode("ascii"), validate=True).decode("utf-8")
+except Exception:
+    raise SystemExit(1)
+
+if not uniqueid or "BEGIN CERTIFICATE" not in server_cert_pem:
+    raise SystemExit(1)
+
+payload = {
+    "sunshine_server": {
+        "uniqueid": uniqueid,
+        "server_cert_pem": server_cert_pem,
+        "sunshine_name": sunshine_name,
+        "stream_port": stream_port,
+    }
+}
+response_path.write_text(json.dumps(payload), encoding="utf-8")
+PY
+  then
+    rm -f "$response_file"
+    return 1
+  fi
+
+  if ! sync_moonlight_host_from_manager_response "$response_file"; then
+    rm -f "$response_file"
+    return 1
+  fi
+
+  rm -f "$response_file"
+  return 0
+}
+
 moonlight_host_configured() {
   local config_path host connect_host port
 
@@ -1035,6 +1092,9 @@ main() {
   fi
 
   bootstrap_moonlight_client || true
+  if ! moonlight_host_configured && seed_moonlight_host_from_runtime_config; then
+    beagle_log_event "moonlight.seeded-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+  fi
 
   if moonlight_host_configured; then
     beagle_log_event "moonlight.cached-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
