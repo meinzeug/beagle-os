@@ -1098,7 +1098,9 @@ main() {
 
   if moonlight_host_configured; then
     beagle_log_event "moonlight.cached-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
-  elif register_moonlight_client_via_manager; then
+  fi
+
+  if register_moonlight_client_via_manager; then
     beagle_log_event "moonlight.registered" "host=${host} port=${port:-default}"
   elif ! moonlight_list; then
     ensure_paired || {
