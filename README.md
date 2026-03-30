@@ -1,172 +1,48 @@
-<p align="center">
-  <img src="docs/assets/beagleos.png" alt="Beagle OS logo" width="320">
-</p>
+[![Beagle OS logo](docs/assets/beagleos.png)](docs/assets/beagleos.png)
 
 # Beagle OS
 
-Beagle OS is a Proxmox-native endpoint OS and management stack for streaming virtual desktops.
+> **Proxmox-native endpoint OS and management stack for streaming virtual desktops.**
 
-Das Konzept ist absichtlich eng geführt:
+[![License: Source Available](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/meinzeug/beagle-os)](https://github.com/meinzeug/beagle-os/releases)
+[![Shell](https://img.shields.io/badge/shell-54%25-green)]()
+[![Python](https://img.shields.io/badge/python-24%25-blue)]()
 
-- Proxmox ist die zentrale Management- und Betriebsplattform
-- die VM liefert den Stream mit Sunshine
-- der Client verbindet sich mit Moonlight
-- Beagle OS ist das dedizierte Endpoint-OS für diesen Zweck
-- das Projekt positioniert sich als offene, Proxmox-zentrierte Endpunktplattform
+> **License:** Free for private/non-commercial use. Commercial use only via the official [beagle-os.com](https://beagle-os.com) SaaS offering. See [LICENSE](LICENSE) for details.
 
-Beagle OS ist kein Sammelsurium für verschiedene Remote-Protokolle. Der Produktpfad ist genau einer:
+---
 
-- `Sunshine` in der Ziel-VM
-- `Moonlight` auf Beagle OS
-- `Proxmox` als Inventar-, Bereitstellungs- und Betriebsoberfläche
+## What is Beagle OS?
 
-## Produktidee
+Beagle OS is an intentionally narrow-focused project. There is exactly one product path:
 
-Beagle OS besteht aus zwei zusammengehörigen Ebenen:
+- `Sunshine` running inside the target VM
+- `Moonlight` running on Beagle OS
+- `Proxmox` as the inventory, provisioning, and operations surface
 
-1. `Beagle Control Plane auf Proxmox`
-2. `Beagle OS als Thin-Client-Betriebssystem`
+Beagle OS is **not** a multi-protocol remote desktop toolkit. It is a managed endpoint solution built around a single, well-defined streaming stack.
 
-Die Control Plane hängt direkt an Proxmox und macht VMs zu verwaltbaren Streaming-Zielen.
-Das Betriebssystem bootet auf Thin Clients, Mini-PCs oder USB-Medien und startet danach direkt Moonlight gegen die zugewiesene VM.
+## Requirements
 
-Im Ergebnis entsteht kein klassischer "Remote-Desktop-Baukasten", sondern eine gemanagte Endpunktlösung:
+- Proxmox VE 7.x or 8.x
+- A target VM with [Sunshine](https://github.com/LizardByte/Sunshine) installed
+- Thin clients, mini PCs, or USB media for the Beagle OS endpoint
 
-- VM-bezogene Installer direkt aus Proxmox
-- aufgeloeste VM-Profile direkt in der Proxmox-Oberflaeche
-- vorkonfigurierte Streaming-Ziele pro VM
-- reproduzierbare Client-Images
-- dedizierte Thin-Client-Endpunkte statt allgemeiner Linux-Desktops
-- Betriebsmodell für viele Clients mit gleichem Zielbild
-- Geräte-Diagnostik und Support-Bundles direkt im Endpoint-OS
-- vorbereitbare Moonlight-Client-Identitäten für reproduzierbare Sunshine-Freischaltung
-- sicherer USB-Geraetepfad vom Thin Client in die zugeordnete VM
+---
 
-## Zielbild
+## Architecture in One Sentence
 
-Beagle OS ist als offene Endpunkt- und Managementplattform fuer virtuelle Arbeitsplaetze gedacht:
+Beagle OS turns Proxmox into a management surface for Moonlight/Sunshine endpoints and ships a dedicated endpoint OS to run on them.
 
-- nicht Citrix- oder VMware-zentriert
-- nicht auf generische Broker-Stacks angewiesen
-- stattdessen direkt an Proxmox gekoppelt
-- optimiert für Moonlight/Sunshine-Streaming
-- gebaut für feste, kontrollierte Endgeräte
-
-Kurz gesagt:
-
-- `offenes Management-Modell fuer Endpunkte`
-- `Proxmox-native Orchestrierung`
-- `Moonlight/Sunshine als einziger Streaming-Stack`
-
-## Betriebsmodell
-
-Der operative Ablauf ist bewusst einfach:
-
-1. Beagle-Integration auf dem Proxmox-Host installieren.
-2. Eine VM als Sunshine-Stream-Ziel vorbereiten.
-3. Die Zielparameter in Proxmox an die VM binden.
-4. Einen Beagle-OS-Installer oder ein Beagle-OS-Image ausrollen.
-5. Den Client booten und direkt gegen die zugeordnete VM streamen.
-
-Der bevorzugte Operator-Pfad pro VM ist jetzt konkret:
-
-1. In Proxmox die Ziel-VM auswaehlen.
-2. Das VM-spezifische `USB Installer Skript` herunterladen.
-3. Das Skript laedt die aktuelle Beagle-Installer-ISO vom Proxmox-Host.
-4. Das Skript schreibt daraus einen bootfaehigen USB-Stick.
-5. Das VM-Profil wird direkt in den Stick eingebettet.
-6. Nach der Installation bootet Beagle OS mit Moonlight-Autostart gegen genau diese VM.
-
-Damit wird Proxmox nicht nur Compute-Plattform, sondern zugleich:
-
-- Inventar fuer Streaming-VMs
-- Ausgabepunkt fuer Client-Installer
-- Quelle fuer VM-spezifische Presets
-- zentraler Integrationspunkt fuer Beagle OS
-
-## Hauptkomponenten
-
-### 1. Beagle Control Plane auf Proxmox
-
-Die Host-Seite liefert die Management-Funktionen:
-
-- Integration in die Proxmox-Oberflaeche
-- Beagle-Profil-Dialoge mit Export-, Download- und Health-Aktionen pro VM
-- VM-spezifische Artefakt-Erzeugung
-- Download-Endpunkte fuer Installer und Images
-- VM-spezifische USB-Skripte, die die Installer-ISO laden und mit eingebettetem Zielprofil auf USB schreiben
-- lokale Control-Plane-API fuer Health und Inventar
-- USB-Control-Plane fuer Export, Attach, Detach und Guest-State pro VM
-- Reapply-/Refresh-Mechanismen nach Host-Aenderungen
-- residential-exit-Policies fuer sensible Web-Ziele
-- stabile Endpoint-Identitaet mit Hostname-, Locale- und Timezone-Steuerung
-- Produktwebsite direkt auf dem Beagle-Host unter HTTPS/443
-
-Wichtig ist dabei die Produktlogik:
-
-- eine VM wird als Sunshine-Ziel beschrieben
-- Beagle erzeugt daraus den passenden Client-Preset
-- der Client startet anschliessend Moonlight gegen genau dieses Ziel
-
-### 2. Beagle OS als Endpoint-Betriebssystem
-
-Beagle OS ist das eigentliche Thin-Client-OS.
-Es ist kein allgemeines Desktop-System, sondern auf den Streaming-Zweck reduziert.
-
-Kernpunkte:
-
-- eigener Build-Pfad fuer das OS
-- eigener Kernel-Paketpfad (`-beagle`)
-- bootfaehige Images fuer Test, Rollout und VM-Betrieb
-- Runtime fuer Netzwerk, Autostart und Moonlight-Sessionstart
-- Runtime fuer sicheren USB-Export ueber `usbip` und Reverse-SSH-Tunnel
-
-### 3. VM-gebundene Bereitstellung
-
-Die Bereitstellung ist VM-zentriert statt benutzerzentriert.
-Eine konkrete VM in Proxmox ist das Streaming-Ziel.
-Daraus entstehen:
-
-- ein VM-spezifisches USB-Installer-Skript
-- eine zentrale Beagle-Installer-ISO
-- ein gebuendeltes Preset mit Host, App und Pairing-Daten
-- ein reproduzierbarer Endpunkt, der nach Installation direkt die richtige VM startet
-- ein per-VM abgesicherter USB-Tunnel fuer lokale Geraete
-
-## Warum nur Moonlight und Sunshine
-
-Diese Festlegung ist kein Marketing-Satz, sondern ein Architekturentscheid.
-
-Mehrere Protokolle klingen flexibel, machen das Produkt aber weicher, schwerer testbar und operativ unsauber.
-Beagle OS verfolgt stattdessen einen klaren Standardpfad:
-
-- ein Streaming-Protokoll
-- ein Client
-- ein Server
-- ein Provisionierungsmodell
-
-Das bringt klare Vorteile:
-
-- weniger Betriebsvarianten
-- weniger UI- und Installer-Komplexitaet
-- besser reproduzierbare Tests
-- besser optimierbare Latenz
-- einfachere Fehleranalyse
-- konsistentere Benutzererfahrung
-
-## Architektur in einem Satz
-
-Beagle OS macht aus Proxmox eine Verwaltungsoberflaeche fuer Moonlight/Sunshine-Endpunkte und liefert dazu ein dediziertes Endpoint-OS aus.
-
-## Typischer Ablauf
-
+## Typical Flow
 ```mermaid
 flowchart LR
     Admin[Admin in Proxmox]
-    PVE[Proxmox mit Beagle Integration]
-    VM[Ziel-VM mit Sunshine]
-    Artifact[Beagle Installer oder Image]
-    Client[Beagle OS Endpoint mit Moonlight]
+    PVE[Proxmox with Beagle Integration]
+    VM[Target VM with Sunshine]
+    Artifact[Beagle Installer or Image]
+    Client[Beagle OS Endpoint with Moonlight]
 
     Admin --> PVE
     PVE --> VM
@@ -175,39 +51,68 @@ flowchart LR
     Client --> VM
 ```
 
-## Repository-Fokus
+---
 
-Dieses Repository baut die benoetigten Bausteine:
+## Product Concept
 
-- Proxmox-Integration
-- Host-seitige Artefakt-Erzeugung
-- Thin-Client-Runtime
-- USB- und Installationspfad
-- sichere USB-Geraete-Durchreichung vom Endpoint in die Ziel-VM
-- Beagle-OS-Image-Build
-- Sunshine-Gastkonfiguration fuer Ziel-VMs
+Beagle OS consists of two interconnected layers:
 
-## Setup Auf Bestehendem Proxmox
+1. **Beagle Control Plane on Proxmox**
+2. **Beagle OS as a Thin-Client Operating System**
 
-Fuer einen bestehenden Proxmox-Host gibt es jetzt einen klaren Einstieg:
+The Control Plane attaches directly to Proxmox and turns VMs into manageable streaming targets. The OS boots on thin clients, mini PCs, or USB media and launches Moonlight directly against the assigned VM.
 
-1. Repository auf den Host oder einen Admin-Rechner klonen
-2. Setup-Skript starten:
+The result is not a classic "remote desktop toolkit" but a managed endpoint solution:
 
+- VM-specific installers served directly from Proxmox
+- Resolved VM profiles visible directly in the Proxmox UI
+- Preconfigured streaming targets per VM
+- Reproducible client images
+- Dedicated thin-client endpoints instead of general-purpose Linux desktops
+- Operational model for fleets of clients with a uniform target image
+- Device diagnostics and support bundles built into the endpoint OS
+- Preparable Moonlight client identities for reproducible Sunshine pairing
+- Secure USB device passthrough from the thin client to its assigned VM
+
+---
+
+## Target Vision
+
+Beagle OS is designed as an open endpoint and management platform for virtual workstations:
+
+- Not Citrix- or VMware-centric
+- Not reliant on generic broker stacks
+- Directly coupled to Proxmox
+- Optimized for Moonlight/Sunshine streaming
+- Built for fixed, controlled endpoints
+
+In short:
+
+- `Open endpoint management model`
+- `Proxmox-native orchestration`
+- `Moonlight/Sunshine as the sole streaming stack`
+
+---
+
+## Quick Start
+
+### Setup on an Existing Proxmox Host
+
+1. Clone the repository onto the host or an admin machine
+2. Run the setup script:
 ```bash
 ./scripts/setup-proxmox-host.sh
 ```
 
-Das Setup-Skript macht den Standardpfad in einem Schritt:
+The setup script completes the standard path in a single step:
 
-- installiert Beagle nach `/opt/beagle`
-- richtet Control Plane, Timer und Services auf dem Proxmox-Host ein
-- integriert die Proxmox-UI
-- bereitet die gehosteten Download-Artefakte vor
-- fuehrt direkt danach einen Host-Health-Check aus
+- Installs Beagle to `/opt/beagle`
+- Sets up the Control Plane, timers, and services on the Proxmox host
+- Integrates the Proxmox UI extension
+- Prepares hosted download artifacts
+- Runs a host health check immediately after
 
-Typische optionale Variablen:
-
+Optional environment variables:
 ```bash
 INSTALL_DIR=/opt/beagle \
 PVE_DCV_PROXY_SERVER_NAME=srv.example.net \
@@ -216,64 +121,187 @@ BEAGLE_SITE_PORT=443 \
 ./scripts/setup-proxmox-host.sh
 ```
 
-Nach erfolgreichem Setup sollte in der Proxmox-Oberflaeche neben `Erstelle VM` ein eigener Button `Erstelle Beagle VM` erscheinen. Darueber wird eine Ubuntu-Desktop-VM mit Beagle-/Sunshine-Voreinstellungen angelegt. Anschliessend kann fuer diese VM direkt das Beagle-Profil inklusive Live-USB- und USB-Installer-Downloads fuer Linux und Windows aufgerufen werden.
+After a successful setup, a **Create Beagle VM** button will appear next to **Create VM** in the Proxmox UI. Use it to provision an Ubuntu Desktop VM with Beagle/Sunshine presets. From there, the Beagle profile for that VM — including live-USB and USB installer downloads for Linux and Windows — is immediately accessible.
 
-## Sichere USB-Geraete-Durchreichung
+---
 
-Beagle OS stellt USB-Geraete nicht als offen erreichbares `usbip` ins Internet.
-Der Produktpfad ist bewusst gehaertet:
+## Operational Model
 
-- pro VM eigener SSH-Tunnel-Key
-- pro VM eigener Reverse-Tunnel-Port
-- Reverse-SSH-Tunnel vom Thin Client zum Proxmox-Host
-- Attach des USB-Geraets nur aus der zugeordneten VM
-- keine oeffentliche `usbip`-Freigabe am Host
-- Steuerung ueber die Beagle Control Plane statt ueber manuelle Shell-Kommandos
+The operational workflow is intentionally simple:
 
-Der Ablauf ist:
+1. Install the Beagle integration on the Proxmox host.
+2. Prepare a VM as a Sunshine stream target.
+3. Bind the target parameters to the VM in Proxmox.
+4. Roll out a Beagle OS installer or image.
+5. Boot the client — it streams directly against its assigned VM.
 
-1. Der Thin Client exportiert ein lokal gebundenes USB-Geraet.
-2. Beagle baut einen Reverse-SSH-Tunnel zum Host auf.
-3. Der Host stellt den Tunnel nur intern auf dem Attach-Host bereit.
-4. Die Ziel-VM bindet das Geraet ueber die Control Plane ein.
-5. Der Operator sieht den Attach-Status in Proxmox oder im Beagle Web UI.
+### Preferred Operator Path per VM
 
-Damit bleibt die USB-Strecke internetfaehig, aber ohne rohe, oeffentliche USBIP-Angriffsoberflaeche.
+1. Select the target VM in Proxmox.
+2. Download the VM-specific **USB Installer Script**.
+3. The script fetches the current Beagle Installer ISO from the Proxmox host.
+4. The script writes a bootable USB drive from it.
+5. The VM profile is embedded directly into the stick.
+6. After installation, Beagle OS boots with Moonlight autostart against exactly this VM.
 
-## Wichtige Einstiege
+This makes Proxmox not just a compute platform, but simultaneously:
 
-- Bestehenden Proxmox-Host komplett vorbereiten: [`scripts/setup-proxmox-host.sh`](./scripts/setup-proxmox-host.sh)
-- Host-Installation: [`scripts/install-proxmox-host.sh`](./scripts/install-proxmox-host.sh)
-- Host-Gesundheit pruefen: [`scripts/check-proxmox-host.sh`](./scripts/check-proxmox-host.sh)
-- Sunshine-Gast vorbereiten: [`scripts/configure-sunshine-guest.sh`](./scripts/configure-sunshine-guest.sh)
-- Moonlight-Client auf Sunshine vorregistrieren: [`scripts/register-moonlight-client-on-sunshine.sh`](./scripts/register-moonlight-client-on-sunshine.sh)
-- Beagle-OS-Image bauen: [`scripts/build-beagle-os.sh`](./scripts/build-beagle-os.sh)
-- Build-Doku: [`docs/beagle-os-build.md`](./docs/beagle-os-build.md)
-- Thin-Client-Komponenten: [`thin-client-assistant/`](./thin-client-assistant/)
+- Inventory for streaming VMs
+- Delivery point for client installers
+- Source for VM-specific presets
+- Central integration point for Beagle OS
 
-## Release 5.0 Schwerpunkte
+---
 
-- Residential Egress: Endpoint-Profile koennen jetzt `direct`, `split` oder `full` Egress steuern. Fuer sensible Ziele laesst sich ein WireGuard-Exit mit Domain-/CIDR-basiertem Routing hinterlegen.
-- Endpoint Identity: Beagle OS kann Hostname, Timezone, Locale, Keymap und ein persistentes Browser-Profil pro Endpoint anwenden und reporten.
-- Fingerprint-Awareness: Die Control Plane bewertet VM-Konfigurationen auf offensichtliche Server-/Virtio-Merkmale und zeigt das als operativen Risikohinweis an.
+## Main Components
 
-## Aktuelle Produktausrichtung
+### 1. Beagle Control Plane on Proxmox
 
-Die Zielrichtung fuer dieses Repository ist eindeutig:
+The host side delivers the management functions:
 
-- Beagle OS wird als eigenes Endpoint-OS aufgebaut
-- Beagle integriert sich direkt in Proxmox
-- Beagle verwendet ausschliesslich Moonlight auf Client-Seite
-- die gestreamten VMs verwenden Sunshine
-- der Proxmox-Host uebernimmt die Management- und Bereitstellungsrolle
+- Integration into the Proxmox UI
+- Beagle profile dialogs with export, download, and health actions per VM
+- VM-specific artifact generation
+- Download endpoints for installers and images
+- VM-specific USB scripts that fetch the installer ISO and write it to USB with an embedded target profile
+- Local Control Plane API for health and inventory
+- USB Control Plane for export, attach, detach, and guest state per VM
+- Reapply/refresh mechanisms after host changes
+- Residential egress policies for sensitive web targets
+- Stable endpoint identity with hostname, locale, and timezone control
+- Product website served directly from the Beagle host via HTTPS/443
 
-Alles andere ist fuer das Produkt zweitrangig.
+Core product logic:
 
-## Lizenz
+- A VM is described as a Sunshine target
+- Beagle generates the matching client preset from it
+- The client launches Moonlight against exactly this target
 
-Beagle OS ist unter der **Beagle OS Source Available License** verfuegbar:
+### 2. Beagle OS as an Endpoint Operating System
 
-- **Privat / Nicht-kommerziell**: Kostenlos nutzbar
-- **Kommerziell**: Nur ueber das offizielle Beagle OS SaaS-Angebot unter [beagle-os.com](https://beagle-os.com)
+Beagle OS is the actual thin-client OS — not a general-purpose desktop, but purpose-built for streaming.
 
-Details siehe [LICENSE](./LICENSE).
+Key points:
+
+- Dedicated OS build path
+- Custom kernel package path (`-beagle`)
+- Bootable images for testing, rollout, and VM operation
+- Runtime for network, autostart, and Moonlight session launch
+- Runtime for secure USB export via `usbip` and reverse SSH tunnel
+
+### 3. VM-Bound Provisioning
+
+Provisioning is VM-centric rather than user-centric. A specific VM in Proxmox is the streaming target. From it arise:
+
+- A VM-specific USB installer script
+- A central Beagle installer ISO
+- A bundled preset with host, app, and pairing data
+- A reproducible endpoint that starts the correct VM immediately after installation
+- A per-VM secured USB tunnel for local devices
+
+---
+
+## Why Only Moonlight and Sunshine
+
+This is an architectural decision, not a marketing statement.
+
+Supporting multiple protocols sounds flexible but makes the product harder to test, operationally messier, and harder to reason about. Beagle OS follows a single, clear standard path:
+
+- One streaming protocol
+- One client
+- One server
+- One provisioning model
+
+This brings concrete advantages:
+
+- Fewer operational variants
+- Less UI and installer complexity
+- More reproducible tests
+- Better latency optimization
+- Simpler failure analysis
+- More consistent user experience
+
+---
+
+## Secure USB Device Passthrough
+
+Beagle OS does **not** expose USB devices as a raw, publicly reachable `usbip` service. The path is hardened by design:
+
+- Per-VM SSH tunnel key
+- Per-VM reverse tunnel port
+- Reverse SSH tunnel from the thin client to the Proxmox host
+- USB device attachment only from the assigned VM
+- No public `usbip` exposure on the host
+- Managed via the Beagle Control Plane rather than manual shell commands
+
+### Flow
+
+1. The thin client exports a locally bound USB device.
+2. Beagle establishes a reverse SSH tunnel to the host.
+3. The host exposes the tunnel only internally on the attach host.
+4. The target VM binds the device via the Control Plane.
+5. The operator sees the attach status in Proxmox or the Beagle Web UI.
+
+The USB path remains internet-capable without exposing a raw, public USBIP attack surface.
+
+---
+
+## Release 5.0 Highlights
+
+- **Residential Egress:** Endpoint profiles now support `direct`, `split`, or `full` egress control. For sensitive targets, a WireGuard exit with domain/CIDR-based routing can be configured.
+- **Endpoint Identity:** Beagle OS can apply and report hostname, timezone, locale, keymap, and a persistent browser profile per endpoint.
+- **Fingerprint Awareness:** The Control Plane evaluates VM configurations for obvious server/virtio characteristics and surfaces these as operational risk indicators.
+
+---
+
+## Repository Scope
+
+This repository builds the required components:
+
+- Proxmox integration
+- Host-side artifact generation
+- Thin-client runtime
+- USB and installation path
+- Secure USB device passthrough from endpoint to target VM
+- Beagle OS image build
+- Sunshine guest configuration for target VMs
+
+---
+
+## Key Entry Points
+
+| Task | Script / Path |
+|---|---|
+| Full Proxmox host setup | [`scripts/setup-proxmox-host.sh`](scripts/setup-proxmox-host.sh) |
+| Host installation only | [`scripts/install-proxmox-host.sh`](scripts/install-proxmox-host.sh) |
+| Host health check | [`scripts/check-proxmox-host.sh`](scripts/check-proxmox-host.sh) |
+| Configure Sunshine guest | [`scripts/configure-sunshine-guest.sh`](scripts/configure-sunshine-guest.sh) |
+| Pre-register Moonlight client | [`scripts/register-moonlight-client-on-sunshine.sh`](scripts/register-moonlight-client-on-sunshine.sh) |
+| Build Beagle OS image | [`scripts/build-beagle-os.sh`](scripts/build-beagle-os.sh) |
+| Build documentation | [`docs/beagle-os-build.md`](docs/beagle-os-build.md) |
+| Thin-client components | [`thin-client-assistant/`](thin-client-assistant/) |
+
+---
+
+## Current Product Direction
+
+The direction for this repository is unambiguous:
+
+- Beagle OS is built as its own endpoint OS
+- Beagle integrates directly into Proxmox
+- Beagle uses exclusively Moonlight on the client side
+- Streamed VMs use Sunshine
+- The Proxmox host takes on the management and provisioning role
+
+Everything else is secondary.
+
+---
+
+## License
+
+Beagle OS is available under the **Beagle OS Source Available License**:
+
+- **Private / Non-commercial:** Free to use
+- **Commercial:** Only via the official Beagle OS SaaS offering at [beagle-os.com](https://beagle-os.com)
+
+See [LICENSE](LICENSE) for details.
