@@ -282,9 +282,9 @@ ensure_usb_tunnel_service() {
   fi
   systemctl enable beagle-usb-tunnel.service >/dev/null 2>&1 || true
   if [[ "${PVE_THIN_CLIENT_BEAGLE_USB_ENABLED:-0}" == "1" ]]; then
-    systemctl restart beagle-usb-tunnel.service >/dev/null 2>&1 || true
+    systemctl restart --no-block beagle-usb-tunnel.service >/dev/null 2>&1 || true
   else
-    systemctl stop beagle-usb-tunnel.service >/dev/null 2>&1 || true
+    systemctl stop --no-block beagle-usb-tunnel.service >/dev/null 2>&1 || true
   fi
 }
 

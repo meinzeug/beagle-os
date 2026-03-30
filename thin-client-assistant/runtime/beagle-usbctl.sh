@@ -203,7 +203,7 @@ cmd_bind() {
   usbip bind -b "$busid" >/dev/null 2>&1 || true
   bound_add "$busid"
   restart_usbipd
-  systemctl restart beagle-usb-tunnel.service >/dev/null 2>&1 || true
+  systemctl restart --no-block beagle-usb-tunnel.service >/dev/null 2>&1 || true
   cmd_list_json
 }
 
