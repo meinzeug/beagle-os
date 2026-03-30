@@ -1642,7 +1642,7 @@
       return;
     }
 
-    if (component.xtype === "button" && component.text === gettext("Create VM")) {
+    if (component.itemId === "createvm" && component.xtype === "button") {
       var toolbar = component.up && component.up("toolbar");
       if (toolbar && !toolbar.down("#beagleUbuntuCreateVmButton")) {
         toolbar.insert(toolbar.items.indexOf(component), {
@@ -1666,7 +1666,6 @@
 
     Ext.ComponentQuery.query("pveConsoleButton").forEach(ensureConsoleButtonIntegration);
     Ext.ComponentQuery.query("#createvm").forEach(ensureCreateVmIntegration);
-    Ext.ComponentQuery.query("button").forEach(ensureCreateVmIntegration);
     ensureFleetLauncher();
   }
 
