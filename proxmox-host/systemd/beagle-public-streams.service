@@ -17,7 +17,8 @@ ProtectControlGroups=yes
 ProtectClock=yes
 ProtectKernelLogs=yes
 ProtectKernelModules=yes
-ProtectKernelTunables=yes
+# This job explicitly manages nftables and enables IPv4 forwarding.
+ProtectKernelTunables=no
 LockPersonality=yes
 RestrictNamespaces=yes
 RestrictRealtime=yes
