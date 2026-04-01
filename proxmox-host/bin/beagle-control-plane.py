@@ -154,7 +154,7 @@ def current_public_stream_host() -> str:
 
 
 def public_installer_iso_url() -> str:
-    return f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}{PUBLIC_DOWNLOADS_PATH}/beagle-os-installer-amd64.iso"
+    return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/beagle-os-installer-amd64.iso"
 
 
 def public_windows_installer_url() -> str:
@@ -169,6 +169,10 @@ def public_versioned_payload_url(version: str) -> str:
     return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/pve-thin-client-usb-payload-v{version}.tar.gz"
 
 
+def public_versioned_bootstrap_url(version: str) -> str:
+    return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/pve-thin-client-usb-bootstrap-v{version}.tar.gz"
+
+
 def public_latest_payload_url() -> str:
     downloads_status = load_json_file(DOWNLOADS_STATUS_FILE, {})
     published_version = str(downloads_status.get("version", "")).strip() or VERSION
@@ -177,6 +181,15 @@ def public_latest_payload_url() -> str:
     if payload_url:
         return payload_url
     return public_versioned_payload_url(published_version)
+
+
+def public_latest_bootstrap_url() -> str:
+    downloads_status = load_json_file(DOWNLOADS_STATUS_FILE, {})
+    published_version = str(downloads_status.get("version", "")).strip() or VERSION
+    bootstrap_url = str(downloads_status.get("bootstrap_url", "") or "").strip()
+    if bootstrap_url:
+        return bootstrap_url
+    return public_versioned_bootstrap_url(published_version)
 
 
 def url_host_matches(left: str, right: str) -> bool:
@@ -1461,6 +1474,7 @@ def patch_installer_defaults(
     preset_name: str,
     preset_b64: str,
     installer_iso_url: str,
+    installer_bootstrap_url: str,
     installer_payload_url: str,
     writer_variant: str,
 ) -> str:
@@ -1473,8 +1487,12 @@ def patch_installer_defaults(
             f'PVE_THIN_CLIENT_PRESET_B64="${{PVE_THIN_CLIENT_PRESET_B64:-{shell_double_quoted(preset_b64)}}}"',
         r'^RELEASE_ISO_URL="\$\{RELEASE_ISO_URL:-[^"]*}"$':
             f'RELEASE_ISO_URL="${{RELEASE_ISO_URL:-{shell_double_quoted(installer_iso_url)}}}"',
+        r'^RELEASE_BOOTSTRAP_URL="\$\{RELEASE_BOOTSTRAP_URL:-[^"]*}"$':
+            f'RELEASE_BOOTSTRAP_URL="${{RELEASE_BOOTSTRAP_URL:-{shell_double_quoted(installer_bootstrap_url)}}}"',
         r'^RELEASE_PAYLOAD_URL="\$\{RELEASE_PAYLOAD_URL:-[^"]*}"$':
             f'RELEASE_PAYLOAD_URL="${{RELEASE_PAYLOAD_URL:-{shell_double_quoted(installer_payload_url)}}}"',
+        r'^INSTALL_PAYLOAD_URL="\$\{INSTALL_PAYLOAD_URL:-[^"]*}"$':
+            f'INSTALL_PAYLOAD_URL="${{INSTALL_PAYLOAD_URL:-{shell_double_quoted(installer_payload_url)}}}"',
         r'^BOOTSTRAP_DISABLE_CACHE="\$\{PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-[^"]*}"$':
             'BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-1}"',
     }
@@ -3681,6 +3699,7 @@ def render_vm_installer_script(vm: VmSummary) -> tuple[bytes, str]:
         preset_name,
         preset_b64,
         str(profile.get("installer_iso_url") or public_installer_iso_url()),
+        public_latest_bootstrap_url(),
         public_latest_payload_url(),
         "installer",
     )
@@ -3710,6 +3729,7 @@ def render_vm_live_usb_script(vm: VmSummary) -> tuple[bytes, str]:
         preset_name,
         preset_b64,
         str(profile.get("installer_iso_url") or public_installer_iso_url()),
+        public_latest_bootstrap_url(),
         public_latest_payload_url(),
         "live",
     )
