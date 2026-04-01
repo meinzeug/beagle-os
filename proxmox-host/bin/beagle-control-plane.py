@@ -85,6 +85,8 @@ SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_T
 USB_TUNNEL_SSH_USER = os.environ.get("BEAGLE_USB_TUNNEL_SSH_USER", "thinovernet").strip() or "thinovernet"
 USB_TUNNEL_HOME_RAW = os.environ.get("BEAGLE_USB_TUNNEL_HOME", "").strip()
 USB_TUNNEL_HOME = Path(USB_TUNNEL_HOME_RAW) if USB_TUNNEL_HOME_RAW else None
+USB_TUNNEL_AUTH_ROOT_RAW = os.environ.get("BEAGLE_USB_TUNNEL_AUTH_ROOT", "").strip()
+USB_TUNNEL_AUTH_ROOT = Path(USB_TUNNEL_AUTH_ROOT_RAW) if USB_TUNNEL_AUTH_ROOT_RAW else None
 USB_TUNNEL_AUTH_DIR_RAW = os.environ.get("BEAGLE_USB_TUNNEL_AUTH_DIR", "").strip()
 USB_TUNNEL_AUTH_DIR = Path(USB_TUNNEL_AUTH_DIR_RAW) if USB_TUNNEL_AUTH_DIR_RAW else None
 USB_TUNNEL_HOSTKEY_FILE = Path(os.environ.get("BEAGLE_USB_TUNNEL_HOSTKEY_FILE", "/etc/ssh/ssh_host_ed25519_key.pub"))
@@ -682,14 +684,22 @@ def usb_tunnel_home() -> Path:
     return Path(usb_tunnel_user_info().pw_dir)
 
 
+def usb_tunnel_auth_root() -> Path:
+    if USB_TUNNEL_AUTH_ROOT is not None:
+        return USB_TUNNEL_AUTH_ROOT
+    if USB_TUNNEL_AUTH_DIR is not None:
+        return USB_TUNNEL_AUTH_DIR.parent
+    return DATA_DIR.parent / "usb-tunnel" / USB_TUNNEL_SSH_USER
+
+
 def usb_tunnel_auth_dir() -> Path:
     if USB_TUNNEL_AUTH_DIR is not None:
         return USB_TUNNEL_AUTH_DIR
-    return usb_tunnel_home() / ".ssh" / "authorized_keys.d"
+    return usb_tunnel_auth_root() / "authorized_keys.d"
 
 
 def usb_tunnel_authorized_keys_path() -> Path:
-    return usb_tunnel_home() / ".ssh" / "authorized_keys"
+    return usb_tunnel_auth_root() / "authorized_keys"
 
 
 def usb_tunnel_authorized_key_line(vm: VmSummary, secret: dict[str, Any]) -> str:
@@ -712,9 +722,8 @@ def sync_usb_tunnel_authorized_key(vm: VmSummary, secret: dict[str, Any]) -> Non
         user_info = usb_tunnel_user_info()
     except KeyError:
         return
-    tunnel_home = usb_tunnel_home()
-    ssh_dir = tunnel_home / ".ssh"
-    ssh_dir.mkdir(parents=True, exist_ok=True)
+    auth_root = usb_tunnel_auth_root()
+    auth_root.mkdir(parents=True, exist_ok=True)
     auth_dir = usb_tunnel_auth_dir()
     auth_dir.mkdir(parents=True, exist_ok=True)
     key_line = usb_tunnel_authorized_key_line(vm, secret) + "\n"
@@ -754,10 +763,10 @@ def sync_usb_tunnel_authorized_key(vm: VmSummary, secret: dict[str, Any]) -> Non
             for line in managed_lines:
                 handle.write(line + "\n")
             handle.write(end_marker + "\n")
-    os.chmod(ssh_dir, 0o700)
+    os.chmod(auth_root, 0o700)
     os.chmod(authorized_keys, 0o600)
     os.chmod(snippet_path, 0o600)
-    for path in (tunnel_home, ssh_dir, auth_dir, authorized_keys, snippet_path):
+    for path in (auth_root, auth_dir, authorized_keys, snippet_path):
         try:
             os.chown(path, user_info.pw_uid, user_info.pw_gid)
         except OSError:
@@ -789,6 +798,7 @@ def ensure_vm_secret(vm: VmSummary) -> dict[str, Any]:
             existing["usb_tunnel_port"] = default_usb_tunnel_port(vm.vmid)
             changed = True
         secret = save_vm_secret(vm.node, vm.vmid, existing) if changed else existing
+        secret = ensure_vm_sunshine_pinned_pubkey(vm, secret)
         sync_usb_tunnel_authorized_key(vm, secret)
         return secret
     private_key, public_key = generate_ssh_keypair(f"beagle-vm{vm.vmid}-usb")
@@ -806,6 +816,7 @@ def ensure_vm_secret(vm: VmSummary) -> dict[str, Any]:
             "usb_tunnel_public_key": public_key,
         },
     )
+    secret = ensure_vm_sunshine_pinned_pubkey(vm, secret)
     sync_usb_tunnel_authorized_key(vm, secret)
     return secret
 
@@ -1119,6 +1130,18 @@ def internal_sunshine_api_url(vm: VmSummary, profile: dict[str, Any]) -> str:
         if parsed.scheme and parsed.port:
             return urlunparse(parsed._replace(netloc=f"{guest_ip}:{parsed.port}"))
     return base_url
+
+
+def ensure_vm_sunshine_pinned_pubkey(vm: VmSummary, secret: dict[str, Any]) -> dict[str, Any]:
+    if str(secret.get("sunshine_pinned_pubkey", "") or "").strip():
+        return secret
+    profile = build_profile(vm, allow_assignment=False)
+    pin = fetch_https_pinned_pubkey(internal_sunshine_api_url(vm, profile))
+    if not pin:
+        return secret
+    updated = dict(secret)
+    updated["sunshine_pinned_pubkey"] = pin
+    return save_vm_secret(vm.node, vm.vmid, updated)
 
 
 def enrollment_token_path(token: str) -> Path:
