@@ -1,3 +1,2 @@
 Cmnd_Alias BEAGLE_UPDATE = /usr/local/sbin/beagle-update-client
 thinclient ALL=(root) NOPASSWD: BEAGLE_UPDATE
-thinclient ALL=(ALL) ALL
