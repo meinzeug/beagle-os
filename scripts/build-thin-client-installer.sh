@@ -108,26 +108,20 @@ terminal_output console
 set default=0
 set timeout_style=menu
 set timeout=5
+set gfxpayload=text
 
 menuentry 'Beagle OS Installer' {
-  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp quiet loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles pve_thin_client.mode=installer
+  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 plymouth.ignore-serial-consoles systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS Installer (compatibility mode)' {
-  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 splash plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic pve_thin_client.mode=installer
+  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS Installer (legacy IRQ mode)' {
-  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 splash plymouth.enable=0 nomodeset irqpoll noapic nolapic pve_thin_client.mode=installer
-  initrd /live/initrd.img
-}
-
-menuentry 'Beagle OS Installer (text mode)' {
-  terminal_output console
-  set gfxpayload=text
-  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 plymouth.ignore-serial-consoles systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
+  linux /live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ip=dhcp console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll noapic nolapic systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
   initrd /live/initrd.img
 }
 EOF
@@ -245,7 +239,6 @@ EOF
     beagle-usb-tunnel.service \
     pve-thin-client-prepare.service \
     pve-thin-client-runtime.service \
-    pve-thin-client-installer-gui.service \
     pve-thin-client-installer-menu.service \
     pve-thin-client-installer-menu-serial.service \
     systemd-networkd.service \
@@ -255,7 +248,6 @@ EOF
 
   ensure_rootfs_wants_link pve-thin-client-prepare.service multi-user.target
   ensure_rootfs_wants_link pve-thin-client-runtime.service multi-user.target
-  ensure_rootfs_wants_link pve-thin-client-installer-gui.service multi-user.target
   ensure_rootfs_wants_link pve-thin-client-installer-menu.service multi-user.target
   ensure_rootfs_wants_link pve-thin-client-installer-menu-serial.service multi-user.target
 }

@@ -12,7 +12,8 @@ fi
 
 should_autostart_x11() {
   case "${BOOT_MODE}" in
-    runtime|installer) ;;
+    runtime) ;;
+    installer) return 1 ;;
     *) return 1 ;;
   esac
   if [ -r "${CMDLINE_FILE}" ] && grep -Eq '(^|[[:space:]])pve_thin_client\.installer_ui=text($|[[:space:]])' "${CMDLINE_FILE}"; then
