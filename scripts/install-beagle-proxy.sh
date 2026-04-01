@@ -288,14 +288,6 @@ window.BEAGLE_WEB_UI_CONFIG = {
 EOF
 }
 
-remove_rule_if_present() {
-  local cmd="$1"
-  if eval "$cmd" >/dev/null 2>&1; then
-    return 0
-  fi
-  return 1
-}
-
 cleanup_legacy_port_forward() {
   local rule delete_rule
 
@@ -325,6 +317,10 @@ server {
     ssl_certificate_key ${KEY_FILE};
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_session_timeout 1d;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
 
     root ${ASSET_ROOT}/website;
     index index.html;
@@ -360,6 +356,7 @@ server {
     }
 
     location / {
+        add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" always;
         try_files \$uri \$uri/ /index.html;
     }
 }
@@ -373,6 +370,10 @@ server {
     ssl_certificate_key ${KEY_FILE};
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_session_timeout 1d;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
 
     location = /beagle-autologin.js {
         alias ${ASSET_ROOT}/proxmox-ui/beagle-autologin.js;

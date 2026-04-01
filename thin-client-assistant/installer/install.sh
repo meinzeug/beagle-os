@@ -21,6 +21,7 @@ NETWORK_STATIC_PREFIX="24"
 NETWORK_GATEWAY=""
 NETWORK_DNS_SERVERS="1.1.1.1 8.8.8.8"
 MOONLIGHT_HOST=""
+MOONLIGHT_LOCAL_HOST=""
 MOONLIGHT_PORT=""
 MOONLIGHT_APP="Desktop"
 MOONLIGHT_BIN="moonlight"
@@ -39,7 +40,7 @@ PROXMOX_PORT="8006"
 PROXMOX_NODE=""
 PROXMOX_VMID=""
 PROXMOX_REALM="pam"
-PROXMOX_VERIFY_TLS="0"
+PROXMOX_VERIFY_TLS="1"
 CONNECTION_USERNAME=""
 CONNECTION_PASSWORD=""
 CONNECTION_TOKEN=""
@@ -49,7 +50,7 @@ SUNSHINE_PIN=""
 
 usage() {
   cat <<EOF
-Usage: $0 [--mode MOONLIGHT] [--runtime-user USER] [--moonlight-host HOST] [--moonlight-app APP] [--sunshine-api-url URL]
+Usage: $0 [--mode MOONLIGHT] [--runtime-user USER] [--moonlight-host HOST] [--moonlight-local-host HOST] [--moonlight-app APP] [--sunshine-api-url URL]
 EOF
 }
 
@@ -72,6 +73,32 @@ copy_readonly() {
   install -D -m 0644 "$src" "$dst"
 }
 
+apply_shell_assignments() {
+  local payload="$1"
+  local key value
+
+  while IFS=$'\t' read -r key value; do
+    [[ "$key" =~ ^[A-Z0-9_]+$ ]] || continue
+    declare -p "$key" >/dev/null 2>&1 || continue
+    printf -v "$key" '%s' "$value"
+  done < <(
+    printf '%s\n' "$payload" | python3 - <<'PY'
+import shlex
+import sys
+
+for raw_line in sys.stdin:
+    line = raw_line.strip()
+    if not line:
+        continue
+    parts = shlex.split(line, posix=True)
+    if len(parts) != 1 or "=" not in parts[0]:
+        continue
+    key, value = parts[0].split("=", 1)
+    print(f"{key}\t{value}")
+PY
+  )
+}
+
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -88,6 +115,7 @@ parse_args() {
       --network-gateway) NETWORK_GATEWAY="$2"; shift 2 ;;
       --network-dns) NETWORK_DNS_SERVERS="$2"; shift 2 ;;
       --moonlight-host) MOONLIGHT_HOST="$2"; shift 2 ;;
+      --moonlight-local-host) MOONLIGHT_LOCAL_HOST="$2"; shift 2 ;;
       --moonlight-port) MOONLIGHT_PORT="$2"; shift 2 ;;
       --moonlight-app) MOONLIGHT_APP="$2"; shift 2 ;;
       --moonlight-bin) MOONLIGHT_BIN="$2"; shift 2 ;;
@@ -166,7 +194,7 @@ load_answers() {
     SUNSHINE_PIN="$SUNSHINE_PIN" \
     "$ROOT_DIR/installer/setup-menu.sh"
   )"
-  eval "$output"
+  apply_shell_assignments "$output"
 }
 
 install_runtime_assets() {
@@ -202,6 +230,7 @@ write_config() {
   NETWORK_GATEWAY="$NETWORK_GATEWAY" \
   NETWORK_DNS_SERVERS="$NETWORK_DNS_SERVERS" \
   MOONLIGHT_HOST="$MOONLIGHT_HOST" \
+  MOONLIGHT_LOCAL_HOST="$MOONLIGHT_LOCAL_HOST" \
   MOONLIGHT_PORT="$MOONLIGHT_PORT" \
   MOONLIGHT_APP="$MOONLIGHT_APP" \
   MOONLIGHT_BIN="$MOONLIGHT_BIN" \

@@ -326,6 +326,29 @@ list_candidate_devices() {
   lsblk -dn -P -o NAME,SIZE,MODEL,TYPE,RM,TRAN
 }
 
+list_candidate_devices_tsv() {
+  lsblk -J -d -o NAME,SIZE,MODEL,TYPE,RM,TRAN | python3 - <<'PY'
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+
+for item in payload.get("blockdevices", []):
+    values = [
+        str(item.get("name", "") or ""),
+        str(item.get("size", "") or ""),
+        str(item.get("model", "") or ""),
+        str(item.get("type", "") or ""),
+        str(item.get("rm", "") or ""),
+        str(item.get("tran", "") or ""),
+    ]
+    print("\t".join(values))
+PY
+}
+
 print_devices_json() {
   lsblk -J -d -o PATH,SIZE,MODEL,TYPE,RM,TRAN
 }
@@ -334,34 +357,28 @@ print_devices() {
   local name size model type rm transport
 
   printf '%-12s %-8s %-32s %-4s %-3s %s\n' "DEVICE" "SIZE" "MODEL" "RM" "USB" "TRANSPORT"
-  while IFS= read -r line; do
-    eval "$line"
-    [[ "${TYPE:-}" == "disk" ]] || continue
+  while IFS=$'\t' read -r name size model type rm transport; do
+    [[ "$type" == "disk" ]] || continue
     printf '%-12s %-8s %-32s %-4s %-3s %s\n' \
-      "/dev/${NAME}" \
-      "${SIZE:-unknown}" \
-      "${MODEL:-disk}" \
-      "${RM:-0}" \
-      "$([[ "${TRAN:-}" == "usb" ]] && printf 'yes' || printf 'no')" \
-      "${TRAN:-unknown}"
-  done <<EOF
-$(list_candidate_devices)
-EOF
+      "/dev/${name}" \
+      "${size:-unknown}" \
+      "${model:-disk}" \
+      "${rm:-0}" \
+      "$([[ "${transport:-}" == "usb" ]] && printf 'yes' || printf 'no')" \
+      "${transport:-unknown}"
+  done < <(list_candidate_devices_tsv)
 }
 
 count_usb_candidates() {
   local count=0
   local name size model type rm transport
 
-  while IFS= read -r line; do
-    eval "$line"
-    [[ "${TYPE:-}" == "disk" ]] || continue
-    if [[ "${RM:-0}" == "1" || "${TRAN:-}" == "usb" ]]; then
+  while IFS=$'\t' read -r name size model type rm transport; do
+    [[ "$type" == "disk" ]] || continue
+    if [[ "${rm:-0}" == "1" || "${transport:-}" == "usb" ]]; then
       count=$((count + 1))
     fi
-  done <<EOF
-$(list_candidate_devices)
-EOF
+  done < <(list_candidate_devices_tsv)
   printf '%s\n' "$count"
 }
 
@@ -569,19 +586,16 @@ choose_device() {
 
   tty_path="$(detect_tty_path || true)"
 
-  while IFS= read -r line; do
-    eval "$line"
-    [[ "${TYPE:-}" == "disk" ]] || continue
-    device="/dev/${NAME}"
+  while IFS=$'\t' read -r name size model type rm transport; do
+    [[ "$type" == "disk" ]] || continue
+    device="/dev/${name}"
     [[ "$device" == /dev/loop* || "$device" == /dev/sr* || "$device" == /dev/ram* || "$device" == /dev/zram* ]] && continue
-    if [[ "$ALLOW_NON_USB_DEVICE" != "1" && "${RM:-0}" != "1" && "${TRAN:-}" != "usb" ]]; then
+    if [[ "$ALLOW_NON_USB_DEVICE" != "1" && "${rm:-0}" != "1" && "${transport:-}" != "usb" ]]; then
       continue
     fi
-    options+=("$device" "${MODEL:-disk} ${SIZE:-unknown} usb=${TRAN:-}")
-    zenity_rows+=("$device" "${SIZE:-unknown}" "${MODEL:-disk}" "${TRAN:-unknown}")
-  done <<EOF
-$(list_candidate_devices)
-EOF
+    options+=("$device" "${model:-disk} ${size:-unknown} usb=${transport:-}")
+    zenity_rows+=("$device" "${size:-unknown}" "${model:-disk}" "${transport:-unknown}")
+  done < <(list_candidate_devices_tsv)
 
   if (( ${#options[@]} == 0 )); then
     if [[ "$ALLOW_NON_USB_DEVICE" != "1" ]]; then
@@ -869,7 +883,7 @@ write_usb_manifest() {
   else
     live_dir="$mount_dir/pve-thin-client/live"
   fi
-  payload_source="${RELEASE_ISO_URL:-${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}}"
+  payload_source="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-${RELEASE_ISO_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}}"
   if [[ -f "$mount_dir/start-installer-menu.sh" ]]; then
     installer_sha="$(sha256sum "$mount_dir/start-installer-menu.sh" | awk '{print $1}')"
   else
@@ -922,7 +936,7 @@ payload = {
     "proxmox_api_host": proxmox_host,
     "proxmox_api_host_ip": proxmox_host_ip,
     "proxmox_api_port": "8006",
-    "proxmox_api_verify_tls": "0",
+    "proxmox_api_verify_tls": "1",
 }
 path.write_text(json.dumps(payload, indent=2) + "\n")
 PY
@@ -1016,6 +1030,7 @@ PY
   NETWORK_GATEWAY="${PVE_THIN_CLIENT_PRESET_NETWORK_GATEWAY:-}" \
   NETWORK_DNS_SERVERS="${PVE_THIN_CLIENT_PRESET_NETWORK_DNS_SERVERS:-1.1.1.1 8.8.8.8}" \
   MOONLIGHT_HOST="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" \
+  MOONLIGHT_LOCAL_HOST="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_LOCAL_HOST:-}" \
   MOONLIGHT_PORT="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_PORT:-}" \
   MOONLIGHT_APP="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP:-Desktop}" \
   MOONLIGHT_BIN="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN:-moonlight}" \
@@ -1118,7 +1133,7 @@ print_write_plan() {
   local bootstrap_source install_payload_source media_label live_assets_path
 
   bootstrap_source="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}"
-  install_payload_source="${RELEASE_ISO_URL:-${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}}"
+  install_payload_source="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-${RELEASE_ISO_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}}"
   if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
     media_label="live"
     live_assets_path="/live"
@@ -1152,6 +1167,7 @@ EOF
 write_usb() {
   local mount_dir bios_partition usb_partition usb_uuid runtime_ip_args
   local live_mount_dir hostname_value network_mode network_static_address network_static_prefix network_gateway network_interface
+  local grub_default_index="0" grub_timeout="5"
 
   if [[ "$DRY_RUN" == "1" ]]; then
     print_write_plan
@@ -1286,10 +1302,19 @@ menuentry 'Beagle OS Live (legacy IRQ mode)' {
 }
 EOF
   else
+    # Preset-specific installer media should boot straight into the text
+    # installer path. This keeps unattended installs deterministic on
+    # headless and virtual targets where the graphical live session may not
+    # surface a usable UI even though the bundled preset expects auto-install.
+    if [[ -n "${PVE_THIN_CLIENT_PRESET_B64:-}" || -n "${PVE_THIN_CLIENT_PRESET_NAME:-}" ]]; then
+      grub_default_index="3"
+      grub_timeout="0"
+    fi
+
     cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
 terminal_output console
-set default=0
-set timeout=5
+set default=${grub_default_index}
+set timeout=${grub_timeout}
 
 menuentry 'Beagle OS Installer' {
   linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp quiet loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles pve_thin_client.mode=installer

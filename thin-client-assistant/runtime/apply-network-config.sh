@@ -5,7 +5,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
 
-load_runtime_config
+load_runtime_config_with_retry() {
+  local attempts interval attempt
+  attempts="${PVE_THIN_CLIENT_CONFIG_RETRY_ATTEMPTS:-30}"
+  interval="${PVE_THIN_CLIENT_CONFIG_RETRY_INTERVAL:-1}"
+
+  for attempt in $(seq 1 "$attempts"); do
+    if load_runtime_config >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "$interval"
+  done
+
+  load_runtime_config
+}
+
+load_runtime_config_with_retry
 
 RUNTIME_NETWORK_DIR="${RUNTIME_NETWORK_DIR:-/run/systemd/network}"
 NETWORK_FILE="$RUNTIME_NETWORK_DIR/90-pve-thin-client.network"

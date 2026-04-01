@@ -13,6 +13,7 @@ EFI_MOUNT="$TARGET_MOUNT/boot/efi"
 LIVE_ASSET_DIR=""
 INSTALL_LIVE_ASSET_DIR=""
 INSTALL_ROOT_DIR="$ROOT_DIR"
+INSTALL_PAYLOAD_SOURCE_URL=""
 STATE_DIR="$TARGET_MOUNT/pve-thin-client/state"
 PRESET_FILE=""
 PRESET_ACTIVE="0"
@@ -66,6 +67,7 @@ SPICE_URL=""
 NOVNC_URL=""
 DCV_URL=""
 MOONLIGHT_HOST=""
+MOONLIGHT_LOCAL_HOST=""
 MOONLIGHT_PORT=""
 MOONLIGHT_APP="Desktop"
 REMOTE_VIEWER_BIN="remote-viewer"
@@ -88,17 +90,47 @@ PROXMOX_PORT="8006"
 PROXMOX_NODE=""
 PROXMOX_VMID=""
 PROXMOX_REALM="pam"
-PROXMOX_VERIFY_TLS="0"
+PROXMOX_VERIFY_TLS="1"
+BEAGLE_MANAGER_URL=""
+BEAGLE_MANAGER_PINNED_PUBKEY=""
+BEAGLE_ENROLLMENT_URL=""
+BEAGLE_MANAGER_TOKEN=""
+BEAGLE_ENROLLMENT_TOKEN=""
+BEAGLE_UPDATE_ENABLED="1"
+BEAGLE_UPDATE_CHANNEL="stable"
+BEAGLE_UPDATE_BEHAVIOR="prompt"
+BEAGLE_UPDATE_FEED_URL=""
+BEAGLE_UPDATE_VERSION_PIN=""
+BEAGLE_EGRESS_MODE="direct"
+BEAGLE_EGRESS_TYPE=""
+BEAGLE_EGRESS_INTERFACE="beagle-egress"
+BEAGLE_EGRESS_DOMAINS=""
+BEAGLE_EGRESS_RESOLVERS="1.1.1.1 8.8.8.8"
+BEAGLE_EGRESS_ALLOWED_IPS=""
+BEAGLE_EGRESS_WG_ADDRESS=""
+BEAGLE_EGRESS_WG_DNS=""
+BEAGLE_EGRESS_WG_PUBLIC_KEY=""
+BEAGLE_EGRESS_WG_ENDPOINT=""
+BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE="25"
+BEAGLE_EGRESS_WG_PRIVATE_KEY=""
+BEAGLE_EGRESS_WG_PRESHARED_KEY=""
+IDENTITY_HOSTNAME=""
+IDENTITY_TIMEZONE=""
+IDENTITY_LOCALE=""
+IDENTITY_KEYMAP=""
+IDENTITY_CHROME_PROFILE="default"
 CONNECTION_USERNAME=""
 CONNECTION_PASSWORD=""
 CONNECTION_TOKEN=""
 SUNSHINE_USERNAME=""
 SUNSHINE_PASSWORD=""
 SUNSHINE_PIN=""
+SUNSHINE_PINNED_PUBKEY=""
 SUNSHINE_SERVER_NAME=""
 SUNSHINE_SERVER_STREAM_PORT=""
 SUNSHINE_SERVER_UNIQUEID=""
 SUNSHINE_SERVER_CERT_B64=""
+THINCLIENT_PASSWORD=""
 PROXMOX_API_HELPER="$SCRIPT_DIR/pve-thin-client-proxmox-api.py"
 
 cleanup() {
@@ -120,6 +152,32 @@ cleanup() {
   rmdir "$TARGET_MOUNT" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
+
+apply_shell_assignments() {
+  local payload="$1"
+  local key value
+
+  while IFS=$'\t' read -r key value; do
+    [[ "$key" =~ ^[A-Z0-9_]+$ ]] || continue
+    declare -p "$key" >/dev/null 2>&1 || continue
+    printf -v "$key" '%s' "$value"
+  done < <(
+    printf '%s\n' "$payload" | python3 - <<'PY'
+import shlex
+import sys
+
+for raw_line in sys.stdin:
+    line = raw_line.strip()
+    if not line:
+        continue
+    parts = shlex.split(line, posix=True)
+    if len(parts) != 1 or "=" not in parts[0]:
+        continue
+    key, value = parts[0].split("=", 1)
+    print(f"{key}\t{value}")
+PY
+  )
+}
 
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
@@ -523,6 +581,7 @@ download_install_payload_from_server() {
 
   REMOTE_PAYLOAD_TMP_DIR="$tmp_dir"
   INSTALL_LIVE_ASSET_DIR="$asset_dir"
+  INSTALL_PAYLOAD_SOURCE_URL="$payload_url"
   if [[ -x "$remote_root_dir/installer/write-config.sh" ]]; then
     INSTALL_ROOT_DIR="$remote_root_dir"
   else
@@ -540,8 +599,114 @@ prepare_install_assets() {
     return 0
   fi
 
+  INSTALL_PAYLOAD_SOURCE_URL="$(resolve_payload_url_from_manifest 2>/dev/null || true)"
   log_msg "prepare_install_assets: falling back to bundled USB payload assets under $LIVE_ASSET_DIR"
   return 0
+}
+
+resolve_install_manifest_file() {
+  local manifest_file=""
+
+  if [[ -n "$LIVE_MEDIUM" ]]; then
+    manifest_file="$(candidate_manifest_path "$LIVE_MEDIUM" 2>/dev/null || true)"
+  fi
+  if [[ -z "$manifest_file" && -f "$CACHED_MANIFEST_FILE" ]]; then
+    manifest_file="$CACHED_MANIFEST_FILE"
+  fi
+  [[ -n "$manifest_file" && -f "$manifest_file" ]] || return 1
+  printf '%s\n' "$manifest_file"
+}
+
+read_manifest_project_version() {
+  local manifest_file="$1"
+  [[ -f "$manifest_file" ]] || return 1
+
+  python3 - "$manifest_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+try:
+    payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(1)
+
+value = str(payload.get("project_version", "")).strip()
+if not value:
+    raise SystemExit(1)
+
+print(value)
+PY
+}
+
+resolve_install_project_version() {
+  local manifest_file=""
+  local project_version=""
+
+  if [[ -n "$REMOTE_PAYLOAD_TMP_DIR" && -f "$REMOTE_PAYLOAD_TMP_DIR/VERSION" ]]; then
+    tr -d ' \n\r' <"$REMOTE_PAYLOAD_TMP_DIR/VERSION"
+    return 0
+  fi
+
+  manifest_file="$(resolve_install_manifest_file 2>/dev/null || true)"
+  if [[ -n "$manifest_file" ]]; then
+    project_version="$(read_manifest_project_version "$manifest_file" 2>/dev/null || true)"
+    if [[ -n "$project_version" ]]; then
+      printf '%s\n' "$project_version"
+      return 0
+    fi
+  fi
+
+  printf 'unknown\n'
+}
+
+write_install_manifest() {
+  local manifest_file=""
+  local project_version=""
+  local bootstrap_version=""
+  local installed_at=""
+  local source_kind=""
+  local payload_url=""
+  local vmlinuz_sha=""
+  local initrd_sha=""
+  local squashfs_sha=""
+
+  project_version="$(resolve_install_project_version)"
+  manifest_file="$(resolve_install_manifest_file 2>/dev/null || true)"
+  if [[ -n "$manifest_file" ]]; then
+    bootstrap_version="$(read_manifest_project_version "$manifest_file" 2>/dev/null || true)"
+  fi
+  installed_at="$(date -Iseconds)"
+  payload_url="${INSTALL_PAYLOAD_SOURCE_URL:-}"
+  source_kind="bundled-usb"
+  if [[ -n "$REMOTE_PAYLOAD_TMP_DIR" ]]; then
+    source_kind="remote-payload"
+  fi
+
+  vmlinuz_sha="$(sha256sum "$INSTALL_LIVE_ASSET_DIR/vmlinuz" | awk '{print $1}')"
+  initrd_sha="$(sha256sum "$INSTALL_LIVE_ASSET_DIR/initrd.img" | awk '{print $1}')"
+  squashfs_sha="$(sha256sum "$INSTALL_LIVE_ASSET_DIR/filesystem.squashfs" | awk '{print $1}')"
+
+  python3 - "$STATE_DIR/install-manifest.json" "$project_version" "$installed_at" "$source_kind" "$payload_url" "$vmlinuz_sha" "$initrd_sha" "$squashfs_sha" "$bootstrap_version" "a" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+payload = {
+    "project": "beagle-os",
+    "project_version": sys.argv[2],
+    "installed_at": sys.argv[3],
+    "source_kind": sys.argv[4],
+    "payload_source_url": sys.argv[5],
+    "vmlinuz_sha256": sys.argv[6],
+    "initrd_sha256": sys.argv[7],
+    "filesystem_squashfs_sha256": sys.argv[8],
+    "bootstrap_manifest_version": sys.argv[9],
+    "installed_slot": sys.argv[10],
+}
+path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
 }
 
 cached_preset_source() {
@@ -1091,17 +1256,35 @@ PY
     tty_path=""
   fi
 
-  while IFS= read -r line; do
-    eval "$line"
-    [[ "${TYPE:-}" == "disk" ]] || continue
-    device="/dev/${NAME}"
+  while IFS=$'\t' read -r name size model type rm transport; do
+    [[ "$type" == "disk" ]] || continue
+    device="/dev/${name}"
     [[ "$device" == "$live_disk" ]] && continue
     [[ "$device" == /dev/loop* || "$device" == /dev/sr* || "$device" == /dev/ram* || "$device" == /dev/zram* ]] && continue
-    label="${MODEL:-disk} ${SIZE:-unknown} rm=${RM:-0} ${TRAN:-}"
+    label="${model:-disk} ${size:-unknown} rm=${rm:-0} ${transport:-}"
     menu_items+=("$device" "$label")
-  done <<EOF
-$(lsblk -dn -P -o NAME,SIZE,MODEL,TYPE,RM,TRAN)
-EOF
+  done < <(
+    lsblk -J -d -o NAME,SIZE,MODEL,TYPE,RM,TRAN | python3 - <<'PY'
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+
+for item in payload.get("blockdevices", []):
+    values = [
+        str(item.get("name", "") or ""),
+        str(item.get("size", "") or ""),
+        str(item.get("model", "") or ""),
+        str(item.get("type", "") or ""),
+        str(item.get("rm", "") or ""),
+        str(item.get("tran", "") or ""),
+    ]
+    print("\t".join(values))
+PY
+  )
 
   if (( ${#menu_items[@]} == 0 )); then
     echo "No writable target disk found." >&2
@@ -1175,6 +1358,7 @@ load_profile() {
     NOVNC_URL="$NOVNC_URL" \
     DCV_URL="$DCV_URL" \
     MOONLIGHT_HOST="$MOONLIGHT_HOST" \
+    MOONLIGHT_LOCAL_HOST="$MOONLIGHT_LOCAL_HOST" \
     MOONLIGHT_PORT="$MOONLIGHT_PORT" \
     MOONLIGHT_APP="$MOONLIGHT_APP" \
     REMOTE_VIEWER_BIN="$REMOTE_VIEWER_BIN" \
@@ -1206,7 +1390,7 @@ load_profile() {
     SUNSHINE_PIN="$SUNSHINE_PIN" \
     "$ROOT_DIR/installer/setup-menu.sh"
   )"
-  eval "$output"
+  apply_shell_assignments "$output"
 }
 
 load_embedded_preset() {
@@ -1712,6 +1896,11 @@ apply_preset_defaults() {
   BEAGLE_MANAGER_PINNED_PUBKEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
   BEAGLE_ENROLLMENT_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_URL:-}"
   BEAGLE_ENROLLMENT_TOKEN="${PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_TOKEN:-}"
+  BEAGLE_UPDATE_ENABLED="${PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_ENABLED:-1}"
+  BEAGLE_UPDATE_CHANNEL="${PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_CHANNEL:-stable}"
+  BEAGLE_UPDATE_BEHAVIOR="${PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_BEHAVIOR:-prompt}"
+  BEAGLE_UPDATE_FEED_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_FEED_URL:-}"
+  BEAGLE_UPDATE_VERSION_PIN="${PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_VERSION_PIN:-}"
   BEAGLE_MANAGER_TOKEN=""
   BEAGLE_EGRESS_MODE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_MODE:-direct}"
   BEAGLE_EGRESS_TYPE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_TYPE:-}"
@@ -1732,6 +1921,7 @@ apply_preset_defaults() {
   IDENTITY_KEYMAP="${PVE_THIN_CLIENT_PRESET_IDENTITY_KEYMAP:-}"
   IDENTITY_CHROME_PROFILE="${PVE_THIN_CLIENT_PRESET_IDENTITY_CHROME_PROFILE:-default}"
   MOONLIGHT_BIN="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN:-moonlight}"
+  MOONLIGHT_LOCAL_HOST="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_LOCAL_HOST:-}"
   MOONLIGHT_PORT="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_PORT:-}"
   MOONLIGHT_RESOLUTION="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION:-auto}"
   MOONLIGHT_FPS="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS:-60}"
@@ -1760,6 +1950,7 @@ apply_preset_mode() {
   NOVNC_URL=""
   DCV_URL=""
   MOONLIGHT_HOST=""
+  MOONLIGHT_LOCAL_HOST=""
   MOONLIGHT_PORT=""
   MOONLIGHT_APP="Desktop"
   CONNECTION_USERNAME=""
@@ -1772,6 +1963,7 @@ apply_preset_mode() {
   case "$selected_mode" in
     MOONLIGHT)
       MOONLIGHT_HOST="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}"
+      MOONLIGHT_LOCAL_HOST="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_LOCAL_HOST:-}"
       MOONLIGHT_PORT="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_PORT:-}"
       MOONLIGHT_APP="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP:-Desktop}"
       SUNSHINE_API_URL="${PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL:-}"
@@ -1883,20 +2075,32 @@ set timeout=4
 
 menuentry 'Beagle OS' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime $irq_args_default
-  initrd /live/initrd.img
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime $irq_args_default
+  initrd /live/current/initrd.img
 }
 
 menuentry 'Beagle OS (safe mode)' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime $irq_args_safe
-  initrd /live/initrd.img
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime $irq_args_safe
+  initrd /live/current/initrd.img
 }
 
 menuentry 'Beagle OS (legacy IRQ mode)' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime $irq_args_legacy
-  initrd /live/initrd.img
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime $irq_args_legacy
+  initrd /live/current/initrd.img
+}
+
+menuentry 'Beagle OS (Slot A fallback)' {
+  search --no-floppy --fs-uuid --set=root $root_uuid
+  linux /live/a/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/a live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime $irq_args_safe
+  initrd /live/a/initrd.img
+}
+
+menuentry 'Beagle OS (Slot B fallback)' {
+  search --no-floppy --fs-uuid --set=root $root_uuid
+  linux /live/b/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/b live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime $irq_args_safe
+  initrd /live/b/initrd.img
 }
 EOF
 }
@@ -1917,10 +2121,14 @@ EOF
 }
 
 copy_assets() {
-  install -d -m 0755 "$TARGET_MOUNT/live" "$TARGET_MOUNT/pve-thin-client" "$STATE_DIR"
-  install -m 0644 "$INSTALL_LIVE_ASSET_DIR/vmlinuz" "$TARGET_MOUNT/live/vmlinuz"
-  install -m 0644 "$INSTALL_LIVE_ASSET_DIR/initrd.img" "$TARGET_MOUNT/live/initrd.img"
-  install -m 0644 "$INSTALL_LIVE_ASSET_DIR/filesystem.squashfs" "$TARGET_MOUNT/live/filesystem.squashfs"
+  install -d -m 0755 "$TARGET_MOUNT/live/a" "$TARGET_MOUNT/live/b" "$TARGET_MOUNT/pve-thin-client" "$STATE_DIR"
+  install -m 0644 "$INSTALL_LIVE_ASSET_DIR/vmlinuz" "$TARGET_MOUNT/live/a/vmlinuz"
+  install -m 0644 "$INSTALL_LIVE_ASSET_DIR/initrd.img" "$TARGET_MOUNT/live/a/initrd.img"
+  install -m 0644 "$INSTALL_LIVE_ASSET_DIR/filesystem.squashfs" "$TARGET_MOUNT/live/a/filesystem.squashfs"
+  if [[ -f "$INSTALL_LIVE_ASSET_DIR/SHA256SUMS" ]]; then
+    install -m 0644 "$INSTALL_LIVE_ASSET_DIR/SHA256SUMS" "$TARGET_MOUNT/live/a/SHA256SUMS"
+  fi
+  ln -sfn a "$TARGET_MOUNT/live/current"
   ln -sfn ../live "$TARGET_MOUNT/pve-thin-client/live"
   if [[ -f "$GRUB_BACKGROUND_SRC" ]]; then
     install -D -m 0644 "$GRUB_BACKGROUND_SRC" "$TARGET_MOUNT/boot/grub/background.jpg"
@@ -1941,6 +2149,7 @@ copy_assets() {
   NOVNC_URL="$NOVNC_URL" \
   DCV_URL="$DCV_URL" \
   MOONLIGHT_HOST="$MOONLIGHT_HOST" \
+  MOONLIGHT_LOCAL_HOST="$MOONLIGHT_LOCAL_HOST" \
   MOONLIGHT_PORT="$MOONLIGHT_PORT" \
   MOONLIGHT_APP="$MOONLIGHT_APP" \
   REMOTE_VIEWER_BIN="$REMOTE_VIEWER_BIN" \
@@ -1967,6 +2176,11 @@ copy_assets() {
   BEAGLE_MANAGER_URL="$BEAGLE_MANAGER_URL" \
   BEAGLE_MANAGER_PINNED_PUBKEY="$BEAGLE_MANAGER_PINNED_PUBKEY" \
   BEAGLE_ENROLLMENT_URL="$BEAGLE_ENROLLMENT_URL" \
+  BEAGLE_UPDATE_ENABLED="$BEAGLE_UPDATE_ENABLED" \
+  BEAGLE_UPDATE_CHANNEL="$BEAGLE_UPDATE_CHANNEL" \
+  BEAGLE_UPDATE_BEHAVIOR="$BEAGLE_UPDATE_BEHAVIOR" \
+  BEAGLE_UPDATE_FEED_URL="$BEAGLE_UPDATE_FEED_URL" \
+  BEAGLE_UPDATE_VERSION_PIN="$BEAGLE_UPDATE_VERSION_PIN" \
   BEAGLE_EGRESS_MODE="$BEAGLE_EGRESS_MODE" \
   BEAGLE_EGRESS_TYPE="$BEAGLE_EGRESS_TYPE" \
   BEAGLE_EGRESS_INTERFACE="$BEAGLE_EGRESS_INTERFACE" \
@@ -2011,6 +2225,8 @@ EOF
     log_msg "failed to persist local-auth.env to $STATE_DIR"
     return 1
   }
+
+  write_install_manifest
 }
 
 ensure_efivars_mounted() {
@@ -2171,6 +2387,10 @@ main() {
   write_grub_cfg "$root_uuid"
   install_bootloader "$target_disk" "$boot_part" "$root_uuid"
   sync
+
+  if [[ "$AUTO_INSTALL" == "1" ]]; then
+    return 0
+  fi
 
   if command -v whiptail >/dev/null 2>&1; then
     whiptail --title "Beagle OS Installation" --msgbox \

@@ -1,0 +1,8 @@
+[Unit]
+Description=Scan for Beagle OS updates
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/beagle-update-client scan --auto-apply-if-idle

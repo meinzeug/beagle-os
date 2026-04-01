@@ -282,8 +282,6 @@ verify_public_api() {
       curl_args+=(--pinnedpubkey "${BEAGLE_PUBLIC_TLS_PINNED_PUBKEY}")
     elif [[ -f "$HOST_TLS_CERT_FILE" ]]; then
       curl_args+=(--cacert "$HOST_TLS_CERT_FILE")
-    elif [[ "${BEAGLE_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
-      curl_args+=(-k)
     else
       return 1
     fi

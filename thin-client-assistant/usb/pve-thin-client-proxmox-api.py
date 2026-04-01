@@ -118,6 +118,7 @@ def build_preset(
     proxmox_verify_tls = meta.get("proxmox-verify-tls", "1" if verify_tls else "0")
 
     moonlight_host = meta.get("moonlight-host") or meta.get("sunshine-host") or meta.get("sunshine-ip") or ""
+    moonlight_local_host = meta.get("moonlight-local-host") or meta.get("sunshine-ip") or ""
     sunshine_api_url = meta.get("sunshine-api-url") or (f"https://{moonlight_host}:47990" if moonlight_host else "")
     default_mode = "MOONLIGHT" if moonlight_host else ""
 
@@ -156,6 +157,7 @@ def build_preset(
         "PVE_THIN_CLIENT_PRESET_DCV_TOKEN": "",
         "PVE_THIN_CLIENT_PRESET_DCV_SESSION": "",
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST": moonlight_host,
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_LOCAL_HOST": moonlight_local_host,
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP": meta.get("moonlight-app", meta.get("sunshine-app", "Desktop")),
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN": meta.get("moonlight-bin", "moonlight"),
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION": meta.get("moonlight-resolution", "auto"),
@@ -347,7 +349,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", required=True)
     parser.add_argument("--scheme", default="https")
     parser.add_argument("--port", type=int, default=8006)
-    parser.add_argument("--verify-tls", default="0")
+    parser.add_argument("--verify-tls", default="1")
     parser.add_argument("--username", required=True)
     parser.add_argument("--password", required=True)
 

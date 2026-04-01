@@ -22,9 +22,10 @@ WPA_PID_FILE="$WPA_RUNTIME_DIR/wpa_supplicant-installer.pid"
 DEFAULT_DNS_SERVERS=("1.1.1.1" "9.9.9.9" "8.8.8.8")
 DEFAULT_API_SCHEME="https"
 DEFAULT_API_PORT="8006"
-DEFAULT_API_VERIFY_TLS="0"
+DEFAULT_API_VERIFY_TLS="1"
 NETWORK_SETUP_COMPLETE=0
 BUNDLED_PRESET_MODE=0
+AUTO_INSTALL_ACTIVE=0
 
 have_passwordless_sudo() {
   [[ "${EUID}" -eq 0 ]] || (command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1)
@@ -887,12 +888,15 @@ install_from_bundled_preset_auto() {
   fi
 
   log_msg "bundled preset detected, starting auto install"
+  AUTO_INSTALL_ACTIVE=1
   run_installer_as_root --cache-bundled-preset >/dev/null 2>&1 || true
   run_installer_as_root --auto-install --yes
 }
 
 reboot_after_successful_install() {
-  dialog_msgbox "Installation Complete" "Installation is complete. Remove the USB stick now. The system will reboot."
+  if [[ "$AUTO_INSTALL_ACTIVE" != "1" && "${BUNDLED_PRESET_MODE:-0}" != "1" ]] && ! has_bundled_preset; then
+    dialog_msgbox "Installation Complete" "Installation is complete. Remove the USB stick now. The system will reboot."
+  fi
   if [[ "${EUID}" -eq 0 ]]; then
     exec reboot
   fi

@@ -29,12 +29,12 @@ lb config noauto \
   --linux-flavours "$THINCLIENT_LINUX_FLAVOUR" \
   --firmware-chroot true \
   --firmware-binary true \
-  --mirror-bootstrap "http://deb.debian.org/debian" \
-  --mirror-chroot "http://deb.debian.org/debian" \
-  --mirror-binary "http://deb.debian.org/debian" \
-  --mirror-chroot-security "http://deb.debian.org/debian-security" \
-  --mirror-binary-security "http://deb.debian.org/debian-security" \
+  --mirror-bootstrap "https://deb.debian.org/debian" \
+  --mirror-chroot "https://deb.debian.org/debian" \
+  --mirror-binary "https://deb.debian.org/debian" \
+  --mirror-chroot-security "https://deb.debian.org/debian-security" \
+  --mirror-binary-security "https://deb.debian.org/debian-security" \
   --security false \
-  --bootloaders "grub-pc grub-efi" \
+  --bootloader grub \
   --bootappend-live "$BOOT_ARGS" \
   "$@"

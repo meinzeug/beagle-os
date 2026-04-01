@@ -59,7 +59,9 @@ if [[ -n "$moonlight_host" ]]; then
 fi
 
 if [[ -n "$sunshine_api_url" ]]; then
-  curl_args=(-kfsS --connect-timeout 2 --max-time 4 -o /dev/null)
+  curl_args=(-fsS --connect-timeout 2 --max-time 4 -o /dev/null)
+  mapfile -t tls_args < <(beagle_curl_tls_args "$sunshine_api_url" "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT:-}")
+  curl_args+=("${tls_args[@]}")
   if [[ -n "$sunshine_username" && -n "$sunshine_password" ]]; then
     curl_args+=(--user "${sunshine_username}:${sunshine_password}")
   fi

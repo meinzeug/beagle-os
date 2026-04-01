@@ -21,6 +21,7 @@ CONTROL_PLANE_HEALTH_URL="${BEAGLE_CONTROL_PLANE_HEALTH_URL:-$DEFAULT_CONTROL_PL
 DEFAULT_WEB_UI_URL="https://{host}"
 WEB_UI_URL="${BEAGLE_WEB_UI_URL:-$DEFAULT_WEB_UI_URL}"
 BEAGLE_API_TOKEN="${BEAGLE_MANAGER_API_TOKEN:-}"
+BEAGLE_PVE_UI_EMBED_API_TOKEN="${BEAGLE_PVE_UI_EMBED_API_TOKEN:-0}"
 CONFIG_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-config.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
 INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
 
@@ -43,6 +44,10 @@ if [[ -z "$BEAGLE_API_TOKEN" && -f "$BEAGLE_MANAGER_ENV_FILE" ]]; then
   # shellcheck disable=SC1090
   source "$BEAGLE_MANAGER_ENV_FILE"
   BEAGLE_API_TOKEN="${BEAGLE_MANAGER_API_TOKEN:-}"
+fi
+
+if [[ "$BEAGLE_PVE_UI_EMBED_API_TOKEN" != "1" ]]; then
+  BEAGLE_API_TOKEN=""
 fi
 
 if [[ ! -d "$PVE_DIR/js" || ! -f "$TPL_TARGET" ]]; then

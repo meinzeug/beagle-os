@@ -5,12 +5,11 @@
   "description": "Adds Beagle profile, installer and control-plane actions to Proxmox VE VM pages.",
   "permissions": ["storage"],
   "host_permissions": [
-    "https://*/*",
-    "http://*/*"
+    "https://*/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://*/*", "http://*/*"],
+      "matches": ["https://*/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
     }

@@ -5,6 +5,15 @@
   var STYLE_ID = "beagle-os-modal-style";
   var OVERLAY_ID = "beagle-os-overlay";
   var FLEET_LAUNCHER_ID = "beagle-os-fleet-launcher";
+  var CREATE_VM_DOM_BUTTON_ID = "beagle-os-create-vm-dom-button";
+  var API_TOKEN_STORAGE_KEY = "beagle.proxmoxUi.apiToken";
+  var apiTokenStorage = null;
+
+  try {
+    apiTokenStorage = window.sessionStorage;
+  } catch (error) {
+    apiTokenStorage = null;
+  }
 
   function defaultUsbInstallerUrl() {
     return "https://{host}:8443/beagle-api/api/v1/vms/{vmid}/installer.sh";
@@ -37,6 +46,58 @@
       webUiUrl: runtimeConfig.webUiUrl || defaultWebUiUrl(),
       apiToken: runtimeConfig.apiToken || ""
     };
+  }
+
+  function readStoredApiToken() {
+    if (!apiTokenStorage) {
+      return "";
+    }
+    try {
+      return String(apiTokenStorage.getItem(API_TOKEN_STORAGE_KEY) || "").trim();
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function writeStoredApiToken(token) {
+    if (!apiTokenStorage) {
+      return;
+    }
+    try {
+      apiTokenStorage.setItem(API_TOKEN_STORAGE_KEY, String(token || "").trim());
+    } catch (error) {
+      /* ignore storage failures */
+    }
+  }
+
+  function clearStoredApiToken() {
+    if (!apiTokenStorage) {
+      return;
+    }
+    try {
+      apiTokenStorage.removeItem(API_TOKEN_STORAGE_KEY);
+    } catch (error) {
+      /* ignore storage failures */
+    }
+  }
+
+  function configuredApiToken() {
+    return String(getConfig().apiToken || "").trim();
+  }
+
+  function promptForApiToken() {
+    var initialValue = readStoredApiToken() || configuredApiToken();
+    var token = window.prompt("Beagle API Token fuer diese Browser-Sitzung eingeben. Leerer Wert loescht den Session-Token.", initialValue);
+    if (token == null) {
+      return "";
+    }
+    token = String(token || "").trim();
+    if (!token) {
+      clearStoredApiToken();
+      return "";
+    }
+    writeStoredApiToken(token);
+    return token;
   }
 
   function fillTemplate(template, values) {
@@ -150,8 +211,8 @@
     anchor.remove();
   }
 
-  function webUiUrlWithToken() {
-    var token = getConfig().apiToken || "";
+  function webUiUrlWithToken(interactive) {
+    var token = getApiToken(Boolean(interactive));
     var target = resolveWebUiUrl();
     if (!token) {
       return target;
@@ -215,174 +276,700 @@
     });
   }
 
+  function normalizeUiText(value) {
+    return String(value || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  function createVmLabels() {
+    return [
+      normalizeUiText("Create VM"),
+      normalizeUiText("Erstelle VM"),
+      normalizeUiText(gettext("Create VM"))
+    ];
+  }
+
+  function getComponentText(component) {
+    if (!component) {
+      return "";
+    }
+    if (typeof component.getText === "function") {
+      return component.getText() || "";
+    }
+    return component.text || "";
+  }
+
+  function looksLikeCreateVmTrigger(component) {
+    var normalized = normalizeUiText(getComponentText(component));
+    var labels = createVmLabels();
+    return component && (
+      component.itemId === "createvm" ||
+      component.reference === "createvm" ||
+      labels.indexOf(normalized) !== -1
+    );
+  }
+
+  function selectedNodeFromHash() {
+    try {
+      var decodedHash = window.decodeURIComponent(String(window.location.hash || ""));
+      var match = decodedHash.match(/node\/([^:\/]+)/);
+      return match ? String(match[1] || "") : "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function selectedNodeName() {
+    var node = selectedNodeFromHash();
+    if (node) {
+      return node;
+    }
+    if (window.PVE && PVE.data && PVE.data.ResourceStore && typeof PVE.data.ResourceStore.getNodes === "function") {
+      var nodes = PVE.data.ResourceStore.getNodes() || [];
+      if (nodes.length === 1 && nodes[0] && nodes[0].node) {
+        return String(nodes[0].node);
+      }
+    }
+    return "";
+  }
+
+  function safeHostnameCandidate(value, fallbackVmid) {
+    var cleaned = String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    if (!cleaned) {
+      cleaned = fallbackVmid ? ("beagle-" + String(fallbackVmid)) : "beagle";
+    }
+    cleaned = cleaned.slice(0, 63).replace(/-+$/g, "");
+    return cleaned || (fallbackVmid ? ("beagle-" + String(fallbackVmid)) : "beagle");
+  }
+
+  function apiGetProvisioningCatalog() {
+    return apiGetBeagleJson("/beagle-api/api/v1/provisioning/catalog").then(function(payload) {
+      return payload && payload.catalog ? payload.catalog : payload;
+    });
+  }
+
+  function apiCreateProvisionedVm(payload) {
+    return apiPostBeagleJson("/beagle-api/api/v1/provisioning/vms", payload).then(function(response) {
+      return response && response.provisioned_vm ? response.provisioned_vm : response;
+    });
+  }
+
+  function apiGetProvisioningState(vmid) {
+    return apiGetBeagleJson("/beagle-api/api/v1/provisioning/vms/" + encodeURIComponent(String(vmid))).then(function(response) {
+      return response && response.provisioning ? response.provisioning : response;
+    });
+  }
+
+  function provisioningStatusLabel(state) {
+    var status = String(state && state.status || "unknown").toLowerCase();
+    switch (status) {
+      case "creating":
+        return "Proxmox legt die VM an";
+      case "created":
+        return "VM angelegt, wartet auf Start";
+      case "installing":
+        return "Ubuntu Autoinstall laeuft";
+      case "completed":
+        return "Provisionierung abgeschlossen";
+      case "failed":
+        return "Provisionierung fehlgeschlagen";
+      default:
+        return status || "unknown";
+    }
+  }
+
+  function provisioningStatusBadgeClass(state) {
+    var status = String(state && state.status || "pending").toLowerCase();
+    if (status === "completed") {
+      return "healthy";
+    }
+    if (status === "failed") {
+      return "drifted";
+    }
+    if (status === "created") {
+      return "degraded";
+    }
+    return "pending";
+  }
+
+  function buildProvisioningCredentialText(created, state) {
+    var credentials = state && state.credentials ? state.credentials : {};
+    var publicStream = created && created.public_stream ? created.public_stream : state && state.public_stream ? state.public_stream : {};
+    return [
+      "VMID: " + String(created && created.vmid || ""),
+      "Node: " + String(created && created.node || ""),
+      "VM Name: " + String(created && created.name || ""),
+      "Hostname: " + String(created && created.hostname || ""),
+      "Guest User: " + String(credentials.guest_user || created && created.guest_user || ""),
+      "Guest Passwort: " + String(credentials.guest_password || created && created.guest_password || ""),
+      "Sunshine User: " + String(credentials.sunshine_user || created && created.sunshine_user || ""),
+      "Sunshine Passwort: " + String(credentials.sunshine_password || created && created.sunshine_password || ""),
+      "Stream Host: " + String(publicStream.host || ""),
+      "Moonlight Port: " + String(publicStream.moonlight_port || "")
+    ].join("\n");
+  }
+
+  function renderProvisioningResultHtml(created, state) {
+    var currentState = state || created && created.provisioning || {};
+    var credentials = currentState && currentState.credentials ? currentState.credentials : {};
+    var publicStream = created && created.public_stream ? created.public_stream : currentState && currentState.public_stream ? currentState.public_stream : {};
+    var badgeClass = provisioningStatusBadgeClass(currentState);
+    return '' +
+      '<div class="beagle-body" style="padding:0; gap:16px;">' +
+      '  <div class="beagle-banner ' + (badgeClass === "drifted" ? "warn" : "info") + '">' +
+      '    <strong>' + escapeHtml(provisioningStatusLabel(currentState)) + '</strong><br>' +
+      '    <span>' + escapeHtml(String(currentState && currentState.message || "Die Provisionierung wird vom Beagle Control Plane verwaltet.")) + '</span>' +
+      '  </div>' +
+      '  <div class="beagle-grid">' +
+      '    <section class="beagle-card"><h3>VM</h3><div class="beagle-kv">' +
+            kvRow('VMID', escapeHtml(String(created && created.vmid || ""))) +
+            kvRow('Node', escapeHtml(String(created && created.node || ""))) +
+            kvRow('VM Name', escapeHtml(String(created && created.name || ""))) +
+            kvRow('Hostname', escapeHtml(String(created && created.hostname || ""))) +
+            kvRow('OS Profil', escapeHtml(String(created && created.os_profile || ""))) +
+      '    </div></section>' +
+      '    <section class="beagle-card"><h3>Provisioning</h3><div class="beagle-kv">' +
+            kvRow('Status', '<span class="beagle-badge ' + badgeClass + '">' + escapeHtml(provisioningStatusLabel(currentState)) + '</span>') +
+            kvRow('Phase', escapeHtml(String(currentState && currentState.phase || ""))) +
+            kvRow('Angelegt', escapeHtml(String(currentState && currentState.created_at || ""))) +
+            kvRow('Aktualisiert', escapeHtml(String(currentState && currentState.updated_at || ""))) +
+            kvRow('Abgeschlossen', escapeHtml(String(currentState && currentState.completed_at || ""))) +
+      '    </div></section>' +
+      '    <section class="beagle-card"><h3>Zugang</h3><div class="beagle-kv">' +
+            kvRow('Ubuntu User', escapeHtml(String(credentials.guest_user || created && created.guest_user || ""))) +
+            kvRow('Ubuntu Passwort', escapeHtml(String(credentials.guest_password || created && created.guest_password || ""))) +
+            kvRow('Sunshine User', escapeHtml(String(credentials.sunshine_user || created && created.sunshine_user || ""))) +
+            kvRow('Sunshine Passwort', escapeHtml(String(credentials.sunshine_password || created && created.sunshine_password || ""))) +
+      '    </div></section>' +
+      '    <section class="beagle-card"><h3>Streaming</h3><div class="beagle-kv">' +
+            kvRow('Desktop', 'XFCE') +
+            kvRow('Streaming', 'Sunshine') +
+            kvRow('Host', escapeHtml(String(publicStream.host || ""))) +
+            kvRow('Moonlight Port', escapeHtml(String(publicStream.moonlight_port || ""))) +
+            kvRow('Sunshine API', escapeHtml(String(publicStream.sunshine_api_url || ""))) +
+      '    </div></section>' +
+      '  </div>' +
+      (currentState && currentState.error ? ('<div class="beagle-banner warn">' + escapeHtml(String(currentState.error || "")) + '</div>') : '') +
+      '</div>';
+  }
+
+  function showProvisioningResultWindow(created) {
+    var latestState = created && created.provisioning ? created.provisioning : {};
+    var windowRef = Ext.create("Ext.window.Window", {
+      title: "Beagle VM Provisioning",
+      modal: true,
+      width: 860,
+      maxHeight: 760,
+      layout: "fit",
+      scrollable: true,
+      bodyPadding: 18,
+      items: [
+        {
+          xtype: "component",
+          itemId: "beagleProvisioningResult",
+          html: renderProvisioningResultHtml(created, latestState)
+        }
+      ],
+      buttons: [
+        {
+          text: "Credentials kopieren",
+          handler: function() {
+            copyText(buildProvisioningCredentialText(created, latestState), "Provisioning-Credentials kopiert.");
+          }
+        },
+        {
+          text: "VM Profil",
+          ui: "primary",
+          handler: function() {
+            showProfileModal({ node: String(created && created.node || ""), vmid: Number(created && created.vmid || 0) });
+          }
+        },
+        {
+          text: "Schliessen",
+          handler: function() {
+            windowRef.close();
+          }
+        }
+      ],
+      listeners: {
+        show: function() {
+          if (!(created && created.vmid)) {
+            return;
+          }
+          windowRef.__beagleProvisioningTimer = window.setInterval(function() {
+            apiGetProvisioningState(created.vmid).then(function(state) {
+              latestState = state || latestState;
+              windowRef.down("#beagleProvisioningResult").update(renderProvisioningResultHtml(created, latestState));
+              if (String(latestState && latestState.status || "").toLowerCase() === "completed") {
+                window.clearInterval(windowRef.__beagleProvisioningTimer);
+                windowRef.__beagleProvisioningTimer = null;
+              }
+            }).catch(function() {
+              /* ignore transient provisioning poll errors */
+            });
+          }, 5000);
+        },
+        destroy: function() {
+          if (windowRef.__beagleProvisioningTimer) {
+            window.clearInterval(windowRef.__beagleProvisioningTimer);
+            windowRef.__beagleProvisioningTimer = null;
+          }
+        }
+      }
+    });
+    windowRef.show();
+  }
+
   function showUbuntuBeagleCreateModal(ctx) {
     if (!(window.Ext && Ext.create)) {
       showError("Proxmox UI-Komponenten sind noch nicht bereit.");
       return;
     }
-    var nodes = listAvailableNodes();
-    var initialNode = String(ctx && ctx.node || (nodes[0] && nodes[0].value) || "");
-    var store = Ext.create("Ext.data.Store", {
-      fields: ["value", "label"],
-      data: nodes
-    });
-    var windowRef = Ext.create("Ext.window.Window", {
-      title: "Erstelle Beagle VM",
-      modal: true,
-      width: 620,
-      layout: "fit",
-      items: [
-        {
-          xtype: "form",
-          bodyPadding: 16,
-          defaults: {
-            anchor: "100%",
-            labelWidth: 180
-          },
-          items: [
-            {
-              xtype: "displayfield",
-              value: "Erstellt eine komplette Ubuntu-Desktop-VM mit Beagle OS, Sunshine und vorbereiteten Download-Pfaden fuer Live-USB sowie USB-Installer fuer Linux und Windows."
-            },
-            {
-              xtype: "displayfield",
-              fieldLabel: "Desktop",
-              value: "Ubuntu Desktop mit GNOME"
-            },
-            {
-              xtype: "displayfield",
-              fieldLabel: "Streaming",
-              value: "Sunshine + Beagle VM-Profil"
-            },
-            {
-              xtype: "displayfield",
-              fieldLabel: "ISO-Quelle",
-              value: "Originale Ubuntu-ISO vom Ubuntu-Release-Server, mit Host-Cache wenn bereits vorhanden."
-            },
-            {
-              xtype: "combo",
-              name: "node",
-              fieldLabel: "Node",
-              allowBlank: false,
-              editable: false,
-              forceSelection: true,
-              queryMode: "local",
-              displayField: "label",
-              valueField: "value",
-              store: store,
-              value: initialNode
-            },
-            {
-              xtype: "numberfield",
-              name: "vmid",
-              fieldLabel: "VMID",
-              minValue: 1,
-              allowBlank: true,
-              emptyText: "automatisch"
-            },
-            {
-              xtype: "textfield",
-              name: "name",
-              fieldLabel: "Name",
-              allowBlank: false,
-              value: ""
-            },
-            {
-              xtype: "numberfield",
-              name: "memory",
-              fieldLabel: "RAM (MiB)",
-              minValue: 2048,
-              value: 8192
-            },
-            {
-              xtype: "numberfield",
-              name: "cores",
-              fieldLabel: "Cores",
-              minValue: 2,
-              value: 4
-            },
-            {
-              xtype: "numberfield",
-              name: "disk_gb",
-              fieldLabel: "Festplatte (GB)",
-              minValue: 32,
-              value: 64
-            },
-            {
-              xtype: "textfield",
-              name: "bridge",
-              fieldLabel: "Bridge",
-              value: "vmbr1"
-            },
-            {
-              xtype: "textfield",
-              name: "guest_user",
-              fieldLabel: "Ubuntu-User",
-              value: "beagle"
-            },
-            {
-              xtype: "checkboxfield",
-              name: "start",
-              fieldLabel: "Nach Erstellung starten",
-              checked: true,
-              inputValue: "1",
-              uncheckedValue: "0"
-            }
-          ]
+    if (!ensureApiToken()) {
+      return;
+    }
+    if (window.Ext && Ext.Msg && Ext.Msg.wait) {
+      Ext.Msg.wait("Provisioning-Katalog wird geladen ...", "Beagle OS");
+    }
+    apiGetProvisioningCatalog().then(function(catalog) {
+      var defaults = catalog && catalog.defaults ? catalog.defaults : {};
+      var initialNode = String(ctx && ctx.node || selectedNodeName() || defaults.node || "");
+      var osProfiles = Array.isArray(catalog && catalog.os_profiles) ? catalog.os_profiles : [];
+      var initialProfile = osProfiles[0] || {};
+      var nextVmid = Number(defaults.next_vmid || 0) || "";
+      var initialName = "ubuntu-beagle-" + String(nextVmid || "vm");
+      var initialHostname = safeHostnameCandidate(initialName, nextVmid);
+      var nodeRecords = Array.isArray(catalog && catalog.nodes) ? catalog.nodes.map(function(item) {
+        return {
+          value: String(item.name || ""),
+          label: String(item.name || "") + (item.status ? (" (" + String(item.status || "") + ")") : "")
+        };
+      }) : listAvailableNodes();
+      var imageStorageRecords = catalog && catalog.storages && Array.isArray(catalog.storages.images) ? catalog.storages.images.map(function(item) {
+        return { value: String(item.id || ""), label: String(item.id || "") };
+      }) : [];
+      var isoStorageRecords = catalog && catalog.storages && Array.isArray(catalog.storages.iso) ? catalog.storages.iso.map(function(item) {
+        return { value: String(item.id || ""), label: String(item.id || "") };
+      }) : [];
+      var bridgesByNode = catalog && catalog.bridges_by_node ? catalog.bridges_by_node : {};
+      var bridgeStore = Ext.create("Ext.data.Store", { fields: ["value", "label"], data: [] });
+      var profileStore = Ext.create("Ext.data.Store", {
+        fields: ["value", "label", "release", "desktop", "streaming"],
+        data: osProfiles.map(function(item) {
+          return {
+            value: String(item.id || ""),
+            label: String(item.label || item.id || ""),
+            release: String(item.release || ""),
+            desktop: String(item.desktop || ""),
+            streaming: String(item.streaming || "")
+          };
+        })
+      });
+      var nodeStore = Ext.create("Ext.data.Store", { fields: ["value", "label"], data: nodeRecords });
+      var imageStorageStore = Ext.create("Ext.data.Store", { fields: ["value", "label"], data: imageStorageRecords });
+      var isoStorageStore = Ext.create("Ext.data.Store", { fields: ["value", "label"], data: isoStorageRecords });
+      var windowRef;
+      var hostnameTouched = false;
+
+      function bridgeRecordsForNode(nodeName) {
+        var values = bridgesByNode[nodeName] || catalog && catalog.bridges || [];
+        return (values || []).map(function(item) {
+          return { value: String(item || ""), label: String(item || "") };
+        });
+      }
+
+      function syncBridgeStore(nodeName) {
+        var records = bridgeRecordsForNode(nodeName);
+        bridgeStore.loadData(records);
+        if (!records.length && defaults.bridge) {
+          bridgeStore.loadData([{ value: String(defaults.bridge || ""), label: String(defaults.bridge || "") }]);
         }
-      ],
-      buttons: [
-        {
-          text: "Abbrechen",
-          handler: function() {
-            windowRef.close();
+        if (windowRef && windowRef.down('combo[name="bridge"]')) {
+          if (!windowRef.down('combo[name="bridge"]').getValue()) {
+            windowRef.down('combo[name="bridge"]').setValue(String(defaults.bridge || (records[0] && records[0].value) || ""));
           }
-        },
-        {
-          text: "Erstellen",
-          ui: "primary",
-          handler: function() {
-            var form = windowRef.down("form").getForm();
-            if (!form.isValid()) {
-              return;
-            }
-            var values = form.getValues();
-            var payload = {
-              node: String(values.node || ""),
-              name: String(values.name || ""),
-              bridge: String(values.bridge || ""),
-              guest_user: String(values.guest_user || ""),
-              start: values.start ? "1" : "0",
-              memory: Number(values.memory || 8192),
-              cores: Number(values.cores || 4),
-              disk_gb: Number(values.disk_gb || 64)
-            };
-            if (String(values.vmid || "").trim()) {
-              payload.vmid = Number(values.vmid);
-            }
-            windowRef.setLoading("Beagle VM wird erstellt ...");
-            apiPostBeagleJson("/beagle-api/api/v1/ubuntu-beagle-vms", payload).then(function(response) {
-              windowRef.setLoading(false);
-              windowRef.close();
-              var created = response && response.ubuntu_beagle_vm ? response.ubuntu_beagle_vm : response;
-              showToast("Beagle VM " + String(created && created.vmid || "") + " wird erstellt. Guest user: " + String(created && created.guest_user || "") + ".");
-              if (created && created.vmid) {
-                window.setTimeout(function() {
-                  showProfileModal({
-                    node: String(created.node || payload.node || ""),
-                    vmid: Number(created.vmid)
-                  });
-                }, 800);
+        }
+      }
+
+      function syncHostnameField() {
+        if (!windowRef || hostnameTouched) {
+          return;
+        }
+        var vmidField = windowRef.down('numberfield[name="vmid"]');
+        var nameField = windowRef.down('textfield[name="name"]');
+        var hostnameField = windowRef.down('textfield[name="hostname"]');
+        if (!hostnameField) {
+          return;
+        }
+        windowRef.__beagleSyncingHostname = true;
+        hostnameField.setValue(safeHostnameCandidate(nameField && nameField.getValue() || "", vmidField && vmidField.getValue() || nextVmid));
+        windowRef.__beagleSyncingHostname = false;
+      }
+
+      function currentProfile() {
+        var profileId = windowRef && windowRef.down('combo[name="os_profile"]') ? windowRef.down('combo[name="os_profile"]').getValue() : "";
+        return osProfiles.find(function(item) {
+          return String(item.id || "") === String(profileId || "");
+        }) || initialProfile;
+      }
+
+      function updateProfileSummary() {
+        var profile = currentProfile();
+        var summary = [
+          String(profile.label || ""),
+          String(profile.release || ""),
+          String(profile.desktop || ""),
+          String(profile.streaming || "")
+        ].filter(Boolean).join(" | ");
+        if (windowRef && windowRef.down('#beagleProvisioningProfileSummary')) {
+          windowRef.down('#beagleProvisioningProfileSummary').setValue(summary || "Ubuntu Provisioning");
+        }
+      }
+
+      if (window.Ext && Ext.Msg && Ext.Msg.hide) {
+        Ext.Msg.hide();
+      }
+
+      windowRef = Ext.create("Ext.window.Window", {
+        title: "Erstelle Beagle OS VM",
+        modal: true,
+        width: 820,
+        maxHeight: 860,
+        layout: "fit",
+        items: [
+          {
+            xtype: "form",
+            bodyPadding: 18,
+            scrollable: true,
+            defaults: {
+              anchor: "100%",
+              labelWidth: 180
+            },
+            items: [
+              {
+                xtype: "displayfield",
+                value: "Provisioniert eine komplette Desktop-VM ueber die Beagle Control Plane: Ubuntu Autoinstall, XFCE Desktop, LightDM, Sunshine, QEMU Guest Agent und Beagle-Metadaten."
+              },
+              {
+                xtype: "fieldset",
+                title: "Plattform",
+                defaults: {
+                  anchor: "100%",
+                  labelWidth: 180
+                },
+                items: [
+                  {
+                    xtype: "combo",
+                    name: "os_profile",
+                    fieldLabel: "OS",
+                    allowBlank: false,
+                    editable: false,
+                    forceSelection: true,
+                    queryMode: "local",
+                    displayField: "label",
+                    valueField: "value",
+                    store: profileStore,
+                    value: String(initialProfile.id || "")
+                  },
+                  {
+                    xtype: "displayfield",
+                    itemId: "beagleProvisioningProfileSummary",
+                    fieldLabel: "Provisioning Stack",
+                    value: ""
+                  }
+                ]
+              },
+              {
+                xtype: "fieldset",
+                title: "Identitaet",
+                defaults: {
+                  anchor: "100%",
+                  labelWidth: 180
+                },
+                items: [
+                  {
+                    xtype: "combo",
+                    name: "node",
+                    fieldLabel: "Node",
+                    allowBlank: false,
+                    editable: false,
+                    forceSelection: true,
+                    queryMode: "local",
+                    displayField: "label",
+                    valueField: "value",
+                    store: nodeStore,
+                    value: initialNode
+                  },
+                  {
+                    xtype: "numberfield",
+                    name: "vmid",
+                    fieldLabel: "VMID",
+                    minValue: 1,
+                    allowBlank: true,
+                    value: nextVmid,
+                    emptyText: "automatisch"
+                  },
+                  {
+                    xtype: "textfield",
+                    name: "name",
+                    fieldLabel: "VM Name",
+                    allowBlank: false,
+                    value: initialName
+                  },
+                  {
+                    xtype: "textfield",
+                    name: "hostname",
+                    fieldLabel: "Hostname",
+                    allowBlank: false,
+                    value: initialHostname
+                  }
+                ]
+              },
+              {
+                xtype: "fieldset",
+                title: "Gast-Zugang",
+                defaults: {
+                  anchor: "100%",
+                  labelWidth: 180
+                },
+                items: [
+                  {
+                    xtype: "textfield",
+                    name: "guest_user",
+                    fieldLabel: "Ubuntu User",
+                    allowBlank: false,
+                    regex: /^[a-z_][a-z0-9_-]{0,31}$/,
+                    value: String(defaults.guest_user || "beagle")
+                  },
+                  {
+                    xtype: "textfield",
+                    inputType: "password",
+                    name: "guest_password",
+                    fieldLabel: "Ubuntu Passwort",
+                    allowBlank: true,
+                    emptyText: "leer lassen = automatisch generieren"
+                  },
+                  {
+                    xtype: "textfield",
+                    inputType: "password",
+                    name: "guest_password_confirm",
+                    fieldLabel: "Passwort bestaetigen",
+                    allowBlank: true,
+                    emptyText: "nur bei manuellem Passwort noetig"
+                  }
+                ]
+              },
+              {
+                xtype: "fieldset",
+                title: "Ressourcen",
+                defaults: {
+                  anchor: "100%",
+                  labelWidth: 180
+                },
+                items: [
+                  {
+                    xtype: "numberfield",
+                    name: "memory",
+                    fieldLabel: "RAM (MiB)",
+                    minValue: 2048,
+                    value: Number(defaults.memory || 8192)
+                  },
+                  {
+                    xtype: "numberfield",
+                    name: "cores",
+                    fieldLabel: "vCPU Cores",
+                    minValue: 2,
+                    value: Number(defaults.cores || 4)
+                  },
+                  {
+                    xtype: "numberfield",
+                    name: "disk_gb",
+                    fieldLabel: "Disk (GB)",
+                    minValue: 32,
+                    value: Number(defaults.disk_gb || 64)
+                  },
+                  {
+                    xtype: "combo",
+                    name: "disk_storage",
+                    fieldLabel: "Disk Storage",
+                    allowBlank: false,
+                    editable: false,
+                    forceSelection: true,
+                    queryMode: "local",
+                    displayField: "label",
+                    valueField: "value",
+                    store: imageStorageStore,
+                    value: String(defaults.disk_storage || "")
+                  },
+                  {
+                    xtype: "combo",
+                    name: "iso_storage",
+                    fieldLabel: "ISO Storage",
+                    allowBlank: false,
+                    editable: false,
+                    forceSelection: true,
+                    queryMode: "local",
+                    displayField: "label",
+                    valueField: "value",
+                    store: isoStorageStore,
+                    value: String(defaults.iso_storage || "")
+                  },
+                  {
+                    xtype: "combo",
+                    name: "bridge",
+                    fieldLabel: "Bridge",
+                    allowBlank: false,
+                    editable: false,
+                    forceSelection: true,
+                    queryMode: "local",
+                    displayField: "label",
+                    valueField: "value",
+                    store: bridgeStore,
+                    value: String(defaults.bridge || "")
+                  },
+                  {
+                    xtype: "checkboxfield",
+                    name: "start",
+                    fieldLabel: "Nach Erstellung starten",
+                    checked: true,
+                    inputValue: "1",
+                    uncheckedValue: "0"
+                  }
+                ]
+              },
+              {
+                xtype: "fieldset",
+                title: "Streaming und Zugriff",
+                collapsible: true,
+                collapsed: false,
+                defaults: {
+                  anchor: "100%",
+                  labelWidth: 180
+                },
+                items: [
+                  {
+                    xtype: "displayfield",
+                    fieldLabel: "Desktop",
+                    value: "XFCE"
+                  },
+                  {
+                    xtype: "displayfield",
+                    fieldLabel: "Streaming",
+                    value: "Sunshine"
+                  },
+                  {
+                    xtype: "textfield",
+                    name: "sunshine_user",
+                    fieldLabel: "Sunshine User",
+                    allowBlank: true,
+                    emptyText: "leer = sunshine-vm<VMID>"
+                  },
+                  {
+                    xtype: "textfield",
+                    inputType: "password",
+                    name: "sunshine_password",
+                    fieldLabel: "Sunshine Passwort",
+                    allowBlank: true,
+                    emptyText: "leer lassen = automatisch generieren"
+                  }
+                ]
               }
-            }).catch(function(error) {
-              windowRef.setLoading(false);
-              showError("Beagle VM konnte nicht erstellt werden: " + error.message);
+            ]
+          }
+        ],
+        buttons: [
+          {
+            text: "Abbrechen",
+            handler: function() {
+              windowRef.close();
+            }
+          },
+          {
+            text: "Erstellen",
+            ui: "primary",
+            handler: function() {
+              var form = windowRef.down("form").getForm();
+              var values;
+              var payload;
+              if (!form.isValid()) {
+                return;
+              }
+              values = form.getValues();
+              if (values.guest_password && values.guest_password !== values.guest_password_confirm) {
+                showError("Ubuntu-Passwort und Bestaetigung stimmen nicht ueberein.");
+                return;
+              }
+              payload = {
+                os_profile: String(values.os_profile || ""),
+                node: String(values.node || ""),
+                name: String(values.name || "").trim(),
+                hostname: safeHostnameCandidate(values.hostname || values.name || "", values.vmid || nextVmid),
+                bridge: String(values.bridge || ""),
+                guest_user: String(values.guest_user || ""),
+                guest_password: String(values.guest_password || ""),
+                sunshine_user: String(values.sunshine_user || ""),
+                sunshine_password: String(values.sunshine_password || ""),
+                disk_storage: String(values.disk_storage || ""),
+                iso_storage: String(values.iso_storage || ""),
+                start: values.start ? "1" : "0",
+                memory: Number(values.memory || defaults.memory || 8192),
+                cores: Number(values.cores || defaults.cores || 4),
+                disk_gb: Number(values.disk_gb || defaults.disk_gb || 64)
+              };
+              if (String(values.vmid || "").trim()) {
+                payload.vmid = Number(values.vmid);
+              }
+              windowRef.setLoading("Beagle VM wird provisioniert ...");
+              apiCreateProvisionedVm(payload).then(function(created) {
+                windowRef.setLoading(false);
+                windowRef.close();
+                showToast("Beagle VM " + String(created && created.vmid || "") + " wird jetzt provisioniert.");
+                showProvisioningResultWindow(created);
+              }).catch(function(error) {
+                windowRef.setLoading(false);
+                showError("Beagle VM konnte nicht erstellt werden: " + error.message);
+              });
+            }
+          }
+        ],
+        listeners: {
+          afterrender: function() {
+            syncBridgeStore(initialNode);
+            updateProfileSummary();
+            syncHostnameField();
+            windowRef.down('combo[name="node"]').on("change", function(field, value) {
+              syncBridgeStore(String(value || ""));
+            });
+            windowRef.down('combo[name="os_profile"]').on("change", function() {
+              updateProfileSummary();
+            });
+            windowRef.down('numberfield[name="vmid"]').on("change", function() {
+              syncHostnameField();
+            });
+            windowRef.down('textfield[name="name"]').on("change", function() {
+              syncHostnameField();
+            });
+            windowRef.down('textfield[name="hostname"]').on("change", function(field, value) {
+              if (windowRef.__beagleSyncingHostname) {
+                return;
+              }
+              hostnameTouched = Boolean(String(value || "").trim());
             });
           }
         }
-      ]
+      });
+      windowRef.show();
+    }).catch(function(error) {
+      if (window.Ext && Ext.Msg && Ext.Msg.hide) {
+        Ext.Msg.hide();
+      }
+      showError("Beagle Provisioning-Katalog konnte nicht geladen werden: " + error.message);
     });
-    windowRef.show();
   }
 
   function ensureStyles() {
@@ -526,13 +1113,26 @@
     });
   }
 
-  function getApiToken() {
-    return String(getConfig().apiToken || "").trim();
+  function getApiToken(interactive) {
+    var token = readStoredApiToken() || configuredApiToken();
+    if (token || !interactive) {
+      return token;
+    }
+    return promptForApiToken();
   }
 
-  function buildBeagleRequestHeaders(extraHeaders) {
+  function ensureApiToken() {
+    var token = getApiToken(true);
+    if (token) {
+      return token;
+    }
+    showError("Beagle API Token ist fuer diese Browser-Sitzung nicht gesetzt.");
+    return "";
+  }
+
+  function buildBeagleRequestHeaders(extraHeaders, interactive) {
     var headers = Object.assign({}, extraHeaders || {});
-    var token = getApiToken();
+    var token = getApiToken(Boolean(interactive));
     if (token) {
       headers.Authorization = "Bearer " + token;
     }
@@ -549,13 +1149,13 @@
   }
 
   function apiGetBeagleJson(path) {
-    return apiBeagleJson(path, { headers: buildBeagleRequestHeaders() });
+    return apiBeagleJson(path, { headers: buildBeagleRequestHeaders({}, true) });
   }
 
   function apiPostBeagleJson(path, payload) {
     return apiBeagleJson(path, {
       method: "POST",
-      headers: buildBeagleRequestHeaders({ "Content-Type": "application/json" }),
+      headers: buildBeagleRequestHeaders({ "Content-Type": "application/json" }, true),
       body: JSON.stringify(payload || {})
     });
   }
@@ -563,14 +1163,14 @@
   function apiDeleteBeagle(path) {
     return apiBeagleJson(path, {
       method: "DELETE",
-      headers: buildBeagleRequestHeaders()
+      headers: buildBeagleRequestHeaders({}, true)
     });
   }
 
   function downloadProtectedFile(path, filename) {
     return fetch(resolveBeagleApiUrl(path), {
       credentials: "same-origin",
-      headers: buildBeagleRequestHeaders()
+      headers: buildBeagleRequestHeaders({}, true)
     }).then(function(response) {
       if (!response.ok) {
         throw new Error("Download failed: " + response.status + " " + response.statusText);
@@ -906,6 +1506,10 @@
     return '<span class="beagle-badge ' + escapeHtml(value) + '">' + escapeHtml(value) + '</span>';
   }
 
+  function renderProvisioningBadge(state) {
+    return '<span class="beagle-badge ' + provisioningStatusBadgeClass(state) + '">' + escapeHtml(provisioningStatusLabel(state)) + '</span>';
+  }
+
   function createPolicyFromInventoryItem(item) {
     var target = item && item.assigned_target ? item.assigned_target : null;
     if (!target || !target.vmid) {
@@ -963,9 +1567,17 @@
     var vms = payload && Array.isArray(payload.vms) ? payload.vms : [];
     var policies = payload && Array.isArray(payload.policies) ? payload.policies : [];
     var health = payload && payload.health ? payload.health : {};
+    var catalog = payload && payload.catalog ? payload.catalog : {};
+    var defaults = catalog && catalog.defaults ? catalog.defaults : {};
+    var requests = Array.isArray(catalog && catalog.recent_requests) ? catalog.recent_requests : [];
+    var osProfiles = Array.isArray(catalog && catalog.os_profiles) ? catalog.os_profiles : [];
+    var nodes = Array.isArray(catalog && catalog.nodes) ? catalog.nodes : [];
+    var imageStorages = catalog && catalog.storages && Array.isArray(catalog.storages.images) ? catalog.storages.images : [];
+    var isoStorages = catalog && catalog.storages && Array.isArray(catalog.storages.iso) ? catalog.storages.iso : [];
     var endpointCounts = health.endpoint_status_counts || {};
     var vmRows = vms.map(function(item) {
       var lastAction = item.last_action || {};
+      var provisioning = item.provisioning || null;
       var bundleDownloadPath = lastAction.stored_artifact_download_path || "";
       var policyName = item.applied_policy && item.applied_policy.name || "";
       return '' +
@@ -973,11 +1585,13 @@
         '  <td class="beagle-select-cell"><input class="beagle-row-select" type="checkbox" data-vmid="' + escapeHtml(String(item.vmid || "")) + '"></td>' +
         '  <td><strong>' + escapeHtml(item.name || ("vm-" + item.vmid)) + '</strong><br><span class="beagle-muted">#' + escapeHtml(String(item.vmid || "")) + ' / ' + escapeHtml(item.node || "") + '</span></td>' +
         '  <td>' + renderStatusBadge(item.compliance && item.compliance.status || "unknown") + '<br><span class="beagle-muted">' + escapeHtml(item.assignment_source || "unassigned") + '</span></td>' +
+        '  <td>' + (provisioning ? renderProvisioningBadge(provisioning) + '<br><span class="beagle-muted">' + escapeHtml(String(provisioning.phase || "")) + '</span><br><span class="beagle-muted">' + escapeHtml(String(provisioning.hostname || "")) + '</span>' : '<span class="beagle-muted">kein Provisioning-State</span>') + '</td>' +
         '  <td>' + escapeHtml(item.assigned_target ? (item.assigned_target.name + " (#" + item.assigned_target.vmid + ")") : "") + '<br><span class="beagle-muted">' + escapeHtml(item.stream_host || "") + '</span></td>' +
         '  <td>' + escapeHtml(policyName || "keine") + '<br><span class="beagle-muted">Bundles: ' + escapeHtml(String(item.support_bundle_count || 0)) + '</span></td>' +
         '  <td>' + escapeHtml(item.endpoint && item.endpoint.reported_at || "") + '<br><span class="beagle-muted">Age: ' + escapeHtml(String(item.endpoint && item.endpoint.report_age_seconds || 0)) + 's</span><br><span class="beagle-muted">' + escapeHtml(lastAction.action || "") + " " + escapeHtml(formatActionState(lastAction.ok)) + '</span></td>' +
         '  <td><div class="beagle-inline-actions">' +
         '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="profile" data-vmid="' + escapeHtml(String(item.vmid || "")) + '" data-node="' + escapeHtml(item.node || "") + '">Profil</button>' +
+        (provisioning ? '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="copy-credentials" data-vmid="' + escapeHtml(String(item.vmid || "")) + '">Credentials</button>' : '') +
         '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="healthcheck" data-vmid="' + escapeHtml(String(item.vmid || "")) + '">Check</button>' +
         '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="support-bundle" data-vmid="' + escapeHtml(String(item.vmid || "")) + '">Bundle</button>' +
         (bundleDownloadPath ? '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="download-bundle" data-bundle-path="' + escapeHtml(bundleDownloadPath) + '" data-bundle-name="vm-' + escapeHtml(String(item.vmid || "")) + '-support.tar.gz">Download</button>' : '') +
@@ -997,16 +1611,40 @@
         '  <td><button type="button" class="beagle-mini-btn" data-beagle-fleet-action="delete-policy" data-policy-name="' + escapeHtml(policy.name || "") + '">Loeschen</button></td>' +
         '</tr>';
     }).join("");
+    var requestRows = requests.slice(0, 10).map(function(item) {
+      return '' +
+        '<tr>' +
+        '  <td><strong>' + escapeHtml(String(item.name || ("vm-" + item.vmid))) + '</strong><br><span class="beagle-muted">#' + escapeHtml(String(item.vmid || "")) + ' / ' + escapeHtml(String(item.node || "")) + '</span></td>' +
+        '  <td>' + renderProvisioningBadge(item) + '</td>' +
+        '  <td>' + escapeHtml(String(item.phase || "")) + '<br><span class="beagle-muted">' + escapeHtml(String(item.message || "")) + '</span></td>' +
+        '  <td>' + escapeHtml(String(item.created_at || "")) + '<br><span class="beagle-muted">' + escapeHtml(String(item.completed_at || item.updated_at || "")) + '</span></td>' +
+        '  <td><div class="beagle-inline-actions">' +
+        '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="request-profile" data-vmid="' + escapeHtml(String(item.vmid || "")) + '" data-node="' + escapeHtml(String(item.node || "")) + '">Profil</button>' +
+        '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="copy-credentials" data-vmid="' + escapeHtml(String(item.vmid || "")) + '">Credentials</button>' +
+        '  </div></td>' +
+        '</tr>';
+    }).join("");
+    var osProfileRows = osProfiles.map(function(item) {
+      return '' +
+        '<tr>' +
+        '  <td><strong>' + escapeHtml(String(item.label || item.id || "")) + '</strong><br><span class="beagle-muted">' + escapeHtml(String(item.id || "")) + '</span></td>' +
+        '  <td>' + escapeHtml(String(item.release || "")) + '</td>' +
+        '  <td>' + escapeHtml(String(item.desktop || "")) + '</td>' +
+        '  <td>' + escapeHtml(String(item.streaming || "")) + '</td>' +
+        '  <td>' + escapeHtml(Array.isArray(item.features) ? item.features.join(", ") : "") + '</td>' +
+        '</tr>';
+    }).join("");
 
     overlay.id = OVERLAY_ID;
     overlay.innerHTML = '' +
       '<div class="beagle-modal" role="dialog" aria-modal="true" aria-label="Beagle Fleet">' +
       '  <div class="beagle-header">' +
-      '    <div><h2 class="beagle-title">Beagle Fleet</h2><p class="beagle-subtitle">Zentrale Endpunkt-, Policy- und Diagnose-Sicht fuer Proxmox.</p></div>' +
+      '    <div><h2 class="beagle-title">Beagle Fleet</h2><p class="beagle-subtitle">Zentrale Provisioning-, Runtime- und Diagnose-Sicht fuer Proxmox.</p></div>' +
       '    <button type="button" class="beagle-close" aria-label="Schliessen">×</button>' +
       '  </div>' +
       '  <div class="beagle-body">' +
       '    <div class="beagle-actions">' +
+      '      <button type="button" class="beagle-btn primary" data-beagle-fleet-action="create-vm">Neue Beagle VM</button>' +
       '      <button type="button" class="beagle-btn primary" data-beagle-fleet-action="refresh">Aktualisieren</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-fleet-action="bulk-healthcheck">Bulk Check</button>' +
       '      <button type="button" class="beagle-btn secondary" data-beagle-fleet-action="bulk-support-bundle">Bulk Bundle</button>' +
@@ -1028,8 +1666,24 @@
                 kvRow('Unmanaged', escapeHtml(String(endpointCounts.unmanaged || 0))) +
                 kvRow('Generated', escapeHtml(health.generated_at || '')) +
       '      </div></section>' +
+      '      <section class="beagle-card"><h3>Provisioning</h3><div class="beagle-kv">' +
+                kvRow('Next VMID', escapeHtml(String(defaults.next_vmid || ''))) +
+                kvRow('Default Node', escapeHtml(String(defaults.node || ''))) +
+                kvRow('Bridge', escapeHtml(String(defaults.bridge || ''))) +
+                kvRow('Disk Storage', escapeHtml(String(defaults.disk_storage || ''))) +
+                kvRow('ISO Storage', escapeHtml(String(defaults.iso_storage || ''))) +
+      '      </div></section>' +
+      '      <section class="beagle-card"><h3>Katalog</h3><div class="beagle-kv">' +
+                kvRow('OS Profile', escapeHtml(String(osProfiles.length || 0))) +
+                kvRow('Nodes', escapeHtml(String(nodes.length || 0))) +
+                kvRow('Image Storages', escapeHtml(String(imageStorages.length || 0))) +
+                kvRow('ISO Storages', escapeHtml(String(isoStorages.length || 0))) +
+                kvRow('Requests', escapeHtml(String(requests.length || 0))) +
+      '      </div></section>' +
       '    </div>' +
-      '    <section class="beagle-card"><h3>Endpoints</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th class="beagle-select-cell"><input class="beagle-row-select" type="checkbox" data-beagle-fleet-action="toggle-all"></th><th>VM</th><th>Status</th><th>Ziel</th><th>Policy</th><th>Letzter Kontakt</th><th>Aktionen</th></tr></thead><tbody>' + vmRows + '</tbody></table></div></section>' +
+      '    <section class="beagle-card"><h3>Provisioning Requests</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>VM</th><th>Status</th><th>Phase</th><th>Zeit</th><th>Aktionen</th></tr></thead><tbody>' + (requestRows || '<tr><td colspan="5" class="beagle-muted">Noch keine Provisioning-Anfragen vorhanden.</td></tr>') + '</tbody></table></div></section>' +
+      '    <section class="beagle-card"><h3>OS Katalog</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>Profil</th><th>Release</th><th>Desktop</th><th>Streaming</th><th>Features</th></tr></thead><tbody>' + (osProfileRows || '<tr><td colspan="5" class="beagle-muted">Kein Katalog verfuegbar.</td></tr>') + '</tbody></table></div></section>' +
+      '    <section class="beagle-card"><h3>Endpoints</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th class="beagle-select-cell"><input class="beagle-row-select" type="checkbox" data-beagle-fleet-action="toggle-all"></th><th>VM</th><th>Status</th><th>Provisioning</th><th>Ziel</th><th>Policy</th><th>Letzter Kontakt</th><th>Aktionen</th></tr></thead><tbody>' + vmRows + '</tbody></table></div></section>' +
       '    <section class="beagle-card"><h3>Policies</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>Name</th><th>Prioritaet</th><th>Selektor</th><th>Profil</th><th>Aktion</th></tr></thead><tbody>' + policyRows + '</tbody></table></div></section>' +
       '  </div>' +
       '</div>';
@@ -1046,6 +1700,10 @@
         return;
       }
       switch (target.getAttribute('data-beagle-fleet-action')) {
+        case 'create-vm':
+          removeOverlay();
+          showUbuntuBeagleCreateModal({ node: String(defaults.node || selectedNodeName() || "") });
+          break;
         case 'refresh':
           showFleetModal();
           break;
@@ -1081,6 +1739,18 @@
           break;
         case 'profile':
           showProfileModal({ vmid: Number(target.getAttribute('data-vmid')), node: target.getAttribute('data-node') });
+          break;
+        case 'request-profile':
+          showProfileModal({ vmid: Number(target.getAttribute('data-vmid')), node: target.getAttribute('data-node') });
+          break;
+        case 'copy-credentials':
+          item = vms.find(function(candidate) { return Number(candidate.vmid) === Number(target.getAttribute('data-vmid')); }) ||
+            requests.find(function(candidate) { return Number(candidate.vmid) === Number(target.getAttribute('data-vmid')); });
+          apiGetProvisioningState(target.getAttribute('data-vmid')).then(function(state) {
+            copyText(buildProvisioningCredentialText(item || {}, state || {}), 'Provisioning-Credentials kopiert.');
+          }).catch(function(error) {
+            showError(error.message);
+          });
           break;
         case 'healthcheck':
         case 'support-bundle':
@@ -1126,8 +1796,7 @@
   function showFleetModal() {
     ensureStyles();
     removeOverlay();
-    if (!getApiToken()) {
-      showError('Beagle API Token fehlt in der Proxmox-UI-Konfiguration.');
+    if (!ensureApiToken()) {
       return;
     }
     var overlay = document.createElement('div');
@@ -1142,13 +1811,15 @@
     Promise.all([
       apiGetBeagleJson('/api/v1/health'),
       apiGetBeagleJson('/api/v1/vms'),
-      apiGetBeagleJson('/api/v1/policies')
+      apiGetBeagleJson('/api/v1/policies'),
+      apiGetProvisioningCatalog()
     ]).then(function(results) {
       removeOverlay();
       renderFleetModal({
         health: results[0] || {},
         vms: results[1] && results[1].vms || [],
-        policies: results[2] && results[2].policies || []
+        policies: results[2] && results[2].policies || [],
+        catalog: results[3] || {}
       });
     }).catch(function(error) {
       removeOverlay();
@@ -1455,7 +2126,7 @@
           openUrl(withNoCache(profile.installerIsoUrl));
           break;
         case 'open-web-ui':
-          openUrl(webUiUrlWithToken());
+          openUrl(webUiUrlWithToken(true));
           break;
         case 'copy-json':
           copyText(profileJson, 'Beagle Profil als JSON kopiert.');
@@ -1598,7 +2269,7 @@
         text: "Beagle Web UI",
         iconCls: "fa fa-globe",
         handler: function() {
-          openUrl(webUiUrlWithToken());
+          openUrl(webUiUrlWithToken(true));
         },
         tooltip: "Oeffnet die zentrale Beagle Web UI auf diesem Host."
       });
@@ -1608,6 +2279,7 @@
   }
 
   function ensureFleetLauncher() {
+    ensureStyles();
     if (document.getElementById(FLEET_LAUNCHER_ID)) {
       return;
     }
@@ -1621,20 +2293,95 @@
     document.body.appendChild(button);
   }
 
+  function findCreateVmToolbarAnchor() {
+    var labels = createVmLabels();
+    var textNodes = Array.prototype.slice.call(document.querySelectorAll(".x-toolbar .x-btn-inner"));
+    for (var index = 0; index < textNodes.length; index += 1) {
+      var textNode = textNodes[index];
+      var normalized = normalizeUiText(textNode.textContent || textNode.innerText || "");
+      if (labels.indexOf(normalized) === -1) {
+        continue;
+      }
+      var button = textNode.closest(".x-btn");
+      if (button && button.id !== CREATE_VM_DOM_BUTTON_ID) {
+        return button;
+      }
+    }
+    return null;
+  }
+
+  function toolbarHasBeagleCreateVmButton(toolbar) {
+    if (!toolbar) {
+      return false;
+    }
+    var textNodes = Array.prototype.slice.call(toolbar.querySelectorAll(".x-btn-inner"));
+    return textNodes.some(function(node) {
+      return normalizeUiText(node.textContent || node.innerText || "") === normalizeUiText("Erstelle Beagle OS VM");
+    });
+  }
+
+  function ensureCreateVmDomFallback() {
+    var anchor = findCreateVmToolbarAnchor();
+    var existing = document.getElementById(CREATE_VM_DOM_BUTTON_ID);
+    if (!anchor) {
+      if (existing) {
+        existing.remove();
+      }
+      return;
+    }
+
+    var toolbar = anchor.parentElement;
+    if (!toolbar) {
+      return;
+    }
+
+    if (toolbarHasBeagleCreateVmButton(toolbar) && (!existing || existing.parentElement === toolbar)) {
+      if (existing && existing.parentElement !== toolbar) {
+        existing.remove();
+      }
+      return;
+    }
+
+    if (!existing) {
+      existing = anchor.cloneNode(true);
+      existing.id = CREATE_VM_DOM_BUTTON_ID;
+      existing.setAttribute("data-beagle-create-vm-dom", "1");
+      existing.removeAttribute("aria-describedby");
+      existing.removeAttribute("data-componentid");
+      existing.style.width = "auto";
+      var inner = existing.querySelector(".x-btn-inner");
+      if (inner) {
+        inner.textContent = "Erstelle Beagle OS VM";
+      } else {
+        existing.textContent = "Erstelle Beagle OS VM";
+      }
+      existing.title = "Erstellt eine vorbereitete Ubuntu-Desktop-VM mit Beagle OS und Sunshine.";
+      existing.addEventListener("click", function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        showUbuntuBeagleCreateModal({ node: selectedNodeName() || "" });
+      });
+    }
+
+    if (existing.parentElement !== toolbar || existing.nextSibling !== anchor) {
+      toolbar.insertBefore(existing, anchor);
+    }
+  }
+
   function ensureCreateVmIntegration(component) {
     if (!component || component.__beagleUbuntuCreateIntegrated) {
       return;
     }
 
-    if (component.itemId === "createvm" && component.up && component.up("menu")) {
+    if (looksLikeCreateVmTrigger(component) && component.up && component.up("menu")) {
       var menu = component.up("menu");
       if (!menu.down("#beagleUbuntuCreateVmMenuItem")) {
         menu.insert(menu.items.indexOf(component), {
           itemId: "beagleUbuntuCreateVmMenuItem",
-          text: "Erstelle Beagle VM",
+          text: "Erstelle Beagle OS VM",
           iconCls: "fa fa-television",
           handler: function() {
-            showUbuntuBeagleCreateModal({ node: menu.nodename || "" });
+            showUbuntuBeagleCreateModal({ node: menu.nodename || selectedNodeName() || "" });
           }
         });
       }
@@ -1642,17 +2389,18 @@
       return;
     }
 
-    if (component.itemId === "createvm" && component.xtype === "button") {
+    if (looksLikeCreateVmTrigger(component) && component.up && component.up("toolbar")) {
       var toolbar = component.up && component.up("toolbar");
       if (toolbar && !toolbar.down("#beagleUbuntuCreateVmButton")) {
         toolbar.insert(toolbar.items.indexOf(component), {
           xtype: "button",
           itemId: "beagleUbuntuCreateVmButton",
-          text: "Erstelle Beagle VM",
+          text: "Erstelle Beagle OS VM",
           iconCls: "fa fa-television",
           handler: function() {
-            showUbuntuBeagleCreateModal({});
-          }
+            showUbuntuBeagleCreateModal({ node: selectedNodeName() || "" });
+          },
+          tooltip: "Erstellt eine vorbereitete Ubuntu-Desktop-VM mit Beagle OS und Sunshine."
         });
       }
       component.__beagleUbuntuCreateIntegrated = true;
@@ -1666,10 +2414,14 @@
 
     Ext.ComponentQuery.query("pveConsoleButton").forEach(ensureConsoleButtonIntegration);
     Ext.ComponentQuery.query("#createvm").forEach(ensureCreateVmIntegration);
+    Ext.ComponentQuery.query("button").forEach(ensureCreateVmIntegration);
+    Ext.ComponentQuery.query("menuitem").forEach(ensureCreateVmIntegration);
     ensureFleetLauncher();
+    ensureCreateVmDomFallback();
   }
 
   function boot() {
+    ensureStyles();
     integrate();
     window.setInterval(integrate, 1000);
   }

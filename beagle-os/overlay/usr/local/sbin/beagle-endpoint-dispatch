@@ -32,20 +32,12 @@ upload_support_bundle() {
   local local_artifact_path="$2"
   local response_file upload_status
   local filename bundle_id stored_path stored_download_path stored_size
-  local -a curl_args
+  local -a curl_args tls_args
   filename="$(basename "$local_artifact_path")"
   response_file="$(mktemp)"
   curl_args=(curl -fsS --connect-timeout 8 --max-time 300 --output "$response_file" --write-out '%{http_code}' -H "Authorization: Bearer $manager_token" -H 'Content-Type: application/gzip')
-  if [[ "$manager_url" == https://* ]]; then
-    if [[ -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}" ]]; then
-      curl_args+=(--pinnedpubkey "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY}")
-    elif [[ "${PVE_THIN_CLIENT_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
-      curl_args+=(-k)
-    else
-      rm -f "$response_file"
-      return 1
-    fi
-  fi
+  mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/support-bundles/upload" "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}")
+  curl_args+=("${tls_args[@]}")
   upload_status="$(
     "${curl_args[@]}" \
       --data-binary @"$local_artifact_path" \
@@ -96,16 +88,8 @@ cat >"$pull_payload" <<EOF
 EOF
 
 curl_args=(curl -fsS --connect-timeout 4 --max-time 10 --output "$response_file" --write-out '%{http_code}' -H "Authorization: Bearer $manager_token" -H 'Content-Type: application/json')
-if [[ "$manager_url" == https://* ]]; then
-  if [[ -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}" ]]; then
-    curl_args+=(--pinnedpubkey "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY}")
-  elif [[ "${PVE_THIN_CLIENT_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
-    curl_args+=(-k)
-  else
-    write_status_file "" "pull-error" "$(date -Iseconds)" "missing manager tls pin" "" ""
-    exit 0
-  fi
-fi
+mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/actions/pull" "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}")
+curl_args+=("${tls_args[@]}")
 http_status="$(
   "${curl_args[@]}" \
     --data @"$pull_payload" \
@@ -137,6 +121,8 @@ while IFS= read -r action_json; do
   action_id="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("action_id",""))' "$action_json")"
   requested_at="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("requested_at",""))' "$action_json")"
   action_busid="$(python3 -c 'import json,sys; print((json.loads(sys.argv[1]).get("params", {}) or {}).get("busid",""))' "$action_json")"
+  action_reboot="$(python3 -c 'import json,sys; print("1" if bool((json.loads(sys.argv[1]).get("params", {}) or {}).get("reboot", False)) else "0")' "$action_json")"
+  action_force="$(python3 -c 'import json,sys; print("1" if bool((json.loads(sys.argv[1]).get("params", {}) or {}).get("force", False)) else "0")' "$action_json")"
   ok="1"
   message="completed"
   artifact_path=""
@@ -144,6 +130,7 @@ while IFS= read -r action_json; do
   stored_artifact_bundle_id=""
   stored_artifact_download_path=""
   stored_artifact_size="0"
+  post_action_reboot="0"
   case "$action_name" in
     healthcheck)
       /usr/local/sbin/beagle-healthcheck >/dev/null 2>&1 || ok="0"
@@ -198,6 +185,28 @@ while IFS= read -r action_json; do
         message="usb device unexported"
       fi
       ;;
+    os-update-scan)
+      if [[ "$action_force" == "1" ]]; then
+        /usr/local/sbin/beagle-update-client scan --force >/dev/null 2>&1 || ok="0"
+      else
+        /usr/local/sbin/beagle-update-client scan >/dev/null 2>&1 || ok="0"
+      fi
+      message="os update scan completed"
+      ;;
+    os-update-download)
+      /usr/local/sbin/beagle-update-client scan --force >/dev/null 2>&1 || ok="0"
+      message="os update payload downloaded and staged"
+      ;;
+    os-update-apply)
+      /usr/local/sbin/beagle-update-client apply >/dev/null 2>&1 || ok="0"
+      message="os update prepared for reboot"
+      [[ "$action_reboot" == "1" && "$ok" == "1" ]] && post_action_reboot="1"
+      ;;
+    os-update-rollback)
+      /usr/local/sbin/beagle-update-client rollback >/dev/null 2>&1 || ok="0"
+      message="os update rollback prepared for reboot"
+      [[ "$action_reboot" == "1" && "$ok" == "1" ]] && post_action_reboot="1"
+      ;;
     *)
       ok="0"
       message="unsupported action"
@@ -231,21 +240,16 @@ while IFS= read -r action_json; do
 }
 EOF
   curl_args=(curl -fsS --connect-timeout 4 --max-time 10 --output /dev/null -H "Authorization: Bearer $manager_token" -H 'Content-Type: application/json')
-  if [[ "$manager_url" == https://* ]]; then
-    if [[ -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}" ]]; then
-      curl_args+=(--pinnedpubkey "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY}")
-    elif [[ "${PVE_THIN_CLIENT_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
-      curl_args+=(-k)
-    else
-      curl_args=()
-    fi
-  fi
-  if [[ "${#curl_args[@]}" -gt 0 ]]; then
-    "${curl_args[@]}" \
-      --data @"$result_payload" \
-      "${manager_url%/}/api/v1/endpoints/actions/result" >/dev/null 2>&1 || true
-  fi
+  mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/actions/result" "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}")
+  curl_args+=("${tls_args[@]}")
+  "${curl_args[@]}" \
+    --data @"$result_payload" \
+    "${manager_url%/}/api/v1/endpoints/actions/result" >/dev/null 2>&1 || true
   rm -f "$result_payload"
+  if [[ "$post_action_reboot" == "1" ]]; then
+    systemctl reboot >/dev/null 2>&1 || true
+    break
+  fi
 done <"$STATE_DIR/.beagle-endpoint-actions.list"
 
 rm -f "$STATE_DIR/.beagle-endpoint-actions.list"

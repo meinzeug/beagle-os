@@ -8,6 +8,7 @@ HEALTH_FILE="$STATE_DIR/health.status"
 EGRESS_FILE="$STATE_DIR/egress.status"
 IDENTITY_FILE="$STATE_DIR/identity.status"
 ENDPOINT_FILE="/etc/beagle-os/endpoint.env"
+BUILD_INFO_FILE="/etc/beagle-os/build-info"
 COMMON_SH="/usr/local/lib/pve-thin-client/runtime/common.sh"
 RUNTIME_STATUS_FILE="/var/lib/pve-thin-client/runtime.status"
 LAST_RESPONSE_FILE="$STATE_DIR/endpoint-report.response.json"
@@ -59,6 +60,14 @@ if [[ -r "$COMMON_SH" ]]; then
   load_runtime_config >/dev/null 2>&1 || true
 fi
 
+install_manifest_file=""
+if [[ -n "${CONFIG_DIR:-}" && -f "$CONFIG_DIR/install-manifest.json" ]]; then
+  install_manifest_file="$CONFIG_DIR/install-manifest.json"
+elif [[ -f /run/live/medium/pve-thin-client/state/install-manifest.json ]]; then
+  install_manifest_file="/run/live/medium/pve-thin-client/state/install-manifest.json"
+fi
+update_status_file="/var/lib/beagle-os/update/status.json"
+
 manager_url="${BEAGLE_ENDPOINT_MANAGER_URL:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}}"
 manager_token="${BEAGLE_ENDPOINT_MANAGER_TOKEN:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}}"
 vmid="${BEAGLE_ENDPOINT_PROXMOX_VMID:-${PVE_THIN_CLIENT_PROXMOX_VMID:-}}"
@@ -107,7 +116,7 @@ export BEAGLE_REPORT_USB_JSON="$(
   /usr/local/lib/pve-thin-client/runtime/beagle-usbctl.sh list-json 2>/dev/null || printf '{}'
 )"
 
-python3 - "$payload_file" "$HEALTH_FILE" "$RUNTIME_STATUS_FILE" "$EGRESS_FILE" "$IDENTITY_FILE" "$launch_status_file" <<'PY'
+python3 - "$payload_file" "$HEALTH_FILE" "$RUNTIME_STATUS_FILE" "$EGRESS_FILE" "$IDENTITY_FILE" "$launch_status_file" "$BUILD_INFO_FILE" "$install_manifest_file" "$update_status_file" <<'PY'
 import json
 import os
 import sys
@@ -119,6 +128,9 @@ runtime_path = Path(sys.argv[3])
 egress_path = Path(sys.argv[4])
 identity_path = Path(sys.argv[5])
 launch_path = Path(sys.argv[6]) if sys.argv[6] else None
+build_info_path = Path(sys.argv[7]) if sys.argv[7] else None
+install_manifest_path = Path(sys.argv[8]) if sys.argv[8] else None
+update_status_path = Path(sys.argv[9]) if sys.argv[9] else None
 
 def read_kv(path: Path) -> dict[str, str]:
     data: dict[str, str] = {}
@@ -145,6 +157,9 @@ runtime = read_kv(runtime_path)
 egress = read_kv(egress_path)
 identity = read_kv(identity_path)
 session = read_json(launch_path)
+build_info = read_kv(build_info_path) if build_info_path is not None else {}
+install_manifest = read_json(install_manifest_path)
+update_status = read_json(update_status_path)
 
 payload = {
     "endpoint_id": os.environ.get("BEAGLE_ENDPOINT_ID")
@@ -170,6 +185,24 @@ payload = {
         "chrome_profile": os.environ.get("BEAGLE_REPORT_IDENTITY_CHROME_PROFILE") or identity.get("chrome_profile", "default"),
         "machine_id": identity.get("machine_id", ""),
     },
+    "software": {
+        "project": build_info.get("PROJECT", "beagle-os"),
+        "version": build_info.get("PROJECT_VERSION", "") or install_manifest.get("project_version", ""),
+        "build_flavor": build_info.get("BUILD_FLAVOR", ""),
+        "build_arch": build_info.get("BUILD_ARCH", ""),
+        "build_created_at": build_info.get("BUILD_CREATED_AT", ""),
+    },
+    "install": {
+        "project_version": install_manifest.get("project_version", ""),
+        "installed_at": install_manifest.get("installed_at", ""),
+        "source_kind": install_manifest.get("source_kind", ""),
+        "payload_source_url": install_manifest.get("payload_source_url", ""),
+        "filesystem_squashfs_sha256": install_manifest.get("filesystem_squashfs_sha256", ""),
+        "vmlinuz_sha256": install_manifest.get("vmlinuz_sha256", ""),
+        "initrd_sha256": install_manifest.get("initrd_sha256", ""),
+        "bootstrap_manifest_version": install_manifest.get("bootstrap_manifest_version", ""),
+    },
+    "update": update_status if isinstance(update_status, dict) else {},
     "session": session,
     "usb": {},
 }
@@ -185,23 +218,13 @@ payload_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 PY
 
 curl_args=(curl -fsS --connect-timeout 4 --max-time 12 --output "$response_file" --write-out '%{http_code}' -H "Authorization: Bearer $manager_token" -H 'Content-Type: application/json')
-if [[ "$manager_url" == https://* ]]; then
-  if [[ -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}" ]]; then
-    curl_args+=(--pinnedpubkey "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY}")
-  elif [[ "${PVE_THIN_CLIENT_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
-    curl_args+=(-k)
-  else
-    http_status="495"
-    curl_args=()
-  fi
-fi
-if [[ "${#curl_args[@]}" -gt 0 ]]; then
-  http_status="$(
-    "${curl_args[@]}" \
-      --data @"$payload_file" \
-      "${manager_url%/}/api/v1/endpoints/check-in" || true
-  )"
-fi
+mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/check-in" "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}")
+curl_args+=("${tls_args[@]}")
+http_status="$(
+  "${curl_args[@]}" \
+    --data @"$payload_file" \
+    "${manager_url%/}/api/v1/endpoints/check-in" || true
+)"
 
 if [[ "$http_status" != "200" ]]; then
   error_message="check-in failed"
