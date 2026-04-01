@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="${DIST_DIR:-$ROOT_DIR/dist}"
-REMOTE_TARGET="${BEAGLE_PUBLIC_UPDATE_TARGET:-meinzeug:/var/www/vhosts/beagle-os.com/httpdocs/beagle-updates/}"
+REMOTE_TARGET="${BEAGLE_PUBLIC_UPDATE_TARGET:-meinzeug:/opt/beagle-os-saas/src/public/beagle-updates/}"
 PUBLIC_BASE_URL="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/beagle-updates}"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 STATUS_JSON="$DIST_DIR/beagle-downloads-status.json"
