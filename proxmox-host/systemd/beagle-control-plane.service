@@ -26,6 +26,8 @@ ProtectSystem=strict
 RestrictNamespaces=yes
 RestrictRealtime=yes
 RestrictSUIDSGID=yes
+RuntimeDirectory=beagle-control-plane
+RuntimeDirectoryMode=0755
 ReadWritePaths=/var/lib/beagle /run/beagle-control-plane
 SystemCallArchitectures=native
 
