@@ -15,6 +15,7 @@ BEAGLE_PUBLIC_STREAM_TIMER="beagle-public-streams.timer"
 BEAGLE_CONTROL_ENV_FILE="$CONFIG_DIR/beagle-manager.env"
 USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-thinovernet}"
 USB_TUNNEL_HOME="${BEAGLE_USB_TUNNEL_HOME:-}"
+USB_TUNNEL_AUTH_ROOT="${BEAGLE_USB_TUNNEL_AUTH_ROOT:-/var/lib/beagle/usb-tunnel/$USB_TUNNEL_USER}"
 USB_TUNNEL_ATTACH_HOST="${BEAGLE_USB_TUNNEL_ATTACH_HOST:-10.10.10.1}"
 USB_TUNNEL_SSHD_DROPIN="/etc/ssh/sshd_config.d/90-beagle-usb-tunnel.conf"
 USB_TUNNEL_TEST_DROPIN="/etc/ssh/sshd_config.d/91-beagle-tunnel-test.conf"
@@ -73,6 +74,18 @@ print(crypt.crypt(password, f"$6${salt}$"))
 PY
 }
 
+set_env_value() {
+  local env_file="$1"
+  local key="$2"
+  local value="$3"
+
+  if grep -q "^${key}=" "$env_file"; then
+    sed -i "s|^${key}=.*|${key}=${value}|" "$env_file"
+    return 0
+  fi
+  printf '%s=%s\n' "$key" "$value" >>"$env_file"
+}
+
 ensure_root "$@"
 
 if ! id "$USB_TUNNEL_USER" >/dev/null 2>&1; then
@@ -86,10 +99,11 @@ if [[ -z "$USB_TUNNEL_HOME" ]]; then
   USB_TUNNEL_HOME="$(getent passwd "$USB_TUNNEL_USER" | cut -d: -f6)"
 fi
 install -d -m 0755 "$USB_TUNNEL_HOME"
-install -d -m 0700 "$USB_TUNNEL_HOME/.ssh" "$USB_TUNNEL_HOME/.ssh/authorized_keys.d"
-touch "$USB_TUNNEL_HOME/.ssh/authorized_keys"
-chmod 0600 "$USB_TUNNEL_HOME/.ssh/authorized_keys"
-chown "$USB_TUNNEL_USER:$USB_TUNNEL_USER" "$USB_TUNNEL_HOME/.ssh" "$USB_TUNNEL_HOME/.ssh/authorized_keys.d" "$USB_TUNNEL_HOME/.ssh/authorized_keys"
+install -d -m 0755 "$(dirname "$USB_TUNNEL_AUTH_ROOT")"
+install -d -m 0700 "$USB_TUNNEL_AUTH_ROOT" "$USB_TUNNEL_AUTH_ROOT/authorized_keys.d"
+touch "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
+chmod 0600 "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
+chown "$USB_TUNNEL_USER:$USB_TUNNEL_USER" "$USB_TUNNEL_AUTH_ROOT" "$USB_TUNNEL_AUTH_ROOT/authorized_keys.d" "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
 
 cat >"$USB_TUNNEL_SSHD_DROPIN" <<EOF
 Match User $USB_TUNNEL_USER
@@ -97,6 +111,7 @@ Match User $USB_TUNNEL_USER
     PasswordAuthentication no
     KbdInteractiveAuthentication no
     PubkeyAuthentication yes
+    AuthorizedKeysFile $USB_TUNNEL_AUTH_ROOT/authorized_keys .ssh/authorized_keys
     AllowTcpForwarding remote
     AllowAgentForwarding no
     PermitTTY no
@@ -133,6 +148,8 @@ BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH="0"
 EOF
   chmod 0600 "$BEAGLE_CONTROL_ENV_FILE"
 fi
+set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_USB_TUNNEL_SSH_USER" "\"$USB_TUNNEL_USER\""
+set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_USB_TUNNEL_AUTH_ROOT" "\"$USB_TUNNEL_AUTH_ROOT\""
 
 if grep -q '^BEAGLE_ENDPOINT_SHARED_TOKEN=' "$BEAGLE_CONTROL_ENV_FILE"; then
   sed -i '/^BEAGLE_ENDPOINT_SHARED_TOKEN=/d' "$BEAGLE_CONTROL_ENV_FILE"

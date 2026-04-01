@@ -290,6 +290,14 @@ verify_public_api() {
   "${curl_args[@]}" "${api_url%/}/api/apps" >/dev/null
 }
 
+run_public_stream_reconcile() {
+  if command -v systemctl >/dev/null 2>&1 && systemctl cat beagle-public-streams.service >/dev/null 2>&1; then
+    systemctl start beagle-public-streams.service
+    return 0
+  fi
+  /opt/beagle/scripts/reconcile-public-streams.sh
+}
+
 main() {
   local stream_port sunshine_user sunshine_password sunshine_pin sunshine_pinned_pubkey guest_user sunshine_status_raw sunshine_status_json public_api_url direct_api_url guest_ip extra_json verify_extra_json
 
@@ -427,7 +435,7 @@ PY
   fi
 
   write_state running expose 75 "Aktiviere oeffentliche Stream-Ports auf dem Proxmox-Host." "$verify_extra_json"
-  /opt/beagle/scripts/reconcile-public-streams.sh >/dev/null
+  run_public_stream_reconcile >/dev/null
 
   guest_ip="$(meta_get sunshine-ip)"
   if [[ -z "$guest_ip" ]]; then

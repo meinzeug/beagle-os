@@ -16,6 +16,7 @@ BEAGLE_MANAGER_ENV_FILE="${PVE_DCV_BEAGLE_MANAGER_ENV_FILE:-$CONFIG_DIR/beagle-m
 BEAGLE_API_TOKEN=""
 USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-thinovernet}"
 USB_TUNNEL_HOME="${BEAGLE_USB_TUNNEL_HOME:-}"
+USB_TUNNEL_AUTH_ROOT="${BEAGLE_USB_TUNNEL_AUTH_ROOT:-/var/lib/beagle/usb-tunnel/$USB_TUNNEL_USER}"
 
 load_host_env() {
   if [[ -f "$HOST_ENV_FILE" ]]; then
@@ -33,6 +34,9 @@ load_host_env() {
     source "$BEAGLE_MANAGER_ENV_FILE"
     BEAGLE_API_TOKEN="${BEAGLE_MANAGER_API_TOKEN:-}"
   fi
+  USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-$USB_TUNNEL_USER}"
+  USB_TUNNEL_HOME="${BEAGLE_USB_TUNNEL_HOME:-$USB_TUNNEL_HOME}"
+  USB_TUNNEL_AUTH_ROOT="${BEAGLE_USB_TUNNEL_AUTH_ROOT:-/var/lib/beagle/usb-tunnel/$USB_TUNNEL_USER}"
 }
 
 record_failure() {
@@ -181,7 +185,7 @@ check_file "/etc/systemd/system/beagle-ui-reapply.service"
 check_file "/etc/systemd/system/beagle-ui-reapply.path"
 check_file "/etc/systemd/system/beagle-control-plane.service"
 check_file "$INSTALL_DIR/proxmox-host/bin/beagle-usb-tunnel-session"
-check_file "$USB_TUNNEL_HOME/.ssh/authorized_keys"
+check_file "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
 check_file "/etc/ssh/sshd_config.d/90-beagle-usb-tunnel.conf"
 
 if id "$USB_TUNNEL_USER" >/dev/null 2>&1; then
