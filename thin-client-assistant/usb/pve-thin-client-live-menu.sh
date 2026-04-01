@@ -19,6 +19,7 @@ RUNTIME_NETWORK_FILE="$RUNTIME_NETWORK_DIR/10-pve-thin-client-installer.network"
 WPA_RUNTIME_DIR="/run/pve-thin-client"
 WPA_CONFIG_FILE="$WPA_RUNTIME_DIR/wpa_supplicant-installer.conf"
 WPA_PID_FILE="$WPA_RUNTIME_DIR/wpa_supplicant-installer.pid"
+AUTO_INSTALL_LOCK_FILE="$WPA_RUNTIME_DIR/installer-auto.lock"
 DEFAULT_DNS_SERVERS=("1.1.1.1" "9.9.9.9" "8.8.8.8")
 DEFAULT_API_SCHEME="https"
 DEFAULT_API_PORT="8006"
@@ -26,12 +27,17 @@ DEFAULT_API_VERIFY_TLS="1"
 NETWORK_SETUP_COMPLETE=0
 BUNDLED_PRESET_MODE=0
 AUTO_INSTALL_ACTIVE=0
+AUTO_INSTALL_LOCK_HELD=0
+AUTO_INSTALL_LOCK_FD=""
 
 have_passwordless_sudo() {
   [[ "${EUID}" -eq 0 ]] || (command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1)
 }
 
 cleanup() {
+  if [[ "$AUTO_INSTALL_LOCK_HELD" == "1" && -n "$AUTO_INSTALL_LOCK_FD" ]]; then
+    eval "exec ${AUTO_INSTALL_LOCK_FD}>&-"
+  fi
   if [[ -n "$TEMP_LIVE_MEDIUM_MOUNT" ]]; then
     if [[ "${EUID}" -eq 0 ]]; then
       umount "$TEMP_LIVE_MEDIUM_MOUNT" >/dev/null 2>&1 || true
@@ -58,6 +64,17 @@ setup_logging() {
 log_msg() {
   setup_logging
   printf '[%s] %s\n' "$(date -Is 2>/dev/null || date)" "$*" >>"$LOG_FILE"
+}
+
+acquire_auto_install_lock() {
+  mkdir -p "$WPA_RUNTIME_DIR"
+  exec {AUTO_INSTALL_LOCK_FD}>"$AUTO_INSTALL_LOCK_FILE"
+  if flock -n "$AUTO_INSTALL_LOCK_FD"; then
+    AUTO_INSTALL_LOCK_HELD=1
+    return 0
+  fi
+  AUTO_INSTALL_LOCK_HELD=0
+  return 1
 }
 
 log_network_snapshot() {
@@ -885,6 +902,12 @@ install_from_bundled_preset_auto() {
   if ! have_passwordless_sudo; then
     dialog_msgbox "Missing Privileges" "Passwordless sudo is required for automatic disk installation."
     return 1
+  fi
+
+  if ! acquire_auto_install_lock; then
+    log_msg "bundled preset detected, but another auto install instance already holds the lock"
+    dialog_msgbox "Auto Install Running" "Another installer session is already running the automatic installation."
+    return 0
   fi
 
   log_msg "bundled preset detected, starting auto install"
