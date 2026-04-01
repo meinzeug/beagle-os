@@ -61,6 +61,43 @@ sync_runtime_config_to_system() {
   chmod 0644 "$target_dir/thinclient.conf" "$target_dir/network.env" "$target_dir/install-manifest.json" >/dev/null 2>&1 || true
 }
 
+remount_live_state_writable() {
+  local state_dir="${1:-}"
+  local mount_target mount_opts
+
+  [[ -n "$state_dir" ]] || return 1
+  mount_target="$(findmnt -nro TARGET --target "$state_dir" 2>/dev/null | head -n1)"
+  [[ -n "$mount_target" ]] || return 1
+  mount_opts="$(findmnt -nro OPTIONS --target "$state_dir" 2>/dev/null || true)"
+  if grep -qw rw <<<"$mount_opts" && ! grep -qw ro <<<"$mount_opts"; then
+    return 0
+  fi
+  mount -o remount,rw "$mount_target" >/dev/null 2>&1
+}
+
+persist_runtime_config_to_live_state() {
+  local source_dir="${CONFIG_DIR:-/etc/pve-thin-client}"
+  local live_state_dir="" file="" copied=0
+
+  [[ -d "$source_dir" ]] || return 0
+  live_state_dir="$(find_live_state_dir || true)"
+  [[ -n "$live_state_dir" ]] || return 0
+  [[ "$live_state_dir" != "$source_dir" ]] || return 0
+  remount_live_state_writable "$live_state_dir" || return 0
+
+  install -d -m 0755 "$live_state_dir"
+  for file in thinclient.conf network.env credentials.env local-auth.env install-manifest.json; do
+    if [[ -f "$source_dir/$file" ]]; then
+      install -m 0600 "$source_dir/$file" "$live_state_dir/$file"
+      copied=1
+    fi
+  done
+
+  if [[ "$copied" == "1" ]]; then
+    chmod 0644 "$live_state_dir/thinclient.conf" "$live_state_dir/network.env" "$live_state_dir/install-manifest.json" >/dev/null 2>&1 || true
+  fi
+}
+
 ensure_runtime_user() {
   local runtime_user shell_path runtime_password
 
@@ -388,6 +425,7 @@ plymouth_status "Loading Beagle OS profile..."
 sync_runtime_config_to_system
 ensure_runtime_user
 adjust_secret_permissions
+persist_runtime_config_to_live_state
 sync_local_hostname
 apply_runtime_ssh_config
 ensure_getty_overrides
@@ -402,6 +440,7 @@ fi
 plymouth_status "Connecting device to Beagle Manager..."
 enroll_endpoint_if_needed || beagle_log_event "prepare-runtime.enroll-error" "endpoint enrollment failed"
 adjust_secret_permissions
+persist_runtime_config_to_live_state
 ensure_beagle_management_units
 ensure_usb_tunnel_service
 if [[ -x /usr/local/sbin/beagle-identity-apply ]]; then
