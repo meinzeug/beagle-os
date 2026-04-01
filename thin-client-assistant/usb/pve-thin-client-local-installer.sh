@@ -1264,7 +1264,7 @@ PY
     label="${model:-disk} ${size:-unknown} rm=${rm:-0} ${transport:-}"
     menu_items+=("$device" "$label")
   done < <(
-    lsblk -J -d -o NAME,SIZE,MODEL,TYPE,RM,TRAN | python3 - <<'PY'
+    lsblk -J -d -o NAME,SIZE,MODEL,TYPE,RM,TRAN | python3 -c '
 import json
 import sys
 
@@ -1283,7 +1283,7 @@ for item in payload.get("blockdevices", []):
         str(item.get("tran", "") or ""),
     ]
     print("\t".join(values))
-PY
+'
   )
 
   if (( ${#menu_items[@]} == 0 )); then

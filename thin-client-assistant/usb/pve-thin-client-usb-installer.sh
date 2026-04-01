@@ -327,7 +327,7 @@ list_candidate_devices() {
 }
 
 list_candidate_devices_tsv() {
-  lsblk -J -d -o NAME,SIZE,MODEL,TYPE,RM,TRAN | python3 - <<'PY'
+  lsblk -J -d -o NAME,SIZE,MODEL,TYPE,RM,TRAN | python3 -c '
 import json
 import sys
 
@@ -346,7 +346,7 @@ for item in payload.get("blockdevices", []):
         str(item.get("tran", "") or ""),
     ]
     print("\t".join(values))
-PY
+'
 }
 
 print_devices_json() {
