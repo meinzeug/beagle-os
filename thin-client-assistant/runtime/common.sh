@@ -67,6 +67,26 @@ beagle_log_event() {
   fi
 }
 
+beagle_curl_tls_args() {
+  local url="${1:-}"
+  local pinned_pubkey="${2:-}"
+  local ca_cert="${3:-}"
+  local -a args=()
+
+  if [[ "$url" == https://* ]]; then
+    if [[ -n "$ca_cert" && -r "$ca_cert" ]]; then
+      args+=(--cacert "$ca_cert")
+      if [[ -n "$pinned_pubkey" ]]; then
+        args+=(--pinnedpubkey "$pinned_pubkey")
+      fi
+    elif [[ -n "$pinned_pubkey" ]]; then
+      args+=(-k --pinnedpubkey "$pinned_pubkey")
+    fi
+  fi
+
+  printf '%s\n' "${args[@]}"
+}
+
 find_live_state_dir() {
   local dir
   local -a candidates=(
@@ -189,6 +209,7 @@ generate_config_dir_from_preset() {
   HOSTNAME_VALUE="${PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE:-beagle-os}" \
   CONNECTION_METHOD="direct" \
   MOONLIGHT_HOST="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" \
+  MOONLIGHT_LOCAL_HOST="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_LOCAL_HOST:-}" \
   MOONLIGHT_PORT="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_PORT:-}" \
   MOONLIGHT_APP="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP:-Desktop}" \
   MOONLIGHT_BIN="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN:-moonlight}" \
@@ -211,6 +232,11 @@ generate_config_dir_from_preset() {
   BEAGLE_MANAGER_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL:-}" \
   BEAGLE_MANAGER_PINNED_PUBKEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_PINNED_PUBKEY:-}" \
   BEAGLE_ENROLLMENT_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_URL:-}" \
+  BEAGLE_UPDATE_ENABLED="${PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_ENABLED:-1}" \
+  BEAGLE_UPDATE_CHANNEL="${PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_CHANNEL:-stable}" \
+  BEAGLE_UPDATE_BEHAVIOR="${PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_BEHAVIOR:-prompt}" \
+  BEAGLE_UPDATE_FEED_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_FEED_URL:-}" \
+  BEAGLE_UPDATE_VERSION_PIN="${PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_VERSION_PIN:-}" \
   BEAGLE_EGRESS_MODE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_MODE:-direct}" \
   BEAGLE_EGRESS_TYPE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_TYPE:-}" \
   BEAGLE_EGRESS_INTERFACE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_INTERFACE:-beagle-egress}" \
@@ -336,6 +362,7 @@ render_template() {
   output="${output//\{node\}/${PVE_THIN_CLIENT_PROXMOX_NODE:-}}"
   output="${output//\{vmid\}/${PVE_THIN_CLIENT_PROXMOX_VMID:-}}"
   output="${output//\{moonlight_host\}/${PVE_THIN_CLIENT_MOONLIGHT_HOST:-}}"
+  output="${output//\{moonlight_local_host\}/${PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST:-}}"
   output="${output//\{moonlight_port\}/${PVE_THIN_CLIENT_MOONLIGHT_PORT:-}}"
   output="${output//\{sunshine_api_url\}/${PVE_THIN_CLIENT_SUNSHINE_API_URL:-}}"
 

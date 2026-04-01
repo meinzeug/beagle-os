@@ -62,8 +62,6 @@ check_http() {
   if [[ "$url" == https://* ]]; then
     if [[ -f "$tls_cert_file" ]]; then
       curl_args+=(--cacert "$tls_cert_file")
-    elif [[ "${BEAGLE_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
-      curl_args+=(-k)
     fi
   fi
   if "${curl_args[@]}" "$url" >/dev/null 2>&1; then

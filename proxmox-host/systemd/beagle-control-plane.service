@@ -11,6 +11,23 @@ Restart=always
 RestartSec=3
 User=root
 Group=root
+UMask=0077
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+ProtectSystem=strict
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+ReadWritePaths=/var/lib/beagle /run/beagle-control-plane
+SystemCallArchitectures=native
 
 [Install]
 WantedBy=multi-user.target

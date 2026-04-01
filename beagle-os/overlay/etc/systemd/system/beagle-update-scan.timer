@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Beagle OS update scans periodically
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=6h
+AccuracySec=2min
+Unit=beagle-update-scan.service
+
+[Install]
+WantedBy=timers.target

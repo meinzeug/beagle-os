@@ -23,6 +23,7 @@ dbus
 sudo
 dbus-x11
 xterm
+zenity
 chromium
 chromium-sandbox
 feh

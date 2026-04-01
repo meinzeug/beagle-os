@@ -93,7 +93,14 @@ chown "$USB_TUNNEL_USER:$USB_TUNNEL_USER" "$USB_TUNNEL_HOME/.ssh" "$USB_TUNNEL_H
 
 cat >"$USB_TUNNEL_SSHD_DROPIN" <<EOF
 Match User $USB_TUNNEL_USER
+    AuthenticationMethods publickey
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no
+    PubkeyAuthentication yes
     AllowTcpForwarding remote
+    AllowAgentForwarding no
+    PermitTTY no
+    X11Forwarding no
     GatewayPorts clientspecified
 EOF
 chmod 0644 "$USB_TUNNEL_SSHD_DROPIN"

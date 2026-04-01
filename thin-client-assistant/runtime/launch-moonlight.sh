@@ -146,6 +146,10 @@ moonlight_host() {
   render_template "${PVE_THIN_CLIENT_MOONLIGHT_HOST:-}"
 }
 
+moonlight_local_host() {
+  render_template "${PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST:-}"
+}
+
 moonlight_gateway_fallback_host() {
   local gateway host
   gateway="${PVE_THIN_CLIENT_NETWORK_GATEWAY:-}"
@@ -201,9 +205,9 @@ raise SystemExit(1)
 PY
 }
 
-moonlight_primary_connect_host() {
+resolve_preferred_moonlight_host() {
   local host resolved
-  host="$(moonlight_host)"
+  host="$1"
   [[ -n "$host" ]] || return 0
   if prefer_ipv4 && ! is_ip_literal "$host"; then
     resolved="$(resolve_ipv4_host "$host" 2>/dev/null || true)"
@@ -213,6 +217,17 @@ moonlight_primary_connect_host() {
     fi
   fi
   printf '%s\n' "$host"
+}
+
+moonlight_primary_connect_host() {
+  local host local_host
+  local_host="$(moonlight_local_host)"
+  if [[ -n "$local_host" ]]; then
+    resolve_preferred_moonlight_host "$local_host"
+    return 0
+  fi
+  host="$(moonlight_host)"
+  resolve_preferred_moonlight_host "$host"
 }
 
 rewrite_url_host() {
@@ -358,7 +373,7 @@ sunshine_api_url() {
 
 probe_stream_target() {
   local api_url host port connect_host effective_api_url
-  local -a curl_opts
+  local -a curl_opts tls_args
   local username password
 
   api_url="$1"
@@ -379,20 +394,8 @@ probe_stream_target() {
     curl_opts+=(--user "${username}:${password}")
   fi
   if [[ -n "$effective_api_url" ]]; then
-    if [[ "$effective_api_url" == https://* ]]; then
-      if [[ -n "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT:-}" && -r "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT}" ]]; then
-        curl_opts+=(--cacert "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT}")
-        if [[ -n "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" ]]; then
-          curl_opts+=(--pinnedpubkey "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY}")
-        fi
-      elif [[ -n "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" ]]; then
-        curl_opts+=(-k --pinnedpubkey "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY}")
-      elif [[ "${PVE_THIN_CLIENT_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
-        curl_opts+=(-k)
-      else
-        effective_api_url=""
-      fi
-    fi
+    mapfile -t tls_args < <(beagle_curl_tls_args "$effective_api_url" "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT:-}")
+    curl_opts+=("${tls_args[@]}")
     if [[ -n "$effective_api_url" ]]; then
       curl "${curl_opts[@]}" "${effective_api_url%/}/api/apps" && return 0
     fi
@@ -743,12 +746,13 @@ PY
 }
 
 register_moonlight_client_via_manager() {
-  local manager_url manager_token manager_pin device_name client_cert response_file payload_file http_status
-  local -a curl_args
+  local manager_url manager_token manager_pin manager_ca_cert device_name client_cert response_file payload_file http_status
+  local -a curl_args tls_args
 
   manager_url="${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}"
   manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
   manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
+  manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"
   device_name="${PVE_THIN_CLIENT_MOONLIGHT_CLIENT_NAME:-${PVE_THIN_CLIENT_HOSTNAME:-$(hostname)}}"
 
   [[ -n "$manager_url" && -n "$manager_token" ]] || return 1
@@ -760,17 +764,8 @@ register_moonlight_client_via_manager() {
   curl_args=(curl -fsS --connect-timeout 6 --max-time 30 --output "$response_file" --write-out '%{http_code}' \
     -H "Authorization: Bearer ${manager_token}" \
     -H 'Content-Type: application/json')
-  if [[ "$manager_url" == https://* ]]; then
-    if [[ -n "$manager_pin" ]]; then
-      curl_args+=(--pinnedpubkey "$manager_pin")
-    elif [[ "${PVE_THIN_CLIENT_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
-      curl_args+=(-k)
-    else
-      rm -f "$payload_file"
-      rm -f "$response_file"
-      return 1
-    fi
-  fi
+  mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/moonlight/register" "$manager_pin" "$manager_ca_cert")
+  curl_args+=("${tls_args[@]}")
 
   python3 - "$client_cert" "$device_name" >"$payload_file" <<'PY'
 import json
@@ -905,7 +900,7 @@ bootstrap_moonlight_client() {
 
 submit_sunshine_pin() {
   local api_url username password pin name response
-  local -a curl_args
+  local -a curl_args tls_args
 
   api_url="$(selected_sunshine_api_url)"
   username="${PVE_THIN_CLIENT_SUNSHINE_USERNAME:-}"
@@ -916,20 +911,8 @@ submit_sunshine_pin() {
   [[ -n "$api_url" && -n "$username" && -n "$password" && -n "$pin" ]] || return 1
 
   curl_args=(curl -fsS --connect-timeout 2 --max-time 4 --user "${username}:${password}" -H 'Content-Type: application/json')
-  if [[ "$api_url" == https://* ]]; then
-    if [[ -n "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT:-}" && -r "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT}" ]]; then
-      curl_args+=(--cacert "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT}")
-      if [[ -n "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" ]]; then
-        curl_args+=(--pinnedpubkey "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY}")
-      fi
-    elif [[ -n "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" ]]; then
-      curl_args+=(-k --pinnedpubkey "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY}")
-    elif [[ "${PVE_THIN_CLIENT_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
-      curl_args+=(-k)
-    else
-      return 1
-    fi
-  fi
+  mapfile -t tls_args < <(beagle_curl_tls_args "$api_url" "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT:-}")
+  curl_args+=("${tls_args[@]}")
 
   response="$(
     "${curl_args[@]}" \

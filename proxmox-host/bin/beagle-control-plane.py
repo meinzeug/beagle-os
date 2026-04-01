@@ -57,6 +57,7 @@ API_TOKEN = os.environ.get("BEAGLE_MANAGER_API_TOKEN", "").strip()
 ALLOW_LOCALHOST_NOAUTH = os.environ.get("BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH", "0").strip().lower() in {"1", "true", "yes", "on"}
 STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECONDS", "600"))
 DOWNLOADS_STATUS_FILE = ROOT_DIR / "dist" / "beagle-downloads-status.json"
+DIST_SHA256SUMS_FILE = ROOT_DIR / "dist" / "SHA256SUMS"
 VM_INSTALLERS_FILE = ROOT_DIR / "dist" / "beagle-vm-installers.json"
 HOSTED_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-usb-installer-host-latest.sh"
 HOSTED_LIVE_USB_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-live-usb-host-latest.sh"
@@ -70,11 +71,15 @@ UBUNTU_BEAGLE_TEMPLATE_DIR = ROOT_DIR / "proxmox-host" / "templates" / "ubuntu-b
 PUBLIC_SERVER_NAME = os.environ.get("PVE_DCV_PROXY_SERVER_NAME", "").strip() or os.uname().nodename
 PUBLIC_DOWNLOADS_PORT = int(os.environ.get("PVE_DCV_PROXY_LISTEN_PORT", "8443"))
 PUBLIC_DOWNLOADS_PATH = os.environ.get("PVE_DCV_DOWNLOADS_PATH", "/beagle-downloads").strip() or "/beagle-downloads"
+PUBLIC_UPDATE_BASE_URL = os.environ.get("BEAGLE_PUBLIC_UPDATE_BASE_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}{PUBLIC_DOWNLOADS_PATH}"
 PUBLIC_STREAM_HOST_RAW = os.environ.get("BEAGLE_PUBLIC_STREAM_HOST", "").strip() or PUBLIC_SERVER_NAME
 PUBLIC_STREAM_BASE_PORT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_BASE_PORT", "50000"))
 PUBLIC_STREAM_PORT_STEP = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_STEP", "32"))
 PUBLIC_STREAM_PORT_COUNT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_COUNT", "256"))
 PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
+WEB_UI_URL = os.environ.get("BEAGLE_WEB_UI_URL", "").strip()
+CORS_ALLOWED_ORIGINS_RAW = os.environ.get("BEAGLE_CORS_ALLOWED_ORIGINS", "").strip()
+PROXMOX_UI_PORTS_RAW = os.environ.get("BEAGLE_PROXMOX_UI_PORTS", "8006").strip()
 ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_SECONDS", "86400"))
 SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_TOKEN_TTL_SECONDS", "600"))
 USB_TUNNEL_SSH_USER = os.environ.get("BEAGLE_USB_TUNNEL_SSH_USER", "thinovernet").strip() or "thinovernet"
@@ -92,7 +97,7 @@ GUEST_AGENT_TIMEOUT_SECONDS = float(os.environ.get("BEAGLE_MANAGER_GUEST_AGENT_T
 LIST_VMS_CACHE_SECONDS = float(os.environ.get("BEAGLE_MANAGER_LIST_VMS_CACHE_SECONDS", "3"))
 VM_CONFIG_CACHE_SECONDS = float(os.environ.get("BEAGLE_MANAGER_VM_CONFIG_CACHE_SECONDS", "5"))
 GUEST_IPV4_CACHE_SECONDS = float(os.environ.get("BEAGLE_MANAGER_GUEST_IPV4_CACHE_SECONDS", "10"))
-ENABLE_GUEST_IP_LOOKUP = os.environ.get("BEAGLE_MANAGER_ENABLE_GUEST_IP_LOOKUP", "0").strip().lower() in {"1", "true", "yes", "on"}
+ENABLE_GUEST_IP_LOOKUP = os.environ.get("BEAGLE_MANAGER_ENABLE_GUEST_IP_LOOKUP", "1").strip().lower() in {"1", "true", "yes", "on"}
 UBUNTU_BEAGLE_ISO_URL = os.environ.get(
     "BEAGLE_UBUNTU_ISO_URL",
     "https://releases.ubuntu.com/24.04/ubuntu-24.04.4-live-server-amd64.iso",
@@ -104,6 +109,12 @@ UBUNTU_BEAGLE_DEFAULT_MEMORY_MIB = int(os.environ.get("BEAGLE_UBUNTU_DEFAULT_MEM
 UBUNTU_BEAGLE_DEFAULT_CORES = int(os.environ.get("BEAGLE_UBUNTU_DEFAULT_CORES", "4"))
 UBUNTU_BEAGLE_DEFAULT_DISK_GB = int(os.environ.get("BEAGLE_UBUNTU_DEFAULT_DISK_GB", "64"))
 UBUNTU_BEAGLE_DEFAULT_GUEST_USER = os.environ.get("BEAGLE_UBUNTU_DEFAULT_GUEST_USER", "beagle").strip() or "beagle"
+UBUNTU_BEAGLE_PROFILE_ID = "ubuntu-24.04-xfce-sunshine"
+UBUNTU_BEAGLE_PROFILE_LABEL = "Ubuntu 24.04 LTS mit XFCE und Sunshine"
+UBUNTU_BEAGLE_PROFILE_RELEASE = "24.04 LTS"
+UBUNTU_BEAGLE_PROFILE_DESKTOP = "XFCE"
+UBUNTU_BEAGLE_PROFILE_STREAMING = "Sunshine"
+UBUNTU_BEAGLE_MIN_PASSWORD_LENGTH = int(os.environ.get("BEAGLE_UBUNTU_MIN_PASSWORD_LENGTH", "8"))
 UBUNTU_BEAGLE_SUNSHINE_URL = os.environ.get(
     "BEAGLE_UBUNTU_SUNSHINE_URL",
     "https://github.com/LizardByte/Sunshine/releases/download/v2025.924.154138/sunshine-ubuntu-24.04-amd64.deb",
@@ -146,6 +157,30 @@ def public_installer_iso_url() -> str:
 
 def public_windows_installer_url() -> str:
     return f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}{PUBLIC_DOWNLOADS_PATH}/pve-thin-client-usb-installer-host-latest.ps1"
+
+
+def public_update_sha256sums_url() -> str:
+    return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/SHA256SUMS"
+
+
+def public_versioned_payload_url(version: str) -> str:
+    return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/pve-thin-client-usb-payload-v{version}.tar.gz"
+
+
+def public_latest_payload_url() -> str:
+    downloads_status = load_json_file(DOWNLOADS_STATUS_FILE, {})
+    published_version = str(downloads_status.get("version", "")).strip() or VERSION
+    payload = update_payload_metadata(published_version)
+    payload_url = str(payload.get("payload_url", "") or "").strip()
+    if payload_url:
+        return payload_url
+    return public_versioned_payload_url(published_version)
+
+
+def url_host_matches(left: str, right: str) -> bool:
+    left_host = str(urlparse(str(left or "")).hostname or "").strip().lower()
+    right_host = str(urlparse(str(right or "")).hostname or "").strip().lower()
+    return bool(left_host and right_host and left_host == right_host)
 
 
 @dataclass
@@ -213,14 +248,116 @@ def listify(value: Any) -> list[str]:
     return [str(item).strip() for item in items if str(item).strip()]
 
 
-def ensure_data_dir() -> Path:
+def truthy(value: Any, *, default: bool = False) -> bool:
+    text = str(value if value is not None else "").strip().lower()
+    if not text:
+        return default
+    return text in {"1", "true", "yes", "on"}
+
+
+def normalized_origin(value: str) -> str:
+    parsed = urlparse(str(value or "").strip())
+    if not parsed.scheme or not parsed.hostname:
+        return ""
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"}:
+        return ""
+    host = str(parsed.hostname or "").strip().lower()
+    if not host:
+        return ""
+    default_port = 443 if scheme == "https" else 80
+    port = parsed.port
+    origin = f"{scheme}://{host}"
+    if port and port != default_port:
+        origin += f":{port}"
+    return origin
+
+
+def cors_allowed_origins() -> set[str]:
+    cache_key = "cors-allowed-origins"
+    cached = cache_get(cache_key, 60)
+    if cached is not None:
+        return set(cached)
+
+    candidates: set[str] = {
+        WEB_UI_URL,
+        PUBLIC_MANAGER_URL,
+        f"https://{PUBLIC_SERVER_NAME}",
+        f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}",
+    }
+    hostnames = {
+        str(PUBLIC_SERVER_NAME or "").strip(),
+        str(PUBLIC_STREAM_HOST_RAW or "").strip(),
+        str(current_public_stream_host() or "").strip(),
+        str(urlparse(WEB_UI_URL).hostname or "").strip(),
+        str(urlparse(PUBLIC_MANAGER_URL).hostname or "").strip(),
+    }
+    for port in listify(PROXMOX_UI_PORTS_RAW):
+        if not str(port).isdigit():
+            continue
+        for hostname in hostnames:
+            if hostname:
+                candidates.add(f"https://{hostname}:{int(port)}")
+    for origin in listify(CORS_ALLOWED_ORIGINS_RAW):
+        candidates.add(origin)
+
+    normalized = tuple(sorted(origin for origin in (normalized_origin(item) for item in candidates) if origin))
+    cache_put(cache_key, normalized)
+    return set(normalized)
+
+
+def checksum_for_dist_filename(filename: str) -> str:
+    cache_key = f"dist-checksum::{filename}"
+    cached = cache_get(cache_key, 30)
+    if cached is not None:
+        return str(cached)
+    checksum = ""
     try:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        return DATA_DIR
+        for raw_line in DIST_SHA256SUMS_FILE.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = raw_line.strip()
+            if not line or "  " not in line:
+                continue
+            digest, name = line.split("  ", 1)
+            if name.strip() == filename:
+                checksum = digest.strip()
+                break
+    except FileNotFoundError:
+        checksum = ""
+    return str(cache_put(cache_key, checksum))
+
+
+def update_payload_metadata(version: str) -> dict[str, str]:
+    downloads_status = load_json_file(DOWNLOADS_STATUS_FILE, {})
+    latest_version = str(downloads_status.get("version", "")).strip()
+    filename = f"pve-thin-client-usb-payload-v{version}.tar.gz"
+    payload_url = public_versioned_payload_url(version)
+    payload_sha256 = checksum_for_dist_filename(filename)
+    if not payload_sha256 and version == latest_version:
+        payload_sha256 = str(downloads_status.get("payload_sha256", "")).strip()
+    payload_pin = MANAGER_PINNED_PUBKEY if url_host_matches(payload_url, PUBLIC_MANAGER_URL) else ""
+    return {
+        "version": version,
+        "filename": filename,
+        "payload_url": payload_url,
+        "payload_sha256": payload_sha256,
+        "sha256sums_url": public_update_sha256sums_url(),
+        "payload_pinned_pubkey": payload_pin,
+    }
+
+
+def ensure_data_dir() -> Path:
+    def ensure_directory(path: Path, *, mode: int = 0o700) -> Path:
+        path.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(path, mode)
+        except OSError:
+            pass
+        return path
+
+    try:
+        return ensure_directory(DATA_DIR)
     except PermissionError:
-        fallback = Path("/tmp/beagle-control-plane")
-        fallback.mkdir(parents=True, exist_ok=True)
-        return fallback
+        return ensure_directory(Path("/run/beagle-control-plane"))
 
 
 def run_json(command: list[str], *, timeout: float | None | object = DEFAULT_COMMAND_TIMEOUT) -> Any:
@@ -268,54 +405,63 @@ def run_checked(command: list[str], *, timeout: float | None | object = DEFAULT_
 def endpoints_dir() -> Path:
     path = EFFECTIVE_DATA_DIR / "endpoints"
     path.mkdir(parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
     return path
 
 
 def actions_dir() -> Path:
     path = EFFECTIVE_DATA_DIR / "actions"
     path.mkdir(parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
     return path
 
 
 def support_bundles_dir() -> Path:
     path = EFFECTIVE_DATA_DIR / "support-bundles"
     path.mkdir(parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
     return path
 
 
 def policies_dir() -> Path:
     path = EFFECTIVE_DATA_DIR / "policies"
     path.mkdir(parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
     return path
 
 
 def vm_secrets_dir() -> Path:
     path = EFFECTIVE_DATA_DIR / "vm-secrets"
     path.mkdir(parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
     return path
 
 
 def enrollment_tokens_dir() -> Path:
     path = EFFECTIVE_DATA_DIR / "enrollment-tokens"
     path.mkdir(parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
     return path
 
 
 def endpoint_tokens_dir() -> Path:
     path = EFFECTIVE_DATA_DIR / "endpoint-tokens"
     path.mkdir(parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
     return path
 
 
 def sunshine_access_tokens_dir() -> Path:
     path = EFFECTIVE_DATA_DIR / "sunshine-access-tokens"
     path.mkdir(parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
     return path
 
 
 def ubuntu_beagle_tokens_dir() -> Path:
     path = EFFECTIVE_DATA_DIR / "ubuntu-beagle-install"
     path.mkdir(parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
     return path
 
 
@@ -329,12 +475,86 @@ def load_ubuntu_beagle_state(token: str) -> dict[str, Any] | None:
 
 
 def save_ubuntu_beagle_state(token: str, payload: dict[str, Any]) -> dict[str, Any]:
-    ubuntu_beagle_token_path(token).write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    write_json_file(ubuntu_beagle_token_path(token), dict(payload), mode=0o600)
     return payload
 
 
 def public_ubuntu_beagle_complete_url(token: str) -> str:
     return f"{PUBLIC_MANAGER_URL}/api/v1/public/ubuntu-install/{token}/complete"
+
+
+def summarize_ubuntu_beagle_state(payload: dict[str, Any], *, include_credentials: bool = False) -> dict[str, Any]:
+    state = dict(payload) if isinstance(payload, dict) else {}
+    status = str(state.get("status", "")).strip().lower()
+    phase = str(state.get("phase", "")).strip()
+    message = str(state.get("message", "")).strip()
+    if not status:
+        if state.get("failed_at") or state.get("error"):
+            status = "failed"
+            phase = phase or "proxmox-create"
+            message = message or "Historischer Provisioning-Lauf ist fehlgeschlagen."
+        elif state.get("completed_at"):
+            status = "completed"
+            phase = phase or "complete"
+            message = message or "Historischer Provisioning-Lauf wurde abgeschlossen."
+        elif state.get("started"):
+            status = "installing"
+            phase = phase or "autoinstall"
+            message = message or "Ubuntu wird installiert."
+        else:
+            status = "created"
+            phase = phase or "awaiting-start"
+            message = message or "VM ist angelegt und wartet auf den Start."
+    summary = {
+        "token": str(state.get("token", "")).strip(),
+        "vmid": int(state.get("vmid", 0) or 0),
+        "node": str(state.get("node", "")).strip(),
+        "name": str(state.get("name", "")).strip(),
+        "hostname": str(state.get("hostname", "")).strip(),
+        "os_profile": str(state.get("os_profile", UBUNTU_BEAGLE_PROFILE_ID)).strip() or UBUNTU_BEAGLE_PROFILE_ID,
+        "guest_user": str(state.get("guest_user", "")).strip(),
+        "status": status,
+        "phase": phase,
+        "message": message,
+        "started": bool(state.get("started", False)),
+        "created_at": str(state.get("created_at", "")).strip(),
+        "updated_at": str(state.get("updated_at", "")).strip(),
+        "completed_at": str(state.get("completed_at", "")).strip(),
+        "failed_at": str(state.get("failed_at", "")).strip(),
+        "error": str(state.get("error", "")).strip(),
+        "disk_storage": str(state.get("disk_storage", "")).strip(),
+        "iso_storage": str(state.get("iso_storage", "")).strip(),
+        "bridge": str(state.get("bridge", "")).strip(),
+        "public_stream": state.get("public_stream") if isinstance(state.get("public_stream"), dict) else None,
+        "cleanup": state.get("cleanup") if isinstance(state.get("cleanup"), dict) else None,
+    }
+    if include_credentials:
+        summary["credentials"] = {
+            "guest_user": str(state.get("guest_user", "")).strip(),
+            "guest_password": str(state.get("guest_password", "")).strip(),
+            "sunshine_user": str(state.get("sunshine_user", "")).strip(),
+            "sunshine_password": str(state.get("sunshine_password", "")).strip(),
+        }
+    return summary
+
+
+def list_ubuntu_beagle_states(*, include_credentials: bool = False) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for path in sorted(ubuntu_beagle_tokens_dir().glob("*.json")):
+        payload = load_json_file(path, None)
+        if not isinstance(payload, dict):
+            continue
+        items.append(summarize_ubuntu_beagle_state(payload, include_credentials=include_credentials))
+    items.sort(key=lambda item: (str(item.get("created_at", "")), int(item.get("vmid", 0))), reverse=True)
+    return items
+
+
+def latest_ubuntu_beagle_state_for_vmid(vmid: int, *, include_credentials: bool = False) -> dict[str, Any] | None:
+    target = int(vmid)
+    for item in list_ubuntu_beagle_states(include_credentials=include_credentials):
+        if int(item.get("vmid", 0) or 0) == target:
+            return item
+    return None
 
 
 def safe_slug(value: str, default: str = "item") -> str:
@@ -622,18 +842,40 @@ def fetch_https_pinned_pubkey(url: str) -> str:
     if not host:
         return ""
     port = parsed.port or 443
-    script = (
-        "set -euo pipefail; "
-        f"openssl s_client -connect {shlex.quote(host)}:{int(port)} -servername {shlex.quote(host)} </dev/null 2>/dev/null "
-        "| openssl x509 -pubkey -noout "
-        "| openssl pkey -pubin -outform der 2>/dev/null "
-        "| openssl dgst -sha256 -binary | base64"
-    )
     try:
-        output = subprocess.run(["bash", "-lc", script], check=True, capture_output=True, text=True).stdout.strip()
-    except (FileNotFoundError, subprocess.CalledProcessError):
+        cert_chain = subprocess.run(
+            ["openssl", "s_client", "-connect", f"{host}:{int(port)}", "-servername", host],
+            input="",
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=15,
+        ).stdout
+        cert_match = re.search(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", cert_chain, re.S)
+        if not cert_match:
+            return ""
+        pubkey = subprocess.run(
+            ["openssl", "x509", "-pubkey", "-noout"],
+            input=cert_match.group(0),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=15,
+        ).stdout
+        der = subprocess.run(
+            ["openssl", "pkey", "-pubin", "-outform", "der"],
+            input=pubkey.encode("utf-8"),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+        ).stdout
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return ""
-    return f"sha256//{output}" if output else ""
+    digest = hashlib.sha256(der).digest()
+    return "sha256//" + base64.b64encode(digest).decode("ascii")
 
 
 def guest_exec_text(vmid: int, script: str) -> tuple[int, str, str]:
@@ -771,7 +1013,9 @@ set -euo pipefail
 
 python3 - {shlex.quote(state_file)} {shlex.quote(cert_file)} {shlex.quote(conf_file)} <<'PY'
 import json
+import urllib.request
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 state_path = Path(sys.argv[1])
@@ -811,6 +1055,21 @@ if conf_path.exists():
                 payload["sunshine_name"] = value
             elif key == "port":
                 payload["stream_port"] = value
+    except Exception:
+        pass
+
+stream_port = str(payload.get("stream_port", "") or "").strip()
+if not payload["uniqueid"] and stream_port:
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{{stream_port}}/serverinfo?uniqueid=0123456789ABCDEF",
+            timeout=3,
+        ) as response:
+            xml_payload = response.read()
+        root = ET.fromstring(xml_payload.decode("utf-8", errors="replace"))
+        payload["uniqueid"] = str(root.findtext(".//uniqueid", default="") or "").strip()
+        if not payload["sunshine_name"]:
+            payload["sunshine_name"] = str(root.findtext(".//hostname", default="") or "").strip()
     except Exception:
         pass
 
@@ -994,14 +1253,13 @@ def proxy_sunshine_request(vm: VmSummary, *, request_path: str, query: str, meth
             method.upper(),
             "-u",
             f"{sunshine_user}:{sunshine_password}",
-            "-k",
             "--connect-timeout",
             "5",
             "--max-time",
             "30",
         ]
         if pinned_pubkey:
-            command.extend(["--pinnedpubkey", pinned_pubkey])
+            command.extend(["-k", "--pinnedpubkey", pinned_pubkey])
         for key in ("Content-Type", "Accept"):
             value = str(request_headers.get(key, "") or "").strip()
             if value:
@@ -1078,11 +1336,51 @@ def load_public_streams() -> dict[str, int]:
 
 
 def save_public_streams(payload: dict[str, int]) -> None:
-    public_streams_file().write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    write_json_file(public_streams_file(), payload, mode=0o600)
 
 
 def public_stream_key(node: str, vmid: int) -> str:
     return f"{safe_slug(node, 'node')}:{int(vmid)}"
+
+
+def explicit_public_stream_base_port(config: dict[str, Any] | None) -> int | None:
+    vm_config = config if isinstance(config, dict) else {}
+    meta = parse_description_meta(vm_config.get("description", ""))
+    explicit_port = str(meta.get("beagle-public-moonlight-port", "")).strip()
+    if explicit_port.isdigit():
+        return int(explicit_port)
+    return None
+
+
+def used_public_stream_base_ports(
+    mappings: dict[str, int],
+    *,
+    exclude_key: str = "",
+    sync_mappings: bool = False,
+) -> tuple[set[int], bool]:
+    used = {int(value) for key, value in mappings.items() if key != exclude_key}
+    changed = False
+    known_keys: set[str] = set()
+    for vm in list_vms():
+        key = public_stream_key(vm.node, vm.vmid)
+        known_keys.add(key)
+        if key == exclude_key:
+            continue
+        explicit_port = explicit_public_stream_base_port(get_vm_config(vm.node, vm.vmid))
+        if explicit_port is not None:
+            used.add(explicit_port)
+            if sync_mappings and mappings.get(key) != explicit_port:
+                mappings[key] = explicit_port
+                changed = True
+                continue
+        if key in mappings:
+            used.add(int(mappings[key]))
+    if sync_mappings:
+        stale_keys = [key for key in mappings if key != exclude_key and key not in known_keys]
+        for key in stale_keys:
+            mappings.pop(key, None)
+            changed = True
+    return used, changed
 
 
 def allocate_public_stream_base_port(node: str, vmid: int) -> int | None:
@@ -1090,10 +1388,19 @@ def allocate_public_stream_base_port(node: str, vmid: int) -> int | None:
         return None
     mappings = load_public_streams()
     key = public_stream_key(node, vmid)
-    existing = mappings.get(key)
+    explicit_port = explicit_public_stream_base_port(get_vm_config(node, vmid))
+    changed = False
+    if explicit_port is not None and mappings.get(key) != explicit_port:
+        mappings[key] = explicit_port
+        changed = True
+    existing = explicit_port if explicit_port is not None else mappings.get(key)
     if existing is not None:
+        _, sync_changed = used_public_stream_base_ports(mappings, exclude_key=key, sync_mappings=True)
+        if changed or sync_changed:
+            save_public_streams(mappings)
         return int(existing)
-    used = {int(value) for value in mappings.values()}
+    used, sync_changed = used_public_stream_base_ports(mappings, exclude_key=key, sync_mappings=True)
+    changed = changed or sync_changed
     upper_bound = PUBLIC_STREAM_BASE_PORT + (PUBLIC_STREAM_PORT_STEP * PUBLIC_STREAM_PORT_COUNT)
     for candidate in range(PUBLIC_STREAM_BASE_PORT, upper_bound, PUBLIC_STREAM_PORT_STEP):
         if candidate in used:
@@ -1101,6 +1408,8 @@ def allocate_public_stream_base_port(node: str, vmid: int) -> int | None:
         mappings[key] = candidate
         save_public_streams(mappings)
         return candidate
+    if changed:
+        save_public_streams(mappings)
     return None
 
 
@@ -1129,6 +1438,7 @@ def patch_installer_defaults(
     preset_name: str,
     preset_b64: str,
     installer_iso_url: str,
+    installer_payload_url: str,
     writer_variant: str,
 ) -> str:
     replacements = {
@@ -1140,6 +1450,8 @@ def patch_installer_defaults(
             f'PVE_THIN_CLIENT_PRESET_B64="${{PVE_THIN_CLIENT_PRESET_B64:-{shell_double_quoted(preset_b64)}}}"',
         r'^RELEASE_ISO_URL="\$\{RELEASE_ISO_URL:-[^"]*}"$':
             f'RELEASE_ISO_URL="${{RELEASE_ISO_URL:-{shell_double_quoted(installer_iso_url)}}}"',
+        r'^RELEASE_PAYLOAD_URL="\$\{RELEASE_PAYLOAD_URL:-[^"]*}"$':
+            f'RELEASE_PAYLOAD_URL="${{RELEASE_PAYLOAD_URL:-{shell_double_quoted(installer_payload_url)}}}"',
         r'^BOOTSTRAP_DISABLE_CACHE="\$\{PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-[^"]*}"$':
             'BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-1}"',
     }
@@ -1171,6 +1483,7 @@ def encode_installer_preset(preset: dict[str, Any]) -> str:
 def installer_prep_dir() -> Path:
     path = EFFECTIVE_DATA_DIR / "installer-prep"
     path.mkdir(parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
     return path
 
 
@@ -1672,6 +1985,10 @@ def store_support_bundle(node: str, vmid: int, action_id: str, filename: str, co
     bundle_id = f"{safe_node}-{int(vmid)}-{timestamp}-{safe_slug(action_id, 'action')}"
     archive_path = support_bundle_archive_path(bundle_id, safe_name)
     archive_path.write_bytes(content)
+    try:
+        os.chmod(archive_path, 0o600)
+    except OSError:
+        pass
     sha256 = hashlib.sha256(content).hexdigest()
     payload = {
         "bundle_id": bundle_id,
@@ -1686,7 +2003,7 @@ def store_support_bundle(node: str, vmid: int, action_id: str, filename: str, co
         "uploaded_at": utcnow(),
         "download_path": f"/api/v1/support-bundles/{bundle_id}/download",
     }
-    support_bundle_metadata_path(bundle_id).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    write_json_file(support_bundle_metadata_path(bundle_id), payload, mode=0o600)
     return payload
 
 
@@ -1722,8 +2039,14 @@ def normalize_policy_payload(payload: dict[str, Any], *, policy_name: str | None
             "network_mode": str(profile.get("network_mode", "")).strip(),
             "moonlight_app": str(profile.get("moonlight_app", "")).strip(),
             "stream_host": str(profile.get("stream_host", "")).strip(),
+            "moonlight_local_host": str(profile.get("moonlight_local_host", "")).strip(),
             "moonlight_port": str(profile.get("moonlight_port", "")).strip(),
             "sunshine_api_url": str(profile.get("sunshine_api_url", "")).strip(),
+            "update_enabled": truthy(profile.get("update_enabled", True), default=True),
+            "update_channel": str(profile.get("update_channel", "")).strip(),
+            "update_behavior": str(profile.get("update_behavior", "")).strip(),
+            "update_feed_url": str(profile.get("update_feed_url", "")).strip(),
+            "update_version_pin": str(profile.get("update_version_pin", "")).strip(),
             "moonlight_resolution": str(profile.get("moonlight_resolution", "")).strip(),
             "moonlight_fps": str(profile.get("moonlight_fps", "")).strip(),
             "moonlight_bitrate": str(profile.get("moonlight_bitrate", "")).strip(),
@@ -1809,6 +2132,109 @@ def safe_hostname(name: str, vmid: int) -> str:
     if not cleaned:
         cleaned = f"beagle-{vmid}"
     return cleaned[:63].strip("-") or f"beagle-{vmid}"
+
+
+def validate_linux_username(value: str, field_name: str) -> str:
+    candidate = str(value or "").strip().lower()
+    if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", candidate):
+        raise ValueError(f"invalid {field_name}")
+    return candidate
+
+
+def validate_password(value: str, field_name: str, *, allow_empty: bool = False) -> str:
+    candidate = str(value or "")
+    if not candidate and allow_empty:
+        return ""
+    if len(candidate) < UBUNTU_BEAGLE_MIN_PASSWORD_LENGTH:
+        raise ValueError(f"{field_name} must be at least {UBUNTU_BEAGLE_MIN_PASSWORD_LENGTH} characters")
+    return candidate
+
+
+def provisioning_os_profiles() -> list[dict[str, Any]]:
+    return [
+        {
+            "id": UBUNTU_BEAGLE_PROFILE_ID,
+            "label": UBUNTU_BEAGLE_PROFILE_LABEL,
+            "family": "ubuntu",
+            "release": UBUNTU_BEAGLE_PROFILE_RELEASE,
+            "desktop": UBUNTU_BEAGLE_PROFILE_DESKTOP,
+            "streaming": UBUNTU_BEAGLE_PROFILE_STREAMING,
+            "template_set": "ubuntu-beagle",
+            "iso_url": UBUNTU_BEAGLE_ISO_URL,
+            "features": [
+                "Ubuntu Autoinstall",
+                "XFCE Desktop",
+                "LightDM Autologin",
+                "Sunshine Streaming",
+                "QEMU Guest Agent",
+            ],
+        }
+    ]
+
+
+def build_provisioning_catalog() -> dict[str, Any]:
+    nodes = list_nodes_inventory()
+    storages = list_storage_inventory()
+    default_node = next((item["name"] for item in nodes if item.get("status") == "online"), "")
+    if not default_node and nodes:
+        default_node = str(nodes[0].get("name", "")).strip()
+    images_storages = [
+        {
+            "id": str(item.get("storage", "")).strip(),
+            "content": [part.strip() for part in str(item.get("content", "")).split(",") if part.strip()],
+            "path": str(item.get("path", "")).strip(),
+            "type": str(item.get("type", "")).strip(),
+        }
+        for item in storages
+        if storage_supports_content(str(item.get("storage", "")).strip(), "images")
+    ]
+    iso_storages = [
+        {
+            "id": str(item.get("storage", "")).strip(),
+            "content": [part.strip() for part in str(item.get("content", "")).split(",") if part.strip()],
+            "path": str(item.get("path", "")).strip(),
+            "type": str(item.get("type", "")).strip(),
+        }
+        for item in storages
+        if storage_supports_content(str(item.get("storage", "")).strip(), "iso")
+    ]
+    bridges_by_node = {
+        item["name"]: list_bridge_inventory(item["name"]) for item in nodes if str(item.get("name", "")).strip()
+    }
+    bridges = sorted({bridge for values in bridges_by_node.values() for bridge in values if bridge})
+    default_bridge = UBUNTU_BEAGLE_DEFAULT_BRIDGE or (bridges[0] if bridges else "")
+    next_vmid_value = next_vmid()
+    return {
+        "defaults": {
+            "node": default_node,
+            "bridge": default_bridge,
+            "memory": UBUNTU_BEAGLE_DEFAULT_MEMORY_MIB,
+            "cores": UBUNTU_BEAGLE_DEFAULT_CORES,
+            "disk_gb": UBUNTU_BEAGLE_DEFAULT_DISK_GB,
+            "guest_user": UBUNTU_BEAGLE_DEFAULT_GUEST_USER,
+            "disk_storage": resolve_storage(UBUNTU_BEAGLE_DISK_STORAGE, "images", UBUNTU_BEAGLE_ISO_STORAGE),
+            "iso_storage": resolve_storage(UBUNTU_BEAGLE_ISO_STORAGE, "iso", UBUNTU_BEAGLE_DISK_STORAGE),
+            "next_vmid": next_vmid_value,
+        },
+        "nodes": nodes,
+        "bridges": bridges,
+        "bridges_by_node": bridges_by_node,
+        "storages": {
+            "images": images_storages,
+            "iso": iso_storages,
+        },
+        "os_profiles": provisioning_os_profiles(),
+        "recent_requests": list_ubuntu_beagle_states(),
+    }
+
+
+def create_provisioned_vm(payload: dict[str, Any]) -> dict[str, Any]:
+    os_profile = str(payload.get("os_profile", "") or payload.get("os", "") or UBUNTU_BEAGLE_PROFILE_ID).strip()
+    if os_profile != UBUNTU_BEAGLE_PROFILE_ID:
+        raise ValueError(f"unsupported os_profile: {os_profile}")
+    normalized = dict(payload)
+    normalized["os_profile"] = os_profile
+    return create_ubuntu_beagle_vm(normalized)
 
 
 def next_vmid() -> int:
@@ -1964,9 +2390,20 @@ def render_template_file(path: Path, values: dict[str, str]) -> str:
     return content
 
 
-def build_ubuntu_beagle_description(hostname: str, guest_user: str, public_stream: dict[str, Any] | None = None) -> str:
+def build_ubuntu_beagle_description(
+    hostname: str,
+    guest_user: str,
+    public_stream: dict[str, Any] | None = None,
+    *,
+    os_profile: str = UBUNTU_BEAGLE_PROFILE_ID,
+) -> str:
     lines = [
         "beagle-role: desktop",
+        f"beagle-os-profile: {os_profile}",
+        "beagle-os-family: ubuntu",
+        f"beagle-os-release: {UBUNTU_BEAGLE_PROFILE_RELEASE}",
+        f"beagle-desktop: {UBUNTU_BEAGLE_PROFILE_DESKTOP}",
+        f"beagle-streaming: {UBUNTU_BEAGLE_PROFILE_STREAMING}",
         f"sunshine-guest-user: {guest_user}",
         "sunshine-app: Desktop",
         "moonlight-app: Desktop",
@@ -1979,6 +2416,7 @@ def build_ubuntu_beagle_description(hostname: str, guest_user: str, public_strea
         "thinclient-default-mode: MOONLIGHT",
         f"beagle-template-set: ubuntu-beagle",
         f"beagle-template-hostname: {hostname}",
+        f"beagle-identity-hostname: {hostname}",
     ]
     if public_stream:
         public_host = str(public_stream.get("host", "")).strip()
@@ -2017,6 +2455,8 @@ def build_ubuntu_beagle_seed_iso(
             "__SUNSHINE_PORT__": str(int(sunshine_port)) if sunshine_port else "",
             "__SUNSHINE_URL__": UBUNTU_BEAGLE_SUNSHINE_URL,
             "__SUNSHINE_ORIGIN_WEB_UI_ALLOWED__": "wan",
+            "__CALLBACK_URL__": callback_url,
+            "__CALLBACK_PINNED_PUBKEY__": MANAGER_PINNED_PUBKEY,
         },
     ).rstrip()
     user_data = render_template_file(
@@ -2026,6 +2466,8 @@ def build_ubuntu_beagle_seed_iso(
             "__GUEST_USER__": guest_user,
             "__GUEST_PASSWORD_HASH__": guest_password_hash,
             "__CALLBACK_URL__": callback_url,
+            "__PREPARE_FIRSTBOOT_URL__": callback_url.rsplit("/complete", 1)[0] + "/prepare-firstboot",
+            "__PREPARE_FIRSTBOOT_CURL_ARGS__": f'-k --pinnedpubkey "{MANAGER_PINNED_PUBKEY}"' if MANAGER_PINNED_PUBKEY else "",
             "__FIRSTBOOT_SCRIPT__": indent_block(firstboot_script, "          "),
         },
     )
@@ -2062,40 +2504,71 @@ def build_ubuntu_beagle_seed_iso(
     return seed_path
 
 
-def finalize_ubuntu_beagle_install(state: dict[str, Any]) -> dict[str, Any]:
+def finalize_ubuntu_beagle_install(state: dict[str, Any], *, restart: bool = True) -> dict[str, Any]:
     vmid = int(state["vmid"])
-    run_checked(["qm", "set", str(vmid), "--delete", "args"])
-    run_checked(["qm", "set", str(vmid), "--delete", "ide2"])
-    run_checked(["qm", "set", str(vmid), "--delete", "ide3"])
+    for option in ("args", "ide2", "ide3"):
+        try:
+            run_checked(["qm", "set", str(vmid), "--delete", option])
+        except subprocess.CalledProcessError:
+            pass
     run_checked(["qm", "set", str(vmid), "--boot", "order=scsi0"])
-    try:
-        run_checked(["qm", "stop", str(vmid), "--skiplock", "1"], timeout=None)
-    except subprocess.CalledProcessError:
-        pass
-    try:
-        run_checked(["qm", "start", str(vmid)], timeout=None)
-    except subprocess.CalledProcessError:
-        pass
+    if restart:
+        try:
+            run_checked(["qm", "stop", str(vmid), "--skiplock", "1"], timeout=None)
+        except subprocess.CalledProcessError:
+            pass
+        try:
+            run_checked(["qm", "start", str(vmid)], timeout=None)
+        except subprocess.CalledProcessError:
+            pass
     reconcile_script = ROOT_DIR / "scripts" / "reconcile-public-streams.sh"
     if reconcile_script.is_file():
         try:
             run_checked([str(reconcile_script)], timeout=None)
         except subprocess.CalledProcessError:
             pass
-    return {"vmid": vmid, "cleanup": "ok", "restart": "stop-start"}
+    return {"vmid": vmid, "cleanup": "ok", "restart": "stop-start" if restart else "guest-reboot"}
+
+
+def prepare_ubuntu_beagle_firstboot(state: dict[str, Any]) -> dict[str, Any]:
+    cleanup = finalize_ubuntu_beagle_install(state, restart=False)
+    state["updated_at"] = utcnow()
+    state["status"] = "installing"
+    state["phase"] = "firstboot"
+    state["message"] = "Ubuntu-Basisinstallation ist abgeschlossen. Der Gast bootet jetzt vom Systemdatentraeger in das First-Boot-Provisioning."
+    state["cleanup"] = cleanup
+    return cleanup
 
 
 def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
+    os_profile = str(payload.get("os_profile", "") or UBUNTU_BEAGLE_PROFILE_ID).strip() or UBUNTU_BEAGLE_PROFILE_ID
+    if os_profile != UBUNTU_BEAGLE_PROFILE_ID:
+        raise ValueError(f"unsupported os_profile: {os_profile}")
     node = str(payload.get("node", "")).strip()
     if not node:
         raise ValueError("missing node")
+    known_nodes = {str(item.get("name", "")).strip() for item in list_nodes_inventory()}
+    if node not in known_nodes:
+        raise ValueError(f"unknown node: {node}")
     vmid_value = payload.get("vmid")
     vmid = int(vmid_value) if str(vmid_value or "").strip() else next_vmid()
+    if find_vm(vmid) is not None:
+        raise ValueError(f"vmid already exists: {vmid}")
     name = str(payload.get("name", "")).strip() or f"ubuntu-beagle-{vmid}"
+    if not name:
+        raise ValueError("missing name")
     memory = int(payload.get("memory", UBUNTU_BEAGLE_DEFAULT_MEMORY_MIB))
+    if memory < 2048:
+        raise ValueError("memory must be at least 2048 MiB")
     cores = int(payload.get("cores", UBUNTU_BEAGLE_DEFAULT_CORES))
+    if cores < 2:
+        raise ValueError("cores must be at least 2")
     disk_gb = int(payload.get("disk_gb", UBUNTU_BEAGLE_DEFAULT_DISK_GB))
+    if disk_gb < 32:
+        raise ValueError("disk_gb must be at least 32")
     bridge = str(payload.get("bridge", UBUNTU_BEAGLE_DEFAULT_BRIDGE)).strip() or UBUNTU_BEAGLE_DEFAULT_BRIDGE
+    if not bridge:
+        raise ValueError("missing bridge")
     iso_storage = resolve_storage(
         str(payload.get("iso_storage", UBUNTU_BEAGLE_ISO_STORAGE)).strip() or UBUNTU_BEAGLE_ISO_STORAGE,
         "iso",
@@ -2106,13 +2579,19 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
         "images",
         UBUNTU_BEAGLE_DISK_STORAGE,
     )
-    guest_user = str(payload.get("guest_user", UBUNTU_BEAGLE_DEFAULT_GUEST_USER)).strip() or UBUNTU_BEAGLE_DEFAULT_GUEST_USER
+    guest_user = validate_linux_username(
+        str(payload.get("guest_user", UBUNTU_BEAGLE_DEFAULT_GUEST_USER)).strip() or UBUNTU_BEAGLE_DEFAULT_GUEST_USER,
+        "guest_user",
+    )
     start_after_create = str(payload.get("start", "1")).strip().lower() not in {"0", "false", "no", "off"}
-    hostname = safe_hostname(name, vmid)
+    hostname = safe_hostname(str(payload.get("hostname", "")).strip() or name, vmid)
     iso_assets = ensure_ubuntu_beagle_iso_cached(UBUNTU_BEAGLE_ISO_URL)
-    sunshine_user = f"sunshine-vm{vmid}"
-    sunshine_password = random_secret(26)
-    guest_password = random_secret(20)
+    sunshine_user_input = str(payload.get("sunshine_user", "")).strip()
+    sunshine_user = validate_linux_username(sunshine_user_input, "sunshine_user") if sunshine_user_input else f"sunshine-vm{vmid}"
+    sunshine_password_input = str(payload.get("sunshine_password", ""))
+    sunshine_password = validate_password(sunshine_password_input, "sunshine_password", allow_empty=True) or random_secret(26)
+    guest_password_input = str(payload.get("guest_password", ""))
+    guest_password = validate_password(guest_password_input, "guest_password", allow_empty=True) or random_secret(20)
     guest_password_hash = openssl_password_hash(guest_password)
     completion_token = secrets.token_urlsafe(24)
     callback_url = public_ubuntu_beagle_complete_url(completion_token)
@@ -2138,75 +2617,117 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
         sunshine_port=sunshine_port,
         callback_url=callback_url,
     )
-    description = build_ubuntu_beagle_description(hostname, guest_user, public_stream)
+    description = build_ubuntu_beagle_description(hostname, guest_user, public_stream, os_profile=os_profile)
+    # Direct-kernel boots on Proxmox were not reliably discovering the NoCloud
+    # seed via label alone. Point cloud-init at the CIDATA mount explicitly so
+    # identity, hostname and firstboot provisioning are always applied.
     args = " ".join(
         [
             f"-kernel {shlex.quote(iso_assets['kernel_path'])}",
             f"-initrd {shlex.quote(iso_assets['initrd_path'])}",
             "-append",
-            shlex.quote("autoinstall ds=nocloud console=tty0 console=ttyS0,115200n8 ---"),
+            shlex.quote("autoinstall ds=nocloud;s=/cidata/ console=tty0 console=ttyS0,115200n8 ---"),
         ]
     )
     tags = "beagle;desktop;ubuntu"
+    state = save_ubuntu_beagle_state(
+        completion_token,
+        {
+            "token": completion_token,
+            "node": node,
+            "vmid": vmid,
+            "name": name,
+            "hostname": hostname,
+            "os_profile": os_profile,
+            "guest_user": guest_user,
+            "guest_password": guest_password,
+            "sunshine_user": sunshine_user,
+            "sunshine_password": sunshine_password,
+            "bridge": bridge,
+            "disk_storage": disk_storage,
+            "iso_storage": iso_storage,
+            "seed_iso": str(seed_path),
+            "iso_filename": iso_assets["iso_filename"],
+            "callback_url": callback_url,
+            "public_stream": public_stream,
+            "status": "creating",
+            "phase": "proxmox-create",
+            "message": "Proxmox-VM und Autoinstall-Medien werden vorbereitet.",
+            "created_at": utcnow(),
+            "updated_at": utcnow(),
+            "expires_at": (
+                datetime.now(timezone.utc).timestamp() + UBUNTU_BEAGLE_AUTOINSTALL_URL_TTL_SECONDS
+            ),
+        },
+    )
 
-    run_checked(
-        [
-            "qm",
-            "create",
-            str(vmid),
-            "--name",
-            name,
-            "--memory",
-            str(memory),
-            "--cores",
-            str(cores),
-            "--cpu",
-            "host",
-            "--machine",
-            "q35",
-            "--bios",
-            "ovmf",
-            "--ostype",
-            "l26",
-            "--agent",
-            "enabled=1",
-            "--net0",
-            f"virtio,bridge={bridge}",
-            "--tags",
-            tags,
-            "--description",
-            description,
-        ],
-        timeout=None,
-    )
-    run_checked(
-        [
-            "qm",
-            "set",
-            str(vmid),
-            "--scsihw",
-            "virtio-scsi-single",
-            "--scsi0",
-            f"{disk_storage}:{disk_gb}",
-            "--efidisk0",
-            f"{disk_storage}:0,efitype=4m,pre-enrolled-keys=1",
-            "--boot",
-            "order=scsi0;ide2",
-            "--serial0",
-            "socket",
-            "--vga",
-            "std",
-            "--ide2",
-            f"{iso_storage}:iso/{iso_assets['iso_filename']},media=cdrom",
-            "--ide3",
-            f"{iso_storage}:iso/{seed_path.name},media=cdrom",
-            "--args",
-            args,
-        ],
-        timeout=None,
-    )
-    if start_after_create:
-        run_checked(["qm", "start", str(vmid)], timeout=None)
+    try:
+        run_checked(
+            [
+                "qm",
+                "create",
+                str(vmid),
+                "--name",
+                name,
+                "--memory",
+                str(memory),
+                "--cores",
+                str(cores),
+                "--cpu",
+                "host",
+                "--machine",
+                "q35",
+                "--bios",
+                "ovmf",
+                "--ostype",
+                "l26",
+                "--agent",
+                "enabled=1",
+                "--net0",
+                f"virtio,bridge={bridge}",
+                "--tags",
+                tags,
+                "--description",
+                description,
+            ],
+            timeout=None,
+        )
+        run_checked(
+            [
+                "qm",
+                "set",
+                str(vmid),
+                "--scsihw",
+                "virtio-scsi-single",
+                "--scsi0",
+                f"{disk_storage}:{disk_gb}",
+                "--efidisk0",
+                f"{disk_storage}:0,efitype=4m,pre-enrolled-keys=1",
+                "--serial0",
+                "socket",
+                "--vga",
+                "std",
+                "--ide2",
+                f"{iso_storage}:iso/{iso_assets['iso_filename']},media=cdrom",
+                "--ide3",
+                f"{iso_storage}:iso/{seed_path.name},media=cdrom",
+                "--args",
+                args,
+            ],
+            timeout=None,
+        )
+        run_checked(["qm", "set", str(vmid), "--boot", "order=scsi0;ide2;ide3"], timeout=None)
+        if start_after_create:
+            run_checked(["qm", "start", str(vmid)], timeout=None)
+    except Exception as exc:
+        state["status"] = "failed"
+        state["phase"] = "proxmox-create"
+        state["message"] = "Die VM konnte nicht vollstaendig angelegt werden."
+        state["error"] = str(exc)
+        state["failed_at"] = utcnow()
+        state["updated_at"] = utcnow()
+        save_ubuntu_beagle_state(completion_token, state)
+        raise
 
     save_vm_secret(
         node,
@@ -2225,33 +2746,22 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
     )
     created_vm = VmSummary(vmid=vmid, node=node, name=name, status="running" if start_after_create else "stopped", tags=tags)
     secret = ensure_vm_secret(created_vm)
-
-    state = save_ubuntu_beagle_state(
-        completion_token,
-        {
-            "token": completion_token,
-            "node": node,
-            "vmid": vmid,
-            "name": name,
-            "hostname": hostname,
-            "guest_user": guest_user,
-            "guest_password": guest_password,
-            "sunshine_user": sunshine_user,
-            "sunshine_password": sunshine_password,
-            "seed_iso": str(seed_path),
-            "iso_filename": iso_assets["iso_filename"],
-            "callback_url": callback_url,
-            "created_at": utcnow(),
-            "expires_at": (
-                datetime.now(timezone.utc).timestamp() + UBUNTU_BEAGLE_AUTOINSTALL_URL_TTL_SECONDS
-            ),
-        },
+    state["status"] = "installing" if start_after_create else "created"
+    state["phase"] = "autoinstall" if start_after_create else "awaiting-start"
+    state["message"] = (
+        "Ubuntu-Autoinstall laeuft. XFCE, LightDM und Sunshine werden im Guest eingerichtet."
+        if start_after_create
+        else "VM angelegt. Starten Sie die VM, um Ubuntu, XFCE und Sunshine zu provisionieren."
     )
+    state["started"] = start_after_create
+    state["updated_at"] = utcnow()
+    save_ubuntu_beagle_state(completion_token, state)
     return {
         "vmid": vmid,
         "node": node,
         "name": name,
         "hostname": hostname,
+        "os_profile": os_profile,
         "bridge": bridge,
         "disk_storage": disk_storage,
         "iso_storage": iso_storage,
@@ -2265,6 +2775,7 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
         "completion_url": callback_url,
         "started": start_after_create,
         "state": state,
+        "provisioning": summarize_ubuntu_beagle_state(state, include_credentials=True),
         "public_stream": public_stream,
     }
 
@@ -2311,6 +2822,55 @@ def list_vms() -> list[VmSummary]:
             )
         )
     return cache_put("list-vms", sorted(vms, key=lambda vm: vm.vmid))
+
+
+def list_nodes_inventory() -> list[dict[str, Any]]:
+    payload = run_json(["pvesh", "get", "/nodes", "--output-format", "json"])
+    nodes: list[dict[str, Any]] = []
+    if not isinstance(payload, list):
+        return nodes
+    for item in payload:
+        node_name = str(item.get("node", "")).strip()
+        if not node_name:
+            continue
+        nodes.append(
+            {
+                "name": node_name,
+                "status": str(item.get("status", "unknown")).strip() or "unknown",
+                "cpu": float(item.get("cpu", 0) or 0),
+                "mem": int(item.get("mem", 0) or 0),
+                "maxmem": int(item.get("maxmem", 0) or 0),
+                "maxcpu": int(item.get("maxcpu", 0) or 0),
+            }
+        )
+    return nodes
+
+
+def config_bridge_names(config: dict[str, Any]) -> set[str]:
+    bridges: set[str] = set()
+    if not isinstance(config, dict):
+        return bridges
+    for key, value in config.items():
+        if not str(key).startswith("net"):
+            continue
+        match = re.search(r"(?:^|,)bridge=([^,]+)", str(value or ""))
+        if not match:
+            continue
+        bridge_name = str(match.group(1) or "").strip()
+        if bridge_name:
+            bridges.add(bridge_name)
+    return bridges
+
+
+def list_bridge_inventory(node: str = "") -> list[str]:
+    bridges: set[str] = set()
+    if UBUNTU_BEAGLE_DEFAULT_BRIDGE:
+        bridges.add(UBUNTU_BEAGLE_DEFAULT_BRIDGE)
+    for vm in list_vms():
+        if node and vm.node != node:
+            continue
+        bridges.update(config_bridge_names(get_vm_config(vm.node, vm.vmid)))
+    return sorted(bridges)
 
 
 def get_vm_config(node: str, vmid: int) -> dict[str, Any]:
@@ -2380,6 +2940,7 @@ def resolve_assigned_target(target_vmid: int, target_node: str, *, allow_assignm
         "node": target_vm.node,
         "name": target_vm.name,
         "stream_host": target_profile["stream_host"],
+        "moonlight_local_host": str(target_profile.get("moonlight_local_host", "") or ""),
         "moonlight_port": target_profile.get("moonlight_port", ""),
         "sunshine_api_url": target_profile["sunshine_api_url"],
         "moonlight_app": target_profile["moonlight_app"],
@@ -2450,25 +3011,21 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
     meta = parse_description_meta(config.get("description", ""))
     matched_policy = resolve_policy_for_vm(vm, meta) if allow_assignment else None
     policy_profile = matched_policy.get("profile", {}) if isinstance(matched_policy, dict) and isinstance(matched_policy.get("profile"), dict) else {}
-    needs_guest_ip = not any(
-        [
-            policy_profile.get("stream_host"),
-            meta.get("moonlight-host"),
-            meta.get("sunshine-ip"),
-            meta.get("sunshine-host"),
-            meta.get("sunshine-api-url"),
-            meta.get("beagle-public-stream-host"),
-            meta.get("beagle-public-moonlight-port"),
-        ]
-    )
-    guest_ip = first_guest_ipv4(vm.vmid) if vm.status == "running" and needs_guest_ip else ""
+    guest_ip = first_guest_ipv4(vm.vmid) if vm.status == "running" else ""
     guest_ip = guest_ip or str(meta.get("sunshine-ip", "")).strip()
-    stream_host = policy_profile.get("stream_host") or meta.get("moonlight-host") or meta.get("sunshine-ip") or meta.get("sunshine-host") or guest_ip
+    moonlight_local_host = (
+        policy_profile.get("moonlight_local_host")
+        or meta.get("moonlight-local-host")
+        or meta.get("sunshine-ip")
+        or guest_ip
+    )
+    stream_host = policy_profile.get("stream_host") or meta.get("moonlight-host") or meta.get("sunshine-ip") or meta.get("sunshine-host") or moonlight_local_host
     moonlight_port = str(policy_profile.get("moonlight_port") or meta.get("moonlight-port") or meta.get("beagle-public-moonlight-port") or "").strip()
     sunshine_api_url = policy_profile.get("sunshine_api_url") or meta.get("sunshine-api-url") or (f"https://{stream_host}:47990" if stream_host else "")
     public_stream = build_public_stream_details(vm, meta, guest_ip)
     if public_stream is not None:
         stream_host = public_stream["host"]
+        moonlight_local_host = str(public_stream.get("guest_ip", "") or moonlight_local_host).strip()
         moonlight_port = str(public_stream["moonlight_port"])
         sunshine_api_url = public_stream["sunshine_api_url"]
     installer_url = f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh"
@@ -2479,6 +3036,11 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
     has_sunshine_password = bool((vm_secret or {}).get("sunshine_password"))
     expected_profile_name = policy_profile.get("expected_profile_name") or meta.get("beagle-profile-name", "")
     moonlight_app = policy_profile.get("moonlight_app") or meta.get("moonlight-app", meta.get("sunshine-app", "Desktop"))
+    update_enabled = truthy(policy_profile.get("update_enabled", meta.get("beagle-update-enabled", "1")), default=True)
+    update_channel = str(policy_profile.get("update_channel") or meta.get("beagle-update-channel", "stable")).strip() or "stable"
+    update_behavior = str(policy_profile.get("update_behavior") or meta.get("beagle-update-behavior", "prompt")).strip() or "prompt"
+    update_feed_url = str(policy_profile.get("update_feed_url") or meta.get("beagle-update-feed-url", f"{PUBLIC_MANAGER_URL}/api/v1/endpoints/update-feed")).strip()
+    update_version_pin = str(policy_profile.get("update_version_pin") or meta.get("beagle-update-version-pin", "")).strip()
     egress_domains = listify(policy_profile.get("egress_domains") or meta.get("beagle-egress-domains", ""))
     egress_resolvers = listify(policy_profile.get("egress_resolvers") or meta.get("beagle-egress-resolvers", ""))
     egress_allowed_ips = listify(policy_profile.get("egress_allowed_ips") or meta.get("beagle-egress-allowed-ips", ""))
@@ -2490,12 +3052,18 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         "tags": vm.tags,
         "guest_ip": guest_ip,
         "stream_host": stream_host,
+        "moonlight_local_host": str(moonlight_local_host or "").strip(),
         "moonlight_port": moonlight_port,
         "sunshine_api_url": sunshine_api_url,
         "sunshine_username": "",
         "sunshine_password_configured": has_sunshine_password,
         "sunshine_pin": "",
         "moonlight_app": moonlight_app,
+        "update_enabled": update_enabled,
+        "update_channel": update_channel,
+        "update_behavior": update_behavior,
+        "update_feed_url": update_feed_url,
+        "update_version_pin": update_version_pin,
         "moonlight_resolution": policy_profile.get("moonlight_resolution") or meta.get("moonlight-resolution", "auto"),
         "moonlight_fps": policy_profile.get("moonlight_fps") or meta.get("moonlight-fps", "60"),
         "moonlight_bitrate": policy_profile.get("moonlight_bitrate") or meta.get("moonlight-bitrate", "20000"),
@@ -2570,6 +3138,8 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
                 profile["beagle_role"] = "endpoint"
                 if (assignment_source == "manager-policy" or not meta.get("moonlight-host")) and assigned_target["stream_host"]:
                     profile["stream_host"] = assigned_target["stream_host"]
+                if (assignment_source == "manager-policy" or not meta.get("moonlight-local-host")) and assigned_target.get("moonlight_local_host"):
+                    profile["moonlight_local_host"] = assigned_target["moonlight_local_host"]
                 if (assignment_source == "manager-policy" or not meta.get("moonlight-port")) and assigned_target.get("moonlight_port"):
                     profile["moonlight_port"] = assigned_target["moonlight_port"]
                 if (assignment_source == "manager-policy" or not meta.get("sunshine-api-url")) and assigned_target["sunshine_api_url"]:
@@ -2705,6 +3275,7 @@ def build_vm_state(vm: VmSummary) -> dict[str, Any]:
     last_action = summarize_action_result(load_action_result(vm.node, vm.vmid))
     pending_actions = load_action_queue(vm.node, vm.vmid)
     installer_prep = summarize_installer_prep_state(vm, load_installer_prep_state(vm.node, vm.vmid))
+    provisioning = latest_ubuntu_beagle_state_for_vmid(vm.vmid)
     return {
         "profile": profile,
         "endpoint": endpoint,
@@ -2712,6 +3283,7 @@ def build_vm_state(vm: VmSummary) -> dict[str, Any]:
         "last_action": last_action,
         "pending_action_count": len(pending_actions),
         "installer_prep": installer_prep,
+        "provisioning": provisioning,
     }
 
 
@@ -2767,6 +3339,9 @@ def summarize_endpoint_report(payload: dict[str, Any]) -> dict[str, Any]:
     runtime = payload.get("runtime", {}) if isinstance(payload.get("runtime"), dict) else {}
     egress = payload.get("egress", {}) if isinstance(payload.get("egress"), dict) else {}
     identity = payload.get("identity", {}) if isinstance(payload.get("identity"), dict) else {}
+    software = payload.get("software", {}) if isinstance(payload.get("software"), dict) else {}
+    install = payload.get("install", {}) if isinstance(payload.get("install"), dict) else {}
+    update = payload.get("update", {}) if isinstance(payload.get("update"), dict) else {}
     return {
         "endpoint_id": payload.get("endpoint_id", ""),
         "hostname": payload.get("hostname", ""),
@@ -2799,12 +3374,69 @@ def summarize_endpoint_report(payload: dict[str, Any]) -> dict[str, Any]:
         "last_launch_mode": session.get("mode", ""),
         "last_launch_target": session.get("target", ""),
         "last_launch_time": session.get("timestamp", ""),
+        "software_version": software.get("version", "") or install.get("project_version", ""),
+        "software_build_flavor": software.get("build_flavor", ""),
+        "software_build_arch": software.get("build_arch", ""),
+        "software_build_created_at": software.get("build_created_at", ""),
+        "install_project_version": install.get("project_version", "") or software.get("version", ""),
+        "install_source_kind": install.get("source_kind", ""),
+        "install_payload_source_url": install.get("payload_source_url", ""),
+        "install_filesystem_sha256": install.get("filesystem_squashfs_sha256", ""),
+        "install_vmlinuz_sha256": install.get("vmlinuz_sha256", ""),
+        "install_initrd_sha256": install.get("initrd_sha256", ""),
+        "install_bootstrap_manifest_version": install.get("bootstrap_manifest_version", ""),
+        "install_installed_at": install.get("installed_at", ""),
+        "update_state": update.get("state", ""),
+        "update_current_version": update.get("current_version", "") or install.get("project_version", "") or software.get("version", ""),
+        "update_latest_version": update.get("latest_version", ""),
+        "update_staged_version": update.get("staged_version", ""),
+        "update_current_slot": update.get("current_slot", ""),
+        "update_next_slot": update.get("next_slot", ""),
+        "update_available": bool(update.get("available", False)),
+        "update_pending_reboot": bool(update.get("pending_reboot", False)),
+        "update_last_scan_at": update.get("last_scan_at", ""),
+        "update_last_error": update.get("last_error", ""),
         "usb_tunnel_state": (payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("tunnel_state", ""),
         "usb_tunnel_port": (payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("tunnel_port", ""),
         "usb_device_count": int((payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("device_count", 0) or 0),
         "usb_bound_count": int((payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("bound_count", 0) or 0),
         "usb_devices": (payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("devices", []) or [],
         "report_age_seconds": timestamp_age_seconds(payload.get("reported_at", "")),
+    }
+
+
+def build_update_feed(profile: dict[str, Any], *, installed_version: str = "", channel: str = "", version_pin: str = "") -> dict[str, Any]:
+    downloads_status = load_json_file(DOWNLOADS_STATUS_FILE, {})
+    latest_version = str(downloads_status.get("version", "")).strip()
+    configured_channel = str(channel or profile.get("update_channel", "stable") or "stable").strip() or "stable"
+    configured_behavior = str(profile.get("update_behavior", "prompt") or "prompt").strip() or "prompt"
+    configured_version_pin = str(version_pin or profile.get("update_version_pin", "") or "").strip()
+    enabled = bool(profile.get("update_enabled", True))
+    target_version = configured_version_pin or latest_version
+    payload = update_payload_metadata(target_version) if target_version else {
+        "version": "",
+        "filename": "",
+        "payload_url": "",
+        "payload_sha256": "",
+        "sha256sums_url": public_update_sha256sums_url(),
+        "payload_pinned_pubkey": "",
+    }
+    payload_ready = bool(payload.get("payload_url")) and bool(payload.get("payload_sha256"))
+    return {
+        "enabled": enabled,
+        "channel": configured_channel,
+        "behavior": configured_behavior,
+        "version_pin": configured_version_pin,
+        "installed_version": str(installed_version or "").strip(),
+        "latest_version": target_version,
+        "available": bool(enabled and target_version and payload_ready and str(installed_version or "").strip() != target_version),
+        "payload_filename": payload.get("filename", "") if payload_ready else "",
+        "payload_url": payload.get("payload_url", "") if payload_ready else "",
+        "payload_sha256": payload.get("payload_sha256", "") if payload_ready else "",
+        "payload_pinned_pubkey": payload.get("payload_pinned_pubkey", "") if payload_ready else "",
+        "payload_allow_insecure_tls": False,
+        "sha256sums_url": payload.get("sha256sums_url", public_update_sha256sums_url()) if payload_ready else "",
+        "published_latest_version": latest_version,
     }
 
 
@@ -2842,6 +3474,7 @@ def build_vm_inventory() -> dict[str, Any]:
         endpoint = summarize_endpoint_report(load_endpoint_report(vm.node, vm.vmid) or {})
         last_action = summarize_action_result(load_action_result(vm.node, vm.vmid))
         pending_action_count = len(load_action_queue(vm.node, vm.vmid))
+        provisioning = latest_ubuntu_beagle_state_for_vmid(vm.vmid)
         inventory.append(
             {
                 "vmid": vm.vmid,
@@ -2874,6 +3507,7 @@ def build_vm_inventory() -> dict[str, Any]:
                 "last_action": last_action,
                 "pending_action_count": pending_action_count,
                 "support_bundle_count": len(list_support_bundle_metadata(node=vm.node, vmid=vm.vmid)),
+                "provisioning": provisioning,
             }
         )
     return {
@@ -2894,6 +3528,7 @@ def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[
     proxmox_verify_tls = meta.get("proxmox-verify-tls", "1")
     expected_profile_name = str(profile.get("expected_profile_name") or f"vm-{vm.vmid}")
     moonlight_host = str(profile.get("stream_host", "") or "")
+    moonlight_local_host = str(profile.get("moonlight_local_host", "") or "")
     moonlight_port = str(profile.get("moonlight_port", "") or "")
     sunshine_api_url = str(profile.get("sunshine_api_url", "") or "")
     vm_secret = ensure_vm_secret(vm)
@@ -2933,6 +3568,11 @@ def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[
         "PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_URL": f"{PUBLIC_MANAGER_URL}/api/v1/endpoints/enroll",
         "PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_TOKEN": enrollment_token,
         "PVE_THIN_CLIENT_PRESET_THINCLIENT_PASSWORD": thinclient_password,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_ENABLED": "1" if bool(profile.get("update_enabled", True)) else "0",
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_CHANNEL": str(profile.get("update_channel", "stable") or "stable"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_BEHAVIOR": str(profile.get("update_behavior", "prompt") or "prompt"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_FEED_URL": str(profile.get("update_feed_url", f"{PUBLIC_MANAGER_URL}/api/v1/endpoints/update-feed") or ""),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_VERSION_PIN": str(profile.get("update_version_pin", "") or ""),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_MODE": str(profile.get("egress_mode", "direct") or "direct"),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_TYPE": str(profile.get("egress_type", "") or ""),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_INTERFACE": str(profile.get("egress_interface", "beagle-egress") or "beagle-egress"),
@@ -2966,6 +3606,7 @@ def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[
         "PVE_THIN_CLIENT_PRESET_DCV_TOKEN": "",
         "PVE_THIN_CLIENT_PRESET_DCV_SESSION": "",
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST": moonlight_host,
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_LOCAL_HOST": moonlight_local_host,
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_PORT": moonlight_port,
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP": str(profile.get("moonlight_app", "Desktop") or "Desktop"),
         "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN": meta.get("moonlight-bin", "moonlight"),
@@ -3011,6 +3652,7 @@ def render_vm_installer_script(vm: VmSummary) -> tuple[bytes, str]:
         preset_name,
         preset_b64,
         str(profile.get("installer_iso_url") or public_installer_iso_url()),
+        public_latest_payload_url(),
         "installer",
     )
     filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.sh"
@@ -3039,6 +3681,7 @@ def render_vm_live_usb_script(vm: VmSummary) -> tuple[bytes, str]:
         preset_name,
         preset_b64,
         str(profile.get("installer_iso_url") or public_installer_iso_url()),
+        public_latest_payload_url(),
         "live",
     )
     filename = f"pve-thin-client-live-usb-vm-{vm.vmid}.sh"
@@ -3112,17 +3755,27 @@ class Handler(BaseHTTPRequestHandler):
         return self._endpoint_identity() is not None
 
     def _cors_origin(self) -> str:
-        origin = self.headers.get("Origin", "")
-        if origin:
+        origin = normalized_origin(self.headers.get("Origin", ""))
+        if origin and origin in cors_allowed_origins():
             return origin
-        return "*"
+        return ""
+
+    def _write_common_security_headers(self) -> None:
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Frame-Options", "DENY")
+        origin = self._cors_origin()
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
+            self.send_header("Vary", "Origin")
 
     def _write_json(self, status: HTTPStatus, payload: Any) -> None:
         body = json.dumps(payload, indent=2).encode("utf-8") + b"\n"
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Access-Control-Allow-Origin", self._cors_origin())
+        self._write_common_security_headers()
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -3147,7 +3800,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Access-Control-Allow-Origin", self._cors_origin())
+        self._write_common_security_headers()
         if filename:
             self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
         self.send_header("Content-Length", str(len(body)))
@@ -3198,14 +3851,15 @@ class Handler(BaseHTTPRequestHandler):
                 continue
             self.send_header(key, value)
         self.send_header("Cache-Control", "no-store")
+        self._write_common_security_headers()
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(HTTPStatus.NO_CONTENT)
-        self.send_header("Access-Control-Allow-Origin", self._cors_origin())
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self._write_common_security_headers()
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Beagle-Api-Token, X-Beagle-Endpoint-Token")
         self.send_header("Access-Control-Max-Age", "86400")
         self.end_headers()
@@ -3285,12 +3939,71 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "public installer download disabled"})
             return
 
+        if path == "/api/v1/endpoints/update-feed":
+            if not self._is_endpoint_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            identity = self._endpoint_identity() or {}
+            vmid = int(identity.get("vmid", 0) or 0)
+            vm = find_vm(vmid)
+            if vm is None or str(identity.get("node", "")).strip() != vm.node:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                return
+            query = parse_qs(query_text or "")
+            profile = build_profile(vm)
+            update_feed = build_update_feed(
+                profile,
+                installed_version=str((query.get("installed_version") or [""])[0]).strip(),
+                channel=str((query.get("channel") or [""])[0]).strip(),
+                version_pin=str((query.get("version_pin") or [""])[0]).strip(),
+            )
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "update": update_feed,
+                },
+            )
+            return
+
         if not self._is_authenticated():
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
             return
 
         if path == "/healthz":
             self._write_json(HTTPStatus.OK, {"ok": True, "service": "beagle-control-plane", "version": VERSION})
+            return
+        if path == "/api/v1/provisioning/catalog":
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "catalog": build_provisioning_catalog(),
+                },
+            )
+            return
+        match = re.match(r"^/api/v1/provisioning/vms/(?P<vmid>\d+)$", path)
+        if match:
+            state = latest_ubuntu_beagle_state_for_vmid(int(match.group("vmid")), include_credentials=True)
+            if state is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "provisioning state not found"})
+                return
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "provisioning": state,
+                },
+            )
             return
         if path == "/api/v1/health":
             self._write_json(HTTPStatus.OK, build_health_payload())
@@ -3537,6 +4250,48 @@ class Handler(BaseHTTPRequestHandler):
                     },
                 )
                 return
+            if path.endswith("/update"):
+                vmid_text = path.split("/")[-2]
+                if not vmid_text.isdigit():
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+                    return
+                vm = find_vm(int(vmid_text))
+                if vm is None:
+                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                    return
+                profile = build_profile(vm)
+                endpoint = summarize_endpoint_report(load_endpoint_report(vm.node, vm.vmid) or {})
+                self._write_json(
+                    HTTPStatus.OK,
+                    {
+                        "service": "beagle-control-plane",
+                        "version": VERSION,
+                        "generated_at": utcnow(),
+                        "update": {
+                            "policy": {
+                                "enabled": bool(profile.get("update_enabled", True)),
+                                "channel": str(profile.get("update_channel", "stable") or "stable"),
+                                "behavior": str(profile.get("update_behavior", "prompt") or "prompt"),
+                                "feed_url": str(profile.get("update_feed_url", f"{PUBLIC_MANAGER_URL}/api/v1/endpoints/update-feed") or ""),
+                                "version_pin": str(profile.get("update_version_pin", "") or ""),
+                            },
+                            "endpoint": {
+                                "state": endpoint.get("update_state", ""),
+                                "current_version": endpoint.get("update_current_version", ""),
+                                "latest_version": endpoint.get("update_latest_version", ""),
+                                "staged_version": endpoint.get("update_staged_version", ""),
+                                "current_slot": endpoint.get("update_current_slot", ""),
+                                "next_slot": endpoint.get("update_next_slot", ""),
+                                "available": endpoint.get("update_available", False),
+                                "pending_reboot": endpoint.get("update_pending_reboot", False),
+                                "last_scan_at": endpoint.get("update_last_scan_at", ""),
+                                "last_error": endpoint.get("update_last_error", ""),
+                            },
+                            "published_latest_version": str(load_json_file(DOWNLOADS_STATUS_FILE, {}).get("version", "")).strip(),
+                        },
+                    },
+                )
+                return
             if path.endswith("/state"):
                 vmid_text = path.split("/")[-2]
                 if not vmid_text.isdigit():
@@ -3656,13 +4411,80 @@ class Handler(BaseHTTPRequestHandler):
             if state is None:
                 self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "ubuntu install token not found"})
                 return
+            restart_requested = str(query.get("restart", ["1"])[0]).strip().lower() not in {"0", "false", "no", "off"}
             try:
-                cleanup = finalize_ubuntu_beagle_install(state)
+                cleanup = finalize_ubuntu_beagle_install(state, restart=restart_requested)
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": f"failed to finalize install: {exc}"})
                 return
             state["completed_at"] = utcnow()
+            state["updated_at"] = utcnow()
+            state["status"] = "completed"
+            state["phase"] = "complete"
+            state["message"] = (
+                "Ubuntu ist installiert. Boot-Medien wurden entfernt und die VM wurde neu gestartet."
+                if restart_requested
+                else "Ubuntu ist installiert. Boot-Medien wurden entfernt; der Gast startet jetzt selbst sauber neu."
+            )
             state["cleanup"] = cleanup
+            save_ubuntu_beagle_state(token, state)
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "ubuntu_beagle_install": state,
+                },
+            )
+            return
+
+        match = re.match(r"^/api/v1/public/ubuntu-install/(?P<token>[A-Za-z0-9._~-]+)/prepare-firstboot$", path)
+        if match:
+            token = match.group("token")
+            state = load_ubuntu_beagle_state(token)
+            if state is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "ubuntu install token not found"})
+                return
+            try:
+                cleanup = prepare_ubuntu_beagle_firstboot(state)
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": f"failed to prepare first boot: {exc}"})
+                return
+            save_ubuntu_beagle_state(token, state)
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "ubuntu_beagle_install": state,
+                    "cleanup": cleanup,
+                },
+            )
+            return
+
+        match = re.match(r"^/api/v1/public/ubuntu-install/(?P<token>[A-Za-z0-9._~-]+)/failed$", path)
+        if match:
+            token = match.group("token")
+            state = load_ubuntu_beagle_state(token)
+            if state is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "ubuntu install token not found"})
+                return
+            payload: dict[str, Any] = {}
+            if int(self.headers.get("Content-Length", "0") or "0") > 0:
+                try:
+                    payload = self._read_json_body()
+                except Exception:
+                    payload = {}
+            state["updated_at"] = utcnow()
+            state["failed_at"] = utcnow()
+            state["status"] = "failed"
+            state["phase"] = str(payload.get("phase", "firstboot") or "firstboot")
+            state["message"] = str(payload.get("message", "Ubuntu provisioning im Gast ist fehlgeschlagen.") or "Ubuntu provisioning im Gast ist fehlgeschlagen.")
+            state["error"] = str(payload.get("error", "") or "")
             save_ubuntu_beagle_state(token, state)
             self._write_json(
                 HTTPStatus.OK,
@@ -3723,6 +4545,11 @@ class Handler(BaseHTTPRequestHandler):
                         "beagle_manager_url": PUBLIC_MANAGER_URL,
                         "beagle_manager_token": endpoint_token,
                         "beagle_manager_pinned_pubkey": MANAGER_PINNED_PUBKEY,
+                        "update_enabled": bool(profile.get("update_enabled", True)),
+                        "update_channel": str(profile.get("update_channel", "stable") or "stable"),
+                        "update_behavior": str(profile.get("update_behavior", "prompt") or "prompt"),
+                        "update_feed_url": str(profile.get("update_feed_url", f"{PUBLIC_MANAGER_URL}/api/v1/endpoints/update-feed") or ""),
+                        "update_version_pin": str(profile.get("update_version_pin", "") or ""),
                         "sunshine_api_url": str(profile.get("sunshine_api_url", "") or ""),
                         "sunshine_username": str(secret.get("sunshine_username", "")),
                         "sunshine_password": str(secret.get("sunshine_password", "")),
@@ -3736,6 +4563,7 @@ class Handler(BaseHTTPRequestHandler):
                         "usb_tunnel_private_key": str(secret.get("usb_tunnel_private_key", "")),
                         "usb_tunnel_known_host": usb_tunnel_known_host_line(),
                         "moonlight_host": str(profile.get("stream_host", "") or ""),
+                        "moonlight_local_host": str(profile.get("moonlight_local_host", "") or ""),
                         "moonlight_port": str(profile.get("moonlight_port", "") or ""),
                         "moonlight_app": str(profile.get("moonlight_app", "Desktop") or "Desktop"),
                         "egress_mode": str(profile.get("egress_mode", "direct") or "direct"),
@@ -3922,7 +4750,7 @@ class Handler(BaseHTTPRequestHandler):
                 payload = self._read_json_body()
                 action_name = str(payload.get("action", "")).strip().lower()
                 vmid_values = payload.get("vmids", [])
-                if action_name not in {"healthcheck", "recheckin", "restart-session", "restart-runtime", "support-bundle"}:
+                if action_name not in {"healthcheck", "recheckin", "restart-session", "restart-runtime", "support-bundle", "os-update-scan", "os-update-download"}:
                     raise ValueError("unsupported action")
                 if not isinstance(vmid_values, list) or not vmid_values:
                     raise ValueError("missing vmids")
@@ -3962,6 +4790,28 @@ class Handler(BaseHTTPRequestHandler):
                     "version": VERSION,
                     "generated_at": utcnow(),
                     "ubuntu_beagle_vm": result,
+                },
+            )
+            return
+
+        if path == "/api/v1/provisioning/vms":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            try:
+                payload = self._read_json_body()
+                result = create_provisioned_vm(payload if isinstance(payload, dict) else {})
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"failed to provision vm: {exc}"})
+                return
+            self._write_json(
+                HTTPStatus.CREATED,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "provisioned_vm": result,
                 },
             )
             return
@@ -4032,6 +4882,48 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
 
+        match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/update/(?P<operation>scan|download|apply|rollback)$", path)
+        if match:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            vm = find_vm(int(match.group("vmid")))
+            if vm is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+                return
+            payload: dict[str, Any] = {}
+            if int(self.headers.get("Content-Length", "0") or "0") > 0:
+                try:
+                    payload = self._read_json_body()
+                except Exception as exc:
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                    return
+            params = payload.get("params", {}) if isinstance(payload.get("params"), dict) else {}
+            operation = match.group("operation")
+            action_name = {
+                "scan": "os-update-scan",
+                "download": "os-update-download",
+                "apply": "os-update-apply",
+                "rollback": "os-update-rollback",
+            }[operation]
+            params = dict(params)
+            if operation == "download":
+                params["force"] = True
+            if operation in {"apply", "rollback"} and "reboot" not in params:
+                params["reboot"] = True
+            queued = queue_vm_action(vm, action_name, self._requester_identity(), params)
+            self._write_json(
+                HTTPStatus.ACCEPTED,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "queued_action": queued,
+                },
+            )
+            return
+
         if path.startswith("/api/v1/vms/") and path.endswith("/actions"):
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
@@ -4047,12 +4939,13 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 payload = self._read_json_body()
                 action_name = str(payload.get("action", "")).strip().lower()
-                if action_name not in {"healthcheck", "recheckin", "restart-session", "restart-runtime", "support-bundle"}:
+                action_params = payload.get("params", {}) if isinstance(payload.get("params"), dict) else {}
+                if action_name not in {"healthcheck", "recheckin", "restart-session", "restart-runtime", "support-bundle", "os-update-scan", "os-update-download", "os-update-apply", "os-update-rollback"}:
                     raise ValueError("unsupported action")
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
-            queued = queue_vm_action(vm, action_name, self._requester_identity())
+            queued = queue_vm_action(vm, action_name, self._requester_identity(), action_params)
             self._write_json(
                 HTTPStatus.ACCEPTED,
                 {

@@ -7,7 +7,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
 
-load_runtime_config
+load_runtime_config_with_retry() {
+  local attempts interval attempt
+  attempts="${PVE_THIN_CLIENT_CONFIG_RETRY_ATTEMPTS:-30}"
+  interval="${PVE_THIN_CLIENT_CONFIG_RETRY_INTERVAL:-1}"
+
+  for attempt in $(seq 1 "$attempts"); do
+    if load_runtime_config >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "$interval"
+  done
+
+  load_runtime_config
+}
+
+load_runtime_config_with_retry
 BOOT_MODE="${PVE_THIN_CLIENT_BOOT_MODE:-$(/usr/local/bin/pve-thin-client-boot-mode 2>/dev/null || printf 'runtime')}"
 beagle_log_event "prepare-runtime.start" "profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default} mode=${PVE_THIN_CLIENT_MODE:-UNSET}"
 
@@ -29,7 +44,7 @@ sync_runtime_config_to_system() {
   [[ -d "$source_dir" ]] || return 0
 
   install -d -m 0755 "$target_dir"
-  for file in thinclient.conf network.env credentials.env local-auth.env; do
+  for file in thinclient.conf network.env credentials.env local-auth.env install-manifest.json; do
     if [[ -f "$source_dir/$file" ]]; then
       install -m 0600 "$source_dir/$file" "$target_dir/$file"
       copied=1
@@ -43,7 +58,7 @@ sync_runtime_config_to_system() {
     CREDENTIALS_FILE="$target_dir/credentials.env"
     LOCAL_AUTH_FILE="$target_dir/local-auth.env"
   fi
-  chmod 0644 "$target_dir/thinclient.conf" "$target_dir/network.env" >/dev/null 2>&1 || true
+  chmod 0644 "$target_dir/thinclient.conf" "$target_dir/network.env" "$target_dir/install-manifest.json" >/dev/null 2>&1 || true
 }
 
 ensure_runtime_user() {
@@ -89,8 +104,8 @@ adjust_secret_permissions() {
 }
 
 enroll_endpoint_if_needed() {
-  local credentials_file response_file enroll_url enrollment_token endpoint_id hostname_value http_status manager_pin
-  local -a curl_args
+  local credentials_file response_file enroll_url enrollment_token endpoint_id hostname_value http_status manager_pin manager_ca_cert
+  local -a curl_args tls_args
 
   credentials_file="${CREDENTIALS_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/credentials.env}"
   [[ -f "$credentials_file" ]] || return 0
@@ -103,19 +118,11 @@ enroll_endpoint_if_needed() {
   endpoint_id="${PVE_THIN_CLIENT_HOSTNAME:-$(hostname)}-${PVE_THIN_CLIENT_PROXMOX_VMID:-0}"
   hostname_value="${PVE_THIN_CLIENT_HOSTNAME:-$(hostname)}"
   manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
+  manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"
   response_file="$(mktemp)"
   curl_args=(curl -fsS --connect-timeout 8 --max-time 20 --output "$response_file" --write-out '%{http_code}' -H 'Content-Type: application/json')
-  if [[ "$enroll_url" == https://* ]]; then
-    if [[ -n "$manager_pin" ]]; then
-      curl_args+=(--pinnedpubkey "$manager_pin")
-    elif [[ "${PVE_THIN_CLIENT_ALLOW_INSECURE_TLS:-0}" == "1" ]]; then
-      curl_args+=(-k)
-    else
-      beagle_log_event "prepare-runtime.enroll-skip" "missing manager tls pin"
-      rm -f "$response_file"
-      return 1
-    fi
-  fi
+  mapfile -t tls_args < <(beagle_curl_tls_args "$enroll_url" "$manager_pin" "$manager_ca_cert")
+  curl_args+=("${tls_args[@]}")
   http_status="$(
     "${curl_args[@]}" \
       --data "{\"enrollment_token\":\"${enrollment_token}\",\"endpoint_id\":\"${endpoint_id}\",\"hostname\":\"${hostname_value}\"}" \
@@ -162,6 +169,11 @@ if config_path.exists():
         config_existing[key.strip()] = value.strip()
 
 for key, value in (
+    ("PVE_THIN_CLIENT_MOONLIGHT_HOST", config.get("moonlight_host", "")),
+    ("PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST", config.get("moonlight_local_host", "")),
+    ("PVE_THIN_CLIENT_MOONLIGHT_PORT", config.get("moonlight_port", "")),
+    ("PVE_THIN_CLIENT_MOONLIGHT_APP", config.get("moonlight_app", "Desktop")),
+    ("PVE_THIN_CLIENT_SUNSHINE_API_URL", config.get("sunshine_api_url", "")),
     ("PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE", config.get("egress_mode", "direct")),
     ("PVE_THIN_CLIENT_BEAGLE_EGRESS_TYPE", config.get("egress_type", "")),
     ("PVE_THIN_CLIENT_BEAGLE_EGRESS_INTERFACE", config.get("egress_interface", "beagle-egress")),
@@ -173,6 +185,11 @@ for key, value in (
     ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PUBLIC_KEY", config.get("egress_wg_public_key", "")),
     ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_ENDPOINT", config.get("egress_wg_endpoint", "")),
     ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE", config.get("egress_wg_persistent_keepalive", "25")),
+    ("PVE_THIN_CLIENT_BEAGLE_UPDATE_ENABLED", "1" if config.get("update_enabled", True) else "0"),
+    ("PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL", config.get("update_channel", "stable")),
+    ("PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR", config.get("update_behavior", "prompt")),
+    ("PVE_THIN_CLIENT_BEAGLE_UPDATE_FEED_URL", config.get("update_feed_url", "")),
+    ("PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN", config.get("update_version_pin", "")),
     ("PVE_THIN_CLIENT_IDENTITY_HOSTNAME", config.get("identity_hostname", "")),
     ("PVE_THIN_CLIENT_IDENTITY_TIMEZONE", config.get("identity_timezone", "")),
     ("PVE_THIN_CLIENT_IDENTITY_LOCALE", config.get("identity_locale", "")),
@@ -288,6 +305,34 @@ ensure_usb_tunnel_service() {
   fi
 }
 
+unit_file_present() {
+  local unit="${1:-}"
+  [[ -n "$unit" ]] || return 1
+  systemctl list-unit-files --full --no-legend "$unit" 2>/dev/null | awk '{print $1}' | grep -Fxq "$unit"
+}
+
+ensure_beagle_management_units() {
+  local unit=""
+
+  for unit in \
+    beagle-endpoint-report.timer \
+    beagle-endpoint-dispatch.timer \
+    beagle-runtime-heartbeat.timer \
+    beagle-update-scan.timer
+  do
+    if unit_file_present "$unit"; then
+      systemctl enable "$unit" >/dev/null 2>&1 || true
+      systemctl restart --no-block "$unit" >/dev/null 2>&1 || true
+    fi
+  done
+
+  for unit in beagle-endpoint-report.service beagle-endpoint-dispatch.service; do
+    if unit_file_present "$unit"; then
+      systemctl start --no-block "$unit" >/dev/null 2>&1 || true
+    fi
+  done
+}
+
 ensure_getty_overrides() {
   local tty1_dir="/etc/systemd/system/getty@tty1.service.d"
   local default_dir="/etc/systemd/system/getty@.service.d"
@@ -339,23 +384,25 @@ normalize_boot_services() {
   esac
 }
 
-if [[ -x "$SCRIPT_DIR/apply-network-config.sh" ]]; then
-  plymouth_status "Configuring network..."
-  beagle_log_event "prepare-runtime.network" "applying network configuration"
-  "$SCRIPT_DIR/apply-network-config.sh"
-fi
-
 plymouth_status "Loading Beagle OS profile..."
 sync_runtime_config_to_system
 ensure_runtime_user
-adjust_secret_permissions
-plymouth_status "Connecting device to Beagle Manager..."
-enroll_endpoint_if_needed || beagle_log_event "prepare-runtime.enroll-error" "endpoint enrollment failed"
 adjust_secret_permissions
 sync_local_hostname
 apply_runtime_ssh_config
 ensure_getty_overrides
 normalize_boot_services
+
+if [[ -x "$SCRIPT_DIR/apply-network-config.sh" ]]; then
+  plymouth_status "Configuring network..."
+  beagle_log_event "prepare-runtime.network" "applying network configuration"
+  "$SCRIPT_DIR/apply-network-config.sh" || beagle_log_event "prepare-runtime.network-error" "network configuration failed"
+fi
+
+plymouth_status "Connecting device to Beagle Manager..."
+enroll_endpoint_if_needed || beagle_log_event "prepare-runtime.enroll-error" "endpoint enrollment failed"
+adjust_secret_permissions
+ensure_beagle_management_units
 ensure_usb_tunnel_service
 if [[ -x /usr/local/sbin/beagle-identity-apply ]]; then
   plymouth_status "Applying system identity..."
@@ -365,7 +412,7 @@ if [[ -x /usr/local/sbin/beagle-egress-apply ]]; then
   plymouth_status "Preparing secure connection..."
   /usr/local/sbin/beagle-egress-apply >/dev/null 2>&1 || true
 fi
-beagle_log_event "prepare-runtime.system" "runtime_user=${PVE_THIN_CLIENT_RUNTIME_USER:-UNSET} hostname=${PVE_THIN_CLIENT_HOSTNAME_VALUE:-UNSET}"
+beagle_log_event "prepare-runtime.system" "runtime_user=${PVE_THIN_CLIENT_RUNTIME_USER:-UNSET} hostname=${PVE_THIN_CLIENT_HOSTNAME:-UNSET}"
 
 mkdir -p "$STATUS_DIR"
 chmod 0755 "$STATUS_DIR"

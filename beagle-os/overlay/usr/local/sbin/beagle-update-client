@@ -1,0 +1,767 @@
+#!/usr/bin/env python3
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+
+CONFIG_DIR_CANDIDATES = [
+    Path("/etc/pve-thin-client"),
+    Path("/run/live/medium/pve-thin-client/state"),
+    Path("/lib/live/mount/medium/pve-thin-client/state"),
+]
+LIVE_MEDIUM_CANDIDATES = [
+    Path("/run/live/medium"),
+    Path("/lib/live/mount/medium"),
+]
+STATE_ROOT = Path("/var/lib/beagle-os/update")
+CACHE_ROOT = Path("/var/cache/beagle-os/update")
+LOG_FILE = Path("/var/log/beagle-os/update-client.log")
+STATUS_FILE = STATE_ROOT / "status.json"
+FEED_CACHE_FILE = STATE_ROOT / "feed.json"
+STAGED_MANIFEST_FILE = STATE_ROOT / "staged-manifest.json"
+PREVIOUS_MANIFEST_FILE = STATE_ROOT / "install-manifest.previous.json"
+RECENT_SCAN_SECONDS = int(os.environ.get("BEAGLE_UPDATE_RECENT_SCAN_SECONDS", "21600"))
+
+
+def utcnow() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def log(message: str) -> None:
+    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with LOG_FILE.open("a", encoding="utf-8") as handle:
+        handle.write(f"[{utcnow()}] {message}\n")
+
+
+def ensure_dirs() -> None:
+    STATE_ROOT.mkdir(parents=True, exist_ok=True)
+    CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+
+
+def read_env_file(path: Path) -> dict[str, str]:
+    data: dict[str, str] = {}
+    if not path.is_file():
+        return data
+    for raw_line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+            value = value[1:-1]
+        data[key.strip()] = value
+    return data
+
+
+def load_config() -> tuple[Path, dict[str, str]]:
+    for config_dir in CONFIG_DIR_CANDIDATES:
+        config_file = config_dir / "thinclient.conf"
+        if not config_file.is_file():
+            continue
+        merged: dict[str, str] = {}
+        merged.update(read_env_file(config_file))
+        merged.update(read_env_file(config_dir / "network.env"))
+        merged.update(read_env_file(config_dir / "credentials.env"))
+        merged.update(read_env_file(config_dir / "local-auth.env"))
+        return config_dir, merged
+    raise RuntimeError("thin-client configuration not found")
+
+
+def bool_from_config(value: str, default: bool = False) -> bool:
+    text = str(value or "").strip().lower()
+    if not text:
+        return default
+    return text in {"1", "true", "yes", "on"}
+
+
+def load_json(path: Path, default):
+    if not path.is_file():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return default
+
+
+def write_json_atomic(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", dir=path.parent, delete=False, encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+        handle.write("\n")
+        temp_path = Path(handle.name)
+    temp_path.replace(path)
+
+
+def update_status(**changes) -> dict:
+    ensure_dirs()
+    status = load_json(STATUS_FILE, {})
+    if not isinstance(status, dict):
+        status = {}
+    status.update(changes)
+    write_json_atomic(STATUS_FILE, status)
+    return status
+
+
+def live_medium() -> Path:
+    for candidate in LIVE_MEDIUM_CANDIDATES:
+        if candidate.is_dir() and (candidate / "live").is_dir():
+            return candidate
+    raise RuntimeError("live medium mount not found")
+
+
+def boot_mode() -> str:
+    try:
+        mode = subprocess.check_output(
+            ["/usr/local/bin/pve-thin-client-boot-mode"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        mode = os.environ.get("PVE_THIN_CLIENT_BOOT_MODE", "runtime").strip()
+    return mode or "runtime"
+
+
+def persistent_state_dir(medium: Path) -> Path:
+    return medium / "pve-thin-client" / "state"
+
+
+def sha256sum(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def slot_has_assets(slot_dir: Path) -> bool:
+    return all((slot_dir / name).is_file() for name in ("vmlinuz", "initrd.img", "filesystem.squashfs"))
+
+
+def copy_slot_assets(source_dir: Path, target_dir: Path) -> None:
+    if target_dir.exists():
+        shutil.rmtree(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("vmlinuz", "initrd.img", "filesystem.squashfs", "SHA256SUMS"):
+        source = source_dir / name
+        if source.is_file():
+            shutil.copy2(source, target_dir / name)
+
+
+def atomic_symlink(target: str, link_path: Path) -> None:
+    temp_path = link_path.with_name(link_path.name + ".new")
+    if temp_path.exists() or temp_path.is_symlink():
+        temp_path.unlink()
+    os.symlink(target, temp_path)
+    temp_path.replace(link_path)
+
+
+def root_uuid_for_medium(medium: Path) -> str:
+    source = subprocess.check_output(
+        ["findmnt", "-nro", "SOURCE", str(medium)],
+        text=True,
+        stderr=subprocess.DEVNULL,
+    ).strip()
+    if not source:
+        raise RuntimeError("could not resolve live medium block device")
+    uuid = subprocess.check_output(
+        ["blkid", "-s", "UUID", "-o", "value", source],
+        text=True,
+        stderr=subprocess.DEVNULL,
+    ).strip()
+    if not uuid:
+        raise RuntimeError(f"could not resolve filesystem UUID for {source}")
+    return uuid
+
+
+def write_grub_cfg(medium: Path, hostname: str) -> None:
+    root_uuid = root_uuid_for_medium(medium)
+    grub_cfg = medium / "boot" / "grub" / "grub.cfg"
+    grub_cfg.parent.mkdir(parents=True, exist_ok=True)
+    content = f"""insmod part_gpt
+insmod ext2
+terminal_output console
+set default=0
+set timeout=4
+
+menuentry 'Beagle OS' {{
+  search --no-floppy --fs-uuid --set=root {root_uuid}
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime
+  initrd /live/current/initrd.img
+}}
+
+menuentry 'Beagle OS (safe mode)' {{
+  search --no-floppy --fs-uuid --set=root {root_uuid}
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/current live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime nomodeset irqpoll pci=nomsi noapic
+  initrd /live/current/initrd.img
+}}
+
+menuentry 'Beagle OS (Slot A fallback)' {{
+  search --no-floppy --fs-uuid --set=root {root_uuid}
+  linux /live/a/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/a live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime nomodeset irqpoll pci=nomsi noapic
+  initrd /live/a/initrd.img
+}}
+
+menuentry 'Beagle OS (Slot B fallback)' {{
+  search --no-floppy --fs-uuid --set=root {root_uuid}
+  linux /live/b/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/b live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime nomodeset irqpoll pci=nomsi noapic
+  initrd /live/b/initrd.img
+}}
+"""
+    grub_cfg.write_text(content, encoding="utf-8")
+
+
+def ensure_slot_layout(config: dict[str, str]) -> tuple[Path, str]:
+    medium = live_medium()
+    live_dir = medium / "live"
+    slot_a = live_dir / "a"
+    slot_b = live_dir / "b"
+    slot_a.mkdir(parents=True, exist_ok=True)
+    slot_b.mkdir(parents=True, exist_ok=True)
+
+    legacy_dir = live_dir
+    if not slot_has_assets(slot_a) and all((legacy_dir / name).is_file() for name in ("vmlinuz", "initrd.img", "filesystem.squashfs")):
+        copy_slot_assets(legacy_dir, slot_a)
+        log("migrated legacy single-slot live assets into slot a")
+
+    current_link = live_dir / "current"
+    if current_link.is_symlink():
+        current_slot = os.readlink(current_link)
+    else:
+        if slot_has_assets(slot_a):
+            current_slot = "a"
+        elif slot_has_assets(slot_b):
+            current_slot = "b"
+        else:
+            raise RuntimeError("no bootable live assets found on installed system")
+        atomic_symlink(current_slot, current_link)
+
+    write_grub_cfg(medium, config.get("PVE_THIN_CLIENT_HOSTNAME", "beagle-os"))
+    return medium, current_slot
+
+
+def inactive_slot(current_slot: str) -> str:
+    return "b" if current_slot == "a" else "a"
+
+
+def read_install_manifest(medium: Path) -> dict[str, object]:
+    manifest_path = persistent_state_dir(medium) / "install-manifest.json"
+    payload = load_json(manifest_path, {})
+    return payload if isinstance(payload, dict) else {}
+
+
+def read_pending_install_manifest(medium: Path) -> dict[str, object]:
+    manifest_path = persistent_state_dir(medium) / "install-manifest.pending.json"
+    payload = load_json(manifest_path, {})
+    return payload if isinstance(payload, dict) else {}
+
+
+def write_pending_install_manifest(medium: Path, manifest: dict[str, object]) -> None:
+    state_dir = persistent_state_dir(medium)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    write_json_atomic(state_dir / "install-manifest.pending.json", manifest)
+
+
+def clear_pending_install_manifest(medium: Path) -> None:
+    pending_path = persistent_state_dir(medium) / "install-manifest.pending.json"
+    if pending_path.exists():
+        pending_path.unlink()
+
+
+def write_install_manifest(medium: Path, manifest: dict[str, object]) -> None:
+    state_dir = persistent_state_dir(medium)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    current_path = state_dir / "install-manifest.json"
+    previous_path = state_dir / "install-manifest.previous.json"
+    if current_path.is_file():
+        shutil.copy2(current_path, previous_path)
+        shutil.copy2(current_path, PREVIOUS_MANIFEST_FILE)
+    write_json_atomic(current_path, manifest)
+    etc_dir = Path("/etc/pve-thin-client")
+    if etc_dir.is_dir():
+        write_json_atomic(etc_dir / "install-manifest.json", manifest)
+
+
+def current_version(config: dict[str, str], medium: Path) -> str:
+    manifest = read_install_manifest(medium)
+    version = str(manifest.get("project_version", "")).strip()
+    if version:
+        return version
+    build_info = read_env_file(Path("/etc/beagle-os/build-info"))
+    version = str(build_info.get("PROJECT_VERSION", "")).strip()
+    if version:
+        return version
+    return ""
+
+
+def recent_scan(status: dict) -> bool:
+    scan_at = str(status.get("last_scan_at", "")).strip()
+    if not scan_at:
+        return False
+    try:
+        timestamp = datetime.fromisoformat(scan_at.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    age = (datetime.now(timezone.utc) - timestamp).total_seconds()
+    return age <= RECENT_SCAN_SECONDS
+
+
+def manager_feed_url(config: dict[str, str], installed_version: str) -> str:
+    base_url = (
+        config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_FEED_URL", "").strip()
+        or config.get("PVE_THIN_CLIENT_BEAGLE_MANAGER_URL", "").rstrip("/") + "/api/v1/endpoints/update-feed"
+    ).strip()
+    if not base_url:
+        raise RuntimeError("missing update feed URL")
+    parsed = urlparse(base_url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query.setdefault("channel", config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL", "stable"))
+    query.setdefault("installed_version", installed_version)
+    version_pin = config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN", "").strip()
+    if version_pin:
+        query.setdefault("version_pin", version_pin)
+    return urlunparse(parsed._replace(query=urlencode(query)))
+
+
+def same_host(left: str, right: str) -> bool:
+    left_host = urlparse(left).hostname or ""
+    right_host = urlparse(right).hostname or ""
+    return bool(left_host and right_host and left_host == right_host)
+
+
+def curl_args_for_url(url: str, *, pinned_pubkey: str = "", ca_cert: str = "", max_time: int = 30) -> list[str]:
+    args = ["curl", "-fsS", "--connect-timeout", "8"]
+    if max_time > 0:
+        args.extend(["--max-time", str(max_time)])
+    if url.startswith("https://"):
+        if ca_cert and Path(ca_cert).is_file():
+            args.extend(["--cacert", ca_cert])
+            if pinned_pubkey:
+                args.extend(["--pinnedpubkey", pinned_pubkey])
+        elif pinned_pubkey:
+            args.extend(["-k", "--pinnedpubkey", pinned_pubkey])
+    return args
+
+
+def fetch_feed(config: dict[str, str], medium: Path) -> dict:
+    installed = current_version(config, medium)
+    url = manager_feed_url(config, installed)
+    manager_token = config.get("PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN", "").strip()
+    if not manager_token:
+        raise RuntimeError("missing beagle manager token for update feed")
+    manager_pin = config.get("PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY", "").strip()
+    manager_ca_cert = config.get("PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT", "").strip()
+    args = curl_args_for_url(url, pinned_pubkey=manager_pin, ca_cert=manager_ca_cert)
+    args.extend(["-H", f"Authorization: Bearer {manager_token}", "-H", "Accept: application/json", url])
+    result = subprocess.run(args, check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout or "{}")
+    update = payload.get("update", payload)
+    if not isinstance(update, dict):
+        raise RuntimeError("invalid update feed payload")
+    write_json_atomic(FEED_CACHE_FILE, update)
+    return update
+
+
+def verify_sha256(path: Path, expected: str) -> None:
+    digest = sha256sum(path)
+    if expected and digest.lower() != expected.lower():
+        raise RuntimeError(f"checksum mismatch for {path.name}")
+
+
+def download_payload(feed: dict, config: dict[str, str]) -> tuple[Path, str]:
+    version = str(feed.get("latest_version", "")).strip()
+    payload_url = str(feed.get("payload_url", "")).strip()
+    if not version or not payload_url:
+        raise RuntimeError("update feed is missing payload metadata")
+    target_dir = CACHE_ROOT / version
+    target_dir.mkdir(parents=True, exist_ok=True)
+    archive_path = target_dir / "payload.tar.gz"
+    if archive_path.is_file():
+        expected_sha = str(feed.get("payload_sha256", "")).strip()
+        if not expected_sha or sha256sum(archive_path).lower() == expected_sha.lower():
+            return archive_path, version
+        archive_path.unlink()
+    payload_pin = str(feed.get("payload_pinned_pubkey", "")).strip()
+    manager_url = config.get("PVE_THIN_CLIENT_BEAGLE_MANAGER_URL", "").strip()
+    manager_ca_cert = config.get("PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT", "").strip()
+    payload_ca_cert = ""
+    if not payload_pin and same_host(payload_url, manager_url):
+        payload_pin = config.get("PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY", "").strip()
+        payload_ca_cert = manager_ca_cert
+    args = curl_args_for_url(payload_url, pinned_pubkey=payload_pin, ca_cert=payload_ca_cert, max_time=0)
+    args.extend(["-L", "--retry", "4", "--retry-delay", "3", "--continue-at", "-", "-o", str(archive_path), payload_url])
+    subprocess.run(args, check=True)
+    verify_sha256(archive_path, str(feed.get("payload_sha256", "")).strip())
+    return archive_path, version
+
+
+def extract_payload(archive_path: Path) -> Path:
+    temp_dir = Path(tempfile.mkdtemp(prefix="beagle-update-", dir="/tmp"))
+    subprocess.run(["tar", "-xzf", str(archive_path), "-C", str(temp_dir)], check=True)
+    asset_dir = temp_dir / "dist" / "pve-thin-client-installer" / "live"
+    if not slot_has_assets(asset_dir):
+        raise RuntimeError("downloaded payload is missing live assets")
+    sha_file = asset_dir / "SHA256SUMS"
+    if sha_file.is_file():
+        subprocess.run(["sha256sum", "-c", "SHA256SUMS"], cwd=asset_dir, check=True, stdout=subprocess.DEVNULL)
+    return temp_dir
+
+
+def build_manifest(asset_dir: Path, version: str, payload_url: str, *, slot: str, previous_version: str) -> dict[str, object]:
+    return {
+        "project": "beagle-os",
+        "project_version": version,
+        "installed_at": utcnow(),
+        "source_kind": "update-feed",
+        "payload_source_url": payload_url,
+        "vmlinuz_sha256": sha256sum(asset_dir / "vmlinuz"),
+        "initrd_sha256": sha256sum(asset_dir / "initrd.img"),
+        "filesystem_squashfs_sha256": sha256sum(asset_dir / "filesystem.squashfs"),
+        "bootstrap_manifest_version": version,
+        "installed_slot": slot,
+        "previous_project_version": previous_version,
+    }
+
+
+def stage_update(feed: dict, config: dict[str, str], *, force: bool = False) -> dict:
+    medium, current_slot = ensure_slot_layout(config)
+    installed = current_version(config, medium)
+    version = str(feed.get("latest_version", "")).strip()
+    available = bool(feed.get("available", False))
+    if not available and version and version != installed:
+        available = True
+    status = load_json(STATUS_FILE, {})
+    if (
+        not force
+        and isinstance(status, dict)
+        and str(status.get("staged_version", "")).strip() == version
+        and str(status.get("state", "")).strip() in {"staged", "reboot-required"}
+    ):
+        return status
+    if not version or not available or version == installed:
+        return update_status(
+            state="idle",
+            last_scan_at=utcnow(),
+            current_version=installed,
+            current_slot=current_slot,
+            latest_version=version,
+            available=False,
+            staged_version="",
+            staged_slot="",
+            pending_reboot=False,
+            pending_confirm=False,
+            behavior=str(feed.get("behavior", config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR", "prompt"))),
+            channel=str(feed.get("channel", config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL", "stable"))),
+            last_error="",
+        )
+
+    archive_path, _ = download_payload(feed, config)
+    temp_dir = extract_payload(archive_path)
+    try:
+        asset_dir = temp_dir / "dist" / "pve-thin-client-installer" / "live"
+        target_slot = inactive_slot(current_slot)
+        slot_dir = medium / "live" / target_slot
+        copy_slot_assets(asset_dir, slot_dir)
+        manifest = build_manifest(
+            asset_dir,
+            version,
+            str(feed.get("payload_url", "")).strip(),
+            slot=target_slot,
+            previous_version=installed,
+        )
+        write_json_atomic(STAGED_MANIFEST_FILE, manifest)
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    return update_status(
+        state="staged",
+        last_scan_at=utcnow(),
+        last_stage_at=utcnow(),
+        current_version=installed,
+        current_slot=current_slot,
+        latest_version=version,
+        available=True,
+        staged_version=version,
+        staged_slot=target_slot,
+        next_slot=target_slot,
+        pending_reboot=False,
+        pending_confirm=False,
+        payload_url=str(feed.get("payload_url", "")).strip(),
+        payload_sha256=str(feed.get("payload_sha256", "")).strip(),
+        behavior=str(feed.get("behavior", config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR", "prompt"))),
+        channel=str(feed.get("channel", config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL", "stable"))),
+        version_pin=str(feed.get("version_pin", config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN", ""))),
+        last_error="",
+    )
+
+
+def is_idle_for_reboot() -> bool:
+    checks = [
+        ["pgrep", "-x", "moonlight"],
+        ["pgrep", "-f", "launch-session.sh"],
+    ]
+    for command in checks:
+        if subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+            return False
+    return True
+
+
+def apply_update(config: dict[str, str], *, reboot: bool = False) -> dict:
+    if boot_mode() != "runtime":
+        raise RuntimeError("updates can only be applied in runtime mode")
+    medium, current_slot = ensure_slot_layout(config)
+    status = load_json(STATUS_FILE, {})
+    if not isinstance(status, dict):
+        status = {}
+    if str(status.get("state", "")).strip() not in {"staged", "reboot-required"}:
+        feed = fetch_feed(config, medium)
+        status = stage_update(feed, config)
+
+    target_slot = str(status.get("staged_slot", "") or status.get("next_slot", "")).strip()
+    if not target_slot:
+        raise RuntimeError("no staged update is available")
+
+    if not STAGED_MANIFEST_FILE.is_file():
+        raise RuntimeError("staged update manifest is missing")
+    manifest = load_json(STAGED_MANIFEST_FILE, {})
+    if not isinstance(manifest, dict):
+        raise RuntimeError("staged update manifest is invalid")
+
+    write_pending_install_manifest(medium, manifest)
+    atomic_symlink(target_slot, medium / "live" / "current")
+    write_grub_cfg(medium, config.get("PVE_THIN_CLIENT_HOSTNAME", "beagle-os"))
+    updated = update_status(
+        state="reboot-required",
+        last_apply_at=utcnow(),
+        previous_slot=current_slot,
+        previous_version=str(status.get("current_version", "")).strip(),
+        current_slot=current_slot,
+        next_slot=target_slot,
+        next_version=str(manifest.get("project_version", "")).strip(),
+        pending_reboot=True,
+        pending_confirm=True,
+        staged_slot=target_slot,
+        staged_version=str(status.get("staged_version", "")).strip() or str(manifest.get("project_version", "")).strip(),
+        last_error="",
+    )
+    subprocess.run(["sync"], check=False)
+    if reboot:
+        log(f"applying update to slot {target_slot} and rebooting")
+        subprocess.run(["systemctl", "reboot"], check=False)
+    return updated
+
+
+def confirm_boot(config: dict[str, str]) -> dict:
+    if boot_mode() != "runtime":
+        return update_status(state="skipped", last_error="")
+    medium, current_slot = ensure_slot_layout(config)
+    pending_manifest = read_pending_install_manifest(medium)
+    if pending_manifest:
+        write_install_manifest(medium, pending_manifest)
+        clear_pending_install_manifest(medium)
+    if STAGED_MANIFEST_FILE.exists():
+        STAGED_MANIFEST_FILE.unlink()
+    manifest = read_install_manifest(medium)
+    version = str(manifest.get("project_version", "")).strip() or current_version(config, medium)
+    status = update_status(
+        state="current",
+        last_confirmed_at=utcnow(),
+        current_slot=current_slot,
+        current_version=version,
+        next_slot="",
+        next_version="",
+        pending_reboot=False,
+        pending_confirm=False,
+        available=False,
+        staged_slot="",
+        staged_version="",
+        last_error="",
+    )
+    return status
+
+
+def rollback_update(config: dict[str, str], *, reboot: bool = False) -> dict:
+    if boot_mode() != "runtime":
+        raise RuntimeError("updates can only be rolled back in runtime mode")
+    medium, current_slot = ensure_slot_layout(config)
+    status = load_json(STATUS_FILE, {})
+    if not isinstance(status, dict):
+        status = {}
+    previous_slot = str(status.get("previous_slot", "")).strip()
+    if previous_slot not in {"a", "b"}:
+        raise RuntimeError("no rollback target is recorded")
+    previous_manifest = load_json(PREVIOUS_MANIFEST_FILE, {})
+    if not isinstance(previous_manifest, dict) or not previous_manifest:
+        previous_manifest = read_install_manifest(medium)
+    if not isinstance(previous_manifest, dict) or not previous_manifest:
+        raise RuntimeError("previous install manifest is missing")
+    write_pending_install_manifest(medium, previous_manifest)
+    atomic_symlink(previous_slot, medium / "live" / "current")
+    write_grub_cfg(medium, config.get("PVE_THIN_CLIENT_HOSTNAME", "beagle-os"))
+    updated = update_status(
+        state="rollback-reboot-required",
+        last_rollback_at=utcnow(),
+        next_slot=previous_slot,
+        next_version=str(previous_manifest.get("project_version", "")).strip(),
+        current_slot=current_slot,
+        pending_reboot=True,
+        pending_confirm=True,
+        last_error="",
+    )
+    subprocess.run(["sync"], check=False)
+    if reboot:
+        log(f"rolling back to slot {previous_slot} and rebooting")
+        subprocess.run(["systemctl", "reboot"], check=False)
+    return updated
+
+
+def session_start(config: dict[str, str]) -> int:
+    if boot_mode() != "runtime":
+        return 0
+    if not bool_from_config(config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_ENABLED", "1"), True):
+        return 0
+    status = load_json(STATUS_FILE, {})
+    if not isinstance(status, dict):
+        status = {}
+    try:
+        medium, _ = ensure_slot_layout(config)
+    except Exception as exc:
+        log(f"session-start slot layout check failed: {exc}")
+        return 0
+    if not recent_scan(status):
+        subprocess.run(["sudo", "-n", "/usr/local/sbin/beagle-update-client", "scan"], check=False)
+        status = load_json(STATUS_FILE, {})
+        if not isinstance(status, dict):
+            status = {}
+    state = str(status.get("state", "")).strip()
+    latest = str(status.get("staged_version", "") or status.get("latest_version", "")).strip()
+    installed = current_version(config, medium)
+    if state not in {"staged", "reboot-required"} and not latest:
+        return 0
+    if state not in {"staged", "reboot-required"} and latest == installed:
+        return 0
+
+    behavior = str(
+        status.get("behavior", config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR", "prompt"))
+    ).strip().lower() or "prompt"
+    if behavior == "off":
+        return 0
+    if behavior == "auto":
+        subprocess.run(["sudo", "-n", "/usr/local/sbin/beagle-update-client", "apply", "--reboot"], check=False)
+        return 0
+
+    if shutil.which("zenity") is None:
+        return 0
+    message = f"Ein Beagle OS Update auf Version {latest or 'neu'} ist verfuegbar.\nAktuell installiert: {installed or 'unbekannt'}.\nJetzt anwenden und neu starten?"
+    result = subprocess.run(
+        [
+            "zenity",
+            "--question",
+            "--width=420",
+            "--title=Beagle OS Update",
+            "--text",
+            message,
+            "--ok-label=Update installieren",
+            "--cancel-label=Spaeter",
+        ],
+        check=False,
+    )
+    if result.returncode == 0:
+        subprocess.run(["sudo", "-n", "/usr/local/sbin/beagle-update-client", "apply", "--reboot"], check=False)
+    return 0
+
+
+def print_status() -> int:
+    payload = load_json(STATUS_FILE, {})
+    print(json.dumps(payload if isinstance(payload, dict) else {}, indent=2))
+    return 0
+
+
+def scan_command(config: dict[str, str], *, auto_apply_if_idle: bool = False, force: bool = False) -> dict:
+    if boot_mode() != "runtime":
+        return update_status(state="skipped", last_scan_at=utcnow(), last_error="")
+    medium, current_slot = ensure_slot_layout(config)
+    if not bool_from_config(config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_ENABLED", "1"), True):
+        return update_status(
+            state="disabled",
+            last_scan_at=utcnow(),
+            current_slot=current_slot,
+            current_version=current_version(config, medium),
+            pending_reboot=False,
+            pending_confirm=False,
+            available=False,
+            last_error="",
+        )
+    feed = fetch_feed(config, medium)
+    status = stage_update(feed, config, force=force)
+    if auto_apply_if_idle and str(status.get("state", "")).strip() == "staged":
+        behavior = str(status.get("behavior", config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR", "prompt"))).strip().lower()
+        if behavior == "auto" and is_idle_for_reboot():
+            return apply_update(config, reboot=True)
+    return status
+
+
+def require_root() -> None:
+    if os.geteuid() != 0:
+        raise RuntimeError("this command must run as root")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Beagle OS updater for installed thin clients")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    scan_parser = subparsers.add_parser("scan")
+    scan_parser.add_argument("--auto-apply-if-idle", action="store_true")
+    scan_parser.add_argument("--force", action="store_true")
+
+    apply_parser = subparsers.add_parser("apply")
+    apply_parser.add_argument("--reboot", action="store_true")
+
+    rollback_parser = subparsers.add_parser("rollback")
+    rollback_parser.add_argument("--reboot", action="store_true")
+
+    subparsers.add_parser("confirm-boot")
+    subparsers.add_parser("status")
+    subparsers.add_parser("session-start")
+
+    args = parser.parse_args()
+    ensure_dirs()
+
+    try:
+        config_dir, config = load_config()
+        log(f"command={args.command} config_dir={config_dir}")
+        if args.command == "status":
+            return print_status()
+        if args.command == "session-start":
+            return session_start(config)
+        require_root()
+        if args.command == "scan":
+            payload = scan_command(config, auto_apply_if_idle=args.auto_apply_if_idle, force=args.force)
+        elif args.command == "apply":
+            payload = apply_update(config, reboot=args.reboot)
+        elif args.command == "rollback":
+            payload = rollback_update(config, reboot=args.reboot)
+        elif args.command == "confirm-boot":
+            payload = confirm_boot(config)
+        else:
+            raise RuntimeError(f"unsupported command {args.command}")
+    except Exception as exc:
+        log(f"command={args.command} error={exc}")
+        update_status(last_error=str(exc), last_error_at=utcnow())
+        print(f"beagle-update-client: {exc}", file=sys.stderr)
+        return 1
+
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -4,6 +4,7 @@
   const BUTTON_MARKER = "data-beagle-integration";
   const STYLE_ID = "beagle-os-extension-style";
   const OVERLAY_ID = "beagle-os-extension-overlay";
+  const API_TOKEN_STORAGE_KEY = "beagle.proxmoxUi.apiToken";
 
   function defaultUsbInstallerUrl() {
     return "https://{host}:8443/beagle-api/api/v1/vms/{vmid}/installer.sh";
@@ -23,6 +24,59 @@
 
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function tokenStorage() {
+    try {
+      return window.sessionStorage;
+    } catch {
+      return null;
+    }
+  }
+
+  function readStoredApiToken() {
+    const storage = tokenStorage();
+    if (!storage) return "";
+    try {
+      return String(storage.getItem(API_TOKEN_STORAGE_KEY) || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function writeStoredApiToken(token) {
+    const storage = tokenStorage();
+    if (!storage) return;
+    try {
+      storage.setItem(API_TOKEN_STORAGE_KEY, String(token || "").trim());
+    } catch {
+      // ignore storage failures
+    }
+  }
+
+  function clearStoredApiToken() {
+    const storage = tokenStorage();
+    if (!storage) return;
+    try {
+      storage.removeItem(API_TOKEN_STORAGE_KEY);
+    } catch {
+      // ignore storage failures
+    }
+  }
+
+  function promptForApiToken(initialValue = "") {
+    const token = window.prompt(
+      "Beagle API Token fuer diese Browser-Sitzung eingeben. Leerer Wert loescht den Session-Token.",
+      initialValue
+    );
+    if (token == null) return "";
+    const trimmed = String(token || "").trim();
+    if (!trimmed) {
+      clearStoredApiToken();
+      return "";
+    }
+    writeStoredApiToken(trimmed);
+    return trimmed;
   }
 
   function decodeHash() {
@@ -120,9 +174,9 @@
     }
   }
 
-  async function webUiUrlWithToken() {
+  async function webUiUrlWithToken(interactive = false) {
     const config = await getBeagleUiConfig();
-    const token = config.apiToken || "";
+    const token = await getApiToken(interactive);
     const target = config.webUiUrl || await resolveWebUiUrl();
     if (!token) return target;
     try {
@@ -171,11 +225,21 @@
     return beagleUiConfigPromise;
   }
 
-  async function buildBeagleApiHeaders(extraHeaders = {}) {
-    const headers = Object.assign({}, extraHeaders);
+  async function getApiToken(interactive = false) {
+    const stored = readStoredApiToken();
+    if (stored) return stored;
     const config = await getBeagleUiConfig();
-    if (config.apiToken) {
-      headers.Authorization = `Bearer ${config.apiToken}`;
+    const configured = String(config.apiToken || "").trim();
+    if (configured) return configured;
+    if (!interactive) return "";
+    return promptForApiToken();
+  }
+
+  async function buildBeagleApiHeaders(extraHeaders = {}, interactive = true) {
+    const headers = Object.assign({}, extraHeaders);
+    const token = await getApiToken(interactive);
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
     return headers;
   }
@@ -759,7 +823,7 @@
           break;
         case "open-web-ui":
           {
-            const url = await webUiUrlWithToken();
+            const url = await webUiUrlWithToken(true);
             window.open(url, "_blank", "noopener,noreferrer");
           }
           break;
@@ -894,7 +958,7 @@
     }
     if (!existingWebButton) {
       const webUiButton = createToolbarButton(`${PRODUCT_LABEL} Web UI`, async () => {
-        const url = await webUiUrlWithToken();
+        const url = await webUiUrlWithToken(true);
         window.open(url, "_blank", "noopener,noreferrer");
       });
       webUiButton.title = "Oeffnet die zentrale Beagle Web UI auf diesem Host.";

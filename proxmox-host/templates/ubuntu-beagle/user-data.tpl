@@ -30,13 +30,16 @@ __FIRSTBOOT_SCRIPT__
         content: |
           [Unit]
           Description=Beagle Ubuntu Desktop First Boot Provisioning
-          After=network-online.target
-          Wants=network-online.target
+          After=network-online.target systemd-resolved.service
+          Wants=network-online.target systemd-resolved.service
           ConditionPathExists=!/var/lib/beagle/ubuntu-firstboot.done
 
           [Service]
           Type=oneshot
           ExecStart=/usr/local/sbin/beagle-ubuntu-firstboot.sh
+          Restart=on-failure
+          RestartSec=15
+          StartLimitIntervalSec=0
           RemainAfterExit=yes
 
           [Install]
@@ -46,4 +49,5 @@ __FIRSTBOOT_SCRIPT__
       - [ systemctl, enable, --now, beagle-ubuntu-firstboot.service ]
   late-commands:
     - curtin in-target --target=/target -- systemctl enable qemu-guest-agent.service
-    - curtin in-target --target=/target -- /usr/bin/env bash -lc "curl -fsSk -X POST '__CALLBACK_URL__'"
+    - curtin in-target --target=/target -- systemctl enable beagle-ubuntu-firstboot.service
+    - curtin in-target --target=/target -- sh -c 'for attempt in $(seq 1 20); do curl -fsS __PREPARE_FIRSTBOOT_CURL_ARGS__ --connect-timeout 5 --max-time 20 --retry 2 --retry-delay 2 -X POST "__PREPARE_FIRSTBOOT_URL__" >/dev/null && exit 0; sleep 5; done; exit 0'

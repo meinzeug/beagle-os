@@ -2,8 +2,38 @@
   'use strict';
 
   var config = window.BEAGLE_WEB_UI_CONFIG || {};
+  var tokenStorage = (function () {
+    try {
+      var storage = window.sessionStorage;
+      storage.setItem('beagle.webUi.storageProbe', '1');
+      storage.removeItem('beagle.webUi.storageProbe');
+      return storage;
+    } catch (error) {
+      void error;
+      return null;
+    }
+  }());
+
+  function readStoredToken() {
+    return tokenStorage ? (tokenStorage.getItem('beagle.webUi.apiToken') || '') : '';
+  }
+
+  function writeStoredToken(token) {
+    if (!tokenStorage) {
+      return;
+    }
+    tokenStorage.setItem('beagle.webUi.apiToken', token);
+  }
+
+  function clearStoredToken() {
+    if (!tokenStorage) {
+      return;
+    }
+    tokenStorage.removeItem('beagle.webUi.apiToken');
+  }
+
   var state = {
-    token: window.localStorage.getItem('beagle.webUi.apiToken') || '',
+    token: readStoredToken(),
     inventory: [],
     policies: [],
     selectedVmid: null,
@@ -88,7 +118,7 @@
       return;
     }
     state.token = token;
-    window.localStorage.setItem('beagle.webUi.apiToken', token);
+    writeStoredToken(token);
     if (qs('api-token')) {
       qs('api-token').value = token;
     }
@@ -635,9 +665,9 @@
     var input = qs('api-token');
     state.token = input ? String(input.value || '').trim() : '';
     if (state.token) {
-      window.localStorage.setItem('beagle.webUi.apiToken', state.token);
+      writeStoredToken(state.token);
     } else {
-      window.localStorage.removeItem('beagle.webUi.apiToken');
+      clearStoredToken();
     }
   }
 
@@ -916,7 +946,7 @@
     }
     qs('clear-token').addEventListener('click', function () {
       state.token = '';
-      window.localStorage.removeItem('beagle.webUi.apiToken');
+      clearStoredToken();
       if (tokenField) {
         tokenField.value = '';
       }

@@ -9,6 +9,20 @@ EnvironmentFile=-/etc/beagle/host.env
 EnvironmentFile=-/etc/beagle/beagle-manager.env
 ExecStart=__INSTALL_DIR__/scripts/reconcile-public-streams.sh
 WorkingDirectory=__INSTALL_DIR__
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
 
 [Install]
 WantedBy=multi-user.target

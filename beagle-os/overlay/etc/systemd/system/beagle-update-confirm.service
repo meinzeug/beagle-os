@@ -1,0 +1,11 @@
+[Unit]
+Description=Confirm active Beagle OS update slot after boot
+After=local-fs.target pve-thin-client-prepare.service
+Wants=pve-thin-client-prepare.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/beagle-update-client confirm-boot
+
+[Install]
+WantedBy=multi-user.target

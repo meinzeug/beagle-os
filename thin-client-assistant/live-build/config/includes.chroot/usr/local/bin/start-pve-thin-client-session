@@ -159,6 +159,10 @@ if [ -x /usr/local/bin/pve-thin-client-audio-init ]; then
   /usr/local/bin/pve-thin-client-audio-init >"$LOG_DIR/audio-init.log" 2>&1 || true
 fi
 
+if [ -x /usr/local/sbin/beagle-update-client ]; then
+  /usr/local/sbin/beagle-update-client session-start >"$LOG_DIR/update-session.log" 2>&1 || true
+fi
+
 # prepare-runtime already ran as root via systemd before the session starts.
 # Re-running it here through sudo causes password prompts and boot delays.
 

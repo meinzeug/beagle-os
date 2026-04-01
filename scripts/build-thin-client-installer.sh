@@ -6,6 +6,7 @@ LB_TEMPLATE_DIR="$ROOT_DIR/thin-client-assistant/live-build"
 BUILD_DIR="${THINCLIENT_BUILD_DIR:-$ROOT_DIR/.build/pve-thin-client-live-build}"
 DIST_DIR="${THINCLIENT_DIST_DIR:-$ROOT_DIR/dist/pve-thin-client-installer}"
 THINCLIENT_ARCH="${THINCLIENT_ARCH:-amd64}"
+PROJECT_VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION" 2>/dev/null || echo dev)"
 OWNER_UID="${SUDO_UID:-$(id -u)}"
 OWNER_GID="${SUDO_GID:-$(id -g)}"
 MOONLIGHT_URL="${PVE_THIN_CLIENT_MOONLIGHT_URL:-https://github.com/moonlight-stream/moonlight-qt/releases/download/v6.1.0/Moonlight-6.1.0-x86_64.AppImage}"
@@ -138,6 +139,8 @@ EOF
 }
 
 prepare_rootfs_stage() {
+  local script_path unit_path
+
   rm -rf "$ROOTFS_STAGE_DIR"
   install -d -m 0755 "$ROOTFS_STAGE_DIR"
 
@@ -169,6 +172,38 @@ prepare_rootfs_stage() {
   install -D -m 0644 \
     "$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-prepare.service" \
     "$ROOTFS_STAGE_DIR/etc/systemd/system/pve-thin-client-prepare.service"
+  install -d -m 0755 "$ROOTFS_STAGE_DIR/etc/beagle-os"
+  cat >"$ROOTFS_STAGE_DIR/etc/beagle-os/build-info" <<EOF
+PROJECT=beagle-os
+PROJECT_VERSION=$PROJECT_VERSION
+BUILD_FLAVOR=thin-client-live
+BUILD_ARCH=$THINCLIENT_ARCH
+BUILD_CREATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+  for script_path in \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-endpoint-report" \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-endpoint-dispatch" \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-healthcheck" \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-support-bundle" \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-identity-apply" \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-egress-apply" \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-update-client"
+  do
+    install -D -m 0755 "$script_path" "$ROOTFS_STAGE_DIR/usr/local/sbin/$(basename "$script_path")"
+  done
+  for unit_path in \
+    "$ROOT_DIR/beagle-os/overlay/etc/systemd/system/beagle-endpoint-report.service" \
+    "$ROOT_DIR/beagle-os/overlay/etc/systemd/system/beagle-endpoint-report.timer" \
+    "$ROOT_DIR/beagle-os/overlay/etc/systemd/system/beagle-endpoint-dispatch.service" \
+    "$ROOT_DIR/beagle-os/overlay/etc/systemd/system/beagle-endpoint-dispatch.timer" \
+    "$ROOT_DIR/beagle-os/overlay/etc/systemd/system/beagle-healthcheck.service" \
+    "$ROOT_DIR/beagle-os/overlay/etc/systemd/system/beagle-healthcheck.timer" \
+    "$ROOT_DIR/beagle-os/overlay/etc/systemd/system/beagle-update-scan.service" \
+    "$ROOT_DIR/beagle-os/overlay/etc/systemd/system/beagle-update-scan.timer" \
+    "$ROOT_DIR/beagle-os/overlay/etc/systemd/system/beagle-update-confirm.service"
+  do
+    install -D -m 0644 "$unit_path" "$ROOTFS_STAGE_DIR/etc/systemd/system/$(basename "$unit_path")"
+  done
 
   install -d -m 1777 "$ROOTFS_STAGE_DIR/tmp"
   install -d -m 0755 \
@@ -201,6 +236,11 @@ prepare_rootfs_stage() {
   fi
 
   enable_rootfs_units \
+    beagle-endpoint-report.timer \
+    beagle-endpoint-dispatch.timer \
+    beagle-healthcheck.timer \
+    beagle-update-scan.timer \
+    beagle-update-confirm.service \
     beagle-runtime-heartbeat.timer \
     beagle-usb-tunnel.service \
     pve-thin-client-prepare.service \
@@ -212,6 +252,12 @@ prepare_rootfs_stage() {
     systemd-networkd-wait-online.service \
     ssh.service \
     getty@tty1.service
+
+  ensure_rootfs_wants_link pve-thin-client-prepare.service multi-user.target
+  ensure_rootfs_wants_link pve-thin-client-runtime.service multi-user.target
+  ensure_rootfs_wants_link pve-thin-client-installer-gui.service multi-user.target
+  ensure_rootfs_wants_link pve-thin-client-installer-menu.service multi-user.target
+  ensure_rootfs_wants_link pve-thin-client-installer-menu-serial.service multi-user.target
 }
 
 enable_rootfs_units() {
@@ -229,6 +275,25 @@ enable_rootfs_units() {
   if [[ "$had_units" -eq 1 ]]; then
     systemctl --root="$ROOTFS_STAGE_DIR" enable "${units_to_enable[@]}" >/dev/null
   fi
+}
+
+ensure_rootfs_wants_link() {
+  local unit="$1"
+  local target="$2"
+  local unit_path=""
+
+  if [[ -e "$ROOTFS_STAGE_DIR/etc/systemd/system/$unit" ]]; then
+    unit_path="/etc/systemd/system/$unit"
+  elif [[ -e "$ROOTFS_STAGE_DIR/usr/lib/systemd/system/$unit" ]]; then
+    unit_path="/usr/lib/systemd/system/$unit"
+  elif [[ -e "$ROOTFS_STAGE_DIR/lib/systemd/system/$unit" ]]; then
+    unit_path="/lib/systemd/system/$unit"
+  else
+    return 0
+  fi
+
+  install -d -m 0755 "$ROOTFS_STAGE_DIR/etc/systemd/system/${target}.wants"
+  ln -sfn "$unit_path" "$ROOTFS_STAGE_DIR/etc/systemd/system/${target}.wants/$unit"
 }
 
 build_live_assets_from_stage() {

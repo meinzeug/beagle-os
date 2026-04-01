@@ -221,6 +221,9 @@ for vm in sorted(resources, key=lambda item: int(item.get("vmid", 0))):
     explicit_port = str(meta.get("beagle-public-moonlight-port", "")).strip()
     if explicit_port.isdigit():
         mapped_base = int(explicit_port)
+        if streams.get(key) != mapped_base:
+            streams[key] = mapped_base
+        used.add(mapped_base)
     else:
         mapped_base = streams.get(key)
         if mapped_base is None:

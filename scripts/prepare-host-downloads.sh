@@ -376,7 +376,7 @@ def build_preset(vm, config, load_vm_config):
     proxmox_host = meta.get("proxmox-host", server_name)
     proxmox_port = meta.get("proxmox-port", "8006")
     proxmox_realm = meta.get("proxmox-realm", "pam")
-    proxmox_verify_tls = meta.get("proxmox-verify-tls", "0")
+    proxmox_verify_tls = meta.get("proxmox-verify-tls", "1")
     proxmox_username = meta.get("proxmox-user", default_proxmox_username)
     proxmox_password = meta.get("proxmox-password", default_proxmox_password)
     proxmox_token = meta.get("proxmox-token", default_proxmox_token)

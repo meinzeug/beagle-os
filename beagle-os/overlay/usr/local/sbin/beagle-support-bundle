@@ -6,19 +6,77 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 BUNDLE_DIR="$STATE_DIR/beagle-support-$STAMP"
 ARCHIVE="$STATE_DIR/beagle-support-$STAMP.tar.gz"
 
-install -d -m 0755 "$STATE_DIR" "$BUNDLE_DIR"
+install -d -m 0700 "$STATE_DIR" "$BUNDLE_DIR"
+
+redact_text_file() {
+  local src="$1"
+  local dst="$2"
+
+  python3 - "$src" "$dst" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+source = Path(sys.argv[1])
+target = Path(sys.argv[2])
+text = source.read_text(encoding="utf-8", errors="replace")
+secret_markers = (
+    "password",
+    "token",
+    "secret",
+    "private_key",
+    "preshared_key",
+    "sunshine_pin",
+    "thinclient_password",
+    "guest_password",
+    "authcookie",
+)
+
+def is_secret_key(name: str) -> bool:
+    lowered = str(name or "").strip().lower()
+    return any(marker in lowered for marker in secret_markers)
+
+def redact_env_line(match: re.Match[str]) -> str:
+    key = match.group(1)
+    if is_secret_key(key):
+      return f'{key}="REDACTED"'
+    return match.group(0)
+
+def redact_json_line(match: re.Match[str]) -> str:
+    key = match.group(1)
+    if is_secret_key(key):
+        return f'"{key}": "REDACTED"'
+    return match.group(0)
+
+text = re.sub(r'(?m)^([A-Za-z0-9_]+)=(.*)$', redact_env_line, text)
+text = re.sub(r'"([^"]+)"\s*:\s*"([^"]*)"', redact_json_line, text)
+text = re.sub(r'(?i)(Authorization:\s*Bearer\s+)[^\s"]+', r'\1REDACTED', text)
+text = re.sub(r'(?i)(X-Beagle-(?:Api|Endpoint)-Token:\s*)[^\s"]+', r'\1REDACTED', text)
+text = re.sub(r'(?i)(PVEAuthCookie=)[^;"\s]+', r'\1REDACTED', text)
+text = re.sub(r'(?i)(--user\s+)([^:\s]+):([^\s]+)', r'\1\2:REDACTED', text)
+
+target.parent.mkdir(parents=True, exist_ok=True)
+target.write_text(text, encoding="utf-8")
+PY
+  chmod 0600 "$dst"
+}
 
 capture_command() {
   local name="$1"
+  local temp_file=""
   shift
-  "$@" >"$BUNDLE_DIR/$name.txt" 2>&1 || true
+
+  temp_file="$(mktemp)"
+  "$@" >"$temp_file" 2>&1 || true
+  redact_text_file "$temp_file" "$BUNDLE_DIR/$name.txt"
+  rm -f "$temp_file"
 }
 
 copy_if_exists() {
   local src="$1"
   local dst="$2"
-  [[ -e "$src" ]] || return 0
-  install -D -m 0644 "$src" "$BUNDLE_DIR/$dst"
+  [[ -f "$src" ]] || return 0
+  redact_text_file "$src" "$BUNDLE_DIR/$dst"
 }
 
 capture_command uname uname -a
@@ -33,6 +91,8 @@ capture_command journal-beagle-autologin journalctl -u beagle-autologin.service 
 capture_command journal-beagle-healthcheck journalctl -u beagle-healthcheck.service -b --no-pager
 capture_command journal-beagle-endpoint-report journalctl -u beagle-endpoint-report.service -b --no-pager
 capture_command journal-beagle-endpoint-dispatch journalctl -u beagle-endpoint-dispatch.service -b --no-pager
+capture_command journal-beagle-update-scan journalctl -u beagle-update-scan.service -b --no-pager
+capture_command journal-beagle-update-confirm journalctl -u beagle-update-confirm.service -b --no-pager
 capture_command journal-beagle-runtime-heartbeat journalctl -u beagle-runtime-heartbeat.service -b --no-pager
 capture_command journal-beagle-usb-tunnel journalctl -u beagle-usb-tunnel.service -b --no-pager
 capture_command journal-prepare-runtime journalctl -u pve-thin-client-prepare.service -b --no-pager
@@ -40,9 +100,16 @@ capture_command journal-kernel journalctl -k -b --no-pager
 capture_command process-list ps -ef
 
 copy_if_exists /etc/beagle-os/endpoint.env endpoint.env
+copy_if_exists /etc/beagle-os/build-info build-info
 copy_if_exists /etc/pve-thin-client/thinclient.conf thinclient.conf
 copy_if_exists /etc/pve-thin-client/network.env network.env
 copy_if_exists /etc/pve-thin-client/credentials.env credentials.env
+copy_if_exists /etc/pve-thin-client/install-manifest.json install-manifest.json
+copy_if_exists /var/lib/beagle-os/update/status.json update/status.json
+copy_if_exists /var/lib/beagle-os/update/feed.json update/feed.json
+copy_if_exists /var/lib/beagle-os/update/staged-manifest.json update/staged-manifest.json
+copy_if_exists /var/lib/beagle-os/update/install-manifest.previous.json update/install-manifest.previous.json
+copy_if_exists /run/live/medium/pve-thin-client/state/install-manifest.pending.json update/install-manifest.pending.json
 copy_if_exists /var/lib/beagle-os/health.status health.status
 copy_if_exists /var/lib/beagle-os/endpoint-report.status endpoint-report.status
 copy_if_exists /var/lib/beagle-os/endpoint-action.status endpoint-action.status
@@ -52,9 +119,11 @@ copy_if_exists /var/lib/beagle-os/runtime-trace.log runtime-trace.log
 copy_if_exists /var/lib/beagle-os/last-marker.env last-marker.env
 copy_if_exists /var/lib/beagle-os/usb/state.env usb/state.env
 copy_if_exists /var/log/beagle-os/endpoint-report.last.json endpoint-report.last.json
+copy_if_exists /var/log/beagle-os/update-client.log update/update-client.log
 copy_if_exists /var/lib/pve-thin-client/runtime.status runtime.status
 
 tar -C "$STATE_DIR" -czf "$ARCHIVE" "$(basename "$BUNDLE_DIR")"
+chmod 0600 "$ARCHIVE"
 rm -rf "$BUNDLE_DIR"
 
 printf '%s\n' "$ARCHIVE"
