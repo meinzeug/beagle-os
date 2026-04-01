@@ -3,8 +3,10 @@ Description=Run Beagle OS update scans periodically
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=6h
+OnUnitActiveSec=2h
 AccuracySec=2min
+RandomizedDelaySec=10min
+Persistent=true
 Unit=beagle-update-scan.service
 
 [Install]
