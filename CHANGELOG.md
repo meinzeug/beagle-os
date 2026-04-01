@@ -1,5 +1,13 @@
 # Changelog
 
+## v5.1.0 - 2026-04-01
+
+- Reworked Moonlight target selection so Beagle OS endpoints now distinguish between local and public Sunshine routes correctly instead of getting stuck on an unreachable internal VM IP when only the public stream path is available.
+- Hardened the Sunshine API selection path so the runtime rewrites and probes the effective API endpoint against the actually selected Moonlight connect host, keeping public-host routing and TLS pinning aligned.
+- Fixed the automatic pairing flow so a successful manager-side registration no longer skips the real `moonlight list`/pair verification path; endpoints now continue into PIN-based pairing when registration alone did not make the host usable.
+- Removed the conflicting passworded `sudo` fallback from the thinclient sudoers override, restoring the intended passwordless update actions for the limited `beagle-update-client` command path.
+- Verified the currently installed local thinclient on `192.168.178.92` against the new public-host route, completed pairing against `VM100` on `65.109.80.76:50100`, and confirmed that Moonlight can now see the exported `Desktop` app through the paired public target.
+
 ## v5.0.4 - 2026-03-29
 
 - Fixed the live and installed Moonlight runtime so it now validates and selects a working `XAUTHORITY` before pairing or streaming, preventing the black-screen boot loop where Moonlight could not open `DISPLAY=:0`.

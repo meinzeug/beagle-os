@@ -230,6 +230,12 @@ moonlight_primary_connect_host() {
   resolve_preferred_moonlight_host "$host"
 }
 
+moonlight_public_connect_host() {
+  local host
+  host="$(moonlight_host)"
+  resolve_preferred_moonlight_host "$host"
+}
+
 rewrite_url_host() {
   python3 - "$1" "$2" <<'PY'
 from urllib.parse import urlsplit, urlunsplit
@@ -435,6 +441,21 @@ PY
   return 1
 }
 
+probe_stream_candidate() {
+  local candidate api_url effective_api_url
+
+  candidate="$1"
+  api_url="${2:-}"
+  [[ -n "$candidate" ]] || return 1
+
+  effective_api_url="$api_url"
+  if [[ -n "$effective_api_url" ]]; then
+    effective_api_url="$(rewrite_url_host "$effective_api_url" "$candidate" 2>/dev/null || printf '%s\n' "$effective_api_url")"
+  fi
+
+  probe_stream_target "$effective_api_url" "$candidate" "$candidate"
+}
+
 effective_sunshine_api_url() {
   local api_url host connect_host rewritten
 
@@ -460,27 +481,13 @@ effective_sunshine_api_url() {
 }
 
 selected_sunshine_api_url() {
-  local api_url host connect_host effective_api_url fallback_host rewritten
+  local api_url host connect_host effective_api_url
 
   api_url="$(sunshine_api_url)"
   host="$(moonlight_host)"
-  connect_host="$(moonlight_primary_connect_host)"
+  connect_host="$(moonlight_connect_host)"
   effective_api_url="$(effective_sunshine_api_url "$api_url" "$host" "$connect_host" 2>/dev/null || printf '%s\n' "$api_url")"
-  if probe_stream_target "$api_url" "$host" "$connect_host"; then
-    printf '%s\n' "$effective_api_url"
-    return 0
-  fi
-
-  fallback_host="$(moonlight_gateway_fallback_host 2>/dev/null || true)"
-  if [[ -n "$fallback_host" && -n "$api_url" ]]; then
-    rewritten="$(rewrite_url_host "$api_url" "$fallback_host" 2>/dev/null || true)"
-    if [[ -n "$rewritten" ]]; then
-      printf '%s\n' "$rewritten"
-      return 0
-    fi
-  fi
-
-  printf '%s\n' "$api_url"
+  printf '%s\n' "$effective_api_url"
 }
 
 moonlight_client_config_path() {
@@ -796,18 +803,48 @@ PY
 }
 
 moonlight_connect_host() {
-  local host fallback_host api_url
+  local host local_host public_host fallback_host api_url candidate last_candidate
+  local -a candidates=()
 
-  host="$(moonlight_primary_connect_host)"
+  host="$(moonlight_host)"
   api_url="$(sunshine_api_url)"
-  if probe_stream_target "$api_url" "$(moonlight_host)" "$host"; then
-    printf '%s\n' "$host"
+
+  local_host="$(moonlight_local_host)"
+  if [[ -n "$local_host" ]]; then
+    candidates+=("$(resolve_preferred_moonlight_host "$local_host")")
+  fi
+
+  public_host="$(moonlight_public_connect_host)"
+  if [[ -n "$public_host" ]]; then
+    candidates+=("$public_host")
+  fi
+
+  last_candidate=""
+  for candidate in "${candidates[@]}"; do
+    [[ -n "$candidate" ]] || continue
+    if [[ "$candidate" == "$last_candidate" ]]; then
+      continue
+    fi
+    if probe_stream_candidate "$candidate" "$api_url"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+    last_candidate="$candidate"
+  done
+
+  fallback_host="$(moonlight_gateway_fallback_host 2>/dev/null || true)"
+  if [[ -n "$fallback_host" ]] && probe_stream_candidate "$fallback_host" "$api_url"; then
+    printf '%s\n' "$fallback_host"
     return 0
   fi
 
-  fallback_host="$(moonlight_gateway_fallback_host 2>/dev/null || true)"
-  if [[ -n "$fallback_host" ]]; then
-    printf '%s\n' "$fallback_host"
+  if [[ -n "$public_host" ]]; then
+    printf '%s\n' "$public_host"
+    return 0
+  fi
+
+  if [[ -n "$local_host" ]]; then
+    resolve_preferred_moonlight_host "$local_host"
     return 0
   fi
 
@@ -936,12 +973,9 @@ ensure_paired() {
 
   if register_moonlight_client_via_manager; then
     beagle_log_event "moonlight.registered" "host=${host} port=${port:-default}"
-    for attempt in $(seq 1 8); do
-      sleep 1
-      if moonlight_list; then
-        return 0
-      fi
-    done
+    if moonlight_list; then
+      return 0
+    fi
   fi
 
   [[ -n "$pin" ]] || return 1
@@ -1085,7 +1119,9 @@ main() {
 
   if register_moonlight_client_via_manager; then
     beagle_log_event "moonlight.registered" "host=${host} port=${port:-default}"
-  elif ! moonlight_list; then
+  fi
+
+  if ! moonlight_list; then
     ensure_paired || {
       beagle_log_event "moonlight.pairing-failed" "host=${host} port=${port:-default} pin=${PVE_THIN_CLIENT_SUNSHINE_PIN:-unset}"
       echo "Moonlight pairing failed for host '$host'." >&2
