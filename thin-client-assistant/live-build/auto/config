@@ -16,13 +16,21 @@ fi
 
 BOOT_ARGS="boot=live components username=thinclient hostname=beagle-installer ip=dhcp quiet loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 splash plymouth.ignore-serial-consoles pve_thin_client.mode=installer"
 
+BOOTLOADER_FLAG="--bootloader"
+BOOTLOADER_VALUE="grub"
+
+if lb config --help 2>/dev/null | grep -q -- '--bootloaders'; then
+  BOOTLOADER_FLAG="--bootloaders"
+  BOOTLOADER_VALUE="grub-pc"
+fi
+
 lb config noauto \
   --mode debian \
   --architectures "$THINCLIENT_ARCH" \
   --initsystem systemd \
   --distribution bookworm \
   --binary-images iso-hybrid \
-  --debian-installer false \
+  --debian-installer none \
   --apt-recommends false \
   --archive-areas "main contrib non-free non-free-firmware" \
   --linux-packages "none" \
@@ -35,6 +43,6 @@ lb config noauto \
   --mirror-chroot-security "https://deb.debian.org/debian-security" \
   --mirror-binary-security "https://deb.debian.org/debian-security" \
   --security false \
-  --bootloader grub \
+  "$BOOTLOADER_FLAG" "$BOOTLOADER_VALUE" \
   --bootappend-live "$BOOT_ARGS" \
   "$@"
