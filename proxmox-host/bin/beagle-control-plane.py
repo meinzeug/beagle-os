@@ -2506,12 +2506,17 @@ def build_ubuntu_beagle_seed_iso(
 
 def finalize_ubuntu_beagle_install(state: dict[str, Any], *, restart: bool = True) -> dict[str, Any]:
     vmid = int(state["vmid"])
+    vm = find_vm(vmid)
+    config = get_vm_config(vm.node, vm.vmid) if vm is not None else {}
     for option in ("args", "ide2", "ide3"):
+        if option not in config:
+            continue
         try:
-            run_checked(["qm", "set", str(vmid), "--delete", option])
+            run_checked(["qm", "set", str(vmid), "--delete", option], timeout=None)
         except subprocess.CalledProcessError:
             pass
-    run_checked(["qm", "set", str(vmid), "--boot", "order=scsi0"])
+    if str(config.get("boot", "") or "").strip() != "order=scsi0":
+        run_checked(["qm", "set", str(vmid), "--boot", "order=scsi0"], timeout=None)
     if restart:
         try:
             run_checked(["qm", "stop", str(vmid), "--skiplock", "1"], timeout=None)
@@ -2618,15 +2623,16 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
         callback_url=callback_url,
     )
     description = build_ubuntu_beagle_description(hostname, guest_user, public_stream, os_profile=os_profile)
-    # Direct-kernel boots on Proxmox were not reliably discovering the NoCloud
-    # seed via label alone. Point cloud-init at the CIDATA mount explicitly so
-    # identity, hostname and firstboot provisioning are always applied.
+    # When the live-server installer boots with an attached CIDATA seed ISO,
+    # Ubuntu 24.04 reliably autodetects NoCloud on its own. Forcing
+    # ds=nocloud;s=/cidata/ here leaves Subiquity in interactive mode instead
+    # of consuming the bundled autoinstall config.
     args = " ".join(
         [
             f"-kernel {shlex.quote(iso_assets['kernel_path'])}",
             f"-initrd {shlex.quote(iso_assets['initrd_path'])}",
             "-append",
-            shlex.quote("autoinstall ds=nocloud;s=/cidata/ console=tty0 console=ttyS0,115200n8 ---"),
+            shlex.quote("autoinstall console=tty0 console=ttyS0,115200n8 ---"),
         ]
     )
     tags = "beagle;desktop;ubuntu"

@@ -22,6 +22,43 @@ cleanup_tmpdir() {
   fi
 }
 
+disable_cdrom_apt_sources() {
+  python3 - <<'PY'
+from pathlib import Path
+
+for path in Path("/etc/apt").rglob("*"):
+    if not path.is_file():
+        continue
+    try:
+        original = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        continue
+    updated = original
+    if path.suffix == ".sources":
+        kept_blocks = []
+        for block in original.split("\n\n"):
+            if "cdrom" in block:
+                continue
+            if block.strip():
+                kept_blocks.append(block.strip())
+        updated = "\n\n".join(kept_blocks)
+        if updated:
+            updated += "\n"
+    else:
+        kept_lines = []
+        for line in original.splitlines():
+            stripped = line.strip()
+            if "cdrom" in stripped:
+                continue
+            kept_lines.append(line)
+        updated = "\n".join(kept_lines)
+        if updated:
+            updated += "\n"
+    if updated != original:
+        path.write_text(updated, encoding="utf-8")
+PY
+}
+
 callback_tls_args() {
   if [[ -n "$CALLBACK_PINNED_PUBKEY" ]]; then
     printf '%s\n' -k --pinnedpubkey "$CALLBACK_PINNED_PUBKEY"
@@ -127,6 +164,11 @@ apt_retry() {
   return 1
 }
 
+repair_interrupted_dpkg() {
+  dpkg --configure -a >/dev/null 2>&1 || true
+  apt-get install -f -y >/dev/null 2>&1 || true
+}
+
 post_completion_callback() {
   local callback_endpoint="${CALLBACK_URL}?restart=0"
   local attempt
@@ -154,6 +196,8 @@ post_completion_callback() {
 
 if [[ ! -f "$DONE_FILE" ]]; then
   ensure_dns_resolution
+  disable_cdrom_apt_sources
+  repair_interrupted_dpkg
 
   echo 'lightdm shared/default-x-display-manager select lightdm' | debconf-set-selections
   apt_retry apt-get update -o Acquire::Retries=5
