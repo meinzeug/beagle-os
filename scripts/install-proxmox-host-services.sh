@@ -114,7 +114,7 @@ Match User $USB_TUNNEL_USER
     AuthorizedKeysFile $USB_TUNNEL_AUTH_ROOT/authorized_keys .ssh/authorized_keys
     AllowTcpForwarding remote
     AllowAgentForwarding no
-    PermitTTY no
+    PermitTTY yes
     X11Forwarding no
     GatewayPorts clientspecified
 EOF
