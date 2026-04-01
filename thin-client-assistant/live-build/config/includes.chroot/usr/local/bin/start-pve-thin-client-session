@@ -161,6 +161,7 @@ fi
 
 if [ -x /usr/local/sbin/beagle-update-client ]; then
   /usr/local/sbin/beagle-update-client session-start >"$LOG_DIR/update-session.log" 2>&1 || true
+  /usr/local/sbin/beagle-update-client session-monitor >"$LOG_DIR/update-monitor.log" 2>&1 &
 fi
 
 # prepare-runtime already ran as root via systemd before the session starts.

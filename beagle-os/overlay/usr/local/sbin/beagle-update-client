@@ -3,10 +3,12 @@ import argparse
 import hashlib
 import json
 import os
+import pwd
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -29,6 +31,8 @@ FEED_CACHE_FILE = STATE_ROOT / "feed.json"
 STAGED_MANIFEST_FILE = STATE_ROOT / "staged-manifest.json"
 PREVIOUS_MANIFEST_FILE = STATE_ROOT / "install-manifest.previous.json"
 RECENT_SCAN_SECONDS = int(os.environ.get("BEAGLE_UPDATE_RECENT_SCAN_SECONDS", "21600"))
+SESSION_MONITOR_INTERVAL_SECONDS = int(os.environ.get("BEAGLE_UPDATE_SESSION_MONITOR_INTERVAL_SECONDS", "60"))
+PROMPT_COOLDOWN_SECONDS = int(os.environ.get("BEAGLE_UPDATE_PROMPT_COOLDOWN_SECONDS", "43200"))
 
 
 def utcnow() -> str:
@@ -36,9 +40,12 @@ def utcnow() -> str:
 
 
 def log(message: str) -> None:
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with LOG_FILE.open("a", encoding="utf-8") as handle:
-        handle.write(f"[{utcnow()}] {message}\n")
+    try:
+        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with LOG_FILE.open("a", encoding="utf-8") as handle:
+            handle.write(f"[{utcnow()}] {message}\n")
+    except OSError:
+        pass
 
 
 def ensure_dirs() -> None:
@@ -50,7 +57,11 @@ def read_env_file(path: Path) -> dict[str, str]:
     data: dict[str, str] = {}
     if not path.is_file():
         return data
-    for raw_line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+    try:
+        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError:
+        return data
+    for raw_line in lines:
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -92,13 +103,18 @@ def load_json(path: Path, default):
         return default
 
 
-def write_json_atomic(path: Path, payload: dict) -> None:
+def write_json_atomic(path: Path, payload: dict, *, mode: int | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile("w", dir=path.parent, delete=False, encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
         handle.write("\n")
         temp_path = Path(handle.name)
     temp_path.replace(path)
+    if mode is not None:
+        try:
+            path.chmod(mode)
+        except OSError:
+            pass
 
 
 def update_status(**changes) -> dict:
@@ -107,7 +123,7 @@ def update_status(**changes) -> dict:
     if not isinstance(status, dict):
         status = {}
     status.update(changes)
-    write_json_atomic(STATUS_FILE, status)
+    write_json_atomic(STATUS_FILE, status, mode=0o644)
     return status
 
 
@@ -116,6 +132,34 @@ def live_medium() -> Path:
         if candidate.is_dir() and (candidate / "live").is_dir():
             return candidate
     raise RuntimeError("live medium mount not found")
+
+
+def mount_options_for_path(path: Path) -> set[str]:
+    try:
+        output = subprocess.check_output(
+            ["findmnt", "-nro", "OPTIONS", "--target", str(path)],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        return set()
+    return {item.strip() for item in output.split(",") if item.strip()}
+
+
+def ensure_medium_writable(medium: Path) -> None:
+    options = mount_options_for_path(medium)
+    if "rw" in options and "ro" not in options:
+        return
+    subprocess.run(
+        ["mount", "-o", "remount,rw", str(medium)],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    options = mount_options_for_path(medium)
+    if "rw" not in options or "ro" in options:
+        raise RuntimeError(f"failed to remount {medium} read-write")
+    log(f"remounted {medium} read-write")
 
 
 def boot_mode() -> str:
@@ -162,6 +206,16 @@ def atomic_symlink(target: str, link_path: Path) -> None:
         temp_path.unlink()
     os.symlink(target, temp_path)
     temp_path.replace(link_path)
+
+
+def linked_slot(link_path: Path) -> str:
+    if not link_path.is_symlink():
+        return ""
+    try:
+        target = os.readlink(link_path)
+    except OSError:
+        return ""
+    return Path(target).name
 
 
 def root_uuid_for_medium(medium: Path) -> str:
@@ -219,32 +273,46 @@ menuentry 'Beagle OS (Slot B fallback)' {{
     grub_cfg.write_text(content, encoding="utf-8")
 
 
-def ensure_slot_layout(config: dict[str, str]) -> tuple[Path, str]:
+def ensure_slot_layout(config: dict[str, str], *, writable: bool = False) -> tuple[Path, str]:
     medium = live_medium()
     live_dir = medium / "live"
     slot_a = live_dir / "a"
     slot_b = live_dir / "b"
-    slot_a.mkdir(parents=True, exist_ok=True)
-    slot_b.mkdir(parents=True, exist_ok=True)
 
     legacy_dir = live_dir
-    if not slot_has_assets(slot_a) and all((legacy_dir / name).is_file() for name in ("vmlinuz", "initrd.img", "filesystem.squashfs")):
-        copy_slot_assets(legacy_dir, slot_a)
-        log("migrated legacy single-slot live assets into slot a")
+    legacy_assets_present = all((legacy_dir / name).is_file() for name in ("vmlinuz", "initrd.img", "filesystem.squashfs"))
+    migrate_legacy = not slot_has_assets(slot_a) and legacy_assets_present
 
     current_link = live_dir / "current"
-    if current_link.is_symlink():
-        current_slot = os.readlink(current_link)
-    else:
+    current_slot = linked_slot(current_link)
+    needs_write = writable or not slot_a.is_dir() or not slot_b.is_dir() or migrate_legacy or current_slot not in {"a", "b"}
+
+    if needs_write:
+        ensure_medium_writable(medium)
+        slot_a.mkdir(parents=True, exist_ok=True)
+        slot_b.mkdir(parents=True, exist_ok=True)
+        if migrate_legacy:
+            copy_slot_assets(legacy_dir, slot_a)
+            log("migrated legacy single-slot live assets into slot a")
+        current_slot = linked_slot(current_link)
+        if current_slot not in {"a", "b"}:
+            if slot_has_assets(slot_a):
+                current_slot = "a"
+            elif slot_has_assets(slot_b):
+                current_slot = "b"
+            else:
+                raise RuntimeError("no bootable live assets found on installed system")
+            atomic_symlink(current_slot, current_link)
+        write_grub_cfg(medium, config.get("PVE_THIN_CLIENT_HOSTNAME", "beagle-os"))
+        return medium, current_slot
+
+    if current_slot not in {"a", "b"}:
         if slot_has_assets(slot_a):
             current_slot = "a"
         elif slot_has_assets(slot_b):
             current_slot = "b"
         else:
             raise RuntimeError("no bootable live assets found on installed system")
-        atomic_symlink(current_slot, current_link)
-
-    write_grub_cfg(medium, config.get("PVE_THIN_CLIENT_HOSTNAME", "beagle-os"))
     return medium, current_slot
 
 
@@ -432,12 +500,13 @@ def build_manifest(asset_dir: Path, version: str, payload_url: str, *, slot: str
 
 
 def stage_update(feed: dict, config: dict[str, str], *, force: bool = False) -> dict:
-    medium, current_slot = ensure_slot_layout(config)
+    medium = live_medium()
     installed = current_version(config, medium)
     version = str(feed.get("latest_version", "")).strip()
     available = bool(feed.get("available", False))
     if not available and version and version != installed:
         available = True
+    medium, current_slot = ensure_slot_layout(config, writable=bool(version and available and version != installed))
     status = load_json(STATUS_FILE, {})
     if (
         not force
@@ -514,10 +583,170 @@ def is_idle_for_reboot() -> bool:
     return True
 
 
+def session_gui_env() -> dict[str, str]:
+    user_name = os.environ.get("USER", "").strip()
+    home = os.environ.get("HOME", "").strip()
+    xdg_runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "").strip()
+    if not user_name:
+        try:
+            user_name = pwd.getpwuid(os.geteuid()).pw_name
+        except KeyError:
+            user_name = "thinclient"
+    if not home:
+        try:
+            home = pwd.getpwnam(user_name).pw_dir
+        except KeyError:
+            home = str(Path.home())
+    if not xdg_runtime_dir:
+        try:
+            xdg_runtime_dir = f"/run/user/{pwd.getpwnam(user_name).pw_uid}"
+        except KeyError:
+            xdg_runtime_dir = ""
+    return {
+        "USER": user_name,
+        "HOME": home,
+        "DISPLAY": os.environ.get("DISPLAY", ":0").strip() or ":0",
+        "XAUTHORITY": os.environ.get("XAUTHORITY", str(Path(home) / ".Xauthority")).strip() or str(Path(home) / ".Xauthority"),
+        "XDG_RUNTIME_DIR": xdg_runtime_dir,
+    }
+
+
+def session_prompt_state_path(gui_env: dict[str, str]) -> Path:
+    return Path(gui_env.get("HOME", str(Path.home()))) / ".cache" / "beagle-os" / "update-notifier.json"
+
+
+def load_session_prompt_state(gui_env: dict[str, str]) -> dict:
+    payload = load_json(session_prompt_state_path(gui_env), {})
+    return payload if isinstance(payload, dict) else {}
+
+
+def write_session_prompt_state(gui_env: dict[str, str], payload: dict) -> None:
+    write_json_atomic(session_prompt_state_path(gui_env), payload)
+
+
+def parse_timestamp(value: str) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def prompt_cooldown_active(prompt_state: dict, version: str) -> bool:
+    if str(prompt_state.get("last_prompted_version", "")).strip() != version:
+        return False
+    prompted_at = parse_timestamp(str(prompt_state.get("last_prompted_at", "")).strip())
+    if prompted_at is None:
+        return False
+    age = (datetime.now(timezone.utc) - prompted_at).total_seconds()
+    return age < PROMPT_COOLDOWN_SECONDS
+
+
+def pending_update_version(status: dict) -> str:
+    for key in ("next_version", "staged_version", "latest_version"):
+        value = str(status.get(key, "")).strip()
+        if value:
+            return value
+    return ""
+
+
+def maybe_prompt_interactive_update(config: dict[str, str], status: dict, installed_version: str) -> int:
+    if boot_mode() != "runtime":
+        return 0
+    if shutil.which("zenity") is None:
+        return 0
+    if not is_idle_for_reboot():
+        return 0
+
+    behavior = str(
+        status.get("behavior", config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR", "prompt"))
+    ).strip().lower() or "prompt"
+    if behavior in {"off", "auto"}:
+        return 0
+
+    state = str(status.get("state", "")).strip()
+    if state not in {"staged", "reboot-required"}:
+        return 0
+
+    version = pending_update_version(status)
+    if not version or version == installed_version:
+        return 0
+
+    gui_env = session_gui_env()
+    prompt_state = load_session_prompt_state(gui_env)
+    if prompt_cooldown_active(prompt_state, version):
+        return 0
+
+    env = os.environ.copy()
+    env.update({key: value for key, value in gui_env.items() if value})
+    if shutil.which("xset") is not None:
+        ready = subprocess.run(
+            ["xset", "q"],
+            check=False,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if ready.returncode != 0:
+            return 0
+    title = "Beagle OS Update verfuegbar"
+    message = (
+        f"Ein Beagle OS Update auf Version {version} ist im Hintergrund bereitgestellt.\n"
+        f"Aktuell installiert: {installed_version or 'unbekannt'}.\n"
+        "Jetzt installieren und neu starten?"
+    )
+    result = subprocess.run(
+        [
+            "zenity",
+            "--question",
+            "--width=460",
+            "--title",
+            title,
+            "--text",
+            message,
+            "--ok-label=Jetzt aktualisieren",
+            "--cancel-label=Spaeter",
+        ],
+        check=False,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    prompt_state["last_prompted_version"] = version
+    prompt_state["last_prompted_at"] = utcnow()
+    write_session_prompt_state(gui_env, prompt_state)
+    if result.returncode == 0:
+        subprocess.run(["sudo", "-n", "/usr/local/sbin/beagle-update-client", "apply", "--reboot"], check=False)
+    return result.returncode
+
+
+def session_monitor(config: dict[str, str], *, once: bool = False) -> int:
+    if boot_mode() != "runtime":
+        return 0
+    if not bool_from_config(config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_ENABLED", "1"), True):
+        return 0
+    interval = max(30, SESSION_MONITOR_INTERVAL_SECONDS)
+
+    while True:
+        status = load_json(STATUS_FILE, {})
+        if not isinstance(status, dict):
+            status = {}
+        try:
+            installed = current_version(config, live_medium())
+        except Exception:
+            installed = str(status.get("current_version", "")).strip()
+        maybe_prompt_interactive_update(config, status, installed)
+        if once:
+            return 0
+        time.sleep(interval)
+
+
 def apply_update(config: dict[str, str], *, reboot: bool = False) -> dict:
     if boot_mode() != "runtime":
         raise RuntimeError("updates can only be applied in runtime mode")
-    medium, current_slot = ensure_slot_layout(config)
+    medium, current_slot = ensure_slot_layout(config, writable=True)
     status = load_json(STATUS_FILE, {})
     if not isinstance(status, dict):
         status = {}
@@ -562,7 +791,7 @@ def apply_update(config: dict[str, str], *, reboot: bool = False) -> dict:
 def confirm_boot(config: dict[str, str]) -> dict:
     if boot_mode() != "runtime":
         return update_status(state="skipped", last_error="")
-    medium, current_slot = ensure_slot_layout(config)
+    medium, current_slot = ensure_slot_layout(config, writable=True)
     pending_manifest = read_pending_install_manifest(medium)
     if pending_manifest:
         write_install_manifest(medium, pending_manifest)
@@ -591,7 +820,7 @@ def confirm_boot(config: dict[str, str]) -> dict:
 def rollback_update(config: dict[str, str], *, reboot: bool = False) -> dict:
     if boot_mode() != "runtime":
         raise RuntimeError("updates can only be rolled back in runtime mode")
-    medium, current_slot = ensure_slot_layout(config)
+    medium, current_slot = ensure_slot_layout(config, writable=True)
     status = load_json(STATUS_FILE, {})
     if not isinstance(status, dict):
         status = {}
@@ -657,25 +886,7 @@ def session_start(config: dict[str, str]) -> int:
     if behavior == "auto":
         subprocess.run(["sudo", "-n", "/usr/local/sbin/beagle-update-client", "apply", "--reboot"], check=False)
         return 0
-
-    if shutil.which("zenity") is None:
-        return 0
-    message = f"Ein Beagle OS Update auf Version {latest or 'neu'} ist verfuegbar.\nAktuell installiert: {installed or 'unbekannt'}.\nJetzt anwenden und neu starten?"
-    result = subprocess.run(
-        [
-            "zenity",
-            "--question",
-            "--width=420",
-            "--title=Beagle OS Update",
-            "--text",
-            message,
-            "--ok-label=Update installieren",
-            "--cancel-label=Spaeter",
-        ],
-        check=False,
-    )
-    if result.returncode == 0:
-        subprocess.run(["sudo", "-n", "/usr/local/sbin/beagle-update-client", "apply", "--reboot"], check=False)
+    maybe_prompt_interactive_update(config, status, installed)
     return 0
 
 
@@ -731,6 +942,8 @@ def main() -> int:
     subparsers.add_parser("confirm-boot")
     subparsers.add_parser("status")
     subparsers.add_parser("session-start")
+    monitor_parser = subparsers.add_parser("session-monitor")
+    monitor_parser.add_argument("--once", action="store_true")
 
     args = parser.parse_args()
     ensure_dirs()
@@ -742,6 +955,8 @@ def main() -> int:
             return print_status()
         if args.command == "session-start":
             return session_start(config)
+        if args.command == "session-monitor":
+            return session_monitor(config, once=args.once)
         require_root()
         if args.command == "scan":
             payload = scan_command(config, auto_apply_if_idle=args.auto_apply_if_idle, force=args.force)
@@ -755,7 +970,10 @@ def main() -> int:
             raise RuntimeError(f"unsupported command {args.command}")
     except Exception as exc:
         log(f"command={args.command} error={exc}")
-        update_status(last_error=str(exc), last_error_at=utcnow())
+        try:
+            update_status(last_error=str(exc), last_error_at=utcnow())
+        except Exception:
+            pass
         print(f"beagle-update-client: {exc}", file=sys.stderr)
         return 1
 
