@@ -9,6 +9,7 @@ SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)
 LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-8443}"
 DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/beagle-downloads}"
 BASE_URL="https://${SERVER_NAME}:${LISTEN_PORT}"
+PUBLIC_ARTIFACT_BASE_URL=""
 FAILURES=0
 STATUS_JSON_FILE="$INSTALL_DIR/dist/beagle-downloads-status.json"
 REFRESH_STATUS_FILE="${PVE_DCV_STATUS_DIR:-/var/lib/beagle}/refresh.status.json"
@@ -28,6 +29,8 @@ load_host_env() {
   LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-$LISTEN_PORT}"
   DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-$DOWNLOADS_PATH}"
   BASE_URL="https://${SERVER_NAME}:${LISTEN_PORT}"
+  PUBLIC_ARTIFACT_BASE_URL="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-${PVE_DCV_DOWNLOADS_BASE_URL:-${BASE_URL}${DOWNLOADS_PATH}}}"
+  PUBLIC_ARTIFACT_BASE_URL="${PUBLIC_ARTIFACT_BASE_URL%/}"
 
   if [[ -f "$BEAGLE_MANAGER_ENV_FILE" ]]; then
     # shellcheck disable=SC1090
@@ -87,7 +90,7 @@ check_service_active() {
 }
 
 check_status_json() {
-  python3 - "$STATUS_JSON_FILE" "$INSTALL_DIR/VERSION" "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-installer-host-latest.sh" "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-bootstrap-latest.tar.gz" "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-payload-latest.tar.gz" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$INSTALL_DIR/dist/pve-thin-client-usb-installer-host-latest.sh" "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-latest.tar.gz" "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" <<'PY'
+  python3 - "$STATUS_JSON_FILE" "$INSTALL_DIR/VERSION" "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-installer-host-latest.sh" "$PUBLIC_ARTIFACT_BASE_URL/pve-thin-client-usb-bootstrap-latest.tar.gz" "$PUBLIC_ARTIFACT_BASE_URL/pve-thin-client-usb-payload-latest.tar.gz" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$INSTALL_DIR/dist/pve-thin-client-usb-installer-host-latest.sh" "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-latest.tar.gz" "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" <<'PY'
 import hashlib
 import json
 import sys
@@ -149,8 +152,8 @@ PY
 }
 
 check_hosted_installer_binding() {
-  local expected_bootstrap_url="${BASE_URL}${DOWNLOADS_PATH}/pve-thin-client-usb-bootstrap-latest.tar.gz"
-  local expected_payload_url="${BASE_URL}${DOWNLOADS_PATH}/pve-thin-client-usb-payload-latest.tar.gz"
+  local expected_bootstrap_url="${PUBLIC_ARTIFACT_BASE_URL}/pve-thin-client-usb-bootstrap-latest.tar.gz"
+  local expected_payload_url="${PUBLIC_ARTIFACT_BASE_URL}/pve-thin-client-usb-payload-latest.tar.gz"
   if ! grep -Fq "RELEASE_BOOTSTRAP_URL=\"\${RELEASE_BOOTSTRAP_URL:-${expected_bootstrap_url}}\"" "$INSTALL_DIR/dist/pve-thin-client-usb-installer-host-latest.sh"; then
     echo "ERR bind  hosted installer bootstrap URL"
     record_failure

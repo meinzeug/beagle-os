@@ -5,6 +5,7 @@ LOG_DIR="${PVE_THIN_CLIENT_X11_LOG_DIR:-}"
 LOG_FILE=""
 CMDLINE_FILE="${PVE_THIN_CLIENT_CMDLINE_FILE:-/proc/cmdline}"
 TRACE_FILE="${PVE_THIN_CLIENT_TRACE_FILE:-${XDG_RUNTIME_DIR:-/tmp}/pve-thin-client-runtime-trace.log}"
+BOOT_MODE="${PVE_THIN_CLIENT_BOOT_MODE:-$(/usr/local/bin/pve-thin-client-boot-mode 2>/dev/null || printf 'runtime')}"
 
 trace_event() {
   phase="$1"
@@ -45,6 +46,12 @@ ensure_xauth_context() {
 }
 
 ensure_xauth_context
+
+if [ "${BOOT_MODE}" = "installer" ]; then
+  echo "[start-x11] installer mode detected, skipping X startup"
+  trace_event "x11.skip" "reason=installer-mode"
+  exit 0
+fi
 
 if [ -r "${CMDLINE_FILE}" ] && grep -Eq '(^|[[:space:]])pve_thin_client\.installer_ui=text($|[[:space:]])' "${CMDLINE_FILE}"; then
   echo "[start-x11] text installer mode detected, skipping X startup"
