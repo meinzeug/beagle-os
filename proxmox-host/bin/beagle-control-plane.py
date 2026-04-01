@@ -173,6 +173,14 @@ def public_versioned_bootstrap_url(version: str) -> str:
     return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/pve-thin-client-usb-bootstrap-v{version}.tar.gz"
 
 
+def public_payload_latest_download_url() -> str:
+    return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/pve-thin-client-usb-payload-latest.tar.gz"
+
+
+def public_bootstrap_latest_download_url() -> str:
+    return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/pve-thin-client-usb-bootstrap-latest.tar.gz"
+
+
 def public_latest_payload_url() -> str:
     downloads_status = load_json_file(DOWNLOADS_STATUS_FILE, {})
     published_version = str(downloads_status.get("version", "")).strip() or VERSION
@@ -3698,9 +3706,9 @@ def render_vm_installer_script(vm: VmSummary) -> tuple[bytes, str]:
         HOSTED_INSTALLER_TEMPLATE_FILE.read_text(encoding="utf-8"),
         preset_name,
         preset_b64,
-        str(profile.get("installer_iso_url") or public_installer_iso_url()),
-        public_latest_bootstrap_url(),
-        public_latest_payload_url(),
+        public_installer_iso_url(),
+        public_bootstrap_latest_download_url(),
+        public_payload_latest_download_url(),
         "installer",
     )
     filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.sh"
@@ -3728,9 +3736,9 @@ def render_vm_live_usb_script(vm: VmSummary) -> tuple[bytes, str]:
         HOSTED_LIVE_USB_TEMPLATE_FILE.read_text(encoding="utf-8"),
         preset_name,
         preset_b64,
-        str(profile.get("installer_iso_url") or public_installer_iso_url()),
-        public_latest_bootstrap_url(),
-        public_latest_payload_url(),
+        public_installer_iso_url(),
+        public_bootstrap_latest_download_url(),
+        public_payload_latest_download_url(),
         "live",
     )
     filename = f"pve-thin-client-live-usb-vm-{vm.vmid}.sh"
@@ -3758,7 +3766,7 @@ def render_vm_windows_installer_script(vm: VmSummary) -> tuple[bytes, str]:
         RAW_WINDOWS_INSTALLER_TEMPLATE_FILE.read_text(encoding="utf-8"),
         preset_name,
         preset_b64,
-        str(profile.get("installer_iso_url") or public_installer_iso_url()),
+        public_installer_iso_url(),
     )
     filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.ps1"
     return rendered.encode("utf-8"), filename
