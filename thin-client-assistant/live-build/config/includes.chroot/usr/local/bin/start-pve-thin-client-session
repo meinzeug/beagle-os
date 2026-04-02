@@ -157,7 +157,7 @@ if [ -x /usr/local/bin/pve-thin-client-audio-init ]; then
 fi
 
 if [ -x /usr/local/sbin/beagle-update-client ]; then
-  /usr/local/sbin/beagle-update-client session-start >"$LOG_DIR/update-session.log" 2>&1 || true
+  /usr/local/sbin/beagle-update-client session-start >"$LOG_DIR/update-session.log" 2>&1 &
   /usr/local/sbin/beagle-update-client session-monitor >"$LOG_DIR/update-monitor.log" 2>&1 &
 fi
 
