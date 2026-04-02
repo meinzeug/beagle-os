@@ -359,10 +359,35 @@
     });
   }
 
+  function apiUpdateProvisionedVm(vmid, payload) {
+    return apiPutBeagleJson("/beagle-api/api/v1/provisioning/vms/" + encodeURIComponent(String(vmid)), payload).then(function(response) {
+      return response && response.provisioned_vm ? response.provisioned_vm : response;
+    });
+  }
+
   function apiGetProvisioningState(vmid) {
     return apiGetBeagleJson("/beagle-api/api/v1/provisioning/vms/" + encodeURIComponent(String(vmid))).then(function(response) {
       return response && response.provisioning ? response.provisioning : response;
     });
+  }
+
+  function parseListText(value) {
+    return String(value || "")
+      .split(/[\n,]+/)
+      .map(function(item) { return String(item || "").trim(); })
+      .filter(Boolean);
+  }
+
+  function listToMultiline(value) {
+    return Array.isArray(value) ? value.join("\n") : "";
+  }
+
+  function readCheckedValues(container, fieldName) {
+    return container.query('checkboxfield[name="' + fieldName + '"]').filter(function(field) {
+      return Boolean(field && field.checked);
+    }).map(function(field) {
+      return String(field.inputValue || field.name || "").trim();
+    }).filter(Boolean);
   }
 
   function provisioningStatusLabel(state) {
@@ -537,13 +562,31 @@
       Ext.Msg.wait("Provisioning-Katalog wird geladen ...", "Beagle OS");
     }
     apiGetProvisioningCatalog().then(function(catalog) {
+      var profileValue = function(source, camelKey, snakeKey, fallback) {
+        if (source && source[camelKey] !== undefined && source[camelKey] !== null && source[camelKey] !== "") {
+          return source[camelKey];
+        }
+        if (source && source[snakeKey] !== undefined && source[snakeKey] !== null && source[snakeKey] !== "") {
+          return source[snakeKey];
+        }
+        return fallback;
+      };
       var defaults = catalog && catalog.defaults ? catalog.defaults : {};
+      var profileRecord = ctx && ctx.profile ? ctx.profile : null;
+      var isEdit = Boolean(profileRecord);
       var initialNode = String(ctx && ctx.node || selectedNodeName() || defaults.node || "");
       var osProfiles = Array.isArray(catalog && catalog.os_profiles) ? catalog.os_profiles : [];
+      var desktopProfiles = Array.isArray(catalog && catalog.desktop_profiles) ? catalog.desktop_profiles : [];
+      var softwarePresets = Array.isArray(catalog && catalog.software_presets) ? catalog.software_presets : [];
       var initialProfile = osProfiles[0] || {};
       var nextVmid = Number(defaults.next_vmid || 0) || "";
-      var initialName = "ubuntu-beagle-" + String(nextVmid || "vm");
-      var initialHostname = safeHostnameCandidate(initialName, nextVmid);
+      var initialName = String(profileValue(profileRecord, "name", "name", "ubuntu-beagle-" + String(nextVmid || "vm")));
+      var initialHostname = safeHostnameCandidate(String(profileValue(profileRecord, "identityHostname", "identity_hostname", initialName)), profileValue(profileRecord, "vmid", "vmid", nextVmid));
+      var initialDesktop = String(profileValue(profileRecord, "desktopId", "desktop_id", defaults.desktop || (desktopProfiles[0] && desktopProfiles[0].id) || "xfce"));
+      var initialLocale = String(profileValue(profileRecord, "identityLocale", "identity_locale", defaults.identity_locale || "de_DE.UTF-8"));
+      var initialKeymap = String(profileValue(profileRecord, "identityKeymap", "identity_keymap", defaults.identity_keymap || "de"));
+      var initialPackagePresets = Array.isArray(profileValue(profileRecord, "packagePresets", "package_presets", [])) ? profileValue(profileRecord, "packagePresets", "package_presets", []) : [];
+      var initialExtraPackages = Array.isArray(profileValue(profileRecord, "extraPackages", "extra_packages", [])) ? profileValue(profileRecord, "extraPackages", "extra_packages", []) : [];
       var nodeRecords = Array.isArray(catalog && catalog.nodes) ? catalog.nodes.map(function(item) {
         return {
           value: String(item.name || ""),
@@ -570,11 +613,32 @@
           };
         })
       });
+      var desktopStore = Ext.create("Ext.data.Store", {
+        fields: ["value", "label", "session", "features"],
+        data: desktopProfiles.map(function(item) {
+          return {
+            value: String(item.id || ""),
+            label: String(item.label || item.id || ""),
+            session: String(item.session || ""),
+            features: Array.isArray(item.features) ? item.features.join(", ") : ""
+          };
+        })
+      });
       var nodeStore = Ext.create("Ext.data.Store", { fields: ["value", "label"], data: nodeRecords });
       var imageStorageStore = Ext.create("Ext.data.Store", { fields: ["value", "label"], data: imageStorageRecords });
       var isoStorageStore = Ext.create("Ext.data.Store", { fields: ["value", "label"], data: isoStorageRecords });
       var windowRef;
       var hostnameTouched = false;
+      var softwareCheckboxes = softwarePresets.map(function(item) {
+        var presetId = String(item.id || "");
+        return {
+          xtype: "checkboxfield",
+          name: "package_presets",
+          boxLabel: String(item.label || presetId) + (item.description ? " - " + String(item.description || "") : ""),
+          inputValue: presetId,
+          checked: initialPackagePresets.indexOf(presetId) !== -1
+        };
+      });
 
       function bridgeRecordsForNode(nodeName) {
         var values = bridgesByNode[nodeName] || catalog && catalog.bridges || [];
@@ -597,7 +661,7 @@
       }
 
       function syncHostnameField() {
-        if (!windowRef || hostnameTouched) {
+        if (!windowRef || hostnameTouched || isEdit) {
           return;
         }
         var vmidField = windowRef.down('numberfield[name="vmid"]');
@@ -618,16 +682,31 @@
         }) || initialProfile;
       }
 
+      function currentDesktop() {
+        var desktopId = windowRef && windowRef.down('combo[name="desktop"]') ? windowRef.down('combo[name="desktop"]').getValue() : "";
+        return desktopProfiles.find(function(item) {
+          return String(item.id || "") === String(desktopId || "");
+        }) || desktopProfiles[0] || {};
+      }
+
       function updateProfileSummary() {
         var profile = currentProfile();
+        var desktop = currentDesktop();
         var summary = [
           String(profile.label || ""),
           String(profile.release || ""),
-          String(profile.desktop || ""),
+          String(desktop.label || profile.desktop || ""),
           String(profile.streaming || "")
         ].filter(Boolean).join(" | ");
         if (windowRef && windowRef.down('#beagleProvisioningProfileSummary')) {
           windowRef.down('#beagleProvisioningProfileSummary').setValue(summary || "Ubuntu Provisioning");
+        }
+        if (windowRef && windowRef.down('#beagleDesktopSummary')) {
+          windowRef.down('#beagleDesktopSummary').setValue([
+            String(desktop.label || ""),
+            String(desktop.session || ""),
+            String(desktop.features || "")
+          ].filter(Boolean).join(" | "));
         }
       }
 
@@ -636,7 +715,7 @@
       }
 
       windowRef = Ext.create("Ext.window.Window", {
-        title: "Erstelle Beagle OS VM",
+        title: isEdit ? "Bearbeite Beagle Desktop VM" : "Erstelle Beagle Desktop VM",
         modal: true,
         width: 820,
         maxHeight: 860,
@@ -653,7 +732,9 @@
             items: [
               {
                 xtype: "displayfield",
-                value: "Provisioniert eine komplette Desktop-VM ueber die Beagle Control Plane: Ubuntu Autoinstall, XFCE Desktop, LightDM, Sunshine, QEMU Guest Agent und Beagle-Metadaten."
+                value: isEdit
+                  ? "Aendert Desktop, Locale, Tastaturlayout und zusaetzliche Pakete einer bestehenden Beagle Desktop VM. Bei laufender VM wird die Aenderung direkt im Gast angewendet."
+                  : "Provisioniert eine komplette Desktop-VM ueber die Beagle Control Plane: Ubuntu Autoinstall, waehlbarer Desktop, LightDM, Sunshine, QEMU Guest Agent und Beagle-Metadaten."
               },
               {
                 xtype: "fieldset",
@@ -677,16 +758,74 @@
                     value: String(initialProfile.id || "")
                   },
                   {
+                    xtype: "combo",
+                    name: "desktop",
+                    fieldLabel: "Desktop",
+                    allowBlank: false,
+                    editable: false,
+                    forceSelection: true,
+                    queryMode: "local",
+                    displayField: "label",
+                    valueField: "value",
+                    store: desktopStore,
+                    value: initialDesktop
+                  },
+                  {
                     xtype: "displayfield",
                     itemId: "beagleProvisioningProfileSummary",
                     fieldLabel: "Provisioning Stack",
                     value: ""
+                  },
+                  {
+                    xtype: "displayfield",
+                    itemId: "beagleDesktopSummary",
+                    fieldLabel: "Desktop Profil",
+                    value: ""
+                  },
+                  {
+                    xtype: "combo",
+                    name: "identity_locale",
+                    fieldLabel: "Locale",
+                    allowBlank: false,
+                    editable: false,
+                    forceSelection: true,
+                    queryMode: "local",
+                    displayField: "label",
+                    valueField: "value",
+                    store: Ext.create("Ext.data.Store", {
+                      fields: ["value", "label"],
+                      data: [
+                        { value: "de_DE.UTF-8", label: "Deutsch (de_DE.UTF-8)" },
+                        { value: "en_US.UTF-8", label: "English (en_US.UTF-8)" }
+                      ]
+                    }),
+                    value: initialLocale
+                  },
+                  {
+                    xtype: "combo",
+                    name: "identity_keymap",
+                    fieldLabel: "Tastaturlayout",
+                    allowBlank: false,
+                    editable: false,
+                    forceSelection: true,
+                    queryMode: "local",
+                    displayField: "label",
+                    valueField: "value",
+                    store: Ext.create("Ext.data.Store", {
+                      fields: ["value", "label"],
+                      data: [
+                        { value: "de", label: "Deutsch (de)" },
+                        { value: "us", label: "US (us)" }
+                      ]
+                    }),
+                    value: initialKeymap
                   }
                 ]
               },
               {
                 xtype: "fieldset",
                 title: "Identitaet",
+                hidden: isEdit,
                 defaults: {
                   anchor: "100%",
                   labelWidth: 180
@@ -732,7 +871,39 @@
               },
               {
                 xtype: "fieldset",
+                title: "Bestehende VM",
+                hidden: !isEdit,
+                defaults: {
+                  anchor: "100%",
+                  labelWidth: 180
+                },
+                items: [
+                  {
+                    xtype: "displayfield",
+                    fieldLabel: "Node",
+                    value: String(profileValue(profileRecord, "node", "node", ""))
+                  },
+                  {
+                    xtype: "displayfield",
+                    fieldLabel: "VMID",
+                    value: String(profileValue(profileRecord, "vmid", "vmid", ""))
+                  },
+                  {
+                    xtype: "displayfield",
+                    fieldLabel: "VM Name",
+                    value: initialName
+                  },
+                  {
+                    xtype: "displayfield",
+                    fieldLabel: "Gast-User",
+                    value: String(profileValue(profileRecord, "guestUser", "guest_user", defaults.guest_user || "beagle"))
+                  }
+                ]
+              },
+              {
+                xtype: "fieldset",
                 title: "Gast-Zugang",
+                hidden: isEdit,
                 defaults: {
                   anchor: "100%",
                   labelWidth: 180
@@ -767,6 +938,7 @@
               {
                 xtype: "fieldset",
                 title: "Ressourcen",
+                hidden: isEdit,
                 defaults: {
                   anchor: "100%",
                   labelWidth: 180
@@ -844,6 +1016,42 @@
               },
               {
                 xtype: "fieldset",
+                title: "Software",
+                collapsible: true,
+                collapsed: false,
+                defaults: {
+                  anchor: "100%",
+                  labelWidth: 180
+                },
+                items: [
+                  {
+                    xtype: "displayfield",
+                    fieldLabel: "Standard",
+                    value: "Google Chrome wird immer installiert und als Default-Browser gesetzt."
+                  },
+                  {
+                    xtype: "checkboxgroup",
+                    fieldLabel: "Paket-Presets",
+                    columns: 1,
+                    vertical: true,
+                    items: softwareCheckboxes.length ? softwareCheckboxes : [{
+                      xtype: "displayfield",
+                      value: "Keine Paket-Presets verfuegbar."
+                    }]
+                  },
+                  {
+                    xtype: "textarea",
+                    name: "extra_packages",
+                    fieldLabel: "Weitere APT-Pakete",
+                    grow: true,
+                    growMax: 120,
+                    emptyText: "ein Paket pro Zeile oder komma-getrennt",
+                    value: listToMultiline(initialExtraPackages)
+                  }
+                ]
+              },
+              {
+                xtype: "fieldset",
                 title: "Streaming und Zugriff",
                 collapsible: true,
                 collapsed: false,
@@ -855,7 +1063,7 @@
                   {
                     xtype: "displayfield",
                     fieldLabel: "Desktop",
-                    value: "XFCE"
+                    value: "Sunshine Desktop Target"
                   },
                   {
                     xtype: "displayfield",
@@ -896,43 +1104,59 @@
               var form = windowRef.down("form").getForm();
               var values;
               var payload;
+              var packagePresets;
+              var extraPackages;
               if (!form.isValid()) {
                 return;
               }
               values = form.getValues();
-              if (values.guest_password && values.guest_password !== values.guest_password_confirm) {
+              if (!isEdit && values.guest_password && values.guest_password !== values.guest_password_confirm) {
                 showError("Ubuntu-Passwort und Bestaetigung stimmen nicht ueberein.");
                 return;
               }
+              packagePresets = readCheckedValues(windowRef, "package_presets");
+              extraPackages = parseListText(values.extra_packages);
               payload = {
                 os_profile: String(values.os_profile || ""),
-                node: String(values.node || ""),
-                name: String(values.name || "").trim(),
-                hostname: safeHostnameCandidate(values.hostname || values.name || "", values.vmid || nextVmid),
-                bridge: String(values.bridge || ""),
-                guest_user: String(values.guest_user || ""),
-                guest_password: String(values.guest_password || ""),
-                sunshine_user: String(values.sunshine_user || ""),
-                sunshine_password: String(values.sunshine_password || ""),
-                disk_storage: String(values.disk_storage || ""),
-                iso_storage: String(values.iso_storage || ""),
-                start: values.start ? "1" : "0",
-                memory: Number(values.memory || defaults.memory || 8192),
-                cores: Number(values.cores || defaults.cores || 4),
-                disk_gb: Number(values.disk_gb || defaults.disk_gb || 64)
+                desktop: String(values.desktop || ""),
+                identity_locale: String(values.identity_locale || ""),
+                identity_keymap: String(values.identity_keymap || ""),
+                package_presets: packagePresets,
+                extra_packages: extraPackages
               };
-              if (String(values.vmid || "").trim()) {
-                payload.vmid = Number(values.vmid);
+              if (!isEdit) {
+                payload.node = String(values.node || "");
+                payload.name = String(values.name || "").trim();
+                payload.hostname = safeHostnameCandidate(values.hostname || values.name || "", values.vmid || nextVmid);
+                payload.bridge = String(values.bridge || "");
+                payload.guest_user = String(values.guest_user || "");
+                payload.guest_password = String(values.guest_password || "");
+                payload.sunshine_user = String(values.sunshine_user || "");
+                payload.sunshine_password = String(values.sunshine_password || "");
+                payload.disk_storage = String(values.disk_storage || "");
+                payload.iso_storage = String(values.iso_storage || "");
+                payload.start = values.start ? "1" : "0";
+                payload.memory = Number(values.memory || defaults.memory || 8192);
+                payload.cores = Number(values.cores || defaults.cores || 4);
+                payload.disk_gb = Number(values.disk_gb || defaults.disk_gb || 64);
+                if (String(values.vmid || "").trim()) {
+                  payload.vmid = Number(values.vmid);
+                }
               }
-              windowRef.setLoading("Beagle VM wird provisioniert ...");
-              apiCreateProvisionedVm(payload).then(function(created) {
+              windowRef.setLoading(isEdit ? "Beagle Desktop VM wird aktualisiert ..." : "Beagle Desktop VM wird provisioniert ...");
+              (isEdit ? apiUpdateProvisionedVm(profileValue(profileRecord, "vmid", "vmid", 0), payload) : apiCreateProvisionedVm(payload)).then(function(created) {
                 windowRef.setLoading(false);
                 windowRef.close();
-                showToast("Beagle VM " + String(created && created.vmid || "") + " wird jetzt provisioniert.");
-                showProvisioningResultWindow(created);
+                if (isEdit) {
+                  showToast("Beagle Desktop VM " + String(created && created.vmid || "") + " wurde aktualisiert.");
+                  showProfileModal({ vmid: Number(created && created.vmid || profileValue(profileRecord, "vmid", "vmid", 0)), node: String(created && created.node || profileValue(profileRecord, "node", "node", "")) });
+                } else {
+                  showToast("Beagle Desktop VM " + String(created && created.vmid || "") + " wird jetzt provisioniert.");
+                  showProvisioningResultWindow(created);
+                }
               }).catch(function(error) {
                 windowRef.setLoading(false);
-                showError("Beagle VM konnte nicht erstellt werden: " + error.message);
+                showError((isEdit ? "Beagle Desktop VM konnte nicht aktualisiert werden: " : "Beagle Desktop VM konnte nicht erstellt werden: ") + error.message);
               });
             }
           }
@@ -942,24 +1166,31 @@
             syncBridgeStore(initialNode);
             updateProfileSummary();
             syncHostnameField();
-            windowRef.down('combo[name="node"]').on("change", function(field, value) {
-              syncBridgeStore(String(value || ""));
-            });
+            if (!isEdit) {
+              windowRef.down('combo[name="node"]').on("change", function(field, value) {
+                syncBridgeStore(String(value || ""));
+              });
+            }
             windowRef.down('combo[name="os_profile"]').on("change", function() {
               updateProfileSummary();
             });
-            windowRef.down('numberfield[name="vmid"]').on("change", function() {
-              syncHostnameField();
+            windowRef.down('combo[name="desktop"]').on("change", function() {
+              updateProfileSummary();
             });
-            windowRef.down('textfield[name="name"]').on("change", function() {
-              syncHostnameField();
-            });
-            windowRef.down('textfield[name="hostname"]').on("change", function(field, value) {
-              if (windowRef.__beagleSyncingHostname) {
-                return;
-              }
-              hostnameTouched = Boolean(String(value || "").trim());
-            });
+            if (!isEdit) {
+              windowRef.down('numberfield[name="vmid"]').on("change", function() {
+                syncHostnameField();
+              });
+              windowRef.down('textfield[name="name"]').on("change", function() {
+                syncHostnameField();
+              });
+              windowRef.down('textfield[name="hostname"]').on("change", function(field, value) {
+                if (windowRef.__beagleSyncingHostname) {
+                  return;
+                }
+                hostnameTouched = Boolean(String(value || "").trim());
+              });
+            }
           }
         }
       });
@@ -1155,6 +1386,14 @@
   function apiPostBeagleJson(path, payload) {
     return apiBeagleJson(path, {
       method: "POST",
+      headers: buildBeagleRequestHeaders({ "Content-Type": "application/json" }, true),
+      body: JSON.stringify(payload || {})
+    });
+  }
+
+  function apiPutBeagleJson(path, payload) {
+    return apiBeagleJson(path, {
+      method: "PUT",
       headers: buildBeagleRequestHeaders({ "Content-Type": "application/json" }, true),
       body: JSON.stringify(payload || {})
     });
@@ -1571,6 +1810,8 @@
     var defaults = catalog && catalog.defaults ? catalog.defaults : {};
     var requests = Array.isArray(catalog && catalog.recent_requests) ? catalog.recent_requests : [];
     var osProfiles = Array.isArray(catalog && catalog.os_profiles) ? catalog.os_profiles : [];
+    var desktopProfiles = Array.isArray(catalog && catalog.desktop_profiles) ? catalog.desktop_profiles : [];
+    var softwarePresetCatalog = Array.isArray(catalog && catalog.software_presets) ? catalog.software_presets : [];
     var nodes = Array.isArray(catalog && catalog.nodes) ? catalog.nodes : [];
     var imageStorages = catalog && catalog.storages && Array.isArray(catalog.storages.images) ? catalog.storages.images : [];
     var isoStorages = catalog && catalog.storages && Array.isArray(catalog.storages.iso) ? catalog.storages.iso : [];
@@ -1591,6 +1832,7 @@
         '  <td>' + escapeHtml(item.endpoint && item.endpoint.reported_at || "") + '<br><span class="beagle-muted">Age: ' + escapeHtml(String(item.endpoint && item.endpoint.report_age_seconds || 0)) + 's</span><br><span class="beagle-muted">' + escapeHtml(lastAction.action || "") + " " + escapeHtml(formatActionState(lastAction.ok)) + '</span></td>' +
         '  <td><div class="beagle-inline-actions">' +
         '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="profile" data-vmid="' + escapeHtml(String(item.vmid || "")) + '" data-node="' + escapeHtml(item.node || "") + '">Profil</button>' +
+        (String(item.beagle_role || "").toLowerCase() === 'desktop' ? '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="edit-desktop" data-vmid="' + escapeHtml(String(item.vmid || "")) + '" data-node="' + escapeHtml(item.node || "") + '">Bearbeiten</button>' : '') +
         (provisioning ? '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="copy-credentials" data-vmid="' + escapeHtml(String(item.vmid || "")) + '">Credentials</button>' : '') +
         '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="healthcheck" data-vmid="' + escapeHtml(String(item.vmid || "")) + '">Check</button>' +
         '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="support-bundle" data-vmid="' + escapeHtml(String(item.vmid || "")) + '">Bundle</button>' +
@@ -1634,6 +1876,23 @@
         '  <td>' + escapeHtml(Array.isArray(item.features) ? item.features.join(", ") : "") + '</td>' +
         '</tr>';
     }).join("");
+    var desktopProfileRows = desktopProfiles.map(function(item) {
+      return '' +
+        '<tr>' +
+        '  <td><strong>' + escapeHtml(String(item.label || item.id || "")) + '</strong><br><span class="beagle-muted">' + escapeHtml(String(item.id || "")) + '</span></td>' +
+        '  <td>' + escapeHtml(String(item.session || "")) + '</td>' +
+        '  <td>' + escapeHtml(Array.isArray(item.packages) ? item.packages.join(", ") : "") + '</td>' +
+        '  <td>' + escapeHtml(Array.isArray(item.features) ? item.features.join(", ") : "") + '</td>' +
+        '</tr>';
+    }).join("");
+    var softwarePresetRows = softwarePresetCatalog.map(function(item) {
+      return '' +
+        '<tr>' +
+        '  <td><strong>' + escapeHtml(String(item.label || item.id || "")) + '</strong><br><span class="beagle-muted">' + escapeHtml(String(item.id || "")) + '</span></td>' +
+        '  <td>' + escapeHtml(String(item.description || "")) + '</td>' +
+        '  <td>' + escapeHtml(Array.isArray(item.packages) ? item.packages.join(", ") : "") + '</td>' +
+        '</tr>';
+    }).join("");
 
     overlay.id = OVERLAY_ID;
     overlay.innerHTML = '' +
@@ -1675,14 +1934,17 @@
       '      </div></section>' +
       '      <section class="beagle-card"><h3>Katalog</h3><div class="beagle-kv">' +
                 kvRow('OS Profile', escapeHtml(String(osProfiles.length || 0))) +
+                kvRow('Desktop Profile', escapeHtml(String(desktopProfiles.length || 0))) +
+                kvRow('Software Presets', escapeHtml(String(softwarePresetCatalog.length || 0))) +
                 kvRow('Nodes', escapeHtml(String(nodes.length || 0))) +
                 kvRow('Image Storages', escapeHtml(String(imageStorages.length || 0))) +
                 kvRow('ISO Storages', escapeHtml(String(isoStorages.length || 0))) +
-                kvRow('Requests', escapeHtml(String(requests.length || 0))) +
       '      </div></section>' +
       '    </div>' +
       '    <section class="beagle-card"><h3>Provisioning Requests</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>VM</th><th>Status</th><th>Phase</th><th>Zeit</th><th>Aktionen</th></tr></thead><tbody>' + (requestRows || '<tr><td colspan="5" class="beagle-muted">Noch keine Provisioning-Anfragen vorhanden.</td></tr>') + '</tbody></table></div></section>' +
       '    <section class="beagle-card"><h3>OS Katalog</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>Profil</th><th>Release</th><th>Desktop</th><th>Streaming</th><th>Features</th></tr></thead><tbody>' + (osProfileRows || '<tr><td colspan="5" class="beagle-muted">Kein Katalog verfuegbar.</td></tr>') + '</tbody></table></div></section>' +
+      '    <section class="beagle-card"><h3>Desktop Katalog</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>Desktop</th><th>Session</th><th>APT Pakete</th><th>Features</th></tr></thead><tbody>' + (desktopProfileRows || '<tr><td colspan="4" class="beagle-muted">Kein Desktop-Katalog verfuegbar.</td></tr>') + '</tbody></table></div></section>' +
+      '    <section class="beagle-card"><h3>Software Presets</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>Preset</th><th>Beschreibung</th><th>APT Pakete</th></tr></thead><tbody>' + (softwarePresetRows || '<tr><td colspan="3" class="beagle-muted">Keine Software-Presets verfuegbar.</td></tr>') + '</tbody></table></div></section>' +
       '    <section class="beagle-card"><h3>Endpoints</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th class="beagle-select-cell"><input class="beagle-row-select" type="checkbox" data-beagle-fleet-action="toggle-all"></th><th>VM</th><th>Status</th><th>Provisioning</th><th>Ziel</th><th>Policy</th><th>Letzter Kontakt</th><th>Aktionen</th></tr></thead><tbody>' + vmRows + '</tbody></table></div></section>' +
       '    <section class="beagle-card"><h3>Policies</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>Name</th><th>Prioritaet</th><th>Selektor</th><th>Profil</th><th>Aktion</th></tr></thead><tbody>' + policyRows + '</tbody></table></div></section>' +
       '  </div>' +
@@ -1739,6 +2001,11 @@
           break;
         case 'profile':
           showProfileModal({ vmid: Number(target.getAttribute('data-vmid')), node: target.getAttribute('data-node') });
+          break;
+        case 'edit-desktop':
+          item = vms.find(function(candidate) { return Number(candidate.vmid) === Number(target.getAttribute('data-vmid')); });
+          removeOverlay();
+          showUbuntuBeagleCreateModal({ profile: item || { vmid: Number(target.getAttribute('data-vmid')), node: target.getAttribute('data-node') }, node: target.getAttribute('data-node') });
           break;
         case 'request-profile':
           showProfileModal({ vmid: Number(target.getAttribute('data-vmid')), node: target.getAttribute('data-node') });
@@ -1875,6 +2142,7 @@
         sunshinePin: credentials && credentials.sunshine_pin || "",
         thinclientUsername: credentials && credentials.thinclient_username || "thinclient",
         thinclientPassword: credentials && credentials.thinclient_password || "",
+        guestUser: controlPlaneProfile && controlPlaneProfile.guest_user || meta["sunshine-guest-user"] || "beagle",
         app: controlPlaneProfile && controlPlaneProfile.moonlight_app || meta["moonlight-app"] || meta["sunshine-app"] || "Desktop",
         resolution: controlPlaneProfile && controlPlaneProfile.moonlight_resolution || meta["moonlight-resolution"] || "auto",
         fps: controlPlaneProfile && controlPlaneProfile.moonlight_fps || meta["moonlight-fps"] || "60",
@@ -1882,6 +2150,13 @@
         codec: controlPlaneProfile && controlPlaneProfile.moonlight_video_codec || meta["moonlight-video-codec"] || "H.264",
         decoder: controlPlaneProfile && controlPlaneProfile.moonlight_video_decoder || meta["moonlight-video-decoder"] || "auto",
         audio: controlPlaneProfile && controlPlaneProfile.moonlight_audio_config || meta["moonlight-audio-config"] || "stereo",
+        identityHostname: controlPlaneProfile && controlPlaneProfile.identity_hostname || meta["beagle-identity-hostname"] || "",
+        desktopId: controlPlaneProfile && controlPlaneProfile.desktop_id || meta["beagle-desktop-id"] || "",
+        desktopLabel: controlPlaneProfile && controlPlaneProfile.desktop_label || meta["beagle-desktop"] || "",
+        desktopSession: controlPlaneProfile && controlPlaneProfile.desktop_session || meta["beagle-desktop-session"] || "",
+        packagePresets: controlPlaneProfile && controlPlaneProfile.package_presets || parseListText(meta["beagle-package-presets"] || ""),
+        extraPackages: controlPlaneProfile && controlPlaneProfile.extra_packages || parseListText(meta["beagle-extra-packages"] || ""),
+        softwarePackages: controlPlaneProfile && controlPlaneProfile.software_packages || [],
         proxmoxHost: meta["proxmox-host"] || window.location.hostname,
         managerPinnedPubkey: controlPlaneProfile && controlPlaneProfile.beagle_manager_pinned_pubkey || "",
         installerUrl: controlPlaneProfile && controlPlaneProfile.installer_url || resolveUsbInstallerUrl(ctx),
@@ -1901,6 +2176,7 @@
         assignedTarget: controlPlaneProfile && controlPlaneProfile.assigned_target || null,
         assignmentSource: controlPlaneProfile && controlPlaneProfile.assignment_source || "",
         appliedPolicy: controlPlaneProfile && controlPlaneProfile.applied_policy || null,
+        beagleRole: controlPlaneProfile && controlPlaneProfile.beagle_role || meta["beagle-role"] || "",
         expectedProfileName: controlPlaneProfile && controlPlaneProfile.expected_profile_name || "",
         metadata: meta
       };
@@ -1951,6 +2227,15 @@
       sunshine_username: profile.sunshineUsername,
       sunshine_password_configured: Boolean(profile.sunshinePassword),
       sunshine_pin: profile.sunshinePin,
+      guest_user: profile.guestUser,
+      desktop_id: profile.desktopId,
+      desktop_label: profile.desktopLabel,
+      desktop_session: profile.desktopSession,
+      package_presets: profile.packagePresets,
+      extra_packages: profile.extraPackages,
+      software_packages: profile.softwarePackages,
+      identity_locale: profile.identityLocale,
+      identity_keymap: profile.identityKeymap,
       moonlight_app: profile.app,
       moonlight_resolution: profile.resolution,
       moonlight_fps: profile.fps,
@@ -2006,6 +2291,7 @@
       '    <div class="beagle-banner ' + (profile.streamHost ? 'info' : 'warn') + '">' + escapeHtml(profile.streamHost ? 'Streaming-Ziel erkannt: ' + profile.streamHost : 'Streaming-Ziel fehlt in den VM-Metadaten.') + '</div>' +
       '    <div class="beagle-banner ' + installerTargetState(profile, installerPrep).bannerClass + '" data-beagle-download-banner><strong data-beagle-download-state>' + escapeHtml(installerTargetState(profile, installerPrep).label) + '</strong>: <span data-beagle-download-message>' + escapeHtml(installerTargetState(profile, installerPrep).message) + '</span></div>' +
       '    <div class="beagle-actions">' +
+      (String(profile.beagleRole || "").toLowerCase() === 'desktop' ? '      <button type="button" class="beagle-btn primary" data-beagle-action="edit-desktop">Desktop bearbeiten</button>' : '') +
       (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn primary" data-beagle-action="download">USB Installer Skript</button>') +
       (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-live">Live USB Skript</button>') +
       (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-windows">Windows USB Installer</button>') +
@@ -2024,6 +2310,15 @@
                 kvRow('Node', escapeHtml(profile.node)) +
                 kvRow('Status', escapeHtml(profile.status)) +
                 kvRow('Guest IP', escapeHtml(profile.guestIp || '')) +
+      '      </div></section>' +
+      '      <section class="beagle-card"><h3>Desktop</h3><div class="beagle-kv">' +
+                kvRow('Desktop', escapeHtml(profile.desktopLabel || profile.desktopId || '')) +
+                kvRow('Session', escapeHtml(profile.desktopSession || '')) +
+                kvRow('Gast-User', escapeHtml(profile.guestUser || '')) +
+                kvRow('Locale', escapeHtml(profile.identityLocale || '')) +
+                kvRow('Keymap', escapeHtml(profile.identityKeymap || '')) +
+                kvRow('Paket-Presets', escapeHtml((profile.packagePresets || []).join(', '))) +
+                kvRow('Weitere Pakete', escapeHtml((profile.extraPackages || []).join(', '))) +
       '      </div></section>' +
       '      <section class="beagle-card"><h3>Streaming</h3><div class="beagle-kv">' +
                 kvRow('Stream Host', escapeHtml(profile.streamHost || '')) +
@@ -2113,6 +2408,10 @@
       }
 
       switch (event.target.getAttribute('data-beagle-action')) {
+        case 'edit-desktop':
+          removeOverlay();
+          showUbuntuBeagleCreateModal({ profile: profile, node: profile.node });
+          break;
         case 'download':
           prepareInstallerDownload(profile, overlay, 'installerUrl', 'download', 'Installer wird vorbereitet', 'Beagle USB Installer Skript wird heruntergeladen.');
           break;

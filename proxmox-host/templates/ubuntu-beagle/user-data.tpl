@@ -1,9 +1,10 @@
 #cloud-config
 autoinstall:
   version: 1
+  shutdown: poweroff
   locale: __IDENTITY_LOCALE__
   keyboard:
-    layout: us
+    layout: __IDENTITY_KEYMAP__
   identity:
     hostname: __HOSTNAME__
     username: __GUEST_USER__

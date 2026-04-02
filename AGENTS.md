@@ -44,5 +44,7 @@ Whenever you change versions, installer scripts, artifact names, artifact URLs, 
 
 - The public artifact target path is `/opt/beagle-os-saas/src/public/beagle-updates/` on `srv1.meinzeug.cloud`.
 - That path resolves to `/var/www/vhosts/beagle-os.com/httpdocs/beagle-updates`.
+- When deploying individual files to `srv.thinover.net`, preserve repository-relative paths under `/opt/beagle/`.
+  Use `rsync -avR <repo-path> root@thinovernet:/opt/beagle/` instead of copying files flat into `/opt/beagle/`, because the install scripts read from paths like `/opt/beagle/proxmox-host/...` and `/opt/beagle/proxmox-ui/...`.
 - Do not update only one side. If the Proxmox host and `beagle-os.com` drift apart, hosted installers break in subtle ways.
 - If `scripts/install-proxmox-host-services.sh` changes SSH behavior for user `thinovernet`, verify `PermitTTY yes` and do not regress the `ssh thinovernet` operator workflow.

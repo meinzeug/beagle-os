@@ -4,6 +4,13 @@ set -euo pipefail
 PROXMOX_HOST="${PROXMOX_HOST:-thinovernet}"
 VMID="${VMID:-}"
 GUEST_USER="${GUEST_USER:-beagle}"
+GUEST_PASSWORD="${GUEST_PASSWORD:-}"
+IDENTITY_LOCALE="${IDENTITY_LOCALE:-de_DE.UTF-8}"
+IDENTITY_LANGUAGE="${IDENTITY_LANGUAGE:-de_DE:de}"
+IDENTITY_KEYMAP="${IDENTITY_KEYMAP:-de}"
+DESKTOP_ID="${DESKTOP_ID:-xfce}"
+DESKTOP_LABEL="${DESKTOP_LABEL:-XFCE}"
+DESKTOP_SESSION="${DESKTOP_SESSION:-xfce}"
 PROXMOX_USER="${PROXMOX_USER:-}"
 PROXMOX_PASSWORD="${PROXMOX_PASSWORD:-}"
 PROXMOX_TOKEN="${PROXMOX_TOKEN:-}"
@@ -16,6 +23,10 @@ SUNSHINE_ORIGIN_WEB_UI_ALLOWED="${SUNSHINE_ORIGIN_WEB_UI_ALLOWED:-wan}"
 PUBLIC_STREAM_HOST_RAW="${PUBLIC_STREAM_HOST:-}"
 UPDATE_METADATA="${UPDATE_METADATA:-1}"
 VM_REBOOT="${VM_REBOOT:-1}"
+DESKTOP_PACKAGES=()
+SOFTWARE_PACKAGES=()
+PACKAGE_PRESETS=()
+EXTRA_PACKAGES=()
 
 resolve_public_stream_host() {
   python3 - "$1" <<'PY'
@@ -54,8 +65,62 @@ PUBLIC_STREAM_HOST="$(resolve_public_stream_host "$PUBLIC_STREAM_HOST_RAW")"
 
 usage() {
   cat <<EOF
-Usage: $0 --vmid VMID [--proxmox-host HOST] [--guest-user USER] [--proxmox-user USER@REALM] [--proxmox-password PASS|--proxmox-token TOKEN] [--sunshine-user USER] --sunshine-password PASS [--sunshine-pin PIN] [--sunshine-port PORT] [--public-stream-host HOST]
+Usage: $0 --vmid VMID [--proxmox-host HOST] [--guest-user USER] [--guest-password PASS] [--identity-locale LOCALE] [--identity-keymap KEYMAP] [--desktop-id ID] [--desktop-label LABEL] [--desktop-session SESSION] [--desktop-package PKG]... [--software-package PKG]... [--package-preset ID]... [--extra-package PKG]... [--proxmox-user USER@REALM] [--proxmox-password PASS|--proxmox-token TOKEN] [--sunshine-user USER] --sunshine-password PASS [--sunshine-pin PIN] [--sunshine-port PORT] [--public-stream-host HOST]
 EOF
+}
+
+apply_desktop_defaults() {
+  case "${DESKTOP_ID:-xfce}" in
+    xfce)
+      DESKTOP_LABEL="${DESKTOP_LABEL:-XFCE}"
+      DESKTOP_SESSION="${DESKTOP_SESSION:-xfce}"
+      if [[ ${#DESKTOP_PACKAGES[@]} -eq 0 ]]; then
+        DESKTOP_PACKAGES=(xfce4 xfce4-goodies)
+      fi
+      ;;
+    gnome)
+      DESKTOP_LABEL="${DESKTOP_LABEL:-GNOME}"
+      DESKTOP_SESSION="${DESKTOP_SESSION:-ubuntu-xorg}"
+      if [[ ${#DESKTOP_PACKAGES[@]} -eq 0 ]]; then
+        DESKTOP_PACKAGES=(ubuntu-desktop-minimal)
+      fi
+      ;;
+    plasma)
+      DESKTOP_LABEL="${DESKTOP_LABEL:-KDE Plasma}"
+      DESKTOP_SESSION="${DESKTOP_SESSION:-plasma}"
+      if [[ ${#DESKTOP_PACKAGES[@]} -eq 0 ]]; then
+        DESKTOP_PACKAGES=(plasma-desktop konsole dolphin)
+      fi
+      ;;
+    mate)
+      DESKTOP_LABEL="${DESKTOP_LABEL:-MATE}"
+      DESKTOP_SESSION="${DESKTOP_SESSION:-mate}"
+      if [[ ${#DESKTOP_PACKAGES[@]} -eq 0 ]]; then
+        DESKTOP_PACKAGES=(mate-desktop-environment-core mate-terminal caja)
+      fi
+      ;;
+    lxqt)
+      DESKTOP_LABEL="${DESKTOP_LABEL:-LXQt}"
+      DESKTOP_SESSION="${DESKTOP_SESSION:-lxqt}"
+      if [[ ${#DESKTOP_PACKAGES[@]} -eq 0 ]]; then
+        DESKTOP_PACKAGES=(lxqt qterminal pcmanfm-qt)
+      fi
+      ;;
+    *)
+      echo "Unsupported desktop-id: ${DESKTOP_ID}" >&2
+      exit 1
+      ;;
+  esac
+}
+
+join_words() {
+  local IFS=' '
+  printf '%s' "$*"
+}
+
+join_csv() {
+  local IFS=','
+  printf '%s' "$*"
 }
 
 require_tool() {
@@ -72,6 +137,16 @@ parse_args() {
       --proxmox-host) PROXMOX_HOST="$2"; shift 2 ;;
       --vmid) VMID="$2"; shift 2 ;;
       --guest-user) GUEST_USER="$2"; shift 2 ;;
+      --guest-password) GUEST_PASSWORD="$2"; shift 2 ;;
+      --identity-locale) IDENTITY_LOCALE="$2"; shift 2 ;;
+      --identity-keymap) IDENTITY_KEYMAP="$2"; shift 2 ;;
+      --desktop-id) DESKTOP_ID="$2"; shift 2 ;;
+      --desktop-label) DESKTOP_LABEL="$2"; shift 2 ;;
+      --desktop-session) DESKTOP_SESSION="$2"; shift 2 ;;
+      --desktop-package) DESKTOP_PACKAGES+=("$2"); shift 2 ;;
+      --software-package) SOFTWARE_PACKAGES+=("$2"); shift 2 ;;
+      --package-preset) PACKAGE_PRESETS+=("$2"); shift 2 ;;
+      --extra-package) EXTRA_PACKAGES+=("$2"); shift 2 ;;
       --proxmox-user) PROXMOX_USER="$2"; shift 2 ;;
       --proxmox-password) PROXMOX_PASSWORD="$2"; shift 2 ;;
       --proxmox-token) PROXMOX_TOKEN="$2"; shift 2 ;;
@@ -92,6 +167,8 @@ parse_args() {
         ;;
     esac
   done
+  IDENTITY_LANGUAGE="${IDENTITY_LOCALE%%_*}:${IDENTITY_LOCALE%%_*}"
+  apply_desktop_defaults
 }
 
 ssh_host() {
@@ -200,10 +277,44 @@ PY
 
 guest_exec_script() {
   local script="$1"
+  local guest_ip=""
   local script_b64
+  local chunk=""
+  local chunk_size=3000
+
+  guest_ip="$(detect_guest_ip | tail -n1 | tr -d '\r' || true)"
+  if [[ -n "$GUEST_PASSWORD" && -n "$guest_ip" ]] && command -v sshpass >/dev/null 2>&1; then
+    local ssh_target="${GUEST_USER}@${guest_ip}"
+    local tmp_script
+    tmp_script="$(mktemp)"
+    printf '%s' "$script" >"$tmp_script"
+    SSHPASS="$GUEST_PASSWORD" sshpass -e scp \
+      -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      -o PreferredAuthentications=password \
+      -o PubkeyAuthentication=no \
+      -o ConnectTimeout=10 \
+      "$tmp_script" "${ssh_target}:/tmp/pve-sunshine-setup.sh" >/dev/null
+    printf '%s\n' "$GUEST_PASSWORD" | SSHPASS="$GUEST_PASSWORD" sshpass -e ssh \
+      -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      -o PreferredAuthentications=password \
+      -o PubkeyAuthentication=no \
+      -o ConnectTimeout=10 \
+      "$ssh_target" "sudo -S -p '' bash /tmp/pve-sunshine-setup.sh && rm -f /tmp/pve-sunshine-setup.sh" >/dev/null
+    rm -f "$tmp_script"
+    return 0
+  fi
+
   script_b64="$(printf '%s' "$script" | base64 -w0)"
 
-  qm_guest_exec_sync "echo $script_b64 | base64 -d >/tmp/pve-sunshine-setup.sh && chmod +x /tmp/pve-sunshine-setup.sh && /tmp/pve-sunshine-setup.sh" >/dev/null
+  qm_guest_exec_sync "rm -f /tmp/pve-sunshine-setup.sh /tmp/pve-sunshine-setup.sh.b64 && touch /tmp/pve-sunshine-setup.sh.b64 && chmod 600 /tmp/pve-sunshine-setup.sh.b64" >/dev/null
+  while [[ -n "$script_b64" ]]; do
+    chunk="${script_b64:0:$chunk_size}"
+    script_b64="${script_b64:$chunk_size}"
+    qm_guest_exec_sync "printf '%s' '$chunk' >> /tmp/pve-sunshine-setup.sh.b64" >/dev/null
+  done
+  qm_guest_exec_sync "base64 -d /tmp/pve-sunshine-setup.sh.b64 >/tmp/pve-sunshine-setup.sh && chmod +x /tmp/pve-sunshine-setup.sh && /tmp/pve-sunshine-setup.sh" >/dev/null
 }
 
 detect_guest_ip() {
@@ -252,12 +363,32 @@ update_vm_metadata() {
   )"
 
   new_desc_b64="$(
-    python3 - "$encoded_desc" "$guest_ip" "$stream_host" "$stream_port" "$stream_api_url" "$SUNSHINE_USER" "$SUNSHINE_PASSWORD" "$SUNSHINE_PIN" "$PROXMOX_USER" "$PROXMOX_PASSWORD" "$PROXMOX_TOKEN" "$GUEST_USER" <<'PY'
+    python3 - "$encoded_desc" "$guest_ip" "$stream_host" "$stream_port" "$stream_api_url" "$SUNSHINE_USER" "$SUNSHINE_PASSWORD" "$SUNSHINE_PIN" "$PROXMOX_USER" "$PROXMOX_PASSWORD" "$PROXMOX_TOKEN" "$GUEST_USER" "$IDENTITY_LOCALE" "$IDENTITY_KEYMAP" "$DESKTOP_ID" "$DESKTOP_LABEL" "$DESKTOP_SESSION" "$(join_csv "${PACKAGE_PRESETS[@]}")" "$(join_csv "${EXTRA_PACKAGES[@]}")" <<'PY'
 import base64
 import sys
 from urllib.parse import unquote
 
-encoded, guest_ip, stream_host, stream_port, stream_api_url, sunshine_user, sunshine_password, sunshine_pin, proxmox_user, proxmox_password, proxmox_token, guest_user = sys.argv[1:13]
+(
+    encoded,
+    guest_ip,
+    stream_host,
+    stream_port,
+    stream_api_url,
+    sunshine_user,
+    sunshine_password,
+    sunshine_pin,
+    proxmox_user,
+    proxmox_password,
+    proxmox_token,
+    guest_user,
+    identity_locale,
+    identity_keymap,
+    desktop_id,
+    desktop_label,
+    desktop_session,
+    package_presets,
+    extra_packages,
+) = sys.argv[1:20]
 skip = {
     "sunshine-guest-user",
     "sunshine-host",
@@ -283,6 +414,13 @@ skip = {
     "moonlight-video-decoder",
     "moonlight-audio-config",
     "thinclient-default-mode",
+    "beagle-identity-locale",
+    "beagle-identity-keymap",
+    "beagle-desktop",
+    "beagle-desktop-id",
+    "beagle-desktop-session",
+    "beagle-package-presets",
+    "beagle-extra-packages",
 }
 
 text = unquote(encoded) if encoded else ""
@@ -313,8 +451,17 @@ lines.extend(
         "moonlight-video-decoder: auto",
         "moonlight-audio-config: stereo",
         "thinclient-default-mode: MOONLIGHT",
+        f"beagle-identity-locale: {identity_locale}",
+        f"beagle-identity-keymap: {identity_keymap}",
+        f"beagle-desktop: {desktop_label}",
+        f"beagle-desktop-id: {desktop_id}",
+        f"beagle-desktop-session: {desktop_session}",
     ]
 )
+if package_presets:
+    lines.append(f"beagle-package-presets: {package_presets}")
+if extra_packages:
+    lines.append(f"beagle-extra-packages: {extra_packages}")
 if stream_port:
     lines.extend(
         [
@@ -369,7 +516,12 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 GUEST_USER='${GUEST_USER}'
 IDENTITY_LOCALE='${IDENTITY_LOCALE:-de_DE.UTF-8}'
-IDENTITY_LANGUAGE='${IDENTITY_LANGUAGE:-de_DE:de}'
+IDENTITY_LANGUAGE='${IDENTITY_LANGUAGE:-de:de}'
+IDENTITY_KEYMAP='${IDENTITY_KEYMAP:-de}'
+DESKTOP_ID='${DESKTOP_ID}'
+DESKTOP_SESSION='${DESKTOP_SESSION}'
+DESKTOP_PACKAGES='$(join_words "${DESKTOP_PACKAGES[@]}")'
+SOFTWARE_PACKAGES='$(join_words "${SOFTWARE_PACKAGES[@]}")'
 SUNSHINE_USER='${SUNSHINE_USER}'
 SUNSHINE_PASSWORD='${SUNSHINE_PASSWORD}'
 SUNSHINE_PORT='${SUNSHINE_PORT}'
@@ -407,15 +559,37 @@ LOCALECONF
   cat > "/var/lib/AccountsService/users/\$GUEST_USER" <<ACCOUNTCONF
 [User]
 Language=\$locale
-XSession=xfce
+XSession=\${DESKTOP_SESSION}
 ACCOUNTCONF
 
   cat > "/home/\$GUEST_USER/.dmrc" <<DMRCCONF
 [Desktop]
 Language=\$locale
-Session=xfce
+Session=\${DESKTOP_SESSION}
 DMRCCONF
   chown "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.dmrc"
+}
+
+configure_keyboard_layout() {
+  local keymap="\${IDENTITY_KEYMAP:-de}"
+
+  cat > /etc/default/keyboard <<KEYBOARDCONF
+XKBMODEL="pc105"
+XKBLAYOUT="\${keymap}"
+XKBVARIANT=""
+XKBOPTIONS=""
+BACKSPACE="guess"
+KEYBOARDCONF
+
+  install -d -m 0755 /etc/X11/xorg.conf.d
+  cat > /etc/X11/xorg.conf.d/00-keyboard.conf <<KEYMAPCONF
+Section "InputClass"
+    Identifier "system-keyboard"
+    MatchIsKeyboard "on"
+    Option "XkbLayout" "\${keymap}"
+    Option "XkbModel" "pc105"
+EndSection
+KEYMAPCONF
 }
 
 install_google_chrome() {
@@ -462,31 +636,36 @@ MIMEAPPS
 
 echo 'lightdm shared/default-x-display-manager select lightdm' | debconf-set-selections
 apt-get update
-apt-get install -y --no-install-recommends \
-  xfce4 \
-  xfce4-goodies \
+apt-get install -y \
+  x11-xserver-utils \
   lightdm \
   lightdm-gtk-greeter \
   curl \
   ca-certificates \
   pulseaudio-utils \
   xdg-utils \
-  usbip \
   usbutils
+if [[ -n "\$DESKTOP_PACKAGES" ]]; then
+  apt-get install -y \$DESKTOP_PACKAGES
+fi
+if [[ -n "\$SOFTWARE_PACKAGES" ]]; then
+  apt-get install -y \$SOFTWARE_PACKAGES
+fi
 
 tmpdir=\$(mktemp -d)
 trap 'rm -rf "\$tmpdir"' EXIT
 curl -fsSLo "\$tmpdir/sunshine.deb" "\$SUNSHINE_URL"
 apt-get install -y "\$tmpdir/sunshine.deb"
 configure_system_locale
+configure_keyboard_layout
 install_google_chrome
 
 install -d -m 0755 /etc/lightdm/lightdm.conf.d
 cat > /etc/lightdm/lightdm.conf.d/60-pve-thin-client.conf <<GUESTCFG
 [Seat:*]
 autologin-user=${GUEST_USER}
-autologin-session=xfce
-user-session=xfce
+autologin-session=${DESKTOP_SESSION}
+user-session=${DESKTOP_SESSION}
 greeter-session=lightdm-gtk-greeter
 GUESTCFG
 
@@ -539,6 +718,7 @@ cat > "/home/\$GUEST_USER/.config/sunshine/apps.json" <<'APPS'
 }
 APPS
 
+if [[ "\$DESKTOP_ID" == "xfce" ]]; then
 cat > "/home/\$GUEST_USER/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" <<'XFWM4'
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfwm4" version="1.0">
@@ -548,6 +728,7 @@ cat > "/home/\$GUEST_USER/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" <<
   </property>
 </channel>
 XFWM4
+fi
 
 chown -R "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.config"
 configure_default_browser
@@ -569,6 +750,7 @@ Environment=XAUTHORITY=/home/\$GUEST_USER/.Xauthority
 Environment=XDG_RUNTIME_DIR=/run/user/\$GUEST_UID
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$GUEST_UID/bus
 Environment=PULSE_SERVER=unix:/run/user/\$GUEST_UID/pulse/native
+ExecStartPre=/bin/bash -lc 'for _ in {1..120}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/\$GUEST_USER/.Xauthority ]] && DISPLAY=:0 XAUTHORITY=/home/\$GUEST_USER/.Xauthority xset q >/dev/null 2>&1; then exit 0; fi; sleep 1; done; echo "Timed out waiting for an active X11 session on :0" >&2; exit 1'
 ExecStart=/usr/bin/sunshine
 Restart=always
 RestartSec=2

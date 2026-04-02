@@ -6,6 +6,12 @@ export DEBIAN_FRONTEND=noninteractive
 GUEST_USER="__GUEST_USER__"
 IDENTITY_LOCALE="__IDENTITY_LOCALE__"
 IDENTITY_LANGUAGE="__IDENTITY_LANGUAGE__"
+IDENTITY_KEYMAP="__IDENTITY_KEYMAP__"
+DESKTOP_ID="__DESKTOP_ID__"
+DESKTOP_SESSION="__DESKTOP_SESSION__"
+DESKTOP_PACKAGES="__DESKTOP_PACKAGES__"
+SOFTWARE_PACKAGES="__SOFTWARE_PACKAGES__"
+PACKAGE_PRESETS="__PACKAGE_PRESETS__"
 SUNSHINE_USER="__SUNSHINE_USER__"
 SUNSHINE_PASSWORD="__SUNSHINE_PASSWORD__"
 SUNSHINE_PORT="__SUNSHINE_PORT__"
@@ -202,15 +208,37 @@ EOF
   cat > "/var/lib/AccountsService/users/$GUEST_USER" <<EOF
 [User]
 Language=${locale}
-XSession=xfce
+XSession=${DESKTOP_SESSION}
 EOF
 
   cat > "/home/$GUEST_USER/.dmrc" <<EOF
 [Desktop]
 Language=${locale}
-Session=xfce
+Session=${DESKTOP_SESSION}
 EOF
   chown "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.dmrc"
+}
+
+configure_keyboard_layout() {
+  local keymap="${IDENTITY_KEYMAP:-de}"
+
+  cat > /etc/default/keyboard <<EOF
+XKBMODEL="pc105"
+XKBLAYOUT="${keymap}"
+XKBVARIANT=""
+XKBOPTIONS=""
+BACKSPACE="guess"
+EOF
+
+  install -d -m 0755 /etc/X11/xorg.conf.d
+  cat > /etc/X11/xorg.conf.d/00-keyboard.conf <<EOF
+Section "InputClass"
+    Identifier "system-keyboard"
+    MatchIsKeyboard "on"
+    Option "XkbLayout" "${keymap}"
+    Option "XkbModel" "pc105"
+EndSection
+EOF
 }
 
 install_google_chrome() {
@@ -287,12 +315,11 @@ if [[ ! -f "$DONE_FILE" ]]; then
 
   echo 'lightdm shared/default-x-display-manager select lightdm' | debconf-set-selections
   apt_retry apt-get update -o Acquire::Retries=5
-  apt_retry apt-get install -y --fix-missing --no-install-recommends \
+  apt_retry apt-get install -y --fix-missing \
     qemu-guest-agent \
     openssh-server \
-    xfce4 \
-    xfce4-goodies \
     xserver-xorg \
+    x11-xserver-utils \
     lightdm \
     lightdm-gtk-greeter \
     accountsservice \
@@ -301,19 +328,26 @@ if [[ ! -f "$DONE_FILE" ]]; then
     pulseaudio-utils \
     usbutils \
     xdg-utils
+  if [[ -n "$DESKTOP_PACKAGES" ]]; then
+    apt_retry apt-get install -y --fix-missing ${DESKTOP_PACKAGES}
+  fi
+  if [[ -n "$SOFTWARE_PACKAGES" ]]; then
+    apt_retry apt-get install -y --fix-missing ${SOFTWARE_PACKAGES}
+  fi
 
   TMPDIR_WORK="$(mktemp -d)"
   curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$SUNSHINE_URL"
   apt_retry apt-get install -y "$TMPDIR_WORK/sunshine.deb"
   configure_system_locale
+  configure_keyboard_layout
   install_google_chrome
 
   install -d -m 0755 /etc/lightdm/lightdm.conf.d
   cat > /etc/lightdm/lightdm.conf.d/60-beagle.conf <<EOF
 [Seat:*]
 autologin-user=${GUEST_USER}
-autologin-session=xfce
-user-session=xfce
+autologin-session=${DESKTOP_SESSION}
+user-session=${DESKTOP_SESSION}
 greeter-session=lightdm-gtk-greeter
 EOF
 
@@ -366,6 +400,7 @@ EOF
 }
 EOF
 
+  if [[ "$DESKTOP_ID" == "xfce" ]]; then
   cat > "/home/$GUEST_USER/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfwm4" version="1.0">
@@ -375,6 +410,7 @@ EOF
   </property>
 </channel>
 EOF
+  fi
 
   chown -R "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.config"
   configure_default_browser
@@ -396,6 +432,7 @@ Environment=XAUTHORITY=/home/${GUEST_USER}/.Xauthority
 Environment=XDG_RUNTIME_DIR=/run/user/${GUEST_UID}
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${GUEST_UID}/bus
 Environment=PULSE_SERVER=unix:/run/user/${GUEST_UID}/pulse/native
+ExecStartPre=/bin/bash -lc 'for _ in {1..120}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/${GUEST_USER}/.Xauthority ]] && DISPLAY=:0 XAUTHORITY=/home/${GUEST_USER}/.Xauthority xset q >/dev/null 2>&1; then exit 0; fi; sleep 1; done; echo "Timed out waiting for an active X11 session on :0" >&2; exit 1'
 ExecStart=/usr/bin/sunshine
 Restart=always
 RestartSec=2
