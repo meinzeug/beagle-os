@@ -58,9 +58,21 @@ launch_moonlight() {
   exec "$SCRIPT_DIR/launch-moonlight.sh"
 }
 
-if [[ "${PVE_THIN_CLIENT_MODE:-MOONLIGHT}" != "MOONLIGHT" ]]; then
-  echo "Unsupported mode for Beagle OS: ${PVE_THIN_CLIENT_MODE:-UNSET}" >&2
-  exit 1
-fi
+launch_geforcenow() {
+  write_launch_status "GFN" "geforcenow" "flatpak run com.nvidia.geforcenow" "GeForce NOW"
+  beagle_log_event "launch-session.exec" "binary=flatpak target=com.nvidia.geforcenow"
+  exec "$SCRIPT_DIR/launch-geforcenow.sh"
+}
 
-launch_moonlight
+case "${PVE_THIN_CLIENT_MODE:-MOONLIGHT}" in
+  MOONLIGHT)
+    launch_moonlight
+    ;;
+  GFN)
+    launch_geforcenow
+    ;;
+  *)
+    echo "Unsupported mode for Beagle OS: ${PVE_THIN_CLIENT_MODE:-UNSET}" >&2
+    exit 1
+    ;;
+esac

@@ -11,6 +11,9 @@ pipewire-alsa
 wireplumber
 plymouth
 feh
+flatpak
+xdg-desktop-portal
+xdg-desktop-portal-gtk
 mesa-vulkan-drivers
 mesa-va-drivers
 mesa-vdpau-drivers

@@ -29,6 +29,9 @@ chromium-sandbox
 feh
 curl
 ca-certificates
+flatpak
+xdg-desktop-portal
+xdg-desktop-portal-gtk
 unclutter
 fonts-dejavu-core
 iproute2

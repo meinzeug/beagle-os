@@ -186,6 +186,51 @@ target.chmod(0o644)
 PY
 }
 
+cmdline_var() {
+  local key="${1:-}"
+  local token
+
+  [[ -n "$key" ]] || return 1
+
+  for token in $(cat /proc/cmdline 2>/dev/null); do
+    case "$token" in
+      "${key}"=*)
+        printf '%s\n' "${token#*=}"
+        return 0
+        ;;
+    esac
+  done
+
+  return 1
+}
+
+apply_runtime_mode_overrides() {
+  local requested_mode=""
+
+  requested_mode="$(cmdline_var pve_thin_client.client_mode 2>/dev/null || true)"
+  requested_mode="${requested_mode,,}"
+
+  case "$requested_mode" in
+    desktop|gfn|geforcenow|geforce-now)
+      PVE_THIN_CLIENT_MODE="GFN"
+      PVE_THIN_CLIENT_BOOT_PROFILE="desktop"
+      ;;
+    gaming|moonlight)
+      PVE_THIN_CLIENT_MODE="MOONLIGHT"
+      PVE_THIN_CLIENT_BOOT_PROFILE="gaming"
+      ;;
+  esac
+
+  case "${PVE_THIN_CLIENT_MODE:-MOONLIGHT}" in
+    GFN)
+      PVE_THIN_CLIENT_BOOT_PROFILE="${PVE_THIN_CLIENT_BOOT_PROFILE:-desktop}"
+      ;;
+    *)
+      PVE_THIN_CLIENT_BOOT_PROFILE="${PVE_THIN_CLIENT_BOOT_PROFILE:-gaming}"
+      ;;
+  esac
+}
+
 generate_config_dir_from_preset() {
   local preset_file="${1:-}"
   local state_dir="${2:-${PRESET_STATE_DIR:-$PRESET_STATE_DIR_DEFAULT}}"
@@ -348,6 +393,8 @@ load_runtime_config() {
   elif [[ -e "$CREDENTIALS_FILE" ]]; then
     echo "Skipping unreadable credentials file: $CREDENTIALS_FILE" >&2
   fi
+
+  apply_runtime_mode_overrides
 }
 
 render_template() {
