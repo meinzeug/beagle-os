@@ -2,6 +2,8 @@
 
 # Beagle OS
 
+> **Built to boot. If it still won't boot, the BIOS is being dramatic.**
+
 > **Proxmox-native endpoint OS and management stack for streaming virtual desktops.**
 
 [![License: Source Available](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE)
