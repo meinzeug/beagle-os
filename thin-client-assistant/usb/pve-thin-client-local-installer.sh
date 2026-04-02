@@ -2073,33 +2073,39 @@ terminal_output console
 set default=0
 set timeout=4
 
-menuentry 'Beagle OS' {
+menuentry 'Beagle OS Gaming' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime $irq_args_default
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming $irq_args_default
   initrd /live/current/initrd.img
 }
 
-menuentry 'Beagle OS (safe mode)' {
+menuentry 'Beagle OS Desktop' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime $irq_args_safe
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop $irq_args_default
   initrd /live/current/initrd.img
 }
 
-menuentry 'Beagle OS (legacy IRQ mode)' {
+menuentry 'Beagle OS Gaming (safe mode)' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime $irq_args_legacy
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming $irq_args_safe
+  initrd /live/current/initrd.img
+}
+
+menuentry 'Beagle OS Gaming (legacy IRQ mode)' {
+  search --no-floppy --fs-uuid --set=root $root_uuid
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming $irq_args_legacy
   initrd /live/current/initrd.img
 }
 
 menuentry 'Beagle OS (Slot A fallback)' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/a/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/a live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime $irq_args_safe
+  linux /live/a/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/a live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming $irq_args_safe
   initrd /live/a/initrd.img
 }
 
 menuentry 'Beagle OS (Slot B fallback)' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/b/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/b live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime $irq_args_safe
+  linux /live/b/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/b live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming $irq_args_safe
   initrd /live/b/initrd.img
 }
 EOF

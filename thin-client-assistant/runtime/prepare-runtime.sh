@@ -466,6 +466,9 @@ else
     MOONLIGHT)
       required_binary="${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}"
       ;;
+    GFN)
+      required_binary="flatpak"
+      ;;
     *)
       echo "Unsupported mode for Beagle OS: ${PVE_THIN_CLIENT_MODE:-UNSET}" >&2
       exit 1

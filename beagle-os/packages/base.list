@@ -38,6 +38,9 @@ xterm
 openbox
 feh
 dbus-x11
+flatpak
+xdg-desktop-portal
+xdg-desktop-portal-gtk
 x11-xserver-utils
 xauth
 xfonts-base
