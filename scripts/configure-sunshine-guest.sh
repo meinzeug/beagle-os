@@ -368,11 +368,97 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 GUEST_USER='${GUEST_USER}'
+IDENTITY_LOCALE='${IDENTITY_LOCALE:-de_DE.UTF-8}'
+IDENTITY_LANGUAGE='${IDENTITY_LANGUAGE:-de_DE:de}'
 SUNSHINE_USER='${SUNSHINE_USER}'
 SUNSHINE_PASSWORD='${SUNSHINE_PASSWORD}'
 SUNSHINE_PORT='${SUNSHINE_PORT}'
 SUNSHINE_URL='${SUNSHINE_URL}'
 SUNSHINE_ORIGIN_WEB_UI_ALLOWED='${SUNSHINE_ORIGIN_WEB_UI_ALLOWED}'
+
+configure_system_locale() {
+  local locale="\${IDENTITY_LOCALE:-de_DE.UTF-8}"
+  local language="\${IDENTITY_LANGUAGE:-de_DE:de}"
+  local language_code="\${locale%%_*}"
+  local escaped_locale=""
+
+  apt-get install -y --no-install-recommends locales
+  case "\$language_code" in
+    de)
+      apt-get install -y --no-install-recommends language-pack-de language-pack-gnome-de
+      ;;
+  esac
+
+  escaped_locale="\$(printf '%s\n' "\$locale" | sed 's/[.[\\*^$()+?{}|]/\\\\&/g')"
+  if grep -q "^# \$escaped_locale UTF-8" /etc/locale.gen 2>/dev/null; then
+    sed -i "s/^# \$escaped_locale UTF-8/\$locale UTF-8/" /etc/locale.gen
+  elif ! grep -q "^\$escaped_locale UTF-8" /etc/locale.gen 2>/dev/null; then
+    printf '%s UTF-8\n' "\$locale" >> /etc/locale.gen
+  fi
+
+  locale-gen "\$locale" >/dev/null 2>&1 || true
+  update-locale LANG="\$locale" LANGUAGE="\$language" >/dev/null 2>&1 || true
+  cat > /etc/default/locale <<LOCALECONF
+LANG=\$locale
+LANGUAGE=\$language
+LOCALECONF
+
+  install -d -m 0755 /var/lib/AccountsService/users
+  cat > "/var/lib/AccountsService/users/\$GUEST_USER" <<ACCOUNTCONF
+[User]
+Language=\$locale
+XSession=xfce
+ACCOUNTCONF
+
+  cat > "/home/\$GUEST_USER/.dmrc" <<DMRCCONF
+[Desktop]
+Language=\$locale
+Session=xfce
+DMRCCONF
+  chown "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.dmrc"
+}
+
+install_google_chrome() {
+  install -d -m 0755 /etc/apt/keyrings
+  apt-get install -y --no-install-recommends gnupg xdg-utils
+  curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+    | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg.tmp
+  install -m 0644 /etc/apt/keyrings/google-chrome.gpg.tmp /etc/apt/keyrings/google-chrome.gpg
+  rm -f /etc/apt/keyrings/google-chrome.gpg.tmp
+  cat > /etc/apt/sources.list.d/google-chrome.list <<'CHROMEREPO'
+deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main
+CHROMEREPO
+  apt-get update
+  apt-get install -y --no-install-recommends google-chrome-stable
+}
+
+configure_default_browser() {
+  install -d -m 0700 -o "\$GUEST_USER" -g "\$GUEST_USER" \
+    "/home/\$GUEST_USER/.config" \
+    "/home/\$GUEST_USER/.config/xfce4"
+  update-alternatives --install /usr/bin/x-www-browser x-www-browser /usr/bin/google-chrome-stable 200 >/dev/null 2>&1 || true
+  update-alternatives --install /usr/bin/gnome-www-browser gnome-www-browser /usr/bin/google-chrome-stable 200 >/dev/null 2>&1 || true
+  update-alternatives --set x-www-browser /usr/bin/google-chrome-stable >/dev/null 2>&1 || true
+  update-alternatives --set gnome-www-browser /usr/bin/google-chrome-stable >/dev/null 2>&1 || true
+  cat > "/home/\$GUEST_USER/.config/xfce4/helpers.rc" <<'HELPERS'
+WebBrowser=google-chrome
+MailReader=thunderbird
+TerminalEmulator=xfce4-terminal
+FileManager=thunar
+HELPERS
+  cat > "/home/\$GUEST_USER/.config/mimeapps.list" <<'MIMEAPPS'
+[Default Applications]
+x-scheme-handler/http=google-chrome.desktop
+x-scheme-handler/https=google-chrome.desktop
+text/html=google-chrome.desktop
+application/xhtml+xml=google-chrome.desktop
+x-scheme-handler/about=google-chrome.desktop
+x-scheme-handler/unknown=google-chrome.desktop
+MIMEAPPS
+  chown "\$GUEST_USER:\$GUEST_USER" \
+    "/home/\$GUEST_USER/.config/xfce4/helpers.rc" \
+    "/home/\$GUEST_USER/.config/mimeapps.list"
+}
 
 echo 'lightdm shared/default-x-display-manager select lightdm' | debconf-set-selections
 apt-get update
@@ -384,6 +470,7 @@ apt-get install -y --no-install-recommends \
   curl \
   ca-certificates \
   pulseaudio-utils \
+  xdg-utils \
   usbip \
   usbutils
 
@@ -391,6 +478,8 @@ tmpdir=\$(mktemp -d)
 trap 'rm -rf "\$tmpdir"' EXIT
 curl -fsSLo "\$tmpdir/sunshine.deb" "\$SUNSHINE_URL"
 apt-get install -y "\$tmpdir/sunshine.deb"
+configure_system_locale
+install_google_chrome
 
 install -d -m 0755 /etc/lightdm/lightdm.conf.d
 cat > /etc/lightdm/lightdm.conf.d/60-pve-thin-client.conf <<GUESTCFG
@@ -461,6 +550,7 @@ cat > "/home/\$GUEST_USER/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" <<
 XFWM4
 
 chown -R "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.config"
+configure_default_browser
 
 cat > /etc/systemd/system/beagle-sunshine.service <<SUNSHINESVC
 [Unit]

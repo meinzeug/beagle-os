@@ -1,7 +1,7 @@
 #cloud-config
 autoinstall:
   version: 1
-  locale: en_US.UTF-8
+  locale: __IDENTITY_LOCALE__
   keyboard:
     layout: us
   identity:

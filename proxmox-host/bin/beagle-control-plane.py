@@ -111,6 +111,7 @@ UBUNTU_BEAGLE_DEFAULT_MEMORY_MIB = int(os.environ.get("BEAGLE_UBUNTU_DEFAULT_MEM
 UBUNTU_BEAGLE_DEFAULT_CORES = int(os.environ.get("BEAGLE_UBUNTU_DEFAULT_CORES", "4"))
 UBUNTU_BEAGLE_DEFAULT_DISK_GB = int(os.environ.get("BEAGLE_UBUNTU_DEFAULT_DISK_GB", "64"))
 UBUNTU_BEAGLE_DEFAULT_GUEST_USER = os.environ.get("BEAGLE_UBUNTU_DEFAULT_GUEST_USER", "beagle").strip() or "beagle"
+UBUNTU_BEAGLE_DEFAULT_LOCALE = os.environ.get("BEAGLE_UBUNTU_DEFAULT_LOCALE", "de_DE.UTF-8").strip() or "de_DE.UTF-8"
 UBUNTU_BEAGLE_PROFILE_ID = "ubuntu-24.04-xfce-sunshine"
 UBUNTU_BEAGLE_PROFILE_LABEL = "Ubuntu 24.04 LTS mit XFCE und Sunshine"
 UBUNTU_BEAGLE_PROFILE_RELEASE = "24.04 LTS"
@@ -2261,6 +2262,7 @@ def build_provisioning_catalog() -> dict[str, Any]:
             "cores": UBUNTU_BEAGLE_DEFAULT_CORES,
             "disk_gb": UBUNTU_BEAGLE_DEFAULT_DISK_GB,
             "guest_user": UBUNTU_BEAGLE_DEFAULT_GUEST_USER,
+            "identity_locale": UBUNTU_BEAGLE_DEFAULT_LOCALE,
             "disk_storage": resolve_storage(UBUNTU_BEAGLE_DISK_STORAGE, "images", UBUNTU_BEAGLE_ISO_STORAGE),
             "iso_storage": resolve_storage(UBUNTU_BEAGLE_ISO_STORAGE, "iso", UBUNTU_BEAGLE_DISK_STORAGE),
             "next_vmid": next_vmid_value,
@@ -2439,12 +2441,23 @@ def render_template_file(path: Path, values: dict[str, str]) -> str:
     return content
 
 
+def locale_language(locale: str) -> str:
+    value = str(locale or "").strip() or UBUNTU_BEAGLE_DEFAULT_LOCALE
+    base = value.split(".", 1)[0].strip()
+    if not base:
+        return ""
+    if "_" in base:
+        return f"{base}:{base.split('_', 1)[0]}"
+    return base
+
+
 def build_ubuntu_beagle_description(
     hostname: str,
     guest_user: str,
     public_stream: dict[str, Any] | None = None,
     *,
     os_profile: str = UBUNTU_BEAGLE_PROFILE_ID,
+    identity_locale: str = "",
 ) -> str:
     lines = [
         "beagle-role: desktop",
@@ -2466,6 +2479,7 @@ def build_ubuntu_beagle_description(
         f"beagle-template-set: ubuntu-beagle",
         f"beagle-template-hostname: {hostname}",
         f"beagle-identity-hostname: {hostname}",
+        f"beagle-identity-locale: {identity_locale or UBUNTU_BEAGLE_DEFAULT_LOCALE}",
     ]
     if public_stream:
         public_host = str(public_stream.get("host", "")).strip()
@@ -2486,6 +2500,7 @@ def build_ubuntu_beagle_seed_iso(
     hostname: str,
     guest_user: str,
     guest_password_hash: str,
+    identity_locale: str,
     sunshine_user: str,
     sunshine_password: str,
     sunshine_port: int | None,
@@ -2504,6 +2519,8 @@ def build_ubuntu_beagle_seed_iso(
             "__SUNSHINE_PORT__": str(int(sunshine_port)) if sunshine_port else "",
             "__SUNSHINE_URL__": UBUNTU_BEAGLE_SUNSHINE_URL,
             "__SUNSHINE_ORIGIN_WEB_UI_ALLOWED__": "wan",
+            "__IDENTITY_LOCALE__": identity_locale,
+            "__IDENTITY_LANGUAGE__": locale_language(identity_locale),
             "__CALLBACK_URL__": callback_url,
             "__CALLBACK_PINNED_PUBKEY__": MANAGER_PINNED_PUBKEY,
         },
@@ -2514,6 +2531,7 @@ def build_ubuntu_beagle_seed_iso(
             "__HOSTNAME__": hostname,
             "__GUEST_USER__": guest_user,
             "__GUEST_PASSWORD_HASH__": guest_password_hash,
+            "__IDENTITY_LOCALE__": identity_locale,
             "__CALLBACK_URL__": callback_url,
             "__PREPARE_FIRSTBOOT_URL__": callback_url.rsplit("/complete", 1)[0] + "/prepare-firstboot",
             "__PREPARE_FIRSTBOOT_CURL_ARGS__": f'-k --pinnedpubkey "{MANAGER_PINNED_PUBKEY}"' if MANAGER_PINNED_PUBKEY else "",
@@ -2646,6 +2664,7 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
     sunshine_password = validate_password(sunshine_password_input, "sunshine_password", allow_empty=True) or random_secret(26)
     guest_password_input = str(payload.get("guest_password", ""))
     guest_password = validate_password(guest_password_input, "guest_password", allow_empty=True) or random_secret(20)
+    identity_locale = str(payload.get("identity_locale", "") or "").strip() or UBUNTU_BEAGLE_DEFAULT_LOCALE
     guest_password_hash = openssl_password_hash(guest_password)
     completion_token = secrets.token_urlsafe(24)
     callback_url = public_ubuntu_beagle_complete_url(completion_token)
@@ -2666,12 +2685,19 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
         hostname=hostname,
         guest_user=guest_user,
         guest_password_hash=guest_password_hash,
+        identity_locale=identity_locale,
         sunshine_user=sunshine_user,
         sunshine_password=sunshine_password,
         sunshine_port=sunshine_port,
         callback_url=callback_url,
     )
-    description = build_ubuntu_beagle_description(hostname, guest_user, public_stream, os_profile=os_profile)
+    description = build_ubuntu_beagle_description(
+        hostname,
+        guest_user,
+        public_stream,
+        os_profile=os_profile,
+        identity_locale=identity_locale,
+    )
     # When the live-server installer boots with an attached CIDATA seed ISO,
     # Ubuntu 24.04 reliably autodetects NoCloud on its own. Forcing
     # ds=nocloud;s=/cidata/ here leaves Subiquity in interactive mode instead
@@ -2698,6 +2724,7 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
             "guest_password": guest_password,
             "sunshine_user": sunshine_user,
             "sunshine_password": sunshine_password,
+            "identity_locale": identity_locale,
             "bridge": bridge,
             "disk_storage": disk_storage,
             "iso_storage": iso_storage,
@@ -3140,7 +3167,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         "egress_wg_persistent_keepalive": policy_profile.get("egress_wg_persistent_keepalive") or meta.get("beagle-egress-wg-persistent-keepalive", "25"),
         "identity_hostname": policy_profile.get("identity_hostname") or meta.get("beagle-identity-hostname", safe_hostname(config.get("name") or vm.name, vm.vmid)),
         "identity_timezone": policy_profile.get("identity_timezone") or meta.get("beagle-identity-timezone", "UTC"),
-        "identity_locale": policy_profile.get("identity_locale") or meta.get("beagle-identity-locale", "en_US.UTF-8"),
+        "identity_locale": policy_profile.get("identity_locale") or meta.get("beagle-identity-locale", UBUNTU_BEAGLE_DEFAULT_LOCALE),
         "identity_keymap": policy_profile.get("identity_keymap") or meta.get("beagle-identity-keymap", ""),
         "identity_chrome_profile": policy_profile.get("identity_chrome_profile") or meta.get("beagle-identity-chrome-profile", expected_profile_name or f"vm-{vm.vmid}"),
         "network_mode": policy_profile.get("network_mode") or meta.get("thinclient-network-mode", "dhcp"),
