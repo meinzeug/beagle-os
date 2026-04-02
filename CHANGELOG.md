@@ -1,5 +1,16 @@
 # Changelog
 
+## v5.2.0 - 2026-04-02
+
+- Expanded the Proxmox-hosted Beagle Fleet Manager so new Beagle desktop VMs can be provisioned with a selectable desktop profile, including `XFCE`, `GNOME`, `KDE Plasma`, `MATE` and `LXQt`, instead of being hard-wired to a single desktop.
+- Added software selection to the Fleet create and edit flows with named presets plus free-form extra APT packages, and carried those choices through the control-plane catalog, VM metadata, Ubuntu autoinstall seed and in-guest reconfiguration path.
+- Added an edit path for existing managed Beagle desktop VMs so operators can change desktop, locale, keyboard layout and package selections later from the Fleet Manager instead of rebuilding the VM from scratch.
+- Fixed the Proxmox control-plane provisioning sandbox so `qm create`, seed ISO generation, task logging, KVM startup and bridge activation all work reliably from the hardened systemd service context.
+- Fixed the managed-desktop Sunshine startup order so guest reconfiguration now waits for a real X11 session before launching Sunshine, preventing broken post-edit streams on non-XFCE desktops.
+- Switched managed desktop defaults and metadata handling to German locale and keymap where requested, and verified the existing `VM100` desktop session now uses the German keyboard layout.
+- Rebooted and revalidated the local Beagle OS thinclient on `192.168.178.92`, confirming that Moonlight still starts and streams correctly after the surrounding host-side changes.
+- Verified the new Fleet workflow against a real test VM by provisioning `VM101` with `LXQt`, `Thunderbird`, `VLC` and `de_DE.UTF-8`/`de` settings through the live control-plane API that backs the Proxmox UI, then editing the same VM in place to `MATE` with `LibreOffice`, `FileZilla` and `GIMP` while keeping Sunshine streamable.
+
 ## v5.1.0 - 2026-04-01
 
 - Reworked Moonlight target selection so Beagle OS endpoints now distinguish between local and public Sunshine routes correctly instead of getting stuck on an unreachable internal VM IP when only the public stream path is available.

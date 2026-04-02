@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Beagle OS Integration",
-  "version": "5.0.4",
+  "version": "5.2.0",
   "description": "Adds Beagle profile, installer and control-plane actions to Proxmox VE VM pages.",
   "permissions": ["storage"],
   "host_permissions": [

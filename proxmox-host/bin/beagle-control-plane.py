@@ -10,6 +10,7 @@ import ipaddress
 import base64
 import secrets
 import shlex
+import signal
 import socket
 import tempfile
 import time
@@ -112,10 +113,14 @@ UBUNTU_BEAGLE_DEFAULT_CORES = int(os.environ.get("BEAGLE_UBUNTU_DEFAULT_CORES", 
 UBUNTU_BEAGLE_DEFAULT_DISK_GB = int(os.environ.get("BEAGLE_UBUNTU_DEFAULT_DISK_GB", "64"))
 UBUNTU_BEAGLE_DEFAULT_GUEST_USER = os.environ.get("BEAGLE_UBUNTU_DEFAULT_GUEST_USER", "beagle").strip() or "beagle"
 UBUNTU_BEAGLE_DEFAULT_LOCALE = os.environ.get("BEAGLE_UBUNTU_DEFAULT_LOCALE", "de_DE.UTF-8").strip() or "de_DE.UTF-8"
-UBUNTU_BEAGLE_PROFILE_ID = "ubuntu-24.04-xfce-sunshine"
-UBUNTU_BEAGLE_PROFILE_LABEL = "Ubuntu 24.04 LTS mit XFCE und Sunshine"
+UBUNTU_BEAGLE_DEFAULT_KEYMAP = os.environ.get("BEAGLE_UBUNTU_DEFAULT_KEYMAP", "de").strip() or "de"
+UBUNTU_BEAGLE_DEFAULT_DESKTOP = os.environ.get("BEAGLE_UBUNTU_DEFAULT_DESKTOP", "xfce").strip().lower() or "xfce"
+UBUNTU_BEAGLE_PROFILE_ID = "ubuntu-24.04-desktop-sunshine"
+UBUNTU_BEAGLE_PROFILE_LEGACY_IDS = {
+    "ubuntu-24.04-xfce-sunshine": "xfce",
+}
+UBUNTU_BEAGLE_PROFILE_LABEL = "Ubuntu 24.04 LTS Desktop mit Sunshine"
 UBUNTU_BEAGLE_PROFILE_RELEASE = "24.04 LTS"
-UBUNTU_BEAGLE_PROFILE_DESKTOP = "XFCE"
 UBUNTU_BEAGLE_PROFILE_STREAMING = "Sunshine"
 UBUNTU_BEAGLE_MIN_PASSWORD_LENGTH = int(os.environ.get("BEAGLE_UBUNTU_MIN_PASSWORD_LENGTH", "8"))
 UBUNTU_BEAGLE_SUNSHINE_URL = os.environ.get(
@@ -123,6 +128,93 @@ UBUNTU_BEAGLE_SUNSHINE_URL = os.environ.get(
     "https://github.com/LizardByte/Sunshine/releases/download/v2025.924.154138/sunshine-ubuntu-24.04-amd64.deb",
 ).strip()
 UBUNTU_BEAGLE_AUTOINSTALL_URL_TTL_SECONDS = int(os.environ.get("BEAGLE_UBUNTU_AUTOINSTALL_URL_TTL_SECONDS", "21600"))
+UBUNTU_BEAGLE_FIRSTBOOT_POWERDOWN_WAIT_SECONDS = int(os.environ.get("BEAGLE_UBUNTU_FIRSTBOOT_POWERDOWN_WAIT_SECONDS", "600"))
+UBUNTU_BEAGLE_DESKTOPS: dict[str, dict[str, Any]] = {
+    "xfce": {
+        "id": "xfce",
+        "label": "XFCE",
+        "session": "xfce",
+        "packages": ["xfce4", "xfce4-goodies"],
+        "features": ["Lightweight desktop", "Thunar", "XFCE panel"],
+        "aliases": ["xfce", "xubuntu"],
+    },
+    "gnome": {
+        "id": "gnome",
+        "label": "GNOME",
+        "session": "ubuntu-xorg",
+        "packages": ["ubuntu-desktop-minimal"],
+        "features": ["Ubuntu GNOME shell", "Activities overview", "Files app"],
+        "aliases": ["gnome", "ubuntu", "ubuntu-desktop"],
+    },
+    "plasma": {
+        "id": "plasma",
+        "label": "KDE Plasma",
+        "session": "plasma",
+        "packages": ["plasma-desktop", "konsole", "dolphin"],
+        "features": ["KDE Plasma shell", "Dolphin", "Konsole"],
+        "aliases": ["kde", "plasma", "kde-plasma"],
+    },
+    "mate": {
+        "id": "mate",
+        "label": "MATE",
+        "session": "mate",
+        "packages": ["mate-desktop-environment-core", "mate-terminal", "caja"],
+        "features": ["Traditional desktop", "Caja", "MATE terminal"],
+        "aliases": ["mate", "ubuntu-mate"],
+    },
+    "lxqt": {
+        "id": "lxqt",
+        "label": "LXQt",
+        "session": "lxqt",
+        "packages": ["lxqt", "qterminal", "pcmanfm-qt"],
+        "features": ["Very lightweight", "PCManFM-Qt", "Qt desktop"],
+        "aliases": ["lxqt", "lubuntu"],
+    },
+}
+UBUNTU_BEAGLE_SOFTWARE_PRESETS: dict[str, dict[str, Any]] = {
+    "firefox": {
+        "id": "firefox",
+        "label": "Firefox",
+        "packages": ["firefox"],
+        "description": "Additional browser next to Chrome.",
+    },
+    "thunderbird": {
+        "id": "thunderbird",
+        "label": "Thunderbird",
+        "packages": ["thunderbird"],
+        "description": "Mail and calendar client.",
+    },
+    "libreoffice": {
+        "id": "libreoffice",
+        "label": "LibreOffice",
+        "packages": ["libreoffice"],
+        "description": "Office suite for documents and spreadsheets.",
+    },
+    "vlc": {
+        "id": "vlc",
+        "label": "VLC",
+        "packages": ["vlc"],
+        "description": "Media player.",
+    },
+    "remmina": {
+        "id": "remmina",
+        "label": "Remmina",
+        "packages": ["remmina"],
+        "description": "Remote desktop client toolkit.",
+    },
+    "filezilla": {
+        "id": "filezilla",
+        "label": "FileZilla",
+        "packages": ["filezilla"],
+        "description": "FTP and SFTP client.",
+    },
+    "gimp": {
+        "id": "gimp",
+        "label": "GIMP",
+        "packages": ["gimp"],
+        "description": "Image editing.",
+    },
+}
 
 _CACHE: dict[str, tuple[float, Any]] = {}
 
@@ -260,6 +352,22 @@ def cache_get(key: str, ttl_seconds: float) -> Any:
 def cache_put(key: str, value: Any) -> Any:
     _CACHE[key] = (time.monotonic(), value)
     return value
+
+
+def cache_invalidate(*keys: str) -> None:
+    for key in keys:
+        if key:
+            _CACHE.pop(key, None)
+
+
+def invalidate_vm_cache(vmid: int | None = None, node: str = "") -> None:
+    cache_invalidate("list-vms")
+    if vmid is None:
+        return
+    numeric_vmid = int(vmid)
+    cache_invalidate(f"guest-ipv4:{numeric_vmid}")
+    if node:
+        cache_invalidate(f"vm-config:{node}:{numeric_vmid}")
 
 
 def listify(value: Any) -> list[str]:
@@ -503,6 +611,70 @@ def save_ubuntu_beagle_state(token: str, payload: dict[str, Any]) -> dict[str, A
     return payload
 
 
+def schedule_ubuntu_beagle_vm_restart(
+    vmid: int,
+    *,
+    wait_timeout_seconds: int = UBUNTU_BEAGLE_FIRSTBOOT_POWERDOWN_WAIT_SECONDS,
+) -> dict[str, Any]:
+    wait_timeout = max(60, int(wait_timeout_seconds or UBUNTU_BEAGLE_FIRSTBOOT_POWERDOWN_WAIT_SECONDS))
+    script = "\n".join(
+        [
+            "trap 'exit 0' TERM INT",
+            f"deadline=$((SECONDS + {wait_timeout}))",
+            "while (( SECONDS < deadline )); do",
+            f"  status=$(qm status {int(vmid)} 2>/dev/null | awk '{{print $2}}')",
+            "  if [[ \"$status\" == \"stopped\" ]]; then",
+            f"    qm start {int(vmid)} >/dev/null 2>&1 || true",
+            "    exit 0",
+            "  fi",
+            "  sleep 5",
+            "done",
+            f"qm stop {int(vmid)} --skiplock 1 >/dev/null 2>&1 || true",
+            f"qm start {int(vmid)} >/dev/null 2>&1 || true",
+        ]
+    )
+    process = subprocess.Popen(
+        ["/bin/bash", "-lc", script],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    return {
+        "vmid": int(vmid),
+        "pid": int(process.pid),
+        "wait_timeout_seconds": wait_timeout,
+        "scheduled_at": utcnow(),
+    }
+
+
+def cancel_scheduled_ubuntu_beagle_vm_restart(state: dict[str, Any]) -> dict[str, Any] | None:
+    restart_state = state.get("host_restart") if isinstance(state.get("host_restart"), dict) else None
+    if not restart_state:
+        return None
+    pid_raw = restart_state.get("pid")
+    try:
+        pid = int(pid_raw)
+    except (TypeError, ValueError):
+        pid = 0
+    result = dict(restart_state)
+    result["cancelled_at"] = utcnow()
+    if pid <= 0:
+        state.pop("host_restart", None)
+        return result
+    try:
+        os.killpg(pid, signal.SIGTERM)
+        result["cancelled"] = True
+    except ProcessLookupError:
+        result["cancelled"] = False
+        result["reason"] = "not-running"
+    except OSError as exc:
+        result["cancelled"] = False
+        result["reason"] = str(exc)
+    state.pop("host_restart", None)
+    return result
+
+
 def public_ubuntu_beagle_complete_url(token: str) -> str:
     return f"{PUBLIC_MANAGER_URL}/api/v1/public/ubuntu-install/{token}/complete"
 
@@ -551,6 +723,8 @@ def summarize_ubuntu_beagle_state(payload: dict[str, Any], *, include_credential
         "bridge": str(state.get("bridge", "")).strip(),
         "public_stream": state.get("public_stream") if isinstance(state.get("public_stream"), dict) else None,
         "cleanup": state.get("cleanup") if isinstance(state.get("cleanup"), dict) else None,
+        "host_restart": state.get("host_restart") if isinstance(state.get("host_restart"), dict) else None,
+        "host_restart_cancelled": state.get("host_restart_cancelled") if isinstance(state.get("host_restart_cancelled"), dict) else None,
     }
     if include_credentials:
         summary["credentials"] = {
@@ -2200,6 +2374,109 @@ def validate_password(value: str, field_name: str, *, allow_empty: bool = False)
     return candidate
 
 
+def normalize_locale(value: str) -> str:
+    candidate = str(value or "").strip() or UBUNTU_BEAGLE_DEFAULT_LOCALE
+    if not re.fullmatch(r"[A-Za-z0-9_.@-]+", candidate):
+        raise ValueError("invalid identity_locale")
+    return candidate
+
+
+def normalize_keymap(value: str) -> str:
+    candidate = str(value or "").strip().lower() or UBUNTU_BEAGLE_DEFAULT_KEYMAP
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", candidate):
+        raise ValueError("invalid identity_keymap")
+    return candidate
+
+
+def normalize_package_names(value: Any, *, field_name: str) -> list[str]:
+    if isinstance(value, list):
+        raw_items = value
+    else:
+        raw_items = re.split(r"[\s,]+", str(value or ""))
+    names: list[str] = []
+    seen: set[str] = set()
+    for raw_item in raw_items:
+        item = str(raw_item or "").strip().lower()
+        if not item:
+            continue
+        if not re.fullmatch(r"[a-z0-9][a-z0-9+.-]*", item):
+            raise ValueError(f"invalid {field_name}: {item}")
+        if item in seen:
+            continue
+        seen.add(item)
+        names.append(item)
+    return names
+
+
+def resolve_ubuntu_beagle_desktop(value: str) -> dict[str, Any]:
+    candidate = str(value or "").strip().lower()
+    if not candidate:
+        candidate = UBUNTU_BEAGLE_DEFAULT_DESKTOP
+    if candidate in UBUNTU_BEAGLE_DESKTOPS:
+        return UBUNTU_BEAGLE_DESKTOPS[candidate]
+    for desktop in UBUNTU_BEAGLE_DESKTOPS.values():
+        aliases = [str(item).strip().lower() for item in desktop.get("aliases", []) if str(item).strip()]
+        if candidate == str(desktop.get("label", "")).strip().lower() or candidate in aliases:
+            return desktop
+    raise ValueError(f"unsupported desktop: {candidate}")
+
+
+def normalize_package_presets(value: Any) -> list[str]:
+    presets = normalize_package_names(value, field_name="package_presets")
+    supported = set(UBUNTU_BEAGLE_SOFTWARE_PRESETS.keys())
+    unknown = [item for item in presets if item not in supported]
+    if unknown:
+        raise ValueError(f"unsupported package presets: {', '.join(unknown)}")
+    return presets
+
+
+def expand_software_packages(package_presets: list[str], extra_packages: list[str]) -> list[str]:
+    packages: list[str] = []
+    seen: set[str] = set()
+    for preset_id in package_presets:
+        preset = UBUNTU_BEAGLE_SOFTWARE_PRESETS.get(preset_id, {})
+        for package_name in preset.get("packages", []) if isinstance(preset, dict) else []:
+            candidate = str(package_name or "").strip().lower()
+            if candidate and candidate not in seen:
+                seen.add(candidate)
+                packages.append(candidate)
+    for package_name in extra_packages:
+        candidate = str(package_name or "").strip().lower()
+        if candidate and candidate not in seen:
+            seen.add(candidate)
+            packages.append(candidate)
+    return packages
+
+
+def provisioning_desktop_profiles() -> list[dict[str, Any]]:
+    profiles: list[dict[str, Any]] = []
+    for desktop in UBUNTU_BEAGLE_DESKTOPS.values():
+        profiles.append(
+            {
+                "id": str(desktop.get("id", "")).strip(),
+                "label": str(desktop.get("label", "")).strip(),
+                "session": str(desktop.get("session", "")).strip(),
+                "packages": list(desktop.get("packages", []) or []),
+                "features": list(desktop.get("features", []) or []),
+            }
+        )
+    return profiles
+
+
+def provisioning_software_presets() -> list[dict[str, Any]]:
+    presets: list[dict[str, Any]] = []
+    for preset in UBUNTU_BEAGLE_SOFTWARE_PRESETS.values():
+        presets.append(
+            {
+                "id": str(preset.get("id", "")).strip(),
+                "label": str(preset.get("label", "")).strip(),
+                "packages": list(preset.get("packages", []) or []),
+                "description": str(preset.get("description", "")).strip(),
+            }
+        )
+    return presets
+
+
 def provisioning_os_profiles() -> list[dict[str, Any]]:
     return [
         {
@@ -2207,16 +2484,17 @@ def provisioning_os_profiles() -> list[dict[str, Any]]:
             "label": UBUNTU_BEAGLE_PROFILE_LABEL,
             "family": "ubuntu",
             "release": UBUNTU_BEAGLE_PROFILE_RELEASE,
-            "desktop": UBUNTU_BEAGLE_PROFILE_DESKTOP,
+            "desktop": resolve_ubuntu_beagle_desktop(UBUNTU_BEAGLE_DEFAULT_DESKTOP)["label"],
             "streaming": UBUNTU_BEAGLE_PROFILE_STREAMING,
             "template_set": "ubuntu-beagle",
             "iso_url": UBUNTU_BEAGLE_ISO_URL,
             "features": [
                 "Ubuntu Autoinstall",
-                "XFCE Desktop",
+                "Selectable desktop",
                 "LightDM Autologin",
                 "Sunshine Streaming",
                 "QEMU Guest Agent",
+                "Chrome preinstalled",
             ],
         }
     ]
@@ -2263,6 +2541,9 @@ def build_provisioning_catalog() -> dict[str, Any]:
             "disk_gb": UBUNTU_BEAGLE_DEFAULT_DISK_GB,
             "guest_user": UBUNTU_BEAGLE_DEFAULT_GUEST_USER,
             "identity_locale": UBUNTU_BEAGLE_DEFAULT_LOCALE,
+            "identity_keymap": UBUNTU_BEAGLE_DEFAULT_KEYMAP,
+            "desktop": resolve_ubuntu_beagle_desktop(UBUNTU_BEAGLE_DEFAULT_DESKTOP)["id"],
+            "package_presets": [],
             "disk_storage": resolve_storage(UBUNTU_BEAGLE_DISK_STORAGE, "images", UBUNTU_BEAGLE_ISO_STORAGE),
             "iso_storage": resolve_storage(UBUNTU_BEAGLE_ISO_STORAGE, "iso", UBUNTU_BEAGLE_DISK_STORAGE),
             "next_vmid": next_vmid_value,
@@ -2275,16 +2556,26 @@ def build_provisioning_catalog() -> dict[str, Any]:
             "iso": iso_storages,
         },
         "os_profiles": provisioning_os_profiles(),
+        "desktop_profiles": provisioning_desktop_profiles(),
+        "software_presets": provisioning_software_presets(),
         "recent_requests": list_ubuntu_beagle_states(),
     }
 
 
 def create_provisioned_vm(payload: dict[str, Any]) -> dict[str, Any]:
-    os_profile = str(payload.get("os_profile", "") or payload.get("os", "") or UBUNTU_BEAGLE_PROFILE_ID).strip()
-    if os_profile != UBUNTU_BEAGLE_PROFILE_ID:
+    os_profile = str(payload.get("os_profile", "") or payload.get("os", "") or UBUNTU_BEAGLE_PROFILE_ID).strip() or UBUNTU_BEAGLE_PROFILE_ID
+    desktop = str(payload.get("desktop", "") or payload.get("desktop_id", "") or "").strip()
+    if os_profile in UBUNTU_BEAGLE_PROFILE_LEGACY_IDS and not desktop:
+        desktop = UBUNTU_BEAGLE_PROFILE_LEGACY_IDS[os_profile]
+    if os_profile not in {UBUNTU_BEAGLE_PROFILE_ID, *UBUNTU_BEAGLE_PROFILE_LEGACY_IDS.keys()}:
         raise ValueError(f"unsupported os_profile: {os_profile}")
     normalized = dict(payload)
-    normalized["os_profile"] = os_profile
+    normalized["os_profile"] = UBUNTU_BEAGLE_PROFILE_ID
+    normalized["desktop"] = resolve_ubuntu_beagle_desktop(desktop or UBUNTU_BEAGLE_DEFAULT_DESKTOP)["id"]
+    normalized["identity_locale"] = normalize_locale(payload.get("identity_locale", ""))
+    normalized["identity_keymap"] = normalize_keymap(payload.get("identity_keymap", ""))
+    normalized["package_presets"] = normalize_package_presets(payload.get("package_presets", []))
+    normalized["extra_packages"] = normalize_package_names(payload.get("extra_packages", []), field_name="extra_packages")
     return create_ubuntu_beagle_vm(normalized)
 
 
@@ -2458,13 +2749,22 @@ def build_ubuntu_beagle_description(
     *,
     os_profile: str = UBUNTU_BEAGLE_PROFILE_ID,
     identity_locale: str = "",
+    identity_keymap: str = "",
+    desktop_id: str = "",
+    package_presets: list[str] | None = None,
+    extra_packages: list[str] | None = None,
 ) -> str:
+    desktop = resolve_ubuntu_beagle_desktop(desktop_id or UBUNTU_BEAGLE_DEFAULT_DESKTOP)
+    package_presets = package_presets or []
+    extra_packages = extra_packages or []
     lines = [
         "beagle-role: desktop",
         f"beagle-os-profile: {os_profile}",
         "beagle-os-family: ubuntu",
         f"beagle-os-release: {UBUNTU_BEAGLE_PROFILE_RELEASE}",
-        f"beagle-desktop: {UBUNTU_BEAGLE_PROFILE_DESKTOP}",
+        f"beagle-desktop: {desktop['label']}",
+        f"beagle-desktop-id: {desktop['id']}",
+        f"beagle-desktop-session: {desktop['session']}",
         f"beagle-streaming: {UBUNTU_BEAGLE_PROFILE_STREAMING}",
         f"sunshine-guest-user: {guest_user}",
         "sunshine-app: Desktop",
@@ -2480,7 +2780,12 @@ def build_ubuntu_beagle_description(
         f"beagle-template-hostname: {hostname}",
         f"beagle-identity-hostname: {hostname}",
         f"beagle-identity-locale: {identity_locale or UBUNTU_BEAGLE_DEFAULT_LOCALE}",
+        f"beagle-identity-keymap: {identity_keymap or UBUNTU_BEAGLE_DEFAULT_KEYMAP}",
     ]
+    if package_presets:
+        lines.append(f"beagle-package-presets: {','.join(package_presets)}")
+    if extra_packages:
+        lines.append(f"beagle-extra-packages: {','.join(extra_packages)}")
     if public_stream:
         public_host = str(public_stream.get("host", "")).strip()
         moonlight_port = int(public_stream.get("moonlight_port", 0) or 0)
@@ -2501,6 +2806,12 @@ def build_ubuntu_beagle_seed_iso(
     guest_user: str,
     guest_password_hash: str,
     identity_locale: str,
+    identity_keymap: str,
+    desktop_id: str,
+    desktop_session: str,
+    desktop_packages: list[str],
+    software_packages: list[str],
+    package_presets: list[str],
     sunshine_user: str,
     sunshine_password: str,
     sunshine_port: int | None,
@@ -2521,6 +2832,12 @@ def build_ubuntu_beagle_seed_iso(
             "__SUNSHINE_ORIGIN_WEB_UI_ALLOWED__": "wan",
             "__IDENTITY_LOCALE__": identity_locale,
             "__IDENTITY_LANGUAGE__": locale_language(identity_locale),
+            "__IDENTITY_KEYMAP__": identity_keymap,
+            "__DESKTOP_ID__": desktop_id,
+            "__DESKTOP_SESSION__": desktop_session,
+            "__DESKTOP_PACKAGES__": " ".join(desktop_packages),
+            "__SOFTWARE_PACKAGES__": " ".join(software_packages),
+            "__PACKAGE_PRESETS__": ",".join(package_presets),
             "__CALLBACK_URL__": callback_url,
             "__CALLBACK_PINNED_PUBKEY__": MANAGER_PINNED_PUBKEY,
         },
@@ -2532,6 +2849,7 @@ def build_ubuntu_beagle_seed_iso(
             "__GUEST_USER__": guest_user,
             "__GUEST_PASSWORD_HASH__": guest_password_hash,
             "__IDENTITY_LOCALE__": identity_locale,
+            "__IDENTITY_KEYMAP__": identity_keymap,
             "__CALLBACK_URL__": callback_url,
             "__PREPARE_FIRSTBOOT_URL__": callback_url.rsplit("/complete", 1)[0] + "/prepare-firstboot",
             "__PREPARE_FIRSTBOOT_CURL_ARGS__": f'-k --pinnedpubkey "{MANAGER_PINNED_PUBKEY}"' if MANAGER_PINNED_PUBKEY else "",
@@ -2552,6 +2870,7 @@ def build_ubuntu_beagle_seed_iso(
     (work_dir / "meta-data").write_text(meta_data, encoding="utf-8")
     seed_name = f"beagle-ubuntu-autoinstall-vm{vmid}.iso"
     seed_path = local_iso_storage_dir() / seed_name
+    seed_path.unlink(missing_ok=True)
     run_checked(
         [
             "xorriso",
@@ -2604,18 +2923,40 @@ def finalize_ubuntu_beagle_install(state: dict[str, Any], *, restart: bool = Tru
 
 def prepare_ubuntu_beagle_firstboot(state: dict[str, Any]) -> dict[str, Any]:
     cleanup = finalize_ubuntu_beagle_install(state, restart=False)
+    restart_state = state.get("host_restart") if isinstance(state.get("host_restart"), dict) else None
+    restart_pid = 0
+    if restart_state is not None:
+        try:
+            restart_pid = int(restart_state.get("pid", 0) or 0)
+        except (TypeError, ValueError):
+            restart_pid = 0
+    if restart_pid > 0:
+        try:
+            os.kill(restart_pid, 0)
+        except OSError:
+            restart_state = None
+    if restart_state is None:
+        restart_state = schedule_ubuntu_beagle_vm_restart(int(state["vmid"]))
+        state["host_restart"] = restart_state
     state["updated_at"] = utcnow()
     state["status"] = "installing"
     state["phase"] = "firstboot"
-    state["message"] = "Ubuntu-Basisinstallation ist abgeschlossen. Der Gast bootet jetzt vom Systemdatentraeger in das First-Boot-Provisioning."
+    state["message"] = "Ubuntu-Basisinstallation ist abgeschlossen. Der Installer faehrt den Gast jetzt herunter; anschliessend startet der Host ihn vom Systemdatentraeger in das First-Boot-Provisioning."
     state["cleanup"] = cleanup
-    return cleanup
+    return {
+        **cleanup,
+        "host_restart": restart_state,
+    }
 
 
 def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
     os_profile = str(payload.get("os_profile", "") or UBUNTU_BEAGLE_PROFILE_ID).strip() or UBUNTU_BEAGLE_PROFILE_ID
-    if os_profile != UBUNTU_BEAGLE_PROFILE_ID:
+    if os_profile not in {UBUNTU_BEAGLE_PROFILE_ID, *UBUNTU_BEAGLE_PROFILE_LEGACY_IDS.keys()}:
         raise ValueError(f"unsupported os_profile: {os_profile}")
+    desktop = resolve_ubuntu_beagle_desktop(str(payload.get("desktop", "") or payload.get("desktop_id", "") or UBUNTU_BEAGLE_DEFAULT_DESKTOP))
+    package_presets = normalize_package_presets(payload.get("package_presets", []))
+    extra_packages = normalize_package_names(payload.get("extra_packages", []), field_name="extra_packages")
+    software_packages = expand_software_packages(package_presets, extra_packages)
     node = str(payload.get("node", "")).strip()
     if not node:
         raise ValueError("missing node")
@@ -2624,7 +2965,7 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"unknown node: {node}")
     vmid_value = payload.get("vmid")
     vmid = int(vmid_value) if str(vmid_value or "").strip() else next_vmid()
-    if find_vm(vmid) is not None:
+    if find_vm(vmid, refresh=True) is not None:
         raise ValueError(f"vmid already exists: {vmid}")
     name = str(payload.get("name", "")).strip() or f"ubuntu-beagle-{vmid}"
     if not name:
@@ -2664,7 +3005,8 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
     sunshine_password = validate_password(sunshine_password_input, "sunshine_password", allow_empty=True) or random_secret(26)
     guest_password_input = str(payload.get("guest_password", ""))
     guest_password = validate_password(guest_password_input, "guest_password", allow_empty=True) or random_secret(20)
-    identity_locale = str(payload.get("identity_locale", "") or "").strip() or UBUNTU_BEAGLE_DEFAULT_LOCALE
+    identity_locale = normalize_locale(payload.get("identity_locale", ""))
+    identity_keymap = normalize_keymap(payload.get("identity_keymap", ""))
     guest_password_hash = openssl_password_hash(guest_password)
     completion_token = secrets.token_urlsafe(24)
     callback_url = public_ubuntu_beagle_complete_url(completion_token)
@@ -2686,6 +3028,12 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
         guest_user=guest_user,
         guest_password_hash=guest_password_hash,
         identity_locale=identity_locale,
+        identity_keymap=identity_keymap,
+        desktop_id=str(desktop["id"]),
+        desktop_session=str(desktop["session"]),
+        desktop_packages=list(desktop.get("packages", []) or []),
+        software_packages=software_packages,
+        package_presets=package_presets,
         sunshine_user=sunshine_user,
         sunshine_password=sunshine_password,
         sunshine_port=sunshine_port,
@@ -2697,6 +3045,10 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
         public_stream,
         os_profile=os_profile,
         identity_locale=identity_locale,
+        identity_keymap=identity_keymap,
+        desktop_id=str(desktop["id"]),
+        package_presets=package_presets,
+        extra_packages=extra_packages,
     )
     # When the live-server installer boots with an attached CIDATA seed ISO,
     # Ubuntu 24.04 reliably autodetects NoCloud on its own. Forcing
@@ -2724,7 +3076,13 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
             "guest_password": guest_password,
             "sunshine_user": sunshine_user,
             "sunshine_password": sunshine_password,
+            "desktop": str(desktop["id"]),
+            "desktop_label": str(desktop["label"]),
+            "package_presets": package_presets,
+            "extra_packages": extra_packages,
+            "software_packages": software_packages,
             "identity_locale": identity_locale,
+            "identity_keymap": identity_keymap,
             "bridge": bridge,
             "disk_storage": disk_storage,
             "iso_storage": iso_storage,
@@ -2769,11 +3127,10 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
                 f"virtio,bridge={bridge}",
                 "--tags",
                 tags,
-                "--description",
-                description,
             ],
             timeout=None,
         )
+        run_checked(["qm", "set", str(vmid), "--description", description], timeout=None)
         run_checked(
             [
                 "qm",
@@ -2801,7 +3158,9 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
         run_checked(["qm", "set", str(vmid), "--boot", "order=scsi0;ide2;ide3"], timeout=None)
         if start_after_create:
             run_checked(["qm", "start", str(vmid)], timeout=None)
+        invalidate_vm_cache(vmid, node)
     except Exception as exc:
+        invalidate_vm_cache(vmid, node)
         state["status"] = "failed"
         state["phase"] = "proxmox-create"
         state["message"] = "Die VM konnte nicht vollstaendig angelegt werden."
@@ -2831,9 +3190,9 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
     state["status"] = "installing" if start_after_create else "created"
     state["phase"] = "autoinstall" if start_after_create else "awaiting-start"
     state["message"] = (
-        "Ubuntu-Autoinstall laeuft. XFCE, LightDM und Sunshine werden im Guest eingerichtet."
+        f"Ubuntu-Autoinstall laeuft. {desktop['label']}, LightDM und Sunshine werden im Guest eingerichtet."
         if start_after_create
-        else "VM angelegt. Starten Sie die VM, um Ubuntu, XFCE und Sunshine zu provisionieren."
+        else f"VM angelegt. Starten Sie die VM, um Ubuntu, {desktop['label']}, LightDM und Sunshine zu provisionieren."
     )
     state["started"] = start_after_create
     state["updated_at"] = utcnow()
@@ -2844,6 +3203,10 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
         "name": name,
         "hostname": hostname,
         "os_profile": os_profile,
+        "desktop": str(desktop["id"]),
+        "desktop_label": str(desktop["label"]),
+        "package_presets": package_presets,
+        "extra_packages": extra_packages,
         "bridge": bridge,
         "disk_storage": disk_storage,
         "iso_storage": iso_storage,
@@ -2851,6 +3214,8 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
         "seed_iso": seed_path.name,
         "guest_user": guest_user,
         "guest_password": guest_password,
+        "identity_locale": identity_locale,
+        "identity_keymap": identity_keymap,
         "sunshine_user": str(secret.get("sunshine_username", "") or sunshine_user),
         "sunshine_password": str(secret.get("sunshine_password", "") or sunshine_password),
         "completion_token": completion_token,
@@ -2883,8 +3248,8 @@ def first_guest_ipv4(vmid: int) -> str:
     return ""
 
 
-def list_vms() -> list[VmSummary]:
-    cached = cache_get("list-vms", LIST_VMS_CACHE_SECONDS)
+def list_vms(*, refresh: bool = False) -> list[VmSummary]:
+    cached = None if refresh else cache_get("list-vms", LIST_VMS_CACHE_SECONDS)
     if isinstance(cached, list):
         return cached
     resources = run_json(["pvesh", "get", "/cluster/resources", "--type", "vm", "--output-format", "json"])
@@ -2966,8 +3331,8 @@ def get_vm_config(node: str, vmid: int) -> dict[str, Any]:
     return {}
 
 
-def find_vm(vmid: int) -> VmSummary | None:
-    return next((candidate for candidate in list_vms() if candidate.vmid == vmid), None)
+def find_vm(vmid: int, *, refresh: bool = False) -> VmSummary | None:
+    return next((candidate for candidate in list_vms(refresh=refresh) if candidate.vmid == vmid), None)
 
 
 def should_use_public_stream(meta: dict[str, str], guest_ip: str) -> bool:
@@ -3093,6 +3458,23 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
     meta = parse_description_meta(config.get("description", ""))
     matched_policy = resolve_policy_for_vm(vm, meta) if allow_assignment else None
     policy_profile = matched_policy.get("profile", {}) if isinstance(matched_policy, dict) and isinstance(matched_policy.get("profile"), dict) else {}
+    desktop_hint = str(
+        policy_profile.get("desktop")
+        or meta.get("beagle-desktop-id")
+        or meta.get("beagle-desktop")
+        or UBUNTU_BEAGLE_DEFAULT_DESKTOP
+    ).strip()
+    try:
+        desktop = resolve_ubuntu_beagle_desktop(desktop_hint)
+    except ValueError:
+        desktop = resolve_ubuntu_beagle_desktop(UBUNTU_BEAGLE_DEFAULT_DESKTOP)
+    supported_presets = set(UBUNTU_BEAGLE_SOFTWARE_PRESETS.keys())
+    package_presets = [item for item in listify(meta.get("beagle-package-presets", "")) if item in supported_presets]
+    extra_packages = [
+        item for item in listify(meta.get("beagle-extra-packages", ""))
+        if re.fullmatch(r"[a-z0-9][a-z0-9+.-]*", str(item or "").strip().lower())
+    ]
+    software_packages = expand_software_packages(package_presets, extra_packages)
     guest_ip = first_guest_ipv4(vm.vmid) if vm.status == "running" else ""
     guest_ip = guest_ip or str(meta.get("sunshine-ip", "")).strip()
     moonlight_local_host = (
@@ -3137,6 +3519,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         "moonlight_local_host": str(moonlight_local_host or "").strip(),
         "moonlight_port": moonlight_port,
         "sunshine_api_url": sunshine_api_url,
+        "guest_user": meta.get("sunshine-guest-user", UBUNTU_BEAGLE_DEFAULT_GUEST_USER),
         "sunshine_username": "",
         "sunshine_password_configured": has_sunshine_password,
         "sunshine_pin": "",
@@ -3168,8 +3551,15 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         "identity_hostname": policy_profile.get("identity_hostname") or meta.get("beagle-identity-hostname", safe_hostname(config.get("name") or vm.name, vm.vmid)),
         "identity_timezone": policy_profile.get("identity_timezone") or meta.get("beagle-identity-timezone", "UTC"),
         "identity_locale": policy_profile.get("identity_locale") or meta.get("beagle-identity-locale", UBUNTU_BEAGLE_DEFAULT_LOCALE),
-        "identity_keymap": policy_profile.get("identity_keymap") or meta.get("beagle-identity-keymap", ""),
+        "identity_keymap": policy_profile.get("identity_keymap") or meta.get("beagle-identity-keymap", UBUNTU_BEAGLE_DEFAULT_KEYMAP),
         "identity_chrome_profile": policy_profile.get("identity_chrome_profile") or meta.get("beagle-identity-chrome-profile", expected_profile_name or f"vm-{vm.vmid}"),
+        "desktop_id": str(desktop.get("id", "")),
+        "desktop_label": str(desktop.get("label", "")),
+        "desktop_session": str(meta.get("beagle-desktop-session", desktop.get("session", ""))),
+        "desktop_packages": list(desktop.get("packages", []) or []),
+        "package_presets": package_presets,
+        "extra_packages": extra_packages,
+        "software_packages": software_packages,
         "network_mode": policy_profile.get("network_mode") or meta.get("thinclient-network-mode", "dhcp"),
         "default_mode": "MOONLIGHT" if stream_host else "",
         "beagle_hostname": safe_hostname(config.get("name") or vm.name, vm.vmid),
@@ -3366,6 +3756,121 @@ def build_vm_state(vm: VmSummary) -> dict[str, Any]:
         "pending_action_count": len(pending_actions),
         "installer_prep": installer_prep,
         "provisioning": provisioning,
+    }
+
+
+def update_ubuntu_beagle_vm(vmid: int, payload: dict[str, Any]) -> dict[str, Any]:
+    vm = find_vm(vmid, refresh=True)
+    if vm is None:
+        raise ValueError("vm not found")
+    current_profile = build_profile(vm)
+    if str(current_profile.get("beagle_role", "")).strip().lower() != "desktop":
+        raise ValueError("vm is not a managed Beagle desktop target")
+
+    desktop = resolve_ubuntu_beagle_desktop(
+        str(payload.get("desktop", "") or payload.get("desktop_id", "") or current_profile.get("desktop_id", "") or UBUNTU_BEAGLE_DEFAULT_DESKTOP)
+    )
+    package_presets = normalize_package_presets(payload.get("package_presets", current_profile.get("package_presets", [])))
+    extra_packages = normalize_package_names(payload.get("extra_packages", current_profile.get("extra_packages", [])), field_name="extra_packages")
+    software_packages = expand_software_packages(package_presets, extra_packages)
+    identity_locale = normalize_locale(payload.get("identity_locale", current_profile.get("identity_locale", "")))
+    identity_keymap = normalize_keymap(payload.get("identity_keymap", current_profile.get("identity_keymap", "")))
+    guest_user = validate_linux_username(str(current_profile.get("guest_user", "") or UBUNTU_BEAGLE_DEFAULT_GUEST_USER), "guest_user")
+    hostname = safe_hostname(
+        str(current_profile.get("identity_hostname", "") or current_profile.get("name", "") or f"beagle-{vmid}"),
+        vmid,
+    )
+    public_stream = current_profile.get("public_stream") if isinstance(current_profile.get("public_stream"), dict) else None
+    description = build_ubuntu_beagle_description(
+        hostname,
+        guest_user,
+        public_stream,
+        os_profile=UBUNTU_BEAGLE_PROFILE_ID,
+        identity_locale=identity_locale,
+        identity_keymap=identity_keymap,
+        desktop_id=str(desktop["id"]),
+        package_presets=package_presets,
+        extra_packages=extra_packages,
+    )
+    run_checked(["qm", "set", str(vmid), "--description", description], timeout=None)
+
+    applied = False
+    if vm.status == "running":
+        secret = ensure_vm_secret(vm)
+        provisioning_state = latest_ubuntu_beagle_state_for_vmid(vmid, include_credentials=True) or {}
+        credentials = provisioning_state.get("credentials") if isinstance(provisioning_state.get("credentials"), dict) else {}
+        guest_password = str(credentials.get("guest_password", "") or "").strip()
+        sunshine_user = str(secret.get("sunshine_username", "") or "").strip()
+        sunshine_password = str(secret.get("sunshine_password", "") or "").strip()
+        if not sunshine_user or not sunshine_password:
+            raise RuntimeError("sunshine credentials are missing for guest reconfiguration")
+        configure_command = [
+            str(ROOT_DIR / "scripts" / "configure-sunshine-guest.sh"),
+            "--proxmox-host",
+            "localhost",
+            "--vmid",
+            str(vmid),
+            "--guest-user",
+            guest_user,
+            "--guest-password",
+            guest_password,
+            "--identity-locale",
+            identity_locale,
+            "--identity-keymap",
+            identity_keymap,
+            "--desktop-id",
+            str(desktop["id"]),
+            "--desktop-label",
+            str(desktop["label"]),
+            "--desktop-session",
+            str(desktop["session"]),
+            "--sunshine-user",
+            sunshine_user,
+            "--sunshine-password",
+            sunshine_password,
+        ]
+        sunshine_pin = str(secret.get("sunshine_pin", "") or "").strip()
+        if sunshine_pin:
+            configure_command.extend(["--sunshine-pin", sunshine_pin])
+        moonlight_port = str(current_profile.get("moonlight_port", "") or "").strip()
+        if moonlight_port.isdigit():
+            configure_command.extend(["--sunshine-port", moonlight_port])
+        public_stream_host = str(current_profile.get("stream_host", "") or "").strip()
+        if public_stream_host:
+            configure_command.extend(["--public-stream-host", public_stream_host])
+        for package_name in desktop.get("packages", []) or []:
+            configure_command.extend(["--desktop-package", str(package_name)])
+        for package_name in software_packages:
+            configure_command.extend(["--software-package", package_name])
+        for preset_id in package_presets:
+            configure_command.extend(["--package-preset", preset_id])
+        for package_name in extra_packages:
+            configure_command.extend(["--extra-package", package_name])
+        run_checked(configure_command, timeout=None)
+        applied = True
+
+    invalidate_vm_cache(vmid, vm.node)
+    updated_vm = find_vm(vmid, refresh=True) or vm
+    updated_profile = build_profile(updated_vm)
+    return {
+        "vmid": vmid,
+        "node": updated_vm.node,
+        "name": updated_vm.name,
+        "applied": applied,
+        "desktop": str(desktop["id"]),
+        "desktop_label": str(desktop["label"]),
+        "package_presets": package_presets,
+        "extra_packages": extra_packages,
+        "software_packages": software_packages,
+        "identity_locale": identity_locale,
+        "identity_keymap": identity_keymap,
+        "requires_running_guest": not applied,
+        "profile": updated_profile,
+        "message": (
+            "Desktop profile and packages were applied inside the running guest."
+            if applied
+            else "VM metadata was updated. Start the guest and re-run the edit action to apply packages inside Ubuntu."
+        ),
     }
 
 
@@ -3569,8 +4074,17 @@ def build_vm_inventory() -> dict[str, Any]:
                 "moonlight_app": profile["moonlight_app"],
                 "network_mode": profile["network_mode"],
                 "egress_mode": profile.get("egress_mode", "direct"),
+                "beagle_role": profile.get("beagle_role", ""),
+                "guest_user": profile.get("guest_user", ""),
                 "identity_timezone": profile.get("identity_timezone", ""),
                 "identity_locale": profile.get("identity_locale", ""),
+                "identity_keymap": profile.get("identity_keymap", ""),
+                "desktop_id": profile.get("desktop_id", ""),
+                "desktop_label": profile.get("desktop_label", ""),
+                "desktop_session": profile.get("desktop_session", ""),
+                "package_presets": profile.get("package_presets", []),
+                "extra_packages": profile.get("extra_packages", []),
+                "software_packages": profile.get("software_packages", []),
                 "vm_fingerprint": profile.get("vm_fingerprint"),
                 "expected_profile_name": profile["expected_profile_name"],
                 "default_mode": "MOONLIGHT" if profile["stream_host"] else "",
@@ -4501,6 +5015,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": f"failed to finalize install: {exc}"})
                 return
+            cancelled_restart = cancel_scheduled_ubuntu_beagle_vm_restart(state)
             state["completed_at"] = utcnow()
             state["updated_at"] = utcnow()
             state["status"] = "completed"
@@ -4511,6 +5026,8 @@ class Handler(BaseHTTPRequestHandler):
                 else "Ubuntu ist installiert. Boot-Medien wurden entfernt; der Gast startet jetzt selbst sauber neu."
             )
             state["cleanup"] = cleanup
+            if cancelled_restart:
+                state["host_restart_cancelled"] = cancelled_restart
             save_ubuntu_beagle_state(token, state)
             self._write_json(
                 HTTPStatus.OK,
@@ -4569,6 +5086,9 @@ class Handler(BaseHTTPRequestHandler):
             state["phase"] = str(payload.get("phase", "firstboot") or "firstboot")
             state["message"] = str(payload.get("message", "Ubuntu provisioning im Gast ist fehlgeschlagen.") or "Ubuntu provisioning im Gast ist fehlgeschlagen.")
             state["error"] = str(payload.get("error", "") or "")
+            cancelled_restart = cancel_scheduled_ubuntu_beagle_vm_restart(state)
+            if cancelled_restart:
+                state["host_restart_cancelled"] = cancelled_restart
             save_ubuntu_beagle_state(token, state)
             self._write_json(
                 HTTPStatus.OK,
@@ -5281,11 +5801,30 @@ class Handler(BaseHTTPRequestHandler):
     def do_PUT(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
-        if not path.startswith("/api/v1/policies/"):
-            self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
-            return
         if not self._is_authenticated():
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+            return
+        match = re.match(r"^/api/v1/provisioning/vms/(?P<vmid>\d+)$", path)
+        if match:
+            try:
+                payload = self._read_json_body()
+                result = update_ubuntu_beagle_vm(int(match.group("vmid")), payload if isinstance(payload, dict) else {})
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"failed to update provisioned vm: {exc}"})
+                return
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "generated_at": utcnow(),
+                    "provisioned_vm": result,
+                },
+            )
+            return
+        if not path.startswith("/api/v1/policies/"):
+            self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
             return
         policy_name = path.rsplit("/", 1)[-1]
         try:

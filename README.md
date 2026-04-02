@@ -123,6 +123,13 @@ BEAGLE_SITE_PORT=443 \
 
 After a successful setup, a **Create Beagle VM** button will appear next to **Create VM** in the Proxmox UI. Use it to provision an Ubuntu Desktop VM with Beagle/Sunshine presets. From there, the Beagle profile for that VM — including live-USB and USB installer downloads for Linux and Windows — is immediately accessible.
 
+The Beagle Fleet modal is also the operator surface for managed desktop profiles:
+
+- Create a Beagle desktop VM with a selectable desktop environment such as `XFCE`, `GNOME`, `KDE Plasma`, `MATE`, or `LXQt`
+- Set locale and keyboard layout up front
+- Add common software presets and extra APT packages during provisioning
+- Re-open an existing managed Beagle desktop VM later and change desktop, locale, keyboard layout, and packages in place
+
 ---
 
 ## Operational Model
@@ -160,7 +167,9 @@ This makes Proxmox not just a compute platform, but simultaneously:
 The host side delivers the management functions:
 
 - Integration into the Proxmox UI
+- Beagle Fleet create/edit workflows for managed desktop VMs
 - Beagle profile dialogs with export, download, and health actions per VM
+- Desktop catalog and software-preset catalog for Beagle desktop provisioning
 - VM-specific artifact generation
 - Download endpoints for installers and images
 - VM-specific USB scripts that fetch the installer ISO and write it to USB with an embedded target profile
@@ -174,6 +183,7 @@ The host side delivers the management functions:
 Core product logic:
 
 - A VM is described as a Sunshine target
+- Fleet provisioning can define desktop environment, locale, keymap, and add-on packages for managed desktop VMs
 - Beagle generates the matching client preset from it
 - The client launches Moonlight against exactly this target
 
@@ -246,11 +256,11 @@ The USB path remains internet-capable without exposing a raw, public USBIP attac
 
 ---
 
-## Release 5.0 Highlights
+## Release 5.2 Highlights
 
-- **Residential Egress:** Endpoint profiles now support `direct`, `split`, or `full` egress control. For sensitive targets, a WireGuard exit with domain/CIDR-based routing can be configured.
-- **Endpoint Identity:** Beagle OS can apply and report hostname, timezone, locale, keymap, and a persistent browser profile per endpoint.
-- **Fingerprint Awareness:** The Control Plane evaluates VM configurations for obvious server/virtio characteristics and surfaces these as operational risk indicators.
+- **Fleet Desktop Catalog:** Managed Beagle desktop VMs can now be provisioned and edited with selectable desktop environments such as `XFCE`, `GNOME`, `KDE Plasma`, `MATE`, and `LXQt`.
+- **Software Presets:** The Fleet Manager now supports named software presets plus extra APT packages during both initial provisioning and later edits.
+- **In-Place Guest Reconfiguration:** Existing managed desktop VMs can change locale, keyboard layout, desktop session, and packages without being rebuilt from scratch.
 
 ---
 
