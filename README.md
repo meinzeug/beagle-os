@@ -11,7 +11,7 @@
 [![Shell](https://img.shields.io/badge/shell-54%25-green)]()
 [![Python](https://img.shields.io/badge/python-24%25-blue)]()
 
-> **License:** Free for private/non-commercial use. Commercial use only via the official [beagle-os.com](https://beagle-os.com) SaaS offering. See [LICENSE](LICENSE) for details.
+> **License:** Free for private/non-commercial use. Commercial use requires separate written permission or licensing from Dennis Wicht / meinzeug. See [LICENSE](LICENSE) for details.
 
 ---
 
@@ -318,6 +318,7 @@ Everything else is secondary.
 Beagle OS is available under the **Beagle OS Source Available License**:
 
 - **Private / Non-commercial:** Free to use
-- **Commercial:** Only via the official Beagle OS SaaS offering at [beagle-os.com](https://beagle-os.com)
+- **Commercial:** Only with separate written permission or licensing from Dennis Wicht / meinzeug
+- **Gaming kiosk:** Distributed as a compiled closed-source component from a private repository
 
 See [LICENSE](LICENSE) for details.

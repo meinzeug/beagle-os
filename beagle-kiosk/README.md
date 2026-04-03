@@ -7,7 +7,7 @@ This public repository intentionally does **not** contain the Electron source co
 What this public directory contains:
 
 - `README.md`: public module description
-- `INSTALL.sh`: installer that downloads the compiled binary, verifies its SHA256 against `https://beagle-os.com/kiosk-release-hash.txt`, installs it into `/opt/beagle-kiosk/`, and wires up the required systemd units
+- `INSTALL.sh`: installer that resolves kiosk release metadata from `https://beagle-os.com/beagle-updates/kiosk-release.json`, verifies its SHA256 against the published hash file on `beagle-os.com`, installs it into `/opt/beagle-kiosk/`, and wires up the required systemd units
 
 The kiosk architecture stays fixed:
 

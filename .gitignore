@@ -11,6 +11,7 @@ __pycache__/
 SHA256SUMS
 node_modules/
 tmp/
+AGENTS.md
 beagle-kiosk/*.js
 beagle-kiosk/*.html
 beagle-kiosk/*.css
