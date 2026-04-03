@@ -1,5 +1,11 @@
 # Changelog
 
+## v5.2.1 - 2026-04-03
+
+- Reversed the dual-boot profile mapping so `Beagle OS Gaming` now launches the official NVIDIA GeForce NOW client and `Beagle OS Desktop` now launches Moonlight, matching the intended product naming.
+- Updated both installed-system and USB-installer GRUB generation so the visible boot menu, safe mode and slot fallback entries all stay semantically aligned with the new `Gaming = GeForce NOW` and `Desktop = Moonlight` split.
+- Repacked and republished the thinclient runtime artifacts so fresh installs, staged updates and hosted VM-specific installer scripts all inherit the corrected boot-profile behavior.
+
 ## v5.2.0 - 2026-04-02
 
 - Expanded the Proxmox-hosted Beagle Fleet Manager so new Beagle desktop VMs can be provisioned with a selectable desktop profile, including `XFCE`, `GNOME`, `KDE Plasma`, `MATE` and `LXQt`, instead of being hard-wired to a single desktop.
