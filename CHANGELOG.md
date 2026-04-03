@@ -51,7 +51,7 @@
 
 ## v5.0.2 - 2026-03-28
 
-- Changed license from MIT to Beagle OS Source Available License: free for personal and non-commercial use, commercial use requires a SaaS license via beagle-os.com.
+- Changed license from MIT to Beagle OS Source Available License: free for personal and non-commercial use, commercial use requires separate written permission or licensing from Dennis Wicht / meinzeug.
 - Completely redesigned the management Web UI with a modern dark theme, cleaner layout, sticky detail panel, and English-language interface replacing the previous German UI.
 - Improved CORS policy in the control plane API to reflect the request Origin header instead of allowing all origins with a wildcard.
 - Added CLAUDE.md project conventions file for contributor tooling.

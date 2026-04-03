@@ -16,7 +16,7 @@ commercial advantage.
 Use, including but not limited to: deploying the Software to provide paid
 services, incorporating the Software into a commercial product, using the
 Software in a business environment to support revenue-generating activities,
-or offering managed hosting or SaaS services based on the Software.
+or offering managed or hosted services based on the Software.
 
 "Licensor" means Dennis Wicht and Beagle OS contributors.
 
@@ -29,9 +29,9 @@ Subject to the terms of this license:
     Software for Non-Commercial Use.
 
 (b) Commercial Use: Commercial Use of the Software requires a separate
-    commercial license obtained through the official Beagle OS SaaS
-    offering at https://beagle-os.com or by written agreement with the
-    Licensor.
+    written commercial license or other written permission from the
+    Licensor. No public hosted service or automatic commercial grant is
+    provided through this repository or through https://beagle-os.com.
 
 3. Conditions
 
@@ -75,7 +75,7 @@ Software in your possession.
 
 7. Contact
 
-For commercial licensing inquiries:
+For commercial licensing inquiries or written permissions:
   Website: https://beagle-os.com
   Email: license@beagle-os.com
 

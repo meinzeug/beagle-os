@@ -3,11 +3,14 @@ set -euo pipefail
 
 INSTALL_ROOT="${BEAGLE_KIOSK_ROOT:-/opt/beagle-kiosk}"
 RELEASE_REPO="${BEAGLE_KIOSK_RELEASE_REPO:-meinzeug/beagle-os}"
+RELEASE_MANIFEST_URL="${BEAGLE_KIOSK_RELEASE_MANIFEST_URL:-https://beagle-os.com/beagle-updates/kiosk-release.json}"
 HASH_URL="${BEAGLE_KIOSK_HASH_URL:-https://beagle-os.com/kiosk-release-hash.txt}"
+HASH_URL_FALLBACK="${BEAGLE_KIOSK_HASH_URL_FALLBACK:-https://beagle-os.com/beagle-updates/kiosk-release-hash.txt}"
 VERSION="${BEAGLE_KIOSK_VERSION:-latest}"
 ASSET_PREFIX="${BEAGLE_KIOSK_ASSET_PREFIX:-beagle-kiosk-v}"
 APPIMAGE_NAME=""
 ENSURE_ONLY="0"
+RELEASE_MANIFEST_JSON=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -31,7 +34,52 @@ require_root() {
   fi
 }
 
+load_release_manifest() {
+  if [[ -n "$RELEASE_MANIFEST_JSON" ]]; then
+    printf '%s' "$RELEASE_MANIFEST_JSON"
+    return 0
+  fi
+
+  RELEASE_MANIFEST_JSON="$(curl -fsSL "$RELEASE_MANIFEST_URL" 2>/dev/null || true)"
+  if [[ -z "$RELEASE_MANIFEST_JSON" ]]; then
+    return 1
+  fi
+
+  printf '%s' "$RELEASE_MANIFEST_JSON"
+}
+
+manifest_value() {
+  local key="$1"
+  local payload
+
+  payload="$(load_release_manifest 2>/dev/null || true)"
+  [[ -n "$payload" ]] || return 1
+
+  python3 - "$key" <<'PY' <<<"$payload"
+import json
+import sys
+
+key = sys.argv[1]
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+
+value = payload.get(key)
+if value is None:
+    raise SystemExit(1)
+print(value)
+PY
+}
+
 latest_version() {
+  local manifest_version=""
+  manifest_version="$(manifest_value version 2>/dev/null || true)"
+  if [[ -n "$manifest_version" ]]; then
+    printf '%s\n' "$manifest_version"
+    return 0
+  fi
+
   curl -fsSL -H 'Accept: application/vnd.github+json' -H 'User-Agent: BeagleKioskInstaller' \
     "https://api.github.com/repos/${RELEASE_REPO}/releases/latest" | python3 - <<'PY'
 import json, sys
@@ -43,13 +91,38 @@ PY
 
 download_url() {
   local version="$1"
+  local manifest_version="" manifest_asset_name="" manifest_download_url=""
+
+  manifest_version="$(manifest_value version 2>/dev/null || true)"
+  manifest_asset_name="$(manifest_value asset_name 2>/dev/null || true)"
+  manifest_download_url="$(manifest_value download_url 2>/dev/null || true)"
+
+  if [[ -n "$manifest_version" && "$manifest_version" == "$version" && -n "$manifest_download_url" ]]; then
+    APPIMAGE_NAME="${manifest_asset_name:-$(basename "$manifest_download_url")}"
+    printf '%s\n' "$manifest_download_url"
+    return 0
+  fi
+
   APPIMAGE_NAME="${ASSET_PREFIX}${version}-linux-x64.AppImage"
   printf 'https://github.com/%s/releases/download/v%s/%s\n' "$RELEASE_REPO" "$version" "$APPIMAGE_NAME"
 }
 
 expected_hash() {
   local asset_name="$1"
-  curl -fsSL "$HASH_URL" | python3 - "$asset_name" <<'PY'
+  local manifest_version="" manifest_sha256="" manifest_asset_name="" hash_url=""
+
+  manifest_version="$(manifest_value version 2>/dev/null || true)"
+  manifest_sha256="$(manifest_value sha256 2>/dev/null || true)"
+  manifest_asset_name="$(manifest_value asset_name 2>/dev/null || true)"
+
+  if [[ -n "$manifest_sha256" && ( -z "$manifest_asset_name" || "$manifest_asset_name" == "$asset_name" ) ]]; then
+    printf '%s\n' "$manifest_sha256"
+    return 0
+  fi
+
+  for hash_url in "$HASH_URL" "$HASH_URL_FALLBACK"; do
+    [[ -n "$hash_url" ]] || continue
+    if curl -fsSL "$hash_url" | python3 - "$asset_name" <<'PY'
 import sys
 asset = sys.argv[1]
 lines = sys.stdin.read().splitlines()
@@ -61,6 +134,12 @@ for line in lines:
 if lines:
     print(lines[0].split()[0])
 PY
+    then
+      return 0
+    fi
+  done
+
+  return 1
 }
 
 install_payload() {

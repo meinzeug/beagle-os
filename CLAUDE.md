@@ -35,4 +35,4 @@ Proxmox-native endpoint OS and management stack for streaming virtual desktops v
 
 ## License
 
-Beagle OS Source Available License - free for personal use, commercial use requires SaaS license via beagle-os.com.
+Beagle OS Source Available License - free for personal and non-commercial use, commercial use requires separate written permission or licensing from Dennis Wicht / meinzeug.
