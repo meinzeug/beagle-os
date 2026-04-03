@@ -1,5 +1,11 @@
 # Changelog
 
+## v5.2.2 - 2026-04-03
+
+- Added a dedicated per-boot update check so every Beagle OS thinclient now performs a fresh release scan after each restart instead of relying only on the periodic timer cadence.
+- Taught the updater to remember which boot already completed a scan, preventing the session-start fallback path from re-triggering duplicate forced scans within the same boot.
+- Extended runtime unit activation and support-bundle collection so the new boot-scan service is enabled automatically on updated clients and its journal is captured for future debugging.
+
 ## v5.2.1 - 2026-04-03
 
 - Reversed the dual-boot profile mapping so `Beagle OS Gaming` now launches the official NVIDIA GeForce NOW client and `Beagle OS Desktop` now launches Moonlight, matching the intended product naming.
