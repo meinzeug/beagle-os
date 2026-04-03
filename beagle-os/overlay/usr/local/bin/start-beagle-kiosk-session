@@ -1,0 +1,42 @@
+#!/bin/sh
+set -eu
+
+DEFAULT_LOG_ROOT="${XDG_RUNTIME_DIR:-$HOME/.cache}/beagle-os"
+LOG_ROOT="${BEAGLE_LOG_ROOT:-$DEFAULT_LOG_ROOT}"
+LOG_DIR="${BEAGLE_LOG_DIR:-$LOG_ROOT/kiosk}"
+KIOSK_LOG="$LOG_DIR/kiosk-session.log"
+FONTCONFIG_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/fontconfig"
+BACKGROUND_IMAGE="/usr/local/share/beagle-os/beagleos-gaming.png"
+
+mkdir -p "$LOG_DIR"
+chmod 0700 "$LOG_DIR" >/dev/null 2>&1 || true
+mkdir -p "$FONTCONFIG_CACHE_DIR" >/dev/null 2>&1 || true
+
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+export FONTCONFIG_PATH="${FONTCONFIG_PATH:-/etc/fonts}"
+export FONTCONFIG_FILE="${FONTCONFIG_FILE:-/etc/fonts/fonts.conf}"
+export FONTCONFIG_CACHE="$FONTCONFIG_CACHE_DIR"
+
+if command -v xsetroot >/dev/null 2>&1; then
+  xsetroot -solid "#090a0b" >/dev/null 2>&1 || true
+fi
+
+if command -v feh >/dev/null 2>&1 && [ -f "$BACKGROUND_IMAGE" ]; then
+  feh --no-fehbg --image-bg black --bg-fill "$BACKGROUND_IMAGE" >/dev/null 2>&1 || true
+fi
+
+if command -v xset >/dev/null 2>&1; then
+  xset -dpms >/dev/null 2>&1 || true
+  xset s off >/dev/null 2>&1 || true
+  xset s noblank >/dev/null 2>&1 || true
+fi
+
+if command -v openbox >/dev/null 2>&1; then
+  openbox >"$LOG_DIR/openbox.log" 2>&1 &
+fi
+
+if [ -x /usr/local/sbin/beagle-kiosk-launch ]; then
+  exec /usr/local/sbin/beagle-kiosk-launch >>"$KIOSK_LOG" 2>&1
+fi
+
+exec /bin/bash

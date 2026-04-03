@@ -126,8 +126,19 @@ if command -v xsetroot >/dev/null 2>&1; then
   xsetroot -solid "#ffffff" >/dev/null 2>&1 || true
 fi
 
-if command -v feh >/dev/null 2>&1 && [ -f /usr/local/share/beagle-os/beagleos.png ]; then
-  feh --no-fehbg --image-bg white --bg-center /usr/local/share/beagle-os/beagleos.png >/dev/null 2>&1 || true
+background_image="/usr/local/share/beagle-os/beagleos.png"
+client_mode="$(sed -n 's/.*pve_thin_client\.client_mode=\([^ ]*\).*/\1/p' /proc/cmdline 2>/dev/null | head -n 1)"
+client_mode_normalized="$(printf '%s' "$client_mode" | tr '[:upper:]' '[:lower:]')"
+case "$client_mode_normalized" in
+  gaming|gfn|geforcenow|geforce-now)
+    if [ -f /usr/local/share/beagle-os/beagleos-gaming.png ]; then
+      background_image="/usr/local/share/beagle-os/beagleos-gaming.png"
+    fi
+    ;;
+esac
+
+if command -v feh >/dev/null 2>&1 && [ -f "$background_image" ]; then
+  feh --no-fehbg --image-bg white --bg-center "$background_image" >/dev/null 2>&1 || true
 fi
 
 if command -v xset >/dev/null 2>&1; then
@@ -166,8 +177,9 @@ fi
 
 if /usr/local/lib/pve-thin-client/runtime/launch-session.sh >>"$LOG_DIR/runtime-session.log" 2>&1; then
   exit 0
+else
+  status=$?
 fi
-status=$?
 printf '\n[thinclient] runtime launcher exited with status %s\n' "$status" >>"$LOG_DIR/runtime-session.log" 2>&1 || true
 
 if [ "${BOOT_MODE}" = "runtime" ]; then

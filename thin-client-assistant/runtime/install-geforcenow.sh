@@ -86,12 +86,18 @@ if ! command -v flatpak >/dev/null 2>&1; then
   fi
 fi
 
-beagle_log_event "gfn.install.start" "scope=${GFN_INSTALL_SCOPE} app_id=${GFN_APP_ID} dry_run=${GFN_DRY_RUN}"
+GFN_RUNTIME_HOME="${HOME:-/home/$(runtime_user_name)}"
+if ! prepare_geforcenow_environment "$GFN_RUNTIME_HOME"; then
+  echo "Unable to prepare persistent GeForce NOW storage." >&2
+  exit 1
+fi
+
+beagle_log_event "gfn.install.start" "scope=${GFN_INSTALL_SCOPE} app_id=${GFN_APP_ID} dry_run=${GFN_DRY_RUN} storage=${PVE_THIN_CLIENT_GFN_STORAGE_ROOT:-unknown}"
 run_cmd flatpak remote-add "$GFN_INSTALL_SCOPE" --if-not-exists "$FLATHUB_REMOTE_NAME" "$FLATHUB_REMOTE_URL"
 run_cmd flatpak install -y "$GFN_INSTALL_SCOPE" "$FLATHUB_REMOTE_NAME" "$GFN_RUNTIME_REF"
 run_cmd flatpak remote-add "$GFN_INSTALL_SCOPE" --if-not-exists "$GFN_REMOTE_NAME" "$GFN_REMOTE_URL"
 run_cmd flatpak install -y "$GFN_INSTALL_SCOPE" "$GFN_REMOTE_NAME" "$GFN_APP_ID"
-beagle_log_event "gfn.install.ready" "scope=${GFN_INSTALL_SCOPE} app_id=${GFN_APP_ID}"
+beagle_log_event "gfn.install.ready" "scope=${GFN_INSTALL_SCOPE} app_id=${GFN_APP_ID} storage=${PVE_THIN_CLIENT_GFN_STORAGE_ROOT:-unknown}"
 
 case "$ACTION" in
   --ensure-only)

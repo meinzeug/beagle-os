@@ -1,5 +1,15 @@
 # Changelog
 
+## v5.2.3 - 2026-04-03
+
+- Fixed `Beagle OS Gaming` on thinclients so the GeForce NOW Flatpak now installs into persistent storage on the writable live medium instead of exhausting the volatile overlay filesystem during first launch.
+- Fixed the gaming and desktop session wrappers to stay POSIX-shell compatible, preventing the runtime X session from crashing on the boot-profile background selection path when `pve_thin_client.client_mode=gaming` is active.
+- Added a dedicated `beagleos-gaming.png` runtime background so `Beagle OS Gaming` shows the new BeagleOS gaming artwork during session startup on both the live image and the installed overlay.
+- Improved runtime failure reporting in the thinclient session wrapper so non-zero launcher exits are recorded instead of being flattened into a misleading success marker.
+- Added the closed-source `beagle-kiosk` installation surface to the public repo, including a release-verifying installer, README guardrails, AGENTS rules and the Affiliate Protection Clause in the repository license.
+- Reworked the `Beagle OS Gaming` boot path so the GRUB entry now isolates into `beagle-kiosk.target` instead of sharing the normal desktop runtime path, while `Beagle OS Desktop` stays on the regular Moonlight/desktop boot track.
+- Added dedicated kiosk session units and X11 session wrappers for both the installed overlay and the live-build thinclient image so the gaming profile can start a kiosk binary cleanly on tty1 once it has been installed.
+
 ## v5.2.2 - 2026-04-03
 
 - Added a dedicated per-boot update check so every Beagle OS thinclient now performs a fresh release scan after each restart instead of relying only on the periodic timer cadence.

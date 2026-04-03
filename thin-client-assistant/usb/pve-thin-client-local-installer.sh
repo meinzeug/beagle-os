@@ -2075,7 +2075,7 @@ set timeout=4
 
 menuentry 'Beagle OS Gaming' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming $irq_args_default
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 systemd.unit=beagle-kiosk.target vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming $irq_args_default
   initrd /live/current/initrd.img
 }
 

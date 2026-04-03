@@ -1,0 +1,5 @@
+[Unit]
+Description=Beagle OS Gaming kiosk target
+Wants=beagle-kiosk.service network-online.target
+After=network-online.target
+AllowIsolate=yes

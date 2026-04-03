@@ -78,3 +78,16 @@ Software in your possession.
 For commercial licensing inquiries:
   Website: https://beagle-os.com
   Email: license@beagle-os.com
+
+AFFILIATE PROTECTION CLAUSE:
+Any fork, modification, redistribution, or derivative work of this software
+that removes, replaces, bypasses, or otherwise circumvents the affiliate
+tracking parameters, partner codes, or monetization identifiers included in
+the beagle-kiosk module or any other component of this software is strictly
+prohibited without prior written permission from Dennis Wicht / meinzeug.
+This includes but is not limited to: removing affiliate URL parameters,
+replacing affiliate IDs with third-party IDs, building and distributing
+modified versions that omit the original monetization layer, or attempting
+to intercept or replicate the affiliate configuration API endpoint.
+Violation of this clause constitutes a breach of this license and may result
+in legal action under applicable law.

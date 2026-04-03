@@ -123,10 +123,14 @@ seed_xauthority_aliases() {
 }
 
 launch_x_once() {
+  session_cmd="${PVE_THIN_CLIENT_X11_SESSION_CMD:-/usr/local/bin/start-pve-thin-client-session}"
+  if [ -r "${CMDLINE_FILE}" ] && grep -Eq '(^|[[:space:]])systemd\.unit=beagle-kiosk\.target($|[[:space:]])' "${CMDLINE_FILE}"; then
+    session_cmd="/usr/local/bin/start-pve-thin-client-kiosk-session"
+  fi
   echo "[start-x11] invoking startx (attempt=${1:-1})"
   trace_event "x11.start" "launcher=pve-thin-client-start-x11 attempt=${1:-1}"
   seed_xauthority_aliases
-  exec xinit /usr/local/bin/start-pve-thin-client-session -- /usr/bin/X :0 vt1 -keeptty -nolisten tcp -auth "$XAUTHORITY"
+  exec xinit "$session_cmd" -- /usr/bin/X :0 vt1 -keeptty -nolisten tcp -auth "$XAUTHORITY"
 }
 
 wait_for_graphics
