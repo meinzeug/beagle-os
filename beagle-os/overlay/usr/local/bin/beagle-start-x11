@@ -62,8 +62,9 @@ clear_stale_x_locks() {
 }
 
 launch_x_once() {
+  session_cmd="${BEAGLE_X11_SESSION_CMD:-/usr/local/bin/start-beagle-session}"
   trace_event "x11.start" "launcher=beagle-start-x11"
-  startx /usr/local/bin/start-beagle-session -- :0 vt1 -keeptty -nolisten tcp
+  startx "$session_cmd" -- :0 vt1 -keeptty -nolisten tcp
 }
 
 wait_for_graphics

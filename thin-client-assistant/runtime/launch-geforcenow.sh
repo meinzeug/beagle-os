@@ -10,7 +10,8 @@ beagle_log_event "gfn.start" "profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default}"
 
 GFN_APP_ID="${PVE_THIN_CLIENT_GFN_APP_ID:-com.nvidia.geforcenow}"
 GFN_INSTALL_SCOPE="${PVE_THIN_CLIENT_GFN_INSTALL_SCOPE:---user}"
-HOME="${HOME:-/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}}"
+RUNTIME_HOME="${HOME:-/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}}"
+HOME="$RUNTIME_HOME"
 DISPLAY="${DISPLAY:-:0}"
 XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export HOME DISPLAY XDG_RUNTIME_DIR
@@ -78,6 +79,10 @@ flatpak_scope_flag() {
 XAUTHORITY="$(select_xauthority)"
 export XAUTHORITY
 wait_for_x_display "$XAUTHORITY"
+
+prepare_geforcenow_environment "$RUNTIME_HOME"
+export DISPLAY XDG_RUNTIME_DIR XAUTHORITY
+beagle_log_event "gfn.storage.ready" "storage=${PVE_THIN_CLIENT_GFN_STORAGE_ROOT:-unknown}"
 
 "$SCRIPT_DIR/install-geforcenow.sh" --ensure-only
 

@@ -48,3 +48,57 @@ Whenever you change versions, installer scripts, artifact names, artifact URLs, 
   Use `rsync -avR <repo-path> root@thinovernet:/opt/beagle/` instead of copying files flat into `/opt/beagle/`, because the install scripts read from paths like `/opt/beagle/proxmox-host/...` and `/opt/beagle/proxmox-ui/...`.
 - Do not update only one side. If the Proxmox host and `beagle-os.com` drift apart, hosted installers break in subtle ways.
 - If `scripts/install-proxmox-host-services.sh` changes SSH behavior for user `thinovernet`, verify `PermitTTY yes` and do not regress the `ssh thinovernet` operator workflow.
+
+## Beagle OS Gaming Kiosk - Pflichtregeln für alle AI-Agents
+
+### Konzept & Architektur
+- Beagle OS hat zwei GRUB-Einträge: "Beagle OS Desktop" und "Beagle OS Gaming"
+- Der Gaming-Modus bootet in einen eigenen Kiosk (`/opt/beagle-kiosk/`)
+- Der Kiosk und GeForce NOW sind EINE integrierte Einheit - GFN ist kein Ersatz des Kiosks sondern wird vom Kiosk aus als Child-Prozess gestartet und überwacht
+- Der Kiosk hat zwei Modi:
+    Modus A "Meine Bibliothek": bereits gekaufte Spiele sofort via GFN starten
+    Modus B "Spielekatalog": neue Spiele entdecken und über Affiliate-Links kaufen
+- Nach dem Kauf kann der User das Spiel sofort in Modus A über GFN starten
+- Der Kiosk ist eine kompilierte Electron-Binary (CLOSED SOURCE)
+- Quellcode liegt in einem PRIVATEN Repository, nicht in `meinzeug/beagle-os`
+- Im öffentlichen Repo existieren nur `beagle-kiosk/README.md` und `INSTALL.sh`
+
+### Monetarisierung - NIEMALS entfernen oder verändern
+- Affiliate-IDs werden NIEMALS lokal auf dem Gerät gespeichert
+- Sie werden beim Start von `https://beagle-os.com/api/kiosk/affiliate-config` geladen, gegen eine Device-ID validiert und NUR im RAM gehalten
+- Der AES-Schlüssel zur Entschlüsselung ist in der Electron-Binary eingebettet
+- Unterstützte Stores und deren Affiliate-Programme:
+    Green Man Gaming (GMG)  - Steam-Key-Reseller, GFN-kompatibel
+    Fanatical               - Steam-Key-Reseller, GFN-kompatibel
+    Humble Bundle           - Steam-Key-Reseller, GFN-kompatibel
+    Epic Games Store        - Support-A-Creator Code, GFN-kompatibel
+- Jede Code-Änderung muss sicherstellen, dass Affiliate-Parameter aus dem RAM-Payload korrekt an alle Store-URLs angehängt werden
+- Der API-Endpoint darf nicht umgangen, repliziert oder lokal gemockt werden
+
+### GeForce NOW Integration
+- GFN wird als Child-Prozess vom Kiosk (Electron Main Process) gestartet
+- GFN-Pfad steht in `/opt/beagle-kiosk/kiosk.conf` (Eintrag: `GFN_BINARY=...`)
+- Kiosk überwacht GFN-PID: beim Start minimiert sich der Kiosk, beim Beenden von GFN kommt der Kiosk automatisch wieder in den Vordergrund
+- Alle im Kiosk gezeigten Spiele müssen GFN-kompatibel sein
+- Das Feld `"geforce_now_supported": true/false` in `games.json` ist Pflicht
+
+### Lizenz
+- Die `LICENSE`-Datei enthält eine `Affiliate Protection Clause`
+- Diese Klausel darf NIEMALS entfernt, abgeschwächt oder umformuliert werden
+- Forks die Affiliate-IDs entfernen oder den API-Endpoint umgehen sind lizenzrechtlich verboten
+
+### Release-Prozess
+- Kiosk wird als Electron-Binary gebaut: `electron-builder --linux --x64`
+- Output: `beagle-kiosk-vX.Y.Z-linux-x64` (ELF-Binary / AppImage)
+- Binary wird auf GitHub Releases des öffentlichen Repos veröffentlicht
+- SHA256-Checksumme wird auf `beagle-os.com/kiosk-release-hash.txt` publiziert
+- `INSTALL.sh` prüft Checksumme vor der Installation
+
+### Verbotene Aktionen für AI-Agents
+- NIEMALS Kiosk-Quellcode in das öffentliche Repo `meinzeug/beagle-os` committen
+- NIEMALS Affiliate-Parameter aus Store-URLs entfernen
+- NIEMALS die Affiliate Protection Clause aus der LICENSE entfernen
+- NIEMALS den API-Endpoint lokal mocken oder hardkodierte Fallback-IDs einbauen
+- NIEMALS `affiliate.conf` oder ähnliche lokale ID-Speicher erstellen
+- NIEMALS GFN als eigenständige Oberfläche ohne Kiosk-Wrapper starten
+- NIEMALS die Electron-Binary durch einen ungekompilten Web-Server ersetzen

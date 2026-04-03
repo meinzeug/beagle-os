@@ -11,3 +11,8 @@ __pycache__/
 SHA256SUMS
 node_modules/
 tmp/
+beagle-kiosk/*.js
+beagle-kiosk/*.html
+beagle-kiosk/*.css
+beagle-kiosk/games.json
+beagle-kiosk/kiosk.conf

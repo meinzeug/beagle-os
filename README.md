@@ -25,6 +25,10 @@ Beagle OS is an intentionally narrow-focused project. There is exactly one produ
 
 Beagle OS is **not** a multi-protocol remote desktop toolkit. It is a managed endpoint solution built around a single, well-defined streaming stack.
 
+## Beagle OS Gaming Kiosk
+
+The gaming kiosk module is closed-source. It is distributed exclusively as a compiled Electron binary. Source code for this component is maintained in a private repository and is not publicly available. See [LICENSE](LICENSE) for details on the Affiliate Protection Clause.
+
 ## Requirements
 
 - Proxmox VE 7.x or 8.x

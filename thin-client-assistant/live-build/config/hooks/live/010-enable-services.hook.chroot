@@ -21,5 +21,6 @@ ensure_wantedby_symlink /etc/systemd/system/pve-thin-client-prepare.service mult
 ensure_wantedby_symlink /etc/systemd/system/pve-thin-client-runtime.service multi-user.target
 ensure_wantedby_symlink /etc/systemd/system/pve-thin-client-installer-menu.service multi-user.target
 ensure_wantedby_symlink /etc/systemd/system/pve-thin-client-installer-menu-serial.service multi-user.target
+ensure_wantedby_symlink /etc/systemd/system/beagle-kiosk.service beagle-kiosk.target
 systemctl enable getty@tty1.service
 systemctl enable ssh.service
