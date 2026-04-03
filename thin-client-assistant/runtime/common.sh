@@ -211,22 +211,22 @@ apply_runtime_mode_overrides() {
   requested_mode="${requested_mode,,}"
 
   case "$requested_mode" in
-    desktop|gfn|geforcenow|geforce-now)
-      PVE_THIN_CLIENT_MODE="GFN"
+    desktop|moonlight)
+      PVE_THIN_CLIENT_MODE="MOONLIGHT"
       PVE_THIN_CLIENT_BOOT_PROFILE="desktop"
       ;;
-    gaming|moonlight)
-      PVE_THIN_CLIENT_MODE="MOONLIGHT"
+    gaming|gfn|geforcenow|geforce-now)
+      PVE_THIN_CLIENT_MODE="GFN"
       PVE_THIN_CLIENT_BOOT_PROFILE="gaming"
       ;;
   esac
 
   case "${PVE_THIN_CLIENT_MODE:-MOONLIGHT}" in
     GFN)
-      PVE_THIN_CLIENT_BOOT_PROFILE="${PVE_THIN_CLIENT_BOOT_PROFILE:-desktop}"
+      PVE_THIN_CLIENT_BOOT_PROFILE="${PVE_THIN_CLIENT_BOOT_PROFILE:-gaming}"
       ;;
     *)
-      PVE_THIN_CLIENT_BOOT_PROFILE="${PVE_THIN_CLIENT_BOOT_PROFILE:-gaming}"
+      PVE_THIN_CLIENT_BOOT_PROFILE="${PVE_THIN_CLIENT_BOOT_PROFILE:-desktop}"
       ;;
   esac
 }
