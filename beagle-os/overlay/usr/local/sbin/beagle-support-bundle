@@ -91,6 +91,7 @@ capture_command journal-beagle-autologin journalctl -u beagle-autologin.service 
 capture_command journal-beagle-healthcheck journalctl -u beagle-healthcheck.service -b --no-pager
 capture_command journal-beagle-endpoint-report journalctl -u beagle-endpoint-report.service -b --no-pager
 capture_command journal-beagle-endpoint-dispatch journalctl -u beagle-endpoint-dispatch.service -b --no-pager
+capture_command journal-beagle-update-boot-scan journalctl -u beagle-update-boot-scan.service -b --no-pager
 capture_command journal-beagle-update-scan journalctl -u beagle-update-scan.service -b --no-pager
 capture_command journal-beagle-update-confirm journalctl -u beagle-update-confirm.service -b --no-pager
 capture_command journal-beagle-runtime-heartbeat journalctl -u beagle-runtime-heartbeat.service -b --no-pager

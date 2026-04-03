@@ -368,6 +368,11 @@ ensure_beagle_management_units() {
       systemctl start --no-block "$unit" >/dev/null 2>&1 || true
     fi
   done
+
+  if unit_file_present "beagle-update-boot-scan.service"; then
+    systemctl enable beagle-update-boot-scan.service >/dev/null 2>&1 || true
+    systemctl start --no-block beagle-update-boot-scan.service >/dev/null 2>&1 || true
+  fi
 }
 
 ensure_getty_overrides() {

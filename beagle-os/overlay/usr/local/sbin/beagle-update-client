@@ -39,6 +39,13 @@ def utcnow() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def current_boot_id() -> str:
+    try:
+        return Path("/proc/sys/kernel/random/boot_id").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 def log(message: str) -> None:
     try:
         LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -386,6 +393,13 @@ def recent_scan(status: dict) -> bool:
         return False
     age = (datetime.now(timezone.utc) - timestamp).total_seconds()
     return age <= RECENT_SCAN_SECONDS
+
+
+def boot_scan_due(status: dict) -> bool:
+    boot_id = current_boot_id()
+    if not boot_id:
+        return False
+    return str(status.get("last_boot_scan_id", "")).strip() != boot_id
 
 
 def manager_feed_url(config: dict[str, str], installed_version: str) -> str:
@@ -871,7 +885,12 @@ def session_start(config: dict[str, str]) -> int:
     except Exception as exc:
         log(f"session-start slot layout check failed: {exc}")
         return 0
-    if not recent_scan(status):
+    if boot_scan_due(status):
+        subprocess.run(["sudo", "-n", "/usr/local/sbin/beagle-update-client", "scan", "--force"], check=False)
+        status = load_json(STATUS_FILE, {})
+        if not isinstance(status, dict):
+            status = {}
+    elif not recent_scan(status):
         subprocess.run(["sudo", "-n", "/usr/local/sbin/beagle-update-client", "scan"], check=False)
         status = load_json(STATUS_FILE, {})
         if not isinstance(status, dict):
@@ -919,6 +938,9 @@ def scan_command(config: dict[str, str], *, auto_apply_if_idle: bool = False, fo
         )
     feed = fetch_feed(config, medium)
     status = stage_update(feed, config, force=force)
+    boot_id = current_boot_id()
+    if boot_id:
+        status = update_status(last_boot_scan_id=boot_id)
     if auto_apply_if_idle and str(status.get("state", "")).strip() == "staged":
         behavior = str(status.get("behavior", config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR", "prompt"))).strip().lower()
         if behavior == "auto" and is_idle_for_reboot():
