@@ -1251,7 +1251,86 @@
       "#" + OVERLAY_ID + " .beagle-mini-btn { border: 1px solid #d1d5db; background: #fff; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700; cursor: pointer; }",
       "#" + OVERLAY_ID + " .beagle-select-cell { width: 36px; }",
       "#" + OVERLAY_ID + " .beagle-row-select { width: 16px; height: 16px; accent-color: #ea580c; }",
-      "#" + FLEET_LAUNCHER_ID + " { position: fixed; right: 22px; bottom: 22px; z-index: 99999; border: 0; border-radius: 999px; padding: 12px 18px; font: 700 14px/1 'Trebuchet MS', 'Segoe UI', sans-serif; color: #fff; background: linear-gradient(135deg, #f97316, #0ea5e9); box-shadow: 0 18px 40px rgba(15, 23, 42, 0.28); cursor: pointer; }"
+      "#" + FLEET_LAUNCHER_ID + " { position: fixed; right: 22px; bottom: 22px; z-index: 99999; border: 0; border-radius: 999px; padding: 12px 18px; font: 700 14px/1 'Trebuchet MS', 'Segoe UI', sans-serif; color: #fff; background: linear-gradient(135deg, #f97316, #0ea5e9); box-shadow: 0 18px 40px rgba(15, 23, 42, 0.28); cursor: pointer; }",
+
+      /* ── Desktop Overlay ── */
+      "#" + OVERLAY_ID + ".beagle-desktop-mode { padding: 0; background: none; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-scene { position: absolute; inset: 0; overflow: hidden; font-family: 'SF Pro Display', 'Segoe UI', -apple-system, sans-serif; color: #fff; background: #0a0612; }",
+
+      /* cyberpunk background */
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-bg { position: absolute; inset: 0; background: linear-gradient(180deg, #0c0024 0%, #120835 25%, #1a0a2e 50%, #0d0620 75%, #060212 100%); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-bg::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 20% 20%, rgba(255,0,180,0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 30%, rgba(0,255,255,0.12) 0%, transparent 45%), radial-gradient(ellipse at 50% 80%, rgba(255,0,100,0.1) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(120,0,255,0.08) 0%, transparent 40%); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-bg::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,0,180,0.03) 2px, rgba(255,0,180,0.03) 4px); pointer-events: none; }",
+
+      /* neon city silhouette */
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-city { position: absolute; bottom: 0; left: 0; right: 0; height: 55%; background: linear-gradient(180deg, transparent 0%, rgba(10,2,20,0.6) 40%, rgba(10,2,20,0.95) 100%); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-city::before { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 100%; background: repeating-linear-gradient(90deg, transparent 0px, transparent 40px, rgba(255,0,180,0.04) 40px, rgba(255,0,180,0.04) 42px, transparent 42px, transparent 120px, rgba(0,255,255,0.03) 120px, rgba(0,255,255,0.03) 121px); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-city-blocks { position: absolute; bottom: 8%; left: 0; right: 0; height: 40%; display: flex; align-items: flex-end; justify-content: center; gap: 3px; padding: 0 5%; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-building { flex: 0 0 auto; background: linear-gradient(180deg, rgba(20,5,40,0.95), rgba(10,2,20,0.98)); border-radius: 2px 2px 0 0; position: relative; box-shadow: 0 0 8px rgba(255,0,180,0.15), inset 0 0 20px rgba(0,0,0,0.5); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-building::after { content: ''; position: absolute; inset: 4px; background: repeating-linear-gradient(0deg, transparent 0px, transparent 6px, rgba(255,200,50,0.08) 6px, rgba(255,200,50,0.08) 8px); mask-image: repeating-linear-gradient(90deg, transparent 0px, transparent 3px, black 3px, black 5px, transparent 5px, transparent 8px); -webkit-mask-image: repeating-linear-gradient(90deg, transparent 0px, transparent 3px, black 3px, black 5px, transparent 5px, transparent 8px); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-neon-line { position: absolute; height: 2px; border-radius: 1px; filter: blur(1px); }",
+
+      /* wet floor reflection */
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-floor { position: absolute; bottom: 0; left: 0; right: 0; height: 8%; background: linear-gradient(180deg, rgba(10,2,20,0.3) 0%, rgba(5,1,15,0.8) 100%); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-floor::before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,0,180,0.06), rgba(0,255,255,0.04), transparent); }",
+
+      /* top bar */
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-topbar { position: absolute; top: 0; left: 0; right: 0; height: 32px; background: rgba(0,0,0,0.75); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-size: 13px; z-index: 10; border-bottom: 1px solid rgba(255,255,255,0.06); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-topbar-left { font-weight: 600; cursor: default; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-topbar-center { position: absolute; left: 50%; transform: translateX(-50%); font-weight: 500; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-topbar-right { display: flex; gap: 8px; align-items: center; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-topbar-right svg { width: 16px; height: 16px; fill: #fff; opacity: 0.8; }",
+
+      /* left dock */
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-dock { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 12px; z-index: 10; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-dock-icon { width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-dock-icon:hover { transform: scale(1.15); box-shadow: 0 4px 16px rgba(0,0,0,0.4); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-dock-icon svg { width: 22px; height: 22px; fill: currentColor; }",
+
+      /* main window */
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-window { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -52%); width: min(700px, 80vw); background: rgba(255,255,255,0.95); border-radius: 12px; box-shadow: 0 25px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.1); z-index: 10; color: #222; overflow: hidden; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-win-titlebar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: linear-gradient(180deg, #e8e8e8, #d4d4d4); border-bottom: 1px solid #bbb; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-win-dots { display: flex; gap: 7px; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-win-dot { width: 12px; height: 12px; border-radius: 50%; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-win-dot.close { background: #ff5f57; border: 1px solid #e0443e; cursor: pointer; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-win-dot.minimize { background: #ffbd2e; border: 1px solid #dea123; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-win-dot.maximize { background: #28c940; border: 1px solid #1aab29; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-win-title { font-size: 13px; font-weight: 600; color: #333; }",
+
+      /* window body */
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-win-body { display: grid; grid-template-columns: 200px 1fr; min-height: 280px; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-win-sidebar { padding: 20px 16px; background: #f5f5f5; border-right: 1px solid #e0e0e0; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-win-sidebar h3 { margin: 0 0 14px; font-size: 16px; font-weight: 700; color: #111; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-app-item { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: none; border-radius: 6px; font-size: 14px; color: #333; cursor: pointer; margin-bottom: 2px; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-app-item:hover { background: rgba(0,0,0,0.06); }",
+
+      /* window content */
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-win-content { padding: 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-welcome-title { margin: 0; font-size: 20px; font-weight: 700; color: #111; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-welcome-sub { margin: 0; font-size: 13px; color: #888; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-wallpaper-preview { width: 100%; max-width: 360px; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden; background: linear-gradient(135deg, #0c0024, #1a0a2e, #120835); box-shadow: 0 8px 24px rgba(0,0,0,0.2); position: relative; margin: 6px 0; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-wallpaper-preview::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 40%, rgba(255,0,180,0.2), transparent 60%), radial-gradient(ellipse at 70% 30%, rgba(0,255,255,0.15), transparent 50%); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-wallpaper-label { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); font-family: 'Impact', 'Arial Black', sans-serif; font-size: 22px; color: #fff; text-shadow: 0 0 10px rgba(255,0,180,0.6), 0 2px 4px rgba(0,0,0,0.5); letter-spacing: 2px; z-index: 1; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-btn-wallpaper { display: inline-block; padding: 10px 28px; border: none; border-radius: 999px; background: #00e5ff; color: #003; font-weight: 700; font-size: 14px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,229,255,0.3); transition: transform 0.15s ease; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-btn-wallpaper:hover { transform: translateY(-1px); }",
+
+      /* bottom branding */
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-branding { position: absolute; bottom: 6%; left: 50%; transform: translateX(-50%); text-align: center; z-index: 5; pointer-events: none; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-brand-title { font-family: 'Impact', 'Arial Black', sans-serif; font-size: clamp(48px, 8vw, 100px); line-height: 1; color: #fff; text-shadow: 0 0 20px rgba(255,0,180,0.4), 0 4px 8px rgba(0,0,0,0.4); letter-spacing: 4px; margin: 0; white-space: nowrap; }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-brand-title span { color: #ff1493; text-shadow: 0 0 30px rgba(255,20,147,0.6), 0 0 60px rgba(255,20,147,0.3); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-brand-tagline { font-family: 'Courier New', monospace; font-size: clamp(11px, 1.5vw, 16px); color: #00e5ff; letter-spacing: 0.15em; text-transform: uppercase; margin-top: 8px; text-shadow: 0 0 12px rgba(0,229,255,0.5); }",
+
+      /* badge */
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-badge { position: absolute; bottom: 16px; right: 20px; display: flex; align-items: center; gap: 8px; z-index: 10; font-size: 12px; color: rgba(255,255,255,0.6); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-badge-logo { width: 40px; height: 40px; border-radius: 8px; background: rgba(255,255,255,0.1); }",
+
+      /* close overlay button */
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-close-overlay { position: absolute; top: 40px; right: 16px; z-index: 20; border: none; background: rgba(0,0,0,0.5); color: #fff; border-radius: 50%; width: 32px; height: 32px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-close-overlay:hover { background: rgba(0,0,0,0.7); }",
+
+      /* details link */
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-details-link { position: absolute; top: 40px; left: 80px; z-index: 20; border: none; background: rgba(0,0,0,0.5); color: #00e5ff; border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; backdrop-filter: blur(8px); }",
+      "#" + OVERLAY_ID + ".beagle-desktop-mode .bd-details-link:hover { background: rgba(0,0,0,0.7); }"
     ].join("\n");
     document.head.appendChild(style);
   }
@@ -2202,6 +2281,143 @@
       .replaceAll("'", "&#39;");
   }
 
+  function buildCityBlocks() {
+    var buildings = [];
+    var widths =  [18, 28, 14, 35, 22, 12, 30, 16, 40, 20, 15, 32, 18, 25, 14, 38, 20, 16, 28, 22, 35, 18, 24, 14, 30, 20, 28, 16, 22, 35, 18, 40, 14, 25, 20, 32, 16, 28, 22, 18];
+    var heights = [55, 75, 40, 90, 60, 35, 80, 45, 95, 50, 38, 85, 55, 70, 42, 92, 52, 44, 78, 58, 88, 48, 65, 36, 82, 54, 72, 46, 62, 86, 50, 98, 38, 68, 52, 84, 44, 76, 56, 48];
+    for (var i = 0; i < widths.length; i++) {
+      buildings.push('<div class="bd-building" style="width:' + widths[i] + 'px;height:' + heights[i] + '%;"></div>');
+    }
+    return buildings.join("");
+  }
+
+  function buildNeonLines() {
+    var lines = [];
+    var colors = ["#ff00b4", "#00e5ff", "#ff1493", "#7b2dff", "#00ff88"];
+    for (var i = 0; i < 12; i++) {
+      var top = 20 + Math.floor(i * 5.5);
+      var left = Math.floor(i * 8.3);
+      var width = 30 + Math.floor((i * 17) % 60);
+      var color = colors[i % colors.length];
+      lines.push('<div class="bd-neon-line" style="top:' + top + '%;left:' + left + '%;width:' + width + 'px;background:' + color + ';box-shadow:0 0 6px ' + color + ';"></div>');
+    }
+    return lines.join("");
+  }
+
+  function renderDesktopOverlay(profile) {
+    var overlay = document.createElement("div");
+    overlay.id = OVERLAY_ID;
+    overlay.className = "beagle-desktop-mode";
+    var vmid = String(profile.vmid || "?");
+    var vmName = escapeHtml(profile.name || "vm-" + vmid);
+    var now = new Date();
+    var clock = String(now.getHours()).replace(/^(\d)$/, "0$1") + ":" + String(now.getMinutes()).replace(/^(\d)$/, "0$1");
+
+    overlay.innerHTML = '' +
+      '<div class="bd-scene">' +
+      '  <div class="bd-bg"></div>' +
+      '  <div class="bd-city">' + buildNeonLines() + '<div class="bd-city-blocks">' + buildCityBlocks() + '</div></div>' +
+      '  <div class="bd-floor"></div>' +
+
+      /* top bar */
+      '  <div class="bd-topbar">' +
+      '    <span class="bd-topbar-left">Activities</span>' +
+      '    <span class="bd-topbar-center">' + escapeHtml(clock) + '</span>' +
+      '    <div class="bd-topbar-right">' +
+      '      <svg viewBox="0 0 24 24"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm5 4h14v-2H7v2zm0 6h14v-2H7v2zm0-12v2h14V5H7z"/></svg>' +
+      '      <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>' +
+      '      <svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="18" rx="2" fill="none" stroke="#fff" stroke-width="2"/><rect x="10" y="7" width="4" height="10" fill="#fff" opacity="0.7"/></svg>' +
+      '    </div>' +
+      '  </div>' +
+
+      /* dock */
+      '  <div class="bd-dock">' +
+      '    <button class="bd-dock-icon" style="background:#e74c3c" title="Files"></button>' +
+      '    <button class="bd-dock-icon" style="background:#f39c12" title="Settings"></button>' +
+      '    <button class="bd-dock-icon" style="background:#2ecc71" title="Browser"></button>' +
+      '    <button class="bd-dock-icon" style="background:#00bcd4" title="Desktop"></button>' +
+      '    <button class="bd-dock-icon" style="background:#6a1b9a;color:#fff" title="Terminal"><svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 14H4V8h16v10zm-2-1h-6v-2h6v2zM7.5 17l-1.41-1.41L8.67 13l-2.59-2.59L7.5 9l4 4-4 4z"/></svg></button>' +
+      '    <button class="bd-dock-icon" style="background:#e91e8f" title="Steam"></button>' +
+      '    <button class="bd-dock-icon" style="background:#111;border:2px solid rgba(255,255,255,0.25)" title="Heroic"></button>' +
+      '  </div>' +
+
+      /* close + details */
+      '  <button class="bd-close-overlay" title="Close">&times;</button>' +
+      '  <button class="bd-details-link" data-beagle-action="show-profile">Show Details</button>' +
+
+      /* main window */
+      '  <div class="bd-window">' +
+      '    <div class="bd-win-titlebar">' +
+      '      <div class="bd-win-dots">' +
+      '        <span class="bd-win-dot close" data-beagle-action="close-overlay"></span>' +
+      '        <span class="bd-win-dot minimize"></span>' +
+      '        <span class="bd-win-dot maximize"></span>' +
+      '      </div>' +
+      '      <span class="bd-win-title">Beagle OS Desktop &middot; VM ' + escapeHtml(vmid) + '</span>' +
+      '    </div>' +
+      '    <div class="bd-win-body">' +
+      '      <div class="bd-win-sidebar">' +
+      '        <h3>Apps</h3>' +
+      '        <button class="bd-app-item" data-beagle-action="app-files">Files</button>' +
+      '        <button class="bd-app-item" data-beagle-action="app-desktop">Desktop</button>' +
+      '        <button class="bd-app-item" data-beagle-action="app-downloads">Downloads</button>' +
+      '        <button class="bd-app-item" data-beagle-action="app-steam">Steam</button>' +
+      '        <button class="bd-app-item" data-beagle-action="app-heroic">Heroic</button>' +
+      '        <button class="bd-app-item" data-beagle-action="app-terminal">Terminal</button>' +
+      '      </div>' +
+      '      <div class="bd-win-content">' +
+      '        <h2 class="bd-welcome-title">Welcome to Beagle OS</h2>' +
+      '        <p class="bd-welcome-sub">Open-source endpoint OS for Proxmox-native desktop</p>' +
+      '        <div class="bd-wallpaper-preview">' +
+      '          <span class="bd-wallpaper-label">BEAGLE OS</span>' +
+      '        </div>' +
+      '        <button class="bd-btn-wallpaper" data-beagle-action="wallpaper-ready">Wallpaper Ready</button>' +
+      '      </div>' +
+      '    </div>' +
+      '  </div>' +
+
+      /* branding */
+      '  <div class="bd-branding">' +
+      '    <h1 class="bd-brand-title">BEAGLE <span>OS</span></h1>' +
+      '    <p class="bd-brand-tagline">Built for builders. &nbsp; Born to break rules.</p>' +
+      '  </div>' +
+
+      /* badge */
+      '  <div class="bd-badge">' +
+      '    <span>Wallpaper preview &middot; Beagle VM ' + escapeHtml(vmid) + '</span>' +
+      '  </div>' +
+      '</div>';
+
+    overlay.__beagleProfile = profile;
+
+    overlay.addEventListener("click", function(event) {
+      if (!(event.target instanceof HTMLElement)) {
+        return;
+      }
+      var action = event.target.getAttribute("data-beagle-action") || event.target.closest("[data-beagle-action]") && event.target.closest("[data-beagle-action]").getAttribute("data-beagle-action") || "";
+      switch (action) {
+        case "close-overlay":
+          removeOverlay();
+          break;
+        case "show-profile":
+          removeOverlay();
+          renderProfileModal(profile);
+          break;
+        default:
+          break;
+      }
+    });
+
+    var closeBtn = overlay.querySelector(".bd-close-overlay");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", function() {
+        removeOverlay();
+      });
+    }
+
+    document.body.appendChild(overlay);
+  }
+
   function renderProfileModal(profile, options) {
     var overlay = document.createElement("div");
     var usbState = profile.usbState || {};
@@ -2500,7 +2716,11 @@
 
     resolveVmProfile(ctx).then(function(profile) {
       removeOverlay();
-      renderProfileModal(profile, options);
+      if (options && options.showDetails) {
+        renderProfileModal(profile, options);
+      } else {
+        renderDesktopOverlay(profile);
+      }
     }).catch(function(error) {
       removeOverlay();
       showError('Beagle Profil konnte nicht geladen werden: ' + error.message);
@@ -2560,9 +2780,22 @@
         tooltip: "Zeigt das aufgeloeste Beagle-Profil fuer diese VM und bietet Download-, Export- und Health-Aktionen."
       });
     }
+    if (toolbar && !toolbar.down("#beagleOsDetailsButton")) {
+      var detailsIndex = toolbar.items.indexOf(button);
+      toolbar.insert(detailsIndex + 2, {
+        xtype: "button",
+        itemId: "beagleOsDetailsButton",
+        text: PRODUCT_LABEL + " Details",
+        iconCls: "fa fa-info-circle",
+        handler: function() {
+          showProfileModal({ node: button.nodename, vmid: button.vmid }, { showDetails: true });
+        },
+        tooltip: "Zeigt das technische Beagle-Profil mit allen Details fuer diese VM."
+      });
+    }
     if (toolbar && !toolbar.down("#beagleOsWebUIButton")) {
       var webIndex = toolbar.items.indexOf(button);
-      toolbar.insert(webIndex + 2, {
+      toolbar.insert(webIndex + 3, {
         xtype: "button",
         itemId: "beagleOsWebUIButton",
         text: "Beagle Web UI",
