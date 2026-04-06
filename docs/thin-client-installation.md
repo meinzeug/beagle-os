@@ -59,7 +59,7 @@ Provision an Ubuntu guest for the preferred Sunshine path:
 
 ```bash
 ./scripts/configure-sunshine-guest.sh \
-  --proxmox-host thinovernet \
+  --proxmox-host proxmox.local \
   --vmid 100 \
   --guest-user dennis \
   --sunshine-user sunshine \
@@ -81,7 +81,7 @@ Install the latest published release on a Proxmox host without cloning the repos
 tmpdir="$(mktemp -d)"
 cd "$tmpdir"
 curl -fsSLo beagle-os.tar.gz \
-  https://github.com/meinzeug/beagle-os/releases/latest/download/beagle-os-latest.tar.gz
+  https://beagle-os.com/beagle-updates/beagle-os-latest.tar.gz
 tar -xzf beagle-os.tar.gz
 ./scripts/install-proxmox-host.sh
 ```

@@ -234,7 +234,7 @@ for key, value in (
     ("PVE_THIN_CLIENT_IDENTITY_CHROME_PROFILE", config.get("identity_chrome_profile", "default")),
     ("PVE_THIN_CLIENT_BEAGLE_USB_ENABLED", "1" if config.get("usb_enabled", True) else "0"),
     ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_HOST", config.get("usb_tunnel_host", "")),
-    ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_USER", config.get("usb_tunnel_user", "thinovernet")),
+    ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_USER", config.get("usb_tunnel_user", "beagle")),
     ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_PORT", config.get("usb_tunnel_port", "")),
     ("PVE_THIN_CLIENT_BEAGLE_USB_ATTACH_HOST", config.get("usb_tunnel_attach_host", "")),
     ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_PRIVATE_KEY_FILE", str(config_path.parent / "usb-tunnel.key")),

@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="${DIST_DIR:-$ROOT_DIR/dist}"
-REMOTE_TARGET="${BEAGLE_PUBLIC_UPDATE_TARGET:-meinzeug:/opt/beagle-os-saas/src/public/beagle-updates/}"
+REMOTE_TARGET="${BEAGLE_PUBLIC_UPDATE_TARGET:-}"
 PUBLIC_BASE_URL="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/beagle-updates}"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 STATUS_JSON="$DIST_DIR/beagle-downloads-status.json"
@@ -120,6 +120,8 @@ PY
 }
 
 require_file "$DIST_DIR/SHA256SUMS"
+require_file "$DIST_DIR/beagle-os-v${VERSION}.tar.gz"
+require_file "$DIST_DIR/beagle-os-latest.tar.gz"
 require_file "$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz"
 require_file "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
 require_file "$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
@@ -129,11 +131,17 @@ require_file "$DIST_DIR/beagle-os-server-installer-amd64.iso"
 require_file "$DIST_DIR/beagle-kiosk-v${VERSION}-linux-x64.AppImage"
 require_file "$DIST_DIR/kiosk-release.json"
 require_file "$DIST_DIR/kiosk-release-hash.txt"
+[[ -n "$REMOTE_TARGET" ]] || {
+  echo "Set BEAGLE_PUBLIC_UPDATE_TARGET to an SSH rsync target." >&2
+  exit 1
+}
 write_public_status_json
 
 rsync -av --progress \
   "$DIST_DIR/SHA256SUMS" \
   "$STATUS_JSON" \
+  "$DIST_DIR/beagle-os-v${VERSION}.tar.gz" \
+  "$DIST_DIR/beagle-os-latest.tar.gz" \
   "$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz" \
   "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" \
   "$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" \

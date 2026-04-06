@@ -25,7 +25,7 @@ Open-source Proxmox host tooling, endpoint runtime, gaming kiosk, and installer 
 - Shell scripts use `set -euo pipefail`
 - Frontend code stays dependency-light
 - Public release artifacts are published via GitHub Releases and `beagle-os.com`
-- Heavy build work must run on `srv.thinover.net`, not on the local control workstation
+- Heavy build work must run on a dedicated release build host, not on the local control workstation
 
 ## Build
 

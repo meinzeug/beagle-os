@@ -1,4 +1,4 @@
-// Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed
+// Beagle OS Gaming Kiosk - MIT Licensed
 'use strict';
 
 const { contextBridge, ipcRenderer } = require('electron');

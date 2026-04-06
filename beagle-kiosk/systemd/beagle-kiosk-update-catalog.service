@@ -1,4 +1,4 @@
-# Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed
+# Beagle OS Gaming Kiosk - MIT Licensed
 [Unit]
 Description=Refresh Beagle OS Gaming catalog
 After=network-online.target

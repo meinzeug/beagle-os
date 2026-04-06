@@ -35,6 +35,8 @@ BUILD_BEAGLE_OS="${BUILD_BEAGLE_OS:-0}"
 SKIP_THIN_CLIENT_BUILD="${SKIP_THIN_CLIENT_BUILD:-0}"
 SKIP_SERVER_INSTALLER_BUILD="${SKIP_SERVER_INSTALLER_BUILD:-0}"
 SKIP_KIOSK_BUILD="${SKIP_KIOSK_BUILD:-0}"
+PUBLIC_UPDATE_BASE_URL="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/beagle-updates}"
+PUBLIC_UPDATE_BASE_URL="${PUBLIC_UPDATE_BASE_URL%/}"
 
 collect_beagle_os_assets() {
   local path
@@ -129,7 +131,7 @@ if [[ "$SKIP_KIOSK_BUILD" != "1" ]]; then
     cd "$ROOT_DIR/beagle-kiosk"
     npm install
     npm run dist
-    npm run release-metadata -- "dist/$KIOSK_APPIMAGE_NAME" "https://github.com/meinzeug/beagle-os/releases/download/v${VERSION}/${KIOSK_APPIMAGE_NAME}"
+    npm run release-metadata -- "dist/$KIOSK_APPIMAGE_NAME" "$PUBLIC_UPDATE_BASE_URL/$KIOSK_APPIMAGE_NAME"
   )
 elif [[ ! -f "$KIOSK_DIST_DIR/$KIOSK_APPIMAGE_NAME" || ! -f "$KIOSK_DIST_DIR/$KIOSK_RELEASE_MANIFEST_NAME" || ! -f "$KIOSK_DIST_DIR/$KIOSK_RELEASE_HASH_NAME" ]]; then
   echo "SKIP_KIOSK_BUILD=1 requires an existing kiosk build under $KIOSK_DIST_DIR" >&2

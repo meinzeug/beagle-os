@@ -1,14 +1,14 @@
-<!-- Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed -->
+<!-- Beagle OS Gaming Kiosk - MIT Licensed -->
 # Beagle OS Gaming Kiosk Setup
 
 ## Overview
 
-The kiosk is now maintained directly inside `meinzeug/beagle-os`.
+The kiosk is now maintained directly inside the public Beagle OS repository.
 
 It can be:
 
 - built locally for development
-- packaged on `srv.thinover.net` for release
+- packaged on a dedicated release build host for release
 - installed onto Beagle Gaming endpoints through `beagle-kiosk-install`
 
 ## Development
@@ -31,7 +31,7 @@ BEAGLE_KIOSK_ROOT=/tmp/beagle-kiosk-test npm start
 cd beagle-kiosk
 npm install
 npm run dist
-npm run release-metadata -- dist/beagle-kiosk-vX.Y.Z-linux-x64.AppImage https://github.com/meinzeug/beagle-os/releases/download/<tag>/beagle-kiosk-vX.Y.Z-linux-x64.AppImage
+npm run release-metadata -- dist/beagle-kiosk-vX.Y.Z-linux-x64.AppImage https://beagle-os.com/beagle-updates/beagle-kiosk-vX.Y.Z-linux-x64.AppImage
 ```
 
 Publish these files with the matching Beagle release:
@@ -74,4 +74,4 @@ The kiosk ships with:
 
 - Store URLs are opened directly without affiliate parameters.
 - The kiosk source tree is public and versioned together with the rest of Beagle OS.
-- Heavy release builds belong on `srv.thinover.net`, not on the local workstation.
+- Heavy release builds belong on a dedicated release build host, not on the local workstation.

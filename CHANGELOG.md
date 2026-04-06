@@ -1,11 +1,17 @@
 # Changelog
 
+## v6.0.1 - 2026-04-06
+
+- Scrubbed the public Beagle OS repository and website source of internal infrastructure references. Public-facing defaults, release metadata, install snippets, and website copy now reference `beagle-os.com` plus the public `github.com/meinzeug/beagle-os` repository without leaking internal hostnames or operator aliases.
+- Moved remaining public artifact fallbacks away from hosted internal URLs and onto the public `beagle-os.com/beagle-updates` surface, including kiosk release metadata, server-installer source download defaults, and website installer examples.
+- Refreshed the public website wording so the visible release narrative follows the new `6.x` open-source line instead of the older `5.2` SaaS-oriented product language.
+
 ## v6.0.0 - 2026-04-06
 
 - Rebased the public Beagle OS release line onto a fully MIT-licensed repository. The root license now uses MIT, the Gaming kiosk source tree lives directly in the public repo, and the old closed-source and affiliate-only constraints are removed from the active product surface.
 - Added the public `beagle-kiosk/` source tree to the release path and updated the repository packaging flow so the GitHub source tarball now includes the open kiosk, the endpoint image builder, and the new server-installer sources together.
 - Added a new bootable `beagle-os-server-installer-amd64.iso` workflow that installs Debian Bookworm, adds Proxmox VE from the official Proxmox repository, prompts for hostname, Linux username, password, and target disk, and then installs Beagle from the public GitHub release source on top.
-- Extended the packaging, host-download, GitHub release, and public artifact publication scripts so the server installer ISO is built on `srv.thinover.net`, published alongside the endpoint ISO, exposed in `beagle-downloads-status.json`, and mirrored to `beagle-os.com`.
+- Extended the packaging, host-download, GitHub release, and public artifact publication scripts so the server installer ISO is built on the dedicated release host, published alongside the endpoint ISO, exposed in `beagle-downloads-status.json`, and mirrored to `beagle-os.com`.
 - Reworked the public website content for the open-source direction: the Gaming page now describes the public kiosk codebase, the Download page exposes the new server installer ISO, and the old dashboard/login/register entry points are redirected away from the marketing site.
 
 ## v5.2.31 - 2026-04-06
@@ -229,7 +235,7 @@
 
 ## v5.0.2 - 2026-03-28
 
-- Changed license from MIT to Beagle OS Source Available License: free for personal and non-commercial use, commercial use requires separate written permission or licensing from Dennis Wicht / meinzeug.
+- Changed license from MIT to Beagle OS Source Available License: free for personal and non-commercial use, commercial use required separate written permission or licensing.
 - Completely redesigned the management Web UI with a modern dark theme, cleaner layout, sticky detail panel, and English-language interface replacing the previous German UI.
 - Improved CORS policy in the control plane API to reflect the request Origin header instead of allowing all origins with a wildcard.
 - Added CLAUDE.md project conventions file for contributor tooling.
@@ -362,7 +368,7 @@
 ## v0.4.7 - 2026-03-15
 
 - Fixed the host-side `nginx` download location so `/pve-dcv-downloads/<file>` is served as a real prefix path instead of falling through to the DCV backend.
-- Revalidated the Proxmox-hosted USB installer endpoint on `srv.thinover.net` after the hosted download routing fix.
+- Revalidated the Proxmox-hosted USB installer endpoint after the hosted download routing fix.
 
 ## v0.4.6 - 2026-03-15
 
@@ -375,7 +381,7 @@
 
 - Fixed DCV launch URL generation so `dcv-url` in VM metadata always overrides the internal guest IP template path.
 - Fixed metadata parsing for VM descriptions that contain literal `\\n` separators, preventing `dcv-user` and `dcv-password` from being merged into one query value.
-- Revalidated the server-installed Proxmox UI integration on `srv.thinover.net` with the public DCV proxy URL `https://srv.thinover.net:8443/`.
+- Revalidated the server-installed Proxmox UI integration with the public DCV proxy URL on the control plane.
 
 ## v0.4.4 - 2026-03-15
 

@@ -7,7 +7,7 @@
 > **Open-source Proxmox-native endpoint OS, gaming kiosk, and host installer.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Latest Release](https://img.shields.io/github/v/release/meinzeug/beagle-os)](https://github.com/meinzeug/beagle-os/releases)
+[Download Latest](https://beagle-os.com/download/)
 [![Shell](https://img.shields.io/badge/shell-54%25-green)]()
 [![Python](https://img.shields.io/badge/python-24%25-blue)]()
 
@@ -53,7 +53,7 @@ Key points:
 ### Install Beagle on an Existing Proxmox Host
 
 ```bash
-git clone https://github.com/meinzeug/beagle-os.git
+git clone <repository-url>
 cd beagle-os
 ./scripts/setup-proxmox-host.sh
 ./scripts/check-proxmox-host.sh
@@ -140,7 +140,7 @@ The public update surface on `https://beagle-os.com/beagle-updates/` publishes:
 
 ## Build and Release
 
-Heavy builds must run on `srv.thinover.net`, not on this local workstation.
+Heavy builds must run on a dedicated release build host, not on this local workstation.
 
 Common release steps:
 

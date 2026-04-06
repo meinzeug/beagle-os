@@ -1,4 +1,4 @@
-<!-- Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed -->
+<!-- Beagle OS Gaming Kiosk - MIT Licensed -->
 # Beagle OS Gaming Kiosk
 
 Open-source Electron kiosk for `Beagle OS Gaming`.
@@ -26,7 +26,7 @@ Open-source Electron kiosk for `Beagle OS Gaming`.
 cd beagle-kiosk
 npm install
 npm run dist
-npm run release-metadata -- dist/beagle-kiosk-vX.Y.Z-linux-x64.AppImage https://github.com/meinzeug/beagle-os/releases/download/<tag>/beagle-kiosk-vX.Y.Z-linux-x64.AppImage
+npm run release-metadata -- dist/beagle-kiosk-vX.Y.Z-linux-x64.AppImage https://beagle-os.com/beagle-updates/beagle-kiosk-vX.Y.Z-linux-x64.AppImage
 ```
 
 The release build produces:

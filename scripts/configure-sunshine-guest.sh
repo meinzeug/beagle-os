@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROXMOX_HOST="${PROXMOX_HOST:-thinovernet}"
+PROXMOX_HOST="${PROXMOX_HOST:-proxmox.local}"
 VMID="${VMID:-}"
 GUEST_USER="${GUEST_USER:-beagle}"
 GUEST_PASSWORD="${GUEST_PASSWORD:-}"

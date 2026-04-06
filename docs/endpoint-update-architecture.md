@@ -11,7 +11,7 @@ Stand vom 30.03.2026:
 - Endpoints melden sich bereits per `beagle-endpoint-report` beim Manager
 - Endpoints ziehen bereits Aktionen per `beagle-endpoint-dispatch` vom Manager
 
-Auf `srv.thinover.net` werden die Release-Artefakte bereits veröffentlicht.
+Auf dem dedizierten Control-Plane-Host werden die Release-Artefakte bereits veröffentlicht.
 Zum Zeitpunkt der Analyse liefert `beagle-downloads-status.json` Version `5.0.10` mit einem Payload von `1228401208` Bytes.
 
 ## Ziel

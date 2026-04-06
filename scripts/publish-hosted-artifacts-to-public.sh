@@ -3,10 +3,19 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
-REMOTE_SSH_TARGET="${BEAGLE_PUBLIC_SSH_TARGET:-meinzeug}"
+REMOTE_SSH_TARGET="${BEAGLE_PUBLIC_SSH_TARGET:-}"
 REMOTE_DIR="${BEAGLE_PUBLIC_UPDATE_DIR:-/var/www/vhosts/beagle-os.com/httpdocs/beagle-updates}"
-HOSTED_BASE_URL="${BEAGLE_HOSTED_DOWNLOADS_BASE_URL:-https://srv.thinover.net:8443/beagle-downloads}"
+HOSTED_BASE_URL="${BEAGLE_HOSTED_DOWNLOADS_BASE_URL:-}"
 PUBLIC_BASE_URL="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/beagle-updates}"
+
+[[ -n "$REMOTE_SSH_TARGET" ]] || {
+  echo "Set BEAGLE_PUBLIC_SSH_TARGET to the public artifact host." >&2
+  exit 1
+}
+[[ -n "$HOSTED_BASE_URL" ]] || {
+  echo "Set BEAGLE_HOSTED_DOWNLOADS_BASE_URL to the hosted artifact base URL." >&2
+  exit 1
+}
 
 ssh "$REMOTE_SSH_TARGET" 'bash -s' -- "$REMOTE_DIR" "$HOSTED_BASE_URL" "$PUBLIC_BASE_URL" "$VERSION" <<'EOF'
 set -euo pipefail
@@ -21,6 +30,8 @@ bootstrap_filename="pve-thin-client-usb-bootstrap-v${version}.tar.gz"
 bootstrap_latest_filename="pve-thin-client-usb-bootstrap-latest.tar.gz"
 installer_iso_filename="beagle-os-installer-amd64.iso"
 server_installer_iso_filename="beagle-os-server-installer-amd64.iso"
+source_tarball_filename="beagle-os-v${version}.tar.gz"
+source_tarball_latest_filename="beagle-os-latest.tar.gz"
 kiosk_appimage_filename="beagle-kiosk-v${version}-linux-x64.AppImage"
 kiosk_manifest_filename="kiosk-release.json"
 kiosk_hash_filename="kiosk-release-hash.txt"
@@ -33,6 +44,7 @@ cleanup() {
 trap cleanup EXIT
 
 curl -fsSL "$hosted_base_url/SHA256SUMS" -o "$tmp_dir/SHA256SUMS"
+curl -fsSL "$hosted_base_url/$source_tarball_filename" -o "$tmp_dir/$source_tarball_filename"
 curl -fsSL "$hosted_base_url/$payload_filename" -o "$tmp_dir/$payload_filename"
 curl -fsSL "$hosted_base_url/$installer_iso_filename" -o "$tmp_dir/$installer_iso_filename"
 curl -fsSL "$hosted_base_url/$server_installer_iso_filename" -o "$tmp_dir/$server_installer_iso_filename"
@@ -40,16 +52,19 @@ curl -fsSL "$hosted_base_url/$kiosk_appimage_filename" -o "$tmp_dir/$kiosk_appim
 curl -fsSL "$hosted_base_url/$kiosk_manifest_filename" -o "$tmp_dir/$kiosk_manifest_filename"
 curl -fsSL "$hosted_base_url/$kiosk_hash_filename" -o "$tmp_dir/$kiosk_hash_filename"
 
+expected_source_tarball="$(awk -v name="$source_tarball_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_payload="$(awk -v name="$payload_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_bootstrap="$(awk -v name="$bootstrap_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_iso="$(awk -v name="$installer_iso_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_server_iso="$(awk -v name="$server_installer_iso_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_kiosk="$(awk -v name="$kiosk_appimage_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
+actual_source_tarball="$(sha256sum "$tmp_dir/$source_tarball_filename" | awk '{print $1}')"
 actual_payload="$(sha256sum "$tmp_dir/$payload_filename" | awk '{print $1}')"
 actual_iso="$(sha256sum "$tmp_dir/$installer_iso_filename" | awk '{print $1}')"
 actual_server_iso="$(sha256sum "$tmp_dir/$server_installer_iso_filename" | awk '{print $1}')"
 actual_kiosk="$(sha256sum "$tmp_dir/$kiosk_appimage_filename" | awk '{print $1}')"
 
+[[ -n "$expected_source_tarball" && "$actual_source_tarball" == "$expected_source_tarball" ]]
 [[ -n "$expected_payload" && "$actual_payload" == "$expected_payload" ]]
 [[ -n "$expected_bootstrap" && "$actual_payload" == "$expected_bootstrap" ]]
 [[ -n "$expected_iso" && "$actual_iso" == "$expected_iso" ]]
@@ -57,6 +72,8 @@ actual_kiosk="$(sha256sum "$tmp_dir/$kiosk_appimage_filename" | awk '{print $1}'
 [[ -n "$expected_kiosk" && "$actual_kiosk" == "$expected_kiosk" ]]
 
 install -m 0644 "$tmp_dir/SHA256SUMS" SHA256SUMS
+mv -f "$tmp_dir/$source_tarball_filename" "$source_tarball_filename"
+ln -f "$source_tarball_filename" "$source_tarball_latest_filename"
 mv -f "$tmp_dir/$payload_filename" "$payload_filename"
 ln -f "$payload_filename" "$payload_latest_filename"
 ln -f "$payload_filename" "$bootstrap_filename"
