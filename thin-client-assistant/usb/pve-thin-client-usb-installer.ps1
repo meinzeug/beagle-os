@@ -99,6 +99,37 @@ function Get-MountedIsoLetter {
     }
 }
 
+function Invoke-DiskPartScript {
+    param([string[]]$Commands)
+
+    $scriptPath = Join-Path $env:TEMP ("beagle-diskpart-{0}.txt" -f ([Guid]::NewGuid().ToString("N")))
+    try {
+        [IO.File]::WriteAllLines($scriptPath, $Commands, [Text.Encoding]::ASCII)
+        $output = & diskpart /s $scriptPath 2>&1
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0) {
+            throw "diskpart ist fehlgeschlagen (ExitCode $exitCode): $($output -join '; ')"
+        }
+        return $output
+    } finally {
+        Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-AvailableDriveLetter {
+    $used = @(
+        Get-Volume |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_.DriveLetter) } |
+            ForEach-Object { ([string]$_.DriveLetter).ToUpperInvariant() }
+    )
+    foreach ($candidate in @("U", "V", "W", "X", "Y", "Z", "T", "S", "R", "Q", "P")) {
+        if ($used -notcontains $candidate) {
+            return $candidate
+        }
+    }
+    throw "Kein freier Laufwerksbuchstabe fuer den USB-Datentraeger gefunden."
+}
+
 function Prepare-UsbDisk {
     param(
         [int]$TargetDiskNumber,
@@ -121,15 +152,24 @@ function Prepare-UsbDisk {
         }
     }
 
-    Clear-Disk -Number $TargetDiskNumber -RemoveData -RemoveOEM -Confirm:$false
-    Initialize-Disk -Number $TargetDiskNumber -PartitionStyle GPT
-    $partition = New-Partition -DiskNumber $TargetDiskNumber -UseMaximumSize -AssignDriveLetter
-    Format-Volume -Partition $partition -FileSystem FAT32 -NewFileSystemLabel $Label -Confirm:$false | Out-Null
-    $volume = $partition | Get-Volume
-    if (-not $volume -or [string]::IsNullOrWhiteSpace($volume.DriveLetter)) {
-        throw "USB-Datentraeger wurde vorbereitet, aber kein Laufwerksbuchstabe wurde zugewiesen."
+    $driveLetter = Get-AvailableDriveLetter
+    Invoke-DiskPartScript @(
+        "select disk $TargetDiskNumber",
+        "attributes disk clear readonly",
+        "online disk noerr",
+        "clean",
+        "convert gpt",
+        "create partition primary",
+        "format fs=fat32 quick label=$Label",
+        "assign letter=$driveLetter"
+    ) | Out-Null
+
+    Start-Sleep -Seconds 2
+    $volume = Get-Volume -DriveLetter $driveLetter -ErrorAction SilentlyContinue
+    if (-not $volume) {
+        throw "USB-Datentraeger wurde vorbereitet, aber Laufwerk $driveLetter`: konnte nicht bestaetigt werden."
     }
-    return ("{0}:" -f $volume.DriveLetter)
+    return ("{0}:" -f $driveLetter)
 }
 
 function Copy-IsoContents {

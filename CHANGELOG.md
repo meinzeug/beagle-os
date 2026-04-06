@@ -1,5 +1,14 @@
 # Changelog
 
+## v6.6.6 - 2026-04-06
+
+- Rebranded the full public Beagle OS surface around the new splash and transparent logo assets. The README, extension assets, website-facing repo assets, runtime wallpapers, Plymouth theme and Gaming kiosk backgrounds now share the same public branding.
+- Refreshed the public website with a stronger poster-style landing page, a first-viewport showcase, a public marketing/media kit, wallpaper downloads and a unified visual shell across home, docs and product subpages.
+- Added public legal and privacy pages plus a minimal site privacy notice banner for the marketing surface, while keeping the public site free of analytics and other non-essential tracking services.
+- Removed public Google Fonts dependencies from the marketing pages and switched the live site to self-hosted web fonts so the public surface no longer leaks font requests to third-party servers by default.
+- Promoted the current USB-writer fixes into the release line. The Linux USB helper now parses device candidates correctly again, and the Windows USB helper keeps the direct DiskPart path that was validated during the Windows test pass.
+- Prepared the `6.6.6` release surface for fresh branded installer media: endpoint installer ISO, server installer ISO, USB helper scripts, public update metadata and the open-source kiosk AppImage all ship together from the same release line.
+
 ## v6.0.1 - 2026-04-06
 
 - Scrubbed the public Beagle OS repository and website source of internal infrastructure references. Public-facing defaults, release metadata, install snippets, and website copy now reference `beagle-os.com` plus the public `github.com/meinzeug/beagle-os` repository without leaking internal hostnames or operator aliases.

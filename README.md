@@ -1,4 +1,6 @@
-[![Beagle OS logo](docs/assets/beagleos.png)](docs/assets/beagleos.png)
+[![Beagle OS splash](docs/assets/beagle_splash.png)](docs/assets/beagle_splash.png)
+
+[![Beagle OS logo](docs/assets/beagle_logo.png)](docs/assets/beagle_logo.png)
 
 # Beagle OS
 
@@ -53,7 +55,7 @@ Key points:
 ### Install Beagle on an Existing Proxmox Host
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/meinzeug/beagle-os.git
 cd beagle-os
 ./scripts/setup-proxmox-host.sh
 ./scripts/check-proxmox-host.sh
