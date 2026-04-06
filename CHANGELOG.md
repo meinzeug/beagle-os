@@ -1,5 +1,11 @@
 # Changelog
 
+## v5.2.31 - 2026-04-06
+
+- Fixed the Beagle Fleet desktop cold-start regression on freshly installed thinclients. The Moonlight launcher no longer probes `PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST` first when that address is only reachable through an upstream gateway, so endpoints outside the Proxmox-side private subnet stop wasting startup time on dead `10.10.10.x` attempts before falling back to the real public Sunshine host.
+- Verified the launcher fix live on the real VM100 thinclient at `192.168.178.92`: the desktop runtime dropped from the earlier `moonlight.start -> moonlight.exec` path of roughly 80 seconds down to about 6 seconds on the subsequent restart, while still connecting to the same public host `65.109.80.76:50100`.
+- Fixed runtime config regeneration so Beagle no longer discards Sunshine bootstrap metadata and pinning material when `/usr/local/sbin/beagle-render-config` rewrites `/etc/pve-thin-client/`. The renderer now preserves Sunshine pinned pubkeys plus server name, stream port, unique ID and certificate fields, which keeps fresh Desktop images from regressing into the slow first-run bootstrap path after config refreshes.
+
 ## v5.2.30 - 2026-04-06
 
 - Fixed the GeForce NOW handoff regression that could restart the full Gaming session shortly after GFN launched. The previous stream-optimization path terminated kiosk processes directly, which tore down the shared X11 session and caused `pve-thin-client-runtime.service` to restart on the real VM100 thinclient.

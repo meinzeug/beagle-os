@@ -150,6 +150,15 @@ moonlight_local_host() {
   render_template "${PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST:-}"
 }
 
+usable_moonlight_local_host() {
+  local local_host
+
+  local_host="$(moonlight_local_host)"
+  [[ -n "$local_host" ]] || return 1
+  moonlight_local_host_is_direct || return 1
+  printf '%s\n' "$local_host"
+}
+
 moonlight_gateway_fallback_host() {
   local gateway host
   gateway="${PVE_THIN_CLIENT_NETWORK_GATEWAY:-}"
@@ -840,7 +849,7 @@ moonlight_connect_host() {
   host="$(moonlight_host)"
   api_url="$(sunshine_api_url)"
 
-  local_host="$(moonlight_local_host)"
+  local_host="$(usable_moonlight_local_host 2>/dev/null || true)"
   public_host="$(moonlight_public_connect_host)"
 
   if [[ -n "$local_host" ]]; then
