@@ -42,6 +42,7 @@ flatpak
 xdg-desktop-portal
 xdg-desktop-portal-gtk
 x11-xserver-utils
+wmctrl
 xauth
 xfonts-base
 xfonts-terminus

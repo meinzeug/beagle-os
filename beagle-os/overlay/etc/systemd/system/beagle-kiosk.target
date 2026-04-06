@@ -1,5 +1,5 @@
 [Unit]
 Description=Beagle OS Gaming kiosk target
-Wants=beagle-kiosk.service network-online.target
-After=network-online.target
+Wants=beagle-kiosk.service network-online.target beagle-usb-tunnel.service
+After=network-online.target beagle-usb-tunnel.service
 AllowIsolate=yes

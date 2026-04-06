@@ -2,13 +2,43 @@
 set -eu
 
 DEFAULT_LOG_ROOT="${XDG_RUNTIME_DIR:-$HOME/.cache}/pve-thin-client"
-LOG_ROOT="${PVE_THIN_CLIENT_LOG_ROOT:-$DEFAULT_LOG_ROOT}"
-LOG_DIR="${PVE_THIN_CLIENT_LOG_DIR:-$LOG_ROOT/kiosk}"
-KIOSK_LOG="$LOG_DIR/kiosk-session.log"
+LOG_ROOT="${PVE_THIN_CLIENT_LOG_ROOT:-}"
+LOG_DIR="${PVE_THIN_CLIENT_LOG_DIR:-}"
 BACKGROUND_IMAGE="/usr/local/share/beagle-os/beagleos-gaming.png"
 FONTCONFIG_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/fontconfig"
 
-mkdir -p "$LOG_DIR"
+resolve_log_dir() {
+  local candidate_root
+
+  if [ -n "$LOG_DIR" ]; then
+    if mkdir -p "$LOG_DIR" >/dev/null 2>&1; then
+      printf '%s\n' "$LOG_DIR"
+      return 0
+    fi
+  fi
+
+  for candidate_root in \
+    "$LOG_ROOT" \
+    "${PVE_THIN_CLIENT_PERSISTENT_LOG_ROOT:-/pve-thin-client/state/logs}" \
+    "/run/live/medium/pve-thin-client/state/logs" \
+    "$DEFAULT_LOG_ROOT" \
+    "${XDG_RUNTIME_DIR:-/run/user/1000}/pve-thin-client" \
+    "/tmp/pve-thin-client-logs" \
+    "$HOME/.cache/pve-thin-client"
+  do
+    [ -n "$candidate_root" ] || continue
+    if mkdir -p "$candidate_root/kiosk" >/dev/null 2>&1; then
+      printf '%s\n' "$candidate_root/kiosk"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+LOG_DIR="$(resolve_log_dir 2>/dev/null || printf '%s\n' "$DEFAULT_LOG_ROOT/kiosk")"
+KIOSK_LOG="$LOG_DIR/kiosk-session.log"
+mkdir -p "$LOG_DIR" >/dev/null 2>&1 || true
 chmod 0700 "$LOG_DIR" >/dev/null 2>&1 || true
 mkdir -p "$FONTCONFIG_CACHE_DIR" >/dev/null 2>&1 || true
 
@@ -45,11 +75,91 @@ fi
 
 if [ -x /usr/local/sbin/beagle-update-client ]; then
   /usr/local/sbin/beagle-update-client session-start >"$LOG_DIR/update-session.log" 2>&1 &
-  /usr/local/sbin/beagle-update-client session-monitor >"$LOG_DIR/update-monitor.log" 2>&1 &
 fi
 
-if [ -x /usr/local/sbin/beagle-kiosk-launch ]; then
-  exec /usr/local/sbin/beagle-kiosk-launch >>"$KIOSK_LOG" 2>&1
+STREAM_STATE_DIR="${XDG_RUNTIME_DIR:-/run/user/1000}/beagle-os"
+STREAM_SESSION_FILE="$STREAM_STATE_DIR/streaming-session.env"
+
+mkdir -p "$STREAM_STATE_DIR" >/dev/null 2>&1 || true
+
+ensure_update_monitor_running() {
+  if [ -x /usr/local/sbin/beagle-update-client ] && ! pgrep -f '/usr/local/sbin/beagle-update-client session-monitor' >/dev/null 2>&1; then
+    /usr/local/sbin/beagle-update-client session-monitor >"$LOG_DIR/update-monitor.log" 2>&1 &
+  fi
+}
+
+kiosk_stream_active() {
+  if [ -r "$STREAM_SESSION_FILE" ] && grep -Eq '^active=1$' "$STREAM_SESSION_FILE"; then
+    return 0
+  fi
+  return 1
+}
+
+wait_for_stream_end() {
+  while kiosk_stream_active; do
+    sleep 1
+  done
+}
+
+run_kiosk_supervisor() {
+  launcher_status=127
+  failure_count=0
+
+  while :; do
+    if kiosk_stream_active; then
+      printf '[%s] kiosk suppressed while GFN stream is active\n' "$(date -Is 2>/dev/null || date)" >>"$KIOSK_LOG"
+      wait_for_stream_end
+      printf '[%s] stream ended, relaunching kiosk\n' "$(date -Is 2>/dev/null || date)" >>"$KIOSK_LOG"
+    fi
+
+    ensure_update_monitor_running
+
+    if [ ! -x /usr/local/sbin/beagle-kiosk-launch ]; then
+      printf '[%s] beagle-kiosk-launch is missing\n' "$(date -Is 2>/dev/null || date)" >>"$KIOSK_LOG"
+      launcher_status=127
+      break
+    fi
+
+    printf '[%s] launching beagle-kiosk\n' "$(date -Is 2>/dev/null || date)" >>"$KIOSK_LOG"
+    if /usr/local/sbin/beagle-kiosk-launch >>"$KIOSK_LOG" 2>&1; then
+      launcher_status=0
+    else
+      launcher_status=$?
+    fi
+
+    if kiosk_stream_active; then
+      printf '[%s] beagle-kiosk exited for active GFN stream\n' "$(date -Is 2>/dev/null || date)" >>"$KIOSK_LOG"
+      failure_count=0
+      continue
+    fi
+
+    if [ "$launcher_status" -eq 0 ]; then
+      printf '[%s] beagle-kiosk exited cleanly, relaunching\n' "$(date -Is 2>/dev/null || date)" >>"$KIOSK_LOG"
+      failure_count=0
+      sleep 1
+      continue
+    fi
+
+    failure_count=$((failure_count + 1))
+    printf '[%s] beagle-kiosk launcher exited with status=%s failures=%s\n' "$(date -Is 2>/dev/null || date)" "$launcher_status" "$failure_count" >>"$KIOSK_LOG"
+    if [ "$failure_count" -ge 3 ]; then
+      break
+    fi
+    sleep 2
+  done
+
+  return "$launcher_status"
+}
+
+launcher_status=127
+run_kiosk_supervisor
+launcher_status=$?
+
+printf '[%s] beagle-kiosk launcher exited with status=%s\n' "$(date -Is 2>/dev/null || date)" "$launcher_status" >>"$KIOSK_LOG"
+
+if command -v xterm >/dev/null 2>&1; then
+  exec xterm -geometry 132x36+24+24 -T "Beagle OS Gaming Error" -fa Monospace -fs 10 -fg white -bg black -hold \
+    -e /bin/sh -lc "echo 'Beagle OS Gaming konnte nicht gestartet werden.'; echo; tail -n 200 '$KIOSK_LOG' 2>/dev/null || true; echo; exec /bin/bash"
 fi
 
 exec /bin/bash

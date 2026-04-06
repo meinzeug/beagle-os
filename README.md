@@ -4,7 +4,7 @@
 
 > **Built to boot. If it still won't boot, the BIOS is being dramatic.**
 
-> **Proxmox-native endpoint OS and management stack for streaming virtual desktops.**
+> **Proxmox-native endpoint OS and management stack for desktop streaming and gaming endpoints.**
 
 [![License: Source Available](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/meinzeug/beagle-os)](https://github.com/meinzeug/beagle-os/releases)
@@ -17,17 +17,29 @@
 
 ## What is Beagle OS?
 
-Beagle OS is an intentionally narrow-focused project. There is exactly one product path:
+Beagle OS is an intentionally narrow-focused project with two fixed product paths:
 
-- `Sunshine` running inside the target VM
-- `Moonlight` running on Beagle OS
-- `Proxmox` as the inventory, provisioning, and operations surface
+- `Beagle OS Desktop`
+  - `Sunshine` running inside the target VM
+  - `Moonlight` running on Beagle OS
+  - `Proxmox` as the inventory, provisioning, and operations surface
+- `Beagle OS Gaming`
+  - Integrated Beagle gaming kiosk as the primary shell
+  - `GeForce NOW` launched and monitored by the kiosk
+  - `Proxmox` as the delivery and operational surface for the endpoint OS
 
-Beagle OS is **not** a multi-protocol remote desktop toolkit. It is a managed endpoint solution built around a single, well-defined streaming stack.
+Beagle OS is **not** a generic remote desktop toolkit. It is a managed endpoint solution with two intentionally narrow runtime experiences: a desktop streaming mode and a gaming kiosk mode.
 
 ## Beagle OS Gaming Kiosk
 
-The gaming kiosk module is closed-source. It is distributed exclusively as a compiled Electron binary. Source code for this component is maintained in a private repository and is not publicly available. See [LICENSE](LICENSE) for details on the Affiliate Protection Clause.
+The gaming kiosk module is closed-source. It is distributed exclusively as a compiled Electron binary. Source code for this component is maintained in a private repository and is not publicly available.
+
+Public repository scope for the kiosk:
+
+- [`beagle-kiosk/README.md`](beagle-kiosk/README.md)
+- [`beagle-kiosk/INSTALL.sh`](beagle-kiosk/INSTALL.sh)
+
+The private kiosk source lives outside this repository and remains the canonical source for the Electron app, renderer, build configuration, and affiliate-backed store logic. See [LICENSE](LICENSE) for details on the Affiliate Protection Clause.
 
 ## Requirements
 
@@ -39,7 +51,7 @@ The gaming kiosk module is closed-source. It is distributed exclusively as a com
 
 ## Architecture in One Sentence
 
-Beagle OS turns Proxmox into a management surface for Moonlight/Sunshine endpoints and ships a dedicated endpoint OS to run on them.
+Beagle OS turns Proxmox into a management surface for a dedicated endpoint OS that boots either into a Moonlight/Sunshine desktop session or into an integrated GeForce NOW gaming kiosk.
 
 ## Typical Flow
 ```mermaid
@@ -48,13 +60,15 @@ flowchart LR
     PVE[Proxmox with Beagle Integration]
     VM[Target VM with Sunshine]
     Artifact[Beagle Installer or Image]
-    Client[Beagle OS Endpoint with Moonlight]
+    Desktop[Beagle OS Desktop Mode with Moonlight]
+    Gaming[Beagle OS Gaming Kiosk with GeForce NOW]
 
     Admin --> PVE
     PVE --> VM
     PVE --> Artifact
-    Artifact --> Client
-    Client --> VM
+    Artifact --> Desktop
+    Artifact --> Gaming
+    Desktop --> VM
 ```
 
 ---
@@ -66,7 +80,7 @@ Beagle OS consists of two interconnected layers:
 1. **Beagle Control Plane on Proxmox**
 2. **Beagle OS as a Thin-Client Operating System**
 
-The Control Plane attaches directly to Proxmox and turns VMs into manageable streaming targets. The OS boots on thin clients, mini PCs, or USB media and launches Moonlight directly against the assigned VM.
+The Control Plane attaches directly to Proxmox and turns VMs into manageable streaming targets. The OS boots on thin clients, mini PCs, or USB media and starts either the desktop streaming path or the gaming kiosk path.
 
 The result is not a classic "remote desktop toolkit" but a managed endpoint solution:
 
@@ -75,6 +89,7 @@ The result is not a classic "remote desktop toolkit" but a managed endpoint solu
 - Preconfigured streaming targets per VM
 - Reproducible client images
 - Dedicated thin-client endpoints instead of general-purpose Linux desktops
+- Separate boot paths for desktop streaming and gaming kiosk usage
 - Operational model for fleets of clients with a uniform target image
 - Device diagnostics and support bundles built into the endpoint OS
 - Preparable Moonlight client identities for reproducible Sunshine pairing
@@ -96,7 +111,8 @@ In short:
 
 - `Open endpoint management model`
 - `Proxmox-native orchestration`
-- `Moonlight/Sunshine as the sole streaming stack`
+- `Moonlight/Sunshine for desktop streaming`
+- `Integrated GeForce NOW kiosk for gaming`
 
 ---
 
@@ -143,10 +159,10 @@ The Beagle Fleet modal is also the operator surface for managed desktop profiles
 The operational workflow is intentionally simple:
 
 1. Install the Beagle integration on the Proxmox host.
-2. Prepare a VM as a Sunshine stream target.
-3. Bind the target parameters to the VM in Proxmox.
+2. Prepare a VM as a Sunshine stream target for desktop mode or use the gaming image path for kiosk mode.
+3. Bind the target parameters to the VM in Proxmox when desktop streaming is required.
 4. Roll out a Beagle OS installer or image.
-5. Boot the client — it streams directly against its assigned VM.
+5. Boot the client into either `Beagle OS Desktop` or `Beagle OS Gaming`.
 
 ### Preferred Operator Path per VM
 
@@ -203,6 +219,7 @@ Key points:
 - Custom kernel package path (`-beagle`)
 - Bootable images for testing, rollout, and VM operation
 - Runtime for network, autostart, and Moonlight session launch
+- Separate gaming session path with Beagle kiosk and GeForce NOW runtime
 - Runtime for secure USB export via `usbip` and reverse SSH tunnel
 
 ### 3. VM-Bound Provisioning
@@ -217,16 +234,18 @@ Provisioning is VM-centric rather than user-centric. A specific VM in Proxmox is
 
 ---
 
-## Why Only Moonlight and Sunshine
+## Why the Runtime Paths Stay Narrow
 
 This is an architectural decision, not a marketing statement.
 
-Supporting multiple protocols sounds flexible but makes the product harder to test, operationally messier, and harder to reason about. Beagle OS follows a single, clear standard path:
+Supporting arbitrary protocols and generic desktop shells sounds flexible but makes the product harder to test, operationally messier, and harder to reason about. Beagle OS therefore keeps the runtime paths intentionally narrow:
 
-- One streaming protocol
-- One client
-- One server
-- One provisioning model
+- Desktop mode:
+  - `Moonlight` on the endpoint
+  - `Sunshine` inside the VM
+- Gaming mode:
+  - Beagle gaming kiosk as the primary shell
+  - `GeForce NOW` launched from and returned to the kiosk
 
 This brings concrete advantages:
 
@@ -267,6 +286,8 @@ The USB path remains internet-capable without exposing a raw, public USBIP attac
 - **Fleet Desktop Catalog:** Managed Beagle desktop VMs can now be provisioned and edited with selectable desktop environments such as `XFCE`, `GNOME`, `KDE Plasma`, `MATE`, and `LXQt`.
 - **Software Presets:** The Fleet Manager now supports named software presets plus extra APT packages during both initial provisioning and later edits.
 - **In-Place Guest Reconfiguration:** Existing managed desktop VMs can change locale, keyboard layout, desktop session, and packages without being rebuilt from scratch.
+- **Gaming Boot Path:** Beagle OS now ships a dedicated `Beagle OS Gaming` boot mode with a closed-source kiosk and GeForce NOW integration.
+- **VM-Specific USB Installers:** The installer path now supports explicit target-disk selection and VM-bound preset media for reproducible endpoint installs.
 
 ---
 
@@ -281,6 +302,9 @@ This repository builds the required components:
 - Secure USB device passthrough from endpoint to target VM
 - Beagle OS image build
 - Sunshine guest configuration for target VMs
+- Public kiosk installer and release wrapper files
+
+This repository does **not** contain the Electron kiosk source itself.
 
 ---
 
@@ -305,8 +329,9 @@ The direction for this repository is unambiguous:
 
 - Beagle OS is built as its own endpoint OS
 - Beagle integrates directly into Proxmox
-- Beagle uses exclusively Moonlight on the client side
-- Streamed VMs use Sunshine
+- Beagle uses Moonlight/Sunshine for desktop mode
+- Beagle uses the integrated closed-source gaming kiosk for gaming mode
+- Streamed desktop VMs use Sunshine
 - The Proxmox host takes on the management and provisioning role
 
 Everything else is secondary.

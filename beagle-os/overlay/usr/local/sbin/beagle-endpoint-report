@@ -86,6 +86,11 @@ identity_chrome_profile="${BEAGLE_ENDPOINT_IDENTITY_CHROME_PROFILE:-${PVE_THIN_C
 launch_status_file="$(find_launch_status_file || true)"
 timestamp="$(date -Iseconds)"
 
+if declare -F beagle_streaming_session_active >/dev/null 2>&1 && beagle_streaming_session_active; then
+  write_status_file "$timestamp" "$manager_url" "skipped-streaming" "LOCAL" "" "suppressed while GeForce NOW is active"
+  exit 0
+fi
+
 if [[ -z "$manager_url" || -z "$manager_token" || -z "$vmid" || -z "$node" ]]; then
   write_status_file "$timestamp" "$manager_url" "skipped" "UNSET" "" "missing manager endpoint configuration"
   exit 0

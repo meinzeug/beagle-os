@@ -642,6 +642,9 @@ apt-get install -y \
   lightdm-gtk-greeter \
   curl \
   ca-certificates \
+  pipewire \
+  pipewire-pulse \
+  wireplumber \
   pulseaudio-utils \
   xdg-utils \
   usbutils
@@ -750,7 +753,7 @@ Environment=XAUTHORITY=/home/\$GUEST_USER/.Xauthority
 Environment=XDG_RUNTIME_DIR=/run/user/\$GUEST_UID
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$GUEST_UID/bus
 Environment=PULSE_SERVER=unix:/run/user/\$GUEST_UID/pulse/native
-ExecStartPre=/bin/bash -lc 'for _ in {1..120}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/\$GUEST_USER/.Xauthority ]] && DISPLAY=:0 XAUTHORITY=/home/\$GUEST_USER/.Xauthority xset q >/dev/null 2>&1; then exit 0; fi; sleep 1; done; echo "Timed out waiting for an active X11 session on :0" >&2; exit 1'
+ExecStartPre=/bin/bash -lc 'pulse_socket="/run/user/\$GUEST_UID/pulse/native"; for _ in {1..180}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/\$GUEST_USER/.Xauthority && -d /run/user/\$GUEST_UID && -S /run/user/\$GUEST_UID/bus && -S "\\\$pulse_socket" ]] && DISPLAY=:0 XAUTHORITY=/home/\$GUEST_USER/.Xauthority xrandr --query >/dev/null 2>&1 && DISPLAY=:0 XAUTHORITY=/home/\$GUEST_USER/.Xauthority xrandr --query | grep -q " connected"; then sleep 5; exit 0; fi; sleep 1; done; echo "Timed out waiting for an active graphical/audio session on :0" >&2; exit 1'
 ExecStart=/usr/bin/sunshine
 Restart=always
 RestartSec=2
@@ -772,6 +775,14 @@ systemctl set-default graphical.target >/dev/null
 
 su - "\$GUEST_USER" -c "HOME=/home/\$GUEST_USER XDG_CONFIG_HOME=/home/\$GUEST_USER/.config sunshine --creds '\$SUNSHINE_USER' '\$SUNSHINE_PASSWORD'"
 systemctl restart display-manager.service >/dev/null 2>&1 || true
+loginctl enable-linger "\$GUEST_USER" >/dev/null 2>&1 || true
+for _ in {1..60}; do
+  if systemctl --user -M "\$GUEST_USER@" show basic.target >/dev/null 2>&1; then
+    systemctl --user -M "\$GUEST_USER@" enable --now pipewire.service pipewire-pulse.service wireplumber.service >/dev/null 2>&1 || true
+    break
+  fi
+  sleep 1
+done
 systemctl enable --now beagle-sunshine.service >/dev/null 2>&1 || true
 EOF
 )"

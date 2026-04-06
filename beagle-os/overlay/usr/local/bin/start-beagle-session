@@ -52,6 +52,11 @@ if [ -f /etc/pve-thin-client/thinclient.conf ]; then
 fi
 
 if [ "${PVE_THIN_CLIENT_AUTOSTART:-0}" = "1" ]; then
+  if [ -x /usr/local/bin/pve-thin-client-audio-init ]; then
+    /usr/local/bin/pve-thin-client-audio-init >"$LOG_DIR/audio-init.log" 2>&1 || true
+    pkill -f '^bash /usr/local/bin/pve-thin-client-audio-init --watch' >/dev/null 2>&1 || true
+    /usr/local/bin/pve-thin-client-audio-init --watch "${PVE_THIN_CLIENT_AUDIO_WATCH_LOOPS:-0}" >"$LOG_DIR/audio-watch.log" 2>&1 &
+  fi
   exec /usr/local/lib/pve-thin-client/runtime/launch-session.sh >>"$RUNTIME_LOG" 2>&1
 fi
 

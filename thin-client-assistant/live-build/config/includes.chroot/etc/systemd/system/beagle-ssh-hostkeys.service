@@ -1,0 +1,10 @@
+[Unit]
+Description=Prepare persistent SSH host keys for Beagle OS
+DefaultDependencies=no
+After=local-fs.target
+Before=ssh.service
+ConditionPathExists=/usr/bin/ssh-keygen
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/beagle-ssh-hostkeys-prepare

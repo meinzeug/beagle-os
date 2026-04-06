@@ -12,6 +12,9 @@ LOG_SESSION_ID="${PVE_THIN_CLIENT_LOG_SESSION_ID:-${BOOT_STAMP}-installer-menu}"
 LOG_ROOT="${PVE_THIN_CLIENT_LOG_ROOT:-/tmp/pve-thin-client-logs}"
 LOG_DIR="${PVE_THIN_CLIENT_LOG_DIR:-$LOG_ROOT/$LOG_SESSION_ID}"
 LOG_FILE="$LOG_DIR/live-menu.log"
+LOG_PERSIST_DIR=""
+TEMP_LOG_PERSIST_MOUNT=""
+LOG_SYNC_IN_PROGRESS=0
 LOGIN_STATE_FILE="/run/pve-thin-client/proxmox-login.env"
 NETWORK_STATE_FILE="/run/pve-thin-client/installer-network.env"
 RUNTIME_NETWORK_DIR="/run/systemd/network"
@@ -29,14 +32,38 @@ BUNDLED_PRESET_MODE=0
 AUTO_INSTALL_ACTIVE=0
 AUTO_INSTALL_LOCK_HELD=0
 AUTO_INSTALL_LOCK_FD=""
+AUTO_INSTALL_LOCK_SKIPPED=0
+LAST_INSTALL_EXIT_CODE=0
 
 have_passwordless_sudo() {
   [[ "${EUID}" -eq 0 ]] || (command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1)
 }
 
+privileged_run() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    "$@"
+    return
+  fi
+
+  if have_passwordless_sudo; then
+    sudo -n "$@"
+    return
+  fi
+
+  return 1
+}
+
 cleanup() {
   if [[ "$AUTO_INSTALL_LOCK_HELD" == "1" && -n "$AUTO_INSTALL_LOCK_FD" ]]; then
     eval "exec ${AUTO_INSTALL_LOCK_FD}>&-"
+  fi
+  if [[ -n "$TEMP_LOG_PERSIST_MOUNT" ]]; then
+    if [[ "${EUID}" -eq 0 ]]; then
+      umount "$TEMP_LOG_PERSIST_MOUNT" >/dev/null 2>&1 || true
+    else
+      sudo -n umount "$TEMP_LOG_PERSIST_MOUNT" >/dev/null 2>&1 || true
+    fi
+    rmdir "$TEMP_LOG_PERSIST_MOUNT" >/dev/null 2>&1 || true
   fi
   if [[ -n "$TEMP_LIVE_MEDIUM_MOUNT" ]]; then
     if [[ "${EUID}" -eq 0 ]]; then
@@ -59,6 +86,145 @@ setup_logging() {
     printf 'LOG_DIR=%s\n' "$LOG_DIR"
     printf 'DATE=%s\n' "$(date -Is 2>/dev/null || date)"
   } >"$LOG_DIR/session.env" 2>/dev/null || true
+}
+
+running_from_live_environment() {
+  if [[ -d /run/live/medium || -d /lib/live/mount/medium ]]; then
+    return 0
+  fi
+
+  if [[ -r /proc/cmdline ]]; then
+    grep -Eq '(^| )boot=live( |$)|(^| )pve_thin_client\.mode=installer( |$)' /proc/cmdline 2>/dev/null
+    return $?
+  fi
+
+  return 1
+}
+
+installer_ui_is_text() {
+  if [[ "${PVE_THIN_CLIENT_INSTALLER_UI:-}" == "text" ]]; then
+    return 0
+  fi
+
+  if [[ -r /proc/cmdline ]]; then
+    grep -Eq '(^| )pve_thin_client\.installer_ui=text( |$)' /proc/cmdline 2>/dev/null
+    return $?
+  fi
+
+  return 1
+}
+
+sanitize_log_session_id() {
+  local raw="${LOG_SESSION_ID:-$(basename "$LOG_DIR")}"
+  raw="${raw//[^A-Za-z0-9._-]/_}"
+  [[ -n "$raw" ]] || raw="installer"
+  printf '%s\n' "$raw"
+}
+
+candidate_live_devices() {
+  local token value
+
+  if [[ -r /proc/cmdline ]]; then
+    for token in $(< /proc/cmdline); do
+      case "$token" in
+        live-media=*)
+          value="${token#live-media=}"
+          case "$value" in
+            /dev/*)
+              printf '%s\n' "$value"
+              ;;
+            UUID=*)
+              blkid -U "${value#UUID=}" 2>/dev/null || true
+              ;;
+            LABEL=*)
+              blkid -L "${value#LABEL=}" 2>/dev/null || true
+              ;;
+          esac
+          ;;
+      esac
+    done
+  fi
+
+  blkid -L BEAGLEOS 2>/dev/null || blkid -L PVETHIN 2>/dev/null || true
+  lsblk -lnpo PATH,TYPE,FSTYPE,LABEL,RM,TRAN 2>/dev/null | awk '
+    $2 == "part" {
+      if ($4 == "BEAGLEOS" || $4 == "PVETHIN" || $5 == "1" || $6 == "usb") {
+        print $1
+      }
+    }
+  '
+}
+
+mount_writable_live_medium_for_logs() {
+  local device mount_dir
+
+  while IFS= read -r device; do
+    [[ -n "$device" ]] || continue
+    [[ -b "$device" ]] || continue
+    mount_dir="$(mktemp -d /tmp/pve-live-logs.XXXXXX)"
+    if [[ "${EUID}" -eq 0 ]]; then
+      if mount -o rw "$device" "$mount_dir" >/dev/null 2>&1; then
+        if [[ -d "$mount_dir/pve-thin-client" ]]; then
+          TEMP_LOG_PERSIST_MOUNT="$mount_dir"
+          printf '%s\n' "$mount_dir"
+          return 0
+        fi
+        umount "$mount_dir" >/dev/null 2>&1 || true
+      fi
+    elif command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+      if sudo -n mount -o rw "$device" "$mount_dir" >/dev/null 2>&1; then
+        if [[ -d "$mount_dir/pve-thin-client" ]]; then
+          TEMP_LOG_PERSIST_MOUNT="$mount_dir"
+          printf '%s\n' "$mount_dir"
+          return 0
+        fi
+        sudo -n umount "$mount_dir" >/dev/null 2>&1 || true
+      fi
+    fi
+    rmdir "$mount_dir" >/dev/null 2>&1 || true
+  done < <(candidate_live_devices | awk 'NF && !seen[$0]++')
+
+  return 1
+}
+
+persist_logs_to_medium() {
+  local persist_root=""
+  local session_dir=""
+  local persist_parent=""
+
+  if ! running_from_live_environment; then
+    return 0
+  fi
+
+  if [[ -d "$LIVE_MEDIUM_DEFAULT/pve-thin-client" ]]; then
+    if [[ -w "$LIVE_MEDIUM_DEFAULT/pve-thin-client" ]]; then
+      persist_root="$LIVE_MEDIUM_DEFAULT"
+    elif mountpoint -q "$LIVE_MEDIUM_DEFAULT"; then
+      privileged_run mount -o remount,rw "$LIVE_MEDIUM_DEFAULT" >/dev/null 2>&1 || \
+        privileged_run mount -o remount,rw "$(findmnt -n -o SOURCE "$LIVE_MEDIUM_DEFAULT" 2>/dev/null || true)" "$LIVE_MEDIUM_DEFAULT" >/dev/null 2>&1 || true
+      if [[ -w "$LIVE_MEDIUM_DEFAULT/pve-thin-client" ]]; then
+        persist_root="$LIVE_MEDIUM_DEFAULT"
+      fi
+    fi
+  else
+    persist_root="$(mount_writable_live_medium_for_logs || true)"
+  fi
+
+  [[ -n "$persist_root" ]] || return 0
+
+  session_dir="$(sanitize_log_session_id)"
+  persist_parent="$persist_root/pve-thin-client/logs"
+  mkdir -p "$persist_parent/$session_dir" >/dev/null 2>&1 || return 0
+  LOG_PERSIST_DIR="$persist_parent/$session_dir"
+  cp -a "$LOG_DIR/." "$LOG_PERSIST_DIR/" 2>/dev/null || true
+  printf '%s\n' "$session_dir" >"$persist_parent/LATEST.txt" 2>/dev/null || true
+}
+
+sync_logs_to_medium() {
+  [[ "$LOG_SYNC_IN_PROGRESS" == "1" ]] && return 0
+  LOG_SYNC_IN_PROGRESS=1
+  persist_logs_to_medium >/dev/null 2>&1 || true
+  LOG_SYNC_IN_PROGRESS=0
 }
 
 log_msg() {
@@ -112,7 +278,7 @@ detect_tty_path() {
 TTY_PATH="$(detect_tty_path || true)"
 
 have_tui_dialog() {
-  [[ -n "$TTY_PATH" ]] && command -v whiptail >/dev/null 2>&1
+  [[ -n "$TTY_PATH" ]] && command -v whiptail >/dev/null 2>&1 && ! installer_ui_is_text
 }
 
 run_whiptail() {
@@ -692,7 +858,7 @@ candidate_live_devices() {
   blkid -L BEAGLEOS 2>/dev/null || blkid -L PVETHIN 2>/dev/null || true
   lsblk -lnpo PATH,TYPE,FSTYPE,LABEL,RM,TRAN 2>/dev/null | awk '
     $2 == "part" {
-      if ($4 == "BEAGLEOS" || $4 == "PVETHIN" || $3 == "vfat" || $5 == "1" || $6 == "usb") {
+      if ($4 == "BEAGLEOS" || $4 == "PVETHIN" || $5 == "1" || $6 == "usb") {
         print $1
       }
     }
@@ -832,7 +998,7 @@ run_installer_command() {
 run_installer_as_root() {
   if [[ "${EUID}" -eq 0 ]]; then
     run_installer_command "$@"
-    return 0
+    return $?
   fi
 
   if have_passwordless_sudo; then
@@ -840,7 +1006,7 @@ run_installer_as_root() {
       PVE_THIN_CLIENT_LOG_DIR="$LOG_DIR" \
       PVE_THIN_CLIENT_LOG_SESSION_ID="${PVE_THIN_CLIENT_LOG_SESSION_ID:-$(basename "$LOG_DIR")}" \
       "$INSTALLER" "$@"
-    return 0
+    return $?
   fi
 
   dialog_msgbox "Missing Privileges" "Passwordless sudo is required for disk installation in the live environment."
@@ -894,32 +1060,42 @@ raise SystemExit(0 if payload.get("preset_active") else 1)
 PY
 }
 
-install_from_bundled_preset_auto() {
+install_from_bundled_preset() {
+  AUTO_INSTALL_LOCK_SKIPPED=0
+  LAST_INSTALL_EXIT_CODE=0
+
   if ! has_bundled_preset; then
+    LAST_INSTALL_EXIT_CODE=1
     return 1
   fi
 
   if ! have_passwordless_sudo; then
-    dialog_msgbox "Missing Privileges" "Passwordless sudo is required for automatic disk installation."
+    dialog_msgbox "Missing Privileges" "Passwordless sudo is required for preset-based disk installation."
+    LAST_INSTALL_EXIT_CODE=1
     return 1
   fi
 
   if ! acquire_auto_install_lock; then
     log_msg "bundled preset detected, but another auto install instance already holds the lock"
-    dialog_msgbox "Auto Install Running" "Another installer session is already running the automatic installation."
-    return 0
+    log_msg "auto install runner is passive because another session already owns the lock"
+    AUTO_INSTALL_LOCK_SKIPPED=1
+    LAST_INSTALL_EXIT_CODE=1
+    return 1
   fi
 
-  log_msg "bundled preset detected, starting auto install"
-  AUTO_INSTALL_ACTIVE=1
+  log_msg "bundled preset detected, starting fully interactive preset-based install"
+  AUTO_INSTALL_ACTIVE=0
   run_installer_as_root --cache-bundled-preset >/dev/null 2>&1 || true
-  run_installer_as_root --auto-install --yes
+  set +e
+  run_installer_as_root
+  LAST_INSTALL_EXIT_CODE=$?
+  set -e
+  sync_logs_to_medium
+  return "$LAST_INSTALL_EXIT_CODE"
 }
 
 reboot_after_successful_install() {
-  if [[ "$AUTO_INSTALL_ACTIVE" != "1" && "${BUNDLED_PRESET_MODE:-0}" != "1" ]] && ! has_bundled_preset; then
-    dialog_msgbox "Installation Complete" "Installation is complete. Remove the USB stick now. The system will reboot."
-  fi
+  dialog_msgbox "Installation Complete" "Installation is complete. Remove the USB stick now. Press OK or ENTER to reboot."
   if [[ "${EUID}" -eq 0 ]]; then
     exec reboot
   fi
@@ -1082,15 +1258,18 @@ install_manual_profile() {
 
 main_menu() {
   local answer=""
+  local action_label="Retry preset detection + install"
   if have_tui_dialog; then
-    local menu_text="Automatic installer mode (bundled VM preset)."
+    local menu_text="Bundled VM preset detected. The profile is preloaded, but you must choose the target disk before installation starts."
     if [[ "$BUNDLED_PRESET_MODE" != "1" ]]; then
       menu_text="No bundled VM preset found. Re-plug USB stick or recreate it with a VM-specific installer package."
+    else
+      action_label="Start preset installation"
     fi
     run_whiptail \
       --title "Beagle OS Installer" \
       --menu "$menu_text" 20 90 8 \
-      "1" "Retry preset detection + auto install" \
+      "1" "$action_label" \
       "2" "Set up network" \
       "3" "Show current preset" \
       "4" "Open shell" \
@@ -1103,11 +1282,12 @@ main_menu() {
   {
     printf '\n[Beagle OS Installer]\n'
     if [[ "$BUNDLED_PRESET_MODE" == "1" ]]; then
-      printf 'Automatic installer mode (bundled VM preset).\n'
+      printf 'Bundled VM preset detected. The profile is preloaded, but you must choose the target disk before installation starts.\n'
+      action_label="Start preset installation"
     else
       printf 'No bundled VM preset found. Recreate the USB stick with a VM-specific installer package.\n'
     fi
-    printf '1) Retry preset detection + auto install\n'
+    printf '1) %s\n' "$action_label"
     printf '2) Set up network\n'
     printf '3) Show current preset\n'
     printf '4) Open shell\n'
@@ -1124,22 +1304,26 @@ log_msg "starting live menu"
 
 if has_bundled_preset; then
   BUNDLED_PRESET_MODE=1
-  if install_from_bundled_preset_auto; then
-    reboot_after_successful_install
-  fi
-  dialog_msgbox "Automatic Install Failed" "Automatic install from the bundled VM preset failed. Use 'Retry automatic install' or open a shell and inspect logs under /tmp/pve-thin-client-logs."
+  log_msg "bundled preset detected; waiting for operator confirmation before installation"
 fi
 
 while true; do
   choice="$(main_menu || true)"
+  log_msg "main menu selection: ${choice:-<empty>}"
   case "$choice" in
     1)
       if has_bundled_preset; then
         BUNDLED_PRESET_MODE=1
-        if install_from_bundled_preset_auto; then
+        if install_from_bundled_preset; then
           reboot_after_successful_install
+        elif [[ "$LAST_INSTALL_EXIT_CODE" == "130" ]]; then
+          log_msg "preset-based installation was cancelled by the operator"
+        elif [[ "$AUTO_INSTALL_LOCK_SKIPPED" != "1" ]]; then
+          detail=""
+          detail="$(tail -n 20 "$LOG_DIR/local-installer.log" 2>/dev/null | tr -d '\r' || true)"
+          [[ -n "$detail" ]] || detail="Preset-based installation failed. Check logs on the USB stick under pve-thin-client/logs."
+          dialog_msgbox "Preset Install Failed" "$detail"
         fi
-        dialog_msgbox "Automatic Install Failed" "Automatic install failed. Check logs under /tmp/pve-thin-client-logs."
       else
         BUNDLED_PRESET_MODE=0
         dialog_msgbox "No Bundled Preset Found" "No bundled VM preset is available on this USB stick. Recreate the stick from the VM-specific installer package."

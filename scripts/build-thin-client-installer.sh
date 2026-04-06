@@ -366,15 +366,28 @@ EOF
 cleanup_stale_build_mounts() {
   local mount_root="$BUILD_DIR/chroot"
   local mountpoint=""
+  local -a mountpoints=()
 
-  if ! command -v findmnt >/dev/null 2>&1; then
-    return 0
+  if command -v findmnt >/dev/null 2>&1; then
+    while IFS= read -r mountpoint; do
+      [[ -n "$mountpoint" ]] || continue
+      mountpoints+=("$mountpoint")
+    done < <(findmnt -rn -R -o TARGET "$mount_root" 2>/dev/null | awk 'length($0) > 0' | sort -r)
   fi
 
   while IFS= read -r mountpoint; do
     [[ -n "$mountpoint" ]] || continue
+    mountpoints+=("$mountpoint")
+  done < <(awk -v root="$mount_root" '$5 ~ ("^" root "(/.*)?$") { print $5 }' /proc/self/mountinfo 2>/dev/null | sort -r)
+
+  if [[ "${#mountpoints[@]}" -eq 0 ]]; then
+    return 0
+  fi
+
+  printf '%s\n' "${mountpoints[@]}" | awk '!seen[$0]++' | while IFS= read -r mountpoint; do
+    [[ -n "$mountpoint" ]] || continue
     umount -lf "$mountpoint" >/dev/null 2>&1 || true
-  done < <(findmnt -rn -R -o TARGET "$mount_root" 2>/dev/null | awk 'length($0) > 0' | sort -r)
+  done
 }
 
 cleanup_stale_build_mounts

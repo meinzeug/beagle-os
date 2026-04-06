@@ -85,9 +85,14 @@ capture_command os-release cat /etc/os-release
 capture_command ip-address ip -br addr
 capture_command ip-route ip route
 capture_command systemd-failed systemctl --failed --no-pager
-capture_command beagle-status /usr/local/bin/beagle-status
+if [[ -x /usr/local/bin/beagle-status ]]; then
+  capture_command beagle-status /usr/local/bin/beagle-status
+elif [[ -x /usr/local/bin/pve-thin-client-status ]]; then
+  capture_command beagle-status /usr/local/bin/pve-thin-client-status
+fi
 capture_command journal-beagle-firstboot journalctl -u beagle-firstboot.service -b --no-pager
 capture_command journal-beagle-autologin journalctl -u beagle-autologin.service -b --no-pager
+capture_command journal-beagle-kiosk journalctl -u beagle-kiosk.service -b --no-pager
 capture_command journal-beagle-healthcheck journalctl -u beagle-healthcheck.service -b --no-pager
 capture_command journal-beagle-endpoint-report journalctl -u beagle-endpoint-report.service -b --no-pager
 capture_command journal-beagle-endpoint-dispatch journalctl -u beagle-endpoint-dispatch.service -b --no-pager

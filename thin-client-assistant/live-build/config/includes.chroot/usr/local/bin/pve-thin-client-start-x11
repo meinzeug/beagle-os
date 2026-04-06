@@ -17,6 +17,8 @@ trace_event() {
 
 setup_logging() {
   for candidate in \
+    "${PVE_THIN_CLIENT_PERSISTENT_LOG_ROOT:-/pve-thin-client/state/logs}" \
+    "/run/live/medium/pve-thin-client/state/logs" \
     "${LOG_DIR}" \
     "/tmp/pve-thin-client-logs" \
     "${XDG_RUNTIME_DIR:-/run/user/1000}/pve-thin-client" \

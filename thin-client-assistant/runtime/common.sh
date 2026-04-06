@@ -25,6 +25,53 @@ beagle_last_marker_file() {
   printf '%s\n' "${BEAGLE_LAST_MARKER_FILE:-$state_dir/last-marker.env}"
 }
 
+runtime_user_uid() {
+  local user uid_entry
+
+  user="$(runtime_user_name)"
+  uid_entry="$(id -u "$user" 2>/dev/null || true)"
+  if [[ -n "$uid_entry" ]]; then
+    printf '%s\n' "$uid_entry"
+    return 0
+  fi
+
+  printf '%s\n' "1000"
+}
+
+beagle_stream_state_dir() {
+  local uid candidate
+
+  uid="$(runtime_user_uid)"
+  for candidate in \
+    "${XDG_RUNTIME_DIR:-}" \
+    "/run/user/$uid" \
+    "$(beagle_state_dir)"
+  do
+    [[ -n "$candidate" ]] || continue
+    case "$candidate" in
+      /run/user/*)
+        printf '%s/beagle-os\n' "$candidate"
+        ;;
+      *)
+        printf '%s\n' "$candidate"
+        ;;
+    esac
+    return 0
+  done
+}
+
+beagle_stream_session_file() {
+  printf '%s/streaming-session.env\n' "$(beagle_stream_state_dir)"
+}
+
+beagle_stream_suspended_units_file() {
+  printf '%s/streaming-suspended-units.list\n' "$(beagle_stream_state_dir)"
+}
+
+beagle_stream_suspended_pids_file() {
+  printf '%s/streaming-suspended-pids.list\n' "$(beagle_stream_state_dir)"
+}
+
 ensure_beagle_state_dir() {
   local state_dir candidate
   state_dir="$(beagle_state_dir)"
@@ -42,6 +89,13 @@ ensure_beagle_state_dir() {
       return 0
     fi
   done
+}
+
+ensure_beagle_stream_state_dir() {
+  local dir
+  dir="$(beagle_stream_state_dir)"
+  [[ -n "$dir" ]] || return 1
+  mkdir -p "$dir" >/dev/null 2>&1 || return 1
 }
 
 beagle_log_event() {
@@ -65,6 +119,216 @@ beagle_log_event() {
   if command -v logger >/dev/null 2>&1; then
     logger -t beagle-runtime "phase=$phase $message" >/dev/null 2>&1 || true
   fi
+}
+
+beagle_run_privileged() {
+  if [[ "$(id -u)" == "0" ]]; then
+    "$@"
+    return $?
+  fi
+
+  if command -v sudo >/dev/null 2>&1; then
+    sudo -n "$@"
+    return $?
+  fi
+
+  return 1
+}
+
+beagle_unit_file_present() {
+  local unit="${1:-}"
+  [[ -n "$unit" ]] || return 1
+  systemctl list-unit-files --full --no-legend "$unit" 2>/dev/null | awk '{print $1}' | grep -Fxq "$unit"
+}
+
+beagle_streaming_session_active() {
+  local state_file
+
+  state_file="$(beagle_stream_session_file)"
+  if [[ -r "$state_file" ]] && grep -Eq '^active=1$' "$state_file"; then
+    return 0
+  fi
+
+  pgrep -x GeForceNOW >/dev/null 2>&1 && return 0
+  pgrep -f '/app/bin/GeForceNOW' >/dev/null 2>&1 && return 0
+  return 1
+}
+
+beagle_mark_streaming_session() {
+  local active="${1:-0}"
+  local reason="${2:-}"
+  local state_file temp_file timestamp
+
+  ensure_beagle_stream_state_dir || return 0
+  state_file="$(beagle_stream_session_file)"
+  temp_file="${state_file}.$$"
+  timestamp="$(date -Iseconds 2>/dev/null || date)"
+
+  {
+    printf 'active=%s\n' "$active"
+    printf 'timestamp=%q\n' "$timestamp"
+    printf 'reason=%q\n' "$reason"
+    printf 'user=%q\n' "$(runtime_user_name)"
+    printf 'pid=%q\n' "$$"
+  } >"$temp_file" 2>/dev/null || return 0
+
+  mv -f "$temp_file" "$state_file" >/dev/null 2>&1 || true
+}
+
+beagle_management_timer_units() {
+  cat <<'EOF'
+beagle-endpoint-report.timer
+beagle-endpoint-dispatch.timer
+beagle-runtime-heartbeat.timer
+beagle-healthcheck.timer
+beagle-update-scan.timer
+beagle-kiosk-update-catalog.timer
+EOF
+}
+
+beagle_management_service_units() {
+  cat <<'EOF'
+beagle-endpoint-report.service
+beagle-endpoint-dispatch.service
+beagle-runtime-heartbeat.service
+beagle-healthcheck.service
+beagle-update-scan.service
+beagle-kiosk-update-catalog.service
+EOF
+}
+
+beagle_suspend_management_activity() {
+  local units_file unit active_state
+
+  ensure_beagle_stream_state_dir || return 0
+  units_file="$(beagle_stream_suspended_units_file)"
+  : >"$units_file" 2>/dev/null || true
+  beagle_mark_streaming_session 1 "gfn-stream"
+
+  while IFS= read -r unit; do
+    [[ -n "$unit" ]] || continue
+    beagle_unit_file_present "$unit" || continue
+    active_state="$(systemctl is-active "$unit" 2>/dev/null || true)"
+    case "$active_state" in
+      active|activating)
+        printf '%s\n' "$unit" >>"$units_file" 2>/dev/null || true
+        beagle_run_privileged systemctl stop --no-block "$unit" >/dev/null 2>&1 || true
+        ;;
+    esac
+  done < <(beagle_management_timer_units)
+
+  while IFS= read -r unit; do
+    [[ -n "$unit" ]] || continue
+    beagle_unit_file_present "$unit" || continue
+    active_state="$(systemctl is-active "$unit" 2>/dev/null || true)"
+    case "$active_state" in
+      active|activating)
+        beagle_run_privileged systemctl stop --no-block "$unit" >/dev/null 2>&1 || true
+        ;;
+    esac
+  done < <(beagle_management_service_units)
+
+  if [[ -f "$units_file" ]]; then
+    sort -u -o "$units_file" "$units_file" >/dev/null 2>&1 || true
+  fi
+  beagle_log_event "streaming.management-suspended" "timers_stopped=1"
+}
+
+beagle_resume_management_activity() {
+  local units_file unit
+
+  units_file="$(beagle_stream_suspended_units_file)"
+  if [[ -r "$units_file" ]]; then
+    while IFS= read -r unit; do
+      [[ -n "$unit" ]] || continue
+      beagle_unit_file_present "$unit" || continue
+      beagle_run_privileged systemctl start --no-block "$unit" >/dev/null 2>&1 || true
+    done <"$units_file"
+    rm -f "$units_file" >/dev/null 2>&1 || true
+  fi
+
+  beagle_mark_streaming_session 0 "gfn-stream-ended"
+  beagle_log_event "streaming.management-resumed" "timers_started=1"
+}
+
+beagle_kiosk_runtime_patterns() {
+  cat <<'EOF'
+/opt/beagle-kiosk/launch.sh
+/opt/beagle-kiosk/beagle-kiosk
+appimage_extracted_.*/beagle-kiosk
+--app-path=.*beagle-kiosk
+EOF
+}
+
+beagle_kiosk_runtime_running() {
+  local runtime_user pattern
+
+  runtime_user="$(runtime_user_name)"
+  while IFS= read -r pattern; do
+    [[ -n "$pattern" ]] || continue
+    if pgrep -u "$runtime_user" -f "$pattern" >/dev/null 2>&1; then
+      return 0
+    fi
+  done < <(beagle_kiosk_runtime_patterns)
+
+  return 1
+}
+
+beagle_close_kiosk_window_for_stream() {
+  local title timeout_cycles
+
+  title="${PVE_THIN_CLIENT_GFN_KIOSK_WINDOW_TITLE:-Beagle OS Gaming}"
+  timeout_cycles="${PVE_THIN_CLIENT_GFN_KIOSK_WINDOW_CLOSE_WAIT_CYCLES:-40}"
+
+  command -v wmctrl >/dev/null 2>&1 || return 1
+  DISPLAY="${DISPLAY:-:0}" wmctrl -c "$title" >/dev/null 2>&1 || return 1
+
+  while (( timeout_cycles > 0 )); do
+    if ! beagle_kiosk_runtime_running; then
+      return 0
+    fi
+    sleep 0.25
+    timeout_cycles=$((timeout_cycles - 1))
+  done
+
+  return 1
+}
+
+beagle_stop_kiosk_for_stream() {
+  local runtime_user pattern wait_cycles
+
+  runtime_user="$(runtime_user_name)"
+  wait_cycles="${PVE_THIN_CLIENT_GFN_KIOSK_STOP_WAIT_CYCLES:-40}"
+
+  beagle_log_event "streaming.kiosk-stop" "mode=requested user=${runtime_user}"
+
+  if beagle_close_kiosk_window_for_stream; then
+    beagle_log_event "streaming.kiosk-stop" "mode=graceful-close"
+    return 0
+  fi
+
+  beagle_log_event "streaming.kiosk-stop" "mode=fallback-hardkill"
+
+  while IFS= read -r pattern; do
+    [[ -n "$pattern" ]] || continue
+    pkill -TERM -u "$runtime_user" -f "$pattern" >/dev/null 2>&1 || true
+  done < <(beagle_kiosk_runtime_patterns)
+
+  while (( wait_cycles > 0 )); do
+    if ! beagle_kiosk_runtime_running; then
+      beagle_log_event "streaming.kiosk-stop" "mode=complete"
+      return 0
+    fi
+    sleep 0.25
+    wait_cycles=$((wait_cycles - 1))
+  done
+
+  while IFS= read -r pattern; do
+    [[ -n "$pattern" ]] || continue
+    pkill -KILL -u "$runtime_user" -f "$pattern" >/dev/null 2>&1 || true
+  done < <(beagle_kiosk_runtime_patterns)
+
+  beagle_log_event "streaming.kiosk-stop" "mode=forced"
 }
 
 beagle_curl_tls_args() {
@@ -209,20 +473,25 @@ apply_runtime_mode_overrides() {
 
   requested_mode="$(cmdline_var pve_thin_client.client_mode 2>/dev/null || true)"
   requested_mode="${requested_mode,,}"
+  PVE_THIN_CLIENT_CLIENT_MODE="${requested_mode:-${PVE_THIN_CLIENT_CLIENT_MODE:-}}"
 
   case "$requested_mode" in
     desktop|moonlight)
       PVE_THIN_CLIENT_MODE="MOONLIGHT"
       PVE_THIN_CLIENT_BOOT_PROFILE="desktop"
       ;;
-    gaming|gfn|geforcenow|geforce-now)
+    gaming|kiosk)
+      PVE_THIN_CLIENT_MODE="KIOSK"
+      PVE_THIN_CLIENT_BOOT_PROFILE="gaming"
+      ;;
+    gfn|geforcenow|geforce-now)
       PVE_THIN_CLIENT_MODE="GFN"
       PVE_THIN_CLIENT_BOOT_PROFILE="gaming"
       ;;
   esac
 
   case "${PVE_THIN_CLIENT_MODE:-MOONLIGHT}" in
-    GFN)
+    GFN|KIOSK)
       PVE_THIN_CLIENT_BOOT_PROFILE="${PVE_THIN_CLIENT_BOOT_PROFILE:-gaming}"
       ;;
     *)
@@ -237,6 +506,19 @@ runtime_user_name() {
 
 runtime_group_name() {
   printf '%s\n' "${PVE_THIN_CLIENT_RUNTIME_GROUP:-$(runtime_user_name)}"
+}
+
+runtime_user_home() {
+  local user home_entry
+
+  user="$(runtime_user_name)"
+  home_entry="$(getent passwd "$user" 2>/dev/null | awk -F: '{print $6}' | head -n 1 || true)"
+  if [[ -n "$home_entry" ]]; then
+    printf '%s\n' "$home_entry"
+    return 0
+  fi
+
+  printf '/home/%s\n' "$user"
 }
 
 live_medium_dir() {
@@ -260,6 +542,13 @@ ensure_runtime_owned_dir() {
   owner="$(runtime_user_name)"
   group="$(runtime_group_name)"
 
+  if [[ "$(id -u)" == "0" ]]; then
+    if install -d -m "$mode" -o "$owner" -g "$group" "$path" >/dev/null 2>&1 && touch "$path/.beagle-write-test" >/dev/null 2>&1; then
+      rm -f "$path/.beagle-write-test" >/dev/null 2>&1 || true
+      return 0
+    fi
+  fi
+
   if install -d -m "$mode" "$path" >/dev/null 2>&1 && touch "$path/.beagle-write-test" >/dev/null 2>&1; then
     rm -f "$path/.beagle-write-test" >/dev/null 2>&1 || true
     return 0
@@ -270,6 +559,75 @@ ensure_runtime_owned_dir() {
       rm -f "$path/.beagle-write-test" >/dev/null 2>&1 || true
       return 0
     fi
+  fi
+
+  return 1
+}
+
+ensure_runtime_owned_file() {
+  local path="${1:-}"
+  local mode="${2:-0644}"
+  local owner group parent
+
+  [[ -n "$path" ]] || return 1
+
+  owner="$(runtime_user_name)"
+  group="$(runtime_group_name)"
+  parent="$(dirname "$path")"
+
+  ensure_runtime_owned_dir "$parent" 0755 || return 1
+
+  if [[ -e "$path" ]]; then
+    if [[ "$(id -u)" == "0" ]]; then
+      chown "$owner:$group" "$path" >/dev/null 2>&1 || true
+      chmod "$mode" "$path" >/dev/null 2>&1 || true
+      [[ -w "$path" ]] && return 0
+    fi
+
+    if [[ -w "$path" ]]; then
+      chmod "$mode" "$path" >/dev/null 2>&1 || true
+      return 0
+    fi
+
+    if command -v sudo >/dev/null 2>&1 && sudo -n chown "$owner:$group" "$path" >/dev/null 2>&1 && sudo -n chmod "$mode" "$path" >/dev/null 2>&1; then
+      [[ -w "$path" ]] && return 0
+    fi
+  fi
+
+  if touch "$path" >/dev/null 2>&1; then
+    chmod "$mode" "$path" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  if [[ "$(id -u)" == "0" ]]; then
+    install -m "$mode" -o "$owner" -g "$group" /dev/null "$path" >/dev/null 2>&1
+    [[ -w "$path" ]] && return 0
+  fi
+
+  if command -v sudo >/dev/null 2>&1 && sudo -n install -m "$mode" -o "$owner" -g "$group" /dev/null "$path" >/dev/null 2>&1; then
+    [[ -w "$path" ]] && return 0
+  fi
+
+  return 1
+}
+
+ensure_runtime_owned_tree() {
+  local path="${1:-}"
+  local owner group
+
+  [[ -n "$path" ]] || return 1
+  [[ -e "$path" ]] || return 0
+
+  owner="$(runtime_user_name)"
+  group="$(runtime_group_name)"
+
+  if [[ "$(id -u)" == "0" ]]; then
+    chown -R "$owner:$group" "$path" >/dev/null 2>&1 || return 1
+    return 0
+  fi
+
+  if command -v sudo >/dev/null 2>&1 && sudo -n chown -R "$owner:$group" "$path" >/dev/null 2>&1; then
+    return 0
   fi
 
   return 1
@@ -307,6 +665,8 @@ prepare_geforcenow_environment() {
   do
     ensure_runtime_owned_dir "$dir" 0700 || return 1
   done
+
+  ensure_runtime_owned_tree "$storage_root" || true
 
   export PVE_THIN_CLIENT_GFN_STORAGE_ROOT="$storage_root"
   export PVE_THIN_CLIENT_GFN_RUNTIME_HOME="$runtime_home"

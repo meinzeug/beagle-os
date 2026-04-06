@@ -1,5 +1,169 @@
 # Changelog
 
+## v5.2.30 - 2026-04-06
+
+- Fixed the GeForce NOW handoff regression that could restart the full Gaming session shortly after GFN launched. The previous stream-optimization path terminated kiosk processes directly, which tore down the shared X11 session and caused `pve-thin-client-runtime.service` to restart on the real VM100 thinclient.
+- Changed the streaming handoff to close the kiosk gracefully through the window manager first, instead of hard-killing the Electron processes. During an active GFN session the kiosk now exits cleanly, the runtime stays alive, and the kiosk supervisor waits until the stream ends before relaunching the kiosk.
+- Added `wmctrl` to both the runtime image and the thin-client live-build package set so this graceful-close path is available after fresh installs and USB-based reinstalls as well.
+- Verified the new handoff live on `192.168.178.92`: `pve-thin-client-runtime.service` stayed `active`, GeForce NOW continued running, and the runtime trace recorded `phase=streaming.kiosk-stop mode=graceful-close` instead of the earlier crash/restart sequence.
+- Fixed the Beagle Fleet desktop-stream provisioning path for Ubuntu guest VMs. Newly configured Sunshine guests now install a real user-audio stack (`pipewire`, `pipewire-pulse`, `wireplumber`) instead of only `pulseaudio-utils`, enable those user services after LightDM autologin, and keep the Pulse socket available for Sunshine audio capture.
+- Hardened the generated `beagle-sunshine.service` so Sunshine no longer starts before the guest desktop and audio session are actually ready. The unit now waits for the X11 display, X authority, user DBus runtime, Pulse socket and a connected XRandR output before launching Sunshine.
+- Verified the VM100 fix live on the Proxmox side: Sunshine stopped reproducing the old `Unable to initialize capture method` failure, accepted real desktop streaming sessions from the thinclient again, and initialized audio capture with `sink-sunshine-stereo` plus `Opus initialized` instead of `Couldn't connect to pulseaudio`.
+- Fixed Moonlight audio routing on the thinclient runtime. Desktop sessions now prefer the local PipeWire/Pulse path instead of forcing SDL and ALSA straight onto a hard-coded hardware PCM, and the generated ALSA default now points back at PipeWire when the plugin is installed. This keeps Beagle Fleet desktop streams compatible with real output selection on fresh installs instead of silently sending audio to the wrong low-level device.
+
+## v5.2.29 - 2026-04-05
+
+- Reduced GeForce NOW stream interference from local Beagle background work. The runtime GeForce NOW launcher now enters a dedicated stream mode that stops Beagle management timers and the kiosk catalog timer while a primary GeForce NOW session is active, then restores them automatically after the client exits.
+- Changed the GeForce NOW runtime path to pause the kiosk sidecars themselves after handoff, instead of merely hiding the window. During active streaming the kiosk renderer and the interactive update monitor no longer keep consuming CPU in the background.
+- Hardened `beagle-endpoint-report`, `beagle-endpoint-dispatch` and `beagle-runtime-heartbeat` so they self-suppress when a GeForce NOW stream session is already active, which closes the race window if one of those timers fires just as the stream starts.
+- Verified the fix live on the real VM100 thinclient: timer units transitioned to `inactive` during the simulated stream mode and resumed afterward, while report/dispatch/heartbeat all wrote `skipped-streaming` status instead of doing normal work.
+
+## v5.2.28 - 2026-04-05
+
+- Fixed the Beagle OS Gaming boot path so fresh installs no longer stall before the kiosk appears. `beagle-kiosk-install --ensure` previously ran both the first-time GeForce NOW Flatpak installation and the initial `games.json` catalog refresh synchronously in the session startup path, which blocked `launch-session.sh` and left the screen sitting in openbox with no visible kiosk.
+- Changed the kiosk ensure flow to keep those heavyweight tasks asynchronous. The kiosk binary now starts immediately after install, while GeForce NOW preparation and catalog refresh continue in the background and write to `/opt/beagle-kiosk/logs/gfn-install.log` and `/opt/beagle-kiosk/logs/catalog-refresh.log`.
+- Verified the fix live on the real VM100 thinclient: after replacing the boot-time `beagle-kiosk-install`, killing the stuck synchronous installer, and letting the session resume, the Gaming boot started `/opt/beagle-kiosk/beagle-kiosk` successfully under X11 again.
+
+## v5.2.27 - 2026-04-05
+
+- Fixed the Gaming kiosk store refresh so Green Man Gaming lookup errors no longer collapse the catalog into an empty `games.json`. The updater now uses smaller GMG batches, recursively splits failing batches, and falls back to direct GMG search URLs when no exact store match is available.
+- Changed kiosk catalog writes to an atomic replace flow and fixed the ownership model for `/opt/beagle-kiosk/`, `games.json`, `assets/` and `logs/` so the running `thinclient` kiosk session can refresh the catalog successfully from the UI without hitting permission errors.
+- Verified the new catalog flow end-to-end on the real VM100 thinclient: `beagle-kiosk-install --ensure` now leaves `/opt/beagle-kiosk/` writable for the kiosk process, and the live catalog rendered successfully with 5335 entries after refresh.
+
+## v5.2.26 - 2026-04-05
+
+- Fixed fresh Beagle OS Gaming installs that booted into a missing kiosk even though `client_mode=gaming` was active. The packaged `/usr/local/sbin/beagle-kiosk-install` script had lost its executable bit inside the runtime image, so the gaming ensure step never ran, `/opt/beagle-kiosk/` was never created, and `beagle-kiosk-launch` stayed absent.
+- Restored executable permissions for both shipped `beagle-kiosk-install` entrypoints used by runtime images and live-build output, so first-boot gaming sessions can install the kiosk payload, create `/usr/local/sbin/beagle-kiosk-launch`, and start the Electron kiosk automatically after installation.
+
+## v5.2.25 - 2026-04-05
+
+- Added a real Beagle OS Gaming store-catalog pipeline based on NVIDIA's official GeForce NOW supported-games feed plus live Green Man Gaming storefront search results. `update_catalog.py` now builds purchasable `games.json` entries from current GFN-compatible titles instead of relying on a static placeholder catalog.
+- Added a manual catalog refresh action directly inside the kiosk UI so users can reload the GMG-backed game catalog on demand without reinstalling Beagle OS or waiting for the daily updater timer.
+- Seeded the kiosk catalog automatically during kiosk installation and upgrade by running the catalog updater once after payload deployment. Fresh gaming installs therefore come up with a populated local `games.json` whenever catalog generation succeeds.
+- Hardened the kiosk store flow for missing affiliate configuration. If `beagle-os.com/api/kiosk/affiliate-config` does not return active partner identifiers, store links stay functional in direct mode and the kiosk surfaces a non-blocking banner instead of disabling the catalog.
+
+## v5.2.24 - 2026-04-05
+
+- Fixed the remaining fresh-install GeForce NOW regression in Gaming boots. `beagle-kiosk-install --ensure` previously executed `install-geforcenow.sh` as `root`, which caused the persistent Flatpak user store under `/run/live/medium/pve-thin-client/state/gfn` to be populated with `root:root` files and directories. The next GeForce NOW launch then failed before `flatpak run` with permission errors inside the user repo.
+- Changed both kiosk-install entrypoints to run the GeForce NOW ensure step as the runtime user (`thinclient`) with the matching `XDG_RUNTIME_DIR` and session-bus path, so boot-time kiosk preparation no longer corrupts the user Flatpak storage.
+- Hardened the runtime storage preparation helper to recursively repair existing ownership drift inside the persistent GeForce NOW storage root before running Flatpak commands. Systems that already contain stale `root:root` files now self-heal instead of requiring a manual cleanup.
+
+## v5.2.23 - 2026-04-05
+
+- Fixed GeForce NOW launcher preparation when the runtime helper runs as `root` during kiosk install or boot-time ensure steps. The runtime ownership helper now creates and repairs user-facing GeForce NOW paths with `thinclient:thinclient` ownership instead of leaving files like `~/.local/share/applications/com.nvidia.geforcenow.desktop` and `~/.config/mimeapps.list` behind as `root:root`.
+- Hardened `install-geforcenow.sh` to explicitly repair ownership and writability for the `thinclient` desktop-launcher files before writing URL-handler registrations. This prevents the gaming kiosk from failing immediately on `Mit GeForce NOW einloggen` after a fresh install, where the previous release could abort before `flatpak run` because the handler files were not writable by the session user.
+
+## v5.2.22 - 2026-04-05
+
+- Fixed Beagle OS Gaming installs that carried forward an old `GFN_BINARY=/usr/bin/GeForceNOW` or direct AppImage path in `/opt/beagle-kiosk/kiosk.conf`. `beagle-kiosk-install --ensure` now normalizes those legacy values back to the supported runtime launcher path (`/usr/local/lib/pve-thin-client/runtime/launch-geforcenow.sh`) instead of silently preserving a stale configuration.
+- Applied the same kiosk-config normalization to the public `beagle-kiosk/INSTALL.sh` and the live-build copy used inside runtime images, so both fresh installs and already-installed gaming systems converge on the same launcher-based GeForce NOW path.
+- Fixed the GeForce NOW URL-handler registration path so browser callbacks are written into the real `thinclient` desktop profile instead of `/root` or the temporary GFN storage home. This keeps the Chromium-to-GFN handoff working after login redirects on live gaming systems.
+
+## v5.2.21 - 2026-04-05
+
+- Fixed the GeForce NOW browser-to-app callback path in Beagle OS runtime builds. The runtime installer now registers a host-side `geforcenow://` URL handler for the `thinclient` user, writes the matching desktop and mime handler entries, and installs a per-user `xdg-open` wrapper that routes GeForce NOW callbacks through `gio open` instead of silently dropping them.
+- Updated the GeForce NOW launcher so callback URLs received from Chromium are forwarded into `flatpak run`, while the runtime PATH now prefers the user-local wrapper directory. This allows NVIDIA login and subsequent entitlement redirects to return to the installed GeForce NOW client instead of reopening the kiosk without completing the handoff.
+- Optimized `install-geforcenow.sh --ensure-only` for already-prepared systems by skipping redundant Flatpak installs when both the runtime and app are already present. Repeated kiosk or runtime launches therefore no longer stall on unnecessary GeForce NOW reinstall checks.
+
+## v5.2.20 - 2026-04-05
+
+- Fixed the Desktop Moonlight connect-host selection so `PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST` is only preferred when the endpoint can reach that host directly without routing through an upstream gateway. Real thinclients on external LANs now choose the public Sunshine/Moonlight host first instead of stalling on an internal Proxmox-only address like `10.10.10.x`.
+- Verified the live VM100 endpoint on `192.168.178.92` against this fix: after clearing the stale local-only host override, the desktop runtime paired successfully and started a real `moonlight stream 65.109.80.76:50100 Desktop` session again.
+
+## v5.2.19 - 2026-04-05
+
+- Changed the Beagle OS Gaming boot entry to use the normal thin-client runtime path instead of booting a separate `beagle-kiosk.target`. Gaming now comes up through the same stable X11/runtime pipeline as Desktop while still selecting `client_mode=gaming`, which makes SSH, management timers and runtime preparation available during Gaming boots as well.
+- Added a root-side kiosk ensure step to `prepare-runtime.sh` for `KIOSK` mode so `/opt/beagle-kiosk/` and the launcher wrapper are prepared before the user session starts.
+- Updated the runtime launcher to re-run `beagle-kiosk-install --ensure` as a best-effort safety net before entering the kiosk.
+- Hardened the generated kiosk launcher script so Electron always starts in an explicit X11 environment, with a valid runtime directory, optional session D-Bus bootstrap via `dbus-run-session`, and Linux-safe flags (`--disable-gpu`, `--disable-gpu-compositing`, `--disable-dev-shm-usage`) that avoid the earlier Chromium GPU crash on the thinclient hardware.
+- Changed `beagle-kiosk-install --ensure` to rewrite `launch.sh` even when the kiosk version is already current, so existing installations receive launcher fixes immediately instead of only on a version bump.
+
+## v5.2.18 - 2026-04-05
+
+- Fixed the remaining VM100 USB-install failure after successful GRUB installation. On the affected thinclient, `lsblk -no PARTN /dev/mmcblk0p2` returned a non-zero status under `set -o pipefail`, which previously aborted the installer inside `install_efi_boot_entry()` even though both BIOS and removable EFI bootloaders were already installed successfully.
+- Added a robust EFI partition-number resolver with a sysfs fallback (`/sys/class/block/<part>/partition`) and changed missing partition-number detection from a fatal error to a warning, because the removable EFI fallback written by `grub-install --removable --no-nvram` is already sufficient for booting.
+
+## v5.2.17 - 2026-04-05
+
+- Stopped copying the entire temporary log directory back onto the FAT USB stick for every single log line. The installer now keeps detailed logs in RAM during execution and only flushes persisted snapshots explicitly, which makes post-failure USB logs much less likely to corrupt on abrupt exits or reboot loops.
+- Added an explicit filesystem sync after persisted installer log snapshots are written to the USB stick so `LATEST.txt`, `session.env` and the copied log files survive the next reboot more reliably.
+- Reduced overly chatty live-medium probe logging in the local USB installer so `local-installer.log` reaches the actual install stages instead of filling with repeated mount-candidate noise first.
+- Made bootloader installation more tolerant on UEFI thin clients: legacy BIOS `grub-install` is now best-effort during EFI boots, the primary EFI `grub-install` no longer tries to write NVRAM implicitly, and an explicit `efibootmgr` failure is downgraded to a warning because the removable EFI fallback remains bootable.
+
+## v5.2.16 - 2026-04-05
+
+- Added unhandled-error logging to the local USB installer so the first uncaught failing command now records exit code, line number and shell command in `local-installer.log` before the installer exits.
+- Wrapped the post-selection install steps with explicit command logging, including disk wipe, GPT partitioning, filesystem creation, target mounts, asset copy and bootloader installation. Future `preset install failed` runs will therefore show the exact failing operation instead of stopping after `prepare_install_assets`.
+- Extended EFI helper logging so `mount efivarfs`, `efibootmgr` and `grub-install` failures are captured in the USB logs rather than disappearing from the post-mortem trace.
+
+## v5.2.15 - 2026-04-05
+
+- Fixed preset-based USB installs to prefer the payload already embedded on the USB stick instead of re-downloading the same `pve-thin-client-usb-payload-*.tar.gz` during installation. This removes an unnecessary online dependency from the actual disk-install step and avoids installer failures on low-RAM live systems where `/tmp` is a small tmpfs.
+- Added direct extractor stderr logging for the remote payload path so any future tar/unpack failure is recorded in `local-installer.log` instead of collapsing into a generic `failed to extract` message.
+
+## v5.2.14 - 2026-04-05
+
+- Fixed the target-disk parser in the local installer so disks with an empty `MODEL` field no longer disappear from the candidate list. On affected thinclients the shell field splitting previously swallowed the built-in eMMC/NVMe entry, leaving only the USB stick visible and causing `No writable target disk found.` despite a valid internal target disk being present.
+- Normalized `lsblk` removable-state parsing to `0/1` values instead of Python `True`/`False` strings, keeping the removable/USB preference logic stable across different devices and live environments.
+- Excluded `mmcblk*boot*` and `mmcblk*rpmb` pseudo-devices from installer target selection so only real writable system disks are offered during Beagle OS installs.
+- Applied the same robust block-device parsing to the USB writer utility to avoid repeating the empty-model parsing bug in installer media creation workflows.
+
+## v5.2.13 - 2026-04-04
+
+- Fixed a duplicate `candidate_live_devices()` override in the live installer menu. The later function definition still treated internal EFI `vfat` partitions as possible installer media and silently undid part of the `5.2.12` live-media fix. Both live-menu code paths now agree on explicit Beagle labels or removable/USB media only.
+
+## v5.2.12 - 2026-04-04
+
+- Fixed the installer success path so the live menu now preserves the real exit code of the local installer instead of always treating a failed preset install as successful. Errors like `No writable target disk found.` therefore no longer fall through to `Installation complete`.
+- Reworked target-disk selection to prefer internal non-removable disks first and only fall back to removable/non-live media if no internal disk exists. This keeps a built-in NVMe/SATA drive selectable even if live-medium detection is imperfect.
+- Removed the live-menu log-persistence heuristic that treated any internal EFI `vfat` partition as possible installer media, which could hide the real USB stick during log sync and diagnostics.
+
+## v5.2.11 - 2026-04-04
+
+- Fixed USB installer live-medium detection so a normal internal EFI `vfat` partition is no longer mistaken for the installer stick. Thinclients with one internal system disk plus one USB installer now keep the internal disk visible in the target-disk picker instead of failing with `No writable target disk found.`
+
+## v5.2.10 - 2026-04-04
+
+- Removed `whiptail` from the text-mode installer menu path entirely. When the USB stick boots with `pve_thin_client.installer_ui=text`, the main menu now uses a plain numbered TTY prompt, so `1 Start preset installation` is accepted reliably on problematic hardware and serial-like consoles.
+- Added explicit live-menu selection logging (`main menu selection: ...`) so a failed keypress path can be distinguished from a later installer failure in the USB logs.
+
+## v5.2.9 - 2026-04-04
+
+- Reworked the text-mode preset installer to show plain numbered prompts for target-disk selection, streaming-mode selection and destructive confirmation instead of relying on nested `whiptail` screens after `Start preset installation`.
+- Added visible step messages in the local installer (`Loading preset configuration`, `Detecting target disks`, `Preparing installation assets`) so a stalled install no longer looks like a dead black screen.
+- Hardened USB log persistence by remounting the live medium read-write before falling back to a second mount, allowing installer sessions to leave diagnostics under `pve-thin-client/logs/` on sticks booted via the Debian live environment.
+
+## v5.2.8 - 2026-04-04
+
+- Fixed the preset-driven USB installer flow so `Start preset installation` now launches the fully interactive installer instead of re-entering the `--auto-install` fast path. Bundled VM installs therefore stop on the target-disk picker and wipe confirmation instead of behaving like a silent auto-run.
+- Added persistent installer USB logging for both the live menu and the local installer. Each installer session now copies its logs back onto the stick under `pve-thin-client/logs/<session>/`, with `LATEST.txt` pointing at the newest run for post-mortem debugging.
+- Changed the post-install reboot prompt so successful preset installs now pause for explicit confirmation, giving the operator time to remove the USB stick before rebooting.
+
+## v5.2.7 - 2026-04-04
+
+- Fixed the VM-specific USB installer boot flow so bundled presets no longer start disk installation immediately on boot. The installer now always opens its menu first and only starts the preset install after explicit user confirmation, making the target-disk picker and wipe confirmation visible again.
+
+## v5.2.6 - 2026-04-04
+
+- Changed the bundled USB installer flow so VM presets are still auto-loaded, but the user must now explicitly choose the target disk before installation begins instead of relying on an implicit auto-pick.
+- Restored an explicit destructive-action confirmation in the preset-driven installer path, preventing unattended `--yes` wipes on the wrong disk during USB-based reinstalls.
+- Clarified the live installer text so bundled VM media now advertises interactive target-disk selection instead of suggesting a fully automatic install.
+- Fixed the text-installer auto-install lock path so a passive secondary menu session no longer reports success and triggers a premature reboot while the real installer owner is still running.
+- Fixed live-media disk detection in the installer so VM-style USB boots exclude the actual installer carrier from the target-disk picker instead of offering it as a wipe target.
+- Fixed the preset installer cancel path so backing out of disk selection or wipe confirmation no longer bubbles up as a successful install and forces an immediate reboot.
+- Realigned the gaming runtime model with the kiosk architecture so `pve_thin_client.client_mode=gaming` now reports as `KIOSK` instead of the legacy direct-`GFN` flatpak path in runtime status and health output.
+- Hardened the gaming session wrappers and kiosk launcher so failed kiosk starts now leave a visible on-screen error terminal with the recent kiosk log instead of silently falling back to a wallpaper-only session.
+- Made the kiosk AppImage launcher more robust for VM and appliance boots by forcing extract-and-run mode, pinning Electron to X11, and adding virtualization-safe GPU-disable flags plus explicit launch/exit logging.
+- Fixed the kiosk installer and launcher permissions so the runtime user can always write kiosk logs, with an automatic fallback to a user-writable log directory if `/opt/beagle-kiosk/logs` is not writable.
+- Fixed the desktop runtime renderer so Proxmox-managed endpoints can carry a dedicated `MOONLIGHT_LOCAL_HOST`, allowing internal same-host test clients to prefer the guest-side Sunshine address instead of hairpinning through the public stream IP.
+- Hardened the thinclient updater against low-space payload failures by pruning stale cached payloads before download and surfacing clearer disk-write errors when a large release tarball cannot be written locally.
+
+## v5.2.5 - 2026-04-03
+
+- Fixed the installer boot flow so the text-mode installer menu now starts only in explicit text-installer boots instead of racing the graphical installer session on `tty1` and tripping the bundled auto-install lock.
+- Softened the bundled auto-install lock handling so a passive secondary installer session no longer surfaces a fatal-looking "another installer session" dialog while the real auto-install owner is already working.
+- Extended endpoint health reporting with dispatch/report/update timer state so dead action-pull loops and stalled update scans show up directly in the manager-side health payload.
+
 ## v5.2.3 - 2026-04-03
 
 - Fixed `Beagle OS Gaming` on thinclients so the GeForce NOW Flatpak now installs into persistent storage on the writable live medium instead of exhausting the volatile overlay filesystem during first launch.
