@@ -39,7 +39,7 @@ INSTALL_PAYLOAD_URL="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-}}"
 RELEASE_BOOTSTRAP_URL="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-}}"
 RELEASE_ISO_URL="${RELEASE_ISO_URL:-}"
 BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-0}"
-BOOTSTRAP_CACHE_DIR="${PVE_DCV_BOOTSTRAP_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/pve-dcv-usb}"
+BOOTSTRAP_CACHE_DIR="${PVE_DCV_BOOTSTRAP_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME:-/root}/.cache}/pve-dcv-usb}"
 BOOTSTRAP_DIR=""
 BOOTSTRAPPED_STANDALONE="0"
 SKIP_CONFIRMATION="${PVE_DCV_SKIP_CONFIRMATION:-0}"
@@ -594,7 +594,7 @@ choose_device() {
 
   tty_path="$(detect_tty_path || true)"
 
-  while IFS=$'\t' read -r name size model type rm transport; do
+  while IFS=$'\x1f' read -r name size model type rm transport; do
     [[ "$type" == "disk" ]] || continue
     device="/dev/${name}"
     [[ "$device" == /dev/loop* || "$device" == /dev/sr* || "$device" == /dev/ram* || "$device" == /dev/zram* ]] && continue
@@ -857,15 +857,21 @@ validate_live_assets() {
 
 install_dependencies() {
   local missing=()
+  local need_packages="0"
   local tool
 
   for tool in wipefs parted mkfs.vfat grub-install rsync partprobe udevadm xorriso; do
     if ! command -v "$tool" >/dev/null 2>&1; then
       missing+=("$tool")
+      need_packages="1"
     fi
   done
 
-  if (( ${#missing[@]} == 0 )); then
+  if [[ ! -d /usr/lib/grub/i386-pc || ! -d /usr/lib/grub/x86_64-efi ]]; then
+    need_packages="1"
+  fi
+
+  if [[ "$need_packages" != "1" ]]; then
     return 0
   fi
 
