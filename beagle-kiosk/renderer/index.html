@@ -1,0 +1,149 @@
+<!-- Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed -->
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Beagle OS Gaming</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-eyebrow">Beagle OS Gaming</span>
+          <h1>GFN Kiosk</h1>
+          <p class="brand-copy">Bibliothek, Katalog und Kaufstrecke in einer Oberfläche.</p>
+        </div>
+
+        <nav class="main-nav" aria-label="Hauptnavigation">
+          <button class="nav-tab is-active" data-mode="library" type="button">Meine Bibliothek</button>
+          <button class="nav-tab" data-mode="catalog" type="button">Spielekatalog</button>
+        </nav>
+
+        <section class="sidebar-panel">
+          <label class="field">
+            <span>Suche</span>
+            <input id="search-input" type="search" placeholder="Titel suchen" autocomplete="off" />
+          </label>
+
+          <label class="field">
+            <span>Genre</span>
+            <select id="genre-filter">
+              <option value="">Alle Genres</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Sortierung</span>
+            <select id="sort-filter">
+              <option value="popular">Beliebt</option>
+              <option value="new">Neu</option>
+              <option value="price">Preis</option>
+              <option value="title">Titel</option>
+            </select>
+          </label>
+
+          <label class="toggle">
+            <input id="gfn-only-toggle" type="checkbox" checked />
+            <span>Nur GeForce NOW kompatibel</span>
+          </label>
+        </section>
+
+        <section class="sidebar-panel session-panel">
+          <h2>GeForce NOW</h2>
+          <p id="login-state">Prüfe Status…</p>
+          <button id="login-button" class="button button-primary" type="button">Mit GeForce NOW einloggen</button>
+        </section>
+      </aside>
+
+      <main class="content">
+        <section class="hero-panel">
+          <div class="hero-copy">
+            <span class="hero-label">Startbildschirm</span>
+            <h2>Beagle OS Gaming</h2>
+            <p>Eigene Bibliothek starten, neue GFN-kompatible Spiele kaufen und danach ohne UI-Bruch direkt in GeForce NOW springen.</p>
+            <div class="hero-hints">
+              <span>Maus, Tastatur oder Gamepad</span>
+              <span>GFN im Vordergrund, Kiosk im Hintergrund</span>
+              <span>Direkte Store-Links ohne Zusatzparameter</span>
+            </div>
+          </div>
+          <img id="hero-art" class="hero-art" alt="Beagle OS Gaming Artwork" />
+        </section>
+
+        <header class="content-header">
+          <div>
+            <h2 id="mode-title">Meine Bibliothek</h2>
+            <p id="mode-description">Bereits gekaufte Spiele direkt über GeForce NOW starten.</p>
+          </div>
+          <div class="content-actions">
+            <button id="catalog-home-button" class="button" type="button">Kategorien</button>
+            <button id="catalog-refresh-button" class="button icon-button" type="button" aria-label="Spielekatalog aktualisieren">
+              <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5a7 7 0 0 1 6.26 3.86L20 6.5V12h-5.5l2.28-2.28A4.99 4.99 0 0 0 12 7a5 5 0 0 0-4.58 7.01l-2.2 1.02A7.5 7.5 0 0 1 12 5Zm6.78 3.97A7.5 7.5 0 0 1 12 19a7 7 0 0 1-6.26-3.86L4 17.5V12h5.5l-2.28 2.28A4.99 4.99 0 0 0 12 17a5 5 0 0 0 4.58-7.01l2.2-1.02Z"/>
+              </svg>
+              <span>Katalog aktualisieren</span>
+            </button>
+            <div class="stats">
+              <span id="catalog-refresh-status">Katalog manuell neu laden</span>
+              <span id="result-count">0 Spiele</span>
+            </div>
+          </div>
+        </header>
+
+        <section id="empty-state" class="empty-state hidden">
+          <h3>Nichts gefunden</h3>
+          <p id="empty-state-text">Ändere Suche oder Filter, oder melde dich zuerst bei GeForce NOW an.</p>
+        </section>
+
+        <section id="catalog-home" class="catalog-home hidden" aria-live="polite"></section>
+        <section id="game-grid" class="game-grid" aria-live="polite"></section>
+        <nav id="catalog-pagination" class="catalog-pagination hidden" aria-label="Katalogseiten"></nav>
+      </main>
+    </div>
+
+    <dialog id="game-modal" class="game-modal">
+      <form method="dialog" class="game-modal-panel">
+        <button class="modal-close" value="cancel" aria-label="Schließen">×</button>
+        <div class="modal-hero">
+          <img id="modal-cover" alt="" />
+          <div class="modal-copy">
+            <div class="modal-meta">
+              <span id="modal-genre" class="chip"></span>
+              <span id="modal-gfn" class="chip chip-green">GeForce NOW unterstützt</span>
+            </div>
+            <h3 id="modal-title"></h3>
+            <p id="modal-description"></p>
+            <div class="modal-actions">
+              <button id="modal-play-button" class="button button-primary" type="button">Jetzt spielen</button>
+              <button id="modal-login-button" class="button hidden" type="button">GFN Login starten</button>
+            </div>
+          </div>
+        </div>
+
+        <section class="modal-section">
+          <div class="section-heading">
+            <h4>Stores</h4>
+            <p>Alle Links werden direkt ohne Affiliate- oder Tracking-Parameter geöffnet.</p>
+          </div>
+          <div id="store-list" class="store-list"></div>
+        </section>
+
+        <section class="modal-section">
+          <div class="section-heading">
+            <h4>System</h4>
+          </div>
+          <ul id="system-requirements" class="spec-list"></ul>
+        </section>
+
+        <section id="purchase-hint" class="purchase-hint hidden">
+          <p>Gekauft? Starte das Spiel jetzt direkt über GeForce NOW.</p>
+          <button id="purchase-play-button" class="button button-primary" type="button">Jetzt spielen</button>
+        </section>
+      </form>
+    </dialog>
+
+    <script src="./kiosk.js"></script>
+  </body>
+</html>

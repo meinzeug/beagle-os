@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SERVER_INSTALLER_ARCH="${SERVER_INSTALLER_ARCH:-amd64}"
+SERVER_INSTALLER_LINUX_FLAVOUR="${SERVER_INSTALLER_LINUX_FLAVOUR:-}"
+
+if [[ -z "$SERVER_INSTALLER_LINUX_FLAVOUR" ]]; then
+  case "$SERVER_INSTALLER_ARCH" in
+    amd64) SERVER_INSTALLER_LINUX_FLAVOUR="amd64" ;;
+    *)
+      echo "Unsupported SERVER_INSTALLER_ARCH: $SERVER_INSTALLER_ARCH" >&2
+      exit 1
+      ;;
+  esac
+fi
+
+BOOT_ARGS="boot=live components username=root hostname=beagle-server-installer ip=dhcp console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 systemd.unit=multi-user.target pve_server_installer=1"
+
+BOOTLOADER_FLAG="--bootloader"
+BOOTLOADER_VALUE="grub"
+
+if lb config --help 2>/dev/null | grep -q -- '--bootloaders'; then
+  BOOTLOADER_FLAG="--bootloaders"
+  BOOTLOADER_VALUE="grub-pc"
+fi
+
+lb config noauto \
+  --mode debian \
+  --architectures "$SERVER_INSTALLER_ARCH" \
+  --initsystem systemd \
+  --distribution bookworm \
+  --binary-images iso-hybrid \
+  --debian-installer none \
+  --apt-recommends false \
+  --archive-areas "main contrib non-free non-free-firmware" \
+  --linux-packages "none" \
+  --linux-flavours "$SERVER_INSTALLER_LINUX_FLAVOUR" \
+  --firmware-chroot true \
+  --firmware-binary true \
+  --mirror-bootstrap "https://deb.debian.org/debian" \
+  --mirror-chroot "https://deb.debian.org/debian" \
+  --mirror-binary "https://deb.debian.org/debian" \
+  --mirror-chroot-security "https://deb.debian.org/debian-security" \
+  --mirror-binary-security "https://deb.debian.org/debian-security" \
+  --security false \
+  "$BOOTLOADER_FLAG" "$BOOTLOADER_VALUE" \
+  --bootappend-live "$BOOT_ARGS" \
+  "$@"

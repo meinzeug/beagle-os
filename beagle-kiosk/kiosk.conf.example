@@ -1,0 +1,13 @@
+# Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed
+GFN_BINARY=/usr/local/lib/pve-thin-client/runtime/launch-geforcenow.sh
+GFN_BINARY_FALLBACK=/opt/nvidia/GeForceNOW.AppImage
+STORE_ALLOWED_DOMAINS=greenmangaming.com fanatical.com humblebundle.com store.epicgames.com
+KIOSK_FULLSCREEN=1
+KIOSK_WINDOW_WIDTH=1600
+KIOSK_WINDOW_HEIGHT=900
+STORE_WINDOW_FULLSCREEN=1
+DEFAULT_FILTER_GFN_ONLY=1
+GFN_LOGIN_ARGS=
+GFN_GAME_ARGS_TEMPLATE=
+GFN_GAME_URI_TEMPLATE=
+GFN_GAME_ID_FIELD=gfn_id

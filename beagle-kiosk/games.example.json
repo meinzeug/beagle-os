@@ -1,0 +1,32 @@
+[
+  {
+    "_comment": "Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed",
+    "id": "cyberpunk-2077",
+    "gfn_id": "cyberpunk-2077",
+    "title": "Cyberpunk 2077",
+    "genre": "RPG",
+    "description": "Night City, RTX and an instant GeForce NOW start path from the kiosk.",
+    "cover_url": "",
+    "geforce_now_supported": true,
+    "release_year": 2020,
+    "popularity": 98,
+    "system_requirements": [
+      "GeForce NOW account",
+      "Stable internet connection",
+      "Controller or mouse and keyboard"
+    ],
+    "stores": [
+      {
+        "name": "GMG",
+        "url": "https://www.greenmangaming.com/games/cyberpunk-2077-pc/",
+        "price": "59.99",
+        "sku": "cyberpunk-2077"
+      },
+      {
+        "name": "Epic Games Store",
+        "url": "https://store.epicgames.com/en-US/p/cyberpunk-2077",
+        "price": "59.99"
+      }
+    ]
+  }
+]

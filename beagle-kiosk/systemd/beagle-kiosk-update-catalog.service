@@ -1,0 +1,10 @@
+# Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed
+[Unit]
+Description=Refresh Beagle OS Gaming catalog
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/beagle-kiosk
+ExecStart=/usr/bin/python3 /opt/beagle-kiosk/update_catalog.py

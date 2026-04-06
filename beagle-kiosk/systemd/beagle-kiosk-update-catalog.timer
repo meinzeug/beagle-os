@@ -1,0 +1,13 @@
+# Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed
+[Unit]
+Description=Daily Beagle OS Gaming catalog refresh
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=24h
+Persistent=true
+RandomizedDelaySec=20min
+Unit=beagle-kiosk-update-catalog.service
+
+[Install]
+WantedBy=timers.target

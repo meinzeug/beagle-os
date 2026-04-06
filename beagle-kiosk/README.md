@@ -1,18 +1,61 @@
+<!-- Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed -->
 # Beagle OS Gaming Kiosk
 
-`beagle-kiosk` is the closed-source gaming surface for `Beagle OS Gaming`.
+Open-source Electron kiosk for `Beagle OS Gaming`.
 
-This public repository intentionally does **not** contain the Electron source code. The actual kiosk source lives in a separate private repository and is shipped only as a compiled Linux binary through GitHub Releases.
+## Components
 
-What this public directory contains:
+- `main.js`
+  Electron main process, GeForce NOW process control, catalog refresh IPC, and secure store-window handling.
+- `preload.js`
+  Renderer bridge for the kiosk UI.
+- `renderer/`
+  Library view, catalog view, search, filters, pagination, and modal flows.
+- `update_catalog.py`
+  Catalog builder based on the official NVIDIA GeForce NOW game list plus Green Man Gaming storefront matching.
+- `kiosk.conf.example`
+  Runtime configuration template.
+- `systemd/`
+  Service and timer templates for kiosk boot and catalog refresh.
+- `launch.sh`
+  AppImage launcher wrapper.
 
-- `README.md`: public module description
-- `INSTALL.sh`: installer that resolves kiosk release metadata from `https://beagle-os.com/beagle-updates/kiosk-release.json`, verifies its SHA256 against the published hash file on `beagle-os.com`, installs it into `/opt/beagle-kiosk/`, and wires up the required systemd units
+## Build
 
-The kiosk architecture stays fixed:
+```bash
+cd beagle-kiosk
+npm install
+npm run dist
+npm run release-metadata -- dist/beagle-kiosk-vX.Y.Z-linux-x64.AppImage https://github.com/meinzeug/beagle-os/releases/download/<tag>/beagle-kiosk-vX.Y.Z-linux-x64.AppImage
+```
 
-- `Beagle OS Gaming` boots into the kiosk
-- `Beagle OS Desktop` keeps the normal desktop runtime
-- The kiosk has a `Meine Bibliothek` mode and a `Spielekatalog` mode
-- GeForce NOW is launched by the kiosk as a child process and returns to the kiosk when it exits
-- Affiliate identifiers are fetched from `beagle-os.com` and held only in RAM
+The release build produces:
+
+- the kiosk AppImage
+- `dist/kiosk-release.json`
+- `dist/kiosk-release-hash.txt`
+
+## Runtime Model
+
+- `Meine Bibliothek`
+  Reads the cached GeForce NOW library state from `user_library.json` and exposes direct `Jetzt spielen`.
+- `Spielekatalog`
+  Builds a GFN-compatible catalog from live source data, opens store links directly, and supports manual refresh.
+- `GeForce NOW`
+  Runs as a child process launched by the kiosk. The kiosk closes or hides during streaming and returns when GFN exits.
+
+## Installation
+
+For repository-based installation on a running system:
+
+```bash
+sudo ./beagle-kiosk/INSTALL.sh
+```
+
+For endpoint images and fresh Gaming boots, the canonical runtime installer remains:
+
+- [`beagle-os/overlay/usr/local/sbin/beagle-kiosk-install`](../beagle-os/overlay/usr/local/sbin/beagle-kiosk-install)
+
+## License
+
+This module is part of the repository-wide MIT license.

@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 INSTALLER_BUILD_DIR="${INSTALLER_BUILD_DIR:-${THINCLIENT_DIST_DIR:-$DIST_DIR/pve-thin-client-installer}}"
+SERVER_INSTALLER_DIST_DIR="${SERVER_INSTALLER_DIST_DIR:-$DIST_DIR/beagle-os-server-installer}"
+KIOSK_DIST_DIR="${KIOSK_DIST_DIR:-$ROOT_DIR/beagle-kiosk/dist}"
 EXT_DIR="$ROOT_DIR/extension"
 THIN_CLIENT_DIR="$ROOT_DIR/thin-client-assistant"
 BEAGLE_OS_DIST_DIR="${BEAGLE_OS_DIST_DIR:-$DIST_DIR/beagle-os}"
@@ -23,9 +25,16 @@ WINDOWS_USB_INSTALLER_NAME="pve-thin-client-usb-installer-v${VERSION}.ps1"
 WINDOWS_USB_INSTALLER_LATEST_NAME="pve-thin-client-usb-installer-latest.ps1"
 INSTALLER_ISO_NAME="beagle-os-installer.iso"
 INSTALLER_ISO_ARCH_NAME="beagle-os-installer-amd64.iso"
+SERVER_INSTALLER_ISO_NAME="beagle-os-server-installer.iso"
+SERVER_INSTALLER_ISO_ARCH_NAME="beagle-os-server-installer-amd64.iso"
+KIOSK_APPIMAGE_NAME="beagle-kiosk-v${VERSION}-linux-x64.AppImage"
+KIOSK_RELEASE_MANIFEST_NAME="kiosk-release.json"
+KIOSK_RELEASE_HASH_NAME="kiosk-release-hash.txt"
 CHECKSUM_FILE="SHA256SUMS"
 BUILD_BEAGLE_OS="${BUILD_BEAGLE_OS:-0}"
 SKIP_THIN_CLIENT_BUILD="${SKIP_THIN_CLIENT_BUILD:-0}"
+SKIP_SERVER_INSTALLER_BUILD="${SKIP_SERVER_INSTALLER_BUILD:-0}"
+SKIP_KIOSK_BUILD="${SKIP_KIOSK_BUILD:-0}"
 
 collect_beagle_os_assets() {
   local path
@@ -52,6 +61,8 @@ require_tool zip
 require_tool tar
 require_tool sha256sum
 require_tool python3
+require_tool node
+require_tool npm
 
 mkdir -p "$DIST_DIR"
 BEAGLE_OS_ASSETS=()
@@ -77,6 +88,11 @@ rm -f \
   "$DIST_DIR/$WINDOWS_USB_INSTALLER_LATEST_NAME" \
   "$DIST_DIR/$INSTALLER_ISO_NAME" \
   "$DIST_DIR/$INSTALLER_ISO_ARCH_NAME" \
+  "$DIST_DIR/$SERVER_INSTALLER_ISO_NAME" \
+  "$DIST_DIR/$SERVER_INSTALLER_ISO_ARCH_NAME" \
+  "$DIST_DIR/$KIOSK_APPIMAGE_NAME" \
+  "$DIST_DIR/$KIOSK_RELEASE_MANIFEST_NAME" \
+  "$DIST_DIR/$KIOSK_RELEASE_HASH_NAME" \
   "$DIST_DIR/pve-thin-client-usb-installer-host-latest.sh" \
   "$DIST_DIR/pve-thin-client-usb-installer-host-latest.ps1" \
   "$DIST_DIR/pve-thin-client-live-usb-host-latest.sh" \
@@ -96,6 +112,33 @@ fi
 
 install -m 0644 "$INSTALLER_BUILD_DIR/$INSTALLER_ISO_NAME" "$DIST_DIR/$INSTALLER_ISO_NAME"
 install -m 0644 "$INSTALLER_BUILD_DIR/$INSTALLER_ISO_ARCH_NAME" "$DIST_DIR/$INSTALLER_ISO_ARCH_NAME"
+
+if [[ "$SKIP_SERVER_INSTALLER_BUILD" != "1" ]]; then
+  "$ROOT_DIR/scripts/build-server-installer.sh"
+elif [[ ! -f "$SERVER_INSTALLER_DIST_DIR/$SERVER_INSTALLER_ISO_NAME" || ! -f "$SERVER_INSTALLER_DIST_DIR/$SERVER_INSTALLER_ISO_ARCH_NAME" ]]; then
+  echo "SKIP_SERVER_INSTALLER_BUILD=1 requires an existing server installer build under $SERVER_INSTALLER_DIST_DIR" >&2
+  exit 1
+fi
+
+install -m 0644 "$SERVER_INSTALLER_DIST_DIR/$SERVER_INSTALLER_ISO_NAME" "$DIST_DIR/$SERVER_INSTALLER_ISO_NAME"
+install -m 0644 "$SERVER_INSTALLER_DIST_DIR/$SERVER_INSTALLER_ISO_ARCH_NAME" "$DIST_DIR/$SERVER_INSTALLER_ISO_ARCH_NAME"
+
+if [[ "$SKIP_KIOSK_BUILD" != "1" ]]; then
+  rm -rf "$KIOSK_DIST_DIR"
+  (
+    cd "$ROOT_DIR/beagle-kiosk"
+    npm install
+    npm run dist
+    npm run release-metadata -- "dist/$KIOSK_APPIMAGE_NAME" "https://github.com/meinzeug/beagle-os/releases/download/v${VERSION}/${KIOSK_APPIMAGE_NAME}"
+  )
+elif [[ ! -f "$KIOSK_DIST_DIR/$KIOSK_APPIMAGE_NAME" || ! -f "$KIOSK_DIST_DIR/$KIOSK_RELEASE_MANIFEST_NAME" || ! -f "$KIOSK_DIST_DIR/$KIOSK_RELEASE_HASH_NAME" ]]; then
+  echo "SKIP_KIOSK_BUILD=1 requires an existing kiosk build under $KIOSK_DIST_DIR" >&2
+  exit 1
+fi
+
+install -m 0755 "$KIOSK_DIST_DIR/$KIOSK_APPIMAGE_NAME" "$DIST_DIR/$KIOSK_APPIMAGE_NAME"
+install -m 0644 "$KIOSK_DIST_DIR/$KIOSK_RELEASE_MANIFEST_NAME" "$DIST_DIR/$KIOSK_RELEASE_MANIFEST_NAME"
+install -m 0644 "$KIOSK_DIST_DIR/$KIOSK_RELEASE_HASH_NAME" "$DIST_DIR/$KIOSK_RELEASE_HASH_NAME"
 
 if [[ "$BUILD_BEAGLE_OS" == "1" ]]; then
   "$ROOT_DIR/scripts/build-beagle-os.sh"
@@ -125,7 +168,22 @@ PY
 
 (
   cd "$ROOT_DIR"
-  tar -czf "$DIST_DIR/$TARBALL_NAME" extension proxmox-ui proxmox-host thin-client-assistant docs scripts README.md LICENSE CHANGELOG.md VERSION
+  tar -czf "$DIST_DIR/$TARBALL_NAME" \
+    beagle-kiosk \
+    beagle-os \
+    docs \
+    extension \
+    proxmox-host \
+    proxmox-ui \
+    scripts \
+    server-installer \
+    thin-client-assistant \
+    README.md \
+    LICENSE \
+    CHANGELOG.md \
+    VERSION \
+    .gitignore \
+    CLAUDE.md
 )
 
 install -m 0644 "$DIST_DIR/$TARBALL_NAME" "$DIST_DIR/$TARBALL_LATEST_NAME"
@@ -177,6 +235,11 @@ install -m 0644 "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-install
     "$WINDOWS_USB_INSTALLER_LATEST_NAME" \
     "$INSTALLER_ISO_NAME" \
     "$INSTALLER_ISO_ARCH_NAME" \
+    "$SERVER_INSTALLER_ISO_NAME" \
+    "$SERVER_INSTALLER_ISO_ARCH_NAME" \
+    "$KIOSK_APPIMAGE_NAME" \
+    "$KIOSK_RELEASE_MANIFEST_NAME" \
+    "$KIOSK_RELEASE_HASH_NAME" \
     "${BEAGLE_OS_ASSETS[@]}" > "$CHECKSUM_FILE"
 )
 
@@ -195,6 +258,11 @@ echo "Created: $DIST_DIR/$WINDOWS_USB_INSTALLER_NAME"
 echo "Created: $DIST_DIR/$WINDOWS_USB_INSTALLER_LATEST_NAME"
 echo "Created: $DIST_DIR/$INSTALLER_ISO_NAME"
 echo "Created: $DIST_DIR/$INSTALLER_ISO_ARCH_NAME"
+echo "Created: $DIST_DIR/$SERVER_INSTALLER_ISO_NAME"
+echo "Created: $DIST_DIR/$SERVER_INSTALLER_ISO_ARCH_NAME"
+echo "Created: $DIST_DIR/$KIOSK_APPIMAGE_NAME"
+echo "Created: $DIST_DIR/$KIOSK_RELEASE_MANIFEST_NAME"
+echo "Created: $DIST_DIR/$KIOSK_RELEASE_HASH_NAME"
 echo "Created: $DIST_DIR/$CHECKSUM_FILE"
 for asset in "${BEAGLE_OS_ASSETS[@]}"; do
   echo "Included: $DIST_DIR/$asset"

@@ -1,0 +1,437 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+DONE_FILE="/run/beagle-server-installer.done"
+STATE_DIR="/run/beagle-server-installer"
+LOG_DIR="/var/log"
+LOG_FILE="$LOG_DIR/beagle-server-installer.log"
+TARGET_MOUNT="/mnt/beagle-server-target"
+EFI_MOUNT="$TARGET_MOUNT/boot/efi"
+TARGET_DISK=""
+INSTALL_HOSTNAME=""
+INSTALL_USERNAME=""
+INSTALL_PASSWORD=""
+INSTALL_DISK=""
+PRIMARY_IFACE=""
+
+DEBIAN_RELEASE="${BEAGLE_SERVER_DEBIAN_RELEASE:-bookworm}"
+DEBIAN_MIRROR="${BEAGLE_SERVER_DEBIAN_MIRROR:-https://deb.debian.org/debian}"
+DEBIAN_SECURITY_MIRROR="${BEAGLE_SERVER_DEBIAN_SECURITY_MIRROR:-https://security.debian.org/debian-security}"
+PROXMOX_REPO_URL="${BEAGLE_SERVER_PROXMOX_REPO_URL:-http://download.proxmox.com/debian/pve}"
+PROXMOX_REPO_SUITE="${BEAGLE_SERVER_PROXMOX_REPO_SUITE:-bookworm}"
+PROXMOX_REPO_COMPONENT="${BEAGLE_SERVER_PROXMOX_REPO_COMPONENT:-pve-no-subscription}"
+PROXMOX_KEY_URL="${BEAGLE_SERVER_PROXMOX_KEY_URL:-https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg}"
+BEAGLE_SOURCE_URL="${BEAGLE_SERVER_SOURCE_URL:-https://github.com/meinzeug/beagle-os/archive/refs/tags/v__BEAGLE_RELEASE_VERSION__.tar.gz}"
+BEAGLE_PUBLIC_UPDATE_BASE_URL="${BEAGLE_SERVER_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/beagle-updates}"
+BEAGLE_INSTALL_DIR="${BEAGLE_SERVER_INSTALL_DIR:-/opt/beagle}"
+
+cleanup() {
+  umount "$TARGET_MOUNT/dev/pts" >/dev/null 2>&1 || true
+  umount "$TARGET_MOUNT/dev" >/dev/null 2>&1 || true
+  umount "$TARGET_MOUNT/proc" >/dev/null 2>&1 || true
+  umount "$TARGET_MOUNT/sys" >/dev/null 2>&1 || true
+  umount "$TARGET_MOUNT/run" >/dev/null 2>&1 || true
+  umount "$EFI_MOUNT" >/dev/null 2>&1 || true
+  umount "$TARGET_MOUNT" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+setup_logging() {
+  mkdir -p "$STATE_DIR" "$LOG_DIR"
+  touch "$LOG_FILE"
+  chmod 0644 "$LOG_FILE" >/dev/null 2>&1 || true
+}
+
+log() {
+  setup_logging
+  printf '[%s] %s\n' "$(date -Is 2>/dev/null || date)" "$*" | tee -a "$LOG_FILE" >/dev/null
+}
+
+on_error() {
+  local rc="$1"
+  local line="$2"
+  local cmd="$3"
+  log "error: rc=$rc line=$line cmd=$cmd"
+  printf '\nInstallation failed.\n\nSee %s for details.\n\nPress ENTER to open a shell.' "$LOG_FILE"
+  read -r _
+  exec /bin/bash -l
+}
+trap 'on_error $? "$LINENO" "$BASH_COMMAND"' ERR
+
+require_root() {
+  if [[ "${EUID}" -ne 0 ]]; then
+    echo "This installer must run as root." >&2
+    exit 1
+  fi
+}
+
+run_logged() {
+  log "run: $*"
+  "$@" >>"$LOG_FILE" 2>&1
+}
+
+prompt_value() {
+  local label="$1"
+  local default_value="${2:-}"
+  local value=""
+  if [[ -n "$default_value" ]]; then
+    printf '%s [%s]: ' "$label" "$default_value"
+  else
+    printf '%s: ' "$label"
+  fi
+  IFS= read -r value || true
+  if [[ -n "$value" ]]; then
+    printf '%s\n' "$value"
+  else
+    printf '%s\n' "$default_value"
+  fi
+}
+
+prompt_secret() {
+  local label="$1"
+  local value=""
+  read -r -s -p "$label: " value || true
+  printf '\n' >&2
+  printf '%s\n' "$value"
+}
+
+prompt_password() {
+  local first="" second=""
+  while true; do
+    first="$(prompt_secret 'Linux password')"
+    [[ -n "$first" ]] || {
+      echo "Password must not be empty." >&2
+      continue
+    }
+    second="$(prompt_secret 'Confirm password')"
+    [[ "$first" == "$second" ]] || {
+      echo "Passwords do not match." >&2
+      continue
+    }
+    printf '%s\n' "$first"
+    return 0
+  done
+}
+
+normalize_hostname() {
+  printf '%s\n' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+validate_hostname() {
+  [[ "$1" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]
+}
+
+validate_username() {
+  [[ "$1" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]
+}
+
+current_live_disks() {
+  findmnt -rn -o SOURCE /run/live/medium 2>/dev/null | while read -r source; do
+    [[ -n "$source" ]] || continue
+    lsblk -no PKNAME "$source" 2>/dev/null | sed 's#^#/dev/#'
+    if [[ "$source" == /dev/* ]]; then
+      printf '%s\n' "${source%%[0-9]*}"
+    fi
+  done | awk 'NF && !seen[$0]++'
+}
+
+choose_target_disk() {
+  local name size model type rm transport device answer label live_flag
+  local -a live_disks=()
+  local -a preferred_items=()
+  local -a fallback_items=()
+
+  mapfile -t live_disks < <(current_live_disks || true)
+
+  while IFS=$'\x1f' read -r name size model type rm transport; do
+    [[ "$type" == "disk" ]] || continue
+    device="/dev/${name}"
+    [[ "$device" == /dev/loop* || "$device" == /dev/sr* || "$device" == /dev/ram* || "$device" == /dev/zram* ]] && continue
+    [[ "$device" == /dev/mmcblk*boot* || "$device" == /dev/mmcblk*rpmb* ]] && continue
+    live_flag="0"
+    if printf '%s\n' "${live_disks[@]}" | grep -Fxq "$device"; then
+      live_flag="1"
+    fi
+    label="${model:-disk} ${size:-unknown} rm=${rm:-0} ${transport:-}"
+    log "disk candidate: $device size=${size:-unknown} rm=${rm:-0} transport=${transport:-} live=$live_flag"
+    if [[ "${rm:-0}" != "1" && "${transport:-}" != "usb" ]]; then
+      preferred_items+=("$device" "$label")
+      continue
+    fi
+    [[ "$live_flag" == "1" ]] && continue
+    fallback_items+=("$device" "$label")
+  done < <(
+    lsblk -J -d -o NAME,SIZE,MODEL,TYPE,RM,TRAN | python3 -c '
+import json
+import sys
+payload = json.load(sys.stdin)
+sep = "\x1f"
+for item in payload.get("blockdevices", []):
+    rm = item.get("rm", 0)
+    if isinstance(rm, bool):
+        rm = "1" if rm else "0"
+    else:
+        rm = str(rm or "0")
+    print(sep.join([
+        str(item.get("name", "") or ""),
+        str(item.get("size", "") or ""),
+        str(item.get("model", "") or ""),
+        str(item.get("type", "") or ""),
+        rm,
+        str(item.get("tran", "") or ""),
+    ]))
+'
+  )
+
+  if (( ${#preferred_items[@]} == 0 )); then
+    preferred_items=("${fallback_items[@]}")
+  fi
+
+  if (( ${#preferred_items[@]} == 0 )); then
+    echo "No writable target disk found." >&2
+    exit 1
+  fi
+
+  printf '\n[Beagle OS Server Installer]\n'
+  printf 'Choose the target disk. It will be erased completely.\n\n'
+  local index=1
+  while (( index <= ${#preferred_items[@]} / 2 )); do
+    printf '%s) %s %s\n' "$index" "${preferred_items[$(( (index - 1) * 2 ))]}" "${preferred_items[$(( (index - 1) * 2 + 1 ))]}"
+    index=$((index + 1))
+  done
+  printf '\nType the number of the target disk and press ENTER: '
+  read -r answer
+  [[ "$answer" =~ ^[0-9]+$ ]] || {
+    echo "Invalid selection: $answer" >&2
+    exit 1
+  }
+  (( answer >= 1 && answer <= ${#preferred_items[@]} / 2 )) || {
+    echo "Selection out of range: $answer" >&2
+    exit 1
+  }
+  printf '%s\n' "${preferred_items[$(( (answer - 1) * 2 ))]}"
+}
+
+confirm_wipe() {
+  local disk="$1"
+  local answer=""
+  printf '\nTarget disk: %s\n' "$disk"
+  printf 'Type YES to erase this disk and continue: '
+  read -r answer
+  [[ "$answer" == "YES" ]]
+}
+
+partition_suffix() {
+  local disk="$1"
+  local part="$2"
+  case "$disk" in
+    /dev/nvme*|/dev/mmcblk*) printf '%sp%s\n' "$disk" "$part" ;;
+    *) printf '%s%s\n' "$disk" "$part" ;;
+  esac
+}
+
+detect_primary_iface() {
+  local iface=""
+  iface="$(ip route show default 2>/dev/null | awk '/default/ {print $5; exit}')"
+  if [[ -n "$iface" ]]; then
+    printf '%s\n' "$iface"
+    return 0
+  fi
+
+  ls /sys/class/net | grep -E '^(en|eth)' | head -n 1
+}
+
+write_hostname_files() {
+  cat >"$TARGET_MOUNT/etc/hostname" <<EOF
+$INSTALL_HOSTNAME
+EOF
+  cat >"$TARGET_MOUNT/etc/hosts" <<EOF
+127.0.0.1 localhost
+127.0.1.1 $INSTALL_HOSTNAME
+
+::1 localhost ip6-localhost ip6-loopback
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+EOF
+}
+
+write_network_config() {
+  mkdir -p "$TARGET_MOUNT/etc/network"
+  cat >"$TARGET_MOUNT/etc/network/interfaces" <<EOF
+auto lo
+iface lo inet loopback
+
+iface $PRIMARY_IFACE inet manual
+
+auto vmbr0
+iface vmbr0 inet dhcp
+    bridge-ports $PRIMARY_IFACE
+    bridge-stp off
+    bridge-fd 0
+EOF
+}
+
+write_apt_sources() {
+  cat >"$TARGET_MOUNT/etc/apt/sources.list" <<EOF
+deb $DEBIAN_MIRROR $DEBIAN_RELEASE main contrib non-free-firmware
+deb $DEBIAN_MIRROR ${DEBIAN_RELEASE}-updates main contrib non-free-firmware
+deb $DEBIAN_SECURITY_MIRROR ${DEBIAN_RELEASE}-security main contrib non-free-firmware
+EOF
+
+  mkdir -p "$TARGET_MOUNT/etc/apt/sources.list.d" "$TARGET_MOUNT/usr/share/keyrings"
+  run_logged curl -fsSL "$PROXMOX_KEY_URL" -o "$TARGET_MOUNT/usr/share/keyrings/proxmox-archive-keyring.gpg"
+  cat >"$TARGET_MOUNT/etc/apt/sources.list.d/proxmox.list" <<EOF
+deb [signed-by=/usr/share/keyrings/proxmox-archive-keyring.gpg] $PROXMOX_REPO_URL $PROXMOX_REPO_SUITE $PROXMOX_REPO_COMPONENT
+EOF
+}
+
+mount_chroot_fs() {
+  mount --bind /dev "$TARGET_MOUNT/dev"
+  mount -t devpts devpts "$TARGET_MOUNT/dev/pts"
+  mount -t proc proc "$TARGET_MOUNT/proc"
+  mount -t sysfs sysfs "$TARGET_MOUNT/sys"
+  mount --bind /run "$TARGET_MOUNT/run"
+}
+
+chroot_run() {
+  chroot "$TARGET_MOUNT" /usr/bin/env DEBIAN_FRONTEND=noninteractive bash -lc "$*"
+}
+
+write_fstab() {
+  local boot_part="$1"
+  local root_part="$2"
+  local root_uuid boot_uuid
+  root_uuid="$(blkid -s UUID -o value "$root_part")"
+  boot_uuid="$(blkid -s UUID -o value "$boot_part")"
+  cat >"$TARGET_MOUNT/etc/fstab" <<EOF
+UUID=$root_uuid / ext4 defaults 0 1
+UUID=$boot_uuid /boot/efi vfat umask=0077 0 1
+EOF
+}
+
+install_base_system() {
+  log "running debootstrap for $DEBIAN_RELEASE"
+  run_logged debootstrap --arch amd64 "$DEBIAN_RELEASE" "$TARGET_MOUNT" "$DEBIAN_MIRROR"
+  mkdir -p "$TARGET_MOUNT/etc"
+  cp /etc/resolv.conf "$TARGET_MOUNT/etc/resolv.conf"
+}
+
+configure_base_system() {
+  write_hostname_files
+  write_network_config
+  write_apt_sources
+  write_fstab "$1" "$2"
+  mkdir -p "$TARGET_MOUNT/etc/default"
+  cat >"$TARGET_MOUNT/etc/default/locale" <<'EOF'
+LANG=en_US.UTF-8
+LANGUAGE=en_US:en
+EOF
+}
+
+install_target_packages() {
+  local hostname_q username_q password_q
+  printf -v hostname_q '%q' "$INSTALL_HOSTNAME"
+  printf -v username_q '%q' "$INSTALL_USERNAME"
+  printf -v password_q '%q' "$INSTALL_PASSWORD"
+  chroot_run "apt-get update"
+  chroot_run "printf 'postfix postfix/mailname string %s\n' $hostname_q | debconf-set-selections"
+  chroot_run "printf 'postfix postfix/main_mailer_type string Local only\n' | debconf-set-selections"
+  chroot_run "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server proxmox-ve postfix open-iscsi chrony git python3 rsync"
+  chroot_run "sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen || true"
+  chroot_run "grep -q '^en_US.UTF-8 UTF-8' /etc/locale.gen || echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen"
+  chroot_run "locale-gen en_US.UTF-8"
+  chroot_run "update-locale LANG=en_US.UTF-8 LANGUAGE=en_US:en"
+  chroot_run "printf 'root:%s\n' $password_q | chpasswd"
+  chroot_run "id $username_q >/dev/null 2>&1 || useradd -m -s /bin/bash -G sudo $username_q"
+  chroot_run "printf '%s:%s\n' $username_q $password_q | chpasswd"
+}
+
+install_beagle() {
+  local source_url_q install_dir_q hostname_q public_updates_q web_ui_q
+  printf -v source_url_q '%q' "$BEAGLE_SOURCE_URL"
+  printf -v install_dir_q '%q' "$BEAGLE_INSTALL_DIR"
+  printf -v hostname_q '%q' "$INSTALL_HOSTNAME"
+  printf -v public_updates_q '%q' "$BEAGLE_PUBLIC_UPDATE_BASE_URL"
+  printf -v web_ui_q '%q' "https://$INSTALL_HOSTNAME"
+  chroot_run "mkdir -p /usr/local/src /var/lib/beagle"
+  chroot_run "curl -fsSL $source_url_q -o /tmp/beagle-os.tar.gz"
+  chroot_run "tar -xzf /tmp/beagle-os.tar.gz -C /usr/local/src"
+  chroot_run "src_dir=\$(find /usr/local/src -maxdepth 1 -type d -name 'beagle-os-*' | sort | tail -n 1); cd \"\$src_dir\" && BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-proxmox-host.sh"
+}
+
+install_bootloader() {
+  local disk="$1"
+  chroot_run "grub-install --target=i386-pc --recheck '$disk' || true"
+  chroot_run "grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=debian --recheck --no-nvram"
+  chroot_run "update-grub"
+}
+
+finish_install() {
+  touch "$DONE_FILE"
+  printf '\nInstallation complete.\n\nRemove the USB stick and press ENTER to reboot.\n'
+  read -r _
+  reboot
+}
+
+main() {
+  require_root
+  setup_logging
+
+  printf '\nBeagle OS Server Installer\n'
+  printf 'This will install Debian, Proxmox VE, and the Beagle integration.\n\n'
+
+  INSTALL_HOSTNAME="$(normalize_hostname "$(prompt_value 'Server hostname' 'beagle-host')")"
+  validate_hostname "$INSTALL_HOSTNAME" || {
+    echo "Hostname must contain only lowercase letters, digits, and hyphens." >&2
+    exit 1
+  }
+  INSTALL_USERNAME="$(prompt_value 'Linux username' 'beagle')"
+  validate_username "$INSTALL_USERNAME" || {
+    echo "Linux username contains unsupported characters." >&2
+    exit 1
+  }
+  INSTALL_PASSWORD="$(prompt_password)"
+  INSTALL_DISK="$(choose_target_disk)"
+  confirm_wipe "$INSTALL_DISK" || {
+    echo "Installation cancelled."
+    exit 1
+  }
+
+  PRIMARY_IFACE="$(detect_primary_iface)"
+  [[ -n "$PRIMARY_IFACE" ]] || {
+    echo "No primary network interface found." >&2
+    exit 1
+  }
+
+  local bios_part boot_part root_part
+  bios_part="$(partition_suffix "$INSTALL_DISK" 1)"
+  boot_part="$(partition_suffix "$INSTALL_DISK" 2)"
+  root_part="$(partition_suffix "$INSTALL_DISK" 3)"
+
+  mkdir -p "$TARGET_MOUNT" "$EFI_MOUNT"
+  run_logged wipefs -a "$INSTALL_DISK"
+  run_logged parted -s "$INSTALL_DISK" mklabel gpt
+  run_logged parted -s "$INSTALL_DISK" mkpart BIOSBOOT 1MiB 3MiB
+  run_logged parted -s "$INSTALL_DISK" set 1 bios_grub on
+  run_logged parted -s "$INSTALL_DISK" mkpart ESP fat32 3MiB 1027MiB
+  run_logged parted -s "$INSTALL_DISK" set 2 esp on
+  run_logged parted -s "$INSTALL_DISK" set 2 boot on
+  run_logged parted -s "$INSTALL_DISK" mkpart primary ext4 1027MiB 100%
+  run_logged partprobe "$INSTALL_DISK"
+  run_logged udevadm settle
+  run_logged mkfs.vfat -F 32 -n BEAGLEBOOT "$boot_part"
+  run_logged mkfs.ext4 -F -L BEAGLEROOT "$root_part"
+  run_logged mount "$root_part" "$TARGET_MOUNT"
+  mkdir -p "$EFI_MOUNT"
+  run_logged mount "$boot_part" "$EFI_MOUNT"
+
+  install_base_system
+  configure_base_system "$boot_part" "$root_part"
+  mount_chroot_fs
+  install_target_packages
+  install_beagle
+  install_bootloader "$INSTALL_DISK"
+  finish_install
+}
+
+main "$@"

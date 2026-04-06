@@ -4,346 +4,153 @@
 
 > **Built to boot. If it still won't boot, the BIOS is being dramatic.**
 
-> **Proxmox-native endpoint OS and management stack for desktop streaming and gaming endpoints.**
+> **Open-source Proxmox-native endpoint OS, gaming kiosk, and host installer.**
 
-[![License: Source Available](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/meinzeug/beagle-os)](https://github.com/meinzeug/beagle-os/releases)
 [![Shell](https://img.shields.io/badge/shell-54%25-green)]()
 [![Python](https://img.shields.io/badge/python-24%25-blue)]()
 
-> **License:** Free for private/non-commercial use. Commercial use requires separate written permission or licensing from Dennis Wicht / meinzeug. See [LICENSE](LICENSE) for details.
-
----
-
-## What is Beagle OS?
-
-Beagle OS is an intentionally narrow-focused project with two fixed product paths:
+Beagle OS is an MIT-licensed project for three tightly related jobs:
 
 - `Beagle OS Desktop`
-  - `Sunshine` running inside the target VM
-  - `Moonlight` running on Beagle OS
-  - `Proxmox` as the inventory, provisioning, and operations surface
+  Runs Moonlight on a dedicated endpoint and connects it to a Sunshine-enabled VM.
 - `Beagle OS Gaming`
-  - Integrated Beagle gaming kiosk as the primary shell
-  - `GeForce NOW` launched and monitored by the kiosk
-  - `Proxmox` as the delivery and operational surface for the endpoint OS
+  Runs the Beagle gaming kiosk as the primary shell and launches GeForce NOW from that kiosk.
+- `Beagle OS Server Installer`
+  Boots a bare server, asks for basic install parameters, installs Debian + Proxmox VE, then installs the Beagle integration on top.
 
-Beagle OS is **not** a generic remote desktop toolkit. It is a managed endpoint solution with two intentionally narrow runtime experiences: a desktop streaming mode and a gaming kiosk mode.
+Beagle OS is not a generic broker platform. It is a focused stack for Proxmox-managed streamed desktops, gaming endpoints, and reproducible host installation.
 
-## Beagle OS Gaming Kiosk
+## What Lives in This Repository
 
-The gaming kiosk module is closed-source. It is distributed exclusively as a compiled Electron binary. Source code for this component is maintained in a private repository and is not publicly available.
+- `proxmox-host/`
+  Host-side control plane, download publication, and installer rendering.
+- `proxmox-ui/`
+  Proxmox UI integration and Beagle Fleet controls.
+- `thin-client-assistant/`
+  Endpoint runtime, live-build inputs, USB installers, and endpoint installer logic.
+- `beagle-kiosk/`
+  Open-source Electron source tree for the gaming kiosk.
+- `scripts/`
+  Build, packaging, publication, deployment, and validation utilities.
 
-Public repository scope for the kiosk:
+## Gaming Kiosk
 
-- [`beagle-kiosk/README.md`](beagle-kiosk/README.md)
-- [`beagle-kiosk/INSTALL.sh`](beagle-kiosk/INSTALL.sh)
-
-The private kiosk source lives outside this repository and remains the canonical source for the Electron app, renderer, build configuration, and affiliate-backed store logic. See [LICENSE](LICENSE) for details on the Affiliate Protection Clause.
-
-## Requirements
-
-- Proxmox VE 7.x or 8.x
-- A target VM with [Sunshine](https://github.com/LizardByte/Sunshine) installed
-- Thin clients, mini PCs, or USB media for the Beagle OS endpoint
-
----
-
-## Architecture in One Sentence
-
-Beagle OS turns Proxmox into a management surface for a dedicated endpoint OS that boots either into a Moonlight/Sunshine desktop session or into an integrated GeForce NOW gaming kiosk.
-
-## Typical Flow
-```mermaid
-flowchart LR
-    Admin[Admin in Proxmox]
-    PVE[Proxmox with Beagle Integration]
-    VM[Target VM with Sunshine]
-    Artifact[Beagle Installer or Image]
-    Desktop[Beagle OS Desktop Mode with Moonlight]
-    Gaming[Beagle OS Gaming Kiosk with GeForce NOW]
-
-    Admin --> PVE
-    PVE --> VM
-    PVE --> Artifact
-    Artifact --> Desktop
-    Artifact --> Gaming
-    Desktop --> VM
-```
-
----
-
-## Product Concept
-
-Beagle OS consists of two interconnected layers:
-
-1. **Beagle Control Plane on Proxmox**
-2. **Beagle OS as a Thin-Client Operating System**
-
-The Control Plane attaches directly to Proxmox and turns VMs into manageable streaming targets. The OS boots on thin clients, mini PCs, or USB media and starts either the desktop streaming path or the gaming kiosk path.
-
-The result is not a classic "remote desktop toolkit" but a managed endpoint solution:
-
-- VM-specific installers served directly from Proxmox
-- Resolved VM profiles visible directly in the Proxmox UI
-- Preconfigured streaming targets per VM
-- Reproducible client images
-- Dedicated thin-client endpoints instead of general-purpose Linux desktops
-- Separate boot paths for desktop streaming and gaming kiosk usage
-- Operational model for fleets of clients with a uniform target image
-- Device diagnostics and support bundles built into the endpoint OS
-- Preparable Moonlight client identities for reproducible Sunshine pairing
-- Secure USB device passthrough from the thin client to its assigned VM
-
----
-
-## Target Vision
-
-Beagle OS is designed as an open endpoint and management platform for virtual workstations:
-
-- Not Citrix- or VMware-centric
-- Not reliant on generic broker stacks
-- Directly coupled to Proxmox
-- Optimized for Moonlight/Sunshine streaming
-- Built for fixed, controlled endpoints
-
-In short:
-
-- `Open endpoint management model`
-- `Proxmox-native orchestration`
-- `Moonlight/Sunshine for desktop streaming`
-- `Integrated GeForce NOW kiosk for gaming`
-
----
-
-## Quick Start
-
-### Setup on an Existing Proxmox Host
-
-1. Clone the repository onto the host or an admin machine
-2. Run the setup script:
-```bash
-./scripts/setup-proxmox-host.sh
-```
-
-The setup script completes the standard path in a single step:
-
-- Installs Beagle to `/opt/beagle`
-- Sets up the Control Plane, timers, and services on the Proxmox host
-- Integrates the Proxmox UI extension
-- Prepares hosted download artifacts
-- Runs a host health check immediately after
-
-Optional environment variables:
-```bash
-INSTALL_DIR=/opt/beagle \
-PVE_DCV_PROXY_SERVER_NAME=srv.example.net \
-PVE_DCV_PROXY_LISTEN_PORT=8443 \
-BEAGLE_SITE_PORT=443 \
-./scripts/setup-proxmox-host.sh
-```
-
-After a successful setup, a **Create Beagle VM** button will appear next to **Create VM** in the Proxmox UI. Use it to provision an Ubuntu Desktop VM with Beagle/Sunshine presets. From there, the Beagle profile for that VM — including live-USB and USB installer downloads for Linux and Windows — is immediately accessible.
-
-The Beagle Fleet modal is also the operator surface for managed desktop profiles:
-
-- Create a Beagle desktop VM with a selectable desktop environment such as `XFCE`, `GNOME`, `KDE Plasma`, `MATE`, or `LXQt`
-- Set locale and keyboard layout up front
-- Add common software presets and extra APT packages during provisioning
-- Re-open an existing managed Beagle desktop VM later and change desktop, locale, keyboard layout, and packages in place
-
----
-
-## Operational Model
-
-The operational workflow is intentionally simple:
-
-1. Install the Beagle integration on the Proxmox host.
-2. Prepare a VM as a Sunshine stream target for desktop mode or use the gaming image path for kiosk mode.
-3. Bind the target parameters to the VM in Proxmox when desktop streaming is required.
-4. Roll out a Beagle OS installer or image.
-5. Boot the client into either `Beagle OS Desktop` or `Beagle OS Gaming`.
-
-### Preferred Operator Path per VM
-
-1. Select the target VM in Proxmox.
-2. Download the VM-specific **USB Installer Script**.
-3. The script fetches the current Beagle Installer ISO from the Proxmox host.
-4. The script writes a bootable USB drive from it.
-5. The VM profile is embedded directly into the stick.
-6. After installation, Beagle OS boots with Moonlight autostart against exactly this VM.
-
-This makes Proxmox not just a compute platform, but simultaneously:
-
-- Inventory for streaming VMs
-- Delivery point for client installers
-- Source for VM-specific presets
-- Central integration point for Beagle OS
-
----
-
-## Main Components
-
-### 1. Beagle Control Plane on Proxmox
-
-The host side delivers the management functions:
-
-- Integration into the Proxmox UI
-- Beagle Fleet create/edit workflows for managed desktop VMs
-- Beagle profile dialogs with export, download, and health actions per VM
-- Desktop catalog and software-preset catalog for Beagle desktop provisioning
-- VM-specific artifact generation
-- Download endpoints for installers and images
-- VM-specific USB scripts that fetch the installer ISO and write it to USB with an embedded target profile
-- Local Control Plane API for health and inventory
-- USB Control Plane for export, attach, detach, and guest state per VM
-- Reapply/refresh mechanisms after host changes
-- Residential egress policies for sensitive web targets
-- Stable endpoint identity with hostname, locale, and timezone control
-- Product website served directly from the Beagle host via HTTPS/443
-
-Core product logic:
-
-- A VM is described as a Sunshine target
-- Fleet provisioning can define desktop environment, locale, keymap, and add-on packages for managed desktop VMs
-- Beagle generates the matching client preset from it
-- The client launches Moonlight against exactly this target
-
-### 2. Beagle OS as an Endpoint Operating System
-
-Beagle OS is the actual thin-client OS — not a general-purpose desktop, but purpose-built for streaming.
+The gaming kiosk is now part of the public repository.
 
 Key points:
 
-- Dedicated OS build path
-- Custom kernel package path (`-beagle`)
-- Bootable images for testing, rollout, and VM operation
-- Runtime for network, autostart, and Moonlight session launch
-- Separate gaming session path with Beagle kiosk and GeForce NOW runtime
-- Runtime for secure USB export via `usbip` and reverse SSH tunnel
+- Source lives in [`beagle-kiosk/`](beagle-kiosk/README.md)
+- Built as an Electron AppImage for release distribution
+- Supports `Meine Bibliothek` and `Spielekatalog`
+- Launches GeForce NOW as a child process
+- Uses direct store links without affiliate parameters
+- Ships daily and manual catalog refresh support
 
-### 3. VM-Bound Provisioning
+## Quick Start
 
-Provisioning is VM-centric rather than user-centric. A specific VM in Proxmox is the streaming target. From it arise:
+### Install Beagle on an Existing Proxmox Host
 
-- A VM-specific USB installer script
-- A central Beagle installer ISO
-- A bundled preset with host, app, and pairing data
-- A reproducible endpoint that starts the correct VM immediately after installation
-- A per-VM secured USB tunnel for local devices
+```bash
+git clone https://github.com/meinzeug/beagle-os.git
+cd beagle-os
+./scripts/setup-proxmox-host.sh
+./scripts/check-proxmox-host.sh
+```
 
----
+After setup, Proxmox gets:
 
-## Why the Runtime Paths Stay Narrow
+- the Beagle control plane
+- hosted installer and update artifacts
+- the Beagle Fleet button in the UI
+- per-VM USB installer rendering
 
-This is an architectural decision, not a marketing statement.
+### Install a New Host with the Server Installer ISO
 
-Supporting arbitrary protocols and generic desktop shells sounds flexible but makes the product harder to test, operationally messier, and harder to reason about. Beagle OS therefore keeps the runtime paths intentionally narrow:
+1. Download the current server installer ISO from `beagle-os.com`.
+2. Boot the target machine from the ISO.
+3. Enter the server hostname, Linux username, password, and target disk.
+4. The installer installs Debian Bookworm, installs Proxmox VE from the official Proxmox repository, downloads Beagle from GitHub, and runs the Beagle Proxmox host setup.
 
-- Desktop mode:
-  - `Moonlight` on the endpoint
-  - `Sunshine` inside the VM
-- Gaming mode:
-  - Beagle gaming kiosk as the primary shell
-  - `GeForce NOW` launched from and returned to the kiosk
+### Install an Endpoint
 
-This brings concrete advantages:
+You can use:
 
-- Fewer operational variants
-- Less UI and installer complexity
-- More reproducible tests
-- Better latency optimization
-- Simpler failure analysis
-- More consistent user experience
+- the public installer ISO
+- the public USB helper scripts
+- or the preferred VM-specific USB installer exposed by the Proxmox host
 
----
+## Architecture
 
-## Secure USB Device Passthrough
+Beagle OS consists of three layers:
 
-Beagle OS does **not** expose USB devices as a raw, publicly reachable `usbip` service. The path is hardened by design:
+1. `Beagle Control Plane on Proxmox`
+   Inventory, VM-aware artifact publication, host services, health, and UI integration.
+2. `Beagle OS Endpoint Runtime`
+   Dedicated endpoint OS for Moonlight desktop mode and Gaming kiosk mode.
+3. `Beagle Server Installer`
+   Bootable installer for new Proxmox + Beagle hosts.
 
-- Per-VM SSH tunnel key
-- Per-VM reverse tunnel port
-- Reverse SSH tunnel from the thin client to the Proxmox host
-- USB device attachment only from the assigned VM
-- No public `usbip` exposure on the host
-- Managed via the Beagle Control Plane rather than manual shell commands
+In practice:
 
-### Flow
+- Proxmox is the operator surface.
+- Sunshine inside the VM is the desktop streaming target.
+- Moonlight on the endpoint is the desktop client path.
+- The Beagle kiosk is the gaming shell around GeForce NOW.
+- Public artifacts on `beagle-os.com` are the canonical release surface.
 
-1. The thin client exports a locally bound USB device.
-2. Beagle establishes a reverse SSH tunnel to the host.
-3. The host exposes the tunnel only internally on the attach host.
-4. The target VM binds the device via the Control Plane.
-5. The operator sees the attach status in Proxmox or the Beagle Web UI.
+## Operational Model
 
-The USB path remains internet-capable without exposing a raw, public USBIP attack surface.
+Typical Desktop flow:
 
----
+1. Install Beagle on Proxmox.
+2. Create or prepare a Sunshine-capable VM.
+3. Download the VM-specific installer from Proxmox.
+4. Write a USB stick.
+5. Install the endpoint and boot `Beagle OS Desktop`.
 
-## Release 5.2 Highlights
+Typical Gaming flow:
 
-- **Fleet Desktop Catalog:** Managed Beagle desktop VMs can now be provisioned and edited with selectable desktop environments such as `XFCE`, `GNOME`, `KDE Plasma`, `MATE`, and `LXQt`.
-- **Software Presets:** The Fleet Manager now supports named software presets plus extra APT packages during both initial provisioning and later edits.
-- **In-Place Guest Reconfiguration:** Existing managed desktop VMs can change locale, keyboard layout, desktop session, and packages without being rebuilt from scratch.
-- **Gaming Boot Path:** Beagle OS now ships a dedicated `Beagle OS Gaming` boot mode with a closed-source kiosk and GeForce NOW integration.
-- **VM-Specific USB Installers:** The installer path now supports explicit target-disk selection and VM-bound preset media for reproducible endpoint installs.
+1. Install or update the endpoint OS.
+2. Boot `Beagle OS Gaming`.
+3. The kiosk starts as the primary shell.
+4. Launch GeForce NOW from the kiosk.
+5. When GFN exits, the kiosk returns.
 
----
+Typical Host bootstrap flow:
 
-## Repository Scope
+1. Boot the Beagle server installer ISO.
+2. Select the install disk and set hostname/user/password.
+3. Let the installer finish Debian + Proxmox + Beagle setup.
+4. Log into the new Proxmox host and continue with Beagle Fleet or endpoint rollouts.
 
-This repository builds the required components:
+## Public Artifacts
 
-- Proxmox integration
-- Host-side artifact generation
-- Thin-client runtime
-- USB and installation path
-- Secure USB device passthrough from endpoint to target VM
-- Beagle OS image build
-- Sunshine guest configuration for target VMs
-- Public kiosk installer and release wrapper files
+The public update surface on `https://beagle-os.com/beagle-updates/` publishes:
 
-This repository does **not** contain the Electron kiosk source itself.
+- `beagle-downloads-status.json`
+- `SHA256SUMS`
+- `beagle-os-installer-amd64.iso`
+- `beagle-os-server-installer-amd64.iso`
+- `pve-thin-client-usb-payload-latest.tar.gz`
+- `pve-thin-client-usb-bootstrap-latest.tar.gz`
+- USB helper scripts
+- kiosk release metadata and kiosk AppImage artifacts
 
----
+## Build and Release
 
-## Key Entry Points
+Heavy builds must run on `srv.thinover.net`, not on this local workstation.
 
-| Task | Script / Path |
-|---|---|
-| Full Proxmox host setup | [`scripts/setup-proxmox-host.sh`](scripts/setup-proxmox-host.sh) |
-| Host installation only | [`scripts/install-proxmox-host.sh`](scripts/install-proxmox-host.sh) |
-| Host health check | [`scripts/check-proxmox-host.sh`](scripts/check-proxmox-host.sh) |
-| Configure Sunshine guest | [`scripts/configure-sunshine-guest.sh`](scripts/configure-sunshine-guest.sh) |
-| Pre-register Moonlight client | [`scripts/register-moonlight-client-on-sunshine.sh`](scripts/register-moonlight-client-on-sunshine.sh) |
-| Build Beagle OS image | [`scripts/build-beagle-os.sh`](scripts/build-beagle-os.sh) |
-| Build documentation | [`docs/beagle-os-build.md`](docs/beagle-os-build.md) |
-| Thin-client components | [`thin-client-assistant/`](thin-client-assistant/) |
+Common release steps:
 
----
-
-## Current Product Direction
-
-The direction for this repository is unambiguous:
-
-- Beagle OS is built as its own endpoint OS
-- Beagle integrates directly into Proxmox
-- Beagle uses Moonlight/Sunshine for desktop mode
-- Beagle uses the integrated closed-source gaming kiosk for gaming mode
-- Streamed desktop VMs use Sunshine
-- The Proxmox host takes on the management and provisioning role
-
-Everything else is secondary.
-
----
+```bash
+./scripts/validate-project.sh
+./scripts/package.sh
+./scripts/publish-public-update-artifacts.sh
+./scripts/create-github-release.sh
+```
 
 ## License
 
-Beagle OS is available under the **Beagle OS Source Available License**:
-
-- **Private / Non-commercial:** Free to use
-- **Commercial:** Only with separate written permission or licensing from Dennis Wicht / meinzeug
-- **Gaming kiosk:** Distributed as a compiled closed-source component from a private repository
-
-See [LICENSE](LICENSE) for details.
+This repository is licensed under the [MIT License](LICENSE).

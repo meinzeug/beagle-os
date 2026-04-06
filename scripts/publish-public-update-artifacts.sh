@@ -27,14 +27,17 @@ write_public_status_json() {
   local bootstrap_filename="pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
   local bootstrap_latest_filename="pve-thin-client-usb-bootstrap-latest.tar.gz"
   local installer_iso_filename="beagle-os-installer-amd64.iso"
+  local server_installer_iso_filename="beagle-os-server-installer-amd64.iso"
   local payload_path="$DIST_DIR/$payload_filename"
   local payload_latest_path="$DIST_DIR/$payload_latest_filename"
   local bootstrap_path="$DIST_DIR/$bootstrap_filename"
   local bootstrap_latest_path="$DIST_DIR/$bootstrap_latest_filename"
   local installer_iso_path="$DIST_DIR/$installer_iso_filename"
+  local server_installer_iso_path="$DIST_DIR/$server_installer_iso_filename"
   local payload_sha256=""
   local bootstrap_sha256=""
   local installer_iso_sha256=""
+  local server_installer_iso_sha256=""
 
   payload_sha256="$(checksum_for "$payload_filename")"
   if [[ -z "$payload_sha256" ]]; then
@@ -51,7 +54,12 @@ write_public_status_json() {
     installer_iso_sha256="$(sha256sum "$installer_iso_path" | awk '{print $1}')"
   fi
 
-  python3 - "$STATUS_JSON" "$VERSION" "$PUBLIC_BASE_URL" "$payload_filename" "$payload_latest_filename" "$payload_sha256" "$payload_path" "$payload_latest_path" "$bootstrap_filename" "$bootstrap_latest_filename" "$bootstrap_sha256" "$bootstrap_path" "$bootstrap_latest_path" "$installer_iso_filename" "$installer_iso_sha256" "$installer_iso_path" <<'PY'
+  server_installer_iso_sha256="$(checksum_for "$server_installer_iso_filename")"
+  if [[ -z "$server_installer_iso_sha256" ]]; then
+    server_installer_iso_sha256="$(sha256sum "$server_installer_iso_path" | awk '{print $1}')"
+  fi
+
+  python3 - "$STATUS_JSON" "$VERSION" "$PUBLIC_BASE_URL" "$payload_filename" "$payload_latest_filename" "$payload_sha256" "$payload_path" "$payload_latest_path" "$bootstrap_filename" "$bootstrap_latest_filename" "$bootstrap_sha256" "$bootstrap_path" "$bootstrap_latest_path" "$installer_iso_filename" "$installer_iso_sha256" "$installer_iso_path" "$server_installer_iso_filename" "$server_installer_iso_sha256" "$server_installer_iso_path" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -73,6 +81,9 @@ bootstrap_latest_path = Path(sys.argv[13])
 installer_iso_filename = sys.argv[14]
 installer_iso_sha256 = sys.argv[15]
 installer_iso_path = Path(sys.argv[16])
+server_installer_iso_filename = sys.argv[17]
+server_installer_iso_sha256 = sys.argv[18]
+server_installer_iso_path = Path(sys.argv[19])
 
 payload = {
     "service": "beagle-public-updates",
@@ -98,6 +109,10 @@ payload = {
     "installer_iso_url": f"{base_url}/{installer_iso_filename}",
     "installer_iso_sha256": installer_iso_sha256,
     "installer_iso_size": installer_iso_path.stat().st_size,
+    "server_installer_iso_filename": server_installer_iso_filename,
+    "server_installer_iso_url": f"{base_url}/{server_installer_iso_filename}",
+    "server_installer_iso_sha256": server_installer_iso_sha256,
+    "server_installer_iso_size": server_installer_iso_path.stat().st_size,
     "sha256sums_url": f"{base_url}/SHA256SUMS",
 }
 status_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -110,6 +125,10 @@ require_file "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
 require_file "$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
 require_file "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
 require_file "$DIST_DIR/beagle-os-installer-amd64.iso"
+require_file "$DIST_DIR/beagle-os-server-installer-amd64.iso"
+require_file "$DIST_DIR/beagle-kiosk-v${VERSION}-linux-x64.AppImage"
+require_file "$DIST_DIR/kiosk-release.json"
+require_file "$DIST_DIR/kiosk-release-hash.txt"
 write_public_status_json
 
 rsync -av --progress \
@@ -119,7 +138,13 @@ rsync -av --progress \
   "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" \
   "$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" \
   "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz" \
+  "$DIST_DIR/beagle-os-installer.iso" \
   "$DIST_DIR/beagle-os-installer-amd64.iso" \
+  "$DIST_DIR/beagle-os-server-installer.iso" \
+  "$DIST_DIR/beagle-os-server-installer-amd64.iso" \
+  "$DIST_DIR/beagle-kiosk-v${VERSION}-linux-x64.AppImage" \
+  "$DIST_DIR/kiosk-release.json" \
+  "$DIST_DIR/kiosk-release-hash.txt" \
   "$REMOTE_TARGET"
 
 echo "Published public update artifacts to $REMOTE_TARGET"

@@ -1,0 +1,6 @@
+# Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed
+[Unit]
+Description=Beagle OS Gaming Kiosk target
+Requires=network-online.target
+After=network-online.target
+AllowIsolate=yes

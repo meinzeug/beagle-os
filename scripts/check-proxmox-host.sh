@@ -66,10 +66,8 @@ check_http() {
   if [[ "$method" == "HEAD" ]]; then
     curl_args+=(-I)
   fi
-  if [[ "$url" == https://* ]]; then
-    if [[ -f "$tls_cert_file" ]]; then
-      curl_args+=(--cacert "$tls_cert_file")
-    fi
+  if [[ "$url" == "${BASE_URL}"* && -f "$tls_cert_file" ]]; then
+    curl_args+=(--cacert "$tls_cert_file")
   fi
   if "${curl_args[@]}" "$url" >/dev/null 2>&1; then
     echo "OK  http  $url"
@@ -90,7 +88,7 @@ check_service_active() {
 }
 
 check_status_json() {
-  python3 - "$STATUS_JSON_FILE" "$INSTALL_DIR/VERSION" "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-installer-host-latest.sh" "$PUBLIC_ARTIFACT_BASE_URL/pve-thin-client-usb-bootstrap-latest.tar.gz" "$PUBLIC_ARTIFACT_BASE_URL/pve-thin-client-usb-payload-latest.tar.gz" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$INSTALL_DIR/dist/pve-thin-client-usb-installer-host-latest.sh" "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-latest.tar.gz" "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" <<'PY'
+  python3 - "$STATUS_JSON_FILE" "$INSTALL_DIR/VERSION" "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-installer-host-latest.sh" "$PUBLIC_ARTIFACT_BASE_URL/pve-thin-client-usb-bootstrap-latest.tar.gz" "$PUBLIC_ARTIFACT_BASE_URL/pve-thin-client-usb-payload-latest.tar.gz" "$PUBLIC_ARTIFACT_BASE_URL/beagle-os-installer-amd64.iso" "$PUBLIC_ARTIFACT_BASE_URL/beagle-os-server-installer-amd64.iso" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$INSTALL_DIR/dist/pve-thin-client-usb-installer-host-latest.sh" "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-latest.tar.gz" "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" "$INSTALL_DIR/dist/beagle-os-installer-amd64.iso" "$INSTALL_DIR/dist/beagle-os-server-installer-amd64.iso" <<'PY'
 import hashlib
 import json
 import sys
@@ -101,12 +99,16 @@ version_file = Path(sys.argv[2])
 expected_installer_url = sys.argv[3]
 expected_bootstrap_url = sys.argv[4]
 expected_payload_url = sys.argv[5]
-expected_server = sys.argv[6]
-expected_port = int(sys.argv[7])
-expected_downloads_path = sys.argv[8]
-installer_file = Path(sys.argv[9])
-bootstrap_file = Path(sys.argv[10])
-payload_file = Path(sys.argv[11])
+expected_endpoint_iso_url = sys.argv[6]
+expected_server_installer_iso_url = sys.argv[7]
+expected_server = sys.argv[8]
+expected_port = int(sys.argv[9])
+expected_downloads_path = sys.argv[10]
+installer_file = Path(sys.argv[11])
+bootstrap_file = Path(sys.argv[12])
+payload_file = Path(sys.argv[13])
+endpoint_iso_file = Path(sys.argv[14])
+server_installer_iso_file = Path(sys.argv[15])
 
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
@@ -127,6 +129,10 @@ if status.get("bootstrap_url") != expected_bootstrap_url:
     errors.append("bootstrap_url mismatch")
 if status.get("payload_url") != expected_payload_url:
     errors.append("payload_url mismatch")
+if status.get("installer_iso_url") != expected_endpoint_iso_url:
+    errors.append("installer_iso_url mismatch")
+if status.get("server_installer_iso_url") != expected_server_installer_iso_url:
+    errors.append("server_installer_iso_url mismatch")
 if status.get("server_name") != expected_server:
     errors.append("server_name mismatch")
 if int(status.get("listen_port", -1)) != expected_port:
@@ -139,12 +145,20 @@ if status.get("bootstrap_size") != bootstrap_file.stat().st_size:
     errors.append("bootstrap_size mismatch")
 if status.get("payload_size") != payload_file.stat().st_size:
     errors.append("payload_size mismatch")
+if status.get("installer_iso_size") != endpoint_iso_file.stat().st_size:
+    errors.append("installer_iso_size mismatch")
+if status.get("server_installer_iso_size") != server_installer_iso_file.stat().st_size:
+    errors.append("server_installer_iso_size mismatch")
 if status.get("installer_sha256") != sha256(installer_file):
     errors.append("installer_sha256 mismatch")
 if status.get("bootstrap_sha256") != sha256(bootstrap_file):
     errors.append("bootstrap_sha256 mismatch")
 if status.get("payload_sha256") != sha256(payload_file):
     errors.append("payload_sha256 mismatch")
+if status.get("installer_iso_sha256") != sha256(endpoint_iso_file):
+    errors.append("installer_iso_sha256 mismatch")
+if status.get("server_installer_iso_sha256") != sha256(server_installer_iso_file):
+    errors.append("server_installer_iso_sha256 mismatch")
 
 if errors:
     raise SystemExit("; ".join(errors))
@@ -180,6 +194,8 @@ check_file "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-latest.tar.gz"
 check_file "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz"
 check_file "$INSTALL_DIR/dist/beagle-downloads-status.json"
 check_file "$INSTALL_DIR/dist/SHA256SUMS"
+check_file "$INSTALL_DIR/dist/beagle-os-installer-amd64.iso"
+check_file "$INSTALL_DIR/dist/beagle-os-server-installer-amd64.iso"
 check_file "$REFRESH_STATUS_FILE"
 check_file "/usr/share/pve-manager/js/beagle-ui.js"
 check_file "/usr/share/pve-manager/js/beagle-ui-config.js"
@@ -209,6 +225,12 @@ check_http "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-bootstrap-latest.tar.
 check_http "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-payload-latest.tar.gz"
 check_http "$BASE_URL${DOWNLOADS_PATH}/beagle-downloads-status.json"
 check_http "$BASE_URL${DOWNLOADS_PATH}/SHA256SUMS"
+check_http "$BASE_URL${DOWNLOADS_PATH}/beagle-os-installer-amd64.iso"
+check_http "$BASE_URL${DOWNLOADS_PATH}/beagle-os-server-installer-amd64.iso"
+check_http "$PUBLIC_ARTIFACT_BASE_URL/pve-thin-client-usb-payload-latest.tar.gz"
+check_http "$PUBLIC_ARTIFACT_BASE_URL/pve-thin-client-usb-bootstrap-latest.tar.gz"
+check_http "$PUBLIC_ARTIFACT_BASE_URL/beagle-os-installer-amd64.iso"
+check_http "$PUBLIC_ARTIFACT_BASE_URL/beagle-os-server-installer-amd64.iso"
 check_http "$BASE_URL/beagle-api/healthz" "Authorization: Bearer $BEAGLE_API_TOKEN" "GET"
 
 if check_status_json; then

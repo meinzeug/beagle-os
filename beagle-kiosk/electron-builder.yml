@@ -1,0 +1,19 @@
+# Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed
+appId: com.beagleos.gaming.kiosk
+productName: beagle-kiosk
+directories:
+  output: dist
+files:
+  - main.js
+  - preload.js
+  - renderer/**
+  - assets/**
+linux:
+  target:
+    - AppImage
+  category: Game
+  artifactName: beagle-kiosk-v${version}-linux-x64.${ext}
+appImage:
+  artifactName: beagle-kiosk-v${version}-linux-x64.${ext}
+extraMetadata:
+  buildHeader: "Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed"
