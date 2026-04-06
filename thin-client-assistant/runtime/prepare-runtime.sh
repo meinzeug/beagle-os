@@ -326,7 +326,63 @@ apply_runtime_ssh_config() {
   chmod 0600 "$sshd_config" >/dev/null 2>&1 || true
 
   if command -v sshd >/dev/null 2>&1 && sshd -t -f "$sshd_config" >/dev/null 2>&1; then
+    systemctl reset-failed ssh.service >/dev/null 2>&1 || true
     systemctl restart ssh.service >/dev/null 2>&1 || true
+  fi
+}
+
+ensure_runtime_ssh_host_keys() {
+  local live_state_dir="" persistent_key_dir="" key_path="" base_name=""
+  local have_valid_keys=0
+
+  live_state_dir="$(find_live_state_dir || true)"
+  if [[ -n "$live_state_dir" ]]; then
+    remount_live_state_writable "$live_state_dir" || true
+    persistent_key_dir="$live_state_dir/ssh-hostkeys"
+    install -d -m 0700 "$persistent_key_dir"
+  fi
+
+  if [[ -n "$persistent_key_dir" ]]; then
+    for key_path in "$persistent_key_dir"/ssh_host_*_key; do
+      [[ -s "$key_path" ]] || continue
+      base_name="$(basename "$key_path")"
+      install -m 0600 "$key_path" "/etc/ssh/$base_name"
+      if [[ -s "$key_path.pub" ]]; then
+        install -m 0644 "$key_path.pub" "/etc/ssh/$base_name.pub"
+      fi
+    done
+  fi
+
+  for key_path in /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub; do
+    [[ -e "$key_path" ]] || continue
+    [[ -s "$key_path" ]] && continue
+    rm -f "$key_path"
+  done
+
+  for key_path in /etc/ssh/ssh_host_*_key; do
+    [[ -s "$key_path" ]] || continue
+    have_valid_keys=1
+    break
+  done
+
+  if [[ "$have_valid_keys" != "1" ]]; then
+    ssh-keygen -A >/dev/null 2>&1 || true
+  fi
+
+  [[ -n "$persistent_key_dir" ]] || return 0
+
+  for key_path in /etc/ssh/ssh_host_*_key; do
+    [[ -s "$key_path" ]] || continue
+    base_name="$(basename "$key_path")"
+    install -m 0600 "$key_path" "$persistent_key_dir/$base_name"
+    if [[ -s "$key_path.pub" ]]; then
+      install -m 0644 "$key_path.pub" "$persistent_key_dir/$base_name.pub"
+    fi
+  done
+
+  if command -v sshd >/dev/null 2>&1 && sshd -t -f "${PVE_THIN_CLIENT_SSHD_CONFIG:-/etc/ssh/sshd_config}" >/dev/null 2>&1; then
+    systemctl reset-failed ssh.service >/dev/null 2>&1 || true
+    systemctl start ssh.service >/dev/null 2>&1 || true
   fi
 }
 
@@ -340,6 +396,20 @@ ensure_usb_tunnel_service() {
   else
     systemctl stop --no-block beagle-usb-tunnel.service >/dev/null 2>&1 || true
   fi
+}
+
+ensure_kiosk_runtime() {
+  [[ "$BOOT_MODE" == "runtime" ]] || return 0
+  [[ "${PVE_THIN_CLIENT_MODE:-MOONLIGHT}" == "KIOSK" ]] || return 0
+  command -v /usr/local/sbin/beagle-kiosk-install >/dev/null 2>&1 || return 0
+
+  plymouth_status "Preparing Beagle OS Gaming..."
+  if ! /usr/local/sbin/beagle-kiosk-install --ensure >/dev/null 2>&1; then
+    beagle_log_event "prepare-runtime.kiosk-error" "kiosk installation/update failed"
+    return 1
+  fi
+
+  beagle_log_event "prepare-runtime.kiosk-ready" "beagle-kiosk ensured"
 }
 
 unit_file_present() {
@@ -445,9 +515,11 @@ fi
 plymouth_status "Connecting device to Beagle Manager..."
 enroll_endpoint_if_needed || beagle_log_event "prepare-runtime.enroll-error" "endpoint enrollment failed"
 adjust_secret_permissions
+ensure_runtime_ssh_host_keys
 persist_runtime_config_to_live_state
 ensure_beagle_management_units
 ensure_usb_tunnel_service
+ensure_kiosk_runtime || true
 if [[ -x /usr/local/sbin/beagle-identity-apply ]]; then
   plymouth_status "Applying system identity..."
   /usr/local/sbin/beagle-identity-apply >/dev/null 2>&1 || true
@@ -471,6 +543,9 @@ else
     MOONLIGHT)
       required_binary="${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}"
       ;;
+    KIOSK)
+      required_binary="/usr/local/sbin/beagle-kiosk-launch"
+      ;;
     GFN)
       required_binary="flatpak"
       ;;
@@ -493,6 +568,13 @@ fi
   echo "moonlight_app=${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}"
   if [[ "$BOOT_MODE" == "installer" ]]; then
     echo "binary_available=1"
+  elif [[ "$required_binary" == */* ]]; then
+    if [[ -x "$required_binary" ]]; then
+      binary_available="1"
+      echo "binary_available=1"
+    else
+      echo "binary_available=0"
+    fi
   elif command -v "$required_binary" >/dev/null 2>&1; then
     binary_available="1"
     echo "binary_available=1"

@@ -66,6 +66,11 @@ if [[ -r "$COMMON_SH" ]]; then
   load_runtime_config >/dev/null 2>&1 || true
 fi
 
+if declare -F beagle_streaming_session_active >/dev/null 2>&1 && beagle_streaming_session_active; then
+  write_status_file "" "skipped-streaming" "$(date -Iseconds)" "suppressed while GeForce NOW is active" "" ""
+  exit 0
+fi
+
 manager_url="${BEAGLE_ENDPOINT_MANAGER_URL:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}}"
 manager_token="${BEAGLE_ENDPOINT_MANAGER_TOKEN:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}}"
 vmid="${BEAGLE_ENDPOINT_PROXMOX_VMID:-${PVE_THIN_CLIENT_PROXMOX_VMID:-}}"

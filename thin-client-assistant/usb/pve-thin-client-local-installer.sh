@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -21,6 +21,7 @@ LOG_DIR="${PVE_THIN_CLIENT_LOG_DIR:-/tmp/pve-thin-client-logs}"
 LOG_FILE="$LOG_DIR/local-installer.log"
 RUNTIME_SNAPSHOT_LOG="$LOG_DIR/runtime-snapshot.log"
 LOG_PERSIST_DIR=""
+LOG_SYNC_IN_PROGRESS=0
 LOG_SESSION_ID="${PVE_THIN_CLIENT_LOG_SESSION_ID:-}"
 CACHED_STATE_DIR="/run/pve-thin-client"
 CACHED_PRESET_FILE="$CACHED_STATE_DIR/bundled-preset.env"
@@ -274,6 +275,38 @@ log_msg() {
   printf '[%s] %s\n' "$(date -Is 2>/dev/null || date)" "$*" >>"$LOG_FILE"
 }
 
+log_unhandled_error() {
+  local rc="$1"
+  local line="$2"
+  local cmd="$3"
+  log_msg "unhandled error: rc=$rc line=$line cmd=$cmd"
+  log_runtime_snapshot
+  persist_logs_to_medium
+}
+
+trap 'rc=$?; log_unhandled_error "$rc" "$LINENO" "$BASH_COMMAND"; exit "$rc"' ERR
+
+run_logged() {
+  log_msg "running: $*"
+  "$@" >>"$LOG_FILE" 2>&1
+  sync_logs_to_medium
+}
+
+run_logged_step() {
+  local label="$1"
+  shift
+  log_msg "$label"
+  run_logged "$@"
+}
+
+run_logged_function() {
+  local label="$1"
+  shift
+  log_msg "$label"
+  "$@" >>"$LOG_FILE" 2>&1
+  sync_logs_to_medium
+}
+
 log_runtime_snapshot() {
   setup_logging
   {
@@ -312,8 +345,16 @@ persist_logs_to_medium() {
     LIVE_MEDIUM="$(resolve_live_medium || true)"
   fi
 
-  if [[ -n "$LIVE_MEDIUM" ]] && [[ -d "$LIVE_MEDIUM/pve-thin-client" ]] && [[ -w "$LIVE_MEDIUM/pve-thin-client" ]]; then
-    persist_root="$LIVE_MEDIUM"
+  if [[ -n "$LIVE_MEDIUM" ]] && [[ -d "$LIVE_MEDIUM/pve-thin-client" ]]; then
+    if [[ -w "$LIVE_MEDIUM/pve-thin-client" ]]; then
+      persist_root="$LIVE_MEDIUM"
+    elif mountpoint -q "$LIVE_MEDIUM"; then
+      privileged_run mount -o remount,rw "$LIVE_MEDIUM" >/dev/null 2>&1 || \
+        privileged_run mount -o remount,rw "$(findmnt -n -o SOURCE "$LIVE_MEDIUM" 2>/dev/null || true)" "$LIVE_MEDIUM" >/dev/null 2>&1 || true
+      if [[ -w "$LIVE_MEDIUM/pve-thin-client" ]]; then
+        persist_root="$LIVE_MEDIUM"
+      fi
+    fi
   fi
 
   if [[ -z "$persist_root" ]]; then
@@ -342,11 +383,19 @@ persist_logs_to_medium() {
       printf 'PRESET_SOURCE=%s\n' "$PRESET_SOURCE"
       printf 'DATE=%s\n' "$(date -Is 2>/dev/null || date)"
     } >"$marker_file" 2>/dev/null || true
+    sync "$marker_file" "$persist_parent/LATEST.txt" "$LOG_PERSIST_DIR" >/dev/null 2>&1 || sync >/dev/null 2>&1 || true
     return 0
   fi
 
   log_msg "persist_logs_to_medium: live medium for log persistence is still unavailable"
   return 0
+}
+
+sync_logs_to_medium() {
+  [[ "$LOG_SYNC_IN_PROGRESS" == "1" ]] && return 0
+  LOG_SYNC_IN_PROGRESS=1
+  persist_logs_to_medium >/dev/null 2>&1 || true
+  LOG_SYNC_IN_PROGRESS=0
 }
 
 have_passwordless_sudo() {
@@ -365,6 +414,38 @@ privileged_run() {
   fi
 
   return 1
+}
+
+installer_ui_is_text() {
+  if [[ "${PVE_THIN_CLIENT_INSTALLER_UI:-}" == "text" ]]; then
+    return 0
+  fi
+
+  if [[ -r /proc/cmdline ]]; then
+    grep -Eq '(^| )pve_thin_client\.installer_ui=text( |$)' /proc/cmdline 2>/dev/null
+    return $?
+  fi
+
+  return 1
+}
+
+resolve_tty_path() {
+  local path="/dev/tty"
+  if [[ -r "$path" && -w "$path" ]]; then
+    printf '%s\n' "$path"
+    return 0
+  fi
+  return 1
+}
+
+tty_note() {
+  local path=""
+  path="$(resolve_tty_path 2>/dev/null || true)"
+  if [[ -n "$path" ]]; then
+    printf '%s\n' "$*" >"$path"
+  else
+    printf '%s\n' "$*"
+  fi
 }
 
 running_from_live_environment() {
@@ -396,15 +477,47 @@ partition_suffix() {
   fi
 }
 
-current_live_disk() {
-  local medium_source parent_name
+append_live_disk_candidates() {
+  local device="$1" type parent_name
+  [[ -n "$device" ]] || return 1
+  [[ -b "$device" ]] || return 1
+
+  type="$(lsblk -ndo TYPE "$device" 2>/dev/null || true)"
+  if [[ "$type" == "disk" ]]; then
+    printf '%s\n' "$device"
+    return 0
+  fi
+
+  parent_name="$(lsblk -ndo PKNAME "$device" 2>/dev/null || true)"
+  if [[ -n "$parent_name" ]]; then
+    printf '/dev/%s\n' "$parent_name"
+    return 0
+  fi
+
+  return 1
+}
+
+current_live_disks() {
+  local medium_source
+
   medium_source="$(findmnt -n -o SOURCE "$LIVE_MEDIUM" 2>/dev/null || true)"
   if [[ -n "$medium_source" ]]; then
-    parent_name="$(lsblk -ndo PKNAME "$medium_source" 2>/dev/null || true)"
-    if [[ -n "$parent_name" ]]; then
-      printf '/dev/%s\n' "$parent_name"
-      return 0
-    fi
+    append_live_disk_candidates "$medium_source" 2>/dev/null || true
+    return 0
+  fi
+
+  while IFS= read -r medium_source; do
+    [[ -n "$medium_source" ]] || continue
+    append_live_disk_candidates "$medium_source" 2>/dev/null || true
+  done < <(candidate_live_devices | awk 'NF && !seen[$0]++')
+}
+
+current_live_disk() {
+  local disk
+  disk="$(current_live_disks | awk 'NF && !seen[$0]++ { print; exit }')"
+  if [[ -n "$disk" ]]; then
+    printf '%s\n' "$disk"
+    return 0
   fi
   return 1
 }
@@ -557,7 +670,7 @@ download_install_payload_from_server() {
     log_msg "download_install_payload_from_server: unable to download companion SHA256SUMS from $checksum_url (continuing)"
   fi
 
-  if ! tar -xzf "$tarball" -C "$tmp_dir"; then
+  if ! tar -xzf "$tarball" -C "$tmp_dir" >>"$LOG_FILE" 2>&1; then
     log_msg "download_install_payload_from_server: failed to extract $tarball"
     rm -rf "$tmp_dir" >/dev/null 2>&1 || true
     return 1
@@ -594,6 +707,15 @@ download_install_payload_from_server() {
 prepare_install_assets() {
   INSTALL_LIVE_ASSET_DIR="$LIVE_ASSET_DIR"
   INSTALL_ROOT_DIR="$ROOT_DIR"
+
+  if [[ "${PVE_THIN_CLIENT_FORCE_REMOTE_PAYLOAD:-0}" != "1" \
+        && -f "$LIVE_ASSET_DIR/vmlinuz" \
+        && -f "$LIVE_ASSET_DIR/initrd.img" \
+        && -f "$LIVE_ASSET_DIR/filesystem.squashfs" ]]; then
+    INSTALL_PAYLOAD_SOURCE_URL="$(resolve_payload_url_from_manifest 2>/dev/null || true)"
+    log_msg "prepare_install_assets: using bundled USB payload assets under $LIVE_ASSET_DIR"
+    return 0
+  fi
 
   if download_install_payload_from_server; then
     return 0
@@ -785,7 +907,6 @@ candidate_live_devices() {
           value="${token#live-media=}"
           case "$value" in
             /dev/*)
-              log_msg "candidate live device from cmdline: $value"
               printf '%s\n' "$value"
               ;;
             UUID=*)
@@ -803,7 +924,10 @@ candidate_live_devices() {
   blkid -L BEAGLEOS 2>/dev/null || blkid -L PVETHIN 2>/dev/null || true
   lsblk -lnpo PATH,TYPE,FSTYPE,LABEL,RM,TRAN 2>/dev/null | awk '
     $2 == "part" {
-      if ($4 == "BEAGLEOS" || $4 == "PVETHIN" || $3 == "vfat" || $5 == "1" || $6 == "usb") {
+      # Only treat explicit Beagle labels or actually removable/USB media as
+      # live-medium candidates. A normal internal EFI vfat partition must not
+      # cause the whole system disk to be excluded from the target picker.
+      if ($4 == "BEAGLEOS" || $4 == "PVETHIN" || $5 == "1" || $6 == "usb") {
         print $1
       }
     }
@@ -818,7 +942,6 @@ mount_discovered_live_medium() {
   while IFS= read -r device; do
     [[ -n "$device" ]] || continue
     [[ -b "$device" ]] || continue
-    log_msg "probing live medium device: $device"
     mount_dir="$(mktemp -d /tmp/pve-live-medium.XXXXXX)"
     if privileged_run mount -o ro "$device" "$mount_dir" >/dev/null 2>&1; then
       if candidate_preset_path "$mount_dir" >/dev/null 2>&1 || candidate_live_asset_dir "$mount_dir" >/dev/null 2>&1; then
@@ -827,10 +950,7 @@ mount_discovered_live_medium() {
         printf '%s\n' "$mount_dir"
         return 0
       fi
-      log_msg "mounted $device at $mount_dir but no preset/live payload found"
       privileged_run umount "$mount_dir" >/dev/null 2>&1 || true
-    else
-      log_msg "failed to mount candidate live medium: $device"
     fi
     rmdir "$mount_dir" >/dev/null 2>&1 || true
   done < <(candidate_live_devices | awk 'NF && !seen[$0]++')
@@ -1191,78 +1311,43 @@ PY
 }
 
 choose_target_disk() {
-  local live_disk menu_items device label name size model type rm transport answer tty_path
+  local live_disk menu_items preferred_items fallback_items device label name size model type rm transport answer tty_path live_flag
+  local -a live_disks=()
   if [[ -n "$TARGET_DISK_OVERRIDE" ]]; then
     printf '%s\n' "$TARGET_DISK_OVERRIDE"
     return 0
   fi
 
-  if [[ "$AUTO_INSTALL" == "1" ]]; then
-    live_disk="$(current_live_disk 2>/dev/null || true)"
-    python3 - "$live_disk" <<'PY'
-import shlex
-import subprocess
-import sys
-
-live_disk = sys.argv[1]
-candidates = []
-
-for line in subprocess.check_output(
-    ["lsblk", "-bn", "-P", "-o", "NAME,SIZE,TYPE,RM,TRAN"], text=True
-).splitlines():
-    entry = {}
-    for token in shlex.split(line):
-        key, value = token.split("=", 1)
-        entry[key] = value
-    if entry.get("TYPE") != "disk":
-        continue
-    device = f"/dev/{entry['NAME']}"
-    if device == live_disk:
-        continue
-    if any(device.startswith(prefix) for prefix in ("/dev/loop", "/dev/sr", "/dev/ram", "/dev/zram")):
-        continue
-    candidates.append(
-        {
-            "device": device,
-            "size": int(entry.get("SIZE", "0") or 0),
-            "rm": entry.get("RM", "0"),
-            "tran": (entry.get("TRAN", "") or "").lower(),
-        }
-    )
-
-internal = [item for item in candidates if item["rm"] == "0" and item["tran"] != "usb"]
-selection_pool = internal or candidates
-
-if len(selection_pool) == 1:
-    print(selection_pool[0]["device"])
-    raise SystemExit(0)
-
-if len(selection_pool) > 1:
-    # Deterministic auto-pick: largest disk first, then lexical device order.
-    by_priority = sorted(selection_pool, key=lambda item: (-item["size"], item["device"]))
-    print(by_priority[0]["device"])
-    raise SystemExit(0)
-
-raise SystemExit(1)
-PY
-    return 0
+  if mapfile -t live_disks < <(current_live_disks | awk 'NF && !seen[$0]++'); then
+    :
   fi
-
-  live_disk="$(current_live_disk 2>/dev/null || true)"
+  live_disk="${live_disks[0]:-}"
   menu_items=()
+  preferred_items=()
+  fallback_items=()
   tty_path="/dev/tty"
 
   if [[ ! -r "$tty_path" || ! -w "$tty_path" ]]; then
     tty_path=""
   fi
 
-  while IFS=$'\t' read -r name size model type rm transport; do
+  while IFS=$'\x1f' read -r name size model type rm transport; do
     [[ "$type" == "disk" ]] || continue
     device="/dev/${name}"
-    [[ "$device" == "$live_disk" ]] && continue
     [[ "$device" == /dev/loop* || "$device" == /dev/sr* || "$device" == /dev/ram* || "$device" == /dev/zram* ]] && continue
+    [[ "$device" == /dev/mmcblk*boot* || "$device" == /dev/mmcblk*rpmb* ]] && continue
+    live_flag="0"
+    if printf '%s\n' "${live_disks[@]}" | grep -Fxq "$device"; then
+      live_flag="1"
+    fi
     label="${model:-disk} ${size:-unknown} rm=${rm:-0} ${transport:-}"
-    menu_items+=("$device" "$label")
+    log_msg "choose_target_disk: candidate device=$device size=${size:-unknown} model=${model:-disk} rm=${rm:-0} tran=${transport:-} live=$live_flag"
+    if [[ "${rm:-0}" != "1" && "${transport:-}" != "usb" ]]; then
+      preferred_items+=("$device" "$label")
+      continue
+    fi
+    [[ "$live_flag" == "1" ]] && continue
+    fallback_items+=("$device" "$label")
   done < <(
     lsblk -J -d -o NAME,SIZE,MODEL,TYPE,RM,TRAN | python3 -c '
 import json
@@ -1273,25 +1358,44 @@ try:
 except Exception:
     raise SystemExit(1)
 
+separator = "\x1f"
+
 for item in payload.get("blockdevices", []):
+    rm = item.get("rm", 0)
+    if isinstance(rm, bool):
+        rm = "1" if rm else "0"
+    else:
+        rm = str(rm or "0")
+
     values = [
         str(item.get("name", "") or ""),
         str(item.get("size", "") or ""),
         str(item.get("model", "") or ""),
         str(item.get("type", "") or ""),
-        str(item.get("rm", "") or ""),
+        rm,
         str(item.get("tran", "") or ""),
     ]
-    print("\t".join(values))
+    print(separator.join(values))
 '
   )
 
+  if (( ${#preferred_items[@]} > 0 )); then
+    menu_items=("${preferred_items[@]}")
+    log_msg "choose_target_disk: using preferred internal-disk candidate set"
+  else
+    menu_items=("${fallback_items[@]}")
+    log_msg "choose_target_disk: no preferred internal disks found, falling back to non-live removable candidates"
+  fi
+
   if (( ${#menu_items[@]} == 0 )); then
+    log_msg "choose_target_disk: no target disk candidates available"
+    log_runtime_snapshot
+    persist_logs_to_medium
     echo "No writable target disk found." >&2
     exit 1
   fi
 
-  if command -v whiptail >/dev/null 2>&1; then
+  if command -v whiptail >/dev/null 2>&1 && ! installer_ui_is_text; then
     whiptail --title "Thinclient Installation" --menu \
       "Choose the target disk. It will be erased completely." 22 96 10 \
       "${menu_items[@]}" 3>&1 1>&2 2>&3
@@ -1304,13 +1408,14 @@ for item in payload.get("blockdevices", []):
   fi
 
   local index=1
-  printf 'Available installation targets:\n' >"$tty_path"
+  printf '\n[Beagle OS Installation]\n' >"$tty_path"
+  printf 'Choose the target disk. It will be erased completely.\n\n' >"$tty_path"
   while (( index <= ${#menu_items[@]} / 2 )); do
     printf '%s) %s %s\n' "$index" "${menu_items[$(( (index - 1) * 2 ))]}" "${menu_items[$(( (index - 1) * 2 + 1 ))]}" >"$tty_path"
     index=$((index + 1))
   done
 
-  printf 'Choice: ' >"$tty_path"
+  printf '\nType the number of the target disk and press ENTER: ' >"$tty_path"
   read -r answer <"$tty_path"
   [[ "$answer" =~ ^[0-9]+$ ]] || {
     echo "Invalid selection: $answer" >&2
@@ -1325,18 +1430,28 @@ for item in payload.get("blockdevices", []):
 
 confirm_wipe() {
   local target_disk="$1"
+  local answer=""
+  local path=""
   if [[ "$ASSUME_YES" == "1" ]]; then
     return 0
   fi
 
-  if command -v whiptail >/dev/null 2>&1; then
+  if command -v whiptail >/dev/null 2>&1 && ! installer_ui_is_text; then
     whiptail --title "Thinclient Installation" --yesno \
       "The disk ${target_disk} will be fully erased and turned into a local thin-client boot disk." 14 88
     return $?
   fi
 
-  read -r -p "Erase ${target_disk} completely? [y/N]: " answer
-  [[ "$answer" =~ ^[Yy]$ ]]
+  path="$(resolve_tty_path 2>/dev/null || true)"
+  if [[ -z "$path" ]]; then
+    echo "Interactive wipe confirmation requires a TTY." >&2
+    exit 1
+  fi
+
+  printf '\nThe disk %s will be fully erased.\n' "$target_disk" >"$path"
+  printf 'Type YES to continue: ' >"$path"
+  read -r answer <"$path"
+  [[ "$answer" == "YES" ]]
 }
 
 load_profile() {
@@ -1818,7 +1933,7 @@ choose_streaming_mode_from_preset() {
     return 0
   fi
 
-  if command -v whiptail >/dev/null 2>&1; then
+  if command -v whiptail >/dev/null 2>&1 && ! installer_ui_is_text; then
     whiptail --title "Thinclient Installation" --menu \
       "Choose the streaming mode for ${PVE_THIN_CLIENT_PRESET_VM_NAME:-this VM}." 20 88 8 \
       "${menu_items[@]}" 3>&1 1>&2 2>&3
@@ -1836,7 +1951,7 @@ choose_streaming_mode_from_preset() {
     printf '%s) %s %s\n' "$index" "${menu_items[$(( (index - 1) * 2 ))]}" "${menu_items[$(( (index - 1) * 2 + 1 ))]}" >"$tty_path"
     index=$((index + 1))
   done
-  printf 'Choice: ' >"$tty_path"
+  printf '\nType the number of the streaming mode and press ENTER: ' >"$tty_path"
   read -r answer <"$tty_path"
   [[ "$answer" =~ ^[0-9]+$ ]] || {
     echo "Invalid selection: $answer" >&2
@@ -2075,7 +2190,7 @@ set timeout=4
 
 menuentry 'Beagle OS Gaming' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 systemd.unit=beagle-kiosk.target vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming $irq_args_default
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming $irq_args_default
   initrd /live/current/initrd.img
 }
 
@@ -2242,7 +2357,20 @@ ensure_efivars_mounted() {
     return 0
   fi
 
-  mount -t efivarfs efivarfs /sys/firmware/efi/efivars
+  run_logged mount -t efivarfs efivarfs /sys/firmware/efi/efivars
+}
+
+resolve_partition_number() {
+  local device="$1"
+  local sysfs_part="/sys/class/block/${device##*/}/partition"
+  local partnum=""
+
+  partnum="$(lsblk -dnro PARTN "$device" 2>/dev/null | awk 'NF { print; exit }' || true)"
+  if [[ -z "$partnum" && -r "$sysfs_part" ]]; then
+    partnum="$(tr -d '[:space:]' < "$sysfs_part" 2>/dev/null || true)"
+  fi
+
+  printf '%s\n' "$partnum"
 }
 
 install_efi_boot_entry() {
@@ -2254,22 +2382,27 @@ install_efi_boot_entry() {
 
   ensure_efivars_mounted
 
-  partnum="$(lsblk -no PARTN "$boot_part" 2>/dev/null | head -n1 | tr -d '[:space:]')"
+  partnum="$(resolve_partition_number "$boot_part")"
   [[ -n "$partnum" ]] || {
-    echo "Unable to determine EFI partition number for $boot_part" >&2
-    return 1
+    log_msg "warning: unable to determine EFI partition number for $boot_part; skipping explicit efibootmgr entry creation"
+    return 0
   }
 
   if efibootmgr -v 2>/dev/null | grep -Fq '\EFI\BEAGLEOS\grubx64.efi'; then
     return 0
   fi
 
-  efibootmgr \
+  if run_logged efibootmgr \
     --create \
     --disk "$target_disk" \
     --part "$partnum" \
     --label "Beagle OS" \
-    --loader '\EFI\BEAGLEOS\grubx64.efi'
+    --loader '\EFI\BEAGLEOS\grubx64.efi'; then
+    return 0
+  fi
+
+  log_msg "warning: efibootmgr could not create a persistent EFI boot entry; removable EFI fallback remains available"
+  return 0
 }
 
 install_bootloader() {
@@ -2278,16 +2411,27 @@ install_bootloader() {
   local root_uuid="$3"
   local bios_modules="biosdisk part_gpt part_msdos ext2 normal linux search search_fs_uuid configfile"
   local efi_modules="part_gpt part_msdos fat ext2 normal linux search search_fs_uuid configfile"
+  local running_in_efi="0"
 
-  grub-install --target=i386-pc --modules="$bios_modules" --boot-directory="$TARGET_MOUNT/boot" "$target_disk"
-  grub-install \
+  [[ -d /sys/firmware/efi ]] && running_in_efi="1"
+
+  if [[ "$running_in_efi" == "1" ]]; then
+    if ! run_logged grub-install --target=i386-pc --modules="$bios_modules" --boot-directory="$TARGET_MOUNT/boot" "$target_disk"; then
+      log_msg "warning: legacy BIOS grub-install failed on $target_disk; continuing with EFI-only bootloader installation"
+    fi
+  else
+    run_logged grub-install --target=i386-pc --modules="$bios_modules" --boot-directory="$TARGET_MOUNT/boot" "$target_disk"
+  fi
+
+  run_logged grub-install \
     --target=x86_64-efi \
     --modules="$efi_modules" \
     --efi-directory="$EFI_MOUNT" \
     --boot-directory="$TARGET_MOUNT/boot" \
     --bootloader-id=BEAGLEOS \
+    --no-nvram \
     --recheck
-  grub-install \
+  run_logged grub-install \
     --target=x86_64-efi \
     --modules="$efi_modules" \
     --efi-directory="$EFI_MOUNT" \
@@ -2348,10 +2492,14 @@ main() {
   require_root "$@"
   require_tools
 
+  tty_note ""
+  tty_note "Loading preset configuration..."
   load_install_profile
+  tty_note "Detecting target disks..."
   target_disk="$(choose_target_disk)"
-  [[ -n "$target_disk" ]] || exit 0
-  confirm_wipe "$target_disk" || exit 0
+  [[ -n "$target_disk" ]] || exit 130
+  confirm_wipe "$target_disk" || exit 130
+  tty_note "Preparing installation assets..."
   prepare_install_assets
 
   if [[ ! -f "$INSTALL_LIVE_ASSET_DIR/filesystem.squashfs" ]]; then
@@ -2364,35 +2512,35 @@ main() {
   boot_part="$(partition_suffix "$target_disk" 2)"
   root_part="$(partition_suffix "$target_disk" 3)"
 
-  wipefs -a "$target_disk"
-  parted -s "$target_disk" mklabel gpt
-  parted -s "$target_disk" mkpart BIOSBOOT 1MiB 3MiB
-  parted -s "$target_disk" set 1 bios_grub on
-  parted -s "$target_disk" mkpart ESP fat32 3MiB 515MiB
-  parted -s "$target_disk" set 2 esp on
-  parted -s "$target_disk" set 2 boot on
-  parted -s "$target_disk" mkpart primary ext4 515MiB 100%
-  partprobe "$target_disk"
-  udevadm settle
+  run_logged_step "wiping target disk $target_disk" wipefs -a "$target_disk"
+  run_logged parted -s "$target_disk" mklabel gpt
+  run_logged parted -s "$target_disk" mkpart BIOSBOOT 1MiB 3MiB
+  run_logged parted -s "$target_disk" set 1 bios_grub on
+  run_logged parted -s "$target_disk" mkpart ESP fat32 3MiB 515MiB
+  run_logged parted -s "$target_disk" set 2 esp on
+  run_logged parted -s "$target_disk" set 2 boot on
+  run_logged parted -s "$target_disk" mkpart primary ext4 515MiB 100%
+  run_logged partprobe "$target_disk"
+  run_logged udevadm settle
 
   [[ -b "$bios_part" ]] || {
     echo "BIOS boot partition could not be created on $target_disk" >&2
     exit 1
   }
 
-  mkfs.vfat -F 32 -n BEAGLEBOOT "$boot_part"
-  mkfs.ext4 -F -L BEAGLEROOT "$root_part"
+  run_logged_step "formatting EFI partition $boot_part" mkfs.vfat -F 32 -n BEAGLEBOOT "$boot_part"
+  run_logged_step "formatting root partition $root_part" mkfs.ext4 -F -L BEAGLEROOT "$root_part"
 
-  install -d -m 0755 "$TARGET_MOUNT" "$EFI_MOUNT"
-  mount "$root_part" "$TARGET_MOUNT"
-  install -d -m 0755 "$EFI_MOUNT" "$TARGET_MOUNT/boot/grub"
-  mount "$boot_part" "$EFI_MOUNT"
+  run_logged install -d -m 0755 "$TARGET_MOUNT" "$EFI_MOUNT"
+  run_logged mount "$root_part" "$TARGET_MOUNT"
+  run_logged install -d -m 0755 "$EFI_MOUNT" "$TARGET_MOUNT/boot/grub"
+  run_logged mount "$boot_part" "$EFI_MOUNT"
 
-  copy_assets
+  run_logged_function "copying installer assets into target filesystem" copy_assets
   root_uuid="$(blkid -s UUID -o value "$root_part")"
   write_grub_cfg "$root_uuid"
-  install_bootloader "$target_disk" "$boot_part" "$root_uuid"
-  sync
+  run_logged_function "installing bootloader onto $target_disk" install_bootloader "$target_disk" "$boot_part" "$root_uuid"
+  run_logged sync
 
   if [[ "$AUTO_INSTALL" == "1" ]]; then
     return 0

@@ -35,6 +35,9 @@ default_route="$(ip route show default 2>/dev/null | head -n 1 || true)"
 network_state="$(systemctl is-active NetworkManager.service 2>/dev/null || true)"
 ssh_state="$(systemctl is-active ssh.service 2>/dev/null || true)"
 autologin_state="$(systemctl is-active beagle-autologin.service 2>/dev/null || true)"
+endpoint_report_timer_state="$(systemctl is-active beagle-endpoint-report.timer 2>/dev/null || true)"
+endpoint_dispatch_timer_state="$(systemctl is-active beagle-endpoint-dispatch.timer 2>/dev/null || true)"
+update_scan_timer_state="$(systemctl is-active beagle-update-scan.timer 2>/dev/null || true)"
 prepare_state="$(systemctl is-active pve-thin-client-prepare.service 2>/dev/null || true)"
 guest_agent_state="$(systemctl is-active qemu-guest-agent.service 2>/dev/null || true)"
 moonlight_binary="0"
@@ -47,6 +50,8 @@ egress_state="$(awk -F= '$1 == "state" {print substr($0, index($0, "=") + 1); ex
 egress_public_ip="$(awk -F= '$1 == "public_ip" {print substr($0, index($0, "=") + 1); exit}' /var/lib/beagle-os/egress.status 2>/dev/null || true)"
 identity_locale="$(awk -F= '$1 == "locale" {print substr($0, index($0, "=") + 1); exit}' /var/lib/beagle-os/identity.status 2>/dev/null || true)"
 identity_keymap="$(awk -F= '$1 == "keymap" {print substr($0, index($0, "=") + 1); exit}' /var/lib/beagle-os/identity.status 2>/dev/null || true)"
+client_mode="${PVE_THIN_CLIENT_CLIENT_MODE:-$(cmdline_var pve_thin_client.client_mode 2>/dev/null || true)}"
+kiosk_state="$(systemctl is-active beagle-kiosk.service 2>/dev/null || true)"
 
 if command -v moonlight >/dev/null 2>&1; then
   moonlight_binary="1"
@@ -75,6 +80,7 @@ timestamp=$(date -Iseconds)
 hostname=$hostname_value
 network_mode=$network_mode
 autostart=$autostart
+client_mode=${client_mode:-UNSET}
 moonlight_host=${moonlight_host:-UNSET}
 sunshine_api_url=${sunshine_api_url:-UNSET}
 moonlight_binary=$moonlight_binary
@@ -83,6 +89,10 @@ sunshine_api_reachable=$sunshine_api_reachable
 networkmanager_state=${network_state:-unknown}
 ssh_state=${ssh_state:-unknown}
 autologin_state=${autologin_state:-unknown}
+endpoint_report_timer_state=${endpoint_report_timer_state:-unknown}
+endpoint_dispatch_timer_state=${endpoint_dispatch_timer_state:-unknown}
+update_scan_timer_state=${update_scan_timer_state:-unknown}
+kiosk_state=${kiosk_state:-unknown}
 prepare_state=${prepare_state:-unknown}
 guest_agent_state=${guest_agent_state:-unknown}
 manager_url=${manager_url:-UNSET}

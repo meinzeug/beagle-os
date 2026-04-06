@@ -160,6 +160,23 @@ moonlight_gateway_fallback_host() {
   printf '%s\n' "$gateway"
 }
 
+moonlight_local_host_is_direct() {
+  local local_host route_line
+
+  local_host="$(moonlight_local_host)"
+  [[ -n "$local_host" ]] || return 1
+  command -v ip >/dev/null 2>&1 || return 1
+
+  route_line="$(ip route get "$local_host" 2>/dev/null | head -n1 || true)"
+  [[ -n "$route_line" ]] || return 1
+
+  if grep -q ' via ' <<<"$route_line"; then
+    return 1
+  fi
+
+  return 0
+}
+
 moonlight_port() {
   render_template "${PVE_THIN_CLIENT_MOONLIGHT_PORT:-}"
 }
@@ -267,7 +284,21 @@ moonlight_app() {
 }
 
 moonlight_audio_driver() {
-  printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_AUDIO_DRIVER:-alsa}"
+  local runtime_dir pulse_socket
+
+  if [[ -n "${PVE_THIN_CLIENT_MOONLIGHT_AUDIO_DRIVER:-}" ]]; then
+    printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_AUDIO_DRIVER}"
+    return 0
+  fi
+
+  runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  pulse_socket="${runtime_dir}/pulse/native"
+  if [[ -S "$pulse_socket" ]]; then
+    printf '%s\n' "pulseaudio"
+    return 0
+  fi
+
+  printf '%s\n' "alsa"
 }
 
 moonlight_video_decoder() {
@@ -810,11 +841,12 @@ moonlight_connect_host() {
   api_url="$(sunshine_api_url)"
 
   local_host="$(moonlight_local_host)"
+  public_host="$(moonlight_public_connect_host)"
+
   if [[ -n "$local_host" ]]; then
     candidates+=("$(resolve_preferred_moonlight_host "$local_host")")
   fi
 
-  public_host="$(moonlight_public_connect_host)"
   if [[ -n "$public_host" ]]; then
     candidates+=("$public_host")
   fi
@@ -1064,6 +1096,20 @@ configure_graphics_runtime() {
   fi
 }
 
+configure_audio_runtime() {
+  local runtime_dir pulse_socket
+
+  export HOME="${HOME:-/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}}"
+  runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  export XDG_RUNTIME_DIR="$runtime_dir"
+  mkdir -p "$runtime_dir" >/dev/null 2>&1 || true
+
+  pulse_socket="${runtime_dir}/pulse/native"
+  if [[ -S "$pulse_socket" ]]; then
+    export PULSE_SERVER="${PULSE_SERVER:-unix:${pulse_socket}}"
+  fi
+}
+
 main() {
   local bin host connect_host app audio_driver port
   local -a args=()
@@ -1084,6 +1130,13 @@ main() {
     exit 1
   }
 
+  if command -v /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1; then
+    /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1 || true
+    pkill -f '^bash /usr/local/bin/pve-thin-client-audio-init --watch' >/dev/null 2>&1 || true
+    /usr/local/bin/pve-thin-client-audio-init --watch "${PVE_THIN_CLIENT_AUDIO_WATCH_LOOPS:-0}" >/dev/null 2>&1 &
+  fi
+
+  configure_audio_runtime
   audio_driver="$(moonlight_audio_driver)"
   if [[ -n "$audio_driver" && "$audio_driver" != "auto" ]]; then
     export SDL_AUDIODRIVER="$audio_driver"
@@ -1100,12 +1153,6 @@ main() {
 
   if command -v /usr/local/bin/pve-thin-client-display-init >/dev/null 2>&1; then
     /usr/local/bin/pve-thin-client-display-init >/dev/null 2>&1 || true
-  fi
-
-  if command -v /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1; then
-    /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1 || true
-    pkill -f '^bash /usr/local/bin/pve-thin-client-audio-init --watch' >/dev/null 2>&1 || true
-    /usr/local/bin/pve-thin-client-audio-init --watch "${PVE_THIN_CLIENT_AUDIO_WATCH_LOOPS:-0}" >/dev/null 2>&1 &
   fi
 
   bootstrap_moonlight_client || true

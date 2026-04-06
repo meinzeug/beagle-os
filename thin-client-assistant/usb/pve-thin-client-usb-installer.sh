@@ -336,16 +336,24 @@ try:
 except Exception:
     raise SystemExit(1)
 
+separator = "\x1f"
+
 for item in payload.get("blockdevices", []):
+    rm = item.get("rm", 0)
+    if isinstance(rm, bool):
+        rm = "1" if rm else "0"
+    else:
+        rm = str(rm or "0")
+
     values = [
         str(item.get("name", "") or ""),
         str(item.get("size", "") or ""),
         str(item.get("model", "") or ""),
         str(item.get("type", "") or ""),
-        str(item.get("rm", "") or ""),
+        rm,
         str(item.get("tran", "") or ""),
     ]
-    print("\t".join(values))
+    print(separator.join(values))
 '
 }
 
@@ -357,7 +365,7 @@ print_devices() {
   local name size model type rm transport
 
   printf '%-12s %-8s %-32s %-4s %-3s %s\n' "DEVICE" "SIZE" "MODEL" "RM" "USB" "TRANSPORT"
-  while IFS=$'\t' read -r name size model type rm transport; do
+  while IFS=$'\x1f' read -r name size model type rm transport; do
     [[ "$type" == "disk" ]] || continue
     printf '%-12s %-8s %-32s %-4s %-3s %s\n' \
       "/dev/${name}" \
@@ -373,7 +381,7 @@ count_usb_candidates() {
   local count=0
   local name size model type rm transport
 
-  while IFS=$'\t' read -r name size model type rm transport; do
+  while IFS=$'\x1f' read -r name size model type rm transport; do
     [[ "$type" == "disk" ]] || continue
     if [[ "${rm:-0}" == "1" || "${transport:-}" == "usb" ]]; then
       count=$((count + 1))

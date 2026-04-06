@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+remove_empty_host_keys() {
+  local key_path=""
+  for key_path in /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub; do
+    [[ -e "$key_path" ]] || continue
+    [[ -s "$key_path" ]] && continue
+    rm -f "$key_path"
+  done
+}
+
+have_valid_host_keys() {
+  local key_path=""
+  for key_path in /etc/ssh/ssh_host_*_key; do
+    [[ -s "$key_path" ]] || continue
+    return 0
+  done
+  return 1
+}
+
+STATE_DIR=""
+for candidate in \
+  "${LIVE_STATE_DIR:-/run/live/medium/pve-thin-client/state}" \
+  "/run/live/medium/pve-thin-client/state" \
+  "/lib/live/mount/medium/pve-thin-client/state"
+do
+  if [[ -f "$candidate/thinclient.conf" ]]; then
+    STATE_DIR="$candidate"
+    break
+  fi
+done
+
+KEY_DIR=""
+if [[ -n "$STATE_DIR" ]]; then
+  KEY_DIR="$STATE_DIR/ssh-hostkeys"
+  mount -o remount,rw "$STATE_DIR" >/dev/null 2>&1 || true
+  install -d -m 0700 "$KEY_DIR"
+fi
+
+if [[ -n "$KEY_DIR" ]]; then
+  for key_path in "$KEY_DIR"/ssh_host_*_key; do
+    [[ -s "$key_path" ]] || continue
+    base_name="$(basename "$key_path")"
+    install -m 0600 "$key_path" "/etc/ssh/$base_name"
+    if [[ -s "$key_path.pub" ]]; then
+      install -m 0644 "$key_path.pub" "/etc/ssh/$base_name.pub"
+    fi
+  done
+fi
+
+remove_empty_host_keys
+if ! have_valid_host_keys; then
+  ssh-keygen -A >/dev/null 2>&1 || true
+fi
+
+if [[ -n "$KEY_DIR" ]]; then
+  for key_path in /etc/ssh/ssh_host_*_key; do
+    [[ -s "$key_path" ]] || continue
+    base_name="$(basename "$key_path")"
+    install -m 0600 "$key_path" "$KEY_DIR/$base_name"
+    if [[ -s "$key_path.pub" ]]; then
+      install -m 0644 "$key_path.pub" "$KEY_DIR/$base_name.pub"
+    fi
+  done
+fi

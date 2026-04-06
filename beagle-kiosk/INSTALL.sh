@@ -34,6 +34,167 @@ require_root() {
   fi
 }
 
+ensure_launcher_wrapper() {
+  install -d -m 0755 /usr/local/sbin
+  cat >/usr/local/sbin/beagle-kiosk-launch <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+INSTALL_ROOT="${BEAGLE_KIOSK_ROOT:-/opt/beagle-kiosk}"
+LAUNCHER="${INSTALL_ROOT}/launch.sh"
+
+export BEAGLE_KIOSK_ROOT="$INSTALL_ROOT"
+
+if [[ ! -x "$LAUNCHER" ]]; then
+  echo "beagle-kiosk is not installed under ${INSTALL_ROOT}" >&2
+  exit 1
+fi
+
+exec "$LAUNCHER"
+EOF
+  chmod 0755 /usr/local/sbin/beagle-kiosk-launch
+}
+
+invoke_gfn_client_installer() {
+  local installer="/usr/local/lib/pve-thin-client/runtime/install-geforcenow.sh"
+  "$installer" --ensure-only
+}
+
+ensure_gfn_client() {
+  local mode="${1:-foreground}"
+  local installer="/usr/local/lib/pve-thin-client/runtime/install-geforcenow.sh"
+  local log_file
+
+  if [[ -x "$installer" ]]; then
+    if [[ "$mode" == "background" ]]; then
+      install -d -m 0755 "$INSTALL_ROOT/logs"
+      log_file="$INSTALL_ROOT/logs/gfn-install.log"
+      if pgrep -af '/usr/local/lib/pve-thin-client/runtime/install-geforcenow.sh --ensure-only' >/dev/null 2>&1; then
+        return 0
+      fi
+      printf '[%s] scheduling background GFN ensure\n' "$(date -Is 2>/dev/null || date)" >>"$log_file" 2>/dev/null || true
+      "$installer" --ensure-only >>"$log_file" 2>&1 &
+      return 0
+    fi
+
+    invoke_gfn_client_installer
+    return 0
+  fi
+
+  if [[ -x /usr/local/lib/pve-thin-client/runtime/launch-geforcenow.sh ]] || [[ -x /usr/bin/GeForceNOW ]] || [[ -x /opt/nvidia/GeForceNOW.AppImage ]]; then
+    return 0
+  fi
+
+  echo "GeForce NOW client installer is unavailable on this system." >&2
+  exit 1
+}
+
+refresh_catalog() {
+  local mode="${1:-foreground}"
+  local log_file
+
+  if [[ ! -x /usr/bin/python3 || ! -f "$INSTALL_ROOT/update_catalog.py" ]]; then
+    return 0
+  fi
+
+  if [[ "$mode" == "background" ]]; then
+    install -d -m 0755 "$INSTALL_ROOT/logs"
+    log_file="$INSTALL_ROOT/logs/catalog-refresh.log"
+    if pgrep -af "/usr/bin/python3 $INSTALL_ROOT/update_catalog.py" >/dev/null 2>&1; then
+      return 0
+    fi
+    printf '[%s] scheduling background catalog refresh\n' "$(date -Is 2>/dev/null || date)" >>"$log_file" 2>/dev/null || true
+    /usr/bin/python3 "$INSTALL_ROOT/update_catalog.py" >>"$log_file" 2>&1 &
+    return 0
+  fi
+
+  /usr/bin/python3 "$INSTALL_ROOT/update_catalog.py"
+}
+
+write_default_kiosk_config() {
+  cat >"$INSTALL_ROOT/kiosk.conf" <<'EOF'
+GFN_BINARY=/usr/local/lib/pve-thin-client/runtime/launch-geforcenow.sh
+GFN_BINARY_FALLBACK=/opt/nvidia/GeForceNOW.AppImage
+AFFILIATE_CONFIG_URL=https://beagle-os.com/api/kiosk/affiliate-config
+AFFILIATE_REQUEST_TIMEOUT_MS=8000
+STORE_ALLOWED_DOMAINS="greenmangaming.com fanatical.com humblebundle.com store.epicgames.com"
+KIOSK_FULLSCREEN=1
+STORE_WINDOW_FULLSCREEN=1
+DEFAULT_FILTER_GFN_ONLY=1
+GFN_GAME_ID_FIELD=gfn_id
+EOF
+  chmod 0644 "$INSTALL_ROOT/kiosk.conf"
+}
+
+read_config_value() {
+  local key="$1"
+
+  python3 - "$INSTALL_ROOT/kiosk.conf" "$key" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+key = sys.argv[2]
+
+if not path.exists():
+    raise SystemExit(1)
+
+for raw_line in path.read_text(encoding="utf-8").splitlines():
+    line = raw_line.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    current_key, value = line.split("=", 1)
+    if current_key != key:
+        continue
+    value = value.strip()
+    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+        value = value[1:-1]
+    print(value)
+    raise SystemExit(0)
+
+raise SystemExit(1)
+PY
+}
+
+upsert_config_value() {
+  local key="$1"
+  local value="$2"
+  local escaped_value
+
+  escaped_value="$(printf '%s' "$value" | sed -e 's/[\/&]/\\&/g')"
+  if grep -q "^${key}=" "$INSTALL_ROOT/kiosk.conf" 2>/dev/null; then
+    sed -i "s/^${key}=.*/${key}=${escaped_value}/" "$INSTALL_ROOT/kiosk.conf"
+  else
+    printf '%s=%s\n' "$key" "$value" >>"$INSTALL_ROOT/kiosk.conf"
+  fi
+}
+
+normalize_kiosk_config() {
+  local current_gfn_binary="" current_gfn_fallback=""
+
+  if [[ ! -f "$INSTALL_ROOT/kiosk.conf" ]]; then
+    write_default_kiosk_config
+    return 0
+  fi
+
+  current_gfn_binary="$(read_config_value GFN_BINARY 2>/dev/null || true)"
+  current_gfn_fallback="$(read_config_value GFN_BINARY_FALLBACK 2>/dev/null || true)"
+
+  case "$current_gfn_binary" in
+    ""|/usr/bin/GeForceNOW|/opt/nvidia/GeForceNOW.AppImage)
+      upsert_config_value GFN_BINARY /usr/local/lib/pve-thin-client/runtime/launch-geforcenow.sh
+      ;;
+  esac
+
+  case "$current_gfn_fallback" in
+    ""|/usr/bin/GeForceNOW)
+      upsert_config_value GFN_BINARY_FALLBACK /opt/nvidia/GeForceNOW.AppImage
+      ;;
+  esac
+
+  chmod 0644 "$INSTALL_ROOT/kiosk.conf"
+}
+
 load_release_manifest() {
   if [[ -n "$RELEASE_MANIFEST_JSON" ]]; then
     printf '%s' "$RELEASE_MANIFEST_JSON"
@@ -55,21 +216,26 @@ manifest_value() {
   payload="$(load_release_manifest 2>/dev/null || true)"
   [[ -n "$payload" ]] || return 1
 
-  python3 - "$key" <<'PY' <<<"$payload"
+  BEAGLE_KIOSK_MANIFEST_PAYLOAD="$payload" python3 -c '
 import json
+import os
 import sys
 
 key = sys.argv[1]
+payload = os.environ.get("BEAGLE_KIOSK_MANIFEST_PAYLOAD", "")
+if not payload:
+    raise SystemExit(1)
+
 try:
-    payload = json.load(sys.stdin)
+    data = json.loads(payload)
 except Exception:
     raise SystemExit(1)
 
-value = payload.get(key)
+value = data.get(key)
 if value is None:
     raise SystemExit(1)
 print(value)
-PY
+' "$key"
 }
 
 latest_version() {
@@ -81,12 +247,14 @@ latest_version() {
   fi
 
   curl -fsSL -H 'Accept: application/vnd.github+json' -H 'User-Agent: BeagleKioskInstaller' \
-    "https://api.github.com/repos/${RELEASE_REPO}/releases/latest" | python3 - <<'PY'
-import json, sys
+    "https://api.github.com/repos/${RELEASE_REPO}/releases/latest" | python3 -c '
+import json
+import sys
+
 payload = json.load(sys.stdin)
 tag = str(payload.get("tag_name") or "").strip()
 print(tag[1:] if tag.startswith("v") else tag)
-PY
+'
 }
 
 download_url() {
@@ -122,8 +290,9 @@ expected_hash() {
 
   for hash_url in "$HASH_URL" "$HASH_URL_FALLBACK"; do
     [[ -n "$hash_url" ]] || continue
-    if curl -fsSL "$hash_url" | python3 - "$asset_name" <<'PY'
+    if curl -fsSL "$hash_url" | python3 -c '
 import sys
+
 asset = sys.argv[1]
 lines = sys.stdin.read().splitlines()
 for line in lines:
@@ -131,9 +300,10 @@ for line in lines:
     if len(parts) >= 2 and parts[-1] == asset:
         print(parts[0])
         raise SystemExit(0)
+
 if lines:
     print(lines[0].split()[0])
-PY
+' "$asset_name"
     then
       return 0
     fi
@@ -147,6 +317,7 @@ install_payload() {
   local url tmp_dir asset_path actual expected
 
   url="$(download_url "$version")"
+  APPIMAGE_NAME="${APPIMAGE_NAME:-$(basename "${url%%\?*}")}"
   tmp_dir="$(mktemp -d)"
   asset_path="$tmp_dir/$APPIMAGE_NAME"
 
@@ -161,39 +332,75 @@ install_payload() {
   fi
 
   install -d -m 0755 "$INSTALL_ROOT" "$INSTALL_ROOT/assets/covers"
+  if getent passwd thinclient >/dev/null 2>&1; then
+    install -d -m 0775 -o thinclient -g thinclient "$INSTALL_ROOT/logs"
+  else
+    install -d -m 0775 "$INSTALL_ROOT/logs"
+  fi
   install -m 0755 "$asset_path" "$INSTALL_ROOT/beagle-kiosk"
 
   cat >"$INSTALL_ROOT/launch.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 INSTALL_ROOT="${BEAGLE_KIOSK_ROOT:-/opt/beagle-kiosk}"
+CONFIG_FILE="${INSTALL_ROOT}/kiosk.conf"
 LOG_DIR="${INSTALL_ROOT}/logs"
+if ! mkdir -p "$LOG_DIR" 2>/dev/null; then
+  LOG_DIR="${XDG_RUNTIME_DIR:-${HOME:-/tmp}/.cache}/beagle-kiosk"
+  mkdir -p "$LOG_DIR"
+fi
 LOG_FILE="${LOG_DIR}/kiosk.log"
-mkdir -p "$LOG_DIR"
+load_config_value() {
+  local raw_key="$1"
+  local raw_value="$2"
+  local trimmed_value="$raw_value"
+
+  trimmed_value="${trimmed_value%$'\r'}"
+  if [[ "$trimmed_value" =~ ^\".*\"$ ]] || [[ "$trimmed_value" =~ ^\'.*\'$ ]]; then
+    trimmed_value="${trimmed_value:1:${#trimmed_value}-2}"
+  fi
+
+  case "$raw_key" in
+    GFN_BINARY|GFN_BINARY_FALLBACK|AFFILIATE_CONFIG_URL|AFFILIATE_REQUEST_TIMEOUT_MS|STORE_ALLOWED_DOMAINS|KIOSK_FULLSCREEN|STORE_WINDOW_FULLSCREEN|DEFAULT_FILTER_GFN_ONLY|GFN_GAME_ID_FIELD|KIOSK_EXTRA_ARGS)
+      export "$raw_key=$trimmed_value"
+      ;;
+  esac
+}
+if [[ -r "$CONFIG_FILE" ]]; then
+  while IFS='=' read -r config_key config_value; do
+    [[ -n "$config_key" ]] || continue
+    [[ "$config_key" =~ ^[[:space:]]*# ]] && continue
+    load_config_value "$config_key" "$config_value"
+  done < "$CONFIG_FILE"
+fi
 export ELECTRON_DISABLE_SECURITY_WARNINGS=1
+export APPIMAGE_EXTRACT_AND_RUN="${APPIMAGE_EXTRACT_AND_RUN:-1}"
+export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-x11}"
+export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-x11}"
 export BEAGLE_KIOSK_ROOT="$INSTALL_ROOT"
-exec "${INSTALL_ROOT}/beagle-kiosk" >>"$LOG_FILE" 2>&1
+declare -a kiosk_args=()
+if [[ -n "${KIOSK_EXTRA_ARGS:-}" ]]; then
+  # shellcheck disable=SC2206
+  kiosk_args+=(${KIOSK_EXTRA_ARGS})
+fi
+if command -v systemd-detect-virt >/dev/null 2>&1 && systemd-detect-virt -q; then
+  kiosk_args+=(--disable-gpu --disable-gpu-compositing)
+fi
+printf '[%s] launch args=%s\n' "$(date -Is 2>/dev/null || date)" "${kiosk_args[*]:-<none>}" >>"$LOG_FILE"
+"${INSTALL_ROOT}/beagle-kiosk" "${kiosk_args[@]}" "$@" >>"$LOG_FILE" 2>&1
+status=$?
+printf '[%s] kiosk exited status=%s\n' "$(date -Is 2>/dev/null || date)" "$status" >>"$LOG_FILE"
+exit "$status"
 EOF
   chmod 0755 "$INSTALL_ROOT/launch.sh"
 
-  if [[ ! -f "$INSTALL_ROOT/kiosk.conf" ]]; then
-    cat >"$INSTALL_ROOT/kiosk.conf" <<'EOF'
-GFN_BINARY=/usr/bin/GeForceNOW
-GFN_BINARY_FALLBACK=/opt/nvidia/GeForceNOW.AppImage
-AFFILIATE_CONFIG_URL=https://beagle-os.com/api/kiosk/affiliate-config
-AFFILIATE_REQUEST_TIMEOUT_MS=8000
-STORE_ALLOWED_DOMAINS=greenmangaming.com fanatical.com humblebundle.com store.epicgames.com
-KIOSK_FULLSCREEN=1
-STORE_WINDOW_FULLSCREEN=1
-DEFAULT_FILTER_GFN_ONLY=1
-GFN_GAME_ID_FIELD=gfn_id
-EOF
-    chmod 0644 "$INSTALL_ROOT/kiosk.conf"
-  fi
+  normalize_kiosk_config
 
   if [[ ! -f "$INSTALL_ROOT/games.json" ]]; then
     printf '[]\n' >"$INSTALL_ROOT/games.json"
   fi
+
+  install -d -m 0755 "$INSTALL_ROOT/assets" "$INSTALL_ROOT/assets/covers" "$INSTALL_ROOT/logs"
 
   if [[ ! -f "$INSTALL_ROOT/user_library.json" ]]; then
     cat >"$INSTALL_ROOT/user_library.json" <<'EOF'
@@ -205,46 +412,599 @@ EOF
 EOF
   fi
 
+  if getent passwd thinclient >/dev/null 2>&1; then
+    chown thinclient:thinclient "$INSTALL_ROOT"
+    chown -R thinclient:thinclient "$INSTALL_ROOT/assets" "$INSTALL_ROOT/logs"
+    chown thinclient:thinclient "$INSTALL_ROOT/user_library.json" "$INSTALL_ROOT/games.json"
+  fi
+
   cat >"$INSTALL_ROOT/update_catalog.py" <<'EOF'
 #!/usr/bin/env python3
+# Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - CLOSED SOURCE
+"""Build the Beagle OS Gaming store catalog from official GFN data plus GMG search results."""
+
 from __future__ import annotations
+
+import hashlib
 import json
 import os
+import re
 import sys
+import unicodedata
 from pathlib import Path
-from urllib.error import URLError
+from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 
 INSTALL_ROOT = Path(os.environ.get("BEAGLE_KIOSK_ROOT", "/opt/beagle-kiosk"))
 GAMES_PATH = INSTALL_ROOT / "games.json"
-MASTER_LIST_URL = os.environ.get("GFN_MASTER_CATALOG_URL", "").strip()
+COVER_CACHE_DIR = INSTALL_ROOT / "assets" / "covers"
 
-def write_json(path: Path, payload):
+REQUEST_TIMEOUT = int(os.environ.get("BEAGLE_KIOSK_CATALOG_TIMEOUT", "30") or "30")
+CACHE_COVERS = os.environ.get("BEAGLE_KIOSK_CACHE_COVERS", "0") == "1"
+CATALOG_LIMIT = int(os.environ.get("BEAGLE_KIOSK_CATALOG_LIMIT", "0") or "0")
+
+GFN_ENDPOINT = os.environ.get(
+    "BEAGLE_KIOSK_GFN_ENDPOINT",
+    "https://api-prod.nvidia.com/services/gfngames/v1/gameList",
+).strip()
+GFN_COUNTRY = os.environ.get("BEAGLE_KIOSK_GFN_COUNTRY", "US").strip() or "US"
+GFN_LANGUAGE = os.environ.get("BEAGLE_KIOSK_GFN_LANGUAGE", "en_US").strip() or "en_US"
+
+GMG_STOREFRONT_URL = os.environ.get(
+    "BEAGLE_KIOSK_GMG_STOREFRONT_URL",
+    "https://www.greenmangaming.com/games/",
+).strip()
+GMG_APP_ID = os.environ.get("BEAGLE_KIOSK_GMG_ALGOLIA_APP_ID", "").strip()
+GMG_API_KEY = os.environ.get("BEAGLE_KIOSK_GMG_ALGOLIA_API_KEY", "").strip()
+GMG_INDEX_NAME = os.environ.get("BEAGLE_KIOSK_GMG_ALGOLIA_INDEX", "").strip()
+GMG_COUNTRY_CODE = os.environ.get("BEAGLE_KIOSK_GMG_COUNTRY_CODE", "DE").strip() or "DE"
+GMG_BATCH_SIZE = int(os.environ.get("BEAGLE_KIOSK_GMG_BATCH_SIZE", "24") or "24")
+GMG_HITS_PER_QUERY = int(os.environ.get("BEAGLE_KIOSK_GMG_HITS_PER_QUERY", "8") or "8")
+
+USER_AGENT = "BeagleOSGamingKiosk/0.3"
+GMG_BASE_URL = "https://www.greenmangaming.com"
+GMG_IMAGE_BASE_URL = "https://images.greenmangaming.com/"
+GMG_SEARCH_PATH = "/search"
+
+ALLOWED_EXTRA_TOKENS = {
+    "standard",
+    "edition",
+    "digital",
+    "deluxe",
+    "ultimate",
+    "gold",
+    "complete",
+    "definitive",
+    "directors",
+    "cut",
+    "game",
+    "of",
+    "the",
+    "year",
+    "goty",
+    "enhanced",
+    "remastered",
+    "collection",
+    "bundle",
+    "lspd",
+    "vr",
+    "premium",
+    "founders",
+    "launch",
+}
+
+REJECT_EXTRA_TOKENS = {
+    "dlc",
+    "soundtrack",
+    "artbook",
+    "expansion",
+    "episode",
+    "chapter",
+    "pass",
+    "pack",
+    "credits",
+    "coins",
+    "currency",
+    "points",
+    "booster",
+    "boiling",
+    "point",
+    "invasion",
+    "waters",
+    "skins",
+    "skin",
+}
+
+DRM_NAME_MAP = {
+    "STEAM": {"steam"},
+    "EPIC": {"epic", "epic games", "epic games store"},
+    "UPLAY": {"ubisoft", "ubisoft connect"},
+    "XBOX": {"xbox"},
+    "EAAPP": {"ea app", "origin"},
+    "BATTLE.NET": {"battle.net", "battlenet"},
+    "UNKNOWN": set(),
+}
+
+
+def read_json(path: Path, fallback: Any) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return fallback
+
+
+def write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    target = path.with_name(f".{path.name}.tmp")
+    target.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    target.replace(path)
 
-def fetch_json(url: str):
-    request = Request(url, headers={"User-Agent": "BeagleOSGamingKiosk/Installer"})
-    with urlopen(request, timeout=20) as response:
-        return json.loads(response.read().decode("utf-8"))
+
+def fetch_text(url: str, *, method: str = "GET", data: bytes | None = None, headers: dict[str, str] | None = None) -> str:
+    request = Request(
+        url,
+        data=data,
+        method=method,
+        headers={"User-Agent": USER_AGENT, **(headers or {})},
+    )
+    with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+        return response.read().decode("utf-8")
+
+
+def fetch_json(url: str, *, method: str = "GET", payload: Any | None = None, headers: dict[str, str] | None = None) -> Any:
+    body = None
+    request_headers = {"User-Agent": USER_AGENT, **(headers or {})}
+    if payload is not None:
+        if isinstance(payload, (bytes, bytearray)):
+            body = bytes(payload)
+        else:
+            body = json.dumps(payload).encode("utf-8")
+        request_headers.setdefault("Content-Type", "application/json")
+    text = fetch_text(url, method=method, data=body, headers=request_headers)
+    return json.loads(text)
+
+
+def fetch_bytes(url: str) -> bytes:
+    request = Request(url, headers={"User-Agent": USER_AGENT})
+    with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+        return response.read()
+
+
+def normalize_title(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", str(value or ""))
+    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    normalized = normalized.replace("®", " ").replace("™", " ").replace("©", " ")
+    normalized = re.sub(r"[^a-zA-Z0-9]+", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip().lower()
+
+
+def slugify(value: str) -> str:
+    return normalize_title(value).replace(" ", "-")
+
+
+def cover_name(url: str) -> str:
+    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()
+    suffix = Path(url).suffix or ".jpg"
+    return f"{digest}{suffix}"
+
+
+def cache_cover(url: str) -> str:
+    if not url:
+        return ""
+    if not CACHE_COVERS:
+        return url
+    COVER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    target = COVER_CACHE_DIR / cover_name(url)
+    if not target.exists():
+        target.write_bytes(fetch_bytes(url))
+    return str(target)
+
+
+def gfn_cover_url(gfn_game: dict[str, Any]) -> str:
+    images = gfn_game.get("images") or {}
+    if not isinstance(images, dict):
+        return ""
+    return str(images.get("TV_BANNER") or images.get("GAME_BOX_ART") or "").strip()
+
+
+def gmg_search_url(title: str) -> str:
+    query = str(title or "").strip()
+    if not query:
+        return urljoin(GMG_BASE_URL, GMG_SEARCH_PATH)
+    return f"{urljoin(GMG_BASE_URL, GMG_SEARCH_PATH)}?{urlencode({'query': query})}"
+
+
+def gmg_query_params(title: str) -> str:
+    return urlencode(
+        {
+            "query": str(title or ""),
+            "hitsPerPage": str(GMG_HITS_PER_QUERY),
+        }
+    )
+
+
+def resolve_gmg_search_config() -> tuple[str, str, str]:
+    if GMG_APP_ID and GMG_API_KEY and GMG_INDEX_NAME:
+        return GMG_APP_ID, GMG_API_KEY, GMG_INDEX_NAME
+
+    html = fetch_text(GMG_STOREFRONT_URL)
+    patterns = {
+        "app": r"algoliaAppId:\s*'([^']+)'",
+        "key": r"algoliaApiKey:\s*'([^']+)'",
+        "index": r"algoliaIndexName:\s*'([^']+)'",
+    }
+    matches = {}
+    for key, pattern in patterns.items():
+        match = re.search(pattern, html)
+        if not match:
+            raise RuntimeError(f"Unable to locate GMG Algolia {key} in storefront HTML.")
+        matches[key] = match.group(1).strip()
+    return matches["app"], matches["key"], matches["index"]
+
+
+def build_gfn_query(after_cursor: str) -> bytes:
+    body = f"""
+{{
+  apps(country:"{GFN_COUNTRY}" language:"{GFN_LANGUAGE}" orderBy: "itemMetadata.gfnPopularityRank:ASC,sortName:ASC" after:"{after_cursor}") {{
+    numberReturned
+    pageInfo {{
+      endCursor
+      hasNextPage
+    }}
+    items {{
+      title
+      sortName
+      images {{
+        TV_BANNER
+        GAME_BOX_ART
+      }}
+      gfn {{
+        playType
+        minimumMembershipTierLabel
+      }}
+      variants {{
+        appStore
+        publisherName
+      }}
+    }}
+  }}
+}}
+""".strip()
+    return body.encode("utf-8")
+
+
+def fetch_gfn_catalog() -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    cursor = ""
+
+    while True:
+        payload = fetch_json(
+            GFN_ENDPOINT,
+            method="POST",
+            payload=build_gfn_query(cursor),
+            headers={"Content-Type": "application/json"},
+        )
+        apps = ((payload or {}).get("data") or {}).get("apps") or {}
+        page_items = apps.get("items") or []
+        if not isinstance(page_items, list):
+            break
+        items.extend(item for item in page_items if isinstance(item, dict) and item.get("title"))
+
+        page_info = apps.get("pageInfo") or {}
+        if not page_info.get("hasNextPage"):
+            break
+        next_cursor = str(page_info.get("endCursor") or "").strip()
+        if not next_cursor or next_cursor == cursor:
+            break
+        cursor = next_cursor
+
+        if CATALOG_LIMIT and len(items) >= CATALOG_LIMIT:
+            return items[:CATALOG_LIMIT]
+
+    return items[:CATALOG_LIMIT] if CATALOG_LIMIT else items
+
+
+def algolia_multi_query(requests_payload: list[dict[str, str]], app_id: str, api_key: str) -> list[dict[str, Any]]:
+    response = fetch_json(
+        f"https://{app_id}-dsn.algolia.net/1/indexes/*/queries",
+        method="POST",
+        payload={"requests": requests_payload},
+        headers={
+            "X-Algolia-API-Key": api_key,
+            "X-Algolia-Application-Id": app_id,
+            "Content-Type": "application/json",
+        },
+    )
+    results = response.get("results") if isinstance(response, dict) else None
+    return results if isinstance(results, list) else []
+
+
+def search_gmg_hits(batch: list[dict[str, Any]], app_id: str, api_key: str, index_name: str) -> list[list[dict[str, Any]]]:
+    if not batch:
+        return []
+
+    requests_payload = [{"indexName": index_name, "params": gmg_query_params(game.get("title") or "")} for game in batch]
+
+    try:
+        results = algolia_multi_query(requests_payload, app_id, api_key)
+    except HTTPError as error:
+        if len(batch) == 1:
+            title = str(batch[0].get("title") or "").strip() or "<unknown>"
+            print(f"warning: GMG lookup failed for {title}: {error}", file=sys.stderr)
+            return [[]]
+        midpoint = max(1, len(batch) // 2)
+        return search_gmg_hits(batch[:midpoint], app_id, api_key, index_name) + search_gmg_hits(
+            batch[midpoint:], app_id, api_key, index_name
+        )
+
+    normalized_results: list[list[dict[str, Any]]] = []
+    for offset in range(len(batch)):
+        hits: list[dict[str, Any]] = []
+        if offset < len(results) and isinstance(results[offset], dict):
+            raw_hits = results[offset].get("hits") or []
+            if isinstance(raw_hits, list):
+                hits = [hit for hit in raw_hits if isinstance(hit, dict)]
+        normalized_results.append(hits)
+    return normalized_results
+
+
+def allowed_drms(gfn_game: dict[str, Any]) -> set[str]:
+    names: set[str] = set()
+    for variant in gfn_game.get("variants") or []:
+        for mapped in DRM_NAME_MAP.get(str(variant.get("appStore") or "").upper(), set()):
+            names.add(mapped)
+    return names
+
+
+def normalize_drm_name(value: str) -> str:
+    return normalize_title(value).replace(" store", "")
+
+
+def extra_tokens(text: str, prefix: str) -> list[str]:
+    if not text.startswith(prefix):
+        return []
+    suffix = text[len(prefix) :].strip()
+    return [token for token in suffix.split(" ") if token]
+
+
+def score_gmg_hit(gfn_game: dict[str, Any], hit: dict[str, Any]) -> int:
+    if not hit.get("IsSellable") or not hit.get("Url"):
+        return -1
+
+    platforms = {normalize_title(item) for item in hit.get("PlatformName") or []}
+    if "pc" not in platforms:
+        return -1
+
+    gfn_title = normalize_title(gfn_game.get("title"))
+    hit_title = normalize_title(hit.get("DisplayName"))
+    if not gfn_title or not hit_title:
+        return -1
+
+    allowed = allowed_drms(gfn_game)
+    drm_name = normalize_drm_name(hit.get("DrmName") or "")
+    if allowed and drm_name and drm_name not in allowed:
+        return -1
+
+    score = -1
+    if hit_title == gfn_title:
+        score = 1000
+    elif hit_title.startswith(f"{gfn_title} "):
+        score = 760
+    elif hit_title.startswith(f"{gfn_title}:"):
+        score = 680
+    elif gfn_title in hit_title:
+        score = 520
+    elif hit_title in gfn_title:
+        score = 420
+    else:
+        return -1
+
+    franchise = normalize_title(hit.get("Franchise") or "")
+    if franchise == gfn_title:
+        score += 120
+
+    extras = extra_tokens(hit_title.replace(":", " "), gfn_title)
+    if extras:
+        if any(token in REJECT_EXTRA_TOKENS for token in extras):
+            score -= 260
+        if all(token in ALLOWED_EXTRA_TOKENS for token in extras):
+            score += 80
+
+    best_selling_rank = hit.get("BestSellingRank") or 0
+    if isinstance(best_selling_rank, (int, float)) and best_selling_rank > 0:
+        score += max(0, 100 - min(int(best_selling_rank), 100))
+
+    return score
+
+
+def select_gmg_match(gfn_game: dict[str, Any], hits: list[dict[str, Any]]) -> dict[str, Any] | None:
+    best_hit: dict[str, Any] | None = None
+    best_score = -1
+    for hit in hits:
+        if not isinstance(hit, dict):
+            continue
+        current_score = score_gmg_hit(gfn_game, hit)
+        if current_score > best_score:
+            best_score = current_score
+            best_hit = hit
+    if best_score < 500:
+        return None
+    return best_hit
+
+
+def first_available_region(hit: dict[str, Any]) -> dict[str, Any]:
+    regions = hit.get("Regions") or {}
+    if not isinstance(regions, dict):
+        return {}
+    preferred = regions.get(GMG_COUNTRY_CODE)
+    if isinstance(preferred, dict) and not preferred.get("IsExcludeFromCurrentCountry"):
+        return preferred
+    for region in regions.values():
+        if isinstance(region, dict) and not region.get("IsExcludeFromCurrentCountry"):
+            return region
+    return {}
+
+
+def format_price(region: dict[str, Any]) -> str:
+    if not isinstance(region, dict):
+        return "n/a"
+    value = region.get("Drp")
+    if value in (None, ""):
+        value = region.get("Rrp")
+    if value in (None, ""):
+        value = region.get("Mrp")
+    currency = str(region.get("CurrencyCode") or "").strip()
+    if value in (None, ""):
+        return "n/a"
+    try:
+        return f"{float(value):.2f} {currency}".strip()
+    except Exception:
+        return f"{value} {currency}".strip()
+
+
+def absolute_gmg_url(path: str) -> str:
+    return urljoin(GMG_BASE_URL, path or "")
+
+
+def absolute_gmg_image_url(path: str) -> str:
+    return urljoin(GMG_IMAGE_BASE_URL, path.lstrip("/") if isinstance(path, str) else "")
+
+
+def build_catalog_entry(index: int, gfn_game: dict[str, Any], gmg_hit: dict[str, Any]) -> dict[str, Any]:
+    region = first_available_region(gmg_hit)
+    cover_url = gfn_cover_url(gfn_game) or absolute_gmg_image_url(gmg_hit.get("ImageUrl") or "")
+    title = str(gfn_game.get("title") or gmg_hit.get("DisplayName") or "Unbenanntes Spiel").strip()
+    genre = ", ".join(gmg_hit.get("Genre") or []) or "GFN Compatible"
+    publisher = str(gmg_hit.get("PublisherName") or "").strip()
+    release_timestamp = region.get("ReleaseDate") if isinstance(region, dict) else None
+    release_year = None
+    if isinstance(release_timestamp, (int, float)) and release_timestamp > 0:
+        release_year = int(str(int(release_timestamp))[:4])
+
+    store_url = absolute_gmg_url(gmg_hit.get("Url") or "")
+    return {
+        "id": slugify(title) or f"gfn-{index}",
+        "gfn_id": gfn_game.get("sortName") or slugify(title) or f"gfn-{index}",
+        "slug": slugify(title) or f"gfn-{index}",
+        "title": title,
+        "genre": genre,
+        "description": (
+            f"{publisher or 'Green Man Gaming'} direkt ueber GMG kaufen und danach in GeForce NOW starten."
+        ),
+        "cover_url": cache_cover(cover_url) if cover_url else "",
+        "geforce_now_supported": True,
+        "release_year": release_year,
+        "popularity": max(1, 10000 - index),
+        "system_requirements": [
+            "GeForce NOW Konto",
+            "Stabile Internetverbindung",
+            "Controller oder Maus und Tastatur",
+        ],
+        "stores": [
+            {
+                "name": "GMG",
+                "url": store_url,
+                "price": format_price(region),
+                "sku": str(gmg_hit.get("ProductId") or gmg_hit.get("GameVariantId") or "").strip(),
+            }
+        ],
+        "publisher": publisher,
+        "app_store": ", ".join(sorted({str(item.get("appStore") or "").strip() for item in gfn_game.get("variants") or [] if item.get("appStore")})),
+    }
+
+
+def build_search_fallback_entry(index: int, gfn_game: dict[str, Any]) -> dict[str, Any]:
+    title = str(gfn_game.get("title") or "Unbenanntes Spiel").strip()
+    cover_url = gfn_cover_url(gfn_game)
+    return {
+        "id": slugify(title) or f"gfn-{index}",
+        "gfn_id": gfn_game.get("sortName") or slugify(title) or f"gfn-{index}",
+        "slug": slugify(title) or f"gfn-{index}",
+        "title": title,
+        "genre": "GFN Compatible",
+        "description": "Bei Green Man Gaming suchen und danach in GeForce NOW starten.",
+        "cover_url": cover_url,
+        "geforce_now_supported": True,
+        "release_year": None,
+        "popularity": max(1, 10000 - index),
+        "system_requirements": [
+            "GeForce NOW Konto",
+            "Stabile Internetverbindung",
+            "Controller oder Maus und Tastatur",
+        ],
+        "stores": [
+            {
+                "name": "GMG",
+                "url": gmg_search_url(title),
+                "price": "Bei GMG suchen",
+                "sku": "",
+            }
+        ],
+        "publisher": "",
+        "app_store": ", ".join(
+            sorted({str(item.get("appStore") or "").strip() for item in gfn_game.get("variants") or [] if item.get("appStore")})
+        ),
+    }
+
+
+def build_catalog() -> list[dict[str, Any]]:
+    gfn_games = fetch_gfn_catalog()
+    if not gfn_games:
+        return []
+
+    app_id, api_key, index_name = resolve_gmg_search_config()
+    catalog: list[dict[str, Any]] = []
+
+    for batch_start in range(0, len(gfn_games), GMG_BATCH_SIZE):
+        batch = gfn_games[batch_start : batch_start + GMG_BATCH_SIZE]
+        results = search_gmg_hits(batch, app_id, api_key, index_name)
+        for offset, game in enumerate(batch):
+            hits = []
+            if offset < len(results):
+                hits = results[offset]
+            match = select_gmg_match(game, hits)
+            if match:
+                catalog.append(build_catalog_entry(batch_start + offset, game, match))
+            else:
+                catalog.append(build_search_fallback_entry(batch_start + offset, game))
+
+            if CATALOG_LIMIT and len(catalog) >= CATALOG_LIMIT:
+                return catalog
+
+    deduped: dict[str, dict[str, Any]] = {}
+    for item in catalog:
+        key = normalize_title(item.get("title")) or str(item.get("id"))
+        if key not in deduped:
+            deduped[key] = item
+    return list(deduped.values())
+
 
 def main() -> int:
-    if not MASTER_LIST_URL:
-        return 0
+    current = read_json(GAMES_PATH, [])
     try:
-        payload = fetch_json(MASTER_LIST_URL)
-    except (URLError, TimeoutError, ValueError) as error:
-        print(f"warning: unable to update master catalog: {error}", file=sys.stderr)
+        catalog = build_catalog()
+    except (HTTPError, URLError, TimeoutError, ValueError, RuntimeError) as error:
+        print(f"warning: unable to refresh GMG catalog: {error}", file=sys.stderr)
+        if isinstance(current, list) and current:
+            return 0
+        raise
+
+    if not catalog and isinstance(current, list) and current:
+        print("warning: catalog refresh returned no matches, keeping existing games.json", file=sys.stderr)
         return 0
-    games = payload.get("games", payload) if isinstance(payload, dict) else payload
-    if isinstance(games, list):
-        write_json(GAMES_PATH, games)
+
+    write_json(GAMES_PATH, catalog)
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
 EOF
   chmod 0755 "$INSTALL_ROOT/update_catalog.py"
+  ensure_launcher_wrapper
+  ensure_gfn_client background
 
   cat > /etc/systemd/system/beagle-kiosk-update-catalog.service <<'EOF'
 [Unit]
@@ -273,7 +1033,8 @@ WantedBy=timers.target
 EOF
 
   printf '{\n  "version": "%s",\n  "asset": "%s"\n}\n' "$version" "$APPIMAGE_NAME" >"$INSTALL_ROOT/release.json"
-  chmod 0644 "$INSTALL_ROOT/release.json" "$INSTALL_ROOT/games.json" "$INSTALL_ROOT/user_library.json"
+  chmod 0644 "$INSTALL_ROOT/release.json" "$INSTALL_ROOT/games.json"
+  chmod 0664 "$INSTALL_ROOT/user_library.json"
   rm -rf "$tmp_dir"
 }
 
@@ -302,11 +1063,17 @@ if [[ "$VERSION" == "latest" ]]; then
 fi
 
 if [[ -x "$INSTALL_ROOT/beagle-kiosk" && "$(installed_version)" == "$VERSION" ]]; then
+  ensure_launcher_wrapper
+  ensure_gfn_client background
+  refresh_catalog background
   systemctl daemon-reload
   systemctl enable --now beagle-kiosk-update-catalog.timer >/dev/null 2>&1 || true
   exit 0
 fi
 
 install_payload "$VERSION"
+refresh_catalog background
+ensure_launcher_wrapper
+ensure_gfn_client background
 systemctl daemon-reload
 systemctl enable --now beagle-kiosk-update-catalog.timer >/dev/null 2>&1 || true

@@ -255,7 +255,7 @@ set timeout=4
 
 menuentry 'Beagle OS Gaming' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 systemd.unit=beagle-kiosk.target vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming
   initrd /live/current/initrd.img
 }}
 
@@ -464,11 +464,55 @@ def verify_sha256(path: Path, expected: str) -> None:
         raise RuntimeError(f"checksum mismatch for {path.name}")
 
 
+def directory_size(path: Path) -> int:
+    total = 0
+    if not path.exists():
+        return total
+    for child in path.rglob("*"):
+        try:
+            if child.is_file():
+                total += child.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
+def prune_cached_payloads(*, keep_version: str) -> None:
+    if not CACHE_ROOT.exists():
+        return
+    for child in CACHE_ROOT.iterdir():
+        if child.name == keep_version:
+            continue
+        try:
+            if child.is_dir():
+                shutil.rmtree(child, ignore_errors=True)
+            else:
+                child.unlink(missing_ok=True)
+        except OSError:
+            continue
+
+
+def ensure_download_space(*, keep_version: str, required_bytes: int) -> None:
+    if required_bytes <= 0:
+        return
+    prune_cached_payloads(keep_version=keep_version)
+    CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+    usage = shutil.disk_usage(CACHE_ROOT)
+    cached_bytes = directory_size(CACHE_ROOT / keep_version)
+    required_with_headroom = int(required_bytes * 1.2)
+    available_bytes = int(usage.free) + cached_bytes
+    if available_bytes < required_with_headroom:
+        raise RuntimeError(
+            f"insufficient disk space for update payload: need about {required_with_headroom} bytes, have {available_bytes} bytes"
+        )
+
+
 def download_payload(feed: dict, config: dict[str, str]) -> tuple[Path, str]:
     version = str(feed.get("latest_version", "")).strip()
     payload_url = str(feed.get("payload_url", "")).strip()
     if not version or not payload_url:
         raise RuntimeError("update feed is missing payload metadata")
+    payload_size = int(feed.get("payload_size") or 0)
     target_dir = CACHE_ROOT / version
     target_dir.mkdir(parents=True, exist_ok=True)
     archive_path = target_dir / "payload.tar.gz"
@@ -477,6 +521,7 @@ def download_payload(feed: dict, config: dict[str, str]) -> tuple[Path, str]:
         if not expected_sha or sha256sum(archive_path).lower() == expected_sha.lower():
             return archive_path, version
         archive_path.unlink()
+    ensure_download_space(keep_version=version, required_bytes=payload_size)
     payload_pin = str(feed.get("payload_pinned_pubkey", "")).strip()
     manager_url = config.get("PVE_THIN_CLIENT_BEAGLE_MANAGER_URL", "").strip()
     manager_ca_cert = config.get("PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT", "").strip()
@@ -486,7 +531,14 @@ def download_payload(feed: dict, config: dict[str, str]) -> tuple[Path, str]:
         payload_ca_cert = manager_ca_cert
     args = curl_args_for_url(payload_url, pinned_pubkey=payload_pin, ca_cert=payload_ca_cert, max_time=0)
     args.extend(["-L", "--retry", "4", "--retry-delay", "3", "--continue-at", "-", "-o", str(archive_path), payload_url])
-    subprocess.run(args, check=True)
+    try:
+        subprocess.run(args, check=True)
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode == 23:
+            raise RuntimeError(
+                f"payload download failed while writing to {archive_path}; free disk space under {CACHE_ROOT} and retry"
+            ) from exc
+        raise
     verify_sha256(archive_path, str(feed.get("payload_sha256", "")).strip())
     return archive_path, version
 
