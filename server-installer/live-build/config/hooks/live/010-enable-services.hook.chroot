@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+
+systemctl enable systemd-networkd.service
+systemctl enable systemd-networkd-wait-online.service
+systemctl enable getty@tty1.service

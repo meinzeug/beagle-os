@@ -12,8 +12,8 @@ SHA256SUMS
 node_modules/
 tmp/
 AGENTS.md
-beagle-kiosk/*.js
-beagle-kiosk/*.html
-beagle-kiosk/*.css
+beagle-kiosk/node_modules/
+beagle-kiosk/dist/
+beagle-kiosk/*.AppImage
 beagle-kiosk/games.json
 beagle-kiosk/kiosk.conf

@@ -35,6 +35,7 @@ VM_LIVE_USB_URL_TEMPLATE="https://${SERVER_NAME}:${LISTEN_PORT}/beagle-api/api/v
 VM_WINDOWS_INSTALLER_URL_TEMPLATE="https://${SERVER_NAME}:${LISTEN_PORT}/beagle-api/api/v1/vms/{vmid}/installer.ps1"
 STATUS_URL="${BASE_URL%/}/beagle-downloads-status.json"
 SHA256SUMS_URL="${PUBLIC_ARTIFACT_BASE_URL}/SHA256SUMS"
+SERVER_INSTALLER_ISO_URL="${PUBLIC_ARTIFACT_BASE_URL}/beagle-os-server-installer-amd64.iso"
 STATUS_JSON_PATH="$DIST_DIR/beagle-downloads-status.json"
 VM_INSTALLERS_METADATA_PATH="$DIST_DIR/beagle-vm-installers.json"
 INSTALLER_SHA256=""
@@ -71,7 +72,9 @@ ensure_current_packaged_artifacts() {
   local needs_package=0
   local installer_build_iso="$DIST_DIR/pve-thin-client-installer/beagle-os-installer-amd64.iso"
   local installer_build_rootfs="$DIST_DIR/pve-thin-client-installer/live/filesystem.squashfs"
+  local server_installer_build_iso="$DIST_DIR/beagle-os-server-installer/beagle-os-server-installer-amd64.iso"
   local root_iso="$DIST_DIR/beagle-os-installer-amd64.iso"
+  local root_server_iso="$DIST_DIR/beagle-os-server-installer-amd64.iso"
   local packaged_payload="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
   local packaged_bootstrap="$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
   local packaged_installer="$DIST_DIR/pve-thin-client-usb-installer-latest.sh"
@@ -79,8 +82,9 @@ ensure_current_packaged_artifacts() {
   local packaged_windows_installer="$DIST_DIR/pve-thin-client-usb-installer-latest.ps1"
   local source_installer="$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.sh"
   local source_windows_installer="$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.ps1"
+  local source_server_installer="$ROOT_DIR/scripts/build-server-installer.sh"
 
-  if [[ ! -f "$root_iso" || ! -f "$packaged_payload" || ! -f "$packaged_bootstrap" || ! -f "$packaged_installer" || ! -f "$packaged_live_usb" || ! -f "$packaged_windows_installer" ]]; then
+  if [[ ! -f "$root_iso" || ! -f "$root_server_iso" || ! -f "$packaged_payload" || ! -f "$packaged_bootstrap" || ! -f "$packaged_installer" || ! -f "$packaged_live_usb" || ! -f "$packaged_windows_installer" ]]; then
     needs_package=1
   fi
 
@@ -92,11 +96,23 @@ ensure_current_packaged_artifacts() {
     needs_package=1
   fi
 
+  if [[ "$needs_package" -eq 0 && -f "$server_installer_build_iso" && "$server_installer_build_iso" -nt "$root_server_iso" ]]; then
+    needs_package=1
+  fi
+
   if [[ "$needs_package" -eq 0 && -f "$source_installer" && ( "$source_installer" -nt "$packaged_installer" || "$source_installer" -nt "$packaged_live_usb" ) ]]; then
     needs_package=1
   fi
 
   if [[ "$needs_package" -eq 0 && -f "$source_windows_installer" && "$source_windows_installer" -nt "$packaged_windows_installer" ]]; then
+    needs_package=1
+  fi
+
+  if [[ "$needs_package" -eq 0 && -f "$source_server_installer" && "$source_server_installer" -nt "$root_server_iso" ]]; then
+    needs_package=1
+  fi
+
+  if [[ "$needs_package" -eq 0 ]] && find "$ROOT_DIR/server-installer" -type f -newer "$root_server_iso" | grep -q .; then
     needs_package=1
   fi
 
@@ -130,6 +146,10 @@ ensure_current_packaged_artifacts
 }
 [[ -f "$DIST_DIR/beagle-os-installer-amd64.iso" ]] || {
   echo "Missing packaged installer ISO: $DIST_DIR/beagle-os-installer-amd64.iso" >&2
+  exit 1
+}
+[[ -f "$DIST_DIR/beagle-os-server-installer-amd64.iso" ]] || {
+  echo "Missing packaged server installer ISO: $DIST_DIR/beagle-os-server-installer-amd64.iso" >&2
   exit 1
 }
 
@@ -522,6 +542,8 @@ checksum_entries=(
   "pve-thin-client-usb-installer-host-latest.ps1"
   "beagle-os-installer.iso"
   "beagle-os-installer-amd64.iso"
+  "beagle-os-server-installer.iso"
+  "beagle-os-server-installer-amd64.iso"
 )
 
 while IFS= read -r installer_name; do
@@ -555,6 +577,8 @@ ensure_dist_permissions
 INSTALLER_SHA256="$(sha256sum "$HOST_INSTALLER_LATEST" | awk '{print $1}')"
 PAYLOAD_SHA256="$(sha256sum "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" | awk '{print $1}')"
 BOOTSTRAP_SHA256="$(sha256sum "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz" | awk '{print $1}')"
+INSTALLER_ISO_SHA256="$(sha256sum "$DIST_DIR/beagle-os-installer-amd64.iso" | awk '{print $1}')"
+SERVER_INSTALLER_ISO_SHA256="$(sha256sum "$DIST_DIR/beagle-os-server-installer-amd64.iso" | awk '{print $1}')"
 
 cat > "$DIST_DIR/beagle-downloads-index.html" <<EOF
 <!doctype html>
@@ -579,6 +603,7 @@ cat > "$DIST_DIR/beagle-downloads-index.html" <<EOF
     <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-live-usb-host-latest.sh">Generic live USB launcher</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-usb-installer-host-latest.ps1">Generic Windows USB installer launcher</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/beagle-os-installer-amd64.iso">Beagle OS installer ISO</a></li>
+    <li><a href="${DOWNLOADS_PATH%/}/beagle-os-server-installer-amd64.iso">Beagle OS server installer ISO</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-usb-bootstrap-latest.tar.gz">USB bootstrap bundle (used while creating installer media)</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-usb-payload-latest.tar.gz">USB payload bundle</a></li>
     <li>VM-specific installer scripts now download the installer ISO, write the USB stick and embed the selected VM profile for unattended Beagle deployment.</li>
@@ -595,6 +620,8 @@ cat > "$DIST_DIR/beagle-downloads-index.html" <<EOF
     <tr><th>Status JSON</th><td><a href="${DOWNLOADS_PATH%/}/beagle-downloads-status.json">${STATUS_URL}</a></td></tr>
     <tr><th>SHA256SUMS</th><td><a href="${DOWNLOADS_PATH%/}/SHA256SUMS">${SHA256SUMS_URL}</a></td></tr>
     <tr><th>Hosted installer SHA256</th><td><code>${INSTALLER_SHA256}</code></td></tr>
+    <tr><th>Endpoint ISO SHA256</th><td><code>${INSTALLER_ISO_SHA256}</code></td></tr>
+    <tr><th>Server ISO SHA256</th><td><code>${SERVER_INSTALLER_ISO_SHA256}</code></td></tr>
     <tr><th>Bootstrap SHA256</th><td><code>${BOOTSTRAP_SHA256}</code></td></tr>
     <tr><th>Payload SHA256</th><td><code>${PAYLOAD_SHA256}</code></td></tr>
   </table>
@@ -602,7 +629,7 @@ cat > "$DIST_DIR/beagle-downloads-index.html" <<EOF
 </html>
 EOF
 
-python3 - "$STATUS_JSON_PATH" "$VERSION" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$INSTALLER_URL" "$LIVE_USB_URL" "$WINDOWS_INSTALLER_URL" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$INSTALLER_ISO_URL" "$STATUS_URL" "$SHA256SUMS_URL" "$HOST_INSTALLER_LATEST" "$HOST_LIVE_USB_LATEST" "$HOST_WINDOWS_INSTALLER_LATEST" "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz" "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" "$DIST_DIR/beagle-os-installer-amd64.iso" "$INSTALLER_SHA256" "$BOOTSTRAP_SHA256" "$PAYLOAD_SHA256" "$VM_INSTALLER_URL_TEMPLATE" "$VM_WINDOWS_INSTALLER_URL_TEMPLATE" "$VM_LIVE_USB_URL_TEMPLATE" "$VM_INSTALLERS_METADATA_PATH" <<'PY'
+python3 - "$STATUS_JSON_PATH" "$VERSION" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$INSTALLER_URL" "$LIVE_USB_URL" "$WINDOWS_INSTALLER_URL" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$INSTALLER_ISO_URL" "$SERVER_INSTALLER_ISO_URL" "$STATUS_URL" "$SHA256SUMS_URL" "$HOST_INSTALLER_LATEST" "$HOST_LIVE_USB_LATEST" "$HOST_WINDOWS_INSTALLER_LATEST" "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz" "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" "$DIST_DIR/beagle-os-installer-amd64.iso" "$DIST_DIR/beagle-os-server-installer-amd64.iso" "$INSTALLER_SHA256" "$BOOTSTRAP_SHA256" "$PAYLOAD_SHA256" "$INSTALLER_ISO_SHA256" "$SERVER_INSTALLER_ISO_SHA256" "$VM_INSTALLER_URL_TEMPLATE" "$VM_WINDOWS_INSTALLER_URL_TEMPLATE" "$VM_LIVE_USB_URL_TEMPLATE" "$VM_INSTALLERS_METADATA_PATH" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -619,21 +646,25 @@ installer_windows_url = sys.argv[8]
 bootstrap_url = sys.argv[9]
 payload_url = sys.argv[10]
 installer_iso_url = sys.argv[11]
-status_url = sys.argv[12]
-sha256sums_url = sys.argv[13]
-installer_path = Path(sys.argv[14])
-live_usb_path = Path(sys.argv[15])
-installer_windows_path = Path(sys.argv[16])
-bootstrap_path = Path(sys.argv[17])
-payload_path = Path(sys.argv[18])
-installer_iso_path = Path(sys.argv[19])
-installer_sha256 = sys.argv[20]
-bootstrap_sha256 = sys.argv[21]
-payload_sha256 = sys.argv[22]
-vm_installer_url_template = sys.argv[23]
-vm_windows_installer_url_template = sys.argv[24]
-vm_live_usb_url_template = sys.argv[25]
-vm_installers_path = Path(sys.argv[26])
+server_installer_iso_url = sys.argv[12]
+status_url = sys.argv[13]
+sha256sums_url = sys.argv[14]
+installer_path = Path(sys.argv[15])
+live_usb_path = Path(sys.argv[16])
+installer_windows_path = Path(sys.argv[17])
+bootstrap_path = Path(sys.argv[18])
+payload_path = Path(sys.argv[19])
+installer_iso_path = Path(sys.argv[20])
+server_installer_iso_path = Path(sys.argv[21])
+installer_sha256 = sys.argv[22]
+bootstrap_sha256 = sys.argv[23]
+payload_sha256 = sys.argv[24]
+installer_iso_sha256 = sys.argv[25]
+server_installer_iso_sha256 = sys.argv[26]
+vm_installer_url_template = sys.argv[27]
+vm_windows_installer_url_template = sys.argv[28]
+vm_live_usb_url_template = sys.argv[29]
+vm_installers_path = Path(sys.argv[30])
 vm_installers = json.loads(vm_installers_path.read_text()) if vm_installers_path.exists() else []
 
 payload = {
@@ -656,15 +687,20 @@ payload = {
     "bootstrap_size": bootstrap_path.stat().st_size,
     "payload_size": payload_path.stat().st_size,
     "installer_iso_size": installer_iso_path.stat().st_size,
+    "server_installer_iso_size": server_installer_iso_path.stat().st_size,
     "installer_sha256": installer_sha256,
     "bootstrap_sha256": bootstrap_sha256,
     "payload_sha256": payload_sha256,
+    "installer_iso_sha256": installer_iso_sha256,
+    "server_installer_iso_sha256": server_installer_iso_sha256,
     "installer_filename": installer_path.name,
     "live_usb_filename": live_usb_path.name,
     "installer_windows_filename": installer_windows_path.name,
     "installer_iso_filename": installer_iso_path.name,
+    "server_installer_iso_filename": server_installer_iso_path.name,
     "bootstrap_filename": bootstrap_path.name,
     "payload_filename": payload_path.name,
+    "server_installer_iso_url": server_installer_iso_url,
     "vm_installer_url_template": vm_installer_url_template,
     "vm_windows_installer_url_template": vm_windows_installer_url_template,
     "vm_live_usb_url_template": vm_live_usb_url_template,

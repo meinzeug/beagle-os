@@ -1,38 +1,40 @@
 # Beagle OS
 
-Proxmox-native endpoint OS and management stack for streaming virtual desktops via Moonlight/Sunshine.
+Open-source Proxmox host tooling, endpoint runtime, gaming kiosk, and installer stack.
 
 ## Architecture
 
-- **proxmox-host/**: Control plane (Python API server on port 9088) + systemd services
-- **proxmox-ui/**: JavaScript injection into Proxmox VE UI
+- **proxmox-host/**: Control plane (Python API server on port 9088) plus systemd services
+- **proxmox-ui/**: JavaScript injection into the Proxmox VE UI
 - **extension/**: Browser extension for Chrome/Firefox
-- **website/**: Management dashboard served on HTTPS/443 from the Proxmox host
-- **thin-client-assistant/**: Endpoint runtime, installer, USB writer
-- **beagle-os/**: Dedicated endpoint OS image builder (Debian Bookworm + custom kernel)
-- **scripts/**: Installation, build, packaging, and release scripts
+- **thin-client-assistant/**: Endpoint runtime, installer, and USB writers
+- **beagle-os/**: Dedicated endpoint OS image builder
+- **beagle-kiosk/**: Public Electron gaming kiosk source tree
+- **server-installer/**: Live-build definition for the Beagle + Proxmox host installer ISO
+- **scripts/**: Installation, packaging, publishing, and release scripts
 
 ## Key files
 
-- `proxmox-host/bin/beagle-control-plane.py` - Main API server (~3000 lines Python)
-- `proxmox-ui/beagle-ui.js` - Proxmox UI integration (~1400 lines JS)
-- `website/app.js` - Management dashboard (~800 lines vanilla JS)
-- `scripts/build-beagle-os.sh` - OS image builder
+- `proxmox-host/bin/beagle-control-plane.py` - Main API server
+- `proxmox-ui/beagle-ui.js` - Proxmox UI integration
+- `beagle-kiosk/main.js` - Gaming kiosk main process
+- `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer` - Interactive server installer
 
 ## Conventions
 
 - Shell scripts use `set -euo pipefail`
-- No npm/pip external dependencies - vanilla JS frontend, stdlib Python backend
-- All UI text in English
-- German README is intentional (target market)
+- Frontend code stays dependency-light
+- Public release artifacts are published via GitHub Releases and `beagle-os.com`
+- Heavy build work must run on `srv.thinover.net`, not on the local control workstation
 
 ## Build
 
 - `scripts/build-beagle-os.sh` builds the endpoint OS image
-- `scripts/build-thin-client-installer.sh` builds the bootable ISO
+- `scripts/build-thin-client-installer.sh` builds the endpoint installer ISO
+- `scripts/build-server-installer.sh` builds the Proxmox host installer ISO
 - `scripts/package.sh` creates release artifacts
-- `scripts/create-github-release.sh` publishes to GitHub
+- `scripts/create-github-release.sh` publishes a GitHub release
 
 ## License
 
-Beagle OS Source Available License - free for personal and non-commercial use, commercial use requires separate written permission or licensing from Dennis Wicht / meinzeug.
+The repository is MIT licensed.

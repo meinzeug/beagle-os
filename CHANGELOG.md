@@ -1,5 +1,13 @@
 # Changelog
 
+## v6.0.0 - 2026-04-06
+
+- Rebased the public Beagle OS release line onto a fully MIT-licensed repository. The root license now uses MIT, the Gaming kiosk source tree lives directly in the public repo, and the old closed-source and affiliate-only constraints are removed from the active product surface.
+- Added the public `beagle-kiosk/` source tree to the release path and updated the repository packaging flow so the GitHub source tarball now includes the open kiosk, the endpoint image builder, and the new server-installer sources together.
+- Added a new bootable `beagle-os-server-installer-amd64.iso` workflow that installs Debian Bookworm, adds Proxmox VE from the official Proxmox repository, prompts for hostname, Linux username, password, and target disk, and then installs Beagle from the public GitHub release source on top.
+- Extended the packaging, host-download, GitHub release, and public artifact publication scripts so the server installer ISO is built on `srv.thinover.net`, published alongside the endpoint ISO, exposed in `beagle-downloads-status.json`, and mirrored to `beagle-os.com`.
+- Reworked the public website content for the open-source direction: the Gaming page now describes the public kiosk codebase, the Download page exposes the new server installer ISO, and the old dashboard/login/register entry points are redirected away from the marketing site.
+
 ## v5.2.31 - 2026-04-06
 
 - Fixed the Beagle Fleet desktop cold-start regression on freshly installed thinclients. The Moonlight launcher no longer probes `PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST` first when that address is only reachable through an upstream gateway, so endpoints outside the Proxmox-side private subnet stop wasting startup time on dead `10.10.10.x` attempts before falling back to the real public Sunshine host.

@@ -18,12 +18,29 @@ check_tool node
 check_tool rg
 check_tool python3
 
-mapfile -t shell_files < <(find "$ROOT_DIR/scripts" "$ROOT_DIR/thin-client-assistant" -type f -name '*.sh' | sort)
+mapfile -t shell_files < <(
+  find \
+    "$ROOT_DIR/scripts" \
+    "$ROOT_DIR/thin-client-assistant" \
+    "$ROOT_DIR/beagle-kiosk" \
+    "$ROOT_DIR/server-installer" \
+    -type f \
+    \( -name '*.sh' -o -name '*.hook.chroot' \) \
+    | sort
+)
 for file in "${shell_files[@]}"; do
   bash -n "$file"
 done
+bash -n "$ROOT_DIR/server-installer/live-build/auto/config"
 
-mapfile -t python_files < <(find "$ROOT_DIR/thin-client-assistant" -type f -name '*.py' | sort)
+mapfile -t python_files < <(
+  find \
+    "$ROOT_DIR/thin-client-assistant" \
+    "$ROOT_DIR/beagle-kiosk" \
+    -type f \
+    -name '*.py' \
+    | sort
+)
 if (( ${#python_files[@]} > 0 )); then
   python3 -m py_compile "${python_files[@]}"
 fi
@@ -32,6 +49,10 @@ node --check "$ROOT_DIR/proxmox-ui/beagle-ui.js"
 node --check "$ROOT_DIR/proxmox-ui/beagle-autologin.js"
 node --check "$ROOT_DIR/extension/content.js"
 node --check "$ROOT_DIR/extension/options.js"
+node --check "$ROOT_DIR/beagle-kiosk/main.js"
+node --check "$ROOT_DIR/beagle-kiosk/preload.js"
+node --check "$ROOT_DIR/beagle-kiosk/renderer/kiosk.js"
+node --check "$ROOT_DIR/beagle-kiosk/scripts/write-release-manifest.js"
 
 python3 - "$ROOT_DIR/extension/manifest.json" "$VERSION" <<'PY'
 import json

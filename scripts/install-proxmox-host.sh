@@ -42,6 +42,7 @@ ensure_root() {
       BEAGLE_SITE_PORT="$SITE_PORT" \
       BEAGLE_WEB_UI_URL="$WEB_UI_URL" \
       BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE" \
+      BEAGLE_INSTALL_NONINTERACTIVE="${BEAGLE_INSTALL_NONINTERACTIVE:-0}" \
       PVE_DCV_DOWNLOADS_PATH="$DOWNLOADS_PATH" \
       PVE_DCV_DOWNLOADS_BASE_URL="$DOWNLOADS_BASE_URL" \
       BEAGLE_PUBLIC_UPDATE_BASE_URL="$PUBLIC_UPDATE_BASE_URL" \
@@ -76,6 +77,7 @@ prompt_value() {
 }
 
 prompt_install_endpoints() {
+  [[ "${BEAGLE_INSTALL_NONINTERACTIVE:-0}" == "1" ]] && return 0
   [[ -t 0 ]] || return 0
 
   SERVER_NAME="$(prompt_value 'Public Beagle host name' "$SERVER_NAME")"
@@ -97,7 +99,13 @@ have_packaged_assets() {
   [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-installer-v${VERSION}.sh" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-installer-latest.sh" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-payload-v${VERSION}.tar.gz" ]] &&
-    [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" ]]
+    [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" ]] &&
+    [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" ]] &&
+    [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-latest.tar.gz" ]] &&
+    [[ -f "$INSTALL_DIR/dist/beagle-os-installer-amd64.iso" ]] &&
+    [[ -f "$INSTALL_DIR/dist/beagle-os-installer.iso" ]] &&
+    [[ -f "$INSTALL_DIR/dist/beagle-os-server-installer-amd64.iso" ]] &&
+    [[ -f "$INSTALL_DIR/dist/beagle-os-server-installer.iso" ]]
 }
 
 download_release_assets() {
@@ -114,6 +122,15 @@ download_release_assets() {
     curl -fsSLo "$dist_dir/pve-thin-client-usb-payload-v${VERSION}.tar.gz" \
       "$base_url/pve-thin-client-usb-payload-v${VERSION}.tar.gz" &&
     install -m 0644 "$dist_dir/pve-thin-client-usb-payload-v${VERSION}.tar.gz" "$dist_dir/pve-thin-client-usb-payload-latest.tar.gz" &&
+    curl -fsSLo "$dist_dir/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" \
+      "$base_url/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" &&
+    install -m 0644 "$dist_dir/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" "$dist_dir/pve-thin-client-usb-bootstrap-latest.tar.gz" &&
+    curl -fsSLo "$dist_dir/beagle-os-installer-amd64.iso" \
+      "$base_url/beagle-os-installer-amd64.iso" &&
+    install -m 0644 "$dist_dir/beagle-os-installer-amd64.iso" "$dist_dir/beagle-os-installer.iso" &&
+    curl -fsSLo "$dist_dir/beagle-os-server-installer-amd64.iso" \
+      "$base_url/beagle-os-server-installer-amd64.iso" &&
+    install -m 0644 "$dist_dir/beagle-os-server-installer-amd64.iso" "$dist_dir/beagle-os-server-installer.iso" &&
     curl -fsSLo "$dist_dir/SHA256SUMS" "$base_url/SHA256SUMS"
 }
 

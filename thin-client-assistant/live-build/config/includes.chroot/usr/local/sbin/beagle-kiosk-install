@@ -4,8 +4,8 @@ set -euo pipefail
 INSTALL_ROOT="${BEAGLE_KIOSK_ROOT:-/opt/beagle-kiosk}"
 RELEASE_REPO="${BEAGLE_KIOSK_RELEASE_REPO:-meinzeug/beagle-os}"
 RELEASE_MANIFEST_URL="${BEAGLE_KIOSK_RELEASE_MANIFEST_URL:-https://beagle-os.com/beagle-updates/kiosk-release.json}"
-HASH_URL="${BEAGLE_KIOSK_HASH_URL:-https://beagle-os.com/kiosk-release-hash.txt}"
-HASH_URL_FALLBACK="${BEAGLE_KIOSK_HASH_URL_FALLBACK:-https://beagle-os.com/beagle-updates/kiosk-release-hash.txt}"
+HASH_URL="${BEAGLE_KIOSK_HASH_URL:-https://beagle-os.com/beagle-updates/kiosk-release-hash.txt}"
+HASH_URL_FALLBACK="${BEAGLE_KIOSK_HASH_URL_FALLBACK:-https://beagle-os.com/kiosk-release-hash.txt}"
 VERSION="${BEAGLE_KIOSK_VERSION:-latest}"
 ASSET_PREFIX="${BEAGLE_KIOSK_ASSET_PREFIX:-beagle-kiosk-v}"
 APPIMAGE_NAME=""
@@ -172,8 +172,6 @@ write_default_kiosk_config() {
   cat >"$INSTALL_ROOT/kiosk.conf" <<'EOF'
 GFN_BINARY=/usr/local/lib/pve-thin-client/runtime/launch-geforcenow.sh
 GFN_BINARY_FALLBACK=/opt/nvidia/GeForceNOW.AppImage
-AFFILIATE_CONFIG_URL=https://beagle-os.com/api/kiosk/affiliate-config
-AFFILIATE_REQUEST_TIMEOUT_MS=8000
 STORE_ALLOWED_DOMAINS="greenmangaming.com fanatical.com humblebundle.com store.epicgames.com"
 KIOSK_FULLSCREEN=1
 STORE_WINDOW_FULLSCREEN=1
@@ -275,7 +273,7 @@ load_config_value() {
   fi
 
   case "$raw_key" in
-    GFN_BINARY|GFN_BINARY_FALLBACK|AFFILIATE_CONFIG_URL|AFFILIATE_REQUEST_TIMEOUT_MS|STORE_ALLOWED_DOMAINS|KIOSK_FULLSCREEN|STORE_WINDOW_FULLSCREEN|DEFAULT_FILTER_GFN_ONLY|GFN_GAME_ID_FIELD|KIOSK_EXTRA_ARGS)
+    GFN_BINARY|GFN_BINARY_FALLBACK|STORE_ALLOWED_DOMAINS|KIOSK_FULLSCREEN|STORE_WINDOW_FULLSCREEN|DEFAULT_FILTER_GFN_ONLY|GFN_GAME_ID_FIELD|KIOSK_EXTRA_ARGS)
       export "$raw_key=$trimmed_value"
       ;;
   esac
@@ -496,7 +494,7 @@ EOF
 
   cat >"$INSTALL_ROOT/update_catalog.py" <<'EOF'
 #!/usr/bin/env python3
-# Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - CLOSED SOURCE
+# Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed
 """Build the Beagle OS Gaming store catalog from official GFN data plus GMG search results."""
 
 from __future__ import annotations
