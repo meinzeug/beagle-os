@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROXMOX_HOST="${PROXMOX_HOST:-thinovernet}"
+PROXMOX_HOST="${PROXMOX_HOST:-proxmox.local}"
 VMID="${VMID:-}"
 ENABLE_AUDIO="${ENABLE_AUDIO:-1}"
 SET_ONBOOT="${SET_ONBOOT:-1}"

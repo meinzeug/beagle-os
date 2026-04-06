@@ -130,7 +130,7 @@ if [[ "$NETWORK_MODE" == "static" ]]; then
   NETWORK_DNS_SERVERS="$(prompt "DNS servers (space separated)" "$NETWORK_DNS_SERVERS")"
 fi
 
-MOONLIGHT_HOST="$(prompt "Moonlight target host" "${MOONLIGHT_HOST:-${PROXMOX_HOST:-srv.thinover.net}}")"
+MOONLIGHT_HOST="$(prompt "Moonlight target host" "${MOONLIGHT_HOST:-${PROXMOX_HOST:-moonlight.local}}")"
 MOONLIGHT_PORT="$(prompt "Moonlight stream port (leer = Standard)" "$MOONLIGHT_PORT")"
 MOONLIGHT_APP="$(prompt "Sunshine app name" "$MOONLIGHT_APP")"
 if [[ -z "$SUNSHINE_API_URL" && -n "$MOONLIGHT_PORT" ]]; then

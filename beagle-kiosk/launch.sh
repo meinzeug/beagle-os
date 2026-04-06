@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed
+# Beagle OS Gaming Kiosk - MIT Licensed
 set -euo pipefail
 
 INSTALL_ROOT="${BEAGLE_KIOSK_ROOT:-/opt/beagle-kiosk}"

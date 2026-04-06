@@ -377,9 +377,9 @@ ID=beagle
 ID_LIKE=debian
 VARIANT="Endpoint OS"
 VARIANT_ID=endpoint
-HOME_URL="https://github.com/meinzeug/beagle-os"
-SUPPORT_URL="https://github.com/meinzeug/beagle-os/issues"
-BUG_REPORT_URL="https://github.com/meinzeug/beagle-os/issues"
+HOME_URL="https://beagle-os.com/"
+SUPPORT_URL="https://beagle-os.com/about/"
+BUG_REPORT_URL="https://beagle-os.com/about/"
 EOF
 
   cat > "$ROOTFS_DIR/etc/lsb-release" <<EOF

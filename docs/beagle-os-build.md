@@ -41,10 +41,10 @@ On the Proxmox host:
 
 ```bash
 # Example: copy qcow2 to host
-scp dist/beagle-os/*.qcow2 thinovernet:/tmp/beagle-os.qcow2
+scp dist/beagle-os/*.qcow2 <proxmox-host>:/tmp/beagle-os.qcow2
 
 # Create VM 101 (UEFI)
-ssh thinovernet 'sudo qm create 101 \
+ssh <proxmox-host> 'sudo qm create 101 \
   --name beagle-os-101 \
   --memory 4096 \
   --cores 4 \
@@ -55,11 +55,11 @@ ssh thinovernet 'sudo qm create 101 \
   --agent enabled=1'
 
 # Import disk and wire boot
-ssh thinovernet 'sudo qm importdisk 101 /tmp/beagle-os.qcow2 local'
-ssh thinovernet 'sudo qm set 101 --scsihw virtio-scsi-single --scsi0 local:101/vm-101-disk-0.raw'
-ssh thinovernet 'sudo qm set 101 --efidisk0 local:101/vm-101-disk-1.raw,efitype=4m,pre-enrolled-keys=1'
-ssh thinovernet 'sudo qm set 101 --boot order=scsi0'
-ssh thinovernet 'sudo qm start 101'
+ssh <proxmox-host> 'sudo qm importdisk 101 /tmp/beagle-os.qcow2 local'
+ssh <proxmox-host> 'sudo qm set 101 --scsihw virtio-scsi-single --scsi0 local:101/vm-101-disk-0.raw'
+ssh <proxmox-host> 'sudo qm set 101 --efidisk0 local:101/vm-101-disk-1.raw,efitype=4m,pre-enrolled-keys=1'
+ssh <proxmox-host> 'sudo qm set 101 --boot order=scsi0'
+ssh <proxmox-host> 'sudo qm start 101'
 ```
 
 ## Notes

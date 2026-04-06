@@ -2,10 +2,10 @@
 set -euo pipefail
 
 INSTALL_ROOT="${BEAGLE_KIOSK_ROOT:-/opt/beagle-kiosk}"
-RELEASE_REPO="${BEAGLE_KIOSK_RELEASE_REPO:-meinzeug/beagle-os}"
 RELEASE_MANIFEST_URL="${BEAGLE_KIOSK_RELEASE_MANIFEST_URL:-https://beagle-os.com/beagle-updates/kiosk-release.json}"
 HASH_URL="${BEAGLE_KIOSK_HASH_URL:-https://beagle-os.com/beagle-updates/kiosk-release-hash.txt}"
 HASH_URL_FALLBACK="${BEAGLE_KIOSK_HASH_URL_FALLBACK:-https://beagle-os.com/kiosk-release-hash.txt}"
+RELEASE_DOWNLOAD_BASE_URL="${BEAGLE_KIOSK_RELEASE_BASE_URL:-https://beagle-os.com/beagle-updates}"
 VERSION="${BEAGLE_KIOSK_VERSION:-latest}"
 ASSET_PREFIX="${BEAGLE_KIOSK_ASSET_PREFIX:-beagle-kiosk-v}"
 APPIMAGE_NAME=""
@@ -373,16 +373,7 @@ latest_version() {
     printf '%s\n' "$manifest_version"
     return 0
   fi
-
-  curl -fsSL -H 'Accept: application/vnd.github+json' -H 'User-Agent: BeagleKioskInstaller' \
-    "https://api.github.com/repos/${RELEASE_REPO}/releases/latest" | python3 -c '
-import json
-import sys
-
-payload = json.load(sys.stdin)
-tag = str(payload.get("tag_name") or "").strip()
-print(tag[1:] if tag.startswith("v") else tag)
-'
+  return 1
 }
 
 download_url() {
@@ -400,7 +391,7 @@ download_url() {
   fi
 
   APPIMAGE_NAME="${ASSET_PREFIX}${version}-linux-x64.AppImage"
-  printf 'https://github.com/%s/releases/download/v%s/%s\n' "$RELEASE_REPO" "$version" "$APPIMAGE_NAME"
+  printf '%s/%s\n' "${RELEASE_DOWNLOAD_BASE_URL%/}" "$APPIMAGE_NAME"
 }
 
 expected_hash() {
@@ -494,7 +485,7 @@ EOF
 
   cat >"$INSTALL_ROOT/update_catalog.py" <<'EOF'
 #!/usr/bin/env python3
-# Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed
+# Beagle OS Gaming Kiosk - MIT Licensed
 """Build the Beagle OS Gaming store catalog from official GFN data plus GMG search results."""
 
 from __future__ import annotations

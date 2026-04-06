@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed
+# Beagle OS Gaming Kiosk - MIT Licensed
 """Build the Beagle OS Gaming store catalog from official GFN data plus GMG search results."""
 
 from __future__ import annotations

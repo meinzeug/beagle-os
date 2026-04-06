@@ -1,10 +1,10 @@
 {
   "name": "beagle-kiosk",
-  "version": "6.0.0",
+  "version": "6.0.1",
   "description": "Open-source Electron gaming kiosk for Beagle OS",
   "private": true,
   "main": "main.js",
-  "author": "Dennis Wicht / meinzeug",
+  "author": "Beagle OS contributors",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
@@ -12,7 +12,7 @@
     "release-metadata": "node scripts/write-release-manifest.js",
     "lint": "node --check main.js && node --check preload.js && node --check renderer/kiosk.js && node --check scripts/write-release-manifest.js && python3 -m py_compile update_catalog.py"
   },
-  "buildHeader": "Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed",
+  "buildHeader": "Beagle OS Gaming Kiosk - MIT Licensed",
   "dependencies": {
     "electron-store": "^10.1.0"
   },

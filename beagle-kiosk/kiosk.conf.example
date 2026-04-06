@@ -1,4 +1,4 @@
-# Beagle OS Gaming Kiosk - (c) Dennis Wicht / meinzeug - MIT Licensed
+# Beagle OS Gaming Kiosk - MIT Licensed
 GFN_BINARY=/usr/local/lib/pve-thin-client/runtime/launch-geforcenow.sh
 GFN_BINARY_FALLBACK=/opt/nvidia/GeForceNOW.AppImage
 STORE_ALLOWED_DOMAINS=greenmangaming.com fanatical.com humblebundle.com store.epicgames.com

@@ -5,11 +5,31 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 TAG="v${VERSION}"
-REPO="${GITHUB_REPO:-meinzeug/beagle-os}"
 TITLE="${RELEASE_TITLE:-$TAG}"
 NOTES_FILE="${RELEASE_NOTES_FILE:-}"
 BEAGLE_OS_DIST_DIR="${BEAGLE_OS_DIST_DIR:-$DIST_DIR/beagle-os}"
 INCLUDE_BEAGLE_OS_ASSETS="${INCLUDE_BEAGLE_OS_ASSETS:-1}"
+
+detect_github_repo() {
+  local url=""
+  url="$(git remote get-url origin 2>/dev/null || true)"
+  case "$url" in
+    https://github.com/*)
+      url="${url#https://github.com/}"
+      ;;
+    git@github.com:*)
+      url="${url#git@github.com:}"
+      ;;
+    ssh://git@github.com/*)
+      url="${url#ssh://git@github.com/}"
+      ;;
+    *)
+      url=""
+      ;;
+  esac
+  url="${url%.git}"
+  printf '%s\n' "$url"
+}
 
 collect_beagle_os_release_assets() {
   local path
@@ -48,6 +68,12 @@ ensure_tag() {
 
 require_tool git
 require_tool gh
+
+REPO="${GITHUB_REPO:-$(detect_github_repo)}"
+if [[ -z "$REPO" ]]; then
+  echo "Unable to detect GitHub repository. Set GITHUB_REPO." >&2
+  exit 1
+fi
 
 require_clean_tree
 RUN_PACKAGE=1 "$ROOT_DIR/scripts/validate-project.sh"
