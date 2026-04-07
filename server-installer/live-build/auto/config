@@ -33,7 +33,6 @@ lb config noauto \
   --debian-installer none \
   --apt-recommends false \
   --archive-areas "main contrib non-free non-free-firmware" \
-  --linux-packages "none" \
   --linux-flavours "$SERVER_INSTALLER_LINUX_FLAVOUR" \
   --firmware-chroot true \
   --firmware-binary true \
