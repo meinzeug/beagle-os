@@ -75,9 +75,9 @@ prompt_value() {
   local default_value="${2:-}"
   local value=""
   if [[ -n "$default_value" ]]; then
-    printf '%s [%s]: ' "$label" "$default_value"
+    printf '%s [%s]: ' "$label" "$default_value" >&2
   else
-    printf '%s: ' "$label"
+    printf '%s: ' "$label" >&2
   fi
   IFS= read -r value || true
   value="${value//$'\r'/}"
@@ -194,14 +194,14 @@ for item in payload.get("blockdevices", []):
     exit 1
   fi
 
-  printf '\n[Beagle OS Server Installer]\n'
-  printf 'Choose the target disk. It will be erased completely.\n\n'
+  printf '\n[Beagle OS Server Installer]\n' >&2
+  printf 'Choose the target disk. It will be erased completely.\n\n' >&2
   local index=1
   while (( index <= ${#preferred_items[@]} / 2 )); do
-    printf '%s) %s %s\n' "$index" "${preferred_items[$(( (index - 1) * 2 ))]}" "${preferred_items[$(( (index - 1) * 2 + 1 ))]}"
+    printf '%s) %s %s\n' "$index" "${preferred_items[$(( (index - 1) * 2 ))]}" "${preferred_items[$(( (index - 1) * 2 + 1 ))]}" >&2
     index=$((index + 1))
   done
-  printf '\nType the number of the target disk and press ENTER: '
+  printf '\nType the number of the target disk and press ENTER: ' >&2
   read -r answer
   answer="${answer//$'\r'/}"
   [[ "$answer" =~ ^[0-9]+$ ]] || {
