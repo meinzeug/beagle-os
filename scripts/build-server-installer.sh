@@ -90,6 +90,32 @@ if [[ -z "$ISO_PATH" || ! -f "$ISO_PATH" ]]; then
   exit 1
 fi
 
+# Create stable /live/vmlinuz and /live/initrd names inside the ISO so
+# grub.cfg can reference them without version-specific paths.
+STAGE_DIR="$(mktemp -d)"
+cleanup_stage() { rm -rf "$STAGE_DIR"; }
+trap cleanup_stage EXIT
+
+xorriso -osirrox on -indev "$ISO_PATH" -extract /live "$STAGE_DIR/live" 2>/dev/null
+
+VMLINUZ=""
+INITRD=""
+for f in "$STAGE_DIR"/live/vmlinuz-*; do
+  [ -e "$f" ] && VMLINUZ="$f" && break
+done
+for f in "$STAGE_DIR"/live/initrd.img-*; do
+  [ -e "$f" ] && INITRD="$f" && break
+done
+
+if [[ -n "$VMLINUZ" && -n "$INITRD" ]]; then
+  cp "$VMLINUZ" "$STAGE_DIR/vmlinuz"
+  cp "$INITRD" "$STAGE_DIR/initrd"
+  xorriso -indev "$ISO_PATH" -outdev "$ISO_PATH" -boot_image any keep \
+    -map "$STAGE_DIR/vmlinuz" /live/vmlinuz \
+    -map "$STAGE_DIR/initrd" /live/initrd \
+    -commit
+fi
+
 install -m 0644 "$ISO_PATH" "$DIST_DIR/beagle-os-server-installer-${SERVER_INSTALLER_ARCH}.iso"
 install -m 0644 "$ISO_PATH" "$DIST_DIR/beagle-os-server-installer.iso"
 
