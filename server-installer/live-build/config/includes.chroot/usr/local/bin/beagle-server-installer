@@ -80,6 +80,7 @@ prompt_value() {
     printf '%s: ' "$label"
   fi
   IFS= read -r value || true
+  value="${value//$'\r'/}"
   if [[ -n "$value" ]]; then
     printf '%s\n' "$value"
   else
@@ -91,6 +92,7 @@ prompt_secret() {
   local label="$1"
   local value=""
   read -r -s -p "$label: " value || true
+  value="${value//$'\r'/}"
   printf '\n' >&2
   printf '%s\n' "$value"
 }
@@ -201,6 +203,7 @@ for item in payload.get("blockdevices", []):
   done
   printf '\nType the number of the target disk and press ENTER: '
   read -r answer
+  answer="${answer//$'\r'/}"
   [[ "$answer" =~ ^[0-9]+$ ]] || {
     echo "Invalid selection: $answer" >&2
     exit 1
@@ -218,6 +221,7 @@ confirm_wipe() {
   printf '\nTarget disk: %s\n' "$disk"
   printf 'Type YES to erase this disk and continue: '
   read -r answer
+  answer="${answer//$'\r'/}"
   [[ "$answer" == "YES" ]]
 }
 
