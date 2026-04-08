@@ -349,7 +349,7 @@ install_target_packages() {
   chroot_run "apt-get update"
   chroot_run "printf 'postfix postfix/mailname string %s\n' $hostname_q | debconf-set-selections"
   chroot_run "printf 'postfix postfix/main_mailer_type string Local only\n' | debconf-set-selections"
-  chroot_run "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server proxmox-ve postfix open-iscsi chrony git python3 rsync"
+  chroot_run "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server proxmox-ve postfix open-iscsi chrony git python3 rsync grub-pc grub-efi-amd64-bin efibootmgr dosfstools"
   chroot_run "sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen || true"
   chroot_run "grep -q '^en_US.UTF-8 UTF-8' /etc/locale.gen || echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen"
   chroot_run "locale-gen en_US.UTF-8"
