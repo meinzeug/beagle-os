@@ -14,7 +14,7 @@ if [[ -z "$SERVER_INSTALLER_LINUX_FLAVOUR" ]]; then
   esac
 fi
 
-BOOT_ARGS="boot=live components username=root hostname=beagle-server-installer ip=dhcp console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 systemd.unit=multi-user.target pve_server_installer=1"
+BOOT_ARGS="boot=live components username=root hostname=beagle-server-installer console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 plymouth.ignore-serial-consoles systemd.unit=multi-user.target pve_server_installer=1"
 
 BOOTLOADER_FLAG="--bootloader"
 BOOTLOADER_VALUE="grub"
