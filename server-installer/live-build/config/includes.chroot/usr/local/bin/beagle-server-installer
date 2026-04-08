@@ -366,10 +366,10 @@ install_beagle() {
   printf -v hostname_q '%q' "$INSTALL_HOSTNAME"
   printf -v public_updates_q '%q' "$BEAGLE_PUBLIC_UPDATE_BASE_URL"
   printf -v web_ui_q '%q' "https://$INSTALL_HOSTNAME"
-  chroot_run "mkdir -p /usr/local/src /var/lib/beagle"
+  chroot_run "mkdir -p /usr/local/src/beagle-os /var/lib/beagle"
   chroot_run "curl -fsSL $source_url_q -o /tmp/beagle-os.tar.gz"
-  chroot_run "tar -xzf /tmp/beagle-os.tar.gz -C /usr/local/src"
-  chroot_run "src_dir=\$(find /usr/local/src -maxdepth 1 -type d -name 'beagle-os-*' | sort | tail -n 1); cd \"\$src_dir\" && BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-proxmox-host.sh"
+  chroot_run "tar -xzf /tmp/beagle-os.tar.gz -C /usr/local/src/beagle-os"
+  chroot_run "cd /usr/local/src/beagle-os && BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-proxmox-host.sh"
 }
 
 install_bootloader() {
