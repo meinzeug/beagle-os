@@ -155,13 +155,13 @@ if grep -q '^BEAGLE_ENDPOINT_SHARED_TOKEN=' "$BEAGLE_CONTROL_ENV_FILE"; then
   sed -i '/^BEAGLE_ENDPOINT_SHARED_TOKEN=/d' "$BEAGLE_CONTROL_ENV_FILE"
 fi
 
-systemctl daemon-reload
+systemctl daemon-reload 2>/dev/null || true
 systemctl restart ssh.service >/dev/null 2>&1 || systemctl restart sshd.service >/dev/null 2>&1 || true
-systemctl enable --now "$TIMER_NAME"
-systemctl enable "$UI_REAPPLY_SERVICE"
-systemctl enable --now "$UI_REAPPLY_PATH"
-systemctl enable --now "$BEAGLE_CONTROL_SERVICE"
-systemctl enable --now "$BEAGLE_PUBLIC_STREAM_TIMER"
-systemctl start "$BEAGLE_PUBLIC_STREAM_SERVICE" >/dev/null 2>&1 || true
+systemctl enable "$TIMER_NAME" 2>/dev/null || true
+systemctl enable "$UI_REAPPLY_SERVICE" 2>/dev/null || true
+systemctl enable "$UI_REAPPLY_PATH" 2>/dev/null || true
+systemctl enable "$BEAGLE_CONTROL_SERVICE" 2>/dev/null || true
+systemctl enable "$BEAGLE_PUBLIC_STREAM_TIMER" 2>/dev/null || true
+systemctl start "$TIMER_NAME" "$UI_REAPPLY_PATH" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
 
 echo "Installed host services: $SERVICE_NAME, $TIMER_NAME, $UI_REAPPLY_SERVICE, $UI_REAPPLY_PATH, $BEAGLE_CONTROL_SERVICE, $BEAGLE_PUBLIC_STREAM_SERVICE, $BEAGLE_PUBLIC_STREAM_TIMER"
