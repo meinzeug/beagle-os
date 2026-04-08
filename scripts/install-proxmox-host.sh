@@ -234,14 +234,18 @@ if [[ -d /usr/share/pve-manager/js ]]; then
   PVE_DCV_USB_INSTALLER_URL="$USB_INSTALLER_URL" \
   "$INSTALL_DIR/scripts/install-proxmox-ui-integration.sh"
 
-  PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME" \
-  PVE_DCV_PROXY_LISTEN_PORT="$LISTEN_PORT" \
-  BEAGLE_SITE_PORT="$SITE_PORT" \
-  BEAGLE_WEB_UI_URL="$WEB_UI_URL" \
-  BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE" \
-  PVE_DCV_DOWNLOADS_PATH="$DOWNLOADS_PATH" \
-  PVE_DCV_DOWNLOADS_BASE_URL="$DOWNLOADS_BASE_URL" \
-  "$INSTALL_DIR/scripts/install-beagle-proxy.sh"
+  if [[ -r /etc/pve/local/pveproxy-ssl.pem ]]; then
+    PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME" \
+    PVE_DCV_PROXY_LISTEN_PORT="$LISTEN_PORT" \
+    BEAGLE_SITE_PORT="$SITE_PORT" \
+    BEAGLE_WEB_UI_URL="$WEB_UI_URL" \
+    BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE" \
+    PVE_DCV_DOWNLOADS_PATH="$DOWNLOADS_PATH" \
+    PVE_DCV_DOWNLOADS_BASE_URL="$DOWNLOADS_BASE_URL" \
+    "$INSTALL_DIR/scripts/install-beagle-proxy.sh"
+  else
+    echo "Skipping proxy setup (PVE certificates not yet available; re-run after first boot)." >&2
+  fi
 fi
 
 echo "Installed project assets to $INSTALL_DIR"
