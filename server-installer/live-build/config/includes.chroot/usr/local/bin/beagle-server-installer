@@ -22,7 +22,7 @@ PROXMOX_REPO_SUITE="${BEAGLE_SERVER_PROXMOX_REPO_SUITE:-bookworm}"
 PROXMOX_REPO_COMPONENT="${BEAGLE_SERVER_PROXMOX_REPO_COMPONENT:-pve-no-subscription}"
 PROXMOX_KEY_URL="${BEAGLE_SERVER_PROXMOX_KEY_URL:-https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg}"
 BEAGLE_SOURCE_URL="${BEAGLE_SERVER_SOURCE_URL:-https://github.com/meinzeug/beagle-os/releases/download/v__BEAGLE_RELEASE_VERSION__/beagle-os-v__BEAGLE_RELEASE_VERSION__.tar.gz}"
-BEAGLE_PUBLIC_UPDATE_BASE_URL="${BEAGLE_SERVER_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/beagle-updates}"
+BEAGLE_PUBLIC_UPDATE_BASE_URL="${BEAGLE_SERVER_PUBLIC_UPDATE_BASE_URL:-https://github.com/meinzeug/beagle-os/releases/download/v__BEAGLE_RELEASE_VERSION__}"
 BEAGLE_INSTALL_DIR="${BEAGLE_SERVER_INSTALL_DIR:-/opt/beagle}"
 
 cleanup() {
