@@ -218,9 +218,9 @@ find "$INSTALL_DIR" -type d -exec chmod 0755 {} +
 
 if ! have_packaged_assets; then
   RELEASE_BASE_URL="${PUBLIC_UPDATE_BASE_URL%/}"
-  download_release_assets "$RELEASE_BASE_URL" || "$INSTALL_DIR/scripts/package.sh"
+  download_release_assets "$RELEASE_BASE_URL" || "$INSTALL_DIR/scripts/package.sh" || echo "Warning: could not fetch or build release assets (can be retried later)." >&2
 fi
-"$INSTALL_DIR/scripts/prepare-host-downloads.sh"
+"$INSTALL_DIR/scripts/prepare-host-downloads.sh" || echo "Warning: could not prepare host downloads (can be retried later)." >&2
 write_host_env_file
 "$INSTALL_DIR/scripts/install-proxmox-host-services.sh"
 
