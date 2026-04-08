@@ -219,6 +219,23 @@ partition_suffix() {
   esac
 }
 
+wait_for_network() {
+  local attempt=0 max_attempts=30
+  printf 'Waiting for network...' >&2
+  while (( attempt < max_attempts )); do
+    if curl -sf -o /dev/null --connect-timeout 3 https://deb.debian.org/debian/dists/bookworm/Release 2>/dev/null; then
+      printf ' OK\n' >&2
+      return 0
+    fi
+    printf '.' >&2
+    sleep 2
+    attempt=$((attempt + 1))
+  done
+  printf ' FAILED\n' >&2
+  echo "Network not available after 60 seconds." >&2
+  return 1
+}
+
 detect_primary_iface() {
   local iface=""
   iface="$(ip route show default 2>/dev/null | awk '/default/ {print $5; exit}')"
@@ -414,6 +431,7 @@ main() {
   mkdir -p "$EFI_MOUNT"
   run_logged mount "$boot_part" "$EFI_MOUNT"
 
+  wait_for_network
   install_base_system
   configure_base_system "$boot_part" "$root_part"
   mount_chroot_fs
