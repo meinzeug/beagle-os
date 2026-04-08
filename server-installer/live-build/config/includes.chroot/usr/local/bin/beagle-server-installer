@@ -163,26 +163,11 @@ choose_target_disk() {
     [[ "$live_flag" == "1" ]] && continue
     fallback_items+=("$device" "$label")
   done < <(
-    lsblk -J -d -o NAME,SIZE,MODEL,TYPE,RM,TRAN | python3 -c '
-import json
-import sys
-payload = json.load(sys.stdin)
-sep = "\x1f"
-for item in payload.get("blockdevices", []):
-    rm = item.get("rm", 0)
-    if isinstance(rm, bool):
-        rm = "1" if rm else "0"
-    else:
-        rm = str(rm or "0")
-    print(sep.join([
-        str(item.get("name", "") or ""),
-        str(item.get("size", "") or ""),
-        str(item.get("model", "") or ""),
-        str(item.get("type", "") or ""),
-        rm,
-        str(item.get("tran", "") or ""),
-    ]))
-'
+    lsblk -Pnd -o NAME,SIZE,MODEL,TYPE,RM,TRAN 2>/dev/null | while IFS= read -r line; do
+      eval "$line"
+      printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n' \
+        "${NAME:-}" "${SIZE:-}" "${MODEL:-}" "${TYPE:-}" "${RM:-0}" "${TRAN:-}"
+    done
   )
 
   if (( ${#preferred_items[@]} == 0 )); then
