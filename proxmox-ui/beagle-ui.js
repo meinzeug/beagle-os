@@ -6,29 +6,42 @@
   var OVERLAY_ID = "beagle-os-overlay";
   var FLEET_LAUNCHER_ID = "beagle-os-fleet-launcher";
   var CREATE_VM_DOM_BUTTON_ID = "beagle-os-create-vm-dom-button";
-  var API_TOKEN_STORAGE_KEY = "beagle.proxmoxUi.apiToken";
-  var apiTokenStorage = null;
+  var common = window.BeagleUiCommon;
+  var virtualizationService = window.BeagleVirtualizationService;
+  var platformService = window.BeaglePlatformService;
+  var apiClient = window.BeagleUiApiClient;
+  var beagleState = window.BeagleUiState;
+  var usbUi = window.BeagleUiUsbUi;
+  var renderHelpers = window.BeagleUiRenderHelpers;
+  var desktopOverlay = window.BeagleUiDesktopOverlay;
+  var browserActions = window.BeagleUiBrowserActions;
 
-  try {
-    apiTokenStorage = window.sessionStorage;
-  } catch (error) {
-    apiTokenStorage = null;
+  if (!common) {
+    throw new Error("BeagleUiCommon must be loaded before beagle-ui.js");
   }
-
-  function defaultUsbInstallerUrl() {
-    return "https://{host}:8443/beagle-api/api/v1/vms/{vmid}/installer.sh";
+  if (!virtualizationService) {
+    throw new Error("BeagleVirtualizationService must be loaded before beagle-ui.js");
   }
-
-  function defaultInstallerIsoUrl() {
-    return "https://{host}:8443/beagle-downloads/beagle-os-installer-amd64.iso";
+  if (!platformService) {
+    throw new Error("BeaglePlatformService must be loaded before beagle-ui.js");
   }
-
-  function defaultControlPlaneHealthUrl() {
-    return "https://{host}:8443/beagle-api/api/v1/health";
+  if (!apiClient) {
+    throw new Error("BeagleUiApiClient must be loaded before beagle-ui.js");
   }
-
-  function defaultWebUiUrl() {
-    return "https://{host}";
+  if (!beagleState) {
+    throw new Error("BeagleUiState must be loaded before beagle-ui.js");
+  }
+  if (!usbUi) {
+    throw new Error("BeagleUiUsbUi must be loaded before beagle-ui.js");
+  }
+  if (!renderHelpers) {
+    throw new Error("BeagleUiRenderHelpers must be loaded before beagle-ui.js");
+  }
+  if (!desktopOverlay) {
+    throw new Error("BeagleUiDesktopOverlay must be loaded before beagle-ui.js");
+  }
+  if (!browserActions) {
+    throw new Error("BeagleUiBrowserActions must be loaded before beagle-ui.js");
   }
 
   function sleep(ms) {
@@ -37,178 +50,48 @@
     });
   }
 
-  function getConfig() {
-    var runtimeConfig = window.BeagleIntegrationConfig || {};
-    return {
-      usbInstallerUrl: runtimeConfig.usbInstallerUrl || defaultUsbInstallerUrl(),
-      installerIsoUrl: runtimeConfig.installerIsoUrl || defaultInstallerIsoUrl(),
-      controlPlaneHealthUrl: runtimeConfig.controlPlaneHealthUrl || defaultControlPlaneHealthUrl(),
-      webUiUrl: runtimeConfig.webUiUrl || defaultWebUiUrl(),
-      apiToken: runtimeConfig.apiToken || ""
-    };
-  }
-
-  function readStoredApiToken() {
-    if (!apiTokenStorage) {
-      return "";
-    }
-    try {
-      return String(apiTokenStorage.getItem(API_TOKEN_STORAGE_KEY) || "").trim();
-    } catch (error) {
-      return "";
-    }
-  }
-
-  function writeStoredApiToken(token) {
-    if (!apiTokenStorage) {
-      return;
-    }
-    try {
-      apiTokenStorage.setItem(API_TOKEN_STORAGE_KEY, String(token || "").trim());
-    } catch (error) {
-      /* ignore storage failures */
-    }
-  }
-
-  function clearStoredApiToken() {
-    if (!apiTokenStorage) {
-      return;
-    }
-    try {
-      apiTokenStorage.removeItem(API_TOKEN_STORAGE_KEY);
-    } catch (error) {
-      /* ignore storage failures */
-    }
-  }
-
-  function configuredApiToken() {
-    return String(getConfig().apiToken || "").trim();
-  }
-
-  function promptForApiToken() {
-    var initialValue = readStoredApiToken() || configuredApiToken();
-    var token = window.prompt("Beagle API Token fuer diese Browser-Sitzung eingeben. Leerer Wert loescht den Session-Token.", initialValue);
-    if (token == null) {
-      return "";
-    }
-    token = String(token || "").trim();
-    if (!token) {
-      clearStoredApiToken();
-      return "";
-    }
-    writeStoredApiToken(token);
-    return token;
-  }
-
-  function fillTemplate(template, values) {
-    return String(template || "")
-      .replaceAll("{node}", values.node || "")
-      .replaceAll("{vmid}", String(values.vmid || ""))
-      .replaceAll("{host}", values.host || "");
-  }
-
   function resolveUsbInstallerUrl(ctx) {
-    return fillTemplate(getConfig().usbInstallerUrl, {
-      node: ctx && ctx.node,
-      vmid: ctx && ctx.vmid,
-      host: window.location.hostname
-    });
+    return common.resolveUsbInstallerUrl(ctx);
   }
 
   function resolveInstallerIsoUrl(ctx) {
-    return fillTemplate(getConfig().installerIsoUrl, {
-      node: ctx && ctx.node,
-      vmid: ctx && ctx.vmid,
-      host: window.location.hostname
-    });
+    return common.resolveInstallerIsoUrl(ctx);
   }
 
   function withNoCache(url) {
-    if (!url) {
-      return url;
-    }
-    try {
-      var parsed = new URL(url, window.location.origin);
-      parsed.searchParams.set("_beagle_ts", String(Date.now()));
-      return parsed.toString();
-    } catch (error) {
-      var separator = String(url).indexOf("?") === -1 ? "?" : "&";
-      return String(url) + separator + "_beagle_ts=" + Date.now();
-    }
+    return common.withNoCache(url);
   }
 
   function resolveControlPlaneHealthUrl() {
-    return fillTemplate(getConfig().controlPlaneHealthUrl, {
-      host: window.location.hostname
-    });
+    return common.resolveControlPlaneHealthUrl();
   }
 
   function resolveWebUiUrl() {
-    return fillTemplate(getConfig().webUiUrl, {
-      host: window.location.hostname
-    });
+    return common.resolveWebUiUrl();
   }
 
   function managerUrlFromHealthUrl(healthUrl) {
-    return String(healthUrl || "").replace(/\/api\/v1\/health\/?$/, "");
+    return common.managerUrlFromHealthUrl(healthUrl);
   }
 
   function normalizeBeagleApiPath(path) {
-    var value = String(path || "").trim() || "/";
-    if (value.indexOf("/beagle-api/") === 0) {
-      return value.slice("/beagle-api".length);
-    }
-    return value;
-  }
-
-  function resolveBeagleApiUrl(path) {
-    var base = managerUrlFromHealthUrl(resolveControlPlaneHealthUrl());
-    var normalizedPath = normalizeBeagleApiPath(path);
-    if (!base) {
-      return normalizedPath;
-    }
-    if (normalizedPath.indexOf("/") !== 0) {
-      normalizedPath = "/" + normalizedPath;
-    }
-    return String(base).replace(/\/$/, "") + normalizedPath;
+    return common.normalizeBeagleApiPath(path);
   }
 
   function showError(message) {
-    if (window.Ext && Ext.Msg && Ext.Msg.alert) {
-      Ext.Msg.alert(PRODUCT_LABEL, message);
-    } else {
-      window.alert(message);
-    }
+    return browserActions.showError(PRODUCT_LABEL, message);
   }
 
   function showToast(message) {
-    if (window.Ext && Ext.toast) {
-      Ext.toast({ html: message, title: PRODUCT_LABEL, align: "t" });
-      return;
-    }
-    window.alert(message);
+    return browserActions.showToast(PRODUCT_LABEL, message);
   }
 
   function openUrl(url) {
-    if (!url) {
-      showError("URL konnte nicht ermittelt werden.");
-      return;
-    }
-    window.open(url, "_blank", "noopener,noreferrer");
+    return browserActions.openUrl(showError, url);
   }
 
   function triggerDownload(url) {
-    if (!url) {
-      showError("Download-URL konnte nicht ermittelt werden.");
-      return;
-    }
-    var anchor = document.createElement("a");
-    anchor.href = withNoCache(url);
-    anchor.rel = "noopener noreferrer";
-    anchor.style.display = "none";
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
+    return browserActions.triggerDownload(showError, url);
   }
 
   function webUiUrlWithToken(interactive) {
@@ -226,54 +109,16 @@
     }
   }
 
-  var installerEligibilityCache = {};
-
   function getInstallerEligibilityKey(ctx) {
-    return String(ctx && ctx.node || "") + ":" + String(ctx && ctx.vmid || "");
+    return beagleState.getInstallerEligibilityKey(ctx);
   }
 
   function getVmInstallerEligibility(ctx) {
-    var key = getInstallerEligibilityKey(ctx);
-    if (installerEligibilityCache[key]) {
-      return installerEligibilityCache[key];
-    }
-    installerEligibilityCache[key] = fetch(resolveBeagleApiUrl("/api/v1/public/vms/" + encodeURIComponent(String(ctx && ctx.vmid || "")) + "/state"), {
-      credentials: "same-origin"
-    }).then(function(response) {
-      if (!response.ok) {
-        throw new Error("Installer-Status nicht verfuegbar");
-      }
-      return response.json();
-    }).then(function(payload) {
-      var profile = payload && payload.profile ? payload.profile : {};
-      var roleText = String(profile && profile.beagle_role || "").trim().toLowerCase();
-      var fallbackEligible = Boolean(profile && profile.stream_host) && ["endpoint", "thinclient", "client"].indexOf(roleText) === -1;
-      return {
-        eligible: profile && typeof profile.installer_target_eligible === "boolean" ? profile.installer_target_eligible : fallbackEligible,
-        message: profile && profile.installer_target_message ? profile.installer_target_message : (fallbackEligible ? "" : "Diese VM wird nicht als Streaming-Ziel angeboten.")
-      };
-    }).catch(function() {
-      return { eligible: false, message: "" };
-    });
-    return installerEligibilityCache[key];
+    return beagleState.getVmInstallerEligibility(ctx);
   }
 
   function openUsbInstaller(ctx) {
     showProfileModal(ctx || {}, { autoPrepareDownload: true });
-  }
-
-  function listAvailableNodes() {
-    if (!(window.PVE && PVE.data && PVE.data.ResourceStore && PVE.data.ResourceStore.getNodes)) {
-      return [];
-    }
-    return PVE.data.ResourceStore.getNodes().map(function(node) {
-      return {
-        value: String(node.node || ""),
-        label: String(node.node || "")
-      };
-    }).filter(function(node) {
-      return Boolean(node.value);
-    });
   }
 
   function normalizeUiText(value) {
@@ -311,28 +156,8 @@
     );
   }
 
-  function selectedNodeFromHash() {
-    try {
-      var decodedHash = window.decodeURIComponent(String(window.location.hash || ""));
-      var match = decodedHash.match(/node\/([^:\/]+)/);
-      return match ? String(match[1] || "") : "";
-    } catch (error) {
-      return "";
-    }
-  }
-
   function selectedNodeName() {
-    var node = selectedNodeFromHash();
-    if (node) {
-      return node;
-    }
-    if (window.PVE && PVE.data && PVE.data.ResourceStore && typeof PVE.data.ResourceStore.getNodes === "function") {
-      var nodes = PVE.data.ResourceStore.getNodes() || [];
-      if (nodes.length === 1 && nodes[0] && nodes[0].node) {
-        return String(nodes[0].node);
-      }
-    }
-    return "";
+    return virtualizationService.selectedNodeName();
   }
 
   function safeHostnameCandidate(value, fallbackVmid) {
@@ -348,27 +173,19 @@
   }
 
   function apiGetProvisioningCatalog() {
-    return apiGetBeagleJson("/beagle-api/api/v1/provisioning/catalog").then(function(payload) {
-      return payload && payload.catalog ? payload.catalog : payload;
-    });
+    return platformService.fetchProvisioningCatalog();
   }
 
   function apiCreateProvisionedVm(payload) {
-    return apiPostBeagleJson("/beagle-api/api/v1/provisioning/vms", payload).then(function(response) {
-      return response && response.provisioned_vm ? response.provisioned_vm : response;
-    });
+    return platformService.createVm(payload);
   }
 
   function apiUpdateProvisionedVm(vmid, payload) {
-    return apiPutBeagleJson("/beagle-api/api/v1/provisioning/vms/" + encodeURIComponent(String(vmid)), payload).then(function(response) {
-      return response && response.provisioned_vm ? response.provisioned_vm : response;
-    });
+    return platformService.updateVm(vmid, payload);
   }
 
   function apiGetProvisioningState(vmid) {
-    return apiGetBeagleJson("/beagle-api/api/v1/provisioning/vms/" + encodeURIComponent(String(vmid))).then(function(response) {
-      return response && response.provisioning ? response.provisioning : response;
-    });
+    return platformService.fetchVmProvisioningState(vmid);
   }
 
   function parseListText(value) {
@@ -561,7 +378,12 @@
     if (window.Ext && Ext.Msg && Ext.Msg.wait) {
       Ext.Msg.wait("Provisioning-Katalog wird geladen ...", "Beagle OS");
     }
-    apiGetProvisioningCatalog().then(function(catalog) {
+    Promise.all([
+      apiGetProvisioningCatalog(),
+      virtualizationService.listNodes().catch(function() { return []; })
+    ]).then(function(results) {
+      var catalog = results[0] || {};
+      var providerNodes = Array.isArray(results[1]) ? results[1] : [];
       var profileValue = function(source, camelKey, snakeKey, fallback) {
         if (source && source[camelKey] !== undefined && source[camelKey] !== null && source[camelKey] !== "") {
           return source[camelKey];
@@ -592,7 +414,12 @@
           value: String(item.name || ""),
           label: String(item.name || "") + (item.status ? (" (" + String(item.status || "") + ")") : "")
         };
-      }) : listAvailableNodes();
+      }) : providerNodes.map(function(item) {
+        return {
+          value: String(item.name || item.id || ""),
+          label: String(item.label || item.name || item.id || "")
+        };
+      });
       var imageStorageRecords = catalog && catalog.storages && Array.isArray(catalog.storages.images) ? catalog.storages.images.map(function(item) {
         return { value: String(item.id || ""), label: String(item.id || "") };
       }) : [];
@@ -1413,22 +1240,11 @@
   }
 
   function apiGetJson(path) {
-    return fetch(path, { credentials: "same-origin" }).then(function(response) {
-      if (!response.ok) {
-        throw new Error("API request failed: " + response.status + " " + response.statusText);
-      }
-      return response.json();
-    }).then(function(payload) {
-      return payload && payload.data ? payload.data : payload;
-    });
+    return apiClient.apiGetJson(path);
   }
 
   function getApiToken(interactive) {
-    var token = readStoredApiToken() || configuredApiToken();
-    if (token || !interactive) {
-      return token;
-    }
-    return promptForApiToken();
+    return apiClient.getApiToken(interactive);
   }
 
   function ensureApiToken() {
@@ -1440,198 +1256,48 @@
     return "";
   }
 
-  function buildBeagleRequestHeaders(extraHeaders, interactive) {
-    var headers = Object.assign({}, extraHeaders || {});
-    var token = getApiToken(Boolean(interactive));
-    if (token) {
-      headers.Authorization = "Bearer " + token;
-    }
-    return headers;
-  }
-
-  function apiBeagleJson(path, options) {
-    return fetch(resolveBeagleApiUrl(path), Object.assign({ credentials: "same-origin" }, options || {})).then(function(response) {
-      if (!response.ok) {
-        throw new Error("Beagle API request failed: " + response.status + " " + response.statusText);
-      }
-      return response.json();
-    });
-  }
-
-  function apiGetBeagleJson(path) {
-    return apiBeagleJson(path, { headers: buildBeagleRequestHeaders({}, true) });
-  }
-
-  function apiPostBeagleJson(path, payload) {
-    return apiBeagleJson(path, {
-      method: "POST",
-      headers: buildBeagleRequestHeaders({ "Content-Type": "application/json" }, true),
-      body: JSON.stringify(payload || {})
-    });
-  }
-
-  function apiPutBeagleJson(path, payload) {
-    return apiBeagleJson(path, {
-      method: "PUT",
-      headers: buildBeagleRequestHeaders({ "Content-Type": "application/json" }, true),
-      body: JSON.stringify(payload || {})
-    });
-  }
-
-  function apiDeleteBeagle(path) {
-    return apiBeagleJson(path, {
-      method: "DELETE",
-      headers: buildBeagleRequestHeaders({}, true)
-    });
-  }
-
   function downloadProtectedFile(path, filename) {
-    return fetch(resolveBeagleApiUrl(path), {
-      credentials: "same-origin",
-      headers: buildBeagleRequestHeaders({}, true)
-    }).then(function(response) {
-      if (!response.ok) {
-        throw new Error("Download failed: " + response.status + " " + response.statusText);
-      }
-      return response.blob();
-    }).then(function(blob) {
-      var objectUrl = URL.createObjectURL(blob);
-      var anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      anchor.download = filename || "beagle-artifact.bin";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(function() {
-        URL.revokeObjectURL(objectUrl);
-      }, 1000);
-    });
-  }
-
-  function unwrapInstallerPrep(payload) {
-    return payload && payload.installer_prep ? payload.installer_prep : payload;
+    return apiClient.downloadProtectedFile(path, filename);
   }
 
   function apiGetInstallerPrep(vmid) {
-    return apiGetBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(vmid)) + "/installer-prep").then(unwrapInstallerPrep);
+    return platformService.fetchInstallerPreparation(vmid);
   }
 
   function apiStartInstallerPrep(vmid) {
-    return apiPostBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(vmid)) + "/installer-prep", {}).then(unwrapInstallerPrep);
+    return platformService.prepareInstallerTarget(vmid);
   }
 
   function apiGetVmCredentials(vmid) {
-    return apiGetBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(vmid)) + "/credentials").then(function(payload) {
-      return payload && payload.credentials ? payload.credentials : payload;
-    });
+    return platformService.fetchVmCredentials(vmid);
   }
 
   function apiCreateSunshineAccess(vmid) {
-    return apiPostBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(vmid)) + "/sunshine-access", {}).then(function(payload) {
-      return payload && payload.sunshine_access ? payload.sunshine_access : payload;
-    });
+    return platformService.createSunshineAccess(vmid);
   }
 
   function installerPrepBannerClass(state) {
-    return String(state && state.status || "").toLowerCase() === "error" ? "warn" : "info";
+    return usbUi.installerPrepBannerClass(state);
   }
 
   function formatInstallerPrepValue(value, fallback) {
-    var text = String(value == null ? "" : value);
-    return text || String(fallback || "");
+    return usbUi.formatInstallerPrepValue(value, fallback);
   }
 
   function installerTargetState(profile, state) {
-    if (profile && profile.installerTargetEligible === false) {
-      return {
-        label: "Ziel ungeeignet",
-        bannerClass: "warn",
-        message: profile.installerTargetMessage || "Diese VM wird nicht als Streaming-Ziel angeboten.",
-        ready: false,
-        unsupported: true
-      };
-    }
-    if (String(state && state.status || "").toLowerCase() === "ready") {
-      return {
-        label: "USB Installer bereit",
-        bannerClass: "info",
-        message: state && state.message || "Der USB-Installer kann direkt heruntergeladen werden.",
-        ready: true,
-        unsupported: false
-      };
-    }
-    return {
-      label: "Sunshine wird vorbereitet",
-      bannerClass: "info",
-      message: state && state.message || "Die VM wird fuer den Stream vorbereitet.",
-      ready: false,
-      unsupported: false
-    };
+    return usbUi.installerTargetState(profile, state);
   }
 
   function shouldReuseInstallerPrepState(state) {
-    var status = String(state && state.status || "").toLowerCase();
-    if (!state) {
-      return false;
-    }
-    if (state.ready) {
-      return true;
-    }
-    return Boolean(status) && ["idle", "error", "failed"].indexOf(status) === -1;
+    return usbUi.shouldReuseInstallerPrepState(state);
   }
 
   function syncInstallerButtons(overlay, state) {
-    var profile = overlay && overlay.__beagleProfile || {};
-    var resolved = installerTargetState(profile, state);
-    var statusNodes = overlay.querySelectorAll("[data-beagle-download-state]");
-    var messageNodes = overlay.querySelectorAll("[data-beagle-download-message]");
-    var stateBanners = overlay.querySelectorAll("[data-beagle-download-banner]");
-    var usbButton = overlay.querySelector('[data-beagle-action="download"]');
-    var isoButton = overlay.querySelector('[data-beagle-action="download-iso"]');
-    statusNodes.forEach(function(statusNode) { statusNode.textContent = resolved.label; });
-    messageNodes.forEach(function(messageNode) { messageNode.textContent = resolved.message; });
-    stateBanners.forEach(function(stateBanner) { stateBanner.className = "beagle-banner " + resolved.bannerClass; });
-    if (usbButton) {
-      usbButton.disabled = resolved.unsupported;
-      usbButton.hidden = resolved.unsupported;
-    }
-    if (isoButton) {
-      isoButton.disabled = false;
-    }
+    return usbUi.syncInstallerButtons(overlay, state);
   }
 
   function applyInstallerPrepState(overlay, state) {
-    var payload = state || {};
-    var resolved = installerTargetState(overlay && overlay.__beagleProfile || {}, payload);
-    var statusNode = overlay.querySelector("[data-beagle-installer-status]");
-    var phaseNode = overlay.querySelector("[data-beagle-installer-phase]");
-    var progressNode = overlay.querySelector("[data-beagle-installer-progress]");
-    var messageNode = overlay.querySelector("[data-beagle-installer-message]");
-    var binaryNode = overlay.querySelector("[data-beagle-installer-binary]");
-    var serviceNode = overlay.querySelector("[data-beagle-installer-service]");
-    var processNode = overlay.querySelector("[data-beagle-installer-process]");
-    if (statusNode) {
-      statusNode.textContent = formatInstallerPrepValue(payload.status, "idle");
-    }
-    if (phaseNode) {
-      phaseNode.textContent = formatInstallerPrepValue(payload.phase, "inspect");
-    }
-    if (progressNode) {
-      progressNode.textContent = formatInstallerPrepValue(payload.progress, "0") + "%";
-    }
-    if (messageNode) {
-      messageNode.textContent = formatInstallerPrepValue(payload.message, "");
-    }
-    if (binaryNode) {
-      binaryNode.textContent = payload.sunshine_status && payload.sunshine_status.binary ? "ok" : "missing";
-    }
-    if (serviceNode) {
-      serviceNode.textContent = payload.sunshine_status && payload.sunshine_status.service ? "active" : "inactive";
-    }
-    if (processNode) {
-      processNode.textContent = payload.sunshine_status && payload.sunshine_status.process ? "running" : "stopped";
-    }
-    syncInstallerButtons(overlay, payload);
+    return usbUi.applyInstallerPrepState(overlay, state);
   }
 
   async function prepareInstallerDownload(profile, overlay, artifactKey, actionName, loadingLabel, successMessage, filenameOverride) {
@@ -1874,10 +1540,7 @@
     if (!vmids.length) {
       throw new Error('Keine Endpoints ausgewaehlt.');
     }
-    return apiPostBeagleJson('/beagle-api/api/v1/actions/bulk', {
-      vmids: vmids,
-      action: actionName
-    });
+    return platformService.queueBulkAction(vmids, actionName);
   }
 
   function renderFleetModal(payload) {
@@ -2070,7 +1733,7 @@
           break;
         case 'bulk-create-policy':
           Promise.all(selectedFleetItems(overlay, vms).map(function(item) {
-            return apiPostBeagleJson('/beagle-api/api/v1/policies', createPolicyFromInventoryItem(item));
+            return platformService.createPolicy(createPolicyFromInventoryItem(item));
           })).then(function(result) {
             showToast('Beagle Policies erzeugt: ' + String(result.length || 0));
             showFleetModal();
@@ -2100,9 +1763,7 @@
           break;
         case 'healthcheck':
         case 'support-bundle':
-          apiPostBeagleJson('/beagle-api/api/v1/vms/' + encodeURIComponent(target.getAttribute('data-vmid')) + '/actions', {
-            action: target.getAttribute('data-beagle-fleet-action')
-          }).then(function() {
+          platformService.queueVmAction(target.getAttribute('data-vmid'), target.getAttribute('data-beagle-fleet-action')).then(function() {
             showToast('Beagle Aktion wurde in die Queue gestellt.');
             showFleetModal();
           }).catch(function(error) {
@@ -2116,7 +1777,7 @@
           break;
         case 'create-policy':
           item = vms.find(function(candidate) { return Number(candidate.vmid) === Number(target.getAttribute('data-vmid')); });
-          apiPostBeagleJson('/beagle-api/api/v1/policies', createPolicyFromInventoryItem(item)).then(function() {
+          platformService.createPolicy(createPolicyFromInventoryItem(item)).then(function() {
             showToast('Beagle Policy wurde erzeugt.');
             showFleetModal();
           }).catch(function(error) {
@@ -2124,7 +1785,7 @@
           });
           break;
         case 'delete-policy':
-          apiDeleteBeagle('/beagle-api/api/v1/policies/' + encodeURIComponent(target.getAttribute('data-policy-name'))).then(function() {
+          platformService.deletePolicy(target.getAttribute('data-policy-name')).then(function() {
             showToast('Beagle Policy wurde geloescht.');
             showFleetModal();
           }).catch(function(error) {
@@ -2155,16 +1816,16 @@
     });
     document.body.appendChild(overlay);
     Promise.all([
-      apiGetBeagleJson('/api/v1/health'),
-      apiGetBeagleJson('/api/v1/vms'),
-      apiGetBeagleJson('/api/v1/policies'),
+      platformService.fetchHealth(),
+      platformService.fetchInventory(),
+      platformService.fetchPolicies(),
       apiGetProvisioningCatalog()
     ]).then(function(results) {
       removeOverlay();
       renderFleetModal({
         health: results[0] || {},
-        vms: results[1] && results[1].vms || [],
-        policies: results[2] && results[2].policies || [],
+        vms: results[1] || [],
+        policies: results[2] || [],
         catalog: results[3] || {}
       });
     }).catch(function(error) {
@@ -2175,17 +1836,12 @@
 
   function resolveVmProfile(ctx) {
     return Promise.all([
-      apiGetJson("/api2/json/nodes/" + encodeURIComponent(ctx.node) + "/qemu/" + encodeURIComponent(ctx.vmid) + "/config"),
-      apiGetJson("/api2/json/cluster/resources?type=vm").catch(function() { return []; }),
-      apiGetJson("/api2/json/nodes/" + encodeURIComponent(ctx.node) + "/qemu/" + encodeURIComponent(ctx.vmid) + "/agent/network-get-interfaces").catch(function() { return []; }),
+      virtualizationService.getVmConfig(ctx),
+      virtualizationService.listVms().catch(function() { return []; }),
+      virtualizationService.getVmGuestInterfaces(ctx).catch(function() { return []; }),
       apiGetVmCredentials(ctx.vmid).catch(function() { return null; }),
-      fetch(resolveBeagleApiUrl("/api/v1/public/vms/" + encodeURIComponent(ctx.vmid) + "/state"), { credentials: "same-origin" }).then(function(response) {
-        if (!response.ok) {
-          return null;
-        }
-        return response.json();
-      }).catch(function() { return null; }),
-      apiGetBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(ctx.vmid)) + "/usb").catch(function() { return null; })
+      platformService.fetchPublicVmState(ctx.vmid),
+      platformService.fetchVmUsbState(ctx.vmid).catch(function() { return null; })
     ]).then(function(results) {
       var config = results[0] || {};
       var resources = Array.isArray(results[1]) ? results[1] : [];
@@ -2269,153 +1925,20 @@
   }
 
   function kvRow(label, value) {
-    return '<div class="beagle-kv-row"><strong>' + label + '</strong><span>' + (value || '<span class="beagle-muted">nicht gesetzt</span>') + '</span></div>';
+    return renderHelpers.kvRow(label, value);
   }
 
   function escapeHtml(text) {
-    return String(text || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#39;");
-  }
-
-  function buildCityBlocks() {
-    var buildings = [];
-    var widths =  [18, 28, 14, 35, 22, 12, 30, 16, 40, 20, 15, 32, 18, 25, 14, 38, 20, 16, 28, 22, 35, 18, 24, 14, 30, 20, 28, 16, 22, 35, 18, 40, 14, 25, 20, 32, 16, 28, 22, 18];
-    var heights = [55, 75, 40, 90, 60, 35, 80, 45, 95, 50, 38, 85, 55, 70, 42, 92, 52, 44, 78, 58, 88, 48, 65, 36, 82, 54, 72, 46, 62, 86, 50, 98, 38, 68, 52, 84, 44, 76, 56, 48];
-    for (var i = 0; i < widths.length; i++) {
-      buildings.push('<div class="bd-building" style="width:' + widths[i] + 'px;height:' + heights[i] + '%;"></div>');
-    }
-    return buildings.join("");
-  }
-
-  function buildNeonLines() {
-    var lines = [];
-    var colors = ["#ff00b4", "#00e5ff", "#ff1493", "#7b2dff", "#00ff88"];
-    for (var i = 0; i < 12; i++) {
-      var top = 20 + Math.floor(i * 5.5);
-      var left = Math.floor(i * 8.3);
-      var width = 30 + Math.floor((i * 17) % 60);
-      var color = colors[i % colors.length];
-      lines.push('<div class="bd-neon-line" style="top:' + top + '%;left:' + left + '%;width:' + width + 'px;background:' + color + ';box-shadow:0 0 6px ' + color + ';"></div>');
-    }
-    return lines.join("");
+    return renderHelpers.escapeHtml(text);
   }
 
   function renderDesktopOverlay(profile) {
-    var overlay = document.createElement("div");
-    overlay.id = OVERLAY_ID;
-    overlay.className = "beagle-desktop-mode";
-    var vmid = String(profile.vmid || "?");
-    var vmName = escapeHtml(profile.name || "vm-" + vmid);
-    var now = new Date();
-    var clock = String(now.getHours()).replace(/^(\d)$/, "0$1") + ":" + String(now.getMinutes()).replace(/^(\d)$/, "0$1");
-
-    overlay.innerHTML = '' +
-      '<div class="bd-scene">' +
-      '  <div class="bd-bg"></div>' +
-      '  <div class="bd-city">' + buildNeonLines() + '<div class="bd-city-blocks">' + buildCityBlocks() + '</div></div>' +
-      '  <div class="bd-floor"></div>' +
-
-      /* top bar */
-      '  <div class="bd-topbar">' +
-      '    <span class="bd-topbar-left">Activities</span>' +
-      '    <span class="bd-topbar-center">' + escapeHtml(clock) + '</span>' +
-      '    <div class="bd-topbar-right">' +
-      '      <svg viewBox="0 0 24 24"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm5 4h14v-2H7v2zm0 6h14v-2H7v2zm0-12v2h14V5H7z"/></svg>' +
-      '      <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>' +
-      '      <svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="18" rx="2" fill="none" stroke="#fff" stroke-width="2"/><rect x="10" y="7" width="4" height="10" fill="#fff" opacity="0.7"/></svg>' +
-      '    </div>' +
-      '  </div>' +
-
-      /* dock */
-      '  <div class="bd-dock">' +
-      '    <button class="bd-dock-icon" style="background:#e74c3c" title="Files"></button>' +
-      '    <button class="bd-dock-icon" style="background:#f39c12" title="Settings"></button>' +
-      '    <button class="bd-dock-icon" style="background:#2ecc71" title="Browser"></button>' +
-      '    <button class="bd-dock-icon" style="background:#00bcd4" title="Desktop"></button>' +
-      '    <button class="bd-dock-icon" style="background:#6a1b9a;color:#fff" title="Terminal"><svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 14H4V8h16v10zm-2-1h-6v-2h6v2zM7.5 17l-1.41-1.41L8.67 13l-2.59-2.59L7.5 9l4 4-4 4z"/></svg></button>' +
-      '    <button class="bd-dock-icon" style="background:#e91e8f" title="Steam"></button>' +
-      '    <button class="bd-dock-icon" style="background:#111;border:2px solid rgba(255,255,255,0.25)" title="Heroic"></button>' +
-      '  </div>' +
-
-      /* close + details */
-      '  <button class="bd-close-overlay" title="Close">&times;</button>' +
-      '  <button class="bd-details-link" data-beagle-action="show-profile">Show Details</button>' +
-
-      /* main window */
-      '  <div class="bd-window">' +
-      '    <div class="bd-win-titlebar">' +
-      '      <div class="bd-win-dots">' +
-      '        <span class="bd-win-dot close" data-beagle-action="close-overlay"></span>' +
-      '        <span class="bd-win-dot minimize"></span>' +
-      '        <span class="bd-win-dot maximize"></span>' +
-      '      </div>' +
-      '      <span class="bd-win-title">Beagle OS Desktop &middot; VM ' + escapeHtml(vmid) + '</span>' +
-      '    </div>' +
-      '    <div class="bd-win-body">' +
-      '      <div class="bd-win-sidebar">' +
-      '        <h3>Apps</h3>' +
-      '        <button class="bd-app-item" data-beagle-action="app-files">Files</button>' +
-      '        <button class="bd-app-item" data-beagle-action="app-desktop">Desktop</button>' +
-      '        <button class="bd-app-item" data-beagle-action="app-downloads">Downloads</button>' +
-      '        <button class="bd-app-item" data-beagle-action="app-steam">Steam</button>' +
-      '        <button class="bd-app-item" data-beagle-action="app-heroic">Heroic</button>' +
-      '        <button class="bd-app-item" data-beagle-action="app-terminal">Terminal</button>' +
-      '      </div>' +
-      '      <div class="bd-win-content">' +
-      '        <h2 class="bd-welcome-title">Welcome to Beagle OS</h2>' +
-      '        <p class="bd-welcome-sub">Open-source endpoint OS for Proxmox-native desktop</p>' +
-      '        <div class="bd-wallpaper-preview">' +
-      '          <span class="bd-wallpaper-label">BEAGLE OS</span>' +
-      '        </div>' +
-      '        <button class="bd-btn-wallpaper" data-beagle-action="wallpaper-ready">Wallpaper Ready</button>' +
-      '      </div>' +
-      '    </div>' +
-      '  </div>' +
-
-      /* branding */
-      '  <div class="bd-branding">' +
-      '    <h1 class="bd-brand-title">BEAGLE <span>OS</span></h1>' +
-      '    <p class="bd-brand-tagline">Built for builders. &nbsp; Born to break rules.</p>' +
-      '  </div>' +
-
-      /* badge */
-      '  <div class="bd-badge">' +
-      '    <span>Wallpaper preview &middot; Beagle VM ' + escapeHtml(vmid) + '</span>' +
-      '  </div>' +
-      '</div>';
-
-    overlay.__beagleProfile = profile;
-
-    overlay.addEventListener("click", function(event) {
-      if (!(event.target instanceof HTMLElement)) {
-        return;
-      }
-      var action = event.target.getAttribute("data-beagle-action") || event.target.closest("[data-beagle-action]") && event.target.closest("[data-beagle-action]").getAttribute("data-beagle-action") || "";
-      switch (action) {
-        case "close-overlay":
-          removeOverlay();
-          break;
-        case "show-profile":
-          removeOverlay();
-          renderProfileModal(profile);
-          break;
-        default:
-          break;
-      }
+    return desktopOverlay.renderDesktopOverlay({
+      overlayId: OVERLAY_ID,
+      profile: profile,
+      removeOverlay: removeOverlay,
+      showProfileModal: renderProfileModal
     });
-
-    var closeBtn = overlay.querySelector(".bd-close-overlay");
-    if (closeBtn) {
-      closeBtn.addEventListener("click", function() {
-        removeOverlay();
-      });
-    }
-
-    document.body.appendChild(overlay);
   }
 
   function renderProfileModal(profile, options) {
@@ -2657,7 +2180,7 @@
           });
           break;
         case 'usb-refresh':
-          apiPostBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(profile.vmid)) + "/usb/refresh", {}).then(function() {
+          platformService.refreshVmUsb(profile.vmid).then(function() {
             removeOverlay();
             showProfileModal({ node: profile.node, vmid: profile.vmid });
           }).catch(function(error) {
@@ -2665,9 +2188,7 @@
           });
           break;
         case 'usb-attach':
-          apiPostBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(profile.vmid)) + "/usb/attach", {
-            busid: String(event.target.getAttribute("data-beagle-usb-busid") || "")
-          }).then(function() {
+          platformService.attachUsb(profile.vmid, event.target.getAttribute("data-beagle-usb-busid")).then(function() {
             removeOverlay();
             showProfileModal({ node: profile.node, vmid: profile.vmid });
           }).catch(function(error) {
@@ -2675,10 +2196,7 @@
           });
           break;
         case 'usb-detach':
-          apiPostBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(profile.vmid)) + "/usb/detach", {
-            busid: String(event.target.getAttribute("data-beagle-usb-busid") || ""),
-            port: String(event.target.getAttribute("data-beagle-usb-port") || "")
-          }).then(function() {
+          platformService.detachUsb(profile.vmid, event.target.getAttribute("data-beagle-usb-busid"), event.target.getAttribute("data-beagle-usb-port")).then(function() {
             removeOverlay();
             showProfileModal({ node: profile.node, vmid: profile.vmid });
           }).catch(function(error) {
