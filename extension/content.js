@@ -4,295 +4,15 @@
   const BUTTON_MARKER = "data-beagle-integration";
   const STYLE_ID = "beagle-os-extension-style";
   const OVERLAY_ID = "beagle-os-extension-overlay";
-  const API_TOKEN_STORAGE_KEY = "beagle.proxmoxUi.apiToken";
+  const common = window.BeagleExtensionCommon;
+  const virtualizationService = window.BeagleExtensionVirtualizationService;
+  const platformService = window.BeagleExtensionPlatformService;
 
-  function defaultUsbInstallerUrl() {
-    return "https://{host}:8443/beagle-api/api/v1/vms/{vmid}/installer.sh";
-  }
+  if (!common) throw new Error("BeagleExtensionCommon must be loaded before extension/content.js");
+  if (!virtualizationService) throw new Error("BeagleExtensionVirtualizationService must be loaded before extension/content.js");
+  if (!platformService) throw new Error("BeagleExtensionPlatformService must be loaded before extension/content.js");
 
-  function defaultInstallerIsoUrl() {
-    return "https://{host}:8443/beagle-downloads/beagle-os-installer-amd64.iso";
-  }
-
-  function defaultControlPlaneHealthUrl() {
-    return "https://{host}:8443/beagle-api/api/v1/health";
-  }
-
-  function defaultWebUiUrl() {
-    return "https://{host}";
-  }
-
-  function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  function tokenStorage() {
-    try {
-      return window.sessionStorage;
-    } catch {
-      return null;
-    }
-  }
-
-  function readStoredApiToken() {
-    const storage = tokenStorage();
-    if (!storage) return "";
-    try {
-      return String(storage.getItem(API_TOKEN_STORAGE_KEY) || "").trim();
-    } catch {
-      return "";
-    }
-  }
-
-  function writeStoredApiToken(token) {
-    const storage = tokenStorage();
-    if (!storage) return;
-    try {
-      storage.setItem(API_TOKEN_STORAGE_KEY, String(token || "").trim());
-    } catch {
-      // ignore storage failures
-    }
-  }
-
-  function clearStoredApiToken() {
-    const storage = tokenStorage();
-    if (!storage) return;
-    try {
-      storage.removeItem(API_TOKEN_STORAGE_KEY);
-    } catch {
-      // ignore storage failures
-    }
-  }
-
-  function promptForApiToken(initialValue = "") {
-    const token = window.prompt(
-      "Beagle API Token fuer diese Browser-Sitzung eingeben. Leerer Wert loescht den Session-Token.",
-      initialValue
-    );
-    if (token == null) return "";
-    const trimmed = String(token || "").trim();
-    if (!trimmed) {
-      clearStoredApiToken();
-      return "";
-    }
-    writeStoredApiToken(trimmed);
-    return trimmed;
-  }
-
-  function decodeHash() {
-    try {
-      return decodeURIComponent(window.location.hash || "");
-    } catch {
-      return window.location.hash || "";
-    }
-  }
-
-  function isVmView() {
-    return /qemu\/(\d+)/i.test(decodeHash());
-  }
-
-  async function parseVmContext() {
-    const hash = decodeHash();
-    const vmidMatch = hash.match(/qemu\/(\d+)/i);
-    let nodeMatch = hash.match(/[?&]node=([a-zA-Z0-9._-]+)/i);
-
-    const vmid = vmidMatch ? Number(vmidMatch[1]) : null;
-    let node = nodeMatch ? nodeMatch[1] : null;
-
-    if (!vmid) return null;
-
-    if (!node) {
-      try {
-        const res = await fetch("/api2/json/cluster/resources?type=vm", { credentials: "same-origin" });
-        if (res.ok) {
-          const payload = await res.json();
-          const vm = (payload?.data || []).find((item) => item.vmid === vmid && item.type === "qemu");
-          if (vm?.node) node = vm.node;
-        }
-      } catch {
-        // best effort
-      }
-    }
-
-    if (!node) {
-      const guessed = hash.match(/node[:=]([a-zA-Z0-9._-]+)/i);
-      if (guessed) node = guessed[1];
-    }
-
-    if (!node) return null;
-    return { node, vmid };
-  }
-
-  async function getOptions() {
-    return new Promise((resolve) => {
-      chrome.storage.sync.get(
-        {
-          usbInstallerUrl: defaultUsbInstallerUrl(),
-          installerIsoUrl: defaultInstallerIsoUrl(),
-          controlPlaneHealthUrl: defaultControlPlaneHealthUrl(),
-          webUiUrl: defaultWebUiUrl()
-        },
-        (data) => resolve(data)
-      );
-    });
-  }
-
-  function fillTemplate(template, values) {
-    return String(template || "")
-      .replaceAll("{node}", values.node || "")
-      .replaceAll("{vmid}", String(values.vmid || ""))
-      .replaceAll("{host}", values.host || "");
-  }
-
-  async function resolveUsbInstallerUrl(ctx) {
-    const options = await getOptions();
-    return fillTemplate(options.usbInstallerUrl || defaultUsbInstallerUrl(), {
-      node: ctx?.node || "",
-      vmid: ctx?.vmid || "",
-      host: window.location.hostname
-    });
-  }
-
-  async function resolveInstallerIsoUrl(ctx) {
-    const options = await getOptions();
-    return fillTemplate(options.installerIsoUrl || defaultInstallerIsoUrl(), {
-      node: ctx?.node || "",
-      vmid: ctx?.vmid || "",
-      host: window.location.hostname
-    });
-  }
-
-  function withNoCache(url) {
-    if (!url) return url;
-    try {
-      const parsed = new URL(url, window.location.origin);
-      parsed.searchParams.set("_beagle_ts", String(Date.now()));
-      return parsed.toString();
-    } catch {
-      const separator = String(url).includes("?") ? "&" : "?";
-      return `${url}${separator}_beagle_ts=${Date.now()}`;
-    }
-  }
-
-  async function webUiUrlWithToken(interactive = false) {
-    const config = await getBeagleUiConfig();
-    const token = await getApiToken(interactive);
-    const target = config.webUiUrl || await resolveWebUiUrl();
-    if (!token) return target;
-    try {
-      const parsed = new URL(target, window.location.origin);
-      parsed.hash = `beagle_token=${encodeURIComponent(token)}`;
-      return parsed.toString();
-    } catch {
-      return `${String(target || "")}#beagle_token=${encodeURIComponent(token)}`;
-    }
-  }
-
-  async function resolveControlPlaneHealthUrl() {
-    const options = await getOptions();
-    return fillTemplate(options.controlPlaneHealthUrl || defaultControlPlaneHealthUrl(), {
-      host: window.location.hostname
-    });
-  }
-
-  async function resolveWebUiUrl() {
-    const options = await getOptions();
-    return fillTemplate(options.webUiUrl || defaultWebUiUrl(), {
-      host: window.location.hostname
-    });
-  }
-
-  function managerUrlFromHealthUrl(healthUrl) {
-    return String(healthUrl || "").replace(/\/api\/v1\/health\/?$/, "");
-  }
-
-  let beagleUiConfigPromise = null;
-
-  async function getBeagleUiConfig() {
-    if (!beagleUiConfigPromise) {
-      beagleUiConfigPromise = fetch("/pve2/js/beagle-ui-config.js", { credentials: "same-origin" })
-        .then((response) => (response.ok ? response.text() : ""))
-        .then((text) => {
-          const apiTokenMatch = text.match(/apiToken:\s*["']([^"']*)["']/);
-          const webUiUrlMatch = text.match(/webUiUrl:\s*["']([^"']*)["']/);
-          return {
-            apiToken: apiTokenMatch ? apiTokenMatch[1] : "",
-            webUiUrl: webUiUrlMatch ? webUiUrlMatch[1] : ""
-          };
-        })
-        .catch(() => ({ apiToken: "", webUiUrl: "" }));
-    }
-    return beagleUiConfigPromise;
-  }
-
-  async function getApiToken(interactive = false) {
-    const stored = readStoredApiToken();
-    if (stored) return stored;
-    const config = await getBeagleUiConfig();
-    const configured = String(config.apiToken || "").trim();
-    if (configured) return configured;
-    if (!interactive) return "";
-    return promptForApiToken();
-  }
-
-  async function buildBeagleApiHeaders(extraHeaders = {}, interactive = true) {
-    const headers = Object.assign({}, extraHeaders);
-    const token = await getApiToken(interactive);
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-    return headers;
-  }
-
-  function normalizeBeagleApiPath(path) {
-    const value = String(path || "").trim() || "/";
-    return value.startsWith("/beagle-api/") ? value.slice("/beagle-api".length) : value;
-  }
-
-  async function resolveBeagleApiUrl(path) {
-    const healthUrl = await resolveControlPlaneHealthUrl();
-    const base = managerUrlFromHealthUrl(healthUrl);
-    let normalizedPath = normalizeBeagleApiPath(path);
-    if (!base) return normalizedPath;
-    if (!normalizedPath.startsWith("/")) normalizedPath = `/${normalizedPath}`;
-    return `${String(base).replace(/\/$/, "")}${normalizedPath}`;
-  }
-
-  async function apiGetBeagleJson(path) {
-    const url = await resolveBeagleApiUrl(path);
-    const response = await fetch(url, { credentials: "include", headers: await buildBeagleApiHeaders() });
-    if (!response.ok) {
-      throw new Error(`Beagle API request failed: ${response.status} ${response.statusText}`);
-    }
-    return response.json();
-  }
-
-  function unwrapInstallerPrep(payload) {
-    return payload?.installer_prep || payload;
-  }
-
-  async function apiGetInstallerPrep(vmid) {
-    return unwrapInstallerPrep(await apiGetBeagleJson(`/api/v1/vms/${encodeURIComponent(vmid)}/installer-prep`));
-  }
-
-  async function apiStartInstallerPrep(vmid) {
-    const url = await resolveBeagleApiUrl(`/api/v1/vms/${encodeURIComponent(vmid)}/installer-prep`);
-    const response = await fetch(url, { method: "POST", credentials: "include", headers: await buildBeagleApiHeaders() });
-    if (!response.ok) {
-      throw new Error(`Beagle API request failed: ${response.status} ${response.statusText}`);
-    }
-    return unwrapInstallerPrep(await response.json());
-  }
-
-  async function apiCreateSunshineAccess(vmid) {
-    const url = await resolveBeagleApiUrl(`/api/v1/vms/${encodeURIComponent(vmid)}/sunshine-access`);
-    const response = await fetch(url, { method: "POST", credentials: "include", headers: await buildBeagleApiHeaders() });
-    if (!response.ok) {
-      throw new Error(`Beagle API request failed: ${response.status} ${response.statusText}`);
-    }
-    const payload = await response.json();
-    return payload?.sunshine_access || payload;
-  }
+  const sleep = common.sleep;
 
   function ensureStyles() {
     if (document.getElementById(STYLE_ID)) return;
@@ -382,15 +102,6 @@
         if (key && !(key in meta)) meta[key] = value;
       });
     return meta;
-  }
-
-  async function apiGetJson(path) {
-    const response = await fetch(path, { credentials: "same-origin" });
-    if (!response.ok) {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-    }
-    const payload = await response.json();
-    return payload?.data ?? payload;
   }
 
   function firstGuestIpv4(interfaces) {
@@ -484,44 +195,6 @@
     return Boolean(status) && !["idle", "error", "failed"].includes(status);
   }
 
-  async function triggerDownload(url) {
-    if (!url) {
-      window.alert("Beagle OS: Download-URL konnte nicht ermittelt werden.");
-      return;
-    }
-    const absoluteUrl = withNoCache(url);
-    if (/\/beagle-api\/|\/api\/v1\/vms\/.+\/installer\.(?:sh|ps1)(?:\?|$)/.test(absoluteUrl)) {
-      const response = await fetch(absoluteUrl, {
-        credentials: "include",
-        headers: await buildBeagleApiHeaders()
-      });
-      if (!response.ok) {
-        throw new Error(`Beagle API request failed: ${response.status} ${response.statusText}`);
-      }
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      const vmid = String(url).match(/\/vms\/(\d+)\//)?.[1] || "download";
-      const suffix = /installer\.ps1(?:\?|$)/.test(absoluteUrl) ? ".ps1" : ".sh";
-      anchor.download = `pve-thin-client-usb-installer-vm-${vmid}${suffix}`;
-      anchor.rel = "noopener noreferrer";
-      anchor.style.display = "none";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-      return;
-    }
-    const anchor = document.createElement("a");
-    anchor.href = absoluteUrl;
-    anchor.rel = "noopener noreferrer";
-    anchor.style.display = "none";
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-  }
-
   const installerEligibilityCache = new Map();
 
   function getInstallerEligibilityKey(ctx) {
@@ -533,42 +206,21 @@
     if (installerEligibilityCache.has(key)) {
       return installerEligibilityCache.get(key);
     }
-    const pending = resolveBeagleApiUrl(`/api/v1/public/vms/${encodeURIComponent(ctx.vmid)}/state`)
-      .then((url) => fetch(url, { credentials: "same-origin" }))
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Installer-Status nicht verfuegbar");
-        }
-        return response.json();
-      })
-      .then((payload) => {
-        const profile = payload?.profile || {};
-        const roleText = String(profile.beagle_role || "").trim().toLowerCase();
-        const fallbackEligible = Boolean(profile.stream_host) && !["endpoint", "thinclient", "client"].includes(roleText);
-        return {
-          eligible: typeof profile.installer_target_eligible === "boolean" ? profile.installer_target_eligible : fallbackEligible,
-          message: profile.installer_target_message || (fallbackEligible ? "" : "Diese VM wird nicht als Streaming-Ziel angeboten.")
-        };
-      })
-      .catch(() => ({ eligible: false, message: "" }));
+    const pending = platformService.fetchInstallerTargetEligibility(ctx);
     installerEligibilityCache.set(key, pending);
     return pending;
   }
 
   async function resolveVmProfile(ctx) {
     const [config, resources, guestInterfaces, installerUrl, installerIsoUrl, controlPlaneHealthUrl, endpointPayload, installerPrep] = await Promise.all([
-      apiGetJson(`/api2/json/nodes/${encodeURIComponent(ctx.node)}/qemu/${encodeURIComponent(ctx.vmid)}/config`),
-      apiGetJson("/api2/json/cluster/resources?type=vm").catch(() => []),
-      apiGetJson(`/api2/json/nodes/${encodeURIComponent(ctx.node)}/qemu/${encodeURIComponent(ctx.vmid)}/agent/network-get-interfaces`).catch(() => []),
-      resolveUsbInstallerUrl(ctx),
-      resolveInstallerIsoUrl(ctx),
-      resolveControlPlaneHealthUrl(),
-      resolveBeagleApiUrl(`/api/v1/public/vms/${encodeURIComponent(ctx.vmid)}/state`).then((url) =>
-        fetch(url, { credentials: "same-origin" })
-      )
-        .then((response) => (response.ok ? response.json() : null))
-        .catch(() => null),
-      apiGetInstallerPrep(ctx.vmid).catch(() => null)
+      virtualizationService.getVmConfig(ctx),
+      virtualizationService.listVms().catch(() => []),
+      virtualizationService.getVmGuestInterfaces(ctx).catch(() => []),
+      platformService.resolveUsbInstallerUrl(ctx),
+      platformService.resolveInstallerIsoUrl(ctx),
+      platformService.resolveControlPlaneHealthUrl(),
+      platformService.fetchPublicVmState(ctx.vmid),
+      platformService.fetchInstallerPreparation(ctx.vmid).catch(() => null)
     ]);
 
     const resource = (Array.isArray(resources) ? resources : []).find(
@@ -604,7 +256,7 @@
       installerWindowsUrl: controlPlaneProfile?.installer_windows_url || `/beagle-api/api/v1/vms/${encodeURIComponent(String(ctx.vmid))}/installer.ps1`,
       installerIsoUrl: controlPlaneProfile?.installer_iso_url || installerIsoUrl,
       controlPlaneHealthUrl,
-      managerUrl: managerUrlFromHealthUrl(controlPlaneHealthUrl),
+      managerUrl: common.managerUrlFromHealthUrl(controlPlaneHealthUrl),
       endpointSummary: endpointPayload?.endpoint || null,
       compliance: endpointPayload?.compliance || null,
       lastAction: endpointPayload?.last_action || null,
@@ -767,24 +419,24 @@
         case "download":
           if (profile.installerTargetEligible === false) break;
           try {
-            let state = await apiGetInstallerPrep(profile.vmid).catch(() => profile.installerPrep || null);
+            let state = await platformService.fetchInstallerPreparation(profile.vmid).catch(() => profile.installerPrep || null);
             if (String(state?.status || "").toLowerCase() === "ready") {
-              await triggerDownload(profile.installerUrl);
+              await platformService.downloadUrl(profile.installerUrl);
               return;
             }
             if (!shouldReuseInstallerPrepState(state)) {
-              state = await apiStartInstallerPrep(profile.vmid);
+              state = await platformService.prepareInstallerTarget(profile.vmid);
             }
             for (let attempt = 0; attempt < 180; attempt += 1) {
               if (String(state?.status || "").toLowerCase() === "ready") {
-                await triggerDownload(profile.installerUrl);
+                await platformService.downloadUrl(profile.installerUrl);
                 return;
               }
               if (String(state?.status || "").toLowerCase() === "error") {
                 throw new Error(state?.message || "Installer-Vorbereitung fehlgeschlagen.");
               }
               await sleep(2000);
-              state = await apiGetInstallerPrep(profile.vmid);
+              state = await platformService.fetchInstallerPreparation(profile.vmid);
             }
             throw new Error("Installer-Vorbereitung hat das Zeitlimit ueberschritten.");
           } catch (error) {
@@ -794,24 +446,24 @@
         case "download-windows":
           if (profile.installerTargetEligible === false) break;
           try {
-            let state = await apiGetInstallerPrep(profile.vmid).catch(() => profile.installerPrep || null);
+            let state = await platformService.fetchInstallerPreparation(profile.vmid).catch(() => profile.installerPrep || null);
             if (String(state?.status || "").toLowerCase() === "ready") {
-              await triggerDownload(profile.installerWindowsUrl);
+              await platformService.downloadUrl(profile.installerWindowsUrl);
               return;
             }
             if (!shouldReuseInstallerPrepState(state)) {
-              state = await apiStartInstallerPrep(profile.vmid);
+              state = await platformService.prepareInstallerTarget(profile.vmid);
             }
             for (let attempt = 0; attempt < 180; attempt += 1) {
               if (String(state?.status || "").toLowerCase() === "ready") {
-                await triggerDownload(profile.installerWindowsUrl);
+                await platformService.downloadUrl(profile.installerWindowsUrl);
                 return;
               }
               if (String(state?.status || "").toLowerCase() === "error") {
                 throw new Error(state?.message || "Installer-Vorbereitung fehlgeschlagen.");
               }
               await sleep(2000);
-              state = await apiGetInstallerPrep(profile.vmid);
+              state = await platformService.fetchInstallerPreparation(profile.vmid);
             }
             throw new Error("Installer-Vorbereitung hat das Zeitlimit ueberschritten.");
           } catch (error) {
@@ -819,11 +471,11 @@
           }
           break;
         case "download-iso":
-          await triggerDownload(profile.installerIsoUrl);
+          await platformService.downloadUrl(profile.installerIsoUrl);
           break;
         case "open-web-ui":
           {
-            const url = await webUiUrlWithToken(true);
+            const url = await platformService.webUiUrlWithToken(true);
             window.open(url, "_blank", "noopener,noreferrer");
           }
           break;
@@ -835,7 +487,7 @@
           break;
         case "open-sunshine":
           try {
-            const access = await apiCreateSunshineAccess(profile.vmid);
+            const access = await platformService.createSunshineAccess(profile.vmid);
             window.open(access?.url || profile.sunshineApiUrl, "_blank", "noopener,noreferrer");
           } catch (error) {
             window.alert(`Sunshine Web UI konnte nicht geoeffnet werden: ${error?.message || error}`);
@@ -853,7 +505,7 @@
   }
 
   async function showProfileModal() {
-    const ctx = await parseVmContext();
+    const ctx = await virtualizationService.parseVmContext();
     if (!ctx) {
       window.alert("Beagle OS: Keine VM-Ansicht erkannt.");
       return;
@@ -883,7 +535,7 @@
   }
 
   async function downloadUsbInstaller() {
-    const ctx = await parseVmContext();
+    const ctx = await virtualizationService.parseVmContext();
     if (!ctx) {
       window.alert("Beagle OS: Keine VM-Ansicht erkannt.");
       return;
@@ -893,7 +545,7 @@
       window.alert(profile.installerTargetMessage || "Diese VM ist kein geeignetes Streaming-Ziel.");
       return;
     }
-    triggerDownload(profile.installerUrl).catch((error) => {
+    platformService.downloadUrl(profile.installerUrl).catch((error) => {
       window.alert(`Beagle OS Installer konnte nicht geladen werden: ${error?.message || error}`);
     });
   }
@@ -940,10 +592,10 @@
 
   function ensureToolbarButtons() {
     document.querySelectorAll(`[${BUTTON_MARKER}]`).forEach((node) => {
-      if (!isVmView()) node.remove();
+      if (!virtualizationService.isVmView()) node.remove();
     });
 
-    if (!isVmView()) return;
+    if (!virtualizationService.isVmView()) return;
 
     const toolbar = findToolbarRow();
     if (!toolbar) return;
@@ -958,7 +610,7 @@
     }
     if (!existingWebButton) {
       const webUiButton = createToolbarButton(`${PRODUCT_LABEL} Web UI`, async () => {
-        const url = await webUiUrlWithToken(true);
+        const url = await platformService.webUiUrlWithToken(true);
         window.open(url, "_blank", "noopener,noreferrer");
       });
       webUiButton.title = "Oeffnet die zentrale Beagle Web UI auf diesem Host.";
@@ -993,7 +645,7 @@
   }
 
   function ensureMenuItems() {
-    if (!isVmView()) return;
+    if (!virtualizationService.isVmView()) return;
     const menu = getVisibleMenu();
     if (!menu) return;
 
@@ -1006,7 +658,7 @@
     if (!menuAlreadyHasLabel(menu, `${PRODUCT_LABEL} Profil`)) {
       menu.appendChild(createMenuItem(`${PRODUCT_LABEL} Profil`, showProfileModal));
     }
-    parseVmContext().then((ctx) => {
+    virtualizationService.parseVmContext().then((ctx) => {
       if (!ctx) return;
       return getVmInstallerEligibility(ctx).then((result) => {
         const existingInstaller = Array.from(menu.querySelectorAll(`[${BUTTON_MARKER}]`)).find(

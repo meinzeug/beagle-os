@@ -1,33 +1,28 @@
-function defaultUsbInstallerUrl() {
-  return "https://{host}:8443/beagle-api/api/v1/public/vms/{vmid}/installer.sh";
-}
+const common = window.BeagleExtensionCommon;
 
-function defaultControlPlaneHealthUrl() {
-  return "https://{host}:8443/beagle-api/api/v1/health";
+if (!common) {
+  throw new Error("BeagleExtensionCommon must be loaded before extension/options.js");
 }
 
 function loadOptions() {
-  chrome.storage.sync.get(
-    {
-      usbInstallerUrl: defaultUsbInstallerUrl(),
-      controlPlaneHealthUrl: defaultControlPlaneHealthUrl()
-    },
-    (data) => {
-      document.getElementById("usbInstallerUrl").value =
-        data.usbInstallerUrl || defaultUsbInstallerUrl();
-      document.getElementById("controlPlaneHealthUrl").value =
-        data.controlPlaneHealthUrl || defaultControlPlaneHealthUrl();
-    }
-  );
+  common.getStoredOptions({
+    usbInstallerUrl: common.defaultPublicUsbInstallerUrl(),
+    controlPlaneHealthUrl: common.defaultControlPlaneHealthUrl()
+  }).then((data) => {
+    document.getElementById("usbInstallerUrl").value =
+      data.usbInstallerUrl || common.defaultPublicUsbInstallerUrl();
+    document.getElementById("controlPlaneHealthUrl").value =
+      data.controlPlaneHealthUrl || common.defaultControlPlaneHealthUrl();
+  });
 }
 
 function saveOptions() {
   const usbInstallerUrl =
-    document.getElementById("usbInstallerUrl").value.trim() || defaultUsbInstallerUrl();
+    document.getElementById("usbInstallerUrl").value.trim() || common.defaultPublicUsbInstallerUrl();
   const controlPlaneHealthUrl =
-    document.getElementById("controlPlaneHealthUrl").value.trim() || defaultControlPlaneHealthUrl();
+    document.getElementById("controlPlaneHealthUrl").value.trim() || common.defaultControlPlaneHealthUrl();
 
-  chrome.storage.sync.set({ usbInstallerUrl, controlPlaneHealthUrl }, () => {
+  common.saveOptions({ usbInstallerUrl, controlPlaneHealthUrl }).then(() => {
     const status = document.getElementById("status");
     status.textContent = "Saved.";
     setTimeout(() => {
