@@ -1,0 +1,266 @@
+# Beagle OS – Refactor & Architecture Agent Guide
+
+## 🎯 Ziel
+
+Dieses Repository (`meinzeug/beagle-os`) soll strukturell, technisch und architektonisch umfassend refactored werden, ohne die Produktidee zu verändern.
+
+Beagle OS bleibt:
+
+- Proxmox-native Endpoint-/Thin-Client-OS  
+- Moonlight/Sunshine-Streaming-Plattform  
+- Gaming-Kiosk (GeForce NOW etc.)  
+- Host-Installer + Artifact-/Fleet-/Provisioning-System  
+
+---
+
+## ⚠️ Grundregeln
+
+- Arbeite **schrittweise**, niemals Big-Bang.
+- Jede Änderung muss:
+  - den Build erhalten ODER verbessern
+  - die Runtime nicht brechen
+- Keine Kernfeatures zerstören:
+  - Proxmox Host Install
+  - Thin Client Install
+  - Moonlight Runtime
+  - Gaming Kiosk
+  - Packaging / Release
+  - Proxmox UI Integration
+- Fokus:
+  - Modularität
+  - Wartbarkeit
+  - Sicherheit
+  - Testbarkeit
+
+---
+
+## 🤖 MULTI-AI / CONTINUATION MODE (KRITISCH)
+
+Dieses Projekt wird von mehreren AI-Agents bearbeitet.
+
+### Daher MUSS IMMER gelten:
+
+Jeder Agent muss so arbeiten, dass ein anderer Agent **nahtlos übernehmen kann**.
+
+### Das bedeutet konkret:
+
+- KEIN implizites Wissen
+- KEINE "gedachten" Schritte
+- ALLES muss im Repo dokumentiert sein
+
+Jeder neue Agent muss innerhalb von 30 Sekunden verstehen:
+
+- Wo stehen wir?
+- Was wurde gemacht?
+- Was ist kaputt / riskant?
+- Was ist der nächste Schritt?
+
+---
+
+## 📁 Pflicht-Dokumentation (immer aktuell halten)
+
+Erstelle und pflege:
+
+docs/refactor/
+
+- 00-system-overview.md
+- 01-problem-analysis.md
+- 02-target-architecture.md
+- 03-refactor-plan.md
+- 04-risk-register.md
+- 05-progress.md
+- 06-next-steps.md
+- 07-decisions.md
+- 08-todo-global.md
+
+### 🔴 KRITISCHE REGEL:
+
+Nach JEDEM größeren Schritt:
+
+- `05-progress.md` aktualisieren
+- `06-next-steps.md` neu definieren
+- `08-todo-global.md` aktualisieren
+- `07-decisions.md` ergänzen (wenn Architektur betroffen)
+
+---
+
+## 🧭 Arbeitsphasen
+
+---
+
+### PHASE 0 – Analyse
+
+Analysiere:
+
+- komplette Repo-Struktur
+- Module
+- Bash-Skripte
+- UI
+- Runtime
+- Build-System
+- Secrets / Tokens / Configs
+
+Dokumentiere:
+
+- Monolith-Dateien
+- Sicherheitsprobleme
+- Kopplungen
+- technische Schulden
+
+Schreibe:
+
+- 00-system-overview.md
+- 01-problem-analysis.md
+
+---
+
+### PHASE 1 – Zielarchitektur
+
+Definiere klare Module:
+
+- Beagle Host / Control Plane  
+- Proxmox UI Integration  
+- Thin Client Runtime  
+- Gaming Kiosk  
+- Build / Packaging  
+- Shared Core  
+
+Definiere:
+
+- Verantwortlichkeiten
+- APIs
+- Abhängigkeiten
+- Migrationsstrategie
+
+Schreibe:
+
+- 02-target-architecture.md
+
+---
+
+### PHASE 2 – Proxmox UI Refactor
+
+Ziel:
+
+Monolith (z.B. beagle-ui.js) zerlegen in:
+
+- api-client/
+- state/
+- components/
+- provisioning/
+- usb/
+- utils/
+
+Regeln:
+
+- Verhalten bleibt identisch
+- KEINE Feature-Verluste
+
+---
+
+### PHASE 3 – Thin Client Runtime
+
+Ziel:
+
+Strukturieren:
+
+- config
+- runtime
+- network
+- pairing
+- moonlight-launch
+
+Optional:
+
+- komplexe Logik aus Bash extrahieren
+
+WICHTIG:
+
+- Moonlight darf NICHT kaputtgehen
+
+---
+
+### PHASE 4 – Security
+
+Verbessere:
+
+- Token-Handling
+- Secret-Storage
+- Frontend-Sicherheit
+
+Vermeide:
+
+- Tokens im Frontend
+- Klartext-Secrets
+
+---
+
+### PHASE 5 – Packaging / Build
+
+Ziel:
+
+- klare Build-Pipeline
+- reproduzierbare Builds
+- getrennte Artefakte
+
+---
+
+### PHASE 6 – Modularisierung
+
+Trenne klar:
+
+- Host
+- Client
+- UI
+- Kiosk
+
+---
+
+## 🧠 Arbeitsprinzip
+
+- Kleine Schritte > große Umbauten
+- Immer lauffähig bleiben
+- Jede Änderung erklärbar machen
+- Code + Doku gehören zusammen
+
+---
+
+## 🔁 Übergabe an nächsten Agent
+
+Am Ende jedes Runs MUSST du:
+
+1. `05-progress.md` aktualisieren
+2. `06-next-steps.md` schreiben
+3. `08-todo-global.md` aktualisieren
+4. Offene Probleme dokumentieren
+
+Schreibe IMMER:
+
+- Was wurde gemacht
+- Was ist kaputt (falls etwas kaputt ist)
+- Was ist als nächstes zu tun (konkret, nicht allgemein)
+
+---
+
+## 🚫 Verboten
+
+- große unstrukturierte Refactors
+- stilles Löschen von Logik
+- Breaking Changes ohne Dokumentation
+- "TODO später" ohne Eintrag in TODO-Dateien
+
+---
+
+## ✅ Zielbild
+
+Am Ende soll Beagle OS sein:
+
+- modular
+- wartbar
+- sicher
+- erweiterbar
+- multi-agent-fähig
+
+---
+
+ENDE DER DATEI
