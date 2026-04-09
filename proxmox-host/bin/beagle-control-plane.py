@@ -16,6 +16,7 @@ import tempfile
 import time
 import uuid
 import pwd
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -23,6 +24,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse, urlunparse
+
+PROVIDERS_DIR = Path(__file__).resolve().parents[1] / "providers"
+if str(PROVIDERS_DIR) not in sys.path:
+    sys.path.insert(0, str(PROVIDERS_DIR))
+
+from proxmox_host_provider import ProxmoxHostProvider
 
 def load_env_defaults(path: str) -> None:
     env_path = Path(path)
@@ -532,6 +539,14 @@ def run_checked(command: list[str], *, timeout: float | None | object = DEFAULT_
         timeout=COMMAND_TIMEOUT_SECONDS if timeout is DEFAULT_COMMAND_TIMEOUT else timeout,
     )
     return result.stdout
+
+
+PROXMOX_HOST_PROVIDER = ProxmoxHostProvider(
+    run_json=run_json,
+    run_text=run_text,
+    cache_get=cache_get,
+    cache_put=cache_put,
+)
 
 
 def endpoints_dir() -> Path:
@@ -2580,11 +2595,7 @@ def create_provisioned_vm(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def next_vmid() -> int:
-    raw = run_text(["pvesh", "get", "/cluster/nextid"])
-    value = str(raw).strip().splitlines()
-    if not value:
-        raise RuntimeError("failed to determine next VMID")
-    return int(value[-1])
+    return PROXMOX_HOST_PROVIDER.next_vmid()
 
 
 def indent_block(text: str, prefix: str) -> str:
@@ -2606,8 +2617,7 @@ def local_iso_storage_dir() -> Path:
 
 
 def list_storage_inventory() -> list[dict[str, Any]]:
-    payload = run_json(["pvesh", "get", "/storage", "--output-format", "json"])
-    return payload if isinstance(payload, list) else []
+    return PROXMOX_HOST_PROVIDER.list_storage_inventory()
 
 
 def storage_supports_content(storage_id: str, content_type: str) -> bool:
@@ -3228,69 +3238,32 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def first_guest_ipv4(vmid: int) -> str:
-    if not ENABLE_GUEST_IP_LOOKUP:
-        return ""
-    cache_key = f"guest-ipv4:{int(vmid)}"
-    cached = cache_get(cache_key, GUEST_IPV4_CACHE_SECONDS)
-    if isinstance(cached, str):
-        return cached
-    payload = run_json(["qm", "guest", "cmd", str(vmid), "network-get-interfaces"], timeout=GUEST_AGENT_TIMEOUT_SECONDS)
-    if not isinstance(payload, list):
-        return ""
-    for iface in payload:
-        for address in iface.get("ip-addresses", []):
-            ip = str(address.get("ip-address", ""))
-            if address.get("ip-address-type") != "ipv4":
-                continue
-            if not ip or ip.startswith("127.") or ip.startswith("169.254."):
-                continue
-            return cache_put(cache_key, ip)
-    return ""
+    return PROXMOX_HOST_PROVIDER.get_guest_ipv4(
+        vmid,
+        cache_key=f"guest-ipv4:{int(vmid)}",
+        cache_ttl_seconds=GUEST_IPV4_CACHE_SECONDS,
+        enable_lookup=ENABLE_GUEST_IP_LOOKUP,
+        timeout_seconds=GUEST_AGENT_TIMEOUT_SECONDS,
+    )
 
 
 def list_vms(*, refresh: bool = False) -> list[VmSummary]:
-    cached = None if refresh else cache_get("list-vms", LIST_VMS_CACHE_SECONDS)
-    if isinstance(cached, list):
-        return cached
-    resources = run_json(["pvesh", "get", "/cluster/resources", "--type", "vm", "--output-format", "json"])
-    vms: list[VmSummary] = []
-    if not isinstance(resources, list):
-        return vms
-    for item in resources:
-        if item.get("type") != "qemu" or item.get("vmid") is None or not item.get("node"):
-            continue
-        vms.append(
-            VmSummary(
-                vmid=int(item["vmid"]),
-                node=str(item["node"]),
-                name=str(item.get("name") or f"vm-{item['vmid']}"),
-                status=str(item.get("status") or "unknown"),
-                tags=str(item.get("tags") or ""),
-            )
-        )
-    return cache_put("list-vms", sorted(vms, key=lambda vm: vm.vmid))
+    return PROXMOX_HOST_PROVIDER.list_vms(
+        refresh=refresh,
+        cache_key="list-vms",
+        cache_ttl_seconds=LIST_VMS_CACHE_SECONDS,
+        vm_summary_factory=lambda item: VmSummary(
+            vmid=int(item["vmid"]),
+            node=str(item["node"]),
+            name=str(item.get("name") or f"vm-{item['vmid']}"),
+            status=str(item.get("status") or "unknown"),
+            tags=str(item.get("tags") or ""),
+        ),
+    )
 
 
 def list_nodes_inventory() -> list[dict[str, Any]]:
-    payload = run_json(["pvesh", "get", "/nodes", "--output-format", "json"])
-    nodes: list[dict[str, Any]] = []
-    if not isinstance(payload, list):
-        return nodes
-    for item in payload:
-        node_name = str(item.get("node", "")).strip()
-        if not node_name:
-            continue
-        nodes.append(
-            {
-                "name": node_name,
-                "status": str(item.get("status", "unknown")).strip() or "unknown",
-                "cpu": float(item.get("cpu", 0) or 0),
-                "mem": int(item.get("mem", 0) or 0),
-                "maxmem": int(item.get("maxmem", 0) or 0),
-                "maxcpu": int(item.get("maxcpu", 0) or 0),
-            }
-        )
-    return nodes
+    return PROXMOX_HOST_PROVIDER.list_nodes()
 
 
 def config_bridge_names(config: dict[str, Any]) -> set[str]:
@@ -3321,14 +3294,12 @@ def list_bridge_inventory(node: str = "") -> list[str]:
 
 
 def get_vm_config(node: str, vmid: int) -> dict[str, Any]:
-    cache_key = f"vm-config:{node}:{int(vmid)}"
-    cached = cache_get(cache_key, VM_CONFIG_CACHE_SECONDS)
-    if isinstance(cached, dict):
-        return cached
-    payload = run_json(["pvesh", "get", f"/nodes/{node}/qemu/{vmid}/config", "--output-format", "json"])
-    if isinstance(payload, dict):
-        return cache_put(cache_key, payload)
-    return {}
+    return PROXMOX_HOST_PROVIDER.get_vm_config(
+        node,
+        vmid,
+        cache_key=f"vm-config:{node}:{int(vmid)}",
+        cache_ttl_seconds=VM_CONFIG_CACHE_SECONDS,
+    )
 
 
 def find_vm(vmid: int, *, refresh: bool = False) -> VmSummary | None:

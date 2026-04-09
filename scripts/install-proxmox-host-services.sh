@@ -122,6 +122,7 @@ chmod 0644 "$USB_TUNNEL_SSHD_DROPIN"
 
 install -d -m 0755 "$SYSTEMD_DIR"
 install -d -m 0755 "$INSTALL_DIR/proxmox-host/bin"
+install -d -m 0755 "$INSTALL_DIR/proxmox-host/providers"
 install_unit "$ROOT_DIR/proxmox-host/systemd/$SERVICE_NAME" "$SYSTEMD_DIR/$SERVICE_NAME"
 install -m 0644 "$ROOT_DIR/proxmox-host/systemd/$TIMER_NAME" "$SYSTEMD_DIR/$TIMER_NAME"
 install_unit "$ROOT_DIR/proxmox-host/systemd/$UI_REAPPLY_SERVICE" "$SYSTEMD_DIR/$UI_REAPPLY_SERVICE"
@@ -134,6 +135,9 @@ if [[ "$(readlink -f "$ROOT_DIR/proxmox-host/bin/beagle-control-plane.py")" != "
 fi
 if [[ "$(readlink -f "$ROOT_DIR/proxmox-host/bin/beagle-usb-tunnel-session")" != "$(readlink -f "$INSTALL_DIR/proxmox-host/bin/beagle-usb-tunnel-session" 2>/dev/null || true)" ]]; then
   install -m 0755 "$ROOT_DIR/proxmox-host/bin/beagle-usb-tunnel-session" "$INSTALL_DIR/proxmox-host/bin/beagle-usb-tunnel-session"
+fi
+if [[ "$(readlink -f "$ROOT_DIR/proxmox-host/providers/proxmox_host_provider.py")" != "$(readlink -f "$INSTALL_DIR/proxmox-host/providers/proxmox_host_provider.py" 2>/dev/null || true)" ]]; then
+  install -m 0644 "$ROOT_DIR/proxmox-host/providers/proxmox_host_provider.py" "$INSTALL_DIR/proxmox-host/providers/proxmox_host_provider.py"
 fi
 rm -f "$USB_TUNNEL_TEST_DROPIN" "$USB_TUNNEL_AUTH_COMMAND"
 

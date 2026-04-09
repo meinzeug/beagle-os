@@ -56,6 +56,7 @@ bash -n "$ROOT_DIR/server-installer/live-build/auto/config"
 
 mapfile -t python_files < <(
   find \
+    "$ROOT_DIR/proxmox-host" \
     "$ROOT_DIR/thin-client-assistant" \
     "$ROOT_DIR/beagle-kiosk" \
     -type f \
@@ -81,6 +82,11 @@ node --check "$ROOT_DIR/proxmox-ui/usb/ui.js"
 node --check "$ROOT_DIR/proxmox-ui/components/ui-helpers.js"
 node --check "$ROOT_DIR/proxmox-ui/components/desktop-overlay.js"
 node --check "$ROOT_DIR/proxmox-ui/utils/browser-actions.js"
+node --check "$ROOT_DIR/extension/common.js"
+node --check "$ROOT_DIR/extension/provider-registry.js"
+node --check "$ROOT_DIR/extension/providers/proxmox.js"
+node --check "$ROOT_DIR/extension/services/virtualization.js"
+node --check "$ROOT_DIR/extension/services/platform.js"
 node --check "$ROOT_DIR/extension/content.js"
 node --check "$ROOT_DIR/extension/options.js"
 node --check "$ROOT_DIR/beagle-kiosk/main.js"
