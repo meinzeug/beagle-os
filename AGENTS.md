@@ -50,6 +50,8 @@ Architekturregel ab jetzt:
 - Proxmox-spezifische Implementierungen gehören nur in `providers/proxmox/` oder klar markierte Migrations-Shims.
 - UI-Logik soll gegen generische Services/Contracts arbeiten, nicht gegen Proxmox direkt.
 - Host-/Provisioning-/Inventory-Logik soll schrittweise auf dieselben provider-neutralen Verträge umgestellt werden.
+- Browser-Extension-Code soll direkte Proxmox-Zugriffe nur noch in klaren Provider-Dateien wie `extension/providers/*` kapseln, nicht in `extension/content.js`.
+- Host-Control-Plane-Code soll neue direkte `qm`-/`pvesh`-Nutzung nur noch in dedizierten Provider-Modulen wie `proxmox-host/providers/*` einführen.
 
 ---
 

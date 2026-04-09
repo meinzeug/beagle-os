@@ -12,9 +12,11 @@
 - [x] Extract the first `proxmox-ui/usb/` UI state module.
 - [x] Extract initial `proxmox-ui/components/` helpers and desktop overlay renderer.
 - [x] Introduce the first provider-neutral browser-side seams under `core/provider/`, `core/virtualization/`, `core/platform/`, and `providers/proxmox/`.
+- [x] Move the browser extension off direct Proxmox inventory/profile calls and onto aligned provider-backed services.
+- [x] Start host-side provider helper extraction for control-plane inventory, storage, VM config, and guest-IP access.
 - [ ] Extract `proxmox-ui/beagle-ui.js` into `api-client/`, `state/`, `components/`, `provisioning/`, `usb/`, and `utils/`.
-- [ ] Move the browser extension off direct Proxmox inventory/profile calls and onto aligned provider-neutral services.
-- [ ] Split host-side Proxmox inventory/config access behind provider helpers instead of raw `pvesh`/`qm` calls.
+- [ ] Split `extension/content.js` into smaller UI/rendering modules now that provider/API access is extracted.
+- [ ] Move remaining host-side `qm`/`pvesh` lifecycle, guest-exec, and provisioning mutations behind provider helpers.
 - [ ] Inventory all direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally.
 - [ ] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Define a stable endpoint profile contract shared by host, UI, and installer generation.

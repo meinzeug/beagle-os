@@ -101,3 +101,23 @@ Decision:
 Reason:
 
 - Provider neutrality is now a core architecture rule, so the repo needs one authoritative place that tracks what is already abstracted and what is still directly Proxmox-bound.
+
+### D11. The browser extension must mirror the same provider seam as the host-installed UI
+
+Decision:
+
+- Move browser-extension VM context resolution and Proxmox reads into explicit `extension/providers/*` and `extension/services/*` files instead of leaving them inside `extension/content.js`.
+
+Reason:
+
+- Provider neutrality cannot stop at the host UI if the browser extension exposes the same operator workflow.
+
+### D12. Control-plane read paths should move first into host-side provider modules
+
+Decision:
+
+- Start the control-plane provider migration with VM inventory, node inventory, storage inventory, next-VMID lookup, VM config reads, and guest IPv4 lookup before touching mutation-heavy flows.
+
+Reason:
+
+- Read paths are the lowest-risk way to establish a stable host-side provider boundary without breaking provisioning and lifecycle operations.
