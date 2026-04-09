@@ -121,3 +121,13 @@ Decision:
 Reason:
 
 - Read paths are the lowest-risk way to establish a stable host-side provider boundary without breaking provisioning and lifecycle operations.
+
+### D13. Large Proxmox UI modals should be extracted as dedicated components before deeper behavioral changes
+
+Decision:
+
+- Move the profile modal and fleet modal out of `proxmox-ui/beagle-ui.js` into `proxmox-ui/components/*`, keeping `beagle-ui.js` as the orchestration layer.
+
+Reason:
+
+- These renderers were the biggest remaining safe extraction targets and reducing the monolith size now makes the next provisioning/UI splits much lower risk.

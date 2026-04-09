@@ -61,7 +61,7 @@
 
 - Phase 0 Analysis: completed as a baseline
 - Phase 1 Target architecture: completed as a baseline
-- Phase 2 Proxmox UI refactor: started with helper extraction plus the first aligned browser-extension seam
+- Phase 2 Proxmox UI refactor: advanced from helper extraction to dedicated profile/fleet component modules plus the first aligned browser-extension seam
 - Provider abstraction groundwork: wired into the Proxmox UI, the browser extension, and a first host-side control-plane helper
 - Provider-neutral documentation and continuation rules: aligned with the new architecture baseline
 - Phase 3 onward: not yet implemented structurally, except for process guardrails
@@ -69,7 +69,7 @@
 ### What is not done yet
 
 - Only the first runtime-preserving code extraction has happened inside `proxmox-host/`; `thin-client-assistant/` and `beagle-kiosk/` still have not been modularized.
-- `proxmox-ui/` now has `common`, `api-client`, `state`, `provisioning`, `usb`, `utils`, and initial `components` seams. The monolith still remains on the larger profile/fleet/provisioning modal rendering side.
+- `proxmox-ui/` now has `common`, `api-client`, `state`, `provisioning`, `usb`, `utils`, and larger `components` seams including `profile-modal.js` and `fleet-modal.js`. `beagle-ui.js` dropped from roughly 2500+ lines to about 1760 lines, but provisioning result/create flows still keep a large orchestration block there.
 - `extension/content.js` no longer performs raw `/api2/json` or Beagle API token/config plumbing itself, but it is still a large UI/rendering monolith with local profile synthesis logic.
 - `proxmox-host/bin/beagle-control-plane.py` now delegates VM inventory, node inventory, VM config lookup, next-VMID allocation, storage inventory, and guest IPv4 lookup into `proxmox-host/providers/proxmox_host_provider.py`, but provisioning mutations and guest-exec flows still call `qm`/`pvesh` directly.
 - No new behavioral tests or smoke tests have been added yet.
@@ -78,6 +78,7 @@
 ### Known risks after this run
 
 - The large monoliths still exist.
+- `proxmox-ui/beagle-ui.js` is materially smaller, but the Ubuntu desktop create/edit modal and provisioning result window are still substantial inline UI blocks.
 - Frontend token handling still exists as documented.
 - The new provider abstraction now covers the Proxmox UI, the browser extension, and the first host-side read path; host-side write paths, script-side calls, and installer-side provider neutrality are still pending.
 - Local `.build/` and `dist/` directories still exist and should not be treated as authoritative release outputs.

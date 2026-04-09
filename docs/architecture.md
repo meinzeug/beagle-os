@@ -28,6 +28,7 @@ Current status:
 - Proxmox is the first supported provider
 - provider-neutral browser-side seams exist for virtualization and platform service access
 - the browser extension now mirrors that split through `extension/common.js`, `extension/provider-registry.js`, `extension/providers/proxmox.js`, and `extension/services/*`
+- the host-installed Proxmox UI now also carries dedicated `components/profile-modal.js` and `components/fleet-modal.js` renderers, with `beagle-ui.js` reduced toward orchestration
 - host-side, script-side and thin-client-side provider neutrality is still being migrated incrementally
 
 ## Proxmox operator surface

@@ -6,11 +6,11 @@ Keep shrinking the Proxmox-specific surface area now that both browser surfaces 
 
 ### Concrete next tasks
 
-1. Move the large profile modal renderer and fleet modal renderer from `proxmox-ui/beagle-ui.js` into `components/`, but keep them bound to `core/platform` and `core/virtualization` services only.
+1. Extract the remaining large Proxmox UI blocks from `proxmox-ui/beagle-ui.js`, starting with the Ubuntu desktop create/edit modal and the provisioning result window, into dedicated `components/` modules.
 2. Continue the host-side provider seam in `proxmox-host/providers/proxmox_host_provider.py` by moving VM lifecycle, guest-exec, and provisioning mutations behind that module instead of calling `qm` and `pvesh` from request handlers.
 3. Split `extension/content.js` further into UI-focused modules now that Proxmox inventory/config access lives in `extension/providers/proxmox.js` and `extension/services/*`.
 4. Inventory remaining direct `qm`/`pvesh` usage in scripts and move the first reusable calls behind provider helpers instead of raw subprocess invocations.
-5. Add broader automated checks for the browser extension and proxmox-host modules beyond syntax and `py_compile`.
+5. Add broader automated checks for the browser extension, Proxmox UI modules, and proxmox-host modules beyond syntax and `py_compile`.
 6. Keep `09-provider-abstraction.md` current whenever a direct Proxmox dependency is removed or newly discovered.
 
 ## After that
