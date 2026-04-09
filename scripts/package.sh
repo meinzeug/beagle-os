@@ -171,10 +171,13 @@ PY
 (
   cd "$ROOT_DIR"
   tar -czf "$DIST_DIR/$TARBALL_NAME" \
+    AGENTS.md \
     beagle-kiosk \
     beagle-os \
+    core \
     docs \
     extension \
+    providers \
     proxmox-host \
     proxmox-ui \
     scripts \

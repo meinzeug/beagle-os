@@ -4,6 +4,19 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PVE_DIR="/usr/share/pve-manager"
 CONFIG_TARGET="$PVE_DIR/js/beagle-ui-config.js"
+COMMON_TARGET="$PVE_DIR/js/beagle-ui-common.js"
+PROVIDER_REGISTRY_TARGET="$PVE_DIR/js/beagle-provider-registry.js"
+VIRTUALIZATION_SERVICE_TARGET="$PVE_DIR/js/beagle-virtualization-service.js"
+PLATFORM_SERVICE_TARGET="$PVE_DIR/js/beagle-platform-service.js"
+PROXMOX_PROVIDER_TARGET="$PVE_DIR/js/beagle-proxmox-provider.js"
+API_CLIENT_TARGET="$PVE_DIR/js/beagle-ui-api-client.js"
+STATE_TARGET="$PVE_DIR/js/beagle-ui-installer-state.js"
+PROVISIONING_API_TARGET="$PVE_DIR/js/beagle-ui-provisioning-api.js"
+USB_API_TARGET="$PVE_DIR/js/beagle-ui-usb-api.js"
+USB_UI_TARGET="$PVE_DIR/js/beagle-ui-usb-ui.js"
+COMPONENTS_UI_HELPERS_TARGET="$PVE_DIR/js/beagle-ui-render-helpers.js"
+COMPONENTS_DESKTOP_OVERLAY_TARGET="$PVE_DIR/js/beagle-ui-desktop-overlay.js"
+UTILS_BROWSER_ACTIONS_TARGET="$PVE_DIR/js/beagle-ui-browser-actions.js"
 JS_TARGET="$PVE_DIR/js/beagle-ui.js"
 TPL_TARGET="$PVE_DIR/index.html.tpl"
 TPL_BACKUP="$PVE_DIR/index.html.tpl.beagle.bak"
@@ -23,6 +36,19 @@ WEB_UI_URL="${BEAGLE_WEB_UI_URL:-$DEFAULT_WEB_UI_URL}"
 BEAGLE_API_TOKEN="${BEAGLE_MANAGER_API_TOKEN:-}"
 BEAGLE_PVE_UI_EMBED_API_TOKEN="${BEAGLE_PVE_UI_EMBED_API_TOKEN:-1}"
 CONFIG_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-config.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+COMMON_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-common.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+PROVIDER_REGISTRY_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-provider-registry.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+VIRTUALIZATION_SERVICE_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-virtualization-service.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+PLATFORM_SERVICE_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-platform-service.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+PROXMOX_PROVIDER_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-proxmox-provider.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+API_CLIENT_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-api-client.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+STATE_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-installer-state.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+PROVISIONING_API_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-provisioning-api.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+USB_API_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-usb-api.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+USB_UI_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-usb-ui.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+COMPONENTS_UI_HELPERS_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-render-helpers.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+COMPONENTS_DESKTOP_OVERLAY_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-desktop-overlay.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+UTILS_BROWSER_ACTIONS_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-browser-actions.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
 INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
 
 ensure_root() {
@@ -56,6 +82,19 @@ if [[ ! -d "$PVE_DIR/js" || ! -f "$TPL_TARGET" ]]; then
 fi
 
 install -D -m 0644 "$ROOT_DIR/proxmox-ui/beagle-ui.js" "$JS_TARGET"
+install -D -m 0644 "$ROOT_DIR/proxmox-ui/beagle-ui-common.js" "$COMMON_TARGET"
+install -D -m 0644 "$ROOT_DIR/core/provider/registry.js" "$PROVIDER_REGISTRY_TARGET"
+install -D -m 0644 "$ROOT_DIR/core/virtualization/service.js" "$VIRTUALIZATION_SERVICE_TARGET"
+install -D -m 0644 "$ROOT_DIR/core/platform/service.js" "$PLATFORM_SERVICE_TARGET"
+install -D -m 0644 "$ROOT_DIR/providers/proxmox/virtualization-provider.js" "$PROXMOX_PROVIDER_TARGET"
+install -D -m 0644 "$ROOT_DIR/proxmox-ui/api-client/beagle-api.js" "$API_CLIENT_TARGET"
+install -D -m 0644 "$ROOT_DIR/proxmox-ui/state/installer-eligibility.js" "$STATE_TARGET"
+install -D -m 0644 "$ROOT_DIR/proxmox-ui/provisioning/api.js" "$PROVISIONING_API_TARGET"
+install -D -m 0644 "$ROOT_DIR/proxmox-ui/usb/api.js" "$USB_API_TARGET"
+install -D -m 0644 "$ROOT_DIR/proxmox-ui/usb/ui.js" "$USB_UI_TARGET"
+install -D -m 0644 "$ROOT_DIR/proxmox-ui/components/ui-helpers.js" "$COMPONENTS_UI_HELPERS_TARGET"
+install -D -m 0644 "$ROOT_DIR/proxmox-ui/components/desktop-overlay.js" "$COMPONENTS_DESKTOP_OVERLAY_TARGET"
+install -D -m 0644 "$ROOT_DIR/proxmox-ui/utils/browser-actions.js" "$UTILS_BROWSER_ACTIONS_TARGET"
 cat > "$CONFIG_TARGET" <<EOF
 window.BeagleIntegrationConfig = Object.assign({}, window.BeagleIntegrationConfig || {}, {
   usbInstallerUrl: ${USB_INSTALLER_URL@Q},
@@ -70,24 +109,37 @@ if [[ ! -f "$TPL_BACKUP" ]]; then
   cp "$TPL_TARGET" "$TPL_BACKUP"
 fi
 
-python3 - "$TPL_TARGET" "$CONFIG_INCLUDE_LINE" "$INCLUDE_LINE" <<'PY'
+python3 - "$TPL_TARGET" "$CONFIG_INCLUDE_LINE" "$COMMON_INCLUDE_LINE" "$PROVIDER_REGISTRY_INCLUDE_LINE" "$API_CLIENT_INCLUDE_LINE" "$PROVISIONING_API_INCLUDE_LINE" "$USB_API_INCLUDE_LINE" "$PROXMOX_PROVIDER_INCLUDE_LINE" "$VIRTUALIZATION_SERVICE_INCLUDE_LINE" "$PLATFORM_SERVICE_INCLUDE_LINE" "$STATE_INCLUDE_LINE" "$USB_UI_INCLUDE_LINE" "$COMPONENTS_UI_HELPERS_INCLUDE_LINE" "$COMPONENTS_DESKTOP_OVERLAY_INCLUDE_LINE" "$UTILS_BROWSER_ACTIONS_INCLUDE_LINE" "$INCLUDE_LINE" <<'PY'
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
 config_include = sys.argv[2]
-include = sys.argv[3]
+common_include = sys.argv[3]
+provider_registry_include = sys.argv[4]
+api_client_include = sys.argv[5]
+provisioning_api_include = sys.argv[6]
+usb_api_include = sys.argv[7]
+proxmox_provider_include = sys.argv[8]
+virtualization_service_include = sys.argv[9]
+platform_service_include = sys.argv[10]
+state_include = sys.argv[11]
+usb_ui_include = sys.argv[12]
+components_ui_helpers_include = sys.argv[13]
+components_desktop_overlay_include = sys.argv[14]
+utils_browser_actions_include = sys.argv[15]
+include = sys.argv[16]
 text = path.read_text()
 needle = '    <script type="text/javascript" src="/pve2/js/pvemanagerlib.js?ver=[% version %]"></script>\n'
 if needle not in text:
     raise SystemExit("needle not found in index.html.tpl")
 lines = []
 for line in text.splitlines():
-    if '/pve2/js/beagle-ui.js' in line or '/pve2/js/beagle-ui-config.js' in line or '/pve2/js/pve-dcv-integration.js' in line or '/pve2/js/pve-dcv-integration-config.js' in line:
+    if '/pve2/js/beagle-ui.js' in line or '/pve2/js/beagle-ui-common.js' in line or '/pve2/js/beagle-provider-registry.js' in line or '/pve2/js/beagle-virtualization-service.js' in line or '/pve2/js/beagle-platform-service.js' in line or '/pve2/js/beagle-proxmox-provider.js' in line or '/pve2/js/beagle-ui-api-client.js' in line or '/pve2/js/beagle-ui-installer-state.js' in line or '/pve2/js/beagle-ui-provisioning-api.js' in line or '/pve2/js/beagle-ui-usb-api.js' in line or '/pve2/js/beagle-ui-usb-ui.js' in line or '/pve2/js/beagle-ui-render-helpers.js' in line or '/pve2/js/beagle-ui-desktop-overlay.js' in line or '/pve2/js/beagle-ui-browser-actions.js' in line or '/pve2/js/beagle-ui-config.js' in line or '/pve2/js/pve-dcv-integration.js' in line or '/pve2/js/pve-dcv-integration-config.js' in line:
         continue
     lines.append(line)
 text = "\n".join(lines) + "\n"
-text = text.replace(needle, needle + config_include + "\n" + include + "\n", 1)
+text = text.replace(needle, needle + config_include + "\n" + common_include + "\n" + provider_registry_include + "\n" + api_client_include + "\n" + provisioning_api_include + "\n" + usb_api_include + "\n" + proxmox_provider_include + "\n" + virtualization_service_include + "\n" + platform_service_include + "\n" + state_include + "\n" + usb_ui_include + "\n" + components_ui_helpers_include + "\n" + components_desktop_overlay_include + "\n" + utils_browser_actions_include + "\n" + include + "\n", 1)
 path.write_text(text)
 PY
 
