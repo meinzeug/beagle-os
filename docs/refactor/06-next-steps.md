@@ -11,6 +11,7 @@ Extend the new provider-neutral seam beyond the first browser-side wiring step a
 3. Start a host-side provider seam for `proxmox-host/bin/beagle-control-plane.py`, initially around inventory and VM config access.
 4. Inventory direct `qm`/`pvesh` usage in scripts and move the first reusable calls behind a provider helper instead of raw subprocess invocations.
 5. Add broader automated checks for newly introduced browser-side modules beyond syntax-only validation.
+6. Keep `09-provider-abstraction.md` current whenever a direct Proxmox dependency is removed or newly discovered.
 
 ## After that
 

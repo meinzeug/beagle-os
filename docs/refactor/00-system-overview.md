@@ -8,6 +8,7 @@ Beagle OS currently operates as one product family with multiple deployable surf
 
 - Proxmox host control plane and hosted installers
 - Proxmox UI integration and browser-side operator workflows
+- provider-neutral browser/runtime seams under `core/` with Proxmox as the first implementation under `providers/`
 - Thin client installer and runtime for Moonlight/Sunshine
 - Gaming kiosk for GeForce NOW and store discovery
 - Public artifact publication and release packaging
@@ -41,6 +42,29 @@ Host-installed JavaScript injected into the Proxmox web UI.
   - call Beagle control-plane endpoints
   - export endpoint profiles
   - drive USB installer and provisioning actions
+
+### `core/`
+
+Provider-neutral runtime seams introduced incrementally.
+
+- Current modules:
+  - `core/provider/`
+  - `core/virtualization/`
+  - `core/platform/`
+- Responsibilities:
+  - define generic contracts for provider lookup
+  - route UI/business logic through stable service seams
+  - keep new logic independent from direct Proxmox transport details
+
+### `providers/`
+
+Concrete backend/provider implementations.
+
+- Current modules:
+  - `providers/proxmox/`
+- Responsibilities:
+  - encapsulate current Proxmox-specific browser/runtime behavior
+  - isolate `/api2/json`, `PVE.*`, `qm`, and `pvesh` assumptions over time
 
 ### `extension/`
 
@@ -169,6 +193,7 @@ Common recurring patterns:
 
 - large single-file implementations
 - duplicated browser-side logic across `proxmox-ui/`, `extension/`, and `website/`
+- provider-neutral seams have started in the browser layer, but most host/runtime/script surfaces are still directly Proxmox-coupled
 - shell-driven configuration rendering across multiple scripts
 - data contracts expressed implicitly through env vars and generated files rather than versioned schemas
 - validation focused on syntax and packaging preconditions, not behavior or contract verification
@@ -181,4 +206,3 @@ The baseline for the next steps is:
 - Phase 1 target architecture documented
 - multi-agent handoff files created under `docs/refactor/`
 - repository validation updated to enforce these documents
-

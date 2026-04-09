@@ -51,6 +51,11 @@
   - rewired `proxmox-ui/state/installer-eligibility.js` to use the new platform service
   - moved `proxmox-ui/beagle-ui.js` inventory/profile/fleet loading paths onto generic virtualization/platform services instead of direct `/api2/json` usage
   - updated Proxmox UI installation, validation, and source packaging to include the new `core/` and `providers/` assets
+- Continued the architecture handoff and rule set for provider-neutral work:
+  - updated `AGENTS.md` to make provider-neutrality and `09-provider-abstraction.md` part of the mandatory continuation flow
+  - updated refactor docs to describe `core/` and `providers/` as first-class repo surfaces
+  - extended the risk register with the incomplete-provider-abstraction risk
+  - aligned general architecture/security/install docs so Proxmox is described as the current provider, not as the permanent architecture center
 
 ### Current phase assessment
 
@@ -58,6 +63,7 @@
 - Phase 1 Target architecture: completed as a baseline
 - Phase 2 Proxmox UI refactor: started with a first helper extraction
 - Provider abstraction groundwork: started and wired into the browser-side UI flow
+- Provider-neutral documentation and continuation rules: aligned with the new architecture baseline
 - Phase 3 onward: not yet implemented structurally, except for process guardrails
 
 ### What is not done yet

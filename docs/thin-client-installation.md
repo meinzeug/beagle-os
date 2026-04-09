@@ -6,7 +6,9 @@ Beagle OS is built for one endpoint model:
 
 - `Sunshine` runs inside the streamed VM
 - `Moonlight` runs on the endpoint
-- `Proxmox` provides inventory, metadata and installer distribution
+- the current infrastructure provider supplies inventory, metadata and installer distribution
+
+Today that provider is Proxmox. The endpoint/runtime contract should remain stable even as provider-specific host integration is moved behind explicit provider seams.
 
 The repository ships both the Beagle endpoint runtime and the USB/local-disk installation path used to put that runtime onto real hardware or test VMs.
 
@@ -15,7 +17,7 @@ The repository ships both the Beagle endpoint runtime and the USB/local-disk ins
 - Debian or Ubuntu style package management on the build/installer side
 - the USB writer is executed on a Linux workstation with `sudo`
 - the resulting endpoint is a dedicated Beagle device, not a general-purpose desktop
-- the endpoint boots directly into a Moonlight session against a Proxmox-assigned Sunshine VM
+- the endpoint boots directly into a Moonlight session against a provider-assigned Sunshine VM
 
 ## Installation flow
 
@@ -26,7 +28,7 @@ The repository ships both the Beagle endpoint runtime and the USB/local-disk ins
 5. Write the installer to USB or install directly to a target disk.
 6. Boot the endpoint and verify that Moonlight starts against the intended VM.
 
-The preferred operator path is now VM-centric: the Proxmox host publishes one installer per VM, already seeded with the correct Beagle profile.
+The preferred operator path is now VM-centric: the current provider host publishes one installer per VM, already seeded with the correct Beagle profile.
 
 ## Moonlight profile behavior
 
@@ -36,7 +38,7 @@ A Beagle profile contains:
 - the Moonlight app name, usually `Desktop`
 - codec, decoder, bitrate, FPS and audio defaults
 - optional Sunshine credentials and pairing PIN
-- the bound Proxmox node and VMID
+- the current provider location/binding fields, today usually Proxmox node and VMID
 
 This means a Beagle endpoint does not need manual target entry during rollout.
 The endpoint simply boots with the profile that belongs to the streamed VM.
@@ -96,13 +98,13 @@ The Beagle host publishes these operator-facing endpoints:
 - hosted status JSON: `https://<proxmox-host>:8443/beagle-downloads/beagle-downloads-status.json`
 - Beagle control-plane health: `https://<proxmox-host>:8443/beagle-api/api/v1/health`
 
-In the Proxmox UI, the VM-specific download path is guarded by Beagle's installer preparation flow:
+In the current Proxmox UI path, the VM-specific download path is guarded by Beagle's installer preparation flow:
 
 - `USB Installer bereit`: the target VM is ready and the installer can be downloaded immediately
 - `Sunshine wird vorbereitet`: Beagle is still checking or configuring Sunshine for the selected VM
 - `Ziel ungeeignet`: the selected VM is not offered as a final streaming target
 
-The intended VM-centric flow is:
+The intended VM-centric flow today is:
 
 1. Download the VM-specific `USB Installer Skript` in Proxmox.
 2. Run the script on the workstation that has the target USB stick attached.

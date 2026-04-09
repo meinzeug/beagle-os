@@ -3,7 +3,7 @@
 ## Scope
 
 This repository does not provide a complete identity, secret-rotation or fleet-enrollment layer.
-It assumes Proxmox access, Sunshine access and endpoint hardening are managed by the surrounding environment.
+It assumes infrastructure-provider access, Sunshine access and endpoint hardening are managed by the surrounding environment. At the moment, the main provider is Proxmox.
 
 ## Proxmox operator surface
 
@@ -17,6 +17,7 @@ Operational implications:
 - treat VM description metadata as sensitive administrative input
 - limit who may edit or inspect Beagle-enabled VM descriptions
 - prefer dedicated Proxmox roles for operators who manage Beagle endpoints
+- when adding future providers, apply equivalent least-privilege controls instead of copying Proxmox assumptions into business logic
 
 ## Thin-client endpoint assumptions
 
@@ -29,13 +30,13 @@ Recommended hardening:
 
 - use a dedicated runtime user for the Beagle session
 - restrict shell access for the endpoint account
-- place endpoints in a network segment that can reach Proxmox and Sunshine, but not unnecessary destinations
+- place endpoints in a network segment that can reach the active management provider and Sunshine, but not unnecessary destinations
 - manage OS and package updates through standard patching workflows
 - protect exported `endpoint.env` files and support bundles as operational secrets
 
 ## Control plane assumptions
 
-- The Beagle control plane is intended to run behind the Proxmox host boundary.
+- The Beagle control plane is intended to run behind the current infrastructure-provider boundary.
 - Public health data may be exposed through the bundled `8443` endpoint.
 - Inventory endpoints should be treated as management APIs, not end-user APIs.
 

@@ -91,6 +91,7 @@ docs/refactor/
 - 06-next-steps.md
 - 07-decisions.md
 - 08-todo-global.md
+- 09-provider-abstraction.md
 
 ### 🔴 KRITISCHE REGEL:
 
@@ -100,6 +101,7 @@ Nach JEDEM größeren Schritt:
 - `06-next-steps.md` neu definieren
 - `08-todo-global.md` aktualisieren
 - `07-decisions.md` ergänzen (wenn Architektur betroffen)
+- `09-provider-abstraction.md` ergänzen (wenn Provider-/Backend-Kopplungen betroffen sind)
 
 ---
 
@@ -150,10 +152,29 @@ Definiere:
 - APIs
 - Abhängigkeiten
 - Migrationsstrategie
+- provider-neutrale Kernverträge
+- Trennung von Business-Logik und Provider-Implementierungen
 
 Schreibe:
 
 - 02-target-architecture.md
+- 09-provider-abstraction.md
+
+---
+
+### QUERSCHNITT – Provider-Abstraktion
+
+Ziel:
+
+- Proxmox kurzfristig voll unterstützen
+- Proxmox langfristig austauschbar machen
+- keine neue Business-Logik direkt an Proxmox koppeln
+
+Regeln:
+
+- generische Verträge zuerst
+- Proxmox nur als Implementierung hinter dem Vertrag
+- neue direkte Proxmox-Kopplung nur mit Dokumentation in `09-provider-abstraction.md`
 
 ---
 
@@ -251,7 +272,8 @@ Am Ende jedes Runs MUSST du:
 1. `05-progress.md` aktualisieren
 2. `06-next-steps.md` schreiben
 3. `08-todo-global.md` aktualisieren
-4. Offene Probleme dokumentieren
+4. `09-provider-abstraction.md` aktualisieren, wenn Provider-/Backend-Grenzen berührt wurden
+5. Offene Probleme dokumentieren
 
 Schreibe IMMER:
 

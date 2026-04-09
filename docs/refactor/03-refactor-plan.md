@@ -4,7 +4,8 @@
 
 - Phase 0 Analysis: baseline completed in this run
 - Phase 1 Target architecture: baseline completed in this run
-- Phase 2 Proxmox UI refactor: not started
+- Phase 2 Proxmox UI refactor: started and partially extracted
+- Provider abstraction foundation: started in the browser-side UI path
 - Phase 3 Thin client runtime refactor: not started
 - Phase 4 Security hardening: not started
 - Phase 5 Packaging / build modularization: started only for process guardrails

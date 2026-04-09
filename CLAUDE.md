@@ -1,11 +1,13 @@
 # Beagle OS
 
-Open-source Proxmox host tooling, endpoint runtime, gaming kiosk, and installer stack.
+Open-source host tooling, endpoint runtime, gaming kiosk, and installer stack with Proxmox as the current first provider.
 
 ## Architecture
 
 - **proxmox-host/**: Control plane (Python API server on port 9088) plus systemd services
 - **proxmox-ui/**: JavaScript injection into the Proxmox VE UI
+- **core/**: Provider-neutral contracts and shared services
+- **providers/**: Concrete provider implementations, currently Proxmox
 - **extension/**: Browser extension for Chrome/Firefox
 - **thin-client-assistant/**: Endpoint runtime, installer, and USB writers
 - **beagle-os/**: Dedicated endpoint OS image builder
@@ -16,7 +18,7 @@ Open-source Proxmox host tooling, endpoint runtime, gaming kiosk, and installer 
 ## Key files
 
 - `proxmox-host/bin/beagle-control-plane.py` - Main API server
-- `proxmox-ui/beagle-ui.js` - Proxmox UI integration
+- `proxmox-ui/beagle-ui.js` - Proxmox UI integration entrypoint
 - `beagle-kiosk/main.js` - Gaming kiosk main process
 - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer` - Interactive server installer
 

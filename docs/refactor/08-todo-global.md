@@ -3,6 +3,7 @@
 - [x] Create the mandatory `docs/refactor/` handoff set.
 - [x] Remove `AGENTS.md` from `.gitignore`.
 - [x] Enforce `AGENTS.md` and `docs/refactor/` presence in project validation.
+- [x] Enforce `docs/refactor/09-provider-abstraction.md` as part of the required handoff set.
 - [x] Include `AGENTS.md` in the packaged source tarball.
 - [x] Start Proxmox UI seam extraction with `proxmox-ui/beagle-ui-common.js`.
 - [x] Extract initial `proxmox-ui/api-client/` and `proxmox-ui/state/` modules.
