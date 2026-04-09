@@ -11,6 +11,12 @@ Beagle OS bleibt:
 - Gaming-Kiosk (GeForce NOW etc.)  
 - Host-Installer + Artifact-/Fleet-/Provisioning-System  
 
+Architekturregel ab jetzt:
+
+- Proxmox ist ein **temporärer erster Provider**, nicht das dauerhafte Architekturzentrum.
+- Neue Architektur MUSS provider-neutral bleiben.
+- Neue direkte Proxmox-Kopplung darf nur noch in klar benannten Provider-Schichten entstehen.
+
 ---
 
 ## ⚠️ Grundregeln
@@ -31,6 +37,19 @@ Beagle OS bleibt:
   - Wartbarkeit
   - Sicherheit
   - Testbarkeit
+  - Provider-Neutralität
+
+## 🧩 Provider-Prinzip (NEU, verbindlich)
+
+- Neue Geschäftslogik darf **nicht** direkt an Proxmox-APIs, `qm`, `pvesh`, `/api2/json`, `PVE.*` oder Proxmox-Dateipfade gekoppelt werden.
+- Stattdessen immer zuerst über generische Schichten arbeiten, z. B.:
+  - `core/provider/`
+  - `core/virtualization/`
+  - `core/platform/`
+  - `providers/proxmox/`
+- Proxmox-spezifische Implementierungen gehören nur in `providers/proxmox/` oder klar markierte Migrations-Shims.
+- UI-Logik soll gegen generische Services/Contracts arbeiten, nicht gegen Proxmox direkt.
+- Host-/Provisioning-/Inventory-Logik soll schrittweise auf dieselben provider-neutralen Verträge umgestellt werden.
 
 ---
 

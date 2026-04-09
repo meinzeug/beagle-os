@@ -18,6 +18,26 @@ check_tool node
 check_tool rg
 check_tool python3
 
+required_docs=(
+  "$ROOT_DIR/AGENTS.md"
+  "$ROOT_DIR/docs/refactor/00-system-overview.md"
+  "$ROOT_DIR/docs/refactor/01-problem-analysis.md"
+  "$ROOT_DIR/docs/refactor/02-target-architecture.md"
+  "$ROOT_DIR/docs/refactor/03-refactor-plan.md"
+  "$ROOT_DIR/docs/refactor/04-risk-register.md"
+  "$ROOT_DIR/docs/refactor/05-progress.md"
+  "$ROOT_DIR/docs/refactor/06-next-steps.md"
+  "$ROOT_DIR/docs/refactor/07-decisions.md"
+  "$ROOT_DIR/docs/refactor/08-todo-global.md"
+)
+
+for file in "${required_docs[@]}"; do
+  if [[ ! -f "$file" ]]; then
+    echo "Missing required documentation file: $file" >&2
+    exit 1
+  fi
+done
+
 mapfile -t shell_files < <(
   find \
     "$ROOT_DIR/scripts" \
@@ -46,7 +66,20 @@ if (( ${#python_files[@]} > 0 )); then
 fi
 
 node --check "$ROOT_DIR/proxmox-ui/beagle-ui.js"
+node --check "$ROOT_DIR/proxmox-ui/beagle-ui-common.js"
+node --check "$ROOT_DIR/core/provider/registry.js"
+node --check "$ROOT_DIR/core/virtualization/service.js"
+node --check "$ROOT_DIR/core/platform/service.js"
+node --check "$ROOT_DIR/providers/proxmox/virtualization-provider.js"
+node --check "$ROOT_DIR/proxmox-ui/api-client/beagle-api.js"
 node --check "$ROOT_DIR/proxmox-ui/beagle-autologin.js"
+node --check "$ROOT_DIR/proxmox-ui/provisioning/api.js"
+node --check "$ROOT_DIR/proxmox-ui/state/installer-eligibility.js"
+node --check "$ROOT_DIR/proxmox-ui/usb/api.js"
+node --check "$ROOT_DIR/proxmox-ui/usb/ui.js"
+node --check "$ROOT_DIR/proxmox-ui/components/ui-helpers.js"
+node --check "$ROOT_DIR/proxmox-ui/components/desktop-overlay.js"
+node --check "$ROOT_DIR/proxmox-ui/utils/browser-actions.js"
 node --check "$ROOT_DIR/extension/content.js"
 node --check "$ROOT_DIR/extension/options.js"
 node --check "$ROOT_DIR/beagle-kiosk/main.js"

@@ -1,0 +1,25 @@
+# Global TODO
+
+- [x] Create the mandatory `docs/refactor/` handoff set.
+- [x] Remove `AGENTS.md` from `.gitignore`.
+- [x] Enforce `AGENTS.md` and `docs/refactor/` presence in project validation.
+- [x] Include `AGENTS.md` in the packaged source tarball.
+- [x] Start Proxmox UI seam extraction with `proxmox-ui/beagle-ui-common.js`.
+- [x] Extract initial `proxmox-ui/api-client/` and `proxmox-ui/state/` modules.
+- [x] Extract initial `proxmox-ui/provisioning/` and `proxmox-ui/usb/` API modules.
+- [x] Extract initial `proxmox-ui/utils/` browser action module.
+- [x] Extract the first `proxmox-ui/usb/` UI state module.
+- [x] Extract initial `proxmox-ui/components/` helpers and desktop overlay renderer.
+- [x] Introduce the first provider-neutral browser-side seams under `core/provider/`, `core/virtualization/`, `core/platform/`, and `providers/proxmox/`.
+- [ ] Extract `proxmox-ui/beagle-ui.js` into `api-client/`, `state/`, `components/`, `provisioning/`, `usb/`, and `utils/`.
+- [ ] Move the browser extension off direct Proxmox inventory/profile calls and onto aligned provider-neutral services.
+- [ ] Split host-side Proxmox inventory/config access behind provider helpers instead of raw `pvesh`/`qm` calls.
+- [ ] Inventory all direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally.
+- [ ] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
+- [ ] Define a stable endpoint profile contract shared by host, UI, and installer generation.
+- [ ] Split `proxmox-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
+- [ ] Split thin client runtime logic into config, runtime, network, pairing, and Moonlight launch seams.
+- [ ] Add smoke validation for generated installer URLs and public artifact filenames.
+- [ ] Add release-surface verification helpers for both linked servers.
+- [ ] Reduce frontend token exposure and clarify secret-handling rules across all browser surfaces.
+- [ ] Extract GFN launch and session supervision helpers from `beagle-kiosk/main.js`.

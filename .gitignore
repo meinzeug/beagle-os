@@ -11,7 +11,6 @@ __pycache__/
 SHA256SUMS
 node_modules/
 tmp/
-AGENTS.md
 beagle-kiosk/node_modules/
 beagle-kiosk/dist/
 beagle-kiosk/*.AppImage
