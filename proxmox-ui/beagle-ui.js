@@ -14,6 +14,8 @@
   var usbUi = window.BeagleUiUsbUi;
   var renderHelpers = window.BeagleUiRenderHelpers;
   var desktopOverlay = window.BeagleUiDesktopOverlay;
+  var profileModal = window.BeagleUiProfileModal;
+  var fleetModal = window.BeagleUiFleetModal;
   var browserActions = window.BeagleUiBrowserActions;
 
   if (!common) {
@@ -39,6 +41,12 @@
   }
   if (!desktopOverlay) {
     throw new Error("BeagleUiDesktopOverlay must be loaded before beagle-ui.js");
+  }
+  if (!profileModal) {
+    throw new Error("BeagleUiProfileModal must be loaded before beagle-ui.js");
+  }
+  if (!fleetModal) {
+    throw new Error("BeagleUiFleetModal must be loaded before beagle-ui.js");
   }
   if (!browserActions) {
     throw new Error("BeagleUiBrowserActions must be loaded before beagle-ui.js");
@@ -1170,40 +1178,7 @@
   }
 
   function copyText(text, successMessage) {
-    var value = String(text || "");
-    if (!value) {
-      showError("Keine Daten zum Kopieren vorhanden.");
-      return;
-    }
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(value).then(function() {
-        showToast(successMessage || "In die Zwischenablage kopiert.");
-      }).catch(function() {
-        fallbackCopyText(value, successMessage);
-      });
-      return;
-    }
-
-    fallbackCopyText(value, successMessage);
-  }
-
-  function fallbackCopyText(text, successMessage) {
-    var textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.style.position = "fixed";
-    textarea.style.opacity = "0";
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    try {
-      document.execCommand("copy");
-      showToast(successMessage || "In die Zwischenablage kopiert.");
-    } catch (error) {
-      showError("Kopieren fehlgeschlagen.");
-    } finally {
-      textarea.remove();
-    }
+    return profileModal.copyText(showError, showToast, text, successMessage);
   }
 
   function parseDescriptionMeta(description) {
@@ -1227,16 +1202,6 @@
         }
       });
     return meta;
-  }
-
-  function maskSecret(value) {
-    if (!value) {
-      return "nicht gesetzt";
-    }
-    if (value.length <= 4) {
-      return "****";
-    }
-    return value.slice(0, 2) + "***" + value.slice(-2);
   }
 
   function apiGetJson(path) {
@@ -1300,84 +1265,6 @@
     return usbUi.applyInstallerPrepState(overlay, state);
   }
 
-  async function prepareInstallerDownload(profile, overlay, artifactKey, actionName, loadingLabel, successMessage, filenameOverride) {
-    var downloadButton = overlay.querySelector('[data-beagle-action="' + actionName + '"]');
-    var originalText = downloadButton ? downloadButton.textContent : "USB Installer";
-    var state = null;
-    var attempt;
-    var status;
-    var artifactUrl = profile && profile[artifactKey] ? String(profile[artifactKey]) : "";
-    var filename = filenameOverride || (artifactKey === "installerWindowsUrl"
-      ? ("pve-thin-client-usb-installer-vm-" + profile.vmid + ".ps1")
-      : ("pve-thin-client-usb-installer-vm-" + profile.vmid + ".sh"));
-    var requiresProtectedDownload = /^\/beagle-api\//.test(artifactUrl);
-
-    if (profile && profile.installerTargetEligible === false) {
-      applyInstallerPrepState(overlay, profile.installerPrep || {});
-      return;
-    }
-
-    if (downloadButton) {
-      downloadButton.disabled = true;
-      downloadButton.textContent = loadingLabel;
-    }
-
-    try {
-      state = await apiGetInstallerPrep(profile.vmid).catch(function() {
-        return profile.installerPrep || null;
-      });
-      if (state) {
-        applyInstallerPrepState(overlay, state);
-      }
-      status = String(state && state.status || "").toLowerCase();
-      if (state && String(state && state.status || "").toLowerCase() === "ready") {
-        if (requiresProtectedDownload) {
-          await downloadProtectedFile(normalizeBeagleApiPath(profile[artifactKey]), filename);
-        } else {
-          triggerDownload(profile[artifactKey]);
-        }
-        showToast(successMessage);
-        return;
-      }
-      if (!shouldReuseInstallerPrepState(state)) {
-        state = await apiStartInstallerPrep(profile.vmid);
-        applyInstallerPrepState(overlay, state);
-      }
-      for (attempt = 0; attempt < 180; attempt += 1) {
-        if (String(state && state.status || "").toLowerCase() === "ready") {
-          if (requiresProtectedDownload) {
-            await downloadProtectedFile(normalizeBeagleApiPath(profile[artifactKey]), filename);
-          } else {
-            triggerDownload(profile[artifactKey]);
-          }
-          showToast(successMessage);
-          return;
-        }
-        if (String(state && state.status || "").toLowerCase() === "error") {
-          throw new Error(String(state && state.message || "Installer-Vorbereitung fehlgeschlagen."));
-        }
-        await sleep(2000);
-        state = await apiGetInstallerPrep(profile.vmid);
-        applyInstallerPrepState(overlay, state);
-      }
-      throw new Error("Installer-Vorbereitung hat das Zeitlimit ueberschritten.");
-    } catch (error) {
-      applyInstallerPrepState(overlay, {
-        status: "error",
-        phase: "failed",
-        progress: 100,
-        message: error && error.message ? error.message : "Installer-Vorbereitung fehlgeschlagen.",
-        sunshine_status: state && state.sunshine_status || null
-      });
-      showError("Installer konnte nicht vorbereitet werden: " + (error && error.message ? error.message : error));
-    } finally {
-      if (downloadButton) {
-        downloadButton.disabled = false;
-        downloadButton.textContent = originalText;
-      }
-    }
-  }
-
   function firstGuestIpv4(interfaces) {
     var list = Array.isArray(interfaces) ? interfaces : [];
     var iface;
@@ -1402,402 +1289,43 @@
     return "";
   }
 
+  function formatActionState(ok) {
+    return profileModal.formatActionState(ok);
+  }
+
   function buildEndpointEnv(profile) {
-    var endpointProfileName = profile.expectedProfileName || ("vm-" + profile.vmid);
-    var lines = [
-      "PVE_THIN_CLIENT_MODE=\"MOONLIGHT\"",
-      "PVE_THIN_CLIENT_PROFILE_NAME=\"" + endpointProfileName + "\"",
-      "PVE_THIN_CLIENT_AUTOSTART=\"1\"",
-      "PVE_THIN_CLIENT_PROXMOX_HOST=\"" + (profile.proxmoxHost || window.location.hostname) + "\"",
-      "PVE_THIN_CLIENT_PROXMOX_PORT=\"8006\"",
-      "PVE_THIN_CLIENT_PROXMOX_NODE=\"" + (profile.node || "") + "\"",
-      "PVE_THIN_CLIENT_PROXMOX_VMID=\"" + String(profile.vmid || "") + "\"",
-      "PVE_THIN_CLIENT_BEAGLE_MANAGER_URL=\"" + (profile.managerUrl || "") + "\"",
-      "PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY=\"" + (profile.managerPinnedPubkey || "") + "\"",
-      "PVE_THIN_CLIENT_MOONLIGHT_HOST=\"" + (profile.streamHost || "") + "\"",
-      "PVE_THIN_CLIENT_MOONLIGHT_PORT=\"" + (profile.moonlightPort || "") + "\"",
-      "PVE_THIN_CLIENT_MOONLIGHT_APP=\"" + (profile.app || "Desktop") + "\"",
-      "PVE_THIN_CLIENT_MOONLIGHT_RESOLUTION=\"" + (profile.resolution || "auto") + "\"",
-      "PVE_THIN_CLIENT_MOONLIGHT_FPS=\"" + (profile.fps || "60") + "\"",
-      "PVE_THIN_CLIENT_MOONLIGHT_BITRATE=\"" + (profile.bitrate || "20000") + "\"",
-      "PVE_THIN_CLIENT_MOONLIGHT_VIDEO_CODEC=\"" + (profile.codec || "H.264") + "\"",
-      "PVE_THIN_CLIENT_MOONLIGHT_VIDEO_DECODER=\"" + (profile.decoder || "auto") + "\"",
-      "PVE_THIN_CLIENT_MOONLIGHT_AUDIO_CONFIG=\"" + (profile.audio || "stereo") + "\"",
-      "PVE_THIN_CLIENT_SUNSHINE_API_URL=\"" + (profile.sunshineApiUrl || "") + "\"",
-      "PVE_THIN_CLIENT_SUNSHINE_USERNAME=\"" + (profile.sunshineUsername || "") + "\"",
-      "PVE_THIN_CLIENT_SUNSHINE_PASSWORD=\"" + (profile.sunshinePassword || "") + "\"",
-      "PVE_THIN_CLIENT_SUNSHINE_PIN=\"" + (profile.sunshinePin || "") + "\""
-    ];
-    return lines.join("\n") + "\n";
+    return profileModal.buildEndpointEnv(profile);
   }
 
   function buildNotes(profile) {
-    var notes = [];
-    if (!profile.streamHost) {
-      notes.push("Kein Moonlight-/Sunshine-Ziel in der VM-Metadatenbeschreibung gefunden.");
-    }
-    if (!profile.sunshineApiUrl) {
-      notes.push("Keine Sunshine API URL gesetzt. Pairing und Healthchecks koennen nicht vorab validiert werden.");
-    }
-    if (!profile.sunshinePassword) {
-      notes.push("Kein Sunshine-Passwort hinterlegt. Fuer direkte API-Aktionen ist dann ein vorregistriertes Zertifikat oder manuelles Pairing noetig.");
-    }
-    if (!profile.guestIp) {
-      notes.push("Keine Guest-Agent-IPv4 erkannt. Beagle kann dann nur mit Metadaten arbeiten.");
-    }
-    if (!notes.length) {
-      notes.push("VM-Profil ist vollstaendig genug fuer einen vorkonfigurierten Beagle-Endpoint mit Moonlight-Autostart.");
-    }
-    if (profile.assignedTarget) {
-      notes.push("Endpoint ist auf Ziel-VM " + profile.assignedTarget.name + " (#" + profile.assignedTarget.vmid + ") zugewiesen.");
-    }
-    if (profile.appliedPolicy && profile.appliedPolicy.name) {
-      notes.push("Manager-Policy aktiv: " + profile.appliedPolicy.name + ".");
-    }
-    if (profile.compliance && profile.compliance.status === "drifted") {
-      notes.push("Endpoint driftet vom gewuenschten Profil ab (" + String(profile.compliance.drift_count || 0) + " Abweichungen).");
-    }
-    if (profile.compliance && profile.compliance.status === "degraded") {
-      notes.push("Endpoint ist konfigurationsgleich, aber betrieblich degradiert (" + String(profile.compliance.alert_count || 0) + " Warnungen).");
-    }
-    if (Number(profile.pendingActionCount || 0) > 0) {
-      notes.push("Fuer diesen Endpoint warten " + String(profile.pendingActionCount) + " Beagle-Aktion(en) auf Ausfuehrung.");
-    }
-    if (profile.lastAction && profile.lastAction.action) {
-      notes.push("Letzte Endpoint-Aktion: " + profile.lastAction.action + " (" + formatActionState(profile.lastAction.ok) + ").");
-    }
-    if (profile.lastAction && profile.lastAction.stored_artifact_path) {
-      notes.push("Diagnoseartefakt ist zentral auf dem Beagle-Manager gespeichert.");
-    }
-    if (profile.installerPrep && profile.installerPrep.status === "ready") {
-      notes.push("Installer-Vorbereitung ist bereits abgeschlossen. Der USB-Installer ist sofort freigegeben.");
-    }
-    return notes;
-  }
-
-  function formatActionState(ok) {
-    if (ok === true) {
-      return "ok";
-    }
-    if (ok === false) {
-      return "error";
-    }
-    return "pending";
-  }
-
-  function renderStatusBadge(status) {
-    var value = String(status || "unknown").toLowerCase();
-    return '<span class="beagle-badge ' + escapeHtml(value) + '">' + escapeHtml(value) + '</span>';
+    return profileModal.buildNotes(profile);
   }
 
   function renderProvisioningBadge(state) {
     return '<span class="beagle-badge ' + provisioningStatusBadgeClass(state) + '">' + escapeHtml(provisioningStatusLabel(state)) + '</span>';
   }
 
-  function createPolicyFromInventoryItem(item) {
-    var target = item && item.assigned_target ? item.assigned_target : null;
-    if (!target || !target.vmid) {
-      throw new Error("Kein zugewiesenes Ziel fuer diese VM vorhanden.");
-    }
-    return {
-      name: "vm-" + String(item.vmid) + "-managed",
-      enabled: true,
-      priority: 700,
-      selector: {
-        vmid: Number(item.vmid),
-        node: item.node || "",
-        role: "endpoint"
-      },
-      profile: {
-        beagle_role: "endpoint",
-        expected_profile_name: item.expected_profile_name || ("vm-" + String(target.vmid)),
-        network_mode: item.network_mode || "dhcp",
-        moonlight_app: item.moonlight_app || "Desktop",
-        assigned_target: {
-          vmid: Number(target.vmid),
-          node: target.node || ""
-        }
-      }
-    };
-  }
-
-  function selectedFleetVmids(overlay) {
-    return Array.prototype.slice.call(overlay.querySelectorAll('.beagle-row-select[data-vmid]:checked')).map(function(element) {
-      return Number(element.getAttribute('data-vmid'));
-    }).filter(function(value) {
-      return Number.isFinite(value) && value > 0;
-    });
-  }
-
-  function selectedFleetItems(overlay, vms) {
-    var selected = new Set(selectedFleetVmids(overlay));
-    return vms.filter(function(item) {
-      return selected.has(Number(item.vmid));
-    });
-  }
-
-  function queueBulkAction(vmids, actionName) {
-    if (!vmids.length) {
-      throw new Error('Keine Endpoints ausgewaehlt.');
-    }
-    return platformService.queueBulkAction(vmids, actionName);
-  }
-
   function renderFleetModal(payload) {
-    var overlay = document.createElement("div");
-    var vms = payload && Array.isArray(payload.vms) ? payload.vms : [];
-    var policies = payload && Array.isArray(payload.policies) ? payload.policies : [];
-    var health = payload && payload.health ? payload.health : {};
-    var catalog = payload && payload.catalog ? payload.catalog : {};
-    var defaults = catalog && catalog.defaults ? catalog.defaults : {};
-    var requests = Array.isArray(catalog && catalog.recent_requests) ? catalog.recent_requests : [];
-    var osProfiles = Array.isArray(catalog && catalog.os_profiles) ? catalog.os_profiles : [];
-    var desktopProfiles = Array.isArray(catalog && catalog.desktop_profiles) ? catalog.desktop_profiles : [];
-    var softwarePresetCatalog = Array.isArray(catalog && catalog.software_presets) ? catalog.software_presets : [];
-    var nodes = Array.isArray(catalog && catalog.nodes) ? catalog.nodes : [];
-    var imageStorages = catalog && catalog.storages && Array.isArray(catalog.storages.images) ? catalog.storages.images : [];
-    var isoStorages = catalog && catalog.storages && Array.isArray(catalog.storages.iso) ? catalog.storages.iso : [];
-    var endpointCounts = health.endpoint_status_counts || {};
-    var vmRows = vms.map(function(item) {
-      var lastAction = item.last_action || {};
-      var provisioning = item.provisioning || null;
-      var bundleDownloadPath = lastAction.stored_artifact_download_path || "";
-      var policyName = item.applied_policy && item.applied_policy.name || "";
-      return '' +
-        '<tr>' +
-        '  <td class="beagle-select-cell"><input class="beagle-row-select" type="checkbox" data-vmid="' + escapeHtml(String(item.vmid || "")) + '"></td>' +
-        '  <td><strong>' + escapeHtml(item.name || ("vm-" + item.vmid)) + '</strong><br><span class="beagle-muted">#' + escapeHtml(String(item.vmid || "")) + ' / ' + escapeHtml(item.node || "") + '</span></td>' +
-        '  <td>' + renderStatusBadge(item.compliance && item.compliance.status || "unknown") + '<br><span class="beagle-muted">' + escapeHtml(item.assignment_source || "unassigned") + '</span></td>' +
-        '  <td>' + (provisioning ? renderProvisioningBadge(provisioning) + '<br><span class="beagle-muted">' + escapeHtml(String(provisioning.phase || "")) + '</span><br><span class="beagle-muted">' + escapeHtml(String(provisioning.hostname || "")) + '</span>' : '<span class="beagle-muted">kein Provisioning-State</span>') + '</td>' +
-        '  <td>' + escapeHtml(item.assigned_target ? (item.assigned_target.name + " (#" + item.assigned_target.vmid + ")") : "") + '<br><span class="beagle-muted">' + escapeHtml(item.stream_host || "") + '</span></td>' +
-        '  <td>' + escapeHtml(policyName || "keine") + '<br><span class="beagle-muted">Bundles: ' + escapeHtml(String(item.support_bundle_count || 0)) + '</span></td>' +
-        '  <td>' + escapeHtml(item.endpoint && item.endpoint.reported_at || "") + '<br><span class="beagle-muted">Age: ' + escapeHtml(String(item.endpoint && item.endpoint.report_age_seconds || 0)) + 's</span><br><span class="beagle-muted">' + escapeHtml(lastAction.action || "") + " " + escapeHtml(formatActionState(lastAction.ok)) + '</span></td>' +
-        '  <td><div class="beagle-inline-actions">' +
-        '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="profile" data-vmid="' + escapeHtml(String(item.vmid || "")) + '" data-node="' + escapeHtml(item.node || "") + '">Profil</button>' +
-        (String(item.beagle_role || "").toLowerCase() === 'desktop' ? '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="edit-desktop" data-vmid="' + escapeHtml(String(item.vmid || "")) + '" data-node="' + escapeHtml(item.node || "") + '">Bearbeiten</button>' : '') +
-        (provisioning ? '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="copy-credentials" data-vmid="' + escapeHtml(String(item.vmid || "")) + '">Credentials</button>' : '') +
-        '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="healthcheck" data-vmid="' + escapeHtml(String(item.vmid || "")) + '">Check</button>' +
-        '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="support-bundle" data-vmid="' + escapeHtml(String(item.vmid || "")) + '">Bundle</button>' +
-        (bundleDownloadPath ? '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="download-bundle" data-bundle-path="' + escapeHtml(bundleDownloadPath) + '" data-bundle-name="vm-' + escapeHtml(String(item.vmid || "")) + '-support.tar.gz">Download</button>' : '') +
-        (policyName ? '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="delete-policy" data-policy-name="' + escapeHtml(policyName) + '">Policy loeschen</button>' : (item.assigned_target ? '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="create-policy" data-vmid="' + escapeHtml(String(item.vmid || "")) + '">Zu Policy</button>' : '')) +
-        '  </div></td>' +
-        '</tr>';
-    }).join("");
-    var policyRows = policies.map(function(policy) {
-      var selector = policy.selector || {};
-      var profile = policy.profile || {};
-      return '' +
-        '<tr>' +
-        '  <td><strong>' + escapeHtml(policy.name || "") + '</strong></td>' +
-        '  <td>' + escapeHtml(String(policy.priority || 0)) + '</td>' +
-        '  <td>' + escapeHtml(selector.vmid ? ("VM " + selector.vmid) : "") + ' ' + escapeHtml(selector.node || "") + ' ' + escapeHtml(selector.role || "") + '</td>' +
-        '  <td>' + escapeHtml(profile.expected_profile_name || "") + '<br><span class="beagle-muted">' + escapeHtml(profile.network_mode || "") + '</span></td>' +
-        '  <td><button type="button" class="beagle-mini-btn" data-beagle-fleet-action="delete-policy" data-policy-name="' + escapeHtml(policy.name || "") + '">Loeschen</button></td>' +
-        '</tr>';
-    }).join("");
-    var requestRows = requests.slice(0, 10).map(function(item) {
-      return '' +
-        '<tr>' +
-        '  <td><strong>' + escapeHtml(String(item.name || ("vm-" + item.vmid))) + '</strong><br><span class="beagle-muted">#' + escapeHtml(String(item.vmid || "")) + ' / ' + escapeHtml(String(item.node || "")) + '</span></td>' +
-        '  <td>' + renderProvisioningBadge(item) + '</td>' +
-        '  <td>' + escapeHtml(String(item.phase || "")) + '<br><span class="beagle-muted">' + escapeHtml(String(item.message || "")) + '</span></td>' +
-        '  <td>' + escapeHtml(String(item.created_at || "")) + '<br><span class="beagle-muted">' + escapeHtml(String(item.completed_at || item.updated_at || "")) + '</span></td>' +
-        '  <td><div class="beagle-inline-actions">' +
-        '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="request-profile" data-vmid="' + escapeHtml(String(item.vmid || "")) + '" data-node="' + escapeHtml(String(item.node || "")) + '">Profil</button>' +
-        '    <button type="button" class="beagle-mini-btn" data-beagle-fleet-action="copy-credentials" data-vmid="' + escapeHtml(String(item.vmid || "")) + '">Credentials</button>' +
-        '  </div></td>' +
-        '</tr>';
-    }).join("");
-    var osProfileRows = osProfiles.map(function(item) {
-      return '' +
-        '<tr>' +
-        '  <td><strong>' + escapeHtml(String(item.label || item.id || "")) + '</strong><br><span class="beagle-muted">' + escapeHtml(String(item.id || "")) + '</span></td>' +
-        '  <td>' + escapeHtml(String(item.release || "")) + '</td>' +
-        '  <td>' + escapeHtml(String(item.desktop || "")) + '</td>' +
-        '  <td>' + escapeHtml(String(item.streaming || "")) + '</td>' +
-        '  <td>' + escapeHtml(Array.isArray(item.features) ? item.features.join(", ") : "") + '</td>' +
-        '</tr>';
-    }).join("");
-    var desktopProfileRows = desktopProfiles.map(function(item) {
-      return '' +
-        '<tr>' +
-        '  <td><strong>' + escapeHtml(String(item.label || item.id || "")) + '</strong><br><span class="beagle-muted">' + escapeHtml(String(item.id || "")) + '</span></td>' +
-        '  <td>' + escapeHtml(String(item.session || "")) + '</td>' +
-        '  <td>' + escapeHtml(Array.isArray(item.packages) ? item.packages.join(", ") : "") + '</td>' +
-        '  <td>' + escapeHtml(Array.isArray(item.features) ? item.features.join(", ") : "") + '</td>' +
-        '</tr>';
-    }).join("");
-    var softwarePresetRows = softwarePresetCatalog.map(function(item) {
-      return '' +
-        '<tr>' +
-        '  <td><strong>' + escapeHtml(String(item.label || item.id || "")) + '</strong><br><span class="beagle-muted">' + escapeHtml(String(item.id || "")) + '</span></td>' +
-        '  <td>' + escapeHtml(String(item.description || "")) + '</td>' +
-        '  <td>' + escapeHtml(Array.isArray(item.packages) ? item.packages.join(", ") : "") + '</td>' +
-        '</tr>';
-    }).join("");
-
-    overlay.id = OVERLAY_ID;
-    overlay.innerHTML = '' +
-      '<div class="beagle-modal" role="dialog" aria-modal="true" aria-label="Beagle Fleet">' +
-      '  <div class="beagle-header">' +
-      '    <div><h2 class="beagle-title">Beagle Fleet</h2><p class="beagle-subtitle">Zentrale Provisioning-, Runtime- und Diagnose-Sicht fuer Proxmox.</p></div>' +
-      '    <button type="button" class="beagle-close" aria-label="Schliessen">×</button>' +
-      '  </div>' +
-      '  <div class="beagle-body">' +
-      '    <div class="beagle-actions">' +
-      '      <button type="button" class="beagle-btn primary" data-beagle-fleet-action="create-vm">Neue Beagle VM</button>' +
-      '      <button type="button" class="beagle-btn primary" data-beagle-fleet-action="refresh">Aktualisieren</button>' +
-      '      <button type="button" class="beagle-btn secondary" data-beagle-fleet-action="bulk-healthcheck">Bulk Check</button>' +
-      '      <button type="button" class="beagle-btn secondary" data-beagle-fleet-action="bulk-support-bundle">Bulk Bundle</button>' +
-      '      <button type="button" class="beagle-btn secondary" data-beagle-fleet-action="bulk-create-policy">Bulk Policy</button>' +
-      '      <button type="button" class="beagle-btn secondary" data-beagle-fleet-action="open-health">Health</button>' +
-      '      <button type="button" class="beagle-btn secondary" data-beagle-fleet-action="copy-policies">Policies JSON</button>' +
-      '    </div>' +
-      '    <div class="beagle-grid">' +
-      '      <section class="beagle-card"><h3>Fleet</h3><div class="beagle-kv">' +
-                kvRow('Endpoints', escapeHtml(String(health.endpoint_count || 0))) +
-                kvRow('Policies', escapeHtml(String(health.policy_count || 0))) +
-                kvRow('Healthy', escapeHtml(String(endpointCounts.healthy || 0))) +
-                kvRow('Pending', escapeHtml(String(endpointCounts.pending || 0))) +
-      '      </div></section>' +
-      '      <section class="beagle-card"><h3>Compliance</h3><div class="beagle-kv">' +
-                kvRow('Stale', escapeHtml(String(endpointCounts.stale || 0))) +
-                kvRow('Degraded', escapeHtml(String(endpointCounts.degraded || 0))) +
-                kvRow('Drifted', escapeHtml(String(endpointCounts.drifted || 0))) +
-                kvRow('Unmanaged', escapeHtml(String(endpointCounts.unmanaged || 0))) +
-                kvRow('Generated', escapeHtml(health.generated_at || '')) +
-      '      </div></section>' +
-      '      <section class="beagle-card"><h3>Provisioning</h3><div class="beagle-kv">' +
-                kvRow('Next VMID', escapeHtml(String(defaults.next_vmid || ''))) +
-                kvRow('Default Node', escapeHtml(String(defaults.node || ''))) +
-                kvRow('Bridge', escapeHtml(String(defaults.bridge || ''))) +
-                kvRow('Disk Storage', escapeHtml(String(defaults.disk_storage || ''))) +
-                kvRow('ISO Storage', escapeHtml(String(defaults.iso_storage || ''))) +
-      '      </div></section>' +
-      '      <section class="beagle-card"><h3>Katalog</h3><div class="beagle-kv">' +
-                kvRow('OS Profile', escapeHtml(String(osProfiles.length || 0))) +
-                kvRow('Desktop Profile', escapeHtml(String(desktopProfiles.length || 0))) +
-                kvRow('Software Presets', escapeHtml(String(softwarePresetCatalog.length || 0))) +
-                kvRow('Nodes', escapeHtml(String(nodes.length || 0))) +
-                kvRow('Image Storages', escapeHtml(String(imageStorages.length || 0))) +
-                kvRow('ISO Storages', escapeHtml(String(isoStorages.length || 0))) +
-      '      </div></section>' +
-      '    </div>' +
-      '    <section class="beagle-card"><h3>Provisioning Requests</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>VM</th><th>Status</th><th>Phase</th><th>Zeit</th><th>Aktionen</th></tr></thead><tbody>' + (requestRows || '<tr><td colspan="5" class="beagle-muted">Noch keine Provisioning-Anfragen vorhanden.</td></tr>') + '</tbody></table></div></section>' +
-      '    <section class="beagle-card"><h3>OS Katalog</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>Profil</th><th>Release</th><th>Desktop</th><th>Streaming</th><th>Features</th></tr></thead><tbody>' + (osProfileRows || '<tr><td colspan="5" class="beagle-muted">Kein Katalog verfuegbar.</td></tr>') + '</tbody></table></div></section>' +
-      '    <section class="beagle-card"><h3>Desktop Katalog</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>Desktop</th><th>Session</th><th>APT Pakete</th><th>Features</th></tr></thead><tbody>' + (desktopProfileRows || '<tr><td colspan="4" class="beagle-muted">Kein Desktop-Katalog verfuegbar.</td></tr>') + '</tbody></table></div></section>' +
-      '    <section class="beagle-card"><h3>Software Presets</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>Preset</th><th>Beschreibung</th><th>APT Pakete</th></tr></thead><tbody>' + (softwarePresetRows || '<tr><td colspan="3" class="beagle-muted">Keine Software-Presets verfuegbar.</td></tr>') + '</tbody></table></div></section>' +
-      '    <section class="beagle-card"><h3>Endpoints</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th class="beagle-select-cell"><input class="beagle-row-select" type="checkbox" data-beagle-fleet-action="toggle-all"></th><th>VM</th><th>Status</th><th>Provisioning</th><th>Ziel</th><th>Policy</th><th>Letzter Kontakt</th><th>Aktionen</th></tr></thead><tbody>' + vmRows + '</tbody></table></div></section>' +
-      '    <section class="beagle-card"><h3>Policies</h3><div class="beagle-table-wrap"><table class="beagle-table"><thead><tr><th>Name</th><th>Prioritaet</th><th>Selektor</th><th>Profil</th><th>Aktion</th></tr></thead><tbody>' + policyRows + '</tbody></table></div></section>' +
-      '  </div>' +
-      '</div>';
-
-    overlay.addEventListener('click', function(event) {
-      var target;
-      var item;
-      if (event.target === overlay || event.target.closest('.beagle-close')) {
-        removeOverlay();
-        return;
-      }
-      target = event.target instanceof HTMLElement ? event.target.closest('[data-beagle-fleet-action]') : null;
-      if (!target) {
-        return;
-      }
-      switch (target.getAttribute('data-beagle-fleet-action')) {
-        case 'create-vm':
-          removeOverlay();
-          showUbuntuBeagleCreateModal({ node: String(defaults.node || selectedNodeName() || "") });
-          break;
-        case 'refresh':
-          showFleetModal();
-          break;
-        case 'toggle-all':
-          Array.prototype.slice.call(overlay.querySelectorAll('.beagle-row-select[data-vmid]')).forEach(function(checkbox) {
-            checkbox.checked = target.checked;
-          });
-          break;
-        case 'open-health':
-          openUrl(resolveControlPlaneHealthUrl());
-          break;
-        case 'copy-policies':
-          copyText(JSON.stringify(policies, null, 2), 'Beagle Policies kopiert.');
-          break;
-        case 'bulk-healthcheck':
-        case 'bulk-support-bundle':
-          queueBulkAction(selectedFleetVmids(overlay), target.getAttribute('data-beagle-fleet-action') === 'bulk-healthcheck' ? 'healthcheck' : 'support-bundle').then(function(result) {
-            showToast('Beagle Bulk-Aktion gequeued: ' + String(result.queued_count || 0));
-            showFleetModal();
-          }).catch(function(error) {
-            showError(error.message);
-          });
-          break;
-        case 'bulk-create-policy':
-          Promise.all(selectedFleetItems(overlay, vms).map(function(item) {
-            return platformService.createPolicy(createPolicyFromInventoryItem(item));
-          })).then(function(result) {
-            showToast('Beagle Policies erzeugt: ' + String(result.length || 0));
-            showFleetModal();
-          }).catch(function(error) {
-            showError(error.message);
-          });
-          break;
-        case 'profile':
-          showProfileModal({ vmid: Number(target.getAttribute('data-vmid')), node: target.getAttribute('data-node') });
-          break;
-        case 'edit-desktop':
-          item = vms.find(function(candidate) { return Number(candidate.vmid) === Number(target.getAttribute('data-vmid')); });
-          removeOverlay();
-          showUbuntuBeagleCreateModal({ profile: item || { vmid: Number(target.getAttribute('data-vmid')), node: target.getAttribute('data-node') }, node: target.getAttribute('data-node') });
-          break;
-        case 'request-profile':
-          showProfileModal({ vmid: Number(target.getAttribute('data-vmid')), node: target.getAttribute('data-node') });
-          break;
-        case 'copy-credentials':
-          item = vms.find(function(candidate) { return Number(candidate.vmid) === Number(target.getAttribute('data-vmid')); }) ||
-            requests.find(function(candidate) { return Number(candidate.vmid) === Number(target.getAttribute('data-vmid')); });
-          apiGetProvisioningState(target.getAttribute('data-vmid')).then(function(state) {
-            copyText(buildProvisioningCredentialText(item || {}, state || {}), 'Provisioning-Credentials kopiert.');
-          }).catch(function(error) {
-            showError(error.message);
-          });
-          break;
-        case 'healthcheck':
-        case 'support-bundle':
-          platformService.queueVmAction(target.getAttribute('data-vmid'), target.getAttribute('data-beagle-fleet-action')).then(function() {
-            showToast('Beagle Aktion wurde in die Queue gestellt.');
-            showFleetModal();
-          }).catch(function(error) {
-            showError(error.message);
-          });
-          break;
-        case 'download-bundle':
-          downloadProtectedFile('/beagle-api' + target.getAttribute('data-bundle-path'), target.getAttribute('data-bundle-name')).catch(function(error) {
-            showError(error.message);
-          });
-          break;
-        case 'create-policy':
-          item = vms.find(function(candidate) { return Number(candidate.vmid) === Number(target.getAttribute('data-vmid')); });
-          platformService.createPolicy(createPolicyFromInventoryItem(item)).then(function() {
-            showToast('Beagle Policy wurde erzeugt.');
-            showFleetModal();
-          }).catch(function(error) {
-            showError(error.message);
-          });
-          break;
-        case 'delete-policy':
-          platformService.deletePolicy(target.getAttribute('data-policy-name')).then(function() {
-            showToast('Beagle Policy wurde geloescht.');
-            showFleetModal();
-          }).catch(function(error) {
-            showError(error.message);
-          });
-          break;
-        default:
-          break;
-      }
+    return fleetModal.renderFleetModal({
+      overlayId: OVERLAY_ID,
+      payload: payload,
+      removeOverlay: removeOverlay,
+      showFleetModal: showFleetModal,
+      showUbuntuBeagleCreateModal: showUbuntuBeagleCreateModal,
+      selectedNodeName: selectedNodeName,
+      resolveControlPlaneHealthUrl: resolveControlPlaneHealthUrl,
+      openUrl: openUrl,
+      copyText: copyText,
+      platformService: platformService,
+      apiGetProvisioningState: apiGetProvisioningState,
+      showProfileModal: showProfileModal,
+      showError: showError,
+      showToast: showToast,
+      buildProvisioningCredentialText: buildProvisioningCredentialText,
+      renderProvisioningBadge: renderProvisioningBadge,
+      formatActionState: formatActionState,
+      downloadProtectedFile: downloadProtectedFile
     });
-
-    document.body.appendChild(overlay);
   }
 
   function showFleetModal() {
@@ -1942,280 +1470,31 @@
   }
 
   function renderProfileModal(profile, options) {
-    var overlay = document.createElement("div");
-    var usbState = profile.usbState || {};
-    var usbDevices = Array.isArray(usbState.devices) ? usbState.devices : [];
-    var usbAttached = Array.isArray(usbState.attached) ? usbState.attached : [];
-    var notesHtml = profile.notes.map(function(note) {
-      return "<li>" + escapeHtml(note) + "</li>";
-    }).join("");
-    var installerPrep = profile.installerPrep || {
-      status: "idle",
-      phase: "inspect",
-      progress: 0,
-      message: "Download startet zuerst die Sunshine-Pruefung und die Stream-Vorbereitung fuer diese VM.",
-      sunshine_status: { binary: false, service: false, process: false }
-    };
-    var profileJson = JSON.stringify({
-      vmid: profile.vmid,
-      node: profile.node,
-      name: profile.name,
-      status: profile.status,
-      stream_host: profile.streamHost,
-      sunshine_api_url: profile.sunshineApiUrl,
-      sunshine_username: profile.sunshineUsername,
-      sunshine_password_configured: Boolean(profile.sunshinePassword),
-      sunshine_pin: profile.sunshinePin,
-      guest_user: profile.guestUser,
-      desktop_id: profile.desktopId,
-      desktop_label: profile.desktopLabel,
-      desktop_session: profile.desktopSession,
-      package_presets: profile.packagePresets,
-      extra_packages: profile.extraPackages,
-      software_packages: profile.softwarePackages,
-      identity_locale: profile.identityLocale,
-      identity_keymap: profile.identityKeymap,
-      moonlight_app: profile.app,
-      moonlight_resolution: profile.resolution,
-      moonlight_fps: profile.fps,
-      moonlight_bitrate: profile.bitrate,
-      moonlight_video_codec: profile.codec,
-      moonlight_video_decoder: profile.decoder,
-      moonlight_audio_config: profile.audio,
-      manager_url: profile.managerUrl,
-      installer_url: profile.installerUrl,
-      live_usb_url: profile.liveUsbUrl,
-      installer_windows_url: profile.installerWindowsUrl,
-      installer_iso_url: profile.installerIsoUrl,
-      control_plane_health_url: profile.controlPlaneHealthUrl,
-      assigned_target: profile.assignedTarget,
-      assignment_source: profile.assignmentSource,
-      applied_policy: profile.appliedPolicy,
-      expected_profile_name: profile.expectedProfileName,
-      endpoint_summary: profile.endpointSummary,
-      compliance: profile.compliance,
-      last_action: profile.lastAction,
-      pending_action_count: profile.pendingActionCount,
-      installer_prep: installerPrep,
-      installer_target_eligible: profile.installerTargetEligible,
-      installer_target_message: profile.installerTargetMessage,
-      usb_state: usbState
-    }, null, 2);
-    var usbDevicesHtml = usbDevices.length ? usbDevices.map(function(device) {
-      var busid = String(device.busid || "");
-      return '<div class="beagle-kv-row"><strong>' + escapeHtml(busid) + '</strong><span>' + escapeHtml(device.description || "") + '</span><span>' +
-        '<button type="button" class="beagle-mini-btn" data-beagle-action="usb-attach" data-beagle-usb-busid="' + escapeHtml(busid) + '">Attach</button>' +
-        (device.bound ? ' <span class="beagle-muted">exported</span>' : '') +
-      '</span></div>';
-    }).join("") : '<div class="beagle-kv-row"><strong>USB</strong><span class="beagle-muted">Keine exportierbaren USB-Geraete gemeldet.</span></div>';
-    var usbAttachedHtml = usbAttached.length ? usbAttached.map(function(item) {
-      var busid = String(item.busid || "");
-      var port = String(item.port || "");
-      return '<div class="beagle-kv-row"><strong>Port ' + escapeHtml(port) + '</strong><span>' + escapeHtml(busid || item.device || "") + '</span><span>' +
-        '<button type="button" class="beagle-mini-btn" data-beagle-action="usb-detach" data-beagle-usb-busid="' + escapeHtml(busid) + '" data-beagle-usb-port="' + escapeHtml(port) + '">Detach</button>' +
-      '</span></div>';
-    }).join("") : '<div class="beagle-kv-row"><strong>USB</strong><span class="beagle-muted">Keine USB-Geraete in der VM angehaengt.</span></div>';
-
-    overlay.id = OVERLAY_ID;
-    overlay.innerHTML = '' +
-      '<div class="beagle-modal" role="dialog" aria-modal="true" aria-label="Beagle OS Profil">' +
-      '  <div class="beagle-header">' +
-      '    <div>' +
-      '      <h2 class="beagle-title">Beagle Profil fuer VM ' + escapeHtml(profile.name) + ' (#' + String(profile.vmid) + ')</h2>' +
-      '      <p class="beagle-subtitle">Moonlight-Endpunkt, Sunshine-Ziel und Proxmox-Bereitstellung in einer Sicht.</p>' +
-      '    </div>' +
-      '    <button type="button" class="beagle-close" aria-label="Schliessen">×</button>' +
-      '  </div>' +
-      '  <div class="beagle-body">' +
-      '    <div class="beagle-banner ' + (profile.streamHost ? 'info' : 'warn') + '">' + escapeHtml(profile.streamHost ? 'Streaming-Ziel erkannt: ' + profile.streamHost : 'Streaming-Ziel fehlt in den VM-Metadaten.') + '</div>' +
-      '    <div class="beagle-banner ' + installerTargetState(profile, installerPrep).bannerClass + '" data-beagle-download-banner><strong data-beagle-download-state>' + escapeHtml(installerTargetState(profile, installerPrep).label) + '</strong>: <span data-beagle-download-message>' + escapeHtml(installerTargetState(profile, installerPrep).message) + '</span></div>' +
-      '    <div class="beagle-actions">' +
-      (String(profile.beagleRole || "").toLowerCase() === 'desktop' ? '      <button type="button" class="beagle-btn primary" data-beagle-action="edit-desktop">Desktop bearbeiten</button>' : '') +
-      (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn primary" data-beagle-action="download">USB Installer Skript</button>') +
-      (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-live">Live USB Skript</button>') +
-      (profile.installerTargetEligible === false ? '' : '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-windows">Windows USB Installer</button>') +
-      '      <button type="button" class="beagle-btn secondary" data-beagle-action="download-iso">ISO Download</button>' +
-      '      <button type="button" class="beagle-btn secondary" data-beagle-action="open-web-ui">Open Web UI</button>' +
-      '      <button type="button" class="beagle-btn secondary" data-beagle-action="copy-json">Profil JSON kopieren</button>' +
-      '      <button type="button" class="beagle-btn secondary" data-beagle-action="copy-env">Endpoint Env kopieren</button>' +
-      '      <button type="button" class="beagle-btn secondary" data-beagle-action="open-sunshine">Sunshine Web UI</button>' +
-      '      <button type="button" class="beagle-btn secondary" data-beagle-action="usb-refresh">USB Refresh</button>' +
-      '      <button type="button" class="beagle-btn secondary" data-beagle-action="open-health">Control Plane Status</button>' +
-      '    </div>' +
-      '    <div class="beagle-grid">' +
-      '      <section class="beagle-card"><h3>VM</h3><div class="beagle-kv">' +
-                kvRow('Name', escapeHtml(profile.name)) +
-                kvRow('VMID', escapeHtml(String(profile.vmid))) +
-                kvRow('Node', escapeHtml(profile.node)) +
-                kvRow('Status', escapeHtml(profile.status)) +
-                kvRow('Guest IP', escapeHtml(profile.guestIp || '')) +
-      '      </div></section>' +
-      '      <section class="beagle-card"><h3>Desktop</h3><div class="beagle-kv">' +
-                kvRow('Desktop', escapeHtml(profile.desktopLabel || profile.desktopId || '')) +
-                kvRow('Session', escapeHtml(profile.desktopSession || '')) +
-                kvRow('Gast-User', escapeHtml(profile.guestUser || '')) +
-                kvRow('Locale', escapeHtml(profile.identityLocale || '')) +
-                kvRow('Keymap', escapeHtml(profile.identityKeymap || '')) +
-                kvRow('Paket-Presets', escapeHtml((profile.packagePresets || []).join(', '))) +
-                kvRow('Weitere Pakete', escapeHtml((profile.extraPackages || []).join(', '))) +
-      '      </div></section>' +
-      '      <section class="beagle-card"><h3>Streaming</h3><div class="beagle-kv">' +
-                kvRow('Stream Host', escapeHtml(profile.streamHost || '')) +
-                kvRow('Moonlight Port', escapeHtml(profile.moonlightPort || 'default')) +
-                kvRow('Sunshine API', escapeHtml(profile.sunshineApiUrl || '')) +
-                kvRow('App', escapeHtml(profile.app)) +
-                kvRow('Manager', escapeHtml(profile.managerUrl || '')) +
-                kvRow('Assigned Target', escapeHtml(profile.assignedTarget ? (profile.assignedTarget.name + " (#" + profile.assignedTarget.vmid + ")") : '')) +
-                kvRow('Assignment Source', escapeHtml(profile.assignmentSource || '')) +
-                kvRow('Applied Policy', escapeHtml(profile.appliedPolicy && profile.appliedPolicy.name || '')) +
-                kvRow('USB Script', escapeHtml(profile.installerUrl)) +
-                kvRow('Live USB Script', escapeHtml(profile.liveUsbUrl)) +
-                kvRow('Windows USB Script', escapeHtml(profile.installerWindowsUrl)) +
-                kvRow('Installer ISO', escapeHtml(profile.installerIsoUrl)) +
-                kvRow('Health', escapeHtml(profile.controlPlaneHealthUrl)) +
-      '      </div></section>' +
-      '      <section class="beagle-card"><h3>Endpoint Defaults</h3><div class="beagle-kv">' +
-                kvRow('Resolution', escapeHtml(profile.resolution)) +
-                kvRow('FPS', escapeHtml(profile.fps)) +
-                kvRow('Bitrate', escapeHtml(profile.bitrate)) +
-                kvRow('Codec', escapeHtml(profile.codec)) +
-                kvRow('Decoder', escapeHtml(profile.decoder)) +
-                kvRow('Audio', escapeHtml(profile.audio)) +
-      '      </div></section>' +
-      '      <section class="beagle-card"><h3>Credentials</h3><div class="beagle-kv">' +
-                kvRow('Thin Client User', escapeHtml(profile.thinclientUsername || 'thinclient')) +
-                kvRow('Thin Client Password', escapeHtml(profile.thinclientPassword || '')) +
-                kvRow('Sunshine User', escapeHtml(profile.sunshineUsername || '')) +
-                kvRow('Sunshine Password', escapeHtml(profile.sunshinePassword || '')) +
-                kvRow('Pairing PIN', escapeHtml(profile.sunshinePin || '')) +
-      '      </div></section>' +
-      '      <section class="beagle-card"><h3>Endpoint State</h3><div class="beagle-kv">' +
-                kvRow('Compliance', escapeHtml(profile.compliance && profile.compliance.status || '')) +
-                kvRow('Drift Count', escapeHtml(profile.compliance ? String(profile.compliance.drift_count || 0) : '')) +
-                kvRow('Alert Count', escapeHtml(profile.compliance ? String(profile.compliance.alert_count || 0) : '')) +
-                kvRow('Pending Actions', escapeHtml(String(profile.pendingActionCount || 0))) +
-                kvRow('Last Seen', escapeHtml(profile.endpointSummary && profile.endpointSummary.reported_at || '')) +
-                kvRow('Target Reachable', escapeHtml(profile.endpointSummary && profile.endpointSummary.moonlight_target_reachable || '')) +
-                kvRow('Sunshine Reachable', escapeHtml(profile.endpointSummary && profile.endpointSummary.sunshine_api_reachable || '')) +
-                kvRow('Prepare', escapeHtml(profile.endpointSummary && profile.endpointSummary.prepare_state || '')) +
-                kvRow('Last Launch', escapeHtml(profile.endpointSummary && profile.endpointSummary.last_launch_mode || '')) +
-                kvRow('Launch Target', escapeHtml(profile.endpointSummary && profile.endpointSummary.last_launch_target || '')) +
-                kvRow('Last Action', escapeHtml(profile.lastAction && profile.lastAction.action || '')) +
-                kvRow('Action Result', escapeHtml(formatActionState(profile.lastAction && profile.lastAction.ok))) +
-                kvRow('Action Time', escapeHtml(profile.lastAction && profile.lastAction.completed_at || '')) +
-                kvRow('Action Message', escapeHtml(profile.lastAction && profile.lastAction.message || '')) +
-                kvRow('Stored Artifact', escapeHtml(profile.lastAction && profile.lastAction.stored_artifact_path || '')) +
-                kvRow('Artifact Size', escapeHtml(profile.lastAction ? String(profile.lastAction.stored_artifact_size || 0) : '')) +
-      '      </div></section>' +
-      '      <section class="beagle-card"><h3>USB Tunnel</h3><div class="beagle-kv">' +
-                kvRow('Tunnel State', escapeHtml(usbState.tunnel_state || '')) +
-                kvRow('Tunnel Host', escapeHtml(usbState.tunnel_host || '')) +
-                kvRow('Tunnel Port', escapeHtml(String(usbState.tunnel_port || ''))) +
-                kvRow('Exportable', escapeHtml(String(usbState.device_count || 0))) +
-                kvRow('Attached in VM', escapeHtml(String(usbState.attached_count || 0))) +
-      '      </div></section>' +
-      '      <section class="beagle-card"><h3>Installer Readiness</h3><div class="beagle-kv">' +
-                kvRow('Status', '<span data-beagle-installer-status>' + escapeHtml(installerPrep.status || 'idle') + '</span>') +
-                kvRow('Zielstatus', '<span data-beagle-download-state>' + escapeHtml(installerTargetState(profile, installerPrep).label) + '</span>') +
-                kvRow('Phase', '<span data-beagle-installer-phase>' + escapeHtml(installerPrep.phase || 'inspect') + '</span>') +
-                kvRow('Progress', '<span data-beagle-installer-progress>' + escapeHtml(String(installerPrep.progress || 0)) + '%</span>') +
-                kvRow('Message', '<span data-beagle-installer-message>' + escapeHtml(installerPrep.message || '') + '</span>') +
-                kvRow('Sunshine Binary', '<span data-beagle-installer-binary>' + escapeHtml(installerPrep.sunshine_status && installerPrep.sunshine_status.binary ? 'ok' : 'missing') + '</span>') +
-                kvRow('Sunshine Service', '<span data-beagle-installer-service>' + escapeHtml(installerPrep.sunshine_status && installerPrep.sunshine_status.service ? 'active' : 'inactive') + '</span>') +
-                kvRow('Sunshine Process', '<span data-beagle-installer-process>' + escapeHtml(installerPrep.sunshine_status && installerPrep.sunshine_status.process ? 'running' : 'stopped') + '</span>') +
-      '      </div></section>' +
-      '    </div>' +
-      '    <section class="beagle-card"><h3>USB-Geraete vom Thin Client</h3><div class="beagle-kv">' + usbDevicesHtml + '</div></section>' +
-      '    <section class="beagle-card"><h3>USB-Geraete in der VM</h3><div class="beagle-kv">' + usbAttachedHtml + '</div></section>' +
-      '    <section class="beagle-card"><h3>Operator Notes</h3><ul class="beagle-notes">' + notesHtml + '</ul></section>' +
-      '    <section class="beagle-card"><h3>Beagle Endpoint Env</h3><textarea class="beagle-code" readonly>' + escapeHtml(profile.endpointEnv) + '</textarea></section>' +
-      '    <section class="beagle-card"><h3>Profile JSON</h3><textarea class="beagle-code" readonly>' + escapeHtml(profileJson) + '</textarea></section>' +
-      '  </div>' +
-      '</div>';
-
-    overlay.__beagleProfile = profile;
-    syncInstallerButtons(overlay, installerPrep);
-
-    overlay.addEventListener('click', function(event) {
-      if (event.target === overlay || event.target.closest('.beagle-close')) {
-        removeOverlay();
-        return;
-      }
-
-      if (!(event.target instanceof HTMLElement)) {
-        return;
-      }
-
-      switch (event.target.getAttribute('data-beagle-action')) {
-        case 'edit-desktop':
-          removeOverlay();
-          showUbuntuBeagleCreateModal({ profile: profile, node: profile.node });
-          break;
-        case 'download':
-          prepareInstallerDownload(profile, overlay, 'installerUrl', 'download', 'Installer wird vorbereitet', 'Beagle USB Installer Skript wird heruntergeladen.');
-          break;
-        case 'download-live':
-          prepareInstallerDownload(profile, overlay, 'liveUsbUrl', 'download-live', 'Live USB wird vorbereitet', 'Beagle Live USB Skript wird heruntergeladen.', 'pve-thin-client-live-usb-vm-' + profile.vmid + '.sh');
-          break;
-        case 'download-windows':
-          prepareInstallerDownload(profile, overlay, 'installerWindowsUrl', 'download-windows', 'Windows Installer wird vorbereitet', 'Beagle Windows USB Installer wird heruntergeladen.');
-          break;
-        case 'download-iso':
-          openUrl(withNoCache(profile.installerIsoUrl));
-          break;
-        case 'open-web-ui':
-          openUrl(webUiUrlWithToken(true));
-          break;
-        case 'copy-json':
-          copyText(profileJson, 'Beagle Profil als JSON kopiert.');
-          break;
-        case 'copy-env':
-          copyText(profile.endpointEnv, 'Beagle Endpoint-Umgebung kopiert.');
-          break;
-        case 'open-sunshine':
-          apiCreateSunshineAccess(profile.vmid).then(function(access) {
-            openUrl(access && access.url ? access.url : profile.sunshineApiUrl);
-          }).catch(function(error) {
-            showError("Sunshine Web UI konnte nicht geoeffnet werden: " + (error && error.message ? error.message : error));
-          });
-          break;
-        case 'usb-refresh':
-          platformService.refreshVmUsb(profile.vmid).then(function() {
-            removeOverlay();
-            showProfileModal({ node: profile.node, vmid: profile.vmid });
-          }).catch(function(error) {
-            showError("USB-Refresh fehlgeschlagen: " + (error && error.message ? error.message : error));
-          });
-          break;
-        case 'usb-attach':
-          platformService.attachUsb(profile.vmid, event.target.getAttribute("data-beagle-usb-busid")).then(function() {
-            removeOverlay();
-            showProfileModal({ node: profile.node, vmid: profile.vmid });
-          }).catch(function(error) {
-            showError("USB-Attach fehlgeschlagen: " + (error && error.message ? error.message : error));
-          });
-          break;
-        case 'usb-detach':
-          platformService.detachUsb(profile.vmid, event.target.getAttribute("data-beagle-usb-busid"), event.target.getAttribute("data-beagle-usb-port")).then(function() {
-            removeOverlay();
-            showProfileModal({ node: profile.node, vmid: profile.vmid });
-          }).catch(function(error) {
-            showError("USB-Detach fehlgeschlagen: " + (error && error.message ? error.message : error));
-          });
-          break;
-        case 'open-health':
-          openUrl(profile.controlPlaneHealthUrl);
-          break;
-        default:
-          break;
-      }
+    return profileModal.renderProfileModal({
+      overlayId: OVERLAY_ID,
+      profile: profile,
+      options: options,
+      removeOverlay: removeOverlay,
+      withNoCache: withNoCache,
+      webUiUrlWithToken: webUiUrlWithToken,
+      openUrl: openUrl,
+      showError: showError,
+      showToast: showToast,
+      showProfileModal: showProfileModal,
+      showUbuntuBeagleCreateModal: showUbuntuBeagleCreateModal,
+      apiCreateSunshineAccess: apiCreateSunshineAccess,
+      platformService: platformService,
+      apiGetInstallerPrep: apiGetInstallerPrep,
+      apiStartInstallerPrep: apiStartInstallerPrep,
+      downloadProtectedFile: downloadProtectedFile,
+      normalizeBeagleApiPath: normalizeBeagleApiPath,
+      triggerDownload: triggerDownload,
+      sleep: sleep,
+      syncInstallerButtons: syncInstallerButtons,
+      applyInstallerPrepState: applyInstallerPrepState,
+      installerTargetState: installerTargetState,
+      shouldReuseInstallerPrepState: shouldReuseInstallerPrepState
     });
-
-    document.body.appendChild(overlay);
-    applyInstallerPrepState(overlay, installerPrep);
-    if (options && options.autoPrepareDownload) {
-      prepareInstallerDownload(profile, overlay, 'installerUrl', 'download', 'Installer wird vorbereitet', 'Beagle USB Installer Skript wird heruntergeladen.');
-    }
   }
 
   function showProfileModal(ctx, options) {
