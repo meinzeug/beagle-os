@@ -91,3 +91,13 @@ Decision:
 Reason:
 
 - A top-level seam makes the provider split explicit across the repo and avoids burying provider-neutral contracts inside a Proxmox-specific directory.
+
+### D10. Make provider-coupling documentation mandatory for continuation
+
+Decision:
+
+- Treat `docs/refactor/09-provider-abstraction.md` as part of the required handoff set and enforce its presence in validation.
+
+Reason:
+
+- Provider neutrality is now a core architecture rule, so the repo needs one authoritative place that tracks what is already abstracted and what is still directly Proxmox-bound.

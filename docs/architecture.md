@@ -6,14 +6,28 @@ The repository is split into two deployable product surfaces:
 
 - `extension/` adds Beagle operator actions to Proxmox VE VM pages
 - `proxmox-ui/`, `proxmox-host/` and `scripts/` install the same Beagle workflow directly on a Proxmox host
+- `core/` and `providers/` are the new provider-neutral architecture seam, with Proxmox as the first implementation
 - `thin-client-assistant/` prepares a Moonlight-based endpoint that boots into a dedicated streaming session
 - `beagle-os/` builds the dedicated endpoint operating system and kernel profile
 
-These parts are intentionally aligned around one runtime path:
+These parts are intentionally aligned around one runtime path, while the architecture moves toward provider neutrality:
 
-- `Proxmox` is the management system
+- `Proxmox` is the current management-system provider
 - `Sunshine` runs inside the streamed VM
 - `Moonlight` runs on the Beagle endpoint
+
+## Provider model
+
+Beagle now distinguishes between:
+
+- provider-neutral contracts and services under `core/`
+- concrete provider implementations under `providers/`
+
+Current status:
+
+- Proxmox is the first supported provider
+- provider-neutral browser-side seams exist for virtualization and platform service access
+- host-side, script-side and thin-client-side provider neutrality is still being migrated incrementally
 
 ## Proxmox operator surface
 
@@ -54,6 +68,7 @@ The Beagle host path is intentionally simple:
 - refresh services keep those artifacts current after host-side changes
 
 This turns a Proxmox host into a Beagle management node instead of just a VM hypervisor.
+Architecturally, that should now be read as: a Proxmox-backed Beagle management node, not a permanently Proxmox-locked core design.
 
 ## Thin-client assistant architecture
 
@@ -94,6 +109,7 @@ Primary runtime config files:
 The effective profile contains:
 
 - Proxmox host, node and VMID binding
+- provider-specific location data as currently rendered by the active provider
 - Moonlight host and target app
 - Moonlight codec, decoder, bitrate, FPS and audio defaults
 - Sunshine API URL, username, password and pairing PIN
@@ -104,7 +120,7 @@ The effective profile contains:
 The release scripts create:
 
 - a browser extension zip for manual installation
-- a Beagle host tarball for Proxmox deployment
+- a Beagle host tarball that currently targets Proxmox deployment
 - hosted USB payload and installer artifacts
 - optional Beagle OS image artifacts produced by `build-beagle-os.sh`
 - sha256 checksums for release verification

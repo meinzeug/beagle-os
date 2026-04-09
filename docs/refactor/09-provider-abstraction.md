@@ -140,3 +140,4 @@ From this point onward:
 - new business logic should bind to `core/*` contracts first
 - new Proxmox specifics should land in `providers/proxmox/`
 - any remaining direct coupling must be documented before expanding it
+- this file is part of the mandatory multi-agent handoff set and must stay current after provider-related changes

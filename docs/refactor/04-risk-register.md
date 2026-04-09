@@ -14,10 +14,11 @@
 | R8 | Duplicated browser logic across surfaces | Medium | Behavior drift and inconsistent security fixes | Extract shared helpers or mirrored modules with common contract | Open |
 | R9 | Packaging script orchestrates too many artifact families | Medium | Failures are harder to isolate and partial reruns are fragile | Split packaging into smaller phases and verify contracts | Open |
 | R10 | Kiosk main process still mixes config, catalog, store rules, and child-process supervision | Medium | Regressions in GFN launch/supervision or offline cache handling | Extract main-process services while preserving child-process model | Open |
+| R11 | Provider abstraction is incomplete and uneven across repo surfaces | High | New work may accidentally reintroduce direct Proxmox coupling outside approved provider seams | Enforce `core/*` + `providers/proxmox/*` boundaries, document remaining direct couplings, block new unmanaged Proxmox bindings in reviews | Open |
 
 ## Immediate Watch Items
 
 - Any refactor touching Moonlight launch requires explicit runtime caution.
 - Any refactor touching GeForce NOW integration must preserve kiosk ownership of the child process.
 - Any release or installer change must consider both `srv.thinover.net` and `srv1.meinzeug.cloud`.
-
+- Any new VM/inventory/provider feature must be checked for direct `qm`, `pvesh`, `/api2/json`, or `PVE.*` usage outside the provider layer.

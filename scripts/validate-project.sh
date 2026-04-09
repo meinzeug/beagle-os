@@ -29,6 +29,7 @@ required_docs=(
   "$ROOT_DIR/docs/refactor/06-next-steps.md"
   "$ROOT_DIR/docs/refactor/07-decisions.md"
   "$ROOT_DIR/docs/refactor/08-todo-global.md"
+  "$ROOT_DIR/docs/refactor/09-provider-abstraction.md"
 )
 
 for file in "${required_docs[@]}"; do
