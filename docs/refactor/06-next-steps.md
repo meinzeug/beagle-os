@@ -2,15 +2,15 @@
 
 ## Immediate next slice
 
-Extend the new provider-neutral seam beyond the first browser-side wiring step and keep shrinking the Proxmox-specific surface area.
+Keep shrinking the Proxmox-specific surface area now that both browser surfaces share provider-backed seams and the control plane has its first provider helper.
 
 ### Concrete next tasks
 
 1. Move the large profile modal renderer and fleet modal renderer from `proxmox-ui/beagle-ui.js` into `components/`, but keep them bound to `core/platform` and `core/virtualization` services only.
-2. Introduce the same provider-neutral browser-side contract into `extension/content.js` or an aligned shared browser module to stop re-encoding Proxmox inventory logic there.
-3. Start a host-side provider seam for `proxmox-host/bin/beagle-control-plane.py`, initially around inventory and VM config access.
-4. Inventory direct `qm`/`pvesh` usage in scripts and move the first reusable calls behind a provider helper instead of raw subprocess invocations.
-5. Add broader automated checks for newly introduced browser-side modules beyond syntax-only validation.
+2. Continue the host-side provider seam in `proxmox-host/providers/proxmox_host_provider.py` by moving VM lifecycle, guest-exec, and provisioning mutations behind that module instead of calling `qm` and `pvesh` from request handlers.
+3. Split `extension/content.js` further into UI-focused modules now that Proxmox inventory/config access lives in `extension/providers/proxmox.js` and `extension/services/*`.
+4. Inventory remaining direct `qm`/`pvesh` usage in scripts and move the first reusable calls behind provider helpers instead of raw subprocess invocations.
+5. Add broader automated checks for the browser extension and proxmox-host modules beyond syntax and `py_compile`.
 6. Keep `09-provider-abstraction.md` current whenever a direct Proxmox dependency is removed or newly discovered.
 
 ## After that

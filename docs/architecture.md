@@ -27,6 +27,7 @@ Current status:
 
 - Proxmox is the first supported provider
 - provider-neutral browser-side seams exist for virtualization and platform service access
+- the browser extension now mirrors that split through `extension/common.js`, `extension/provider-registry.js`, `extension/providers/proxmox.js`, and `extension/services/*`
 - host-side, script-side and thin-client-side provider neutrality is still being migrated incrementally
 
 ## Proxmox operator surface
@@ -34,7 +35,7 @@ Current status:
 The browser extension and the host-installed UI integration both expose the same operator model on VM pages:
 
 1. Detect the current Proxmox VM context (`node`, `vmid`)
-2. Read the VM config and cluster resource state through the Proxmox API
+2. Read the VM config and cluster resource state through provider-backed virtualization services
 3. Parse Beagle metadata from the VM description
 4. Resolve the Sunshine target, Moonlight defaults and Beagle installer URL
 5. Show a Beagle profile dialog with export and download actions

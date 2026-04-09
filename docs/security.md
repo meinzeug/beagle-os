@@ -8,6 +8,7 @@ It assumes infrastructure-provider access, Sunshine access and endpoint hardenin
 ## Proxmox operator surface
 
 - The browser extension only talks to the Proxmox origin the user is already authenticated against.
+- The browser extension now centralizes Beagle API token lookup and optional session-scoped token storage in shared extension helpers instead of duplicating that logic inside `content.js`.
 - The host-installed UI integration resolves Beagle profile data from Proxmox API state and VM metadata.
 - VM description metadata is treated as administrator-controlled configuration.
 - Beagle profile exports can contain Sunshine credentials when the operator stores them in VM metadata.

@@ -12,14 +12,21 @@ Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining 
   - Proxmox VM context detection
   - `/api2/json` VM config and guest-agent reads
   - node selection from the Proxmox UI
-- `extension/content.js`
+- `extension/providers/proxmox.js`
   - direct `/api2/json` cluster/config/guest-agent calls
-  - duplicated VM profile synthesis logic
+  - Proxmox VM context detection for the browser extension
+- `extension/content.js`
+  - duplicated VM profile synthesis logic and modal/UI orchestration still live here, but direct Proxmox reads were removed
 
 ### Host / control plane
 
+- `proxmox-host/providers/proxmox_host_provider.py`
+  - `pvesh get /cluster/resources`
+  - `pvesh get /nodes`
+  - `pvesh get /storage`
+  - `pvesh get /nodes/{node}/qemu/{vmid}/config`
+  - `qm guest cmd ... network-get-interfaces`
 - `proxmox-host/bin/beagle-control-plane.py`
-  - `pvesh` inventory/config reads
   - Proxmox task and VM orchestration
   - VM profile synthesis from Proxmox metadata
 
@@ -102,6 +109,51 @@ Current concrete implementation:
 - Proxmox browser-side virtualization provider
 - encapsulates `/api2/json` and `PVE.ResourceStore` access for the UI
 
+### Browser extension provider seam
+
+Current concrete implementation:
+
+- `extension/provider-registry.js`
+- `extension/services/virtualization.js`
+- `extension/services/platform.js`
+- `extension/providers/proxmox.js`
+
+Generic contract now exposed to `extension/content.js`:
+
+- `isVmView()`
+- `parseVmContext()`
+- `listHosts()`
+- `listNodes()`
+- `listVms()`
+- `getVmState(ctx)`
+- `getVmConfig(ctx)`
+- `getVmGuestInterfaces(ctx)`
+- `resolveUsbInstallerUrl(ctx)`
+- `resolveInstallerIsoUrl(ctx)`
+- `resolveControlPlaneHealthUrl()`
+- `resolveWebUiUrl()`
+- `resolveBeagleApiUrl(path)`
+- `fetchPublicVmState(vmid)`
+- `fetchInstallerTargetEligibility(ctx)`
+- `fetchInstallerPreparation(vmid)`
+- `prepareInstallerTarget(vmid)`
+- `createSunshineAccess(vmid)`
+
+### Host-side provider seam
+
+Current concrete implementation:
+
+- `proxmox-host/providers/proxmox_host_provider.py`
+
+Current contract extracted from the control plane:
+
+- `next_vmid()`
+- `list_storage_inventory()`
+- `list_nodes()`
+- `list_vms()`
+- `get_vm_config(node, vmid)`
+- `get_guest_ipv4(vmid)`
+
 ## Already Decoupled
 
 ### Browser-side Proxmox UI
@@ -115,15 +167,25 @@ These flows now go through generic services first:
 - installer target eligibility lookup in `proxmox-ui/state/installer-eligibility.js`
 - installer-prep, USB attach/detach/refresh, Sunshine access, and policy/action queue calls through `core/platform/service.js`
 
+### Browser extension
+
+These flows now go through provider-backed services first:
+
+- Proxmox VM context detection from the current page
+- VM config, cluster resource, and guest-agent interface reads
+- hosted installer URL, ISO URL, and Web UI URL resolution
+- public VM state, installer-target eligibility, installer-prep, and Sunshine access lookups
+- shared Beagle API token/config resolution through `extension/common.js` and `extension/services/platform.js`
+
 ## Still Directly Coupled
 
 ### Browser extension
 
-- `extension/content.js` still performs direct Proxmox API calls and local profile synthesis.
+- `extension/content.js` still performs local profile synthesis, modal rendering, and action orchestration, but it no longer performs direct Proxmox API calls.
 
 ### Control plane
 
-- `proxmox-host/bin/beagle-control-plane.py` still embeds direct Proxmox command execution and provider-specific business logic.
+- `proxmox-host/bin/beagle-control-plane.py` still embeds direct Proxmox command execution for VM lifecycle changes, guest exec, provisioning mutations, and several mutation-heavy helper paths.
 
 ### Script surfaces
 
