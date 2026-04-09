@@ -11,10 +11,12 @@
 - [x] Extract initial `proxmox-ui/utils/` browser action module.
 - [x] Extract the first `proxmox-ui/usb/` UI state module.
 - [x] Extract initial `proxmox-ui/components/` helpers and desktop overlay renderer.
+- [x] Extract the Proxmox UI profile modal and fleet modal into dedicated `components/` modules.
 - [x] Introduce the first provider-neutral browser-side seams under `core/provider/`, `core/virtualization/`, `core/platform/`, and `providers/proxmox/`.
 - [x] Move the browser extension off direct Proxmox inventory/profile calls and onto aligned provider-backed services.
 - [x] Start host-side provider helper extraction for control-plane inventory, storage, VM config, and guest-IP access.
 - [ ] Extract `proxmox-ui/beagle-ui.js` into `api-client/`, `state/`, `components/`, `provisioning/`, `usb/`, and `utils/`.
+- [ ] Extract the Ubuntu desktop create/edit modal and provisioning result window from `proxmox-ui/beagle-ui.js` into `components/`.
 - [ ] Split `extension/content.js` into smaller UI/rendering modules now that provider/API access is extracted.
 - [ ] Move remaining host-side `qm`/`pvesh` lifecycle, guest-exec, and provisioning mutations behind provider helpers.
 - [ ] Inventory all direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally.

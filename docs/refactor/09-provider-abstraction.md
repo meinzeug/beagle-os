@@ -12,6 +12,11 @@ Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining 
   - Proxmox VM context detection
   - `/api2/json` VM config and guest-agent reads
   - node selection from the Proxmox UI
+  - remaining provisioning modal orchestration and inline ExtJS form logic
+- `proxmox-ui/components/profile-modal.js`
+  - provider-neutral profile modal renderer and action orchestration
+- `proxmox-ui/components/fleet-modal.js`
+  - provider-neutral fleet renderer and action orchestration
 - `extension/providers/proxmox.js`
   - direct `/api2/json` cluster/config/guest-agent calls
   - Proxmox VM context detection for the browser extension
@@ -166,6 +171,8 @@ These flows now go through generic services first:
 - VM config/resource/guest-agent access for profile resolution
 - installer target eligibility lookup in `proxmox-ui/state/installer-eligibility.js`
 - installer-prep, USB attach/detach/refresh, Sunshine access, and policy/action queue calls through `core/platform/service.js`
+- profile modal rendering and action handling through `proxmox-ui/components/profile-modal.js`
+- fleet rendering and action handling through `proxmox-ui/components/fleet-modal.js`
 
 ### Browser extension
 
