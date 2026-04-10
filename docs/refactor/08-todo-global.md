@@ -33,6 +33,9 @@
 - [ ] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [ ] Split the remaining profile/public-stream/assignment/business flows in `proxmox-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
+- [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
+- [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.
+- [ ] Make Proxmox optional at deploy/install/runtime boundaries instead of the implicit required backend.
 - [ ] Split thin client runtime logic into config, runtime, network, pairing, and Moonlight launch seams.
 - [ ] Add smoke validation for generated installer URLs and public artifact filenames.
 - [ ] Add release-surface verification helpers for both linked servers.

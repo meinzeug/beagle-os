@@ -4,6 +4,11 @@
 
 Now that the control plane exposes a normalized endpoint profile contract `v1`, the browser-side VM profile mapper and helper layer are shared, the Proxmox UI entrypoint is down to about 410 lines, the extension entrypoint is down to about 189 lines, and the first provider-backed host read/state services exist under `proxmox-host/services/`, the next slice should keep shrinking `beagle-ui.js` while turning the control plane into a real service composition surface instead of one huge file.
 
+Strategic framing:
+
+- these immediate slices are not only about cleaner Proxmox support
+- they are the preparation path toward a first-party Beagle virtualization provider with Proxmox as an optional provider
+
 ### Concrete next tasks
 
 1. Continue splitting `proxmox-ui/beagle-ui.js`:

@@ -1,5 +1,13 @@
 # Refactor Plan
 
+## Strategic North Star
+
+- Beagle must not stop at "Proxmox abstraction".
+- The target is a first-party Beagle virtualization product/provider, with Proxmox reduced to one optional provider among several.
+- Every refactor slice should therefore be judged by two questions:
+  - does it reduce direct Proxmox dependency now?
+  - does it make a future first-party Beagle provider easier to add?
+
 ## Status Overview
 
 - Phase 0 Analysis: baseline completed in this run
@@ -113,6 +121,69 @@ Exit criteria:
 
 - packaging steps are composable
 - release drift across the two servers is easier to detect
+
+## Provider Independence Roadmap
+
+This roadmap is the missing bridge between today's Proxmox-first repo and the desired Beagle-owned virtualization product.
+
+### Stage 1: Thin control-plane and UI seams
+
+Goals:
+
+- finish shrinking `proxmox-ui/beagle-ui.js`
+- continue splitting `proxmox-host/bin/beagle-control-plane.py`
+- remove business logic from runtime entrypoints
+
+### Stage 2: Provider-complete host abstraction
+
+Goals:
+
+- inventory all remaining direct `qm` / `pvesh` / Proxmox package assumptions
+- move them behind provider-facing modules or services
+- make installers and scripts consume the same seams
+
+### Stage 3: Thin-client and endpoint decoupling
+
+Goals:
+
+- remove direct Proxmox assumptions from thin-client API and runtime flows
+- isolate SPICE- and Proxmox-specific launch behavior as optional provider integrations
+
+### Stage 4: Stable provider contracts
+
+Goals:
+
+- formalize the host/node/vm/storage/network/lifecycle contracts all providers must implement
+- add contract-level validation or conformance checks
+
+### Stage 5: First non-Proxmox proving ground
+
+Goals:
+
+- add either a mock provider or a second lightweight provider implementation
+- prove the contracts are not just wrappers around Proxmox naming
+
+### Stage 6: First-party Beagle provider design
+
+Goals:
+
+- define the first-party Beagle provider/runtime layout
+- carve out the modules needed for Beagle-owned compute, storage, network, and lifecycle
+- keep the working path compatible with the same provider contracts
+
+### Stage 7: Beagle-first operation
+
+Goals:
+
+- make fleet, provisioning, installer, inventory, and endpoint flows run without requiring Proxmox
+- reduce Proxmox to an optional compatibility provider
+
+### Stage 8: Optional external providers
+
+Goals:
+
+- support Proxmox and other external providers as optional adapters
+- treat the Beagle-owned provider as the architecture center instead of any external backend
 
 ## Not In Scope for One Shot
 

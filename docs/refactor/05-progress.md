@@ -4,6 +4,10 @@
 
 ### 2026-04-10 additions
 
+- Aligned the refactor north star with the intended product direction:
+  - documented explicitly that provider-neutrality is a means to a first-party Beagle virtualization product/provider, not the final target
+  - documented Proxmox as a future optional provider rather than the architecture center
+  - added the missing roadmap language and exit criteria for eventually making external providers optional
 - Extracted the remaining large Proxmox UI provisioning blocks out of `proxmox-ui/beagle-ui.js`:
   - added `proxmox-ui/components/provisioning-result-modal.js` carrying `provisioningStatusLabel`, `provisioningStatusBadgeClass`, `renderProvisioningBadge`, `renderProvisioningResultHtml`, and `showProvisioningResultWindow`
   - added `proxmox-ui/components/provisioning-create-modal.js` carrying `safeHostnameCandidate`, `listToMultiline`, `readCheckedValues`, and the full `showUbuntuBeagleCreateModal` orchestration

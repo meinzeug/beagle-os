@@ -285,3 +285,15 @@ Decision:
 Reason:
 
 - Once provider-backed inventory reads had a service seam, the next repeated read-model composition block was VM-state and compliance. Extracting that block gives multiple handlers a shared internal service without forcing a broad call-site rewrite and reduces the control-plane entrypoint by another chunk before tackling the larger `build_profile()` logic.
+
+### D28. Provider-neutrality is a waypoint, not the product end state
+
+Decision:
+
+- Treat provider-neutral seams as an enabling step toward a first-party Beagle virtualization product/provider, not as the final destination.
+- Plan for Proxmox to become one optional provider among several rather than the permanent operational default.
+- Prefer new abstractions that a future Beagle-owned provider can implement directly, even when Proxmox is the only concrete provider today.
+
+Reason:
+
+- The intended product direction is not simply "Beagle on top of whatever hypervisor happens to be underneath". The intended direction is Beagle owning the virtualization path itself over time. Without recording that explicitly, the refactor could converge on a permanently external-provider-centered architecture that is cleaner than today but still strategically wrong.
