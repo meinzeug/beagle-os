@@ -183,6 +183,7 @@ PY
     scripts \
     server-installer \
     thin-client-assistant \
+    website \
     README.md \
     LICENSE \
     CHANGELOG.md \
