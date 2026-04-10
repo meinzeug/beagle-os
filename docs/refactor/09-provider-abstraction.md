@@ -108,6 +108,39 @@ Current usage:
 
 - registers the virtualization provider role
 
+### `beagle-host/providers/host_provider_contract.py`
+
+Generic contract:
+
+- `next_vmid()`
+- `list_storage_inventory()`
+- `list_nodes()`
+- `list_vms(...)`
+- `get_vm_config(node, vmid, ...)`
+- `create_vm(vmid, options, ...)`
+- `set_vm_options(vmid, options, ...)`
+- `delete_vm_options(vmid, option_names, ...)`
+- `set_vm_description(vmid, description, ...)`
+- `set_vm_boot_order(vmid, order, ...)`
+- `start_vm(vmid, ...)`
+- `stop_vm(vmid, ...)`
+- `guest_exec_bash(vmid, command, ...)`
+- `guest_exec_status(vmid, pid, ...)`
+- `guest_exec_script_text(vmid, script, ...)`
+- `schedule_vm_restart_after_stop(vmid, ...)`
+- `get_guest_ipv4(vmid, ...)`
+
+### `beagle-host/providers/registry.py`
+
+Purpose:
+
+- register, normalize, and instantiate host-provider implementations by kind
+
+Current usage:
+
+- boots the host-side `HOST_PROVIDER` from `BEAGLE_HOST_PROVIDER`
+- currently registers Proxmox as the first concrete host provider and normalizes `pve` to `proxmox`
+
 ### `core/virtualization/service.js`
 
 Generic contract:
@@ -281,10 +314,11 @@ These flows now go through provider-backed services first:
 
 These flows now go through provider-backed services first:
 
+- host bootstrap and host-provider selection through `beagle-host/providers/registry.py` and `beagle-host/providers/host_provider_contract.py`
 - VM listing, node listing, guest IPv4 lookup, VM config lookup, and bridge inventory through `beagle-host/services/virtualization_inventory.py`
 - endpoint compliance evaluation and VM-state composition through `beagle-host/services/vm_state.py`
 - VM profile synthesis, assignment resolution, policy matching, public-stream derivation, and VM fingerprint assessment through `beagle-host/services/vm_profile.py`
-- VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through `beagle-host/providers/proxmox_host_provider.py`
+- VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through the selected host provider, currently `beagle-host/providers/proxmox_host_provider.py`
 - browser-/installer-facing endpoint profile payload normalization through `beagle-host/bin/endpoint_profile_contract.py`
 
 ## Still Directly Coupled
@@ -301,6 +335,7 @@ These flows now go through provider-backed services first:
 
 - `beagle-host/bin/beagle-control-plane.py` no longer owns the main VM profile/assignment/public-stream synthesis block directly, but it remains a large monolith with response-model shaping, inventory aggregation, and other handler-local orchestration still living in the entrypoint. Those remaining flows should move behind `beagle-host/services/*` incrementally.
 - `beagle-host/services/vm_profile.py` is now the host-side seam for profile synthesis, but it still derives business state from today's Proxmox-backed metadata/config semantics through provider-backed reads and existing description-meta conventions.
+- `beagle-host/providers/registry.py` makes provider selection real at bootstrap time, but the registry still only exposes one concrete implementation today. Provider selection is no longer hard-coded in the control-plane import graph, yet provider diversity is still unfinished work.
 
 ### Script surfaces
 

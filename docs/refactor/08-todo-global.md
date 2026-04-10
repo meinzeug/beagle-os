@@ -30,11 +30,13 @@
 - [x] Extract VM-state/compliance assembly into `beagle-host/services/vm_state.py`.
 - [x] Extract VM profile / assignment / public-stream synthesis into `beagle-host/services/vm_profile.py`.
 - [x] Rename the generic host/control-plane repo surface from `proxmox-host/` to `beagle-host/` while keeping Proxmox compatibility bridges where needed.
+- [x] Introduce `beagle-host/providers/host_provider_contract.py` and `beagle-host/providers/registry.py` so the control plane boots through a generic host-provider seam instead of directly importing `ProxmoxHostProvider`.
 - [ ] Continue splitting `proxmox-ui/beagle-ui.js` so bootstrap/catalog/profile-resolution logic lives under `proxmox-ui/provisioning/` and `proxmox-ui/state/` and `beagle-ui.js` becomes a thin entrypoint.
 - [ ] Inventory all direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally.
 - [ ] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [ ] Split the remaining response-model/inventory/update-feed/business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
+- [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.
 - [ ] Make Proxmox optional at deploy/install/runtime boundaries instead of the implicit required backend.

@@ -15,6 +15,9 @@ New cross-surface seams introduced incrementally:
 - `core/provider/`
   - provider registry or contract definitions
   - runtime-neutral provider lookup
+- `beagle-host/providers/`
+  - host-side provider registry and provider contracts
+  - runtime selection of the current host provider via environment/config instead of direct concrete imports
 - `core/virtualization/`
   - generic host/node/VM access contracts
   - VM state/config lookup interfaces

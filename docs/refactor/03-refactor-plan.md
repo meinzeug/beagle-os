@@ -138,6 +138,7 @@ Goals:
 
 Goals:
 
+- route host bootstrap through a provider registry and explicit provider contract instead of directly importing a concrete provider
 - inventory all remaining direct `qm` / `pvesh` / Proxmox package assumptions
 - move them behind provider-facing modules or services
 - make installers and scripts consume the same seams

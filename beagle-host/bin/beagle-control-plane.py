@@ -32,8 +32,9 @@ if str(PROVIDERS_DIR) not in sys.path:
 if str(SERVICES_DIR) not in sys.path:
     sys.path.insert(0, str(SERVICES_DIR))
 
-from proxmox_host_provider import ProxmoxHostProvider
 from endpoint_profile_contract import installer_profile_surface, normalize_endpoint_profile_contract
+from host_provider_contract import HostProvider
+from registry import create_provider, list_providers, normalize_provider_kind
 from virtualization_inventory import VirtualizationInventoryService
 from vm_profile import VmProfileService
 from vm_state import VmStateService
@@ -95,6 +96,7 @@ PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or
 WEB_UI_URL = os.environ.get("BEAGLE_WEB_UI_URL", "").strip()
 CORS_ALLOWED_ORIGINS_RAW = os.environ.get("BEAGLE_CORS_ALLOWED_ORIGINS", "").strip()
 PROXMOX_UI_PORTS_RAW = os.environ.get("BEAGLE_PROXMOX_UI_PORTS", "8006").strip()
+BEAGLE_HOST_PROVIDER_KIND = normalize_provider_kind(os.environ.get("BEAGLE_HOST_PROVIDER", "proxmox"))
 ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_SECONDS", "86400"))
 SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_TOKEN_TTL_SECONDS", "600"))
 USB_TUNNEL_SSH_USER = os.environ.get("BEAGLE_USB_TUNNEL_SSH_USER", "beagle").strip() or "beagle"
@@ -548,7 +550,8 @@ def run_checked(command: list[str], *, timeout: float | None | object = DEFAULT_
     return result.stdout
 
 
-PROXMOX_HOST_PROVIDER = ProxmoxHostProvider(
+HOST_PROVIDER: HostProvider = create_provider(
+    BEAGLE_HOST_PROVIDER_KIND,
     run_json=run_json,
     run_text=run_text,
     run_checked=run_checked,
@@ -557,7 +560,7 @@ PROXMOX_HOST_PROVIDER = ProxmoxHostProvider(
 )
 
 VIRTUALIZATION_INVENTORY = VirtualizationInventoryService(
-    provider=PROXMOX_HOST_PROVIDER,
+    provider=HOST_PROVIDER,
     vm_summary_factory=lambda item: VmSummary(
         vmid=int(item["vmid"]),
         node=str(item["node"]),
@@ -660,7 +663,7 @@ def schedule_ubuntu_beagle_vm_restart(
     wait_timeout_seconds: int = UBUNTU_BEAGLE_FIRSTBOOT_POWERDOWN_WAIT_SECONDS,
 ) -> dict[str, Any]:
     wait_timeout = max(60, int(wait_timeout_seconds or UBUNTU_BEAGLE_FIRSTBOOT_POWERDOWN_WAIT_SECONDS))
-    pid = PROXMOX_HOST_PROVIDER.schedule_vm_restart_after_stop(int(vmid), wait_timeout_seconds=wait_timeout)
+    pid = HOST_PROVIDER.schedule_vm_restart_after_stop(int(vmid), wait_timeout_seconds=wait_timeout)
     return {
         "vmid": int(vmid),
         "pid": int(pid),
@@ -1107,7 +1110,7 @@ def fetch_https_pinned_pubkey(url: str) -> str:
 
 
 def guest_exec_text(vmid: int, script: str) -> tuple[int, str, str]:
-    return PROXMOX_HOST_PROVIDER.guest_exec_script_text(
+    return HOST_PROVIDER.guest_exec_script_text(
         int(vmid),
         script,
         poll_attempts=300,
@@ -1703,12 +1706,12 @@ def load_installer_prep_state(node: str, vmid: int) -> dict[str, Any] | None:
 
 
 def guest_exec_out_data(vmid: int, command: str) -> str:
-    payload = PROXMOX_HOST_PROVIDER.guest_exec_bash(int(vmid), command)
+    payload = HOST_PROVIDER.guest_exec_bash(int(vmid), command)
     return str(payload.get("out-data", "") or "")
 
 
 def guest_exec_payload(vmid: int, command: str, *, timeout_seconds: int = 20) -> dict[str, Any]:
-    return PROXMOX_HOST_PROVIDER.guest_exec_bash(
+    return HOST_PROVIDER.guest_exec_bash(
         int(vmid),
         command,
         timeout_seconds=int(timeout_seconds),
@@ -2555,7 +2558,7 @@ def create_provisioned_vm(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def next_vmid() -> int:
-    return PROXMOX_HOST_PROVIDER.next_vmid()
+    return HOST_PROVIDER.next_vmid()
 
 
 def indent_block(text: str, prefix: str) -> str:
@@ -2577,7 +2580,7 @@ def local_iso_storage_dir() -> Path:
 
 
 def list_storage_inventory() -> list[dict[str, Any]]:
-    return PROXMOX_HOST_PROVIDER.list_storage_inventory()
+    return HOST_PROVIDER.list_storage_inventory()
 
 
 def storage_supports_content(storage_id: str, content_type: str) -> bool:
@@ -2867,18 +2870,18 @@ def finalize_ubuntu_beagle_install(state: dict[str, Any], *, restart: bool = Tru
     stale_options = [option for option in ("args", "ide2", "ide3") if option in config]
     for option in stale_options:
         try:
-            PROXMOX_HOST_PROVIDER.delete_vm_options(vmid, [option], timeout=None)
+            HOST_PROVIDER.delete_vm_options(vmid, [option], timeout=None)
         except subprocess.CalledProcessError:
             pass
     if str(config.get("boot", "") or "").strip() != "order=scsi0":
-        PROXMOX_HOST_PROVIDER.set_vm_boot_order(vmid, "order=scsi0", timeout=None)
+        HOST_PROVIDER.set_vm_boot_order(vmid, "order=scsi0", timeout=None)
     if restart:
         try:
-            PROXMOX_HOST_PROVIDER.stop_vm(vmid, skiplock=True, timeout=None)
+            HOST_PROVIDER.stop_vm(vmid, skiplock=True, timeout=None)
         except subprocess.CalledProcessError:
             pass
         try:
-            PROXMOX_HOST_PROVIDER.start_vm(vmid, timeout=None)
+            HOST_PROVIDER.start_vm(vmid, timeout=None)
         except subprocess.CalledProcessError:
             pass
     reconcile_script = ROOT_DIR / "scripts" / "reconcile-public-streams.sh"
@@ -3071,7 +3074,7 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
     )
 
     try:
-        PROXMOX_HOST_PROVIDER.create_vm(
+        HOST_PROVIDER.create_vm(
             vmid,
             [
                 ("name", name),
@@ -3087,8 +3090,8 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
             ],
             timeout=None,
         )
-        PROXMOX_HOST_PROVIDER.set_vm_description(vmid, description, timeout=None)
-        PROXMOX_HOST_PROVIDER.set_vm_options(
+        HOST_PROVIDER.set_vm_description(vmid, description, timeout=None)
+        HOST_PROVIDER.set_vm_options(
             vmid,
             [
                 ("scsihw", "virtio-scsi-single"),
@@ -3102,9 +3105,9 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
             ],
             timeout=None,
         )
-        PROXMOX_HOST_PROVIDER.set_vm_boot_order(vmid, "order=scsi0;ide2;ide3", timeout=None)
+        HOST_PROVIDER.set_vm_boot_order(vmid, "order=scsi0;ide2;ide3", timeout=None)
         if start_after_create:
-            PROXMOX_HOST_PROVIDER.start_vm(vmid, timeout=None)
+            HOST_PROVIDER.start_vm(vmid, timeout=None)
         invalidate_vm_cache(vmid, node)
     except Exception as exc:
         invalidate_vm_cache(vmid, node)
@@ -3318,7 +3321,7 @@ def update_ubuntu_beagle_vm(vmid: int, payload: dict[str, Any]) -> dict[str, Any
         package_presets=package_presets,
         extra_packages=extra_packages,
     )
-    PROXMOX_HOST_PROVIDER.set_vm_description(vmid, description, timeout=None)
+    HOST_PROVIDER.set_vm_description(vmid, description, timeout=None)
 
     applied = False
     if vm.status == "running":
@@ -3432,6 +3435,8 @@ def build_health_payload() -> dict[str, Any]:
         "service": "beagle-control-plane",
         "ok": True,
         "version": VERSION,
+        "provider": BEAGLE_HOST_PROVIDER_KIND,
+        "available_providers": list_providers(),
         "generated_at": utcnow(),
         "downloads_status_present": DOWNLOADS_STATUS_FILE.exists(),
         "downloads_status": downloads_status,
