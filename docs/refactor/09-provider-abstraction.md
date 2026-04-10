@@ -9,8 +9,9 @@ Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining 
 ### Browser / UI
 
 - `proxmox-ui/beagle-ui.js`
-  - Proxmox VM context detection
-  - node selection from the Proxmox UI
+  - thin orchestration for Proxmox VM context detection, node selection from the Proxmox UI, and modal launch delegation
+- `proxmox-ui/components/modal-shell.js`
+  - provider-neutral modal shell for shared overlay CSS, overlay lifecycle helpers, loading-overlay rendering, and the fleet launcher DOM identifier used by the host-installed UI
 - `extension/shared/vm-profile-mapper.js`
   - shared browser-side mapping from provider-backed VM data plus the host contract into browser-local profile objects
 - `extension/shared/vm-profile-helpers.js`
@@ -224,7 +225,8 @@ These flows now go through generic services first:
 - fleet rendering and action handling through `proxmox-ui/components/fleet-modal.js`
 - provisioning result window, badge, and status rendering through `proxmox-ui/components/provisioning-result-modal.js`
 - Ubuntu Beagle create/edit modal orchestration through `proxmox-ui/components/provisioning-create-modal.js`
-- VM profile resolution through `proxmox-ui/state/vm-profile.js`, with `beagle-ui.js` reduced to overlay/bootstrap orchestration
+- shared modal CSS/loading-overlay rendering through `proxmox-ui/components/modal-shell.js`
+- VM profile resolution through `proxmox-ui/state/vm-profile.js`, with `beagle-ui.js` reduced to thin orchestration/bootstrap wrappers
 - Proxmox ExtJS toolbar/menu/create-VM/fleet runtime wiring through `proxmox-ui/components/extjs-integration.js`, with `beagle-ui.js` no longer owning that large block directly
 - shared browser-side VM profile mapping through `extension/shared/vm-profile-mapper.js`
 - shared browser-side endpoint-env/note/action-state semantics through `extension/shared/vm-profile-helpers.js`

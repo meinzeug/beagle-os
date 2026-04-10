@@ -252,3 +252,14 @@ Decision:
 Reason:
 
 - After the profile/provisioning/fleet/render logic moved out, the largest remaining `beagle-ui.js` block was no longer business logic but Proxmox-ExtJS runtime wiring. That coupling still exists, but isolating it in one component keeps the entrypoint thin and makes the Proxmox-specific UI surface explicit and easier to replace later.
+
+### D25. Shared Proxmox UI modal shell chrome belongs in its own component
+
+Decision:
+
+- Move shared Proxmox-UI modal CSS, overlay lifecycle helpers, and generic loading-overlay rendering into `proxmox-ui/components/modal-shell.js`.
+- `proxmox-ui/beagle-ui.js` and other runtime entrypoints may consume that shell, but they must not recreate inline modal CSS or inline loading markup for each flow.
+
+Reason:
+
+- After the renderers, provisioning modals, and ExtJS wiring moved out, the last repeated UI chrome still left in `beagle-ui.js` was the shared overlay shell itself. Treating that shell as a dedicated component keeps styling and loading-state markup separate from fleet/profile business flows and makes the host-installed asset order explicit.
