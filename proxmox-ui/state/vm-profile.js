@@ -4,8 +4,8 @@
   var common = window.BeagleUiCommon;
   var virtualizationService = window.BeagleVirtualizationService;
   var platformService = window.BeaglePlatformService;
-  var profileModal = window.BeagleUiProfileModal;
   var profileMapper = window.BeagleBrowserVmProfileMapper;
+  var profileHelpers = window.BeagleBrowserVmProfileHelpers;
 
   if (!common) {
     throw new Error("BeagleUiCommon must be loaded before BeagleUiVmProfileState");
@@ -16,11 +16,11 @@
   if (!platformService) {
     throw new Error("BeaglePlatformService must be loaded before BeagleUiVmProfileState");
   }
-  if (!profileModal) {
-    throw new Error("BeagleUiProfileModal must be loaded before BeagleUiVmProfileState");
-  }
   if (!profileMapper) {
     throw new Error("BeagleBrowserVmProfileMapper must be loaded before BeagleUiVmProfileState");
+  }
+  if (!profileHelpers) {
+    throw new Error("BeagleBrowserVmProfileHelpers must be loaded before BeagleUiVmProfileState");
   }
 
   function resolveVmProfile(ctx) {
@@ -55,11 +55,13 @@
         controlPlaneHealthUrl: controlPlaneHealthUrl,
         managerUrl: common.managerUrlFromHealthUrl(controlPlaneHealthUrl)
       });
-      profile.notes = profileModal.buildNotes(profile);
-      if (!profile.endpointSummary) {
-        profile.notes.push("Endpoint hat noch keinen Check-in an die Beagle Control Plane geliefert.");
-      }
-      profile.endpointEnv = profileModal.buildEndpointEnv(profile);
+      profile.notes = profileHelpers.buildNotes(profile, {
+        includeInstallerReadyNote: true,
+        includeNoEndpointSummaryNote: true
+      });
+      profile.endpointEnv = profileHelpers.buildEndpointEnv(profile, {
+        includeManagerPinnedPubkey: true
+      });
       return profile;
     });
   }

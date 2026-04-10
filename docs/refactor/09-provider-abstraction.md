@@ -13,10 +13,12 @@ Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining 
   - node selection from the Proxmox UI
 - `extension/shared/vm-profile-mapper.js`
   - shared browser-side mapping from provider-backed VM data plus the host contract into browser-local profile objects
+- `extension/shared/vm-profile-helpers.js`
+  - shared browser-side endpoint-env export, operator notes, and action-state semantics for both browser surfaces
 - `proxmox-ui/state/vm-profile.js`
-  - thin Proxmox-UI wrapper around the shared browser-side profile mapper
+  - thin Proxmox-UI wrapper around the shared browser-side profile mapper/helper seams
 - `proxmox-ui/components/profile-modal.js`
-  - provider-neutral profile modal renderer and action orchestration
+  - provider-neutral profile modal renderer and action orchestration that consumes the shared browser-side profile helpers
 - `proxmox-ui/components/fleet-modal.js`
   - provider-neutral fleet renderer and action orchestration
 - `proxmox-ui/components/provisioning-result-modal.js`
@@ -27,11 +29,13 @@ Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining 
   - direct `/api2/json` cluster/config/guest-agent calls
   - Proxmox VM context detection for the browser extension
 - `extension/services/profile.js`
-  - thin extension-side wrapper around the shared browser-side profile mapper plus extension-local export/helper functions
+  - thin extension-side wrapper around the shared browser-side profile mapper/helper seams
 - `extension/components/profile-modal.js`
   - provider-neutral extension profile renderer and action orchestration
+- `extension/components/vm-page-integration.js`
+  - Proxmox-page toolbar/menu integration and mutation-observer boot logic for the extension
 - `extension/content.js`
-  - modal launch, toolbar/menu integration, and DOM boot logic still live here, but direct Proxmox reads, inline VM profile synthesis, and inline profile rendering were removed
+  - thin extension entrypoint for modal launch and overlay/profile-resolution orchestration; DOM boot logic moved to `extension/components/vm-page-integration.js`
 
 ### Host / control plane
 
@@ -135,8 +139,10 @@ Current concrete implementation:
 - `extension/services/virtualization.js`
 - `extension/services/platform.js`
 - `extension/shared/vm-profile-mapper.js`
+- `extension/shared/vm-profile-helpers.js`
 - `extension/services/profile.js`
 - `extension/components/profile-modal.js`
+- `extension/components/vm-page-integration.js`
 - `extension/providers/proxmox.js`
 
 Generic contract now exposed to `extension/content.js`:
@@ -218,6 +224,7 @@ These flows now go through generic services first:
 - Ubuntu Beagle create/edit modal orchestration through `proxmox-ui/components/provisioning-create-modal.js`
 - VM profile resolution through `proxmox-ui/state/vm-profile.js`, with `beagle-ui.js` reduced to overlay/bootstrap orchestration
 - shared browser-side VM profile mapping through `extension/shared/vm-profile-mapper.js`
+- shared browser-side endpoint-env/note/action-state semantics through `extension/shared/vm-profile-helpers.js`
 
 ### Browser extension
 
@@ -230,12 +237,13 @@ These flows now go through provider-backed services first:
 - shared Beagle API token/config resolution through `extension/common.js` and `extension/services/platform.js`
 - VM profile resolution through `extension/services/profile.js`, with `extension/content.js` reduced to rendering and DOM integration
 - profile rendering and action handling through `extension/components/profile-modal.js`
+- Proxmox-page toolbar/menu DOM integration through `extension/components/vm-page-integration.js`
 
 ## Still Directly Coupled
 
 ### Browser extension
 
-- `extension/content.js` still performs toolbar/menu integration and DOM bootstrapping, but it no longer performs direct Proxmox API calls, local profile synthesis, or inline profile rendering.
+- `extension/components/vm-page-integration.js` still depends on today's Proxmox ExtJS DOM structure, menu labels, and selectors, even though direct Proxmox API access and VM profile synthesis are no longer coupled to that module.
 
 ### Control plane
 
@@ -248,11 +256,6 @@ These flows now go through provider-backed services first:
 ### Thin-client Proxmox access
 
 - thin-client-side Proxmox API and SPICE helpers are still explicitly Proxmox-bound.
-
-### Browser-side endpoint helpers
-
-- `proxmox-ui/components/profile-modal.js` and `extension/services/profile.js` still each own overlapping endpoint export/note/helper logic for browser-facing profile views.
-- `extension/content.js` is smaller now, but its toolbar/menu DOM integration is still bundled into one entrypoint file.
 
 ## Migration Rule
 

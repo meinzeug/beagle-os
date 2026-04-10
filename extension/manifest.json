@@ -17,8 +17,10 @@
         "services/virtualization.js",
         "services/platform.js",
         "shared/vm-profile-mapper.js",
+        "shared/vm-profile-helpers.js",
         "services/profile.js",
         "components/profile-modal.js",
+        "components/vm-page-integration.js",
         "content.js"
       ],
       "run_at": "document_idle"

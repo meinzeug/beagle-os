@@ -9,12 +9,14 @@
   const platformService = window.BeagleExtensionPlatformService;
   const profileService = window.BeagleExtensionProfileService;
   const profileModal = window.BeagleExtensionProfileModal;
+  const vmPageIntegration = window.BeagleExtensionVmPageIntegration;
 
   if (!common) throw new Error("BeagleExtensionCommon must be loaded before extension/content.js");
   if (!virtualizationService) throw new Error("BeagleExtensionVirtualizationService must be loaded before extension/content.js");
   if (!platformService) throw new Error("BeagleExtensionPlatformService must be loaded before extension/content.js");
   if (!profileService) throw new Error("BeagleExtensionProfileService must be loaded before extension/content.js");
   if (!profileModal) throw new Error("BeagleExtensionProfileModal must be loaded before extension/content.js");
+  if (!vmPageIntegration) throw new Error("BeagleExtensionVmPageIntegration must be loaded before extension/content.js");
 
   const sleep = common.sleep;
 
@@ -167,162 +169,21 @@
     });
   }
 
-  function createToolbarButton(label, onClick) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = label;
-    button.setAttribute(BUTTON_MARKER, label);
-    button.className = "x-btn-text";
-    button.style.marginLeft = "6px";
-    button.style.padding = "4px 10px";
-    button.style.border = "1px solid #b5b8c8";
-    button.style.background = "#f5f5f5";
-    button.style.borderRadius = "3px";
-    button.style.cursor = "pointer";
-    button.style.lineHeight = "20px";
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onClick();
+  function openWebUi() {
+    return platformService.webUiUrlWithToken(true).then((url) => {
+      window.open(url, "_blank", "noopener,noreferrer");
     });
-    return button;
   }
 
-  function isConsoleMenuTrigger(element) {
-    const text = String(element.textContent || "").trim();
-    return text === MENU_TEXT || text.includes(MENU_TEXT);
-  }
-
-  function findToolbarRow() {
-    const buttons = Array.from(document.querySelectorAll("button, a, div, span"));
-    for (const element of buttons) {
-      if (!isConsoleMenuTrigger(element)) continue;
-      const row =
-        element.closest(".x-toolbar") ||
-        element.closest(".x-box-inner") ||
-        element.closest(".x-panel-header") ||
-        element.parentElement;
-      if (row) return row;
-    }
-    return null;
-  }
-
-  function ensureToolbarButtons() {
-    document.querySelectorAll(`[${BUTTON_MARKER}]`).forEach((node) => {
-      if (!virtualizationService.isVmView()) node.remove();
-    });
-
-    if (!virtualizationService.isVmView()) return;
-
-    const toolbar = findToolbarRow();
-    if (!toolbar) return;
-
-    const existingButton = toolbar.querySelector(`[${BUTTON_MARKER}="${PRODUCT_LABEL}"]`);
-    const existingWebButton = toolbar.querySelector(`[${BUTTON_MARKER}="${PRODUCT_LABEL} Web UI"]`);
-
-    if (!existingButton) {
-      const profileButton = createToolbarButton(PRODUCT_LABEL, showProfileModal);
-      profileButton.title = "Zeigt das aufgeloeste Beagle-Profil fuer diese VM und bietet Download-, Export- und Health-Aktionen.";
-      toolbar.appendChild(profileButton);
-    }
-    if (!existingWebButton) {
-      const webUiButton = createToolbarButton(`${PRODUCT_LABEL} Web UI`, async () => {
-        const url = await platformService.webUiUrlWithToken(true);
-        window.open(url, "_blank", "noopener,noreferrer");
-      });
-      webUiButton.title = "Oeffnet die zentrale Beagle Web UI auf diesem Host.";
-      toolbar.appendChild(webUiButton);
-    }
-  }
-
-  function getVisibleMenu() {
-    const menus = Array.from(document.querySelectorAll(".x-menu, [role='menu']"));
-    return menus.find((menu) => menu.offsetParent !== null) || null;
-  }
-
-  function menuAlreadyHasLabel(menu, label) {
-    return Array.from(menu.querySelectorAll("*")).some((node) => String(node.textContent || "").trim() === label);
-  }
-
-  function createMenuItem(label, onClick) {
-    const item = document.createElement("a");
-    item.href = "#";
-    item.setAttribute(BUTTON_MARKER, label);
-    item.className = "x-menu-item";
-    item.style.display = "block";
-    item.style.padding = "4px 24px";
-    item.style.cursor = "pointer";
-    item.textContent = label;
-    item.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onClick();
-    });
-    return item;
-  }
-
-  function ensureMenuItems() {
-    if (!virtualizationService.isVmView()) return;
-    const menu = getVisibleMenu();
-    if (!menu) return;
-
-    const hasConsoleItems = Array.from(menu.querySelectorAll("*")).some((node) => {
-      const text = String(node.textContent || "").trim();
-      return text === "noVNC" || text === "SPICE" || text === "xterm.js";
-    });
-
-    if (!hasConsoleItems) return;
-    if (!menuAlreadyHasLabel(menu, `${PRODUCT_LABEL} Profil`)) {
-      menu.appendChild(createMenuItem(`${PRODUCT_LABEL} Profil`, showProfileModal));
-    }
-    virtualizationService.parseVmContext().then((ctx) => {
-      if (!ctx) return;
-      return getVmInstallerEligibility(ctx).then((result) => {
-        const existingInstaller = Array.from(menu.querySelectorAll(`[${BUTTON_MARKER}]`)).find(
-          (node) => String(node.textContent || "").trim() === `${PRODUCT_LABEL} Installer`
-        );
-        if (result?.eligible) {
-          if (!existingInstaller) {
-            menu.appendChild(createMenuItem(`${PRODUCT_LABEL} Installer`, downloadUsbInstaller));
-          }
-          return;
-        }
-        if (existingInstaller) {
-          existingInstaller.remove();
-        }
-      });
-    }).catch(() => {});
-  }
-
-  async function boot() {
-    for (let i = 0; i < 12; i += 1) {
-      ensureToolbarButtons();
-      ensureMenuItems();
-      await sleep(500);
-    }
-
-    window.addEventListener("hashchange", () => {
-      ensureToolbarButtons();
-      ensureMenuItems();
-    });
-
-    document.addEventListener(
-      "click",
-      () => {
-        window.setTimeout(() => {
-          ensureToolbarButtons();
-          ensureMenuItems();
-        }, 50);
-      },
-      true
-    );
-
-    const observer = new MutationObserver(() => {
-      ensureToolbarButtons();
-      ensureMenuItems();
-    });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-  }
-
-  boot();
+  vmPageIntegration.boot({
+    buttonMarker: BUTTON_MARKER,
+    downloadUsbInstaller,
+    getVmInstallerEligibility,
+    menuText: MENU_TEXT,
+    openWebUi,
+    productLabel: PRODUCT_LABEL,
+    showProfileModal,
+    sleep,
+    virtualizationService
+  });
 })();
