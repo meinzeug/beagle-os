@@ -56,7 +56,7 @@ bash -n "$ROOT_DIR/server-installer/live-build/auto/config"
 
 mapfile -t python_files < <(
   find \
-    "$ROOT_DIR/proxmox-host" \
+    "$ROOT_DIR/beagle-host" \
     "$ROOT_DIR/thin-client-assistant" \
     "$ROOT_DIR/beagle-kiosk" \
     -type f \

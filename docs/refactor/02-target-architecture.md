@@ -86,7 +86,7 @@ Rules:
 
 Current root:
 
-- `proxmox-host/`
+- `beagle-host/`
 
 Target internal modules:
 
@@ -289,7 +289,7 @@ Responsibilities:
 Examples:
 
 - `proxmox-ui/beagle-ui.js` becomes a bootstrap shell over extracted modules
-- `proxmox-host/bin/beagle-control-plane.py` becomes a thin app entrypoint over internal services
+- `beagle-host/bin/beagle-control-plane.py` becomes a thin app entrypoint over internal services
 
 ## Phase C: Stabilize contracts
 

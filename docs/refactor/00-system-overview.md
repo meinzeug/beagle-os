@@ -16,11 +16,11 @@ Beagle OS currently operates as one product family with multiple deployable surf
 
 ## Top-Level Modules
 
-### `proxmox-host/`
+### `beagle-host/`
 
 Host-side control plane code, systemd units, and VM provisioning templates.
 
-- Main control plane entrypoint: `proxmox-host/bin/beagle-control-plane.py`
+- Main control plane entrypoint: `beagle-host/bin/beagle-control-plane.py`
 - Current size: about 5900 lines
 - Responsibilities:
   - HTTP API

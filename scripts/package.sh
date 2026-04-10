@@ -173,12 +173,12 @@ PY
   tar -czf "$DIST_DIR/$TARBALL_NAME" \
     AGENTS.md \
     beagle-kiosk \
+    beagle-host \
     beagle-os \
     core \
     docs \
     extension \
     providers \
-    proxmox-host \
     proxmox-ui \
     scripts \
     server-installer \

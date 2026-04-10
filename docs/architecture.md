@@ -5,7 +5,7 @@
 The repository is split into two deployable product surfaces:
 
 - `extension/` adds Beagle operator actions to Proxmox VE VM pages
-- `proxmox-ui/`, `proxmox-host/` and `scripts/` install the same Beagle workflow directly on a Proxmox host
+- `proxmox-ui/`, `beagle-host/` and `scripts/` install the same Beagle workflow directly on a Proxmox host
 - `core/` and `providers/` are the new provider-neutral architecture seam, with Proxmox as the first implementation
 - `thin-client-assistant/` prepares a Moonlight-based endpoint that boots into a dedicated streaming session
 - `beagle-os/` builds the dedicated endpoint operating system and kernel profile
@@ -31,9 +31,9 @@ Current status:
 - browser-side VM profile mapping now lives in one shared helper `extension/shared/vm-profile-mapper.js` used by both the browser extension and the host-installed UI
 - the browser extension now also has a dedicated `extension/components/profile-modal.js` renderer, with `extension/content.js` reduced toward DOM integration and bootstrapping
 - browser-side endpoint profile resolution now lives in `proxmox-ui/state/vm-profile.js` and `extension/services/profile.js` instead of the entrypoint files
-- the host control plane now exposes an explicit browser-/installer-facing endpoint profile contract via `proxmox-host/bin/endpoint_profile_contract.py`
+- the host control plane now exposes an explicit browser-/installer-facing endpoint profile contract via `beagle-host/bin/endpoint_profile_contract.py`
 - the host-installed Proxmox UI now also carries dedicated `components/profile-modal.js`, `components/fleet-modal.js`, `components/provisioning-result-modal.js`, and `components/provisioning-create-modal.js` renderers, with `beagle-ui.js` reduced toward orchestration
-- host-side VM lifecycle writes, guest-exec flows, and scheduled restart helpers now flow through `proxmox-host/providers/proxmox_host_provider.py` alongside the existing read paths
+- host-side VM lifecycle writes, guest-exec flows, and scheduled restart helpers now flow through `beagle-host/providers/proxmox_host_provider.py` alongside the existing read paths
 - script-side and thin-client-side provider neutrality are still being migrated incrementally
 
 ## Proxmox operator surface

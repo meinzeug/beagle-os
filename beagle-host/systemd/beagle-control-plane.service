@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=-/etc/beagle/beagle-manager.env
-ExecStart=/usr/bin/python3 __INSTALL_DIR__/proxmox-host/bin/beagle-control-plane.py
+ExecStart=/usr/bin/python3 __INSTALL_DIR__/beagle-host/bin/beagle-control-plane.py
 Restart=always
 RestartSec=3
 User=root

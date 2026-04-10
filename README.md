@@ -26,7 +26,7 @@ Beagle OS is not a generic broker platform. It is a focused stack for streamed d
 
 ## What Lives in This Repository
 
-- `proxmox-host/`
+- `beagle-host/`
   Host-side control plane, download publication, and installer rendering.
 - `proxmox-ui/`
   Proxmox UI integration and Beagle Fleet controls.

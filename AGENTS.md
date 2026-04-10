@@ -65,9 +65,10 @@ Architekturregel ab jetzt:
 - Gemeinsame Proxmox-UI-Overlay-/Loading-/Modal-Shell-Logik gehoert in dedizierte `proxmox-ui/components/*`-Module wie `modal-shell.js`, nicht als Inline-CSS oder Inline-Loading-Markup zurueck in `proxmox-ui/beagle-ui.js`.
 - Proxmox-UI-spezifische ExtJS-/Toolbar-/Menu-/Create-VM-Integration gehoert in dedizierte `proxmox-ui/components/*`-Module, nicht zurueck in `proxmox-ui/beagle-ui.js`.
 - Host-seitige browser-/installer-facing Endpoint-Profile und oeffentliche Payload-Contracts gehoeren in dedizierte Contract-Module, nicht verteilt in mehrere Handler oder Hilfsfunktionen im Control-Plane-Monolithen.
-- Host-seitige provider-gestuetzte Read-/Inventory-Helfer fuer VM-, Node-, Bridge-, Config- und Guest-IP-Abfragen gehoeren in `proxmox-host/services/*`, nicht zurueck in `proxmox-host/bin/beagle-control-plane.py`.
-- Host-seitige VM-State-/Compliance-/Read-Model-Zusammenbau-Helfer gehoeren ebenfalls in `proxmox-host/services/*`, nicht verteilt zwischen HTTP-Handlern und dem Control-Plane-Einstiegspunkt.
-- Host-Control-Plane-Code soll neue direkte `qm`-/`pvesh`-Nutzung nur noch in dedizierten Provider-Modulen wie `proxmox-host/providers/*` einführen.
+- Die generische Host-/Control-Plane-Oberflaeche heisst im Repo `beagle-host/`, nicht `proxmox-host/`; provider-spezifische Logik bleibt darunter nur in `providers/*`.
+- Host-seitige provider-gestuetzte Read-/Inventory-Helfer fuer VM-, Node-, Bridge-, Config- und Guest-IP-Abfragen gehoeren in `beagle-host/services/*`, nicht zurueck in `beagle-host/bin/beagle-control-plane.py`.
+- Host-seitige VM-State-/Compliance-/Read-Model-Zusammenbau-Helfer gehoeren ebenfalls in `beagle-host/services/*`, nicht verteilt zwischen HTTP-Handlern und dem Control-Plane-Einstiegspunkt.
+- Host-Control-Plane-Code soll neue direkte `qm`-/`pvesh`-Nutzung nur noch in dedizierten Provider-Modulen wie `beagle-host/providers/*` einführen.
 - Host-Control-Plane-Helfer fuer `qm guest exec`, `qm guest exec-status` und geplante VM-Restarts gehoeren ebenfalls in diese Provider-Module, nicht in HTTP-Handler oder Feature-Flows.
 - Groessere Proxmox-UI-Renderer und Modal-Logik gehoeren nach `proxmox-ui/components/*`, nicht zurueck in `proxmox-ui/beagle-ui.js`.
 

@@ -131,7 +131,7 @@ This roadmap is the missing bridge between today's Proxmox-first repo and the de
 Goals:
 
 - finish shrinking `proxmox-ui/beagle-ui.js`
-- continue splitting `proxmox-host/bin/beagle-control-plane.py`
+- continue splitting `beagle-host/bin/beagle-control-plane.py`
 - remove business logic from runtime entrypoints
 
 ### Stage 2: Provider-complete host abstraction

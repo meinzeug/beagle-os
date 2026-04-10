@@ -4,7 +4,7 @@ Open-source host tooling, endpoint runtime, gaming kiosk, and installer stack wi
 
 ## Architecture
 
-- **proxmox-host/**: Control plane (Python API server on port 9088) plus systemd services
+- **beagle-host/**: Control plane (Python API server on port 9088) plus systemd services
 - **proxmox-ui/**: JavaScript injection into the Proxmox VE UI
 - **core/**: Provider-neutral contracts and shared services
 - **providers/**: Concrete provider implementations, currently Proxmox
@@ -17,7 +17,7 @@ Open-source host tooling, endpoint runtime, gaming kiosk, and installer stack wi
 
 ## Key files
 
-- `proxmox-host/bin/beagle-control-plane.py` - Main API server
+- `beagle-host/bin/beagle-control-plane.py` - Main API server
 - `proxmox-ui/beagle-ui.js` - Proxmox UI integration entrypoint
 - `beagle-kiosk/main.js` - Gaming kiosk main process
 - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer` - Interactive server installer
