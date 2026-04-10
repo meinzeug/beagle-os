@@ -146,6 +146,7 @@ if [[ "$(readlink -f "$ROOT_DIR/beagle-host/providers/proxmox_host_provider.py")
   install -m 0644 "$ROOT_DIR/beagle-host/providers/proxmox_host_provider.py" "$HOST_RUNTIME_DIR/providers/proxmox_host_provider.py"
 fi
 install -m 0644 "$ROOT_DIR/beagle-host/services/virtualization_inventory.py" "$HOST_RUNTIME_DIR/services/virtualization_inventory.py"
+install -m 0644 "$ROOT_DIR/beagle-host/services/vm_profile.py" "$HOST_RUNTIME_DIR/services/vm_profile.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/vm_state.py" "$HOST_RUNTIME_DIR/services/vm_state.py"
 if [[ -e "$LEGACY_HOST_RUNTIME_DIR" && ! -L "$LEGACY_HOST_RUNTIME_DIR" ]]; then
   rm -rf "$LEGACY_HOST_RUNTIME_DIR"
