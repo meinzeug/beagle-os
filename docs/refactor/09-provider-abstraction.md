@@ -44,6 +44,10 @@ Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining 
 
 - `proxmox-host/bin/endpoint_profile_contract.py`
   - explicit public endpoint profile contract normalization for browser and installer consumers
+- `proxmox-host/services/virtualization_inventory.py`
+  - provider-backed host read service for VM listing, node inventory, guest IPv4 lookup, VM config lookup, and bridge inventory used by the control plane
+- `proxmox-host/services/vm_state.py`
+  - provider-backed host service for endpoint compliance evaluation and VM-state composition used by multiple control-plane handlers
 - `proxmox-host/providers/proxmox_host_provider.py`
   - `pvesh get /cluster/resources`
   - `pvesh get /nodes`
@@ -175,6 +179,8 @@ Generic contract now exposed to `extension/content.js`:
 Current concrete implementation:
 
 - `proxmox-host/providers/proxmox_host_provider.py`
+- `proxmox-host/services/virtualization_inventory.py`
+- `proxmox-host/services/vm_state.py`
 
 ### Host-side endpoint profile contract
 
@@ -208,6 +214,17 @@ Current contract extracted from the control plane:
 - `guest_exec_status(vmid, pid, timeout=None)`
 - `guest_exec_script_text(vmid, script, poll_attempts=300, poll_interval_seconds=2.0)`
 - `schedule_vm_restart_after_stop(vmid, wait_timeout_seconds)`
+- host-side read-service wrappers:
+  - `first_guest_ipv4(vmid)`
+  - `list_vms(refresh=False)`
+  - `list_nodes_inventory()`
+  - `get_vm_config(node, vmid)`
+  - `find_vm(vmid, refresh=False)`
+  - `config_bridge_names(config)`
+  - `list_bridge_inventory(node="")`
+- host-side state-service wrappers:
+  - `evaluate_endpoint_compliance(profile, report)`
+  - `build_vm_state(vm)`
 
 ## Already Decoupled
 
@@ -244,6 +261,15 @@ These flows now go through provider-backed services first:
 - profile rendering and action handling through `extension/components/profile-modal.js`
 - Proxmox-page toolbar/menu DOM integration through `extension/components/vm-page-integration.js`
 
+### Host-side control plane
+
+These flows now go through provider-backed services first:
+
+- VM listing, node listing, guest IPv4 lookup, VM config lookup, and bridge inventory through `proxmox-host/services/virtualization_inventory.py`
+- endpoint compliance evaluation and VM-state composition through `proxmox-host/services/vm_state.py`
+- VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through `proxmox-host/providers/proxmox_host_provider.py`
+- browser-/installer-facing endpoint profile payload normalization through `proxmox-host/bin/endpoint_profile_contract.py`
+
 ## Still Directly Coupled
 
 ### Browser extension
@@ -256,7 +282,7 @@ These flows now go through provider-backed services first:
 
 ### Control plane
 
-- `proxmox-host/bin/beagle-control-plane.py` still synthesizes VM profiles from Proxmox metadata and remains a large monolith, but its VM reads, writes, guest-exec flows, and scheduled restart helper are now routed through `ProxmoxHostProvider`, and its public profile payload is normalized through `endpoint_profile_contract.py`.
+- `proxmox-host/bin/beagle-control-plane.py` still synthesizes VM profiles from Proxmox metadata and remains a large monolith, but its provider-backed read paths are now routed through `proxmox-host/services/virtualization_inventory.py`, its endpoint compliance and VM-state assembly are routed through `proxmox-host/services/vm_state.py`, its VM writes/guest-exec/restart flows are routed through `ProxmoxHostProvider`, and its public profile payload is normalized through `endpoint_profile_contract.py`.
 
 ### Script surfaces
 

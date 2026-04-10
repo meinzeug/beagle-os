@@ -26,11 +26,16 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse, urlunparse
 
 PROVIDERS_DIR = Path(__file__).resolve().parents[1] / "providers"
+SERVICES_DIR = Path(__file__).resolve().parents[1] / "services"
 if str(PROVIDERS_DIR) not in sys.path:
     sys.path.insert(0, str(PROVIDERS_DIR))
+if str(SERVICES_DIR) not in sys.path:
+    sys.path.insert(0, str(SERVICES_DIR))
 
 from proxmox_host_provider import ProxmoxHostProvider
 from endpoint_profile_contract import installer_profile_surface, normalize_endpoint_profile_contract
+from virtualization_inventory import VirtualizationInventoryService
+from vm_state import VmStateService
 
 def load_env_defaults(path: str) -> None:
     env_path = Path(path)
@@ -549,6 +554,25 @@ PROXMOX_HOST_PROVIDER = ProxmoxHostProvider(
     cache_get=cache_get,
     cache_put=cache_put,
 )
+
+VIRTUALIZATION_INVENTORY = VirtualizationInventoryService(
+    provider=PROXMOX_HOST_PROVIDER,
+    vm_summary_factory=lambda item: VmSummary(
+        vmid=int(item["vmid"]),
+        node=str(item["node"]),
+        name=str(item.get("name") or f"vm-{item['vmid']}"),
+        status=str(item.get("status") or "unknown"),
+        tags=str(item.get("tags") or ""),
+    ),
+    list_vms_cache_seconds=LIST_VMS_CACHE_SECONDS,
+    vm_config_cache_seconds=VM_CONFIG_CACHE_SECONDS,
+    guest_ipv4_cache_seconds=GUEST_IPV4_CACHE_SECONDS,
+    enable_guest_ip_lookup=ENABLE_GUEST_IP_LOOKUP,
+    guest_agent_timeout_seconds=GUEST_AGENT_TIMEOUT_SECONDS,
+    default_bridge=UBUNTU_BEAGLE_DEFAULT_BRIDGE,
+)
+
+VM_STATE_SERVICE: VmStateService | None = None
 
 
 def endpoints_dir() -> Path:
@@ -3149,72 +3173,31 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def first_guest_ipv4(vmid: int) -> str:
-    return PROXMOX_HOST_PROVIDER.get_guest_ipv4(
-        vmid,
-        cache_key=f"guest-ipv4:{int(vmid)}",
-        cache_ttl_seconds=GUEST_IPV4_CACHE_SECONDS,
-        enable_lookup=ENABLE_GUEST_IP_LOOKUP,
-        timeout_seconds=GUEST_AGENT_TIMEOUT_SECONDS,
-    )
+    return VIRTUALIZATION_INVENTORY.first_guest_ipv4(vmid)
 
 
 def list_vms(*, refresh: bool = False) -> list[VmSummary]:
-    return PROXMOX_HOST_PROVIDER.list_vms(
-        refresh=refresh,
-        cache_key="list-vms",
-        cache_ttl_seconds=LIST_VMS_CACHE_SECONDS,
-        vm_summary_factory=lambda item: VmSummary(
-            vmid=int(item["vmid"]),
-            node=str(item["node"]),
-            name=str(item.get("name") or f"vm-{item['vmid']}"),
-            status=str(item.get("status") or "unknown"),
-            tags=str(item.get("tags") or ""),
-        ),
-    )
+    return VIRTUALIZATION_INVENTORY.list_vms(refresh=refresh)
 
 
 def list_nodes_inventory() -> list[dict[str, Any]]:
-    return PROXMOX_HOST_PROVIDER.list_nodes()
+    return VIRTUALIZATION_INVENTORY.list_nodes_inventory()
 
 
 def config_bridge_names(config: dict[str, Any]) -> set[str]:
-    bridges: set[str] = set()
-    if not isinstance(config, dict):
-        return bridges
-    for key, value in config.items():
-        if not str(key).startswith("net"):
-            continue
-        match = re.search(r"(?:^|,)bridge=([^,]+)", str(value or ""))
-        if not match:
-            continue
-        bridge_name = str(match.group(1) or "").strip()
-        if bridge_name:
-            bridges.add(bridge_name)
-    return bridges
+    return VIRTUALIZATION_INVENTORY.config_bridge_names(config)
 
 
 def list_bridge_inventory(node: str = "") -> list[str]:
-    bridges: set[str] = set()
-    if UBUNTU_BEAGLE_DEFAULT_BRIDGE:
-        bridges.add(UBUNTU_BEAGLE_DEFAULT_BRIDGE)
-    for vm in list_vms():
-        if node and vm.node != node:
-            continue
-        bridges.update(config_bridge_names(get_vm_config(vm.node, vm.vmid)))
-    return sorted(bridges)
+    return VIRTUALIZATION_INVENTORY.list_bridge_inventory(node)
 
 
 def get_vm_config(node: str, vmid: int) -> dict[str, Any]:
-    return PROXMOX_HOST_PROVIDER.get_vm_config(
-        node,
-        vmid,
-        cache_key=f"vm-config:{node}:{int(vmid)}",
-        cache_ttl_seconds=VM_CONFIG_CACHE_SECONDS,
-    )
+    return VIRTUALIZATION_INVENTORY.get_vm_config(node, vmid)
 
 
 def find_vm(vmid: int, *, refresh: bool = False) -> VmSummary | None:
-    return next((candidate for candidate in list_vms(refresh=refresh) if candidate.vmid == vmid), None)
+    return VIRTUALIZATION_INVENTORY.find_vm(vmid, refresh=refresh)
 
 
 def should_use_public_stream(meta: dict[str, str], guest_ip: str) -> bool:
@@ -3523,122 +3506,31 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
     return normalize_endpoint_profile_contract(profile, vmid=vm.vmid, installer_iso_url=installer_iso_url)
 
 
+def vm_state_service() -> VmStateService:
+    global VM_STATE_SERVICE
+    if VM_STATE_SERVICE is None:
+        VM_STATE_SERVICE = VmStateService(
+            build_profile=build_profile,
+            latest_ubuntu_beagle_state_for_vmid=latest_ubuntu_beagle_state_for_vmid,
+            load_action_queue=load_action_queue,
+            load_action_result=load_action_result,
+            load_endpoint_report=load_endpoint_report,
+            load_installer_prep_state=load_installer_prep_state,
+            stale_endpoint_seconds=STALE_ENDPOINT_SECONDS,
+            summarize_action_result=summarize_action_result,
+            summarize_endpoint_report=summarize_endpoint_report,
+            summarize_installer_prep_state=summarize_installer_prep_state,
+            timestamp_age_seconds=timestamp_age_seconds,
+        )
+    return VM_STATE_SERVICE
+
+
 def evaluate_endpoint_compliance(profile: dict[str, Any], report: dict[str, Any] | None) -> dict[str, Any]:
-    managed = bool(profile.get("stream_host") or profile.get("assigned_target") or profile.get("expected_profile_name"))
-    desired = {
-        "stream_host": profile.get("stream_host", ""),
-        "moonlight_port": profile.get("moonlight_port", ""),
-        "moonlight_app": profile.get("moonlight_app", ""),
-        "network_mode": profile.get("network_mode", ""),
-        "egress_mode": profile.get("egress_mode", ""),
-        "identity_timezone": profile.get("identity_timezone", ""),
-        "identity_locale": profile.get("identity_locale", ""),
-        "profile_name": profile.get("expected_profile_name", ""),
-        "assigned_target": profile.get("assigned_target"),
-    }
-    if not isinstance(report, dict):
-        return {
-            "managed": managed,
-            "endpoint_seen": False,
-            "status": "pending" if managed else "unmanaged",
-            "compliant": False,
-            "drift_count": 0,
-            "alert_count": 0,
-            "drift": [],
-            "alerts": [],
-            "desired": desired,
-        }
-
-    summary = summarize_endpoint_report(report)
-    drift: list[dict[str, Any]] = []
-    alerts: list[dict[str, Any]] = []
-    reported_at = str(summary.get("reported_at", ""))
-    report_age_seconds = timestamp_age_seconds(reported_at)
-
-    def compare(field: str, expected: str, actual: str, label: str) -> None:
-        if not expected:
-            return
-        if str(expected).strip() == str(actual).strip():
-            return
-        drift.append({"field": field, "label": label, "expected": expected, "actual": actual})
-
-    compare("stream_host", str(profile.get("stream_host", "")), str(summary.get("stream_host", "")), "Stream Host")
-    compare("moonlight_port", str(profile.get("moonlight_port", "")), str(summary.get("moonlight_port", "")), "Moonlight Port")
-    compare("moonlight_app", str(profile.get("moonlight_app", "")), str(summary.get("moonlight_app", "")), "Moonlight App")
-    compare("network_mode", str(profile.get("network_mode", "")), str(summary.get("network_mode", "")), "Network Mode")
-    compare("egress_mode", str(profile.get("egress_mode", "")), str(summary.get("egress_mode", "")), "Egress Mode")
-    compare("identity_timezone", str(profile.get("identity_timezone", "")), str(summary.get("identity_timezone", "")), "Timezone")
-    compare("identity_locale", str(profile.get("identity_locale", "")), str(summary.get("identity_locale", "")), "Locale")
-    compare("profile_name", str(profile.get("expected_profile_name", "")), str(summary.get("profile_name", "")), "Profile Name")
-
-    def alert(field: str, label: str, actual: str, expected: str = "1") -> None:
-        if str(actual).strip() == str(expected).strip():
-            return
-        alerts.append({"field": field, "label": label, "expected": expected, "actual": actual})
-
-    alert("moonlight_target_reachable", "Target Reachable", str(summary.get("moonlight_target_reachable", "")))
-    alert("sunshine_api_reachable", "Sunshine API Reachable", str(summary.get("sunshine_api_reachable", "")))
-    alert("runtime_binary_available", "Moonlight Runtime", str(summary.get("runtime_binary_available", "")))
-    vm_fingerprint = profile.get("vm_fingerprint", {}) if isinstance(profile.get("vm_fingerprint"), dict) else {}
-    if str(vm_fingerprint.get("risk_level", "")).lower() == "high":
-        alerts.append({
-            "field": "vm_fingerprint",
-            "label": "VM Fingerprint",
-            "expected": "low/medium risk",
-            "actual": "high risk",
-        })
-
-    autologin_state = str(summary.get("autologin_state", "")).strip()
-    if autologin_state and autologin_state != "active":
-        alerts.append({"field": "autologin_state", "label": "Autologin", "expected": "active", "actual": autologin_state})
-
-    status = "healthy"
-    if drift:
-        status = "drifted"
-    elif report_age_seconds is not None and report_age_seconds > STALE_ENDPOINT_SECONDS:
-        status = "stale"
-        alerts.append({
-            "field": "reported_at",
-            "label": "Last Check-In",
-            "expected": f"<={STALE_ENDPOINT_SECONDS}s",
-            "actual": f"{report_age_seconds}s",
-        })
-    elif alerts:
-        status = "degraded"
-
-    return {
-        "managed": managed,
-        "endpoint_seen": True,
-        "status": status,
-        "compliant": not drift,
-        "stale": bool(report_age_seconds is not None and report_age_seconds > STALE_ENDPOINT_SECONDS),
-        "report_age_seconds": report_age_seconds,
-        "drift_count": len(drift),
-        "alert_count": len(alerts),
-        "drift": drift,
-        "alerts": alerts,
-        "desired": desired,
-    }
+    return vm_state_service().evaluate_endpoint_compliance(profile, report)
 
 
 def build_vm_state(vm: VmSummary) -> dict[str, Any]:
-    profile = build_profile(vm)
-    report = load_endpoint_report(vm.node, vm.vmid)
-    endpoint = summarize_endpoint_report(report or {})
-    compliance = evaluate_endpoint_compliance(profile, report)
-    last_action = summarize_action_result(load_action_result(vm.node, vm.vmid))
-    pending_actions = load_action_queue(vm.node, vm.vmid)
-    installer_prep = summarize_installer_prep_state(vm, load_installer_prep_state(vm.node, vm.vmid))
-    provisioning = latest_ubuntu_beagle_state_for_vmid(vm.vmid)
-    return {
-        "profile": profile,
-        "endpoint": endpoint,
-        "compliance": compliance,
-        "last_action": last_action,
-        "pending_action_count": len(pending_actions),
-        "installer_prep": installer_prep,
-        "provisioning": provisioning,
-    }
+    return vm_state_service().build_vm_state(vm)
 
 
 def update_ubuntu_beagle_vm(vmid: int, payload: dict[str, Any]) -> dict[str, Any]:

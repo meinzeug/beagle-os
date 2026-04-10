@@ -263,3 +263,25 @@ Decision:
 Reason:
 
 - After the renderers, provisioning modals, and ExtJS wiring moved out, the last repeated UI chrome still left in `beagle-ui.js` was the shared overlay shell itself. Treating that shell as a dedicated component keeps styling and loading-state markup separate from fleet/profile business flows and makes the host-installed asset order explicit.
+
+### D26. Provider-backed control-plane read helpers belong in `proxmox-host/services/*`
+
+Decision:
+
+- Move provider-backed VM list, node list, guest IPv4 lookup, VM config lookup, and bridge inventory helpers into service modules under `proxmox-host/services/`.
+- `beagle-control-plane.py` may keep thin compatibility wrappers for call sites and handlers, but it should no longer own the concrete read-helper logic itself.
+
+Reason:
+
+- Provider-backed host reads were already abstracted at the provider boundary, but the control-plane entrypoint still directly shaped those reads and cache keys. A small service layer creates the first real internal module seam for the host process without changing HTTP behavior and gives later profile/inventory extractions a stable dependency to build on.
+
+### D27. VM-state and compliance composition should be a host service, not inline control-plane logic
+
+Decision:
+
+- Move endpoint compliance evaluation and VM-state assembly into a dedicated service module under `proxmox-host/services/`.
+- Keep the public helper names `evaluate_endpoint_compliance()` and `build_vm_state()` in `beagle-control-plane.py` as thin delegation wrappers so existing handler call sites stay stable during the migration.
+
+Reason:
+
+- Once provider-backed inventory reads had a service seam, the next repeated read-model composition block was VM-state and compliance. Extracting that block gives multiple handlers a shared internal service without forcing a broad call-site rewrite and reduces the control-plane entrypoint by another chunk before tackling the larger `build_profile()` logic.
