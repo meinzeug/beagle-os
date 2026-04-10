@@ -19,11 +19,13 @@
 - [x] Move host-side VM lifecycle writes (create/set/start/stop/boot/description/option delete) behind `ProxmoxHostProvider`.
 - [x] Move host-side `qm guest exec` / `qm guest exec-status` flows and delayed restart scheduling behind `ProxmoxHostProvider`.
 - [x] Move browser-side VM profile synthesis out of `proxmox-ui/beagle-ui.js` and `extension/content.js` into dedicated `state/` and `services/` modules.
+- [x] Make the host-side public endpoint profile contract explicit in `proxmox-host/bin/endpoint_profile_contract.py`.
 - [ ] Continue splitting `proxmox-ui/beagle-ui.js` so bootstrap/catalog/profile-resolution logic lives under `proxmox-ui/provisioning/` and `proxmox-ui/state/` and `beagle-ui.js` becomes a thin entrypoint.
 - [ ] Split `extension/content.js` into smaller UI/rendering modules now that provider/API access and VM profile resolution are extracted.
 - [ ] Inventory all direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally.
 - [ ] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
-- [ ] Define a stable endpoint profile contract shared by `proxmox-ui/state/vm-profile.js`, `extension/services/profile.js`, the host control plane, and installer generation.
+- [ ] Replace the duplicated browser-side endpoint profile mapper with one shared helper that targets the explicit host contract.
+- [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [ ] Split `proxmox-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
 - [ ] Split thin client runtime logic into config, runtime, network, pairing, and Moonlight launch seams.
 - [ ] Add smoke validation for generated installer URLs and public artifact filenames.

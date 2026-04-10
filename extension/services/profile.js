@@ -236,7 +236,8 @@
       assignedTarget: controlPlaneProfile && controlPlaneProfile.assigned_target || null,
       assignmentSource: controlPlaneProfile && controlPlaneProfile.assignment_source || "",
       appliedPolicy: controlPlaneProfile && controlPlaneProfile.applied_policy || null,
-      expectedProfileName: controlPlaneProfile && controlPlaneProfile.expected_profile_name || ""
+      expectedProfileName: controlPlaneProfile && controlPlaneProfile.expected_profile_name || "",
+      controlPlaneContractVersion: controlPlaneProfile && controlPlaneProfile.contract_version || ""
     };
     profile.notes = buildNotes(profile);
     if (!profile.endpointSummary) {

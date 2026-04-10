@@ -282,6 +282,7 @@
       installer_windows_url: profile.installerWindowsUrl,
       installer_iso_url: profile.installerIsoUrl,
       control_plane_health_url: profile.controlPlaneHealthUrl,
+      control_plane_contract_version: profile.controlPlaneContractVersion,
       assigned_target: profile.assignedTarget,
       assignment_source: profile.assignmentSource,
       applied_policy: profile.appliedPolicy,
