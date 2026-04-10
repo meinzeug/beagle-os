@@ -52,6 +52,7 @@ Architekturregel ab jetzt:
 - Host-/Provisioning-/Inventory-Logik soll schrittweise auf dieselben provider-neutralen Verträge umgestellt werden.
 - Browser-Extension-Code soll direkte Proxmox-Zugriffe nur noch in klaren Provider-Dateien wie `extension/providers/*` kapseln, nicht in `extension/content.js`.
 - Browser-seitige Endpoint-/Profil-Synthese gehoert in dedizierte `state/*`- oder `services/*`-Module, nicht inline in Runtime-Einstiegspunkte wie `proxmox-ui/beagle-ui.js` oder `extension/content.js`.
+- Groessere Browser-Extension-Renderer und Modal-Logik gehoeren nach `extension/components/*`, nicht zurueck in `extension/content.js`.
 - Host-seitige browser-/installer-facing Endpoint-Profile und oeffentliche Payload-Contracts gehoeren in dedizierte Contract-Module, nicht verteilt in mehrere Handler oder Hilfsfunktionen im Control-Plane-Monolithen.
 - Host-Control-Plane-Code soll neue direkte `qm`-/`pvesh`-Nutzung nur noch in dedizierten Provider-Modulen wie `proxmox-host/providers/*` einführen.
 - Host-Control-Plane-Helfer fuer `qm guest exec`, `qm guest exec-status` und geplante VM-Restarts gehoeren ebenfalls in diese Provider-Module, nicht in HTTP-Handler oder Feature-Flows.
