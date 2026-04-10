@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, Iterable, Mapping
 
 
 class ProxmoxHostProvider:
@@ -9,11 +9,13 @@ class ProxmoxHostProvider:
         *,
         run_json: Callable[..., Any],
         run_text: Callable[..., str],
+        run_checked: Callable[..., str],
         cache_get: Callable[[str, float], Any] | None = None,
         cache_put: Callable[[str, Any], Any] | None = None,
     ) -> None:
         self._run_json = run_json
         self._run_text = run_text
+        self._run_checked = run_checked
         self._cache_get = cache_get
         self._cache_put = cache_put
 
@@ -113,6 +115,99 @@ class ProxmoxHostProvider:
         if isinstance(payload, dict):
             return self._put_cached(cache_key, payload)
         return {}
+
+    @staticmethod
+    def _flatten_option_pairs(options: Mapping[str, Any] | Iterable[tuple[str, Any]]) -> list[str]:
+        args: list[str] = []
+        if isinstance(options, Mapping):
+            items: Iterable[tuple[str, Any]] = options.items()
+        else:
+            items = options
+        for key, value in items:
+            flag = str(key)
+            if not flag.startswith("--"):
+                flag = f"--{flag}"
+            args.extend([flag, "" if value is None else str(value)])
+        return args
+
+    def create_vm(
+        self,
+        vmid: int,
+        options: Mapping[str, Any] | Iterable[tuple[str, Any]],
+        *,
+        timeout: float | None | object = None,
+    ) -> str:
+        command = ["qm", "create", str(int(vmid))]
+        command.extend(self._flatten_option_pairs(options))
+        return self._run_checked(command, timeout=timeout)
+
+    def set_vm_options(
+        self,
+        vmid: int,
+        options: Mapping[str, Any] | Iterable[tuple[str, Any]],
+        *,
+        timeout: float | None | object = None,
+    ) -> str:
+        command = ["qm", "set", str(int(vmid))]
+        command.extend(self._flatten_option_pairs(options))
+        return self._run_checked(command, timeout=timeout)
+
+    def delete_vm_options(
+        self,
+        vmid: int,
+        option_names: Iterable[str],
+        *,
+        timeout: float | None | object = None,
+    ) -> None:
+        for name in option_names:
+            self._run_checked(
+                ["qm", "set", str(int(vmid)), "--delete", str(name)],
+                timeout=timeout,
+            )
+
+    def set_vm_description(
+        self,
+        vmid: int,
+        description: str,
+        *,
+        timeout: float | None | object = None,
+    ) -> str:
+        return self._run_checked(
+            ["qm", "set", str(int(vmid)), "--description", str(description)],
+            timeout=timeout,
+        )
+
+    def set_vm_boot_order(
+        self,
+        vmid: int,
+        order: str,
+        *,
+        timeout: float | None | object = None,
+    ) -> str:
+        return self._run_checked(
+            ["qm", "set", str(int(vmid)), "--boot", str(order)],
+            timeout=timeout,
+        )
+
+    def start_vm(
+        self,
+        vmid: int,
+        *,
+        timeout: float | None | object = None,
+    ) -> str:
+        return self._run_checked(["qm", "start", str(int(vmid))], timeout=timeout)
+
+    def stop_vm(
+        self,
+        vmid: int,
+        *,
+        skiplock: bool = False,
+        timeout: float | None | object = None,
+    ) -> str:
+        command = ["qm", "stop", str(int(vmid))]
+        if skiplock:
+            command.extend(["--skiplock", "1"])
+        return self._run_checked(command, timeout=timeout)
 
     def get_guest_ipv4(
         self,

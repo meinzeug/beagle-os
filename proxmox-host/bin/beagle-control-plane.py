@@ -544,6 +544,7 @@ def run_checked(command: list[str], *, timeout: float | None | object = DEFAULT_
 PROXMOX_HOST_PROVIDER = ProxmoxHostProvider(
     run_json=run_json,
     run_text=run_text,
+    run_checked=run_checked,
     cache_get=cache_get,
     cache_put=cache_put,
 )
@@ -2904,22 +2905,21 @@ def finalize_ubuntu_beagle_install(state: dict[str, Any], *, restart: bool = Tru
     vmid = int(state["vmid"])
     vm = find_vm(vmid)
     config = get_vm_config(vm.node, vm.vmid) if vm is not None else {}
-    for option in ("args", "ide2", "ide3"):
-        if option not in config:
-            continue
+    stale_options = [option for option in ("args", "ide2", "ide3") if option in config]
+    for option in stale_options:
         try:
-            run_checked(["qm", "set", str(vmid), "--delete", option], timeout=None)
+            PROXMOX_HOST_PROVIDER.delete_vm_options(vmid, [option], timeout=None)
         except subprocess.CalledProcessError:
             pass
     if str(config.get("boot", "") or "").strip() != "order=scsi0":
-        run_checked(["qm", "set", str(vmid), "--boot", "order=scsi0"], timeout=None)
+        PROXMOX_HOST_PROVIDER.set_vm_boot_order(vmid, "order=scsi0", timeout=None)
     if restart:
         try:
-            run_checked(["qm", "stop", str(vmid), "--skiplock", "1"], timeout=None)
+            PROXMOX_HOST_PROVIDER.stop_vm(vmid, skiplock=True, timeout=None)
         except subprocess.CalledProcessError:
             pass
         try:
-            run_checked(["qm", "start", str(vmid)], timeout=None)
+            PROXMOX_HOST_PROVIDER.start_vm(vmid, timeout=None)
         except subprocess.CalledProcessError:
             pass
     reconcile_script = ROOT_DIR / "scripts" / "reconcile-public-streams.sh"
@@ -3112,62 +3112,40 @@ def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
     )
 
     try:
-        run_checked(
+        PROXMOX_HOST_PROVIDER.create_vm(
+            vmid,
             [
-                "qm",
-                "create",
-                str(vmid),
-                "--name",
-                name,
-                "--memory",
-                str(memory),
-                "--cores",
-                str(cores),
-                "--cpu",
-                "host",
-                "--machine",
-                "q35",
-                "--bios",
-                "ovmf",
-                "--ostype",
-                "l26",
-                "--agent",
-                "enabled=1",
-                "--net0",
-                f"virtio,bridge={bridge}",
-                "--tags",
-                tags,
+                ("name", name),
+                ("memory", str(memory)),
+                ("cores", str(cores)),
+                ("cpu", "host"),
+                ("machine", "q35"),
+                ("bios", "ovmf"),
+                ("ostype", "l26"),
+                ("agent", "enabled=1"),
+                ("net0", f"virtio,bridge={bridge}"),
+                ("tags", tags),
             ],
             timeout=None,
         )
-        run_checked(["qm", "set", str(vmid), "--description", description], timeout=None)
-        run_checked(
+        PROXMOX_HOST_PROVIDER.set_vm_description(vmid, description, timeout=None)
+        PROXMOX_HOST_PROVIDER.set_vm_options(
+            vmid,
             [
-                "qm",
-                "set",
-                str(vmid),
-                "--scsihw",
-                "virtio-scsi-single",
-                "--scsi0",
-                f"{disk_storage}:{disk_gb}",
-                "--efidisk0",
-                f"{disk_storage}:0,efitype=4m,pre-enrolled-keys=1",
-                "--serial0",
-                "socket",
-                "--vga",
-                "std",
-                "--ide2",
-                f"{iso_storage}:iso/{iso_assets['iso_filename']},media=cdrom",
-                "--ide3",
-                f"{iso_storage}:iso/{seed_path.name},media=cdrom",
-                "--args",
-                args,
+                ("scsihw", "virtio-scsi-single"),
+                ("scsi0", f"{disk_storage}:{disk_gb}"),
+                ("efidisk0", f"{disk_storage}:0,efitype=4m,pre-enrolled-keys=1"),
+                ("serial0", "socket"),
+                ("vga", "std"),
+                ("ide2", f"{iso_storage}:iso/{iso_assets['iso_filename']},media=cdrom"),
+                ("ide3", f"{iso_storage}:iso/{seed_path.name},media=cdrom"),
+                ("args", args),
             ],
             timeout=None,
         )
-        run_checked(["qm", "set", str(vmid), "--boot", "order=scsi0;ide2;ide3"], timeout=None)
+        PROXMOX_HOST_PROVIDER.set_vm_boot_order(vmid, "order=scsi0;ide2;ide3", timeout=None)
         if start_after_create:
-            run_checked(["qm", "start", str(vmid)], timeout=None)
+            PROXMOX_HOST_PROVIDER.start_vm(vmid, timeout=None)
         invalidate_vm_cache(vmid, node)
     except Exception as exc:
         invalidate_vm_cache(vmid, node)
@@ -3763,7 +3741,7 @@ def update_ubuntu_beagle_vm(vmid: int, payload: dict[str, Any]) -> dict[str, Any
         package_presets=package_presets,
         extra_packages=extra_packages,
     )
-    run_checked(["qm", "set", str(vmid), "--description", description], timeout=None)
+    PROXMOX_HOST_PROVIDER.set_vm_description(vmid, description, timeout=None)
 
     applied = False
     if vm.status == "running":

@@ -2,12 +2,17 @@
 
 ## Immediate next slice
 
-Keep shrinking the Proxmox-specific surface area now that both browser surfaces share provider-backed seams and the control plane has its first provider helper.
+Now that the Proxmox UI monolith is down to about 950 lines and VM lifecycle writes run through `proxmox-host/providers/proxmox_host_provider.py`, the next slice should finish the control-plane provider seam and continue shrinking the browser-side monoliths.
 
 ### Concrete next tasks
 
-1. Extract the remaining large Proxmox UI blocks from `proxmox-ui/beagle-ui.js`, starting with the Ubuntu desktop create/edit modal and the provisioning result window, into dedicated `components/` modules.
-2. Continue the host-side provider seam in `proxmox-host/providers/proxmox_host_provider.py` by moving VM lifecycle, guest-exec, and provisioning mutations behind that module instead of calling `qm` and `pvesh` from request handlers.
+1. Move the remaining direct `qm` usage in `proxmox-host/bin/beagle-control-plane.py` behind the host provider:
+   - `qm guest exec` and `qm guest exec-status` paths used by Ubuntu Beagle finalize/refresh flows
+   - the `schedule_ubuntu_beagle_vm_restart` bash heredoc, either by wrapping it in a provider helper or by encapsulating the `qm`/`systemd-run` invocations it emits
+   - add matching provider methods (for example `guest_exec`, `guest_exec_status`, `schedule_restart`) so the control plane never calls `qm` directly.
+2. Continue splitting `proxmox-ui/beagle-ui.js`:
+   - extract the catalog/profile resolution and bootstrap wiring into dedicated modules under `proxmox-ui/provisioning/` and `proxmox-ui/state/`
+   - the remaining file should eventually act purely as the ExtJS entrypoint that composes imports and wires them to the Proxmox UI lifecycle.
 3. Split `extension/content.js` further into UI-focused modules now that Proxmox inventory/config access lives in `extension/providers/proxmox.js` and `extension/services/*`.
 4. Inventory remaining direct `qm`/`pvesh` usage in scripts and move the first reusable calls behind provider helpers instead of raw subprocess invocations.
 5. Add broader automated checks for the browser extension, Proxmox UI modules, and proxmox-host modules beyond syntax and `py_compile`.
