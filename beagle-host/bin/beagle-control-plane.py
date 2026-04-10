@@ -33,8 +33,10 @@ if str(SERVICES_DIR) not in sys.path:
     sys.path.insert(0, str(SERVICES_DIR))
 
 from endpoint_profile_contract import installer_profile_surface, normalize_endpoint_profile_contract
+from fleet_inventory import FleetInventoryService
 from host_provider_contract import HostProvider
 from registry import create_provider, list_providers, normalize_provider_kind
+from update_feed import UpdateFeedService
 from virtualization_inventory import VirtualizationInventoryService
 from vm_profile import VmProfileService
 from vm_state import VmStateService
@@ -578,6 +580,8 @@ VIRTUALIZATION_INVENTORY = VirtualizationInventoryService(
 
 VM_PROFILE_SERVICE: VmProfileService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
+UPDATE_FEED_SERVICE: UpdateFeedService | None = None
+FLEET_INVENTORY_SERVICE: FleetInventoryService | None = None
 
 
 def endpoints_dir() -> Path:
@@ -3523,39 +3527,25 @@ def summarize_endpoint_report(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def update_feed_service() -> UpdateFeedService:
+    global UPDATE_FEED_SERVICE
+    if UPDATE_FEED_SERVICE is None:
+        UPDATE_FEED_SERVICE = UpdateFeedService(
+            downloads_status_file=DOWNLOADS_STATUS_FILE,
+            load_json_file=load_json_file,
+            update_payload_metadata=update_payload_metadata,
+            public_update_sha256sums_url=public_update_sha256sums_url,
+        )
+    return UPDATE_FEED_SERVICE
+
+
 def build_update_feed(profile: dict[str, Any], *, installed_version: str = "", channel: str = "", version_pin: str = "") -> dict[str, Any]:
-    downloads_status = load_json_file(DOWNLOADS_STATUS_FILE, {})
-    latest_version = str(downloads_status.get("version", "")).strip()
-    configured_channel = str(channel or profile.get("update_channel", "stable") or "stable").strip() or "stable"
-    configured_behavior = str(profile.get("update_behavior", "prompt") or "prompt").strip() or "prompt"
-    configured_version_pin = str(version_pin or profile.get("update_version_pin", "") or "").strip()
-    enabled = bool(profile.get("update_enabled", True))
-    target_version = configured_version_pin or latest_version
-    payload = update_payload_metadata(target_version) if target_version else {
-        "version": "",
-        "filename": "",
-        "payload_url": "",
-        "payload_sha256": "",
-        "sha256sums_url": public_update_sha256sums_url(),
-        "payload_pinned_pubkey": "",
-    }
-    payload_ready = bool(payload.get("payload_url")) and bool(payload.get("payload_sha256"))
-    return {
-        "enabled": enabled,
-        "channel": configured_channel,
-        "behavior": configured_behavior,
-        "version_pin": configured_version_pin,
-        "installed_version": str(installed_version or "").strip(),
-        "latest_version": target_version,
-        "available": bool(enabled and target_version and payload_ready and str(installed_version or "").strip() != target_version),
-        "payload_filename": payload.get("filename", "") if payload_ready else "",
-        "payload_url": payload.get("payload_url", "") if payload_ready else "",
-        "payload_sha256": payload.get("payload_sha256", "") if payload_ready else "",
-        "payload_pinned_pubkey": payload.get("payload_pinned_pubkey", "") if payload_ready else "",
-        "payload_allow_insecure_tls": False,
-        "sha256sums_url": payload.get("sha256sums_url", public_update_sha256sums_url()) if payload_ready else "",
-        "published_latest_version": latest_version,
-    }
+    return update_feed_service().build_update_feed(
+        profile,
+        installed_version=installed_version,
+        channel=channel,
+        version_pin=version_pin,
+    )
 
 
 def endpoint_report_path(node: str, vmid: int) -> Path:
@@ -3580,70 +3570,31 @@ def list_endpoint_reports() -> list[dict[str, Any]]:
     return reports
 
 
-def build_vm_inventory() -> dict[str, Any]:
-    inventory = []
-    installers = load_json_file(VM_INSTALLERS_FILE, [])
-    installers_by_vmid = {
-        int(item.get("vmid")): item for item in installers if isinstance(item, dict) and item.get("vmid") is not None
-    }
-    for vm in list_vms():
-        profile = build_profile(vm)
-        installer = installers_by_vmid.get(vm.vmid, {})
-        endpoint = summarize_endpoint_report(load_endpoint_report(vm.node, vm.vmid) or {})
-        last_action = summarize_action_result(load_action_result(vm.node, vm.vmid))
-        pending_action_count = len(load_action_queue(vm.node, vm.vmid))
-        provisioning = latest_ubuntu_beagle_state_for_vmid(vm.vmid)
-        inventory.append(
-            {
-                "vmid": vm.vmid,
-                "node": vm.node,
-                "name": vm.name,
-                "status": vm.status,
-                "stream_host": profile["stream_host"],
-                "moonlight_port": profile.get("moonlight_port", ""),
-                "sunshine_api_url": profile["sunshine_api_url"],
-                "moonlight_app": profile["moonlight_app"],
-                "network_mode": profile["network_mode"],
-                "egress_mode": profile.get("egress_mode", "direct"),
-                "beagle_role": profile.get("beagle_role", ""),
-                "guest_user": profile.get("guest_user", ""),
-                "identity_timezone": profile.get("identity_timezone", ""),
-                "identity_locale": profile.get("identity_locale", ""),
-                "identity_keymap": profile.get("identity_keymap", ""),
-                "desktop_id": profile.get("desktop_id", ""),
-                "desktop_label": profile.get("desktop_label", ""),
-                "desktop_session": profile.get("desktop_session", ""),
-                "package_presets": profile.get("package_presets", []),
-                "extra_packages": profile.get("extra_packages", []),
-                "software_packages": profile.get("software_packages", []),
-                "vm_fingerprint": profile.get("vm_fingerprint"),
-                "profile_contract_version": profile.get("contract_version", ""),
-                "expected_profile_name": profile["expected_profile_name"],
-                "default_mode": "MOONLIGHT" if profile["stream_host"] else "",
-                "installer_url": profile["installer_url"],
-                "live_usb_url": profile.get("live_usb_url", f"/beagle-api/api/v1/vms/{vm.vmid}/live-usb.sh"),
-                "installer_windows_url": profile.get("installer_windows_url", f"/beagle-api/api/v1/vms/{vm.vmid}/installer.ps1"),
-                "installer_iso_url": profile.get("installer_iso_url", public_installer_iso_url()),
-                "installer_target_eligible": profile.get("installer_target_eligible", False),
-                "installer_target_message": profile.get("installer_target_message", ""),
-                "available_modes": installer.get("available_modes") or (["MOONLIGHT"] if profile["stream_host"] else []),
-                "assigned_target": profile.get("assigned_target"),
-                "assignment_source": profile.get("assignment_source", ""),
-                "applied_policy": profile.get("applied_policy"),
-                "endpoint": endpoint,
-                "compliance": {},
-                "last_action": last_action,
-                "pending_action_count": pending_action_count,
-                "support_bundle_count": len(list_support_bundle_metadata(node=vm.node, vmid=vm.vmid)),
-                "provisioning": provisioning,
-            }
+def fleet_inventory_service() -> FleetInventoryService:
+    global FLEET_INVENTORY_SERVICE
+    if FLEET_INVENTORY_SERVICE is None:
+        FLEET_INVENTORY_SERVICE = FleetInventoryService(
+            build_profile=build_profile,
+            latest_ubuntu_beagle_state_for_vmid=latest_ubuntu_beagle_state_for_vmid,
+            list_support_bundle_metadata=list_support_bundle_metadata,
+            list_vms=list_vms,
+            load_action_queue=load_action_queue,
+            load_action_result=load_action_result,
+            load_endpoint_report=load_endpoint_report,
+            load_json_file=load_json_file,
+            public_installer_iso_url=public_installer_iso_url,
+            service_name="beagle-control-plane",
+            summarize_action_result=summarize_action_result,
+            summarize_endpoint_report=summarize_endpoint_report,
+            utcnow=utcnow,
+            version=VERSION,
+            vm_installers_file=VM_INSTALLERS_FILE,
         )
-    return {
-        "service": "beagle-control-plane",
-        "version": VERSION,
-        "generated_at": utcnow(),
-        "vms": inventory,
-    }
+    return FLEET_INVENTORY_SERVICE
+
+
+def build_vm_inventory() -> dict[str, Any]:
+    return fleet_inventory_service().build_inventory()
 
 
 def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[str, Any], *, enrollment_token: str, thinclient_password: str) -> dict[str, str]:
