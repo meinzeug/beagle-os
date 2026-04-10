@@ -308,3 +308,14 @@ Decision:
 Reason:
 
 - The host control plane is no longer architecturally Proxmox-specific. Leaving the whole repo surface named `proxmox-host/` would keep encoding the old architecture center into every future refactor slice and would directly contradict the goal of making Proxmox optional.
+
+### D30. Host-side VM profile synthesis should be a service, not inline control-plane logic
+
+Decision:
+
+- Move VM profile synthesis, assignment resolution, policy matching, public-stream derivation, and VM fingerprint assessment into `beagle-host/services/vm_profile.py`.
+- Keep the public helper names `should_use_public_stream()`, `build_public_stream_details()`, `resolve_assigned_target()`, `resolve_policy_for_vm()`, `assess_vm_fingerprint()`, and `build_profile()` in `beagle-host/bin/beagle-control-plane.py` as thin delegation wrappers so handlers and internal call sites stay stable during the migration.
+
+Reason:
+
+- After provider-backed read, state, and compliance services existed, the next large business block still living in the HTTP entrypoint was profile synthesis. Extracting it creates a clearer service boundary for installer/profile/fleet flows, reduces the size of the control-plane monolith again, and keeps the remaining provider-neutral contract work focused on response builders instead of another inlined metadata synthesis block.

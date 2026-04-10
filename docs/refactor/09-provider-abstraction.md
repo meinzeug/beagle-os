@@ -283,6 +283,7 @@ These flows now go through provider-backed services first:
 
 - VM listing, node listing, guest IPv4 lookup, VM config lookup, and bridge inventory through `beagle-host/services/virtualization_inventory.py`
 - endpoint compliance evaluation and VM-state composition through `beagle-host/services/vm_state.py`
+- VM profile synthesis, assignment resolution, policy matching, public-stream derivation, and VM fingerprint assessment through `beagle-host/services/vm_profile.py`
 - VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through `beagle-host/providers/proxmox_host_provider.py`
 - browser-/installer-facing endpoint profile payload normalization through `beagle-host/bin/endpoint_profile_contract.py`
 
@@ -298,7 +299,8 @@ These flows now go through provider-backed services first:
 
 ### Control plane
 
-- `beagle-host/bin/beagle-control-plane.py` still synthesizes VM profiles from Proxmox metadata and remains a large monolith, but its provider-backed read paths are now routed through `beagle-host/services/virtualization_inventory.py`, its endpoint compliance and VM-state assembly are routed through `beagle-host/services/vm_state.py`, its VM writes/guest-exec/restart flows are routed through `ProxmoxHostProvider`, and its public profile payload is normalized through `endpoint_profile_contract.py`.
+- `beagle-host/bin/beagle-control-plane.py` no longer owns the main VM profile/assignment/public-stream synthesis block directly, but it remains a large monolith with response-model shaping, inventory aggregation, and other handler-local orchestration still living in the entrypoint. Those remaining flows should move behind `beagle-host/services/*` incrementally.
+- `beagle-host/services/vm_profile.py` is now the host-side seam for profile synthesis, but it still derives business state from today's Proxmox-backed metadata/config semantics through provider-backed reads and existing description-meta conventions.
 
 ### Script surfaces
 

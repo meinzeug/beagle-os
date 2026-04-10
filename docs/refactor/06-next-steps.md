@@ -2,7 +2,7 @@
 
 ## Immediate next slice
 
-Now that the control plane exposes a normalized endpoint profile contract `v1`, the browser-side VM profile mapper and helper layer are shared, the Proxmox UI entrypoint is down to about 410 lines, the extension entrypoint is down to about 189 lines, and the first provider-backed host read/state services exist under `beagle-host/services/`, the next slice should keep shrinking `beagle-ui.js` while turning the control plane into a real service composition surface instead of one huge file.
+Now that the control plane exposes a normalized endpoint profile contract `v1`, the browser-side VM profile mapper and helper layer are shared, the Proxmox UI entrypoint is down to about 410 lines, the extension entrypoint is down to about 189 lines, and the host-side read/state/profile seams now exist under `beagle-host/services/`, the next slice should keep shrinking `beagle-ui.js` while turning the control plane into a real service composition surface instead of one huge file.
 
 Strategic framing:
 
@@ -16,8 +16,8 @@ Strategic framing:
    - extract the remaining fleet/profile launch orchestration and dependency-composition wrappers into dedicated modules under `proxmox-ui/components/` and `proxmox-ui/state/`
    - after `modal-shell.js`, `extjs-integration.js`, and the modal renderers are out, the remaining file should converge on dependency lookup plus a small `boot()` entrypoint
 2. Continue decomposing `beagle-host/bin/beagle-control-plane.py` around service-oriented modules:
-   - move the next browser-/installer-facing profile orchestration blocks behind thin service helpers that consume `VirtualizationInventoryService`, `VmStateService`, `ProxmoxHostProvider`, and `endpoint_profile_contract.py`
-   - the most valuable next extraction is now `build_profile` itself plus the related assignment/public-stream helpers, because `build_vm_state` and compliance evaluation already live behind a service seam
+   - move the next browser-/installer-facing inventory/feed/artifact/public-state builders behind thin service helpers that consume `VirtualizationInventoryService`, `VmStateService`, `VmProfileService`, `ProxmoxHostProvider`, and `endpoint_profile_contract.py`
+   - the most valuable next extraction is now the remaining HTTP-facing aggregation/orchestration blocks around downloads/update feed, installer metadata shaping, and other response-model builders, because `build_profile` and the related assignment/public-stream helpers already live behind a service seam
 3. Continue splitting the browser UI action/render layers:
    - move the next action-heavy profile modal helpers out of `extension/components/profile-modal.js` and, where shared, out of `proxmox-ui/components/profile-modal.js`
    - keep the shared browser helper seam under `extension/shared/*` when both browser surfaces intentionally expose the same profile semantics
