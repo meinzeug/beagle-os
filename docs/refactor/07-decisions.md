@@ -219,3 +219,25 @@ Decision:
 Reason:
 
 - The extension had reached the same failure mode the host UI had earlier: one entrypoint file owned both runtime bootstrapping and a large modal renderer. Keeping the render block separate reduces risk for the next DOM-integration splits and aligns the two browser surfaces structurally.
+
+### D22. Browser-facing profile export and note semantics belong in one shared helper
+
+Decision:
+
+- Add `extension/shared/vm-profile-helpers.js` as the single browser-side helper for endpoint-env export, operator notes, and action-state formatting.
+- `proxmox-ui/state/vm-profile.js`, `proxmox-ui/components/profile-modal.js`, and `extension/services/profile.js` must consume that shared helper instead of recreating or importing each other's browser-facing profile semantics.
+
+Reason:
+
+- After the host-side contract and the shared browser mapper existed, the remaining drift risk moved to the helper layer. Keeping export/note rules duplicated across UI and extension would still let the two browser surfaces diverge and would keep state modules coupled to component modules for non-rendering logic.
+
+### D23. Extension DOM integration should be a component, not entrypoint logic
+
+Decision:
+
+- Move toolbar injection, menu injection, and mutation-observer boot logic out of `extension/content.js` into a dedicated DOM-integration module under `extension/components/`.
+- Keep `extension/content.js` focused on overlay styling, VM profile resolution, and modal/download launch actions.
+
+Reason:
+
+- Provider-backed services and the profile renderer were already extracted. Leaving the Proxmox DOM integration lifecycle in the entrypoint would still keep `content.js` responsible for too many concerns and would slow the next UI refactor slices.
