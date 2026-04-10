@@ -319,3 +319,15 @@ Decision:
 Reason:
 
 - After provider-backed read, state, and compliance services existed, the next large business block still living in the HTTP entrypoint was profile synthesis. Extracting it creates a clearer service boundary for installer/profile/fleet flows, reduces the size of the control-plane monolith again, and keeps the remaining provider-neutral contract work focused on response builders instead of another inlined metadata synthesis block.
+
+### D31. Host-provider bootstrap belongs in a registry plus explicit contract, not in direct concrete imports
+
+Decision:
+
+- Add `beagle-host/providers/host_provider_contract.py` as the explicit host-provider contract that the control plane and host services code against.
+- Add `beagle-host/providers/registry.py` as the single host-provider registry/factory and bootstrap `HOST_PROVIDER` in `beagle-host/bin/beagle-control-plane.py` through `BEAGLE_HOST_PROVIDER`.
+- Remove the direct `ProxmoxHostProvider` import from the control-plane entrypoint; concrete providers stay behind the registry even while Proxmox remains the only real implementation.
+
+Reason:
+
+- The previous host refactors still left one architectural hard stop: the control-plane bootstrap directly imported the concrete Proxmox provider. That made every later provider-neutral slice start from a Proxmox-first entrypoint. Moving provider selection to a registry keeps current runtime behavior identical while making the host side follow the same provider-indirection pattern already introduced on the browser side.

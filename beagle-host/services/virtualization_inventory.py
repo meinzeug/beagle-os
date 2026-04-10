@@ -3,12 +3,14 @@ from __future__ import annotations
 import re
 from typing import Any, Callable
 
+from host_provider_contract import HostProvider
+
 
 class VirtualizationInventoryService:
     def __init__(
         self,
         *,
-        provider: Any,
+        provider: HostProvider,
         vm_summary_factory: Callable[[dict[str, Any]], Any],
         list_vms_cache_seconds: float,
         vm_config_cache_seconds: float,
