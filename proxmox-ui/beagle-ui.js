@@ -19,6 +19,7 @@
   var fleetModal = window.BeagleUiFleetModal;
   var provisioningResultModal = window.BeagleUiProvisioningResultModal;
   var provisioningCreateModal = window.BeagleUiProvisioningCreateModal;
+  var extJsIntegration = window.BeagleUiExtJsIntegration;
   var browserActions = window.BeagleUiBrowserActions;
 
   if (!common) {
@@ -59,6 +60,9 @@
   }
   if (!provisioningCreateModal) {
     throw new Error("BeagleUiProvisioningCreateModal must be loaded before beagle-ui.js");
+  }
+  if (!extJsIntegration) {
+    throw new Error("BeagleUiExtJsIntegration must be loaded before beagle-ui.js");
   }
   if (!browserActions) {
     throw new Error("BeagleUiBrowserActions must be loaded before beagle-ui.js");
@@ -127,41 +131,6 @@
 
   function openUsbInstaller(ctx) {
     showProfileModal(ctx || {}, { autoPrepareDownload: true });
-  }
-
-  function normalizeUiText(value) {
-    return String(value || "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .toLowerCase();
-  }
-
-  function createVmLabels() {
-    return [
-      normalizeUiText("Create VM"),
-      normalizeUiText("Erstelle VM"),
-      normalizeUiText(gettext("Create VM"))
-    ];
-  }
-
-  function getComponentText(component) {
-    if (!component) {
-      return "";
-    }
-    if (typeof component.getText === "function") {
-      return component.getText() || "";
-    }
-    return component.text || "";
-  }
-
-  function looksLikeCreateVmTrigger(component) {
-    var normalized = normalizeUiText(getComponentText(component));
-    var labels = createVmLabels();
-    return component && (
-      component.itemId === "createvm" ||
-      component.reference === "createvm" ||
-      labels.indexOf(normalized) !== -1
-    );
   }
 
   function selectedNodeName() {
@@ -558,235 +527,21 @@
     });
   }
 
-  function ensureConsoleButtonIntegration(button) {
-    if (!button || !button.vmid || button.consoleType !== "kvm" || button.__beagleIntegrated) {
-      return;
-    }
-
-    var menu = button.getMenu ? button.getMenu() : button.menu;
-    if (menu && !menu.down("#beagleOsProfileMenuItem")) {
-      menu.add({
-        itemId: "beagleOsProfileMenuItem",
-        text: PRODUCT_LABEL + " Profil",
-        iconCls: "fa fa-desktop",
-        handler: function() {
-          showProfileModal({ node: button.nodename, vmid: button.vmid });
-        }
-      });
-    }
-
-    if (menu) {
-      getVmInstallerEligibility({ node: button.nodename, vmid: button.vmid }).then(function(result) {
-        var existingInstallerItem = menu.down("#beagleOsInstallerMenuItem");
-        if (result && result.eligible) {
-          if (!existingInstallerItem) {
-            menu.add({
-              itemId: "beagleOsInstallerMenuItem",
-              text: PRODUCT_LABEL + " Installer",
-              iconCls: "fa fa-usb",
-              handler: function() {
-                openUsbInstaller({ node: button.nodename, vmid: button.vmid });
-              }
-            });
-          }
-          return;
-        }
-        if (existingInstallerItem) {
-          menu.remove(existingInstallerItem);
-        }
-      });
-    }
-
-    var toolbar = button.up && button.up("toolbar");
-    if (toolbar && !toolbar.down("#beagleOsButton")) {
-      var index = toolbar.items.indexOf(button);
-      toolbar.insert(index + 1, {
-        xtype: "button",
-        itemId: "beagleOsButton",
-        text: PRODUCT_LABEL,
-        iconCls: "fa fa-desktop",
-        handler: function() {
-          showProfileModal({ node: button.nodename, vmid: button.vmid });
-        },
-        tooltip: "Zeigt das aufgeloeste Beagle-Profil fuer diese VM und bietet Download-, Export- und Health-Aktionen."
-      });
-    }
-    if (toolbar && !toolbar.down("#beagleOsDetailsButton")) {
-      var detailsIndex = toolbar.items.indexOf(button);
-      toolbar.insert(detailsIndex + 2, {
-        xtype: "button",
-        itemId: "beagleOsDetailsButton",
-        text: PRODUCT_LABEL + " Details",
-        iconCls: "fa fa-info-circle",
-        handler: function() {
-          showProfileModal({ node: button.nodename, vmid: button.vmid }, { showDetails: true });
-        },
-        tooltip: "Zeigt das technische Beagle-Profil mit allen Details fuer diese VM."
-      });
-    }
-    if (toolbar && !toolbar.down("#beagleOsWebUIButton")) {
-      var webIndex = toolbar.items.indexOf(button);
-      toolbar.insert(webIndex + 3, {
-        xtype: "button",
-        itemId: "beagleOsWebUIButton",
-        text: "Beagle Web UI",
-        iconCls: "fa fa-globe",
-        handler: function() {
-          openUrl(webUiUrlWithToken(true));
-        },
-        tooltip: "Oeffnet die zentrale Beagle Web UI auf diesem Host."
-      });
-    }
-
-    button.__beagleIntegrated = true;
-  }
-
-  function ensureFleetLauncher() {
-    ensureStyles();
-    if (document.getElementById(FLEET_LAUNCHER_ID)) {
-      return;
-    }
-    var button = document.createElement('button');
-    button.id = FLEET_LAUNCHER_ID;
-    button.type = 'button';
-    button.textContent = 'Beagle Fleet';
-    button.addEventListener('click', function() {
-      showFleetModal();
-    });
-    document.body.appendChild(button);
-  }
-
-  function findCreateVmToolbarAnchor() {
-    var labels = createVmLabels();
-    var textNodes = Array.prototype.slice.call(document.querySelectorAll(".x-toolbar .x-btn-inner"));
-    for (var index = 0; index < textNodes.length; index += 1) {
-      var textNode = textNodes[index];
-      var normalized = normalizeUiText(textNode.textContent || textNode.innerText || "");
-      if (labels.indexOf(normalized) === -1) {
-        continue;
-      }
-      var button = textNode.closest(".x-btn");
-      if (button && button.id !== CREATE_VM_DOM_BUTTON_ID) {
-        return button;
-      }
-    }
-    return null;
-  }
-
-  function toolbarHasBeagleCreateVmButton(toolbar) {
-    if (!toolbar) {
-      return false;
-    }
-    var textNodes = Array.prototype.slice.call(toolbar.querySelectorAll(".x-btn-inner"));
-    return textNodes.some(function(node) {
-      return normalizeUiText(node.textContent || node.innerText || "") === normalizeUiText("Erstelle Beagle OS VM");
-    });
-  }
-
-  function ensureCreateVmDomFallback() {
-    var anchor = findCreateVmToolbarAnchor();
-    var existing = document.getElementById(CREATE_VM_DOM_BUTTON_ID);
-    if (!anchor) {
-      if (existing) {
-        existing.remove();
-      }
-      return;
-    }
-
-    var toolbar = anchor.parentElement;
-    if (!toolbar) {
-      return;
-    }
-
-    if (toolbarHasBeagleCreateVmButton(toolbar) && (!existing || existing.parentElement === toolbar)) {
-      if (existing && existing.parentElement !== toolbar) {
-        existing.remove();
-      }
-      return;
-    }
-
-    if (!existing) {
-      existing = anchor.cloneNode(true);
-      existing.id = CREATE_VM_DOM_BUTTON_ID;
-      existing.setAttribute("data-beagle-create-vm-dom", "1");
-      existing.removeAttribute("aria-describedby");
-      existing.removeAttribute("data-componentid");
-      existing.style.width = "auto";
-      var inner = existing.querySelector(".x-btn-inner");
-      if (inner) {
-        inner.textContent = "Erstelle Beagle OS VM";
-      } else {
-        existing.textContent = "Erstelle Beagle OS VM";
-      }
-      existing.title = "Erstellt eine vorbereitete Ubuntu-Desktop-VM mit Beagle OS und Sunshine.";
-      existing.addEventListener("click", function(event) {
-        event.preventDefault();
-        event.stopPropagation();
-        showUbuntuBeagleCreateModal({ node: selectedNodeName() || "" });
-      });
-    }
-
-    if (existing.parentElement !== toolbar || existing.nextSibling !== anchor) {
-      toolbar.insertBefore(existing, anchor);
-    }
-  }
-
-  function ensureCreateVmIntegration(component) {
-    if (!component || component.__beagleUbuntuCreateIntegrated) {
-      return;
-    }
-
-    if (looksLikeCreateVmTrigger(component) && component.up && component.up("menu")) {
-      var menu = component.up("menu");
-      if (!menu.down("#beagleUbuntuCreateVmMenuItem")) {
-        menu.insert(menu.items.indexOf(component), {
-          itemId: "beagleUbuntuCreateVmMenuItem",
-          text: "Erstelle Beagle OS VM",
-          iconCls: "fa fa-television",
-          handler: function() {
-            showUbuntuBeagleCreateModal({ node: menu.nodename || selectedNodeName() || "" });
-          }
-        });
-      }
-      component.__beagleUbuntuCreateIntegrated = true;
-      return;
-    }
-
-    if (looksLikeCreateVmTrigger(component) && component.up && component.up("toolbar")) {
-      var toolbar = component.up && component.up("toolbar");
-      if (toolbar && !toolbar.down("#beagleUbuntuCreateVmButton")) {
-        toolbar.insert(toolbar.items.indexOf(component), {
-          xtype: "button",
-          itemId: "beagleUbuntuCreateVmButton",
-          text: "Erstelle Beagle OS VM",
-          iconCls: "fa fa-television",
-          handler: function() {
-            showUbuntuBeagleCreateModal({ node: selectedNodeName() || "" });
-          },
-          tooltip: "Erstellt eine vorbereitete Ubuntu-Desktop-VM mit Beagle OS und Sunshine."
-        });
-      }
-      component.__beagleUbuntuCreateIntegrated = true;
-    }
-  }
-
-  function integrate() {
-    if (!(window.Ext && Ext.ComponentQuery)) {
-      return;
-    }
-
-    Ext.ComponentQuery.query("pveConsoleButton").forEach(ensureConsoleButtonIntegration);
-    Ext.ComponentQuery.query("#createvm").forEach(ensureCreateVmIntegration);
-    Ext.ComponentQuery.query("button").forEach(ensureCreateVmIntegration);
-    Ext.ComponentQuery.query("menuitem").forEach(ensureCreateVmIntegration);
-    ensureFleetLauncher();
-    ensureCreateVmDomFallback();
-  }
-
   function boot() {
-    ensureStyles();
-    integrate();
-    window.setInterval(integrate, 1000);
+    extJsIntegration.boot({
+      createVmDomButtonId: CREATE_VM_DOM_BUTTON_ID,
+      ensureStyles: ensureStyles,
+      fleetLauncherId: FLEET_LAUNCHER_ID,
+      getVmInstallerEligibility: getVmInstallerEligibility,
+      openUrl: openUrl,
+      openUsbInstaller: openUsbInstaller,
+      productLabel: PRODUCT_LABEL,
+      selectedNodeName: selectedNodeName,
+      showFleetModal: showFleetModal,
+      showProfileModal: showProfileModal,
+      showUbuntuBeagleCreateModal: showUbuntuBeagleCreateModal,
+      webUiUrlWithToken: webUiUrlWithToken
+    });
   }
 
   if (window.Ext && Ext.onReady) {
