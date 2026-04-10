@@ -198,3 +198,24 @@ Decision:
 Reason:
 
 - The next browser-side contract work depends on one explicit server-owned shape. Without that, the UI and extension can only chase whatever subset each handler happened to serialize, which keeps the contract undocumented in code and increases drift risk.
+
+### D20. Browser-side VM profile mapping should live in one shared browser helper
+
+Decision:
+
+- Add `extension/shared/vm-profile-mapper.js` as the single browser-side mapper for turning provider-backed VM data plus the control-plane contract into browser-local profile objects.
+- Keep `proxmox-ui/state/vm-profile.js` and `extension/services/profile.js` as thin fetch/delegation modules instead of maintaining two independent mapping implementations.
+
+Reason:
+
+- The host-side contract is now explicit. Keeping two separate browser mappers after that point would still permit field drift and metadata-fallback drift, only on the client side instead of the server side.
+
+### D21. Extension modal rendering should follow the same component extraction path as the Proxmox UI
+
+Decision:
+
+- Move the Beagle profile renderer/action block out of `extension/content.js` into `extension/components/profile-modal.js`.
+
+Reason:
+
+- The extension had reached the same failure mode the host UI had earlier: one entrypoint file owned both runtime bootstrapping and a large modal renderer. Keeping the render block separate reduces risk for the next DOM-integration splits and aligns the two browser surfaces structurally.

@@ -28,6 +28,8 @@ Current status:
 - Proxmox is the first supported provider
 - provider-neutral browser-side seams exist for virtualization and platform service access
 - the browser extension now mirrors that split through `extension/common.js`, `extension/provider-registry.js`, `extension/providers/proxmox.js`, and `extension/services/*`
+- browser-side VM profile mapping now lives in one shared helper `extension/shared/vm-profile-mapper.js` used by both the browser extension and the host-installed UI
+- the browser extension now also has a dedicated `extension/components/profile-modal.js` renderer, with `extension/content.js` reduced toward DOM integration and bootstrapping
 - browser-side endpoint profile resolution now lives in `proxmox-ui/state/vm-profile.js` and `extension/services/profile.js` instead of the entrypoint files
 - the host control plane now exposes an explicit browser-/installer-facing endpoint profile contract via `proxmox-host/bin/endpoint_profile_contract.py`
 - the host-installed Proxmox UI now also carries dedicated `components/profile-modal.js`, `components/fleet-modal.js`, `components/provisioning-result-modal.js`, and `components/provisioning-create-modal.js` renderers, with `beagle-ui.js` reduced toward orchestration

@@ -16,7 +16,9 @@
         "providers/proxmox.js",
         "services/virtualization.js",
         "services/platform.js",
+        "shared/vm-profile-mapper.js",
         "services/profile.js",
+        "components/profile-modal.js",
         "content.js"
       ],
       "run_at": "document_idle"
