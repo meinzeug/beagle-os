@@ -633,32 +633,10 @@ def schedule_ubuntu_beagle_vm_restart(
     wait_timeout_seconds: int = UBUNTU_BEAGLE_FIRSTBOOT_POWERDOWN_WAIT_SECONDS,
 ) -> dict[str, Any]:
     wait_timeout = max(60, int(wait_timeout_seconds or UBUNTU_BEAGLE_FIRSTBOOT_POWERDOWN_WAIT_SECONDS))
-    script = "\n".join(
-        [
-            "trap 'exit 0' TERM INT",
-            f"deadline=$((SECONDS + {wait_timeout}))",
-            "while (( SECONDS < deadline )); do",
-            f"  status=$(qm status {int(vmid)} 2>/dev/null | awk '{{print $2}}')",
-            "  if [[ \"$status\" == \"stopped\" ]]; then",
-            f"    qm start {int(vmid)} >/dev/null 2>&1 || true",
-            "    exit 0",
-            "  fi",
-            "  sleep 5",
-            "done",
-            f"qm stop {int(vmid)} --skiplock 1 >/dev/null 2>&1 || true",
-            f"qm start {int(vmid)} >/dev/null 2>&1 || true",
-        ]
-    )
-    process = subprocess.Popen(
-        ["/bin/bash", "-lc", script],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
+    pid = PROXMOX_HOST_PROVIDER.schedule_vm_restart_after_stop(int(vmid), wait_timeout_seconds=wait_timeout)
     return {
         "vmid": int(vmid),
-        "pid": int(process.pid),
+        "pid": int(pid),
         "wait_timeout_seconds": wait_timeout,
         "scheduled_at": utcnow(),
     }
@@ -1102,57 +1080,12 @@ def fetch_https_pinned_pubkey(url: str) -> str:
 
 
 def guest_exec_text(vmid: int, script: str) -> tuple[int, str, str]:
-    encoded = base64.b64encode(script.encode("utf-8")).decode("ascii")
-    runner = (
-        "set -euo pipefail\n"
-        "tmp_script=$(mktemp /tmp/beagle-guest-XXXXXX.sh)\n"
-        "tmp_b64=$(mktemp /tmp/beagle-guest-XXXXXX.b64)\n"
-        "cleanup() { rm -f \"$tmp_script\" \"$tmp_b64\"; }\n"
-        "trap cleanup EXIT\n"
-        "cat > \"$tmp_b64\" <<'__BEAGLE_B64__'\n"
-        f"{encoded}\n"
-        "__BEAGLE_B64__\n"
-        "base64 -d \"$tmp_b64\" > \"$tmp_script\"\n"
-        "chmod +x \"$tmp_script\"\n"
-        "\"$tmp_script\"\n"
+    return PROXMOX_HOST_PROVIDER.guest_exec_script_text(
+        int(vmid),
+        script,
+        poll_attempts=300,
+        poll_interval_seconds=2.0,
     )
-    try:
-        result = subprocess.run(
-            ["qm", "guest", "exec", str(vmid), "--", "bash", "-lc", runner],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-        output = ""
-        if isinstance(exc, subprocess.CalledProcessError):
-            output = exc.stdout or exc.stderr or ""
-        return 1, "", output.strip()
-
-    try:
-        payload = json.loads(result.stdout or "{}")
-    except json.JSONDecodeError:
-        return 1, "", (result.stdout or result.stderr or "").strip()
-
-    pid = payload.get("pid")
-    if pid is not None:
-        for _ in range(300):
-            time.sleep(2)
-            status = run_json(["qm", "guest", "exec-status", str(vmid), str(pid)], timeout=None)
-            if not isinstance(status, dict):
-                continue
-            if not status.get("exited"):
-                continue
-            exitcode = int(status.get("exitcode", 0) or 0)
-            stdout = str(status.get("out-data", "") or "").strip()
-            stderr = str(status.get("err-data", "") or "").strip()
-            return exitcode, stdout, stderr
-        return 1, "", f"qm guest exec timed out for VM {vmid} (pid {pid})"
-
-    exitcode = int(payload.get("exitcode", 0) or 0)
-    stdout = str(payload.get("out-data", "") or "").strip()
-    stderr = str(payload.get("err-data", "") or "").strip()
-    return exitcode, stdout, stderr
 
 
 def sunshine_guest_user(vm: VmSummary, config: dict[str, Any] | None = None) -> str:
@@ -1743,15 +1676,17 @@ def load_installer_prep_state(node: str, vmid: int) -> dict[str, Any] | None:
 
 
 def guest_exec_out_data(vmid: int, command: str) -> str:
-    payload = run_json(["qm", "guest", "exec", str(vmid), "--", "bash", "-lc", command])
-    if not isinstance(payload, dict):
-        return ""
+    payload = PROXMOX_HOST_PROVIDER.guest_exec_bash(int(vmid), command)
     return str(payload.get("out-data", "") or "")
 
 
 def guest_exec_payload(vmid: int, command: str, *, timeout_seconds: int = 20) -> dict[str, Any]:
-    payload = run_json(["qm", "guest", "exec", str(vmid), "--timeout", str(int(timeout_seconds)), "--", "bash", "-lc", command], timeout=timeout_seconds + 5)
-    return payload if isinstance(payload, dict) else {}
+    return PROXMOX_HOST_PROVIDER.guest_exec_bash(
+        int(vmid),
+        command,
+        timeout_seconds=int(timeout_seconds),
+        request_timeout=timeout_seconds + 5,
+    )
 
 
 def parse_usbip_port_output(output: str) -> list[dict[str, Any]]:

@@ -35,9 +35,8 @@ Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining 
   - `pvesh get /nodes/{node}/qemu/{vmid}/config`
   - `qm guest cmd ... network-get-interfaces`
   - `qm create`, `qm set`, `qm start`, `qm stop`
+  - `qm guest exec`, `qm guest exec-status`
 - `proxmox-host/bin/beagle-control-plane.py`
-  - `qm guest exec` and `qm guest exec-status` flows
-  - self-deleting `systemd-run` restart helper (`schedule_ubuntu_beagle_vm_restart`)
   - VM profile synthesis from Proxmox metadata
 
 ### Scripts / provisioning / artifacts
@@ -170,6 +169,10 @@ Current contract extracted from the control plane:
 - `set_vm_boot_order(vmid, order)`
 - `start_vm(vmid)`
 - `stop_vm(vmid, skiplock=False)`
+- `guest_exec_bash(vmid, command, timeout_seconds=None, request_timeout=None)`
+- `guest_exec_status(vmid, pid, timeout=None)`
+- `guest_exec_script_text(vmid, script, poll_attempts=300, poll_interval_seconds=2.0)`
+- `schedule_vm_restart_after_stop(vmid, wait_timeout_seconds)`
 
 ## Already Decoupled
 
@@ -206,7 +209,7 @@ These flows now go through provider-backed services first:
 
 ### Control plane
 
-- `proxmox-host/bin/beagle-control-plane.py` now routes VM lifecycle writes (create, set, description, boot order, start, stop, option delete) through `ProxmoxHostProvider`, but still embeds direct `qm guest exec` / `qm guest exec-status` calls for Ubuntu Beagle finalize and reconcile flows, and still emits an inline bash heredoc from `schedule_ubuntu_beagle_vm_restart`.
+- `proxmox-host/bin/beagle-control-plane.py` still synthesizes VM profiles from Proxmox metadata and remains a large monolith, but its VM reads, writes, guest-exec flows, and scheduled restart helper are now routed through `ProxmoxHostProvider`.
 
 ### Script surfaces
 

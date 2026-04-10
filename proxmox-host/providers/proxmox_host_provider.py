@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+import subprocess
+import time
 from typing import Any, Callable, Iterable, Mapping
 
 
@@ -208,6 +211,110 @@ class ProxmoxHostProvider:
         if skiplock:
             command.extend(["--skiplock", "1"])
         return self._run_checked(command, timeout=timeout)
+
+    def guest_exec_bash(
+        self,
+        vmid: int,
+        command: str,
+        *,
+        timeout_seconds: int | None = None,
+        request_timeout: float | None = None,
+    ) -> dict[str, Any]:
+        guest_command = ["qm", "guest", "exec", str(int(vmid))]
+        if timeout_seconds is not None:
+            guest_command.extend(["--timeout", str(int(timeout_seconds))])
+        guest_command.extend(["--", "bash", "-lc", str(command)])
+        payload = self._run_json(guest_command, timeout=request_timeout)
+        return payload if isinstance(payload, dict) else {}
+
+    def guest_exec_status(
+        self,
+        vmid: int,
+        pid: int,
+        *,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        payload = self._run_json(
+            ["qm", "guest", "exec-status", str(int(vmid)), str(int(pid))],
+            timeout=timeout,
+        )
+        return payload if isinstance(payload, dict) else {}
+
+    def guest_exec_script_text(
+        self,
+        vmid: int,
+        script: str,
+        *,
+        poll_attempts: int = 300,
+        poll_interval_seconds: float = 2.0,
+    ) -> tuple[int, str, str]:
+        encoded = base64.b64encode(str(script).encode("utf-8")).decode("ascii")
+        runner = (
+            "set -euo pipefail\n"
+            "tmp_script=$(mktemp /tmp/beagle-guest-XXXXXX.sh)\n"
+            "tmp_b64=$(mktemp /tmp/beagle-guest-XXXXXX.b64)\n"
+            "cleanup() { rm -f \"$tmp_script\" \"$tmp_b64\"; }\n"
+            "trap cleanup EXIT\n"
+            "cat > \"$tmp_b64\" <<'__BEAGLE_B64__'\n"
+            f"{encoded}\n"
+            "__BEAGLE_B64__\n"
+            "base64 -d \"$tmp_b64\" > \"$tmp_script\"\n"
+            "chmod +x \"$tmp_script\"\n"
+            "\"$tmp_script\"\n"
+        )
+        payload = self.guest_exec_bash(int(vmid), runner)
+        if not payload:
+            return 1, "", ""
+
+        pid = payload.get("pid")
+        if pid is not None:
+            for _ in range(max(1, int(poll_attempts))):
+                time.sleep(max(0.1, float(poll_interval_seconds)))
+                status = self.guest_exec_status(int(vmid), int(pid), timeout=None)
+                if not status or not status.get("exited"):
+                    continue
+                exitcode = int(status.get("exitcode", 0) or 0)
+                stdout = str(status.get("out-data", "") or "").strip()
+                stderr = str(status.get("err-data", "") or "").strip()
+                return exitcode, stdout, stderr
+            return 1, "", f"qm guest exec timed out for VM {int(vmid)} (pid {pid})"
+
+        exitcode = int(payload.get("exitcode", 0) or 0)
+        stdout = str(payload.get("out-data", "") or "").strip()
+        stderr = str(payload.get("err-data", "") or "").strip()
+        return exitcode, stdout, stderr
+
+    def schedule_vm_restart_after_stop(
+        self,
+        vmid: int,
+        *,
+        wait_timeout_seconds: int,
+    ) -> int:
+        wait_timeout = max(60, int(wait_timeout_seconds or 60))
+        script = "\n".join(
+            [
+                "trap 'exit 0' TERM INT",
+                f"deadline=$((SECONDS + {wait_timeout}))",
+                "while (( SECONDS < deadline )); do",
+                f"  status=$(qm status {int(vmid)} 2>/dev/null | awk '{{print $2}}')",
+                "  if [[ \"$status\" == \"stopped\" ]]; then",
+                f"    qm start {int(vmid)} >/dev/null 2>&1 || true",
+                "    exit 0",
+                "  fi",
+                "  sleep 5",
+                "done",
+                f"qm stop {int(vmid)} --skiplock 1 >/dev/null 2>&1 || true",
+                f"qm start {int(vmid)} >/dev/null 2>&1 || true",
+            ]
+        )
+        process = subprocess.Popen(
+            ["/bin/bash", "-lc", script],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        return int(process.pid)
 
     def get_guest_ipv4(
         self,

@@ -17,8 +17,11 @@
   - `finalize_ubuntu_beagle_install` uses `delete_vm_options`, `set_vm_boot_order`, `stop_vm`, and `start_vm`
   - `create_ubuntu_beagle_vm` uses `create_vm`, `set_vm_description`, `set_vm_options`, `set_vm_boot_order`, and `start_vm`
   - `update_ubuntu_beagle_vm` uses `set_vm_description`
-- Guest-exec (`qm guest exec` / `qm guest exec-status`) and the `schedule_ubuntu_beagle_vm_restart` bash heredoc are intentionally left as the next host-provider slice so this change stays runtime-safe.
-- Reran `scripts/validate-project.sh` (with ripgrep shim) to confirm the extraction and provider write seam still pass syntax/byte-compile/manifest/changelog gates.
+- Finished the next host-provider slice for control-plane guest execution and restart scheduling:
+  - added `guest_exec_bash`, `guest_exec_status`, `guest_exec_script_text`, and `schedule_vm_restart_after_stop` to `proxmox-host/providers/proxmox_host_provider.py`
+  - `schedule_ubuntu_beagle_vm_restart` now delegates to the provider instead of embedding the restart shell flow inline
+  - `guest_exec_text`, `guest_exec_out_data`, and `guest_exec_payload` now delegate to provider methods instead of issuing `qm guest exec` / `qm guest exec-status` directly from `beagle-control-plane.py`
+- Reran `scripts/validate-project.sh` to confirm the extraction and provider seams still pass syntax, byte-compile, manifest, and changelog gates.
 
 ## 2026-04-09
 
@@ -91,14 +94,13 @@
 - `thin-client-assistant/` and `beagle-kiosk/` still have not been modularized.
 - `proxmox-ui/` now has `common`, `api-client`, `state`, `provisioning`, `usb`, `utils`, and a full `components` set including `profile-modal.js`, `fleet-modal.js`, `provisioning-result-modal.js`, and `provisioning-create-modal.js`. `beagle-ui.js` dropped from roughly 2500+ lines to about 950 lines and now mostly orchestrates bootstrap, context resolution, catalog loading, and delegation wrappers.
 - `extension/content.js` no longer performs raw `/api2/json` or Beagle API token/config plumbing itself, but it is still a large UI/rendering monolith with local profile synthesis logic.
-- `proxmox-host/bin/beagle-control-plane.py` now delegates VM inventory, node inventory, VM config lookup, next-VMID allocation, storage inventory, guest IPv4 lookup, and VM lifecycle writes (create, set, description, boot order, start, stop, option delete) into `proxmox-host/providers/proxmox_host_provider.py`. Guest-exec (`qm guest exec` / `qm guest exec-status`) and the shell heredoc inside `schedule_ubuntu_beagle_vm_restart` still call `qm` directly.
+- `proxmox-host/bin/beagle-control-plane.py` now delegates VM inventory, node inventory, VM config lookup, next-VMID allocation, storage inventory, guest IPv4 lookup, VM lifecycle writes (create, set, description, boot order, start, stop, option delete), guest-exec flows, and scheduled restart orchestration into `proxmox-host/providers/proxmox_host_provider.py`.
 - No new behavioral tests or smoke tests have been added yet.
-- No release deployment work has been done in this run.
 
 ### Known risks after this run
 
-- `beagle-control-plane.py` remains a large monolith, even though VM lifecycle writes now flow through a provider helper.
+- `beagle-control-plane.py` remains a large monolith, even though VM lifecycle writes, guest-exec flows, and scheduled restarts now flow through provider helpers.
 - `proxmox-ui/beagle-ui.js` is materially smaller and the provisioning modals are out, but the file still holds bootstrap/catalog/context-resolution orchestration that will need further splits before it can become a thin entrypoint.
 - Frontend token handling still exists as documented.
-- The provider abstraction now covers Proxmox UI, browser extension, host-side reads, and host-side VM lifecycle writes. Guest-exec, `schedule_ubuntu_beagle_vm_restart`, script surfaces, and installer-side provider neutrality are still pending.
+- The provider abstraction now covers Proxmox UI, browser extension, host-side reads, host-side VM lifecycle writes, guest-exec, and scheduled restart orchestration. Script surfaces and installer-side provider neutrality are still pending.
 - Local `.build/` and `dist/` directories still exist and should not be treated as authoritative release outputs.

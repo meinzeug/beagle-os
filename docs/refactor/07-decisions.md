@@ -164,3 +164,14 @@ Decision:
 Reason:
 
 - Guest-exec semantics (long-running commands, pid polling, stdout/stderr capture) and the self-deleting systemd-run restart script are shaped differently from the lifecycle writes. Bundling them into the same slice would have mixed concerns and increased regression risk on a flow that was already runtime-safe.
+
+### D17. Host-side guest execution and delayed restarts are provider responsibilities
+
+Decision:
+
+- `ProxmoxHostProvider` owns the host-side `qm guest exec`, `qm guest exec-status`, guest script execution, and delayed restart scheduling helpers.
+- `beagle-control-plane.py` may keep small wrapper functions for call-site ergonomics, but it must not shape those Proxmox subprocess calls directly anymore.
+
+Reason:
+
+- Once VM reads and writes were provider-backed, leaving guest-exec and restart orchestration in the HTTP monolith would still keep Proxmox as a business-logic concern instead of a provider concern. Moving these flows into the provider keeps subprocess behavior, polling, timeout handling, and restart sequencing in one replaceable boundary.
