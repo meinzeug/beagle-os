@@ -2,7 +2,7 @@
 
 ## v6.6.7 - 2026-04-10
 
-- Continued the provider-neutral refactor without breaking the active Proxmox deployment path. The host control plane now routes the remaining Ubuntu Beagle guest-exec flows and scheduled restart helper through `proxmox-host/providers/proxmox_host_provider.py` instead of shaping `qm guest exec`, `qm guest exec-status`, `qm start` and `qm stop` calls directly in `beagle-control-plane.py`.
+- Continued the provider-neutral refactor without breaking the active Proxmox deployment path. The host control plane now routes the remaining Ubuntu Beagle guest-exec flows and scheduled restart helper through `beagle-host/providers/proxmox_host_provider.py` instead of shaping `qm guest exec`, `qm guest exec-status`, `qm start` and `qm stop` calls directly in `beagle-control-plane.py`.
 - Finished the current host-provider lifecycle slice by giving `ProxmoxHostProvider` first-class helpers for guest bash execution, exec-status polling, script-text execution and delayed restart scheduling. This keeps the Proxmox-specific subprocess behavior in one provider file while the large control-plane HTTP entrypoint moves closer to orchestration-only behavior.
 - Fixed the public release surface so `website/` ships in the versioned source tarball and `website/app.js` is part of project validation. That keeps the published source bundle aligned with the repo and stops the website from drifting outside the checked browser surfaces.
 - Updated the mandatory refactor handoff set, provider-abstraction notes and architecture guidance so the next continuation step is clear: shrink `extension/content.js`, inventory direct script-side Proxmox couplings, and keep release/deploy verification explicit across `srv.thinover.net` and `beagle-os.com`.

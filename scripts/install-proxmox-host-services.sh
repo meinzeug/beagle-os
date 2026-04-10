@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL_DIR="${INSTALL_DIR:-/opt/beagle}"
+HOST_RUNTIME_DIR="$INSTALL_DIR/beagle-host"
+LEGACY_HOST_RUNTIME_DIR="$INSTALL_DIR/proxmox-host"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 SYSTEMD_DIR="/etc/systemd/system"
 SERVICE_NAME="beagle-artifacts-refresh.service"
@@ -121,24 +123,34 @@ EOF
 chmod 0644 "$USB_TUNNEL_SSHD_DROPIN"
 
 install -d -m 0755 "$SYSTEMD_DIR"
-install -d -m 0755 "$INSTALL_DIR/proxmox-host/bin"
-install -d -m 0755 "$INSTALL_DIR/proxmox-host/providers"
-install_unit "$ROOT_DIR/proxmox-host/systemd/$SERVICE_NAME" "$SYSTEMD_DIR/$SERVICE_NAME"
-install -m 0644 "$ROOT_DIR/proxmox-host/systemd/$TIMER_NAME" "$SYSTEMD_DIR/$TIMER_NAME"
-install_unit "$ROOT_DIR/proxmox-host/systemd/$UI_REAPPLY_SERVICE" "$SYSTEMD_DIR/$UI_REAPPLY_SERVICE"
-install -m 0644 "$ROOT_DIR/proxmox-host/systemd/$UI_REAPPLY_PATH" "$SYSTEMD_DIR/$UI_REAPPLY_PATH"
-install_unit "$ROOT_DIR/proxmox-host/systemd/$BEAGLE_CONTROL_SERVICE" "$SYSTEMD_DIR/$BEAGLE_CONTROL_SERVICE"
-install_unit "$ROOT_DIR/proxmox-host/systemd/$BEAGLE_PUBLIC_STREAM_SERVICE" "$SYSTEMD_DIR/$BEAGLE_PUBLIC_STREAM_SERVICE"
-install -m 0644 "$ROOT_DIR/proxmox-host/systemd/$BEAGLE_PUBLIC_STREAM_TIMER" "$SYSTEMD_DIR/$BEAGLE_PUBLIC_STREAM_TIMER"
-if [[ "$(readlink -f "$ROOT_DIR/proxmox-host/bin/beagle-control-plane.py")" != "$(readlink -f "$INSTALL_DIR/proxmox-host/bin/beagle-control-plane.py" 2>/dev/null || true)" ]]; then
-  install -m 0755 "$ROOT_DIR/proxmox-host/bin/beagle-control-plane.py" "$INSTALL_DIR/proxmox-host/bin/beagle-control-plane.py"
+install -d -m 0755 "$HOST_RUNTIME_DIR/bin"
+install -d -m 0755 "$HOST_RUNTIME_DIR/providers"
+install -d -m 0755 "$HOST_RUNTIME_DIR/services"
+install_unit "$ROOT_DIR/beagle-host/systemd/$SERVICE_NAME" "$SYSTEMD_DIR/$SERVICE_NAME"
+install -m 0644 "$ROOT_DIR/beagle-host/systemd/$TIMER_NAME" "$SYSTEMD_DIR/$TIMER_NAME"
+install_unit "$ROOT_DIR/beagle-host/systemd/$UI_REAPPLY_SERVICE" "$SYSTEMD_DIR/$UI_REAPPLY_SERVICE"
+install -m 0644 "$ROOT_DIR/beagle-host/systemd/$UI_REAPPLY_PATH" "$SYSTEMD_DIR/$UI_REAPPLY_PATH"
+install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_CONTROL_SERVICE" "$SYSTEMD_DIR/$BEAGLE_CONTROL_SERVICE"
+install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_PUBLIC_STREAM_SERVICE" "$SYSTEMD_DIR/$BEAGLE_PUBLIC_STREAM_SERVICE"
+install -m 0644 "$ROOT_DIR/beagle-host/systemd/$BEAGLE_PUBLIC_STREAM_TIMER" "$SYSTEMD_DIR/$BEAGLE_PUBLIC_STREAM_TIMER"
+if [[ "$(readlink -f "$ROOT_DIR/beagle-host/bin/beagle-control-plane.py")" != "$(readlink -f "$HOST_RUNTIME_DIR/bin/beagle-control-plane.py" 2>/dev/null || true)" ]]; then
+  install -m 0755 "$ROOT_DIR/beagle-host/bin/beagle-control-plane.py" "$HOST_RUNTIME_DIR/bin/beagle-control-plane.py"
 fi
-if [[ "$(readlink -f "$ROOT_DIR/proxmox-host/bin/beagle-usb-tunnel-session")" != "$(readlink -f "$INSTALL_DIR/proxmox-host/bin/beagle-usb-tunnel-session" 2>/dev/null || true)" ]]; then
-  install -m 0755 "$ROOT_DIR/proxmox-host/bin/beagle-usb-tunnel-session" "$INSTALL_DIR/proxmox-host/bin/beagle-usb-tunnel-session"
+if [[ "$(readlink -f "$ROOT_DIR/beagle-host/bin/beagle-usb-tunnel-session")" != "$(readlink -f "$HOST_RUNTIME_DIR/bin/beagle-usb-tunnel-session" 2>/dev/null || true)" ]]; then
+  install -m 0755 "$ROOT_DIR/beagle-host/bin/beagle-usb-tunnel-session" "$HOST_RUNTIME_DIR/bin/beagle-usb-tunnel-session"
 fi
-if [[ "$(readlink -f "$ROOT_DIR/proxmox-host/providers/proxmox_host_provider.py")" != "$(readlink -f "$INSTALL_DIR/proxmox-host/providers/proxmox_host_provider.py" 2>/dev/null || true)" ]]; then
-  install -m 0644 "$ROOT_DIR/proxmox-host/providers/proxmox_host_provider.py" "$INSTALL_DIR/proxmox-host/providers/proxmox_host_provider.py"
+if [[ "$(readlink -f "$ROOT_DIR/beagle-host/bin/endpoint_profile_contract.py")" != "$(readlink -f "$HOST_RUNTIME_DIR/bin/endpoint_profile_contract.py" 2>/dev/null || true)" ]]; then
+  install -m 0644 "$ROOT_DIR/beagle-host/bin/endpoint_profile_contract.py" "$HOST_RUNTIME_DIR/bin/endpoint_profile_contract.py"
 fi
+if [[ "$(readlink -f "$ROOT_DIR/beagle-host/providers/proxmox_host_provider.py")" != "$(readlink -f "$HOST_RUNTIME_DIR/providers/proxmox_host_provider.py" 2>/dev/null || true)" ]]; then
+  install -m 0644 "$ROOT_DIR/beagle-host/providers/proxmox_host_provider.py" "$HOST_RUNTIME_DIR/providers/proxmox_host_provider.py"
+fi
+install -m 0644 "$ROOT_DIR/beagle-host/services/virtualization_inventory.py" "$HOST_RUNTIME_DIR/services/virtualization_inventory.py"
+install -m 0644 "$ROOT_DIR/beagle-host/services/vm_state.py" "$HOST_RUNTIME_DIR/services/vm_state.py"
+if [[ -e "$LEGACY_HOST_RUNTIME_DIR" && ! -L "$LEGACY_HOST_RUNTIME_DIR" ]]; then
+  rm -rf "$LEGACY_HOST_RUNTIME_DIR"
+fi
+ln -sfn "$HOST_RUNTIME_DIR" "$LEGACY_HOST_RUNTIME_DIR"
 rm -f "$USB_TUNNEL_TEST_DROPIN" "$USB_TUNNEL_AUTH_COMMAND"
 
 install -d -m 0755 "$CONFIG_DIR"

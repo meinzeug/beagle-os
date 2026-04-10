@@ -55,13 +55,15 @@ Long-term target:
 
 ### Host / control plane
 
-- `proxmox-host/bin/endpoint_profile_contract.py`
+- `beagle-host/`
+  - canonical generic host/control-plane repo surface; no longer named after a single provider
+- `beagle-host/bin/endpoint_profile_contract.py`
   - explicit public endpoint profile contract normalization for browser and installer consumers
-- `proxmox-host/services/virtualization_inventory.py`
+- `beagle-host/services/virtualization_inventory.py`
   - provider-backed host read service for VM listing, node inventory, guest IPv4 lookup, VM config lookup, and bridge inventory used by the control plane
-- `proxmox-host/services/vm_state.py`
+- `beagle-host/services/vm_state.py`
   - provider-backed host service for endpoint compliance evaluation and VM-state composition used by multiple control-plane handlers
-- `proxmox-host/providers/proxmox_host_provider.py`
+- `beagle-host/providers/proxmox_host_provider.py`
   - `pvesh get /cluster/resources`
   - `pvesh get /nodes`
   - `pvesh get /storage`
@@ -69,7 +71,7 @@ Long-term target:
   - `qm guest cmd ... network-get-interfaces`
   - `qm create`, `qm set`, `qm start`, `qm stop`
   - `qm guest exec`, `qm guest exec-status`
-- `proxmox-host/bin/beagle-control-plane.py`
+- `beagle-host/bin/beagle-control-plane.py`
   - VM profile synthesis from Proxmox metadata
 
 ### Scripts / provisioning / artifacts
@@ -191,15 +193,16 @@ Generic contract now exposed to `extension/content.js`:
 
 Current concrete implementation:
 
-- `proxmox-host/providers/proxmox_host_provider.py`
-- `proxmox-host/services/virtualization_inventory.py`
-- `proxmox-host/services/vm_state.py`
+- `beagle-host/`
+- `beagle-host/providers/proxmox_host_provider.py`
+- `beagle-host/services/virtualization_inventory.py`
+- `beagle-host/services/vm_state.py`
 
 ### Host-side endpoint profile contract
 
 Current concrete implementation:
 
-- `proxmox-host/bin/endpoint_profile_contract.py`
+- `beagle-host/bin/endpoint_profile_contract.py`
 
 Current contract characteristics:
 
@@ -278,10 +281,10 @@ These flows now go through provider-backed services first:
 
 These flows now go through provider-backed services first:
 
-- VM listing, node listing, guest IPv4 lookup, VM config lookup, and bridge inventory through `proxmox-host/services/virtualization_inventory.py`
-- endpoint compliance evaluation and VM-state composition through `proxmox-host/services/vm_state.py`
-- VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through `proxmox-host/providers/proxmox_host_provider.py`
-- browser-/installer-facing endpoint profile payload normalization through `proxmox-host/bin/endpoint_profile_contract.py`
+- VM listing, node listing, guest IPv4 lookup, VM config lookup, and bridge inventory through `beagle-host/services/virtualization_inventory.py`
+- endpoint compliance evaluation and VM-state composition through `beagle-host/services/vm_state.py`
+- VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through `beagle-host/providers/proxmox_host_provider.py`
+- browser-/installer-facing endpoint profile payload normalization through `beagle-host/bin/endpoint_profile_contract.py`
 
 ## Still Directly Coupled
 
@@ -295,7 +298,7 @@ These flows now go through provider-backed services first:
 
 ### Control plane
 
-- `proxmox-host/bin/beagle-control-plane.py` still synthesizes VM profiles from Proxmox metadata and remains a large monolith, but its provider-backed read paths are now routed through `proxmox-host/services/virtualization_inventory.py`, its endpoint compliance and VM-state assembly are routed through `proxmox-host/services/vm_state.py`, its VM writes/guest-exec/restart flows are routed through `ProxmoxHostProvider`, and its public profile payload is normalized through `endpoint_profile_contract.py`.
+- `beagle-host/bin/beagle-control-plane.py` still synthesizes VM profiles from Proxmox metadata and remains a large monolith, but its provider-backed read paths are now routed through `beagle-host/services/virtualization_inventory.py`, its endpoint compliance and VM-state assembly are routed through `beagle-host/services/vm_state.py`, its VM writes/guest-exec/restart flows are routed through `ProxmoxHostProvider`, and its public profile payload is normalized through `endpoint_profile_contract.py`.
 
 ### Script surfaces
 

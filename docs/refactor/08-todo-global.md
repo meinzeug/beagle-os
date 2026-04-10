@@ -19,20 +19,21 @@
 - [x] Move host-side VM lifecycle writes (create/set/start/stop/boot/description/option delete) behind `ProxmoxHostProvider`.
 - [x] Move host-side `qm guest exec` / `qm guest exec-status` flows and delayed restart scheduling behind `ProxmoxHostProvider`.
 - [x] Move browser-side VM profile synthesis out of `proxmox-ui/beagle-ui.js` and `extension/content.js` into dedicated `state/` and `services/` modules.
-- [x] Make the host-side public endpoint profile contract explicit in `proxmox-host/bin/endpoint_profile_contract.py`.
+- [x] Make the host-side public endpoint profile contract explicit in `beagle-host/bin/endpoint_profile_contract.py`.
 - [x] Replace the duplicated browser-side VM profile mapper with the shared helper `extension/shared/vm-profile-mapper.js`.
 - [x] Move the extension profile modal renderer out of `extension/content.js` into `extension/components/profile-modal.js`.
 - [x] Move the remaining shared browser-side endpoint export/note/helper logic into `extension/shared/vm-profile-helpers.js`.
 - [x] Split `extension/content.js` into smaller DOM-integration modules so toolbar/menu boot logic lives under `extension/components/`.
 - [x] Extract Proxmox-UI ExtJS toolbar/menu/create-VM/fleet wiring into `proxmox-ui/components/extjs-integration.js`.
 - [x] Extract the shared Proxmox-UI modal/loading shell into `proxmox-ui/components/modal-shell.js`.
-- [x] Extract the first provider-backed control-plane read service into `proxmox-host/services/virtualization_inventory.py`.
-- [x] Extract VM-state/compliance assembly into `proxmox-host/services/vm_state.py`.
+- [x] Extract the first provider-backed control-plane read service into `beagle-host/services/virtualization_inventory.py`.
+- [x] Extract VM-state/compliance assembly into `beagle-host/services/vm_state.py`.
+- [x] Rename the generic host/control-plane repo surface from `proxmox-host/` to `beagle-host/` while keeping Proxmox compatibility bridges where needed.
 - [ ] Continue splitting `proxmox-ui/beagle-ui.js` so bootstrap/catalog/profile-resolution logic lives under `proxmox-ui/provisioning/` and `proxmox-ui/state/` and `beagle-ui.js` becomes a thin entrypoint.
 - [ ] Inventory all direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally.
 - [ ] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
-- [ ] Split the remaining profile/public-stream/assignment/business flows in `proxmox-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
+- [ ] Split the remaining profile/public-stream/assignment/business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.
 - [ ] Make Proxmox optional at deploy/install/runtime boundaries instead of the implicit required backend.

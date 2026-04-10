@@ -203,7 +203,7 @@ check_file "/etc/nginx/sites-available/beagle-proxy.conf"
 check_file "/etc/systemd/system/beagle-ui-reapply.service"
 check_file "/etc/systemd/system/beagle-ui-reapply.path"
 check_file "/etc/systemd/system/beagle-control-plane.service"
-check_file "$INSTALL_DIR/proxmox-host/bin/beagle-usb-tunnel-session"
+check_file "$INSTALL_DIR/beagle-host/bin/beagle-usb-tunnel-session"
 check_file "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
 check_file "/etc/ssh/sshd_config.d/90-beagle-usb-tunnel.conf"
 

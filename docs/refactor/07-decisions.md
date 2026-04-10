@@ -192,7 +192,7 @@ Reason:
 
 Decision:
 
-- Add `proxmox-host/bin/endpoint_profile_contract.py` as the canonical normalizer for the browser-/installer-facing endpoint profile payload emitted by the control plane.
+- Add `beagle-host/bin/endpoint_profile_contract.py` as the canonical normalizer for the browser-/installer-facing endpoint profile payload emitted by the control plane.
 - `build_profile` may stay the place where profile values are derived, but the public contract shape and defaults must not remain implicit across multiple handlers and helper flows.
 
 Reason:
@@ -264,11 +264,11 @@ Reason:
 
 - After the renderers, provisioning modals, and ExtJS wiring moved out, the last repeated UI chrome still left in `beagle-ui.js` was the shared overlay shell itself. Treating that shell as a dedicated component keeps styling and loading-state markup separate from fleet/profile business flows and makes the host-installed asset order explicit.
 
-### D26. Provider-backed control-plane read helpers belong in `proxmox-host/services/*`
+### D26. Provider-backed control-plane read helpers belong in `beagle-host/services/*`
 
 Decision:
 
-- Move provider-backed VM list, node list, guest IPv4 lookup, VM config lookup, and bridge inventory helpers into service modules under `proxmox-host/services/`.
+- Move provider-backed VM list, node list, guest IPv4 lookup, VM config lookup, and bridge inventory helpers into service modules under `beagle-host/services/`.
 - `beagle-control-plane.py` may keep thin compatibility wrappers for call sites and handlers, but it should no longer own the concrete read-helper logic itself.
 
 Reason:
@@ -279,7 +279,7 @@ Reason:
 
 Decision:
 
-- Move endpoint compliance evaluation and VM-state assembly into a dedicated service module under `proxmox-host/services/`.
+- Move endpoint compliance evaluation and VM-state assembly into a dedicated service module under `beagle-host/services/`.
 - Keep the public helper names `evaluate_endpoint_compliance()` and `build_vm_state()` in `beagle-control-plane.py` as thin delegation wrappers so existing handler call sites stay stable during the migration.
 
 Reason:
@@ -297,3 +297,14 @@ Decision:
 Reason:
 
 - The intended product direction is not simply "Beagle on top of whatever hypervisor happens to be underneath". The intended direction is Beagle owning the virtualization path itself over time. Without recording that explicitly, the refactor could converge on a permanently external-provider-centered architecture that is cleaner than today but still strategically wrong.
+
+### D29. The generic host surface is `beagle-host/`, not `proxmox-host/`
+
+Decision:
+
+- Rename the canonical repo surface for the host control plane, systemd units, templates, and internal host services from `proxmox-host/` to `beagle-host/`.
+- Keep only truly provider-specific names under that surface, such as `providers/proxmox_host_provider.py`, and preserve external Proxmox-facing flags/scripts where renaming them would be a compatibility break.
+
+Reason:
+
+- The host control plane is no longer architecturally Proxmox-specific. Leaving the whole repo surface named `proxmox-host/` would keep encoding the old architecture center into every future refactor slice and would directly contradict the goal of making Proxmox optional.

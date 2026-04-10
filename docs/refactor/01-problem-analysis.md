@@ -8,7 +8,7 @@ The repository is functional and ships meaningful product surfaces, but the inte
 
 ### 1. Control-plane monolith
 
-`proxmox-host/bin/beagle-control-plane.py` is the single largest source file in the repo at roughly 5900 lines.
+`beagle-host/bin/beagle-control-plane.py` is the single largest source file in the repo at roughly 5900 lines.
 
 It currently mixes:
 
@@ -90,7 +90,7 @@ Direct Proxmox coupling currently exists in at least these areas:
 
 - browser-side VM context and inventory resolution in `proxmox-ui/beagle-ui.js`
 - browser extension inventory/profile logic in `extension/content.js`
-- control-plane inventory and config reads in `proxmox-host/bin/beagle-control-plane.py`
+- control-plane inventory and config reads in `beagle-host/bin/beagle-control-plane.py`
 - host reconciliation and artifact generation in `scripts/reconcile-public-streams.sh` and `scripts/prepare-host-downloads.sh`
 - guest configuration helpers in `scripts/configure-sunshine-guest.sh`
 - thin-client Proxmox API access in `thin-client-assistant/usb/pve-thin-client-proxmox-api.py`
