@@ -4,6 +4,19 @@
 
 Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining the permanent architecture center.
 
+Long-term target:
+
+- Beagle should gain its own first-party virtualization path/provider over time.
+- Proxmox should remain supported, but only as one optional provider among several.
+- The abstraction work in this file therefore exists to make Proxmox replaceable and to make a Beagle-owned provider possible.
+
+## Target End State
+
+- `providers/proxmox/` is one optional provider implementation.
+- a future `providers/beagle/` implements the same contracts for a Beagle-owned virtualization path
+- UI, control plane, provisioning, installer, fleet, and thin-client flows bind to provider-neutral services first
+- disabling Proxmox must not invalidate the Beagle core architecture
+
 ## Proxmox Couplings Found
 
 ### Browser / UI
@@ -291,6 +304,16 @@ These flows now go through provider-backed services first:
 ### Thin-client Proxmox access
 
 - thin-client-side Proxmox API and SPICE helpers are still explicitly Proxmox-bound.
+
+## Exit Criteria Before Proxmox Becomes Optional
+
+Proxmox should not be considered optional until all of the following are true:
+
+- host-side business logic no longer requires direct Proxmox knowledge outside provider/service layers
+- thin-client and installer flows no longer assume Proxmox-specific APIs or SPICE behavior by default
+- script and deployment surfaces do not assume Proxmox package/layout semantics as the only supported path
+- a second provider or a conformance-grade mock proves the contracts are not merely Proxmox-shaped wrappers
+- the future Beagle-owned provider path has a defined contract target and module layout
 
 ## Migration Rule
 
