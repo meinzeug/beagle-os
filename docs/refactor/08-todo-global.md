@@ -26,11 +26,13 @@
 - [x] Split `extension/content.js` into smaller DOM-integration modules so toolbar/menu boot logic lives under `extension/components/`.
 - [x] Extract Proxmox-UI ExtJS toolbar/menu/create-VM/fleet wiring into `proxmox-ui/components/extjs-integration.js`.
 - [x] Extract the shared Proxmox-UI modal/loading shell into `proxmox-ui/components/modal-shell.js`.
+- [x] Extract the first provider-backed control-plane read service into `proxmox-host/services/virtualization_inventory.py`.
+- [x] Extract VM-state/compliance assembly into `proxmox-host/services/vm_state.py`.
 - [ ] Continue splitting `proxmox-ui/beagle-ui.js` so bootstrap/catalog/profile-resolution logic lives under `proxmox-ui/provisioning/` and `proxmox-ui/state/` and `beagle-ui.js` becomes a thin entrypoint.
 - [ ] Inventory all direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally.
 - [ ] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
-- [ ] Split `proxmox-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
+- [ ] Split the remaining profile/public-stream/assignment/business flows in `proxmox-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
 - [ ] Split thin client runtime logic into config, runtime, network, pairing, and Moonlight launch seams.
 - [ ] Add smoke validation for generated installer URLs and public artifact filenames.
 - [ ] Add release-surface verification helpers for both linked servers.
