@@ -35,7 +35,9 @@
 - [ ] Inventory all direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally.
 - [ ] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
-- [ ] Split the remaining response-model/inventory/update-feed/business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
+- [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.
+- [x] Extract the fleet/VM inventory response builder into `beagle-host/services/fleet_inventory.py` behind a lazy factory and delegating wrapper.
+- [ ] Continue splitting the remaining response-model/health/installer-preset/endpoint-report business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint (next: `build_health_payload`, `build_installer_preset` + `render_vm_installer_script`/`render_vm_live_usb_script`/`render_vm_windows_installer_script`, endpoint-report summarization helpers).
 - [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.

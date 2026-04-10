@@ -2,7 +2,7 @@
 
 ## Immediate next slice
 
-Now that the control plane exposes a normalized endpoint profile contract `v1`, the browser-side VM profile mapper and helper layer are shared, the Proxmox UI entrypoint is down to about 410 lines, the extension entrypoint is down to about 189 lines, the host-side read/state/profile seams exist under `beagle-host/services/`, and the host bootstrap now selects `HOST_PROVIDER` through `beagle-host/providers/registry.py`, the next slice should keep shrinking `beagle-ui.js` while turning the control plane into a real service composition surface and making the host-provider contract more complete.
+Now that the control plane exposes a normalized endpoint profile contract `v1`, the browser-side VM profile mapper and helper layer are shared, the Proxmox UI entrypoint is down to about 410 lines, the extension entrypoint is down to about 189 lines, the host-side read/state/profile seams exist under `beagle-host/services/`, the host bootstrap now selects `HOST_PROVIDER` through `beagle-host/providers/registry.py`, and the first batch of HTTP-facing response builders (`UpdateFeedService`, `FleetInventoryService`) has been pulled out of `beagle-control-plane.py`, the next slice should keep shrinking `beagle-ui.js` while turning the control plane into a real service composition surface and making the host-provider contract more complete.
 
 Strategic framing:
 
@@ -16,8 +16,8 @@ Strategic framing:
    - extract the remaining fleet/profile launch orchestration and dependency-composition wrappers into dedicated modules under `proxmox-ui/components/` and `proxmox-ui/state/`
    - after `modal-shell.js`, `extjs-integration.js`, and the modal renderers are out, the remaining file should converge on dependency lookup plus a small `boot()` entrypoint
 2. Continue decomposing `beagle-host/bin/beagle-control-plane.py` around service-oriented modules:
-   - move the next browser-/installer-facing inventory/feed/artifact/public-state builders behind thin service helpers that consume `VirtualizationInventoryService`, `VmStateService`, `VmProfileService`, the generic host-provider contract, and `endpoint_profile_contract.py`
-   - the most valuable next extraction is now the remaining HTTP-facing aggregation/orchestration blocks around downloads/update feed, installer metadata shaping, and other response-model builders, because `build_profile` and the related assignment/public-stream helpers already live behind a service seam
+   - `UpdateFeedService` and `FleetInventoryService` are now out; the next valuable extractions are `build_health_payload` (still in `beagle-control-plane.py`), `build_installer_preset` together with `render_vm_installer_script` / `render_vm_live_usb_script` / `render_vm_windows_installer_script`, and the endpoint-report summarization helpers
+   - these should follow the same pattern: a dedicated `beagle-host/services/*.py` module with a class that receives its collaborators (profile service, provider contract, file loaders, URL helpers, `normalize_endpoint_profile_contract`) through the constructor, and a lazily-initialized module-level factory in `beagle-control-plane.py` that keeps the delegating wrapper signature stable
 3. Continue the host-provider abstraction itself:
    - define the next provider-complete contract slice in `beagle-host/providers/host_provider_contract.py` and move any remaining host-side direct provider assumptions to that contract or to service modules consuming it
    - thread `BEAGLE_HOST_PROVIDER` through the deploy/install/runtime docs and prepare the repo for a second provider or mock provider without changing current Proxmox behavior

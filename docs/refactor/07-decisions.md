@@ -331,3 +331,16 @@ Decision:
 Reason:
 
 - The previous host refactors still left one architectural hard stop: the control-plane bootstrap directly imported the concrete Proxmox provider. That made every later provider-neutral slice start from a Proxmox-first entrypoint. Moving provider selection to a registry keeps current runtime behavior identical while making the host side follow the same provider-indirection pattern already introduced on the browser side.
+
+### D32. HTTP response builders should move behind host services via lazy factories and delegating wrappers
+
+Decision:
+
+- Treat every remaining HTTP-facing aggregation/response-builder in `beagle-host/bin/beagle-control-plane.py` as a candidate for extraction into a dedicated `beagle-host/services/*.py` module.
+- Each extracted service must take its collaborators (loaders, profile service, URL helpers, contract normalizer, provider contract, constants like version/service name) through a kwargs-only constructor and must not reach back into `beagle-control-plane.py` globals.
+- `beagle-control-plane.py` keeps a module-level `SERVICE_NAME: Type | None = None` singleton plus a lazy `service_name_service()` factory and a thin delegating wrapper that preserves the original helper signature, so handler call sites and HTTP behavior stay stable across the migration.
+- Start with builders whose inputs are already routed through existing seams (profile, inventory, provider contract, loaders); defer builders that still couple to inline subprocess/Proxmox logic until that coupling is removed first.
+
+Reason:
+
+- The control-plane entrypoint still owned multiple large response-builder blocks (update feed, fleet inventory, health payload, installer preset, endpoint report summarization) that were business logic, not HTTP plumbing. Extracting them one at a time keeps the migration reviewable, mirrors the pattern already proven by `VmProfileService`/`VmStateService`, and gives tests and future providers a stable DI seam without forcing every HTTP handler to change during the slice.
