@@ -18,11 +18,12 @@
 - [x] Extract the Ubuntu desktop create/edit modal and provisioning result window from `proxmox-ui/beagle-ui.js` into `components/`.
 - [x] Move host-side VM lifecycle writes (create/set/start/stop/boot/description/option delete) behind `ProxmoxHostProvider`.
 - [x] Move host-side `qm guest exec` / `qm guest exec-status` flows and delayed restart scheduling behind `ProxmoxHostProvider`.
+- [x] Move browser-side VM profile synthesis out of `proxmox-ui/beagle-ui.js` and `extension/content.js` into dedicated `state/` and `services/` modules.
 - [ ] Continue splitting `proxmox-ui/beagle-ui.js` so bootstrap/catalog/profile-resolution logic lives under `proxmox-ui/provisioning/` and `proxmox-ui/state/` and `beagle-ui.js` becomes a thin entrypoint.
-- [ ] Split `extension/content.js` into smaller UI/rendering modules now that provider/API access is extracted.
+- [ ] Split `extension/content.js` into smaller UI/rendering modules now that provider/API access and VM profile resolution are extracted.
 - [ ] Inventory all direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally.
 - [ ] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
-- [ ] Define a stable endpoint profile contract shared by host, UI, and installer generation.
+- [ ] Define a stable endpoint profile contract shared by `proxmox-ui/state/vm-profile.js`, `extension/services/profile.js`, the host control plane, and installer generation.
 - [ ] Split `proxmox-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
 - [ ] Split thin client runtime logic into config, runtime, network, pairing, and Moonlight launch seams.
 - [ ] Add smoke validation for generated installer URLs and public artifact filenames.

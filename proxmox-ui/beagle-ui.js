@@ -11,6 +11,7 @@
   var platformService = window.BeaglePlatformService;
   var apiClient = window.BeagleUiApiClient;
   var beagleState = window.BeagleUiState;
+  var vmProfileState = window.BeagleUiVmProfileState;
   var usbUi = window.BeagleUiUsbUi;
   var renderHelpers = window.BeagleUiRenderHelpers;
   var desktopOverlay = window.BeagleUiDesktopOverlay;
@@ -34,6 +35,9 @@
   }
   if (!beagleState) {
     throw new Error("BeagleUiState must be loaded before beagle-ui.js");
+  }
+  if (!vmProfileState) {
+    throw new Error("BeagleUiVmProfileState must be loaded before beagle-ui.js");
   }
   if (!usbUi) {
     throw new Error("BeagleUiUsbUi must be loaded before beagle-ui.js");
@@ -66,14 +70,6 @@
     });
   }
 
-  function resolveUsbInstallerUrl(ctx) {
-    return common.resolveUsbInstallerUrl(ctx);
-  }
-
-  function resolveInstallerIsoUrl(ctx) {
-    return common.resolveInstallerIsoUrl(ctx);
-  }
-
   function withNoCache(url) {
     return common.withNoCache(url);
   }
@@ -84,10 +80,6 @@
 
   function resolveWebUiUrl() {
     return common.resolveWebUiUrl();
-  }
-
-  function managerUrlFromHealthUrl(healthUrl) {
-    return common.managerUrlFromHealthUrl(healthUrl);
   }
 
   function normalizeBeagleApiPath(path) {
@@ -372,33 +364,6 @@
     return profileModal.copyText(showError, showToast, text, successMessage);
   }
 
-  function parseDescriptionMeta(description) {
-    var meta = {};
-    String(description || "")
-      .replace(/\\r\\n/g, "\n")
-      .replace(/\\n/g, "\n")
-      .split("\n")
-      .forEach(function(rawLine) {
-        var line = rawLine.trim();
-        var index = line.indexOf(":");
-        var key;
-        var value;
-        if (index <= 0) {
-          return;
-        }
-        key = line.slice(0, index).trim().toLowerCase();
-        value = line.slice(index + 1).trim();
-        if (key && !(key in meta)) {
-          meta[key] = value;
-        }
-      });
-    return meta;
-  }
-
-  function apiGetJson(path) {
-    return apiClient.apiGetJson(path);
-  }
-
   function getApiToken(interactive) {
     return apiClient.getApiToken(interactive);
   }
@@ -422,10 +387,6 @@
 
   function apiStartInstallerPrep(vmid) {
     return platformService.prepareInstallerTarget(vmid);
-  }
-
-  function apiGetVmCredentials(vmid) {
-    return platformService.fetchVmCredentials(vmid);
   }
 
   function apiCreateSunshineAccess(vmid) {
@@ -456,40 +417,8 @@
     return usbUi.applyInstallerPrepState(overlay, state);
   }
 
-  function firstGuestIpv4(interfaces) {
-    var list = Array.isArray(interfaces) ? interfaces : [];
-    var iface;
-    var addresses;
-    var i;
-    var j;
-    var address;
-    for (i = 0; i < list.length; i += 1) {
-      iface = list[i] || {};
-      addresses = Array.isArray(iface["ip-addresses"]) ? iface["ip-addresses"] : [];
-      for (j = 0; j < addresses.length; j += 1) {
-        address = addresses[j] || {};
-        if (address["ip-address-type"] !== "ipv4") {
-          continue;
-        }
-        if (!address["ip-address"] || /^127\./.test(address["ip-address"]) || /^169\.254\./.test(address["ip-address"])) {
-          continue;
-        }
-        return address["ip-address"];
-      }
-    }
-    return "";
-  }
-
   function formatActionState(ok) {
     return profileModal.formatActionState(ok);
-  }
-
-  function buildEndpointEnv(profile) {
-    return profileModal.buildEndpointEnv(profile);
-  }
-
-  function buildNotes(profile) {
-    return profileModal.buildNotes(profile);
   }
 
   function renderProvisioningBadge(state) {
@@ -554,93 +483,7 @@
   }
 
   function resolveVmProfile(ctx) {
-    return Promise.all([
-      virtualizationService.getVmConfig(ctx),
-      virtualizationService.listVms().catch(function() { return []; }),
-      virtualizationService.getVmGuestInterfaces(ctx).catch(function() { return []; }),
-      apiGetVmCredentials(ctx.vmid).catch(function() { return null; }),
-      platformService.fetchPublicVmState(ctx.vmid),
-      platformService.fetchVmUsbState(ctx.vmid).catch(function() { return null; })
-    ]).then(function(results) {
-      var config = results[0] || {};
-      var resources = Array.isArray(results[1]) ? results[1] : [];
-      var guestInterfaces = Array.isArray(results[2]) ? results[2] : [];
-      var credentials = results[3] || null;
-      var endpointPayload = results[4] || null;
-      var usbPayload = results[5] || null;
-      var controlPlaneProfile = endpointPayload && endpointPayload.profile ? endpointPayload.profile : null;
-      var endpointSummary = endpointPayload && endpointPayload.endpoint ? endpointPayload.endpoint : null;
-      var compliance = endpointPayload && endpointPayload.compliance ? endpointPayload.compliance : null;
-      var lastAction = endpointPayload && endpointPayload.last_action ? endpointPayload.last_action : null;
-      var pendingActionCount = endpointPayload && endpointPayload.pending_action_count ? endpointPayload.pending_action_count : 0;
-      var installerPrep = endpointPayload && endpointPayload.installer_prep ? endpointPayload.installer_prep : null;
-      var resource = resources.find(function(item) {
-        return item && item.type === "qemu" && Number(item.vmid) === Number(ctx.vmid);
-      }) || {};
-      var meta = parseDescriptionMeta(config.description || "");
-      var guestIp = firstGuestIpv4(guestInterfaces);
-      var streamHost = controlPlaneProfile && controlPlaneProfile.stream_host || meta["moonlight-host"] || meta["sunshine-ip"] || meta["sunshine-host"] || guestIp || "";
-      var moonlightPort = controlPlaneProfile && controlPlaneProfile.moonlight_port || meta["moonlight-port"] || meta["beagle-public-moonlight-port"] || "";
-      var sunshineApiUrl = controlPlaneProfile && controlPlaneProfile.sunshine_api_url || meta["sunshine-api-url"] || (streamHost ? "https://" + streamHost + ":" + (moonlightPort ? String(Number(moonlightPort) + 1) : "47990") : "");
-      var profile = {
-        vmid: Number(ctx.vmid),
-        node: ctx.node,
-        name: config.name || resource.name || ("vm-" + ctx.vmid),
-        status: resource.status || "unknown",
-        guestIp: guestIp,
-        streamHost: streamHost,
-        moonlightPort: moonlightPort,
-        sunshineApiUrl: sunshineApiUrl,
-        sunshineUsername: credentials && credentials.sunshine_username || "",
-        sunshinePassword: credentials && credentials.sunshine_password || "",
-        sunshinePin: credentials && credentials.sunshine_pin || "",
-        thinclientUsername: credentials && credentials.thinclient_username || "thinclient",
-        thinclientPassword: credentials && credentials.thinclient_password || "",
-        guestUser: controlPlaneProfile && controlPlaneProfile.guest_user || meta["sunshine-guest-user"] || "beagle",
-        app: controlPlaneProfile && controlPlaneProfile.moonlight_app || meta["moonlight-app"] || meta["sunshine-app"] || "Desktop",
-        resolution: controlPlaneProfile && controlPlaneProfile.moonlight_resolution || meta["moonlight-resolution"] || "auto",
-        fps: controlPlaneProfile && controlPlaneProfile.moonlight_fps || meta["moonlight-fps"] || "60",
-        bitrate: controlPlaneProfile && controlPlaneProfile.moonlight_bitrate || meta["moonlight-bitrate"] || "20000",
-        codec: controlPlaneProfile && controlPlaneProfile.moonlight_video_codec || meta["moonlight-video-codec"] || "H.264",
-        decoder: controlPlaneProfile && controlPlaneProfile.moonlight_video_decoder || meta["moonlight-video-decoder"] || "auto",
-        audio: controlPlaneProfile && controlPlaneProfile.moonlight_audio_config || meta["moonlight-audio-config"] || "stereo",
-        identityHostname: controlPlaneProfile && controlPlaneProfile.identity_hostname || meta["beagle-identity-hostname"] || "",
-        desktopId: controlPlaneProfile && controlPlaneProfile.desktop_id || meta["beagle-desktop-id"] || "",
-        desktopLabel: controlPlaneProfile && controlPlaneProfile.desktop_label || meta["beagle-desktop"] || "",
-        desktopSession: controlPlaneProfile && controlPlaneProfile.desktop_session || meta["beagle-desktop-session"] || "",
-        packagePresets: controlPlaneProfile && controlPlaneProfile.package_presets || parseListText(meta["beagle-package-presets"] || ""),
-        extraPackages: controlPlaneProfile && controlPlaneProfile.extra_packages || parseListText(meta["beagle-extra-packages"] || ""),
-        softwarePackages: controlPlaneProfile && controlPlaneProfile.software_packages || [],
-        proxmoxHost: meta["proxmox-host"] || window.location.hostname,
-        managerPinnedPubkey: controlPlaneProfile && controlPlaneProfile.beagle_manager_pinned_pubkey || "",
-        installerUrl: controlPlaneProfile && controlPlaneProfile.installer_url || resolveUsbInstallerUrl(ctx),
-        liveUsbUrl: controlPlaneProfile && controlPlaneProfile.live_usb_url || ("/beagle-api/api/v1/vms/" + encodeURIComponent(String(ctx.vmid)) + "/live-usb.sh"),
-        installerWindowsUrl: controlPlaneProfile && controlPlaneProfile.installer_windows_url || ("/beagle-api/api/v1/vms/" + encodeURIComponent(String(ctx.vmid)) + "/installer.ps1"),
-        installerIsoUrl: controlPlaneProfile && controlPlaneProfile.installer_iso_url || resolveInstallerIsoUrl(ctx),
-        controlPlaneHealthUrl: resolveControlPlaneHealthUrl(),
-        managerUrl: managerUrlFromHealthUrl(resolveControlPlaneHealthUrl()),
-        endpointSummary: endpointSummary,
-        usbState: usbPayload && usbPayload.usb ? usbPayload.usb : null,
-        compliance: compliance,
-        lastAction: lastAction,
-        pendingActionCount: pendingActionCount,
-        installerPrep: installerPrep,
-        installerTargetEligible: controlPlaneProfile && typeof controlPlaneProfile.installer_target_eligible === "boolean" ? controlPlaneProfile.installer_target_eligible : Boolean(streamHost),
-        installerTargetMessage: controlPlaneProfile && controlPlaneProfile.installer_target_message || "",
-        assignedTarget: controlPlaneProfile && controlPlaneProfile.assigned_target || null,
-        assignmentSource: controlPlaneProfile && controlPlaneProfile.assignment_source || "",
-        appliedPolicy: controlPlaneProfile && controlPlaneProfile.applied_policy || null,
-        beagleRole: controlPlaneProfile && controlPlaneProfile.beagle_role || meta["beagle-role"] || "",
-        expectedProfileName: controlPlaneProfile && controlPlaneProfile.expected_profile_name || "",
-        metadata: meta
-      };
-      profile.notes = buildNotes(profile);
-      if (!profile.endpointSummary) {
-        profile.notes.push("Endpoint hat noch keinen Check-in an die Beagle Control Plane geliefert.");
-      }
-      profile.endpointEnv = buildEndpointEnv(profile);
-      return profile;
-    });
+    return vmProfileState.resolveVmProfile(ctx);
   }
 
   function kvRow(label, value) {
