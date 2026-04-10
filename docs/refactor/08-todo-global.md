@@ -15,10 +15,11 @@
 - [x] Introduce the first provider-neutral browser-side seams under `core/provider/`, `core/virtualization/`, `core/platform/`, and `providers/proxmox/`.
 - [x] Move the browser extension off direct Proxmox inventory/profile calls and onto aligned provider-backed services.
 - [x] Start host-side provider helper extraction for control-plane inventory, storage, VM config, and guest-IP access.
-- [ ] Extract `proxmox-ui/beagle-ui.js` into `api-client/`, `state/`, `components/`, `provisioning/`, `usb/`, and `utils/`.
-- [ ] Extract the Ubuntu desktop create/edit modal and provisioning result window from `proxmox-ui/beagle-ui.js` into `components/`.
+- [x] Extract the Ubuntu desktop create/edit modal and provisioning result window from `proxmox-ui/beagle-ui.js` into `components/`.
+- [x] Move host-side VM lifecycle writes (create/set/start/stop/boot/description/option delete) behind `ProxmoxHostProvider`.
+- [ ] Continue splitting `proxmox-ui/beagle-ui.js` so bootstrap/catalog/profile-resolution logic lives under `proxmox-ui/provisioning/` and `proxmox-ui/state/` and `beagle-ui.js` becomes a thin entrypoint.
 - [ ] Split `extension/content.js` into smaller UI/rendering modules now that provider/API access is extracted.
-- [ ] Move remaining host-side `qm`/`pvesh` lifecycle, guest-exec, and provisioning mutations behind provider helpers.
+- [ ] Move the remaining `qm guest exec` / `qm guest exec-status` paths and the `schedule_ubuntu_beagle_vm_restart` helper behind `ProxmoxHostProvider`.
 - [ ] Inventory all direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally.
 - [ ] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Define a stable endpoint profile contract shared by host, UI, and installer generation.

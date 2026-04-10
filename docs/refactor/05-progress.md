@@ -2,6 +2,26 @@
 
 ## 2026-04-09
 
+### 2026-04-10 additions
+
+- Extracted the remaining large Proxmox UI provisioning blocks out of `proxmox-ui/beagle-ui.js`:
+  - added `proxmox-ui/components/provisioning-result-modal.js` carrying `provisioningStatusLabel`, `provisioningStatusBadgeClass`, `renderProvisioningBadge`, `renderProvisioningResultHtml`, and `showProvisioningResultWindow`
+  - added `proxmox-ui/components/provisioning-create-modal.js` carrying `safeHostnameCandidate`, `listToMultiline`, `readCheckedValues`, and the full `showUbuntuBeagleCreateModal` orchestration
+  - reduced `proxmox-ui/beagle-ui.js` from about 1760 lines to about 950 lines; it now holds only delegation wrappers for the provisioning result window, the create/edit modal, and the inline badge renderer
+- Updated `scripts/install-proxmox-ui-integration.sh` and `scripts/validate-project.sh` so both new `components/` modules are installed into `/usr/share/pve-manager/js/`, injected into `index.html.tpl`, and syntax-checked on validate.
+- Extended the host-side provider seam in `proxmox-host/providers/proxmox_host_provider.py` with VM lifecycle write methods:
+  - `create_vm`, `set_vm_options`, `delete_vm_options`, `set_vm_description`, `set_vm_boot_order`, `start_vm`, `stop_vm`
+  - all go through a shared `_flatten_option_pairs` helper so callers pass either `Mapping` or list-of-tuples option shapes
+  - constructor now takes an explicit `run_checked` callable in addition to `run_json` and `run_text`
+- Rerouted VM lifecycle writes in `proxmox-host/bin/beagle-control-plane.py` through the provider:
+  - `finalize_ubuntu_beagle_install` uses `delete_vm_options`, `set_vm_boot_order`, `stop_vm`, and `start_vm`
+  - `create_ubuntu_beagle_vm` uses `create_vm`, `set_vm_description`, `set_vm_options`, `set_vm_boot_order`, and `start_vm`
+  - `update_ubuntu_beagle_vm` uses `set_vm_description`
+- Guest-exec (`qm guest exec` / `qm guest exec-status`) and the `schedule_ubuntu_beagle_vm_restart` bash heredoc are intentionally left as the next host-provider slice so this change stays runtime-safe.
+- Reran `scripts/validate-project.sh` (with ripgrep shim) to confirm the extraction and provider write seam still pass syntax/byte-compile/manifest/changelog gates.
+
+## 2026-04-09
+
 ### Completed in this run
 
 - Created the mandatory `docs/refactor/` handoff and planning set:
@@ -68,17 +88,17 @@
 
 ### What is not done yet
 
-- Only the first runtime-preserving code extraction has happened inside `proxmox-host/`; `thin-client-assistant/` and `beagle-kiosk/` still have not been modularized.
-- `proxmox-ui/` now has `common`, `api-client`, `state`, `provisioning`, `usb`, `utils`, and larger `components` seams including `profile-modal.js` and `fleet-modal.js`. `beagle-ui.js` dropped from roughly 2500+ lines to about 1760 lines, but provisioning result/create flows still keep a large orchestration block there.
+- `thin-client-assistant/` and `beagle-kiosk/` still have not been modularized.
+- `proxmox-ui/` now has `common`, `api-client`, `state`, `provisioning`, `usb`, `utils`, and a full `components` set including `profile-modal.js`, `fleet-modal.js`, `provisioning-result-modal.js`, and `provisioning-create-modal.js`. `beagle-ui.js` dropped from roughly 2500+ lines to about 950 lines and now mostly orchestrates bootstrap, context resolution, catalog loading, and delegation wrappers.
 - `extension/content.js` no longer performs raw `/api2/json` or Beagle API token/config plumbing itself, but it is still a large UI/rendering monolith with local profile synthesis logic.
-- `proxmox-host/bin/beagle-control-plane.py` now delegates VM inventory, node inventory, VM config lookup, next-VMID allocation, storage inventory, and guest IPv4 lookup into `proxmox-host/providers/proxmox_host_provider.py`, but provisioning mutations and guest-exec flows still call `qm`/`pvesh` directly.
+- `proxmox-host/bin/beagle-control-plane.py` now delegates VM inventory, node inventory, VM config lookup, next-VMID allocation, storage inventory, guest IPv4 lookup, and VM lifecycle writes (create, set, description, boot order, start, stop, option delete) into `proxmox-host/providers/proxmox_host_provider.py`. Guest-exec (`qm guest exec` / `qm guest exec-status`) and the shell heredoc inside `schedule_ubuntu_beagle_vm_restart` still call `qm` directly.
 - No new behavioral tests or smoke tests have been added yet.
 - No release deployment work has been done in this run.
 
 ### Known risks after this run
 
-- The large monoliths still exist.
-- `proxmox-ui/beagle-ui.js` is materially smaller, but the Ubuntu desktop create/edit modal and provisioning result window are still substantial inline UI blocks.
+- `beagle-control-plane.py` remains a large monolith, even though VM lifecycle writes now flow through a provider helper.
+- `proxmox-ui/beagle-ui.js` is materially smaller and the provisioning modals are out, but the file still holds bootstrap/catalog/context-resolution orchestration that will need further splits before it can become a thin entrypoint.
 - Frontend token handling still exists as documented.
-- The new provider abstraction now covers the Proxmox UI, the browser extension, and the first host-side read path; host-side write paths, script-side calls, and installer-side provider neutrality are still pending.
+- The provider abstraction now covers Proxmox UI, browser extension, host-side reads, and host-side VM lifecycle writes. Guest-exec, `schedule_ubuntu_beagle_vm_restart`, script surfaces, and installer-side provider neutrality are still pending.
 - Local `.build/` and `dist/` directories still exist and should not be treated as authoritative release outputs.

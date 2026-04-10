@@ -12,11 +12,14 @@ Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining 
   - Proxmox VM context detection
   - `/api2/json` VM config and guest-agent reads
   - node selection from the Proxmox UI
-  - remaining provisioning modal orchestration and inline ExtJS form logic
 - `proxmox-ui/components/profile-modal.js`
   - provider-neutral profile modal renderer and action orchestration
 - `proxmox-ui/components/fleet-modal.js`
   - provider-neutral fleet renderer and action orchestration
+- `proxmox-ui/components/provisioning-result-modal.js`
+  - provider-neutral provisioning result window and badge renderer
+- `proxmox-ui/components/provisioning-create-modal.js`
+  - provider-neutral Ubuntu Beagle create/edit modal orchestration
 - `extension/providers/proxmox.js`
   - direct `/api2/json` cluster/config/guest-agent calls
   - Proxmox VM context detection for the browser extension
@@ -31,8 +34,10 @@ Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining 
   - `pvesh get /storage`
   - `pvesh get /nodes/{node}/qemu/{vmid}/config`
   - `qm guest cmd ... network-get-interfaces`
+  - `qm create`, `qm set`, `qm start`, `qm stop`
 - `proxmox-host/bin/beagle-control-plane.py`
-  - Proxmox task and VM orchestration
+  - `qm guest exec` and `qm guest exec-status` flows
+  - self-deleting `systemd-run` restart helper (`schedule_ubuntu_beagle_vm_restart`)
   - VM profile synthesis from Proxmox metadata
 
 ### Scripts / provisioning / artifacts
@@ -158,6 +163,13 @@ Current contract extracted from the control plane:
 - `list_vms()`
 - `get_vm_config(node, vmid)`
 - `get_guest_ipv4(vmid)`
+- `create_vm(vmid, options)`
+- `set_vm_options(vmid, options)`
+- `delete_vm_options(vmid, option_names)`
+- `set_vm_description(vmid, description)`
+- `set_vm_boot_order(vmid, order)`
+- `start_vm(vmid)`
+- `stop_vm(vmid, skiplock=False)`
 
 ## Already Decoupled
 
@@ -173,6 +185,8 @@ These flows now go through generic services first:
 - installer-prep, USB attach/detach/refresh, Sunshine access, and policy/action queue calls through `core/platform/service.js`
 - profile modal rendering and action handling through `proxmox-ui/components/profile-modal.js`
 - fleet rendering and action handling through `proxmox-ui/components/fleet-modal.js`
+- provisioning result window, badge, and status rendering through `proxmox-ui/components/provisioning-result-modal.js`
+- Ubuntu Beagle create/edit modal orchestration through `proxmox-ui/components/provisioning-create-modal.js`
 
 ### Browser extension
 
@@ -192,7 +206,7 @@ These flows now go through provider-backed services first:
 
 ### Control plane
 
-- `proxmox-host/bin/beagle-control-plane.py` still embeds direct Proxmox command execution for VM lifecycle changes, guest exec, provisioning mutations, and several mutation-heavy helper paths.
+- `proxmox-host/bin/beagle-control-plane.py` now routes VM lifecycle writes (create, set, description, boot order, start, stop, option delete) through `ProxmoxHostProvider`, but still embeds direct `qm guest exec` / `qm guest exec-status` calls for Ubuntu Beagle finalize and reconcile flows, and still emits an inline bash heredoc from `schedule_ubuntu_beagle_vm_restart`.
 
 ### Script surfaces
 
