@@ -47,6 +47,11 @@
   - added `extension/components/vm-page-integration.js` for toolbar/menu injection and mutation-observer boot logic
   - reduced `extension/content.js` again from about 328 lines to about 189 lines so it now focuses on overlay/styles, VM profile resolution, and modal/download launch actions
   - updated `extension/manifest.json`, `scripts/install-proxmox-ui-integration.sh`, and `scripts/validate-project.sh` so the new shared helper and extension DOM-integration module are loaded and validated everywhere they are needed
+- Extracted the remaining Proxmox-UI ExtJS/DOM integration monolith out of `proxmox-ui/beagle-ui.js`:
+  - added `proxmox-ui/components/extjs-integration.js` for Proxmox console button wiring, fleet launcher injection, create-VM button/menu integration, and the periodic `integrate()` boot loop
+  - removed the ExtJS label matching and Create-VM DOM fallback logic from `proxmox-ui/beagle-ui.js`
+  - reduced `proxmox-ui/beagle-ui.js` from about 797 lines to about 552 lines so it is much closer to a bootstrap/orchestration entrypoint
+  - updated `scripts/install-proxmox-ui-integration.sh` and `scripts/validate-project.sh` so the new component is installed, loaded before `beagle-ui.js`, and syntax-checked
 - Closed a release-surface gap before packaging:
   - `scripts/package.sh` now includes `website/` in the shipped source tarball
   - `scripts/validate-project.sh` now syntax-checks `website/app.js` so the public website code is validated alongside the other browser surfaces
@@ -121,7 +126,7 @@
 ### What is not done yet
 
 - `thin-client-assistant/` and `beagle-kiosk/` still have not been modularized.
-- `proxmox-ui/` now has `common`, `api-client`, `state`, `provisioning`, `usb`, `utils`, and a full `components` set including `profile-modal.js`, `fleet-modal.js`, `provisioning-result-modal.js`, and `provisioning-create-modal.js`. `beagle-ui.js` dropped from roughly 2500+ lines to about 797 lines and now mostly orchestrates bootstrap, context resolution, catalog loading, and delegation wrappers.
+- `proxmox-ui/` now has `common`, `api-client`, `state`, `provisioning`, `usb`, `utils`, and a full `components` set including `profile-modal.js`, `fleet-modal.js`, `provisioning-result-modal.js`, `provisioning-create-modal.js`, and `extjs-integration.js`. `beagle-ui.js` dropped from roughly 2500+ lines to about 552 lines and now mostly orchestrates bootstrap, context resolution, catalog loading, and delegation wrappers.
 - `extension/content.js` no longer performs raw `/api2/json`, Beagle API token/config plumbing, inline VM profile synthesis, inline profile modal rendering, or toolbar/menu boot orchestration itself; that DOM integration now lives in `extension/components/vm-page-integration.js`, leaving `content.js` as a much thinner entrypoint.
 - `proxmox-host/bin/beagle-control-plane.py` now delegates VM inventory, node inventory, VM config lookup, next-VMID allocation, storage inventory, guest IPv4 lookup, VM lifecycle writes (create, set, description, boot order, start, stop, option delete), guest-exec flows, and scheduled restart orchestration into `proxmox-host/providers/proxmox_host_provider.py`, while the browser-facing endpoint profile contract is normalized by `proxmox-host/bin/endpoint_profile_contract.py`.
 - No new behavioral tests or smoke tests have been added yet.
@@ -129,8 +134,8 @@
 ### Known risks after this run
 
 - `beagle-control-plane.py` remains a large monolith, even though VM lifecycle writes, guest-exec flows, and scheduled restarts now flow through provider helpers.
-- `proxmox-ui/beagle-ui.js` is materially smaller and the profile synthesis block is out, but the file still holds bootstrap/catalog/context-resolution orchestration that will need further splits before it can become a thin entrypoint.
+- `proxmox-ui/beagle-ui.js` is materially smaller and the profile synthesis plus ExtJS integration blocks are out, but the file still holds bootstrap/catalog/context-resolution/loading-overlay orchestration that will need further splits before it can become a thin entrypoint.
 - Frontend token handling still exists as documented.
-- The provider abstraction now covers Proxmox UI, browser extension, host-side reads, host-side VM lifecycle writes, guest-exec, scheduled restart orchestration, an explicit host-side endpoint profile contract, and shared browser-side profile mapper/helper modules. The remaining browser-side UI debt is now mostly in `proxmox-ui/beagle-ui.js` orchestration and the still-large extension/proxmox profile action renderers.
+- The provider abstraction now covers Proxmox UI, browser extension, host-side reads, host-side VM lifecycle writes, guest-exec, scheduled restart orchestration, an explicit host-side endpoint profile contract, and shared browser-side profile mapper/helper modules. The remaining browser-side UI debt is now mostly in `proxmox-ui/beagle-ui.js` orchestration, `proxmox-ui/components/extjs-integration.js` runtime coupling to the current Proxmox ExtJS surface, and the still-large extension/proxmox profile action renderers.
 - Script surfaces and installer-side provider neutrality are still pending.
 - Local `.build/` and `dist/` directories still exist and should not be treated as authoritative release outputs.

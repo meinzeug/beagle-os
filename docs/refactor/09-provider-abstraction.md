@@ -21,6 +21,8 @@ Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining 
   - provider-neutral profile modal renderer and action orchestration that consumes the shared browser-side profile helpers
 - `proxmox-ui/components/fleet-modal.js`
   - provider-neutral fleet renderer and action orchestration
+- `proxmox-ui/components/extjs-integration.js`
+  - Proxmox ExtJS console/menu/toolbar/create-VM integration and the runtime `integrate()` loop
 - `proxmox-ui/components/provisioning-result-modal.js`
   - provider-neutral provisioning result window and badge renderer
 - `proxmox-ui/components/provisioning-create-modal.js`
@@ -223,6 +225,7 @@ These flows now go through generic services first:
 - provisioning result window, badge, and status rendering through `proxmox-ui/components/provisioning-result-modal.js`
 - Ubuntu Beagle create/edit modal orchestration through `proxmox-ui/components/provisioning-create-modal.js`
 - VM profile resolution through `proxmox-ui/state/vm-profile.js`, with `beagle-ui.js` reduced to overlay/bootstrap orchestration
+- Proxmox ExtJS toolbar/menu/create-VM/fleet runtime wiring through `proxmox-ui/components/extjs-integration.js`, with `beagle-ui.js` no longer owning that large block directly
 - shared browser-side VM profile mapping through `extension/shared/vm-profile-mapper.js`
 - shared browser-side endpoint-env/note/action-state semantics through `extension/shared/vm-profile-helpers.js`
 
@@ -244,6 +247,10 @@ These flows now go through provider-backed services first:
 ### Browser extension
 
 - `extension/components/vm-page-integration.js` still depends on today's Proxmox ExtJS DOM structure, menu labels, and selectors, even though direct Proxmox API access and VM profile synthesis are no longer coupled to that module.
+
+### Proxmox UI runtime coupling
+
+- `proxmox-ui/components/extjs-integration.js` still depends on today's Proxmox ExtJS component queries, menu structure, toolbar layout, and localized create-VM labels, even though the business logic behind those actions no longer lives in the same file.
 
 ### Control plane
 

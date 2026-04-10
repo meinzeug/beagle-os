@@ -54,6 +54,7 @@ Architekturregel ab jetzt:
 - Browser-seitige Endpoint-/Profil-Synthese gehoert in dedizierte `state/*`- oder `services/*`-Module, nicht inline in Runtime-Einstiegspunkte wie `proxmox-ui/beagle-ui.js` oder `extension/content.js`.
 - Browser-seitige Endpoint-Export-/Notes-/Formatter-Helfer, die bewusst in Proxmox UI und Extension gleich sind, gehoeren in gemeinsame Shared-Module wie `extension/shared/*`, nicht doppelt in `proxmox-ui/components/*` und `extension/services/*`.
 - Groessere Browser-Extension-Renderer und Modal-Logik gehoeren nach `extension/components/*`, nicht zurueck in `extension/content.js`.
+- Proxmox-UI-spezifische ExtJS-/Toolbar-/Menu-/Create-VM-Integration gehoert in dedizierte `proxmox-ui/components/*`-Module, nicht zurueck in `proxmox-ui/beagle-ui.js`.
 - Host-seitige browser-/installer-facing Endpoint-Profile und oeffentliche Payload-Contracts gehoeren in dedizierte Contract-Module, nicht verteilt in mehrere Handler oder Hilfsfunktionen im Control-Plane-Monolithen.
 - Host-Control-Plane-Code soll neue direkte `qm`-/`pvesh`-Nutzung nur noch in dedizierten Provider-Modulen wie `proxmox-host/providers/*` einführen.
 - Host-Control-Plane-Helfer fuer `qm guest exec`, `qm guest exec-status` und geplante VM-Restarts gehoeren ebenfalls in diese Provider-Module, nicht in HTTP-Handler oder Feature-Flows.

@@ -241,3 +241,14 @@ Decision:
 Reason:
 
 - Provider-backed services and the profile renderer were already extracted. Leaving the Proxmox DOM integration lifecycle in the entrypoint would still keep `content.js` responsible for too many concerns and would slow the next UI refactor slices.
+
+### D24. Proxmox UI ExtJS wiring belongs in a dedicated component
+
+Decision:
+
+- Move Proxmox-console button wiring, fleet-launcher injection, create-VM menu/button integration, and the periodic `integrate()` loop out of `proxmox-ui/beagle-ui.js` into a dedicated component module.
+- Keep `beagle-ui.js` focused on runtime collaborators, overlay/bootstrap orchestration, and delegation into dedicated components/state/services.
+
+Reason:
+
+- After the profile/provisioning/fleet/render logic moved out, the largest remaining `beagle-ui.js` block was no longer business logic but Proxmox-ExtJS runtime wiring. That coupling still exists, but isolating it in one component keeps the entrypoint thin and makes the Proxmox-specific UI surface explicit and easier to replace later.

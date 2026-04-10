@@ -24,6 +24,7 @@
 - [x] Move the extension profile modal renderer out of `extension/content.js` into `extension/components/profile-modal.js`.
 - [x] Move the remaining shared browser-side endpoint export/note/helper logic into `extension/shared/vm-profile-helpers.js`.
 - [x] Split `extension/content.js` into smaller DOM-integration modules so toolbar/menu boot logic lives under `extension/components/`.
+- [x] Extract Proxmox-UI ExtJS toolbar/menu/create-VM/fleet wiring into `proxmox-ui/components/extjs-integration.js`.
 - [ ] Continue splitting `proxmox-ui/beagle-ui.js` so bootstrap/catalog/profile-resolution logic lives under `proxmox-ui/provisioning/` and `proxmox-ui/state/` and `beagle-ui.js` becomes a thin entrypoint.
 - [ ] Inventory all direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally.
 - [ ] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
