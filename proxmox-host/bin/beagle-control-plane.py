@@ -30,6 +30,7 @@ if str(PROVIDERS_DIR) not in sys.path:
     sys.path.insert(0, str(PROVIDERS_DIR))
 
 from proxmox_host_provider import ProxmoxHostProvider
+from endpoint_profile_contract import installer_profile_surface, normalize_endpoint_profile_contract
 
 def load_env_defaults(path: str) -> None:
     env_path = Path(path)
@@ -1910,6 +1911,7 @@ def quick_sunshine_status(vmid: int) -> dict[str, Any]:
 
 def default_installer_prep_state(vm: VmSummary, sunshine_status: dict[str, Any] | None = None) -> dict[str, Any]:
     profile = build_profile(vm)
+    profile_surface = installer_profile_surface(profile, vmid=vm.vmid, installer_iso_url=public_installer_iso_url())
     quick = sunshine_status if isinstance(sunshine_status, dict) else quick_sunshine_status(vm.vmid)
     eligible = bool(profile.get("installer_target_eligible"))
     ready = eligible and bool(quick.get("binary")) and bool(quick.get("service")) and bool(profile.get("stream_host")) and bool(profile.get("moonlight_port"))
@@ -1936,14 +1938,7 @@ def default_installer_prep_state(vm: VmSummary, sunshine_status: dict[str, Any] 
         "progress": progress,
         "message": message,
         "updated_at": utcnow(),
-        "installer_url": f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh",
-        "live_usb_url": f"/beagle-api/api/v1/vms/{vm.vmid}/live-usb.sh",
-        "installer_windows_url": f"/beagle-api/api/v1/vms/{vm.vmid}/installer.ps1",
-        "installer_iso_url": str(profile.get("installer_iso_url") or public_installer_iso_url()),
-        "stream_host": str(profile.get("stream_host", "") or ""),
-        "moonlight_port": str(profile.get("moonlight_port", "") or ""),
-        "sunshine_api_url": str(profile.get("sunshine_api_url", "") or ""),
-        "installer_target_eligible": eligible,
+        **profile_surface,
         "installer_target_status": "ready" if ready else ("preparing" if eligible else "unsupported"),
         "sunshine_status": {
             "binary": bool(quick.get("binary")),
@@ -1956,6 +1951,7 @@ def default_installer_prep_state(vm: VmSummary, sunshine_status: dict[str, Any] 
 
 def summarize_installer_prep_state(vm: VmSummary, state: dict[str, Any] | None = None) -> dict[str, Any]:
     profile = build_profile(vm)
+    profile_surface = installer_profile_surface(profile, vmid=vm.vmid, installer_iso_url=public_installer_iso_url())
     payload = dict(state) if isinstance(state, dict) else default_installer_prep_state(vm)
     quick = quick_sunshine_status(vm.vmid)
     payload["sunshine_status"] = {
@@ -1966,14 +1962,16 @@ def summarize_installer_prep_state(vm: VmSummary, state: dict[str, Any] | None =
     payload["ready"] = str(payload.get("status", "")).strip().lower() == "ready"
     payload.setdefault("vmid", vm.vmid)
     payload.setdefault("node", vm.node)
-    payload["installer_url"] = str(payload.get("installer_url") or f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh")
-    payload["live_usb_url"] = str(payload.get("live_usb_url") or f"/beagle-api/api/v1/vms/{vm.vmid}/live-usb.sh")
-    payload["installer_windows_url"] = str(payload.get("installer_windows_url") or f"/beagle-api/api/v1/vms/{vm.vmid}/installer.ps1")
-    payload["installer_iso_url"] = str(payload.get("installer_iso_url") or profile.get("installer_iso_url") or public_installer_iso_url())
-    payload["stream_host"] = str(payload.get("stream_host") or profile.get("stream_host") or "")
-    payload["moonlight_port"] = str(payload.get("moonlight_port") or profile.get("moonlight_port") or "")
-    payload["sunshine_api_url"] = str(payload.get("sunshine_api_url") or profile.get("sunshine_api_url") or "")
-    payload["installer_target_eligible"] = bool(payload.get("installer_target_eligible", profile.get("installer_target_eligible")))
+    payload["contract_version"] = str(payload.get("contract_version") or profile_surface["contract_version"])
+    payload["installer_url"] = str(payload.get("installer_url") or profile_surface["installer_url"])
+    payload["live_usb_url"] = str(payload.get("live_usb_url") or profile_surface["live_usb_url"])
+    payload["installer_windows_url"] = str(payload.get("installer_windows_url") or profile_surface["installer_windows_url"])
+    payload["installer_iso_url"] = str(payload.get("installer_iso_url") or profile_surface["installer_iso_url"])
+    payload["stream_host"] = str(payload.get("stream_host") or profile_surface["stream_host"])
+    payload["moonlight_port"] = str(payload.get("moonlight_port") or profile_surface["moonlight_port"])
+    payload["sunshine_api_url"] = str(payload.get("sunshine_api_url") or profile_surface["sunshine_api_url"])
+    payload["installer_target_eligible"] = bool(payload.get("installer_target_eligible", profile_surface["installer_target_eligible"]))
+    payload["installer_target_message"] = str(payload.get("installer_target_message") or profile_surface["installer_target_message"])
     payload["installer_target_status"] = "ready" if payload["ready"] else ("preparing" if payload["installer_target_eligible"] else "unsupported")
     return payload
 
@@ -3522,7 +3520,7 @@ def build_profile(vm: VmSummary, *, allow_assignment: bool = True) -> dict[str, 
         installer_target_message = "Diese VM hat aktuell kein verwertbares Sunshine-/Moonlight-Streaming-Ziel."
     profile["installer_target_eligible"] = installer_target_eligible
     profile["installer_target_message"] = installer_target_message
-    return profile
+    return normalize_endpoint_profile_contract(profile, vmid=vm.vmid, installer_iso_url=installer_iso_url)
 
 
 def evaluate_endpoint_compliance(profile: dict[str, Any], report: dict[str, Any] | None) -> dict[str, Any]:
@@ -3970,6 +3968,7 @@ def build_vm_inventory() -> dict[str, Any]:
                 "extra_packages": profile.get("extra_packages", []),
                 "software_packages": profile.get("software_packages", []),
                 "vm_fingerprint": profile.get("vm_fingerprint"),
+                "profile_contract_version": profile.get("contract_version", ""),
                 "expected_profile_name": profile["expected_profile_name"],
                 "default_mode": "MOONLIGHT" if profile["stream_host"] else "",
                 "installer_url": profile["installer_url"],

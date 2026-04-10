@@ -27,6 +27,11 @@
   - reduced `proxmox-ui/beagle-ui.js` further from about 950 lines to about 813 lines
   - reduced `extension/content.js` from about 700+ lines to about 541 lines, leaving it as a renderer/event entrypoint instead of carrying profile synthesis internals
   - updated `extension/manifest.json`, `scripts/install-proxmox-ui-integration.sh`, and `scripts/validate-project.sh` so both new modules are loaded and syntax-checked everywhere
+- Made the host-side public endpoint profile contract explicit:
+  - added `proxmox-host/bin/endpoint_profile_contract.py` with normalized browser-/installer-facing profile fields plus contract version `v1`
+  - `build_profile` now returns a normalized contract payload instead of relying on implicit handler-local defaults
+  - installer-prep state generation now reuses the dedicated contract surface for installer URLs and stream metadata instead of rebuilding that subset inline
+  - inventory rows now expose `profile_contract_version`, and browser profile views surface `control_plane_contract_version` in exported JSON for diagnostics
 - Closed a release-surface gap before packaging:
   - `scripts/package.sh` now includes `website/` in the shipped source tarball
   - `scripts/validate-project.sh` now syntax-checks `website/app.js` so the public website code is validated alongside the other browser surfaces
@@ -103,7 +108,7 @@
 - `thin-client-assistant/` and `beagle-kiosk/` still have not been modularized.
 - `proxmox-ui/` now has `common`, `api-client`, `state`, `provisioning`, `usb`, `utils`, and a full `components` set including `profile-modal.js`, `fleet-modal.js`, `provisioning-result-modal.js`, and `provisioning-create-modal.js`. `beagle-ui.js` dropped from roughly 2500+ lines to about 950 lines and now mostly orchestrates bootstrap, context resolution, catalog loading, and delegation wrappers.
 - `extension/content.js` no longer performs raw `/api2/json`, Beagle API token/config plumbing, or inline VM profile synthesis itself, but it is still a large UI/rendering monolith.
-- `proxmox-host/bin/beagle-control-plane.py` now delegates VM inventory, node inventory, VM config lookup, next-VMID allocation, storage inventory, guest IPv4 lookup, VM lifecycle writes (create, set, description, boot order, start, stop, option delete), guest-exec flows, and scheduled restart orchestration into `proxmox-host/providers/proxmox_host_provider.py`.
+- `proxmox-host/bin/beagle-control-plane.py` now delegates VM inventory, node inventory, VM config lookup, next-VMID allocation, storage inventory, guest IPv4 lookup, VM lifecycle writes (create, set, description, boot order, start, stop, option delete), guest-exec flows, and scheduled restart orchestration into `proxmox-host/providers/proxmox_host_provider.py`, while the browser-facing endpoint profile contract is normalized by `proxmox-host/bin/endpoint_profile_contract.py`.
 - No new behavioral tests or smoke tests have been added yet.
 
 ### Known risks after this run
@@ -111,6 +116,6 @@
 - `beagle-control-plane.py` remains a large monolith, even though VM lifecycle writes, guest-exec flows, and scheduled restarts now flow through provider helpers.
 - `proxmox-ui/beagle-ui.js` is materially smaller and the profile synthesis block is out, but the file still holds bootstrap/catalog/context-resolution orchestration that will need further splits before it can become a thin entrypoint.
 - Frontend token handling still exists as documented.
-- The provider abstraction now covers Proxmox UI, browser extension, host-side reads, host-side VM lifecycle writes, guest-exec, and scheduled restart orchestration. A single shared endpoint profile contract across browser surfaces and the control plane still does not exist yet.
+- The provider abstraction now covers Proxmox UI, browser extension, host-side reads, host-side VM lifecycle writes, guest-exec, scheduled restart orchestration, and an explicit host-side endpoint profile contract. The remaining contract gap is the duplicated browser-side mapper logic in `proxmox-ui/state/vm-profile.js` and `extension/services/profile.js`.
 - Script surfaces and installer-side provider neutrality are still pending.
 - Local `.build/` and `dist/` directories still exist and should not be treated as authoritative release outputs.

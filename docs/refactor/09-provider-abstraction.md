@@ -31,6 +31,8 @@ Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining 
 
 ### Host / control plane
 
+- `proxmox-host/bin/endpoint_profile_contract.py`
+  - explicit public endpoint profile contract normalization for browser and installer consumers
 - `proxmox-host/providers/proxmox_host_provider.py`
   - `pvesh get /cluster/resources`
   - `pvesh get /nodes`
@@ -159,6 +161,19 @@ Current concrete implementation:
 
 - `proxmox-host/providers/proxmox_host_provider.py`
 
+### Host-side endpoint profile contract
+
+Current concrete implementation:
+
+- `proxmox-host/bin/endpoint_profile_contract.py`
+
+Current contract characteristics:
+
+- normalized browser-/installer-facing endpoint profile payload
+- explicit `contract_version` field, currently `v1`
+- normalized installer artifact URLs and installer-target fields
+- normalized assignment/policy/profile list fields so consumers can rely on stable key presence
+
 Current contract extracted from the control plane:
 
 - `next_vmid()`
@@ -222,7 +237,7 @@ These flows now go through provider-backed services first:
 
 ### Control plane
 
-- `proxmox-host/bin/beagle-control-plane.py` still synthesizes VM profiles from Proxmox metadata and remains a large monolith, but its VM reads, writes, guest-exec flows, and scheduled restart helper are now routed through `ProxmoxHostProvider`.
+- `proxmox-host/bin/beagle-control-plane.py` still synthesizes VM profiles from Proxmox metadata and remains a large monolith, but its VM reads, writes, guest-exec flows, and scheduled restart helper are now routed through `ProxmoxHostProvider`, and its public profile payload is normalized through `endpoint_profile_contract.py`.
 
 ### Script surfaces
 
@@ -231,6 +246,11 @@ These flows now go through provider-backed services first:
 ### Thin-client Proxmox access
 
 - thin-client-side Proxmox API and SPICE helpers are still explicitly Proxmox-bound.
+
+### Browser-side profile mapper
+
+- `proxmox-ui/state/vm-profile.js` and `extension/services/profile.js` still each translate the control-plane contract plus metadata fallbacks into browser-local camelCase profile objects.
+- The host-side contract is now explicit, so the next remaining gap is collapsing those two browser mappers into one shared helper instead of maintaining them independently.
 
 ## Migration Rule
 

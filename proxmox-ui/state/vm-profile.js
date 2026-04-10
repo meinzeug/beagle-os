@@ -154,6 +154,7 @@
         appliedPolicy: controlPlaneProfile && controlPlaneProfile.applied_policy || null,
         beagleRole: controlPlaneProfile && controlPlaneProfile.beagle_role || meta["beagle-role"] || "",
         expectedProfileName: controlPlaneProfile && controlPlaneProfile.expected_profile_name || "",
+        controlPlaneContractVersion: controlPlaneProfile && controlPlaneProfile.contract_version || "",
         metadata: meta
       };
       profile.notes = profileModal.buildNotes(profile);
