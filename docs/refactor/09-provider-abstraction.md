@@ -10,8 +10,9 @@ Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining 
 
 - `proxmox-ui/beagle-ui.js`
   - Proxmox VM context detection
-  - `/api2/json` VM config and guest-agent reads
   - node selection from the Proxmox UI
+- `proxmox-ui/state/vm-profile.js`
+  - browser-side Beagle profile synthesis from provider-backed VM config/resource/guest-agent data plus Beagle metadata conventions
 - `proxmox-ui/components/profile-modal.js`
   - provider-neutral profile modal renderer and action orchestration
 - `proxmox-ui/components/fleet-modal.js`
@@ -23,8 +24,10 @@ Keep Beagle OS fully Proxmox-compatible now, but prevent Proxmox from remaining 
 - `extension/providers/proxmox.js`
   - direct `/api2/json` cluster/config/guest-agent calls
   - Proxmox VM context detection for the browser extension
+- `extension/services/profile.js`
+  - extension-side Beagle profile synthesis from provider-backed VM config/resource/guest-agent data plus Beagle metadata conventions
 - `extension/content.js`
-  - duplicated VM profile synthesis logic and modal/UI orchestration still live here, but direct Proxmox reads were removed
+  - modal/UI orchestration still lives here, but direct Proxmox reads and inline VM profile synthesis were removed
 
 ### Host / control plane
 
@@ -125,6 +128,7 @@ Current concrete implementation:
 - `extension/provider-registry.js`
 - `extension/services/virtualization.js`
 - `extension/services/platform.js`
+- `extension/services/profile.js`
 - `extension/providers/proxmox.js`
 
 Generic contract now exposed to `extension/content.js`:
@@ -147,6 +151,7 @@ Generic contract now exposed to `extension/content.js`:
 - `fetchInstallerPreparation(vmid)`
 - `prepareInstallerTarget(vmid)`
 - `createSunshineAccess(vmid)`
+- `resolveVmProfile(ctx)`
 
 ### Host-side provider seam
 
@@ -190,6 +195,7 @@ These flows now go through generic services first:
 - fleet rendering and action handling through `proxmox-ui/components/fleet-modal.js`
 - provisioning result window, badge, and status rendering through `proxmox-ui/components/provisioning-result-modal.js`
 - Ubuntu Beagle create/edit modal orchestration through `proxmox-ui/components/provisioning-create-modal.js`
+- VM profile resolution through `proxmox-ui/state/vm-profile.js`, with `beagle-ui.js` reduced to overlay/bootstrap orchestration
 
 ### Browser extension
 
@@ -200,12 +206,19 @@ These flows now go through provider-backed services first:
 - hosted installer URL, ISO URL, and Web UI URL resolution
 - public VM state, installer-target eligibility, installer-prep, and Sunshine access lookups
 - shared Beagle API token/config resolution through `extension/common.js` and `extension/services/platform.js`
+- VM profile resolution through `extension/services/profile.js`, with `extension/content.js` reduced to rendering and DOM integration
 
 ## Still Directly Coupled
 
 ### Browser extension
 
-- `extension/content.js` still performs local profile synthesis, modal rendering, and action orchestration, but it no longer performs direct Proxmox API calls.
+- `extension/content.js` still performs modal rendering and action orchestration, but it no longer performs direct Proxmox API calls or local profile synthesis.
+
+### Browser-side profile contract
+
+- `proxmox-ui/state/vm-profile.js` and `extension/services/profile.js` still duplicate the Beagle endpoint profile field shape and metadata fallback rules.
+- The host control plane still produces a related but separately owned profile payload.
+- This is now the main remaining browser/provider-neutral architecture gap even though the raw Proxmox reads themselves are already behind provider-backed services.
 
 ### Control plane
 

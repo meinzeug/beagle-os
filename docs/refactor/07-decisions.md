@@ -175,3 +175,15 @@ Decision:
 Reason:
 
 - Once VM reads and writes were provider-backed, leaving guest-exec and restart orchestration in the HTTP monolith would still keep Proxmox as a business-logic concern instead of a provider concern. Moving these flows into the provider keeps subprocess behavior, polling, timeout handling, and restart sequencing in one replaceable boundary.
+
+### D18. Browser-side VM profile synthesis belongs in dedicated state/service modules before it becomes a shared contract
+
+Decision:
+
+- Move Proxmox-UI VM profile resolution into `proxmox-ui/state/vm-profile.js`.
+- Move extension-side VM profile resolution into `extension/services/profile.js`.
+- Keep the entrypoints `proxmox-ui/beagle-ui.js` and `extension/content.js` focused on bootstrapping, rendering, and event wiring.
+
+Reason:
+
+- The Beagle endpoint profile is business logic, not UI chrome. Extracting it out of the entrypoints lowers regression risk for the next step, where the remaining duplicated field contract can be unified across browser surfaces and the control plane.

@@ -16,6 +16,7 @@
         "providers/proxmox.js",
         "services/virtualization.js",
         "services/platform.js",
+        "services/profile.js",
         "content.js"
       ],
       "run_at": "document_idle"

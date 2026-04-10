@@ -7,10 +7,12 @@
   const common = window.BeagleExtensionCommon;
   const virtualizationService = window.BeagleExtensionVirtualizationService;
   const platformService = window.BeagleExtensionPlatformService;
+  const profileService = window.BeagleExtensionProfileService;
 
   if (!common) throw new Error("BeagleExtensionCommon must be loaded before extension/content.js");
   if (!virtualizationService) throw new Error("BeagleExtensionVirtualizationService must be loaded before extension/content.js");
   if (!platformService) throw new Error("BeagleExtensionPlatformService must be loaded before extension/content.js");
+  if (!profileService) throw new Error("BeagleExtensionProfileService must be loaded before extension/content.js");
 
   const sleep = common.sleep;
 
@@ -87,114 +89,6 @@
     }
   }
 
-  function parseDescriptionMeta(description) {
-    const meta = {};
-    String(description || "")
-      .replace(/\\r\\n/g, "\n")
-      .replace(/\\n/g, "\n")
-      .split("\n")
-      .forEach((rawLine) => {
-        const line = rawLine.trim();
-        const index = line.indexOf(":");
-        if (index <= 0) return;
-        const key = line.slice(0, index).trim().toLowerCase();
-        const value = line.slice(index + 1).trim();
-        if (key && !(key in meta)) meta[key] = value;
-      });
-    return meta;
-  }
-
-  function firstGuestIpv4(interfaces) {
-    for (const iface of Array.isArray(interfaces) ? interfaces : []) {
-      for (const address of Array.isArray(iface?.["ip-addresses"]) ? iface["ip-addresses"] : []) {
-        const ip = address?.["ip-address"] || "";
-        if (address?.["ip-address-type"] !== "ipv4") continue;
-        if (!ip || /^127\./.test(ip) || /^169\.254\./.test(ip)) continue;
-        return ip;
-      }
-    }
-    return "";
-  }
-
-  function buildEndpointEnv(profile) {
-    const endpointProfileName = profile.expectedProfileName || `vm-${profile.vmid}`;
-    return [
-      'PVE_THIN_CLIENT_MODE="MOONLIGHT"',
-      `PVE_THIN_CLIENT_PROFILE_NAME="${endpointProfileName}"`,
-      'PVE_THIN_CLIENT_AUTOSTART="1"',
-      `PVE_THIN_CLIENT_PROXMOX_HOST="${profile.proxmoxHost || window.location.hostname}"`,
-      'PVE_THIN_CLIENT_PROXMOX_PORT="8006"',
-      `PVE_THIN_CLIENT_PROXMOX_NODE="${profile.node || ""}"`,
-      `PVE_THIN_CLIENT_PROXMOX_VMID="${String(profile.vmid || "")}"`,
-      `PVE_THIN_CLIENT_BEAGLE_MANAGER_URL="${profile.managerUrl || ""}"`,
-      `PVE_THIN_CLIENT_MOONLIGHT_HOST="${profile.streamHost || ""}"`,
-      `PVE_THIN_CLIENT_MOONLIGHT_PORT="${profile.moonlightPort || ""}"`,
-      `PVE_THIN_CLIENT_MOONLIGHT_APP="${profile.app || "Desktop"}"`,
-      `PVE_THIN_CLIENT_MOONLIGHT_RESOLUTION="${profile.resolution || "auto"}"`,
-      `PVE_THIN_CLIENT_MOONLIGHT_FPS="${profile.fps || "60"}"`,
-      `PVE_THIN_CLIENT_MOONLIGHT_BITRATE="${profile.bitrate || "20000"}"`,
-      `PVE_THIN_CLIENT_MOONLIGHT_VIDEO_CODEC="${profile.codec || "H.264"}"`,
-      `PVE_THIN_CLIENT_MOONLIGHT_VIDEO_DECODER="${profile.decoder || "auto"}"`,
-      `PVE_THIN_CLIENT_MOONLIGHT_AUDIO_CONFIG="${profile.audio || "stereo"}"`,
-      `PVE_THIN_CLIENT_SUNSHINE_API_URL="${profile.sunshineApiUrl || ""}"`,
-      `PVE_THIN_CLIENT_SUNSHINE_USERNAME="${profile.sunshineUsername || ""}"`,
-      `PVE_THIN_CLIENT_SUNSHINE_PASSWORD="${profile.sunshinePassword || ""}"`,
-      `PVE_THIN_CLIENT_SUNSHINE_PIN="${profile.sunshinePin || ""}"`
-    ].join("\n") + "\n";
-  }
-
-  function buildNotes(profile) {
-    const notes = [];
-    if (!profile.streamHost) notes.push("Kein Moonlight-/Sunshine-Ziel in der VM-Metadatenbeschreibung gefunden.");
-    if (!profile.sunshineApiUrl) notes.push("Keine Sunshine API URL gesetzt. Pairing und Healthchecks koennen nicht vorab validiert werden.");
-    if (!profile.sunshinePassword) notes.push("Kein Sunshine-Passwort hinterlegt. Fuer direkte API-Aktionen ist dann ein vorregistriertes Zertifikat oder manuelles Pairing noetig.");
-    if (!profile.guestIp) notes.push("Keine Guest-Agent-IPv4 erkannt. Beagle kann dann nur mit Metadaten arbeiten.");
-    if (!notes.length) notes.push("VM-Profil ist vollstaendig genug fuer einen vorkonfigurierten Beagle-Endpoint mit Moonlight-Autostart.");
-    if (profile.assignedTarget) notes.push(`Endpoint ist auf Ziel-VM ${profile.assignedTarget.name} (#${profile.assignedTarget.vmid}) zugewiesen.`);
-    if (profile.appliedPolicy?.name) notes.push(`Manager-Policy aktiv: ${profile.appliedPolicy.name}.`);
-    if (profile.compliance?.status === "drifted") notes.push(`Endpoint driftet vom gewuenschten Profil ab (${String(profile.compliance.drift_count || 0)} Abweichungen).`);
-    if (profile.compliance?.status === "degraded") notes.push(`Endpoint ist konfigurationsgleich, aber betrieblich degradiert (${String(profile.compliance.alert_count || 0)} Warnungen).`);
-    if (Number(profile.pendingActionCount || 0) > 0) notes.push(`Fuer diesen Endpoint warten ${String(profile.pendingActionCount)} Beagle-Aktion(en) auf Ausfuehrung.`);
-    if (profile.lastAction?.action) notes.push(`Letzte Endpoint-Aktion: ${profile.lastAction.action} (${formatActionState(profile.lastAction.ok)}).`);
-    if (profile.lastAction?.stored_artifact_path) notes.push("Diagnoseartefakt ist zentral auf dem Beagle-Manager gespeichert.");
-    return notes;
-  }
-
-  function formatActionState(ok) {
-    if (ok === true) return "ok";
-    if (ok === false) return "error";
-    return "pending";
-  }
-
-  function installerTargetState(profile, state) {
-    if (profile?.installerTargetEligible === false) {
-      return {
-        label: "Ziel ungeeignet",
-        message: profile.installerTargetMessage || "Diese VM wird nicht als Streaming-Ziel angeboten.",
-        unsupported: true
-      };
-    }
-    if (String(state?.status || "").toLowerCase() === "ready") {
-      return {
-        label: "USB Installer bereit",
-        message: state?.message || "Das VM-spezifische USB-Installer-Skript kann direkt geladen werden.",
-        unsupported: false
-      };
-    }
-    return {
-      label: "Sunshine wird vorbereitet",
-      message: state?.message || "Die VM wird fuer Sunshine und den Internet-Stream vorbereitet.",
-      unsupported: false
-    };
-  }
-
-  function shouldReuseInstallerPrepState(state) {
-    const status = String(state?.status || "").toLowerCase();
-    if (!state) return false;
-    if (state.ready) return true;
-    return Boolean(status) && !["idle", "error", "failed"].includes(status);
-  }
-
   const installerEligibilityCache = new Map();
 
   function getInstallerEligibilityKey(ctx) {
@@ -209,70 +103,6 @@
     const pending = platformService.fetchInstallerTargetEligibility(ctx);
     installerEligibilityCache.set(key, pending);
     return pending;
-  }
-
-  async function resolveVmProfile(ctx) {
-    const [config, resources, guestInterfaces, installerUrl, installerIsoUrl, controlPlaneHealthUrl, endpointPayload, installerPrep] = await Promise.all([
-      virtualizationService.getVmConfig(ctx),
-      virtualizationService.listVms().catch(() => []),
-      virtualizationService.getVmGuestInterfaces(ctx).catch(() => []),
-      platformService.resolveUsbInstallerUrl(ctx),
-      platformService.resolveInstallerIsoUrl(ctx),
-      platformService.resolveControlPlaneHealthUrl(),
-      platformService.fetchPublicVmState(ctx.vmid),
-      platformService.fetchInstallerPreparation(ctx.vmid).catch(() => null)
-    ]);
-
-    const resource = (Array.isArray(resources) ? resources : []).find(
-      (item) => item && item.type === "qemu" && Number(item.vmid) === Number(ctx.vmid)
-    ) || {};
-    const meta = parseDescriptionMeta(config?.description || "");
-    const guestIp = firstGuestIpv4(guestInterfaces);
-    const controlPlaneProfile = endpointPayload?.profile || null;
-    const streamHost = controlPlaneProfile?.stream_host || meta["moonlight-host"] || meta["sunshine-ip"] || meta["sunshine-host"] || guestIp || "";
-    const moonlightPort = controlPlaneProfile?.moonlight_port || meta["moonlight-port"] || meta["beagle-public-moonlight-port"] || "";
-    const sunshineApiUrl = controlPlaneProfile?.sunshine_api_url || meta["sunshine-api-url"] || (streamHost ? `https://${streamHost}:${moonlightPort ? Number(moonlightPort) + 1 : 47990}` : "");
-    const profile = {
-      vmid: Number(ctx.vmid),
-      node: ctx.node,
-      name: config?.name || resource?.name || `vm-${ctx.vmid}`,
-      status: resource?.status || "unknown",
-      guestIp,
-      streamHost,
-      moonlightPort,
-      sunshineApiUrl,
-      sunshineUsername: controlPlaneProfile?.sunshine_username || meta["sunshine-user"] || "",
-      sunshinePassword: meta["sunshine-password"] || "",
-      sunshinePin: meta["sunshine-pin"] || String(ctx.vmid % 10000).padStart(4, "0"),
-      app: controlPlaneProfile?.moonlight_app || meta["moonlight-app"] || meta["sunshine-app"] || "Desktop",
-      resolution: controlPlaneProfile?.moonlight_resolution || meta["moonlight-resolution"] || "auto",
-      fps: controlPlaneProfile?.moonlight_fps || meta["moonlight-fps"] || "60",
-      bitrate: controlPlaneProfile?.moonlight_bitrate || meta["moonlight-bitrate"] || "20000",
-      codec: controlPlaneProfile?.moonlight_video_codec || meta["moonlight-video-codec"] || "H.264",
-      decoder: controlPlaneProfile?.moonlight_video_decoder || meta["moonlight-video-decoder"] || "auto",
-      audio: controlPlaneProfile?.moonlight_audio_config || meta["moonlight-audio-config"] || "stereo",
-      proxmoxHost: meta["proxmox-host"] || window.location.hostname,
-      installerUrl,
-      installerWindowsUrl: controlPlaneProfile?.installer_windows_url || `/beagle-api/api/v1/vms/${encodeURIComponent(String(ctx.vmid))}/installer.ps1`,
-      installerIsoUrl: controlPlaneProfile?.installer_iso_url || installerIsoUrl,
-      controlPlaneHealthUrl,
-      managerUrl: common.managerUrlFromHealthUrl(controlPlaneHealthUrl),
-      endpointSummary: endpointPayload?.endpoint || null,
-      compliance: endpointPayload?.compliance || null,
-      lastAction: endpointPayload?.last_action || null,
-      pendingActionCount: endpointPayload?.pending_action_count || 0,
-      installerPrep,
-      installerTargetEligible: typeof controlPlaneProfile?.installer_target_eligible === "boolean" ? controlPlaneProfile.installer_target_eligible : Boolean(streamHost),
-      installerTargetMessage: controlPlaneProfile?.installer_target_message || "",
-      assignedTarget: controlPlaneProfile?.assigned_target || null,
-      assignmentSource: controlPlaneProfile?.assignment_source || "",
-      appliedPolicy: controlPlaneProfile?.applied_policy || null,
-      expectedProfileName: controlPlaneProfile?.expected_profile_name || ""
-    };
-    profile.notes = buildNotes(profile);
-    if (!profile.endpointSummary) profile.notes.push("Endpoint hat noch keinen Check-in an die Beagle Control Plane geliefert.");
-    profile.endpointEnv = buildEndpointEnv(profile);
-    return profile;
   }
 
   function kvRow(label, value) {
@@ -330,7 +160,7 @@
         </div>
         <div class="beagle-body">
           <div class="beagle-banner ${profile.streamHost ? "info" : "warn"}">${escapeHtml(profile.streamHost ? `Streaming-Ziel erkannt: ${profile.streamHost}` : "Streaming-Ziel fehlt in den VM-Metadaten.")}</div>
-          <div class="beagle-banner ${profile.installerTargetEligible === false ? "warn" : "info"}"><strong>${escapeHtml(installerTargetState(profile, profile.installerPrep).label)}</strong>: ${escapeHtml(installerTargetState(profile, profile.installerPrep).message)}</div>
+          <div class="beagle-banner ${profile.installerTargetEligible === false ? "warn" : "info"}"><strong>${escapeHtml(profileService.installerTargetState(profile, profile.installerPrep).label)}</strong>: ${escapeHtml(profileService.installerTargetState(profile, profile.installerPrep).message)}</div>
           <div class="beagle-actions">
             ${profile.installerTargetEligible === false ? "" : '<button type="button" class="beagle-btn primary" data-beagle-action="download">USB Installer Skript</button>'}
             ${profile.installerTargetEligible === false ? "" : '<button type="button" class="beagle-btn secondary" data-beagle-action="download-windows">Windows USB Installer</button>'}
@@ -388,14 +218,14 @@
               ${kvRow("Last Launch", escapeHtml(profile.endpointSummary?.last_launch_mode || ""))}
               ${kvRow("Launch Target", escapeHtml(profile.endpointSummary?.last_launch_target || ""))}
               ${kvRow("Last Action", escapeHtml(profile.lastAction?.action || ""))}
-              ${kvRow("Action Result", escapeHtml(formatActionState(profile.lastAction?.ok)))}
+              ${kvRow("Action Result", escapeHtml(profileService.formatActionState(profile.lastAction?.ok)))}
               ${kvRow("Action Time", escapeHtml(profile.lastAction?.completed_at || ""))}
               ${kvRow("Action Message", escapeHtml(profile.lastAction?.message || ""))}
               ${kvRow("Stored Artifact", escapeHtml(profile.lastAction?.stored_artifact_path || ""))}
               ${kvRow("Artifact Size", escapeHtml(String(profile.lastAction?.stored_artifact_size || 0)))}
             </div></section>
             <section class="beagle-card"><h3>Installer Readiness</h3><div class="beagle-kv">
-              ${kvRow("Zielstatus", escapeHtml(installerTargetState(profile, profile.installerPrep).label))}
+              ${kvRow("Zielstatus", escapeHtml(profileService.installerTargetState(profile, profile.installerPrep).label))}
               ${kvRow("Prepare", escapeHtml(profile.installerPrep?.status || "idle"))}
               ${kvRow("Phase", escapeHtml(profile.installerPrep?.phase || "inspect"))}
               ${kvRow("Progress", escapeHtml(`${String(profile.installerPrep?.progress || 0)}%`))}
@@ -424,7 +254,7 @@
               await platformService.downloadUrl(profile.installerUrl);
               return;
             }
-            if (!shouldReuseInstallerPrepState(state)) {
+            if (!profileService.shouldReuseInstallerPrepState(state)) {
               state = await platformService.prepareInstallerTarget(profile.vmid);
             }
             for (let attempt = 0; attempt < 180; attempt += 1) {
@@ -451,7 +281,7 @@
               await platformService.downloadUrl(profile.installerWindowsUrl);
               return;
             }
-            if (!shouldReuseInstallerPrepState(state)) {
+            if (!profileService.shouldReuseInstallerPrepState(state)) {
               state = await platformService.prepareInstallerTarget(profile.vmid);
             }
             for (let attempt = 0; attempt < 180; attempt += 1) {
@@ -525,7 +355,7 @@
     document.body.appendChild(overlay);
 
     try {
-      const profile = await resolveVmProfile(ctx);
+      const profile = await profileService.resolveVmProfile(ctx);
       removeOverlay();
       renderProfileModal(profile);
     } catch (error) {
@@ -540,7 +370,7 @@
       window.alert("Beagle OS: Keine VM-Ansicht erkannt.");
       return;
     }
-    const profile = await resolveVmProfile(ctx);
+    const profile = await profileService.resolveVmProfile(ctx);
     if (profile.installerTargetEligible === false) {
       window.alert(profile.installerTargetMessage || "Diese VM ist kein geeignetes Streaming-Ziel.");
       return;
