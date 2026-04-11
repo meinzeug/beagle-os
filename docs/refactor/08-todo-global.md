@@ -94,6 +94,7 @@
 - [x] Extract the runtime systemd unit/timer activation and USB tunnel service-control block out of `thin-client-assistant/runtime/runtime_systemd_bootstrap.sh` into a dedicated helper.
 - [x] Extract the USB tunnel/env accessor block out of `thin-client-assistant/runtime/beagle_usb_runtime_state.sh` into a dedicated helper.
 - [x] Extract the Moonlight IPv4/preferred-host resolution block out of `thin-client-assistant/runtime/moonlight_connect_host.sh` into a dedicated helper.
+- [x] Introduce generic top-level host install/setup entrypoints and keep the Proxmox-named scripts as compatibility wrappers.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.
@@ -144,6 +145,7 @@
 - [x] Extract the remaining endpoint enrollment/check-in HTTP routes from `beagle-host/bin/beagle-control-plane.py` into a dedicated host endpoint lifecycle surface.
 - [x] Thread `BEAGLE_HOST_PROVIDER` through host install env, manager env, refresh, and post-install check surfaces so provider selection is no longer only a control-plane bootstrap detail.
 - [x] Thread `BEAGLE_HOST_PROVIDER` through proxy install, Proxmox-UI integration, and server-installer bootstrap surfaces so deploy/install paths also carry the selected provider explicitly.
+- [x] Introduce generic top-level host health-check entrypoints and keep the Proxmox-named checker as a compatibility wrapper.
 - [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.

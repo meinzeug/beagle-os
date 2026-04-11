@@ -17,6 +17,7 @@ Strategic framing:
    - `scripts/lib/prepare_host_downloads.py` now owns the large non-shell artifact patching and VM installer metadata/status block that used to live inline in `prepare-host-downloads.sh`
    - the next script task is to reduce the remaining direct-command fallback paths where rollout compatibility is no longer needed, especially the last compatibility branches in `configure-sunshine-guest.sh`, `ensure-vm-stream-ready.sh`, and `optimize-proxmox-vm-for-beagle.sh`
    - after that, reuse the new shell seam in the next provider-aware scripts that still duplicate host targeting or helper bootstrap logic instead of reintroducing those helpers locally
+   - the generic top-level host install/setup/check entrypoints now live at `scripts/install-beagle-host.sh`, `scripts/setup-beagle-host.sh`, and `scripts/check-beagle-host.sh`; the next installer slice is to reduce the remaining Proxmox-only adapter calls and validation assumptions inside those generic entrypoints
    - after that, decide whether this helper remains the long-term script provider contract or whether the write/exec slice should split into a second dedicated script-side provider module
 2. Continue decomposing `beagle-host/bin/beagle-control-plane.py` around service-oriented modules:
    - the shared slug/secret/PIN helper cluster is now extracted behind `UtilitySupportService`

@@ -51,10 +51,10 @@ Interactive install on an existing Linux system:
 sudo ./thin-client-assistant/installer/install.sh
 ```
 
-Install project assets on a Proxmox host for local operator distribution:
+Install project assets on a Beagle host for local operator distribution:
 
 ```bash
-./scripts/install-proxmox-host.sh
+./scripts/install-beagle-host.sh
 ```
 
 Provision an Ubuntu guest for the preferred Sunshine path:
@@ -77,7 +77,7 @@ Register a Beagle endpoint certificate on the Sunshine VM without interactive pa
   --device-name beagle-os-101
 ```
 
-Install the latest published release on a Proxmox host without cloning the repository:
+Install the latest published release on a Beagle host without cloning the repository:
 
 ```bash
 tmpdir="$(mktemp -d)"
@@ -85,7 +85,7 @@ cd "$tmpdir"
 curl -fsSLo beagle-os.tar.gz \
   https://beagle-os.com/beagle-updates/beagle-os-latest.tar.gz
 tar -xzf beagle-os.tar.gz
-./scripts/install-proxmox-host.sh
+./scripts/install-beagle-host.sh
 ```
 
 ## Hosted installer endpoints
@@ -142,7 +142,7 @@ sudo /opt/beagle/scripts/refresh-host-artifacts.sh
 Verify that a host installation is healthy:
 
 ```bash
-/opt/beagle/scripts/check-proxmox-host.sh
+/opt/beagle/scripts/check-beagle-host.sh
 ```
 
 ## Post-install verification

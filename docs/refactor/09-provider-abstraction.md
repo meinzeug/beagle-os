@@ -121,7 +121,10 @@ Long-term target:
 - `scripts/reconcile-public-streams.sh`
 - `scripts/prepare-host-downloads.sh`
 - `scripts/configure-sunshine-guest.sh`
+- `scripts/install-beagle-host.sh`
+  - generic host installer entrypoint that still delegates to explicit provider-specific adapters underneath
 - `scripts/install-proxmox-host.sh`
+  - compatibility wrapper for the generic host installer entrypoint
 - `scripts/install-beagle-proxy.sh`
 - `scripts/install-proxmox-ui-integration.sh`
 - `server-installer/.../beagle-server-installer`
@@ -727,12 +730,15 @@ These flows now go through a provider-facing helper seam first:
 
 ### Deploy / runtime provider threading
 
-- `scripts/install-proxmox-host.sh` now records `BEAGLE_HOST_PROVIDER` into `host.env` and passes it into `install-proxmox-host-services.sh`
+- `scripts/install-beagle-host.sh` now acts as the canonical top-level host installer entrypoint, records `BEAGLE_HOST_PROVIDER` into `host.env`, and passes it into `install-proxmox-host-services.sh`
+- `scripts/install-proxmox-host.sh` now exists as a compatibility wrapper around `install-beagle-host.sh`
 - `scripts/install-proxmox-host-services.sh` now writes `BEAGLE_HOST_PROVIDER` into `beagle-manager.env`
-- `scripts/refresh-host-artifacts.sh` and `scripts/check-proxmox-host.sh` now run under the same selected host-provider kind
+- `scripts/check-beagle-host.sh` now acts as the canonical top-level host validation entrypoint under the selected host-provider kind
+- `scripts/check-proxmox-host.sh` now exists as a compatibility wrapper around `check-beagle-host.sh`
+- `scripts/refresh-host-artifacts.sh` and `scripts/check-beagle-host.sh` now run under the same selected host-provider kind
 - `scripts/install-beagle-proxy.sh` now reads and persists the selected host-provider kind too, even though backend auto-detection still expects Proxmox semantics today
 - `scripts/install-proxmox-ui-integration.sh` now reads the selected host-provider kind and skips cleanly when it is not `proxmox`
-- the server-installer bootstrap now passes `BEAGLE_HOST_PROVIDER='proxmox'` explicitly into `install-proxmox-host.sh`
+- the server-installer bootstrap now passes `BEAGLE_HOST_PROVIDER='proxmox'` explicitly into `install-beagle-host.sh`
 - this does not make Proxmox optional yet, but it removes another hidden assumption that provider choice only exists inside the Python control-plane process
 
 ### Thin-client Proxmox access

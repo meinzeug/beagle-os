@@ -844,6 +844,30 @@ Reason:
 
 - These install surfaces are still genuinely Proxmox-specific today, so pretending they are already generic would only hide coupling. The right intermediate state is explicit adapter naming plus explicit provider selection, so future non-Proxmox install paths can coexist without another round of implicit-default cleanup first.
 
+### D135. Top-level host install/setup entrypoints should become provider-neutral before the provider-specific adapters disappear
+
+Decision:
+
+- Introduce `scripts/install-beagle-host.sh` and `scripts/setup-beagle-host.sh` as the canonical top-level host install/setup entrypoints.
+- Keep `scripts/install-proxmox-host.sh` and `scripts/setup-proxmox-host.sh` as compatibility wrappers.
+- Keep the genuinely Proxmox-specific adapter scripts such as `install-proxmox-host-services.sh` and `install-proxmox-ui-integration.sh` explicit until non-Proxmox implementations exist.
+
+Reason:
+
+- The previous naming kept the outermost operator/bootstrap path coupled to Proxmox even after provider selection was already threaded through env files and the control-plane registry. The safer intermediate state is a provider-neutral top-level entrypoint with explicit provider-specific adapters still visible underneath. That removes hard-coded Proxmox naming from the server-installer and operator path without pretending the adapter layer is already generic.
+
+### D136. The host health-check entrypoint should follow the same provider-neutral naming seam
+
+Decision:
+
+- Introduce `scripts/check-beagle-host.sh` as the canonical top-level host validation entrypoint.
+- Keep `scripts/check-proxmox-host.sh` as a compatibility wrapper.
+- Leave the current provider-specific assertions inside the generic checker until those checks are split behind provider-aware validation helpers.
+
+Reason:
+
+- The operator-facing bootstrap path is still Proxmox-centered if the validation command remains Proxmox-named after install/setup were already made generic. The safer intermediate state is the same as for install/setup: provider-neutral outer naming with explicit provider-specific checks still visible inside.
+
 ### D75. Hosted download preparation should move behind a dedicated helper and reuse the endpoint profile contract for overlapping VM installer metadata
 
 Decision:

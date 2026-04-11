@@ -56,16 +56,16 @@ Key points:
 
 ## Quick Start
 
-### Install Beagle on an Existing Proxmox Host
+### Install Beagle on an Existing Host
 
 ```bash
 git clone https://github.com/meinzeug/beagle-os.git
 cd beagle-os
-./scripts/setup-proxmox-host.sh
-./scripts/check-proxmox-host.sh
+./scripts/setup-beagle-host.sh
+./scripts/check-beagle-host.sh
 ```
 
-After setup, Proxmox gets:
+After setup, the current provider host gets:
 
 - the Beagle control plane
 - hosted installer and update artifacts
@@ -77,7 +77,7 @@ After setup, Proxmox gets:
 1. Download the current server installer ISO from `beagle-os.com`.
 2. Boot the target machine from the ISO.
 3. Enter the server hostname, Linux username, password, and target disk.
-4. The installer installs Debian Bookworm, installs Proxmox VE from the official Proxmox repository, downloads Beagle from GitHub, and runs the Beagle Proxmox host setup.
+4. The installer installs Debian Bookworm, installs the current host provider stack, downloads Beagle from GitHub, and runs the Beagle host setup.
 
 ### Install an Endpoint
 
