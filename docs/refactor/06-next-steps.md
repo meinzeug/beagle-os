@@ -58,7 +58,8 @@ Strategic framing:
    - the GeForce NOW storage/home/cache/config environment prep now lives behind `thin-client-assistant/runtime/geforcenow_storage_environment.sh`
    - the runtime kiosk process-pattern and stop-control block now lives behind `thin-client-assistant/runtime/kiosk_runtime.sh`
    - the runtime kiosk supervisor/relaunch loop now lives behind `thin-client-assistant/runtime/session_launcher.sh`
-   - the next remaining drift is in the host-only vs USB-only preset delta fields and in the remaining runtime orchestration around the now-thin prepare/network/pairing/USB/GFN-install wrappers, especially the next substantial runtime helper now that the Moonlight remote-API layer, the Moonlight execution layer, the GFN stream-optimization layer, and the SSH/bootstrap layer have all been reduced to focused helper seams
+   - the USB tunnel-status and inventory/list/status payload shaping now live behind `thin-client-assistant/runtime/beagle_usb_runtime_payloads.sh`
+   - the next remaining drift is in the host-only vs USB-only preset delta fields and in the remaining runtime orchestration around the now-thin prepare/network/pairing/USB/GFN-install wrappers, especially the next substantial runtime helper now that the Moonlight remote-API layer, the Moonlight execution layer, the GFN stream-optimization layer, the USB payload layer, and the SSH/bootstrap layer have all been reduced to focused helper seams
 5. Continue splitting the browser UI action/render layers:
    - move the next action-heavy profile modal helpers out of `extension/components/profile-modal.js` and, where shared, out of `proxmox-ui/components/profile-modal.js`
    - keep using `core/platform/browser-common.js` plus the existing shared browser helper modules instead of recreating token/template/API helpers in entrypoints

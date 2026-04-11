@@ -29,6 +29,19 @@
   - focused smoke test for `build_moonlight_manager_registration_payload()` and `register_moonlight_client_via_manager()` with stubbed `curl` and manager sync hooks
   - focused smoke test for `submit_sunshine_pin()` and `json_bool()` with stubbed `curl`
 
+### 2026-04-11 — USB runtime payload helper extraction
+
+- Split the USB inventory/payload-rendering block out of `thin-client-assistant/runtime/beagle_usb_runtime_state.sh`:
+  - added `thin-client-assistant/runtime/beagle_usb_runtime_payloads.sh` for tunnel-status detection, local USB inventory JSON shaping, and list/status payload rendering
+  - `thin-client-assistant/runtime/beagle_usb_runtime_state.sh` now sources that helper and stays focused on USB state-path resolution, env accessors, and bound-busid persistence
+- This reduces the remaining USB runtime state helper to clearer seams:
+  - state persistence and payload shaping are now separate modules instead of one mixed file
+  - `beagle_usb_runtime_actions.sh` and `beagle-usbctl.sh` still consume the same public helper surface, so runtime behavior stays unchanged
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/beagle_usb_runtime_state.sh thin-client-assistant/runtime/beagle_usb_runtime_payloads.sh thin-client-assistant/runtime/beagle_usb_runtime_actions.sh thin-client-assistant/runtime/beagle-usbctl.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for bound-busid persistence and `list_local_usb_json()` with a stubbed `usbip`
+  - focused smoke test for `is_tunnel_running()`, `render_usb_list_json()`, and `render_usb_status_json()` with a stubbed `pgrep`
+
 ### 2026-04-11 — Moonlight manager-registration helper extraction
 
 - Split the manager-registration path out of `thin-client-assistant/runtime/moonlight_remote_api.sh`:
