@@ -1481,3 +1481,14 @@ Decision:
 Reason:
 
 - `beagle_usb_runtime_actions.sh` still mixed two different concerns: internal local `usbipd` process/exportability lifecycle and the public action surface consumed by `beagle-usbctl.sh`. The lifecycle side depends on stubbable process and kernel-module commands, while the public side is about JSON/status responses and explicit operator actions. Pulling the lifecycle block out keeps the action helper smaller and leaves the runtime USB daemon contract explicit.
+
+### D129. GeForce NOW `xdg-open` integration should leave the desktop-file registration helper
+
+Decision:
+
+- Keep wrapper/browser target accessors plus `install_gfn_xdg_open_wrapper()`, `install_gfn_host_xdg_open_shim()`, and `ensure_gfn_xdg_open_integration()` in `thin-client-assistant/runtime/geforcenow_xdg_open_integration.sh`.
+- `thin-client-assistant/runtime/geforcenow_desktop_integration.sh` should source that helper and remain focused on desktop-file rendering and MIME registration.
+
+Reason:
+
+- `geforcenow_desktop_integration.sh` still mixed two separate concerns: XDG desktop/MIME registration in the runtime user's home and `xdg-open` interception logic for both the user wrapper and the optional host shim. The wrapper/shim side is independently smoke-testable with temporary files and does not need to stay coupled to desktop-file generation. Pulling it out keeps the desktop integration helper smaller while preserving the stable `ensure_gfn_desktop_integration()` entrypoint used by `install-geforcenow.sh`.
