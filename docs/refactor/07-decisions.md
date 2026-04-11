@@ -555,3 +555,27 @@ Decision:
 Reason:
 
 - After the cache/env slice, the remaining command wrappers were the next cohesive non-HTTP utility block. They were already a shared runtime seam for provider bootstrap and other helpers, but they still duplicated subprocess boilerplate directly in the entrypoint. Extracting them makes host command execution behavior explicit and testable without changing runtime semantics.
+
+### D51. File/JSON persistence belongs in one host persistence-support service
+
+Decision:
+
+- Move `load_json_file(path, fallback)` and `write_json_file(path, payload, mode=...)` into `beagle-host/services/persistence_support.py`.
+- Keep the existing control-plane helper names as thin wrappers so the extracted host services keep their current collaborator surface while shared JSON/file persistence leaves the entrypoint.
+- Let the service own parent-directory creation, pretty JSON output, trailing newline behavior, and best-effort chmod semantics instead of duplicating those persistence assumptions inline.
+
+Reason:
+
+- After the runtime-support and runtime-exec slices, the remaining file/JSON helpers were the next cohesive non-HTTP utility block. Multiple extracted services already depended on that seam indirectly, but the persistence behavior was still hidden inside the entrypoint. Extracting it makes the persistence contract explicit and testable without changing current runtime behavior.
+
+### D52. Bearer-token, origin, and CORS helper logic belongs in one host request-support service
+
+Decision:
+
+- Move `extract_bearer_token(...)`, `normalized_origin(...)`, and `cors_allowed_origins()` into `beagle-host/services/request_support.py`.
+- Keep the existing control-plane helper names as thin wrappers so HTTP handlers keep their current surface while request/origin policy leaves the entrypoint.
+- Let the service own `cors-allowed-origins` cache usage plus manager/web/stream/custom origin synthesis instead of rebuilding that request-policy logic inline in `beagle-control-plane.py`.
+
+Reason:
+
+- Once file/JSON persistence was extracted, the remaining bearer/origin/CORS block became the next cohesive non-HTTP request utility seam. It was still directly coupled to global runtime values and cache helpers in the entrypoint, even though its behavior is shared request policy rather than handler-specific business logic. Extracting it makes the request-support contract explicit and testable without changing current CORS or auth semantics.

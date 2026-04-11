@@ -40,9 +40,11 @@ from host_provider_contract import HostProvider
 from installer_prep import InstallerPrepService
 from installer_script import InstallerScriptService
 from installer_template_patch import InstallerTemplatePatchService
+from persistence_support import PersistenceSupportService
 from policy_normalization import PolicyNormalizationService
 from policy_store import PolicyStoreService
 from public_streams import PublicStreamService
+from request_support import RequestSupportService
 from registry import create_provider, list_providers, normalize_provider_kind
 from runtime_environment import RuntimeEnvironmentService
 from runtime_exec import RuntimeExecService
@@ -261,6 +263,8 @@ RUNTIME_EXEC_SERVICE = RuntimeExecService(
     default_timeout_sentinel=DEFAULT_COMMAND_TIMEOUT,
     run_subprocess=subprocess.run,
 )
+PERSISTENCE_SUPPORT_SERVICE = PersistenceSupportService()
+REQUEST_SUPPORT_SERVICE: RequestSupportService | None = None
 
 
 def resolve_public_stream_host(host: str) -> str:
@@ -338,12 +342,7 @@ def timestamp_age_seconds(value: str) -> int | None:
 
 
 def load_json_file(path: Path, fallback: Any) -> Any:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return fallback
-    except json.JSONDecodeError:
-        return fallback
+    return persistence_support_service().load_json_file(path, fallback)
 
 
 def runtime_support_service() -> RuntimeSupportService:
@@ -352,6 +351,29 @@ def runtime_support_service() -> RuntimeSupportService:
 
 def runtime_exec_service() -> RuntimeExecService:
     return RUNTIME_EXEC_SERVICE
+
+
+def persistence_support_service() -> PersistenceSupportService:
+    return PERSISTENCE_SUPPORT_SERVICE
+
+
+def request_support_service() -> RequestSupportService:
+    global REQUEST_SUPPORT_SERVICE
+    if REQUEST_SUPPORT_SERVICE is None:
+        REQUEST_SUPPORT_SERVICE = RequestSupportService(
+            cache_get=cache_get,
+            cache_put=cache_put,
+            cors_allowed_origins_raw=CORS_ALLOWED_ORIGINS_RAW,
+            current_public_stream_host=current_public_stream_host,
+            listify=listify,
+            proxmox_ui_ports_raw=PROXMOX_UI_PORTS_RAW,
+            public_downloads_port=PUBLIC_DOWNLOADS_PORT,
+            public_manager_url=PUBLIC_MANAGER_URL,
+            public_server_name=PUBLIC_SERVER_NAME,
+            public_stream_host_raw=PUBLIC_STREAM_HOST_RAW,
+            web_ui_url=WEB_UI_URL,
+        )
+    return REQUEST_SUPPORT_SERVICE
 
 
 def cache_get(key: str, ttl_seconds: float) -> Any:
@@ -394,54 +416,11 @@ def truthy(value: Any, *, default: bool = False) -> bool:
 
 
 def normalized_origin(value: str) -> str:
-    parsed = urlparse(str(value or "").strip())
-    if not parsed.scheme or not parsed.hostname:
-        return ""
-    scheme = parsed.scheme.lower()
-    if scheme not in {"http", "https"}:
-        return ""
-    host = str(parsed.hostname or "").strip().lower()
-    if not host:
-        return ""
-    default_port = 443 if scheme == "https" else 80
-    port = parsed.port
-    origin = f"{scheme}://{host}"
-    if port and port != default_port:
-        origin += f":{port}"
-    return origin
+    return request_support_service().normalized_origin(value)
 
 
 def cors_allowed_origins() -> set[str]:
-    cache_key = "cors-allowed-origins"
-    cached = cache_get(cache_key, 60)
-    if cached is not None:
-        return set(cached)
-
-    candidates: set[str] = {
-        WEB_UI_URL,
-        PUBLIC_MANAGER_URL,
-        f"https://{PUBLIC_SERVER_NAME}",
-        f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}",
-    }
-    hostnames = {
-        str(PUBLIC_SERVER_NAME or "").strip(),
-        str(PUBLIC_STREAM_HOST_RAW or "").strip(),
-        str(current_public_stream_host() or "").strip(),
-        str(urlparse(WEB_UI_URL).hostname or "").strip(),
-        str(urlparse(PUBLIC_MANAGER_URL).hostname or "").strip(),
-    }
-    for port in listify(PROXMOX_UI_PORTS_RAW):
-        if not str(port).isdigit():
-            continue
-        for hostname in hostnames:
-            if hostname:
-                candidates.add(f"https://{hostname}:{int(port)}")
-    for origin in listify(CORS_ALLOWED_ORIGINS_RAW):
-        candidates.add(origin)
-
-    normalized = tuple(sorted(origin for origin in (normalized_origin(item) for item in candidates) if origin))
-    cache_put(cache_key, normalized)
-    return set(normalized)
+    return request_support_service().cors_allowed_origins()
 
 
 def checksum_for_dist_filename(filename: str) -> str:
@@ -950,12 +929,7 @@ def load_shell_env_file(path: Path) -> dict[str, str]:
 
 
 def write_json_file(path: Path, payload: Any, *, mode: int = 0o600) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    try:
-        os.chmod(path, mode)
-    except OSError:
-        pass
+    persistence_support_service().write_json_file(path, payload, mode=mode)
 
 
 def random_secret(length: int = 24) -> str:
@@ -1822,10 +1796,7 @@ def render_vm_windows_installer_script(vm: VmSummary) -> tuple[bytes, str]:
 
 
 def extract_bearer_token(header_value: str) -> str:
-    header = str(header_value or "").strip()
-    if header.startswith("Bearer "):
-        return header[7:].strip()
-    return ""
+    return request_support_service().extract_bearer_token(header_value)
 
 
 class Handler(BaseHTTPRequestHandler):
