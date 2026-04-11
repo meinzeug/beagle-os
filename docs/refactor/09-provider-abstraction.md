@@ -114,6 +114,8 @@ Long-term target:
 
 - `scripts/lib/beagle_provider.py`
   - provider-facing script helper for VM inventory, VM config, and guest-interface reads
+- `scripts/lib/provider_shell.sh`
+  - shared shell-side provider bootstrap for local-vs-remote host dispatch, provider-helper discovery, remote helper execution, and raw JSON payload extraction
 - `scripts/reconcile-public-streams.sh`
 - `scripts/prepare-host-downloads.sh`
 - `scripts/configure-sunshine-guest.sh`
@@ -671,6 +673,7 @@ These flows now go through a provider-facing helper seam first:
 - backend VM enumeration, description metadata reads, and guest-interface reads in `scripts/install-beagle-proxy.sh`
 - preferred remote guest-IPv4/current-description reads plus guest-exec/status, description updates, and reboot flows in `scripts/configure-sunshine-guest.sh`, with direct `qm` fallbacks retained for not-yet-updated hosts
 - synchronous guest-exec polling through `scripts/lib/beagle_provider.py` in both `scripts/configure-sunshine-guest.sh` and `scripts/ensure-vm-stream-ready.sh`, with direct `qm` fallbacks retained only as compatibility branches
+- shared provider-helper bootstrap and remote/local execution through `scripts/lib/provider_shell.sh` in `scripts/configure-sunshine-guest.sh`, `scripts/ensure-vm-stream-ready.sh`, and `scripts/optimize-proxmox-vm-for-beagle.sh`
 - preferred VM baseline option writes in `scripts/optimize-proxmox-vm-for-beagle.sh`, with direct `qm set` fallback retained for not-yet-updated hosts
 - shared script-side virtualization reads through `scripts/lib/beagle_provider.py`
 
@@ -713,6 +716,7 @@ These flows now go through a provider-facing helper seam first:
 ### Script surfaces
 
 - `scripts/lib/beagle_provider.py` is now the shared script-side read and first-write/exec seam, but it still only implements the Proxmox backend today.
+- `scripts/lib/provider_shell.sh` is now the shared script-side provider bootstrap seam, but it still assumes today's SSH/bash execution model and only dispatches into the Proxmox-backed provider helper today.
 - `scripts/lib/prepare_host_downloads.py` removes the hosted-download Python monolith from the shell script, but it still consumes the current provider helper plus the current Proxmox-shaped preset field set for hosted thin-client installers.
 - several scripts still execute `qm`/`pvesh` directly for fallback compatibility, install flows, or unreached write paths and should move to provider helpers incrementally.
 - the clearest remaining direct script couplings are now the reduced compatibility branches retained in `scripts/configure-sunshine-guest.sh`, `scripts/ensure-vm-stream-ready.sh`, and `scripts/optimize-proxmox-vm-for-beagle.sh`, plus the still-separate thin-client/local-installer env builders that shape overlapping installer/profile fields outside the shared endpoint-profile contract

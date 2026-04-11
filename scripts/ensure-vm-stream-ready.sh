@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/provider_shell.sh"
 PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$SCRIPT_DIR/lib/beagle_provider.py}"
 PROVIDER_HELPER_AVAILABLE_CACHE="${PROVIDER_HELPER_AVAILABLE_CACHE:-}"
 VMID="${VMID:-}"
@@ -211,39 +212,14 @@ guest_ipv4() {
 }
 
 provider_helper_available() {
-  if [[ "$PROVIDER_HELPER_AVAILABLE_CACHE" == "1" ]]; then
-    return 0
-  fi
-  if [[ "$PROVIDER_HELPER_AVAILABLE_CACHE" == "0" ]]; then
-    return 1
-  fi
-  if [[ -f "$PROVIDER_MODULE_PATH" ]]; then
-    PROVIDER_HELPER_AVAILABLE_CACHE="1"
-    return 0
-  fi
-  PROVIDER_HELPER_AVAILABLE_CACHE="0"
-  return 1
+  beagle_provider_helper_available
 }
 
 guest_exec_sync_fallback() {
   local command="$1"
   local raw_output payload_json pid status_raw status_json
   raw_output="$(qm guest exec "$VMID" -- bash -lc "$command")"
-  payload_json="$(python3 - "$raw_output" <<'PY'
-import json
-import sys
-
-raw = sys.argv[1]
-payload = {}
-for line in reversed([line.strip() for line in raw.splitlines() if line.strip()]):
-    try:
-        payload = json.loads(line)
-        break
-    except json.JSONDecodeError:
-        continue
-print(json.dumps(payload))
-PY
-)"
+  payload_json="$(beagle_json_last_object "$raw_output")"
   pid="$(python3 - "$payload_json" <<'PY'
 import json
 import sys
@@ -260,21 +236,7 @@ PY
   while true; do
     sleep 2
     status_raw="$(qm guest exec-status "$VMID" "$pid")"
-    status_json="$(python3 - "$status_raw" <<'PY'
-import json
-import sys
-
-raw = sys.argv[1]
-payload = {}
-for line in reversed([line.strip() for line in raw.splitlines() if line.strip()]):
-    try:
-        payload = json.loads(line)
-        break
-    except json.JSONDecodeError:
-        continue
-print(json.dumps(payload))
-PY
-)"
+    status_json="$(beagle_json_last_object "$status_raw")"
     if python3 - "$status_json" <<'PY'
 import json
 import sys
