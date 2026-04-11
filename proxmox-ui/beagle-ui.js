@@ -118,13 +118,7 @@
     if (!token) {
       return target;
     }
-    try {
-      var parsed = new URL(target, window.location.origin);
-      parsed.hash = "beagle_token=" + encodeURIComponent(token);
-      return parsed.toString();
-    } catch (error) {
-      return String(target || "") + "#beagle_token=" + encodeURIComponent(token);
-    }
+    return common.appendHashToken(target, token);
   }
 
   function getVmInstallerEligibility(ctx) {

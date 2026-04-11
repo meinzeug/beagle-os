@@ -2,6 +2,31 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — shared browser common extraction
+
+- Reduced duplicated browser-side config/token/API helper logic across the main browser surfaces by introducing `core/platform/browser-common.js`:
+  - `BeagleBrowserCommon` now owns session-token store creation, URL template filling, no-cache URL decoration, health-to-manager URL derivation, Beagle API path normalization, base/path joining, and `beagle_token` hash injection
+  - `proxmox-ui/beagle-ui-common.js` and `extension/common.js` now delegate those shared helpers instead of maintaining parallel implementations
+  - `website/app.js` now uses the same session-token store helper instead of carrying its own local `sessionStorage` probe/write/remove block
+- Finished the browser runtime wiring across all three browser surfaces:
+  - `scripts/install-proxmox-ui-integration.sh` now installs `/pve2/js/beagle-browser-common.js` and injects it before `beagle-ui-common.js`
+  - the extension now loads `core/platform/browser-common.js` before `common.js` in both the content-script chain and `options.html`
+  - `website/index.html` now loads `/core/platform/browser-common.js`, and `scripts/install-beagle-proxy.sh` exposes that asset through nginx for the deployed website surface
+- Kept behavior stable while shrinking local duplication:
+  - Proxmox UI and extension still use the same session token key and `beagle_token` URL-hash behavior as before
+  - manager/control-plane URL shaping still preserves the current `/api/v1/health` to manager-base contract
+  - no-cache URL handling still preserves the same `_beagle_ts` query parameter semantics
+
+### 2026-04-11 — install-beagle-proxy read-path migration
+
+- Continued the script/provider decoupling by moving the remaining pure VM-read paths in `scripts/install-beagle-proxy.sh` behind `scripts/lib/beagle_provider.py`:
+  - backend candidate guest-IP lookup now resolves guest interfaces through the provider helper instead of raw `qm guest cmd`
+  - backend description metadata lookup now resolves VM inventory/config through the provider helper instead of raw `qm config`
+  - backend auto-detection now enumerates candidate VMIDs through the provider helper instead of raw `qm list`
+- Kept the migration intentionally read-only and incremental:
+  - the proxy installer now has no direct `qm` / `pvesh` read dependency left for backend detection
+  - mutation-heavy script flows are still deferred until the helper contract grows beyond read operations
+
 ### 2026-04-11 — Proxmox UI fleet/provisioning state-flow extraction
 
 - Continued shrinking `proxmox-ui/beagle-ui.js` by moving the remaining catalog/fleet orchestration out of the entrypoint:
@@ -14,7 +39,7 @@
   - unused helper wrappers (`getInstallerEligibilityKey`, unused provisioning API wrappers, unused USB-formatting wrappers) are gone from the entrypoint
 - `scripts/install-proxmox-ui-integration.sh` now installs the new `beagle-ui-fleet-state.js` and `beagle-ui-provisioning-flow.js` assets and injects them into the Proxmox UI load order before `beagle-ui.js`
 - `scripts/validate-project.sh` now syntax-checks the new UI modules
-- `proxmox-ui/beagle-ui.js` dropped from `410` to `350` lines with this slice
+- `proxmox-ui/beagle-ui.js` first dropped from `410` to `350` lines with this slice and now sits at `344` lines after the follow-up shared-browser-common cleanup
 
 ### 2026-04-11 — script-side provider read helper extraction
 

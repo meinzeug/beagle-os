@@ -96,16 +96,7 @@
 
   async function resolveBeagleApiUrl(path) {
     var healthUrl = await resolveControlPlaneHealthUrl();
-    var base = common.managerUrlFromHealthUrl(healthUrl);
-    var normalizedPath = common.normalizeBeagleApiPath(path);
-
-    if (!base) {
-      return normalizedPath;
-    }
-    if (normalizedPath.charAt(0) !== "/") {
-      normalizedPath = "/" + normalizedPath;
-    }
-    return String(base).replace(/\/$/, "") + normalizedPath;
+    return common.joinBaseAndPath(common.managerUrlFromHealthUrl(healthUrl), path);
   }
 
   async function apiGetBeagleJson(path) {
@@ -189,13 +180,7 @@
     if (!token) {
       return target;
     }
-    try {
-      var parsed = new URL(target, window.location.origin);
-      parsed.hash = "beagle_token=" + encodeURIComponent(token);
-      return parsed.toString();
-    } catch (_error) {
-      return String(target || "") + "#beagle_token=" + encodeURIComponent(token);
-    }
+    return common.appendHashToken(target, token);
   }
 
   async function downloadUrl(url) {

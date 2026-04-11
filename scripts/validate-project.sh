@@ -70,6 +70,7 @@ fi
 
 node --check "$ROOT_DIR/proxmox-ui/beagle-ui.js"
 node --check "$ROOT_DIR/proxmox-ui/beagle-ui-common.js"
+node --check "$ROOT_DIR/core/platform/browser-common.js"
 node --check "$ROOT_DIR/core/provider/registry.js"
 node --check "$ROOT_DIR/core/virtualization/service.js"
 node --check "$ROOT_DIR/core/platform/service.js"

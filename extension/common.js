@@ -2,6 +2,11 @@
   "use strict";
 
   var API_TOKEN_STORAGE_KEY = "beagle.proxmoxUi.apiToken";
+  var browserCommon = window.BeagleBrowserCommon;
+
+  if (!browserCommon) {
+    throw new Error("BeagleBrowserCommon must be loaded before BeagleExtensionCommon");
+  }
 
   function defaultUsbInstallerUrl() {
     return "https://{host}:8443/beagle-api/api/v1/vms/{vmid}/installer.sh";
@@ -51,24 +56,11 @@
   }
 
   function fillTemplate(template, values) {
-    return String(template || "")
-      .replaceAll("{node}", values && values.node || "")
-      .replaceAll("{vmid}", String(values && values.vmid || ""))
-      .replaceAll("{host}", values && values.host || "");
+    return browserCommon.fillTemplate(template, values);
   }
 
   function withNoCache(url) {
-    if (!url) {
-      return url;
-    }
-    try {
-      var parsed = new URL(url, window.location.origin);
-      parsed.searchParams.set("_beagle_ts", String(Date.now()));
-      return parsed.toString();
-    } catch (_error) {
-      var separator = String(url).indexOf("?") >= 0 ? "&" : "?";
-      return String(url) + separator + "_beagle_ts=" + String(Date.now());
-    }
+    return browserCommon.withNoCache(url);
   }
 
   function sleep(ms) {
@@ -86,56 +78,35 @@
   }
 
   function managerUrlFromHealthUrl(healthUrl) {
-    return String(healthUrl || "").replace(/\/api\/v1\/health\/?$/, "");
+    return browserCommon.managerUrlFromHealthUrl(healthUrl);
   }
 
   function normalizeBeagleApiPath(path) {
-    var value = String(path || "").trim() || "/";
-    return value.indexOf("/beagle-api/") === 0 ? value.slice("/beagle-api".length) : value;
+    return browserCommon.normalizeBeagleApiPath(path);
   }
 
-  function tokenStorage() {
-    try {
-      return window.sessionStorage;
-    } catch (_error) {
-      return null;
-    }
+  function joinBaseAndPath(base, path) {
+    return browserCommon.joinBaseAndPath(base, path);
+  }
+
+  function tokenStore() {
+    return browserCommon.createSessionTokenStore(API_TOKEN_STORAGE_KEY);
   }
 
   function readStoredApiToken() {
-    var storage = tokenStorage();
-    if (!storage) {
-      return "";
-    }
-    try {
-      return String(storage.getItem(API_TOKEN_STORAGE_KEY) || "").trim();
-    } catch (_error) {
-      return "";
-    }
+    return tokenStore().read();
   }
 
   function writeStoredApiToken(token) {
-    var storage = tokenStorage();
-    if (!storage) {
-      return;
-    }
-    try {
-      storage.setItem(API_TOKEN_STORAGE_KEY, String(token || "").trim());
-    } catch (_error) {
-      // ignore storage failures
-    }
+    tokenStore().write(token);
   }
 
   function clearStoredApiToken() {
-    var storage = tokenStorage();
-    if (!storage) {
-      return;
-    }
-    try {
-      storage.removeItem(API_TOKEN_STORAGE_KEY);
-    } catch (_error) {
-      // ignore storage failures
-    }
+    tokenStore().clear();
+  }
+
+  function appendHashToken(url, token) {
+    return browserCommon.appendHashToken(url, token, "beagle_token");
   }
 
   function promptForApiToken(initialValue) {
@@ -167,8 +138,10 @@
     defaultWebUiUrl: defaultWebUiUrl,
     fillTemplate: fillTemplate,
     getStoredOptions: getStoredOptions,
+    joinBaseAndPath: joinBaseAndPath,
     managerUrlFromHealthUrl: managerUrlFromHealthUrl,
     normalizeBeagleApiPath: normalizeBeagleApiPath,
+    appendHashToken: appendHashToken,
     promptForApiToken: promptForApiToken,
     readStoredApiToken: readStoredApiToken,
     saveOptions: saveOptions,

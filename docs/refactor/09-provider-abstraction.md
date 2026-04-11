@@ -21,6 +21,8 @@ Long-term target:
 
 ### Browser / UI
 
+- `core/platform/browser-common.js`
+  - shared browser-side token storage, template, URL, and Beagle-API helper seam used by the Proxmox UI, extension, and website surfaces
 - `proxmox-ui/beagle-ui.js`
   - thin orchestration for Proxmox VM context detection, node selection from the Proxmox UI, and modal launch delegation
 - `proxmox-ui/components/modal-shell.js`
@@ -114,6 +116,7 @@ Long-term target:
 - `scripts/prepare-host-downloads.sh`
 - `scripts/configure-sunshine-guest.sh`
 - `scripts/install-proxmox-host.sh`
+- `scripts/install-beagle-proxy.sh`
 - `scripts/install-proxmox-ui-integration.sh`
 - `server-installer/.../beagle-server-installer`
 
@@ -141,6 +144,18 @@ Purpose:
 Current usage:
 
 - registers the virtualization provider role
+
+### `core/platform/browser-common.js`
+
+Current browser-side contract:
+
+- `createSessionTokenStore(storageKey)`
+- `fillTemplate(template, values)`
+- `withNoCache(url)`
+- `managerUrlFromHealthUrl(healthUrl)`
+- `normalizeBeagleApiPath(path)`
+- `joinBaseAndPath(base, path)`
+- `appendHashToken(url, token, hashKey="beagle_token")`
 
 ### `scripts/lib/beagle_provider.py`
 
@@ -554,6 +569,7 @@ Current contract extracted from the control plane:
 
 These flows now go through generic services first:
 
+- shared session-token, URL-template, cache-busting, manager-URL, Beagle-API path, and hash-token helper semantics through `core/platform/browser-common.js`
 - selected node resolution in `proxmox-ui/beagle-ui.js`
 - provisioning catalog fallback node loading
 - fleet health/inventory/policy loading
@@ -576,6 +592,7 @@ These flows now go through generic services first:
 
 These flows now go through provider-backed services first:
 
+- shared session-token, URL-template, cache-busting, manager-URL, Beagle-API path, and hash-token helper semantics through `core/platform/browser-common.js`
 - Proxmox VM context detection from the current page
 - VM config, cluster resource, and guest-agent interface reads
 - hosted installer URL, ISO URL, and Web UI URL resolution
@@ -624,6 +641,7 @@ These flows now go through a provider-facing helper seam first:
 - VM inventory/config/guest-interface reads in `scripts/reconcile-public-streams.sh`
 - VM inventory/config reads in `scripts/prepare-host-downloads.sh`
 - VM description metadata reads and guest-interface reads in `scripts/ensure-vm-stream-ready.sh`
+- backend VM enumeration, description/config reads, and guest-interface reads in `scripts/install-beagle-proxy.sh`
 - shared script-side virtualization reads through `scripts/lib/beagle_provider.py`
 
 ## Still Directly Coupled
@@ -636,6 +654,7 @@ These flows now go through a provider-facing helper seam first:
 
 - `proxmox-ui/components/extjs-integration.js` still depends on today's Proxmox ExtJS component queries, menu structure, toolbar layout, and localized create-VM labels, even though the business logic behind those actions no longer lives in the same file.
 - `proxmox-ui/beagle-ui.js` is now mostly orchestration, but selected-node detection still depends on the active Proxmox virtualization provider/runtime and the remaining boot path still assumes the Proxmox host-installed UI surface.
+- `proxmox-ui/beagle-ui-common.js` no longer owns duplicated generic browser helpers, but it still carries Proxmox-UI-specific runtime config defaults and API-token prompt semantics for the host-installed UI surface.
 
 ### Control plane
 

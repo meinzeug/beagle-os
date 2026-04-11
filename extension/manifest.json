@@ -11,6 +11,7 @@
     {
       "matches": ["https://*/*"],
       "js": [
+        "core/platform/browser-common.js",
         "common.js",
         "provider-registry.js",
         "providers/proxmox.js",
