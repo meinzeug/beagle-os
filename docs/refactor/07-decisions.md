@@ -1426,3 +1426,14 @@ Decision:
 Reason:
 
 - Once the GFN launcher and ownership seams were reduced, `moonlight_remote_api.sh` stood out as another mixed protocol helper: manager registration and Sunshine PIN submission share some transport helpers, but they are distinct API contracts and failure modes. Pulling the manager-registration path out keeps both sides smaller and independently smoke-testable without changing the public helper surface used by `moonlight_pairing.sh` and `launch-moonlight.sh`.
+
+### D123. Moonlight manager registration should leave the mixed remote-API helper
+
+Decision:
+
+- Keep manager registration payload generation and manager-side client registration in `thin-client-assistant/runtime/moonlight_manager_registration.sh`.
+- `thin-client-assistant/runtime/moonlight_remote_api.sh` should source that helper and remain focused on shared remote-API accessors plus Sunshine PIN submission and JSON status extraction.
+
+Reason:
+
+- Once the GFN launcher and ownership seams were reduced, `moonlight_remote_api.sh` stood out as another mixed protocol helper: manager registration and Sunshine PIN submission share some transport helpers, but they are distinct API contracts and failure modes. Pulling the manager-registration path out keeps both sides smaller and independently smoke-testable without changing the public helper surface used by `moonlight_pairing.sh` and `launch-moonlight.sh`.
