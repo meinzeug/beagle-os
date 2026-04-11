@@ -93,6 +93,7 @@
 - [x] Extract the Beagle state-path / trace / log-event block out of `thin-client-assistant/runtime/runtime_core.sh` into a dedicated helper.
 - [x] Extract the runtime systemd unit/timer activation and USB tunnel service-control block out of `thin-client-assistant/runtime/runtime_systemd_bootstrap.sh` into a dedicated helper.
 - [x] Extract the USB tunnel/env accessor block out of `thin-client-assistant/runtime/beagle_usb_runtime_state.sh` into a dedicated helper.
+- [x] Extract the Moonlight IPv4/preferred-host resolution block out of `thin-client-assistant/runtime/moonlight_connect_host.sh` into a dedicated helper.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.
