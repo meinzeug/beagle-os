@@ -69,6 +69,7 @@
 - [x] Extract the USB runtime `usbipd` / bind / unbind / tunnel-orchestration block out of `thin-client-assistant/runtime/beagle-usbctl.sh` into a dedicated helper.
 - [x] Extract the GeForce NOW desktop-file / MIME / `xdg-open` integration block out of `thin-client-assistant/runtime/install-geforcenow.sh` into a dedicated helper.
 - [x] Extract the GeForce NOW flatpak scope / dry-run / install block out of `thin-client-assistant/runtime/install-geforcenow.sh` into a dedicated helper.
+- [x] Extract the systemd/getty/boot-mode/bootstrap unit block out of `thin-client-assistant/runtime/runtime_bootstrap_services.sh` into a dedicated helper.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.

@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime systemd bootstrap helper extraction
+
+- Removed the systemd/getty/boot-mode block from `thin-client-assistant/runtime/runtime_bootstrap_services.sh`:
+  - added `thin-client-assistant/runtime/runtime_systemd_bootstrap.sh` for `systemctl`/boot-mode path resolution, getty override path accessors, USB tunnel service control, Beagle management unit activation, getty override installation, and boot-service normalization
+  - `thin-client-assistant/runtime/runtime_bootstrap_services.sh` now sources that helper instead of carrying the systemd/getty/bootstrap unit logic inline
+- This reduces the old bootstrap helper into a more focused SSH-oriented module:
+  - `thin-client-assistant/runtime/runtime_bootstrap_services.sh` dropped to about `195` lines
+  - the remaining file is now primarily about managed SSH config rewriting and persistent SSH host-key handling
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/runtime_bootstrap_services.sh thin-client-assistant/runtime/runtime_systemd_bootstrap.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `ensure_getty_overrides()`, `normalize_boot_services()`, `ensure_beagle_management_units()`, and `ensure_usb_tunnel_service()` with stubbed `systemctl` and boot-mode binaries
+  - focused smoke test for installer-mode normalization plus disabled USB tunnel handling
+
 ### 2026-04-11 — GeForce NOW flatpak helper extraction
 
 - Removed the remaining GeForce NOW scope/flatpak install block from `thin-client-assistant/runtime/install-geforcenow.sh` and the duplicated scope parser from `thin-client-assistant/runtime/launch-geforcenow.sh`:
