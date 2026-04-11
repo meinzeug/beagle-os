@@ -1001,3 +1001,15 @@ Decision:
 Reason:
 
 - Once config discovery moved out, the next remaining config-specific block in `common.sh` was the actual generation and loading of runtime config files. That is still real config-loading behavior, not generic orchestration. Extracting it keeps the runtime shell surface modular and makes the remaining work in `common.sh` more clearly about runtime state and path orchestration rather than config assembly.
+
+### D87. `common.sh` should degrade into a sourcing shell, not remain the runtime behavior sink
+
+Decision:
+
+- Extract thin-client runtime operational helper clusters out of `thin-client-assistant/runtime/common.sh` into sourced runtime modules as soon as a block has a stable caller contract.
+- Keep stream-session state and management timer suspension/resume logic in `thin-client-assistant/runtime/stream_state.sh`.
+- Keep runtime-owned path helpers plus GeForce NOW storage/home/cache/config preparation in `thin-client-assistant/runtime/runtime_ownership.sh`.
+
+Reason:
+
+- `common.sh` is sourced by several runtime entrypoints and by live-build maintenance helpers, so it is the highest-risk place to let unrelated behavior accumulate. Splitting stable operational seams into sourced modules reduces monolith risk without changing the runtime bootstrap contract that callers already rely on.
