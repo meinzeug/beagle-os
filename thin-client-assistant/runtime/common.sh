@@ -10,6 +10,7 @@ BEAGLE_TRACE_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/runtime-trace.log"
 BEAGLE_LAST_MARKER_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/last-marker.env"
 RUNTIME_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODE_OVERRIDES_PY="${MODE_OVERRIDES_PY:-$RUNTIME_SCRIPT_DIR/mode_overrides.py}"
+CONFIG_DISCOVERY_PY="${CONFIG_DISCOVERY_PY:-$RUNTIME_SCRIPT_DIR/config_discovery.py}"
 
 beagle_state_dir() {
   printf '%s\n' "${BEAGLE_STATE_DIR:-$BEAGLE_STATE_DIR_DEFAULT}"
@@ -354,102 +355,10 @@ beagle_curl_tls_args() {
 }
 
 find_live_state_dir() {
-  local dir
-  local -a candidates=(
-    "${LIVE_STATE_DIR:-$LIVE_STATE_DIR_DEFAULT}"
-    "$LIVE_STATE_DIR_DEFAULT"
-    "/lib/live/mount/medium/pve-thin-client/state"
-  )
-
-  for dir in "${candidates[@]}"; do
-    if [[ -f "$dir/thinclient.conf" ]]; then
-      printf '%s\n' "$dir"
-      return 0
-    fi
-  done
-
-  if command -v findmnt >/dev/null 2>&1; then
-    while IFS= read -r dir; do
-      [[ -n "$dir" ]] || continue
-      dir="$dir/pve-thin-client/state"
-      if [[ -f "$dir/thinclient.conf" ]]; then
-        printf '%s\n' "$dir"
-        return 0
-      fi
-    done < <(findmnt -rn -o TARGET 2>/dev/null || true)
-  fi
-
-  return 1
-}
-
-find_preset_file() {
-  local file
-  local -a candidates=(
-    "${PVE_THIN_CLIENT_PRESET_FILE:-$LIVE_PRESET_FILE_DEFAULT}"
-    "$LIVE_PRESET_FILE_DEFAULT"
-    "/run/live/medium/pve-thin-client/live/preset.env"
-    "/lib/live/mount/medium/pve-thin-client/preset.env"
-    "/lib/live/mount/medium/pve-thin-client/live/preset.env"
-  )
-
-  for file in "${candidates[@]}"; do
-    if [[ -f "$file" ]]; then
-      printf '%s\n' "$file"
-      return 0
-    fi
-  done
-
-  return 1
-}
-
-restore_preset_from_cmdline() {
-  local target_file="${1:-}"
-  [[ -n "$target_file" ]] || return 1
-
-  python3 - "$target_file" <<'PY'
-import base64
-import gzip
-import re
-import sys
-from pathlib import Path
-
-target = Path(sys.argv[1])
-cmdline = Path("/proc/cmdline").read_text(encoding="utf-8").strip()
-
-codec = ""
-chunks = {}
-
-for token in cmdline.split():
-    if token.startswith("pve_thin_client.preset_codec="):
-        codec = token.split("=", 1)[1]
-        continue
-
-    match = re.match(r"pve_thin_client\.preset_b64_(\d+)=([A-Za-z0-9_-]+)$", token)
-    if match:
-        chunks[int(match.group(1))] = match.group(2)
-        continue
-
-    if token.startswith("pve_thin_client.preset_b64="):
-        chunks[0] = token.split("=", 1)[1]
-
-if not chunks:
-    raise SystemExit(1)
-
-payload = "".join(chunks[index] for index in sorted(chunks))
-payload += "=" * (-len(payload) % 4)
-data = base64.urlsafe_b64decode(payload.encode("ascii"))
-
-if codec in ("", "base64url"):
-    decoded = data
-elif codec in ("gzip+base64url", "gz+base64url", "gzip"):
-    decoded = gzip.decompress(data)
-else:
-    raise SystemExit(f"unsupported preset codec: {codec}")
-
-target.parent.mkdir(parents=True, exist_ok=True)
-target.write_bytes(decoded)
-target.chmod(0o644)
-PY
+  [[ -r "$CONFIG_DISCOVERY_PY" ]] || return 1
+  python3 "$CONFIG_DISCOVERY_PY" find-live-state-dir \
+    --live-state-dir "${LIVE_STATE_DIR:-}" \
+    --live-state-dir-default "$LIVE_STATE_DIR_DEFAULT"
 }
 
 apply_runtime_mode_overrides() {
@@ -676,34 +585,23 @@ generate_config_dir_from_preset() {
 }
 
 find_config_dir() {
-  if [[ -f "${CONFIG_DIR:-$DEFAULT_CONFIG_DIR}/thinclient.conf" ]]; then
-    printf '%s\n' "${CONFIG_DIR:-$DEFAULT_CONFIG_DIR}"
-    return 0
-  fi
+  local installer_dir installer_script runtime_user preset_state_dir
+  [[ -r "$CONFIG_DISCOVERY_PY" ]] || return 1
+  installer_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../installer" && pwd)"
+  installer_script="$installer_dir/write-config.sh"
+  runtime_user="${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}"
+  preset_state_dir="${PRESET_STATE_DIR:-$PRESET_STATE_DIR_DEFAULT}"
 
-  if LIVE_STATE_DIR="$(find_live_state_dir)"; then
-    printf '%s\n' "$LIVE_STATE_DIR"
-    return 0
-  fi
-
-  if preset_file="$(find_preset_file 2>/dev/null || true)" && [[ -n "$preset_file" ]]; then
-    if generated_dir="$(generate_config_dir_from_preset "$preset_file" 2>/dev/null || true)" && [[ -f "$generated_dir/thinclient.conf" ]]; then
-      printf '%s\n' "$generated_dir"
-      return 0
-    fi
-  fi
-
-  if preset_cache_dir="$(beagle_state_dir 2>/dev/null || printf '%s\n' "$PRESET_STATE_DIR_DEFAULT")"; then
-    preset_cache_file="$preset_cache_dir/cmdline-preset.env"
-    if restore_preset_from_cmdline "$preset_cache_file" 2>/dev/null; then
-      if generated_dir="$(generate_config_dir_from_preset "$preset_cache_file" 2>/dev/null || true)" && [[ -f "$generated_dir/thinclient.conf" ]]; then
-        printf '%s\n' "$generated_dir"
-        return 0
-      fi
-    fi
-  fi
-
-  return 1
+  python3 "$CONFIG_DISCOVERY_PY" find-config-dir \
+    --config-dir "${CONFIG_DIR:-}" \
+    --default-config-dir "$DEFAULT_CONFIG_DIR" \
+    --live-state-dir "${LIVE_STATE_DIR:-}" \
+    --live-state-dir-default "$LIVE_STATE_DIR_DEFAULT" \
+    --preset-file "${PVE_THIN_CLIENT_PRESET_FILE:-}" \
+    --live-preset-file-default "$LIVE_PRESET_FILE_DEFAULT" \
+    --preset-state-dir "$preset_state_dir" \
+    --runtime-user "$runtime_user" \
+    --installer-script "$installer_script"
 }
 
 load_runtime_config() {

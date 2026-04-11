@@ -970,3 +970,19 @@ Decision:
 Reason:
 
 - After the shared default contract moved out, the next real business block left in the runtime shell monolith was the cmdline-driven mode override mapping. It was small, but it defined real runtime behavior and therefore deserved an explicit seam rather than staying as another inline rule block in `common.sh`. Extracting it keeps behavior stable and narrows the remaining runtime work to config discovery and preset restoration rather than mode semantics.
+
+### D85. Runtime config discovery and cmdline-preset restore should live in a dedicated helper, not inline in common.sh
+
+Decision:
+
+- Add `thin-client-assistant/runtime/config_discovery.py` as the dedicated helper for:
+  - live-state config directory discovery
+  - preset-file discovery
+  - cmdline preset restore/decode
+  - end-to-end runtime config directory resolution, including preset-driven config generation
+- Rewire `find_live_state_dir()` and `find_config_dir()` in `thin-client-assistant/runtime/common.sh` into thin wrappers over that helper.
+- Keep `common.sh` responsible for sourcing the resulting config files and for the remaining runtime orchestration only.
+
+Reason:
+
+- After mode overrides moved out, the next substantial business/orchestration block left in `common.sh` was the combination of config discovery, preset discovery, and cmdline preset restoration. That logic mixed path policy, boot-time recovery behavior, and preset regeneration semantics. Pulling it behind a dedicated helper preserves behavior while further shrinking the runtime shell monolith and makes the remaining shell work much more obviously orchestration-only.
