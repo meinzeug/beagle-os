@@ -2,13 +2,17 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HOSTED_DOWNLOAD_LAYOUT_HELPER="$ROOT_DIR/scripts/lib/hosted_download_layout.sh"
 INSTALL_DIR="${INSTALL_DIR:-/opt/beagle}"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-$CONFIG_DIR/host.env}"
 SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}"
 LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-8443}"
 DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/beagle-downloads}"
-BASE_URL="https://${SERVER_NAME}:${LISTEN_PORT}"
+# shellcheck disable=SC1090
+source "$HOSTED_DOWNLOAD_LAYOUT_HELPER"
+HOST_ORIGIN_URL="$(beagle_host_origin_url "$SERVER_NAME" "$LISTEN_PORT")"
+DOWNLOADS_BASE_URL="$(beagle_host_downloads_base_url "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH")"
 PUBLIC_ARTIFACT_BASE_URL=""
 FAILURES=0
 STATUS_JSON_FILE="$INSTALL_DIR/dist/beagle-downloads-status.json"
@@ -29,9 +33,9 @@ load_host_env() {
   SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$SERVER_NAME}"
   LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-$LISTEN_PORT}"
   DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-$DOWNLOADS_PATH}"
-  BASE_URL="https://${SERVER_NAME}:${LISTEN_PORT}"
-  PUBLIC_ARTIFACT_BASE_URL="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-${PVE_DCV_DOWNLOADS_BASE_URL:-${BASE_URL}${DOWNLOADS_PATH}}}"
-  PUBLIC_ARTIFACT_BASE_URL="${PUBLIC_ARTIFACT_BASE_URL%/}"
+  HOST_ORIGIN_URL="$(beagle_host_origin_url "$SERVER_NAME" "$LISTEN_PORT")"
+  DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-$(beagle_host_downloads_base_url "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH")}"
+  PUBLIC_ARTIFACT_BASE_URL="$(beagle_public_artifact_base_url "$DOWNLOADS_BASE_URL" "${BEAGLE_PUBLIC_UPDATE_BASE_URL:-}")"
 
   if [[ -f "$BEAGLE_MANAGER_ENV_FILE" ]]; then
     # shellcheck disable=SC1090
@@ -68,7 +72,7 @@ check_http() {
   if [[ "$method" == "HEAD" ]]; then
     curl_args+=(-I)
   fi
-  if [[ "$url" == "${BASE_URL}"* && -f "$tls_cert_file" ]]; then
+  if [[ "$url" == "${HOST_ORIGIN_URL}"* && -f "$tls_cert_file" ]]; then
     curl_args+=(--cacert "$tls_cert_file")
   fi
   if "${curl_args[@]}" "$url" >/dev/null 2>&1; then
@@ -90,7 +94,19 @@ check_service_active() {
 }
 
 check_status_json() {
-  python3 - "$STATUS_JSON_FILE" "$INSTALL_DIR/VERSION" "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-installer-host-latest.sh" "$PUBLIC_ARTIFACT_BASE_URL/pve-thin-client-usb-bootstrap-latest.tar.gz" "$PUBLIC_ARTIFACT_BASE_URL/pve-thin-client-usb-payload-latest.tar.gz" "$PUBLIC_ARTIFACT_BASE_URL/beagle-os-installer-amd64.iso" "$PUBLIC_ARTIFACT_BASE_URL/beagle-os-server-installer-amd64.iso" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$INSTALL_DIR/dist/pve-thin-client-usb-installer-host-latest.sh" "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-latest.tar.gz" "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" "$INSTALL_DIR/dist/beagle-os-installer-amd64.iso" "$INSTALL_DIR/dist/beagle-os-server-installer-amd64.iso" <<'PY'
+  local expected_installer_url=""
+  local expected_bootstrap_url=""
+  local expected_payload_url=""
+  local expected_endpoint_iso_url=""
+  local expected_server_installer_iso_url=""
+
+  expected_installer_url="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-installer-host-latest.sh")"
+  expected_bootstrap_url="$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
+  expected_payload_url="$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
+  expected_endpoint_iso_url="$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "beagle-os-installer-amd64.iso")"
+  expected_server_installer_iso_url="$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "beagle-os-server-installer-amd64.iso")"
+
+  python3 - "$STATUS_JSON_FILE" "$INSTALL_DIR/VERSION" "$expected_installer_url" "$expected_bootstrap_url" "$expected_payload_url" "$expected_endpoint_iso_url" "$expected_server_installer_iso_url" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$INSTALL_DIR/dist/pve-thin-client-usb-installer-host-latest.sh" "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-latest.tar.gz" "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" "$INSTALL_DIR/dist/beagle-os-installer-amd64.iso" "$INSTALL_DIR/dist/beagle-os-server-installer-amd64.iso" <<'PY'
 import hashlib
 import json
 import sys
@@ -168,8 +184,11 @@ PY
 }
 
 check_hosted_installer_binding() {
-  local expected_bootstrap_url="${PUBLIC_ARTIFACT_BASE_URL}/pve-thin-client-usb-bootstrap-latest.tar.gz"
-  local expected_payload_url="${PUBLIC_ARTIFACT_BASE_URL}/pve-thin-client-usb-payload-latest.tar.gz"
+  local expected_bootstrap_url=""
+  local expected_payload_url=""
+
+  expected_bootstrap_url="$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
+  expected_payload_url="$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
   if ! grep -Fq "RELEASE_BOOTSTRAP_URL=\"\${RELEASE_BOOTSTRAP_URL:-${expected_bootstrap_url}}\"" "$INSTALL_DIR/dist/pve-thin-client-usb-installer-host-latest.sh"; then
     echo "ERR bind  hosted installer bootstrap URL"
     record_failure
@@ -232,18 +251,18 @@ check_service_active "beagle-artifacts-refresh.timer"
 check_service_active "beagle-ui-reapply.path"
 check_service_active "beagle-control-plane"
 
-check_http "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-installer-host-latest.sh"
-check_http "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-bootstrap-latest.tar.gz"
-check_http "$BASE_URL${DOWNLOADS_PATH}/pve-thin-client-usb-payload-latest.tar.gz"
-check_http "$BASE_URL${DOWNLOADS_PATH}/beagle-downloads-status.json"
-check_http "$BASE_URL${DOWNLOADS_PATH}/SHA256SUMS"
-check_http "$BASE_URL${DOWNLOADS_PATH}/beagle-os-installer-amd64.iso"
-check_http "$BASE_URL${DOWNLOADS_PATH}/beagle-os-server-installer-amd64.iso"
-check_http "$PUBLIC_ARTIFACT_BASE_URL/pve-thin-client-usb-payload-latest.tar.gz"
-check_http "$PUBLIC_ARTIFACT_BASE_URL/pve-thin-client-usb-bootstrap-latest.tar.gz"
-check_http "$PUBLIC_ARTIFACT_BASE_URL/beagle-os-installer-amd64.iso"
-check_http "$PUBLIC_ARTIFACT_BASE_URL/beagle-os-server-installer-amd64.iso"
-check_http "$BASE_URL/beagle-api/healthz" "Authorization: Bearer $BEAGLE_API_TOKEN" "GET"
+check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-installer-host-latest.sh")"
+check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
+check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
+check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-downloads-status.json")"
+check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "SHA256SUMS")"
+check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-os-installer-amd64.iso")"
+check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-os-server-installer-amd64.iso")"
+check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
+check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
+check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "beagle-os-installer-amd64.iso")"
+check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "beagle-os-server-installer-amd64.iso")"
+check_http "${HOST_ORIGIN_URL}/beagle-api/healthz" "Authorization: Bearer $BEAGLE_API_TOKEN" "GET"
 
 if check_status_json; then
   echo "OK  json  $STATUS_JSON_FILE"

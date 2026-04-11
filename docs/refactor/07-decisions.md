@@ -1713,3 +1713,15 @@ Reason:
 
 - After the source-selection, bootstrap, and write-stage extractions, the remaining dense block in the USB writer was no longer write logic but the full operator-facing target-selection and safety path. Leaving that block inline would keep the entrypoint larger than necessary and preserve one more continuation hazard for later agents.
 - Device selection, removable gating, system-disk checks, and confirmation prompts all operate on the same small state surface (`TARGET_DEVICE`, `ALLOW_*`, `DRY_RUN`, `ASSUME_YES`) and form one coherent helper seam that can be smoke-tested without pulling in the write pipeline.
+
+### D145. Hosted download layout rules should live in one shell helper shared by generation and validation
+
+Decision:
+
+- Keep the host-download origin/download-base/public-artifact-base derivation plus hosted/public artifact URL builders in `scripts/lib/hosted_download_layout.sh`.
+- Keep `scripts/prepare-host-downloads.sh` and `scripts/check-beagle-host.sh` consuming that helper instead of each reconstructing the same hosted-download and public-release URL rules inline.
+
+Reason:
+
+- The hosted-installer artifact-source split is not only a packaging concern; it is also a validation concern. If generation and health checks build hosted/public URLs independently, a filename or base-URL change can silently drift until deployment.
+- A small shell helper is the lowest-risk seam here because the affected consumers are shell entrypoints already and need the exact same URL layout logic, not a larger Python abstraction.
