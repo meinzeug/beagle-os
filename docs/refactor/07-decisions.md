@@ -1280,3 +1280,14 @@ Decision:
 Reason:
 
 - After the USB and GeForce NOW installer wrappers were reduced, `runtime_bootstrap_services.sh` remained one of the larger runtime helpers and still mixed two distinct concerns: SSH policy/host-key handling and systemd/getty/boot-mode service normalization. The systemd side is cohesive, operationally separate, and already had a natural smoke-test seam with stubbed `systemctl` and boot-mode commands. Pulling it out keeps the bootstrap layer aligned with the same “thin orchestrator + focused helpers” pattern used elsewhere in the runtime stack.
+
+### D111. Persistent SSH host-key handling should also leave `runtime_bootstrap_services.sh`
+
+Decision:
+
+- Keep SSH keygen and SSH directory accessors, persistent host-key directory resolution, persistent-to-runtime key copy, empty-key cleanup, key-presence checks, conditional host-key generation, and runtime-to-persistent host-key writes in `thin-client-assistant/runtime/runtime_ssh_host_keys.sh`.
+- `runtime_bootstrap_services.sh` should source that helper instead of carrying host-key persistence and generation logic inline, while keeping `ensure_runtime_ssh_host_keys()` as the stable orchestration wrapper for callers.
+
+Reason:
+
+- Once the systemd/getty block moved out, the remaining large sub-cluster in `runtime_bootstrap_services.sh` was the SSH host-key path. That logic is cohesive, stateful, and independently smoke-testable with temporary SSH/live-state directories plus stubbed `ssh-keygen`. Pulling it out keeps the caller-facing wrapper stable while continuing the reduction of the bootstrap helper toward focused SSH config orchestration.
