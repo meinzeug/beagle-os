@@ -2,6 +2,23 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — host public sunshine proxy extraction
+
+- Extracted the public Sunshine proxy flow out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/public_sunshine_surface.py`:
+  - `PublicSunshineSurfaceService` now owns ticket resolution, proxy request dispatch, and proxy-vs-error response shaping for the public Sunshine GET/POST surface
+  - the service composes the existing Sunshine integration seam instead of leaving ticket lookup and proxy orchestration duplicated between `do_GET` and `do_POST`
+- Rewired the control-plane entrypoint to delegate the public Sunshine proxy in both directions:
+  - `beagle-control-plane.py` now only performs the generic proxy response write and, for POST, the binary-body read before handing off to the service
+  - the entrypoint-local `_sunshine_ticket_vm(...)` helper is gone
+  - `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/public_sunshine_surface.py` into the deployed host runtime
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile beagle-host/services/public_sunshine_surface.py beagle-host/bin/beagle-control-plane.py`
+  - `bash -n scripts/install-proxmox-host-services.sh`
+  - focused smoke checks for `PublicSunshineSurfaceService` route handling and proxy/error response shaping
+  - `./scripts/validate-project.sh`
+- Current size marker after this slice:
+  - `beagle-host/bin/beagle-control-plane.py` is at about `2717` lines
+
 ### 2026-04-11 — host endpoint POST-surface extraction
 
 - Extracted the endpoint-authenticated POST surface for Moonlight registration, action pull/result, and support-bundle upload out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/endpoint_http_surface.py`:

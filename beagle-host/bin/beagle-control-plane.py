@@ -47,6 +47,7 @@ from persistence_support import PersistenceSupportService
 from policy_normalization import PolicyNormalizationService
 from policy_store import PolicyStoreService
 from public_http_surface import PublicHttpSurfaceService
+from public_sunshine_surface import PublicSunshineSurfaceService
 from public_ubuntu_install_surface import PublicUbuntuInstallSurfaceService
 from public_streams import PublicStreamService
 from request_support import RequestSupportService
@@ -506,6 +507,7 @@ CONTROL_PLANE_READ_SURFACE_SERVICE: ControlPlaneReadSurfaceService | None = None
 PUBLIC_HTTP_SURFACE_SERVICE: PublicHttpSurfaceService | None = None
 PUBLIC_UBUNTU_INSTALL_SURFACE_SERVICE: PublicUbuntuInstallSurfaceService | None = None
 ENDPOINT_HTTP_SURFACE_SERVICE: EndpointHttpSurfaceService | None = None
+PUBLIC_SUNSHINE_SURFACE_SERVICE: PublicSunshineSurfaceService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
 DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
 RUNTIME_ENVIRONMENT_SERVICE: RuntimeEnvironmentService | None = None
@@ -1700,6 +1702,16 @@ def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
     return ENDPOINT_HTTP_SURFACE_SERVICE
 
 
+def public_sunshine_surface_service() -> PublicSunshineSurfaceService:
+    global PUBLIC_SUNSHINE_SURFACE_SERVICE
+    if PUBLIC_SUNSHINE_SURFACE_SERVICE is None:
+        PUBLIC_SUNSHINE_SURFACE_SERVICE = PublicSunshineSurfaceService(
+            proxy_sunshine_request=proxy_sunshine_request,
+            resolve_ticket_vm=sunshine_integration_service().resolve_ticket_vm,
+        )
+    return PUBLIC_SUNSHINE_SURFACE_SERVICE
+
+
 def vm_state_service() -> VmStateService:
     global VM_STATE_SERVICE
     if VM_STATE_SERVICE is None:
@@ -1979,9 +1991,6 @@ class Handler(BaseHTTPRequestHandler):
             return self.client_address[0]
         return "unknown"
 
-    def _sunshine_ticket_vm(self, path: str) -> tuple[VmSummary | None, str]:
-        return sunshine_integration_service().resolve_ticket_vm(path)
-
     def _write_proxy_response(self, status_code: int, headers: dict[str, str], body: bytes) -> None:
         self.send_response(status_code)
         for key, value in headers.items():
@@ -2008,24 +2017,18 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
         query_text = parsed.query
 
-        if path.startswith("/api/v1/public/sunshine/"):
-            vm, relative = self._sunshine_ticket_vm(parsed.path)
-            if vm is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "sunshine ticket not found"})
-                return
-            try:
-                status_code, headers, body = proxy_sunshine_request(
-                    vm,
-                    request_path=relative,
-                    query=query_text,
-                    method="GET",
-                    body=None,
-                    request_headers={"Accept": self.headers.get("Accept", "")},
-                )
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": f"sunshine proxy failed: {exc}"})
-                return
-            self._write_proxy_response(status_code, headers, body)
+        response = public_sunshine_surface_service().route_request(
+            parsed.path,
+            query=query_text,
+            method="GET",
+            body=None,
+            request_headers={"Accept": self.headers.get("Accept", "")},
+        )
+        if response is not None:
+            if response["kind"] == "proxy":
+                self._write_proxy_response(response["status"], response["headers"], response["body"])
+            else:
+                self._write_json(response["status"], response["payload"])
             return
 
         response = public_http_surface_service().route_get(path)
@@ -2089,28 +2092,29 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query or "")
 
+        sunshine_body: bytes | None = None
         if path.startswith("/api/v1/public/sunshine/"):
-            vm, relative = self._sunshine_ticket_vm(parsed.path)
-            if vm is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "sunshine ticket not found"})
-                return
             try:
-                body = self._read_binary_body(max_bytes=16 * 1024 * 1024)
-                status_code, headers, response_body = proxy_sunshine_request(
-                    vm,
-                    request_path=relative,
-                    query=parsed.query,
-                    method="POST",
-                    body=body,
-                    request_headers={
-                        "Content-Type": self.headers.get("Content-Type", ""),
-                        "Accept": self.headers.get("Accept", ""),
-                    },
-                )
+                sunshine_body = self._read_binary_body(max_bytes=16 * 1024 * 1024)
             except Exception as exc:
-                self._write_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": f"sunshine proxy failed: {exc}"})
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid content length: {exc}"})
                 return
-            self._write_proxy_response(status_code, headers, response_body)
+            response = public_sunshine_surface_service().route_request(
+                parsed.path,
+                query=parsed.query,
+                method="POST",
+                body=sunshine_body,
+                request_headers={
+                    "Content-Type": self.headers.get("Content-Type", ""),
+                    "Accept": self.headers.get("Accept", ""),
+                },
+            )
+            if response is not None:
+                if response["kind"] == "proxy":
+                    self._write_proxy_response(response["status"], response["headers"], response["body"])
+                else:
+                    self._write_json(response["status"], response["payload"])
+                return
             return
 
         public_install_payload: dict[str, Any] | None = None
