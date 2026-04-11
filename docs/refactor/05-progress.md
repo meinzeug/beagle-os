@@ -1,5 +1,19 @@
 # Refactor Progress
 
+### 2026-04-12 — USB writer device-selection helper extraction
+
+- Removed the remaining operator-facing device-selection and safety block from the USB writer entrypoint:
+  - added `thin-client-assistant/usb/usb_writer_device_selection.sh` for `choose_device()`, `device_is_usb_like()`, `root_backing_disk()`, `device_contains_path_source()`, `ensure_target_is_safe()`, `show_target_device()`, `confirm_device_selection()`, and `confirm_device()`
+  - `thin-client-assistant/usb/pve-thin-client-usb-installer.sh` now sources that helper and stays focused on argument parsing, dependency/bootstrap handling, and the final write orchestration
+- This closes the last large operator/safety seam in the USB writer:
+  - device picking, removable-device gating, system-disk protection, and confirmation dialogs now live behind one dedicated helper instead of staying embedded in the entrypoint
+  - the writer entrypoint is now effectively just orchestration around helper seams for sources, bootstrap, device selection, and write-stage execution
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/usb/usb_writer_device_selection.sh thin-client-assistant/usb/pve-thin-client-usb-installer.sh`
+  - focused smoke test for `device_is_usb_like()`, `root_backing_disk()`, `device_contains_path_source()`, and `ensure_target_is_safe()` with stubbed `lsblk` / `findmnt` / `blockdev`
+  - focused smoke test for the `DRY_RUN=1` confirmation short-circuit in `confirm_device_selection()`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — USB writer write-stage helper extraction
 
 - Removed the remaining write-stage block from the USB writer entrypoint:
