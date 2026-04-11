@@ -1359,3 +1359,25 @@ Decision:
 Reason:
 
 - After the Moonlight targeting and network layers became thin, `moonlight_config_state.sh` remained one of the larger runtime helpers and still mixed read-only config access with mutating host-sync/bootstrap behavior. The sync/bootstrap side is cohesive, testable with temporary config files and stubbed Moonlight binaries, and is a better fit as its own seam. Pulling it out leaves the config-state helper focused on local Moonlight file access while the mutable host-sync logic lives in an explicit module.
+
+### D118. Moonlight audio/display runtime environment should leave `moonlight_runtime_exec.sh`
+
+Decision:
+
+- Keep `moonlight_audio_driver()`, `configure_graphics_runtime()`, and `configure_audio_runtime()` in `thin-client-assistant/runtime/moonlight_runtime_environment.sh`.
+- `thin-client-assistant/runtime/moonlight_runtime_exec.sh` should source that helper instead of carrying display/audio environment mutation inline.
+
+Reason:
+
+- Once the larger launcher split was complete, `moonlight_runtime_exec.sh` still mixed two separate concerns: stream-argument shaping and mutable session environment setup. The environment side depends on X11 readiness, audio socket detection, and graphics fallback exports, which are cohesive and independently smoke-testable with stubs. Pulling that block out keeps the execution helper focused on stream assembly while the side-effect-heavy runtime preparation lives behind an explicit seam.
+
+### D119. Moonlight decoder and resolution policy should also leave `moonlight_runtime_exec.sh`
+
+Decision:
+
+- Keep `moonlight_video_decoder()`, `record_decoder_choice()`, `local_display_resolution()`, and `moonlight_resolution()` in `thin-client-assistant/runtime/moonlight_stream_profile.sh`.
+- `thin-client-assistant/runtime/moonlight_runtime_exec.sh` should source that helper and remain focused on binary/app resolution plus final stream-argument assembly.
+
+Reason:
+
+- After the runtime-environment block moved out, the remaining non-trivial logic in `moonlight_runtime_exec.sh` was the decoder and resolution policy cluster. That logic is cohesive, read-mostly, and independently smoke-testable with stubbed `xrandr` output and fake render-node availability. Moving it out leaves the final execution helper small enough to act as a composition seam instead of another policy-heavy shell module.
