@@ -1677,3 +1677,15 @@ Reason:
 
 - The USB writer still repeated the same source-priority rules in usage/manifests/dry-run output and also scattered the `live` vs `installer` path choice across separate conditionals. Those are small rules individually, but together they were the remaining contract drift inside the writer entrypoint.
 - Moving them behind a dedicated helper keeps the writer-specific source contract explicit and prepares the next slice, where the remaining bootstrap/download asset flow can be reduced without mixing it back with variant/plan formatting logic.
+
+### D142. USB writer bootstrap unpacking and live-asset preparation should leave the writer entrypoint
+
+Decision:
+
+- Keep the USB writer's hosted bootstrap unpacking, ISO download/cache handling, and live-asset extraction/validation in `thin-client-assistant/usb/usb_writer_bootstrap.sh`.
+- Keep `pve-thin-client-usb-installer.sh` responsible for tool declaration and the actual partition/write/copy flow, not for re-embedding bootstrap/download control flow.
+
+Reason:
+
+- After source-selection moved out, the next dense block in the writer was the whole bootstrap/live-asset preparation path. Those functions share one state surface (`BOOTSTRAP_DIR`, `REPO_ROOT`, `ASSET_DIR`, cache/checksum settings) and belong together.
+- Pulling them out as one helper keeps the writer entrypoint smaller without inventing a fragmented micro-helper layer, and it leaves the remaining write-stage logic as the next obvious extraction target.

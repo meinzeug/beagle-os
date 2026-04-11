@@ -1,5 +1,19 @@
 # Refactor Progress
 
+### 2026-04-12 — USB writer bootstrap/live-asset helper extraction
+
+- Removed the bootstrap/download/live-asset preparation block from the USB writer entrypoint:
+  - added `thin-client-assistant/usb/usb_writer_bootstrap.sh` for `allocate_bootstrap_dir()`, `bootstrap_repo_root()`, `payload_has_live_assets()`, `download_installer_iso()`, `populate_live_assets_from_iso()`, `ensure_live_assets()`, and `validate_live_assets()`
+  - `thin-client-assistant/usb/pve-thin-client-usb-installer.sh` now sources that helper and keeps `require_tool()` plus the write/device orchestration in the entrypoint
+- This reduces the writer monolith materially:
+  - hosted-bootstrap unpacking, ISO download/cache logic, and live-asset extraction/validation now live behind one explicit helper seam
+  - the writer entrypoint is now more clearly split into source-selection, bootstrap/live-asset preparation, and actual USB write flow
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/usb/usb_writer_bootstrap.sh thin-client-assistant/usb/pve-thin-client-usb-installer.sh`
+  - focused smoke test for `payload_has_live_assets()` and `ensure_live_assets()` build fallback with temporary assets and a stubbed build script
+  - focused smoke test for the ISO branch of `ensure_live_assets()` with a stubbed `populate_live_assets_from_iso()`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — USB writer source-selection helper extraction
 
 - Removed the repeated USB-writer source-selection and variant-path logic from the USB writer entrypoint:
