@@ -2,6 +2,25 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — remaining authenticated admin and endpoint-lifecycle surface extraction
+
+- Extracted the remaining authenticated non-VM write surface out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/admin_http_surface.py`:
+  - `AdminHttpSurfaceService` now owns route matching, validation, queueing, and response shaping for policy create/update/delete, bulk action queueing, ubuntu-beagle VM creation, generic provisioning create, and provisioning update
+  - the service composes the already-extracted policy store, action queue, and ubuntu-beagle provisioning seams instead of leaving that admin-facing HTTP mutation block inline in the entrypoint
+- Extracted the remaining endpoint enrollment/check-in HTTP surface into `beagle-host/services/endpoint_lifecycle_surface.py`:
+  - `EndpointLifecycleSurfaceService` now owns route matching, scope validation, enrollment error mapping, endpoint check-in report persistence, and response shaping for `/api/v1/endpoints/enroll` and `/api/v1/endpoints/check-in`
+  - `EndpointReportService` gained a dedicated `store(...)` seam so endpoint check-in persistence no longer writes JSON files directly from the control-plane handler
+- Rewired the control-plane entrypoint to delegate those route families instead of rebuilding them inline:
+  - `beagle-control-plane.py` now only performs the auth gate and generic JSON-body read before handing off to `AdminHttpSurfaceService` and `EndpointLifecycleSurfaceService`
+  - `scripts/install-proxmox-host-services.sh` now installs both new surface modules into the deployed host runtime
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile beagle-host/services/admin_http_surface.py beagle-host/services/endpoint_lifecycle_surface.py beagle-host/services/endpoint_report.py beagle-host/bin/beagle-control-plane.py`
+  - `bash -n scripts/install-proxmox-host-services.sh`
+  - focused smoke checks for `AdminHttpSurfaceService`, `EndpointLifecycleSurfaceService`, and the new `EndpointReportService.store(...)` seam
+  - `./scripts/validate-project.sh`
+- Current size marker after this slice:
+  - `beagle-host/bin/beagle-control-plane.py` is down to about `2354` lines
+
 ### 2026-04-11 — host authenticated VM mutation surface extraction
 
 - Extracted the remaining single-VM authenticated mutation POST cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/vm_mutation_surface.py`:

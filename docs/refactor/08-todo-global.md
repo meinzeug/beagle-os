@@ -79,6 +79,8 @@
 - [x] Extract the endpoint-authenticated Moonlight/action/result/support-bundle-upload POST surface from `beagle-host/bin/beagle-control-plane.py` into a dedicated host endpoint HTTP surface.
 - [x] Extract the public Sunshine GET/POST proxy surface from `beagle-host/bin/beagle-control-plane.py` into a dedicated host public streaming surface.
 - [x] Extract the authenticated single-VM mutation POST surface from `beagle-host/bin/beagle-control-plane.py` into a dedicated host VM mutation surface.
+- [x] Extract the remaining authenticated non-VM admin mutation routes (policies, bulk actions, ubuntu-beagle create, provisioning create/update) from `beagle-host/bin/beagle-control-plane.py` into a dedicated host admin HTTP surface.
+- [x] Extract the remaining endpoint enrollment/check-in HTTP routes from `beagle-host/bin/beagle-control-plane.py` into a dedicated host endpoint lifecycle surface.
 - [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.

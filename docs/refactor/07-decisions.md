@@ -794,3 +794,16 @@ Decision:
 Reason:
 
 - After extracting the public and endpoint-facing surfaces, the next coherent block left in the entrypoint was the authenticated per-VM mutation surface. Those routes were already mostly orchestration across extracted services but still duplicated VM lookup, queueing, USB attach/detach sequencing, and response shaping inline. Pulling them together behind one mutation surface removes another large block from the HTTP entrypoint without changing the authenticated API contract.
+
+### D71. Remaining authenticated non-VM writes and endpoint lifecycle routes should leave the entrypoint as dedicated HTTP surfaces
+
+Decision:
+
+- Move the authenticated non-VM admin mutation routes for policy create/update/delete, bulk action queueing, ubuntu-beagle creation, provisioning create, and provisioning update into `beagle-host/services/admin_http_surface.py`.
+- Move the remaining endpoint lifecycle HTTP routes for enrollment and endpoint check-in into `beagle-host/services/endpoint_lifecycle_surface.py`.
+- Extend `beagle-host/services/endpoint_report.py` with a dedicated `store(...)` seam so endpoint report persistence no longer writes JSON files directly from `beagle-control-plane.py`.
+- Keep `beagle-control-plane.py` responsible only for auth gates, generic JSON-body reads, and final response writing for these route families.
+
+Reason:
+
+- After the VM mutation surface extraction, the largest handler-local blocks left in the control-plane entrypoint were the remaining admin-facing non-VM write routes and the endpoint enrollment/check-in lifecycle routes. They were already mostly orchestration around extracted services, but the HTTP entrypoint still owned route matching, validation, error mapping, and response envelopes. Pulling both route families behind dedicated surfaces keeps the decomposition pattern consistent, removes the last major inline HTTP mutation blocks, and leaves the next host refactor target as non-HTTP business/orchestration logic rather than more route glue.
