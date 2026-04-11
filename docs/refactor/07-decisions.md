@@ -426,3 +426,15 @@ Decision:
 Reason:
 
 - The public-stream cluster was cohesive business logic, not HTTP plumbing: it owned a persistent mapping file, interpreted VM metadata, synchronized mappings against current inventory, and allocated collision-free port ranges. Leaving that logic in the entrypoint would keep stream-orchestration state mixed into the HTTP surface. Extracting it makes the port-allocation contract explicit and prepares the later provider-neutral streaming path for Beagle-owned virtualization.
+
+### D40. Policy contract normalization belongs in one host service
+
+Decision:
+
+- Move policy selector/profile normalization, boolean/list/time shaping, and `assigned_target` normalization into `beagle-host/services/policy_normalization.py`.
+- Keep `beagle-host/bin/beagle-control-plane.py` wrapper `normalize_policy_payload(...)` stable so policy CRUD handlers do not change surface while `PolicyStoreService` switches to the new service method internally.
+- Inject only generic collaborators (`listify`, `truthy`, `utcnow`) into the service constructor instead of letting the service reach into control-plane globals.
+
+Reason:
+
+- Policy CRUD was already separated at the file-I/O layer, but the canonical contract still lived inline in the entrypoint. That kept selector/profile semantics undocumented in a reusable module and made future policy evolution depend on editing the HTTP monolith. Extracting the normalization layer gives policy contract semantics their own host-side seam without changing persisted shape or handler behavior.

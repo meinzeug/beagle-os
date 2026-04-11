@@ -2,6 +2,23 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — policy normalization extraction
+
+- Extracted the policy payload normalization block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/policy_normalization.py`:
+  - `PolicyNormalizationService` now owns canonical normalization of policy `selector` and `profile` payloads plus `assigned_target`, `update_enabled`, and list-valued egress field shaping
+  - the control-plane helper name `normalize_policy_payload` stays stable as a thin wrapper, and `PolicyStoreService` now depends on the service method instead of the inline entrypoint function
+- Kept the policy contract seam explicit instead of leaving it in the HTTP entrypoint:
+  - policy file CRUD remains in `beagle-host/services/policy_store.py`
+  - list/boolean/time shaping still reuses the existing generic collaborators `listify`, `truthy`, and `utcnow`
+  - the new service only owns policy contract normalization and validation between those seams
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/policy_normalization.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - selector/profile payloads still normalize into the existing persisted shape
+  - `assigned_target` still maps to `{vmid, node}` or `None`
+  - `policy_name=` override still wins over payload-local names
+  - invalid non-object `selector`/`profile` payloads still raise the same `ValueError` paths
+- `beagle-control-plane.py` dropped from `3614` to `3556` lines with this slice, and the host-side extracted-service count moved from 20 to 21
+
 ### 2026-04-11 — public-stream allocation and state extraction
 
 - Extracted the public-stream port-state/allocation cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/public_streams.py`:
