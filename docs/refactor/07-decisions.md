@@ -734,3 +734,15 @@ Decision:
 Reason:
 
 - After extracting the VM HTTP surface, the next coherent block in the host monolith was the remaining non-VM read surface. Those routes were already mostly thin wrappers around extracted services, but the entrypoint still owned route matching, `generated_at` envelopes, and archive-download response descriptors. Pulling them behind a second dedicated HTTP service keeps the decomposition pattern consistent and reduces the monolith without inventing another tiny utility slice.
+
+### D66. Public VM state and endpoint-authenticated update-feed belong in one public HTTP-surface service
+
+Decision:
+
+- Move the public VM read routes for `public/vms/<vmid>/state`, `public/vms/<vmid>/endpoint`, and the explicitly forbidden public installer-download endpoints into `beagle-host/services/public_http_surface.py`.
+- Fold the endpoint-authenticated `/api/v1/endpoints/update-feed` response shaping into the same service because it is the same public/endpoint-facing contract family and already composes the extracted `VmStateService`, `VmProfileService`, and `UpdateFeedService`.
+- Keep `beagle-control-plane.py` responsible only for the auth gate and final response writing for that route family.
+
+Reason:
+
+- After the VM and non-VM read slices, the remaining GET logic in the entrypoint was concentrated in the public VM state surface and the endpoint-authenticated update-feed path. Those routes share the same external-facing contract boundary and were still mostly envelope/orchestration code around extracted services. Moving them together keeps the HTTP-surface extraction pattern coherent and removes another meaningful handler block without changing public behavior.
