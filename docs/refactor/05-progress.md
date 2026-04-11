@@ -16,6 +16,20 @@
   - focused smoke test for `seed-response`, `sync-config`, and `is-configured` against a temporary Moonlight config file
   - focused smoke test for `seed_moonlight_host_from_runtime_config()` and `moonlight_host_configured()` with stubbed Moonlight accessors
 
+### 2026-04-11 — runtime ownership / GeForce NOW storage split
+
+- Split the mixed ownership/GFN-storage helper layer from `thin-client-assistant/runtime/runtime_ownership.sh`:
+  - added `thin-client-assistant/runtime/runtime_fs_ownership.sh` for `ensure_runtime_owned_dir()`, `ensure_runtime_owned_file()`, and `ensure_runtime_owned_tree()`
+  - added `thin-client-assistant/runtime/geforcenow_storage_environment.sh` for `prepare_geforcenow_environment()`
+  - reduced `thin-client-assistant/runtime/runtime_ownership.sh` to a thin composition wrapper that sources those focused helpers
+- This keeps generic filesystem ownership separate from GeForce NOW-specific runtime storage preparation:
+  - the generic ownership helpers remain reusable by `geforcenow_desktop_integration.sh` and other runtime code without carrying GFN-specific environment exports
+  - the GeForce NOW storage/home/cache/config bootstrap now lives in an explicit helper seam instead of a mixed utility file
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/runtime_ownership.sh thin-client-assistant/runtime/runtime_fs_ownership.sh thin-client-assistant/runtime/geforcenow_storage_environment.sh thin-client-assistant/runtime/common.sh thin-client-assistant/runtime/launch-geforcenow.sh thin-client-assistant/runtime/install-geforcenow.sh`
+  - focused smoke test for `ensure_runtime_owned_dir()`, `ensure_runtime_owned_file()`, and `ensure_runtime_owned_tree()` with temporary local paths
+  - focused smoke test for `prepare_geforcenow_environment()` export and directory-creation behavior with a temporary storage root
+
 ### 2026-04-11 — Moonlight host-sync helper extraction
 
 - Removed the manager-response host-sync/bootstrap block from `thin-client-assistant/runtime/moonlight_config_state.sh`:
