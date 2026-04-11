@@ -8,7 +8,6 @@ import socket
 import subprocess
 import secrets
 import shlex
-import signal
 import tempfile
 import time
 import uuid
@@ -50,6 +49,7 @@ from sunshine_access_token_store import SunshineAccessTokenStoreService
 from sunshine_integration import SunshineIntegrationService
 from support_bundle_store import SupportBundleStoreService
 from ubuntu_beagle_inputs import UbuntuBeagleInputsService
+from ubuntu_beagle_restart import UbuntuBeagleRestartService
 from ubuntu_beagle_state import UbuntuBeagleStateService
 from ubuntu_beagle_provisioning import UbuntuBeagleProvisioningService
 from update_feed import UpdateFeedService
@@ -548,6 +548,7 @@ PUBLIC_STREAM_SERVICE: PublicStreamService | None = None
 SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
 ENDPOINT_ENROLLMENT_SERVICE: EndpointEnrollmentService | None = None
 UBUNTU_BEAGLE_INPUTS_SERVICE: UbuntuBeagleInputsService | None = None
+UBUNTU_BEAGLE_RESTART_SERVICE: UbuntuBeagleRestartService | None = None
 UBUNTU_BEAGLE_STATE_SERVICE: UbuntuBeagleStateService | None = None
 UBUNTU_BEAGLE_PROVISIONING_SERVICE: UbuntuBeagleProvisioningService | None = None
 VM_SECRET_STORE_SERVICE: VmSecretStoreService | None = None
@@ -841,6 +842,22 @@ def ubuntu_beagle_state_service() -> UbuntuBeagleStateService:
     return UBUNTU_BEAGLE_STATE_SERVICE
 
 
+def ubuntu_beagle_restart_service() -> UbuntuBeagleRestartService:
+    global UBUNTU_BEAGLE_RESTART_SERVICE
+    if UBUNTU_BEAGLE_RESTART_SERVICE is None:
+        UBUNTU_BEAGLE_RESTART_SERVICE = UbuntuBeagleRestartService(
+            default_wait_timeout_seconds=UBUNTU_BEAGLE_FIRSTBOOT_POWERDOWN_WAIT_SECONDS,
+            kill_process=os.kill,
+            kill_process_group=os.killpg,
+            schedule_vm_restart_after_stop=lambda vmid, wait_timeout_seconds: HOST_PROVIDER.schedule_vm_restart_after_stop(
+                int(vmid),
+                wait_timeout_seconds=int(wait_timeout_seconds),
+            ),
+            utcnow=utcnow,
+        )
+    return UBUNTU_BEAGLE_RESTART_SERVICE
+
+
 def ubuntu_beagle_tokens_dir() -> Path:
     return ubuntu_beagle_state_service().tokens_dir()
 
@@ -862,41 +879,15 @@ def schedule_ubuntu_beagle_vm_restart(
     *,
     wait_timeout_seconds: int = UBUNTU_BEAGLE_FIRSTBOOT_POWERDOWN_WAIT_SECONDS,
 ) -> dict[str, Any]:
-    wait_timeout = max(60, int(wait_timeout_seconds or UBUNTU_BEAGLE_FIRSTBOOT_POWERDOWN_WAIT_SECONDS))
-    pid = HOST_PROVIDER.schedule_vm_restart_after_stop(int(vmid), wait_timeout_seconds=wait_timeout)
-    return {
-        "vmid": int(vmid),
-        "pid": int(pid),
-        "wait_timeout_seconds": wait_timeout,
-        "scheduled_at": utcnow(),
-    }
+    return ubuntu_beagle_restart_service().schedule(vmid, wait_timeout_seconds=wait_timeout_seconds)
+
+
+def ensure_ubuntu_beagle_vm_restart_state(state: dict[str, Any], vmid: int) -> dict[str, Any]:
+    return ubuntu_beagle_restart_service().ensure_restart_state(state, vmid)
 
 
 def cancel_scheduled_ubuntu_beagle_vm_restart(state: dict[str, Any]) -> dict[str, Any] | None:
-    restart_state = state.get("host_restart") if isinstance(state.get("host_restart"), dict) else None
-    if not restart_state:
-        return None
-    pid_raw = restart_state.get("pid")
-    try:
-        pid = int(pid_raw)
-    except (TypeError, ValueError):
-        pid = 0
-    result = dict(restart_state)
-    result["cancelled_at"] = utcnow()
-    if pid <= 0:
-        state.pop("host_restart", None)
-        return result
-    try:
-        os.killpg(pid, signal.SIGTERM)
-        result["cancelled"] = True
-    except ProcessLookupError:
-        result["cancelled"] = False
-        result["reason"] = "not-running"
-    except OSError as exc:
-        result["cancelled"] = False
-        result["reason"] = str(exc)
-    state.pop("host_restart", None)
-    return result
+    return ubuntu_beagle_restart_service().cancel(state)
 
 
 def public_ubuntu_beagle_complete_url(token: str) -> str:
@@ -1547,7 +1538,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             safe_slug=safe_slug,
             save_ubuntu_beagle_state=save_ubuntu_beagle_state,
             save_vm_secret=save_vm_secret,
-            schedule_ubuntu_beagle_vm_restart=schedule_ubuntu_beagle_vm_restart,
+            ensure_ubuntu_beagle_vm_restart_state=ensure_ubuntu_beagle_vm_restart_state,
             stream_ports=stream_ports,
             summarize_ubuntu_beagle_state=summarize_ubuntu_beagle_state,
             template_dir=UBUNTU_BEAGLE_TEMPLATE_DIR,

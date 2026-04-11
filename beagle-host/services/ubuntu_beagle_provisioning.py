@@ -53,7 +53,7 @@ class UbuntuBeagleProvisioningService:
         safe_slug: Callable[..., str],
         save_ubuntu_beagle_state: Callable[[str, dict[str, Any]], dict[str, Any]],
         save_vm_secret: Callable[[str, int, dict[str, Any]], dict[str, Any]],
-        schedule_ubuntu_beagle_vm_restart: Callable[..., dict[str, Any]],
+        ensure_ubuntu_beagle_vm_restart_state: Callable[[dict[str, Any], int], dict[str, Any]],
         stream_ports: Callable[[int], dict[str, int]],
         summarize_ubuntu_beagle_state: Callable[..., dict[str, Any]],
         template_dir: Path,
@@ -115,7 +115,7 @@ class UbuntuBeagleProvisioningService:
         self._safe_slug = safe_slug
         self._save_ubuntu_beagle_state = save_ubuntu_beagle_state
         self._save_vm_secret = save_vm_secret
-        self._schedule_ubuntu_beagle_vm_restart = schedule_ubuntu_beagle_vm_restart
+        self._ensure_ubuntu_beagle_vm_restart_state = ensure_ubuntu_beagle_vm_restart_state
         self._stream_ports = stream_ports
         self._summarize_ubuntu_beagle_state = summarize_ubuntu_beagle_state
         self._template_dir = Path(template_dir)
@@ -597,23 +597,7 @@ class UbuntuBeagleProvisioningService:
 
     def prepare_ubuntu_beagle_firstboot(self, state: dict[str, Any]) -> dict[str, Any]:
         cleanup = self.finalize_ubuntu_beagle_install(state, restart=False)
-        restart_state = state.get("host_restart") if isinstance(state.get("host_restart"), dict) else None
-        restart_pid = 0
-        if restart_state is not None:
-            try:
-                restart_pid = int(restart_state.get("pid", 0) or 0)
-            except (TypeError, ValueError):
-                restart_pid = 0
-        if restart_pid > 0:
-            try:
-                import os
-
-                os.kill(restart_pid, 0)
-            except OSError:
-                restart_state = None
-        if restart_state is None:
-            restart_state = self._schedule_ubuntu_beagle_vm_restart(int(state["vmid"]))
-            state["host_restart"] = restart_state
+        restart_state = self._ensure_ubuntu_beagle_vm_restart_state(state, int(state["vmid"]))
         state["updated_at"] = self._utcnow()
         state["status"] = "installing"
         state["phase"] = "firstboot"

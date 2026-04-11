@@ -2,6 +2,22 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — ubuntu-beagle restart-state extraction
+
+- Extracted the scheduled ubuntu-beagle host-restart helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/ubuntu_beagle_restart.py`:
+  - `UbuntuBeagleRestartService` now owns `schedule(vmid, ...)`, `ensure_restart_state(state, vmid)`, `restart_running(restart_state)`, and `cancel(state)`
+  - the control-plane helper names `schedule_ubuntu_beagle_vm_restart(...)` and `cancel_scheduled_ubuntu_beagle_vm_restart(...)` stay stable as thin wrappers, while a new thin wrapper `ensure_ubuntu_beagle_vm_restart_state(...)` feeds the provisioning service
+- Finished the restart-state wiring so the entrypoint no longer owns process-group cancellation or host-restart state transitions:
+  - `UbuntuBeagleProvisioningService` now depends on `ensure_ubuntu_beagle_vm_restart_state(...)` instead of checking `host_restart` PIDs inline and scheduling directly
+  - the public ubuntu-install failure handlers still emit the same `host_restart_cancelled` payload shape, but now get that result from the dedicated restart service
+  - `signal` import and direct `os.killpg(...)` usage are gone from `beagle-control-plane.py`
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/ubuntu_beagle_restart.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - scheduling still enforces the minimum wait timeout and returns the same `{vmid, pid, wait_timeout_seconds, scheduled_at}` shape
+  - `ensure_restart_state(...)` still reuses a live restart PID and reschedules when no active restart exists
+  - cancellation still returns the existing `cancelled_at` / `cancelled` / `reason` semantics, including the current pid-`0` edge case where only `host_restart` is cleared
+- `beagle-control-plane.py` dropped from `3370` to `3361` lines with this slice, and the host-side extracted-service module count moved from `25` to `26`
+
 ### 2026-04-11 — endpoint enrollment and bootstrap extraction
 
 - Extracted the endpoint enrollment / bootstrap helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/endpoint_enrollment.py`:

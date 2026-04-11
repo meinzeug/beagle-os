@@ -519,3 +519,15 @@ Decision:
 Reason:
 
 - The enrollment flow had become the next cohesive non-HTTP block: token TTL math, thin-client password lookup, endpoint-token issuance, endpoint bootstrap config assembly, and secret/pinned-pubkey reconciliation were all still coupled directly to the entrypoint. Extracting them makes the endpoint bootstrap contract explicit, testable, and reusable for future non-Proxmox provisioning surfaces.
+
+### D48. Ubuntu-beagle scheduled restart state belongs in one host service
+
+Decision:
+
+- Move scheduled ubuntu-beagle restart scheduling, running-state checks, and cancellation into `beagle-host/services/ubuntu_beagle_restart.py`.
+- Keep `schedule_ubuntu_beagle_vm_restart(...)` and `cancel_scheduled_ubuntu_beagle_vm_restart(...)` in `beagle-host/bin/beagle-control-plane.py` only as thin wrappers, and add `ensure_ubuntu_beagle_vm_restart_state(...)` as the thin provisioning-facing wrapper.
+- Let `UbuntuBeagleProvisioningService` depend on the restart service seam for host-restart state reuse/reschedule behavior instead of inspecting `host_restart` PIDs inline.
+
+Reason:
+
+- Restart scheduling was already a host-provider responsibility, but the stateful orchestration around reusing a live restart PID and cancelling the scheduled restart still lived split between the HTTP entrypoint and the provisioning service. Pulling that logic into one host service gives the ubuntu-beagle restart contract one explicit seam and removes direct process-group handling from the entrypoint.
