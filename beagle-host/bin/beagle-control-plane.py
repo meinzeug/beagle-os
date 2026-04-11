@@ -32,7 +32,9 @@ if str(PROVIDERS_DIR) not in sys.path:
 if str(SERVICES_DIR) not in sys.path:
     sys.path.insert(0, str(SERVICES_DIR))
 
+from action_queue import ActionQueueService
 from endpoint_profile_contract import installer_profile_surface, normalize_endpoint_profile_contract
+from endpoint_report import EndpointReportService
 from fleet_inventory import FleetInventoryService
 from health_payload import HealthPayloadService
 from host_provider_contract import HostProvider
@@ -586,6 +588,8 @@ UPDATE_FEED_SERVICE: UpdateFeedService | None = None
 FLEET_INVENTORY_SERVICE: FleetInventoryService | None = None
 HEALTH_PAYLOAD_SERVICE: HealthPayloadService | None = None
 INSTALLER_SCRIPT_SERVICE: InstallerScriptService | None = None
+ENDPOINT_REPORT_SERVICE: EndpointReportService | None = None
+ACTION_QUEUE_SERVICE: ActionQueueService | None = None
 
 
 def endpoints_dir() -> Path:
@@ -792,14 +796,23 @@ def safe_slug(value: str, default: str = "item") -> str:
     return cleaned or default
 
 
+def action_queue_service() -> ActionQueueService:
+    global ACTION_QUEUE_SERVICE
+    if ACTION_QUEUE_SERVICE is None:
+        ACTION_QUEUE_SERVICE = ActionQueueService(
+            actions_dir=actions_dir,
+            load_json_file=load_json_file,
+            safe_slug=safe_slug,
+        )
+    return ACTION_QUEUE_SERVICE
+
+
 def action_queue_path(node: str, vmid: int) -> Path:
-    safe_node = safe_slug(node, "unknown")
-    return actions_dir() / f"{safe_node}-{int(vmid)}-queue.json"
+    return action_queue_service().queue_path(node, vmid)
 
 
 def action_result_path(node: str, vmid: int) -> Path:
-    safe_node = safe_slug(node, "unknown")
-    return actions_dir() / f"{safe_node}-{int(vmid)}-last-result.json"
+    return action_queue_service().result_path(node, vmid)
 
 
 def support_bundle_metadata_path(bundle_id: str) -> Path:
@@ -2082,21 +2095,19 @@ def policy_path(name: str) -> Path:
 
 
 def load_action_queue(node: str, vmid: int) -> list[dict[str, Any]]:
-    payload = load_json_file(action_queue_path(node, vmid), [])
-    return payload if isinstance(payload, list) else []
+    return action_queue_service().load_queue(node, vmid)
 
 
 def save_action_queue(node: str, vmid: int, queue: list[dict[str, Any]]) -> None:
-    action_queue_path(node, vmid).write_text(json.dumps(queue, indent=2) + "\n", encoding="utf-8")
+    action_queue_service().save_queue(node, vmid, queue)
 
 
 def load_action_result(node: str, vmid: int) -> dict[str, Any] | None:
-    payload = load_json_file(action_result_path(node, vmid), None)
-    return payload if isinstance(payload, dict) else None
+    return action_queue_service().load_result(node, vmid)
 
 
 def store_action_result(node: str, vmid: int, payload: dict[str, Any]) -> None:
-    action_result_path(node, vmid).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    action_queue_service().store_result(node, vmid, payload)
 
 
 def queue_vm_action(vm: VmSummary, action_name: str, requested_by: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -2138,34 +2149,7 @@ def dequeue_vm_actions(node: str, vmid: int) -> list[dict[str, Any]]:
 
 
 def summarize_action_result(payload: dict[str, Any] | None) -> dict[str, Any]:
-    if not isinstance(payload, dict):
-        return {
-            "action_id": "",
-            "action": "",
-            "ok": None,
-            "message": "",
-            "artifact_path": "",
-            "stored_artifact_path": "",
-            "stored_artifact_bundle_id": "",
-            "stored_artifact_download_path": "",
-            "stored_artifact_size": 0,
-            "requested_at": "",
-            "completed_at": "",
-        }
-    return {
-        "action_id": payload.get("action_id", ""),
-        "action": payload.get("action", ""),
-        "busid": payload.get("busid", ""),
-        "ok": payload.get("ok"),
-        "message": payload.get("message", ""),
-        "artifact_path": payload.get("artifact_path", ""),
-        "stored_artifact_path": payload.get("stored_artifact_path", ""),
-        "stored_artifact_bundle_id": payload.get("stored_artifact_bundle_id", ""),
-        "stored_artifact_download_path": payload.get("stored_artifact_download_path", ""),
-        "stored_artifact_size": payload.get("stored_artifact_size", 0),
-        "requested_at": payload.get("requested_at", ""),
-        "completed_at": payload.get("completed_at", ""),
-    }
+    return action_queue_service().summarize_result(payload)
 
 
 def list_support_bundle_metadata(*, node: str | None = None, vmid: int | None = None) -> list[dict[str, Any]]:
@@ -3440,76 +3424,19 @@ def build_health_payload() -> dict[str, Any]:
     return health_payload_service().build_payload()
 
 
+def endpoint_report_service() -> EndpointReportService:
+    global ENDPOINT_REPORT_SERVICE
+    if ENDPOINT_REPORT_SERVICE is None:
+        ENDPOINT_REPORT_SERVICE = EndpointReportService(
+            endpoints_dir=endpoints_dir,
+            load_json_file=load_json_file,
+            timestamp_age_seconds=timestamp_age_seconds,
+        )
+    return ENDPOINT_REPORT_SERVICE
+
+
 def summarize_endpoint_report(payload: dict[str, Any]) -> dict[str, Any]:
-    health = payload.get("health", {}) if isinstance(payload.get("health"), dict) else {}
-    session = payload.get("session", {}) if isinstance(payload.get("session"), dict) else {}
-    runtime = payload.get("runtime", {}) if isinstance(payload.get("runtime"), dict) else {}
-    egress = payload.get("egress", {}) if isinstance(payload.get("egress"), dict) else {}
-    identity = payload.get("identity", {}) if isinstance(payload.get("identity"), dict) else {}
-    software = payload.get("software", {}) if isinstance(payload.get("software"), dict) else {}
-    install = payload.get("install", {}) if isinstance(payload.get("install"), dict) else {}
-    update = payload.get("update", {}) if isinstance(payload.get("update"), dict) else {}
-    return {
-        "endpoint_id": payload.get("endpoint_id", ""),
-        "hostname": payload.get("hostname", ""),
-        "profile_name": payload.get("profile_name", ""),
-        "vmid": payload.get("vmid"),
-        "node": payload.get("node", ""),
-        "reported_at": payload.get("reported_at", ""),
-        "stream_host": payload.get("stream_host", ""),
-        "moonlight_port": payload.get("moonlight_port", ""),
-        "moonlight_app": payload.get("moonlight_app", ""),
-        "network_mode": payload.get("network_mode", ""),
-        "egress_mode": payload.get("egress_mode", "") or egress.get("mode", ""),
-        "egress_state": egress.get("state", ""),
-        "egress_public_ip": egress.get("public_ip", ""),
-        "identity_timezone": identity.get("timezone", ""),
-        "identity_locale": identity.get("locale", ""),
-        "identity_keymap": identity.get("keymap", ""),
-        "identity_chrome_profile": identity.get("chrome_profile", ""),
-        "ip_summary": health.get("ip_summary", ""),
-        "external_ip": health.get("external_ip", ""),
-        "virtualization_type": health.get("virtualization_type", ""),
-        "networkmanager_state": health.get("networkmanager_state", ""),
-        "autologin_state": health.get("autologin_state", ""),
-        "prepare_state": health.get("prepare_state", ""),
-        "guest_agent_state": health.get("guest_agent_state", ""),
-        "moonlight_target_reachable": health.get("moonlight_target_reachable", ""),
-        "sunshine_api_reachable": health.get("sunshine_api_reachable", ""),
-        "runtime_binary": runtime.get("required_binary", ""),
-        "runtime_binary_available": runtime.get("binary_available", ""),
-        "last_launch_mode": session.get("mode", ""),
-        "last_launch_target": session.get("target", ""),
-        "last_launch_time": session.get("timestamp", ""),
-        "software_version": software.get("version", "") or install.get("project_version", ""),
-        "software_build_flavor": software.get("build_flavor", ""),
-        "software_build_arch": software.get("build_arch", ""),
-        "software_build_created_at": software.get("build_created_at", ""),
-        "install_project_version": install.get("project_version", "") or software.get("version", ""),
-        "install_source_kind": install.get("source_kind", ""),
-        "install_payload_source_url": install.get("payload_source_url", ""),
-        "install_filesystem_sha256": install.get("filesystem_squashfs_sha256", ""),
-        "install_vmlinuz_sha256": install.get("vmlinuz_sha256", ""),
-        "install_initrd_sha256": install.get("initrd_sha256", ""),
-        "install_bootstrap_manifest_version": install.get("bootstrap_manifest_version", ""),
-        "install_installed_at": install.get("installed_at", ""),
-        "update_state": update.get("state", ""),
-        "update_current_version": update.get("current_version", "") or install.get("project_version", "") or software.get("version", ""),
-        "update_latest_version": update.get("latest_version", ""),
-        "update_staged_version": update.get("staged_version", ""),
-        "update_current_slot": update.get("current_slot", ""),
-        "update_next_slot": update.get("next_slot", ""),
-        "update_available": bool(update.get("available", False)),
-        "update_pending_reboot": bool(update.get("pending_reboot", False)),
-        "update_last_scan_at": update.get("last_scan_at", ""),
-        "update_last_error": update.get("last_error", ""),
-        "usb_tunnel_state": (payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("tunnel_state", ""),
-        "usb_tunnel_port": (payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("tunnel_port", ""),
-        "usb_device_count": int((payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("device_count", 0) or 0),
-        "usb_bound_count": int((payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("bound_count", 0) or 0),
-        "usb_devices": (payload.get("usb", {}) if isinstance(payload.get("usb"), dict) else {}).get("devices", []) or [],
-        "report_age_seconds": timestamp_age_seconds(payload.get("reported_at", "")),
-    }
+    return endpoint_report_service().summarize(payload)
 
 
 def update_feed_service() -> UpdateFeedService:
@@ -3534,25 +3461,15 @@ def build_update_feed(profile: dict[str, Any], *, installed_version: str = "", c
 
 
 def endpoint_report_path(node: str, vmid: int) -> Path:
-    safe_node = re.sub(r"[^A-Za-z0-9._-]+", "-", str(node or "unknown")).strip("-") or "unknown"
-    return endpoints_dir() / f"{safe_node}-{int(vmid)}.json"
+    return endpoint_report_service().report_path(node, vmid)
 
 
 def load_endpoint_report(node: str, vmid: int) -> dict[str, Any] | None:
-    payload = load_json_file(endpoint_report_path(node, vmid), None)
-    return payload if isinstance(payload, dict) else None
+    return endpoint_report_service().load(node, vmid)
 
 
 def list_endpoint_reports() -> list[dict[str, Any]]:
-    reports = []
-    for path in sorted(endpoints_dir().glob("*.json")):
-        payload = load_json_file(path, None)
-        if not isinstance(payload, dict):
-            continue
-        payload["_path"] = str(path)
-        reports.append(payload)
-    reports.sort(key=lambda item: (str(item.get("node", "")), int(item.get("vmid", 0))))
-    return reports
+    return endpoint_report_service().list_all()
 
 
 def fleet_inventory_service() -> FleetInventoryService:

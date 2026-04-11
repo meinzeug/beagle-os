@@ -39,7 +39,9 @@
 - [x] Extract the fleet/VM inventory response builder into `beagle-host/services/fleet_inventory.py` behind a lazy factory and delegating wrapper.
 - [x] Extract the health-payload response builder into `beagle-host/services/health_payload.py` behind a lazy factory and delegating wrapper.
 - [x] Extract the installer preset and `render_vm_installer_script` / `render_vm_live_usb_script` / `render_vm_windows_installer_script` flows into `beagle-host/services/installer_script.py` behind a lazy factory and delegating wrappers.
-- [ ] Continue splitting the remaining response-model/endpoint-report/action-queue/policy/support-bundle business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
+- [x] Extract the endpoint-report I/O and summarization helpers into `beagle-host/services/endpoint_report.py` behind a lazy factory and delegating wrappers.
+- [x] Extract the action-queue/result I/O and summarization helpers into `beagle-host/services/action_queue.py` behind a lazy factory and delegating wrappers.
+- [ ] Continue splitting the remaining response-model/policy/support-bundle/vm-secret/ubuntu-beagle provisioning-state business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
 - [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.
