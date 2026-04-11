@@ -1616,3 +1616,15 @@ Decision:
 Reason:
 
 - The live menu and local installer were both deciding where the USB live assets and manifest live, but one copy needed full boot assets while the other only needed to detect the live medium. Centralizing the helper with an explicit `require_boot_assets` flag keeps the behavior split explicit without leaving the path contract duplicated across two entrypoints.
+
+### D137. USB live-device discovery and manifest payload-source validation should leave shell entrypoints
+
+Decision:
+
+- Keep `candidate_live_devices()` in `thin-client-assistant/usb/live_medium_helpers.sh` as the shared live-medium device-candidate seam for both USB installer entrypoints.
+- Keep manifest `payload_source` parsing and `http(s)` validation in `thin-client-assistant/usb/usb_manifest.py` instead of another inline Python block inside `pve-thin-client-local-installer.sh`.
+
+Reason:
+
+- The live menu still carried two `candidate_live_devices()` copies while the local installer carried a third variation. Leaving that duplication in place would keep live-medium selection brittle and make continuation harder for later agents.
+- The manifest helper already owned the other USB manifest reads/writes. Keeping `payload_source` validation outside that helper would preserve an unnecessary split between shell orchestration and manifest contract logic.

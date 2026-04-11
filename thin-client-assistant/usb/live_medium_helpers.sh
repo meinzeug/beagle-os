@@ -1,5 +1,42 @@
 #!/usr/bin/env bash
 
+candidate_live_devices() {
+  local token value
+
+  if [[ -r /proc/cmdline ]]; then
+    for token in $(< /proc/cmdline); do
+      case "$token" in
+        live-media=*)
+          value="${token#live-media=}"
+          case "$value" in
+            /dev/*)
+              printf '%s\n' "$value"
+              ;;
+            UUID=*)
+              blkid -U "${value#UUID=}" 2>/dev/null || true
+              ;;
+            LABEL=*)
+              blkid -L "${value#LABEL=}" 2>/dev/null || true
+              ;;
+          esac
+          ;;
+      esac
+    done
+  fi
+
+  blkid -L BEAGLEOS 2>/dev/null || blkid -L PVETHIN 2>/dev/null || true
+  lsblk -lnpo PATH,TYPE,FSTYPE,LABEL,RM,TRAN 2>/dev/null | awk '
+    $2 == "part" {
+      # Only treat explicit Beagle labels or actually removable/USB media as
+      # live-medium candidates. A normal internal EFI vfat partition must not
+      # cause the whole system disk to be excluded from the target picker.
+      if ($4 == "BEAGLEOS" || $4 == "PVETHIN" || $5 == "1" || $6 == "usb") {
+        print $1
+      }
+    }
+  '
+}
+
 candidate_live_asset_dir() {
   local target="$1"
   local require_boot_assets="${2:-0}"
