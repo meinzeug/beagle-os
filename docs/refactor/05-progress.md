@@ -1,5 +1,21 @@
 # Refactor Progress
 
+### 2026-04-12 — USB manifest helper extraction
+
+- Removed the inline manifest/version Python blocks from the thin-client USB shell entrypoints:
+  - added `thin-client-assistant/usb/usb_manifest.py` for shared `read-project-version`, `write-install-manifest`, and `write-usb-manifest` subcommands
+  - `thin-client-assistant/usb/pve-thin-client-local-installer.sh` now delegates manifest project-version reads plus install-manifest writes to that helper
+  - `thin-client-assistant/usb/pve-thin-client-usb-installer.sh` now delegates USB-manifest writes to that helper and keeps only shell orchestration plus asset-copy behavior
+- This reduces the USB installer surface into a clearer seam:
+  - JSON manifest parsing/writing now lives in one explicit helper instead of duplicated inline Python snippets across multiple shell entrypoints
+  - the shell scripts stay focused on payload selection, disk preparation, and copy/install orchestration
+  - the previously observed version drift on a written VM100 USB stick is now easier to reason about because manifest formatting is separated from artifact-source selection
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/usb/pve-thin-client-usb-installer.sh thin-client-assistant/usb/pve-thin-client-local-installer.sh`
+  - `python3 -m py_compile thin-client-assistant/usb/usb_manifest.py`
+  - focused smoke test for `write-usb-manifest`, `read-project-version`, and `write-install-manifest`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-11 — server-installer host-provider dispatch seam
 
 - Introduced explicit host-provider dispatch seams inside `server-installer/live-build/.../beagle-server-installer`:

@@ -4,6 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PRESET_SUMMARY_HELPER="$SCRIPT_DIR/preset_summary.py"
+USB_MANIFEST_HELPER="$SCRIPT_DIR/usb_manifest.py"
 LIVE_MEDIUM_DEFAULT="${LIVE_MEDIUM:-/run/live/medium}"
 LIVE_MEDIUM=""
 TEMP_LIVE_MEDIUM_MOUNT=""
@@ -744,22 +745,7 @@ read_manifest_project_version() {
   local manifest_file="$1"
   [[ -f "$manifest_file" ]] || return 1
 
-  python3 - "$manifest_file" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-try:
-    payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-except Exception:
-    raise SystemExit(1)
-
-value = str(payload.get("project_version", "")).strip()
-if not value:
-    raise SystemExit(1)
-
-print(value)
-PY
+  python3 "$USB_MANIFEST_HELPER" read-project-version --path "$manifest_file"
 }
 
 resolve_install_project_version() {
@@ -810,26 +796,17 @@ write_install_manifest() {
   initrd_sha="$(sha256sum "$INSTALL_LIVE_ASSET_DIR/initrd.img" | awk '{print $1}')"
   squashfs_sha="$(sha256sum "$INSTALL_LIVE_ASSET_DIR/filesystem.squashfs" | awk '{print $1}')"
 
-  python3 - "$STATE_DIR/install-manifest.json" "$project_version" "$installed_at" "$source_kind" "$payload_url" "$vmlinuz_sha" "$initrd_sha" "$squashfs_sha" "$bootstrap_version" "a" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-payload = {
-    "project": "beagle-os",
-    "project_version": sys.argv[2],
-    "installed_at": sys.argv[3],
-    "source_kind": sys.argv[4],
-    "payload_source_url": sys.argv[5],
-    "vmlinuz_sha256": sys.argv[6],
-    "initrd_sha256": sys.argv[7],
-    "filesystem_squashfs_sha256": sys.argv[8],
-    "bootstrap_manifest_version": sys.argv[9],
-    "installed_slot": sys.argv[10],
-}
-path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-PY
+  python3 "$USB_MANIFEST_HELPER" write-install-manifest \
+    --path "$STATE_DIR/install-manifest.json" \
+    --project-version "$project_version" \
+    --installed-at "$installed_at" \
+    --source-kind "$source_kind" \
+    --payload-source-url "$payload_url" \
+    --vmlinuz-sha256 "$vmlinuz_sha" \
+    --initrd-sha256 "$initrd_sha" \
+    --filesystem-squashfs-sha256 "$squashfs_sha" \
+    --bootstrap-manifest-version "$bootstrap_version" \
+    --installed-slot "a"
 }
 
 cached_preset_source() {
