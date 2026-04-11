@@ -32,7 +32,7 @@ Strategic framing:
    - keep the entrypoint moving toward a thin HTTP composition surface instead of re-centralizing orchestration there
 3. Continue the host-provider abstraction itself:
    - define the next provider-complete contract slice in `beagle-host/providers/host_provider_contract.py` and move any remaining host-side direct provider assumptions to that contract or to service modules consuming it
-   - `BEAGLE_HOST_PROVIDER` now reaches `host.env`, `beagle-manager.env`, refresh paths, and post-install checks; the next deploy task is to carry that same selection through the remaining install/proxy/server-installer surfaces without assuming Proxmox as the only runtime target
+   - `BEAGLE_HOST_PROVIDER` now reaches `host.env`, `beagle-manager.env`, refresh paths, post-install checks, the proxy installer, the Proxmox-UI integration path, and the server-installer bootstrap; the next deploy task is to reduce the remaining Proxmox-only behavior at those surfaces rather than just carrying the variable through them
 4. Align installer-generation/env builders with the same endpoint profile contract source instead of reshaping overlapping fields in multiple browser/runtime places.
 5. Continue splitting the browser UI action/render layers:
    - move the next action-heavy profile modal helpers out of `extension/components/profile-modal.js` and, where shared, out of `proxmox-ui/components/profile-modal.js`

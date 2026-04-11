@@ -33,7 +33,9 @@ JS_TARGET="$PVE_DIR/js/beagle-ui.js"
 TPL_TARGET="$PVE_DIR/index.html.tpl"
 TPL_BACKUP="$PVE_DIR/index.html.tpl.beagle.bak"
 BEAGLE_MANAGER_ENV_FILE="${PVE_DCV_CONFIG_DIR:-/etc/beagle}/beagle-manager.env"
+HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-${PVE_DCV_CONFIG_DIR:-/etc/beagle}/host.env}"
 PROJECT_VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION" 2>/dev/null || echo dev)"
+BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-proxmox}"
 SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}"
 LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-8443}"
 DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/beagle-downloads}"
@@ -90,10 +92,19 @@ ensure_root() {
 
 ensure_root "$@"
 
+if [[ -f "$HOST_ENV_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$HOST_ENV_FILE"
+fi
 if [[ -z "$BEAGLE_API_TOKEN" && -f "$BEAGLE_MANAGER_ENV_FILE" ]]; then
   # shellcheck disable=SC1090
   source "$BEAGLE_MANAGER_ENV_FILE"
   BEAGLE_API_TOKEN="${BEAGLE_MANAGER_API_TOKEN:-}"
+fi
+
+if [[ "$BEAGLE_HOST_PROVIDER" != "proxmox" ]]; then
+  echo "Skipping Proxmox UI integration for non-proxmox provider '$BEAGLE_HOST_PROVIDER'." >&2
+  exit 0
 fi
 
 if [[ "$BEAGLE_PVE_UI_EMBED_API_TOKEN" != "1" ]]; then
