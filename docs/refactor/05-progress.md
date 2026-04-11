@@ -2,6 +2,25 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — remote script-side provider reads for Sunshine guest setup
+
+- Continued the script/provider migration by extending `scripts/lib/beagle_provider.py` with reusable VM-node and raw-description helpers:
+  - added `vm_node(vmid)`
+  - added `vm_description_text(node, vmid)` and `vm_description_text_for_vmid(vmid)`
+  - added CLI commands for `vm-node` and `vm-description` alongside the existing read commands
+- Moved more Sunshine-setup reads behind the provider-facing helper seam without changing the current write/guest-exec behavior:
+  - `scripts/configure-sunshine-guest.sh` now prefers the installed/shared provider helper for guest IPv4 detection and current VM description lookup
+  - the script now resolves the helper path as local repo path for localhost targets and as `/opt/beagle/scripts/lib/beagle_provider.py` for remote installed hosts by default
+  - new env overrides `BEAGLE_REMOTE_INSTALL_DIR` and `BEAGLE_REMOTE_PROVIDER_MODULE_PATH` make that remote helper path explicit and adjustable
+  - if the helper is missing or the helper call fails, the script deliberately falls back to the previous direct `qm guest cmd` / `qm config` reads so operator behavior stays intact
+- Simplified another host-side read callsite to the shared helper CLI:
+  - `scripts/ensure-vm-stream-ready.sh` now resolves guest IPv4 through `python3 "$PROVIDER_MODULE_PATH" guest-ipv4 "$VMID"` instead of re-embedding the guest-interface parsing logic inline
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile scripts/lib/beagle_provider.py`
+  - `bash -n scripts/configure-sunshine-guest.sh scripts/ensure-vm-stream-ready.sh`
+  - focused smoke checks for the expanded `scripts/lib/beagle_provider.py`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-11 — host utility support and richer script-provider reads
 
 - Extracted the remaining shared slug/secret/PIN helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/utility_support.py`:
