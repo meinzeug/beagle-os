@@ -1012,6 +1012,11 @@
   - rewired `thin-client-assistant/runtime/generate_config_from_preset.py` to load defaults from the shared JSON contract instead of keeping a second full default table inline
   - rewired `thin-client-assistant/installer/write-config.sh`, `thin-client-assistant/installer/install.sh`, and `thin-client-assistant/installer/setup-menu.sh` to hydrate their default values through the same shared loader instead of repeating the same literal block
   - kept the menu-specific Proxmox demo placeholders in `setup-menu.sh` local so the interactive UX stays explicit while the base runtime/install defaults now come from one source
+- Reduced duplicated runtime mode/cmdline override business logic in the thin-client runtime:
+  - added `thin-client-assistant/runtime/mode_overrides.py`
+  - moved the `pve_thin_client.client_mode` cmdline parsing and the `PVE_THIN_CLIENT_MODE` / `PVE_THIN_CLIENT_BOOT_PROFILE` mapping rules out of `thin-client-assistant/runtime/common.sh`
+  - rewired `apply_runtime_mode_overrides()` in `common.sh` into a thin shell wrapper over the new helper instead of keeping the mapping rules inline
+  - kept the rest of `common.sh` unchanged so the runtime still sources config files and then applies the same final override semantics as before
 
 ### Known risks after this run
 

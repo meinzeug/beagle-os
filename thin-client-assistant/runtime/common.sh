@@ -8,6 +8,8 @@ BEAGLE_STATE_DIR_DEFAULT="/var/lib/beagle-os"
 PRESET_STATE_DIR_DEFAULT="/run/beagle-os/preset-state"
 BEAGLE_TRACE_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/runtime-trace.log"
 BEAGLE_LAST_MARKER_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/last-marker.env"
+RUNTIME_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MODE_OVERRIDES_PY="${MODE_OVERRIDES_PY:-$RUNTIME_SCRIPT_DIR/mode_overrides.py}"
 
 beagle_state_dir() {
   printf '%s\n' "${BEAGLE_STATE_DIR:-$BEAGLE_STATE_DIR_DEFAULT}"
@@ -450,54 +452,19 @@ target.chmod(0o644)
 PY
 }
 
-cmdline_var() {
-  local key="${1:-}"
-  local token
-
-  [[ -n "$key" ]] || return 1
-
-  for token in $(cat /proc/cmdline 2>/dev/null); do
-    case "$token" in
-      "${key}"=*)
-        printf '%s\n' "${token#*=}"
-        return 0
-        ;;
-    esac
-  done
-
-  return 1
-}
-
 apply_runtime_mode_overrides() {
-  local requested_mode=""
+  local key value
+  [[ -r "$MODE_OVERRIDES_PY" ]] || return 0
 
-  requested_mode="$(cmdline_var pve_thin_client.client_mode 2>/dev/null || true)"
-  requested_mode="${requested_mode,,}"
-  PVE_THIN_CLIENT_CLIENT_MODE="${requested_mode:-${PVE_THIN_CLIENT_CLIENT_MODE:-}}"
-
-  case "$requested_mode" in
-    desktop|moonlight)
-      PVE_THIN_CLIENT_MODE="MOONLIGHT"
-      PVE_THIN_CLIENT_BOOT_PROFILE="desktop"
-      ;;
-    gaming|kiosk)
-      PVE_THIN_CLIENT_MODE="KIOSK"
-      PVE_THIN_CLIENT_BOOT_PROFILE="gaming"
-      ;;
-    gfn|geforcenow|geforce-now)
-      PVE_THIN_CLIENT_MODE="GFN"
-      PVE_THIN_CLIENT_BOOT_PROFILE="gaming"
-      ;;
-  esac
-
-  case "${PVE_THIN_CLIENT_MODE:-MOONLIGHT}" in
-    GFN|KIOSK)
-      PVE_THIN_CLIENT_BOOT_PROFILE="${PVE_THIN_CLIENT_BOOT_PROFILE:-gaming}"
-      ;;
-    *)
-      PVE_THIN_CLIENT_BOOT_PROFILE="${PVE_THIN_CLIENT_BOOT_PROFILE:-desktop}"
-      ;;
-  esac
+  while IFS=$'\t' read -r key value; do
+    [[ "$key" =~ ^PVE_THIN_CLIENT_[A-Z0-9_]+$ ]] || continue
+    printf -v "$key" '%s' "$value"
+  done < <(
+    python3 "$MODE_OVERRIDES_PY" \
+      --current-mode "${PVE_THIN_CLIENT_MODE:-}" \
+      --current-boot-profile "${PVE_THIN_CLIENT_BOOT_PROFILE:-}" \
+      --current-client-mode "${PVE_THIN_CLIENT_CLIENT_MODE:-}"
+  )
 }
 
 runtime_user_name() {
