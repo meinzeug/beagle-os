@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — Moonlight connect-host helper extraction
+
+- Removed the connect-host selection block from `thin-client-assistant/runtime/moonlight_targeting.sh`:
+  - added `thin-client-assistant/runtime/moonlight_connect_host.sh` for IPv4 resolution, preferred-host resolution, direct-local-host checks, usable-local-host selection, gateway fallback selection, primary/public connect-host derivation, and the final connect-host candidate selection flow
+  - `thin-client-assistant/runtime/moonlight_targeting.sh` now sources that helper instead of carrying host-candidate selection and fallback logic inline
+- This leaves the Moonlight targeting entry helper very small:
+  - `thin-client-assistant/runtime/moonlight_targeting.sh` dropped further to about `60` lines
+  - the remaining file is now just Moonlight host/local-host/port accessors, IPv4 preference/IP-literal checks, and target formatting
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/moonlight_targeting.sh thin-client-assistant/runtime/moonlight_connect_host.sh thin-client-assistant/runtime/moonlight_reachability.sh thin-client-assistant/runtime/common.sh thin-client-assistant/runtime/launch-moonlight.sh`
+  - focused smoke test for primary/public connect-host IPv4 preference resolution
+  - focused smoke test for connect-host candidate ordering and fallback selection
+
 ### 2026-04-11 — Moonlight reachability helper extraction
 
 - Removed the Sunshine URL rewrite / probe / wait block from `thin-client-assistant/runtime/moonlight_targeting.sh`:
