@@ -72,6 +72,7 @@
 - [x] Extract the systemd/getty/boot-mode/bootstrap unit block out of `thin-client-assistant/runtime/runtime_bootstrap_services.sh` into a dedicated helper.
 - [x] Extract the persistent SSH host-key block out of `thin-client-assistant/runtime/runtime_bootstrap_services.sh` into a dedicated helper.
 - [x] Extract the managed SSH config / validated `sshd` service-control block out of `thin-client-assistant/runtime/runtime_bootstrap_services.sh` into a dedicated helper.
+- [x] Extract the Moonlight reachability / probe / wait block out of `thin-client-assistant/runtime/moonlight_targeting.sh` into a dedicated helper.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.

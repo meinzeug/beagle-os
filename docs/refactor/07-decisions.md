@@ -1303,3 +1303,14 @@ Decision:
 Reason:
 
 - Once the host-key path moved out, the last substantive block in `runtime_bootstrap_services.sh` was the managed SSH config and validated service-control path. That logic is cohesive, independently smoke-testable with stubbed `sshd` and `systemctl`, and distinct from the remaining orchestration wrapper. Pulling it out completes the main reduction of the bootstrap helper without changing any caller-visible behavior.
+
+### D113. Moonlight reachability and probe logic should leave `moonlight_targeting.sh`
+
+Decision:
+
+- Keep Sunshine API URL derivation, URL host rewriting, API/TCP stream probing, effective API URL selection, selected API URL shaping, reachability checks, and the stream-target wait loop in `thin-client-assistant/runtime/moonlight_reachability.sh`.
+- `moonlight_targeting.sh` should source that helper instead of carrying URL rewrite, probe, and wait logic inline.
+
+Reason:
+
+- After the bootstrap layer became thin, `moonlight_targeting.sh` was the next large runtime helper. It still mixed two distinct concerns: host/connect-host selection and reachability/probe execution. The probe side is cohesive, testable with stubbed `curl` and synthetic reachability functions, and does not need to stay intertwined with host-resolution logic. Pulling it out keeps `moonlight_targeting.sh` focused on target selection while giving the network-probe surface its own explicit seam.

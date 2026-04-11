@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — Moonlight reachability helper extraction
+
+- Removed the Sunshine URL rewrite / probe / wait block from `thin-client-assistant/runtime/moonlight_targeting.sh`:
+  - added `thin-client-assistant/runtime/moonlight_reachability.sh` for Sunshine API URL derivation, URL host rewriting, API/TCP stream probing, effective API URL selection, selected API URL shaping, reachability checks, and the stream-target wait loop
+  - `thin-client-assistant/runtime/moonlight_targeting.sh` now sources that helper instead of carrying URL rewrite, probe, and wait logic inline
+- This reduces the Moonlight targeting helper into a more focused host-selection module:
+  - `thin-client-assistant/runtime/moonlight_targeting.sh` dropped to about `192` lines
+  - the remaining file is now mainly about host/local-host/gateway selection and connect-host resolution, while reachability/probing lives in its own seam
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/moonlight_targeting.sh thin-client-assistant/runtime/moonlight_reachability.sh thin-client-assistant/runtime/common.sh thin-client-assistant/runtime/launch-moonlight.sh`
+  - focused smoke test for `rewrite_url_host()`, `effective_sunshine_api_url()`, and `probe_stream_target()` with a stubbed `curl`
+  - focused smoke test for `wait_for_stream_target()` with a stubbed reachability function and log capture
+
 ### 2026-04-11 — runtime SSH service-config helper extraction
 
 - Removed the remaining managed SSH config/service-validation block from `thin-client-assistant/runtime/runtime_bootstrap_services.sh`:
