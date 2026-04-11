@@ -1492,3 +1492,14 @@ Decision:
 Reason:
 
 - `geforcenow_desktop_integration.sh` still mixed two separate concerns: XDG desktop/MIME registration in the runtime user's home and `xdg-open` interception logic for both the user wrapper and the optional host shim. The wrapper/shim side is independently smoke-testable with temporary files and does not need to stay coupled to desktop-file generation. Pulling it out keeps the desktop integration helper smaller while preserving the stable `ensure_gfn_desktop_integration()` entrypoint used by `install-geforcenow.sh`.
+
+### D130. X11 Xauthority selection should leave the display-wait orchestration helper
+
+Decision:
+
+- Keep `detect_xauthority()`, `x_display_ready()`, and `select_xauthority()` in `thin-client-assistant/runtime/x11_display_selection.sh`.
+- `thin-client-assistant/runtime/x11_display.sh` should source that helper and remain focused on `wait_for_x_display_selected()` and `wait_for_x_display()`.
+
+Reason:
+
+- `x11_display.sh` still mixed two distinct concerns: deterministic Xauthority candidate discovery/readiness checks and retry/logging orchestration while waiting for the X display to come up. The discovery/readiness side is independently smoke-testable with stubbed `ps` and `xset`, while the wait side is about retry timing and log emission. Pulling the selection block out keeps the wait helper smaller and leaves the Xauthority contract explicit for both Moonlight and GeForce NOW launch paths.
