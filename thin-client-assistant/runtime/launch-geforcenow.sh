@@ -2,8 +2,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GEFORCENOW_FLATPAK_SH="${GEFORCENOW_FLATPAK_SH:-$SCRIPT_DIR/geforcenow_flatpak.sh}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
+# shellcheck disable=SC1090
+source "$GEFORCENOW_FLATPAK_SH"
 
 load_runtime_config
 beagle_log_event "gfn.start" "profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default}"
@@ -85,21 +88,6 @@ stop_stream_optimization() {
   beagle_log_event "gfn.stream-optimization" "mode=inactive"
 }
 
-flatpak_scope_flag() {
-  case "${GFN_INSTALL_SCOPE}" in
-    user|--user|"")
-      printf '%s\n' "--user"
-      ;;
-    system|--system)
-      printf '%s\n' "--system"
-      ;;
-    *)
-      echo "Unsupported GeForce NOW install scope: ${GFN_INSTALL_SCOPE}" >&2
-      exit 1
-      ;;
-  esac
-}
-
 XAUTHORITY="$(select_xauthority)"
 export XAUTHORITY
 wait_for_x_display_selected "$XAUTHORITY"
@@ -119,7 +107,7 @@ fi
 
 "$SCRIPT_DIR/install-geforcenow.sh" --ensure-only
 
-scope_flag="$(flatpak_scope_flag)"
+scope_flag="$(resolve_gfn_install_scope)"
 beagle_log_event "gfn.exec" "scope=${scope_flag} app_id=${GFN_APP_ID}"
 start_stream_optimization "$launch_target"
 trap stop_stream_optimization EXIT INT TERM
