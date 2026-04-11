@@ -891,3 +891,15 @@ Decision:
 Reason:
 
 - The runtime path still had two separate status-write implementations: one inline Python JSON writer in `launch-session.sh` and one shell-assembled key/value writer in `prepare-runtime.sh`. They were small individually but duplicated the same “derive runtime metadata then serialize it” seam. Centralizing the write contract removes more shell/JSON mixing and makes later runtime-observability changes one-module work.
+
+### D79. Preset-to-runtime config generation should leave common.sh
+
+Decision:
+
+- Move the preset-file parsing plus preset→installer-env mapping out of `thin-client-assistant/runtime/common.sh` into `thin-client-assistant/runtime/generate_config_from_preset.py`.
+- Keep `thin-client-assistant/installer/write-config.sh` as the canonical writer for the generated config directory; the new helper only owns preset parsing and env shaping before that call.
+- Keep `generate_config_dir_from_preset()` in `common.sh` as a thin wrapper so the existing shell call sites stay stable.
+
+Reason:
+
+- After the shared preset summary, enrollment writer, and status writer slices, the largest remaining installer/runtime drift block was the huge preset→runtime env export cluster inside `generate_config_dir_from_preset()`. That logic was real business mapping, not shell orchestration. Extracting it makes the mapping explicit, keeps the existing output stable, and narrows the remaining runtime work to defaults/override behavior instead of another giant inline export chain.
