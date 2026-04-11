@@ -83,6 +83,10 @@ Long-term target:
   - host-side runtime support service for in-memory cache and shell-environment parsing used by provider bootstrap and host helpers
 - `beagle-host/services/runtime_exec.py`
   - host-side runtime execution service for shared subprocess JSON/text/checked command wrappers used by provider bootstrap and host helpers
+- `beagle-host/services/persistence_support.py`
+  - host-side persistence support service for shared JSON/file loading and writing used by multiple extracted host services
+- `beagle-host/services/request_support.py`
+  - host-side request support service for bearer-token parsing, origin normalization, and computed CORS-origin policy used by the HTTP handlers
 - `beagle-host/providers/proxmox_host_provider.py`
   - `pvesh get /cluster/resources`
   - `pvesh get /nodes`
@@ -207,6 +211,21 @@ Current host-side contract:
 - `summarize_state(vm, state=None)`
 - `is_running(state)`
 - `start(vm)`
+
+### `beagle-host/services/persistence_support.py`
+
+Current host-side contract:
+
+- `load_json_file(path, fallback)`
+- `write_json_file(path, payload, mode=...)`
+
+### `beagle-host/services/request_support.py`
+
+Current host-side contract:
+
+- `extract_bearer_token(header_value)`
+- `normalized_origin(value)`
+- `cors_allowed_origins()`
 
 ### `beagle-host/services/vm_usb.py`
 
@@ -547,6 +566,8 @@ These flows now go through provider-backed services first:
 - ubuntu-beagle scheduled restart state reuse, scheduling, and cancellation through `beagle-host/services/ubuntu_beagle_restart.py`
 - shared in-memory cache semantics and shell-env parsing through `beagle-host/services/runtime_support.py`
 - shared subprocess JSON/text/checked command execution through `beagle-host/services/runtime_exec.py`
+- shared JSON/file persistence through `beagle-host/services/persistence_support.py`
+- shared bearer-token parsing, origin normalization, and computed CORS-origin policy through `beagle-host/services/request_support.py`
 - support-bundle archive persistence, metadata shaping, and filtered metadata lookup through `beagle-host/services/support_bundle_store.py`
 - installer shell/Windows template patching through `beagle-host/services/installer_template_patch.py`, with preset Base64 encoding now living inside `beagle-host/services/installer_script.py`
 - ubuntu-beagle user/password/locale/keymap validation plus desktop/package preset normalization through `beagle-host/services/ubuntu_beagle_inputs.py`
@@ -578,6 +599,8 @@ These flows now go through provider-backed services first:
 - `beagle-host/services/ubuntu_beagle_restart.py` removed scheduled restart state/cancel logic from the entrypoint, but it still depends on today's host-provider delayed-restart behavior, process-group semantics, and the current `host_restart` / `host_restart_cancelled` state shape under the new service seam.
 - `beagle-host/services/runtime_support.py` removed cache/env state from the entrypoint, but it still reflects today's simple in-memory cache semantics and the current shell-env parsing rules used for credentials/bootstrap under the new service seam.
 - `beagle-host/services/runtime_exec.py` removed command-wrapper boilerplate from the entrypoint, but it still reflects today's `subprocess.run` behavior, default timeout semantics, and stdout-based JSON/text contracts under the new service seam.
+- `beagle-host/services/persistence_support.py` removed shared JSON/file I/O from the entrypoint, but it still reflects today's pretty-printed JSON, trailing-newline, fallback-on-invalid-JSON, and best-effort chmod semantics under the new service seam.
+- `beagle-host/services/request_support.py` removed bearer/origin/CORS policy from the entrypoint, but it still reflects today's manager/web/public-stream host assumptions, Proxmox UI port expansion, runtime cache keying, and current Authorization/CORS semantics under the new service seam.
 - `beagle-host/services/support_bundle_store.py` now owns upload persistence too, but it intentionally preserves today's sanitized-filename behavior, including `.bin` fallback when suffixes are lost, so downstream download behavior stays unchanged until that contract is redesigned deliberately.
 - `beagle-host/services/installer_template_patch.py` removed template rewrite semantics from the entrypoint, but the patched variable names and placeholders still reflect today's thin-client installer templates and release artifact surface under the new service seam.
 - `beagle-host/services/ubuntu_beagle_inputs.py` removed ubuntu-beagle validation/preset semantics from the entrypoint, but those rules still intentionally reflect today's ubuntu-beagle desktop catalog, package preset IDs, and provisioning defaults under the new service seam.

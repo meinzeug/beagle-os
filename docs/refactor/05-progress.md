@@ -2,6 +2,37 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — persistence support extraction
+
+- Extracted the remaining file/JSON persistence helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/persistence_support.py`:
+  - `PersistenceSupportService` now owns `load_json_file(path, fallback)` and `write_json_file(path, payload, mode=...)`
+  - the control-plane helper names stay stable as thin wrappers, so the extracted host services that already consume those helpers did not need signature changes
+- Finished the wiring so shared JSON/file persistence no longer lives inline in the entrypoint:
+  - parent-directory creation, pretty-printed JSON output, trailing newline handling, and best-effort chmod now live behind the dedicated persistence seam
+  - missing-file and invalid-JSON fallback handling is now testable without reaching into the HTTP entrypoint
+  - existing host services still receive the same `load_json_file` / `write_json_file` collaborators, but those helpers now delegate into `PersistenceSupportService`
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/persistence_support.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - JSON write/read round-trips still preserve the existing pretty-print contract
+  - missing files still return the supplied fallback
+  - invalid JSON still returns the supplied fallback instead of raising
+
+### 2026-04-11 — request support extraction
+
+- Extracted the remaining bearer-token / origin-normalization / CORS-origin helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/request_support.py`:
+  - `RequestSupportService` now owns `extract_bearer_token(...)`, `normalized_origin(...)`, and `cors_allowed_origins()`
+  - the control-plane helper names stay stable as thin wrappers, so the HTTP handlers did not need payload or call-shape changes
+- Finished the wiring so request/origin policy no longer lives inline in the entrypoint:
+  - `cors-allowed-origins` caching now lives behind the dedicated request-support seam instead of being assembled directly in `beagle-control-plane.py`
+  - public manager / web UI / stream host / configured Proxmox UI port origin synthesis now happens in one explicit service
+  - Authorization bearer-token parsing and origin normalization are now isolated from the HTTP handler class
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/request_support.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - bearer-token extraction still strips the `Bearer ` prefix exactly as before
+  - origin normalization still collapses default ports and rejects non-HTTP(S) schemes
+  - computed CORS origins still include manager/web/stream/custom origins and still use the runtime cache
+- `beagle-control-plane.py` dropped from `3322` to `3293` lines across the persistence/request slices, and the host-side extracted-service module count moved from `28` to `30`
+
 ### 2026-04-11 — runtime exec extraction
 
 - Extracted the remaining command-wrapper helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/runtime_exec.py`:
