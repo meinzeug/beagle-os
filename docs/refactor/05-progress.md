@@ -1,5 +1,18 @@
 # Refactor Progress
 
+### 2026-04-11 — X11 display-selection helper extraction
+
+- Removed the Xauthority discovery and selection block from `thin-client-assistant/runtime/x11_display.sh`:
+  - added `thin-client-assistant/runtime/x11_display_selection.sh` for `detect_xauthority()`, `x_display_ready()`, and `select_xauthority()`
+  - `thin-client-assistant/runtime/x11_display.sh` now sources that helper and stays focused on `wait_for_x_display_selected()` and `wait_for_x_display()`
+- This reduces the X11 runtime layer into a clearer selection-vs-wait seam:
+  - Xauthority candidate discovery/readiness and display-wait orchestration now live in separate modules instead of one mixed helper
+  - `launch-geforcenow.sh` and `moonlight_runtime_environment.sh` still call the same helper surface through `common.sh`, so runtime behavior stays unchanged
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/x11_display.sh thin-client-assistant/runtime/x11_display_selection.sh thin-client-assistant/runtime/common.sh thin-client-assistant/runtime/launch-geforcenow.sh thin-client-assistant/runtime/moonlight_runtime_environment.sh`
+  - focused smoke test for `detect_xauthority()`, `x_display_ready()`, and `select_xauthority()` with temporary Xauthority files plus stubbed `ps` and `xset`
+  - focused smoke test for `wait_for_x_display_selected()` and `wait_for_x_display()` with stubbed `xset`, `sleep`, and `beagle_log_event`
+
 ### 2026-04-11 — GeForce NOW `xdg-open` helper extraction
 
 - Removed the `xdg-open` wrapper and host-shim block from `thin-client-assistant/runtime/geforcenow_desktop_integration.sh`:
