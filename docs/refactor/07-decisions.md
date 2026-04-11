@@ -1392,3 +1392,15 @@ Decision:
 Reason:
 
 - Even after `moonlight_host_sync.sh` was split out of `moonlight_config_state.sh`, it still carried the most brittle part of the Moonlight bootstrap path as large inline Python snippets. That logic is structured data parsing/mutation rather than shell orchestration, and it is far easier to smoke-test as a dedicated helper with explicit commands. Pulling it out keeps the shell side focused on environment wiring and bootstrap triggering while the host-registry behavior becomes explicit and reusable.
+
+### D121. Runtime ownership helpers and GeForce NOW storage bootstrap should not share one mixed shell module
+
+Decision:
+
+- Keep `ensure_runtime_owned_dir()`, `ensure_runtime_owned_file()`, and `ensure_runtime_owned_tree()` in `thin-client-assistant/runtime/runtime_fs_ownership.sh`.
+- Keep `prepare_geforcenow_environment()` in `thin-client-assistant/runtime/geforcenow_storage_environment.sh`.
+- `thin-client-assistant/runtime/runtime_ownership.sh` should remain only a thin composition wrapper sourcing those focused helpers.
+
+Reason:
+
+- The previous `runtime_ownership.sh` mixed generic filesystem ownership primitives with a GeForce NOW-specific storage/environment contract. Those are different abstraction levels and different reuse domains. Splitting them keeps the generic ownership layer available to other runtime modules without dragging GFN-specific exports into the same file, and it makes the GFN storage bootstrap independently smoke-testable.
