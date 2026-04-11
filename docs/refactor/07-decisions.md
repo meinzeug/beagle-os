@@ -543,3 +543,15 @@ Decision:
 Reason:
 
 - After restart extraction, the remaining cache/env helpers were the next cohesive non-HTTP utility block. They were shared by provider bootstrap and host services but still carried hidden module-local state in the entrypoint. Extracting them makes the runtime utility seam explicit and testable without changing current behavior.
+
+### D50. Command wrappers belong in one host runtime-exec service
+
+Decision:
+
+- Move `run_json(...)`, `run_text(...)`, and `run_checked(...)` into `beagle-host/services/runtime_exec.py`.
+- Keep the existing control-plane helper names as thin wrappers so host-provider bootstrap and existing services keep their current surface while subprocess timeout/default handling leaves the entrypoint.
+- Let the service own default-timeout normalization around the existing sentinel plus the shared `subprocess.run(... capture_output ...)` behavior instead of duplicating that logic inline.
+
+Reason:
+
+- After the cache/env slice, the remaining command wrappers were the next cohesive non-HTTP utility block. They were already a shared runtime seam for provider bootstrap and other helpers, but they still duplicated subprocess boilerplate directly in the entrypoint. Extracting them makes host command execution behavior explicit and testable without changing runtime semantics.

@@ -45,6 +45,7 @@ from policy_store import PolicyStoreService
 from public_streams import PublicStreamService
 from registry import create_provider, list_providers, normalize_provider_kind
 from runtime_environment import RuntimeEnvironmentService
+from runtime_exec import RuntimeExecService
 from runtime_support import RuntimeSupportService
 from sunshine_access_token_store import SunshineAccessTokenStoreService
 from sunshine_integration import SunshineIntegrationService
@@ -255,6 +256,11 @@ UBUNTU_BEAGLE_SOFTWARE_PRESETS: dict[str, dict[str, Any]] = {
 }
 
 RUNTIME_SUPPORT_SERVICE = RuntimeSupportService(monotonic=time.monotonic)
+RUNTIME_EXEC_SERVICE = RuntimeExecService(
+    default_timeout_seconds=COMMAND_TIMEOUT_SECONDS,
+    default_timeout_sentinel=DEFAULT_COMMAND_TIMEOUT,
+    run_subprocess=subprocess.run,
+)
 
 
 def resolve_public_stream_host(host: str) -> str:
@@ -342,6 +348,10 @@ def load_json_file(path: Path, fallback: Any) -> Any:
 
 def runtime_support_service() -> RuntimeSupportService:
     return RUNTIME_SUPPORT_SERVICE
+
+
+def runtime_exec_service() -> RuntimeExecService:
+    return RUNTIME_EXEC_SERVICE
 
 
 def cache_get(key: str, ttl_seconds: float) -> Any:
@@ -458,45 +468,15 @@ def ensure_data_dir() -> Path:
 
 
 def run_json(command: list[str], *, timeout: float | None | object = DEFAULT_COMMAND_TIMEOUT) -> Any:
-    try:
-        result = subprocess.run(
-            command,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=COMMAND_TIMEOUT_SECONDS if timeout is DEFAULT_COMMAND_TIMEOUT else timeout,
-        )
-    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return None
-    try:
-        return json.loads(result.stdout or "null")
-    except json.JSONDecodeError:
-        return None
+    return runtime_exec_service().run_json(command, timeout=timeout)
 
 
 def run_text(command: list[str], *, timeout: float | None | object = DEFAULT_COMMAND_TIMEOUT) -> str:
-    try:
-        result = subprocess.run(
-            command,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=COMMAND_TIMEOUT_SECONDS if timeout is DEFAULT_COMMAND_TIMEOUT else timeout,
-        )
-    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return ""
-    return result.stdout
+    return runtime_exec_service().run_text(command, timeout=timeout)
 
 
 def run_checked(command: list[str], *, timeout: float | None | object = DEFAULT_COMMAND_TIMEOUT) -> str:
-    result = subprocess.run(
-        command,
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=COMMAND_TIMEOUT_SECONDS if timeout is DEFAULT_COMMAND_TIMEOUT else timeout,
-    )
-    return result.stdout
+    return runtime_exec_service().run_checked(command, timeout=timeout)
 
 
 HOST_PROVIDER: HostProvider = create_provider(
