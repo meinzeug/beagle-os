@@ -73,6 +73,8 @@ Long-term target:
   - host-side public-stream mapping and port-allocation service that composes provider-backed VM/config lookup plus persistent mapping state without leaving that orchestration in the HTTP entrypoint
 - `beagle-host/services/policy_normalization.py`
   - host-side policy contract normalization service that shapes selector/profile payloads without leaving that contract logic in the HTTP entrypoint
+- `beagle-host/services/runtime_environment.py`
+  - host-side runtime environment service for public-stream host resolution and manager pinned-pubkey derivation used by multiple other host services
 - `beagle-host/providers/proxmox_host_provider.py`
   - `pvesh get /cluster/resources`
   - `pvesh get /nodes`
@@ -290,6 +292,30 @@ Current host-side contract:
 - `normalize_package_presets(value)`
 - `expand_software_packages(package_presets, extra_packages)`
 
+### `beagle-host/services/action_queue.py`
+
+Current host-side contract:
+
+- `queue_path(node, vmid)`
+- `result_path(node, vmid)`
+- `load_queue(node, vmid)`
+- `save_queue(node, vmid, queue)`
+- `queue_action(vm, action_name, requested_by, params=None)`
+- `queue_bulk_actions(vmids, action_name, requested_by)`
+- `dequeue_actions(node, vmid)`
+- `load_result(node, vmid)`
+- `wait_for_result(node, vmid, action_id, timeout_seconds=...)`
+- `store_result(node, vmid, payload)`
+- `summarize_result(payload)`
+
+### `beagle-host/services/runtime_environment.py`
+
+Current host-side contract:
+
+- `resolve_public_stream_host(host)`
+- `current_public_stream_host()`
+- `manager_pinned_pubkey()`
+
 ### `core/virtualization/service.js`
 
 Generic contract:
@@ -475,10 +501,11 @@ These flows now go through provider-backed services first:
 - Sunshine pinned-pubkey retrieval, Moonlight certificate registration, Sunshine server identity discovery, access-ticket issuance/resolution, and Sunshine HTTP proxying through `beagle-host/services/sunshine_integration.py`
 - public-stream mapping persistence, explicit-port sync, stale-entry cleanup, and next-free base-port allocation through `beagle-host/services/public_streams.py`
 - policy selector/profile/default normalization through `beagle-host/services/policy_normalization.py`
+- runtime host resolution and manager pinned-pubkey derivation through `beagle-host/services/runtime_environment.py`
 - support-bundle archive persistence, metadata shaping, and filtered metadata lookup through `beagle-host/services/support_bundle_store.py`
 - installer shell/Windows template patching through `beagle-host/services/installer_template_patch.py`, with preset Base64 encoding now living inside `beagle-host/services/installer_script.py`
 - ubuntu-beagle user/password/locale/keymap validation plus desktop/package preset normalization through `beagle-host/services/ubuntu_beagle_inputs.py`
-- action queue orchestration, bulk dedupe, and dequeue behavior through the expanded `beagle-host/services/action_queue.py`
+- action queue orchestration, bulk dedupe, dequeue behavior, and action-result waiting through the expanded `beagle-host/services/action_queue.py`
 - VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through the selected host provider, currently `beagle-host/providers/proxmox_host_provider.py`
 - browser-/installer-facing endpoint profile payload normalization through `beagle-host/bin/endpoint_profile_contract.py`
 
@@ -501,10 +528,11 @@ These flows now go through provider-backed services first:
 - `beagle-host/services/sunshine_integration.py` removed the Sunshine/Moonlight block from the entrypoint, but it still depends on Sunshine-specific guest file paths/state layout, Sunshine HTTP/API semantics, `curl`/`openssl` behavior, and current Moonlight certificate-registration conventions under the new service seam.
 - `beagle-host/services/public_streams.py` removed port-state/orchestration from the entrypoint, but it still interprets today's description-meta keys (`beagle-public-moonlight-port`) and VM inventory/config semantics through provider-backed reads under the new service seam.
 - `beagle-host/services/policy_normalization.py` removed policy contract shaping from the entrypoint, but the normalized fields still reflect today's endpoint/profile policy semantics and browser/runtime expectations under the new service seam.
+- `beagle-host/services/runtime_environment.py` removed manager pinned-pubkey derivation and public-host resolution from the entrypoint, but it still depends on today's manager-cert file location, local OpenSSL CLI behavior, and current DNS/IPv4-first host-resolution semantics under the new service seam.
 - `beagle-host/services/support_bundle_store.py` now owns upload persistence too, but it intentionally preserves today's sanitized-filename behavior, including `.bin` fallback when suffixes are lost, so downstream download behavior stays unchanged until that contract is redesigned deliberately.
 - `beagle-host/services/installer_template_patch.py` removed template rewrite semantics from the entrypoint, but the patched variable names and placeholders still reflect today's thin-client installer templates and release artifact surface under the new service seam.
 - `beagle-host/services/ubuntu_beagle_inputs.py` removed ubuntu-beagle validation/preset semantics from the entrypoint, but those rules still intentionally reflect today's ubuntu-beagle desktop catalog, package preset IDs, and provisioning defaults under the new service seam.
-- `beagle-host/services/action_queue.py` now owns queue orchestration too, but action-id shape and queue timestamping still reflect today's control-plane action semantics so downstream endpoint/runtime consumers keep working unchanged.
+- `beagle-host/services/action_queue.py` now owns queue orchestration and result waiting too, but action-id shape, polling cadence, result-file semantics, and queue timestamping still reflect today's control-plane action semantics so downstream endpoint/runtime consumers keep working unchanged.
 
 ### Script surfaces
 

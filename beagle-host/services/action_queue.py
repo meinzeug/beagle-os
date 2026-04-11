@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -12,14 +13,18 @@ class ActionQueueService:
         actions_dir: Callable[[], Path],
         find_vm: Callable[[int], Any | None],
         load_json_file: Callable[[Path, Any], Any],
+        monotonic: Callable[[], float] | None = None,
         safe_slug: Callable[[str, str], str],
+        sleep: Callable[[float], None] | None = None,
         time_now_epoch: Callable[[], float],
         utcnow: Callable[[], str],
     ) -> None:
         self._actions_dir = actions_dir
         self._find_vm = find_vm
         self._load_json_file = load_json_file
+        self._monotonic = monotonic or time.monotonic
         self._safe_slug = safe_slug
+        self._sleep = sleep or time.sleep
         self._time_now_epoch = time_now_epoch
         self._utcnow = utcnow
 
@@ -87,6 +92,22 @@ class ActionQueueService:
     def load_result(self, node: str, vmid: int) -> dict[str, Any] | None:
         payload = self._load_json_file(self.result_path(node, vmid), None)
         return payload if isinstance(payload, dict) else None
+
+    def wait_for_result(
+        self,
+        node: str,
+        vmid: int,
+        action_id: str,
+        *,
+        timeout_seconds: float,
+    ) -> dict[str, Any] | None:
+        deadline = self._monotonic() + max(1.0, timeout_seconds)
+        while self._monotonic() < deadline:
+            payload = self.load_result(node, vmid)
+            if isinstance(payload, dict) and str(payload.get("action_id", "")).strip() == action_id:
+                return payload
+            self._sleep(1)
+        return None
 
     def store_result(self, node: str, vmid: int, payload: dict[str, Any]) -> None:
         self.result_path(node, vmid).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

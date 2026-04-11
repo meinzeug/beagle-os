@@ -2,6 +2,36 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime environment extraction
+
+- Extracted the runtime host-resolution / manager-pinned-pubkey helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/runtime_environment.py`:
+  - `RuntimeEnvironmentService` now owns `resolve_public_stream_host(host)`, `current_public_stream_host()`, and `manager_pinned_pubkey()`
+  - the control-plane helper names stay stable as thin wrappers, so downstream handler and service collaborators did not need surface changes
+- Finished the factory wiring so the entrypoint no longer carries direct runtime pinning state:
+  - `DownloadMetadataService`, `VmProfileService`, `UbuntuBeagleProvisioningService`, and `InstallerScriptService` now receive `manager_pinned_pubkey()` through the new service seam instead of a module-level constant
+  - endpoint enrollment responses now emit `beagle_manager_pinned_pubkey` from the same runtime service path
+  - `PublicStreamService` and `VmSecretBootstrapService` now consume the runtime-resolved public stream host through the same service seam
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/runtime_environment.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - direct IPv4 values still short-circuit unchanged
+  - DNS-backed public stream hosts still resolve to the first IPv4 result
+  - manager pinned-pubkey generation still returns the same `sha256//...` format and now caches the result after the first OpenSSL round-trip
+  - missing manager certs still return an empty pinned-pubkey string
+- `beagle-control-plane.py` and the immediate follow-up queue-wait slice together dropped from `3447` to `3418` lines, and the host-side extracted-service module count moved from `23` to `24`
+
+### 2026-04-11 — action-result wait extraction
+
+- Finished the remaining result-wait loop inside `beagle-host/services/action_queue.py`:
+  - `ActionQueueService` now owns `wait_for_result(node, vmid, action_id, timeout_seconds=...)` in addition to queue/result path lookup, queue orchestration, result persistence, and result summarization
+  - the control-plane helper name `wait_for_action_result(...)` stays stable as a thin wrapper, so the USB attach/detach retry handlers kept their existing call shape and timeouts
+- Kept the result-wait seam inside the existing queue service instead of creating another tiny helper module:
+  - the wait loop already depends on result-file semantics and the queue/result persistence contract
+  - injected `monotonic` and `sleep` collaborators make the wait behavior explicit and testable without pushing it back into the HTTP entrypoint
+- Smoke-tested the expanded queue service outside the server loop:
+  - queue IDs still retain the current `node-vmid-timestamp-index` format
+  - bulk queueing still deduplicates VMIDs and ignores missing VMs
+  - waiting for the matching `action_id` still returns the stored result, while non-matching IDs still time out to `None`
+
 ### 2026-04-11 — Ubuntu-Beagle input and preset normalization extraction
 
 - Extracted the ubuntu-beagle input/preset normalization block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/ubuntu_beagle_inputs.py`:

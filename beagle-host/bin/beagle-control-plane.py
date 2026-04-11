@@ -4,14 +4,11 @@ from __future__ import annotations
 import json
 import os
 import re
+import socket
 import subprocess
-import hashlib
-import ipaddress
-import base64
 import secrets
 import shlex
 import signal
-import socket
 import tempfile
 import time
 import uuid
@@ -47,6 +44,7 @@ from policy_normalization import PolicyNormalizationService
 from policy_store import PolicyStoreService
 from public_streams import PublicStreamService
 from registry import create_provider, list_providers, normalize_provider_kind
+from runtime_environment import RuntimeEnvironmentService
 from sunshine_access_token_store import SunshineAccessTokenStoreService
 from sunshine_integration import SunshineIntegrationService
 from support_bundle_store import SupportBundleStoreService
@@ -258,30 +256,11 @@ _CACHE: dict[str, tuple[float, Any]] = {}
 
 
 def resolve_public_stream_host(host: str) -> str:
-    candidate = str(host or "").strip()
-    if not candidate:
-        return ""
-    try:
-        ipaddress.ip_address(candidate)
-        return candidate
-    except ValueError:
-        pass
-    try:
-        infos = socket.getaddrinfo(candidate, None, family=socket.AF_INET, type=socket.SOCK_STREAM)
-    except socket.gaierror:
-        return candidate
-    for item in infos:
-        ip = str(item[4][0]).strip()
-        if ip:
-            return ip
-    return candidate
-
-
-PUBLIC_STREAM_HOST = resolve_public_stream_host(PUBLIC_STREAM_HOST_RAW)
+    return runtime_environment_service().resolve_public_stream_host(host)
 
 
 def current_public_stream_host() -> str:
-    return resolve_public_stream_host(PUBLIC_STREAM_HOST_RAW)
+    return runtime_environment_service().current_public_stream_host()
 
 
 def public_installer_iso_url() -> str:
@@ -553,6 +532,7 @@ VIRTUALIZATION_INVENTORY = VirtualizationInventoryService(
 VM_PROFILE_SERVICE: VmProfileService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
 DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
+RUNTIME_ENVIRONMENT_SERVICE: RuntimeEnvironmentService | None = None
 UPDATE_FEED_SERVICE: UpdateFeedService | None = None
 FLEET_INVENTORY_SERVICE: FleetInventoryService | None = None
 HEALTH_PAYLOAD_SERVICE: HealthPayloadService | None = None
@@ -609,7 +589,7 @@ def public_stream_service() -> PublicStreamService:
     global PUBLIC_STREAM_SERVICE
     if PUBLIC_STREAM_SERVICE is None:
         PUBLIC_STREAM_SERVICE = PublicStreamService(
-            current_public_stream_host=current_public_stream_host,
+            current_public_stream_host=runtime_environment_service().current_public_stream_host,
             data_dir=lambda: EFFECTIVE_DATA_DIR,
             get_vm_config=get_vm_config,
             list_vms=lambda: list_vms(),
@@ -622,6 +602,18 @@ def public_stream_service() -> PublicStreamService:
             write_json_file=write_json_file,
         )
     return PUBLIC_STREAM_SERVICE
+
+
+def runtime_environment_service() -> RuntimeEnvironmentService:
+    global RUNTIME_ENVIRONMENT_SERVICE
+    if RUNTIME_ENVIRONMENT_SERVICE is None:
+        RUNTIME_ENVIRONMENT_SERVICE = RuntimeEnvironmentService(
+            manager_cert_file=MANAGER_CERT_FILE,
+            public_stream_host_raw=PUBLIC_STREAM_HOST_RAW,
+            getaddrinfo=socket.getaddrinfo,
+            run_subprocess=subprocess.run,
+        )
+    return RUNTIME_ENVIRONMENT_SERVICE
 
 
 def vm_secret_store_service() -> VmSecretStoreService:
@@ -644,7 +636,7 @@ def vm_secret_bootstrap_service() -> VmSecretBootstrapService:
             data_dir=lambda: EFFECTIVE_DATA_DIR,
             load_vm_secret=load_vm_secret,
             public_server_name=PUBLIC_SERVER_NAME,
-            public_stream_host=PUBLIC_STREAM_HOST,
+            public_stream_host=runtime_environment_service().current_public_stream_host(),
             random_pin=random_pin,
             random_secret=random_secret,
             resolve_sunshine_pinned_pubkey=resolve_vm_sunshine_pinned_pubkey,
@@ -739,7 +731,7 @@ def download_metadata_service() -> DownloadMetadataService:
             dist_sha256sums_file=DIST_SHA256SUMS_FILE,
             downloads_status_file=DOWNLOADS_STATUS_FILE,
             load_json_file=load_json_file,
-            manager_pinned_pubkey=MANAGER_PINNED_PUBKEY,
+            manager_pinned_pubkey=manager_pinned_pubkey(),
             public_downloads_path=PUBLIC_DOWNLOADS_PATH,
             public_downloads_port=PUBLIC_DOWNLOADS_PORT,
             public_manager_url=PUBLIC_MANAGER_URL,
@@ -897,7 +889,9 @@ def action_queue_service() -> ActionQueueService:
             actions_dir=actions_dir,
             find_vm=lambda vmid: VIRTUALIZATION_INVENTORY.find_vm(vmid),
             load_json_file=load_json_file,
+            monotonic=time.monotonic,
             safe_slug=safe_slug,
+            sleep=time.sleep,
             time_now_epoch=lambda: datetime.now(timezone.utc).timestamp(),
             utcnow=utcnow,
         )
@@ -1040,29 +1034,7 @@ def ensure_vm_secret(vm: VmSummary) -> dict[str, Any]:
 
 
 def manager_pinned_pubkey() -> str:
-    if not MANAGER_CERT_FILE.is_file():
-        return ""
-    try:
-        pubkey = subprocess.run(
-            ["openssl", "x509", "-in", str(MANAGER_CERT_FILE), "-pubkey", "-noout"],
-            check=True,
-            capture_output=True,
-            text=False,
-        ).stdout
-        der = subprocess.run(
-            ["openssl", "pkey", "-pubin", "-outform", "der"],
-            check=True,
-            input=pubkey,
-            capture_output=True,
-            text=False,
-        ).stdout
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return ""
-    digest = hashlib.sha256(der).digest()
-    return "sha256//" + base64.b64encode(digest).decode("ascii")
-
-
-MANAGER_PINNED_PUBKEY = manager_pinned_pubkey()
+    return runtime_environment_service().manager_pinned_pubkey()
 
 
 def fetch_https_pinned_pubkey(url: str) -> str:
@@ -1324,13 +1296,12 @@ def wait_for_guest_usb_attachment(vmid: int, busid: str, *, timeout_seconds: flo
 
 
 def wait_for_action_result(node: str, vmid: int, action_id: str, *, timeout_seconds: float) -> dict[str, Any] | None:
-    deadline = time.monotonic() + max(1.0, timeout_seconds)
-    while time.monotonic() < deadline:
-        payload = load_action_result(node, vmid)
-        if isinstance(payload, dict) and str(payload.get("action_id", "")).strip() == action_id:
-            return payload
-        time.sleep(1)
-    return None
+    return action_queue_service().wait_for_result(
+        node,
+        vmid,
+        action_id,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 def build_vm_usb_state(vm: VmSummary, report: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -1534,7 +1505,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             list_ubuntu_beagle_states=list_ubuntu_beagle_states,
             local_iso_dir=Path("/var/lib/vz/template/iso"),
             make_vm_summary=lambda **kwargs: VmSummary(**kwargs),
-            manager_pinned_pubkey=MANAGER_PINNED_PUBKEY,
+            manager_pinned_pubkey=manager_pinned_pubkey(),
             normalize_keymap=ubuntu_beagle_inputs_service().normalize_keymap,
             normalize_locale=ubuntu_beagle_inputs_service().normalize_locale,
             normalize_package_names=ubuntu_beagle_inputs_service().normalize_package_names,
@@ -1668,7 +1639,7 @@ def vm_profile_service() -> VmProfileService:
             list_policies=list_policies,
             listify=listify,
             load_vm_secret=load_vm_secret,
-            manager_pinned_pubkey=MANAGER_PINNED_PUBKEY,
+            manager_pinned_pubkey=manager_pinned_pubkey(),
             normalize_endpoint_profile_contract=normalize_endpoint_profile_contract,
             parse_description_meta=parse_description_meta,
             public_installer_iso_url=download_metadata_service().public_installer_iso_url,
@@ -1834,7 +1805,7 @@ def installer_script_service() -> InstallerScriptService:
             hosted_installer_template_file=HOSTED_INSTALLER_TEMPLATE_FILE,
             hosted_live_usb_template_file=HOSTED_LIVE_USB_TEMPLATE_FILE,
             issue_enrollment_token=issue_enrollment_token,
-            manager_pinned_pubkey=MANAGER_PINNED_PUBKEY,
+            manager_pinned_pubkey=manager_pinned_pubkey(),
             parse_description_meta=parse_description_meta,
             patch_installer_defaults=installer_template_patch_service().patch_installer_defaults,
             patch_windows_installer_defaults=installer_template_patch_service().patch_windows_installer_defaults,
@@ -2693,7 +2664,7 @@ class Handler(BaseHTTPRequestHandler):
                     "config": {
                         "beagle_manager_url": PUBLIC_MANAGER_URL,
                         "beagle_manager_token": endpoint_token,
-                        "beagle_manager_pinned_pubkey": MANAGER_PINNED_PUBKEY,
+                        "beagle_manager_pinned_pubkey": manager_pinned_pubkey(),
                         "update_enabled": bool(profile.get("update_enabled", True)),
                         "update_channel": str(profile.get("update_channel", "stable") or "stable"),
                         "update_behavior": str(profile.get("update_behavior", "prompt") or "prompt"),
