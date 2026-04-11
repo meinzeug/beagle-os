@@ -77,6 +77,8 @@ Long-term target:
   - host-side runtime environment service for public-stream host resolution and manager pinned-pubkey derivation used by multiple other host services
 - `beagle-host/services/endpoint_enrollment.py`
   - host-side endpoint enrollment/bootstrap service for installer enrollment-token issuance and endpoint bootstrap/config response shaping
+- `beagle-host/services/ubuntu_beagle_restart.py`
+  - host-side ubuntu-beagle restart orchestration service for scheduled restart state reuse and cancellation
 - `beagle-host/providers/proxmox_host_provider.py`
   - `pvesh get /cluster/resources`
   - `pvesh get /nodes`
@@ -325,6 +327,15 @@ Current host-side contract:
 - `current_public_stream_host()`
 - `manager_pinned_pubkey()`
 
+### `beagle-host/services/ubuntu_beagle_restart.py`
+
+Current host-side contract:
+
+- `schedule(vmid, wait_timeout_seconds=...)`
+- `ensure_restart_state(state, vmid)`
+- `restart_running(restart_state)`
+- `cancel(state)`
+
 ### `core/virtualization/service.js`
 
 Generic contract:
@@ -512,6 +523,7 @@ These flows now go through provider-backed services first:
 - policy selector/profile/default normalization through `beagle-host/services/policy_normalization.py`
 - runtime host resolution and manager pinned-pubkey derivation through `beagle-host/services/runtime_environment.py`
 - installer enrollment-token issuance and endpoint bootstrap/config payload shaping through `beagle-host/services/endpoint_enrollment.py`
+- ubuntu-beagle scheduled restart state reuse, scheduling, and cancellation through `beagle-host/services/ubuntu_beagle_restart.py`
 - support-bundle archive persistence, metadata shaping, and filtered metadata lookup through `beagle-host/services/support_bundle_store.py`
 - installer shell/Windows template patching through `beagle-host/services/installer_template_patch.py`, with preset Base64 encoding now living inside `beagle-host/services/installer_script.py`
 - ubuntu-beagle user/password/locale/keymap validation plus desktop/package preset normalization through `beagle-host/services/ubuntu_beagle_inputs.py`
@@ -540,6 +552,7 @@ These flows now go through provider-backed services first:
 - `beagle-host/services/policy_normalization.py` removed policy contract shaping from the entrypoint, but the normalized fields still reflect today's endpoint/profile policy semantics and browser/runtime expectations under the new service seam.
 - `beagle-host/services/runtime_environment.py` removed manager pinned-pubkey derivation and public-host resolution from the entrypoint, but it still depends on today's manager-cert file location, local OpenSSL CLI behavior, and current DNS/IPv4-first host-resolution semantics under the new service seam.
 - `beagle-host/services/endpoint_enrollment.py` removed endpoint enrollment/bootstrap payload shaping from the entrypoint, but it still reflects today's endpoint update/Moonlight/USB/egress/identity config contract plus the current thin-client enrollment-token flow under the new service seam.
+- `beagle-host/services/ubuntu_beagle_restart.py` removed scheduled restart state/cancel logic from the entrypoint, but it still depends on today's host-provider delayed-restart behavior, process-group semantics, and the current `host_restart` / `host_restart_cancelled` state shape under the new service seam.
 - `beagle-host/services/support_bundle_store.py` now owns upload persistence too, but it intentionally preserves today's sanitized-filename behavior, including `.bin` fallback when suffixes are lost, so downstream download behavior stays unchanged until that contract is redesigned deliberately.
 - `beagle-host/services/installer_template_patch.py` removed template rewrite semantics from the entrypoint, but the patched variable names and placeholders still reflect today's thin-client installer templates and release artifact surface under the new service seam.
 - `beagle-host/services/ubuntu_beagle_inputs.py` removed ubuntu-beagle validation/preset semantics from the entrypoint, but those rules still intentionally reflect today's ubuntu-beagle desktop catalog, package preset IDs, and provisioning defaults under the new service seam.
