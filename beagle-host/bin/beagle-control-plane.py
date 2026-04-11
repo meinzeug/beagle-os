@@ -33,6 +33,7 @@ if str(SERVICES_DIR) not in sys.path:
     sys.path.insert(0, str(SERVICES_DIR))
 
 from action_queue import ActionQueueService
+from download_metadata import DownloadMetadataService
 from endpoint_profile_contract import installer_profile_surface, normalize_endpoint_profile_contract
 from endpoint_report import EndpointReportService
 from endpoint_token_store import EndpointTokenStoreService
@@ -276,56 +277,39 @@ def current_public_stream_host() -> str:
 
 
 def public_installer_iso_url() -> str:
-    return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/beagle-os-installer-amd64.iso"
+    return download_metadata_service().public_installer_iso_url()
 
 
 def public_windows_installer_url() -> str:
-    return f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}{PUBLIC_DOWNLOADS_PATH}/pve-thin-client-usb-installer-host-latest.ps1"
+    return download_metadata_service().public_windows_installer_url()
 
 
 def public_update_sha256sums_url() -> str:
-    return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/SHA256SUMS"
+    return download_metadata_service().public_update_sha256sums_url()
 
 
 def public_versioned_payload_url(version: str) -> str:
-    return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/pve-thin-client-usb-payload-v{version}.tar.gz"
+    return download_metadata_service().public_versioned_payload_url(version)
 
 
 def public_versioned_bootstrap_url(version: str) -> str:
-    return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/pve-thin-client-usb-bootstrap-v{version}.tar.gz"
+    return download_metadata_service().public_versioned_bootstrap_url(version)
 
 
 def public_payload_latest_download_url() -> str:
-    return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/pve-thin-client-usb-payload-latest.tar.gz"
+    return download_metadata_service().public_payload_latest_download_url()
 
 
 def public_bootstrap_latest_download_url() -> str:
-    return f"{PUBLIC_UPDATE_BASE_URL.rstrip('/')}/pve-thin-client-usb-bootstrap-latest.tar.gz"
+    return download_metadata_service().public_bootstrap_latest_download_url()
 
 
 def public_latest_payload_url() -> str:
-    downloads_status = load_json_file(DOWNLOADS_STATUS_FILE, {})
-    published_version = str(downloads_status.get("version", "")).strip() or VERSION
-    payload = update_payload_metadata(published_version)
-    payload_url = str(payload.get("payload_url", "") or "").strip()
-    if payload_url:
-        return payload_url
-    return public_versioned_payload_url(published_version)
+    return download_metadata_service().public_latest_payload_url()
 
 
 def public_latest_bootstrap_url() -> str:
-    downloads_status = load_json_file(DOWNLOADS_STATUS_FILE, {})
-    published_version = str(downloads_status.get("version", "")).strip() or VERSION
-    bootstrap_url = str(downloads_status.get("bootstrap_url", "") or "").strip()
-    if bootstrap_url:
-        return bootstrap_url
-    return public_versioned_bootstrap_url(published_version)
-
-
-def url_host_matches(left: str, right: str) -> bool:
-    left_host = str(urlparse(str(left or "")).hostname or "").strip().lower()
-    right_host = str(urlparse(str(right or "")).hostname or "").strip().lower()
-    return bool(left_host and right_host and left_host == right_host)
+    return download_metadata_service().public_latest_bootstrap_url()
 
 
 @dataclass
@@ -468,42 +452,11 @@ def cors_allowed_origins() -> set[str]:
 
 
 def checksum_for_dist_filename(filename: str) -> str:
-    cache_key = f"dist-checksum::{filename}"
-    cached = cache_get(cache_key, 30)
-    if cached is not None:
-        return str(cached)
-    checksum = ""
-    try:
-        for raw_line in DIST_SHA256SUMS_FILE.read_text(encoding="utf-8", errors="ignore").splitlines():
-            line = raw_line.strip()
-            if not line or "  " not in line:
-                continue
-            digest, name = line.split("  ", 1)
-            if name.strip() == filename:
-                checksum = digest.strip()
-                break
-    except FileNotFoundError:
-        checksum = ""
-    return str(cache_put(cache_key, checksum))
+    return download_metadata_service().checksum_for_dist_filename(filename)
 
 
 def update_payload_metadata(version: str) -> dict[str, str]:
-    downloads_status = load_json_file(DOWNLOADS_STATUS_FILE, {})
-    latest_version = str(downloads_status.get("version", "")).strip()
-    filename = f"pve-thin-client-usb-payload-v{version}.tar.gz"
-    payload_url = public_versioned_payload_url(version)
-    payload_sha256 = checksum_for_dist_filename(filename)
-    if not payload_sha256 and version == latest_version:
-        payload_sha256 = str(downloads_status.get("payload_sha256", "")).strip()
-    payload_pin = MANAGER_PINNED_PUBKEY if url_host_matches(payload_url, PUBLIC_MANAGER_URL) else ""
-    return {
-        "version": version,
-        "filename": filename,
-        "payload_url": payload_url,
-        "payload_sha256": payload_sha256,
-        "sha256sums_url": public_update_sha256sums_url(),
-        "payload_pinned_pubkey": payload_pin,
-    }
+    return download_metadata_service().update_payload_metadata(version)
 
 
 def ensure_data_dir() -> Path:
@@ -591,6 +544,7 @@ VIRTUALIZATION_INVENTORY = VirtualizationInventoryService(
 
 VM_PROFILE_SERVICE: VmProfileService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
+DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
 UPDATE_FEED_SERVICE: UpdateFeedService | None = None
 FLEET_INVENTORY_SERVICE: FleetInventoryService | None = None
 HEALTH_PAYLOAD_SERVICE: HealthPayloadService | None = None
@@ -690,6 +644,26 @@ def endpoint_token_store_service() -> EndpointTokenStoreService:
             utcnow=utcnow,
         )
     return ENDPOINT_TOKEN_STORE_SERVICE
+
+
+def download_metadata_service() -> DownloadMetadataService:
+    global DOWNLOAD_METADATA_SERVICE
+    if DOWNLOAD_METADATA_SERVICE is None:
+        DOWNLOAD_METADATA_SERVICE = DownloadMetadataService(
+            cache_get=cache_get,
+            cache_put=cache_put,
+            dist_sha256sums_file=DIST_SHA256SUMS_FILE,
+            downloads_status_file=DOWNLOADS_STATUS_FILE,
+            load_json_file=load_json_file,
+            manager_pinned_pubkey=MANAGER_PINNED_PUBKEY,
+            public_downloads_path=PUBLIC_DOWNLOADS_PATH,
+            public_downloads_port=PUBLIC_DOWNLOADS_PORT,
+            public_manager_url=PUBLIC_MANAGER_URL,
+            public_server_name=PUBLIC_SERVER_NAME,
+            public_update_base_url=PUBLIC_UPDATE_BASE_URL,
+            version=VERSION,
+        )
+    return DOWNLOAD_METADATA_SERVICE
 
 
 def endpoint_tokens_dir() -> Path:
@@ -3196,7 +3170,7 @@ def vm_profile_service() -> VmProfileService:
             manager_pinned_pubkey=MANAGER_PINNED_PUBKEY,
             normalize_endpoint_profile_contract=normalize_endpoint_profile_contract,
             parse_description_meta=parse_description_meta,
-            public_installer_iso_url=public_installer_iso_url,
+            public_installer_iso_url=download_metadata_service().public_installer_iso_url,
             public_manager_url=PUBLIC_MANAGER_URL,
             resolve_public_stream_host=resolve_public_stream_host,
             resolve_ubuntu_beagle_desktop=resolve_ubuntu_beagle_desktop,
@@ -3404,8 +3378,8 @@ def update_feed_service() -> UpdateFeedService:
         UPDATE_FEED_SERVICE = UpdateFeedService(
             downloads_status_file=DOWNLOADS_STATUS_FILE,
             load_json_file=load_json_file,
-            update_payload_metadata=update_payload_metadata,
-            public_update_sha256sums_url=public_update_sha256sums_url,
+            update_payload_metadata=download_metadata_service().update_payload_metadata,
+            public_update_sha256sums_url=download_metadata_service().public_update_sha256sums_url,
         )
     return UPDATE_FEED_SERVICE
 
@@ -3443,7 +3417,7 @@ def fleet_inventory_service() -> FleetInventoryService:
             load_action_result=load_action_result,
             load_endpoint_report=load_endpoint_report,
             load_json_file=load_json_file,
-            public_installer_iso_url=public_installer_iso_url,
+            public_installer_iso_url=download_metadata_service().public_installer_iso_url,
             service_name="beagle-control-plane",
             summarize_action_result=summarize_action_result,
             summarize_endpoint_report=summarize_endpoint_report,
@@ -3475,10 +3449,10 @@ def installer_script_service() -> InstallerScriptService:
             parse_description_meta=parse_description_meta,
             patch_installer_defaults=patch_installer_defaults,
             patch_windows_installer_defaults=patch_windows_installer_defaults,
-            public_bootstrap_latest_download_url=public_bootstrap_latest_download_url,
-            public_installer_iso_url=public_installer_iso_url,
+            public_bootstrap_latest_download_url=download_metadata_service().public_bootstrap_latest_download_url,
+            public_installer_iso_url=download_metadata_service().public_installer_iso_url,
             public_manager_url=PUBLIC_MANAGER_URL,
-            public_payload_latest_download_url=public_payload_latest_download_url,
+            public_payload_latest_download_url=download_metadata_service().public_payload_latest_download_url,
             public_server_name=PUBLIC_SERVER_NAME,
             raw_windows_installer_template_file=RAW_WINDOWS_INSTALLER_TEMPLATE_FILE,
             safe_hostname=safe_hostname,

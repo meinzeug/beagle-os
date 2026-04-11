@@ -44,6 +44,8 @@
 - [x] Extract the policy CRUD helpers into `beagle-host/services/policy_store.py` behind a lazy factory and delegating wrappers.
 - [x] Extract the support-bundle metadata/archive helpers into `beagle-host/services/support_bundle_store.py` behind a lazy factory and delegating wrappers.
 - [x] Extract the ubuntu-beagle provisioning-state persistence and summarization helpers into `beagle-host/services/ubuntu_beagle_state.py` behind a lazy factory and delegating wrappers.
+- [x] Extract the public download/artifact URL/checksum/payload metadata helpers into `beagle-host/services/download_metadata.py` behind a lazy factory and delegating wrappers.
+- [ ] Extract the `ensure_vm_secret` / sunshine pinned-pubkey / ssh-keygen / usb-tunnel authorized-key helper cluster into a dedicated host service.
 - [x] Extract the VM-secret persistence helpers into `beagle-host/services/vm_secret_store.py` behind a lazy factory and delegating wrappers.
 - [x] Extract the enrollment-token persistence and validity helpers into `beagle-host/services/enrollment_token_store.py` behind a lazy factory and delegating wrappers.
 - [x] Extract the sunshine-access-token persistence and validity helpers into `beagle-host/services/sunshine_access_token_store.py` behind a lazy factory and delegating wrappers.
