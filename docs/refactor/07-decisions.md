@@ -390,3 +390,15 @@ Decision:
 Reason:
 
 - The USB block was the next cohesive non-HTTP cluster after installer-prep: it mixed guest probing, usbip parsing, endpoint USB inventory, tunnel-port lookup, and attach/detach orchestration in one entrypoint file. Extracting it keeps the provider boundary intact, removes another high-signal business block from the HTTP monolith, and makes the remaining host-side work more clearly about provisioning/lifecycle flows rather than USB runtime mechanics.
+
+### D37. Ubuntu-Beagle provisioning and lifecycle orchestration belong in one host service
+
+Decision:
+
+- Move provisioning catalog assembly, storage resolution, ubuntu installer ISO caching/extraction, seed-ISO generation, metadata description shaping, finalize/firstboot flows, and ubuntu-beagle VM create/update logic into `beagle-host/services/ubuntu_beagle_provisioning.py`.
+- Keep `beagle-host/bin/beagle-control-plane.py` wrappers for `build_provisioning_catalog`, `create_provisioned_vm`, `finalize_ubuntu_beagle_install`, `prepare_ubuntu_beagle_firstboot`, `create_ubuntu_beagle_vm`, and `update_ubuntu_beagle_vm` so the provisioning HTTP handlers and public ubuntu-install callbacks keep the same call surface during migration.
+- Inject provider-backed VM operations, template/artifact paths, state/secret services, stream helpers, validation helpers, and timing helpers into the service constructor instead of letting the service reach into control-plane globals.
+
+Reason:
+
+- The ubuntu-beagle block was the largest remaining provisioning/lifecycle area in the entrypoint. It mixed catalog shaping, autoinstall artifact generation, provider-backed VM lifecycle operations, state persistence, and running-guest reconfiguration in one file. Extracting it removes another major business block from the HTTP monolith, keeps the control plane reviewable, and makes the remaining work focus on streaming/proxy and other runtime-specific seams instead of provisioning boilerplate.

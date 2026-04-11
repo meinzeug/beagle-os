@@ -2,6 +2,24 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — ubuntu-beagle provisioning and lifecycle extraction
+
+- Extracted the ubuntu-beagle provisioning/lifecycle cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/ubuntu_beagle_provisioning.py`:
+  - `UbuntuBeagleProvisioningService` now owns provisioning catalog assembly, storage resolution, installer ISO caching/extraction, autoinstall seed ISO creation, metadata description shaping, finalize/firstboot flows, VM creation, and VM update/reconfiguration
+  - the control-plane helper names (`build_provisioning_catalog`, `create_provisioned_vm`, `finalize_ubuntu_beagle_install`, `prepare_ubuntu_beagle_firstboot`, `create_ubuntu_beagle_vm`, `update_ubuntu_beagle_vm`) stay stable as thin wrappers, so the provisioning and public ubuntu-install HTTP handlers did not need signature or payload changes
+- Kept the provisioning seam explicit instead of pushing more logic into the entrypoint:
+  - provider-backed VM create/set/start/stop/delete operations stay behind `HOST_PROVIDER`
+  - ubuntu-beagle state persistence stays behind `UbuntuBeagleStateService`
+  - VM-secret bootstrap stays behind `VmSecretBootstrapService`
+  - the new service owns the orchestration and artifact/template logic between those seams
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/ubuntu_beagle_provisioning.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop with fake provider + temp templates/artifacts:
+  - provisioning catalog still resolves online nodes, bridges, and image/ISO storages correctly
+  - create flow still builds ISO/seed assets, saves provisioning state, calls provider VM lifecycle methods, and persists initial secret material
+  - update flow still reapplies metadata and running-guest package/configuration changes
+  - finalize and firstboot-prep flows still remove installer media, repair boot order, and schedule the deferred restart path
+- `beagle-control-plane.py` dropped from `4701` to `3930` lines with this slice, and the host-side extracted-service count moved from 17 to 18
+
 ### 2026-04-11 — USB guest-attachment and tunnel-state extraction
 
 - Extracted the guest-USB attachment / tunnel-state helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/vm_usb.py`:
