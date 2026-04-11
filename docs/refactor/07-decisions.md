@@ -1689,3 +1689,15 @@ Reason:
 
 - After source-selection moved out, the next dense block in the writer was the whole bootstrap/live-asset preparation path. Those functions share one state surface (`BOOTSTRAP_DIR`, `REPO_ROOT`, `ASSET_DIR`, cache/checksum settings) and belong together.
 - Pulling them out as one helper keeps the writer entrypoint smaller without inventing a fragmented micro-helper layer, and it leaves the remaining write-stage logic as the next obvious extraction target.
+
+### D143. USB writer partition/write/copy/GRUB flow should leave the writer entrypoint as one write-stage helper
+
+Decision:
+
+- Keep the USB writer's partition suffix logic, target release/unmount handling, manifest/preset/runtime-state staging, dry-run write-plan rendering, and the final partition/write/copy/GRUB flow in `thin-client-assistant/usb/usb_writer_write_stage.sh`.
+- Keep `pve-thin-client-usb-installer.sh` focused on argument parsing, operator interaction, safety checks, dependency/bootstrap setup, and the final high-level call sequence.
+
+Reason:
+
+- After the bootstrap block moved out, the remaining biggest block in the writer was the actual write pipeline. It is one coherent stage with shared state and should not remain split between several ad-hoc micro-functions inside the entrypoint.
+- Moving the whole write stage together keeps the write contract explicit, shrinks the entrypoint materially, and leaves only the operator/device-selection concerns in the main script.
