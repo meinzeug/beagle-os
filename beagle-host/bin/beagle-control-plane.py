@@ -42,6 +42,7 @@ from health_payload import HealthPayloadService
 from host_provider_contract import HostProvider
 from installer_prep import InstallerPrepService
 from installer_script import InstallerScriptService
+from installer_template_patch import InstallerTemplatePatchService
 from policy_normalization import PolicyNormalizationService
 from policy_store import PolicyStoreService
 from public_streams import PublicStreamService
@@ -556,6 +557,7 @@ FLEET_INVENTORY_SERVICE: FleetInventoryService | None = None
 HEALTH_PAYLOAD_SERVICE: HealthPayloadService | None = None
 INSTALLER_PREP_SERVICE: InstallerPrepService | None = None
 INSTALLER_SCRIPT_SERVICE: InstallerScriptService | None = None
+INSTALLER_TEMPLATE_PATCH_SERVICE: InstallerTemplatePatchService | None = None
 ENDPOINT_REPORT_SERVICE: EndpointReportService | None = None
 ACTION_QUEUE_SERVICE: ActionQueueService | None = None
 POLICY_NORMALIZATION_SERVICE: PolicyNormalizationService | None = None
@@ -1220,14 +1222,11 @@ def stream_ports(base_port: int) -> dict[str, int]:
     }
 
 
-def shell_double_quoted(value: str) -> str:
-    return (
-        str(value)
-        .replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("$", "\\$")
-        .replace("`", "\\`")
-    )
+def installer_template_patch_service() -> InstallerTemplatePatchService:
+    global INSTALLER_TEMPLATE_PATCH_SERVICE
+    if INSTALLER_TEMPLATE_PATCH_SERVICE is None:
+        INSTALLER_TEMPLATE_PATCH_SERVICE = InstallerTemplatePatchService()
+    return INSTALLER_TEMPLATE_PATCH_SERVICE
 
 
 def patch_installer_defaults(
@@ -1239,47 +1238,24 @@ def patch_installer_defaults(
     installer_payload_url: str,
     writer_variant: str,
 ) -> str:
-    replacements = {
-        r'^USB_WRITER_VARIANT="\$\{PVE_THIN_CLIENT_USB_WRITER_VARIANT:-[^"]*}"$':
-            f'USB_WRITER_VARIANT="${{PVE_THIN_CLIENT_USB_WRITER_VARIANT:-{shell_double_quoted(writer_variant)}}}"',
-        r'^PVE_THIN_CLIENT_PRESET_NAME="\$\{PVE_THIN_CLIENT_PRESET_NAME:-[^"]*}"$':
-            f'PVE_THIN_CLIENT_PRESET_NAME="${{PVE_THIN_CLIENT_PRESET_NAME:-{shell_double_quoted(preset_name)}}}"',
-        r'^PVE_THIN_CLIENT_PRESET_B64="\$\{PVE_THIN_CLIENT_PRESET_B64:-[^"]*}"$':
-            f'PVE_THIN_CLIENT_PRESET_B64="${{PVE_THIN_CLIENT_PRESET_B64:-{shell_double_quoted(preset_b64)}}}"',
-        r'^RELEASE_ISO_URL="\$\{RELEASE_ISO_URL:-[^"]*}"$':
-            f'RELEASE_ISO_URL="${{RELEASE_ISO_URL:-{shell_double_quoted(installer_iso_url)}}}"',
-        r'^RELEASE_BOOTSTRAP_URL="\$\{RELEASE_BOOTSTRAP_URL:-[^"]*}"$':
-            f'RELEASE_BOOTSTRAP_URL="${{RELEASE_BOOTSTRAP_URL:-{shell_double_quoted(installer_bootstrap_url)}}}"',
-        r'^RELEASE_PAYLOAD_URL="\$\{RELEASE_PAYLOAD_URL:-[^"]*}"$':
-            f'RELEASE_PAYLOAD_URL="${{RELEASE_PAYLOAD_URL:-{shell_double_quoted(installer_payload_url)}}}"',
-        r'^INSTALL_PAYLOAD_URL="\$\{INSTALL_PAYLOAD_URL:-[^"]*}"$':
-            f'INSTALL_PAYLOAD_URL="${{INSTALL_PAYLOAD_URL:-{shell_double_quoted(installer_payload_url)}}}"',
-        r'^BOOTSTRAP_DISABLE_CACHE="\$\{PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-[^"]*}"$':
-            'BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-1}"',
-    }
-    updated = script_text
-    for pattern, replacement in replacements.items():
-        updated, count = re.subn(pattern, replacement, updated, count=1, flags=re.MULTILINE)
-        if count != 1:
-            raise ValueError(f"failed to patch installer template for pattern: {pattern}")
-    return updated
-
-
-def patch_windows_installer_defaults(script_text: str, preset_name: str, preset_b64: str, installer_iso_url: str) -> str:
-    return (
-        script_text
-        .replace("__BEAGLE_DEFAULT_RELEASE_ISO_URL__", str(installer_iso_url or ""))
-        .replace("__BEAGLE_DEFAULT_PRESET_NAME__", str(preset_name or ""))
-        .replace("__BEAGLE_DEFAULT_PRESET_B64__", str(preset_b64 or ""))
+    return installer_template_patch_service().patch_installer_defaults(
+        script_text,
+        preset_name,
+        preset_b64,
+        installer_iso_url,
+        installer_bootstrap_url,
+        installer_payload_url,
+        writer_variant,
     )
 
 
-def encode_installer_preset(preset: dict[str, Any]) -> str:
-    lines = ["# Auto-generated Beagle OS VM preset"]
-    for key in sorted(preset):
-        lines.append(f"{key}={shlex.quote(str(preset.get(key, '')))}")
-    payload = "\n".join(lines) + "\n"
-    return base64.b64encode(payload.encode("utf-8")).decode("ascii")
+def patch_windows_installer_defaults(script_text: str, preset_name: str, preset_b64: str, installer_iso_url: str) -> str:
+    return installer_template_patch_service().patch_windows_installer_defaults(
+        script_text,
+        preset_name,
+        preset_b64,
+        installer_iso_url,
+    )
 
 
 def installer_prep_dir() -> Path:
@@ -1912,7 +1888,6 @@ def installer_script_service() -> InstallerScriptService:
     if INSTALLER_SCRIPT_SERVICE is None:
         INSTALLER_SCRIPT_SERVICE = InstallerScriptService(
             build_profile=build_profile,
-            encode_installer_preset=encode_installer_preset,
             ensure_vm_secret=ensure_vm_secret,
             fetch_sunshine_server_identity=fetch_sunshine_server_identity,
             get_vm_config=get_vm_config,
@@ -1922,8 +1897,8 @@ def installer_script_service() -> InstallerScriptService:
             issue_enrollment_token=issue_enrollment_token,
             manager_pinned_pubkey=MANAGER_PINNED_PUBKEY,
             parse_description_meta=parse_description_meta,
-            patch_installer_defaults=patch_installer_defaults,
-            patch_windows_installer_defaults=patch_windows_installer_defaults,
+            patch_installer_defaults=installer_template_patch_service().patch_installer_defaults,
+            patch_windows_installer_defaults=installer_template_patch_service().patch_windows_installer_defaults,
             public_bootstrap_latest_download_url=download_metadata_service().public_bootstrap_latest_download_url,
             public_installer_iso_url=download_metadata_service().public_installer_iso_url,
             public_manager_url=PUBLIC_MANAGER_URL,

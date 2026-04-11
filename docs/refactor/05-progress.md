@@ -2,6 +2,20 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — installer template patching extraction
+
+- Extracted the installer template/default rewrite block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/installer_template_patch.py`:
+  - `InstallerTemplatePatchService` now owns shell-template default rewrites via `patch_installer_defaults(...)`, Windows template rewrites via `patch_windows_installer_defaults(...)`, and the shared shell escaping helper
+  - `InstallerScriptService` now depends directly on the new service methods instead of on inline control-plane helpers
+- Closed the remaining installer-local helper loop in the same slice:
+  - preset Base64 encoding moved into `beagle-host/services/installer_script.py` as an internal helper, so `encode_installer_preset(...)` no longer lives in the control-plane entrypoint
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/installer_template_patch.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the installer helper seam outside the server loop:
+  - shell-template rewriting still patches all expected variables and preserves escaping for `"`, `$`, and backticks
+  - Windows template rewriting still replaces all three Beagle placeholders
+  - preset encoding still returns a non-empty Base64 payload from canonical preset key/value lines
+- `beagle-control-plane.py` dropped from `3533` to `3508` lines with this slice, and the host-side extracted-service module count moved from `21` to `22`
+
 ### 2026-04-11 — support-bundle storage/upload extraction
 
 - Finished the remaining support-bundle storage/upload block inside `beagle-host/services/support_bundle_store.py`:

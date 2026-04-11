@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import shlex
 from pathlib import Path
 from typing import Any, Callable
 
@@ -10,7 +11,6 @@ class InstallerScriptService:
         self,
         *,
         build_profile: Callable[[Any], dict[str, Any]],
-        encode_installer_preset: Callable[[dict[str, str]], str],
         ensure_vm_secret: Callable[[Any], dict[str, Any]],
         fetch_sunshine_server_identity: Callable[[Any, str], dict[str, Any]],
         get_vm_config: Callable[[str, int], dict[str, Any]],
@@ -32,7 +32,6 @@ class InstallerScriptService:
         sunshine_guest_user: Callable[[Any, dict[str, Any]], str],
     ) -> None:
         self._build_profile = build_profile
-        self._encode_installer_preset = encode_installer_preset
         self._ensure_vm_secret = ensure_vm_secret
         self._fetch_sunshine_server_identity = fetch_sunshine_server_identity
         self._get_vm_config = get_vm_config
@@ -52,6 +51,14 @@ class InstallerScriptService:
         self._raw_windows_installer_template_file = raw_windows_installer_template_file
         self._safe_hostname = safe_hostname
         self._sunshine_guest_user = sunshine_guest_user
+
+    @staticmethod
+    def _encode_installer_preset(preset: dict[str, Any]) -> str:
+        lines = ["# Auto-generated Beagle OS VM preset"]
+        for key in sorted(preset):
+            lines.append(f"{key}={shlex.quote(str(preset.get(key, '')))}")
+        payload = "\n".join(lines) + "\n"
+        return base64.b64encode(payload.encode("utf-8")).decode("ascii")
 
     def build_preset(
         self,

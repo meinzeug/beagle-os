@@ -270,6 +270,13 @@ Current host-side contract:
 - `list_metadata(node=None, vmid=None)`
 - `store(node, vmid, action_id, filename, content)`
 
+### `beagle-host/services/installer_template_patch.py`
+
+Current host-side contract:
+
+- `patch_installer_defaults(script_text, preset_name, preset_b64, installer_iso_url, installer_bootstrap_url, installer_payload_url, writer_variant)`
+- `patch_windows_installer_defaults(script_text, preset_name, preset_b64, installer_iso_url)`
+
 ### `core/virtualization/service.js`
 
 Generic contract:
@@ -456,6 +463,7 @@ These flows now go through provider-backed services first:
 - public-stream mapping persistence, explicit-port sync, stale-entry cleanup, and next-free base-port allocation through `beagle-host/services/public_streams.py`
 - policy selector/profile/default normalization through `beagle-host/services/policy_normalization.py`
 - support-bundle archive persistence, metadata shaping, and filtered metadata lookup through `beagle-host/services/support_bundle_store.py`
+- installer shell/Windows template patching through `beagle-host/services/installer_template_patch.py`, with preset Base64 encoding now living inside `beagle-host/services/installer_script.py`
 - VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through the selected host provider, currently `beagle-host/providers/proxmox_host_provider.py`
 - browser-/installer-facing endpoint profile payload normalization through `beagle-host/bin/endpoint_profile_contract.py`
 
@@ -479,6 +487,7 @@ These flows now go through provider-backed services first:
 - `beagle-host/services/public_streams.py` removed port-state/orchestration from the entrypoint, but it still interprets today's description-meta keys (`beagle-public-moonlight-port`) and VM inventory/config semantics through provider-backed reads under the new service seam.
 - `beagle-host/services/policy_normalization.py` removed policy contract shaping from the entrypoint, but the normalized fields still reflect today's endpoint/profile policy semantics and browser/runtime expectations under the new service seam.
 - `beagle-host/services/support_bundle_store.py` now owns upload persistence too, but it intentionally preserves today's sanitized-filename behavior, including `.bin` fallback when suffixes are lost, so downstream download behavior stays unchanged until that contract is redesigned deliberately.
+- `beagle-host/services/installer_template_patch.py` removed template rewrite semantics from the entrypoint, but the patched variable names and placeholders still reflect today's thin-client installer templates and release artifact surface under the new service seam.
 
 ### Script surfaces
 
