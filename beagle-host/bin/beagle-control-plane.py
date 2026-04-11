@@ -912,6 +912,8 @@ def support_bundle_store_service() -> SupportBundleStoreService:
             load_json_file=load_json_file,
             safe_slug=safe_slug,
             support_bundles_dir=support_bundles_dir,
+            utcnow=utcnow,
+            write_json_file=write_json_file,
         )
     return SUPPORT_BUNDLE_STORE_SERVICE
 
@@ -1462,32 +1464,7 @@ def find_support_bundle_metadata(bundle_id: str) -> dict[str, Any] | None:
 
 
 def store_support_bundle(node: str, vmid: int, action_id: str, filename: str, content: bytes) -> dict[str, Any]:
-    safe_node = safe_slug(node, "unknown")
-    safe_name = safe_slug(filename, "support-bundle.tar.gz")
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    bundle_id = f"{safe_node}-{int(vmid)}-{timestamp}-{safe_slug(action_id, 'action')}"
-    archive_path = support_bundle_archive_path(bundle_id, safe_name)
-    archive_path.write_bytes(content)
-    try:
-        os.chmod(archive_path, 0o600)
-    except OSError:
-        pass
-    sha256 = hashlib.sha256(content).hexdigest()
-    payload = {
-        "bundle_id": bundle_id,
-        "node": node,
-        "vmid": int(vmid),
-        "action_id": action_id,
-        "filename": filename,
-        "stored_filename": archive_path.name,
-        "stored_path": str(archive_path),
-        "size": len(content),
-        "sha256": sha256,
-        "uploaded_at": utcnow(),
-        "download_path": f"/api/v1/support-bundles/{bundle_id}/download",
-    }
-    write_json_file(support_bundle_metadata_path(bundle_id), payload, mode=0o600)
-    return payload
+    return support_bundle_store_service().store(node, vmid, action_id, filename, content)
 
 
 def normalize_policy_payload(payload: dict[str, Any], *, policy_name: str | None = None) -> dict[str, Any]:

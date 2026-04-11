@@ -438,3 +438,15 @@ Decision:
 Reason:
 
 - Policy CRUD was already separated at the file-I/O layer, but the canonical contract still lived inline in the entrypoint. That kept selector/profile semantics undocumented in a reusable module and made future policy evolution depend on editing the HTTP monolith. Extracting the normalization layer gives policy contract semantics their own host-side seam without changing persisted shape or handler behavior.
+
+### D41. Support-bundle upload shaping belongs in the existing store service
+
+Decision:
+
+- Expand `beagle-host/services/support_bundle_store.py` to own `store(...)` in addition to metadata/archive path lookup and listing.
+- Keep `store_support_bundle(...)` in `beagle-host/bin/beagle-control-plane.py` as a thin wrapper so the VM action-result upload path keeps the same helper surface.
+- Preserve current filename-sanitizing behavior during this slice, including the existing `.bin` fallback when the sanitized filename no longer has suffixes.
+
+Reason:
+
+- The remaining bundle-upload block was not a separate domain from the existing store service; it was the missing write half of the same persistence seam. Creating a second support-bundle service would have split one cohesive responsibility across two modules. Expanding the existing store service keeps archive-path logic, metadata lookup/listing, and upload persistence in one place while still removing the business block from the HTTP entrypoint.
