@@ -11,6 +11,10 @@ BEAGLE_LAST_MARKER_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/last-marker.env"
 RUNTIME_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODE_OVERRIDES_PY="${MODE_OVERRIDES_PY:-$RUNTIME_SCRIPT_DIR/mode_overrides.py}"
 CONFIG_DISCOVERY_PY="${CONFIG_DISCOVERY_PY:-$RUNTIME_SCRIPT_DIR/config_discovery.py}"
+CONFIG_LOADER_SH="${CONFIG_LOADER_SH:-$RUNTIME_SCRIPT_DIR/config_loader.sh}"
+
+# shellcheck disable=SC1090
+source "$CONFIG_LOADER_SH"
 
 beagle_state_dir() {
   printf '%s\n' "${BEAGLE_STATE_DIR:-$BEAGLE_STATE_DIR_DEFAULT}"
@@ -561,29 +565,6 @@ prepare_geforcenow_environment() {
   return 0
 }
 
-generate_config_dir_from_preset() {
-  local preset_file="${1:-}"
-  local state_dir="${2:-${PRESET_STATE_DIR:-$PRESET_STATE_DIR_DEFAULT}}"
-  local installer_dir installer_script runtime_user runtime_helper
-
-  [[ -f "$preset_file" ]] || return 1
-
-  installer_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../installer" && pwd)"
-  installer_script="$installer_dir/write-config.sh"
-  runtime_helper="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/generate_config_from_preset.py"
-  [[ -x "$installer_script" ]] || return 1
-  [[ -f "$runtime_helper" ]] || return 1
-
-  runtime_user="${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}"
-  python3 "$runtime_helper" \
-    --preset-file "$preset_file" \
-    --state-dir "$state_dir" \
-    --installer-script "$installer_script" \
-    --runtime-user "$runtime_user"
-
-  printf '%s\n' "$state_dir"
-}
-
 find_config_dir() {
   local installer_dir installer_script runtime_user preset_state_dir
   [[ -r "$CONFIG_DISCOVERY_PY" ]] || return 1
@@ -602,42 +583,6 @@ find_config_dir() {
     --preset-state-dir "$preset_state_dir" \
     --runtime-user "$runtime_user" \
     --installer-script "$installer_script"
-}
-
-load_runtime_config() {
-  local dir
-  dir="$(find_config_dir)" || {
-    echo "Unable to locate thin-client config." >&2
-    return 1
-  }
-
-  CONFIG_DIR="$dir"
-  CONFIG_FILE="$dir/thinclient.conf"
-  NETWORK_FILE="$dir/network.env"
-  CREDENTIALS_FILE="$dir/credentials.env"
-  LOCAL_AUTH_FILE="$dir/local-auth.env"
-
-  if [[ ! -r "$CONFIG_FILE" ]]; then
-    echo "Thin-client config is not readable: $CONFIG_FILE" >&2
-    return 1
-  fi
-
-  # shellcheck disable=SC1090
-  source "$CONFIG_FILE"
-  if [[ -r "$NETWORK_FILE" ]]; then
-    # shellcheck disable=SC1090
-    source "$NETWORK_FILE"
-  elif [[ -e "$NETWORK_FILE" ]]; then
-    echo "Skipping unreadable network file: $NETWORK_FILE" >&2
-  fi
-  if [[ -r "$CREDENTIALS_FILE" ]]; then
-    # shellcheck disable=SC1090
-    source "$CREDENTIALS_FILE"
-  elif [[ -e "$CREDENTIALS_FILE" ]]; then
-    echo "Skipping unreadable credentials file: $CREDENTIALS_FILE" >&2
-  fi
-
-  apply_runtime_mode_overrides
 }
 
 render_template() {

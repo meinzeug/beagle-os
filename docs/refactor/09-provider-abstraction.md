@@ -745,6 +745,7 @@ These flows now go through a provider-facing helper seam first:
 - `thin-client-assistant/runtime/generate_config_from_preset.py` now centralizes preset-file parsing plus preset→runtime config generation for `common.sh`, and the default table it uses is now shared with the shell installer/runtime paths through `thin-client-assistant/installer/env-defaults.json`; the remaining drift is therefore narrower and mostly in mode/cmdline override behavior rather than raw default literals.
 - `thin-client-assistant/runtime/mode_overrides.py` now centralizes the cmdline-driven `client_mode`→runtime-mode/boot-profile mapping used by `common.sh`, so the remaining runtime shell drift is no longer in mode semantics but in config discovery and preset restoration behavior.
 - `thin-client-assistant/runtime/config_discovery.py` now centralizes live-state config discovery, preset discovery, cmdline preset restore/decode, and preset-driven config-dir resolution used by `common.sh`, so the remaining runtime shell drift is narrower and mostly in config sourcing plus path/ownership orchestration.
+- `thin-client-assistant/runtime/config_loader.sh` now centralizes preset-driven config generation and runtime config file loading used by `common.sh`, so the remaining runtime shell drift is narrower and mostly in path ownership, stream state, and runtime environment orchestration.
 
 ## Exit Criteria Before Proxmox Becomes Optional
 
