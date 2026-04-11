@@ -1058,3 +1058,17 @@ Decision:
 Reason:
 
 - Once the runtime core moved out, the last inline `common.sh` logic was a small but still cross-cutting value-helper cluster used by multiple runtime launchers. Extracting that cluster finishes the shift from monolith to composition shell and leaves the next work focused on feature orchestration instead of leftover utility code.
+
+### D92. X11/Xauthority runtime display handling should be shared across mode launchers
+
+Decision:
+
+- Keep X11/Xauthority discovery, readiness checks, candidate selection, and display wait helpers in `thin-client-assistant/runtime/x11_display.sh`.
+- `launch-moonlight.sh` and `launch-geforcenow.sh` must both consume that shared helper instead of maintaining separate display bootstrap implementations.
+- Preserve launcher-specific behavior at the call site:
+  - Moonlight keeps the reselect-on-each-attempt behavior and display-ready/unready event logging
+  - GeForce NOW keeps the fixed selected-auth wait path
+
+Reason:
+
+- The Moonlight and GFN launchers had diverged slightly but were still solving the same display bootstrap problem twice. A shared seam reduces duplication without forcing the two launchers into identical behavior where their operational assumptions still differ.
