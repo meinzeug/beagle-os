@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime core helper extraction
+
+- Removed the remaining shared state/logging/runtime-user baseline helpers from `thin-client-assistant/runtime/common.sh`:
+  - added `thin-client-assistant/runtime/runtime_core.sh` for runtime user/group/home/uid lookup, Beagle state-dir selection, trace/marker path helpers, runtime logging, privileged command execution, unit-file presence checks, and live-medium discovery
+  - `thin-client-assistant/runtime/common.sh` now sources that helper instead of carrying those generic runtime-baseline functions inline
+- This turns `common.sh` into a much thinner composition shell:
+  - `thin-client-assistant/runtime/common.sh` is now down to about `120` lines
+  - the extracted runtime helpers now depend on an explicit shared core seam instead of implicitly reaching back into a monolith for logging/user/state behavior
+- Validation and smoke checks for this slice passed:
+  - `bash -n` across the affected runtime helper and launch scripts
+  - focused smoke test for `beagle_log_event()`, `beagle_trace_file()`, `beagle_last_marker_file()`, and runtime user/group/home lookup through `common.sh`
+  - focused smoke test for `ensure_beagle_state_dir()` candidate selection
+
 ### 2026-04-11 — runtime kiosk-session launcher extraction
 
 - Removed the kiosk supervisor/relaunch loop from `thin-client-assistant/runtime/launch-session.sh`:

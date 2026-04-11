@@ -1035,3 +1035,15 @@ Decision:
 Reason:
 
 - `launch-session.sh` is the top-level runtime mode entrypoint. Leaving the kiosk supervisor loop inline there mixes dispatch with long-running session control flow. Moving that logic into a dedicated helper preserves the runtime contract while making the remaining launch/session seams explicit and easier to continue extracting.
+
+### D90. Runtime user/state/logging helpers should be one shared core seam, not ad hoc leftovers in common.sh
+
+Decision:
+
+- Keep the shared runtime baseline in `thin-client-assistant/runtime/runtime_core.sh`.
+- This module owns runtime user/group/home/uid lookup, Beagle state-dir and trace/marker file helpers, runtime logging, privileged command execution, unit-file presence checks, and live-medium discovery.
+- `common.sh` should source this core seam instead of retaining those cross-cutting helpers inline.
+
+Reason:
+
+- After the operational blocks moved out, the remaining large cluster in `common.sh` was no longer one feature but the implicit foundation used by multiple extracted modules. Making that foundation explicit reduces hidden coupling between runtime helpers and keeps `common.sh` on the path toward a pure composition shell.
