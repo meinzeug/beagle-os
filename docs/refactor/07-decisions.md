@@ -1245,3 +1245,27 @@ Decision:
 Reason:
 
 - Once the USB state/payload block left, the remainder of `beagle-usbctl.sh` was still not just dispatch glue; it still owned the operational `usbipd` lifecycle, persisted bound-device resync, bind/unbind side effects, and SSH reverse-tunnel startup. That is one cohesive runtime orchestration concern, and extracting it completes the same entrypoint-thinning pattern already used for the runtime prepare, network, and Moonlight paths.
+
+### D108. GeForce NOW desktop and URL-handler integration should leave `install-geforcenow.sh`
+
+Decision:
+
+- Keep desktop-database and `xdg-mime` binary accessors, desktop-file generation, MIME registration, user `xdg-open` wrapper generation, host `xdg-open` shim generation, and the top-level desktop integration orchestration in `thin-client-assistant/runtime/geforcenow_desktop_integration.sh`.
+- `install-geforcenow.sh` should source that helper instead of carrying desktop-file and wrapper/shim writes inline.
+- The extracted helper may expose path and binary overrides for desktop database, `xdg-mime`, wrapper target, browser target, host shim path, and host shim log directory so the desktop integration seam stays smoke-testable without changing runtime defaults.
+
+Reason:
+
+- After the USB wrapper became thin, `install-geforcenow.sh` was the next runtime/install crossover monolith. Its desktop/MIME/URL-handler path was a cohesive first cut because it mixed file generation and environment-specific shell wrappers, but those concerns are independent from flatpak installation and storage preparation. Pulling them out makes the desktop-integration contract explicit and keeps the installer wrapper moving toward composition-only code.
+
+### D109. GeForce NOW flatpak scope and install orchestration should also leave `install-geforcenow.sh`
+
+Decision:
+
+- Keep flatpak binary discovery, install-scope normalization, dry-run command execution, flatpak availability checks, install-scope permission checks, installed-ref detection, and the shared flatpak remote/install flow in `thin-client-assistant/runtime/geforcenow_flatpak.sh`.
+- `install-geforcenow.sh` should source that helper instead of carrying scope parsing, dry-run execution, availability checks, and remote/app install logic inline.
+- `launch-geforcenow.sh` should reuse the same install-scope resolver instead of keeping a second local `flatpak_scope_flag()` implementation.
+
+Reason:
+
+- Once the desktop integration block moved out, the remainder of `install-geforcenow.sh` still mixed installer orchestration with low-level flatpak execution policy and scope parsing. That logic is cohesive, testable with a stubbed `flatpak` binary, and shared conceptually with the runtime launcher. Extracting it completes the main reduction of the GeForce NOW installer wrapper and removes another duplicated scope parser from the runtime layer.

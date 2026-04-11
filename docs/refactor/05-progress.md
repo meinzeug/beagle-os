@@ -2,6 +2,32 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — GeForce NOW flatpak helper extraction
+
+- Removed the remaining GeForce NOW scope/flatpak install block from `thin-client-assistant/runtime/install-geforcenow.sh` and the duplicated scope parser from `thin-client-assistant/runtime/launch-geforcenow.sh`:
+  - added `thin-client-assistant/runtime/geforcenow_flatpak.sh` for flatpak binary discovery, install-scope normalization, dry-run command execution, flatpak availability checks, install-scope permission checks, installed-ref detection, and the shared flatpak remote/install flow
+  - `thin-client-assistant/runtime/install-geforcenow.sh` now sources that helper instead of carrying scope parsing, dry-run execution, flatpak availability checks, and remote/app install logic inline
+  - `thin-client-assistant/runtime/launch-geforcenow.sh` now also uses the same install-scope resolver instead of keeping a second local `flatpak_scope_flag()`
+- This completes the main `install-geforcenow.sh` split:
+  - `thin-client-assistant/runtime/install-geforcenow.sh` dropped further to about `73` lines
+  - the entrypoint now mostly owns argument parsing, environment preparation, logging, and composition of extracted GeForce NOW helpers
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/install-geforcenow.sh thin-client-assistant/runtime/launch-geforcenow.sh thin-client-assistant/runtime/geforcenow_flatpak.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `resolve_gfn_install_scope()` across `user` / `system` forms
+  - focused smoke test for `ensure_gfn_flatpak_installation()` with a stubbed `flatpak` binary covering cached runtime plus missing app installation
+
+### 2026-04-11 — GeForce NOW desktop integration helper extraction
+
+- Removed the GeForce NOW desktop-file / MIME / `xdg-open` integration block from `thin-client-assistant/runtime/install-geforcenow.sh`:
+  - added `thin-client-assistant/runtime/geforcenow_desktop_integration.sh` for desktop-database and `xdg-mime` binary accessors, desktop-file generation, MIME registration, user `xdg-open` wrapper generation, host `xdg-open` shim generation, and the top-level desktop integration orchestration
+  - `thin-client-assistant/runtime/install-geforcenow.sh` now sources that helper instead of carrying desktop-file generation and wrapper/shim writes inline
+- This starts the real reduction of the GeForce NOW installer wrapper:
+  - `thin-client-assistant/runtime/install-geforcenow.sh` dropped from about `238` lines to about `125` lines on this slice before the flatpak-helper extraction completed the reduction
+  - the extracted helper accepts path/binary overrides for desktop database, `xdg-mime`, wrapper targets, browser target, host shim path, and host shim log directory, which keeps runtime defaults but makes the integration seam smoke-testable
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/install-geforcenow.sh thin-client-assistant/runtime/geforcenow_desktop_integration.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for desktop file, `mimeapps.list`, user `xdg-open` wrapper, and host shim generation with temporary home paths and stubbed `update-desktop-database` / `xdg-mime`
+
 ### 2026-04-11 — USB runtime action helper extraction
 
 - Removed the remaining `usbip` daemon/bind/tunnel orchestration block from `thin-client-assistant/runtime/beagle-usbctl.sh`:
