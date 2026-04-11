@@ -782,3 +782,15 @@ Decision:
 Reason:
 
 - After the other public and endpoint-facing surfaces were extracted, the remaining public streaming block was the Sunshine proxy. That logic was still duplicated between `do_GET` and `do_POST` and was already entirely defined by the existing Sunshine integration seam. Pulling it behind its own service removes the last public streaming block from the HTTP entrypoint without changing the external proxy contract.
+
+### D70. Authenticated single-VM mutation routes belong in one VM mutation surface
+
+Decision:
+
+- Move the authenticated single-VM mutation POST routes for installer-prep start, OS update queueing, generic VM actions, USB refresh/attach/detach, and Sunshine access-ticket issuance into `beagle-host/services/vm_mutation_surface.py`.
+- Keep `beagle-control-plane.py` responsible only for the auth gate plus required/optional JSON-body reads before handing off to the service.
+- Let the new service own route matching, action mapping, queueing, USB attach/detach orchestration, and response envelopes on top of the already-extracted `ActionQueueService`, `InstallerPrepService`, `VmUsbService`, and Sunshine integration seams.
+
+Reason:
+
+- After extracting the public and endpoint-facing surfaces, the next coherent block left in the entrypoint was the authenticated per-VM mutation surface. Those routes were already mostly orchestration across extracted services but still duplicated VM lookup, queueing, USB attach/detach sequencing, and response shaping inline. Pulling them together behind one mutation surface removes another large block from the HTTP entrypoint without changing the authenticated API contract.

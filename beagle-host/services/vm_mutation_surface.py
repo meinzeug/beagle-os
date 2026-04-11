@@ -1,0 +1,326 @@
+from __future__ import annotations
+
+import re
+from http import HTTPStatus
+from typing import Any, Callable
+
+
+class VmMutationSurfaceService:
+    def __init__(
+        self,
+        *,
+        attach_usb_to_guest: Callable[[Any, str], dict[str, Any]],
+        build_vm_usb_state: Callable[[Any], dict[str, Any]],
+        find_vm: Callable[[int], Any | None],
+        issue_sunshine_access_token: Callable[[Any], tuple[str, dict[str, Any]]],
+        queue_vm_action: Callable[[Any, str, str, dict[str, Any] | None], dict[str, Any]],
+        service_name: str,
+        start_installer_prep: Callable[[Any], dict[str, Any]],
+        summarize_action_result: Callable[[dict[str, Any] | None], dict[str, Any]],
+        sunshine_proxy_ticket_url: Callable[[str], str],
+        usb_action_wait_seconds: float,
+        utcnow: Callable[[], str],
+        version: str,
+        wait_for_action_result: Callable[[str, int, str], dict[str, Any] | None],
+        detach_usb_from_guest: Callable[[Any, int | None, str], dict[str, Any]],
+    ) -> None:
+        self._attach_usb_to_guest = attach_usb_to_guest
+        self._build_vm_usb_state = build_vm_usb_state
+        self._find_vm = find_vm
+        self._issue_sunshine_access_token = issue_sunshine_access_token
+        self._queue_vm_action = queue_vm_action
+        self._service_name = str(service_name or "beagle-control-plane")
+        self._start_installer_prep = start_installer_prep
+        self._summarize_action_result = summarize_action_result
+        self._sunshine_proxy_ticket_url = sunshine_proxy_ticket_url
+        self._usb_action_wait_seconds = float(usb_action_wait_seconds)
+        self._utcnow = utcnow
+        self._version = str(version or "")
+        self._wait_for_action_result = wait_for_action_result
+        self._detach_usb_from_guest = detach_usb_from_guest
+
+    @staticmethod
+    def _json_response(status: HTTPStatus, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"kind": "json", "status": status, "payload": payload}
+
+    def _envelope(self, **payload: Any) -> dict[str, Any]:
+        return {
+            "service": self._service_name,
+            "version": self._version,
+            "generated_at": self._utcnow(),
+            **payload,
+        }
+
+    @staticmethod
+    def _update_match(path: str) -> re.Match[str] | None:
+        return re.match(r"^/api/v1/vms/(?P<vmid>\d+)/update/(?P<operation>scan|download|apply|rollback)$", path)
+
+    @staticmethod
+    def handles_path(path: str) -> bool:
+        return bool(
+            VmMutationSurfaceService._update_match(path)
+            or (path.startswith("/api/v1/vms/") and path.endswith("/installer-prep"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/actions"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/usb/refresh"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/usb/attach"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/usb/detach"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/sunshine-access"))
+        )
+
+    @staticmethod
+    def requires_json_body(path: str) -> bool:
+        return (
+            (path.startswith("/api/v1/vms/") and path.endswith("/actions"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/usb/attach"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/usb/detach"))
+        )
+
+    @staticmethod
+    def accepts_optional_json_body(path: str) -> bool:
+        return VmMutationSurfaceService._update_match(path) is not None
+
+    def _vm_from_segment(self, path: str, index_from_end: int) -> tuple[Any | None, str | None]:
+        vmid_text = path.split("/")[index_from_end]
+        if not vmid_text.isdigit():
+            return None, "invalid vmid"
+        vm = self._find_vm(int(vmid_text))
+        if vm is None:
+            return None, "vm not found"
+        return vm, None
+
+    def route_post(
+        self,
+        path: str,
+        *,
+        json_payload: dict[str, Any] | None,
+        requester_identity: str,
+    ) -> dict[str, Any]:
+        if path.startswith("/api/v1/vms/") and path.endswith("/installer-prep"):
+            vm, error = self._vm_from_segment(path, -2)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            try:
+                state = self._start_installer_prep(vm)
+            except Exception as exc:
+                return self._json_response(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"ok": False, "error": f"failed to start installer prep: {exc}"},
+                )
+            status = HTTPStatus.ACCEPTED if str(state.get("status", "")).lower() == "running" else HTTPStatus.OK
+            return self._json_response(
+                status,
+                {
+                    "ok": True,
+                    **self._envelope(installer_prep=state),
+                },
+            )
+
+        match = self._update_match(path)
+        if match:
+            vm = self._find_vm(int(match.group("vmid")))
+            if vm is None:
+                return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            params = payload.get("params", {}) if isinstance(payload.get("params"), dict) else {}
+            operation = match.group("operation")
+            action_name = {
+                "scan": "os-update-scan",
+                "download": "os-update-download",
+                "apply": "os-update-apply",
+                "rollback": "os-update-rollback",
+            }[operation]
+            params = dict(params)
+            if operation == "download":
+                params["force"] = True
+            if operation in {"apply", "rollback"} and "reboot" not in params:
+                params["reboot"] = True
+            queued = self._queue_vm_action(vm, action_name, requester_identity, params)
+            return self._json_response(
+                HTTPStatus.ACCEPTED,
+                {
+                    "ok": True,
+                    **self._envelope(queued_action=queued),
+                },
+            )
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/actions"):
+            vm, error = self._vm_from_segment(path, -2)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            action_name = str(payload.get("action", "")).strip().lower()
+            action_params = payload.get("params", {}) if isinstance(payload.get("params"), dict) else {}
+            if action_name not in {
+                "healthcheck",
+                "recheckin",
+                "restart-session",
+                "restart-runtime",
+                "support-bundle",
+                "os-update-scan",
+                "os-update-download",
+                "os-update-apply",
+                "os-update-rollback",
+            }:
+                return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid payload: unsupported action"})
+            queued = self._queue_vm_action(vm, action_name, requester_identity, action_params)
+            return self._json_response(
+                HTTPStatus.ACCEPTED,
+                {
+                    "ok": True,
+                    **self._envelope(queued_action=queued),
+                },
+            )
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/usb/refresh"):
+            vm, error = self._vm_from_segment(path, -3)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            queued = self._queue_vm_action(vm, "usb-refresh", requester_identity)
+            return self._json_response(
+                HTTPStatus.ACCEPTED,
+                {
+                    "ok": True,
+                    **self._envelope(queued_action=queued),
+                },
+            )
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/usb/attach"):
+            vm, error = self._vm_from_segment(path, -3)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            busid = str(payload.get("busid", "")).strip()
+            if not busid:
+                return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid payload: missing busid"})
+            queued = self._queue_vm_action(vm, "usb-bind", requester_identity, {"busid": busid})
+            result = self._wait_for_action_result(vm.node, vm.vmid, queued["action_id"])
+            if result is None:
+                return self._json_response(
+                    HTTPStatus.ACCEPTED,
+                    {
+                        "ok": True,
+                        **self._envelope(
+                            queued_action=queued,
+                            message="USB export queued on endpoint; refresh in a few seconds.",
+                        ),
+                    },
+                )
+            if not bool(result.get("ok")):
+                return self._json_response(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "ok": False,
+                        "error": str(result.get("message", "") or "endpoint usb export failed"),
+                        "queued_action": queued,
+                        "endpoint_result": self._summarize_action_result(result),
+                    },
+                )
+            try:
+                attach_result = self._attach_usb_to_guest(vm, busid)
+            except Exception as exc:
+                message = str(exc)
+                if "Device busy (exported)" in message:
+                    retry = self._queue_vm_action(vm, "usb-bind", requester_identity, {"busid": busid})
+                    retry_result = self._wait_for_action_result(vm.node, vm.vmid, retry["action_id"])
+                    if retry_result is not None and bool(retry_result.get("ok")):
+                        try:
+                            attach_result = self._attach_usb_to_guest(vm, busid)
+                        except Exception as retry_exc:
+                            message = str(retry_exc)
+                        else:
+                            return self._json_response(
+                                HTTPStatus.OK,
+                                {
+                                    "ok": True,
+                                    **self._envelope(
+                                        queued_action=queued,
+                                        endpoint_result=self._summarize_action_result(result),
+                                        retry_action=retry,
+                                        retry_endpoint_result=self._summarize_action_result(retry_result),
+                                        attach_result=attach_result,
+                                    ),
+                                },
+                            )
+                return self._json_response(
+                    HTTPStatus.BAD_GATEWAY,
+                    {
+                        "ok": False,
+                        "error": f"guest usb attach failed: {message}",
+                        "queued_action": queued,
+                        "endpoint_result": self._summarize_action_result(result),
+                    },
+                )
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        queued_action=queued,
+                        endpoint_result=self._summarize_action_result(result),
+                        guest_attach=attach_result,
+                        usb=self._build_vm_usb_state(vm),
+                    ),
+                },
+            )
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/usb/detach"):
+            vm, error = self._vm_from_segment(path, -3)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            busid = str(payload.get("busid", "")).strip()
+            port_value = payload.get("port")
+            try:
+                port = int(port_value) if port_value is not None and str(port_value).strip() else None
+            except Exception as exc:
+                return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+            try:
+                detach_result = self._detach_usb_from_guest(vm, port, busid)
+            except Exception as exc:
+                return self._json_response(
+                    HTTPStatus.BAD_GATEWAY,
+                    {"ok": False, "error": f"guest usb detach failed: {exc}"},
+                )
+            queued = None
+            endpoint_result = None
+            if busid:
+                queued = self._queue_vm_action(vm, "usb-unbind", requester_identity, {"busid": busid})
+                endpoint_result = self._wait_for_action_result(vm.node, vm.vmid, queued["action_id"])
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        guest_detach=detach_result,
+                        queued_action=queued,
+                        endpoint_result=self._summarize_action_result(endpoint_result),
+                        usb=self._build_vm_usb_state(vm),
+                    ),
+                },
+            )
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/sunshine-access"):
+            vm, error = self._vm_from_segment(path, -2)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            token, payload = self._issue_sunshine_access_token(vm)
+            return self._json_response(
+                HTTPStatus.CREATED,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        sunshine_access={
+                            **payload,
+                            "url": self._sunshine_proxy_ticket_url(token),
+                        }
+                    ),
+                },
+            )
+
+        return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})

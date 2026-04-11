@@ -2,6 +2,22 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — host authenticated VM mutation surface extraction
+
+- Extracted the remaining single-VM authenticated mutation POST cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/vm_mutation_surface.py`:
+  - `VmMutationSurfaceService` now owns route matching, validation, queueing, and response shaping for VM installer-prep start, OS update queueing, generic VM actions, USB refresh, USB attach/detach orchestration, and Sunshine access-ticket issuance
+  - the service now composes the already-extracted action queue, installer-prep, VM USB, and Sunshine integration seams instead of keeping that per-VM mutation logic inline in the HTTP entrypoint
+- Rewired the control-plane entrypoint to delegate that authenticated VM mutation cluster through `VmMutationSurfaceService`:
+  - `beagle-control-plane.py` now only performs the auth gate plus required/optional JSON-body reads before handing off to the service
+  - `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/vm_mutation_surface.py` into the deployed host runtime
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile beagle-host/services/vm_mutation_surface.py beagle-host/bin/beagle-control-plane.py`
+  - `bash -n scripts/install-proxmox-host-services.sh`
+  - focused smoke checks for `VmMutationSurfaceService` queueing, USB orchestration, and Sunshine access response shaping
+  - `./scripts/validate-project.sh`
+- Current size marker after this slice:
+  - `beagle-host/bin/beagle-control-plane.py` is down to about `2468` lines
+
 ### 2026-04-11 — host public sunshine proxy extraction
 
 - Extracted the public Sunshine proxy flow out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/public_sunshine_surface.py`:
