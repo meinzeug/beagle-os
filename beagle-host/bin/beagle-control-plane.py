@@ -45,6 +45,7 @@ from metadata_support import MetadataSupportService
 from persistence_support import PersistenceSupportService
 from policy_normalization import PolicyNormalizationService
 from policy_store import PolicyStoreService
+from public_http_surface import PublicHttpSurfaceService
 from public_streams import PublicStreamService
 from request_support import RequestSupportService
 from registry import create_provider, list_providers, normalize_provider_kind
@@ -500,6 +501,7 @@ VIRTUALIZATION_INVENTORY = VirtualizationInventoryService(
 VM_PROFILE_SERVICE: VmProfileService | None = None
 VM_HTTP_SURFACE_SERVICE: VmHttpSurfaceService | None = None
 CONTROL_PLANE_READ_SURFACE_SERVICE: ControlPlaneReadSurfaceService | None = None
+PUBLIC_HTTP_SURFACE_SERVICE: PublicHttpSurfaceService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
 DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
 RUNTIME_ENVIRONMENT_SERVICE: RuntimeEnvironmentService | None = None
@@ -1645,6 +1647,21 @@ def control_plane_read_surface_service() -> ControlPlaneReadSurfaceService:
     return CONTROL_PLANE_READ_SURFACE_SERVICE
 
 
+def public_http_surface_service() -> PublicHttpSurfaceService:
+    global PUBLIC_HTTP_SURFACE_SERVICE
+    if PUBLIC_HTTP_SURFACE_SERVICE is None:
+        PUBLIC_HTTP_SURFACE_SERVICE = PublicHttpSurfaceService(
+            build_profile=build_profile,
+            build_update_feed=build_update_feed,
+            build_vm_state=build_vm_state,
+            find_vm=find_vm,
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return PUBLIC_HTTP_SURFACE_SERVICE
+
+
 def vm_state_service() -> VmStateService:
     global VM_STATE_SERVICE
     if VM_STATE_SERVICE is None:
@@ -1919,21 +1936,6 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _endpoint_summary_for_vmid(self, vmid: int) -> dict[str, Any] | None:
-        for vm in list_vms():
-            if vm.vmid == vmid:
-                report = load_endpoint_report(vm.node, vm.vmid)
-                if report is None:
-                    return None
-                return summarize_endpoint_report(report)
-        return None
-
-    def _vm_state_for_vmid(self, vmid: int) -> dict[str, Any] | None:
-        vm = find_vm(vmid)
-        if vm is None:
-            return None
-        return build_vm_state(vm)
-
     def _requester_identity(self) -> str:
         if self.client_address and self.client_address[0]:
             return self.client_address[0]
@@ -1988,84 +1990,20 @@ class Handler(BaseHTTPRequestHandler):
             self._write_proxy_response(status_code, headers, body)
             return
 
-        if path.startswith("/api/v1/public/vms/") and path.endswith("/state"):
-            vmid_text = path.split("/")[-2]
-            if not vmid_text.isdigit():
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                return
-            state = self._vm_state_for_vmid(int(vmid_text))
-            if state is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                return
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    **state,
-                },
-            )
-            return
-
-        if path.startswith("/api/v1/public/vms/") and path.endswith("/endpoint"):
-            vmid_text = path.split("/")[-2]
-            if not vmid_text.isdigit():
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                return
-            state = self._vm_state_for_vmid(int(vmid_text))
-            if state is None or not state["endpoint"].get("reported_at"):
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "endpoint not found"})
-                return
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    **state,
-                },
-            )
-            return
-
-        if path.startswith("/api/v1/public/vms/") and path.endswith("/installer.sh"):
-            self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "public installer download disabled"})
-            return
-        if path.startswith("/api/v1/public/vms/") and path.endswith("/live-usb.sh"):
-            self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "public live USB download disabled"})
-            return
-        if path.startswith("/api/v1/public/vms/") and path.endswith("/installer.ps1"):
-            self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "public installer download disabled"})
+        response = public_http_surface_service().route_get(path)
+        if response is not None:
+            self._write_json(response["status"], response["payload"])
             return
 
         if path == "/api/v1/endpoints/update-feed":
             if not self._is_endpoint_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
-            identity = self._endpoint_identity() or {}
-            vmid = int(identity.get("vmid", 0) or 0)
-            vm = find_vm(vmid)
-            if vm is None or str(identity.get("node", "")).strip() != vm.node:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                return
-            query = parse_qs(query_text or "")
-            profile = build_profile(vm)
-            update_feed = build_update_feed(
-                profile,
-                installed_version=str((query.get("installed_version") or [""])[0]).strip(),
-                channel=str((query.get("channel") or [""])[0]).strip(),
-                version_pin=str((query.get("version_pin") or [""])[0]).strip(),
+            response = public_http_surface_service().endpoint_update_feed(
+                query_text=query_text,
+                endpoint_identity=self._endpoint_identity(),
             )
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "update": update_feed,
-                },
-            )
+            self._write_json(response["status"], response["payload"])
             return
 
         if not self._is_authenticated():

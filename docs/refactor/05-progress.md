@@ -2,6 +2,23 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — host public/read and endpoint-update surface extraction
+
+- Extracted the next public/endpoint-facing GET cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/public_http_surface.py`:
+  - `PublicHttpSurfaceService` now owns the route matching and payload shaping for `public/vms/<vmid>/state`, `public/vms/<vmid>/endpoint`, and the intentionally forbidden public installer-download routes
+  - the same service now also owns the endpoint-authenticated update-feed response assembly for `/api/v1/endpoints/update-feed`, including query parsing and VM/identity verification against the existing extracted update-feed/profile seams
+- Rewired the control-plane entrypoint to delegate those public and endpoint-facing reads instead of rebuilding them inline:
+  - `beagle-control-plane.py` now keeps that area at sunshine-proxy dispatch, auth checks, and final response writing only
+  - the now-obsolete entrypoint-local `_endpoint_summary_for_vmid(...)` and `_vm_state_for_vmid(...)` helpers are gone
+  - `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/public_http_surface.py` into the deployed host runtime
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile beagle-host/services/public_http_surface.py beagle-host/bin/beagle-control-plane.py`
+  - `bash -n scripts/install-proxmox-host-services.sh`
+  - focused smoke checks for `PublicHttpSurfaceService` route handling and endpoint update-feed shaping
+  - `./scripts/validate-project.sh`
+- Current size marker after this slice:
+  - `beagle-host/bin/beagle-control-plane.py` is down to about `2899` lines
+
 ### 2026-04-11 — host non-VM read-surface extraction
 
 - Extracted the next non-VM GET response cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/control_plane_read_surface.py`:
