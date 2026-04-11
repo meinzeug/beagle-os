@@ -1416,6 +1416,17 @@ Reason:
 
 - After the GFN storage/environment split, the next distinct block in `launch-geforcenow.sh` was the callback-target and stream-optimization flow. That code is side-effect-heavy, depends on kiosk/management helpers, and is independently smoke-testable with simple stubs. Pulling it out keeps the launcher focused on environment bootstrap and final execution while the stream-optimization behavior becomes an explicit seam.
 
+### D123. Moonlight manager registration should leave the mixed remote-API helper
+
+Decision:
+
+- Keep manager registration payload generation and manager-side client registration in `thin-client-assistant/runtime/moonlight_manager_registration.sh`.
+- `thin-client-assistant/runtime/moonlight_remote_api.sh` should source that helper and remain focused on shared remote-API accessors plus Sunshine PIN submission and JSON status extraction.
+
+Reason:
+
+- Once the GFN launcher and ownership seams were reduced, `moonlight_remote_api.sh` stood out as another mixed protocol helper: manager registration and Sunshine PIN submission share some transport helpers, but they are distinct API contracts and failure modes. Pulling the manager-registration path out keeps both sides smaller and independently smoke-testable without changing the public helper surface used by `moonlight_pairing.sh` and `launch-moonlight.sh`.
+
 ### D124. USB inventory and payload rendering should leave the state-persistence helper
 
 Decision:
@@ -1427,13 +1438,24 @@ Reason:
 
 - After the Moonlight and GFN runtime layers became thinner, `beagle_usb_runtime_state.sh` still mixed two different concerns: persisted USB binding state and JSON/presentation logic for the CLI/API surface. Those payload helpers are independently smoke-testable with stubbed `usbip` and `pgrep`, and they do not need to stay tied to the persistence helpers. Pulling them out keeps the state helper focused on storage while preserving the same runtime call surface for the USB actions layer.
 
-### D123. Moonlight manager registration should leave the mixed remote-API helper
+### D125. Runtime network config-file writing should leave the backend restart helper
 
 Decision:
 
-- Keep manager registration payload generation and manager-side client registration in `thin-client-assistant/runtime/moonlight_manager_registration.sh`.
-- `thin-client-assistant/runtime/moonlight_remote_api.sh` should source that helper and remain focused on shared remote-API accessors plus Sunshine PIN submission and JSON status extraction.
+- Keep networkd file paths, NetworkManager connection-file paths, DNS-server resolution, `write_network_file()`, `write_nmconnection()`, and `write_resolv_conf()` in `thin-client-assistant/runtime/runtime_network_config_files.sh`.
+- `thin-client-assistant/runtime/runtime_network_backend.sh` should source that helper and remain focused on backend detection plus `systemd-networkd` / `NetworkManager` restart control.
 
 Reason:
 
-- Once the GFN launcher and ownership seams were reduced, `moonlight_remote_api.sh` stood out as another mixed protocol helper: manager registration and Sunshine PIN submission share some transport helpers, but they are distinct API contracts and failure modes. Pulling the manager-registration path out keeps both sides smaller and independently smoke-testable without changing the public helper surface used by `moonlight_pairing.sh` and `launch-moonlight.sh`.
+- After the network identity and wait helpers had already left `runtime_network_runtime.sh`, the remaining network writing/restart logic in `runtime_network_backend.sh` still mixed two different responsibilities: persistent file rendering and backend service control. The config-file side is independently smoke-testable with temporary paths, while the backend restart side depends on stubbed `systemctl` / `nmcli`. Pulling them apart keeps the backend helper small and makes the network file-writing contract explicit.
+
+### D126. Moonlight API URL selection should leave the probe/wait helper
+
+Decision:
+
+- Keep `rewrite_url_host()`, `sunshine_api_url()`, `effective_sunshine_api_url()`, and `selected_sunshine_api_url()` in `thin-client-assistant/runtime/moonlight_api_url.sh`.
+- `thin-client-assistant/runtime/moonlight_reachability.sh` should source that helper and remain focused on active probes, candidate checks, and wait behavior.
+
+Reason:
+
+- Even after the connect-host split, `moonlight_reachability.sh` still mixed pure URL/template rewriting with active reachability probing. Those URL helpers are read-mostly, deterministic, and independently smoke-testable without any socket or curl behavior. Pulling them out keeps the reachability layer focused on real network checks while preserving the same public helper surface for the Moonlight pairing and launch flows.

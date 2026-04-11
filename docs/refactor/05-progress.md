@@ -1,5 +1,31 @@
 # Refactor Progress
 
+### 2026-04-11 — runtime network config-file helper extraction
+
+- Removed the config-file and resolver-writing block from `thin-client-assistant/runtime/runtime_network_backend.sh`:
+  - added `thin-client-assistant/runtime/runtime_network_config_files.sh` for networkd path accessors, NetworkManager connection-file paths, DNS server resolution, `write_network_file()`, `write_nmconnection()`, and `write_resolv_conf()`
+  - `thin-client-assistant/runtime/runtime_network_backend.sh` now sources that helper and stays focused on backend detection plus `systemd-networkd` / `NetworkManager` restart control
+- This reduces the runtime network backend into a clearer backend-control seam:
+  - config-file writing and service restart logic are now split into separate helpers instead of one mixed backend file
+  - `apply-network-config.sh` still drives the same public helper calls, so network runtime behavior stays unchanged
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/runtime_network_backend.sh thin-client-assistant/runtime/runtime_network_config_files.sh thin-client-assistant/runtime/runtime_network_runtime.sh thin-client-assistant/runtime/runtime_network_identity.sh thin-client-assistant/runtime/runtime_network_wait.sh thin-client-assistant/runtime/apply-network-config.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `write_network_file()`, `write_nmconnection()`, and `write_resolv_conf()` with temporary runtime paths
+  - focused smoke test for `have_networkmanager()`, `restart_networkmanager()`, and `restart_networkd()` with stubbed `systemctl` and `nmcli`
+
+### 2026-04-11 — Moonlight API-URL helper extraction
+
+- Removed the Sunshine API URL/rewrite block from `thin-client-assistant/runtime/moonlight_reachability.sh`:
+  - added `thin-client-assistant/runtime/moonlight_api_url.sh` for `rewrite_url_host()`, `sunshine_api_url()`, `effective_sunshine_api_url()`, and `selected_sunshine_api_url()`
+  - `thin-client-assistant/runtime/moonlight_reachability.sh` now sources that helper and stays focused on probe, candidate testing, and wait behavior
+- This reduces the remaining Moonlight reachability helper into a clearer probe/wait seam:
+  - URL/template rewriting and active reachability probes now live in separate modules instead of one mixed helper
+  - `moonlight_remote_api.sh`, `launch-moonlight.sh`, and `moonlight_pairing.sh` still consume the same public helper surface, so runtime behavior stays unchanged
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/moonlight_api_url.sh thin-client-assistant/runtime/moonlight_reachability.sh thin-client-assistant/runtime/moonlight_targeting.sh thin-client-assistant/runtime/moonlight_remote_api.sh thin-client-assistant/runtime/moonlight_pairing.sh thin-client-assistant/runtime/launch-moonlight.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `rewrite_url_host()`, `sunshine_api_url()`, `effective_sunshine_api_url()`, and `selected_sunshine_api_url()`
+  - focused smoke test for `probe_stream_target()`, `probe_stream_candidate()`, and `wait_for_stream_target()` with stubbed `curl`
+
 ## 2026-04-09
 
 ### 2026-04-11 — Moonlight host-registry helper extraction
@@ -15,19 +41,6 @@
   - `bash -n thin-client-assistant/runtime/moonlight_host_sync.sh thin-client-assistant/runtime/moonlight_pairing.sh thin-client-assistant/runtime/launch-moonlight.sh`
   - focused smoke test for `seed-response`, `sync-config`, and `is-configured` against a temporary Moonlight config file
   - focused smoke test for `seed_moonlight_host_from_runtime_config()` and `moonlight_host_configured()` with stubbed Moonlight accessors
-
-### 2026-04-11 — Moonlight manager-registration helper extraction
-
-- Split the manager-registration path out of `thin-client-assistant/runtime/moonlight_remote_api.sh`:
-  - added `thin-client-assistant/runtime/moonlight_manager_registration.sh` for manager registration payload generation and manager-side client registration
-  - `thin-client-assistant/runtime/moonlight_remote_api.sh` now sources that helper and stays focused on shared remote-API accessors plus Sunshine PIN submission and JSON status extraction
-- This reduces the remaining Moonlight remote API helper to clearer seams:
-  - manager registration and Sunshine PIN submission are now separate helper surfaces instead of one mixed remote API file
-  - `moonlight_pairing.sh` and `launch-moonlight.sh` still consume the same public helper functions, so runtime behavior stays unchanged
-- Validation and smoke checks for this slice passed:
-  - `bash -n thin-client-assistant/runtime/moonlight_manager_registration.sh thin-client-assistant/runtime/moonlight_remote_api.sh thin-client-assistant/runtime/moonlight_pairing.sh thin-client-assistant/runtime/launch-moonlight.sh`
-  - focused smoke test for `build_moonlight_manager_registration_payload()` and `register_moonlight_client_via_manager()` with stubbed `curl` and manager sync hooks
-  - focused smoke test for `submit_sunshine_pin()` and `json_bool()` with stubbed `curl`
 
 ### 2026-04-11 — USB runtime payload helper extraction
 
