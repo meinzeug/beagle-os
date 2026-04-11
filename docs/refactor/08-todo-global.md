@@ -53,6 +53,7 @@
 - [x] Extract the preset-to-runtime config generation helper out of `thin-client-assistant/runtime/common.sh` while keeping `write-config.sh` as the canonical config writer.
 - [x] Extract the Proxmox-specific USB preset builder out of `thin-client-assistant/usb/pve-thin-client-proxmox-api.py` into a dedicated provider helper module.
 - [x] Extract the overlapping thin-client preset base fields into a shared helper used by both `beagle-host/services/installer_script.py` and `thin-client-assistant/usb/proxmox_preset.py`.
+- [x] Extract the shared extended runtime preset field contract used by both host-generated and USB-generated presets into `beagle-host/services/thin_client_preset.py`.
 - [x] Extract the shared installer/runtime env default literals into one contract used by both shell and Python paths.
 - [x] Extract the runtime mode/cmdline override mapping out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
 - [x] Extract the runtime config-discovery and cmdline-preset restore block out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.

@@ -5,7 +5,7 @@ import shlex
 from pathlib import Path
 from typing import Any, Callable
 
-from thin_client_preset import build_common_preset
+from thin_client_preset import build_common_preset, build_runtime_extension_fields
 
 
 class InstallerScriptService:
@@ -133,59 +133,49 @@ class InstallerScriptService:
             sunshine_username=sunshine_username,
             sunshine_password=sunshine_password,
             sunshine_pin=sunshine_pin,
-            extra_fields={
-                "PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_ADDRESS": meta.get("thinclient-network-static-address", ""),
-                "PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_PREFIX": meta.get("thinclient-network-static-prefix", "24"),
-                "PVE_THIN_CLIENT_PRESET_NETWORK_GATEWAY": meta.get("thinclient-network-gateway", ""),
-                "PVE_THIN_CLIENT_PRESET_NETWORK_DNS_SERVERS": meta.get("thinclient-network-dns-servers", "1.1.1.1 8.8.8.8"),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_PINNED_PUBKEY": self._manager_pinned_pubkey,
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_URL": f"{self._public_manager_url}/api/v1/endpoints/enroll",
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_TOKEN": enrollment_token,
-                "PVE_THIN_CLIENT_PRESET_THINCLIENT_PASSWORD": thinclient_password,
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_ENABLED": "1" if bool(profile.get("update_enabled", True)) else "0",
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_CHANNEL": str(profile.get("update_channel", "stable") or "stable"),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_BEHAVIOR": str(profile.get("update_behavior", "prompt") or "prompt"),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_FEED_URL": str(
+            extra_fields=build_runtime_extension_fields(
+                network_static_address=meta.get("thinclient-network-static-address", ""),
+                network_static_prefix=meta.get("thinclient-network-static-prefix", "24"),
+                network_gateway=meta.get("thinclient-network-gateway", ""),
+                network_dns_servers=meta.get("thinclient-network-dns-servers", "1.1.1.1 8.8.8.8"),
+                beagle_manager_pinned_pubkey=self._manager_pinned_pubkey,
+                beagle_enrollment_url=f"{self._public_manager_url}/api/v1/endpoints/enroll",
+                beagle_enrollment_token=enrollment_token,
+                thinclient_password=thinclient_password,
+                beagle_update_enabled="1" if bool(profile.get("update_enabled", True)) else "0",
+                beagle_update_channel=str(profile.get("update_channel", "stable") or "stable"),
+                beagle_update_behavior=str(profile.get("update_behavior", "prompt") or "prompt"),
+                beagle_update_feed_url=str(
                     profile.get("update_feed_url", f"{self._public_manager_url}/api/v1/endpoints/update-feed") or ""
                 ),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_VERSION_PIN": str(profile.get("update_version_pin", "") or ""),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_MODE": str(profile.get("egress_mode", "direct") or "direct"),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_TYPE": str(profile.get("egress_type", "") or ""),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_INTERFACE": str(
-                    profile.get("egress_interface", "beagle-egress") or "beagle-egress"
-                ),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_DOMAINS": " ".join(profile.get("egress_domains", []) or []),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_RESOLVERS": " ".join(profile.get("egress_resolvers", []) or []),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_ALLOWED_IPS": " ".join(profile.get("egress_allowed_ips", []) or []),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_ADDRESS": str(profile.get("egress_wg_address", "") or ""),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_DNS": str(profile.get("egress_wg_dns", "") or ""),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PUBLIC_KEY": str(profile.get("egress_wg_public_key", "") or ""),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_ENDPOINT": str(profile.get("egress_wg_endpoint", "") or ""),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRIVATE_KEY": str(
-                    profile.get("egress_wg_private_key", "") or ""
-                ),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRESHARED_KEY": str(
-                    profile.get("egress_wg_preshared_key", "") or ""
-                ),
-                "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE": str(
+                beagle_update_version_pin=str(profile.get("update_version_pin", "") or ""),
+                beagle_egress_mode=str(profile.get("egress_mode", "direct") or "direct"),
+                beagle_egress_type=str(profile.get("egress_type", "") or ""),
+                beagle_egress_interface=str(profile.get("egress_interface", "beagle-egress") or "beagle-egress"),
+                beagle_egress_domains=" ".join(profile.get("egress_domains", []) or []),
+                beagle_egress_resolvers=" ".join(profile.get("egress_resolvers", []) or []),
+                beagle_egress_allowed_ips=" ".join(profile.get("egress_allowed_ips", []) or []),
+                beagle_egress_wg_address=str(profile.get("egress_wg_address", "") or ""),
+                beagle_egress_wg_dns=str(profile.get("egress_wg_dns", "") or ""),
+                beagle_egress_wg_public_key=str(profile.get("egress_wg_public_key", "") or ""),
+                beagle_egress_wg_endpoint=str(profile.get("egress_wg_endpoint", "") or ""),
+                beagle_egress_wg_private_key=str(profile.get("egress_wg_private_key", "") or ""),
+                beagle_egress_wg_preshared_key=str(profile.get("egress_wg_preshared_key", "") or ""),
+                beagle_egress_wg_persistent_keepalive=str(
                     profile.get("egress_wg_persistent_keepalive", "25") or "25"
                 ),
-                "PVE_THIN_CLIENT_PRESET_IDENTITY_HOSTNAME": str(profile.get("identity_hostname", "") or ""),
-                "PVE_THIN_CLIENT_PRESET_IDENTITY_TIMEZONE": str(profile.get("identity_timezone", "") or ""),
-                "PVE_THIN_CLIENT_PRESET_IDENTITY_LOCALE": str(profile.get("identity_locale", "") or ""),
-                "PVE_THIN_CLIENT_PRESET_IDENTITY_KEYMAP": str(profile.get("identity_keymap", "") or ""),
-                "PVE_THIN_CLIENT_PRESET_IDENTITY_CHROME_PROFILE": str(
-                    profile.get("identity_chrome_profile", "") or ""
-                ),
-                "PVE_THIN_CLIENT_PRESET_MOONLIGHT_PORT": moonlight_port,
-                "PVE_THIN_CLIENT_PRESET_SUNSHINE_PINNED_PUBKEY": sunshine_pinned_pubkey,
-                "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_NAME": str(sunshine_server.get("sunshine_name", "") or ""),
-                "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_STREAM_PORT": str(
-                    sunshine_server.get("stream_port", "") or moonlight_port or ""
-                ),
-                "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_UNIQUEID": str(sunshine_server.get("uniqueid", "") or ""),
-                "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_CERT_B64": sunshine_server_cert_b64,
-            },
+                identity_hostname=str(profile.get("identity_hostname", "") or ""),
+                identity_timezone=str(profile.get("identity_timezone", "") or ""),
+                identity_locale=str(profile.get("identity_locale", "") or ""),
+                identity_keymap=str(profile.get("identity_keymap", "") or ""),
+                identity_chrome_profile=str(profile.get("identity_chrome_profile", "") or ""),
+                moonlight_port=moonlight_port,
+                sunshine_pinned_pubkey=sunshine_pinned_pubkey,
+                sunshine_server_name=str(sunshine_server.get("sunshine_name", "") or ""),
+                sunshine_server_stream_port=str(sunshine_server.get("stream_port", "") or moonlight_port or ""),
+                sunshine_server_uniqueid=str(sunshine_server.get("uniqueid", "") or ""),
+                sunshine_server_cert_b64=sunshine_server_cert_b64,
+            ),
         )
 
     def _build_preset_for_vm(self, vm: Any) -> tuple[dict[str, str], str, str]:
