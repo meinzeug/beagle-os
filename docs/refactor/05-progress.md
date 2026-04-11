@@ -2,6 +2,18 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime preset-to-config generator extraction
+
+- Removed the largest preset→runtime env-mapping block from `thin-client-assistant/runtime/common.sh`:
+  - added `thin-client-assistant/runtime/generate_config_from_preset.py` for parsing preset env files and driving `thin-client-assistant/installer/write-config.sh` with the mapped runtime/install env contract
+  - `generate_config_dir_from_preset()` in `thin-client-assistant/runtime/common.sh` now delegates to that helper instead of exporting dozens of preset-derived variables inline
+  - this keeps the generated `thinclient.conf`, `network.env`, `credentials.env`, and `local-auth.env` behavior unchanged while shrinking the remaining runtime-shell monolith
+- This is the first explicit seam for the preset→runtime config generation path, which was one of the remaining installer/runtime drift points after the shared preset summary, enrollment writer, and status writer slices.
+- Validation and smoke checks for this slice passed:
+  - `python3 -m py_compile thin-client-assistant/runtime/generate_config_from_preset.py`
+  - `bash -n thin-client-assistant/runtime/common.sh thin-client-assistant/installer/write-config.sh`
+  - focused smoke test for preset-driven generation of `thinclient.conf`, `credentials.env`, and `local-auth.env`
+
 ### 2026-04-11 — runtime status writer extraction
 
 - Introduced a shared runtime status helper for thin-client boot/session scripts:
