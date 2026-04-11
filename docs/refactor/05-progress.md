@@ -1,5 +1,18 @@
 # Refactor Progress
 
+### 2026-04-11 — USB `usbipd` lifecycle helper extraction
+
+- Removed the `usbipd` lifecycle and exportability block from `thin-client-assistant/runtime/beagle_usb_runtime_actions.sh`:
+  - added `thin-client-assistant/runtime/beagle_usb_runtime_usbipd.sh` for `have_usbipd()`, `restart_usbipd()`, `have_exportable_devices()`, `ensure_usbipd()`, and `sync_bound_devices()`
+  - `thin-client-assistant/runtime/beagle_usb_runtime_actions.sh` now sources that helper and stays focused on public USB list/status/bind/unbind actions plus the SSH tunnel entrypoint
+- This reduces the USB runtime actions layer into a clearer action seam:
+  - local `usbipd` lifecycle handling and public action/tunnel operations now live in separate modules instead of one mixed helper
+  - `beagle-usbctl.sh` still drives the same public helper surface, so runtime behavior stays unchanged
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/beagle_usb_runtime_actions.sh thin-client-assistant/runtime/beagle_usb_runtime_usbipd.sh thin-client-assistant/runtime/beagle_usb_runtime_state.sh thin-client-assistant/runtime/beagle_usb_runtime_payloads.sh thin-client-assistant/runtime/beagle-usbctl.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `ensure_usbipd()`, `have_exportable_devices()`, and `sync_bound_devices()` with stubbed `usbip`, `usbipd`, `pgrep`, `pkill`, `modprobe`, and `sleep`
+  - focused smoke test for `bind_usb_device()`, `unbind_usb_device()`, `usb_list_json()`, and `usb_status_json()` with stubbed `systemctl` and temporary bound-busid state
+
 ### 2026-04-11 — streaming management-activity helper extraction
 
 - Removed the management timer/service suspension block from `thin-client-assistant/runtime/stream_state.sh`:

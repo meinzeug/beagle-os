@@ -1470,3 +1470,14 @@ Decision:
 Reason:
 
 - `stream_state.sh` still mixed two distinct concerns: persisted stream-session state and side-effect-heavy management activity orchestration. The management side depends on `systemctl`, privileged stop/start wrappers, and unit-file presence checks, while the state side is independently smoke-testable with temporary files and a stubbed `pgrep`. Pulling the management block out keeps the state helper small and leaves GeForce NOW stream optimization calling an explicit management seam.
+
+### D128. USB `usbipd` lifecycle control should leave the public USB action helper
+
+Decision:
+
+- Keep `have_usbipd()`, `restart_usbipd()`, `have_exportable_devices()`, `ensure_usbipd()`, and `sync_bound_devices()` in `thin-client-assistant/runtime/beagle_usb_runtime_usbipd.sh`.
+- `thin-client-assistant/runtime/beagle_usb_runtime_actions.sh` should source that helper and remain focused on list/status rendering, bind/unbind actions, and the SSH tunnel entrypoint.
+
+Reason:
+
+- `beagle_usb_runtime_actions.sh` still mixed two different concerns: internal local `usbipd` process/exportability lifecycle and the public action surface consumed by `beagle-usbctl.sh`. The lifecycle side depends on stubbable process and kernel-module commands, while the public side is about JSON/status responses and explicit operator actions. Pulling the lifecycle block out keeps the action helper smaller and leaves the runtime USB daemon contract explicit.
