@@ -4,6 +4,7 @@ set -euo pipefail
 STATUS_DIR="${STATUS_DIR:-/var/lib/pve-thin-client}"
 STATUS_FILE="$STATUS_DIR/runtime.status"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATUS_WRITER_PY="$SCRIPT_DIR/status_writer.py"
 APPLY_ENROLLMENT_CONFIG_PY="$SCRIPT_DIR/apply_enrollment_config.py"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
@@ -475,31 +476,31 @@ else
 fi
 
 {
-  echo "timestamp=$(date -Iseconds)"
-  echo "boot_mode=$BOOT_MODE"
-  echo "mode=${PVE_THIN_CLIENT_MODE:-UNSET}"
-  echo "runtime_user=${PVE_THIN_CLIENT_RUNTIME_USER:-UNSET}"
-  echo "connection_method=${PVE_THIN_CLIENT_CONNECTION_METHOD:-UNSET}"
-  echo "profile_name=${PVE_THIN_CLIENT_PROFILE_NAME:-UNSET}"
-  echo "required_binary=$required_binary"
-  echo "moonlight_host=${PVE_THIN_CLIENT_MOONLIGHT_HOST:-UNSET}"
-  echo "moonlight_app=${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}"
   if [[ "$BOOT_MODE" == "installer" ]]; then
-    echo "binary_available=1"
+    binary_available="1"
   elif [[ "$required_binary" == */* ]]; then
     if [[ -x "$required_binary" ]]; then
       binary_available="1"
-      echo "binary_available=1"
     else
-      echo "binary_available=0"
+      binary_available="0"
     fi
   elif command -v "$required_binary" >/dev/null 2>&1; then
     binary_available="1"
-    echo "binary_available=1"
   else
-    echo "binary_available=0"
+    binary_available="0"
   fi
-} > "$STATUS_FILE"
+  python3 "$STATUS_WRITER_PY" runtime-status \
+    --path "$STATUS_FILE" \
+    --boot-mode "$BOOT_MODE" \
+    --mode "${PVE_THIN_CLIENT_MODE:-UNSET}" \
+    --runtime-user "${PVE_THIN_CLIENT_RUNTIME_USER:-UNSET}" \
+    --connection-method "${PVE_THIN_CLIENT_CONNECTION_METHOD:-UNSET}" \
+    --profile-name "${PVE_THIN_CLIENT_PROFILE_NAME:-UNSET}" \
+    --required-binary "$required_binary" \
+    --moonlight-host "${PVE_THIN_CLIENT_MOONLIGHT_HOST:-UNSET}" \
+    --moonlight-app "${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}" \
+    --binary-available "$binary_available"
+} >/dev/null
 
 chmod 0644 "$STATUS_FILE"
 beagle_log_event "prepare-runtime.ready" "binary=${required_binary} binary_available=${binary_available}"
