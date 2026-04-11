@@ -867,3 +867,15 @@ Decision:
 Reason:
 
 - The remaining installer/env-builder drift was no longer only on the host side. The thin-client USB path still carried duplicated `available_modes` and preset-summary logic in both the Proxmox API helper and the local installer shell script. Moving the derived summary/view layer behind one helper reduces drift immediately, narrows the next preset-builder slice, and keeps the user-facing installer JSON surfaces stable.
+
+### D77. Runtime enrollment-response config writes should leave prepare-runtime.sh
+
+Decision:
+
+- Move the endpoint-enrollment response mapping and file-write logic out of `thin-client-assistant/runtime/prepare-runtime.sh` into `thin-client-assistant/runtime/apply_enrollment_config.py`.
+- Keep the helper focused on applying the current payload contract to `thinclient.conf`, `credentials.env`, `usb-tunnel.key`, and `usb-tunnel-known_hosts` without changing the contract itself.
+- Let `prepare-runtime.sh` stay responsible for the enroll HTTP call and subsequent sourcing/reload behavior only.
+
+Reason:
+
+- The runtime entrypoint still embedded a large inline Python writer for the enrollment response payload. That made one of the remaining runtime/env-builder contracts effectively undocumented in code structure and harder to align with future installer/runtime contract work. Extracting the writer keeps behavior stable, shrinks the shell entrypoint, and creates a dedicated seam for the next round of shared runtime-config normalization.
