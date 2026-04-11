@@ -67,6 +67,7 @@ from ubuntu_beagle_provisioning import UbuntuBeagleProvisioningService
 from update_feed import UpdateFeedService
 from utility_support import UtilitySupportService
 from virtualization_inventory import VirtualizationInventoryService
+from vm_mutation_surface import VmMutationSurfaceService
 from vm_profile import VmProfileService
 from vm_http_surface import VmHttpSurfaceService
 from vm_secret_bootstrap import VmSecretBootstrapService
@@ -508,6 +509,7 @@ PUBLIC_HTTP_SURFACE_SERVICE: PublicHttpSurfaceService | None = None
 PUBLIC_UBUNTU_INSTALL_SURFACE_SERVICE: PublicUbuntuInstallSurfaceService | None = None
 ENDPOINT_HTTP_SURFACE_SERVICE: EndpointHttpSurfaceService | None = None
 PUBLIC_SUNSHINE_SURFACE_SERVICE: PublicSunshineSurfaceService | None = None
+VM_MUTATION_SURFACE_SERVICE: VmMutationSurfaceService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
 DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
 RUNTIME_ENVIRONMENT_SERVICE: RuntimeEnvironmentService | None = None
@@ -1712,6 +1714,33 @@ def public_sunshine_surface_service() -> PublicSunshineSurfaceService:
     return PUBLIC_SUNSHINE_SURFACE_SERVICE
 
 
+def vm_mutation_surface_service() -> VmMutationSurfaceService:
+    global VM_MUTATION_SURFACE_SERVICE
+    if VM_MUTATION_SURFACE_SERVICE is None:
+        VM_MUTATION_SURFACE_SERVICE = VmMutationSurfaceService(
+            attach_usb_to_guest=attach_usb_to_guest,
+            build_vm_usb_state=build_vm_usb_state,
+            find_vm=find_vm,
+            issue_sunshine_access_token=issue_sunshine_access_token,
+            queue_vm_action=queue_vm_action,
+            service_name="beagle-control-plane",
+            start_installer_prep=start_installer_prep,
+            summarize_action_result=summarize_action_result,
+            sunshine_proxy_ticket_url=sunshine_proxy_ticket_url,
+            usb_action_wait_seconds=USB_ACTION_WAIT_SECONDS,
+            utcnow=utcnow,
+            version=VERSION,
+            wait_for_action_result=lambda node, vmid, action_id: wait_for_action_result(
+                node,
+                vmid,
+                action_id,
+                timeout_seconds=USB_ACTION_WAIT_SECONDS,
+            ),
+            detach_usb_from_guest=lambda vm, port, busid: detach_usb_from_guest(vm, port=port, busid=busid),
+        )
+    return VM_MUTATION_SURFACE_SERVICE
+
+
 def vm_state_service() -> VmStateService:
     global VM_STATE_SERVICE
     if VM_STATE_SERVICE is None:
@@ -2176,6 +2205,31 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.CREATED, response_payload)
             return
 
+        if vm_mutation_surface_service().handles_path(path):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            json_payload: dict[str, Any] | None = None
+            if vm_mutation_surface_service().requires_json_body(path):
+                try:
+                    json_payload = self._read_json_body()
+                except Exception as exc:
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                    return
+            elif vm_mutation_surface_service().accepts_optional_json_body(path) and int(self.headers.get("Content-Length", "0") or "0") > 0:
+                try:
+                    json_payload = self._read_json_body()
+                except Exception as exc:
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                    return
+            response = vm_mutation_surface_service().route_post(
+                path,
+                json_payload=json_payload,
+                requester_identity=self._requester_identity(),
+            )
+            self._write_json(response["status"], response["payload"])
+            return
+
         if path == "/api/v1/policies":
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
@@ -2268,309 +2322,6 @@ class Handler(BaseHTTPRequestHandler):
                     "version": VERSION,
                     "generated_at": utcnow(),
                     "provisioned_vm": result,
-                },
-            )
-            return
-
-        if path.startswith("/api/v1/vms/") and path.endswith("/installer-prep"):
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            vmid_text = path.split("/")[-2]
-            if not vmid_text.isdigit():
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                return
-            vm = find_vm(int(vmid_text))
-            if vm is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                return
-            try:
-                state = start_installer_prep(vm)
-            except Exception as exc:
-                self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"failed to start installer prep: {exc}"})
-                return
-            status = HTTPStatus.ACCEPTED if str(state.get("status", "")).lower() == "running" else HTTPStatus.OK
-            self._write_json(
-                status,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "installer_prep": state,
-                },
-            )
-            return
-
-        match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/update/(?P<operation>scan|download|apply|rollback)$", path)
-        if match:
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            vm = find_vm(int(match.group("vmid")))
-            if vm is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                return
-            payload: dict[str, Any] = {}
-            if int(self.headers.get("Content-Length", "0") or "0") > 0:
-                try:
-                    payload = self._read_json_body()
-                except Exception as exc:
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                    return
-            params = payload.get("params", {}) if isinstance(payload.get("params"), dict) else {}
-            operation = match.group("operation")
-            action_name = {
-                "scan": "os-update-scan",
-                "download": "os-update-download",
-                "apply": "os-update-apply",
-                "rollback": "os-update-rollback",
-            }[operation]
-            params = dict(params)
-            if operation == "download":
-                params["force"] = True
-            if operation in {"apply", "rollback"} and "reboot" not in params:
-                params["reboot"] = True
-            queued = queue_vm_action(vm, action_name, self._requester_identity(), params)
-            self._write_json(
-                HTTPStatus.ACCEPTED,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "queued_action": queued,
-                },
-            )
-            return
-
-        if path.startswith("/api/v1/vms/") and path.endswith("/actions"):
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            vmid_text = path.split("/")[-2]
-            if not vmid_text.isdigit():
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                return
-            vm = find_vm(int(vmid_text))
-            if vm is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                return
-            try:
-                payload = self._read_json_body()
-                action_name = str(payload.get("action", "")).strip().lower()
-                action_params = payload.get("params", {}) if isinstance(payload.get("params"), dict) else {}
-                if action_name not in {"healthcheck", "recheckin", "restart-session", "restart-runtime", "support-bundle", "os-update-scan", "os-update-download", "os-update-apply", "os-update-rollback"}:
-                    raise ValueError("unsupported action")
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            queued = queue_vm_action(vm, action_name, self._requester_identity(), action_params)
-            self._write_json(
-                HTTPStatus.ACCEPTED,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "queued_action": queued,
-                },
-            )
-            return
-
-        if path.startswith("/api/v1/vms/") and path.endswith("/usb/refresh"):
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            vmid_text = path.split("/")[-3]
-            if not vmid_text.isdigit():
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                return
-            vm = find_vm(int(vmid_text))
-            if vm is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                return
-            queued = queue_vm_action(vm, "usb-refresh", self._requester_identity())
-            self._write_json(
-                HTTPStatus.ACCEPTED,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "queued_action": queued,
-                },
-            )
-            return
-
-        if path.startswith("/api/v1/vms/") and path.endswith("/usb/attach"):
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            vmid_text = path.split("/")[-3]
-            if not vmid_text.isdigit():
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                return
-            vm = find_vm(int(vmid_text))
-            if vm is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                return
-            try:
-                payload = self._read_json_body()
-                busid = str(payload.get("busid", "")).strip()
-                if not busid:
-                    raise ValueError("missing busid")
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            queued = queue_vm_action(vm, "usb-bind", self._requester_identity(), {"busid": busid})
-            result = wait_for_action_result(vm.node, vm.vmid, queued["action_id"], timeout_seconds=USB_ACTION_WAIT_SECONDS)
-            if result is None:
-                self._write_json(
-                    HTTPStatus.ACCEPTED,
-                    {
-                        "ok": True,
-                        "service": "beagle-control-plane",
-                        "version": VERSION,
-                        "generated_at": utcnow(),
-                        "queued_action": queued,
-                        "message": "USB export queued on endpoint; refresh in a few seconds.",
-                    },
-                )
-                return
-            if not bool(result.get("ok")):
-                self._write_json(
-                    HTTPStatus.CONFLICT,
-                    {
-                        "ok": False,
-                        "error": str(result.get("message", "") or "endpoint usb export failed"),
-                        "queued_action": queued,
-                        "endpoint_result": summarize_action_result(result),
-                    },
-                )
-                return
-            try:
-                attach_result = attach_usb_to_guest(vm, busid)
-            except Exception as exc:
-                message = str(exc)
-                if "Device busy (exported)" in message:
-                    retry = queue_vm_action(vm, "usb-bind", self._requester_identity(), {"busid": busid})
-                    retry_result = wait_for_action_result(vm.node, vm.vmid, retry["action_id"], timeout_seconds=USB_ACTION_WAIT_SECONDS)
-                    if retry_result is not None and bool(retry_result.get("ok")):
-                        try:
-                            attach_result = attach_usb_to_guest(vm, busid)
-                        except Exception as retry_exc:
-                            message = str(retry_exc)
-                        else:
-                            self._write_json(
-                                HTTPStatus.OK,
-                                {
-                                    "ok": True,
-                                    "service": "beagle-control-plane",
-                                    "version": VERSION,
-                                    "generated_at": utcnow(),
-                                    "queued_action": queued,
-                                    "endpoint_result": summarize_action_result(result),
-                                    "retry_action": retry,
-                                    "retry_endpoint_result": summarize_action_result(retry_result),
-                                    "attach_result": attach_result,
-                                },
-                            )
-                            return
-                self._write_json(
-                    HTTPStatus.BAD_GATEWAY,
-                    {
-                        "ok": False,
-                        "error": f"guest usb attach failed: {message}",
-                        "queued_action": queued,
-                        "endpoint_result": summarize_action_result(result),
-                    },
-                )
-                return
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "queued_action": queued,
-                    "endpoint_result": summarize_action_result(result),
-                    "guest_attach": attach_result,
-                    "usb": build_vm_usb_state(vm),
-                },
-            )
-            return
-
-        if path.startswith("/api/v1/vms/") and path.endswith("/usb/detach"):
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            vmid_text = path.split("/")[-3]
-            if not vmid_text.isdigit():
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                return
-            vm = find_vm(int(vmid_text))
-            if vm is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                return
-            try:
-                payload = self._read_json_body()
-                busid = str(payload.get("busid", "")).strip()
-                port_value = payload.get("port")
-                port = int(port_value) if port_value is not None and str(port_value).strip() else None
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            try:
-                detach_result = detach_usb_from_guest(vm, port=port, busid=busid)
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": f"guest usb detach failed: {exc}"})
-                return
-            queued = None
-            endpoint_result = None
-            if busid:
-                queued = queue_vm_action(vm, "usb-unbind", self._requester_identity(), {"busid": busid})
-                endpoint_result = wait_for_action_result(vm.node, vm.vmid, queued["action_id"], timeout_seconds=USB_ACTION_WAIT_SECONDS)
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "guest_detach": detach_result,
-                    "queued_action": queued,
-                    "endpoint_result": summarize_action_result(endpoint_result),
-                    "usb": build_vm_usb_state(vm),
-                },
-            )
-            return
-
-        if path.startswith("/api/v1/vms/") and path.endswith("/sunshine-access"):
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            vmid_text = path.split("/")[-2]
-            if not vmid_text.isdigit():
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                return
-            vm = find_vm(int(vmid_text))
-            if vm is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                return
-            token, payload = issue_sunshine_access_token(vm)
-            self._write_json(
-                HTTPStatus.CREATED,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "sunshine_access": {
-                        **payload,
-                        "url": sunshine_proxy_ticket_url(token),
-                    },
                 },
             )
             return

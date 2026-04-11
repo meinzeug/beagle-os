@@ -166,6 +166,7 @@ install -m 0644 "$ROOT_DIR/beagle-host/services/endpoint_http_surface.py" "$HOST
 install -m 0644 "$ROOT_DIR/beagle-host/services/public_http_surface.py" "$HOST_RUNTIME_DIR/services/public_http_surface.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/public_sunshine_surface.py" "$HOST_RUNTIME_DIR/services/public_sunshine_surface.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/public_ubuntu_install_surface.py" "$HOST_RUNTIME_DIR/services/public_ubuntu_install_surface.py"
+install -m 0644 "$ROOT_DIR/beagle-host/services/vm_mutation_surface.py" "$HOST_RUNTIME_DIR/services/vm_mutation_surface.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/vm_state.py" "$HOST_RUNTIME_DIR/services/vm_state.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/download_metadata.py" "$HOST_RUNTIME_DIR/services/download_metadata.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/update_feed.py" "$HOST_RUNTIME_DIR/services/update_feed.py"
