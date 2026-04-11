@@ -55,7 +55,8 @@ Strategic framing:
    - the Sunshine API URL rewrite / selection logic now also lives behind `thin-client-assistant/runtime/moonlight_api_url.sh`
    - the Moonlight host-registry config mutation/detection logic now lives behind `thin-client-assistant/runtime/moonlight_host_registry.py`
    - the Moonlight pairing/bootstrap/config-sync logic now lives behind `thin-client-assistant/runtime/moonlight_pairing.sh`
-   - the runtime streaming-session persistence and management timer suspension/resume logic now live behind `thin-client-assistant/runtime/stream_state.sh`
+   - the runtime streaming-session persistence and active-session detection now live behind `thin-client-assistant/runtime/stream_state.sh`
+   - the runtime management timer/service suspension and resume orchestration now live behind `thin-client-assistant/runtime/stream_management_activity.sh`
    - the generic runtime-owned path helpers now live behind `thin-client-assistant/runtime/runtime_fs_ownership.sh`
    - the GeForce NOW storage/home/cache/config environment prep now lives behind `thin-client-assistant/runtime/geforcenow_storage_environment.sh`
    - the runtime kiosk process-pattern and stop-control block now lives behind `thin-client-assistant/runtime/kiosk_runtime.sh`

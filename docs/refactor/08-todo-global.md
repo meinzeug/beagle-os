@@ -86,6 +86,7 @@
 - [x] Extract the Moonlight manager-registration path out of `thin-client-assistant/runtime/moonlight_remote_api.sh` into a dedicated helper.
 - [x] Extract the USB inventory / payload-rendering block out of `thin-client-assistant/runtime/beagle_usb_runtime_state.sh` into a dedicated helper.
 - [x] Extract the Moonlight API URL rewrite / selection block out of `thin-client-assistant/runtime/moonlight_reachability.sh` into a dedicated helper.
+- [x] Extract the streaming management timer/service suspend/resume block out of `thin-client-assistant/runtime/stream_state.sh` into a dedicated helper.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.
