@@ -1222,3 +1222,26 @@ Decision:
 Reason:
 
 - Once the remote API block moved out, the remaining large block in `moonlight_pairing.sh` was the local Moonlight config and bootstrap state path. That logic is cohesive, stateful, and separately smoke-testable with temporary config files. Pulling it out reduces the pairing entrypoint to the actual pairing orchestration, which is the right long-term structure for the runtime layer.
+
+### D106. USB runtime state and payload shaping should leave `beagle-usbctl.sh`
+
+Decision:
+
+- Keep USB state-path resolution, persisted bound-busid reads/writes, enabled/tunnel env accessors, tunnel-status detection, local USB inventory JSON shaping, and list/status payload rendering in `thin-client-assistant/runtime/beagle_usb_runtime_state.sh`.
+- `beagle-usbctl.sh` should source that helper instead of mixing state I/O, tunnel-status checks, and JSON rendering with the command flow.
+
+Reason:
+
+- After `prepare-runtime.sh`, `apply-network-config.sh`, and `moonlight_pairing.sh` became thin wrappers, `beagle-usbctl.sh` was the next obvious runtime shell monolith. Its state/payload layer was a cohesive first cut because it mixed env accessors, persisted USB binding state, tunnel detection, and JSON response shaping, but those concerns are independent from the command dispatcher itself. Pulling them out makes the USB state contract explicit and smoke-testable with temporary state roots and stubbed binaries.
+
+### D107. USB daemon, bind/unbind, and tunnel orchestration should also leave `beagle-usbctl.sh`
+
+Decision:
+
+- Keep `usbipd` process/binary accessors, daemon restart handling, exportable-device detection, bound-device resync, bind/unbind orchestration, list/status command helpers, and the SSH tunnel daemon exec path in `thin-client-assistant/runtime/beagle_usb_runtime_actions.sh`.
+- `beagle-usbctl.sh` should source that helper instead of carrying `usbip` lifecycle logic, service restarts, and tunnel exec behavior inline.
+- The extracted helper may expose binary overrides for `usbipd`, `pkill`, `modprobe`, `systemctl`, `ssh`, and `sleep` so the lifecycle path stays smoke-testable without changing runtime defaults.
+
+Reason:
+
+- Once the USB state/payload block left, the remainder of `beagle-usbctl.sh` was still not just dispatch glue; it still owned the operational `usbipd` lifecycle, persisted bound-device resync, bind/unbind side effects, and SSH reverse-tunnel startup. That is one cohesive runtime orchestration concern, and extracting it completes the same entrypoint-thinning pattern already used for the runtime prepare, network, and Moonlight paths.
