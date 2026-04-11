@@ -77,6 +77,8 @@
 - [x] Extract the network DNS/default-route wait block out of `thin-client-assistant/runtime/runtime_network_runtime.sh` into a dedicated helper.
 - [x] Extract the network interface/address/hostname block out of `thin-client-assistant/runtime/runtime_network_runtime.sh` into a dedicated helper.
 - [x] Extract the Moonlight manager-response sync / bootstrap block out of `thin-client-assistant/runtime/moonlight_config_state.sh` into a dedicated helper.
+- [x] Extract the Moonlight audio/display runtime-environment block out of `thin-client-assistant/runtime/moonlight_runtime_exec.sh` into a dedicated helper.
+- [x] Extract the Moonlight decoder-choice / display-resolution block out of `thin-client-assistant/runtime/moonlight_runtime_exec.sh` into a dedicated helper.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.

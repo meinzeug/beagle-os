@@ -303,6 +303,31 @@
   - focused smoke test for `build_stream_args()` through the extracted helper
   - focused smoke tests for `moonlight_audio_driver()` override/default behavior and `moonlight_resolution()`
 
+### 2026-04-11 — Moonlight runtime environment helper extraction
+
+- Removed the audio/graphics runtime-environment block from `thin-client-assistant/runtime/moonlight_runtime_exec.sh`:
+  - added `thin-client-assistant/runtime/moonlight_runtime_environment.sh` for `moonlight_audio_driver()`, `configure_graphics_runtime()`, and `configure_audio_runtime()`
+  - `thin-client-assistant/runtime/moonlight_runtime_exec.sh` now sources that helper instead of carrying display/audio environment setup inline
+- This keeps the Moonlight execution layer split by concern instead of only by launcher entrypoint:
+  - `launch-moonlight.sh` remains a thin top-level orchestration wrapper at about `106` lines
+  - `moonlight_runtime_environment.sh` now owns the mutable display/audio environment contract
+  - `moonlight_runtime_exec.sh` no longer mixes stream-argument shaping with runtime env export logic
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/moonlight_runtime_exec.sh thin-client-assistant/runtime/moonlight_runtime_environment.sh thin-client-assistant/runtime/launch-moonlight.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `moonlight_audio_driver()` override behavior plus `configure_audio_runtime()` / `configure_graphics_runtime()` with stubbed X11 helpers
+
+### 2026-04-11 — Moonlight stream-profile helper extraction
+
+- Removed the decoder-choice and resolution-shaping block from `thin-client-assistant/runtime/moonlight_runtime_exec.sh`:
+  - added `thin-client-assistant/runtime/moonlight_stream_profile.sh` for `moonlight_video_decoder()`, `record_decoder_choice()`, `local_display_resolution()`, and `moonlight_resolution()`
+  - `thin-client-assistant/runtime/moonlight_runtime_exec.sh` now sources that helper and stays focused on Moonlight binary/app resolution plus stream-argument assembly
+- This reduces the remaining execution helper to a small composition seam:
+  - `thin-client-assistant/runtime/moonlight_runtime_exec.sh` is now down to about `60` lines
+  - the stream-profile policy is isolated from audio/display environment mutation and from the final launcher orchestration
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/moonlight_runtime_exec.sh thin-client-assistant/runtime/moonlight_stream_profile.sh thin-client-assistant/runtime/moonlight_runtime_environment.sh thin-client-assistant/runtime/launch-moonlight.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `moonlight_resolution()`, `moonlight_video_decoder()`, and `record_decoder_choice()` with stubbed `xrandr`
+
 ### 2026-04-11 — Moonlight pairing/helper extraction
 
 - Removed the Moonlight pairing/bootstrap/config-sync block from `thin-client-assistant/runtime/launch-moonlight.sh`:
