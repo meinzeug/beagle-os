@@ -698,3 +698,15 @@ Decision:
 Reason:
 
 - After the read migration, the remaining repeated script-side Proxmox coupling was concentrated in `qm guest exec`, `qm guest exec-status`, `qm set`, and `qm reboot` flows. Leaving those inlined across multiple scripts would simply recreate the same provider sprawl in mutation-heavy code. Moving them behind the helper creates one script-side provider seam for both reads and the first controlled writes while keeping deployment safety through explicit fallbacks.
+
+### D63. VM description parsing and hostname normalization belong in one host metadata-support service
+
+Decision:
+
+- Move `parse_description_meta(description)` and `safe_hostname(name, vmid)` into `beagle-host/services/metadata_support.py`.
+- Keep the control-plane helper names as thin wrappers so the public host composition surface stays stable while extracted services bind directly to the new metadata seam.
+- Use the service as the single injected source for description-meta parsing and host-name derivation in `PublicStreamService`, `SunshineIntegrationService`, `VmProfileService`, `InstallerScriptService`, and `UbuntuBeagleProvisioningService`.
+
+Reason:
+
+- After the runtime, utility, and script-helper slices, the remaining small but high-fanout host helper block still sitting in `beagle-control-plane.py` was the VM description/hostname logic. Those semantics are shared business helpers used by multiple extracted services, not HTTP-entrypoint behavior. Pulling them into a dedicated service removes another monolith-local dependency without changing payloads or naming rules.

@@ -2,6 +2,26 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — host metadata-support extraction
+
+- Extracted the remaining host-side VM description/hostname helper block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/metadata_support.py`:
+  - `MetadataSupportService` now owns `parse_description_meta(description)` and `safe_hostname(name, vmid)`
+  - the existing control-plane helper names remain as thin wrappers, so callers and HTTP handlers kept their current surface
+- Rewired the extracted host services to consume the metadata seam directly instead of monolith-local helper implementations:
+  - `PublicStreamService` now receives `parse_description_meta` from `MetadataSupportService`
+  - `SunshineIntegrationService` now receives `parse_description_meta` from `MetadataSupportService`
+  - `VmProfileService` now receives both `parse_description_meta` and `safe_hostname` from `MetadataSupportService`
+  - `InstallerScriptService` now receives both `parse_description_meta` and `safe_hostname` from `MetadataSupportService`
+  - `UbuntuBeagleProvisioningService` now receives `safe_hostname` from `MetadataSupportService`
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/metadata_support.py` into the deployed host runtime
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile beagle-host/services/metadata_support.py beagle-host/bin/beagle-control-plane.py`
+  - `bash -n scripts/install-proxmox-host-services.sh`
+  - focused smoke checks for `MetadataSupportService`
+  - `./scripts/validate-project.sh`
+- Current size marker after this slice:
+  - `beagle-host/bin/beagle-control-plane.py` is at about `3275` lines
+
 ### 2026-04-11 — script-side guest-exec and VM-write helper expansion
 
 - Expanded `scripts/lib/beagle_provider.py` from a read-only helper into the first shared script-side execution/write seam:
