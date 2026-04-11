@@ -414,3 +414,15 @@ Decision:
 Reason:
 
 - The streaming integration block was the next cohesive non-HTTP area after ubuntu-beagle provisioning. It mixed guest-side scripting, Sunshine metadata parsing, TLS pinned-pubkey discovery, access-ticket state, and HTTP proxy orchestration in the request entrypoint. Extracting it preserves current handler surfaces while making the Sunshine/Moonlight path explicit, testable, and easier to replace when Beagle gets its own virtualization/streaming provider path.
+
+### D39. Public-stream port state and allocation belong in one host service
+
+Decision:
+
+- Move the persistent public-stream mapping file, explicit-port interpretation, stale-entry synchronization, used-port calculation, and next-free-port allocation into `beagle-host/services/public_streams.py`.
+- Keep `beagle-host/bin/beagle-control-plane.py` wrappers for `public_streams_file`, `load_public_streams`, `save_public_streams`, `public_stream_key`, `explicit_public_stream_base_port`, `used_public_stream_base_ports`, and `allocate_public_stream_base_port` so `VmProfileService` and `UbuntuBeagleProvisioningService` keep their existing collaborator surface.
+- Inject data-dir access, JSON load/save helpers, provider-backed VM/config lookups, public-stream host availability, and port-range constants into the service constructor instead of letting the service reach into control-plane globals.
+
+Reason:
+
+- The public-stream cluster was cohesive business logic, not HTTP plumbing: it owned a persistent mapping file, interpreted VM metadata, synchronized mappings against current inventory, and allocated collision-free port ranges. Leaving that logic in the entrypoint would keep stream-orchestration state mixed into the HTTP surface. Extracting it makes the port-allocation contract explicit and prepares the later provider-neutral streaming path for Beagle-owned virtualization.
