@@ -462,3 +462,25 @@ Decision:
 Reason:
 
 - `InstallerScriptService` already owned the generated installer artifact flow, but the canonical template rewrite contract still lived inline in the control-plane entrypoint. That kept escaping rules and placeholder semantics detached from the service that actually renders those artifacts. Splitting out a dedicated patching service and moving preset encoding into `InstallerScriptService` closes the installer helper seam cleanly without changing generated output.
+
+### D43. Ubuntu-Beagle input validation and preset expansion belong in one host service
+
+Decision:
+
+- Move ubuntu-beagle user/password/locale/keymap validation plus desktop/package preset normalization and package expansion into `beagle-host/services/ubuntu_beagle_inputs.py`.
+- Keep the existing control-plane helper names as thin wrappers, but wire `UbuntuBeagleProvisioningService` and `VmProfileService` directly to the new service methods instead of to inline entrypoint helpers.
+
+Reason:
+
+- These helpers were no longer generic control-plane utilities; they defined the canonical ubuntu-beagle provisioning contract. Leaving them inline in the entrypoint kept provisioning semantics detached from the provisioning/profile services that consume them. Pulling them into one dedicated service makes the ubuntu-beagle input contract explicit and reusable without changing runtime behavior.
+
+### D44. Queue orchestration belongs in the existing action-queue service
+
+Decision:
+
+- Expand `beagle-host/services/action_queue.py` to own `queue_action(...)`, `queue_bulk_actions(...)`, and `dequeue_actions(...)` in addition to queue/result path and I/O helpers.
+- Keep `queue_vm_action`, `queue_bulk_actions`, and `dequeue_vm_actions` in `beagle-host/bin/beagle-control-plane.py` only as thin wrappers so handler behavior and payload shape remain unchanged.
+
+Reason:
+
+- The remaining queue block was not a separate concern from the existing action-queue service; it was the missing orchestration half of the same queue boundary. Creating a new service for timestamps/action IDs/bulk dedupe would have split one cohesive responsibility across modules. Expanding the existing service keeps queue file I/O, result storage, and queue orchestration in one place while shrinking the entrypoint further.

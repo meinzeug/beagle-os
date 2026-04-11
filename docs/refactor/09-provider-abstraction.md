@@ -277,6 +277,19 @@ Current host-side contract:
 - `patch_installer_defaults(script_text, preset_name, preset_b64, installer_iso_url, installer_bootstrap_url, installer_payload_url, writer_variant)`
 - `patch_windows_installer_defaults(script_text, preset_name, preset_b64, installer_iso_url)`
 
+### `beagle-host/services/ubuntu_beagle_inputs.py`
+
+Current host-side contract:
+
+- `validate_linux_username(value, field_name)`
+- `validate_password(value, field_name, allow_empty=False)`
+- `normalize_locale(value)`
+- `normalize_keymap(value)`
+- `normalize_package_names(value, field_name=...)`
+- `resolve_ubuntu_beagle_desktop(value)`
+- `normalize_package_presets(value)`
+- `expand_software_packages(package_presets, extra_packages)`
+
 ### `core/virtualization/service.js`
 
 Generic contract:
@@ -464,6 +477,8 @@ These flows now go through provider-backed services first:
 - policy selector/profile/default normalization through `beagle-host/services/policy_normalization.py`
 - support-bundle archive persistence, metadata shaping, and filtered metadata lookup through `beagle-host/services/support_bundle_store.py`
 - installer shell/Windows template patching through `beagle-host/services/installer_template_patch.py`, with preset Base64 encoding now living inside `beagle-host/services/installer_script.py`
+- ubuntu-beagle user/password/locale/keymap validation plus desktop/package preset normalization through `beagle-host/services/ubuntu_beagle_inputs.py`
+- action queue orchestration, bulk dedupe, and dequeue behavior through the expanded `beagle-host/services/action_queue.py`
 - VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through the selected host provider, currently `beagle-host/providers/proxmox_host_provider.py`
 - browser-/installer-facing endpoint profile payload normalization through `beagle-host/bin/endpoint_profile_contract.py`
 
@@ -488,6 +503,8 @@ These flows now go through provider-backed services first:
 - `beagle-host/services/policy_normalization.py` removed policy contract shaping from the entrypoint, but the normalized fields still reflect today's endpoint/profile policy semantics and browser/runtime expectations under the new service seam.
 - `beagle-host/services/support_bundle_store.py` now owns upload persistence too, but it intentionally preserves today's sanitized-filename behavior, including `.bin` fallback when suffixes are lost, so downstream download behavior stays unchanged until that contract is redesigned deliberately.
 - `beagle-host/services/installer_template_patch.py` removed template rewrite semantics from the entrypoint, but the patched variable names and placeholders still reflect today's thin-client installer templates and release artifact surface under the new service seam.
+- `beagle-host/services/ubuntu_beagle_inputs.py` removed ubuntu-beagle validation/preset semantics from the entrypoint, but those rules still intentionally reflect today's ubuntu-beagle desktop catalog, package preset IDs, and provisioning defaults under the new service seam.
+- `beagle-host/services/action_queue.py` now owns queue orchestration too, but action-id shape and queue timestamping still reflect today's control-plane action semantics so downstream endpoint/runtime consumers keep working unchanged.
 
 ### Script surfaces
 
