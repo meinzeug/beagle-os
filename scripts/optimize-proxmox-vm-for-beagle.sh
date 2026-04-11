@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$SCRIPT_DIR/lib/beagle_provider.py}"
 REMOTE_INSTALL_DIR="${BEAGLE_REMOTE_INSTALL_DIR:-/opt/beagle}"
 REMOTE_PROVIDER_MODULE_PATH="${BEAGLE_REMOTE_PROVIDER_MODULE_PATH:-${REMOTE_INSTALL_DIR%/}/scripts/lib/beagle_provider.py}"
+PROVIDER_HELPER_AVAILABLE_CACHE="${PROVIDER_HELPER_AVAILABLE_CACHE:-}"
 
 PROXMOX_HOST="${PROXMOX_HOST:-proxmox.local}"
 VMID="${VMID:-}"
@@ -80,9 +81,20 @@ provider_module_path_for_target() {
 }
 
 provider_helper_available() {
+  if [[ "$PROVIDER_HELPER_AVAILABLE_CACHE" == "1" ]]; then
+    return 0
+  fi
+  if [[ "$PROVIDER_HELPER_AVAILABLE_CACHE" == "0" ]]; then
+    return 1
+  fi
   local module_path
   module_path="$(provider_module_path_for_target)"
-  ssh_host "test -f '$module_path'"
+  if ssh_host "test -f '$module_path'"; then
+    PROVIDER_HELPER_AVAILABLE_CACHE="1"
+    return 0
+  fi
+  PROVIDER_HELPER_AVAILABLE_CACHE="0"
+  return 1
 }
 
 provider_helper_exec() {
@@ -99,7 +111,9 @@ set_vm_options() {
     provider_helper_exec set-vm-options "$VMID" "${args[@]}" >/dev/null
     return 0
   fi
-  ssh_host "sudo /usr/sbin/qm set '$VMID' ${args[*]}"
+  local shell_command
+  shell_command="$(printf '%q ' sudo /usr/sbin/qm set "$VMID" "${args[@]}")"
+  ssh_host "${shell_command% }"
 }
 
 main() {

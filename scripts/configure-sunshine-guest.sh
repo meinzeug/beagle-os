@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$SCRIPT_DIR/lib/beagle_provider.py}"
 REMOTE_INSTALL_DIR="${BEAGLE_REMOTE_INSTALL_DIR:-/opt/beagle}"
 REMOTE_PROVIDER_MODULE_PATH="${BEAGLE_REMOTE_PROVIDER_MODULE_PATH:-${REMOTE_INSTALL_DIR%/}/scripts/lib/beagle_provider.py}"
+PROVIDER_HELPER_AVAILABLE_CACHE="${PROVIDER_HELPER_AVAILABLE_CACHE:-}"
 
 PROXMOX_HOST="${PROXMOX_HOST:-proxmox.local}"
 VMID="${VMID:-}"
@@ -206,9 +207,20 @@ provider_module_path_for_target() {
 }
 
 provider_helper_available() {
+  if [[ "$PROVIDER_HELPER_AVAILABLE_CACHE" == "1" ]]; then
+    return 0
+  fi
+  if [[ "$PROVIDER_HELPER_AVAILABLE_CACHE" == "0" ]]; then
+    return 1
+  fi
   local module_path
   module_path="$(provider_module_path_for_target)"
-  ssh_host "test -f '$module_path'"
+  if ssh_host "test -f '$module_path'"; then
+    PROVIDER_HELPER_AVAILABLE_CACHE="1"
+    return 0
+  fi
+  PROVIDER_HELPER_AVAILABLE_CACHE="0"
+  return 1
 }
 
 provider_helper_exec() {
@@ -221,15 +233,28 @@ provider_helper_exec() {
 
 qm_guest_exec_sync() {
   local command="$1"
-  local raw_output payload_json pid status_raw status_json exitcode
+  local raw_output payload_json pid status_raw status_json exitcode command_b64
   if provider_helper_available; then
-    local command_b64
     command_b64="$(printf '%s' "$command" | base64 -w0)"
-    raw_output="$(provider_helper_exec guest-exec-bash-b64 "$VMID" "$command_b64")"
+    raw_output="$(provider_helper_exec guest-exec-bash-sync-b64 "$VMID" "$command_b64")"
+    status_json="$(python3 - "$raw_output" <<'PY'
+import json
+import sys
+
+raw = sys.argv[1]
+payload = {}
+for line in reversed([line.strip() for line in raw.splitlines() if line.strip()]):
+    try:
+        payload = json.loads(line)
+        break
+    except json.JSONDecodeError:
+        continue
+print(json.dumps(payload))
+PY
+)"
   else
     raw_output="$(ssh_host "sudo /usr/sbin/qm guest exec '$VMID' -- bash -lc $(printf '%q' "$command")")"
-  fi
-  payload_json="$(python3 - "$raw_output" <<'PY'
+    payload_json="$(python3 - "$raw_output" <<'PY'
 import json
 import sys
 
@@ -245,7 +270,7 @@ print(json.dumps(payload))
 PY
 )"
 
-  pid="$(python3 - "$payload_json" <<'PY'
+    pid="$(python3 - "$payload_json" <<'PY'
 import json
 import sys
 
@@ -255,17 +280,13 @@ print("" if pid is None else str(pid))
 PY
 )"
 
-  if [[ -z "$pid" ]]; then
-    status_json="$payload_json"
-  else
-    while true; do
-      sleep 2
-      if provider_helper_available; then
-        status_raw="$(provider_helper_exec guest-exec-status "$VMID" "$pid")"
-      else
+    if [[ -z "$pid" ]]; then
+      status_json="$payload_json"
+    else
+      while true; do
+        sleep 2
         status_raw="$(ssh_host "sudo /usr/sbin/qm guest exec-status '$VMID' '$pid'")"
-      fi
-      status_json="$(python3 - "$status_raw" <<'PY'
+        status_json="$(python3 - "$status_raw" <<'PY'
 import json
 import sys
 
@@ -280,17 +301,18 @@ for line in reversed([line.strip() for line in raw.splitlines() if line.strip()]
 print(json.dumps(payload))
 PY
 )"
-      if python3 - "$status_json" <<'PY'
+        if python3 - "$status_json" <<'PY'
 import json
 import sys
 
 payload = json.loads(sys.argv[1] or "{}")
 raise SystemExit(0 if payload.get("exited") else 1)
 PY
-      then
-        break
-      fi
-    done
+        then
+          break
+        fi
+      done
+    fi
   fi
 
   exitcode="$(python3 - "$status_json" <<'PY'

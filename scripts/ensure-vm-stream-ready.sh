@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$SCRIPT_DIR/lib/beagle_provider.py}"
+PROVIDER_HELPER_AVAILABLE_CACHE="${PROVIDER_HELPER_AVAILABLE_CACHE:-}"
 VMID="${VMID:-}"
 NODE="${NODE:-}"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
@@ -198,12 +199,94 @@ sunshine_guest_status_json() {
   local command_b64
   command='binary=0; service=0; process=0; command -v sunshine >/dev/null 2>&1 && binary=1; (systemctl is-active sunshine >/dev/null 2>&1 || systemctl is-active beagle-sunshine.service >/dev/null 2>&1) && service=1; pgrep -x sunshine >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
   command_b64="$(printf '%s' "$command" | base64 -w0)"
-  python3 "$PROVIDER_MODULE_PATH" guest-exec-bash-b64 "$VMID" "$command_b64" || \
-    qm guest exec "$VMID" -- bash -lc "$command"
+  if provider_helper_available; then
+    python3 "$PROVIDER_MODULE_PATH" guest-exec-bash-sync-b64 "$VMID" "$command_b64"
+    return 0
+  fi
+  guest_exec_sync_fallback "$command"
 }
 
 guest_ipv4() {
   python3 "$PROVIDER_MODULE_PATH" guest-ipv4 "$VMID"
+}
+
+provider_helper_available() {
+  if [[ "$PROVIDER_HELPER_AVAILABLE_CACHE" == "1" ]]; then
+    return 0
+  fi
+  if [[ "$PROVIDER_HELPER_AVAILABLE_CACHE" == "0" ]]; then
+    return 1
+  fi
+  if [[ -f "$PROVIDER_MODULE_PATH" ]]; then
+    PROVIDER_HELPER_AVAILABLE_CACHE="1"
+    return 0
+  fi
+  PROVIDER_HELPER_AVAILABLE_CACHE="0"
+  return 1
+}
+
+guest_exec_sync_fallback() {
+  local command="$1"
+  local raw_output payload_json pid status_raw status_json
+  raw_output="$(qm guest exec "$VMID" -- bash -lc "$command")"
+  payload_json="$(python3 - "$raw_output" <<'PY'
+import json
+import sys
+
+raw = sys.argv[1]
+payload = {}
+for line in reversed([line.strip() for line in raw.splitlines() if line.strip()]):
+    try:
+        payload = json.loads(line)
+        break
+    except json.JSONDecodeError:
+        continue
+print(json.dumps(payload))
+PY
+)"
+  pid="$(python3 - "$payload_json" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1] or "{}")
+pid = payload.get("pid")
+print("" if pid is None else str(pid))
+PY
+)"
+  if [[ -z "$pid" ]]; then
+    printf '%s\n' "$payload_json"
+    return 0
+  fi
+  while true; do
+    sleep 2
+    status_raw="$(qm guest exec-status "$VMID" "$pid")"
+    status_json="$(python3 - "$status_raw" <<'PY'
+import json
+import sys
+
+raw = sys.argv[1]
+payload = {}
+for line in reversed([line.strip() for line in raw.splitlines() if line.strip()]):
+    try:
+        payload = json.loads(line)
+        break
+    except json.JSONDecodeError:
+        continue
+print(json.dumps(payload))
+PY
+)"
+    if python3 - "$status_json" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1] or "{}")
+raise SystemExit(0 if payload.get("exited") else 1)
+PY
+    then
+      printf '%s\n' "$status_json"
+      return 0
+    fi
+  done
 }
 
 vm_secret_get() {
