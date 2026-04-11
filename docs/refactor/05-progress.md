@@ -1,5 +1,18 @@
 # Refactor Progress
 
+### 2026-04-11 — runtime Beagle-state helper extraction
+
+- Removed the Beagle state/trace/logging block from `thin-client-assistant/runtime/runtime_core.sh`:
+  - added `thin-client-assistant/runtime/runtime_beagle_state.sh` for `beagle_state_dir()`, `beagle_trace_file()`, `beagle_last_marker_file()`, `ensure_beagle_state_dir()`, and `beagle_log_event()`
+  - `thin-client-assistant/runtime/runtime_core.sh` now sources that helper and stays focused on runtime user/group/home/uid lookup, live-medium discovery, privileged command execution, and systemd unit-file presence checks
+- This reduces the runtime core layer into a clearer identity-vs-state seam:
+  - Beagle runtime state persistence/logging and generic runtime identity/privileged wrappers now live in separate modules instead of one mixed helper
+  - `common.sh` still sources `runtime_core.sh`, so the public helper surface for the runtime stays unchanged
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/runtime_core.sh thin-client-assistant/runtime/runtime_beagle_state.sh thin-client-assistant/runtime/common.sh thin-client-assistant/runtime/prepare-runtime.sh thin-client-assistant/runtime/launch-session.sh`
+  - focused smoke test for `beagle_state_dir()`, `ensure_beagle_state_dir()`, and `beagle_log_event()` with temporary state paths and a stubbed `logger`
+  - focused smoke test for `runtime_user_name()`, `runtime_group_name()`, `runtime_user_home()`, `runtime_user_uid()`, `beagle_run_privileged()`, and `beagle_unit_file_present()` with stubbed `sudo` and `systemctl`
+
 ### 2026-04-11 — X11 display-selection helper extraction
 
 - Removed the Xauthority discovery and selection block from `thin-client-assistant/runtime/x11_display.sh`:
