@@ -2,6 +2,34 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime endpoint enrollment helper extraction
+
+- Removed the endpoint-enrollment request/apply/reload flow from `thin-client-assistant/runtime/prepare-runtime.sh`:
+  - added `thin-client-assistant/runtime/runtime_endpoint_enrollment.sh` for runtime config/credential path resolution, enrollment URL selection, endpoint hostname/ID derivation, enrollment request execution, response application through `apply_enrollment_config.py`, and config reload after a successful enrollment
+  - `thin-client-assistant/runtime/prepare-runtime.sh` now sources that helper instead of carrying the full enrollment curl/apply/reload block inline
+- Hardened the shared curl/TLS helper while extracting the enrollment seam:
+  - `thin-client-assistant/runtime/runtime_value_helpers.sh` no longer emits an empty argument line when no TLS options apply
+  - this fixes the latent blank-argument `curl` failure that could affect runtime enrollment and other extracted curl-based helpers
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/prepare-runtime.sh thin-client-assistant/runtime/runtime_endpoint_enrollment.sh thin-client-assistant/runtime/runtime_value_helpers.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `beagle_curl_tls_args()` with and without TLS arguments
+  - focused smoke test for `enroll_endpoint_if_needed()` using a stub curl binary plus the real `apply_enrollment_config.py` helper
+
+### 2026-04-11 — runtime SSH/bootstrap service helper extraction
+
+- Removed the SSH/bootstrap-management block from `thin-client-assistant/runtime/prepare-runtime.sh`:
+  - added `thin-client-assistant/runtime/runtime_bootstrap_services.sh` for managed SSH config rewriting, SSH host-key persistence/generation, USB tunnel service control, Beagle management timer/service activation, getty override installation, and boot-mode service normalization
+  - `thin-client-assistant/runtime/prepare-runtime.sh` now sources that helper instead of carrying the SSH/service/bootstrap block inline
+  - `thin-client-assistant/runtime/runtime_core.sh` now lets `beagle_unit_file_present()` honor `BEAGLE_SYSTEMCTL_BIN`, which makes the unit checks testable without affecting runtime defaults
+- This is the largest `prepare-runtime.sh` reduction so far:
+  - the entrypoint dropped to about `190` lines before the enrollment extraction and now sits at about `152` lines
+  - the remaining shell now mostly owns top-level sequencing, kiosk-specific runtime preparation, and final runtime-status emission
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/prepare-runtime.sh thin-client-assistant/runtime/runtime_bootstrap_services.sh thin-client-assistant/runtime/runtime_core.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `apply_runtime_ssh_config()` with stubbed `sshd` and `systemctl`
+  - focused smoke test for `ensure_runtime_ssh_host_keys()` with temporary SSH/live-state directories and stubbed `sshd` / `systemctl` / `ssh-keygen`
+  - focused smoke test for `ensure_getty_overrides()`, `ensure_beagle_management_units()`, `ensure_usb_tunnel_service()`, and `normalize_boot_services()` with stubbed `systemctl`
+
 ### 2026-04-11 — runtime user setup helper extraction
 
 - Removed the runtime user/secret-permission/hostname block from `thin-client-assistant/runtime/prepare-runtime.sh`:

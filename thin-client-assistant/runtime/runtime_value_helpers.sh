@@ -17,7 +17,9 @@ beagle_curl_tls_args() {
     fi
   fi
 
-  printf '%s\n' "${args[@]}"
+  if [[ "${#args[@]}" -gt 0 ]]; then
+    printf '%s\n' "${args[@]}"
+  fi
 }
 
 render_template() {

@@ -119,6 +119,7 @@ beagle_run_privileged() {
 
 beagle_unit_file_present() {
   local unit="${1:-}"
+  local systemctl_bin="${BEAGLE_SYSTEMCTL_BIN:-systemctl}"
   [[ -n "$unit" ]] || return 1
-  systemctl list-unit-files --full --no-legend "$unit" 2>/dev/null | awk '{print $1}' | grep -Fxq "$unit"
+  "$systemctl_bin" list-unit-files --full --no-legend "$unit" 2>/dev/null | awk '{print $1}' | grep -Fxq "$unit"
 }

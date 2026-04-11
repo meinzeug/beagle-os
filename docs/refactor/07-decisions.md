@@ -1129,3 +1129,27 @@ Decision:
 Reason:
 
 - After config persistence moved out, the next cohesive `prepare-runtime.sh` block was the runtime-user bootstrap path. That code mixed account creation, credential-file permission policy, and identity sync, but it was still one operational concern. Pulling it out keeps the entrypoint moving toward orchestration-only code and gives the refactor a testable seam for behavior that otherwise only runs on a live system.
+
+### D98. Runtime SSH/bootstrap management should leave `prepare-runtime.sh`
+
+Decision:
+
+- Keep managed SSH config rewriting, SSH host-key persistence/generation, USB tunnel service control, Beagle management unit activation, getty override installation, and boot-service normalization in `thin-client-assistant/runtime/runtime_bootstrap_services.sh`.
+- `prepare-runtime.sh` should source that helper instead of keeping those SSH/service/bootstrap steps inline.
+- `beagle_unit_file_present()` in `runtime_core.sh` should honor `BEAGLE_SYSTEMCTL_BIN` so extracted runtime service helpers stay smoke-testable without changing runtime defaults.
+
+Reason:
+
+- Once config persistence and runtime-user setup left the entrypoint, the next largest cohesive block was the SSH/bootstrap management path. It mixed SSH policy, host-key persistence, and service normalization, but those are still one bootstrapping concern and belong together. Pulling them out makes `prepare-runtime.sh` dramatically smaller and keeps the remaining shell focused on sequencing rather than service implementation details.
+
+### D99. Runtime endpoint enrollment should leave `prepare-runtime.sh`
+
+Decision:
+
+- Keep runtime config/credential path resolution, enrollment URL selection, endpoint hostname/ID derivation, enrollment request execution, response application, and post-enrollment config reload in `thin-client-assistant/runtime/runtime_endpoint_enrollment.sh`.
+- `prepare-runtime.sh` should source that helper instead of carrying the enrollment curl/apply/reload sequence inline.
+- The shared runtime TLS helper must not emit blank `curl` arguments when no TLS options are needed.
+
+Reason:
+
+- After the bootstrap-service block moved out, the remaining non-trivial business flow in `prepare-runtime.sh` was the endpoint enrollment path. That is a cohesive runtime concern with real payload shaping and state reload semantics, so it deserves its own seam. Extracting it keeps the entrypoint thin and exposed a real helper bug in the TLS-argument layer, which is now fixed centrally rather than patched at one call site.
