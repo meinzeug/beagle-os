@@ -30,6 +30,18 @@
   - focused smoke test for `ensure_runtime_owned_dir()`, `ensure_runtime_owned_file()`, and `ensure_runtime_owned_tree()` with temporary local paths
   - focused smoke test for `prepare_geforcenow_environment()` export and directory-creation behavior with a temporary storage root
 
+### 2026-04-11 — GeForce NOW stream-optimization helper extraction
+
+- Removed the callback-target and stream-optimization block from `thin-client-assistant/runtime/launch-geforcenow.sh`:
+  - added `thin-client-assistant/runtime/geforcenow_stream_optimization.sh` for callback-target logging/detection plus management-suspension and delayed kiosk-stop orchestration
+  - `thin-client-assistant/runtime/launch-geforcenow.sh` now sources that helper instead of carrying stream-optimization state transitions inline
+- This keeps the GeForce NOW launcher focused on environment/bootstrap and final `flatpak run` execution:
+  - `thin-client-assistant/runtime/launch-geforcenow.sh` dropped to about `69` lines
+  - the side-effect-heavy callback/kiosk/management coordination now lives in an explicit helper seam
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/geforcenow_stream_optimization.sh thin-client-assistant/runtime/launch-geforcenow.sh thin-client-assistant/runtime/common.sh thin-client-assistant/runtime/install-geforcenow.sh`
+  - focused smoke test for callback-target logging, stream-optimization activation/deactivation, delayed kiosk-stop invocation, and management suspend/resume behavior with stubbed helpers
+
 ### 2026-04-11 — Moonlight host-sync helper extraction
 
 - Removed the manager-response host-sync/bootstrap block from `thin-client-assistant/runtime/moonlight_config_state.sh`:

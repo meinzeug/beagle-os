@@ -1404,3 +1404,14 @@ Decision:
 Reason:
 
 - The previous `runtime_ownership.sh` mixed generic filesystem ownership primitives with a GeForce NOW-specific storage/environment contract. Those are different abstraction levels and different reuse domains. Splitting them keeps the generic ownership layer available to other runtime modules without dragging GFN-specific exports into the same file, and it makes the GFN storage bootstrap independently smoke-testable.
+
+### D122. GeForce NOW callback and stream-optimization control should leave `launch-geforcenow.sh`
+
+Decision:
+
+- Keep callback-target logging/detection plus delayed kiosk-stop and management suspend/resume orchestration in `thin-client-assistant/runtime/geforcenow_stream_optimization.sh`.
+- `thin-client-assistant/runtime/launch-geforcenow.sh` should source that helper instead of carrying the stream-optimization state machine inline.
+
+Reason:
+
+- After the GFN storage/environment split, the next distinct block in `launch-geforcenow.sh` was the callback-target and stream-optimization flow. That code is side-effect-heavy, depends on kiosk/management helpers, and is independently smoke-testable with simple stubs. Pulling it out keeps the launcher focused on environment bootstrap and final execution while the stream-optimization behavior becomes an explicit seam.

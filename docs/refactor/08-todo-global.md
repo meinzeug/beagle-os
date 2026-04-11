@@ -81,6 +81,7 @@
 - [x] Extract the Moonlight decoder-choice / display-resolution block out of `thin-client-assistant/runtime/moonlight_runtime_exec.sh` into a dedicated helper.
 - [x] Extract the Moonlight host-registry config parsing / mutation block out of `thin-client-assistant/runtime/moonlight_host_sync.sh` into a dedicated helper.
 - [x] Split the mixed runtime ownership / GeForce NOW storage helper layer into dedicated ownership and GFN environment modules.
+- [x] Extract the GeForce NOW callback-target / stream-optimization block out of `thin-client-assistant/runtime/launch-geforcenow.sh` into a dedicated helper.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.

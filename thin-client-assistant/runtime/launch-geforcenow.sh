@@ -3,10 +3,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GEFORCENOW_FLATPAK_SH="${GEFORCENOW_FLATPAK_SH:-$SCRIPT_DIR/geforcenow_flatpak.sh}"
+GEFORCENOW_STREAM_OPTIMIZATION_SH="${GEFORCENOW_STREAM_OPTIMIZATION_SH:-$SCRIPT_DIR/geforcenow_stream_optimization.sh}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
 # shellcheck disable=SC1090
 source "$GEFORCENOW_FLATPAK_SH"
+# shellcheck disable=SC1090
+source "$GEFORCENOW_STREAM_OPTIMIZATION_SH"
 
 load_runtime_config
 beagle_log_event "gfn.start" "profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default}"
@@ -31,63 +34,6 @@ GFN_STREAM_PAUSE_DELAY_SECONDS="${PVE_THIN_CLIENT_GFN_KIOSK_SUSPEND_DELAY_SECOND
 STREAM_KIOSK_STOP_PID=""
 STREAM_OPTIMIZATION_ACTIVE="0"
 
-log_launch_target() {
-  local target="${1:-}"
-  [[ -n "$target" ]] || return 0
-  case "$target" in
-    geforcenow:*|com.nvidia.geforcenow:*|nvidia-gfn:*|http://localhost:2259*)
-      beagle_log_event "gfn.callback" "target=${target%%\?*}"
-      ;;
-  esac
-}
-
-is_gfn_callback_target() {
-  local target="${1:-}"
-  case "$target" in
-    geforcenow:*|com.nvidia.geforcenow:*|nvidia-gfn:*|http://localhost:2259*)
-      return 0
-      ;;
-  esac
-  return 1
-}
-
-stream_stop_kiosk_after_delay() {
-  local delay_seconds="${1:-0}"
-
-  if [[ "$delay_seconds" =~ ^[0-9]+$ ]] && (( delay_seconds > 0 )); then
-    sleep "$delay_seconds"
-  fi
-
-  beagle_stop_kiosk_for_stream || true
-}
-
-start_stream_optimization() {
-  local target="${1:-}"
-
-  [[ "$GFN_STREAM_OPTIMIZE" == "1" ]] || return 0
-  is_gfn_callback_target "$target" && return 0
-
-  beagle_suspend_management_activity || true
-  stream_stop_kiosk_after_delay "$GFN_STREAM_PAUSE_DELAY_SECONDS" >/dev/null 2>&1 &
-  STREAM_KIOSK_STOP_PID="$!"
-  STREAM_OPTIMIZATION_ACTIVE="1"
-  beagle_log_event "gfn.stream-optimization" "mode=active kiosk-stop-delay=${GFN_STREAM_PAUSE_DELAY_SECONDS}"
-}
-
-stop_stream_optimization() {
-  [[ "$STREAM_OPTIMIZATION_ACTIVE" == "1" ]] || return 0
-
-  if [[ -n "$STREAM_KIOSK_STOP_PID" ]]; then
-    kill "$STREAM_KIOSK_STOP_PID" >/dev/null 2>&1 || true
-    wait "$STREAM_KIOSK_STOP_PID" 2>/dev/null || true
-    STREAM_KIOSK_STOP_PID=""
-  fi
-
-  beagle_resume_management_activity || true
-  STREAM_OPTIMIZATION_ACTIVE="0"
-  beagle_log_event "gfn.stream-optimization" "mode=inactive"
-}
-
 XAUTHORITY="$(select_xauthority)"
 export XAUTHORITY
 wait_for_x_display_selected "$XAUTHORITY"
@@ -97,7 +43,7 @@ export DISPLAY XDG_RUNTIME_DIR XAUTHORITY
 export PATH="${HOST_HOME}/.local/bin:${PATH}"
 beagle_log_event "gfn.storage.ready" "storage=${PVE_THIN_CLIENT_GFN_STORAGE_ROOT:-unknown}"
 launch_target="${1:-}"
-log_launch_target "$launch_target"
+log_gfn_launch_target "$launch_target"
 
 if command -v /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1; then
   /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1 || true
@@ -109,8 +55,8 @@ fi
 
 scope_flag="$(resolve_gfn_install_scope)"
 beagle_log_event "gfn.exec" "scope=${scope_flag} app_id=${GFN_APP_ID}"
-start_stream_optimization "$launch_target"
-trap stop_stream_optimization EXIT INT TERM
+start_gfn_stream_optimization "$launch_target"
+trap stop_gfn_stream_optimization EXIT INT TERM
 
 if command -v dbus-run-session >/dev/null 2>&1 && [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
   dbus-run-session -- flatpak run "$scope_flag" "$GFN_APP_ID" "$@"
