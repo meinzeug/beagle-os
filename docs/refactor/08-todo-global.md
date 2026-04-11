@@ -47,6 +47,7 @@
 - [x] Extract the runtime config-generation/loading block out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
 - [x] Extract the runtime streaming-session state and management timer suspend/resume block out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
 - [x] Extract the runtime-owned path and GeForce NOW environment-preparation block out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
+- [x] Extract the runtime kiosk process-pattern and stop-control block out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.

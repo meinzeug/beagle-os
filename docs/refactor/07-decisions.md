@@ -1013,3 +1013,14 @@ Decision:
 Reason:
 
 - `common.sh` is sourced by several runtime entrypoints and by live-build maintenance helpers, so it is the highest-risk place to let unrelated behavior accumulate. Splitting stable operational seams into sourced modules reduces monolith risk without changing the runtime bootstrap contract that callers already rely on.
+
+### D88. Kiosk stop-control is a shared runtime seam, not a `common.sh` inline block
+
+Decision:
+
+- Keep kiosk process-pattern detection, window-close attempts, and graceful-to-forceful stop behavior in `thin-client-assistant/runtime/kiosk_runtime.sh`.
+- `common.sh` should source that module instead of owning the kiosk control logic directly.
+
+Reason:
+
+- The kiosk stop contract is used as operational runtime behavior during GFN stream optimization, but it is not generic shell bootstrap logic. Moving it out keeps the sourcing monolith shrinking and isolates the remaining kiosk-specific behavior into a dedicated runtime seam without changing the callers.

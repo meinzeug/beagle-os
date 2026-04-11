@@ -2,6 +2,20 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime kiosk-control helper extraction
+
+- Removed the remaining kiosk runtime control block from `thin-client-assistant/runtime/common.sh`:
+  - added `thin-client-assistant/runtime/kiosk_runtime.sh` for kiosk process-pattern detection, window-close attempts, and the graceful-to-forceful stop flow used during GFN stream optimization
+  - `thin-client-assistant/runtime/common.sh` now sources that helper instead of carrying the kiosk control block inline
+- Runtime behavior stays the same for current callers:
+  - `launch-geforcenow.sh` still uses `beagle_stop_kiosk_for_stream()` through `common.sh`
+  - the kiosk process-pattern contract and stop escalation behavior are unchanged
+- `thin-client-assistant/runtime/common.sh` dropped again and now sits at about `240` lines. The remaining larger runtime shell work is now mostly generic logging/path wrappers and the launcher/session orchestration outside the shared sourcing shell.
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/common.sh thin-client-assistant/runtime/kiosk_runtime.sh thin-client-assistant/runtime/launch-geforcenow.sh thin-client-assistant/runtime/launch-session.sh thin-client-assistant/live-build/config/includes.chroot/usr/local/sbin/beagle-runtime-heartbeat`
+  - focused smoke test that `common.sh` still exposes `beagle_stop_kiosk_for_stream()` and the expected kiosk process patterns
+  - focused smoke test for the `beagle_close_kiosk_window_for_stream()` contract with and without `wmctrl`
+
 ### 2026-04-11 — runtime stream-state and GFN ownership helper extraction
 
 - Removed two more operational helper clusters from `thin-client-assistant/runtime/common.sh` without changing the runtime entrypoints:
