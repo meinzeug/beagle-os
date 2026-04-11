@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — Moonlight config/state helper extraction
+
+- Removed the local Moonlight config/certificate/bootstrap block from `thin-client-assistant/runtime/moonlight_pairing.sh`:
+  - added `thin-client-assistant/runtime/moonlight_config_state.sh` for config-path discovery, runtime-config seeding, host-config presence checks, client-certificate extraction, manager-response host sync, and bootstrap list priming
+  - `thin-client-assistant/runtime/moonlight_pairing.sh` now sources that helper instead of mixing local config state with the remaining pair-process orchestration
+- This leaves the pairing module much closer to its final shape:
+  - `thin-client-assistant/runtime/moonlight_pairing.sh` dropped further to about `77` lines
+  - the file now mostly owns list-timeout/bootstrap-timeout constants and the final `ensure_paired()` orchestration loop
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/moonlight_pairing.sh thin-client-assistant/runtime/moonlight_config_state.sh thin-client-assistant/runtime/moonlight_remote_api.sh thin-client-assistant/runtime/moonlight_targeting.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for config-path detection, certificate extraction, manager-response sync, and `moonlight_host_configured()` with a temporary Moonlight config file
+  - focused smoke test for `seed_moonlight_host_from_runtime_config()` plus `bootstrap_moonlight_client()` with a temporary config file and stubbed Moonlight binary
+
 ### 2026-04-11 — Moonlight remote API helper extraction
 
 - Removed the manager/Sunshine remote API block from `thin-client-assistant/runtime/moonlight_pairing.sh`:

@@ -57,7 +57,7 @@ Strategic framing:
    - the runtime-owned path helpers and GeForce NOW storage/home/cache/config environment prep now live behind `thin-client-assistant/runtime/runtime_ownership.sh`
    - the runtime kiosk process-pattern and stop-control block now lives behind `thin-client-assistant/runtime/kiosk_runtime.sh`
    - the runtime kiosk supervisor/relaunch loop now lives behind `thin-client-assistant/runtime/session_launcher.sh`
-   - the next remaining drift is in the host-only vs USB-only preset delta fields and in the remaining runtime orchestration around the now-thin prepare and network wrappers, especially where the next substantial runtime monolith now lives and how much of the remaining Moonlight pairing/bootstrap state should become its own helper seams
+   - the next remaining drift is in the host-only vs USB-only preset delta fields and in the remaining runtime orchestration around the now-thin prepare/network/pairing wrappers, especially where the next substantial runtime monolith now lives now that Moonlight pairing has been reduced to its orchestration shell
 5. Continue splitting the browser UI action/render layers:
    - move the next action-heavy profile modal helpers out of `extension/components/profile-modal.js` and, where shared, out of `proxmox-ui/components/profile-modal.js`
    - keep using `core/platform/browser-common.js` plus the existing shared browser helper modules instead of recreating token/template/API helpers in entrypoints
@@ -70,4 +70,4 @@ Strategic framing:
 ## After that
 
 1. Add smoke verification for generated installer URLs and expected public artifact names.
-2. Continue thin client runtime work from the now-thin `prepare-runtime.sh` and `apply-network-config.sh` entrypoints by continuing `moonlight_pairing.sh`, starting with the local config/certificate/bootstrap helper cluster, then reevaluate `beagle-usbctl.sh` and the remaining shell-heavy install paths.
+2. Continue thin client runtime work from the now-thin `prepare-runtime.sh`, `apply-network-config.sh`, and `moonlight_pairing.sh` entrypoints by selecting the next shell-heavy runtime module, most likely `beagle-usbctl.sh` or the remaining install/runtime crossover scripts.
