@@ -62,6 +62,7 @@ Strategic framing:
    - the X11 Xauthority discovery and display-readiness selection logic now live behind `thin-client-assistant/runtime/x11_display_selection.sh`
    - the Beagle runtime state-path, trace, marker, and log-event logic now live behind `thin-client-assistant/runtime/runtime_beagle_state.sh`
    - the runtime systemd timer/service activation and USB tunnel unit control now live behind `thin-client-assistant/runtime/runtime_systemd_units.sh`
+   - the USB tunnel/env and command accessor logic now lives behind `thin-client-assistant/runtime/beagle_usb_runtime_env.sh`
    - the generic runtime-owned path helpers now live behind `thin-client-assistant/runtime/runtime_fs_ownership.sh`
    - the GeForce NOW storage/home/cache/config environment prep now lives behind `thin-client-assistant/runtime/geforcenow_storage_environment.sh`
    - the runtime kiosk process-pattern and stop-control block now lives behind `thin-client-assistant/runtime/kiosk_runtime.sh`
