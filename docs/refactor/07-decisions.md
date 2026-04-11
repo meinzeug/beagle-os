@@ -1325,3 +1325,14 @@ Decision:
 Reason:
 
 - Once the reachability/probe block moved out, the next cohesive sub-cluster in `moonlight_targeting.sh` was the connect-host selection flow itself. That logic is stateful, depends on route inspection and IPv4 preference, and is independently smoke-testable with simple stubs for host resolution and probe outcomes. Pulling it out reduces `moonlight_targeting.sh` to a very small accessor/formatting layer and keeps candidate selection isolated from lower-level target metadata.
+
+### D115. Network DNS/default-route wait behavior should leave `runtime_network_runtime.sh`
+
+Decision:
+
+- Keep IP-literal checks, URL-host extraction, DNS wait-target shaping, IPv4 resolution checks, default-route waiting, and DNS-target waiting in `thin-client-assistant/runtime/runtime_network_wait.sh`.
+- `runtime_network_runtime.sh` should source that helper instead of carrying wait/lookup logic inline.
+
+Reason:
+
+- After the Moonlight targeting layer became thin, `runtime_network_runtime.sh` was again one of the larger runtime helpers. It still mixed two separate concerns: interface/address/hostname application and asynchronous network readiness checks. The wait side is cohesive, independently smoke-testable with stubbed `ip` and `getent`, and does not need to remain coupled to static-route/address writes. Pulling it out keeps the runtime network layer closer to the same small-helper structure already established elsewhere.

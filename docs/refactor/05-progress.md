@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime network wait helper extraction
+
+- Removed the DNS/default-route wait and host-resolution block from `thin-client-assistant/runtime/runtime_network_runtime.sh`:
+  - added `thin-client-assistant/runtime/runtime_network_wait.sh` for IP-literal checks, URL-host extraction, DNS wait-target shaping, IPv4 resolution checks, default-route waiting, and DNS-target waiting
+  - `thin-client-assistant/runtime/runtime_network_runtime.sh` now sources that helper instead of carrying wait/lookup logic inline
+- This reduces the runtime network helper into a more focused interface/address/hostname module:
+  - `thin-client-assistant/runtime/runtime_network_runtime.sh` dropped to about `123` lines
+  - the remaining file is now mainly about interface selection, static IPv4 CIDR shaping, hostname application, and static address/route writes
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/runtime_network_runtime.sh thin-client-assistant/runtime/runtime_network_wait.sh thin-client-assistant/runtime/runtime_network_backend.sh thin-client-assistant/runtime/common.sh thin-client-assistant/runtime/apply-network-config.sh`
+  - focused smoke test for `extract_host_from_url()`, `dns_wait_targets()`, and `network_is_ip_literal()`
+  - focused smoke test for `wait_for_default_route()` and `wait_for_dns_targets()` with stubbed `ip` and `getent`
+
 ### 2026-04-11 — Moonlight connect-host helper extraction
 
 - Removed the connect-host selection block from `thin-client-assistant/runtime/moonlight_targeting.sh`:
