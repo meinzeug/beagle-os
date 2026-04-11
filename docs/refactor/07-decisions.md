@@ -1665,3 +1665,15 @@ Reason:
 
 - After the live-medium path was split out, the next dense block in the local installer was no longer disk orchestration but payload-source selection, remote tarball download/verification, and install-manifest synthesis. Those functions form one coherent subdomain and were still embedded in the monolith.
 - The helper boundary is a better fit than another tiny extraction because these functions share the same manifest and payload-source contract and can be smoke-tested together without dragging the whole installer flow with them.
+
+### D141. USB writer source selection and variant-path planning should leave the writer entrypoint
+
+Decision:
+
+- Keep the USB writer's install-payload source selection, dry-run bootstrap source selection, and variant-specific media label/live-assets path helpers in `thin-client-assistant/usb/usb_writer_sources.sh`.
+- Keep `pve-thin-client-usb-installer.sh` focused on bootstrap, device write orchestration, and file copy behavior instead of rebuilding the same source-selection expressions inline.
+
+Reason:
+
+- The USB writer still repeated the same source-priority rules in usage/manifests/dry-run output and also scattered the `live` vs `installer` path choice across separate conditionals. Those are small rules individually, but together they were the remaining contract drift inside the writer entrypoint.
+- Moving them behind a dedicated helper keeps the writer-specific source contract explicit and prepares the next slice, where the remaining bootstrap/download asset flow can be reduced without mixing it back with variant/plan formatting logic.
