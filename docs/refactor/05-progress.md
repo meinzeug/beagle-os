@@ -1006,6 +1006,12 @@
   - rewired `beagle-host/services/installer_script.py` to build its shared preset base through the new helper and add only host-specific enrollment/update/identity/credential fields on top
   - rewired `thin-client-assistant/usb/proxmox_preset.py` to build its shared preset base through the same helper and keep only the USB/Proxmox-specific delta locally
   - updated `scripts/install-proxmox-host-services.sh` to deploy `thin_client_preset.py` alongside the other extracted host services
+- Reduced duplicated installer/runtime default literals across the thin-client shell and Python paths:
+  - added `thin-client-assistant/installer/env-defaults.json` as the shared installer-env default contract
+  - added `thin-client-assistant/installer/env-defaults.sh` as the shared shell loader for that default contract
+  - rewired `thin-client-assistant/runtime/generate_config_from_preset.py` to load defaults from the shared JSON contract instead of keeping a second full default table inline
+  - rewired `thin-client-assistant/installer/write-config.sh`, `thin-client-assistant/installer/install.sh`, and `thin-client-assistant/installer/setup-menu.sh` to hydrate their default values through the same shared loader instead of repeating the same literal block
+  - kept the menu-specific Proxmox demo placeholders in `setup-menu.sh` local so the interactive UX stays explicit while the base runtime/install defaults now come from one source
 
 ### Known risks after this run
 

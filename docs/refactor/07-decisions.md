@@ -941,3 +941,16 @@ Decision:
 Reason:
 
 - The remaining installer/env-builder drift was no longer about completely separate builders; it was concentrated in a wide overlapping preset base that both sides maintained with near-identical key names and defaults. Extracting only that shared base reduces contract drift materially without falsely pretending that the richer host installer and the slimmer USB preset are already the same artifact. This keeps behavior stable while making the next remaining drift narrower and easier to reason about.
+
+### D83. Installer/runtime default literals should come from one data contract for both shell and Python paths
+
+Decision:
+
+- Add `thin-client-assistant/installer/env-defaults.json` as the shared source of truth for installer/runtime environment defaults.
+- Add `thin-client-assistant/installer/env-defaults.sh` as the shell-side loader for that data contract.
+- Rewire `thin-client-assistant/runtime/generate_config_from_preset.py`, `thin-client-assistant/installer/write-config.sh`, `thin-client-assistant/installer/install.sh`, and `thin-client-assistant/installer/setup-menu.sh` to read defaults from that shared contract instead of keeping parallel literal blocks.
+- Keep menu-only example placeholders such as `proxmox.example.internal`, `pve01`, `100`, and the demo PIN local to `setup-menu.sh` so interactive UX hints remain explicit and do not silently redefine the base runtime/install contract.
+
+Reason:
+
+- After extracting the preset builder seams, the next source of contract drift was the repeated default table for installer/runtime environment variables across one Python helper and several shell entrypoints. That duplication was large, low-signal, and easy to let drift. Moving the defaults into a data contract removes another broad literal block, keeps behavior stable for the runtime/install paths, and narrows the remaining runtime work to explicit mode/cmdline override behavior instead of scattered default values.
