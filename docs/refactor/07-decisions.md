@@ -1105,3 +1105,27 @@ Decision:
 Reason:
 
 - After targeting and pairing moved out, the remaining block in `launch-moonlight.sh` was no longer launcher orchestration but a cohesive execution/runtime-setup seam. Extracting that block completes the main Moonlight split without changing runtime behavior and moves the next thin-client work onto `prepare-runtime.sh` and the shared runtime/network surfaces instead of back into the launcher.
+
+### D96. Runtime config sync and live-state persistence should leave `prepare-runtime.sh`
+
+Decision:
+
+- Keep system-config target resolution, shared runtime-config file lists, config-path rebinding, permission normalization, live-state remount handling, and runtime-config persistence in `thin-client-assistant/runtime/runtime_config_persistence.sh`.
+- `prepare-runtime.sh` should source that helper instead of keeping the config-copy and live-state persistence flow inline.
+- `prepare-runtime.sh` should reuse `beagle_unit_file_present()` from `runtime_core.sh` instead of carrying another local unit-file presence helper.
+
+Reason:
+
+- `prepare-runtime.sh` had become the next runtime monolith after the Moonlight launcher split. The config-sync/live-state block was cohesive, reused internal path policy, and could be made argument-driven for smoke testing without changing runtime behavior. Pulling that block out starts the real reduction of the prepare entrypoint and prevents another accumulation of low-level persistence helpers there.
+
+### D97. Runtime user bootstrap and hostname sync should leave `prepare-runtime.sh`
+
+Decision:
+
+- Keep local-auth path resolution, runtime login-shell selection, runtime user creation/update, secret-permission normalization, and local hostname/hosts-file synchronization in `thin-client-assistant/runtime/runtime_user_setup.sh`.
+- `prepare-runtime.sh` should source that helper instead of keeping those bootstrap steps inline.
+- The extracted helper may expose binary/path overrides for user-management and hostname commands so the seam stays smoke-testable without changing runtime defaults.
+
+Reason:
+
+- After config persistence moved out, the next cohesive `prepare-runtime.sh` block was the runtime-user bootstrap path. That code mixed account creation, credential-file permission policy, and identity sync, but it was still one operational concern. Pulling it out keeps the entrypoint moving toward orchestration-only code and gives the refactor a testable seam for behavior that otherwise only runs on a live system.

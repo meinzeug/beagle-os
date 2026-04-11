@@ -2,6 +2,33 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime user setup helper extraction
+
+- Removed the runtime user/secret-permission/hostname block from `thin-client-assistant/runtime/prepare-runtime.sh`:
+  - added `thin-client-assistant/runtime/runtime_user_setup.sh` for local-auth path resolution, runtime login-shell resolution, runtime user creation/update, secret-permission normalization, and local hostname/hosts-file synchronization
+  - `thin-client-assistant/runtime/prepare-runtime.sh` now sources that helper instead of carrying those bootstrap steps inline
+- This continues the real reduction of the prepare-runtime entrypoint:
+  - `thin-client-assistant/runtime/prepare-runtime.sh` dropped further to about `375` lines
+  - the extracted helper supports command and path overrides for `id`, `useradd`, `usermod`, `chpasswd`, `chown`, `hostname`, `/etc/hostname`, and `/etc/hosts`, which preserves runtime defaults but makes the bootstrap seam smoke-testable
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/prepare-runtime.sh thin-client-assistant/runtime/runtime_user_setup.sh thin-client-assistant/runtime/runtime_config_persistence.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `ensure_runtime_user()` with stubbed user-management binaries and a temporary `local-auth.env`
+  - focused smoke test for `adjust_secret_permissions()` plus `sync_local_hostname()` with temporary config and hosts files
+
+### 2026-04-11 — runtime config persistence helper extraction
+
+- Removed the runtime config sync/live-state persistence block from `thin-client-assistant/runtime/prepare-runtime.sh`:
+  - added `thin-client-assistant/runtime/runtime_config_persistence.sh` for system-config target resolution, shared sync file lists, config-path rebinding, permission normalization, live-state remount handling, and config persistence to the live state directory
+  - `thin-client-assistant/runtime/prepare-runtime.sh` now sources that helper instead of keeping the config-copy and live-state persistence block inline
+  - the prepare entrypoint also now reuses `beagle_unit_file_present()` from `runtime_core.sh` instead of carrying another local unit-file presence helper
+- This is the first real split of the remaining `prepare-runtime.sh` monolith:
+  - `thin-client-assistant/runtime/prepare-runtime.sh` dropped to about `438` lines
+  - the extracted helper accepts optional source/target arguments, which keeps runtime behavior unchanged while making the persistence seam smoke-testable outside the live system path layout
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/prepare-runtime.sh thin-client-assistant/runtime/runtime_config_persistence.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `sync_runtime_config_to_system()` with temporary source/target config directories
+  - focused smoke test for `persist_runtime_config_to_live_state()` with a temporary live-state directory
+
 ### 2026-04-11 — Moonlight runtime-exec helper extraction
 
 - Removed the remaining decoder/audio/display/stream-argument block from `thin-client-assistant/runtime/launch-moonlight.sh`:

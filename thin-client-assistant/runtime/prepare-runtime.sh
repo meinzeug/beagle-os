@@ -6,8 +6,14 @@ STATUS_FILE="$STATUS_DIR/runtime.status"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATUS_WRITER_PY="$SCRIPT_DIR/status_writer.py"
 APPLY_ENROLLMENT_CONFIG_PY="$SCRIPT_DIR/apply_enrollment_config.py"
+RUNTIME_CONFIG_PERSISTENCE_SH="${RUNTIME_CONFIG_PERSISTENCE_SH:-$SCRIPT_DIR/runtime_config_persistence.sh}"
+RUNTIME_USER_SETUP_SH="${RUNTIME_USER_SETUP_SH:-$SCRIPT_DIR/runtime_user_setup.sh}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
+# shellcheck disable=SC1090
+source "$RUNTIME_CONFIG_PERSISTENCE_SH"
+# shellcheck disable=SC1090
+source "$RUNTIME_USER_SETUP_SH"
 
 load_runtime_config_with_retry() {
   local attempts interval attempt
@@ -33,113 +39,6 @@ plymouth_status() {
   command -v plymouth >/dev/null 2>&1 || return 0
   plymouth --ping >/dev/null 2>&1 || return 0
   plymouth display-message --text="$message" >/dev/null 2>&1 || true
-}
-
-sync_runtime_config_to_system() {
-  local target_dir="/etc/pve-thin-client"
-  local source_dir="${CONFIG_DIR:-}"
-  local file=""
-  local copied=0
-
-  [[ -n "$source_dir" ]] || return 0
-  [[ "$source_dir" != "$target_dir" ]] || return 0
-  [[ -d "$source_dir" ]] || return 0
-
-  install -d -m 0755 "$target_dir"
-  for file in thinclient.conf network.env credentials.env local-auth.env install-manifest.json; do
-    if [[ -f "$source_dir/$file" ]]; then
-      install -m 0600 "$source_dir/$file" "$target_dir/$file"
-      copied=1
-    fi
-  done
-
-  if [[ "$copied" == "1" ]]; then
-    CONFIG_DIR="$target_dir"
-    CONFIG_FILE="$target_dir/thinclient.conf"
-    NETWORK_FILE="$target_dir/network.env"
-    CREDENTIALS_FILE="$target_dir/credentials.env"
-    LOCAL_AUTH_FILE="$target_dir/local-auth.env"
-  fi
-  chmod 0644 "$target_dir/thinclient.conf" "$target_dir/network.env" "$target_dir/install-manifest.json" >/dev/null 2>&1 || true
-}
-
-remount_live_state_writable() {
-  local state_dir="${1:-}"
-  local mount_target mount_opts
-
-  [[ -n "$state_dir" ]] || return 1
-  mount_target="$(findmnt -nro TARGET --target "$state_dir" 2>/dev/null | head -n1)"
-  [[ -n "$mount_target" ]] || return 1
-  mount_opts="$(findmnt -nro OPTIONS --target "$state_dir" 2>/dev/null || true)"
-  if grep -qw rw <<<"$mount_opts" && ! grep -qw ro <<<"$mount_opts"; then
-    return 0
-  fi
-  mount -o remount,rw "$mount_target" >/dev/null 2>&1
-}
-
-persist_runtime_config_to_live_state() {
-  local source_dir="${CONFIG_DIR:-/etc/pve-thin-client}"
-  local live_state_dir="" file="" copied=0
-
-  [[ -d "$source_dir" ]] || return 0
-  live_state_dir="$(find_live_state_dir || true)"
-  [[ -n "$live_state_dir" ]] || return 0
-  [[ "$live_state_dir" != "$source_dir" ]] || return 0
-  remount_live_state_writable "$live_state_dir" || return 0
-
-  install -d -m 0755 "$live_state_dir"
-  for file in thinclient.conf network.env credentials.env local-auth.env install-manifest.json; do
-    if [[ -f "$source_dir/$file" ]]; then
-      install -m 0600 "$source_dir/$file" "$live_state_dir/$file"
-      copied=1
-    fi
-  done
-
-  if [[ "$copied" == "1" ]]; then
-    chmod 0644 "$live_state_dir/thinclient.conf" "$live_state_dir/network.env" "$live_state_dir/install-manifest.json" >/dev/null 2>&1 || true
-  fi
-}
-
-ensure_runtime_user() {
-  local runtime_user shell_path runtime_password
-
-  runtime_user="${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}"
-  if [[ -x /usr/local/bin/beagle-login-shell ]]; then
-    shell_path="/usr/local/bin/beagle-login-shell"
-  elif [[ -x /usr/local/bin/pve-thin-client-login-shell ]]; then
-    shell_path="/usr/local/bin/pve-thin-client-login-shell"
-  else
-    shell_path="/bin/bash"
-  fi
-
-  if ! id "$runtime_user" >/dev/null 2>&1; then
-    useradd -m -s "$shell_path" -G audio,video,input,render,plugdev,users,netdev "$runtime_user" >/dev/null 2>&1 || true
-  fi
-
-  usermod -s "$shell_path" "$runtime_user" >/dev/null 2>&1 || true
-  usermod -a -G audio,video,input,render,plugdev,users,netdev "$runtime_user" >/dev/null 2>&1 || true
-
-  runtime_password=""
-  if [[ -r "${LOCAL_AUTH_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/local-auth.env}" ]]; then
-    # shellcheck disable=SC1090
-    source "${LOCAL_AUTH_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/local-auth.env}"
-    runtime_password="${PVE_THIN_CLIENT_RUNTIME_PASSWORD:-}"
-  fi
-  if [[ -n "$runtime_password" ]]; then
-    printf '%s:%s\n' "$runtime_user" "$runtime_password" | chpasswd >/dev/null 2>&1 || true
-  fi
-}
-
-adjust_secret_permissions() {
-  local runtime_user credentials_file
-  runtime_user="${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}"
-  credentials_file="${CREDENTIALS_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/credentials.env}"
-  [[ -f "$credentials_file" ]] || return 0
-  chown root:"$runtime_user" "$credentials_file" >/dev/null 2>&1 || true
-  chmod 0640 "$credentials_file" >/dev/null 2>&1 || true
-  if [[ -f "${LOCAL_AUTH_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/local-auth.env}" ]]; then
-    chmod 0600 "${LOCAL_AUTH_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/local-auth.env}" >/dev/null 2>&1 || true
-  fi
 }
 
 enroll_endpoint_if_needed() {
@@ -181,30 +80,6 @@ enroll_endpoint_if_needed() {
   source "${CONFIG_FILE:-${CONFIG_DIR:-/etc/pve-thin-client}/thinclient.conf}"
   # shellcheck disable=SC1090
   source "$credentials_file"
-}
-
-sync_local_hostname() {
-  local desired_hostname hosts_file temp_file
-
-  desired_hostname="${PVE_THIN_CLIENT_HOSTNAME_VALUE:-${PVE_THIN_CLIENT_HOSTNAME:-}}"
-  [[ -n "$desired_hostname" ]] || return 0
-
-  printf '%s\n' "$desired_hostname" >/etc/hostname
-  hostname "$desired_hostname" >/dev/null 2>&1 || true
-
-  hosts_file="/etc/hosts"
-  [[ -f "$hosts_file" ]] || return 0
-
-  temp_file="$(mktemp)"
-  awk '
-    $1 == "127.0.1.1" {next}
-    {print}
-  ' "$hosts_file" >"$temp_file"
-  {
-    cat "$temp_file"
-    printf '127.0.1.1 %s\n' "$desired_hostname"
-  } >"$hosts_file"
-  rm -f "$temp_file"
 }
 
 strip_managed_ssh_block() {
@@ -331,12 +206,6 @@ ensure_kiosk_runtime() {
   beagle_log_event "prepare-runtime.kiosk-ready" "beagle-kiosk ensured"
 }
 
-unit_file_present() {
-  local unit="${1:-}"
-  [[ -n "$unit" ]] || return 1
-  systemctl list-unit-files --full --no-legend "$unit" 2>/dev/null | awk '{print $1}' | grep -Fxq "$unit"
-}
-
 ensure_beagle_management_units() {
   local unit=""
 
@@ -346,19 +215,19 @@ ensure_beagle_management_units() {
     beagle-runtime-heartbeat.timer \
     beagle-update-scan.timer
   do
-    if unit_file_present "$unit"; then
+    if beagle_unit_file_present "$unit"; then
       systemctl enable "$unit" >/dev/null 2>&1 || true
       systemctl restart --no-block "$unit" >/dev/null 2>&1 || true
     fi
   done
 
   for unit in beagle-endpoint-report.service beagle-endpoint-dispatch.service; do
-    if unit_file_present "$unit"; then
+    if beagle_unit_file_present "$unit"; then
       systemctl start --no-block "$unit" >/dev/null 2>&1 || true
     fi
   done
 
-  if unit_file_present "beagle-update-boot-scan.service"; then
+  if beagle_unit_file_present "beagle-update-boot-scan.service"; then
     systemctl enable beagle-update-boot-scan.service >/dev/null 2>&1 || true
     systemctl start --no-block beagle-update-boot-scan.service >/dev/null 2>&1 || true
   fi
