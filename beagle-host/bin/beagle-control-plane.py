@@ -30,6 +30,7 @@ if str(SERVICES_DIR) not in sys.path:
 
 from action_queue import ActionQueueService
 from download_metadata import DownloadMetadataService
+from endpoint_enrollment import EndpointEnrollmentService
 from endpoint_profile_contract import installer_profile_surface, normalize_endpoint_profile_contract
 from endpoint_report import EndpointReportService
 from endpoint_token_store import EndpointTokenStoreService
@@ -545,6 +546,7 @@ POLICY_NORMALIZATION_SERVICE: PolicyNormalizationService | None = None
 POLICY_STORE_SERVICE: PolicyStoreService | None = None
 PUBLIC_STREAM_SERVICE: PublicStreamService | None = None
 SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
+ENDPOINT_ENROLLMENT_SERVICE: EndpointEnrollmentService | None = None
 UBUNTU_BEAGLE_INPUTS_SERVICE: UbuntuBeagleInputsService | None = None
 UBUNTU_BEAGLE_STATE_SERVICE: UbuntuBeagleStateService | None = None
 UBUNTU_BEAGLE_PROVISIONING_SERVICE: UbuntuBeagleProvisioningService | None = None
@@ -720,6 +722,42 @@ def endpoint_token_store_service() -> EndpointTokenStoreService:
             utcnow=utcnow,
         )
     return ENDPOINT_TOKEN_STORE_SERVICE
+
+
+def endpoint_enrollment_service() -> EndpointEnrollmentService:
+    global ENDPOINT_ENROLLMENT_SERVICE
+    if ENDPOINT_ENROLLMENT_SERVICE is None:
+        ENDPOINT_ENROLLMENT_SERVICE = EndpointEnrollmentService(
+            build_profile=build_profile,
+            ensure_vm_secret=ensure_vm_secret,
+            enrollment_token_ttl_seconds=ENROLLMENT_TOKEN_TTL_SECONDS,
+            find_vm=find_vm,
+            load_enrollment_token=enrollment_token_store_service().load,
+            manager_pinned_pubkey=manager_pinned_pubkey(),
+            mark_enrollment_token_used=lambda token, payload, endpoint_id: enrollment_token_store_service().mark_used(
+                token,
+                payload,
+                endpoint_id=endpoint_id,
+            ),
+            public_manager_url=PUBLIC_MANAGER_URL,
+            public_server_name=PUBLIC_SERVER_NAME,
+            resolve_vm_sunshine_pinned_pubkey=resolve_vm_sunshine_pinned_pubkey,
+            save_vm_secret=save_vm_secret,
+            service_name="beagle-control-plane",
+            store_endpoint_token=endpoint_token_store_service().store,
+            store_enrollment_token=enrollment_token_store_service().store,
+            token_is_valid=lambda payload, endpoint_id: enrollment_token_store_service().is_valid(
+                payload,
+                endpoint_id=endpoint_id,
+            ),
+            token_urlsafe=secrets.token_urlsafe,
+            usb_tunnel_attach_host=USB_TUNNEL_ATTACH_HOST,
+            usb_tunnel_known_host_line=usb_tunnel_known_host_line,
+            usb_tunnel_user=USB_TUNNEL_SSH_USER,
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return ENDPOINT_ENROLLMENT_SERVICE
 
 
 def download_metadata_service() -> DownloadMetadataService:
@@ -1082,19 +1120,7 @@ def sunshine_access_token_path(token: str) -> Path:
 
 
 def issue_enrollment_token(vm: VmSummary) -> tuple[str, dict[str, Any]]:
-    record = ensure_vm_secret(vm)
-    token = secrets.token_urlsafe(32)
-    payload = {
-        "vmid": vm.vmid,
-        "node": vm.node,
-        "profile_name": f"vm-{vm.vmid}",
-        "expires_at": datetime.fromtimestamp(datetime.now(timezone.utc).timestamp() + ENROLLMENT_TOKEN_TTL_SECONDS, tz=timezone.utc).isoformat(),
-        "issued_at": utcnow(),
-        "used_at": "",
-        "thinclient_password": str(record.get("thinclient_password", "")),
-    }
-    enrollment_token_store_service().store(token, payload)
-    return token, payload
+    return endpoint_enrollment_service().issue_enrollment_token(vm)
 
 
 def load_enrollment_token(token: str) -> dict[str, Any] | None:
@@ -2621,92 +2647,18 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/v1/endpoints/enroll":
             try:
-                payload = self._read_json_body()
-                enrollment_token = str(payload.get("enrollment_token", "")).strip()
-                endpoint_id = str(payload.get("endpoint_id", "")).strip() or str(payload.get("hostname", "")).strip()
-                if not enrollment_token or not endpoint_id:
-                    raise ValueError("missing enrollment_token or endpoint_id")
+                response_payload = endpoint_enrollment_service().enroll_endpoint(self._read_json_body())
             except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                if isinstance(exc, ValueError):
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                elif isinstance(exc, PermissionError):
+                    self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": str(exc)})
+                elif isinstance(exc, LookupError):
+                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": str(exc)})
+                else:
+                    raise
                 return
-            enrollment = load_enrollment_token(enrollment_token)
-            if not enrollment_token_is_valid(enrollment, endpoint_id=endpoint_id):
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "invalid or expired enrollment token"})
-                return
-            vm = find_vm(int(enrollment.get("vmid", 0)))
-            if vm is None or vm.node != str(enrollment.get("node", "")).strip():
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                return
-            secret = ensure_vm_secret(vm)
-            sunshine_pinned_pubkey = resolve_vm_sunshine_pinned_pubkey(vm)
-            if sunshine_pinned_pubkey and sunshine_pinned_pubkey != str(secret.get("sunshine_pinned_pubkey", "")):
-                secret["sunshine_pinned_pubkey"] = sunshine_pinned_pubkey
-                secret = save_vm_secret(vm.node, vm.vmid, secret)
-            endpoint_token = secrets.token_urlsafe(32)
-            endpoint_payload = store_endpoint_token(
-                endpoint_token,
-                {
-                    "endpoint_id": endpoint_id,
-                    "hostname": str(payload.get("hostname", "")).strip(),
-                    "vmid": vm.vmid,
-                    "node": vm.node,
-                },
-            )
-            mark_enrollment_token_used(enrollment_token, enrollment, endpoint_id=endpoint_id)
-            self._write_json(
-                HTTPStatus.CREATED,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "endpoint": endpoint_payload,
-                    "config": {
-                        "beagle_manager_url": PUBLIC_MANAGER_URL,
-                        "beagle_manager_token": endpoint_token,
-                        "beagle_manager_pinned_pubkey": manager_pinned_pubkey(),
-                        "update_enabled": bool(profile.get("update_enabled", True)),
-                        "update_channel": str(profile.get("update_channel", "stable") or "stable"),
-                        "update_behavior": str(profile.get("update_behavior", "prompt") or "prompt"),
-                        "update_feed_url": str(profile.get("update_feed_url", f"{PUBLIC_MANAGER_URL}/api/v1/endpoints/update-feed") or ""),
-                        "update_version_pin": str(profile.get("update_version_pin", "") or ""),
-                        "sunshine_api_url": str(profile.get("sunshine_api_url", "") or ""),
-                        "sunshine_username": str(secret.get("sunshine_username", "")),
-                        "sunshine_password": str(secret.get("sunshine_password", "")),
-                        "sunshine_pin": str(secret.get("sunshine_pin", "")),
-                        "sunshine_pinned_pubkey": str(secret.get("sunshine_pinned_pubkey", "")),
-                        "usb_enabled": True,
-                        "usb_tunnel_host": PUBLIC_SERVER_NAME,
-                        "usb_tunnel_user": USB_TUNNEL_SSH_USER,
-                        "usb_tunnel_port": int(secret.get("usb_tunnel_port", 0) or 0),
-                        "usb_tunnel_attach_host": USB_TUNNEL_ATTACH_HOST,
-                        "usb_tunnel_private_key": str(secret.get("usb_tunnel_private_key", "")),
-                        "usb_tunnel_known_host": usb_tunnel_known_host_line(),
-                        "moonlight_host": str(profile.get("stream_host", "") or ""),
-                        "moonlight_local_host": str(profile.get("moonlight_local_host", "") or ""),
-                        "moonlight_port": str(profile.get("moonlight_port", "") or ""),
-                        "moonlight_app": str(profile.get("moonlight_app", "Desktop") or "Desktop"),
-                        "egress_mode": str(profile.get("egress_mode", "direct") or "direct"),
-                        "egress_type": str(profile.get("egress_type", "") or ""),
-                        "egress_interface": str(profile.get("egress_interface", "beagle-egress") or "beagle-egress"),
-                        "egress_domains": list(profile.get("egress_domains", []) or []),
-                        "egress_resolvers": list(profile.get("egress_resolvers", []) or []),
-                        "egress_allowed_ips": list(profile.get("egress_allowed_ips", []) or []),
-                        "egress_wg_address": str(profile.get("egress_wg_address", "") or ""),
-                        "egress_wg_dns": str(profile.get("egress_wg_dns", "") or ""),
-                        "egress_wg_public_key": str(profile.get("egress_wg_public_key", "") or ""),
-                        "egress_wg_endpoint": str(profile.get("egress_wg_endpoint", "") or ""),
-                        "egress_wg_private_key": str(profile.get("egress_wg_private_key", "") or ""),
-                        "egress_wg_preshared_key": str(profile.get("egress_wg_preshared_key", "") or ""),
-                        "egress_wg_persistent_keepalive": str(profile.get("egress_wg_persistent_keepalive", "25") or "25"),
-                        "identity_hostname": str(profile.get("identity_hostname", "") or ""),
-                        "identity_timezone": str(profile.get("identity_timezone", "") or ""),
-                        "identity_locale": str(profile.get("identity_locale", "") or ""),
-                        "identity_keymap": str(profile.get("identity_keymap", "") or ""),
-                        "identity_chrome_profile": str(profile.get("identity_chrome_profile", "") or ""),
-                    },
-                },
-            )
+            self._write_json(HTTPStatus.CREATED, response_payload)
             return
 
         if path == "/api/v1/endpoints/moonlight/register":

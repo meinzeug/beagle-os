@@ -63,7 +63,8 @@
 - [x] Extract the manager/server pinning and public-host resolution helper cluster into a dedicated host service.
 - [x] Move `wait_for_action_result` into the existing `ActionQueueService`.
 - [ ] Continue splitting the remaining non-HTTP business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
-- [ ] Extract the endpoint-enrollment / token-issuance helper cluster into a dedicated host service.
+- [x] Extract the endpoint-enrollment / token-issuance helper cluster into a dedicated host service.
+- [ ] Extract the scheduled-restart cancellation/state helper cluster into a dedicated host service.
 - [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.

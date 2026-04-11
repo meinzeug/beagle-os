@@ -149,6 +149,7 @@ install -m 0644 "$ROOT_DIR/beagle-host/providers/host_provider_contract.py" "$HO
 install -m 0644 "$ROOT_DIR/beagle-host/providers/registry.py" "$HOST_RUNTIME_DIR/providers/registry.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/virtualization_inventory.py" "$HOST_RUNTIME_DIR/services/virtualization_inventory.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/runtime_environment.py" "$HOST_RUNTIME_DIR/services/runtime_environment.py"
+install -m 0644 "$ROOT_DIR/beagle-host/services/endpoint_enrollment.py" "$HOST_RUNTIME_DIR/services/endpoint_enrollment.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/vm_profile.py" "$HOST_RUNTIME_DIR/services/vm_profile.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/vm_state.py" "$HOST_RUNTIME_DIR/services/vm_state.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/download_metadata.py" "$HOST_RUNTIME_DIR/services/download_metadata.py"

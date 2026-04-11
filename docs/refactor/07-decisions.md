@@ -507,3 +507,15 @@ Decision:
 Reason:
 
 - The result-wait loop is not a separate domain from queue/result persistence; it depends directly on the same result-file contract and action-id semantics already owned by `ActionQueueService`. Expanding the existing service avoids another tiny helper module, makes the timing behavior injectable for tests, and keeps one cohesive action-queue boundary.
+
+### D47. Endpoint enrollment and bootstrap belong in one host service
+
+Decision:
+
+- Move installer enrollment-token issuance plus `/api/v1/endpoints/enroll` bootstrap/config payload shaping into `beagle-host/services/endpoint_enrollment.py`.
+- Keep `issue_enrollment_token(...)` in `beagle-host/bin/beagle-control-plane.py` only as a thin wrapper so `InstallerScriptService` and other callers keep their current collaborator surface.
+- Let the service compose `build_profile`, VM-secret bootstrap, token-store seams, Sunshine pinned-pubkey backfill, manager pinning, and USB-tunnel config shaping instead of leaving those concerns inline in the HTTP entrypoint.
+
+Reason:
+
+- The enrollment flow had become the next cohesive non-HTTP block: token TTL math, thin-client password lookup, endpoint-token issuance, endpoint bootstrap config assembly, and secret/pinned-pubkey reconciliation were all still coupled directly to the entrypoint. Extracting them makes the endpoint bootstrap contract explicit, testable, and reusable for future non-Proxmox provisioning surfaces.

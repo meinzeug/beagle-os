@@ -2,6 +2,23 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — endpoint enrollment and bootstrap extraction
+
+- Extracted the endpoint enrollment / bootstrap helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/endpoint_enrollment.py`:
+  - `EndpointEnrollmentService` now owns `issue_enrollment_token(vm)` and `enroll_endpoint(payload)`
+  - the control-plane helper name `issue_enrollment_token(...)` stays stable as a thin wrapper, so `InstallerScriptService` and installer-generation flows kept their existing collaborator surface
+- Moved the non-HTTP endpoint bootstrap response shaping behind the new service seam:
+  - enrollment-token TTL math, thin-client password lookup, endpoint-token issuance, Sunshine pinned-pubkey backfill, and endpoint config payload assembly no longer live inline in the HTTP entrypoint
+  - `/api/v1/endpoints/enroll` now maps HTTP status codes to domain errors from the service instead of building the full payload inline
+  - the implicit `profile` dependency in the old enroll handler is gone; the new service now explicitly builds the VM profile before emitting the endpoint config response
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/endpoint_enrollment.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - installer-side enrollment token issuance still returns a token plus the expected `thinclient_password` and `profile_name`
+  - endpoint enrollment still emits the existing manager/update/Moonlight/USB/egress/identity config shape
+  - Sunshine pinned-pubkey backfill still updates the returned secret/config payload before the response is built
+  - invalid payloads still fail as `ValueError`, missing/expired tokens as `PermissionError`, and missing VMs as `LookupError`, which the handler now maps to `400` / `401` / `404`
+- `beagle-control-plane.py` dropped from `3418` to `3370` lines with this slice, and the host-side extracted-service module count moved from `24` to `25`
+
 ### 2026-04-11 — runtime environment extraction
 
 - Extracted the runtime host-resolution / manager-pinned-pubkey helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/runtime_environment.py`:
