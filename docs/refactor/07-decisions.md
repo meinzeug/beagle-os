@@ -355,3 +355,15 @@ Decision:
 Reason:
 
 - The update-feed, installer-script, fleet-inventory, and VM-profile services all depended on the same small cluster of public artifact helpers. Leaving those helpers inline in the control plane would keep a shared business rule block duplicated via wrapper injection instead of via one service seam. Extracting them creates a reusable host-side source of truth for public download URLs and checksums before the remaining credential/bootstrap logic is tackled.
+
+### D34. VM-secret persistence and VM-secret bootstrap are separate host services
+
+Decision:
+
+- Keep `beagle-host/services/vm_secret_store.py` focused on JSON persistence only.
+- Move `ensure_vm_secret`, Sunshine pinned-pubkey backfill, SSH keypair creation, USB-tunnel path/known-host helpers, and managed `authorized_keys` synchronization into `beagle-host/services/vm_secret_bootstrap.py`.
+- Keep the old helper names in `beagle-host/bin/beagle-control-plane.py` as thin wrappers so enrollment, installer, USB, and provisioning flows continue to call the same surface during the migration.
+
+Reason:
+
+- VM-secret persistence and VM-secret bootstrap are different concerns. The first is stable file I/O; the second mixes credential generation, key material, filesystem side effects, and Sunshine/USB tunnel integration. Splitting them keeps the persistence service simple, gives the higher-level bootstrap logic its own DI seam, and removes one of the largest remaining non-HTTP helper clusters from the control-plane monolith.

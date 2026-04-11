@@ -71,6 +71,7 @@ Architekturregel ab jetzt:
 - Host-seitige VM-State-/Compliance-/Read-Model-Zusammenbau-Helfer gehoeren ebenfalls in `beagle-host/services/*`, nicht verteilt zwischen HTTP-Handlern und dem Control-Plane-Einstiegspunkt.
 - Host-seitige VM-Profil-, Assignment-, Policy- und Public-Stream-Synthese gehoert ebenfalls in `beagle-host/services/*`, nicht in den HTTP-Einstiegspunkt.
 - Host-seitige Download-/Artifact-URL-/Checksum-/Payload-Metadaten gehoeren ebenfalls in dedizierte `beagle-host/services/*`-Module, nicht verteilt zwischen Update-Feed, Installer-Script-Service und HTTP-Helfern.
+- Host-seitige Secret-/Credential-Bootstrap-, Sunshine-Pinned-Pubkey- und USB-Tunnel-Authorized-Keys-Orchestrierung gehoert ebenfalls in dedizierte `beagle-host/services/*`-Module, nicht in `beagle-host/bin/beagle-control-plane.py`.
 - Host-Control-Plane-Code soll neue direkte `qm`-/`pvesh`-Nutzung nur noch in dedizierten Provider-Modulen wie `beagle-host/providers/*` einführen.
 - Host-Control-Plane-Helfer fuer `qm guest exec`, `qm guest exec-status` und geplante VM-Restarts gehoeren ebenfalls in diese Provider-Module, nicht in HTTP-Handler oder Feature-Flows.
 - Groessere Proxmox-UI-Renderer und Modal-Logik gehoeren nach `proxmox-ui/components/*`, nicht zurueck in `proxmox-ui/beagle-ui.js`.
