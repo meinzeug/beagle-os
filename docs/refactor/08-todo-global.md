@@ -44,6 +44,7 @@
 - [x] Extract the shared installer/runtime env default literals into one contract used by both shell and Python paths.
 - [x] Extract the runtime mode/cmdline override mapping out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
 - [x] Extract the runtime config-discovery and cmdline-preset restore block out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
+- [x] Extract the runtime config-generation/loading block out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.

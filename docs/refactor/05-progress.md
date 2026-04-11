@@ -1022,6 +1022,11 @@
   - moved live-state discovery, preset-file discovery, and cmdline-preset restore/decode logic out of `thin-client-assistant/runtime/common.sh`
   - rewired `find_live_state_dir()` and `find_config_dir()` in `common.sh` into thin shell wrappers over the new helper
   - kept the runtime shell responsible for sourcing the resolved config files and for the remaining high-level orchestration only
+- Reduced duplicated runtime config-loading/orchestration logic in the thin-client runtime:
+  - added `thin-client-assistant/runtime/config_loader.sh`
+  - moved `generate_config_dir_from_preset()`, runtime config file sourcing, and `load_runtime_config()` out of `thin-client-assistant/runtime/common.sh`
+  - rewired `common.sh` to source the new loader helper instead of carrying those config-loading functions inline
+  - kept `common.sh` as the shared orchestration library, but not as the place where config loading/discovery business logic keeps accumulating
 
 ### Known risks after this run
 

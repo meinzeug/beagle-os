@@ -986,3 +986,18 @@ Decision:
 Reason:
 
 - After mode overrides moved out, the next substantial business/orchestration block left in `common.sh` was the combination of config discovery, preset discovery, and cmdline preset restoration. That logic mixed path policy, boot-time recovery behavior, and preset regeneration semantics. Pulling it behind a dedicated helper preserves behavior while further shrinking the runtime shell monolith and makes the remaining shell work much more obviously orchestration-only.
+
+### D86. Runtime config generation and config-file sourcing should live in a dedicated loader helper, not inline in common.sh
+
+Decision:
+
+- Add `thin-client-assistant/runtime/config_loader.sh` as the dedicated shell helper for:
+  - preset-driven runtime config generation via `generate_config_from_preset.py`
+  - runtime config file sourcing for `thinclient.conf`, `network.env`, and `credentials.env`
+  - the high-level `load_runtime_config()` flow that composes config discovery plus sourcing plus mode overrides
+- Rewire `common.sh` to source `config_loader.sh` instead of carrying these functions inline.
+- Keep `common.sh` focused on shared runtime orchestration, path helpers, stream/session helpers, and the remaining environment/state support behavior.
+
+Reason:
+
+- Once config discovery moved out, the next remaining config-specific block in `common.sh` was the actual generation and loading of runtime config files. That is still real config-loading behavior, not generic orchestration. Extracting it keeps the runtime shell surface modular and makes the remaining work in `common.sh` more clearly about runtime state and path orchestration rather than config assembly.
