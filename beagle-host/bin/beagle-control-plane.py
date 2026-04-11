@@ -46,6 +46,7 @@ from persistence_support import PersistenceSupportService
 from policy_normalization import PolicyNormalizationService
 from policy_store import PolicyStoreService
 from public_http_surface import PublicHttpSurfaceService
+from public_ubuntu_install_surface import PublicUbuntuInstallSurfaceService
 from public_streams import PublicStreamService
 from request_support import RequestSupportService
 from registry import create_provider, list_providers, normalize_provider_kind
@@ -502,6 +503,7 @@ VM_PROFILE_SERVICE: VmProfileService | None = None
 VM_HTTP_SURFACE_SERVICE: VmHttpSurfaceService | None = None
 CONTROL_PLANE_READ_SURFACE_SERVICE: ControlPlaneReadSurfaceService | None = None
 PUBLIC_HTTP_SURFACE_SERVICE: PublicHttpSurfaceService | None = None
+PUBLIC_UBUNTU_INSTALL_SURFACE_SERVICE: PublicUbuntuInstallSurfaceService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
 DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
 RUNTIME_ENVIRONMENT_SERVICE: RuntimeEnvironmentService | None = None
@@ -1662,6 +1664,22 @@ def public_http_surface_service() -> PublicHttpSurfaceService:
     return PUBLIC_HTTP_SURFACE_SERVICE
 
 
+def public_ubuntu_install_surface_service() -> PublicUbuntuInstallSurfaceService:
+    global PUBLIC_UBUNTU_INSTALL_SURFACE_SERVICE
+    if PUBLIC_UBUNTU_INSTALL_SURFACE_SERVICE is None:
+        PUBLIC_UBUNTU_INSTALL_SURFACE_SERVICE = PublicUbuntuInstallSurfaceService(
+            cancel_scheduled_ubuntu_beagle_vm_restart=cancel_scheduled_ubuntu_beagle_vm_restart,
+            finalize_ubuntu_beagle_install=finalize_ubuntu_beagle_install,
+            load_ubuntu_beagle_state=load_ubuntu_beagle_state,
+            prepare_ubuntu_beagle_firstboot=prepare_ubuntu_beagle_firstboot,
+            save_ubuntu_beagle_state=save_ubuntu_beagle_state,
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return PUBLIC_UBUNTU_INSTALL_SURFACE_SERVICE
+
+
 def vm_state_service() -> VmStateService:
     global VM_STATE_SERVICE
     if VM_STATE_SERVICE is None:
@@ -2075,104 +2093,19 @@ class Handler(BaseHTTPRequestHandler):
             self._write_proxy_response(status_code, headers, response_body)
             return
 
-        match = re.match(r"^/api/v1/public/ubuntu-install/(?P<token>[A-Za-z0-9._~-]+)/complete$", path)
-        if match:
-            token = match.group("token")
-            state = load_ubuntu_beagle_state(token)
-            if state is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "ubuntu install token not found"})
-                return
-            restart_requested = str(query.get("restart", ["1"])[0]).strip().lower() not in {"0", "false", "no", "off"}
+        public_install_payload: dict[str, Any] | None = None
+        if path.endswith("/failed") and int(self.headers.get("Content-Length", "0") or "0") > 0:
             try:
-                cleanup = finalize_ubuntu_beagle_install(state, restart=restart_requested)
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": f"failed to finalize install: {exc}"})
-                return
-            cancelled_restart = cancel_scheduled_ubuntu_beagle_vm_restart(state)
-            state["completed_at"] = utcnow()
-            state["updated_at"] = utcnow()
-            state["status"] = "completed"
-            state["phase"] = "complete"
-            state["message"] = (
-                "Ubuntu ist installiert. Boot-Medien wurden entfernt und die VM wurde neu gestartet."
-                if restart_requested
-                else "Ubuntu ist installiert. Boot-Medien wurden entfernt; der Gast startet jetzt selbst sauber neu."
-            )
-            state["cleanup"] = cleanup
-            if cancelled_restart:
-                state["host_restart_cancelled"] = cancelled_restart
-            save_ubuntu_beagle_state(token, state)
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "ubuntu_beagle_install": state,
-                },
-            )
-            return
-
-        match = re.match(r"^/api/v1/public/ubuntu-install/(?P<token>[A-Za-z0-9._~-]+)/prepare-firstboot$", path)
-        if match:
-            token = match.group("token")
-            state = load_ubuntu_beagle_state(token)
-            if state is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "ubuntu install token not found"})
-                return
-            try:
-                cleanup = prepare_ubuntu_beagle_firstboot(state)
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": f"failed to prepare first boot: {exc}"})
-                return
-            save_ubuntu_beagle_state(token, state)
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "ubuntu_beagle_install": state,
-                    "cleanup": cleanup,
-                },
-            )
-            return
-
-        match = re.match(r"^/api/v1/public/ubuntu-install/(?P<token>[A-Za-z0-9._~-]+)/failed$", path)
-        if match:
-            token = match.group("token")
-            state = load_ubuntu_beagle_state(token)
-            if state is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "ubuntu install token not found"})
-                return
-            payload: dict[str, Any] = {}
-            if int(self.headers.get("Content-Length", "0") or "0") > 0:
-                try:
-                    payload = self._read_json_body()
-                except Exception:
-                    payload = {}
-            state["updated_at"] = utcnow()
-            state["failed_at"] = utcnow()
-            state["status"] = "failed"
-            state["phase"] = str(payload.get("phase", "firstboot") or "firstboot")
-            state["message"] = str(payload.get("message", "Ubuntu provisioning im Gast ist fehlgeschlagen.") or "Ubuntu provisioning im Gast ist fehlgeschlagen.")
-            state["error"] = str(payload.get("error", "") or "")
-            cancelled_restart = cancel_scheduled_ubuntu_beagle_vm_restart(state)
-            if cancelled_restart:
-                state["host_restart_cancelled"] = cancelled_restart
-            save_ubuntu_beagle_state(token, state)
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "ubuntu_beagle_install": state,
-                },
-            )
+                public_install_payload = self._read_json_body()
+            except Exception:
+                public_install_payload = {}
+        response = public_ubuntu_install_surface_service().route_post(
+            path,
+            query=query,
+            payload=public_install_payload,
+        )
+        if response is not None:
+            self._write_json(response["status"], response["payload"])
             return
 
         if path == "/api/v1/endpoints/enroll":

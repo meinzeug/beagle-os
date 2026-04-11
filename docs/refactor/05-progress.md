@@ -2,6 +2,22 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — host public ubuntu-install POST-surface extraction
+
+- Extracted the public Ubuntu install lifecycle POST block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/public_ubuntu_install_surface.py`:
+  - `PublicUbuntuInstallSurfaceService` now owns the route matching and payload shaping for `public/ubuntu-install/<token>/complete`, `prepare-firstboot`, and `failed`
+  - the service now composes the already-extracted ubuntu-beagle provisioning, ubuntu-beagle state, and scheduled-restart cancellation seams instead of mutating/installing that lifecycle state inline in the HTTP entrypoint
+- Rewired the control-plane entrypoint to delegate those public install POST routes instead of rebuilding the same lifecycle transitions inline:
+  - `beagle-control-plane.py` now only does the optional JSON-body read for the `failed` route and the final response write for this surface
+  - `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/public_ubuntu_install_surface.py` into the deployed host runtime
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile beagle-host/services/public_ubuntu_install_surface.py beagle-host/bin/beagle-control-plane.py`
+  - `bash -n scripts/install-proxmox-host-services.sh`
+  - focused smoke checks for `PublicUbuntuInstallSurfaceService` route handling and lifecycle payload shaping
+  - `./scripts/validate-project.sh`
+- Current size marker after this slice:
+  - `beagle-host/bin/beagle-control-plane.py` is down to about `2832` lines
+
 ### 2026-04-11 — host public/read and endpoint-update surface extraction
 
 - Extracted the next public/endpoint-facing GET cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/public_http_surface.py`:
