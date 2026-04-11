@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_BASENAME="$(basename "${BASH_SOURCE[0]}")"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 USB_MANIFEST_HELPER_RELATIVE="thin-client-assistant/usb/usb_manifest.py"
+USB_WRITER_SOURCES_HELPER_RELATIVE="thin-client-assistant/usb/usb_writer_sources.sh"
 DIST_DIR="$REPO_ROOT/dist/pve-thin-client-installer"
 ASSET_DIR="$DIST_DIR/live"
 USB_WRITER_VARIANT="${PVE_THIN_CLIENT_USB_WRITER_VARIANT:-${PVE_THIN_CLIENT_USB_WRITER_VARIANT_DEFAULT:-}}"
@@ -64,11 +65,16 @@ usb_manifest_helper() {
   printf '%s\n' "$REPO_ROOT/$USB_MANIFEST_HELPER_RELATIVE"
 }
 
+usb_writer_sources_helper() {
+  printf '%s\n' "$REPO_ROOT/$USB_WRITER_SOURCES_HELPER_RELATIVE"
+}
+
+# shellcheck disable=SC1090
+source "$(usb_writer_sources_helper)"
+
 usage() {
-  local media_label="installer"
-  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
-    media_label="live"
-  fi
+  local media_label=""
+  media_label="$(usb_writer_media_label "$USB_WRITER_VARIANT")"
   cat <<EOF
 Usage: $0 [--device /dev/sdX] [--list-devices] [--yes] [--allow-non-usb] [--allow-system-disk]
        [--json] [--dry-run] [--label NAME] [--require-checksums]
@@ -902,7 +908,7 @@ write_usb_manifest() {
   else
     live_dir="$mount_dir/pve-thin-client/live"
   fi
-  payload_source="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-${RELEASE_ISO_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}}"
+  payload_source="$(resolve_usb_install_payload_source "$REPO_ROOT")"
   if [[ -f "$mount_dir/start-installer-menu.sh" ]]; then
     installer_sha="$(sha256sum "$mount_dir/start-installer-menu.sh" | awk '{print $1}')"
   else
@@ -1112,15 +1118,10 @@ PY
 print_write_plan() {
   local bootstrap_source install_payload_source media_label live_assets_path
 
-  bootstrap_source="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}"
-  install_payload_source="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-${RELEASE_ISO_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}}"
-  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
-    media_label="live"
-    live_assets_path="/live"
-  else
-    media_label="installer"
-    live_assets_path="/pve-thin-client/live"
-  fi
+  bootstrap_source="$(resolve_usb_plan_bootstrap_source "$REPO_ROOT")"
+  install_payload_source="$(resolve_usb_install_payload_source "$REPO_ROOT")"
+  media_label="$(usb_writer_media_label "$USB_WRITER_VARIANT")"
+  live_assets_path="$(usb_writer_live_assets_path "$USB_WRITER_VARIANT")"
   cat <<EOF
 Dry run only. No changes were written.
 Target device: $TARGET_DEVICE

@@ -1,5 +1,18 @@
 # Refactor Progress
 
+### 2026-04-12 — USB writer source-selection helper extraction
+
+- Removed the repeated USB-writer source-selection and variant-path logic from the USB writer entrypoint:
+  - added `thin-client-assistant/usb/usb_writer_sources.sh` for `usb_payload_bundle_path()`, `resolve_usb_install_payload_source()`, `resolve_usb_plan_bootstrap_source()`, `usb_writer_media_label()`, and `usb_writer_live_assets_path()`
+  - `thin-client-assistant/usb/pve-thin-client-usb-installer.sh` now sources that helper and reuses it for usage text, USB-manifest payload-source selection, and the dry-run write plan
+- This reduces another remaining USB monolith seam:
+  - install-payload and bootstrap-source selection now live behind one small writer-specific helper instead of being reconstructed inline in multiple places
+  - the writer's `installer` vs `live` path/label differences are now explicit helper contracts instead of scattered conditionals
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/usb/usb_writer_sources.sh thin-client-assistant/usb/pve-thin-client-usb-installer.sh`
+  - focused smoke test for default and explicit source resolution plus writer-variant media-label/live-path helpers
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — USB install-payload asset helper extraction
 
 - Removed the install-payload acquisition and install-manifest block from the local thin-client installer entrypoint:

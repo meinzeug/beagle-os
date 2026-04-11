@@ -71,10 +71,11 @@ Strategic framing:
    - the shared USB manifest project-version read/write, install-manifest/USB-manifest JSON shaping, and payload-source validation now live behind `thin-client-assistant/usb/usb_manifest.py`
    - the shared live-medium asset/manifest path detection, live-device candidate discovery, live-mount candidate discovery, and shared candidate mount/umount loop now also live behind `thin-client-assistant/usb/live_medium_helpers.sh`
    - the local-installer payload download/fallback and install-manifest write path now also lives behind `thin-client-assistant/usb/install_payload_assets.sh`
+   - the USB writer source-selection and variant-path plan logic now also lives behind `thin-client-assistant/usb/usb_writer_sources.sh`
    - the runtime kiosk process-pattern and stop-control block now lives behind `thin-client-assistant/runtime/kiosk_runtime.sh`
    - the runtime kiosk supervisor/relaunch loop now lives behind `thin-client-assistant/runtime/session_launcher.sh`
    - the USB tunnel-status and inventory/list/status payload shaping now live behind `thin-client-assistant/runtime/beagle_usb_runtime_payloads.sh`
-   - the next remaining drift is in the host-only vs USB-only preset delta fields, the hosted-installer artifact-source split (public release URLs vs host-local generated artifacts), the remaining live-medium mounted-content acceptance overlap outside the new helper, and in the remaining USB writer source-selection duplication inside `pve-thin-client-usb-installer.sh`, especially now that the local-installer payload/manifest path already sits behind its own helper seam
+   - the next remaining drift is in the host-only vs USB-only preset delta fields, the hosted-installer artifact-source split (public release URLs vs host-local generated artifacts), the remaining live-medium mounted-content acceptance overlap outside the new helper, and in the remaining USB writer bootstrap/download asset handling inside `pve-thin-client-usb-installer.sh`, especially now that both the local-installer payload/manifest path and the writer source-selection path already sit behind helper seams
 5. Continue splitting the browser UI action/render layers:
    - move the next action-heavy profile modal helpers out of `extension/components/profile-modal.js` and, where shared, out of `proxmox-ui/components/profile-modal.js`
    - keep using `core/platform/browser-common.js` plus the existing shared browser helper modules instead of recreating token/template/API helpers in entrypoints
