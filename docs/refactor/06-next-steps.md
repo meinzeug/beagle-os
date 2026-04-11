@@ -78,7 +78,8 @@ Strategic framing:
    - the runtime kiosk supervisor/relaunch loop now lives behind `thin-client-assistant/runtime/session_launcher.sh`
    - the USB tunnel-status and inventory/list/status payload shaping now live behind `thin-client-assistant/runtime/beagle_usb_runtime_payloads.sh`
    - the USB writer device-selection/safety/operator-dialog path now also lives behind `thin-client-assistant/usb/usb_writer_device_selection.sh`
-   - the next remaining drift is now in the host-only vs USB-only preset delta fields, the hosted-installer artifact-source split (public release URLs vs host-local generated artifacts), and the remaining live-medium mounted-content acceptance overlap outside the new helper
+   - the hosted-installer artifact-source split for host-local downloads vs public release artifacts now lives behind `scripts/lib/hosted_download_layout.sh`
+   - the next remaining drift is now in the host-only vs USB-only preset delta fields and the remaining live-medium mounted-content acceptance overlap outside the new helper
 5. Continue splitting the browser UI action/render layers:
    - move the next action-heavy profile modal helpers out of `extension/components/profile-modal.js` and, where shared, out of `proxmox-ui/components/profile-modal.js`
    - keep using `core/platform/browser-common.js` plus the existing shared browser helper modules instead of recreating token/template/API helpers in entrypoints

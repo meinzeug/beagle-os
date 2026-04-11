@@ -1,5 +1,19 @@
 # Refactor Progress
 
+### 2026-04-12 — Hosted download layout helper extraction
+
+- Removed the duplicated hosted-download vs public-release artifact URL shaping from the host download-generation and validation scripts:
+  - added `scripts/lib/hosted_download_layout.sh` for `beagle_host_origin_url()`, `beagle_host_downloads_base_url()`, `beagle_public_artifact_base_url()`, `beagle_hosted_download_url()`, `beagle_public_release_artifact_url()`, and `beagle_vm_api_url_template()`
+  - `scripts/prepare-host-downloads.sh` now derives hosted installer/live/status URLs and public payload/bootstrap/ISO URLs through that helper instead of constructing the two artifact sources inline
+  - `scripts/check-beagle-host.sh` now validates the same URLs through the same helper instead of reconstructing expected hosted/public artifact URLs separately
+- This tightens the hosted-installer artifact-source seam:
+  - host-local downloads served by the Beagle host and public release artifacts from the update host now have one explicit shared layout contract
+  - generation and validation now use the same filename/base-URL rules, reducing drift risk when hosted and public artifact names change
+- Validation and smoke checks for this slice passed:
+  - `bash -n scripts/lib/hosted_download_layout.sh scripts/prepare-host-downloads.sh scripts/check-beagle-host.sh`
+  - focused smoke tests for hosted/public URL normalization and VM API template rendering in `hosted_download_layout.sh`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — USB writer device-selection helper extraction
 
 - Removed the remaining operator-facing device-selection and safety block from the USB writer entrypoint:
