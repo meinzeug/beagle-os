@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PRESET_SUMMARY_HELPER="$SCRIPT_DIR/preset_summary.py"
 USB_MANIFEST_HELPER="$SCRIPT_DIR/usb_manifest.py"
+LIVE_MEDIUM_HELPERS="$SCRIPT_DIR/live_medium_helpers.sh"
 LIVE_MEDIUM_DEFAULT="${LIVE_MEDIUM:-/run/live/medium}"
 LIVE_MEDIUM=""
 TEMP_LIVE_MEDIUM_MOUNT=""
@@ -53,6 +54,9 @@ PROXMOX_API_NODE=""
 PROXMOX_API_VMID=""
 PRESET_LOAD_RETRIES="${PVE_THIN_CLIENT_PRESET_LOAD_RETRIES:-6}"
 PRESET_LOAD_RETRY_DELAY="${PVE_THIN_CLIENT_PRESET_LOAD_RETRY_DELAY:-1}"
+
+# shellcheck disable=SC1090
+source "$LIVE_MEDIUM_HELPERS"
 
 MODE="${MODE:-MOONLIGHT}"
 CONNECTION_METHOD=""
@@ -542,22 +546,6 @@ candidate_live_mounts() {
   done
 }
 
-candidate_live_asset_dir() {
-  local target="$1"
-
-  if [[ -f "$target/pve-thin-client/live/filesystem.squashfs" && -f "$target/pve-thin-client/live/vmlinuz" && -f "$target/pve-thin-client/live/initrd.img" ]]; then
-    printf '%s\n' "$target/pve-thin-client/live"
-    return 0
-  fi
-
-  if [[ -f "$target/filesystem.squashfs" && -f "$target/vmlinuz" && -f "$target/initrd.img" ]]; then
-    printf '%s\n' "$target"
-    return 0
-  fi
-
-  return 1
-}
-
 candidate_preset_path() {
   local target="$1"
 
@@ -566,24 +554,8 @@ candidate_preset_path() {
     return 0
   fi
 
-  if candidate_live_asset_dir "$target" >/dev/null 2>&1 && [[ -f "$target/preset.env" ]]; then
+  if candidate_live_asset_dir "$target" 1 >/dev/null 2>&1 && [[ -f "$target/preset.env" ]]; then
     printf '%s\n' "$target/preset.env"
-    return 0
-  fi
-
-  return 1
-}
-
-candidate_manifest_path() {
-  local target="$1"
-
-  if [[ -f "$target/.pve-dcv-usb-manifest.json" ]]; then
-    printf '%s\n' "$target/.pve-dcv-usb-manifest.json"
-    return 0
-  fi
-
-  if candidate_live_asset_dir "$target" >/dev/null 2>&1 && [[ -f "$target/.pve-dcv-usb-manifest.json" ]]; then
-    printf '%s\n' "$target/.pve-dcv-usb-manifest.json"
     return 0
   fi
 
@@ -594,7 +566,7 @@ resolve_payload_url_from_manifest() {
   local manifest_file=""
 
   if [[ -n "$LIVE_MEDIUM" ]]; then
-    manifest_file="$(candidate_manifest_path "$LIVE_MEDIUM" 2>/dev/null || true)"
+    manifest_file="$(candidate_manifest_path "$LIVE_MEDIUM" 1 2>/dev/null || true)"
   fi
   if [[ -z "$manifest_file" && -f "$CACHED_MANIFEST_FILE" ]]; then
     manifest_file="$CACHED_MANIFEST_FILE"
@@ -732,7 +704,7 @@ resolve_install_manifest_file() {
   local manifest_file=""
 
   if [[ -n "$LIVE_MEDIUM" ]]; then
-    manifest_file="$(candidate_manifest_path "$LIVE_MEDIUM" 2>/dev/null || true)"
+    manifest_file="$(candidate_manifest_path "$LIVE_MEDIUM" 1 2>/dev/null || true)"
   fi
   if [[ -z "$manifest_file" && -f "$CACHED_MANIFEST_FILE" ]]; then
     manifest_file="$CACHED_MANIFEST_FILE"
@@ -922,7 +894,7 @@ mount_discovered_live_medium() {
     [[ -b "$device" ]] || continue
     mount_dir="$(mktemp -d /tmp/pve-live-medium.XXXXXX)"
     if privileged_run mount -o ro "$device" "$mount_dir" >/dev/null 2>&1; then
-      if candidate_preset_path "$mount_dir" >/dev/null 2>&1 || candidate_live_asset_dir "$mount_dir" >/dev/null 2>&1; then
+      if candidate_preset_path "$mount_dir" >/dev/null 2>&1 || candidate_live_asset_dir "$mount_dir" 1 >/dev/null 2>&1; then
         TEMP_LIVE_MEDIUM_MOUNT="$mount_dir"
         log_msg "mounted live medium at $mount_dir from $device"
         printf '%s\n' "$mount_dir"
@@ -966,7 +938,7 @@ resolve_live_medium() {
 
   while IFS= read -r target; do
     [[ -n "$target" ]] || continue
-    if candidate_preset_path "$target" >/dev/null 2>&1 || candidate_live_asset_dir "$target" >/dev/null 2>&1; then
+    if candidate_preset_path "$target" >/dev/null 2>&1 || candidate_live_asset_dir "$target" 1 >/dev/null 2>&1; then
       log_msg "resolved live medium via existing mount: $target"
       printf '%s\n' "$target"
       return 0
@@ -1022,11 +994,11 @@ initialize_live_medium() {
     if [[ "$PRESET_FILE" == "$CACHED_PRESET_FILE" ]]; then
       PRESET_SOURCE="$(cached_preset_source)"
       if [[ -n "$LIVE_MEDIUM" ]]; then
-        live_asset_dir="$(candidate_live_asset_dir "$LIVE_MEDIUM" 2>/dev/null || true)"
+        live_asset_dir="$(candidate_live_asset_dir "$LIVE_MEDIUM" 1 2>/dev/null || true)"
       fi
     elif [[ "$PRESET_FILE" == */pve-thin-client/preset.env ]]; then
       LIVE_MEDIUM="$(dirname "$(dirname "$PRESET_FILE")")"
-      live_asset_dir="$(candidate_live_asset_dir "$LIVE_MEDIUM" 2>/dev/null || true)"
+      live_asset_dir="$(candidate_live_asset_dir "$LIVE_MEDIUM" 1 2>/dev/null || true)"
     else
       PRESET_SOURCE="medium"
       live_asset_dir="$(dirname "$PRESET_FILE")"
@@ -1042,7 +1014,7 @@ initialize_live_medium() {
   fi
 
   if [[ -z "$live_asset_dir" ]]; then
-    live_asset_dir="$(candidate_live_asset_dir "$LIVE_MEDIUM" 2>/dev/null || true)"
+    live_asset_dir="$(candidate_live_asset_dir "$LIVE_MEDIUM" 1 2>/dev/null || true)"
   fi
   if [[ -n "$live_asset_dir" ]]; then
     LIVE_ASSET_DIR="$live_asset_dir"
@@ -1544,7 +1516,7 @@ cache_bundled_preset() {
   mkdir -p "$CACHED_STATE_DIR"
 
   if [[ -n "$LIVE_MEDIUM" ]]; then
-    manifest_file="$(candidate_manifest_path "$LIVE_MEDIUM" 2>/dev/null || true)"
+    manifest_file="$(candidate_manifest_path "$LIVE_MEDIUM" 1 2>/dev/null || true)"
   fi
   if [[ -z "$manifest_file" && -f "$CACHED_MANIFEST_FILE" ]]; then
     manifest_file="$CACHED_MANIFEST_FILE"
