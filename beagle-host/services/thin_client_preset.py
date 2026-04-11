@@ -1,0 +1,118 @@
+from __future__ import annotations
+
+from typing import Any, Mapping
+
+
+def _string(value: Any) -> str:
+    return str(value or "")
+
+
+def build_streaming_mode_input(preset: Mapping[str, Any]) -> dict[str, str]:
+    return {
+        "moonlight_host": _string(preset.get("PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST")),
+        "spice_url": _string(preset.get("PVE_THIN_CLIENT_PRESET_SPICE_URL")),
+        "proxmox_host": _string(preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_HOST")),
+        "proxmox_node": _string(preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_NODE")),
+        "proxmox_vmid": _string(preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_VMID")),
+        "spice_username": _string(preset.get("PVE_THIN_CLIENT_PRESET_SPICE_USERNAME")),
+        "spice_password": _string(preset.get("PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD")),
+        "proxmox_username": _string(preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME")),
+        "proxmox_password": _string(preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD")),
+        "novnc_url": _string(preset.get("PVE_THIN_CLIENT_PRESET_NOVNC_URL")),
+        "dcv_url": _string(preset.get("PVE_THIN_CLIENT_PRESET_DCV_URL")),
+    }
+
+
+def build_common_preset(
+    *,
+    profile_name: str,
+    vm_name: str,
+    hostname_value: str,
+    autostart: str,
+    default_mode: str,
+    network_mode: str,
+    network_interface: str,
+    proxmox_scheme: str,
+    proxmox_host: str,
+    proxmox_port: str,
+    proxmox_node: str,
+    proxmox_vmid: str,
+    proxmox_realm: str,
+    proxmox_verify_tls: str,
+    beagle_manager_url: str,
+    moonlight_host: str,
+    moonlight_local_host: str,
+    moonlight_app: str,
+    moonlight_bin: str,
+    moonlight_resolution: str,
+    moonlight_fps: str,
+    moonlight_bitrate: str,
+    moonlight_video_codec: str,
+    moonlight_video_decoder: str,
+    moonlight_audio_config: str,
+    moonlight_absolute_mouse: str,
+    moonlight_quit_after: str,
+    sunshine_api_url: str,
+    sunshine_username: str,
+    sunshine_password: str,
+    sunshine_pin: str,
+    extra_fields: Mapping[str, Any] | None = None,
+) -> dict[str, str]:
+    preset = {
+        "PVE_THIN_CLIENT_PRESET_PROFILE_NAME": _string(profile_name),
+        "PVE_THIN_CLIENT_PRESET_VM_NAME": _string(vm_name),
+        "PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE": _string(hostname_value),
+        "PVE_THIN_CLIENT_PRESET_AUTOSTART": _string(autostart),
+        "PVE_THIN_CLIENT_PRESET_DEFAULT_MODE": _string(default_mode),
+        "PVE_THIN_CLIENT_PRESET_NETWORK_MODE": _string(network_mode),
+        "PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE": _string(network_interface),
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_SCHEME": _string(proxmox_scheme),
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_HOST": _string(proxmox_host),
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_PORT": _string(proxmox_port),
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_NODE": _string(proxmox_node),
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_VMID": _string(proxmox_vmid),
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_REALM": _string(proxmox_realm),
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS": _string(proxmox_verify_tls),
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN": "",
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL": _string(beagle_manager_url),
+        "PVE_THIN_CLIENT_PRESET_SPICE_METHOD": "",
+        "PVE_THIN_CLIENT_PRESET_SPICE_URL": "",
+        "PVE_THIN_CLIENT_PRESET_SPICE_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_SPICE_TOKEN": "",
+        "PVE_THIN_CLIENT_PRESET_NOVNC_URL": "",
+        "PVE_THIN_CLIENT_PRESET_NOVNC_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_NOVNC_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_NOVNC_TOKEN": "",
+        "PVE_THIN_CLIENT_PRESET_DCV_URL": "",
+        "PVE_THIN_CLIENT_PRESET_DCV_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_DCV_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_DCV_TOKEN": "",
+        "PVE_THIN_CLIENT_PRESET_DCV_SESSION": "",
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST": _string(moonlight_host),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_LOCAL_HOST": _string(moonlight_local_host),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP": _string(moonlight_app),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN": _string(moonlight_bin),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION": _string(moonlight_resolution),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS": _string(moonlight_fps),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE": _string(moonlight_bitrate),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC": _string(moonlight_video_codec),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER": _string(moonlight_video_decoder),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG": _string(moonlight_audio_config),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE": _string(moonlight_absolute_mouse),
+        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER": _string(moonlight_quit_after),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL": _string(sunshine_api_url),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": _string(sunshine_username),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": _string(sunshine_password),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": _string(sunshine_pin),
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_NAME": "",
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_STREAM_PORT": "",
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_UNIQUEID": "",
+        "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_CERT_B64": "",
+    }
+    if extra_fields:
+        for key, value in extra_fields.items():
+            preset[str(key)] = _string(value)
+    return preset

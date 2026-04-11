@@ -65,6 +65,8 @@ Long-term target:
   - canonical generic host/control-plane repo surface; no longer named after a single provider
 - `beagle-host/bin/endpoint_profile_contract.py`
   - explicit public endpoint profile contract normalization for browser and installer consumers
+- `beagle-host/services/thin_client_preset.py`
+  - shared thin-client preset base-field contract used by both the host installer builder and the USB Proxmox preset builder
 - `beagle-host/services/virtualization_inventory.py`
   - provider-backed host read service for VM listing, node inventory, guest IPv4 lookup, VM config lookup, and bridge inventory used by the control plane
 - `beagle-host/services/vm_state.py`
@@ -676,6 +678,7 @@ These flows now go through a provider-facing helper seam first:
 - shared provider-helper bootstrap and remote/local execution through `scripts/lib/provider_shell.sh` in `scripts/configure-sunshine-guest.sh`, `scripts/ensure-vm-stream-ready.sh`, and `scripts/optimize-proxmox-vm-for-beagle.sh`
 - preferred VM baseline option writes in `scripts/optimize-proxmox-vm-for-beagle.sh`, with direct `qm set` fallback retained for not-yet-updated hosts
 - shared script-side virtualization reads through `scripts/lib/beagle_provider.py`
+- shared thin-client preset base fields and streaming-mode input shaping through `beagle-host/services/thin_client_preset.py` in both `beagle-host/services/installer_script.py` and `thin-client-assistant/usb/proxmox_preset.py`
 
 ## Still Directly Coupled
 
@@ -718,6 +721,7 @@ These flows now go through a provider-facing helper seam first:
 - `scripts/lib/beagle_provider.py` is now the shared script-side read and first-write/exec seam, but it still only implements the Proxmox backend today.
 - `scripts/lib/provider_shell.sh` is now the shared script-side provider bootstrap seam, but it still assumes today's SSH/bash execution model and only dispatches into the Proxmox-backed provider helper today.
 - `scripts/lib/prepare_host_downloads.py` removes the hosted-download Python monolith from the shell script, but it still consumes the current provider helper plus the current Proxmox-shaped preset field set for hosted thin-client installers.
+- `beagle-host/services/thin_client_preset.py` removes the overlapping preset-base duplication, but the host-only enrollment/update/identity delta and the USB-only slim preset delta still reflect today’s two related but not yet fully unified installer/runtime contracts.
 - several scripts still execute `qm`/`pvesh` directly for fallback compatibility, install flows, or unreached write paths and should move to provider helpers incrementally.
 - the clearest remaining direct script couplings are now the reduced compatibility branches retained in `scripts/configure-sunshine-guest.sh`, `scripts/ensure-vm-stream-ready.sh`, and `scripts/optimize-proxmox-vm-for-beagle.sh`, plus the still-separate thin-client/local-installer env builders that shape overlapping installer/profile fields outside the shared endpoint-profile contract
 
