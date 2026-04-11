@@ -1594,3 +1594,14 @@ Decision:
 Reason:
 
 - `moonlight_connect_host.sh` still mixed deterministic host-resolution policy with the stateful candidate/probe/fallback selection flow. The resolution side is independently smoke-testable with stubbed `prefer_ipv4()`, `is_ip_literal()`, and DNS results, while the remaining connect-host side is about candidate ordering and probe outcomes. Pulling the resolution block out keeps the connect-host helper smaller and leaves the Moonlight host-resolution contract explicit for reuse.
+
+### D135. USB manifest JSON belongs in one helper instead of inline Python inside shell entrypoints
+
+Decision:
+
+- Keep USB/install-manifest JSON parsing and writing in `thin-client-assistant/usb/usb_manifest.py`.
+- `thin-client-assistant/usb/pve-thin-client-usb-installer.sh` and `thin-client-assistant/usb/pve-thin-client-local-installer.sh` should call that helper instead of carrying embedded Python snippets for manifest project-version reads and manifest writes.
+
+Reason:
+
+- The USB installer surfaces still mixed shell orchestration with small but important JSON contracts. Those inline Python blocks were easy to duplicate and harder to smoke-test in isolation. Pulling them into one helper keeps the shell entrypoints focused on disk/payload orchestration and makes the manifest contract explicit ahead of the next hosted-installer slice, where artifact-source selection and manifest version reporting need to be reasoned about separately.

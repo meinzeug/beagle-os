@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_BASENAME="$(basename "${BASH_SOURCE[0]}")"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+USB_MANIFEST_HELPER_RELATIVE="thin-client-assistant/usb/usb_manifest.py"
 DIST_DIR="$REPO_ROOT/dist/pve-thin-client-installer"
 ASSET_DIR="$DIST_DIR/live"
 USB_WRITER_VARIANT="${PVE_THIN_CLIENT_USB_WRITER_VARIANT:-${PVE_THIN_CLIENT_USB_WRITER_VARIANT_DEFAULT:-}}"
@@ -58,6 +59,10 @@ project_version_from_root() {
 }
 
 PROJECT_VERSION="$(project_version_from_root)"
+
+usb_manifest_helper() {
+  printf '%s\n' "$REPO_ROOT/$USB_MANIFEST_HELPER_RELATIVE"
+}
 
 usage() {
   local media_label="installer"
@@ -905,55 +910,16 @@ write_usb_manifest() {
   fi
   payload_sha="$(sha256sum "$live_dir/filesystem.squashfs" | awk '{print $1}')"
 
-  python3 - "$mount_dir/.pve-dcv-usb-manifest.json" "$PROJECT_VERSION" "$USB_LABEL" "$TARGET_DEVICE" "$payload_source" "$installer_sha" "$payload_sha" "${PVE_THIN_CLIENT_PRESET_NAME:-}" "$USB_WRITER_VARIANT" <<'PY'
-import json
-import socket
-import sys
-from datetime import datetime, timezone
-from pathlib import Path
-from urllib.parse import urlparse
-
-path = Path(sys.argv[1])
-version = sys.argv[2]
-label = sys.argv[3]
-device = sys.argv[4]
-payload_source = sys.argv[5]
-installer_sha = sys.argv[6]
-payload_sha = sys.argv[7]
-preset_name = sys.argv[8]
-usb_writer_variant = sys.argv[9]
-parsed = urlparse(payload_source) if payload_source else None
-proxmox_host = parsed.hostname if parsed and parsed.hostname else ""
-proxmox_host_ip = ""
-if proxmox_host:
-    try:
-        infos = socket.getaddrinfo(proxmox_host, None, family=socket.AF_INET, type=socket.SOCK_STREAM)
-    except OSError:
-        infos = []
-    for info in infos:
-        candidate = info[4][0]
-        if candidate:
-            proxmox_host_ip = candidate
-            break
-
-payload = {
-    "project_version": version,
-    "usb_writer_variant": usb_writer_variant,
-    "usb_label": label,
-    "target_device": device,
-    "generated_at": datetime.now(timezone.utc).isoformat(),
-    "payload_source": payload_source,
-    "start_installer_menu_sha256": installer_sha,
-    "filesystem_squashfs_sha256": payload_sha,
-    "preset_name": preset_name,
-    "proxmox_api_scheme": "https",
-    "proxmox_api_host": proxmox_host,
-    "proxmox_api_host_ip": proxmox_host_ip,
-    "proxmox_api_port": "8006",
-    "proxmox_api_verify_tls": "1",
-}
-path.write_text(json.dumps(payload, indent=2) + "\n")
-PY
+  python3 "$(usb_manifest_helper)" write-usb-manifest \
+    --path "$mount_dir/.pve-dcv-usb-manifest.json" \
+    --project-version "$PROJECT_VERSION" \
+    --usb-label "$USB_LABEL" \
+    --target-device "$TARGET_DEVICE" \
+    --payload-source "$payload_source" \
+    --start-installer-menu-sha256 "$installer_sha" \
+    --filesystem-squashfs-sha256 "$payload_sha" \
+    --preset-name "${PVE_THIN_CLIENT_PRESET_NAME:-}" \
+    --usb-writer-variant "$USB_WRITER_VARIANT"
 
   if [[ -d "$mount_dir/pve-thin-client/live" ]]; then
     install -m 0644 "$mount_dir/.pve-dcv-usb-manifest.json" "$mount_dir/pve-thin-client/live/.pve-dcv-usb-manifest.json"
