@@ -48,10 +48,12 @@ from request_support import RequestSupportService
 from registry import create_provider, list_providers, normalize_provider_kind
 from runtime_environment import RuntimeEnvironmentService
 from runtime_exec import RuntimeExecService
+from runtime_paths import RuntimePathsService
 from runtime_support import RuntimeSupportService
 from sunshine_access_token_store import SunshineAccessTokenStoreService
 from sunshine_integration import SunshineIntegrationService
 from support_bundle_store import SupportBundleStoreService
+from time_support import TimeSupportService
 from ubuntu_beagle_inputs import UbuntuBeagleInputsService
 from ubuntu_beagle_restart import UbuntuBeagleRestartService
 from ubuntu_beagle_state import UbuntuBeagleStateService
@@ -93,7 +95,6 @@ if VERSION_FILE.exists():
 LISTEN_HOST = os.environ.get("BEAGLE_MANAGER_LISTEN_HOST", "127.0.0.1")
 LISTEN_PORT = int(os.environ.get("BEAGLE_MANAGER_LISTEN_PORT", "9088"))
 DATA_DIR = Path(os.environ.get("BEAGLE_MANAGER_DATA_DIR", "/var/lib/beagle/beagle-manager"))
-EFFECTIVE_DATA_DIR = DATA_DIR
 API_TOKEN = os.environ.get("BEAGLE_MANAGER_API_TOKEN", "").strip()
 ALLOW_LOCALHOST_NOAUTH = os.environ.get("BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH", "0").strip().lower() in {"1", "true", "yes", "on"}
 STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECONDS", "600"))
@@ -264,6 +265,13 @@ RUNTIME_EXEC_SERVICE = RuntimeExecService(
     run_subprocess=subprocess.run,
 )
 PERSISTENCE_SUPPORT_SERVICE = PersistenceSupportService()
+TIME_SUPPORT_SERVICE = TimeSupportService(now=lambda: datetime.now(timezone.utc))
+RUNTIME_PATHS_SERVICE = RuntimePathsService(
+    preferred_data_dir=DATA_DIR,
+    fallback_data_dir=Path("/run/beagle-control-plane"),
+    chmod_path=os.chmod,
+    mkdir_path=lambda path: path.mkdir(parents=True, exist_ok=True),
+)
 REQUEST_SUPPORT_SERVICE: RequestSupportService | None = None
 
 
@@ -321,24 +329,15 @@ class VmSummary:
 
 
 def utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return time_support_service().utcnow()
 
 
 def parse_utc_timestamp(value: str) -> datetime | None:
-    text = str(value or "").strip()
-    if not text:
-        return None
-    try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        return None
+    return time_support_service().parse_utc_timestamp(value)
 
 
 def timestamp_age_seconds(value: str) -> int | None:
-    parsed = parse_utc_timestamp(value)
-    if parsed is None:
-        return None
-    return max(0, int((datetime.now(timezone.utc) - parsed).total_seconds()))
+    return time_support_service().timestamp_age_seconds(value)
 
 
 def load_json_file(path: Path, fallback: Any) -> Any:
@@ -355,6 +354,14 @@ def runtime_exec_service() -> RuntimeExecService:
 
 def persistence_support_service() -> PersistenceSupportService:
     return PERSISTENCE_SUPPORT_SERVICE
+
+
+def time_support_service() -> TimeSupportService:
+    return TIME_SUPPORT_SERVICE
+
+
+def runtime_paths_service() -> RuntimePathsService:
+    return RUNTIME_PATHS_SERVICE
 
 
 def request_support_service() -> RequestSupportService:
@@ -432,18 +439,7 @@ def update_payload_metadata(version: str) -> dict[str, str]:
 
 
 def ensure_data_dir() -> Path:
-    def ensure_directory(path: Path, *, mode: int = 0o700) -> Path:
-        path.mkdir(parents=True, exist_ok=True)
-        try:
-            os.chmod(path, mode)
-        except OSError:
-            pass
-        return path
-
-    try:
-        return ensure_directory(DATA_DIR)
-    except PermissionError:
-        return ensure_directory(Path("/run/beagle-control-plane"))
+    return runtime_paths_service().ensure_data_dir()
 
 
 def run_json(command: list[str], *, timeout: float | None | object = DEFAULT_COMMAND_TIMEOUT) -> Any:
@@ -515,31 +511,19 @@ ENDPOINT_TOKEN_STORE_SERVICE: EndpointTokenStoreService | None = None
 
 
 def endpoints_dir() -> Path:
-    path = EFFECTIVE_DATA_DIR / "endpoints"
-    path.mkdir(parents=True, exist_ok=True)
-    os.chmod(path, 0o700)
-    return path
+    return runtime_paths_service().endpoints_dir()
 
 
 def actions_dir() -> Path:
-    path = EFFECTIVE_DATA_DIR / "actions"
-    path.mkdir(parents=True, exist_ok=True)
-    os.chmod(path, 0o700)
-    return path
+    return runtime_paths_service().actions_dir()
 
 
 def support_bundles_dir() -> Path:
-    path = EFFECTIVE_DATA_DIR / "support-bundles"
-    path.mkdir(parents=True, exist_ok=True)
-    os.chmod(path, 0o700)
-    return path
+    return runtime_paths_service().support_bundles_dir()
 
 
 def policies_dir() -> Path:
-    path = EFFECTIVE_DATA_DIR / "policies"
-    path.mkdir(parents=True, exist_ok=True)
-    os.chmod(path, 0o700)
-    return path
+    return runtime_paths_service().policies_dir()
 
 
 def public_stream_service() -> PublicStreamService:
@@ -547,7 +531,7 @@ def public_stream_service() -> PublicStreamService:
     if PUBLIC_STREAM_SERVICE is None:
         PUBLIC_STREAM_SERVICE = PublicStreamService(
             current_public_stream_host=runtime_environment_service().current_public_stream_host,
-            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            data_dir=runtime_paths_service().data_dir,
             get_vm_config=get_vm_config,
             list_vms=lambda: list_vms(),
             load_json_file=load_json_file,
@@ -577,7 +561,7 @@ def vm_secret_store_service() -> VmSecretStoreService:
     global VM_SECRET_STORE_SERVICE
     if VM_SECRET_STORE_SERVICE is None:
         VM_SECRET_STORE_SERVICE = VmSecretStoreService(
-            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            data_dir=runtime_paths_service().data_dir,
             load_json_file=load_json_file,
             write_json_file=write_json_file,
             safe_slug=safe_slug,
@@ -590,7 +574,7 @@ def vm_secret_bootstrap_service() -> VmSecretBootstrapService:
     global VM_SECRET_BOOTSTRAP_SERVICE
     if VM_SECRET_BOOTSTRAP_SERVICE is None:
         VM_SECRET_BOOTSTRAP_SERVICE = VmSecretBootstrapService(
-            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            data_dir=runtime_paths_service().data_dir,
             load_vm_secret=load_vm_secret,
             public_server_name=PUBLIC_SERVER_NAME,
             public_stream_host=runtime_environment_service().current_public_stream_host(),
@@ -615,7 +599,7 @@ def enrollment_token_store_service() -> EnrollmentTokenStoreService:
     global ENROLLMENT_TOKEN_STORE_SERVICE
     if ENROLLMENT_TOKEN_STORE_SERVICE is None:
         ENROLLMENT_TOKEN_STORE_SERVICE = EnrollmentTokenStoreService(
-            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            data_dir=runtime_paths_service().data_dir,
             load_json_file=load_json_file,
             write_json_file=write_json_file,
             parse_utc_timestamp=parse_utc_timestamp,
@@ -636,7 +620,7 @@ def sunshine_access_token_store_service() -> SunshineAccessTokenStoreService:
     global SUNSHINE_ACCESS_TOKEN_STORE_SERVICE
     if SUNSHINE_ACCESS_TOKEN_STORE_SERVICE is None:
         SUNSHINE_ACCESS_TOKEN_STORE_SERVICE = SunshineAccessTokenStoreService(
-            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            data_dir=runtime_paths_service().data_dir,
             load_json_file=load_json_file,
             write_json_file=write_json_file,
             parse_utc_timestamp=parse_utc_timestamp,
@@ -671,7 +655,7 @@ def endpoint_token_store_service() -> EndpointTokenStoreService:
     global ENDPOINT_TOKEN_STORE_SERVICE
     if ENDPOINT_TOKEN_STORE_SERVICE is None:
         ENDPOINT_TOKEN_STORE_SERVICE = EndpointTokenStoreService(
-            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            data_dir=runtime_paths_service().data_dir,
             load_json_file=load_json_file,
             write_json_file=write_json_file,
             utcnow=utcnow,
@@ -740,7 +724,7 @@ def installer_prep_service() -> InstallerPrepService:
     if INSTALLER_PREP_SERVICE is None:
         INSTALLER_PREP_SERVICE = InstallerPrepService(
             build_profile=build_profile,
-            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            data_dir=runtime_paths_service().data_dir,
             ensure_vm_secret=ensure_vm_secret,
             guest_exec_out_data=guest_exec_out_data,
             installer_prep_script_file=INSTALLER_PREP_SCRIPT_FILE,
@@ -787,7 +771,7 @@ def ubuntu_beagle_state_service() -> UbuntuBeagleStateService:
     global UBUNTU_BEAGLE_STATE_SERVICE
     if UBUNTU_BEAGLE_STATE_SERVICE is None:
         UBUNTU_BEAGLE_STATE_SERVICE = UbuntuBeagleStateService(
-            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            data_dir=runtime_paths_service().data_dir,
             load_json_file=load_json_file,
             write_json_file=write_json_file,
             safe_slug=safe_slug,
@@ -1646,7 +1630,7 @@ def health_payload_service() -> HealthPayloadService:
     if HEALTH_PAYLOAD_SERVICE is None:
         HEALTH_PAYLOAD_SERVICE = HealthPayloadService(
             build_profile=build_profile,
-            data_dir=EFFECTIVE_DATA_DIR,
+            data_dir=runtime_paths_service().data_dir(),
             downloads_status_file=DOWNLOADS_STATUS_FILE,
             host_provider_kind=BEAGLE_HOST_PROVIDER_KIND,
             list_endpoint_reports=list_endpoint_reports,
@@ -3264,8 +3248,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> int:
-    global EFFECTIVE_DATA_DIR
-    EFFECTIVE_DATA_DIR = ensure_data_dir()
+    effective_data_dir = ensure_data_dir()
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
     print(
         json.dumps(
@@ -3275,7 +3258,7 @@ def main() -> int:
                 "listen_host": LISTEN_HOST,
                 "listen_port": LISTEN_PORT,
                 "allow_localhost_noauth": ALLOW_LOCALHOST_NOAUTH,
-                "data_dir": str(EFFECTIVE_DATA_DIR),
+                "data_dir": str(effective_data_dir),
             }
         ),
         flush=True,

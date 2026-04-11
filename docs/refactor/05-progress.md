@@ -2,6 +2,37 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — time support extraction
+
+- Extracted the remaining UTC timestamp helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/time_support.py`:
+  - `TimeSupportService` now owns `utcnow()`, `parse_utc_timestamp(value)`, and `timestamp_age_seconds(value)`
+  - the control-plane helper names stay stable as thin wrappers, so existing host services and handlers kept their current collaborator surface
+- Finished the wiring so shared timestamp logic no longer lives inline in the entrypoint:
+  - ISO timestamp generation and parsing now live behind one explicit service instead of being repeated as module-local helpers
+  - age calculation now reuses the same injected clock as `utcnow()`, making timestamp behavior testable without reaching into the HTTP entrypoint
+  - all existing services that already consume `utcnow` / `parse_utc_timestamp` / `timestamp_age_seconds` kept their signatures unchanged
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/time_support.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - fixed-clock `utcnow()` still emits the same ISO-8601 value
+  - valid timestamps still parse, invalid timestamps still return `None`
+  - age calculation still returns the same positive-second delta and still returns `None` for empty inputs
+
+### 2026-04-11 — runtime paths extraction
+
+- Extracted the remaining runtime data-root and managed-directory helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/runtime_paths.py`:
+  - `RuntimePathsService` now owns `ensure_data_dir()`, `data_dir()`, `endpoints_dir()`, `actions_dir()`, `support_bundles_dir()`, and `policies_dir()`
+  - the control-plane helper names stay stable as thin wrappers, so downstream services and handlers did not need path-signature changes
+- Finished the wiring so data-root and managed subdirectory creation no longer live inline in the entrypoint:
+  - preferred-data-dir vs fallback-data-dir selection now lives behind the dedicated runtime-path seam instead of in a nested helper inside `ensure_data_dir()`
+  - service factories that previously captured `EFFECTIVE_DATA_DIR` now bind to `runtime_paths_service().data_dir`, so path resolution is no longer spread across lambdas and a global mutable variable
+  - the legacy `EFFECTIVE_DATA_DIR` runtime-global is gone from the service composition path; startup now logs the resolved data dir directly from the runtime-path seam
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/runtime_paths.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - preferred data-root creation still succeeds and creates the expected `endpoints`, `actions`, `support-bundles`, and `policies` subdirectories
+  - simulated `PermissionError` on the preferred root still falls back to `/run`-style behavior through the injected fallback path
+  - managed directory chmod calls still preserve the existing `0700` semantics
+- `beagle-control-plane.py` dropped from `3293` to `3276` lines across the time/runtime-path slices, and the host-side extracted-service module count moved from `30` to `32`
+
 ### 2026-04-11 — persistence support extraction
 
 - Extracted the remaining file/JSON persistence helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/persistence_support.py`:

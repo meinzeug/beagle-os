@@ -69,11 +69,13 @@
 - [x] Extract the remaining command-wrapper helper cluster into a dedicated host runtime-exec service.
 - [x] Extract the remaining file/JSON helper cluster into a dedicated host persistence-support service.
 - [x] Extract the remaining bearer-token / origin-normalization / CORS helper cluster into a dedicated host request-support service.
+- [x] Extract the remaining shared UTC timestamp helper cluster into a dedicated host time-support service.
+- [x] Extract the remaining runtime data-root / managed-directory helper cluster into a dedicated host runtime-paths service.
 - [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.
 - [ ] Make Proxmox optional at deploy/install/runtime boundaries instead of the implicit required backend.
-- [ ] Extract the remaining generic data-root/bootstrap helpers from `beagle-host/bin/beagle-control-plane.py` into a dedicated host runtime-path service.
+- [ ] Extract the remaining shared slug/secret-formatting helper cluster from `beagle-host/bin/beagle-control-plane.py` into a dedicated host utility service.
 - [ ] Split thin client runtime logic into config, runtime, network, pairing, and Moonlight launch seams.
 - [ ] Add smoke validation for generated installer URLs and public artifact filenames.
 - [ ] Add release-surface verification helpers for both linked servers.

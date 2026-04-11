@@ -151,6 +151,8 @@ install -m 0644 "$ROOT_DIR/beagle-host/services/virtualization_inventory.py" "$H
 install -m 0644 "$ROOT_DIR/beagle-host/services/runtime_environment.py" "$HOST_RUNTIME_DIR/services/runtime_environment.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/runtime_support.py" "$HOST_RUNTIME_DIR/services/runtime_support.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/runtime_exec.py" "$HOST_RUNTIME_DIR/services/runtime_exec.py"
+install -m 0644 "$ROOT_DIR/beagle-host/services/runtime_paths.py" "$HOST_RUNTIME_DIR/services/runtime_paths.py"
+install -m 0644 "$ROOT_DIR/beagle-host/services/time_support.py" "$HOST_RUNTIME_DIR/services/time_support.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/persistence_support.py" "$HOST_RUNTIME_DIR/services/persistence_support.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/request_support.py" "$HOST_RUNTIME_DIR/services/request_support.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/endpoint_enrollment.py" "$HOST_RUNTIME_DIR/services/endpoint_enrollment.py"
