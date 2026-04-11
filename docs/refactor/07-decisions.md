@@ -1381,3 +1381,14 @@ Decision:
 Reason:
 
 - After the runtime-environment block moved out, the remaining non-trivial logic in `moonlight_runtime_exec.sh` was the decoder and resolution policy cluster. That logic is cohesive, read-mostly, and independently smoke-testable with stubbed `xrandr` output and fake render-node availability. Moving it out leaves the final execution helper small enough to act as a composition seam instead of another policy-heavy shell module.
+
+### D120. Moonlight host-registry config parsing and mutation should leave `moonlight_host_sync.sh`
+
+Decision:
+
+- Keep runtime-response seeding, Moonlight host-entry detection, and Moonlight config-file synchronization in `thin-client-assistant/runtime/moonlight_host_registry.py`.
+- `thin-client-assistant/runtime/moonlight_host_sync.sh` should call that helper instead of embedding multiple inline Python programs for config parsing and mutation.
+
+Reason:
+
+- Even after `moonlight_host_sync.sh` was split out of `moonlight_config_state.sh`, it still carried the most brittle part of the Moonlight bootstrap path as large inline Python snippets. That logic is structured data parsing/mutation rather than shell orchestration, and it is far easier to smoke-test as a dedicated helper with explicit commands. Pulling it out keeps the shell side focused on environment wiring and bootstrap triggering while the host-registry behavior becomes explicit and reusable.
