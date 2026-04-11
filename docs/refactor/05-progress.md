@@ -2,6 +2,28 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime prepare status helper extraction
+
+- Removed the final runtime-status assembly block from `thin-client-assistant/runtime/prepare-runtime.sh`:
+  - added `thin-client-assistant/runtime/runtime_prepare_status.sh` for runtime status-path resolution, required-binary selection, binary-availability detection, and final runtime-status emission through `status_writer.py`
+  - `thin-client-assistant/runtime/prepare-runtime.sh` now delegates the last status-file assembly block to that helper instead of keeping binary-mode switching and file writes inline
+- This leaves the entrypoint thinner and makes the final runtime-status contract directly smoke-testable with temp paths and stub binaries.
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/prepare-runtime.sh thin-client-assistant/runtime/runtime_prepare_status.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `runtime_required_binary()`, `runtime_binary_available()`, and `write_prepare_runtime_status()`
+
+### 2026-04-11 — runtime prepare flow helper extraction
+
+- Removed the remaining retry/bootstrap wrapper block from `thin-client-assistant/runtime/prepare-runtime.sh`:
+  - added `thin-client-assistant/runtime/runtime_prepare_flow.sh` for `load_runtime_config_with_retry()`, boot-mode detection, Plymouth status messaging, optional hook execution, and `ensure_kiosk_runtime()`
+  - `thin-client-assistant/runtime/prepare-runtime.sh` now sources that helper instead of carrying retry, Plymouth, and kiosk-prepare logic inline
+- This is the point where `prepare-runtime.sh` effectively becomes an orchestration shell:
+  - `thin-client-assistant/runtime/prepare-runtime.sh` is now down to about `65` lines
+  - the entrypoint now mostly sequences dedicated helpers instead of implementing runtime behavior itself
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/prepare-runtime.sh thin-client-assistant/runtime/runtime_prepare_flow.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for boot-mode detection, Plymouth status calls, kiosk preparation, and optional runtime hook execution with stub binaries
+
 ### 2026-04-11 — runtime endpoint enrollment helper extraction
 
 - Removed the endpoint-enrollment request/apply/reload flow from `thin-client-assistant/runtime/prepare-runtime.sh`:
