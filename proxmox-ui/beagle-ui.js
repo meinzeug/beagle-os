@@ -9,7 +9,9 @@
   var platformService = window.BeaglePlatformService;
   var apiClient = window.BeagleUiApiClient;
   var beagleState = window.BeagleUiState;
+  var fleetState = window.BeagleUiFleetState;
   var vmProfileState = window.BeagleUiVmProfileState;
+  var provisioningFlow = window.BeagleUiProvisioningFlow;
   var usbUi = window.BeagleUiUsbUi;
   var renderHelpers = window.BeagleUiRenderHelpers;
   var modalShell = window.BeagleUiModalShell;
@@ -17,7 +19,6 @@
   var profileModal = window.BeagleUiProfileModal;
   var fleetModal = window.BeagleUiFleetModal;
   var provisioningResultModal = window.BeagleUiProvisioningResultModal;
-  var provisioningCreateModal = window.BeagleUiProvisioningCreateModal;
   var extJsIntegration = window.BeagleUiExtJsIntegration;
   var browserActions = window.BeagleUiBrowserActions;
 
@@ -36,8 +37,14 @@
   if (!beagleState) {
     throw new Error("BeagleUiState must be loaded before beagle-ui.js");
   }
+  if (!fleetState) {
+    throw new Error("BeagleUiFleetState must be loaded before beagle-ui.js");
+  }
   if (!vmProfileState) {
     throw new Error("BeagleUiVmProfileState must be loaded before beagle-ui.js");
+  }
+  if (!provisioningFlow) {
+    throw new Error("BeagleUiProvisioningFlow must be loaded before beagle-ui.js");
   }
   if (!usbUi) {
     throw new Error("BeagleUiUsbUi must be loaded before beagle-ui.js");
@@ -59,9 +66,6 @@
   }
   if (!provisioningResultModal) {
     throw new Error("BeagleUiProvisioningResultModal must be loaded before beagle-ui.js");
-  }
-  if (!provisioningCreateModal) {
-    throw new Error("BeagleUiProvisioningCreateModal must be loaded before beagle-ui.js");
   }
   if (!extJsIntegration) {
     throw new Error("BeagleUiExtJsIntegration must be loaded before beagle-ui.js");
@@ -123,10 +127,6 @@
     }
   }
 
-  function getInstallerEligibilityKey(ctx) {
-    return beagleState.getInstallerEligibilityKey(ctx);
-  }
-
   function getVmInstallerEligibility(ctx) {
     return beagleState.getVmInstallerEligibility(ctx);
   }
@@ -139,56 +139,26 @@
     return virtualizationService.selectedNodeName();
   }
 
-  function apiGetProvisioningCatalog() {
-    return platformService.fetchProvisioningCatalog();
-  }
-
-  function apiCreateProvisionedVm(payload) {
-    return platformService.createVm(payload);
-  }
-
-  function apiUpdateProvisionedVm(vmid, payload) {
-    return platformService.updateVm(vmid, payload);
-  }
-
-  function apiGetProvisioningState(vmid) {
-    return platformService.fetchVmProvisioningState(vmid);
-  }
-
-  function parseListText(value) {
-    return String(value || "")
-      .split(/[\n,]+/)
-      .map(function(item) { return String(item || "").trim(); })
-      .filter(Boolean);
-  }
-
   function buildProvisioningCredentialText(created, state) {
-    return provisioningResultModal.buildProvisioningCredentialText(created, state);
+    return provisioningFlow.buildProvisioningCredentialText(created, state);
   }
 
   function showProvisioningResultWindow(created) {
-    return provisioningResultModal.showProvisioningResultWindow({
+    return provisioningFlow.showProvisioningResultWindow({
       created: created,
-      apiGetProvisioningState: apiGetProvisioningState,
       copyText: copyText,
       showProfileModal: showProfileModal
     });
   }
 
   function showUbuntuBeagleCreateModal(ctx) {
-    return provisioningCreateModal.showUbuntuBeagleCreateModal({
+    return provisioningFlow.showUbuntuBeagleCreateModal({
       ctx: ctx,
       showError: showError,
       showToast: showToast,
       ensureApiToken: ensureApiToken,
-      apiGetProvisioningCatalog: apiGetProvisioningCatalog,
-      apiCreateProvisionedVm: apiCreateProvisionedVm,
-      apiUpdateProvisionedVm: apiUpdateProvisionedVm,
-      virtualizationService: virtualizationService,
-      selectedNodeName: selectedNodeName,
-      parseListText: parseListText,
       showProfileModal: showProfileModal,
-      showProvisioningResultWindow: showProvisioningResultWindow
+      copyText: copyText
     });
   }
 
@@ -219,26 +189,6 @@
 
   function downloadProtectedFile(path, filename) {
     return apiClient.downloadProtectedFile(path, filename);
-  }
-
-  function apiGetInstallerPrep(vmid) {
-    return platformService.fetchInstallerPreparation(vmid);
-  }
-
-  function apiStartInstallerPrep(vmid) {
-    return platformService.prepareInstallerTarget(vmid);
-  }
-
-  function apiCreateSunshineAccess(vmid) {
-    return platformService.createSunshineAccess(vmid);
-  }
-
-  function installerPrepBannerClass(state) {
-    return usbUi.installerPrepBannerClass(state);
-  }
-
-  function formatInstallerPrepValue(value, fallback) {
-    return usbUi.formatInstallerPrepValue(value, fallback);
   }
 
   function installerTargetState(profile, state) {
@@ -277,7 +227,7 @@
       openUrl: openUrl,
       copyText: copyText,
       platformService: platformService,
-      apiGetProvisioningState: apiGetProvisioningState,
+      apiGetProvisioningState: provisioningFlow.fetchProvisioningState,
       showProfileModal: showProfileModal,
       showError: showError,
       showToast: showToast,
@@ -297,19 +247,9 @@
       subtitle: "Inventar, Policies und Endpoint-Zustand werden vom Manager geladen.",
       message: "Beagle Control Plane wird abgefragt."
     });
-    Promise.all([
-      platformService.fetchHealth(),
-      platformService.fetchInventory(),
-      platformService.fetchPolicies(),
-      apiGetProvisioningCatalog()
-    ]).then(function(results) {
+    fleetState.loadFleetPayload().then(function(payload) {
       removeOverlay();
-      renderFleetModal({
-        health: results[0] || {},
-        vms: results[1] || [],
-        policies: results[2] || [],
-        catalog: results[3] || {}
-      });
+      renderFleetModal(payload);
     }).catch(function(error) {
       removeOverlay();
       showError('Beagle Fleet konnte nicht geladen werden: ' + error.message);
@@ -350,10 +290,10 @@
       showToast: showToast,
       showProfileModal: showProfileModal,
       showUbuntuBeagleCreateModal: showUbuntuBeagleCreateModal,
-      apiCreateSunshineAccess: apiCreateSunshineAccess,
+      apiCreateSunshineAccess: platformService.createSunshineAccess,
       platformService: platformService,
-      apiGetInstallerPrep: apiGetInstallerPrep,
-      apiStartInstallerPrep: apiStartInstallerPrep,
+      apiGetInstallerPrep: platformService.fetchInstallerPreparation,
+      apiStartInstallerPrep: platformService.prepareInstallerTarget,
       downloadProtectedFile: downloadProtectedFile,
       normalizeBeagleApiPath: normalizeBeagleApiPath,
       triggerDownload: triggerDownload,

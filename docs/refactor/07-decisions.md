@@ -603,3 +603,27 @@ Decision:
 Reason:
 
 - Once file/JSON persistence and request-support logic were extracted, the remaining data-root/bootstrap block became the next cohesive runtime seam. It still carried fallback-path selection, mkdir/chmod behavior, and managed-directory naming directly in the entrypoint. Extracting it makes path behavior explicit and testable while reducing global state in the host bootstrap path.
+
+### D55. Remaining Proxmox UI fleet/provisioning orchestration belongs in dedicated state/provisioning modules
+
+Decision:
+
+- Move the remaining fleet-data loading block out of `proxmox-ui/beagle-ui.js` into `proxmox-ui/state/fleet.js`.
+- Move the remaining provisioning result/create-modal orchestration block out of `proxmox-ui/beagle-ui.js` into `proxmox-ui/provisioning/flow.js`.
+- Keep `beagle-ui.js` focused on dependency lookup, thin browser action wrappers, modal dispatch, and `boot()` instead of rebuilding collaborator graphs for fleet/provisioning flows inline.
+
+Reason:
+
+- `beagle-ui.js` was already much smaller than before, but the last meaningful non-bootstrap logic left in the file was still fleet loading and provisioning flow orchestration. Those blocks already depended on modules that existed elsewhere, so keeping them in the entrypoint would only preserve a thin monolith shell instead of a real composition surface.
+
+### D56. Script-side provider reads need a shared helper seam before broader script migration
+
+Decision:
+
+- Introduce `scripts/lib/beagle_provider.py` as the first provider-facing helper for script-side virtualization reads.
+- Move script read paths such as VM inventory, VM config lookup, and guest-interface lookup onto that helper before touching more mutation-heavy script flows.
+- Keep the helper provider-neutral at the interface level and let it normalize `pve` to `proxmox`, even though Proxmox is still the only concrete script backend today.
+
+Reason:
+
+- Several scripts had already started to repeat the same raw `pvesh` and `qm guest cmd` calls inside inline Python blocks. Migrating every script independently would hard-code Proxmox deeper into shell/runtime surfaces. A shared helper gives the script layer one place to evolve toward a second provider or a mock backend without rewriting each script separately.

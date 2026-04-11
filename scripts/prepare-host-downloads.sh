@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$ROOT_DIR/scripts/lib/beagle_provider.py}"
 DIST_DIR="$ROOT_DIR/dist"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-/etc/beagle/host.env}"
@@ -238,48 +239,39 @@ PY
 
 install -m 0644 "$HOST_WINDOWS_INSTALLER_VERSIONED" "$HOST_WINDOWS_INSTALLER_LATEST"
 
-python3 - "$HOST_INSTALLER_VERSIONED" "$HOST_WINDOWS_INSTALLER_VERSIONED" "$DIST_DIR" "$VM_INSTALLERS_METADATA_PATH" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$VM_INSTALLER_URL_TEMPLATE" "$VM_WINDOWS_INSTALLER_URL_TEMPLATE" "$VM_LIVE_USB_URL_TEMPLATE" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$INSTALLER_ISO_URL" "$DEFAULT_PROXMOX_USERNAME" "$DEFAULT_PROXMOX_PASSWORD" "$DEFAULT_PROXMOX_TOKEN" "$BEAGLE_MANAGER_URL" <<'PY'
+python3 - "$PROVIDER_MODULE_PATH" "$HOST_INSTALLER_VERSIONED" "$HOST_WINDOWS_INSTALLER_VERSIONED" "$DIST_DIR" "$VM_INSTALLERS_METADATA_PATH" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$VM_INSTALLER_URL_TEMPLATE" "$VM_WINDOWS_INSTALLER_URL_TEMPLATE" "$VM_LIVE_USB_URL_TEMPLATE" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$INSTALLER_ISO_URL" "$DEFAULT_PROXMOX_USERNAME" "$DEFAULT_PROXMOX_PASSWORD" "$DEFAULT_PROXMOX_TOKEN" "$BEAGLE_MANAGER_URL" <<'PY'
 import base64
 import json
 import re
 import shlex
-import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-template_path = Path(sys.argv[1])
-windows_template_path = Path(sys.argv[2])
-dist_dir = Path(sys.argv[3])
-metadata_path = Path(sys.argv[4])
-server_name = sys.argv[5]
-listen_port = int(sys.argv[6])
-downloads_path = sys.argv[7]
-installer_url_template = sys.argv[8]
-windows_installer_url_template = sys.argv[9]
-live_usb_url_template = sys.argv[10]
-bootstrap_url = sys.argv[11]
-payload_url = sys.argv[12]
-installer_iso_url = sys.argv[13]
-default_proxmox_username = sys.argv[14]
-default_proxmox_password = sys.argv[15]
-default_proxmox_token = sys.argv[16]
-beagle_manager_url = sys.argv[17]
+provider_module_path = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(provider_module_path.parent))
+
+from beagle_provider import list_vms, vm_config
+
+template_path = Path(sys.argv[2])
+windows_template_path = Path(sys.argv[3])
+dist_dir = Path(sys.argv[4])
+metadata_path = Path(sys.argv[5])
+server_name = sys.argv[6]
+listen_port = int(sys.argv[7])
+downloads_path = sys.argv[8]
+installer_url_template = sys.argv[9]
+windows_installer_url_template = sys.argv[10]
+live_usb_url_template = sys.argv[11]
+bootstrap_url = sys.argv[12]
+payload_url = sys.argv[13]
+installer_iso_url = sys.argv[14]
+default_proxmox_username = sys.argv[15]
+default_proxmox_password = sys.argv[16]
+default_proxmox_token = sys.argv[17]
+beagle_manager_url = sys.argv[18]
 template = template_path.read_text()
 windows_template = windows_template_path.read_text()
-
-resources_cmd = ["pvesh", "get", "/cluster/resources", "--type", "vm", "--output-format", "json"]
-
-
-def run_json(command):
-    try:
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return None
-    try:
-        return json.loads(result.stdout or "null")
-    except json.JSONDecodeError:
-        return None
 
 
 def parse_description_meta(description):
@@ -467,7 +459,7 @@ def build_preset(vm, config, load_vm_config):
     return preset, available_modes
 
 
-resources = run_json(resources_cmd)
+resources = list_vms()
 vm_installers = []
 config_cache = {}
 
@@ -479,15 +471,7 @@ if not resources:
 def load_vm_config(node, vmid):
     key = (str(node or ""), int(vmid))
     if key not in config_cache:
-        config_cache[key] = run_json(
-            [
-                "pvesh",
-                "get",
-                f"/nodes/{key[0]}/qemu/{key[1]}/config",
-                "--output-format",
-                "json",
-            ]
-        ) or {}
+        config_cache[key] = vm_config(key[0], key[1]) or {}
     return config_cache[key]
 
 for vm in resources:

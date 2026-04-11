@@ -31,10 +31,14 @@ Long-term target:
   - shared browser-side endpoint-env export, operator notes, and action-state semantics for both browser surfaces
 - `proxmox-ui/state/vm-profile.js`
   - thin Proxmox-UI wrapper around the shared browser-side profile mapper/helper seams
+- `proxmox-ui/state/fleet.js`
+  - provider-neutral fleet data loader for health/inventory/policies/catalog payload assembly used by the host-installed UI
 - `proxmox-ui/components/profile-modal.js`
   - provider-neutral profile modal renderer and action orchestration that consumes the shared browser-side profile helpers
 - `proxmox-ui/components/fleet-modal.js`
   - provider-neutral fleet renderer and action orchestration
+- `proxmox-ui/provisioning/flow.js`
+  - provider-neutral provisioning flow orchestrator for catalog/state fetches plus create/result modal wiring
 - `proxmox-ui/components/extjs-integration.js`
   - Proxmox ExtJS console/menu/toolbar/create-VM integration and the runtime `integrate()` loop
 - `proxmox-ui/components/provisioning-result-modal.js`
@@ -104,6 +108,8 @@ Long-term target:
 
 ### Scripts / provisioning / artifacts
 
+- `scripts/lib/beagle_provider.py`
+  - provider-facing script helper for VM inventory, VM config, and guest-interface reads
 - `scripts/reconcile-public-streams.sh`
 - `scripts/prepare-host-downloads.sh`
 - `scripts/configure-sunshine-guest.sh`
@@ -135,6 +141,15 @@ Purpose:
 Current usage:
 
 - registers the virtualization provider role
+
+### `scripts/lib/beagle_provider.py`
+
+Current script-side contract:
+
+- `provider_kind()`
+- `list_vms()`
+- `vm_config(node, vmid)`
+- `guest_interfaces(vmid)`
 
 ### `beagle-host/providers/host_provider_contract.py`
 
@@ -544,11 +559,13 @@ These flows now go through generic services first:
 - fleet health/inventory/policy loading
 - VM config/resource/guest-agent access for profile resolution
 - installer target eligibility lookup in `proxmox-ui/state/installer-eligibility.js`
+- fleet payload loading through `proxmox-ui/state/fleet.js`
 - installer-prep, USB attach/detach/refresh, Sunshine access, and policy/action queue calls through `core/platform/service.js`
 - profile modal rendering and action handling through `proxmox-ui/components/profile-modal.js`
 - fleet rendering and action handling through `proxmox-ui/components/fleet-modal.js`
 - provisioning result window, badge, and status rendering through `proxmox-ui/components/provisioning-result-modal.js`
 - Ubuntu Beagle create/edit modal orchestration through `proxmox-ui/components/provisioning-create-modal.js`
+- provisioning catalog/state fetch and modal wiring through `proxmox-ui/provisioning/flow.js`
 - shared modal CSS/loading-overlay rendering through `proxmox-ui/components/modal-shell.js`
 - VM profile resolution through `proxmox-ui/state/vm-profile.js`, with `beagle-ui.js` reduced to thin orchestration/bootstrap wrappers
 - Proxmox ExtJS toolbar/menu/create-VM/fleet runtime wiring through `proxmox-ui/components/extjs-integration.js`, with `beagle-ui.js` no longer owning that large block directly
@@ -600,6 +617,15 @@ These flows now go through provider-backed services first:
 - VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through the selected host provider, currently `beagle-host/providers/proxmox_host_provider.py`
 - browser-/installer-facing endpoint profile payload normalization through `beagle-host/bin/endpoint_profile_contract.py`
 
+### Script / installer surfaces
+
+These flows now go through a provider-facing helper seam first:
+
+- VM inventory/config/guest-interface reads in `scripts/reconcile-public-streams.sh`
+- VM inventory/config reads in `scripts/prepare-host-downloads.sh`
+- VM description metadata reads and guest-interface reads in `scripts/ensure-vm-stream-ready.sh`
+- shared script-side virtualization reads through `scripts/lib/beagle_provider.py`
+
 ## Still Directly Coupled
 
 ### Browser extension
@@ -609,6 +635,7 @@ These flows now go through provider-backed services first:
 ### Proxmox UI runtime coupling
 
 - `proxmox-ui/components/extjs-integration.js` still depends on today's Proxmox ExtJS component queries, menu structure, toolbar layout, and localized create-VM labels, even though the business logic behind those actions no longer lives in the same file.
+- `proxmox-ui/beagle-ui.js` is now mostly orchestration, but selected-node detection still depends on the active Proxmox virtualization provider/runtime and the remaining boot path still assumes the Proxmox host-installed UI surface.
 
 ### Control plane
 
@@ -635,7 +662,8 @@ These flows now go through provider-backed services first:
 
 ### Script surfaces
 
-- several scripts still execute `qm`/`pvesh` directly and should move to reusable provider helpers incrementally.
+- `scripts/lib/beagle_provider.py` is now the shared read seam, but it still only implements the Proxmox backend today.
+- several scripts still execute `qm`/`pvesh` directly for guest-exec, VM writes, install flows, or unreached read paths and should move to provider helpers incrementally.
 
 ### Thin-client Proxmox access
 

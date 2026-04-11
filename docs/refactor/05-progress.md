@@ -2,6 +2,36 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — Proxmox UI fleet/provisioning state-flow extraction
+
+- Continued shrinking `proxmox-ui/beagle-ui.js` by moving the remaining catalog/fleet orchestration out of the entrypoint:
+  - added `proxmox-ui/state/fleet.js`, where `BeagleUiFleetState.loadFleetPayload()` now owns the combined health/inventory/policies/catalog fetch
+  - added `proxmox-ui/provisioning/flow.js`, where `BeagleUiProvisioningFlow` now owns provisioning-catalog/state fetches plus the result-window/create-modal orchestration around the existing provisioning components
+  - `proxmox-ui/beagle-ui.js` now stays focused on dependency lookup, thin browser action wrappers, modal dispatch, and `boot()`
+- Finished the runtime wiring so the Proxmox UI entrypoint no longer owns the remaining fleet/provisioning orchestration directly:
+  - fleet loading now goes through `BeagleUiFleetState` instead of an inline `Promise.all(...)` block
+  - provisioning create/result flows now go through `BeagleUiProvisioningFlow` instead of local wrapper functions that rebuilt the same collaborator graph in `beagle-ui.js`
+  - unused helper wrappers (`getInstallerEligibilityKey`, unused provisioning API wrappers, unused USB-formatting wrappers) are gone from the entrypoint
+- `scripts/install-proxmox-ui-integration.sh` now installs the new `beagle-ui-fleet-state.js` and `beagle-ui-provisioning-flow.js` assets and injects them into the Proxmox UI load order before `beagle-ui.js`
+- `scripts/validate-project.sh` now syntax-checks the new UI modules
+- `proxmox-ui/beagle-ui.js` dropped from `410` to `350` lines with this slice
+
+### 2026-04-11 — script-side provider read helper extraction
+
+- Introduced `scripts/lib/beagle_provider.py` as the first provider-neutral script helper for host-side virtualization reads:
+  - the helper currently exposes `provider_kind()`, `list_vms()`, `vm_config(node, vmid)`, and `guest_interfaces(vmid)`
+  - `pve` aliases normalize to `proxmox`, so scripts now have one provider-facing read seam even though Proxmox is still the only concrete script backend today
+- Moved the first script-side read paths behind the helper instead of leaving raw Proxmox commands spread across inline Python blocks:
+  - `scripts/reconcile-public-streams.sh` now reads VM inventory, VM config, and guest interfaces through `scripts/lib/beagle_provider.py`
+  - `scripts/prepare-host-downloads.sh` now reads VM inventory and VM config through the same helper while keeping installer metadata generation behavior unchanged
+  - `scripts/ensure-vm-stream-ready.sh` now resolves VM description metadata and guest IPv4 lookup through the helper instead of calling `qm config` / `qm guest cmd` directly for those read paths
+- Kept the migration incremental and non-breaking:
+  - guest-exec/write paths such as `qm guest exec`, `qm set`, and provider-specific install flows remain in place for now
+  - the new helper only covers the first reusable read contract so additional scripts can migrate without cloning more raw `pvesh` / `qm guest cmd` code
+- Smoke-tested the new helper outside the scripts:
+  - provider-kind normalization still maps `pve` to `proxmox`
+  - list/config/guest-interface helper calls still shape the expected JSON payloads for downstream scripts
+
 ### 2026-04-11 — time support extraction
 
 - Extracted the remaining UTC timestamp helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/time_support.py`:

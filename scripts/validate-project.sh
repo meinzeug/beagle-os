@@ -57,6 +57,7 @@ bash -n "$ROOT_DIR/server-installer/live-build/auto/config"
 mapfile -t python_files < <(
   find \
     "$ROOT_DIR/beagle-host" \
+    "$ROOT_DIR/scripts" \
     "$ROOT_DIR/thin-client-assistant" \
     "$ROOT_DIR/beagle-kiosk" \
     -type f \
@@ -76,7 +77,9 @@ node --check "$ROOT_DIR/providers/proxmox/virtualization-provider.js"
 node --check "$ROOT_DIR/proxmox-ui/api-client/beagle-api.js"
 node --check "$ROOT_DIR/proxmox-ui/beagle-autologin.js"
 node --check "$ROOT_DIR/proxmox-ui/provisioning/api.js"
+node --check "$ROOT_DIR/proxmox-ui/provisioning/flow.js"
 node --check "$ROOT_DIR/proxmox-ui/state/installer-eligibility.js"
+node --check "$ROOT_DIR/proxmox-ui/state/fleet.js"
 node --check "$ROOT_DIR/proxmox-ui/state/vm-profile.js"
 node --check "$ROOT_DIR/proxmox-ui/usb/api.js"
 node --check "$ROOT_DIR/proxmox-ui/usb/ui.js"
