@@ -28,8 +28,10 @@ if str(SERVICES_DIR) not in sys.path:
     sys.path.insert(0, str(SERVICES_DIR))
 
 from action_queue import ActionQueueService
+from admin_http_surface import AdminHttpSurfaceService
 from control_plane_read_surface import ControlPlaneReadSurfaceService
 from download_metadata import DownloadMetadataService
+from endpoint_lifecycle_surface import EndpointLifecycleSurfaceService
 from endpoint_http_surface import EndpointHttpSurfaceService
 from endpoint_enrollment import EndpointEnrollmentService
 from endpoint_profile_contract import installer_profile_surface, normalize_endpoint_profile_contract
@@ -508,6 +510,8 @@ CONTROL_PLANE_READ_SURFACE_SERVICE: ControlPlaneReadSurfaceService | None = None
 PUBLIC_HTTP_SURFACE_SERVICE: PublicHttpSurfaceService | None = None
 PUBLIC_UBUNTU_INSTALL_SURFACE_SERVICE: PublicUbuntuInstallSurfaceService | None = None
 ENDPOINT_HTTP_SURFACE_SERVICE: EndpointHttpSurfaceService | None = None
+ADMIN_HTTP_SURFACE_SERVICE: AdminHttpSurfaceService | None = None
+ENDPOINT_LIFECYCLE_SURFACE_SERVICE: EndpointLifecycleSurfaceService | None = None
 PUBLIC_SUNSHINE_SURFACE_SERVICE: PublicSunshineSurfaceService | None = None
 VM_MUTATION_SURFACE_SERVICE: VmMutationSurfaceService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
@@ -1704,6 +1708,37 @@ def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
     return ENDPOINT_HTTP_SURFACE_SERVICE
 
 
+def admin_http_surface_service() -> AdminHttpSurfaceService:
+    global ADMIN_HTTP_SURFACE_SERVICE
+    if ADMIN_HTTP_SURFACE_SERVICE is None:
+        ADMIN_HTTP_SURFACE_SERVICE = AdminHttpSurfaceService(
+            create_provisioned_vm=create_provisioned_vm,
+            create_ubuntu_beagle_vm=create_ubuntu_beagle_vm,
+            delete_policy=delete_policy,
+            queue_bulk_actions=queue_bulk_actions,
+            save_policy=save_policy,
+            service_name="beagle-control-plane",
+            update_ubuntu_beagle_vm=update_ubuntu_beagle_vm,
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return ADMIN_HTTP_SURFACE_SERVICE
+
+
+def endpoint_lifecycle_surface_service() -> EndpointLifecycleSurfaceService:
+    global ENDPOINT_LIFECYCLE_SURFACE_SERVICE
+    if ENDPOINT_LIFECYCLE_SURFACE_SERVICE is None:
+        ENDPOINT_LIFECYCLE_SURFACE_SERVICE = EndpointLifecycleSurfaceService(
+            enroll_endpoint=endpoint_enrollment_service().enroll_endpoint,
+            service_name="beagle-control-plane",
+            store_endpoint_report=endpoint_report_service().store,
+            summarize_endpoint_report=summarize_endpoint_report,
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return ENDPOINT_LIFECYCLE_SURFACE_SERVICE
+
+
 def public_sunshine_surface_service() -> PublicSunshineSurfaceService:
     global PUBLIC_SUNSHINE_SURFACE_SERVICE
     if PUBLIC_SUNSHINE_SURFACE_SERVICE is None:
@@ -1839,6 +1874,10 @@ def build_update_feed(profile: dict[str, Any], *, installed_version: str = "", c
 
 def endpoint_report_path(node: str, vmid: int) -> Path:
     return endpoint_report_service().report_path(node, vmid)
+
+
+def store_endpoint_report(node: str, vmid: int, payload: dict[str, Any]) -> Path:
+    return endpoint_report_service().store(node, vmid, payload)
 
 
 def load_endpoint_report(node: str, vmid: int) -> dict[str, Any] | None:
@@ -2189,20 +2228,22 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
-        if path == "/api/v1/endpoints/enroll":
-            try:
-                response_payload = endpoint_enrollment_service().enroll_endpoint(self._read_json_body())
-            except Exception as exc:
-                if isinstance(exc, ValueError):
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                elif isinstance(exc, PermissionError):
-                    self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": str(exc)})
-                elif isinstance(exc, LookupError):
-                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": str(exc)})
-                else:
-                    raise
+        if endpoint_lifecycle_surface_service().handles_post(path):
+            if endpoint_lifecycle_surface_service().requires_endpoint_auth(path) and not self._is_endpoint_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
-            self._write_json(HTTPStatus.CREATED, response_payload)
+            try:
+                json_payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            response = endpoint_lifecycle_surface_service().route_post(
+                path,
+                endpoint_identity=self._endpoint_identity(),
+                json_payload=json_payload,
+                remote_addr=self.client_address[0],
+            )
+            self._write_json(response["status"], response["payload"])
             return
 
         if vm_mutation_surface_service().handles_path(path):
@@ -2230,140 +2271,25 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
-        if path == "/api/v1/policies":
+        if admin_http_surface_service().handles_post(path):
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
             try:
-                payload = self._read_json_body()
-                policy = save_policy(payload)
+                json_payload = self._read_json_body()
             except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid policy: {exc}"})
+                response = admin_http_surface_service().read_error_response("POST", path, exc)
+                self._write_json(response["status"], response["payload"])
                 return
-            self._write_json(
-                HTTPStatus.CREATED,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "policy": policy,
-                },
+            response = admin_http_surface_service().route_post(
+                path,
+                json_payload=json_payload,
+                requester_identity=self._requester_identity(),
             )
+            self._write_json(response["status"], response["payload"])
             return
 
-        if path == "/api/v1/actions/bulk":
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            try:
-                payload = self._read_json_body()
-                action_name = str(payload.get("action", "")).strip().lower()
-                vmid_values = payload.get("vmids", [])
-                if action_name not in {"healthcheck", "recheckin", "restart-session", "restart-runtime", "support-bundle", "os-update-scan", "os-update-download"}:
-                    raise ValueError("unsupported action")
-                if not isinstance(vmid_values, list) or not vmid_values:
-                    raise ValueError("missing vmids")
-                vmids = [int(item) for item in vmid_values]
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid bulk action: {exc}"})
-                return
-            queued = queue_bulk_actions(vmids, action_name, self._requester_identity())
-            self._write_json(
-                HTTPStatus.ACCEPTED,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "queued_actions": queued,
-                    "queued_count": len(queued),
-                },
-            )
-            return
-
-        if path == "/api/v1/ubuntu-beagle-vms":
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            try:
-                payload = self._read_json_body()
-                result = create_ubuntu_beagle_vm(payload if isinstance(payload, dict) else {})
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"failed to create ubuntu beagle vm: {exc}"})
-                return
-            self._write_json(
-                HTTPStatus.CREATED,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "ubuntu_beagle_vm": result,
-                },
-            )
-            return
-
-        if path == "/api/v1/provisioning/vms":
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            try:
-                payload = self._read_json_body()
-                result = create_provisioned_vm(payload if isinstance(payload, dict) else {})
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"failed to provision vm: {exc}"})
-                return
-            self._write_json(
-                HTTPStatus.CREATED,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "provisioned_vm": result,
-                },
-            )
-            return
-
-        if path != "/api/v1/endpoints/check-in":
-            self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
-            return
-        if not self._is_endpoint_authenticated():
-            self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-            return
-        identity = self._endpoint_identity() or {}
-
-        try:
-            payload = self._read_json_body()
-            vmid = int(payload.get("vmid"))
-            node = str(payload.get("node", "")).strip()
-            if not node:
-                raise ValueError("missing node")
-        except Exception as exc:
-            self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-            return
-        if identity and (int(identity.get("vmid", -1)) != vmid or str(identity.get("node", "")).strip() != node):
-            self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "endpoint scope mismatch"})
-            return
-
-        payload["vmid"] = vmid
-        payload["node"] = node
-        payload["received_at"] = utcnow()
-        payload["remote_addr"] = self.client_address[0]
-
-        path_obj = endpoint_report_path(node, vmid)
-        path_obj.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        self._write_json(
-            HTTPStatus.OK,
-            {
-                "ok": True,
-                "service": "beagle-control-plane",
-                "version": VERSION,
-                "stored_at": str(path_obj),
-                "endpoint": summarize_endpoint_report(payload),
-            },
-        )
+        self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 
     def do_PUT(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -2371,69 +2297,29 @@ class Handler(BaseHTTPRequestHandler):
         if not self._is_authenticated():
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
             return
-        match = re.match(r"^/api/v1/provisioning/vms/(?P<vmid>\d+)$", path)
-        if match:
-            try:
-                payload = self._read_json_body()
-                result = update_ubuntu_beagle_vm(int(match.group("vmid")), payload if isinstance(payload, dict) else {})
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"failed to update provisioned vm: {exc}"})
-                return
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "provisioned_vm": result,
-                },
-            )
-            return
-        if not path.startswith("/api/v1/policies/"):
+        if not admin_http_surface_service().handles_put(path):
             self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
             return
-        policy_name = path.rsplit("/", 1)[-1]
         try:
-            payload = self._read_json_body()
-            policy = save_policy(payload, policy_name=policy_name)
+            json_payload = self._read_json_body()
         except Exception as exc:
-            self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid policy: {exc}"})
+            response = admin_http_surface_service().read_error_response("PUT", path, exc)
+            self._write_json(response["status"], response["payload"])
             return
-        self._write_json(
-            HTTPStatus.OK,
-            {
-                "ok": True,
-                "service": "beagle-control-plane",
-                "version": VERSION,
-                "generated_at": utcnow(),
-                "policy": policy,
-            },
-        )
+        response = admin_http_surface_service().route_put(path, json_payload=json_payload)
+        self._write_json(response["status"], response["payload"])
 
     def do_DELETE(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
-        if not path.startswith("/api/v1/policies/"):
-            self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
-            return
         if not self._is_authenticated():
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
             return
-        policy_name = path.rsplit("/", 1)[-1]
-        if not delete_policy(policy_name):
-            self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "policy not found"})
+        if not admin_http_surface_service().handles_delete(path):
+            self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
             return
-        self._write_json(
-            HTTPStatus.OK,
-            {
-                "ok": True,
-                "service": "beagle-control-plane",
-                "version": VERSION,
-                "generated_at": utcnow(),
-                "deleted": policy_name,
-            },
-        )
+        response = admin_http_surface_service().route_delete(path)
+        self._write_json(response["status"], response["payload"])
 
     def log_message(self, fmt: str, *args: Any) -> None:
         print(f"[{utcnow()}] {self.address_string()} {fmt % args}", flush=True)

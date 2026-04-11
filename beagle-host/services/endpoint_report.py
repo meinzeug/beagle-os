@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any, Callable
@@ -24,6 +25,11 @@ class EndpointReportService:
     def load(self, node: str, vmid: int) -> dict[str, Any] | None:
         payload = self._load_json_file(self.report_path(node, vmid), None)
         return payload if isinstance(payload, dict) else None
+
+    def store(self, node: str, vmid: int, payload: dict[str, Any]) -> Path:
+        path = self.report_path(node, vmid)
+        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        return path
 
     def list_all(self) -> list[dict[str, Any]]:
         reports: list[dict[str, Any]] = []
