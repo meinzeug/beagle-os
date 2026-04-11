@@ -35,6 +35,7 @@ if str(SERVICES_DIR) not in sys.path:
 from action_queue import ActionQueueService
 from endpoint_profile_contract import installer_profile_surface, normalize_endpoint_profile_contract
 from endpoint_report import EndpointReportService
+from endpoint_token_store import EndpointTokenStoreService
 from enrollment_token_store import EnrollmentTokenStoreService
 from fleet_inventory import FleetInventoryService
 from health_payload import HealthPayloadService
@@ -42,6 +43,7 @@ from host_provider_contract import HostProvider
 from installer_script import InstallerScriptService
 from policy_store import PolicyStoreService
 from registry import create_provider, list_providers, normalize_provider_kind
+from sunshine_access_token_store import SunshineAccessTokenStoreService
 from support_bundle_store import SupportBundleStoreService
 from ubuntu_beagle_state import UbuntuBeagleStateService
 from update_feed import UpdateFeedService
@@ -600,6 +602,8 @@ SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
 UBUNTU_BEAGLE_STATE_SERVICE: UbuntuBeagleStateService | None = None
 VM_SECRET_STORE_SERVICE: VmSecretStoreService | None = None
 ENROLLMENT_TOKEN_STORE_SERVICE: EnrollmentTokenStoreService | None = None
+SUNSHINE_ACCESS_TOKEN_STORE_SERVICE: SunshineAccessTokenStoreService | None = None
+ENDPOINT_TOKEN_STORE_SERVICE: EndpointTokenStoreService | None = None
 
 
 def endpoints_dir() -> Path:
@@ -664,18 +668,36 @@ def enrollment_tokens_dir() -> Path:
     return enrollment_token_store_service().tokens_dir()
 
 
+def sunshine_access_token_store_service() -> SunshineAccessTokenStoreService:
+    global SUNSHINE_ACCESS_TOKEN_STORE_SERVICE
+    if SUNSHINE_ACCESS_TOKEN_STORE_SERVICE is None:
+        SUNSHINE_ACCESS_TOKEN_STORE_SERVICE = SunshineAccessTokenStoreService(
+            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            load_json_file=load_json_file,
+            write_json_file=write_json_file,
+            parse_utc_timestamp=parse_utc_timestamp,
+        )
+    return SUNSHINE_ACCESS_TOKEN_STORE_SERVICE
+
+
+def endpoint_token_store_service() -> EndpointTokenStoreService:
+    global ENDPOINT_TOKEN_STORE_SERVICE
+    if ENDPOINT_TOKEN_STORE_SERVICE is None:
+        ENDPOINT_TOKEN_STORE_SERVICE = EndpointTokenStoreService(
+            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            load_json_file=load_json_file,
+            write_json_file=write_json_file,
+            utcnow=utcnow,
+        )
+    return ENDPOINT_TOKEN_STORE_SERVICE
+
+
 def endpoint_tokens_dir() -> Path:
-    path = EFFECTIVE_DATA_DIR / "endpoint-tokens"
-    path.mkdir(parents=True, exist_ok=True)
-    os.chmod(path, 0o700)
-    return path
+    return endpoint_token_store_service().tokens_dir()
 
 
 def sunshine_access_tokens_dir() -> Path:
-    path = EFFECTIVE_DATA_DIR / "sunshine-access-tokens"
-    path.mkdir(parents=True, exist_ok=True)
-    os.chmod(path, 0o700)
-    return path
+    return sunshine_access_token_store_service().tokens_dir()
 
 
 def ubuntu_beagle_state_service() -> UbuntuBeagleStateService:
@@ -1322,7 +1344,7 @@ def enrollment_token_path(token: str) -> Path:
 
 
 def sunshine_access_token_path(token: str) -> Path:
-    return sunshine_access_tokens_dir() / f"{hashlib.sha256(token.encode('utf-8')).hexdigest()}.json"
+    return sunshine_access_token_store_service().token_path(token)
 
 
 def issue_enrollment_token(vm: VmSummary) -> tuple[str, dict[str, Any]]:
@@ -1353,13 +1375,12 @@ def issue_sunshine_access_token(vm: VmSummary) -> tuple[str, dict[str, Any]]:
         "issued_at": utcnow(),
         "expires_at": datetime.fromtimestamp(datetime.now(timezone.utc).timestamp() + SUNSHINE_ACCESS_TOKEN_TTL_SECONDS, tz=timezone.utc).isoformat(),
     }
-    write_json_file(sunshine_access_token_path(token), payload)
+    sunshine_access_token_store_service().store(token, payload)
     return token, payload
 
 
 def load_sunshine_access_token(token: str) -> dict[str, Any] | None:
-    payload = load_json_file(sunshine_access_token_path(token), None)
-    return payload if isinstance(payload, dict) else None
+    return sunshine_access_token_store_service().load(token)
 
 
 def mark_enrollment_token_used(token: str, payload: dict[str, Any], *, endpoint_id: str) -> None:
@@ -1371,28 +1392,19 @@ def enrollment_token_is_valid(payload: dict[str, Any] | None, *, endpoint_id: st
 
 
 def sunshine_access_token_is_valid(payload: dict[str, Any] | None) -> bool:
-    if not isinstance(payload, dict):
-        return False
-    expires_at = parse_utc_timestamp(str(payload.get("expires_at", "")))
-    if expires_at is None:
-        return False
-    return expires_at > datetime.now(timezone.utc)
+    return sunshine_access_token_store_service().is_valid(payload)
 
 
 def endpoint_token_path(token: str) -> Path:
-    return endpoint_tokens_dir() / f"{hashlib.sha256(token.encode('utf-8')).hexdigest()}.json"
+    return endpoint_token_store_service().token_path(token)
 
 
 def store_endpoint_token(token: str, payload: dict[str, Any]) -> dict[str, Any]:
-    clean = dict(payload)
-    clean["token_issued_at"] = utcnow()
-    write_json_file(endpoint_token_path(token), clean)
-    return clean
+    return endpoint_token_store_service().store(token, payload)
 
 
 def load_endpoint_token(token: str) -> dict[str, Any] | None:
-    payload = load_json_file(endpoint_token_path(token), None)
-    return payload if isinstance(payload, dict) else None
+    return endpoint_token_store_service().load(token)
 
 
 def sunshine_proxy_ticket_url(token: str) -> str:

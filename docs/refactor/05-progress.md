@@ -2,6 +2,18 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — sunshine-access-token and endpoint-token store extraction
+
+- Extracted the sunshine-access-token persistence and validity helpers out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/sunshine_access_token_store.py`:
+  - `SunshineAccessTokenStoreService` owns `tokens_dir()`, `token_path(token)`, `store(token, payload)`, `load(token)`, and `is_valid(payload)`; the sha256-hashed token path and the expiry-only validity check match the previous helper semantics
+  - `sunshine_access_tokens_dir`, `sunshine_access_token_path`, `load_sunshine_access_token`, and `sunshine_access_token_is_valid` in the control plane now delegate through `sunshine_access_token_store_service()`; `issue_sunshine_access_token` keeps its `VmSummary`-shaped payload construction and TTL math and calls `.store()` on the service for persistence
+- Extracted the endpoint-token persistence helpers into `beagle-host/services/endpoint_token_store.py`:
+  - `EndpointTokenStoreService` owns `tokens_dir()`, `token_path(token)`, `store(token, payload)` (stamping `token_issued_at` via the injected `utcnow`), and `load(token)`
+  - `endpoint_tokens_dir`, `endpoint_token_path`, `store_endpoint_token`, and `load_endpoint_token` in the control plane now delegate through `endpoint_token_store_service()`; endpoint enrollment and token rotation flows keep working without signature changes because the service preserves the legacy `token_issued_at` stamping contract
+- `scripts/install-proxmox-host-services.sh` installs both new service files into `$HOST_RUNTIME_DIR/services/`
+- Verified the live control-plane module still imports cleanly with `BEAGLE_MANAGER_DATA_DIR=/tmp/beagle-smoketest` and round-trips through both services: the token paths match the sha256 hex digest for both stores, `sunshine_access_token_is_valid` returns `False` for `None`/past expiry and `True` for a future expiry, and `store_endpoint_token({'endpoint_id':'ep-1','scope':'read'})` stamps `token_issued_at` and round-trips through `load_endpoint_token`
+- `beagle-control-plane.py` grew slightly (5086 → 5098 lines) because the two lazy factories add more lines than the short helper bodies they replaced — this slice is about the architectural seam, not line count
+
 ### 2026-04-11 — vm-secret and enrollment-token store extraction
 
 - Extracted the VM-secret persistence helpers out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/vm_secret_store.py`:
