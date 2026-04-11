@@ -42,6 +42,7 @@ from health_payload import HealthPayloadService
 from host_provider_contract import HostProvider
 from installer_prep import InstallerPrepService
 from installer_script import InstallerScriptService
+from policy_normalization import PolicyNormalizationService
 from policy_store import PolicyStoreService
 from public_streams import PublicStreamService
 from registry import create_provider, list_providers, normalize_provider_kind
@@ -557,6 +558,7 @@ INSTALLER_PREP_SERVICE: InstallerPrepService | None = None
 INSTALLER_SCRIPT_SERVICE: InstallerScriptService | None = None
 ENDPOINT_REPORT_SERVICE: EndpointReportService | None = None
 ACTION_QUEUE_SERVICE: ActionQueueService | None = None
+POLICY_NORMALIZATION_SERVICE: PolicyNormalizationService | None = None
 POLICY_STORE_SERVICE: PolicyStoreService | None = None
 PUBLIC_STREAM_SERVICE: PublicStreamService | None = None
 SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
@@ -1371,11 +1373,22 @@ def policy_store_service() -> PolicyStoreService:
     if POLICY_STORE_SERVICE is None:
         POLICY_STORE_SERVICE = PolicyStoreService(
             load_json_file=load_json_file,
-            normalize_policy_payload=normalize_policy_payload,
+            normalize_policy_payload=policy_normalization_service().normalize_payload,
             policies_dir=policies_dir,
             safe_slug=safe_slug,
         )
     return POLICY_STORE_SERVICE
+
+
+def policy_normalization_service() -> PolicyNormalizationService:
+    global POLICY_NORMALIZATION_SERVICE
+    if POLICY_NORMALIZATION_SERVICE is None:
+        POLICY_NORMALIZATION_SERVICE = PolicyNormalizationService(
+            listify=listify,
+            truthy=truthy,
+            utcnow=utcnow,
+        )
+    return POLICY_NORMALIZATION_SERVICE
 
 
 def policy_path(name: str) -> Path:
@@ -1478,78 +1491,7 @@ def store_support_bundle(node: str, vmid: int, action_id: str, filename: str, co
 
 
 def normalize_policy_payload(payload: dict[str, Any], *, policy_name: str | None = None) -> dict[str, Any]:
-    name = str(policy_name or payload.get("name", "")).strip()
-    if not name:
-        raise ValueError("missing policy name")
-    selector = payload.get("selector", {})
-    if selector is None:
-        selector = {}
-    if not isinstance(selector, dict):
-        raise ValueError("selector must be an object")
-    profile = payload.get("profile", {})
-    if profile is None:
-        profile = {}
-    if not isinstance(profile, dict):
-        raise ValueError("profile must be an object")
-    priority = int(payload.get("priority", 100))
-    enabled = bool(payload.get("enabled", True))
-    normalized = {
-        "name": name,
-        "enabled": enabled,
-        "priority": priority,
-        "selector": {
-            "vmid": int(selector["vmid"]) if str(selector.get("vmid", "")).strip() else None,
-            "node": str(selector.get("node", "")).strip(),
-            "role": str(selector.get("role", "")).strip(),
-            "tags_any": [str(item).strip() for item in selector.get("tags_any", []) if str(item).strip()],
-            "tags_all": [str(item).strip() for item in selector.get("tags_all", []) if str(item).strip()],
-        },
-        "profile": {
-            "expected_profile_name": str(profile.get("expected_profile_name", "")).strip(),
-            "network_mode": str(profile.get("network_mode", "")).strip(),
-            "moonlight_app": str(profile.get("moonlight_app", "")).strip(),
-            "stream_host": str(profile.get("stream_host", "")).strip(),
-            "moonlight_local_host": str(profile.get("moonlight_local_host", "")).strip(),
-            "moonlight_port": str(profile.get("moonlight_port", "")).strip(),
-            "sunshine_api_url": str(profile.get("sunshine_api_url", "")).strip(),
-            "update_enabled": truthy(profile.get("update_enabled", True), default=True),
-            "update_channel": str(profile.get("update_channel", "")).strip(),
-            "update_behavior": str(profile.get("update_behavior", "")).strip(),
-            "update_feed_url": str(profile.get("update_feed_url", "")).strip(),
-            "update_version_pin": str(profile.get("update_version_pin", "")).strip(),
-            "moonlight_resolution": str(profile.get("moonlight_resolution", "")).strip(),
-            "moonlight_fps": str(profile.get("moonlight_fps", "")).strip(),
-            "moonlight_bitrate": str(profile.get("moonlight_bitrate", "")).strip(),
-            "moonlight_video_codec": str(profile.get("moonlight_video_codec", "")).strip(),
-            "moonlight_video_decoder": str(profile.get("moonlight_video_decoder", "")).strip(),
-            "moonlight_audio_config": str(profile.get("moonlight_audio_config", "")).strip(),
-            "egress_mode": str(profile.get("egress_mode", "")).strip(),
-            "egress_type": str(profile.get("egress_type", "")).strip(),
-            "egress_interface": str(profile.get("egress_interface", "")).strip(),
-            "egress_domains": listify(profile.get("egress_domains", [])),
-            "egress_resolvers": listify(profile.get("egress_resolvers", [])),
-            "egress_allowed_ips": listify(profile.get("egress_allowed_ips", [])),
-            "egress_wg_address": str(profile.get("egress_wg_address", "")).strip(),
-            "egress_wg_dns": str(profile.get("egress_wg_dns", "")).strip(),
-            "egress_wg_public_key": str(profile.get("egress_wg_public_key", "")).strip(),
-            "egress_wg_endpoint": str(profile.get("egress_wg_endpoint", "")).strip(),
-            "egress_wg_private_key": str(profile.get("egress_wg_private_key", "")).strip(),
-            "egress_wg_preshared_key": str(profile.get("egress_wg_preshared_key", "")).strip(),
-            "egress_wg_persistent_keepalive": str(profile.get("egress_wg_persistent_keepalive", "")).strip(),
-            "identity_hostname": str(profile.get("identity_hostname", "")).strip(),
-            "identity_timezone": str(profile.get("identity_timezone", "")).strip(),
-            "identity_locale": str(profile.get("identity_locale", "")).strip(),
-            "identity_keymap": str(profile.get("identity_keymap", "")).strip(),
-            "identity_chrome_profile": str(profile.get("identity_chrome_profile", "")).strip(),
-            "beagle_role": str(profile.get("beagle_role", "")).strip(),
-            "assigned_target": {
-                "vmid": int(profile.get("assigned_target", {}).get("vmid")) if str(profile.get("assigned_target", {}).get("vmid", "")).strip() else None,
-                "node": str(profile.get("assigned_target", {}).get("node", "")).strip(),
-            } if isinstance(profile.get("assigned_target"), dict) else None,
-        },
-        "updated_at": utcnow(),
-    }
-    return normalized
+    return policy_normalization_service().normalize_payload(payload, policy_name=policy_name)
 
 
 def save_policy(payload: dict[str, Any], *, policy_name: str | None = None) -> dict[str, Any]:

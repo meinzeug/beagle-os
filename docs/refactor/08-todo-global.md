@@ -55,7 +55,8 @@
 - [x] Extract the Ubuntu-Beagle provisioning/lifecycle helper cluster into a dedicated host service.
 - [x] Extract the Sunshine/Moonlight guest-integration and proxy helper cluster into a dedicated host service.
 - [x] Extract the public-stream allocation/state helper cluster into a dedicated host service.
-- [ ] Extract the policy/default-normalization helper cluster into a dedicated host service.
+- [x] Extract the policy/default-normalization helper cluster into a dedicated host service.
+- [ ] Extract the support-bundle storage/upload helper cluster into a dedicated host service.
 - [ ] Continue splitting the remaining non-HTTP business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
 - [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
