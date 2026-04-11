@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — Moonlight remote API helper extraction
+
+- Removed the manager/Sunshine remote API block from `thin-client-assistant/runtime/moonlight_pairing.sh`:
+  - added `thin-client-assistant/runtime/moonlight_remote_api.sh` for Moonlight client device-name resolution, manager registration payload generation, manager-side client registration, Sunshine PIN submission, and `json_bool()` status extraction
+  - `thin-client-assistant/runtime/moonlight_pairing.sh` now sources that helper instead of mixing remote API calls with local config/bootstrap/pairing logic
+- This is the first real split of the remaining Moonlight pairing monolith after the targeting/runtime-exec work:
+  - `thin-client-assistant/runtime/moonlight_pairing.sh` dropped to about `358` lines
+  - the remaining file is now more clearly about local config/certificate/bootstrap state plus the final `ensure_paired()` flow
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/moonlight_pairing.sh thin-client-assistant/runtime/moonlight_remote_api.sh thin-client-assistant/runtime/moonlight_targeting.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `register_moonlight_client_via_manager()` with stubbed `curl` and a temporary Moonlight config file
+  - focused smoke test for `submit_sunshine_pin()` and `json_bool()` with stubbed `curl` and hostname resolution
+
 ### 2026-04-11 — runtime network runtime helper extraction
 
 - Removed the remaining network-runtime logic from `thin-client-assistant/runtime/apply-network-config.sh`:

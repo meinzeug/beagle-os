@@ -1199,3 +1199,15 @@ Decision:
 Reason:
 
 - After the backend config-file/restart layer moved out, the remaining `apply-network-config.sh` logic was still a cohesive runtime network block rather than pure orchestration. Pulling it out completes the same pattern used on `prepare-runtime.sh`: the entrypoint becomes a sequencing shell, and the operational behavior moves into explicit helpers with test seams.
+
+### D104. Moonlight remote API calls should leave `moonlight_pairing.sh`
+
+Decision:
+
+- Keep Moonlight client device-name resolution, manager registration payload generation, manager-side client registration, Sunshine PIN submission, and JSON status extraction in `thin-client-assistant/runtime/moonlight_remote_api.sh`.
+- `moonlight_pairing.sh` should source that helper instead of mixing remote API calls with local config/certificate/bootstrap logic.
+- The extracted helper should honor `BEAGLE_CURL_BIN` and `BEAGLE_HOSTNAME_BIN` so the remote API seam stays smoke-testable without changing runtime defaults.
+
+Reason:
+
+- After `prepare-runtime.sh` and `apply-network-config.sh` became thin entrypoints, `moonlight_pairing.sh` became the next clear runtime monolith. The remote API side was a cohesive first cut because it mixed HTTP payload shaping, TLS argument handling, manager registration, and Sunshine PIN submission, but it did not need to remain tangled with local Moonlight config editing and pair-process orchestration. Pulling it out reduces the pairing module and keeps the next pairing slices more focused.

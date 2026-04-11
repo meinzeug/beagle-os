@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MOONLIGHT_REMOTE_API_SH="${MOONLIGHT_REMOTE_API_SH:-$SCRIPT_DIR/moonlight_remote_api.sh}"
+# shellcheck disable=SC1090
+source "$MOONLIGHT_REMOTE_API_SH"
+
 moonlight_list_timeout() {
   printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_LIST_TIMEOUT:-12}"
 }
@@ -270,71 +275,6 @@ config_path.write_text("\n".join(lines).rstrip("\n") + "\n", encoding="utf-8")
 PY
 }
 
-register_moonlight_client_via_manager() {
-  local manager_url manager_token manager_pin manager_ca_cert device_name client_cert response_file payload_file http_status
-  local -a curl_args tls_args
-
-  manager_url="${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}"
-  manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
-  manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
-  manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"
-  device_name="${PVE_THIN_CLIENT_MOONLIGHT_CLIENT_NAME:-${PVE_THIN_CLIENT_HOSTNAME:-$(hostname)}}"
-
-  [[ -n "$manager_url" && -n "$manager_token" ]] || return 1
-  client_cert="$(extract_moonlight_certificate_pem 2>/dev/null || true)"
-  [[ -n "$client_cert" ]] || return 1
-
-  response_file="$(mktemp)"
-  payload_file="$(mktemp)"
-  curl_args=(curl -fsS --connect-timeout 6 --max-time 30 --output "$response_file" --write-out '%{http_code}' \
-    -H "Authorization: Bearer ${manager_token}" \
-    -H 'Content-Type: application/json')
-  mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/moonlight/register" "$manager_pin" "$manager_ca_cert")
-  curl_args+=("${tls_args[@]}")
-
-  python3 - "$client_cert" "$device_name" >"$payload_file" <<'PY'
-import json
-import sys
-
-print(json.dumps({
-    "client_cert_pem": sys.argv[1],
-    "device_name": sys.argv[2],
-}))
-PY
-
-  http_status="$(
-    "${curl_args[@]}" --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/moonlight/register" || true
-  )"
-  if [[ "$http_status" != "201" ]]; then
-    rm -f "$payload_file"
-    rm -f "$response_file"
-    return 1
-  fi
-  if ! sync_moonlight_host_from_manager_response "$response_file"; then
-    rm -f "$payload_file"
-    rm -f "$response_file"
-    return 1
-  fi
-  rm -f "$payload_file"
-  rm -f "$response_file"
-  return 0
-}
-
-json_bool() {
-  local payload="$1"
-  python3 - "$payload" <<'PY'
-import json
-import sys
-
-try:
-    data = json.loads(sys.argv[1] or "{}")
-except json.JSONDecodeError:
-    raise SystemExit(1)
-
-print("1" if bool(data.get("status")) else "0")
-PY
-}
-
 moonlight_list() {
   local bin host port timeout_value target
   bin="$(moonlight_bin)"
@@ -371,31 +311,6 @@ bootstrap_moonlight_client() {
   fi
 
   "$bin" list "$target" >/dev/null 2>&1 || true
-}
-
-submit_sunshine_pin() {
-  local api_url username password pin name response
-  local -a curl_args tls_args
-
-  api_url="$(selected_sunshine_api_url)"
-  username="${PVE_THIN_CLIENT_SUNSHINE_USERNAME:-}"
-  password="${PVE_THIN_CLIENT_SUNSHINE_PASSWORD:-}"
-  pin="${PVE_THIN_CLIENT_SUNSHINE_PIN:-}"
-  name="${PVE_THIN_CLIENT_MOONLIGHT_CLIENT_NAME:-${PVE_THIN_CLIENT_HOSTNAME:-$(hostname)}}"
-
-  [[ -n "$api_url" && -n "$username" && -n "$password" && -n "$pin" ]] || return 1
-
-  curl_args=(curl -fsS --connect-timeout 2 --max-time 4 --user "${username}:${password}" -H 'Content-Type: application/json')
-  mapfile -t tls_args < <(beagle_curl_tls_args "$api_url" "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT:-}")
-  curl_args+=("${tls_args[@]}")
-
-  response="$(
-    "${curl_args[@]}" \
-      --data "{\"pin\":\"${pin}\",\"name\":\"${name}\"}" \
-      "${api_url%/}/api/pin"
-  )" || return 1
-
-  [[ "$(json_bool "$response")" == "1" ]]
 }
 
 ensure_paired() {
