@@ -1211,3 +1211,14 @@ Decision:
 Reason:
 
 - After `prepare-runtime.sh` and `apply-network-config.sh` became thin entrypoints, `moonlight_pairing.sh` became the next clear runtime monolith. The remote API side was a cohesive first cut because it mixed HTTP payload shaping, TLS argument handling, manager registration, and Sunshine PIN submission, but it did not need to remain tangled with local Moonlight config editing and pair-process orchestration. Pulling it out reduces the pairing module and keeps the next pairing slices more focused.
+
+### D105. Moonlight local config/certificate/bootstrap state should also leave `moonlight_pairing.sh`
+
+Decision:
+
+- Keep Moonlight config-path discovery, runtime-config seeding, host-config presence checks, client-certificate extraction, manager-response host sync, and bootstrap list priming in `thin-client-assistant/runtime/moonlight_config_state.sh`.
+- `moonlight_pairing.sh` should source that helper instead of mixing local config state with the final pair-process orchestration loop.
+
+Reason:
+
+- Once the remote API block moved out, the remaining large block in `moonlight_pairing.sh` was the local Moonlight config and bootstrap state path. That logic is cohesive, stateful, and separately smoke-testable with temporary config files. Pulling it out reduces the pairing entrypoint to the actual pairing orchestration, which is the right long-term structure for the runtime layer.
