@@ -13,9 +13,9 @@ Strategic framing:
 ### Concrete next tasks
 
 1. Continue migrating script/install surfaces onto the provider-facing helper seam:
-   - `scripts/configure-sunshine-guest.sh` now prefers the installed/shared provider helper for its read paths and only falls back to direct `qm` reads when the helper is unavailable
-   - the next remaining script hotspot is no longer simple read duplication but the direct guest-exec/write path cluster (`qm guest exec`, `qm guest exec-status`, `qm set`, `qm reboot`) across `scripts/configure-sunshine-guest.sh`, `scripts/ensure-vm-stream-ready.sh`, and `scripts/optimize-proxmox-vm-for-beagle.sh`
-   - decide whether to introduce a second script-side provider/helper seam for guest-exec and VM writes instead of letting those semantics remain spread across multiple scripts
+   - `scripts/lib/beagle_provider.py` now covers the first shared guest-exec/write commands too, and the main script surfaces already prefer that seam
+   - the next script task is to reduce the remaining direct-command fallback paths where rollout compatibility is no longer needed and to migrate any still-unreached write flows onto the same seam
+   - after that, decide whether this helper remains the long-term script provider contract or whether the write/exec slice should split into a second dedicated script-side provider module
 2. Continue decomposing `beagle-host/bin/beagle-control-plane.py` around service-oriented modules:
    - the shared slug/secret/PIN helper cluster is now extracted behind `UtilitySupportService`
    - the next valuable host slice is a larger handler-local business block or response-model cluster that still sits directly in `beagle-control-plane.py`, not another tiny utility

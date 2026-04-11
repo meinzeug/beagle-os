@@ -214,13 +214,21 @@ provider_helper_available() {
 provider_helper_exec() {
   local module_path
   module_path="$(provider_module_path_for_target)"
-  ssh_host "python3 '$module_path' $*"
+  local shell_command
+  shell_command="$(printf '%q ' python3 "$module_path" "$@")"
+  ssh_host "${shell_command% }"
 }
 
 qm_guest_exec_sync() {
   local command="$1"
   local raw_output payload_json pid status_raw status_json exitcode
-  raw_output="$(ssh_host "sudo /usr/sbin/qm guest exec '$VMID' -- bash -lc $(printf '%q' "$command")")"
+  if provider_helper_available; then
+    local command_b64
+    command_b64="$(printf '%s' "$command" | base64 -w0)"
+    raw_output="$(provider_helper_exec guest-exec-bash-b64 "$VMID" "$command_b64")"
+  else
+    raw_output="$(ssh_host "sudo /usr/sbin/qm guest exec '$VMID' -- bash -lc $(printf '%q' "$command")")"
+  fi
   payload_json="$(python3 - "$raw_output" <<'PY'
 import json
 import sys
@@ -252,7 +260,11 @@ PY
   else
     while true; do
       sleep 2
-      status_raw="$(ssh_host "sudo /usr/sbin/qm guest exec-status '$VMID' '$pid'")"
+      if provider_helper_available; then
+        status_raw="$(provider_helper_exec guest-exec-status "$VMID" "$pid")"
+      else
+        status_raw="$(ssh_host "sudo /usr/sbin/qm guest exec-status '$VMID' '$pid'")"
+      fi
       status_json="$(python3 - "$status_raw" <<'PY'
 import json
 import sys
@@ -387,9 +399,34 @@ PY
 
 current_vm_description() {
   if provider_helper_available; then
-    provider_helper_exec "vm-description '$VMID'" 2>/dev/null && return 0
+    provider_helper_exec vm-description "$VMID" 2>/dev/null && return 0
   fi
   ssh_host "sudo /usr/sbin/qm config '$VMID'" | sed -n 's/^description: //p'
+}
+
+set_current_vm_description_b64() {
+  local description_b64="$1"
+  if provider_helper_available; then
+    provider_helper_exec set-vm-description-b64 "$VMID" "$description_b64" >/dev/null
+    return 0
+  fi
+  ssh_host "python3 - '$VMID' '$description_b64' <<'PY'
+import base64
+import subprocess
+import sys
+
+vmid = sys.argv[1]
+desc = base64.b64decode(sys.argv[2]).decode('utf-8')
+subprocess.run(['sudo', '/usr/sbin/qm', 'set', vmid, '--description', desc], check=True)
+PY" >/dev/null
+}
+
+reboot_current_vm() {
+  if provider_helper_available; then
+    provider_helper_exec reboot-vm "$VMID" >/dev/null 2>&1 || true
+    return 0
+  fi
+  ssh_host "sudo /usr/sbin/qm reboot '$VMID'" >/dev/null 2>&1 || true
 }
 
 update_vm_metadata() {
@@ -519,15 +556,7 @@ print(base64.b64encode(payload.encode("utf-8")).decode("ascii"))
 PY
   )"
 
-  ssh_host "python3 - '$VMID' '$new_desc_b64' <<'PY'
-import base64
-import subprocess
-import sys
-
-vmid = sys.argv[1]
-desc = base64.b64decode(sys.argv[2]).decode('utf-8')
-subprocess.run(['sudo', '/usr/sbin/qm', 'set', vmid, '--description', desc], check=True)
-PY"
+  set_current_vm_description_b64 "$new_desc_b64"
 }
 
 main() {
@@ -842,7 +871,7 @@ EOF
   fi
 
   if [[ "$VM_REBOOT" == "1" ]]; then
-    ssh_host "sudo /usr/sbin/qm reboot '$VMID'" >/dev/null 2>&1 || true
+    reboot_current_vm
   fi
   echo "Configured Sunshine guest VM $VMID on $PROXMOX_HOST (guest IP: $guest_ip)"
 }

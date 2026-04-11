@@ -686,3 +686,15 @@ Decision:
 Reason:
 
 - `configure-sunshine-guest.sh` is one of the remaining places where provider-specific reads still lived behind ad-hoc SSH-wrapped `qm` calls. Reusing the installed helper keeps host-side script reads on the same abstraction path as the other migrated scripts, but the fallback is necessary because this script may run against hosts that have not yet been updated to the newest helper version.
+
+### D62. Script-side guest-exec and VM-write flows should use the same provider helper seam
+
+Decision:
+
+- Extend `scripts/lib/beagle_provider.py` beyond read-only calls so scripts can also route guest execution, VM option writes, description updates, and VM reboot requests through one provider-facing helper.
+- Use base64-encoded payload arguments for script-side guest commands and multi-line descriptions where shell quoting would otherwise be brittle.
+- Keep direct `qm` fallbacks in the calling scripts only where rollout compatibility with not-yet-updated remote hosts still matters.
+
+Reason:
+
+- After the read migration, the remaining repeated script-side Proxmox coupling was concentrated in `qm guest exec`, `qm guest exec-status`, `qm set`, and `qm reboot` flows. Leaving those inlined across multiple scripts would simply recreate the same provider sprawl in mutation-heavy code. Moving them behind the helper creates one script-side provider seam for both reads and the first controlled writes while keeping deployment safety through explicit fallbacks.
