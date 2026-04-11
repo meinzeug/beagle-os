@@ -18,6 +18,7 @@ Strategic framing:
    - after that, decide whether this helper remains the long-term script provider contract or whether the write/exec slice should split into a second dedicated script-side provider module
 2. Continue decomposing `beagle-host/bin/beagle-control-plane.py` around service-oriented modules:
    - the shared slug/secret/PIN helper cluster is now extracted behind `UtilitySupportService`
+   - the shared description-meta/hostname helper cluster is now extracted behind `MetadataSupportService`
    - the next valuable host slice is a larger handler-local business block or response-model cluster that still sits directly in `beagle-control-plane.py`, not another tiny utility
    - keep the entrypoint moving toward a thin HTTP composition surface instead of re-centralizing orchestration there
 3. Continue the host-provider abstraction itself:

@@ -71,6 +71,7 @@
 - [x] Extract the remaining bearer-token / origin-normalization / CORS helper cluster into a dedicated host request-support service.
 - [x] Extract the remaining shared UTC timestamp helper cluster into a dedicated host time-support service.
 - [x] Extract the remaining runtime data-root / managed-directory helper cluster into a dedicated host runtime-paths service.
+- [x] Extract the remaining shared VM description / hostname helper cluster into a dedicated host metadata-support service.
 - [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.

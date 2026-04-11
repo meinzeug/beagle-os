@@ -40,6 +40,7 @@ from host_provider_contract import HostProvider
 from installer_prep import InstallerPrepService
 from installer_script import InstallerScriptService
 from installer_template_patch import InstallerTemplatePatchService
+from metadata_support import MetadataSupportService
 from persistence_support import PersistenceSupportService
 from policy_normalization import PolicyNormalizationService
 from policy_store import PolicyStoreService
@@ -277,6 +278,7 @@ UTILITY_SUPPORT_SERVICE = UtilitySupportService(
     choice=secrets.choice,
     randbelow=secrets.randbelow,
 )
+METADATA_SUPPORT_SERVICE = MetadataSupportService()
 REQUEST_SUPPORT_SERVICE: RequestSupportService | None = None
 
 
@@ -347,6 +349,10 @@ def timestamp_age_seconds(value: str) -> int | None:
 
 def utility_support_service() -> UtilitySupportService:
     return UTILITY_SUPPORT_SERVICE
+
+
+def metadata_support_service() -> MetadataSupportService:
+    return METADATA_SUPPORT_SERVICE
 
 
 def load_json_file(path: Path, fallback: Any) -> Any:
@@ -544,7 +550,7 @@ def public_stream_service() -> PublicStreamService:
             get_vm_config=get_vm_config,
             list_vms=lambda: list_vms(),
             load_json_file=load_json_file,
-            parse_description_meta=parse_description_meta,
+            parse_description_meta=metadata_support_service().parse_description_meta,
             public_stream_base_port=PUBLIC_STREAM_BASE_PORT,
             public_stream_port_count=PUBLIC_STREAM_PORT_COUNT,
             public_stream_port_step=PUBLIC_STREAM_PORT_STEP,
@@ -647,7 +653,7 @@ def sunshine_integration_service() -> SunshineIntegrationService:
             get_vm_config=get_vm_config,
             guest_exec_script_text=HOST_PROVIDER.guest_exec_script_text,
             load_sunshine_access_token=load_sunshine_access_token,
-            parse_description_meta=parse_description_meta,
+            parse_description_meta=metadata_support_service().parse_description_meta,
             public_manager_url=PUBLIC_MANAGER_URL,
             run_subprocess=subprocess.run,
             safe_slug=utility_support_service().safe_slug,
@@ -1371,25 +1377,11 @@ def list_policies() -> list[dict[str, Any]]:
 
 
 def parse_description_meta(description: str) -> dict[str, str]:
-    meta: dict[str, str] = {}
-    text = str(description or "").replace("\\r\\n", "\n").replace("\\n", "\n")
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        key = key.strip().lower()
-        value = value.strip()
-        if key and key not in meta:
-            meta[key] = value
-    return meta
+    return metadata_support_service().parse_description_meta(description)
 
 
 def safe_hostname(name: str, vmid: int) -> str:
-    cleaned = re.sub(r"[^a-z0-9-]+", "-", str(name or "").strip().lower()).strip("-")
-    if not cleaned:
-        cleaned = f"beagle-{vmid}"
-    return cleaned[:63].strip("-") or f"beagle-{vmid}"
+    return metadata_support_service().safe_hostname(name, vmid)
 
 
 def validate_linux_username(value: str, field_name: str) -> str:
@@ -1460,7 +1452,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             reconcile_public_streams_script=ROOT_DIR / "scripts" / "reconcile-public-streams.sh",
             resolve_ubuntu_beagle_desktop=ubuntu_beagle_inputs_service().resolve_ubuntu_beagle_desktop,
             run_checked=run_checked,
-            safe_hostname=safe_hostname,
+            safe_hostname=metadata_support_service().safe_hostname,
             safe_slug=utility_support_service().safe_slug,
             save_ubuntu_beagle_state=save_ubuntu_beagle_state,
             save_vm_secret=save_vm_secret,
@@ -1584,12 +1576,12 @@ def vm_profile_service() -> VmProfileService:
             load_vm_secret=load_vm_secret,
             manager_pinned_pubkey=manager_pinned_pubkey(),
             normalize_endpoint_profile_contract=normalize_endpoint_profile_contract,
-            parse_description_meta=parse_description_meta,
+            parse_description_meta=metadata_support_service().parse_description_meta,
             public_installer_iso_url=download_metadata_service().public_installer_iso_url,
             public_manager_url=PUBLIC_MANAGER_URL,
             resolve_public_stream_host=resolve_public_stream_host,
             resolve_ubuntu_beagle_desktop=ubuntu_beagle_inputs_service().resolve_ubuntu_beagle_desktop,
-            safe_hostname=safe_hostname,
+            safe_hostname=metadata_support_service().safe_hostname,
             stream_ports=stream_ports,
             truthy=truthy,
             ubuntu_beagle_default_desktop=UBUNTU_BEAGLE_DEFAULT_DESKTOP,
@@ -1749,7 +1741,7 @@ def installer_script_service() -> InstallerScriptService:
             hosted_live_usb_template_file=HOSTED_LIVE_USB_TEMPLATE_FILE,
             issue_enrollment_token=issue_enrollment_token,
             manager_pinned_pubkey=manager_pinned_pubkey(),
-            parse_description_meta=parse_description_meta,
+            parse_description_meta=metadata_support_service().parse_description_meta,
             patch_installer_defaults=installer_template_patch_service().patch_installer_defaults,
             patch_windows_installer_defaults=installer_template_patch_service().patch_windows_installer_defaults,
             public_bootstrap_latest_download_url=download_metadata_service().public_bootstrap_latest_download_url,
@@ -1758,7 +1750,7 @@ def installer_script_service() -> InstallerScriptService:
             public_payload_latest_download_url=download_metadata_service().public_payload_latest_download_url,
             public_server_name=PUBLIC_SERVER_NAME,
             raw_windows_installer_template_file=RAW_WINDOWS_INSTALLER_TEMPLATE_FILE,
-            safe_hostname=safe_hostname,
+            safe_hostname=metadata_support_service().safe_hostname,
             sunshine_guest_user=sunshine_guest_user,
         )
     return INSTALLER_SCRIPT_SERVICE
