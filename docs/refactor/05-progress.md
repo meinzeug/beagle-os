@@ -1,5 +1,20 @@
 # Refactor Progress
 
+### 2026-04-11 — server-installer host-provider dispatch seam
+
+- Introduced explicit host-provider dispatch seams inside `server-installer/live-build/.../beagle-server-installer`:
+  - added `BEAGLE_SERVER_HOST_PROVIDER` normalization/validation via `host_provider_kind()` and `require_supported_host_provider()`
+  - split provider-specific apt source wiring into `write_provider_apt_sources()`
+  - split provider-specific package installation into `install_host_provider_packages()`
+  - renamed the final chroot Beagle bootstrap step to `install_beagle_host_stack()` and threaded the selected provider into `BEAGLE_HOST_PROVIDER`
+- This is the first real provider seam inside the server ISO path rather than only a renamed outer script:
+  - current behavior remains identical for the default `proxmox` provider
+  - unsupported providers now fail explicitly at the seam instead of silently drifting deeper into Proxmox-only package and install steps
+- Validation and smoke checks for this slice passed:
+  - `bash -n server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+  - focused smoke check that the installer now contains `host_provider_kind`, `write_provider_apt_sources`, `install_host_provider_packages`, and `install_beagle_host_stack`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-11 — generic host service-installer entrypoint extraction
 
 - Moved the host service/bootstrap installer behind a provider-neutral script entrypoint:
