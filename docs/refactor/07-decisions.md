@@ -1503,3 +1503,14 @@ Decision:
 Reason:
 
 - `x11_display.sh` still mixed two distinct concerns: deterministic Xauthority candidate discovery/readiness checks and retry/logging orchestration while waiting for the X display to come up. The discovery/readiness side is independently smoke-testable with stubbed `ps` and `xset`, while the wait side is about retry timing and log emission. Pulling the selection block out keeps the wait helper smaller and leaves the Xauthority contract explicit for both Moonlight and GeForce NOW launch paths.
+
+### D131. Beagle state persistence and logging should leave the generic runtime core helper
+
+Decision:
+
+- Keep `beagle_state_dir()`, `beagle_trace_file()`, `beagle_last_marker_file()`, `ensure_beagle_state_dir()`, and `beagle_log_event()` in `thin-client-assistant/runtime/runtime_beagle_state.sh`.
+- `thin-client-assistant/runtime/runtime_core.sh` should source that helper and remain focused on runtime user/group/home/uid lookup, live-medium discovery, privileged command execution, and systemd unit-file presence checks.
+
+Reason:
+
+- `runtime_core.sh` still mixed two different abstraction levels: Beagle-specific runtime state/logging and generic runtime/environment helpers used by many other modules. The state/logging side is independently smoke-testable with temporary directories and a stubbed `logger`, while the remaining core side is about identity and command wrappers. Pulling the state block out keeps the runtime core layer smaller and makes the Beagle-specific state contract explicit.
