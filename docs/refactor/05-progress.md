@@ -2,6 +2,18 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime status writer extraction
+
+- Introduced a shared runtime status helper for thin-client boot/session scripts:
+  - added `thin-client-assistant/runtime/status_writer.py` for `launch.status.json` and `runtime.status` generation
+  - `thin-client-assistant/runtime/launch-session.sh` now delegates launch-status JSON writes to that helper instead of carrying another inline Python block
+  - `thin-client-assistant/runtime/prepare-runtime.sh` now delegates the final runtime-status file write to the same helper instead of assembling the file inline in shell
+- This keeps both status file formats stable while removing another pair of shell/JSON writer implementations from the runtime entrypoints.
+- Validation and smoke checks for this slice passed:
+  - `python3 -m py_compile thin-client-assistant/runtime/status_writer.py`
+  - `bash -n thin-client-assistant/runtime/prepare-runtime.sh thin-client-assistant/runtime/launch-session.sh`
+  - focused smoke checks for `launch-status` and `runtime-status`
+
 ### 2026-04-11 — runtime enrollment-config writer extraction
 
 - Removed the large enrollment-config inline Python block from `thin-client-assistant/runtime/prepare-runtime.sh`:

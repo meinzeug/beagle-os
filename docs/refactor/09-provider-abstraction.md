@@ -732,6 +732,7 @@ These flows now go through a provider-facing helper seam first:
 - thin-client-side Proxmox API and SPICE helpers are still explicitly Proxmox-bound.
 - `thin-client-assistant/usb/preset_summary.py` now centralizes the derived preset-summary/UI-state layer used by the local installer and the Proxmox API helper, but the underlying preset assembly in `thin-client-assistant/usb/pve-thin-client-proxmox-api.py` still reflects current Proxmox login and VM-config semantics.
 - `thin-client-assistant/runtime/apply_enrollment_config.py` now centralizes the runtime enrollment-response write path used by `prepare-runtime.sh`, but the underlying field mapping still reflects today’s endpoint enrollment payload contract and runtime env naming.
+- `thin-client-assistant/runtime/status_writer.py` now centralizes runtime and launch status-file serialization, but the status semantics still reflect today’s Moonlight/Kiosk/GFN runtime model and current thin-client env names.
 
 ## Exit Criteria Before Proxmox Becomes Optional
 

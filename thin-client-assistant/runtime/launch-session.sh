@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATUS_WRITER_PY="$SCRIPT_DIR/status_writer.py"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
 STATUS_DIR="${PVE_THIN_CLIENT_STATUS_DIR:-${XDG_RUNTIME_DIR:-/tmp}/pve-thin-client}"
@@ -22,31 +23,14 @@ write_launch_status() {
 
   mkdir -p "$STATUS_DIR" 2>/dev/null || return 0
 
-  python3 - "$LAUNCH_STATUS_FILE" "$mode" "$method" "$binary" "$target" "${PVE_THIN_CLIENT_PROFILE_NAME:-default}" "${PVE_THIN_CLIENT_RUNTIME_USER:-}" <<'PY' || true
-import json
-import sys
-from datetime import datetime, timezone
-from pathlib import Path
-
-path = Path(sys.argv[1])
-mode = sys.argv[2]
-method = sys.argv[3]
-binary = sys.argv[4]
-target = sys.argv[5]
-profile = sys.argv[6]
-runtime_user = sys.argv[7]
-
-payload = {
-    "timestamp": datetime.now(timezone.utc).isoformat(),
-    "mode": mode,
-    "launch_method": method,
-    "binary": binary,
-    "target": target,
-    "profile_name": profile,
-    "runtime_user": runtime_user,
-}
-path.write_text(json.dumps(payload, indent=2) + "\n")
-PY
+  python3 "$STATUS_WRITER_PY" launch-status \
+    --path "$LAUNCH_STATUS_FILE" \
+    --mode "$mode" \
+    --method "$method" \
+    --binary "$binary" \
+    --target "$target" \
+    --profile-name "${PVE_THIN_CLIENT_PROFILE_NAME:-default}" \
+    --runtime-user "${PVE_THIN_CLIENT_RUNTIME_USER:-}" || true
 }
 
 launch_moonlight() {

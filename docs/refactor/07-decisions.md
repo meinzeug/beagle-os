@@ -879,3 +879,15 @@ Decision:
 Reason:
 
 - The runtime entrypoint still embedded a large inline Python writer for the enrollment response payload. That made one of the remaining runtime/env-builder contracts effectively undocumented in code structure and harder to align with future installer/runtime contract work. Extracting the writer keeps behavior stable, shrinks the shell entrypoint, and creates a dedicated seam for the next round of shared runtime-config normalization.
+
+### D78. Thin-client runtime status files should be written through one helper, not separate shell implementations
+
+Decision:
+
+- Add `thin-client-assistant/runtime/status_writer.py` as the shared writer for `launch.status.json` and `runtime.status`.
+- Update `launch-session.sh` and `prepare-runtime.sh` to delegate file generation to that helper while preserving the existing payload/file shapes.
+- Keep the shell scripts responsible for deciding values such as `binary_available`; the helper only owns timestamping and file serialization.
+
+Reason:
+
+- The runtime path still had two separate status-write implementations: one inline Python JSON writer in `launch-session.sh` and one shell-assembled key/value writer in `prepare-runtime.sh`. They were small individually but duplicated the same “derive runtime metadata then serialize it” seam. Centralizing the write contract removes more shell/JSON mixing and makes later runtime-observability changes one-module work.
