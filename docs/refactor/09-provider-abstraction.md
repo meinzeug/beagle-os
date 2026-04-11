@@ -174,6 +174,20 @@ Current host-side contract:
 - `ensure_vm_sunshine_pinned_pubkey(vm, secret)`
 - `ensure_vm_secret(vm)`
 
+### `beagle-host/services/installer_prep.py`
+
+Current host-side contract:
+
+- `prep_dir()`
+- `state_path(node, vmid)`
+- `log_path(node, vmid)`
+- `load_state(node, vmid)`
+- `quick_sunshine_status(vmid)`
+- `default_state(vm, sunshine_status=None)`
+- `summarize_state(vm, state=None)`
+- `is_running(state)`
+- `start(vm)`
+
 ### `core/virtualization/service.js`
 
 Generic contract:
@@ -353,6 +367,7 @@ These flows now go through provider-backed services first:
 - VM profile synthesis, assignment resolution, policy matching, public-stream derivation, and VM fingerprint assessment through `beagle-host/services/vm_profile.py`
 - public download/artifact URL, latest-download resolution, checksum lookup, and update-payload metadata shaping through `beagle-host/services/download_metadata.py`
 - VM-secret credential/bootstrap orchestration, Sunshine pinned-pubkey backfill, and USB-tunnel `authorized_keys` synchronization through `beagle-host/services/vm_secret_bootstrap.py`
+- installer-prep state loading, Sunshine-readiness probing, default/summary shaping, and background prep-script launch through `beagle-host/services/installer_prep.py`
 - VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through the selected host provider, currently `beagle-host/providers/proxmox_host_provider.py`
 - browser-/installer-facing endpoint profile payload normalization through `beagle-host/bin/endpoint_profile_contract.py`
 
@@ -371,7 +386,7 @@ These flows now go through provider-backed services first:
 - `beagle-host/bin/beagle-control-plane.py` no longer owns the main VM profile/assignment/public-stream synthesis block directly, but it remains a large monolith with response-model shaping, inventory aggregation, and other handler-local orchestration still living in the entrypoint. Those remaining flows should move behind `beagle-host/services/*` incrementally.
 - `beagle-host/services/vm_profile.py` is now the host-side seam for profile synthesis, but it still derives business state from today's Proxmox-backed metadata/config semantics through provider-backed reads and existing description-meta conventions.
 - `beagle-host/providers/registry.py` makes provider selection real at bootstrap time, but the registry still only exposes one concrete implementation today. Provider selection is no longer hard-coded in the control-plane import graph, yet provider diversity is still unfinished work.
-- the installer-prep / Sunshine-readiness helper cluster (`quick_sunshine_status`, `default_installer_prep_state`, `summarize_installer_prep_state`, `installer_prep_running`, `start_installer_prep`) still lives in `beagle-host/bin/beagle-control-plane.py` and is now one of the bigger host-specific non-HTTP seams not yet extracted.
+- the USB guest-attachment / tunnel-state helper cluster still lives in `beagle-host/bin/beagle-control-plane.py` and is now one of the bigger host-specific non-HTTP seams not yet extracted.
 
 ### Script surfaces
 

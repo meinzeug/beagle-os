@@ -367,3 +367,14 @@ Decision:
 Reason:
 
 - VM-secret persistence and VM-secret bootstrap are different concerns. The first is stable file I/O; the second mixes credential generation, key material, filesystem side effects, and Sunshine/USB tunnel integration. Splitting them keeps the persistence service simple, gives the higher-level bootstrap logic its own DI seam, and removes one of the largest remaining non-HTTP helper clusters from the control-plane monolith.
+
+### D35. Installer-prep state and Sunshine-readiness belong in one host service
+
+Decision:
+
+- Move installer-prep path helpers, state loading, quick Sunshine readiness probing, default/summary payload shaping, and background prep-script launch into `beagle-host/services/installer_prep.py`.
+- Keep the old helper names in `beagle-host/bin/beagle-control-plane.py` as thin wrappers so HTTP handlers and `VmStateService` continue to call the same surface during the migration.
+
+Reason:
+
+- The installer-prep flow was a cohesive non-HTTP block: it shaped the same payload contract, read and wrote the same state files, performed the same guest-side Sunshine probe, and launched the same background script. Leaving that logic split across multiple helper functions in the control plane would keep the entrypoint responsible for state orchestration instead of request dispatch. Extracting it creates one host-side seam for installer readiness and removes another large helper cluster from the monolith.
