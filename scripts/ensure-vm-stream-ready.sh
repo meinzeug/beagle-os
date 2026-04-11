@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$SCRIPT_DIR/lib/beagle_provider.py}"
 VMID="${VMID:-}"
 NODE="${NODE:-}"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
@@ -123,48 +125,23 @@ path.write_text(json.dumps(payload, indent=2) + '\n', encoding='utf-8')
 PY
 }
 
-qm_config_description() {
-  qm config "$VMID" | sed -n 's/^description: //p' | head -n1
-}
-
 meta_get() {
   local key="$1"
-  python3 - "$key" <<'PY'
-import sys, urllib.parse, subprocess
-key = sys.argv[1].strip().lower()
-raw = subprocess.check_output(['qm','config',sys.argv[2]], text=True)
-encoded = ''
-for line in raw.splitlines():
-    if line.startswith('description: '):
-        encoded = line.split(': ',1)[1]
-        break
-text = urllib.parse.unquote(encoded) if encoded else ''
-for raw_line in text.splitlines():
-    line = raw_line.strip()
-    if ':' not in line:
-        continue
-    left, right = line.split(':',1)
-    if left.strip().lower() == key:
-        print(right.strip())
-        raise SystemExit(0)
-raise SystemExit(0)
-PY
-}
+  python3 - "$PROVIDER_MODULE_PATH" "$NODE" "$VMID" "$key" <<'PY'
+import sys
+from pathlib import Path
+from urllib.parse import unquote
 
-# override helper with vmid arg bound
-meta_get() {
-  local key="$1"
-  python3 - "$VMID" "$key" <<'PY'
-import sys, urllib.parse, subprocess
-vmid = sys.argv[1]
-key = sys.argv[2].strip().lower()
-raw = subprocess.check_output(['qm','config',vmid], text=True)
-encoded = ''
-for line in raw.splitlines():
-    if line.startswith('description: '):
-        encoded = line.split(': ',1)[1]
-        break
-text = urllib.parse.unquote(encoded) if encoded else ''
+provider_module_path = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(provider_module_path.parent))
+
+from beagle_provider import vm_config
+
+node = sys.argv[2]
+vmid = int(sys.argv[3])
+key = sys.argv[4].strip().lower()
+config = vm_config(node, vmid)
+text = unquote(str(config.get("description", "") or ""))
 for raw_line in text.splitlines():
     line = raw_line.strip()
     if ':' not in line:
@@ -221,19 +198,18 @@ sunshine_guest_status_json() {
 }
 
 guest_ipv4() {
-  python3 - "$VMID" <<'PY'
-import json
-import subprocess
+  python3 - "$PROVIDER_MODULE_PATH" "$VMID" <<'PY'
 import sys
+from pathlib import Path
 
-vmid = sys.argv[1]
-try:
-    raw = subprocess.check_output(["qm", "guest", "cmd", vmid, "network-get-interfaces"], text=True)
-    payload = json.loads(raw)
-except Exception:
-    raise SystemExit(1)
+provider_module_path = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(provider_module_path.parent))
 
-for iface in payload if isinstance(payload, list) else []:
+from beagle_provider import guest_interfaces
+
+vmid = int(sys.argv[2])
+
+for iface in guest_interfaces(vmid):
     for address in iface.get("ip-addresses", []):
         ip = str(address.get("ip-address", ""))
         if address.get("ip-address-type") != "ipv4":

@@ -11,8 +11,10 @@ PLATFORM_SERVICE_TARGET="$PVE_DIR/js/beagle-platform-service.js"
 PROXMOX_PROVIDER_TARGET="$PVE_DIR/js/beagle-proxmox-provider.js"
 API_CLIENT_TARGET="$PVE_DIR/js/beagle-ui-api-client.js"
 STATE_TARGET="$PVE_DIR/js/beagle-ui-installer-state.js"
+FLEET_STATE_TARGET="$PVE_DIR/js/beagle-ui-fleet-state.js"
 VM_PROFILE_STATE_TARGET="$PVE_DIR/js/beagle-ui-vm-profile-state.js"
 PROVISIONING_API_TARGET="$PVE_DIR/js/beagle-ui-provisioning-api.js"
+PROVISIONING_FLOW_TARGET="$PVE_DIR/js/beagle-ui-provisioning-flow.js"
 USB_API_TARGET="$PVE_DIR/js/beagle-ui-usb-api.js"
 USB_UI_TARGET="$PVE_DIR/js/beagle-ui-usb-ui.js"
 SHARED_VM_PROFILE_MAPPER_TARGET="$PVE_DIR/js/beagle-browser-vm-profile-mapper.js"
@@ -52,8 +54,10 @@ PLATFORM_SERVICE_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/
 PROXMOX_PROVIDER_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-proxmox-provider.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
 API_CLIENT_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-api-client.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
 STATE_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-installer-state.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+FLEET_STATE_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-fleet-state.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
 VM_PROFILE_STATE_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-vm-profile-state.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
 PROVISIONING_API_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-provisioning-api.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
+PROVISIONING_FLOW_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-provisioning-flow.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
 USB_API_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-usb-api.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
 USB_UI_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-ui-usb-ui.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
 SHARED_VM_PROFILE_MAPPER_INCLUDE_LINE="    <script type=\"text/javascript\" src=\"/pve2/js/beagle-browser-vm-profile-mapper.js?ver=[% version %]-beagle-${PROJECT_VERSION}\"></script>"
@@ -107,8 +111,10 @@ install -D -m 0644 "$ROOT_DIR/core/platform/service.js" "$PLATFORM_SERVICE_TARGE
 install -D -m 0644 "$ROOT_DIR/providers/proxmox/virtualization-provider.js" "$PROXMOX_PROVIDER_TARGET"
 install -D -m 0644 "$ROOT_DIR/proxmox-ui/api-client/beagle-api.js" "$API_CLIENT_TARGET"
 install -D -m 0644 "$ROOT_DIR/proxmox-ui/state/installer-eligibility.js" "$STATE_TARGET"
+install -D -m 0644 "$ROOT_DIR/proxmox-ui/state/fleet.js" "$FLEET_STATE_TARGET"
 install -D -m 0644 "$ROOT_DIR/proxmox-ui/state/vm-profile.js" "$VM_PROFILE_STATE_TARGET"
 install -D -m 0644 "$ROOT_DIR/proxmox-ui/provisioning/api.js" "$PROVISIONING_API_TARGET"
+install -D -m 0644 "$ROOT_DIR/proxmox-ui/provisioning/flow.js" "$PROVISIONING_FLOW_TARGET"
 install -D -m 0644 "$ROOT_DIR/proxmox-ui/usb/api.js" "$USB_API_TARGET"
 install -D -m 0644 "$ROOT_DIR/proxmox-ui/usb/ui.js" "$USB_UI_TARGET"
 install -D -m 0644 "$ROOT_DIR/extension/shared/vm-profile-mapper.js" "$SHARED_VM_PROFILE_MAPPER_TARGET"
@@ -136,7 +142,7 @@ if [[ ! -f "$TPL_BACKUP" ]]; then
   cp "$TPL_TARGET" "$TPL_BACKUP"
 fi
 
-python3 - "$TPL_TARGET" "$CONFIG_INCLUDE_LINE" "$COMMON_INCLUDE_LINE" "$PROVIDER_REGISTRY_INCLUDE_LINE" "$API_CLIENT_INCLUDE_LINE" "$PROVISIONING_API_INCLUDE_LINE" "$USB_API_INCLUDE_LINE" "$PROXMOX_PROVIDER_INCLUDE_LINE" "$VIRTUALIZATION_SERVICE_INCLUDE_LINE" "$PLATFORM_SERVICE_INCLUDE_LINE" "$STATE_INCLUDE_LINE" "$VM_PROFILE_STATE_INCLUDE_LINE" "$USB_UI_INCLUDE_LINE" "$SHARED_VM_PROFILE_MAPPER_INCLUDE_LINE" "$SHARED_VM_PROFILE_HELPERS_INCLUDE_LINE" "$COMPONENTS_UI_HELPERS_INCLUDE_LINE" "$COMPONENTS_MODAL_SHELL_INCLUDE_LINE" "$COMPONENTS_DESKTOP_OVERLAY_INCLUDE_LINE" "$COMPONENTS_PROFILE_MODAL_INCLUDE_LINE" "$COMPONENTS_FLEET_MODAL_INCLUDE_LINE" "$COMPONENTS_EXTJS_INTEGRATION_INCLUDE_LINE" "$COMPONENTS_PROVISIONING_RESULT_MODAL_INCLUDE_LINE" "$COMPONENTS_PROVISIONING_CREATE_MODAL_INCLUDE_LINE" "$UTILS_BROWSER_ACTIONS_INCLUDE_LINE" "$INCLUDE_LINE" <<'PY'
+python3 - "$TPL_TARGET" "$CONFIG_INCLUDE_LINE" "$COMMON_INCLUDE_LINE" "$PROVIDER_REGISTRY_INCLUDE_LINE" "$API_CLIENT_INCLUDE_LINE" "$PROVISIONING_API_INCLUDE_LINE" "$PROVISIONING_FLOW_INCLUDE_LINE" "$USB_API_INCLUDE_LINE" "$PROXMOX_PROVIDER_INCLUDE_LINE" "$VIRTUALIZATION_SERVICE_INCLUDE_LINE" "$PLATFORM_SERVICE_INCLUDE_LINE" "$STATE_INCLUDE_LINE" "$FLEET_STATE_INCLUDE_LINE" "$VM_PROFILE_STATE_INCLUDE_LINE" "$USB_UI_INCLUDE_LINE" "$SHARED_VM_PROFILE_MAPPER_INCLUDE_LINE" "$SHARED_VM_PROFILE_HELPERS_INCLUDE_LINE" "$COMPONENTS_UI_HELPERS_INCLUDE_LINE" "$COMPONENTS_MODAL_SHELL_INCLUDE_LINE" "$COMPONENTS_DESKTOP_OVERLAY_INCLUDE_LINE" "$COMPONENTS_PROFILE_MODAL_INCLUDE_LINE" "$COMPONENTS_FLEET_MODAL_INCLUDE_LINE" "$COMPONENTS_EXTJS_INTEGRATION_INCLUDE_LINE" "$COMPONENTS_PROVISIONING_RESULT_MODAL_INCLUDE_LINE" "$COMPONENTS_PROVISIONING_CREATE_MODAL_INCLUDE_LINE" "$UTILS_BROWSER_ACTIONS_INCLUDE_LINE" "$INCLUDE_LINE" <<'PY'
 import sys
 from pathlib import Path
 
@@ -146,36 +152,38 @@ common_include = sys.argv[3]
 provider_registry_include = sys.argv[4]
 api_client_include = sys.argv[5]
 provisioning_api_include = sys.argv[6]
-usb_api_include = sys.argv[7]
-proxmox_provider_include = sys.argv[8]
-virtualization_service_include = sys.argv[9]
-platform_service_include = sys.argv[10]
-state_include = sys.argv[11]
-vm_profile_state_include = sys.argv[12]
-usb_ui_include = sys.argv[13]
-shared_vm_profile_mapper_include = sys.argv[14]
-shared_vm_profile_helpers_include = sys.argv[15]
-components_ui_helpers_include = sys.argv[16]
-components_modal_shell_include = sys.argv[17]
-components_desktop_overlay_include = sys.argv[18]
-components_profile_modal_include = sys.argv[19]
-components_fleet_modal_include = sys.argv[20]
-components_extjs_integration_include = sys.argv[21]
-components_provisioning_result_modal_include = sys.argv[22]
-components_provisioning_create_modal_include = sys.argv[23]
-utils_browser_actions_include = sys.argv[24]
-include = sys.argv[25]
+provisioning_flow_include = sys.argv[7]
+usb_api_include = sys.argv[8]
+proxmox_provider_include = sys.argv[9]
+virtualization_service_include = sys.argv[10]
+platform_service_include = sys.argv[11]
+state_include = sys.argv[12]
+fleet_state_include = sys.argv[13]
+vm_profile_state_include = sys.argv[14]
+usb_ui_include = sys.argv[15]
+shared_vm_profile_mapper_include = sys.argv[16]
+shared_vm_profile_helpers_include = sys.argv[17]
+components_ui_helpers_include = sys.argv[18]
+components_modal_shell_include = sys.argv[19]
+components_desktop_overlay_include = sys.argv[20]
+components_profile_modal_include = sys.argv[21]
+components_fleet_modal_include = sys.argv[22]
+components_extjs_integration_include = sys.argv[23]
+components_provisioning_result_modal_include = sys.argv[24]
+components_provisioning_create_modal_include = sys.argv[25]
+utils_browser_actions_include = sys.argv[26]
+include = sys.argv[27]
 text = path.read_text()
 needle = '    <script type="text/javascript" src="/pve2/js/pvemanagerlib.js?ver=[% version %]"></script>\n'
 if needle not in text:
     raise SystemExit("needle not found in index.html.tpl")
 lines = []
 for line in text.splitlines():
-    if '/pve2/js/beagle-ui.js' in line or '/pve2/js/beagle-ui-common.js' in line or '/pve2/js/beagle-provider-registry.js' in line or '/pve2/js/beagle-virtualization-service.js' in line or '/pve2/js/beagle-platform-service.js' in line or '/pve2/js/beagle-proxmox-provider.js' in line or '/pve2/js/beagle-ui-api-client.js' in line or '/pve2/js/beagle-ui-installer-state.js' in line or '/pve2/js/beagle-ui-vm-profile-state.js' in line or '/pve2/js/beagle-ui-provisioning-api.js' in line or '/pve2/js/beagle-ui-usb-api.js' in line or '/pve2/js/beagle-ui-usb-ui.js' in line or '/pve2/js/beagle-browser-vm-profile-mapper.js' in line or '/pve2/js/beagle-browser-vm-profile-helpers.js' in line or '/pve2/js/beagle-ui-render-helpers.js' in line or '/pve2/js/beagle-ui-modal-shell.js' in line or '/pve2/js/beagle-ui-desktop-overlay.js' in line or '/pve2/js/beagle-ui-profile-modal.js' in line or '/pve2/js/beagle-ui-fleet-modal.js' in line or '/pve2/js/beagle-ui-extjs-integration.js' in line or '/pve2/js/beagle-ui-provisioning-result-modal.js' in line or '/pve2/js/beagle-ui-provisioning-create-modal.js' in line or '/pve2/js/beagle-ui-browser-actions.js' in line or '/pve2/js/beagle-ui-config.js' in line or '/pve2/js/pve-dcv-integration.js' in line or '/pve2/js/pve-dcv-integration-config.js' in line:
+    if '/pve2/js/beagle-ui.js' in line or '/pve2/js/beagle-ui-common.js' in line or '/pve2/js/beagle-provider-registry.js' in line or '/pve2/js/beagle-virtualization-service.js' in line or '/pve2/js/beagle-platform-service.js' in line or '/pve2/js/beagle-proxmox-provider.js' in line or '/pve2/js/beagle-ui-api-client.js' in line or '/pve2/js/beagle-ui-installer-state.js' in line or '/pve2/js/beagle-ui-fleet-state.js' in line or '/pve2/js/beagle-ui-vm-profile-state.js' in line or '/pve2/js/beagle-ui-provisioning-api.js' in line or '/pve2/js/beagle-ui-provisioning-flow.js' in line or '/pve2/js/beagle-ui-usb-api.js' in line or '/pve2/js/beagle-ui-usb-ui.js' in line or '/pve2/js/beagle-browser-vm-profile-mapper.js' in line or '/pve2/js/beagle-browser-vm-profile-helpers.js' in line or '/pve2/js/beagle-ui-render-helpers.js' in line or '/pve2/js/beagle-ui-modal-shell.js' in line or '/pve2/js/beagle-ui-desktop-overlay.js' in line or '/pve2/js/beagle-ui-profile-modal.js' in line or '/pve2/js/beagle-ui-fleet-modal.js' in line or '/pve2/js/beagle-ui-extjs-integration.js' in line or '/pve2/js/beagle-ui-provisioning-result-modal.js' in line or '/pve2/js/beagle-ui-provisioning-create-modal.js' in line or '/pve2/js/beagle-ui-browser-actions.js' in line or '/pve2/js/beagle-ui-config.js' in line or '/pve2/js/pve-dcv-integration.js' in line or '/pve2/js/pve-dcv-integration-config.js' in line:
         continue
     lines.append(line)
 text = "\n".join(lines) + "\n"
-text = text.replace(needle, needle + config_include + "\n" + common_include + "\n" + provider_registry_include + "\n" + api_client_include + "\n" + provisioning_api_include + "\n" + usb_api_include + "\n" + proxmox_provider_include + "\n" + virtualization_service_include + "\n" + platform_service_include + "\n" + state_include + "\n" + usb_ui_include + "\n" + shared_vm_profile_mapper_include + "\n" + shared_vm_profile_helpers_include + "\n" + components_ui_helpers_include + "\n" + components_modal_shell_include + "\n" + components_profile_modal_include + "\n" + vm_profile_state_include + "\n" + components_desktop_overlay_include + "\n" + components_fleet_modal_include + "\n" + components_extjs_integration_include + "\n" + components_provisioning_result_modal_include + "\n" + components_provisioning_create_modal_include + "\n" + utils_browser_actions_include + "\n" + include + "\n", 1)
+text = text.replace(needle, needle + config_include + "\n" + common_include + "\n" + provider_registry_include + "\n" + api_client_include + "\n" + provisioning_api_include + "\n" + usb_api_include + "\n" + proxmox_provider_include + "\n" + virtualization_service_include + "\n" + platform_service_include + "\n" + state_include + "\n" + fleet_state_include + "\n" + usb_ui_include + "\n" + shared_vm_profile_mapper_include + "\n" + shared_vm_profile_helpers_include + "\n" + components_ui_helpers_include + "\n" + components_modal_shell_include + "\n" + components_profile_modal_include + "\n" + vm_profile_state_include + "\n" + components_desktop_overlay_include + "\n" + components_fleet_modal_include + "\n" + components_extjs_integration_include + "\n" + components_provisioning_result_modal_include + "\n" + components_provisioning_create_modal_include + "\n" + provisioning_flow_include + "\n" + utils_browser_actions_include + "\n" + include + "\n", 1)
 path.write_text(text)
 PY
 

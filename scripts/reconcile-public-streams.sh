@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$ROOT_DIR/scripts/lib/beagle_provider.py}"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 MANAGER_ENV_FILE="${BEAGLE_MANAGER_ENV_FILE:-$CONFIG_DIR/beagle-manager.env}"
 PUBLIC_STREAM_HOST_RAW="${BEAGLE_PUBLIC_STREAM_HOST:-${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}}"
@@ -104,29 +106,22 @@ cleanup() {
 }
 trap cleanup EXIT
 
-python3 - "$STREAMS_FILE" "$PUBLIC_STREAM_HOST" "$PUBLIC_STREAM_BASE_PORT" "$PUBLIC_STREAM_PORT_STEP" "$PUBLIC_STREAM_PORT_COUNT" >"$inventory_file" <<'PY'
+python3 - "$PROVIDER_MODULE_PATH" "$STREAMS_FILE" "$PUBLIC_STREAM_HOST" "$PUBLIC_STREAM_BASE_PORT" "$PUBLIC_STREAM_PORT_STEP" "$PUBLIC_STREAM_PORT_COUNT" >"$inventory_file" <<'PY'
 import json
-import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import unquote
 
-streams_path = Path(sys.argv[1])
-public_host = sys.argv[2]
-base_port = int(sys.argv[3])
-port_step = int(sys.argv[4])
-port_count = int(sys.argv[5])
+provider_module_path = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(provider_module_path.parent))
 
+from beagle_provider import guest_interfaces, list_vms, vm_config
 
-def run_json(command):
-    try:
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return None
-    try:
-        return json.loads(result.stdout or "null")
-    except json.JSONDecodeError:
-        return None
+streams_path = Path(sys.argv[2])
+public_host = sys.argv[3]
+base_port = int(sys.argv[4])
+port_step = int(sys.argv[5])
+port_count = int(sys.argv[6])
 
 
 def parse_description_meta(description):
@@ -145,10 +140,7 @@ def parse_description_meta(description):
 
 
 def first_guest_ipv4(vmid):
-    payload = run_json(["qm", "guest", "cmd", str(vmid), "network-get-interfaces"])
-    if not isinstance(payload, list):
-        return ""
-    for iface in payload:
+    for iface in guest_interfaces(vmid):
         for address in iface.get("ip-addresses", []):
             ip = str(address.get("ip-address", ""))
             if address.get("ip-address-type") != "ipv4":
@@ -193,8 +185,8 @@ def save_streams(data):
     streams_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
-resources = run_json(["pvesh", "get", "/cluster/resources", "--type", "vm", "--output-format", "json"])
-if not isinstance(resources, list):
+resources = list_vms()
+if not resources:
     print("[]")
     raise SystemExit(0)
 
@@ -209,7 +201,7 @@ for vm in sorted(resources, key=lambda item: int(item.get("vmid", 0))):
         continue
     vmid = int(vm["vmid"])
     node = str(vm["node"])
-    config = run_json(["pvesh", "get", f"/nodes/{node}/qemu/{vmid}/config", "--output-format", "json"]) or {}
+    config = vm_config(node, vmid) or {}
     meta = parse_description_meta(config.get("description", ""))
     guest_ip = first_guest_ipv4(vmid)
     if not should_publish(meta, guest_ip):
