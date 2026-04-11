@@ -37,10 +37,11 @@ Strategic framing:
 4. Continue aligning installer-generation/env builders with the same endpoint profile contract source instead of reshaping overlapping fields in multiple browser/runtime places:
    - the hosted VM installer catalog path in `scripts/lib/prepare_host_downloads.py` now normalizes overlapping installer/profile URLs through `endpoint_profile_contract.py`
    - the thin-client preset summary/UI-state path now shares one helper in `thin-client-assistant/usb/preset_summary.py` instead of carrying duplicated mode/preset shaping in both the local installer and the Proxmox API helper
+   - the Proxmox-specific USB preset builder now lives in `thin-client-assistant/usb/proxmox_preset.py` instead of staying embedded in `pve-thin-client-proxmox-api.py`
    - the runtime enrollment config write path now also has an explicit helper in `thin-client-assistant/runtime/apply_enrollment_config.py` instead of an inline Python block inside `prepare-runtime.sh`
    - the runtime status write path now also shares one helper in `thin-client-assistant/runtime/status_writer.py` instead of two separate shell/inline-JSON implementations
    - the preset→runtime config generation path now also has an explicit helper in `thin-client-assistant/runtime/generate_config_from_preset.py` instead of a large inline export block in `common.sh`
-   - the next remaining drift is in the still-separate preset builders and runtime/env shapers that rebuild overlapping installer/profile fields outside that contract, especially the Proxmox-specific preset assembly in `thin-client-assistant/usb/pve-thin-client-proxmox-api.py` and the remaining runtime default/override path around `thin-client-assistant/runtime/common.sh`
+   - the next remaining drift is in the still-separate preset builders and runtime/env shapers that rebuild overlapping installer/profile fields outside that contract, especially the gap between `thin-client-assistant/usb/proxmox_preset.py` and the richer host-side installer preset builder in `beagle-host/services/installer_script.py`, plus the remaining runtime default/override path around `thin-client-assistant/runtime/common.sh`
 5. Continue splitting the browser UI action/render layers:
    - move the next action-heavy profile modal helpers out of `extension/components/profile-modal.js` and, where shared, out of `proxmox-ui/components/profile-modal.js`
    - keep using `core/platform/browser-common.js` plus the existing shared browser helper modules instead of recreating token/template/API helpers in entrypoints

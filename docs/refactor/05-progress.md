@@ -2,6 +2,18 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — Proxmox USB preset builder extraction
+
+- Split the Proxmox-specific USB preset contract away from the API/CLI wrapper:
+  - added `thin-client-assistant/usb/proxmox_preset.py` for endpoint normalization, Proxmox login parsing, description-meta parsing, preset assembly, and preset env-line rendering
+  - `thin-client-assistant/usb/pve-thin-client-proxmox-api.py` now focuses on Proxmox API transport, VM resolution, and command dispatch instead of also owning the full preset builder contract inline
+  - the CLI output shape stays the same, but the Proxmox preset assembly now sits at an explicit provider seam
+- This does not neutralize the thin-client Proxmox path yet, but it isolates the remaining Proxmox-shaped preset contract into one module, which is the right prerequisite for any later provider-neutral or Beagle-owned preset builder.
+- Validation and smoke checks for this slice passed:
+  - `python3 -m py_compile thin-client-assistant/usb/proxmox_preset.py thin-client-assistant/usb/pve-thin-client-proxmox-api.py`
+  - focused smoke test for endpoint normalization plus preset generation
+  - `bash -n thin-client-assistant/usb/pve-thin-client-local-installer.sh thin-client-assistant/usb/pve-thin-client-live-menu.sh thin-client-assistant/usb/pve-thin-client-usb-installer.sh`
+
 ### 2026-04-11 — runtime preset-to-config generator extraction
 
 - Removed the largest preset→runtime env-mapping block from `thin-client-assistant/runtime/common.sh`:
