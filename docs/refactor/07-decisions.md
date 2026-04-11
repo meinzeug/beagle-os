@@ -1314,3 +1314,14 @@ Decision:
 Reason:
 
 - After the bootstrap layer became thin, `moonlight_targeting.sh` was the next large runtime helper. It still mixed two distinct concerns: host/connect-host selection and reachability/probe execution. The probe side is cohesive, testable with stubbed `curl` and synthetic reachability functions, and does not need to stay intertwined with host-resolution logic. Pulling it out keeps `moonlight_targeting.sh` focused on target selection while giving the network-probe surface its own explicit seam.
+
+### D114. Moonlight connect-host candidate selection should also leave `moonlight_targeting.sh`
+
+Decision:
+
+- Keep IPv4 resolution, preferred-host resolution, direct-local-host checks, usable-local-host selection, gateway fallback selection, primary/public connect-host derivation, and final connect-host candidate selection in `thin-client-assistant/runtime/moonlight_connect_host.sh`.
+- `moonlight_targeting.sh` should source that helper instead of carrying connect-host candidate and fallback logic inline.
+
+Reason:
+
+- Once the reachability/probe block moved out, the next cohesive sub-cluster in `moonlight_targeting.sh` was the connect-host selection flow itself. That logic is stateful, depends on route inspection and IPv4 preference, and is independently smoke-testable with simple stubs for host resolution and probe outcomes. Pulling it out reduces `moonlight_targeting.sh` to a very small accessor/formatting layer and keeps candidate selection isolated from lower-level target metadata.
