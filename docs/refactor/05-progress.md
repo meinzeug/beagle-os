@@ -2,6 +2,35 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — Ubuntu-Beagle input and preset normalization extraction
+
+- Extracted the ubuntu-beagle input/preset normalization block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/ubuntu_beagle_inputs.py`:
+  - `UbuntuBeagleInputsService` now owns `validate_linux_username`, `validate_password`, `normalize_locale`, `normalize_keymap`, `normalize_package_names`, `resolve_ubuntu_beagle_desktop`, `normalize_package_presets`, and `expand_software_packages`
+  - the control-plane helper names stay stable as thin wrappers, while `UbuntuBeagleProvisioningService` and `VmProfileService` now depend directly on the new service methods instead of on inline entrypoint helpers
+- Kept the input-validation seam explicit instead of leaving provisioning semantics in the HTTP entrypoint:
+  - ubuntu-beagle provisioning still owns the create/update/finalize lifecycle
+  - the new service only owns canonical validation and preset/package expansion rules shared by provisioning and profile synthesis
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/ubuntu_beagle_inputs.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - usernames, passwords, locale, and keymap still validate against the same rules and defaults
+  - desktop aliases still resolve to the same desktop descriptors
+  - package preset validation and final package expansion still preserve the existing dedupe/order semantics
+- `beagle-control-plane.py` dropped from `3508` to `3470` lines with this slice, and the host-side extracted-service module count moved from `22` to `23`
+
+### 2026-04-11 — action-queue orchestration extraction
+
+- Finished the remaining queue-orchestration block inside `beagle-host/services/action_queue.py`:
+  - `ActionQueueService` now owns `queue_action(...)`, `queue_bulk_actions(...)`, and `dequeue_actions(...)` in addition to the existing queue/result path, I/O, and result-summary helpers
+  - the control-plane helper names `queue_vm_action`, `queue_bulk_actions`, and `dequeue_vm_actions` stay stable as thin wrappers, so the VM action endpoints and USB retry flows kept their existing handler surface and payload shapes
+- Kept the queue seam cohesive instead of creating a second queue service:
+  - queue file I/O and result storage were already in `ActionQueueService`
+  - action-id generation, timestamping, duplicate-VM suppression for bulk queues, and queue-drain behavior now live in the same service boundary
+- Smoke-tested the expanded queue service outside the server loop:
+  - action IDs still increment with queue depth
+  - bulk queueing still deduplicates VMIDs and skips missing VMs
+  - dequeue still returns the current queue and clears it on disk
+- `beagle-control-plane.py` dropped further from `3470` to `3447` lines with this slice; the host-side extracted-service module count stays at `23` because the work moved under the existing `ActionQueueService`
+
 ### 2026-04-11 — installer template patching extraction
 
 - Extracted the installer template/default rewrite block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/installer_template_patch.py`:

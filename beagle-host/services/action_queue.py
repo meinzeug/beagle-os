@@ -10,12 +10,18 @@ class ActionQueueService:
         self,
         *,
         actions_dir: Callable[[], Path],
+        find_vm: Callable[[int], Any | None],
         load_json_file: Callable[[Path, Any], Any],
         safe_slug: Callable[[str, str], str],
+        time_now_epoch: Callable[[], float],
+        utcnow: Callable[[], str],
     ) -> None:
         self._actions_dir = actions_dir
+        self._find_vm = find_vm
         self._load_json_file = load_json_file
         self._safe_slug = safe_slug
+        self._time_now_epoch = time_now_epoch
+        self._utcnow = utcnow
 
     def queue_path(self, node: str, vmid: int) -> Path:
         safe_node = self._safe_slug(node, "unknown")
@@ -31,6 +37,52 @@ class ActionQueueService:
 
     def save_queue(self, node: str, vmid: int, queue: list[dict[str, Any]]) -> None:
         self.queue_path(node, vmid).write_text(json.dumps(queue, indent=2) + "\n", encoding="utf-8")
+
+    def queue_action(
+        self,
+        vm: Any,
+        action_name: str,
+        requested_by: str,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        queue = self.load_queue(vm.node, vm.vmid)
+        action_id = f"{vm.node}-{vm.vmid}-{int(self._time_now_epoch())}-{len(queue) + 1}"
+        payload = {
+            "action_id": action_id,
+            "action": action_name,
+            "vmid": vm.vmid,
+            "node": vm.node,
+            "requested_at": self._utcnow(),
+            "requested_by": requested_by,
+        }
+        if isinstance(params, dict) and params:
+            payload["params"] = params
+        queue.append(payload)
+        self.save_queue(vm.node, vm.vmid, queue)
+        return payload
+
+    def queue_bulk_actions(
+        self,
+        vmids: list[int],
+        action_name: str,
+        requested_by: str,
+    ) -> list[dict[str, Any]]:
+        queued: list[dict[str, Any]] = []
+        seen: set[int] = set()
+        for vmid in vmids:
+            if vmid in seen:
+                continue
+            seen.add(vmid)
+            vm = self._find_vm(vmid)
+            if vm is None:
+                continue
+            queued.append(self.queue_action(vm, action_name, requested_by))
+        return queued
+
+    def dequeue_actions(self, node: str, vmid: int) -> list[dict[str, Any]]:
+        queue = self.load_queue(node, vmid)
+        self.save_queue(node, vmid, [])
+        return queue
 
     def load_result(self, node: str, vmid: int) -> dict[str, Any] | None:
         payload = self._load_json_file(self.result_path(node, vmid), None)

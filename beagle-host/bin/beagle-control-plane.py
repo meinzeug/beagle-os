@@ -50,6 +50,7 @@ from registry import create_provider, list_providers, normalize_provider_kind
 from sunshine_access_token_store import SunshineAccessTokenStoreService
 from sunshine_integration import SunshineIntegrationService
 from support_bundle_store import SupportBundleStoreService
+from ubuntu_beagle_inputs import UbuntuBeagleInputsService
 from ubuntu_beagle_state import UbuntuBeagleStateService
 from ubuntu_beagle_provisioning import UbuntuBeagleProvisioningService
 from update_feed import UpdateFeedService
@@ -564,6 +565,7 @@ POLICY_NORMALIZATION_SERVICE: PolicyNormalizationService | None = None
 POLICY_STORE_SERVICE: PolicyStoreService | None = None
 PUBLIC_STREAM_SERVICE: PublicStreamService | None = None
 SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
+UBUNTU_BEAGLE_INPUTS_SERVICE: UbuntuBeagleInputsService | None = None
 UBUNTU_BEAGLE_STATE_SERVICE: UbuntuBeagleStateService | None = None
 UBUNTU_BEAGLE_PROVISIONING_SERVICE: UbuntuBeagleProvisioningService | None = None
 VM_SECRET_STORE_SERVICE: VmSecretStoreService | None = None
@@ -893,8 +895,11 @@ def action_queue_service() -> ActionQueueService:
     if ACTION_QUEUE_SERVICE is None:
         ACTION_QUEUE_SERVICE = ActionQueueService(
             actions_dir=actions_dir,
+            find_vm=lambda vmid: VIRTUALIZATION_INVENTORY.find_vm(vmid),
             load_json_file=load_json_file,
             safe_slug=safe_slug,
+            time_now_epoch=lambda: datetime.now(timezone.utc).timestamp(),
+            utcnow=utcnow,
         )
     return ACTION_QUEUE_SERVICE
 
@@ -918,6 +923,20 @@ def support_bundle_store_service() -> SupportBundleStoreService:
             write_json_file=write_json_file,
         )
     return SUPPORT_BUNDLE_STORE_SERVICE
+
+
+def ubuntu_beagle_inputs_service() -> UbuntuBeagleInputsService:
+    global UBUNTU_BEAGLE_INPUTS_SERVICE
+    if UBUNTU_BEAGLE_INPUTS_SERVICE is None:
+        UBUNTU_BEAGLE_INPUTS_SERVICE = UbuntuBeagleInputsService(
+            ubuntu_beagle_default_desktop=UBUNTU_BEAGLE_DEFAULT_DESKTOP,
+            ubuntu_beagle_default_keymap=UBUNTU_BEAGLE_DEFAULT_KEYMAP,
+            ubuntu_beagle_default_locale=UBUNTU_BEAGLE_DEFAULT_LOCALE,
+            ubuntu_beagle_desktops=UBUNTU_BEAGLE_DESKTOPS,
+            ubuntu_beagle_min_password_length=UBUNTU_BEAGLE_MIN_PASSWORD_LENGTH,
+            ubuntu_beagle_software_presets=UBUNTU_BEAGLE_SOFTWARE_PRESETS,
+        )
+    return UBUNTU_BEAGLE_INPUTS_SERVICE
 
 
 def support_bundle_metadata_path(bundle_id: str) -> Path:
@@ -1390,41 +1409,15 @@ def store_action_result(node: str, vmid: int, payload: dict[str, Any]) -> None:
 
 
 def queue_vm_action(vm: VmSummary, action_name: str, requested_by: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-    queue = load_action_queue(vm.node, vm.vmid)
-    action_id = f"{vm.node}-{vm.vmid}-{int(datetime.now(timezone.utc).timestamp())}-{len(queue) + 1}"
-    payload = {
-        "action_id": action_id,
-        "action": action_name,
-        "vmid": vm.vmid,
-        "node": vm.node,
-        "requested_at": utcnow(),
-        "requested_by": requested_by,
-    }
-    if isinstance(params, dict) and params:
-        payload["params"] = params
-    queue.append(payload)
-    save_action_queue(vm.node, vm.vmid, queue)
-    return payload
+    return action_queue_service().queue_action(vm, action_name, requested_by, params)
 
 
 def queue_bulk_actions(vmids: list[int], action_name: str, requested_by: str) -> list[dict[str, Any]]:
-    queued: list[dict[str, Any]] = []
-    seen: set[int] = set()
-    for vmid in vmids:
-        if vmid in seen:
-            continue
-        seen.add(vmid)
-        vm = find_vm(vmid)
-        if vm is None:
-            continue
-        queued.append(queue_vm_action(vm, action_name, requested_by))
-    return queued
+    return action_queue_service().queue_bulk_actions(vmids, action_name, requested_by)
 
 
 def dequeue_vm_actions(node: str, vmid: int) -> list[dict[str, Any]]:
-    queue = load_action_queue(node, vmid)
-    save_action_queue(node, vmid, [])
-    return queue
+    return action_queue_service().dequeue_actions(node, vmid)
 
 
 def summarize_action_result(payload: dict[str, Any] | None) -> dict[str, Any]:
@@ -1486,93 +1479,39 @@ def safe_hostname(name: str, vmid: int) -> str:
 
 
 def validate_linux_username(value: str, field_name: str) -> str:
-    candidate = str(value or "").strip().lower()
-    if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", candidate):
-        raise ValueError(f"invalid {field_name}")
-    return candidate
+    return ubuntu_beagle_inputs_service().validate_linux_username(value, field_name)
 
 
 def validate_password(value: str, field_name: str, *, allow_empty: bool = False) -> str:
-    candidate = str(value or "")
-    if not candidate and allow_empty:
-        return ""
-    if len(candidate) < UBUNTU_BEAGLE_MIN_PASSWORD_LENGTH:
-        raise ValueError(f"{field_name} must be at least {UBUNTU_BEAGLE_MIN_PASSWORD_LENGTH} characters")
-    return candidate
+    return ubuntu_beagle_inputs_service().validate_password(
+        value,
+        field_name,
+        allow_empty=allow_empty,
+    )
 
 
 def normalize_locale(value: str) -> str:
-    candidate = str(value or "").strip() or UBUNTU_BEAGLE_DEFAULT_LOCALE
-    if not re.fullmatch(r"[A-Za-z0-9_.@-]+", candidate):
-        raise ValueError("invalid identity_locale")
-    return candidate
+    return ubuntu_beagle_inputs_service().normalize_locale(value)
 
 
 def normalize_keymap(value: str) -> str:
-    candidate = str(value or "").strip().lower() or UBUNTU_BEAGLE_DEFAULT_KEYMAP
-    if not re.fullmatch(r"[A-Za-z0-9_-]+", candidate):
-        raise ValueError("invalid identity_keymap")
-    return candidate
+    return ubuntu_beagle_inputs_service().normalize_keymap(value)
 
 
 def normalize_package_names(value: Any, *, field_name: str) -> list[str]:
-    if isinstance(value, list):
-        raw_items = value
-    else:
-        raw_items = re.split(r"[\s,]+", str(value or ""))
-    names: list[str] = []
-    seen: set[str] = set()
-    for raw_item in raw_items:
-        item = str(raw_item or "").strip().lower()
-        if not item:
-            continue
-        if not re.fullmatch(r"[a-z0-9][a-z0-9+.-]*", item):
-            raise ValueError(f"invalid {field_name}: {item}")
-        if item in seen:
-            continue
-        seen.add(item)
-        names.append(item)
-    return names
+    return ubuntu_beagle_inputs_service().normalize_package_names(value, field_name=field_name)
 
 
 def resolve_ubuntu_beagle_desktop(value: str) -> dict[str, Any]:
-    candidate = str(value or "").strip().lower()
-    if not candidate:
-        candidate = UBUNTU_BEAGLE_DEFAULT_DESKTOP
-    if candidate in UBUNTU_BEAGLE_DESKTOPS:
-        return UBUNTU_BEAGLE_DESKTOPS[candidate]
-    for desktop in UBUNTU_BEAGLE_DESKTOPS.values():
-        aliases = [str(item).strip().lower() for item in desktop.get("aliases", []) if str(item).strip()]
-        if candidate == str(desktop.get("label", "")).strip().lower() or candidate in aliases:
-            return desktop
-    raise ValueError(f"unsupported desktop: {candidate}")
+    return ubuntu_beagle_inputs_service().resolve_ubuntu_beagle_desktop(value)
 
 
 def normalize_package_presets(value: Any) -> list[str]:
-    presets = normalize_package_names(value, field_name="package_presets")
-    supported = set(UBUNTU_BEAGLE_SOFTWARE_PRESETS.keys())
-    unknown = [item for item in presets if item not in supported]
-    if unknown:
-        raise ValueError(f"unsupported package presets: {', '.join(unknown)}")
-    return presets
+    return ubuntu_beagle_inputs_service().normalize_package_presets(value)
 
 
 def expand_software_packages(package_presets: list[str], extra_packages: list[str]) -> list[str]:
-    packages: list[str] = []
-    seen: set[str] = set()
-    for preset_id in package_presets:
-        preset = UBUNTU_BEAGLE_SOFTWARE_PRESETS.get(preset_id, {})
-        for package_name in preset.get("packages", []) if isinstance(preset, dict) else []:
-            candidate = str(package_name or "").strip().lower()
-            if candidate and candidate not in seen:
-                seen.add(candidate)
-                packages.append(candidate)
-    for package_name in extra_packages:
-        candidate = str(package_name or "").strip().lower()
-        if candidate and candidate not in seen:
-            seen.add(candidate)
-            packages.append(candidate)
-    return packages
+    return ubuntu_beagle_inputs_service().expand_software_packages(package_presets, extra_packages)
 
 
 def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
@@ -1585,7 +1524,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             current_public_stream_host=current_public_stream_host,
             default_usb_tunnel_port=default_usb_tunnel_port,
             ensure_vm_secret=ensure_vm_secret,
-            expand_software_packages=expand_software_packages,
+            expand_software_packages=ubuntu_beagle_inputs_service().expand_software_packages,
             find_vm=find_vm,
             get_vm_config=get_vm_config,
             invalidate_vm_cache=invalidate_vm_cache,
@@ -1596,16 +1535,16 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             local_iso_dir=Path("/var/lib/vz/template/iso"),
             make_vm_summary=lambda **kwargs: VmSummary(**kwargs),
             manager_pinned_pubkey=MANAGER_PINNED_PUBKEY,
-            normalize_keymap=normalize_keymap,
-            normalize_locale=normalize_locale,
-            normalize_package_names=normalize_package_names,
-            normalize_package_presets=normalize_package_presets,
+            normalize_keymap=ubuntu_beagle_inputs_service().normalize_keymap,
+            normalize_locale=ubuntu_beagle_inputs_service().normalize_locale,
+            normalize_package_names=ubuntu_beagle_inputs_service().normalize_package_names,
+            normalize_package_presets=ubuntu_beagle_inputs_service().normalize_package_presets,
             provider=HOST_PROVIDER,
             public_ubuntu_beagle_complete_url=public_ubuntu_beagle_complete_url,
             random_pin=random_pin,
             random_secret=random_secret,
             reconcile_public_streams_script=ROOT_DIR / "scripts" / "reconcile-public-streams.sh",
-            resolve_ubuntu_beagle_desktop=resolve_ubuntu_beagle_desktop,
+            resolve_ubuntu_beagle_desktop=ubuntu_beagle_inputs_service().resolve_ubuntu_beagle_desktop,
             run_checked=run_checked,
             safe_hostname=safe_hostname,
             safe_slug=safe_slug,
@@ -1638,8 +1577,8 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             ubuntu_beagle_sunshine_url=UBUNTU_BEAGLE_SUNSHINE_URL,
             ubuntu_beagle_tokens_dir=ubuntu_beagle_tokens_dir,
             utcnow=utcnow,
-            validate_linux_username=validate_linux_username,
-            validate_password=validate_password,
+            validate_linux_username=ubuntu_beagle_inputs_service().validate_linux_username,
+            validate_password=ubuntu_beagle_inputs_service().validate_password,
         )
     return UBUNTU_BEAGLE_PROVISIONING_SERVICE
 
@@ -1722,7 +1661,7 @@ def vm_profile_service() -> VmProfileService:
         VM_PROFILE_SERVICE = VmProfileService(
             allocate_public_stream_base_port=allocate_public_stream_base_port,
             current_public_stream_host=current_public_stream_host,
-            expand_software_packages=expand_software_packages,
+            expand_software_packages=ubuntu_beagle_inputs_service().expand_software_packages,
             find_vm=lambda vmid: VIRTUALIZATION_INVENTORY.find_vm(vmid),
             first_guest_ipv4=first_guest_ipv4,
             get_vm_config=get_vm_config,
@@ -1735,7 +1674,7 @@ def vm_profile_service() -> VmProfileService:
             public_installer_iso_url=download_metadata_service().public_installer_iso_url,
             public_manager_url=PUBLIC_MANAGER_URL,
             resolve_public_stream_host=resolve_public_stream_host,
-            resolve_ubuntu_beagle_desktop=resolve_ubuntu_beagle_desktop,
+            resolve_ubuntu_beagle_desktop=ubuntu_beagle_inputs_service().resolve_ubuntu_beagle_desktop,
             safe_hostname=safe_hostname,
             stream_ports=stream_ports,
             truthy=truthy,
