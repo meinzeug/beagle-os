@@ -2,6 +2,32 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — USB runtime action helper extraction
+
+- Removed the remaining `usbip` daemon/bind/tunnel orchestration block from `thin-client-assistant/runtime/beagle-usbctl.sh`:
+  - added `thin-client-assistant/runtime/beagle_usb_runtime_actions.sh` for `usbipd` process/binary accessors, daemon restart handling, exportable-device detection, bound-device resync, bind/unbind orchestration, list/status JSON dispatch, and the SSH tunnel daemon exec path
+  - `thin-client-assistant/runtime/beagle-usbctl.sh` now sources that helper instead of carrying daemon lifecycle, `usbip bind`/`unbind`, service restart, and tunnel exec logic inline
+- This completes the main `beagle-usbctl.sh` reduction:
+  - `thin-client-assistant/runtime/beagle-usbctl.sh` is now down to about `38` lines
+  - the entrypoint is now just runtime-config loading plus command dispatch into the extracted USB runtime helpers
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/beagle-usbctl.sh thin-client-assistant/runtime/beagle_usb_runtime_state.sh thin-client-assistant/runtime/beagle_usb_runtime_actions.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `sync_bound_devices()` with stubbed `usbip`, `usbipd`, `pgrep`, `pkill`, `modprobe`, and `sleep`
+  - focused smoke test for `bind_usb_device()` / `unbind_usb_device()` with stubbed `usbip`, `usbipd`, `pgrep`, `pkill`, `modprobe`, `systemctl`, and `sleep`
+
+### 2026-04-11 — USB runtime state helper extraction
+
+- Removed the USB runtime state/tunnel-status/payload-shaping block from `thin-client-assistant/runtime/beagle-usbctl.sh`:
+  - added `thin-client-assistant/runtime/beagle_usb_runtime_state.sh` for USB state-path resolution, persisted bound-busid state reads/writes, enabled/tunnel env accessors, tunnel-state detection, local USB inventory JSON shaping, and list/status payload rendering
+  - `thin-client-assistant/runtime/beagle-usbctl.sh` now sources that helper instead of mixing state I/O, JSON generation, tunnel-status checks, and payload shaping with the command flow
+- This is the first real split of the USB runtime entrypoint:
+  - `thin-client-assistant/runtime/beagle-usbctl.sh` dropped to about `135` lines on the first slice before the follow-up action-helper extraction completed the reduction
+  - the extracted helper keeps the USB state contract explicit and smoke-testable with temporary state roots and stubbed `usbip` / `pgrep`
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/beagle-usbctl.sh thin-client-assistant/runtime/beagle_usb_runtime_state.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `write_state()`, `state_bound_busids()`, `bound_add()`, and `bound_remove()` with a temporary `BEAGLE_USB_STATE_DIR`
+  - focused smoke test for `list_local_usb_json()`, `render_usb_list_json()`, `render_usb_status_json()`, and `is_tunnel_running()` with stubbed `usbip` and `pgrep`
+
 ### 2026-04-11 — Moonlight config/state helper extraction
 
 - Removed the local Moonlight config/certificate/bootstrap block from `thin-client-assistant/runtime/moonlight_pairing.sh`:
