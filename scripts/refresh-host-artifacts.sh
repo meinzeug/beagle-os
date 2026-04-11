@@ -6,6 +6,7 @@ CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-$CONFIG_DIR/host.env}"
 STATUS_DIR="${PVE_DCV_STATUS_DIR:-/var/lib/beagle}"
 REFRESH_STATUS_FILE="$STATUS_DIR/refresh.status.json"
+BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-proxmox}"
 
 START_TS="$(date +%s)"
 STATUS_RESULT="failed"
@@ -51,6 +52,7 @@ ensure_root() {
     exec sudo \
       PVE_DCV_CONFIG_DIR="$CONFIG_DIR" \
       PVE_DCV_HOST_ENV_FILE="$HOST_ENV_FILE" \
+      BEAGLE_HOST_PROVIDER="$BEAGLE_HOST_PROVIDER" \
       "$0" "$@"
   fi
 
@@ -74,6 +76,7 @@ export PVE_DCV_PROXY_SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/
 export PVE_DCV_PROXY_LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-8443}"
 export PVE_DCV_DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/beagle-downloads}"
 export PVE_DCV_DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-https://${PVE_DCV_PROXY_SERVER_NAME}:${PVE_DCV_PROXY_LISTEN_PORT}${PVE_DCV_DOWNLOADS_PATH}}"
+export BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-proxmox}"
 
 "$ROOT_DIR/scripts/package.sh"
 "$ROOT_DIR/scripts/prepare-host-downloads.sh"

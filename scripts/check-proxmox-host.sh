@@ -15,6 +15,7 @@ STATUS_JSON_FILE="$INSTALL_DIR/dist/beagle-downloads-status.json"
 REFRESH_STATUS_FILE="${PVE_DCV_STATUS_DIR:-/var/lib/beagle}/refresh.status.json"
 BEAGLE_MANAGER_ENV_FILE="${PVE_DCV_BEAGLE_MANAGER_ENV_FILE:-$CONFIG_DIR/beagle-manager.env}"
 BEAGLE_API_TOKEN=""
+BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-proxmox}"
 USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-beagle}"
 USB_TUNNEL_HOME="${BEAGLE_USB_TUNNEL_HOME:-}"
 USB_TUNNEL_AUTH_ROOT="${BEAGLE_USB_TUNNEL_AUTH_ROOT:-/var/lib/beagle/usb-tunnel/$USB_TUNNEL_USER}"
@@ -36,6 +37,7 @@ load_host_env() {
     # shellcheck disable=SC1090
     source "$BEAGLE_MANAGER_ENV_FILE"
     BEAGLE_API_TOKEN="${BEAGLE_MANAGER_API_TOKEN:-}"
+    BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-$BEAGLE_HOST_PROVIDER}"
   fi
   USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-$USB_TUNNEL_USER}"
   USB_TUNNEL_HOME="${BEAGLE_USB_TUNNEL_HOME:-$USB_TUNNEL_HOME}"
@@ -203,6 +205,9 @@ check_file "/etc/nginx/sites-available/beagle-proxy.conf"
 check_file "/etc/systemd/system/beagle-ui-reapply.service"
 check_file "/etc/systemd/system/beagle-ui-reapply.path"
 check_file "/etc/systemd/system/beagle-control-plane.service"
+check_file "$INSTALL_DIR/beagle-host/providers/registry.py"
+check_file "$INSTALL_DIR/beagle-host/providers/host_provider_contract.py"
+check_file "$INSTALL_DIR/beagle-host/providers/${BEAGLE_HOST_PROVIDER}_host_provider.py"
 check_file "$INSTALL_DIR/beagle-host/bin/beagle-usb-tunnel-session"
 check_file "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
 check_file "/etc/ssh/sshd_config.d/90-beagle-usb-tunnel.conf"
@@ -211,6 +216,13 @@ if id "$USB_TUNNEL_USER" >/dev/null 2>&1; then
   echo "OK  user  $USB_TUNNEL_USER"
 else
   echo "ERR user  $USB_TUNNEL_USER"
+  record_failure
+fi
+
+if [[ -n "$BEAGLE_HOST_PROVIDER" ]]; then
+  echo "OK  cfg   BEAGLE_HOST_PROVIDER=$BEAGLE_HOST_PROVIDER"
+else
+  echo "ERR cfg   BEAGLE_HOST_PROVIDER is empty"
   record_failure
 fi
 

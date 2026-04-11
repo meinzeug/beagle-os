@@ -819,3 +819,15 @@ Decision:
 Reason:
 
 - The first script-provider slice already moved read paths and low-level exec/write commands behind `scripts/lib/beagle_provider.py`, but the shell scripts still duplicated the provider-specific polling and raw-payload parsing needed to turn guest exec into a synchronous result. That kept Proxmox execution semantics spread across multiple scripts. Moving the wait loop into the helper keeps the provider contract explicit, reduces duplicate shell logic, and narrows the remaining direct `qm` compatibility paths.
+
+### D73. Host-provider registry and deploy/runtime env should be provider-aware before a second provider exists
+
+Decision:
+
+- Convert `beagle-host/providers/registry.py` from direct concrete-provider imports to lazy module loading through registry metadata.
+- Persist `BEAGLE_HOST_PROVIDER` through the host install/runtime env files and the related refresh/check surfaces instead of treating provider selection as an in-process control-plane detail only.
+- Keep the current concrete implementation as Proxmox, but make the bootstrap path ready for an additional provider or test provider without reworking import wiring and host env propagation first.
+
+Reason:
+
+- Provider-neutrality is not real if the control plane can choose a provider but the surrounding install/runtime surfaces silently assume one concrete backend and the registry itself directly imports that backend at module import time. Lazy loading plus persisted provider selection reduces that coupling now and lowers the cost of introducing `providers/beagle/` or a conformance mock later.
