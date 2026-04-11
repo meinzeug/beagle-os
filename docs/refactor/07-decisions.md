@@ -1269,3 +1269,14 @@ Decision:
 Reason:
 
 - Once the desktop integration block moved out, the remainder of `install-geforcenow.sh` still mixed installer orchestration with low-level flatpak execution policy and scope parsing. That logic is cohesive, testable with a stubbed `flatpak` binary, and shared conceptually with the runtime launcher. Extracting it completes the main reduction of the GeForce NOW installer wrapper and removes another duplicated scope parser from the runtime layer.
+
+### D110. Systemd/getty/bootstrap unit management should leave `runtime_bootstrap_services.sh`
+
+Decision:
+
+- Keep `systemctl`/boot-mode path resolution, getty override path accessors, USB tunnel service control, Beagle management unit activation, getty override installation, and boot-service normalization in `thin-client-assistant/runtime/runtime_systemd_bootstrap.sh`.
+- `runtime_bootstrap_services.sh` should source that helper instead of carrying the systemd/getty/bootstrap unit logic inline.
+
+Reason:
+
+- After the USB and GeForce NOW installer wrappers were reduced, `runtime_bootstrap_services.sh` remained one of the larger runtime helpers and still mixed two distinct concerns: SSH policy/host-key handling and systemd/getty/boot-mode service normalization. The systemd side is cohesive, operationally separate, and already had a natural smoke-test seam with stubbed `systemctl` and boot-mode commands. Pulling it out keeps the bootstrap layer aligned with the same “thin orchestrator + focused helpers” pattern used elsewhere in the runtime stack.
