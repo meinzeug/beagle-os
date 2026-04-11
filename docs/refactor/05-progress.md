@@ -2,6 +2,22 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — installer-prep and sunshine-readiness extraction
+
+- Extracted the installer-prep / Sunshine-readiness helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/installer_prep.py`:
+  - `InstallerPrepService` now owns `prep_dir`, `state_path`, `log_path`, `load_state`, `quick_sunshine_status`, `default_state`, `summarize_state`, `is_running`, and `start`
+  - the control-plane helper names (`installer_prep_dir`, `installer_prep_path`, `installer_prep_log_path`, `load_installer_prep_state`, `quick_sunshine_status`, `default_installer_prep_state`, `summarize_installer_prep_state`, `installer_prep_running`, `start_installer_prep`) stay stable as thin wrappers, so HTTP handlers and `VmStateService` wiring did not need signature changes
+- Wired the new service into the existing seams:
+  - `VmStateService` continues to consume the same wrappers, which now delegate into `InstallerPrepService`
+  - installer-prep HTTP read/start handlers still call the same helpers, but the state-path, Sunshine probing, default/summary shaping, and background-script launch logic no longer live in the control-plane entrypoint
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/installer_prep.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - state and log paths still resolve to `<node>-<vmid>.json` / `.log`
+  - `quick_sunshine_status()` still parses the guest JSON probe into `{binary, service, process}`
+  - a ready VM produces the expected `ready` default state, and `start()` writes the bootstrapped `running` state plus launches the prep script with the expected environment
+  - an unsupported VM still returns the `unsupported` state without trying to spawn the prep script
+- `beagle-control-plane.py` dropped from about `4955` to about `4840` lines with this slice, and the host-side extracted-service count moved from 15 to 16
+
 ### 2026-04-11 — vm-secret bootstrap extraction
 
 - Extracted the higher-level VM-secret bootstrap/orchestration block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/vm_secret_bootstrap.py`:
@@ -16,7 +32,7 @@
   - a new VM secret gets the expected generated Sunshine credentials, tunnel keypair, tunnel port, pinned pubkey, and managed `authorized_keys` block
   - an existing incomplete secret record gets the missing fields backfilled without changing the wrapper surface
   - `usb_tunnel_known_host_line()` still emits the combined public-server/public-stream host line from the configured hostkey file
-- `beagle-control-plane.py` dropped from about `5072` to about `4955` lines with this slice, and the host-side extracted-service count moved from 14 to 15
+- `beagle-control-plane.py` dropped from about `5072` to about `4955` lines with that slice, and a later installer-prep extraction reduced it further to about `4840`
 
 ### 2026-04-11 — download/artifact metadata extraction
 
