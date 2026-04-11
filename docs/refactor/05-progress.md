@@ -1,5 +1,35 @@
 # Refactor Progress
 
+### 2026-04-11 — generic host health-check entrypoint extraction
+
+- Moved the post-install host validation bootstrap behind a provider-neutral script entrypoint:
+  - added `scripts/check-beagle-host.sh` as the canonical generic host health-check entrypoint
+  - reduced `scripts/check-proxmox-host.sh` to a compatibility wrapper that delegates to `check-beagle-host.sh`
+  - rewired `scripts/setup-beagle-host.sh`, the README quick-start, and the thin-client installation guide to invoke `check-beagle-host.sh`
+- This completes the top-level install/setup/check naming seam for the host bootstrap path without removing current Proxmox compatibility:
+  - provider-specific health assertions inside the check script remain unchanged for now
+  - the canonical operator-facing validation path is no longer hard-coded to Proxmox naming
+- Validation and smoke checks for this slice passed:
+  - `bash -n scripts/install-beagle-host.sh scripts/install-proxmox-host.sh scripts/setup-beagle-host.sh scripts/setup-proxmox-host.sh scripts/check-beagle-host.sh scripts/check-proxmox-host.sh server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+  - focused smoke check that the legacy wrapper scripts delegate to the new generic install/setup/check entrypoints
+  - `./scripts/validate-project.sh`
+
+### 2026-04-11 — generic host-installer entrypoint extraction
+
+- Moved the host installer bootstrap behind a provider-neutral script entrypoint:
+  - added `scripts/install-beagle-host.sh` as the canonical generic host installer entrypoint
+  - reduced `scripts/install-proxmox-host.sh` to a compatibility wrapper that delegates to `install-beagle-host.sh`
+  - added `scripts/setup-beagle-host.sh` as the canonical generic setup/check entrypoint
+  - reduced `scripts/setup-proxmox-host.sh` to a compatibility wrapper that delegates to `setup-beagle-host.sh`
+  - rewired `server-installer/live-build/.../beagle-server-installer` to invoke `install-beagle-host.sh` while still passing `BEAGLE_HOST_PROVIDER='proxmox'`
+- This moves the operator/bootstrap naming one step closer to a provider-neutral server ISO without removing current Proxmox compatibility:
+  - provider-specific adapters such as `install-proxmox-host-services.sh` and `install-proxmox-ui-integration.sh` stay explicit
+  - the top-level host install/setup path is no longer hard-coded to Proxmox naming
+- Validation and smoke checks for this slice passed:
+  - `bash -n scripts/install-beagle-host.sh scripts/install-proxmox-host.sh scripts/setup-beagle-host.sh scripts/setup-proxmox-host.sh server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+  - focused smoke check that the legacy wrapper scripts delegate to the new generic entrypoints
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-11 — Moonlight host-resolution helper extraction
 
 - Removed the IPv4/preferred-host resolution block from `thin-client-assistant/runtime/moonlight_connect_host.sh`:
