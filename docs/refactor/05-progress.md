@@ -2,6 +2,24 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — host-provider registry lazy loading and runtime env threading
+
+- Continued the provider-abstraction work across deploy/install/runtime boundaries instead of leaving provider selection as a control-plane-only detail:
+  - `beagle-host/providers/registry.py` no longer imports `ProxmoxHostProvider` directly at module import time
+  - the registry now supports lazy provider-module loading through `register_provider_module(...)` and resolves concrete provider factories only when `create_provider(...)` is called
+  - `list_providers()` now reflects both eagerly registered factories and module-registered providers, which makes the registry ready for additional providers without re-centralizing import wiring
+- Threaded `BEAGLE_HOST_PROVIDER` through the host install/runtime scripts:
+  - `scripts/install-proxmox-host.sh` now carries `BEAGLE_HOST_PROVIDER` through sudo escalation, records it in `/etc/beagle/host.env`, and passes it into `install-proxmox-host-services.sh`
+  - `scripts/install-proxmox-host-services.sh` now preserves `BEAGLE_HOST_PROVIDER` through sudo escalation and writes it into `/etc/beagle/beagle-manager.env`
+  - `scripts/refresh-host-artifacts.sh` now preserves and exports `BEAGLE_HOST_PROVIDER` so refresh/package paths run under the same host-provider selection
+  - `scripts/check-proxmox-host.sh` now validates the selected provider config and checks that the matching runtime provider file is installed alongside the registry and contract files
+  - `scripts/setup-proxmox-host.sh` usage text now documents `BEAGLE_HOST_PROVIDER` explicitly so operator flows stop treating provider selection as an undocumented hidden input
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile beagle-host/providers/registry.py`
+  - `bash -n scripts/install-proxmox-host.sh scripts/install-proxmox-host-services.sh scripts/check-proxmox-host.sh scripts/refresh-host-artifacts.sh scripts/setup-proxmox-host.sh`
+  - focused smoke checks for lazy registry module loading and provider creation
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-11 — script-side sync guest-exec provider seam
 
 - Extended `scripts/lib/beagle_provider.py` with a synchronous guest-exec contract:

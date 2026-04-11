@@ -622,6 +622,7 @@ These flows now go through provider-backed services first:
 These flows now go through provider-backed services first:
 
 - host bootstrap and host-provider selection through `beagle-host/providers/registry.py` and `beagle-host/providers/host_provider_contract.py`
+- host-provider registry resolution now lazy-loads provider modules instead of directly importing one concrete provider at registry import time
 - VM listing, node listing, guest IPv4 lookup, VM config lookup, and bridge inventory through `beagle-host/services/virtualization_inventory.py`
 - endpoint compliance evaluation and VM-state composition through `beagle-host/services/vm_state.py`
 - VM profile synthesis, assignment resolution, policy matching, public-stream derivation, and VM fingerprint assessment through `beagle-host/services/vm_profile.py`
@@ -713,6 +714,13 @@ These flows now go through a provider-facing helper seam first:
 - `scripts/lib/beagle_provider.py` is now the shared script-side read and first-write/exec seam, but it still only implements the Proxmox backend today.
 - several scripts still execute `qm`/`pvesh` directly for fallback compatibility, install flows, or unreached write paths and should move to provider helpers incrementally.
 - the clearest remaining direct script couplings are now the reduced compatibility branches retained in `scripts/configure-sunshine-guest.sh`, `scripts/ensure-vm-stream-ready.sh`, and `scripts/optimize-proxmox-vm-for-beagle.sh`, plus any still-unreached install/runtime write flows
+
+### Deploy / runtime provider threading
+
+- `scripts/install-proxmox-host.sh` now records `BEAGLE_HOST_PROVIDER` into `host.env` and passes it into `install-proxmox-host-services.sh`
+- `scripts/install-proxmox-host-services.sh` now writes `BEAGLE_HOST_PROVIDER` into `beagle-manager.env`
+- `scripts/refresh-host-artifacts.sh` and `scripts/check-proxmox-host.sh` now run under the same selected host-provider kind
+- this does not make Proxmox optional yet, but it removes another hidden assumption that provider choice only exists inside the Python control-plane process
 
 ### Thin-client Proxmox access
 
