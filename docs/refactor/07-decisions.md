@@ -1175,3 +1175,15 @@ Decision:
 Reason:
 
 - After the other prepare-runtime slices moved out, the remaining inline logic was no longer business logic but wrapper behavior around the ordered prepare flow. Grouping those pieces into one helper reduces the entrypoint to orchestration and avoids leaving another small monolith of retry/UI-wrapper behavior behind.
+
+### D102. Network backend config-file and restart logic should leave `apply-network-config.sh`
+
+Decision:
+
+- Keep networkd file writing, NetworkManager connection writing, DNS server resolution, `resolv.conf` management, and backend restart/reload helpers in `thin-client-assistant/runtime/runtime_network_backend.sh`.
+- `apply-network-config.sh` should source that helper instead of carrying backend config-file and restart logic inline.
+- `apply-network-config.sh` should reuse `load_runtime_config_with_retry()` from `runtime_prepare_flow.sh` instead of keeping another local copy of the same retry wrapper.
+
+Reason:
+
+- Once `prepare-runtime.sh` became thin, `apply-network-config.sh` became the next runtime shell monolith. Its backend write/restart layer was cohesive, testable with temp paths and stubbed service binaries, and independent from the remaining interface/route wait logic. Pulling that block out continues the same reduction strategy and avoids duplicating the config-retry wrapper across runtime entrypoints.
