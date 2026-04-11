@@ -42,6 +42,7 @@ from installer_script import InstallerScriptService
 from policy_store import PolicyStoreService
 from registry import create_provider, list_providers, normalize_provider_kind
 from support_bundle_store import SupportBundleStoreService
+from ubuntu_beagle_state import UbuntuBeagleStateService
 from update_feed import UpdateFeedService
 from virtualization_inventory import VirtualizationInventoryService
 from vm_profile import VmProfileService
@@ -594,6 +595,7 @@ ENDPOINT_REPORT_SERVICE: EndpointReportService | None = None
 ACTION_QUEUE_SERVICE: ActionQueueService | None = None
 POLICY_STORE_SERVICE: PolicyStoreService | None = None
 SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
+UBUNTU_BEAGLE_STATE_SERVICE: UbuntuBeagleStateService | None = None
 
 
 def endpoints_dir() -> Path:
@@ -652,25 +654,33 @@ def sunshine_access_tokens_dir() -> Path:
     return path
 
 
+def ubuntu_beagle_state_service() -> UbuntuBeagleStateService:
+    global UBUNTU_BEAGLE_STATE_SERVICE
+    if UBUNTU_BEAGLE_STATE_SERVICE is None:
+        UBUNTU_BEAGLE_STATE_SERVICE = UbuntuBeagleStateService(
+            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            load_json_file=load_json_file,
+            write_json_file=write_json_file,
+            safe_slug=safe_slug,
+            ubuntu_beagle_profile_id=UBUNTU_BEAGLE_PROFILE_ID,
+        )
+    return UBUNTU_BEAGLE_STATE_SERVICE
+
+
 def ubuntu_beagle_tokens_dir() -> Path:
-    path = EFFECTIVE_DATA_DIR / "ubuntu-beagle-install"
-    path.mkdir(parents=True, exist_ok=True)
-    os.chmod(path, 0o700)
-    return path
+    return ubuntu_beagle_state_service().tokens_dir()
 
 
 def ubuntu_beagle_token_path(token: str) -> Path:
-    return ubuntu_beagle_tokens_dir() / f"{safe_slug(token, 'token')}.json"
+    return ubuntu_beagle_state_service().token_path(token)
 
 
 def load_ubuntu_beagle_state(token: str) -> dict[str, Any] | None:
-    payload = load_json_file(ubuntu_beagle_token_path(token), None)
-    return payload if isinstance(payload, dict) else None
+    return ubuntu_beagle_state_service().load(token)
 
 
 def save_ubuntu_beagle_state(token: str, payload: dict[str, Any]) -> dict[str, Any]:
-    write_json_file(ubuntu_beagle_token_path(token), dict(payload), mode=0o600)
-    return payload
+    return ubuntu_beagle_state_service().save(token, payload)
 
 
 def schedule_ubuntu_beagle_vm_restart(
@@ -720,79 +730,15 @@ def public_ubuntu_beagle_complete_url(token: str) -> str:
 
 
 def summarize_ubuntu_beagle_state(payload: dict[str, Any], *, include_credentials: bool = False) -> dict[str, Any]:
-    state = dict(payload) if isinstance(payload, dict) else {}
-    status = str(state.get("status", "")).strip().lower()
-    phase = str(state.get("phase", "")).strip()
-    message = str(state.get("message", "")).strip()
-    if not status:
-        if state.get("failed_at") or state.get("error"):
-            status = "failed"
-            phase = phase or "proxmox-create"
-            message = message or "Historischer Provisioning-Lauf ist fehlgeschlagen."
-        elif state.get("completed_at"):
-            status = "completed"
-            phase = phase or "complete"
-            message = message or "Historischer Provisioning-Lauf wurde abgeschlossen."
-        elif state.get("started"):
-            status = "installing"
-            phase = phase or "autoinstall"
-            message = message or "Ubuntu wird installiert."
-        else:
-            status = "created"
-            phase = phase or "awaiting-start"
-            message = message or "VM ist angelegt und wartet auf den Start."
-    summary = {
-        "token": str(state.get("token", "")).strip(),
-        "vmid": int(state.get("vmid", 0) or 0),
-        "node": str(state.get("node", "")).strip(),
-        "name": str(state.get("name", "")).strip(),
-        "hostname": str(state.get("hostname", "")).strip(),
-        "os_profile": str(state.get("os_profile", UBUNTU_BEAGLE_PROFILE_ID)).strip() or UBUNTU_BEAGLE_PROFILE_ID,
-        "guest_user": str(state.get("guest_user", "")).strip(),
-        "status": status,
-        "phase": phase,
-        "message": message,
-        "started": bool(state.get("started", False)),
-        "created_at": str(state.get("created_at", "")).strip(),
-        "updated_at": str(state.get("updated_at", "")).strip(),
-        "completed_at": str(state.get("completed_at", "")).strip(),
-        "failed_at": str(state.get("failed_at", "")).strip(),
-        "error": str(state.get("error", "")).strip(),
-        "disk_storage": str(state.get("disk_storage", "")).strip(),
-        "iso_storage": str(state.get("iso_storage", "")).strip(),
-        "bridge": str(state.get("bridge", "")).strip(),
-        "public_stream": state.get("public_stream") if isinstance(state.get("public_stream"), dict) else None,
-        "cleanup": state.get("cleanup") if isinstance(state.get("cleanup"), dict) else None,
-        "host_restart": state.get("host_restart") if isinstance(state.get("host_restart"), dict) else None,
-        "host_restart_cancelled": state.get("host_restart_cancelled") if isinstance(state.get("host_restart_cancelled"), dict) else None,
-    }
-    if include_credentials:
-        summary["credentials"] = {
-            "guest_user": str(state.get("guest_user", "")).strip(),
-            "guest_password": str(state.get("guest_password", "")).strip(),
-            "sunshine_user": str(state.get("sunshine_user", "")).strip(),
-            "sunshine_password": str(state.get("sunshine_password", "")).strip(),
-        }
-    return summary
+    return ubuntu_beagle_state_service().summarize(payload, include_credentials=include_credentials)
 
 
 def list_ubuntu_beagle_states(*, include_credentials: bool = False) -> list[dict[str, Any]]:
-    items: list[dict[str, Any]] = []
-    for path in sorted(ubuntu_beagle_tokens_dir().glob("*.json")):
-        payload = load_json_file(path, None)
-        if not isinstance(payload, dict):
-            continue
-        items.append(summarize_ubuntu_beagle_state(payload, include_credentials=include_credentials))
-    items.sort(key=lambda item: (str(item.get("created_at", "")), int(item.get("vmid", 0))), reverse=True)
-    return items
+    return ubuntu_beagle_state_service().list_all(include_credentials=include_credentials)
 
 
 def latest_ubuntu_beagle_state_for_vmid(vmid: int, *, include_credentials: bool = False) -> dict[str, Any] | None:
-    target = int(vmid)
-    for item in list_ubuntu_beagle_states(include_credentials=include_credentials):
-        if int(item.get("vmid", 0) or 0) == target:
-            return item
-    return None
+    return ubuntu_beagle_state_service().latest_for_vmid(vmid, include_credentials=include_credentials)
 
 
 def safe_slug(value: str, default: str = "item") -> str:
