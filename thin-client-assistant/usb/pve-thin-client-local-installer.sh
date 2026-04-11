@@ -544,6 +544,16 @@ candidate_preset_path() {
   return 1
 }
 
+local_installer_medium_mount_valid() {
+  local mount_dir="$1"
+  candidate_preset_path "$mount_dir" >/dev/null 2>&1 || candidate_live_asset_dir "$mount_dir" 1 >/dev/null 2>&1
+}
+
+local_installer_logs_medium_mount_valid() {
+  local mount_dir="$1"
+  [[ -d "$mount_dir/pve-thin-client" ]]
+}
+
 resolve_payload_url_from_manifest() {
   local manifest_file=""
 
@@ -810,49 +820,34 @@ PY
 }
 
 mount_discovered_live_medium() {
-  local device mount_dir
+  local mounted=""
+  local device=""
+  local mount_dir=""
 
-  privileged_run true >/dev/null 2>&1 || return 1
-
-  while IFS= read -r device; do
-    [[ -n "$device" ]] || continue
-    [[ -b "$device" ]] || continue
-    mount_dir="$(mktemp -d /tmp/pve-live-medium.XXXXXX)"
-    if privileged_run mount -o ro "$device" "$mount_dir" >/dev/null 2>&1; then
-      if candidate_preset_path "$mount_dir" >/dev/null 2>&1 || candidate_live_asset_dir "$mount_dir" 1 >/dev/null 2>&1; then
-        TEMP_LIVE_MEDIUM_MOUNT="$mount_dir"
-        log_msg "mounted live medium at $mount_dir from $device"
-        printf '%s\n' "$mount_dir"
-        return 0
-      fi
-      privileged_run umount "$mount_dir" >/dev/null 2>&1 || true
-    fi
-    rmdir "$mount_dir" >/dev/null 2>&1 || true
-  done < <(candidate_live_devices | awk 'NF && !seen[$0]++')
-
-  return 1
+  mounted="$(mount_candidate_live_medium ro /tmp/pve-live-medium.XXXXXX local_installer_medium_mount_valid || true)"
+  [[ -n "$mounted" ]] || return 1
+  device="${mounted%%$'\t'*}"
+  mount_dir="${mounted#*$'\t'}"
+  TEMP_LIVE_MEDIUM_MOUNT="$mount_dir"
+  log_msg "mounted live medium at $mount_dir from $device"
+  printf '%s\n' "$mount_dir"
+  return 0
 }
 
 mount_writable_live_medium_for_logs() {
-  local device mount_dir
+  local mounted=""
+  local device=""
+  local mount_dir=""
 
-  privileged_run true >/dev/null 2>&1 || return 1
-
-  while IFS= read -r device; do
-    [[ -n "$device" ]] || continue
-    [[ -b "$device" ]] || continue
-    mount_dir="$(mktemp -d /tmp/pve-live-logs.XXXXXX)"
-    if privileged_run mount -o rw "$device" "$mount_dir" >/dev/null 2>&1; then
-      if [[ -d "$mount_dir/pve-thin-client" ]]; then
-        TEMP_LOG_PERSIST_MOUNT="$mount_dir"
-        log_msg "mounted writable live medium for log persistence: $device -> $mount_dir"
-        printf '%s\n' "$mount_dir"
-        return 0
-      fi
-      privileged_run umount "$mount_dir" >/dev/null 2>&1 || true
-    fi
-    rmdir "$mount_dir" >/dev/null 2>&1 || true
-  done < <(candidate_live_devices | awk 'NF && !seen[$0]++')
+  mounted="$(mount_candidate_live_medium rw /tmp/pve-live-logs.XXXXXX local_installer_logs_medium_mount_valid || true)"
+  if [[ -n "$mounted" ]]; then
+    device="${mounted%%$'\t'*}"
+    mount_dir="${mounted#*$'\t'}"
+    TEMP_LOG_PERSIST_MOUNT="$mount_dir"
+    log_msg "mounted writable live medium for log persistence: $device -> $mount_dir"
+    printf '%s\n' "$mount_dir"
+    return 0
+  fi
 
   log_msg "mount_writable_live_medium_for_logs: no writable live medium available"
   return 1
