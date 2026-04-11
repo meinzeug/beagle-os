@@ -32,7 +32,7 @@
 - [x] Rename the generic host/control-plane repo surface from `proxmox-host/` to `beagle-host/` while keeping Proxmox compatibility bridges where needed.
 - [x] Introduce `beagle-host/providers/host_provider_contract.py` and `beagle-host/providers/registry.py` so the control plane boots through a generic host-provider seam instead of directly importing `ProxmoxHostProvider`.
 - [x] Continue splitting `proxmox-ui/beagle-ui.js` so bootstrap/catalog/profile-resolution logic lives under `proxmox-ui/provisioning/` and `proxmox-ui/state/` and `beagle-ui.js` becomes a thin entrypoint.
-- [ ] Continue inventorying remaining direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally, building on `scripts/lib/beagle_provider.py`.
+- [ ] Continue inventorying remaining direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally, building on `scripts/lib/beagle_provider.py` and the remaining guest-exec/write script flows.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.

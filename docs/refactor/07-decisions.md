@@ -674,3 +674,15 @@ Decision:
 Reason:
 
 - Once several scripts already used the first provider helper, the next duplication hotspot was no longer raw command invocation alone but repeated parsing of the same provider-backed VM description and guest-interface payloads. Growing the shared helper keeps behavior aligned across scripts and prevents the script layer from becoming a second place where provider-specific metadata rules drift apart.
+
+### D61. Remote host scripts should prefer the installed provider helper but preserve direct-command fallback
+
+Decision:
+
+- `scripts/configure-sunshine-guest.sh` should use the installed/shared provider helper on the target host for read-only VM lookups such as guest IPv4 and VM description retrieval.
+- The script should resolve that helper path explicitly, defaulting to the repo-local helper for localhost targets and `/opt/beagle/scripts/lib/beagle_provider.py` for remote installed hosts.
+- The script must keep the existing direct `qm guest cmd` / `qm config` read path as a fallback when the helper is unavailable or outdated so operator behavior does not regress on partially updated hosts.
+
+Reason:
+
+- `configure-sunshine-guest.sh` is one of the remaining places where provider-specific reads still lived behind ad-hoc SSH-wrapped `qm` calls. Reusing the installed helper keeps host-side script reads on the same abstraction path as the other migrated scripts, but the fallback is necessary because this script may run against hosts that have not yet been updated to the newest helper version.

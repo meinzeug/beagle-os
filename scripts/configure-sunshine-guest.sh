@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOCAL_PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$SCRIPT_DIR/lib/beagle_provider.py}"
+REMOTE_INSTALL_DIR="${BEAGLE_REMOTE_INSTALL_DIR:-/opt/beagle}"
+REMOTE_PROVIDER_MODULE_PATH="${BEAGLE_REMOTE_PROVIDER_MODULE_PATH:-${REMOTE_INSTALL_DIR%/}/scripts/lib/beagle_provider.py}"
+
 PROXMOX_HOST="${PROXMOX_HOST:-proxmox.local}"
 VMID="${VMID:-}"
 GUEST_USER="${GUEST_USER:-beagle}"
@@ -173,14 +178,43 @@ parse_args() {
 
 ssh_host() {
   local target="${PROXMOX_HOST:-}"
+  if is_local_host_target; then
+    bash -lc "$*"
+    return 0
+  fi
+  ssh "$target" "$@"
+}
+
+is_local_host_target() {
+  local target="${PROXMOX_HOST:-}"
   case "$target" in
     localhost|127.0.0.1|::1|"$(hostname)"|"$(hostname -f 2>/dev/null || hostname)")
-      bash -lc "$*"
+      return 0
       ;;
     *)
-      ssh "$target" "$@"
+      return 1
       ;;
   esac
+}
+
+provider_module_path_for_target() {
+  if is_local_host_target; then
+    printf '%s\n' "$LOCAL_PROVIDER_MODULE_PATH"
+    return 0
+  fi
+  printf '%s\n' "$REMOTE_PROVIDER_MODULE_PATH"
+}
+
+provider_helper_available() {
+  local module_path
+  module_path="$(provider_module_path_for_target)"
+  ssh_host "test -f '$module_path'"
+}
+
+provider_helper_exec() {
+  local module_path
+  module_path="$(provider_module_path_for_target)"
+  ssh_host "python3 '$module_path' $*"
 }
 
 qm_guest_exec_sync() {
@@ -318,6 +352,10 @@ guest_exec_script() {
 }
 
 detect_guest_ip() {
+  if provider_helper_available; then
+    provider_helper_exec "guest-ipv4 '$VMID'" 2>/dev/null && return 0
+  fi
+
   local raw_output
   raw_output="$(ssh_host "sudo /usr/sbin/qm guest cmd '$VMID' network-get-interfaces" 2>/dev/null || true)"
   python3 - "$raw_output" <<'PY'
@@ -347,6 +385,13 @@ raise SystemExit(1)
 PY
 }
 
+current_vm_description() {
+  if provider_helper_available; then
+    provider_helper_exec "vm-description '$VMID'" 2>/dev/null && return 0
+  fi
+  ssh_host "sudo /usr/sbin/qm config '$VMID'" | sed -n 's/^description: //p'
+}
+
 update_vm_metadata() {
   local guest_ip="$1"
   local stream_host="${PUBLIC_STREAM_HOST:-$guest_ip}"
@@ -358,9 +403,7 @@ update_vm_metadata() {
   else
     stream_api_url="https://${stream_host}:47990"
   fi
-  encoded_desc="$(
-    ssh_host "sudo /usr/sbin/qm config '$VMID'" | sed -n 's/^description: //p'
-  )"
+  encoded_desc="$(current_vm_description)"
 
   new_desc_b64="$(
     python3 - "$encoded_desc" "$guest_ip" "$stream_host" "$stream_port" "$stream_api_url" "$SUNSHINE_USER" "$SUNSHINE_PASSWORD" "$SUNSHINE_PIN" "$PROXMOX_USER" "$PROXMOX_PASSWORD" "$PROXMOX_TOKEN" "$GUEST_USER" "$IDENTITY_LOCALE" "$IDENTITY_KEYMAP" "$DESKTOP_ID" "$DESKTOP_LABEL" "$DESKTOP_SESSION" "$(join_csv "${PACKAGE_PRESETS[@]}")" "$(join_csv "${EXTRA_PACKAGES[@]}")" <<'PY'

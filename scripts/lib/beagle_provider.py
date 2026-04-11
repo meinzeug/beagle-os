@@ -90,15 +90,30 @@ def find_vm_record(vmid: int) -> dict[str, Any] | None:
     return None
 
 
+def vm_node(vmid: int) -> str:
+    record = find_vm_record(vmid)
+    if not isinstance(record, dict):
+        return ""
+    return str(record.get("node") or "").strip()
+
+
+def vm_description_text(node: str, vmid: int) -> str:
+    return str(vm_config(node, vmid).get("description", "") or "")
+
+
+def vm_description_text_for_vmid(vmid: int) -> str:
+    node = vm_node(vmid)
+    if not node:
+        return ""
+    return vm_description_text(node, int(vmid))
+
+
 def vm_description_meta(node: str, vmid: int) -> dict[str, str]:
-    return parse_description_meta(vm_config(node, vmid).get("description", ""))
+    return parse_description_meta(vm_description_text(node, vmid))
 
 
 def vm_description_meta_for_vmid(vmid: int) -> dict[str, str]:
-    record = find_vm_record(vmid)
-    if not isinstance(record, dict):
-        return {}
-    node = str(record.get("node") or "").strip()
+    node = vm_node(vmid)
     if not node:
         return {}
     return vm_description_meta(node, int(vmid))
@@ -119,7 +134,7 @@ def first_guest_ipv4(vmid: int) -> str:
 def _main(argv: list[str]) -> int:
     if len(argv) < 2:
         raise SystemExit(
-            "usage: beagle_provider.py <list-vms|vm-config|guest-interfaces|guest-ipv4|vm-description-meta> [args]"
+            "usage: beagle_provider.py <list-vms|vm-config|guest-interfaces|guest-ipv4|vm-node|vm-description|vm-description-meta> [args]"
         )
     command = argv[1]
     if command == "list-vms":
@@ -140,6 +155,19 @@ def _main(argv: list[str]) -> int:
             raise SystemExit("usage: beagle_provider.py guest-ipv4 <vmid>")
         print(first_guest_ipv4(int(argv[2])))
         return 0
+    if command == "vm-node":
+        if len(argv) != 3:
+            raise SystemExit("usage: beagle_provider.py vm-node <vmid>")
+        print(vm_node(int(argv[2])))
+        return 0
+    if command == "vm-description":
+        if len(argv) == 4:
+            print(vm_description_text(argv[2], int(argv[3])))
+            return 0
+        if len(argv) == 3:
+            print(vm_description_text_for_vmid(int(argv[2])))
+            return 0
+        raise SystemExit("usage: beagle_provider.py vm-description <vmid> | <node> <vmid>")
     if command == "vm-description-meta":
         if len(argv) == 4:
             print(json.dumps(vm_description_meta(argv[2], int(argv[3])), indent=2))

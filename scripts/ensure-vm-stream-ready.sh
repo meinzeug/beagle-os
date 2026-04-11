@@ -198,28 +198,7 @@ sunshine_guest_status_json() {
 }
 
 guest_ipv4() {
-  python3 - "$PROVIDER_MODULE_PATH" "$VMID" <<'PY'
-import sys
-from pathlib import Path
-
-provider_module_path = Path(sys.argv[1]).resolve()
-sys.path.insert(0, str(provider_module_path.parent))
-
-from beagle_provider import guest_interfaces
-
-vmid = int(sys.argv[2])
-
-for iface in guest_interfaces(vmid):
-    for address in iface.get("ip-addresses", []):
-        ip = str(address.get("ip-address", ""))
-        if address.get("ip-address-type") != "ipv4":
-            continue
-        if not ip or ip.startswith("127.") or ip.startswith("169.254."):
-            continue
-        print(ip)
-        raise SystemExit(0)
-raise SystemExit(1)
-PY
+  python3 "$PROVIDER_MODULE_PATH" guest-ipv4 "$VMID"
 }
 
 vm_secret_get() {
