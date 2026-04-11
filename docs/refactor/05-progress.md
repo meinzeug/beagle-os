@@ -1,5 +1,18 @@
 # Refactor Progress
 
+### 2026-04-12 — USB install-payload asset helper extraction
+
+- Removed the install-payload acquisition and install-manifest block from the local thin-client installer entrypoint:
+  - added `thin-client-assistant/usb/install_payload_assets.sh` for `resolve_payload_url_from_manifest()`, `download_install_payload_from_server()`, `prepare_install_assets()`, `resolve_install_manifest_file()`, `read_manifest_project_version()`, `resolve_install_project_version()`, and `write_install_manifest()`
+  - `thin-client-assistant/usb/pve-thin-client-local-installer.sh` now sources that helper and stays focused on disk prep, preset/runtime orchestration, and install flow control
+- This creates a clearer USB installer seam:
+  - remote payload download/fallback, manifest source resolution, and install-manifest writing now live behind one dedicated helper instead of remaining embedded in the local installer monolith
+  - the helper still consumes the existing shell/runtime collaborators (`log_msg`, `candidate_manifest_path()`, `USB_MANIFEST_HELPER`) so runtime behavior stays unchanged while the large entrypoint shrinks
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/usb/install_payload_assets.sh thin-client-assistant/usb/pve-thin-client-local-installer.sh`
+  - focused smoke test for payload-source resolution, install-manifest resolution/version selection, bundled-asset selection, and `write_install_manifest()` with temporary manifest/assets and a stubbed `log_msg`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — USB shared mount-loop extraction
 
 - Removed the duplicated live-medium mount/umount loop from the thin-client USB installer entrypoints:
