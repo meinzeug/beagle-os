@@ -45,6 +45,7 @@ from policy_store import PolicyStoreService
 from public_streams import PublicStreamService
 from registry import create_provider, list_providers, normalize_provider_kind
 from runtime_environment import RuntimeEnvironmentService
+from runtime_support import RuntimeSupportService
 from sunshine_access_token_store import SunshineAccessTokenStoreService
 from sunshine_integration import SunshineIntegrationService
 from support_bundle_store import SupportBundleStoreService
@@ -253,7 +254,7 @@ UBUNTU_BEAGLE_SOFTWARE_PRESETS: dict[str, dict[str, Any]] = {
     },
 }
 
-_CACHE: dict[str, tuple[float, Any]] = {}
+RUNTIME_SUPPORT_SERVICE = RuntimeSupportService(monotonic=time.monotonic)
 
 
 def resolve_public_stream_host(host: str) -> str:
@@ -339,26 +340,20 @@ def load_json_file(path: Path, fallback: Any) -> Any:
         return fallback
 
 
+def runtime_support_service() -> RuntimeSupportService:
+    return RUNTIME_SUPPORT_SERVICE
+
+
 def cache_get(key: str, ttl_seconds: float) -> Any:
-    entry = _CACHE.get(key)
-    if entry is None:
-        return None
-    created_at, value = entry
-    if time.monotonic() - created_at > ttl_seconds:
-        _CACHE.pop(key, None)
-        return None
-    return value
+    return runtime_support_service().cache_get(key, ttl_seconds)
 
 
 def cache_put(key: str, value: Any) -> Any:
-    _CACHE[key] = (time.monotonic(), value)
-    return value
+    return runtime_support_service().cache_put(key, value)
 
 
 def cache_invalidate(*keys: str) -> None:
-    for key in keys:
-        if key:
-            _CACHE.pop(key, None)
+    runtime_support_service().cache_invalidate(*keys)
 
 
 def invalidate_vm_cache(vmid: int | None = None, node: str = "") -> None:
@@ -971,21 +966,7 @@ def support_bundle_archive_path(bundle_id: str, filename: str) -> Path:
 
 
 def load_shell_env_file(path: Path) -> dict[str, str]:
-    data: dict[str, str] = {}
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
-        return data
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key:
-            data[key] = value
-    return data
+    return runtime_support_service().load_shell_env_file(path)
 
 
 def write_json_file(path: Path, payload: Any, *, mode: int = 0o600) -> None:

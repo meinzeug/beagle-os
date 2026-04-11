@@ -531,3 +531,15 @@ Decision:
 Reason:
 
 - Restart scheduling was already a host-provider responsibility, but the stateful orchestration around reusing a live restart PID and cancelling the scheduled restart still lived split between the HTTP entrypoint and the provisioning service. Pulling that logic into one host service gives the ubuntu-beagle restart contract one explicit seam and removes direct process-group handling from the entrypoint.
+
+### D49. Cache and shell-env helpers belong in one host runtime-support service
+
+Decision:
+
+- Move `cache_get(...)`, `cache_put(...)`, `cache_invalidate(...)`, and `load_shell_env_file(...)` into `beagle-host/services/runtime_support.py`.
+- Keep the existing control-plane helper names as thin wrappers so provider bootstrap, CORS-origin caching, and default-credential loading keep their current surface while the in-memory cache and shell-env parsing leave the entrypoint.
+- Let the service own the in-memory cache map and monotonic-time dependency instead of keeping module-local cache state in `beagle-host/bin/beagle-control-plane.py`.
+
+Reason:
+
+- After restart extraction, the remaining cache/env helpers were the next cohesive non-HTTP utility block. They were shared by provider bootstrap and host services but still carried hidden module-local state in the entrypoint. Extracting them makes the runtime utility seam explicit and testable without changing current behavior.
