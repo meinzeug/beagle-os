@@ -57,7 +57,7 @@ Strategic framing:
    - the runtime-owned path helpers and GeForce NOW storage/home/cache/config environment prep now live behind `thin-client-assistant/runtime/runtime_ownership.sh`
    - the runtime kiosk process-pattern and stop-control block now lives behind `thin-client-assistant/runtime/kiosk_runtime.sh`
    - the runtime kiosk supervisor/relaunch loop now lives behind `thin-client-assistant/runtime/session_launcher.sh`
-   - the next remaining drift is in the host-only vs USB-only preset delta fields and in the remaining runtime orchestration around the now-thin prepare wrapper and the runtime networking helpers, especially interface/route wait behavior, hostname/network identity application, and whether more of the top-level networking flow should leave shell entirely
+   - the next remaining drift is in the host-only vs USB-only preset delta fields and in the remaining runtime orchestration around the now-thin prepare and network wrappers, especially whether the top-level shell sequencing should leave shell entirely and where the next substantial runtime monolith now lives
 5. Continue splitting the browser UI action/render layers:
    - move the next action-heavy profile modal helpers out of `extension/components/profile-modal.js` and, where shared, out of `proxmox-ui/components/profile-modal.js`
    - keep using `core/platform/browser-common.js` plus the existing shared browser helper modules instead of recreating token/template/API helpers in entrypoints
@@ -70,4 +70,4 @@ Strategic framing:
 ## After that
 
 1. Add smoke verification for generated installer URLs and expected public artifact names.
-2. Continue thin client runtime work around the now-thin `prepare-runtime.sh` and the reduced `apply-network-config.sh`, starting with the remaining interface/route/DNS-wait helpers in `apply-network-config.sh`, then decide whether the top-level runtime/network sequencing should remain in shell or move behind one more orchestration seam.
+2. Continue thin client runtime work from the now-thin `prepare-runtime.sh` and `apply-network-config.sh` entrypoints by selecting the next real monolith, which is likely `moonlight_pairing.sh`, `beagle-usbctl.sh`, or the remaining shell-heavy runtime install paths.
