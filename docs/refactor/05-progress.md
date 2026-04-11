@@ -1,5 +1,18 @@
 # Refactor Progress
 
+### 2026-04-11 — runtime systemd-units helper extraction
+
+- Removed the systemd unit/timer activation block from `thin-client-assistant/runtime/runtime_systemd_bootstrap.sh`:
+  - added `thin-client-assistant/runtime/runtime_systemd_units.sh` for `runtime_systemctl_bin()`, `ensure_usb_tunnel_service()`, and `ensure_beagle_management_units()`
+  - `thin-client-assistant/runtime/runtime_systemd_bootstrap.sh` now sources that helper and stays focused on boot-mode detection, getty override installation, and boot-service normalization
+- This reduces the runtime systemd bootstrap layer into a clearer units-vs-boot seam:
+  - service/timer activation and boot/getty orchestration now live in separate modules instead of one mixed helper
+  - `prepare-runtime.sh` and the SSH/network helpers still consume the same public helper surface through `runtime_bootstrap_services.sh`, so runtime behavior stays unchanged
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/runtime_systemd_bootstrap.sh thin-client-assistant/runtime/runtime_systemd_units.sh thin-client-assistant/runtime/runtime_bootstrap_services.sh thin-client-assistant/runtime/runtime_ssh_service_config.sh thin-client-assistant/runtime/runtime_network_backend.sh thin-client-assistant/runtime/prepare-runtime.sh`
+  - focused smoke test for `ensure_usb_tunnel_service()` and `ensure_beagle_management_units()` with stubbed `systemctl` and `beagle_unit_file_present`
+  - focused smoke test for `ensure_getty_overrides()` and `normalize_boot_services()` with temporary override directories plus stubbed `systemctl` and `pve-thin-client-boot-mode`
+
 ### 2026-04-11 — runtime Beagle-state helper extraction
 
 - Removed the Beagle state/trace/logging block from `thin-client-assistant/runtime/runtime_core.sh`:

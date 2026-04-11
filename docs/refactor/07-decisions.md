@@ -1514,3 +1514,14 @@ Decision:
 Reason:
 
 - `runtime_core.sh` still mixed two different abstraction levels: Beagle-specific runtime state/logging and generic runtime/environment helpers used by many other modules. The state/logging side is independently smoke-testable with temporary directories and a stubbed `logger`, while the remaining core side is about identity and command wrappers. Pulling the state block out keeps the runtime core layer smaller and makes the Beagle-specific state contract explicit.
+
+### D132. Runtime systemd unit activation should leave the boot/getty bootstrap helper
+
+Decision:
+
+- Keep `runtime_systemctl_bin()`, `ensure_usb_tunnel_service()`, and `ensure_beagle_management_units()` in `thin-client-assistant/runtime/runtime_systemd_units.sh`.
+- `thin-client-assistant/runtime/runtime_systemd_bootstrap.sh` should source that helper and remain focused on boot-mode detection, getty override installation, and boot-service normalization.
+
+Reason:
+
+- `runtime_systemd_bootstrap.sh` still mixed two separate concerns: idempotent activation of Beagle services/timers and boot-mode/getty normalization during prepare-runtime. The unit-activation side is independently smoke-testable with stubbed `systemctl` and unit presence checks, while the boot/getty side is about config-file writes and boot-mode branching. Pulling the unit block out keeps the bootstrap helper smaller and leaves the systemd-unit contract explicit for other runtime modules that only need `runtime_systemctl_bin()`.
