@@ -1459,3 +1459,14 @@ Decision:
 Reason:
 
 - Even after the connect-host split, `moonlight_reachability.sh` still mixed pure URL/template rewriting with active reachability probing. Those URL helpers are read-mostly, deterministic, and independently smoke-testable without any socket or curl behavior. Pulling them out keeps the reachability layer focused on real network checks while preserving the same public helper surface for the Moonlight pairing and launch flows.
+
+### D127. Streaming management activity should leave the stream-state persistence helper
+
+Decision:
+
+- Keep management timer/service unit lists plus `beagle_suspend_management_activity()` and `beagle_resume_management_activity()` in `thin-client-assistant/runtime/stream_management_activity.sh`.
+- `thin-client-assistant/runtime/stream_state.sh` should source that helper and remain focused on stream-state paths, session-state persistence, and active-session detection.
+
+Reason:
+
+- `stream_state.sh` still mixed two distinct concerns: persisted stream-session state and side-effect-heavy management activity orchestration. The management side depends on `systemctl`, privileged stop/start wrappers, and unit-file presence checks, while the state side is independently smoke-testable with temporary files and a stubbed `pgrep`. Pulling the management block out keeps the state helper small and leaves GeForce NOW stream optimization calling an explicit management seam.

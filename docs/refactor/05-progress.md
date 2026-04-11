@@ -1,5 +1,18 @@
 # Refactor Progress
 
+### 2026-04-11 — streaming management-activity helper extraction
+
+- Removed the management timer/service suspension block from `thin-client-assistant/runtime/stream_state.sh`:
+  - added `thin-client-assistant/runtime/stream_management_activity.sh` for management timer/service unit lists plus `beagle_suspend_management_activity()` and `beagle_resume_management_activity()`
+  - `thin-client-assistant/runtime/stream_state.sh` now sources that helper and stays focused on stream-state path selection, session-state persistence, and active-session detection
+- This reduces the streaming runtime state helper into a clearer persistence seam:
+  - streaming-session state and management-activity orchestration now live in separate modules instead of one mixed helper
+  - `geforcenow_stream_optimization.sh`, `launch-geforcenow.sh`, and `session_launcher.sh` still consume the same public helper surface through `common.sh`, so runtime behavior stays unchanged
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/stream_state.sh thin-client-assistant/runtime/stream_management_activity.sh thin-client-assistant/runtime/common.sh thin-client-assistant/runtime/geforcenow_stream_optimization.sh thin-client-assistant/runtime/launch-geforcenow.sh thin-client-assistant/runtime/session_launcher.sh`
+  - focused smoke test for `beagle_stream_state_dir()`, `beagle_mark_streaming_session()`, and `beagle_streaming_session_active()` with temporary runtime paths and a stubbed `pgrep`
+  - focused smoke test for `beagle_suspend_management_activity()` and `beagle_resume_management_activity()` with stubbed `systemctl`, `beagle_run_privileged`, and `beagle_unit_file_present`
+
 ### 2026-04-11 — runtime network config-file helper extraction
 
 - Removed the config-file and resolver-writing block from `thin-client-assistant/runtime/runtime_network_backend.sh`:
