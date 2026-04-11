@@ -2,6 +2,23 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime exec extraction
+
+- Extracted the remaining command-wrapper helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/runtime_exec.py`:
+  - `RuntimeExecService` now owns `run_json(...)`, `run_text(...)`, and `run_checked(...)`
+  - the control-plane helper names stay stable as thin wrappers, so host-provider bootstrap and existing service collaborators did not need signature changes
+- Finished the runtime-exec wiring so subprocess timeout/default handling no longer lives inline in the entrypoint:
+  - the default-timeout sentinel and timeout normalization are now handled by `RuntimeExecService`
+  - `HOST_PROVIDER` bootstrap still receives the same wrappers, but they now delegate into the dedicated runtime-exec seam
+  - the entrypoint no longer owns the repeated `subprocess.run(...capture_output...)` blocks for JSON/text/checked execution
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/runtime_exec.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - default timeout application still works when the sentinel is passed
+  - JSON parsing still returns `None` on invalid JSON and command failure
+  - text execution still returns `""` on missing commands and command errors
+  - checked execution still returns stdout on success and keeps exception behavior on failure
+- `beagle-control-plane.py` dropped from `3342` to `3322` lines with this slice, and the host-side extracted-service module count moved from `27` to `28`
+
 ### 2026-04-11 — runtime support extraction
 
 - Extracted the remaining cache / shell-environment helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/runtime_support.py`:
