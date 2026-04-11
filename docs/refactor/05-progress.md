@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime SSH host-key helper extraction
+
+- Removed the persistent SSH host-key block from `thin-client-assistant/runtime/runtime_bootstrap_services.sh`:
+  - added `thin-client-assistant/runtime/runtime_ssh_host_keys.sh` for SSH keygen and SSH directory accessors, persistent host-key directory resolution, persistent-to-runtime key copy, empty-key cleanup, key-presence checks, conditional host-key generation, and runtime-to-persistent host-key writes
+  - `thin-client-assistant/runtime/runtime_bootstrap_services.sh` now sources that helper instead of carrying host-key persistence and generation logic inline, while keeping `ensure_runtime_ssh_host_keys()` as the stable orchestration wrapper
+- This continues the reduction of the old bootstrap helper:
+  - `thin-client-assistant/runtime/runtime_bootstrap_services.sh` dropped further to about `117` lines
+  - the remaining file is now focused on managed SSH config rewriting, `sshd` validation/start helpers, and the final host-key orchestration wrapper
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/runtime_bootstrap_services.sh thin-client-assistant/runtime/runtime_ssh_host_keys.sh thin-client-assistant/runtime/runtime_systemd_bootstrap.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for host-key copy/remove/presence/persist helpers with temporary SSH and live-state directories
+  - focused smoke test for `ensure_runtime_ssh_host_keys()` with stubbed `sshd`, `systemctl`, and `ssh-keygen`
+
 ### 2026-04-11 — runtime systemd bootstrap helper extraction
 
 - Removed the systemd/getty/boot-mode block from `thin-client-assistant/runtime/runtime_bootstrap_services.sh`:
