@@ -770,3 +770,15 @@ Decision:
 Reason:
 
 - After the public-install lifecycle left the entrypoint, the next coherent POST cluster was the endpoint-facing runtime contract used by enrolled clients. Those routes already depended on extracted services but still duplicated scope checks, envelope shaping, and per-route validation inside the HTTP entrypoint. Pulling them together behind one endpoint surface keeps the decomposition pattern consistent and meaningfully shrinks the monolith without changing endpoint behavior.
+
+### D69. The public Sunshine proxy belongs in its own dedicated streaming surface
+
+Decision:
+
+- Move the public Sunshine GET/POST proxy flow into `beagle-host/services/public_sunshine_surface.py`.
+- Let that service own ticket resolution, proxy dispatch, and the distinction between proxied downstream responses and JSON error payloads.
+- Keep `beagle-control-plane.py` responsible only for generic proxy response writing and, on POST, the binary-body read before delegating to the service.
+
+Reason:
+
+- After the other public and endpoint-facing surfaces were extracted, the remaining public streaming block was the Sunshine proxy. That logic was still duplicated between `do_GET` and `do_POST` and was already entirely defined by the existing Sunshine integration seam. Pulling it behind its own service removes the last public streaming block from the HTTP entrypoint without changing the external proxy contract.
