@@ -3,8 +3,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATUS_WRITER_PY="$SCRIPT_DIR/status_writer.py"
+SESSION_LAUNCHER_SH="${SESSION_LAUNCHER_SH:-$SCRIPT_DIR/session_launcher.sh}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
+# shellcheck disable=SC1090
+source "$SESSION_LAUNCHER_SH"
 STATUS_DIR="${PVE_THIN_CLIENT_STATUS_DIR:-${XDG_RUNTIME_DIR:-/tmp}/pve-thin-client}"
 LAUNCH_STATUS_FILE="$STATUS_DIR/launch.status.json"
 
@@ -43,50 +46,9 @@ launch_moonlight() {
 }
 
 launch_kiosk() {
-  local launcher_status=127
-  local failure_count=0
-
   write_launch_status "KIOSK" "beagle-kiosk" "/usr/local/sbin/beagle-kiosk-launch" "Beagle OS Gaming"
   beagle_log_event "launch-session.exec" "binary=/usr/local/sbin/beagle-kiosk-launch target=Beagle-OS-Gaming"
-  if command -v /usr/local/sbin/beagle-kiosk-install >/dev/null 2>&1; then
-    /usr/local/sbin/beagle-kiosk-install --ensure >/dev/null 2>&1 || true
-  fi
-
-  while true; do
-    if beagle_streaming_session_active; then
-      beagle_log_event "launch-session.kiosk" "state=waiting-for-stream-end"
-      while beagle_streaming_session_active; do
-        sleep 1
-      done
-      beagle_log_event "launch-session.kiosk" "state=stream-ended relaunch=1"
-    fi
-
-    if /usr/local/sbin/beagle-kiosk-launch; then
-      launcher_status=0
-    else
-      launcher_status=$?
-    fi
-
-    if beagle_streaming_session_active; then
-      beagle_log_event "launch-session.kiosk" "state=closed-for-stream status=${launcher_status}"
-      failure_count=0
-      continue
-    fi
-
-    if [[ "$launcher_status" -eq 0 ]]; then
-      beagle_log_event "launch-session.kiosk" "state=clean-exit relaunch=1"
-      failure_count=0
-      sleep 1
-      continue
-    fi
-
-    failure_count=$((failure_count + 1))
-    beagle_log_event "launch-session.kiosk" "state=failed status=${launcher_status} failures=${failure_count}"
-    if (( failure_count >= 3 )); then
-      return "$launcher_status"
-    fi
-    sleep 2
-  done
+  beagle_launch_kiosk_session
 }
 
 launch_geforcenow() {
