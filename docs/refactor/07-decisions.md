@@ -722,3 +722,15 @@ Decision:
 Reason:
 
 - After the utility and metadata helper extractions, the next meaningful block left in the host monolith was no longer a tiny shared helper but the full `/api/v1/vms/...` GET response surface. That code already depended mostly on extracted services, but the HTTP entrypoint still owned route matching, payload envelopes, and download descriptors. Pulling that block behind one dedicated service removes a large handler-local business surface in one step and pushes the control plane closer to a thin composition layer without changing the public API.
+
+### D65. The next non-VM read routes belong in a second control-plane read-surface service
+
+Decision:
+
+- Move the non-VM GET response cluster for `provisioning/catalog`, `provisioning/vms/<vmid>`, `endpoints`, `policies`, `policies/<name>`, and `support-bundles/<bundle_id>/download` into `beagle-host/services/control_plane_read_surface.py`.
+- Keep `beagle-control-plane.py` responsible only for dispatching that route family and writing the returned JSON or byte response.
+- Let the new service compose the already-extracted provisioning, endpoint-report, policy-store, and support-bundle-store seams instead of keeping those HTTP envelopes and download descriptors in the entrypoint.
+
+Reason:
+
+- After extracting the VM HTTP surface, the next coherent block in the host monolith was the remaining non-VM read surface. Those routes were already mostly thin wrappers around extracted services, but the entrypoint still owned route matching, `generated_at` envelopes, and archive-download response descriptors. Pulling them behind a second dedicated HTTP service keeps the decomposition pattern consistent and reduces the monolith without inventing another tiny utility slice.

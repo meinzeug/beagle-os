@@ -28,6 +28,7 @@ if str(SERVICES_DIR) not in sys.path:
     sys.path.insert(0, str(SERVICES_DIR))
 
 from action_queue import ActionQueueService
+from control_plane_read_surface import ControlPlaneReadSurfaceService
 from download_metadata import DownloadMetadataService
 from endpoint_enrollment import EndpointEnrollmentService
 from endpoint_profile_contract import installer_profile_surface, normalize_endpoint_profile_contract
@@ -498,6 +499,7 @@ VIRTUALIZATION_INVENTORY = VirtualizationInventoryService(
 
 VM_PROFILE_SERVICE: VmProfileService | None = None
 VM_HTTP_SURFACE_SERVICE: VmHttpSurfaceService | None = None
+CONTROL_PLANE_READ_SURFACE_SERVICE: ControlPlaneReadSurfaceService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
 DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
 RUNTIME_ENVIRONMENT_SERVICE: RuntimeEnvironmentService | None = None
@@ -1625,6 +1627,24 @@ def vm_http_surface_service() -> VmHttpSurfaceService:
     return VM_HTTP_SURFACE_SERVICE
 
 
+def control_plane_read_surface_service() -> ControlPlaneReadSurfaceService:
+    global CONTROL_PLANE_READ_SURFACE_SERVICE
+    if CONTROL_PLANE_READ_SURFACE_SERVICE is None:
+        CONTROL_PLANE_READ_SURFACE_SERVICE = ControlPlaneReadSurfaceService(
+            build_provisioning_catalog=build_provisioning_catalog,
+            find_support_bundle_metadata=find_support_bundle_metadata,
+            latest_ubuntu_beagle_state_for_vmid=latest_ubuntu_beagle_state_for_vmid,
+            list_endpoint_reports=list_endpoint_reports,
+            list_policies=list_policies,
+            load_policy=load_policy,
+            service_name="beagle-control-plane",
+            summarize_endpoint_report=summarize_endpoint_report,
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return CONTROL_PLANE_READ_SURFACE_SERVICE
+
+
 def vm_state_service() -> VmStateService:
     global VM_STATE_SERVICE
     if VM_STATE_SERVICE is None:
@@ -2055,95 +2075,23 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/healthz":
             self._write_json(HTTPStatus.OK, {"ok": True, "service": "beagle-control-plane", "version": VERSION})
             return
-        if path == "/api/v1/provisioning/catalog":
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "catalog": build_provisioning_catalog(),
-                },
-            )
-            return
-        match = re.match(r"^/api/v1/provisioning/vms/(?P<vmid>\d+)$", path)
-        if match:
-            state = latest_ubuntu_beagle_state_for_vmid(int(match.group("vmid")), include_credentials=True)
-            if state is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "provisioning state not found"})
-                return
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "provisioning": state,
-                },
-            )
+        response = control_plane_read_surface_service().route_get(path)
+        if response is not None:
+            if response["kind"] == "bytes":
+                self._write_bytes(
+                    response["status"],
+                    response["body"],
+                    content_type=response["content_type"],
+                    filename=response["filename"],
+                )
+            else:
+                self._write_json(response["status"], response["payload"])
             return
         if path == "/api/v1/health":
             self._write_json(HTTPStatus.OK, build_health_payload())
             return
         if path == "/api/v1/vms":
             self._write_json(HTTPStatus.OK, build_vm_inventory())
-            return
-        if path == "/api/v1/endpoints":
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "endpoints": [summarize_endpoint_report(item) for item in list_endpoint_reports()],
-                },
-            )
-            return
-        if path == "/api/v1/policies":
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "policies": list_policies(),
-                },
-            )
-            return
-        if path.startswith("/api/v1/policies/"):
-            policy_name = path.rsplit("/", 1)[-1]
-            policy = load_policy(policy_name)
-            if policy is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "policy not found"})
-                return
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "policy": policy,
-                },
-            )
-            return
-        if path.startswith("/api/v1/support-bundles/") and path.endswith("/download"):
-            bundle_id = path.split("/")[-2]
-            metadata = find_support_bundle_metadata(bundle_id)
-            if metadata is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "support bundle not found"})
-                return
-            archive_path = Path(str(metadata.get("stored_path", "")))
-            if not archive_path.is_file():
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "support bundle payload missing"})
-                return
-            self._write_bytes(
-                HTTPStatus.OK,
-                archive_path.read_bytes(),
-                content_type="application/gzip",
-                filename=str(metadata.get("stored_filename") or archive_path.name),
-            )
             return
         if path.startswith("/api/v1/vms/"):
             response = vm_http_surface_service().route_get(path)
