@@ -1153,3 +1153,25 @@ Decision:
 Reason:
 
 - After the bootstrap-service block moved out, the remaining non-trivial business flow in `prepare-runtime.sh` was the endpoint enrollment path. That is a cohesive runtime concern with real payload shaping and state reload semantics, so it deserves its own seam. Extracting it keeps the entrypoint thin and exposed a real helper bug in the TLS-argument layer, which is now fixed centrally rather than patched at one call site.
+
+### D100. The final runtime status block should leave `prepare-runtime.sh`
+
+Decision:
+
+- Keep runtime status-path resolution, required-binary selection, binary-availability detection, and final runtime-status emission in `thin-client-assistant/runtime/runtime_prepare_status.sh`.
+- `prepare-runtime.sh` should call that helper instead of keeping the final mode-switching and status-file write block inline.
+
+Reason:
+
+- Once enrollment and bootstrap services were extracted, the last large non-trivial tail in `prepare-runtime.sh` was the runtime-status block. That logic is cohesive, testable in isolation, and not specific to the entrypoint itself. Pulling it out keeps the wrapper thin and makes the required-binary contract explicit.
+
+### D101. Config-retry, boot-mode detection, Plymouth messaging, and kiosk prepare belong in one wrapper helper
+
+Decision:
+
+- Keep config-load retry, boot-mode detection, Plymouth status messaging, optional runtime hook execution, and kiosk preparation in `thin-client-assistant/runtime/runtime_prepare_flow.sh`.
+- `prepare-runtime.sh` should source that helper instead of carrying those bootstrap wrapper behaviors inline.
+
+Reason:
+
+- After the other prepare-runtime slices moved out, the remaining inline logic was no longer business logic but wrapper behavior around the ordered prepare flow. Grouping those pieces into one helper reduces the entrypoint to orchestration and avoids leaving another small monolith of retry/UI-wrapper behavior behind.
