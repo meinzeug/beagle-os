@@ -484,3 +484,26 @@ Decision:
 Reason:
 
 - The remaining queue block was not a separate concern from the existing action-queue service; it was the missing orchestration half of the same queue boundary. Creating a new service for timestamps/action IDs/bulk dedupe would have split one cohesive responsibility across modules. Expanding the existing service keeps queue file I/O, result storage, and queue orchestration in one place while shrinking the entrypoint further.
+
+### D45. Runtime host resolution and manager pinning belong in one host service
+
+Decision:
+
+- Move `resolve_public_stream_host(...)`, `current_public_stream_host()`, and `manager_pinned_pubkey()` into `beagle-host/services/runtime_environment.py`.
+- Keep the existing control-plane helper names as thin wrappers so downstream handlers and service factories keep their current surface while the runtime/environment logic leaves the entrypoint.
+- Let the service own manager-cert-file lookup, OpenSSL pubkey hashing, public-host DNS resolution, and pinned-pubkey caching through injected runtime collaborators instead of re-reading globals directly in the entrypoint.
+
+Reason:
+
+- These helpers were a small but cohesive runtime block used by multiple host services. Leaving them inline in the entrypoint kept TLS pinning and public-host resolution as module-level state instead of an explicit seam. Extracting them makes the runtime assumptions testable and documented without changing current behavior.
+
+### D46. Action-result waiting belongs in the existing action-queue service
+
+Decision:
+
+- Expand `beagle-host/services/action_queue.py` to own `wait_for_result(node, vmid, action_id, timeout_seconds=...)` in addition to queue/result path lookup, queue orchestration, result persistence, and result summarization.
+- Keep `wait_for_action_result(...)` in `beagle-host/bin/beagle-control-plane.py` only as a thin wrapper so USB retry handlers and other callers keep the same helper surface.
+
+Reason:
+
+- The result-wait loop is not a separate domain from queue/result persistence; it depends directly on the same result-file contract and action-id semantics already owned by `ActionQueueService`. Expanding the existing service avoids another tiny helper module, makes the timing behavior injectable for tests, and keeps one cohesive action-queue boundary.
