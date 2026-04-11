@@ -59,6 +59,7 @@ from ubuntu_beagle_restart import UbuntuBeagleRestartService
 from ubuntu_beagle_state import UbuntuBeagleStateService
 from ubuntu_beagle_provisioning import UbuntuBeagleProvisioningService
 from update_feed import UpdateFeedService
+from utility_support import UtilitySupportService
 from virtualization_inventory import VirtualizationInventoryService
 from vm_profile import VmProfileService
 from vm_secret_bootstrap import VmSecretBootstrapService
@@ -272,6 +273,10 @@ RUNTIME_PATHS_SERVICE = RuntimePathsService(
     chmod_path=os.chmod,
     mkdir_path=lambda path: path.mkdir(parents=True, exist_ok=True),
 )
+UTILITY_SUPPORT_SERVICE = UtilitySupportService(
+    choice=secrets.choice,
+    randbelow=secrets.randbelow,
+)
 REQUEST_SUPPORT_SERVICE: RequestSupportService | None = None
 
 
@@ -338,6 +343,10 @@ def parse_utc_timestamp(value: str) -> datetime | None:
 
 def timestamp_age_seconds(value: str) -> int | None:
     return time_support_service().timestamp_age_seconds(value)
+
+
+def utility_support_service() -> UtilitySupportService:
+    return UTILITY_SUPPORT_SERVICE
 
 
 def load_json_file(path: Path, fallback: Any) -> Any:
@@ -539,7 +548,7 @@ def public_stream_service() -> PublicStreamService:
             public_stream_base_port=PUBLIC_STREAM_BASE_PORT,
             public_stream_port_count=PUBLIC_STREAM_PORT_COUNT,
             public_stream_port_step=PUBLIC_STREAM_PORT_STEP,
-            safe_slug=safe_slug,
+            safe_slug=utility_support_service().safe_slug,
             write_json_file=write_json_file,
         )
     return PUBLIC_STREAM_SERVICE
@@ -564,7 +573,7 @@ def vm_secret_store_service() -> VmSecretStoreService:
             data_dir=runtime_paths_service().data_dir,
             load_json_file=load_json_file,
             write_json_file=write_json_file,
-            safe_slug=safe_slug,
+            safe_slug=utility_support_service().safe_slug,
             utcnow=utcnow,
         )
     return VM_SECRET_STORE_SERVICE
@@ -578,10 +587,10 @@ def vm_secret_bootstrap_service() -> VmSecretBootstrapService:
             load_vm_secret=load_vm_secret,
             public_server_name=PUBLIC_SERVER_NAME,
             public_stream_host=runtime_environment_service().current_public_stream_host(),
-            random_pin=random_pin,
-            random_secret=random_secret,
+            random_pin=utility_support_service().random_pin,
+            random_secret=utility_support_service().random_secret,
             resolve_sunshine_pinned_pubkey=resolve_vm_sunshine_pinned_pubkey,
-            safe_slug=safe_slug,
+            safe_slug=utility_support_service().safe_slug,
             save_vm_secret=save_vm_secret,
             session_script_path=Path(__file__).resolve().parent / "beagle-usb-tunnel-session",
             usb_tunnel_attach_host=USB_TUNNEL_ATTACH_HOST,
@@ -641,7 +650,7 @@ def sunshine_integration_service() -> SunshineIntegrationService:
             parse_description_meta=parse_description_meta,
             public_manager_url=PUBLIC_MANAGER_URL,
             run_subprocess=subprocess.run,
-            safe_slug=safe_slug,
+            safe_slug=utility_support_service().safe_slug,
             store_sunshine_access_token=sunshine_access_token_store_service().store,
             sunshine_access_token_is_valid=sunshine_access_token_is_valid,
             sunshine_access_token_ttl_seconds=SUNSHINE_ACCESS_TOKEN_TTL_SECONDS,
@@ -732,7 +741,7 @@ def installer_prep_service() -> InstallerPrepService:
             load_json_file=load_json_file,
             public_installer_iso_url=download_metadata_service().public_installer_iso_url,
             root_dir=ROOT_DIR,
-            safe_slug=safe_slug,
+            safe_slug=utility_support_service().safe_slug,
             timestamp_age_seconds=timestamp_age_seconds,
             utcnow=utcnow,
             write_json_file=write_json_file,
@@ -774,7 +783,7 @@ def ubuntu_beagle_state_service() -> UbuntuBeagleStateService:
             data_dir=runtime_paths_service().data_dir,
             load_json_file=load_json_file,
             write_json_file=write_json_file,
-            safe_slug=safe_slug,
+            safe_slug=utility_support_service().safe_slug,
             ubuntu_beagle_profile_id=UBUNTU_BEAGLE_PROFILE_ID,
         )
     return UBUNTU_BEAGLE_STATE_SERVICE
@@ -845,8 +854,7 @@ def latest_ubuntu_beagle_state_for_vmid(vmid: int, *, include_credentials: bool 
 
 
 def safe_slug(value: str, default: str = "item") -> str:
-    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value or "")).strip("-")
-    return cleaned or default
+    return utility_support_service().safe_slug(value, default)
 
 
 def action_queue_service() -> ActionQueueService:
@@ -857,7 +865,7 @@ def action_queue_service() -> ActionQueueService:
             find_vm=lambda vmid: VIRTUALIZATION_INVENTORY.find_vm(vmid),
             load_json_file=load_json_file,
             monotonic=time.monotonic,
-            safe_slug=safe_slug,
+            safe_slug=utility_support_service().safe_slug,
             sleep=time.sleep,
             time_now_epoch=lambda: datetime.now(timezone.utc).timestamp(),
             utcnow=utcnow,
@@ -878,7 +886,7 @@ def support_bundle_store_service() -> SupportBundleStoreService:
     if SUPPORT_BUNDLE_STORE_SERVICE is None:
         SUPPORT_BUNDLE_STORE_SERVICE = SupportBundleStoreService(
             load_json_file=load_json_file,
-            safe_slug=safe_slug,
+            safe_slug=utility_support_service().safe_slug,
             support_bundles_dir=support_bundles_dir,
             utcnow=utcnow,
             write_json_file=write_json_file,
@@ -917,12 +925,11 @@ def write_json_file(path: Path, payload: Any, *, mode: int = 0o600) -> None:
 
 
 def random_secret(length: int = 24) -> str:
-    alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-    return "".join(secrets.choice(alphabet) for _ in range(max(12, length)))
+    return utility_support_service().random_secret(length)
 
 
 def random_pin() -> str:
-    return f"{secrets.randbelow(10000):04d}"
+    return utility_support_service().random_pin()
 
 
 def vm_secret_path(node: str, vmid: int) -> Path:
@@ -1279,7 +1286,7 @@ def policy_store_service() -> PolicyStoreService:
             load_json_file=load_json_file,
             normalize_policy_payload=policy_normalization_service().normalize_payload,
             policies_dir=policies_dir,
-            safe_slug=safe_slug,
+            safe_slug=utility_support_service().safe_slug,
         )
     return POLICY_STORE_SERVICE
 
@@ -1448,13 +1455,13 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             normalize_package_presets=ubuntu_beagle_inputs_service().normalize_package_presets,
             provider=HOST_PROVIDER,
             public_ubuntu_beagle_complete_url=public_ubuntu_beagle_complete_url,
-            random_pin=random_pin,
-            random_secret=random_secret,
+            random_pin=utility_support_service().random_pin,
+            random_secret=utility_support_service().random_secret,
             reconcile_public_streams_script=ROOT_DIR / "scripts" / "reconcile-public-streams.sh",
             resolve_ubuntu_beagle_desktop=ubuntu_beagle_inputs_service().resolve_ubuntu_beagle_desktop,
             run_checked=run_checked,
             safe_hostname=safe_hostname,
-            safe_slug=safe_slug,
+            safe_slug=utility_support_service().safe_slug,
             save_ubuntu_beagle_state=save_ubuntu_beagle_state,
             save_vm_secret=save_vm_secret,
             ensure_ubuntu_beagle_vm_restart_state=ensure_ubuntu_beagle_vm_restart_state,
