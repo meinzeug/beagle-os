@@ -528,24 +528,6 @@ current_live_disk() {
   return 1
 }
 
-candidate_live_mounts() {
-  local target
-  local -a candidates=("$LIVE_MEDIUM_DEFAULT" "/run/live/medium" "/lib/live/mount/medium")
-
-  if command -v findmnt >/dev/null 2>&1; then
-    while IFS= read -r target; do
-      [[ -n "$target" ]] || continue
-      candidates+=("$target")
-    done < <(findmnt -rn -o TARGET 2>/dev/null || true)
-  fi
-
-  for target in "${candidates[@]}"; do
-    [[ -d "$target" ]] || continue
-    log_msg "candidate live mount: $target"
-    printf '%s\n' "$target"
-  done
-}
-
 candidate_preset_path() {
   local target="$1"
 
@@ -881,6 +863,7 @@ resolve_live_medium() {
 
   while IFS= read -r target; do
     [[ -n "$target" ]] || continue
+    log_msg "candidate live mount: $target"
     if candidate_preset_path "$target" >/dev/null 2>&1 || candidate_live_asset_dir "$target" 1 >/dev/null 2>&1; then
       log_msg "resolved live medium via existing mount: $target"
       printf '%s\n' "$target"
@@ -910,6 +893,7 @@ resolve_preset_file() {
 
   while IFS= read -r target; do
     [[ -n "$target" ]] || continue
+    log_msg "candidate live mount: $target"
     if target="$(candidate_preset_path "$target" 2>/dev/null || true)" && [[ -n "$target" ]]; then
       log_msg "resolved preset file via existing mount: $target"
       printf '%s\n' "$target"

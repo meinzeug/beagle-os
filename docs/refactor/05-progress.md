@@ -1,5 +1,19 @@
 # Refactor Progress
 
+### 2026-04-12 — USB live-mount helper extraction
+
+- Removed the duplicated live-medium mount-candidate logic from the thin-client USB installer entrypoints:
+  - extended `thin-client-assistant/usb/live_medium_helpers.sh` with shared `candidate_live_mounts()`
+  - `thin-client-assistant/usb/pve-thin-client-live-menu.sh` now consumes that helper instead of carrying its own mount-candidate implementation
+  - `thin-client-assistant/usb/pve-thin-client-local-installer.sh` now consumes the same helper and keeps its existing `log_msg` trail at the mount-resolution call sites instead of in a duplicated mount-list function
+- This further tightens the USB installer continuation seam:
+  - live-device discovery and live-mount candidate discovery now both live in the same shared shell helper
+  - the local installer still logs candidate mounts where it actually resolves live media and preset files, so operator-facing diagnostics stay in place while the mount-list contract stops drifting
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/usb/live_medium_helpers.sh thin-client-assistant/usb/pve-thin-client-live-menu.sh thin-client-assistant/usb/pve-thin-client-local-installer.sh`
+  - focused smoke test for `candidate_live_mounts()` with stubbed `findmnt`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — USB live-device and payload-source helper extraction
 
 - Removed the last duplicated live-medium device-candidate logic and one more inline manifest reader from the thin-client USB installer surfaces:
