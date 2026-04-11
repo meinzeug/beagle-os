@@ -710,3 +710,15 @@ Decision:
 Reason:
 
 - After the runtime, utility, and script-helper slices, the remaining small but high-fanout host helper block still sitting in `beagle-control-plane.py` was the VM description/hostname logic. Those semantics are shared business helpers used by multiple extracted services, not HTTP-entrypoint behavior. Pulling them into a dedicated service removes another monolith-local dependency without changing payloads or naming rules.
+
+### D64. VM detail/download HTTP payload shaping belongs in one host VM HTTP-surface service
+
+Decision:
+
+- Move the inline `/api/v1/vms/...` GET route-matching, payload-envelope shaping, and installer-download response descriptors into `beagle-host/services/vm_http_surface.py`.
+- Keep `beagle-control-plane.py` responsible only for request dispatch and final response writing for that route family.
+- Let the new service compose the already-extracted collaborators (`VmStateService`, `VmProfileService`, `InstallerScriptService`, `InstallerPrepService`, `VmUsbService`, support-bundle store, endpoint report, and VM-secret bootstrap) instead of reassembling those payloads inside the HTTP entrypoint.
+
+Reason:
+
+- After the utility and metadata helper extractions, the next meaningful block left in the host monolith was no longer a tiny shared helper but the full `/api/v1/vms/...` GET response surface. That code already depended mostly on extracted services, but the HTTP entrypoint still owned route matching, payload envelopes, and download descriptors. Pulling that block behind one dedicated service removes a large handler-local business surface in one step and pushes the control plane closer to a thin composition layer without changing the public API.

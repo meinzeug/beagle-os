@@ -160,6 +160,7 @@ install -m 0644 "$ROOT_DIR/beagle-host/services/request_support.py" "$HOST_RUNTI
 install -m 0644 "$ROOT_DIR/beagle-host/services/endpoint_enrollment.py" "$HOST_RUNTIME_DIR/services/endpoint_enrollment.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/ubuntu_beagle_restart.py" "$HOST_RUNTIME_DIR/services/ubuntu_beagle_restart.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/vm_profile.py" "$HOST_RUNTIME_DIR/services/vm_profile.py"
+install -m 0644 "$ROOT_DIR/beagle-host/services/vm_http_surface.py" "$HOST_RUNTIME_DIR/services/vm_http_surface.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/vm_state.py" "$HOST_RUNTIME_DIR/services/vm_state.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/download_metadata.py" "$HOST_RUNTIME_DIR/services/download_metadata.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/update_feed.py" "$HOST_RUNTIME_DIR/services/update_feed.py"
