@@ -992,6 +992,13 @@
 - `extension/content.js` no longer performs raw `/api2/json`, Beagle API token/config plumbing, inline VM profile synthesis, inline profile modal rendering, or toolbar/menu boot orchestration itself; that DOM integration now lives in `extension/components/vm-page-integration.js`, leaving `content.js` as a much thinner entrypoint.
 - `beagle-host/bin/beagle-control-plane.py` now delegates provider-backed VM/node/config/bridge/guest-IP read paths through `beagle-host/services/virtualization_inventory.py`, delegates endpoint compliance and VM-state composition through `beagle-host/services/vm_state.py`, delegates VM inventory, node inventory, VM config lookup, next-VMID allocation, storage inventory, guest IPv4 lookup, VM lifecycle writes (create, set, description, boot order, start, stop, option delete), guest-exec flows, and scheduled restart orchestration into `beagle-host/providers/proxmox_host_provider.py`, while the browser-facing endpoint profile contract is normalized by `beagle-host/bin/endpoint_profile_contract.py`.
 - No new behavioral tests or smoke tests have been added yet.
+- Reduced duplicated script-side provider bootstrap and JSON payload parsing across the main VM-setup scripts:
+  - added `scripts/lib/provider_shell.sh`
+  - moved local-vs-remote host detection, provider-module path selection, helper availability checks, remote helper execution, and last-JSON-object parsing behind that shared shell seam
+  - rewired `scripts/configure-sunshine-guest.sh` to reuse the shared provider shell helper for remote/local provider execution instead of carrying its own copies of those functions
+  - rewired `scripts/optimize-proxmox-vm-for-beagle.sh` to reuse the same provider shell helper for provider-module discovery and remote/local execution
+  - rewired `scripts/ensure-vm-stream-ready.sh` to reuse the shared provider-helper availability check and JSON payload parsing helper
+  - kept the remaining direct `qm` fallback branches unchanged for rollout compatibility; this slice only removes duplicated helper plumbing, not the fallback semantics
 
 ### Known risks after this run
 

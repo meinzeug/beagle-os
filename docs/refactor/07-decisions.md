@@ -915,3 +915,15 @@ Decision:
 Reason:
 
 - The API helper still mixed two different responsibilities: talking to Proxmox and defining the Proxmox-shaped thin-client preset contract. That made the remaining provider-specific contract harder to compare against the host-side installer builder and harder to replace later. Pulling the preset builder into its own module makes the Proxmox seam explicit without changing behavior.
+
+### D81. Script-side provider bootstrap belongs in one shared shell helper, not copied across each Proxmox-facing script
+
+Decision:
+
+- Add `scripts/lib/provider_shell.sh` as the shared shell seam for local-vs-remote host detection, provider-module path resolution, provider-helper availability checks, remote helper execution, and raw-output JSON-object extraction.
+- Rewire `scripts/configure-sunshine-guest.sh`, `scripts/optimize-proxmox-vm-for-beagle.sh`, and `scripts/ensure-vm-stream-ready.sh` to delegate that plumbing to the shared shell helper instead of carrying private copies.
+- Keep the remaining direct `qm` fallback branches intact for now; this slice removes duplicated bootstrap/plumbing, not the compatibility behavior itself.
+
+Reason:
+
+- The script-provider abstraction had already moved reads, writes, and synchronous guest-exec polling into `scripts/lib/beagle_provider.py`, but the surrounding shell scripts still duplicated the mechanics for deciding whether the helper exists locally or remotely, how to run it over SSH, and how to recover the final JSON payload from noisy command output. That kept the provider boundary spread across several scripts and made later fallback cleanup harder. Centralizing that shell-side plumbing makes the next script refactor slices smaller and reduces the chance of reintroducing slightly different provider bootstrap logic in yet another script.
