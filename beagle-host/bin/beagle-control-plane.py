@@ -30,6 +30,7 @@ if str(SERVICES_DIR) not in sys.path:
 from action_queue import ActionQueueService
 from control_plane_read_surface import ControlPlaneReadSurfaceService
 from download_metadata import DownloadMetadataService
+from endpoint_http_surface import EndpointHttpSurfaceService
 from endpoint_enrollment import EndpointEnrollmentService
 from endpoint_profile_contract import installer_profile_surface, normalize_endpoint_profile_contract
 from endpoint_report import EndpointReportService
@@ -504,6 +505,7 @@ VM_HTTP_SURFACE_SERVICE: VmHttpSurfaceService | None = None
 CONTROL_PLANE_READ_SURFACE_SERVICE: ControlPlaneReadSurfaceService | None = None
 PUBLIC_HTTP_SURFACE_SERVICE: PublicHttpSurfaceService | None = None
 PUBLIC_UBUNTU_INSTALL_SURFACE_SERVICE: PublicUbuntuInstallSurfaceService | None = None
+ENDPOINT_HTTP_SURFACE_SERVICE: EndpointHttpSurfaceService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
 DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
 RUNTIME_ENVIRONMENT_SERVICE: RuntimeEnvironmentService | None = None
@@ -1680,6 +1682,24 @@ def public_ubuntu_install_surface_service() -> PublicUbuntuInstallSurfaceService
     return PUBLIC_UBUNTU_INSTALL_SURFACE_SERVICE
 
 
+def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
+    global ENDPOINT_HTTP_SURFACE_SERVICE
+    if ENDPOINT_HTTP_SURFACE_SERVICE is None:
+        ENDPOINT_HTTP_SURFACE_SERVICE = EndpointHttpSurfaceService(
+            dequeue_vm_actions=dequeue_vm_actions,
+            fetch_sunshine_server_identity=fetch_sunshine_server_identity,
+            find_vm=find_vm,
+            register_moonlight_certificate_on_vm=register_moonlight_certificate_on_vm,
+            service_name="beagle-control-plane",
+            store_action_result=store_action_result,
+            store_support_bundle=store_support_bundle,
+            summarize_action_result=summarize_action_result,
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return ENDPOINT_HTTP_SURFACE_SERVICE
+
+
 def vm_state_service() -> VmStateService:
     global VM_STATE_SERVICE
     if VM_STATE_SERVICE is None:
@@ -2108,6 +2128,34 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
+        if endpoint_http_surface_service().handles_path(path):
+            if not self._is_endpoint_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            json_payload: dict[str, Any] | None = None
+            binary_payload: bytes | None = None
+            if endpoint_http_surface_service().requires_json_body(path):
+                try:
+                    json_payload = self._read_json_body()
+                except Exception as exc:
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                    return
+            if endpoint_http_surface_service().requires_binary_body(path):
+                try:
+                    binary_payload = self._read_binary_body(max_bytes=128 * 1024 * 1024)
+                except Exception as exc:
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid upload: {exc}"})
+                    return
+            response = endpoint_http_surface_service().route_post(
+                path,
+                endpoint_identity=self._endpoint_identity(),
+                query=query,
+                json_payload=json_payload,
+                binary_payload=binary_payload,
+            )
+            self._write_json(response["status"], response["payload"])
+            return
+
         if path == "/api/v1/endpoints/enroll":
             try:
                 response_payload = endpoint_enrollment_service().enroll_endpoint(self._read_json_body())
@@ -2122,137 +2170,6 @@ class Handler(BaseHTTPRequestHandler):
                     raise
                 return
             self._write_json(HTTPStatus.CREATED, response_payload)
-            return
-
-        if path == "/api/v1/endpoints/moonlight/register":
-            if not self._is_endpoint_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            identity = self._endpoint_identity() or {}
-            vmid = int(identity.get("vmid", 0) or 0)
-            vm = find_vm(vmid)
-            if vm is None or str(identity.get("node", "")).strip() != vm.node:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                return
-            try:
-                payload = self._read_json_body()
-                client_cert_pem = str(payload.get("client_cert_pem", "")).strip()
-                device_name = (
-                    str(payload.get("device_name", "")).strip()
-                    or str(identity.get("hostname", "")).strip()
-                    or f"beagle-vm{vmid}-client"
-                )
-                if not client_cert_pem or "BEGIN CERTIFICATE" not in client_cert_pem:
-                    raise ValueError("missing client certificate")
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            result = register_moonlight_certificate_on_vm(vm, client_cert_pem, device_name=device_name)
-            guest_user = str(result.get("guest_user", "") or "").strip()
-            sunshine_server: dict[str, Any] = {
-                "ok": False,
-                "uniqueid": "",
-                "server_cert_pem": "",
-                "sunshine_name": "",
-                "stream_port": "",
-                "stdout": "",
-                "stderr": "",
-            }
-            if bool(result.get("ok")) and guest_user:
-                sunshine_server = fetch_sunshine_server_identity(vm, guest_user)
-            overall_ok = bool(result.get("ok")) and bool(sunshine_server.get("ok")) and bool(
-                sunshine_server.get("uniqueid")
-            ) and bool(sunshine_server.get("server_cert_pem"))
-            self._write_json(
-                HTTPStatus.CREATED if overall_ok else HTTPStatus.BAD_GATEWAY,
-                {
-                    "ok": overall_ok,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "vmid": vm.vmid,
-                    "node": vm.node,
-                    "device_name": device_name,
-                    "guest_user": result.get("guest_user", ""),
-                    "stdout": result.get("stdout", ""),
-                    "stderr": result.get("stderr", ""),
-                    "sunshine_server": {
-                        "ok": bool(sunshine_server.get("ok")),
-                        "uniqueid": sunshine_server.get("uniqueid", ""),
-                        "server_cert_pem": sunshine_server.get("server_cert_pem", ""),
-                        "sunshine_name": sunshine_server.get("sunshine_name", ""),
-                        "stream_port": sunshine_server.get("stream_port", ""),
-                        "stdout": sunshine_server.get("stdout", ""),
-                        "stderr": sunshine_server.get("stderr", ""),
-                    },
-                },
-            )
-            return
-
-        if path == "/api/v1/endpoints/actions/pull":
-            if not self._is_endpoint_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            identity = self._endpoint_identity() or {}
-            try:
-                payload = self._read_json_body()
-                vmid = int(payload.get("vmid"))
-                node = str(payload.get("node", "")).strip()
-                if not node:
-                    raise ValueError("missing node")
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            if identity and (int(identity.get("vmid", -1)) != vmid or str(identity.get("node", "")).strip() != node):
-                self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "endpoint scope mismatch"})
-                return
-            actions = dequeue_vm_actions(node, vmid)
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "actions": actions,
-                },
-            )
-            return
-
-        if path == "/api/v1/endpoints/actions/result":
-            if not self._is_endpoint_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            identity = self._endpoint_identity() or {}
-            try:
-                payload = self._read_json_body()
-                vmid = int(payload.get("vmid"))
-                node = str(payload.get("node", "")).strip()
-                action_name = str(payload.get("action", "")).strip()
-                action_id = str(payload.get("action_id", "")).strip()
-                if not node or not action_name or not action_id:
-                    raise ValueError("missing action result fields")
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            if identity and (int(identity.get("vmid", -1)) != vmid or str(identity.get("node", "")).strip() != node):
-                self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "endpoint scope mismatch"})
-                return
-
-            payload["vmid"] = vmid
-            payload["node"] = node
-            payload["received_at"] = utcnow()
-            store_action_result(node, vmid, payload)
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "last_action": summarize_action_result(payload),
-                },
-            )
             return
 
         if path == "/api/v1/policies":
@@ -2377,42 +2294,6 @@ class Handler(BaseHTTPRequestHandler):
                     "version": VERSION,
                     "generated_at": utcnow(),
                     "installer_prep": state,
-                },
-            )
-            return
-
-        if path == "/api/v1/endpoints/support-bundles/upload":
-            if not self._is_endpoint_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            identity = self._endpoint_identity() or {}
-            try:
-                vmid_values = query.get("vmid", [])
-                node_values = query.get("node", [])
-                action_values = query.get("action_id", [])
-                filename_values = query.get("filename", [])
-                vmid = int(vmid_values[0])
-                node = str(node_values[0]).strip()
-                action_id = str(action_values[0]).strip()
-                filename = str(filename_values[0]).strip() or "support-bundle.tar.gz"
-                if not node or not action_id:
-                    raise ValueError("missing upload fields")
-                payload = self._read_binary_body(max_bytes=128 * 1024 * 1024)
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid upload: {exc}"})
-                return
-            if identity and (int(identity.get("vmid", -1)) != vmid or str(identity.get("node", "")).strip() != node):
-                self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "endpoint scope mismatch"})
-                return
-            bundle = store_support_bundle(node, vmid, action_id, filename, payload)
-            self._write_json(
-                HTTPStatus.CREATED,
-                {
-                    "ok": True,
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "support_bundle": bundle,
                 },
             )
             return
