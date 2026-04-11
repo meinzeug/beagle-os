@@ -1701,3 +1701,15 @@ Reason:
 
 - After the bootstrap block moved out, the remaining biggest block in the writer was the actual write pipeline. It is one coherent stage with shared state and should not remain split between several ad-hoc micro-functions inside the entrypoint.
 - Moving the whole write stage together keeps the write contract explicit, shrinks the entrypoint materially, and leaves only the operator/device-selection concerns in the main script.
+
+### D144. USB writer device selection and safety checks should leave the writer entrypoint as one operator helper
+
+Decision:
+
+- Keep the USB writer's interactive device picker, removable-device detection, running-system disk protection, and confirmation dialog helpers in `thin-client-assistant/usb/usb_writer_device_selection.sh`.
+- Keep `pve-thin-client-usb-installer.sh` focused on top-level orchestration and avoid reintroducing operator-dialog or target-safety logic inline there.
+
+Reason:
+
+- After the source-selection, bootstrap, and write-stage extractions, the remaining dense block in the USB writer was no longer write logic but the full operator-facing target-selection and safety path. Leaving that block inline would keep the entrypoint larger than necessary and preserve one more continuation hazard for later agents.
+- Device selection, removable gating, system-disk checks, and confirmation prompts all operate on the same small state surface (`TARGET_DEVICE`, `ALLOW_*`, `DRY_RUN`, `ASSUME_YES`) and form one coherent helper seam that can be smoke-tested without pulling in the write pipeline.
