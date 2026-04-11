@@ -1,5 +1,20 @@
 # Refactor Progress
 
+### 2026-04-12 — Shared runtime preset-extension helper extraction
+
+- Reduced the host-only vs USB-only preset-field drift by moving the extended runtime preset field contract behind one shared helper:
+  - added `build_runtime_extension_fields()` to `beagle-host/services/thin_client_preset.py` for network-static, Beagle update/enrollment, egress, identity, Moonlight port, and Sunshine identity fields
+  - `beagle-host/services/installer_script.py` now builds its extended VM-installer preset fields through that helper instead of carrying a long inline `extra_fields` block
+  - `thin-client-assistant/usb/proxmox_preset.py` now uses the same helper so USB-generated presets emit the same extended field set and default/empty-value rules, with Proxmox-local values filled from description metadata where available
+- This narrows a remaining preset contract drift:
+  - host-generated and USB-generated presets now share one explicit contract for the extended runtime field set instead of only sharing the minimal base preset keys
+  - runtime defaults such as update, egress, identity, and Moonlight-port related fields now come from one shared implementation path
+- Validation and smoke checks for this slice passed:
+  - `python3 -m py_compile beagle-host/services/thin_client_preset.py beagle-host/services/installer_script.py thin-client-assistant/usb/proxmox_preset.py`
+  - focused smoke test for `build_runtime_extension_fields()` default/override output
+  - focused smoke test for `thin-client-assistant/usb/proxmox_preset.py build_preset()` with network/egress/identity/Moonlight-port metadata
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — Hosted download layout helper extraction
 
 - Removed the duplicated hosted-download vs public-release artifact URL shaping from the host download-generation and validation scripts:

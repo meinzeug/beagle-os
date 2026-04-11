@@ -1725,3 +1725,15 @@ Reason:
 
 - The hosted-installer artifact-source split is not only a packaging concern; it is also a validation concern. If generation and health checks build hosted/public URLs independently, a filename or base-URL change can silently drift until deployment.
 - A small shell helper is the lowest-risk seam here because the affected consumers are shell entrypoints already and need the exact same URL layout logic, not a larger Python abstraction.
+
+### D146. Extended runtime preset fields should come from one shared helper for host and USB builders
+
+Decision:
+
+- Keep the non-minimal runtime preset field set in `beagle-host/services/thin_client_preset.py` behind `build_runtime_extension_fields()`.
+- Keep both `beagle-host/services/installer_script.py` and `thin-client-assistant/usb/proxmox_preset.py` consuming that helper instead of maintaining separate `extra_fields` maps for update, egress, identity, and Moonlight/Sunshine runtime details.
+
+Reason:
+
+- The repo already had a shared base preset helper, but the more operationally important runtime fields still diverged between the host-generated installer presets and the USB-generated presets. That left the same preset contract split exactly where later runtime and installer work still depends on it.
+- A shared helper keeps the field inventory and default/empty-value semantics explicit in one place while still allowing each caller to provide the values it actually knows without forcing a larger preset object redesign.
