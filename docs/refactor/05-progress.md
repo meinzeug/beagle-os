@@ -2,6 +2,22 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — host non-VM read-surface extraction
+
+- Extracted the next non-VM GET response cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/control_plane_read_surface.py`:
+  - `ControlPlaneReadSurfaceService` now owns the route matching and payload/download shaping for `provisioning/catalog`, `provisioning/vms/<vmid>`, `endpoints`, `policies`, `policies/<name>`, and `support-bundles/<bundle_id>/download`
+  - the service now composes the already-extracted provisioning, endpoint-report, policy-store, and support-bundle-store collaborators instead of rebuilding those HTTP envelopes inline in the control-plane entrypoint
+- Rewired the control-plane entrypoint to delegate that whole read surface through `control_plane_read_surface_service().route_get(path)`:
+  - `beagle-control-plane.py` now keeps that area at routing/response-writing level only
+  - `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/control_plane_read_surface.py` into the deployed host runtime
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile beagle-host/services/control_plane_read_surface.py beagle-host/bin/beagle-control-plane.py`
+  - `bash -n scripts/install-proxmox-host-services.sh`
+  - focused smoke checks for `ControlPlaneReadSurfaceService` route handling and download/payload shaping
+  - `./scripts/validate-project.sh`
+- Current size marker after this slice:
+  - `beagle-host/bin/beagle-control-plane.py` is down to about `2961` lines
+
 ### 2026-04-11 — host VM HTTP-surface extraction
 
 - Extracted the inline `/api/v1/vms/...` GET response-model/download block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/vm_http_surface.py`:
