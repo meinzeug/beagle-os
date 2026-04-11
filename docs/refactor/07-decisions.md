@@ -1525,3 +1525,14 @@ Decision:
 Reason:
 
 - `runtime_systemd_bootstrap.sh` still mixed two separate concerns: idempotent activation of Beagle services/timers and boot-mode/getty normalization during prepare-runtime. The unit-activation side is independently smoke-testable with stubbed `systemctl` and unit presence checks, while the boot/getty side is about config-file writes and boot-mode branching. Pulling the unit block out keeps the bootstrap helper smaller and leaves the systemd-unit contract explicit for other runtime modules that only need `runtime_systemctl_bin()`.
+
+### D133. USB tunnel/env accessors should leave the state-persistence helper
+
+Decision:
+
+- Keep `usb_enabled()`, the tunnel host/user/port/attach/key accessors, the USB command accessors, and `require_enabled()` in `thin-client-assistant/runtime/beagle_usb_runtime_env.sh`.
+- `thin-client-assistant/runtime/beagle_usb_runtime_state.sh` should source that helper and remain focused on USB state-path resolution plus bound-busid persistence.
+
+Reason:
+
+- `beagle_usb_runtime_state.sh` still mixed two abstraction levels: stable USB tunnel/runtime configuration accessors and the persisted state contract for bound bus IDs. The env/accessor side is independently smoke-testable with simple environment overrides, while the state side is about reading and writing the runtime USB state file. Pulling the accessor block out keeps the state helper smaller and leaves the USB runtime environment contract explicit for actions and payload rendering.

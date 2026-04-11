@@ -1,5 +1,18 @@
 # Refactor Progress
 
+### 2026-04-11 — USB runtime env helper extraction
+
+- Removed the USB tunnel/env accessor block from `thin-client-assistant/runtime/beagle_usb_runtime_state.sh`:
+  - added `thin-client-assistant/runtime/beagle_usb_runtime_env.sh` for `usb_enabled()`, tunnel host/user/port/attach/key accessors, binary accessors, and `require_enabled()`
+  - `thin-client-assistant/runtime/beagle_usb_runtime_state.sh` now sources that helper and stays focused on USB state-path resolution plus bound-busid persistence
+- This reduces the USB runtime state layer into a clearer env-vs-state seam:
+  - USB tunnel/runtime accessors and persisted bound-device state now live in separate modules instead of one mixed helper
+  - `beagle_usb_runtime_actions.sh` and `beagle_usb_runtime_payloads.sh` still consume the same public helper surface through `beagle_usb_runtime_state.sh`, so runtime behavior stays unchanged
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/beagle_usb_runtime_env.sh thin-client-assistant/runtime/beagle_usb_runtime_state.sh thin-client-assistant/runtime/beagle_usb_runtime_payloads.sh thin-client-assistant/runtime/beagle_usb_runtime_usbipd.sh thin-client-assistant/runtime/beagle_usb_runtime_actions.sh thin-client-assistant/runtime/beagle-usbctl.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for USB env/tunnel accessor helpers and `require_enabled()` with explicit temporary env values
+  - focused smoke test for bound-busid persistence plus `list-json` / `status-json` surfaces with stubbed `usbip`, `pgrep`, and temporary USB state files
+
 ### 2026-04-11 — runtime systemd-units helper extraction
 
 - Removed the systemd unit/timer activation block from `thin-client-assistant/runtime/runtime_systemd_bootstrap.sh`:
