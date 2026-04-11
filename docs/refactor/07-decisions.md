@@ -1628,3 +1628,16 @@ Reason:
 
 - The live menu still carried two `candidate_live_devices()` copies while the local installer carried a third variation. Leaving that duplication in place would keep live-medium selection brittle and make continuation harder for later agents.
 - The manifest helper already owned the other USB manifest reads/writes. Keeping `payload_source` validation outside that helper would preserve an unnecessary split between shell orchestration and manifest contract logic.
+
+### D138. USB live-mount candidate discovery should join the shared live-medium helper
+
+Decision:
+
+- Keep `candidate_live_mounts()` in `thin-client-assistant/usb/live_medium_helpers.sh` next to the other live-medium discovery helpers.
+- `thin-client-assistant/usb/pve-thin-client-live-menu.sh` and `thin-client-assistant/usb/pve-thin-client-local-installer.sh` should not each keep their own mount-list implementation.
+- Local-installer-specific `log_msg` output should stay at the actual mount-resolution call sites instead of being baked into the shared mount-candidate helper.
+
+Reason:
+
+- The live menu and local installer were still enumerating the same mount candidates independently even after the asset-path and device-candidate helpers were shared. That kept the same discovery contract duplicated in two entrypoints.
+- The local installer cares about extra operator diagnostics, but that is a call-site concern rather than part of the shared mount-candidate contract. Keeping logging outside the helper preserves behavior while keeping the helper reusable.

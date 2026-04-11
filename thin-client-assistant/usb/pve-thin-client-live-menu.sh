@@ -752,23 +752,6 @@ effective_api_host() {
   return 1
 }
 
-candidate_live_mounts() {
-  local target
-  local -a candidates=("$LIVE_MEDIUM_DEFAULT" "/run/live/medium" "/lib/live/mount/medium")
-
-  if command -v findmnt >/dev/null 2>&1; then
-    while IFS= read -r target; do
-      [[ -n "$target" ]] || continue
-      candidates+=("$target")
-    done < <(findmnt -rn -o TARGET 2>/dev/null || true)
-  fi
-
-  for target in "${candidates[@]}"; do
-    [[ -d "$target" ]] || continue
-    printf '%s\n' "$target"
-  done
-}
-
 mount_discovered_live_medium() {
   local device mount_dir
 

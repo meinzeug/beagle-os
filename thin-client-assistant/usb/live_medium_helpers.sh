@@ -57,6 +57,23 @@ candidate_live_asset_dir() {
   printf '%s\n' "$live_dir"
 }
 
+candidate_live_mounts() {
+  local target
+  local -a candidates=("${LIVE_MEDIUM_DEFAULT:-/run/live/medium}" "/run/live/medium" "/lib/live/mount/medium")
+
+  if command -v findmnt >/dev/null 2>&1; then
+    while IFS= read -r target; do
+      [[ -n "$target" ]] || continue
+      candidates+=("$target")
+    done < <(findmnt -rn -o TARGET 2>/dev/null || true)
+  fi
+
+  for target in "${candidates[@]}"; do
+    [[ -d "$target" ]] || continue
+    printf '%s\n' "$target"
+  done
+}
+
 candidate_manifest_path() {
   local target="$1"
   local require_boot_assets="${2:-0}"
