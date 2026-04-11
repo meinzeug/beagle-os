@@ -35,6 +35,7 @@ if str(SERVICES_DIR) not in sys.path:
 from action_queue import ActionQueueService
 from endpoint_profile_contract import installer_profile_surface, normalize_endpoint_profile_contract
 from endpoint_report import EndpointReportService
+from enrollment_token_store import EnrollmentTokenStoreService
 from fleet_inventory import FleetInventoryService
 from health_payload import HealthPayloadService
 from host_provider_contract import HostProvider
@@ -46,6 +47,7 @@ from ubuntu_beagle_state import UbuntuBeagleStateService
 from update_feed import UpdateFeedService
 from virtualization_inventory import VirtualizationInventoryService
 from vm_profile import VmProfileService
+from vm_secret_store import VmSecretStoreService
 from vm_state import VmStateService
 
 def load_env_defaults(path: str) -> None:
@@ -596,6 +598,8 @@ ACTION_QUEUE_SERVICE: ActionQueueService | None = None
 POLICY_STORE_SERVICE: PolicyStoreService | None = None
 SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
 UBUNTU_BEAGLE_STATE_SERVICE: UbuntuBeagleStateService | None = None
+VM_SECRET_STORE_SERVICE: VmSecretStoreService | None = None
+ENROLLMENT_TOKEN_STORE_SERVICE: EnrollmentTokenStoreService | None = None
 
 
 def endpoints_dir() -> Path:
@@ -626,18 +630,38 @@ def policies_dir() -> Path:
     return path
 
 
+def vm_secret_store_service() -> VmSecretStoreService:
+    global VM_SECRET_STORE_SERVICE
+    if VM_SECRET_STORE_SERVICE is None:
+        VM_SECRET_STORE_SERVICE = VmSecretStoreService(
+            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            load_json_file=load_json_file,
+            write_json_file=write_json_file,
+            safe_slug=safe_slug,
+            utcnow=utcnow,
+        )
+    return VM_SECRET_STORE_SERVICE
+
+
+def enrollment_token_store_service() -> EnrollmentTokenStoreService:
+    global ENROLLMENT_TOKEN_STORE_SERVICE
+    if ENROLLMENT_TOKEN_STORE_SERVICE is None:
+        ENROLLMENT_TOKEN_STORE_SERVICE = EnrollmentTokenStoreService(
+            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            load_json_file=load_json_file,
+            write_json_file=write_json_file,
+            parse_utc_timestamp=parse_utc_timestamp,
+            utcnow=utcnow,
+        )
+    return ENROLLMENT_TOKEN_STORE_SERVICE
+
+
 def vm_secrets_dir() -> Path:
-    path = EFFECTIVE_DATA_DIR / "vm-secrets"
-    path.mkdir(parents=True, exist_ok=True)
-    os.chmod(path, 0o700)
-    return path
+    return vm_secret_store_service().secrets_dir()
 
 
 def enrollment_tokens_dir() -> Path:
-    path = EFFECTIVE_DATA_DIR / "enrollment-tokens"
-    path.mkdir(parents=True, exist_ok=True)
-    os.chmod(path, 0o700)
-    return path
+    return enrollment_token_store_service().tokens_dir()
 
 
 def endpoint_tokens_dir() -> Path:
@@ -821,21 +845,15 @@ def random_pin() -> str:
 
 
 def vm_secret_path(node: str, vmid: int) -> Path:
-    return vm_secrets_dir() / f"{safe_slug(node, 'unknown')}-{int(vmid)}.json"
+    return vm_secret_store_service().secret_path(node, vmid)
 
 
 def load_vm_secret(node: str, vmid: int) -> dict[str, Any] | None:
-    payload = load_json_file(vm_secret_path(node, vmid), None)
-    return payload if isinstance(payload, dict) else None
+    return vm_secret_store_service().load(node, vmid)
 
 
 def save_vm_secret(node: str, vmid: int, payload: dict[str, Any]) -> dict[str, Any]:
-    clean = dict(payload)
-    clean["node"] = node
-    clean["vmid"] = int(vmid)
-    clean["updated_at"] = utcnow()
-    write_json_file(vm_secret_path(node, vmid), clean)
-    return clean
+    return vm_secret_store_service().save(node, vmid, payload)
 
 
 def default_usb_tunnel_port(vmid: int) -> int:
@@ -1300,7 +1318,7 @@ def ensure_vm_sunshine_pinned_pubkey(vm: VmSummary, secret: dict[str, Any]) -> d
 
 
 def enrollment_token_path(token: str) -> Path:
-    return enrollment_tokens_dir() / f"{hashlib.sha256(token.encode('utf-8')).hexdigest()}.json"
+    return enrollment_token_store_service().token_path(token)
 
 
 def sunshine_access_token_path(token: str) -> Path:
@@ -1319,13 +1337,12 @@ def issue_enrollment_token(vm: VmSummary) -> tuple[str, dict[str, Any]]:
         "used_at": "",
         "thinclient_password": str(record.get("thinclient_password", "")),
     }
-    write_json_file(enrollment_token_path(token), payload)
+    enrollment_token_store_service().store(token, payload)
     return token, payload
 
 
 def load_enrollment_token(token: str) -> dict[str, Any] | None:
-    payload = load_json_file(enrollment_token_path(token), None)
-    return payload if isinstance(payload, dict) else None
+    return enrollment_token_store_service().load(token)
 
 
 def issue_sunshine_access_token(vm: VmSummary) -> tuple[str, dict[str, Any]]:
@@ -1346,26 +1363,11 @@ def load_sunshine_access_token(token: str) -> dict[str, Any] | None:
 
 
 def mark_enrollment_token_used(token: str, payload: dict[str, Any], *, endpoint_id: str) -> None:
-    clean = dict(payload)
-    clean["used_at"] = utcnow()
-    clean["endpoint_id"] = endpoint_id
-    write_json_file(enrollment_token_path(token), clean)
+    enrollment_token_store_service().mark_used(token, payload, endpoint_id=endpoint_id)
 
 
 def enrollment_token_is_valid(payload: dict[str, Any] | None, *, endpoint_id: str = "") -> bool:
-    if not isinstance(payload, dict):
-        return False
-    expires_at = parse_utc_timestamp(str(payload.get("expires_at", "")))
-    if expires_at is None:
-        return False
-    if expires_at <= datetime.now(timezone.utc):
-        return False
-    used_at = str(payload.get("used_at", "")).strip()
-    if not used_at:
-        return True
-    if endpoint_id and str(payload.get("endpoint_id", "")).strip() == endpoint_id:
-        return True
-    return False
+    return enrollment_token_store_service().is_valid(payload, endpoint_id=endpoint_id)
 
 
 def sunshine_access_token_is_valid(payload: dict[str, Any] | None) -> bool:

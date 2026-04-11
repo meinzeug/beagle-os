@@ -2,6 +2,18 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — vm-secret and enrollment-token store extraction
+
+- Extracted the VM-secret persistence helpers out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/vm_secret_store.py`:
+  - `VmSecretStoreService` owns `secrets_dir()`, `secret_path(node, vmid)`, `load(node, vmid)`, and `save(node, vmid, payload)`; `save()` stamps `node`, `vmid`, and `updated_at` via the injected `utcnow` callable, matching the previous helper semantics
+  - `vm_secrets_dir`, `vm_secret_path`, `load_vm_secret`, and `save_vm_secret` in the control plane now delegate through `vm_secret_store_service()`; `ensure_vm_secret`, the sunshine pinned-pubkey helper, and `ensure_vm_sunshine_pinned_pubkey` continue to call the wrappers without any signature changes because credential generation, ssh-keygen, sunshine pinning, and usb-tunnel authorized-key plumbing still depend on collaborators that are not part of the persistence seam
+- Extracted the enrollment-token persistence and validity helpers into `beagle-host/services/enrollment_token_store.py`:
+  - `EnrollmentTokenStoreService` owns `tokens_dir()`, `token_path(token)`, `store(token, payload)`, `load(token)`, `mark_used(token, payload, *, endpoint_id)`, and `is_valid(payload, *, endpoint_id)`
+  - `enrollment_tokens_dir`, `enrollment_token_path`, `load_enrollment_token`, `mark_enrollment_token_used`, and `enrollment_token_is_valid` in the control plane now delegate through `enrollment_token_store_service()`; `issue_enrollment_token` still builds its payload from `VmSummary` + `ensure_vm_secret` + TTL math and calls `.store()` on the service so the payload shape stays in the control plane
+- `scripts/install-proxmox-host-services.sh` installs both new service files into `$HOST_RUNTIME_DIR/services/`
+- Verified the live control-plane module still imports cleanly with `BEAGLE_MANAGER_DATA_DIR=/tmp/beagle-smoketest` and round-trips through both services: `vm_secret_path('pve1', 101).name` is `pve1-101.json`, saving and loading a secret preserves `node`, `vmid`, and a fresh `updated_at`, `enrollment_token_path('demo').name` matches the sha256 hex digest, and `enrollment_token_is_valid` correctly handles `None`, bad timestamps, future-unused, and endpoint-id reuse vs. mismatch
+- `beagle-control-plane.py` net change was +2 lines (5084 → 5086) for this slice because the two lazy factories offset the short helper bodies — this slice is about the architectural seam, not line count
+
 ### 2026-04-11 — ubuntu-beagle provisioning-state extraction
 
 - Extracted the ubuntu-beagle installer state persistence and summarization helpers out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/ubuntu_beagle_state.py`:

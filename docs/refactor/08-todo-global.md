@@ -44,7 +44,9 @@
 - [x] Extract the policy CRUD helpers into `beagle-host/services/policy_store.py` behind a lazy factory and delegating wrappers.
 - [x] Extract the support-bundle metadata/archive helpers into `beagle-host/services/support_bundle_store.py` behind a lazy factory and delegating wrappers.
 - [x] Extract the ubuntu-beagle provisioning-state persistence and summarization helpers into `beagle-host/services/ubuntu_beagle_state.py` behind a lazy factory and delegating wrappers.
-- [ ] Continue splitting the remaining vm-secret / enrollment-token / download-metadata business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
+- [x] Extract the VM-secret persistence helpers into `beagle-host/services/vm_secret_store.py` behind a lazy factory and delegating wrappers.
+- [x] Extract the enrollment-token persistence and validity helpers into `beagle-host/services/enrollment_token_store.py` behind a lazy factory and delegating wrappers.
+- [ ] Continue splitting the remaining download-metadata / public-URL / sunshine-access-token business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
 - [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.
