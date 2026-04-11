@@ -1072,3 +1072,14 @@ Decision:
 Reason:
 
 - The Moonlight and GFN launchers had diverged slightly but were still solving the same display bootstrap problem twice. A shared seam reduces duplication without forcing the two launchers into identical behavior where their operational assumptions still differ.
+
+### D93. Moonlight target resolution and reachability should be one dedicated seam before pairing refactors
+
+Decision:
+
+- Keep Moonlight host/local-host/port resolution, IPv4 preference handling, Sunshine API URL rewriting, connect-host selection, and stream-target reachability waits in `thin-client-assistant/runtime/moonlight_targeting.sh`.
+- `launch-moonlight.sh` should source this helper instead of mixing target selection with pairing/bootstrap and stream execution.
+
+Reason:
+
+- The target-resolution block was the largest remaining cohesive networking block in `launch-moonlight.sh`. Pulling it out first lowers the next pairing/bootstrap slice risk and makes Moonlight runtime work separable into targeting, pairing/bootstrap, and stream execution concerns.
