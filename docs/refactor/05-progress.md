@@ -1,5 +1,19 @@
 # Refactor Progress
 
+### 2026-04-11 — generic host service-installer entrypoint extraction
+
+- Moved the host service/bootstrap installer behind a provider-neutral script entrypoint:
+  - added `scripts/install-beagle-host-services.sh` as the canonical generic host-service installer entrypoint
+  - reduced `scripts/install-proxmox-host-services.sh` to a compatibility wrapper that delegates to `install-beagle-host-services.sh`
+  - rewired `scripts/install-beagle-host.sh` to invoke `install-beagle-host-services.sh`
+- This continues the outer host bootstrap naming cleanup without hiding the current provider-specific implementation state:
+  - the service installer still deploys the current Proxmox provider/runtime assets and keeps `install-proxmox-ui-integration.sh` explicit
+  - the canonical host installer path no longer points at a Proxmox-named service-installer entrypoint
+- Validation and smoke checks for this slice passed:
+  - `bash -n scripts/install-beagle-host.sh scripts/install-beagle-host-services.sh scripts/install-proxmox-host-services.sh`
+  - focused smoke check that the legacy service-installer wrapper delegates to the new generic entrypoint
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-11 — generic host health-check entrypoint extraction
 
 - Moved the post-install host validation bootstrap behind a provider-neutral script entrypoint:

@@ -146,6 +146,7 @@
 - [x] Thread `BEAGLE_HOST_PROVIDER` through host install env, manager env, refresh, and post-install check surfaces so provider selection is no longer only a control-plane bootstrap detail.
 - [x] Thread `BEAGLE_HOST_PROVIDER` through proxy install, Proxmox-UI integration, and server-installer bootstrap surfaces so deploy/install paths also carry the selected provider explicitly.
 - [x] Introduce generic top-level host health-check entrypoints and keep the Proxmox-named checker as a compatibility wrapper.
+- [x] Introduce a generic top-level host service-installer entrypoint and keep the Proxmox-named service installer as a compatibility wrapper.
 - [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.

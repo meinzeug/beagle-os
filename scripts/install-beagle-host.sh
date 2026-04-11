@@ -226,7 +226,7 @@ fi
 "$INSTALL_DIR/scripts/prepare-host-downloads.sh" || echo "Warning: could not prepare host downloads (can be retried later)." >&2
 write_host_env_file
 BEAGLE_HOST_PROVIDER="$BEAGLE_HOST_PROVIDER" \
-  "$INSTALL_DIR/scripts/install-proxmox-host-services.sh"
+  "$INSTALL_DIR/scripts/install-beagle-host-services.sh"
 
 if [[ -d /usr/share/pve-manager/js ]]; then
   PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME" \

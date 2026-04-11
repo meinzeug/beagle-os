@@ -730,9 +730,10 @@ These flows now go through a provider-facing helper seam first:
 
 ### Deploy / runtime provider threading
 
-- `scripts/install-beagle-host.sh` now acts as the canonical top-level host installer entrypoint, records `BEAGLE_HOST_PROVIDER` into `host.env`, and passes it into `install-proxmox-host-services.sh`
+- `scripts/install-beagle-host.sh` now acts as the canonical top-level host installer entrypoint, records `BEAGLE_HOST_PROVIDER` into `host.env`, and passes it into `install-beagle-host-services.sh`
 - `scripts/install-proxmox-host.sh` now exists as a compatibility wrapper around `install-beagle-host.sh`
-- `scripts/install-proxmox-host-services.sh` now writes `BEAGLE_HOST_PROVIDER` into `beagle-manager.env`
+- `scripts/install-beagle-host-services.sh` now acts as the canonical host service-installer entrypoint and writes `BEAGLE_HOST_PROVIDER` into `beagle-manager.env`
+- `scripts/install-proxmox-host-services.sh` now exists as a compatibility wrapper around `install-beagle-host-services.sh`
 - `scripts/check-beagle-host.sh` now acts as the canonical top-level host validation entrypoint under the selected host-provider kind
 - `scripts/check-proxmox-host.sh` now exists as a compatibility wrapper around `check-beagle-host.sh`
 - `scripts/refresh-host-artifacts.sh` and `scripts/check-beagle-host.sh` now run under the same selected host-provider kind

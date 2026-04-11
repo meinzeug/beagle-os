@@ -868,6 +868,18 @@ Reason:
 
 - The operator-facing bootstrap path is still Proxmox-centered if the validation command remains Proxmox-named after install/setup were already made generic. The safer intermediate state is the same as for install/setup: provider-neutral outer naming with explicit provider-specific checks still visible inside.
 
+### D137. The host service-installer entrypoint should also become provider-neutral before its inner implementation changes
+
+Decision:
+
+- Introduce `scripts/install-beagle-host-services.sh` as the canonical top-level host service-installer entrypoint.
+- Keep `scripts/install-proxmox-host-services.sh` as a compatibility wrapper.
+- Keep the current provider/runtime payload inside `install-beagle-host-services.sh` unchanged until the actual provider-aware install slices are ready.
+
+Reason:
+
+- The generic host installer still leaked Proxmox naming through its immediate next hop even after the outer install/setup/check commands were renamed. Renaming this seam now removes another unnecessary architecture hint from the operator path without pretending the underlying service/runtime deployment is already provider-neutral.
+
 ### D75. Hosted download preparation should move behind a dedicated helper and reuse the endpoint profile contract for overlapping VM installer metadata
 
 Decision:
