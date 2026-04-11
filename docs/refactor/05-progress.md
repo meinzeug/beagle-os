@@ -29,6 +29,19 @@
   - focused smoke test for `build_moonlight_manager_registration_payload()` and `register_moonlight_client_via_manager()` with stubbed `curl` and manager sync hooks
   - focused smoke test for `submit_sunshine_pin()` and `json_bool()` with stubbed `curl`
 
+### 2026-04-11 — Moonlight manager-registration helper extraction
+
+- Split the manager-registration path out of `thin-client-assistant/runtime/moonlight_remote_api.sh`:
+  - added `thin-client-assistant/runtime/moonlight_manager_registration.sh` for manager registration payload generation and manager-side client registration
+  - `thin-client-assistant/runtime/moonlight_remote_api.sh` now sources that helper and stays focused on shared remote-API accessors plus Sunshine PIN submission and JSON status extraction
+- This reduces the remaining Moonlight remote API helper to clearer seams:
+  - manager registration and Sunshine PIN submission are now separate helper surfaces instead of one mixed remote API file
+  - `moonlight_pairing.sh` and `launch-moonlight.sh` still consume the same public helper functions, so runtime behavior stays unchanged
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/moonlight_manager_registration.sh thin-client-assistant/runtime/moonlight_remote_api.sh thin-client-assistant/runtime/moonlight_pairing.sh thin-client-assistant/runtime/launch-moonlight.sh`
+  - focused smoke test for `build_moonlight_manager_registration_payload()` and `register_moonlight_client_via_manager()` with stubbed `curl` and manager sync hooks
+  - focused smoke test for `submit_sunshine_pin()` and `json_bool()` with stubbed `curl`
+
 ### 2026-04-11 — runtime ownership / GeForce NOW storage split
 
 - Split the mixed ownership/GFN-storage helper layer from `thin-client-assistant/runtime/runtime_ownership.sh`:
