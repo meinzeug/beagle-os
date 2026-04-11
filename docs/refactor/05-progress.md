@@ -1,5 +1,19 @@
 # Refactor Progress
 
+### 2026-04-12 — shared live-medium helper extraction
+
+- Removed the duplicated live-medium asset/manifest path checks from the USB installer entrypoints:
+  - added `thin-client-assistant/usb/live_medium_helpers.sh` for shared `candidate_live_asset_dir()` and `candidate_manifest_path()` helpers
+  - `thin-client-assistant/usb/pve-thin-client-local-installer.sh` now sources that helper and keeps only the local-installer-specific preset/live-medium orchestration
+  - `thin-client-assistant/usb/pve-thin-client-live-menu.sh` now sources the same helper instead of carrying a second copy of the live-medium asset/manifest discovery logic
+- This reduces the USB installer surface into a clearer seam:
+  - manifest-path and live-asset-path selection now live in one shell helper instead of drifting between the live menu and the local installer
+  - the local installer still keeps the stricter boot-asset requirement via the helper's `require_boot_assets` flag, so behavior stays unchanged
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/usb/live_medium_helpers.sh thin-client-assistant/usb/pve-thin-client-local-installer.sh thin-client-assistant/usb/pve-thin-client-live-menu.sh`
+  - focused smoke test for `candidate_live_asset_dir()` and `candidate_manifest_path()` with and without required boot assets
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — USB manifest helper extraction
 
 - Removed the inline manifest/version Python blocks from the thin-client USB shell entrypoints:

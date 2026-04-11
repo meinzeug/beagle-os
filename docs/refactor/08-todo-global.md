@@ -37,6 +37,7 @@
 - [x] Extract the non-shell hosted-download preparation block from `scripts/prepare-host-downloads.sh` into a dedicated helper seam and reuse the endpoint profile contract for overlapping VM installer metadata.
 - [x] Extract the thin-client preset-summary/UI-state helper layer into a shared USB module instead of duplicating mode-availability logic in the local installer and the Proxmox API helper.
 - [x] Extract the shared USB manifest project-version read/write and install-manifest/USB-manifest JSON shaping into a dedicated USB helper module.
+- [x] Extract the shared live-medium asset/manifest path detection into a dedicated USB shell helper module.
 - [x] Extract the runtime enrollment-response config writer out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper seam.
 - [x] Extract the thin-client runtime status file writers into a shared runtime helper instead of separate launch/runtime shell implementations.
 - [x] Extract the preset-to-runtime config generation helper out of `thin-client-assistant/runtime/common.sh` while keeping `write-config.sh` as the canonical config writer.

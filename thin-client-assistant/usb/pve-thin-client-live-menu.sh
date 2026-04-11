@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 INSTALLER="${PVE_THIN_CLIENT_INSTALLER_BIN:-$SCRIPT_DIR/pve-thin-client-local-installer.sh}"
 PROXMOX_API_HELPER="${PVE_THIN_CLIENT_PROXMOX_API_HELPER:-$SCRIPT_DIR/pve-thin-client-proxmox-api.py}"
+LIVE_MEDIUM_HELPERS="$SCRIPT_DIR/live_medium_helpers.sh"
 LIVE_MEDIUM_DEFAULT="${LIVE_MEDIUM:-/run/live/medium}"
 TEMP_LIVE_MEDIUM_MOUNT=""
 BOOT_STAMP="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date +%Y%m%dT%H%M%SZ)"
@@ -34,6 +35,9 @@ AUTO_INSTALL_LOCK_HELD=0
 AUTO_INSTALL_LOCK_FD=""
 AUTO_INSTALL_LOCK_SKIPPED=0
 LAST_INSTALL_EXIT_CODE=0
+
+# shellcheck disable=SC1090
+source "$LIVE_MEDIUM_HELPERS"
 
 have_passwordless_sudo() {
   [[ "${EUID}" -eq 0 ]] || (command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1)
@@ -797,38 +801,6 @@ candidate_live_mounts() {
     [[ -d "$target" ]] || continue
     printf '%s\n' "$target"
   done
-}
-
-candidate_live_asset_dir() {
-  local target="$1"
-
-  if [[ -f "$target/pve-thin-client/live/filesystem.squashfs" ]]; then
-    printf '%s\n' "$target/pve-thin-client/live"
-    return 0
-  fi
-
-  if [[ -f "$target/filesystem.squashfs" ]]; then
-    printf '%s\n' "$target"
-    return 0
-  fi
-
-  return 1
-}
-
-candidate_manifest_path() {
-  local target="$1"
-
-  if [[ -f "$target/.pve-dcv-usb-manifest.json" ]]; then
-    printf '%s\n' "$target/.pve-dcv-usb-manifest.json"
-    return 0
-  fi
-
-  if candidate_live_asset_dir "$target" >/dev/null 2>&1 && [[ -f "$target/.pve-dcv-usb-manifest.json" ]]; then
-    printf '%s\n' "$target/.pve-dcv-usb-manifest.json"
-    return 0
-  fi
-
-  return 1
 }
 
 candidate_live_devices() {

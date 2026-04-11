@@ -1605,3 +1605,14 @@ Decision:
 Reason:
 
 - The USB installer surfaces still mixed shell orchestration with small but important JSON contracts. Those inline Python blocks were easy to duplicate and harder to smoke-test in isolation. Pulling them into one helper keeps the shell entrypoints focused on disk/payload orchestration and makes the manifest contract explicit ahead of the next hosted-installer slice, where artifact-source selection and manifest version reporting need to be reasoned about separately.
+
+### D136. Live-medium asset and manifest path detection should live in one shell helper
+
+Decision:
+
+- Keep `candidate_live_asset_dir()` and `candidate_manifest_path()` in `thin-client-assistant/usb/live_medium_helpers.sh`.
+- `thin-client-assistant/usb/pve-thin-client-local-installer.sh` and `thin-client-assistant/usb/pve-thin-client-live-menu.sh` should source that helper instead of carrying separate copies of the same path-selection logic.
+
+Reason:
+
+- The live menu and local installer were both deciding where the USB live assets and manifest live, but one copy needed full boot assets while the other only needed to detect the live medium. Centralizing the helper with an explicit `require_boot_assets` flag keeps the behavior split explicit without leaving the path contract duplicated across two entrypoints.
