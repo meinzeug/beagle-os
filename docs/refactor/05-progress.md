@@ -2,6 +2,21 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — Moonlight runtime-exec helper extraction
+
+- Removed the remaining decoder/audio/display/stream-argument block from `thin-client-assistant/runtime/launch-moonlight.sh`:
+  - added `thin-client-assistant/runtime/moonlight_runtime_exec.sh` for `moonlight_bin()`, `moonlight_app()`, audio-driver selection, decoder selection, local display detection, resolution shaping, stream-arg assembly, and graphics/audio runtime environment preparation
+  - `thin-client-assistant/runtime/launch-moonlight.sh` now sources that helper instead of carrying the full stream-execution setup inline
+- This finishes the main Moonlight launcher split into explicit seams:
+  - `thin-client-assistant/runtime/launch-moonlight.sh` is now down to about `106` lines and mostly owns top-level orchestration plus final `exec`
+  - `moonlight_targeting.sh` owns target selection and reachability
+  - `moonlight_pairing.sh` owns pairing/bootstrap/config sync
+  - `moonlight_runtime_exec.sh` owns stream execution setup and argument shaping
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/launch-moonlight.sh thin-client-assistant/runtime/moonlight_runtime_exec.sh thin-client-assistant/runtime/moonlight_pairing.sh thin-client-assistant/runtime/moonlight_targeting.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `build_stream_args()` through the extracted helper
+  - focused smoke tests for `moonlight_audio_driver()` override/default behavior and `moonlight_resolution()`
+
 ### 2026-04-11 — Moonlight pairing/helper extraction
 
 - Removed the Moonlight pairing/bootstrap/config-sync block from `thin-client-assistant/runtime/launch-moonlight.sh`:

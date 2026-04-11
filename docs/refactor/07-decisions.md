@@ -1094,3 +1094,14 @@ Decision:
 Reason:
 
 - After target resolution moved out, the next largest coherent block in `launch-moonlight.sh` was the pairing/bootstrap/config-sync flow. Extracting it isolates Moonlight runtime work into three clear concerns: targeting, pairing/bootstrap, and execution/runtime setup.
+
+### D95. Moonlight stream execution setup should be its own runtime seam
+
+Decision:
+
+- Keep Moonlight binary/app resolution, audio-driver and decoder selection, local display/resolution shaping, stream-argument assembly, and graphics/audio runtime environment preparation in `thin-client-assistant/runtime/moonlight_runtime_exec.sh`.
+- `launch-moonlight.sh` should source this helper and remain the thin top-level orchestrator for reachability, pairing, and final `exec`.
+
+Reason:
+
+- After targeting and pairing moved out, the remaining block in `launch-moonlight.sh` was no longer launcher orchestration but a cohesive execution/runtime-setup seam. Extracting that block completes the main Moonlight split without changing runtime behavior and moves the next thin-client work onto `prepare-runtime.sh` and the shared runtime/network surfaces instead of back into the launcher.

@@ -54,6 +54,7 @@
 - [x] Extract the duplicated X11/Xauthority display bootstrap helpers out of `launch-moonlight.sh` and `launch-geforcenow.sh` into a shared runtime helper.
 - [x] Extract the Moonlight host/API-url/target-reachability resolution block out of `launch-moonlight.sh` into a dedicated helper.
 - [x] Extract the Moonlight pairing/bootstrap/config-sync block out of `launch-moonlight.sh` into a dedicated helper.
+- [x] Extract the Moonlight stream-exec/audio/graphics setup block out of `launch-moonlight.sh` into a dedicated helper.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.
