@@ -758,3 +758,15 @@ Decision:
 Reason:
 
 - After the public GET surface moved out, the next cohesive external-facing POST block was the ubuntu-install lifecycle. Those routes all operate on the same public token/state contract and were still mostly state mutation plus response-envelope code around extracted services. Pulling them behind one dedicated surface keeps the decomposition consistent and shrinks the monolith without changing the installer-facing API.
+
+### D68. Endpoint-authenticated action/result/upload and Moonlight registration belong in one endpoint HTTP surface
+
+Decision:
+
+- Move the endpoint-authenticated POST routes for Moonlight registration, action pull/result, and support-bundle upload into `beagle-host/services/endpoint_http_surface.py`.
+- Keep `beagle-control-plane.py` responsible only for the endpoint-auth gate plus generic JSON/binary body reads before handing off to the service.
+- Let the new service own endpoint scope validation, response envelopes, and the composition of the existing action queue, support-bundle store, Sunshine integration, and VM lookup seams.
+
+Reason:
+
+- After the public-install lifecycle left the entrypoint, the next coherent POST cluster was the endpoint-facing runtime contract used by enrolled clients. Those routes already depended on extracted services but still duplicated scope checks, envelope shaping, and per-route validation inside the HTTP entrypoint. Pulling them together behind one endpoint surface keeps the decomposition pattern consistent and meaningfully shrinks the monolith without changing endpoint behavior.

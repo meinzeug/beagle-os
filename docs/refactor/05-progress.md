@@ -2,6 +2,22 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — host endpoint POST-surface extraction
+
+- Extracted the endpoint-authenticated POST surface for Moonlight registration, action pull/result, and support-bundle upload out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/endpoint_http_surface.py`:
+  - `EndpointHttpSurfaceService` now owns the route matching, scope validation, payload shaping, and response envelopes for `/api/v1/endpoints/moonlight/register`, `/api/v1/endpoints/actions/pull`, `/api/v1/endpoints/actions/result`, and `/api/v1/endpoints/support-bundles/upload`
+  - the service now composes the already-extracted action queue, support-bundle store, Sunshine integration, and VM lookup seams instead of reassembling those endpoint-facing POST flows inline in the HTTP entrypoint
+- Rewired the control-plane entrypoint to delegate that endpoint-facing POST cluster through `EndpointHttpSurfaceService`:
+  - `beagle-control-plane.py` now only performs the endpoint-auth gate plus generic JSON/binary body reads before handing off to the service
+  - `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/endpoint_http_surface.py` into the deployed host runtime
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile beagle-host/services/endpoint_http_surface.py beagle-host/bin/beagle-control-plane.py`
+  - `bash -n scripts/install-proxmox-host-services.sh`
+  - focused smoke checks for `EndpointHttpSurfaceService` route handling, scope validation, and response shaping
+  - `./scripts/validate-project.sh`
+- Current size marker after this slice:
+  - `beagle-host/bin/beagle-control-plane.py` is down to about `2713` lines
+
 ### 2026-04-11 — host public ubuntu-install POST-surface extraction
 
 - Extracted the public Ubuntu install lifecycle POST block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/public_ubuntu_install_surface.py`:
