@@ -1,5 +1,19 @@
 # Refactor Progress
 
+### 2026-04-12 — USB shared mount-loop extraction
+
+- Removed the duplicated live-medium mount/umount loop from the thin-client USB installer entrypoints:
+  - extended `thin-client-assistant/usb/live_medium_helpers.sh` with shared `live_medium_have_mount_privileges()`, `live_medium_run_privileged()`, and `mount_candidate_live_medium()`
+  - `thin-client-assistant/usb/pve-thin-client-live-menu.sh` now uses small validator wrappers plus the shared helper for both `mount_discovered_live_medium()` and `mount_writable_live_medium_for_logs()`
+  - `thin-client-assistant/usb/pve-thin-client-local-installer.sh` now uses the same shared helper for both mount paths and keeps the installer-specific log messages at the call sites
+- This further tightens the USB installer seam:
+  - live-device discovery, live-mount candidate discovery, and the actual mount/umount candidate loop now all live in one helper module
+  - the two entrypoints still own their different acceptance rules for mounted content and their different logging expectations, so behavior stays split where it is product-specific
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/usb/live_medium_helpers.sh thin-client-assistant/usb/pve-thin-client-live-menu.sh thin-client-assistant/usb/pve-thin-client-local-installer.sh`
+  - focused smoke test for `mount_candidate_live_medium()` with stubbed `mount` / `umount` and validator callbacks against `/dev/loop0`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — USB live-mount helper extraction
 
 - Removed the duplicated live-medium mount-candidate logic from the thin-client USB installer entrypoints:

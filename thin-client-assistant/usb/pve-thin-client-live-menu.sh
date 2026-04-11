@@ -125,36 +125,22 @@ sanitize_log_session_id() {
   printf '%s\n' "$raw"
 }
 
+live_menu_logs_medium_mount_valid() {
+  local mount_dir="$1"
+  [[ -d "$mount_dir/pve-thin-client" ]]
+}
+
 mount_writable_live_medium_for_logs() {
-  local device mount_dir
+  local mounted=""
+  local mount_dir=""
 
-  while IFS= read -r device; do
-    [[ -n "$device" ]] || continue
-    [[ -b "$device" ]] || continue
-    mount_dir="$(mktemp -d /tmp/pve-live-logs.XXXXXX)"
-    if [[ "${EUID}" -eq 0 ]]; then
-      if mount -o rw "$device" "$mount_dir" >/dev/null 2>&1; then
-        if [[ -d "$mount_dir/pve-thin-client" ]]; then
-          TEMP_LOG_PERSIST_MOUNT="$mount_dir"
-          printf '%s\n' "$mount_dir"
-          return 0
-        fi
-        umount "$mount_dir" >/dev/null 2>&1 || true
-      fi
-    elif command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
-      if sudo -n mount -o rw "$device" "$mount_dir" >/dev/null 2>&1; then
-        if [[ -d "$mount_dir/pve-thin-client" ]]; then
-          TEMP_LOG_PERSIST_MOUNT="$mount_dir"
-          printf '%s\n' "$mount_dir"
-          return 0
-        fi
-        sudo -n umount "$mount_dir" >/dev/null 2>&1 || true
-      fi
-    fi
-    rmdir "$mount_dir" >/dev/null 2>&1 || true
-  done < <(candidate_live_devices | awk 'NF && !seen[$0]++')
+  mounted="$(mount_candidate_live_medium rw /tmp/pve-live-logs.XXXXXX live_menu_logs_medium_mount_valid || true)"
+  [[ -n "$mounted" ]] || return 1
+  mount_dir="${mounted#*$'\t'}"
+  TEMP_LOG_PERSIST_MOUNT="$mount_dir"
+  printf '%s\n' "$mount_dir"
 
-  return 1
+  return 0
 }
 
 persist_logs_to_medium() {
@@ -752,31 +738,21 @@ effective_api_host() {
   return 1
 }
 
+live_menu_medium_mount_valid() {
+  local mount_dir="$1"
+  candidate_manifest_path "$mount_dir" >/dev/null 2>&1 || candidate_live_asset_dir "$mount_dir" >/dev/null 2>&1
+}
+
 mount_discovered_live_medium() {
-  local device mount_dir
+  local mounted=""
+  local mount_dir=""
 
-  have_passwordless_sudo || return 1
-
-  while IFS= read -r device; do
-    [[ -n "$device" && -b "$device" ]] || continue
-    mount_dir="$(mktemp -d /tmp/pve-live-medium.XXXXXX)"
-    if { [[ "${EUID}" -eq 0 ]] && mount -o ro "$device" "$mount_dir" >/dev/null 2>&1; } || \
-       { [[ "${EUID}" -ne 0 ]] && sudo -n mount -o ro "$device" "$mount_dir" >/dev/null 2>&1; }; then
-      if candidate_manifest_path "$mount_dir" >/dev/null 2>&1 || candidate_live_asset_dir "$mount_dir" >/dev/null 2>&1; then
-        TEMP_LIVE_MEDIUM_MOUNT="$mount_dir"
-        printf '%s\n' "$mount_dir"
-        return 0
-      fi
-      if [[ "${EUID}" -eq 0 ]]; then
-        umount "$mount_dir" >/dev/null 2>&1 || true
-      else
-        sudo -n umount "$mount_dir" >/dev/null 2>&1 || true
-      fi
-    fi
-    rmdir "$mount_dir" >/dev/null 2>&1 || true
-  done < <(candidate_live_devices | awk 'NF && !seen[$0]++')
-
-  return 1
+  mounted="$(mount_candidate_live_medium ro /tmp/pve-live-medium.XXXXXX live_menu_medium_mount_valid || true)"
+  [[ -n "$mounted" ]] || return 1
+  mount_dir="${mounted#*$'\t'}"
+  TEMP_LIVE_MEDIUM_MOUNT="$mount_dir"
+  printf '%s\n' "$mount_dir"
+  return 0
 }
 
 resolve_manifest_file() {

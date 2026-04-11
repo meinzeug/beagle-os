@@ -1641,3 +1641,15 @@ Reason:
 
 - The live menu and local installer were still enumerating the same mount candidates independently even after the asset-path and device-candidate helpers were shared. That kept the same discovery contract duplicated in two entrypoints.
 - The local installer cares about extra operator diagnostics, but that is a call-site concern rather than part of the shared mount-candidate contract. Keeping logging outside the helper preserves behavior while keeping the helper reusable.
+
+### D139. USB candidate mount/umount orchestration should join the shared live-medium helper
+
+Decision:
+
+- Keep passwordless-sudo/root mount capability checks plus the candidate `mount`/validate/`umount` loop in `thin-client-assistant/usb/live_medium_helpers.sh`.
+- Keep the live-menu and local-installer entrypoints responsible only for validator callbacks and any script-specific logging around successful mounts.
+
+Reason:
+
+- After device and mount-candidate discovery had already moved into the helper, both entrypoints still reimplemented the same block-device loop, temporary mount directory handling, and cleanup semantics. That was the remaining structural duplication in the USB live-medium path.
+- The only meaningful behavior difference between the entrypoints is what counts as an acceptable mounted medium and how much they log. Keeping those as callbacks preserves behavior while removing duplicated mount control flow.

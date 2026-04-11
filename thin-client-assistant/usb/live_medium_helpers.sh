@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
 
+live_medium_have_mount_privileges() {
+  [[ "${EUID}" -eq 0 ]] || (command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1)
+}
+
+live_medium_run_privileged() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    "$@"
+    return
+  fi
+
+  sudo -n "$@"
+}
+
 candidate_live_devices() {
   local token value
 
@@ -55,6 +68,30 @@ candidate_live_asset_dir() {
   fi
 
   printf '%s\n' "$live_dir"
+}
+
+mount_candidate_live_medium() {
+  local mount_mode="$1"
+  local mount_template="$2"
+  local validator_fn="$3"
+  local device mount_dir
+
+  live_medium_have_mount_privileges || return 1
+
+  while IFS= read -r device; do
+    [[ -n "$device" && -b "$device" ]] || continue
+    mount_dir="$(mktemp -d "$mount_template")"
+    if live_medium_run_privileged mount -o "$mount_mode" "$device" "$mount_dir" >/dev/null 2>&1; then
+      if "$validator_fn" "$mount_dir" "$device"; then
+        printf '%s\t%s\n' "$device" "$mount_dir"
+        return 0
+      fi
+      live_medium_run_privileged umount "$mount_dir" >/dev/null 2>&1 || true
+    fi
+    rmdir "$mount_dir" >/dev/null 2>&1 || true
+  done < <(candidate_live_devices | awk 'NF && !seen[$0]++')
+
+  return 1
 }
 
 candidate_live_mounts() {

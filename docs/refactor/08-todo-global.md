@@ -40,6 +40,7 @@
 - [x] Extract the shared live-medium asset/manifest path detection into a dedicated USB shell helper module.
 - [x] Extract the shared USB live-medium device candidate discovery into the dedicated USB shell helper module.
 - [x] Extract the shared USB live-medium mount candidate discovery into the dedicated USB shell helper module.
+- [x] Extract the shared USB live-medium candidate mount/umount orchestration into the dedicated USB shell helper module.
 - [x] Extract USB manifest payload-source parsing/validation into the dedicated USB manifest helper module.
 - [x] Extract the runtime enrollment-response config writer out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper seam.
 - [x] Extract the thin-client runtime status file writers into a shared runtime helper instead of separate launch/runtime shell implementations.
