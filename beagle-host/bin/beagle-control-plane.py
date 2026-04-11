@@ -63,6 +63,7 @@ from update_feed import UpdateFeedService
 from utility_support import UtilitySupportService
 from virtualization_inventory import VirtualizationInventoryService
 from vm_profile import VmProfileService
+from vm_http_surface import VmHttpSurfaceService
 from vm_secret_bootstrap import VmSecretBootstrapService
 from vm_secret_store import VmSecretStoreService
 from vm_state import VmStateService
@@ -496,6 +497,7 @@ VIRTUALIZATION_INVENTORY = VirtualizationInventoryService(
 )
 
 VM_PROFILE_SERVICE: VmProfileService | None = None
+VM_HTTP_SURFACE_SERVICE: VmHttpSurfaceService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
 DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
 RUNTIME_ENVIRONMENT_SERVICE: RuntimeEnvironmentService | None = None
@@ -1593,6 +1595,36 @@ def vm_profile_service() -> VmProfileService:
     return VM_PROFILE_SERVICE
 
 
+def vm_http_surface_service() -> VmHttpSurfaceService:
+    global VM_HTTP_SURFACE_SERVICE
+    if VM_HTTP_SURFACE_SERVICE is None:
+        VM_HTTP_SURFACE_SERVICE = VmHttpSurfaceService(
+            build_profile=build_profile,
+            build_vm_state=build_vm_state,
+            build_vm_usb_state=build_vm_usb_state,
+            downloads_status_file=DOWNLOADS_STATUS_FILE,
+            ensure_vm_secret=ensure_vm_secret,
+            find_vm=find_vm,
+            list_support_bundle_metadata=list_support_bundle_metadata,
+            load_action_queue=load_action_queue,
+            load_endpoint_report=load_endpoint_report,
+            load_installer_prep_state=load_installer_prep_state,
+            load_json_file=load_json_file,
+            public_manager_url=PUBLIC_MANAGER_URL,
+            public_server_name=PUBLIC_SERVER_NAME,
+            render_vm_installer_script=render_vm_installer_script,
+            render_vm_live_usb_script=render_vm_live_usb_script,
+            render_vm_windows_installer_script=render_vm_windows_installer_script,
+            service_name="beagle-control-plane",
+            summarize_endpoint_report=summarize_endpoint_report,
+            summarize_installer_prep_state=summarize_installer_prep_state,
+            usb_tunnel_ssh_user=USB_TUNNEL_SSH_USER,
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return VM_HTTP_SURFACE_SERVICE
+
+
 def vm_state_service() -> VmStateService:
     global VM_STATE_SERVICE
     if VM_STATE_SERVICE is None:
@@ -2114,310 +2146,16 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         if path.startswith("/api/v1/vms/"):
-            match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/installer\.sh$", path)
-            if match:
-                vm = find_vm(int(match.group("vmid")))
-                if vm is None:
-                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                    return
-                try:
-                    body, filename = render_vm_installer_script(vm)
-                except FileNotFoundError as exc:
-                    self._write_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
-                    return
-                except ValueError as exc:
-                    self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(exc)})
-                    return
+            response = vm_http_surface_service().route_get(path)
+            if response["kind"] == "bytes":
                 self._write_bytes(
-                    HTTPStatus.OK,
-                    body,
-                    content_type="text/x-shellscript; charset=utf-8",
-                    filename=filename,
+                    response["status"],
+                    response["body"],
+                    content_type=response["content_type"],
+                    filename=response["filename"],
                 )
-                return
-            if path.endswith("/installer.sh"):
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                return
-            match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/live-usb\.sh$", path)
-            if match:
-                vm = find_vm(int(match.group("vmid")))
-                if vm is None:
-                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                    return
-                try:
-                    body, filename = render_vm_live_usb_script(vm)
-                except FileNotFoundError as exc:
-                    self._write_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
-                    return
-                except ValueError as exc:
-                    self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(exc)})
-                    return
-                self._write_bytes(
-                    HTTPStatus.OK,
-                    body,
-                    content_type="text/x-shellscript; charset=utf-8",
-                    filename=filename,
-                )
-                return
-            if path.endswith("/live-usb.sh"):
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                return
-            match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/installer\.ps1$", path)
-            if match:
-                vm = find_vm(int(match.group("vmid")))
-                if vm is None:
-                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                    return
-                try:
-                    body, filename = render_vm_windows_installer_script(vm)
-                except FileNotFoundError as exc:
-                    self._write_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
-                    return
-                except ValueError as exc:
-                    self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(exc)})
-                    return
-                self._write_bytes(
-                    HTTPStatus.OK,
-                    body,
-                    content_type="text/plain; charset=utf-8",
-                    filename=filename,
-                )
-                return
-            if path.endswith("/installer.ps1"):
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                return
-            if path.endswith("/credentials"):
-                vmid_text = path.split("/")[-2]
-                if not vmid_text.isdigit():
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                    return
-                vm = find_vm(int(vmid_text))
-                if vm is None:
-                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                    return
-                secret = ensure_vm_secret(vm)
-                self._write_json(
-                    HTTPStatus.OK,
-                    {
-                        "service": "beagle-control-plane",
-                        "version": VERSION,
-                        "generated_at": utcnow(),
-                        "credentials": {
-                            "vmid": vm.vmid,
-                            "node": vm.node,
-                            "thinclient_username": "thinclient",
-                            "thinclient_password": str(secret.get("thinclient_password", "")),
-                            "sunshine_username": str(secret.get("sunshine_username", "")),
-                            "sunshine_password": str(secret.get("sunshine_password", "")),
-                            "sunshine_pin": str(secret.get("sunshine_pin", "")),
-                            "usb_tunnel_host": PUBLIC_SERVER_NAME,
-                            "usb_tunnel_user": USB_TUNNEL_SSH_USER,
-                            "usb_tunnel_port": int(secret.get("usb_tunnel_port", 0) or 0),
-                        },
-                    },
-                )
-                return
-            if path.endswith("/installer-prep"):
-                vmid_text = path.split("/")[-2]
-                if not vmid_text.isdigit():
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                    return
-                vm = find_vm(int(vmid_text))
-                if vm is None:
-                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                    return
-                state = summarize_installer_prep_state(vm, load_installer_prep_state(vm.node, vm.vmid))
-                self._write_json(
-                    HTTPStatus.OK,
-                    {
-                        "service": "beagle-control-plane",
-                        "version": VERSION,
-                        "generated_at": utcnow(),
-                        "installer_prep": state,
-                    },
-                )
-                return
-            if path.endswith("/policy"):
-                vmid_text = path.split("/")[-2]
-                if not vmid_text.isdigit():
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                    return
-                vm = find_vm(int(vmid_text))
-                if vm is None:
-                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                    return
-                profile = build_profile(vm)
-                self._write_json(
-                    HTTPStatus.OK,
-                    {
-                        "service": "beagle-control-plane",
-                        "version": VERSION,
-                        "generated_at": utcnow(),
-                        "applied_policy": profile.get("applied_policy"),
-                        "assignment_source": profile.get("assignment_source", ""),
-                    },
-                )
-                return
-            if path.endswith("/support-bundles"):
-                vmid_text = path.split("/")[-2]
-                if not vmid_text.isdigit():
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                    return
-                vm = find_vm(int(vmid_text))
-                if vm is None:
-                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                    return
-                self._write_json(
-                    HTTPStatus.OK,
-                    {
-                        "service": "beagle-control-plane",
-                        "version": VERSION,
-                        "generated_at": utcnow(),
-                        "support_bundles": list_support_bundle_metadata(node=vm.node, vmid=vm.vmid),
-                    },
-                )
-                return
-            if path.endswith("/usb"):
-                vmid_text = path.split("/")[-2]
-                if not vmid_text.isdigit():
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                    return
-                vm = find_vm(int(vmid_text))
-                if vm is None:
-                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                    return
-                report = load_endpoint_report(vm.node, vm.vmid)
-                self._write_json(
-                    HTTPStatus.OK,
-                    {
-                        "service": "beagle-control-plane",
-                        "version": VERSION,
-                        "generated_at": utcnow(),
-                        "usb": build_vm_usb_state(vm, report),
-                    },
-                )
-                return
-            if path.endswith("/update"):
-                vmid_text = path.split("/")[-2]
-                if not vmid_text.isdigit():
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                    return
-                vm = find_vm(int(vmid_text))
-                if vm is None:
-                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                    return
-                profile = build_profile(vm)
-                endpoint = summarize_endpoint_report(load_endpoint_report(vm.node, vm.vmid) or {})
-                self._write_json(
-                    HTTPStatus.OK,
-                    {
-                        "service": "beagle-control-plane",
-                        "version": VERSION,
-                        "generated_at": utcnow(),
-                        "update": {
-                            "policy": {
-                                "enabled": bool(profile.get("update_enabled", True)),
-                                "channel": str(profile.get("update_channel", "stable") or "stable"),
-                                "behavior": str(profile.get("update_behavior", "prompt") or "prompt"),
-                                "feed_url": str(profile.get("update_feed_url", f"{PUBLIC_MANAGER_URL}/api/v1/endpoints/update-feed") or ""),
-                                "version_pin": str(profile.get("update_version_pin", "") or ""),
-                            },
-                            "endpoint": {
-                                "state": endpoint.get("update_state", ""),
-                                "current_version": endpoint.get("update_current_version", ""),
-                                "latest_version": endpoint.get("update_latest_version", ""),
-                                "staged_version": endpoint.get("update_staged_version", ""),
-                                "current_slot": endpoint.get("update_current_slot", ""),
-                                "next_slot": endpoint.get("update_next_slot", ""),
-                                "available": endpoint.get("update_available", False),
-                                "pending_reboot": endpoint.get("update_pending_reboot", False),
-                                "last_scan_at": endpoint.get("update_last_scan_at", ""),
-                                "last_error": endpoint.get("update_last_error", ""),
-                            },
-                            "published_latest_version": str(load_json_file(DOWNLOADS_STATUS_FILE, {}).get("version", "")).strip(),
-                        },
-                    },
-                )
-                return
-            if path.endswith("/state"):
-                vmid_text = path.split("/")[-2]
-                if not vmid_text.isdigit():
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                    return
-                state = self._vm_state_for_vmid(int(vmid_text))
-                if state is None:
-                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                    return
-                self._write_json(
-                    HTTPStatus.OK,
-                    {
-                        "service": "beagle-control-plane",
-                        "version": VERSION,
-                        "generated_at": utcnow(),
-                        **state,
-                    },
-                )
-                return
-            if path.endswith("/actions"):
-                vmid_text = path.split("/")[-2]
-                if not vmid_text.isdigit():
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                    return
-                vmid = int(vmid_text)
-                state = self._vm_state_for_vmid(vmid)
-                if state is None:
-                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                    return
-                vm = find_vm(vmid)
-                assert vm is not None
-                self._write_json(
-                    HTTPStatus.OK,
-                    {
-                        "service": "beagle-control-plane",
-                        "version": VERSION,
-                        "generated_at": utcnow(),
-                        "pending_actions": load_action_queue(vm.node, vm.vmid),
-                        "last_action": state["last_action"],
-                    },
-                )
-                return
-            if path.endswith("/endpoint"):
-                vmid_text = path.split("/")[-2]
-                if not vmid_text.isdigit():
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                    return
-                state = self._vm_state_for_vmid(int(vmid_text))
-                if state is None or not state["endpoint"].get("reported_at"):
-                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "endpoint not found"})
-                    return
-                self._write_json(
-                    HTTPStatus.OK,
-                    {
-                        "service": "beagle-control-plane",
-                        "version": VERSION,
-                        "generated_at": utcnow(),
-                        **state,
-                    },
-                )
-                return
-            vmid_text = path.rsplit("/", 1)[-1]
-            if not vmid_text.isdigit():
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
-                return
-            vmid = int(vmid_text)
-            vm = next((candidate for candidate in list_vms() if candidate.vmid == vmid), None)
-            if vm is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
-                return
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "service": "beagle-control-plane",
-                    "version": VERSION,
-                    "generated_at": utcnow(),
-                    "profile": build_profile(vm),
-                },
-            )
+            else:
+                self._write_json(response["status"], response["payload"])
             return
 
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})

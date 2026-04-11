@@ -2,6 +2,22 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — host VM HTTP-surface extraction
+
+- Extracted the inline `/api/v1/vms/...` GET response-model/download block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/vm_http_surface.py`:
+  - `VmHttpSurfaceService` now owns the VM subresource route matching for `installer.sh`, `live-usb.sh`, `installer.ps1`, `credentials`, `installer-prep`, `policy`, `support-bundles`, `usb`, `update`, `state`, `actions`, `endpoint`, and the base VM profile payload
+  - the service now shapes the JSON envelopes and download payload descriptors for those routes while keeping the handler responsible only for request dispatch and writing the response body
+- Rewired the control-plane entrypoint to consume the new service instead of rebuilding those payloads inline:
+  - `beagle-control-plane.py` now delegates the whole `/api/v1/vms/...` GET block to `vm_http_surface_service().route_get(path)`
+  - `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/vm_http_surface.py` into the deployed host runtime
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile beagle-host/services/vm_http_surface.py beagle-host/bin/beagle-control-plane.py`
+  - `bash -n scripts/install-proxmox-host-services.sh`
+  - focused smoke checks for `VmHttpSurfaceService` route handling and payload shaping
+  - `./scripts/validate-project.sh`
+- Current size marker after this slice:
+  - `beagle-host/bin/beagle-control-plane.py` is down to about `3013` lines
+
 ### 2026-04-11 — host metadata-support extraction
 
 - Extracted the remaining host-side VM description/hostname helper block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/metadata_support.py`:
