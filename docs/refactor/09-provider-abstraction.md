@@ -165,6 +165,11 @@ Current script-side contract:
 - `list_vms()`
 - `vm_config(node, vmid)`
 - `guest_interfaces(vmid)`
+- `parse_description_meta(description)`
+- `find_vm_record(vmid)`
+- `vm_description_meta(node, vmid)`
+- `vm_description_meta_for_vmid(vmid)`
+- `first_guest_ipv4(vmid)`
 
 ### `beagle-host/providers/host_provider_contract.py`
 
@@ -639,9 +644,9 @@ These flows now go through provider-backed services first:
 These flows now go through a provider-facing helper seam first:
 
 - VM inventory/config/guest-interface reads in `scripts/reconcile-public-streams.sh`
-- VM inventory/config reads in `scripts/prepare-host-downloads.sh`
+- shared description-meta parsing plus VM inventory/config reads in `scripts/prepare-host-downloads.sh`
 - VM description metadata reads and guest-interface reads in `scripts/ensure-vm-stream-ready.sh`
-- backend VM enumeration, description/config reads, and guest-interface reads in `scripts/install-beagle-proxy.sh`
+- backend VM enumeration, description metadata reads, and guest-interface reads in `scripts/install-beagle-proxy.sh`
 - shared script-side virtualization reads through `scripts/lib/beagle_provider.py`
 
 ## Still Directly Coupled
@@ -683,6 +688,7 @@ These flows now go through a provider-facing helper seam first:
 
 - `scripts/lib/beagle_provider.py` is now the shared read seam, but it still only implements the Proxmox backend today.
 - several scripts still execute `qm`/`pvesh` directly for guest-exec, VM writes, install flows, or unreached read paths and should move to provider helpers incrementally.
+- the clearest remaining direct script couplings are `scripts/configure-sunshine-guest.sh` and the guest-exec/write portions of `scripts/ensure-vm-stream-ready.sh` and `scripts/optimize-proxmox-vm-for-beagle.sh`
 
 ### Thin-client Proxmox access
 

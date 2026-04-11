@@ -75,7 +75,7 @@
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.
 - [ ] Make Proxmox optional at deploy/install/runtime boundaries instead of the implicit required backend.
-- [ ] Extract the remaining shared slug/secret-formatting helper cluster from `beagle-host/bin/beagle-control-plane.py` into a dedicated host utility service.
+- [x] Extract the remaining shared slug/secret-formatting helper cluster from `beagle-host/bin/beagle-control-plane.py` into a dedicated host utility service.
 - [ ] Split thin client runtime logic into config, runtime, network, pairing, and Moonlight launch seams.
 - [ ] Add smoke validation for generated installer URLs and public artifact filenames.
 - [ ] Add release-surface verification helpers for both linked servers.

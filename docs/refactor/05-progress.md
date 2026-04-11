@@ -2,6 +2,33 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — host utility support and richer script-provider reads
+
+- Extracted the remaining shared slug/secret/PIN helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/utility_support.py`:
+  - `UtilitySupportService` now owns `safe_slug(...)`, `random_secret(...)`, and `random_pin()`
+  - the public helper names in the control plane stay stable as thin wrappers, so existing handlers and service collaborators kept their current call surface
+- Rewired the already-extracted host services to depend on the utility seam instead of the monolith-local helper implementations:
+  - `ActionQueueService`, `SupportBundleStoreService`, `PolicyStoreService`, `VmSecretStoreService`, `VmSecretBootstrapService`, `InstallerPrepService`, `UbuntuBeagleStateService`, `UbuntuBeagleProvisioningService`, `PublicStreamService`, and `SunshineIntegrationService` now receive utility callbacks from `UtilitySupportService`
+  - `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/utility_support.py` into the deployed host runtime
+- Expanded `scripts/lib/beagle_provider.py` beyond low-level reads so scripts can share more provider-facing logic instead of re-implementing it inline:
+  - added `parse_description_meta(description)`
+  - added `find_vm_record(vmid)`
+  - added `vm_description_meta(node, vmid)` plus `vm_description_meta_for_vmid(vmid)`
+  - added `first_guest_ipv4(vmid)`
+  - added CLI access for `guest-ipv4` and `vm-description-meta`
+- Moved more script-side read logic behind the shared provider seam:
+  - `scripts/reconcile-public-streams.sh` now imports description-meta parsing and guest IPv4 resolution from `scripts/lib/beagle_provider.py` instead of embedding those helpers inline
+  - `scripts/prepare-host-downloads.sh` now imports shared description-meta parsing from the same helper instead of carrying another local copy
+  - `scripts/install-beagle-proxy.sh` now resolves backend candidate metadata through `vm_description_meta_for_vmid(...)` and guest IPv4 through `first_guest_ipv4(...)` instead of rebuilding those reads locally
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile beagle-host/services/utility_support.py beagle-host/bin/beagle-control-plane.py scripts/lib/beagle_provider.py`
+  - `bash -n scripts/install-proxmox-host-services.sh scripts/install-beagle-proxy.sh scripts/reconcile-public-streams.sh scripts/prepare-host-downloads.sh`
+  - focused smoke checks for `UtilitySupportService` and the expanded `scripts/lib/beagle_provider.py`
+  - `./scripts/validate-project.sh`
+- Current size markers after this slice:
+  - `beagle-host/bin/beagle-control-plane.py` is at about `3283` lines
+  - `proxmox-ui/beagle-ui.js` remains at about `344` lines
+
 ### 2026-04-11 — shared browser common extraction
 
 - Reduced duplicated browser-side config/token/API helper logic across the main browser surfaces by introducing `core/platform/browser-common.js`:

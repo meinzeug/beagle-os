@@ -650,3 +650,27 @@ Decision:
 Reason:
 
 - `install-beagle-proxy.sh` had become another place where raw `qm` reads would spread Proxmox assumptions through installer/runtime surfaces. Using the shared script helper keeps backend auto-detection on the same provider-facing seam already adopted by the other migrated scripts.
+
+### D59. Shared slug/secret/PIN helpers belong in one host utility-support service
+
+Decision:
+
+- Move `safe_slug(...)`, `random_secret(...)`, and `random_pin()` into `beagle-host/services/utility_support.py`.
+- Keep the existing control-plane helper names as thin wrappers so handlers and already-extracted services keep their current call surface while the pure utility logic leaves the entrypoint.
+- Rebind extracted host services directly to `utility_support_service()` where practical instead of keeping them attached to monolith-local helper implementations.
+
+Reason:
+
+- After the time/runtime-path/request/persistence extractions, the remaining slug/secret/PIN helpers were the last small pure utility cluster still shared across many extracted services but still implemented inline in `beagle-control-plane.py`. Pulling them behind a dedicated service keeps that behavior explicit and testable without changing runtime payloads or file naming semantics.
+
+### D60. Script-side provider reads should grow into higher-level shared helpers, not repeated inline metadata parsing
+
+Decision:
+
+- Expand `scripts/lib/beagle_provider.py` with higher-level read helpers such as description-meta parsing, VM-record lookup, and first guest IPv4 resolution.
+- Migrate scripts to import those helpers instead of carrying their own inline Python implementations for the same metadata and guest-interface logic.
+- Keep this seam read-only for now; guest-exec and write semantics remain a separate follow-up contract decision.
+
+Reason:
+
+- Once several scripts already used the first provider helper, the next duplication hotspot was no longer raw command invocation alone but repeated parsing of the same provider-backed VM description and guest-interface payloads. Growing the shared helper keeps behavior aligned across scripts and prevents the script layer from becoming a second place where provider-specific metadata rules drift apart.

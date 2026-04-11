@@ -115,40 +115,13 @@ from urllib.parse import unquote
 provider_module_path = Path(sys.argv[1]).resolve()
 sys.path.insert(0, str(provider_module_path.parent))
 
-from beagle_provider import guest_interfaces, list_vms, vm_config
+from beagle_provider import first_guest_ipv4, list_vms, parse_description_meta, vm_config
 
 streams_path = Path(sys.argv[2])
 public_host = sys.argv[3]
 base_port = int(sys.argv[4])
 port_step = int(sys.argv[5])
 port_count = int(sys.argv[6])
-
-
-def parse_description_meta(description):
-    meta = {}
-    text = str(description or "").replace("\\r\\n", "\n").replace("\\n", "\n")
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        key = key.strip().lower()
-        value = value.strip()
-        if key and key not in meta:
-            meta[key] = value
-    return meta
-
-
-def first_guest_ipv4(vmid):
-    for iface in guest_interfaces(vmid):
-        for address in iface.get("ip-addresses", []):
-            ip = str(address.get("ip-address", ""))
-            if address.get("ip-address-type") != "ipv4":
-                continue
-            if not ip or ip.startswith("127.") or ip.startswith("169.254."):
-                continue
-            return ip
-    return ""
 
 
 def should_publish(meta, guest_ip):

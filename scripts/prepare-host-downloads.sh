@@ -251,7 +251,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 provider_module_path = Path(sys.argv[1]).resolve()
 sys.path.insert(0, str(provider_module_path.parent))
 
-from beagle_provider import list_vms, vm_config
+from beagle_provider import list_vms, parse_description_meta, vm_config
 
 template_path = Path(sys.argv[2])
 windows_template_path = Path(sys.argv[3])
@@ -272,21 +272,6 @@ default_proxmox_token = sys.argv[17]
 beagle_manager_url = sys.argv[18]
 template = template_path.read_text()
 windows_template = windows_template_path.read_text()
-
-
-def parse_description_meta(description):
-    meta = {}
-    text = str(description or "").replace("\\r\\n", "\n").replace("\\n", "\n")
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        key = key.strip().lower()
-        value = value.strip()
-        if key and key not in meta:
-            meta[key] = value
-    return meta
 
 
 def safe_hostname(name, vmid):

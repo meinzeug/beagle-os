@@ -61,9 +61,66 @@ def guest_interfaces(vmid: int) -> list[dict[str, Any]]:
     return payload if isinstance(payload, list) else []
 
 
+def parse_description_meta(description: str) -> dict[str, str]:
+    meta: dict[str, str] = {}
+    text = str(description or "").replace("\\r\\n", "\n").replace("\\n", "\n")
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        key = key.strip().lower()
+        value = value.strip()
+        if key and key not in meta:
+            meta[key] = value
+    return meta
+
+
+def find_vm_record(vmid: int) -> dict[str, Any] | None:
+    target_vmid = int(vmid)
+    for item in list_vms():
+        if item.get("type") != "qemu" or item.get("vmid") is None:
+            continue
+        try:
+            candidate_vmid = int(item.get("vmid"))
+        except (TypeError, ValueError):
+            continue
+        if candidate_vmid == target_vmid:
+            return item
+    return None
+
+
+def vm_description_meta(node: str, vmid: int) -> dict[str, str]:
+    return parse_description_meta(vm_config(node, vmid).get("description", ""))
+
+
+def vm_description_meta_for_vmid(vmid: int) -> dict[str, str]:
+    record = find_vm_record(vmid)
+    if not isinstance(record, dict):
+        return {}
+    node = str(record.get("node") or "").strip()
+    if not node:
+        return {}
+    return vm_description_meta(node, int(vmid))
+
+
+def first_guest_ipv4(vmid: int) -> str:
+    for iface in guest_interfaces(vmid):
+        for address in iface.get("ip-addresses", []):
+            ip = str(address.get("ip-address", ""))
+            if address.get("ip-address-type") != "ipv4":
+                continue
+            if not ip or ip.startswith("127.") or ip.startswith("169.254."):
+                continue
+            return ip
+    return ""
+
+
 def _main(argv: list[str]) -> int:
     if len(argv) < 2:
-        raise SystemExit("usage: beagle_provider.py <list-vms|vm-config|guest-interfaces> [args]")
+        raise SystemExit(
+            "usage: beagle_provider.py <list-vms|vm-config|guest-interfaces|guest-ipv4|vm-description-meta> [args]"
+        )
     command = argv[1]
     if command == "list-vms":
         print(json.dumps(list_vms(), indent=2))
@@ -78,6 +135,19 @@ def _main(argv: list[str]) -> int:
             raise SystemExit("usage: beagle_provider.py guest-interfaces <vmid>")
         print(json.dumps(guest_interfaces(int(argv[2])), indent=2))
         return 0
+    if command == "guest-ipv4":
+        if len(argv) != 3:
+            raise SystemExit("usage: beagle_provider.py guest-ipv4 <vmid>")
+        print(first_guest_ipv4(int(argv[2])))
+        return 0
+    if command == "vm-description-meta":
+        if len(argv) == 4:
+            print(json.dumps(vm_description_meta(argv[2], int(argv[3])), indent=2))
+            return 0
+        if len(argv) == 3:
+            print(json.dumps(vm_description_meta_for_vmid(int(argv[2])), indent=2))
+            return 0
+        raise SystemExit("usage: beagle_provider.py vm-description-meta <vmid> | <node> <vmid>")
     raise SystemExit(f"unknown command: {command}")
 
 

@@ -155,26 +155,13 @@ from pathlib import Path
 provider_module_path = Path(sys.argv[1]).resolve()
 sys.path.insert(0, str(provider_module_path.parent))
 
-from beagle_provider import guest_interfaces
+from beagle_provider import first_guest_ipv4
 
-for iface in guest_interfaces(int(sys.argv[2])):
-    for addr in iface.get("ip-addresses", []):
-        ip = addr.get("ip-address", "")
-        if addr.get("ip-address-type") != "ipv4":
-            continue
-        if ip.startswith("127.") or ip.startswith("169.254.") or not ip:
-            continue
-        print(ip)
-        raise SystemExit(0)
-
-raise SystemExit(1)
+ip = first_guest_ipv4(int(sys.argv[2]))
+if not ip:
+    raise SystemExit(1)
+print(ip)
 PY
-}
-
-extract_meta_value() {
-  local text="$1"
-  local key="$2"
-  printf '%s\n' "$text" | sed -n "s/^${key}:[[:space:]]*//p" | head -n1
 }
 
 dcv_url_matches_host() {
@@ -200,32 +187,23 @@ PY
 
 resolve_candidate_backend() {
   local vmid="$1"
-  local description dcv_url dcv_ip
+  local meta_json dcv_url dcv_ip
 
-  description="$(python3 - "$PROVIDER_MODULE_PATH" "$vmid" <<'PY'
+  meta_json="$(python3 - "$PROVIDER_MODULE_PATH" "$vmid" <<'PY'
 import sys
+import json
 from pathlib import Path
-from urllib.parse import unquote
 
 provider_module_path = Path(sys.argv[1]).resolve()
 sys.path.insert(0, str(provider_module_path.parent))
 
-from beagle_provider import list_vms, vm_config
+from beagle_provider import vm_description_meta_for_vmid
 
-vmid = int(sys.argv[2])
-node = ""
-for item in list_vms():
-    if item.get("type") == "qemu" and int(item.get("vmid", -1)) == vmid:
-        node = str(item.get("node") or "")
-        break
-if not node:
-    raise SystemExit(0)
-config = vm_config(node, vmid)
-print(unquote(str(config.get("description", "") or "")))
+print(json.dumps(vm_description_meta_for_vmid(int(sys.argv[2]))))
 PY
 )"
-  dcv_url="$(extract_meta_value "$description" "dcv-url")"
-  dcv_ip="$(extract_meta_value "$description" "dcv-ip")"
+  dcv_url="$(python3 -c 'import json,sys; print(str(json.loads(sys.stdin.read() or "{}").get("dcv-url","")))' <<<"$meta_json")"
+  dcv_ip="$(python3 -c 'import json,sys; print(str(json.loads(sys.stdin.read() or "{}").get("dcv-ip","")))' <<<"$meta_json")"
 
   if [[ -n "$BACKEND_VMID" && "$vmid" != "$BACKEND_VMID" ]]; then
     return 1
