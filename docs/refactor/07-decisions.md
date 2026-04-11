@@ -927,3 +927,17 @@ Decision:
 Reason:
 
 - The script-provider abstraction had already moved reads, writes, and synchronous guest-exec polling into `scripts/lib/beagle_provider.py`, but the surrounding shell scripts still duplicated the mechanics for deciding whether the helper exists locally or remotely, how to run it over SSH, and how to recover the final JSON payload from noisy command output. That kept the provider boundary spread across several scripts and made later fallback cleanup harder. Centralizing that shell-side plumbing makes the next script refactor slices smaller and reduces the chance of reintroducing slightly different provider bootstrap logic in yet another script.
+
+### D82. The overlapping thin-client preset base belongs in one shared host-side helper, with host-only and USB-only deltas layered on top
+
+Decision:
+
+- Add `beagle-host/services/thin_client_preset.py` as the shared source for the overlapping thin-client preset base fields used by both `beagle-host/services/installer_script.py` and `thin-client-assistant/usb/proxmox_preset.py`.
+- Keep only the truly shared Proxmox/network/transport/Moonlight/Sunshine base fields in that helper and let each caller add its own delta fields:
+  - host installer path keeps enrollment/update/egress/identity/credential/server-identity fields local
+  - USB Proxmox path keeps only its local manager-token delta
+- Also move the shared `available_modes(...)` input shaping behind the same helper so the USB path no longer reconstructs that mapping manually from raw preset keys.
+
+Reason:
+
+- The remaining installer/env-builder drift was no longer about completely separate builders; it was concentrated in a wide overlapping preset base that both sides maintained with near-identical key names and defaults. Extracting only that shared base reduces contract drift materially without falsely pretending that the richer host installer and the slimmer USB preset are already the same artifact. This keeps behavior stable while making the next remaining drift narrower and easier to reason about.

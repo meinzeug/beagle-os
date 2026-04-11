@@ -999,6 +999,13 @@
   - rewired `scripts/optimize-proxmox-vm-for-beagle.sh` to reuse the same provider shell helper for provider-module discovery and remote/local execution
   - rewired `scripts/ensure-vm-stream-ready.sh` to reuse the shared provider-helper availability check and JSON payload parsing helper
   - kept the remaining direct `qm` fallback branches unchanged for rollout compatibility; this slice only removes duplicated helper plumbing, not the fallback semantics
+- Reduced duplicated thin-client preset field assembly across the host installer and the USB Proxmox path:
+  - added `beagle-host/services/thin_client_preset.py`
+  - moved the overlapping Proxmox/network/transport/Moonlight/Sunshine preset base fields behind `build_common_preset(...)`
+  - moved the shared available-modes input shaping behind `build_streaming_mode_input(...)`
+  - rewired `beagle-host/services/installer_script.py` to build its shared preset base through the new helper and add only host-specific enrollment/update/identity/credential fields on top
+  - rewired `thin-client-assistant/usb/proxmox_preset.py` to build its shared preset base through the same helper and keep only the USB/Proxmox-specific delta locally
+  - updated `scripts/install-proxmox-host-services.sh` to deploy `thin_client_preset.py` alongside the other extracted host services
 
 ### Known risks after this run
 

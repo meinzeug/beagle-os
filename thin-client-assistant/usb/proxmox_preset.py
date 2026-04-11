@@ -6,11 +6,20 @@ from __future__ import annotations
 import os
 import re
 import shlex
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 from preset_summary import available_modes
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+HOST_SERVICES_DIR = REPO_ROOT / "beagle-host" / "services"
+if str(HOST_SERVICES_DIR) not in sys.path:
+    sys.path.insert(0, str(HOST_SERVICES_DIR))
+
+from thin_client_preset import build_common_preset, build_streaming_mode_input
 
 DEFAULT_BEAGLE_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "")
 
@@ -116,74 +125,41 @@ def build_preset(
     sunshine_api_url = meta.get("sunshine-api-url") or (f"https://{moonlight_host}:47990" if moonlight_host else "")
     default_mode = "MOONLIGHT" if moonlight_host else ""
 
-    preset = {
-        "PVE_THIN_CLIENT_PRESET_PROFILE_NAME": f"vm-{vmid}",
-        "PVE_THIN_CLIENT_PRESET_VM_NAME": vm_name,
-        "PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE": safe_hostname(vm_name, vmid),
-        "PVE_THIN_CLIENT_PRESET_AUTOSTART": meta.get("thinclient-autostart", "1"),
-        "PVE_THIN_CLIENT_PRESET_DEFAULT_MODE": default_mode,
-        "PVE_THIN_CLIENT_PRESET_NETWORK_MODE": meta.get("thinclient-network-mode", "dhcp"),
-        "PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE": meta.get("thinclient-network-interface", "eth0"),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_SCHEME": proxmox_scheme,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_HOST": proxmox_host,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_PORT": proxmox_port,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_NODE": str(vm.get("node", "")),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_VMID": str(vmid),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_REALM": proxmox_realm,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS": proxmox_verify_tls,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN": "",
-        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL": manager_url,
-        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": "",
-        "PVE_THIN_CLIENT_PRESET_SPICE_METHOD": "",
-        "PVE_THIN_CLIENT_PRESET_SPICE_URL": "",
-        "PVE_THIN_CLIENT_PRESET_SPICE_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_SPICE_TOKEN": "",
-        "PVE_THIN_CLIENT_PRESET_NOVNC_URL": "",
-        "PVE_THIN_CLIENT_PRESET_NOVNC_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_NOVNC_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_NOVNC_TOKEN": "",
-        "PVE_THIN_CLIENT_PRESET_DCV_URL": "",
-        "PVE_THIN_CLIENT_PRESET_DCV_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_DCV_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_DCV_TOKEN": "",
-        "PVE_THIN_CLIENT_PRESET_DCV_SESSION": "",
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST": moonlight_host,
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_LOCAL_HOST": moonlight_local_host,
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP": meta.get("moonlight-app", meta.get("sunshine-app", "Desktop")),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN": meta.get("moonlight-bin", "moonlight"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION": meta.get("moonlight-resolution", "auto"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS": meta.get("moonlight-fps", "60"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE": meta.get("moonlight-bitrate", "20000"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC": meta.get("moonlight-video-codec", "H.264"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER": meta.get("moonlight-video-decoder", "auto"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG": meta.get("moonlight-audio-config", "stereo"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE": meta.get("moonlight-absolute-mouse", "1"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER": meta.get("moonlight-quit-after", "0"),
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL": sunshine_api_url,
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": "",
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_NAME": "",
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_STREAM_PORT": "",
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_UNIQUEID": "",
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_CERT_B64": "",
-    }
-    modes = available_modes(
-        {
-            "moonlight_host": preset.get("PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST", ""),
-            "spice_url": preset.get("PVE_THIN_CLIENT_PRESET_SPICE_URL", ""),
-            "proxmox_host": preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_HOST", ""),
-            "proxmox_node": preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_NODE", ""),
-            "proxmox_vmid": preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_VMID", ""),
-            "spice_username": preset.get("PVE_THIN_CLIENT_PRESET_SPICE_USERNAME", ""),
-            "spice_password": preset.get("PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD", ""),
-            "proxmox_username": preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME", ""),
-            "proxmox_password": preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD", ""),
-            "novnc_url": preset.get("PVE_THIN_CLIENT_PRESET_NOVNC_URL", ""),
-            "dcv_url": preset.get("PVE_THIN_CLIENT_PRESET_DCV_URL", ""),
-        }
+    preset = build_common_preset(
+        profile_name=f"vm-{vmid}",
+        vm_name=vm_name,
+        hostname_value=safe_hostname(vm_name, vmid),
+        autostart=meta.get("thinclient-autostart", "1"),
+        default_mode=default_mode,
+        network_mode=meta.get("thinclient-network-mode", "dhcp"),
+        network_interface=meta.get("thinclient-network-interface", "eth0"),
+        proxmox_scheme=proxmox_scheme,
+        proxmox_host=proxmox_host,
+        proxmox_port=proxmox_port,
+        proxmox_node=str(vm.get("node", "")),
+        proxmox_vmid=str(vmid),
+        proxmox_realm=proxmox_realm,
+        proxmox_verify_tls=proxmox_verify_tls,
+        beagle_manager_url=manager_url,
+        moonlight_host=moonlight_host,
+        moonlight_local_host=moonlight_local_host,
+        moonlight_app=meta.get("moonlight-app", meta.get("sunshine-app", "Desktop")),
+        moonlight_bin=meta.get("moonlight-bin", "moonlight"),
+        moonlight_resolution=meta.get("moonlight-resolution", "auto"),
+        moonlight_fps=meta.get("moonlight-fps", "60"),
+        moonlight_bitrate=meta.get("moonlight-bitrate", "20000"),
+        moonlight_video_codec=meta.get("moonlight-video-codec", "H.264"),
+        moonlight_video_decoder=meta.get("moonlight-video-decoder", "auto"),
+        moonlight_audio_config=meta.get("moonlight-audio-config", "stereo"),
+        moonlight_absolute_mouse=meta.get("moonlight-absolute-mouse", "1"),
+        moonlight_quit_after=meta.get("moonlight-quit-after", "0"),
+        sunshine_api_url=sunshine_api_url,
+        sunshine_username="",
+        sunshine_password="",
+        sunshine_pin="",
+        extra_fields={
+            "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": "",
+        },
     )
+    modes = available_modes(build_streaming_mode_input(preset))
     return preset, modes
