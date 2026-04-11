@@ -1,5 +1,24 @@
 # Refactor Progress
 
+### 2026-04-12 — USB live-device and payload-source helper extraction
+
+- Removed the last duplicated live-medium device-candidate logic and one more inline manifest reader from the thin-client USB installer surfaces:
+  - extended `thin-client-assistant/usb/live_medium_helpers.sh` with shared `candidate_live_devices()`
+  - `thin-client-assistant/usb/pve-thin-client-live-menu.sh` now consumes that helper instead of carrying two separate `candidate_live_devices()` copies in the same file
+  - `thin-client-assistant/usb/pve-thin-client-local-installer.sh` now consumes the same helper instead of keeping its own live-device candidate implementation
+  - extended `thin-client-assistant/usb/usb_manifest.py` with `read-payload-source`
+  - `thin-client-assistant/usb/pve-thin-client-local-installer.sh` now delegates manifest `payload_source` validation/parsing to `usb_manifest.py` instead of embedding another inline Python block
+- This further reduces the USB installer surface into explicit shared seams:
+  - live-device discovery now lives in exactly one shell helper instead of drifting between the live menu and the local installer
+  - manifest payload-source validation now lives in the same Python helper that already owns the other manifest reads/writes
+  - the live menu no longer carries duplicate `candidate_live_devices()` definitions, which removes an avoidable continuation hazard for later agents
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/usb/live_medium_helpers.sh thin-client-assistant/usb/pve-thin-client-live-menu.sh thin-client-assistant/usb/pve-thin-client-local-installer.sh`
+  - `python3 -m py_compile thin-client-assistant/usb/usb_manifest.py`
+  - focused smoke test for `usb_manifest.py read-payload-source` with valid `https://` and invalid `file://` payload sources
+  - focused smoke test for `candidate_live_devices()` with stubbed `blkid` / `lsblk`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — shared live-medium helper extraction
 
 - Removed the duplicated live-medium asset/manifest path checks from the USB installer entrypoints:

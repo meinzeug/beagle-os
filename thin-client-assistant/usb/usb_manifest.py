@@ -26,6 +26,17 @@ def read_project_version(path: Path) -> str:
     return value
 
 
+def read_payload_source(path: Path) -> str:
+    payload = _read_json(path)
+    value = str(payload.get("payload_source", "")).strip()
+    if not value:
+        raise ValueError("manifest does not contain payload_source")
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("manifest payload_source must be http(s)")
+    return value
+
+
 def _write_json(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -47,6 +58,11 @@ def _resolve_first_ipv4(hostname: str) -> str:
 
 def command_read_project_version(args: argparse.Namespace) -> int:
     print(read_project_version(Path(args.path)))
+    return 0
+
+
+def command_read_payload_source(args: argparse.Namespace) -> int:
+    print(read_payload_source(Path(args.path)))
     return 0
 
 
@@ -101,6 +117,10 @@ def build_parser() -> argparse.ArgumentParser:
     read_parser = subparsers.add_parser("read-project-version")
     read_parser.add_argument("--path", required=True)
     read_parser.set_defaults(func=command_read_project_version)
+
+    payload_parser = subparsers.add_parser("read-payload-source")
+    payload_parser.add_argument("--path", required=True)
+    payload_parser.set_defaults(func=command_read_payload_source)
 
     install_parser = subparsers.add_parser("write-install-manifest")
     install_parser.add_argument("--path", required=True)

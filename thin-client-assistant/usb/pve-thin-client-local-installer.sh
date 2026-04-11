@@ -573,27 +573,7 @@ resolve_payload_url_from_manifest() {
   fi
   [[ -n "$manifest_file" && -f "$manifest_file" ]] || return 1
 
-  python3 - "$manifest_file" <<'PY'
-import json
-import sys
-from urllib.parse import urlparse
-
-manifest_file = sys.argv[1]
-try:
-    payload = json.load(open(manifest_file, "r", encoding="utf-8"))
-except Exception:
-    raise SystemExit(1)
-
-source = str(payload.get("payload_source", "")).strip()
-if not source:
-    raise SystemExit(1)
-
-parsed = urlparse(source)
-if parsed.scheme not in ("http", "https"):
-    raise SystemExit(1)
-
-print(source)
-PY
+  python3 "$USB_MANIFEST_HELPER" read-payload-source --path "$manifest_file"
 }
 
 download_install_payload_from_server() {
@@ -845,43 +825,6 @@ PY
   fi
 
   return 1
-}
-
-candidate_live_devices() {
-  local token value
-
-  if [[ -r /proc/cmdline ]]; then
-    for token in $(< /proc/cmdline); do
-      case "$token" in
-        live-media=*)
-          value="${token#live-media=}"
-          case "$value" in
-            /dev/*)
-              printf '%s\n' "$value"
-              ;;
-            UUID=*)
-              blkid -U "${value#UUID=}" 2>/dev/null || true
-              ;;
-            LABEL=*)
-              blkid -L "${value#LABEL=}" 2>/dev/null || true
-              ;;
-          esac
-          ;;
-      esac
-    done
-  fi
-
-  blkid -L BEAGLEOS 2>/dev/null || blkid -L PVETHIN 2>/dev/null || true
-  lsblk -lnpo PATH,TYPE,FSTYPE,LABEL,RM,TRAN 2>/dev/null | awk '
-    $2 == "part" {
-      # Only treat explicit Beagle labels or actually removable/USB media as
-      # live-medium candidates. A normal internal EFI vfat partition must not
-      # cause the whole system disk to be excluded from the target picker.
-      if ($4 == "BEAGLEOS" || $4 == "PVETHIN" || $5 == "1" || $6 == "usb") {
-        print $1
-      }
-    }
-  '
 }
 
 mount_discovered_live_medium() {

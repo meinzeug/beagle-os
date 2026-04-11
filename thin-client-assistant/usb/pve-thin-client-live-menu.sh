@@ -125,40 +125,6 @@ sanitize_log_session_id() {
   printf '%s\n' "$raw"
 }
 
-candidate_live_devices() {
-  local token value
-
-  if [[ -r /proc/cmdline ]]; then
-    for token in $(< /proc/cmdline); do
-      case "$token" in
-        live-media=*)
-          value="${token#live-media=}"
-          case "$value" in
-            /dev/*)
-              printf '%s\n' "$value"
-              ;;
-            UUID=*)
-              blkid -U "${value#UUID=}" 2>/dev/null || true
-              ;;
-            LABEL=*)
-              blkid -L "${value#LABEL=}" 2>/dev/null || true
-              ;;
-          esac
-          ;;
-      esac
-    done
-  fi
-
-  blkid -L BEAGLEOS 2>/dev/null || blkid -L PVETHIN 2>/dev/null || true
-  lsblk -lnpo PATH,TYPE,FSTYPE,LABEL,RM,TRAN 2>/dev/null | awk '
-    $2 == "part" {
-      if ($4 == "BEAGLEOS" || $4 == "PVETHIN" || $5 == "1" || $6 == "usb") {
-        print $1
-      }
-    }
-  '
-}
-
 mount_writable_live_medium_for_logs() {
   local device mount_dir
 
@@ -801,40 +767,6 @@ candidate_live_mounts() {
     [[ -d "$target" ]] || continue
     printf '%s\n' "$target"
   done
-}
-
-candidate_live_devices() {
-  local token value
-
-  if [[ -r /proc/cmdline ]]; then
-    for token in $(< /proc/cmdline); do
-      case "$token" in
-        live-media=*)
-          value="${token#live-media=}"
-          case "$value" in
-            /dev/*)
-              printf '%s\n' "$value"
-              ;;
-            UUID=*)
-              blkid -U "${value#UUID=}" 2>/dev/null || true
-              ;;
-            LABEL=*)
-              blkid -L "${value#LABEL=}" 2>/dev/null || true
-              ;;
-          esac
-          ;;
-      esac
-    done
-  fi
-
-  blkid -L BEAGLEOS 2>/dev/null || blkid -L PVETHIN 2>/dev/null || true
-  lsblk -lnpo PATH,TYPE,FSTYPE,LABEL,RM,TRAN 2>/dev/null | awk '
-    $2 == "part" {
-      if ($4 == "BEAGLEOS" || $4 == "PVETHIN" || $5 == "1" || $6 == "usb") {
-        print $1
-      }
-    }
-  '
 }
 
 mount_discovered_live_medium() {
