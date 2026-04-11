@@ -2,6 +2,20 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — Moonlight host-registry helper extraction
+
+- Removed the remaining inline host-registry Python blocks from `thin-client-assistant/runtime/moonlight_host_sync.sh`:
+  - added `thin-client-assistant/runtime/moonlight_host_registry.py` for runtime-response JSON seeding, Moonlight host-entry detection, and Moonlight config-file host-entry synchronization
+  - `thin-client-assistant/runtime/moonlight_host_sync.sh` now calls that helper instead of carrying three separate inline Python programs
+- This keeps the mutable Moonlight host-registration path explicit and more testable:
+  - `thin-client-assistant/runtime/moonlight_host_sync.sh` dropped to about `95` lines
+  - the shell helper now mainly owns wrapper/orchestration behavior plus bootstrap triggering, while config parsing/mutation lives in a dedicated Python seam
+- Validation and smoke checks for this slice passed:
+  - `python3 -m py_compile thin-client-assistant/runtime/moonlight_host_registry.py`
+  - `bash -n thin-client-assistant/runtime/moonlight_host_sync.sh thin-client-assistant/runtime/moonlight_pairing.sh thin-client-assistant/runtime/launch-moonlight.sh`
+  - focused smoke test for `seed-response`, `sync-config`, and `is-configured` against a temporary Moonlight config file
+  - focused smoke test for `seed_moonlight_host_from_runtime_config()` and `moonlight_host_configured()` with stubbed Moonlight accessors
+
 ### 2026-04-11 — Moonlight host-sync helper extraction
 
 - Removed the manager-response host-sync/bootstrap block from `thin-client-assistant/runtime/moonlight_config_state.sh`:
