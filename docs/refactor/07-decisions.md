@@ -1536,3 +1536,14 @@ Decision:
 Reason:
 
 - `beagle_usb_runtime_state.sh` still mixed two abstraction levels: stable USB tunnel/runtime configuration accessors and the persisted state contract for bound bus IDs. The env/accessor side is independently smoke-testable with simple environment overrides, while the state side is about reading and writing the runtime USB state file. Pulling the accessor block out keeps the state helper smaller and leaves the USB runtime environment contract explicit for actions and payload rendering.
+
+### D134. Moonlight host resolution should leave the connect-host selection helper
+
+Decision:
+
+- Keep `resolve_ipv4_host()` and `resolve_preferred_moonlight_host()` in `thin-client-assistant/runtime/moonlight_host_resolution.sh`.
+- `thin-client-assistant/runtime/moonlight_connect_host.sh` should source that helper and remain focused on direct-local-host checks, gateway fallback, and final connect-host candidate selection.
+
+Reason:
+
+- `moonlight_connect_host.sh` still mixed deterministic host-resolution policy with the stateful candidate/probe/fallback selection flow. The resolution side is independently smoke-testable with stubbed `prefer_ipv4()`, `is_ip_literal()`, and DNS results, while the remaining connect-host side is about candidate ordering and probe outcomes. Pulling the resolution block out keeps the connect-host helper smaller and leaves the Moonlight host-resolution contract explicit for reuse.

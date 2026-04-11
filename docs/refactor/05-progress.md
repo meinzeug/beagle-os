@@ -1,5 +1,18 @@
 # Refactor Progress
 
+### 2026-04-11 — Moonlight host-resolution helper extraction
+
+- Removed the IPv4/preferred-host resolution block from `thin-client-assistant/runtime/moonlight_connect_host.sh`:
+  - added `thin-client-assistant/runtime/moonlight_host_resolution.sh` for `resolve_ipv4_host()` and `resolve_preferred_moonlight_host()`
+  - `thin-client-assistant/runtime/moonlight_connect_host.sh` now sources that helper and stays focused on direct-local-host checks, gateway fallback, and final connect-host candidate selection
+- This reduces the Moonlight connect-host layer into a clearer resolution-vs-selection seam:
+  - host resolution and connect-host selection now live in separate modules instead of one mixed helper
+  - `moonlight_targeting.sh`, `launch-moonlight.sh`, and `moonlight_pairing.sh` still consume the same public helper surface, so runtime behavior stays unchanged
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/moonlight_host_resolution.sh thin-client-assistant/runtime/moonlight_connect_host.sh thin-client-assistant/runtime/moonlight_targeting.sh thin-client-assistant/runtime/moonlight_reachability.sh thin-client-assistant/runtime/moonlight_pairing.sh thin-client-assistant/runtime/launch-moonlight.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `resolve_preferred_moonlight_host()` with stubbed `prefer_ipv4()`, `is_ip_literal()`, and `resolve_ipv4_host()`
+  - focused smoke test for `moonlight_connect_host()` candidate ordering and fallback behavior with stubbed probe outcomes
+
 ### 2026-04-11 — USB runtime env helper extraction
 
 - Removed the USB tunnel/env accessor block from `thin-client-assistant/runtime/beagle_usb_runtime_state.sh`:
