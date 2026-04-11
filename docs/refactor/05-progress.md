@@ -2,6 +2,21 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — support-bundle storage/upload extraction
+
+- Finished the remaining support-bundle storage/upload block inside `beagle-host/services/support_bundle_store.py`:
+  - `SupportBundleStoreService` now owns not only metadata/archive path lookup and listing, but also `store(...)` for archive persistence, metadata shaping, SHA256 calculation, and metadata-file writes
+  - the control-plane helper name `store_support_bundle(...)` stays stable as a thin wrapper, so the VM action-result upload path kept its existing handler surface and payload shape
+- Kept the bundle-storage seam explicit instead of leaving upload orchestration in the HTTP entrypoint:
+  - bundle archive and metadata paths still come from the existing store service
+  - JSON persistence still goes through the existing `write_json_file(...)` helper
+  - the slice intentionally preserves the legacy filename-sanitizing behavior, including the current `.bin` fallback when sanitized names lose suffixes
+- Smoke-tested the expanded store service outside the server loop:
+  - uploaded bundle content still lands on disk
+  - metadata still records `bundle_id`, `size`, `sha256`, `uploaded_at`, and `download_path`
+  - lookup and filtered listing still recover the stored bundle metadata correctly
+- `beagle-control-plane.py` dropped from `3556` to `3533` lines with this slice, while the host-side extracted-service module count stays at `21` because this flow moved under the existing `SupportBundleStoreService` instead of adding another service file
+
 ### 2026-04-11 — policy normalization extraction
 
 - Extracted the policy payload normalization block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/policy_normalization.py`:

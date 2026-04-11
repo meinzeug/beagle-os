@@ -260,6 +260,16 @@ Current host-side contract:
 
 - `normalize_payload(payload, policy_name=None)`
 
+### `beagle-host/services/support_bundle_store.py`
+
+Current host-side contract:
+
+- `metadata_path(bundle_id)`
+- `archive_path(bundle_id, filename)`
+- `find_metadata(bundle_id)`
+- `list_metadata(node=None, vmid=None)`
+- `store(node, vmid, action_id, filename, content)`
+
 ### `core/virtualization/service.js`
 
 Generic contract:
@@ -445,6 +455,7 @@ These flows now go through provider-backed services first:
 - Sunshine pinned-pubkey retrieval, Moonlight certificate registration, Sunshine server identity discovery, access-ticket issuance/resolution, and Sunshine HTTP proxying through `beagle-host/services/sunshine_integration.py`
 - public-stream mapping persistence, explicit-port sync, stale-entry cleanup, and next-free base-port allocation through `beagle-host/services/public_streams.py`
 - policy selector/profile/default normalization through `beagle-host/services/policy_normalization.py`
+- support-bundle archive persistence, metadata shaping, and filtered metadata lookup through `beagle-host/services/support_bundle_store.py`
 - VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through the selected host provider, currently `beagle-host/providers/proxmox_host_provider.py`
 - browser-/installer-facing endpoint profile payload normalization through `beagle-host/bin/endpoint_profile_contract.py`
 
@@ -467,6 +478,7 @@ These flows now go through provider-backed services first:
 - `beagle-host/services/sunshine_integration.py` removed the Sunshine/Moonlight block from the entrypoint, but it still depends on Sunshine-specific guest file paths/state layout, Sunshine HTTP/API semantics, `curl`/`openssl` behavior, and current Moonlight certificate-registration conventions under the new service seam.
 - `beagle-host/services/public_streams.py` removed port-state/orchestration from the entrypoint, but it still interprets today's description-meta keys (`beagle-public-moonlight-port`) and VM inventory/config semantics through provider-backed reads under the new service seam.
 - `beagle-host/services/policy_normalization.py` removed policy contract shaping from the entrypoint, but the normalized fields still reflect today's endpoint/profile policy semantics and browser/runtime expectations under the new service seam.
+- `beagle-host/services/support_bundle_store.py` now owns upload persistence too, but it intentionally preserves today's sanitized-filename behavior, including `.bin` fallback when suffixes are lost, so downstream download behavior stays unchanged until that contract is redesigned deliberately.
 
 ### Script surfaces
 
