@@ -831,3 +831,15 @@ Decision:
 Reason:
 
 - Provider-neutrality is not real if the control plane can choose a provider but the surrounding install/runtime surfaces silently assume one concrete backend and the registry itself directly imports that backend at module import time. Lazy loading plus persisted provider selection reduces that coupling now and lowers the cost of introducing `providers/beagle/` or a conformance mock later.
+
+### D74. Proxmox-specific install adapters should stay explicit, but they must read the selected provider and skip cleanly when mismatched
+
+Decision:
+
+- Keep scripts such as `install-proxmox-ui-integration.sh` and `install-proxmox-host.sh` explicit about being Proxmox adapters instead of hiding provider-specific behavior behind generic names too early.
+- Make those scripts read the active `BEAGLE_HOST_PROVIDER`, propagate it through their env files, and skip or log clearly when the selected provider is not `proxmox`.
+- Make the server-installer bootstrap pass the provider selection explicitly rather than relying on the current default.
+
+Reason:
+
+- These install surfaces are still genuinely Proxmox-specific today, so pretending they are already generic would only hide coupling. The right intermediate state is explicit adapter naming plus explicit provider selection, so future non-Proxmox install paths can coexist without another round of implicit-default cleanup first.

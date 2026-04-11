@@ -2,6 +2,17 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — provider threading through proxy, UI integration, and server installer
+
+- Continued threading `BEAGLE_HOST_PROVIDER` through the remaining installer/deploy edges instead of leaving those surfaces implicitly Proxmox-only:
+  - `scripts/install-beagle-proxy.sh` now loads provider selection from `host.env` / `beagle-manager.env`, preserves it through sudo escalation, writes it into `beagle-proxy.env`, and logs explicitly when backend auto-detection is running under a non-Proxmox provider selection
+  - `scripts/install-proxmox-ui-integration.sh` now reads provider selection from host env and skips itself cleanly when the active host provider is not `proxmox`
+  - `server-installer/live-build/.../beagle-server-installer` now invokes `install-proxmox-host.sh` with `BEAGLE_HOST_PROVIDER='proxmox'` explicitly so the installed target host records the selected provider instead of relying on an implicit default
+- This does not make Proxmox optional yet, but it removes more hidden assumptions that the deploy/install chain can silently rely on the Proxmox provider without passing or documenting provider selection.
+- Validation for this slice passed:
+  - `bash -n scripts/install-beagle-proxy.sh scripts/install-proxmox-ui-integration.sh server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-11 — host-provider registry lazy loading and runtime env threading
 
 - Continued the provider-abstraction work across deploy/install/runtime boundaries instead of leaving provider selection as a control-plane-only detail:
