@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime value-helper extraction
+
+- Removed the last small generic helper block from `thin-client-assistant/runtime/common.sh`:
+  - added `thin-client-assistant/runtime/runtime_value_helpers.sh` for `beagle_curl_tls_args()`, `render_template()`, and `split_browser_flags()`
+  - `thin-client-assistant/runtime/common.sh` now sources that helper instead of carrying the value-expansion and TLS helper logic inline
+- This leaves `common.sh` as a very thin runtime composition shell:
+  - `thin-client-assistant/runtime/common.sh` is now down to about `74` lines
+  - the remaining logic there is primarily config discovery, mode override application, and sourcing of the extracted runtime seams
+- Validation and smoke checks for this slice passed:
+  - `bash -n` across the affected runtime scripts
+  - focused smoke test for `render_template()` placeholder expansion
+  - focused smoke test for `beagle_curl_tls_args()` and `split_browser_flags()`
+
 ### 2026-04-11 — runtime core helper extraction
 
 - Removed the remaining shared state/logging/runtime-user baseline helpers from `thin-client-assistant/runtime/common.sh`:
