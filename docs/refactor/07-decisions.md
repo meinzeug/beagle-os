@@ -903,3 +903,15 @@ Decision:
 Reason:
 
 - After the shared preset summary, enrollment writer, and status writer slices, the largest remaining installer/runtime drift block was the huge preset→runtime env export cluster inside `generate_config_dir_from_preset()`. That logic was real business mapping, not shell orchestration. Extracting it makes the mapping explicit, keeps the existing output stable, and narrows the remaining runtime work to defaults/override behavior instead of another giant inline export chain.
+
+### D80. Proxmox USB preset assembly should be isolated from the Proxmox API transport layer
+
+Decision:
+
+- Move the Proxmox-specific endpoint normalization, login parsing, description-meta parsing, and USB preset assembly out of `thin-client-assistant/usb/pve-thin-client-proxmox-api.py` into `thin-client-assistant/usb/proxmox_preset.py`.
+- Keep `pve-thin-client-proxmox-api.py` responsible for HTTPS/API transport, VM enumeration, and command dispatch only.
+- Keep the generated preset and CLI payload shapes stable so downstream installer flows do not change during the slice.
+
+Reason:
+
+- The API helper still mixed two different responsibilities: talking to Proxmox and defining the Proxmox-shaped thin-client preset contract. That made the remaining provider-specific contract harder to compare against the host-side installer builder and harder to replace later. Pulling the preset builder into its own module makes the Proxmox seam explicit without changing behavior.
