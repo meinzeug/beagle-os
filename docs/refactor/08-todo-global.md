@@ -45,6 +45,7 @@
 - [x] Extract the local-installer payload download/fallback and install-manifest write path into a dedicated USB helper module.
 - [x] Extract the USB writer source-selection and variant-path planning helpers into a dedicated USB helper module.
 - [x] Extract the USB writer bootstrap unpacking, ISO download/cache, and live-asset validation helpers into a dedicated USB helper module.
+- [x] Extract the USB writer partition/write/copy/GRUB/runtime-state stage into a dedicated USB helper module.
 - [x] Extract the runtime enrollment-response config writer out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper seam.
 - [x] Extract the thin-client runtime status file writers into a shared runtime helper instead of separate launch/runtime shell implementations.
 - [x] Extract the preset-to-runtime config generation helper out of `thin-client-assistant/runtime/common.sh` while keeping `write-config.sh` as the canonical config writer.

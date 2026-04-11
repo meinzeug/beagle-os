@@ -1,5 +1,20 @@
 # Refactor Progress
 
+### 2026-04-12 — USB writer write-stage helper extraction
+
+- Removed the remaining write-stage block from the USB writer entrypoint:
+  - added `thin-client-assistant/usb/usb_writer_write_stage.sh` for `partition_suffix()`, `release_target_device()`, `write_usb_manifest()`, `write_usb_preset()`, `write_live_state_config()`, `boot_ip_arg()`, `usb_writer_print_write_plan()`, and `write_usb()`
+  - `thin-client-assistant/usb/pve-thin-client-usb-installer.sh` now delegates the whole partition/write/copy/grub flow to that helper and keeps the top-level control flow, device selection, and dependency/bootstrap handling
+- This is the biggest USB-writer shrink so far:
+  - the writer entrypoint is now mostly orchestration plus operator interaction
+  - the actual write pipeline, preset embedding, manifest writing, and GRUB/runtime-state staging now live in one dedicated module
+  - the extracted `write_live_state_config()` path now also uses an explicit `echo ...; exit 1` failure path instead of depending on a missing `fail()` function name
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/usb/usb_writer_write_stage.sh thin-client-assistant/usb/pve-thin-client-usb-installer.sh`
+  - focused smoke test for `usb_writer_print_write_plan()` with stubbed source-resolution helpers
+  - focused smoke test for `write_live_state_config()` with a temporary `write-config.sh` and embedded preset payload
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — USB writer bootstrap/live-asset helper extraction
 
 - Removed the bootstrap/download/live-asset preparation block from the USB writer entrypoint:
