@@ -1653,3 +1653,15 @@ Reason:
 
 - After device and mount-candidate discovery had already moved into the helper, both entrypoints still reimplemented the same block-device loop, temporary mount directory handling, and cleanup semantics. That was the remaining structural duplication in the USB live-medium path.
 - The only meaningful behavior difference between the entrypoints is what counts as an acceptable mounted medium and how much they log. Keeping those as callbacks preserves behavior while removing duplicated mount control flow.
+
+### D140. Local-installer payload download/fallback and install-manifest writing should leave the entrypoint
+
+Decision:
+
+- Keep the local-installer payload acquisition, fallback, manifest-file resolution, project-version resolution, and install-manifest writing helpers in `thin-client-assistant/usb/install_payload_assets.sh`.
+- Keep `pve-thin-client-local-installer.sh` focused on the installer flow and on composing the extracted helper with the already-extracted live-medium and manifest helpers.
+
+Reason:
+
+- After the live-medium path was split out, the next dense block in the local installer was no longer disk orchestration but payload-source selection, remote tarball download/verification, and install-manifest synthesis. Those functions form one coherent subdomain and were still embedded in the monolith.
+- The helper boundary is a better fit than another tiny extraction because these functions share the same manifest and payload-source contract and can be smoke-tested together without dragging the whole installer flow with them.
