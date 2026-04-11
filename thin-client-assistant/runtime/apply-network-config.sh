@@ -2,32 +2,19 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUNTIME_BOOTSTRAP_SERVICES_SH="${RUNTIME_BOOTSTRAP_SERVICES_SH:-$SCRIPT_DIR/runtime_bootstrap_services.sh}"
+RUNTIME_PREPARE_FLOW_SH="${RUNTIME_PREPARE_FLOW_SH:-$SCRIPT_DIR/runtime_prepare_flow.sh}"
+RUNTIME_NETWORK_BACKEND_SH="${RUNTIME_NETWORK_BACKEND_SH:-$SCRIPT_DIR/runtime_network_backend.sh}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
-
-load_runtime_config_with_retry() {
-  local attempts interval attempt
-  attempts="${PVE_THIN_CLIENT_CONFIG_RETRY_ATTEMPTS:-30}"
-  interval="${PVE_THIN_CLIENT_CONFIG_RETRY_INTERVAL:-1}"
-
-  for attempt in $(seq 1 "$attempts"); do
-    if load_runtime_config >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep "$interval"
-  done
-
-  load_runtime_config
-}
+# shellcheck disable=SC1090
+source "$RUNTIME_BOOTSTRAP_SERVICES_SH"
+# shellcheck disable=SC1090
+source "$RUNTIME_PREPARE_FLOW_SH"
+# shellcheck disable=SC1090
+source "$RUNTIME_NETWORK_BACKEND_SH"
 
 load_runtime_config_with_retry
-
-RUNTIME_NETWORK_DIR="${RUNTIME_NETWORK_DIR:-/run/systemd/network}"
-NETWORK_FILE="$RUNTIME_NETWORK_DIR/90-pve-thin-client.network"
-NM_CONNECTION_DIR="${NM_CONNECTION_DIR:-/etc/NetworkManager/system-connections}"
-NM_CONNECTION_FILE="$NM_CONNECTION_DIR/beagle-thinclient.nmconnection"
-RESOLV_CONF="${RESOLV_CONF:-/etc/resolv.conf}"
-DEFAULT_DNS_SERVERS="${PVE_THIN_CLIENT_DEFAULT_DNS_SERVERS:-1.1.1.1 9.9.9.9 8.8.8.8}"
 NETWORK_WAIT_TIMEOUT="${PVE_THIN_CLIENT_NETWORK_WAIT_TIMEOUT:-20}"
 
 pick_interface() {
@@ -65,96 +52,6 @@ if not address:
 network = ipaddress.ip_network(f"{address}/{prefix}", strict=False)
 print(network.with_prefixlen)
 PY
-}
-
-write_network_file() {
-  local iface="$1"
-  local dns_servers static_cidr
-  install -d -m 0755 "$RUNTIME_NETWORK_DIR"
-  dns_servers="$(resolve_dns_servers)"
-  static_cidr="$(static_ipv4_cidr 2>/dev/null || true)"
-
-  {
-    echo "[Match]"
-    echo "Name=$iface"
-    echo
-    echo "[Network]"
-    if [[ "${PVE_THIN_CLIENT_NETWORK_MODE:-dhcp}" == "static" ]]; then
-      echo "Address=${PVE_THIN_CLIENT_NETWORK_STATIC_ADDRESS}/${PVE_THIN_CLIENT_NETWORK_STATIC_PREFIX:-24}"
-      [[ -n "${PVE_THIN_CLIENT_NETWORK_GATEWAY:-}" ]] && echo "Gateway=${PVE_THIN_CLIENT_NETWORK_GATEWAY}"
-      echo "DHCP=no"
-    else
-      echo "DHCP=yes"
-    fi
-    for dns in $dns_servers; do
-      echo "DNS=$dns"
-    done
-    if [[ "${PVE_THIN_CLIENT_NETWORK_MODE:-dhcp}" == "static" && -n "$static_cidr" ]]; then
-      echo
-      echo "[Route]"
-      echo "Destination=$static_cidr"
-      echo "Scope=link"
-      if [[ -n "${PVE_THIN_CLIENT_NETWORK_GATEWAY:-}" ]]; then
-        echo
-        echo "[Route]"
-        echo "Destination=0.0.0.0/0"
-        echo "Gateway=${PVE_THIN_CLIENT_NETWORK_GATEWAY}"
-        echo "GatewayOnLink=yes"
-      fi
-    fi
-  } >"$NETWORK_FILE"
-}
-
-write_nmconnection() {
-  local iface="$1"
-  local dns_servers dns_csv address_line
-
-  install -d -m 0700 "$NM_CONNECTION_DIR"
-  dns_servers="$(resolve_dns_servers)"
-  dns_csv="$(printf '%s\n' "$dns_servers" | tr ' ' ',' | sed 's/,$//')"
-
-  {
-    echo "[connection]"
-    echo "id=beagle-thinclient"
-    echo "uuid=3f5f30fe-1b98-45e1-a7ef-79f3f0cdfb27"
-    echo "type=ethernet"
-    echo "autoconnect=true"
-    [[ -n "$iface" ]] && echo "interface-name=$iface"
-    echo
-    echo "[ethernet]"
-    echo
-    echo "[ipv4]"
-    if [[ "${PVE_THIN_CLIENT_NETWORK_MODE:-dhcp}" == "static" ]]; then
-      echo "method=manual"
-      address_line="${PVE_THIN_CLIENT_NETWORK_STATIC_ADDRESS}/${PVE_THIN_CLIENT_NETWORK_STATIC_PREFIX:-24}"
-      if [[ -n "${PVE_THIN_CLIENT_NETWORK_GATEWAY:-}" ]]; then
-        address_line="${address_line},${PVE_THIN_CLIENT_NETWORK_GATEWAY}"
-      fi
-      echo "address1=${address_line}"
-    else
-      echo "method=auto"
-    fi
-    if [[ -n "$dns_csv" ]]; then
-      echo "dns=$dns_csv;"
-      echo "ignore-auto-dns=true"
-    fi
-    echo
-    echo "[ipv6]"
-    echo "method=ignore"
-    echo
-    echo "[proxy]"
-  } >"$NM_CONNECTION_FILE"
-
-  chmod 0600 "$NM_CONNECTION_FILE"
-}
-
-resolve_dns_servers() {
-  if [[ -n "${PVE_THIN_CLIENT_NETWORK_DNS_SERVERS:-}" ]]; then
-    printf '%s\n' "${PVE_THIN_CLIENT_NETWORK_DNS_SERVERS}"
-    return 0
-  fi
-
-  printf '%s\n' "$DEFAULT_DNS_SERVERS"
 }
 
 is_ip_literal() {
@@ -255,58 +152,6 @@ apply_hostname() {
     printf '%s\n' "$hostname_value" > /etc/hostname
     hostname "$hostname_value" >/dev/null 2>&1 || true
   fi
-}
-
-restart_networkd() {
-  if command -v systemctl >/dev/null 2>&1 && systemctl is-enabled systemd-networkd.service >/dev/null 2>&1; then
-    systemctl restart systemd-networkd.service >/dev/null 2>&1 || true
-  elif command -v systemctl >/dev/null 2>&1 && systemctl is-active systemd-networkd.service >/dev/null 2>&1; then
-    systemctl restart systemd-networkd.service >/dev/null 2>&1 || true
-  fi
-}
-
-have_networkmanager() {
-  command -v nmcli >/dev/null 2>&1 || systemctl list-unit-files 2>/dev/null | grep -q '^NetworkManager\.service'
-}
-
-restart_networkmanager() {
-  if command -v systemctl >/dev/null 2>&1; then
-    systemctl enable NetworkManager.service >/dev/null 2>&1 || true
-    systemctl restart NetworkManager.service >/dev/null 2>&1 || true
-  fi
-
-  if command -v nmcli >/dev/null 2>&1; then
-    nmcli connection reload >/dev/null 2>&1 || true
-    nmcli connection up beagle-thinclient >/dev/null 2>&1 || true
-  fi
-}
-
-write_resolv_conf() {
-  local dns_servers target_path
-
-  if [[ -L "$RESOLV_CONF" ]]; then
-    target_path="$(readlink -f "$RESOLV_CONF" 2>/dev/null || true)"
-    case "$target_path" in
-      /run/systemd/resolve/stub-resolv.conf|/run/systemd/resolve/resolv.conf|"")
-        rm -f "$RESOLV_CONF" >/dev/null 2>&1 || true
-        ;;
-    esac
-  fi
-
-  if [[ -e "$RESOLV_CONF" && ! -w "$RESOLV_CONF" ]]; then
-    return 0
-  fi
-
-  dns_servers="$(resolve_dns_servers)"
-
-  {
-    for dns in $dns_servers; do
-      printf 'nameserver %s\n' "$dns"
-    done
-    printf 'options timeout:1 attempts:3 rotate\n'
-  } >"$RESOLV_CONF"
-
-  chmod 0644 "$RESOLV_CONF"
 }
 
 ensure_static_routes() {

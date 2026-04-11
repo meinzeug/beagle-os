@@ -61,6 +61,7 @@
 - [x] Extract the runtime endpoint-enrollment request/apply/reload block out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper.
 - [x] Extract the final runtime-status block out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper.
 - [x] Extract the config-retry / boot-mode / Plymouth / kiosk-prepare wrapper block out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper.
+- [x] Extract the network backend config-file / restart / resolver block out of `thin-client-assistant/runtime/apply-network-config.sh` into a dedicated helper.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.

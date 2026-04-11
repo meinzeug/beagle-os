@@ -2,6 +2,20 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime network backend helper extraction
+
+- Removed the network backend file/restart layer from `thin-client-assistant/runtime/apply-network-config.sh`:
+  - added `thin-client-assistant/runtime/runtime_network_backend.sh` for networkd file writing, NetworkManager connection writing, DNS server resolution, `resolv.conf` management, and network backend restart/reload helpers
+  - `thin-client-assistant/runtime/apply-network-config.sh` now sources that helper instead of carrying the backend config-file and restart logic inline
+  - `apply-network-config.sh` also now reuses `load_runtime_config_with_retry()` from `runtime_prepare_flow.sh` instead of duplicating the same retry wrapper locally
+- This starts the next runtime shell reduction track after `prepare-runtime.sh`:
+  - `thin-client-assistant/runtime/apply-network-config.sh` dropped to about `208` lines from roughly `363`
+  - the remaining script is now focused on interface selection, route/DNS wait behavior, address/route application, and top-level sequencing
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/apply-network-config.sh thin-client-assistant/runtime/runtime_network_backend.sh thin-client-assistant/runtime/runtime_prepare_flow.sh thin-client-assistant/runtime/runtime_bootstrap_services.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `write_network_file()`, `write_nmconnection()`, and `write_resolv_conf()` with temporary output paths
+  - focused smoke test for `have_networkmanager()`, `restart_networkmanager()`, and `restart_networkd()` with stubbed `systemctl` and `nmcli`
+
 ### 2026-04-11 — runtime prepare status helper extraction
 
 - Removed the final runtime-status assembly block from `thin-client-assistant/runtime/prepare-runtime.sh`:
