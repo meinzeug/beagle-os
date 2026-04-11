@@ -378,3 +378,15 @@ Decision:
 Reason:
 
 - The installer-prep flow was a cohesive non-HTTP block: it shaped the same payload contract, read and wrote the same state files, performed the same guest-side Sunshine probe, and launched the same background script. Leaving that logic split across multiple helper functions in the control plane would keep the entrypoint responsible for state orchestration instead of request dispatch. Extracting it creates one host-side seam for installer readiness and removes another large helper cluster from the monolith.
+
+### D36. Guest USB attach/detach and tunnel-state orchestration belong in one host service
+
+Decision:
+
+- Move usbip/vhci parsing, guest USB attachment polling, VM USB state shaping, and guest attach/detach orchestration into `beagle-host/services/vm_usb.py`.
+- Keep `beagle-host/bin/beagle-control-plane.py` wrappers for `parse_usbip_port_output`, `parse_vhci_status_output`, `guest_usb_attachment_state`, `wait_for_guest_usb_attachment`, `build_vm_usb_state`, `attach_usb_to_guest`, and `detach_usb_from_guest` so the HTTP handlers under `/api/v1/vms/{vmid}/usb*` keep the same call surface during migration.
+- Inject provider-backed guest-exec helpers, endpoint-report loading, VM-secret/tunnel metadata, time helpers, and shell quoting into the service constructor instead of letting the service reach into control-plane globals.
+
+Reason:
+
+- The USB block was the next cohesive non-HTTP cluster after installer-prep: it mixed guest probing, usbip parsing, endpoint USB inventory, tunnel-port lookup, and attach/detach orchestration in one entrypoint file. Extracting it keeps the provider boundary intact, removes another high-signal business block from the HTTP monolith, and makes the remaining host-side work more clearly about provisioning/lifecycle flows rather than USB runtime mechanics.

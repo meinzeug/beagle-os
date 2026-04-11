@@ -2,6 +2,24 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — USB guest-attachment and tunnel-state extraction
+
+- Extracted the guest-USB attachment / tunnel-state helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/vm_usb.py`:
+  - `VmUsbService` now owns `parse_usbip_port_output`, `parse_vhci_status_output`, `guest_usb_attachment_state`, `wait_for_guest_usb_attachment`, `build_vm_usb_state`, `attach_usb_to_guest`, and `detach_usb_from_guest`
+  - the control-plane helper names stay stable as thin wrappers, so the `/api/v1/vms/{vmid}/usb`, `/usb/attach`, and `/usb/detach` handlers did not need signature or payload changes
+- Kept the host-service boundary clean:
+  - guest-side usbip/vhci probing still goes through the existing provider-backed `guest_exec_*` wrappers
+  - endpoint USB inventory/tunnel metadata still comes from `EndpointReportService`
+  - VM-secret/tunnel-port lookup still comes from `VmSecretBootstrapService`
+  - the new service only owns the orchestration and parsing layer between those seams
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/vm_usb.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - `usbip port` parsing still recovers `port`, `busid`, and device lines
+  - `vhci_hcd` status parsing still recovers attached guest ports
+  - `build_vm_usb_state()` still emits the expected tunnel metadata plus endpoint device counts
+  - attach and detach still round-trip through the same guest command semantics and attachment confirmation logic
+- `beagle-control-plane.py` dropped from about `4840` to `4701` lines with this slice, and the host-side extracted-service count moved from 16 to 17
+
 ### 2026-04-11 — installer-prep and sunshine-readiness extraction
 
 - Extracted the installer-prep / Sunshine-readiness helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/installer_prep.py`:

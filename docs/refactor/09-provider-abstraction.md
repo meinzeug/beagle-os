@@ -63,6 +63,8 @@ Long-term target:
   - provider-backed host read service for VM listing, node inventory, guest IPv4 lookup, VM config lookup, and bridge inventory used by the control plane
 - `beagle-host/services/vm_state.py`
   - provider-backed host service for endpoint compliance evaluation and VM-state composition used by multiple control-plane handlers
+- `beagle-host/services/vm_usb.py`
+  - host-side USB attach/detach and tunnel-state service that composes provider-backed guest-exec calls, endpoint reports, and VM-secret tunnel metadata without leaving that orchestration in the HTTP entrypoint
 - `beagle-host/providers/proxmox_host_provider.py`
   - `pvesh get /cluster/resources`
   - `pvesh get /nodes`
@@ -187,6 +189,18 @@ Current host-side contract:
 - `summarize_state(vm, state=None)`
 - `is_running(state)`
 - `start(vm)`
+
+### `beagle-host/services/vm_usb.py`
+
+Current host-side contract:
+
+- `parse_usbip_port_output(output)`
+- `parse_vhci_status_output(output)`
+- `guest_usb_attachment_state(vmid)`
+- `wait_for_guest_usb_attachment(vmid, busid, timeout_seconds=...)`
+- `build_vm_usb_state(vm, report=None)`
+- `attach_usb_to_guest(vm, busid)`
+- `detach_usb_from_guest(vm, port=None, busid="")`
 
 ### `core/virtualization/service.js`
 
@@ -368,6 +382,7 @@ These flows now go through provider-backed services first:
 - public download/artifact URL, latest-download resolution, checksum lookup, and update-payload metadata shaping through `beagle-host/services/download_metadata.py`
 - VM-secret credential/bootstrap orchestration, Sunshine pinned-pubkey backfill, and USB-tunnel `authorized_keys` synchronization through `beagle-host/services/vm_secret_bootstrap.py`
 - installer-prep state loading, Sunshine-readiness probing, default/summary shaping, and background prep-script launch through `beagle-host/services/installer_prep.py`
+- guest USB attach/detach orchestration, usbip/vhci parsing, and tunnel-state shaping through `beagle-host/services/vm_usb.py`
 - VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through the selected host provider, currently `beagle-host/providers/proxmox_host_provider.py`
 - browser-/installer-facing endpoint profile payload normalization through `beagle-host/bin/endpoint_profile_contract.py`
 
@@ -386,7 +401,7 @@ These flows now go through provider-backed services first:
 - `beagle-host/bin/beagle-control-plane.py` no longer owns the main VM profile/assignment/public-stream synthesis block directly, but it remains a large monolith with response-model shaping, inventory aggregation, and other handler-local orchestration still living in the entrypoint. Those remaining flows should move behind `beagle-host/services/*` incrementally.
 - `beagle-host/services/vm_profile.py` is now the host-side seam for profile synthesis, but it still derives business state from today's Proxmox-backed metadata/config semantics through provider-backed reads and existing description-meta conventions.
 - `beagle-host/providers/registry.py` makes provider selection real at bootstrap time, but the registry still only exposes one concrete implementation today. Provider selection is no longer hard-coded in the control-plane import graph, yet provider diversity is still unfinished work.
-- the USB guest-attachment / tunnel-state helper cluster still lives in `beagle-host/bin/beagle-control-plane.py` and is now one of the bigger host-specific non-HTTP seams not yet extracted.
+- the Ubuntu-Beagle provisioning/lifecycle block still lives mostly in `beagle-host/bin/beagle-control-plane.py`, mixing autoinstall artifact generation, template shaping, and provider-backed VM lifecycle orchestration in the same entrypoint module.
 
 ### Script surfaces
 
