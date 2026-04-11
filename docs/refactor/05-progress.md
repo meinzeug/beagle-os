@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — shared X11 display helper extraction
+
+- Removed the duplicated X11/Xauthority display-wait logic from the Moonlight and GeForce NOW launchers:
+  - added `thin-client-assistant/runtime/x11_display.sh` for `detect_xauthority()`, `x_display_ready()`, `select_xauthority()`, `wait_for_x_display()`, and `wait_for_x_display_selected()`
+  - `thin-client-assistant/runtime/launch-moonlight.sh` now uses the shared helper while preserving its log-emitting reselect-on-each-attempt behavior
+  - `thin-client-assistant/runtime/launch-geforcenow.sh` now uses the same helper while preserving its fixed-auth-candidate wait path
+  - `thin-client-assistant/runtime/common.sh` now sources the shared X11 helper seam
+- This removes one of the last clear runtime duplications between the mode-specific launchers and narrows the next runtime work further toward Moonlight-specific networking and connection orchestration rather than repeated display bootstrap code.
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/common.sh thin-client-assistant/runtime/x11_display.sh thin-client-assistant/runtime/launch-geforcenow.sh thin-client-assistant/runtime/launch-moonlight.sh thin-client-assistant/runtime/open-browser-url.sh`
+  - focused smoke test for `select_xauthority()` and exported X11 helper availability through `common.sh`
+  - focused smoke test that `x_display_ready()` still fails cleanly for missing auth files
+
 ### 2026-04-11 — runtime value-helper extraction
 
 - Removed the last small generic helper block from `thin-client-assistant/runtime/common.sh`:

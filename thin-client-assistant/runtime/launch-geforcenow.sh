@@ -85,48 +85,6 @@ stop_stream_optimization() {
   beagle_log_event "gfn.stream-optimization" "mode=inactive"
 }
 
-select_xauthority() {
-  local candidate
-
-  for candidate in \
-    "${XAUTHORITY:-}" \
-    "$HOME/.Xauthority" \
-    "/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}/.Xauthority"
-  do
-    [[ -n "$candidate" && -r "$candidate" ]] || continue
-    printf '%s\n' "$candidate"
-    return 0
-  done
-
-  candidate="$(find /tmp -maxdepth 1 -type f -name 'serverauth.*' 2>/dev/null | head -n 1 || true)"
-  if [[ -n "$candidate" ]]; then
-    printf '%s\n' "$candidate"
-    return 0
-  fi
-
-  printf '%s\n' "$HOME/.Xauthority"
-}
-
-wait_for_x_display() {
-  local attempts attempt auth_candidate
-
-  attempts="${PVE_THIN_CLIENT_X11_READY_RETRIES:-20}"
-  auth_candidate="$1"
-
-  if ! command -v xset >/dev/null 2>&1; then
-    return 0
-  fi
-
-  for attempt in $(seq 1 "$attempts"); do
-    if DISPLAY="$DISPLAY" XAUTHORITY="$auth_candidate" xset q >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 1
-  done
-
-  return 1
-}
-
 flatpak_scope_flag() {
   case "${GFN_INSTALL_SCOPE}" in
     user|--user|"")
@@ -144,7 +102,7 @@ flatpak_scope_flag() {
 
 XAUTHORITY="$(select_xauthority)"
 export XAUTHORITY
-wait_for_x_display "$XAUTHORITY"
+wait_for_x_display_selected "$XAUTHORITY"
 
 prepare_geforcenow_environment "$RUNTIME_HOME"
 export DISPLAY XDG_RUNTIME_DIR XAUTHORITY
