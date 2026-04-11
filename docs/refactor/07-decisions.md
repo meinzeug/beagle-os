@@ -855,3 +855,15 @@ Decision:
 Reason:
 
 - `prepare-host-downloads.sh` had become one of the remaining large script monoliths because it embedded several separate inline Python programs for template patching, VM metadata shaping, and status JSON generation. That made the shell entrypoint harder to review and kept installer/profile contract logic detached from the explicit host-side contract module. Pulling the Python work behind a dedicated helper preserves behavior, shrinks the shell script materially, and makes the next installer/env-builder contract slice narrower and easier to reason about.
+
+### D76. Thin-client preset summary and UI-state shaping should live in one shared USB helper
+
+Decision:
+
+- Add `thin-client-assistant/usb/preset_summary.py` as the shared source for streaming-mode availability, preset summary JSON, debug payload shaping, and local-installer UI-state payloads.
+- Reuse that helper from both `thin-client-assistant/usb/pve-thin-client-proxmox-api.py` and `thin-client-assistant/usb/pve-thin-client-local-installer.sh` instead of keeping separate inline Python blocks and separate availability rules.
+- Keep the higher-level Proxmox preset assembly unchanged for now; this slice only centralizes the derived summary/view logic.
+
+Reason:
+
+- The remaining installer/env-builder drift was no longer only on the host side. The thin-client USB path still carried duplicated `available_modes` and preset-summary logic in both the Proxmox API helper and the local installer shell script. Moving the derived summary/view layer behind one helper reduces drift immediately, narrows the next preset-builder slice, and keeps the user-facing installer JSON surfaces stable.

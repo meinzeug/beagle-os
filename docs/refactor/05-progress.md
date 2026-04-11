@@ -2,6 +2,18 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — thin-client preset summary helper extraction
+
+- Reduced duplicated thin-client installer preset/UI-state shaping by introducing a shared USB helper:
+  - added `thin-client-assistant/usb/preset_summary.py` for streaming-mode availability, preset summary JSON, debug payload shaping, and UI-state disk inventory payloads
+  - `thin-client-assistant/usb/pve-thin-client-proxmox-api.py` now derives `available_modes` through the shared helper instead of carrying its own local mode-availability rule set
+  - `thin-client-assistant/usb/pve-thin-client-local-installer.sh` now calls the shared helper for `print_preset_json` and `print_ui_state_json` instead of embedding two separate inline Python blocks with overlapping preset/mode logic
+- This does not make the thin-client path provider-neutral yet, but it removes another layer of duplicated installer/env-builder field shaping and keeps the local installer and the Proxmox API helper on the same preset-summary semantics.
+- Validation and smoke checks for this slice passed:
+  - `python3 -m py_compile thin-client-assistant/usb/preset_summary.py thin-client-assistant/usb/pve-thin-client-proxmox-api.py`
+  - `bash -n thin-client-assistant/usb/pve-thin-client-local-installer.sh`
+  - focused smoke checks for `preset-summary-json` and `ui-state-json`
+
 ### 2026-04-11 — hosted download-preparation helper extraction
 
 - Removed the large inline Python blocks from `scripts/prepare-host-downloads.sh` and moved that logic behind a dedicated helper seam:

@@ -730,6 +730,7 @@ These flows now go through a provider-facing helper seam first:
 ### Thin-client Proxmox access
 
 - thin-client-side Proxmox API and SPICE helpers are still explicitly Proxmox-bound.
+- `thin-client-assistant/usb/preset_summary.py` now centralizes the derived preset-summary/UI-state layer used by the local installer and the Proxmox API helper, but the underlying preset assembly in `thin-client-assistant/usb/pve-thin-client-proxmox-api.py` still reflects current Proxmox login and VM-config semantics.
 
 ## Exit Criteria Before Proxmox Becomes Optional
 
