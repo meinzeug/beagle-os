@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime kiosk-session launcher extraction
+
+- Removed the kiosk supervisor/relaunch loop from `thin-client-assistant/runtime/launch-session.sh`:
+  - added `thin-client-assistant/runtime/session_launcher.sh` for `beagle_wait_for_stream_end()`, `beagle_ensure_kiosk_runtime()`, and `beagle_launch_kiosk_session()`
+  - `thin-client-assistant/runtime/launch-session.sh` now only owns mode dispatch, launch-status writing, and delegation into the extracted session helper
+- Runtime behavior stays the same for the kiosk path:
+  - the same streaming-session wait behavior, kiosk relaunch logic, failure counting, and `beagle-kiosk-install --ensure` preflight are preserved
+  - `launch-session.sh` dropped to about `74` lines, which makes the remaining runtime session orchestration explicit instead of burying it in the mode-dispatch entrypoint
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/launch-session.sh thin-client-assistant/runtime/session_launcher.sh thin-client-assistant/runtime/common.sh thin-client-assistant/runtime/launch-geforcenow.sh`
+  - focused smoke test that `session_launcher.sh` exports `beagle_launch_kiosk_session()`, `beagle_wait_for_stream_end()`, and `beagle_ensure_kiosk_runtime()`
+  - focused smoke test for the `beagle_wait_for_stream_end()` contract using a temporary streaming-session state file
+
 ### 2026-04-11 — runtime kiosk-control helper extraction
 
 - Removed the remaining kiosk runtime control block from `thin-client-assistant/runtime/common.sh`:

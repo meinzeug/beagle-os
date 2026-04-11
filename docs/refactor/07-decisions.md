@@ -1024,3 +1024,14 @@ Decision:
 Reason:
 
 - The kiosk stop contract is used as operational runtime behavior during GFN stream optimization, but it is not generic shell bootstrap logic. Moving it out keeps the sourcing monolith shrinking and isolates the remaining kiosk-specific behavior into a dedicated runtime seam without changing the callers.
+
+### D89. Kiosk session supervision belongs in a dedicated launcher helper, not in the mode-dispatch entrypoint
+
+Decision:
+
+- Keep the kiosk relaunch loop, stream-wait handling, and kiosk-install preflight in `thin-client-assistant/runtime/session_launcher.sh`.
+- Keep `thin-client-assistant/runtime/launch-session.sh` focused on launch-status writing, mode dispatch, and delegation into mode-specific launchers.
+
+Reason:
+
+- `launch-session.sh` is the top-level runtime mode entrypoint. Leaving the kiosk supervisor loop inline there mixes dispatch with long-running session control flow. Moving that logic into a dedicated helper preserves the runtime contract while making the remaining launch/session seams explicit and easier to continue extracting.
