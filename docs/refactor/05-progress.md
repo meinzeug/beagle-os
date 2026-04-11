@@ -1017,6 +1017,11 @@
   - moved the `pve_thin_client.client_mode` cmdline parsing and the `PVE_THIN_CLIENT_MODE` / `PVE_THIN_CLIENT_BOOT_PROFILE` mapping rules out of `thin-client-assistant/runtime/common.sh`
   - rewired `apply_runtime_mode_overrides()` in `common.sh` into a thin shell wrapper over the new helper instead of keeping the mapping rules inline
   - kept the rest of `common.sh` unchanged so the runtime still sources config files and then applies the same final override semantics as before
+- Reduced duplicated runtime config-discovery and cmdline-preset restore logic in the thin-client runtime:
+  - added `thin-client-assistant/runtime/config_discovery.py`
+  - moved live-state discovery, preset-file discovery, and cmdline-preset restore/decode logic out of `thin-client-assistant/runtime/common.sh`
+  - rewired `find_live_state_dir()` and `find_config_dir()` in `common.sh` into thin shell wrappers over the new helper
+  - kept the runtime shell responsible for sourcing the resolved config files and for the remaining high-level orchestration only
 
 ### Known risks after this run
 
