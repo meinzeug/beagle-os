@@ -39,7 +39,9 @@ from fleet_inventory import FleetInventoryService
 from health_payload import HealthPayloadService
 from host_provider_contract import HostProvider
 from installer_script import InstallerScriptService
+from policy_store import PolicyStoreService
 from registry import create_provider, list_providers, normalize_provider_kind
+from support_bundle_store import SupportBundleStoreService
 from update_feed import UpdateFeedService
 from virtualization_inventory import VirtualizationInventoryService
 from vm_profile import VmProfileService
@@ -590,6 +592,8 @@ HEALTH_PAYLOAD_SERVICE: HealthPayloadService | None = None
 INSTALLER_SCRIPT_SERVICE: InstallerScriptService | None = None
 ENDPOINT_REPORT_SERVICE: EndpointReportService | None = None
 ACTION_QUEUE_SERVICE: ActionQueueService | None = None
+POLICY_STORE_SERVICE: PolicyStoreService | None = None
+SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
 
 
 def endpoints_dir() -> Path:
@@ -815,14 +819,23 @@ def action_result_path(node: str, vmid: int) -> Path:
     return action_queue_service().result_path(node, vmid)
 
 
+def support_bundle_store_service() -> SupportBundleStoreService:
+    global SUPPORT_BUNDLE_STORE_SERVICE
+    if SUPPORT_BUNDLE_STORE_SERVICE is None:
+        SUPPORT_BUNDLE_STORE_SERVICE = SupportBundleStoreService(
+            load_json_file=load_json_file,
+            safe_slug=safe_slug,
+            support_bundles_dir=support_bundles_dir,
+        )
+    return SUPPORT_BUNDLE_STORE_SERVICE
+
+
 def support_bundle_metadata_path(bundle_id: str) -> Path:
-    return support_bundles_dir() / f"{safe_slug(bundle_id, 'bundle')}.json"
+    return support_bundle_store_service().metadata_path(bundle_id)
 
 
 def support_bundle_archive_path(bundle_id: str, filename: str) -> Path:
-    suffix = Path(filename or "support-bundle.tar.gz").suffixes
-    extension = "".join(suffix) if suffix else ".bin"
-    return support_bundles_dir() / f"{safe_slug(bundle_id, 'bundle')}{extension}"
+    return support_bundle_store_service().archive_path(bundle_id, filename)
 
 
 def load_shell_env_file(path: Path) -> dict[str, str]:
@@ -2090,8 +2103,20 @@ def start_installer_prep(vm: VmSummary) -> dict[str, Any]:
     return bootstrap_state
 
 
+def policy_store_service() -> PolicyStoreService:
+    global POLICY_STORE_SERVICE
+    if POLICY_STORE_SERVICE is None:
+        POLICY_STORE_SERVICE = PolicyStoreService(
+            load_json_file=load_json_file,
+            normalize_policy_payload=normalize_policy_payload,
+            policies_dir=policies_dir,
+            safe_slug=safe_slug,
+        )
+    return POLICY_STORE_SERVICE
+
+
 def policy_path(name: str) -> Path:
-    return policies_dir() / f"{safe_slug(name, 'policy')}.json"
+    return policy_store_service().policy_path(name)
 
 
 def load_action_queue(node: str, vmid: int) -> list[dict[str, Any]]:
@@ -2153,23 +2178,11 @@ def summarize_action_result(payload: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def list_support_bundle_metadata(*, node: str | None = None, vmid: int | None = None) -> list[dict[str, Any]]:
-    items: list[dict[str, Any]] = []
-    for path in sorted(support_bundles_dir().glob("*.json")):
-        payload = load_json_file(path, None)
-        if not isinstance(payload, dict):
-            continue
-        if node is not None and str(payload.get("node", "")).strip() != str(node).strip():
-            continue
-        if vmid is not None and int(payload.get("vmid", -1)) != int(vmid):
-            continue
-        items.append(payload)
-    items.sort(key=lambda item: str(item.get("uploaded_at", "")), reverse=True)
-    return items
+    return support_bundle_store_service().list_metadata(node=node, vmid=vmid)
 
 
 def find_support_bundle_metadata(bundle_id: str) -> dict[str, Any] | None:
-    payload = load_json_file(support_bundle_metadata_path(bundle_id), None)
-    return payload if isinstance(payload, dict) else None
+    return support_bundle_store_service().find_metadata(bundle_id)
 
 
 def store_support_bundle(node: str, vmid: int, action_id: str, filename: str, content: bytes) -> dict[str, Any]:
@@ -2277,33 +2290,19 @@ def normalize_policy_payload(payload: dict[str, Any], *, policy_name: str | None
 
 
 def save_policy(payload: dict[str, Any], *, policy_name: str | None = None) -> dict[str, Any]:
-    normalized = normalize_policy_payload(payload, policy_name=policy_name)
-    policy_path(normalized["name"]).write_text(json.dumps(normalized, indent=2) + "\n", encoding="utf-8")
-    return normalized
+    return policy_store_service().save(payload, policy_name=policy_name)
 
 
 def load_policy(name: str) -> dict[str, Any] | None:
-    payload = load_json_file(policy_path(name), None)
-    return payload if isinstance(payload, dict) else None
+    return policy_store_service().load(name)
 
 
 def delete_policy(name: str) -> bool:
-    path = policy_path(name)
-    if not path.exists():
-        return False
-    path.unlink()
-    return True
+    return policy_store_service().delete(name)
 
 
 def list_policies() -> list[dict[str, Any]]:
-    items: list[dict[str, Any]] = []
-    for path in sorted(policies_dir().glob("*.json")):
-        payload = load_json_file(path, None)
-        if not isinstance(payload, dict):
-            continue
-        items.append(payload)
-    items.sort(key=lambda item: (-int(item.get("priority", 0)), str(item.get("name", ""))))
-    return items
+    return policy_store_service().list_all()
 
 
 def parse_description_meta(description: str) -> dict[str, str]:
