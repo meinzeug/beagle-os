@@ -365,7 +365,7 @@ guest_exec_script() {
 
 detect_guest_ip() {
   if provider_helper_available; then
-    provider_helper_exec "guest-ipv4 '$VMID'" 2>/dev/null && return 0
+    provider_helper_exec guest-ipv4 "$VMID" 2>/dev/null && return 0
   fi
 
   local raw_output
