@@ -1187,3 +1187,15 @@ Decision:
 Reason:
 
 - Once `prepare-runtime.sh` became thin, `apply-network-config.sh` became the next runtime shell monolith. Its backend write/restart layer was cohesive, testable with temp paths and stubbed service binaries, and independent from the remaining interface/route wait logic. Pulling that block out continues the same reduction strategy and avoids duplicating the config-retry wrapper across runtime entrypoints.
+
+### D103. Network interface/route/wait logic should also leave `apply-network-config.sh`
+
+Decision:
+
+- Keep interface selection, static IPv4 CIDR calculation, URL-host extraction, DNS wait-target shaping, IPv4 resolution checks, default-route waiting, DNS-target waiting, hostname application, static route installation, and static address application in `thin-client-assistant/runtime/runtime_network_runtime.sh`.
+- `apply-network-config.sh` should source that helper instead of carrying the runtime route/wait/identity block inline.
+- The extracted helper may expose path/binary overrides for `/sys/class/net`, `ip`, `getent`, `hostnamectl`, `hostname`, and `/etc/hostname` so the seam stays smoke-testable without changing runtime defaults.
+
+Reason:
+
+- After the backend config-file/restart layer moved out, the remaining `apply-network-config.sh` logic was still a cohesive runtime network block rather than pure orchestration. Pulling it out completes the same pattern used on `prepare-runtime.sh`: the entrypoint becomes a sequencing shell, and the operational behavior moves into explicit helpers with test seams.

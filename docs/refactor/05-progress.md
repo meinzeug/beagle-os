@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime network runtime helper extraction
+
+- Removed the remaining network-runtime logic from `thin-client-assistant/runtime/apply-network-config.sh`:
+  - added `thin-client-assistant/runtime/runtime_network_runtime.sh` for interface selection, static IPv4 CIDR calculation, URL-host extraction, DNS wait-target shaping, IPv4 resolution checks, default-route waiting, DNS-target waiting, hostname application, static route installation, and static address application
+  - `thin-client-assistant/runtime/apply-network-config.sh` now sources that helper instead of carrying the route/wait/identity block inline
+- This completes the main `apply-network-config.sh` split:
+  - `thin-client-assistant/runtime/apply-network-config.sh` is now down to about `41` lines
+  - the entrypoint now mostly sequences the extracted network backend and network runtime helpers
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/apply-network-config.sh thin-client-assistant/runtime/runtime_network_runtime.sh thin-client-assistant/runtime/runtime_network_backend.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `pick_interface()`, `static_ipv4_cidr()`, and `extract_host_from_url()` with a temporary fake `/sys/class/net`
+  - focused smoke test for `apply_static_address()`, `ensure_static_routes()`, `apply_hostname()`, `wait_for_default_route()`, and `wait_for_dns_targets()` with stubbed `ip`, `getent`, and `hostnamectl`
+
 ### 2026-04-11 — runtime network backend helper extraction
 
 - Removed the network backend file/restart layer from `thin-client-assistant/runtime/apply-network-config.sh`:
