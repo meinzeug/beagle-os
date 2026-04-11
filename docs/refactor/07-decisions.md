@@ -450,3 +450,15 @@ Decision:
 Reason:
 
 - The remaining bundle-upload block was not a separate domain from the existing store service; it was the missing write half of the same persistence seam. Creating a second support-bundle service would have split one cohesive responsibility across two modules. Expanding the existing store service keeps archive-path logic, metadata lookup/listing, and upload persistence in one place while still removing the business block from the HTTP entrypoint.
+
+### D42. Installer template patching belongs in its own host service
+
+Decision:
+
+- Move shell and Windows installer template rewrite logic into `beagle-host/services/installer_template_patch.py`.
+- Keep `patch_installer_defaults(...)` and `patch_windows_installer_defaults(...)` in `beagle-host/bin/beagle-control-plane.py` only as thin wrappers so the existing helper surface stays stable during the migration.
+- Let `InstallerScriptService` depend directly on `InstallerTemplatePatchService`, and move preset Base64 encoding fully into `InstallerScriptService` instead of keeping it in the entrypoint.
+
+Reason:
+
+- `InstallerScriptService` already owned the generated installer artifact flow, but the canonical template rewrite contract still lived inline in the control-plane entrypoint. That kept escaping rules and placeholder semantics detached from the service that actually renders those artifacts. Splitting out a dedicated patching service and moving preset encoding into `InstallerScriptService` closes the installer helper seam cleanly without changing generated output.

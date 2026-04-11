@@ -156,6 +156,7 @@ install -m 0644 "$ROOT_DIR/beagle-host/services/fleet_inventory.py" "$HOST_RUNTI
 install -m 0644 "$ROOT_DIR/beagle-host/services/health_payload.py" "$HOST_RUNTIME_DIR/services/health_payload.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/installer_prep.py" "$HOST_RUNTIME_DIR/services/installer_prep.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/installer_script.py" "$HOST_RUNTIME_DIR/services/installer_script.py"
+install -m 0644 "$ROOT_DIR/beagle-host/services/installer_template_patch.py" "$HOST_RUNTIME_DIR/services/installer_template_patch.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/endpoint_report.py" "$HOST_RUNTIME_DIR/services/endpoint_report.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/action_queue.py" "$HOST_RUNTIME_DIR/services/action_queue.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/policy_normalization.py" "$HOST_RUNTIME_DIR/services/policy_normalization.py"
