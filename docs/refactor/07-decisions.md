@@ -954,3 +954,19 @@ Decision:
 Reason:
 
 - After extracting the preset builder seams, the next source of contract drift was the repeated default table for installer/runtime environment variables across one Python helper and several shell entrypoints. That duplication was large, low-signal, and easy to let drift. Moving the defaults into a data contract removes another broad literal block, keeps behavior stable for the runtime/install paths, and narrows the remaining runtime work to explicit mode/cmdline override behavior instead of scattered default values.
+
+### D84. Runtime mode/cmdline override semantics should live in a dedicated helper, not inline in common.sh
+
+Decision:
+
+- Add `thin-client-assistant/runtime/mode_overrides.py` as the dedicated helper for:
+  - reading `pve_thin_client.client_mode` from the kernel cmdline
+  - mapping it onto `PVE_THIN_CLIENT_MODE`
+  - deriving the resulting `PVE_THIN_CLIENT_BOOT_PROFILE`
+  - preserving the existing `PVE_THIN_CLIENT_CLIENT_MODE` value when no cmdline override is present
+- Rewire `apply_runtime_mode_overrides()` in `thin-client-assistant/runtime/common.sh` into a thin shell wrapper that only applies the helper output.
+- Leave the rest of runtime config discovery and preset restoration in `common.sh` for now.
+
+Reason:
+
+- After the shared default contract moved out, the next real business block left in the runtime shell monolith was the cmdline-driven mode override mapping. It was small, but it defined real runtime behavior and therefore deserved an explicit seam rather than staying as another inline rule block in `common.sh`. Extracting it keeps behavior stable and narrows the remaining runtime work to config discovery and preset restoration rather than mode semantics.

@@ -42,6 +42,7 @@
 - [x] Extract the Proxmox-specific USB preset builder out of `thin-client-assistant/usb/pve-thin-client-proxmox-api.py` into a dedicated provider helper module.
 - [x] Extract the overlapping thin-client preset base fields into a shared helper used by both `beagle-host/services/installer_script.py` and `thin-client-assistant/usb/proxmox_preset.py`.
 - [x] Extract the shared installer/runtime env default literals into one contract used by both shell and Python paths.
+- [x] Extract the runtime mode/cmdline override mapping out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.

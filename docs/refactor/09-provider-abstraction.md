@@ -743,6 +743,7 @@ These flows now go through a provider-facing helper seam first:
 - `thin-client-assistant/runtime/apply_enrollment_config.py` now centralizes the runtime enrollment-response write path used by `prepare-runtime.sh`, but the underlying field mapping still reflects today’s endpoint enrollment payload contract and runtime env naming.
 - `thin-client-assistant/runtime/status_writer.py` now centralizes runtime and launch status-file serialization, but the status semantics still reflect today’s Moonlight/Kiosk/GFN runtime model and current thin-client env names.
 - `thin-client-assistant/runtime/generate_config_from_preset.py` now centralizes preset-file parsing plus preset→runtime config generation for `common.sh`, and the default table it uses is now shared with the shell installer/runtime paths through `thin-client-assistant/installer/env-defaults.json`; the remaining drift is therefore narrower and mostly in mode/cmdline override behavior rather than raw default literals.
+- `thin-client-assistant/runtime/mode_overrides.py` now centralizes the cmdline-driven `client_mode`→runtime-mode/boot-profile mapping used by `common.sh`, so the remaining runtime shell drift is no longer in mode semantics but in config discovery and preset restoration behavior.
 
 ## Exit Criteria Before Proxmox Becomes Optional
 
