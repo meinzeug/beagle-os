@@ -1347,3 +1347,15 @@ Decision:
 Reason:
 
 - Once the network wait block moved out, the rest of `runtime_network_runtime.sh` was still a cohesive operational cluster around interface selection and static identity application. That code is independently smoke-testable with fake `/sys/class/net` trees and stubbed `ip`/`hostnamectl`, and it is conceptually separate from wait behavior. Pulling it out completes the main reduction of the runtime network helper and leaves behind only a thin composition layer.
+
+### D117. Moonlight manager-response sync and bootstrap should leave `moonlight_config_state.sh`
+
+Decision:
+
+- Keep runtime-config seeding, configured-host detection, manager-response host sync, and bootstrap list priming in `thin-client-assistant/runtime/moonlight_host_sync.sh`.
+- `moonlight_config_state.sh` should source that helper instead of carrying host-sync/bootstrap logic inline.
+- `moonlight_config_state.sh` should remain focused on config-path discovery and client-certificate extraction.
+
+Reason:
+
+- After the Moonlight targeting and network layers became thin, `moonlight_config_state.sh` remained one of the larger runtime helpers and still mixed read-only config access with mutating host-sync/bootstrap behavior. The sync/bootstrap side is cohesive, testable with temporary config files and stubbed Moonlight binaries, and is a better fit as its own seam. Pulling it out leaves the config-state helper focused on local Moonlight file access while the mutable host-sync logic lives in an explicit module.

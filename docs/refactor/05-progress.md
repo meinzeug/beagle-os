@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — Moonlight host-sync helper extraction
+
+- Removed the manager-response host-sync/bootstrap block from `thin-client-assistant/runtime/moonlight_config_state.sh`:
+  - added `thin-client-assistant/runtime/moonlight_host_sync.sh` for runtime-config seeding, configured-host detection, manager-response config sync, and bootstrap list priming
+  - `thin-client-assistant/runtime/moonlight_config_state.sh` now sources that helper instead of carrying host-sync/bootstrap logic inline
+- This reduces the Moonlight config-state helper into a focused config/certificate seam:
+  - `thin-client-assistant/runtime/moonlight_config_state.sh` dropped to about `45` lines
+  - the remaining file is now just config-path discovery plus client-certificate extraction, while the mutable host-sync path lives in its own module
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/moonlight_config_state.sh thin-client-assistant/runtime/moonlight_host_sync.sh thin-client-assistant/runtime/moonlight_pairing.sh thin-client-assistant/runtime/moonlight_remote_api.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `sync_moonlight_host_from_manager_response()`, `moonlight_host_configured()`, and `extract_moonlight_certificate_pem()` with a temporary Moonlight config file
+  - focused smoke test for `bootstrap_moonlight_client()` with stubbed `moonlight` / `timeout`
+
 ### 2026-04-11 — runtime network identity helper extraction
 
 - Removed the interface/address/hostname block from `thin-client-assistant/runtime/runtime_network_runtime.sh`:
