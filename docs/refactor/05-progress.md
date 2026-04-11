@@ -1,5 +1,18 @@
 # Refactor Progress
 
+### 2026-04-11 — GeForce NOW `xdg-open` helper extraction
+
+- Removed the `xdg-open` wrapper and host-shim block from `thin-client-assistant/runtime/geforcenow_desktop_integration.sh`:
+  - added `thin-client-assistant/runtime/geforcenow_xdg_open_integration.sh` for `gfn_wrapper_target()`, `gfn_browser_target()`, `gfn_host_xdg_open_path()`, `gfn_host_xdg_open_log_dir()`, `install_gfn_xdg_open_wrapper()`, `install_gfn_host_xdg_open_shim()`, and `ensure_gfn_xdg_open_integration()`
+  - `thin-client-assistant/runtime/geforcenow_desktop_integration.sh` now sources that helper and stays focused on desktop-file generation plus MIME registration
+- This reduces the GeForce NOW desktop integration layer into a clearer desktop-registration seam:
+  - desktop/MIME registration and `xdg-open` integration now live in separate modules instead of one mixed helper
+  - `install-geforcenow.sh` still calls the same `ensure_gfn_desktop_integration()` entrypoint, so runtime behavior stays unchanged
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/geforcenow_desktop_integration.sh thin-client-assistant/runtime/geforcenow_xdg_open_integration.sh thin-client-assistant/runtime/geforcenow_flatpak.sh thin-client-assistant/runtime/install-geforcenow.sh thin-client-assistant/runtime/launch-geforcenow.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `install_gfn_url_handler()` with temporary desktop and MIME paths plus stubbed `update-desktop-database` / `xdg-mime`
+  - focused smoke test for `install_gfn_xdg_open_wrapper()` and `install_gfn_host_xdg_open_shim()` with temporary target paths and wrapper/browser targets
+
 ### 2026-04-11 — USB `usbipd` lifecycle helper extraction
 
 - Removed the `usbipd` lifecycle and exportability block from `thin-client-assistant/runtime/beagle_usb_runtime_actions.sh`:
