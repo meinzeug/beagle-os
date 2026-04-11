@@ -807,3 +807,15 @@ Decision:
 Reason:
 
 - After the VM mutation surface extraction, the largest handler-local blocks left in the control-plane entrypoint were the remaining admin-facing non-VM write routes and the endpoint enrollment/check-in lifecycle routes. They were already mostly orchestration around extracted services, but the HTTP entrypoint still owned route matching, validation, error mapping, and response envelopes. Pulling both route families behind dedicated surfaces keeps the decomposition pattern consistent, removes the last major inline HTTP mutation blocks, and leaves the next host refactor target as non-HTTP business/orchestration logic rather than more route glue.
+
+### D72. Script-side guest-exec polling belongs in the shared provider helper, not in each shell script
+
+Decision:
+
+- Extend `scripts/lib/beagle_provider.py` with a synchronous guest-exec helper and CLI entrypoint that hides the `qm guest exec` plus `qm guest exec-status` polling loop behind the script-side provider seam.
+- Update `configure-sunshine-guest.sh` and `ensure-vm-stream-ready.sh` to prefer that synchronous helper instead of carrying their own provider-specific polling logic.
+- Keep direct `qm` fallbacks only as compatibility branches for partially updated hosts or missing helper deployments.
+
+Reason:
+
+- The first script-provider slice already moved read paths and low-level exec/write commands behind `scripts/lib/beagle_provider.py`, but the shell scripts still duplicated the provider-specific polling and raw-payload parsing needed to turn guest exec into a synchronous result. That kept Proxmox execution semantics spread across multiple scripts. Moving the wait loop into the helper keeps the provider contract explicit, reduces duplicate shell logic, and narrows the remaining direct `qm` compatibility paths.

@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from base64 import b64decode
 from typing import Any
 
@@ -153,6 +154,20 @@ def guest_exec_status(vmid: int, pid: int) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def guest_exec_bash_sync(vmid: int, command: str, *, timeout_seconds: int | None = None) -> dict[str, Any]:
+    payload = guest_exec_bash(int(vmid), command, timeout_seconds=timeout_seconds)
+    pid = payload.get("pid")
+    if pid in {None, ""}:
+        return payload if isinstance(payload, dict) else {}
+    while True:
+        status = guest_exec_status(int(vmid), int(pid))
+        if not isinstance(status, dict):
+            return {}
+        if status.get("exited"):
+            return status
+        time.sleep(2)
+
+
 def set_vm_options(vmid: int, option_pairs: list[tuple[str, str]]) -> str:
     _require_supported_provider()
     command = ["qm", "set", str(int(vmid))]
@@ -177,7 +192,7 @@ def reboot_vm(vmid: int) -> str:
 def _main(argv: list[str]) -> int:
     if len(argv) < 2:
         raise SystemExit(
-            "usage: beagle_provider.py <list-vms|vm-config|guest-interfaces|guest-ipv4|vm-node|vm-description|vm-description-meta|guest-exec-bash-b64|guest-exec-status|set-vm-options|set-vm-description-b64|reboot-vm> [args]"
+            "usage: beagle_provider.py <list-vms|vm-config|guest-interfaces|guest-ipv4|vm-node|vm-description|vm-description-meta|guest-exec-bash-b64|guest-exec-bash-sync-b64|guest-exec-status|set-vm-options|set-vm-description-b64|reboot-vm> [args]"
         )
     command = argv[1]
     if command == "list-vms":
@@ -225,6 +240,13 @@ def _main(argv: list[str]) -> int:
         timeout_seconds = int(argv[4]) if len(argv) == 5 and str(argv[4]).strip() else None
         script = b64decode(argv[3].encode("ascii")).decode("utf-8")
         print(json.dumps(guest_exec_bash(int(argv[2]), script, timeout_seconds=timeout_seconds), indent=2))
+        return 0
+    if command == "guest-exec-bash-sync-b64":
+        if len(argv) not in {4, 5}:
+            raise SystemExit("usage: beagle_provider.py guest-exec-bash-sync-b64 <vmid> <command_b64> [timeout_seconds]")
+        timeout_seconds = int(argv[4]) if len(argv) == 5 and str(argv[4]).strip() else None
+        script = b64decode(argv[3].encode("ascii")).decode("utf-8")
+        print(json.dumps(guest_exec_bash_sync(int(argv[2]), script, timeout_seconds=timeout_seconds), indent=2))
         return 0
     if command == "guest-exec-status":
         if len(argv) != 4:

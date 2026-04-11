@@ -668,6 +668,7 @@ These flows now go through a provider-facing helper seam first:
 - VM description metadata reads, guest-interface reads, and the Sunshine guest-status exec probe in `scripts/ensure-vm-stream-ready.sh`
 - backend VM enumeration, description metadata reads, and guest-interface reads in `scripts/install-beagle-proxy.sh`
 - preferred remote guest-IPv4/current-description reads plus guest-exec/status, description updates, and reboot flows in `scripts/configure-sunshine-guest.sh`, with direct `qm` fallbacks retained for not-yet-updated hosts
+- synchronous guest-exec polling through `scripts/lib/beagle_provider.py` in both `scripts/configure-sunshine-guest.sh` and `scripts/ensure-vm-stream-ready.sh`, with direct `qm` fallbacks retained only as compatibility branches
 - preferred VM baseline option writes in `scripts/optimize-proxmox-vm-for-beagle.sh`, with direct `qm set` fallback retained for not-yet-updated hosts
 - shared script-side virtualization reads through `scripts/lib/beagle_provider.py`
 
@@ -711,7 +712,7 @@ These flows now go through a provider-facing helper seam first:
 
 - `scripts/lib/beagle_provider.py` is now the shared script-side read and first-write/exec seam, but it still only implements the Proxmox backend today.
 - several scripts still execute `qm`/`pvesh` directly for fallback compatibility, install flows, or unreached write paths and should move to provider helpers incrementally.
-- the clearest remaining direct script couplings are now the fallback `qm` paths retained in `scripts/configure-sunshine-guest.sh`, `scripts/ensure-vm-stream-ready.sh`, and `scripts/optimize-proxmox-vm-for-beagle.sh`, plus any still-unreached install/runtime write flows
+- the clearest remaining direct script couplings are now the reduced compatibility branches retained in `scripts/configure-sunshine-guest.sh`, `scripts/ensure-vm-stream-ready.sh`, and `scripts/optimize-proxmox-vm-for-beagle.sh`, plus any still-unreached install/runtime write flows
 
 ### Thin-client Proxmox access
 

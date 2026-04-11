@@ -13,8 +13,8 @@ Strategic framing:
 ### Concrete next tasks
 
 1. Continue migrating script/install surfaces onto the provider-facing helper seam:
-   - `scripts/lib/beagle_provider.py` now covers the first shared guest-exec/write commands too, and the main script surfaces already prefer that seam
-   - the next script task is to reduce the remaining direct-command fallback paths where rollout compatibility is no longer needed and to migrate any still-unreached write flows onto the same seam
+   - `scripts/lib/beagle_provider.py` now covers synchronous guest-exec plus the first shared write commands, and the main Sunshine/setup scripts already prefer that seam
+   - the next script task is to reduce the remaining direct-command fallback paths where rollout compatibility is no longer needed, especially the last compatibility branches in `configure-sunshine-guest.sh`, `ensure-vm-stream-ready.sh`, and `optimize-proxmox-vm-for-beagle.sh`
    - after that, decide whether this helper remains the long-term script provider contract or whether the write/exec slice should split into a second dedicated script-side provider module
 2. Continue decomposing `beagle-host/bin/beagle-control-plane.py` around service-oriented modules:
    - the shared slug/secret/PIN helper cluster is now extracted behind `UtilitySupportService`

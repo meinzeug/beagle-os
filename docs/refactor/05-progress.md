@@ -2,6 +2,23 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — script-side sync guest-exec provider seam
+
+- Extended `scripts/lib/beagle_provider.py` with a synchronous guest-exec contract:
+  - added `guest_exec_bash_sync(...)`
+  - added the CLI command `guest-exec-bash-sync-b64`
+  - the helper now owns the `qm guest exec` plus `qm guest exec-status` polling loop for script consumers instead of leaving that wait logic duplicated in shell scripts
+- Moved more script-side guest-exec and VM-write call paths behind the provider helper seam:
+  - `scripts/configure-sunshine-guest.sh` now prefers the new synchronous helper command instead of issuing provider-helper `guest-exec` plus separate `guest-exec-status` calls itself
+  - `scripts/ensure-vm-stream-ready.sh` now uses the same synchronous helper path for Sunshine status probing, and its direct `qm` fallback now also performs an explicit `exec-status` polling loop instead of assuming the initial `qm guest exec` payload is the final result
+  - `scripts/optimize-proxmox-vm-for-beagle.sh` now caches provider-helper availability and uses safer quoted fallback command execution for the remaining direct `qm set` compatibility path
+  - `scripts/configure-sunshine-guest.sh` now also caches provider-helper availability so repeated SSH `test -f` probes do not sit in every helper call
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile scripts/lib/beagle_provider.py`
+  - `bash -n scripts/configure-sunshine-guest.sh scripts/ensure-vm-stream-ready.sh scripts/optimize-proxmox-vm-for-beagle.sh`
+  - focused smoke checks for `guest_exec_bash_sync(...)`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-11 — remaining authenticated admin and endpoint-lifecycle surface extraction
 
 - Extracted the remaining authenticated non-VM write surface out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/admin_http_surface.py`:
