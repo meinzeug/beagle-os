@@ -2,6 +2,23 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime stream-state and GFN ownership helper extraction
+
+- Removed two more operational helper clusters from `thin-client-assistant/runtime/common.sh` without changing the runtime entrypoints:
+  - added `thin-client-assistant/runtime/stream_state.sh` for stream-state path selection, streaming-session state persistence, and management timer/service suspension plus resume handling
+  - added `thin-client-assistant/runtime/runtime_ownership.sh` for runtime-owned directory/file/tree helpers plus `prepare_geforcenow_environment()`
+  - `thin-client-assistant/runtime/common.sh` now sources both helpers instead of keeping those blocks inline
+- Runtime behavior stays the same for current callers:
+  - `launch-session.sh` still checks streaming-session state through `common.sh`
+  - `launch-geforcenow.sh` and `install-geforcenow.sh` still prepare the same GFN storage/home/cache/config layout through `common.sh`
+  - `beagle-runtime-heartbeat` still sees the same streaming-session predicate after sourcing `common.sh`
+- This closes the `common.sh` drift that `06-next-steps.md` had still called out around path ownership, GFN environment prep, and live-state persistence behavior. The remaining large runtime shell block is now mainly kiosk/session orchestration and the broader split between runtime, network, pairing, and launch surfaces.
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/common.sh thin-client-assistant/runtime/stream_state.sh thin-client-assistant/runtime/runtime_ownership.sh thin-client-assistant/runtime/launch-geforcenow.sh thin-client-assistant/runtime/install-geforcenow.sh thin-client-assistant/runtime/launch-session.sh thin-client-assistant/live-build/config/includes.chroot/usr/local/sbin/beagle-runtime-heartbeat`
+  - focused smoke test for `beagle_mark_streaming_session()` / `beagle_streaming_session_active()`
+  - focused smoke test for `prepare_geforcenow_environment()` storage/home/cache/config export behavior
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-11 — Proxmox USB preset builder extraction
 
 - Split the Proxmox-specific USB preset contract away from the API/CLI wrapper:
