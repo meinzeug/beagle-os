@@ -1083,3 +1083,14 @@ Decision:
 Reason:
 
 - The target-resolution block was the largest remaining cohesive networking block in `launch-moonlight.sh`. Pulling it out first lowers the next pairing/bootstrap slice risk and makes Moonlight runtime work separable into targeting, pairing/bootstrap, and stream execution concerns.
+
+### D94. Moonlight pairing/bootstrap/config sync should be one seam separate from target selection and stream exec
+
+Decision:
+
+- Keep Moonlight config-path discovery, config seeding/sync, certificate extraction, manager registration, list/bootstrap helpers, Sunshine PIN submission, and `ensure_paired()` in `thin-client-assistant/runtime/moonlight_pairing.sh`.
+- `launch-moonlight.sh` should source this helper instead of mixing those flows with target resolution and final stream execution.
+
+Reason:
+
+- After target resolution moved out, the next largest coherent block in `launch-moonlight.sh` was the pairing/bootstrap/config-sync flow. Extracting it isolates Moonlight runtime work into three clear concerns: targeting, pairing/bootstrap, and execution/runtime setup.

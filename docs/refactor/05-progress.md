@@ -2,6 +2,21 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — Moonlight pairing/helper extraction
+
+- Removed the Moonlight pairing/bootstrap/config-sync block from `thin-client-assistant/runtime/launch-moonlight.sh`:
+  - added `thin-client-assistant/runtime/moonlight_pairing.sh` for Moonlight config-path discovery, host-config seeding/sync, certificate extraction, manager-side registration, list/bootstrap helpers, Sunshine PIN submission, and the `ensure_paired()` flow
+  - `thin-client-assistant/runtime/launch-moonlight.sh` now sources that helper instead of carrying the pairing/bootstrap block inline
+- This separates the remaining Moonlight runtime concerns much more cleanly:
+  - `thin-client-assistant/runtime/launch-moonlight.sh` is now down to about `288` lines
+  - target/network selection lives in `moonlight_targeting.sh`
+  - pairing/bootstrap/config sync lives in `moonlight_pairing.sh`
+  - the remaining launcher file is now mostly decoder/audio/display setup plus final stream execution
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/launch-moonlight.sh thin-client-assistant/runtime/moonlight_pairing.sh thin-client-assistant/runtime/moonlight_targeting.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `moonlight_list_timeout()`, `moonlight_bootstrap_timeout()`, `json_bool()`, and exported pairing helpers
+  - focused smoke test for `moonlight_client_config_path()`
+
 ### 2026-04-11 — Moonlight targeting helper extraction
 
 - Removed the largest Moonlight host/target/API-url resolution block from `thin-client-assistant/runtime/launch-moonlight.sh`:
