@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — Moonlight targeting helper extraction
+
+- Removed the largest Moonlight host/target/API-url resolution block from `thin-client-assistant/runtime/launch-moonlight.sh`:
+  - added `thin-client-assistant/runtime/moonlight_targeting.sh` for host/local-host/port resolution, IPv4 preference handling, Sunshine API URL rewriting, target reachability probes, and stream-target wait orchestration
+  - `thin-client-assistant/runtime/launch-moonlight.sh` now sources that helper instead of carrying the full target-selection and reachability block inline
+- This cleanly separates Moonlight target/network selection from the remaining pairing/bootstrap/stream execution logic:
+  - `thin-client-assistant/runtime/launch-moonlight.sh` dropped to about `727` lines
+  - the next Moonlight slice can now focus on pairing/bootstrap/config synchronization instead of mixing that with target probing and API-url rewriting
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/launch-moonlight.sh thin-client-assistant/runtime/moonlight_targeting.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for Moonlight host/local-host/port and Sunshine API URL resolution through the new helper
+  - focused smoke test for `rewrite_url_host()`
+
 ### 2026-04-11 — shared X11 display helper extraction
 
 - Removed the duplicated X11/Xauthority display-wait logic from the Moonlight and GeForce NOW launchers:
