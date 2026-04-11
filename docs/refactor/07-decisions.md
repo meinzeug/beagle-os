@@ -1336,3 +1336,14 @@ Decision:
 Reason:
 
 - After the Moonlight targeting layer became thin, `runtime_network_runtime.sh` was again one of the larger runtime helpers. It still mixed two separate concerns: interface/address/hostname application and asynchronous network readiness checks. The wait side is cohesive, independently smoke-testable with stubbed `ip` and `getent`, and does not need to remain coupled to static-route/address writes. Pulling it out keeps the runtime network layer closer to the same small-helper structure already established elsewhere.
+
+### D116. Network interface/address/hostname operations should also leave `runtime_network_runtime.sh`
+
+Decision:
+
+- Keep sysfs and binary path accessors, interface selection, static IPv4 CIDR shaping, hostname application, static route installation, and static address application in `thin-client-assistant/runtime/runtime_network_identity.sh`.
+- `runtime_network_runtime.sh` should source that helper instead of carrying interface/address/hostname logic inline.
+
+Reason:
+
+- Once the network wait block moved out, the rest of `runtime_network_runtime.sh` was still a cohesive operational cluster around interface selection and static identity application. That code is independently smoke-testable with fake `/sys/class/net` trees and stubbed `ip`/`hostnamectl`, and it is conceptually separate from wait behavior. Pulling it out completes the main reduction of the runtime network helper and leaves behind only a thin composition layer.

@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime network identity helper extraction
+
+- Removed the interface/address/hostname block from `thin-client-assistant/runtime/runtime_network_runtime.sh`:
+  - added `thin-client-assistant/runtime/runtime_network_identity.sh` for sysfs and binary path accessors, interface selection, static IPv4 CIDR shaping, hostname application, static route installation, and static address application
+  - `thin-client-assistant/runtime/runtime_network_runtime.sh` now sources that helper instead of carrying interface/address/hostname logic inline
+- This completes the main reduction of the runtime network helper:
+  - `thin-client-assistant/runtime/runtime_network_runtime.sh` dropped further to about `17` lines
+  - the file is now just a small composition layer for the extracted network wait and network identity seams
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/runtime_network_runtime.sh thin-client-assistant/runtime/runtime_network_identity.sh thin-client-assistant/runtime/runtime_network_wait.sh thin-client-assistant/runtime/runtime_network_backend.sh thin-client-assistant/runtime/common.sh thin-client-assistant/runtime/apply-network-config.sh`
+  - focused smoke test for `pick_interface()` and `static_ipv4_cidr()` with a temporary fake `/sys/class/net`
+  - focused smoke test for `apply_static_address()`, `ensure_static_routes()`, and `apply_hostname()` with stubbed `ip`, `hostnamectl`, and `hostname`
+
 ### 2026-04-11 — runtime network wait helper extraction
 
 - Removed the DNS/default-route wait and host-resolution block from `thin-client-assistant/runtime/runtime_network_runtime.sh`:
