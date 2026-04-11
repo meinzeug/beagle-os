@@ -2,6 +2,18 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime enrollment-config writer extraction
+
+- Removed the large enrollment-config inline Python block from `thin-client-assistant/runtime/prepare-runtime.sh`:
+  - added `thin-client-assistant/runtime/apply_enrollment_config.py` for writing enrolled manager/sunshine credentials, runtime config env values, and USB tunnel key/known-host files from the endpoint enrollment response payload
+  - `thin-client-assistant/runtime/prepare-runtime.sh` now delegates that config/credential write path to the helper instead of embedding the mapping logic inline
+  - `prepare-runtime.sh` dropped by about `87` lines on this slice while preserving the existing env-file and sidecar key-file behavior
+- This keeps the runtime enrollment path behavior unchanged, but it creates an explicit seam for the next runtime/installer contract-alignment slice instead of leaving that mapping buried inside the shell entrypoint.
+- Validation and smoke checks for this slice passed:
+  - `python3 -m py_compile thin-client-assistant/runtime/apply_enrollment_config.py`
+  - `bash -n thin-client-assistant/runtime/prepare-runtime.sh`
+  - focused smoke test for enrollment response application into `thinclient.conf`, `credentials.env`, `usb-tunnel.key`, and `usb-tunnel-known_hosts`
+
 ### 2026-04-11 — thin-client preset summary helper extraction
 
 - Reduced duplicated thin-client installer preset/UI-state shaping by introducing a shared USB helper:
