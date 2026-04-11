@@ -67,6 +67,8 @@ Long-term target:
   - host-side USB attach/detach and tunnel-state service that composes provider-backed guest-exec calls, endpoint reports, and VM-secret tunnel metadata without leaving that orchestration in the HTTP entrypoint
 - `beagle-host/services/ubuntu_beagle_provisioning.py`
   - host-side ubuntu-beagle provisioning/lifecycle service that composes provider-backed VM lifecycle operations, autoinstall artifact generation, provisioning state, and guest reconfiguration without leaving that orchestration in the HTTP entrypoint
+- `beagle-host/services/sunshine_integration.py`
+  - host-side Sunshine/Moonlight integration service that composes provider-backed guest execution, VM-secret credentials, profile/config lookup, access-ticket persistence, TLS pinned-pubkey retrieval, and authenticated Sunshine HTTP proxying without leaving that orchestration in the HTTP entrypoint
 - `beagle-host/providers/proxmox_host_provider.py`
   - `pvesh get /cluster/resources`
   - `pvesh get /nodes`
@@ -219,6 +221,22 @@ Current host-side contract:
 - `prepare_ubuntu_beagle_firstboot(state)`
 - `create_ubuntu_beagle_vm(payload)`
 - `update_ubuntu_beagle_vm(vmid, payload)`
+
+### `beagle-host/services/sunshine_integration.py`
+
+Current host-side contract:
+
+- `fetch_https_pinned_pubkey(url)`
+- `guest_exec_text(vmid, script)`
+- `sunshine_guest_user(vm, config=None)`
+- `register_moonlight_certificate_on_vm(vm, client_cert_pem, device_name=...)`
+- `fetch_sunshine_server_identity(vm, guest_user)`
+- `internal_sunshine_api_url(vm, profile=None)`
+- `resolve_vm_sunshine_pinned_pubkey(vm)`
+- `issue_sunshine_access_token(vm)`
+- `resolve_ticket_vm(path)`
+- `sunshine_proxy_ticket_url(token)`
+- `proxy_sunshine_request(vm, request_path=..., query=..., method=..., body=..., request_headers=...)`
 
 ### `core/virtualization/service.js`
 
@@ -402,6 +420,7 @@ These flows now go through provider-backed services first:
 - installer-prep state loading, Sunshine-readiness probing, default/summary shaping, and background prep-script launch through `beagle-host/services/installer_prep.py`
 - guest USB attach/detach orchestration, usbip/vhci parsing, and tunnel-state shaping through `beagle-host/services/vm_usb.py`
 - ubuntu-beagle provisioning catalog assembly, ISO/seed artifact generation, VM create/update/finalize flows, and firstboot restart orchestration through `beagle-host/services/ubuntu_beagle_provisioning.py`
+- Sunshine pinned-pubkey retrieval, Moonlight certificate registration, Sunshine server identity discovery, access-ticket issuance/resolution, and Sunshine HTTP proxying through `beagle-host/services/sunshine_integration.py`
 - VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through the selected host provider, currently `beagle-host/providers/proxmox_host_provider.py`
 - browser-/installer-facing endpoint profile payload normalization through `beagle-host/bin/endpoint_profile_contract.py`
 
@@ -421,7 +440,7 @@ These flows now go through provider-backed services first:
 - `beagle-host/services/vm_profile.py` is now the host-side seam for profile synthesis, but it still derives business state from today's Proxmox-backed metadata/config semantics through provider-backed reads and existing description-meta conventions.
 - `beagle-host/providers/registry.py` makes provider selection real at bootstrap time, but the registry still only exposes one concrete implementation today. Provider selection is no longer hard-coded in the control-plane import graph, yet provider diversity is still unfinished work.
 - `beagle-host/services/ubuntu_beagle_provisioning.py` removed the ubuntu-beagle lifecycle block from the entrypoint, but it still uses today's Proxmox-shaped VM option semantics and `scripts/configure-sunshine-guest.sh --proxmox-host localhost` path under the new service seam.
-- the Sunshine/Moonlight guest integration and HTTP proxy block still lives in `beagle-host/bin/beagle-control-plane.py`, mixing guest-exec scripting, Sunshine certificate discovery, and proxy response shaping in the same entrypoint module.
+- `beagle-host/services/sunshine_integration.py` removed the Sunshine/Moonlight block from the entrypoint, but it still depends on Sunshine-specific guest file paths/state layout, Sunshine HTTP/API semantics, `curl`/`openssl` behavior, and current Moonlight certificate-registration conventions under the new service seam.
 
 ### Script surfaces
 

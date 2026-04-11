@@ -2,6 +2,25 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — Sunshine/Moonlight guest integration and proxy extraction
+
+- Extracted the Sunshine/Moonlight guest-integration cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/sunshine_integration.py`:
+  - `SunshineIntegrationService` now owns `fetch_https_pinned_pubkey`, `guest_exec_text`, `sunshine_guest_user`, `register_moonlight_certificate_on_vm`, `fetch_sunshine_server_identity`, `internal_sunshine_api_url`, `resolve_vm_sunshine_pinned_pubkey`, `issue_sunshine_access_token`, `resolve_ticket_vm`, `sunshine_proxy_ticket_url`, and `proxy_sunshine_request`
+  - the control-plane helper names stay stable as thin wrappers, so the public Sunshine proxy handlers, endpoint enrollment flow, Moonlight certificate registration endpoint, installer-script collaborators, and VM-secret bootstrap seam did not need payload or signature changes
+- Kept the integration seam explicit instead of leaving streaming internals in the HTTP entrypoint:
+  - provider-backed guest execution still goes through `HOST_PROVIDER.guest_exec_script_text`
+  - Sunshine access-token persistence and validity remain behind `SunshineAccessTokenStoreService`
+  - VM-secret credential lookup remains behind `VmSecretBootstrapService`
+  - the new service only owns the guest-side scripting, Sunshine identity discovery, TLS pinned-pubkey retrieval, ticket-backed VM resolution, and authenticated Sunshine proxy orchestration between those seams
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/sunshine_integration.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - HTTPS pinned-pubkey extraction still returns the expected `sha256//...` shape
+  - Moonlight certificate registration still targets the guest Sunshine state file for the resolved guest user and preserves the expected response payload
+  - Sunshine server identity discovery still round-trips `uniqueid`, `server_cert_pem`, `sunshine_name`, and `stream_port`
+  - access-ticket issuance and ticket-to-VM resolution still preserve the existing public Sunshine proxy semantics
+  - Sunshine HTTP proxying still forwards method, body, headers, and response status/header/body triplets unchanged
+- `beagle-control-plane.py` dropped from `3930` to `3651` lines with this slice, and the host-side extracted-service count moved from 18 to 19
+
 ### 2026-04-11 — ubuntu-beagle provisioning and lifecycle extraction
 
 - Extracted the ubuntu-beagle provisioning/lifecycle cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/ubuntu_beagle_provisioning.py`:

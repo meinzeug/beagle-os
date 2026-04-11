@@ -402,3 +402,15 @@ Decision:
 Reason:
 
 - The ubuntu-beagle block was the largest remaining provisioning/lifecycle area in the entrypoint. It mixed catalog shaping, autoinstall artifact generation, provider-backed VM lifecycle operations, state persistence, and running-guest reconfiguration in one file. Extracting it removes another major business block from the HTTP monolith, keeps the control plane reviewable, and makes the remaining work focus on streaming/proxy and other runtime-specific seams instead of provisioning boilerplate.
+
+### D38. Sunshine and Moonlight guest integration belong in one host service
+
+Decision:
+
+- Move pinned-pubkey retrieval, guest-side Sunshine user/config discovery, Moonlight certificate registration, Sunshine server identity discovery, Sunshine access-ticket issuance/resolution, and Sunshine HTTP proxying into `beagle-host/services/sunshine_integration.py`.
+- Keep `beagle-host/bin/beagle-control-plane.py` wrappers for `fetch_https_pinned_pubkey`, `guest_exec_text`, `sunshine_guest_user`, `register_moonlight_certificate_on_vm`, `fetch_sunshine_server_identity`, `internal_sunshine_api_url`, `resolve_vm_sunshine_pinned_pubkey`, `issue_sunshine_access_token`, `sunshine_proxy_ticket_url`, and `proxy_sunshine_request`, and move handler-local ticket resolution to the same service.
+- Inject provider-backed guest execution, token-store seams, VM lookup/profile/config helpers, subprocess execution, and public-manager URL shaping into the service constructor instead of letting the service reach into control-plane globals.
+
+Reason:
+
+- The streaming integration block was the next cohesive non-HTTP area after ubuntu-beagle provisioning. It mixed guest-side scripting, Sunshine metadata parsing, TLS pinned-pubkey discovery, access-ticket state, and HTTP proxy orchestration in the request entrypoint. Extracting it preserves current handler surfaces while making the Sunshine/Moonlight path explicit, testable, and easier to replace when Beagle gets its own virtualization/streaming provider path.
