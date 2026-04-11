@@ -579,3 +579,27 @@ Decision:
 Reason:
 
 - Once file/JSON persistence was extracted, the remaining bearer/origin/CORS block became the next cohesive non-HTTP request utility seam. It was still directly coupled to global runtime values and cache helpers in the entrypoint, even though its behavior is shared request policy rather than handler-specific business logic. Extracting it makes the request-support contract explicit and testable without changing current CORS or auth semantics.
+
+### D53. UTC timestamp helpers belong in one host time-support service
+
+Decision:
+
+- Move `utcnow()`, `parse_utc_timestamp(value)`, and `timestamp_age_seconds(value)` into `beagle-host/services/time_support.py`.
+- Keep the existing control-plane helper names as thin wrappers so existing service collaborators keep their current surface while shared timestamp logic leaves the entrypoint.
+- Let the service own the injected clock used for ISO timestamp generation and age calculation instead of reaching directly into `datetime.now(...)` from module-local helpers.
+
+Reason:
+
+- After request-support extraction, the remaining timestamp helpers were the next cohesive non-HTTP utility block. They were already a shared contract across many extracted services, but the actual parsing and age semantics still lived inline in the entrypoint. Extracting them makes the time contract explicit and testable without changing runtime timestamp behavior.
+
+### D54. Runtime data-root and managed subdirectories belong in one host runtime-paths service
+
+Decision:
+
+- Move `ensure_data_dir()`, `endpoints_dir()`, `actions_dir()`, `support_bundles_dir()`, and `policies_dir()` into `beagle-host/services/runtime_paths.py`.
+- Keep the existing control-plane helper names as thin wrappers so callers keep their current surface while data-root and managed-directory creation leave the entrypoint.
+- Rebind service factories that previously captured `EFFECTIVE_DATA_DIR` to `runtime_paths_service().data_dir` so the resolved data root lives behind one explicit seam instead of a mutable module-global.
+
+Reason:
+
+- Once file/JSON persistence and request-support logic were extracted, the remaining data-root/bootstrap block became the next cohesive runtime seam. It still carried fallback-path selection, mkdir/chmod behavior, and managed-directory naming directly in the entrypoint. Extracting it makes path behavior explicit and testable while reducing global state in the host bootstrap path.
