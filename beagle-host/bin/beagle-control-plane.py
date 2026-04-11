@@ -15,7 +15,6 @@ import socket
 import tempfile
 import time
 import uuid
-import pwd
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -50,6 +49,7 @@ from ubuntu_beagle_state import UbuntuBeagleStateService
 from update_feed import UpdateFeedService
 from virtualization_inventory import VirtualizationInventoryService
 from vm_profile import VmProfileService
+from vm_secret_bootstrap import VmSecretBootstrapService
 from vm_secret_store import VmSecretStoreService
 from vm_state import VmStateService
 
@@ -555,6 +555,7 @@ POLICY_STORE_SERVICE: PolicyStoreService | None = None
 SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
 UBUNTU_BEAGLE_STATE_SERVICE: UbuntuBeagleStateService | None = None
 VM_SECRET_STORE_SERVICE: VmSecretStoreService | None = None
+VM_SECRET_BOOTSTRAP_SERVICE: VmSecretBootstrapService | None = None
 ENROLLMENT_TOKEN_STORE_SERVICE: EnrollmentTokenStoreService | None = None
 SUNSHINE_ACCESS_TOKEN_STORE_SERVICE: SunshineAccessTokenStoreService | None = None
 ENDPOINT_TOKEN_STORE_SERVICE: EndpointTokenStoreService | None = None
@@ -599,6 +600,31 @@ def vm_secret_store_service() -> VmSecretStoreService:
             utcnow=utcnow,
         )
     return VM_SECRET_STORE_SERVICE
+
+
+def vm_secret_bootstrap_service() -> VmSecretBootstrapService:
+    global VM_SECRET_BOOTSTRAP_SERVICE
+    if VM_SECRET_BOOTSTRAP_SERVICE is None:
+        VM_SECRET_BOOTSTRAP_SERVICE = VmSecretBootstrapService(
+            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            load_vm_secret=load_vm_secret,
+            public_server_name=PUBLIC_SERVER_NAME,
+            public_stream_host=PUBLIC_STREAM_HOST,
+            random_pin=random_pin,
+            random_secret=random_secret,
+            resolve_sunshine_pinned_pubkey=resolve_vm_sunshine_pinned_pubkey,
+            safe_slug=safe_slug,
+            save_vm_secret=save_vm_secret,
+            session_script_path=Path(__file__).resolve().parent / "beagle-usb-tunnel-session",
+            usb_tunnel_attach_host=USB_TUNNEL_ATTACH_HOST,
+            usb_tunnel_auth_dir=USB_TUNNEL_AUTH_DIR,
+            usb_tunnel_auth_root=USB_TUNNEL_AUTH_ROOT,
+            usb_tunnel_base_port=USB_TUNNEL_BASE_PORT,
+            usb_tunnel_home=USB_TUNNEL_HOME,
+            usb_tunnel_hostkey_file=USB_TUNNEL_HOSTKEY_FILE,
+            usb_tunnel_user=USB_TUNNEL_SSH_USER,
+        )
+    return VM_SECRET_BOOTSTRAP_SERVICE
 
 
 def enrollment_token_store_service() -> EnrollmentTokenStoreService:
@@ -853,186 +879,47 @@ def save_vm_secret(node: str, vmid: int, payload: dict[str, Any]) -> dict[str, A
 
 
 def default_usb_tunnel_port(vmid: int) -> int:
-    candidate = USB_TUNNEL_BASE_PORT + int(vmid)
-    if 1024 <= candidate <= 65535:
-        return candidate
-    return 43000 + (int(vmid) % 20000)
+    return vm_secret_bootstrap_service().default_usb_tunnel_port(vmid)
 
 
 def generate_ssh_keypair(comment: str) -> tuple[str, str]:
-    with tempfile.TemporaryDirectory(prefix="beagle-usb-keygen-") as tmp_dir:
-        key_path = Path(tmp_dir) / "id_ed25519"
-        subprocess.run(
-            ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", comment, "-f", str(key_path)],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        private_key = key_path.read_text(encoding="utf-8")
-        public_key = key_path.with_suffix(".pub").read_text(encoding="utf-8").strip()
-        return private_key, public_key
+    return vm_secret_bootstrap_service().generate_ssh_keypair(comment)
 
 
 def usb_tunnel_known_host_line() -> str:
-    try:
-        raw = USB_TUNNEL_HOSTKEY_FILE.read_text(encoding="utf-8").strip()
-    except OSError:
-        return ""
-    parts = raw.split()
-    if len(parts) < 2:
-        return ""
-    hostnames = [PUBLIC_SERVER_NAME]
-    if PUBLIC_STREAM_HOST and PUBLIC_STREAM_HOST not in hostnames:
-        hostnames.append(PUBLIC_STREAM_HOST)
-    host_field = ",".join(hostnames)
-    return f"{host_field} {parts[0]} {parts[1]}"
+    return vm_secret_bootstrap_service().usb_tunnel_known_host_line()
 
 
-def usb_tunnel_user_info() -> pwd.struct_passwd:
-    return pwd.getpwnam(USB_TUNNEL_SSH_USER)
+def usb_tunnel_user_info() -> Any:
+    return vm_secret_bootstrap_service().usb_tunnel_user_info()
 
 
 def usb_tunnel_home() -> Path:
-    if USB_TUNNEL_HOME is not None:
-        return USB_TUNNEL_HOME
-    return Path(usb_tunnel_user_info().pw_dir)
+    return vm_secret_bootstrap_service().usb_tunnel_home()
 
 
 def usb_tunnel_auth_root() -> Path:
-    if USB_TUNNEL_AUTH_ROOT is not None:
-        return USB_TUNNEL_AUTH_ROOT
-    if USB_TUNNEL_AUTH_DIR is not None:
-        return USB_TUNNEL_AUTH_DIR.parent
-    return DATA_DIR.parent / "usb-tunnel" / USB_TUNNEL_SSH_USER
+    return vm_secret_bootstrap_service().usb_tunnel_auth_root()
 
 
 def usb_tunnel_auth_dir() -> Path:
-    if USB_TUNNEL_AUTH_DIR is not None:
-        return USB_TUNNEL_AUTH_DIR
-    return usb_tunnel_auth_root() / "authorized_keys.d"
+    return vm_secret_bootstrap_service().usb_tunnel_auth_dir()
 
 
 def usb_tunnel_authorized_keys_path() -> Path:
-    return usb_tunnel_auth_root() / "authorized_keys"
+    return vm_secret_bootstrap_service().usb_tunnel_authorized_keys_path()
 
 
 def usb_tunnel_authorized_key_line(vm: VmSummary, secret: dict[str, Any]) -> str:
-    public_key = str(secret.get("usb_tunnel_public_key", "")).strip()
-    port = int(secret.get("usb_tunnel_port", 0) or 0)
-    session_script = (Path(__file__).resolve().parent / "beagle-usb-tunnel-session").as_posix()
-    return (
-        f'command="{session_script}",no-agent-forwarding,no-pty,no-user-rc,no-X11-forwarding,'
-        f'permitlisten="{USB_TUNNEL_ATTACH_HOST}:{port}" '
-        f"{public_key}"
-    )
+    return vm_secret_bootstrap_service().usb_tunnel_authorized_key_line(vm, secret)
 
 
 def sync_usb_tunnel_authorized_key(vm: VmSummary, secret: dict[str, Any]) -> None:
-    public_key = str(secret.get("usb_tunnel_public_key", "")).strip()
-    port = int(secret.get("usb_tunnel_port", 0) or 0)
-    if not public_key or port <= 0:
-        return
-    try:
-        user_info = usb_tunnel_user_info()
-    except KeyError:
-        return
-    auth_root = usb_tunnel_auth_root()
-    auth_root.mkdir(parents=True, exist_ok=True)
-    auth_dir = usb_tunnel_auth_dir()
-    auth_dir.mkdir(parents=True, exist_ok=True)
-    key_line = usb_tunnel_authorized_key_line(vm, secret) + "\n"
-    snippet_path = auth_dir / f"{safe_slug(vm.node, 'node')}-{int(vm.vmid)}.pub"
-    snippet_path.write_text(key_line, encoding="utf-8")
-    authorized_keys = usb_tunnel_authorized_keys_path()
-    managed_lines: list[str] = []
-    for item in sorted(auth_dir.glob("*.pub")):
-        try:
-            text = item.read_text(encoding="utf-8").strip()
-        except OSError:
-            continue
-        if text:
-            managed_lines.append(text)
-    existing_text = ""
-    if authorized_keys.exists():
-        try:
-            existing_text = authorized_keys.read_text(encoding="utf-8")
-        except OSError:
-            existing_text = ""
-    begin_marker = "# BEGIN BEAGLE USB TUNNELS"
-    end_marker = "# END BEAGLE USB TUNNELS"
-    if begin_marker in existing_text and end_marker in existing_text:
-        prefix, _, remainder = existing_text.partition(begin_marker)
-        _, _, suffix = remainder.partition(end_marker)
-        existing_text = prefix.rstrip("\n")
-        suffix = suffix.lstrip("\n")
-        if suffix:
-            existing_text = (existing_text + "\n" + suffix).strip("\n")
-    else:
-        existing_text = existing_text.strip("\n")
-    with authorized_keys.open("w", encoding="utf-8") as handle:
-        if existing_text:
-            handle.write(existing_text.rstrip("\n") + "\n")
-        if managed_lines:
-            handle.write(begin_marker + "\n")
-            for line in managed_lines:
-                handle.write(line + "\n")
-            handle.write(end_marker + "\n")
-    os.chmod(auth_root, 0o700)
-    os.chmod(authorized_keys, 0o600)
-    os.chmod(snippet_path, 0o600)
-    for path in (auth_root, auth_dir, authorized_keys, snippet_path):
-        try:
-            os.chown(path, user_info.pw_uid, user_info.pw_gid)
-        except OSError:
-            pass
+    vm_secret_bootstrap_service().sync_usb_tunnel_authorized_key(vm, secret)
 
 
 def ensure_vm_secret(vm: VmSummary) -> dict[str, Any]:
-    existing = load_vm_secret(vm.node, vm.vmid)
-    if existing:
-        changed = False
-        if not str(existing.get("sunshine_username", "")).strip():
-            existing["sunshine_username"] = f"sunshine-vm{vm.vmid}"
-            changed = True
-        if not str(existing.get("sunshine_password", "")).strip():
-            existing["sunshine_password"] = random_secret(26)
-            changed = True
-        if not str(existing.get("sunshine_pin", "")).strip():
-            existing["sunshine_pin"] = random_pin()
-            changed = True
-        if not str(existing.get("thinclient_password", "")).strip():
-            existing["thinclient_password"] = random_secret(22)
-            changed = True
-        if not str(existing.get("usb_tunnel_public_key", "")).strip() or not str(existing.get("usb_tunnel_private_key", "")).strip():
-            private_key, public_key = generate_ssh_keypair(f"beagle-vm{vm.vmid}-usb")
-            existing["usb_tunnel_private_key"] = private_key
-            existing["usb_tunnel_public_key"] = public_key
-            changed = True
-        if int(existing.get("usb_tunnel_port", 0) or 0) <= 0:
-            existing["usb_tunnel_port"] = default_usb_tunnel_port(vm.vmid)
-            changed = True
-        secret = save_vm_secret(vm.node, vm.vmid, existing) if changed else existing
-        secret = ensure_vm_sunshine_pinned_pubkey(vm, secret)
-        sync_usb_tunnel_authorized_key(vm, secret)
-        return secret
-    private_key, public_key = generate_ssh_keypair(f"beagle-vm{vm.vmid}-usb")
-    secret = save_vm_secret(
-        vm.node,
-        vm.vmid,
-        {
-            "sunshine_username": f"sunshine-vm{vm.vmid}",
-            "sunshine_password": random_secret(26),
-            "sunshine_pin": random_pin(),
-            "thinclient_password": random_secret(22),
-            "sunshine_pinned_pubkey": "",
-            "usb_tunnel_port": default_usb_tunnel_port(vm.vmid),
-            "usb_tunnel_private_key": private_key,
-            "usb_tunnel_public_key": public_key,
-        },
-    )
-    secret = ensure_vm_sunshine_pinned_pubkey(vm, secret)
-    sync_usb_tunnel_authorized_key(vm, secret)
-    return secret
+    return vm_secret_bootstrap_service().ensure_vm_secret(vm)
 
 
 def manager_pinned_pubkey() -> str:
@@ -1301,16 +1188,13 @@ def internal_sunshine_api_url(vm: VmSummary, profile: dict[str, Any]) -> str:
     return base_url
 
 
-def ensure_vm_sunshine_pinned_pubkey(vm: VmSummary, secret: dict[str, Any]) -> dict[str, Any]:
-    if str(secret.get("sunshine_pinned_pubkey", "") or "").strip():
-        return secret
+def resolve_vm_sunshine_pinned_pubkey(vm: VmSummary) -> str:
     profile = build_profile(vm, allow_assignment=False)
-    pin = fetch_https_pinned_pubkey(internal_sunshine_api_url(vm, profile))
-    if not pin:
-        return secret
-    updated = dict(secret)
-    updated["sunshine_pinned_pubkey"] = pin
-    return save_vm_secret(vm.node, vm.vmid, updated)
+    return fetch_https_pinned_pubkey(internal_sunshine_api_url(vm, profile))
+
+
+def ensure_vm_sunshine_pinned_pubkey(vm: VmSummary, secret: dict[str, Any]) -> dict[str, Any]:
+    return vm_secret_bootstrap_service().ensure_vm_sunshine_pinned_pubkey(vm, secret)
 
 
 def enrollment_token_path(token: str) -> Path:
@@ -4290,9 +4174,8 @@ class Handler(BaseHTTPRequestHandler):
             if vm is None or vm.node != str(enrollment.get("node", "")).strip():
                 self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
                 return
-            profile = build_profile(vm)
             secret = ensure_vm_secret(vm)
-            sunshine_pinned_pubkey = fetch_https_pinned_pubkey(internal_sunshine_api_url(vm, profile))
+            sunshine_pinned_pubkey = resolve_vm_sunshine_pinned_pubkey(vm)
             if sunshine_pinned_pubkey and sunshine_pinned_pubkey != str(secret.get("sunshine_pinned_pubkey", "")):
                 secret["sunshine_pinned_pubkey"] = sunshine_pinned_pubkey
                 secret = save_vm_secret(vm.node, vm.vmid, secret)

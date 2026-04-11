@@ -1,11 +1,9 @@
 """Persistence helpers for per-VM secret records.
 
 This service owns only the on-disk representation of a VM secret (path,
-load, save). The higher-level `ensure_vm_secret` flow in the control plane
-continues to own credential generation, SSH keypair creation, sunshine
-pinned-pubkey handling, and USB-tunnel key synchronization — all of which
-depend on collaborators (ssh-keygen, sunshine server, authorized_keys
-plumbing) that are not part of the persistence seam.
+load, save). The higher-level `ensure_vm_secret` flow now lives in
+`VmSecretBootstrapService`, while this service remains the persistence
+boundary for the secret record itself.
 """
 
 from __future__ import annotations

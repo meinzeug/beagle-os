@@ -45,12 +45,13 @@
 - [x] Extract the support-bundle metadata/archive helpers into `beagle-host/services/support_bundle_store.py` behind a lazy factory and delegating wrappers.
 - [x] Extract the ubuntu-beagle provisioning-state persistence and summarization helpers into `beagle-host/services/ubuntu_beagle_state.py` behind a lazy factory and delegating wrappers.
 - [x] Extract the public download/artifact URL/checksum/payload metadata helpers into `beagle-host/services/download_metadata.py` behind a lazy factory and delegating wrappers.
-- [ ] Extract the `ensure_vm_secret` / sunshine pinned-pubkey / ssh-keygen / usb-tunnel authorized-key helper cluster into a dedicated host service.
+- [x] Extract the `ensure_vm_secret` / sunshine pinned-pubkey / ssh-keygen / usb-tunnel authorized-key helper cluster into `beagle-host/services/vm_secret_bootstrap.py` behind a lazy factory and delegating wrappers.
 - [x] Extract the VM-secret persistence helpers into `beagle-host/services/vm_secret_store.py` behind a lazy factory and delegating wrappers.
 - [x] Extract the enrollment-token persistence and validity helpers into `beagle-host/services/enrollment_token_store.py` behind a lazy factory and delegating wrappers.
 - [x] Extract the sunshine-access-token persistence and validity helpers into `beagle-host/services/sunshine_access_token_store.py` behind a lazy factory and delegating wrappers.
 - [x] Extract the endpoint-token persistence helpers into `beagle-host/services/endpoint_token_store.py` behind a lazy factory and delegating wrappers.
-- [ ] Continue splitting the remaining download-metadata / public-URL / artifact business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
+- [ ] Extract the installer-prep / Sunshine-readiness helper cluster into a dedicated host service.
+- [ ] Continue splitting the remaining non-HTTP business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
 - [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.

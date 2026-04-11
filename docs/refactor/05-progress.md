@@ -2,6 +2,22 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — vm-secret bootstrap extraction
+
+- Extracted the higher-level VM-secret bootstrap/orchestration block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/vm_secret_bootstrap.py`:
+  - `VmSecretBootstrapService` now owns `default_usb_tunnel_port`, `generate_ssh_keypair`, `usb_tunnel_known_host_line`, `usb_tunnel_user_info`, `usb_tunnel_home`, `usb_tunnel_auth_root`, `usb_tunnel_auth_dir`, `usb_tunnel_authorized_keys_path`, `usb_tunnel_authorized_key_line`, `sync_usb_tunnel_authorized_key`, `ensure_vm_sunshine_pinned_pubkey`, and `ensure_vm_secret`
+  - the control-plane helper names stay stable as thin wrappers, so `issue_enrollment_token`, installer rendering, USB attach/detach state building, ubuntu-beagle VM creation, and endpoint enrollment flows did not need signature changes
+- Split the previous VM-secret responsibility cleanly in two:
+  - `VmSecretStoreService` remains the persistence boundary for reading/writing the JSON record
+  - `VmSecretBootstrapService` now owns credential generation, SSH keypair creation, Sunshine pinned-pubkey backfill, and managed USB-tunnel `authorized_keys` synchronization
+- Added the small shared helper `resolve_vm_sunshine_pinned_pubkey(vm)` in the control plane so both endpoint enrollment and `VmSecretBootstrapService` reuse the same Sunshine pin resolution path instead of duplicating `build_profile(... allow_assignment=False)` plus `fetch_https_pinned_pubkey(...)`
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/vm_secret_bootstrap.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - a new VM secret gets the expected generated Sunshine credentials, tunnel keypair, tunnel port, pinned pubkey, and managed `authorized_keys` block
+  - an existing incomplete secret record gets the missing fields backfilled without changing the wrapper surface
+  - `usb_tunnel_known_host_line()` still emits the combined public-server/public-stream host line from the configured hostkey file
+- `beagle-control-plane.py` dropped from about `5072` to about `4955` lines with this slice, and the host-side extracted-service count moved from 14 to 15
+
 ### 2026-04-11 — download/artifact metadata extraction
 
 - Extracted the download/artifact metadata helper block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/download_metadata.py`:
@@ -35,7 +51,7 @@
 
 - Extracted the VM-secret persistence helpers out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/vm_secret_store.py`:
   - `VmSecretStoreService` owns `secrets_dir()`, `secret_path(node, vmid)`, `load(node, vmid)`, and `save(node, vmid, payload)`; `save()` stamps `node`, `vmid`, and `updated_at` via the injected `utcnow` callable, matching the previous helper semantics
-  - `vm_secrets_dir`, `vm_secret_path`, `load_vm_secret`, and `save_vm_secret` in the control plane now delegate through `vm_secret_store_service()`; `ensure_vm_secret`, the sunshine pinned-pubkey helper, and `ensure_vm_sunshine_pinned_pubkey` continue to call the wrappers without any signature changes because credential generation, ssh-keygen, sunshine pinning, and usb-tunnel authorized-key plumbing still depend on collaborators that are not part of the persistence seam
+  - `vm_secrets_dir`, `vm_secret_path`, `load_vm_secret`, and `save_vm_secret` in the control plane now delegate through `vm_secret_store_service()`; the later `VmSecretBootstrapService` extraction kept those persistence wrappers stable and moved the higher-level credential/bootstrap logic out of the control plane
 - Extracted the enrollment-token persistence and validity helpers into `beagle-host/services/enrollment_token_store.py`:
   - `EnrollmentTokenStoreService` owns `tokens_dir()`, `token_path(token)`, `store(token, payload)`, `load(token)`, `mark_used(token, payload, *, endpoint_id)`, and `is_valid(payload, *, endpoint_id)`
   - `enrollment_tokens_dir`, `enrollment_token_path`, `load_enrollment_token`, `mark_enrollment_token_used`, and `enrollment_token_is_valid` in the control plane now delegate through `enrollment_token_store_service()`; `issue_enrollment_token` still builds its payload from `VmSummary` + `ensure_vm_secret` + TTL math and calls `.store()` on the service so the payload shape stays in the control plane
