@@ -63,6 +63,7 @@
 - [x] Extract the config-retry / boot-mode / Plymouth / kiosk-prepare wrapper block out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper.
 - [x] Extract the network backend config-file / restart / resolver block out of `thin-client-assistant/runtime/apply-network-config.sh` into a dedicated helper.
 - [x] Extract the network interface / route / wait / hostname block out of `thin-client-assistant/runtime/apply-network-config.sh` into a dedicated helper.
+- [x] Extract the Moonlight remote API / manager registration / Sunshine PIN block out of `thin-client-assistant/runtime/moonlight_pairing.sh` into a dedicated helper.
 - [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
 - [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
 - [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.
