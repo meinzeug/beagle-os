@@ -2,6 +2,22 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime support extraction
+
+- Extracted the remaining cache / shell-environment helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/runtime_support.py`:
+  - `RuntimeSupportService` now owns `cache_get(...)`, `cache_put(...)`, `cache_invalidate(...)`, and `load_shell_env_file(path)`
+  - the control-plane helper names stay stable as thin wrappers, so `HOST_PROVIDER` bootstrap, `DownloadMetadataService`, CORS-origin caching, and default-credential loading did not need surface changes
+- Finished the wiring so cache and shell-env state no longer live inline in the entrypoint:
+  - module-local `_CACHE` state is gone from `beagle-control-plane.py`
+  - `DEFAULT_CREDENTIALS` now loads through the dedicated runtime-support seam instead of the inline parser
+  - provider bootstrap still receives `cache_get` / `cache_put`, but those helpers now delegate into `RuntimeSupportService`
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/runtime_support.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - cache insert, TTL expiry, and invalidation still behave the same
+  - shell env parsing still ignores comments/invalid lines and still strips wrapped `'` / `"` quotes the same way as before
+  - missing env files still return an empty mapping
+- `beagle-control-plane.py` dropped from `3361` to `3342` lines with this slice, and the host-side extracted-service module count moved from `26` to `27`
+
 ### 2026-04-11 — ubuntu-beagle restart-state extraction
 
 - Extracted the scheduled ubuntu-beagle host-restart helper cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/ubuntu_beagle_restart.py`:
