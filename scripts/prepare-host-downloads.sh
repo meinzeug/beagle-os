@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$ROOT_DIR/scripts/lib/beagle_provider.py}"
+PREPARE_HOST_DOWNLOADS_HELPER="$ROOT_DIR/scripts/lib/prepare_host_downloads.py"
 DIST_DIR="$ROOT_DIR/dist"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-/etc/beagle/host.env}"
@@ -159,334 +160,38 @@ install -m 0755 "$GENERIC_INSTALLER" "$HOST_INSTALLER_VERSIONED"
 install -m 0755 "$GENERIC_LIVE_USB" "$HOST_LIVE_USB_VERSIONED"
 install -m 0644 "$GENERIC_WINDOWS_INSTALLER" "$HOST_WINDOWS_INSTALLER_VERSIONED"
 
-python3 - "$HOST_INSTALLER_VERSIONED" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$INSTALLER_ISO_URL" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-bootstrap_url = sys.argv[2]
-payload_url = sys.argv[3]
-installer_iso_url = sys.argv[4]
-text = path.read_text()
-
-replacements = {
-    r'^USB_WRITER_VARIANT="\$\{PVE_THIN_CLIENT_USB_WRITER_VARIANT:-\$\{PVE_THIN_CLIENT_USB_WRITER_VARIANT_DEFAULT:-\}\}"$':
-        'USB_WRITER_VARIANT="${PVE_THIN_CLIENT_USB_WRITER_VARIANT:-installer}"',
-    r'^RELEASE_BOOTSTRAP_URL="\$\{RELEASE_BOOTSTRAP_URL:-[^"]*}"$':
-        f'RELEASE_BOOTSTRAP_URL="${{RELEASE_BOOTSTRAP_URL:-{bootstrap_url}}}"',
-    r'^RELEASE_PAYLOAD_URL="\$\{RELEASE_PAYLOAD_URL:-[^"]*}"$':
-        f'RELEASE_PAYLOAD_URL="${{RELEASE_PAYLOAD_URL:-{payload_url}}}"',
-    r'^INSTALL_PAYLOAD_URL="\$\{INSTALL_PAYLOAD_URL:-[^"]*}"$':
-        f'INSTALL_PAYLOAD_URL="${{INSTALL_PAYLOAD_URL:-{payload_url}}}"',
-    r'^RELEASE_ISO_URL="\$\{RELEASE_ISO_URL:-[^"]*}"$':
-        f'RELEASE_ISO_URL="${{RELEASE_ISO_URL:-{installer_iso_url}}}"',
-}
-updated = text
-for pattern, replacement in replacements.items():
-    updated, count = re.subn(pattern, replacement, updated, count=1, flags=re.MULTILINE)
-    if count != 1:
-        raise SystemExit(f"failed to patch hosted installer default for pattern: {pattern}")
-path.write_text(updated)
-PY
+python3 "$PREPARE_HOST_DOWNLOADS_HELPER" patch-host-shell-template \
+  --path "$HOST_INSTALLER_VERSIONED" \
+  --writer-variant installer \
+  --installer-iso-url "$INSTALLER_ISO_URL" \
+  --installer-bootstrap-url "$BOOTSTRAP_URL" \
+  --installer-payload-url "$PAYLOAD_URL"
 
 install -m 0755 "$HOST_INSTALLER_VERSIONED" "$HOST_INSTALLER_LATEST"
-python3 - "$HOST_LIVE_USB_VERSIONED" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$INSTALLER_ISO_URL" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-bootstrap_url = sys.argv[2]
-payload_url = sys.argv[3]
-installer_iso_url = sys.argv[4]
-text = path.read_text()
-
-replacements = {
-    r'^USB_WRITER_VARIANT="\$\{PVE_THIN_CLIENT_USB_WRITER_VARIANT:-\$\{PVE_THIN_CLIENT_USB_WRITER_VARIANT_DEFAULT:-\}\}"$':
-        'USB_WRITER_VARIANT="${PVE_THIN_CLIENT_USB_WRITER_VARIANT:-live}"',
-    r'^RELEASE_BOOTSTRAP_URL="\$\{RELEASE_BOOTSTRAP_URL:-[^"]*}"$':
-        f'RELEASE_BOOTSTRAP_URL="${{RELEASE_BOOTSTRAP_URL:-{bootstrap_url}}}"',
-    r'^RELEASE_PAYLOAD_URL="\$\{RELEASE_PAYLOAD_URL:-[^"]*}"$':
-        f'RELEASE_PAYLOAD_URL="${{RELEASE_PAYLOAD_URL:-{payload_url}}}"',
-    r'^INSTALL_PAYLOAD_URL="\$\{INSTALL_PAYLOAD_URL:-[^"]*}"$':
-        f'INSTALL_PAYLOAD_URL="${{INSTALL_PAYLOAD_URL:-{payload_url}}}"',
-    r'^RELEASE_ISO_URL="\$\{RELEASE_ISO_URL:-[^"]*}"$':
-        f'RELEASE_ISO_URL="${{RELEASE_ISO_URL:-{installer_iso_url}}}"',
-}
-updated = text
-for pattern, replacement in replacements.items():
-    updated, count = re.subn(pattern, replacement, updated, count=1, flags=re.MULTILINE)
-    if count != 1:
-        raise SystemExit(f"failed to patch hosted live USB default for pattern: {pattern}")
-path.write_text(updated)
-PY
+python3 "$PREPARE_HOST_DOWNLOADS_HELPER" patch-host-shell-template \
+  --path "$HOST_LIVE_USB_VERSIONED" \
+  --writer-variant live \
+  --installer-iso-url "$INSTALLER_ISO_URL" \
+  --installer-bootstrap-url "$BOOTSTRAP_URL" \
+  --installer-payload-url "$PAYLOAD_URL"
 
 install -m 0755 "$HOST_LIVE_USB_VERSIONED" "$HOST_LIVE_USB_LATEST"
 
-python3 - "$HOST_WINDOWS_INSTALLER_VERSIONED" "$INSTALLER_ISO_URL" <<'PY'
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-installer_iso_url = sys.argv[2]
-text = path.read_text()
-text = text.replace("__BEAGLE_DEFAULT_RELEASE_ISO_URL__", installer_iso_url)
-text = text.replace("__BEAGLE_DEFAULT_PRESET_NAME__", "")
-text = text.replace("__BEAGLE_DEFAULT_PRESET_B64__", "")
-path.write_text(text)
-PY
+python3 "$PREPARE_HOST_DOWNLOADS_HELPER" patch-host-windows-template \
+  --path "$HOST_WINDOWS_INSTALLER_VERSIONED" \
+  --installer-iso-url "$INSTALLER_ISO_URL"
 
 install -m 0644 "$HOST_WINDOWS_INSTALLER_VERSIONED" "$HOST_WINDOWS_INSTALLER_LATEST"
 
-python3 - "$PROVIDER_MODULE_PATH" "$HOST_INSTALLER_VERSIONED" "$HOST_WINDOWS_INSTALLER_VERSIONED" "$DIST_DIR" "$VM_INSTALLERS_METADATA_PATH" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$VM_INSTALLER_URL_TEMPLATE" "$VM_WINDOWS_INSTALLER_URL_TEMPLATE" "$VM_LIVE_USB_URL_TEMPLATE" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$INSTALLER_ISO_URL" "$DEFAULT_PROXMOX_USERNAME" "$DEFAULT_PROXMOX_PASSWORD" "$DEFAULT_PROXMOX_TOKEN" "$BEAGLE_MANAGER_URL" <<'PY'
-import base64
-import json
-import re
-import shlex
-import sys
-from pathlib import Path
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
-
-provider_module_path = Path(sys.argv[1]).resolve()
-sys.path.insert(0, str(provider_module_path.parent))
-
-from beagle_provider import list_vms, parse_description_meta, vm_config
-
-template_path = Path(sys.argv[2])
-windows_template_path = Path(sys.argv[3])
-dist_dir = Path(sys.argv[4])
-metadata_path = Path(sys.argv[5])
-server_name = sys.argv[6]
-listen_port = int(sys.argv[7])
-downloads_path = sys.argv[8]
-installer_url_template = sys.argv[9]
-windows_installer_url_template = sys.argv[10]
-live_usb_url_template = sys.argv[11]
-bootstrap_url = sys.argv[12]
-payload_url = sys.argv[13]
-installer_iso_url = sys.argv[14]
-default_proxmox_username = sys.argv[15]
-default_proxmox_password = sys.argv[16]
-default_proxmox_token = sys.argv[17]
-beagle_manager_url = sys.argv[18]
-template = template_path.read_text()
-windows_template = windows_template_path.read_text()
-
-
-def safe_hostname(name, vmid):
-    cleaned = re.sub(r"[^a-z0-9-]+", "-", str(name or "").strip().lower()).strip("-")
-    if not cleaned:
-        cleaned = f"pve-tc-{vmid}"
-    return cleaned[:63].strip("-") or f"pve-tc-{vmid}"
-
-
-def shell_double_quoted(value):
-    return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`")
-
-def patch_installer_defaults(script_text, bootstrap, payload, installer_iso, preset_name, preset_b64):
-    replacements = {
-        r'^RELEASE_BOOTSTRAP_URL="\$\{RELEASE_BOOTSTRAP_URL:-[^"]*}"$':
-            f'RELEASE_BOOTSTRAP_URL="${{RELEASE_BOOTSTRAP_URL:-{shell_double_quoted(bootstrap)}}}"',
-        r'^RELEASE_PAYLOAD_URL="\$\{RELEASE_PAYLOAD_URL:-[^"]*}"$':
-            f'RELEASE_PAYLOAD_URL="${{RELEASE_PAYLOAD_URL:-{shell_double_quoted(payload)}}}"',
-        r'^INSTALL_PAYLOAD_URL="\$\{INSTALL_PAYLOAD_URL:-[^"]*}"$':
-            f'INSTALL_PAYLOAD_URL="${{INSTALL_PAYLOAD_URL:-{shell_double_quoted(payload)}}}"',
-        r'^RELEASE_ISO_URL="\$\{RELEASE_ISO_URL:-[^"]*}"$':
-            f'RELEASE_ISO_URL="${{RELEASE_ISO_URL:-{shell_double_quoted(installer_iso)}}}"',
-        r'^BOOTSTRAP_DISABLE_CACHE="\$\{PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-[^"]*}"$':
-            'BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-1}"',
-        r'^PVE_THIN_CLIENT_PRESET_NAME="\$\{PVE_THIN_CLIENT_PRESET_NAME:-[^"]*}"$':
-            f'PVE_THIN_CLIENT_PRESET_NAME="${{PVE_THIN_CLIENT_PRESET_NAME:-{shell_double_quoted(preset_name)}}}"',
-        r'^PVE_THIN_CLIENT_PRESET_B64="\$\{PVE_THIN_CLIENT_PRESET_B64:-[^"]*}"$':
-            f'PVE_THIN_CLIENT_PRESET_B64="${{PVE_THIN_CLIENT_PRESET_B64:-{shell_double_quoted(preset_b64)}}}"',
-    }
-    updated = script_text
-    for pattern, replacement in replacements.items():
-        updated, count = re.subn(pattern, replacement, updated, count=1, flags=re.MULTILINE)
-        if count != 1:
-            raise SystemExit(f"failed to patch installer default for pattern: {pattern}")
-    return updated
-
-def patch_windows_installer_defaults(script_text, installer_iso, preset_name, preset_b64):
-    return (
-        script_text
-        .replace("__BEAGLE_DEFAULT_RELEASE_ISO_URL__", installer_iso)
-        .replace("__BEAGLE_DEFAULT_PRESET_NAME__", preset_name)
-        .replace("__BEAGLE_DEFAULT_PRESET_B64__", preset_b64)
-    )
-
-def encode_preset(preset):
-    lines = ["# Auto-generated VM preset for the thin-client USB installer"]
-    for key in sorted(preset):
-        value = str(preset.get(key, ""))
-        lines.append(f"{key}={shlex.quote(value)}")
-    payload = "\n".join(lines) + "\n"
-    return base64.b64encode(payload.encode("utf-8")).decode("ascii")
-
-
-def merge_stream_meta(vm, meta, load_vm_config):
-    stream_keys = [
-        "moonlight-host",
-        "moonlight-app",
-        "moonlight-resolution",
-        "moonlight-fps",
-        "moonlight-bitrate",
-        "moonlight-video-codec",
-        "moonlight-video-decoder",
-        "moonlight-audio-config",
-        "moonlight-absolute-mouse",
-        "moonlight-quit-after",
-        "sunshine-host",
-        "sunshine-ip",
-        "sunshine-api-url",
-        "sunshine-user",
-        "sunshine-password",
-        "sunshine-pin",
-        "sunshine-app",
-        "thinclient-default-mode",
-    ]
-    if any(meta.get(key) for key in ("moonlight-host", "sunshine-host", "sunshine-ip")):
-        return dict(meta)
-
-    target_vmid = (meta.get("beagle-target-vmid") or meta.get("thinclient-target-vmid") or "").strip()
-    if not target_vmid.isdigit():
-        return dict(meta)
-
-    target_node = (meta.get("beagle-target-node") or vm.get("node") or "").strip()
-    target_config = load_vm_config(target_node, int(target_vmid))
-    if not target_config:
-        return dict(meta)
-
-    target_meta = parse_description_meta(target_config.get("description", ""))
-    merged = dict(meta)
-    for key in stream_keys:
-        if not merged.get(key) and target_meta.get(key):
-            merged[key] = target_meta[key]
-    return merged
-
-
-def build_preset(vm, config, load_vm_config):
-    meta = parse_description_meta(config.get("description", ""))
-    stream_meta = merge_stream_meta(vm, meta, load_vm_config)
-    vmid = int(vm["vmid"])
-    vm_name = config.get("name") or vm.get("name") or f"vm-{vmid}"
-    proxmox_scheme = meta.get("proxmox-scheme", "https")
-    proxmox_host = meta.get("proxmox-host", server_name)
-    proxmox_port = meta.get("proxmox-port", "8006")
-    proxmox_realm = meta.get("proxmox-realm", "pam")
-    proxmox_verify_tls = meta.get("proxmox-verify-tls", "1")
-    proxmox_username = meta.get("proxmox-user", default_proxmox_username)
-    proxmox_password = meta.get("proxmox-password", default_proxmox_password)
-    proxmox_token = meta.get("proxmox-token", default_proxmox_token)
-
-    moonlight_host = stream_meta.get("moonlight-host") or stream_meta.get("sunshine-host") or stream_meta.get("sunshine-ip") or ""
-    sunshine_api_url = stream_meta.get("sunshine-api-url") or (f"https://{moonlight_host}:47990" if moonlight_host else "")
-    moonlight_default_mode = "MOONLIGHT" if moonlight_host else ""
-    moonlight_resolution = (stream_meta.get("moonlight-resolution") or "").strip()
-    if not moonlight_resolution or moonlight_resolution in ("1080", "native", "auto"):
-        moonlight_resolution = "auto"
-
-    preset = {
-        "PVE_THIN_CLIENT_PRESET_PROFILE_NAME": f"vm-{vmid}",
-        "PVE_THIN_CLIENT_PRESET_VM_NAME": vm_name,
-        "PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE": safe_hostname(vm_name, vmid),
-        "PVE_THIN_CLIENT_PRESET_AUTOSTART": meta.get("thinclient-autostart", "1"),
-        "PVE_THIN_CLIENT_PRESET_DEFAULT_MODE": moonlight_default_mode,
-        "PVE_THIN_CLIENT_PRESET_NETWORK_MODE": meta.get("thinclient-network-mode", "dhcp"),
-        "PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE": meta.get("thinclient-network-interface", "eth0"),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_SCHEME": proxmox_scheme,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_HOST": proxmox_host,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_PORT": proxmox_port,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_NODE": vm.get("node", ""),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_VMID": str(vmid),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_REALM": proxmox_realm,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS": proxmox_verify_tls,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN": "",
-        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL": beagle_manager_url,
-        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": "",
-        "PVE_THIN_CLIENT_PRESET_SPICE_METHOD": "",
-        "PVE_THIN_CLIENT_PRESET_SPICE_URL": "",
-        "PVE_THIN_CLIENT_PRESET_SPICE_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_SPICE_TOKEN": "",
-        "PVE_THIN_CLIENT_PRESET_NOVNC_URL": "",
-        "PVE_THIN_CLIENT_PRESET_NOVNC_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_NOVNC_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_NOVNC_TOKEN": "",
-        "PVE_THIN_CLIENT_PRESET_DCV_URL": "",
-        "PVE_THIN_CLIENT_PRESET_DCV_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_DCV_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_DCV_TOKEN": "",
-        "PVE_THIN_CLIENT_PRESET_DCV_SESSION": "",
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST": moonlight_host,
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP": stream_meta.get("moonlight-app", stream_meta.get("sunshine-app", "Desktop")),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN": stream_meta.get("moonlight-bin", "moonlight"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION": moonlight_resolution,
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS": stream_meta.get("moonlight-fps", "60"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE": stream_meta.get("moonlight-bitrate", "20000"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC": stream_meta.get("moonlight-video-codec", "H.264"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER": stream_meta.get("moonlight-video-decoder", "auto"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG": stream_meta.get("moonlight-audio-config", "stereo"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE": stream_meta.get("moonlight-absolute-mouse", "1"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER": stream_meta.get("moonlight-quit-after", "0"),
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL": sunshine_api_url,
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": "",
-    }
-
-    available_modes = ["MOONLIGHT"] if preset["PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST"] else []
-    preset["PVE_THIN_CLIENT_PRESET_DEFAULT_MODE"] = "MOONLIGHT" if available_modes else ""
-
-    return preset, available_modes
-
-
-resources = list_vms()
-vm_installers = []
-config_cache = {}
-
-if not resources:
-    metadata_path.write_text("[]\n")
-    raise SystemExit(0)
-
-
-def load_vm_config(node, vmid):
-    key = (str(node or ""), int(vmid))
-    if key not in config_cache:
-        config_cache[key] = vm_config(key[0], key[1]) or {}
-    return config_cache[key]
-
-for vm in resources:
-    if vm.get("type") != "qemu" or vm.get("vmid") is None or not vm.get("node"):
-        continue
-
-    config = load_vm_config(vm["node"], vm["vmid"])
-    preset, available_modes = build_preset(vm, config, load_vm_config)
-    preset_name = preset.get("PVE_THIN_CLIENT_PRESET_PROFILE_NAME") or f"vm-{vm['vmid']}"
-    preset_b64 = encode_preset(preset)
-    vm_installers.append(
-        {
-            "vmid": int(vm["vmid"]),
-            "node": vm["node"],
-            "name": preset["PVE_THIN_CLIENT_PRESET_VM_NAME"],
-            "preset_name": preset_name,
-            "default_mode": preset.get("PVE_THIN_CLIENT_PRESET_DEFAULT_MODE", ""),
-            "installer_filename": "",
-            "installer_url": f"/beagle-api/api/v1/vms/{int(vm['vmid'])}/installer.sh",
-            "live_usb_filename": "",
-            "live_usb_url": f"/beagle-api/api/v1/vms/{int(vm['vmid'])}/live-usb.sh",
-            "installer_windows_filename": "",
-            "installer_windows_url": f"/beagle-api/api/v1/vms/{int(vm['vmid'])}/installer.ps1",
-            "installer_iso_url": installer_iso_url,
-            "available_modes": available_modes,
-        }
-    )
-
-metadata_path.write_text(json.dumps(sorted(vm_installers, key=lambda item: item["vmid"]), indent=2) + "\n")
-PY
+python3 "$PREPARE_HOST_DOWNLOADS_HELPER" generate-vm-installers-metadata \
+  --provider-module-path "$PROVIDER_MODULE_PATH" \
+  --metadata-path "$VM_INSTALLERS_METADATA_PATH" \
+  --server-name "$SERVER_NAME" \
+  --installer-iso-url "$INSTALLER_ISO_URL" \
+  --default-proxmox-username "$DEFAULT_PROXMOX_USERNAME" \
+  --default-proxmox-password "$DEFAULT_PROXMOX_PASSWORD" \
+  --default-proxmox-token "$DEFAULT_PROXMOX_TOKEN" \
+  --beagle-manager-url "$BEAGLE_MANAGER_URL"
 
 CHECKSUM_FILE="$DIST_DIR/SHA256SUMS"
 checksum_entries=(
@@ -598,86 +303,37 @@ cat > "$DIST_DIR/beagle-downloads-index.html" <<EOF
 </html>
 EOF
 
-python3 - "$STATUS_JSON_PATH" "$VERSION" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$INSTALLER_URL" "$LIVE_USB_URL" "$WINDOWS_INSTALLER_URL" "$BOOTSTRAP_URL" "$PAYLOAD_URL" "$INSTALLER_ISO_URL" "$SERVER_INSTALLER_ISO_URL" "$STATUS_URL" "$SHA256SUMS_URL" "$HOST_INSTALLER_LATEST" "$HOST_LIVE_USB_LATEST" "$HOST_WINDOWS_INSTALLER_LATEST" "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz" "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" "$DIST_DIR/beagle-os-installer-amd64.iso" "$DIST_DIR/beagle-os-server-installer-amd64.iso" "$INSTALLER_SHA256" "$BOOTSTRAP_SHA256" "$PAYLOAD_SHA256" "$INSTALLER_ISO_SHA256" "$SERVER_INSTALLER_ISO_SHA256" "$VM_INSTALLER_URL_TEMPLATE" "$VM_WINDOWS_INSTALLER_URL_TEMPLATE" "$VM_LIVE_USB_URL_TEMPLATE" "$VM_INSTALLERS_METADATA_PATH" <<'PY'
-import json
-import sys
-from datetime import datetime, timezone
-from pathlib import Path
-
-status_path = Path(sys.argv[1])
-version = sys.argv[2]
-server_name = sys.argv[3]
-listen_port = int(sys.argv[4])
-downloads_path = sys.argv[5]
-installer_url = sys.argv[6]
-live_usb_url = sys.argv[7]
-installer_windows_url = sys.argv[8]
-bootstrap_url = sys.argv[9]
-payload_url = sys.argv[10]
-installer_iso_url = sys.argv[11]
-server_installer_iso_url = sys.argv[12]
-status_url = sys.argv[13]
-sha256sums_url = sys.argv[14]
-installer_path = Path(sys.argv[15])
-live_usb_path = Path(sys.argv[16])
-installer_windows_path = Path(sys.argv[17])
-bootstrap_path = Path(sys.argv[18])
-payload_path = Path(sys.argv[19])
-installer_iso_path = Path(sys.argv[20])
-server_installer_iso_path = Path(sys.argv[21])
-installer_sha256 = sys.argv[22]
-bootstrap_sha256 = sys.argv[23]
-payload_sha256 = sys.argv[24]
-installer_iso_sha256 = sys.argv[25]
-server_installer_iso_sha256 = sys.argv[26]
-vm_installer_url_template = sys.argv[27]
-vm_windows_installer_url_template = sys.argv[28]
-vm_live_usb_url_template = sys.argv[29]
-vm_installers_path = Path(sys.argv[30])
-vm_installers = json.loads(vm_installers_path.read_text()) if vm_installers_path.exists() else []
-
-payload = {
-    "version": version,
-    "generated_at": datetime.now(timezone.utc).isoformat(),
-    "server_name": server_name,
-    "listen_port": listen_port,
-    "downloads_path": downloads_path,
-    "installer_url": installer_url,
-    "live_usb_url": live_usb_url,
-    "installer_windows_url": installer_windows_url,
-    "installer_iso_url": installer_iso_url,
-    "bootstrap_url": bootstrap_url,
-    "payload_url": payload_url,
-    "status_url": status_url,
-    "sha256sums_url": sha256sums_url,
-    "installer_size": installer_path.stat().st_size,
-    "live_usb_size": live_usb_path.stat().st_size,
-    "installer_windows_size": installer_windows_path.stat().st_size,
-    "bootstrap_size": bootstrap_path.stat().st_size,
-    "payload_size": payload_path.stat().st_size,
-    "installer_iso_size": installer_iso_path.stat().st_size,
-    "server_installer_iso_size": server_installer_iso_path.stat().st_size,
-    "installer_sha256": installer_sha256,
-    "bootstrap_sha256": bootstrap_sha256,
-    "payload_sha256": payload_sha256,
-    "installer_iso_sha256": installer_iso_sha256,
-    "server_installer_iso_sha256": server_installer_iso_sha256,
-    "installer_filename": installer_path.name,
-    "live_usb_filename": live_usb_path.name,
-    "installer_windows_filename": installer_windows_path.name,
-    "installer_iso_filename": installer_iso_path.name,
-    "server_installer_iso_filename": server_installer_iso_path.name,
-    "bootstrap_filename": bootstrap_path.name,
-    "payload_filename": payload_path.name,
-    "server_installer_iso_url": server_installer_iso_url,
-    "vm_installer_url_template": vm_installer_url_template,
-    "vm_windows_installer_url_template": vm_windows_installer_url_template,
-    "vm_live_usb_url_template": vm_live_usb_url_template,
-    "vm_installer_count": len(vm_installers),
-    "vm_installers": vm_installers,
-}
-status_path.write_text(json.dumps(payload, indent=2) + "\n")
-PY
+python3 "$PREPARE_HOST_DOWNLOADS_HELPER" write-download-status \
+  --status-path "$STATUS_JSON_PATH" \
+  --version "$VERSION" \
+  --server-name "$SERVER_NAME" \
+  --listen-port "$LISTEN_PORT" \
+  --downloads-path "$DOWNLOADS_PATH" \
+  --installer-url "$INSTALLER_URL" \
+  --live-usb-url "$LIVE_USB_URL" \
+  --installer-windows-url "$WINDOWS_INSTALLER_URL" \
+  --bootstrap-url "$BOOTSTRAP_URL" \
+  --payload-url "$PAYLOAD_URL" \
+  --installer-iso-url "$INSTALLER_ISO_URL" \
+  --server-installer-iso-url "$SERVER_INSTALLER_ISO_URL" \
+  --status-url "$STATUS_URL" \
+  --sha256sums-url "$SHA256SUMS_URL" \
+  --installer-path "$HOST_INSTALLER_LATEST" \
+  --live-usb-path "$HOST_LIVE_USB_LATEST" \
+  --installer-windows-path "$HOST_WINDOWS_INSTALLER_LATEST" \
+  --bootstrap-path "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz" \
+  --payload-path "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" \
+  --installer-iso-path "$DIST_DIR/beagle-os-installer-amd64.iso" \
+  --server-installer-iso-path "$DIST_DIR/beagle-os-server-installer-amd64.iso" \
+  --installer-sha256 "$INSTALLER_SHA256" \
+  --bootstrap-sha256 "$BOOTSTRAP_SHA256" \
+  --payload-sha256 "$PAYLOAD_SHA256" \
+  --installer-iso-sha256 "$INSTALLER_ISO_SHA256" \
+  --server-installer-iso-sha256 "$SERVER_INSTALLER_ISO_SHA256" \
+  --vm-installer-url-template "$VM_INSTALLER_URL_TEMPLATE" \
+  --vm-windows-installer-url-template "$VM_WINDOWS_INSTALLER_URL_TEMPLATE" \
+  --vm-live-usb-url-template "$VM_LIVE_USB_URL_TEMPLATE" \
+  --vm-installers-path "$VM_INSTALLERS_METADATA_PATH"
 
 echo "Prepared host-local download artifacts under $DIST_DIR"
 echo "Hosted USB installer URL: $INSTALLER_URL"

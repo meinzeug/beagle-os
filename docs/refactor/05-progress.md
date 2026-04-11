@@ -2,6 +2,22 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — hosted download-preparation helper extraction
+
+- Removed the large inline Python blocks from `scripts/prepare-host-downloads.sh` and moved that logic behind a dedicated helper seam:
+  - added `scripts/lib/prepare_host_downloads.py` for host installer/live-USB/Windows template patching, VM installer catalog generation, and downloads-status JSON generation
+  - `scripts/prepare-host-downloads.sh` now acts as a thinner shell orchestrator and dropped from about `684` lines to about `340` lines
+  - the helper now reuses `beagle-host/services/installer_template_patch.py` instead of carrying another local regex/template patch implementation
+- Reduced installer-contract drift for the hosted VM installer catalog:
+  - the VM installer metadata builder now normalizes overlapping installer/profile fields through `beagle-host/bin/endpoint_profile_contract.py` instead of reshaping those URLs inline again inside the shell script
+  - the helper still preserves the previous hosted-download preset semantics, including the legacy `pve-tc-<vmid>` hostname fallback and empty embedded Proxmox credential fields
+  - provider-backed VM inventory/config reads still flow through `scripts/lib/beagle_provider.py`, but the metadata/payload shaping is no longer embedded inline in the shell entrypoint
+- Validation and smoke checks for this slice passed:
+  - `python3 -m py_compile scripts/lib/prepare_host_downloads.py`
+  - `bash -n scripts/prepare-host-downloads.sh`
+  - focused smoke checks for template patching, fake-provider VM installer metadata generation, and downloads-status JSON generation through `scripts/lib/prepare_host_downloads.py`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-11 — provider threading through proxy, UI integration, and server installer
 
 - Continued threading `BEAGLE_HOST_PROVIDER` through the remaining installer/deploy edges instead of leaving those surfaces implicitly Proxmox-only:

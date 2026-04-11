@@ -843,3 +843,15 @@ Decision:
 Reason:
 
 - These install surfaces are still genuinely Proxmox-specific today, so pretending they are already generic would only hide coupling. The right intermediate state is explicit adapter naming plus explicit provider selection, so future non-Proxmox install paths can coexist without another round of implicit-default cleanup first.
+
+### D75. Hosted download preparation should move behind a dedicated helper and reuse the endpoint profile contract for overlapping VM installer metadata
+
+Decision:
+
+- Move the non-shell artifact patching, VM installer catalog generation, and downloads-status JSON shaping out of `scripts/prepare-host-downloads.sh` into `scripts/lib/prepare_host_downloads.py`.
+- Reuse `beagle-host/services/installer_template_patch.py` for the hosted installer/live-USB/Windows template rewrite path instead of carrying another local patch implementation inside the shell script.
+- Normalize the overlapping VM installer/profile URL fields through `beagle-host/bin/endpoint_profile_contract.py` when generating `beagle-vm-installers.json`, while deliberately preserving the existing preset semantics that the hosted-download path already exposed.
+
+Reason:
+
+- `prepare-host-downloads.sh` had become one of the remaining large script monoliths because it embedded several separate inline Python programs for template patching, VM metadata shaping, and status JSON generation. That made the shell entrypoint harder to review and kept installer/profile contract logic detached from the explicit host-side contract module. Pulling the Python work behind a dedicated helper preserves behavior, shrinks the shell script materially, and makes the next installer/env-builder contract slice narrower and easier to reason about.
