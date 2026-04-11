@@ -53,7 +53,8 @@
 - [x] Extract the endpoint-token persistence helpers into `beagle-host/services/endpoint_token_store.py` behind a lazy factory and delegating wrappers.
 - [x] Extract the USB guest-attachment / tunnel-state helper cluster into a dedicated host service.
 - [x] Extract the Ubuntu-Beagle provisioning/lifecycle helper cluster into a dedicated host service.
-- [ ] Extract the Sunshine/Moonlight guest-integration and proxy helper cluster into a dedicated host service.
+- [x] Extract the Sunshine/Moonlight guest-integration and proxy helper cluster into a dedicated host service.
+- [ ] Extract the public-stream allocation/state helper cluster into a dedicated host service.
 - [ ] Continue splitting the remaining non-HTTP business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
 - [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
