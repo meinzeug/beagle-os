@@ -1047,3 +1047,14 @@ Decision:
 Reason:
 
 - After the operational blocks moved out, the remaining large cluster in `common.sh` was no longer one feature but the implicit foundation used by multiple extracted modules. Making that foundation explicit reduces hidden coupling between runtime helpers and keeps `common.sh` on the path toward a pure composition shell.
+
+### D91. Small generic runtime value helpers should share one seam instead of staying as common.sh leftovers
+
+Decision:
+
+- Keep `beagle_curl_tls_args()`, `render_template()`, and `split_browser_flags()` in `thin-client-assistant/runtime/runtime_value_helpers.sh`.
+- `common.sh` should source that helper instead of retaining these small cross-cutting helpers inline.
+
+Reason:
+
+- Once the runtime core moved out, the last inline `common.sh` logic was a small but still cross-cutting value-helper cluster used by multiple runtime launchers. Extracting that cluster finishes the shift from monolith to composition shell and leaves the next work focused on feature orchestration instead of leftover utility code.
