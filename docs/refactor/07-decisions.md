@@ -746,3 +746,15 @@ Decision:
 Reason:
 
 - After the VM and non-VM read slices, the remaining GET logic in the entrypoint was concentrated in the public VM state surface and the endpoint-authenticated update-feed path. Those routes share the same external-facing contract boundary and were still mostly envelope/orchestration code around extracted services. Moving them together keeps the HTTP-surface extraction pattern coherent and removes another meaningful handler block without changing public behavior.
+
+### D67. Public ubuntu-install lifecycle POST routes belong in one dedicated public install surface
+
+Decision:
+
+- Move the public ubuntu-install lifecycle POST routes for `complete`, `prepare-firstboot`, and `failed` into `beagle-host/services/public_ubuntu_install_surface.py`.
+- Keep `beagle-control-plane.py` responsible only for the optional JSON-body read on the `failed` route and for writing the final HTTP response.
+- Let the new service compose the already-extracted ubuntu-beagle provisioning, ubuntu-beagle state persistence, and scheduled-restart cancellation seams instead of mutating install-state payloads inline in the entrypoint.
+
+Reason:
+
+- After the public GET surface moved out, the next cohesive external-facing POST block was the ubuntu-install lifecycle. Those routes all operate on the same public token/state contract and were still mostly state mutation plus response-envelope code around extracted services. Pulling them behind one dedicated surface keeps the decomposition consistent and shrinks the monolith without changing the installer-facing API.

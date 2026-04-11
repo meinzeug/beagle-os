@@ -163,6 +163,7 @@ install -m 0644 "$ROOT_DIR/beagle-host/services/vm_profile.py" "$HOST_RUNTIME_DI
 install -m 0644 "$ROOT_DIR/beagle-host/services/vm_http_surface.py" "$HOST_RUNTIME_DIR/services/vm_http_surface.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/control_plane_read_surface.py" "$HOST_RUNTIME_DIR/services/control_plane_read_surface.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/public_http_surface.py" "$HOST_RUNTIME_DIR/services/public_http_surface.py"
+install -m 0644 "$ROOT_DIR/beagle-host/services/public_ubuntu_install_surface.py" "$HOST_RUNTIME_DIR/services/public_ubuntu_install_surface.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/vm_state.py" "$HOST_RUNTIME_DIR/services/vm_state.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/download_metadata.py" "$HOST_RUNTIME_DIR/services/download_metadata.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/update_feed.py" "$HOST_RUNTIME_DIR/services/update_feed.py"
