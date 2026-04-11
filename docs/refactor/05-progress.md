@@ -2,6 +2,26 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — script-side guest-exec and VM-write helper expansion
+
+- Expanded `scripts/lib/beagle_provider.py` from a read-only helper into the first shared script-side execution/write seam:
+  - added `guest_exec_bash(vmid, command, timeout_seconds=...)`
+  - added `guest_exec_status(vmid, pid)`
+  - added `set_vm_options(vmid, option_pairs)`
+  - added `set_vm_description(vmid, description)`
+  - added `reboot_vm(vmid)`
+  - added CLI commands `guest-exec-bash-b64`, `guest-exec-status`, `set-vm-options`, `set-vm-description-b64`, and `reboot-vm`
+- Moved more mutation-heavy script flows onto the provider helper while preserving the old direct-path fallback where rollout compatibility still matters:
+  - `scripts/configure-sunshine-guest.sh` now prefers the installed helper for `qm guest exec`, `qm guest exec-status`, `qm config` description reads, `qm set --description`, and `qm reboot`
+  - those flows still fall back to the previous direct `qm` commands when the helper is unavailable on the target host, which keeps partially updated hosts working
+  - `scripts/ensure-vm-stream-ready.sh` now prefers the helper for the Sunshine guest-status `qm guest exec` probe, with a direct `qm guest exec` fallback
+  - `scripts/optimize-proxmox-vm-for-beagle.sh` now prefers the installed helper for the repeated `qm set` baseline writes, with the old direct `qm set` path retained as fallback
+- Validation and smoke checks for this slice all passed:
+  - `python3 -m py_compile scripts/lib/beagle_provider.py`
+  - `bash -n scripts/configure-sunshine-guest.sh scripts/ensure-vm-stream-ready.sh scripts/optimize-proxmox-vm-for-beagle.sh`
+  - focused smoke checks for the new guest-exec/write helper functions in `scripts/lib/beagle_provider.py`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-11 — remote script-side provider reads for Sunshine guest setup
 
 - Continued the script/provider migration by extending `scripts/lib/beagle_provider.py` with reusable VM-node and raw-description helpers:

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Provider-neutral script helper for host-side virtualization reads.
+"""Provider-neutral script helper for host-side virtualization access.
 
 This module gives shell scripts and inline Python a single import/CLI seam for
-provider-backed VM inventory, config, and guest-interface reads. Proxmox is the
-first implementation behind the seam; new script logic should call this helper
-instead of embedding raw `pvesh` / `qm guest cmd` calls directly.
+provider-backed VM inventory/config reads plus the first guest-exec and VM-write
+helpers. Proxmox is the first implementation behind the seam; new script logic
+should call this helper instead of embedding raw `pvesh` / `qm` calls directly.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import sys
+from base64 import b64decode
 from typing import Any
 
 
@@ -32,6 +33,11 @@ def run_json(command: list[str]) -> Any:
         return json.loads(result.stdout or "null")
     except json.JSONDecodeError:
         return None
+
+
+def run_checked(command: list[str]) -> str:
+    result = subprocess.run(command, check=True, capture_output=True, text=True)
+    return result.stdout or ""
 
 
 def _require_supported_provider() -> str:
@@ -131,10 +137,47 @@ def first_guest_ipv4(vmid: int) -> str:
     return ""
 
 
+def guest_exec_bash(vmid: int, command: str, *, timeout_seconds: int | None = None) -> dict[str, Any]:
+    _require_supported_provider()
+    guest_command = ["qm", "guest", "exec", str(int(vmid))]
+    if timeout_seconds is not None:
+        guest_command.extend(["--timeout", str(int(timeout_seconds))])
+    guest_command.extend(["--", "bash", "-lc", str(command)])
+    payload = run_json(guest_command)
+    return payload if isinstance(payload, dict) else {}
+
+
+def guest_exec_status(vmid: int, pid: int) -> dict[str, Any]:
+    _require_supported_provider()
+    payload = run_json(["qm", "guest", "exec-status", str(int(vmid)), str(int(pid))])
+    return payload if isinstance(payload, dict) else {}
+
+
+def set_vm_options(vmid: int, option_pairs: list[tuple[str, str]]) -> str:
+    _require_supported_provider()
+    command = ["qm", "set", str(int(vmid))]
+    for key, value in option_pairs:
+        flag = str(key)
+        if not flag.startswith("--"):
+            flag = f"--{flag}"
+        command.extend([flag, str(value)])
+    return run_checked(command)
+
+
+def set_vm_description(vmid: int, description: str) -> str:
+    _require_supported_provider()
+    return run_checked(["qm", "set", str(int(vmid)), "--description", str(description)])
+
+
+def reboot_vm(vmid: int) -> str:
+    _require_supported_provider()
+    return run_checked(["qm", "reboot", str(int(vmid))])
+
+
 def _main(argv: list[str]) -> int:
     if len(argv) < 2:
         raise SystemExit(
-            "usage: beagle_provider.py <list-vms|vm-config|guest-interfaces|guest-ipv4|vm-node|vm-description|vm-description-meta> [args]"
+            "usage: beagle_provider.py <list-vms|vm-config|guest-interfaces|guest-ipv4|vm-node|vm-description|vm-description-meta|guest-exec-bash-b64|guest-exec-status|set-vm-options|set-vm-description-b64|reboot-vm> [args]"
         )
     command = argv[1]
     if command == "list-vms":
@@ -176,6 +219,42 @@ def _main(argv: list[str]) -> int:
             print(json.dumps(vm_description_meta_for_vmid(int(argv[2])), indent=2))
             return 0
         raise SystemExit("usage: beagle_provider.py vm-description-meta <vmid> | <node> <vmid>")
+    if command == "guest-exec-bash-b64":
+        if len(argv) not in {4, 5}:
+            raise SystemExit("usage: beagle_provider.py guest-exec-bash-b64 <vmid> <command_b64> [timeout_seconds]")
+        timeout_seconds = int(argv[4]) if len(argv) == 5 and str(argv[4]).strip() else None
+        script = b64decode(argv[3].encode("ascii")).decode("utf-8")
+        print(json.dumps(guest_exec_bash(int(argv[2]), script, timeout_seconds=timeout_seconds), indent=2))
+        return 0
+    if command == "guest-exec-status":
+        if len(argv) != 4:
+            raise SystemExit("usage: beagle_provider.py guest-exec-status <vmid> <pid>")
+        print(json.dumps(guest_exec_status(int(argv[2]), int(argv[3])), indent=2))
+        return 0
+    if command == "set-vm-options":
+        if len(argv) < 5 or (len(argv) - 3) % 2 != 0:
+            raise SystemExit("usage: beagle_provider.py set-vm-options <vmid> <option> <value> [<option> <value> ...]")
+        pairs: list[tuple[str, str]] = []
+        for index in range(3, len(argv), 2):
+            pairs.append((argv[index], argv[index + 1]))
+        output = set_vm_options(int(argv[2]), pairs)
+        if output:
+            print(output, end="" if output.endswith("\n") else "\n")
+        return 0
+    if command == "set-vm-description-b64":
+        if len(argv) != 4:
+            raise SystemExit("usage: beagle_provider.py set-vm-description-b64 <vmid> <description_b64>")
+        output = set_vm_description(int(argv[2]), b64decode(argv[3].encode("ascii")).decode("utf-8"))
+        if output:
+            print(output, end="" if output.endswith("\n") else "\n")
+        return 0
+    if command == "reboot-vm":
+        if len(argv) != 3:
+            raise SystemExit("usage: beagle_provider.py reboot-vm <vmid>")
+        output = reboot_vm(int(argv[2]))
+        if output:
+            print(output, end="" if output.endswith("\n") else "\n")
+        return 0
     raise SystemExit(f"unknown command: {command}")
 
 

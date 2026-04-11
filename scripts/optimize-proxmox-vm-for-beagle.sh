@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOCAL_PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$SCRIPT_DIR/lib/beagle_provider.py}"
+REMOTE_INSTALL_DIR="${BEAGLE_REMOTE_INSTALL_DIR:-/opt/beagle}"
+REMOTE_PROVIDER_MODULE_PATH="${BEAGLE_REMOTE_PROVIDER_MODULE_PATH:-${REMOTE_INSTALL_DIR%/}/scripts/lib/beagle_provider.py}"
+
 PROXMOX_HOST="${PROXMOX_HOST:-proxmox.local}"
 VMID="${VMID:-}"
 ENABLE_AUDIO="${ENABLE_AUDIO:-1}"
@@ -48,11 +53,52 @@ parse_args() {
 }
 
 ssh_host() {
+  if is_local_host_target; then
+    bash -lc "$*"
+    return 0
+  fi
   ssh "$PROXMOX_HOST" "$@"
 }
 
-qm_set() {
+is_local_host_target() {
+  case "${PROXMOX_HOST:-}" in
+    localhost|127.0.0.1|::1|"$(hostname)"|"$(hostname -f 2>/dev/null || hostname)")
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+provider_module_path_for_target() {
+  if is_local_host_target; then
+    printf '%s\n' "$LOCAL_PROVIDER_MODULE_PATH"
+    return 0
+  fi
+  printf '%s\n' "$REMOTE_PROVIDER_MODULE_PATH"
+}
+
+provider_helper_available() {
+  local module_path
+  module_path="$(provider_module_path_for_target)"
+  ssh_host "test -f '$module_path'"
+}
+
+provider_helper_exec() {
+  local module_path
+  module_path="$(provider_module_path_for_target)"
+  local shell_command
+  shell_command="$(printf '%q ' python3 "$module_path" "$@")"
+  ssh_host "${shell_command% }"
+}
+
+set_vm_options() {
   local args=("$@")
+  if provider_helper_available; then
+    provider_helper_exec set-vm-options "$VMID" "${args[@]}" >/dev/null
+    return 0
+  fi
   ssh_host "sudo /usr/sbin/qm set '$VMID' ${args[*]}"
 }
 
@@ -66,21 +112,21 @@ main() {
   }
 
   # Core VM baseline for low-latency remote desktop workloads.
-  qm_set --machine q35
-  qm_set --cpu host
-  qm_set --agent enabled=1
-  qm_set --scsihw virtio-scsi-single
-  qm_set --vga virtio
-  qm_set --balloon 0
-  qm_set --rng0 source=/dev/urandom
+  set_vm_options --machine q35
+  set_vm_options --cpu host
+  set_vm_options --agent enabled=1
+  set_vm_options --scsihw virtio-scsi-single
+  set_vm_options --vga virtio
+  set_vm_options --balloon 0
+  set_vm_options --rng0 source=/dev/urandom
 
   if [[ "$SET_ONBOOT" == "1" ]]; then
-    qm_set --onboot 1
+    set_vm_options --onboot 1
   fi
 
   if [[ "$ENABLE_AUDIO" == "1" ]]; then
     # Provide a deterministic virtual audio device for guest audio capture paths.
-    qm_set --audio0 device=ich9-intel-hda,driver=spice
+    set_vm_options --audio0 device=ich9-intel-hda,driver=spice
   fi
 
   echo "Applied Beagle OS VM baseline to VM $VMID on host $PROXMOX_HOST"

@@ -194,7 +194,12 @@ PY
 }
 
 sunshine_guest_status_json() {
-  qm guest exec "$VMID" -- bash -lc 'binary=0; service=0; process=0; command -v sunshine >/dev/null 2>&1 && binary=1; (systemctl is-active sunshine >/dev/null 2>&1 || systemctl is-active beagle-sunshine.service >/dev/null 2>&1) && service=1; pgrep -x sunshine >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
+  local command
+  local command_b64
+  command='binary=0; service=0; process=0; command -v sunshine >/dev/null 2>&1 && binary=1; (systemctl is-active sunshine >/dev/null 2>&1 || systemctl is-active beagle-sunshine.service >/dev/null 2>&1) && service=1; pgrep -x sunshine >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
+  command_b64="$(printf '%s' "$command" | base64 -w0)"
+  python3 "$PROVIDER_MODULE_PATH" guest-exec-bash-b64 "$VMID" "$command_b64" || \
+    qm guest exec "$VMID" -- bash -lc "$command"
 }
 
 guest_ipv4() {
