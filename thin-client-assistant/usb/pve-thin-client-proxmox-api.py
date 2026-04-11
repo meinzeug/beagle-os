@@ -12,6 +12,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, build_opener, HTTPSHandler
 
+from preset_summary import available_modes
+
 DEFAULT_BEAGLE_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "")
 
 
@@ -96,10 +98,6 @@ def shell_line(key: str, value: str) -> str:
     return f"{key}={shlex.quote(str(value))}\n"
 
 
-def available_modes_from_preset(preset: dict[str, str]) -> list[str]:
-    return ["MOONLIGHT"] if preset["PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST"] else []
-
-
 def build_preset(
     vm: dict[str, Any],
     config: dict[str, Any],
@@ -178,7 +176,21 @@ def build_preset(
         "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_CERT_B64": "",
     }
 
-    return preset, available_modes_from_preset(preset)
+    return preset, available_modes(
+        {
+            "moonlight_host": preset.get("PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST", ""),
+            "spice_url": preset.get("PVE_THIN_CLIENT_PRESET_SPICE_URL", ""),
+            "proxmox_host": preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_HOST", ""),
+            "proxmox_node": preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_NODE", ""),
+            "proxmox_vmid": preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_VMID", ""),
+            "spice_username": preset.get("PVE_THIN_CLIENT_PRESET_SPICE_USERNAME", ""),
+            "spice_password": preset.get("PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD", ""),
+            "proxmox_username": preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME", ""),
+            "proxmox_password": preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD", ""),
+            "novnc_url": preset.get("PVE_THIN_CLIENT_PRESET_NOVNC_URL", ""),
+            "dcv_url": preset.get("PVE_THIN_CLIENT_PRESET_DCV_URL", ""),
+        }
+    )
 
 
 class ProxmoxApi:

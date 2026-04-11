@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PRESET_SUMMARY_HELPER="$SCRIPT_DIR/preset_summary.py"
 LIVE_MEDIUM_DEFAULT="${LIVE_MEDIUM:-/run/live/medium}"
 LIVE_MEDIUM=""
 TEMP_LIVE_MEDIUM_MOUNT=""
@@ -1659,60 +1660,23 @@ print_preset_summary() {
 }
 
 print_preset_json() {
-  python3 - "$PRESET_ACTIVE" "${PVE_THIN_CLIENT_PRESET_VM_NAME:-}" "${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}" "${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-}" "${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-}" "${PVE_THIN_CLIENT_PRESET_NOVNC_URL:-}" "${PVE_THIN_CLIENT_PRESET_DCV_URL:-}" "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" "${PVE_THIN_CLIENT_PRESET_DEFAULT_MODE:-}" "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP:-Desktop}" <<'PY'
-import json
-import sys
-
-(
-    preset_active,
-    vm_name,
-    profile_name,
-    proxmox_host,
-    proxmox_node,
-    proxmox_vmid,
-    spice_url,
-    proxmox_username,
-    proxmox_password,
-    spice_username,
-    spice_password,
-    novnc_url,
-    dcv_url,
-    moonlight_host,
-    default_mode,
-    moonlight_app,
-) = sys.argv[1:17]
-
-def mode_available(name: str) -> bool:
-    if name == "MOONLIGHT":
-        return bool(moonlight_host)
-    if name == "SPICE":
-        return bool(spice_url) or (
-            bool(proxmox_host)
-            and bool(proxmox_node)
-            and bool(proxmox_vmid)
-            and bool(spice_username or proxmox_username)
-            and bool(spice_password or proxmox_password)
-        )
-    if name == "NOVNC":
-        return bool(novnc_url)
-    if name == "DCV":
-        return bool(dcv_url)
-    return False
-
-payload = {
-    "preset_active": preset_active == "1",
-    "vm_name": vm_name,
-    "profile_name": profile_name,
-    "proxmox_host": proxmox_host,
-    "proxmox_node": proxmox_node,
-    "proxmox_vmid": proxmox_vmid,
-    "moonlight_host": moonlight_host,
-    "moonlight_app": moonlight_app,
-    "default_mode": default_mode,
-    "available_modes": [name for name in ("MOONLIGHT", "SPICE", "NOVNC", "DCV") if mode_available(name)],
-}
-print(json.dumps(payload, indent=2))
-PY
+  python3 "$PRESET_SUMMARY_HELPER" preset-summary-json \
+    --preset-active "$PRESET_ACTIVE" \
+    --vm-name "${PVE_THIN_CLIENT_PRESET_VM_NAME:-}" \
+    --profile-name "${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-}" \
+    --proxmox-host "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" \
+    --proxmox-node "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" \
+    --proxmox-vmid "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" \
+    --spice-url "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" \
+    --proxmox-username "${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}" \
+    --proxmox-password "${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}" \
+    --spice-username "${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-}" \
+    --spice-password "${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-}" \
+    --novnc-url "${PVE_THIN_CLIENT_PRESET_NOVNC_URL:-}" \
+    --dcv-url "${PVE_THIN_CLIENT_PRESET_DCV_URL:-}" \
+    --moonlight-host "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" \
+    --default-mode "${PVE_THIN_CLIENT_PRESET_DEFAULT_MODE:-}" \
+    --moonlight-app "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP:-Desktop}"
 }
 
 print_debug_json() {
@@ -1762,152 +1726,34 @@ print_ui_state_json() {
   local live_disk
   live_disk="$(current_live_disk 2>/dev/null || true)"
 
-  python3 - "$PRESET_ACTIVE" \
-    "${PVE_THIN_CLIENT_PRESET_VM_NAME:-}" \
-    "${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-}" \
-    "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" \
-    "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" \
-    "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" \
-    "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" \
-    "${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}" \
-    "${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}" \
-    "${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-}" \
-    "${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-}" \
-    "${PVE_THIN_CLIENT_PRESET_NOVNC_URL:-}" \
-    "${PVE_THIN_CLIENT_PRESET_DCV_URL:-}" \
-    "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" \
-    "${PVE_THIN_CLIENT_PRESET_DEFAULT_MODE:-}" \
-    "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP:-Desktop}" \
-    "$LIVE_MEDIUM_DEFAULT" \
-    "$LIVE_MEDIUM" \
-    "$LIVE_ASSET_DIR" \
-    "$PRESET_FILE" \
-    "$LOG_FILE" \
-    "$LOG_DIR" \
-    "$PRESET_SOURCE" \
-    "$CACHED_PRESET_FILE" \
-    "$(cached_preset_source)" \
-    "$live_disk" \
-    "$LOG_SESSION_ID" <<'PY'
-import json
-import os
-import shlex
-import subprocess
-import sys
-
-(
-    preset_active,
-    vm_name,
-    profile_name,
-    proxmox_host,
-    proxmox_node,
-    proxmox_vmid,
-    spice_url,
-    proxmox_username,
-    proxmox_password,
-    spice_username,
-    spice_password,
-    novnc_url,
-    dcv_url,
-    moonlight_host,
-    default_mode,
-    moonlight_app,
-    live_medium_default,
-    live_medium,
-    live_asset_dir,
-    preset_file,
-    log_file,
-    log_dir,
-    preset_source,
-    cached_preset_file,
-    cached_preset_source,
-    live_disk,
-    log_session_id,
-) = sys.argv[1:28]
-
-def mode_available(name: str) -> bool:
-    if name == "MOONLIGHT":
-        return bool(moonlight_host)
-    if name == "SPICE":
-        return bool(spice_url) or (
-            bool(proxmox_host)
-            and bool(proxmox_node)
-            and bool(proxmox_vmid)
-            and bool(spice_username or proxmox_username)
-            and bool(spice_password or proxmox_password)
-        )
-    if name == "NOVNC":
-        return bool(novnc_url)
-    if name == "DCV":
-        return bool(dcv_url)
-    return False
-
-disks = []
-try:
-    output = subprocess.check_output(
-        ["lsblk", "-dn", "-P", "-o", "NAME,SIZE,MODEL,TYPE,RM,TRAN"], text=True
-    )
-    for line in output.splitlines():
-        entry = {}
-        for token in shlex.split(line):
-            key, value = token.split("=", 1)
-            entry[key] = value
-        if entry.get("TYPE") != "disk":
-            continue
-        device = f"/dev/{entry['NAME']}"
-        if device == live_disk:
-            continue
-        if any(device.startswith(prefix) for prefix in ("/dev/loop", "/dev/sr", "/dev/ram", "/dev/zram")):
-            continue
-        disks.append(
-            {
-                "device": device,
-                "size": entry.get("SIZE", "unknown"),
-                "model": entry.get("MODEL", "disk"),
-                "removable": entry.get("RM", "0"),
-                "transport": entry.get("TRAN", ""),
-            }
-        )
-except Exception as exc:  # noqa: BLE001
-    disks = [{"device": "", "size": "", "model": f"lsblk failed: {exc}", "removable": "0", "transport": ""}]
-
-payload = {
-    "ok": True,
-    "preset": {
-        "preset_active": preset_active == "1",
-        "vm_name": vm_name,
-        "profile_name": profile_name,
-        "proxmox_host": proxmox_host,
-        "proxmox_node": proxmox_node,
-        "proxmox_vmid": proxmox_vmid,
-        "moonlight_host": moonlight_host,
-        "moonlight_app": moonlight_app,
-        "default_mode": default_mode,
-        "available_modes": [name for name in ("MOONLIGHT", "SPICE", "NOVNC", "DCV") if mode_available(name)],
-    },
-    "debug": {
-        "preset_active": preset_active == "1",
-        "live_medium_default": live_medium_default,
-        "live_medium": live_medium,
-        "live_asset_dir": live_asset_dir,
-        "preset_file": preset_file,
-        "preset_exists": bool(preset_file and os.path.isfile(preset_file)),
-        "log_file": log_file,
-        "log_exists": bool(log_file and os.path.isfile(log_file)),
-        "log_dir": log_dir,
-        "log_dir_exists": bool(log_dir and os.path.isdir(log_dir)),
-        "preset_source": preset_source,
-        "cached_preset_file": cached_preset_file,
-        "cached_preset_exists": bool(cached_preset_file and os.path.isfile(cached_preset_file)),
-        "cached_preset_source": cached_preset_source,
-        "live_disk": live_disk,
-        "log_session_id": log_session_id,
-    },
-    "disks": disks,
-    "log_dir": log_dir,
-}
-print(json.dumps(payload, indent=2))
-PY
+  python3 "$PRESET_SUMMARY_HELPER" ui-state-json \
+    --preset-active "$PRESET_ACTIVE" \
+    --vm-name "${PVE_THIN_CLIENT_PRESET_VM_NAME:-}" \
+    --profile-name "${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-}" \
+    --proxmox-host "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" \
+    --proxmox-node "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" \
+    --proxmox-vmid "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" \
+    --spice-url "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" \
+    --proxmox-username "${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}" \
+    --proxmox-password "${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}" \
+    --spice-username "${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-}" \
+    --spice-password "${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-}" \
+    --novnc-url "${PVE_THIN_CLIENT_PRESET_NOVNC_URL:-}" \
+    --dcv-url "${PVE_THIN_CLIENT_PRESET_DCV_URL:-}" \
+    --moonlight-host "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" \
+    --default-mode "${PVE_THIN_CLIENT_PRESET_DEFAULT_MODE:-}" \
+    --moonlight-app "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP:-Desktop}" \
+    --live-medium-default "$LIVE_MEDIUM_DEFAULT" \
+    --live-medium "$LIVE_MEDIUM" \
+    --live-asset-dir "$LIVE_ASSET_DIR" \
+    --preset-file "$PRESET_FILE" \
+    --log-file "$LOG_FILE" \
+    --log-dir "$LOG_DIR" \
+    --preset-source "$PRESET_SOURCE" \
+    --cached-preset-file "$CACHED_PRESET_FILE" \
+    --cached-preset-source "$(cached_preset_source)" \
+    --live-disk "$live_disk" \
+    --log-session-id "$LOG_SESSION_ID"
 }
 
 choose_streaming_mode_from_preset() {
