@@ -739,7 +739,7 @@ These flows now go through a provider-facing helper seam first:
 - `scripts/refresh-host-artifacts.sh` and `scripts/check-beagle-host.sh` now run under the same selected host-provider kind
 - `scripts/install-beagle-proxy.sh` now reads and persists the selected host-provider kind too, even though backend auto-detection still expects Proxmox semantics today
 - `scripts/install-proxmox-ui-integration.sh` now reads the selected host-provider kind and skips cleanly when it is not `proxmox`
-- the server-installer bootstrap now passes `BEAGLE_HOST_PROVIDER='proxmox'` explicitly into `install-beagle-host.sh`
+- the server-installer now normalizes `BEAGLE_SERVER_HOST_PROVIDER`, dispatches repo wiring and package installation through explicit provider helpers, and passes the selected provider explicitly into `install-beagle-host.sh`
 - this does not make Proxmox optional yet, but it removes another hidden assumption that provider choice only exists inside the Python control-plane process
 
 ### Thin-client Proxmox access

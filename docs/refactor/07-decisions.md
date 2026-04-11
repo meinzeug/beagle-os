@@ -880,6 +880,17 @@ Reason:
 
 - The generic host installer still leaked Proxmox naming through its immediate next hop even after the outer install/setup/check commands were renamed. Renaming this seam now removes another unnecessary architecture hint from the operator path without pretending the underlying service/runtime deployment is already provider-neutral.
 
+### D138. The server-installer must gain provider-dispatch seams before Proxmox packages can become optional
+
+Decision:
+
+- Add explicit provider dispatch helpers inside `beagle-server-installer` for host-provider normalization, apt-source wiring, package installation, and the final Beagle host bootstrap handoff.
+- Keep `proxmox` as the only implemented branch for now and fail explicitly for other provider kinds until their installer branches exist.
+
+Reason:
+
+- A future non-Proxmox server ISO cannot be introduced safely while repo setup, package installation, and the chroot handoff still live as one Proxmox-only inline block. The correct intermediate state is an explicit provider seam with one concrete implementation, not another round of duplicated inline logic.
+
 ### D75. Hosted download preparation should move behind a dedicated helper and reuse the endpoint profile contract for overlapping VM installer metadata
 
 Decision:
