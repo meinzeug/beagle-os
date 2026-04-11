@@ -2,13 +2,13 @@
   "use strict";
 
   var API_TOKEN_STORAGE_KEY = "beagle.proxmoxUi.apiToken";
-  var apiTokenStorage = null;
+  var browserCommon = window.BeagleBrowserCommon;
+  var apiTokenStore = null;
 
-  try {
-    apiTokenStorage = window.sessionStorage;
-  } catch (error) {
-    apiTokenStorage = null;
+  if (!browserCommon) {
+    throw new Error("BeagleBrowserCommon must be loaded before BeagleUiCommon");
   }
+  apiTokenStore = browserCommon.createSessionTokenStore(API_TOKEN_STORAGE_KEY);
 
   function defaultUsbInstallerUrl() {
     return "https://{host}:8443/beagle-api/api/v1/vms/{vmid}/installer.sh";
@@ -38,36 +38,15 @@
   }
 
   function readStoredApiToken() {
-    if (!apiTokenStorage) {
-      return "";
-    }
-    try {
-      return String(apiTokenStorage.getItem(API_TOKEN_STORAGE_KEY) || "").trim();
-    } catch (error) {
-      return "";
-    }
+    return apiTokenStore.read();
   }
 
   function writeStoredApiToken(token) {
-    if (!apiTokenStorage) {
-      return;
-    }
-    try {
-      apiTokenStorage.setItem(API_TOKEN_STORAGE_KEY, String(token || "").trim());
-    } catch (error) {
-      /* ignore storage failures */
-    }
+    apiTokenStore.write(token);
   }
 
   function clearStoredApiToken() {
-    if (!apiTokenStorage) {
-      return;
-    }
-    try {
-      apiTokenStorage.removeItem(API_TOKEN_STORAGE_KEY);
-    } catch (error) {
-      /* ignore storage failures */
-    }
+    apiTokenStore.clear();
   }
 
   function configuredApiToken() {
@@ -90,10 +69,7 @@
   }
 
   function fillTemplate(template, values) {
-    return String(template || "")
-      .replaceAll("{node}", values.node || "")
-      .replaceAll("{vmid}", String(values.vmid || ""))
-      .replaceAll("{host}", values.host || "");
+    return browserCommon.fillTemplate(template, values);
   }
 
   function resolveUsbInstallerUrl(ctx) {
@@ -113,17 +89,7 @@
   }
 
   function withNoCache(url) {
-    if (!url) {
-      return url;
-    }
-    try {
-      var parsed = new URL(url, window.location.origin);
-      parsed.searchParams.set("_beagle_ts", String(Date.now()));
-      return parsed.toString();
-    } catch (error) {
-      var separator = String(url).indexOf("?") === -1 ? "?" : "&";
-      return String(url) + separator + "_beagle_ts=" + Date.now();
-    }
+    return browserCommon.withNoCache(url);
   }
 
   function resolveControlPlaneHealthUrl() {
@@ -139,30 +105,23 @@
   }
 
   function managerUrlFromHealthUrl(healthUrl) {
-    return String(healthUrl || "").replace(/\/api\/v1\/health\/?$/, "");
+    return browserCommon.managerUrlFromHealthUrl(healthUrl);
   }
 
   function normalizeBeagleApiPath(path) {
-    var value = String(path || "").trim() || "/";
-    if (value.indexOf("/beagle-api/") === 0) {
-      return value.slice("/beagle-api".length);
-    }
-    return value;
+    return browserCommon.normalizeBeagleApiPath(path);
   }
 
   function resolveBeagleApiUrl(path) {
-    var base = managerUrlFromHealthUrl(resolveControlPlaneHealthUrl());
-    var normalizedPath = normalizeBeagleApiPath(path);
-    if (!base) {
-      return normalizedPath;
-    }
-    if (normalizedPath.indexOf("/") !== 0) {
-      normalizedPath = "/" + normalizedPath;
-    }
-    return String(base).replace(/\/$/, "") + normalizedPath;
+    return browserCommon.joinBaseAndPath(managerUrlFromHealthUrl(resolveControlPlaneHealthUrl()), path);
+  }
+
+  function appendHashToken(url, token) {
+    return browserCommon.appendHashToken(url, token, "beagle_token");
   }
 
   window.BeagleUiCommon = {
+    appendHashToken: appendHashToken,
     getConfig: getConfig,
     readStoredApiToken: readStoredApiToken,
     writeStoredApiToken: writeStoredApiToken,

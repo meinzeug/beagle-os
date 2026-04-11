@@ -1,35 +1,25 @@
 (function () {
   'use strict';
 
+  var browserCommon = window.BeagleBrowserCommon;
   var config = window.BEAGLE_WEB_UI_CONFIG || {};
-  var tokenStorage = (function () {
-    try {
-      var storage = window.sessionStorage;
-      storage.setItem('beagle.webUi.storageProbe', '1');
-      storage.removeItem('beagle.webUi.storageProbe');
-      return storage;
-    } catch (error) {
-      void error;
-      return null;
-    }
-  }());
+  var tokenStore = null;
+
+  if (!browserCommon) {
+    throw new Error('BeagleBrowserCommon must be loaded before website/app.js');
+  }
+  tokenStore = browserCommon.createSessionTokenStore('beagle.webUi.apiToken');
 
   function readStoredToken() {
-    return tokenStorage ? (tokenStorage.getItem('beagle.webUi.apiToken') || '') : '';
+    return tokenStore.read();
   }
 
   function writeStoredToken(token) {
-    if (!tokenStorage) {
-      return;
-    }
-    tokenStorage.setItem('beagle.webUi.apiToken', token);
+    tokenStore.write(token);
   }
 
   function clearStoredToken() {
-    if (!tokenStorage) {
-      return;
-    }
-    tokenStorage.removeItem('beagle.webUi.apiToken');
+    tokenStore.clear();
   }
 
   var state = {

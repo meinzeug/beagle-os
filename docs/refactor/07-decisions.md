@@ -627,3 +627,26 @@ Decision:
 Reason:
 
 - Several scripts had already started to repeat the same raw `pvesh` and `qm guest cmd` calls inside inline Python blocks. Migrating every script independently would hard-code Proxmox deeper into shell/runtime surfaces. A shared helper gives the script layer one place to evolve toward a second provider or a mock backend without rewriting each script separately.
+
+### D57. Browser-wide token/template/API helpers belong in one shared browser module
+
+Decision:
+
+- Introduce `core/platform/browser-common.js` as the shared browser utility seam for the Proxmox UI, browser extension, and website surfaces.
+- Move repeated session-token store creation, URL template filling, cache-busting URL decoration, manager-URL derivation, Beagle-API path normalization, base/path joining, and `beagle_token` hash injection behind that shared module.
+- Keep surface-specific config/default lookup in the existing entry modules, but stop recreating the same generic browser helper logic in each surface.
+
+Reason:
+
+- After the Proxmox UI entrypoint shrank, the next browser-side duplication hotspot was no longer rendering but repeated token/template/API helper code across `proxmox-ui/beagle-ui-common.js`, `extension/common.js`, and `website/app.js`. Leaving that duplication in place would keep three browser surfaces drifting independently on the same runtime contract.
+
+### D58. Proxy-installer backend detection should use the shared script provider read seam
+
+Decision:
+
+- Move `scripts/install-beagle-proxy.sh` backend-detection reads for guest interfaces, VM descriptions/config, and VM enumeration behind `scripts/lib/beagle_provider.py`.
+- Keep the migration read-only for now and leave write/mutation flows for a later helper expansion.
+
+Reason:
+
+- `install-beagle-proxy.sh` had become another place where raw `qm` reads would spread Proxmox assumptions through installer/runtime surfaces. Using the shared script helper keeps backend auto-detection on the same provider-facing seam already adopted by the other migrated scripts.
