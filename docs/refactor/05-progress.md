@@ -2,6 +2,19 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — runtime SSH service-config helper extraction
+
+- Removed the remaining managed SSH config/service-validation block from `thin-client-assistant/runtime/runtime_bootstrap_services.sh`:
+  - added `thin-client-assistant/runtime/runtime_ssh_service_config.sh` for `sshd` binary/service/config accessors, managed-block markers, managed-block stripping, validated `sshd` restart/start helpers, and `apply_runtime_ssh_config()`
+  - `thin-client-assistant/runtime/runtime_bootstrap_services.sh` now sources that helper instead of carrying managed SSH config rewriting and `sshd` validation/restart logic inline
+- This completes the main reduction of the old bootstrap helper:
+  - `thin-client-assistant/runtime/runtime_bootstrap_services.sh` dropped further to about `32` lines
+  - the remaining file is now just the stable `ensure_runtime_ssh_host_keys()` orchestration wrapper over the extracted SSH host-key and SSH service-config helpers
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/runtime/runtime_bootstrap_services.sh thin-client-assistant/runtime/runtime_ssh_service_config.sh thin-client-assistant/runtime/runtime_ssh_host_keys.sh thin-client-assistant/runtime/runtime_systemd_bootstrap.sh thin-client-assistant/runtime/common.sh`
+  - focused smoke test for `apply_runtime_ssh_config()` with stubbed `sshd` and `systemctl`
+  - focused smoke test for the unchanged `ensure_runtime_ssh_host_keys()` wrapper with stubbed `sshd`, `systemctl`, and `ssh-keygen`
+
 ### 2026-04-11 — runtime SSH host-key helper extraction
 
 - Removed the persistent SSH host-key block from `thin-client-assistant/runtime/runtime_bootstrap_services.sh`:
