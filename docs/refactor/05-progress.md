@@ -2,6 +2,23 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — download/artifact metadata extraction
+
+- Extracted the download/artifact metadata helper block out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/download_metadata.py`:
+  - `DownloadMetadataService` now owns `public_installer_iso_url`, `public_windows_installer_url`, `public_update_sha256sums_url`, `public_versioned_payload_url`, `public_versioned_bootstrap_url`, `public_payload_latest_download_url`, `public_bootstrap_latest_download_url`, `public_latest_payload_url`, `public_latest_bootstrap_url`, `url_host_matches`, `checksum_for_dist_filename`, and `update_payload_metadata`
+  - the control-plane helper names stay stable as thin wrappers, so handler-local and service-local call sites did not need to change signature
+- Wired the new service into the already extracted host services:
+  - `VmProfileService` now receives `public_installer_iso_url` directly from `download_metadata_service()`
+  - `UpdateFeedService` now receives `update_payload_metadata` and `public_update_sha256sums_url` directly from `download_metadata_service()`
+  - `FleetInventoryService` and `InstallerScriptService` now receive their installer/payload/bootstrap URL helpers from `download_metadata_service()` instead of from inline control-plane helpers
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/download_metadata.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - versioned payload SHA256 comes from `SHA256SUMS` when present
+  - latest payload SHA256 falls back to `beagle-downloads-status.json` when the current version is not yet present in `SHA256SUMS`
+  - payload pinned-pubkey emission still depends on host matching against `PUBLIC_MANAGER_URL`
+  - latest bootstrap URL still honors the explicit `bootstrap_url` override from `beagle-downloads-status.json`
+- `beagle-control-plane.py` dropped from about `5098` to about `5072` lines with this slice, and the host-side extracted-service count moved from 13 to 14
+
 ### 2026-04-11 — sunshine-access-token and endpoint-token store extraction
 
 - Extracted the sunshine-access-token persistence and validity helpers out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/sunshine_access_token_store.py`:
@@ -12,7 +29,7 @@
   - `endpoint_tokens_dir`, `endpoint_token_path`, `store_endpoint_token`, and `load_endpoint_token` in the control plane now delegate through `endpoint_token_store_service()`; endpoint enrollment and token rotation flows keep working without signature changes because the service preserves the legacy `token_issued_at` stamping contract
 - `scripts/install-proxmox-host-services.sh` installs both new service files into `$HOST_RUNTIME_DIR/services/`
 - Verified the live control-plane module still imports cleanly with `BEAGLE_MANAGER_DATA_DIR=/tmp/beagle-smoketest` and round-trips through both services: the token paths match the sha256 hex digest for both stores, `sunshine_access_token_is_valid` returns `False` for `None`/past expiry and `True` for a future expiry, and `store_endpoint_token({'endpoint_id':'ep-1','scope':'read'})` stamps `token_issued_at` and round-trips through `load_endpoint_token`
-- `beagle-control-plane.py` grew slightly (5086 → 5098 lines) because the two lazy factories add more lines than the short helper bodies they replaced — this slice is about the architectural seam, not line count
+- `beagle-control-plane.py` grew slightly (5086 → 5098 lines) for that slice because the two lazy factories add more lines than the short helper bodies they replaced — a later slice reduced it again to about 5072 after the download/artifact metadata helpers moved behind `DownloadMetadataService`
 
 ### 2026-04-11 — vm-secret and enrollment-token store extraction
 

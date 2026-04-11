@@ -344,3 +344,14 @@ Decision:
 Reason:
 
 - The control-plane entrypoint still owned multiple large response-builder blocks (update feed, fleet inventory, health payload, installer preset, endpoint report summarization) that were business logic, not HTTP plumbing. Extracting them one at a time keeps the migration reviewable, mirrors the pattern already proven by `VmProfileService`/`VmStateService`, and gives tests and future providers a stable DI seam without forcing every HTTP handler to change during the slice.
+
+### D33. Public download/artifact URL and checksum shaping should be one host service
+
+Decision:
+
+- Move the public artifact URL helpers, latest-download resolution, SHA256 lookup, and `update_payload_metadata()` into `beagle-host/services/download_metadata.py`.
+- Keep the old helper names in `beagle-host/bin/beagle-control-plane.py` as thin wrappers so existing handler/service call signatures stay stable while other extracted services are rewired to the new singleton gradually.
+
+Reason:
+
+- The update-feed, installer-script, fleet-inventory, and VM-profile services all depended on the same small cluster of public artifact helpers. Leaving those helpers inline in the control plane would keep a shared business rule block duplicated via wrapper injection instead of via one service seam. Extracting them creates a reusable host-side source of truth for public download URLs and checksums before the remaining credential/bootstrap logic is tackled.
