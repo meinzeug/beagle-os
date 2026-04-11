@@ -69,6 +69,8 @@ Long-term target:
   - host-side ubuntu-beagle provisioning/lifecycle service that composes provider-backed VM lifecycle operations, autoinstall artifact generation, provisioning state, and guest reconfiguration without leaving that orchestration in the HTTP entrypoint
 - `beagle-host/services/sunshine_integration.py`
   - host-side Sunshine/Moonlight integration service that composes provider-backed guest execution, VM-secret credentials, profile/config lookup, access-ticket persistence, TLS pinned-pubkey retrieval, and authenticated Sunshine HTTP proxying without leaving that orchestration in the HTTP entrypoint
+- `beagle-host/services/public_streams.py`
+  - host-side public-stream mapping and port-allocation service that composes provider-backed VM/config lookup plus persistent mapping state without leaving that orchestration in the HTTP entrypoint
 - `beagle-host/providers/proxmox_host_provider.py`
   - `pvesh get /cluster/resources`
   - `pvesh get /nodes`
@@ -237,6 +239,18 @@ Current host-side contract:
 - `resolve_ticket_vm(path)`
 - `sunshine_proxy_ticket_url(token)`
 - `proxy_sunshine_request(vm, request_path=..., query=..., method=..., body=..., request_headers=...)`
+
+### `beagle-host/services/public_streams.py`
+
+Current host-side contract:
+
+- `public_streams_file()`
+- `load_public_streams()`
+- `save_public_streams(payload)`
+- `public_stream_key(node, vmid)`
+- `explicit_public_stream_base_port(config)`
+- `used_public_stream_base_ports(mappings, exclude_key="", sync_mappings=False)`
+- `allocate_public_stream_base_port(node, vmid)`
 
 ### `core/virtualization/service.js`
 
@@ -421,6 +435,7 @@ These flows now go through provider-backed services first:
 - guest USB attach/detach orchestration, usbip/vhci parsing, and tunnel-state shaping through `beagle-host/services/vm_usb.py`
 - ubuntu-beagle provisioning catalog assembly, ISO/seed artifact generation, VM create/update/finalize flows, and firstboot restart orchestration through `beagle-host/services/ubuntu_beagle_provisioning.py`
 - Sunshine pinned-pubkey retrieval, Moonlight certificate registration, Sunshine server identity discovery, access-ticket issuance/resolution, and Sunshine HTTP proxying through `beagle-host/services/sunshine_integration.py`
+- public-stream mapping persistence, explicit-port sync, stale-entry cleanup, and next-free base-port allocation through `beagle-host/services/public_streams.py`
 - VM lifecycle writes, guest-exec flows, delayed restart scheduling, storage inventory, and next-VMID allocation through the selected host provider, currently `beagle-host/providers/proxmox_host_provider.py`
 - browser-/installer-facing endpoint profile payload normalization through `beagle-host/bin/endpoint_profile_contract.py`
 
@@ -441,6 +456,7 @@ These flows now go through provider-backed services first:
 - `beagle-host/providers/registry.py` makes provider selection real at bootstrap time, but the registry still only exposes one concrete implementation today. Provider selection is no longer hard-coded in the control-plane import graph, yet provider diversity is still unfinished work.
 - `beagle-host/services/ubuntu_beagle_provisioning.py` removed the ubuntu-beagle lifecycle block from the entrypoint, but it still uses today's Proxmox-shaped VM option semantics and `scripts/configure-sunshine-guest.sh --proxmox-host localhost` path under the new service seam.
 - `beagle-host/services/sunshine_integration.py` removed the Sunshine/Moonlight block from the entrypoint, but it still depends on Sunshine-specific guest file paths/state layout, Sunshine HTTP/API semantics, `curl`/`openssl` behavior, and current Moonlight certificate-registration conventions under the new service seam.
+- `beagle-host/services/public_streams.py` removed port-state/orchestration from the entrypoint, but it still interprets today's description-meta keys (`beagle-public-moonlight-port`) and VM inventory/config semantics through provider-backed reads under the new service seam.
 
 ### Script surfaces
 

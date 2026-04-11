@@ -2,6 +2,24 @@
 
 ## 2026-04-09
 
+### 2026-04-11 — public-stream allocation and state extraction
+
+- Extracted the public-stream port-state/allocation cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/public_streams.py`:
+  - `PublicStreamService` now owns `public_streams_file`, `load_public_streams`, `save_public_streams`, `public_stream_key`, `explicit_public_stream_base_port`, `used_public_stream_base_ports`, and `allocate_public_stream_base_port`
+  - the control-plane helper names stay stable as thin wrappers, so `VmProfileService` and `UbuntuBeagleProvisioningService` kept their existing collaborator signatures and did not need behavioral changes
+- Kept the port-allocation seam explicit instead of leaving it in the HTTP entrypoint:
+  - persistent mapping I/O still goes through the existing JSON helpers
+  - VM/config inspection still goes through provider-backed `list_vms()` and `get_vm_config()`
+  - host availability gating still comes from `current_public_stream_host()`
+  - the new service only owns mapping normalization, stale-entry cleanup, explicit-port syncing, and next-free-port selection between those seams
+- `scripts/install-proxmox-host-services.sh` now installs `beagle-host/services/public_streams.py` into `$HOST_RUNTIME_DIR/services/`
+- Smoke-tested the new service outside the server loop:
+  - explicit `beagle-public-moonlight-port` values still override stored mappings and persist back to disk
+  - stale mapping keys are still removed during sync
+  - automatic allocation still chooses the next free stepped base port and persists it
+  - disabled public-stream hosts still short-circuit allocation with `None`
+- `beagle-control-plane.py` dropped from `3651` to `3614` lines with this slice, and the host-side extracted-service count moved from 19 to 20
+
 ### 2026-04-11 — Sunshine/Moonlight guest integration and proxy extraction
 
 - Extracted the Sunshine/Moonlight guest-integration cluster out of `beagle-host/bin/beagle-control-plane.py` into `beagle-host/services/sunshine_integration.py`:

@@ -43,6 +43,7 @@ from host_provider_contract import HostProvider
 from installer_prep import InstallerPrepService
 from installer_script import InstallerScriptService
 from policy_store import PolicyStoreService
+from public_streams import PublicStreamService
 from registry import create_provider, list_providers, normalize_provider_kind
 from sunshine_access_token_store import SunshineAccessTokenStoreService
 from sunshine_integration import SunshineIntegrationService
@@ -557,6 +558,7 @@ INSTALLER_SCRIPT_SERVICE: InstallerScriptService | None = None
 ENDPOINT_REPORT_SERVICE: EndpointReportService | None = None
 ACTION_QUEUE_SERVICE: ActionQueueService | None = None
 POLICY_STORE_SERVICE: PolicyStoreService | None = None
+PUBLIC_STREAM_SERVICE: PublicStreamService | None = None
 SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
 UBUNTU_BEAGLE_STATE_SERVICE: UbuntuBeagleStateService | None = None
 UBUNTU_BEAGLE_PROVISIONING_SERVICE: UbuntuBeagleProvisioningService | None = None
@@ -595,6 +597,25 @@ def policies_dir() -> Path:
     path.mkdir(parents=True, exist_ok=True)
     os.chmod(path, 0o700)
     return path
+
+
+def public_stream_service() -> PublicStreamService:
+    global PUBLIC_STREAM_SERVICE
+    if PUBLIC_STREAM_SERVICE is None:
+        PUBLIC_STREAM_SERVICE = PublicStreamService(
+            current_public_stream_host=current_public_stream_host,
+            data_dir=lambda: EFFECTIVE_DATA_DIR,
+            get_vm_config=get_vm_config,
+            list_vms=lambda: list_vms(),
+            load_json_file=load_json_file,
+            parse_description_meta=parse_description_meta,
+            public_stream_base_port=PUBLIC_STREAM_BASE_PORT,
+            public_stream_port_count=PUBLIC_STREAM_PORT_COUNT,
+            public_stream_port_step=PUBLIC_STREAM_PORT_STEP,
+            safe_slug=safe_slug,
+            write_json_file=write_json_file,
+        )
+    return PUBLIC_STREAM_SERVICE
 
 
 def vm_secret_store_service() -> VmSecretStoreService:
@@ -1149,37 +1170,23 @@ DEFAULT_PROXMOX_TOKEN = (
 
 
 def public_streams_file() -> Path:
-    return EFFECTIVE_DATA_DIR / "public-streams.json"
+    return public_stream_service().public_streams_file()
 
 
 def load_public_streams() -> dict[str, int]:
-    payload = load_json_file(public_streams_file(), {})
-    if not isinstance(payload, dict):
-        return {}
-    streams: dict[str, int] = {}
-    for key, value in payload.items():
-        try:
-            streams[str(key)] = int(value)
-        except (TypeError, ValueError):
-            continue
-    return streams
+    return public_stream_service().load_public_streams()
 
 
 def save_public_streams(payload: dict[str, int]) -> None:
-    write_json_file(public_streams_file(), payload, mode=0o600)
+    public_stream_service().save_public_streams(payload)
 
 
 def public_stream_key(node: str, vmid: int) -> str:
-    return f"{safe_slug(node, 'node')}:{int(vmid)}"
+    return public_stream_service().public_stream_key(node, vmid)
 
 
 def explicit_public_stream_base_port(config: dict[str, Any] | None) -> int | None:
-    vm_config = config if isinstance(config, dict) else {}
-    meta = parse_description_meta(vm_config.get("description", ""))
-    explicit_port = str(meta.get("beagle-public-moonlight-port", "")).strip()
-    if explicit_port.isdigit():
-        return int(explicit_port)
-    return None
+    return public_stream_service().explicit_public_stream_base_port(config)
 
 
 def used_public_stream_base_ports(
@@ -1188,59 +1195,15 @@ def used_public_stream_base_ports(
     exclude_key: str = "",
     sync_mappings: bool = False,
 ) -> tuple[set[int], bool]:
-    used = {int(value) for key, value in mappings.items() if key != exclude_key}
-    changed = False
-    known_keys: set[str] = set()
-    for vm in list_vms():
-        key = public_stream_key(vm.node, vm.vmid)
-        known_keys.add(key)
-        if key == exclude_key:
-            continue
-        explicit_port = explicit_public_stream_base_port(get_vm_config(vm.node, vm.vmid))
-        if explicit_port is not None:
-            used.add(explicit_port)
-            if sync_mappings and mappings.get(key) != explicit_port:
-                mappings[key] = explicit_port
-                changed = True
-                continue
-        if key in mappings:
-            used.add(int(mappings[key]))
-    if sync_mappings:
-        stale_keys = [key for key in mappings if key != exclude_key and key not in known_keys]
-        for key in stale_keys:
-            mappings.pop(key, None)
-            changed = True
-    return used, changed
+    return public_stream_service().used_public_stream_base_ports(
+        mappings,
+        exclude_key=exclude_key,
+        sync_mappings=sync_mappings,
+    )
 
 
 def allocate_public_stream_base_port(node: str, vmid: int) -> int | None:
-    if not current_public_stream_host():
-        return None
-    mappings = load_public_streams()
-    key = public_stream_key(node, vmid)
-    explicit_port = explicit_public_stream_base_port(get_vm_config(node, vmid))
-    changed = False
-    if explicit_port is not None and mappings.get(key) != explicit_port:
-        mappings[key] = explicit_port
-        changed = True
-    existing = explicit_port if explicit_port is not None else mappings.get(key)
-    if existing is not None:
-        _, sync_changed = used_public_stream_base_ports(mappings, exclude_key=key, sync_mappings=True)
-        if changed or sync_changed:
-            save_public_streams(mappings)
-        return int(existing)
-    used, sync_changed = used_public_stream_base_ports(mappings, exclude_key=key, sync_mappings=True)
-    changed = changed or sync_changed
-    upper_bound = PUBLIC_STREAM_BASE_PORT + (PUBLIC_STREAM_PORT_STEP * PUBLIC_STREAM_PORT_COUNT)
-    for candidate in range(PUBLIC_STREAM_BASE_PORT, upper_bound, PUBLIC_STREAM_PORT_STEP):
-        if candidate in used:
-            continue
-        mappings[key] = candidate
-        save_public_streams(mappings)
-        return candidate
-    if changed:
-        save_public_streams(mappings)
-    return None
+    return public_stream_service().allocate_public_stream_base_port(node, vmid)
 
 
 def stream_ports(base_port: int) -> dict[str, int]:

@@ -159,6 +159,7 @@ install -m 0644 "$ROOT_DIR/beagle-host/services/installer_script.py" "$HOST_RUNT
 install -m 0644 "$ROOT_DIR/beagle-host/services/endpoint_report.py" "$HOST_RUNTIME_DIR/services/endpoint_report.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/action_queue.py" "$HOST_RUNTIME_DIR/services/action_queue.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/policy_store.py" "$HOST_RUNTIME_DIR/services/policy_store.py"
+install -m 0644 "$ROOT_DIR/beagle-host/services/public_streams.py" "$HOST_RUNTIME_DIR/services/public_streams.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/support_bundle_store.py" "$HOST_RUNTIME_DIR/services/support_bundle_store.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/vm_usb.py" "$HOST_RUNTIME_DIR/services/vm_usb.py"
 install -m 0644 "$ROOT_DIR/beagle-host/services/ubuntu_beagle_provisioning.py" "$HOST_RUNTIME_DIR/services/ubuntu_beagle_provisioning.py"
