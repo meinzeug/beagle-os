@@ -9,6 +9,8 @@ Long-term target:
 - Beagle should gain its own first-party virtualization path/provider over time.
 - Proxmox should remain supported, but only as one optional provider among several.
 - The abstraction work in this file therefore exists to make Proxmox replaceable and to make a Beagle-owned provider possible.
+- The target bare-metal installer must therefore support both `Beagle OS standalone` and `Beagle OS with Proxmox`, with provider choice explicit instead of encoded in package assumptions.
+- The target operator UI must be a Beagle Web Console that can run with the Beagle provider or optional external providers; the current Proxmox UI integration is not the end-state control surface.
 
 ## Target End State
 
@@ -16,6 +18,8 @@ Long-term target:
 - a future `providers/beagle/` implements the same contracts for a Beagle-owned virtualization path
 - UI, control plane, provisioning, installer, fleet, and thin-client flows bind to provider-neutral services first
 - disabling Proxmox must not invalidate the Beagle core architecture
+- the server installer ISO exposes `standalone` and `with Proxmox` as two explicit install choices over the same Beagle host/control-plane architecture
+- the Beagle Web Console becomes the long-term host/operator UI instead of `proxmox-ui/`
 
 ## Proxmox Couplings Found
 
@@ -43,6 +47,7 @@ Long-term target:
   - provider-neutral provisioning flow orchestrator for catalog/state fetches plus create/result modal wiring
 - `proxmox-ui/components/extjs-integration.js`
   - Proxmox ExtJS console/menu/toolbar/create-VM integration and the runtime `integrate()` loop
+- no dedicated `beagle-web/` or equivalent Beagle Web Console module exists yet, which means the current browser-side refactor still improves a transition UI more than it advances the final operator UI
 - `proxmox-ui/components/provisioning-result-modal.js`
   - provider-neutral provisioning result window and badge renderer
 - `proxmox-ui/components/provisioning-create-modal.js`
@@ -136,6 +141,7 @@ Coupling forms:
 - `qm`
 - `pvesh`
 - Proxmox package/repository assumptions
+- missing explicit installer mode split between `Beagle OS standalone` and `Beagle OS with Proxmox`
 
 ### Thin client
 
@@ -791,6 +797,7 @@ Known gaps in the new skeleton:
 - there is still no provider-neutral browser HTTP surface for nodes/hosts, guest interfaces, or full VM config, so the browser-side Beagle provider currently derives nodes from VM inventory, synthesizes a small config object, and returns an empty guest-interface list
 - the state-backed host skeleton is not yet a compute/runtime backend; it is a contract and state-layout scaffold
 - deploy/install/runtime surfaces still contain remaining Proxmox-only behavior outside the provider registry even though the registry now has a second concrete implementation
+- the standalone-Beagle installer branch and the future Beagle Web Console are still planned targets, not implemented surfaces
 
 ## Migration Rule
 

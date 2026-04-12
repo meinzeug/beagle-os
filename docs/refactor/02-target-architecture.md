@@ -8,6 +8,13 @@ Proxmox remains the first supported runtime provider, but it must no longer be t
 
 The long-term target is not merely "support more than one external provider". The long-term target is a first-party Beagle virtualization stack, with Proxmox and future third-party backends reduced to optional providers behind the same contracts. Provider-neutrality is therefore a migration strategy toward Beagle-owned virtualization, not the end state by itself.
 
+The target install surface for new servers is a Beagle-owned bare-metal installer ISO with two explicit modes:
+
+- `Beagle OS standalone`
+- `Beagle OS with Proxmox`
+
+Both modes must converge on the same generic Beagle host/control-plane architecture. Proxmox integration is an optional install branch, not the defining architecture.
+
 ## Provider Abstraction Layer
 
 New cross-surface seams introduced incrementally:
@@ -85,6 +92,23 @@ Rules:
 - do not block current refactor work on implementing the first-party provider immediately
 - but cut today's seams so a first-party provider can be added without reworking every business flow again
 
+### 0b. Beagle Server Installer Modes
+
+Target install modes:
+
+- `Beagle OS standalone`
+  - installs Beagle host runtime and Beagle virtualization components directly on bare metal
+  - no Proxmox packages, UI, or repositories required
+- `Beagle OS with Proxmox`
+  - installs Beagle host runtime plus the Proxmox provider/integration path
+  - keeps today's compatibility path for operators who still want Proxmox underneath
+
+Rules:
+
+- both install modes must share one top-level installer flow and one host bootstrap contract
+- provider selection must happen explicitly during install, not implicitly through package layout
+- all post-install bootstrap logic must route through `beagle-host/providers/registry.py`
+
 ### 1. Beagle Host / Control Plane
 
 Current root:
@@ -124,6 +148,26 @@ Public contracts to stabilize:
 - installer rendering endpoints
 - generated VM profile payloads
 
+### 1b. Beagle Web Console / Host UI
+
+Target root:
+
+- `beagle-web/` or equivalent dedicated host UI surface introduced incrementally
+
+Responsibilities:
+
+- dashboard and host overview
+- node, VM, storage, and network inventory views
+- VM lifecycle actions and create/update flows
+- fleet, provisioning, installer, and artifact workflows
+- provider-neutral operator workflows against `beagle-host`
+
+Rules:
+
+- this is the long-term UI center
+- `proxmox-ui/` remains transitionary integration only
+- new durable browser-side business logic should target generic services reusable by the future Beagle Web Console first
+
 ### 2. Proxmox UI Integration
 
 Current root:
@@ -143,6 +187,7 @@ Rules:
 
 - preserve current behavior and DOM integration
 - keep the shipped runtime asset path stable while internals are extracted
+- treat this as a compatibility surface, not the permanent host UI
 
 ### 3. Thin Client Runtime
 
@@ -227,6 +272,7 @@ Responsibilities:
 - isolate build orchestration by artifact family
 - separate staging from publication
 - formalize artifact metadata inputs and outputs
+- produce a standalone-capable server installer ISO plus the optional Proxmox-enabled variant from one coherent build flow
 
 ### 6. Shared Core
 
@@ -254,6 +300,13 @@ Responsibilities:
 - isolate `/api2/json`, `PVE.*`, `qm`, `pvesh`, and Proxmox host assumptions behind explicit provider modules
 - allow future providers to plug into the same contracts without rewriting business logic
 - make room for a future first-party Beagle provider to become the preferred or default implementation
+
+Target provider set:
+
+- `providers/beagle/`
+  - preferred long-term provider for Beagle-owned virtualization and Beagle Web Console operation
+- `providers/proxmox/`
+  - optional compatibility provider
 
 ## Dependency Rules
 

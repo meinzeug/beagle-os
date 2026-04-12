@@ -1835,3 +1835,29 @@ Reason:
 - The next milestone was no longer another Proxmox abstraction note; it was the first real `providers/beagle/` skeleton. Reaching that milestone with another hidden Proxmox alias would preserve the exact failure mode we are trying to remove: a "second provider" that still only proves Proxmox-shaped assumptions.
 - A small state-backed provider gives the repo a real second contract consumer immediately. That lets future work harden the contract, tests, deploy paths, and provider selection semantics before the Beagle-owned compute/runtime backend exists.
 - The browser-side provider needs the same discipline. A narrow HTTP-backed skeleton is better than teaching a new browser provider to speak Proxmox directly just to satisfy the same interface.
+
+### D155. The server installer must expose standalone and Proxmox-backed Beagle installs as explicit first-class modes
+
+Decision:
+
+- Treat the target bare-metal installer as one Beagle Server Installer ISO with two explicit choices:
+  - `Beagle OS standalone`
+  - `Beagle OS with Proxmox`
+- Keep both branches converging on the same generic Beagle host bootstrap and provider-selection contract instead of treating standalone as an afterthought or Proxmox as the implicit default architecture.
+
+Reason:
+
+- The previous plan was directionally correct about "Proxmox becomes optional", but it still left too much room to converge on a polished Proxmox-centered install path with only abstract future notes for standalone Beagle.
+- Making the choice explicit in the architecture forces packaging, bootstrap, provider selection, and post-install assumptions to be designed for both paths now, while still preserving the current Proxmox compatibility path.
+
+### D156. The long-term host UI must be a Beagle Web Console, not an endlessly extended Proxmox integration
+
+Decision:
+
+- Treat `proxmox-ui/` as a transition and compatibility surface only.
+- Plan and build a dedicated Beagle Web Console as the long-term host/operator UI for standalone Beagle and optional-provider operation.
+
+Reason:
+
+- Without an explicit product/UI decision, the refactor can keep shrinking and cleaning `proxmox-ui/` forever while still leaving the product dependent on Proxmox as the practical control surface.
+- The repo already contains shared browser/provider/core seams that can support a dedicated host UI. Making that UI an explicit target prevents future browser work from being optimized only for ExtJS/Proxmox integration constraints.

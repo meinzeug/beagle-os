@@ -15,6 +15,7 @@
 | R9 | Packaging script orchestrates too many artifact families | Medium | Failures are harder to isolate and partial reruns are fragile | Split packaging into smaller phases and verify contracts | Open |
 | R10 | Kiosk main process still mixes config, catalog, store rules, and child-process supervision | Medium | Regressions in GFN launch/supervision or offline cache handling | Extract main-process services while preserving child-process model | Open |
 | R11 | Provider abstraction is incomplete and uneven across repo surfaces | High | New work may accidentally reintroduce direct Proxmox coupling outside approved provider seams | Enforce `core/*` + `providers/proxmox/*` boundaries, document remaining direct couplings, block new unmanaged Proxmox bindings in reviews | Open |
+| R12 | Refactor plan can converge on "clean Proxmox integration" without fully defining the standalone Beagle server/UI end state | High | Team lands in a provider-neutral transition architecture but still lacks a bare-metal Beagle install path and an own Web Console | Make standalone server ISO, Beagle Web Console, and Beagle provider/runtime explicit planning tracks with exit criteria | Open |
 
 ## Immediate Watch Items
 
