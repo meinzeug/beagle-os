@@ -20,4 +20,5 @@ locales
 parted
 sudo
 wget
+whiptail
 xz-utils
