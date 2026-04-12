@@ -53,6 +53,100 @@ PVE_THIN_CLIENT_PRESET_NAME="${PVE_THIN_CLIENT_PRESET_NAME:-}"
 PVE_THIN_CLIENT_PRESET_B64="${PVE_THIN_CLIENT_PRESET_B64:-}"
 GRUB_BACKGROUND_SRC="$REPO_ROOT/thin-client-assistant/usb/assets/grub-background.jpg"
 
+have_usb_writer_helpers() {
+  [[ -f "$REPO_ROOT/$USB_MANIFEST_HELPER_RELATIVE" ]] &&
+    [[ -f "$REPO_ROOT/$USB_WRITER_SOURCES_HELPER_RELATIVE" ]] &&
+    [[ -f "$REPO_ROOT/$USB_WRITER_BOOTSTRAP_HELPER_RELATIVE" ]] &&
+    [[ -f "$REPO_ROOT/$USB_WRITER_WRITE_STAGE_HELPER_RELATIVE" ]] &&
+    [[ -f "$REPO_ROOT/$USB_WRITER_DEVICE_SELECTION_HELPER_RELATIVE" ]]
+}
+
+allocate_helper_bootstrap_dir() {
+  local base=""
+  local candidate=""
+
+  for base in "${TMPDIR:-}" /var/tmp /tmp; do
+    [[ -n "$base" && -d "$base" && -w "$base" ]] || continue
+    candidate="$(mktemp -d "$base/pve-dcv-usb.XXXXXX" 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  mktemp -d
+}
+
+bootstrap_usb_writer_helpers() {
+  local bootstrap_url=""
+  local payload_name=""
+  local tarball=""
+  local extracted=""
+  local checksum_url=""
+  local checksum_file=""
+  local checksum_entry=""
+
+  have_usb_writer_helpers && return 0
+
+  command -v curl >/dev/null 2>&1 || {
+    echo "Missing required tool for standalone USB installer: curl" >&2
+    exit 1
+  }
+  command -v tar >/dev/null 2>&1 || {
+    echo "Missing required tool for standalone USB installer: tar" >&2
+    exit 1
+  }
+
+  bootstrap_url="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-}}"
+  [[ -n "$bootstrap_url" ]] || {
+    echo "Standalone USB installer is missing bundled helpers and has no RELEASE_BOOTSTRAP_URL." >&2
+    echo "Download the host-provided installer again or export RELEASE_BOOTSTRAP_URL manually." >&2
+    exit 1
+  }
+
+  BOOTSTRAP_DIR="$(allocate_helper_bootstrap_dir)"
+  extracted="$BOOTSTRAP_DIR/extracted"
+  mkdir -p "$extracted"
+  chmod 0755 "$BOOTSTRAP_DIR" "$extracted"
+
+  payload_name="$(basename "${bootstrap_url%%\?*}")"
+  [[ -n "$payload_name" ]] || payload_name="pve-thin-client-usb-bootstrap.tar.gz"
+  tarball="$BOOTSTRAP_DIR/$payload_name"
+
+  echo "Bootstrapping USB installer helpers from $bootstrap_url ..." >&2
+  curl --fail --show-error --location --retry 3 --retry-delay 2 "$bootstrap_url" -o "$tarball"
+
+  checksum_url="${bootstrap_url%/*}/SHA256SUMS"
+  checksum_file="$BOOTSTRAP_DIR/SHA256SUMS"
+  if curl --fail --silent --location --retry 2 --retry-delay 1 "$checksum_url" -o "$checksum_file" 2>/dev/null; then
+    checksum_entry="$BOOTSTRAP_DIR/payload.sha256"
+    if grep -F " ${payload_name}" "$checksum_file" >"$checksum_entry"; then
+      (
+        cd "$BOOTSTRAP_DIR"
+        sha256sum -c "$(basename "$checksum_entry")" >/dev/null
+      )
+    elif [[ "$REQUIRE_CHECKSUMS" == "1" ]]; then
+      echo "Checksum verification is required but SHA256SUMS has no entry for $payload_name." >&2
+      exit 1
+    fi
+  elif [[ "$REQUIRE_CHECKSUMS" == "1" ]]; then
+    echo "Checksum verification is required but SHA256SUMS could not be downloaded from $checksum_url." >&2
+    exit 1
+  fi
+
+  tar -xzf "$tarball" -C "$extracted"
+  REPO_ROOT="$extracted"
+  DIST_DIR="$REPO_ROOT/dist/pve-thin-client-installer"
+  ASSET_DIR="$DIST_DIR/live"
+  BOOTSTRAPPED_STANDALONE="1"
+  GRUB_BACKGROUND_SRC="$REPO_ROOT/thin-client-assistant/usb/assets/grub-background.jpg"
+
+  have_usb_writer_helpers || {
+    echo "Bootstrap bundle from $bootstrap_url does not contain the expected USB writer helpers." >&2
+    exit 1
+  }
+}
+
 project_version_from_root() {
   if [[ -f "$REPO_ROOT/VERSION" ]]; then
     tr -d ' \n\r' < "$REPO_ROOT/VERSION"
@@ -62,6 +156,7 @@ project_version_from_root() {
   printf 'dev\n'
 }
 
+bootstrap_usb_writer_helpers
 PROJECT_VERSION="$(project_version_from_root)"
 
 usb_manifest_helper() {

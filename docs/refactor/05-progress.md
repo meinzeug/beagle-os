@@ -1938,6 +1938,11 @@
   - rewired `thin-client-assistant/runtime/moonlight_pairing.sh` to source the new helper and keep only pairing/recovery flow plus a small `start_moonlight_pair_with_pin()` wrapper
   - rewired `thin-client-assistant/runtime/moonlight_host_sync.sh` to reuse `bootstrap_moonlight_client_probe()` from the shared helper instead of carrying another inline `timeout "$bin" list "$target"` block
   - validated with `bash -n`, focused shell smoke tests for the CLI wrapper and pairing recovery flow, and `./scripts/validate-project.sh`
+- Restored the standalone host-download USB installer path after the recent USB writer modularization:
+  - changed `thin-client-assistant/usb/pve-thin-client-usb-installer.sh` so the distributed single-file launcher detects missing local helper modules and self-bootstrap them from `RELEASE_BOOTSTRAP_URL` / `RELEASE_PAYLOAD_URL`
+  - kept the in-repo path unchanged when the helper files are present locally, so repo development and ISO build flows still source the extracted helper modules directly
+  - verified the exact broken case locally by copying the installer into a temporary foreign directory, patching host-style default URLs into it, and confirming that `--help` now succeeds after downloading/extracting the bootstrap bundle instead of failing on `/home/thin-client-assistant/usb/usb_writer_sources.sh`
+  - also verified checksum-aware helper bootstrap against a temporary local HTTP server plus `SHA256SUMS`, alongside `bash -n` and `./scripts/validate-project.sh`
 
 ### Known risks after this run
 
@@ -1948,3 +1953,4 @@
 - Script surfaces and installer-side provider neutrality are still pending.
 - Local `.build/` and `dist/` directories still exist and should not be treated as authoritative release outputs.
 - Live endpoints on older released payloads can still boot back into pre-fix runtime scripts even after an on-device hot patch; validating runtime refactors against a real endpoint now requires either a rebuilt thin-client payload/update or an explicit post-boot deployment step.
+- Already downloaded host USB installers without the self-bootstrap fix will continue to fail until refreshed from regenerated host download artifacts.

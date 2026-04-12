@@ -1786,3 +1786,15 @@ Reason:
 
 - After the fast-path launch fix, the next continuation hazard in the same subsystem was not the recovery logic itself but the duplicated CLI shell around it. `moonlight_pairing.sh` still owned timeout accessors and the `moonlight list` wrapper, while `moonlight_host_sync.sh` carried a second inline bootstrap probe with the same target-building and timeout behavior.
 - Moving that seam into one helper keeps the future recovery refactor narrower: pairing can focus on manager-registration vs PIN flow, and host-sync can focus on config mutation/bootstrap rules, while CLI execution policy remains explicit in one place.
+
+### D151. Hosted single-file USB installers must self-bootstrap extracted helper modules
+
+Decision:
+
+- Keep `thin-client-assistant/usb/pve-thin-client-usb-installer.sh` responsible for detecting whether its extracted helper modules are locally available.
+- When the launcher is distributed standalone and the helper files are missing, bootstrap them from `RELEASE_BOOTSTRAP_URL` or `RELEASE_PAYLOAD_URL` before sourcing `usb_writer_sources.sh`, `usb_writer_bootstrap.sh`, `usb_writer_write_stage.sh`, and `usb_writer_device_selection.sh`.
+
+Reason:
+
+- The recent USB writer refactor intentionally split source-selection, bootstrap, write-stage, and device-selection logic into dedicated helper modules. That improved structure inside the repo and ISO build context, but the hosted `pve-thin-client-usb-installer-*.sh` download surface is still a single file. After the split, downloaded installers started failing immediately with `.../usb_writer_sources.sh: Datei oder Verzeichnis nicht gefunden` because they no longer had a repo checkout beside them.
+- Re-bundling all helper logic back into the launcher would undo the refactor. The safer compatibility seam is a small startup bootstrap step in the launcher itself: repo/ISO callers still source local files directly, while hosted standalone callers fetch the existing bootstrap bundle and then continue through the same extracted helper modules.
