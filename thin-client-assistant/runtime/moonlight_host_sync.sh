@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MOONLIGHT_CLI_SH="${MOONLIGHT_CLI_SH:-$SCRIPT_DIR/moonlight_cli.sh}"
 MOONLIGHT_HOST_REGISTRY_PY="${MOONLIGHT_HOST_REGISTRY_PY:-$SCRIPT_DIR/moonlight_host_registry.py}"
+# shellcheck disable=SC1090
+source "$MOONLIGHT_CLI_SH"
 
 seed_moonlight_host_from_runtime_config() {
   local config_path uniqueid cert_b64 sunshine_name stream_port response_file
@@ -73,23 +76,7 @@ sync_moonlight_host_from_manager_response() {
 }
 
 bootstrap_moonlight_client() {
-  local bin host port timeout_value target
-
   moonlight_host_configured && return 0
   extract_moonlight_certificate_pem >/dev/null 2>&1 && return 0
-
-  bin="$(moonlight_bin)"
-  host="$(moonlight_connect_host)"
-  port="$(moonlight_port)"
-  timeout_value="$(moonlight_bootstrap_timeout)"
-  target="$(format_moonlight_target "$host" "$port")"
-
-  [[ -n "$target" ]] || return 1
-
-  if command -v timeout >/dev/null 2>&1; then
-    timeout --preserve-status "$timeout_value" "$bin" list "$target" >/dev/null 2>&1 || true
-    return 0
-  fi
-
-  "$bin" list "$target" >/dev/null 2>&1 || true
+  bootstrap_moonlight_client_probe
 }

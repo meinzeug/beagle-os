@@ -36,6 +36,7 @@
 - [x] Extract the shared script-side provider bootstrap/remote-exec shell helper into `scripts/lib/provider_shell.sh` and rewire the main Sunshine/setup scripts onto it.
 - [x] Extract the shared script-side guest-exec / guest-ipv4 / VM-description / reboot / `qm set` fallback wrappers into `scripts/lib/provider_shell.sh`.
 - [x] Remove eager Moonlight manager registration from the cached-client boot fast path so already paired endpoints do not have to wait on `/api/v1/endpoints/moonlight/register` before `moonlight.exec`.
+- [x] Extract the shared Moonlight CLI target/timeout/list wrapper out of pairing and host-sync into `thin-client-assistant/runtime/moonlight_cli.sh`.
 - [x] Extract the non-shell hosted-download preparation block from `scripts/prepare-host-downloads.sh` into a dedicated helper seam and reuse the endpoint profile contract for overlapping VM installer metadata.
 - [x] Extract the hosted-download vs public-release artifact URL layout into a shared helper consumed by both generation and host validation.
 - [x] Extract the thin-client preset-summary/UI-state helper layer into a shared USB module instead of duplicating mode-availability logic in the local installer and the Proxmox API helper.

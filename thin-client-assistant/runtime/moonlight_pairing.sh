@@ -2,40 +2,32 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MOONLIGHT_CONFIG_STATE_SH="${MOONLIGHT_CONFIG_STATE_SH:-$SCRIPT_DIR/moonlight_config_state.sh}"
+MOONLIGHT_CLI_SH="${MOONLIGHT_CLI_SH:-$SCRIPT_DIR/moonlight_cli.sh}"
 MOONLIGHT_REMOTE_API_SH="${MOONLIGHT_REMOTE_API_SH:-$SCRIPT_DIR/moonlight_remote_api.sh}"
 # shellcheck disable=SC1090
 source "$MOONLIGHT_CONFIG_STATE_SH"
 # shellcheck disable=SC1090
+source "$MOONLIGHT_CLI_SH"
+# shellcheck disable=SC1090
 source "$MOONLIGHT_REMOTE_API_SH"
 
-moonlight_list_timeout() {
-  printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_LIST_TIMEOUT:-12}"
-}
+start_moonlight_pair_with_pin() {
+  local pin="${1:-}"
+  local target="${2:-}"
+  local pair_timeout
 
-moonlight_bootstrap_timeout() {
-  printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_BOOTSTRAP_TIMEOUT:-3}"
-}
+  [[ -n "$pin" && -n "$target" ]] || return 1
+  pair_timeout="$(moonlight_list_timeout)"
 
-moonlight_list() {
-  local bin host port timeout_value target
-  bin="$(moonlight_bin)"
-  host="$(moonlight_connect_host)"
-  port="$(moonlight_port)"
-  timeout_value="$(moonlight_list_timeout)"
-  target="$(format_moonlight_target "$host" "$port")"
-
-  if command -v timeout >/dev/null 2>&1; then
-    timeout --preserve-status "$timeout_value" "$bin" list "$target" >"$MOONLIGHT_LIST_LOG" 2>&1
-    return $?
-  fi
-
-  "$bin" list "$target" >"$MOONLIGHT_LIST_LOG" 2>&1
+  run_moonlight_cli_with_timeout \
+    "$pair_timeout" \
+    "${MOONLIGHT_PAIR_LOG:-/dev/null}" \
+    pair "$target" --pin "$pin" &
 }
 
 ensure_paired() {
-  local bin host port pin pair_pid paired_ok attempt pair_status target
+  local host port pin pair_pid paired_ok attempt pair_status target
 
-  bin="$(moonlight_bin)"
   host="$(moonlight_connect_host)"
   port="$(moonlight_port)"
   pin="${PVE_THIN_CLIENT_SUNSHINE_PIN:-}"
@@ -52,11 +44,7 @@ ensure_paired() {
 
   [[ -n "$pin" ]] || return 1
 
-  if command -v timeout >/dev/null 2>&1; then
-    timeout --preserve-status "$(moonlight_list_timeout)" "$bin" pair "$target" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
-  else
-    "$bin" pair "$target" --pin "$pin" >"$MOONLIGHT_PAIR_LOG" 2>&1 &
-  fi
+  start_moonlight_pair_with_pin "$pin" "$target"
   pair_pid=$!
   paired_ok="0"
 
