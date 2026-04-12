@@ -2,6 +2,15 @@
 
 ## Immediate next slice
 
+### GUI installer follow-up options
+
+1. **Widen test viewport** – the current screenshot test uses a 140-col xterm; block chars remain single-width in real Linux ttys so the wide logo is safe at runtime, but the CI test geometry could be bumped further if block-width rendering on exotic terminals becomes a concern.
+2. **Live log streaming** – the `screen_progress` step function currently receives lines in batch after each step returns; future work could pipe subprocess stdout to the log area in real time.
+3. **Network config screen** – optional post-disk-selection step to set static IP / VLAN for headless bare-metal deployments.
+4. **Beagle Web Console** – once the installer completes, the success screen could show the URL of the Web Console instead of just the hostname.
+
+### Continuing provider abstraction
+
 
 Strategic framing:
 

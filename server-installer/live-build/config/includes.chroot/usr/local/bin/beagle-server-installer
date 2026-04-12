@@ -660,9 +660,36 @@ install_bootloader() {
 
 finish_install() {
   touch "$DONE_FILE"
-  printf '\nInstallation complete.\n\nRemove the USB stick and press ENTER to reboot.\n'
-  read -r _
+  # Re-enter the curses GUI to show the success screen then reboot
+  if [[ -x /usr/local/bin/beagle-server-installer-gui ]]; then
+    python3 /usr/local/bin/beagle-server-installer-gui \
+      --show-success \
+      --mode-label "$(install_mode_label)" \
+      --hostname "$INSTALL_HOSTNAME" \
+      2>/dev/null || true
+  else
+    printf '\nInstallation complete.\n\nRemove the USB stick and press ENTER to reboot.\n'
+    read -r _
+  fi
   reboot
+}
+
+# Load inputs collected by the Python curses TUI from the state file.
+load_gui_state() {
+  local state_file="$1"
+  [[ -f "$state_file" ]] || {
+    echo "GUI state file not found: $state_file" >&2
+    exit 1
+  }
+  # Source the env file – values were written with shell-safe single-quote quoting
+  # shellcheck source=/dev/null
+  source "$state_file"
+  BEAGLE_SERVER_INSTALL_MODE="${BEAGLE_SERVER_INSTALL_MODE:-}"
+  BEAGLE_SERVER_HOST_PROVIDER="${BEAGLE_SERVER_HOST_PROVIDER:-}"
+  INSTALL_HOSTNAME="${BEAGLE_GUI_HOSTNAME:-}"
+  INSTALL_USERNAME="${BEAGLE_GUI_USERNAME:-}"
+  INSTALL_PASSWORD="${BEAGLE_GUI_PASSWORD:-}"
+  INSTALL_DISK="${BEAGLE_GUI_TARGET_DISK:-}"
 }
 
 main() {
@@ -670,32 +697,50 @@ main() {
   bootstrap_live_locale
   setup_logging
 
-  printf '\nBeagle OS Server Installer\n'
-  printf 'This will install Debian and the Beagle host stack.\n'
-  printf 'You can choose between a standalone Beagle host and a Proxmox-backed Beagle host.\n\n'
+  # ── Launch the Python curses TUI to collect all inputs ─────────────────────
+  local gui_bin="/usr/local/bin/beagle-server-installer-gui"
+  local gui_state_file
+  gui_state_file="${BEAGLE_GUI_STATE_FILE:-$STATE_DIR/gui-state.env}"
+  export BEAGLE_GUI_STATE_FILE="$gui_state_file"
 
-  prompt_install_mode
+  if [[ -x "$gui_bin" ]]; then
+    # The GUI writes the state file and prints its path to stdout on success.
+    python3 "$gui_bin" || {
+      echo "Installer GUI exited unexpectedly." >&2
+      exit 1
+    }
+    load_gui_state "$gui_state_file"
+  else
+    # Fallback: plain-text prompts (keeps installer functional without the GUI)
+    log "GUI binary not found – falling back to text prompts"
+    printf '\nBeagle OS Server Installer\n'
+    printf 'This will install Debian and the Beagle host stack.\n\n'
+
+    prompt_install_mode
+    INSTALL_HOSTNAME="$(normalize_hostname "$(prompt_value 'Server hostname' 'beagle-host')")"
+    validate_hostname "$INSTALL_HOSTNAME" || {
+      echo "Hostname must contain only lowercase letters, digits, and hyphens." >&2
+      exit 1
+    }
+    INSTALL_USERNAME="$(prompt_value 'Linux username' 'beagle')"
+    validate_username "$INSTALL_USERNAME" || {
+      echo "Linux username contains unsupported characters." >&2
+      exit 1
+    }
+    INSTALL_PASSWORD="$(prompt_password)"
+    INSTALL_DISK="$(choose_target_disk)"
+    confirm_wipe "$INSTALL_DISK" || {
+      echo "Installation cancelled."
+      exit 1
+    }
+  fi
+
   require_supported_server_target
   log "install mode: $(install_mode_kind)"
   log "host provider: $(host_provider_kind)"
-  printf 'Selected mode: %s\n\n' "$(install_mode_label)"
-
-  INSTALL_HOSTNAME="$(normalize_hostname "$(prompt_value 'Server hostname' 'beagle-host')")"
-  validate_hostname "$INSTALL_HOSTNAME" || {
-    echo "Hostname must contain only lowercase letters, digits, and hyphens." >&2
-    exit 1
-  }
-  INSTALL_USERNAME="$(prompt_value 'Linux username' 'beagle')"
-  validate_username "$INSTALL_USERNAME" || {
-    echo "Linux username contains unsupported characters." >&2
-    exit 1
-  }
-  INSTALL_PASSWORD="$(prompt_password)"
-  INSTALL_DISK="$(choose_target_disk)"
-  confirm_wipe "$INSTALL_DISK" || {
-    echo "Installation cancelled."
-    exit 1
-  }
+  log "hostname: $INSTALL_HOSTNAME"
+  log "username: $INSTALL_USERNAME"
+  log "disk: $INSTALL_DISK"
 
   PRIMARY_IFACE="$(detect_primary_iface)"
   [[ -n "$PRIMARY_IFACE" ]] || {

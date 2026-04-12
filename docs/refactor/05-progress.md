@@ -1,6 +1,29 @@
 # Refactor Progress
 
-### 2026-04-12 — server-installer bundled Beagle source archive
+### 2026-04-12 — server-installer Python curses GUI (feature/server-installer-gui)
+
+- Replaced the plain-text `read`/`printf` TUI in `beagle-server-installer` with a full Python curses GUI:
+  - New file: `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer-gui`
+  - `whiptail` package removed from ISO list; **no extra dependencies** — Python 3 (`python3`) was already present in the package list
+  - GUI collects all installer inputs interactively and writes a shell-sourceable state file to `/run/beagle-server-installer/gui-state.env`
+  - Bash installer sources that file and proceeds with the unchanged core install logic
+  - Plain-text fallback preserved inside `main()` in case the GUI binary is absent
+- GUI screen inventory:
+  - Animated splash with responsive logo (`LOGO_WIDE` block-char logo for wide terminals; `LOGO_COMPACT` pure-ASCII fallback for ≤ 80-col or double-width-rendering terminals)
+  - Welcome message box
+  - Install-mode selection menu (standalone / with Proxmox, arrow-key navigation)
+  - Hostname input with inline regex validation
+  - Username input with inline regex validation
+  - Password + confirm with mismatch loop
+  - Disk selection radiolist (enumerated from `lsblk`)
+  - Wipe confirmation (danger-styled YES/NO, default = NO)
+  - Full-screen installation progress (step bar + live log tail, spinner)
+  - Success / reboot screen
+  - Error screen with rescue-shell escape
+- Colour palette: dark background (`#0d1117` equivalent), blue chrome borders, yellow/amber accent, cyan highlights, red danger, green success
+- Progress bar fix: filled segment = bright cyan (`C_PROGRESS`), unfilled = dim light-shade (`C_DIM`) — not the inverted rendering of the initial implementation
+- Screenshot-tested: Xvfb + xterm + scrot captured all 10 screens; imagemagick validated dimensions (1200×700), distinct-colour count > 5, and brightness mean in range — **10/10 PASS**
+
 
 - Continued the real standalone installer verification on `thinover.net` after the live-side download fix:
   - rebuilt the server-installer ISO on the host
