@@ -1,5 +1,30 @@
 # Refactor Progress
 
+### 2026-04-12 — explicit standalone vs Proxmox server-installer mode split
+
+- Made the server installer expose the new target architecture directly instead of only implying it through provider environment variables:
+  - extended `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer` with explicit install-mode selection for:
+    - `Beagle OS standalone`
+    - `Beagle OS with Proxmox`
+  - normalized installer mode separately from provider kind and mapped the standalone path to `BEAGLE_HOST_PROVIDER=beagle` and the Proxmox-backed path to `BEAGLE_HOST_PROVIDER=proxmox`
+  - changed the installer banner text so the ISO now describes Debian + Beagle host installation with an explicit standalone-vs-Proxmox choice instead of presenting Proxmox as the only target
+  - split the network baseline by install mode:
+    - standalone now writes a direct DHCP interface config on the primary NIC
+    - Proxmox mode keeps the existing `vmbr0` bridge baseline
+  - split package/repository bootstrap by provider:
+    - standalone skips Proxmox repository wiring and installs a Debian/Beagle base package set
+    - Proxmox mode keeps the existing `proxmox-ve` package path
+  - threaded `BEAGLE_SERVER_INSTALL_MODE` into `scripts/install-beagle-host.sh` and into the generated host env so the chosen installer mode survives beyond the installer prompt
+- Reduced another Proxmox-only assumption in host validation:
+  - updated `scripts/check-beagle-host.sh` so the generic host check no longer hard-requires Proxmox UI files, nginx, `pveproxy`, or proxied `/beagle-api/healthz` for `BEAGLE_HOST_PROVIDER=beagle`
+  - added a standalone-friendly local health check against `http://127.0.0.1:${BEAGLE_MANAGER_LISTEN_PORT:-9088}/healthz`
+  - made the few remaining absolute validation file paths configurable so the standalone path can be smoke-tested in a temporary environment
+- Validation and smoke checks for this slice passed:
+  - `bash -n server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer scripts/install-beagle-host.sh scripts/check-beagle-host.sh`
+  - focused smoke test for installer-mode normalization plus standalone DHCP network rendering using a main-less test copy of `beagle-server-installer`
+  - focused smoke test for `scripts/check-beagle-host.sh` in `BEAGLE_HOST_PROVIDER=beagle` mode with temporary files and stubbed `systemctl` / `curl`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — Script-side provider fallback wrapper extraction
 
 - Reduced the remaining direct `qm` fallback duplication in the provider-aware shell scripts:

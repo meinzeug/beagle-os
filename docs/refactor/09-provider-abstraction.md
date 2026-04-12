@@ -141,7 +141,7 @@ Coupling forms:
 - `qm`
 - `pvesh`
 - Proxmox package/repository assumptions
-- missing explicit installer mode split between `Beagle OS standalone` and `Beagle OS with Proxmox`
+- the server installer now does expose an explicit mode split between `Beagle OS standalone` and `Beagle OS with Proxmox`, but the standalone branch still lacks the final web/proxy/operator-surface delivery path that makes it equivalent to the Proxmox-backed path
 
 ### Thin client
 
