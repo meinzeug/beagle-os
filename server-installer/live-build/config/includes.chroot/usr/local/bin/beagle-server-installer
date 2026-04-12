@@ -26,6 +26,7 @@ PROXMOX_KEY_URL="${BEAGLE_SERVER_PROXMOX_KEY_URL:-https://enterprise.proxmox.com
 BEAGLE_SOURCE_URL="${BEAGLE_SERVER_SOURCE_URL:-https://github.com/meinzeug/beagle-os/releases/download/v__BEAGLE_RELEASE_VERSION__/beagle-os-v__BEAGLE_RELEASE_VERSION__.tar.gz}"
 BEAGLE_PUBLIC_UPDATE_BASE_URL="${BEAGLE_SERVER_PUBLIC_UPDATE_BASE_URL:-https://github.com/meinzeug/beagle-os/releases/download/v__BEAGLE_RELEASE_VERSION__}"
 BEAGLE_INSTALL_DIR="${BEAGLE_SERVER_INSTALL_DIR:-/opt/beagle}"
+BUNDLED_BEAGLE_SOURCE_ARCHIVE="${BEAGLE_SERVER_BUNDLED_SOURCE_ARCHIVE:-/usr/local/share/beagle/beagle-os-source.tar.gz}"
 LIVE_INSTALL_LOCALE="${BEAGLE_SERVER_LIVE_INSTALL_LOCALE:-C.UTF-8}"
 
 cleanup() {
@@ -629,17 +630,23 @@ install_host_provider_packages() {
 
 install_beagle_host_stack() {
   local kind mode
-  local source_url_q install_dir_q hostname_q public_updates_q web_ui_q mode_q
+  local install_dir_q hostname_q public_updates_q web_ui_q mode_q source_archive
   kind="$(host_provider_kind)"
   mode="$(install_mode_kind)"
-  printf -v source_url_q '%q' "$BEAGLE_SOURCE_URL"
+  source_archive="/tmp/beagle-os.tar.gz"
   printf -v install_dir_q '%q' "$BEAGLE_INSTALL_DIR"
   printf -v hostname_q '%q' "$INSTALL_HOSTNAME"
   printf -v public_updates_q '%q' "$BEAGLE_PUBLIC_UPDATE_BASE_URL"
   printf -v web_ui_q '%q' "https://$INSTALL_HOSTNAME"
   printf -v mode_q '%q' "$mode"
+  if [[ -f "$BUNDLED_BEAGLE_SOURCE_ARCHIVE" ]]; then
+    log "using bundled beagle source archive: $BUNDLED_BEAGLE_SOURCE_ARCHIVE"
+    install -m 0644 "$BUNDLED_BEAGLE_SOURCE_ARCHIVE" "$source_archive"
+  else
+    run_with_retry "download beagle source archive" curl -fsSL "$BEAGLE_SOURCE_URL" -o "$source_archive"
+  fi
   chroot_run "mkdir -p /usr/local/src/beagle-os-src /var/lib/beagle"
-  chroot_run_with_retry "download beagle source archive" "curl -fsSL $source_url_q -o /tmp/beagle-os.tar.gz"
+  install -m 0644 "$source_archive" "$TARGET_MOUNT/tmp/beagle-os.tar.gz"
   chroot_run "rm -rf /usr/local/src/beagle-os-src && mkdir -p /usr/local/src/beagle-os-src && tar -xzf /tmp/beagle-os.tar.gz -C /usr/local/src/beagle-os-src"
   chroot_run "install_script=\$(find /usr/local/src/beagle-os-src -path '*/scripts/install-beagle-host.sh' -print -quit); [[ -n \"\$install_script\" ]] && source_root=\$(dirname \"\$(dirname \"\$install_script\")\") && cd \"\$source_root\" && BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q BEAGLE_SERVER_INSTALL_MODE=$mode_q BEAGLE_HOST_PROVIDER=$kind PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-beagle-host.sh"
 }

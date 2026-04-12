@@ -177,7 +177,7 @@
 - [x] Add the first provider-neutral browser host/node/storage/config/interface read contracts under `/api/v1/virtualization/*` and wire the Beagle browser provider onto them.
 - [ ] Turn the newly served standalone website/proxy shell into the first real Beagle Web Console surface by rendering the new provider-neutral host/node/storage data and extending the contract toward bridge/network/operator actions.
 - [ ] Make Proxmox optional at deploy/install/runtime boundaries instead of the implicit required backend.
-- [ ] Finish a fresh standalone server-installer verification on `thinover.net`, confirm first boot into the installed system, and validate the Beagle host stack end to end after the DHCP/DNS/retry, live-locale, and Beagle source-root fixes.
+- [ ] Finish a fresh standalone server-installer verification on `thinover.net`, confirm first boot into the installed system, and validate the Beagle host stack end to end after the DHCP/DNS/retry, live-locale, Beagle source-root, live-side source-archive, and bundled-source-archive fixes.
 - [x] Extract the remaining shared slug/secret-formatting helper cluster from `beagle-host/bin/beagle-control-plane.py` into a dedicated host utility service.
 - [ ] Split thin client runtime logic into config, runtime, network, pairing, and Moonlight launch seams.
 - [ ] Propagate the Moonlight fast-path launch fix into a released thin-client payload/update and verify it on a live endpoint after reboot.

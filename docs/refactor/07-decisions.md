@@ -1951,3 +1951,29 @@ Reason:
 
 - The real `102` verification run made it through networking and package bootstrap, but then failed with `./scripts/install-beagle-host.sh: No such file or directory`. That exposed a wrong archive-layout assumption in the installer, not another network problem.
 - GitHub/release tarballs commonly carry a top-level project directory. Hardcoding a flat extraction layout would keep breaking fresh installer runs whenever the archive format differs from a local repo checkout.
+
+### D163. The server installer should fetch the Beagle source archive in the live environment and stage it into the target root instead of downloading it from inside the chroot
+
+Decision:
+
+- Move the Beagle source-archive download in `install_beagle_host_stack()` out of `chroot_run_with_retry()` and into the live installer environment via `run_with_retry()`.
+- Stage the downloaded archive into `$TARGET_MOUNT/tmp/beagle-os.tar.gz` and keep only archive extraction plus `install-beagle-host.sh` execution inside the target chroot.
+
+Reason:
+
+- The fresh `103` verification run on `thinover.net` proved that the installer now gets far enough to fail specifically at `chroot[1/3]: download beagle source archive`, after networking, `debootstrap`, package installation, and locale generation had already succeeded.
+- That means the remaining fragility was no longer "can the installer reach the network at all?" but "can the target chroot independently reproduce the same HTTPS/TLS/DNS assumptions during bootstrap?".
+- The live installer environment already owns the validated network bootstrap and retry logic, so it is the correct place for this download. Staging the archive into the target keeps the later host bootstrap provider-neutral while removing one more brittle chroot-only dependency.
+
+### D164. The server-installer ISO should bundle the Beagle source archive and treat the public release URL only as a fallback
+
+Decision:
+
+- Bundle a Beagle source archive directly into the server-installer ISO during `scripts/build-server-installer.sh`.
+- Make `beagle-server-installer` prefer that bundled archive and only fall back to `BEAGLE_SOURCE_URL` when the local archive is unavailable.
+
+Reason:
+
+- The fresh `104` verification run proved the live-side download/staging fix is active, because the failure log now references `run[1/3]: download beagle source archive` rather than the older chroot fetch path.
+- That still left the installer dependent on an external GitHub fetch for Beagle itself. For a bare-metal/server installer that is the wrong default boundary: the ISO should already contain the Beagle host bootstrap source it needs to install.
+- Bundling the source archive makes the standalone installer materially more self-contained and moves the architecture closer to the long-term Beagle-owned server product, where optional providers and optional public artifact mirrors must not be mistaken for mandatory install-time dependencies.

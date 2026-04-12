@@ -7,6 +7,7 @@ BUILD_DIR="${SERVER_INSTALLER_BUILD_DIR:-$ROOT_DIR/.build/beagle-server-installe
 DIST_DIR="${SERVER_INSTALLER_DIST_DIR:-$ROOT_DIR/dist/beagle-os-server-installer}"
 SERVER_INSTALLER_ARCH="${SERVER_INSTALLER_ARCH:-amd64}"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
+BUNDLED_SOURCE_ARCHIVE_PATH="config/includes.chroot/usr/local/share/beagle/beagle-os-source.tar.gz"
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -74,6 +75,30 @@ mkdir -p "$BUILD_DIR" "$DIST_DIR"
 rsync -a "$LB_TEMPLATE_DIR/" "$BUILD_DIR/"
 sed -i "s/__BEAGLE_RELEASE_VERSION__/${VERSION}/g" \
   "$BUILD_DIR/config/includes.chroot/usr/local/bin/beagle-server-installer"
+mkdir -p "$(dirname "$BUILD_DIR/$BUNDLED_SOURCE_ARCHIVE_PATH")"
+(
+  cd "$ROOT_DIR"
+  tar -czf "$BUILD_DIR/$BUNDLED_SOURCE_ARCHIVE_PATH" \
+    AGENTS.md \
+    beagle-kiosk \
+    beagle-host \
+    beagle-os \
+    core \
+    docs \
+    extension \
+    providers \
+    proxmox-ui \
+    scripts \
+    server-installer \
+    thin-client-assistant \
+    website \
+    README.md \
+    LICENSE \
+    CHANGELOG.md \
+    VERSION \
+    .gitignore \
+    CLAUDE.md
+)
 
 (
   cd "$BUILD_DIR"
