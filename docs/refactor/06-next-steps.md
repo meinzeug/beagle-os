@@ -100,6 +100,7 @@ Strategic framing:
 10. After the live runtime verification, continue the next runtime-heavy refactor slice from the same area instead of switching context:
    - either split the remaining non-trivial Moonlight fallback/pairing logic further
    - or move on to the next shell-heavy runtime crossover script that still mixes orchestration and implementation
+   - the Moonlight CLI/timeout seam now already lives in `thin-client-assistant/runtime/moonlight_cli.sh`, so the next Moonlight slice should target the remaining recovery-specific business logic instead of reintroducing CLI wrappers elsewhere
 
 ## After that
 

@@ -1774,3 +1774,15 @@ Reason:
 - Live endpoint inspection on `192.168.178.92` showed a consistent boot delay after `moonlight.cached-config` even though the target was already reachable and the client was already configured. The trace repeatedly showed roughly `12` seconds between `moonlight.cached-config` and `moonlight.registered`, followed by `moonlight.exec` only after that roundtrip.
 - The delay was not caused by selecting the wrong host. The live logs consistently showed `connect_host=65.109.80.76`, not the stored `10.10.x` local host. For already paired clients, eager manager re-registration adds latency without enabling the common-case stream start.
 - The fallback path still needs manager registration for first boot, changed Sunshine certificates, or stale pairing state. Keeping that behavior only when `moonlight_list()` fails preserves recovery semantics while removing avoidable boot latency for the steady state.
+
+### D150. Moonlight CLI execution and timeout policy should live outside pairing and host-sync flows
+
+Decision:
+
+- Keep the Moonlight CLI execution wrapper, target formatting reuse, and timeout accessors in `thin-client-assistant/runtime/moonlight_cli.sh`.
+- Keep `thin-client-assistant/runtime/moonlight_pairing.sh` and `thin-client-assistant/runtime/moonlight_host_sync.sh` consuming that helper instead of each carrying their own `moonlight list`/`timeout` execution block.
+
+Reason:
+
+- After the fast-path launch fix, the next continuation hazard in the same subsystem was not the recovery logic itself but the duplicated CLI shell around it. `moonlight_pairing.sh` still owned timeout accessors and the `moonlight list` wrapper, while `moonlight_host_sync.sh` carried a second inline bootstrap probe with the same target-building and timeout behavior.
+- Moving that seam into one helper keeps the future recovery refactor narrower: pairing can focus on manager-registration vs PIN flow, and host-sync can focus on config mutation/bootstrap rules, while CLI execution policy remains explicit in one place.

@@ -1932,6 +1932,12 @@
   - captured the actual slow phase on the live endpoint from `/run/user/1000/beagle-os/runtime-trace.log`: `moonlight.cached-config` at `2026-04-12T03:19:30+00:00` and `moonlight.registered` at `2026-04-12T03:19:42+00:00`, with `moonlight.exec` only at `2026-04-12T03:19:44+00:00`
   - confirmed the same pattern again after a reboot at `2026-04-12T03:26:30+00:00` → `2026-04-12T03:26:43+00:00` → `2026-04-12T03:26:45+00:00`
   - verified that the current installed endpoint image is still `6.6.6`; a manual file replacement on the running client was overwritten by the booted image/runtime refresh on reboot, so the repo fix is correct but not yet part of the deployed thin-client payload
+- Reduced the Moonlight runtime CLI/timeout seam further so pairing and bootstrap no longer carry their own `moonlight list` execution wrapper:
+  - added `thin-client-assistant/runtime/moonlight_cli.sh`
+  - moved `moonlight_list_timeout()`, `moonlight_bootstrap_timeout()`, `moonlight_target()`, `run_moonlight_cli_with_timeout()`, and `moonlight_list()` into that dedicated helper
+  - rewired `thin-client-assistant/runtime/moonlight_pairing.sh` to source the new helper and keep only pairing/recovery flow plus a small `start_moonlight_pair_with_pin()` wrapper
+  - rewired `thin-client-assistant/runtime/moonlight_host_sync.sh` to reuse `bootstrap_moonlight_client_probe()` from the shared helper instead of carrying another inline `timeout "$bin" list "$target"` block
+  - validated with `bash -n`, focused shell smoke tests for the CLI wrapper and pairing recovery flow, and `./scripts/validate-project.sh`
 
 ### Known risks after this run
 
