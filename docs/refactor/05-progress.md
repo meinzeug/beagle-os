@@ -1,5 +1,39 @@
 # Refactor Progress
 
+### 2026-04-12 — server-installer bundled Beagle source archive
+
+- Continued the real standalone installer verification on `thinover.net` after the live-side download fix:
+  - rebuilt the server-installer ISO on the host
+  - launched a fresh standalone test VM `104`
+  - confirmed from the live-system log that the new code path is active: the failure point now logs `run[1/3]: download beagle source archive`, not the older `chroot[1/3]` path
+- Tightened the architecture one step further so the server installer no longer has to depend on an external Beagle source download in the default path:
+  - updated `scripts/build-server-installer.sh` to bundle a Beagle source archive directly into the ISO at `config/includes.chroot/usr/local/share/beagle/beagle-os-source.tar.gz`
+  - updated `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer` so `install_beagle_host_stack()` prefers the bundled archive and only falls back to the network `BEAGLE_SOURCE_URL` when no bundled archive is present
+- This changes the server-installer contract in the right direction:
+  - the ISO carries the Beagle host bootstrap source it needs for the default path
+  - the network is still needed for Debian/bootstrap packages, but no longer for retrieving Beagle itself during a normal install
+  - the external release URL remains an explicit fallback path rather than the primary installer dependency
+- Validation for this slice passed:
+  - `bash -n scripts/build-server-installer.sh server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+  - `./scripts/validate-project.sh`
+
+### 2026-04-12 — server-installer live-side source-archive staging fix
+
+- Reproduced the remaining standalone installer failure on `thinover.net` in fresh test VM `103` after the earlier DHCP/DNS, locale, and source-root fixes:
+  - the install now progresses past partitioning, `debootstrap`, package installation, locale generation, and target bootstrap growth
+  - the failure moved to the later `install_beagle_host_stack()` phase, where `/var/log/beagle-server-installer.log` showed `chroot[1/3]: download beagle source archive` followed by the `chroot_run()` failure at script line `534`
+- Hardened the installer against that remaining chroot-network dependency:
+  - updated `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+  - `install_beagle_host_stack()` now downloads the Beagle source archive in the live installer environment via `run_with_retry`
+  - the downloaded archive is then staged into `$TARGET_MOUNT/tmp/beagle-os.tar.gz`
+  - extraction and the later `install-beagle-host.sh` handoff still run inside the target context, but the fragile chroot-local HTTPS fetch no longer decides whether the bootstrap can continue
+- This keeps the installer architecture aligned with the standalone path:
+  - network-sensitive bootstrap fetches happen in the already-validated live installer environment
+  - the target chroot now only needs local archive extraction plus Beagle-host bootstrap execution
+- Validation for this slice passed:
+  - `bash -n server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — explicit standalone vs Proxmox server-installer mode split
 
 - Made the server installer expose the new target architecture directly instead of only implying it through provider environment variables:

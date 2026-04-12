@@ -132,12 +132,18 @@ Strategic framing:
    - add one focused smoke check that copies a patched installer into a foreign directory and exercises the helper-bootstrap path against a hosted bootstrap bundle
    - continue keeping helper extraction inside `thin-client-assistant/usb/*` modules, but treat the single-file host/download launcher as a compatibility surface that must remain self-contained at startup
 
-14. Rebuild and re-test the server installer ISO after the new live-network hardening:
-   - rebuild the server-installer ISO on `thinover.net` with the new Beagle source-root fix
-   - launch a fresh standalone test VM instead of reusing the already failed `102` target root
-   - drive the text installer through the early prompts again and verify that it now passes both:
+14. Rebuild and re-test the server installer ISO after bundling the Beagle source archive into the ISO itself:
+   - `103` proved the earlier live-side fix was necessary by moving the failure off the old chroot fetch seam
+   - `104` then proved the new code path is active (`run[1/3]: download beagle source archive`), but also that relying on the external Beagle release URL is still a real installer risk
+   - rebuild the server-installer ISO on `thinover.net` with the bundled Beagle source archive included in the live image
+   - launch a fresh standalone test VM instead of reusing the already failed `104` target root
+   - verify from the live-system script/log that the installer now uses the bundled archive path rather than the external GitHub source URL
+   - drive the text installer through the early prompts again and verify that it now passes all of:
      - the DHCP/DNS/bootstrap phase
-     - the Beagle source extraction/bootstrap phase inside the chroot
+     - `debootstrap`
+     - target package installation
+     - locale generation
+     - the bundled Beagle source extraction/bootstrap handoff into `install-beagle-host.sh`
    - after the install completes, reboot into the installed system and verify standalone host services, nginx/TLS, website, and control-plane health end to end
 
 ## After that
