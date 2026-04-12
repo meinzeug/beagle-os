@@ -12,10 +12,11 @@ Strategic framing:
 ### Concrete next tasks
 
 1. Continue migrating script/install surfaces onto the provider-facing helper seam:
-   - `scripts/lib/beagle_provider.py` now covers synchronous guest-exec plus the first shared write commands, and the main Sunshine/setup scripts already prefer that seam
+   - `scripts/lib/beagle_provider.py` now delegates through `beagle-host/providers/registry.py` instead of being a second hidden Proxmox client, and it now exposes provider-backed `next-vmid`, node/storage inventory, guest-network, guest-exec, description, and reboot helpers
    - `scripts/lib/provider_shell.sh` now covers shared provider-helper discovery, local-vs-remote host dispatch, remote helper execution, last-JSON-object parsing, and the shared guest-exec / guest-ipv4 / description / reboot / `qm set` fallback wrappers for the main shell scripts
    - `scripts/lib/prepare_host_downloads.py` now owns the large non-shell artifact patching and VM installer metadata/status block that used to live inline in `prepare-host-downloads.sh`
    - the next script task is to reduce the remaining direct-command fallback paths where rollout compatibility is no longer needed, especially the last compatibility branches still surrounding guest script upload / metadata mutation flows and any remaining raw command paths outside `provider_shell.sh`
+   - after that, decide whether `provider_shell.sh` should start consuming the new `list-nodes` / `list-storage` / `next-vmid` commands as well, so future script-side provider work does not create a third contract surface
    - after that, reuse the new shell seam in the next provider-aware scripts that still duplicate host targeting or helper bootstrap logic instead of reintroducing those helpers locally
    - the generic top-level host install/setup/check/service entrypoints now live at `scripts/install-beagle-host.sh`, `scripts/install-beagle-host-services.sh`, `scripts/setup-beagle-host.sh`, and `scripts/check-beagle-host.sh`
    - the server-installer now has explicit provider dispatch seams for repo wiring, package installation, and the final Beagle host bootstrap; the next installer slice is to move the remaining Proxmox-only package/source definitions and post-install assumptions behind the same seam instead of keeping them inline as the only implementation
@@ -35,7 +36,8 @@ Strategic framing:
    - the next valuable host slice is no longer another HTTP route block; it is the remaining non-HTTP orchestration/business helper cluster that still sits directly in `beagle-control-plane.py`
    - keep the entrypoint moving toward a thin HTTP composition surface instead of re-centralizing orchestration there
 3. Continue the host-provider abstraction itself:
-   - define the next provider-complete contract slice in `beagle-host/providers/host_provider_contract.py` and move any remaining host-side direct provider assumptions to that contract or to service modules consuming it
+   - define the next provider-complete contract slice in `beagle-host/providers/host_provider_contract.py` after guest-network/reboot and move any remaining host-side direct provider assumptions to that contract or to service modules consuming it
+   - the next high-value contract candidates are host-network/bridge inventory plus the remaining guest-script upload/restart scheduling assumptions that still leak around `provider_shell.sh`
    - `BEAGLE_HOST_PROVIDER` now reaches `host.env`, `beagle-manager.env`, refresh paths, post-install checks, the proxy installer, the Proxmox-UI integration path, and the server-installer bootstrap; the next deploy task is to reduce the remaining Proxmox-only behavior at those surfaces rather than just carrying the variable through them
 4. Continue aligning installer-generation/env builders with the same endpoint profile contract source instead of reshaping overlapping fields in multiple browser/runtime places:
    - the hosted VM installer catalog path in `scripts/lib/prepare_host_downloads.py` now normalizes overlapping installer/profile URLs through `endpoint_profile_contract.py`

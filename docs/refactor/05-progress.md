@@ -1948,6 +1948,12 @@
   - changed `scripts/prepare-host-downloads.sh` and `scripts/check-beagle-host.sh` to treat those same host-local artifact URLs as the expected launcher/status binding
   - confirmed locally that the download-metadata service now emits `https://srv.thinover.net:8443/beagle-downloads/beagle-os-installer-amd64.iso`, `.../pve-thin-client-usb-payload-latest.tar.gz`, and `.../pve-thin-client-usb-bootstrap-latest.tar.gz` for installer-facing surfaces
   - this specifically fixes the operational regression where freshly rendered VM installers tried to bootstrap from `https://beagle-os.com/beagle-updates/pve-thin-client-usb-bootstrap-latest.tar.gz`, which currently resolves to a much larger wrong artifact for USB-creation bootstrapping
+- Moved the script-side virtualization helper onto the real host-provider registry instead of keeping a second hidden Proxmox client in `scripts/lib/beagle_provider.py`:
+  - extended `beagle-host/providers/host_provider_contract.py` with `get_guest_network_interfaces()` and `reboot_vm()` as explicit provider lifecycle/network seams needed by script callers
+  - implemented those seams in `beagle-host/providers/proxmox_host_provider.py` and rewired `get_guest_ipv4()` there to reuse the new guest-network contract instead of repeating the `qm guest cmd ... network-get-interfaces` call locally
+  - rewrote `scripts/lib/beagle_provider.py` to create its provider through `beagle-host/providers/registry.py`, delegate reads/writes/guest-exec/reboot through the provider object, and expose provider-neutral CLI commands like `provider-kind`, `next-vmid`, `list-storage`, and `list-nodes`
+  - kept the script-side `vm-node`, `vm-description`, and `vm-description-meta` helpers as small compositions on top of provider-backed `list_vms()` and `get_vm_config()` rather than direct Proxmox commands
+  - validated with `py_compile`, a focused stub-provider registration smoke test that proved `scripts/lib/beagle_provider.py` now delegates through the registry contract, and `./scripts/validate-project.sh`
 
 ### Known risks after this run
 

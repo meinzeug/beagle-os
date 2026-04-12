@@ -1810,3 +1810,15 @@ Reason:
 
 - The self-bootstrap launcher fix exposed that the current installer-facing URL helpers still pointed to `BEAGLE_PUBLIC_UPDATE_BASE_URL`. On the live host that meant freshly rendered VM installers pulled `pve-thin-client-usb-bootstrap-latest.tar.gz` from `beagle-os.com`, where the artifact currently does not match the host-local USB bootstrap bundle and is dramatically larger.
 - Host-generated USB installers are operationally coupled to the host's currently served payload, bootstrap, and ISO artifacts. Using the host-local downloads surface makes the installer script consume exactly the artifacts that `srv.thinover.net` is already serving and that local host checks can verify, while keeping the public release bucket available for separate release/update flows.
+
+### D153. `scripts/lib/beagle_provider.py` should be a registry-backed adapter, not a second provider implementation
+
+Decision:
+
+- Keep `scripts/lib/beagle_provider.py` as a thin script/CLI adapter that constructs its provider through `beagle-host/providers/registry.py`.
+- Keep guest-network introspection and reboot as explicit provider contract methods so script callers stop depending on raw `qm guest cmd ... network-get-interfaces` and `qm reboot` behavior hidden inside the script helper.
+
+Reason:
+
+- Before this slice, the host-control-plane already had a provider registry and a `ProxmoxHostProvider`, but the script helper still reimplemented the same Proxmox reads/writes itself. That left two separate Proxmox clients in the repo: one in `beagle-host/providers/proxmox_host_provider.py` and another in `scripts/lib/beagle_provider.py`.
+- That duplication is exactly the kind of architectural drag that blocks a first-party Beagle provider later. By forcing script flows through the same registry-backed provider contract, the next provider no longer has to chase a hidden second seam in the script layer.

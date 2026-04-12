@@ -2,9 +2,9 @@
 """Provider-neutral script helper for host-side virtualization access.
 
 This module gives shell scripts and inline Python a single import/CLI seam for
-provider-backed VM inventory/config reads plus the first guest-exec and VM-write
-helpers. Proxmox is the first implementation behind the seam; new script logic
-should call this helper instead of embedding raw `pvesh` / `qm` calls directly.
+provider-backed VM inventory/config reads plus guest-exec and VM-write helpers.
+The concrete provider comes from `beagle-host/providers/registry.py`; new script
+logic should call this helper instead of embedding provider-specific commands.
 """
 
 from __future__ import annotations
@@ -15,14 +15,23 @@ import subprocess
 import sys
 import time
 from base64 import b64decode
+from pathlib import Path
 from typing import Any
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+PROVIDERS_DIR = ROOT_DIR / "beagle-host" / "providers"
+for helper_dir in (PROVIDERS_DIR,):
+    helper_path = str(helper_dir)
+    if helper_path not in sys.path:
+        sys.path.insert(0, helper_path)
+
+from registry import create_provider, normalize_provider_kind
+
+_PROVIDER_INSTANCE = None
 
 
 def provider_kind() -> str:
-    kind = str(os.environ.get("BEAGLE_HOST_PROVIDER", "proxmox") or "").strip().lower()
-    if kind == "pve":
-        return "proxmox"
-    return kind or "proxmox"
+    return normalize_provider_kind(os.environ.get("BEAGLE_HOST_PROVIDER", "proxmox"))
 
 
 def run_json(command: list[str]) -> Any:
@@ -36,35 +45,57 @@ def run_json(command: list[str]) -> Any:
         return None
 
 
+def run_text(command: list[str]) -> str:
+    try:
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return ""
+    return result.stdout or ""
+
+
 def run_checked(command: list[str]) -> str:
     result = subprocess.run(command, check=True, capture_output=True, text=True)
     return result.stdout or ""
 
 
-def _require_supported_provider() -> str:
-    kind = provider_kind()
-    if kind != "proxmox":
-        raise SystemExit(f"unsupported host provider for script helper: {kind}")
-    return kind
+def _provider():
+    global _PROVIDER_INSTANCE
+    if _PROVIDER_INSTANCE is None:
+        _PROVIDER_INSTANCE = create_provider(
+            provider_kind(),
+            run_json=run_json,
+            run_text=run_text,
+            run_checked=run_checked,
+        )
+    return _PROVIDER_INSTANCE
+
+
+def next_vmid() -> int:
+    return int(_provider().next_vmid())
+
+
+def list_storage_inventory() -> list[dict[str, Any]]:
+    payload = _provider().list_storage_inventory()
+    return payload if isinstance(payload, list) else []
+
+
+def list_nodes() -> list[dict[str, Any]]:
+    payload = _provider().list_nodes()
+    return payload if isinstance(payload, list) else []
 
 
 def list_vms() -> list[dict[str, Any]]:
-    _require_supported_provider()
-    payload = run_json(["pvesh", "get", "/cluster/resources", "--type", "vm", "--output-format", "json"])
+    payload = _provider().list_vms()
     return payload if isinstance(payload, list) else []
 
 
 def vm_config(node: str, vmid: int) -> dict[str, Any]:
-    _require_supported_provider()
-    payload = run_json(
-        ["pvesh", "get", f"/nodes/{str(node or '').strip()}/qemu/{int(vmid)}/config", "--output-format", "json"]
-    )
+    payload = _provider().get_vm_config(str(node or "").strip(), int(vmid))
     return payload if isinstance(payload, dict) else {}
 
 
 def guest_interfaces(vmid: int) -> list[dict[str, Any]]:
-    _require_supported_provider()
-    payload = run_json(["qm", "guest", "cmd", str(int(vmid)), "network-get-interfaces"])
+    payload = _provider().get_guest_network_interfaces(int(vmid))
     return payload if isinstance(payload, list) else []
 
 
@@ -127,30 +158,16 @@ def vm_description_meta_for_vmid(vmid: int) -> dict[str, str]:
 
 
 def first_guest_ipv4(vmid: int) -> str:
-    for iface in guest_interfaces(vmid):
-        for address in iface.get("ip-addresses", []):
-            ip = str(address.get("ip-address", ""))
-            if address.get("ip-address-type") != "ipv4":
-                continue
-            if not ip or ip.startswith("127.") or ip.startswith("169.254."):
-                continue
-            return ip
-    return ""
+    return str(_provider().get_guest_ipv4(int(vmid)) or "")
 
 
 def guest_exec_bash(vmid: int, command: str, *, timeout_seconds: int | None = None) -> dict[str, Any]:
-    _require_supported_provider()
-    guest_command = ["qm", "guest", "exec", str(int(vmid))]
-    if timeout_seconds is not None:
-        guest_command.extend(["--timeout", str(int(timeout_seconds))])
-    guest_command.extend(["--", "bash", "-lc", str(command)])
-    payload = run_json(guest_command)
+    payload = _provider().guest_exec_bash(int(vmid), str(command), timeout_seconds=timeout_seconds)
     return payload if isinstance(payload, dict) else {}
 
 
 def guest_exec_status(vmid: int, pid: int) -> dict[str, Any]:
-    _require_supported_provider()
-    payload = run_json(["qm", "guest", "exec-status", str(int(vmid)), str(int(pid))])
+    payload = _provider().guest_exec_status(int(vmid), int(pid))
     return payload if isinstance(payload, dict) else {}
 
 
@@ -169,32 +186,35 @@ def guest_exec_bash_sync(vmid: int, command: str, *, timeout_seconds: int | None
 
 
 def set_vm_options(vmid: int, option_pairs: list[tuple[str, str]]) -> str:
-    _require_supported_provider()
-    command = ["qm", "set", str(int(vmid))]
-    for key, value in option_pairs:
-        flag = str(key)
-        if not flag.startswith("--"):
-            flag = f"--{flag}"
-        command.extend([flag, str(value)])
-    return run_checked(command)
+    return _provider().set_vm_options(int(vmid), option_pairs)
 
 
 def set_vm_description(vmid: int, description: str) -> str:
-    _require_supported_provider()
-    return run_checked(["qm", "set", str(int(vmid)), "--description", str(description)])
+    return _provider().set_vm_description(int(vmid), str(description))
 
 
 def reboot_vm(vmid: int) -> str:
-    _require_supported_provider()
-    return run_checked(["qm", "reboot", str(int(vmid))])
+    return _provider().reboot_vm(int(vmid))
 
 
 def _main(argv: list[str]) -> int:
     if len(argv) < 2:
         raise SystemExit(
-            "usage: beagle_provider.py <list-vms|vm-config|guest-interfaces|guest-ipv4|vm-node|vm-description|vm-description-meta|guest-exec-bash-b64|guest-exec-bash-sync-b64|guest-exec-status|set-vm-options|set-vm-description-b64|reboot-vm> [args]"
+            "usage: beagle_provider.py <provider-kind|next-vmid|list-storage|list-nodes|list-vms|vm-config|guest-interfaces|guest-ipv4|vm-node|vm-description|vm-description-meta|guest-exec-bash-b64|guest-exec-bash-sync-b64|guest-exec-status|set-vm-options|set-vm-description-b64|reboot-vm> [args]"
         )
     command = argv[1]
+    if command == "provider-kind":
+        print(provider_kind())
+        return 0
+    if command == "next-vmid":
+        print(next_vmid())
+        return 0
+    if command == "list-storage":
+        print(json.dumps(list_storage_inventory(), indent=2))
+        return 0
+    if command == "list-nodes":
+        print(json.dumps(list_nodes(), indent=2))
+        return 0
     if command == "list-vms":
         print(json.dumps(list_vms(), indent=2))
         return 0

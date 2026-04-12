@@ -115,7 +115,7 @@ Long-term target:
 ### Scripts / provisioning / artifacts
 
 - `scripts/lib/beagle_provider.py`
-  - provider-facing script helper for VM inventory, VM config, and guest-interface reads
+  - provider-facing script helper now backed by `beagle-host/providers/registry.py` instead of a second embedded Proxmox implementation
 - `scripts/lib/provider_shell.sh`
   - shared shell-side provider bootstrap for local-vs-remote host dispatch, provider-helper discovery, remote helper execution, and raw JSON payload extraction
 - `scripts/reconcile-public-streams.sh`
@@ -171,6 +171,9 @@ Current browser-side contract:
 Current script-side contract:
 
 - `provider_kind()`
+- `next_vmid()`
+- `list_storage_inventory()`
+- `list_nodes()`
 - `list_vms()`
 - `vm_config(node, vmid)`
 - `guest_interfaces(vmid)`
@@ -195,6 +198,7 @@ Generic contract:
 - `next_vmid()`
 - `list_storage_inventory()`
 - `list_nodes()`
+- `get_guest_network_interfaces(vmid, ...)`
 - `list_vms(...)`
 - `get_vm_config(node, vmid, ...)`
 - `create_vm(vmid, options, ...)`
@@ -203,6 +207,7 @@ Generic contract:
 - `set_vm_description(vmid, description, ...)`
 - `set_vm_boot_order(vmid, order, ...)`
 - `start_vm(vmid, ...)`
+- `reboot_vm(vmid, ...)`
 - `stop_vm(vmid, ...)`
 - `guest_exec_bash(vmid, command, ...)`
 - `guest_exec_status(vmid, pid, ...)`
