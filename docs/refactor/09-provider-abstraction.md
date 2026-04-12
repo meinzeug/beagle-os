@@ -751,6 +751,7 @@ These flows now go through a provider-facing helper seam first:
 - `scripts/check-proxmox-host.sh` now exists as a compatibility wrapper around `check-beagle-host.sh`
 - `scripts/refresh-host-artifacts.sh` and `scripts/check-beagle-host.sh` now run under the same selected host-provider kind
 - `scripts/install-beagle-proxy.sh` now reads and persists the selected host-provider kind too, even though backend auto-detection still expects Proxmox semantics today
+- `scripts/install-beagle-proxy.sh` now also bootstraps standalone Beagle TLS and nginx/web/download delivery without requiring Proxmox certificate files, while still keeping the same shared installer seam for the Proxmox-backed path
 - `scripts/install-proxmox-ui-integration.sh` now reads the selected host-provider kind and skips cleanly when it is not `proxmox`
 - the server-installer now normalizes `BEAGLE_SERVER_HOST_PROVIDER`, dispatches repo wiring and package installation through explicit provider helpers, and passes the selected provider explicitly into `install-beagle-host.sh`
 - this does not make Proxmox optional yet, but it removes another hidden assumption that provider choice only exists inside the Python control-plane process
@@ -798,6 +799,7 @@ Known gaps in the new skeleton:
 - the state-backed host skeleton is not yet a compute/runtime backend; it is a contract and state-layout scaffold
 - deploy/install/runtime surfaces still contain remaining Proxmox-only behavior outside the provider registry even though the registry now has a second concrete implementation
 - the standalone-Beagle installer branch and the future Beagle Web Console are still planned targets, not implemented surfaces
+- the standalone install branch now does provision the shared HTTPS/download/website shell, but the browser-side Beagle operator surface is still missing provider-neutral node/storage/network contracts and therefore is not yet the finished Beagle Web Console
 
 ## Migration Rule
 

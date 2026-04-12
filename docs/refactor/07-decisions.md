@@ -1880,3 +1880,19 @@ Reason:
 
 - Merely threading `BEAGLE_HOST_PROVIDER` into deeper scripts was not enough. That still left the operator-facing ISO experience and the post-install logic effectively Proxmox-first unless the caller knew the right hidden environment values.
 - Making the mode explicit at the installer entrypoint creates the correct product contract: one Beagle installer, two install modes, one downstream host/provider architecture.
+
+### D158. Standalone Beagle hosts must bootstrap their own HTTPS/download/web surface instead of inheriting Proxmox certificates as an implicit requirement
+
+Decision:
+
+- Keep `scripts/install-beagle-proxy.sh` as the shared operator-surface installer for both host modes, but make its TLS bootstrap provider-aware:
+  - `proxmox` keeps using `/etc/pve/local/pveproxy-ssl.pem` and `/etc/pve/local/pveproxy-ssl.key`
+  - `beagle` defaults to `/etc/beagle/tls/beagle-proxy.crt` and `/etc/beagle/tls/beagle-proxy.key`
+- For the `beagle` provider, generate a self-signed certificate on first install when no explicit TLS material is configured yet.
+- Treat nginx-hosted `/beagle-downloads/*` and the website root as part of the standalone install contract, not as optional follow-up setup.
+
+Reason:
+
+- The previous standalone path had mode selection and local control-plane validation, but the actual operator-facing HTTPS surface still silently depended on Proxmox certificate files being present. That meant `Beagle OS standalone` was not yet a real first-class install mode despite the explicit mode switch.
+- Reusing the same proxy/web/download installer across both modes keeps the rollout surface converged while still letting provider-specific TLS assumptions live only at that seam.
+- A generated standalone certificate is not the final product-grade PKI story, but it is the correct bootstrap behavior for a bare-metal installer that must come up operable before any external certificate automation exists.

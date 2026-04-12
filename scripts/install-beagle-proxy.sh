@@ -19,10 +19,11 @@ DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-https://${SERVER_NAME}:${LISTE
 BEAGLE_API_UPSTREAM="${BEAGLE_API_UPSTREAM:-http://127.0.0.1:9088}"
 SITE_PORT="${BEAGLE_SITE_PORT:-443}"
 WEB_UI_TITLE="${BEAGLE_WEB_UI_TITLE:-Beagle OS Web UI}"
-CERT_FILE="${PVE_DCV_PROXY_CERT_FILE:-/etc/pve/local/pveproxy-ssl.pem}"
-KEY_FILE="${PVE_DCV_PROXY_KEY_FILE:-/etc/pve/local/pveproxy-ssl.key}"
-NGINX_SITE="/etc/nginx/sites-available/beagle-proxy.conf"
-NGINX_ENABLED="/etc/nginx/sites-enabled/beagle-proxy.conf"
+CERT_FILE="${PVE_DCV_PROXY_CERT_FILE:-}"
+KEY_FILE="${PVE_DCV_PROXY_KEY_FILE:-}"
+STANDALONE_TLS_DIR="${BEAGLE_PROXY_TLS_DIR:-$CONFIG_DIR/tls}"
+NGINX_SITE="${BEAGLE_PROXY_SITE_FILE:-/etc/nginx/sites-available/beagle-proxy.conf}"
+NGINX_ENABLED="${BEAGLE_PROXY_ENABLED_FILE:-/etc/nginx/sites-enabled/beagle-proxy.conf}"
 
 default_web_ui_url() {
   if [[ "$SITE_PORT" == "443" ]]; then
@@ -33,6 +34,35 @@ default_web_ui_url() {
 }
 
 WEB_UI_URL="${BEAGLE_WEB_UI_URL:-$(default_web_ui_url)}"
+
+host_provider_kind() {
+  local kind
+  kind="$(printf '%s' "${BEAGLE_HOST_PROVIDER:-proxmox}" | tr '[:upper:]' '[:lower:]')"
+  case "$kind" in
+    ""|pve)
+      printf 'proxmox\n'
+      ;;
+    *)
+      printf '%s\n' "$kind"
+      ;;
+  esac
+}
+
+default_cert_file() {
+  if [[ "$(host_provider_kind)" == "proxmox" ]]; then
+    printf '/etc/pve/local/pveproxy-ssl.pem\n'
+    return 0
+  fi
+  printf '%s/beagle-proxy.crt\n' "$STANDALONE_TLS_DIR"
+}
+
+default_key_file() {
+  if [[ "$(host_provider_kind)" == "proxmox" ]]; then
+    printf '/etc/pve/local/pveproxy-ssl.key\n'
+    return 0
+  fi
+  printf '%s/beagle-proxy.key\n' "$STANDALONE_TLS_DIR"
+}
 
 if [[ -z "$ASSET_ROOT" ]]; then
   if [[ -d /opt/beagle/dist && -f /opt/beagle/proxmox-ui/beagle-autologin.js ]]; then
@@ -64,6 +94,7 @@ ensure_root() {
       BEAGLE_SITE_PORT="$SITE_PORT" \
       BEAGLE_WEB_UI_URL="$WEB_UI_URL" \
       BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE" \
+      BEAGLE_PROXY_TLS_DIR="$STANDALONE_TLS_DIR" \
       PVE_DCV_PROXY_CERT_FILE="$CERT_FILE" \
       PVE_DCV_PROXY_KEY_FILE="$KEY_FILE" \
       "$0" "$@"
@@ -82,6 +113,7 @@ ensure_dependencies() {
 
   command -v nginx >/dev/null 2>&1 || package+=(nginx)
   command -v python3 >/dev/null 2>&1 || package+=(python3)
+  command -v openssl >/dev/null 2>&1 || package+=(openssl)
 
   if (( ${#package[@]} == 0 )); then
     return 0
@@ -159,6 +191,14 @@ load_env_file() {
   WEB_UI_TITLE="${BEAGLE_WEB_UI_TITLE:-${WEB_UI_TITLE}}"
   CERT_FILE="${PVE_DCV_PROXY_CERT_FILE:-${CERT_FILE}}"
   KEY_FILE="${PVE_DCV_PROXY_KEY_FILE:-${KEY_FILE}}"
+  STANDALONE_TLS_DIR="${BEAGLE_PROXY_TLS_DIR:-${STANDALONE_TLS_DIR}}"
+
+  if [[ -z "$CERT_FILE" ]]; then
+    CERT_FILE="$(default_cert_file)"
+  fi
+  if [[ -z "$KEY_FILE" ]]; then
+    KEY_FILE="$(default_key_file)"
+  fi
 }
 
 first_guest_ipv4() {
@@ -288,9 +328,43 @@ PVE_DCV_DOWNLOADS_BASE_URL="$DOWNLOADS_BASE_URL"
 BEAGLE_SITE_PORT="$SITE_PORT"
 BEAGLE_WEB_UI_URL="$WEB_UI_URL"
 BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE"
+BEAGLE_PROXY_TLS_DIR="$STANDALONE_TLS_DIR"
 PVE_DCV_PROXY_CERT_FILE="$CERT_FILE"
 PVE_DCV_PROXY_KEY_FILE="$KEY_FILE"
 EOF
+}
+
+tls_subject_alt_name() {
+  if [[ "$SERVER_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    printf 'IP:%s,IP:127.0.0.1\n' "$SERVER_NAME"
+    return 0
+  fi
+  printf 'DNS:%s,IP:127.0.0.1\n' "$SERVER_NAME"
+}
+
+ensure_tls_materials() {
+  if [[ -r "$CERT_FILE" && -r "$KEY_FILE" ]]; then
+    return 0
+  fi
+
+  if [[ "$(host_provider_kind)" == "proxmox" ]]; then
+    echo "Certificate file not found: $CERT_FILE" >&2
+    exit 1
+  fi
+
+  install -d -m 0700 "$STANDALONE_TLS_DIR"
+  openssl req \
+    -x509 \
+    -nodes \
+    -newkey rsa:2048 \
+    -days 3650 \
+    -keyout "$KEY_FILE" \
+    -out "$CERT_FILE" \
+    -subj "/CN=${SERVER_NAME}" \
+    -addext "subjectAltName=$(tls_subject_alt_name)" >/dev/null 2>&1
+  chmod 0600 "$KEY_FILE"
+  chmod 0644 "$CERT_FILE"
+  log "Generated standalone TLS certificate at $CERT_FILE"
 }
 
 write_web_ui_config() {
@@ -473,18 +547,11 @@ ensure_root "$@"
 load_env_file
 ensure_dependencies
 
-if [[ "$BEAGLE_HOST_PROVIDER" != "proxmox" ]]; then
+if [[ "$(host_provider_kind)" != "proxmox" ]]; then
   log "Proxy backend auto-detection currently expects the proxmox provider; active provider is '$BEAGLE_HOST_PROVIDER'."
 fi
 
-[[ -r "$CERT_FILE" ]] || {
-  echo "Certificate file not found: $CERT_FILE" >&2
-  exit 1
-}
-[[ -r "$KEY_FILE" ]] || {
-  echo "Certificate key not found: $KEY_FILE" >&2
-  exit 1
-}
+ensure_tls_materials
 
 if [[ -z "$BACKEND_HOST" ]]; then
   if ! auto_detect_backend; then

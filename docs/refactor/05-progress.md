@@ -1993,6 +1993,26 @@
   - updated `docs/refactor/03-refactor-plan.md` so the staged roadmap now explicitly includes a dual-mode server-installer architecture, Beagle Web Console foundation work, and a standalone-Beagle operation stage before Proxmox becomes merely optional
   - updated the risk register so "ending at polished Proxmox integration without a standalone Beagle host/UI target" is now an explicit tracked architecture risk
 
+### 2026-04-12 — standalone host proxy/web surface bootstrap
+
+- Completed the next standalone installer slice so `Beagle OS standalone` now gets the same basic HTTPS/download/web operator surface provisioning instead of stopping at local control-plane validation only:
+  - changed `scripts/install-beagle-proxy.sh` so proxy TLS material is no longer hard-wired to `/etc/pve/local/pveproxy-ssl.pem` and `/etc/pve/local/pveproxy-ssl.key`
+  - added provider-aware default TLS paths there, using `/etc/beagle/tls/beagle-proxy.crt` and `/etc/beagle/tls/beagle-proxy.key` for the `beagle` provider while preserving the existing Proxmox defaults for the `proxmox` provider
+  - added standalone self-signed certificate generation in `install-beagle-proxy.sh` for the `beagle` provider when no explicit certificate/key is configured yet, so first boot no longer depends on Proxmox-owned certificate files
+  - made `scripts/install-beagle-host.sh` persist optional `BEAGLE_HOST_TLS_CERT_FILE` / `BEAGLE_HOST_TLS_KEY_FILE` into `host.env` and call `scripts/install-beagle-proxy.sh` for standalone Beagle installs even when `/etc/pve/local/pveproxy-ssl.pem` does not exist
+  - kept the existing Proxmox UI integration path unchanged and still gated on `/usr/share/pve-manager/js`
+  - extended `scripts/check-beagle-host.sh` so the standalone `beagle` provider path now validates:
+    - nginx configuration presence
+    - standalone TLS certificate presence
+    - hosted `/beagle-downloads/*` artifact reachability over HTTPS
+    - the Beagle Web UI root over the configured site port
+    - in addition to the existing local control-plane health probe
+- Validation:
+  - `bash -n scripts/install-beagle-proxy.sh scripts/install-beagle-host.sh scripts/check-beagle-host.sh`
+  - focused standalone proxy smoke test using a temp asset root plus stub `nginx` / `systemctl`, confirming self-signed TLS generation, env-file persistence, and both HTTPS listener blocks in the generated nginx config
+  - focused standalone host-validation smoke test using temp install/config trees plus stub `curl` / `systemctl` / `id` / `getent`, confirming the `beagle` provider path validates the standalone TLS file, nginx, hosted download URLs, and the Web UI root successfully
+  - `./scripts/validate-project.sh`
+
 ### Known risks after this run
 
 - `beagle-control-plane.py` remains a large monolith, even though provider-backed read helpers now live in `beagle-host/services/virtualization_inventory.py`, endpoint compliance and VM-state composition now live in `beagle-host/services/vm_state.py`, and VM lifecycle writes, guest-exec flows, and scheduled restarts already flow through provider helpers.
@@ -2006,3 +2026,4 @@
 - The first `beagle` provider is now real, but it is still a state-backed skeleton and not yet a compute/runtime backend. It proves contract shape and deploy wiring, not a finished hypervisor implementation.
 - `providers/beagle/virtualization-provider.js` currently derives inventory from `/api/v1/vms` and synthesizes config data because there is not yet a provider-neutral browser HTTP surface for node inventory, VM config, or guest interfaces.
 - The plan is now pointed at the correct end-state, but there is still no implemented Beagle Web Console module and no finished standalone server-installer branch yet; those remain planning and implementation gaps, not solved work.
+- The standalone install path now provisions nginx plus HTTPS/download/web entrypoints, but its operator surface is still only the existing website shell over current control-plane endpoints; it is not yet a dedicated provider-neutral Beagle Web Console with node/storage/network inventory or Beagle-runtime lifecycle actions.
