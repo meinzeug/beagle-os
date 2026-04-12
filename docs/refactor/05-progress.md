@@ -2013,6 +2013,33 @@
   - focused standalone host-validation smoke test using temp install/config trees plus stub `curl` / `systemctl` / `id` / `getent`, confirming the `beagle` provider path validates the standalone TLS file, nginx, hosted download URLs, and the Web UI root successfully
   - `./scripts/validate-project.sh`
 
+### 2026-04-12 — first provider-neutral browser virtualization read surface
+
+- Added the first explicit provider-neutral browser/operator read surface for Beagle host virtualization data instead of continuing to synthesize it from `/api/v1/vms`:
+  - added `beagle-host/services/virtualization_read_surface.py`
+  - exposed authenticated GET routes for:
+    - `/api/v1/virtualization/overview`
+    - `/api/v1/virtualization/hosts`
+    - `/api/v1/virtualization/nodes`
+    - `/api/v1/virtualization/storage`
+    - `/api/v1/virtualization/vms/<vmid>/config`
+    - `/api/v1/virtualization/vms/<vmid>/interfaces`
+  - wired `beagle-host/bin/beagle-control-plane.py` to lazy-create the new service and route those requests before the remaining inline fallback GET handlers
+  - added thin wrappers in the control-plane entrypoint for `list_storage_inventory()` and `get_guest_network_interfaces()` so the new service consumes the same provider seam as the rest of the host inventory logic
+- Removed more Beagle browser-provider synthesis:
+  - changed `providers/beagle/virtualization-provider.js` so host/node/config/guest-interface reads now come from `/api/v1/virtualization/*` instead of deriving nodes from VM inventory and returning an empty guest-interface list
+  - updated `providers/beagle/README.md` to document the new host-side contract and remove the outdated note that the provider still synthesizes config and guest interfaces
+- Started using the new surface in the existing Beagle website shell:
+  - changed `website/app.js` to fetch `/virtualization/overview` during dashboard load
+  - the manager status line now shows provider plus node/storage counts, so the served website already consumes the new provider-neutral read surface instead of only VM inventory/policy/health payloads
+- Validation:
+  - `python3 -m py_compile beagle-host/services/virtualization_read_surface.py beagle-host/bin/beagle-control-plane.py`
+  - `node --check providers/beagle/virtualization-provider.js`
+  - `node --check website/app.js`
+  - focused Python smoke test with the state-backed `beagle` provider confirming `overview`, VM config, and guest-interface routes
+  - focused Node smoke test with mocked `BeagleUiApiClient` / `BeagleProviderRegistry` confirming the browser Beagle provider now really calls the new `/api/v1/virtualization/*` routes
+  - `./scripts/validate-project.sh`
+
 ### Known risks after this run
 
 - `beagle-control-plane.py` remains a large monolith, even though provider-backed read helpers now live in `beagle-host/services/virtualization_inventory.py`, endpoint compliance and VM-state composition now live in `beagle-host/services/vm_state.py`, and VM lifecycle writes, guest-exec flows, and scheduled restarts already flow through provider helpers.
@@ -2024,6 +2051,6 @@
 - Live endpoints on older released payloads can still boot back into pre-fix runtime scripts even after an on-device hot patch; validating runtime refactors against a real endpoint now requires either a rebuilt thin-client payload/update or an explicit post-boot deployment step.
 - Already downloaded host USB installers without the self-bootstrap fix will continue to fail until refreshed from regenerated host download artifacts.
 - The first `beagle` provider is now real, but it is still a state-backed skeleton and not yet a compute/runtime backend. It proves contract shape and deploy wiring, not a finished hypervisor implementation.
-- `providers/beagle/virtualization-provider.js` currently derives inventory from `/api/v1/vms` and synthesizes config data because there is not yet a provider-neutral browser HTTP surface for node inventory, VM config, or guest interfaces.
+- `providers/beagle/virtualization-provider.js` now consumes a provider-neutral read surface for hosts/nodes/config/interfaces, but storage/network inventory is not yet surfaced into the website or other browser clients as first-class operator flows.
 - The plan is now pointed at the correct end-state, but there is still no implemented Beagle Web Console module and no finished standalone server-installer branch yet; those remain planning and implementation gaps, not solved work.
 - The standalone install path now provisions nginx plus HTTPS/download/web entrypoints, but its operator surface is still only the existing website shell over current control-plane endpoints; it is not yet a dedicated provider-neutral Beagle Web Console with node/storage/network inventory or Beagle-runtime lifecycle actions.

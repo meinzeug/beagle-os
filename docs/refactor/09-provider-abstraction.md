@@ -792,14 +792,16 @@ Current contract status:
 - override for development/smoke tests: `BEAGLE_BEAGLE_PROVIDER_STATE_DIR`
 - the host skeleton supports node/storage/VM inventory, VM config persistence, guest-interface persistence, VM lifecycle state mutation, synthetic guest-exec completion, and scheduled-restart markers
 - `providers/beagle/virtualization-provider.js` consumes `/api/v1/vms` and exposes the same top-level browser virtualization interface as `providers/proxmox/virtualization-provider.js`
+- `beagle-host/services/virtualization_read_surface.py` now exposes provider-neutral browser/operator reads for hosts, nodes, storage, VM config, and guest interfaces under `/api/v1/virtualization/*`
+- `providers/beagle/virtualization-provider.js` now consumes that explicit read surface instead of deriving nodes/config/interfaces from `/api/v1/vms`
 
 Known gaps in the new skeleton:
 
-- there is still no provider-neutral browser HTTP surface for nodes/hosts, guest interfaces, or full VM config, so the browser-side Beagle provider currently derives nodes from VM inventory, synthesizes a small config object, and returns an empty guest-interface list
+- there is now a first provider-neutral browser HTTP surface for hosts/nodes/storage/config/interfaces, but bridge/network inventory and richer operator actions are still missing from that contract
 - the state-backed host skeleton is not yet a compute/runtime backend; it is a contract and state-layout scaffold
 - deploy/install/runtime surfaces still contain remaining Proxmox-only behavior outside the provider registry even though the registry now has a second concrete implementation
 - the standalone-Beagle installer branch and the future Beagle Web Console are still planned targets, not implemented surfaces
-- the standalone install branch now does provision the shared HTTPS/download/website shell, but the browser-side Beagle operator surface is still missing provider-neutral node/storage/network contracts and therefore is not yet the finished Beagle Web Console
+- the standalone install branch now does provision the shared HTTPS/download/website shell and the first provider-neutral browser read contracts, but it is still not the finished Beagle Web Console because bridge/network/operator workflows are not yet present there
 
 ## Migration Rule
 

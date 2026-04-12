@@ -5,9 +5,9 @@ This directory is the first provider-neutral browser-side Beagle virtualization 
 Current scope:
 
 - `virtualization-provider.js` registers `providerId: "beagle"` against `core/provider/registry.js`
-- inventory reads come from the Beagle host surface `/api/v1/vms`
-- VM config is synthesized from inventory because there is not yet a dedicated provider-neutral VM-config HTTP route
-- guest-interface reads intentionally return an empty list until a provider-neutral guest-network endpoint exists
+- VM inventory reads come from the Beagle host surface `/api/v1/vms`
+- node, host, storage, VM-config, and guest-interface reads come from the provider-neutral Beagle host surface under `/api/v1/virtualization/*`
+- the browser provider is therefore no longer synthesizing node lists or VM config from the VM inventory response alone
 
 Host-side pairing:
 

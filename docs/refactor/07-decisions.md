@@ -1896,3 +1896,18 @@ Reason:
 - The previous standalone path had mode selection and local control-plane validation, but the actual operator-facing HTTPS surface still silently depended on Proxmox certificate files being present. That meant `Beagle OS standalone` was not yet a real first-class install mode despite the explicit mode switch.
 - Reusing the same proxy/web/download installer across both modes keeps the rollout surface converged while still letting provider-specific TLS assumptions live only at that seam.
 - A generated standalone certificate is not the final product-grade PKI story, but it is the correct bootstrap behavior for a bare-metal installer that must come up operable before any external certificate automation exists.
+
+### D159. Browser-side Beagle provider and website host UI should consume explicit `/api/v1/virtualization/*` routes instead of synthesizing host data from the VM inventory payload
+
+Decision:
+
+- Introduce a dedicated authenticated virtualization read surface under `/api/v1/virtualization/*` for browser/operator clients.
+- Keep `/api/v1/vms` as the VM inventory/fleet surface, but stop using it as an implicit transport for unrelated node/config/interface data in Beagle browser clients.
+- Start consuming the new surface immediately in both:
+  - `providers/beagle/virtualization-provider.js`
+  - `website/app.js`
+
+Reason:
+
+- The Beagle browser provider previously proved the provider registry shape, but it still had the wrong dependency pattern: it derived nodes from VM inventory, synthesized config locally, and returned empty guest interfaces. That is exactly the kind of quiet Proxmox-era UI shortcut that would make the future Beagle Web Console drift back into ad-hoc client-side contracts.
+- A dedicated host-side surface keeps provider-neutral read contracts explicit, testable, and reusable across multiple browser surfaces instead of teaching each client to reinterpret the VM inventory response differently.

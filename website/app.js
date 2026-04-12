@@ -26,6 +26,7 @@
     token: readStoredToken(),
     inventory: [],
     policies: [],
+    virtualizationOverview: null,
     selectedVmid: null,
     selectedVmids: [],
     selectedPolicyName: '',
@@ -418,10 +419,20 @@
     }
   }
 
-  function statCardFromHealth(payload) {
+  function statCardFromHealth(payload, overview) {
     var counts = (payload && payload.endpoint_status_counts) || {};
+    var provider = String((overview && overview.provider) || payload && payload.provider || '').trim();
+    var nodeCount = Number(overview && overview.node_count || 0);
+    var storageCount = Number(overview && overview.storage_count || 0);
+    var managerMeta = 'v' + String(payload.version || 'unknown');
+    if (provider) {
+      managerMeta += ' · ' + provider;
+    }
+    if (nodeCount > 0 || storageCount > 0) {
+      managerMeta += ' · ' + String(nodeCount) + ' nodes · ' + String(storageCount) + ' storage';
+    }
     text('stat-manager', 'Online');
-    text('stat-manager-meta', 'v' + String(payload.version || 'unknown'));
+    text('stat-manager-meta', managerMeta);
     text('stat-vms', String(payload.vm_count || state.inventory.length || 0));
     text('stat-vms-meta', 'Active Beagle VMs: ' + String(filteredInventory().length));
     text('stat-endpoints', String(payload.endpoint_count || 0));
@@ -766,13 +777,15 @@
     return Promise.all([
       request('/health'),
       request('/vms'),
-      request('/policies')
+      request('/policies'),
+      request('/virtualization/overview')
     ]).then(function (results) {
       var health = results[0] || {};
       state.inventory = (results[1] && results[1].vms) || [];
       state.policies = (results[2] && results[2].policies) || [];
+      state.virtualizationOverview = results[3] || null;
       setAuthMode(true);
-      statCardFromHealth(health);
+      statCardFromHealth(health, state.virtualizationOverview);
       renderInventory();
       renderPolicies();
       setBanner('Connected. Inventory and policies up to date.', 'ok');

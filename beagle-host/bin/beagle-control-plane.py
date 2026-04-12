@@ -69,6 +69,7 @@ from ubuntu_beagle_provisioning import UbuntuBeagleProvisioningService
 from update_feed import UpdateFeedService
 from utility_support import UtilitySupportService
 from virtualization_inventory import VirtualizationInventoryService
+from virtualization_read_surface import VirtualizationReadSurfaceService
 from vm_mutation_surface import VmMutationSurfaceService
 from vm_profile import VmProfileService
 from vm_http_surface import VmHttpSurfaceService
@@ -507,6 +508,7 @@ VIRTUALIZATION_INVENTORY = VirtualizationInventoryService(
 VM_PROFILE_SERVICE: VmProfileService | None = None
 VM_HTTP_SURFACE_SERVICE: VmHttpSurfaceService | None = None
 CONTROL_PLANE_READ_SURFACE_SERVICE: ControlPlaneReadSurfaceService | None = None
+VIRTUALIZATION_READ_SURFACE_SERVICE: VirtualizationReadSurfaceService | None = None
 PUBLIC_HTTP_SURFACE_SERVICE: PublicHttpSurfaceService | None = None
 PUBLIC_UBUNTU_INSTALL_SURFACE_SERVICE: PublicUbuntuInstallSurfaceService | None = None
 ENDPOINT_HTTP_SURFACE_SERVICE: EndpointHttpSurfaceService | None = None
@@ -1539,6 +1541,14 @@ def list_nodes_inventory() -> list[dict[str, Any]]:
     return VIRTUALIZATION_INVENTORY.list_nodes_inventory()
 
 
+def list_storage_inventory() -> list[dict[str, Any]]:
+    return HOST_PROVIDER.list_storage_inventory()
+
+
+def get_guest_network_interfaces(vmid: int, *, timeout_seconds: float | None = None) -> list[dict[str, Any]]:
+    return HOST_PROVIDER.get_guest_network_interfaces(vmid, timeout_seconds=timeout_seconds)
+
+
 def config_bridge_names(config: dict[str, Any]) -> set[str]:
     return VIRTUALIZATION_INVENTORY.config_bridge_names(config)
 
@@ -1657,6 +1667,23 @@ def control_plane_read_surface_service() -> ControlPlaneReadSurfaceService:
             version=VERSION,
         )
     return CONTROL_PLANE_READ_SURFACE_SERVICE
+
+
+def virtualization_read_surface_service() -> VirtualizationReadSurfaceService:
+    global VIRTUALIZATION_READ_SURFACE_SERVICE
+    if VIRTUALIZATION_READ_SURFACE_SERVICE is None:
+        VIRTUALIZATION_READ_SURFACE_SERVICE = VirtualizationReadSurfaceService(
+            find_vm=find_vm,
+            get_guest_network_interfaces=lambda vmid: get_guest_network_interfaces(vmid, timeout_seconds=GUEST_AGENT_TIMEOUT_SECONDS),
+            get_vm_config=get_vm_config,
+            host_provider_kind=BEAGLE_HOST_PROVIDER_KIND,
+            list_nodes_inventory=list_nodes_inventory,
+            list_storage_inventory=list_storage_inventory,
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return VIRTUALIZATION_READ_SURFACE_SERVICE
 
 
 def public_http_surface_service() -> PublicHttpSurfaceService:
@@ -2133,6 +2160,10 @@ class Handler(BaseHTTPRequestHandler):
                 )
             else:
                 self._write_json(response["status"], response["payload"])
+            return
+        response = virtualization_read_surface_service().route_get(path)
+        if response is not None:
+            self._write_json(response["status"], response["payload"])
             return
         if path == "/api/v1/health":
             self._write_json(HTTPStatus.OK, build_health_payload())

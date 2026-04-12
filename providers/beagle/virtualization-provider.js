@@ -17,6 +17,18 @@
     });
   }
 
+  function inventoryNodes() {
+    return apiClient.apiGetBeagleJson("/api/v1/virtualization/nodes").then(function(payload) {
+      return Array.isArray(payload && payload.nodes) ? payload.nodes : [];
+    });
+  }
+
+  function inventoryHosts() {
+    return apiClient.apiGetBeagleJson("/api/v1/virtualization/hosts").then(function(payload) {
+      return Array.isArray(payload && payload.hosts) ? payload.hosts : [];
+    });
+  }
+
   function normalizeVmRecord(item) {
     return {
       vmid: Number(item && item.vmid || 0),
@@ -29,34 +41,26 @@
   }
 
   function listNodes() {
-    return inventoryVms().then(function(vms) {
-      var seen = {};
-      var nodes = [];
-      (Array.isArray(vms) ? vms : []).forEach(function(item) {
-        var nodeName = String(item && item.node || "");
-        if (!nodeName || seen[nodeName]) {
-          return;
-        }
-        seen[nodeName] = true;
-        nodes.push({
-          id: nodeName,
-          name: nodeName,
-          label: nodeName,
-          status: "online"
-        });
+    return inventoryNodes().then(function(nodes) {
+      return (Array.isArray(nodes) ? nodes : []).map(function(item) {
+        return {
+          id: String(item && item.id || item && item.name || ""),
+          name: String(item && item.name || ""),
+          label: String(item && item.label || item && item.name || ""),
+          status: String(item && item.status || "unknown")
+        };
       });
-      return nodes;
     });
   }
 
   function listHosts() {
-    return listNodes().then(function(nodes) {
-      return nodes.map(function(node) {
+    return inventoryHosts().then(function(hosts) {
+      return (Array.isArray(hosts) ? hosts : []).map(function(node) {
         return {
-          id: node.id,
-          name: node.name,
-          label: node.label,
-          status: node.status
+          id: String(node && node.id || node && node.name || ""),
+          name: String(node && node.name || ""),
+          label: String(node && node.label || node && node.name || ""),
+          status: String(node && node.status || "unknown")
         };
       });
     });
@@ -77,20 +81,22 @@
   }
 
   function getVmConfig(ctx) {
-    return getVmState(ctx).then(function(state) {
+    return apiClient.apiGetBeagleJson("/api/v1/virtualization/vms/" + encodeURIComponent(String(ctx && ctx.vmid || "")) + "/config").then(function(payload) {
+      var config = payload && payload.config ? payload.config : {};
       return {
-        vmid: Number(ctx && ctx.vmid || 0),
-        node: String(ctx && ctx.node || state.node || ""),
-        name: String(state.name || ("vm-" + String(ctx && ctx.vmid || ""))),
-        description: "",
-        tags: String(state.tags || "")
+        vmid: Number(config && config.vmid || ctx && ctx.vmid || 0),
+        node: String(config && config.node || ctx && ctx.node || ""),
+        name: String(config && config.name || ("vm-" + String(ctx && ctx.vmid || ""))),
+        description: String(config && config.description || ""),
+        tags: String(config && config.tags || "")
       };
     });
   }
 
   function getVmGuestInterfaces(ctx) {
-    void ctx;
-    return Promise.resolve([]);
+    return apiClient.apiGetBeagleJson("/api/v1/virtualization/vms/" + encodeURIComponent(String(ctx && ctx.vmid || "")) + "/interfaces").then(function(payload) {
+      return Array.isArray(payload && payload.interfaces) ? payload.interfaces : [];
+    });
   }
 
   function selectedNodeName() {
