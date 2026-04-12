@@ -1943,6 +1943,11 @@
   - kept the in-repo path unchanged when the helper files are present locally, so repo development and ISO build flows still source the extracted helper modules directly
   - verified the exact broken case locally by copying the installer into a temporary foreign directory, patching host-style default URLs into it, and confirming that `--help` now succeeds after downloading/extracting the bootstrap bundle instead of failing on `/home/thin-client-assistant/usb/usb_writer_sources.sh`
   - also verified checksum-aware helper bootstrap against a temporary local HTTP server plus `SHA256SUMS`, alongside `bash -n` and `./scripts/validate-project.sh`
+- Corrected the artifact source used by host-facing USB installer surfaces:
+  - changed `beagle-host/services/download_metadata.py` so VM-/host-installer downloads now point `installer ISO`, `payload`, and `bootstrap` to the host-local `/beagle-downloads/*` surface instead of the external public update bucket
+  - changed `scripts/prepare-host-downloads.sh` and `scripts/check-beagle-host.sh` to treat those same host-local artifact URLs as the expected launcher/status binding
+  - confirmed locally that the download-metadata service now emits `https://srv.thinover.net:8443/beagle-downloads/beagle-os-installer-amd64.iso`, `.../pve-thin-client-usb-payload-latest.tar.gz`, and `.../pve-thin-client-usb-bootstrap-latest.tar.gz` for installer-facing surfaces
+  - this specifically fixes the operational regression where freshly rendered VM installers tried to bootstrap from `https://beagle-os.com/beagle-updates/pve-thin-client-usb-bootstrap-latest.tar.gz`, which currently resolves to a much larger wrong artifact for USB-creation bootstrapping
 
 ### Known risks after this run
 

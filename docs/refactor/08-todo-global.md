@@ -174,6 +174,7 @@
 - [ ] Propagate the Moonlight fast-path launch fix into a released thin-client payload/update and verify it on a live endpoint after reboot.
 - [ ] Add smoke validation for generated installer URLs and public artifact filenames.
 - [ ] Add smoke validation for hosted single-file USB installers that bootstrap extracted helper modules from the published bootstrap bundle instead of assuming a local repo checkout.
+- [ ] Add smoke validation that VM-/host-installer scripts resolve ISO/payload/bootstrap to host-local `/beagle-downloads/*` artifacts rather than drifting back to the public update bucket.
 - [ ] Add release-surface verification helpers for both linked servers.
 - [ ] Reduce frontend token exposure and clarify secret-handling rules across all browser surfaces.
 - [ ] Extract GFN launch and session supervision helpers from `beagle-kiosk/main.js`.

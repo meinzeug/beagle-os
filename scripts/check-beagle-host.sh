@@ -101,10 +101,10 @@ check_status_json() {
   local expected_server_installer_iso_url=""
 
   expected_installer_url="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-installer-host-latest.sh")"
-  expected_bootstrap_url="$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
-  expected_payload_url="$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
-  expected_endpoint_iso_url="$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "beagle-os-installer-amd64.iso")"
-  expected_server_installer_iso_url="$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "beagle-os-server-installer-amd64.iso")"
+  expected_bootstrap_url="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
+  expected_payload_url="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
+  expected_endpoint_iso_url="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-os-installer-amd64.iso")"
+  expected_server_installer_iso_url="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-os-server-installer-amd64.iso")"
 
   python3 - "$STATUS_JSON_FILE" "$INSTALL_DIR/VERSION" "$expected_installer_url" "$expected_bootstrap_url" "$expected_payload_url" "$expected_endpoint_iso_url" "$expected_server_installer_iso_url" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$INSTALL_DIR/dist/pve-thin-client-usb-installer-host-latest.sh" "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-latest.tar.gz" "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" "$INSTALL_DIR/dist/beagle-os-installer-amd64.iso" "$INSTALL_DIR/dist/beagle-os-server-installer-amd64.iso" <<'PY'
 import hashlib
@@ -187,8 +187,8 @@ check_hosted_installer_binding() {
   local expected_bootstrap_url=""
   local expected_payload_url=""
 
-  expected_bootstrap_url="$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
-  expected_payload_url="$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
+  expected_bootstrap_url="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
+  expected_payload_url="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
   if ! grep -Fq "RELEASE_BOOTSTRAP_URL=\"\${RELEASE_BOOTSTRAP_URL:-${expected_bootstrap_url}}\"" "$INSTALL_DIR/dist/pve-thin-client-usb-installer-host-latest.sh"; then
     echo "ERR bind  hosted installer bootstrap URL"
     record_failure
