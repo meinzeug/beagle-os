@@ -133,10 +133,10 @@ Strategic framing:
    - continue keeping helper extraction inside `thin-client-assistant/usb/*` modules, but treat the single-file host/download launcher as a compatibility surface that must remain self-contained at startup
 
 14. Rebuild and re-test the server installer ISO after the new live-network hardening:
-   - rebuild `server-installer/live-build` artifacts on `thinover.net`
-   - attach the refreshed ISO to a clean test VM
-   - verify that the installer survives transient DNS/DHCP jitter and completes a full Debian+Beagle install instead of leaving only a partial `debootstrap` target
-   - if another failure occurs, capture the live `/var/log/beagle-server-installer.log` from the installer environment before destroying the VM
+   - continue the active `102` verification run on `thinover.net` until it either completes or exposes the next hard failure point
+   - if it completes, reboot into the installed system and verify the standalone Beagle host stack, nginx/TLS, website, and control-plane health end to end
+   - if it fails later, capture the live `/var/log/beagle-server-installer.log` plus the mounted target-root logs before destroying the VM
+   - after the run is stable, keep the current locale bootstrap so the text installer stays quiet and operator-readable
 
 ## After that
 

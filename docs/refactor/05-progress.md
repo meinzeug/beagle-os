@@ -2040,6 +2040,8 @@
     - renews a DHCP lease on the detected primary interface when IPv4 is missing
     - requires IPv4, a default route, DNS resolution, and a successful Debian Release probe before continuing
     - retries `debootstrap`, `apt-get update`, host-package installation, and the Beagle source download instead of failing on the first transient network error
+  - rebuilt the server-installer ISO on `thinover.net`, created fresh VM `102`, and drove the text installer through mode/password/disk confirmation to confirm the fixed path really advances into a stable live install with DHCP (`10.10.10.201`) and sustained target-disk growth instead of stalling before bootstrap
+  - removed the remaining live-installer locale noise by making the installer bootstrap its own explicit `C.UTF-8` environment before any prompts or subprocesses run
 - Validation:
   - `python3 -m py_compile beagle-host/services/virtualization_read_surface.py beagle-host/bin/beagle-control-plane.py`
   - `node --check providers/beagle/virtualization-provider.js`
@@ -2049,6 +2051,7 @@
   - `./scripts/validate-project.sh`
   - `bash -n server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
   - focused shell smoke test for installer DNS bootstrap plus retry wrappers
+  - focused shell smoke test for `bootstrap_live_locale()`
 
 ### Known risks after this run
 
