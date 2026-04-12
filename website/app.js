@@ -35,8 +35,13 @@
     detailCache: Object.create(null)
   };
 
-  var panelMeta = {
-    overview: {
+  var USAGE_WARN_THRESHOLD = 90;
+  var USAGE_INFO_THRESHOLD = 70;
+  var DISK_KEY_PATTERN = /^(virtio|ide|sata|scsi|efidisk|tpmstate)\d*$/;
+  var NET_KEY_PATTERN = /^net\d+$/;
+  var VM_MAIN_KEYS = ['vmid', 'name', 'node', 'status', 'tags', 'cores', 'memory', 'machine', 'bios', 'ostype', 'boot', 'agent', 'balloon', 'onboot', 'cpu'];
+
+  var panelMeta = {    overview: {
       eyebrow: 'Host Control Surface',
       title: 'Beagle OS Web UI',
       description: 'Zentrale Bedienoberflaeche fuer aktive Beagle-VMs, Endpoint-Zustand, Installer-Bereitschaft, Credentials und Operator-Aktionen.'
@@ -45,6 +50,11 @@
       eyebrow: 'Inventory Workspace',
       title: 'Beagle Inventar',
       description: 'Arbeite direkt mit den aktiven Beagle-VMs, Filterung, Bulk-Aktionen und Detailansicht.'
+    },
+    virtualization: {
+      eyebrow: 'Infrastructure Workspace',
+      title: 'Virtualisierung',
+      description: 'Nodes, Storage und Infrastruktur-Inventar des Beagle-Hosts.'
     },
     policies: {
       eyebrow: 'Configuration Workspace',
@@ -386,6 +396,142 @@
     return '<span class="chip ' + tone + '">' + escapeHtml(label) + '</span>';
   }
 
+  function formatBytes(bytes) {
+    if (!bytes) {
+      return '0 B';
+    }
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = 0;
+    var value = Number(bytes);
+    while (value >= 1024 && i < units.length - 1) {
+      value = value / 1024;
+      i++;
+    }
+    return value.toFixed(1) + '\u00a0' + units[i];
+  }
+
+  function usageBar(used, total, label) {
+    var pct = total > 0 ? Math.min(100, Math.round((Number(used) / Number(total)) * 100)) : 0;
+    var tone = pct >= USAGE_WARN_THRESHOLD ? 'warn' : pct >= USAGE_INFO_THRESHOLD ? 'info' : '';
+    return '<span class="usage-bar-outer ' + tone + '">' +
+      '<span class="usage-bar-track"><span class="usage-bar-fill" style="width:' + pct + '%"></span></span>' +
+      '<span class="usage-label">' + escapeHtml(label || (pct + '%')) + '</span>' +
+      '</span>';
+  }
+
+  function renderVirtualizationPanel() {
+    var overview = state.virtualizationOverview;
+    var nodesGrid = qs('nodes-grid');
+    var storageBody = qs('storage-body');
+    if (!nodesGrid || !storageBody) {
+      return;
+    }
+    if (!overview || !state.token) {
+      nodesGrid.innerHTML = '<div class="empty-card">Keine Daten. Verbinde dich zuerst mit dem API-Token.</div>';
+      storageBody.innerHTML = '<tr><td colspan="6" class="empty-cell">Keine Daten verfuegbar.</td></tr>';
+      return;
+    }
+    var nodes = Array.isArray(overview.nodes) ? overview.nodes : [];
+    var storage = Array.isArray(overview.storage) ? overview.storage : [];
+    if (!nodes.length) {
+      nodesGrid.innerHTML = '<div class="empty-card">Keine Nodes gefunden.</div>';
+    } else {
+      nodesGrid.innerHTML = nodes.map(function (node) {
+        var statusTone = node.status === 'online' ? 'ok' : 'warn';
+        var cpuUsed = node.maxcpu > 0 ? Math.round((node.cpu || 0) * 100) : 0;
+        return '<article class="node-card">' +
+          '<div class="node-head">' +
+            '<strong class="node-name">' + escapeHtml(node.name || node.id || 'node') + '</strong>' +
+            '<span class="chip ' + statusTone + '">' + escapeHtml(node.status || 'unknown') + '</span>' +
+          '</div>' +
+          '<div class="node-meta"><span class="usage-key">CPU</span>' + usageBar(cpuUsed, 100, cpuUsed + '%') + '</div>' +
+          '<div class="node-meta"><span class="usage-key">RAM</span>' + usageBar(node.mem, node.maxmem, formatBytes(node.mem) + ' / ' + formatBytes(node.maxmem)) + '</div>' +
+          '<div class="node-footer">' +
+            '<span>' + String(node.maxcpu || 0) + '\u00a0vCPU</span>' +
+            '<span>' + escapeHtml(node.provider || (overview && overview.provider) || '') + '</span>' +
+          '</div>' +
+        '</article>';
+      }).join('');
+    }
+    if (!storage.length) {
+      storageBody.innerHTML = '<tr><td colspan="6" class="empty-cell">Kein Storage gefunden.</td></tr>';
+    } else {
+      storageBody.innerHTML = storage.map(function (item) {
+        return '<tr>' +
+          '<td><strong>' + escapeHtml(item.name || item.id || '') + '</strong></td>' +
+          '<td>' + escapeHtml(item.node || '') + '</td>' +
+          '<td>' + chip(item.type || 'n/a', 'muted') + '</td>' +
+          '<td class="storage-content">' + escapeHtml(item.content || '') + '</td>' +
+          '<td class="storage-usage">' + usageBar(item.used, item.total, formatBytes(item.used) + ' / ' + formatBytes(item.total)) + '</td>' +
+          '<td>' + formatBytes(item.avail) + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+  }
+
+  function renderVmConfigPanel(config, interfaces) {
+    var diskKeys = Object.keys(config).filter(function (k) { return DISK_KEY_PATTERN.test(k); }).sort();
+    var netKeys = Object.keys(config).filter(function (k) { return NET_KEY_PATTERN.test(k); }).sort();
+    var html = '<section class="detail-section"><h3>VM Konfiguration</h3>';
+    VM_MAIN_KEYS.forEach(function (k) {
+      if (config[k] != null && config[k] !== '') {
+        html += fieldBlock(k, String(config[k]));
+      }
+    });
+    html += '</section>';
+    if (diskKeys.length) {
+      html += '<section class="detail-section"><h3>Disks</h3>';
+      diskKeys.forEach(function (k) {
+        html += fieldBlock(k, String(config[k] || ''), 'mono');
+      });
+      html += '</section>';
+    }
+    if (netKeys.length) {
+      html += '<section class="detail-section"><h3>Netzwerk (Config)</h3>';
+      netKeys.forEach(function (k) {
+        html += fieldBlock(k, String(config[k] || ''), 'mono');
+      });
+      html += '</section>';
+    }
+    if (Array.isArray(interfaces) && interfaces.length) {
+      html += '<section class="detail-section"><h3>Netzwerk Interfaces (Guest Agent)</h3>';
+      interfaces.forEach(function (iface) {
+        var addrs = (iface['ip-addresses'] || []).map(function (a) {
+          return String(a['ip-address'] || '') + (a['prefix'] ? '/' + a['prefix'] : '');
+        }).join(', ');
+        html += fieldBlock(String(iface.name || ''), addrs || 'n/a');
+      });
+      html += '</section>';
+    }
+    return html;
+  }
+
+  function loadVmConfig(vmid) {
+    var stack = qs('detail-stack');
+    if (!stack) {
+      return;
+    }
+    var configPanel = stack.querySelector('[data-detail-panel="config"]');
+    if (!configPanel) {
+      return;
+    }
+    if (configPanel.getAttribute('data-loaded') === String(vmid)) {
+      return;
+    }
+    configPanel.innerHTML = '<div class="banner banner-info">Lade VM-Konfiguration...</div>';
+    Promise.all([
+      request('/virtualization/vms/' + vmid + '/config'),
+      request('/virtualization/vms/' + vmid + '/interfaces').catch(function () { return null; })
+    ]).then(function (results) {
+      var config = (results[0] && results[0].config) || {};
+      var interfaces = (results[1] && results[1].interfaces) || [];
+      configPanel.setAttribute('data-loaded', String(vmid));
+      configPanel.innerHTML = renderVmConfigPanel(config, interfaces);
+    }).catch(function (error) {
+      configPanel.innerHTML = '<div class="banner warn">Fehler: ' + escapeHtml(error.message) + '</div>';
+    });
+  }
+
   function renderInventory() {
     var rows = filteredInventory();
     var body = qs('inventory-body');
@@ -439,6 +585,14 @@
     text('stat-endpoints-meta', 'healthy ' + String(counts.healthy || 0) + ' · stale ' + String(counts.stale || 0) + ' · offline ' + String(counts.offline || 0));
     text('stat-policies', String(payload.policy_count || 0));
     text('stat-policies-meta', 'queued actions ' + String(payload.pending_action_count || 0));
+    text('stat-nodes', String(nodeCount));
+    var nodes = Array.isArray(overview && overview.nodes) ? overview.nodes : [];
+    var onlineNodes = nodes.filter(function (n) { return n.status === 'online'; }).length;
+    text('stat-nodes-meta', nodeCount > 0 ? 'online ' + String(onlineNodes) + ' / ' + String(nodeCount) : 'Keine Daten');
+    text('stat-storage', String(storageCount));
+    var storageItems = Array.isArray(overview && overview.storage) ? overview.storage : [];
+    var activeStorage = storageItems.filter(function (s) { return s.active; }).length;
+    text('stat-storage-meta', storageCount > 0 ? 'active ' + String(activeStorage) + ' / ' + String(storageCount) : 'Keine Daten');
   }
 
   function fieldBlock(label, value, tone) {
@@ -623,6 +777,9 @@
           return '<div class="bundle-row"><strong>' + escapeHtml(bundle.stored_filename || bundle.bundle_id || 'bundle') + '</strong><span>' + escapeHtml(formatDate(bundle.generated_at || bundle.stored_at)) + '</span></div>';
         }).join('') : '<div class="empty-card">No bundles available.</div>') +
       '</div></section>' +
+      '</div>' +
+      '<div class="detail-panel" data-detail-panel="config">' +
+      '<div class="banner banner-info">Klicke auf "Config" um die VM-Konfiguration zu laden.</div>' +
       '</div>';
     setActiveDetailPanel(state.activeDetailPanel);
   }
@@ -788,6 +945,7 @@
       statCardFromHealth(health, state.virtualizationOverview);
       renderInventory();
       renderPolicies();
+      renderVirtualizationPanel();
       setBanner('Connected. Inventory and policies up to date.', 'ok');
       if (state.selectedVmid) {
         return loadDetail(state.selectedVmid);
@@ -971,6 +1129,11 @@
     qs('refresh-all').addEventListener('click', function () {
       loadDashboard();
     });
+    if (qs('refresh-virt')) {
+      qs('refresh-virt').addEventListener('click', function () {
+        loadDashboard();
+      });
+    }
     qs('search-input').addEventListener('input', renderInventory);
     qs('role-filter').addEventListener('change', renderInventory);
     qs('eligible-only').addEventListener('change', renderInventory);
@@ -1027,7 +1190,11 @@
         if (!trigger) {
           return;
         }
-        setActiveDetailPanel(trigger.getAttribute('data-detail-panel'));
+        var panelName = trigger.getAttribute('data-detail-panel');
+        setActiveDetailPanel(panelName);
+        if (panelName === 'config' && state.selectedVmid) {
+          loadVmConfig(state.selectedVmid);
+        }
       });
     }
     qs('detail-stack').addEventListener('click', function (event) {
