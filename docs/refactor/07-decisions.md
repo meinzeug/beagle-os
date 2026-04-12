@@ -1938,3 +1938,16 @@ Reason:
 
 - After the network/bootstrap fix, the next visible operator issue on the real `102` verification run was a stream of `perl`/`locale` warnings from the live installer shell. Those warnings were not the root cause of the earlier install failure, but they make the text UI look unhealthy and make real failures harder to spot.
 - `C.UTF-8` is the pragmatic choice here because it is expected to exist in the live Debian environment without relying on generated locale data, while still allowing UTF-8-safe output.
+
+### D162. The server installer must resolve the extracted Beagle source root from the archive contents instead of assuming the release tarball extracts flat
+
+Decision:
+
+- Extract the Beagle source archive into a staging directory inside the target root.
+- Resolve the actual repo root by locating `scripts/install-beagle-host.sh` in the extracted tree.
+- Run the host bootstrap from that resolved root instead of assuming the archive extracts directly into `/usr/local/src/beagle-os`.
+
+Reason:
+
+- The real `102` verification run made it through networking and package bootstrap, but then failed with `./scripts/install-beagle-host.sh: No such file or directory`. That exposed a wrong archive-layout assumption in the installer, not another network problem.
+- GitHub/release tarballs commonly carry a top-level project directory. Hardcoding a flat extraction layout would keep breaking fresh installer runs whenever the archive format differs from a local repo checkout.

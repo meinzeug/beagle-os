@@ -2042,6 +2042,8 @@
     - retries `debootstrap`, `apt-get update`, host-package installation, and the Beagle source download instead of failing on the first transient network error
   - rebuilt the server-installer ISO on `thinover.net`, created fresh VM `102`, and drove the text installer through mode/password/disk confirmation to confirm the fixed path really advances into a stable live install with DHCP (`10.10.10.201`) and sustained target-disk growth instead of stalling before bootstrap
   - removed the remaining live-installer locale noise by making the installer bootstrap its own explicit `C.UTF-8` environment before any prompts or subprocesses run
+  - traced the next real failure from the active `102` run to the Beagle source archive layout: the installer expected `./scripts/install-beagle-host.sh` at the extraction root, but the release tarball carries a top-level project directory
+  - fixed `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer` so it now extracts the Beagle source archive into a staging tree, resolves the actual repo root by locating `scripts/install-beagle-host.sh`, and only then runs the host bootstrap from that resolved root
 - Validation:
   - `python3 -m py_compile beagle-host/services/virtualization_read_surface.py beagle-host/bin/beagle-control-plane.py`
   - `node --check providers/beagle/virtualization-provider.js`
@@ -2052,6 +2054,7 @@
   - `bash -n server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
   - focused shell smoke test for installer DNS bootstrap plus retry wrappers
   - focused shell smoke test for `bootstrap_live_locale()`
+  - focused shell smoke test for GitHub-style nested Beagle source archive extraction/root resolution
 
 ### Known risks after this run
 
