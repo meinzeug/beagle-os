@@ -2032,6 +2032,14 @@
 - Started using the new surface in the existing Beagle website shell:
   - changed `website/app.js` to fetch `/virtualization/overview` during dashboard load
   - the manager status line now shows provider plus node/storage counts, so the served website already consumes the new provider-neutral read surface instead of only VM inventory/policy/health payloads
+- Hardened the Beagle Server Installer bootstrap path after a real failed VM install on `thinover.net`:
+  - confirmed the failing installer VM had only a partial target rootfs with `debootstrap` content and no completed Debian install
+  - inspected the target disk and `debootstrap.log`, which showed transient DNS resolution failures against `deb.debian.org` during the bootstrap phase
+  - updated `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer` so the live installer now:
+    - actively repairs `/etc/resolv.conf` if no nameservers are present
+    - renews a DHCP lease on the detected primary interface when IPv4 is missing
+    - requires IPv4, a default route, DNS resolution, and a successful Debian Release probe before continuing
+    - retries `debootstrap`, `apt-get update`, host-package installation, and the Beagle source download instead of failing on the first transient network error
 - Validation:
   - `python3 -m py_compile beagle-host/services/virtualization_read_surface.py beagle-host/bin/beagle-control-plane.py`
   - `node --check providers/beagle/virtualization-provider.js`
@@ -2039,6 +2047,8 @@
   - focused Python smoke test with the state-backed `beagle` provider confirming `overview`, VM config, and guest-interface routes
   - focused Node smoke test with mocked `BeagleUiApiClient` / `BeagleProviderRegistry` confirming the browser Beagle provider now really calls the new `/api/v1/virtualization/*` routes
   - `./scripts/validate-project.sh`
+  - `bash -n server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+  - focused shell smoke test for installer DNS bootstrap plus retry wrappers
 
 ### Known risks after this run
 

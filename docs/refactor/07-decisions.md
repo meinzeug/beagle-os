@@ -1911,3 +1911,18 @@ Reason:
 
 - The Beagle browser provider previously proved the provider registry shape, but it still had the wrong dependency pattern: it derived nodes from VM inventory, synthesized config locally, and returned empty guest interfaces. That is exactly the kind of quiet Proxmox-era UI shortcut that would make the future Beagle Web Console drift back into ad-hoc client-side contracts.
 - A dedicated host-side surface keeps provider-neutral read contracts explicit, testable, and reusable across multiple browser surfaces instead of teaching each client to reinterpret the VM inventory response differently.
+
+### D160. The server installer must treat live-network readiness as a retriable bootstrap contract, not as a one-shot precondition
+
+Decision:
+
+- Keep the server installer network model simple for now, but make the bootstrap resilient:
+  - repair missing live `resolv.conf` nameservers before network probes
+  - renew DHCP on the detected primary interface when no IPv4 address is present
+  - require IPv4, a default route, DNS resolution, and a successful Debian mirror probe before starting or retrying network-sensitive install steps
+  - wrap `debootstrap`, `apt-get update`, host package installation, and Beagle source download in retry helpers instead of failing permanently on the first transient DNS/network miss
+
+Reason:
+
+- A real install attempt on `thinover.net` produced only a partial target filesystem and a `debootstrap.log` containing transient `deb.debian.org` resolution failures. That is the wrong failure mode for a bare-metal/server installer: a temporary network wobble should not leave the operator with a silently half-installed disk.
+- The installer already depends on live networking for Debian packages and Beagle source retrieval, so the correct boundary is not “network once looked good,” but “network remains good enough at each bootstrap stage.” Retrying only the whole VM run would keep this fragility hidden and waste operator time.
