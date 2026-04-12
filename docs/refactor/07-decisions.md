@@ -1926,3 +1926,15 @@ Reason:
 
 - A real install attempt on `thinover.net` produced only a partial target filesystem and a `debootstrap.log` containing transient `deb.debian.org` resolution failures. That is the wrong failure mode for a bare-metal/server installer: a temporary network wobble should not leave the operator with a silently half-installed disk.
 - The installer already depends on live networking for Debian packages and Beagle source retrieval, so the correct boundary is not “network once looked good,” but “network remains good enough at each bootstrap stage.” Retrying only the whole VM run would keep this fragility hidden and waste operator time.
+
+### D161. The live server-installer environment should force a known-good locale instead of inheriting whatever incomplete locale state the rescue/live image happens to provide
+
+Decision:
+
+- Set the live installer process environment explicitly to `C.UTF-8` before prompts and subprocesses run.
+- Keep the installed target system on the intended `en_US.UTF-8` path later in the chroot configuration; the live installer locale is only an execution hygiene choice for the transient install environment.
+
+Reason:
+
+- After the network/bootstrap fix, the next visible operator issue on the real `102` verification run was a stream of `perl`/`locale` warnings from the live installer shell. Those warnings were not the root cause of the earlier install failure, but they make the text UI look unhealthy and make real failures harder to spot.
+- `C.UTF-8` is the pragmatic choice here because it is expected to exist in the live Debian environment without relying on generated locale data, while still allowing UTF-8-safe output.
