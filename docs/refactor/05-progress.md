@@ -4,7 +4,7 @@
 
 - Replaced the plain-text `read`/`printf` TUI in `beagle-server-installer` with a full Python curses GUI:
   - New file: `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer-gui`
-  - `whiptail` package removed from ISO list; **no extra dependencies** — Python 3 (`python3`) was already present in the package list
+  - **Zero new ISO dependencies** — `python3` was already in the package list; `whiptail` was briefly added then removed; the final package list is unchanged vs the pre-PR baseline
   - GUI collects all installer inputs interactively and writes a shell-sourceable state file to `/run/beagle-server-installer/gui-state.env`
   - Bash installer sources that file and proceeds with the unchanged core install logic
   - Plain-text fallback preserved inside `main()` in case the GUI binary is absent
