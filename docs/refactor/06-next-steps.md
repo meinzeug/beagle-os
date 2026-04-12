@@ -103,7 +103,7 @@ Strategic framing:
    - the Moonlight CLI/timeout seam now already lives in `thin-client-assistant/runtime/moonlight_cli.sh`, so the next Moonlight slice should target the remaining recovery-specific business logic instead of reintroducing CLI wrappers elsewhere
 
 11. Keep the host-download USB installer surface stable while continuing USB refactors:
-   - regenerate and verify the hosted `pve-thin-client-usb-installer-*.sh` artifacts after this self-bootstrap fix so fresh downloads no longer assume a local repo checkout
+   - regenerate and verify the hosted `pve-thin-client-usb-installer-*.sh` artifacts after the self-bootstrap and host-local artifact-URL fixes so fresh downloads no longer assume a local repo checkout or an external public update bucket
    - add one focused smoke check that copies a patched installer into a foreign directory and exercises the helper-bootstrap path against a hosted bootstrap bundle
    - continue keeping helper extraction inside `thin-client-assistant/usb/*` modules, but treat the single-file host/download launcher as a compatibility surface that must remain self-contained at startup
 

@@ -35,6 +35,12 @@ class DownloadMetadataService:
         self._public_update_base_url = str(public_update_base_url or "").rstrip("/")
         self._version = str(version or "").strip()
 
+    def _hosted_download_url(self, filename: str) -> str:
+        return (
+            f"https://{self._public_server_name}:{self._public_downloads_port}"
+            f"{self._public_downloads_path}/{filename}"
+        )
+
     def _get_cached(self, key: str, ttl_seconds: float) -> Any:
         if not key or ttl_seconds <= 0 or self._cache_get is None:
             return None
@@ -46,13 +52,10 @@ class DownloadMetadataService:
         return self._cache_put(key, value)
 
     def public_installer_iso_url(self) -> str:
-        return f"{self._public_update_base_url}/beagle-os-installer-amd64.iso"
+        return self._hosted_download_url("beagle-os-installer-amd64.iso")
 
     def public_windows_installer_url(self) -> str:
-        return (
-            f"https://{self._public_server_name}:{self._public_downloads_port}"
-            f"{self._public_downloads_path}/pve-thin-client-usb-installer-host-latest.ps1"
-        )
+        return self._hosted_download_url("pve-thin-client-usb-installer-host-latest.ps1")
 
     def public_update_sha256sums_url(self) -> str:
         return f"{self._public_update_base_url}/SHA256SUMS"
@@ -64,10 +67,10 @@ class DownloadMetadataService:
         return f"{self._public_update_base_url}/pve-thin-client-usb-bootstrap-v{version}.tar.gz"
 
     def public_payload_latest_download_url(self) -> str:
-        return f"{self._public_update_base_url}/pve-thin-client-usb-payload-latest.tar.gz"
+        return self._hosted_download_url("pve-thin-client-usb-payload-latest.tar.gz")
 
     def public_bootstrap_latest_download_url(self) -> str:
-        return f"{self._public_update_base_url}/pve-thin-client-usb-bootstrap-latest.tar.gz"
+        return self._hosted_download_url("pve-thin-client-usb-bootstrap-latest.tar.gz")
 
     def public_latest_payload_url(self) -> str:
         downloads_status = self._load_json_file(self._downloads_status_file, {})

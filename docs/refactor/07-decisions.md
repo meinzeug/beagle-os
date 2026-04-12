@@ -1798,3 +1798,15 @@ Reason:
 
 - The recent USB writer refactor intentionally split source-selection, bootstrap, write-stage, and device-selection logic into dedicated helper modules. That improved structure inside the repo and ISO build context, but the hosted `pve-thin-client-usb-installer-*.sh` download surface is still a single file. After the split, downloaded installers started failing immediately with `.../usb_writer_sources.sh: Datei oder Verzeichnis nicht gefunden` because they no longer had a repo checkout beside them.
 - Re-bundling all helper logic back into the launcher would undo the refactor. The safer compatibility seam is a small startup bootstrap step in the launcher itself: repo/ISO callers still source local files directly, while hosted standalone callers fetch the existing bootstrap bundle and then continue through the same extracted helper modules.
+
+### D152. Host-facing USB installers should consume host-local artifacts, not the public update bucket
+
+Decision:
+
+- Keep installer-facing ISO, payload, and bootstrap URLs on the host-local `/beagle-downloads/*` surface for VM installer scripts, host installer launchers, and host download-status validation.
+- Keep the external public update bucket only for release/update distribution paths that explicitly need a provider-independent public release source.
+
+Reason:
+
+- The self-bootstrap launcher fix exposed that the current installer-facing URL helpers still pointed to `BEAGLE_PUBLIC_UPDATE_BASE_URL`. On the live host that meant freshly rendered VM installers pulled `pve-thin-client-usb-bootstrap-latest.tar.gz` from `beagle-os.com`, where the artifact currently does not match the host-local USB bootstrap bundle and is dramatically larger.
+- Host-generated USB installers are operationally coupled to the host's currently served payload, bootstrap, and ISO artifacts. Using the host-local downloads surface makes the installer script consume exactly the artifacts that `srv.thinover.net` is already serving and that local host checks can verify, while keeping the public release bucket available for separate release/update flows.
