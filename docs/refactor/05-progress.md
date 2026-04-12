@@ -1,5 +1,28 @@
 # Refactor Progress
 
+### 2026-04-12 — Website nutzt provider-neutrale Virtualization-Reads sichtbar
+
+- Den priorisierten Web-Console-Slice umgesetzt: die Website rendert jetzt Host-, Node- und Storage-Daten aus dem bestehenden provider-neutralen Surface `/api/v1/virtualization/overview`.
+- Geaenderte Module:
+  - `website/index.html`: neue Overview-Sektion `virtualization-section` mit drei Tabellen (Hosts, Nodes, Storage)
+  - `website/app.js`: neues Rendering `renderVirtualizationOverview()` inklusive leerer Fallback-Zustaende und Usage-/Last-Ansicht
+  - `website/styles.css`: Layout-/Responsive-Styling fuer die neue Virtualization-Overview
+- Verhalten:
+  - bei erfolgreichem Dashboard-Laden werden die Virtualization-Daten zusammen mit Health/Inventory/Policies aktualisiert
+  - beim Token-Reset wird die Virtualization-Ansicht ebenfalls zurueckgesetzt
+- Validierung:
+  - `node --check website/app.js`
+  - `./scripts/validate-project.sh`
+
+### 2026-04-12 — Refactor-Dokumentation priorisiert
+
+- Die Steuerdokumente fuer die naechsten Agentenlaeufe wurden auf einen klaren Prioritaetsmodus ausgerichtet.
+- Fuer den unmittelbaren Fortgang stehen jetzt vertikale, pruefbare End-to-End-Slices im Vordergrund:
+  - Standalone-Server-Installer bis zum ersten erfolgreichen Boot und Host-Health
+  - erster echter Beagle-Web-Console-Daten-Slice ueber die vorhandenen provider-neutralen Virtualization-Reads
+  - naechste provider-komplette Vertragserweiterung (Bridge/Network/Guest-Script-Seams)
+- Damit wird vermieden, dass kritische Architekturziele hinter weiteren rein horizontalen Helper-Extraktionen verschwinden.
+
 ### 2026-04-12 — server-installer bundled Beagle source archive
 
 - Continued the real standalone installer verification on `thinover.net` after the live-side download fix:

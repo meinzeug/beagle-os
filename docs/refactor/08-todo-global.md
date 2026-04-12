@@ -4,6 +4,7 @@
 - [x] Remove `AGENTS.md` from `.gitignore`.
 - [x] Enforce `AGENTS.md` and `docs/refactor/` presence in project validation.
 - [x] Enforce `docs/refactor/09-provider-abstraction.md` as part of the required handoff set.
+- [x] Prioritize `05-progress.md` / `06-next-steps.md` for vertical end-to-end execution order so multi-agent handoff stays focused.
 - [x] Include `AGENTS.md` in the packaged source tarball.
 - [x] Start Proxmox UI seam extraction with `proxmox-ui/beagle-ui-common.js`.
 - [x] Extract initial `proxmox-ui/api-client/` and `proxmox-ui/state/` modules.
@@ -175,7 +176,9 @@
 - [ ] Define and start the dedicated Beagle Web Console / host UI surface instead of treating `proxmox-ui/` as the long-term operator console.
 - [x] Complete the standalone installer branch beyond mode selection for proxy/download/web UI delivery and health validation, including standalone TLS/bootstrap behavior.
 - [x] Add the first provider-neutral browser host/node/storage/config/interface read contracts under `/api/v1/virtualization/*` and wire the Beagle browser provider onto them.
+- [x] Render provider-neutral host/node/storage data from `/api/v1/virtualization/overview` in the website overview as first visible Beagle Web Console slice.
 - [ ] Turn the newly served standalone website/proxy shell into the first real Beagle Web Console surface by rendering the new provider-neutral host/node/storage data and extending the contract toward bridge/network/operator actions.
+- [ ] Extend the website virtualization view from host/node/storage to bridge/network inventory and wire at least one provider-neutral operator action.
 - [ ] Make Proxmox optional at deploy/install/runtime boundaries instead of the implicit required backend.
 - [ ] Finish a fresh standalone server-installer verification on `thinover.net`, confirm first boot into the installed system, and validate the Beagle host stack end to end after the DHCP/DNS/retry, live-locale, Beagle source-root, live-side source-archive, and bundled-source-archive fixes.
 - [x] Extract the remaining shared slug/secret-formatting helper cluster from `beagle-host/bin/beagle-control-plane.py` into a dedicated host utility service.

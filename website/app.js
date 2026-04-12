@@ -313,6 +313,14 @@
     return date.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
   }
 
+  function formatGiB(value) {
+    var numeric = Number(value || 0);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return 'n/a';
+    }
+    return (numeric / (1024 * 1024 * 1024)).toFixed(1) + ' GiB';
+  }
+
   function profileOf(vm) {
     return vm && vm.profile ? vm.profile : vm || {};
   }
@@ -562,6 +570,54 @@
       qs('inventory-select-all').checked = rows.length > 0 && rows.every(function (vm) {
         return state.selectedVmids.indexOf(profileOf(vm).vmid) !== -1;
       });
+    }
+  }
+
+  function renderVirtualizationOverview() {
+    var overview = state.virtualizationOverview || {};
+    var hosts = Array.isArray(overview.hosts) ? overview.hosts : [];
+    var nodes = Array.isArray(overview.nodes) ? overview.nodes : [];
+    var storage = Array.isArray(overview.storage) ? overview.storage : [];
+    var hostBody = qs('virtualization-hosts-body');
+    var nodeBody = qs('virtualization-nodes-body');
+    var storageBody = qs('virtualization-storage-body');
+
+    if (hostBody) {
+      hostBody.innerHTML = hosts.length ? hosts.map(function (item) {
+        return '' +
+          '<tr>' +
+          '  <td>' + escapeHtml(item.label || item.name || item.id || 'host') + '</td>' +
+          '  <td>' + chip(item.status || 'unknown', (item.status || '').toLowerCase() === 'online' ? 'ok' : 'muted') + '</td>' +
+          '  <td>' + escapeHtml(item.provider || overview.provider || 'n/a') + '</td>' +
+          '</tr>';
+      }).join('') : '<tr><td colspan="3" class="empty-cell">Keine Host-Daten vorhanden.</td></tr>';
+    }
+
+    if (nodeBody) {
+      nodeBody.innerHTML = nodes.length ? nodes.map(function (item) {
+        var cpuPercent = Math.max(0, Number(item.cpu || 0) * 100);
+        var memPercent = Number(item.maxmem || 0) > 0 ? (Number(item.mem || 0) / Number(item.maxmem || 0)) * 100 : 0;
+        return '' +
+          '<tr>' +
+          '  <td>' + escapeHtml(item.label || item.name || item.id || 'node') + '</td>' +
+          '  <td>' + chip(item.status || 'unknown', (item.status || '').toLowerCase() === 'online' ? 'ok' : 'muted') + '</td>' +
+          '  <td>' + escapeHtml(cpuPercent.toFixed(0) + '%') + '</td>' +
+          '  <td>' + escapeHtml(memPercent.toFixed(0) + '%') + '</td>' +
+          '</tr>';
+      }).join('') : '<tr><td colspan="4" class="empty-cell">Keine Node-Daten vorhanden.</td></tr>';
+    }
+
+    if (storageBody) {
+      storageBody.innerHTML = storage.length ? storage.map(function (item) {
+        var usedPercent = Number(item.total || 0) > 0 ? (Number(item.used || 0) / Number(item.total || 0)) * 100 : 0;
+        return '' +
+          '<tr>' +
+          '  <td>' + escapeHtml(item.name || item.id || 'storage') + '</td>' +
+          '  <td>' + escapeHtml(item.node || '-') + '</td>' +
+          '  <td>' + escapeHtml(item.type || '-') + '</td>' +
+          '  <td>' + escapeHtml(formatGiB(item.used) + ' / ' + formatGiB(item.total) + ' (' + usedPercent.toFixed(0) + '%)') + '</td>' +
+          '</tr>';
+      }).join('') : '<tr><td colspan="4" class="empty-cell">Keine Storage-Daten vorhanden.</td></tr>';
     }
   }
 
@@ -944,6 +1000,7 @@
       setAuthMode(true);
       statCardFromHealth(health, state.virtualizationOverview);
       renderInventory();
+      renderVirtualizationOverview();
       renderPolicies();
       renderVirtualizationPanel();
       setBanner('Connected. Inventory and policies up to date.', 'ok');
@@ -1112,9 +1169,11 @@
         tokenField.value = '';
       }
       state.inventory = [];
+      state.virtualizationOverview = null;
       state.selectedVmid = null;
       state.selectedVmids = [];
       renderInventory();
+      renderVirtualizationOverview();
       setBanner('API-Token deleted.', 'info');
       setAuthMode(false);
       closeAccountMenu();
@@ -1230,6 +1289,7 @@
   consumeTokenFromLocation();
   bindEvents();
   resetPolicyEditor();
+  renderVirtualizationOverview();
   (function bootstrapHashState() {
     var hashState = parseAppHash();
     if (hashState.panel) {

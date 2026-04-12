@@ -1,5 +1,29 @@
 # Next Steps
 
+## Prioritaet fuer den naechsten Run (kurz)
+
+Update:
+
+- Der erste sichtbare Website-Slice fuer `hosts/nodes/storage` aus `/api/v1/virtualization/overview` ist jetzt umgesetzt.
+- Der naechste UI-Schritt ist daher nicht mehr Grund-Rendering, sondern Contract-Erweiterung und Bedienfluss.
+
+1. Standalone-Server-Installer Ende-zu-Ende abschliessen:
+   - neue ISO bauen
+   - frische Test-VM installieren
+   - ersten Boot inklusive Host-Health, Website und API nachweisen
+2. Ersten echten Beagle-Web-Console-Slice liefern:
+   - abgeschlossen: Host/Node/Storage-Rendering in `website/`
+   - als naechstes Bridge-/Network-Read-Surface in der Website sichtbar machen (gleiche Overview-Flaeche oder eigener Abschnitt)
+   - danach erste provider-neutrale Operator-Aktion aus der Website gegen den Host-Service anbinden
+3. Provider-Vertrag gezielt erweitern:
+   - Bridge-/Network-Inventar plus Guest-Script-Upload/-Status als naechsten gemeinsamen Contract-Slice festziehen
+   - in Host-Service und mindestens einer Browserflaeche konsumieren
+4. Smoke-Checks erweitern:
+   - Installer-URL-/Artifact-Layout-Verifikation
+   - hosted USB bootstrap-path aus fremdem Arbeitsverzeichnis pruefen
+
+Diese Reihenfolge ist verbindlich vor weiteren grossen Horizontal-Extraktionen.
+
 ## Immediate next slice
 
 

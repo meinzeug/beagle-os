@@ -27,6 +27,8 @@ Long-term target:
 
 - `core/platform/browser-common.js`
   - shared browser-side token storage, template, URL, and Beagle-API helper seam used by the Proxmox UI, extension, and website surfaces
+- `website/app.js`
+  - consumes provider-neutral `/api/v1/virtualization/overview` payloads and renders host/node/storage inventory in the Beagle Web UI overview
 - `proxmox-ui/beagle-ui.js`
   - thin orchestration for Proxmox VM context detection, node selection from the Proxmox UI, and modal launch delegation
 - `proxmox-ui/components/modal-shell.js`

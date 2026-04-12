@@ -298,6 +298,23 @@ a:hover { text-decoration: underline; }
   gap: 16px;
 }
 
+.virtualization-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.virtualization-card { padding: 18px; }
+
+.table-wrap.compact { margin-top: 2px; }
+
+.compact-table th,
+.compact-table td {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
 .stat-card {
   padding: 18px 20px;
   display: flex;
@@ -520,6 +537,7 @@ body.auth-modal-open .auth-modal { display: flex; }
 .auth-button-row { margin-top: 18px; }
 
 body.auth-only #stats-section,
+body.auth-only #virtualization-section,
 body.auth-only #inventory-section,
 body.auth-only #virtualization-section,
 body.auth-only #policies-section,
@@ -531,7 +549,8 @@ body.auth-only .session-chip { opacity: .45; pointer-events: none; }
   .detail-grid,
   .policy-form,
   .auth-form-grid,
-  .stats-row { grid-template-columns: 1fr; }
+  .stats-row,
+  .virtualization-grid { grid-template-columns: 1fr; }
   .detail-pane { position: static; }
 }
 

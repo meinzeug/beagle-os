@@ -1,5 +1,17 @@
 # Decisions
 
+## 2026-04-12
+
+### D26. Prioritaet auf vertikale End-to-End-Slices vor weiteren Horizontal-Extraktionen
+
+Decision:
+
+- Fuer die naechsten Runs werden zuerst durchgaengig pruefbare Zielpfade abgeschlossen (Standalone-Server-Installer bis Erstboot und erster Beagle-Web-Console-Datenslice), bevor weitere breite Helper-Extraktionen gestartet werden.
+
+Reason:
+
+- Der Refactor hat bereits viele modulare Seams geschaffen. Das aktuell groessere Risiko ist nicht fehlende Extraktionstiefe, sondern fehlender End-to-End-Nachweis auf den Nordstern-Pfaden (`standalone` und provider-neutrale Web-Console).
+
 ## 2026-04-09
 
 ### D1. Refactor starts with enforcement and documentation
