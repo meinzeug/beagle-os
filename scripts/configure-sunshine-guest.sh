@@ -178,94 +178,9 @@ parse_args() {
   apply_desktop_defaults
 }
 
-ssh_host() {
-  beagle_provider_ssh_host "$@"
-}
-
-is_local_host_target() {
-  beagle_provider_target_is_local
-}
-
-provider_module_path_for_target() {
-  beagle_provider_module_path_for_target
-}
-
-provider_helper_available() {
-  beagle_provider_helper_available
-}
-
-provider_helper_exec() {
-  beagle_provider_helper_exec "$@"
-}
-
 qm_guest_exec_sync() {
   local command="$1"
-  local raw_output payload_json pid status_raw status_json exitcode command_b64
-  if provider_helper_available; then
-    command_b64="$(printf '%s' "$command" | base64 -w0)"
-    raw_output="$(provider_helper_exec guest-exec-bash-sync-b64 "$VMID" "$command_b64")"
-    status_json="$(beagle_json_last_object "$raw_output")"
-  else
-    raw_output="$(ssh_host "sudo /usr/sbin/qm guest exec '$VMID' -- bash -lc $(printf '%q' "$command")")"
-    payload_json="$(beagle_json_last_object "$raw_output")"
-
-    pid="$(python3 - "$payload_json" <<'PY'
-import json
-import sys
-
-payload = json.loads(sys.argv[1] or "{}")
-pid = payload.get("pid")
-print("" if pid is None else str(pid))
-PY
-)"
-
-    if [[ -z "$pid" ]]; then
-      status_json="$payload_json"
-    else
-      while true; do
-        sleep 2
-        status_raw="$(ssh_host "sudo /usr/sbin/qm guest exec-status '$VMID' '$pid'")"
-        status_json="$(beagle_json_last_object "$status_raw")"
-        if python3 - "$status_json" <<'PY'
-import json
-import sys
-
-payload = json.loads(sys.argv[1] or "{}")
-raise SystemExit(0 if payload.get("exited") else 1)
-PY
-        then
-          break
-        fi
-      done
-    fi
-  fi
-
-  exitcode="$(python3 - "$status_json" <<'PY'
-import json
-import sys
-
-payload = json.loads(sys.argv[1] or "{}")
-print(int(payload.get("exitcode", 0) or 0))
-PY
-)"
-  if [[ "$exitcode" != "0" ]]; then
-    python3 - "$status_json" <<'PY' >&2
-import json
-import sys
-
-payload = json.loads(sys.argv[1] or "{}")
-stdout = str(payload.get("out-data", "") or "").strip()
-stderr = str(payload.get("err-data", "") or "").strip()
-if stdout:
-    print(stdout)
-if stderr:
-    print(stderr, file=sys.stderr)
-PY
-    return 1
-  fi
-
-  printf '%s\n' "$status_json"
-  return 0
+  beagle_provider_guest_exec_sync_bash "$VMID" "$command"
 }
 
 guest_exec_script() {
@@ -311,69 +226,20 @@ guest_exec_script() {
 }
 
 detect_guest_ip() {
-  if provider_helper_available; then
-    provider_helper_exec guest-ipv4 "$VMID" 2>/dev/null && return 0
-  fi
-
-  local raw_output
-  raw_output="$(ssh_host "sudo /usr/sbin/qm guest cmd '$VMID' network-get-interfaces" 2>/dev/null || true)"
-  python3 - "$raw_output" <<'PY'
-import json
-import sys
-
-raw = sys.argv[1].strip()
-if not raw:
-    raise SystemExit(1)
-
-try:
-    payload = json.loads(raw)
-except json.JSONDecodeError:
-    raise SystemExit(1)
-
-for iface in payload if isinstance(payload, list) else []:
-    for address in iface.get("ip-addresses", []):
-        ip = str(address.get("ip-address", "")).strip()
-        if address.get("ip-address-type") != "ipv4":
-            continue
-        if not ip or ip.startswith("127.") or ip.startswith("169.254."):
-            continue
-        print(ip)
-        raise SystemExit(0)
-
-raise SystemExit(1)
-PY
+  beagle_provider_guest_ipv4 "$VMID"
 }
 
 current_vm_description() {
-  if provider_helper_available; then
-    provider_helper_exec vm-description "$VMID" 2>/dev/null && return 0
-  fi
-  ssh_host "sudo /usr/sbin/qm config '$VMID'" | sed -n 's/^description: //p'
+  beagle_provider_vm_description "$VMID"
 }
 
 set_current_vm_description_b64() {
   local description_b64="$1"
-  if provider_helper_available; then
-    provider_helper_exec set-vm-description-b64 "$VMID" "$description_b64" >/dev/null
-    return 0
-  fi
-  ssh_host "python3 - '$VMID' '$description_b64' <<'PY'
-import base64
-import subprocess
-import sys
-
-vmid = sys.argv[1]
-desc = base64.b64decode(sys.argv[2]).decode('utf-8')
-subprocess.run(['sudo', '/usr/sbin/qm', 'set', vmid, '--description', desc], check=True)
-PY" >/dev/null
+  beagle_provider_set_vm_description_b64 "$VMID" "$description_b64"
 }
 
 reboot_current_vm() {
-  if provider_helper_available; then
-    provider_helper_exec reboot-vm "$VMID" >/dev/null 2>&1 || true
-    return 0
-  fi
-  ssh_host "sudo /usr/sbin/qm reboot '$VMID'" >/dev/null 2>&1 || true
+  beagle_provider_reboot_vm "$VMID"
 }
 
 update_vm_metadata() {

@@ -13,9 +13,9 @@ Strategic framing:
 
 1. Continue migrating script/install surfaces onto the provider-facing helper seam:
    - `scripts/lib/beagle_provider.py` now covers synchronous guest-exec plus the first shared write commands, and the main Sunshine/setup scripts already prefer that seam
-   - `scripts/lib/provider_shell.sh` now covers shared provider-helper discovery, local-vs-remote host dispatch, remote helper execution, and last-JSON-object parsing for the main shell scripts
+   - `scripts/lib/provider_shell.sh` now covers shared provider-helper discovery, local-vs-remote host dispatch, remote helper execution, last-JSON-object parsing, and the shared guest-exec / guest-ipv4 / description / reboot / `qm set` fallback wrappers for the main shell scripts
    - `scripts/lib/prepare_host_downloads.py` now owns the large non-shell artifact patching and VM installer metadata/status block that used to live inline in `prepare-host-downloads.sh`
-   - the next script task is to reduce the remaining direct-command fallback paths where rollout compatibility is no longer needed, especially the last compatibility branches in `configure-sunshine-guest.sh`, `ensure-vm-stream-ready.sh`, and `optimize-proxmox-vm-for-beagle.sh`
+   - the next script task is to reduce the remaining direct-command fallback paths where rollout compatibility is no longer needed, especially the last compatibility branches still surrounding guest script upload / metadata mutation flows and any remaining raw command paths outside `provider_shell.sh`
    - after that, reuse the new shell seam in the next provider-aware scripts that still duplicate host targeting or helper bootstrap logic instead of reintroducing those helpers locally
    - the generic top-level host install/setup/check/service entrypoints now live at `scripts/install-beagle-host.sh`, `scripts/install-beagle-host-services.sh`, `scripts/setup-beagle-host.sh`, and `scripts/check-beagle-host.sh`
    - the server-installer now has explicit provider dispatch seams for repo wiring, package installation, and the final Beagle host bootstrap; the next installer slice is to move the remaining Proxmox-only package/source definitions and post-install assumptions behind the same seam instead of keeping them inline as the only implementation

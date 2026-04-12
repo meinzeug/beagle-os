@@ -54,35 +54,9 @@ parse_args() {
   done
 }
 
-ssh_host() {
-  beagle_provider_ssh_host "$@"
-}
-
-is_local_host_target() {
-  beagle_provider_target_is_local
-}
-
-provider_module_path_for_target() {
-  beagle_provider_module_path_for_target
-}
-
-provider_helper_available() {
-  beagle_provider_helper_available
-}
-
-provider_helper_exec() {
-  beagle_provider_helper_exec "$@"
-}
-
 set_vm_options() {
   local args=("$@")
-  if provider_helper_available; then
-    provider_helper_exec set-vm-options "$VMID" "${args[@]}" >/dev/null
-    return 0
-  fi
-  local shell_command
-  shell_command="$(printf '%q ' sudo /usr/sbin/qm set "$VMID" "${args[@]}")"
-  ssh_host "${shell_command% }"
+  beagle_provider_set_vm_options "$VMID" "${args[@]}"
 }
 
 main() {
