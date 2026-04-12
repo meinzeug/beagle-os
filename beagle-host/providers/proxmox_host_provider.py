@@ -64,6 +64,18 @@ class ProxmoxHostProvider:
             )
         return nodes
 
+    def get_guest_network_interfaces(
+        self,
+        vmid: int,
+        *,
+        timeout_seconds: float | None = None,
+    ) -> list[dict[str, Any]]:
+        payload = self._run_json(
+            ["qm", "guest", "cmd", str(int(vmid)), "network-get-interfaces"],
+            timeout=timeout_seconds,
+        )
+        return payload if isinstance(payload, list) else []
+
     def list_vms(
         self,
         *,
@@ -200,6 +212,14 @@ class ProxmoxHostProvider:
     ) -> str:
         return self._run_checked(["qm", "start", str(int(vmid))], timeout=timeout)
 
+    def reboot_vm(
+        self,
+        vmid: int,
+        *,
+        timeout: float | None | object = None,
+    ) -> str:
+        return self._run_checked(["qm", "reboot", str(int(vmid))], timeout=timeout)
+
     def stop_vm(
         self,
         vmid: int,
@@ -330,13 +350,7 @@ class ProxmoxHostProvider:
         cached = self._get_cached(cache_key, cache_ttl_seconds)
         if isinstance(cached, str):
             return cached
-        payload = self._run_json(
-            ["qm", "guest", "cmd", str(int(vmid)), "network-get-interfaces"],
-            timeout=timeout_seconds,
-        )
-        if not isinstance(payload, list):
-            return ""
-        for iface in payload:
+        for iface in self.get_guest_network_interfaces(int(vmid), timeout_seconds=timeout_seconds):
             for address in iface.get("ip-addresses", []):
                 ip = str(address.get("ip-address", ""))
                 if address.get("ip-address-type") != "ipv4":

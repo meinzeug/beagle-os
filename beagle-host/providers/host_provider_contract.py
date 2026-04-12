@@ -10,6 +10,13 @@ class HostProvider(Protocol):
 
     def list_nodes(self) -> list[dict[str, Any]]: ...
 
+    def get_guest_network_interfaces(
+        self,
+        vmid: int,
+        *,
+        timeout_seconds: float | None = None,
+    ) -> list[dict[str, Any]]: ...
+
     def list_vms(
         self,
         *,
@@ -69,6 +76,13 @@ class HostProvider(Protocol):
     ) -> str: ...
 
     def start_vm(
+        self,
+        vmid: int,
+        *,
+        timeout: float | None | object = None,
+    ) -> str: ...
+
+    def reboot_vm(
         self,
         vmid: int,
         *,
