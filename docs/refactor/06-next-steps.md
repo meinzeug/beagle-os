@@ -25,7 +25,8 @@ Strategic framing:
      - `Beagle OS standalone`
      - `Beagle OS with Proxmox`
    - the standalone installer slice for host validation plus proxy/web UI/download setup is now in place, including standalone TLS bootstrap and nginx-backed hosted downloads / website delivery
-   - the next installer slice is to stop treating that website/proxy surface as only a deployment shell and define the first standalone-capable Beagle Web Console contract on top of it, especially the provider-neutral HTTP reads the website and `providers/beagle/virtualization-provider.js` still lack today
+   - the first provider-neutral browser virtualization read surface now exists under `/api/v1/virtualization/*`, and both the Beagle browser provider and the website shell already consume part of it
+   - the next installer/web slice is to use that new surface for real operator views instead of only status chrome, especially storage/network/node presentation in the website and the remaining browser clients that still do not consume the new contract
    - after that, decide whether this helper remains the long-term script provider contract or whether the write/exec slice should split into a second dedicated script-side provider module
 2. Continue decomposing `beagle-host/bin/beagle-control-plane.py` around service-oriented modules:
    - the shared slug/secret/PIN helper cluster is now extracted behind `UtilitySupportService`
@@ -41,14 +42,14 @@ Strategic framing:
    - the endpoint enrollment/check-in HTTP surface now lives behind `EndpointLifecycleSurfaceService`
    - the first real `beagle` provider now exists in `beagle-host/providers/beagle_host_provider.py`; the next provider slice is to stop treating it as only a persistence skeleton
    - extend the host provider contract and the Beagle skeleton together for the next missing surfaces: bridge inventory, network inventory, guest-script upload/result handling, and restart scheduling semantics that are still Proxmox-shaped in adjacent helpers
-   - add the first provider-neutral HTTP read surface for nodes/hosts and guest interfaces so `providers/beagle/virtualization-provider.js` no longer has to synthesize those values from `/api/v1/vms` alone
+   - the first provider-neutral HTTP read surface for hosts/nodes/storage/config/interfaces is now present; the next provider slice is to expand that contract toward bridge/network inventory and then consume it in more than one browser surface
    - keep the control-plane entrypoint moving toward a thin HTTP composition surface instead of re-centralizing orchestration there
 3. Continue the host-provider abstraction itself:
    - define the next provider-complete contract slice in `beagle-host/providers/host_provider_contract.py` after the new state-backed `beagle` skeleton and move any remaining host-side direct provider assumptions to that contract or to service modules consuming it
    - the next high-value contract candidates are host-network/bridge inventory, guest-script upload/result handling, and the remaining restart scheduling assumptions that still leak around `provider_shell.sh`
    - `BEAGLE_HOST_PROVIDER` now reaches `host.env`, `beagle-manager.env`, refresh paths, post-install checks, the proxy installer, the Proxmox-UI integration path, and the server-installer bootstrap; the next deploy task is to reduce the remaining Proxmox-only behavior at those surfaces rather than just carrying the variable through them
    - after that, define which standalone host/bootstrap/network/storage/runtime responsibilities are Beagle-core and therefore must exist identically in both installer modes
-   - after that, define the first standalone-capable host contract for local downloads/public proxying/web console delivery, because standalone now has the HTTPS shell but still lacks provider-neutral host/node/storage/network/browser read surfaces behind it
+   - after that, define the next standalone-capable host contract additions for bridge/network/browser delivery, because standalone now has the HTTPS shell plus the first host/node/storage/config/interface browser reads but still lacks full network/bridge/operator coverage
 4. Continue aligning installer-generation/env builders with the same endpoint profile contract source instead of reshaping overlapping fields in multiple browser/runtime places:
    - the hosted VM installer catalog path in `scripts/lib/prepare_host_downloads.py` now normalizes overlapping installer/profile URLs through `endpoint_profile_contract.py`
    - the thin-client preset summary/UI-state path now shares one helper in `thin-client-assistant/usb/preset_summary.py` instead of carrying duplicated mode/preset shaping in both the local installer and the Proxmox API helper
@@ -100,7 +101,7 @@ Strategic framing:
 
 6. Start the dedicated Beagle Web Console implementation path as its own architecture/workstream instead of only continuing the Proxmox UI cleanup:
    - the host deploy path now serves the existing `website/` surface for both standalone Beagle and Proxmox-backed hosts, so the next step is no longer just planning: choose that surface or a sibling module as the first real Beagle Web Console root
-   - define and implement the first minimum contracts it needs from `beagle-host` for dashboard, host/node inventory, VM list/detail, storage/network inventory, lifecycle actions, provisioning, installer downloads, and fleet status
+   - the first minimum contract slice for host/node/storage/config/interfaces is now there; the next step is to render those data in the website itself and then extend the contract for bridge/network inventory, lifecycle actions, provisioning, installer downloads, and fleet status
    - keep extracting reusable browser/core helpers from `proxmox-ui/` only if they are genuinely reusable by the future Beagle Web Console
 
 7. Isolate the still-Proxmox-specific ExtJS runtime coupling in `proxmox-ui/components/extjs-integration.js` further:

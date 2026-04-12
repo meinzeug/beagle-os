@@ -174,7 +174,8 @@
 - [ ] Turn the new state-backed `beagle` provider skeleton into the first usable Beagle backend scaffold with persisted node/storage/VM/action contracts and conformance-style smoke tests.
 - [ ] Define and start the dedicated Beagle Web Console / host UI surface instead of treating `proxmox-ui/` as the long-term operator console.
 - [x] Complete the standalone installer branch beyond mode selection for proxy/download/web UI delivery and health validation, including standalone TLS/bootstrap behavior.
-- [ ] Turn the newly served standalone website/proxy shell into the first real Beagle Web Console surface by adding provider-neutral host/node/storage/network/browser contracts instead of leaving it as a thin wrapper over current control-plane endpoints.
+- [x] Add the first provider-neutral browser host/node/storage/config/interface read contracts under `/api/v1/virtualization/*` and wire the Beagle browser provider onto them.
+- [ ] Turn the newly served standalone website/proxy shell into the first real Beagle Web Console surface by rendering the new provider-neutral host/node/storage data and extending the contract toward bridge/network/operator actions.
 - [ ] Make Proxmox optional at deploy/install/runtime boundaries instead of the implicit required backend.
 - [x] Extract the remaining shared slug/secret-formatting helper cluster from `beagle-host/bin/beagle-control-plane.py` into a dedicated host utility service.
 - [ ] Split thin client runtime logic into config, runtime, network, pairing, and Moonlight launch seams.
