@@ -705,6 +705,7 @@ These flows now go through a provider-facing helper seam first:
 - `beagle-host/bin/beagle-control-plane.py` no longer owns the main VM profile/assignment/public-stream synthesis block directly, no longer owns the `/api/v1/vms/...` GET response surface inline, no longer owns the next non-VM provisioning/policy/support-bundle read surface inline, no longer owns the public VM state/endpoint plus endpoint-authenticated update-feed surface inline, no longer owns the public ubuntu-install lifecycle POST surface inline, no longer owns the endpoint-authenticated Moonlight/action/result/support-bundle-upload POST surface inline, no longer owns the public Sunshine proxy flow inline, no longer owns the authenticated single-VM mutation POST surface inline, no longer owns the remaining authenticated non-VM admin mutation routes inline, and no longer owns the endpoint enrollment/check-in lifecycle routes inline. It remains a monolith because business/orchestration helpers and provider/deploy/runtime assumptions still live there, but the next host refactor target is now those non-HTTP seams rather than another large HTTP route block.
 - `beagle-host/services/vm_profile.py` is now the host-side seam for profile synthesis, but it still derives business state from today's Proxmox-backed metadata/config semantics through provider-backed reads and existing description-meta conventions.
 - `beagle-host/providers/registry.py` makes provider selection real at bootstrap time, but the registry still only exposes one concrete implementation today. Provider selection is no longer hard-coded in the control-plane import graph, yet provider diversity is still unfinished work.
+- `beagle-host/providers/registry.py` now exposes both `proxmox` and `beagle`. The new `beagle` implementation in `beagle-host/providers/beagle_host_provider.py` is intentionally state-backed under `/var/lib/beagle/providers/beagle`, which proves the provider seam without introducing a fake Proxmox alias.
 - `beagle-host/services/ubuntu_beagle_provisioning.py` removed the ubuntu-beagle lifecycle block from the entrypoint, but it still uses today's Proxmox-shaped VM option semantics and `scripts/configure-sunshine-guest.sh --proxmox-host localhost` path under the new service seam.
 - `beagle-host/services/sunshine_integration.py` removed the Sunshine/Moonlight block from the entrypoint, but it still depends on Sunshine-specific guest file paths/state layout, Sunshine HTTP/API semantics, `curl`/`openssl` behavior, and current Moonlight certificate-registration conventions under the new service seam.
 - `beagle-host/services/public_streams.py` removed port-state/orchestration from the entrypoint, but it still interprets today's description-meta keys (`beagle-public-moonlight-port`) and VM inventory/config semantics through provider-backed reads under the new service seam.
@@ -727,6 +728,7 @@ These flows now go through a provider-facing helper seam first:
 ### Script surfaces
 
 - `scripts/lib/beagle_provider.py` is now the shared script-side read and first-write/exec seam, but it still only implements the Proxmox backend today.
+- `scripts/lib/beagle_provider.py` now resolves through the registry and can bootstrap the new `beagle` provider kind too, but the surrounding shell helpers still assume the remaining provider contract is Proxmox-complete.
 - `scripts/lib/provider_shell.sh` is now the shared script-side provider bootstrap seam, but it still assumes today's SSH/bash execution model and only dispatches into the Proxmox-backed provider helper today.
 - `scripts/lib/prepare_host_downloads.py` removes the hosted-download Python monolith from the shell script, but it still consumes the current provider helper plus the current Proxmox-shaped preset field set for hosted thin-client installers.
 - `beagle-host/services/thin_client_preset.py` removes the overlapping preset-base duplication, but the host-only enrollment/update/identity delta and the USB-only slim preset delta still reflect today’s two related but not yet fully unified installer/runtime contracts.
@@ -768,6 +770,27 @@ Proxmox should not be considered optional until all of the following are true:
 - script and deployment surfaces do not assume Proxmox package/layout semantics as the only supported path
 - a second provider or a conformance-grade mock proves the contracts are not merely Proxmox-shaped wrappers
 - the future Beagle-owned provider path has a defined contract target and module layout
+
+## Current Beagle Skeleton
+
+The repo now contains the first real Beagle-owned provider skeleton on both sides of the provider seam:
+
+- host side: `beagle-host/providers/beagle_host_provider.py`
+- browser side: `providers/beagle/virtualization-provider.js`
+
+Current contract status:
+
+- `beagle-host/providers/beagle_host_provider.py` implements the existing host-provider contract against persisted JSON state rather than Proxmox commands
+- default state root: `/var/lib/beagle/providers/beagle`
+- override for development/smoke tests: `BEAGLE_BEAGLE_PROVIDER_STATE_DIR`
+- the host skeleton supports node/storage/VM inventory, VM config persistence, guest-interface persistence, VM lifecycle state mutation, synthetic guest-exec completion, and scheduled-restart markers
+- `providers/beagle/virtualization-provider.js` consumes `/api/v1/vms` and exposes the same top-level browser virtualization interface as `providers/proxmox/virtualization-provider.js`
+
+Known gaps in the new skeleton:
+
+- there is still no provider-neutral browser HTTP surface for nodes/hosts, guest interfaces, or full VM config, so the browser-side Beagle provider currently derives nodes from VM inventory, synthesizes a small config object, and returns an empty guest-interface list
+- the state-backed host skeleton is not yet a compute/runtime backend; it is a contract and state-layout scaffold
+- deploy/install/runtime surfaces still contain remaining Proxmox-only behavior outside the provider registry even though the registry now has a second concrete implementation
 
 ## Migration Rule
 

@@ -168,7 +168,9 @@
 - [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
 - [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
 - [ ] Extend the provider contract beyond guest-network/reboot into bridge/network inventory and the remaining guest-script upload/restart scheduling seams still leaking around `provider_shell.sh`.
+- [x] Introduce the first real `beagle` provider skeleton in both `beagle-host/providers/` and `providers/beagle/` instead of keeping Beagle-only provider work purely theoretical.
 - [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.
+- [ ] Turn the new state-backed `beagle` provider skeleton into the first usable Beagle backend scaffold with persisted node/storage/VM/action contracts and conformance-style smoke tests.
 - [ ] Make Proxmox optional at deploy/install/runtime boundaries instead of the implicit required backend.
 - [x] Extract the remaining shared slug/secret-formatting helper cluster from `beagle-host/bin/beagle-control-plane.py` into a dedicated host utility service.
 - [ ] Split thin client runtime logic into config, runtime, network, pairing, and Moonlight launch seams.

@@ -1954,6 +1954,14 @@
   - rewrote `scripts/lib/beagle_provider.py` to create its provider through `beagle-host/providers/registry.py`, delegate reads/writes/guest-exec/reboot through the provider object, and expose provider-neutral CLI commands like `provider-kind`, `next-vmid`, `list-storage`, and `list-nodes`
   - kept the script-side `vm-node`, `vm-description`, and `vm-description-meta` helpers as small compositions on top of provider-backed `list_vms()` and `get_vm_config()` rather than direct Proxmox commands
   - validated with `py_compile`, a focused stub-provider registration smoke test that proved `scripts/lib/beagle_provider.py` now delegates through the registry contract, and `./scripts/validate-project.sh`
+- Introduced the first real Beagle-owned provider skeleton instead of only documenting it as future work:
+  - added `beagle-host/providers/beagle_host_provider.py` as a registry-backed, state-backed host provider implementation under the real host provider contract instead of an alias to Proxmox behavior
+  - the host skeleton persists node, storage, VM, VM-config, guest-interface, guest-exec-status, and scheduled-restart state under `BEAGLE_BEAGLE_PROVIDER_STATE_DIR` (default `/var/lib/beagle/providers/beagle`)
+  - implemented a minimum writable contract in the skeleton for `next_vmid`, `list_storage_inventory`, `list_nodes`, `list_vms`, `get_vm_config`, `create_vm`, `set_vm_options`, `delete_vm_options`, `set_vm_description`, `set_vm_boot_order`, `start_vm`, `reboot_vm`, `stop_vm`, `guest_exec_bash`, `guest_exec_status`, `guest_exec_script_text`, `schedule_vm_restart_after_stop`, and `get_guest_ipv4`
+  - registered the new provider in `beagle-host/providers/registry.py`, so `BEAGLE_HOST_PROVIDER=beagle` is now a real bootstrap option instead of only planned architecture
+  - rewired `scripts/install-beagle-host-services.sh` to sync every `*_host_provider.py` file into the host runtime instead of hard-coding `proxmox_host_provider.py`, which removes one more deploy-time Proxmox assumption before the Beagle provider exists on a live host
+  - added `providers/beagle/virtualization-provider.js` as the first browser-side Beagle virtualization skeleton and documented its current HTTP-backed scope in `providers/beagle/README.md`
+  - validated the new host skeleton with `py_compile`, `node --check`, a focused temp-state smoke test covering create/read/write/lifecycle/guest-exec/restart flows, and `./scripts/validate-project.sh`
 
 ### Known risks after this run
 
@@ -1965,3 +1973,5 @@
 - Local `.build/` and `dist/` directories still exist and should not be treated as authoritative release outputs.
 - Live endpoints on older released payloads can still boot back into pre-fix runtime scripts even after an on-device hot patch; validating runtime refactors against a real endpoint now requires either a rebuilt thin-client payload/update or an explicit post-boot deployment step.
 - Already downloaded host USB installers without the self-bootstrap fix will continue to fail until refreshed from regenerated host download artifacts.
+- The first `beagle` provider is now real, but it is still a state-backed skeleton and not yet a compute/runtime backend. It proves contract shape and deploy wiring, not a finished hypervisor implementation.
+- `providers/beagle/virtualization-provider.js` currently derives inventory from `/api/v1/vms` and synthesizes config data because there is not yet a provider-neutral browser HTTP surface for node inventory, VM config, or guest interfaces.
