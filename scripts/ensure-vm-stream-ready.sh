@@ -197,58 +197,12 @@ PY
 
 sunshine_guest_status_json() {
   local command
-  local command_b64
   command='binary=0; service=0; process=0; command -v sunshine >/dev/null 2>&1 && binary=1; (systemctl is-active sunshine >/dev/null 2>&1 || systemctl is-active beagle-sunshine.service >/dev/null 2>&1) && service=1; pgrep -x sunshine >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
-  command_b64="$(printf '%s' "$command" | base64 -w0)"
-  if provider_helper_available; then
-    python3 "$PROVIDER_MODULE_PATH" guest-exec-bash-sync-b64 "$VMID" "$command_b64"
-    return 0
-  fi
-  guest_exec_sync_fallback "$command"
+  beagle_provider_guest_exec_sync_bash "$VMID" "$command"
 }
 
 guest_ipv4() {
-  python3 "$PROVIDER_MODULE_PATH" guest-ipv4 "$VMID"
-}
-
-provider_helper_available() {
-  beagle_provider_helper_available
-}
-
-guest_exec_sync_fallback() {
-  local command="$1"
-  local raw_output payload_json pid status_raw status_json
-  raw_output="$(qm guest exec "$VMID" -- bash -lc "$command")"
-  payload_json="$(beagle_json_last_object "$raw_output")"
-  pid="$(python3 - "$payload_json" <<'PY'
-import json
-import sys
-
-payload = json.loads(sys.argv[1] or "{}")
-pid = payload.get("pid")
-print("" if pid is None else str(pid))
-PY
-)"
-  if [[ -z "$pid" ]]; then
-    printf '%s\n' "$payload_json"
-    return 0
-  fi
-  while true; do
-    sleep 2
-    status_raw="$(qm guest exec-status "$VMID" "$pid")"
-    status_json="$(beagle_json_last_object "$status_raw")"
-    if python3 - "$status_json" <<'PY'
-import json
-import sys
-
-payload = json.loads(sys.argv[1] or "{}")
-raise SystemExit(0 if payload.get("exited") else 1)
-PY
-    then
-      printf '%s\n' "$status_json"
-      return 0
-    fi
-  done
+  beagle_provider_guest_ipv4 "$VMID"
 }
 
 vm_secret_get() {

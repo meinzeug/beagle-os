@@ -34,6 +34,7 @@
 - [x] Continue splitting `proxmox-ui/beagle-ui.js` so bootstrap/catalog/profile-resolution logic lives under `proxmox-ui/provisioning/` and `proxmox-ui/state/` and `beagle-ui.js` becomes a thin entrypoint.
 - [ ] Continue inventorying remaining direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally, building on `scripts/lib/beagle_provider.py` and shrinking the remaining direct-command fallback paths.
 - [x] Extract the shared script-side provider bootstrap/remote-exec shell helper into `scripts/lib/provider_shell.sh` and rewire the main Sunshine/setup scripts onto it.
+- [x] Extract the shared script-side guest-exec / guest-ipv4 / VM-description / reboot / `qm set` fallback wrappers into `scripts/lib/provider_shell.sh`.
 - [x] Extract the non-shell hosted-download preparation block from `scripts/prepare-host-downloads.sh` into a dedicated helper seam and reuse the endpoint profile contract for overlapping VM installer metadata.
 - [x] Extract the hosted-download vs public-release artifact URL layout into a shared helper consumed by both generation and host validation.
 - [x] Extract the thin-client preset-summary/UI-state helper layer into a shared USB module instead of duplicating mode-availability logic in the local installer and the Proxmox API helper.

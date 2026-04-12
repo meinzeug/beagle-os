@@ -1,5 +1,21 @@
 # Refactor Progress
 
+### 2026-04-12 — Script-side provider fallback wrapper extraction
+
+- Reduced the remaining direct `qm` fallback duplication in the provider-aware shell scripts:
+  - extended `scripts/lib/provider_shell.sh` with shared wrappers for `beagle_provider_guest_exec_sync_bash()`, `beagle_provider_guest_ipv4()`, `beagle_provider_vm_description()`, `beagle_provider_set_vm_description_b64()`, `beagle_provider_reboot_vm()`, and `beagle_provider_set_vm_options()`
+  - `scripts/configure-sunshine-guest.sh` now delegates guest exec, guest IPv4 lookup, VM description reads/writes, and reboot dispatch through those shared wrappers instead of carrying its own helper-vs-raw-`qm` fallback block
+  - `scripts/ensure-vm-stream-ready.sh` now delegates its Sunshine guest-status guest-exec path and guest IPv4 lookup through the same shared wrapper layer
+  - `scripts/optimize-proxmox-vm-for-beagle.sh` now delegates `qm set` writes through the same shared VM-option wrapper instead of maintaining a second local fallback implementation
+- This tightens the script-side provider seam:
+  - helper-backed and raw-`qm` fallback execution now live in one place instead of being repeated across multiple host scripts
+  - future provider-side script work can keep reducing fallback usage against one shell contract instead of chasing per-script copies
+- Validation and smoke checks for this slice passed:
+  - `bash -n scripts/lib/provider_shell.sh scripts/configure-sunshine-guest.sh scripts/ensure-vm-stream-ready.sh scripts/optimize-proxmox-vm-for-beagle.sh`
+  - focused smoke test for helper-backed wrapper execution in `provider_shell.sh`
+  - focused smoke test for remote raw-`qm` fallback paths in `provider_shell.sh` with a stubbed `ssh`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — Shared live-medium content-acceptance helper extraction
 
 - Removed the remaining duplicated mounted-content acceptance checks from the USB installer entrypoints:

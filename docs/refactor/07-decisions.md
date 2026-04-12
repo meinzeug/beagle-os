@@ -1749,3 +1749,15 @@ Reason:
 
 - Device discovery, mount-candidate discovery, and mount orchestration had already moved into the shared helper, but the two entrypoints still carried their own versions of what a usable mounted medium actually is. That left one more USB continuation hazard where behavior could drift even though the lower layers were already centralized.
 - The acceptance rules are small, deterministic shell predicates and fit naturally into the same helper layer as the other live-medium discovery rules. Moving them there keeps the shared contract explicit without mixing in entrypoint-specific logging behavior.
+
+### D148. Script-side raw-`qm` fallbacks should be centralized in `provider_shell.sh`
+
+Decision:
+
+- Keep the shell-level fallback wrappers for guest exec, guest IPv4 discovery, VM description reads/writes, reboot, and VM option writes in `scripts/lib/provider_shell.sh`.
+- Keep provider-aware scripts such as `configure-sunshine-guest.sh`, `ensure-vm-stream-ready.sh`, and `optimize-proxmox-vm-for-beagle.sh` delegating to those wrappers instead of carrying their own helper-vs-raw-command branches inline.
+
+Reason:
+
+- The repo already had a provider helper and a small shell dispatch seam, but the expensive part of the drift was still repeated in each script: the raw `qm` fallback behavior and the JSON polling/error handling. That meant future provider changes still had to touch several scripts even after the first abstraction pass.
+- Centralizing the shell fallback logic keeps rollout-compatible raw-`qm` behavior available where still needed, while making the next step smaller: removing or shrinking fallback branches in one place once the provider helper is guaranteed everywhere.
