@@ -125,16 +125,11 @@ sanitize_log_session_id() {
   printf '%s\n' "$raw"
 }
 
-live_menu_logs_medium_mount_valid() {
-  local mount_dir="$1"
-  [[ -d "$mount_dir/pve-thin-client" ]]
-}
-
 mount_writable_live_medium_for_logs() {
   local mounted=""
   local mount_dir=""
 
-  mounted="$(mount_candidate_live_medium rw /tmp/pve-live-logs.XXXXXX live_menu_logs_medium_mount_valid || true)"
+  mounted="$(mount_candidate_live_medium rw /tmp/pve-live-logs.XXXXXX live_medium_contains_persist_root || true)"
   [[ -n "$mounted" ]] || return 1
   mount_dir="${mounted#*$'\t'}"
   TEMP_LOG_PERSIST_MOUNT="$mount_dir"
@@ -738,16 +733,11 @@ effective_api_host() {
   return 1
 }
 
-live_menu_medium_mount_valid() {
-  local mount_dir="$1"
-  candidate_manifest_path "$mount_dir" >/dev/null 2>&1 || candidate_live_asset_dir "$mount_dir" >/dev/null 2>&1
-}
-
 mount_discovered_live_medium() {
   local mounted=""
   local mount_dir=""
 
-  mounted="$(mount_candidate_live_medium ro /tmp/pve-live-medium.XXXXXX live_menu_medium_mount_valid || true)"
+  mounted="$(mount_candidate_live_medium ro /tmp/pve-live-medium.XXXXXX live_medium_contains_manifest_or_assets || true)"
   [[ -n "$mounted" ]] || return 1
   mount_dir="${mounted#*$'\t'}"
   TEMP_LIVE_MEDIUM_MOUNT="$mount_dir"

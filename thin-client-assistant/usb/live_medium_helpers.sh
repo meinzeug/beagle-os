@@ -127,3 +127,42 @@ candidate_manifest_path() {
 
   return 1
 }
+
+candidate_preset_path() {
+  local target="$1"
+  local require_boot_assets="${2:-1}"
+
+  if [[ -f "$target/pve-thin-client/preset.env" ]]; then
+    printf '%s\n' "$target/pve-thin-client/preset.env"
+    return 0
+  fi
+
+  if candidate_live_asset_dir "$target" "$require_boot_assets" >/dev/null 2>&1 && [[ -f "$target/preset.env" ]]; then
+    printf '%s\n' "$target/preset.env"
+    return 0
+  fi
+
+  return 1
+}
+
+live_medium_contains_manifest_or_assets() {
+  local target="$1"
+  local require_boot_assets="${2:-0}"
+
+  candidate_manifest_path "$target" "$require_boot_assets" >/dev/null 2>&1 || \
+    candidate_live_asset_dir "$target" "$require_boot_assets" >/dev/null 2>&1
+}
+
+live_medium_contains_preset_or_assets() {
+  local target="$1"
+  local require_boot_assets="${2:-1}"
+
+  candidate_preset_path "$target" "$require_boot_assets" >/dev/null 2>&1 || \
+    candidate_live_asset_dir "$target" "$require_boot_assets" >/dev/null 2>&1
+}
+
+live_medium_contains_persist_root() {
+  local target="$1"
+
+  [[ -d "$target/pve-thin-client" ]]
+}
