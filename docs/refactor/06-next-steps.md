@@ -33,11 +33,13 @@ Strategic framing:
    - the authenticated single-VM mutation surface for installer-prep, updates, actions, USB attach/detach, and Sunshine access now lives behind `VmMutationSurfaceService`
    - the authenticated non-VM admin mutation surface for policies, bulk actions, ubuntu-beagle create/provision/update now lives behind `AdminHttpSurfaceService`
    - the endpoint enrollment/check-in HTTP surface now lives behind `EndpointLifecycleSurfaceService`
-   - the next valuable host slice is no longer another HTTP route block; it is the remaining non-HTTP orchestration/business helper cluster that still sits directly in `beagle-control-plane.py`
-   - keep the entrypoint moving toward a thin HTTP composition surface instead of re-centralizing orchestration there
+   - the first real `beagle` provider now exists in `beagle-host/providers/beagle_host_provider.py`; the next provider slice is to stop treating it as only a persistence skeleton
+   - extend the host provider contract and the Beagle skeleton together for the next missing surfaces: bridge inventory, network inventory, guest-script upload/result handling, and restart scheduling semantics that are still Proxmox-shaped in adjacent helpers
+   - add the first provider-neutral HTTP read surface for nodes/hosts and guest interfaces so `providers/beagle/virtualization-provider.js` no longer has to synthesize those values from `/api/v1/vms` alone
+   - keep the control-plane entrypoint moving toward a thin HTTP composition surface instead of re-centralizing orchestration there
 3. Continue the host-provider abstraction itself:
-   - define the next provider-complete contract slice in `beagle-host/providers/host_provider_contract.py` after guest-network/reboot and move any remaining host-side direct provider assumptions to that contract or to service modules consuming it
-   - the next high-value contract candidates are host-network/bridge inventory plus the remaining guest-script upload/restart scheduling assumptions that still leak around `provider_shell.sh`
+   - define the next provider-complete contract slice in `beagle-host/providers/host_provider_contract.py` after the new state-backed `beagle` skeleton and move any remaining host-side direct provider assumptions to that contract or to service modules consuming it
+   - the next high-value contract candidates are host-network/bridge inventory, guest-script upload/result handling, and the remaining restart scheduling assumptions that still leak around `provider_shell.sh`
    - `BEAGLE_HOST_PROVIDER` now reaches `host.env`, `beagle-manager.env`, refresh paths, post-install checks, the proxy installer, the Proxmox-UI integration path, and the server-installer bootstrap; the next deploy task is to reduce the remaining Proxmox-only behavior at those surfaces rather than just carrying the variable through them
 4. Continue aligning installer-generation/env builders with the same endpoint profile contract source instead of reshaping overlapping fields in multiple browser/runtime places:
    - the hosted VM installer catalog path in `scripts/lib/prepare_host_downloads.py` now normalizes overlapping installer/profile URLs through `endpoint_profile_contract.py`
@@ -92,6 +94,11 @@ Strategic framing:
    - avoid letting new business logic drift back into that component
 7. Add broader automated checks for the browser extension, Proxmox UI modules, website modules, and beagle-host modules beyond syntax and `py_compile`.
 8. Keep `09-provider-abstraction.md` current whenever a direct Proxmox dependency is removed or newly discovered.
+
+9. Turn the new Beagle provider skeleton into the first usable Beagle backend scaffold instead of leaving it as an isolated state store:
+   - define the minimal persisted state contract under `/var/lib/beagle/providers/beagle` for nodes, storage, VMs, guest interfaces, and action/runtime status
+   - decide which lifecycle operations should stay synchronous state mutation in the skeleton and which should already move behind background job records
+   - add one conformance-style smoke test that exercises the same CRUD/lifecycle expectations against both `proxmox` and `beagle` provider kinds where possible
 
 9. Propagate the Moonlight fast-path launch fix into the actual thin-client release/update path and verify it on a live endpoint:
    - rebuild or stage a thin-client payload/image that includes the updated `thin-client-assistant/runtime/launch-moonlight.sh`

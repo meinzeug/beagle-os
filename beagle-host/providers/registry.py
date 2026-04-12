@@ -8,6 +8,7 @@ from host_provider_contract import HostProvider
 ProviderFactory = Callable[..., HostProvider]
 
 _PROVIDER_MODULES: dict[str, tuple[str, str]] = {
+    "beagle": ("beagle_host_provider", "BeagleHostProvider"),
     "proxmox": ("proxmox_host_provider", "ProxmoxHostProvider"),
 }
 

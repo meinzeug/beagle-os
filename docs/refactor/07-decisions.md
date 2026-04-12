@@ -1822,3 +1822,16 @@ Reason:
 
 - Before this slice, the host-control-plane already had a provider registry and a `ProxmoxHostProvider`, but the script helper still reimplemented the same Proxmox reads/writes itself. That left two separate Proxmox clients in the repo: one in `beagle-host/providers/proxmox_host_provider.py` and another in `scripts/lib/beagle_provider.py`.
 - That duplication is exactly the kind of architectural drag that blocks a first-party Beagle provider later. By forcing script flows through the same registry-backed provider contract, the next provider no longer has to chase a hidden second seam in the script layer.
+
+### D154. The first Beagle-owned provider should be state-backed before it is hypervisor-backed
+
+Decision:
+
+- Keep the first `beagle` host provider in `beagle-host/providers/beagle_host_provider.py` as a real registry-backed implementation, but make it state-backed under `/var/lib/beagle/providers/beagle` instead of wrapping Proxmox commands.
+- Keep the first browser-side Beagle provider in `providers/beagle/virtualization-provider.js` narrow and HTTP-backed against existing Beagle host surfaces, even if that means temporary synthesized config or empty guest-interface payloads.
+
+Reason:
+
+- The next milestone was no longer another Proxmox abstraction note; it was the first real `providers/beagle/` skeleton. Reaching that milestone with another hidden Proxmox alias would preserve the exact failure mode we are trying to remove: a "second provider" that still only proves Proxmox-shaped assumptions.
+- A small state-backed provider gives the repo a real second contract consumer immediately. That lets future work harden the contract, tests, deploy paths, and provider selection semantics before the Beagle-owned compute/runtime backend exists.
+- The browser-side provider needs the same discipline. A narrow HTTP-backed skeleton is better than teaching a new browser provider to speak Proxmox directly just to satisfy the same interface.

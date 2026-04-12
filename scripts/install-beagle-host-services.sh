@@ -156,11 +156,12 @@ fi
 if [[ "$(readlink -f "$ROOT_DIR/beagle-host/bin/endpoint_profile_contract.py")" != "$(readlink -f "$HOST_RUNTIME_DIR/bin/endpoint_profile_contract.py" 2>/dev/null || true)" ]]; then
   install -m 0644 "$ROOT_DIR/beagle-host/bin/endpoint_profile_contract.py" "$HOST_RUNTIME_DIR/bin/endpoint_profile_contract.py"
 fi
-if [[ "$(readlink -f "$ROOT_DIR/beagle-host/providers/proxmox_host_provider.py")" != "$(readlink -f "$HOST_RUNTIME_DIR/providers/proxmox_host_provider.py" 2>/dev/null || true)" ]]; then
-  install -m 0644 "$ROOT_DIR/beagle-host/providers/proxmox_host_provider.py" "$HOST_RUNTIME_DIR/providers/proxmox_host_provider.py"
-fi
 install_file_if_needed 0644 "$ROOT_DIR/beagle-host/providers/host_provider_contract.py" "$HOST_RUNTIME_DIR/providers/host_provider_contract.py"
 install_file_if_needed 0644 "$ROOT_DIR/beagle-host/providers/registry.py" "$HOST_RUNTIME_DIR/providers/registry.py"
+for provider_file in "$ROOT_DIR"/beagle-host/providers/*_host_provider.py; do
+  [[ -f "$provider_file" ]] || continue
+  install_file_if_needed 0644 "$provider_file" "$HOST_RUNTIME_DIR/providers/$(basename "$provider_file")"
+done
 install_file_if_needed 0644 "$ROOT_DIR/beagle-host/services/virtualization_inventory.py" "$HOST_RUNTIME_DIR/services/virtualization_inventory.py"
 install_file_if_needed 0644 "$ROOT_DIR/beagle-host/services/admin_http_surface.py" "$HOST_RUNTIME_DIR/services/admin_http_surface.py"
 install_file_if_needed 0644 "$ROOT_DIR/beagle-host/services/runtime_environment.py" "$HOST_RUNTIME_DIR/services/runtime_environment.py"
