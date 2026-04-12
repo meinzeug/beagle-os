@@ -21,10 +21,10 @@ Strategic framing:
    - after that, decide whether `provider_shell.sh` should start consuming the new `list-nodes` / `list-storage` / `next-vmid` commands as well, so future script-side provider work does not create a third contract surface
    - after that, reuse the new shell seam in the next provider-aware scripts that still duplicate host targeting or helper bootstrap logic instead of reintroducing those helpers locally
    - the generic top-level host install/setup/check/service entrypoints now live at `scripts/install-beagle-host.sh`, `scripts/install-beagle-host-services.sh`, `scripts/setup-beagle-host.sh`, and `scripts/check-beagle-host.sh`
-   - the server-installer now has explicit provider dispatch seams for repo wiring, package installation, and the final Beagle host bootstrap; the next installer slice is to make the installer-mode choice explicit:
+   - the server-installer now exposes explicit install modes for:
      - `Beagle OS standalone`
      - `Beagle OS with Proxmox`
-   - move the remaining Proxmox-only package/source definitions and post-install assumptions behind that installer-mode seam instead of keeping them inline as the only implementation
+   - the next installer slice is to move the remaining standalone-vs-Proxmox post-install assumptions behind the same seam, especially host validation, proxy/web UI setup expectations, and any remaining package/layout assumptions that still silently prefer the Proxmox path
    - after that, decide whether this helper remains the long-term script provider contract or whether the write/exec slice should split into a second dedicated script-side provider module
 2. Continue decomposing `beagle-host/bin/beagle-control-plane.py` around service-oriented modules:
    - the shared slug/secret/PIN helper cluster is now extracted behind `UtilitySupportService`
@@ -47,6 +47,7 @@ Strategic framing:
    - the next high-value contract candidates are host-network/bridge inventory, guest-script upload/result handling, and the remaining restart scheduling assumptions that still leak around `provider_shell.sh`
    - `BEAGLE_HOST_PROVIDER` now reaches `host.env`, `beagle-manager.env`, refresh paths, post-install checks, the proxy installer, the Proxmox-UI integration path, and the server-installer bootstrap; the next deploy task is to reduce the remaining Proxmox-only behavior at those surfaces rather than just carrying the variable through them
    - after that, define which standalone host/bootstrap/network/storage/runtime responsibilities are Beagle-core and therefore must exist identically in both installer modes
+   - after that, define the first standalone-capable host contract for local downloads/public proxying/web console delivery, because standalone currently validates through the local control-plane port but does not yet have an equivalent long-term web surface to the Proxmox-backed host
 4. Continue aligning installer-generation/env builders with the same endpoint profile contract source instead of reshaping overlapping fields in multiple browser/runtime places:
    - the hosted VM installer catalog path in `scripts/lib/prepare_host_downloads.py` now normalizes overlapping installer/profile URLs through `endpoint_profile_contract.py`
    - the thin-client preset summary/UI-state path now shares one helper in `thin-client-assistant/usb/preset_summary.py` instead of carrying duplicated mode/preset shaping in both the local installer and the Proxmox API helper

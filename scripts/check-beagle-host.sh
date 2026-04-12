@@ -23,6 +23,26 @@ BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-proxmox}"
 USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-beagle}"
 USB_TUNNEL_HOME="${BEAGLE_USB_TUNNEL_HOME:-}"
 USB_TUNNEL_AUTH_ROOT="${BEAGLE_USB_TUNNEL_AUTH_ROOT:-/var/lib/beagle/usb-tunnel/$USB_TUNNEL_USER}"
+PVE_UI_JS_FILE="${BEAGLE_PVE_UI_JS_FILE:-/usr/share/pve-manager/js/beagle-ui.js}"
+PVE_UI_CONFIG_FILE="${BEAGLE_PVE_UI_CONFIG_FILE:-/usr/share/pve-manager/js/beagle-ui-config.js}"
+BEAGLE_PROXY_SITE_FILE="${BEAGLE_PROXY_SITE_FILE:-/etc/nginx/sites-available/beagle-proxy.conf}"
+BEAGLE_UI_REAPPLY_SERVICE_FILE="${BEAGLE_UI_REAPPLY_SERVICE_FILE:-/etc/systemd/system/beagle-ui-reapply.service}"
+BEAGLE_UI_REAPPLY_PATH_FILE="${BEAGLE_UI_REAPPLY_PATH_FILE:-/etc/systemd/system/beagle-ui-reapply.path}"
+BEAGLE_CONTROL_SERVICE_FILE="${BEAGLE_CONTROL_SERVICE_FILE:-/etc/systemd/system/beagle-control-plane.service}"
+BEAGLE_USB_TUNNEL_SSHD_DROPIN="${BEAGLE_USB_TUNNEL_SSHD_DROPIN:-/etc/ssh/sshd_config.d/90-beagle-usb-tunnel.conf}"
+
+host_provider_kind() {
+  local kind
+  kind="$(printf '%s' "${BEAGLE_HOST_PROVIDER:-proxmox}" | tr '[:upper:]' '[:lower:]')"
+  case "$kind" in
+    ""|pve)
+      printf 'proxmox\n'
+      ;;
+    *)
+      printf '%s\n' "$kind"
+      ;;
+  esac
+}
 
 load_host_env() {
   if [[ -f "$HOST_ENV_FILE" ]]; then
@@ -90,6 +110,17 @@ check_service_active() {
     return 0
   fi
   echo "ERR svc   $service"
+  record_failure
+}
+
+check_local_control_plane_health() {
+  local port
+  port="${BEAGLE_MANAGER_LISTEN_PORT:-9088}"
+  if curl -fsS --output /dev/null "http://127.0.0.1:${port}/healthz" >/dev/null 2>&1; then
+    echo "OK  http  http://127.0.0.1:${port}/healthz"
+    return 0
+  fi
+  echo "ERR http  http://127.0.0.1:${port}/healthz"
   record_failure
 }
 
@@ -218,18 +249,21 @@ check_file "$INSTALL_DIR/dist/SHA256SUMS"
 check_file "$INSTALL_DIR/dist/beagle-os-installer-amd64.iso"
 check_file "$INSTALL_DIR/dist/beagle-os-server-installer-amd64.iso"
 check_file "$REFRESH_STATUS_FILE"
-check_file "/usr/share/pve-manager/js/beagle-ui.js"
-check_file "/usr/share/pve-manager/js/beagle-ui-config.js"
-check_file "/etc/nginx/sites-available/beagle-proxy.conf"
-check_file "/etc/systemd/system/beagle-ui-reapply.service"
-check_file "/etc/systemd/system/beagle-ui-reapply.path"
-check_file "/etc/systemd/system/beagle-control-plane.service"
+check_file "$BEAGLE_CONTROL_SERVICE_FILE"
 check_file "$INSTALL_DIR/beagle-host/providers/registry.py"
 check_file "$INSTALL_DIR/beagle-host/providers/host_provider_contract.py"
 check_file "$INSTALL_DIR/beagle-host/providers/${BEAGLE_HOST_PROVIDER}_host_provider.py"
 check_file "$INSTALL_DIR/beagle-host/bin/beagle-usb-tunnel-session"
 check_file "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
-check_file "/etc/ssh/sshd_config.d/90-beagle-usb-tunnel.conf"
+check_file "$BEAGLE_USB_TUNNEL_SSHD_DROPIN"
+
+if [[ "$(host_provider_kind)" == "proxmox" ]]; then
+  check_file "$PVE_UI_JS_FILE"
+  check_file "$PVE_UI_CONFIG_FILE"
+  check_file "$BEAGLE_PROXY_SITE_FILE"
+  check_file "$BEAGLE_UI_REAPPLY_SERVICE_FILE"
+  check_file "$BEAGLE_UI_REAPPLY_PATH_FILE"
+fi
 
 if id "$USB_TUNNEL_USER" >/dev/null 2>&1; then
   echo "OK  user  $USB_TUNNEL_USER"
@@ -245,24 +279,28 @@ else
   record_failure
 fi
 
-check_service_active "pveproxy"
-check_service_active "nginx"
 check_service_active "beagle-artifacts-refresh.timer"
-check_service_active "beagle-ui-reapply.path"
 check_service_active "beagle-control-plane"
 
-check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-installer-host-latest.sh")"
-check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
-check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
-check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-downloads-status.json")"
-check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "SHA256SUMS")"
-check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-os-installer-amd64.iso")"
-check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-os-server-installer-amd64.iso")"
-check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
-check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
-check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "beagle-os-installer-amd64.iso")"
-check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "beagle-os-server-installer-amd64.iso")"
-check_http "${HOST_ORIGIN_URL}/beagle-api/healthz" "Authorization: Bearer $BEAGLE_API_TOKEN" "GET"
+if [[ "$(host_provider_kind)" == "proxmox" ]]; then
+  check_service_active "pveproxy"
+  check_service_active "nginx"
+  check_service_active "beagle-ui-reapply.path"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-installer-host-latest.sh")"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-downloads-status.json")"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "SHA256SUMS")"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-os-installer-amd64.iso")"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-os-server-installer-amd64.iso")"
+  check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
+  check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
+  check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "beagle-os-installer-amd64.iso")"
+  check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "beagle-os-server-installer-amd64.iso")"
+  check_http "${HOST_ORIGIN_URL}/beagle-api/healthz" "Authorization: Bearer $BEAGLE_API_TOKEN" "GET"
+else
+  check_local_control_plane_health
+fi
 
 if check_status_json; then
   echo "OK  json  $STATUS_JSON_FILE"

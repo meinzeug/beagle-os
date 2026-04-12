@@ -1861,3 +1861,22 @@ Reason:
 
 - Without an explicit product/UI decision, the refactor can keep shrinking and cleaning `proxmox-ui/` forever while still leaving the product dependent on Proxmox as the practical control surface.
 - The repo already contains shared browser/provider/core seams that can support a dedicated host UI. Making that UI an explicit target prevents future browser work from being optimized only for ExtJS/Proxmox integration constraints.
+
+### D157. Server-installer mode choice should be explicit and should drive provider, packages, and host validation
+
+Decision:
+
+- Keep `server-installer/.../beagle-server-installer` responsible for explicitly selecting between:
+  - `Beagle OS standalone`
+  - `Beagle OS with Proxmox`
+- Derive the effective host provider from that mode choice inside the installer and let the same choice control:
+  - provider kind
+  - provider-specific apt sources
+  - provider-specific package installation
+  - the baseline host network layout
+  - standalone-vs-Proxmox validation expectations
+
+Reason:
+
+- Merely threading `BEAGLE_HOST_PROVIDER` into deeper scripts was not enough. That still left the operator-facing ISO experience and the post-install logic effectively Proxmox-first unless the caller knew the right hidden environment values.
+- Making the mode explicit at the installer entrypoint creates the correct product contract: one Beagle installer, two install modes, one downstream host/provider architecture.
