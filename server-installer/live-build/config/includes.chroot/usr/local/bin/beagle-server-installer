@@ -342,18 +342,25 @@ partition_suffix() {
 }
 
 wait_for_network() {
-  local attempt=0 max_attempts=30
+  local iface attempt=0 max_attempts=30
+  iface="${PRIMARY_IFACE:-$(detect_primary_iface || true)}"
 
-  # Ensure DNS is configured (systemd-networkd may not update resolv.conf without resolved)
-  if ! grep -qE '^nameserver [0-9]' /etc/resolv.conf 2>/dev/null; then
-    printf 'nameserver 8.8.8.8\nnameserver 8.8.4.4\n' > /etc/resolv.conf
+  ensure_live_dns
+  if [[ -n "$iface" ]] && ! iface_has_ipv4 "$iface"; then
+    renew_live_dhcp_lease "$iface"
   fi
 
   printf 'Waiting for network...' >&2
   while (( attempt < max_attempts )); do
-    if curl -sf -o /dev/null --connect-timeout 3 https://deb.debian.org/debian/dists/bookworm/Release 2>/dev/null; then
+    if network_ready "$iface"; then
       printf ' OK\n' >&2
       return 0
+    fi
+    if (( attempt > 0 && attempt % 5 == 0 )); then
+      ensure_live_dns
+      if [[ -n "$iface" ]] && ! iface_has_ipv4 "$iface"; then
+        renew_live_dhcp_lease "$iface"
+      fi
     fi
     printf '.' >&2
     sleep 2
@@ -362,6 +369,67 @@ wait_for_network() {
   printf ' FAILED\n' >&2
   echo "Network not available after 60 seconds." >&2
   return 1
+}
+
+ensure_live_dns() {
+  local resolv_path="${BEAGLE_SERVER_LIVE_RESOLV_CONF:-/etc/resolv.conf}"
+  if grep -qE '^\s*nameserver\s+[0-9]' "$resolv_path" 2>/dev/null; then
+    return 0
+  fi
+  printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' >"$resolv_path"
+}
+
+iface_has_ipv4() {
+  local iface="$1"
+  ip -4 addr show dev "$iface" 2>/dev/null | grep -qE 'inet [0-9]'
+}
+
+iface_has_default_route() {
+  local iface="$1"
+  [[ -n "$iface" ]] || return 1
+  ip route show default 2>/dev/null | grep -Eq "(^| )dev ${iface}( |$)"
+}
+
+renew_live_dhcp_lease() {
+  local iface="$1"
+  [[ -n "$iface" ]] || return 0
+  command -v dhclient >/dev/null 2>&1 || return 0
+  log "renewing live DHCP lease on $iface"
+  dhclient -4 -nw \
+    -pf "/run/dhclient-${iface}.pid" \
+    -lf "/run/dhclient-${iface}.leases" \
+    "$iface" >>"$LOG_FILE" 2>&1 || true
+}
+
+network_ready() {
+  local iface="$1"
+  ensure_live_dns
+  [[ -n "$iface" ]] || return 1
+  iface_has_ipv4 "$iface" || return 1
+  iface_has_default_route "$iface" || return 1
+  getent ahostsv4 deb.debian.org >/dev/null 2>&1 || return 1
+  curl -sf -o /dev/null --connect-timeout 3 "https://deb.debian.org/debian/dists/${DEBIAN_RELEASE}/Release" 2>/dev/null
+}
+
+run_with_retry() {
+  local description="$1"
+  shift
+  local attempt=1
+  local max_attempts="${BEAGLE_SERVER_INSTALL_RETRIES:-3}"
+  local delay="${BEAGLE_SERVER_INSTALL_RETRY_DELAY_SECONDS:-5}"
+  local rc=1
+  while (( attempt <= max_attempts )); do
+    log "run[$attempt/$max_attempts]: $description"
+    if "$@" >>"$LOG_FILE" 2>&1; then
+      return 0
+    fi
+    rc=$?
+    log "retrying after failure rc=$rc: $description"
+    wait_for_network || true
+    sleep "$delay"
+    attempt=$((attempt + 1))
+  done
+  return "$rc"
 }
 
 detect_primary_iface() {
@@ -459,6 +527,28 @@ chroot_run() {
   chroot "$TARGET_MOUNT" /usr/bin/env DEBIAN_FRONTEND=noninteractive bash -lc "$*"
 }
 
+chroot_run_with_retry() {
+  local description="$1"
+  local command="$2"
+  local attempt=1
+  local max_attempts="${BEAGLE_SERVER_INSTALL_RETRIES:-3}"
+  local delay="${BEAGLE_SERVER_INSTALL_RETRY_DELAY_SECONDS:-5}"
+  local rc=1
+  while (( attempt <= max_attempts )); do
+    cp /etc/resolv.conf "$TARGET_MOUNT/etc/resolv.conf" 2>/dev/null || true
+    log "chroot[$attempt/$max_attempts]: $description"
+    if chroot_run "$command" >>"$LOG_FILE" 2>&1; then
+      return 0
+    fi
+    rc=$?
+    log "retrying after failure rc=$rc: $description"
+    wait_for_network || true
+    sleep "$delay"
+    attempt=$((attempt + 1))
+  done
+  return "$rc"
+}
+
 write_fstab() {
   local boot_part="$1"
   local root_part="$2"
@@ -473,7 +563,8 @@ EOF
 
 install_base_system() {
   log "running debootstrap for $DEBIAN_RELEASE"
-  run_logged debootstrap --arch amd64 "$DEBIAN_RELEASE" "$TARGET_MOUNT" "$DEBIAN_MIRROR"
+  run_with_retry "debootstrap --arch amd64 $DEBIAN_RELEASE $TARGET_MOUNT $DEBIAN_MIRROR" \
+    debootstrap --arch amd64 "$DEBIAN_RELEASE" "$TARGET_MOUNT" "$DEBIAN_MIRROR"
   mkdir -p "$TARGET_MOUNT/etc"
   cp /etc/resolv.conf "$TARGET_MOUNT/etc/resolv.conf"
 }
@@ -495,7 +586,7 @@ install_target_packages() {
   printf -v hostname_q '%q' "$INSTALL_HOSTNAME"
   printf -v username_q '%q' "$INSTALL_USERNAME"
   printf -v password_q '%q' "$INSTALL_PASSWORD"
-  chroot_run "apt-get update"
+  chroot_run_with_retry "apt-get update" "apt-get update"
   chroot_run "printf 'postfix postfix/mailname string %s\n' $hostname_q | debconf-set-selections"
   chroot_run "printf 'postfix postfix/main_mailer_type string Local only\n' | debconf-set-selections"
   install_host_provider_packages
@@ -513,10 +604,14 @@ install_host_provider_packages() {
   kind="$(host_provider_kind)"
   case "$kind" in
     beagle)
-      chroot_run "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server git python3 rsync grub-pc grub-efi-amd64-bin efibootmgr dosfstools"
+      chroot_run_with_retry \
+        "install standalone host packages" \
+        "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server git python3 rsync grub-pc grub-efi-amd64-bin efibootmgr dosfstools"
       ;;
     proxmox)
-      chroot_run "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server proxmox-ve postfix open-iscsi chrony git python3 rsync grub-pc grub-efi-amd64-bin efibootmgr dosfstools"
+      chroot_run_with_retry \
+        "install proxmox host packages" \
+        "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server proxmox-ve postfix open-iscsi chrony git python3 rsync grub-pc grub-efi-amd64-bin efibootmgr dosfstools"
       ;;
     *)
       echo "Unsupported server-installer host provider: $kind" >&2
@@ -537,7 +632,7 @@ install_beagle_host_stack() {
   printf -v web_ui_q '%q' "https://$INSTALL_HOSTNAME"
   printf -v mode_q '%q' "$mode"
   chroot_run "mkdir -p /usr/local/src/beagle-os /var/lib/beagle"
-  chroot_run "curl -fsSL $source_url_q -o /tmp/beagle-os.tar.gz"
+  chroot_run_with_retry "download beagle source archive" "curl -fsSL $source_url_q -o /tmp/beagle-os.tar.gz"
   chroot_run "tar -xzf /tmp/beagle-os.tar.gz -C /usr/local/src/beagle-os"
   chroot_run "cd /usr/local/src/beagle-os && BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q BEAGLE_SERVER_INSTALL_MODE=$mode_q BEAGLE_HOST_PROVIDER=$kind PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-beagle-host.sh"
 }

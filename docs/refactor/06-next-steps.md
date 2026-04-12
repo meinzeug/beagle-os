@@ -132,6 +132,12 @@ Strategic framing:
    - add one focused smoke check that copies a patched installer into a foreign directory and exercises the helper-bootstrap path against a hosted bootstrap bundle
    - continue keeping helper extraction inside `thin-client-assistant/usb/*` modules, but treat the single-file host/download launcher as a compatibility surface that must remain self-contained at startup
 
+14. Rebuild and re-test the server installer ISO after the new live-network hardening:
+   - rebuild `server-installer/live-build` artifacts on `thinover.net`
+   - attach the refreshed ISO to a clean test VM
+   - verify that the installer survives transient DNS/DHCP jitter and completes a full Debian+Beagle install instead of leaving only a partial `debootstrap` target
+   - if another failure occurs, capture the live `/var/log/beagle-server-installer.log` from the installer environment before destroying the VM
+
 ## After that
 
 1. Add smoke verification for generated installer URLs and expected public artifact names.
