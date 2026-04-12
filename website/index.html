@@ -8,7 +8,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css?v=6.6.7">
+    <link rel="stylesheet" href="/styles.css?v=6.6.8">
   </head>
   <body class="auth-only">
     <div class="auth-modal" id="auth-modal" aria-hidden="true">
@@ -55,6 +55,7 @@
         <nav class="sidebar-nav" id="sidebar-nav">
           <button type="button" class="nav-item nav-item-active" data-panel="overview">Uebersicht</button>
           <button type="button" class="nav-item" data-panel="inventory">Inventar</button>
+          <button type="button" class="nav-item" data-panel="virtualization">Virtualisierung</button>
           <button type="button" class="nav-item" data-panel="policies">Policies</button>
           <a href="/beagle-downloads/" class="nav-item" target="_blank" rel="noopener noreferrer">Downloads</a>
           <a href="https://beagle-os.com/download/" class="nav-item">Download</a>
@@ -118,6 +119,16 @@
             <span class="stat-value" id="stat-policies">0</span>
             <span class="stat-meta" id="stat-policies-meta">Keine Daten</span>
           </article>
+          <article class="stat-card card">
+            <span class="stat-label">Nodes</span>
+            <span class="stat-value" id="stat-nodes">0</span>
+            <span class="stat-meta" id="stat-nodes-meta">Keine Daten</span>
+          </article>
+          <article class="stat-card card">
+            <span class="stat-label">Storage</span>
+            <span class="stat-value" id="stat-storage">0</span>
+            <span class="stat-meta" id="stat-storage-meta">Keine Daten</span>
+          </article>
         </section>
 
         <section class="workspace-grid panel-section" id="inventory-section" data-panel-section="inventory">
@@ -179,12 +190,54 @@
               <button type="button" class="detail-tab detail-tab-active" data-detail-panel="summary">Zusammenfassung</button>
               <button type="button" class="detail-tab" data-detail-panel="usb">USB</button>
               <button type="button" class="detail-tab" data-detail-panel="credentials">Credentials</button>
+              <button type="button" class="detail-tab" data-detail-panel="config">Config</button>
               <button type="button" class="detail-tab" data-detail-panel="bundles">Bundles</button>
             </div>
             <div class="detail-body" id="detail-stack">
               <div class="banner banner-info">Wähle eine VM aus dem Inventar, um Details, Credentials und Operator-Aktionen zu sehen.</div>
             </div>
           </aside>
+        </section>
+
+        <section class="virt-outer panel-section" id="virtualization-section" data-panel-section="virtualization">
+          <section class="card virt-nodes-card">
+            <div class="card-head">
+              <div>
+                <span class="eyebrow">Infrastructure</span>
+                <h2>Nodes</h2>
+              </div>
+              <button class="button ghost small" id="refresh-virt" type="button">Aktualisieren</button>
+            </div>
+            <div id="nodes-grid" class="nodes-grid">
+              <div class="empty-card">Noch keine Daten geladen.</div>
+            </div>
+          </section>
+
+          <section class="card virt-storage-card">
+            <div class="card-head">
+              <div>
+                <span class="eyebrow">Infrastructure</span>
+                <h2>Storage</h2>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="storage-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Node</th>
+                    <th>Typ</th>
+                    <th>Inhalt</th>
+                    <th>Auslastung</th>
+                    <th>Verfuegbar</th>
+                  </tr>
+                </thead>
+                <tbody id="storage-body">
+                  <tr><td colspan="6" class="empty-cell">Noch keine Daten geladen.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
         </section>
 
         <section class="card policies-card panel-section" id="policies-section" data-panel-section="policies">
@@ -232,6 +285,6 @@
 
     <script src="/core/platform/browser-common.js"></script>
     <script src="/beagle-web-ui-config.js"></script>
-    <script src="/app.js?v=6.6.7"></script>
+    <script src="/app.js?v=6.6.8"></script>
   </body>
 </html>
