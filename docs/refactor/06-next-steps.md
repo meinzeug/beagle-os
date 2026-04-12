@@ -91,6 +91,16 @@ Strategic framing:
 7. Add broader automated checks for the browser extension, Proxmox UI modules, website modules, and beagle-host modules beyond syntax and `py_compile`.
 8. Keep `09-provider-abstraction.md` current whenever a direct Proxmox dependency is removed or newly discovered.
 
+9. Propagate the Moonlight fast-path launch fix into the actual thin-client release/update path and verify it on a live endpoint:
+   - rebuild or stage a thin-client payload/image that includes the updated `thin-client-assistant/runtime/launch-moonlight.sh`
+   - deploy that payload to a live endpoint such as `192.168.178.92`
+   - confirm from `runtime-trace.log` that already paired clients log `moonlight.ready` and go from `moonlight.cached-config` directly to `moonlight.exec` without the extra `moonlight.registered` pause
+   - keep the fallback manager-registration/pairing path covered for unpaired clients
+
+10. After the live runtime verification, continue the next runtime-heavy refactor slice from the same area instead of switching context:
+   - either split the remaining non-trivial Moonlight fallback/pairing logic further
+   - or move on to the next shell-heavy runtime crossover script that still mixes orchestration and implementation
+
 ## After that
 
 1. Add smoke verification for generated installer URLs and expected public artifact names.

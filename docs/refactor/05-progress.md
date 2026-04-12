@@ -1924,6 +1924,14 @@
   - moved `generate_config_dir_from_preset()`, runtime config file sourcing, and `load_runtime_config()` out of `thin-client-assistant/runtime/common.sh`
   - rewired `common.sh` to source the new loader helper instead of carrying those config-loading functions inline
   - kept `common.sh` as the shared orchestration library, but not as the place where config loading/discovery business logic keeps accumulating
+- Removed an eager Moonlight manager-registration roundtrip from the thin-client launch fast path:
+  - changed `thin-client-assistant/runtime/launch-moonlight.sh` so already configured clients try `moonlight_list()` first and log `moonlight.ready` when the cached pairing is usable
+  - kept the manager-registration and PIN-pairing path in `ensure_paired()` as the fallback only, so first-boot/unpaired behavior stays unchanged
+  - validated the new branch locally with focused shell smoke tests for the fast-ready path and the fallback-pairing path, plus `bash -n` and `./scripts/validate-project.sh`
+  - investigated the live endpoint `192.168.178.92` directly via SSH with the host-issued thin-client password and confirmed that the current boot delay is not caused by the `10.10.x` address selection: both before and after reboot the runtime logs showed `connect_host=65.109.80.76`
+  - captured the actual slow phase on the live endpoint from `/run/user/1000/beagle-os/runtime-trace.log`: `moonlight.cached-config` at `2026-04-12T03:19:30+00:00` and `moonlight.registered` at `2026-04-12T03:19:42+00:00`, with `moonlight.exec` only at `2026-04-12T03:19:44+00:00`
+  - confirmed the same pattern again after a reboot at `2026-04-12T03:26:30+00:00` → `2026-04-12T03:26:43+00:00` → `2026-04-12T03:26:45+00:00`
+  - verified that the current installed endpoint image is still `6.6.6`; a manual file replacement on the running client was overwritten by the booted image/runtime refresh on reboot, so the repo fix is correct but not yet part of the deployed thin-client payload
 
 ### Known risks after this run
 
@@ -1933,3 +1941,4 @@
 - The provider abstraction now covers Proxmox UI, browser extension, host-side reads, host-side VM lifecycle writes, guest-exec, scheduled restart orchestration, an explicit host-side endpoint profile contract, and shared browser-side profile mapper/helper modules. The remaining browser-side UI debt is now mostly in `proxmox-ui/beagle-ui.js` orchestration, `proxmox-ui/components/extjs-integration.js` runtime coupling to the current Proxmox ExtJS surface, and the still-large extension/proxmox profile action renderers.
 - Script surfaces and installer-side provider neutrality are still pending.
 - Local `.build/` and `dist/` directories still exist and should not be treated as authoritative release outputs.
+- Live endpoints on older released payloads can still boot back into pre-fix runtime scripts even after an on-device hot patch; validating runtime refactors against a real endpoint now requires either a rebuilt thin-client payload/update or an explicit post-boot deployment step.
