@@ -1,5 +1,19 @@
 # Refactor Progress
 
+### 2026-04-12 — Shared live-medium content-acceptance helper extraction
+
+- Removed the remaining duplicated mounted-content acceptance checks from the USB installer entrypoints:
+  - extended `thin-client-assistant/usb/live_medium_helpers.sh` with `candidate_preset_path()`, `live_medium_contains_manifest_or_assets()`, `live_medium_contains_preset_or_assets()`, and `live_medium_contains_persist_root()`
+  - `thin-client-assistant/usb/pve-thin-client-live-menu.sh` now uses the shared helper for both the read-only live-medium mount validator and the writable log-persistence validator
+  - `thin-client-assistant/usb/pve-thin-client-local-installer.sh` now uses the same shared helper for preset/live-asset acceptance and log-persistence acceptance instead of carrying its own `candidate_preset_path()` and local validator functions
+- This closes another USB installer drift seam:
+  - live-medium device discovery, mount-candidate discovery, mount orchestration, and now the mounted-content acceptance rules all live in the same shared helper layer
+  - the entrypoints keep only their script-specific logging and high-level resolution flow instead of re-describing what counts as a usable mounted live medium
+- Validation and smoke checks for this slice passed:
+  - `bash -n thin-client-assistant/usb/live_medium_helpers.sh thin-client-assistant/usb/pve-thin-client-live-menu.sh thin-client-assistant/usb/pve-thin-client-local-installer.sh`
+  - focused smoke tests for preset-path, manifest-path, live-asset, and persist-root acceptance in `live_medium_helpers.sh`
+  - `./scripts/validate-project.sh`
+
 ### 2026-04-12 — Shared runtime preset-extension helper extraction
 
 - Reduced the host-only vs USB-only preset-field drift by moving the extended runtime preset field contract behind one shared helper:

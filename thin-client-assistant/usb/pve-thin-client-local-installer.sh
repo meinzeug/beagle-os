@@ -531,32 +531,6 @@ current_live_disk() {
   return 1
 }
 
-candidate_preset_path() {
-  local target="$1"
-
-  if [[ -f "$target/pve-thin-client/preset.env" ]]; then
-    printf '%s\n' "$target/pve-thin-client/preset.env"
-    return 0
-  fi
-
-  if candidate_live_asset_dir "$target" 1 >/dev/null 2>&1 && [[ -f "$target/preset.env" ]]; then
-    printf '%s\n' "$target/preset.env"
-    return 0
-  fi
-
-  return 1
-}
-
-local_installer_medium_mount_valid() {
-  local mount_dir="$1"
-  candidate_preset_path "$mount_dir" >/dev/null 2>&1 || candidate_live_asset_dir "$mount_dir" 1 >/dev/null 2>&1
-}
-
-local_installer_logs_medium_mount_valid() {
-  local mount_dir="$1"
-  [[ -d "$mount_dir/pve-thin-client" ]]
-}
-
 cached_preset_source() {
   if [[ -f "$CACHED_PRESET_SOURCE_FILE" ]]; then
     head -n 1 "$CACHED_PRESET_SOURCE_FILE" 2>/dev/null || printf 'cache\n'
@@ -628,7 +602,7 @@ mount_discovered_live_medium() {
   local device=""
   local mount_dir=""
 
-  mounted="$(mount_candidate_live_medium ro /tmp/pve-live-medium.XXXXXX local_installer_medium_mount_valid || true)"
+  mounted="$(mount_candidate_live_medium ro /tmp/pve-live-medium.XXXXXX live_medium_contains_preset_or_assets || true)"
   [[ -n "$mounted" ]] || return 1
   device="${mounted%%$'\t'*}"
   mount_dir="${mounted#*$'\t'}"
@@ -643,7 +617,7 @@ mount_writable_live_medium_for_logs() {
   local device=""
   local mount_dir=""
 
-  mounted="$(mount_candidate_live_medium rw /tmp/pve-live-logs.XXXXXX local_installer_logs_medium_mount_valid || true)"
+  mounted="$(mount_candidate_live_medium rw /tmp/pve-live-logs.XXXXXX live_medium_contains_persist_root || true)"
   if [[ -n "$mounted" ]]; then
     device="${mounted%%$'\t'*}"
     mount_dir="${mounted#*$'\t'}"
@@ -663,7 +637,7 @@ resolve_live_medium() {
   while IFS= read -r target; do
     [[ -n "$target" ]] || continue
     log_msg "candidate live mount: $target"
-    if candidate_preset_path "$target" >/dev/null 2>&1 || candidate_live_asset_dir "$target" 1 >/dev/null 2>&1; then
+    if live_medium_contains_preset_or_assets "$target" 1; then
       log_msg "resolved live medium via existing mount: $target"
       printf '%s\n' "$target"
       return 0

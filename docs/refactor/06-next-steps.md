@@ -80,7 +80,8 @@ Strategic framing:
    - the USB writer device-selection/safety/operator-dialog path now also lives behind `thin-client-assistant/usb/usb_writer_device_selection.sh`
    - the hosted-installer artifact-source split for host-local downloads vs public release artifacts now lives behind `scripts/lib/hosted_download_layout.sh`
    - the shared extended runtime preset field set for host-generated and USB-generated presets now lives behind `beagle-host/services/thin_client_preset.py`
-   - the next remaining drift is now in the still-host-only secret/enrollment/guest-identity sourcing around that preset contract and in the remaining live-medium mounted-content acceptance overlap outside the new helper
+   - the mounted-content acceptance rules for live-medium detection, preset detection, and log-persistence roots now also live behind `thin-client-assistant/usb/live_medium_helpers.sh`
+   - the next remaining drift is now in the still-host-only secret/enrollment/guest-identity sourcing around the shared preset contract
 5. Continue splitting the browser UI action/render layers:
    - move the next action-heavy profile modal helpers out of `extension/components/profile-modal.js` and, where shared, out of `proxmox-ui/components/profile-modal.js`
    - keep using `core/platform/browser-common.js` plus the existing shared browser helper modules instead of recreating token/template/API helpers in entrypoints

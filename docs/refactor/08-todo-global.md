@@ -42,6 +42,7 @@
 - [x] Extract the shared USB live-medium device candidate discovery into the dedicated USB shell helper module.
 - [x] Extract the shared USB live-medium mount candidate discovery into the dedicated USB shell helper module.
 - [x] Extract the shared USB live-medium candidate mount/umount orchestration into the dedicated USB shell helper module.
+- [x] Extract the shared USB live-medium mounted-content acceptance and preset-path checks into the dedicated USB shell helper module.
 - [x] Extract USB manifest payload-source parsing/validation into the dedicated USB manifest helper module.
 - [x] Extract the local-installer payload download/fallback and install-manifest write path into a dedicated USB helper module.
 - [x] Extract the USB writer source-selection and variant-path planning helpers into a dedicated USB helper module.

@@ -1737,3 +1737,15 @@ Reason:
 
 - The repo already had a shared base preset helper, but the more operationally important runtime fields still diverged between the host-generated installer presets and the USB-generated presets. That left the same preset contract split exactly where later runtime and installer work still depends on it.
 - A shared helper keeps the field inventory and default/empty-value semantics explicit in one place while still allowing each caller to provide the values it actually knows without forcing a larger preset object redesign.
+
+### D147. Live-medium mounted-content acceptance should live with the shared live-medium helper
+
+Decision:
+
+- Keep preset-path detection and the mounted-content acceptance predicates for manifest/live-assets, preset/live-assets, and writable log roots in `thin-client-assistant/usb/live_medium_helpers.sh`.
+- Keep `pve-thin-client-live-menu.sh` and `pve-thin-client-local-installer.sh` responsible only for logging and resolution flow around those predicates, not for re-defining the mounted-content contract inline.
+
+Reason:
+
+- Device discovery, mount-candidate discovery, and mount orchestration had already moved into the shared helper, but the two entrypoints still carried their own versions of what a usable mounted medium actually is. That left one more USB continuation hazard where behavior could drift even though the lower layers were already centralized.
+- The acceptance rules are small, deterministic shell predicates and fit naturally into the same helper layer as the other live-medium discovery rules. Moving them there keeps the shared contract explicit without mixing in entrypoint-specific logging behavior.
