@@ -17,6 +17,10 @@ Langfristiger Nordstern:
 - Proxmox soll langfristig **nur noch einer von mehreren Providern** sein.
 - Provider-Neutralitaet ist daher **Zwischenschritt**, nicht das Endziel.
 - Die Architektur muss einen spaeteren **Beagle-eigenen Virtualisierungsstrang** ermoeglichen; externe Provider bleiben optional.
+- Das Zielbild fuer den Server-Installer ist eine **eigene Bare-Metal-Beagle-Server-ISO** mit zwei Installationsmodi:
+  - `Beagle OS standalone`
+  - `Beagle OS with Proxmox`
+- Das Zielbild fuer die Bedienoberflaeche ist eine **eigene Beagle Web Console**; die heutige Proxmox-UI-Integration ist nur Uebergang und darf nicht als Endarchitektur behandelt werden.
 
 Architekturregel ab jetzt:
 
@@ -166,6 +170,8 @@ Schreibe:
 Definiere klare Module:
 
 - Beagle Host / Control Plane  
+- Beagle Web Console / Host UI
+- Beagle Virtualization Runtime
 - Proxmox UI Integration  
 - Thin Client Runtime  
 - Gaming Kiosk  
@@ -180,6 +186,7 @@ Definiere:
 - Migrationsstrategie
 - provider-neutrale Kernverträge
 - Trennung von Business-Logik und Provider-Implementierungen
+- Installer-Modi fuer `Beagle OS standalone` und `Beagle OS with Proxmox`
 
 Schreibe:
 
@@ -195,6 +202,7 @@ Ziel:
 - Proxmox kurzfristig voll unterstützen
 - Proxmox langfristig austauschbar machen
 - keine neue Business-Logik direkt an Proxmox koppeln
+- die Bare-Metal-Installationspfade fuer `standalone` und `with Proxmox` muessen denselben generischen Host-/Provider-Vertrag nutzen
 
 Regeln:
 
@@ -221,6 +229,59 @@ Regeln:
 
 - Verhalten bleibt identisch
 - KEINE Feature-Verluste
+- diese Phase ist Uebergangstechnik; sie ersetzt nicht die spaetere eigene Beagle Web Console
+
+---
+
+### PHASE 2b – Beagle Web Console
+
+Ziel:
+
+- eigenes Web-UI fuer Host-, Node-, VM-, Storage-, Network-, Fleet-, Provisioning- und Installer-Workflows
+- UI arbeitet gegen `beagle-host` und provider-neutrale Services, nicht gegen Proxmox ExtJS
+
+Mindestumfang:
+
+- Dashboard
+- Host-/Node-Uebersicht
+- VM-Liste und VM-Detailansicht
+- VM create/update/start/stop flows
+- Storage-/Network-Inventar
+- Installer-/Artifact-/Fleet-/Provisioning-Ansichten
+
+WICHTIG:
+
+- neue UI-Logik nicht mehr an Proxmox UI oder `PVE.*` anhaengen
+
+---
+
+### PHASE 2c – Server Installer Modes
+
+Ziel:
+
+- Bare-Metal-Server-ISO bietet Auswahl:
+  - `Beagle OS standalone`
+  - `Beagle OS with Proxmox`
+
+Regeln:
+
+- beide Modi muessen denselben generischen Host-Bootstrap nutzen
+- Proxmox darf nur ein optionaler Installationszweig sein
+- standalone ist kein Sonderfall ausserhalb der Architektur, sondern ein gleichwertiger Hauptpfad
+
+---
+
+### PHASE 2d – Beagle Virtualization Runtime
+
+Ziel:
+
+- eigener Beagle-Provider fuer Compute, Storage, Network und Lifecycle
+- Vorbereitung eines spaeter vollwertigen Beagle-Hypervisor-/VM-Strangs
+
+Regeln:
+
+- neue Runtime- und Lifecycle-Logik nicht an Proxmox-Semantik ausrichten
+- Contracts zuerst, Runtime danach
 
 ---
 

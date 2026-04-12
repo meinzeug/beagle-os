@@ -4,6 +4,10 @@
 
 - Beagle must not stop at "Proxmox abstraction".
 - The target is a first-party Beagle virtualization product/provider, with Proxmox reduced to one optional provider among several.
+- The target install surface is a Beagle-owned bare-metal server installer ISO with two explicit choices:
+  - `Beagle OS standalone`
+  - `Beagle OS with Proxmox`
+- The target operator surface is a Beagle-owned Web Console; Proxmox UI integration is a migration bridge, not the end-state UI.
 - Every refactor slice should therefore be judged by two questions:
   - does it reduce direct Proxmox dependency now?
   - does it make a future first-party Beagle provider easier to add?
@@ -13,7 +17,9 @@
 - Phase 0 Analysis: baseline completed in this run
 - Phase 1 Target architecture: baseline completed in this run
 - Phase 2 Proxmox UI refactor: started and partially extracted
+- Phase 2b Beagle Web Console planning: not yet started explicitly enough
 - Provider abstraction foundation: started in the browser-side UI path
+- Server installer dual-mode architecture (`standalone` vs `with Proxmox`): started only implicitly, not yet explicit enough
 - Phase 3 Thin client runtime refactor: not started
 - Phase 4 Security hardening: not started
 - Phase 5 Packaging / build modularization: started only for process guardrails
@@ -122,6 +128,34 @@ Exit criteria:
 - packaging steps are composable
 - release drift across the two servers is easier to detect
 
+### Slice 8: Beagle server installer dual-mode architecture
+
+Goals:
+
+- make the server installer explicitly offer:
+  - `Beagle OS standalone`
+  - `Beagle OS with Proxmox`
+- route both branches through one generic host bootstrap contract
+- isolate Proxmox repositories/packages/post-install assumptions as one optional install path
+
+Exit criteria:
+
+- standalone and Proxmox-enabled installs are both first-class documented paths
+- host bootstrap no longer assumes Proxmox packages by default
+
+### Slice 9: Beagle Web Console foundation
+
+Goals:
+
+- define the dedicated host UI surface that replaces Proxmox UI as the long-term operator console
+- reuse the existing provider-neutral browser/core contracts where possible
+- stop treating `proxmox-ui/` as the eventual product UI
+
+Exit criteria:
+
+- dedicated Beagle Web Console module/root is defined and begins consuming provider-neutral host APIs
+- required host UI contracts for inventory, VM state/config, lifecycle, storage, and network are explicit
+
 ## Provider Independence Roadmap
 
 This roadmap is the missing bridge between today's Proxmox-first repo and the desired Beagle-owned virtualization product.
@@ -172,14 +206,24 @@ Goals:
 - carve out the modules needed for Beagle-owned compute, storage, network, and lifecycle
 - keep the working path compatible with the same provider contracts
 
-### Stage 7: Beagle-first operation
+### Stage 7: Beagle standalone host operation
 
 Goals:
 
-- make fleet, provisioning, installer, inventory, and endpoint flows run without requiring Proxmox
+- make `Beagle OS standalone` on bare metal a real installable and supportable path
+- run host bootstrap, control plane, Web Console, fleet, provisioning, inventory, and installer flows without Proxmox
+
 - reduce Proxmox to an optional compatibility provider
 
-### Stage 8: Optional external providers
+### Stage 8: Beagle-first operation
+
+Goals:
+
+- make the Beagle Web Console the primary operator surface
+- make the Beagle provider the preferred default provider for new standalone installs
+- keep the Proxmox path fully compatible as an optional backend and install mode
+
+### Stage 9: Optional external providers
 
 Goals:
 

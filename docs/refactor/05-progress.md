@@ -1962,6 +1962,11 @@
   - rewired `scripts/install-beagle-host-services.sh` to sync every `*_host_provider.py` file into the host runtime instead of hard-coding `proxmox_host_provider.py`, which removes one more deploy-time Proxmox assumption before the Beagle provider exists on a live host
   - added `providers/beagle/virtualization-provider.js` as the first browser-side Beagle virtualization skeleton and documented its current HTTP-backed scope in `providers/beagle/README.md`
   - validated the new host skeleton with `py_compile`, `node --check`, a focused temp-state smoke test covering create/read/write/lifecycle/guest-exec/restart flows, and `./scripts/validate-project.sh`
+- Re-aligned the refactor plan to the actual product target instead of stopping at "clean Proxmox abstraction":
+  - updated `AGENTS.md` so the intended end-state is now explicit: a Beagle-owned bare-metal server installer ISO with two modes, `Beagle OS standalone` and `Beagle OS with Proxmox`, plus a dedicated Beagle Web Console as the long-term operator UI
+  - updated `docs/refactor/02-target-architecture.md` to add explicit target modules for Beagle server installer modes and the future Beagle Web Console / Host UI instead of only documenting the Proxmox UI transition path
+  - updated `docs/refactor/03-refactor-plan.md` so the staged roadmap now explicitly includes a dual-mode server-installer architecture, Beagle Web Console foundation work, and a standalone-Beagle operation stage before Proxmox becomes merely optional
+  - updated the risk register so "ending at polished Proxmox integration without a standalone Beagle host/UI target" is now an explicit tracked architecture risk
 
 ### Known risks after this run
 
@@ -1975,3 +1980,4 @@
 - Already downloaded host USB installers without the self-bootstrap fix will continue to fail until refreshed from regenerated host download artifacts.
 - The first `beagle` provider is now real, but it is still a state-backed skeleton and not yet a compute/runtime backend. It proves contract shape and deploy wiring, not a finished hypervisor implementation.
 - `providers/beagle/virtualization-provider.js` currently derives inventory from `/api/v1/vms` and synthesizes config data because there is not yet a provider-neutral browser HTTP surface for node inventory, VM config, or guest interfaces.
+- The plan is now pointed at the correct end-state, but there is still no implemented Beagle Web Console module and no finished standalone server-installer branch yet; those remain planning and implementation gaps, not solved work.
