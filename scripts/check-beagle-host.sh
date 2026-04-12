@@ -8,6 +8,7 @@ CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-$CONFIG_DIR/host.env}"
 SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}"
 LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-8443}"
+SITE_PORT="${BEAGLE_SITE_PORT:-443}"
 DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/beagle-downloads}"
 # shellcheck disable=SC1090
 source "$HOSTED_DOWNLOAD_LAYOUT_HELPER"
@@ -26,6 +27,7 @@ USB_TUNNEL_AUTH_ROOT="${BEAGLE_USB_TUNNEL_AUTH_ROOT:-/var/lib/beagle/usb-tunnel/
 PVE_UI_JS_FILE="${BEAGLE_PVE_UI_JS_FILE:-/usr/share/pve-manager/js/beagle-ui.js}"
 PVE_UI_CONFIG_FILE="${BEAGLE_PVE_UI_CONFIG_FILE:-/usr/share/pve-manager/js/beagle-ui-config.js}"
 BEAGLE_PROXY_SITE_FILE="${BEAGLE_PROXY_SITE_FILE:-/etc/nginx/sites-available/beagle-proxy.conf}"
+BEAGLE_PROXY_TLS_DIR="${BEAGLE_PROXY_TLS_DIR:-$CONFIG_DIR/tls}"
 BEAGLE_UI_REAPPLY_SERVICE_FILE="${BEAGLE_UI_REAPPLY_SERVICE_FILE:-/etc/systemd/system/beagle-ui-reapply.service}"
 BEAGLE_UI_REAPPLY_PATH_FILE="${BEAGLE_UI_REAPPLY_PATH_FILE:-/etc/systemd/system/beagle-ui-reapply.path}"
 BEAGLE_CONTROL_SERVICE_FILE="${BEAGLE_CONTROL_SERVICE_FILE:-/etc/systemd/system/beagle-control-plane.service}"
@@ -52,6 +54,7 @@ load_host_env() {
 
   SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$SERVER_NAME}"
   LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-$LISTEN_PORT}"
+  SITE_PORT="${BEAGLE_SITE_PORT:-$SITE_PORT}"
   DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-$DOWNLOADS_PATH}"
   HOST_ORIGIN_URL="$(beagle_host_origin_url "$SERVER_NAME" "$LISTEN_PORT")"
   DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-$(beagle_host_downloads_base_url "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH")}"
@@ -66,6 +69,26 @@ load_host_env() {
   USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-$USB_TUNNEL_USER}"
   USB_TUNNEL_HOME="${BEAGLE_USB_TUNNEL_HOME:-$USB_TUNNEL_HOME}"
   USB_TUNNEL_AUTH_ROOT="${BEAGLE_USB_TUNNEL_AUTH_ROOT:-/var/lib/beagle/usb-tunnel/$USB_TUNNEL_USER}"
+}
+
+host_tls_cert_file() {
+  if [[ -n "${BEAGLE_HOST_TLS_CERT_FILE:-}" ]]; then
+    printf '%s\n' "$BEAGLE_HOST_TLS_CERT_FILE"
+    return 0
+  fi
+  if [[ "$(host_provider_kind)" == "proxmox" ]]; then
+    printf '/etc/pve/local/pve-ssl.pem\n'
+    return 0
+  fi
+  printf '%s/beagle-proxy.crt\n' "$BEAGLE_PROXY_TLS_DIR"
+}
+
+site_origin_url() {
+  if [[ "$SITE_PORT" == "443" ]]; then
+    printf 'https://%s\n' "$SERVER_NAME"
+    return 0
+  fi
+  printf 'https://%s:%s\n' "$SERVER_NAME" "$SITE_PORT"
 }
 
 record_failure() {
@@ -86,13 +109,16 @@ check_http() {
   local url="$1"
   local auth_header="${2:-}"
   local method="${3:-HEAD}"
-  local tls_cert_file="${BEAGLE_HOST_TLS_CERT_FILE:-/etc/pve/local/pve-ssl.pem}"
+  local tls_cert_file
+  local web_ui_origin
+  tls_cert_file="$(host_tls_cert_file)"
+  web_ui_origin="$(site_origin_url)"
   local -a curl_args=(curl -fsS --output /dev/null)
   [[ -n "$auth_header" ]] && curl_args+=(-H "$auth_header")
   if [[ "$method" == "HEAD" ]]; then
     curl_args+=(-I)
   fi
-  if [[ "$url" == "${HOST_ORIGIN_URL}"* && -f "$tls_cert_file" ]]; then
+  if [[ ( "$url" == "${HOST_ORIGIN_URL}"* || "$url" == "${web_ui_origin}"* ) && -f "$tls_cert_file" ]]; then
     curl_args+=(--cacert "$tls_cert_file")
   fi
   if "${curl_args[@]}" "$url" >/dev/null 2>&1; then
@@ -263,6 +289,9 @@ if [[ "$(host_provider_kind)" == "proxmox" ]]; then
   check_file "$BEAGLE_PROXY_SITE_FILE"
   check_file "$BEAGLE_UI_REAPPLY_SERVICE_FILE"
   check_file "$BEAGLE_UI_REAPPLY_PATH_FILE"
+else
+  check_file "$BEAGLE_PROXY_SITE_FILE"
+  check_file "$(host_tls_cert_file)"
 fi
 
 if id "$USB_TUNNEL_USER" >/dev/null 2>&1; then
@@ -300,6 +329,15 @@ if [[ "$(host_provider_kind)" == "proxmox" ]]; then
   check_http "${HOST_ORIGIN_URL}/beagle-api/healthz" "Authorization: Bearer $BEAGLE_API_TOKEN" "GET"
 else
   check_local_control_plane_health
+  check_service_active "nginx"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-installer-host-latest.sh")"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-downloads-status.json")"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "SHA256SUMS")"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-os-installer-amd64.iso")"
+  check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-os-server-installer-amd64.iso")"
+  check_http "$(site_origin_url)/" "" "GET"
 fi
 
 if check_status_json; then

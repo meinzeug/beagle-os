@@ -24,7 +24,8 @@ Strategic framing:
    - the server-installer now exposes explicit install modes for:
      - `Beagle OS standalone`
      - `Beagle OS with Proxmox`
-   - the next installer slice is to move the remaining standalone-vs-Proxmox post-install assumptions behind the same seam, especially host validation, proxy/web UI setup expectations, and any remaining package/layout assumptions that still silently prefer the Proxmox path
+   - the standalone installer slice for host validation plus proxy/web UI/download setup is now in place, including standalone TLS bootstrap and nginx-backed hosted downloads / website delivery
+   - the next installer slice is to stop treating that website/proxy surface as only a deployment shell and define the first standalone-capable Beagle Web Console contract on top of it, especially the provider-neutral HTTP reads the website and `providers/beagle/virtualization-provider.js` still lack today
    - after that, decide whether this helper remains the long-term script provider contract or whether the write/exec slice should split into a second dedicated script-side provider module
 2. Continue decomposing `beagle-host/bin/beagle-control-plane.py` around service-oriented modules:
    - the shared slug/secret/PIN helper cluster is now extracted behind `UtilitySupportService`
@@ -47,7 +48,7 @@ Strategic framing:
    - the next high-value contract candidates are host-network/bridge inventory, guest-script upload/result handling, and the remaining restart scheduling assumptions that still leak around `provider_shell.sh`
    - `BEAGLE_HOST_PROVIDER` now reaches `host.env`, `beagle-manager.env`, refresh paths, post-install checks, the proxy installer, the Proxmox-UI integration path, and the server-installer bootstrap; the next deploy task is to reduce the remaining Proxmox-only behavior at those surfaces rather than just carrying the variable through them
    - after that, define which standalone host/bootstrap/network/storage/runtime responsibilities are Beagle-core and therefore must exist identically in both installer modes
-   - after that, define the first standalone-capable host contract for local downloads/public proxying/web console delivery, because standalone currently validates through the local control-plane port but does not yet have an equivalent long-term web surface to the Proxmox-backed host
+   - after that, define the first standalone-capable host contract for local downloads/public proxying/web console delivery, because standalone now has the HTTPS shell but still lacks provider-neutral host/node/storage/network/browser read surfaces behind it
 4. Continue aligning installer-generation/env builders with the same endpoint profile contract source instead of reshaping overlapping fields in multiple browser/runtime places:
    - the hosted VM installer catalog path in `scripts/lib/prepare_host_downloads.py` now normalizes overlapping installer/profile URLs through `endpoint_profile_contract.py`
    - the thin-client preset summary/UI-state path now shares one helper in `thin-client-assistant/usb/preset_summary.py` instead of carrying duplicated mode/preset shaping in both the local installer and the Proxmox API helper
@@ -97,9 +98,9 @@ Strategic framing:
    - move the next action-heavy profile modal helpers out of `extension/components/profile-modal.js` and, where shared, out of `proxmox-ui/components/profile-modal.js`
    - keep using `core/platform/browser-common.js` plus the existing shared browser helper modules instead of recreating token/template/API helpers in entrypoints
 
-6. Start the dedicated Beagle Web Console plan as its own architecture/workstream instead of only continuing the Proxmox UI cleanup:
-   - define the repo/module root for the long-term host UI surface
-   - define the minimum contracts it needs from `beagle-host` for dashboard, host/node inventory, VM list/detail, storage/network inventory, lifecycle actions, provisioning, installer downloads, and fleet status
+6. Start the dedicated Beagle Web Console implementation path as its own architecture/workstream instead of only continuing the Proxmox UI cleanup:
+   - the host deploy path now serves the existing `website/` surface for both standalone Beagle and Proxmox-backed hosts, so the next step is no longer just planning: choose that surface or a sibling module as the first real Beagle Web Console root
+   - define and implement the first minimum contracts it needs from `beagle-host` for dashboard, host/node inventory, VM list/detail, storage/network inventory, lifecycle actions, provisioning, installer downloads, and fleet status
    - keep extracting reusable browser/core helpers from `proxmox-ui/` only if they are genuinely reusable by the future Beagle Web Console
 
 7. Isolate the still-Proxmox-specific ExtJS runtime coupling in `proxmox-ui/components/extjs-integration.js` further:
