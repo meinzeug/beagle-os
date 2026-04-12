@@ -2104,3 +2104,23 @@
 - `providers/beagle/virtualization-provider.js` now consumes a provider-neutral read surface for hosts/nodes/config/interfaces, but storage/network inventory is not yet surfaced into the website or other browser clients as first-class operator flows.
 - The plan is now pointed at the correct end-state, but there is still no implemented Beagle Web Console module and no finished standalone server-installer branch yet; those remain planning and implementation gaps, not solved work.
 - The standalone install path now provisions nginx plus HTTPS/download/web entrypoints, but its operator surface is still only the existing website shell over current control-plane endpoints; it is not yet a dedicated provider-neutral Beagle Web Console with node/storage/network inventory or Beagle-runtime lifecycle actions.
+
+### 2026-04-12 — Beagle Web UI enhanced with Virtualization panel and VM Config view
+
+- Added a **Virtualization panel** to the Beagle Web Console (`website/`):
+  - new "Virtualisierung" nav item wired to `data-panel="virtualization"` and `panelMeta.virtualization`
+  - node cards grid showing each node's name, online/offline status chip, CPU usage bar, RAM usage bar, vCPU count, and provider label — data sourced from the already-fetched `/api/v1/virtualization/overview` response
+  - storage inventory table showing name, node, type chip, content, used/total usage bar, and available capacity — same data source
+  - "Aktualisieren" button re-triggers `loadDashboard()` from within the panel
+- Added two new stat cards to the overview section:
+  - **Nodes** — shows node count and online/total ratio
+  - **Storage** — shows storage count and active/total ratio
+  - stats row grid changed from fixed `repeat(3, 1fr)` to `auto-fill minmax(180px, 1fr)` so it adapts to any number of cards
+- Added a **"Config" VM detail tab** to the inventory detail pane:
+  - lazy-loads `/api/v1/virtualization/vms/{vmid}/config` and `/api/v1/virtualization/vms/{vmid}/interfaces` when first opened
+  - result is cached per vmid on the panel element (`data-loaded` attribute) to avoid redundant fetches on re-activation
+  - renders sections: VM Konfiguration (main fields), Disks (virtio/ide/sata/scsi/efidisk/tpmstate keys), Netzwerk Config (net* keys), Netzwerk Interfaces via Guest Agent (ip-addresses from qemu-guest-agent)
+- Added helper functions `formatBytes()` and `usageBar()` used by both the virtualization panel and storage table
+- CSS additions in `styles.css`: node card layout, usage bar track/fill component with ok/warn/info tones, storage table, `#virtualization-section.panel-section-active { display: flex; flex-direction: column; }`
+- auth-only overlay now also covers `#virtualization-section`
+- version cache-busting bumped from `?v=6.6.7` to `?v=6.6.8` on app.js and styles.css

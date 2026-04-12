@@ -146,6 +146,24 @@ Strategic framing:
      - the bundled Beagle source extraction/bootstrap handoff into `install-beagle-host.sh`
    - after the install completes, reboot into the installed system and verify standalone host services, nginx/TLS, website, and control-plane health end to end
 
+
+### Web Console – next slice (after virtualization panel)
+
+The Virtualization panel now renders node cards and storage tables from the existing
+ endpoint, and the VM detail pane has a Config tab.
+
+The next Beagle Web Console slice should:
+
+1. Extend the virtualization panel with live VM list sourced from 
+   instead of only via the existing Beagle-specific  inventory.
+2. Add create-VM / lifecycle action flows (start, stop, restart) directly in the website
+   so operators can manage VMs without using the Proxmox UI.
+3. Extend  with bridge/network inventory endpoints and render those
+   in the website network tab.
+4. Add a Fleet / Provisioning section to the website for installer-download, preset, and
+   provisioning workflows currently only available in the browser extension.
+5. Wire the storage avail/used values into per-VM disk usage display in the Config tab.
+
 ## After that
 
 1. Add smoke verification for generated installer URLs and expected public artifact names.
