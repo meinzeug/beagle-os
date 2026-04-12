@@ -1761,3 +1761,16 @@ Reason:
 
 - The repo already had a provider helper and a small shell dispatch seam, but the expensive part of the drift was still repeated in each script: the raw `qm` fallback behavior and the JSON polling/error handling. That meant future provider changes still had to touch several scripts even after the first abstraction pass.
 - Centralizing the shell fallback logic keeps rollout-compatible raw-`qm` behavior available where still needed, while making the next step smaller: removing or shrinking fallback branches in one place once the provider helper is guaranteed everywhere.
+
+### D149. Already paired Moonlight clients should not block boot on eager manager re-registration
+
+Decision:
+
+- Keep `thin-client-assistant/runtime/launch-moonlight.sh` on a fast path where cached configuration tries `moonlight_list()` before any manager registration.
+- Keep the manager registration and PIN-pairing work behind the existing fallback in `ensure_paired()` instead of forcing `/api/v1/endpoints/moonlight/register` on every boot.
+
+Reason:
+
+- Live endpoint inspection on `192.168.178.92` showed a consistent boot delay after `moonlight.cached-config` even though the target was already reachable and the client was already configured. The trace repeatedly showed roughly `12` seconds between `moonlight.cached-config` and `moonlight.registered`, followed by `moonlight.exec` only after that roundtrip.
+- The delay was not caused by selecting the wrong host. The live logs consistently showed `connect_host=65.109.80.76`, not the stored `10.10.x` local host. For already paired clients, eager manager re-registration adds latency without enabling the common-case stream start.
+- The fallback path still needs manager registration for first boot, changed Sunshine certificates, or stale pairing state. Keeping that behavior only when `moonlight_list()` fails preserves recovery semantics while removing avoidable boot latency for the steady state.

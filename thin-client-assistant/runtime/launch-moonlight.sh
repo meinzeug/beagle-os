@@ -81,11 +81,9 @@ main() {
     beagle_log_event "moonlight.cached-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
   fi
 
-  if register_moonlight_client_via_manager; then
-    beagle_log_event "moonlight.registered" "host=${host} port=${port:-default}"
-  fi
-
-  if ! moonlight_list; then
+  if moonlight_list; then
+    beagle_log_event "moonlight.ready" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+  else
     ensure_paired || {
       beagle_log_event "moonlight.pairing-failed" "host=${host} port=${port:-default} pin=${PVE_THIN_CLIENT_SUNSHINE_PIN:-unset}"
       echo "Moonlight pairing failed for host '$host'." >&2
