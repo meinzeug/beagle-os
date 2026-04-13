@@ -1,0 +1,503 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""
+Beagle OS Server Installer – Python curses TUI
+Collects all installation inputs interactively and writes them to a state file
+that the main bash installer reads.  Launched by beagle-server-installer.
+"""
+
+import curses
+import os
+import re
+import subprocess
+import sys
+import textwrap
+import time
+
+STATE_FILE = os.environ.get(
+    "BEAGLE_GUI_STATE_FILE", "/run/beagle-server-installer/gui-state.env"
+)
+
+C_CHROME = 1
+C_BODY = 2
+C_ACCENT = 3
+C_SELECTED = 4
+C_ERROR = 5
+C_SUCCESS = 6
+C_DIM = 7
+C_DANGER = 8
+C_PROGRESS = 9
+
+LOGO_WIDE = r"""
+  ██████╗ ███████╗ █████╗  ██████╗ ██╗     ███████╗
+  ██╔══██╗██╔════╝██╔══██╗██╔════╝ ██║     ██╔════╝
+  ██████╔╝█████╗  ███████║██║  ███╗██║     █████╗
+  ██╔══██╗██╔══╝  ██╔══██║██║   ██║██║     ██╔══╝
+  ██████╔╝███████╗██║  ██║╚██████╔╝███████╗███████╗
+  ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝
+
+    ██████╗ ███████╗    ███████╗███████╗██████╗
+    ██╔══██╗██╔════╝    ██╔════╝██╔════╝██╔══██╗
+    ██║  ██║███████╗    ███████╗█████╗  ██████╔╝
+    ██║  ██║╚════██║    ╚════██║██╔══╝  ██╔══██╗
+    ██████╔╝███████║    ███████║███████╗██║  ██║
+    ╚═════╝ ╚══════╝    ╚══════╝╚══════╝╚═╝  ╚═╝
+"""
+
+LOGO_COMPACT = r"""
+ ______   ______   ______  ______  __      ______
+/\  == \ /\  ___\ /\  __ \/\  ___\/\ \    /\  ___\
+\ \  __< \ \  __\ \ \  __ \ \ \__ \ \ \___\ \  __\
+ \ \_____\\ \_____\\ \_\ \_\ \_____\ \_____\ \_____\
+  \/_____/ \/_____/ \/_/\/_/\/_____/\/_____/\/_____/
+
+         ______   ______     ______   ______   ______
+        /\  __ \ /\  ___\   /\  ___\ /\  ___\ /\  == \
+        \ \ \/\ \\ \___  \  \ \___  \\ \  __\ \ \  __<
+         \ \_____\\/\_____\  \/\_____\\ \_____\\ \_\ \_\
+          \/_____/ \/_____/   \/_____/ \/_____/ \/_/ /_/
+"""
+
+SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+
+def init_colors() -> None:
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(C_CHROME, curses.COLOR_WHITE, curses.COLOR_BLUE)
+    curses.init_pair(C_BODY, curses.COLOR_WHITE, curses.COLOR_BLACK)
+    curses.init_pair(C_ACCENT, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    curses.init_pair(C_SELECTED, curses.COLOR_BLACK, curses.COLOR_CYAN)
+    curses.init_pair(C_ERROR, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(C_SUCCESS, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(C_DIM, curses.COLOR_CYAN, curses.COLOR_BLACK)
+    curses.init_pair(C_DANGER, curses.COLOR_WHITE, curses.COLOR_RED)
+    curses.init_pair(C_PROGRESS, curses.COLOR_BLACK, curses.COLOR_CYAN)
+
+
+def clamp(n: int, lo: int, hi: int) -> int:
+    return max(lo, min(hi, n))
+
+
+def pick_logo(term_width: int) -> str:
+    wide_raw_w = max(len(ln) for ln in LOGO_WIDE.split("\n"))
+    compact_raw_w = max(len(ln) for ln in LOGO_COMPACT.split("\n"))
+    if term_width >= int(wide_raw_w * 1.1):
+        return LOGO_WIDE
+    if term_width >= compact_raw_w + 4:
+        return LOGO_COMPACT
+    return LOGO_COMPACT
+
+
+def center_text(win, row: int, text: str, attr: int = 0) -> None:
+    _, w = win.getmaxyx()
+    col = max(0, (w - len(text)) // 2)
+    try:
+        win.addstr(row, col, text, attr)
+    except curses.error:
+        pass
+
+
+def draw_box(win, title: str = "", color: int = C_CHROME) -> None:
+    h, w = win.getmaxyx()
+    attr = curses.color_pair(color) | curses.A_BOLD
+    body = curses.color_pair(C_BODY)
+    win.bkgd(" ", body)
+    win.erase()
+    try:
+        win.addstr(0, 0, "┌" + "─" * (w - 2) + "┐", attr)
+        win.addstr(h - 1, 0, "└" + "─" * (w - 2) + "┘", attr)
+    except curses.error:
+        pass
+    for r in range(1, h - 1):
+        try:
+            win.addstr(r, 0, "│", attr)
+            win.addstr(r, w - 1, "│", attr)
+        except curses.error:
+            pass
+    if title:
+        label = f"  {title}  "
+        col = max(1, (w - len(label)) // 2)
+        try:
+            win.addstr(0, col, label, attr)
+        except curses.error:
+            pass
+
+
+def footer_hint(win, text: str) -> None:
+    h, w = win.getmaxyx()
+    text = text[: w - 4]
+    col = max(1, (w - len(text)) // 2)
+    try:
+        win.addstr(h - 1, col, f" {text} ", curses.color_pair(C_DIM) | curses.A_BOLD)
+    except curses.error:
+        pass
+
+
+def popup(stdscr, rows: int, cols: int):
+    sh, sw = stdscr.getmaxyx()
+    rows = clamp(rows, 3, sh - 2)
+    cols = clamp(cols, 20, sw - 4)
+    y = (sh - rows) // 2
+    x = (sw - cols) // 2
+    return curses.newwin(rows, cols, y, x)
+
+
+def screen_splash(stdscr) -> None:
+    curses.curs_set(0)
+    stdscr.bkgd(" ", curses.color_pair(C_BODY))
+    stdscr.erase()
+    h, w = stdscr.getmaxyx()
+    logo = pick_logo(w)
+    logo_lines = logo.split("\n")
+    logo_h = len(logo_lines)
+    start_row = max(1, (h - logo_h - 4) // 2)
+    for phase in range(3):
+        stdscr.erase()
+        for i, line in enumerate(logo_lines):
+            row = start_row + i
+            if row >= h - 2:
+                break
+            col = max(0, (w - len(line)) // 2)
+            pair = C_ACCENT if (i + phase) % 3 == 0 else C_DIM
+            try:
+                stdscr.addstr(row, col, line, curses.color_pair(pair) | curses.A_BOLD)
+            except curses.error:
+                pass
+        center_text(stdscr, start_row + logo_h + 1, "  Server Installer  ", curses.color_pair(C_CHROME) | curses.A_BOLD)
+        center_text(stdscr, start_row + logo_h + 2, "Bare-metal host deployment · standalone & Proxmox modes", curses.color_pair(C_DIM))
+        stdscr.refresh()
+        time.sleep(0.55)
+    center_text(stdscr, h - 2, "Press ENTER to continue", curses.color_pair(C_DIM))
+    stdscr.refresh()
+    stdscr.nodelay(False)
+    stdscr.getch()
+
+
+def screen_msgbox(stdscr, title: str, lines: list[str], color: int = C_CHROME) -> None:
+    curses.curs_set(0)
+    max_w = max((len(ln) for ln in lines), default=20)
+    cols = clamp(max_w + 6, 50, stdscr.getmaxyx()[1] - 4)
+    rows = clamp(len(lines) + 6, 10, stdscr.getmaxyx()[0] - 4)
+    win = popup(stdscr, rows, cols)
+    draw_box(win, title, color)
+    for i, ln in enumerate(lines):
+        if i + 2 >= rows - 2:
+            break
+        try:
+            win.addstr(i + 2, 3, ln[:cols - 6], curses.color_pair(C_BODY))
+        except curses.error:
+            pass
+    footer_hint(win, "ENTER – OK")
+    win.refresh()
+    win.nodelay(False)
+    win.getch()
+
+
+def screen_menu(stdscr, title: str, prompt: str, items: list[tuple[str, str]], default_idx: int = 0) -> int:
+    curses.curs_set(0)
+    longest = max((len(f"  {k}  {v}") for k, v in items), default=40)
+    cols = clamp(longest + 8, 50, stdscr.getmaxyx()[1] - 4)
+    rows = clamp(len(items) + 8, 12, stdscr.getmaxyx()[0] - 4)
+    win = popup(stdscr, rows, cols)
+    idx = clamp(default_idx, 0, len(items) - 1)
+    while True:
+        draw_box(win, title, C_CHROME)
+        _, ww = win.getmaxyx()
+        try:
+            win.addstr(2, 3, prompt, curses.color_pair(C_ACCENT) | curses.A_BOLD)
+        except curses.error:
+            pass
+        for i, (key, label) in enumerate(items):
+            row = 4 + i
+            if row >= rows - 2:
+                break
+            text = f"  {'●' if i == idx else '○'}  {key}  {label}"
+            text = text[:ww - 4]
+            attr = curses.color_pair(C_SELECTED) | curses.A_BOLD if i == idx else curses.color_pair(C_BODY)
+            try:
+                win.addstr(row, 2, text.ljust(ww - 4), attr)
+            except curses.error:
+                pass
+        footer_hint(win, "↑↓ navigate   ENTER select")
+        win.refresh()
+        key = win.getch()
+        if key in (curses.KEY_UP, ord("k")):
+            idx = (idx - 1) % len(items)
+        elif key in (curses.KEY_DOWN, ord("j")):
+            idx = (idx + 1) % len(items)
+        elif key in (curses.KEY_ENTER, ord("\n"), ord("\r")):
+            return idx
+
+
+def screen_input(stdscr, title: str, prompt: str, default: str = "", secret: bool = False, validator=None, validator_hint: str = "") -> str:
+    cols = clamp(len(prompt) + 20, 54, stdscr.getmaxyx()[1] - 6)
+    rows = 10
+    win = popup(stdscr, rows, cols)
+    value = list(default)
+    error_msg = ""
+    while True:
+        draw_box(win, title, C_CHROME)
+        _, ww = win.getmaxyx()
+        try:
+            win.addstr(2, 3, prompt[:ww - 6], curses.color_pair(C_ACCENT) | curses.A_BOLD)
+        except curses.error:
+            pass
+        field_w = ww - 8
+        display = "*" * len(value) if secret else "".join(value)
+        display = display[-field_w:]
+        field_row = 4
+        try:
+            win.addstr(field_row, 3, "┌" + "─" * field_w + "┐", curses.color_pair(C_DIM))
+            win.addstr(field_row + 1, 3, "│", curses.color_pair(C_DIM))
+            win.addstr(field_row + 1, 4, display.ljust(field_w)[:field_w], curses.color_pair(C_SELECTED) | curses.A_BOLD)
+            win.addstr(field_row + 1, 4 + field_w, "│", curses.color_pair(C_DIM))
+            win.addstr(field_row + 2, 3, "└" + "─" * field_w + "┘", curses.color_pair(C_DIM))
+        except curses.error:
+            pass
+        if error_msg:
+            try:
+                win.addstr(field_row + 3, 3, ("⚠  " + error_msg)[:ww - 6], curses.color_pair(C_ERROR) | curses.A_BOLD)
+            except curses.error:
+                pass
+        elif validator_hint:
+            try:
+                win.addstr(field_row + 3, 3, validator_hint[:ww - 6], curses.color_pair(C_DIM))
+            except curses.error:
+                pass
+        footer_hint(win, "ENTER confirm   ESC cancel")
+        curses.curs_set(1)
+        win.move(field_row + 1, 4 + min(len(display), field_w))
+        win.refresh()
+        ch = win.getch()
+        error_msg = ""
+        if ch in (curses.KEY_BACKSPACE, 127, 8):
+            if value:
+                value.pop()
+        elif ch in (curses.KEY_ENTER, ord("\n"), ord("\r")):
+            result = "".join(value)
+            if validator:
+                ok, msg = validator(result)
+                if not ok:
+                    error_msg = msg
+                    continue
+            curses.curs_set(0)
+            return result
+        elif ch == 27:
+            curses.curs_set(0)
+            return ""
+        elif 32 <= ch <= 126:
+            value.append(chr(ch))
+
+
+def screen_password(stdscr) -> str:
+    while True:
+        pw1 = screen_input(stdscr, title="Set Password", prompt="Enter password:", secret=True, validator=lambda v: ((True, "") if v else (False, "Password must not be empty")))
+        if not pw1:
+            continue
+        pw2 = screen_input(stdscr, title="Confirm Password", prompt="Re-enter password:", secret=True)
+        if pw1 == pw2:
+            return pw1
+        screen_msgbox(stdscr, "Mismatch", ["", "Passwords do not match.", "Please try again."], color=C_ERROR)
+
+
+def screen_disk_select(stdscr, disks: list[tuple[str, str, str]]) -> str:
+    curses.curs_set(0)
+    sh, sw = stdscr.getmaxyx()
+    cols = clamp(70, 60, sw - 4)
+    rows = clamp(len(disks) + 10, 14, sh - 4)
+    win = popup(stdscr, rows, cols)
+    idx = 0
+    while True:
+        draw_box(win, "Select Target Disk", C_CHROME)
+        _, ww = win.getmaxyx()
+        try:
+            win.addstr(2, 3, "Choose the disk to install Beagle OS on.", curses.color_pair(C_ACCENT) | curses.A_BOLD)
+            win.addstr(3, 3, "⚠  The selected disk will be completely erased.", curses.color_pair(C_ERROR))
+        except curses.error:
+            pass
+        for i, (dev, size, model) in enumerate(disks):
+            row = 5 + i
+            if row >= rows - 2:
+                break
+            label = f"{'●' if i == idx else '○'}  {dev:<12} {size:>8}  {model}"
+            label = label[:ww - 4]
+            attr = curses.color_pair(C_SELECTED) | curses.A_BOLD if i == idx else curses.color_pair(C_BODY)
+            try:
+                win.addstr(row, 2, label.ljust(ww - 4), attr)
+            except curses.error:
+                pass
+        footer_hint(win, "↑↓ navigate   ENTER select")
+        win.refresh()
+        key = win.getch()
+        if key in (curses.KEY_UP, ord("k")):
+            idx = (idx - 1) % len(disks)
+        elif key in (curses.KEY_DOWN, ord("j")):
+            idx = (idx + 1) % len(disks)
+        elif key in (curses.KEY_ENTER, ord("\n"), ord("\r")):
+            return disks[idx][0]
+
+
+def screen_confirm_wipe(stdscr, disk: str) -> bool:
+    curses.curs_set(0)
+    cols = 58
+    rows = 12
+    win = popup(stdscr, rows, cols)
+    draw_box(win, "⚠  CONFIRM DISK ERASE  ⚠", C_DANGER)
+    _, ww = win.getmaxyx()
+    msgs = ["", f"  Target disk:  {disk}", "", "  ALL DATA on this disk will be permanently", "  DESTROYED and cannot be recovered.", "", "  Are you absolutely sure?"]
+    for i, msg in enumerate(msgs):
+        if i + 1 >= rows - 3:
+            break
+        try:
+            win.addstr(i + 1, 0, msg[:ww - 2].ljust(ww - 2), curses.color_pair(C_DANGER) | curses.A_BOLD)
+        except curses.error:
+            pass
+    sel = 1
+    btn_row = rows - 3
+    while True:
+        for bi, (label, color) in enumerate([("  YES – ERASE  ", C_DANGER), ("  NO – CANCEL  ", C_CHROME)]):
+            attr = curses.color_pair(color) | curses.A_BOLD | curses.A_REVERSE if bi == sel else curses.color_pair(C_DIM)
+            col = 6 + bi * 22
+            try:
+                win.addstr(btn_row, col, label, attr)
+            except curses.error:
+                pass
+        win.refresh()
+        key = win.getch()
+        if key in (curses.KEY_LEFT, curses.KEY_RIGHT, ord("\t")):
+            sel ^= 1
+        elif key in (curses.KEY_ENTER, ord("\n"), ord("\r")):
+            return sel == 0
+        elif key == 27:
+            return False
+
+
+def screen_success(stdscr, mode_label: str, hostname: str) -> None:
+    curses.curs_set(0)
+    lines = ["", "  ✓  Installation complete!", "", f"  Mode    :  {mode_label}", f"  Host    :  {hostname}", "", "  Remove the installation medium and", "  press ENTER to reboot the system.", ""]
+    cols = clamp(52, 40, stdscr.getmaxyx()[1] - 4)
+    rows = len(lines) + 4
+    win = popup(stdscr, rows, cols)
+    draw_box(win, "  Installation Complete  ", C_SUCCESS)
+    _, ww = win.getmaxyx()
+    for i, line in enumerate(lines):
+        try:
+            win.addstr(i + 1, 1, line[:ww - 2], curses.color_pair(C_SUCCESS) | curses.A_BOLD)
+        except curses.error:
+            pass
+    footer_hint(win, "ENTER – reboot")
+    win.refresh()
+    win.getch()
+
+
+def list_disks() -> list[tuple[str, str, str]]:
+    disks = []
+    try:
+        out = subprocess.check_output(["lsblk", "-d", "-n", "-o", "NAME,SIZE,MODEL,TYPE,RM,TRAN"], stderr=subprocess.DEVNULL, text=True)
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            name, size = parts[0], parts[1]
+            model = " ".join(parts[2:3]) if len(parts) >= 3 else "disk"
+            dev = f"/dev/{name}"
+            if any(dev.startswith(prefix) for prefix in ("/dev/loop", "/dev/sr", "/dev/ram", "/dev/zram")):
+                continue
+            disks.append((dev, size, model or "disk"))
+    except Exception:
+        pass
+    if not disks:
+        disks = [("/dev/sda", "256G", "Demo Disk")]
+    return disks
+
+
+def validate_hostname(v: str):
+    if not v:
+        return False, "Hostname must not be empty"
+    if not re.match(r"^[a-z0-9][a-z0-9\-]{0,62}$", v):
+        return False, "lowercase letters, digits, hyphens only"
+    return True, ""
+
+
+def validate_username(v: str):
+    if not v:
+        return False, "Username must not be empty"
+    if not re.match(r"^[a-z_][a-z0-9_\-]{0,31}$", v):
+        return False, "lowercase, digits, _ - allowed; max 32 chars"
+    return True, ""
+
+
+def write_state(state: dict) -> None:
+    os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+    with open(STATE_FILE, "w", encoding="utf-8") as file_handle:
+        for key, value in state.items():
+            escaped = value.replace("'", "'\\''")
+            file_handle.write(f"{key}='{escaped}'\n")
+    os.chmod(STATE_FILE, 0o600)
+
+
+def tui_main(stdscr) -> dict:
+    init_colors()
+    curses.curs_set(0)
+    stdscr.keypad(True)
+    screen_splash(stdscr)
+    screen_msgbox(stdscr, "  Welcome to Beagle OS Server Installer  ", ["", "  This wizard will install Debian and the Beagle", "  host stack on a local disk.", "", "  Two installation modes are available:", "    ●  Beagle OS standalone", "    ●  Beagle OS with Proxmox", "", "  The selected disk will be completely erased."])
+    mode_idx = screen_menu(
+        stdscr,
+        title="Installation Mode",
+        prompt="Select the server installation mode:",
+        items=[("1", "Beagle OS standalone  (no hypervisor)"), ("2", "Beagle OS with Proxmox  (Proxmox VE hypervisor)")],
+        default_idx=0,
+    )
+    install_mode = "standalone" if mode_idx == 0 else "with-proxmox"
+    mode_label = "Beagle OS standalone" if mode_idx == 0 else "Beagle OS with Proxmox"
+    hostname = ""
+    while not hostname:
+        hostname = screen_input(stdscr, title="Server Hostname", prompt="Enter the hostname for this server:", default="beagle-host", validator=validate_hostname, validator_hint="lowercase letters, digits and hyphens (e.g. beagle-host)")
+    username = ""
+    while not username:
+        username = screen_input(stdscr, title="Admin Username", prompt="Enter the Linux admin username:", default="beagle", validator=validate_username, validator_hint="lowercase letters, digits, _ - (e.g. beagle)")
+    password = screen_password(stdscr)
+    disks = list_disks()
+    if not disks:
+        print("No suitable target disk found.", file=sys.stderr)
+        sys.exit(1)
+    target_disk = screen_disk_select(stdscr, disks)
+    if not screen_confirm_wipe(stdscr, target_disk):
+        sys.exit(0)
+    return {
+        "BEAGLE_SERVER_INSTALL_MODE": install_mode,
+        "BEAGLE_SERVER_HOST_PROVIDER": "beagle" if install_mode == "standalone" else "proxmox",
+        "BEAGLE_GUI_INSTALL_MODE_LABEL": mode_label,
+        "BEAGLE_GUI_HOSTNAME": hostname.lower(),
+        "BEAGLE_GUI_USERNAME": username,
+        "BEAGLE_GUI_PASSWORD": password,
+        "BEAGLE_GUI_TARGET_DISK": target_disk,
+    }
+
+
+def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="Beagle OS Server Installer GUI")
+    parser.add_argument("--show-success", action="store_true", help="Show the success/reboot screen")
+    parser.add_argument("--mode-label", default="Beagle OS", help="Install mode label for success screen")
+    parser.add_argument("--hostname", default="beagle-host", help="Hostname for success screen")
+    args = parser.parse_args()
+    if args.show_success:
+        try:
+            curses.wrapper(lambda screen: (init_colors(), screen_success(screen, args.mode_label, args.hostname)))
+        except KeyboardInterrupt:
+            pass
+        return
+    try:
+        state = curses.wrapper(tui_main)
+    except KeyboardInterrupt:
+        print("\nInstallation cancelled.", file=sys.stderr)
+        sys.exit(1)
+    write_state(state)
+    print(STATE_FILE)
+
+
+if __name__ == "__main__":
+    main()

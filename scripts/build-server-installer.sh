@@ -66,6 +66,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
   grub-efi-amd64-bin \
   dosfstools \
   mtools \
+  syslinux-utils \
   rsync \
   curl \
   ca-certificates

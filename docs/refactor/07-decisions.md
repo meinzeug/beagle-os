@@ -1,5 +1,59 @@
 # Decisions
 
+## 2026-04-13
+
+### D30. Web Console session security must default to auto-lock and token clearing on inactivity
+
+Decision:
+
+- Add client-side session hardening in the website with inactivity auto-lock (20 minutes), full token clear, and UI lock fallback.
+- Add a strict external URL guard for Sunshine access links (`http/https` only) before opening browser windows.
+
+Reason:
+
+- The Web Console now includes higher-impact operator controls (power, updates, provisioning), so stale unlocked sessions are a larger operational risk.
+- URL guarding prevents unsafe protocol opens from API/runtime data.
+
+### D29. Standalone desktop-stream validation runs as provider-neutral simulation until Beagle provider gains real VM execution
+
+Decision:
+
+- Add `scripts/test-standalone-desktop-stream-sim.sh` as the required standalone E2E validation path for now.
+- The harness must validate the real WebUI/API provisioning contracts (`/api/v1/provisioning/catalog`, `/api/v1/provisioning/vms`, `/api/v1/vms/{vmid}`, `/api/v1/vms/{vmid}/sunshine-access`) and a thinclient stream-connect simulation against the generated Moonlight target.
+- Make local ISO cache path configurable via `BEAGLE_UBUNTU_LOCAL_ISO_DIR` so standalone/non-root test runs are possible without Proxmox filesystem assumptions.
+
+Reason:
+
+- The current `beagle` provider is intentionally still a state-backed skeleton, so true hypervisor-backed guest execution is not yet available in standalone mode.
+- We still need hard, repeatable end-to-end validation of the same contracts that the WebUI uses, without adding new Proxmox coupling.
+
+### D28. Web-Console update/provisioning expansion must stay on provider-neutral HTTP contracts
+
+Decision:
+
+- Extend the website Web Console with VM update operations, task visibility, and provisioning-create flows exclusively via existing provider-neutral API surfaces:
+  - `/api/v1/vms/{vmid}/update`
+  - `/api/v1/vms/{vmid}/update/{scan|download|apply|rollback}`
+  - `/api/v1/provisioning/catalog`
+  - `/api/v1/provisioning/vms`
+- Do not add any direct Proxmox UI/API coupling in website modules for this feature wave.
+
+Reason:
+
+- The user requested broad Proxmox-like functionality in the Web UI, but architecture rules require capability parity through provider-neutral contracts so the same UI can later run against a Beagle-native provider.
+
+### D27. Virtualization lifecycle actions from Web UI must use a provider-neutral VM power mutation route
+
+Decision:
+
+- Introduce `POST /api/v1/virtualization/vms/{vmid}/power` in the host mutation surface with allowed actions `start`, `stop`, `reboot`.
+- The route delegates exclusively to the active host-provider contract methods (`start_vm`, `stop_vm`, `reboot_vm`) and invalidates VM caches after mutation.
+
+Reason:
+
+- The Website/Web Console needs real operator lifecycle controls now, but adding UI actions directly against Proxmox paths/commands would violate the provider-neutral architecture rule.
+- A dedicated provider-neutral mutation route keeps Proxmox-specific behavior in provider implementations and makes the same UI action model reusable for future Beagle-native providers.
+
 ## 2026-04-12
 
 ### D26. Prioritaet auf vertikale End-to-End-Slices vor weiteren Horizontal-Extraktionen

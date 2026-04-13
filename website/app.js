@@ -25,8 +25,10 @@
   var state = {
     token: readStoredToken(),
     inventory: [],
+    endpointReports: [],
     policies: [],
     virtualizationOverview: null,
+    provisioningCatalog: null,
     selectedVmid: null,
     selectedVmids: [],
     selectedPolicyName: '',
@@ -35,11 +37,25 @@
     detailCache: Object.create(null)
   };
 
+  var SESSION_IDLE_TIMEOUT_MS = 20 * 60 * 1000;
+  var sessionLastActivityAt = Date.now();
+
   var USAGE_WARN_THRESHOLD = 90;
   var USAGE_INFO_THRESHOLD = 70;
   var DISK_KEY_PATTERN = /^(virtio|ide|sata|scsi|efidisk|tpmstate)\d*$/;
   var NET_KEY_PATTERN = /^net\d+$/;
   var VM_MAIN_KEYS = ['vmid', 'name', 'node', 'status', 'tags', 'cores', 'memory', 'machine', 'bios', 'ostype', 'boot', 'agent', 'balloon', 'onboot', 'cpu'];
+  var BULK_ACTION_BUTTON_IDS = [
+    'bulk-healthcheck',
+    'bulk-support-bundle',
+    'bulk-restart-session',
+    'bulk-restart-runtime',
+    'bulk-update-scan',
+    'bulk-update-download',
+    'bulk-vm-start',
+    'bulk-vm-stop',
+    'bulk-vm-reboot'
+  ];
 
   var panelMeta = {    overview: {
       eyebrow: 'Host Control Surface',
@@ -55,6 +71,11 @@
       eyebrow: 'Infrastructure Workspace',
       title: 'Virtualisierung',
       description: 'Nodes, Storage und Infrastruktur-Inventar des Beagle-Hosts.'
+    },
+    provisioning: {
+      eyebrow: 'Provisioning Workspace',
+      title: 'VM Provisioning',
+      description: 'Erstelle neue Ubuntu-Beagle VMs ueber provider-neutrale Provisioning-Contracts und verfolge die letzten Requests.'
     },
     policies: {
       eyebrow: 'Configuration Workspace',
@@ -253,6 +274,99 @@
     }
   }
 
+  function isSafeExternalUrl(url) {
+    try {
+      var parsed = new URL(String(url || ''), window.location.origin);
+      return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+    } catch (error) {
+      void error;
+      return false;
+    }
+  }
+
+  function markSessionActivity() {
+    sessionLastActivityAt = Date.now();
+  }
+
+  function lockSession(reason) {
+    state.token = '';
+    clearStoredToken();
+    if (qs('api-token')) {
+      qs('api-token').value = '';
+    }
+    state.inventory = [];
+    state.endpointReports = [];
+    state.virtualizationOverview = null;
+    state.provisioningCatalog = null;
+    state.selectedVmid = null;
+    state.selectedVmids = [];
+    renderInventory();
+    renderVirtualizationOverview();
+    renderVirtualizationPanel();
+    renderProvisioningWorkspace();
+    renderEndpointsOverview();
+    setAuthMode(false);
+    setBanner(reason || 'Session gesperrt.', 'warn');
+  }
+
+  function checkSessionTimeout() {
+    if (!state.token) {
+      return;
+    }
+    if ((Date.now() - sessionLastActivityAt) > SESSION_IDLE_TIMEOUT_MS) {
+      lockSession('Session aus Sicherheitsgruenden wegen Inaktivitaet gesperrt.');
+    }
+  }
+
+  function downloadTextFile(filename, content, contentType) {
+    var blob = new Blob([String(content || '')], { type: contentType || 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    window.setTimeout(function () {
+      URL.revokeObjectURL(url);
+      link.remove();
+    }, 1000);
+  }
+
+  function exportInventoryJson() {
+    var payload = filteredInventory().map(function (vm) {
+      return profileOf(vm);
+    });
+    downloadTextFile('beagle-inventory.json', JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+    setBanner('Inventar als JSON exportiert.', 'ok');
+  }
+
+  function exportInventoryCsv() {
+    var rows = filteredInventory().map(function (vm) {
+      var profile = profileOf(vm);
+      return [
+        profile.vmid,
+        profile.name,
+        profile.node,
+        profile.status,
+        profile.beagle_role,
+        profile.stream_host,
+        profile.moonlight_port,
+        profile.identity_hostname
+      ].map(function (cell) {
+        var textValue = String(cell == null ? '' : cell);
+        return '"' + textValue.replace(/"/g, '""') + '"';
+      }).join(',');
+    });
+    rows.unshift('"vmid","name","node","status","role","stream_host","moonlight_port","hostname"');
+    downloadTextFile('beagle-inventory.csv', rows.join('\n') + '\n', 'text/csv;charset=utf-8');
+    setBanner('Inventar als CSV exportiert.', 'ok');
+  }
+
+  function exportEndpointsJson() {
+    downloadTextFile('beagle-endpoints.json', JSON.stringify(state.endpointReports || [], null, 2), 'application/json;charset=utf-8');
+    setBanner('Endpoints als JSON exportiert.', 'ok');
+  }
+
   function request(path, options) {
     var target = path.indexOf('http') === 0 ? path : apiBase() + path;
     var finalOptions = Object.assign({ method: 'GET', credentials: 'same-origin' }, options || {});
@@ -404,6 +518,132 @@
     return '<span class="chip ' + tone + '">' + escapeHtml(label) + '</span>';
   }
 
+  function actionLabel(action) {
+    var map = {
+      'healthcheck': 'Health Check',
+      'support-bundle': 'Support Bundle',
+      'restart-session': 'Restart Session',
+      'restart-runtime': 'Restart Runtime',
+      'os-update-scan': 'Update Scan',
+      'os-update-download': 'Update Download',
+      'os-update-apply': 'Update Apply',
+      'os-update-rollback': 'Update Rollback'
+    };
+    return map[action] || action;
+  }
+
+  function powerActionLabel(action) {
+    var map = {
+      'start': 'Start',
+      'stop': 'Stop',
+      'reboot': 'Reboot'
+    };
+    return map[action] || action;
+  }
+
+  function updateStateLabel(updateState) {
+    var normalized = String(updateState || '').trim().toLowerCase();
+    return normalized || 'unbekannt';
+  }
+
+  function parseCommaList(value) {
+    return String(value || '')
+      .split(',')
+      .map(function (item) { return item.trim(); })
+      .filter(function (item) { return item.length > 0; });
+  }
+
+  function resetInventoryFilters() {
+    if (qs('search-input')) {
+      qs('search-input').value = '';
+    }
+    if (qs('role-filter')) {
+      qs('role-filter').value = 'all';
+    }
+    if (qs('eligible-only')) {
+      qs('eligible-only').checked = false;
+    }
+    renderInventory();
+  }
+
+  function openInventoryWithNodeFilter(nodeName) {
+    if (!nodeName) {
+      return;
+    }
+    setActivePanel('inventory');
+    if (qs('search-input')) {
+      qs('search-input').value = String(nodeName);
+    }
+    renderInventory();
+    setBanner('Inventar nach Node ' + nodeName + ' gefiltert.', 'info');
+  }
+
+  function updateBulkUiState() {
+    var selectedCount = selectedVmidsFromInventory().length;
+    var enabled = Boolean(state.token) && selectedCount > 0;
+    BULK_ACTION_BUTTON_IDS.forEach(function (id) {
+      var button = qs(id);
+      if (button) {
+        button.disabled = !enabled;
+      }
+    });
+    if (qs('bulk-selection')) {
+      qs('bulk-selection').textContent = String(selectedCount) + ' ausgewaehlt';
+    }
+  }
+
+  function runVmPowerAction(vmid, actionName) {
+    var numericVmid = Number(vmid);
+    if (!numericVmid || !actionName) {
+      return Promise.resolve();
+    }
+    setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' wird ausgefuehrt ...', 'info');
+    return request('/virtualization/vms/' + numericVmid + '/power', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: actionName })
+    }).then(function () {
+      setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' erfolgreich.', 'ok');
+      return loadDashboard().then(function () {
+        if (state.selectedVmid === numericVmid) {
+          return loadDetail(numericVmid);
+        }
+        return null;
+      });
+    }).catch(function (error) {
+      setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' fehlgeschlagen: ' + error.message, 'warn');
+    });
+  }
+
+  function bulkVmPowerAction(actionName) {
+    var vmids = selectedVmidsFromInventory();
+    if (!vmids.length) {
+      setBanner('Keine VM fuer die Bulk-Power-Aktion ausgewaehlt.', 'warn');
+      return;
+    }
+    setBanner('Bulk VM ' + powerActionLabel(actionName) + ' fuer ' + vmids.length + ' VM(s) wird ausgefuehrt ...', 'info');
+    Promise.all(vmids.map(function (vmid) {
+      return request('/virtualization/vms/' + Number(vmid) + '/power', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: actionName })
+      }).then(function () {
+        return { ok: true, vmid: vmid };
+      }).catch(function (error) {
+        return { ok: false, vmid: vmid, error: error.message };
+      });
+    })).then(function (results) {
+      var okCount = results.filter(function (item) { return item.ok; }).length;
+      var failItems = results.filter(function (item) { return !item.ok; });
+      if (failItems.length) {
+        setBanner('Bulk VM ' + powerActionLabel(actionName) + ': ' + okCount + ' ok, ' + failItems.length + ' fehlgeschlagen.', 'warn');
+      } else {
+        setBanner('Bulk VM ' + powerActionLabel(actionName) + ' erfolgreich fuer ' + okCount + ' VM(s).', 'ok');
+      }
+      return loadDashboard();
+    });
+  }
+
   function formatBytes(bytes) {
     if (!bytes) {
       return '0 B';
@@ -547,7 +787,8 @@
       return;
     }
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="7" class="empty-cell">No matching Beagle VMs found.</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" class="empty-cell">Keine passenden Beagle-VMs gefunden.</td></tr>';
+      updateBulkUiState();
       return;
     }
     body.innerHTML = rows.map(function (vm) {
@@ -555,6 +796,8 @@
       var statusTone = profile.status === 'running' ? 'ok' : 'warn';
       var installerTone = profile.installer_target_eligible ? 'ok' : 'muted';
       var lastAction = vm.last_action && vm.last_action.action ? vm.last_action.action + (vm.last_action.ok ? ' ok' : ' fail') : 'n/a';
+      var canStart = profile.status !== 'running';
+      var canStop = profile.status === 'running';
       return '' +
         '<tr class="vm-row' + (state.selectedVmid === profile.vmid ? ' selected' : '') + '" data-vmid="' + escapeHtml(profile.vmid) + '">' +
         '  <td><input class="row-select" type="checkbox" data-select-vmid="' + escapeHtml(profile.vmid) + '"' + (state.selectedVmids.indexOf(profile.vmid) !== -1 ? ' checked' : '') + '></td>' +
@@ -563,7 +806,12 @@
         '  <td>' + chip(profile.status || 'unknown', statusTone) + '</td>' +
         '  <td><div>' + escapeHtml(profile.stream_host || 'n/a') + '</div><div class="vm-sub">' + escapeHtml(profile.moonlight_port || '') + '</div></td>' +
         '  <td>' + chip(profile.installer_target_status || (profile.installer_target_eligible ? 'ready' : 'not eligible'), installerTone) + '</td>' +
-        '  <td>' + escapeHtml(lastAction) + '</td>' +
+        '  <td class="action-cell"><div class="action-cell-wrap"><span>' + escapeHtml(lastAction) + '</span><span class="vm-sub">Klicke auf die Zeile fuer Details</span></div></td>' +
+        '  <td class="power-cell"><div class="power-inline">' +
+        '    <button type="button" class="btn btn-ghost" data-vm-power="start" data-vmid="' + escapeHtml(profile.vmid) + '"' + (canStart ? '' : ' disabled') + '>Start</button>' +
+        '    <button type="button" class="btn btn-ghost" data-vm-power="stop" data-vmid="' + escapeHtml(profile.vmid) + '"' + (canStop ? '' : ' disabled') + '>Stop</button>' +
+        '    <button type="button" class="btn btn-primary" data-vm-power="reboot" data-vmid="' + escapeHtml(profile.vmid) + '">Reboot</button>' +
+        '  </div></td>' +
         '</tr>';
     }).join('');
     if (qs('inventory-select-all')) {
@@ -571,6 +819,7 @@
         return state.selectedVmids.indexOf(profileOf(vm).vmid) !== -1;
       });
     }
+    updateBulkUiState();
   }
 
   function renderVirtualizationOverview() {
@@ -578,9 +827,11 @@
     var hosts = Array.isArray(overview.hosts) ? overview.hosts : [];
     var nodes = Array.isArray(overview.nodes) ? overview.nodes : [];
     var storage = Array.isArray(overview.storage) ? overview.storage : [];
+    var bridges = Array.isArray(overview.bridges) ? overview.bridges : [];
     var hostBody = qs('virtualization-hosts-body');
     var nodeBody = qs('virtualization-nodes-body');
     var storageBody = qs('virtualization-storage-body');
+    var bridgeBody = qs('virtualization-bridges-body');
 
     if (hostBody) {
       hostBody.innerHTML = hosts.length ? hosts.map(function (item) {
@@ -598,7 +849,7 @@
         var cpuPercent = Math.max(0, Number(item.cpu || 0) * 100);
         var memPercent = Number(item.maxmem || 0) > 0 ? (Number(item.mem || 0) / Number(item.maxmem || 0)) * 100 : 0;
         return '' +
-          '<tr>' +
+          '<tr data-node="' + escapeHtml(item.label || item.name || item.id || '') + '">' +
           '  <td>' + escapeHtml(item.label || item.name || item.id || 'node') + '</td>' +
           '  <td>' + chip(item.status || 'unknown', (item.status || '').toLowerCase() === 'online' ? 'ok' : 'muted') + '</td>' +
           '  <td>' + escapeHtml(cpuPercent.toFixed(0) + '%') + '</td>' +
@@ -619,6 +870,183 @@
           '</tr>';
       }).join('') : '<tr><td colspan="4" class="empty-cell">Keine Storage-Daten vorhanden.</td></tr>';
     }
+
+    if (bridgeBody) {
+      bridgeBody.innerHTML = bridges.length ? bridges.map(function (item) {
+        return '' +
+          '<tr data-node="' + escapeHtml(item.node || '') + '">' +
+          '  <td>' + escapeHtml(item.name || item.id || 'bridge') + '</td>' +
+          '  <td>' + escapeHtml(item.node || '-') + '</td>' +
+          '  <td>' + escapeHtml(item.cidr || item.address || '-') + '</td>' +
+          '  <td>' + escapeHtml(item.bridge_ports || '-') + '</td>' +
+          '  <td>' + chip(item.active ? 'active' : 'inactive', item.active ? 'ok' : 'muted') + '</td>' +
+          '</tr>';
+      }).join('') : '<tr><td colspan="5" class="empty-cell">Keine Bridge-Daten vorhanden.</td></tr>';
+    }
+  }
+
+  function renderEndpointsOverview() {
+    var body = qs('endpoints-body');
+    if (!body) {
+      return;
+    }
+    var rows = Array.isArray(state.endpointReports) ? state.endpointReports : [];
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="5" class="empty-cell">Keine Endpoint-Daten verfuegbar.</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(function (item) {
+      var status = String(item.status || item.health_status || 'unknown');
+      var tone = status === 'healthy' ? 'ok' : status === 'stale' ? 'warn' : 'muted';
+      var vmid = item.vmid || (item.assigned_target && item.assigned_target.vmid) || '-';
+      return '' +
+        '<tr>' +
+        '  <td><strong>' + escapeHtml(item.hostname || item.endpoint_id || 'endpoint') + '</strong></td>' +
+        '  <td>' + chip(status, tone) + '</td>' +
+        '  <td>' + escapeHtml(vmid) + '</td>' +
+        '  <td>' + escapeHtml(item.stream_host || '-') + '</td>' +
+        '  <td>' + escapeHtml(formatDate(item.reported_at || item.updated_at || '')) + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function renderProvisioningWorkspace() {
+    var catalog = state.provisioningCatalog || {};
+    var defaults = catalog.defaults || {};
+    var nodes = Array.isArray(catalog.nodes) ? catalog.nodes : [];
+    var desktopProfiles = Array.isArray(catalog.desktop_profiles) ? catalog.desktop_profiles : [];
+    var bridges = Array.isArray(catalog.bridges) ? catalog.bridges : [];
+    var storages = catalog.storages || {};
+    var imagesStorages = Array.isArray(storages.images) ? storages.images : [];
+    var isoStorages = Array.isArray(storages.iso) ? storages.iso : [];
+    var recentRequests = Array.isArray(catalog.recent_requests) ? catalog.recent_requests : [];
+
+    function fillSelect(selectId, items, valueFn, labelFn, selectedValue) {
+      var select = qs(selectId);
+      if (!select) {
+        return;
+      }
+      if (!items.length) {
+        select.innerHTML = '<option value="">n/a</option>';
+        return;
+      }
+      select.innerHTML = items.map(function (item) {
+        var value = String(valueFn(item));
+        var label = String(labelFn(item));
+        return '<option value="' + escapeHtml(value) + '"' + (value === String(selectedValue || '') ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+      }).join('');
+    }
+
+    fillSelect('prov-node', nodes, function (item) {
+      return item.name || '';
+    }, function (item) {
+      return (item.name || 'node') + ' (' + (item.status || 'unknown') + ')';
+    }, defaults.node || '');
+
+    fillSelect('prov-desktop', desktopProfiles, function (item) {
+      return item.id || '';
+    }, function (item) {
+      return item.label || item.id || 'desktop';
+    }, defaults.desktop || '');
+
+    fillSelect('prov-bridge', bridges, function (item) {
+      return item;
+    }, function (item) {
+      return item;
+    }, defaults.bridge || '');
+
+    fillSelect('prov-disk-storage', imagesStorages, function (item) {
+      return item.id || '';
+    }, function (item) {
+      return (item.id || 'storage') + ' [' + (item.type || 'n/a') + ']';
+    }, defaults.disk_storage || '');
+
+    fillSelect('prov-iso-storage', isoStorages, function (item) {
+      return item.id || '';
+    }, function (item) {
+      return (item.id || 'storage') + ' [' + (item.type || 'n/a') + ']';
+    }, defaults.iso_storage || '');
+
+    if (qs('prov-vmid')) {
+      qs('prov-vmid').value = String(defaults.next_vmid || '');
+    }
+    if (qs('prov-name')) {
+      qs('prov-name').value = defaults.next_vmid ? 'ubuntu-beagle-' + String(defaults.next_vmid) : '';
+    }
+    if (qs('prov-memory')) {
+      qs('prov-memory').value = String(defaults.memory || '8192');
+    }
+    if (qs('prov-cores')) {
+      qs('prov-cores').value = String(defaults.cores || '4');
+    }
+    if (qs('prov-disk')) {
+      qs('prov-disk').value = String(defaults.disk_gb || '64');
+    }
+    if (qs('prov-guest-user')) {
+      qs('prov-guest-user').value = String(defaults.guest_user || 'beagle');
+    }
+    if (qs('prov-guest-password')) {
+      qs('prov-guest-password').value = '';
+    }
+    if (qs('prov-extra-packages')) {
+      qs('prov-extra-packages').value = '';
+    }
+
+    if (qs('provision-recent-body')) {
+      if (!recentRequests.length) {
+        qs('provision-recent-body').innerHTML = '<tr><td colspan="5" class="empty-cell">Noch keine Provisioning-Requests vorhanden.</td></tr>';
+      } else {
+        qs('provision-recent-body').innerHTML = recentRequests.slice(0, 20).map(function (item) {
+          return '' +
+            '<tr data-vmid="' + escapeHtml(item.vmid || '') + '">' +
+            '  <td>' + escapeHtml(formatDate(item.updated_at || item.created_at || '')) + '</td>' +
+            '  <td><strong>' + escapeHtml(item.name || ('VM ' + item.vmid)) + '</strong><div class="vm-sub">#' + escapeHtml(item.vmid || '') + '</div></td>' +
+            '  <td>' + escapeHtml(item.node || '-') + '</td>' +
+            '  <td>' + chip(item.provision_status || item.status || 'unknown', String(item.provision_status || item.status || '').indexOf('ready') !== -1 ? 'ok' : 'muted') + '</td>' +
+            '  <td>' + escapeHtml(item.desktop_id || item.desktop || '-') + '</td>' +
+            '</tr>';
+        }).join('');
+      }
+    }
+  }
+
+  function createProvisionedVm() {
+    var payload = {
+      node: String(qs('prov-node') ? qs('prov-node').value : '').trim(),
+      vmid: Number(qs('prov-vmid') ? qs('prov-vmid').value : 0) || undefined,
+      name: String(qs('prov-name') ? qs('prov-name').value : '').trim(),
+      desktop: String(qs('prov-desktop') ? qs('prov-desktop').value : '').trim(),
+      memory: Number(qs('prov-memory') ? qs('prov-memory').value : 0) || undefined,
+      cores: Number(qs('prov-cores') ? qs('prov-cores').value : 0) || undefined,
+      disk_gb: Number(qs('prov-disk') ? qs('prov-disk').value : 0) || undefined,
+      bridge: String(qs('prov-bridge') ? qs('prov-bridge').value : '').trim(),
+      disk_storage: String(qs('prov-disk-storage') ? qs('prov-disk-storage').value : '').trim(),
+      iso_storage: String(qs('prov-iso-storage') ? qs('prov-iso-storage').value : '').trim(),
+      guest_user: String(qs('prov-guest-user') ? qs('prov-guest-user').value : '').trim(),
+      guest_password: String(qs('prov-guest-password') ? qs('prov-guest-password').value : ''),
+      extra_packages: parseCommaList(qs('prov-extra-packages') ? qs('prov-extra-packages').value : ''),
+      start: true
+    };
+
+    if (!payload.node) {
+      setBanner('Provisioning: Node fehlt.', 'warn');
+      return;
+    }
+
+    setBanner('Provisioning: VM wird erstellt ...', 'info');
+    postJson('/provisioning/vms', payload).then(function (response) {
+      var vm = response && response.provisioned_vm ? response.provisioned_vm : {};
+      var vmid = Number(vm.vmid || payload.vmid || 0);
+      setBanner('Provisioning gestartet fuer VM ' + (vmid || '?') + '.', 'ok');
+      return loadDashboard().then(function () {
+        if (vmid) {
+          return loadDetail(vmid);
+        }
+        return null;
+      });
+    }).catch(function (error) {
+      setBanner('Provisioning fehlgeschlagen: ' + error.message, 'warn');
+    });
   }
 
   function statCardFromHealth(payload, overview) {
@@ -626,12 +1054,13 @@
     var provider = String((overview && overview.provider) || payload && payload.provider || '').trim();
     var nodeCount = Number(overview && overview.node_count || 0);
     var storageCount = Number(overview && overview.storage_count || 0);
+    var bridgeCount = Number(overview && overview.bridge_count || 0);
     var managerMeta = 'v' + String(payload.version || 'unknown');
     if (provider) {
       managerMeta += ' · ' + provider;
     }
     if (nodeCount > 0 || storageCount > 0) {
-      managerMeta += ' · ' + String(nodeCount) + ' nodes · ' + String(storageCount) + ' storage';
+      managerMeta += ' · ' + String(nodeCount) + ' nodes · ' + String(storageCount) + ' storage · ' + String(bridgeCount) + ' bridges';
     }
     text('stat-manager', 'Online');
     text('stat-manager-meta', managerMeta);
@@ -733,6 +1162,7 @@
     var credentials = detail.credentials || {};
     var installerPrep = detail.installerPrep || {};
     var actions = detail.actions || {};
+    var update = detail.update || {};
     var bundles = detail.supportBundles || [];
     var endpoint = detail.state && detail.state.endpoint ? detail.state.endpoint : {};
     var usb = detail.state && detail.state.usb ? detail.state.usb : {};
@@ -741,6 +1171,9 @@
     var actionsNode = qs('detail-actions');
     var usbDevices = Array.isArray(usb.devices) ? usb.devices : [];
     var attachedDevices = Array.isArray(usb.attached) ? usb.attached : [];
+    var pendingActions = Array.isArray(actions.pending_actions) ? actions.pending_actions : [];
+    var updateEndpoint = update.endpoint || {};
+    var updatePolicy = update.policy || {};
     var usbDevicesHtml = usbDevices.length ? usbDevices.map(function (device) {
       var busid = String(device.busid || '');
       return '<div class="bundle-row">' +
@@ -797,6 +1230,9 @@
       '  </section>' +
       '</div>' +
       '<section class="detail-card action-card"><h3>Actions</h3><div class="btn-row">' +
+         actionButton('vm-start', 'Start VM', 'ghost') +
+         actionButton('vm-stop', 'Stop VM', 'ghost') +
+         actionButton('vm-reboot', 'Reboot VM', 'primary') +
            actionButton('installer-prep', 'Prepare Installer', 'primary') +
            actionButton('download-linux', 'Linux Installer', 'ghost') +
            actionButton('download-windows', 'Windows Installer', 'ghost') +
@@ -807,6 +1243,44 @@
            actionButton('restart-runtime', 'Restart Runtime', 'ghost') +
       '</div></section>' +
       '</div>' +
+         '<div class="detail-panel" data-detail-panel="updates">' +
+         '  <section class="detail-section"><h3>Update Status</h3>' +
+           fieldBlock('State', updateStateLabel(updateEndpoint.state || '')) +
+           fieldBlock('Current Version', updateEndpoint.current_version || 'n/a') +
+           fieldBlock('Latest Version', updateEndpoint.latest_version || update.published_latest_version || 'n/a') +
+           fieldBlock('Staged Version', updateEndpoint.staged_version || 'n/a') +
+           fieldBlock('Current Slot', updateEndpoint.current_slot || 'n/a') +
+           fieldBlock('Next Slot', updateEndpoint.next_slot || 'n/a') +
+           fieldBlock('Pending Reboot', String(Boolean(updateEndpoint.pending_reboot))) +
+         '  </section>' +
+         '  <section class="detail-section"><h3>Update Policy</h3>' +
+           fieldBlock('Channel', updatePolicy.channel || 'stable') +
+           fieldBlock('Behavior', updatePolicy.behavior || 'prompt') +
+           fieldBlock('Enabled', String(updatePolicy.enabled !== false)) +
+           fieldBlock('Version Pin', updatePolicy.version_pin || 'none') +
+         '  </section>' +
+         '  <section class="detail-card action-card"><h3>Update Operations</h3><div class="btn-row">' +
+           actionButton('update-scan', 'Scan', 'ghost') +
+           actionButton('update-download', 'Download', 'ghost') +
+           actionButton('update-apply', 'Apply', 'primary') +
+           actionButton('update-rollback', 'Rollback', 'ghost') +
+         '  </div></section>' +
+         '</div>' +
+         '<div class="detail-panel" data-detail-panel="tasks">' +
+         '  <section class="detail-section"><h3>Pending Action Queue</h3><div class="bundle-list">' +
+           (pendingActions.length ? pendingActions.map(function (item) {
+          return '<div class="bundle-row">' +
+            '<strong>' + escapeHtml(item.action || 'action') + '</strong>' +
+            '<span>' + escapeHtml(formatDate(item.created_at || item.updated_at || '')) + '</span>' +
+            '</div>';
+           }).join('') : '<div class="empty-card">Keine pending actions.</div>') +
+         '</div></section>' +
+         '  <section class="detail-section"><h3>Last Action</h3>' +
+           fieldBlock('Action', lastAction.action || 'n/a') +
+           fieldBlock('Result', lastAction.message || (lastAction.ok == null ? 'n/a' : String(lastAction.ok))) +
+           fieldBlock('Timestamp', formatDate(lastAction.created_at || lastAction.finished_at || '')) +
+         '  </section>' +
+         '</div>' +
       '<div class="detail-panel" data-detail-panel="usb">' +
       '  <section class="detail-section"><h3>USB</h3>' +
            fieldBlock('Tunnel', usb.tunnel_state || 'n/a') +
@@ -845,12 +1319,13 @@
     state.selectedVmid = numericVmid;
     setActivePanel('inventory');
     renderInventory();
-    setBanner('Loading details for VM' + numericVmid + ' ...', 'info');
+    setBanner('Lade Details fuer VM ' + numericVmid + ' ...', 'info');
     return Promise.all([
       request('/vms/' + numericVmid),
       request('/vms/' + numericVmid + '/state'),
       request('/vms/' + numericVmid + '/credentials'),
       request('/vms/' + numericVmid + '/actions'),
+      request('/vms/' + numericVmid + '/update'),
       request('/vms/' + numericVmid + '/installer-prep'),
       request('/vms/' + numericVmid + '/support-bundles'),
       request('/vms/' + numericVmid + '/usb')
@@ -860,11 +1335,12 @@
         state: results[1] || {},
         credentials: results[2].credentials || {},
         actions: results[3] || {},
-        installerPrep: results[4].installer_prep || {},
-        supportBundles: results[5].support_bundles || []
+        update: results[4].update || {},
+        installerPrep: results[5].installer_prep || {},
+        supportBundles: results[6].support_bundles || []
       };
-      if (!detail.state.usb && results[6] && results[6].usb) {
-        detail.state.usb = results[6].usb;
+      if (!detail.state.usb && results[7] && results[7].usb) {
+        detail.state.usb = results[7].usb;
       }
       state.detailCache[numericVmid] = detail;
       renderDetail(detail);
@@ -894,19 +1370,19 @@
   function bulkAction(action) {
     var vmids = selectedVmidsFromInventory();
     if (!vmids.length) {
-      setBanner('No VMs selected for bulk action.', 'warn');
+      setBanner('Keine VM fuer die Bulk-Aktion ausgewaehlt.', 'warn');
       return;
     }
-    setBanner('Bulk action' + action + ' for' + vmids.length + ' VM(s) queuing...', 'info');
+    setBanner('Bulk-Aktion ' + actionLabel(action) + ' fuer ' + vmids.length + ' VM(s) wird eingereiht ...', 'info');
     postJson('/actions/bulk', {
       vmids: vmids,
       action: action
     }).then(function (payload) {
       var queued = payload && payload.queued_count != null ? payload.queued_count : vmids.length;
-      setBanner('Bulk action' + action + ' queued:' + queued + ' VM(s).', 'ok');
+      setBanner('Bulk-Aktion ' + actionLabel(action) + ' eingereiht: ' + queued + ' VM(s).', 'ok');
       return loadDashboard();
     }).catch(function (error) {
-      setBanner('Bulk actionfehlgeschlagen: ' + error.message, 'warn');
+      setBanner('Bulk-Aktion fehlgeschlagen: ' + error.message, 'warn');
     });
   }
 
@@ -990,20 +1466,26 @@
     return Promise.all([
       request('/health'),
       request('/vms'),
+      request('/endpoints'),
       request('/policies'),
-      request('/virtualization/overview')
+      request('/virtualization/overview'),
+      request('/provisioning/catalog')
     ]).then(function (results) {
       var health = results[0] || {};
       state.inventory = (results[1] && results[1].vms) || [];
-      state.policies = (results[2] && results[2].policies) || [];
-      state.virtualizationOverview = results[3] || null;
+      state.endpointReports = (results[2] && results[2].endpoints) || [];
+      state.policies = (results[3] && results[3].policies) || [];
+      state.virtualizationOverview = results[4] || null;
+      state.provisioningCatalog = results[5] && results[5].catalog ? results[5].catalog : null;
       setAuthMode(true);
       statCardFromHealth(health, state.virtualizationOverview);
       renderInventory();
+      renderEndpointsOverview();
       renderVirtualizationOverview();
       renderPolicies();
       renderVirtualizationPanel();
-      setBanner('Connected. Inventory and policies up to date.', 'ok');
+      renderProvisioningWorkspace();
+      setBanner('Verbunden. Inventar, Policies und Virtualisierung sind aktuell.', 'ok');
       if (state.selectedVmid) {
         return loadDetail(state.selectedVmid);
       }
@@ -1015,7 +1497,7 @@
       setAuthMode(false);
       text('stat-manager', 'Error');
       text('stat-manager-meta', error.message);
-      setBanner('Connection failed:' + error.message, 'warn');
+      setBanner('Verbindung fehlgeschlagen: ' + error.message, 'warn');
     });
   }
 
@@ -1095,10 +1577,29 @@
         if (!url) {
           throw new Error('No Sunshine URL received');
         }
+        if (!isSafeExternalUrl(url)) {
+          throw new Error('Unsafe Sunshine URL blocked');
+        }
         window.open(url, '_blank', 'noopener');
       }).catch(function (error) {
         setBanner('Sunshine access failed: ' + error.message, 'warn');
       });
+      return;
+    }
+    if (action.indexOf('update-') === 0) {
+      var operation = action.replace('update-', '');
+      setBanner('Update-Aktion ' + actionLabel('os-update-' + operation) + ' fuer VM ' + vmid + ' wird gestartet ...', 'info');
+      postJson('/vms/' + vmid + '/update/' + operation, {}).then(function () {
+        setBanner('Update-Aktion ' + actionLabel('os-update-' + operation) + ' gestartet.', 'ok');
+        return loadDetail(vmid);
+      }).catch(function (error) {
+        setBanner('Update-Aktion fehlgeschlagen: ' + error.message, 'warn');
+      });
+      return;
+    }
+    if (action === 'vm-start' || action === 'vm-stop' || action === 'vm-reboot') {
+      var powerAction = action === 'vm-start' ? 'start' : action === 'vm-stop' ? 'stop' : 'reboot';
+      runVmPowerAction(vmid, powerAction);
       return;
     }
     setBanner('Queuing action ' + action + ' for VM ' + vmid + '...', 'info');
@@ -1125,6 +1626,7 @@
     qs('api-base').value = apiBase();
     qs('connect-button').addEventListener('click', function () {
       saveToken();
+      markSessionActivity();
       loadDashboard();
     });
     if (qs('open-connect-modal')) {
@@ -1169,11 +1671,15 @@
         tokenField.value = '';
       }
       state.inventory = [];
+      state.endpointReports = [];
       state.virtualizationOverview = null;
+      state.provisioningCatalog = null;
       state.selectedVmid = null;
       state.selectedVmids = [];
       renderInventory();
+      renderEndpointsOverview();
       renderVirtualizationOverview();
+      renderProvisioningWorkspace();
       setBanner('API-Token deleted.', 'info');
       setAuthMode(false);
       closeAccountMenu();
@@ -1186,16 +1692,39 @@
       });
     }
     qs('refresh-all').addEventListener('click', function () {
+      markSessionActivity();
       loadDashboard();
     });
     if (qs('refresh-virt')) {
       qs('refresh-virt').addEventListener('click', function () {
+        markSessionActivity();
         loadDashboard();
       });
+    }
+    if (qs('refresh-endpoints')) {
+      qs('refresh-endpoints').addEventListener('click', function () {
+        markSessionActivity();
+        loadDashboard();
+      });
+    }
+    if (qs('export-inventory-json')) {
+      qs('export-inventory-json').addEventListener('click', exportInventoryJson);
+    }
+    if (qs('export-inventory-csv')) {
+      qs('export-inventory-csv').addEventListener('click', exportInventoryCsv);
+    }
+    if (qs('export-endpoints-json')) {
+      qs('export-endpoints-json').addEventListener('click', exportEndpointsJson);
     }
     qs('search-input').addEventListener('input', renderInventory);
     qs('role-filter').addEventListener('change', renderInventory);
     qs('eligible-only').addEventListener('change', renderInventory);
+    if (qs('clear-filters')) {
+      qs('clear-filters').addEventListener('click', function () {
+        resetInventoryFilters();
+        setBanner('Filter zurueckgesetzt.', 'info');
+      });
+    }
     qs('inventory-select-all').addEventListener('change', function (event) {
       var vmids = filteredInventory().map(function (vm) {
         return profileOf(vm).vmid;
@@ -1221,7 +1750,39 @@
     qs('bulk-restart-runtime').addEventListener('click', function () {
       bulkAction('restart-runtime');
     });
+    if (qs('bulk-update-scan')) {
+      qs('bulk-update-scan').addEventListener('click', function () {
+        bulkAction('os-update-scan');
+      });
+    }
+    if (qs('bulk-update-download')) {
+      qs('bulk-update-download').addEventListener('click', function () {
+        bulkAction('os-update-download');
+      });
+    }
+    if (qs('bulk-vm-start')) {
+      qs('bulk-vm-start').addEventListener('click', function () {
+        bulkVmPowerAction('start');
+      });
+    }
+    if (qs('bulk-vm-stop')) {
+      qs('bulk-vm-stop').addEventListener('click', function () {
+        bulkVmPowerAction('stop');
+      });
+    }
+    if (qs('bulk-vm-reboot')) {
+      qs('bulk-vm-reboot').addEventListener('click', function () {
+        bulkVmPowerAction('reboot');
+      });
+    }
     qs('inventory-body').addEventListener('click', function (event) {
+      var powerButton = event.target.closest('button[data-vm-power]');
+      if (powerButton) {
+        var actionName = powerButton.getAttribute('data-vm-power');
+        var actionVmid = Number(powerButton.getAttribute('data-vmid') || '0');
+        runVmPowerAction(actionVmid, actionName);
+        return;
+      }
       var select = event.target.closest('input[data-select-vmid]');
       if (select) {
         var selectedVmid = Number(select.getAttribute('data-select-vmid'));
@@ -1256,6 +1817,18 @@
         }
       });
     }
+    if (qs('virtualization-section')) {
+      qs('virtualization-section').addEventListener('click', function (event) {
+        var row = event.target.closest('tr[data-node]');
+        if (!row) {
+          return;
+        }
+        var nodeName = row.getAttribute('data-node');
+        if (nodeName) {
+          openInventoryWithNodeFilter(nodeName);
+        }
+      });
+    }
     qs('detail-stack').addEventListener('click', function (event) {
       var button = event.target.closest('button[data-action]');
       if (!button) {
@@ -1283,6 +1856,43 @@
       setBanner('Policy editor reset.', 'info');
     });
     qs('policy-delete').addEventListener('click', deleteSelectedPolicy);
+    if (qs('provision-create')) {
+      qs('provision-create').addEventListener('click', createProvisionedVm);
+    }
+    if (qs('provision-reset')) {
+      qs('provision-reset').addEventListener('click', function () {
+        renderProvisioningWorkspace();
+        setBanner('Provisioning-Defaults geladen.', 'info');
+      });
+    }
+    if (qs('refresh-catalog')) {
+      qs('refresh-catalog').addEventListener('click', function () {
+        markSessionActivity();
+        loadDashboard();
+      });
+    }
+    if (qs('provision-recent-body')) {
+      qs('provision-recent-body').addEventListener('click', function (event) {
+        var row = event.target.closest('tr[data-vmid]');
+        if (!row) {
+          return;
+        }
+        var vmid = Number(row.getAttribute('data-vmid') || '0');
+        if (vmid > 0) {
+          loadDetail(vmid);
+        }
+      });
+    }
+
+    ['click', 'keydown', 'mousemove', 'touchstart'].forEach(function (eventName) {
+      document.addEventListener(eventName, markSessionActivity, { passive: true });
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) {
+        return;
+      }
+      checkSessionTimeout();
+    });
   }
 
   applyTitle();
@@ -1290,6 +1900,8 @@
   bindEvents();
   resetPolicyEditor();
   renderVirtualizationOverview();
+  renderEndpointsOverview();
+  renderProvisioningWorkspace();
   (function bootstrapHashState() {
     var hashState = parseAppHash();
     if (hashState.panel) {
@@ -1305,7 +1917,9 @@
   setActivePanel(state.activePanel);
   setAuthMode(Boolean(state.token));
   updateSessionChrome();
+  updateBulkUiState();
   loadDashboard();
+  window.setInterval(checkSessionTimeout, 60000);
   window.addEventListener('hashchange', function() {
     var hashState = parseAppHash();
     if (hashState.panel && hashState.panel !== state.activePanel) {

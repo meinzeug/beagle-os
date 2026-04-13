@@ -280,13 +280,9 @@ PY
 auto_detect_backend() {
   local candidates=()
   local vmid backend
+  local vm_list=""
 
-  while read -r vmid; do
-    [[ -n "$vmid" ]] || continue
-    backend="$(resolve_candidate_backend "$vmid" 2>/dev/null || true)"
-    [[ -n "$backend" ]] || continue
-    candidates+=("${vmid}:${backend}")
-  done < <(python3 - "$PROVIDER_MODULE_PATH" <<'PY'
+  vm_list="$(python3 - "$PROVIDER_MODULE_PATH" <<'PY'
 import sys
 from pathlib import Path
 
@@ -299,7 +295,14 @@ for item in list_vms():
     if item.get("type") == "qemu" and item.get("vmid") is not None:
         print(int(item["vmid"]))
 PY
-)
+)"
+
+  while IFS= read -r vmid; do
+    [[ -n "$vmid" ]] || continue
+    backend="$(resolve_candidate_backend "$vmid" 2>/dev/null || true)"
+    [[ -n "$backend" ]] || continue
+    candidates+=("${vmid}:${backend}")
+  done <<< "$vm_list"
 
   if (( ${#candidates[@]} == 1 )); then
     BACKEND_VMID="${candidates[0]%%:*}"
@@ -381,20 +384,26 @@ EOF
 
 cleanup_legacy_port_forward() {
   local rule delete_rule
+  local prerouting_rules=""
+  local forward_rules=""
+
+  prerouting_rules="$(iptables -t nat -S PREROUTING 2>/dev/null || true)"
 
   while IFS= read -r rule; do
     [[ "$rule" == *"--dport $LISTEN_PORT"* ]] || continue
     [[ "$rule" == *"--to-destination ${BACKEND_HOST}:${BACKEND_PORT}"* ]] || continue
     delete_rule="${rule/-A /-D }"
     iptables -t nat $delete_rule
-  done < <(iptables -t nat -S PREROUTING 2>/dev/null || true)
+  done <<< "$prerouting_rules"
+
+  forward_rules="$(iptables -S FORWARD 2>/dev/null || true)"
 
   while IFS= read -r rule; do
     [[ "$rule" == *"--dport $LISTEN_PORT"* ]] || continue
     [[ "$rule" == *"-d ${BACKEND_HOST}/32"* ]] || continue
     delete_rule="${rule/-A /-D }"
     iptables $delete_rule
-  done < <(iptables -S FORWARD 2>/dev/null || true)
+  done <<< "$forward_rules"
 }
 
 write_nginx_config() {
@@ -543,6 +552,27 @@ link_nginx_config() {
   fi
 }
 
+running_in_chroot() {
+  if command -v ischroot >/dev/null 2>&1; then
+    ischroot
+    return $?
+  fi
+  [[ "$(readlink /proc/1/root 2>/dev/null || true)" != "/" ]]
+}
+
+apply_nginx_service_state() {
+  if running_in_chroot; then
+    # During installer chroot phase we only enable the unit on disk.
+    # Starting/reloading would target the live installer PID1 instead.
+    systemctl enable nginx >/dev/null 2>&1 || true
+    log "Detected chroot install context; skipped nginx start/reload (will start on first boot)."
+    return 0
+  fi
+
+  systemctl enable --now nginx
+  systemctl reload nginx
+}
+
 ensure_root "$@"
 load_env_file
 ensure_dependencies
@@ -565,8 +595,7 @@ cleanup_legacy_port_forward
 write_nginx_config
 link_nginx_config
 nginx -t
-systemctl enable --now nginx
-systemctl reload nginx
+apply_nginx_service_state
 if [[ -n "$BACKEND_HOST" ]]; then
   log "Configured Beagle proxy on https://${SERVER_NAME}:${LISTEN_PORT}/ -> https://${BACKEND_HOST}:${BACKEND_PORT}/"
 else

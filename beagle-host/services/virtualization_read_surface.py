@@ -13,6 +13,7 @@ class VirtualizationReadSurfaceService:
         get_guest_network_interfaces: Callable[[int], list[dict[str, Any]]],
         get_vm_config: Callable[[str, int], dict[str, Any]],
         host_provider_kind: str,
+        list_bridges_inventory: Callable[[str], list[dict[str, Any]]],
         list_nodes_inventory: Callable[[], list[dict[str, Any]]],
         list_storage_inventory: Callable[[], list[dict[str, Any]]],
         service_name: str,
@@ -23,6 +24,7 @@ class VirtualizationReadSurfaceService:
         self._get_guest_network_interfaces = get_guest_network_interfaces
         self._get_vm_config = get_vm_config
         self._host_provider_kind = str(host_provider_kind or "")
+        self._list_bridges_inventory = list_bridges_inventory
         self._list_nodes_inventory = list_nodes_inventory
         self._list_storage_inventory = list_storage_inventory
         self._service_name = str(service_name or "beagle-control-plane")
@@ -105,6 +107,32 @@ class VirtualizationReadSurfaceService:
                 storage.append(normalized)
         return storage
 
+    @staticmethod
+    def _normalize_bridge(item: dict[str, Any]) -> dict[str, Any]:
+        name = str(item.get("name") or item.get("iface") or "").strip()
+        return {
+            "id": name,
+            "name": name,
+            "node": str(item.get("node", "")).strip(),
+            "type": str(item.get("type", "bridge")).strip() or "bridge",
+            "active": bool(item.get("active", False)),
+            "address": str(item.get("address", "") or "").strip(),
+            "netmask": str(item.get("netmask", "") or "").strip(),
+            "cidr": str(item.get("cidr", "") or "").strip(),
+            "bridge_ports": str(item.get("bridge_ports", "") or "").strip(),
+            "autostart": bool(item.get("autostart", False)),
+        }
+
+    def _bridges_payload(self) -> list[dict[str, Any]]:
+        bridges: list[dict[str, Any]] = []
+        for item in self._list_bridges_inventory(""):
+            if not isinstance(item, dict):
+                continue
+            normalized = self._normalize_bridge(item)
+            if normalized["id"]:
+                bridges.append(normalized)
+        return bridges
+
     def _vm_config_payload(self, vmid: int) -> dict[str, Any] | None:
         vm = self._find_vm(vmid)
         if vm is None:
@@ -130,15 +158,18 @@ class VirtualizationReadSurfaceService:
             nodes = self._nodes_payload()
             storage = self._storage_payload()
             hosts = self._hosts_payload()
+            bridges = self._bridges_payload()
             return self._json_response(
                 HTTPStatus.OK,
                 self._envelope(
                     hosts=hosts,
                     nodes=nodes,
                     storage=storage,
+                    bridges=bridges,
                     host_count=len(hosts),
                     node_count=len(nodes),
                     storage_count=len(storage),
+                    bridge_count=len(bridges),
                 ),
             )
 
@@ -158,6 +189,12 @@ class VirtualizationReadSurfaceService:
             return self._json_response(
                 HTTPStatus.OK,
                 self._envelope(storage=self._storage_payload()),
+            )
+
+        if path == "/api/v1/virtualization/bridges":
+            return self._json_response(
+                HTTPStatus.OK,
+                self._envelope(bridges=self._bridges_payload()),
             )
 
         match = re.match(r"^/api/v1/virtualization/vms/(?P<vmid>\d+)/config$", path)

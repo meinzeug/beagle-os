@@ -1,5 +1,85 @@
 # Refactor Progress
 
+### 2026-04-13 — WebUI feature wave (endpoint telemetry/export) + security hardening + server ISO VM smoke test
+
+- Website/Web Console erweitert um weitere Operator-Funktionen:
+  - neue Endpoint-Telemetry-Overview-Tabelle im Overview-Panel (provider-neutrale `/api/v1/endpoints` Surface)
+  - Export-Funktionen:
+    - Inventory als JSON
+    - Inventory als CSV
+    - Endpoints als JSON
+- Website-Sicherheit verbessert:
+  - Session Auto-Lock bei Inaktivitaet (20 Minuten), inkl. Token-Clear und UI-Lock
+  - Sunshine-Link-Guard: externer Open nur bei gueltiger `http/https` URL
+  - zentrale Session-Activity-Aktualisierung fuer Operator-Interaktionen
+- Server-Installer-ISO neu gebaut und in dedizierter Libvirt-VM getestet:
+  - Build erfolgreich: `dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso`
+  - Smoke-VM `beagle-server-iso-smoke` mit frischem Disk-Image und neuem ISO gestartet
+  - Libvirt/QEMU-Log verifiziert Boot-Path mit CD-ROM als `bootindex=1` und laufender Domain
+- Validierung:
+  - `node --check website/app.js`
+  - `./scripts/test-standalone-desktop-stream-sim.sh` (PASS)
+
+### 2026-04-13 — Standalone desktop provisioning + thinclient stream simulation E2E harness
+
+- Neue E2E-Simulations-Validierung hinzugefuegt: `scripts/test-standalone-desktop-stream-sim.sh`.
+- Der Test startet den Control-Plane-Stack im `beagle`-Provider (Standalone), provisioniert eine Ubuntu-Desktop-VM ueber die gleichen API-Surfaces wie die WebUI und verifiziert explizit:
+  - Provisioning-Catalog enthaelt `xfce` Desktop-Profil.
+  - VM-Create ueber `POST /api/v1/provisioning/vms` funktioniert.
+  - Provisioning-State bestaetigt Ubuntu + XFCE + Sunshine-Pfad.
+  - Profil enthaelt Sunshine-API/Stream-Daten.
+  - Extra Thinclient-Sim-VM wird im Provider-State angelegt.
+  - Thinclient-Stream-Simulation verbindet erfolgreich auf den Moonlight-Stream-Port der Desktop-VM.
+  - `POST /api/v1/vms/{vmid}/sunshine-access` liefert einen Access-Link.
+- Control-Plane fuer Standalone-/Testkontexte verbessert:
+  - `beagle-host/bin/beagle-control-plane.py` nutzt jetzt `BEAGLE_UBUNTU_LOCAL_ISO_DIR` (statt hartem `/var/lib/vz/template/iso`) fuer local ISO/seed cache.
+- Validierung:
+  - `python3 -m py_compile beagle-host/bin/beagle-control-plane.py`
+  - `bash -n scripts/test-standalone-desktop-stream-sim.sh`
+  - `./scripts/test-standalone-desktop-stream-sim.sh` (PASS)
+
+### 2026-04-13 — Massive Web-UI/Virtualization expansion: update-ops, task queue, provisioning workspace
+
+- Website-Inventory/Bulk-Surface erweitert um provider-neutrale Update-Bulk-Aktionen:
+  - `os-update-scan`
+  - `os-update-download`
+- VM-Detailansicht in `website/app.js` um neue Panels erweitert:
+  - `updates`: Endpoint-Update-State, Policy-Infos, Operations (`scan`, `download`, `apply`, `rollback`)
+  - `tasks`: Pending-Action-Queue + Last-Action-Feedback
+- Detail-Loader erweitert um `GET /api/v1/vms/{vmid}/update` und Rendering an bestehende provider-neutrale VM-Surface angebunden.
+- Neue Provisioning-Workspace-Integration in der Website:
+  - Dashboard laedt jetzt auch `GET /api/v1/provisioning/catalog`
+  - Formular-Defaults/Selects werden aus dem Catalog gerendert (Node/Desktop/Bridge/Storages)
+  - `POST /api/v1/provisioning/vms` wired fuer direkte VM-Erstellung aus der Website
+  - Recent-Provisioning-Tabelle mit Drilldown auf VM-Detail
+- Styling in `website/styles.css` fuer Provisioning-Grid/Recent-Table und responsive Verhalten ergaenzt.
+- Validierung:
+  - `node --check website/app.js`
+
+### 2026-04-13 — Massive Web-UI/Virtualization expansion: provider-neutrale VM-Power-Aktionen
+
+- `VmMutationSurfaceService` erweitert um neue provider-neutrale Mutation-Route `POST /api/v1/virtualization/vms/{vmid}/power` mit Actions `start`, `stop`, `reboot`.
+- Control-Plane-Wiring (`beagle-control-plane.py`) bindet die neue Route auf den Host-Provider (`start_vm`, `stop_vm`, `reboot_vm`) inkl. VM-Cache-Invalidierung.
+- Website-Funktionsumfang massiv ausgebaut:
+  - Inventar-Tabelle hat neue Power-Spalte mit direkten VM-Buttons (`Start`, `Stop`, `Reboot`) pro Zeile.
+  - Bulk-Toolbar erweitert um `VM Start`, `VM Stop`, `VM Reboot` fuer Mehrfachselektion.
+  - Detail-Actions um direkte VM-Lifecycle-Buttons erweitert.
+  - Virtualisierungs-Tabellenzeilen (Node/Bridge) sind als schnelle Navigation ins Inventar nutzbar (Node-Filter).
+  - Bedienbarkeit verbessert durch Selection-Counter, Filter-Reset, klarere Statusmeldungen und Disabled-States.
+- Validierung:
+  - `python3 -m py_compile beagle-host/services/vm_mutation_surface.py beagle-host/bin/beagle-control-plane.py`
+  - `node --check website/app.js`
+
+### 2026-04-13 — Bridge/Network-Inventar als provider-neutraler Vertical Slice
+
+- `list_bridges(node)` zum generischen `HostProvider`-Protocol hinzugefuegt.
+- `ProxmoxHostProvider` implementiert `list_bridges()` via `pvesh get /nodes/{node}/network` mit Filter auf `type=bridge`.
+- `BeagleHostProvider` implementiert `list_bridges()` via JSON-State (`bridges.json`) mit Defaults.
+- `VirtualizationReadSurfaceService` um `_normalize_bridge()`, `_bridges_payload()` und `/api/v1/virtualization/bridges`-Route erweitert; Overview-Envelope enthaelt jetzt auch `bridges` und `bridge_count`.
+- Control-Plane-Wiring: `list_bridges_inventory` Callback an die Read-Surface-Service-Instanz uebergeben.
+- Website: neue Bridge-Tabelle in `website/index.html` (Name, Node, Address, Ports, Active); Rendering in `website/app.js` via `renderVirtualizationOverview()`; Manager-Meta-String zeigt jetzt auch Bridge-Count.
+- Validierung: `node --check`, AST-Checks, `validate-project.sh` bestanden.
+
 ### 2026-04-12 — Website nutzt provider-neutrale Virtualization-Reads sichtbar
 
 - Den priorisierten Web-Console-Slice umgesetzt: die Website rendert jetzt Host-, Node- und Storage-Daten aus dem bestehenden provider-neutralen Surface `/api/v1/virtualization/overview`.

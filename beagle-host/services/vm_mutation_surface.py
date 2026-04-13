@@ -12,10 +12,14 @@ class VmMutationSurfaceService:
         attach_usb_to_guest: Callable[[Any, str], dict[str, Any]],
         build_vm_usb_state: Callable[[Any], dict[str, Any]],
         find_vm: Callable[[int], Any | None],
+        invalidate_vm_cache: Callable[[int | None, str], None],
         issue_sunshine_access_token: Callable[[Any], tuple[str, dict[str, Any]]],
         queue_vm_action: Callable[[Any, str, str, dict[str, Any] | None], dict[str, Any]],
+        reboot_vm: Callable[[int], str],
         service_name: str,
+        start_vm: Callable[[int], str],
         start_installer_prep: Callable[[Any], dict[str, Any]],
+        stop_vm: Callable[[int], str],
         summarize_action_result: Callable[[dict[str, Any] | None], dict[str, Any]],
         sunshine_proxy_ticket_url: Callable[[str], str],
         usb_action_wait_seconds: float,
@@ -27,10 +31,14 @@ class VmMutationSurfaceService:
         self._attach_usb_to_guest = attach_usb_to_guest
         self._build_vm_usb_state = build_vm_usb_state
         self._find_vm = find_vm
+        self._invalidate_vm_cache = invalidate_vm_cache
         self._issue_sunshine_access_token = issue_sunshine_access_token
         self._queue_vm_action = queue_vm_action
+        self._reboot_vm = reboot_vm
         self._service_name = str(service_name or "beagle-control-plane")
+        self._start_vm = start_vm
         self._start_installer_prep = start_installer_prep
+        self._stop_vm = stop_vm
         self._summarize_action_result = summarize_action_result
         self._sunshine_proxy_ticket_url = sunshine_proxy_ticket_url
         self._usb_action_wait_seconds = float(usb_action_wait_seconds)
@@ -65,6 +73,7 @@ class VmMutationSurfaceService:
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/attach"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/detach"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/sunshine-access"))
+            or (path.startswith("/api/v1/virtualization/vms/") and path.endswith("/power"))
         )
 
     @staticmethod
@@ -73,6 +82,7 @@ class VmMutationSurfaceService:
             (path.startswith("/api/v1/vms/") and path.endswith("/actions"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/attach"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/detach"))
+            or (path.startswith("/api/v1/virtualization/vms/") and path.endswith("/power"))
         )
 
     @staticmethod
@@ -95,6 +105,52 @@ class VmMutationSurfaceService:
         json_payload: dict[str, Any] | None,
         requester_identity: str,
     ) -> dict[str, Any]:
+        if path.startswith("/api/v1/virtualization/vms/") and path.endswith("/power"):
+            vm, error = self._vm_from_segment(path, -2)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            action_name = str(payload.get("action", "")).strip().lower()
+            if action_name not in {"start", "stop", "reboot"}:
+                return self._json_response(
+                    HTTPStatus.BAD_REQUEST,
+                    {"ok": False, "error": "invalid payload: unsupported power action"},
+                )
+            try:
+                if action_name == "start":
+                    provider_result = self._start_vm(vm.vmid)
+                elif action_name == "stop":
+                    provider_result = self._stop_vm(vm.vmid)
+                else:
+                    provider_result = self._reboot_vm(vm.vmid)
+                self._invalidate_vm_cache(vm.vmid, vm.node)
+            except Exception as exc:
+                return self._json_response(
+                    HTTPStatus.BAD_GATEWAY,
+                    {
+                        "ok": False,
+                        "error": f"vm power action failed: {exc}",
+                        "vmid": int(vm.vmid),
+                        "action": action_name,
+                    },
+                )
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        vm_power={
+                            "vmid": int(vm.vmid),
+                            "node": str(vm.node),
+                            "action": action_name,
+                            "requested_by": requester_identity,
+                            "provider_result": str(provider_result or ""),
+                        }
+                    ),
+                },
+            )
+
         if path.startswith("/api/v1/vms/") and path.endswith("/installer-prep"):
             vm, error = self._vm_from_segment(path, -2)
             if vm is None:

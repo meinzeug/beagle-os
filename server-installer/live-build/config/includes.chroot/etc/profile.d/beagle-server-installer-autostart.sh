@@ -11,7 +11,10 @@ fi
 
 tty_path="$(tty 2>/dev/null || true)"
 case "$tty_path" in
-  /dev/tty1|/dev/ttyS0) ;;
+  /dev/tty1) ;;
+  /dev/ttyS0)
+    export BEAGLE_SERVER_INSTALLER_FORCE_TEXT=1
+    ;;
   *) return 0 2>/dev/null || exit 0 ;;
 esac
 

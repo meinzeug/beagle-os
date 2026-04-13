@@ -29,12 +29,12 @@ lb config noauto \
   --architectures "$SERVER_INSTALLER_ARCH" \
   --initsystem systemd \
   --distribution bookworm \
-  --binary-images iso-hybrid \
-  --debian-installer none \
+  --binary-images iso \
+  --debian-installer false \
   --apt-recommends false \
   --archive-areas "main contrib non-free non-free-firmware" \
   --linux-flavours "$SERVER_INSTALLER_LINUX_FLAVOUR" \
-  --firmware-chroot true \
+  --firmware-chroot false \
   --firmware-binary true \
   --mirror-bootstrap "https://deb.debian.org/debian" \
   --mirror-chroot "https://deb.debian.org/debian" \

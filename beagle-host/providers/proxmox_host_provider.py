@@ -64,6 +64,39 @@ class ProxmoxHostProvider:
             )
         return nodes
 
+    def list_bridges(self, node: str = "") -> list[dict[str, Any]]:
+        nodes = [node] if node else [n["name"] for n in self.list_nodes()]
+        bridges: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for target_node in nodes:
+            payload = self._run_json(
+                ["pvesh", "get", f"/nodes/{target_node}/network", "--output-format", "json"]
+            )
+            if not isinstance(payload, list):
+                continue
+            for item in payload:
+                iface_type = str(item.get("type", "")).strip()
+                if iface_type != "bridge":
+                    continue
+                iface_name = str(item.get("iface", "")).strip()
+                if not iface_name or iface_name in seen:
+                    continue
+                seen.add(iface_name)
+                bridges.append(
+                    {
+                        "name": iface_name,
+                        "node": target_node,
+                        "type": iface_type,
+                        "active": bool(int(item.get("active", 0) or 0)),
+                        "address": str(item.get("address", "") or "").strip(),
+                        "netmask": str(item.get("netmask", "") or "").strip(),
+                        "cidr": str(item.get("cidr", "") or "").strip(),
+                        "bridge_ports": str(item.get("bridge_ports", "") or "").strip(),
+                        "autostart": bool(int(item.get("autostart", 0) or 0)),
+                    }
+                )
+        return sorted(bridges, key=lambda b: b["name"])
+
     def get_guest_network_interfaces(
         self,
         vmid: int,

@@ -181,6 +181,9 @@ UBUNTU_BEAGLE_SUNSHINE_URL = os.environ.get(
     "BEAGLE_UBUNTU_SUNSHINE_URL",
     "https://github.com/LizardByte/Sunshine/releases/download/v2025.924.154138/sunshine-ubuntu-24.04-amd64.deb",
 ).strip()
+UBUNTU_BEAGLE_LOCAL_ISO_DIR = Path(
+    os.environ.get("BEAGLE_UBUNTU_LOCAL_ISO_DIR", "/var/lib/vz/template/iso").strip() or "/var/lib/vz/template/iso"
+)
 UBUNTU_BEAGLE_AUTOINSTALL_URL_TTL_SECONDS = int(os.environ.get("BEAGLE_UBUNTU_AUTOINSTALL_URL_TTL_SECONDS", "21600"))
 UBUNTU_BEAGLE_FIRSTBOOT_POWERDOWN_WAIT_SECONDS = int(os.environ.get("BEAGLE_UBUNTU_FIRSTBOOT_POWERDOWN_WAIT_SECONDS", "600"))
 UBUNTU_BEAGLE_DESKTOPS: dict[str, dict[str, Any]] = {
@@ -1458,7 +1461,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             list_bridge_inventory=list_bridge_inventory,
             list_nodes_inventory=list_nodes_inventory,
             list_ubuntu_beagle_states=list_ubuntu_beagle_states,
-            local_iso_dir=Path("/var/lib/vz/template/iso"),
+            local_iso_dir=UBUNTU_BEAGLE_LOCAL_ISO_DIR,
             make_vm_summary=lambda **kwargs: VmSummary(**kwargs),
             manager_pinned_pubkey=manager_pinned_pubkey(),
             normalize_keymap=ubuntu_beagle_inputs_service().normalize_keymap,
@@ -1677,6 +1680,7 @@ def virtualization_read_surface_service() -> VirtualizationReadSurfaceService:
             get_guest_network_interfaces=lambda vmid: get_guest_network_interfaces(vmid, timeout_seconds=GUEST_AGENT_TIMEOUT_SECONDS),
             get_vm_config=get_vm_config,
             host_provider_kind=BEAGLE_HOST_PROVIDER_KIND,
+            list_bridges_inventory=lambda node="": HOST_PROVIDER.list_bridges(node),
             list_nodes_inventory=list_nodes_inventory,
             list_storage_inventory=list_storage_inventory,
             service_name="beagle-control-plane",
@@ -1783,10 +1787,14 @@ def vm_mutation_surface_service() -> VmMutationSurfaceService:
             attach_usb_to_guest=attach_usb_to_guest,
             build_vm_usb_state=build_vm_usb_state,
             find_vm=find_vm,
+            invalidate_vm_cache=invalidate_vm_cache,
             issue_sunshine_access_token=issue_sunshine_access_token,
             queue_vm_action=queue_vm_action,
+            reboot_vm=lambda vmid: HOST_PROVIDER.reboot_vm(int(vmid), timeout=None),
             service_name="beagle-control-plane",
+            start_vm=lambda vmid: HOST_PROVIDER.start_vm(int(vmid), timeout=None),
             start_installer_prep=start_installer_prep,
+            stop_vm=lambda vmid: HOST_PROVIDER.stop_vm(int(vmid), skiplock=True, timeout=None),
             summarize_action_result=summarize_action_result,
             sunshine_proxy_ticket_url=sunshine_proxy_ticket_url,
             usb_action_wait_seconds=USB_ACTION_WAIT_SECONDS,

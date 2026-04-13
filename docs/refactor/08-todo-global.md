@@ -33,6 +33,7 @@
 - [x] Rename the generic host/control-plane repo surface from `proxmox-host/` to `beagle-host/` while keeping Proxmox compatibility bridges where needed.
 - [x] Introduce `beagle-host/providers/host_provider_contract.py` and `beagle-host/providers/registry.py` so the control plane boots through a generic host-provider seam instead of directly importing `ProxmoxHostProvider`.
 - [x] Continue splitting `proxmox-ui/beagle-ui.js` so bootstrap/catalog/profile-resolution logic lives under `proxmox-ui/provisioning/` and `proxmox-ui/state/` and `beagle-ui.js` becomes a thin entrypoint.
+- [x] Extend the provider contract with `list_bridges(node)`, implement in both providers, expose via read surface and website.
 - [ ] Continue inventorying remaining direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally, building on `scripts/lib/beagle_provider.py` and shrinking the remaining direct-command fallback paths.
 - [x] Extract the shared script-side provider bootstrap/remote-exec shell helper into `scripts/lib/provider_shell.sh` and rewire the main Sunshine/setup scripts onto it.
 - [x] Extract the shared script-side guest-exec / guest-ipv4 / VM-description / reboot / `qm set` fallback wrappers into `scripts/lib/provider_shell.sh`.
@@ -178,9 +179,16 @@
 - [x] Add the first provider-neutral browser host/node/storage/config/interface read contracts under `/api/v1/virtualization/*` and wire the Beagle browser provider onto them.
 - [x] Render provider-neutral host/node/storage data from `/api/v1/virtualization/overview` in the website overview as first visible Beagle Web Console slice.
 - [ ] Turn the newly served standalone website/proxy shell into the first real Beagle Web Console surface by rendering the new provider-neutral host/node/storage data and extending the contract toward bridge/network/operator actions.
-- [ ] Extend the website virtualization view from host/node/storage to bridge/network inventory and wire at least one provider-neutral operator action.
+- [x] Extend the website virtualization view from host/node/storage to bridge/network inventory and wire at least one provider-neutral operator action.
+- [x] Extend the website VM detail with provider-neutral update operations (`scan/download/apply/rollback`) and pending-action task visibility.
+- [x] Add a provider-neutral website provisioning workspace based on `/api/v1/provisioning/catalog` and `/api/v1/provisioning/vms`.
+- [ ] Add provider-neutral VM create/update/delete flows to the website (Web Console) after the delivered power-action slice.
 - [ ] Make Proxmox optional at deploy/install/runtime boundaries instead of the implicit required backend.
 - [ ] Finish a fresh standalone server-installer verification on `thinover.net`, confirm first boot into the installed system, and validate the Beagle host stack end to end after the DHCP/DNS/retry, live-locale, Beagle source-root, live-side source-archive, and bundled-source-archive fixes.
+- [x] Add a standalone Ubuntu-XFCE-Sunshine + thinclient-stream E2E simulation harness (`scripts/test-standalone-desktop-stream-sim.sh`) that validates the same provider-neutral WebUI/API provisioning contracts.
+- [x] Extend website overview with provider-neutral endpoint telemetry (`/api/v1/endpoints`) and operator export actions (inventory CSV/JSON, endpoints JSON).
+- [x] Add Web Console session-security hardening (inactivity auto-lock with token clear, guarded Sunshine external URL open).
+- [ ] Upgrade the standalone `beagle` provider from state-skeleton behavior to real local VM execution so the standalone stream path can be validated with real guest runtime (not simulation only).
 - [x] Extract the remaining shared slug/secret-formatting helper cluster from `beagle-host/bin/beagle-control-plane.py` into a dedicated host utility service.
 - [ ] Split thin client runtime logic into config, runtime, network, pairing, and Moonlight launch seams.
 - [ ] Propagate the Moonlight fast-path launch fix into a released thin-client payload/update and verify it on a live endpoint after reboot.

@@ -131,6 +131,35 @@
           </article>
         </section>
 
+        <section class="card endpoints-overview-card panel-section panel-section-active" id="endpoints-overview-section" data-panel-section="overview">
+          <div class="card-head">
+            <div>
+              <span class="eyebrow">Fleet Telemetry</span>
+              <h2>Endpoints</h2>
+            </div>
+            <div class="button-row">
+              <button class="button ghost small" id="refresh-endpoints" type="button">Aktualisieren</button>
+              <button class="button ghost small" id="export-endpoints-json" type="button">Export JSON</button>
+            </div>
+          </div>
+          <div class="table-wrap compact">
+            <table class="vm-table compact-table">
+              <thead>
+                <tr>
+                  <th>Endpoint</th>
+                  <th>Status</th>
+                  <th>VM</th>
+                  <th>Host</th>
+                  <th>Last Report</th>
+                </tr>
+              </thead>
+              <tbody id="endpoints-body">
+                <tr><td colspan="5" class="empty-cell">Noch keine Endpoint-Daten geladen.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="virtualization-grid panel-section panel-section-active" id="virtualization-section" data-panel-section="overview">
           <article class="card virtualization-card">
             <div class="card-head">
@@ -202,6 +231,31 @@
               </table>
             </div>
           </article>
+
+          <article class="card virtualization-card">
+            <div class="card-head">
+              <div>
+                <span class="eyebrow">Provider Surface</span>
+                <h2>Bridges</h2>
+              </div>
+            </div>
+            <div class="table-wrap compact">
+              <table class="vm-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Node</th>
+                    <th>Address</th>
+                    <th>Ports</th>
+                    <th>Active</th>
+                  </tr>
+                </thead>
+                <tbody id="virtualization-bridges-body">
+                  <tr><td colspan="5" class="empty-cell">Noch keine Daten geladen.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
         </section>
 
         <section class="workspace-grid panel-section" id="inventory-section" data-panel-section="inventory">
@@ -213,10 +267,18 @@
               </div>
               <div class="toolbar">
                 <div class="button-row bulk-bar">
+                  <button class="button ghost small" id="export-inventory-csv" type="button">Export CSV</button>
+                  <button class="button ghost small" id="export-inventory-json" type="button">Export JSON</button>
                   <button class="button ghost small" id="bulk-healthcheck" type="button">Health Check</button>
                   <button class="button ghost small" id="bulk-support-bundle" type="button">Bundle</button>
                   <button class="button ghost small" id="bulk-restart-session" type="button">Restart Session</button>
                   <button class="button ghost small" id="bulk-restart-runtime" type="button">Restart Runtime</button>
+                  <button class="button ghost small" id="bulk-update-scan" type="button">Update Scan</button>
+                  <button class="button ghost small" id="bulk-update-download" type="button">Update Download</button>
+                  <button class="button ghost small" id="bulk-vm-start" type="button">VM Start</button>
+                  <button class="button ghost small" id="bulk-vm-stop" type="button">VM Stop</button>
+                  <button class="button ghost small" id="bulk-vm-reboot" type="button">VM Reboot</button>
+                  <span class="bulk-selection" id="bulk-selection">0 ausgewaehlt</span>
                 </div>
                 <input id="search-input" class="input-search" type="search" placeholder="VMs durchsuchen ...">
                 <select id="role-filter" class="input-select">
@@ -229,6 +291,7 @@
                   <input id="eligible-only" type="checkbox">
                   <span>Nur geeignet</span>
                 </label>
+                <button class="button ghost small" id="clear-filters" type="button">Filter zuruecksetzen</button>
               </div>
             </div>
             <div class="table-wrap">
@@ -242,10 +305,11 @@
                     <th>Stream</th>
                     <th>Installer</th>
                     <th>Letzte Aktion</th>
+                    <th>Power</th>
                   </tr>
                 </thead>
                 <tbody id="inventory-body">
-                  <tr><td colspan="7" class="empty-cell">Noch keine Daten geladen.</td></tr>
+                  <tr><td colspan="8" class="empty-cell">Noch keine Daten geladen.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -261,6 +325,8 @@
             </div>
             <div class="detail-tabbar" id="detail-tabbar">
               <button type="button" class="detail-tab detail-tab-active" data-detail-panel="summary">Zusammenfassung</button>
+              <button type="button" class="detail-tab" data-detail-panel="updates">Updates</button>
+              <button type="button" class="detail-tab" data-detail-panel="tasks">Tasks</button>
               <button type="button" class="detail-tab" data-detail-panel="usb">USB</button>
               <button type="button" class="detail-tab" data-detail-panel="credentials">Credentials</button>
               <button type="button" class="detail-tab" data-detail-panel="config">Config</button>
@@ -307,6 +373,93 @@
                 </thead>
                 <tbody id="storage-body">
                   <tr><td colspan="6" class="empty-cell">Noch keine Daten geladen.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card virt-provision-card">
+            <div class="card-head">
+              <div>
+                <span class="eyebrow">Provisioning</span>
+                <h2>Create VM</h2>
+              </div>
+              <button class="button ghost small" id="refresh-catalog" type="button">Catalog aktualisieren</button>
+            </div>
+
+            <div class="provision-grid" id="provision-grid">
+              <label class="field">
+                <span>Node</span>
+                <select id="prov-node" class="input-select"></select>
+              </label>
+              <label class="field">
+                <span>VMID</span>
+                <input id="prov-vmid" type="number" min="100" step="1" placeholder="auto">
+              </label>
+              <label class="field">
+                <span>Name</span>
+                <input id="prov-name" type="text" placeholder="ubuntu-beagle-123">
+              </label>
+              <label class="field">
+                <span>Desktop</span>
+                <select id="prov-desktop" class="input-select"></select>
+              </label>
+              <label class="field">
+                <span>Memory (MiB)</span>
+                <input id="prov-memory" type="number" min="2048" step="256" placeholder="8192">
+              </label>
+              <label class="field">
+                <span>Cores</span>
+                <input id="prov-cores" type="number" min="2" step="1" placeholder="4">
+              </label>
+              <label class="field">
+                <span>Disk (GB)</span>
+                <input id="prov-disk" type="number" min="32" step="1" placeholder="64">
+              </label>
+              <label class="field">
+                <span>Bridge</span>
+                <select id="prov-bridge" class="input-select"></select>
+              </label>
+              <label class="field">
+                <span>Disk Storage</span>
+                <select id="prov-disk-storage" class="input-select"></select>
+              </label>
+              <label class="field">
+                <span>ISO Storage</span>
+                <select id="prov-iso-storage" class="input-select"></select>
+              </label>
+              <label class="field">
+                <span>Guest User</span>
+                <input id="prov-guest-user" type="text" placeholder="beagle">
+              </label>
+              <label class="field">
+                <span>Guest Password (optional)</span>
+                <input id="prov-guest-password" type="password" placeholder="optional">
+              </label>
+              <label class="field field-wide">
+                <span>Extra Packages (comma separated)</span>
+                <input id="prov-extra-packages" type="text" placeholder="htop,vim,steam-devices">
+              </label>
+            </div>
+
+            <div class="button-row">
+              <button class="button primary" id="provision-create" type="button">VM erstellen</button>
+              <button class="button ghost" id="provision-reset" type="button">Defaults laden</button>
+            </div>
+
+            <div class="table-wrap compact provision-recent-wrap">
+              <table class="vm-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Zeit</th>
+                    <th>VM</th>
+                    <th>Node</th>
+                    <th>Status</th>
+                    <th>Desktop</th>
+                  </tr>
+                </thead>
+                <tbody id="provision-recent-body">
+                  <tr><td colspan="5" class="empty-cell">Noch keine Provisioning-Daten geladen.</td></tr>
                 </tbody>
               </table>
             </div>

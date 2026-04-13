@@ -130,6 +130,8 @@ class HostProvider(Protocol):
         wait_timeout_seconds: int,
     ) -> int: ...
 
+    def list_bridges(self, node: str = "") -> list[dict[str, Any]]: ...
+
     def get_guest_ipv4(
         self,
         vmid: int,

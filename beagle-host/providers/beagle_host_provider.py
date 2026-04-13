@@ -53,6 +53,9 @@ class BeagleHostProvider:
     def _storage_path(self) -> Path:
         return self._state_dir / "storage.json"
 
+    def _bridges_path(self) -> Path:
+        return self._state_dir / "bridges.json"
+
     def _vms_path(self) -> Path:
         return self._state_dir / "vms.json"
 
@@ -125,6 +128,21 @@ class BeagleHostProvider:
             }
         ]
 
+    def _default_bridges(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "name": "vmbr0",
+                "node": self._default_node_name,
+                "type": "bridge",
+                "active": True,
+                "address": "",
+                "netmask": "",
+                "cidr": "",
+                "bridge_ports": "",
+                "autostart": True,
+            }
+        ]
+
     def _load_nodes(self) -> list[dict[str, Any]]:
         payload = self._read_json_file(self._nodes_path(), self._default_nodes())
         if not isinstance(payload, list):
@@ -173,6 +191,32 @@ class BeagleHostProvider:
                 }
             )
         return storage or self._default_storage()
+
+    def _load_bridges(self) -> list[dict[str, Any]]:
+        payload = self._read_json_file(self._bridges_path(), self._default_bridges())
+        if not isinstance(payload, list):
+            return self._default_bridges()
+        bridges: list[dict[str, Any]] = []
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or item.get("iface") or "").strip()
+            if not name:
+                continue
+            bridges.append(
+                {
+                    "name": name,
+                    "node": str(item.get("node") or self._default_node_name).strip() or self._default_node_name,
+                    "type": "bridge",
+                    "active": bool(item.get("active", True)),
+                    "address": str(item.get("address", "") or "").strip(),
+                    "netmask": str(item.get("netmask", "") or "").strip(),
+                    "cidr": str(item.get("cidr", "") or "").strip(),
+                    "bridge_ports": str(item.get("bridge_ports", "") or "").strip(),
+                    "autostart": bool(item.get("autostart", True)),
+                }
+            )
+        return bridges or self._default_bridges()
 
     @staticmethod
     def _normalize_vm_record(item: Mapping[str, Any]) -> dict[str, Any]:
@@ -283,6 +327,12 @@ class BeagleHostProvider:
 
     def list_nodes(self) -> list[dict[str, Any]]:
         return self._load_nodes()
+
+    def list_bridges(self, node: str = "") -> list[dict[str, Any]]:
+        bridges = self._load_bridges()
+        if node:
+            bridges = [b for b in bridges if b.get("node") == node]
+        return bridges
 
     def get_guest_network_interfaces(
         self,

@@ -28,7 +28,10 @@ Long-term target:
 - `core/platform/browser-common.js`
   - shared browser-side token storage, template, URL, and Beagle-API helper seam used by the Proxmox UI, extension, and website surfaces
 - `website/app.js`
-  - consumes provider-neutral `/api/v1/virtualization/overview` payloads and renders host/node/storage inventory in the Beagle Web UI overview
+  - consumes provider-neutral `/api/v1/virtualization/overview` payloads and renders host/node/storage/bridge inventory in the Beagle Web UI overview
+  - consumes provider-neutral `/api/v1/endpoints` payloads for endpoint telemetry tables in the Beagle Web UI overview
+  - consumes provider-neutral `/api/v1/vms/{vmid}/update` and `/api/v1/vms/{vmid}/update/{scan|download|apply|rollback}` for VM update operations without direct Proxmox API coupling
+  - consumes provider-neutral `/api/v1/provisioning/catalog` and `/api/v1/provisioning/vms` for Web-Console-side provisioning create flows
 - `proxmox-ui/beagle-ui.js`
   - thin orchestration for Proxmox VM context detection, node selection from the Proxmox UI, and modal launch delegation
 - `proxmox-ui/components/modal-shell.js`
@@ -75,13 +78,19 @@ Long-term target:
 - `beagle-host/services/thin_client_preset.py`
   - shared thin-client preset base-field contract used by both the host installer builder and the USB Proxmox preset builder
 - `beagle-host/services/virtualization_inventory.py`
-  - provider-backed host read service for VM listing, node inventory, guest IPv4 lookup, VM config lookup, and bridge inventory used by the control plane
+  - provider-backed host read service for VM listing, node inventory, guest IPv4 lookup, VM config lookup, and derived bridge inventory used by the control plane
+- `beagle-host/services/virtualization_read_surface.py`
+  - provider-neutral HTTP read surface for hosts, nodes, storage, bridges (via `list_bridges` contract), VM config, and guest interfaces
+- `beagle-host/services/vm_mutation_surface.py`
+  - provider-neutral VM power mutation surface now includes `POST /api/v1/virtualization/vms/{vmid}/power` with actions `start|stop|reboot`, delegated to the selected host provider
 - `beagle-host/services/vm_state.py`
   - provider-backed host service for endpoint compliance evaluation and VM-state composition used by multiple control-plane handlers
 - `beagle-host/services/vm_usb.py`
   - host-side USB attach/detach and tunnel-state service that composes provider-backed guest-exec calls, endpoint reports, and VM-secret tunnel metadata without leaving that orchestration in the HTTP entrypoint
 - `beagle-host/services/ubuntu_beagle_provisioning.py`
   - host-side ubuntu-beagle provisioning/lifecycle service that composes provider-backed VM lifecycle operations, autoinstall artifact generation, provisioning state, and guest reconfiguration without leaving that orchestration in the HTTP entrypoint
+- `beagle-host/bin/beagle-control-plane.py`
+  - standalone/non-Proxmox safe ISO cache seam via `BEAGLE_UBUNTU_LOCAL_ISO_DIR` instead of hard coupling to `/var/lib/vz/template/iso`
 - `beagle-host/services/sunshine_integration.py`
   - host-side Sunshine/Moonlight integration service that composes provider-backed guest execution, VM-secret credentials, profile/config lookup, access-ticket persistence, TLS pinned-pubkey retrieval, and authenticated Sunshine HTTP proxying without leaving that orchestration in the HTTP entrypoint
 - `beagle-host/services/public_streams.py`
@@ -113,6 +122,7 @@ Long-term target:
   - `pvesh get /nodes`
   - `pvesh get /storage`
   - `pvesh get /nodes/{node}/qemu/{vmid}/config`
+  - `pvesh get /nodes/{node}/network` (bridge inventory via `list_bridges`)
   - `qm guest cmd ... network-get-interfaces`
   - `qm create`, `qm set`, `qm start`, `qm stop`
   - `qm guest exec`, `qm guest exec-status`
@@ -222,6 +232,14 @@ Generic contract:
 - `guest_exec_script_text(vmid, script, ...)`
 - `schedule_vm_restart_after_stop(vmid, ...)`
 - `get_guest_ipv4(vmid, ...)`
+
+### `beagle-host/services/vm_mutation_surface.py`
+
+Current virtualization mutation contract additions:
+
+- `POST /api/v1/virtualization/vms/{vmid}/power`
+  - request payload: `{ "action": "start" | "stop" | "reboot" }`
+  - provider-neutral delegation to the active host provider lifecycle methods
 
 ### `beagle-host/providers/registry.py`
 

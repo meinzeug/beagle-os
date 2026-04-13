@@ -4,19 +4,28 @@
 
 Update:
 
-- Der erste sichtbare Website-Slice fuer `hosts/nodes/storage` aus `/api/v1/virtualization/overview` ist jetzt umgesetzt.
-- Der naechste UI-Schritt ist daher nicht mehr Grund-Rendering, sondern Contract-Erweiterung und Bedienfluss.
+- Host/Node/Storage-Rendering plus Bridge/Network-Inventar-Slice jetzt umgesetzt.
+- Die erste provider-neutrale Operator-Aktion ist umgesetzt: VM Power (start/stop/reboot) aus der Website inkl. Bulk.
+- Zweite Operator-Welle ist gestartet: Update-Operations (inkl. Bulk) + Task-Queue-Ansicht + Provisioning-Create-Workspace sind in der Website angebunden.
+- Standalone E2E-Simulationsharness fuer Ubuntu-XFCE-Sunshine + Thinclient-Stream-Pfad ist umgesetzt und laeuft gruen.
+- Website hat jetzt zusaetzlich Endpoint-Telemetry plus Export-Funktionen sowie Session-Auto-Lock-Sicherheitshaertung.
+- Frischer Server-Installer-ISO-Build wurde in dedizierter VM als Boot-Smoketest gefahren.
+- Naechster UI-Schritt ist jetzt die dritte Operator-Welle: Delete-/Clone-/Snapshot-Flows, Update-Progress-Historie und klarere asynchrone Task-Timeline.
 
 1. Standalone-Server-Installer Ende-zu-Ende abschliessen:
    - neue ISO bauen
-   - frische Test-VM installieren
+   - frische Test-VM installieren (Smoke-Boot bereits erfolgt)
    - ersten Boot inklusive Host-Health, Website und API nachweisen
+   - aktuell offenen 502-Proxy-Backend-Fehler auf dem laufenden `beagle-server-test` Gast direkt im Gast beheben und danach echten Host-E2E (nicht nur Harness) erneut fahren
 2. Ersten echten Beagle-Web-Console-Slice liefern:
-   - abgeschlossen: Host/Node/Storage-Rendering in `website/`
-   - als naechstes Bridge-/Network-Read-Surface in der Website sichtbar machen (gleiche Overview-Flaeche oder eigener Abschnitt)
-   - danach erste provider-neutrale Operator-Aktion aus der Website gegen den Host-Service anbinden
+   - abgeschlossen: Host/Node/Storage/Bridge-Rendering in `website/`
+   - abgeschlossen: provider-neutrale VM-Power-Aktionen (`start/stop/reboot`) inkl. Bulk in Website angebunden
+   - abgeschlossen (teilweise): VM-Create (Provisioning) plus VM-Update-Operationen inkl. Bulk-Scan/Bulk-Download und Queue-Feedback
+   - als naechstes Delete-/Clone-/Snapshot-Flows plus klare Lifecycle-Progress/Result-Ansicht mit Historie anbinden
 3. Provider-Vertrag gezielt erweitern:
-   - Bridge-/Network-Inventar plus Guest-Script-Upload/-Status als naechsten gemeinsamen Contract-Slice festziehen
+   - abgeschlossen: Bridge-/Network-Inventar als Contract-Slice
+   - Guest-Script-Upload/-Status als naechsten gemeinsamen Contract-Slice festziehen
+   - danach Standalone-Provider von State-Skeleton auf echte lokale VM-Execution erweitern, damit aus Simulation ein reales Streaming-E2E im Standalone-Pfad wird
    - in Host-Service und mindestens einer Browserflaeche konsumieren
 4. Smoke-Checks erweitern:
    - Installer-URL-/Artifact-Layout-Verifikation
