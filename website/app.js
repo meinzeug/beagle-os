@@ -34,11 +34,18 @@
     selectedPolicyName: '',
     activeDetailPanel: 'summary',
     activePanel: 'overview',
-    detailCache: Object.create(null)
+    detailCache: Object.create(null),
+    autoRefresh: true,
+    authFailCount: 0,
+    authLockUntil: 0
   };
 
   var SESSION_IDLE_TIMEOUT_MS = 20 * 60 * 1000;
   var sessionLastActivityAt = Date.now();
+  var ACTIVITY_LOG_MAX = 50;
+  var activityLog = [];
+  var dashboardPollInterval = null;
+  var authLockCountdownTimer = null;
 
   var USAGE_WARN_THRESHOLD = 90;
   var USAGE_INFO_THRESHOLD = 70;
@@ -316,6 +323,178 @@
     if ((Date.now() - sessionLastActivityAt) > SESSION_IDLE_TIMEOUT_MS) {
       lockSession('Session aus Sicherheitsgruenden wegen Inaktivitaet gesperrt.');
     }
+  }
+
+  /* ── Dark mode ─────────────────────────────────────────── */
+  function loadDarkModePreference() {
+    try {
+      if (localStorage.getItem('beagle.darkMode') === '1') {
+        document.body.classList.add('dark-mode');
+      }
+    } catch (err) { void err; }
+  }
+
+  function toggleDarkMode() {
+    var isDark = document.body.classList.toggle('dark-mode');
+    try { localStorage.setItem('beagle.darkMode', isDark ? '1' : '0'); } catch (err) { void err; }
+    updateDarkModeButton();
+  }
+
+  function updateDarkModeButton() {
+    var btn = qs('toggle-dark-mode');
+    if (btn) {
+      btn.textContent = document.body.classList.contains('dark-mode') ? 'Hell' : 'Dunkel';
+    }
+  }
+
+  /* ── Auto-refresh ──────────────────────────────────────── */
+  function startDashboardPoll() {
+    if (dashboardPollInterval) { return; }
+    dashboardPollInterval = window.setInterval(loadDashboard, 30000);
+  }
+
+  function stopDashboardPoll() {
+    if (dashboardPollInterval) {
+      window.clearInterval(dashboardPollInterval);
+      dashboardPollInterval = null;
+    }
+  }
+
+  function toggleAutoRefresh() {
+    state.autoRefresh = !state.autoRefresh;
+    if (state.autoRefresh) {
+      startDashboardPoll();
+      setBanner('Auto-Aktualisierung wieder aktiv.', 'info');
+    } else {
+      stopDashboardPoll();
+      setBanner('Auto-Aktualisierung pausiert.', 'banner-warn');
+    }
+    updateAutoRefreshButton();
+  }
+
+  function updateAutoRefreshButton() {
+    var btn = qs('toggle-auto-refresh');
+    if (!btn) { return; }
+    if (state.autoRefresh) {
+      btn.textContent = 'Auto-Refresh an';
+      btn.className = 'button ghost';
+    } else {
+      btn.textContent = 'Auto-Refresh aus';
+      btn.className = 'button paused';
+    }
+  }
+
+  /* ── Activity log ──────────────────────────────────────── */
+  function addToActivityLog(action, vmid, result, message) {
+    activityLog.unshift({
+      ts: Date.now(),
+      action: String(action || 'action'),
+      vmid: vmid || null,
+      result: String(result || 'ok'),
+      message: String(message || '')
+    });
+    if (activityLog.length > ACTIVITY_LOG_MAX) {
+      activityLog.length = ACTIVITY_LOG_MAX;
+    }
+    renderActivityLog();
+  }
+
+  function renderActivityLog() {
+    var body = qs('activity-log-body');
+    if (!body) { return; }
+    if (!activityLog.length) {
+      body.innerHTML = '<tr><td colspan="4" class="empty-cell">Noch keine Aktionen protokolliert.</td></tr>';
+      return;
+    }
+    body.innerHTML = activityLog.slice(0, 20).map(function (entry) {
+      var tone = entry.result === 'ok' ? 'ok' : entry.result === 'warn' ? 'warn' : 'muted';
+      return '<tr>' +
+        '<td class="vm-sub">' + escapeHtml(formatDate(new Date(entry.ts))) + '</td>' +
+        '<td>' + escapeHtml(entry.action) + '</td>' +
+        '<td>' + (entry.vmid ? escapeHtml(String(entry.vmid)) : '–') + '</td>' +
+        '<td>' + chip(entry.result, tone) + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  /* ── Fleet health alert ────────────────────────────────── */
+  function updateFleetHealthAlert() {
+    var alertNode = qs('fleet-health-alert');
+    if (!alertNode) { return; }
+    var rows = Array.isArray(state.endpointReports) ? state.endpointReports : [];
+    var unhealthy = rows.filter(function (ep) {
+      var s = String(ep.status || ep.health_status || '').toLowerCase();
+      return s === 'stale' || s === 'offline' || s === 'error' || s === 'unknown';
+    });
+    if (unhealthy.length) {
+      alertNode.classList.remove('hidden');
+      var names = unhealthy.slice(0, 5).map(function (ep) {
+        return ep.hostname || ep.endpoint_id || 'endpoint';
+      });
+      alertNode.textContent = '\u26a0 ' + String(unhealthy.length) + ' Endpoint(s) mit Problemen: ' +
+        names.join(', ') + (unhealthy.length > 5 ? ' \u2026' : '');
+    } else {
+      alertNode.classList.add('hidden');
+    }
+  }
+
+  /* ── Auth lockout ──────────────────────────────────────── */
+  function isAuthLocked() {
+    return state.authLockUntil > Date.now();
+  }
+
+  function recordAuthSuccess() {
+    state.authFailCount = 0;
+    state.authLockUntil = 0;
+    updateConnectButton();
+  }
+
+  function recordAuthFailure() {
+    state.authFailCount++;
+    if (state.authFailCount >= 5) {
+      state.authLockUntil = Date.now() + 60000;
+      addToActivityLog('connect', null, 'warn', 'Auth locked: zu viele Fehlversuche');
+      startAuthLockCountdown();
+    }
+    updateConnectButton();
+  }
+
+  function updateConnectButton() {
+    var btn = qs('connect-button');
+    if (!btn) { return; }
+    if (isAuthLocked()) {
+      var remaining = Math.max(0, Math.ceil((state.authLockUntil - Date.now()) / 1000));
+      btn.disabled = true;
+      btn.textContent = 'Gesperrt (' + String(remaining) + 's)';
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Verbinden';
+    }
+  }
+
+  function startAuthLockCountdown() {
+    if (authLockCountdownTimer) { return; }
+    authLockCountdownTimer = window.setInterval(function () {
+      updateConnectButton();
+      if (!isAuthLocked()) {
+        window.clearInterval(authLockCountdownTimer);
+        authLockCountdownTimer = null;
+        setBanner('Verbindungssperre aufgehoben.', 'info');
+      }
+    }, 1000);
+  }
+
+  /* ── Masked credential field ───────────────────────────── */
+  function maskedFieldBlock(label, value) {
+    var safeId = 'cred-' + Math.random().toString(36).slice(2, 10);
+    var hasValue = Boolean(value);
+    return '<div class="kv"><div class="kv-label">' + escapeHtml(label) + '</div>' +
+      '<div class="kv-value kv-value-masked">' +
+      '<span class="kv-secret" id="' + safeId + '" data-real="' + escapeHtml(value || '') + '" data-visible="0">' +
+      (hasValue ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : 'n/a') +
+      '</span>' +
+      (hasValue ? '<button type="button" class="btn-reveal" data-reveal-id="' + safeId + '">Anzeigen</button>' : '') +
+      '</div></div>';
   }
 
   function downloadTextFile(filename, content, contentType) {
@@ -597,12 +776,16 @@
     if (!numericVmid || !actionName) {
       return Promise.resolve();
     }
+    if (actionName === 'stop' && !window.confirm('VM ' + numericVmid + ' wirklich stoppen?')) {
+      return Promise.resolve();
+    }
     setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' wird ausgefuehrt ...', 'info');
     return request('/virtualization/vms/' + numericVmid + '/power', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: actionName })
     }).then(function () {
+      addToActivityLog('vm-' + actionName, numericVmid, 'ok', 'VM power action');
       setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' erfolgreich.', 'ok');
       return loadDashboard().then(function () {
         if (state.selectedVmid === numericVmid) {
@@ -611,6 +794,7 @@
         return null;
       });
     }).catch(function (error) {
+      addToActivityLog('vm-' + actionName, numericVmid, 'warn', error.message);
       setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' fehlgeschlagen: ' + error.message, 'warn');
     });
   }
@@ -1037,6 +1221,7 @@
     postJson('/provisioning/vms', payload).then(function (response) {
       var vm = response && response.provisioned_vm ? response.provisioned_vm : {};
       var vmid = Number(vm.vmid || payload.vmid || 0);
+      addToActivityLog('provision-create', vmid || null, 'ok', 'VM erstellt: ' + (payload.name || ''));
       setBanner('Provisioning gestartet fuer VM ' + (vmid || '?') + '.', 'ok');
       return loadDashboard().then(function () {
         if (vmid) {
@@ -1045,6 +1230,7 @@
         return null;
       });
     }).catch(function (error) {
+      addToActivityLog('provision-create', null, 'warn', error.message);
       setBanner('Provisioning fehlgeschlagen: ' + error.message, 'warn');
     });
   }
@@ -1295,10 +1481,10 @@
       '<div class="detail-panel" data-detail-panel="credentials">' +
       '  <section class="detail-section"><h3>Credentials</h3>' +
            fieldBlock('Thin Client User', credentials.thinclient_username) +
-           fieldBlock('Thin Client Password', credentials.thinclient_password) +
+           maskedFieldBlock('Thin Client Password', credentials.thinclient_password) +
            fieldBlock('Sunshine User', credentials.sunshine_username) +
-           fieldBlock('Sunshine Password', credentials.sunshine_password) +
-           fieldBlock('Sunshine PIN', credentials.sunshine_pin) +
+           maskedFieldBlock('Sunshine Password', credentials.sunshine_password) +
+           maskedFieldBlock('Sunshine PIN', credentials.sunshine_pin) +
       '  </section>' +
       '</div>' +
       '<div class="detail-panel" data-detail-panel="bundles">' +
@@ -1443,15 +1629,20 @@
       setBanner('No policy selected.', 'warn');
       return;
     }
+    if (!window.confirm('Policy "' + name + '" wirklich loeschen?')) {
+      return;
+    }
     setBanner('Policy ' + name + ' deleting...', 'info');
     request('/policies/' + encodeURIComponent(name), {
       method: 'DELETE'
     }).then(function () {
+      addToActivityLog('policy-delete', null, 'ok', name);
       resetPolicyEditor();
       return loadDashboard();
     }).then(function () {
       setBanner('Policy ' + name + ' deleted.', 'ok');
     }).catch(function (error) {
+      addToActivityLog('policy-delete', null, 'warn', error.message);
       setBanner('Failed to delete policy:' + error.message, 'warn');
     });
   }
@@ -1477,6 +1668,7 @@
       state.policies = (results[3] && results[3].policies) || [];
       state.virtualizationOverview = results[4] || null;
       state.provisioningCatalog = results[5] && results[5].catalog ? results[5].catalog : null;
+      recordAuthSuccess();
       setAuthMode(true);
       statCardFromHealth(health, state.virtualizationOverview);
       renderInventory();
@@ -1485,6 +1677,7 @@
       renderPolicies();
       renderVirtualizationPanel();
       renderProvisioningWorkspace();
+      updateFleetHealthAlert();
       setBanner('Verbunden. Inventar, Policies und Virtualisierung sind aktuell.', 'ok');
       if (state.selectedVmid) {
         return loadDetail(state.selectedVmid);
@@ -1494,6 +1687,7 @@
       }
       return null;
     }).catch(function (error) {
+      recordAuthFailure();
       setAuthMode(false);
       text('stat-manager', 'Error');
       text('stat-manager-meta', error.message);
@@ -1565,8 +1759,10 @@
     if (action === 'installer-prep') {
       setBanner('Preparing installer for VM ' + vmid + '...', 'info');
       postJson('/vms/' + vmid + '/installer-prep', {}).then(function () {
+        addToActivityLog('installer-prep', vmid, 'ok', 'Installer vorbereitet');
         return loadDetail(vmid);
       }).catch(function (error) {
+        addToActivityLog('installer-prep', vmid, 'warn', error.message);
         setBanner('Installer preparation failed: ' + error.message, 'warn');
       });
       return;
@@ -1604,14 +1800,29 @@
     }
     setBanner('Queuing action ' + action + ' for VM ' + vmid + '...', 'info');
     postJson('/vms/' + vmid + '/actions', { action: action }).then(function () {
+      addToActivityLog(action, vmid, 'ok', 'Action queued');
       setBanner('Action ' + action + ' queued for VM ' + vmid + '.', 'ok');
       return loadDetail(vmid);
     }).catch(function (error) {
+      addToActivityLog(action, vmid, 'warn', error.message);
       setBanner('Action failed: ' + error.message, 'warn');
     });
   }
 
   function bindEvents() {
+    if (qs('toggle-dark-mode')) {
+      qs('toggle-dark-mode').addEventListener('click', toggleDarkMode);
+    }
+    if (qs('toggle-auto-refresh')) {
+      qs('toggle-auto-refresh').addEventListener('click', toggleAutoRefresh);
+    }
+    if (qs('clear-activity-log')) {
+      qs('clear-activity-log').addEventListener('click', function () {
+        activityLog.length = 0;
+        renderActivityLog();
+        setBanner('Aktivitaetslog geleert.', 'info');
+      });
+    }
     var tokenField = qs('api-token');
     if (tokenField) {
       tokenField.value = state.token;
@@ -1830,6 +2041,24 @@
       });
     }
     qs('detail-stack').addEventListener('click', function (event) {
+      var revealBtn = event.target.closest('button[data-reveal-id]');
+      if (revealBtn) {
+        var targetId = revealBtn.getAttribute('data-reveal-id');
+        var secretSpan = document.getElementById(targetId);
+        if (secretSpan) {
+          var visible = secretSpan.getAttribute('data-visible') === '1';
+          if (visible) {
+            secretSpan.textContent = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+            secretSpan.setAttribute('data-visible', '0');
+            revealBtn.textContent = 'Anzeigen';
+          } else {
+            secretSpan.textContent = secretSpan.getAttribute('data-real') || '';
+            secretSpan.setAttribute('data-visible', '1');
+            revealBtn.textContent = 'Verbergen';
+          }
+        }
+        return;
+      }
       var button = event.target.closest('button[data-action]');
       if (!button) {
         return;
@@ -1896,11 +2125,15 @@
   }
 
   applyTitle();
+  loadDarkModePreference();
+  updateDarkModeButton();
+  updateAutoRefreshButton();
   consumeTokenFromLocation();
   bindEvents();
   resetPolicyEditor();
   renderVirtualizationOverview();
   renderEndpointsOverview();
+  renderActivityLog();
   renderProvisioningWorkspace();
   (function bootstrapHashState() {
     var hashState = parseAppHash();
@@ -1932,5 +2165,5 @@
       loadDetail(hashState.vmid);
     }
   });
-  window.setInterval(loadDashboard, 30000);
+  startDashboardPoll();
 })();
