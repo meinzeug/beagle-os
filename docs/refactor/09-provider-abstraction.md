@@ -73,6 +73,10 @@ Long-term target:
 
 - `beagle-host/`
   - canonical generic host/control-plane repo surface; no longer named after a single provider
+- `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+  - security baseline hardening (`sshd` drop-in, `fail2ban`, `unattended-upgrades`, `nftables`) is now applied in both installer modes (`standalone` and `with-proxmox`) through the shared installer flow, not as a provider-specific branch
+- `beagle-host/systemd/beagle-control-plane.service`
+  - service hardening tightened (`SystemCallFilter`, `CapabilityBoundingSet`, `RestrictAddressFamilies`) without adding new direct Proxmox coupling; `ProtectKernelTunables=no` is currently retained as an explicit provider-compatibility exception
 - `beagle-host/bin/endpoint_profile_contract.py`
   - explicit public endpoint profile contract normalization for browser and installer consumers
 - `beagle-host/services/thin_client_preset.py`

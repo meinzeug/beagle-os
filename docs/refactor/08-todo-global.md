@@ -185,6 +185,10 @@
 - [ ] Add provider-neutral VM create/update/delete flows to the website (Web Console) after the delivered power-action slice.
 - [ ] Make Proxmox optional at deploy/install/runtime boundaries instead of the implicit required backend.
 - [ ] Finish a fresh standalone server-installer verification on `thinover.net`, confirm first boot into the installed system, and validate the Beagle host stack end to end after the DHCP/DNS/retry, live-locale, Beagle source-root, live-side source-archive, and bundled-source-archive fixes.
+- [x] Harden server-side control-plane token comparison to timing-safe checks and add strict HTTP security headers.
+- [x] Harden `beagle-control-plane.service` with syscall/capability/address-family restrictions while keeping provider-required tunables behavior.
+- [x] Harden server-installer target baseline with SSH hardening, fail2ban, unattended-upgrades, nftables, and stricter `/boot/efi` mount flags.
+- [ ] Re-run server-installer VM test to completion (install -> reboot -> reachability) after resolving serial-console contention in the current libvirt workflow.
 - [x] Add a standalone Ubuntu-XFCE-Sunshine + thinclient-stream E2E simulation harness (`scripts/test-standalone-desktop-stream-sim.sh`) that validates the same provider-neutral WebUI/API provisioning contracts.
 - [x] Extend website overview with provider-neutral endpoint telemetry (`/api/v1/endpoints`) and operator export actions (inventory CSV/JSON, endpoints JSON).
 - [x] Add Web Console session-security hardening (inactivity auto-lock with token clear, guarded Sunshine external URL open).

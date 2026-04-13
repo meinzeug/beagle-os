@@ -1,5 +1,23 @@
 # Next Steps
 
+## Immediate security follow-up (new)
+
+1. Complete the pending VM verification for the hardened server installer:
+   - boot fresh VM from `dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso`
+   - complete installer prompts manually or with a single stable serial-console path
+   - reboot into installed system
+   - verify reachability after reboot:
+     - SSH on port `22`
+     - Beagle API health (`/healthz` and `/api/v1/health`) on configured host/API ports
+2. Resolve libvirt serial-console contention in test workflow:
+   - use one console client path only (`virsh console --force` OR direct PTY), never mixed
+   - document exact reliable console automation command in repo docs/scripts for handoff reuse
+3. Add post-install security smoke checks in VM:
+   - confirm `sshd_config.d/99-beagle-hardening.conf` is active
+   - confirm `nftables`, `fail2ban`, `unattended-upgrades` are enabled
+   - confirm `/etc/fstab` has `nodev,nosuid` on `/boot/efi`
+4. If VM verification is green, commit/push this security slice as one atomic change.
+
 ## Prioritaet fuer den naechsten Run (kurz)
 
 Update:

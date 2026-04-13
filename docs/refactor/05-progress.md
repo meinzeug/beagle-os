@@ -1,5 +1,34 @@
 # Refactor Progress
 
+### 2026-04-13 — Server security hardening slice (control plane, systemd, installer)
+
+- Security hardening on host/control-plane surfaces implemented:
+  - `beagle-host/bin/beagle-control-plane.py`
+    - API token checks switched to timing-safe comparison via `secrets.compare_digest()` for `Authorization: Bearer` and `X-Beagle-Api-Token`
+    - added HTTP response security headers: `Strict-Transport-Security` and `Content-Security-Policy`
+  - `beagle-host/systemd/beagle-control-plane.service`
+    - tightened runtime directory mode to `0750`
+    - added `SystemCallFilter=@system-service @network-io @file-system @basic-io`
+    - added `CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_DAC_READ_SEARCH CAP_SETUID CAP_SETGID CAP_SYS_ADMIN`
+    - added `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK`
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+    - `/boot/efi` mount options hardened to `umask=0077,nodev,nosuid`
+    - host package sets extended with `fail2ban`, `unattended-upgrades`, `apt-listchanges`, `nftables`
+    - new `harden_system()` stage added to installer flow:
+      - SSH hardening drop-in `/etc/ssh/sshd_config.d/99-beagle-hardening.conf`
+      - unattended-upgrades defaults in `/etc/apt/apt.conf.d/20auto-upgrades`
+      - fail2ban ssh jail in `/etc/fail2ban/jail.d/beagle-sshd.conf`
+      - nftables default ruleset in `/etc/nftables.conf`
+      - enable `nftables`, `fail2ban`, `unattended-upgrades`
+- Validation done:
+  - `python3 -m py_compile beagle-host/bin/beagle-control-plane.py`
+  - `bash -n server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+- ISO rebuild done:
+  - `dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso` created successfully (566 MB)
+- VM install/reboot/reachability test status:
+  - test VM was started (`beagle-security-test`), but automated serial-console interaction was blocked by persistent libvirt console session conflicts and non-readable serial output in this run
+  - full install-complete + post-reboot reachability verification is still open and must be rerun in the next slice
+
 ### 2026-04-13 — WebUI feature wave (endpoint telemetry/export) + security hardening + server ISO VM smoke test
 
 - Website/Web Console erweitert um weitere Operator-Funktionen:

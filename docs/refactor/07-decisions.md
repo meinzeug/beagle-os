@@ -2,6 +2,42 @@
 
 ## 2026-04-13
 
+### D31. Server hardening baseline is now part of installer default, not optional post-install work
+
+Decision:
+
+- Server installer now writes baseline hardening directly into the target system during install (`harden_system()`), including:
+  - SSH hardening drop-in
+  - `unattended-upgrades` auto-update defaults
+  - `fail2ban` ssh jail
+  - `nftables` default policy
+
+Reason:
+
+- Security posture should be deterministic and present on first boot, not dependent on later manual hardening steps.
+
+### D32. API token validation must use timing-safe compare
+
+Decision:
+
+- API token comparisons in the control-plane HTTP handler use `secrets.compare_digest()` instead of direct string equality.
+
+Reason:
+
+- Removes avoidable timing side-channel leakage on authentication checks.
+
+### D33. Keep `ProtectKernelTunables=no` for current control-plane service due provider behavior, but tighten around it
+
+Decision:
+
+- `beagle-control-plane.service` keeps `ProtectKernelTunables=no` for current Proxmox-backed behavior.
+- Additional confinement (`SystemCallFilter`, `CapabilityBoundingSet`, `RestrictAddressFamilies`, tighter runtime dir mode) is applied around that exception.
+
+Reason:
+
+- Current provider/runtime paths still require kernel-tunable changes in specific flows; strict tunable protection would break behavior right now.
+- Compensating restrictions reduce process attack surface until provider behavior is further segmented.
+
 ### D30. Web Console session security must default to auto-lock and token clearing on inactivity
 
 Decision:

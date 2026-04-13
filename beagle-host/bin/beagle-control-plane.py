@@ -2016,9 +2016,11 @@ class Handler(BaseHTTPRequestHandler):
         if not API_TOKEN:
             return False
         header = self.headers.get("Authorization", "")
-        if header.startswith("Bearer ") and header[7:].strip() == API_TOKEN:
+        bearer = header[7:].strip() if header.startswith("Bearer ") else ""
+        if bearer and secrets.compare_digest(bearer, API_TOKEN):
             return True
-        if self.headers.get("X-Beagle-Api-Token", "").strip() == API_TOKEN:
+        api_token = self.headers.get("X-Beagle-Api-Token", "").strip()
+        if api_token and secrets.compare_digest(api_token, API_TOKEN):
             return True
         return False
 
@@ -2046,6 +2048,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+        self.send_header("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'")
         origin = self._cors_origin()
         if origin:
             self.send_header("Access-Control-Allow-Origin", origin)

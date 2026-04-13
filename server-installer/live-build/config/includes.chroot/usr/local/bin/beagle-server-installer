@@ -565,7 +565,7 @@ write_fstab() {
   boot_uuid="$(blkid -s UUID -o value "$boot_part")"
   cat >"$TARGET_MOUNT/etc/fstab" <<EOF
 UUID=$root_uuid / ext4 defaults 0 1
-UUID=$boot_uuid /boot/efi vfat umask=0077 0 1
+UUID=$boot_uuid /boot/efi vfat umask=0077,nodev,nosuid 0 1
 EOF
 }
 
@@ -614,12 +614,12 @@ install_host_provider_packages() {
     beagle)
       chroot_run_with_retry \
         "install standalone host packages" \
-        "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server git python3 rsync linux-image-amd64 grub-pc grub-efi-amd64-bin efibootmgr dosfstools"
+        "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server fail2ban unattended-upgrades apt-listchanges nftables git python3 rsync linux-image-amd64 grub-pc grub-efi-amd64-bin efibootmgr dosfstools"
       ;;
     proxmox)
       chroot_run_with_retry \
         "install proxmox host packages" \
-        "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server proxmox-ve postfix open-iscsi chrony git python3 rsync grub-pc grub-efi-amd64-bin efibootmgr dosfstools"
+        "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server fail2ban unattended-upgrades apt-listchanges nftables proxmox-ve postfix open-iscsi chrony git python3 rsync grub-pc grub-efi-amd64-bin efibootmgr dosfstools"
       ;;
     *)
       echo "Unsupported server-installer host provider: $kind" >&2
@@ -651,12 +651,82 @@ install_beagle_host_stack() {
   chroot_run "install_script=\$(find /usr/local/src/beagle-os-src -path '*/scripts/install-beagle-host.sh' -print -quit); [[ -n \"\$install_script\" ]] && source_root=\$(dirname \"\$(dirname \"\$install_script\")\") && cd \"\$source_root\" && BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q BEAGLE_SERVER_INSTALL_MODE=$mode_q BEAGLE_HOST_PROVIDER=$kind PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-beagle-host.sh"
 }
 
+harden_system() {
+  log "applying system hardening"
+
+  # SSH hardening drop-in
+  mkdir -p "$TARGET_MOUNT/etc/ssh/sshd_config.d"
+  cat >"$TARGET_MOUNT/etc/ssh/sshd_config.d/99-beagle-hardening.conf" <<'SSHEOF'
+PermitRootLogin prohibit-password
+PasswordAuthentication yes
+PermitEmptyPasswords no
+MaxAuthTries 3
+LoginGraceTime 30
+X11Forwarding no
+IgnoreRhosts yes
+HostbasedAuthentication no
+ClientAliveInterval 300
+ClientAliveCountMax 2
+SSHEOF
+
+  # Enable automatic security updates
+  mkdir -p "$TARGET_MOUNT/etc/apt/apt.conf.d"
+  cat >"$TARGET_MOUNT/etc/apt/apt.conf.d/20auto-upgrades" <<'APTEOF'
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";
+APTEOF
+
+  # fail2ban: enable SSH jail
+  mkdir -p "$TARGET_MOUNT/etc/fail2ban/jail.d"
+  cat >"$TARGET_MOUNT/etc/fail2ban/jail.d/beagle-sshd.conf" <<'F2BEOF'
+[sshd]
+enabled  = true
+port     = ssh
+maxretry = 5
+bantime  = 3600
+findtime = 600
+F2BEOF
+
+  # nftables: basic stateful firewall
+  cat >"$TARGET_MOUNT/etc/nftables.conf" <<'NFTEOF'
+#!/usr/sbin/nft -f
+flush ruleset
+
+table inet filter {
+  chain input {
+    type filter hook input priority 0; policy drop;
+    ct state invalid drop
+    ct state { established, related } accept
+    iifname lo accept
+    ip protocol icmp accept
+    ip6 nexthdr icmpv6 accept
+    # SSH, Beagle API/download, Beagle Web UI
+    tcp dport { 22, 443, 8443 } accept
+    # Proxmox web UI (only needed in proxmox mode)
+    tcp dport 8006 accept
+  }
+  chain forward {
+    type filter hook forward priority 0; policy drop;
+    ct state { established, related } accept
+  }
+  chain output {
+    type filter hook output priority 0; policy accept;
+  }
+}
+NFTEOF
+  chroot_run "systemctl enable nftables" || true
+  chroot_run "systemctl enable fail2ban" || true
+  chroot_run "systemctl enable unattended-upgrades" || true
+}
+
 install_bootloader() {
   local disk="$1"
   chroot_run "grub-install --target=i386-pc --recheck '$disk'"
   chroot_run "grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=debian --recheck --no-nvram --removable"
   chroot_run "update-grub"
 }
+
 
 finish_install() {
   touch "$DONE_FILE"
@@ -788,6 +858,7 @@ main() {
   configure_base_system "$boot_part" "$root_part"
   mount_chroot_fs
   install_target_packages
+  harden_system
   install_beagle_host_stack
   install_bootloader "$INSTALL_DISK"
   finish_install
