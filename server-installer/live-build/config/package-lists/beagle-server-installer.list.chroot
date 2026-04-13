@@ -3,6 +3,7 @@ live-config
 systemd-sysv
 ca-certificates
 curl
+python3
 debootstrap
 dosfstools
 e2fsprogs

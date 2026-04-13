@@ -1,5 +1,57 @@
 # Refactor Progress
 
+### 2026-04-13 — Server installer live ISO root-cause fix (`python3` + GUI syntax)
+
+- Closed the current server-installer black-screen regression in the live ISO after confirming the earlier tty1 failure was not a framebuffer-only problem.
+- Root cause verified in the libvirt VM run:
+  - the live image did not contain `python3`, so `/usr/local/bin/beagle-server-installer` exited before the GUI could ever start
+  - the temporary debug edit in `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer-gui` had also left an orphaned `try:` block, which made the GUI script syntactically invalid at parse time
+- Fix applied:
+  - `server-installer/live-build/config/package-lists/beagle-server-installer.list.chroot`
+    - added `python3` to the live package set
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer-gui`
+    - removed the broken debug instrumentation and restored a valid `main()` flow
+- Validation done:
+  - `python3 -m py_compile server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer-gui`
+  - rebuilt fresh ISO successfully
+  - latest verified artifact: `dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso` with volume id `Debian bookworm 20260413-16:04`
+  - booted `beagleserver` VM from that ISO and verified via screenshots:
+    - GRUB visible
+    - installer splash visible on `tty1`
+    - next curses screen visible after ENTER (`Welcome to Beagle OS Server Installer`)
+- Current status:
+  - the Python/curses installer path is rendering again on `tty1`
+  - the immediate next open item is full install -> reboot -> reachability verification with this fixed ISO
+
+### 2026-04-13 — Server installer VM visibility fix on tty1
+
+- Reworked the live installer launch path after repeated VM black-screen failures in the Python/curses installer UI.
+- Verified root cause slices during libvirt VM testing:
+  - GRUB boot and kernel/live boot were working.
+  - serial console (`ttyS0`) consistently showed the installer prompts.
+  - the Python/curses-driven installer path on `tty1` was not reliably visible in the VM framebuffer and repeatedly degraded into a black screen.
+- Applied a pragmatic runtime fix in the live image:
+  - `server-installer/live-build/config/includes.chroot/etc/profile.d/beagle-server-installer-autostart.sh`
+    - `tty1` now forces the stable text installer path (`BEAGLE_SERVER_INSTALLER_FORCE_TEXT=1`)
+    - `ttyS0` continues to force the same text installer path
+  - `server-installer/live-build/config/hooks/live/010-enable-services.hook.chroot`
+    - restored `getty@tty1.service` as the visible console entrypoint
+    - removed the intermediate dedicated tty1 systemd installer service experiment after it did not improve framebuffer visibility
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+    - earlier command-substitution-based GUI launch was already fixed so the installer no longer loses its controlling TTY when the Python helper is used
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer-gui`
+    - reduced console-fragile Unicode usage and added a plain-console path for Linux-style terminals
+- Validation done:
+  - multiple fresh ISO rebuilds completed successfully
+  - latest verified artifact: `dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso` from `2026-04-13 10:34`
+  - fresh VM `beagle-security-test` booted from that ISO under libvirt/qemu session mode
+  - screenshot verification now proves the installer is visible on `tty1` in the VM:
+    - Beagle OS Server Installer text prompts are shown
+    - current visible prompt: `Choose install mode [1]:`
+- Current status:
+  - the server installer is now visibly usable again in the VM
+  - the remaining open item is full install -> reboot -> post-reboot reachability verification
+
 ### 2026-04-13 — Server security hardening slice (control plane, systemd, installer)
 
 - Security hardening on host/control-plane surfaces implemented:

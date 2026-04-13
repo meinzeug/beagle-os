@@ -774,16 +774,11 @@ main() {
   export BEAGLE_GUI_STATE_FILE="$gui_state_file"
 
   if [[ -x "$gui_bin" && "${BEAGLE_SERVER_INSTALLER_FORCE_TEXT:-0}" != "1" ]]; then
-    # The GUI writes the state file and prints its path to stdout on success.
-    local gui_state_output
-    gui_state_output="$(python3 "$gui_bin")" || {
+    # Run the curses UI directly so stdin/stdout remain attached to the active TTY.
+    python3 "$gui_bin" || {
       echo "Installer GUI exited unexpectedly." >&2
       exit 1
     }
-    gui_state_output="${gui_state_output//$'\r'/}"
-    if [[ -n "$gui_state_output" ]]; then
-      gui_state_file="$gui_state_output"
-    fi
     if [[ ! -f "$gui_state_file" ]]; then
       echo "Installation cancelled."
       exit 0

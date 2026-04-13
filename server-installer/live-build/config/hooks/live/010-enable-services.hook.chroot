@@ -4,4 +4,5 @@ set -e
 systemctl enable systemd-networkd.service
 systemctl enable systemd-networkd-wait-online.service
 systemctl enable getty@tty1.service
+systemctl disable serial-getty@ttyS0.service || true
 systemctl enable serial-getty@ttyS0.service

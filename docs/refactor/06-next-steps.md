@@ -3,8 +3,7 @@
 ## Immediate security follow-up (new)
 
 1. Complete the pending VM verification for the hardened server installer:
-   - boot fresh VM from `dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso`
-   - complete installer prompts manually or with a single stable serial-console path
+   - continue from the now-visible fixed installer on `tty1` or the already confirmed stable `ttyS0` path
    - reboot into installed system
    - verify reachability after reboot:
      - SSH on port `22`
@@ -17,6 +16,12 @@
    - confirm `nftables`, `fail2ban`, `unattended-upgrades` are enabled
    - confirm `/etc/fstab` has `nodev,nosuid` on `/boot/efi`
 4. If VM verification is green, commit/push this security slice as one atomic change.
+
+## Immediate installer follow-up (updated)
+
+1. Use the freshly fixed `20260413-16:04` ISO for the next end-to-end install/reboot verification run.
+2. Keep `ttyS0` available as the fallback diagnostic path, but treat `tty1` as the primary validation surface again now that curses is visible.
+3. After the install/reboot/reachability path is green, remove any remaining temporary installer debug residue and re-evaluate whether a plain-text fallback is still needed.
 
 ## Prioritaet fuer den naechsten Run (kurz)
 

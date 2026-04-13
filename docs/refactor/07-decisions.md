@@ -2,6 +2,19 @@
 
 ## 2026-04-13
 
+### D34. Prefer the stable text installer on live VM consoles over the fragile curses path
+
+Decision:
+
+- Force the server installer into the text installer path on both `tty1` and `ttyS0` in the live ISO for now.
+- Keep `getty@tty1` as the visible console entrypoint and launch the installer from the auto-login shell via `profile.d`.
+- Treat the Python/curses installer path as secondary until the end-to-end install/reboot/reachability path is green again.
+
+Reason:
+
+- VM validation showed a repeatable black-screen failure on the live framebuffer while the same installer flow remained healthy on the serial console.
+- The visible text installer unblocks real installer verification immediately and is the lower-risk path for current server-installer hardening work.
+
 ### D31. Server hardening baseline is now part of installer default, not optional post-install work
 
 Decision:

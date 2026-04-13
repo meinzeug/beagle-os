@@ -29,19 +29,17 @@ C_DANGER = 8
 C_PROGRESS = 9
 
 LOGO_WIDE = r"""
-  ██████╗ ███████╗ █████╗  ██████╗ ██╗     ███████╗
-  ██╔══██╗██╔════╝██╔══██╗██╔════╝ ██║     ██╔════╝
-  ██████╔╝█████╗  ███████║██║  ███╗██║     █████╗
-  ██╔══██╗██╔══╝  ██╔══██║██║   ██║██║     ██╔══╝
-  ██████╔╝███████╗██║  ██║╚██████╔╝███████╗███████╗
-  ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝
+BBBBB   EEEEE   AAAAA   GGGG   L      EEEEE
+B    B  E      A     A G      L      E
+BBBBB   EEEE   AAAAAAA G  GGG L      EEEE
+B    B  E      A     A G    G L      E
+BBBBB   EEEEE  A     A  GGGG  LLLLL  EEEEE
 
-    ██████╗ ███████╗    ███████╗███████╗██████╗
-    ██╔══██╗██╔════╝    ██╔════╝██╔════╝██╔══██╗
-    ██║  ██║███████╗    ███████╗█████╗  ██████╔╝
-    ██║  ██║╚════██║    ╚════██║██╔══╝  ██╔══██╗
-    ██████╔╝███████║    ███████║███████╗██║  ██║
-    ╚═════╝ ╚══════╝    ╚══════╝╚══════╝╚═╝  ╚═╝
+    SSSS  EEEEE  RRRR   V   V  EEEEE  RRRR
+ S      E      R   R  V   V  E      R   R
+    SSS   EEEE   RRRR    V V   EEEE   RRRR
+         S  E      R  R     V    E      R  R
+ SSSS   EEEEE  R   R    V    EEEEE  R   R
 """
 
 LOGO_COMPACT = r"""
@@ -58,7 +56,7 @@ LOGO_COMPACT = r"""
           \/_____/ \/_____/   \/_____/ \/_____/ \/_/ /_/
 """
 
-SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+SPINNER = "-|/\\"
 
 
 def init_colors() -> None:
@@ -105,14 +103,14 @@ def draw_box(win, title: str = "", color: int = C_CHROME) -> None:
     win.bkgd(" ", body)
     win.erase()
     try:
-        win.addstr(0, 0, "┌" + "─" * (w - 2) + "┐", attr)
-        win.addstr(h - 1, 0, "└" + "─" * (w - 2) + "┘", attr)
+        win.addstr(0, 0, "+" + "-" * (w - 2) + "+", attr)
+        win.addstr(h - 1, 0, "+" + "-" * (w - 2) + "+", attr)
     except curses.error:
         pass
     for r in range(1, h - 1):
         try:
-            win.addstr(r, 0, "│", attr)
-            win.addstr(r, w - 1, "│", attr)
+            win.addstr(r, 0, "|", attr)
+            win.addstr(r, w - 1, "|", attr)
         except curses.error:
             pass
     if title:
@@ -165,7 +163,7 @@ def screen_splash(stdscr) -> None:
             except curses.error:
                 pass
         center_text(stdscr, start_row + logo_h + 1, "  Server Installer  ", curses.color_pair(C_CHROME) | curses.A_BOLD)
-        center_text(stdscr, start_row + logo_h + 2, "Bare-metal host deployment · standalone & Proxmox modes", curses.color_pair(C_DIM))
+        center_text(stdscr, start_row + logo_h + 2, "Bare-metal host deployment - standalone & Proxmox modes", curses.color_pair(C_DIM))
         stdscr.refresh()
         time.sleep(0.55)
     center_text(stdscr, h - 2, "Press ENTER to continue", curses.color_pair(C_DIM))
@@ -188,7 +186,7 @@ def screen_msgbox(stdscr, title: str, lines: list[str], color: int = C_CHROME) -
             win.addstr(i + 2, 3, ln[:cols - 6], curses.color_pair(C_BODY))
         except curses.error:
             pass
-    footer_hint(win, "ENTER – OK")
+    footer_hint(win, "ENTER - OK")
     win.refresh()
     win.nodelay(False)
     win.getch()
@@ -212,14 +210,14 @@ def screen_menu(stdscr, title: str, prompt: str, items: list[tuple[str, str]], d
             row = 4 + i
             if row >= rows - 2:
                 break
-            text = f"  {'●' if i == idx else '○'}  {key}  {label}"
+            text = f"  {'*' if i == idx else ' '}  {key}  {label}"
             text = text[:ww - 4]
             attr = curses.color_pair(C_SELECTED) | curses.A_BOLD if i == idx else curses.color_pair(C_BODY)
             try:
                 win.addstr(row, 2, text.ljust(ww - 4), attr)
             except curses.error:
                 pass
-        footer_hint(win, "↑↓ navigate   ENTER select")
+        footer_hint(win, "Arrow keys navigate   ENTER select")
         win.refresh()
         key = win.getch()
         if key in (curses.KEY_UP, ord("k")):
@@ -248,16 +246,16 @@ def screen_input(stdscr, title: str, prompt: str, default: str = "", secret: boo
         display = display[-field_w:]
         field_row = 4
         try:
-            win.addstr(field_row, 3, "┌" + "─" * field_w + "┐", curses.color_pair(C_DIM))
-            win.addstr(field_row + 1, 3, "│", curses.color_pair(C_DIM))
+            win.addstr(field_row, 3, "+" + "-" * field_w + "+", curses.color_pair(C_DIM))
+            win.addstr(field_row + 1, 3, "|", curses.color_pair(C_DIM))
             win.addstr(field_row + 1, 4, display.ljust(field_w)[:field_w], curses.color_pair(C_SELECTED) | curses.A_BOLD)
-            win.addstr(field_row + 1, 4 + field_w, "│", curses.color_pair(C_DIM))
-            win.addstr(field_row + 2, 3, "└" + "─" * field_w + "┘", curses.color_pair(C_DIM))
+            win.addstr(field_row + 1, 4 + field_w, "|", curses.color_pair(C_DIM))
+            win.addstr(field_row + 2, 3, "+" + "-" * field_w + "+", curses.color_pair(C_DIM))
         except curses.error:
             pass
         if error_msg:
             try:
-                win.addstr(field_row + 3, 3, ("⚠  " + error_msg)[:ww - 6], curses.color_pair(C_ERROR) | curses.A_BOLD)
+                win.addstr(field_row + 3, 3, ("!  " + error_msg)[:ww - 6], curses.color_pair(C_ERROR) | curses.A_BOLD)
             except curses.error:
                 pass
         elif validator_hint:
@@ -313,21 +311,21 @@ def screen_disk_select(stdscr, disks: list[tuple[str, str, str]]) -> str:
         _, ww = win.getmaxyx()
         try:
             win.addstr(2, 3, "Choose the disk to install Beagle OS on.", curses.color_pair(C_ACCENT) | curses.A_BOLD)
-            win.addstr(3, 3, "⚠  The selected disk will be completely erased.", curses.color_pair(C_ERROR))
+            win.addstr(3, 3, "!  The selected disk will be completely erased.", curses.color_pair(C_ERROR))
         except curses.error:
             pass
         for i, (dev, size, model) in enumerate(disks):
             row = 5 + i
             if row >= rows - 2:
                 break
-            label = f"{'●' if i == idx else '○'}  {dev:<12} {size:>8}  {model}"
+            label = f"{'*' if i == idx else ' '}  {dev:<12} {size:>8}  {model}"
             label = label[:ww - 4]
             attr = curses.color_pair(C_SELECTED) | curses.A_BOLD if i == idx else curses.color_pair(C_BODY)
             try:
                 win.addstr(row, 2, label.ljust(ww - 4), attr)
             except curses.error:
                 pass
-        footer_hint(win, "↑↓ navigate   ENTER select")
+        footer_hint(win, "Arrow keys navigate   ENTER select")
         win.refresh()
         key = win.getch()
         if key in (curses.KEY_UP, ord("k")):
@@ -343,7 +341,7 @@ def screen_confirm_wipe(stdscr, disk: str) -> bool:
     cols = 58
     rows = 12
     win = popup(stdscr, rows, cols)
-    draw_box(win, "⚠  CONFIRM DISK ERASE  ⚠", C_DANGER)
+    draw_box(win, "CONFIRM DISK ERASE", C_DANGER)
     _, ww = win.getmaxyx()
     msgs = ["", f"  Target disk:  {disk}", "", "  ALL DATA on this disk will be permanently", "  DESTROYED and cannot be recovered.", "", "  Are you absolutely sure?"]
     for i, msg in enumerate(msgs):
@@ -356,7 +354,7 @@ def screen_confirm_wipe(stdscr, disk: str) -> bool:
     sel = 1
     btn_row = rows - 3
     while True:
-        for bi, (label, color) in enumerate([("  YES – ERASE  ", C_DANGER), ("  NO – CANCEL  ", C_CHROME)]):
+        for bi, (label, color) in enumerate([("  YES - ERASE  ", C_DANGER), ("  NO - CANCEL  ", C_CHROME)]):
             attr = curses.color_pair(color) | curses.A_BOLD | curses.A_REVERSE if bi == sel else curses.color_pair(C_DIM)
             col = 6 + bi * 22
             try:
@@ -375,7 +373,7 @@ def screen_confirm_wipe(stdscr, disk: str) -> bool:
 
 def screen_success(stdscr, mode_label: str, hostname: str) -> None:
     curses.curs_set(0)
-    lines = ["", "  ✓  Installation complete!", "", f"  Mode    :  {mode_label}", f"  Host    :  {hostname}", "", "  Remove the installation medium and", "  press ENTER to reboot the system.", ""]
+    lines = ["", "  Installation complete!", "", f"  Mode    :  {mode_label}", f"  Host    :  {hostname}", "", "  Remove the installation medium and", "  press ENTER to reboot the system.", ""]
     cols = clamp(52, 40, stdscr.getmaxyx()[1] - 4)
     rows = len(lines) + 4
     win = popup(stdscr, rows, cols)
@@ -386,7 +384,7 @@ def screen_success(stdscr, mode_label: str, hostname: str) -> None:
             win.addstr(i + 1, 1, line[:ww - 2], curses.color_pair(C_SUCCESS) | curses.A_BOLD)
         except curses.error:
             pass
-    footer_hint(win, "ENTER – reboot")
+    footer_hint(win, "ENTER - reboot")
     win.refresh()
     win.getch()
 
@@ -437,12 +435,117 @@ def write_state(state: dict) -> None:
     os.chmod(STATE_FILE, 0o600)
 
 
+def use_plain_console_ui() -> bool:
+    if os.environ.get("BEAGLE_SERVER_INSTALLER_FORCE_PLAIN", "0") == "1":
+        return True
+    term = os.environ.get("TERM", "").lower()
+    return term in {"dumb", "unknown"}
+
+
+def plain_banner() -> None:
+    print()
+    print("========================================")
+    print("   Beagle OS Server Installer")
+    print("========================================")
+    print("This wizard installs Debian and the")
+    print("Beagle host stack onto a local disk.")
+    print()
+
+
+def plain_prompt(prompt: str, default: str = "", validator=None) -> str:
+    while True:
+        suffix = f" [{default}]" if default else ""
+        value = input(f"{prompt}{suffix}: ").strip()
+        if not value:
+            value = default
+        if validator:
+            ok, msg = validator(value)
+            if not ok:
+                print(f"Invalid value: {msg}")
+                continue
+        return value
+
+
+def plain_password() -> str:
+    while True:
+        first = input("Enter password: ").strip()
+        if not first:
+            print("Password must not be empty")
+            continue
+        second = input("Re-enter password: ").strip()
+        if first != second:
+            print("Passwords do not match")
+            continue
+        return first
+
+
+def plain_select_mode() -> tuple[str, str]:
+    print("Installation modes:")
+    print("  1) Beagle OS standalone")
+    print("  2) Beagle OS with Proxmox")
+    while True:
+        choice = input("Select mode [1]: ").strip() or "1"
+        if choice == "1":
+            return "standalone", "Beagle OS standalone"
+        if choice == "2":
+            return "with-proxmox", "Beagle OS with Proxmox"
+        print("Please enter 1 or 2")
+
+
+def plain_select_disk(disks: list[tuple[str, str, str]]) -> str:
+    print()
+    print("Target disks:")
+    for index, (dev, size, model) in enumerate(disks, start=1):
+        print(f"  {index}) {dev:<12} {size:>8}  {model}")
+    while True:
+        raw = input("Select target disk [1]: ").strip() or "1"
+        if raw.isdigit():
+            selected = int(raw)
+            if 1 <= selected <= len(disks):
+                return disks[selected - 1][0]
+        print("Please select a valid disk number")
+
+
+def plain_confirm_wipe(disk: str) -> bool:
+    print()
+    print("WARNING: ALL DATA on the selected disk will be erased.")
+    print(f"Target disk: {disk}")
+    answer = input("Type YES to continue: ").strip()
+    return answer == "YES"
+
+
+def plain_main() -> dict:
+    plain_banner()
+    install_mode, mode_label = plain_select_mode()
+    hostname = plain_prompt("Enter the hostname for this server", "beagle-host", validate_hostname).lower()
+    username = plain_prompt("Enter the Linux admin username", "beagle", validate_username)
+    password = plain_password()
+    disks = list_disks()
+    if not disks:
+        print("No suitable target disk found.", file=sys.stderr)
+        sys.exit(1)
+    target_disk = plain_select_disk(disks)
+    if not plain_confirm_wipe(target_disk):
+        sys.exit(0)
+    print()
+    print("Starting installation...")
+    return {
+        "BEAGLE_SERVER_INSTALL_MODE": install_mode,
+        "BEAGLE_SERVER_HOST_PROVIDER": "beagle" if install_mode == "standalone" else "proxmox",
+        "BEAGLE_GUI_INSTALL_MODE_LABEL": mode_label,
+        "BEAGLE_GUI_HOSTNAME": hostname,
+        "BEAGLE_GUI_USERNAME": username,
+        "BEAGLE_GUI_PASSWORD": password,
+        "BEAGLE_GUI_TARGET_DISK": target_disk,
+    }
+
+
 def tui_main(stdscr) -> dict:
     init_colors()
     curses.curs_set(0)
     stdscr.keypad(True)
     screen_splash(stdscr)
-    screen_msgbox(stdscr, "  Welcome to Beagle OS Server Installer  ", ["", "  This wizard will install Debian and the Beagle", "  host stack on a local disk.", "", "  Two installation modes are available:", "    ●  Beagle OS standalone", "    ●  Beagle OS with Proxmox", "", "  The selected disk will be completely erased."])
+    screen_msgbox(stdscr, "  Welcome to Beagle OS Server Installer  ", ["", "  This wizard will install Debian and the Beagle", "  host stack on a local disk.", "", "  Two installation modes are available:", "    *  Beagle OS standalone", "    *  Beagle OS with Proxmox", "", "  The selected disk will be completely erased."])
     mode_idx = screen_menu(
         stdscr,
         title="Installation Mode",
@@ -485,13 +588,26 @@ def main() -> None:
     parser.add_argument("--hostname", default="beagle-host", help="Hostname for success screen")
     args = parser.parse_args()
     if args.show_success:
+        if use_plain_console_ui():
+            print()
+            print("Installation complete!")
+            print(f"Mode: {args.mode_label}")
+            print(f"Host: {args.hostname}")
+            input("Remove the installation medium and press ENTER to reboot.")
+            return
         try:
             curses.wrapper(lambda screen: (init_colors(), screen_success(screen, args.mode_label, args.hostname)))
         except KeyboardInterrupt:
             pass
         return
     try:
-        state = curses.wrapper(tui_main)
+        if use_plain_console_ui():
+            state = plain_main()
+        else:
+            state = curses.wrapper(tui_main)
+    except curses.error as _ce:
+        # If terminal capabilities are incomplete, fall back to plain prompts.
+        state = plain_main()
     except KeyboardInterrupt:
         print("\nInstallation cancelled.", file=sys.stderr)
         sys.exit(1)
