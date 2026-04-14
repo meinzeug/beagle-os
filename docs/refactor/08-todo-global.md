@@ -1,204 +1,66 @@
-# Global TODO
+# Beagle OS Refactor - Global TODO
 
-- [x] Create the mandatory `docs/refactor/` handoff set.
-- [x] Remove `AGENTS.md` from `.gitignore`.
-- [x] Enforce `AGENTS.md` and `docs/refactor/` presence in project validation.
-- [x] Enforce `docs/refactor/09-provider-abstraction.md` as part of the required handoff set.
-- [x] Prioritize `05-progress.md` / `06-next-steps.md` for vertical end-to-end execution order so multi-agent handoff stays focused.
-- [x] Include `AGENTS.md` in the packaged source tarball.
-- [x] Start Proxmox UI seam extraction with `proxmox-ui/beagle-ui-common.js`.
-- [x] Extract initial `proxmox-ui/api-client/` and `proxmox-ui/state/` modules.
-- [x] Extract initial `proxmox-ui/provisioning/` and `proxmox-ui/usb/` API modules.
-- [x] Extract initial `proxmox-ui/utils/` browser action module.
-- [x] Extract the first `proxmox-ui/usb/` UI state module.
-- [x] Extract initial `proxmox-ui/components/` helpers and desktop overlay renderer.
-- [x] Extract the Proxmox UI profile modal and fleet modal into dedicated `components/` modules.
-- [x] Introduce the first provider-neutral browser-side seams under `core/provider/`, `core/virtualization/`, `core/platform/`, and `providers/proxmox/`.
-- [x] Move the browser extension off direct Proxmox inventory/profile calls and onto aligned provider-backed services.
-- [x] Start host-side provider helper extraction for control-plane inventory, storage, VM config, and guest-IP access.
-- [x] Extract the Ubuntu desktop create/edit modal and provisioning result window from `proxmox-ui/beagle-ui.js` into `components/`.
-- [x] Move host-side VM lifecycle writes (create/set/start/stop/boot/description/option delete) behind `ProxmoxHostProvider`.
-- [x] Move host-side `qm guest exec` / `qm guest exec-status` flows and delayed restart scheduling behind `ProxmoxHostProvider`.
-- [x] Move browser-side VM profile synthesis out of `proxmox-ui/beagle-ui.js` and `extension/content.js` into dedicated `state/` and `services/` modules.
-- [x] Make the host-side public endpoint profile contract explicit in `beagle-host/bin/endpoint_profile_contract.py`.
-- [x] Replace the duplicated browser-side VM profile mapper with the shared helper `extension/shared/vm-profile-mapper.js`.
-- [x] Move the extension profile modal renderer out of `extension/content.js` into `extension/components/profile-modal.js`.
-- [x] Move the remaining shared browser-side endpoint export/note/helper logic into `extension/shared/vm-profile-helpers.js`.
-- [x] Split `extension/content.js` into smaller DOM-integration modules so toolbar/menu boot logic lives under `extension/components/`.
-- [x] Extract Proxmox-UI ExtJS toolbar/menu/create-VM/fleet wiring into `proxmox-ui/components/extjs-integration.js`.
-- [x] Extract the shared Proxmox-UI modal/loading shell into `proxmox-ui/components/modal-shell.js`.
-- [x] Extract the first provider-backed control-plane read service into `beagle-host/services/virtualization_inventory.py`.
-- [x] Extract VM-state/compliance assembly into `beagle-host/services/vm_state.py`.
-- [x] Extract VM profile / assignment / public-stream synthesis into `beagle-host/services/vm_profile.py`.
-- [x] Rename the generic host/control-plane repo surface from `proxmox-host/` to `beagle-host/` while keeping Proxmox compatibility bridges where needed.
-- [x] Introduce `beagle-host/providers/host_provider_contract.py` and `beagle-host/providers/registry.py` so the control plane boots through a generic host-provider seam instead of directly importing `ProxmoxHostProvider`.
-- [x] Continue splitting `proxmox-ui/beagle-ui.js` so bootstrap/catalog/profile-resolution logic lives under `proxmox-ui/provisioning/` and `proxmox-ui/state/` and `beagle-ui.js` becomes a thin entrypoint.
-- [x] Extend the provider contract with `list_bridges(node)`, implement in both providers, expose via read surface and website.
-- [ ] Continue inventorying remaining direct Proxmox couplings in scripts/installers and migrate them behind provider-facing helpers incrementally, building on `scripts/lib/beagle_provider.py` and shrinking the remaining direct-command fallback paths.
-- [x] Extract the shared script-side provider bootstrap/remote-exec shell helper into `scripts/lib/provider_shell.sh` and rewire the main Sunshine/setup scripts onto it.
-- [x] Extract the shared script-side guest-exec / guest-ipv4 / VM-description / reboot / `qm set` fallback wrappers into `scripts/lib/provider_shell.sh`.
-- [x] Remove eager Moonlight manager registration from the cached-client boot fast path so already paired endpoints do not have to wait on `/api/v1/endpoints/moonlight/register` before `moonlight.exec`.
-- [x] Extract the shared Moonlight CLI target/timeout/list wrapper out of pairing and host-sync into `thin-client-assistant/runtime/moonlight_cli.sh`.
-- [x] Extract the non-shell hosted-download preparation block from `scripts/prepare-host-downloads.sh` into a dedicated helper seam and reuse the endpoint profile contract for overlapping VM installer metadata.
-- [x] Extract the hosted-download vs public-release artifact URL layout into a shared helper consumed by both generation and host validation.
-- [x] Extract the thin-client preset-summary/UI-state helper layer into a shared USB module instead of duplicating mode-availability logic in the local installer and the Proxmox API helper.
-- [x] Extract the shared USB manifest project-version read/write and install-manifest/USB-manifest JSON shaping into a dedicated USB helper module.
-- [x] Extract the shared live-medium asset/manifest path detection into a dedicated USB shell helper module.
-- [x] Extract the shared USB live-medium device candidate discovery into the dedicated USB shell helper module.
-- [x] Extract the shared USB live-medium mount candidate discovery into the dedicated USB shell helper module.
-- [x] Extract the shared USB live-medium candidate mount/umount orchestration into the dedicated USB shell helper module.
-- [x] Extract the shared USB live-medium mounted-content acceptance and preset-path checks into the dedicated USB shell helper module.
-- [x] Extract USB manifest payload-source parsing/validation into the dedicated USB manifest helper module.
-- [x] Extract the local-installer payload download/fallback and install-manifest write path into a dedicated USB helper module.
-- [x] Extract the USB writer source-selection and variant-path planning helpers into a dedicated USB helper module.
-- [x] Extract the USB writer bootstrap unpacking, ISO download/cache, and live-asset validation helpers into a dedicated USB helper module.
-- [x] Extract the USB writer partition/write/copy/GRUB/runtime-state stage into a dedicated USB helper module.
-- [x] Extract the USB writer device-selection, target-safety, and operator-confirmation path into a dedicated USB helper module.
-- [x] Extract the runtime enrollment-response config writer out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper seam.
-- [x] Extract the thin-client runtime status file writers into a shared runtime helper instead of separate launch/runtime shell implementations.
-- [x] Extract the preset-to-runtime config generation helper out of `thin-client-assistant/runtime/common.sh` while keeping `write-config.sh` as the canonical config writer.
-- [x] Extract the Proxmox-specific USB preset builder out of `thin-client-assistant/usb/pve-thin-client-proxmox-api.py` into a dedicated provider helper module.
-- [x] Extract the overlapping thin-client preset base fields into a shared helper used by both `beagle-host/services/installer_script.py` and `thin-client-assistant/usb/proxmox_preset.py`.
-- [x] Extract the shared extended runtime preset field contract used by both host-generated and USB-generated presets into `beagle-host/services/thin_client_preset.py`.
-- [x] Extract the shared installer/runtime env default literals into one contract used by both shell and Python paths.
-- [x] Extract the runtime mode/cmdline override mapping out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
-- [x] Extract the runtime config-discovery and cmdline-preset restore block out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
-- [x] Extract the runtime config-generation/loading block out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
-- [x] Extract the runtime streaming-session state and management timer suspend/resume block out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
-- [x] Extract the runtime-owned path and GeForce NOW environment-preparation block out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
-- [x] Extract the runtime kiosk process-pattern and stop-control block out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
-- [x] Extract the runtime kiosk session supervisor/relaunch loop out of `thin-client-assistant/runtime/launch-session.sh` into a dedicated helper.
-- [x] Extract the shared runtime user/state/logging baseline out of `thin-client-assistant/runtime/common.sh` into a dedicated core helper.
-- [x] Extract the remaining shared runtime TLS/template/browser-flag helpers out of `thin-client-assistant/runtime/common.sh` into a dedicated helper.
-- [x] Extract the duplicated X11/Xauthority display bootstrap helpers out of `launch-moonlight.sh` and `launch-geforcenow.sh` into a shared runtime helper.
-- [x] Extract the Moonlight host/API-url/target-reachability resolution block out of `launch-moonlight.sh` into a dedicated helper.
-- [x] Extract the Moonlight pairing/bootstrap/config-sync block out of `launch-moonlight.sh` into a dedicated helper.
-- [x] Extract the Moonlight stream-exec/audio/graphics setup block out of `launch-moonlight.sh` into a dedicated helper.
-- [x] Extract the runtime config sync/live-state persistence block out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper.
-- [x] Extract the runtime user/secret-permission/hostname preparation block out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper.
-- [x] Extract the runtime SSH/bootstrap-management block out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper.
-- [x] Extract the runtime endpoint-enrollment request/apply/reload block out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper.
-- [x] Extract the final runtime-status block out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper.
-- [x] Extract the config-retry / boot-mode / Plymouth / kiosk-prepare wrapper block out of `thin-client-assistant/runtime/prepare-runtime.sh` into a dedicated helper.
-- [x] Extract the network backend config-file / restart / resolver block out of `thin-client-assistant/runtime/apply-network-config.sh` into a dedicated helper.
-- [x] Extract the network interface / route / wait / hostname block out of `thin-client-assistant/runtime/apply-network-config.sh` into a dedicated helper.
-- [x] Extract the runtime network config-file / NetworkManager profile / resolver-writing block out of `thin-client-assistant/runtime/runtime_network_backend.sh` into a dedicated helper.
-- [x] Extract the Moonlight remote API / manager registration / Sunshine PIN block out of `thin-client-assistant/runtime/moonlight_pairing.sh` into a dedicated helper.
-- [x] Extract the Moonlight local config / certificate / bootstrap-state block out of `thin-client-assistant/runtime/moonlight_pairing.sh` into a dedicated helper.
-- [x] Extract the USB runtime state / tunnel-status / payload-shaping block out of `thin-client-assistant/runtime/beagle-usbctl.sh` into a dedicated helper.
-- [x] Extract the USB runtime `usbipd` / bind / unbind / tunnel-orchestration block out of `thin-client-assistant/runtime/beagle-usbctl.sh` into a dedicated helper.
-- [x] Extract the GeForce NOW desktop-file / MIME / `xdg-open` integration block out of `thin-client-assistant/runtime/install-geforcenow.sh` into a dedicated helper.
-- [x] Extract the GeForce NOW flatpak scope / dry-run / install block out of `thin-client-assistant/runtime/install-geforcenow.sh` into a dedicated helper.
-- [x] Extract the systemd/getty/boot-mode/bootstrap unit block out of `thin-client-assistant/runtime/runtime_bootstrap_services.sh` into a dedicated helper.
-- [x] Extract the persistent SSH host-key block out of `thin-client-assistant/runtime/runtime_bootstrap_services.sh` into a dedicated helper.
-- [x] Extract the managed SSH config / validated `sshd` service-control block out of `thin-client-assistant/runtime/runtime_bootstrap_services.sh` into a dedicated helper.
-- [x] Extract the Moonlight reachability / probe / wait block out of `thin-client-assistant/runtime/moonlight_targeting.sh` into a dedicated helper.
-- [x] Extract the Moonlight connect-host candidate / fallback block out of `thin-client-assistant/runtime/moonlight_targeting.sh` into a dedicated helper.
-- [x] Extract the network DNS/default-route wait block out of `thin-client-assistant/runtime/runtime_network_runtime.sh` into a dedicated helper.
-- [x] Extract the network interface/address/hostname block out of `thin-client-assistant/runtime/runtime_network_runtime.sh` into a dedicated helper.
-- [x] Extract the Moonlight manager-response sync / bootstrap block out of `thin-client-assistant/runtime/moonlight_config_state.sh` into a dedicated helper.
-- [x] Extract the Moonlight audio/display runtime-environment block out of `thin-client-assistant/runtime/moonlight_runtime_exec.sh` into a dedicated helper.
-- [x] Extract the Moonlight decoder-choice / display-resolution block out of `thin-client-assistant/runtime/moonlight_runtime_exec.sh` into a dedicated helper.
-- [x] Extract the Moonlight host-registry config parsing / mutation block out of `thin-client-assistant/runtime/moonlight_host_sync.sh` into a dedicated helper.
-- [x] Split the mixed runtime ownership / GeForce NOW storage helper layer into dedicated ownership and GFN environment modules.
-- [x] Extract the GeForce NOW callback-target / stream-optimization block out of `thin-client-assistant/runtime/launch-geforcenow.sh` into a dedicated helper.
-- [x] Extract the Moonlight manager-registration path out of `thin-client-assistant/runtime/moonlight_remote_api.sh` into a dedicated helper.
-- [x] Extract the USB inventory / payload-rendering block out of `thin-client-assistant/runtime/beagle_usb_runtime_state.sh` into a dedicated helper.
-- [x] Extract the Moonlight API URL rewrite / selection block out of `thin-client-assistant/runtime/moonlight_reachability.sh` into a dedicated helper.
-- [x] Extract the streaming management timer/service suspend/resume block out of `thin-client-assistant/runtime/stream_state.sh` into a dedicated helper.
-- [x] Extract the local `usbipd` lifecycle / bound-device resync block out of `thin-client-assistant/runtime/beagle_usb_runtime_actions.sh` into a dedicated helper.
-- [x] Extract the GeForce NOW `xdg-open` wrapper / host-shim block out of `thin-client-assistant/runtime/geforcenow_desktop_integration.sh` into a dedicated helper.
-- [x] Extract the X11 Xauthority discovery / readiness-selection block out of `thin-client-assistant/runtime/x11_display.sh` into a dedicated helper.
-- [x] Extract the Beagle state-path / trace / log-event block out of `thin-client-assistant/runtime/runtime_core.sh` into a dedicated helper.
-- [x] Extract the runtime systemd unit/timer activation and USB tunnel service-control block out of `thin-client-assistant/runtime/runtime_systemd_bootstrap.sh` into a dedicated helper.
-- [x] Extract the USB tunnel/env accessor block out of `thin-client-assistant/runtime/beagle_usb_runtime_state.sh` into a dedicated helper.
-- [x] Extract the Moonlight IPv4/preferred-host resolution block out of `thin-client-assistant/runtime/moonlight_connect_host.sh` into a dedicated helper.
-- [x] Introduce generic top-level host install/setup entrypoints and keep the Proxmox-named scripts as compatibility wrappers.
-- [x] Reduce duplicated browser-side config/token/API logic across `proxmox-ui/`, `extension/`, and `website/`.
-- [ ] Align installer-generation/env builders with the same endpoint profile contract source instead of local field shaping.
-- [x] Extract the update-feed response builder into `beagle-host/services/update_feed.py` behind a lazy factory and delegating wrapper.
-- [x] Extract the fleet/VM inventory response builder into `beagle-host/services/fleet_inventory.py` behind a lazy factory and delegating wrapper.
-- [x] Extract the health-payload response builder into `beagle-host/services/health_payload.py` behind a lazy factory and delegating wrapper.
-- [x] Extract the installer preset and `render_vm_installer_script` / `render_vm_live_usb_script` / `render_vm_windows_installer_script` flows into `beagle-host/services/installer_script.py` behind a lazy factory and delegating wrappers.
-- [x] Extract the endpoint-report I/O and summarization helpers into `beagle-host/services/endpoint_report.py` behind a lazy factory and delegating wrappers.
-- [x] Extract the action-queue/result I/O and summarization helpers into `beagle-host/services/action_queue.py` behind a lazy factory and delegating wrappers.
-- [x] Extract the policy CRUD helpers into `beagle-host/services/policy_store.py` behind a lazy factory and delegating wrappers.
-- [x] Extract the support-bundle metadata/archive helpers into `beagle-host/services/support_bundle_store.py` behind a lazy factory and delegating wrappers.
-- [x] Extract the ubuntu-beagle provisioning-state persistence and summarization helpers into `beagle-host/services/ubuntu_beagle_state.py` behind a lazy factory and delegating wrappers.
-- [x] Extract the public download/artifact URL/checksum/payload metadata helpers into `beagle-host/services/download_metadata.py` behind a lazy factory and delegating wrappers.
-- [x] Extract the `ensure_vm_secret` / sunshine pinned-pubkey / ssh-keygen / usb-tunnel authorized-key helper cluster into `beagle-host/services/vm_secret_bootstrap.py` behind a lazy factory and delegating wrappers.
-- [x] Extract the VM-secret persistence helpers into `beagle-host/services/vm_secret_store.py` behind a lazy factory and delegating wrappers.
-- [x] Extract the installer-prep / Sunshine-readiness state and background-start helpers into `beagle-host/services/installer_prep.py` behind a lazy factory and delegating wrappers.
-- [x] Extract the enrollment-token persistence and validity helpers into `beagle-host/services/enrollment_token_store.py` behind a lazy factory and delegating wrappers.
-- [x] Extract the sunshine-access-token persistence and validity helpers into `beagle-host/services/sunshine_access_token_store.py` behind a lazy factory and delegating wrappers.
-- [x] Extract the endpoint-token persistence helpers into `beagle-host/services/endpoint_token_store.py` behind a lazy factory and delegating wrappers.
-- [x] Extract the USB guest-attachment / tunnel-state helper cluster into a dedicated host service.
-- [x] Extract the Ubuntu-Beagle provisioning/lifecycle helper cluster into a dedicated host service.
-- [x] Extract the Sunshine/Moonlight guest-integration and proxy helper cluster into a dedicated host service.
-- [x] Extract the public-stream allocation/state helper cluster into a dedicated host service.
-- [x] Extract the policy/default-normalization helper cluster into a dedicated host service.
-- [x] Extract the support-bundle storage/upload helper cluster into a dedicated host service.
-- [x] Extract the installer template/default patching helper cluster into a dedicated host service or fold it fully into `InstallerScriptService`.
-- [x] Extract the ubuntu-beagle input/preset normalization helper cluster into a dedicated host service or fold it fully into `UbuntuBeagleProvisioningService`.
-- [x] Move queue orchestration (`queue_vm_action`, bulk queueing, dequeue) into the existing `ActionQueueService`.
-- [x] Extract the manager/server pinning and public-host resolution helper cluster into a dedicated host service.
-- [x] Move `wait_for_action_result` into the existing `ActionQueueService`.
-- [ ] Continue splitting the remaining non-HTTP business flows in `beagle-host/bin/beagle-control-plane.py` into service-oriented modules behind a thin HTTP entrypoint.
-- [x] Extract the endpoint-enrollment / token-issuance helper cluster into a dedicated host service.
-- [x] Extract the scheduled-restart cancellation/state helper cluster into a dedicated host service.
-- [x] Extract the remaining environment/cache helper cluster into a dedicated host utility service.
-- [x] Extract the remaining command-wrapper helper cluster into a dedicated host runtime-exec service.
-- [x] Extract the remaining file/JSON helper cluster into a dedicated host persistence-support service.
-- [x] Extract the remaining bearer-token / origin-normalization / CORS helper cluster into a dedicated host request-support service.
-- [x] Extract the remaining shared UTC timestamp helper cluster into a dedicated host time-support service.
-- [x] Extract the remaining runtime data-root / managed-directory helper cluster into a dedicated host runtime-paths service.
-- [x] Extract the remaining shared VM description / hostname helper cluster into a dedicated host metadata-support service.
-- [x] Extract the `/api/v1/vms/...` GET response-model and download surface from `beagle-host/bin/beagle-control-plane.py` into a dedicated host HTTP-surface service.
-- [x] Extract the next non-VM GET read surface (`provisioning/*`, `endpoints`, `policies`, `support-bundles` download) from `beagle-host/bin/beagle-control-plane.py` into a dedicated host HTTP-surface service.
-- [x] Extract the public VM state/endpoint surface and endpoint-authenticated update-feed surface from `beagle-host/bin/beagle-control-plane.py` into a dedicated host public HTTP-surface service.
-- [x] Extract the public ubuntu-install lifecycle POST surface from `beagle-host/bin/beagle-control-plane.py` into a dedicated host public install surface.
-- [x] Extract the endpoint-authenticated Moonlight/action/result/support-bundle-upload POST surface from `beagle-host/bin/beagle-control-plane.py` into a dedicated host endpoint HTTP surface.
-- [x] Extract the public Sunshine GET/POST proxy surface from `beagle-host/bin/beagle-control-plane.py` into a dedicated host public streaming surface.
-- [x] Extract the authenticated single-VM mutation POST surface from `beagle-host/bin/beagle-control-plane.py` into a dedicated host VM mutation surface.
-- [x] Extract the remaining authenticated non-VM admin mutation routes (policies, bulk actions, ubuntu-beagle create, provisioning create/update) from `beagle-host/bin/beagle-control-plane.py` into a dedicated host admin HTTP surface.
-- [x] Extract the remaining endpoint enrollment/check-in HTTP routes from `beagle-host/bin/beagle-control-plane.py` into a dedicated host endpoint lifecycle surface.
-- [x] Thread `BEAGLE_HOST_PROVIDER` through host install env, manager env, refresh, and post-install check surfaces so provider selection is no longer only a control-plane bootstrap detail.
-- [x] Thread `BEAGLE_HOST_PROVIDER` through proxy install, Proxmox-UI integration, and server-installer bootstrap surfaces so deploy/install paths also carry the selected provider explicitly.
-- [x] Introduce generic top-level host health-check entrypoints and keep the Proxmox-named checker as a compatibility wrapper.
-- [x] Introduce a generic top-level host service-installer entrypoint and keep the Proxmox-named service installer as a compatibility wrapper.
-- [x] Introduce explicit host-provider dispatch seams in the server-installer for repo wiring, package installation, and the final Beagle host bootstrap handoff.
-- [ ] Thread `BEAGLE_HOST_PROVIDER` and the host-provider registry assumptions through deploy/install/runtime surfaces so a second provider can be introduced without revisiting host bootstrap again.
-- [x] Make the server installer expose `Beagle OS standalone` and `Beagle OS with Proxmox` as explicit first-class install modes on one Beagle Server Installer ISO.
-- [ ] Define the first provider-complete contract set that a future Beagle-owned provider must implement for hosts, nodes, VMs, storage, network, and lifecycle.
-- [ ] Extend the provider contract beyond guest-network/reboot into bridge/network inventory and the remaining guest-script upload/restart scheduling seams still leaking around `provider_shell.sh`.
-- [x] Introduce the first real `beagle` provider skeleton in both `beagle-host/providers/` and `providers/beagle/` instead of keeping Beagle-only provider work purely theoretical.
-- [ ] Design the first-party Beagle virtualization stack and provider layout (`providers/beagle/`, host runtime, compute, network, storage) without coupling it to Proxmox assumptions.
-- [ ] Turn the new state-backed `beagle` provider skeleton into the first usable Beagle backend scaffold with persisted node/storage/VM/action contracts and conformance-style smoke tests.
-- [ ] Define and start the dedicated Beagle Web Console / host UI surface instead of treating `proxmox-ui/` as the long-term operator console.
-- [x] Complete the standalone installer branch beyond mode selection for proxy/download/web UI delivery and health validation, including standalone TLS/bootstrap behavior.
-- [x] Add the first provider-neutral browser host/node/storage/config/interface read contracts under `/api/v1/virtualization/*` and wire the Beagle browser provider onto them.
-- [x] Render provider-neutral host/node/storage data from `/api/v1/virtualization/overview` in the website overview as first visible Beagle Web Console slice.
-- [ ] Turn the newly served standalone website/proxy shell into the first real Beagle Web Console surface by rendering the new provider-neutral host/node/storage data and extending the contract toward bridge/network/operator actions.
-- [x] Extend the website virtualization view from host/node/storage to bridge/network inventory and wire at least one provider-neutral operator action.
-- [x] Extend the website VM detail with provider-neutral update operations (`scan/download/apply/rollback`) and pending-action task visibility.
-- [x] Add a provider-neutral website provisioning workspace based on `/api/v1/provisioning/catalog` and `/api/v1/provisioning/vms`.
-- [ ] Add provider-neutral VM create/update/delete flows to the website (Web Console) after the delivered power-action slice.
-- [ ] Make Proxmox optional at deploy/install/runtime boundaries instead of the implicit required backend.
-- [ ] Finish a fresh standalone server-installer verification on `thinover.net`, confirm first boot into the installed system, and validate the Beagle host stack end to end after the DHCP/DNS/retry, live-locale, Beagle source-root, live-side source-archive, and bundled-source-archive fixes.
-- [x] Harden server-side control-plane token comparison to timing-safe checks and add strict HTTP security headers.
-- [x] Harden `beagle-control-plane.service` with syscall/capability/address-family restrictions while keeping provider-required tunables behavior.
-- [x] Harden server-installer target baseline with SSH hardening, fail2ban, unattended-upgrades, nftables, and stricter `/boot/efi` mount flags.
-- [ ] Re-run server-installer VM test to completion (install -> reboot -> reachability) with the fixed live ISO that now includes `python3` and a syntactically valid installer GUI.
-- [x] Add a standalone Ubuntu-XFCE-Sunshine + thinclient-stream E2E simulation harness (`scripts/test-standalone-desktop-stream-sim.sh`) that validates the same provider-neutral WebUI/API provisioning contracts.
-- [x] Extend website overview with provider-neutral endpoint telemetry (`/api/v1/endpoints`) and operator export actions (inventory CSV/JSON, endpoints JSON).
-- [x] Add Web Console session-security hardening (inactivity auto-lock with token clear, guarded Sunshine external URL open).
-- [ ] Upgrade the standalone `beagle` provider from state-skeleton behavior to real local VM execution so the standalone stream path can be validated with real guest runtime (not simulation only).
-- [x] Extract the remaining shared slug/secret-formatting helper cluster from `beagle-host/bin/beagle-control-plane.py` into a dedicated host utility service.
-- [ ] Split thin client runtime logic into config, runtime, network, pairing, and Moonlight launch seams.
-- [ ] Propagate the Moonlight fast-path launch fix into a released thin-client payload/update and verify it on a live endpoint after reboot.
-- [ ] Add smoke validation for generated installer URLs and public artifact filenames.
-- [ ] Add smoke validation for hosted single-file USB installers that bootstrap extracted helper modules from the published bootstrap bundle instead of assuming a local repo checkout.
-- [ ] Add smoke validation that VM-/host-installer scripts resolve ISO/payload/bootstrap to host-local `/beagle-downloads/*` artifacts rather than drifting back to the public update bucket.
-- [ ] Add release-surface verification helpers for both linked servers.
-- [ ] Reduce frontend token exposure and clarify secret-handling rules across all browser surfaces.
-- [ ] Extract GFN launch and session supervision helpers from `beagle-kiosk/main.js`.
+Stand: 2026-04-14
+
+## P0 - Security Backbone
+- [~] Auth data model und persistence layer (Bootstrap-User + Session + User/Role-CRUD vorhanden, Group-Modell offen)
+- [~] Session service mit rotation/revocation (login/refresh/logout + idle/absolute timeout + revoke-user-sessions vorhanden, rotation policy offen)
+- [x] RBAC middleware und permission registry (Enforcement aktiv, Mapping im authz-Service)
+- [~] Audit log schema + write path (append-only audit events aktiv, query/export offen)
+- [~] Website login und session handling (username/password Login + first-install onboarding integriert, IAM-Panel fuer User/Role CRUD + revoke-sessions aktiv, Automation-Token-UI-Aufraeumen offen)
+- [ ] Website trusted API origin allowlist als deploybare Konfiguration absichern und E2E validieren
+- [ ] URL-hash token import policy (`allowHashToken`) fuer Bootstrap-Flows dokumentieren und standardmaessig deaktiviert halten
+- [ ] Absolute API target policy (`allowAbsoluteApiTargets`) dokumentieren und default-off E2E absichern
+- [ ] Legacy-Header-Opt-In (`sendLegacyApiTokenHeader`) auf echte Migrationsfaelle begrenzen
+- [ ] Security-Review: Credential-Reveal-Flows (in-memory secretVault) auf DOM-Leaks und lifecycle cleanup pruefen
+- [x] Installer Security: Default SSH password auth policy finalisiert/dokumentiert (`BEAGLE_SERVER_SSH_PASSWORD_AUTH=no`, Override nur bewusst)
+- [ ] Installer Security: expose-port policy als automatisierten Test absichern (22/443/8443 + optional 8006)
+- [ ] Proxy Security: Auth/API rate limits unter Last testen und false positives vermeiden
+
+## P0 - IAM Surface
+- [~] Web-UI IAM Workspace (Users/Roles/Sessions) umgesetzt, Gruppenmodell und feinere Permission-UX offen
+- [ ] IAM rollenbasierte E2E Tests (admin/ops/viewer) fuer alle UI-Aktionen
+
+## P1 - Streaming-First VM Plattform
+- [ ] VM <-> endpoint binding model vereinheitlichen
+- [ ] stream readiness state machine
+- [ ] unified action/task orchestration
+- [ ] streaming incident and recovery flows
+
+## P1 - Native Virtualization Runtime
+- [~] beagle provider contract finalisieren (beagle-default im Host-Installpfad aktiv, Capability-Ausbau offen)
+- [~] Web-UI Virtualization Surface erweitert (Node-Filter + VM Inspector fuer config/interfaces umgesetzt, E2E-Haertung offen)
+- [ ] beagle compute service baseline
+- [ ] beagle storage service baseline
+- [ ] beagle network service baseline
+- [ ] HA scheduler baseline
+
+## P1 - Installer & Host Modes
+- [~] standalone/with-proxmox Installpfade ueber gemeinsamen Host-Bootstrap (Mode-Umschaltung aktiv, manuelle Build-/Runtime-Smokes gruen, Testmatrix offen)
+- [x] Live-Mode Standard-Web-UI-Credentials gesetzt und in MOTD sichtbar (`admin` / `test123`)
+- [x] Installer-Flow mapped Linux-Install-User auf Web-UI-Bootstrap-Credentials
+- [x] Frische Server-Installer-ISO gebaut, in libvirt-Imagepfad repliziert und an `beagleserver` reattached (Boot pruefbar)
+- [x] CSP fuer Live- und Installer-Web-UI auf Worker-Kompatibilitaet gehaertet (`worker-src 'self' blob:`) und `frame-ancestors` aus Meta-CSP entfernt
+- [x] Onboarding-Gating fuer vorhandenen Bootstrap-User behoben (kein Login-Deadlock bei `user_count=1`)
+- [x] Web-UI 401-Loop-Fix: bei 401/403 Session-Lock statt weiterem Polling mit ungueltigem Token
+- [x] CSP-Style-Fix: Usage-Balken ohne Inline-Styles (progress-basiertes Rendering)
+- [x] Web-UI Session-Hardening erweitert (Refresh-Token-Store, Auto-Refresh auf 401/403, Logout-Revoke-Flow)
+- [x] Web-UI UX/A11y verfeinert (Panel-Persistenz, remembered username, `/` Suche-Fokus, Live-Regionen fuer Status/Alerts)
+- [x] Web-UI Request/Rendering-Hardening erweitert (Timeout-Wrapper, Dashboard-Load-Dedupe, eindeutige Virtualization-Section-IDs)
+- [ ] Credential-E2E-Smoke fuer Live-Mode und Installer-Erstboot dokumentiert/automatisiert
+- [ ] automatisierte Smoke-Tests fuer beide Modi (Install, Boot, API/UI-Portprofil)
+
+## P2 - Enterprise Operations
+- [ ] backup jobs + retention policies
+- [ ] restore/live-restore UX
+- [ ] certificate lifecycle management
+- [ ] upgrade orchestration and rollback markers
+- [ ] external metrics and alert hooks
+
+## P2 - Quality and Testing
+- [ ] API contract tests je domain
+- [ ] role-matrix integration tests
+- [~] smoke e2e for critical flows (live-smoke script fuer server-installer vorhanden, CI-Integration offen)
+- [ ] WebUI mutation single-flight audit (alle mutierenden Actions gegen Doppel-Submit abgesichert)
+- [ ] WebUI input-validation matrix testen (username/role/policy/password Grenzen und Fehlermeldungen)
+- [ ] chaos/failure tests for HA and streaming

@@ -4,11 +4,13 @@
   var browserCommon = window.BeagleBrowserCommon;
   var config = window.BEAGLE_WEB_UI_CONFIG || {};
   var tokenStore = null;
+  var refreshTokenStore = null;
 
   if (!browserCommon) {
     throw new Error('BeagleBrowserCommon must be loaded before website/app.js');
   }
   tokenStore = browserCommon.createSessionTokenStore('beagle.webUi.apiToken');
+  refreshTokenStore = browserCommon.createSessionTokenStore('beagle.webUi.refreshToken');
 
   function readStoredToken() {
     return tokenStore.read();
@@ -22,12 +24,42 @@
     tokenStore.clear();
   }
 
+  function readStoredRefreshToken() {
+    return refreshTokenStore.read();
+  }
+
+  function writeStoredRefreshToken(token) {
+    refreshTokenStore.write(token);
+  }
+
+  function clearStoredRefreshToken() {
+    refreshTokenStore.clear();
+  }
+
   var state = {
     token: readStoredToken(),
+    refreshToken: readStoredRefreshToken(),
+    user: null,
+    onboarding: {
+      pending: false,
+      completed: false
+    },
     inventory: [],
     endpointReports: [],
     policies: [],
+    authUsers: [],
+    authRoles: [],
+    selectedAuthUser: '',
+    selectedAuthRole: '',
     virtualizationOverview: null,
+    virtualizationNodeFilter: '',
+    virtualizationInspector: {
+      vmid: null,
+      loading: false,
+      config: null,
+      interfaces: [],
+      error: ''
+    },
     provisioningCatalog: null,
     selectedVmid: null,
     selectedVmids: [],
@@ -43,12 +75,22 @@
   var SESSION_IDLE_TIMEOUT_MS = 20 * 60 * 1000;
   var sessionLastActivityAt = Date.now();
   var ACTIVITY_LOG_MAX = 50;
+  var FETCH_TIMEOUT_MS = 20000;
   var activityLog = [];
   var dashboardPollInterval = null;
   var authLockCountdownTimer = null;
+  var refreshInFlight = null;
+  var dashboardLoadInFlight = null;
+  var mutationInFlight = Object.create(null);
+  var secretVault = Object.create(null);
 
   var USAGE_WARN_THRESHOLD = 90;
   var USAGE_INFO_THRESHOLD = 70;
+  var MIN_PASSWORD_LEN = 6;
+  var MAX_USERNAME_LEN = 64;
+  var USERNAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+  var ROLE_NAME_PATTERN = /^[A-Za-z0-9._:-]+$/;
+  var POLICY_NAME_PATTERN = /^[A-Za-z0-9._:-]+$/;
   var DISK_KEY_PATTERN = /^(virtio|ide|sata|scsi|efidisk|tpmstate)\d*$/;
   var NET_KEY_PATTERN = /^net\d+$/;
   var VM_MAIN_KEYS = ['vmid', 'name', 'node', 'status', 'tags', 'cores', 'memory', 'machine', 'bios', 'ostype', 'boot', 'agent', 'balloon', 'onboot', 'cpu'];
@@ -88,6 +130,11 @@
       eyebrow: 'Configuration Workspace',
       title: 'Beagle Policies',
       description: 'Verwalte Zuweisungen, Profile und Prioritaeten fuer deine Endpoint- und Desktop-Flotte.'
+    },
+    iam: {
+      eyebrow: 'Identity Workspace',
+      title: 'IAM Verwaltung',
+      description: 'Benutzer, Rollen und Session-Kontrolle zentral fuer den Beagle-Host steuern.'
     }
   };
 
@@ -115,6 +162,75 @@
     return String(config.apiBase || '/beagle-api/api/v1').replace(/\/$/, '');
   }
 
+  function normalizedOrigin(urlValue) {
+    try {
+      return new URL(String(urlValue || ''), window.location.origin).origin;
+    } catch (error) {
+      void error;
+      return '';
+    }
+  }
+
+  function trustedApiOrigins() {
+    var trusted = Object.create(null);
+    trusted[window.location.origin] = true;
+    if (Array.isArray(config.trustedApiOrigins)) {
+      config.trustedApiOrigins.forEach(function (value) {
+        var origin = normalizedOrigin(value);
+        if (origin) {
+          trusted[origin] = true;
+        }
+      });
+    } else if (typeof config.trustedApiOrigins === 'string') {
+      config.trustedApiOrigins.split(/[\s,]+/).forEach(function (value) {
+        var origin = normalizedOrigin(value);
+        if (origin) {
+          trusted[origin] = true;
+        }
+      });
+    }
+    return trusted;
+  }
+
+  function resolveApiTarget(path) {
+    var raw = String(path || '');
+    if (!raw) {
+      throw new Error('empty api path');
+    }
+    if (raw.indexOf('http') === 0 && config.allowAbsoluteApiTargets !== true) {
+      throw new Error('absolute api targets are disabled');
+    }
+    var target = raw.indexOf('http') === 0 ? raw : apiBase() + raw;
+    var parsed;
+    try {
+      parsed = new URL(target, window.location.origin);
+    } catch (error) {
+      throw new Error('invalid api target');
+    }
+    var trusted = trustedApiOrigins();
+    if (!trusted[parsed.origin]) {
+      throw new Error('blocked untrusted api origin: ' + parsed.origin);
+    }
+    return parsed.toString();
+  }
+
+  function runSingleFlight(key, task) {
+    var lockKey = String(key || '').trim();
+    if (!lockKey) {
+      return Promise.resolve().then(task);
+    }
+    if (mutationInFlight[lockKey]) {
+      return mutationInFlight[lockKey];
+    }
+    var current = Promise.resolve().then(task).finally(function () {
+      if (mutationInFlight[lockKey] === current) {
+        delete mutationInFlight[lockKey];
+      }
+    });
+    mutationInFlight[lockKey] = current;
+    return current;
+  }
+
   function downloadsBase() {
     return String(config.downloadsBase || '/beagle-downloads').replace(/\/$/, '');
   }
@@ -133,6 +249,9 @@
   }
 
   function consumeTokenFromLocation() {
+    if (config.allowHashToken !== true) {
+      return;
+    }
     var hash = String(window.location.hash || '').replace(/^#/, '');
     if (!hash) {
       return;
@@ -147,7 +266,9 @@
       return;
     }
     state.token = token;
+    state.refreshToken = '';
     writeStoredToken(token);
+    clearStoredRefreshToken();
     if (qs('api-token')) {
       qs('api-token').value = token;
     }
@@ -215,16 +336,45 @@
     node.textContent = message;
   }
 
+  function fetchWithTimeout(url, options, timeoutMs) {
+    var timeout = Number(timeoutMs || FETCH_TIMEOUT_MS);
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = null;
+    var finalOptions = Object.assign({}, options || {});
+    if (controller) {
+      finalOptions.signal = controller.signal;
+      timer = window.setTimeout(function () {
+        controller.abort();
+      }, Math.max(1, timeout));
+    }
+    return fetch(url, finalOptions).finally(function () {
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+    });
+  }
+
   function updateSessionChrome() {
     var chip = qs('session-chip');
     if (chip) {
-      chip.textContent = state.token ? 'Verbunden' : 'Nicht verbunden';
+      if (!state.token) {
+        chip.textContent = 'Nicht verbunden';
+      } else if (state.user && state.user.username) {
+        chip.textContent = 'Angemeldet: ' + String(state.user.username);
+      } else {
+        chip.textContent = 'Verbunden';
+      }
     }
   }
 
   function setActivePanel(panelName) {
     var next = panelMeta[panelName] ? panelName : 'overview';
     state.activePanel = next;
+    try {
+      localStorage.setItem('beagle.ui.activePanel', next);
+    } catch (error) {
+      void error;
+    }
     document.querySelectorAll('[data-panel]').forEach(function (node) {
       node.classList.toggle('nav-item-active', node.getAttribute('data-panel') === next);
     });
@@ -243,6 +393,11 @@
   function setActiveDetailPanel(panelName) {
     var next = panelName || 'summary';
     state.activeDetailPanel = next;
+    try {
+      localStorage.setItem('beagle.ui.activeDetailPanel', next);
+    } catch (error) {
+      void error;
+    }
     document.querySelectorAll('[data-detail-panel]').forEach(function(node) {
       node.classList.toggle('detail-tab-active', node.getAttribute('data-detail-panel') === next);
     });
@@ -253,8 +408,21 @@
   }
 
   function openAuthModal() {
+    if (state.onboarding && state.onboarding.pending) {
+      openOnboardingModal();
+      return;
+    }
     document.body.classList.add('auth-modal-open');
-    var field = qs('api-token');
+    var field = qs('auth-username') || qs('api-token');
+    var rememberedUsername = '';
+    try {
+      rememberedUsername = String(localStorage.getItem('beagle.auth.username') || '').trim();
+    } catch (error) {
+      void error;
+    }
+    if (rememberedUsername && qs('auth-username') && !String(qs('auth-username').value || '').trim()) {
+      qs('auth-username').value = rememberedUsername;
+    }
     if (field) {
       window.setTimeout(function () {
         field.focus();
@@ -267,6 +435,117 @@
     if (!document.body.classList.contains('auth-only')) {
       document.body.classList.remove('auth-modal-open');
     }
+  }
+
+  function openOnboardingModal() {
+    var modal = qs('onboarding-modal');
+    if (!modal) {
+      return;
+    }
+    modal.hidden = false;
+    document.body.classList.add('auth-modal-open');
+    var username = qs('onboarding-username');
+    if (username && !String(username.value || '').trim()) {
+      username.value = 'admin';
+    }
+    if (username) {
+      window.setTimeout(function () {
+        username.focus();
+        username.select();
+      }, 30);
+    }
+  }
+
+  function closeOnboardingModal() {
+    var modal = qs('onboarding-modal');
+    if (!modal) {
+      return;
+    }
+    modal.hidden = true;
+  }
+
+  function fetchOnboardingStatus() {
+    return fetchWithTimeout(resolveApiTarget('/auth/onboarding/status'), {
+      method: 'GET',
+      credentials: 'same-origin'
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error('HTTP ' + response.status);
+      }
+      return response.json();
+    }).then(function (payload) {
+      var onboarding = payload && payload.onboarding ? payload.onboarding : {};
+      state.onboarding = {
+        pending: Boolean(onboarding.pending),
+        completed: Boolean(onboarding.completed)
+      };
+      if (state.onboarding.pending) {
+        state.token = '';
+        state.refreshToken = '';
+        state.user = null;
+        clearStoredToken();
+        clearStoredRefreshToken();
+        setAuthMode(false);
+        setBanner('Ersteinrichtung erforderlich: bitte Administrator anlegen.', 'warn');
+        openOnboardingModal();
+      } else {
+        closeOnboardingModal();
+      }
+      return state.onboarding;
+    });
+  }
+
+  function completeOnboarding() {
+    var username = String(qs('onboarding-username') ? qs('onboarding-username').value : '').trim();
+    var password = String(qs('onboarding-password') ? qs('onboarding-password').value : '');
+    var passwordConfirm = String(qs('onboarding-password-confirm') ? qs('onboarding-password-confirm').value : '');
+    if (!username || !password) {
+      setBanner('Onboarding: Benutzername und Passwort sind erforderlich.', 'warn');
+      return Promise.resolve();
+    }
+    if (password !== passwordConfirm) {
+      setBanner('Onboarding: Passwort-Bestaetigung stimmt nicht ueberein.', 'warn');
+      return Promise.resolve();
+    }
+    return fetchWithTimeout(resolveApiTarget('/auth/onboarding/complete'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: username,
+        password: password,
+        password_confirm: passwordConfirm
+      })
+    }).then(function (response) {
+      return response.text().then(function (body) {
+        var payload = {};
+        try {
+          payload = JSON.parse(body || '{}');
+        } catch (error) {
+          void error;
+        }
+        if (!response.ok) {
+          throw new Error(payload.error || ('HTTP ' + response.status));
+        }
+        state.onboarding = {
+          pending: false,
+          completed: true
+        };
+        closeOnboardingModal();
+        if (qs('onboarding-password')) {
+          qs('onboarding-password').value = '';
+        }
+        if (qs('onboarding-password-confirm')) {
+          qs('onboarding-password-confirm').value = '';
+        }
+        if (qs('auth-username')) {
+          qs('auth-username').value = username;
+        }
+        setBanner('Ersteinrichtung abgeschlossen. Bitte jetzt anmelden.', 'ok');
+      });
+    }).catch(function (error) {
+      setBanner('Onboarding fehlgeschlagen: ' + error.message, 'warn');
+    });
   }
 
   function accountShell() {
@@ -284,36 +563,158 @@
   function isSafeExternalUrl(url) {
     try {
       var parsed = new URL(String(url || ''), window.location.origin);
-      return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+      if (parsed.protocol === 'https:') {
+        return true;
+      }
+      if (config.allowInsecureExternalUrls === true && parsed.protocol === 'http:' && parsed.origin === window.location.origin) {
+        return true;
+      }
+      return false;
     } catch (error) {
       void error;
       return false;
     }
   }
 
+  function sanitizeIdentifier(value, label, pattern, minLen, maxLen) {
+    var normalized = String(value || '').trim();
+    if (!normalized) {
+      throw new Error(label + ' ist erforderlich.');
+    }
+    if (normalized.length < minLen || normalized.length > maxLen) {
+      throw new Error(label + ' muss zwischen ' + String(minLen) + ' und ' + String(maxLen) + ' Zeichen liegen.');
+    }
+    if (!pattern.test(normalized)) {
+      throw new Error(label + ' enthaelt unzulaessige Zeichen.');
+    }
+    return normalized;
+  }
+
+  function sanitizePassword(value, label) {
+    var password = String(value || '');
+    if (!password) {
+      throw new Error(label + ' ist erforderlich.');
+    }
+    if (password.length < MIN_PASSWORD_LEN) {
+      throw new Error(label + ' muss mindestens ' + String(MIN_PASSWORD_LEN) + ' Zeichen lang sein.');
+    }
+    return password;
+  }
+
+  function buildAuthHeaders() {
+    var headers = {};
+    if (!state.token) {
+      return headers;
+    }
+    headers.Authorization = 'Bearer ' + state.token;
+    if (config.sendLegacyApiTokenHeader === true) {
+      headers['X-Beagle-Api-Token'] = state.token;
+    }
+    return headers;
+  }
+
   function markSessionActivity() {
     sessionLastActivityAt = Date.now();
   }
 
-  function lockSession(reason) {
+  function clearSessionState(reason, tone) {
     state.token = '';
+    state.refreshToken = '';
+    state.user = null;
     clearStoredToken();
+    clearStoredRefreshToken();
+    if (qs('auth-password')) {
+      qs('auth-password').value = '';
+    }
     if (qs('api-token')) {
       qs('api-token').value = '';
     }
     state.inventory = [];
     state.endpointReports = [];
     state.virtualizationOverview = null;
+    state.virtualizationNodeFilter = '';
+    state.virtualizationInspector = {
+      vmid: null,
+      loading: false,
+      config: null,
+      interfaces: [],
+      error: ''
+    };
     state.provisioningCatalog = null;
     state.selectedVmid = null;
     state.selectedVmids = [];
+    clearSecretVault();
     renderInventory();
     renderVirtualizationOverview();
     renderVirtualizationPanel();
+    renderVirtualizationInspector();
     renderProvisioningWorkspace();
     renderEndpointsOverview();
     setAuthMode(false);
-    setBanner(reason || 'Session gesperrt.', 'warn');
+    setBanner(reason || 'Session gesperrt.', tone || 'warn');
+  }
+
+  function logoutSession() {
+    if (!state.token && !state.refreshToken) {
+      return Promise.resolve();
+    }
+    var headers = Object.assign({ 'Content-Type': 'application/json' }, buildAuthHeaders());
+    return fetchWithTimeout(resolveApiTarget('/auth/logout'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: headers,
+      body: JSON.stringify({ refresh_token: state.refreshToken || '' })
+    }).then(function () {
+      return null;
+    }).catch(function () {
+      return null;
+    });
+  }
+
+  function refreshAccessToken() {
+    if (!state.refreshToken) {
+      return Promise.reject(new Error('missing refresh token'));
+    }
+    if (refreshInFlight) {
+      return refreshInFlight;
+    }
+    refreshInFlight = fetchWithTimeout(resolveApiTarget('/auth/refresh'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: state.refreshToken })
+    }).then(function (response) {
+      return response.text().then(function (body) {
+        var payload = {};
+        try {
+          payload = JSON.parse(body || '{}');
+        } catch (error) {
+          void error;
+        }
+        if (!response.ok) {
+          throw new Error(payload.error || ('HTTP ' + response.status));
+        }
+        state.token = String(payload.access_token || '').trim();
+        if (!state.token) {
+          throw new Error('no access token in refresh response');
+        }
+        if (payload.refresh_token) {
+          state.refreshToken = String(payload.refresh_token).trim();
+          writeStoredRefreshToken(state.refreshToken);
+        }
+        writeStoredToken(state.token);
+        state.user = payload.user || state.user;
+        updateSessionChrome();
+        return state.token;
+      });
+    }).finally(function () {
+      refreshInFlight = null;
+    });
+    return refreshInFlight;
+  }
+
+  function lockSession(reason) {
+    clearSessionState(reason || 'Session gesperrt.', 'warn');
   }
 
   function checkSessionTimeout() {
@@ -350,7 +751,12 @@
   /* ── Auto-refresh ──────────────────────────────────────── */
   function startDashboardPoll() {
     if (dashboardPollInterval) { return; }
-    dashboardPollInterval = window.setInterval(loadDashboard, 30000);
+    dashboardPollInterval = window.setInterval(function () {
+      if (!state.autoRefresh || !state.token || document.hidden) {
+        return;
+      }
+      loadDashboard();
+    }, 30000);
   }
 
   function stopDashboardPoll() {
@@ -367,7 +773,7 @@
       setBanner('Auto-Aktualisierung wieder aktiv.', 'info');
     } else {
       stopDashboardPoll();
-      setBanner('Auto-Aktualisierung pausiert.', 'banner-warn');
+      setBanner('Auto-Aktualisierung pausiert.', 'warn');
     }
     updateAutoRefreshButton();
   }
@@ -488,13 +894,18 @@
   function maskedFieldBlock(label, value) {
     var safeId = 'cred-' + Math.random().toString(36).slice(2, 10);
     var hasValue = Boolean(value);
+    secretVault[safeId] = String(value || '');
     return '<div class="kv"><div class="kv-label">' + escapeHtml(label) + '</div>' +
       '<div class="kv-value kv-value-masked">' +
-      '<span class="kv-secret" id="' + safeId + '" data-real="' + escapeHtml(value || '') + '" data-visible="0">' +
+      '<span class="kv-secret" id="' + safeId + '" data-visible="0">' +
       (hasValue ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : 'n/a') +
       '</span>' +
       (hasValue ? '<button type="button" class="btn-reveal" data-reveal-id="' + safeId + '">Anzeigen</button>' : '') +
       '</div></div>';
+  }
+
+  function clearSecretVault() {
+    secretVault = Object.create(null);
   }
 
   function downloadTextFile(filename, content, contentType) {
@@ -547,13 +958,13 @@
   }
 
   function request(path, options) {
-    var target = path.indexOf('http') === 0 ? path : apiBase() + path;
-    var finalOptions = Object.assign({ method: 'GET', credentials: 'same-origin' }, options || {});
-    finalOptions.headers = Object.assign({}, finalOptions.headers || {});
-    if (state.token) {
-      finalOptions.headers['X-Beagle-Api-Token'] = state.token;
-    }
-    return fetch(target, finalOptions).then(function (response) {
+    var target = resolveApiTarget(path);
+    var rawOptions = Object.assign({}, options || {});
+    var noRefreshRetry = Boolean(rawOptions.__noRefreshRetry);
+    delete rawOptions.__noRefreshRetry;
+    var finalOptions = Object.assign({ method: 'GET', credentials: 'same-origin' }, rawOptions);
+    finalOptions.headers = Object.assign({}, finalOptions.headers || {}, buildAuthHeaders());
+    return fetchWithTimeout(target, finalOptions).then(function (response) {
       if (!response.ok) {
         return response.text().then(function (body) {
           var detail = body;
@@ -563,21 +974,47 @@
           } catch (error) {
             void error;
           }
+          if ((response.status === 401 || response.status === 403) && state.token) {
+            if (!noRefreshRetry && state.refreshToken && path.indexOf('/auth/') !== 0) {
+              return refreshAccessToken().then(function () {
+                var retriedOptions = Object.assign({}, rawOptions, { __noRefreshRetry: true });
+                return request(path, retriedOptions);
+              }).catch(function () {
+                lockSession('Sitzung abgelaufen oder ungueltig. Bitte neu anmelden.');
+                throw new Error('HTTP ' + response.status + ': ' + detail);
+              });
+            }
+            lockSession('Sitzung abgelaufen oder ungueltig. Bitte neu anmelden.');
+          }
           throw new Error('HTTP ' + response.status + ': ' + detail);
         });
       }
       return response.json();
+    }).catch(function (error) {
+      if (error && (error.name === 'AbortError' || /aborted/i.test(String(error.message || '')))) {
+        throw new Error('Request timeout');
+      }
+      throw error;
     });
   }
 
   function blobRequest(path, filename) {
-    var target = path.indexOf('http') === 0 ? path : apiBase() + path;
-    return fetch(target, {
+    var target = resolveApiTarget(path);
+    var headers = buildAuthHeaders();
+    return fetchWithTimeout(target, {
       method: 'GET',
       credentials: 'same-origin',
-      headers: state.token ? { 'X-Beagle-Api-Token': state.token } : {}
+      headers: headers
     }).then(function (response) {
       if (!response.ok) {
+        if ((response.status === 401 || response.status === 403) && state.token && state.refreshToken && path.indexOf('/auth/') !== 0) {
+          return refreshAccessToken().then(function () {
+            return blobRequest(path, filename);
+          }).catch(function () {
+            lockSession('Sitzung abgelaufen oder ungueltig. Bitte neu anmelden.');
+            throw new Error('HTTP ' + response.status + ' downloading');
+          });
+        }
         throw new Error('HTTP ' + response.status + ' downloading');
       }
       return response.blob().then(function (blob) {
@@ -592,6 +1029,11 @@
           link.remove();
         }, 1000);
       });
+    }).catch(function (error) {
+      if (error && (error.name === 'AbortError' || /aborted/i.test(String(error.message || '')))) {
+        throw new Error('Download timeout');
+      }
+      throw error;
     });
   }
 
@@ -779,23 +1221,25 @@
     if (actionName === 'stop' && !window.confirm('VM ' + numericVmid + ' wirklich stoppen?')) {
       return Promise.resolve();
     }
-    setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' wird ausgefuehrt ...', 'info');
-    return request('/virtualization/vms/' + numericVmid + '/power', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: actionName })
-    }).then(function () {
-      addToActivityLog('vm-' + actionName, numericVmid, 'ok', 'VM power action');
-      setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' erfolgreich.', 'ok');
-      return loadDashboard().then(function () {
-        if (state.selectedVmid === numericVmid) {
-          return loadDetail(numericVmid);
-        }
-        return null;
+    return runSingleFlight('vm-power:' + numericVmid + ':' + actionName, function () {
+      setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' wird ausgefuehrt ...', 'info');
+      return request('/virtualization/vms/' + numericVmid + '/power', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: actionName })
+      }).then(function () {
+        addToActivityLog('vm-' + actionName, numericVmid, 'ok', 'VM power action');
+        setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' erfolgreich.', 'ok');
+        return loadDashboard().then(function () {
+          if (state.selectedVmid === numericVmid) {
+            return loadDetail(numericVmid);
+          }
+          return null;
+        });
+      }).catch(function (error) {
+        addToActivityLog('vm-' + actionName, numericVmid, 'warn', error.message);
+        setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' fehlgeschlagen: ' + error.message, 'warn');
       });
-    }).catch(function (error) {
-      addToActivityLog('vm-' + actionName, numericVmid, 'warn', error.message);
-      setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' fehlgeschlagen: ' + error.message, 'warn');
     });
   }
 
@@ -805,26 +1249,28 @@
       setBanner('Keine VM fuer die Bulk-Power-Aktion ausgewaehlt.', 'warn');
       return;
     }
-    setBanner('Bulk VM ' + powerActionLabel(actionName) + ' fuer ' + vmids.length + ' VM(s) wird ausgefuehrt ...', 'info');
-    Promise.all(vmids.map(function (vmid) {
-      return request('/virtualization/vms/' + Number(vmid) + '/power', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: actionName })
-      }).then(function () {
-        return { ok: true, vmid: vmid };
-      }).catch(function (error) {
-        return { ok: false, vmid: vmid, error: error.message };
+    runSingleFlight('bulk-vm-power:' + actionName, function () {
+      setBanner('Bulk VM ' + powerActionLabel(actionName) + ' fuer ' + vmids.length + ' VM(s) wird ausgefuehrt ...', 'info');
+      return Promise.all(vmids.map(function (vmid) {
+        return request('/virtualization/vms/' + Number(vmid) + '/power', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: actionName })
+        }).then(function () {
+          return { ok: true, vmid: vmid };
+        }).catch(function (error) {
+          return { ok: false, vmid: vmid, error: error.message };
+        });
+      })).then(function (results) {
+        var okCount = results.filter(function (item) { return item.ok; }).length;
+        var failItems = results.filter(function (item) { return !item.ok; });
+        if (failItems.length) {
+          setBanner('Bulk VM ' + powerActionLabel(actionName) + ': ' + okCount + ' ok, ' + failItems.length + ' fehlgeschlagen.', 'warn');
+        } else {
+          setBanner('Bulk VM ' + powerActionLabel(actionName) + ' erfolgreich fuer ' + okCount + ' VM(s).', 'ok');
+        }
+        return loadDashboard();
       });
-    })).then(function (results) {
-      var okCount = results.filter(function (item) { return item.ok; }).length;
-      var failItems = results.filter(function (item) { return !item.ok; });
-      if (failItems.length) {
-        setBanner('Bulk VM ' + powerActionLabel(actionName) + ': ' + okCount + ' ok, ' + failItems.length + ' fehlgeschlagen.', 'warn');
-      } else {
-        setBanner('Bulk VM ' + powerActionLabel(actionName) + ' erfolgreich fuer ' + okCount + ' VM(s).', 'ok');
-      }
-      return loadDashboard();
     });
   }
 
@@ -846,7 +1292,7 @@
     var pct = total > 0 ? Math.min(100, Math.round((Number(used) / Number(total)) * 100)) : 0;
     var tone = pct >= USAGE_WARN_THRESHOLD ? 'warn' : pct >= USAGE_INFO_THRESHOLD ? 'info' : '';
     return '<span class="usage-bar-outer ' + tone + '">' +
-      '<span class="usage-bar-track"><span class="usage-bar-fill" style="width:' + pct + '%"></span></span>' +
+      '<progress class="usage-bar-track usage-progress" max="100" value="' + pct + '"></progress>' +
       '<span class="usage-label">' + escapeHtml(label || (pct + '%')) + '</span>' +
       '</span>';
   }
@@ -1012,10 +1458,21 @@
     var nodes = Array.isArray(overview.nodes) ? overview.nodes : [];
     var storage = Array.isArray(overview.storage) ? overview.storage : [];
     var bridges = Array.isArray(overview.bridges) ? overview.bridges : [];
+    var nodeFilter = String(state.virtualizationNodeFilter || '').trim();
+    var filteredStorage = nodeFilter ? storage.filter(function (item) {
+      return String(item.node || '').trim() === nodeFilter;
+    }) : storage;
+    var filteredBridges = nodeFilter ? bridges.filter(function (item) {
+      return String(item.node || '').trim() === nodeFilter;
+    }) : bridges;
     var hostBody = qs('virtualization-hosts-body');
     var nodeBody = qs('virtualization-nodes-body');
     var storageBody = qs('virtualization-storage-body');
     var bridgeBody = qs('virtualization-bridges-body');
+    text('virtualization-node-filter', nodeFilter || 'Alle Nodes');
+    if (qs('clear-virt-node-filter')) {
+      qs('clear-virt-node-filter').disabled = !nodeFilter;
+    }
 
     if (hostBody) {
       hostBody.innerHTML = hosts.length ? hosts.map(function (item) {
@@ -1033,7 +1490,7 @@
         var cpuPercent = Math.max(0, Number(item.cpu || 0) * 100);
         var memPercent = Number(item.maxmem || 0) > 0 ? (Number(item.mem || 0) / Number(item.maxmem || 0)) * 100 : 0;
         return '' +
-          '<tr data-node="' + escapeHtml(item.label || item.name || item.id || '') + '">' +
+          '<tr data-node="' + escapeHtml(item.label || item.name || item.id || '') + '"' + ((nodeFilter && (item.label || item.name || item.id || '') === nodeFilter) ? ' class="node-filter-selected"' : '') + '>' +
           '  <td>' + escapeHtml(item.label || item.name || item.id || 'node') + '</td>' +
           '  <td>' + chip(item.status || 'unknown', (item.status || '').toLowerCase() === 'online' ? 'ok' : 'muted') + '</td>' +
           '  <td>' + escapeHtml(cpuPercent.toFixed(0) + '%') + '</td>' +
@@ -1043,7 +1500,7 @@
     }
 
     if (storageBody) {
-      storageBody.innerHTML = storage.length ? storage.map(function (item) {
+      storageBody.innerHTML = filteredStorage.length ? filteredStorage.map(function (item) {
         var usedPercent = Number(item.total || 0) > 0 ? (Number(item.used || 0) / Number(item.total || 0)) * 100 : 0;
         return '' +
           '<tr>' +
@@ -1056,9 +1513,9 @@
     }
 
     if (bridgeBody) {
-      bridgeBody.innerHTML = bridges.length ? bridges.map(function (item) {
+      bridgeBody.innerHTML = filteredBridges.length ? filteredBridges.map(function (item) {
         return '' +
-          '<tr data-node="' + escapeHtml(item.node || '') + '">' +
+          '<tr data-node="' + escapeHtml(item.node || '') + '"' + ((nodeFilter && String(item.node || '') === nodeFilter) ? ' class="node-filter-selected"' : '') + '>' +
           '  <td>' + escapeHtml(item.name || item.id || 'bridge') + '</td>' +
           '  <td>' + escapeHtml(item.node || '-') + '</td>' +
           '  <td>' + escapeHtml(item.cidr || item.address || '-') + '</td>' +
@@ -1067,6 +1524,121 @@
           '</tr>';
       }).join('') : '<tr><td colspan="5" class="empty-cell">Keine Bridge-Daten vorhanden.</td></tr>';
     }
+  }
+
+  function setVirtualizationNodeFilter(nodeName) {
+    var next = String(nodeName || '').trim();
+    state.virtualizationNodeFilter = next;
+    renderVirtualizationOverview();
+    setBanner(next ? ('Node-Filter aktiv: ' + next) : 'Node-Filter entfernt.', 'info');
+  }
+
+  function renderVirtualizationInspector() {
+    var summary = qs('virt-inspector-summary');
+    var configBody = qs('virt-inspector-config-body');
+    var ifaceBody = qs('virt-inspector-iface-body');
+    if (!summary || !configBody || !ifaceBody) {
+      return;
+    }
+    if (!state.token) {
+      summary.innerHTML = '<div class="kv"><div class="kv-label">Status</div><div class="kv-value">Bitte anmelden, um VM-Details zu laden.</div></div>';
+      configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Nicht angemeldet.</td></tr>';
+      ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">Nicht angemeldet.</td></tr>';
+      return;
+    }
+
+    var inspector = state.virtualizationInspector || {};
+    if (inspector.loading) {
+      summary.innerHTML = '<div class="kv"><div class="kv-label">Status</div><div class="kv-value">Lade VM-Inspector ...</div></div>';
+      configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Lade Konfiguration ...</td></tr>';
+      ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">Lade Interfaces ...</td></tr>';
+      return;
+    }
+    if (inspector.error) {
+      summary.innerHTML = '<div class="kv"><div class="kv-label">Fehler</div><div class="kv-value">' + escapeHtml(inspector.error) + '</div></div>';
+      configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Keine Config verfuegbar.</td></tr>';
+      ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">Keine Interface-Daten verfuegbar.</td></tr>';
+      return;
+    }
+    if (!inspector.vmid || !inspector.config) {
+      summary.innerHTML = '<div class="kv"><div class="kv-label">Status</div><div class="kv-value">Noch keine VM geladen.</div></div>';
+      configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Noch keine Config geladen.</td></tr>';
+      ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">Noch keine Interfaces geladen.</td></tr>';
+      return;
+    }
+
+    var config = inspector.config || {};
+    var interfaces = Array.isArray(inspector.interfaces) ? inspector.interfaces : [];
+    var diskKeys = Object.keys(config).filter(function (k) { return DISK_KEY_PATTERN.test(k); }).sort();
+    var netKeys = Object.keys(config).filter(function (k) { return NET_KEY_PATTERN.test(k); }).sort();
+    var configKeys = VM_MAIN_KEYS.concat(diskKeys).concat(netKeys).filter(function (key, index, arr) {
+      return arr.indexOf(key) === index && config[key] != null && config[key] !== '';
+    });
+
+    summary.innerHTML = [
+      fieldBlock('VMID', String(inspector.vmid)),
+      fieldBlock('Name', String(config.name || 'n/a')),
+      fieldBlock('Node', String(config.node || 'n/a')),
+      fieldBlock('Status', String(config.status || 'unknown'))
+    ].join('');
+
+    configBody.innerHTML = configKeys.length ? configKeys.map(function (key) {
+      return '<tr><td>' + escapeHtml(key) + '</td><td class="storage-content">' + escapeHtml(String(config[key])) + '</td></tr>';
+    }).join('') : '<tr><td colspan="2" class="empty-cell">Keine Config-Werte verfuegbar.</td></tr>';
+
+    ifaceBody.innerHTML = interfaces.length ? interfaces.map(function (iface) {
+      var ipList = Array.isArray(iface['ip-addresses']) ? iface['ip-addresses'] : [];
+      var addresses = ipList.map(function (entry) {
+        var ip = String(entry['ip-address'] || '').trim();
+        var prefix = String(entry.prefix || '').trim();
+        return ip ? ip + (prefix ? '/' + prefix : '') : '';
+      }).filter(Boolean).join(', ');
+      return '<tr>' +
+        '<td>' + escapeHtml(String(iface.name || iface.ifname || '-')) + '</td>' +
+        '<td>' + escapeHtml(String(iface['hardware-address'] || iface.mac || '-')) + '</td>' +
+        '<td>' + escapeHtml(addresses || '-') + '</td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="3" class="empty-cell">Keine Guest-Interface-Daten verfuegbar.</td></tr>';
+  }
+
+  function loadVirtualizationInspector(vmid) {
+    var numericVmid = Number(vmid || 0);
+    if (!Number.isFinite(numericVmid) || numericVmid <= 0) {
+      setBanner('VM Inspector: gueltige VMID erforderlich.', 'warn');
+      return;
+    }
+    state.virtualizationInspector = {
+      vmid: numericVmid,
+      loading: true,
+      config: null,
+      interfaces: [],
+      error: ''
+    };
+    renderVirtualizationInspector();
+    Promise.all([
+      request('/virtualization/vms/' + numericVmid + '/config'),
+      request('/virtualization/vms/' + numericVmid + '/interfaces').catch(function () { return { interfaces: [] }; })
+    ]).then(function (results) {
+      state.virtualizationInspector = {
+        vmid: numericVmid,
+        loading: false,
+        config: (results[0] && results[0].config) || {},
+        interfaces: (results[1] && results[1].interfaces) || [],
+        error: ''
+      };
+      renderVirtualizationInspector();
+      setBanner('VM Inspector geladen fuer VM ' + numericVmid + '.', 'ok');
+    }).catch(function (error) {
+      state.virtualizationInspector = {
+        vmid: numericVmid,
+        loading: false,
+        config: null,
+        interfaces: [],
+        error: error.message
+      };
+      renderVirtualizationInspector();
+      setBanner('VM Inspector Fehler: ' + error.message, 'warn');
+    });
   }
 
   function renderEndpointsOverview() {
@@ -1216,22 +1788,28 @@
       setBanner('Provisioning: Node fehlt.', 'warn');
       return;
     }
+    if (payload.guest_password && payload.guest_password.length < MIN_PASSWORD_LEN) {
+      setBanner('Provisioning: Guest-Passwort ist zu kurz (min. ' + String(MIN_PASSWORD_LEN) + ').', 'warn');
+      return;
+    }
 
-    setBanner('Provisioning: VM wird erstellt ...', 'info');
-    postJson('/provisioning/vms', payload).then(function (response) {
-      var vm = response && response.provisioned_vm ? response.provisioned_vm : {};
-      var vmid = Number(vm.vmid || payload.vmid || 0);
-      addToActivityLog('provision-create', vmid || null, 'ok', 'VM erstellt: ' + (payload.name || ''));
-      setBanner('Provisioning gestartet fuer VM ' + (vmid || '?') + '.', 'ok');
-      return loadDashboard().then(function () {
-        if (vmid) {
-          return loadDetail(vmid);
-        }
-        return null;
+    runSingleFlight('provision-create', function () {
+      setBanner('Provisioning: VM wird erstellt ...', 'info');
+      return postJson('/provisioning/vms', payload).then(function (response) {
+        var vm = response && response.provisioned_vm ? response.provisioned_vm : {};
+        var vmid = Number(vm.vmid || payload.vmid || 0);
+        addToActivityLog('provision-create', vmid || null, 'ok', 'VM erstellt: ' + (payload.name || ''));
+        setBanner('Provisioning gestartet fuer VM ' + (vmid || '?') + '.', 'ok');
+        return loadDashboard().then(function () {
+          if (vmid) {
+            return loadDetail(vmid);
+          }
+          return null;
+        });
+      }).catch(function (error) {
+        addToActivityLog('provision-create', null, 'warn', error.message);
+        setBanner('Provisioning fehlgeschlagen: ' + error.message, 'warn');
       });
-    }).catch(function (error) {
-      addToActivityLog('provision-create', null, 'warn', error.message);
-      setBanner('Provisioning fehlgeschlagen: ' + error.message, 'warn');
     });
   }
 
@@ -1380,6 +1958,7 @@
         '</div>' +
       '</div>';
     }).join('') : '<div class="empty-card">No USB devices attached to VM.</div>';
+    secretVault = Object.create(null);
     text('detail-title', (profile.name || ('VM ' + profile.vmid)) + ' (#' + profile.vmid + ')');
     if (actionsNode) {
       actionsNode.innerHTML = actionButton('refresh-detail', 'Reload', 'ghost') + actionButton('sunshine-ui', 'Sunshine Web UI', 'ghost') + actionButton('usb-refresh', 'USB Refresh', 'ghost');
@@ -1503,6 +2082,7 @@
   function loadDetail(vmid) {
     var numericVmid = Number(vmid);
     state.selectedVmid = numericVmid;
+    clearSecretVault();
     setActivePanel('inventory');
     renderInventory();
     setBanner('Lade Details fuer VM ' + numericVmid + ' ...', 'info');
@@ -1540,11 +2120,65 @@
   function saveToken() {
     var input = qs('api-token');
     state.token = input ? String(input.value || '').trim() : '';
+    state.refreshToken = '';
+    state.user = null;
     if (state.token) {
       writeStoredToken(state.token);
+      clearStoredRefreshToken();
     } else {
       clearStoredToken();
+      clearStoredRefreshToken();
     }
+  }
+
+  function loginWithCredentials(username, password) {
+    var safeUsername = sanitizeIdentifier(username, 'Benutzername', USERNAME_PATTERN, 1, MAX_USERNAME_LEN);
+    var safePassword = sanitizePassword(password, 'Passwort');
+    return fetchWithTimeout(resolveApiTarget('/auth/login'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: safeUsername,
+        password: safePassword
+      })
+    }).then(function (response) {
+      return response.text().then(function (body) {
+        var payload = {};
+        try {
+          payload = JSON.parse(body || '{}');
+        } catch (error) {
+          void error;
+        }
+        if (!response.ok) {
+          throw new Error(payload.error || ('HTTP ' + response.status));
+        }
+        state.token = String(payload.access_token || '').trim();
+        state.refreshToken = String(payload.refresh_token || '').trim();
+        state.user = payload.user || null;
+        if (!state.token) {
+          throw new Error('No access token returned');
+        }
+        if (!state.refreshToken) {
+          throw new Error('No refresh token returned');
+        }
+        writeStoredToken(state.token);
+        writeStoredRefreshToken(state.refreshToken);
+        try {
+          localStorage.setItem('beagle.auth.username', safeUsername);
+        } catch (error) {
+          void error;
+        }
+        if (qs('auth-password')) {
+          qs('auth-password').value = '';
+        }
+      }).catch(function (error) {
+        if (error && (error.name === 'AbortError' || /aborted/i.test(String(error.message || '')))) {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      });
+    });
   }
 
   function selectedVmidsFromInventory() {
@@ -1559,16 +2193,18 @@
       setBanner('Keine VM fuer die Bulk-Aktion ausgewaehlt.', 'warn');
       return;
     }
-    setBanner('Bulk-Aktion ' + actionLabel(action) + ' fuer ' + vmids.length + ' VM(s) wird eingereiht ...', 'info');
-    postJson('/actions/bulk', {
-      vmids: vmids,
-      action: action
-    }).then(function (payload) {
-      var queued = payload && payload.queued_count != null ? payload.queued_count : vmids.length;
-      setBanner('Bulk-Aktion ' + actionLabel(action) + ' eingereiht: ' + queued + ' VM(s).', 'ok');
-      return loadDashboard();
-    }).catch(function (error) {
-      setBanner('Bulk-Aktion fehlgeschlagen: ' + error.message, 'warn');
+    runSingleFlight('bulk-action:' + action, function () {
+      setBanner('Bulk-Aktion ' + actionLabel(action) + ' fuer ' + vmids.length + ' VM(s) wird eingereiht ...', 'info');
+      return postJson('/actions/bulk', {
+        vmids: vmids,
+        action: action
+      }).then(function (payload) {
+        var queued = payload && payload.queued_count != null ? payload.queued_count : vmids.length;
+        setBanner('Bulk-Aktion ' + actionLabel(action) + ' eingereiht: ' + queued + ' VM(s).', 'ok');
+        return loadDashboard();
+      }).catch(function (error) {
+        setBanner('Bulk-Aktion fehlgeschlagen: ' + error.message, 'warn');
+      });
     });
   }
 
@@ -1587,8 +2223,10 @@
   function savePolicy() {
     var name = String(qs('policy-name') ? qs('policy-name').value : '').trim();
     var payload;
-    if (!name) {
-      setBanner('Policy name is required.', 'warn');
+    try {
+      name = sanitizeIdentifier(name, 'Policy-Name', POLICY_NAME_PATTERN, 2, 80);
+    } catch (error) {
+      setBanner(error.message, 'warn');
       return;
     }
     try {
@@ -1607,19 +2245,21 @@
     var updateExisting = Boolean(state.selectedPolicyName && state.selectedPolicyName === name);
     var path = updateExisting ? '/policies/' + encodeURIComponent(name) : '/policies';
     var method = updateExisting ? 'PUT' : 'POST';
-    setBanner('Policy ' + name + ' saving...', 'info');
-    request(path, {
-      method: method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).then(function () {
-      state.selectedPolicyName = name;
-      return loadDashboard();
-    }).then(function () {
-      loadPolicyIntoEditor(name);
-      setBanner('Policy ' + name + ' saved.', 'ok');
-    }).catch(function (error) {
-      setBanner('Failed to save policy:' + error.message, 'warn');
+    runSingleFlight('policy-save:' + name, function () {
+      setBanner('Policy ' + name + ' saving...', 'info');
+      return request(path, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function () {
+        state.selectedPolicyName = name;
+        return loadDashboard();
+      }).then(function () {
+        loadPolicyIntoEditor(name);
+        setBanner('Policy ' + name + ' saved.', 'ok');
+      }).catch(function (error) {
+        setBanner('Failed to save policy:' + error.message, 'warn');
+      });
     });
   }
 
@@ -1632,42 +2272,352 @@
     if (!window.confirm('Policy "' + name + '" wirklich loeschen?')) {
       return;
     }
-    setBanner('Policy ' + name + ' deleting...', 'info');
-    request('/policies/' + encodeURIComponent(name), {
-      method: 'DELETE'
-    }).then(function () {
-      addToActivityLog('policy-delete', null, 'ok', name);
-      resetPolicyEditor();
-      return loadDashboard();
-    }).then(function () {
-      setBanner('Policy ' + name + ' deleted.', 'ok');
-    }).catch(function (error) {
-      addToActivityLog('policy-delete', null, 'warn', error.message);
-      setBanner('Failed to delete policy:' + error.message, 'warn');
+    runSingleFlight('policy-delete:' + name, function () {
+      setBanner('Policy ' + name + ' deleting...', 'info');
+      return request('/policies/' + encodeURIComponent(name), {
+        method: 'DELETE'
+      }).then(function () {
+        addToActivityLog('policy-delete', null, 'ok', name);
+        resetPolicyEditor();
+        return loadDashboard();
+      }).then(function () {
+        setBanner('Policy ' + name + ' deleted.', 'ok');
+      }).catch(function (error) {
+        addToActivityLog('policy-delete', null, 'warn', error.message);
+        setBanner('Failed to delete policy:' + error.message, 'warn');
+      });
     });
   }
 
-  function loadDashboard() {
-    if (!state.token) {
+  function parsePermissions(raw) {
+    return String(raw || '')
+      .split(/[,\n]/)
+      .map(function (entry) { return entry.trim(); })
+      .filter(Boolean);
+  }
+
+  function renderIamRoleSelect() {
+    var roleSelect = qs('iam-user-role');
+    if (!roleSelect) {
+      return;
+    }
+    if (!state.authRoles.length) {
+      roleSelect.innerHTML = '<option value="">Keine Rollen</option>';
+      return;
+    }
+    roleSelect.innerHTML = state.authRoles.map(function (role) {
+      return '<option value="' + escapeHtml(role.name) + '">' + escapeHtml(role.name) + '</option>';
+    }).join('');
+  }
+
+  function resetIamUserEditor() {
+    state.selectedAuthUser = '';
+    if (qs('iam-user-username')) {
+      qs('iam-user-username').value = '';
+    }
+    if (qs('iam-user-password')) {
+      qs('iam-user-password').value = '';
+    }
+    if (qs('iam-user-enabled')) {
+      qs('iam-user-enabled').checked = true;
+    }
+    if (qs('iam-user-role')) {
+      qs('iam-user-role').selectedIndex = 0;
+    }
+  }
+
+  function resetIamRoleEditor() {
+    state.selectedAuthRole = '';
+    if (qs('iam-role-name')) {
+      qs('iam-role-name').value = '';
+    }
+    if (qs('iam-role-permissions')) {
+      qs('iam-role-permissions').value = '';
+    }
+  }
+
+  function loadIamUserIntoEditor(username) {
+    var user = state.authUsers.find(function (entry) {
+      return entry.username === username;
+    });
+    if (!user) {
+      return;
+    }
+    state.selectedAuthUser = user.username;
+    if (qs('iam-user-username')) {
+      qs('iam-user-username').value = user.username || '';
+    }
+    if (qs('iam-user-role')) {
+      qs('iam-user-role').value = user.role || '';
+    }
+    if (qs('iam-user-password')) {
+      qs('iam-user-password').value = '';
+    }
+    if (qs('iam-user-enabled')) {
+      qs('iam-user-enabled').checked = user.enabled !== false;
+    }
+  }
+
+  function loadIamRoleIntoEditor(roleName) {
+    var role = state.authRoles.find(function (entry) {
+      return entry.name === roleName;
+    });
+    if (!role) {
+      return;
+    }
+    state.selectedAuthRole = role.name;
+    if (qs('iam-role-name')) {
+      qs('iam-role-name').value = role.name || '';
+    }
+    if (qs('iam-role-permissions')) {
+      qs('iam-role-permissions').value = (role.permissions || []).join('\n');
+    }
+  }
+
+  function renderIamUsers() {
+    var body = qs('iam-users-body');
+    if (!body) {
+      return;
+    }
+    if (!state.authUsers.length) {
+      body.innerHTML = '<tr><td colspan="3" class="empty-cell">Keine Benutzer sichtbar.</td></tr>';
+      return;
+    }
+    body.innerHTML = state.authUsers.map(function (user) {
+      var selected = state.selectedAuthUser === user.username ? ' selected' : '';
+      return '<tr class="clickable-row' + selected + '" data-iam-user="' + escapeHtml(user.username) + '">' +
+        '<td>' + escapeHtml(user.username) + '</td>' +
+        '<td>' + escapeHtml(user.role || '-') + '</td>' +
+        '<td>' + (user.enabled === false ? 'deaktiviert' : 'aktiv') + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function renderIamRoles() {
+    var body = qs('iam-roles-body');
+    if (!body) {
+      return;
+    }
+    if (!state.authRoles.length) {
+      body.innerHTML = '<tr><td colspan="2" class="empty-cell">Keine Rollen sichtbar.</td></tr>';
+      return;
+    }
+    body.innerHTML = state.authRoles.map(function (role) {
+      var selected = state.selectedAuthRole === role.name ? ' selected' : '';
+      var permissions = Array.isArray(role.permissions) ? role.permissions : [];
+      var preview = permissions.slice(0, 3).join(', ');
+      var suffix = permissions.length > 3 ? ' ...' : '';
+      return '<tr class="clickable-row' + selected + '" data-iam-role="' + escapeHtml(role.name) + '">' +
+        '<td>' + escapeHtml(role.name) + '</td>' +
+        '<td>' + escapeHtml(preview || '-') + escapeHtml(suffix) + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function renderIam() {
+    renderIamRoleSelect();
+    renderIamUsers();
+    renderIamRoles();
+  }
+
+  function refreshIamData() {
+    return Promise.all([
+      request('/auth/users').catch(function () { return []; }),
+      request('/auth/roles').catch(function () { return []; })
+    ]).then(function (results) {
+      state.authUsers = Array.isArray(results[0]) ? results[0] : [];
+      state.authRoles = Array.isArray(results[1]) ? results[1] : [];
+      if (state.selectedAuthUser && !state.authUsers.some(function (user) { return user.username === state.selectedAuthUser; })) {
+        state.selectedAuthUser = '';
+      }
+      if (state.selectedAuthRole && !state.authRoles.some(function (role) { return role.name === state.selectedAuthRole; })) {
+        state.selectedAuthRole = '';
+      }
+      renderIam();
+    });
+  }
+
+  function saveIamUser() {
+    var username = String(qs('iam-user-username') ? qs('iam-user-username').value : '').trim();
+    var role = String(qs('iam-user-role') ? qs('iam-user-role').value : '').trim();
+    var password = String(qs('iam-user-password') ? qs('iam-user-password').value : '');
+    var enabled = Boolean(qs('iam-user-enabled') && qs('iam-user-enabled').checked);
+    var existing = state.authUsers.find(function (user) { return user.username === username; });
+    var payload;
+
+    try {
+      username = sanitizeIdentifier(username, 'Username', USERNAME_PATTERN, 1, MAX_USERNAME_LEN);
+    } catch (error) {
+      setBanner(error.message, 'warn');
+      return;
+    }
+    if (!role) {
+      setBanner('Bitte eine Rolle auswaehlen.', 'warn');
+      return;
+    }
+
+    payload = { role: role, enabled: enabled };
+    if (password) {
+      payload.password = password;
+    }
+
+    if (!existing && !password) {
+      setBanner('Neue User benoetigen ein Passwort.', 'warn');
+      return;
+    }
+    if (password && password.length < MIN_PASSWORD_LEN) {
+      setBanner('Passwort ist zu kurz (min. ' + String(MIN_PASSWORD_LEN) + ').', 'warn');
+      return;
+    }
+
+    runSingleFlight('iam-user-save:' + username, function () {
+      return request(existing ? ('/auth/users/' + encodeURIComponent(username)) : '/auth/users', {
+        method: existing ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(existing ? payload : {
+          username: username,
+          role: role,
+          password: password,
+          enabled: enabled
+        })
+      }).then(function () {
+        state.selectedAuthUser = username;
+        if (qs('iam-user-password')) {
+          qs('iam-user-password').value = '';
+        }
+        setBanner('User gespeichert: ' + username, 'ok');
+        return refreshIamData();
+      }).catch(function (error) {
+        setBanner('User konnte nicht gespeichert werden: ' + error.message, 'warn');
+      });
+    });
+  }
+
+  function deleteIamUser() {
+    var username = String(qs('iam-user-username') ? qs('iam-user-username').value : '').trim() || state.selectedAuthUser;
+    if (!username) {
+      setBanner('Bitte zuerst einen User auswaehlen.', 'warn');
+      return;
+    }
+    if (!window.confirm('User "' + username + '" wirklich loeschen?')) {
+      return;
+    }
+    runSingleFlight('iam-user-delete:' + username, function () {
+      return request('/auth/users/' + encodeURIComponent(username), {
+        method: 'DELETE'
+      }).then(function () {
+        resetIamUserEditor();
+        setBanner('User geloescht: ' + username, 'ok');
+        return refreshIamData();
+      }).catch(function (error) {
+        setBanner('User konnte nicht geloescht werden: ' + error.message, 'warn');
+      });
+    });
+  }
+
+  function revokeIamUserSessions() {
+    var username = String(qs('iam-user-username') ? qs('iam-user-username').value : '').trim() || state.selectedAuthUser;
+    if (!username) {
+      setBanner('Bitte zuerst einen User auswaehlen.', 'warn');
+      return;
+    }
+    runSingleFlight('iam-user-revoke:' + username, function () {
+      return request('/auth/users/' + encodeURIComponent(username) + '/revoke-sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'admin_revoke_from_web_ui' })
+      }).then(function () {
+        setBanner('Sessions widerrufen fuer: ' + username, 'ok');
+      }).catch(function (error) {
+        setBanner('Session-Revoke fehlgeschlagen: ' + error.message, 'warn');
+      });
+    });
+  }
+
+  function saveIamRole() {
+    var roleName = String(qs('iam-role-name') ? qs('iam-role-name').value : '').trim();
+    var permissions = parsePermissions(qs('iam-role-permissions') ? qs('iam-role-permissions').value : '');
+    var existing = state.authRoles.find(function (role) { return role.name === roleName; });
+    try {
+      roleName = sanitizeIdentifier(roleName, 'Rollenname', ROLE_NAME_PATTERN, 2, 80);
+    } catch (error) {
+      setBanner(error.message, 'warn');
+      return;
+    }
+    runSingleFlight('iam-role-save:' + roleName, function () {
+      return request(existing ? ('/auth/roles/' + encodeURIComponent(roleName)) : '/auth/roles', {
+        method: existing ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(existing ? { permissions: permissions } : { name: roleName, permissions: permissions })
+      }).then(function () {
+        state.selectedAuthRole = roleName;
+        setBanner('Rolle gespeichert: ' + roleName, 'ok');
+        return refreshIamData();
+      }).catch(function (error) {
+        setBanner('Rolle konnte nicht gespeichert werden: ' + error.message, 'warn');
+      });
+    });
+  }
+
+  function deleteIamRole() {
+    var roleName = String(qs('iam-role-name') ? qs('iam-role-name').value : '').trim() || state.selectedAuthRole;
+    if (!roleName) {
+      setBanner('Bitte zuerst eine Rolle auswaehlen.', 'warn');
+      return;
+    }
+    if (!window.confirm('Rolle "' + roleName + '" wirklich loeschen?')) {
+      return;
+    }
+    runSingleFlight('iam-role-delete:' + roleName, function () {
+      return request('/auth/roles/' + encodeURIComponent(roleName), {
+        method: 'DELETE'
+      }).then(function () {
+        resetIamRoleEditor();
+        setBanner('Rolle geloescht: ' + roleName, 'ok');
+        return refreshIamData();
+      }).catch(function (error) {
+        setBanner('Rolle konnte nicht geloescht werden: ' + error.message, 'warn');
+      });
+    });
+  }
+
+  function loadDashboard(options) {
+    var opts = options || {};
+    if (dashboardLoadInFlight && !opts.force) {
+      return dashboardLoadInFlight;
+    }
+    if (state.onboarding && state.onboarding.pending) {
       setAuthMode(false);
-      setBanner('No API token set.', 'warn');
+      openOnboardingModal();
       return Promise.resolve();
     }
-    setBanner('Loading Beagle Manager...', 'info');
-    return Promise.all([
+    if (!state.token) {
+      setAuthMode(false);
+      setBanner('Nicht angemeldet.', 'warn');
+      return Promise.resolve();
+    }
+    setBanner('Lade Beagle Manager...', 'info');
+    dashboardLoadInFlight = Promise.all([
+      request('/auth/me'),
       request('/health'),
       request('/vms'),
       request('/endpoints'),
       request('/policies'),
       request('/virtualization/overview'),
-      request('/provisioning/catalog')
+      request('/provisioning/catalog'),
+      request('/auth/users').catch(function () { return []; }),
+      request('/auth/roles').catch(function () { return []; })
     ]).then(function (results) {
-      var health = results[0] || {};
-      state.inventory = (results[1] && results[1].vms) || [];
-      state.endpointReports = (results[2] && results[2].endpoints) || [];
-      state.policies = (results[3] && results[3].policies) || [];
-      state.virtualizationOverview = results[4] || null;
-      state.provisioningCatalog = results[5] && results[5].catalog ? results[5].catalog : null;
+      var me = results[0] || {};
+      var health = results[1] || {};
+      state.user = me.user || null;
+      state.inventory = (results[2] && results[2].vms) || [];
+      state.endpointReports = (results[3] && results[3].endpoints) || [];
+      state.policies = (results[4] && results[4].policies) || [];
+      state.virtualizationOverview = results[5] || null;
+      state.provisioningCatalog = results[6] && results[6].catalog ? results[6].catalog : null;
+      state.authUsers = Array.isArray(results[7]) ? results[7] : [];
+      state.authRoles = Array.isArray(results[8]) ? results[8] : [];
       recordAuthSuccess();
       setAuthMode(true);
       statCardFromHealth(health, state.virtualizationOverview);
@@ -1675,6 +2625,7 @@
       renderEndpointsOverview();
       renderVirtualizationOverview();
       renderPolicies();
+      renderIam();
       renderVirtualizationPanel();
       renderProvisioningWorkspace();
       updateFleetHealthAlert();
@@ -1692,7 +2643,10 @@
       text('stat-manager', 'Error');
       text('stat-manager-meta', error.message);
       setBanner('Verbindung fehlgeschlagen: ' + error.message, 'warn');
+    }).finally(function () {
+      dashboardLoadInFlight = null;
     });
+    return dashboardLoadInFlight;
   }
 
   function postJson(path, payload) {
@@ -1725,45 +2679,53 @@
       return;
     }
     if (action === 'usb-refresh') {
-      setBanner('Refreshing USB inventory for VM ' + vmid + '...', 'info');
-      postJson('/vms/' + vmid + '/usb/refresh', {}).then(function () {
-        return loadDetail(vmid);
-      }).catch(function (error) {
-        setBanner('USB-Refresh failed:' + error.message, 'warn');
+      runSingleFlight('vm-action:' + vmid + ':usb-refresh', function () {
+        setBanner('Refreshing USB inventory for VM ' + vmid + '...', 'info');
+        return postJson('/vms/' + vmid + '/usb/refresh', {}).then(function () {
+          return loadDetail(vmid);
+        }).catch(function (error) {
+          setBanner('USB-Refresh failed:' + error.message, 'warn');
+        });
       });
       return;
     }
     if (action === 'usb-attach') {
-      setBanner('Attaching USB device to VM ' + vmid + '...', 'info');
-      postJson('/vms/' + vmid + '/usb/attach', {
-        busid: sourceButton && sourceButton.getAttribute('data-usb-busid') || ''
-      }).then(function () {
-        return loadDetail(vmid);
-      }).catch(function (error) {
-        setBanner('USB-Attach failed:' + error.message, 'warn');
+      runSingleFlight('vm-action:' + vmid + ':usb-attach', function () {
+        setBanner('Attaching USB device to VM ' + vmid + '...', 'info');
+        return postJson('/vms/' + vmid + '/usb/attach', {
+          busid: sourceButton && sourceButton.getAttribute('data-usb-busid') || ''
+        }).then(function () {
+          return loadDetail(vmid);
+        }).catch(function (error) {
+          setBanner('USB-Attach failed:' + error.message, 'warn');
+        });
       });
       return;
     }
     if (action === 'usb-detach') {
-      setBanner('Detaching USB device from VM ' + vmid + '...', 'info');
-      postJson('/vms/' + vmid + '/usb/detach', {
-        busid: sourceButton && sourceButton.getAttribute('data-usb-busid') || '',
-        port: sourceButton && sourceButton.getAttribute('data-usb-port') || ''
-      }).then(function () {
-        return loadDetail(vmid);
-      }).catch(function (error) {
-        setBanner('USB-Detach failed:' + error.message, 'warn');
+      runSingleFlight('vm-action:' + vmid + ':usb-detach', function () {
+        setBanner('Detaching USB device from VM ' + vmid + '...', 'info');
+        return postJson('/vms/' + vmid + '/usb/detach', {
+          busid: sourceButton && sourceButton.getAttribute('data-usb-busid') || '',
+          port: sourceButton && sourceButton.getAttribute('data-usb-port') || ''
+        }).then(function () {
+          return loadDetail(vmid);
+        }).catch(function (error) {
+          setBanner('USB-Detach failed:' + error.message, 'warn');
+        });
       });
       return;
     }
     if (action === 'installer-prep') {
-      setBanner('Preparing installer for VM ' + vmid + '...', 'info');
-      postJson('/vms/' + vmid + '/installer-prep', {}).then(function () {
-        addToActivityLog('installer-prep', vmid, 'ok', 'Installer vorbereitet');
-        return loadDetail(vmid);
-      }).catch(function (error) {
-        addToActivityLog('installer-prep', vmid, 'warn', error.message);
-        setBanner('Installer preparation failed: ' + error.message, 'warn');
+      runSingleFlight('vm-action:' + vmid + ':installer-prep', function () {
+        setBanner('Preparing installer for VM ' + vmid + '...', 'info');
+        return postJson('/vms/' + vmid + '/installer-prep', {}).then(function () {
+          addToActivityLog('installer-prep', vmid, 'ok', 'Installer vorbereitet');
+          return loadDetail(vmid);
+        }).catch(function (error) {
+          addToActivityLog('installer-prep', vmid, 'warn', error.message);
+          setBanner('Installer preparation failed: ' + error.message, 'warn');
+        });
       });
       return;
     }
@@ -1784,12 +2746,14 @@
     }
     if (action.indexOf('update-') === 0) {
       var operation = action.replace('update-', '');
-      setBanner('Update-Aktion ' + actionLabel('os-update-' + operation) + ' fuer VM ' + vmid + ' wird gestartet ...', 'info');
-      postJson('/vms/' + vmid + '/update/' + operation, {}).then(function () {
-        setBanner('Update-Aktion ' + actionLabel('os-update-' + operation) + ' gestartet.', 'ok');
-        return loadDetail(vmid);
-      }).catch(function (error) {
-        setBanner('Update-Aktion fehlgeschlagen: ' + error.message, 'warn');
+      runSingleFlight('vm-action:' + vmid + ':update:' + operation, function () {
+        setBanner('Update-Aktion ' + actionLabel('os-update-' + operation) + ' fuer VM ' + vmid + ' wird gestartet ...', 'info');
+        return postJson('/vms/' + vmid + '/update/' + operation, {}).then(function () {
+          setBanner('Update-Aktion ' + actionLabel('os-update-' + operation) + ' gestartet.', 'ok');
+          return loadDetail(vmid);
+        }).catch(function (error) {
+          setBanner('Update-Aktion fehlgeschlagen: ' + error.message, 'warn');
+        });
       });
       return;
     }
@@ -1798,14 +2762,16 @@
       runVmPowerAction(vmid, powerAction);
       return;
     }
-    setBanner('Queuing action ' + action + ' for VM ' + vmid + '...', 'info');
-    postJson('/vms/' + vmid + '/actions', { action: action }).then(function () {
-      addToActivityLog(action, vmid, 'ok', 'Action queued');
-      setBanner('Action ' + action + ' queued for VM ' + vmid + '.', 'ok');
-      return loadDetail(vmid);
-    }).catch(function (error) {
-      addToActivityLog(action, vmid, 'warn', error.message);
-      setBanner('Action failed: ' + error.message, 'warn');
+    runSingleFlight('vm-action:' + vmid + ':generic:' + action, function () {
+      setBanner('Queuing action ' + action + ' for VM ' + vmid + '...', 'info');
+      return postJson('/vms/' + vmid + '/actions', { action: action }).then(function () {
+        addToActivityLog(action, vmid, 'ok', 'Action queued');
+        setBanner('Action ' + action + ' queued for VM ' + vmid + '.', 'ok');
+        return loadDetail(vmid);
+      }).catch(function (error) {
+        addToActivityLog(action, vmid, 'warn', error.message);
+        setBanner('Action failed: ' + error.message, 'warn');
+      });
     });
   }
 
@@ -1833,11 +2799,46 @@
         }
       });
     }
+    var usernameField = qs('auth-username');
+    var passwordField = qs('auth-password');
+    var onboardingPasswordField = qs('onboarding-password');
+    var onboardingPasswordConfirmField = qs('onboarding-password-confirm');
+    if (passwordField) {
+      passwordField.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          var username = String(usernameField ? usernameField.value : '').trim();
+          var password = String(passwordField.value || '');
+          if (!username || !password) {
+            setBanner('Benutzername und Passwort erforderlich.', 'warn');
+            return;
+          }
+          loginWithCredentials(username, password)
+            .then(function () { return loadDashboard(); })
+            .catch(function (error) { setBanner('Login fehlgeschlagen: ' + error.message, 'warn'); });
+        }
+      });
+    }
     qs('web-ui-url').value = webUiUrl();
     qs('api-base').value = apiBase();
     qs('connect-button').addEventListener('click', function () {
-      saveToken();
       markSessionActivity();
+      if (state.onboarding && state.onboarding.pending) {
+        openOnboardingModal();
+        return;
+      }
+      var username = String(usernameField ? usernameField.value : '').trim();
+      var password = String(passwordField ? passwordField.value : '');
+      if (username || password) {
+        if (!username || !password) {
+          setBanner('Benutzername und Passwort erforderlich.', 'warn');
+          return;
+        }
+        loginWithCredentials(username, password)
+          .then(function () { return loadDashboard(); })
+          .catch(function (error) { setBanner('Login fehlgeschlagen: ' + error.message, 'warn'); });
+        return;
+      }
+      saveToken();
       loadDashboard();
     });
     if (qs('open-connect-modal')) {
@@ -1851,6 +2852,57 @@
     }
     if (qs('close-auth-modal')) {
       qs('close-auth-modal').addEventListener('click', closeAuthModal);
+    }
+    if (qs('onboarding-complete')) {
+      qs('onboarding-complete').addEventListener('click', function () {
+        Promise.resolve().then(function () {
+          try {
+            var onboardingUser = sanitizeIdentifier(
+              String(qs('onboarding-username') ? qs('onboarding-username').value : ''),
+              'Onboarding-Benutzername',
+              USERNAME_PATTERN,
+              1,
+              MAX_USERNAME_LEN
+            );
+            var onboardingPw = sanitizePassword(String(qs('onboarding-password') ? qs('onboarding-password').value : ''), 'Onboarding-Passwort');
+            if (qs('onboarding-username')) {
+              qs('onboarding-username').value = onboardingUser;
+            }
+            if (qs('onboarding-password')) {
+              qs('onboarding-password').value = onboardingPw;
+            }
+          } catch (error) {
+            setBanner(error.message, 'warn');
+            throw error;
+          }
+        }).then(function () {
+          return completeOnboarding();
+        }).then(function () {
+          if (state.onboarding && !state.onboarding.pending) {
+            openAuthModal();
+          }
+        }).catch(function () {
+          return null;
+        });
+      });
+    }
+    if (onboardingPasswordField) {
+      onboardingPasswordField.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          if (qs('onboarding-complete')) {
+            qs('onboarding-complete').click();
+          }
+        }
+      });
+    }
+    if (onboardingPasswordConfirmField) {
+      onboardingPasswordConfirmField.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          if (qs('onboarding-complete')) {
+            qs('onboarding-complete').click();
+          }
+        }
+      });
     }
     if (qs('avatar-toggle')) {
       qs('avatar-toggle').addEventListener('click', function () {
@@ -1875,24 +2927,33 @@
         setActivePanel(trigger.getAttribute('data-panel'));
       });
     }
+    document.addEventListener('keydown', function (event) {
+      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      var target = event.target;
+      var tag = target && target.tagName ? String(target.tagName).toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea' || (target && target.isContentEditable)) {
+        return;
+      }
+      if (qs('search-input')) {
+        event.preventDefault();
+        qs('search-input').focus();
+      }
+    });
     qs('clear-token').addEventListener('click', function () {
-      state.token = '';
-      clearStoredToken();
+      logoutSession().finally(function () {
+        clearSessionState('Anmeldedaten geloescht.', 'info');
+      });
+      if (usernameField) {
+        usernameField.value = '';
+      }
+      if (passwordField) {
+        passwordField.value = '';
+      }
       if (tokenField) {
         tokenField.value = '';
       }
-      state.inventory = [];
-      state.endpointReports = [];
-      state.virtualizationOverview = null;
-      state.provisioningCatalog = null;
-      state.selectedVmid = null;
-      state.selectedVmids = [];
-      renderInventory();
-      renderEndpointsOverview();
-      renderVirtualizationOverview();
-      renderProvisioningWorkspace();
-      setBanner('API-Token deleted.', 'info');
-      setAuthMode(false);
       closeAccountMenu();
     });
     if (qs('clear-token-menu')) {
@@ -2028,8 +3089,8 @@
         }
       });
     }
-    if (qs('virtualization-section')) {
-      qs('virtualization-section').addEventListener('click', function (event) {
+    if (qs('virtualization-overview-section')) {
+      qs('virtualization-overview-section').addEventListener('click', function (event) {
         var row = event.target.closest('tr[data-node]');
         if (!row) {
           return;
@@ -2052,7 +3113,7 @@
             secretSpan.setAttribute('data-visible', '0');
             revealBtn.textContent = 'Anzeigen';
           } else {
-            secretSpan.textContent = secretSpan.getAttribute('data-real') || '';
+            secretSpan.textContent = String(secretVault[targetId] || '');
             secretSpan.setAttribute('data-visible', '1');
             revealBtn.textContent = 'Verbergen';
           }
@@ -2085,6 +3146,58 @@
       setBanner('Policy editor reset.', 'info');
     });
     qs('policy-delete').addEventListener('click', deleteSelectedPolicy);
+    if (qs('iam-refresh')) {
+      qs('iam-refresh').addEventListener('click', function () {
+        refreshIamData();
+      });
+    }
+    if (qs('iam-user-save')) {
+      qs('iam-user-save').addEventListener('click', saveIamUser);
+    }
+    if (qs('iam-user-new')) {
+      qs('iam-user-new').addEventListener('click', function () {
+        resetIamUserEditor();
+        setBanner('User-Editor zurueckgesetzt.', 'info');
+      });
+    }
+    if (qs('iam-user-delete')) {
+      qs('iam-user-delete').addEventListener('click', deleteIamUser);
+    }
+    if (qs('iam-user-revoke')) {
+      qs('iam-user-revoke').addEventListener('click', revokeIamUserSessions);
+    }
+    if (qs('iam-role-save')) {
+      qs('iam-role-save').addEventListener('click', saveIamRole);
+    }
+    if (qs('iam-role-new')) {
+      qs('iam-role-new').addEventListener('click', function () {
+        resetIamRoleEditor();
+        setBanner('Rollen-Editor zurueckgesetzt.', 'info');
+      });
+    }
+    if (qs('iam-role-delete')) {
+      qs('iam-role-delete').addEventListener('click', deleteIamRole);
+    }
+    if (qs('iam-users-body')) {
+      qs('iam-users-body').addEventListener('click', function (event) {
+        var row = event.target.closest('tr[data-iam-user]');
+        if (!row) {
+          return;
+        }
+        loadIamUserIntoEditor(row.getAttribute('data-iam-user'));
+        renderIamUsers();
+      });
+    }
+    if (qs('iam-roles-body')) {
+      qs('iam-roles-body').addEventListener('click', function (event) {
+        var row = event.target.closest('tr[data-iam-role]');
+        if (!row) {
+          return;
+        }
+        loadIamRoleIntoEditor(row.getAttribute('data-iam-role'));
+        renderIamRoles();
+      });
+    }
     if (qs('provision-create')) {
       qs('provision-create').addEventListener('click', createProvisionedVm);
     }
@@ -2112,6 +3225,53 @@
         }
       });
     }
+    if (qs('virtualization-nodes-body')) {
+      qs('virtualization-nodes-body').addEventListener('click', function (event) {
+        var row = event.target.closest('tr[data-node]');
+        if (!row) {
+          return;
+        }
+        setVirtualizationNodeFilter(row.getAttribute('data-node'));
+      });
+    }
+    if (qs('virtualization-bridges-body')) {
+      qs('virtualization-bridges-body').addEventListener('click', function (event) {
+        var row = event.target.closest('tr[data-node]');
+        if (!row) {
+          return;
+        }
+        setVirtualizationNodeFilter(row.getAttribute('data-node'));
+      });
+    }
+    if (qs('clear-virt-node-filter')) {
+      qs('clear-virt-node-filter').addEventListener('click', function () {
+        setVirtualizationNodeFilter('');
+      });
+    }
+    if (qs('virt-inspector-load')) {
+      qs('virt-inspector-load').addEventListener('click', function () {
+        loadVirtualizationInspector(String(qs('virt-inspector-vmid') ? qs('virt-inspector-vmid').value : ''));
+      });
+    }
+    if (qs('virt-inspector-vmid')) {
+      qs('virt-inspector-vmid').addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          loadVirtualizationInspector(String(event.target.value || ''));
+        }
+      });
+    }
+    if (qs('virt-inspector-use-selected')) {
+      qs('virt-inspector-use-selected').addEventListener('click', function () {
+        if (!state.selectedVmid) {
+          setBanner('Keine VM aus Inventar ausgewaehlt.', 'warn');
+          return;
+        }
+        if (qs('virt-inspector-vmid')) {
+          qs('virt-inspector-vmid').value = String(state.selectedVmid);
+        }
+        loadVirtualizationInspector(state.selectedVmid);
+      });
+    }
 
     ['click', 'keydown', 'mousemove', 'touchstart'].forEach(function (eventName) {
       document.addEventListener(eventName, markSessionActivity, { passive: true });
@@ -2131,17 +3291,33 @@
   consumeTokenFromLocation();
   bindEvents();
   resetPolicyEditor();
+  resetIamUserEditor();
+  resetIamRoleEditor();
   renderVirtualizationOverview();
   renderEndpointsOverview();
   renderActivityLog();
+  renderIam();
   renderProvisioningWorkspace();
+  renderVirtualizationInspector();
   (function bootstrapHashState() {
     var hashState = parseAppHash();
+    var storedPanel = '';
+    var storedDetail = '';
+    try {
+      storedPanel = String(localStorage.getItem('beagle.ui.activePanel') || '').trim();
+      storedDetail = String(localStorage.getItem('beagle.ui.activeDetailPanel') || '').trim();
+    } catch (error) {
+      void error;
+    }
     if (hashState.panel) {
       state.activePanel = hashState.panel;
+    } else if (storedPanel && panelMeta[storedPanel]) {
+      state.activePanel = storedPanel;
     }
     if (hashState.detail) {
       state.activeDetailPanel = hashState.detail;
+    } else if (storedDetail) {
+      state.activeDetailPanel = storedDetail;
     }
     if (hashState.vmid && /^\\d+$/.test(hashState.vmid)) {
       state.selectedVmid = Number(hashState.vmid);
@@ -2151,7 +3327,13 @@
   setAuthMode(Boolean(state.token));
   updateSessionChrome();
   updateBulkUiState();
-  loadDashboard();
+  fetchOnboardingStatus()
+    .catch(function () {
+      state.onboarding = { pending: false, completed: true };
+    })
+    .then(function () {
+      loadDashboard();
+    });
   window.setInterval(checkSessionTimeout, 60000);
   window.addEventListener('hashchange', function() {
     var hashState = parseAppHash();

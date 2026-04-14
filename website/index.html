@@ -5,26 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Beagle OS Control</title>
     <meta name="description" content="Beagle OS Web UI fuer Inventar, Streams, Endpoints, Aktionen und Installer auf dem Proxmox-Host.">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/styles.css?v=6.6.8">
   </head>
   <body class="auth-only">
+    <div class="auth-modal" id="onboarding-modal" aria-hidden="true" hidden>
+      <div class="auth-dialog card">
+        <div class="auth-dialog-head">
+          <div>
+            <span class="eyebrow">Ersteinrichtung</span>
+            <h2>Beagle Server Onboarding</h2>
+            <p>Dieser Host wurde frisch installiert. Lege jetzt den ersten Administrator an, bevor die Web UI freigeschaltet wird.</p>
+          </div>
+        </div>
+        <div class="auth-form-grid">
+          <label class="field field-wide">
+            <span>Administrator Benutzername</span>
+            <input id="onboarding-username" type="text" autocomplete="username" placeholder="admin">
+          </label>
+          <label class="field">
+            <span>Passwort</span>
+            <input id="onboarding-password" type="password" autocomplete="new-password" placeholder="Neues Passwort">
+          </label>
+          <label class="field">
+            <span>Passwort bestaetigen</span>
+            <input id="onboarding-password-confirm" type="password" autocomplete="new-password" placeholder="Passwort wiederholen">
+          </label>
+        </div>
+        <div class="button-row auth-button-row">
+          <button class="button primary" id="onboarding-complete" type="button">Ersteinrichtung abschliessen</button>
+        </div>
+      </div>
+    </div>
+
     <div class="auth-modal" id="auth-modal" aria-hidden="true">
       <div class="auth-dialog card">
         <div class="auth-dialog-head">
           <div>
             <span class="eyebrow">Manager Access</span>
             <h2>Beagle Manager verbinden</h2>
-            <p>Die Web UI bleibt ohne Token gesperrt. Verbinde dich mit dem API-Token deines Hosts und arbeite dann direkt im Dashboard.</p>
+            <p>Die Web UI ist ohne Anmeldung gesperrt. Melde dich mit Benutzername und Passwort an. Der API-Token bleibt optional fuer Automationszwecke.</p>
           </div>
           <button class="icon-button" id="close-auth-modal" type="button" aria-label="Schliessen">×</button>
         </div>
         <div class="auth-form-grid">
+          <label class="field">
+            <span>Benutzername</span>
+            <input id="auth-username" type="text" autocomplete="username" placeholder="admin">
+          </label>
+          <label class="field">
+            <span>Passwort</span>
+            <input id="auth-password" type="password" autocomplete="current-password" placeholder="Passwort">
+          </label>
           <label class="field field-wide">
-            <span>API-Token</span>
-            <input id="api-token" type="password" autocomplete="off" placeholder="BEAGLE_MANAGER_API_TOKEN">
+            <span>Legacy API-Token (optional)</span>
+            <input id="api-token" type="password" autocomplete="off" placeholder="Nur fuer Automation/Fallback">
           </label>
           <label class="field">
             <span>Web UI URL</span>
@@ -57,6 +94,7 @@
           <button type="button" class="nav-item" data-panel="inventory">Inventar</button>
           <button type="button" class="nav-item" data-panel="virtualization">Virtualisierung</button>
           <button type="button" class="nav-item" data-panel="policies">Policies</button>
+          <button type="button" class="nav-item" data-panel="iam">IAM</button>
           <a href="/beagle-downloads/" class="nav-item" target="_blank" rel="noopener noreferrer">Downloads</a>
           <a href="https://beagle-os.com/download/" class="nav-item">Download</a>
         </nav>
@@ -65,7 +103,7 @@
           <div class="sidebar-foot-label">Manager Status</div>
           <div class="sidebar-foot-value" id="stat-manager">Offline</div>
           <div class="sidebar-foot-meta" id="stat-manager-meta">Warte auf Verbindung</div>
-          <button class="button ghost sidebar-connect" id="open-connect-modal" type="button">API verbinden</button>
+          <button class="button ghost sidebar-connect" id="open-connect-modal" type="button">Anmelden</button>
         </div>
       </aside>
 
@@ -94,16 +132,16 @@
                   <strong>Beagle Manager</strong>
                   <span>API Sitzung</span>
                 </div>
-                <button class="menu-button" id="open-connect-menu" type="button">API Token verwalten</button>
-                <button class="menu-button danger" id="clear-token-menu" type="button">Token loeschen</button>
+                <button class="menu-button" id="open-connect-menu" type="button">Anmeldung verwalten</button>
+                <button class="menu-button danger" id="clear-token-menu" type="button">Sitzung beenden</button>
               </div>
             </div>
           </div>
         </header>
 
         <div class="status-strip" data-panel-section="overview">
-          <div class="banner banner-info" id="auth-status">Noch kein API-Token gesetzt.</div>
-          <div class="banner banner-warn hidden" id="fleet-health-alert" role="alert"></div>
+          <div class="banner banner-info" id="auth-status" role="status" aria-live="polite">Noch nicht angemeldet.</div>
+          <div class="banner banner-warn hidden" id="fleet-health-alert" role="alert" aria-live="assertive"></div>
         </div>
 
         <section class="stats-row panel-section panel-section-active" id="stats-section" data-panel-section="overview">
@@ -188,7 +226,7 @@
           </div>
         </section>
 
-        <section class="virtualization-grid panel-section panel-section-active" id="virtualization-section" data-panel-section="overview">
+        <section class="virtualization-grid panel-section panel-section-active" id="virtualization-overview-section" data-panel-section="overview">
           <article class="card virtualization-card">
             <div class="card-head">
               <div>
@@ -265,6 +303,10 @@
               <div>
                 <span class="eyebrow">Provider Surface</span>
                 <h2>Bridges</h2>
+              </div>
+              <div class="button-row compact-row">
+                <span class="chip muted" id="virtualization-node-filter">Alle Nodes</span>
+                <button class="button ghost small" id="clear-virt-node-filter" type="button">Node-Filter loeschen</button>
               </div>
             </div>
             <div class="table-wrap compact">
@@ -366,7 +408,7 @@
           </aside>
         </section>
 
-        <section class="virt-outer panel-section" id="virtualization-section" data-panel-section="virtualization">
+        <section class="virt-outer panel-section" id="virtualization-workspace-section" data-panel-section="virtualization">
           <section class="card virt-nodes-card">
             <div class="card-head">
               <div>
@@ -401,6 +443,53 @@
                 </thead>
                 <tbody id="storage-body">
                   <tr><td colspan="6" class="empty-cell">Noch keine Daten geladen.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card virt-inspector-card">
+            <div class="card-head">
+              <div>
+                <span class="eyebrow">Diagnostics</span>
+                <h2>VM Inspector (Config + Network)</h2>
+              </div>
+              <div class="button-row compact-row virt-inspector-controls">
+                <input id="virt-inspector-vmid" type="number" min="1" step="1" placeholder="VMID">
+                <button class="button primary small" id="virt-inspector-load" type="button">Laden</button>
+                <button class="button ghost small" id="virt-inspector-use-selected" type="button">Aus Auswahl</button>
+              </div>
+            </div>
+
+            <div id="virt-inspector-summary" class="detail-grid">
+              <div class="kv"><div class="kv-label">Status</div><div class="kv-value">Noch keine VM geladen.</div></div>
+            </div>
+
+            <div class="table-wrap compact">
+              <table class="vm-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Config Key</th>
+                    <th>Value</th>
+                  </tr>
+                </thead>
+                <tbody id="virt-inspector-config-body">
+                  <tr><td colspan="2" class="empty-cell">Noch keine Config geladen.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="table-wrap compact">
+              <table class="vm-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Interface</th>
+                    <th>MAC</th>
+                    <th>Adressen</th>
+                  </tr>
+                </thead>
+                <tbody id="virt-inspector-iface-body">
+                  <tr><td colspan="3" class="empty-cell">Noch keine Interfaces geladen.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -532,6 +621,92 @@
             <div id="policies-list" class="policy-list">
               <div class="empty-cell">Keine Policies geladen.</div>
             </div>
+          </div>
+        </section>
+
+        <section class="card iam-card panel-section" id="iam-section" data-panel-section="iam">
+          <div class="card-head">
+            <div>
+              <span class="eyebrow">Identity & Access</span>
+              <h2>User & Role Management</h2>
+            </div>
+            <div class="button-row">
+              <button class="button ghost small" id="iam-refresh" type="button">Aktualisieren</button>
+            </div>
+          </div>
+          <div class="iam-layout">
+            <section class="iam-column">
+              <h3>Benutzer</h3>
+              <div class="table-wrap compact">
+                <table class="vm-table compact-table">
+                  <thead>
+                    <tr>
+                      <th>Username</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="iam-users-body">
+                    <tr><td colspan="3" class="empty-cell">Keine User geladen.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="iam-editor-grid">
+                <label class="field">
+                  <span>Username</span>
+                  <input id="iam-user-username" type="text" placeholder="operator01">
+                </label>
+                <label class="field">
+                  <span>Role</span>
+                  <select id="iam-user-role" class="input-select"></select>
+                </label>
+                <label class="field">
+                  <span>Passwort (optional bei Update)</span>
+                  <input id="iam-user-password" type="password" placeholder="Neues Passwort">
+                </label>
+                <label class="check-label check-label-padded">
+                  <input id="iam-user-enabled" type="checkbox" checked>
+                  <span>Aktiv</span>
+                </label>
+              </div>
+              <div class="button-row">
+                <button class="button primary" id="iam-user-save" type="button">User speichern</button>
+                <button class="button ghost" id="iam-user-new" type="button">Neu</button>
+                <button class="button ghost" id="iam-user-revoke" type="button">Sessions revoke</button>
+                <button class="button ghost danger" id="iam-user-delete" type="button">User loeschen</button>
+              </div>
+            </section>
+            <section class="iam-column">
+              <h3>Rollen</h3>
+              <div class="table-wrap compact">
+                <table class="vm-table compact-table">
+                  <thead>
+                    <tr>
+                      <th>Role</th>
+                      <th>Permissions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="iam-roles-body">
+                    <tr><td colspan="2" class="empty-cell">Keine Rollen geladen.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="iam-editor-grid iam-editor-stack">
+                <label class="field">
+                  <span>Role Name</span>
+                  <input id="iam-role-name" type="text" placeholder="ops-l2">
+                </label>
+                <label class="field field-wide">
+                  <span>Permissions (eine pro Zeile oder CSV)</span>
+                  <textarea id="iam-role-permissions" rows="7" placeholder="vm:mutate&#10;actions:bulk&#10;auth:read"></textarea>
+                </label>
+              </div>
+              <div class="button-row">
+                <button class="button primary" id="iam-role-save" type="button">Rolle speichern</button>
+                <button class="button ghost" id="iam-role-new" type="button">Neu</button>
+                <button class="button ghost danger" id="iam-role-delete" type="button">Rolle loeschen</button>
+              </div>
+            </section>
           </div>
         </section>
       </main>

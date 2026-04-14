@@ -14,13 +14,40 @@ DEFAULT_USB_INSTALLER_URL="https://{host}:${LISTEN_PORT}/beagle-api/api/v1/vms/{
 USB_INSTALLER_URL="${PVE_DCV_USB_INSTALLER_URL:-$DEFAULT_USB_INSTALLER_URL}"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 WEB_UI_TITLE="${BEAGLE_WEB_UI_TITLE:-Beagle OS Web UI}"
-BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-proxmox}"
+BEAGLE_WEB_UI_TRUSTED_API_ORIGINS="${BEAGLE_WEB_UI_TRUSTED_API_ORIGINS:-}"
+BEAGLE_WEB_UI_ALLOW_HASH_TOKEN="${BEAGLE_WEB_UI_ALLOW_HASH_TOKEN:-0}"
+BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS="${BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS:-0}"
+BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER="${BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER:-0}"
+BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS="${BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS:-0}"
+BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-}"
 BEAGLE_SERVER_INSTALL_MODE="${BEAGLE_SERVER_INSTALL_MODE:-}"
 BEAGLE_HOST_TLS_CERT_FILE="${BEAGLE_HOST_TLS_CERT_FILE:-}"
 BEAGLE_HOST_TLS_KEY_FILE="${BEAGLE_HOST_TLS_KEY_FILE:-}"
 DEFAULT_PROXMOX_USERNAME="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_USERNAME:-${PVE_DCV_PROXMOX_USERNAME:-}}"
 DEFAULT_PROXMOX_PASSWORD="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_PASSWORD:-${PVE_DCV_PROXMOX_PASSWORD:-}}"
 DEFAULT_PROXMOX_TOKEN="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_TOKEN:-${PVE_DCV_PROXMOX_TOKEN:-}}"
+BEAGLE_AUTH_BOOTSTRAP_USERNAME="${BEAGLE_AUTH_BOOTSTRAP_USERNAME:-admin}"
+BEAGLE_AUTH_BOOTSTRAP_PASSWORD="${BEAGLE_AUTH_BOOTSTRAP_PASSWORD:-}"
+
+resolve_host_provider() {
+  local mode
+  if [[ -n "$BEAGLE_HOST_PROVIDER" ]]; then
+    printf '%s\n' "$(printf '%s' "$BEAGLE_HOST_PROVIDER" | tr '[:upper:]' '[:lower:]')"
+    return 0
+  fi
+
+  mode="$(printf '%s' "${BEAGLE_SERVER_INSTALL_MODE:-}" | tr '[:upper:]' '[:lower:]')"
+  case "$mode" in
+    with-proxmox|with_proxmox|proxmox|pve)
+      printf 'proxmox\n'
+      ;;
+    *)
+      printf 'beagle\n'
+      ;;
+  esac
+}
+
+BEAGLE_HOST_PROVIDER="$(resolve_host_provider)"
 
 default_web_ui_url() {
   if [[ "$SITE_PORT" == "443" ]]; then
@@ -45,10 +72,17 @@ ensure_root() {
       BEAGLE_SITE_PORT="$SITE_PORT" \
       BEAGLE_WEB_UI_URL="$WEB_UI_URL" \
       BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE" \
+      BEAGLE_WEB_UI_TRUSTED_API_ORIGINS="$BEAGLE_WEB_UI_TRUSTED_API_ORIGINS" \
+      BEAGLE_WEB_UI_ALLOW_HASH_TOKEN="$BEAGLE_WEB_UI_ALLOW_HASH_TOKEN" \
+      BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS="$BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS" \
+      BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER="$BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER" \
+      BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS="$BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS" \
       BEAGLE_HOST_PROVIDER="$BEAGLE_HOST_PROVIDER" \
       BEAGLE_SERVER_INSTALL_MODE="$BEAGLE_SERVER_INSTALL_MODE" \
       BEAGLE_HOST_TLS_CERT_FILE="$BEAGLE_HOST_TLS_CERT_FILE" \
       BEAGLE_HOST_TLS_KEY_FILE="$BEAGLE_HOST_TLS_KEY_FILE" \
+      BEAGLE_AUTH_BOOTSTRAP_USERNAME="$BEAGLE_AUTH_BOOTSTRAP_USERNAME" \
+      BEAGLE_AUTH_BOOTSTRAP_PASSWORD="$BEAGLE_AUTH_BOOTSTRAP_PASSWORD" \
       BEAGLE_INSTALL_NONINTERACTIVE="${BEAGLE_INSTALL_NONINTERACTIVE:-0}" \
       PVE_DCV_DOWNLOADS_PATH="$DOWNLOADS_PATH" \
       PVE_DCV_DOWNLOADS_BASE_URL="$DOWNLOADS_BASE_URL" \
@@ -81,6 +115,51 @@ prompt_value() {
     return 0
   fi
   printf '%s\n' "$current"
+}
+
+prompt_secret_value() {
+  local prompt="$1"
+  local response=""
+
+  [[ -t 0 ]] || {
+    printf '\n'
+    return 0
+  }
+
+  read -r -s -p "$prompt: " response
+  printf '\n' >&2
+  printf '%s\n' "$response"
+}
+
+prompt_bootstrap_admin() {
+  local first_pass=""
+  local second_pass=""
+
+  [[ "${BEAGLE_INSTALL_NONINTERACTIVE:-0}" == "1" ]] && return 0
+  [[ -t 0 ]] || return 0
+
+  echo ""
+  echo "Beagle Web-Login (Erstzugang)"
+  BEAGLE_AUTH_BOOTSTRAP_USERNAME="$(prompt_value 'Admin username' "$BEAGLE_AUTH_BOOTSTRAP_USERNAME")"
+
+  if [[ -n "$BEAGLE_AUTH_BOOTSTRAP_PASSWORD" ]]; then
+    return 0
+  fi
+
+  while true; do
+    first_pass="$(prompt_secret_value 'Admin password')"
+    [[ -n "$first_pass" ]] || {
+      echo "Admin password darf nicht leer sein." >&2
+      continue
+    }
+    second_pass="$(prompt_secret_value 'Admin password bestaetigen')"
+    [[ "$first_pass" == "$second_pass" ]] || {
+      echo "Passwoerter stimmen nicht ueberein." >&2
+      continue
+    }
+    BEAGLE_AUTH_BOOTSTRAP_PASSWORD="$first_pass"
+    break
+  done
 }
 
 prompt_install_endpoints() {
@@ -190,6 +269,11 @@ PVE_DCV_PROXY_LISTEN_PORT="$LISTEN_PORT"
 BEAGLE_SITE_PORT="$SITE_PORT"
 BEAGLE_WEB_UI_URL="$WEB_UI_URL"
 BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE"
+BEAGLE_WEB_UI_TRUSTED_API_ORIGINS="$BEAGLE_WEB_UI_TRUSTED_API_ORIGINS"
+BEAGLE_WEB_UI_ALLOW_HASH_TOKEN="$BEAGLE_WEB_UI_ALLOW_HASH_TOKEN"
+BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS="$BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS"
+BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER="$BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER"
+BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS="$BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS"
 BEAGLE_HOST_PROVIDER="$BEAGLE_HOST_PROVIDER"
 BEAGLE_SERVER_INSTALL_MODE="$BEAGLE_SERVER_INSTALL_MODE"
 PVE_DCV_DOWNLOADS_PATH="$DOWNLOADS_PATH"
@@ -212,6 +296,7 @@ EOF
 ensure_root "$@"
 ensure_dependencies
 prompt_install_endpoints
+prompt_bootstrap_admin
 
 case "$INSTALL_DIR/" in
   "$ROOT_DIR"/*)
@@ -235,6 +320,8 @@ fi
 "$INSTALL_DIR/scripts/prepare-host-downloads.sh" || echo "Warning: could not prepare host downloads (can be retried later)." >&2
 write_host_env_file
 BEAGLE_HOST_PROVIDER="$BEAGLE_HOST_PROVIDER" \
+  BEAGLE_AUTH_BOOTSTRAP_USERNAME="$BEAGLE_AUTH_BOOTSTRAP_USERNAME" \
+  BEAGLE_AUTH_BOOTSTRAP_PASSWORD="$BEAGLE_AUTH_BOOTSTRAP_PASSWORD" \
   "$INSTALL_DIR/scripts/install-beagle-host-services.sh"
 
 if [[ -d /usr/share/pve-manager/js ]]; then

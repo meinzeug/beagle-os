@@ -28,6 +28,7 @@ BEAGLE_PUBLIC_UPDATE_BASE_URL="${BEAGLE_SERVER_PUBLIC_UPDATE_BASE_URL:-https://g
 BEAGLE_INSTALL_DIR="${BEAGLE_SERVER_INSTALL_DIR:-/opt/beagle}"
 BUNDLED_BEAGLE_SOURCE_ARCHIVE="${BEAGLE_SERVER_BUNDLED_SOURCE_ARCHIVE:-/usr/local/share/beagle/beagle-os-source.tar.gz}"
 LIVE_INSTALL_LOCALE="${BEAGLE_SERVER_LIVE_INSTALL_LOCALE:-C.UTF-8}"
+BEAGLE_SERVER_SSH_PASSWORD_AUTH="${BEAGLE_SERVER_SSH_PASSWORD_AUTH:-no}"
 
 cleanup() {
   umount "$TARGET_MOUNT/dev/pts" >/dev/null 2>&1 || true
@@ -61,6 +62,12 @@ on_error() {
   exec /bin/bash -l
 }
 trap 'on_error $? "$LINENO" "$BASH_COMMAND"' ERR
+
+step() {
+  local msg="$*"
+  printf '\n==> %s\n' "$msg" >&2
+  log "step: $msg"
+}
 
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
@@ -631,6 +638,7 @@ install_host_provider_packages() {
 install_beagle_host_stack() {
   local kind mode
   local install_dir_q hostname_q public_updates_q web_ui_q mode_q source_archive
+  local bootstrap_username_q bootstrap_password_q
   kind="$(host_provider_kind)"
   mode="$(install_mode_kind)"
   source_archive="/tmp/beagle-os.tar.gz"
@@ -639,6 +647,8 @@ install_beagle_host_stack() {
   printf -v public_updates_q '%q' "$BEAGLE_PUBLIC_UPDATE_BASE_URL"
   printf -v web_ui_q '%q' "https://$INSTALL_HOSTNAME"
   printf -v mode_q '%q' "$mode"
+  printf -v bootstrap_username_q '%q' "$INSTALL_USERNAME"
+  printf -v bootstrap_password_q '%q' "$INSTALL_PASSWORD"
   if [[ -f "$BUNDLED_BEAGLE_SOURCE_ARCHIVE" ]]; then
     log "using bundled beagle source archive: $BUNDLED_BEAGLE_SOURCE_ARCHIVE"
     install -m 0644 "$BUNDLED_BEAGLE_SOURCE_ARCHIVE" "$source_archive"
@@ -648,23 +658,45 @@ install_beagle_host_stack() {
   chroot_run "mkdir -p /usr/local/src/beagle-os-src /var/lib/beagle"
   install -m 0644 "$source_archive" "$TARGET_MOUNT/tmp/beagle-os.tar.gz"
   chroot_run "rm -rf /usr/local/src/beagle-os-src && mkdir -p /usr/local/src/beagle-os-src && tar -xzf /tmp/beagle-os.tar.gz -C /usr/local/src/beagle-os-src"
-  chroot_run "install_script=\$(find /usr/local/src/beagle-os-src -path '*/scripts/install-beagle-host.sh' -print -quit); [[ -n \"\$install_script\" ]] && source_root=\$(dirname \"\$(dirname \"\$install_script\")\") && cd \"\$source_root\" && BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q BEAGLE_SERVER_INSTALL_MODE=$mode_q BEAGLE_HOST_PROVIDER=$kind PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-beagle-host.sh"
+  chroot_run "install_script=\$(find /usr/local/src/beagle-os-src -path '*/scripts/install-beagle-host.sh' -print -quit); [[ -n \"\$install_script\" ]] && source_root=\$(dirname \"\$(dirname \"\$install_script\")\") && cd \"\$source_root\" && BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q BEAGLE_SERVER_INSTALL_MODE=$mode_q BEAGLE_HOST_PROVIDER=$kind BEAGLE_AUTH_BOOTSTRAP_USERNAME=$bootstrap_username_q BEAGLE_AUTH_BOOTSTRAP_PASSWORD=$bootstrap_password_q PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-beagle-host.sh"
 }
 
 harden_system() {
+  local proxmox_port_rule=""
+  local ssh_password_auth=""
   log "applying system hardening"
+
+  ssh_password_auth="$(printf '%s' "$BEAGLE_SERVER_SSH_PASSWORD_AUTH" | tr '[:upper:]' '[:lower:]')"
+  case "$ssh_password_auth" in
+    yes|true|1)
+      ssh_password_auth="yes"
+      ;;
+    *)
+      ssh_password_auth="no"
+      ;;
+  esac
+
+  if [[ "$(host_provider_kind)" == "proxmox" ]]; then
+    proxmox_port_rule="\n    # Proxmox web UI (only needed in proxmox mode)\n    tcp dport 8006 ct state new limit rate 120/minute burst 120 packets accept"
+  fi
 
   # SSH hardening drop-in
   mkdir -p "$TARGET_MOUNT/etc/ssh/sshd_config.d"
-  cat >"$TARGET_MOUNT/etc/ssh/sshd_config.d/99-beagle-hardening.conf" <<'SSHEOF'
+  cat >"$TARGET_MOUNT/etc/ssh/sshd_config.d/99-beagle-hardening.conf" <<SSHEOF
 PermitRootLogin prohibit-password
-PasswordAuthentication yes
+PasswordAuthentication ${ssh_password_auth}
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
 PermitEmptyPasswords no
 MaxAuthTries 3
 LoginGraceTime 30
 X11Forwarding no
 IgnoreRhosts yes
 HostbasedAuthentication no
+AllowAgentForwarding no
+AllowTcpForwarding no
+PermitTunnel no
+MaxStartups 10:30:60
 ClientAliveInterval 300
 ClientAliveCountMax 2
 SSHEOF
@@ -683,13 +715,37 @@ APTEOF
 [sshd]
 enabled  = true
 port     = ssh
-maxretry = 5
-bantime  = 3600
+maxretry = 3
+bantime  = 1h
+bantime.increment = true
+bantime.factor = 2
+bantime.maxtime = 1d
 findtime = 600
 F2BEOF
 
+  # Kernel networking hardening baseline
+  mkdir -p "$TARGET_MOUNT/etc/sysctl.d"
+  cat >"$TARGET_MOUNT/etc/sysctl.d/99-beagle-network-hardening.conf" <<'SYSCTLEOF'
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.tcp_syncookies = 1
+net.ipv4.conf.all.log_martians = 1
+net.ipv4.conf.default.log_martians = 1
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv6.conf.default.accept_redirects = 0
+net.ipv6.conf.all.accept_source_route = 0
+net.ipv6.conf.default.accept_source_route = 0
+SYSCTLEOF
+
   # nftables: basic stateful firewall
-  cat >"$TARGET_MOUNT/etc/nftables.conf" <<'NFTEOF'
+  cat >"$TARGET_MOUNT/etc/nftables.conf" <<NFTEOF
 #!/usr/sbin/nft -f
 flush ruleset
 
@@ -701,10 +757,10 @@ table inet filter {
     iifname lo accept
     ip protocol icmp accept
     ip6 nexthdr icmpv6 accept
-    # SSH, Beagle API/download, Beagle Web UI
-    tcp dport { 22, 443, 8443 } accept
-    # Proxmox web UI (only needed in proxmox mode)
-    tcp dport 8006 accept
+    # SSH (hardened), Beagle Web UI and API/download ingress
+    tcp dport 22 ct state new limit rate 30/minute burst 30 packets accept
+    tcp dport { 443, 8443 } ct state new limit rate 300/minute burst 300 packets accept
+${proxmox_port_rule}
   }
   chain forward {
     type filter hook forward priority 0; policy drop;
@@ -718,6 +774,7 @@ NFTEOF
   chroot_run "systemctl enable nftables" || true
   chroot_run "systemctl enable fail2ban" || true
   chroot_run "systemctl enable unattended-upgrades" || true
+  chroot_run "sysctl --system" || true
 }
 
 install_bootloader() {
@@ -848,13 +905,20 @@ main() {
   mkdir -p "$EFI_MOUNT"
   run_logged mount "$boot_part" "$EFI_MOUNT"
 
+  step "Checking network..."
   wait_for_network
+  step "Installing base system (debootstrap) - this takes several minutes..."
   install_base_system
+  step "Configuring base system..."
   configure_base_system "$boot_part" "$root_part"
   mount_chroot_fs
+  step "Installing packages (apt) - this takes several minutes..."
   install_target_packages
+  step "Hardening system..."
   harden_system
+  step "Installing Beagle host stack..."
   install_beagle_host_stack
+  step "Installing bootloader..."
   install_bootloader "$INSTALL_DISK"
   finish_install
 }

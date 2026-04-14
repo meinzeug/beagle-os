@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CMDLINE="$(cat /proc/cmdline 2>/dev/null || true)"
+case " $CMDLINE " in
+  *" beagle_server_live=1 "*) ;;
+  *) exit 0 ;;
+esac
+
+LOG_FILE="/var/log/beagle-live-server-bootstrap.log"
+STATE_DIR="/run/beagle-live-server"
+DONE_FILE="$STATE_DIR/bootstrap.done"
+SOURCE_ARCHIVE="/usr/local/share/beagle/beagle-os-source.tar.gz"
+WORK_DIR="/opt/beagle-live-src"
+INSTALL_DIR="/opt/beagle"
+MANAGER_ENV_FILE="/etc/beagle/beagle-manager.env"
+LIVE_WEBUI_USERNAME="${BEAGLE_LIVE_DEFAULT_WEBUI_USERNAME:-admin}"
+LIVE_WEBUI_PASSWORD="${BEAGLE_LIVE_DEFAULT_WEBUI_PASSWORD:-test123}"
+
+mkdir -p "$STATE_DIR"
+
+log() {
+  printf '[%s] %s\n' "$(date -Is 2>/dev/null || date)" "$*" | tee -a "$LOG_FILE" >/dev/null
+}
+
+# Prevent parallel bootstrap runs from multiple interactive shell initializations.
+LOCK_DIR="$STATE_DIR/lock"
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  log "another bootstrap instance is already running"
+  exit 0
+fi
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+
+detect_primary_ip() {
+  local route_ip addr_ip
+  route_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}')"
+  if [[ -n "$route_ip" ]]; then
+    printf '%s\n' "$route_ip"
+    return 0
+  fi
+  addr_ip="$(ip -4 -o addr show up scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)"
+  if [[ -n "$addr_ip" ]]; then
+    printf '%s\n' "$addr_ip"
+    return 0
+  fi
+  hostname -I 2>/dev/null | awk '{print $1}'
+}
+
+wait_for_ip() {
+  local ip=""
+  for _ in $(seq 1 20); do
+    ip="$(detect_primary_ip || true)"
+    if [[ -n "$ip" ]]; then
+      printf '%s\n' "$ip"
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+set_manager_proxy_bind() {
+  [[ -f "$MANAGER_ENV_FILE" ]] || return 0
+  if grep -q '^BEAGLE_MANAGER_LISTEN_HOST=' "$MANAGER_ENV_FILE"; then
+    sed -i 's/^BEAGLE_MANAGER_LISTEN_HOST=.*/BEAGLE_MANAGER_LISTEN_HOST="127.0.0.1"/' "$MANAGER_ENV_FILE"
+  else
+    printf 'BEAGLE_MANAGER_LISTEN_HOST="127.0.0.1"\n' >>"$MANAGER_ENV_FILE"
+  fi
+  if grep -q '^BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH=' "$MANAGER_ENV_FILE"; then
+    sed -i 's/^BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH=.*/BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH="0"/' "$MANAGER_ENV_FILE"
+  else
+    printf 'BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH="0"\n' >>"$MANAGER_ENV_FILE"
+  fi
+}
+
+configure_live_firewall() {
+  if ! command -v nft >/dev/null 2>&1; then
+    log "nft command not available yet; skipping live firewall setup"
+    return 0
+  fi
+  cat >/etc/nftables.conf <<'EOF'
+#!/usr/sbin/nft -f
+flush ruleset
+
+table inet filter {
+  chain input {
+    type filter hook input priority 0;
+    policy drop;
+
+    iif lo accept
+    ct state established,related accept
+    ct state invalid drop
+
+    ip protocol icmp accept
+    ip6 nexthdr icmpv6 accept
+
+    tcp dport 22 ct state new limit rate 30/minute burst 30 packets accept
+    tcp dport { 80, 443, 8443 } ct state new limit rate 300/minute burst 300 packets accept
+  }
+
+  chain forward {
+    type filter hook forward priority 0;
+    policy drop;
+  }
+
+  chain output {
+    type filter hook output priority 0;
+    policy accept;
+  }
+}
+EOF
+  systemctl enable nftables >/dev/null 2>&1 || true
+  systemctl restart nftables >/dev/null 2>&1 || nft -f /etc/nftables.conf >/dev/null 2>&1 || true
+}
+
+wait_for_proxy_health() {
+  local url
+  for url in \
+    'https://127.0.0.1/beagle-api/api/v1/health' \
+    'https://127.0.0.1:8443/beagle-api/api/v1/health'; do
+    for _ in $(seq 1 30); do
+      if curl -k -sS --max-time 5 "$url" | grep -q '"ok": true'; then
+        log "proxy health ready via $url"
+        return 0
+      fi
+      sleep 1
+    done
+  done
+  log "proxy health did not become ready within timeout"
+  return 1
+}
+
+if [[ -f "$DONE_FILE" ]]; then
+  log "bootstrap already completed in this boot session"
+  exit 0
+fi
+
+log "starting live server bootstrap"
+
+if [[ ! -f "$SOURCE_ARCHIVE" ]]; then
+  log "missing source archive: $SOURCE_ARCHIVE"
+  exit 1
+fi
+
+IP_ADDR="$(wait_for_ip || true)"
+if [[ -n "$IP_ADDR" ]]; then
+  SERVER_NAME="$IP_ADDR"
+  WEB_UI_URL="https://$IP_ADDR"
+else
+  SERVER_NAME="$(hostname -f 2>/dev/null || hostname)"
+  WEB_UI_URL="https://$SERVER_NAME"
+fi
+
+log "using server name: $SERVER_NAME"
+
+rm -rf "$WORK_DIR"
+mkdir -p "$WORK_DIR"
+tar -xzf "$SOURCE_ARCHIVE" -C "$WORK_DIR"
+
+INSTALL_SCRIPT="$(find "$WORK_DIR" -path '*/scripts/install-beagle-host.sh' -print -quit)"
+if [[ -z "$INSTALL_SCRIPT" ]]; then
+  log "could not locate install-beagle-host.sh in extracted archive"
+  exit 1
+fi
+
+log "running host install script in noninteractive live mode"
+
+# Some minimal live environments do not ship this directory by default.
+install -d -m 0755 /etc/ssh/sshd_config.d
+# Control-plane service includes /etc/pve in ReadWritePaths even on standalone.
+install -d -m 0755 /etc/pve /etc/pve/local
+# Ensure all control-plane runtime/state paths exist in live mode.
+install -d -m 0755 /var/lib/vz /var/log/pve /var/lib/beagle /run/beagle-control-plane
+
+BEAGLE_INSTALL_NONINTERACTIVE=1 \
+INSTALL_DIR="$INSTALL_DIR" \
+BEAGLE_HOST_PROVIDER=beagle \
+BEAGLE_SERVER_INSTALL_MODE=standalone \
+BEAGLE_AUTH_BOOTSTRAP_USERNAME="$LIVE_WEBUI_USERNAME" \
+BEAGLE_AUTH_BOOTSTRAP_PASSWORD="$LIVE_WEBUI_PASSWORD" \
+PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME" \
+PVE_DCV_PROXY_LISTEN_PORT=8443 \
+BEAGLE_SITE_PORT=443 \
+BEAGLE_WEB_UI_URL="$WEB_UI_URL" \
+"$INSTALL_SCRIPT" >>"$LOG_FILE" 2>&1
+
+set_manager_proxy_bind
+configure_live_firewall
+
+log "restarting beagle services"
+systemctl daemon-reload || true
+systemctl restart beagle-control-plane.service || true
+systemctl restart nginx.service || true
+wait_for_proxy_health || true
+
+touch "$DONE_FILE"
+log "live server bootstrap complete"

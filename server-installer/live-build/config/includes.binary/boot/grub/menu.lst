@@ -1,0 +1,27 @@
+default 0
+color cyan/blue white/blue
+splashimage /boot/grub/splash.xpm.gz
+
+
+title           Beagle-OS Server Installer
+kernel          /live/vmlinuz boot=live config components username=root hostname=beagle-server-installer console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 systemd.unit=multi-user.target pve_server_installer=1 nomodeset consoleblank=0
+initrd          /live/initrd
+
+title           Beagle-OS Live Server
+kernel          /live/vmlinuz boot=live config components username=root hostname=beagle-server-live console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 systemd.unit=multi-user.target beagle_server_live=1 nomodeset consoleblank=0
+initrd          /live/initrd
+
+title           Beagle-OS Server Installer (text-mode)
+kernel          /live/vmlinuz boot=live config components username=root hostname=beagle-server-installer console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 systemd.unit=multi-user.target pve_server_installer=1 beagle_server_text_mode=1 nomodeset consoleblank=0
+initrd          /live/initrd
+
+title           Beagle-OS Server Installer (fail-safe mode)
+kernel          /live/vmlinuz boot=live config components username=root hostname=beagle-server-installer console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 systemd.unit=multi-user.target pve_server_installer=1 beagle_server_text_mode=1 nomodeset noapic noapm nodma nomce nolapic nosmp nosplash vga=normal consoleblank=0
+initrd          /live/initrd
+
+
+title           Other:
+root
+
+title           memtest86+
+kernel          /live/memtest

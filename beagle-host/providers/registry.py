@@ -20,7 +20,7 @@ _PROVIDER_FACTORIES: dict[str, ProviderFactory] = {}
 
 
 def normalize_provider_kind(kind: str) -> str:
-    normalized = str(kind or "").strip().lower() or "proxmox"
+    normalized = str(kind or "").strip().lower() or "beagle"
     return _PROVIDER_ALIASES.get(normalized, normalized)
 
 

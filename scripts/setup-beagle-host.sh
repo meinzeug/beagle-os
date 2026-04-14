@@ -17,7 +17,7 @@ Environment variables:
   PVE_DCV_PROXY_LISTEN_PORT       HTTPS port for Beagle API/downloads.
   BEAGLE_SITE_PORT                HTTPS port for the Beagle Web UI.
   BEAGLE_WEB_UI_URL               Public Beagle Web UI URL.
-  BEAGLE_HOST_PROVIDER            Active host provider kind. Defaults to `proxmox`.
+  BEAGLE_HOST_PROVIDER            Active host provider kind. Defaults to `beagle`.
   PVE_DCV_DOWNLOADS_PATH          Hosted download path.
 EOF
 }

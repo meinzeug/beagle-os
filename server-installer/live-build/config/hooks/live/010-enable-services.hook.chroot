@@ -6,3 +6,6 @@ systemctl enable systemd-networkd-wait-online.service
 systemctl enable getty@tty1.service
 systemctl disable serial-getty@ttyS0.service || true
 systemctl enable serial-getty@ttyS0.service
+chmod 0755 /usr/local/bin/beagle-live-server-bootstrap
+systemctl enable beagle-live-server-bootstrap.service
+systemctl enable ssh.service

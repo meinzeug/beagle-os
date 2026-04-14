@@ -1,0 +1,15 @@
+[Unit]
+Description=Beagle Live Server Bootstrap
+After=network-online.target
+Wants=network-online.target
+ConditionKernelCommandLine=beagle_server_live=1
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/beagle-live-server-bootstrap
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,7 @@
 live-boot
 live-config
 systemd-sysv
+openssh-server
 ca-certificates
 curl
 python3

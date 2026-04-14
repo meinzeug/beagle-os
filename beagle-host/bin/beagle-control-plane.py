@@ -29,6 +29,9 @@ if str(SERVICES_DIR) not in sys.path:
 
 from action_queue import ActionQueueService
 from admin_http_surface import AdminHttpSurfaceService
+from audit_log import AuditLogService
+from auth_session import AuthSessionService, default_now
+from authz_policy import AuthzPolicyService
 from control_plane_read_surface import ControlPlaneReadSurfaceService
 from download_metadata import DownloadMetadataService
 from endpoint_lifecycle_surface import EndpointLifecycleSurfaceService
@@ -108,6 +111,16 @@ LISTEN_HOST = os.environ.get("BEAGLE_MANAGER_LISTEN_HOST", "127.0.0.1")
 LISTEN_PORT = int(os.environ.get("BEAGLE_MANAGER_LISTEN_PORT", "9088"))
 DATA_DIR = Path(os.environ.get("BEAGLE_MANAGER_DATA_DIR", "/var/lib/beagle/beagle-manager"))
 API_TOKEN = os.environ.get("BEAGLE_MANAGER_API_TOKEN", "").strip()
+AUTH_BOOTSTRAP_USERNAME = os.environ.get("BEAGLE_AUTH_BOOTSTRAP_USERNAME", "admin").strip() or "admin"
+AUTH_BOOTSTRAP_PASSWORD = os.environ.get("BEAGLE_AUTH_BOOTSTRAP_PASSWORD", "").strip()
+if not AUTH_BOOTSTRAP_PASSWORD and API_TOKEN:
+    AUTH_BOOTSTRAP_PASSWORD = API_TOKEN
+AUTH_BOOTSTRAP_DISABLE = os.environ.get("BEAGLE_AUTH_BOOTSTRAP_DISABLE", "0").strip().lower() in {"1", "true", "yes", "on"}
+AUTH_ACCESS_TTL_SECONDS = int(os.environ.get("BEAGLE_AUTH_ACCESS_TTL_SECONDS", "3600"))
+AUTH_REFRESH_TTL_SECONDS = int(os.environ.get("BEAGLE_AUTH_REFRESH_TTL_SECONDS", str(7 * 24 * 3600)))
+AUTH_IDLE_TIMEOUT_SECONDS = int(os.environ.get("BEAGLE_AUTH_IDLE_TIMEOUT_SECONDS", "1800"))
+AUTH_ABSOLUTE_TIMEOUT_SECONDS = int(os.environ.get("BEAGLE_AUTH_ABSOLUTE_TIMEOUT_SECONDS", str(7 * 24 * 3600)))
+AUTH_MAX_SESSIONS_PER_USER = int(os.environ.get("BEAGLE_AUTH_MAX_SESSIONS_PER_USER", "5"))
 ALLOW_LOCALHOST_NOAUTH = os.environ.get("BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH", "0").strip().lower() in {"1", "true", "yes", "on"}
 STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECONDS", "600"))
 DOWNLOADS_STATUS_FILE = ROOT_DIR / "dist" / "beagle-downloads-status.json"
@@ -293,6 +306,9 @@ UTILITY_SUPPORT_SERVICE = UtilitySupportService(
 )
 METADATA_SUPPORT_SERVICE = MetadataSupportService()
 REQUEST_SUPPORT_SERVICE: RequestSupportService | None = None
+AUTH_SESSION_SERVICE: AuthSessionService | None = None
+AUDIT_LOG_SERVICE: AuditLogService | None = None
+AUTHZ_POLICY_SERVICE: AuthzPolicyService | None = None
 
 
 def resolve_public_stream_host(host: str) -> str:
@@ -409,6 +425,46 @@ def request_support_service() -> RequestSupportService:
             web_ui_url=WEB_UI_URL,
         )
     return REQUEST_SUPPORT_SERVICE
+
+
+def auth_session_service() -> AuthSessionService:
+    global AUTH_SESSION_SERVICE
+    if AUTH_SESSION_SERVICE is None:
+        AUTH_SESSION_SERVICE = AuthSessionService(
+            data_dir=ensure_data_dir(),
+            load_json_file=load_json_file,
+            write_json_file=lambda path, payload: persistence_support_service().write_json_file(path, payload),
+            now=default_now,
+            token_urlsafe=secrets.token_urlsafe,
+            access_ttl_seconds=AUTH_ACCESS_TTL_SECONDS,
+            refresh_ttl_seconds=AUTH_REFRESH_TTL_SECONDS,
+            idle_timeout_seconds=AUTH_IDLE_TIMEOUT_SECONDS,
+            absolute_timeout_seconds=AUTH_ABSOLUTE_TIMEOUT_SECONDS,
+            max_sessions_per_user=AUTH_MAX_SESSIONS_PER_USER,
+        )
+        if not AUTH_BOOTSTRAP_DISABLE:
+            AUTH_SESSION_SERVICE.ensure_bootstrap_admin(
+                username=AUTH_BOOTSTRAP_USERNAME,
+                password=AUTH_BOOTSTRAP_PASSWORD,
+            )
+    return AUTH_SESSION_SERVICE
+
+
+def audit_log_service() -> AuditLogService:
+    global AUDIT_LOG_SERVICE
+    if AUDIT_LOG_SERVICE is None:
+        AUDIT_LOG_SERVICE = AuditLogService(
+            log_file=ensure_data_dir() / "audit" / "events.log",
+            now_utc=utcnow,
+        )
+    return AUDIT_LOG_SERVICE
+
+
+def authz_policy_service() -> AuthzPolicyService:
+    global AUTHZ_POLICY_SERVICE
+    if AUTHZ_POLICY_SERVICE is None:
+        AUTHZ_POLICY_SERVICE = AuthzPolicyService()
+    return AUTHZ_POLICY_SERVICE
 
 
 def cache_get(key: str, ttl_seconds: float) -> Any:
@@ -2007,22 +2063,92 @@ def extract_bearer_token(header_value: str) -> str:
 class Handler(BaseHTTPRequestHandler):
     server_version = f"BeagleControlPlane/{VERSION}"
 
+    @staticmethod
+    def _auth_user_match(path: str) -> re.Match[str] | None:
+        return re.match(r"^/api/v1/auth/users/(?P<username>[A-Za-z0-9._-]+)$", path)
+
+    @staticmethod
+    def _auth_role_match(path: str) -> re.Match[str] | None:
+        return re.match(r"^/api/v1/auth/roles/(?P<name>[A-Za-z0-9._:-]+)$", path)
+
+    @staticmethod
+    def _auth_user_revoke_sessions_match(path: str) -> re.Match[str] | None:
+        return re.match(r"^/api/v1/auth/users/(?P<username>[A-Za-z0-9._-]+)/revoke-sessions$", path)
+
+    def _audit_event(self, event_type: str, outcome: str, **details: Any) -> None:
+        try:
+            audit_log_service().write_event(event_type, outcome, details)
+        except Exception:
+            pass
+
+    def _authorize_or_respond(self, method: str, path: str) -> bool:
+        permission = authz_policy_service().required_permission(method, path)
+        if permission is None:
+            return True
+        principal = self._auth_principal()
+        if principal is None:
+            return False
+        role = str(principal.get("role") or "viewer").strip().lower() or "viewer"
+        allowed = authz_policy_service().is_allowed(
+            role,
+            permission,
+            auth_session_service().role_permissions(role),
+        )
+        if allowed:
+            return True
+        self._audit_event(
+            "mutation.authorization",
+            "denied",
+            method=method,
+            path=path,
+            permission=permission,
+            role=role,
+            username=str(principal.get("username") or ""),
+            remote_addr=self.client_address[0] if self.client_address else "",
+        )
+        self._write_json(
+            HTTPStatus.FORBIDDEN,
+            {
+                "ok": False,
+                "error": "forbidden",
+                "permission": permission,
+                "role": role,
+            },
+        )
+        return False
+
+    def _auth_principal(self) -> dict[str, Any] | None:
+        cached = getattr(self, "_cached_auth_principal", None)
+        if cached is not None:
+            return cached
+        if ALLOW_LOCALHOST_NOAUTH and self.client_address[0] in {"127.0.0.1", "::1"}:
+            principal = {"username": "localhost", "role": "superadmin", "auth_type": "localhost"}
+            setattr(self, "_cached_auth_principal", principal)
+            return principal
+        header = self.headers.get("Authorization", "")
+        bearer = header[7:].strip() if header.startswith("Bearer ") else ""
+        if bearer:
+            session_principal = auth_session_service().resolve_access_token(bearer)
+            if session_principal is not None:
+                setattr(self, "_cached_auth_principal", session_principal)
+                return session_principal
+            if API_TOKEN and secrets.compare_digest(bearer, API_TOKEN):
+                principal = {"username": "legacy-api-token", "role": "superadmin", "auth_type": "api_token"}
+                setattr(self, "_cached_auth_principal", principal)
+                return principal
+        api_token = self.headers.get("X-Beagle-Api-Token", "").strip()
+        if api_token and API_TOKEN and secrets.compare_digest(api_token, API_TOKEN):
+            principal = {"username": "legacy-api-token", "role": "superadmin", "auth_type": "api_token"}
+            setattr(self, "_cached_auth_principal", principal)
+            return principal
+        setattr(self, "_cached_auth_principal", None)
+        return None
+
     def _is_authenticated(self) -> bool:
         path = urlparse(self.path).path.rstrip("/") or "/"
         if path in {"/healthz", "/api/v1/health"}:
             return True
-        if ALLOW_LOCALHOST_NOAUTH and self.client_address[0] in {"127.0.0.1", "::1"}:
-            return True
-        if not API_TOKEN:
-            return False
-        header = self.headers.get("Authorization", "")
-        bearer = header[7:].strip() if header.startswith("Bearer ") else ""
-        if bearer and secrets.compare_digest(bearer, API_TOKEN):
-            return True
-        api_token = self.headers.get("X-Beagle-Api-Token", "").strip()
-        if api_token and secrets.compare_digest(api_token, API_TOKEN):
-            return True
-        return False
+        return self._auth_principal() is not None
 
     def _endpoint_identity(self) -> dict[str, Any] | None:
         token = extract_bearer_token(self.headers.get("Authorization", ""))
@@ -2049,7 +2175,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
-        self.send_header("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        )
         origin = self._cors_origin()
         if origin:
             self.send_header("Access-Control-Allow-Origin", origin)
@@ -2094,6 +2223,9 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _requester_identity(self) -> str:
+        principal = self._auth_principal()
+        if principal and principal.get("username"):
+            return str(principal.get("username"))
         if self.client_address and self.client_address[0]:
             return self.client_address[0]
         return "unknown"
@@ -2115,7 +2247,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.NO_CONTENT)
         self._write_common_security_headers()
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Beagle-Api-Token, X-Beagle-Endpoint-Token")
+        self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Beagle-Api-Token, X-Beagle-Endpoint-Token, X-Beagle-Refresh-Token")
         self.send_header("Access-Control-Max-Age", "86400")
         self.end_headers()
 
@@ -2152,6 +2284,53 @@ class Handler(BaseHTTPRequestHandler):
                 endpoint_identity=self._endpoint_identity(),
             )
             self._write_json(response["status"], response["payload"])
+            return
+
+        if path == "/api/v1/auth/me":
+            principal = self._auth_principal()
+            if principal is None:
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "user": {
+                        "username": str(principal.get("username") or ""),
+                        "role": str(principal.get("role") or "viewer"),
+                        "auth_type": str(principal.get("auth_type") or "session"),
+                    },
+                },
+            )
+            return
+
+        if path == "/api/v1/auth/onboarding/status":
+            status_payload = auth_session_service().onboarding_status(bootstrap_username=AUTH_BOOTSTRAP_USERNAME)
+            self._write_json(HTTPStatus.OK, {"ok": True, "onboarding": status_payload})
+            return
+
+        if path in {"/api/v1/auth/users", "/api/v1/auth/roles"}:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("GET", path):
+                return
+            if path == "/api/v1/auth/users":
+                self._write_json(
+                    HTTPStatus.OK,
+                    {
+                        "ok": True,
+                        "users": auth_session_service().list_users(),
+                    },
+                )
+                return
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "roles": auth_session_service().list_roles(),
+                },
+            )
             return
 
         if not self._is_authenticated():
@@ -2202,6 +2381,198 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query or "")
+
+        if path == "/api/v1/auth/login":
+            try:
+                payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            username = str(payload.get("username") or "").strip()
+            password = str(payload.get("password") or "")
+            if not username or not password:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "username and password are required"})
+                return
+            session_payload = auth_session_service().login(
+                username=username,
+                password=password,
+                remote_addr=self.client_address[0] if self.client_address else "",
+                user_agent=str(self.headers.get("User-Agent") or "")[:256],
+            )
+            if session_payload is None:
+                self._audit_event(
+                    "auth.login",
+                    "denied",
+                    username=username,
+                    remote_addr=self.client_address[0] if self.client_address else "",
+                )
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "invalid credentials"})
+                return
+            self._audit_event(
+                "auth.login",
+                "success",
+                username=str(session_payload.get("user", {}).get("username") or username),
+                remote_addr=self.client_address[0] if self.client_address else "",
+            )
+            self._write_json(HTTPStatus.OK, session_payload)
+            return
+
+        if path == "/api/v1/auth/refresh":
+            try:
+                payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            refresh_token = str(payload.get("refresh_token") or self.headers.get("X-Beagle-Refresh-Token") or "").strip()
+            if not refresh_token:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "refresh token missing"})
+                return
+            session_payload = auth_session_service().refresh(refresh_token)
+            if session_payload is None:
+                self._audit_event("auth.refresh", "denied", remote_addr=self.client_address[0] if self.client_address else "")
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "invalid refresh token"})
+                return
+            self._audit_event(
+                "auth.refresh",
+                "success",
+                username=str(session_payload.get("user", {}).get("username") or ""),
+                remote_addr=self.client_address[0] if self.client_address else "",
+            )
+            self._write_json(HTTPStatus.OK, session_payload)
+            return
+
+        if path == "/api/v1/auth/logout":
+            refresh_token = ""
+            if int(self.headers.get("Content-Length", "0") or "0") > 0:
+                try:
+                    payload = self._read_json_body()
+                except Exception as exc:
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                    return
+                refresh_token = str(payload.get("refresh_token") or "").strip()
+            revoked = auth_session_service().revoke(
+                access_token=extract_bearer_token(self.headers.get("Authorization", "")),
+                refresh_token=refresh_token,
+            )
+            self._audit_event(
+                "auth.logout",
+                "success" if revoked else "noop",
+                username=self._requester_identity(),
+                remote_addr=self.client_address[0] if self.client_address else "",
+            )
+            self._write_json(HTTPStatus.OK, {"ok": True, "revoked": bool(revoked)})
+            return
+
+        if path == "/api/v1/auth/onboarding/complete":
+            try:
+                payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            username = str(payload.get("username") or "").strip()
+            password = str(payload.get("password") or "")
+            password_confirm = str(payload.get("password_confirm") or "")
+            if not username or not password:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "username and password are required"})
+                return
+            if password != password_confirm:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "password confirmation mismatch"})
+                return
+            try:
+                onboarding_state = auth_session_service().complete_onboarding(
+                    username=username,
+                    password=password,
+                    bootstrap_username=AUTH_BOOTSTRAP_USERNAME,
+                )
+            except Exception as exc:
+                message = str(exc)
+                status_code = HTTPStatus.CONFLICT if message == "onboarding already completed" else HTTPStatus.BAD_REQUEST
+                self._write_json(status_code, {"ok": False, "error": message})
+                return
+            self._audit_event(
+                "auth.onboarding.complete",
+                "success",
+                username=username,
+                remote_addr=self.client_address[0] if self.client_address else "",
+            )
+            self._write_json(HTTPStatus.OK, {"ok": True, "onboarding": onboarding_state})
+            return
+
+        if path == "/api/v1/auth/users":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            try:
+                user = auth_session_service().create_user(
+                    username=str(payload.get("username") or "").strip(),
+                    password=str(payload.get("password") or ""),
+                    role=str(payload.get("role") or "viewer").strip().lower() or "viewer",
+                    enabled=bool(payload.get("enabled", True)),
+                )
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event("auth.user.create", "success", username=user.get("username", ""), requested_by=self._requester_identity())
+            self._write_json(HTTPStatus.CREATED, {"ok": True, "user": user})
+            return
+
+        if path == "/api/v1/auth/roles":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            permissions_raw = payload.get("permissions") if isinstance(payload.get("permissions"), list) else []
+            permissions = [str(value).strip() for value in permissions_raw if str(value).strip()]
+            try:
+                role = auth_session_service().save_role(
+                    name=str(payload.get("name") or "").strip().lower(),
+                    permissions=permissions,
+                )
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event("auth.role.save", "success", role=role.get("name", ""), requested_by=self._requester_identity())
+            self._write_json(HTTPStatus.CREATED, {"ok": True, "role": role})
+            return
+
+        auth_user_revoke_match = self._auth_user_revoke_sessions_match(path)
+        if auth_user_revoke_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            username = str(auth_user_revoke_match.group("username") or "").strip()
+            revoked_count = auth_session_service().revoke_user_sessions(username)
+            self._audit_event(
+                "auth.user.revoke_sessions",
+                "success",
+                username=username,
+                revoked_count=revoked_count,
+                requested_by=self._requester_identity(),
+            )
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "username": username,
+                    "revoked_count": revoked_count,
+                },
+            )
+            return
 
         sunshine_body: bytes | None = None
         if path.startswith("/api/v1/public/sunshine/"):
@@ -2293,6 +2664,8 @@ class Handler(BaseHTTPRequestHandler):
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
+            if not self._authorize_or_respond("POST", path):
+                return
             json_payload: dict[str, Any] | None = None
             if vm_mutation_surface_service().requires_json_body(path):
                 try:
@@ -2311,12 +2684,23 @@ class Handler(BaseHTTPRequestHandler):
                 json_payload=json_payload,
                 requester_identity=self._requester_identity(),
             )
+            self._audit_event(
+                "mutation.request",
+                "success" if int(response["status"]) < 400 else "error",
+                method="POST",
+                path=path,
+                permission=authz_policy_service().required_permission("POST", path),
+                username=self._requester_identity(),
+                status=int(response["status"]),
+            )
             self._write_json(response["status"], response["payload"])
             return
 
         if admin_http_surface_service().handles_post(path):
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
                 return
             try:
                 json_payload = self._read_json_body()
@@ -2329,6 +2713,15 @@ class Handler(BaseHTTPRequestHandler):
                 json_payload=json_payload,
                 requester_identity=self._requester_identity(),
             )
+            self._audit_event(
+                "mutation.request",
+                "success" if int(response["status"]) < 400 else "error",
+                method="POST",
+                path=path,
+                permission=authz_policy_service().required_permission("POST", path),
+                username=self._requester_identity(),
+                status=int(response["status"]),
+            )
             self._write_json(response["status"], response["payload"])
             return
 
@@ -2337,8 +2730,53 @@ class Handler(BaseHTTPRequestHandler):
     def do_PUT(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
+
+        auth_user_match = self._auth_user_match(path)
+        auth_role_match = self._auth_role_match(path)
+        if auth_user_match is not None or auth_role_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("PUT", path):
+                return
+            try:
+                payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            if auth_user_match is not None:
+                try:
+                    updated = auth_session_service().update_user(
+                        username=str(auth_user_match.group("username") or ""),
+                        role=str(payload.get("role")).strip().lower() if payload.get("role") is not None else None,
+                        enabled=bool(payload.get("enabled")) if "enabled" in payload else None,
+                        password=str(payload.get("password") or "") if payload.get("password") is not None else None,
+                    )
+                except Exception as exc:
+                    status = HTTPStatus.NOT_FOUND if str(exc) == "user not found" else HTTPStatus.BAD_REQUEST
+                    self._write_json(status, {"ok": False, "error": str(exc)})
+                    return
+                self._audit_event("auth.user.update", "success", username=updated.get("username", ""), requested_by=self._requester_identity())
+                self._write_json(HTTPStatus.OK, {"ok": True, "user": updated})
+                return
+            permissions_raw = payload.get("permissions") if isinstance(payload.get("permissions"), list) else []
+            permissions = [str(value).strip() for value in permissions_raw if str(value).strip()]
+            try:
+                role = auth_session_service().save_role(
+                    name=str(auth_role_match.group("name") or "").strip().lower(),
+                    permissions=permissions,
+                )
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event("auth.role.update", "success", role=role.get("name", ""), requested_by=self._requester_identity())
+            self._write_json(HTTPStatus.OK, {"ok": True, "role": role})
+            return
+
         if not self._is_authenticated():
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+            return
+        if not self._authorize_or_respond("PUT", path):
             return
         if not admin_http_surface_service().handles_put(path):
             self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
@@ -2350,18 +2788,63 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
         response = admin_http_surface_service().route_put(path, json_payload=json_payload)
+        self._audit_event(
+            "mutation.request",
+            "success" if int(response["status"]) < 400 else "error",
+            method="PUT",
+            path=path,
+            permission=authz_policy_service().required_permission("PUT", path),
+            username=self._requester_identity(),
+            status=int(response["status"]),
+        )
         self._write_json(response["status"], response["payload"])
 
     def do_DELETE(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
+
+        auth_user_match = self._auth_user_match(path)
+        auth_role_match = self._auth_role_match(path)
+        if auth_user_match is not None or auth_role_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("DELETE", path):
+                return
+            if auth_user_match is not None:
+                deleted = auth_session_service().delete_user(str(auth_user_match.group("username") or ""))
+                if not deleted:
+                    self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "user not found"})
+                    return
+                self._audit_event("auth.user.delete", "success", username=auth_user_match.group("username"), requested_by=self._requester_identity())
+                self._write_json(HTTPStatus.OK, {"ok": True, "deleted": str(auth_user_match.group("username") or "")})
+                return
+            deleted = auth_session_service().delete_role(str(auth_role_match.group("name") or ""))
+            if not deleted:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "role not found or protected"})
+                return
+            self._audit_event("auth.role.delete", "success", role=auth_role_match.group("name"), requested_by=self._requester_identity())
+            self._write_json(HTTPStatus.OK, {"ok": True, "deleted": str(auth_role_match.group("name") or "")})
+            return
+
         if not self._is_authenticated():
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+            return
+        if not self._authorize_or_respond("DELETE", path):
             return
         if not admin_http_surface_service().handles_delete(path):
             self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
             return
         response = admin_http_surface_service().route_delete(path)
+        self._audit_event(
+            "mutation.request",
+            "success" if int(response["status"]) < 400 else "error",
+            method="DELETE",
+            path=path,
+            permission=authz_policy_service().required_permission("DELETE", path),
+            username=self._requester_identity(),
+            status=int(response["status"]),
+        )
         self._write_json(response["status"], response["payload"])
 
     def log_message(self, fmt: str, *args: Any) -> None:

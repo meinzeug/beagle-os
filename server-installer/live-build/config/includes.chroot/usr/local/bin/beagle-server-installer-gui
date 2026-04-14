@@ -7,6 +7,7 @@ that the main bash installer reads.  Launched by beagle-server-installer.
 """
 
 import curses
+import locale
 import os
 import re
 import subprocess
@@ -28,32 +29,54 @@ C_DIM = 7
 C_DANGER = 8
 C_PROGRESS = 9
 
-LOGO_WIDE = r"""
-BBBBB   EEEEE   AAAAA   GGGG   L      EEEEE
-B    B  E      A     A G      L      E
-BBBBB   EEEE   AAAAAAA G  GGG L      EEEE
-B    B  E      A     A G    G L      E
-BBBBB   EEEEE  A     A  GGGG  LLLLL  EEEEE
-
-    SSSS  EEEEE  RRRR   V   V  EEEEE  RRRR
- S      E      R   R  V   V  E      R   R
-    SSS   EEEE   RRRR    V V   EEEE   RRRR
-         S  E      R  R     V    E      R  R
- SSSS   EEEEE  R   R    V    EEEEE  R   R
+LOGO_WIDE_DOS = r"""
+╔══════════════════════════════════════════════════════════╗
+║ ██████╗ ███████╗ █████╗  ██████╗ ██╗     ███████╗       ║
+║ ██╔══██╗██╔════╝██╔══██╗██╔════╝ ██║     ██╔════╝       ║
+║ ██████╔╝█████╗  ███████║██║  ███╗██║     █████╗         ║
+║ ██╔══██╗██╔══╝  ██╔══██║██║   ██║██║     ██╔══╝         ║
+║ ██████╔╝███████╗██║  ██║╚██████╔╝███████╗███████╗       ║
+║                                                          ║
+║ ███████╗███████╗██████╗ ██╗   ██╗███████╗██████╗        ║
+║ ██╔════╝██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗       ║
+║ ███████╗█████╗  ██████╔╝██║   ██║█████╗  ██████╔╝       ║
+║ ╚════██║██╔══╝  ██╔══██╗╚██╗ ██╔╝██╔══╝  ██╔══██╗       ║
+║ ███████║███████╗██║  ██║ ╚████╔╝ ███████╗██║  ██║       ║
+╚══════════════════════════════════════════════════════════╝
 """
 
-LOGO_COMPACT = r"""
- ______   ______   ______  ______  __      ______
-/\  == \ /\  ___\ /\  __ \/\  ___\/\ \    /\  ___\
-\ \  __< \ \  __\ \ \  __ \ \ \__ \ \ \___\ \  __\
- \ \_____\\ \_____\\ \_\ \_\ \_____\ \_____\ \_____\
-  \/_____/ \/_____/ \/_/\/_/\/_____/\/_____/\/_____/
+LOGO_COMPACT_DOS = r"""
+╔══════════════════════════════════════════════╗
+║ ██████  ███████  ██████  ██      ███████    ║
+║ ██   ██ ██      ██    ██ ██      ██         ║
+║ ██████  █████   ██    ██ ██      █████      ║
+║ ██   ██ ██      ██    ██ ██      ██         ║
+║ ██████  ███████  ██████  ███████ ███████    ║
+║                                              ║
+║              ███████ ███████ ██████          ║
+╚══════════════════════════════════════════════╝
+"""
 
-         ______   ______     ______   ______   ______
-        /\  __ \ /\  ___\   /\  ___\ /\  ___\ /\  == \
-        \ \ \/\ \\ \___  \  \ \___  \\ \  __\ \ \  __<
-         \ \_____\\/\_____\  \/\_____\\ \_____\\ \_\ \_\
-          \/_____/ \/_____/   \/_____/ \/_____/ \/_/ /_/
+LOGO_WIDE_ASC = r"""
++----------------------------------------------------------+
+| #####  #####   ##    ####   #      #####                |
+| #   #  #      #  #  #      #      #                     |
+| #####  ####   ####  # ###  #      ####                  |
+| #   #  #      #  #  #   #  #      #                     |
+| #####  #####  #  #   ####  #####  #####                 |
+|                                                          |
+|  ####  #####  ####   #   #  #####  ####                 |
+| #      #      #   #  #   #  #      #   #                |
+|  ###   ####   ####   #   #  ####   ####                 |
+|     #  #      #  #    # #   #      #  #                 |
+| ####   #####  #   #    #    #####  #   #                |
++----------------------------------------------------------+
+"""
+
+LOGO_COMPACT_ASC = r"""
++----------------------------------------------+
+|               BEAGLE SERVER                  |
++----------------------------------------------+
 """
 
 SPINNER = "-|/\\"
@@ -77,14 +100,32 @@ def clamp(n: int, lo: int, hi: int) -> int:
     return max(lo, min(hi, n))
 
 
+def logo_to_lines(logo: str) -> list[str]:
+    return [line.rstrip() for line in logo.strip("\n").splitlines()]
+
+
+def supports_utf_logo() -> bool:
+    enc = (locale.getpreferredencoding(False) or "").lower()
+    return "utf" in enc
+
+
 def pick_logo(term_width: int) -> str:
-    wide_raw_w = max(len(ln) for ln in LOGO_WIDE.split("\n"))
-    compact_raw_w = max(len(ln) for ln in LOGO_COMPACT.split("\n"))
+    if supports_utf_logo():
+        wide_logo = LOGO_WIDE_DOS
+        compact_logo = LOGO_COMPACT_DOS
+    else:
+        wide_logo = LOGO_WIDE_ASC
+        compact_logo = LOGO_COMPACT_ASC
+
+    wide_lines = logo_to_lines(wide_logo)
+    compact_lines = logo_to_lines(compact_logo)
+    wide_raw_w = max((len(ln) for ln in wide_lines), default=0)
+    compact_raw_w = max((len(ln) for ln in compact_lines), default=0)
     if term_width >= int(wide_raw_w * 1.1):
-        return LOGO_WIDE
+        return wide_logo
     if term_width >= compact_raw_w + 4:
-        return LOGO_COMPACT
-    return LOGO_COMPACT
+        return compact_logo
+    return compact_logo
 
 
 def center_text(win, row: int, text: str, attr: int = 0) -> None:
@@ -138,7 +179,10 @@ def popup(stdscr, rows: int, cols: int):
     cols = clamp(cols, 20, sw - 4)
     y = (sh - rows) // 2
     x = (sw - cols) // 2
-    return curses.newwin(rows, cols, y, x)
+    win = curses.newwin(rows, cols, y, x)
+    # Decode multi-byte escape sequences (for arrow keys) in popup dialogs.
+    win.keypad(True)
+    return win
 
 
 def screen_splash(stdscr) -> None:
@@ -147,7 +191,7 @@ def screen_splash(stdscr) -> None:
     stdscr.erase()
     h, w = stdscr.getmaxyx()
     logo = pick_logo(w)
-    logo_lines = logo.split("\n")
+    logo_lines = logo_to_lines(logo)
     logo_h = len(logo_lines)
     start_row = max(1, (h - logo_h - 4) // 2)
     for phase in range(3):
@@ -367,7 +411,7 @@ def screen_confirm_wipe(stdscr, disk: str) -> bool:
             sel ^= 1
         elif key in (curses.KEY_ENTER, ord("\n"), ord("\r")):
             return sel == 0
-        elif key == 27:
+        elif key in (ord("q"), ord("Q"), ord("n"), ord("N")):
             return False
 
 
@@ -435,11 +479,28 @@ def write_state(state: dict) -> None:
     os.chmod(STATE_FILE, 0o600)
 
 
+def _is_serial_console() -> bool:
+    """Return True when running on a serial tty (ttyS*, ttyUSB*, hvc*)."""
+    try:
+        import subprocess as _sp
+        tty = _sp.check_output(["tty"], text=True, stderr=_sp.DEVNULL).strip()
+        return any(tty.startswith(p) for p in ("/dev/ttyS", "/dev/ttyUSB", "/dev/hvc"))
+    except Exception:
+        return False
+
+
 def use_plain_console_ui() -> bool:
     if os.environ.get("BEAGLE_SERVER_INSTALLER_FORCE_PLAIN", "0") == "1":
         return True
     term = os.environ.get("TERM", "").lower()
-    return term in {"dumb", "unknown"}
+    if term in {"dumb", "unknown", ""}:
+        return True
+    # Serial consoles (virsh, IPMI SOL, etc.) only support vt100/vt220.
+    # Python curses works on them but colour rendering is unreliable; use
+    # plain text UI to avoid garbled output.
+    if _is_serial_console():
+        return True
+    return False
 
 
 def plain_banner() -> None:

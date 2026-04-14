@@ -19,6 +19,11 @@ DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-https://${SERVER_NAME}:${LISTE
 BEAGLE_API_UPSTREAM="${BEAGLE_API_UPSTREAM:-http://127.0.0.1:9088}"
 SITE_PORT="${BEAGLE_SITE_PORT:-443}"
 WEB_UI_TITLE="${BEAGLE_WEB_UI_TITLE:-Beagle OS Web UI}"
+WEB_UI_TRUSTED_API_ORIGINS_RAW="${BEAGLE_WEB_UI_TRUSTED_API_ORIGINS:-}"
+WEB_UI_ALLOW_HASH_TOKEN="${BEAGLE_WEB_UI_ALLOW_HASH_TOKEN:-0}"
+WEB_UI_ALLOW_ABSOLUTE_API_TARGETS="${BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS:-0}"
+WEB_UI_SEND_LEGACY_API_TOKEN_HEADER="${BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER:-0}"
+WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS="${BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS:-0}"
 CERT_FILE="${PVE_DCV_PROXY_CERT_FILE:-}"
 KEY_FILE="${PVE_DCV_PROXY_KEY_FILE:-}"
 STANDALONE_TLS_DIR="${BEAGLE_PROXY_TLS_DIR:-$CONFIG_DIR/tls}"
@@ -97,6 +102,11 @@ ensure_root() {
       BEAGLE_PROXY_TLS_DIR="$STANDALONE_TLS_DIR" \
       PVE_DCV_PROXY_CERT_FILE="$CERT_FILE" \
       PVE_DCV_PROXY_KEY_FILE="$KEY_FILE" \
+      BEAGLE_WEB_UI_TRUSTED_API_ORIGINS="$WEB_UI_TRUSTED_API_ORIGINS_RAW" \
+      BEAGLE_WEB_UI_ALLOW_HASH_TOKEN="$WEB_UI_ALLOW_HASH_TOKEN" \
+      BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS="$WEB_UI_ALLOW_ABSOLUTE_API_TARGETS" \
+      BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER="$WEB_UI_SEND_LEGACY_API_TOKEN_HEADER" \
+      BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS="$WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS" \
       "$0" "$@"
   fi
 
@@ -108,12 +118,24 @@ log() {
   echo "[beagle-proxy] $*"
 }
 
+bool_js_literal() {
+  case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+    1|true|yes|on)
+      printf 'true\n'
+      ;;
+    *)
+      printf 'false\n'
+      ;;
+  esac
+}
+
 ensure_dependencies() {
   local package=()
 
   command -v nginx >/dev/null 2>&1 || package+=(nginx)
   command -v python3 >/dev/null 2>&1 || package+=(python3)
   command -v openssl >/dev/null 2>&1 || package+=(openssl)
+  command -v nft >/dev/null 2>&1 || package+=(nftables)
 
   if (( ${#package[@]} == 0 )); then
     return 0
@@ -189,6 +211,11 @@ load_env_file() {
   SITE_PORT="${BEAGLE_SITE_PORT:-${SITE_PORT}}"
   WEB_UI_URL="${BEAGLE_WEB_UI_URL:-${WEB_UI_URL}}"
   WEB_UI_TITLE="${BEAGLE_WEB_UI_TITLE:-${WEB_UI_TITLE}}"
+  WEB_UI_TRUSTED_API_ORIGINS_RAW="${BEAGLE_WEB_UI_TRUSTED_API_ORIGINS:-${WEB_UI_TRUSTED_API_ORIGINS_RAW}}"
+  WEB_UI_ALLOW_HASH_TOKEN="${BEAGLE_WEB_UI_ALLOW_HASH_TOKEN:-${WEB_UI_ALLOW_HASH_TOKEN}}"
+  WEB_UI_ALLOW_ABSOLUTE_API_TARGETS="${BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS:-${WEB_UI_ALLOW_ABSOLUTE_API_TARGETS}}"
+  WEB_UI_SEND_LEGACY_API_TOKEN_HEADER="${BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER:-${WEB_UI_SEND_LEGACY_API_TOKEN_HEADER}}"
+  WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS="${BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS:-${WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS}}"
   CERT_FILE="${PVE_DCV_PROXY_CERT_FILE:-${CERT_FILE}}"
   KEY_FILE="${PVE_DCV_PROXY_KEY_FILE:-${KEY_FILE}}"
   STANDALONE_TLS_DIR="${BEAGLE_PROXY_TLS_DIR:-${STANDALONE_TLS_DIR}}"
@@ -331,6 +358,11 @@ PVE_DCV_DOWNLOADS_BASE_URL="$DOWNLOADS_BASE_URL"
 BEAGLE_SITE_PORT="$SITE_PORT"
 BEAGLE_WEB_UI_URL="$WEB_UI_URL"
 BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE"
+BEAGLE_WEB_UI_TRUSTED_API_ORIGINS="$WEB_UI_TRUSTED_API_ORIGINS_RAW"
+BEAGLE_WEB_UI_ALLOW_HASH_TOKEN="$WEB_UI_ALLOW_HASH_TOKEN"
+BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS="$WEB_UI_ALLOW_ABSOLUTE_API_TARGETS"
+BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER="$WEB_UI_SEND_LEGACY_API_TOKEN_HEADER"
+BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS="$WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS"
 BEAGLE_PROXY_TLS_DIR="$STANDALONE_TLS_DIR"
 PVE_DCV_PROXY_CERT_FILE="$CERT_FILE"
 PVE_DCV_PROXY_KEY_FILE="$KEY_FILE"
@@ -377,7 +409,12 @@ window.BEAGLE_WEB_UI_CONFIG = {
   title: ${WEB_UI_TITLE@Q},
   webUiUrl: ${WEB_UI_URL@Q},
   apiBase: '/beagle-api/api/v1',
-  downloadsBase: ${DOWNLOADS_PATH@Q}
+  downloadsBase: ${DOWNLOADS_PATH@Q},
+  trustedApiOrigins: ${WEB_UI_TRUSTED_API_ORIGINS_RAW@Q},
+  allowHashToken: $(bool_js_literal "$WEB_UI_ALLOW_HASH_TOKEN"),
+  allowAbsoluteApiTargets: $(bool_js_literal "$WEB_UI_ALLOW_ABSOLUTE_API_TARGETS"),
+  sendLegacyApiTokenHeader: $(bool_js_literal "$WEB_UI_SEND_LEGACY_API_TOKEN_HEADER"),
+  allowInsecureExternalUrls: $(bool_js_literal "$WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS")
 };
 EOF
 }
@@ -407,20 +444,44 @@ cleanup_legacy_port_forward() {
 }
 
 write_nginx_config() {
+  local web_redirect_target
+  if [[ "$SITE_PORT" == "443" ]]; then
+    web_redirect_target="https://\$host\$request_uri"
+  else
+    web_redirect_target="https://\$host:${SITE_PORT}\$request_uri"
+  fi
+
   cat > "$NGINX_SITE" <<EOF
 server {
-    listen ${SITE_PORT} ssl;
-    listen [::]:${SITE_PORT} ssl;
-    server_name ${SERVER_NAME};
+  listen 80 default_server;
+  listen [::]:80 default_server;
+    server_name _;
+
+    return 301 ${web_redirect_target};
+}
+
+limit_req_zone $binary_remote_addr zone=beagle_auth:10m rate=12r/m;
+limit_req_zone $binary_remote_addr zone=beagle_api:20m rate=180r/m;
+
+server {
+  listen ${SITE_PORT} ssl default_server;
+  listen [::]:${SITE_PORT} ssl default_server;
+    server_name _;
 
     ssl_certificate ${CERT_FILE};
     ssl_certificate_key ${KEY_FILE};
     ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_session_tickets off;
+    ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_session_timeout 1d;
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "no-referrer" always;
     add_header X-Frame-Options "DENY" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Resource-Policy "same-origin" always;
 
     root ${ASSET_ROOT}/website;
     index index.html;
@@ -440,7 +501,19 @@ server {
         }
     }
 
+    location ^~ /beagle-api/api/v1/auth/ {
+      limit_req zone=beagle_auth burst=20 nodelay;
+      proxy_pass ${BEAGLE_API_UPSTREAM}/api/v1/auth/;
+      proxy_http_version 1.1;
+      proxy_set_header Host \$host;
+      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto https;
+      proxy_read_timeout 30;
+      proxy_send_timeout 30;
+    }
+
     location /beagle-api/ {
+      limit_req zone=beagle_api burst=240 nodelay;
         proxy_pass ${BEAGLE_API_UPSTREAM}/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -461,24 +534,30 @@ server {
     }
 
     location / {
-        add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" always;
+      add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" always;
         try_files \$uri \$uri/ /index.html;
     }
 }
 
 server {
-    listen ${LISTEN_PORT} ssl;
-    listen [::]:${LISTEN_PORT} ssl;
-    server_name ${SERVER_NAME};
+  listen ${LISTEN_PORT} ssl default_server;
+  listen [::]:${LISTEN_PORT} ssl default_server;
+  server_name _;
 
     ssl_certificate ${CERT_FILE};
     ssl_certificate_key ${KEY_FILE};
     ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_session_tickets off;
+    ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_session_timeout 1d;
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "no-referrer" always;
     add_header X-Frame-Options "DENY" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Resource-Policy "same-origin" always;
 
     location = /beagle-autologin.js {
         alias ${ASSET_ROOT}/proxmox-ui/beagle-autologin.js;
@@ -508,7 +587,19 @@ server {
         rewrite ^/pve-dcv-downloads/(.*)$ ${DOWNLOADS_PATH}/\$1 permanent;
     }
 
+    location ^~ /beagle-api/api/v1/auth/ {
+      limit_req zone=beagle_auth burst=20 nodelay;
+      proxy_pass ${BEAGLE_API_UPSTREAM}/api/v1/auth/;
+      proxy_http_version 1.1;
+      proxy_set_header Host \$host;
+      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto https;
+      proxy_read_timeout 30;
+      proxy_send_timeout 30;
+    }
+
     location /beagle-api/ {
+      limit_req zone=beagle_api burst=240 nodelay;
         proxy_pass ${BEAGLE_API_UPSTREAM}/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -532,7 +623,7 @@ EOF
 
   cat >> "$NGINX_SITE" <<EOF
     location = / {
-        return 302 https://${SERVER_NAME}:${SITE_PORT}/;
+        return 302 ${web_redirect_target};
     }
 
     location / {
