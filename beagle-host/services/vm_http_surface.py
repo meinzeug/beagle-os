@@ -320,7 +320,7 @@ class VmHttpSurfaceService:
                 return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "endpoint not found"})
             return self._json_response(HTTPStatus.OK, payload)
 
-        vmid_text = path.rsplit("/", 1)[-1]
+        vmid_text = path.split("/")[-2]
         if not vmid_text.isdigit():
             return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
         payload = self._profile_payload(int(vmid_text))
