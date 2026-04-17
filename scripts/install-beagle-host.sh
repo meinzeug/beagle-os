@@ -184,6 +184,10 @@ ensure_dependencies() {
 have_packaged_assets() {
   [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-installer-v${VERSION}.sh" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-installer-latest.sh" ]] &&
+    [[ -f "$INSTALL_DIR/dist/pve-thin-client-live-usb-v${VERSION}.sh" ]] &&
+    [[ -f "$INSTALL_DIR/dist/pve-thin-client-live-usb-latest.sh" ]] &&
+    [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-installer-v${VERSION}.ps1" ]] &&
+    [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-installer-latest.ps1" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-payload-v${VERSION}.tar.gz" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" ]] &&
@@ -205,6 +209,12 @@ download_release_assets() {
   curl -fsSLo "$dist_dir/pve-thin-client-usb-installer-v${VERSION}.sh" \
     "$base_url/pve-thin-client-usb-installer-v${VERSION}.sh" &&
     install -m 0755 "$dist_dir/pve-thin-client-usb-installer-v${VERSION}.sh" "$dist_dir/pve-thin-client-usb-installer-latest.sh" &&
+    curl -fsSLo "$dist_dir/pve-thin-client-live-usb-v${VERSION}.sh" \
+      "$base_url/pve-thin-client-live-usb-v${VERSION}.sh" &&
+    install -m 0755 "$dist_dir/pve-thin-client-live-usb-v${VERSION}.sh" "$dist_dir/pve-thin-client-live-usb-latest.sh" &&
+    curl -fsSLo "$dist_dir/pve-thin-client-usb-installer-v${VERSION}.ps1" \
+      "$base_url/pve-thin-client-usb-installer-v${VERSION}.ps1" &&
+    install -m 0644 "$dist_dir/pve-thin-client-usb-installer-v${VERSION}.ps1" "$dist_dir/pve-thin-client-usb-installer-latest.ps1" &&
     curl -fsSLo "$dist_dir/pve-thin-client-usb-payload-v${VERSION}.tar.gz" \
       "$base_url/pve-thin-client-usb-payload-v${VERSION}.tar.gz" &&
     install -m 0644 "$dist_dir/pve-thin-client-usb-payload-v${VERSION}.tar.gz" "$dist_dir/pve-thin-client-usb-payload-latest.tar.gz" &&

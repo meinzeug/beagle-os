@@ -18,7 +18,7 @@ BEAGLE_CONTROL_ENV_FILE="$CONFIG_DIR/beagle-manager.env"
 BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
 BEAGLE_AUTH_BOOTSTRAP_USERNAME="${BEAGLE_AUTH_BOOTSTRAP_USERNAME:-admin}"
 BEAGLE_AUTH_BOOTSTRAP_PASSWORD="${BEAGLE_AUTH_BOOTSTRAP_PASSWORD:-}"
-USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-beagle}"
+USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-beagle-tunnel}"
 USB_TUNNEL_HOME="${BEAGLE_USB_TUNNEL_HOME:-}"
 USB_TUNNEL_AUTH_ROOT="${BEAGLE_USB_TUNNEL_AUTH_ROOT:-/var/lib/beagle/usb-tunnel/$USB_TUNNEL_USER}"
 USB_TUNNEL_ATTACH_HOST="${BEAGLE_USB_TUNNEL_ATTACH_HOST:-10.10.10.1}"
@@ -94,6 +94,25 @@ print(crypt.crypt(password, f"$6${salt}$"))
 PY
 }
 
+resolve_qemu_system_package() {
+  local package_name=""
+
+  for package_name in qemu-kvm qemu-system-x86 qemu-system; do
+    if apt-cache show "$package_name" >/dev/null 2>&1; then
+      printf '%s\n' "$package_name"
+      return 0
+    fi
+  done
+
+  printf 'qemu-system-x86\n'
+}
+
+standalone_runtime_tools_ready() {
+  command -v virsh >/dev/null 2>&1 &&
+    command -v qemu-img >/dev/null 2>&1 &&
+    command -v xorriso >/dev/null 2>&1
+}
+
 set_env_value() {
   local env_file="$1"
   local key="$2"
@@ -104,6 +123,35 @@ set_env_value() {
     return 0
   fi
   printf '%s=%s\n' "$key" "$value" >>"$env_file"
+}
+
+is_loopback_host() {
+  local candidate="${1:-}"
+  candidate="${candidate//\"/}"
+  candidate="${candidate//\'/}"
+  candidate="$(printf '%s' "$candidate" | xargs 2>/dev/null || printf '%s' "$candidate")"
+  [[ -z "$candidate" ]] && return 0
+  [[ "$candidate" == "localhost" ]] && return 0
+  [[ "$candidate" == "127."* ]] && return 0
+  return 1
+}
+
+detect_primary_ipv4() {
+  local candidate=""
+
+  candidate="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i=="src") {print $(i+1); exit}}')"
+  if [[ -n "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  candidate="$(hostname -I 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i !~ /^127\./) {print $i; exit}}')"
+  if [[ -n "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  return 1
 }
 
 ensure_root "$@"
@@ -123,7 +171,7 @@ install -d -m 0755 "$(dirname "$USB_TUNNEL_AUTH_ROOT")"
 install -d -m 0700 "$USB_TUNNEL_AUTH_ROOT" "$USB_TUNNEL_AUTH_ROOT/authorized_keys.d"
 touch "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
 chmod 0600 "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
-chown "$USB_TUNNEL_USER:$USB_TUNNEL_USER" "$USB_TUNNEL_AUTH_ROOT" "$USB_TUNNEL_AUTH_ROOT/authorized_keys.d" "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
+chown root:root "$USB_TUNNEL_AUTH_ROOT" "$USB_TUNNEL_AUTH_ROOT/authorized_keys.d" "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
 
 cat >"$USB_TUNNEL_SSHD_DROPIN" <<EOF
 Match User $USB_TUNNEL_USER
@@ -144,6 +192,7 @@ install -d -m 0755 "$SYSTEMD_DIR"
 install -d -m 0755 "$HOST_RUNTIME_DIR/bin"
 install -d -m 0755 "$HOST_RUNTIME_DIR/providers"
 install -d -m 0755 "$HOST_RUNTIME_DIR/services"
+install -d -m 0755 "$HOST_RUNTIME_DIR/templates/ubuntu-beagle"
 install_unit "$ROOT_DIR/beagle-host/systemd/$SERVICE_NAME" "$SYSTEMD_DIR/$SERVICE_NAME"
 install -m 0644 "$ROOT_DIR/beagle-host/systemd/$TIMER_NAME" "$SYSTEMD_DIR/$TIMER_NAME"
 install_unit "$ROOT_DIR/beagle-host/systemd/$UI_REAPPLY_SERVICE" "$SYSTEMD_DIR/$UI_REAPPLY_SERVICE"
@@ -213,6 +262,15 @@ install_file_if_needed 0644 "$ROOT_DIR/beagle-host/services/sunshine_integration
 install_file_if_needed 0644 "$ROOT_DIR/beagle-host/services/enrollment_token_store.py" "$HOST_RUNTIME_DIR/services/enrollment_token_store.py"
 install_file_if_needed 0644 "$ROOT_DIR/beagle-host/services/sunshine_access_token_store.py" "$HOST_RUNTIME_DIR/services/sunshine_access_token_store.py"
 install_file_if_needed 0644 "$ROOT_DIR/beagle-host/services/endpoint_token_store.py" "$HOST_RUNTIME_DIR/services/endpoint_token_store.py"
+# Keep runtime service module installation in sync with control-plane imports.
+for service_file in "$ROOT_DIR"/beagle-host/services/*.py; do
+  [[ -f "$service_file" ]] || continue
+  install_file_if_needed 0644 "$service_file" "$HOST_RUNTIME_DIR/services/$(basename "$service_file")"
+done
+for template_file in "$ROOT_DIR"/beagle-host/templates/ubuntu-beagle/*; do
+  [[ -f "$template_file" ]] || continue
+  install_file_if_needed 0644 "$template_file" "$HOST_RUNTIME_DIR/templates/ubuntu-beagle/$(basename "$template_file")"
+done
 if [[ -e "$LEGACY_HOST_RUNTIME_DIR" && ! -L "$LEGACY_HOST_RUNTIME_DIR" ]]; then
   rm -rf "$LEGACY_HOST_RUNTIME_DIR"
 fi
@@ -232,9 +290,81 @@ EOF
 fi
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_HOST_PROVIDER" "\"$BEAGLE_HOST_PROVIDER\""
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_MANAGER_LISTEN_HOST" '"127.0.0.1"'
+
+# When running with the beagle (libvirt/KVM) provider, set storage paths and
+# ensure libvirt + OVMF are installed.
+if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
+  BEAGLE_LIBVIRT_IMAGES_DIR="${BEAGLE_LIBVIRT_IMAGES_DIR:-/var/lib/libvirt/images}"
+  set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_UBUNTU_LOCAL_ISO_DIR" "\"$BEAGLE_LIBVIRT_IMAGES_DIR\""
+  set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_UBUNTU_DISK_STORAGE" '"local"'
+  set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_UBUNTU_ISO_STORAGE" '"local"'
+  set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_UBUNTU_DEFAULT_BRIDGE" '"beagle"'
+
+  if ! standalone_runtime_tools_ready; then
+    qemu_system_package="$(resolve_qemu_system_package)"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+      libvirt-daemon-system libvirt-clients "$qemu_system_package" qemu-utils ovmf xorriso \
+      >/dev/null 2>&1 || true
+  fi
+
+  # Create beagle libvirt network (192.168.123.0/24) if missing
+  if ! virsh --connect qemu:///system net-info beagle >/dev/null 2>&1; then
+    tmpnet=$(mktemp /tmp/beagle-net-XXXXXX.xml)
+    cat >"$tmpnet" <<'NETEOF'
+<network>
+  <name>beagle</name>
+  <forward mode='nat'/>
+  <bridge name='virbr1' stp='on' delay='0'/>
+  <ip address='192.168.123.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.123.2' end='192.168.123.254'/>
+    </dhcp>
+  </ip>
+</network>
+NETEOF
+    virsh --connect qemu:///system net-define "$tmpnet" >/dev/null 2>&1 || true
+    virsh --connect qemu:///system net-start beagle >/dev/null 2>&1 || true
+    virsh --connect qemu:///system net-autostart beagle >/dev/null 2>&1 || true
+    rm -f "$tmpnet"
+  else
+    virsh --connect qemu:///system net-start beagle >/dev/null 2>&1 || true
+    virsh --connect qemu:///system net-autostart beagle >/dev/null 2>&1 || true
+  fi
+
+  # Create local storage pool if missing
+  if ! virsh --connect qemu:///system pool-info local >/dev/null 2>&1; then
+    mkdir -p "$BEAGLE_LIBVIRT_IMAGES_DIR"
+    virsh --connect qemu:///system pool-define-as local dir --target "$BEAGLE_LIBVIRT_IMAGES_DIR" >/dev/null 2>&1 || true
+    virsh --connect qemu:///system pool-build local >/dev/null 2>&1 || true
+    virsh --connect qemu:///system pool-start local >/dev/null 2>&1 || true
+    virsh --connect qemu:///system pool-autostart local >/dev/null 2>&1 || true
+  else
+    virsh --connect qemu:///system pool-start local >/dev/null 2>&1 || true
+    virsh --connect qemu:///system pool-autostart local >/dev/null 2>&1 || true
+  fi
+
+  # Ensure nvram dir exists for OVMF vars
+  mkdir -p /var/lib/libvirt/qemu/nvram
+fi
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH" '"0"'
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_USB_TUNNEL_SSH_USER" "\"$USB_TUNNEL_USER\""
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_USB_TUNNEL_AUTH_ROOT" "\"$USB_TUNNEL_AUTH_ROOT\""
+
+configured_public_stream_host="${BEAGLE_PUBLIC_STREAM_HOST:-}"
+if [[ -z "$configured_public_stream_host" ]]; then
+  configured_public_stream_host="$(awk -F= '/^BEAGLE_PUBLIC_STREAM_HOST=/{print $2; exit}' "$BEAGLE_CONTROL_ENV_FILE" 2>/dev/null || true)"
+fi
+if is_loopback_host "$configured_public_stream_host"; then
+  detected_public_stream_host="$(detect_primary_ipv4 || true)"
+  if [[ -n "$detected_public_stream_host" ]]; then
+    set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_PUBLIC_STREAM_HOST" "\"$detected_public_stream_host\""
+  fi
+elif [[ -n "$configured_public_stream_host" ]]; then
+  configured_public_stream_host="${configured_public_stream_host//\"/}"
+  configured_public_stream_host="${configured_public_stream_host//\'/}"
+  set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_PUBLIC_STREAM_HOST" "\"$configured_public_stream_host\""
+fi
+
 if [[ -n "$BEAGLE_AUTH_BOOTSTRAP_USERNAME" ]]; then
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_BOOTSTRAP_USERNAME" "\"$BEAGLE_AUTH_BOOTSTRAP_USERNAME\""
 fi

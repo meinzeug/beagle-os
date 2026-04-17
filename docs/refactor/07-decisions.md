@@ -103,3 +103,23 @@ Stand: 2026-04-13
 - Grund: Unvollstaendige Presets fuehren nach Thinclient-Reboot zu manueller PIN-Eingabe und brechen den Zielpfad "auto-connect".
 - Umsetzung: `beagle-host/services/installer_script.py` priorisiert explizite VM-Metadaten (`sunshine-user/password/pin`) und nutzt danach VM-Secret-Fallback; bei fehlenden Pflichtfeldern wird ein Fehler geworfen.
 
+## D-025: Standalone-Host-Service-Install darf nicht auf distro-spezifischem QEMU-Paketnamen haengen
+- Entscheidung: `scripts/install-beagle-host-services.sh` waehlt QEMU-Paketnamen dynamisch nach verfuegbarem APT-Candidate (`qemu-kvm` -> `qemu-system-x86` -> `qemu-system`) statt hartem Debian/Ubuntu-Annahmenmix.
+- Grund: Frische Server-ISO-Installationen auf Debian 12 brachen reproduzierbar beim Host-Service-Install mit "qemu-kvm has no installation candidate".
+- Wirkung: Standalone-Host-Setup bleibt zwischen Debian-/Ubuntu-Familien robust reproduzierbar.
+
+## D-026: Standalone-Provisioning braucht `xorriso` als Pflicht-Tool
+- Entscheidung: `xorriso` ist verpflichtender Teil der Standalone-Host-Abhaengigkeiten und Runtime-Readiness-Pruefung.
+- Grund: Ohne `xorriso` scheitert die Seed-ISO-Erzeugung im Ubuntu-Autoinstall-Flow trotz ansonsten erfolgreichem Host-Setup.
+- Umsetzung: Paketliste + Readiness-Check in `scripts/install-beagle-host-services.sh` erweitert (`virsh`, `qemu-img`, `xorriso`).
+
+## D-027: API-Reverse-Proxy fuer Provisioning auf Long-Running Calls auslegen
+- Entscheidung: `proxy_read_timeout` und `proxy_send_timeout` fuer Beagle-API-Locations werden auf 900 Sekunden gesetzt.
+- Grund: Laengere Provisioning-Operationen (z. B. ISO-Download/VM-Setup) liefen reproduzierbar in 504 Timeouts bei 30s Default.
+- Datei: `scripts/install-beagle-proxy.sh`.
+
+## D-028: Frischer Host muss generische Thinclient-Artefakte immer mitziehen
+- Entscheidung: Host-Install zieht zusaetzlich die generischen Shell-/PowerShell-Installer-Artefakte (`pve-thin-client-live-usb*`, `pve-thin-client-usb-installer*`) als Pflichtbestandteil des Release-Downloads.
+- Grund: Ohne diese Artefakte liefern VM-spezifische Wrapper-Endpunkte (`/vms/<vmid>/installer.sh`) auf frischen Hosts 503 oder unvollstaendige Payloads.
+- Datei: `scripts/install-beagle-host.sh`.
+

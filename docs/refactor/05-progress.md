@@ -2,6 +2,20 @@
 
 Stand: 2026-04-16
 
+## Update 2026-04-17 (Local E2E Reinstall + Provisioning Hardening)
+- Voller lokaler Reinstall-Loop aufgesetzt: beagleserver aus aktueller Server-ISO neu installiert, Host/API/UI wieder hochgefahren, Desktop-VM 101 ueber echte API-Provisioning-Calls angelegt, VM-spezifisches Installer-Skript geladen, beaglethinclient via simuliertem USB neu installiert.
+- Reproduzierbare Installer-/Host-Blocker im Repo gefixt:
+	- `scripts/install-beagle-host-services.sh`: distro-kompatible QEMU-Paketaufloesung (`qemu-kvm`/`qemu-system-x86`/`qemu-system`), `xorriso` in Standalone-Abhaengigkeiten, Runtime-Readiness nur bei vorhandenem `virsh`+`qemu-img`+`xorriso`.
+	- `scripts/install-beagle-proxy.sh`: API-Proxy-Timeouts auf 900s erhoeht, damit lange Provisioning-Requests nicht mit 504 abbrechen.
+	- `scripts/install-beagle-host.sh`: zusaetzliche Release-Artefakte (`pve-thin-client-live-usb*.sh`, `pve-thin-client-usb-installer*.ps1`) werden jetzt mitgeladen; VM-spezifische Wrapper-Endpunkte liefern dadurch wieder verwertbare Skripte.
+- Sichtbare Endpunkt-Seite nach Reinstall verifiziert: beaglethinclient bootet in die installierte Beagle-Runtime (GFN-Kiosk-UI sichtbar).
+
+## Offener Gap nach heutigem Lauf
+- Finales Ziel "sichtbarer Desktop-Stream von neuer VM auf Thinclient" ist noch nicht abgeschlossen.
+- VM 101 meldet gleichzeitig widerspruechliche Zustaende: `/api/v1/vms/101` zeigt `status=running`, waehrend `/api/v1/provisioning/vms/101` weiter auf `status=installing`, `phase=autoinstall` steht.
+- Stream-Endpunkte fuer VM 101 sind aktuell nicht erreichbar (`50032/50033/50053` timeout), und Profilfelder fuer Sunshine-Credentials sind leer.
+- Damit ist die Installer-/Reinstall-Kette reproduzierbar stabilisiert, der letzte Stream-Readiness-Fix bleibt als naechster Schritt offen.
+
 ## Update 2026-04-17 (USB Installer / Live Script Credential-Pfad)
 - VM-spezifische USB-Installer-/Live-Script-Generierung im Host gehaertet: Moonlight-Presets enthalten Sunshine-Credentials jetzt robust aus VM-Metadaten/Secret-Fallback.
 - Neue Guardrail im Host-Generator: Wenn ein Moonlight-Target gesetzt ist, aber Sunshine `username/password/pin` fehlen, wird die Script-Generierung mit klarer Fehlermeldung abgebrochen (kein stilles Ausliefern unvollstaendiger Presets mehr).

@@ -4,6 +4,16 @@ Stand: 2026-04-16
 
 ## Update 2026-04-17
 
+## Prioritaet 0 - Finalen Stream-Gap schliessen (aktueller Blocker)
+1. Provisioning-State-Drift fuer VM 101 aufloesen (`/api/v1/vms/101` running vs `/api/v1/provisioning/vms/101` installing/autoinstall) und Abschlusskriterium serverseitig verifizieren.
+2. Sunshine-Readiness in VM 101 finalisieren (guest IP, sunshine credentials, api reachability), danach Ports `50032/50033/50053` erneut pruefen.
+3. Auf lokalem beaglethinclient den automatischen Moonlight-Connect gegen VM 101 bestaetigen und sichtbaren Desktop-Stream screenshot-basiert nachweisen.
+
+## Prioritaet 1 - Repro/Regression-Schutz der heute gefixten Blocker
+1. Frischen Host-Reinstall-Smoketest dokumentieren mit den drei neuen Script-Fixes (`install-beagle-host-services`, `install-beagle-proxy`, `install-beagle-host`).
+2. Sicherstellen, dass VM-spezifische `installer.sh`-Downloads auch auf komplett frischen Hosts ohne manuelle Artefakt-Nachpflege funktionieren.
+3. Regressionstest fuer lange Provisioning-Requests gegen Nginx-Proxy-Timeouts in die Host-Checkliste aufnehmen.
+
 ## Prioritaet A - Hostseitige Verifikation der Download-Artefakte
 1. Auf beagleserver frische VM-spezifische Downloads pruefen (`/api/v1/vms/<vmid>/installer.sh` und `/api/v1/vms/<vmid>/live-usb.sh`) und sicherstellen, dass Preset-Credentials enthalten sind.
 2. Negativtest fahren: VM ohne Sunshine-Credentials darf kein Moonlight-Installer-Skript mehr erhalten (erwarteter Guardrail-Fehler).
