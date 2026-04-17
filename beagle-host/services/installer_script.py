@@ -62,6 +62,14 @@ class InstallerScriptService:
         payload = "\n".join(lines) + "\n"
         return base64.b64encode(payload.encode("utf-8")).decode("ascii")
 
+    @staticmethod
+    def _first_non_empty(*values: Any) -> str:
+        for value in values:
+            text = str(value or "").strip()
+            if text:
+                return text
+        return ""
+
     def build_preset(
         self,
         vm: Any,
@@ -84,9 +92,18 @@ class InstallerScriptService:
         moonlight_port = str(profile.get("moonlight_port", "") or "")
         sunshine_api_url = str(profile.get("sunshine_api_url", "") or "")
         vm_secret = self._ensure_vm_secret(vm)
-        sunshine_username = str(vm_secret.get("sunshine_username", "") or "")
-        sunshine_password = str(vm_secret.get("sunshine_password", "") or "")
-        sunshine_pin = str(vm_secret.get("sunshine_pin", "") or "")
+        sunshine_username = self._first_non_empty(
+            meta.get("sunshine-user"),
+            vm_secret.get("sunshine_username", ""),
+        )
+        sunshine_password = self._first_non_empty(
+            meta.get("sunshine-password"),
+            vm_secret.get("sunshine_password", ""),
+        )
+        sunshine_pin = self._first_non_empty(
+            meta.get("sunshine-pin"),
+            vm_secret.get("sunshine_pin", ""),
+        )
         sunshine_pinned_pubkey = str(vm_secret.get("sunshine_pinned_pubkey", "") or "")
         guest_user = self._sunshine_guest_user(vm, config)
         sunshine_server = (
@@ -100,6 +117,12 @@ class InstallerScriptService:
             if sunshine_server_cert_pem
             else ""
         )
+
+        # Moonlight presets must carry Sunshine API credentials for non-interactive auto-pairing.
+        if moonlight_host and not all((sunshine_username, sunshine_password, sunshine_pin)):
+            raise ValueError(
+                f"vm {vm.vmid} is missing Sunshine auto-pair credentials for Moonlight preset generation"
+            )
 
         return build_common_preset(
             profile_name=expected_profile_name,

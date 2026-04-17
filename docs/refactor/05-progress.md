@@ -1,121 +1,36 @@
 # Beagle OS Refactor - Progress
 
-Stand: 2026-04-14
+Stand: 2026-04-16
 
-## Erledigt in diesem Run
-- Server-Installer Security-Hardening erweitert: SSH-Default jetzt ohne Passwort-Auth (`BEAGLE_SERVER_SSH_PASSWORD_AUTH=no`), erweiterte SSH-Restriktionen (kein Agent-/TCP-Forwarding, kein Tunnel, restriktivere Start-/Retry-Werte).
-- Server-Installer Netzwerk-Hardening erweitert: sysctl-Baseline unter `/etc/sysctl.d/99-beagle-network-hardening.conf` (no redirects/source-route, rp_filter, syncookies, martian logging).
-- Server-Installer Firewall-Hardening erweitert: nftables-Regeln auf rate-limited New-Connections fuer 22/443/8443 (und 8006 nur im Proxmox-Modus) umgestellt.
-- Server-Installer Brute-Force-Schutz verschaerft: fail2ban SSH-Jail auf strengere Defaults inkl. incrementellem bantime umgestellt.
-- Proxy-Hardening erweitert: TLS-Server-Settings gehaertet (`ssl_session_tickets off`, starke Ciphers), HSTS/COOP/CORP Header gesetzt, API/Auth-Rate-Limits via `limit_req` eingefuehrt.
-- Host-Service-Installpfad gehaertet: `BEAGLE_MANAGER_LISTEN_HOST=127.0.0.1` und `BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH=0` werden jetzt beim Service-Install deterministisch erzwungen (kein unbeabsichtigtes 0.0.0.0-Leak aus Alt-Env).
-- Server-Installer-ISO nach erweitertem Host-/Proxy-Hardening erfolgreich neu gebaut (frische mtime 2026-04-14 16:08) und als libvirt-Medium auf `beagleserver` per `eject+insert` aktualisiert; VM bleibt `running`.
-- Live-Server-Bootstrap setzt jetzt deterministische Erstzugangsdaten fuer die Web-UI (`admin` / `test123`) ueber `BEAGLE_AUTH_BOOTSTRAP_USERNAME` und `BEAGLE_AUTH_BOOTSTRAP_PASSWORD`.
-- Live-MOTD erweitert: Web-UI-Login-Credentials werden nach dem Boot explizit angezeigt.
-- Server-Installer verknuepft Linux-Install-User und Web-UI-Erstlogin: die im Installer verpflichtend abgefragten Linux-Credentials werden beim Host-Bootstrap als Auth-Bootstrap-Credentials durchgereicht.
-- Syntaxvalidierung erfolgreich fuer geaenderte Installer-/Live-Skripte (`bash -n`).
-- Web-UI IAM-Workspace eingefuehrt (neuer Sidebar-Panelpunkt `IAM`) mit dedizierter User-/Role-Management-Oberflaeche.
-- Website-Client um IAM-Datenmodell erweitert (`authUsers`, `authRoles`) inklusive initialem Dashboard-Ladepfad fuer `/auth/users` und `/auth/roles`.
-- IAM-CRUD-Operatorflows in der Web-UI angebunden: User erstellen/aktualisieren/loeschen, Rolle erstellen/aktualisieren/loeschen.
-- Session-Sicherheitsoperation aus der Web-UI angebunden: `POST /api/v1/auth/users/<username>/revoke-sessions`.
-- IAM-Editor- und Tabelleninteraktionen umgesetzt (Auswahlzeilen, Prefill, Reset, Rollen-Permission-Parsing aus Zeilen/CSV).
-- Responsive IAM-Layout und Auth-only-Hardening fuer den neuen IAM-Bereich in `website/styles.css` umgesetzt.
-- Automatisierter Live-Smoke-Scriptpfad fuer den Server-Installer neu eingefuehrt: `scripts/test-server-installer-live-smoke.sh` (VM-Boot, DHCP-Lease, optionaler Health-Check, Cleanup/Keep-Flags).
-- Syntax-/Problemcheck der geaenderten Frontend-Dateien erfolgreich (keine Errors in `website/index.html`, `website/app.js`, `website/styles.css`).
-- Server-Installer-ISO erfolgreich neu gebaut (build-server-installer.sh), Artefakt erzeugt unter dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso.
-- Server-Installer-ISO nach Credential-Flow-Aenderungen erneut gebaut und als frisches Artefakt verifiziert (Timestamp/Size aktualisiert).
-- Frische ISO nach /var/lib/libvirt/images kopiert, an VM `beagleserver` als CDROM (`sda`) reattached und erfolgreicher VM-Start validiert (`running`).
-- CSP-Fix fuer Web-UI-Loginpfad umgesetzt: `worker-src 'self' blob:` jetzt in Website-Meta-CSP, Control-Plane-Header-CSP und Proxy-CSP vorhanden.
-- Meta-CSP bereinigt: `frame-ancestors` aus dem Meta-Tag entfernt (bleibt serverseitig im HTTP-Header), um Browser-Warnungen im Login-Flow zu vermeiden.
-- Server-Installer-ISO nach CSP-Proxy-Fix erneut gebaut und als frisches Artefakt verifiziert; aktualisierte ISO erneut an `beagleserver` reattached.
-- Login-Blocker behoben: Onboarding-Status in `AuthSessionService` bewertet vorhandene aktivierte User nun als abgeschlossen (pending=false), damit Bootstrap-Logins im Live-/Installer-Flow nicht mehr durch erzwungenes Onboarding gesperrt werden.
-- Server-Installer-ISO erneut gebaut und mit aktueller mtime verifiziert; aktualisierte ISO nach `/var/lib/libvirt/images` kopiert und an `beagleserver` (`sda`) reattached, VM-Status `running` bestaetigt.
-- Laufender Live-Host auf `192.168.122.132` kurzfristig entsperrt: `POST /auth/onboarding/complete` mit `admin/test123` ausgefuehrt, danach `onboarding.pending=false` und erfolgreicher `POST /auth/login` nachgewiesen.
-- Web-UI Auth-Fehlerpfad gehaertet: `request()` loest bei HTTP 401/403 jetzt Session-Lock aus und leert den Token, damit Dashboard-Polling nicht weiter mit ungueltigem Token 401-Requests spammt.
-- CSP Inline-Style-Verletzung beseitigt: Virtualization-Usage-Balken von inline `style="width:..."` auf CSP-kompatibles `<progress>`-Markup migriert.
-- Styles fuer Usage-Balken auf progress-pseudo-elements umgestellt (`::-webkit-progress-value`, `::-moz-progress-bar`) inklusive Warn/Info-Farbpfad.
-- Server-Installer-ISO nach den neuen Web-UI-Fixes erneut gebaut, in `/var/lib/libvirt/images` repliziert und an `beagleserver` reattached (VM weiter `running`).
-- Web-UI Virtualization Workspace funktional erweitert: interaktiver Node-Filter fuer Storage-/Bridge-Tabellen (Click auf Node/Bridge-Zeilen, Filter-Chip + Clear-Action).
-- Neuer VM Inspector im Virtualization Workspace implementiert: gezielter Abruf von `/virtualization/vms/<vmid>/config` und `/virtualization/vms/<vmid>/interfaces` inkl. strukturierter Config-/Interface-Ansicht.
-- VM Inspector UX erweitert: VMID-Input mit Enter-Support, "Aus Auswahl"-Schnellaktion aus dem Inventory-Kontext und dedizierte Fehler-/Loading-States.
-- Session-Lock Pfad mit den neuen Virtualization-Features synchronisiert (Filter/Inspector werden bei Logout/401 sauber zurueckgesetzt).
-- Web-UI Session-/Auth-Basis umfassend verfeinert: eigener Refresh-Token-Store eingefuehrt und Login speichert jetzt Access+Refresh deterministisch.
-- API-Client gehaertet: zentrale Requests und Blob-Downloads versuchen bei 401/403 automatisch Token-Refresh (einmalig) bevor Session-Lock greift.
-- Sauberes Logout implementiert: `clear-token` ruft jetzt `/auth/logout` inkl. Refresh-Token-Revoke auf und leert danach konsistent den lokalen Session-State.
-- Auto-Refresh verbessert: Polling laeuft nur bei aktivem Token, aktivem Auto-Refresh und sichtbarem Tab; fehlerhafte Banner-Tone-Zuordnung korrigiert.
-- UX verfeinert: Login-Dialog fokussiert Username, merkt sich zuletzt verwendeten Username, globaler Shortcut `/` fokussiert Suche, aktive Panel-/Detail-Auswahl wird persistiert.
-- Accessibility verbessert: Banner-Live-Regionen fuer Session-Status (`role=status`, `aria-live=polite`) und Fleet-Alerts (`role=alert`, `aria-live=assertive`) gesetzt.
-- Web-UI Request-Layer weiter gehaertet: `fetchWithTimeout` als zentraler Wrapper eingefuehrt (Timeout-Schutz fuer Auth-, JSON- und Blob-Flows).
-- Dashboard-Load dedupliziert (`dashboardLoadInFlight`), um Race-Conditions bei gleichzeitigen Poll-/Manual-Refreshes zu vermeiden.
-- HTML-Strukturproblem behoben: doppelte `id="virtualization-section"` auf eindeutige IDs (`virtualization-overview-section`, `virtualization-workspace-section`) migriert.
-- Event-Bindings und CSS-Selector auf die neuen eindeutigen IDs angepasst; Node-Klick-Flow ist dadurch deterministisch.
-- Session-Konsistenz verbessert: Onboarding-Pending und Legacy-Token-Flow leeren jetzt auch gespeicherte Refresh-Tokens.
-- Web-UI API-Origin-Hardening umgesetzt: alle API-Targets laufen jetzt ueber `resolveApiTarget()` mit Trusted-Origin-Allowlist (`window.location.origin` + optionale `trustedApiOrigins`), um versehentliche Token-Exfiltration an fremde Origins zu verhindern.
-- Hash-Token-Import gehaertet: `beagle_token` aus URL-Hash wird nur noch verarbeitet, wenn `allowHashToken === true` explizit gesetzt ist.
-- Mutierende Web-UI-Operationen gegen Action-Spam gehaertet: `runSingleFlight()` blockiert parallele Doppel-Submits fuer Policy-/IAM-/Bulk-/Provisioning-/Power-Flows.
-- Web-UI API-Target-Hardening erweitert: absolute API-URLs sind jetzt standardmaessig blockiert (`allowAbsoluteApiTargets` muss explizit gesetzt sein).
-- Externe URL-Hardening erweitert: Sunshine-Links erlauben jetzt standardmaessig nur `https`, `http` nur optional fuer Same-Origin (`allowInsecureExternalUrls=true`).
-- Token-Header-Hardening umgesetzt: Legacy-Header `X-Beagle-Api-Token` wird nur noch optional gesendet (`sendLegacyApiTokenHeader=true`), default ist Bearer-only.
-- Credential-Exposure reduziert: Detail-Credentials liegen nicht mehr als Klartext in DOM-Attributen, sondern nur noch in einem in-memory `secretVault`.
-- Input-Validation erweitert: Username-/Rollen-/Policy-Identifier sind jetzt validiert (Zeichensatz + Laenge), inklusive Mindestlaenge fuer Passwoerter in Login/Onboarding/IAM/Provisioning.
-- Weitere mutierende Detail-Aktionen auf `runSingleFlight()` umgestellt (USB attach/detach/refresh, installer-prep, update-ops, generic actions), um Double-Submit-Races zu minimieren.
-- Laufzeit-Smoketest gegen Zielhost erfolgreich: VM `beagleserver` laeuft, API-Health antwortet `ok: true`, Web-Root antwortet mit HTTP 200.
-- Einfacher Host-Install-Flow erweitert: install-beagle-host.sh fragt interaktiv nach Admin-Username/Passwort fuer den Erstzugang.
-- Bootstrap-Admin-Credentials werden jetzt in beagle-manager.env persistiert (BEAGLE_AUTH_BOOTSTRAP_USERNAME/BEAGLE_AUTH_BOOTSTRAP_PASSWORD) und beim Service-Install durchgereicht.
-- Noninteractive-Pfad bleibt erhalten (Env-Overrides moeglich), inklusive sudo-Weitergabe der neuen Auth-Variablen.
-- Syntaxvalidierung erfolgreich fuer die geaenderten Host-Installskripte (bash -n).
-- Host-Provider-Default auf Beagle umgestellt (Registry-Fallback und Host-Install-Skripte).
-- install-beagle-host.sh leitet den Provider jetzt deterministisch aus INSTALL_MODE ab (with-proxmox => proxmox, sonst beagle), falls kein expliziter Override gesetzt ist.
-- setup-beagle-host.sh Hilfeausgabe an Beagle-Default angepasst.
-- Server-Installer-Hardening fuer nftables ist jetzt modusabhaengig: Port 8006 wird nur im with-proxmox Zweig geoeffnet.
-- Syntaxvalidierung erfolgreich fuer geaenderte Shell- und Python-Dateien (bash -n, py_compile).
-- First-Install-Onboarding implementiert: GET /api/v1/auth/onboarding/status und POST /api/v1/auth/onboarding/complete.
-- Web-UI zeigt bei frischer Installation jetzt einen verpflichtenden Onboarding-Dialog vor dem Dashboard.
-- Onboarding erstellt/aktualisiert den ersten Superadmin und markiert den Setup-Status persistent.
-- Dashboard-Ladepfad ist nun onboarding-aware und blockt bis zur Ersteinrichtung.
-- Session-Hardening in AuthSessionService umgesetzt: access TTL, refresh TTL, idle timeout, absolute session timeout (konfigurierbar via Env).
-- Access-Token-Validierung erzwingt jetzt Idle- und Absolute-Timeouts serverseitig.
-- Neuer Admin-Endpunkt: POST /api/v1/auth/users/<username>/revoke-sessions.
-- Revoke-all pro User im Auth-Service implementiert (persistente Session-Revocation ueber sessions.json).
-- AuthZ-Policy aus Handler in dediziertes Service-Modul ausgelagert: beagle-host/services/authz_policy.py.
-- Auth-Endpunkte erweitert: /api/v1/auth/users und /api/v1/auth/roles (GET/POST/PUT/DELETE) inklusive RBAC-Schutz.
-- AuthSessionService um persistente Rollenverwaltung (roles.json) sowie User-/Role-CRUD erweitert.
-- Rollenauflistung und Permission-Aufloesung laufen jetzt ueber das Auth-Service statt statischer Handler-Matrix.
-- RBAC-Durchsetzung fuer mutierende HTTP-Endpunkte im Control Plane Handler umgesetzt (deny-by-default je Permission).
-- Rollenmatrix v1 eingefuehrt (viewer, ops, admin, superadmin) und auf Write-Routen angewendet.
-- Permission-Mapping fuer VM-Mutationen, Provisioning-Write, Policy-Write und Bulk-Actions eingefuehrt.
-- Neues Audit-Service-Modul eingefuehrt: beagle-host/services/audit_log.py.
-- Audit-Ereignisse fuer auth.login/auth.refresh/auth.logout sowie erlaubte/verweigerte Mutationsaufrufe aktiviert.
-- Syntax-Validierung erfolgreich: python3 -m py_compile fuer beagle-control-plane.py und audit_log.py.
-- Refactor-Dokumentation in docs/refactor auf neues Zielbild neu ausgerichtet.
-- Ziel klargestellt: Beagle OS ohne Proxmox-Abhaengigkeit, aber mit vergleichbarer Plattformmacht.
-- Fokus fixiert: Thinclient-Streaming pro VM als Kern der Plattform, nicht als Add-on.
-- Umsetzung in Wellen strukturiert (IAM/RBAC, Streaming-First Domain, native Runtime, Ops/Hardening).
-- Auth/Session Backbone in beagle-host umgesetzt (neues Service-Modul + API-Endpunkte).
-- Neue Endpunkte eingefuehrt: /api/v1/auth/login, /api/v1/auth/refresh, /api/v1/auth/logout, /api/v1/auth/me.
-- Legacy API-Token als Fallback im Auth-Pfad beibehalten (rueckwaertskompatibler Uebergang).
-- website Login-Modal auf Benutzername/Passwort als Primarpfad umgestellt, Token nur noch optional.
+## Update 2026-04-17 (USB Installer / Live Script Credential-Pfad)
+- VM-spezifische USB-Installer-/Live-Script-Generierung im Host gehaertet: Moonlight-Presets enthalten Sunshine-Credentials jetzt robust aus VM-Metadaten/Secret-Fallback.
+- Neue Guardrail im Host-Generator: Wenn ein Moonlight-Target gesetzt ist, aber Sunshine `username/password/pin` fehlen, wird die Script-Generierung mit klarer Fehlermeldung abgebrochen (kein stilles Ausliefern unvollstaendiger Presets mehr).
+- Zielwirkung: Beim Download von `installer.sh` und `live-usb.sh` fuer eine VM werden die Auto-Pairing-Credentials konsistent in den USB-Preset uebergeben.
+- Technische Verifikation lokal:
+	- Python-Syntaxcheck fuer `beagle-host/services/installer_script.py` erfolgreich.
+	- Fokus-Test per Python-Stub: Preset enthaelt Sunshine-Credentials; Missing-Credentials-Fall wirft erwartetes `ValueError`.
 
-## Aktueller Projektstatus
-- Frischer Installer-Build ist verifiziert und als Artefakt verfuegbar.
-- Aktuellstes Hardening-Artefakt ist auf `beagleserver` als CDROM-Medium aktiv eingebunden (Refresh via `virsh change-media --eject/--insert` verifiziert).
-- Frischer Credential-Build ist in der Ziel-VM `beagleserver` eingebunden und bootfaehig verifiziert.
-- Live-Runtime-Checks (VM + HTTPS API/UI) sind aktuell gruen.
-- Architektur- und Transformationsziel ist jetzt eindeutig dokumentiert.
-- Dokumente bilden ein konsistentes Steuerungsset fuer Multi-Agent-Weiterarbeit.
-- Code-Umsetzung des Auth/Session-Backbones ist lauffaehig.
-- RBAC-Basis-Enforcement auf Mutationsrouten ist aktiv.
-- Audit-Basis fuer Auth- und Mutationsereignisse ist aktiv.
-- Host-Installation ist im Default jetzt Beagle-native und Proxmox wird nur ueber den expliziten Installationsmodus aktiviert.
+## Erledigt in diesem Run (VM106 Provisioning + Stream-Pfad)
+- VM106 neu aufgesetzt und Beagle-Provisioning erneut end-to-end gestartet (`POST /api/v1/provisioning/vms`, `vmid=106`).
+- Autoinstall-Blocker behoben: `qemu-guest-agent` wurde aus der fruehen curtin-`packages`-Phase entfernt (Install bricht nicht mehr an `exit status 100` ab).
+- Host-Service-Installer erweitert: Ubuntu-Template-Dateien werden jetzt mit deployed (`beagle-host/templates/ubuntu-beagle/*`).
+- `BEAGLE_PUBLIC_STREAM_HOST` wird im Host-Service-Setup auf eine routbare IPv4 gesetzt (statt impliziter Loopback-Aufloesung).
+- Control-Plane-Systemd-Unit auf beagleserver mit libvirt-Schreibpfaden aktualisiert (`ReadWritePaths` inkl. `/var/lib/libvirt/images`, `/var/lib/libvirt/qemu`) zur Behebung von `Read-only file system` im Provisioning.
+- USB-Tunnel-Secret-Write-Flow gehaertet: Pfad-Besitz initial root-basiert und kein automatisches Zurueck-`chown` in `vm_secret_bootstrap`, damit der gehaertete Service ohne `CAP_DAC_OVERRIDE` schreiben kann.
+- API-Bugfix: `GET /api/v1/vms/<vmid>` in `vm_http_surface` robust ueber Regex geparst (kein falsches `invalid vmid` mehr fuer VM106).
+- VM106 erreichte den erwarteten Lifecycle-Schritt `Shutdown Finished after guest request` (Autoinstall-Poweroff), danach wurde der Callback-Pfad manuell aufgerufen (`prepare-firstboot`, `complete?restart=0`), Status wechselte auf `completed`.
 
-## Noch offen
-- End-to-end Validierung der neuen Credential-Regeln im Live-Mode und im Installer-Pfad (Login nach Erstboot mit erwarteten Credentials).
-- SSH-Zugriff auf Live-VM ist aktuell nicht verfuegbar (`port 22 refused`), daher Diagnose/Hotfix ueber HTTPS API erfolgt.
-- IAM-Web-UI um Gruppenmodell und feinere Enterprise-Permissions erweitern (derzeit User/Roles/Sessions als erster Slice).
-- IAM-API-Interaktionen end-to-end in Rollenmatrix testen (admin/ops/viewer) und Fehlermeldungsfaelle haerten.
-- Live-Smoke-Script in CI-/Release-Naehe integrieren und Ergebnisartefakte (logs/diagnostics) standardisieren.
-- Installations-Smoke-Matrix automatisieren (aktuell manuell verifiziert).
-- Persistente Benutzer-/Gruppenverwaltung (CRUD) statt nur Bootstrap-Admin.
-- Session-Hardening (rotation policy, revoke all-user sessions, max sessions, inactivity policy).
-- Permission-Registry aus Handler in dediziertes Service-Modul verschieben.
-- Audit-Export/Filter-Endpunkte und retention policy einfuehren.
+## Verifikation
+- Frischer Provisioning-Run fuer VM106: `public_stream.host=192.168.122.130`, `moonlight_port=50192`, `sunshine_api_url=https://192.168.122.130:50193`.
+- Serielle Ausgabe zeigte Fortschritt bis `installing kernel`; Lifecycle-Event bestaetigte anschliessend Guest-initiierten Shutdown.
+- Nach API-Bugfix liefert `GET /api/v1/vms/106` ein valides Profil statt `invalid vmid`.
+- `GET /api/v1/vms/106/installer-prep` ist aktiv und laeuft in den `install`-Schritt, meldet aktuell aber noch fehlende Guest-IP/Sunshine-Readiness.
+
+## Aktueller technischer Status
+- VM `beagle-104`: stopped.
+- VM `beagle-105`: stopped.
+- VM `beagle-106`: Provisioning-State `completed` nach manuellem Callback-Finalize; Sunshine-Readiness noch nicht final gruen.
+
+## Offener Blocker
+- beagleserver-Managementzugriff ist momentan instabil: ICMP erreichbar, aber `22/443` liefern `connection refused`.
+- Dadurch koennen Host-seitige Nachtests (Control-Plane/SSH/Nginx), finale Sunshine-Checks in VM106 und Thinclient-E2E aktuell nicht verifiziert werden.

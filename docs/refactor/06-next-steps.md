@@ -1,22 +1,30 @@
 # Beagle OS Refactor - Next Steps
 
-Stand: 2026-04-14
+Stand: 2026-04-16
 
-Hinweis: Rebuild und Reattach der gehaerteten Server-Installer-ISO auf `beagleserver` sind abgeschlossen; Fokus liegt jetzt auf Security-E2E-Verifikation auf frischem Install.
+## Update 2026-04-17
 
-## Naechste 10 konkreten Schritte
-1. Browser-E2E auf Live-Host fahren: nach absichtlichem Token-Invalidieren muss die UI sauber auf Login zurueckfallen (kein 401-Polling-Loop).
-2. Refresh-Token-Flow E2E validieren: abgelaufener Access-Token muss ueber `/auth/refresh` transparent erneuert werden (JSON + Blob-Downloads).
-3. Security-E2E: Trusted-Origin-Guard pruefen (fremde API-Origin darf keine Bearer-Requests aus der UI erhalten).
-4. Security-E2E: `allowHashToken` Default-Off validieren (Token aus URL-Hash wird ohne explizites Opt-In ignoriert).
-5. Security-E2E: `allowAbsoluteApiTargets` Default-Off validieren (absolute API-Targets muessen im Default geblockt sein).
-6. Security-E2E: Bearer-only Header-Pfad pruefen (Legacy-Header nur bei explizitem Opt-In senden).
-7. Installer-Security-E2E: frischen ISO-Install booten und mit `ss -tulpen` + externem Portscan verifizieren, dass nur 22/443/8443 (plus optional 8006 im Proxmox-Modus) erreichbar sind.
-8. Installer-Security-E2E: SSH-Hardening verifizieren (`PasswordAuthentication no` default, fail2ban aktiv, nftables aktiv, sysctl-hardening geladen).
-9. Timeout-Verhalten im Browser pruefen: API- und Download-Timeouts muessen als klare Nutzerfehler erscheinen statt stiller Hangs.
-10. Logout-E2E validieren: `/auth/logout` revocation und anschliessender Session-Clear in UI inkl. Poll-Stop.
+## Prioritaet A - Hostseitige Verifikation der Download-Artefakte
+1. Auf beagleserver frische VM-spezifische Downloads pruefen (`/api/v1/vms/<vmid>/installer.sh` und `/api/v1/vms/<vmid>/live-usb.sh`) und sicherstellen, dass Preset-Credentials enthalten sind.
+2. Negativtest fahren: VM ohne Sunshine-Credentials darf kein Moonlight-Installer-Skript mehr erhalten (erwarteter Guardrail-Fehler).
+3. Download-/UI-Pfad in Proxmox-WebUI gegen den gehaerteten Generator erneut durchtesten.
 
-## Reihenfolgeprinzip
-- Erst Security Backbone (AuthN/AuthZ/Audit), dann Feature-Ausbau.
-- Jede neue Funktion sofort role-gated und auditierbar.
-- Manuelle Build-/Runtime-Smokes sind aktuell gruen; als naechster Schritt die Checks reproduzierbar automatisieren.
+## Prioritaet B - End-to-End Reinstall-Lauf
+1. Server-Installer-ISO neu bauen und Build-Artefakt auf dem Host austauschen.
+2. beagleserver-VM neu installieren (`standalone` oder `with-proxmox` gemaess Testplan) und Control-Plane/WebUI Health pruefen.
+3. Ueber WebUI neue Ziel-VM anlegen, VM-spezifisches Thinclient-Installer-Skript herunterladen, beaglethinclient neu installieren und Moonlight->Sunshine Desktop-Stream verifizieren.
+
+## Prioritaet A - Host-Recovery (Blocker aufloesen)
+1. beagleserver-Zugriff stabilisieren (SSH/HTTPS wieder gruen) und Services pruefen: `ssh`, `nginx`, `beagle-control-plane`.
+2. Nach Recovery direkten Health-Check fahren (`/beagle-api/api/v1/health`, Login, `vms/106`, `installer-prep`).
+3. Ursache fuer den kurzzeitigen Management-Ausfall eingrenzen (journal/systemd/boot-sequenz) und dokumentieren.
+
+## Prioritaet B - VM106 Stream-Ready machen
+1. `installer-prep` fuer VM106 bis `ready=true` durchlaufen lassen (Guest-IP/Sunshine-Binary/Service/Process).
+2. Public-Stream-Ports fuer VM106 validieren (`50192`, `50193`) inkl. Host-Firewall-/Forward-Regeln.
+3. Sunshine-Credentials/API fuer VM106 testen und Moonlight-Handshake pruefen.
+
+## Prioritaet C - Thinclient E2E
+1. lokalen `beaglethinclient` auf VM106-Profil umstellen (Stream-Host/Port 192.168.122.130:50192).
+2. Moonlight-Connect aus Thinclient starten und erfolgreichen Stream nachweisen.
+3. Ergebnis inklusive Repro-Schritte als Smoke-Run dokumentieren.

@@ -71,5 +71,35 @@ Stand: 2026-04-13
 - Grund: UI und Backend brauchen einen klaren, persistierten Zustand fuer "first boot" vs "configured".
 
 ## D-018: Beagle ist Default-Provider im Host-Installpfad
-- Entscheidung: Wenn kein expliziter Provider gesetzt ist, wird durchgaengig der Beagle-Provider verwendet; der Proxmox-Provider wird nur ueber den install mode `with-proxmox` oder expliziten Override aktiviert.
-- Grund: Das Zielbild verlangt Beagle-native Standalone als Hauptpfad und Proxmox nur als optionalen Adapter.
+
+## D-019: SSH-Passwort-Auth Default ist `yes` im Standalone-Installer
+- Entscheidung: `BEAGLE_SERVER_SSH_PASSWORD_AUTH` Default im Server-Installer auf `yes` gesetzt.
+- Grund: Ein frisch installiertes System muss per SSH erreichbar sein; Passwort-Deaktivierung bleibt opt-in fuer Hardening, nicht opt-out fuer Grundfunktionalitaet.
+- Datei: `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer` Zeile 31.
+
+## D-020: USB-Tunnel-User heisst `beagle-tunnel`, nicht `beagle`
+- Entscheidung: Default-Benutzername fuer den SSH-USB-Tunnel-Account ist `beagle-tunnel`, nicht `beagle`.
+- Grund: Wurde `beagle` verwendet, ueberschrieb das SSH-Match-Block (`AuthenticationMethods publickey`) auch den Basis-Admin-User und blockierte Passwort-Login vollstaendig.
+- Dateien: `scripts/install-beagle-host-services.sh`, `scripts/check-beagle-host.sh`, `beagle-host/bin/beagle-control-plane.py`.
+
+## D-021: Script-Provider-Wrapper muss Provider-Timeouts transparent durchreichen
+- Entscheidung: `scripts/lib/beagle_provider.py` akzeptiert fuer `run_json`/`run_text`/`run_checked` optional `timeout` und behandelt `TimeoutExpired` als kontrollierten Fehlerpfad.
+- Grund: Provider-Implementierungen nutzen `timeout=` bereits; ohne Durchreichen entstehen Laufzeitfehler (`TypeError`) und der VM-Prep bricht ab.
+- Datei: `scripts/lib/beagle_provider.py`.
+
+## D-022: Debian-Hosts duerfen nicht an Ubuntu-only Language-Packs scheitern
+- Entscheidung: `configure-sunshine-guest.sh` installiert `language-pack-*` nur, wenn die Pakete auf dem Zielhost im APT-Index existieren.
+- Grund: Das gleiche VM-Prep-Skript wird auf Debian- und Ubuntu-basierten Hosts genutzt; Ubuntu-only Pakete duerfen den Gesamtflow nicht stoppen.
+- Datei: `scripts/configure-sunshine-guest.sh`.
+
+## D-023: Libvirt-Kernel-Boot fuer Ubuntu-Install nutzt per-domain `seclabel type=none`
+- Entscheidung: Fuer beagle-provider Domains mit `qemu:commandline` (`-kernel/-initrd`) wird im Domain-XML `seclabel type="none"` gesetzt.
+- Grund: libvirt/AppArmor blockiert in dieser Konstellation den Kernel-Dateizugriff ansonsten reproduzierbar mit `Permission denied`, selbst bei lesbaren Dateien.
+- Scope: Nur beagle-provider Install-Domain-Flow; keine hostweite Abschaltung des libvirt Security Drivers im Installer.
+- Betroffene Datei: `beagle-host/providers/beagle_host_provider.py`.
+
+## D-024: Moonlight USB-Presets duerfen nicht ohne Sunshine Auto-Pair Credentials ausgeliefert werden
+- Entscheidung: Der VM-Installer-Skriptgenerator bricht Moonlight-Preset-Generierung ab, wenn `sunshine_username`, `sunshine_password` oder `sunshine_pin` fehlen.
+- Grund: Unvollstaendige Presets fuehren nach Thinclient-Reboot zu manueller PIN-Eingabe und brechen den Zielpfad "auto-connect".
+- Umsetzung: `beagle-host/services/installer_script.py` priorisiert explizite VM-Metadaten (`sunshine-user/password/pin`) und nutzt danach VM-Secret-Fallback; bei fehlenden Pflichtfeldern wird ein Fehler geworfen.
+
