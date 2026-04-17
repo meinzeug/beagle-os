@@ -12,8 +12,10 @@ Stand: 2026-04-16
 
 ## Offener Gap nach heutigem Lauf
 - Finales Ziel "sichtbarer Desktop-Stream von neuer VM auf Thinclient" ist noch nicht abgeschlossen.
-- VM 101 meldet gleichzeitig widerspruechliche Zustaende: `/api/v1/vms/101` zeigt `status=running`, waehrend `/api/v1/provisioning/vms/101` weiter auf `status=installing`, `phase=autoinstall` steht.
-- Stream-Endpunkte fuer VM 101 sind aktuell nicht erreichbar (`50032/50033/50053` timeout), und Profilfelder fuer Sunshine-Credentials sind leer.
+- VM 101 wurde ueber den public finalize callback auf `status=completed`, `phase=complete` gebracht; der alte `installing/autoinstall` Drift ist damit fuer den Provisioning-State aufgeloest.
+- Gleichzeitig bleibt ein Runtime-Drift bestehen: API-Profil meldet VM 101 als `running`, waehrend `virsh` auf dem Host zwischenzeitlich `shut off` zeigte und die VM manuell gestartet werden musste.
+- `installer-prep` bleibt bei VM 101 im Schritt `install` haengen; persistierte Fehlerursache ist `Unable to determine guest IPv4 address for VM 101`.
+- Stream-Endpunkte fuer VM 101 sind weiterhin nicht erreichbar (`50032/50033/50053` timeout), und Profilfelder fuer Sunshine-Credentials sind weiterhin leer.
 - Damit ist die Installer-/Reinstall-Kette reproduzierbar stabilisiert, der letzte Stream-Readiness-Fix bleibt als naechster Schritt offen.
 
 ## Update 2026-04-17 (USB Installer / Live Script Credential-Pfad)

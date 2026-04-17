@@ -26,7 +26,9 @@ Stand: 2026-04-16
 - [~] VM-Downloadskripte uebergeben Sunshine Auto-Pair Credentials robust; Full E2E nach Server-Reinstall noch offen
 - [ ] Sunshine in VM106 final `ready=true` verifizieren
 - [ ] Thin-Client E2E-Stream VM106 nachweisen
-- [ ] VM101 Provisioning-State-Drift (`running` vs `installing/autoinstall`) beheben und auf konsistent `completed/ready` bringen
+- [x] VM101 Provisioning-State auf `completed/complete` finalisiert (public callback)
+- [ ] VM101 Runtime-State-Drift (`/vms` running vs hostseitig `virsh` zeitweise shut off) beheben
+- [ ] VM101 installer-prep Blocker `Unable to determine guest IPv4 address` beheben
 - [ ] VM101 Stream-Ports (`50032/50033/50053`) und Sunshine-Credentials im Profil konsistent verifizieren
 
 ## P1 - Native Virtualization Runtime

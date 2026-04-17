@@ -75,5 +75,6 @@ Domain-Services entscheiden anhand der capability map, welche Flows freigegeben 
 ## Update (2026-04-17) - Local E2E Reinstall Follow-up
 - Neue Repro-Fixes liegen in Host-/Installer-Skripten (`scripts/install-beagle-host-services.sh`, `scripts/install-beagle-host.sh`, `scripts/install-beagle-proxy.sh`) und betreffen Infrastruktur-Readiness, nicht Provider-API-Vertraege.
 - Keine neue direkte Proxmox-Kopplung eingefuehrt; die Aenderungen sind provider-agnostisch fuer den Beagle-Host-Bootstrap und verbessern den Standalone-Pfad.
-- Relevanter Provider-Gap bleibt sichtbar: VM101 zeigt Laufzeit-/Provisioning-State-Drift (`/vms` running vs `/provisioning` installing/autoinstall) und nicht erreichbare Stream-Ports. Das deutet auf unvollstaendige Readiness-/Completion-Orchestrierung im Beagle-Provider-Flow hin, nicht auf Proxmox-Abhaengigkeit.
+- Relevanter Provider-Gap bleibt sichtbar: Nach finalisiertem Provisioning (`completed/complete`) zeigt VM101 weiterhin Laufzeit-/Read-Drift (`/vms` running vs hostseitig zeitweise `virsh` shut off) und nicht erreichbare Stream-Ports.
+- Persistierter installer-prep Fehler fuer VM101 lautet `Unable to determine guest IPv4 address for VM 101`; damit blockiert die provider-gestuetzte Sunshine-Readiness-Orchestrierung weiterhin vor der eigentlichen Install/Health-Pruefung.
 - Naechster Contract-Fokus: Beagle-Provider-gestuetzte Install-Completion/Readiness-Signale so stabilisieren, dass Thinclient-Autoconnect nur bei konsistent `completed + stream-ready` freigegeben wird.

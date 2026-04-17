@@ -5,9 +5,10 @@ Stand: 2026-04-16
 ## Update 2026-04-17
 
 ## Prioritaet 0 - Finalen Stream-Gap schliessen (aktueller Blocker)
-1. Provisioning-State-Drift fuer VM 101 aufloesen (`/api/v1/vms/101` running vs `/api/v1/provisioning/vms/101` installing/autoinstall) und Abschlusskriterium serverseitig verifizieren.
-2. Sunshine-Readiness in VM 101 finalisieren (guest IP, sunshine credentials, api reachability), danach Ports `50032/50033/50053` erneut pruefen.
-3. Auf lokalem beaglethinclient den automatischen Moonlight-Connect gegen VM 101 bestaetigen und sichtbaren Desktop-Stream screenshot-basiert nachweisen.
+1. Runtime-State-Drift fuer VM 101 aufloesen (`/api/v1/vms/101` running vs hostseitig zeitweise `virsh shut off`) und Host-Truth/Read-Model synchronisieren.
+2. Ursache `Unable to determine guest IPv4 address for VM 101` im installer-prep beheben (IP-Detection/Lease/Agent-Pfad), damit Sunshine-Readiness fortschreiten kann.
+3. Sunshine-Readiness in VM 101 finalisieren (guest IP, sunshine credentials, api reachability), danach Ports `50032/50033/50053` erneut pruefen.
+4. Auf lokalem beaglethinclient den automatischen Moonlight-Connect gegen VM 101 bestaetigen und sichtbaren Desktop-Stream screenshot-basiert nachweisen.
 
 ## Prioritaet 1 - Repro/Regression-Schutz der heute gefixten Blocker
 1. Frischen Host-Reinstall-Smoketest dokumentieren mit den drei neuen Script-Fixes (`install-beagle-host-services`, `install-beagle-proxy`, `install-beagle-host`).
