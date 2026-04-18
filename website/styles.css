@@ -11,6 +11,9 @@
   --amber-glow: rgba(241, 192, 93, 0.18);
   --orange: #ff8a3d;
   --orange-dim: #ca6b29;
+.svg-sprite {
+  position: absolute;
+}
   --magenta: #f05a38;
   --magenta-dim: #c64629;
 
