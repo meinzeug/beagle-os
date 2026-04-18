@@ -14,6 +14,7 @@ UI_REAPPLY_PATH="beagle-ui-reapply.path"
 BEAGLE_CONTROL_SERVICE="beagle-control-plane.service"
 BEAGLE_PUBLIC_STREAM_SERVICE="beagle-public-streams.service"
 BEAGLE_PUBLIC_STREAM_TIMER="beagle-public-streams.timer"
+BEAGLE_NOVNC_PROXY_SERVICE="beagle-novnc-proxy.service"
 BEAGLE_CONTROL_ENV_FILE="$CONFIG_DIR/beagle-manager.env"
 BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
 BEAGLE_AUTH_BOOTSTRAP_USERNAME="${BEAGLE_AUTH_BOOTSTRAP_USERNAME:-admin}"
@@ -202,6 +203,7 @@ install -m 0644 "$ROOT_DIR/beagle-host/systemd/$UI_REAPPLY_PATH" "$SYSTEMD_DIR/$
 install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_CONTROL_SERVICE" "$SYSTEMD_DIR/$BEAGLE_CONTROL_SERVICE"
 install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_PUBLIC_STREAM_SERVICE" "$SYSTEMD_DIR/$BEAGLE_PUBLIC_STREAM_SERVICE"
 install -m 0644 "$ROOT_DIR/beagle-host/systemd/$BEAGLE_PUBLIC_STREAM_TIMER" "$SYSTEMD_DIR/$BEAGLE_PUBLIC_STREAM_TIMER"
+install -m 0644 "$ROOT_DIR/beagle-host/systemd/$BEAGLE_NOVNC_PROXY_SERVICE" "$SYSTEMD_DIR/$BEAGLE_NOVNC_PROXY_SERVICE"
 if [[ "$(readlink -f "$ROOT_DIR/beagle-host/bin/beagle-control-plane.py")" != "$(readlink -f "$HOST_RUNTIME_DIR/bin/beagle-control-plane.py" 2>/dev/null || true)" ]]; then
   install -m 0755 "$ROOT_DIR/beagle-host/bin/beagle-control-plane.py" "$HOST_RUNTIME_DIR/bin/beagle-control-plane.py"
 fi
@@ -305,9 +307,19 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   if ! standalone_runtime_tools_ready; then
     qemu_system_package="$(resolve_qemu_system_package)"
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
-      libvirt-daemon-system libvirt-clients "$qemu_system_package" qemu-utils ovmf xorriso \
+      libvirt-daemon-system libvirt-clients "$qemu_system_package" qemu-utils ovmf xorriso novnc websockify \
       >/dev/null 2>&1 || true
   fi
+  if ! command -v websockify >/dev/null 2>&1 || [[ ! -f /usr/share/novnc/vnc.html ]]; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y novnc websockify >/dev/null 2>&1 || true
+  fi
+
+  install -d -m 0755 /etc/beagle/novnc
+  touch /etc/beagle/novnc/tokens
+  chmod 0640 /etc/beagle/novnc/tokens
+
+  set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_NOVNC_PATH" '"/novnc"'
+  set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_NOVNC_TOKEN_FILE" '"/etc/beagle/novnc/tokens"'
 
   # Create beagle libvirt network (192.168.123.0/24) if missing
   if ! virsh --connect qemu:///system net-info beagle >/dev/null 2>&1; then
@@ -395,6 +407,13 @@ systemctl enable "$UI_REAPPLY_SERVICE" 2>/dev/null || true
 systemctl enable "$UI_REAPPLY_PATH" 2>/dev/null || true
 systemctl enable "$BEAGLE_CONTROL_SERVICE" 2>/dev/null || true
 systemctl enable "$BEAGLE_PUBLIC_STREAM_TIMER" 2>/dev/null || true
+if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
+  systemctl enable "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
+  systemctl start "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
+else
+  systemctl disable "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
+  systemctl stop "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
+fi
 systemctl start "$TIMER_NAME" "$UI_REAPPLY_PATH" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
 
-echo "Installed host services: $SERVICE_NAME, $TIMER_NAME, $UI_REAPPLY_SERVICE, $UI_REAPPLY_PATH, $BEAGLE_CONTROL_SERVICE, $BEAGLE_PUBLIC_STREAM_SERVICE, $BEAGLE_PUBLIC_STREAM_TIMER"
+echo "Installed host services: $SERVICE_NAME, $TIMER_NAME, $UI_REAPPLY_SERVICE, $UI_REAPPLY_PATH, $BEAGLE_CONTROL_SERVICE, $BEAGLE_PUBLIC_STREAM_SERVICE, $BEAGLE_PUBLIC_STREAM_TIMER, $BEAGLE_NOVNC_PROXY_SERVICE"

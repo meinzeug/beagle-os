@@ -11,6 +11,7 @@ class VmHttpSurfaceService:
         self,
         *,
         build_profile: Callable[[Any], dict[str, Any]],
+        build_novnc_access: Callable[[Any], dict[str, Any]],
         build_vm_state: Callable[[Any], dict[str, Any]],
         build_vm_usb_state: Callable[[Any, dict[str, Any] | None], dict[str, Any]],
         downloads_status_file: Path,
@@ -34,6 +35,7 @@ class VmHttpSurfaceService:
         version: str,
     ) -> None:
         self._build_profile = build_profile
+        self._build_novnc_access = build_novnc_access
         self._build_vm_state = build_vm_state
         self._build_vm_usb_state = build_vm_usb_state
         self._downloads_status_file = Path(downloads_status_file)
@@ -124,6 +126,9 @@ class VmHttpSurfaceService:
             applied_policy=profile.get("applied_policy"),
             assignment_source=profile.get("assignment_source", ""),
         )
+
+    def _novnc_access_payload(self, vm: Any) -> dict[str, Any]:
+        return self._envelope(novnc_access=self._build_novnc_access(vm))
 
     def _support_bundles_payload(self, vm: Any) -> dict[str, Any]:
         return self._envelope(
@@ -265,6 +270,15 @@ class VmHttpSurfaceService:
             if vm is None:
                 return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
             return self._json_response(HTTPStatus.OK, self._policy_payload(vm))
+
+        if path.endswith("/novnc-access"):
+            vmid_text = path.split("/")[-2]
+            if not vmid_text.isdigit():
+                return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+            vm = self._find_vm(int(vmid_text))
+            if vm is None:
+                return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+            return self._json_response(HTTPStatus.OK, self._novnc_access_payload(vm))
 
         if path.endswith("/support-bundles"):
             vmid_text = path.split("/")[-2]

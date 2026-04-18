@@ -183,12 +183,12 @@ prompt_install_endpoints() {
 }
 
 ensure_dependencies() {
-  if command -v rsync >/dev/null 2>&1; then
+  if command -v rsync >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
     return 0
   fi
 
   apt_update_with_proxmox_fallback
-  DEBIAN_FRONTEND=noninteractive apt-get install -y rsync
+  DEBIAN_FRONTEND=noninteractive apt-get install -y rsync curl
 }
 
 have_packaged_assets() {
@@ -238,6 +238,38 @@ download_release_assets() {
       "$base_url/beagle-os-server-installer-amd64.iso" &&
     install -m 0644 "$dist_dir/beagle-os-server-installer-amd64.iso" "$dist_dir/beagle-os-server-installer.iso" &&
     curl -fsSLo "$dist_dir/SHA256SUMS" "$base_url/SHA256SUMS"
+}
+
+ensure_release_assets_or_die() {
+  local release_base_url="${PUBLIC_UPDATE_BASE_URL%/}"
+
+  if have_packaged_assets; then
+    return 0
+  fi
+
+  echo "Required release assets are missing in $INSTALL_DIR/dist; trying public artifact download..." >&2
+  if ! download_release_assets "$release_base_url"; then
+    echo "Public artifact download failed; trying local packaging..." >&2
+    if ! "$INSTALL_DIR/scripts/package.sh"; then
+      echo "Error: could not fetch or build required release assets." >&2
+      exit 1
+    fi
+  fi
+
+  if ! have_packaged_assets; then
+    echo "Error: required release assets are still missing after download/build." >&2
+    exit 1
+  fi
+
+  if ! "$INSTALL_DIR/scripts/prepare-host-downloads.sh"; then
+    echo "Error: failed to prepare host downloads in $INSTALL_DIR/dist." >&2
+    exit 1
+  fi
+
+  if ! have_packaged_assets; then
+    echo "Error: required release assets are missing after host download preparation." >&2
+    exit 1
+  fi
 }
 
 disable_proxmox_enterprise_repo() {
@@ -333,11 +365,7 @@ rsync -a --delete \
 chown -R root:root "$INSTALL_DIR"
 find "$INSTALL_DIR" -type d -exec chmod 0755 {} +
 
-if ! have_packaged_assets; then
-  RELEASE_BASE_URL="${PUBLIC_UPDATE_BASE_URL%/}"
-  download_release_assets "$RELEASE_BASE_URL" || "$INSTALL_DIR/scripts/package.sh" || echo "Warning: could not fetch or build release assets (can be retried later)." >&2
-fi
-"$INSTALL_DIR/scripts/prepare-host-downloads.sh" || echo "Warning: could not prepare host downloads (can be retried later)." >&2
+ensure_release_assets_or_die
 write_host_env_file
 BEAGLE_HOST_PROVIDER="$BEAGLE_HOST_PROVIDER" \
   BEAGLE_AUTH_BOOTSTRAP_USERNAME="$BEAGLE_AUTH_BOOTSTRAP_USERNAME" \

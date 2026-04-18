@@ -322,6 +322,16 @@
     document.body.classList.toggle('auth-only', !connected);
     if (connected) {
       document.body.classList.remove('auth-modal-open');
+      var authModal = qs('auth-modal');
+      if (authModal) {
+        authModal.hidden = true;
+        authModal.setAttribute('aria-hidden', 'true');
+      }
+      var onboardingModal = qs('onboarding-modal');
+      if (onboardingModal) {
+        onboardingModal.hidden = true;
+        onboardingModal.setAttribute('aria-hidden', 'true');
+      }
     } else {
       document.body.classList.add('auth-modal-open');
     }
@@ -491,6 +501,7 @@
     }
     var authModal = qs('auth-modal');
     if (authModal) {
+      authModal.hidden = true;
       authModal.setAttribute('aria-hidden', 'true');
     }
   }
@@ -1561,6 +1572,7 @@
         '    <button type="button" class="btn btn-ghost btn-small" data-vm-power="start" data-vmid="' + escapeHtml(profile.vmid) + '"' + (canStart ? '' : ' disabled') + '>Start</button>' +
         '    <button type="button" class="btn btn-ghost btn-small" data-vm-power="stop" data-vmid="' + escapeHtml(profile.vmid) + '"' + (canStop ? '' : ' disabled') + '>Stop</button>' +
         '    <button type="button" class="btn btn-primary btn-small" data-vm-power="reboot" data-vmid="' + escapeHtml(profile.vmid) + '">Reboot</button>' +
+        '    <button type="button" class="btn btn-ghost btn-small" data-vm-console="novnc" data-vmid="' + escapeHtml(profile.vmid) + '">noVNC</button>' +
         '  </div></td>' +
         '</tr>';
     }).join('');
@@ -2081,7 +2093,7 @@
     secretVault = Object.create(null);
     text('detail-title', (profile.name || ('VM ' + profile.vmid)) + ' (#' + profile.vmid + ')');
     if (actionsNode) {
-      actionsNode.innerHTML = actionButton('refresh-detail', 'Reload', 'ghost') + actionButton('sunshine-ui', 'Sunshine Web UI', 'ghost') + actionButton('usb-refresh', 'USB Refresh', 'ghost');
+      actionsNode.innerHTML = actionButton('refresh-detail', 'Reload', 'ghost') + actionButton('novnc-ui', 'noVNC Console', 'ghost') + actionButton('sunshine-ui', 'Sunshine Web UI', 'ghost') + actionButton('usb-refresh', 'USB Refresh', 'ghost');
     }
     if (!node) {
       return;
@@ -2118,6 +2130,7 @@
          actionButton('vm-start', 'Start VM', 'ghost') +
          actionButton('vm-stop', 'Stop VM', 'ghost') +
          actionButton('vm-reboot', 'Reboot VM', 'primary') +
+        actionButton('novnc-ui', 'noVNC Console', 'ghost') +
         actionButton('vm-delete', 'Delete VM', 'ghost') +
            actionButton('installer-prep', 'Prepare Installer', 'primary') +
            actionButton('download-linux', 'Linux Installer', 'ghost') +
@@ -2864,6 +2877,25 @@
       });
       return;
     }
+    if (action === 'novnc-ui') {
+      request('/vms/' + vmid + '/novnc-access', { __suppressAuthLock: true }).then(function (payload) {
+        var access = payload && payload.novnc_access ? payload.novnc_access : {};
+        var url = String(access.url || '').trim();
+        if (!access.available) {
+          throw new Error(String(access.reason || 'noVNC ist fuer diese VM nicht verfuegbar.'));
+        }
+        if (!url) {
+          throw new Error('Keine noVNC URL erhalten.');
+        }
+        if (!isSafeExternalUrl(url)) {
+          throw new Error('Unsichere noVNC URL blockiert.');
+        }
+        window.open(url, '_blank', 'noopener');
+      }).catch(function (error) {
+        setBanner('noVNC Zugriff fehlgeschlagen: ' + error.message, 'warn');
+      });
+      return;
+    }
     if (action.indexOf('update-') === 0) {
       var operation = action.replace('update-', '');
       runSingleFlight('vm-action:' + vmid + ':update:' + operation, function () {
@@ -3222,6 +3254,18 @@
         var actionName = powerButton.getAttribute('data-vm-power');
         var actionVmid = Number(powerButton.getAttribute('data-vmid') || '0');
         runVmPowerAction(actionVmid, actionName);
+        return;
+      }
+      var consoleButton = event.target.closest('button[data-vm-console]');
+      if (consoleButton) {
+        var consoleName = String(consoleButton.getAttribute('data-vm-console') || '').trim().toLowerCase();
+        var consoleVmid = Number(consoleButton.getAttribute('data-vmid') || '0');
+        if (consoleName === 'novnc' && consoleVmid > 0) {
+          var previousVmid = state.selectedVmid;
+          state.selectedVmid = consoleVmid;
+          executeAction('novnc-ui', consoleButton);
+          state.selectedVmid = previousVmid;
+        }
         return;
       }
       var select = event.target.closest('input[data-select-vmid]');

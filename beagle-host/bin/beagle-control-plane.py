@@ -75,6 +75,7 @@ from virtualization_inventory import VirtualizationInventoryService
 from virtualization_read_surface import VirtualizationReadSurfaceService
 from vm_mutation_surface import VmMutationSurfaceService
 from vm_profile import VmProfileService
+from vm_console_access import VmConsoleAccessService
 from vm_http_surface import VmHttpSurfaceService
 from vm_secret_bootstrap import VmSecretBootstrapService
 from vm_secret_store import VmSecretStoreService
@@ -148,6 +149,8 @@ PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or
 WEB_UI_URL = os.environ.get("BEAGLE_WEB_UI_URL", "").strip()
 CORS_ALLOWED_ORIGINS_RAW = os.environ.get("BEAGLE_CORS_ALLOWED_ORIGINS", "").strip()
 PROXMOX_UI_PORTS_RAW = os.environ.get("BEAGLE_PROXMOX_UI_PORTS", "8006").strip()
+NOVNC_PATH = os.environ.get("BEAGLE_NOVNC_PATH", "/novnc").strip() or "/novnc"
+NOVNC_TOKEN_FILE = os.environ.get("BEAGLE_NOVNC_TOKEN_FILE", "/etc/beagle/novnc/tokens").strip() or "/etc/beagle/novnc/tokens"
 BEAGLE_HOST_PROVIDER_KIND = normalize_provider_kind(os.environ.get("BEAGLE_HOST_PROVIDER", "proxmox"))
 ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_SECONDS", "86400"))
 SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_TOKEN_TTL_SECONDS", "600"))
@@ -566,6 +569,7 @@ VIRTUALIZATION_INVENTORY = VirtualizationInventoryService(
 )
 
 VM_PROFILE_SERVICE: VmProfileService | None = None
+VM_CONSOLE_ACCESS_SERVICE: VmConsoleAccessService | None = None
 VM_HTTP_SURFACE_SERVICE: VmHttpSurfaceService | None = None
 CONTROL_PLANE_READ_SURFACE_SERVICE: ControlPlaneReadSurfaceService | None = None
 VIRTUALIZATION_READ_SURFACE_SERVICE: VirtualizationReadSurfaceService | None = None
@@ -1696,11 +1700,26 @@ def vm_profile_service() -> VmProfileService:
     return VM_PROFILE_SERVICE
 
 
+def vm_console_access_service() -> VmConsoleAccessService:
+    global VM_CONSOLE_ACCESS_SERVICE
+    if VM_CONSOLE_ACCESS_SERVICE is None:
+        VM_CONSOLE_ACCESS_SERVICE = VmConsoleAccessService(
+            host_provider_kind=BEAGLE_HOST_PROVIDER_KIND,
+            listify=listify,
+            novnc_path=NOVNC_PATH,
+            novnc_token_file=NOVNC_TOKEN_FILE,
+            proxmox_ui_ports_raw=PROXMOX_UI_PORTS_RAW,
+            public_server_name=PUBLIC_SERVER_NAME,
+        )
+    return VM_CONSOLE_ACCESS_SERVICE
+
+
 def vm_http_surface_service() -> VmHttpSurfaceService:
     global VM_HTTP_SURFACE_SERVICE
     if VM_HTTP_SURFACE_SERVICE is None:
         VM_HTTP_SURFACE_SERVICE = VmHttpSurfaceService(
             build_profile=build_profile,
+            build_novnc_access=vm_console_access_service().build_novnc_access,
             build_vm_state=build_vm_state,
             build_vm_usb_state=build_vm_usb_state,
             downloads_status_file=DOWNLOADS_STATUS_FILE,

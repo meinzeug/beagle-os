@@ -15,4 +15,27 @@
 	- Admin HTTP delete route extended to support `DELETE /api/v1/provisioning/vms/{vmid}` in [beagle-host/services/admin_http_surface.py](beagle-host/services/admin_http_surface.py).
 	- RBAC mapping updated for delete-provisioning route in [beagle-host/services/authz_policy.py](beagle-host/services/authz_policy.py).
 	- Web UI action added in [website/app.js](website/app.js) and cache-bumped in [website/index.html](website/index.html).
+- Added VM noVNC entry points in Beagle Web UI and host read surface:
+	- New console access service [beagle-host/services/vm_console_access.py](beagle-host/services/vm_console_access.py).
+	- New API endpoint `GET /api/v1/vms/{vmid}/novnc-access` in [beagle-host/services/vm_http_surface.py](beagle-host/services/vm_http_surface.py).
+	- Control-plane wiring added in [beagle-host/bin/beagle-control-plane.py](beagle-host/bin/beagle-control-plane.py).
+	- UI actions added for inventory rows and VM detail cards in [website/app.js](website/app.js).
+- Implemented beagle-provider noVNC path end-to-end:
+	- `beagle` provider support added in [beagle-host/services/vm_console_access.py](beagle-host/services/vm_console_access.py) using libvirt VNC display discovery + tokenized websockify mapping.
+	- noVNC env wiring added in [beagle-host/bin/beagle-control-plane.py](beagle-host/bin/beagle-control-plane.py) (`BEAGLE_NOVNC_PATH`, `BEAGLE_NOVNC_TOKEN_FILE`).
+	- New systemd unit [beagle-host/systemd/beagle-novnc-proxy.service](beagle-host/systemd/beagle-novnc-proxy.service) for token-based local websocket proxy.
+	- Service/bootstrap wiring extended in [scripts/install-beagle-host-services.sh](scripts/install-beagle-host-services.sh) (package install, token file provisioning, unit enable/start).
+	- nginx proxy routes added in [scripts/install-beagle-proxy.sh](scripts/install-beagle-proxy.sh) for `/novnc/` and `/beagle-novnc/websockify`.
+- Hardened host installer asset reliability in [scripts/install-beagle-host.sh](scripts/install-beagle-host.sh):
+	- Host install no longer continues with warnings when required dist artifacts are missing.
+	- Installer now enforces: download artifacts OR build artifacts OR fail install.
+	- `prepare-host-downloads` is now mandatory for successful install completion.
+- Rebuilt server installer ISO from current workspace successfully:
+	- [dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso](dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso)
+	- [dist/beagle-os-server-installer/beagle-os-server-installer.iso](dist/beagle-os-server-installer/beagle-os-server-installer.iso)
+- Reset/recreated `beagleserver` VM from rebuilt ISO:
+	- Existing VM was destroyed/undefined and recreated with 8GB RAM / 4 vCPU.
+	- Recreated VM now uses `virtio` disk/net and VNC (`listen=127.0.0.1`) for noVNC compatibility.
+	- Installer ISO attached at `/tmp/beagleserver.iso` as CDROM, boot order `cdrom,hd`, autostart re-enabled.
+	- DHCP readiness check in smoke script timed out; VM reset/recreate itself completed and VM is running.
 

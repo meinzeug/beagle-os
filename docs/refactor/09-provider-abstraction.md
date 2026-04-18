@@ -15,4 +15,17 @@
 	- Generic admin API path: `DELETE /api/v1/provisioning/vms/{vmid}` in [beagle-host/services/admin_http_surface.py](beagle-host/services/admin_http_surface.py).
 	- UI action in [website/app.js](website/app.js) targets the generic provisioning route, not provider-specific APIs.
 - Proxmox-specific command usage (`qm destroy`) remains isolated in `providers/proxmox/*` and is not called from HTTP/UI layers.
+- noVNC access was added through a dedicated host service, not inline in HTTP handlers:
+	- New service: [beagle-host/services/vm_console_access.py](beagle-host/services/vm_console_access.py).
+	- New generic read route: `GET /api/v1/vms/{vmid}/novnc-access` in [beagle-host/services/vm_http_surface.py](beagle-host/services/vm_http_surface.py).
+	- UI integration in [website/app.js](website/app.js) only calls the generic route.
+	- Provider-specific behavior is centralized in the service:
+		- `proxmox`: returns direct noVNC URL.
+		- `beagle`: resolves libvirt VNC display and returns Beagle-tokenized noVNC URL via local websockify proxy.
+- Beagle-specific noVNC runtime integration remains isolated to beagle host/proxy layers:
+	- Tokenized websocket proxy unit: [beagle-host/systemd/beagle-novnc-proxy.service](beagle-host/systemd/beagle-novnc-proxy.service).
+	- Host-service bootstrap: [scripts/install-beagle-host-services.sh](scripts/install-beagle-host-services.sh).
+	- Proxy route wiring: [scripts/install-beagle-proxy.sh](scripts/install-beagle-proxy.sh).
+	- No new Proxmox UI/ExtJS coupling introduced.
+- Installer artifact reliability hardening in [scripts/install-beagle-host.sh](scripts/install-beagle-host.sh) is provider-neutral and enforces generic host prerequisites before service startup.
 
