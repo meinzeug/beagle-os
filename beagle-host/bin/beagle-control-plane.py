@@ -137,7 +137,49 @@ INSTALLER_PREP_SCRIPT_FILE = ROOT_DIR / "scripts" / "ensure-vm-stream-ready.sh"
 CREDENTIALS_ENV_FILE = Path(os.environ.get("PVE_DCV_CREDENTIALS_ENV_FILE", "/etc/beagle/credentials.env"))
 MANAGER_CERT_FILE = Path(os.environ.get("BEAGLE_MANAGER_CERT_FILE", "/etc/pve/local/pveproxy-ssl.pem"))
 UBUNTU_BEAGLE_TEMPLATE_DIR = ROOT_DIR / "beagle-host" / "templates" / "ubuntu-beagle"
-PUBLIC_SERVER_NAME = os.environ.get("PVE_DCV_PROXY_SERVER_NAME", "").strip() or os.uname().nodename
+def _resolve_public_hostname(name: str) -> str:
+    """Normalise a configured public hostname for use in outward-facing URLs.
+
+    Rules (same as vm_console_access and runtime_environment):
+    - IP literal      → return as-is
+    - FQDN (has dot)  → return as-is so Let's Encrypt / public TLS stays valid
+    - Bare hostname   → resolve to a non-loopback IPv4 so thin clients without
+                        local DNS can reach the server; fall back to the primary
+                        outbound IPv4 if the name resolves to loopback.
+    """
+    import ipaddress as _ipaddress
+
+    candidate = str(name or "").strip()
+    if not candidate:
+        return candidate
+    try:
+        _ipaddress.ip_address(candidate)
+        return candidate
+    except ValueError:
+        pass
+    if "." in candidate:
+        return candidate
+    try:
+        resolved = socket.gethostbyname(candidate)
+        if not _ipaddress.ip_address(resolved).is_loopback:
+            return resolved
+    except OSError:
+        pass
+    try:
+        _s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        _s.connect(("1.1.1.1", 80))
+        _ip = _s.getsockname()[0]
+        _s.close()
+        if _ip and not _ip.startswith("127."):
+            return _ip
+    except OSError:
+        pass
+    return candidate
+
+
+PUBLIC_SERVER_NAME = _resolve_public_hostname(
+    os.environ.get("PVE_DCV_PROXY_SERVER_NAME", "").strip() or os.uname().nodename
+)
 PUBLIC_DOWNLOADS_PORT = int(os.environ.get("PVE_DCV_PROXY_LISTEN_PORT", "8443"))
 PUBLIC_DOWNLOADS_PATH = os.environ.get("PVE_DCV_DOWNLOADS_PATH", "/beagle-downloads").strip() or "/beagle-downloads"
 PUBLIC_UPDATE_BASE_URL = os.environ.get("BEAGLE_PUBLIC_UPDATE_BASE_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}{PUBLIC_DOWNLOADS_PATH}"
@@ -928,7 +970,12 @@ def cancel_scheduled_ubuntu_beagle_vm_restart(state: dict[str, Any]) -> dict[str
 
 
 def public_ubuntu_beagle_complete_url(token: str) -> str:
-    return f"{PUBLIC_MANAGER_URL}/api/v1/public/ubuntu-install/{token}/complete"
+    configured_manager_url = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip()
+    manager_base_url = configured_manager_url
+    if not manager_base_url:
+        public_host = current_public_stream_host().strip() or PUBLIC_SERVER_NAME
+        manager_base_url = f"https://{public_host}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
+    return f"{manager_base_url}/api/v1/public/ubuntu-install/{token}/complete"
 
 
 def summarize_ubuntu_beagle_state(payload: dict[str, Any], *, include_credentials: bool = False) -> dict[str, Any]:

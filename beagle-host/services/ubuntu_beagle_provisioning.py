@@ -503,6 +503,7 @@ class UbuntuBeagleProvisioningService:
         desktop_packages: list[str],
         software_packages: list[str],
         package_presets: list[str],
+        network_mac: str,
         sunshine_user: str,
         sunshine_password: str,
         sunshine_port: int | None,
@@ -542,7 +543,8 @@ class UbuntuBeagleProvisioningService:
                 "__IDENTITY_KEYMAP__": identity_keymap,
                 "__CALLBACK_URL__": callback_url,
                 "__PREPARE_FIRSTBOOT_URL__": callback_url.rsplit("/complete", 1)[0] + "/prepare-firstboot",
-                "__PREPARE_FIRSTBOOT_CURL_ARGS__": f'-k --pinnedpubkey "{self._manager_pinned_pubkey}"' if self._manager_pinned_pubkey else "",
+                "__PREPARE_FIRSTBOOT_CURL_ARGS__": f'-k --pinnedpubkey "{self._manager_pinned_pubkey}"' if self._manager_pinned_pubkey else "-k",
+                "__NETWORK_MAC__": network_mac,
                 "__FIRSTBOOT_SCRIPT__": self.indent_block(firstboot_script, "          "),
             },
         )
@@ -607,21 +609,26 @@ class UbuntuBeagleProvisioningService:
                 pass
         return {"vmid": vmid, "cleanup": "ok", "restart": "stop-start" if restart else "guest-reboot"}
 
+    @staticmethod
+    def ubuntu_beagle_network_mac(vmid: int) -> str:
+        value = int(vmid) & 0xFFFFFF
+        return "52:54:00:%02x:%02x:%02x" % (
+            (value >> 16) & 0xFF,
+            (value >> 8) & 0xFF,
+            value & 0xFF,
+        )
+
     def prepare_ubuntu_beagle_firstboot(self, state: dict[str, Any]) -> dict[str, Any]:
-        cleanup = self.finalize_ubuntu_beagle_install(state, restart=False)
-        restart_state = self._ensure_ubuntu_beagle_vm_restart_state(state, int(state["vmid"]))
+        cleanup = self.finalize_ubuntu_beagle_install(state, restart=True)
         state["updated_at"] = self._utcnow()
         state["status"] = "installing"
         state["phase"] = "firstboot"
         state["message"] = (
-            "Ubuntu-Basisinstallation ist abgeschlossen. Der Installer faehrt den Gast jetzt herunter; "
-            "anschliessend startet der Host ihn vom Systemdatentraeger in das First-Boot-Provisioning."
+            "Ubuntu-Basisinstallation ist abgeschlossen. Der Host hat den Gast neu gestartet; "
+            "First-Boot-Provisioning laeuft."
         )
         state["cleanup"] = cleanup
-        return {
-            **cleanup,
-            "host_restart": restart_state,
-        }
+        return cleanup
 
     def create_ubuntu_beagle_vm(self, payload: dict[str, Any]) -> dict[str, Any]:
         os_profile = str(payload.get("os_profile", "") or self._ubuntu_beagle_profile_id).strip() or self._ubuntu_beagle_profile_id
@@ -693,6 +700,7 @@ class UbuntuBeagleProvisioningService:
         public_stream: dict[str, Any] | None = None
         public_base_port = self._allocate_public_stream_base_port(node, vmid)
         sunshine_port: int | None = None
+        network_mac = self.ubuntu_beagle_network_mac(vmid)
         resolved_public_stream_host = self._current_public_stream_host()
         if resolved_public_stream_host and public_base_port is not None:
             ports = self._stream_ports(public_base_port)
@@ -714,6 +722,7 @@ class UbuntuBeagleProvisioningService:
             desktop_packages=list(desktop.get("packages", []) or []),
             software_packages=software_packages,
             package_presets=package_presets,
+            network_mac=network_mac,
             sunshine_user=sunshine_user,
             sunshine_password=sunshine_password,
             sunshine_port=sunshine_port,
@@ -760,6 +769,7 @@ class UbuntuBeagleProvisioningService:
                 "identity_locale": identity_locale,
                 "identity_keymap": identity_keymap,
                 "bridge": bridge,
+                "network_mac": network_mac,
                 "disk_storage": disk_storage,
                 "iso_storage": iso_storage,
                 "seed_iso": str(seed_path),
@@ -787,7 +797,7 @@ class UbuntuBeagleProvisioningService:
                     ("bios", "ovmf"),
                     ("ostype", "l26"),
                     ("agent", "enabled=1"),
-                    ("net0", f"virtio,bridge={bridge}"),
+                    ("net0", f"e1000,bridge={bridge},macaddr={network_mac}"),
                     ("tags", tags),
                 ],
                 timeout=None,

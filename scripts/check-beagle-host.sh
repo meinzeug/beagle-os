@@ -150,6 +150,15 @@ check_local_control_plane_health() {
   record_failure
 }
 
+check_control_plane_novnc_rwpath() {
+  if grep -Eq '^[[:space:]]*ReadWritePaths=.*(/etc/beagle/novnc)' "$BEAGLE_CONTROL_SERVICE_FILE"; then
+    echo "OK  cfg   beagle-control-plane ReadWritePaths includes /etc/beagle/novnc"
+    return 0
+  fi
+  echo "ERR cfg   beagle-control-plane missing ReadWritePaths=/etc/beagle/novnc"
+  record_failure
+}
+
 check_status_json() {
   local expected_installer_url=""
   local expected_bootstrap_url=""
@@ -282,6 +291,7 @@ check_file "$INSTALL_DIR/beagle-host/providers/${BEAGLE_HOST_PROVIDER}_host_prov
 check_file "$INSTALL_DIR/beagle-host/bin/beagle-usb-tunnel-session"
 check_file "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
 check_file "$BEAGLE_USB_TUNNEL_SSHD_DROPIN"
+check_control_plane_novnc_rwpath
 
 if [[ "$(host_provider_kind)" == "proxmox" ]]; then
   check_file "$PVE_UI_JS_FILE"

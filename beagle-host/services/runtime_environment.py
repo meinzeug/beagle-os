@@ -36,11 +36,18 @@ class RuntimeEnvironmentService:
         candidate = str(host or "").strip()
         if not candidate:
             return ""
+        # Already an IP literal – return as-is.
         try:
             ipaddress.ip_address(candidate)
             return candidate
         except ValueError:
             pass
+        # FQDN with dots (e.g. "myserver.example.com") – keep the name so that
+        # public TLS certs (Let's Encrypt) remain valid for clients.
+        if "." in candidate:
+            return candidate
+        # Bare hostname (e.g. "beagleserver") – resolve to IP so that thin
+        # clients without a matching DNS entry can still connect.
         try:
             infos = self._getaddrinfo(
                 candidate,
@@ -52,8 +59,11 @@ class RuntimeEnvironmentService:
             return candidate
         for item in infos:
             ip = str(item[4][0]).strip()
-            if ip:
-                return ip
+            try:
+                if ip and not ipaddress.ip_address(ip).is_loopback:
+                    return ip
+            except ValueError:
+                pass
         return candidate
 
     def current_public_stream_host(self) -> str:

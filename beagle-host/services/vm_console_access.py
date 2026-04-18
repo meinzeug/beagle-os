@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ipaddress
+import socket
 import subprocess
 from pathlib import Path
 from typing import Any, Callable
@@ -32,8 +34,8 @@ class VmConsoleAccessService:
         return 8006
 
     @staticmethod
-    def _libvirt_vnc_port(vmid: int) -> int | None:
-        domain = f"beagle-{int(vmid)}"
+    def _libvirt_vnc_port(vmid: int, domain_name: str | None = None) -> int | None:
+        domain = str(domain_name or "").strip() or f"beagle-{int(vmid)}"
         result = subprocess.run(
             ["virsh", "--connect", "qemu:///system", "vncdisplay", domain],
             capture_output=True,
@@ -75,18 +77,78 @@ class VmConsoleAccessService:
         tmp.replace(token_file)
         return token
 
-    def _beagle_novnc_url(self, *, host: str, vmid: int) -> str | None:
-        port = self._libvirt_vnc_port(vmid)
+    @staticmethod
+    def _is_ip_literal(value: str) -> bool:
+        text = str(value or "").strip()
+        if not text:
+            return False
+        try:
+            ipaddress.ip_address(text)
+            return True
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _is_loopback_ip(value: str) -> bool:
+        text = str(value or "").strip()
+        if not text:
+            return False
+        try:
+            return ipaddress.ip_address(text).is_loopback
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _primary_ipv4() -> str | None:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # Doesn't send packets; used to ask kernel for preferred source IP.
+            sock.connect(("1.1.1.1", 80))
+            candidate = str(sock.getsockname()[0] or "").strip()
+            if candidate and not candidate.startswith("127."):
+                return candidate
+            return None
+        except OSError:
+            return None
+        finally:
+            sock.close()
+
+    def _resolve_novnc_host(self, host: str) -> str:
+        candidate = str(host or "").strip()
+        if not candidate:
+            fallback = self._primary_ipv4()
+            return fallback or candidate
+        # Already an IP literal – use as-is.
+        if self._is_ip_literal(candidate):
+            return candidate
+        # FQDN with dots (e.g. myserver.example.com): keep the name so that
+        # Let's Encrypt / public TLS certs remain valid.
+        if "." in candidate:
+            return candidate
+        # Bare hostname (e.g. "beagleserver"): resolve to IP so that thin
+        # clients that have no matching DNS entry can still connect.
+        try:
+            resolved = socket.gethostbyname(candidate)
+        except OSError:
+            resolved = ""
+        if resolved and not self._is_loopback_ip(resolved):
+            return resolved
+        fallback = self._primary_ipv4()
+        return fallback or candidate
+
+    def _beagle_novnc_url(self, *, host: str, vmid: int, domain_name: str | None = None) -> str | None:
+        port = self._libvirt_vnc_port(vmid, domain_name)
         if port is None:
             return None
         token = self._upsert_beagle_novnc_token(vmid=vmid, target_port=port)
+        resolved_host = self._resolve_novnc_host(host)
         base_path = self._novnc_path.strip()
         if not base_path.startswith("/"):
             base_path = "/" + base_path
         base_path = base_path.rstrip("/")
         token_q = quote(token, safe="")
         path_q = quote(f"beagle-novnc/websockify?token={token_q}", safe="/?=&")
-        return f"https://{host}{base_path}/vnc.html?autoconnect=1&resize=scale&path={path_q}"
+        return f"https://{resolved_host}{base_path}/vnc.html?autoconnect=1&resize=scale&path={path_q}"
 
     def build_novnc_access(self, vm: Any) -> dict[str, Any]:
         vmid = int(getattr(vm, "vmid", 0) or 0)
@@ -119,7 +181,8 @@ class VmConsoleAccessService:
                 "reason": "",
             }
         if self._host_provider_kind == "beagle":
-            url = self._beagle_novnc_url(host=host, vmid=vmid)
+            vm_domain = str(getattr(vm, "name", "") or "").strip() or None
+            url = self._beagle_novnc_url(host=host, vmid=vmid, domain_name=vm_domain)
             if not url:
                 return {
                     "provider": "beagle",

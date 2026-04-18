@@ -28,4 +28,11 @@
 	- Proxy route wiring: [scripts/install-beagle-proxy.sh](scripts/install-beagle-proxy.sh).
 	- No new Proxmox UI/ExtJS coupling introduced.
 - Installer artifact reliability hardening in [scripts/install-beagle-host.sh](scripts/install-beagle-host.sh) is provider-neutral and enforces generic host prerequisites before service startup.
+- Standalone host runtime prerequisite handling was tightened in provider-adjacent install glue ([scripts/install-beagle-host-services.sh](scripts/install-beagle-host-services.sh)) without introducing provider leaks into HTTP/UI layers:
+	- libvirt readiness wait,
+	- explicit beagle-network/local-pool verification,
+	- no new Proxmox coupling.
+- Beagle-provider runtime inventory now resolves storage/network from live libvirt first in [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py), keeping API/catalog defaults aligned with real backend capabilities.
+- Beagle-provider `start_vm` now redefines libvirt XML from current provider config before start, so generic service-layer cleanups (boot order/media removal) are actually enforced in runtime domains.
+- Thinclient preset installer disk-selection hardening in [thin-client-assistant/usb/pve-thin-client-local-installer.sh](thin-client-assistant/usb/pve-thin-client-local-installer.sh) is endpoint-runtime logic only and does not add provider-specific coupling.
 

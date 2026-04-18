@@ -12,6 +12,13 @@
 - [x] Harden install flow so required dist artifacts are mandatory (no warning-only continue on missing installer assets).
 - [x] Rebuild server installer ISO from current workspace changes.
 - [x] Reset/recreate beagleserver VM to boot from rebuilt server-installer ISO.
+- [x] Remove the explicit ubuntu-beagle installer network seed path that reproducibly trapped VM 101 in early cloud-init.
+- [x] Recreate VM 101 with the simplified `CIDATA` seed (`user-data` + `meta-data` only) and verify Subiquity advances past the former cloud-init wait state.
+- [ ] Re-run VM 101 autoinstall to true completion without manual callback forcing and confirm first-boot transition on its own.
+- [ ] Verify first-boot Sunshine readiness gate and callback end-to-end on a fully clean VM 101 run (no manual completion override).
+- [ ] Rebuild thin-client installer payload/bootstrap with patched non-interactive target-disk selection and rerun thinclient install.
+- [ ] Redeploy patched provider start/redefine behavior on installed beagleserver host and recreate VM 101 to remove stale-domain autoinstall loop risk.
+- [ ] Install beaglethinclient against the successfully provisioned VM 101 and verify Moonlight streaming end-to-end.
 - [ ] Complete in-VM installer flow and re-validate host API/download/noVNC paths post-install.
 - [ ] Add automated API regression test for `DELETE /api/v1/provisioning/vms/{vmid}`.
 - [ ] Add automated API regression test for `GET /api/v1/vms/{vmid}/novnc-access` (proxmox + beagle success payloads and failure handling).

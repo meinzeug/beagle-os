@@ -308,6 +308,29 @@ post_completion_callback() {
   return 1
 }
 
+wait_for_sunshine_ready() {
+  local -a expected_ports=()
+
+  if [[ -n "$SUNSHINE_PORT" ]]; then
+    expected_ports=("$SUNSHINE_PORT" "$((SUNSHINE_PORT + 1))")
+  else
+    expected_ports=("47984" "47990")
+  fi
+
+  for _ in {1..180}; do
+    if systemctl is-active --quiet beagle-sunshine.service; then
+      for port in "${expected_ports[@]}"; do
+        if ss -H -ltn "( sport = :${port} )" 2>/dev/null | grep -q LISTEN; then
+          return 0
+        fi
+      done
+    fi
+    sleep 2
+  done
+
+  return 1
+}
+
 if [[ ! -f "$DONE_FILE" ]]; then
   ensure_dns_resolution
   disable_cdrom_apt_sources
@@ -467,6 +490,7 @@ EOF
     sleep 1
   done
   systemctl enable --now beagle-sunshine.service >/dev/null 2>&1 || true
+  wait_for_sunshine_ready
 
   touch "$DONE_FILE"
 fi

@@ -993,6 +993,8 @@ choose_target_disk() {
     label="${model:-disk} ${size:-unknown} rm=${rm:-0} ${transport:-}"
     log_msg "choose_target_disk: candidate device=$device size=${size:-unknown} model=${model:-disk} rm=${rm:-0} tran=${transport:-} live=$live_flag"
     if [[ "${rm:-0}" != "1" && "${transport:-}" != "usb" ]]; then
+      # Never offer the currently booted live medium as install target.
+      [[ "$live_flag" == "1" ]] && continue
       preferred_items+=("$device" "$label")
       continue
     fi
@@ -1053,6 +1055,11 @@ for item in payload.get("blockdevices", []):
   fi
 
   if [[ -z "$tty_path" ]]; then
+    if (( ${#menu_items[@]} >= 2 )); then
+      log_msg "choose_target_disk: non-interactive mode, auto-selecting ${menu_items[0]}"
+      printf '%s\n' "${menu_items[0]}"
+      return 0
+    fi
     echo "Interactive disk selection requires a TTY." >&2
     exit 1
   fi

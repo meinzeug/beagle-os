@@ -913,6 +913,64 @@ raise SystemExit(0 if payload.get("preset_active") else 1)
 PY
 }
 
+resolve_auto_target_disk() {
+  local debug_json=""
+  local targets_json=""
+
+  debug_json="$(run_installer_as_root --print-debug-json 2>/dev/null || true)"
+  targets_json="$(run_installer_as_root --list-targets-json 2>/dev/null || true)"
+
+  [[ -n "$targets_json" ]] || return 1
+
+  python3 - "$debug_json" "$targets_json" <<'PY'
+import json
+import re
+import sys
+
+try:
+    debug = json.loads(sys.argv[1]) if sys.argv[1] else {}
+except Exception:
+    debug = {}
+
+try:
+    targets = json.loads(sys.argv[2]) if sys.argv[2] else []
+except Exception:
+    targets = []
+
+live_disk = str(debug.get("live_disk") or "").strip()
+if live_disk and not live_disk.startswith("/dev/"):
+    live_disk = f"/dev/{live_disk}"
+
+valid = []
+for item in targets:
+    device = str(item.get("device") or "").strip()
+    if not device.startswith("/dev/"):
+        continue
+    if re.match(r"^/dev/(loop|sr|ram|zram|nbd)", device):
+        continue
+    if live_disk and device == live_disk:
+        continue
+    size = str(item.get("size") or "").strip().upper()
+    if size in {"", "0", "0B"}:
+        continue
+    model = str(item.get("model") or "").strip()
+    rm = str(item.get("removable") or "0").strip()
+    tran = str(item.get("transport") or "").strip().lower()
+    score = 0
+    if rm != "1" and tran != "usb":
+        score += 20
+    if model:
+        score += 2
+    valid.append((score, device))
+
+if not valid:
+    raise SystemExit(1)
+
+valid.sort(reverse=True)
+print(valid[0][1])
+PY
+}
+
 install_from_bundled_preset() {
   AUTO_INSTALL_LOCK_SKIPPED=0
   LAST_INSTALL_EXIT_CODE=0
@@ -936,11 +994,22 @@ install_from_bundled_preset() {
     return 1
   fi
 
-  log_msg "bundled preset detected, starting fully interactive preset-based install"
-  AUTO_INSTALL_ACTIVE=0
+  log_msg "bundled preset detected, starting non-interactive preset-based install"
+  AUTO_INSTALL_ACTIVE=1
   run_installer_as_root --cache-bundled-preset >/dev/null 2>&1 || true
+
+  local target_disk=""
+  target_disk="$(resolve_auto_target_disk || true)"
+  if [[ -z "$target_disk" ]]; then
+    log_msg "failed to resolve auto target disk for bundled preset install"
+    LAST_INSTALL_EXIT_CODE=1
+    sync_logs_to_medium
+    return 1
+  fi
+  log_msg "resolved bundled preset install target disk: $target_disk"
+
   set +e
-  run_installer_as_root
+  run_installer_as_root --target-disk "$target_disk" --yes --auto-install
   LAST_INSTALL_EXIT_CODE=$?
   set -e
   sync_logs_to_medium

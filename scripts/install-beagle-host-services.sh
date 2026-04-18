@@ -116,6 +116,21 @@ standalone_runtime_tools_ready() {
     command -v xorriso >/dev/null 2>&1
 }
 
+wait_for_libvirt_system() {
+  local attempt=""
+
+  systemctl enable --now libvirtd >/dev/null 2>&1 || true
+  for attempt in $(seq 1 30); do
+    if virsh --connect qemu:///system list --all >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "libvirt qemu:///system is not ready" >&2
+  return 1
+}
+
 set_env_value() {
   local env_file="$1"
   local key="$2"
@@ -314,6 +329,8 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y novnc websockify >/dev/null 2>&1 || true
   fi
 
+  wait_for_libvirt_system
+
   install -d -m 0755 /etc/beagle/novnc
   touch /etc/beagle/novnc/tokens
   chmod 0640 /etc/beagle/novnc/tokens
@@ -336,26 +353,28 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   </ip>
 </network>
 NETEOF
-    virsh --connect qemu:///system net-define "$tmpnet" >/dev/null 2>&1 || true
+    virsh --connect qemu:///system net-define "$tmpnet" >/dev/null
     virsh --connect qemu:///system net-start beagle >/dev/null 2>&1 || true
-    virsh --connect qemu:///system net-autostart beagle >/dev/null 2>&1 || true
+    virsh --connect qemu:///system net-autostart beagle >/dev/null
     rm -f "$tmpnet"
   else
     virsh --connect qemu:///system net-start beagle >/dev/null 2>&1 || true
-    virsh --connect qemu:///system net-autostart beagle >/dev/null 2>&1 || true
+    virsh --connect qemu:///system net-autostart beagle >/dev/null
   fi
+  virsh --connect qemu:///system net-info beagle >/dev/null
 
   # Create local storage pool if missing
   if ! virsh --connect qemu:///system pool-info local >/dev/null 2>&1; then
     mkdir -p "$BEAGLE_LIBVIRT_IMAGES_DIR"
-    virsh --connect qemu:///system pool-define-as local dir --target "$BEAGLE_LIBVIRT_IMAGES_DIR" >/dev/null 2>&1 || true
+    virsh --connect qemu:///system pool-define-as local dir --target "$BEAGLE_LIBVIRT_IMAGES_DIR" >/dev/null
     virsh --connect qemu:///system pool-build local >/dev/null 2>&1 || true
     virsh --connect qemu:///system pool-start local >/dev/null 2>&1 || true
-    virsh --connect qemu:///system pool-autostart local >/dev/null 2>&1 || true
+    virsh --connect qemu:///system pool-autostart local >/dev/null
   else
     virsh --connect qemu:///system pool-start local >/dev/null 2>&1 || true
-    virsh --connect qemu:///system pool-autostart local >/dev/null 2>&1 || true
+    virsh --connect qemu:///system pool-autostart local >/dev/null
   fi
+  virsh --connect qemu:///system pool-info local >/dev/null
 
   # Ensure nvram dir exists for OVMF vars
   mkdir -p /var/lib/libvirt/qemu/nvram

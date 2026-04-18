@@ -1,19 +1,19 @@
 # Next Steps
 
-1. Complete interactive install flow inside recreated `beagleserver` VM (currently booted from server-installer ISO).
-2. Deploy latest host/proxy changes to installed beagleserver and run full service re-install (`install-beagle-host-services.sh` + `install-beagle-proxy.sh`).
-3. Validate installer/download endpoints after hardening:
-	- `GET /beagle-api/api/v1/vms/{vmid}/installer.sh` returns 200 and script body.
-	- `GET /beagle-api/api/v1/vms/{vmid}/installer.ps1` returns 200 and script body.
-4. Validate noVNC action flow in both UI entry points:
-	- Inventory row action `noVNC`
-	- Detail action `noVNC Console`
-5. Validate provider-specific noVNC behavior in both modes:
-	- `proxmox` provider: generated URL opens Proxmox noVNC console directly.
-	- `beagle` provider: generated URL opens tokenized Beagle noVNC path successfully.
-6. Validate VM delete end-to-end on beagleserver Web UI (detail action -> confirmation -> VM removed from inventory).
-7. Add API smoke tests for:
-	- `DELETE /beagle-api/api/v1/provisioning/vms/{vmid}`
-	- `GET /beagle-api/api/v1/vms/{vmid}/novnc-access`
-8. Re-check onboarding plus post-login stability after reinstall (including installer endpoints and noVNC).
+1. Rebuild and redeploy thin-client installer artifacts so the patched non-interactive disk selection logic is included in the booted media:
+	- rebuild payload/bootstrap artifacts,
+	- regenerate VM-specific wrapper from `/api/v1/vms/101/installer.sh`,
+	- recreate thinclient USB raw image and reattach to `beaglethinclient`.
+2. Re-run thinclient install from preset and verify it no longer fails at `line=2007 cmd=target_disk="$(choose_target_disk)"`.
+3. Recreate VM 101 once with patched host provider/start behavior deployed on the installed beagleserver host (or sync runtime code), then validate:
+	- no stale installer `args`/ISO after finalize,
+	- no UEFI shell fallback,
+	- guest gets IP and Sunshine readiness.
+4. After VM 101 is stream-ready, boot `beaglethinclient` from installed disk (not USB media) and verify automatic Moonlight connect using preset credentials.
+5. Capture final proof screenshot from `beaglethinclient` showing actual streamed desktop from VM 101.
+6. Once end-to-end passes, run final docs sync + commit/push:
+	- `05-progress.md`,
+	- `06-next-steps.md`,
+	- `08-todo-global.md`,
+	- `09-provider-abstraction.md`.
 

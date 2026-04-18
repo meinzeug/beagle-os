@@ -171,6 +171,9 @@ class BeagleHostProvider:
         return nodes or self._default_nodes()
 
     def _load_storage(self) -> list[dict[str, Any]]:
+        live_storage = self._discover_libvirt_storage()
+        if live_storage:
+            return live_storage
         payload = self._read_json_file(self._storage_path(), self._default_storage())
         if not isinstance(payload, list):
             return self._default_storage()
@@ -197,6 +200,9 @@ class BeagleHostProvider:
         return storage or self._default_storage()
 
     def _load_bridges(self) -> list[dict[str, Any]]:
+        live_bridges = self._discover_libvirt_networks()
+        if live_bridges:
+            return live_bridges
         payload = self._read_json_file(self._bridges_path(), self._default_bridges())
         if not isinstance(payload, list):
             return self._default_bridges()
@@ -221,6 +227,122 @@ class BeagleHostProvider:
                 }
             )
         return bridges or self._default_bridges()
+
+    def _discover_libvirt_storage(self) -> list[dict[str, Any]]:
+        if not self._libvirt_enabled():
+            return []
+        try:
+            names = [name.strip() for name in self._run_virsh("pool-list", "--all", "--name").splitlines() if name.strip()]
+        except Exception:
+            return []
+        storage: list[dict[str, Any]] = []
+        for name in names:
+            pool_type = "dir"
+            pool_path = ""
+            active = 0
+            autostart = 0
+            available = 0
+            allocation = 0
+            capacity = 0
+            try:
+                xml = self._run_virsh("pool-dumpxml", name)
+                type_match = re.search(r"<pool[^>]*type=['\"]([^'\"]+)['\"]", xml)
+                path_match = re.search(r"<path>([^<]+)</path>", xml)
+                if type_match:
+                    pool_type = type_match.group(1).strip() or "dir"
+                if path_match:
+                    pool_path = path_match.group(1).strip()
+            except Exception:
+                pass
+            try:
+                info = self._run_virsh("pool-info", name)
+                if re.search(r"State:\s+running", info, re.IGNORECASE):
+                    active = 1
+                if re.search(r"Autostart:\s+yes", info, re.IGNORECASE):
+                    autostart = 1
+                cap_match = re.search(r"Capacity:\s+([0-9.]+)\s+([A-Za-z]+)", info)
+                alloc_match = re.search(r"Allocation:\s+([0-9.]+)\s+([A-Za-z]+)", info)
+                avail_match = re.search(r"Available:\s+([0-9.]+)\s+([A-Za-z]+)", info)
+                if cap_match:
+                    capacity = self._size_to_bytes(cap_match.group(1), cap_match.group(2))
+                if alloc_match:
+                    allocation = self._size_to_bytes(alloc_match.group(1), alloc_match.group(2))
+                if avail_match:
+                    available = self._size_to_bytes(avail_match.group(1), avail_match.group(2))
+            except Exception:
+                pass
+            storage.append(
+                {
+                    "storage": name,
+                    "node": self._default_node_name,
+                    "type": pool_type,
+                    "content": "images,iso,backup",
+                    "shared": 0,
+                    "active": active,
+                    "avail": available,
+                    "used": allocation,
+                    "total": capacity,
+                    "path": pool_path,
+                    "autostart": autostart,
+                }
+            )
+        return storage
+
+    def _discover_libvirt_networks(self) -> list[dict[str, Any]]:
+        if not self._libvirt_enabled():
+            return []
+        try:
+            names = [name.strip() for name in self._run_virsh("net-list", "--all", "--name").splitlines() if name.strip()]
+        except Exception:
+            return []
+        bridges: list[dict[str, Any]] = []
+        for name in names:
+            active = False
+            autostart = False
+            try:
+                info = self._run_virsh("net-info", name)
+                active = bool(re.search(r"Active:\s+yes", info, re.IGNORECASE))
+                autostart = bool(re.search(r"Autostart:\s+yes", info, re.IGNORECASE))
+            except Exception:
+                pass
+            bridges.append(
+                {
+                    "name": name,
+                    "node": self._default_node_name,
+                    "type": "bridge",
+                    "active": active,
+                    "address": "",
+                    "netmask": "",
+                    "cidr": "",
+                    "bridge_ports": "",
+                    "autostart": autostart,
+                }
+            )
+        return bridges
+
+    @staticmethod
+    def _size_to_bytes(value: str, unit: str) -> int:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return 0
+        normalized = str(unit or "").strip().lower()
+        factors = {
+            "b": 1,
+            "bytes": 1,
+            "kib": 1024,
+            "mib": 1024 ** 2,
+            "gib": 1024 ** 3,
+            "tib": 1024 ** 4,
+            "kb": 1000,
+            "mb": 1000 ** 2,
+            "gb": 1000 ** 3,
+            "tb": 1000 ** 4,
+        }
+        factor = factors.get(normalized)
+        if factor is None:
+            return 0
+        return int(numeric * factor)
 
     @staticmethod
     def _normalize_vm_record(item: Mapping[str, Any]) -> dict[str, Any]:
@@ -394,6 +516,10 @@ class BeagleHostProvider:
                 network_name = bm.group(1)
         if net0.startswith("e1000"):
             net_model = "e1000"
+        mac_address = ""
+        mac_match = re.search(r"macaddr=([0-9A-Fa-f:]{17})", net0)
+        if mac_match:
+            mac_address = mac_match.group(1).lower()
 
         # Main disk
         scsi0 = str(config.get("scsi0", "") or "")
@@ -493,6 +619,12 @@ class BeagleHostProvider:
         lines += [
             f"    <interface type='network'>",
             f"      <source network='{network_name}'/>",
+        ]
+        if mac_address:
+            lines += [
+                f"      <mac address='{mac_address}'/>",
+            ]
+        lines += [
             f"      <model type='{net_model}'/>",
             "    </interface>",
             "    <serial type='pty'><target type='isa-serial' port='0'/></serial>",
@@ -823,8 +955,9 @@ class BeagleHostProvider:
         if record is None:
             raise RuntimeError(f"VM {int(vmid)} not found in beagle provider state")
         if self._libvirt_enabled():
-            if not self._libvirt_domain_exists(vmid):
-                self._provision_libvirt_vm(vmid)
+            # Keep libvirt XML aligned with the latest provider config (boot order,
+            # installer media cleanup, qemu args) before every start.
+            self._provision_libvirt_vm(vmid)
             self._run_virsh("start", self._libvirt_domain_name(vmid))
         record["status"] = "running"
         self._replace_vm(record)
