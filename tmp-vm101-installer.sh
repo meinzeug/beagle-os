@@ -1,0 +1,1396 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_BASENAME="$(basename "${BASH_SOURCE[0]}")"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DIST_DIR="$REPO_ROOT/dist/pve-thin-client-installer"
+ASSET_DIR="$DIST_DIR/live"
+USB_WRITER_VARIANT="${PVE_THIN_CLIENT_USB_WRITER_VARIANT:-installer}"
+if [[ -z "$USB_WRITER_VARIANT" ]]; then
+  case "$SCRIPT_BASENAME" in
+    *live-usb*.sh)
+      USB_WRITER_VARIANT="live"
+      ;;
+    *)
+      USB_WRITER_VARIANT="installer"
+      ;;
+  esac
+fi
+case "$USB_WRITER_VARIANT" in
+  installer|live)
+    ;;
+  *)
+    echo "Unsupported USB writer variant: $USB_WRITER_VARIANT" >&2
+    exit 1
+    ;;
+esac
+USB_LABEL="${USB_LABEL:-$([[ "$USB_WRITER_VARIANT" == "live" ]] && printf 'BEAGLELIVE' || printf 'BEAGLEOS')}"
+TARGET_DEVICE="${TARGET_DEVICE:-}"
+ASSUME_YES="0"
+LIST_DEVICES="0"
+LIST_JSON="0"
+DRY_RUN="0"
+REQUIRE_CHECKSUMS="0"
+ALLOW_NON_USB_DEVICE="0"
+ALLOW_SYSTEM_DISK="0"
+RELEASE_PAYLOAD_URL="${RELEASE_PAYLOAD_URL:-https://beagleserver:8443/beagle-downloads/pve-thin-client-usb-payload-latest.tar.gz}"
+INSTALL_PAYLOAD_URL="${INSTALL_PAYLOAD_URL:-https://beagleserver:8443/beagle-downloads/pve-thin-client-usb-payload-latest.tar.gz}"
+RELEASE_BOOTSTRAP_URL="${RELEASE_BOOTSTRAP_URL:-https://beagleserver:8443/beagle-downloads/pve-thin-client-usb-bootstrap-latest.tar.gz}"
+RELEASE_ISO_URL="${RELEASE_ISO_URL:-https://beagleserver:8443/beagle-downloads/beagle-os-installer-amd64.iso}"
+BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-1}"
+BOOTSTRAP_CACHE_DIR="${PVE_DCV_BOOTSTRAP_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME:-/root}/.cache}/pve-dcv-usb}"
+BOOTSTRAP_DIR=""
+BOOTSTRAPPED_STANDALONE="0"
+SKIP_CONFIRMATION="${PVE_DCV_SKIP_CONFIRMATION:-0}"
+MIN_DEVICE_BYTES="${MIN_DEVICE_BYTES:-4294967296}"
+PVE_THIN_CLIENT_PRESET_NAME="${PVE_THIN_CLIENT_PRESET_NAME:-vm-101}"
+PVE_THIN_CLIENT_PRESET_B64="${PVE_THIN_CLIENT_PRESET_B64:-IyBBdXRvLWdlbmVyYXRlZCBCZWFnbGUgT1MgVk0gcHJlc2V0ClBWRV9USElOX0NMSUVOVF9QUkVTRVRfQVVUT1NUQVJUPTEKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9CRUFHTEVfRUdSRVNTX0FMTE9XRURfSVBTPScnClBWRV9USElOX0NMSUVOVF9QUkVTRVRfQkVBR0xFX0VHUkVTU19ET01BSU5TPScnClBWRV9USElOX0NMSUVOVF9QUkVTRVRfQkVBR0xFX0VHUkVTU19JTlRFUkZBQ0U9YmVhZ2xlLWVncmVzcwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX0JFQUdMRV9FR1JFU1NfTU9ERT1kaXJlY3QKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9CRUFHTEVfRUdSRVNTX1JFU09MVkVSUz0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX0JFQUdMRV9FR1JFU1NfVFlQRT0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX0JFQUdMRV9FR1JFU1NfV0dfQUREUkVTUz0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX0JFQUdMRV9FR1JFU1NfV0dfRE5TPScnClBWRV9USElOX0NMSUVOVF9QUkVTRVRfQkVBR0xFX0VHUkVTU19XR19FTkRQT0lOVD0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX0JFQUdMRV9FR1JFU1NfV0dfUEVSU0lTVEVOVF9LRUVQQUxJVkU9MjUKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9CRUFHTEVfRUdSRVNTX1dHX1BSRVNIQVJFRF9LRVk9JycKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9CRUFHTEVfRUdSRVNTX1dHX1BSSVZBVEVfS0VZPScnClBWRV9USElOX0NMSUVOVF9QUkVTRVRfQkVBR0xFX0VHUkVTU19XR19QVUJMSUNfS0VZPScnClBWRV9USElOX0NMSUVOVF9QUkVTRVRfQkVBR0xFX0VOUk9MTE1FTlRfVE9LRU49Tkl0eHVZWTFsb3BuS1ZiRENTUFZmQUpEMjZtZWs1QS15eE94ak1uVEx6bwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX0JFQUdMRV9FTlJPTExNRU5UX1VSTD1odHRwczovL2JlYWdsZXNlcnZlcjo4NDQzL2JlYWdsZS1hcGkvYXBpL3YxL2VuZHBvaW50cy9lbnJvbGwKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9CRUFHTEVfTUFOQUdFUl9QSU5ORURfUFVCS0VZPScnClBWRV9USElOX0NMSUVOVF9QUkVTRVRfQkVBR0xFX01BTkFHRVJfVE9LRU49JycKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9CRUFHTEVfTUFOQUdFUl9VUkw9aHR0cHM6Ly9iZWFnbGVzZXJ2ZXI6ODQ0My9iZWFnbGUtYXBpClBWRV9USElOX0NMSUVOVF9QUkVTRVRfQkVBR0xFX1VQREFURV9CRUhBVklPUj1wcm9tcHQKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9CRUFHTEVfVVBEQVRFX0NIQU5ORUw9c3RhYmxlClBWRV9USElOX0NMSUVOVF9QUkVTRVRfQkVBR0xFX1VQREFURV9FTkFCTEVEPTEKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9CRUFHTEVfVVBEQVRFX0ZFRURfVVJMPWh0dHBzOi8vYmVhZ2xlc2VydmVyOjg0NDMvYmVhZ2xlLWFwaS9hcGkvdjEvZW5kcG9pbnRzL3VwZGF0ZS1mZWVkClBWRV9USElOX0NMSUVOVF9QUkVTRVRfQkVBR0xFX1VQREFURV9WRVJTSU9OX1BJTj0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX0RDVl9QQVNTV09SRD0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX0RDVl9TRVNTSU9OPScnClBWRV9USElOX0NMSUVOVF9QUkVTRVRfRENWX1RPS0VOPScnClBWRV9USElOX0NMSUVOVF9QUkVTRVRfRENWX1VSTD0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX0RDVl9VU0VSTkFNRT0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX0RFRkFVTFRfTU9ERT1NT09OTElHSFQKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9IT1NUTkFNRV9WQUxVRT1iZWFnbGUtZGVza3RvcC0wMQpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX0lERU5USVRZX0NIUk9NRV9QUk9GSUxFPXZtLTEwMQpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX0lERU5USVRZX0hPU1ROQU1FPWJlYWdsZS1kZXNrdG9wLTAxClBWRV9USElOX0NMSUVOVF9QUkVTRVRfSURFTlRJVFlfS0VZTUFQPWRlClBWRV9USElOX0NMSUVOVF9QUkVTRVRfSURFTlRJVFlfTE9DQUxFPWRlX0RFLlVURi04ClBWRV9USElOX0NMSUVOVF9QUkVTRVRfSURFTlRJVFlfVElNRVpPTkU9VVRDClBWRV9USElOX0NMSUVOVF9QUkVTRVRfTU9PTkxJR0hUX0FCU09MVVRFX01PVVNFPTEKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9NT09OTElHSFRfQVBQPURlc2t0b3AKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9NT09OTElHSFRfQVVESU9fQ09ORklHPXN0ZXJlbwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX01PT05MSUdIVF9CSU49bW9vbmxpZ2h0ClBWRV9USElOX0NMSUVOVF9QUkVTRVRfTU9PTkxJR0hUX0JJVFJBVEU9MjAwMDAKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9NT09OTElHSFRfRlBTPTYwClBWRV9USElOX0NMSUVOVF9QUkVTRVRfTU9PTkxJR0hUX0hPU1Q9MTkyLjE2OC4xMjIuMTMwClBWRV9USElOX0NMSUVOVF9QUkVTRVRfTU9PTkxJR0hUX0xPQ0FMX0hPU1Q9JycKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9NT09OTElHSFRfUE9SVD01MDAzMgpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX01PT05MSUdIVF9RVUlUX0FGVEVSPTAKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9NT09OTElHSFRfUkVTT0xVVElPTj1hdXRvClBWRV9USElOX0NMSUVOVF9QUkVTRVRfTU9PTkxJR0hUX1ZJREVPX0NPREVDPUguMjY0ClBWRV9USElOX0NMSUVOVF9QUkVTRVRfTU9PTkxJR0hUX1ZJREVPX0RFQ09ERVI9YXV0bwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX05FVFdPUktfRE5TX1NFUlZFUlM9JzEuMS4xLjEgOC44LjguOCcKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9ORVRXT1JLX0dBVEVXQVk9JycKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9ORVRXT1JLX0lOVEVSRkFDRT1ldGgwClBWRV9USElOX0NMSUVOVF9QUkVTRVRfTkVUV09SS19NT0RFPWRoY3AKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9ORVRXT1JLX1NUQVRJQ19BRERSRVNTPScnClBWRV9USElOX0NMSUVOVF9QUkVTRVRfTkVUV09SS19TVEFUSUNfUFJFRklYPTI0ClBWRV9USElOX0NMSUVOVF9QUkVTRVRfTk9WTkNfUEFTU1dPUkQ9JycKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9OT1ZOQ19UT0tFTj0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX05PVk5DX1VSTD0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX05PVk5DX1VTRVJOQU1FPScnClBWRV9USElOX0NMSUVOVF9QUkVTRVRfUFJPRklMRV9OQU1FPXZtLTEwMQpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX1BST1hNT1hfSE9TVD1iZWFnbGVzZXJ2ZXIKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9QUk9YTU9YX05PREU9YmVhZ2xlLTAKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9QUk9YTU9YX1BBU1NXT1JEPScnClBWRV9USElOX0NMSUVOVF9QUkVTRVRfUFJPWE1PWF9QT1JUPTgwMDYKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9QUk9YTU9YX1JFQUxNPXBhbQpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX1BST1hNT1hfU0NIRU1FPWh0dHBzClBWRV9USElOX0NMSUVOVF9QUkVTRVRfUFJPWE1PWF9UT0tFTj0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX1BST1hNT1hfVVNFUk5BTUU9JycKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9QUk9YTU9YX1ZFUklGWV9UTFM9MQpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX1BST1hNT1hfVk1JRD0xMDEKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9TUElDRV9NRVRIT0Q9JycKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9TUElDRV9QQVNTV09SRD0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX1NQSUNFX1RPS0VOPScnClBWRV9USElOX0NMSUVOVF9QUkVTRVRfU1BJQ0VfVVJMPScnClBWRV9USElOX0NMSUVOVF9QUkVTRVRfU1BJQ0VfVVNFUk5BTUU9JycKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9TVU5TSElORV9BUElfVVJMPWh0dHBzOi8vMTkyLjE2OC4xMjIuMTMwOjUwMDMzClBWRV9USElOX0NMSUVOVF9QUkVTRVRfU1VOU0hJTkVfUEFTU1dPUkQ9UUxVeHhrNlhObmg0VWVkRmtyR2V3Rm96UmMKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9TVU5TSElORV9QSU49NTEyNwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX1NVTlNISU5FX1BJTk5FRF9QVUJLRVk9JycKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9TVU5TSElORV9TRVJWRVJfQ0VSVF9CNjQ9JycKUFZFX1RISU5fQ0xJRU5UX1BSRVNFVF9TVU5TSElORV9TRVJWRVJfTkFNRT0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX1NVTlNISU5FX1NFUlZFUl9TVFJFQU1fUE9SVD01MDAzMgpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX1NVTlNISU5FX1NFUlZFUl9VTklRVUVJRD0nJwpQVkVfVEhJTl9DTElFTlRfUFJFU0VUX1NVTlNISU5FX1VTRVJOQU1FPXN1bnNoaW5lLXZtMTAxClBWRV9USElOX0NMSUVOVF9QUkVTRVRfVEhJTkNMSUVOVF9QQVNTV09SRD1BYUxlTEtMVVhUNzJ5WGs1bml4eVpTClBWRV9USElOX0NMSUVOVF9QUkVTRVRfVk1fTkFNRT1iZWFnbGUtZGVza3RvcC0wMQo=}"
+GRUB_BACKGROUND_SRC="$REPO_ROOT/thin-client-assistant/usb/assets/grub-background.jpg"
+
+project_version_from_root() {
+  if [[ -f "$REPO_ROOT/VERSION" ]]; then
+    tr -d ' \n\r' < "$REPO_ROOT/VERSION"
+    return 0
+  fi
+
+  printf 'dev\n'
+}
+
+PROJECT_VERSION="$(project_version_from_root)"
+
+usage() {
+  local media_label="installer"
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    media_label="live"
+  fi
+  cat <<EOF
+Usage: $0 [--device /dev/sdX] [--list-devices] [--yes] [--allow-non-usb] [--allow-system-disk]
+       [--json] [--dry-run] [--label NAME] [--require-checksums]
+
+Writes a bootable Beagle OS ${media_label} USB stick.
+The script can be started as a normal user and escalates to sudo only for the write phase.
+EOF
+}
+
+cleanup() {
+  if [[ -n "$BOOTSTRAP_DIR" && -d "$BOOTSTRAP_DIR" ]]; then
+    rm -rf "$BOOTSTRAP_DIR"
+  fi
+}
+trap cleanup EXIT
+
+rerun_as_root() {
+  local sudo_args=()
+  if [[ "${EUID}" -eq 0 ]]; then
+    return 0
+  fi
+
+  if ! command -v sudo >/dev/null 2>&1; then
+    echo "sudo is required for USB write operations." >&2
+    exit 1
+  fi
+
+  [[ -n "$TARGET_DEVICE" ]] && sudo_args+=(--device "$TARGET_DEVICE")
+  [[ "$LIST_DEVICES" == "1" ]] && sudo_args+=(--list-devices)
+  [[ "$LIST_JSON" == "1" ]] && sudo_args+=(--json)
+  [[ "$ASSUME_YES" == "1" ]] && sudo_args+=(--yes)
+  [[ "$DRY_RUN" == "1" ]] && sudo_args+=(--dry-run)
+  [[ "$REQUIRE_CHECKSUMS" == "1" ]] && sudo_args+=(--require-checksums)
+  [[ "$ALLOW_NON_USB_DEVICE" == "1" ]] && sudo_args+=(--allow-non-usb)
+  [[ "$ALLOW_SYSTEM_DISK" == "1" ]] && sudo_args+=(--allow-system-disk)
+  exec sudo \
+    USB_LABEL="$USB_LABEL" \
+    RELEASE_PAYLOAD_URL="$RELEASE_PAYLOAD_URL" \
+    INSTALL_PAYLOAD_URL="$INSTALL_PAYLOAD_URL" \
+    RELEASE_BOOTSTRAP_URL="$RELEASE_BOOTSTRAP_URL" \
+    RELEASE_ISO_URL="$RELEASE_ISO_URL" \
+    PVE_DCV_SKIP_CONFIRMATION="$SKIP_CONFIRMATION" \
+    PVE_DCV_BOOTSTRAP_CACHE_DIR="$BOOTSTRAP_CACHE_DIR" \
+    PVE_DCV_BOOTSTRAP_BASE="${PVE_DCV_BOOTSTRAP_BASE:-}" \
+    MIN_DEVICE_BYTES="$MIN_DEVICE_BYTES" \
+    PVE_THIN_CLIENT_PRESET_NAME="$PVE_THIN_CLIENT_PRESET_NAME" \
+    PVE_THIN_CLIENT_PRESET_B64="$PVE_THIN_CLIENT_PRESET_B64" \
+    "$0" "${sudo_args[@]}"
+}
+
+require_tool() {
+  local tool="$1"
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "Missing required tool: $tool" >&2
+    exit 1
+  fi
+}
+
+allocate_bootstrap_dir() {
+  local bases=()
+  local base=""
+  local candidate=""
+
+  [[ -n "${PVE_DCV_BOOTSTRAP_BASE:-}" ]] && bases+=("${PVE_DCV_BOOTSTRAP_BASE}")
+  [[ -n "${TMPDIR:-}" ]] && bases+=("${TMPDIR}")
+  bases+=("/var/tmp" "/tmp")
+
+  for base in "${bases[@]}"; do
+    [[ -d "$base" && -w "$base" ]] || continue
+    candidate="$(mktemp -d "$base/pve-dcv-usb.XXXXXX" 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  mktemp -d
+}
+
+bootstrap_repo_root() {
+  local tarball extracted checksum_file payload_name checksum_url checksum_log bootstrap_url
+  local cache_dir cached_tarball download_target used_cached checksum_entry_found checksum_ok
+  local -a checksum_curl_args download_curl_args
+  if [[ -d "$REPO_ROOT/thin-client-assistant" && -x "$REPO_ROOT/scripts/build-thin-client-installer.sh" ]]; then
+    return 0
+  fi
+
+  require_tool curl
+  require_tool tar
+
+  BOOTSTRAP_DIR="$(allocate_bootstrap_dir)"
+  extracted="$BOOTSTRAP_DIR/extracted"
+  mkdir -p "$extracted"
+  chmod 0755 "$BOOTSTRAP_DIR" "$extracted"
+
+  bootstrap_url="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-}}"
+  [[ -n "$bootstrap_url" ]] || {
+    echo "Standalone mode requires RELEASE_BOOTSTRAP_URL to point at a hosted thin-client USB bootstrap tarball." >&2
+    echo "Use the host-provided installer from https://<proxmox-host>:8443/beagle-downloads/ or export RELEASE_BOOTSTRAP_URL manually." >&2
+    exit 1
+  }
+
+  payload_name="$(basename "$bootstrap_url")"
+  tarball="$BOOTSTRAP_DIR/$payload_name"
+  cache_dir="$BOOTSTRAP_CACHE_DIR"
+  cached_tarball=""
+  used_cached="0"
+  checksum_entry_found="0"
+  checksum_ok="0"
+
+  checksum_curl_args=(--fail --silent --location --retry 2 --retry-delay 1)
+  download_curl_args=(--fail --show-error --location --retry 3 --retry-delay 2)
+  if [[ "$BOOTSTRAP_DISABLE_CACHE" == "1" ]]; then
+    cache_dir=""
+    checksum_curl_args+=(-H 'Cache-Control: no-cache' -H 'Pragma: no-cache')
+    download_curl_args+=(-H 'Cache-Control: no-cache' -H 'Pragma: no-cache')
+  else
+    download_curl_args+=(--continue-at -)
+  fi
+
+  if [[ -n "$cache_dir" ]]; then
+    if mkdir -p "$cache_dir" 2>/dev/null; then
+      cached_tarball="$cache_dir/$payload_name"
+    fi
+  fi
+
+  checksum_file="$BOOTSTRAP_DIR/SHA256SUMS"
+  checksum_url="${bootstrap_url%/*}/SHA256SUMS"
+  checksum_log="$BOOTSTRAP_DIR/checksum-download.log"
+
+  if [[ -n "$cached_tarball" && -f "$cached_tarball" ]]; then
+    echo "Using cached bootstrap candidate: $cached_tarball"
+    cp -f "$cached_tarball" "$tarball"
+    used_cached="1"
+  fi
+
+  if curl "${checksum_curl_args[@]}" "$checksum_url" -o "$checksum_file" 2>"$checksum_log"; then
+    if grep -F " ${payload_name}" "$checksum_file" >"$BOOTSTRAP_DIR/payload.sha256"; then
+      checksum_entry_found="1"
+      if [[ "$used_cached" == "1" ]]; then
+        if (
+          cd "$BOOTSTRAP_DIR"
+          sha256sum -c payload.sha256 >/dev/null
+        ); then
+          checksum_ok="1"
+        else
+          checksum_ok="0"
+        fi
+      fi
+    else
+      if [[ "$REQUIRE_CHECKSUMS" == "1" ]]; then
+        echo "Checksum verification is required but SHA256SUMS has no entry for $payload_name." >&2
+        exit 1
+      fi
+      echo "Warning: no checksum entry found for $payload_name, continuing without SHA256 verification." >&2
+    fi
+  else
+    if [[ "$REQUIRE_CHECKSUMS" == "1" ]]; then
+      echo "Checksum verification is required but companion SHA256SUMS could not be downloaded from $checksum_url." >&2
+      if [[ -s "$checksum_log" ]]; then
+        cat "$checksum_log" >&2
+      fi
+      exit 1
+    fi
+    echo "Warning: unable to download companion SHA256SUMS, continuing without payload verification." >&2
+  fi
+
+  if [[ "$used_cached" == "1" ]]; then
+    if [[ "$checksum_entry_found" == "1" && "$checksum_ok" == "1" ]]; then
+      echo "Cached bootstrap verified successfully."
+    elif [[ "$checksum_entry_found" == "1" ]]; then
+      echo "Cached bootstrap checksum failed, re-downloading..." >&2
+      used_cached="0"
+    else
+      echo "Proceeding with unverified cached bootstrap (no checksum entry)." >&2
+    fi
+  fi
+
+  if [[ "$used_cached" != "1" ]]; then
+    download_target="$tarball"
+    if [[ -n "$cached_tarball" ]]; then
+      download_target="$cached_tarball"
+    fi
+    echo "Downloading thin-client bootstrap bundle from $bootstrap_url ..."
+    curl "${download_curl_args[@]}" "$bootstrap_url" -o "$download_target"
+    if [[ "$download_target" != "$tarball" ]]; then
+      cp -f "$download_target" "$tarball"
+    fi
+
+    if [[ "$checksum_entry_found" == "1" ]]; then
+      (
+        cd "$BOOTSTRAP_DIR"
+        sha256sum -c payload.sha256 >/dev/null
+      )
+    fi
+  fi
+
+  tar -xzf "$tarball" -C "$extracted"
+  REPO_ROOT="$extracted"
+  DIST_DIR="$REPO_ROOT/dist/pve-thin-client-installer"
+  ASSET_DIR="$DIST_DIR/live"
+  BOOTSTRAPPED_STANDALONE="1"
+  PROJECT_VERSION="$(project_version_from_root)"
+  GRUB_BACKGROUND_SRC="$REPO_ROOT/thin-client-assistant/usb/assets/grub-background.jpg"
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --device)
+        TARGET_DEVICE="$2"
+        shift 2
+        ;;
+      --list-devices)
+        LIST_DEVICES="1"
+        shift
+        ;;
+      --json)
+        LIST_JSON="1"
+        shift
+        ;;
+      --yes|--force)
+        ASSUME_YES="1"
+        shift
+        ;;
+      --dry-run)
+        DRY_RUN="1"
+        shift
+        ;;
+      --require-checksums)
+        REQUIRE_CHECKSUMS="1"
+        shift
+        ;;
+      --label)
+        USB_LABEL="$2"
+        shift 2
+        ;;
+      --allow-non-usb)
+        ALLOW_NON_USB_DEVICE="1"
+        shift
+        ;;
+      --allow-system-disk)
+        ALLOW_SYSTEM_DISK="1"
+        shift
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "Unknown argument: $1" >&2
+        usage
+        exit 1
+        ;;
+    esac
+  done
+}
+
+list_candidate_devices() {
+  lsblk -dn -P -o NAME,SIZE,MODEL,TYPE,RM,TRAN
+}
+
+list_candidate_devices_tsv() {
+  lsblk -J -d -o NAME,SIZE,MODEL,TYPE,RM,TRAN | python3 -c '
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+
+separator = "\x1f"
+
+for item in payload.get("blockdevices", []):
+    rm = item.get("rm", 0)
+    if isinstance(rm, bool):
+        rm = "1" if rm else "0"
+    else:
+        rm = str(rm or "0")
+
+    values = [
+        str(item.get("name", "") or ""),
+        str(item.get("size", "") or ""),
+        str(item.get("model", "") or ""),
+        str(item.get("type", "") or ""),
+        rm,
+        str(item.get("tran", "") or ""),
+    ]
+    print(separator.join(values))
+'
+}
+
+print_devices_json() {
+  lsblk -J -d -o PATH,SIZE,MODEL,TYPE,RM,TRAN
+}
+
+print_devices() {
+  local name size model type rm transport
+
+  printf '%-12s %-8s %-32s %-4s %-3s %s\n' "DEVICE" "SIZE" "MODEL" "RM" "USB" "TRANSPORT"
+  while IFS=$'\x1f' read -r name size model type rm transport; do
+    [[ "$type" == "disk" ]] || continue
+    printf '%-12s %-8s %-32s %-4s %-3s %s\n' \
+      "/dev/${name}" \
+      "${size:-unknown}" \
+      "${model:-disk}" \
+      "${rm:-0}" \
+      "$([[ "${transport:-}" == "usb" ]] && printf 'yes' || printf 'no')" \
+      "${transport:-unknown}"
+  done < <(list_candidate_devices_tsv)
+}
+
+count_usb_candidates() {
+  local count=0
+  local name size model type rm transport
+
+  while IFS=$'\x1f' read -r name size model type rm transport; do
+    [[ "$type" == "disk" ]] || continue
+    if [[ "${rm:-0}" == "1" || "${transport:-}" == "usb" ]]; then
+      count=$((count + 1))
+    fi
+  done < <(list_candidate_devices_tsv)
+  printf '%s\n' "$count"
+}
+
+have_graphical_dialog() {
+  [[ -n "${DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1
+}
+
+detect_tty_path() {
+  local tty_path="/dev/tty"
+
+  if [[ -r "$tty_path" && -w "$tty_path" ]]; then
+    printf '%s\n' "$tty_path"
+  fi
+}
+
+have_tui_dialog() {
+  local tty_path="${1:-}"
+  [[ -n "$tty_path" ]] && command -v whiptail >/dev/null 2>&1
+}
+
+run_whiptail() {
+  local tty_path="$1"
+  shift
+
+  whiptail "$@" --output-fd 3 \
+    3>&1 \
+    1>"$tty_path" \
+    2>"$tty_path" \
+    <"$tty_path"
+}
+
+zenity_env() {
+  local zenity_config_dir="$1"
+
+  env \
+    HOME="$zenity_config_dir" \
+    XDG_CONFIG_HOME="$zenity_config_dir" \
+    XDG_CACHE_HOME="$zenity_config_dir/.cache" \
+    XDG_DATA_HOME="$zenity_config_dir/.local/share" \
+    XDG_RUNTIME_DIR="$zenity_config_dir/runtime" \
+    XDG_CURRENT_DESKTOP="" \
+    DESKTOP_SESSION="" \
+    GSETTINGS_BACKEND=memory \
+    GIO_USE_VFS=local \
+    GTK_THEME="${PVE_DCV_ZENITY_THEME:-Adwaita}" \
+    GTK_PATH="" \
+    GTK_RC_FILES=/dev/null \
+    GTK2_RC_FILES=/dev/null \
+    GTK_USE_PORTAL=0 \
+    NO_AT_BRIDGE=1
+}
+
+extract_block_device_from_text() {
+  local text="$1"
+  printf '%s\n' "$text" | grep -Eo '/dev/[[:alnum:]_.+:/-]+' | tail -n1
+}
+
+run_zenity() {
+  local zenity_config_dir=""
+  local zenity_stderr=""
+  local output=""
+  local status=0
+
+  zenity_config_dir="$(mktemp -d "${TMPDIR:-/tmp}/pve-dcv-zenity.XXXXXX")"
+  zenity_stderr="$zenity_config_dir/stderr.log"
+  mkdir -p \
+    "$zenity_config_dir/gtk-3.0" \
+    "$zenity_config_dir/.cache" \
+    "$zenity_config_dir/.local/share" \
+    "$zenity_config_dir/runtime"
+  chmod 0700 "$zenity_config_dir/runtime"
+
+  output="$(zenity_env "$zenity_config_dir" zenity "$@" 2>"$zenity_stderr")" || status=$?
+
+  if [[ "$status" -ne 0 && "$status" -ne 1 ]] && command -v dbus-run-session >/dev/null 2>&1; then
+    status=0
+    : >"$zenity_stderr"
+    output="$(
+      DBUS_SESSION_BUS_ADDRESS="" \
+      zenity_env "$zenity_config_dir" \
+      dbus-run-session -- \
+      zenity "$@" 2>"$zenity_stderr"
+    )" || status=$?
+  fi
+
+  if [[ -n "$output" ]]; then
+    printf '%s\n' "$output"
+  fi
+
+  if [[ "$status" -ne 0 && "$status" -ne 1 && -s "$zenity_stderr" ]]; then
+    cat "$zenity_stderr" >&2
+  fi
+
+  rm -rf "$zenity_config_dir"
+  return "$status"
+}
+
+payload_has_live_assets() {
+  [[ -f "$ASSET_DIR/filesystem.squashfs" && -f "$ASSET_DIR/vmlinuz" && -f "$ASSET_DIR/initrd.img" && -f "$ASSET_DIR/SHA256SUMS" ]]
+}
+
+download_installer_iso() {
+  local iso_url iso_name iso_path cache_dir cached_iso checksum_file checksum_url download_target
+  local checksum_entry_found used_cached checksum_ok
+  local -a checksum_curl_args download_curl_args
+
+  iso_url="${RELEASE_ISO_URL:-}"
+  [[ -n "$iso_url" ]] || return 1
+
+  require_tool curl
+  require_tool xorriso
+
+  [[ -n "$BOOTSTRAP_DIR" && -d "$BOOTSTRAP_DIR" ]] || BOOTSTRAP_DIR="$(allocate_bootstrap_dir)"
+
+  iso_name="$(basename "${iso_url%%\?*}")"
+  [[ -n "$iso_name" ]] || iso_name="beagle-os-installer-amd64.iso"
+  iso_path="$BOOTSTRAP_DIR/$iso_name"
+  cache_dir="$BOOTSTRAP_CACHE_DIR/iso"
+  cached_iso=""
+  used_cached="0"
+  checksum_entry_found="0"
+  checksum_ok="0"
+
+  checksum_curl_args=(--fail --silent --location --retry 2 --retry-delay 1)
+  download_curl_args=(--fail --show-error --location --retry 3 --retry-delay 2)
+  if [[ "$BOOTSTRAP_DISABLE_CACHE" == "1" ]]; then
+    cache_dir=""
+    checksum_curl_args+=(-H 'Cache-Control: no-cache' -H 'Pragma: no-cache')
+    download_curl_args+=(-H 'Cache-Control: no-cache' -H 'Pragma: no-cache')
+  else
+    download_curl_args+=(--continue-at -)
+  fi
+
+  if [[ -n "$cache_dir" ]] && mkdir -p "$cache_dir" 2>/dev/null; then
+    cached_iso="$cache_dir/$iso_name"
+  fi
+
+  checksum_file="$BOOTSTRAP_DIR/${iso_name}.sha256sums"
+  checksum_url="${iso_url%/*}/SHA256SUMS"
+  if [[ -n "$cached_iso" && -f "$cached_iso" ]]; then
+    cp -f "$cached_iso" "$iso_path"
+    used_cached="1"
+  fi
+
+  if curl "${checksum_curl_args[@]}" "$checksum_url" -o "$checksum_file" 2>/dev/null; then
+    if grep -F " ${iso_name}" "$checksum_file" >"$BOOTSTRAP_DIR/${iso_name}.sha256"; then
+      checksum_entry_found="1"
+      if [[ "$used_cached" == "1" ]]; then
+        if (
+          cd "$BOOTSTRAP_DIR"
+          sha256sum -c "${iso_name}.sha256" >/dev/null
+        ); then
+          checksum_ok="1"
+        else
+          checksum_ok="0"
+        fi
+      fi
+    fi
+  fi
+
+  if [[ "$used_cached" == "1" && "$checksum_entry_found" == "1" && "$checksum_ok" != "1" ]]; then
+    used_cached="0"
+  fi
+
+  if [[ "$used_cached" != "1" ]]; then
+    download_target="$iso_path"
+    if [[ -n "$cached_iso" ]]; then
+      download_target="$cached_iso"
+    fi
+    echo "Downloading Beagle installer ISO from $iso_url ..." >&2
+    curl "${download_curl_args[@]}" "$iso_url" -o "$download_target"
+    if [[ "$download_target" != "$iso_path" ]]; then
+      cp -f "$download_target" "$iso_path"
+    fi
+    if [[ "$checksum_entry_found" == "1" ]]; then
+      (
+        cd "$BOOTSTRAP_DIR"
+        sha256sum -c "${iso_name}.sha256" >/dev/null
+      )
+    fi
+  fi
+
+  printf '%s\n' "$iso_path"
+}
+
+populate_live_assets_from_iso() {
+  local iso_path
+
+  [[ -n "${RELEASE_ISO_URL:-}" ]] || return 1
+
+  iso_path="$(download_installer_iso)"
+  install -d -m 0755 "$ASSET_DIR"
+  rm -f "$ASSET_DIR"/vmlinuz "$ASSET_DIR"/initrd.img "$ASSET_DIR"/filesystem.squashfs "$ASSET_DIR"/SHA256SUMS
+  xorriso -osirrox on -indev "$iso_path" -extract /live/vmlinuz "$ASSET_DIR/vmlinuz" >/dev/null 2>&1
+  xorriso -osirrox on -indev "$iso_path" -extract /live/initrd.img "$ASSET_DIR/initrd.img" >/dev/null 2>&1
+  xorriso -osirrox on -indev "$iso_path" -extract /live/filesystem.squashfs "$ASSET_DIR/filesystem.squashfs" >/dev/null 2>&1
+  xorriso -osirrox on -indev "$iso_path" -extract /live/SHA256SUMS "$ASSET_DIR/SHA256SUMS" >/dev/null 2>&1
+}
+
+choose_device() {
+  local options=()
+  local zenity_rows=()
+  local device tty_path name size model type rm transport answer index zenity_status selected_device
+  local menu_height=16
+
+  tty_path="$(detect_tty_path || true)"
+
+  while IFS=$'\x1f' read -r name size model type rm transport; do
+    [[ "$type" == "disk" ]] || continue
+    device="/dev/${name}"
+    [[ "$device" == /dev/loop* || "$device" == /dev/sr* || "$device" == /dev/ram* || "$device" == /dev/zram* ]] && continue
+    if [[ "$ALLOW_NON_USB_DEVICE" != "1" && "${rm:-0}" != "1" && "${transport:-}" != "usb" ]]; then
+      continue
+    fi
+    options+=("$device" "${model:-disk} ${size:-unknown} usb=${transport:-}")
+    zenity_rows+=("$device" "${size:-unknown}" "${model:-disk}" "${transport:-unknown}")
+  done < <(list_candidate_devices_tsv)
+
+  if (( ${#options[@]} == 0 )); then
+    if [[ "$ALLOW_NON_USB_DEVICE" != "1" ]]; then
+      echo "No removable/USB target device found. Re-run with --allow-non-usb to show all disks." >&2
+      exit 1
+    fi
+    echo "No writable block device found." >&2
+    exit 1
+  fi
+
+  if have_tui_dialog "$tty_path"; then
+    if (( ${#options[@]} / 2 < menu_height )); then
+      menu_height=$(( ${#options[@]} / 2 + 6 ))
+    fi
+    answer="$(run_whiptail "$tty_path" \
+      --title "Beagle OS USB Writer" \
+      --backtitle "Bootable USB installer creation" \
+      --menu "Select the USB target device. The selected drive will be erased completely." \
+      22 100 "$menu_height" \
+      "${options[@]}")" || return $?
+    selected_device="$(extract_block_device_from_text "$answer")"
+    [[ -n "$selected_device" && -b "$selected_device" ]] || {
+      echo "Terminal device picker returned an invalid selection: ${answer:-<empty>}" >&2
+      exit 1
+    }
+    printf '%s\n' "$selected_device"
+    return 0
+  fi
+
+  if have_graphical_dialog; then
+    if answer="$(run_zenity --list \
+      --title="Beagle OS USB Writer" \
+      --text="Choose the USB target device for the installer media." \
+      --width=920 \
+      --height=520 \
+      --column="Device" \
+      --column="Size" \
+      --column="Model" \
+      --column="Transport" \
+      "${zenity_rows[@]}")"; then
+      selected_device="$(extract_block_device_from_text "$answer")"
+      if [[ -n "$selected_device" ]]; then
+        printf '%s\n' "$selected_device"
+        return 0
+      fi
+      echo "Graphical device picker returned an invalid selection, falling back to terminal selection." >&2
+    fi
+    zenity_status=$?
+    if [[ "$zenity_status" -eq 1 ]]; then
+      exit 1
+    fi
+    echo "Graphical device picker failed, falling back to terminal selection." >&2
+  fi
+
+  if [[ -z "$tty_path" ]]; then
+    echo "Interactive device selection requires a TTY. Re-run with --device /dev/sdX." >&2
+    exit 1
+  fi
+
+  {
+    echo "Available target devices:"
+    print_devices
+    echo
+  } >"$tty_path"
+
+  index=1
+  while (( index <= ${#options[@]} / 2 )); do
+    printf '%s) %s %s\n' "$index" "${options[$(( (index - 1) * 2 ))]}" "${options[$(( (index - 1) * 2 + 1 ))]}" >"$tty_path"
+    index=$((index + 1))
+  done
+  printf 'Choice: ' >"$tty_path"
+  read -r answer <"$tty_path"
+  [[ "$answer" =~ ^[0-9]+$ ]] || {
+    echo "Invalid selection: $answer" >&2
+    exit 1
+  }
+  (( answer >= 1 && answer <= ${#options[@]} / 2 )) || {
+    echo "Selection out of range: $answer" >&2
+    exit 1
+  }
+  printf '%s\n' "${options[$(( (answer - 1) * 2 ))]}"
+}
+
+partition_suffix() {
+  local device="$1"
+  local number="$2"
+  if [[ "$device" =~ [0-9]$ ]]; then
+    printf '%sp%s\n' "$device" "$number"
+  else
+    printf '%s%s\n' "$device" "$number"
+  fi
+}
+
+device_is_usb_like() {
+  local device="$1"
+  local rm transport
+
+  rm="$(lsblk -dn -o RM "$device" 2>/dev/null | head -n1 | tr -d ' ')"
+  transport="$(lsblk -dn -o TRAN "$device" 2>/dev/null | head -n1 | tr -d ' ')"
+  [[ "$rm" == "1" || "$transport" == "usb" ]]
+}
+
+root_backing_disk() {
+  local source pkname
+  source="$(findmnt -no SOURCE / 2>/dev/null || true)"
+  [[ -n "$source" ]] || return 1
+  pkname="$(lsblk -ndo PKNAME "$source" 2>/dev/null | head -n1)"
+  [[ -n "$pkname" ]] || return 1
+  printf '/dev/%s\n' "$pkname"
+}
+
+device_contains_path_source() {
+  local path="$1"
+  local source
+
+  source="$(findmnt -no SOURCE "$path" 2>/dev/null || true)"
+  [[ -n "$source" ]] || return 1
+  lsblk -nrpo NAME "$TARGET_DEVICE" 2>/dev/null | grep -Fxq "$source"
+}
+
+ensure_target_is_safe() {
+  local root_disk device_size
+
+  if [[ "$ALLOW_NON_USB_DEVICE" != "1" ]] && ! device_is_usb_like "$TARGET_DEVICE"; then
+    echo "Refusing to write non-USB/non-removable device $TARGET_DEVICE. Use --allow-non-usb to override." >&2
+    exit 1
+  fi
+
+  root_disk="$(root_backing_disk || true)"
+  if [[ "$ALLOW_SYSTEM_DISK" != "1" ]]; then
+    if [[ -n "$root_disk" && "$TARGET_DEVICE" == "$root_disk" ]]; then
+      echo "Refusing to overwrite the current system disk $TARGET_DEVICE. Use --allow-system-disk to override." >&2
+      exit 1
+    fi
+    if device_contains_path_source / || device_contains_path_source /boot || device_contains_path_source /boot/efi; then
+      echo "Refusing to overwrite a disk backing the running system. Use --allow-system-disk to override." >&2
+      exit 1
+    fi
+  fi
+
+  device_size="$(blockdev --getsize64 "$TARGET_DEVICE")"
+  if (( device_size < MIN_DEVICE_BYTES )); then
+    echo "Target device $TARGET_DEVICE is too small (${device_size} bytes). Need at least ${MIN_DEVICE_BYTES} bytes." >&2
+    exit 1
+  fi
+}
+
+show_target_device() {
+  [[ -b "$TARGET_DEVICE" ]] || {
+    echo "Block device not found: $TARGET_DEVICE" >&2
+    print_devices >&2
+    exit 1
+  }
+
+  lsblk "$TARGET_DEVICE" 2>/dev/null || true
+}
+
+confirm_device_selection() {
+  local answer zenity_status tty_path
+
+  show_target_device
+  if [[ "$DRY_RUN" == "1" ]]; then
+    return 0
+  fi
+  if [[ "$ASSUME_YES" == "1" ]]; then
+    return 0
+  fi
+
+  tty_path="$(detect_tty_path || true)"
+  if have_tui_dialog "$tty_path"; then
+    run_whiptail "$tty_path" \
+      --title "Write USB Installer" \
+      --backtitle "Beagle OS USB Writer" \
+      --yesno "The selected drive will be erased completely and turned into a bootable Beagle OS installer.\n\nTarget: ${TARGET_DEVICE}\nPreset: ${PVE_THIN_CLIENT_PRESET_NAME:-generic}" \
+      16 84
+    return $?
+  fi
+
+  if have_graphical_dialog; then
+    if run_zenity --question \
+      --title="Write USB Installer" \
+      --width=760 \
+      --text="The selected drive will be erased completely and turned into a bootable Beagle OS installer.\n\nTarget: ${TARGET_DEVICE}\nPreset: ${PVE_THIN_CLIENT_PRESET_NAME:-generic}" \
+      --ok-label="Write USB" \
+      --cancel-label="Cancel"; then
+      return 0
+    fi
+    zenity_status=$?
+    if [[ "$zenity_status" -eq 1 ]]; then
+      return 1
+    fi
+    echo "Graphical confirmation dialog failed, falling back to terminal prompt." >&2
+  fi
+
+  read -r -p "Erase and re-create $TARGET_DEVICE as Beagle OS USB? [y/N]: " answer
+  [[ "$answer" =~ ^[Yy]$ ]]
+}
+
+confirm_device() {
+  show_target_device
+  ensure_target_is_safe
+}
+
+release_target_device() {
+  local mountpoint=""
+  local part=""
+  local parts=()
+
+  mapfile -t parts < <(lsblk -nrpo NAME "$TARGET_DEVICE" | tail -n +2)
+  for part in "${parts[@]}"; do
+    while IFS= read -r mountpoint; do
+      [[ -n "$mountpoint" ]] || continue
+      umount "$mountpoint"
+    done < <(findmnt -rn -S "$part" -o TARGET 2>/dev/null || true)
+  done
+
+  partprobe "$TARGET_DEVICE" || true
+  udevadm settle || true
+}
+
+ensure_live_assets() {
+  if payload_has_live_assets; then
+    return 0
+  fi
+
+  if [[ -n "${RELEASE_ISO_URL:-}" ]]; then
+    populate_live_assets_from_iso
+    return 0
+  fi
+
+  if [[ "$BOOTSTRAPPED_STANDALONE" == "1" ]]; then
+    echo "Hosted payload bundle is incomplete: missing live installer assets under $ASSET_DIR" >&2
+    echo "Refresh host artifacts on the Proxmox server and download a fresh installer." >&2
+    exit 1
+  fi
+
+  "$REPO_ROOT/scripts/build-thin-client-installer.sh"
+}
+
+validate_live_assets() {
+  if [[ ! -f "$ASSET_DIR/SHA256SUMS" ]]; then
+    echo "Missing live asset checksum file: $ASSET_DIR/SHA256SUMS" >&2
+    exit 1
+  fi
+
+  (
+    cd "$ASSET_DIR"
+    sha256sum -c SHA256SUMS
+  )
+}
+
+install_dependencies() {
+  local missing=()
+  local need_packages="0"
+  local tool
+
+  for tool in wipefs parted mkfs.vfat grub-install rsync partprobe udevadm xorriso; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      missing+=("$tool")
+      need_packages="1"
+    fi
+  done
+
+  if [[ ! -d /usr/lib/grub/i386-pc || ! -d /usr/lib/grub/x86_64-efi ]]; then
+    need_packages="1"
+  fi
+
+  if [[ "$need_packages" != "1" ]]; then
+    return 0
+  fi
+
+  DEBIAN_FRONTEND=noninteractive apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    dosfstools \
+    e2fsprogs \
+    parted \
+    grub-pc-bin \
+    grub-efi-amd64-bin \
+    efibootmgr \
+    xorriso \
+    rsync
+}
+
+write_usb_manifest() {
+  local mount_dir="$1"
+  local payload_source installer_sha payload_sha
+  local live_dir
+
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    live_dir="$mount_dir/live"
+  else
+    live_dir="$mount_dir/pve-thin-client/live"
+  fi
+  payload_source="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-${RELEASE_ISO_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}}"
+  if [[ -f "$mount_dir/start-installer-menu.sh" ]]; then
+    installer_sha="$(sha256sum "$mount_dir/start-installer-menu.sh" | awk '{print $1}')"
+  else
+    installer_sha=""
+  fi
+  payload_sha="$(sha256sum "$live_dir/filesystem.squashfs" | awk '{print $1}')"
+
+  python3 - "$mount_dir/.pve-dcv-usb-manifest.json" "$PROJECT_VERSION" "$USB_LABEL" "$TARGET_DEVICE" "$payload_source" "$installer_sha" "$payload_sha" "${PVE_THIN_CLIENT_PRESET_NAME:-}" "$USB_WRITER_VARIANT" <<'PY'
+import json
+import socket
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import urlparse
+
+path = Path(sys.argv[1])
+version = sys.argv[2]
+label = sys.argv[3]
+device = sys.argv[4]
+payload_source = sys.argv[5]
+installer_sha = sys.argv[6]
+payload_sha = sys.argv[7]
+preset_name = sys.argv[8]
+usb_writer_variant = sys.argv[9]
+parsed = urlparse(payload_source) if payload_source else None
+proxmox_host = parsed.hostname if parsed and parsed.hostname else ""
+proxmox_host_ip = ""
+if proxmox_host:
+    try:
+        infos = socket.getaddrinfo(proxmox_host, None, family=socket.AF_INET, type=socket.SOCK_STREAM)
+    except OSError:
+        infos = []
+    for info in infos:
+        candidate = info[4][0]
+        if candidate:
+            proxmox_host_ip = candidate
+            break
+
+payload = {
+    "project_version": version,
+    "usb_writer_variant": usb_writer_variant,
+    "usb_label": label,
+    "target_device": device,
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "payload_source": payload_source,
+    "start_installer_menu_sha256": installer_sha,
+    "filesystem_squashfs_sha256": payload_sha,
+    "preset_name": preset_name,
+    "proxmox_api_scheme": "https",
+    "proxmox_api_host": proxmox_host,
+    "proxmox_api_host_ip": proxmox_host_ip,
+    "proxmox_api_port": "8006",
+    "proxmox_api_verify_tls": "1",
+}
+path.write_text(json.dumps(payload, indent=2) + "\n")
+PY
+
+  if [[ -d "$mount_dir/pve-thin-client/live" ]]; then
+    install -m 0644 "$mount_dir/.pve-dcv-usb-manifest.json" "$mount_dir/pve-thin-client/live/.pve-dcv-usb-manifest.json"
+  elif [[ -d "$mount_dir/live" ]]; then
+    install -m 0644 "$mount_dir/.pve-dcv-usb-manifest.json" "$mount_dir/live/.pve-dcv-usb-manifest.json"
+  fi
+}
+
+write_usb_preset() {
+  local mount_dir="$1"
+  local preset_file
+  local preset_live_file
+
+  [[ -n "$PVE_THIN_CLIENT_PRESET_B64" ]] || return 0
+
+  preset_file="$mount_dir/pve-thin-client/preset.env"
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    preset_live_file="$mount_dir/live/preset.env"
+  else
+    preset_live_file="$mount_dir/pve-thin-client/live/preset.env"
+  fi
+  install -d -m 0755 "$mount_dir/pve-thin-client"
+  python3 - "$preset_file" "$PVE_THIN_CLIENT_PRESET_B64" <<'PY'
+import base64
+import sys
+from pathlib import Path
+
+target = Path(sys.argv[1])
+payload = sys.argv[2].strip()
+if not payload:
+    raise SystemExit(0)
+
+decoded = base64.b64decode(payload.encode("ascii"), validate=True)
+target.write_bytes(decoded)
+target.chmod(0o600)
+PY
+
+  # The live installer UI probes presets before escalating privileges.
+  # Keep preset readable inside the live medium to avoid false "no preset" states.
+  install -m 0644 "$preset_file" "$preset_live_file"
+}
+
+write_live_state_config() {
+  local mount_dir="$1"
+  local preset_file=""
+  local live_state_dir="$mount_dir/pve-thin-client/state"
+
+  [[ -n "$PVE_THIN_CLIENT_PRESET_B64" ]] || {
+    echo "Live USB creation requires an embedded VM preset." >&2
+    exit 1
+  }
+
+  preset_file="$(mktemp)"
+  python3 - "$preset_file" "$PVE_THIN_CLIENT_PRESET_B64" <<'PY'
+import base64
+import sys
+from pathlib import Path
+
+Path(sys.argv[1]).write_bytes(base64.b64decode(sys.argv[2].encode("ascii"), validate=True))
+PY
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$preset_file"
+  set +a
+
+  install -d -m 0755 "$live_state_dir"
+
+  MODE="${PVE_THIN_CLIENT_PRESET_DEFAULT_MODE:-MOONLIGHT}"
+  if [[ -z "$MODE" && -n "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" ]]; then
+    MODE="MOONLIGHT"
+  fi
+  [[ -n "$MODE" ]] || {
+    echo "Live USB preset does not define a supported default mode." >&2
+    exit 1
+  }
+
+  MODE="$MODE" \
+  PROFILE_NAME="${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-default}" \
+  RUNTIME_USER="thinclient" \
+  AUTOSTART="${PVE_THIN_CLIENT_PRESET_AUTOSTART:-1}" \
+  HOSTNAME_VALUE="${PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE:-beagle-live}" \
+  CONNECTION_METHOD="${PVE_THIN_CLIENT_PRESET_CONNECTION_METHOD:-direct}" \
+  NETWORK_MODE="${PVE_THIN_CLIENT_PRESET_NETWORK_MODE:-dhcp}" \
+  NETWORK_INTERFACE="${PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE:-eth0}" \
+  NETWORK_STATIC_ADDRESS="${PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_ADDRESS:-}" \
+  NETWORK_STATIC_PREFIX="${PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_PREFIX:-24}" \
+  NETWORK_GATEWAY="${PVE_THIN_CLIENT_PRESET_NETWORK_GATEWAY:-}" \
+  NETWORK_DNS_SERVERS="${PVE_THIN_CLIENT_PRESET_NETWORK_DNS_SERVERS:-1.1.1.1 8.8.8.8}" \
+  MOONLIGHT_HOST="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" \
+  MOONLIGHT_LOCAL_HOST="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_LOCAL_HOST:-}" \
+  MOONLIGHT_PORT="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_PORT:-}" \
+  MOONLIGHT_APP="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP:-Desktop}" \
+  MOONLIGHT_BIN="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN:-moonlight}" \
+  MOONLIGHT_RESOLUTION="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION:-auto}" \
+  MOONLIGHT_FPS="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS:-60}" \
+  MOONLIGHT_BITRATE="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE:-20000}" \
+  MOONLIGHT_VIDEO_CODEC="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC:-H.264}" \
+  MOONLIGHT_VIDEO_DECODER="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER:-auto}" \
+  MOONLIGHT_AUDIO_CONFIG="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG:-stereo}" \
+  MOONLIGHT_ABSOLUTE_MOUSE="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE:-1}" \
+  MOONLIGHT_QUIT_AFTER="${PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER:-0}" \
+  SUNSHINE_API_URL="${PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL:-}" \
+  PROXMOX_SCHEME="${PVE_THIN_CLIENT_PRESET_PROXMOX_SCHEME:-https}" \
+  PROXMOX_HOST="${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" \
+  PROXMOX_PORT="${PVE_THIN_CLIENT_PRESET_PROXMOX_PORT:-8006}" \
+  PROXMOX_NODE="${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" \
+  PROXMOX_VMID="${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" \
+  PROXMOX_REALM="${PVE_THIN_CLIENT_PRESET_PROXMOX_REALM:-pam}" \
+  PROXMOX_VERIFY_TLS="${PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS:-1}" \
+  CONNECTION_USERNAME="${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}" \
+  CONNECTION_PASSWORD="${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}" \
+  CONNECTION_TOKEN="${PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN:-}" \
+  BEAGLE_MANAGER_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL:-}" \
+  BEAGLE_MANAGER_PINNED_PUBKEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_PINNED_PUBKEY:-}" \
+  BEAGLE_ENROLLMENT_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_URL:-}" \
+  BEAGLE_MANAGER_TOKEN="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN:-}" \
+  BEAGLE_ENROLLMENT_TOKEN="${PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_TOKEN:-}" \
+  BEAGLE_EGRESS_MODE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_MODE:-direct}" \
+  BEAGLE_EGRESS_TYPE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_TYPE:-}" \
+  BEAGLE_EGRESS_INTERFACE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_INTERFACE:-beagle-egress}" \
+  BEAGLE_EGRESS_DOMAINS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_DOMAINS:-}" \
+  BEAGLE_EGRESS_RESOLVERS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_RESOLVERS:-}" \
+  BEAGLE_EGRESS_ALLOWED_IPS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_ALLOWED_IPS:-}" \
+  BEAGLE_EGRESS_WG_ADDRESS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_ADDRESS:-}" \
+  BEAGLE_EGRESS_WG_DNS="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_DNS:-}" \
+  BEAGLE_EGRESS_WG_PUBLIC_KEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PUBLIC_KEY:-}" \
+  BEAGLE_EGRESS_WG_ENDPOINT="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_ENDPOINT:-}" \
+  BEAGLE_EGRESS_WG_PRIVATE_KEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRIVATE_KEY:-}" \
+  BEAGLE_EGRESS_WG_PRESHARED_KEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRESHARED_KEY:-}" \
+  BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE="${PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE:-25}" \
+  IDENTITY_HOSTNAME="${PVE_THIN_CLIENT_PRESET_IDENTITY_HOSTNAME:-${PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE:-}}" \
+  IDENTITY_TIMEZONE="${PVE_THIN_CLIENT_PRESET_IDENTITY_TIMEZONE:-}" \
+  IDENTITY_LOCALE="${PVE_THIN_CLIENT_PRESET_IDENTITY_LOCALE:-}" \
+  IDENTITY_KEYMAP="${PVE_THIN_CLIENT_PRESET_IDENTITY_KEYMAP:-}" \
+  IDENTITY_CHROME_PROFILE="${PVE_THIN_CLIENT_PRESET_IDENTITY_CHROME_PROFILE:-default}" \
+  SUNSHINE_USERNAME="${PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME:-}" \
+  SUNSHINE_PASSWORD="${PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD:-}" \
+  SUNSHINE_PIN="${PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN:-}" \
+  SUNSHINE_PINNED_PUBKEY="${PVE_THIN_CLIENT_PRESET_SUNSHINE_PINNED_PUBKEY:-}" \
+  SUNSHINE_SERVER_NAME="${PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_NAME:-}" \
+  SUNSHINE_SERVER_STREAM_PORT="${PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_STREAM_PORT:-}" \
+  SUNSHINE_SERVER_UNIQUEID="${PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_UNIQUEID:-}" \
+  SUNSHINE_SERVER_CERT_B64="${PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_CERT_B64:-}" \
+  RUNTIME_PASSWORD="${PVE_THIN_CLIENT_PRESET_THINCLIENT_PASSWORD:-}" \
+    "$REPO_ROOT/thin-client-assistant/installer/write-config.sh" "$live_state_dir"
+
+  if [[ ! -f "$live_state_dir/local-auth.env" ]]; then
+    printf '%s\n' "local-auth.env missing after write-config; restoring runtime password file" >&2
+    cat >"$live_state_dir/local-auth.env" <<EOF
+PVE_THIN_CLIENT_RUNTIME_PASSWORD="${PVE_THIN_CLIENT_PRESET_THINCLIENT_PASSWORD:-}"
+EOF
+  fi
+
+  if [[ ! -f "$live_state_dir/local-auth.env" ]]; then
+    fail "Failed to persist local-auth.env to $live_state_dir"
+  fi
+
+  rm -f "$preset_file"
+}
+
+boot_ip_arg() {
+  local network_mode="$1"
+  local network_static_address="$2"
+  local network_static_prefix="$3"
+  local network_gateway="$4"
+  local hostname_value="$5"
+  local network_interface="$6"
+  local netmask=""
+
+  if [[ "$network_mode" == "dhcp" || -z "$network_static_address" || -z "$network_interface" ]]; then
+    printf 'ip=dhcp'
+    return 0
+  fi
+
+  netmask="$(python3 - "$network_static_prefix" <<'PY'
+import ipaddress
+import sys
+print(ipaddress.ip_network(f"0.0.0.0/{int(sys.argv[1])}").netmask)
+PY
+)"
+  printf 'ip=%s::%s:%s:%s:%s:none' \
+    "$network_static_address" \
+    "$network_gateway" \
+    "$netmask" \
+    "$hostname_value" \
+    "$network_interface"
+}
+
+print_write_plan() {
+  local bootstrap_source install_payload_source media_label live_assets_path
+
+  bootstrap_source="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}"
+  install_payload_source="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-${RELEASE_ISO_URL:-$REPO_ROOT/dist/pve-thin-client-usb-payload-latest.tar.gz}}}"
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    media_label="live"
+    live_assets_path="/live"
+  else
+    media_label="installer"
+    live_assets_path="/pve-thin-client/live"
+  fi
+  cat <<EOF
+Dry run only. No changes were written.
+Target device: $TARGET_DEVICE
+USB label: $USB_LABEL
+Project version: $PROJECT_VERSION
+Bootstrap source: ${bootstrap_source}
+Install payload source: ${install_payload_source}
+Preset profile: ${PVE_THIN_CLIENT_PRESET_NAME:-generic}
+USB variant: ${USB_WRITER_VARIANT}
+Planned partitions:
+  1. BIOS boot partition (1 MiB - 3 MiB)
+  2. FAT32 EFI/data partition (3 MiB - 100%)
+Copied assets:
+  - live kernel, initrd and squashfs from ${install_payload_source} to ${live_assets_path}
+  - thin-client assistant sources
+  - embedded VM preset profile$( [[ "$USB_WRITER_VARIANT" == "live" ]] && printf ' and runtime state' )
+  - docs, README, LICENSE, CHANGELOG
+  - generated USB manifest
+Result:
+  - bootable Beagle OS ${media_label} USB medium
+EOF
+}
+
+write_usb() {
+  local mount_dir bios_partition usb_partition usb_uuid runtime_ip_args
+  local live_mount_dir hostname_value network_mode network_static_address network_static_prefix network_gateway network_interface
+  local grub_default_index="0" grub_timeout="5"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    print_write_plan
+    return 0
+  fi
+
+  mount_dir="$(mktemp -d)"
+  trap 'umount "$mount_dir" >/dev/null 2>&1 || true; rmdir "$mount_dir" >/dev/null 2>&1 || true' RETURN
+
+  release_target_device
+  wipefs -a "$TARGET_DEVICE"
+  parted -s "$TARGET_DEVICE" mklabel gpt
+  parted -s "$TARGET_DEVICE" mkpart BIOSBOOT 1MiB 3MiB
+  parted -s "$TARGET_DEVICE" set 1 bios_grub on
+  parted -s "$TARGET_DEVICE" mkpart ESP fat32 3MiB 100%
+  parted -s "$TARGET_DEVICE" set 2 esp on
+  parted -s "$TARGET_DEVICE" set 2 boot on
+  partprobe "$TARGET_DEVICE"
+  udevadm settle
+
+  bios_partition="$(partition_suffix "$TARGET_DEVICE" 1)"
+  usb_partition="$(partition_suffix "$TARGET_DEVICE" 2)"
+  [[ -b "$bios_partition" ]] || {
+    echo "BIOS boot partition was not created on $TARGET_DEVICE" >&2
+    exit 1
+  }
+  for _ in $(seq 1 20); do
+    [[ -b "$usb_partition" ]] && break
+    sleep 1
+    udevadm settle || true
+  done
+  [[ -b "$usb_partition" ]] || {
+    echo "EFI/data partition was not created on $TARGET_DEVICE" >&2
+    exit 1
+  }
+  mkfs.vfat -F 32 -n "$USB_LABEL" "$usb_partition"
+  usb_uuid="$(blkid -s UUID -o value "$usb_partition" 2>/dev/null || true)"
+  [[ -n "$usb_uuid" ]] || {
+    echo "Unable to determine UUID for USB installer partition $usb_partition" >&2
+    exit 1
+  }
+  mount "$usb_partition" "$mount_dir"
+
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    live_mount_dir="$mount_dir/live"
+  else
+    live_mount_dir="$mount_dir/pve-thin-client/live"
+  fi
+
+  install -d -m 0755 \
+    "$mount_dir/boot/grub" \
+    "$live_mount_dir" \
+    "$mount_dir/pve-dcv-integration"
+  install -d -m 0755 "$mount_dir/pve-thin-client"
+
+  install -m 0644 "$ASSET_DIR/vmlinuz" "$live_mount_dir/vmlinuz"
+  install -m 0644 "$ASSET_DIR/initrd.img" "$live_mount_dir/initrd.img"
+  install -m 0644 "$ASSET_DIR/filesystem.squashfs" "$live_mount_dir/filesystem.squashfs"
+  install -m 0644 "$ASSET_DIR/SHA256SUMS" "$live_mount_dir/SHA256SUMS"
+
+  rsync -rlt --delete \
+    --no-owner \
+    --no-group \
+    --no-perms \
+    --exclude 'live-build' \
+    "$REPO_ROOT/thin-client-assistant/" "$mount_dir/pve-dcv-integration/thin-client-assistant/"
+  rsync -rlt \
+    --no-owner \
+    --no-group \
+    --no-perms \
+    "$REPO_ROOT/docs/" "$mount_dir/pve-dcv-integration/docs/"
+  install -m 0644 "$REPO_ROOT/README.md" "$mount_dir/pve-dcv-integration/README.md"
+  install -m 0644 "$REPO_ROOT/LICENSE" "$mount_dir/pve-dcv-integration/LICENSE"
+  install -m 0644 "$REPO_ROOT/CHANGELOG.md" "$mount_dir/pve-dcv-integration/CHANGELOG.md"
+  if [[ "$USB_WRITER_VARIANT" == "installer" ]]; then
+    install -m 0755 "$REPO_ROOT/thin-client-assistant/usb/start-installer-menu.sh" "$mount_dir/start-installer-menu.sh"
+  fi
+  if [[ -f "$GRUB_BACKGROUND_SRC" ]]; then
+    install -m 0644 "$GRUB_BACKGROUND_SRC" "$mount_dir/boot/grub/background.jpg"
+  fi
+  write_usb_preset "$mount_dir"
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    write_live_state_config "$mount_dir"
+  fi
+  write_usb_manifest "$mount_dir"
+  if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
+    hostname_value="beagle-live"
+    network_mode="dhcp"
+    network_static_address=""
+    network_static_prefix="24"
+    network_gateway=""
+    network_interface="eth0"
+
+    if [[ -f "$mount_dir/pve-thin-client/state/thinclient.conf" ]]; then
+      hostname_value="$(sed -n 's/^HOSTNAME=//p' "$mount_dir/pve-thin-client/state/thinclient.conf" | head -n1)"
+      [[ -n "$hostname_value" ]] || hostname_value="beagle-live"
+    fi
+    if [[ -f "$mount_dir/pve-thin-client/state/network.env" ]]; then
+      network_mode="$(sed -n 's/^NETWORK_MODE=//p' "$mount_dir/pve-thin-client/state/network.env" | head -n1)"
+      network_static_address="$(sed -n 's/^STATIC_IP=//p' "$mount_dir/pve-thin-client/state/network.env" | head -n1)"
+      network_static_prefix="$(sed -n 's/^STATIC_PREFIX=//p' "$mount_dir/pve-thin-client/state/network.env" | head -n1)"
+      network_gateway="$(sed -n 's/^GATEWAY=//p' "$mount_dir/pve-thin-client/state/network.env" | head -n1)"
+      network_interface="$(sed -n 's/^INTERFACE=//p' "$mount_dir/pve-thin-client/state/network.env" | head -n1)"
+    fi
+    [[ -n "$network_static_prefix" ]] || network_static_prefix="24"
+    [[ -n "$network_interface" ]] || network_interface="eth0"
+    runtime_ip_args="$(boot_ip_arg "$network_mode" "$network_static_address" "$network_static_prefix" "$network_gateway" "$hostname_value" "$network_interface")"
+
+cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
+insmod part_gpt
+insmod fat
+terminal_output console
+set default=0
+set timeout=5
+
+menuentry 'Beagle OS Live' {
+  search --no-floppy --fs-uuid --set=root ${usb_uuid}
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime
+  initrd /live/initrd.img
+}
+
+menuentry 'Beagle OS Live (safe mode)' {
+  search --no-floppy --fs-uuid --set=root ${usb_uuid}
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic pve_thin_client.mode=runtime
+  initrd /live/initrd.img
+}
+
+menuentry 'Beagle OS Live (legacy IRQ mode)' {
+  search --no-floppy --fs-uuid --set=root ${usb_uuid}
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic pve_thin_client.mode=runtime
+  initrd /live/initrd.img
+}
+EOF
+  else
+    # Preset-specific installer media should boot straight into the text
+    # installer path. The installer stick itself is TUI-only; there is no
+    # graphical installer session on USB media anymore.
+    if [[ -n "${PVE_THIN_CLIENT_PRESET_B64:-}" || -n "${PVE_THIN_CLIENT_PRESET_NAME:-}" ]]; then
+      grub_default_index="0"
+      grub_timeout="0"
+    fi
+
+    cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
+terminal_output console
+set default=${grub_default_index}
+set timeout=${grub_timeout}
+set gfxpayload=text
+
+menuentry 'Beagle OS Installer' {
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 plymouth.ignore-serial-consoles systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
+  initrd /pve-thin-client/live/initrd.img
+}
+
+menuentry 'Beagle OS Installer (compatibility mode)' {
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
+  initrd /pve-thin-client/live/initrd.img
+}
+
+menuentry 'Beagle OS Installer (legacy IRQ mode)' {
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll noapic nolapic systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
+  initrd /pve-thin-client/live/initrd.img
+}
+
+menuentry 'Boot from local disk' {
+  exit
+}
+EOF
+  fi
+
+  grub-install --target=i386-pc --boot-directory="$mount_dir/boot" "$TARGET_DEVICE"
+  grub-install \
+    --target=x86_64-efi \
+    --efi-directory="$mount_dir" \
+    --boot-directory="$mount_dir/boot" \
+    --removable \
+    --no-nvram
+
+  (
+    cd "$live_mount_dir"
+    sha256sum -c SHA256SUMS
+  )
+
+  sync
+}
+
+parse_args "$@"
+if [[ "$LIST_DEVICES" == "1" ]]; then
+  if [[ "$LIST_JSON" == "1" ]]; then
+    print_devices_json
+  else
+    print_devices
+  fi
+  exit 0
+fi
+require_tool lsblk
+if [[ -z "$TARGET_DEVICE" ]]; then
+  TARGET_DEVICE="$(choose_device)"
+fi
+if [[ "$SKIP_CONFIRMATION" != "1" ]]; then
+  confirm_device_selection
+  SKIP_CONFIRMATION="1"
+fi
+rerun_as_root
+confirm_device
+bootstrap_repo_root
+install_dependencies
+ensure_live_assets
+validate_live_assets
+echo "Downloads completed. Writing Beagle OS installer USB to $TARGET_DEVICE ..."
+write_usb
+echo "USB stick completed: $TARGET_DEVICE"
+echo "USB installer media prepared on $TARGET_DEVICE"

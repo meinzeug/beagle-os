@@ -11,6 +11,7 @@ class AdminHttpSurfaceService:
         *,
         create_provisioned_vm: Callable[[dict[str, Any]], dict[str, Any]],
         create_ubuntu_beagle_vm: Callable[[dict[str, Any]], dict[str, Any]],
+        delete_provisioned_vm: Callable[[int], dict[str, Any]],
         delete_policy: Callable[[str], bool],
         queue_bulk_actions: Callable[[list[int], str, str], list[dict[str, Any]]],
         save_policy: Callable[..., dict[str, Any]],
@@ -21,6 +22,7 @@ class AdminHttpSurfaceService:
     ) -> None:
         self._create_provisioned_vm = create_provisioned_vm
         self._create_ubuntu_beagle_vm = create_ubuntu_beagle_vm
+        self._delete_provisioned_vm = delete_provisioned_vm
         self._delete_policy = delete_policy
         self._queue_bulk_actions = queue_bulk_actions
         self._save_policy = save_policy
@@ -60,7 +62,7 @@ class AdminHttpSurfaceService:
 
     @staticmethod
     def handles_delete(path: str) -> bool:
-        return path.startswith("/api/v1/policies/")
+        return path.startswith("/api/v1/policies/") or AdminHttpSurfaceService._provisioning_update_match(path) is not None
 
     @staticmethod
     def requires_json_body(_path: str) -> bool:
@@ -211,6 +213,26 @@ class AdminHttpSurfaceService:
         return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 
     def route_delete(self, path: str) -> dict[str, Any]:
+        match = self._provisioning_update_match(path)
+        if match is not None:
+            vmid = int(match.group("vmid"))
+            try:
+                result = self._delete_provisioned_vm(vmid)
+            except ValueError as exc:
+                return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": str(exc)})
+            except Exception as exc:
+                return self._json_response(
+                    HTTPStatus.BAD_REQUEST,
+                    {"ok": False, "error": f"failed to delete provisioned vm: {exc}"},
+                )
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(provisioned_vm=result),
+                },
+            )
+
         if not path.startswith("/api/v1/policies/"):
             return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
         policy_name = path.rsplit("/", 1)[-1]

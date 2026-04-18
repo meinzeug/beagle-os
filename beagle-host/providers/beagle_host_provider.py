@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import os
+import re
+import shutil
+import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
@@ -116,7 +120,7 @@ class BeagleHostProvider:
     def _default_storage(self) -> list[dict[str, Any]]:
         return [
             {
-                "storage": "beagle-local",
+                "storage": "local",
                 "node": self._default_node_name,
                 "type": "dir",
                 "content": "images,iso,backup",
@@ -131,7 +135,7 @@ class BeagleHostProvider:
     def _default_bridges(self) -> list[dict[str, Any]]:
         return [
             {
-                "name": "vmbr0",
+                "name": "beagle",
                 "node": self._default_node_name,
                 "type": "bridge",
                 "active": True,
@@ -318,6 +322,265 @@ class BeagleHostProvider:
                 return candidate
         return ""
 
+    # ------------------------------------------------------------------
+    # libvirt / KVM backend helpers
+    # ------------------------------------------------------------------
+
+    def _run_virsh(self, *args: str, input_data: str | None = None) -> str:
+        cmd = ["virsh", "--connect", "qemu:///system"] + list(args)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            input=input_data,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"virsh {' '.join(args)} failed (rc={result.returncode}): {result.stderr.strip()}"
+            )
+        return result.stdout.strip()
+
+    def _libvirt_enabled(self) -> bool:
+        if not shutil.which("virsh"):
+            return False
+        try:
+            self._run_virsh("list", "--all")
+            return True
+        except Exception:
+            return False
+
+    def _libvirt_domain_name(self, vmid: int) -> str:
+        return f"beagle-{int(vmid)}"
+
+    def _libvirt_domain_exists(self, vmid: int) -> bool:
+        try:
+            self._run_virsh("domstate", self._libvirt_domain_name(vmid))
+            return True
+        except Exception:
+            return False
+
+    def _libvirt_pool_path(self, pool: str) -> str:
+        try:
+            out = self._run_virsh("pool-dumpxml", pool)
+            m = re.search(r"<path>([^<]+)</path>", out)
+            if m:
+                return m.group(1).strip()
+        except Exception:
+            pass
+        return "/var/lib/libvirt/images"
+
+    @staticmethod
+    def _parse_storage_spec(spec: str) -> tuple[str, str]:
+        """Parse 'local:40' or 'local:iso/file.iso,media=cdrom' -> (pool, path_or_size)."""
+        if ":" in spec:
+            pool, rest = spec.split(":", 1)
+            path_part = rest.split(",")[0]
+            return pool.strip(), path_part.strip()
+        return "local", spec.strip()
+
+    def _generate_domain_xml(self, vmid: int, config: dict[str, Any]) -> str:
+        domain_name = self._libvirt_domain_name(vmid)
+        memory_mib = int(config.get("memory", 2048) or 2048)
+        cores = int(config.get("cores", 2) or 2)
+
+        # Network interface
+        net0 = str(config.get("net0", "") or "")
+        network_name = "default"
+        net_model = "virtio"
+        if "bridge=" in net0:
+            bm = re.search(r"bridge=([^\s,]+)", net0)
+            if bm:
+                network_name = bm.group(1)
+        if net0.startswith("e1000"):
+            net_model = "e1000"
+
+        # Main disk
+        scsi0 = str(config.get("scsi0", "") or "")
+        if scsi0:
+            pool_name, _ = self._parse_storage_spec(scsi0)
+        else:
+            pool_name = "local"
+        pool_path = self._libvirt_pool_path(pool_name)
+        disk_path = f"{pool_path}/{domain_name}-disk.qcow2"
+
+        # CDROM helper
+        def _iso_path(ide_spec: str) -> str:
+            if not ide_spec:
+                return ""
+            p_name, path_part = self._parse_storage_spec(ide_spec)
+            try:
+                p_root = self._libvirt_pool_path(p_name)
+            except Exception:
+                p_root = pool_path
+            filename = path_part.split("/")[-1]
+            return f"{p_root}/{filename}"
+
+        ubuntu_iso = _iso_path(str(config.get("ide2", "") or ""))
+        seed_iso = _iso_path(str(config.get("ide3", "") or ""))
+
+        # Kernel/initrd args
+        args_str = str(config.get("args", "") or "")
+        kernel_path = ""
+        initrd_path = ""
+        append_str = ""
+        if args_str:
+            km = re.search(r"-kernel\s+(\S+)", args_str)
+            im = re.search(r"-initrd\s+(\S+)", args_str)
+            am = re.search(r"-append\s+'([^']+)'", args_str) or re.search(r'-append\s+"([^"]+)"', args_str)
+            if km:
+                kernel_path = km.group(1)
+            if im:
+                initrd_path = im.group(1)
+            if am:
+                append_str = am.group(1)
+
+        nvram_dir = "/var/lib/libvirt/qemu/nvram"
+        nvram_path = f"{nvram_dir}/{domain_name}_VARS.fd"
+
+        lines = [
+            "<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>",
+            f"  <name>{domain_name}</name>",
+            f"  <memory unit='MiB'>{memory_mib}</memory>",
+            f"  <currentMemory unit='MiB'>{memory_mib}</currentMemory>",
+            f"  <vcpu placement='static'>{cores}</vcpu>",
+            "  <os>",
+            "    <type arch='x86_64' machine='q35'>hvm</type>",
+            "    <loader readonly='yes' type='pflash'>/usr/share/OVMF/OVMF_CODE_4M.fd</loader>",
+            f"    <nvram template='/usr/share/OVMF/OVMF_VARS_4M.fd'>{nvram_path}</nvram>",
+            "  </os>",
+            "  <features><acpi/><apic/></features>",
+            "  <cpu mode='host-passthrough' check='none' migratable='on'/>",
+            "  <clock offset='utc'>",
+            "    <timer name='rtc' tickpolicy='catchup'/>",
+            "    <timer name='pit' tickpolicy='delay'/>",
+            "    <timer name='hpet' present='no'/>",
+            "  </clock>",
+            "  <on_poweroff>destroy</on_poweroff>",
+            "  <on_reboot>restart</on_reboot>",
+            "  <on_crash>destroy</on_crash>",
+            "  <devices>",
+            "    <emulator>/usr/bin/qemu-system-x86_64</emulator>",
+            "    <disk type='file' device='disk'>",
+            "      <driver name='qemu' type='qcow2' cache='none' discard='unmap'/>",
+            f"      <source file='{disk_path}'/>",
+            "      <target dev='vda' bus='virtio'/>",
+            "      <boot order='1'/>",
+            "    </disk>",
+        ]
+
+        if ubuntu_iso:
+            lines += [
+                "    <disk type='file' device='cdrom'>",
+                "      <driver name='qemu' type='raw'/>",
+                f"      <source file='{ubuntu_iso}'/>",
+                "      <target dev='sda' bus='sata'/>",
+                "      <readonly/>",
+                "      <boot order='2'/>",
+                "    </disk>",
+            ]
+
+        if seed_iso:
+            lines += [
+                "    <disk type='file' device='cdrom'>",
+                "      <driver name='qemu' type='raw'/>",
+                f"      <source file='{seed_iso}'/>",
+                "      <target dev='sdb' bus='sata'/>",
+                "      <readonly/>",
+                "    </disk>",
+            ]
+
+        lines += [
+            f"    <interface type='network'>",
+            f"      <source network='{network_name}'/>",
+            f"      <model type='{net_model}'/>",
+            "    </interface>",
+            "    <serial type='pty'><target type='isa-serial' port='0'/></serial>",
+            "    <console type='pty'><target type='serial' port='0'/></console>",
+            "    <channel type='unix'>",
+            "      <target type='virtio' name='org.qemu.guest_agent.0'/>",
+            "    </channel>",
+            "    <graphics type='vnc' port='-1' autoport='yes' listen='127.0.0.1'>",
+            "      <listen type='address' address='127.0.0.1'/>",
+            "    </graphics>",
+            "    <video><model type='vga' vram='16384'/></video>",
+            "    <rng model='virtio'><backend model='random'>/dev/urandom</backend></rng>",
+            "    <memballoon model='virtio'/>",
+            "  </devices>",
+        ]
+
+        if kernel_path and initrd_path:
+            lines += [
+                "  <qemu:commandline>",
+                f"    <qemu:arg value='-kernel'/>",
+                f"    <qemu:arg value='{kernel_path}'/>",
+                f"    <qemu:arg value='-initrd'/>",
+                f"    <qemu:arg value='{initrd_path}'/>",
+                f"    <qemu:arg value='-append'/>",
+                f"    <qemu:arg value='{append_str}'/>",
+                "  </qemu:commandline>",
+            ]
+
+        # libvirt AppArmor profiles do not include qemu:commandline kernel/initrd
+        # paths; disable LSM labeling for this transient install domain only.
+        lines.append("  <seclabel type='none'/>")
+        lines.append("</domain>")
+        return "\n".join(lines)
+
+    def _ensure_libvirt_disk(self, vmid: int, config: dict[str, Any]) -> None:
+        scsi0 = str(config.get("scsi0", "") or "")
+        pool_name = "local"
+        size_gb = 32
+        if scsi0:
+            pool_name, size_or_path = self._parse_storage_spec(scsi0)
+            try:
+                size_gb = int(size_or_path)
+            except (ValueError, TypeError):
+                size_gb = 32
+        domain_name = self._libvirt_domain_name(vmid)
+        vol_name = f"{domain_name}-disk.qcow2"
+        try:
+            self._run_virsh("vol-info", "--pool", pool_name, vol_name)
+            return
+        except Exception:
+            pass
+        self._run_virsh("vol-create-as", pool_name, vol_name, f"{size_gb}G", "--format", "qcow2")
+
+    def _provision_libvirt_vm(self, vmid: int) -> None:
+        record = self._find_vm(vmid)
+        if record is None:
+            raise RuntimeError(f"VM {int(vmid)} not found in beagle provider state")
+        node = str(record.get("node") or self._default_node_name).strip() or self._default_node_name
+        config = self.get_vm_config(node, vmid)
+        self._ensure_libvirt_disk(vmid, config)
+        xml = self._generate_domain_xml(vmid, config)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False, encoding="utf-8") as f:
+            f.write(xml)
+            tmp_path = f.name
+        try:
+            self._run_virsh("define", tmp_path)
+        finally:
+            os.unlink(tmp_path)
+
+    def _libvirt_guest_ipv4(self, vmid: int) -> str:
+        domain_name = self._libvirt_domain_name(vmid)
+        try:
+            out = self._run_virsh("domifaddr", domain_name, "--source", "agent")
+        except Exception:
+            try:
+                out = self._run_virsh("domifaddr", domain_name, "--source", "lease")
+            except Exception:
+                return ""
+        for line in out.splitlines():
+            m = re.search(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/", line)
+            if m:
+                ip = m.group(1)
+                if not ip.startswith("127.") and not ip.startswith("169.254."):
+                    return ip
+        return ""
+
+    # ------------------------------------------------------------------
+
     def next_vmid(self) -> int:
         existing = [int(item.get("vmid", 0) or 0) for item in self._load_vms()]
         return max([99, *existing]) + 1
@@ -341,6 +604,19 @@ class BeagleHostProvider:
         timeout_seconds: float | None = None,
     ) -> list[dict[str, Any]]:
         del timeout_seconds
+        if self._libvirt_enabled() and self._libvirt_domain_exists(vmid):
+            ip = self._libvirt_guest_ipv4(vmid)
+            if ip:
+                ifaces = [
+                    {
+                        "name": "eth0",
+                        "ip-addresses": [
+                            {"ip-address-type": "ipv4", "ip-address": ip, "prefix": 24}
+                        ],
+                    }
+                ]
+                self._write_guest_interfaces(vmid, ifaces)
+                return ifaces
         return self._read_guest_interfaces(vmid)
 
     def list_vms(
@@ -472,6 +748,43 @@ class BeagleHostProvider:
             config.pop(normalized_name.replace("-", "_"), None)
         self._write_vm_config(node, vmid, config)
 
+    def delete_vm(
+        self,
+        vmid: int,
+        *,
+        timeout: float | None | object = None,
+    ) -> str:
+        del timeout
+        target_vmid = int(vmid)
+        record = self._find_vm(target_vmid)
+        if record is None:
+            raise RuntimeError(f"VM {target_vmid} not found in beagle provider state")
+        if self._libvirt_enabled() and self._libvirt_domain_exists(target_vmid):
+            domain_name = self._libvirt_domain_name(target_vmid)
+            try:
+                self._run_virsh("destroy", domain_name)
+            except Exception:
+                pass
+            try:
+                self._run_virsh("undefine", domain_name, "--nvram", "--remove-all-storage")
+            except Exception:
+                self._run_virsh("undefine", domain_name)
+
+        remaining = [
+            item
+            for item in self._load_vms()
+            if int(item.get("vmid", 0) or 0) != target_vmid
+        ]
+        self._write_vms(remaining)
+
+        node = str(record.get("node") or self._default_node_name).strip() or self._default_node_name
+        self._vm_config_path(node, target_vmid).unlink(missing_ok=True)
+        self._guest_interfaces_path(target_vmid).unlink(missing_ok=True)
+        self._scheduled_restart_path(target_vmid).unlink(missing_ok=True)
+        shutil.rmtree(self._guest_exec_dir() / str(target_vmid), ignore_errors=True)
+
+        return f"deleted beagle vm {target_vmid}"
+
     def set_vm_description(
         self,
         vmid: int,
@@ -509,9 +822,13 @@ class BeagleHostProvider:
         record = self._find_vm(vmid)
         if record is None:
             raise RuntimeError(f"VM {int(vmid)} not found in beagle provider state")
+        if self._libvirt_enabled():
+            if not self._libvirt_domain_exists(vmid):
+                self._provision_libvirt_vm(vmid)
+            self._run_virsh("start", self._libvirt_domain_name(vmid))
         record["status"] = "running"
         self._replace_vm(record)
-        return f"started beagle skeleton vm {int(vmid)}"
+        return f"started beagle vm {int(vmid)}"
 
     def reboot_vm(
         self,
@@ -523,13 +840,15 @@ class BeagleHostProvider:
         record = self._find_vm(vmid)
         if record is None:
             raise RuntimeError(f"VM {int(vmid)} not found in beagle provider state")
+        if self._libvirt_enabled() and self._libvirt_domain_exists(vmid):
+            self._run_virsh("reboot", self._libvirt_domain_name(vmid))
         record["status"] = "running"
         self._replace_vm(record)
         node = str(record.get("node") or self._default_node_name).strip() or self._default_node_name
         config = self.get_vm_config(node, vmid)
         config["last_reboot_at"] = int(time.time())
         self._write_vm_config(node, vmid, config)
-        return f"rebooted beagle skeleton vm {int(vmid)}"
+        return f"rebooted beagle vm {int(vmid)}"
 
     def stop_vm(
         self,
@@ -542,9 +861,14 @@ class BeagleHostProvider:
         record = self._find_vm(vmid)
         if record is None:
             raise RuntimeError(f"VM {int(vmid)} not found in beagle provider state")
+        if self._libvirt_enabled() and self._libvirt_domain_exists(vmid):
+            try:
+                self._run_virsh("destroy", self._libvirt_domain_name(vmid))
+            except Exception:
+                pass
         record["status"] = "stopped"
         self._replace_vm(record)
-        return f"stopped beagle skeleton vm {int(vmid)}"
+        return f"stopped beagle vm {int(vmid)}"
 
     def guest_exec_bash(
         self,

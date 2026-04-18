@@ -12,11 +12,6 @@ autoinstall:
   ssh:
     install-server: true
     allow-pw: true
-  packages:
-    - qemu-guest-agent
-    - openssh-server
-    - curl
-    - ca-certificates
   user-data:
     disable_root: true
     write_files:
@@ -46,8 +41,6 @@ __FIRSTBOOT_SCRIPT__
           [Install]
           WantedBy=multi-user.target
     runcmd:
-      - [ systemctl, enable, --now, qemu-guest-agent.service ]
       - [ systemctl, enable, --now, beagle-ubuntu-firstboot.service ]
   late-commands:
-    - curtin in-target --target=/target -- systemctl enable qemu-guest-agent.service
     - curtin in-target --target=/target -- sh -c 'for attempt in $(seq 1 20); do curl -fsS __PREPARE_FIRSTBOOT_CURL_ARGS__ --connect-timeout 5 --max-time 20 --retry 2 --retry-delay 2 -X POST "__PREPARE_FIRSTBOOT_URL__" >/dev/null && exit 0; sleep 5; done; exit 0'

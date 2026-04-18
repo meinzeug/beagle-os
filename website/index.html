@@ -3,50 +3,68 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Beagle OS Control</title>
-    <meta name="description" content="Beagle OS Web UI fuer Inventar, Streams, Endpoints, Aktionen und Installer auf dem Proxmox-Host.">
+    <title>Beagle OS Console</title>
+    <meta name="description" content="Beagle OS Web Console fuer Endpoints, Infrastructure, Provisioning und Access Management.">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css?v=6.6.8">
+    <link rel="stylesheet" href="/styles.css?v=7.0.0.0">
   </head>
   <body class="auth-only">
-    <div class="auth-modal" id="onboarding-modal" aria-hidden="true" hidden>
-      <div class="auth-dialog card">
+    <!-- Hidden SVG icon sprite -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+        <symbol id="i-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></symbol>
+        <symbol id="i-endpoint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+        <symbol id="i-infra" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+        <symbol id="i-provision" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+        <symbol id="i-policy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6z"/></symbol>
+        <symbol id="i-access" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></symbol>
+        <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></symbol>
+        <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+        <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+      </defs>
+    </svg>
+
+    <!-- Onboarding modal -->
+    <div class="modal auth-modal" id="onboarding-modal" aria-hidden="true" hidden>
+      <div class="auth-dialog confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
         <div class="auth-dialog-head">
           <div>
             <span class="eyebrow">Ersteinrichtung</span>
-            <h2>Beagle Server Onboarding</h2>
-            <p>Dieser Host wurde frisch installiert. Lege jetzt den ersten Administrator an, bevor die Web UI freigeschaltet wird.</p>
+            <h2 id="onboarding-title">Beagle Server Onboarding</h2>
+            <p>Dieser Host wurde frisch installiert. Lege jetzt den ersten Administrator an, bevor die Konsole freigeschaltet wird.</p>
           </div>
         </div>
         <div class="auth-form-grid">
           <label class="field field-wide">
-            <span>Administrator Benutzername</span>
+            <span>Administrator</span>
             <input id="onboarding-username" type="text" autocomplete="username" placeholder="admin">
           </label>
           <label class="field">
             <span>Passwort</span>
-            <input id="onboarding-password" type="password" autocomplete="new-password" placeholder="Neues Passwort">
+            <input id="onboarding-password" type="password" autocomplete="new-password" placeholder="Mind. 6 Zeichen">
           </label>
           <label class="field">
             <span>Passwort bestaetigen</span>
-            <input id="onboarding-password-confirm" type="password" autocomplete="new-password" placeholder="Passwort wiederholen">
+            <input id="onboarding-password-confirm" type="password" autocomplete="new-password" placeholder="Wiederholen">
           </label>
         </div>
         <div class="button-row auth-button-row">
-          <button class="button primary" id="onboarding-complete" type="button">Ersteinrichtung abschliessen</button>
+          <button class="button primary" id="onboarding-complete" type="button">Onboarding abschliessen</button>
         </div>
       </div>
     </div>
 
-    <div class="auth-modal" id="auth-modal" aria-hidden="true">
-      <div class="auth-dialog card">
+    <!-- Login modal -->
+    <div class="modal auth-modal" id="auth-modal" aria-hidden="true">
+      <div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title">
         <div class="auth-dialog-head">
           <div>
-            <span class="eyebrow">Manager Access</span>
-            <h2>Beagle Manager verbinden</h2>
-            <p>Die Web UI ist ohne Anmeldung gesperrt. Melde dich mit Benutzername und Passwort an. Der API-Token bleibt optional fuer Automationszwecke.</p>
+            <span class="eyebrow">Beagle Console</span>
+            <h2 id="auth-title">Anmelden</h2>
+            <p>Die Konsole erfordert eine Anmeldung. Token-Auth ist optional fuer Automation.</p>
           </div>
           <button class="icon-button" id="close-auth-modal" type="button" aria-label="Schliessen">×</button>
         </div>
@@ -61,10 +79,10 @@
           </label>
           <label class="field field-wide">
             <span>Legacy API-Token (optional)</span>
-            <input id="api-token" type="password" autocomplete="off" placeholder="Nur fuer Automation/Fallback">
+            <input id="api-token" type="password" autocomplete="off" placeholder="Nur fuer Automation">
           </label>
           <label class="field">
-            <span>Web UI URL</span>
+            <span>Console URL</span>
             <input id="web-ui-url" type="text" readonly>
           </label>
           <label class="field">
@@ -73,8 +91,20 @@
           </label>
         </div>
         <div class="button-row auth-button-row">
-          <button class="button primary" id="connect-button" type="button">Verbinden</button>
           <button class="button ghost" id="clear-token" type="button">Token loeschen</button>
+          <button class="button primary" id="connect-button" type="button">Verbinden</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generic confirm modal (replaces window.confirm) -->
+    <div class="modal" id="confirm-modal" aria-hidden="true" hidden>
+      <div class="modal-dialog confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <div class="confirm-title" id="confirm-title">Bitte bestaetigen</div>
+        <div class="confirm-message" id="confirm-message">Aktion ausfuehren?</div>
+        <div class="button-row">
+          <button class="button ghost" id="confirm-cancel" type="button">Abbrechen</button>
+          <button class="button primary" id="confirm-accept" type="button">Bestaetigen</button>
         </div>
       </div>
     </div>
@@ -82,50 +112,83 @@
     <div class="app-shell">
       <aside class="sidebar">
         <div class="sidebar-brand">
-          <img class="sidebar-logo" src="/beagleos.png" alt="Beagle OS" width="44" height="44">
-          <div>
-            <strong>Beagle OS</strong>
-            <span>Host Control Surface</span>
+          <img class="sidebar-logo" src="/beagleos.png" alt="Beagle OS" width="38" height="38">
+          <div class="sidebar-brand-text">
+            <span class="sidebar-brand-name">Beagle OS</span>
+            <span class="sidebar-brand-sub">Console</span>
           </div>
         </div>
 
-        <nav class="sidebar-nav" id="sidebar-nav">
-          <button type="button" class="nav-item nav-item-active" data-panel="overview">Uebersicht</button>
-          <button type="button" class="nav-item" data-panel="inventory">Inventar</button>
-          <button type="button" class="nav-item" data-panel="virtualization">Virtualisierung</button>
-          <button type="button" class="nav-item" data-panel="policies">Policies</button>
-          <button type="button" class="nav-item" data-panel="iam">IAM</button>
-          <a href="/beagle-downloads/" class="nav-item" target="_blank" rel="noopener noreferrer">Downloads</a>
-          <a href="https://beagle-os.com/download/" class="nav-item">Download</a>
+        <nav class="sidebar-nav" id="sidebar-nav" aria-label="Hauptnavigation">
+          <div class="sidebar-section-label">Workspaces</div>
+          <button type="button" class="nav-item nav-item-active" data-panel="overview">
+            <svg class="nav-icon" aria-hidden="true"><use href="#i-dashboard"/></svg>
+            <span>Dashboard</span>
+          </button>
+          <button type="button" class="nav-item" data-panel="inventory">
+            <svg class="nav-icon" aria-hidden="true"><use href="#i-endpoint"/></svg>
+            <span>Endpoints</span>
+          </button>
+          <button type="button" class="nav-item" data-panel="virtualization">
+            <svg class="nav-icon" aria-hidden="true"><use href="#i-infra"/></svg>
+            <span>Infrastruktur</span>
+          </button>
+          <button type="button" class="nav-item" data-panel="provisioning">
+            <svg class="nav-icon" aria-hidden="true"><use href="#i-provision"/></svg>
+            <span>VM erstellen</span>
+          </button>
+
+          <div class="sidebar-section-label">Verwaltung</div>
+          <button type="button" class="nav-item" data-panel="policies">
+            <svg class="nav-icon" aria-hidden="true"><use href="#i-policy"/></svg>
+            <span>Policies</span>
+          </button>
+          <button type="button" class="nav-item" data-panel="iam">
+            <svg class="nav-icon" aria-hidden="true"><use href="#i-access"/></svg>
+            <span>Access</span>
+          </button>
+
+          <div class="sidebar-section-label">Ressourcen</div>
+          <a href="/beagle-downloads/" class="nav-item nav-item-external" target="_blank" rel="noopener noreferrer">
+            <svg class="nav-icon" aria-hidden="true"><use href="#i-download"/></svg>
+            <span>Hosted Downloads</span>
+          </a>
+          <a href="https://beagle-os.com/download/" class="nav-item nav-item-external" target="_blank" rel="noopener noreferrer">
+            <svg class="nav-icon" aria-hidden="true"><use href="#i-download"/></svg>
+            <span>Public Releases</span>
+          </a>
         </nav>
 
         <div class="sidebar-footer">
           <div class="sidebar-foot-label">Manager Status</div>
           <div class="sidebar-foot-value" id="stat-manager">Offline</div>
           <div class="sidebar-foot-meta" id="stat-manager-meta">Warte auf Verbindung</div>
-          <button class="button ghost sidebar-connect" id="open-connect-modal" type="button">Anmelden</button>
+          <button class="button primary sidebar-connect" id="open-connect-modal" type="button">Anmelden</button>
         </div>
       </aside>
 
       <main class="app-main">
         <header class="app-header">
-          <div>
-            <span class="eyebrow" id="panel-eyebrow">Host Control Surface</span>
-            <h1 id="panel-title">Beagle OS Web UI</h1>
-            <p id="panel-description">Zentrale Bedienoberflaeche fuer aktive Beagle-VMs, Endpoint-Zustand, Installer-Bereitschaft, Credentials und Operator-Aktionen.</p>
+          <div class="header-title">
+            <span class="eyebrow" id="panel-eyebrow">Beagle Console</span>
+            <h1 id="panel-title">Dashboard</h1>
+            <p id="panel-description"></p>
           </div>
 
           <div class="header-actions">
             <div class="session-chip" id="session-chip">Nicht verbunden</div>
-            <button class="button ghost" id="toggle-dark-mode" type="button" aria-label="Dunkelmodus umschalten">Dunkel</button>
-            <button class="button ghost" id="toggle-auto-refresh" type="button">Auto-Refresh an</button>
-            <button class="button ghost" id="refresh-all" type="button">Aktualisieren</button>
-            <a class="button ghost" href="/beagle-downloads/" target="_blank" rel="noopener noreferrer">Downloads</a>
-            <a class="button ghost" href="https://beagle-os.com/download/">Download</a>
+            <button class="icon-button" id="toggle-dark-mode" type="button" aria-label="Hell/Dunkel">
+              <svg aria-hidden="true"><use href="#i-moon"/></svg>
+            </button>
+            <button class="button ghost small" id="toggle-auto-refresh" type="button">Auto-Refresh an</button>
+            <button class="icon-button" id="refresh-all" type="button" aria-label="Aktualisieren">
+              <svg aria-hidden="true"><use href="#i-refresh"/></svg>
+            </button>
+            <button class="button primary small" id="open-provision-create" type="button">+ VM</button>
             <div class="account-shell">
               <button class="avatar-button" id="avatar-toggle" type="button" aria-haspopup="true" aria-expanded="false">
                 <span class="avatar-dot"></span>
-                <span class="avatar-label">Host</span>
+                <span class="avatar-label" id="avatar-label">Host</span>
               </button>
               <div class="account-menu" id="account-menu">
                 <div class="account-menu-head">
@@ -139,218 +202,178 @@
           </div>
         </header>
 
-        <div class="status-strip" data-panel-section="overview">
-          <div class="banner banner-info" id="auth-status" role="status" aria-live="polite">Noch nicht angemeldet.</div>
-          <div class="banner banner-warn hidden" id="fleet-health-alert" role="alert" aria-live="assertive"></div>
-        </div>
-
-        <section class="stats-row panel-section panel-section-active" id="stats-section" data-panel-section="overview">
-          <article class="stat-card card">
-            <span class="stat-label">VM Inventar</span>
-            <span class="stat-value" id="stat-vms">0</span>
-            <span class="stat-meta" id="stat-vms-meta">Keine Daten</span>
-          </article>
-          <article class="stat-card card">
-            <span class="stat-label">Endpoints</span>
-            <span class="stat-value" id="stat-endpoints">0</span>
-            <span class="stat-meta" id="stat-endpoints-meta">Keine Daten</span>
-          </article>
-          <article class="stat-card card stat-card-accent">
-            <span class="stat-label">Policies</span>
-            <span class="stat-value" id="stat-policies">0</span>
-            <span class="stat-meta" id="stat-policies-meta">Keine Daten</span>
-          </article>
-          <article class="stat-card card">
-            <span class="stat-label">Nodes</span>
-            <span class="stat-value" id="stat-nodes">0</span>
-            <span class="stat-meta" id="stat-nodes-meta">Keine Daten</span>
-          </article>
-          <article class="stat-card card">
-            <span class="stat-label">Storage</span>
-            <span class="stat-value" id="stat-storage">0</span>
-            <span class="stat-meta" id="stat-storage-meta">Keine Daten</span>
-          </article>
-        </section>
-
-        <section class="card activity-log-card panel-section panel-section-active" id="activity-log-section" data-panel-section="overview">
-          <div class="card-head">
-            <div>
-              <span class="eyebrow">Operator Log</span>
-              <h2>Aktivitaetslog</h2>
-            </div>
-            <button class="button ghost small" id="clear-activity-log" type="button">Log leeren</button>
+        <div class="app-content">
+          <div class="status-strip">
+            <div class="banner info" id="auth-status" role="status" aria-live="polite">Noch nicht angemeldet.</div>
+            <div class="banner warn hidden" id="fleet-health-alert" role="alert" aria-live="assertive"></div>
           </div>
-          <div class="table-wrap compact">
-            <table class="vm-table compact-table">
-              <thead>
-                <tr>
-                  <th>Zeit</th>
-                  <th>Aktion</th>
-                  <th>VM</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody id="activity-log-body">
-                <tr><td colspan="4" class="empty-cell">Noch keine Aktionen protokolliert.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
 
-        <section class="card endpoints-overview-card panel-section panel-section-active" id="endpoints-overview-section" data-panel-section="overview">
-          <div class="card-head">
-            <div>
-              <span class="eyebrow">Fleet Telemetry</span>
-              <h2>Endpoints</h2>
+          <!-- ============ DASHBOARD ============ -->
+          <section class="panel-section panel-section-active" id="overview-section" data-panel-section="overview">
+            <div class="stats-row" id="stats-section">
+              <article class="stat-card">
+                <span class="stat-label">VMs</span>
+                <span class="stat-value" id="stat-vms">0</span>
+                <span class="stat-meta" id="stat-vms-meta">Keine Daten</span>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">Endpoints</span>
+                <span class="stat-value" id="stat-endpoints">0</span>
+                <span class="stat-meta" id="stat-endpoints-meta">Keine Daten</span>
+              </article>
+              <article class="stat-card stat-card-accent">
+                <span class="stat-label">Policies</span>
+                <span class="stat-value" id="stat-policies">0</span>
+                <span class="stat-meta" id="stat-policies-meta">Keine Daten</span>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">Nodes</span>
+                <span class="stat-value" id="stat-nodes">0</span>
+                <span class="stat-meta" id="stat-nodes-meta">Keine Daten</span>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">Storage</span>
+                <span class="stat-value" id="stat-storage">0</span>
+                <span class="stat-meta" id="stat-storage-meta">Keine Daten</span>
+              </article>
             </div>
-            <div class="button-row">
-              <button class="button ghost small" id="refresh-endpoints" type="button">Aktualisieren</button>
-              <button class="button ghost small" id="export-endpoints-json" type="button">Export JSON</button>
-            </div>
-          </div>
-          <div class="table-wrap compact">
-            <table class="vm-table compact-table">
-              <thead>
-                <tr>
-                  <th>Endpoint</th>
-                  <th>Status</th>
-                  <th>VM</th>
-                  <th>Host</th>
-                  <th>Last Report</th>
-                </tr>
-              </thead>
-              <tbody id="endpoints-body">
-                <tr><td colspan="5" class="empty-cell">Noch keine Endpoint-Daten geladen.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
 
-        <section class="virtualization-grid panel-section panel-section-active" id="virtualization-overview-section" data-panel-section="overview">
-          <article class="card virtualization-card">
-            <div class="card-head">
-              <div>
-                <span class="eyebrow">Provider Surface</span>
-                <h2>Hosts</h2>
-              </div>
-            </div>
-            <div class="table-wrap compact">
-              <table class="vm-table compact-table">
-                <thead>
-                  <tr>
-                    <th>Host</th>
-                    <th>Status</th>
-                    <th>Provider</th>
-                  </tr>
-                </thead>
-                <tbody id="virtualization-hosts-body">
-                  <tr><td colspan="3" class="empty-cell">Noch keine Daten geladen.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
-
-          <article class="card virtualization-card">
-            <div class="card-head">
-              <div>
-                <span class="eyebrow">Provider Surface</span>
-                <h2>Nodes</h2>
-              </div>
-            </div>
-            <div class="table-wrap compact">
-              <table class="vm-table compact-table">
-                <thead>
-                  <tr>
-                    <th>Node</th>
-                    <th>Status</th>
-                    <th>CPU</th>
-                    <th>RAM</th>
-                  </tr>
-                </thead>
-                <tbody id="virtualization-nodes-body">
-                  <tr><td colspan="4" class="empty-cell">Noch keine Daten geladen.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
-
-          <article class="card virtualization-card">
-            <div class="card-head">
-              <div>
-                <span class="eyebrow">Provider Surface</span>
-                <h2>Storage</h2>
-              </div>
-            </div>
-            <div class="table-wrap compact">
-              <table class="vm-table compact-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Node</th>
-                    <th>Type</th>
-                    <th>Usage</th>
-                  </tr>
-                </thead>
-                <tbody id="virtualization-storage-body">
-                  <tr><td colspan="4" class="empty-cell">Noch keine Daten geladen.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
-
-          <article class="card virtualization-card">
-            <div class="card-head">
-              <div>
-                <span class="eyebrow">Provider Surface</span>
-                <h2>Bridges</h2>
-              </div>
-              <div class="button-row compact-row">
-                <span class="chip muted" id="virtualization-node-filter">Alle Nodes</span>
-                <button class="button ghost small" id="clear-virt-node-filter" type="button">Node-Filter loeschen</button>
-              </div>
-            </div>
-            <div class="table-wrap compact">
-              <table class="vm-table compact-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Node</th>
-                    <th>Address</th>
-                    <th>Ports</th>
-                    <th>Active</th>
-                  </tr>
-                </thead>
-                <tbody id="virtualization-bridges-body">
-                  <tr><td colspan="5" class="empty-cell">Noch keine Daten geladen.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
-        </section>
-
-        <section class="workspace-grid panel-section" id="inventory-section" data-panel-section="inventory">
-          <section class="card inventory-card">
-            <div class="card-head">
-              <div>
-                <span class="eyebrow">Inventory</span>
-                <h2>Beagle VMs</h2>
-              </div>
-              <div class="toolbar">
-                <div class="button-row bulk-bar">
-                  <button class="button ghost small" id="export-inventory-csv" type="button">Export CSV</button>
-                  <button class="button ghost small" id="export-inventory-json" type="button">Export JSON</button>
-                  <button class="button ghost small" id="bulk-healthcheck" type="button">Health Check</button>
-                  <button class="button ghost small" id="bulk-support-bundle" type="button">Bundle</button>
-                  <button class="button ghost small" id="bulk-restart-session" type="button">Restart Session</button>
-                  <button class="button ghost small" id="bulk-restart-runtime" type="button">Restart Runtime</button>
-                  <button class="button ghost small" id="bulk-update-scan" type="button">Update Scan</button>
-                  <button class="button ghost small" id="bulk-update-download" type="button">Update Download</button>
-                  <button class="button ghost small" id="bulk-vm-start" type="button">VM Start</button>
-                  <button class="button ghost small" id="bulk-vm-stop" type="button">VM Stop</button>
-                  <button class="button ghost small" id="bulk-vm-reboot" type="button">VM Reboot</button>
-                  <span class="bulk-selection" id="bulk-selection">0 ausgewaehlt</span>
+            <div class="virtualization-grid">
+              <article class="card activity-log-card">
+                <div class="card-head">
+                  <div>
+                    <span class="eyebrow">Operator Log</span>
+                    <h2>Aktivitaet</h2>
+                  </div>
+                  <button class="button ghost small" id="clear-activity-log" type="button">Leeren</button>
                 </div>
-                <input id="search-input" class="input-search" type="search" placeholder="VMs durchsuchen ...">
+                <div class="table-wrap compact">
+                  <table class="vm-table compact-table">
+                    <thead>
+                      <tr><th>Zeit</th><th>Aktion</th><th>VM</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="activity-log-body">
+                      <tr><td colspan="4" class="empty-cell">Noch keine Aktionen.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="card">
+                <div class="card-head">
+                  <div>
+                    <span class="eyebrow">Fleet Telemetry</span>
+                    <h2>Endpoint Status</h2>
+                  </div>
+                  <div class="button-row">
+                    <button class="button ghost small" id="refresh-endpoints" type="button">Refresh</button>
+                    <button class="button ghost small" id="export-endpoints-json" type="button">Export</button>
+                  </div>
+                </div>
+                <div class="table-wrap compact">
+                  <table class="vm-table compact-table">
+                    <thead>
+                      <tr><th>Endpoint</th><th>Status</th><th>VM</th><th>Host</th><th>Reported</th></tr>
+                    </thead>
+                    <tbody id="endpoints-body">
+                      <tr><td colspan="5" class="empty-cell">Keine Endpoint-Daten.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+
+            <div class="virtualization-grid">
+              <article class="card">
+                <div class="card-head">
+                  <div>
+                    <span class="eyebrow">Provider</span>
+                    <h2>Hosts</h2>
+                  </div>
+                </div>
+                <div class="table-wrap compact">
+                  <table class="vm-table compact-table">
+                    <thead><tr><th>Host</th><th>Status</th><th>Provider</th></tr></thead>
+                    <tbody id="virtualization-hosts-body">
+                      <tr><td colspan="3" class="empty-cell">Noch keine Daten.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="card">
+                <div class="card-head">
+                  <div>
+                    <span class="eyebrow">Compute</span>
+                    <h2>Nodes</h2>
+                  </div>
+                </div>
+                <div class="table-wrap compact">
+                  <table class="vm-table compact-table">
+                    <thead><tr><th>Node</th><th>Status</th><th>CPU</th><th>RAM</th></tr></thead>
+                    <tbody id="virtualization-nodes-body">
+                      <tr><td colspan="4" class="empty-cell">Noch keine Daten.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="card">
+                <div class="card-head">
+                  <div>
+                    <span class="eyebrow">Persistenz</span>
+                    <h2>Storage</h2>
+                  </div>
+                </div>
+                <div class="table-wrap compact">
+                  <table class="vm-table compact-table">
+                    <thead><tr><th>Name</th><th>Node</th><th>Typ</th><th>Auslastung</th></tr></thead>
+                    <tbody id="virtualization-storage-body">
+                      <tr><td colspan="4" class="empty-cell">Noch keine Daten.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="card">
+                <div class="card-head">
+                  <div>
+                    <span class="eyebrow">Netzwerk</span>
+                    <h2>Bridges</h2>
+                  </div>
+                  <div class="button-row compact-row">
+                    <span class="chip muted" id="virtualization-node-filter">Alle Nodes</span>
+                    <button class="button ghost small" id="clear-virt-node-filter" type="button">Filter</button>
+                  </div>
+                </div>
+                <div class="table-wrap compact">
+                  <table class="vm-table compact-table">
+                    <thead><tr><th>Name</th><th>Node</th><th>Adresse</th><th>Ports</th><th>Aktiv</th></tr></thead>
+                    <tbody id="virtualization-bridges-body">
+                      <tr><td colspan="5" class="empty-cell">Noch keine Daten.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <!-- ============ ENDPOINTS (Inventory + Detail) ============ -->
+          <section class="workspace-grid panel-section" id="inventory-section" data-panel-section="inventory">
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Beagle Endpoints</span>
+                  <h2>Inventar</h2>
+                </div>
+                <div class="button-row">
+                  <button class="button ghost small" id="export-inventory-csv" type="button">CSV</button>
+                  <button class="button ghost small" id="export-inventory-json" type="button">JSON</button>
+                </div>
+              </div>
+
+              <div class="toolbar">
+                <input id="search-input" class="input-search" type="search" placeholder="Suchen ... (/)">
                 <select id="role-filter" class="input-select">
                   <option value="all">Alle Rollen</option>
                   <option value="endpoint">Endpoints</option>
@@ -361,359 +384,281 @@
                   <input id="eligible-only" type="checkbox">
                   <span>Nur geeignet</span>
                 </label>
-                <button class="button ghost small" id="clear-filters" type="button">Filter zuruecksetzen</button>
+                <button class="button ghost small" id="clear-filters" type="button">Filter loeschen</button>
               </div>
-            </div>
-            <div class="table-wrap">
-              <table class="vm-table">
-                <thead>
-                  <tr>
-                    <th class="col-check"><input id="inventory-select-all" type="checkbox" aria-label="Alle auswaehlen"></th>
-                    <th>VM</th>
-                    <th>Rolle</th>
-                    <th>Status</th>
-                    <th>Stream</th>
-                    <th>Installer</th>
-                    <th>Letzte Aktion</th>
-                    <th>Power</th>
-                  </tr>
-                </thead>
-                <tbody id="inventory-body">
-                  <tr><td colspan="8" class="empty-cell">Noch keine Daten geladen.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
 
-          <aside class="card detail-card detail-pane">
-            <div class="card-head">
-              <div>
-                <span class="eyebrow">VM Detail</span>
-                <h2 id="detail-title">VM auswaehlen</h2>
+              <div class="toolbar bulk-bar" id="bulk-bar">
+                <button class="button ghost small" id="bulk-vm-start" type="button">Start</button>
+                <button class="button ghost small" id="bulk-vm-stop" type="button">Stop</button>
+                <button class="button ghost small" id="bulk-vm-reboot" type="button">Reboot</button>
+                <button class="button ghost small" id="bulk-healthcheck" type="button">Healthcheck</button>
+                <button class="button ghost small" id="bulk-support-bundle" type="button">Bundle</button>
+                <button class="button ghost small" id="bulk-restart-session" type="button">Restart Session</button>
+                <button class="button ghost small" id="bulk-restart-runtime" type="button">Restart Runtime</button>
+                <button class="button ghost small" id="bulk-update-scan" type="button">Update Scan</button>
+                <button class="button ghost small" id="bulk-update-download" type="button">Update Download</button>
+                <span class="bulk-selection" id="bulk-selection">0 ausgewaehlt</span>
               </div>
-              <div class="detail-actions" id="detail-actions"></div>
-            </div>
-            <div class="detail-tabbar" id="detail-tabbar">
-              <button type="button" class="detail-tab detail-tab-active" data-detail-panel="summary">Zusammenfassung</button>
-              <button type="button" class="detail-tab" data-detail-panel="updates">Updates</button>
-              <button type="button" class="detail-tab" data-detail-panel="tasks">Tasks</button>
-              <button type="button" class="detail-tab" data-detail-panel="usb">USB</button>
-              <button type="button" class="detail-tab" data-detail-panel="credentials">Credentials</button>
-              <button type="button" class="detail-tab" data-detail-panel="config">Config</button>
-              <button type="button" class="detail-tab" data-detail-panel="bundles">Bundles</button>
-            </div>
-            <div class="detail-body" id="detail-stack">
-              <div class="banner banner-info">Wähle eine VM aus dem Inventar, um Details, Credentials und Operator-Aktionen zu sehen.</div>
-            </div>
-          </aside>
-        </section>
 
-        <section class="virt-outer panel-section" id="virtualization-workspace-section" data-panel-section="virtualization">
-          <section class="card virt-nodes-card">
-            <div class="card-head">
-              <div>
-                <span class="eyebrow">Infrastructure</span>
-                <h2>Nodes</h2>
-              </div>
-              <button class="button ghost small" id="refresh-virt" type="button">Aktualisieren</button>
-            </div>
-            <div id="nodes-grid" class="nodes-grid">
-              <div class="empty-card">Noch keine Daten geladen.</div>
-            </div>
-          </section>
-
-          <section class="card virt-storage-card">
-            <div class="card-head">
-              <div>
-                <span class="eyebrow">Infrastructure</span>
-                <h2>Storage</h2>
-              </div>
-            </div>
-            <div class="table-wrap">
-              <table class="storage-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Node</th>
-                    <th>Typ</th>
-                    <th>Inhalt</th>
-                    <th>Auslastung</th>
-                    <th>Verfuegbar</th>
-                  </tr>
-                </thead>
-                <tbody id="storage-body">
-                  <tr><td colspan="6" class="empty-cell">Noch keine Daten geladen.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section class="card virt-inspector-card">
-            <div class="card-head">
-              <div>
-                <span class="eyebrow">Diagnostics</span>
-                <h2>VM Inspector (Config + Network)</h2>
-              </div>
-              <div class="button-row compact-row virt-inspector-controls">
-                <input id="virt-inspector-vmid" type="number" min="1" step="1" placeholder="VMID">
-                <button class="button primary small" id="virt-inspector-load" type="button">Laden</button>
-                <button class="button ghost small" id="virt-inspector-use-selected" type="button">Aus Auswahl</button>
-              </div>
-            </div>
-
-            <div id="virt-inspector-summary" class="detail-grid">
-              <div class="kv"><div class="kv-label">Status</div><div class="kv-value">Noch keine VM geladen.</div></div>
-            </div>
-
-            <div class="table-wrap compact">
-              <table class="vm-table compact-table">
-                <thead>
-                  <tr>
-                    <th>Config Key</th>
-                    <th>Value</th>
-                  </tr>
-                </thead>
-                <tbody id="virt-inspector-config-body">
-                  <tr><td colspan="2" class="empty-cell">Noch keine Config geladen.</td></tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div class="table-wrap compact">
-              <table class="vm-table compact-table">
-                <thead>
-                  <tr>
-                    <th>Interface</th>
-                    <th>MAC</th>
-                    <th>Adressen</th>
-                  </tr>
-                </thead>
-                <tbody id="virt-inspector-iface-body">
-                  <tr><td colspan="3" class="empty-cell">Noch keine Interfaces geladen.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section class="card virt-provision-card">
-            <div class="card-head">
-              <div>
-                <span class="eyebrow">Provisioning</span>
-                <h2>Create VM</h2>
-              </div>
-              <button class="button ghost small" id="refresh-catalog" type="button">Catalog aktualisieren</button>
-            </div>
-
-            <div class="provision-grid" id="provision-grid">
-              <label class="field">
-                <span>Node</span>
-                <select id="prov-node" class="input-select"></select>
-              </label>
-              <label class="field">
-                <span>VMID</span>
-                <input id="prov-vmid" type="number" min="100" step="1" placeholder="auto">
-              </label>
-              <label class="field">
-                <span>Name</span>
-                <input id="prov-name" type="text" placeholder="ubuntu-beagle-123">
-              </label>
-              <label class="field">
-                <span>Desktop</span>
-                <select id="prov-desktop" class="input-select"></select>
-              </label>
-              <label class="field">
-                <span>Memory (MiB)</span>
-                <input id="prov-memory" type="number" min="2048" step="256" placeholder="8192">
-              </label>
-              <label class="field">
-                <span>Cores</span>
-                <input id="prov-cores" type="number" min="2" step="1" placeholder="4">
-              </label>
-              <label class="field">
-                <span>Disk (GB)</span>
-                <input id="prov-disk" type="number" min="32" step="1" placeholder="64">
-              </label>
-              <label class="field">
-                <span>Bridge</span>
-                <select id="prov-bridge" class="input-select"></select>
-              </label>
-              <label class="field">
-                <span>Disk Storage</span>
-                <select id="prov-disk-storage" class="input-select"></select>
-              </label>
-              <label class="field">
-                <span>ISO Storage</span>
-                <select id="prov-iso-storage" class="input-select"></select>
-              </label>
-              <label class="field">
-                <span>Guest User</span>
-                <input id="prov-guest-user" type="text" placeholder="beagle">
-              </label>
-              <label class="field">
-                <span>Guest Password (optional)</span>
-                <input id="prov-guest-password" type="password" placeholder="optional">
-              </label>
-              <label class="field field-wide">
-                <span>Extra Packages (comma separated)</span>
-                <input id="prov-extra-packages" type="text" placeholder="htop,vim,steam-devices">
-              </label>
-            </div>
-
-            <div class="button-row">
-              <button class="button primary" id="provision-create" type="button">VM erstellen</button>
-              <button class="button ghost" id="provision-reset" type="button">Defaults laden</button>
-            </div>
-
-            <div class="table-wrap compact provision-recent-wrap">
-              <table class="vm-table compact-table">
-                <thead>
-                  <tr>
-                    <th>Zeit</th>
-                    <th>VM</th>
-                    <th>Node</th>
-                    <th>Status</th>
-                    <th>Desktop</th>
-                  </tr>
-                </thead>
-                <tbody id="provision-recent-body">
-                  <tr><td colspan="5" class="empty-cell">Noch keine Provisioning-Daten geladen.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </section>
-
-        <section class="card policies-card panel-section" id="policies-section" data-panel-section="policies">
-          <div class="card-head">
-            <div>
-              <span class="eyebrow">Configuration</span>
-              <h2>Policies</h2>
-            </div>
-          </div>
-          <div class="policy-layout">
-            <div class="policy-form">
-              <label class="field">
-                <span>Name</span>
-                <input id="policy-name" type="text" placeholder="desktop-vm100">
-              </label>
-              <label class="field field-narrow">
-                <span>Priority</span>
-                <input id="policy-priority" type="number" value="100">
-              </label>
-              <label class="check-label check-label-padded">
-                <input id="policy-enabled" type="checkbox" checked>
-                <span>Aktiv</span>
-              </label>
-              <label class="field field-wide">
-                <span>Selector JSON</span>
-                <textarea id="policy-selector" rows="4" placeholder='{"vmid": 100}'></textarea>
-              </label>
-              <label class="field field-wide">
-                <span>Profile JSON</span>
-                <textarea id="policy-profile" rows="6" placeholder='{"assigned_target":{"vmid":100},"beagle_role":"endpoint"}'></textarea>
-              </label>
-              <div class="button-row">
-                <button class="button primary" id="policy-save" type="button">Speichern</button>
-                <button class="button ghost" id="policy-new" type="button">Neu</button>
-                <button class="button ghost danger" id="policy-delete" type="button">Loeschen</button>
-              </div>
-            </div>
-            <div id="policies-list" class="policy-list">
-              <div class="empty-cell">Keine Policies geladen.</div>
-            </div>
-          </div>
-        </section>
-
-        <section class="card iam-card panel-section" id="iam-section" data-panel-section="iam">
-          <div class="card-head">
-            <div>
-              <span class="eyebrow">Identity & Access</span>
-              <h2>User & Role Management</h2>
-            </div>
-            <div class="button-row">
-              <button class="button ghost small" id="iam-refresh" type="button">Aktualisieren</button>
-            </div>
-          </div>
-          <div class="iam-layout">
-            <section class="iam-column">
-              <h3>Benutzer</h3>
-              <div class="table-wrap compact">
-                <table class="vm-table compact-table">
+              <div class="table-wrap inventory-table-wrap">
+                <table class="vm-table">
                   <thead>
                     <tr>
-                      <th>Username</th>
-                      <th>Role</th>
+                      <th class="col-check"><input id="inventory-select-all" type="checkbox" aria-label="Alle"></th>
+                      <th>VM</th>
+                      <th>Rolle</th>
                       <th>Status</th>
+                      <th>Stream</th>
+                      <th>Installer</th>
+                      <th>Power</th>
                     </tr>
                   </thead>
-                  <tbody id="iam-users-body">
-                    <tr><td colspan="3" class="empty-cell">Keine User geladen.</td></tr>
+                  <tbody id="inventory-body">
+                    <tr><td colspan="7" class="empty-cell">Noch keine Daten geladen.</td></tr>
                   </tbody>
                 </table>
               </div>
-              <div class="iam-editor-grid">
-                <label class="field">
-                  <span>Username</span>
-                  <input id="iam-user-username" type="text" placeholder="operator01">
-                </label>
-                <label class="field">
-                  <span>Role</span>
-                  <select id="iam-user-role" class="input-select"></select>
-                </label>
-                <label class="field">
-                  <span>Passwort (optional bei Update)</span>
-                  <input id="iam-user-password" type="password" placeholder="Neues Passwort">
-                </label>
-                <label class="check-label check-label-padded">
-                  <input id="iam-user-enabled" type="checkbox" checked>
-                  <span>Aktiv</span>
-                </label>
+            </article>
+
+            <aside class="card detail-card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Endpoint Detail</span>
+                  <h2 id="detail-title">Waehle einen Endpoint</h2>
+                </div>
+                <div class="detail-actions" id="detail-actions"></div>
               </div>
-              <div class="button-row">
-                <button class="button primary" id="iam-user-save" type="button">User speichern</button>
-                <button class="button ghost" id="iam-user-new" type="button">Neu</button>
-                <button class="button ghost" id="iam-user-revoke" type="button">Sessions revoke</button>
-                <button class="button ghost danger" id="iam-user-delete" type="button">User loeschen</button>
+              <div class="detail-tabbar" id="detail-tabbar">
+                <button type="button" class="detail-tab detail-tab-active" data-detail-panel="summary">Profil</button>
+                <button type="button" class="detail-tab" data-detail-panel="updates">Updates</button>
+                <button type="button" class="detail-tab" data-detail-panel="tasks">Tasks</button>
+                <button type="button" class="detail-tab" data-detail-panel="usb">USB</button>
+                <button type="button" class="detail-tab" data-detail-panel="credentials">Credentials</button>
+                <button type="button" class="detail-tab" data-detail-panel="config">Config</button>
+                <button type="button" class="detail-tab" data-detail-panel="bundles">Bundles</button>
               </div>
-            </section>
-            <section class="iam-column">
-              <h3>Rollen</h3>
-              <div class="table-wrap compact">
-                <table class="vm-table compact-table">
+              <div class="detail-body" id="detail-stack">
+                <div class="banner info">Klicke einen Endpoint im Inventar an, um Details, Credentials und Aktionen zu sehen.</div>
+              </div>
+            </aside>
+          </section>
+
+          <!-- ============ INFRASTRUCTURE ============ -->
+          <section class="panel-grid panel-section" id="virtualization-workspace-section" data-panel-section="virtualization">
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Compute</span>
+                  <h2>Nodes</h2>
+                </div>
+                <button class="button ghost small" id="refresh-virt" type="button">Refresh</button>
+              </div>
+              <div id="nodes-grid" class="nodes-grid">
+                <div class="empty-card">Noch keine Daten geladen.</div>
+              </div>
+            </article>
+
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Persistenz</span>
+                  <h2>Storage Pools</h2>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table class="storage-table">
                   <thead>
                     <tr>
-                      <th>Role</th>
-                      <th>Permissions</th>
+                      <th>Name</th><th>Node</th><th>Typ</th><th>Inhalt</th><th>Auslastung</th><th>Frei</th>
                     </tr>
                   </thead>
-                  <tbody id="iam-roles-body">
-                    <tr><td colspan="2" class="empty-cell">Keine Rollen geladen.</td></tr>
+                  <tbody id="storage-body">
+                    <tr><td colspan="6" class="empty-cell">Noch keine Daten geladen.</td></tr>
                   </tbody>
                 </table>
               </div>
-              <div class="iam-editor-grid iam-editor-stack">
-                <label class="field">
-                  <span>Role Name</span>
-                  <input id="iam-role-name" type="text" placeholder="ops-l2">
-                </label>
-                <label class="field field-wide">
-                  <span>Permissions (eine pro Zeile oder CSV)</span>
-                  <textarea id="iam-role-permissions" rows="7" placeholder="vm:mutate&#10;actions:bulk&#10;auth:read"></textarea>
-                </label>
+            </article>
+
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Diagnose</span>
+                  <h2>VM Inspector</h2>
+                </div>
+                <div class="button-row compact-row virt-inspector-controls">
+                  <input id="virt-inspector-vmid" type="number" min="1" step="1" placeholder="VMID">
+                  <button class="button primary small" id="virt-inspector-load" type="button">Laden</button>
+                  <button class="button ghost small" id="virt-inspector-use-selected" type="button">Aus Auswahl</button>
+                </div>
               </div>
-              <div class="button-row">
-                <button class="button primary" id="iam-role-save" type="button">Rolle speichern</button>
-                <button class="button ghost" id="iam-role-new" type="button">Neu</button>
-                <button class="button ghost danger" id="iam-role-delete" type="button">Rolle loeschen</button>
+
+              <div id="virt-inspector-summary" class="detail-grid">
+                <div class="kv"><div class="kv-label">Status</div><div class="kv-value">Noch keine VM geladen.</div></div>
               </div>
-            </section>
-          </div>
-        </section>
+
+              <div class="table-wrap compact section-spaced">
+                <table class="vm-table compact-table">
+                  <thead><tr><th>Config Key</th><th>Wert</th></tr></thead>
+                  <tbody id="virt-inspector-config-body">
+                    <tr><td colspan="2" class="empty-cell">Noch keine Config geladen.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="table-wrap compact section-spaced-tight">
+                <table class="vm-table compact-table">
+                  <thead><tr><th>Interface</th><th>MAC</th><th>Adressen</th></tr></thead>
+                  <tbody id="virt-inspector-iface-body">
+                    <tr><td colspan="3" class="empty-cell">Noch keine Interfaces geladen.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          </section>
+
+          <!-- ============ PROVISIONING ============ -->
+          <section class="panel-section" id="provisioning-section" data-panel-section="provisioning">
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Provisioning</span>
+                  <h2>Neue Beagle VM erstellen</h2>
+                </div>
+                <button class="button ghost small" id="refresh-catalog" type="button">Catalog refresh</button>
+              </div>
+
+              <div class="provision-grid" id="provision-grid">
+                <label class="field"><span>Node</span><select id="prov-node" class="input-select"></select></label>
+                <label class="field"><span>VMID</span><input id="prov-vmid" type="number" min="100" step="1" placeholder="auto"></label>
+                <label class="field"><span>Name</span><input id="prov-name" type="text" placeholder="ubuntu-beagle-123"></label>
+                <label class="field"><span>Desktop</span><select id="prov-desktop" class="input-select"></select></label>
+                <label class="field"><span>RAM (MiB)</span><input id="prov-memory" type="number" min="2048" step="256" placeholder="4096"></label>
+                <label class="field"><span>Cores</span><input id="prov-cores" type="number" min="2" step="1" placeholder="4"></label>
+                <label class="field"><span>Disk (GB)</span><input id="prov-disk" type="number" min="32" step="1" placeholder="64"></label>
+                <label class="field"><span>Bridge</span><select id="prov-bridge" class="input-select"></select></label>
+                <label class="field"><span>Disk Storage</span><select id="prov-disk-storage" class="input-select"></select></label>
+                <label class="field"><span>ISO Storage</span><select id="prov-iso-storage" class="input-select"></select></label>
+                <label class="field"><span>Guest User</span><input id="prov-guest-user" type="text" placeholder="beagle"></label>
+                <label class="field"><span>Guest Passwort</span><input id="prov-guest-password" type="password" placeholder="optional"></label>
+                <label class="field field-wide"><span>Extra Pakete (komma-separiert)</span><input id="prov-extra-packages" type="text" placeholder="htop,vim,steam-devices"></label>
+              </div>
+
+              <div class="button-row section-spaced">
+                <button class="button primary" id="provision-create" type="button">VM erstellen</button>
+                <button class="button ghost" id="provision-reset" type="button">Defaults laden</button>
+              </div>
+
+              <div class="card-head card-head-spaced">
+                <div><span class="eyebrow">Verlauf</span><h3>Letzte Provisioning Requests</h3></div>
+              </div>
+              <div class="table-wrap compact">
+                <table class="vm-table compact-table">
+                  <thead><tr><th>Zeit</th><th>VM</th><th>Node</th><th>Status</th><th>Desktop</th></tr></thead>
+                  <tbody id="provision-recent-body">
+                    <tr><td colspan="5" class="empty-cell">Noch keine Requests.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          </section>
+
+          <!-- ============ POLICIES ============ -->
+          <section class="panel-section" id="policies-section" data-panel-section="policies">
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Configuration</span>
+                  <h2>Assignment Policies</h2>
+                </div>
+              </div>
+              <div class="policy-layout">
+                <div class="policy-form">
+                  <label class="field"><span>Name</span><input id="policy-name" type="text" placeholder="desktop-vm100"></label>
+                  <label class="field field-narrow"><span>Priority</span><input id="policy-priority" type="number" value="100"></label>
+                  <label class="check-label check-label-padded">
+                    <input id="policy-enabled" type="checkbox" checked>
+                    <span>Aktiv</span>
+                  </label>
+                  <label class="field field-wide"><span>Selector JSON</span><textarea id="policy-selector" rows="4" placeholder='{"vmid": 100}'></textarea></label>
+                  <label class="field field-wide"><span>Profile JSON</span><textarea id="policy-profile" rows="6" placeholder='{"assigned_target":{"vmid":100},"beagle_role":"endpoint"}'></textarea></label>
+                  <div class="button-row">
+                    <button class="button primary" id="policy-save" type="button">Speichern</button>
+                    <button class="button ghost" id="policy-new" type="button">Neu</button>
+                    <button class="button danger" id="policy-delete" type="button">Loeschen</button>
+                  </div>
+                </div>
+                <div id="policies-list" class="policy-list">
+                  <div class="empty-card">Keine Policies geladen.</div>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <!-- ============ ACCESS / IAM ============ -->
+          <section class="panel-section" id="iam-section" data-panel-section="iam">
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Identity & Access</span>
+                  <h2>Benutzer und Rollen</h2>
+                </div>
+                <button class="button ghost small" id="iam-refresh" type="button">Refresh</button>
+              </div>
+              <div class="iam-layout">
+                <section class="iam-column">
+                  <h3>Benutzer</h3>
+                  <div class="table-wrap compact">
+                    <table class="vm-table compact-table">
+                      <thead><tr><th>Username</th><th>Rolle</th><th>Status</th></tr></thead>
+                      <tbody id="iam-users-body"><tr><td colspan="3" class="empty-cell">Keine User.</td></tr></tbody>
+                    </table>
+                  </div>
+                  <div class="iam-editor-grid">
+                    <label class="field"><span>Username</span><input id="iam-user-username" type="text" placeholder="operator01"></label>
+                    <label class="field"><span>Rolle</span><select id="iam-user-role" class="input-select"></select></label>
+                    <label class="field"><span>Passwort</span><input id="iam-user-password" type="password" placeholder="Neues Passwort"></label>
+                    <label class="check-label check-label-padded">
+                      <input id="iam-user-enabled" type="checkbox" checked>
+                      <span>Aktiv</span>
+                    </label>
+                  </div>
+                  <div class="button-row">
+                    <button class="button primary" id="iam-user-save" type="button">Speichern</button>
+                    <button class="button ghost" id="iam-user-new" type="button">Neu</button>
+                    <button class="button ghost" id="iam-user-revoke" type="button">Sessions revoke</button>
+                    <button class="button danger" id="iam-user-delete" type="button">Loeschen</button>
+                  </div>
+                </section>
+                <section class="iam-column">
+                  <h3>Rollen</h3>
+                  <div class="table-wrap compact">
+                    <table class="vm-table compact-table">
+                      <thead><tr><th>Rolle</th><th>Permissions</th></tr></thead>
+                      <tbody id="iam-roles-body"><tr><td colspan="2" class="empty-cell">Keine Rollen.</td></tr></tbody>
+                    </table>
+                  </div>
+                  <div class="iam-editor-grid iam-editor-stack">
+                    <label class="field"><span>Rollenname</span><input id="iam-role-name" type="text" placeholder="ops-l2"></label>
+                    <label class="field field-wide">
+                      <span>Permissions (eine pro Zeile)</span>
+                      <textarea id="iam-role-permissions" rows="6" placeholder="vm:mutate&#10;actions:bulk&#10;auth:read"></textarea>
+                    </label>
+                  </div>
+                  <div class="button-row">
+                    <button class="button primary" id="iam-role-save" type="button">Speichern</button>
+                    <button class="button ghost" id="iam-role-new" type="button">Neu</button>
+                    <button class="button danger" id="iam-role-delete" type="button">Loeschen</button>
+                  </div>
+                </section>
+              </div>
+            </article>
+          </section>
+        </div>
       </main>
     </div>
 
     <script src="/core/platform/browser-common.js"></script>
     <script src="/beagle-web-ui-config.js"></script>
-    <script src="/app.js?v=6.6.8"></script>
+    <script src="/app.js?v=7.0.0.0"></script>
   </body>
 </html>

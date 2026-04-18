@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -38,6 +39,9 @@ class AuthSessionService:
         self._roles_path = self._data_dir / "auth" / "roles.json"
         self._sessions_path = self._data_dir / "auth" / "sessions.json"
         self._onboarding_path = self._data_dir / "auth" / "onboarding.json"
+        # ThreadingHTTPServer handles requests concurrently; serialize auth state I/O
+        # so token/session updates cannot overwrite each other.
+        self._state_lock = threading.RLock()
 
     @staticmethod
     def _default_roles() -> list[dict[str, Any]]:
@@ -301,127 +305,142 @@ class AuthSessionService:
         return self.onboarding_status(bootstrap_username=bootstrap_username)
 
     def login(self, *, username: str, password: str, remote_addr: str = "", user_agent: str = "") -> dict[str, Any] | None:
-        user = self._find_user(username)
-        if user is None:
-            return None
-        if not bool(user.get("enabled", True)):
-            return None
-        if not self.verify_password(str(password or ""), str(user.get("password_hash") or "")):
-            return None
-        return self._issue_session(
-            username=str(user.get("username") or "").strip(),
-            role=str(user.get("role") or "viewer").strip() or "viewer",
-            remote_addr=remote_addr,
-            user_agent=user_agent,
-        )
+        with self._state_lock:
+            user = self._find_user(username)
+            if user is None:
+                return None
+            if not bool(user.get("enabled", True)):
+                return None
+            if not self.verify_password(str(password or ""), str(user.get("password_hash") or "")):
+                return None
+            return self._issue_session(
+                username=str(user.get("username") or "").strip(),
+                role=str(user.get("role") or "viewer").strip() or "viewer",
+                remote_addr=remote_addr,
+                user_agent=user_agent,
+            )
 
     def refresh(self, refresh_token: str) -> dict[str, Any] | None:
-        token = str(refresh_token or "").strip()
-        if not token:
-            return None
-        sessions_doc = self._load_sessions_doc()
-        sessions = sessions_doc.setdefault("sessions", [])
-        now_ts = int(self._now())
-        for session in sessions:
-            if not isinstance(session, dict):
-                continue
-            if bool(session.get("revoked")):
-                continue
-            if str(session.get("refresh_token") or "") != token:
-                continue
-            if self._session_expired(session, now_ts, include_access_expiry=False):
-                session["revoked"] = True
-                self._write_json_file(self._sessions_path, sessions_doc)
+        with self._state_lock:
+            token = str(refresh_token or "").strip()
+            if not token:
                 return None
-            username = str(session.get("username") or "").strip()
-            role = str(session.get("role") or "viewer").strip() or "viewer"
-            session["revoked"] = True
-            result = self._issue_session(
-                username=username,
-                role=role,
-                remote_addr=str(session.get("remote_addr") or ""),
-                user_agent=str(session.get("user_agent") or ""),
-                sessions_doc=sessions_doc,
-                sessions=sessions,
-            )
-            self._write_json_file(self._sessions_path, sessions_doc)
-            return result
-        return None
+            sessions_doc = self._load_sessions_doc()
+            sessions = sessions_doc.setdefault("sessions", [])
+            now_ts = int(self._now())
+            for session in sessions:
+                if not isinstance(session, dict):
+                    continue
+                if bool(session.get("revoked")):
+                    continue
+                if str(session.get("refresh_token") or "") != token:
+                    continue
+                if self._session_expired(session, now_ts, include_access_expiry=False):
+                    session["revoked"] = True
+                    self._write_json_file(self._sessions_path, sessions_doc)
+                    return None
+                username = str(session.get("username") or "").strip()
+                user = self._find_user(username)
+                if user is None or not bool(user.get("enabled", True)):
+                    session["revoked"] = True
+                    self._write_json_file(self._sessions_path, sessions_doc)
+                    return None
+                role = str(user.get("role") or session.get("role") or "viewer").strip() or "viewer"
+                access_token = self._token_urlsafe(48)
+                session["access_token"] = access_token
+                session["last_seen_at"] = now_ts
+                session["access_expires_at"] = now_ts + self._access_ttl_seconds
+                self._write_json_file(self._sessions_path, sessions_doc)
+                return {
+                    "ok": True,
+                    "access_token": access_token,
+                    "refresh_token": str(session.get("refresh_token") or token),
+                    "token_type": "Bearer",
+                    "expires_in": self._access_ttl_seconds,
+                    "user": {
+                        "username": username,
+                        "role": role,
+                    },
+                }
+            return None
 
     def resolve_access_token(self, access_token: str) -> dict[str, Any] | None:
-        token = str(access_token or "").strip()
-        if not token:
+        with self._state_lock:
+            token = str(access_token or "").strip()
+            if not token:
+                return None
+            sessions_doc = self._load_sessions_doc()
+            sessions = sessions_doc.setdefault("sessions", [])
+            now_ts = int(self._now())
+            dirty = False
+            for session in sessions:
+                if not isinstance(session, dict):
+                    continue
+                if bool(session.get("revoked")):
+                    continue
+                if str(session.get("access_token") or "") != token:
+                    continue
+                if self._session_expired(session, now_ts, include_access_expiry=True):
+                    session["revoked"] = True
+                    dirty = True
+                    continue
+                session["last_seen_at"] = now_ts
+                session["access_expires_at"] = now_ts + self._access_ttl_seconds
+                self._write_json_file(self._sessions_path, sessions_doc)
+                return {
+                    "username": str(session.get("username") or "").strip(),
+                    "role": str(session.get("role") or "viewer").strip() or "viewer",
+                    "auth_type": "session",
+                    "session_id": str(session.get("id") or "").strip(),
+                }
+            if dirty:
+                self._write_json_file(self._sessions_path, sessions_doc)
             return None
-        sessions_doc = self._load_sessions_doc()
-        sessions = sessions_doc.setdefault("sessions", [])
-        now_ts = int(self._now())
-        dirty = False
-        for session in sessions:
-            if not isinstance(session, dict):
-                continue
-            if bool(session.get("revoked")):
-                continue
-            if str(session.get("access_token") or "") != token:
-                continue
-            if self._session_expired(session, now_ts, include_access_expiry=True):
-                session["revoked"] = True
-                dirty = True
-                continue
-            session["last_seen_at"] = now_ts
-            session["access_expires_at"] = now_ts + self._access_ttl_seconds
-            self._write_json_file(self._sessions_path, sessions_doc)
-            return {
-                "username": str(session.get("username") or "").strip(),
-                "role": str(session.get("role") or "viewer").strip() or "viewer",
-                "auth_type": "session",
-                "session_id": str(session.get("id") or "").strip(),
-            }
-        if dirty:
-            self._write_json_file(self._sessions_path, sessions_doc)
-        return None
 
     def revoke(self, *, access_token: str = "", refresh_token: str = "") -> bool:
-        at = str(access_token or "").strip()
-        rt = str(refresh_token or "").strip()
-        if not at and not rt:
-            return False
-        sessions_doc = self._load_sessions_doc()
-        sessions = sessions_doc.setdefault("sessions", [])
-        changed = False
-        for session in sessions:
-            if not isinstance(session, dict):
-                continue
-            if bool(session.get("revoked")):
-                continue
-            if at and str(session.get("access_token") or "") == at:
-                session["revoked"] = True
-                changed = True
-            if rt and str(session.get("refresh_token") or "") == rt:
-                session["revoked"] = True
-                changed = True
-        if changed:
-            self._write_json_file(self._sessions_path, sessions_doc)
-        return changed
+        with self._state_lock:
+            at = str(access_token or "").strip()
+            rt = str(refresh_token or "").strip()
+            if not at and not rt:
+                return False
+            sessions_doc = self._load_sessions_doc()
+            sessions = sessions_doc.setdefault("sessions", [])
+            changed = False
+            for session in sessions:
+                if not isinstance(session, dict):
+                    continue
+                if bool(session.get("revoked")):
+                    continue
+                if at and str(session.get("access_token") or "") == at:
+                    session["revoked"] = True
+                    changed = True
+                if rt and str(session.get("refresh_token") or "") == rt:
+                    session["revoked"] = True
+                    changed = True
+            if changed:
+                self._write_json_file(self._sessions_path, sessions_doc)
+            return changed
 
     def revoke_user_sessions(self, username: str) -> int:
-        user_name = str(username or "").strip().lower()
-        if not user_name:
-            return 0
-        sessions_doc = self._load_sessions_doc()
-        sessions = sessions_doc.setdefault("sessions", [])
-        revoked_count = 0
-        for session in sessions:
-            if not isinstance(session, dict):
-                continue
-            if bool(session.get("revoked")):
-                continue
-            if str(session.get("username") or "").strip().lower() != user_name:
-                continue
-            session["revoked"] = True
-            revoked_count += 1
-        if revoked_count > 0:
-            self._write_json_file(self._sessions_path, sessions_doc)
-        return revoked_count
+        with self._state_lock:
+            user_name = str(username or "").strip().lower()
+            if not user_name:
+                return 0
+            sessions_doc = self._load_sessions_doc()
+            sessions = sessions_doc.setdefault("sessions", [])
+            revoked_count = 0
+            for session in sessions:
+                if not isinstance(session, dict):
+                    continue
+                if bool(session.get("revoked")):
+                    continue
+                if str(session.get("username") or "").strip().lower() != user_name:
+                    continue
+                session["revoked"] = True
+                revoked_count += 1
+            if revoked_count > 0:
+                self._write_json_file(self._sessions_path, sessions_doc)
+            return revoked_count
 
     def hash_password(self, password: str, *, iterations: int = 390000) -> str:
         salt = secrets.token_bytes(16)
@@ -451,42 +470,43 @@ class AuthSessionService:
         sessions_doc: dict[str, Any] | None = None,
         sessions: list[Any] | None = None,
     ) -> dict[str, Any]:
-        now_ts = int(self._now())
-        access_token = self._token_urlsafe(48)
-        refresh_token = self._token_urlsafe(48)
-        session_id = self._token_urlsafe(16)
-        payload = {
-            "id": session_id,
-            "username": username,
-            "role": role,
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "created_at": now_ts,
-            "last_seen_at": now_ts,
-            "access_expires_at": now_ts + self._access_ttl_seconds,
-            "refresh_expires_at": now_ts + self._refresh_ttl_seconds,
-            "absolute_expires_at": now_ts + self._absolute_timeout_seconds,
-            "remote_addr": remote_addr,
-            "user_agent": user_agent,
-            "revoked": False,
-        }
-        if sessions_doc is None or sessions is None:
-            sessions_doc = self._load_sessions_doc()
-            sessions = sessions_doc.setdefault("sessions", [])
-        self._enforce_session_limit(sessions=sessions, username=username, now_ts=now_ts)
-        sessions.append(payload)
-        self._write_json_file(self._sessions_path, sessions_doc)
-        return {
-            "ok": True,
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "Bearer",
-            "expires_in": self._access_ttl_seconds,
-            "user": {
+        with self._state_lock:
+            now_ts = int(self._now())
+            access_token = self._token_urlsafe(48)
+            refresh_token = self._token_urlsafe(48)
+            session_id = self._token_urlsafe(16)
+            payload = {
+                "id": session_id,
                 "username": username,
                 "role": role,
-            },
-        }
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "created_at": now_ts,
+                "last_seen_at": now_ts,
+                "access_expires_at": now_ts + self._access_ttl_seconds,
+                "refresh_expires_at": now_ts + self._refresh_ttl_seconds,
+                "absolute_expires_at": now_ts + self._absolute_timeout_seconds,
+                "remote_addr": remote_addr,
+                "user_agent": user_agent,
+                "revoked": False,
+            }
+            if sessions_doc is None or sessions is None:
+                sessions_doc = self._load_sessions_doc()
+                sessions = sessions_doc.setdefault("sessions", [])
+            self._enforce_session_limit(sessions=sessions, username=username, now_ts=now_ts)
+            sessions.append(payload)
+            self._write_json_file(self._sessions_path, sessions_doc)
+            return {
+                "ok": True,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "Bearer",
+                "expires_in": self._access_ttl_seconds,
+                "user": {
+                    "username": username,
+                    "role": role,
+                },
+            }
 
     def _enforce_session_limit(self, *, sessions: list[Any], username: str, now_ts: int) -> None:
         if self._max_sessions_per_user <= 0:

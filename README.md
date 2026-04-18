@@ -6,23 +6,27 @@
 
 > **Built to boot. If it still won't boot, the BIOS is being dramatic.**
 
-> **Open-source endpoint OS, gaming kiosk, and host installer with Proxmox as the current first provider.**
+> **Open-source hypervisor OS, endpoint runtime, and gaming kiosk — batteries included, Proxmox optional.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [Download Latest](https://beagle-os.com/download/)
 [![Shell](https://img.shields.io/badge/shell-54%25-green)]()
 [![Python](https://img.shields.io/badge/python-24%25-blue)]()
 
-Beagle OS is an MIT-licensed project for three tightly related jobs:
+Beagle OS is an MIT-licensed, standalone virtualization platform. It runs its own compute, storage, and network stack on bare metal and delivers streamed desktops and gaming sessions to thin clients — no Proxmox required.
+
+### Three modes, one ISO
 
 - `Beagle OS Desktop`
-  Runs Moonlight on a dedicated endpoint and connects it to a Sunshine-enabled VM.
+  Endpoint runtime. Runs Moonlight and connects to a Sunshine-enabled VM hosted by any Beagle server.
 - `Beagle OS Gaming`
-  Runs the Beagle gaming kiosk as the primary shell and launches GeForce NOW from that kiosk.
-- `Beagle OS Server Installer`
-  Boots a bare server, asks for basic install parameters, installs Debian + Proxmox VE, then installs the Beagle integration on top.
+  Gaming kiosk shell. Launches GeForce NOW and returns to the kiosk on exit.
+- `Beagle OS Server`
+  Boots a bare server and installs the full Beagle hypervisor stack. During installation you choose:
+  - **Beagle OS Standalone** — Beagle's own virtualization runtime, no third-party hypervisor needed.
+  - **Beagle OS with Proxmox** — installs Proxmox VE as an optional provider underneath Beagle.
 
-Beagle OS is not a generic broker platform. It is a focused stack for streamed desktops, gaming endpoints, and reproducible host installation. Today the main deployment path is Proxmox-backed, but the architecture is being refactored so Proxmox is a provider implementation rather than the permanent system center.
+Beagle OS is not a Proxmox wrapper. It is a focused, self-contained platform for streamed desktops, gaming endpoints, and reproducible fleet management. Proxmox can be selected as a provider if you already operate it, but it is entirely optional.
 
 ## What Lives in This Repository
 
@@ -89,49 +93,53 @@ You can use:
 
 ## Architecture
 
-Beagle OS consists of three runtime layers plus a provider layer:
+Beagle OS is a layered platform with provider-neutral contracts at the core:
 
-1. `Provider Layer`
-   Concrete infrastructure integration, currently Proxmox first.
-2. `Beagle OS Endpoint Runtime`
+1. `Beagle Virtualization Runtime`
+   Beagle's own compute, storage, and network stack. Manages VMs, disks, and bridges natively on bare metal.
+2. `Provider Layer` *(optional)*
+   Concrete external hypervisor integration. Currently supports Proxmox VE as an optional provider. More providers can be added without changing core logic.
+3. `Beagle OS Endpoint Runtime`
    Dedicated endpoint OS for Moonlight desktop mode and Gaming kiosk mode.
-3. `Beagle Control Plane`
-   Inventory, VM-aware artifact publication, host services, health, and UI integration.
-4. `Beagle Server Installer`
-   Bootable installer for new provider-backed Beagle hosts, currently Debian + Proxmox + Beagle.
+4. `Beagle Control Plane`
+   Inventory, VM-aware artifact publication, host services, health checks, and fleet management.
+5. `Beagle Server Installer`
+   Bootable bare-metal installer with two modes: **Standalone** (Beagle only) and **with Proxmox** (Proxmox as optional provider).
 
 In practice:
 
-- Proxmox is the current primary operator surface, not the permanent architecture center.
-- Sunshine inside the VM is the desktop streaming target.
-- Moonlight on the endpoint is the desktop client path.
+- Beagle OS is the primary operator surface — not Proxmox.
+- Sunshine inside a VM is the desktop streaming target.
+- Moonlight on the endpoint is the desktop client.
 - The Beagle kiosk is the gaming shell around GeForce NOW.
 - Public artifacts on `beagle-os.com` are the canonical release surface.
 
 ## Operational Model
 
-Typical Desktop flow today:
+Typical Desktop flow:
 
-1. Install Beagle on Proxmox.
-2. Create or prepare a Sunshine-capable VM.
-3. Download the VM-specific installer from Proxmox.
-4. Write a USB stick.
-5. Install the endpoint and boot `Beagle OS Desktop`.
+1. Boot a server with the Beagle Server Installer ISO.
+2. Choose **Beagle OS Standalone** (or **with Proxmox** if desired).
+3. Create a Sunshine-capable VM via the Beagle Console.
+4. Download the VM-specific endpoint installer from the Beagle Console.
+5. Write a USB stick and install the endpoint.
+6. Boot the endpoint into `Beagle OS Desktop` — the stream starts automatically.
 
 Typical Gaming flow:
 
-1. Install or update the endpoint OS.
-2. Boot `Beagle OS Gaming`.
-3. The kiosk starts as the primary shell.
-4. Launch GeForce NOW from the kiosk.
-5. When GFN exits, the kiosk returns.
+1. Boot the endpoint into `Beagle OS Gaming`.
+2. The kiosk starts as the primary shell.
+3. Launch GeForce NOW from the kiosk.
+4. When GFN exits, the kiosk returns.
 
-Typical Host bootstrap flow today:
+Typical Host bootstrap flow:
 
-1. Boot the Beagle server installer ISO.
+1. Boot the Beagle Server Installer ISO on bare metal.
 2. Select the install disk and set hostname/user/password.
-3. Let the installer finish Debian + Proxmox + Beagle setup.
-4. Log into the new Proxmox host and continue with Beagle Fleet or endpoint rollouts.
+3. Choose installation mode:
+   - **Beagle OS Standalone** — installs Debian + Beagle virtualization runtime only.
+   - **Beagle OS with Proxmox** — additionally installs Proxmox VE as an optional provider.
+4. After install, log into the Beagle Console and manage your fleet from there.
 
 ## Public Artifacts
 

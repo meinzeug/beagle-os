@@ -28,7 +28,9 @@ BEAGLE_PUBLIC_UPDATE_BASE_URL="${BEAGLE_SERVER_PUBLIC_UPDATE_BASE_URL:-https://g
 BEAGLE_INSTALL_DIR="${BEAGLE_SERVER_INSTALL_DIR:-/opt/beagle}"
 BUNDLED_BEAGLE_SOURCE_ARCHIVE="${BEAGLE_SERVER_BUNDLED_SOURCE_ARCHIVE:-/usr/local/share/beagle/beagle-os-source.tar.gz}"
 LIVE_INSTALL_LOCALE="${BEAGLE_SERVER_LIVE_INSTALL_LOCALE:-C.UTF-8}"
-BEAGLE_SERVER_SSH_PASSWORD_AUTH="${BEAGLE_SERVER_SSH_PASSWORD_AUTH:-no}"
+BEAGLE_SERVER_SSH_PASSWORD_AUTH="${BEAGLE_SERVER_SSH_PASSWORD_AUTH:-yes}"
+BEAGLE_SERVER_INSTALLER_DEBUG_SSH_ENABLE="${BEAGLE_SERVER_INSTALLER_DEBUG_SSH_ENABLE:-1}"
+BEAGLE_SERVER_INSTALLER_DEBUG_SSH_PASSWORD="${BEAGLE_SERVER_INSTALLER_DEBUG_SSH_PASSWORD:-beagle-debug}"
 
 cleanup() {
   umount "$TARGET_MOUNT/dev/pts" >/dev/null 2>&1 || true
@@ -80,6 +82,42 @@ bootstrap_live_locale() {
   export LANG="$LIVE_INSTALL_LOCALE"
   export LANGUAGE="$LIVE_INSTALL_LOCALE"
   export LC_ALL="$LIVE_INSTALL_LOCALE"
+}
+
+enable_live_debug_ssh() {
+  local enabled password ssh_dropin
+  enabled="$(printf '%s' "$BEAGLE_SERVER_INSTALLER_DEBUG_SSH_ENABLE" | tr '[:upper:]' '[:lower:]')"
+  case "$enabled" in
+    1|yes|true|on) ;;
+    *)
+      log "live debug ssh disabled"
+      return 0
+      ;;
+  esac
+
+  password="$BEAGLE_SERVER_INSTALLER_DEBUG_SSH_PASSWORD"
+  if [[ -z "$password" ]]; then
+    log "live debug ssh password is empty; skipping debug ssh setup"
+    return 0
+  fi
+
+  ssh_dropin="/etc/ssh/sshd_config.d/20-beagle-installer-debug.conf"
+  mkdir -p /etc/ssh/sshd_config.d
+  cat >"$ssh_dropin" <<'EOF'
+PermitRootLogin yes
+PasswordAuthentication yes
+KbdInteractiveAuthentication no
+UsePAM yes
+EOF
+
+  if command -v chpasswd >/dev/null 2>&1; then
+    printf 'root:%s\n' "$password" | chpasswd
+  fi
+
+  systemctl restart ssh >/dev/null 2>&1 || systemctl restart sshd >/dev/null 2>&1 || true
+  log "live debug ssh enabled for root login"
+  printf '\n[debug] SSH enabled for installer diagnostics: ssh root@<vm-ip>\n' >&2
+  printf '[debug] Temporary root password: %s\n\n' "$password" >&2
 }
 
 run_logged() {
@@ -638,7 +676,7 @@ install_host_provider_packages() {
 install_beagle_host_stack() {
   local kind mode
   local install_dir_q hostname_q public_updates_q web_ui_q mode_q source_archive
-  local bootstrap_username_q bootstrap_password_q
+  local bootstrap_disable_q
   kind="$(host_provider_kind)"
   mode="$(install_mode_kind)"
   source_archive="/tmp/beagle-os.tar.gz"
@@ -647,8 +685,7 @@ install_beagle_host_stack() {
   printf -v public_updates_q '%q' "$BEAGLE_PUBLIC_UPDATE_BASE_URL"
   printf -v web_ui_q '%q' "https://$INSTALL_HOSTNAME"
   printf -v mode_q '%q' "$mode"
-  printf -v bootstrap_username_q '%q' "$INSTALL_USERNAME"
-  printf -v bootstrap_password_q '%q' "$INSTALL_PASSWORD"
+  printf -v bootstrap_disable_q '%q' "1"
   if [[ -f "$BUNDLED_BEAGLE_SOURCE_ARCHIVE" ]]; then
     log "using bundled beagle source archive: $BUNDLED_BEAGLE_SOURCE_ARCHIVE"
     install -m 0644 "$BUNDLED_BEAGLE_SOURCE_ARCHIVE" "$source_archive"
@@ -658,7 +695,7 @@ install_beagle_host_stack() {
   chroot_run "mkdir -p /usr/local/src/beagle-os-src /var/lib/beagle"
   install -m 0644 "$source_archive" "$TARGET_MOUNT/tmp/beagle-os.tar.gz"
   chroot_run "rm -rf /usr/local/src/beagle-os-src && mkdir -p /usr/local/src/beagle-os-src && tar -xzf /tmp/beagle-os.tar.gz -C /usr/local/src/beagle-os-src"
-  chroot_run "install_script=\$(find /usr/local/src/beagle-os-src -path '*/scripts/install-beagle-host.sh' -print -quit); [[ -n \"\$install_script\" ]] && source_root=\$(dirname \"\$(dirname \"\$install_script\")\") && cd \"\$source_root\" && BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q BEAGLE_SERVER_INSTALL_MODE=$mode_q BEAGLE_HOST_PROVIDER=$kind BEAGLE_AUTH_BOOTSTRAP_USERNAME=$bootstrap_username_q BEAGLE_AUTH_BOOTSTRAP_PASSWORD=$bootstrap_password_q PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-beagle-host.sh"
+  chroot_run "install_script=\$(find /usr/local/src/beagle-os-src -path '*/scripts/install-beagle-host.sh' -print -quit); [[ -n \"\$install_script\" ]] && source_root=\$(dirname \"\$(dirname \"\$install_script\")\") && cd \"\$source_root\" && BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q BEAGLE_SERVER_INSTALL_MODE=$mode_q BEAGLE_HOST_PROVIDER=$kind BEAGLE_AUTH_BOOTSTRAP_DISABLE=$bootstrap_disable_q PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-beagle-host.sh"
 }
 
 harden_system() {
@@ -784,6 +821,30 @@ install_bootloader() {
   chroot_run "update-grub"
 }
 
+reboot_with_guardrail() {
+  # In some live-media environments a normal reboot can stall on console prompts
+  # (for example when media state changes during shutdown). Keep a forced fallback.
+  local guardrail_delay="${BEAGLE_SERVER_REBOOT_GUARDRAIL_DELAY:-20}"
+
+  (
+    sleep "$guardrail_delay"
+    log "reboot guardrail: normal reboot still not completed, forcing reboot"
+    sync || true
+    /sbin/reboot -f || systemctl reboot --force --force || {
+      echo 1 >/proc/sys/kernel/sysrq 2>/dev/null || true
+      echo b >/proc/sysrq-trigger 2>/dev/null || true
+    }
+  ) >/dev/null 2>&1 &
+
+  log "requesting reboot"
+  systemctl reboot || reboot || /sbin/reboot || true
+
+  # If reboot returns unexpectedly, wait for guardrail fallback.
+  while true; do
+    sleep 5
+  done
+}
+
 
 finish_install() {
   touch "$DONE_FILE"
@@ -798,7 +859,7 @@ finish_install() {
     printf '\nInstallation complete.\n\nRemove the USB stick and press ENTER to reboot.\n'
     read -r _
   fi
-  reboot
+  reboot_with_guardrail
 }
 
 # Load inputs collected by the Python curses TUI from the state file.
@@ -823,6 +884,7 @@ main() {
   require_root
   bootstrap_live_locale
   setup_logging
+  enable_live_debug_ssh
 
   # ── Launch the Python curses TUI to collect all inputs ─────────────────────
   local gui_bin="/usr/local/bin/beagle-server-installer-gui"

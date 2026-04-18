@@ -121,6 +121,13 @@ PY
   source "$preset_file"
   set +a
 
+  if [[ "${PVE_THIN_CLIENT_PRESET_DEFAULT_MODE:-MOONLIGHT}" == "MOONLIGHT" ]]; then
+    if [[ -z "${PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME:-}" || -z "${PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD:-}" || -z "${PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN:-}" ]]; then
+      echo "Live USB preset is missing Sunshine auto-pair credentials (username/password/pin)." >&2
+      exit 1
+    fi
+  fi
+
   install -d -m 0755 "$live_state_dir"
 
   MODE="${PVE_THIN_CLIENT_PRESET_DEFAULT_MODE:-MOONLIGHT}"

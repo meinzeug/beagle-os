@@ -314,8 +314,14 @@ class UbuntuBeagleProvisioningService:
         return self._safe_slug(candidate, "ubuntu-live-server-amd64.iso")
 
     def ubuntu_beagle_extract_dir(self, iso_filename: str) -> Path:
-        path = self._ubuntu_beagle_tokens_dir() / "extracted" / self._safe_slug(iso_filename, "ubuntu")
+        # Keep extracted boot assets in the provider ISO storage path so libvirt
+        # security profiles can access them without host-wide security downgrades.
+        base_dir = self.local_iso_storage_dir() / "beagle-extracted"
+        base_dir.mkdir(parents=True, exist_ok=True)
+        base_dir.chmod(0o755)
+        path = base_dir / self._safe_slug(iso_filename, "ubuntu")
         path.mkdir(parents=True, exist_ok=True)
+        path.chmod(0o755)
         return path
 
     def ensure_ubuntu_beagle_iso_cached(self, iso_url: str) -> dict[str, str]:
@@ -356,6 +362,7 @@ class UbuntuBeagleProvisioningService:
                 ],
                 timeout=None,
             )
+            kernel_path.chmod(0o644)
         if not initrd_path.exists():
             try:
                 self._run_checked(
@@ -385,6 +392,11 @@ class UbuntuBeagleProvisioningService:
                     ],
                     timeout=None,
                 )
+            initrd_path.chmod(0o644)
+
+        # Ensure existing files are readable by the libvirt worker account.
+        kernel_path.chmod(0o644)
+        initrd_path.chmod(0o644)
 
         return {
             "iso_filename": iso_filename,

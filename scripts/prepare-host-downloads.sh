@@ -244,9 +244,21 @@ done < <(
   compgen -G 'pve-thin-client-live-usb-vm-*.sh' | sort || true
 )
 
+checksum_existing_entries=()
+for checksum_name in "${checksum_entries[@]}"; do
+  if [[ -f "$DIST_DIR/$checksum_name" ]]; then
+    checksum_existing_entries+=("$checksum_name")
+  fi
+done
+
+if [[ "${#checksum_existing_entries[@]}" -eq 0 ]]; then
+  echo "No checksum artifacts found under $DIST_DIR" >&2
+  exit 1
+fi
+
 (
   cd "$DIST_DIR"
-  sha256sum "${checksum_entries[@]}" > "$(basename "$CHECKSUM_FILE")"
+  sha256sum "${checksum_existing_entries[@]}" > "$(basename "$CHECKSUM_FILE")"
 )
 
 ensure_dist_permissions

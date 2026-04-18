@@ -40,6 +40,8 @@ class AuthzPolicyService:
             if route.startswith("/api/v1/auth/users/") or route.startswith("/api/v1/auth/roles/"):
                 return "auth:write"
         if verb == "DELETE":
+            if re.match(r"^/api/v1/provisioning/vms/\d+$", route):
+                return "provisioning:write"
             if route.startswith("/api/v1/policies/"):
                 return "policy:write"
             if route.startswith("/api/v1/auth/users/") or route.startswith("/api/v1/auth/roles/"):

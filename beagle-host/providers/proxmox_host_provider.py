@@ -213,6 +213,17 @@ class ProxmoxHostProvider:
                 timeout=timeout,
             )
 
+    def delete_vm(
+        self,
+        vmid: int,
+        *,
+        timeout: float | None | object = None,
+    ) -> str:
+        return self._run_checked(
+            ["qm", "destroy", str(int(vmid)), "--purge", "1"],
+            timeout=timeout,
+        )
+
     def set_vm_description(
         self,
         vmid: int,

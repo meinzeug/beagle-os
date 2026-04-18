@@ -1251,7 +1251,10 @@ mode_is_available() {
       [[ -n "${PVE_THIN_CLIENT_PRESET_DCV_URL:-}" ]]
       ;;
     MOONLIGHT)
-      [[ -n "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" ]]
+      [[ -n "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" ]] && \
+      [[ -n "${PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME:-}" ]] && \
+      [[ -n "${PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD:-}" ]] && \
+      [[ -n "${PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN:-}" ]]
       ;;
     *)
       return 1
@@ -1550,6 +1553,15 @@ apply_preset_defaults() {
   SUNSHINE_SERVER_CERT_B64="${PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_CERT_B64:-}"
 }
 
+validate_moonlight_auto_pin_preset() {
+  if [[ -z "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" || -z "${PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME:-}" || -z "${PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD:-}" || -z "${PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN:-}" ]]; then
+    echo "Moonlight preset requires host plus Sunshine username/password/pin for automatic pairing." >&2
+    return 1
+  fi
+
+  return 0
+}
+
 apply_preset_mode() {
   local selected_mode="$1"
 
@@ -1580,6 +1592,7 @@ apply_preset_mode() {
       SUNSHINE_USERNAME="${PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME:-}"
       SUNSHINE_PASSWORD="${PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD:-}"
       SUNSHINE_PIN="${PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN:-}"
+      validate_moonlight_auto_pin_preset || exit 1
       ;;
     SPICE)
       CONNECTION_USERNAME="${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}}"
@@ -1683,15 +1696,15 @@ terminal_output console
 set default=0
 set timeout=4
 
-menuentry 'Beagle OS Gaming' {
-  search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming $irq_args_default
-  initrd /live/current/initrd.img
-}
-
 menuentry 'Beagle OS Desktop' {
   search --no-floppy --fs-uuid --set=root $root_uuid
   linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop $irq_args_default
+  initrd /live/current/initrd.img
+}
+
+menuentry 'Beagle OS Gaming' {
+  search --no-floppy --fs-uuid --set=root $root_uuid
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming $irq_args_default
   initrd /live/current/initrd.img
 }
 

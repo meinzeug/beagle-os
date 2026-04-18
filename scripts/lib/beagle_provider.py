@@ -34,10 +34,10 @@ def provider_kind() -> str:
     return normalize_provider_kind(os.environ.get("BEAGLE_HOST_PROVIDER", "proxmox"))
 
 
-def run_json(command: list[str]) -> Any:
+def run_json(command: list[str], *, timeout: float | None = None) -> Any:
     try:
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-    except (FileNotFoundError, subprocess.CalledProcessError):
+        result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
     try:
         return json.loads(result.stdout or "null")
@@ -45,16 +45,16 @@ def run_json(command: list[str]) -> Any:
         return None
 
 
-def run_text(command: list[str]) -> str:
+def run_text(command: list[str], *, timeout: float | None = None) -> str:
     try:
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-    except (FileNotFoundError, subprocess.CalledProcessError):
+        result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return ""
     return result.stdout or ""
 
 
-def run_checked(command: list[str]) -> str:
-    result = subprocess.run(command, check=True, capture_output=True, text=True)
+def run_checked(command: list[str], *, timeout: float | None = None) -> str:
+    result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
     return result.stdout or ""
 
 

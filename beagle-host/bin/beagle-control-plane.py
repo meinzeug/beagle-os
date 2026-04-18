@@ -113,7 +113,8 @@ DATA_DIR = Path(os.environ.get("BEAGLE_MANAGER_DATA_DIR", "/var/lib/beagle/beagl
 API_TOKEN = os.environ.get("BEAGLE_MANAGER_API_TOKEN", "").strip()
 AUTH_BOOTSTRAP_USERNAME = os.environ.get("BEAGLE_AUTH_BOOTSTRAP_USERNAME", "admin").strip() or "admin"
 AUTH_BOOTSTRAP_PASSWORD = os.environ.get("BEAGLE_AUTH_BOOTSTRAP_PASSWORD", "").strip()
-if not AUTH_BOOTSTRAP_PASSWORD and API_TOKEN:
+AUTH_BOOTSTRAP_PASSWORD_FROM_API_TOKEN = os.environ.get("BEAGLE_AUTH_BOOTSTRAP_PASSWORD_FROM_API_TOKEN", "0").strip().lower() in {"1", "true", "yes", "on"}
+if not AUTH_BOOTSTRAP_PASSWORD and AUTH_BOOTSTRAP_PASSWORD_FROM_API_TOKEN and API_TOKEN:
     AUTH_BOOTSTRAP_PASSWORD = API_TOKEN
 AUTH_BOOTSTRAP_DISABLE = os.environ.get("BEAGLE_AUTH_BOOTSTRAP_DISABLE", "0").strip().lower() in {"1", "true", "yes", "on"}
 AUTH_ACCESS_TTL_SECONDS = int(os.environ.get("BEAGLE_AUTH_ACCESS_TTL_SECONDS", "3600"))
@@ -150,7 +151,7 @@ PROXMOX_UI_PORTS_RAW = os.environ.get("BEAGLE_PROXMOX_UI_PORTS", "8006").strip()
 BEAGLE_HOST_PROVIDER_KIND = normalize_provider_kind(os.environ.get("BEAGLE_HOST_PROVIDER", "proxmox"))
 ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_SECONDS", "86400"))
 SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_TOKEN_TTL_SECONDS", "600"))
-USB_TUNNEL_SSH_USER = os.environ.get("BEAGLE_USB_TUNNEL_SSH_USER", "beagle").strip() or "beagle"
+USB_TUNNEL_SSH_USER = os.environ.get("BEAGLE_USB_TUNNEL_SSH_USER", "beagle-tunnel").strip() or "beagle-tunnel"
 USB_TUNNEL_HOME_RAW = os.environ.get("BEAGLE_USB_TUNNEL_HOME", "").strip()
 USB_TUNNEL_HOME = Path(USB_TUNNEL_HOME_RAW) if USB_TUNNEL_HOME_RAW else None
 USB_TUNNEL_AUTH_ROOT_RAW = os.environ.get("BEAGLE_USB_TUNNEL_AUTH_ROOT", "").strip()
@@ -175,7 +176,7 @@ UBUNTU_BEAGLE_ISO_URL = os.environ.get(
 UBUNTU_BEAGLE_ISO_STORAGE = os.environ.get("BEAGLE_UBUNTU_ISO_STORAGE", "local").strip() or "local"
 UBUNTU_BEAGLE_DISK_STORAGE = os.environ.get("BEAGLE_UBUNTU_DISK_STORAGE", "local-lvm").strip() or "local-lvm"
 UBUNTU_BEAGLE_DEFAULT_BRIDGE = os.environ.get("BEAGLE_UBUNTU_DEFAULT_BRIDGE", "vmbr1").strip() or "vmbr1"
-UBUNTU_BEAGLE_DEFAULT_MEMORY_MIB = int(os.environ.get("BEAGLE_UBUNTU_DEFAULT_MEMORY_MIB", "8192"))
+UBUNTU_BEAGLE_DEFAULT_MEMORY_MIB = int(os.environ.get("BEAGLE_UBUNTU_DEFAULT_MEMORY_MIB", "4096"))
 UBUNTU_BEAGLE_DEFAULT_CORES = int(os.environ.get("BEAGLE_UBUNTU_DEFAULT_CORES", "4"))
 UBUNTU_BEAGLE_DEFAULT_DISK_GB = int(os.environ.get("BEAGLE_UBUNTU_DEFAULT_DISK_GB", "64"))
 UBUNTU_BEAGLE_DEFAULT_GUEST_USER = os.environ.get("BEAGLE_UBUNTU_DEFAULT_GUEST_USER", "beagle").strip() or "beagle"
@@ -1576,6 +1577,21 @@ def create_provisioned_vm(payload: dict[str, Any]) -> dict[str, Any]:
     return ubuntu_beagle_provisioning_service().create_provisioned_vm(payload)
 
 
+def delete_provisioned_vm(vmid: int) -> dict[str, Any]:
+    vm = find_vm(vmid, refresh=True)
+    if vm is None:
+        raise ValueError(f"vm not found: {int(vmid)}")
+    provider_result = HOST_PROVIDER.delete_vm(int(vmid), timeout=None)
+    invalidate_vm_cache(int(vmid), vm.node)
+    return {
+        "vmid": int(vmid),
+        "node": vm.node,
+        "name": vm.name,
+        "deleted": True,
+        "provider_result": str(provider_result or "").strip(),
+    }
+
+
 def finalize_ubuntu_beagle_install(state: dict[str, Any], *, restart: bool = True) -> dict[str, Any]:
     return ubuntu_beagle_provisioning_service().finalize_ubuntu_beagle_install(state, restart=restart)
 
@@ -1801,6 +1817,7 @@ def admin_http_surface_service() -> AdminHttpSurfaceService:
         ADMIN_HTTP_SURFACE_SERVICE = AdminHttpSurfaceService(
             create_provisioned_vm=create_provisioned_vm,
             create_ubuntu_beagle_vm=create_ubuntu_beagle_vm,
+            delete_provisioned_vm=delete_provisioned_vm,
             delete_policy=delete_policy,
             queue_bulk_actions=queue_bulk_actions,
             save_policy=save_policy,

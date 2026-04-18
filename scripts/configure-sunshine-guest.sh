@@ -422,7 +422,10 @@ configure_system_locale() {
   apt-get install -y --no-install-recommends locales
   case "\$language_code" in
     de)
-      apt-get install -y --no-install-recommends language-pack-de language-pack-gnome-de
+      # Ubuntu language-pack packages are optional and not present on Debian hosts.
+      if apt-cache show language-pack-de >/dev/null 2>&1 && apt-cache show language-pack-gnome-de >/dev/null 2>&1; then
+        apt-get install -y --no-install-recommends language-pack-de language-pack-gnome-de || true
+      fi
       ;;
   esac
 

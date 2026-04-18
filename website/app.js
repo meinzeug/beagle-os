@@ -106,35 +106,36 @@
     'bulk-vm-reboot'
   ];
 
-  var panelMeta = {    overview: {
-      eyebrow: 'Host Control Surface',
-      title: 'Beagle OS Web UI',
-      description: 'Zentrale Bedienoberflaeche fuer aktive Beagle-VMs, Endpoint-Zustand, Installer-Bereitschaft, Credentials und Operator-Aktionen.'
+  var panelMeta = {
+    overview: {
+      eyebrow: 'Beagle Console',
+      title: 'Dashboard',
+      description: 'Live Status, Aktivitaet und Infrastruktur-Telemetrie auf einen Blick.'
     },
     inventory: {
-      eyebrow: 'Inventory Workspace',
-      title: 'Beagle Inventar',
-      description: 'Arbeite direkt mit den aktiven Beagle-VMs, Filterung, Bulk-Aktionen und Detailansicht.'
+      eyebrow: 'Beagle Endpoints',
+      title: 'Endpoint Inventar',
+      description: 'Aktive Beagle-VMs verwalten: Filter, Bulk Actions und Detailansicht.'
     },
     virtualization: {
-      eyebrow: 'Infrastructure Workspace',
-      title: 'Virtualisierung',
-      description: 'Nodes, Storage und Infrastruktur-Inventar des Beagle-Hosts.'
+      eyebrow: 'Infrastruktur',
+      title: 'Nodes, Storage und Netzwerk',
+      description: 'Provider-neutrale Sicht auf Compute, Persistenz und Netz-Bridges.'
     },
     provisioning: {
-      eyebrow: 'Provisioning Workspace',
-      title: 'VM Provisioning',
-      description: 'Erstelle neue Ubuntu-Beagle VMs ueber provider-neutrale Provisioning-Contracts und verfolge die letzten Requests.'
+      eyebrow: 'Provisioning',
+      title: 'Neue VM erstellen',
+      description: 'Provider-neutrale Provisioning-Contracts mit Verlauf der letzten Requests.'
     },
     policies: {
-      eyebrow: 'Configuration Workspace',
-      title: 'Beagle Policies',
-      description: 'Verwalte Zuweisungen, Profile und Prioritaeten fuer deine Endpoint- und Desktop-Flotte.'
+      eyebrow: 'Konfiguration',
+      title: 'Assignment Policies',
+      description: 'Zuweisungen, Profile und Prioritaeten fuer die Beagle-Flotte verwalten.'
     },
     iam: {
-      eyebrow: 'Identity Workspace',
-      title: 'IAM Verwaltung',
-      description: 'Benutzer, Rollen und Session-Kontrolle zentral fuer den Beagle-Host steuern.'
+      eyebrow: 'Identity & Access',
+      title: 'Benutzer & Rollen',
+      description: 'Konsolen-Anmeldung, RBAC und Sessions zentral steuern.'
     }
   };
 
@@ -336,6 +337,55 @@
     node.textContent = message;
   }
 
+  /* ── Confirm modal (replaces window.confirm) ─────────── */
+  function requestConfirm(opts) {
+    var options = opts || {};
+    return new Promise(function (resolve) {
+      var modal = qs('confirm-modal');
+      var titleEl = qs('confirm-title');
+      var msgEl = qs('confirm-message');
+      var acceptBtn = qs('confirm-accept');
+      var cancelBtn = qs('confirm-cancel');
+      if (!modal || !titleEl || !msgEl || !acceptBtn || !cancelBtn) {
+        // Fallback to native confirm if modal markup is missing.
+        resolve(window.confirm(String(options.message || 'Aktion ausfuehren?')));
+        return;
+      }
+      titleEl.textContent = String(options.title || 'Bitte bestaetigen');
+      msgEl.textContent = String(options.message || 'Aktion ausfuehren?');
+      acceptBtn.textContent = String(options.confirmLabel || 'Bestaetigen');
+      cancelBtn.textContent = String(options.cancelLabel || 'Abbrechen');
+      acceptBtn.classList.remove('danger', 'primary');
+      acceptBtn.classList.add(options.danger ? 'danger' : 'primary');
+      modal.hidden = false;
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('modal-open');
+
+      function close(result) {
+        modal.hidden = true;
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('modal-open');
+        acceptBtn.removeEventListener('click', onAccept);
+        cancelBtn.removeEventListener('click', onCancel);
+        document.removeEventListener('keydown', onKey);
+        modal.removeEventListener('click', onBackdrop);
+        resolve(Boolean(result));
+      }
+      function onAccept() { close(true); }
+      function onCancel() { close(false); }
+      function onKey(event) {
+        if (event.key === 'Escape') { close(false); }
+        if (event.key === 'Enter') { close(true); }
+      }
+      function onBackdrop(event) { if (event.target === modal) { close(false); } }
+      acceptBtn.addEventListener('click', onAccept);
+      cancelBtn.addEventListener('click', onCancel);
+      document.addEventListener('keydown', onKey);
+      modal.addEventListener('click', onBackdrop);
+      window.setTimeout(function () { acceptBtn.focus(); }, 30);
+    });
+  }
+
   function fetchWithTimeout(url, options, timeoutMs) {
     var timeout = Number(timeoutMs || FETCH_TIMEOUT_MS);
     var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -380,8 +430,7 @@
     });
     document.querySelectorAll('[data-panel-section]').forEach(function (node) {
       var sectionPanel = node.getAttribute('data-panel-section');
-      var visible = sectionPanel === 'overview' ? next === 'overview' : sectionPanel === next;
-      node.classList.toggle('panel-section-active', visible);
+      node.classList.toggle('panel-section-active', sectionPanel === next);
     });
     var meta = panelMeta[next] || panelMeta.overview;
     text('panel-eyebrow', meta.eyebrow);
@@ -412,6 +461,11 @@
       openOnboardingModal();
       return;
     }
+    var authModal = qs('auth-modal');
+    if (authModal) {
+      authModal.hidden = false;
+      authModal.setAttribute('aria-hidden', 'false');
+    }
     document.body.classList.add('auth-modal-open');
     var field = qs('auth-username') || qs('api-token');
     var rememberedUsername = '';
@@ -435,6 +489,10 @@
     if (!document.body.classList.contains('auth-only')) {
       document.body.classList.remove('auth-modal-open');
     }
+    var authModal = qs('auth-modal');
+    if (authModal) {
+      authModal.setAttribute('aria-hidden', 'true');
+    }
   }
 
   function openOnboardingModal() {
@@ -442,7 +500,13 @@
     if (!modal) {
       return;
     }
+    var authModal = qs('auth-modal');
+    if (authModal) {
+      authModal.hidden = true;
+      authModal.setAttribute('aria-hidden', 'true');
+    }
     modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('auth-modal-open');
     var username = qs('onboarding-username');
     if (username && !String(username.value || '').trim()) {
@@ -462,6 +526,12 @@
       return;
     }
     modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    var authModal = qs('auth-modal');
+    if (authModal) {
+      authModal.hidden = false;
+      authModal.setAttribute('aria-hidden', 'false');
+    }
   }
 
   function fetchOnboardingStatus() {
@@ -713,6 +783,32 @@
     return refreshInFlight;
   }
 
+  function canRefreshAfterAuthError(path) {
+    var normalized = String(path || '').trim();
+    if (!normalized) {
+      return false;
+    }
+    // Never recurse into refresh/login/logout/onboarding auth flows.
+    if (normalized.indexOf('/auth/refresh') === 0) {
+      return false;
+    }
+    if (normalized.indexOf('/auth/login') === 0) {
+      return false;
+    }
+    if (normalized.indexOf('/auth/logout') === 0) {
+      return false;
+    }
+    if (normalized.indexOf('/auth/onboarding/') === 0) {
+      return false;
+    }
+    return true;
+  }
+
+  function shouldHardLockOnUnauthorized(path) {
+    var normalized = String(path || '').trim();
+    return normalized.indexOf('/auth/me') === 0;
+  }
+
   function lockSession(reason) {
     clearSessionState(reason || 'Session gesperrt.', 'warn');
   }
@@ -743,8 +839,15 @@
 
   function updateDarkModeButton() {
     var btn = qs('toggle-dark-mode');
-    if (btn) {
-      btn.textContent = document.body.classList.contains('dark-mode') ? 'Hell' : 'Dunkel';
+    if (!btn) { return; }
+    var isDark = document.body.classList.contains('dark-mode');
+    btn.setAttribute('aria-label', isDark ? 'Hellmodus aktivieren' : 'Dunkelmodus aktivieren');
+    var useEl = btn.querySelector('use');
+    if (useEl) {
+      useEl.setAttribute('href', isDark ? '#i-sun' : '#i-moon');
+      try { useEl.setAttributeNS('http://www.w3.org/1999/xlink', 'href', isDark ? '#i-sun' : '#i-moon'); } catch (err) { void err; }
+    } else if (!btn.querySelector('svg')) {
+      btn.textContent = isDark ? 'Hell' : 'Dunkel';
     }
   }
 
@@ -961,7 +1064,9 @@
     var target = resolveApiTarget(path);
     var rawOptions = Object.assign({}, options || {});
     var noRefreshRetry = Boolean(rawOptions.__noRefreshRetry);
+    var suppressAuthLock = Boolean(rawOptions.__suppressAuthLock);
     delete rawOptions.__noRefreshRetry;
+    delete rawOptions.__suppressAuthLock;
     var finalOptions = Object.assign({ method: 'GET', credentials: 'same-origin' }, rawOptions);
     finalOptions.headers = Object.assign({}, finalOptions.headers || {}, buildAuthHeaders());
     return fetchWithTimeout(target, finalOptions).then(function (response) {
@@ -975,16 +1080,23 @@
             void error;
           }
           if ((response.status === 401 || response.status === 403) && state.token) {
-            if (!noRefreshRetry && state.refreshToken && path.indexOf('/auth/') !== 0) {
+            if (!noRefreshRetry && state.refreshToken && canRefreshAfterAuthError(path)) {
               return refreshAccessToken().then(function () {
-                var retriedOptions = Object.assign({}, rawOptions, { __noRefreshRetry: true });
+                var retriedOptions = Object.assign({}, rawOptions, {
+                  __noRefreshRetry: true,
+                  __suppressAuthLock: suppressAuthLock
+                });
                 return request(path, retriedOptions);
               }).catch(function () {
-                lockSession('Sitzung abgelaufen oder ungueltig. Bitte neu anmelden.');
+                if (!suppressAuthLock && shouldHardLockOnUnauthorized(path)) {
+                  lockSession('Sitzung abgelaufen oder ungueltig. Bitte neu anmelden.');
+                }
                 throw new Error('HTTP ' + response.status + ': ' + detail);
               });
             }
-            lockSession('Sitzung abgelaufen oder ungueltig. Bitte neu anmelden.');
+            if (!suppressAuthLock && shouldHardLockOnUnauthorized(path)) {
+              lockSession('Sitzung abgelaufen oder ungueltig. Bitte neu anmelden.');
+            }
           }
           throw new Error('HTTP ' + response.status + ': ' + detail);
         });
@@ -1007,11 +1119,13 @@
       headers: headers
     }).then(function (response) {
       if (!response.ok) {
-        if ((response.status === 401 || response.status === 403) && state.token && state.refreshToken && path.indexOf('/auth/') !== 0) {
+        if ((response.status === 401 || response.status === 403) && state.token && state.refreshToken && canRefreshAfterAuthError(path)) {
           return refreshAccessToken().then(function () {
             return blobRequest(path, filename);
           }).catch(function () {
-            lockSession('Sitzung abgelaufen oder ungueltig. Bitte neu anmelden.');
+            if (shouldHardLockOnUnauthorized(path)) {
+              lockSession('Sitzung abgelaufen oder ungueltig. Bitte neu anmelden.');
+            }
             throw new Error('HTTP ' + response.status + ' downloading');
           });
         }
@@ -1218,9 +1332,16 @@
     if (!numericVmid || !actionName) {
       return Promise.resolve();
     }
-    if (actionName === 'stop' && !window.confirm('VM ' + numericVmid + ' wirklich stoppen?')) {
-      return Promise.resolve();
-    }
+    var confirmStop = actionName === 'stop'
+      ? requestConfirm({
+          title: 'VM ' + numericVmid + ' stoppen?',
+          message: 'Die VM wird hart heruntergefahren.',
+          confirmLabel: 'Stoppen',
+          danger: true
+        })
+      : Promise.resolve(true);
+    return confirmStop.then(function (ok) {
+      if (!ok) { return Promise.resolve(); }
     return runSingleFlight('vm-power:' + numericVmid + ':' + actionName, function () {
       setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' wird ausgefuehrt ...', 'info');
       return request('/virtualization/vms/' + numericVmid + '/power', {
@@ -1240,6 +1361,7 @@
         addToActivityLog('vm-' + actionName, numericVmid, 'warn', error.message);
         setBanner('VM ' + numericVmid + ': ' + powerActionLabel(actionName) + ' fehlgeschlagen: ' + error.message, 'warn');
       });
+    });
     });
   }
 
@@ -1417,7 +1539,7 @@
       return;
     }
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="8" class="empty-cell">Keine passenden Beagle-VMs gefunden.</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="empty-cell">Keine passenden Beagle-VMs gefunden.</td></tr>';
       updateBulkUiState();
       return;
     }
@@ -1425,7 +1547,6 @@
       var profile = profileOf(vm);
       var statusTone = profile.status === 'running' ? 'ok' : 'warn';
       var installerTone = profile.installer_target_eligible ? 'ok' : 'muted';
-      var lastAction = vm.last_action && vm.last_action.action ? vm.last_action.action + (vm.last_action.ok ? ' ok' : ' fail') : 'n/a';
       var canStart = profile.status !== 'running';
       var canStop = profile.status === 'running';
       return '' +
@@ -1436,11 +1557,10 @@
         '  <td>' + chip(profile.status || 'unknown', statusTone) + '</td>' +
         '  <td><div>' + escapeHtml(profile.stream_host || 'n/a') + '</div><div class="vm-sub">' + escapeHtml(profile.moonlight_port || '') + '</div></td>' +
         '  <td>' + chip(profile.installer_target_status || (profile.installer_target_eligible ? 'ready' : 'not eligible'), installerTone) + '</td>' +
-        '  <td class="action-cell"><div class="action-cell-wrap"><span>' + escapeHtml(lastAction) + '</span><span class="vm-sub">Klicke auf die Zeile fuer Details</span></div></td>' +
         '  <td class="power-cell"><div class="power-inline">' +
-        '    <button type="button" class="btn btn-ghost" data-vm-power="start" data-vmid="' + escapeHtml(profile.vmid) + '"' + (canStart ? '' : ' disabled') + '>Start</button>' +
-        '    <button type="button" class="btn btn-ghost" data-vm-power="stop" data-vmid="' + escapeHtml(profile.vmid) + '"' + (canStop ? '' : ' disabled') + '>Stop</button>' +
-        '    <button type="button" class="btn btn-primary" data-vm-power="reboot" data-vmid="' + escapeHtml(profile.vmid) + '">Reboot</button>' +
+        '    <button type="button" class="btn btn-ghost btn-small" data-vm-power="start" data-vmid="' + escapeHtml(profile.vmid) + '"' + (canStart ? '' : ' disabled') + '>Start</button>' +
+        '    <button type="button" class="btn btn-ghost btn-small" data-vm-power="stop" data-vmid="' + escapeHtml(profile.vmid) + '"' + (canStop ? '' : ' disabled') + '>Stop</button>' +
+        '    <button type="button" class="btn btn-primary btn-small" data-vm-power="reboot" data-vmid="' + escapeHtml(profile.vmid) + '">Reboot</button>' +
         '  </div></td>' +
         '</tr>';
     }).join('');
@@ -1730,7 +1850,7 @@
       qs('prov-name').value = defaults.next_vmid ? 'ubuntu-beagle-' + String(defaults.next_vmid) : '';
     }
     if (qs('prov-memory')) {
-      qs('prov-memory').value = String(defaults.memory || '8192');
+      qs('prov-memory').value = String(defaults.memory || '4096');
     }
     if (qs('prov-cores')) {
       qs('prov-cores').value = String(defaults.cores || '4');
@@ -1998,6 +2118,7 @@
          actionButton('vm-start', 'Start VM', 'ghost') +
          actionButton('vm-stop', 'Stop VM', 'ghost') +
          actionButton('vm-reboot', 'Reboot VM', 'primary') +
+        actionButton('vm-delete', 'Delete VM', 'ghost') +
            actionButton('installer-prep', 'Prepare Installer', 'primary') +
            actionButton('download-linux', 'Linux Installer', 'ghost') +
            actionButton('download-windows', 'Windows Installer', 'ghost') +
@@ -2090,11 +2211,11 @@
       request('/vms/' + numericVmid),
       request('/vms/' + numericVmid + '/state'),
       request('/vms/' + numericVmid + '/credentials'),
-      request('/vms/' + numericVmid + '/actions'),
+      request('/vms/' + numericVmid + '/actions', { __suppressAuthLock: true }).catch(function () { return {}; }),
       request('/vms/' + numericVmid + '/update'),
       request('/vms/' + numericVmid + '/installer-prep'),
-      request('/vms/' + numericVmid + '/support-bundles'),
-      request('/vms/' + numericVmid + '/usb')
+      request('/vms/' + numericVmid + '/support-bundles', { __suppressAuthLock: true }).catch(function () { return { support_bundles: [] }; }),
+      request('/vms/' + numericVmid + '/usb', { __suppressAuthLock: true }).catch(function () { return { usb: {} }; })
     ]).then(function (results) {
       var detail = {
         profile: results[0].profile || {},
@@ -2604,9 +2725,9 @@
       request('/endpoints'),
       request('/policies'),
       request('/virtualization/overview'),
-      request('/provisioning/catalog'),
-      request('/auth/users').catch(function () { return []; }),
-      request('/auth/roles').catch(function () { return []; })
+      request('/provisioning/catalog', { __suppressAuthLock: true }).catch(function () { return { catalog: null }; }),
+      request('/auth/users', { __suppressAuthLock: true }).catch(function () { return []; }),
+      request('/auth/roles', { __suppressAuthLock: true }).catch(function () { return []; })
     ]).then(function (results) {
       var me = results[0] || {};
       var health = results[1] || {};
@@ -2639,10 +2760,9 @@
       return null;
     }).catch(function (error) {
       recordAuthFailure();
-      setAuthMode(false);
       text('stat-manager', 'Error');
       text('stat-manager-meta', error.message);
-      setBanner('Verbindung fehlgeschlagen: ' + error.message, 'warn');
+      setBanner('Teilweise Ladefehler: ' + error.message + ' (Session bleibt aktiv).', 'warn');
     }).finally(function () {
       dashboardLoadInFlight = null;
     });
@@ -2762,6 +2882,36 @@
       runVmPowerAction(vmid, powerAction);
       return;
     }
+    if (action === 'vm-delete') {
+      requestConfirm({
+        title: 'VM ' + vmid + ' loeschen?',
+        message: 'Diese Aktion kann nicht rueckgaengig gemacht werden. Die VM wird endgueltig entfernt.',
+        confirmLabel: 'Endgueltig loeschen',
+        danger: true
+      }).then(function (ok) {
+        if (!ok) { return; }
+        runSingleFlight('vm-action:' + vmid + ':delete', function () {
+        setBanner('Loesche VM ' + vmid + ' ...', 'info');
+        return request('/provisioning/vms/' + vmid, {
+          method: 'DELETE'
+        }).then(function () {
+          addToActivityLog('vm-delete', vmid, 'ok', 'VM geloescht');
+          state.selectedVmids = state.selectedVmids.filter(function (item) {
+            return Number(item) !== Number(vmid);
+          });
+          delete state.detailCache[vmid];
+          state.selectedVmid = null;
+          return loadDashboard({ force: true });
+        }).then(function () {
+          setBanner('VM ' + vmid + ' geloescht.', 'ok');
+        }).catch(function (error) {
+          addToActivityLog('vm-delete', vmid, 'warn', error.message);
+          setBanner('VM konnte nicht geloescht werden: ' + error.message, 'warn');
+        });
+        });
+      });
+      return;
+    }
     runSingleFlight('vm-action:' + vmid + ':generic:' + action, function () {
       setBanner('Queuing action ' + action + ' for VM ' + vmid + '...', 'info');
       return postJson('/vms/' + vmid + '/actions', { action: action }).then(function () {
@@ -2773,6 +2923,19 @@
         setBanner('Action failed: ' + error.message, 'warn');
       });
     });
+  }
+
+  function openProvisioningWorkspace() {
+    setActivePanel('virtualization');
+    var section = qs('virtualization-workspace-section');
+    if (section && typeof section.scrollIntoView === 'function') {
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    if (qs('provision-create')) {
+      window.setTimeout(function () {
+        qs('provision-create').focus();
+      }, 80);
+    }
   }
 
   function bindEvents() {
@@ -2967,6 +3130,12 @@
       markSessionActivity();
       loadDashboard();
     });
+    if (qs('open-provision-create')) {
+      qs('open-provision-create').addEventListener('click', function () {
+        markSessionActivity();
+        openProvisioningWorkspace();
+      });
+    }
     if (qs('refresh-virt')) {
       qs('refresh-virt').addEventListener('click', function () {
         markSessionActivity();
@@ -3328,8 +3497,17 @@
   updateSessionChrome();
   updateBulkUiState();
   fetchOnboardingStatus()
-    .catch(function () {
-      state.onboarding = { pending: false, completed: true };
+    .catch(function (error) {
+      state.onboarding = { pending: true, completed: false };
+      state.token = '';
+      state.refreshToken = '';
+      state.user = null;
+      clearStoredToken();
+      clearStoredRefreshToken();
+      setAuthMode(false);
+      setBanner('Onboarding-Status konnte nicht geladen werden. Bitte Ersteinrichtung fortsetzen.', 'warn');
+      openOnboardingModal();
+      console.warn('Onboarding status fallback enabled:', error);
     })
     .then(function () {
       loadDashboard();

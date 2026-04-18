@@ -133,10 +133,6 @@ class VmSecretBootstrapService:
         port = int(secret.get("usb_tunnel_port", 0) or 0)
         if not public_key or port <= 0:
             return
-        try:
-            user_info = self.usb_tunnel_user_info()
-        except KeyError:
-            return
         auth_root = self.usb_tunnel_auth_root()
         auth_root.mkdir(parents=True, exist_ok=True)
         auth_dir = self.usb_tunnel_auth_dir()
@@ -181,11 +177,6 @@ class VmSecretBootstrapService:
         os.chmod(auth_root, 0o700)
         os.chmod(authorized_keys, 0o600)
         os.chmod(snippet_path, 0o600)
-        for path in (auth_root, auth_dir, authorized_keys, snippet_path):
-            try:
-                os.chown(path, user_info.pw_uid, user_info.pw_gid)
-            except OSError:
-                pass
 
     def ensure_vm_sunshine_pinned_pubkey(self, vm: Any, secret: dict[str, Any]) -> dict[str, Any]:
         if str(secret.get("sunshine_pinned_pubkey", "") or "").strip():
