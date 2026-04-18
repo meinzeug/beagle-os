@@ -659,7 +659,7 @@ install_host_provider_packages() {
     beagle)
       chroot_run_with_retry \
         "install standalone host packages" \
-        "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server fail2ban unattended-upgrades apt-listchanges nftables git python3 rsync linux-image-amd64 grub-pc grub-efi-amd64-bin efibootmgr dosfstools"
+        "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server fail2ban unattended-upgrades apt-listchanges nftables git python3 rsync linux-image-amd64 grub-pc grub-efi-amd64-bin efibootmgr dosfstools libvirt-daemon-system qemu-system-x86 qemu-utils"
       ;;
     proxmox)
       chroot_run_with_retry \
@@ -676,7 +676,7 @@ install_host_provider_packages() {
 install_beagle_host_stack() {
   local kind mode
   local install_dir_q hostname_q public_updates_q web_ui_q mode_q source_archive
-  local bootstrap_disable_q
+  local bootstrap_username_q bootstrap_password_q
   kind="$(host_provider_kind)"
   mode="$(install_mode_kind)"
   source_archive="/tmp/beagle-os.tar.gz"
@@ -685,7 +685,8 @@ install_beagle_host_stack() {
   printf -v public_updates_q '%q' "$BEAGLE_PUBLIC_UPDATE_BASE_URL"
   printf -v web_ui_q '%q' "https://$INSTALL_HOSTNAME"
   printf -v mode_q '%q' "$mode"
-  printf -v bootstrap_disable_q '%q' "1"
+  printf -v bootstrap_username_q '%q' "$INSTALL_USERNAME"
+  printf -v bootstrap_password_q '%q' "$INSTALL_PASSWORD"
   if [[ -f "$BUNDLED_BEAGLE_SOURCE_ARCHIVE" ]]; then
     log "using bundled beagle source archive: $BUNDLED_BEAGLE_SOURCE_ARCHIVE"
     install -m 0644 "$BUNDLED_BEAGLE_SOURCE_ARCHIVE" "$source_archive"
@@ -695,7 +696,7 @@ install_beagle_host_stack() {
   chroot_run "mkdir -p /usr/local/src/beagle-os-src /var/lib/beagle"
   install -m 0644 "$source_archive" "$TARGET_MOUNT/tmp/beagle-os.tar.gz"
   chroot_run "rm -rf /usr/local/src/beagle-os-src && mkdir -p /usr/local/src/beagle-os-src && tar -xzf /tmp/beagle-os.tar.gz -C /usr/local/src/beagle-os-src"
-  chroot_run "install_script=\$(find /usr/local/src/beagle-os-src -path '*/scripts/install-beagle-host.sh' -print -quit); [[ -n \"\$install_script\" ]] && source_root=\$(dirname \"\$(dirname \"\$install_script\")\") && cd \"\$source_root\" && BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q BEAGLE_SERVER_INSTALL_MODE=$mode_q BEAGLE_HOST_PROVIDER=$kind BEAGLE_AUTH_BOOTSTRAP_DISABLE=$bootstrap_disable_q PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-beagle-host.sh"
+  chroot_run "install_script=\$(find /usr/local/src/beagle-os-src -path '*/scripts/install-beagle-host.sh' -print -quit); [[ -n \"\$install_script\" ]] && source_root=\$(dirname \"\$(dirname \"\$install_script\")\") && cd \"\$source_root\" && BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q BEAGLE_SERVER_INSTALL_MODE=$mode_q BEAGLE_HOST_PROVIDER=$kind BEAGLE_AUTH_BOOTSTRAP_USERNAME=$bootstrap_username_q BEAGLE_AUTH_BOOTSTRAP_PASSWORD=$bootstrap_password_q PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-beagle-host.sh"
 }
 
 harden_system() {
