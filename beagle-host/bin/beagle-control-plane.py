@@ -185,6 +185,7 @@ PUBLIC_DOWNLOADS_PORT = int(os.environ.get("PVE_DCV_PROXY_LISTEN_PORT", "8443"))
 PUBLIC_DOWNLOADS_PATH = os.environ.get("PVE_DCV_DOWNLOADS_PATH", "/beagle-downloads").strip() or "/beagle-downloads"
 PUBLIC_UPDATE_BASE_URL = os.environ.get("BEAGLE_PUBLIC_UPDATE_BASE_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}{PUBLIC_DOWNLOADS_PATH}"
 PUBLIC_STREAM_HOST_RAW = os.environ.get("BEAGLE_PUBLIC_STREAM_HOST", "").strip() or PUBLIC_SERVER_NAME
+INTERNAL_CALLBACK_HOST_RAW = os.environ.get("BEAGLE_INTERNAL_CALLBACK_HOST", "").strip()
 PUBLIC_STREAM_BASE_PORT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_BASE_PORT", "50000"))
 PUBLIC_STREAM_PORT_STEP = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_STEP", "32"))
 PUBLIC_STREAM_PORT_COUNT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_COUNT", "256"))
@@ -985,8 +986,11 @@ def public_ubuntu_beagle_complete_url(token: str) -> str:
     configured_manager_url = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip()
     manager_base_url = configured_manager_url
     if not manager_base_url:
-        public_host = current_public_stream_host().strip() or PUBLIC_SERVER_NAME
-        manager_base_url = f"https://{public_host}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
+        # Use BEAGLE_INTERNAL_CALLBACK_HOST if set — VMs on the internal beagle NAT network
+        # need to reach the host via the bridge gateway (e.g. 192.168.123.1), not the
+        # external/public host IP used by thin clients.
+        callback_host = INTERNAL_CALLBACK_HOST_RAW or current_public_stream_host().strip() or PUBLIC_SERVER_NAME
+        manager_base_url = f"https://{callback_host}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
     return f"{manager_base_url}/api/v1/public/ubuntu-install/{token}/complete"
 
 

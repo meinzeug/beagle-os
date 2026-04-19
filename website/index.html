@@ -2,13 +2,16 @@
 <html lang="de">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Beagle OS Console</title>
     <meta name="description" content="Beagle OS Web Console fuer Endpoints, Infrastructure, Provisioning und Access Management.">
+    <meta name="theme-color" content="#080707">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css?v=7.0.1.0">
+    <link rel="stylesheet" href="/styles.css?v=7.1.0">
   </head>
   <body class="auth-only">
     <!-- Hidden SVG icon sprite -->
@@ -174,19 +177,23 @@
       </div>
     </div>
 
-    <div class="app-shell">
-      <aside class="sidebar">
-        <div class="sidebar-brand">
-          <img class="sidebar-logo" src="/beagleos.png" alt="Beagle OS" width="38" height="38">
-          <div class="sidebar-brand-text">
-            <span class="sidebar-brand-name">Beagle OS</span>
-            <span class="sidebar-brand-sub">Console</span>
-          </div>
-        </div>
+    <!-- Mobile sidebar backdrop -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
-        <nav class="sidebar-nav" id="sidebar-nav" aria-label="Hauptnavigation">
-          <div class="sidebar-section-label">Workspaces</div>
-          <button type="button" class="nav-item nav-item-active" data-panel="overview">
+    <!-- Sidebar (outside app-shell for proper mobile z-index stacking) -->
+    <aside class="sidebar" id="main-sidebar">
+      <button class="sidebar-close" id="sidebar-close" type="button" aria-label="Menu schliessen">&times;</button>
+      <div class="sidebar-brand">
+        <img class="sidebar-logo" src="/beagleos.png" alt="Beagle OS" width="38" height="38">
+        <div class="sidebar-brand-text">
+          <span class="sidebar-brand-name">Beagle OS</span>
+          <span class="sidebar-brand-sub">Console</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Hauptnavigation">
+        <div class="sidebar-section-label">Workspaces</div>
+        <button type="button" class="nav-item nav-item-active" data-panel="overview">
             <svg class="nav-icon" aria-hidden="true"><use href="#i-dashboard"/></svg>
             <span>Dashboard</span>
           </button>
@@ -260,10 +267,14 @@
           <div class="sidebar-foot-meta" id="stat-manager-meta">Warte auf Verbindung</div>
           <button class="button primary sidebar-connect" id="open-connect-modal" type="button">Anmelden</button>
         </div>
-      </aside>
+    </aside>
 
+    <div class="app-shell">
       <main class="app-main">
         <header class="app-header">
+          <button class="mobile-menu-toggle" id="mobile-menu-toggle" type="button" aria-label="Menu oeffnen">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
           <div class="header-title">
             <span class="eyebrow" id="panel-eyebrow">Beagle Console</span>
             <h1 id="panel-title">Dashboard</h1>
@@ -981,6 +992,6 @@
 
     <script src="/core/platform/browser-common.js"></script>
     <script src="/beagle-web-ui-config.js"></script>
-    <script src="/app.js?v=7.0.1.0"></script>
+    <script src="/app.js?v=7.1.0"></script>
   </body>
 </html>

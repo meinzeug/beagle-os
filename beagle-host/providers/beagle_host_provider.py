@@ -358,18 +358,42 @@ class BeagleHostProvider:
             "type": "qemu",
         }
 
+    def _libvirt_domain_running(self, vmid: int) -> bool | None:
+        """Return True if domain is running, False if stopped/shut-off, None if domain doesn't exist."""
+        try:
+            state = self._run_virsh("domstate", self._libvirt_domain_name(vmid)).strip().lower()
+            if state == "running":
+                return True
+            return False
+        except Exception:
+            return None
+
     def _load_vms(self) -> list[dict[str, Any]]:
         payload = self._read_json_file(self._vms_path(), [])
         if not isinstance(payload, list):
             return []
         vms: list[dict[str, Any]] = []
+        needs_write = False
         for item in payload:
             if not isinstance(item, dict):
                 continue
             normalized = self._normalize_vm_record(item)
             if normalized["vmid"] <= 0 or not normalized["node"]:
                 continue
+            # Reconcile stored status with actual libvirt domain state so that VMs
+            # shut down by autoinstall (poweroff) are not stuck at "running" indefinitely.
+            if normalized.get("status") == "running":
+                libvirt_running = self._libvirt_domain_running(normalized["vmid"])
+                if libvirt_running is False:
+                    normalized["status"] = "stopped"
+                    item["status"] = "stopped"
+                    needs_write = True
             vms.append(normalized)
+        if needs_write:
+            try:
+                self._write_vms(vms)
+            except Exception:
+                pass
         return sorted(vms, key=lambda item: int(item.get("vmid", 0) or 0))
 
     def _write_vms(self, vms: list[dict[str, Any]]) -> list[dict[str, Any]]:

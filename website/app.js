@@ -457,6 +457,7 @@
 
   function updateSessionChrome() {
     var chip = qs('session-chip');
+    var sidebarBtn = qs('open-connect-modal');
     if (chip) {
       if (!state.token) {
         chip.textContent = 'Nicht verbunden';
@@ -464,6 +465,17 @@
         chip.textContent = 'Angemeldet: ' + String(state.user.username);
       } else {
         chip.textContent = 'Verbunden';
+      }
+    }
+    if (sidebarBtn) {
+      if (state.token) {
+        sidebarBtn.textContent = 'Abmelden';
+        sidebarBtn.classList.remove('primary');
+        sidebarBtn.classList.add('ghost');
+      } else {
+        sidebarBtn.textContent = 'Anmelden';
+        sidebarBtn.classList.remove('ghost');
+        sidebarBtn.classList.add('primary');
       }
     }
   }
@@ -2510,7 +2522,6 @@
     var numericVmid = Number(vmid);
     state.selectedVmid = numericVmid;
     clearSecretVault();
-    setActivePanel('inventory');
     renderInventory();
     setBanner('Lade Details fuer VM ' + numericVmid + ' ...', 'info');
     return Promise.all([
@@ -3749,7 +3760,15 @@
       loadDashboard();
     });
     if (qs('open-connect-modal')) {
-      qs('open-connect-modal').addEventListener('click', openAuthModal);
+      qs('open-connect-modal').addEventListener('click', function () {
+        if (state.token) {
+          logoutSession().finally(function () {
+            clearSessionState('Abgemeldet.', 'info');
+          });
+        } else {
+          openAuthModal();
+        }
+      });
     }
     if (qs('open-connect-menu')) {
       qs('open-connect-menu').addEventListener('click', function () {
@@ -3836,11 +3855,41 @@
         markSessionActivity();
         if (panelName === 'provisioning') {
           openProvisioningWorkspace();
+          closeMobileSidebar();
           return;
         }
         setActivePanel(panelName);
+        closeMobileSidebar();
       });
     }
+
+    /* Mobile sidebar toggle */
+    function openMobileSidebar() {
+      var sidebar = document.querySelector('.sidebar');
+      var backdrop = qs('sidebar-backdrop');
+      if (sidebar) { sidebar.classList.add('mobile-open'); }
+      if (backdrop) { backdrop.classList.add('active'); }
+      document.body.classList.add('mobile-menu-open');
+    }
+
+    function closeMobileSidebar() {
+      var sidebar = document.querySelector('.sidebar');
+      var backdrop = qs('sidebar-backdrop');
+      if (sidebar) { sidebar.classList.remove('mobile-open'); }
+      if (backdrop) { backdrop.classList.remove('active'); }
+      document.body.classList.remove('mobile-menu-open');
+    }
+
+    if (qs('mobile-menu-toggle')) {
+      qs('mobile-menu-toggle').addEventListener('click', openMobileSidebar);
+    }
+    if (qs('sidebar-close')) {
+      qs('sidebar-close').addEventListener('click', closeMobileSidebar);
+    }
+    if (qs('sidebar-backdrop')) {
+      qs('sidebar-backdrop').addEventListener('click', closeMobileSidebar);
+    }
+
     document.addEventListener('keydown', function (event) {
       if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) {
         return;
