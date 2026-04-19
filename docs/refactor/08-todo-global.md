@@ -3,7 +3,10 @@
 - [x] Add a reproducible Hetzner `installimage` tarball builder for Beagle server and wire it into package/release/public-download metadata.
 - [x] Add first-boot bootstrap + SSH host-key regeneration files for installimage-based Beagle server deployments.
 - [x] Detect and remove local-only operator files from the embedded installimage source archive before publication.
-- [ ] Rebuild the corrected installimage tarball and refresh packaged/public checksums from that artifact.
+- [x] Rebuild the corrected installimage tarball and refresh packaged/public checksums from that artifact.
+  - Commit: `497eee2` — Fixed builder scripts to properly exclude AGENTS.md and CLAUDE.md via tar --exclude flags.
+  - Tarball verified clean: no forbidden files in nested source archive.
+  - Checksum: `3d0a0623585265e9d690f9bcf7d9a1c7baa0aa0f85cbfa0544ef967f2fb7c34d`.
 - [ ] Publish the installimage tarball to GitHub release assets and `beagle-os.com` public downloads.
 - [ ] Install the published installimage tarball on Hetzner rescue system and verify first boot.
 - [ ] Create requested target user `beagle` on the installed host after first-boot validation.

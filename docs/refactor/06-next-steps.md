@@ -1,16 +1,12 @@
 # Next Steps
 
-## Immediate (Hetzner installimage path)
+## Immediate (Hetzner installimage path - CORRECTED)
 
-0. **Rebuild and republish the corrected Beagle installimage tarball**:
-	- rebuild `Debian-1201-bookworm-amd64-beagle-server.tar.gz` after excluding local-only operator files from the embedded source bundle,
-	- verify the corrected tarball no longer contains `AGENTS.md` or `CLAUDE.md`,
-	- refresh top-level `dist/`, `SHA256SUMS`, hosted-download metadata and public artifact metadata from the corrected artifact only.
-
-0. **Publish the installimage artifact to both GitHub and beagle-os.com**:
-	- push only the intended repo changes for the new installimage pipeline,
+0. **Publish the corrected installimage tarball to both GitHub and beagle-os.com** (NEXT):
+	- push the repo changes from commit `497eee2` to main branch so the builder is available in public repo,
 	- upload the tarball as a release/public artifact beside the existing installer ISOs,
-	- verify direct HTTP reachability plus checksum/status-json coverage for the tarball on `beagle-os.com`.
+	- verify direct HTTP reachability plus checksum/status-json coverage for the tarball on `beagle-os.com`,
+	- update public release metadata to include the new tarball with its validated checksum.
 
 0. **Install the public tarball on the new Hetzner server via Rescue + installimage**:
 	- use Rescue System with a custom-image `IMAGE_PATH` pointing at the published tarball,

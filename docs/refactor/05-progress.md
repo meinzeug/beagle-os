@@ -1,5 +1,18 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-19, operator files exclusion from installimage tarballs)
+
+- Identified that AGENTS.md and CLAUDE.md (local-only operator files) were being accidentally bundled into the embedded source archive within the installimage tarball.
+- Root cause: `tar` commands in both `build-server-installimage.sh` and `build-server-installer.sh` were not excluding these files.
+- Implemented fix in commit `497eee2`:
+  - Added `--exclude='AGENTS.md' --exclude='CLAUDE.md'` flags to tar commands in both builder scripts.
+  - Rebuilt `Debian-1201-bookworm-amd64-beagle-server.tar.gz` with corrected exclusions (SHA256: `3d0a0623585265e9d690f9bcf7d9a1c7baa0aa0f85cbfa0544ef967f2fb7c34d`).
+  - Verified nested source archive contains no forbidden files (10,681 files, 0 violations).
+  - Confirmed tarball ready for publication.
+- Disk space management:
+  - Cleaned up old `.build/` directories (freed 4GB), enabling space for fresh build.
+  - New build completed successfully despite initial cleanup phase hanging on proc/sys file removal (harmless).
+
 ## Update (2026-04-19, Hetzner installimage tarball pipeline for Beagle server)
 
 - Implemented a reproducible Hetzner `installimage` artifact path for Beagle server via new builder [scripts/build-server-installimage.sh](scripts/build-server-installimage.sh).
