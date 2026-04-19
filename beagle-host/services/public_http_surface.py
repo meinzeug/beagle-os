@@ -38,11 +38,36 @@ class PublicHttpSurfaceService:
             **payload,
         }
 
+    @staticmethod
+    def _strip_sensitive_fields(state: dict[str, Any]) -> dict[str, Any]:
+        """Remove sensitive/internal fields from a public state response."""
+        safe = dict(state)
+        # Strip provisioning secrets and internal infrastructure detail
+        provisioning = safe.get("provisioning")
+        if isinstance(provisioning, dict):
+            provisioning = dict(provisioning)
+            provisioning.pop("token", None)
+            provisioning.pop("disk_storage", None)
+            provisioning.pop("iso_storage", None)
+            provisioning.pop("bridge", None)
+            safe["provisioning"] = provisioning
+        # Strip internal profile fields
+        profile = safe.get("profile")
+        if isinstance(profile, dict):
+            profile = dict(profile)
+            profile.pop("guest_user", None)
+            profile.pop("sunshine_username", None)
+            profile.pop("sunshine_pin", None)
+            profile.pop("update_feed_url", None)
+            safe["profile"] = profile
+        return safe
+
     def _public_vm_state_payload(self, vmid: int) -> dict[str, Any] | None:
         vm = self._find_vm(vmid)
         if vm is None:
             return None
-        return self._envelope(**self._build_vm_state(vm))
+        state = self._build_vm_state(vm)
+        return self._envelope(**self._strip_sensitive_fields(state))
 
     def _public_vm_endpoint_payload(self, vmid: int) -> dict[str, Any] | None:
         vm = self._find_vm(vmid)
@@ -51,7 +76,7 @@ class PublicHttpSurfaceService:
         state = self._build_vm_state(vm)
         if not state["endpoint"].get("reported_at"):
             return None
-        return self._envelope(**state)
+        return self._envelope(**self._strip_sensitive_fields(state))
 
     def route_get(self, path: str) -> dict[str, Any] | None:
         if path.startswith("/api/v1/public/vms/") and path.endswith("/state"):

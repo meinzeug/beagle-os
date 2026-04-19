@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 
+MIN_PASSWORD_LENGTH = 8
+
+
 class AuthSessionService:
     def __init__(
         self,
@@ -96,6 +99,8 @@ class AuthSessionService:
         passwd = str(password or "")
         if not passwd:
             raise ValueError("password is required")
+        if len(passwd) < MIN_PASSWORD_LENGTH:
+            raise ValueError(f"password must be at least {MIN_PASSWORD_LENGTH} characters")
         role_name = str(role or "").strip().lower() or "viewer"
         if not self._role_exists(role_name):
             raise ValueError("unknown role")
@@ -152,6 +157,8 @@ class AuthSessionService:
             passwd = str(password or "")
             if not passwd:
                 raise ValueError("password is required")
+            if len(passwd) < MIN_PASSWORD_LENGTH:
+                raise ValueError(f"password must be at least {MIN_PASSWORD_LENGTH} characters")
             target["password_hash"] = self.hash_password(passwd)
         self._write_json_file(self._users_path, users_doc)
         return {
@@ -340,6 +347,8 @@ class AuthSessionService:
             raise ValueError("username is required")
         if not passwd:
             raise ValueError("password is required")
+        if len(passwd) < MIN_PASSWORD_LENGTH:
+            raise ValueError(f"password must be at least {MIN_PASSWORD_LENGTH} characters")
 
         status = self.onboarding_status(
             bootstrap_username=bootstrap_username,

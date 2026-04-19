@@ -460,7 +460,7 @@ server {
     return 301 ${web_redirect_target};
 }
 
-limit_req_zone \$binary_remote_addr zone=beagle_auth:10m rate=600r/m;
+limit_req_zone \$binary_remote_addr zone=beagle_auth:10m rate=10r/m;
 limit_req_zone \$binary_remote_addr zone=beagle_api:20m rate=1800r/m;
 
 server {
@@ -502,7 +502,7 @@ server {
     }
 
     location ^~ /beagle-api/api/v1/auth/ {
-      limit_req zone=beagle_auth burst=240 nodelay;
+      limit_req zone=beagle_auth burst=20 nodelay;
       proxy_pass ${BEAGLE_API_UPSTREAM}/api/v1/auth/;
       proxy_http_version 1.1;
       proxy_set_header Host \$host;
@@ -606,7 +606,7 @@ server {
     }
 
     location ^~ /beagle-api/api/v1/auth/ {
-      limit_req zone=beagle_auth burst=240 nodelay;
+      limit_req zone=beagle_auth burst=20 nodelay;
       proxy_pass ${BEAGLE_API_UPSTREAM}/api/v1/auth/;
       proxy_http_version 1.1;
       proxy_set_header Host \$host;
