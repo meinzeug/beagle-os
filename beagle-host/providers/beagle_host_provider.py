@@ -482,6 +482,123 @@ class BeagleHostProvider:
         except Exception:
             return False
 
+    def _libvirt_pool_exists(self, pool_name: str) -> bool:
+        target = str(pool_name or "").strip()
+        if not target:
+            return False
+        try:
+            names = [name.strip() for name in self._run_virsh("pool-list", "--all", "--name").splitlines() if name.strip()]
+        except Exception:
+            return False
+        return target in names
+
+    def _ensure_local_pool(self) -> bool:
+        if self._libvirt_pool_exists("local"):
+            return True
+        local_path = Path("/var/lib/libvirt/images")
+        local_path.mkdir(parents=True, exist_ok=True)
+        try:
+            self._run_virsh("pool-define-as", "local", "dir", "--target", str(local_path))
+        except Exception:
+            # Pool may already exist in partially-defined state.
+            pass
+        try:
+            self._run_virsh("pool-build", "local")
+        except Exception:
+            pass
+        try:
+            self._run_virsh("pool-start", "local")
+        except Exception:
+            pass
+        try:
+            self._run_virsh("pool-autostart", "local")
+        except Exception:
+            pass
+        return self._libvirt_pool_exists("local")
+
+    def _resolve_disk_pool_name(self, preferred_pool: str) -> str:
+        requested = str(preferred_pool or "local").strip() or "local"
+        if self._libvirt_pool_exists(requested):
+            return requested
+        if requested == "local" and self._ensure_local_pool():
+            return "local"
+        if self._libvirt_pool_exists("local"):
+            return "local"
+        available = [
+            str(item.get("storage") or "").strip()
+            for item in self._discover_libvirt_storage()
+            if str(item.get("storage") or "").strip()
+        ]
+        if available:
+            return available[0]
+        raise RuntimeError(
+            f"no usable libvirt storage pool found (requested '{requested}')"
+        )
+
+    def _libvirt_network_exists(self, network_name: str) -> bool:
+        target = str(network_name or "").strip()
+        if not target:
+            return False
+        try:
+            names = [name.strip() for name in self._run_virsh("net-list", "--all", "--name").splitlines() if name.strip()]
+        except Exception:
+            return False
+        return target in names
+
+    def _ensure_beagle_network(self) -> bool:
+        if self._libvirt_network_exists("beagle"):
+            return True
+        xml = "".join(
+            [
+                "<network>",
+                "<name>beagle</name>",
+                "<forward mode='nat'/>",
+                "<bridge name='virbr10' stp='on' delay='0'/>",
+                "<ip address='192.168.123.1' netmask='255.255.255.0'>",
+                "<dhcp><range start='192.168.123.100' end='192.168.123.254'/></dhcp>",
+                "</ip>",
+                "</network>",
+            ]
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False, encoding="utf-8") as f:
+            f.write(xml)
+            tmp_path = f.name
+        try:
+            try:
+                self._run_virsh("net-define", tmp_path)
+            except Exception:
+                pass
+        finally:
+            os.unlink(tmp_path)
+        try:
+            self._run_virsh("net-start", "beagle")
+        except Exception:
+            pass
+        try:
+            self._run_virsh("net-autostart", "beagle")
+        except Exception:
+            pass
+        return self._libvirt_network_exists("beagle")
+
+    def _resolve_network_name(self, preferred_network: str) -> str:
+        requested = str(preferred_network or "default").strip() or "default"
+        if self._libvirt_network_exists(requested):
+            return requested
+        if requested == "beagle" and self._ensure_beagle_network():
+            return "beagle"
+        if self._libvirt_network_exists("default"):
+            return "default"
+        available = [
+            str(item.get("name") or "").strip()
+            for item in self._discover_libvirt_networks()
+            if str(item.get("name") or "").strip()
+        ]
+        if available:
+            return available[0]
+        raise RuntimeError(
+            f"no usable libvirt network found (requested '{requested}')"
+        )
+
     def _libvirt_pool_path(self, pool: str) -> str:
         try:
             out = self._run_virsh("pool-dumpxml", pool)
@@ -514,6 +631,7 @@ class BeagleHostProvider:
             bm = re.search(r"bridge=([^\s,]+)", net0)
             if bm:
                 network_name = bm.group(1)
+        network_name = self._resolve_network_name(network_name)
         if net0.startswith("e1000"):
             net_model = "e1000"
         mac_address = ""
@@ -669,6 +787,7 @@ class BeagleHostProvider:
                 size_gb = int(size_or_path)
             except (ValueError, TypeError):
                 size_gb = 32
+        pool_name = self._resolve_disk_pool_name(pool_name)
         domain_name = self._libvirt_domain_name(vmid)
         vol_name = f"{domain_name}-disk.qcow2"
         try:

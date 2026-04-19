@@ -21,6 +21,8 @@
 - [x] Recreate VM 101 with the simplified `CIDATA` seed (`user-data` + `meta-data` only) and verify Subiquity advances past the former cloud-init wait state.
 - [ ] Re-run VM 101 autoinstall to true completion without manual callback forcing and confirm first-boot transition on its own.
 - [ ] Verify first-boot Sunshine readiness gate and callback end-to-end on a fully clean VM 101 run (no manual completion override).
+- [x] Fix beagle-provider VM provisioning failure when libvirt pool `local` is missing (auto-create pool/fallback instead of hard-fail).
+- [x] Fix beagle-provider VM start failure when libvirt network `beagle` is missing (auto-create network/fallback instead of hard-fail).
 - [x] Ensure server-installer path keeps onboarding pending by disabling bootstrap-auth auto-user creation (`BEAGLE_AUTH_BOOTSTRAP_DISABLE=1`).
 - [x] Make onboarding status bootstrap-disable aware so bootstrap-only users do not suppress first-run setup.
 - [ ] Deploy onboarding regression fix to running beagleserver and verify `/api/v1/auth/onboarding/status` + Web UI modal behavior.
