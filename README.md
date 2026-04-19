@@ -149,6 +149,7 @@ The public update surface on `https://beagle-os.com/beagle-updates/` publishes:
 - `SHA256SUMS`
 - `beagle-os-installer-amd64.iso`
 - `beagle-os-server-installer-amd64.iso`
+- `Debian-1201-bookworm-amd64-beagle-server.tar.gz`
 - `pve-thin-client-usb-payload-latest.tar.gz`
 - `pve-thin-client-usb-bootstrap-latest.tar.gz`
 - USB helper scripts

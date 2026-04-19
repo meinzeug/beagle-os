@@ -192,6 +192,7 @@ ensure_dependencies() {
 }
 
 have_packaged_assets() {
+  local server_installimage_filename="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
   [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-installer-v${VERSION}.sh" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-installer-latest.sh" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-live-usb-v${VERSION}.sh" ]] &&
@@ -205,31 +206,55 @@ have_packaged_assets() {
     [[ -f "$INSTALL_DIR/dist/beagle-os-installer-amd64.iso" ]] &&
     [[ -f "$INSTALL_DIR/dist/beagle-os-installer.iso" ]] &&
     [[ -f "$INSTALL_DIR/dist/beagle-os-server-installer-amd64.iso" ]] &&
-    [[ -f "$INSTALL_DIR/dist/beagle-os-server-installer.iso" ]]
+    [[ -f "$INSTALL_DIR/dist/beagle-os-server-installer.iso" ]] &&
+    [[ -f "$INSTALL_DIR/dist/$server_installimage_filename" ]]
 }
 
 download_release_assets() {
   local base_url="$1"
   local dist_dir="$INSTALL_DIR/dist"
+  local server_installimage_filename="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
 
   command -v curl >/dev/null 2>&1 || return 1
 
   install -d -m 0755 "$dist_dir"
 
-  curl -fsSLo "$dist_dir/pve-thin-client-usb-installer-v${VERSION}.sh" \
-    "$base_url/pve-thin-client-usb-installer-v${VERSION}.sh" &&
+  download_asset() {
+    local destination="$1"
+    shift
+    local candidate=""
+    for candidate in "$@"; do
+      if curl -fsSLo "$destination" "$base_url/$candidate"; then
+        return 0
+      fi
+    done
+    return 1
+  }
+
+  download_asset \
+    "$dist_dir/pve-thin-client-usb-installer-v${VERSION}.sh" \
+    "pve-thin-client-usb-installer-v${VERSION}.sh" \
+    "pve-thin-client-usb-installer-latest.sh" &&
     install -m 0755 "$dist_dir/pve-thin-client-usb-installer-v${VERSION}.sh" "$dist_dir/pve-thin-client-usb-installer-latest.sh" &&
-    curl -fsSLo "$dist_dir/pve-thin-client-live-usb-v${VERSION}.sh" \
-      "$base_url/pve-thin-client-live-usb-v${VERSION}.sh" &&
+    download_asset \
+      "$dist_dir/pve-thin-client-live-usb-v${VERSION}.sh" \
+      "pve-thin-client-live-usb-v${VERSION}.sh" \
+      "pve-thin-client-live-usb-latest.sh" &&
     install -m 0755 "$dist_dir/pve-thin-client-live-usb-v${VERSION}.sh" "$dist_dir/pve-thin-client-live-usb-latest.sh" &&
-    curl -fsSLo "$dist_dir/pve-thin-client-usb-installer-v${VERSION}.ps1" \
-      "$base_url/pve-thin-client-usb-installer-v${VERSION}.ps1" &&
+    download_asset \
+      "$dist_dir/pve-thin-client-usb-installer-v${VERSION}.ps1" \
+      "pve-thin-client-usb-installer-v${VERSION}.ps1" \
+      "pve-thin-client-usb-installer-latest.ps1" &&
     install -m 0644 "$dist_dir/pve-thin-client-usb-installer-v${VERSION}.ps1" "$dist_dir/pve-thin-client-usb-installer-latest.ps1" &&
-    curl -fsSLo "$dist_dir/pve-thin-client-usb-payload-v${VERSION}.tar.gz" \
-      "$base_url/pve-thin-client-usb-payload-v${VERSION}.tar.gz" &&
+    download_asset \
+      "$dist_dir/pve-thin-client-usb-payload-v${VERSION}.tar.gz" \
+      "pve-thin-client-usb-payload-v${VERSION}.tar.gz" \
+      "pve-thin-client-usb-payload-latest.tar.gz" &&
     install -m 0644 "$dist_dir/pve-thin-client-usb-payload-v${VERSION}.tar.gz" "$dist_dir/pve-thin-client-usb-payload-latest.tar.gz" &&
-    curl -fsSLo "$dist_dir/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" \
-      "$base_url/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" &&
+    download_asset \
+      "$dist_dir/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" \
+      "pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" \
+      "pve-thin-client-usb-bootstrap-latest.tar.gz" &&
     install -m 0644 "$dist_dir/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" "$dist_dir/pve-thin-client-usb-bootstrap-latest.tar.gz" &&
     curl -fsSLo "$dist_dir/beagle-os-installer-amd64.iso" \
       "$base_url/beagle-os-installer-amd64.iso" &&
@@ -237,6 +262,8 @@ download_release_assets() {
     curl -fsSLo "$dist_dir/beagle-os-server-installer-amd64.iso" \
       "$base_url/beagle-os-server-installer-amd64.iso" &&
     install -m 0644 "$dist_dir/beagle-os-server-installer-amd64.iso" "$dist_dir/beagle-os-server-installer.iso" &&
+    curl -fsSLo "$dist_dir/$server_installimage_filename" \
+      "$base_url/$server_installimage_filename" &&
     curl -fsSLo "$dist_dir/SHA256SUMS" "$base_url/SHA256SUMS"
 }
 

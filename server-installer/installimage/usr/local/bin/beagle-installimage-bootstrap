@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+LOG_FILE="/var/log/beagle-installimage-bootstrap.log"
+STATE_DIR="/var/lib/beagle/installimage-bootstrap"
+DONE_FILE="$STATE_DIR/done"
+SOURCE_ARCHIVE="/usr/local/share/beagle/beagle-os-source.tar.gz"
+WORK_DIR="/opt/beagle-installimage-src"
+INSTALL_DIR="/opt/beagle"
+BEAGLE_ENV_FILE="/etc/beagle/beagle-manager.env"
+CREDENTIALS_FILE="/root/beagle-firstboot-credentials.txt"
+BOOTSTRAP_USERNAME="${BEAGLE_INSTALLIMAGE_BOOTSTRAP_USERNAME:-admin}"
+BOOTSTRAP_DISABLE="${BEAGLE_INSTALLIMAGE_BOOTSTRAP_DISABLE:-0}"
+INSTALL_MODE="${BEAGLE_INSTALLIMAGE_MODE:-standalone}"
+
+mkdir -p "$STATE_DIR"
+
+exec >>"$LOG_FILE" 2>&1
+
+log() {
+  printf '[%s] %s\n' "$(date -Is 2>/dev/null || date)" "$*"
+}
+
+generate_secret() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -base64 18 | tr -d '\n'
+    return 0
+  fi
+  python3 - <<'PY'
+import secrets
+print(secrets.token_urlsafe(18))
+PY
+}
+
+detect_primary_ip() {
+  local candidate=""
+  candidate="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}')"
+  if [[ -n "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+  hostname -I 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i !~ /^127\./) {print $i; exit}}'
+}
+
+wait_for_ip() {
+  local candidate=""
+  for _ in $(seq 1 60); do
+    candidate="$(detect_primary_ip || true)"
+    if [[ -n "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+host_provider_kind() {
+  case "$(printf '%s' "$INSTALL_MODE" | tr '[:upper:]' '[:lower:]')" in
+    with-proxmox|with_proxmox|proxmox|pve)
+      printf 'proxmox\n'
+      ;;
+    *)
+      printf 'beagle\n'
+      ;;
+  esac
+}
+
+default_web_ui_url() {
+  local server_name="$1"
+  printf 'https://%s\n' "$server_name"
+}
+
+write_credentials_notice() {
+  local server_name="$1"
+  local root_login_hint="$2"
+  local admin_password="$3"
+
+  install -d -m 0700 /root
+  cat >"$CREDENTIALS_FILE" <<EOF
+Beagle installimage bootstrap completed.
+
+Server name: $server_name
+Beagle Web UI: $(default_web_ui_url "$server_name")
+Bootstrap username: $BOOTSTRAP_USERNAME
+Bootstrap password: $admin_password
+
+Root SSH login:
+- Username: root
+- Password: $root_login_hint
+
+The root password is managed by Hetzner installimage and is typically set to the
+same root password that was active in the Rescue System during installation.
+EOF
+  chmod 0600 "$CREDENTIALS_FILE"
+}
+
+if [[ -f "$DONE_FILE" ]]; then
+  log "installimage bootstrap already completed"
+  exit 0
+fi
+
+if [[ ! -f "$SOURCE_ARCHIVE" ]]; then
+  log "missing Beagle source archive: $SOURCE_ARCHIVE"
+  exit 1
+fi
+
+SERVER_NAME="$(hostname -f 2>/dev/null || hostname)"
+PRIMARY_IP="$(wait_for_ip || true)"
+if [[ -z "$PRIMARY_IP" ]]; then
+  log "primary IPv4 did not become ready in time"
+fi
+
+BOOTSTRAP_PASSWORD=""
+case "$(printf '%s' "$BOOTSTRAP_DISABLE" | tr '[:upper:]' '[:lower:]')" in
+  1|true|yes|on)
+    log "bootstrap admin user generation disabled"
+    ;;
+  *)
+    BOOTSTRAP_PASSWORD="$(generate_secret)"
+    ;;
+esac
+
+rm -rf "$WORK_DIR"
+mkdir -p "$WORK_DIR"
+tar -xzf "$SOURCE_ARCHIVE" -C "$WORK_DIR"
+
+INSTALL_SCRIPT="$(find "$WORK_DIR" -path '*/scripts/install-beagle-host.sh' -print -quit)"
+if [[ -z "$INSTALL_SCRIPT" ]]; then
+  log "could not locate install-beagle-host.sh in extracted archive"
+  exit 1
+fi
+
+log "running Beagle host install for provider=$(host_provider_kind) server=$SERVER_NAME"
+BEAGLE_INSTALL_NONINTERACTIVE=1 \
+INSTALL_DIR="$INSTALL_DIR" \
+BEAGLE_HOST_PROVIDER="$(host_provider_kind)" \
+BEAGLE_SERVER_INSTALL_MODE="$INSTALL_MODE" \
+PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME" \
+PVE_DCV_PROXY_LISTEN_PORT=8443 \
+BEAGLE_SITE_PORT=443 \
+BEAGLE_WEB_UI_URL="$(default_web_ui_url "$SERVER_NAME")" \
+BEAGLE_AUTH_BOOTSTRAP_USERNAME="$BOOTSTRAP_USERNAME" \
+BEAGLE_AUTH_BOOTSTRAP_PASSWORD="$BOOTSTRAP_PASSWORD" \
+BEAGLE_AUTH_BOOTSTRAP_DISABLE="$BOOTSTRAP_DISABLE" \
+"$INSTALL_SCRIPT"
+
+if [[ -n "$PRIMARY_IP" && -f "$BEAGLE_ENV_FILE" ]]; then
+  if ! grep -q '^BEAGLE_PUBLIC_STREAM_HOST=' "$BEAGLE_ENV_FILE"; then
+    printf 'BEAGLE_PUBLIC_STREAM_HOST="%s"\n' "$PRIMARY_IP" >>"$BEAGLE_ENV_FILE"
+  fi
+fi
+
+if [[ -n "$BOOTSTRAP_PASSWORD" ]]; then
+  write_credentials_notice "$SERVER_NAME" "<your Hetzner Rescue root password>" "$BOOTSTRAP_PASSWORD"
+fi
+
+touch "$DONE_FILE"
+log "installimage bootstrap complete"

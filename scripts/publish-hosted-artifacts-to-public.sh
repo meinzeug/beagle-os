@@ -7,6 +7,7 @@ REMOTE_SSH_TARGET="${BEAGLE_PUBLIC_SSH_TARGET:-}"
 REMOTE_DIR="${BEAGLE_PUBLIC_UPDATE_DIR:-/var/www/vhosts/beagle-os.com/httpdocs/beagle-updates}"
 HOSTED_BASE_URL="${BEAGLE_HOSTED_DOWNLOADS_BASE_URL:-}"
 PUBLIC_BASE_URL="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/beagle-updates}"
+SERVER_INSTALLIMAGE_FILENAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
 
 [[ -n "$REMOTE_SSH_TARGET" ]] || {
   echo "Set BEAGLE_PUBLIC_SSH_TARGET to the public artifact host." >&2
@@ -17,13 +18,14 @@ PUBLIC_BASE_URL="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/beagle-u
   exit 1
 }
 
-ssh "$REMOTE_SSH_TARGET" 'bash -s' -- "$REMOTE_DIR" "$HOSTED_BASE_URL" "$PUBLIC_BASE_URL" "$VERSION" <<'EOF'
+ssh "$REMOTE_SSH_TARGET" 'bash -s' -- "$REMOTE_DIR" "$HOSTED_BASE_URL" "$PUBLIC_BASE_URL" "$VERSION" "$SERVER_INSTALLIMAGE_FILENAME" <<'EOF'
 set -euo pipefail
 
 remote_dir="$1"
 hosted_base_url="${2%/}"
 public_base_url="${3%/}"
 version="$4"
+server_installimage_filename="$5"
 payload_filename="pve-thin-client-usb-payload-v${version}.tar.gz"
 payload_latest_filename="pve-thin-client-usb-payload-latest.tar.gz"
 bootstrap_filename="pve-thin-client-usb-bootstrap-v${version}.tar.gz"
@@ -48,6 +50,7 @@ curl -fsSL "$hosted_base_url/$source_tarball_filename" -o "$tmp_dir/$source_tarb
 curl -fsSL "$hosted_base_url/$payload_filename" -o "$tmp_dir/$payload_filename"
 curl -fsSL "$hosted_base_url/$installer_iso_filename" -o "$tmp_dir/$installer_iso_filename"
 curl -fsSL "$hosted_base_url/$server_installer_iso_filename" -o "$tmp_dir/$server_installer_iso_filename"
+curl -fsSL "$hosted_base_url/$server_installimage_filename" -o "$tmp_dir/$server_installimage_filename"
 curl -fsSL "$hosted_base_url/$kiosk_appimage_filename" -o "$tmp_dir/$kiosk_appimage_filename"
 curl -fsSL "$hosted_base_url/$kiosk_manifest_filename" -o "$tmp_dir/$kiosk_manifest_filename"
 curl -fsSL "$hosted_base_url/$kiosk_hash_filename" -o "$tmp_dir/$kiosk_hash_filename"
@@ -57,11 +60,13 @@ expected_payload="$(awk -v name="$payload_filename" '$2 == name { print $1; exit
 expected_bootstrap="$(awk -v name="$bootstrap_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_iso="$(awk -v name="$installer_iso_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_server_iso="$(awk -v name="$server_installer_iso_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
+expected_server_installimage="$(awk -v name="$server_installimage_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_kiosk="$(awk -v name="$kiosk_appimage_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 actual_source_tarball="$(sha256sum "$tmp_dir/$source_tarball_filename" | awk '{print $1}')"
 actual_payload="$(sha256sum "$tmp_dir/$payload_filename" | awk '{print $1}')"
 actual_iso="$(sha256sum "$tmp_dir/$installer_iso_filename" | awk '{print $1}')"
 actual_server_iso="$(sha256sum "$tmp_dir/$server_installer_iso_filename" | awk '{print $1}')"
+actual_server_installimage="$(sha256sum "$tmp_dir/$server_installimage_filename" | awk '{print $1}')"
 actual_kiosk="$(sha256sum "$tmp_dir/$kiosk_appimage_filename" | awk '{print $1}')"
 
 [[ -n "$expected_source_tarball" && "$actual_source_tarball" == "$expected_source_tarball" ]]
@@ -69,6 +74,7 @@ actual_kiosk="$(sha256sum "$tmp_dir/$kiosk_appimage_filename" | awk '{print $1}'
 [[ -n "$expected_bootstrap" && "$actual_payload" == "$expected_bootstrap" ]]
 [[ -n "$expected_iso" && "$actual_iso" == "$expected_iso" ]]
 [[ -n "$expected_server_iso" && "$actual_server_iso" == "$expected_server_iso" ]]
+[[ -n "$expected_server_installimage" && "$actual_server_installimage" == "$expected_server_installimage" ]]
 [[ -n "$expected_kiosk" && "$actual_kiosk" == "$expected_kiosk" ]]
 
 install -m 0644 "$tmp_dir/SHA256SUMS" SHA256SUMS
@@ -82,11 +88,12 @@ mv -f "$tmp_dir/$installer_iso_filename" "$installer_iso_filename"
 ln -f "$installer_iso_filename" beagle-os-installer.iso
 mv -f "$tmp_dir/$server_installer_iso_filename" "$server_installer_iso_filename"
 ln -f "$server_installer_iso_filename" beagle-os-server-installer.iso
+mv -f "$tmp_dir/$server_installimage_filename" "$server_installimage_filename"
 mv -f "$tmp_dir/$kiosk_appimage_filename" "$kiosk_appimage_filename"
 mv -f "$tmp_dir/$kiosk_manifest_filename" "$kiosk_manifest_filename"
 mv -f "$tmp_dir/$kiosk_hash_filename" "$kiosk_hash_filename"
 
-python3 - "$remote_dir" "$public_base_url" "$version" "$payload_filename" "$payload_latest_filename" "$bootstrap_filename" "$bootstrap_latest_filename" "$installer_iso_filename" "$server_installer_iso_filename" <<'PY'
+python3 - "$remote_dir" "$public_base_url" "$version" "$payload_filename" "$payload_latest_filename" "$bootstrap_filename" "$bootstrap_latest_filename" "$installer_iso_filename" "$server_installer_iso_filename" "$server_installimage_filename" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -101,6 +108,7 @@ bootstrap_filename = sys.argv[6]
 bootstrap_latest_filename = sys.argv[7]
 installer_iso_filename = sys.argv[8]
 server_installer_iso_filename = sys.argv[9]
+server_installimage_filename = sys.argv[10]
 
 sha_map = {}
 for line in (base / "SHA256SUMS").read_text().splitlines():
@@ -114,6 +122,7 @@ bootstrap_path = base / bootstrap_filename
 bootstrap_latest_path = base / bootstrap_latest_filename
 installer_iso_path = base / installer_iso_filename
 server_installer_iso_path = base / server_installer_iso_filename
+server_installimage_path = base / server_installimage_filename
 
 payload = {
     "service": "beagle-public-updates",
@@ -143,6 +152,10 @@ payload = {
     "server_installer_iso_url": f"{public_base_url}/{server_installer_iso_filename}",
     "server_installer_iso_sha256": sha_map.get(server_installer_iso_filename, ""),
     "server_installer_iso_size": server_installer_iso_path.stat().st_size,
+    "server_installimage_filename": server_installimage_filename,
+    "server_installimage_url": f"{public_base_url}/{server_installimage_filename}",
+    "server_installimage_sha256": sha_map.get(server_installimage_filename, ""),
+    "server_installimage_size": server_installimage_path.stat().st_size,
     "sha256sums_url": f"{public_base_url}/SHA256SUMS",
 }
 

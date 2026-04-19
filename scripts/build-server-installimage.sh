@@ -1,0 +1,321 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/disk_guardrails.sh"
+
+BUILD_DIR="${BEAGLE_SERVER_INSTALLIMAGE_BUILD_DIR:-$ROOT_DIR/.build/beagle-os-server-installimage}"
+DIST_DIR="${BEAGLE_SERVER_INSTALLIMAGE_DIST_DIR:-$ROOT_DIR/dist/beagle-os-server-installimage}"
+ROOTFS_DIR="$BUILD_DIR/rootfs"
+STATE_DIR="$BUILD_DIR/state"
+DEBIAN_RELEASE="${BEAGLE_SERVER_INSTALLIMAGE_RELEASE:-bookworm}"
+DEBIAN_ARCH="${BEAGLE_SERVER_INSTALLIMAGE_ARCH:-amd64}"
+DEBIAN_MIRROR="${BEAGLE_SERVER_INSTALLIMAGE_MIRROR:-https://deb.debian.org/debian}"
+DEBIAN_SECURITY_MIRROR="${BEAGLE_SERVER_INSTALLIMAGE_SECURITY_MIRROR:-https://security.debian.org/debian-security}"
+DEBIAN_VERSION_CODE="${BEAGLE_SERVER_INSTALLIMAGE_VERSION_CODE:-1201}"
+INSTALLIMAGE_HOSTNAME="${BEAGLE_SERVER_INSTALLIMAGE_HOSTNAME:-beagle-server}"
+INSTALLIMAGE_ROOT_LOGIN="${BEAGLE_SERVER_INSTALLIMAGE_ROOT_LOGIN:-yes}"
+SERVER_INSTALLIMAGE_MIN_BUILD_FREE_GIB="${BEAGLE_SERVER_INSTALLIMAGE_MIN_BUILD_FREE_GIB:-8}"
+SERVER_INSTALLIMAGE_MIN_DIST_FREE_GIB="${BEAGLE_SERVER_INSTALLIMAGE_MIN_DIST_FREE_GIB:-3}"
+TARBALL_NAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-${DEBIAN_VERSION_CODE}-${DEBIAN_RELEASE}-${DEBIAN_ARCH}-beagle-server.tar.gz}"
+SOURCE_ARCHIVE_PATH="$ROOTFS_DIR/usr/local/share/beagle/beagle-os-source.tar.gz"
+INSTALLIMAGE_FILES_DIR="$ROOT_DIR/server-installer/installimage"
+
+CHROOT_MOUNTS=()
+
+ensure_root() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    return 0
+  fi
+  exec sudo \
+    BEAGLE_SERVER_INSTALLIMAGE_BUILD_DIR="$BUILD_DIR" \
+    BEAGLE_SERVER_INSTALLIMAGE_DIST_DIR="$DIST_DIR" \
+    BEAGLE_SERVER_INSTALLIMAGE_RELEASE="$DEBIAN_RELEASE" \
+    BEAGLE_SERVER_INSTALLIMAGE_ARCH="$DEBIAN_ARCH" \
+    BEAGLE_SERVER_INSTALLIMAGE_MIRROR="$DEBIAN_MIRROR" \
+    BEAGLE_SERVER_INSTALLIMAGE_SECURITY_MIRROR="$DEBIAN_SECURITY_MIRROR" \
+    BEAGLE_SERVER_INSTALLIMAGE_VERSION_CODE="$DEBIAN_VERSION_CODE" \
+    BEAGLE_SERVER_INSTALLIMAGE_HOSTNAME="$INSTALLIMAGE_HOSTNAME" \
+    BEAGLE_SERVER_INSTALLIMAGE_ROOT_LOGIN="$INSTALLIMAGE_ROOT_LOGIN" \
+    BEAGLE_SERVER_INSTALLIMAGE_MIN_BUILD_FREE_GIB="$SERVER_INSTALLIMAGE_MIN_BUILD_FREE_GIB" \
+    BEAGLE_SERVER_INSTALLIMAGE_MIN_DIST_FREE_GIB="$SERVER_INSTALLIMAGE_MIN_DIST_FREE_GIB" \
+    BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME="$TARBALL_NAME" \
+    "$0" "$@"
+}
+
+disable_proxmox_enterprise_repo() {
+  local found=0
+  local file
+
+  while IFS= read -r file; do
+    grep -q 'enterprise.proxmox.com' "$file" || continue
+    cp "$file" "$file.beagle-backup"
+    awk '!/enterprise\.proxmox\.com/' "$file.beagle-backup" > "$file"
+    found=1
+  done < <(find /etc/apt -maxdepth 2 -type f \( -name '*.list' -o -name '*.sources' \) 2>/dev/null)
+
+  return $(( ! found ))
+}
+
+restore_proxmox_enterprise_repo() {
+  local backup original
+  while IFS= read -r backup; do
+    original="${backup%.beagle-backup}"
+    mv "$backup" "$original"
+  done < <(find /etc/apt -maxdepth 2 -type f -name '*.beagle-backup' 2>/dev/null)
+}
+
+apt_update_with_proxmox_fallback() {
+  if apt-get update; then
+    return 0
+  fi
+  if ! disable_proxmox_enterprise_repo; then
+    echo "apt-get update failed and no Proxmox enterprise repository fallback was available." >&2
+    exit 1
+  fi
+  if ! apt-get update; then
+    restore_proxmox_enterprise_repo
+    exit 1
+  fi
+  restore_proxmox_enterprise_repo
+}
+
+install_builder_dependencies() {
+  export DEBIAN_FRONTEND=noninteractive
+  apt_update_with_proxmox_fallback
+  apt-get install -y \
+    debootstrap \
+    ca-certificates \
+    curl \
+    rsync \
+    xz-utils \
+    tar \
+    gnupg
+}
+
+cleanup_mounts() {
+  local idx
+  for (( idx=${#CHROOT_MOUNTS[@]}-1; idx>=0; idx-- )); do
+    if mountpoint -q "${CHROOT_MOUNTS[$idx]}"; then
+      umount "${CHROOT_MOUNTS[$idx]}" || true
+    fi
+  done
+  CHROOT_MOUNTS=()
+}
+
+cleanup() {
+  cleanup_mounts
+}
+trap cleanup EXIT
+
+mount_chroot_fs() {
+  mount --bind /dev "$ROOTFS_DIR/dev"
+  CHROOT_MOUNTS+=("$ROOTFS_DIR/dev")
+  mount -t devpts devpts "$ROOTFS_DIR/dev/pts"
+  CHROOT_MOUNTS+=("$ROOTFS_DIR/dev/pts")
+  mount -t proc proc "$ROOTFS_DIR/proc"
+  CHROOT_MOUNTS+=("$ROOTFS_DIR/proc")
+  mount -t sysfs sysfs "$ROOTFS_DIR/sys"
+  CHROOT_MOUNTS+=("$ROOTFS_DIR/sys")
+  mount --bind /run "$ROOTFS_DIR/run"
+  CHROOT_MOUNTS+=("$ROOTFS_DIR/run")
+}
+
+run_in_chroot() {
+  chroot "$ROOTFS_DIR" /usr/bin/env -i \
+    HOME=/root \
+    TERM="${TERM:-xterm}" \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    LC_ALL=C.UTF-8 \
+    LANG=C.UTF-8 \
+    "$@"
+}
+
+prepare_sources_list() {
+  cat >"$ROOTFS_DIR/etc/apt/sources.list" <<EOF
+deb $DEBIAN_MIRROR $DEBIAN_RELEASE main contrib non-free non-free-firmware
+deb $DEBIAN_MIRROR ${DEBIAN_RELEASE}-updates main contrib non-free non-free-firmware
+deb $DEBIAN_SECURITY_MIRROR ${DEBIAN_RELEASE}-security main contrib non-free non-free-firmware
+EOF
+}
+
+install_policy_rc_d() {
+  cat >"$ROOTFS_DIR/usr/sbin/policy-rc.d" <<'EOF'
+#!/bin/sh
+exit 101
+EOF
+  chmod 0755 "$ROOTFS_DIR/usr/sbin/policy-rc.d"
+}
+
+remove_policy_rc_d() {
+  rm -f "$ROOTFS_DIR/usr/sbin/policy-rc.d"
+}
+
+configure_base_system() {
+  mkdir -p "$ROOTFS_DIR/etc"
+  printf '%s\n' "$INSTALLIMAGE_HOSTNAME" >"$ROOTFS_DIR/etc/hostname"
+  cat >"$ROOTFS_DIR/etc/hosts" <<EOF
+127.0.0.1 localhost
+127.0.1.1 $INSTALLIMAGE_HOSTNAME
+
+::1 localhost ip6-localhost ip6-loopback
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+EOF
+  install -d -m 0755 "$ROOTFS_DIR/etc/ssh/sshd_config.d"
+  cat >"$ROOTFS_DIR/etc/ssh/sshd_config.d/99-beagle-installimage.conf" <<EOF
+PermitRootLogin ${INSTALLIMAGE_ROOT_LOGIN}
+PasswordAuthentication yes
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+PermitEmptyPasswords no
+EOF
+  install -d -m 0700 "$ROOTFS_DIR/root"
+  cat >"$ROOTFS_DIR/root/README-beagle-installimage.txt" <<'EOF'
+This system was installed from the Beagle installimage artifact.
+
+- Hetzner installimage sets the installed root password to the rescue-system root password.
+- Beagle host bootstrap runs automatically on first boot.
+- Bootstrap logs: /var/log/beagle-installimage-bootstrap.log
+- Generated Beagle web credentials: /root/beagle-firstboot-credentials.txt
+EOF
+}
+
+bundle_source_tree() {
+  mkdir -p "$(dirname "$SOURCE_ARCHIVE_PATH")"
+  (
+    cd "$ROOT_DIR"
+    tar -czf "$SOURCE_ARCHIVE_PATH" \
+      beagle-kiosk \
+      beagle-host \
+      beagle-os \
+      core \
+      docs \
+      extension \
+      providers \
+      proxmox-ui \
+      scripts \
+      server-installer \
+      thin-client-assistant \
+      website \
+      README.md \
+      LICENSE \
+      CHANGELOG.md \
+      VERSION \
+      .gitignore
+  )
+}
+
+install_bootstrap_files() {
+  install -d -m 0755 "$ROOTFS_DIR/usr/local/bin" "$ROOTFS_DIR/usr/local/sbin"
+  install -d -m 0755 "$ROOTFS_DIR/etc/systemd/system/ssh.service.d"
+  install -m 0755 \
+    "$INSTALLIMAGE_FILES_DIR/usr/local/bin/beagle-installimage-bootstrap" \
+    "$ROOTFS_DIR/usr/local/bin/beagle-installimage-bootstrap"
+  install -m 0755 \
+    "$INSTALLIMAGE_FILES_DIR/usr/local/sbin/beagle-ssh-hostkeys-prepare" \
+    "$ROOTFS_DIR/usr/local/sbin/beagle-ssh-hostkeys-prepare"
+  install -m 0644 \
+    "$INSTALLIMAGE_FILES_DIR/etc/systemd/system/beagle-installimage-bootstrap.service" \
+    "$ROOTFS_DIR/etc/systemd/system/beagle-installimage-bootstrap.service"
+  install -m 0644 \
+    "$INSTALLIMAGE_FILES_DIR/etc/systemd/system/beagle-ssh-hostkeys.service" \
+    "$ROOTFS_DIR/etc/systemd/system/beagle-ssh-hostkeys.service"
+  install -m 0644 \
+    "$INSTALLIMAGE_FILES_DIR/etc/systemd/system/ssh.service.d/10-beagle-hostkeys.conf" \
+    "$ROOTFS_DIR/etc/systemd/system/ssh.service.d/10-beagle-hostkeys.conf"
+  run_in_chroot systemctl enable beagle-installimage-bootstrap.service >/dev/null 2>&1 || true
+}
+
+sanitize_rootfs() {
+  rm -f "$ROOTFS_DIR"/etc/ssh/ssh_host_*_key "$ROOTFS_DIR"/etc/ssh/ssh_host_*_key.pub
+  rm -f "$ROOTFS_DIR/var/lib/systemd/random-seed"
+  rm -f "$ROOTFS_DIR/etc/machine-id" "$ROOTFS_DIR/var/lib/dbus/machine-id"
+  : >"$ROOTFS_DIR/etc/machine-id"
+  mkdir -p "$ROOTFS_DIR/var/lib/dbus"
+  ln -sf /etc/machine-id "$ROOTFS_DIR/var/lib/dbus/machine-id"
+  rm -rf "$ROOTFS_DIR/tmp/"* "$ROOTFS_DIR/var/tmp/"*
+  run_in_chroot apt-get clean
+  rm -rf "$ROOTFS_DIR/var/lib/apt/lists/"*
+  rm -f "$ROOTFS_DIR/root/.bash_history"
+}
+
+create_tarball() {
+  mkdir -p "$DIST_DIR"
+  (
+    cd "$ROOTFS_DIR"
+    tar \
+      --xattrs \
+      --acls \
+      --numeric-owner \
+      --exclude='./dev/*' \
+      --exclude='./proc/*' \
+      --exclude='./sys/*' \
+      --exclude='./run/*' \
+      --exclude='./tmp/*' \
+      --exclude='./var/tmp/*' \
+      -czf "$DIST_DIR/$TARBALL_NAME" .
+  )
+}
+
+ensure_root "$@"
+
+ensure_free_space_with_cleanup \
+  "server installimage build workspace" \
+  "$BUILD_DIR" \
+  "$((SERVER_INSTALLIMAGE_MIN_BUILD_FREE_GIB * 1024 * 1024))" \
+  "$ROOT_DIR" \
+  "$ROOT_DIR/.build" \
+  "$ROOT_DIR/dist"
+ensure_free_space_with_cleanup \
+  "server installimage artifacts" \
+  "$DIST_DIR" \
+  "$((SERVER_INSTALLIMAGE_MIN_DIST_FREE_GIB * 1024 * 1024))" \
+  "$ROOT_DIR" \
+  "$ROOT_DIR/.build" \
+  "$ROOT_DIR/dist"
+
+install_builder_dependencies
+
+rm -rf "$BUILD_DIR"
+mkdir -p "$ROOTFS_DIR" "$STATE_DIR" "$DIST_DIR"
+
+debootstrap --arch "$DEBIAN_ARCH" --variant=minbase "$DEBIAN_RELEASE" "$ROOTFS_DIR" "$DEBIAN_MIRROR"
+prepare_sources_list
+cp -L /etc/resolv.conf "$ROOTFS_DIR/etc/resolv.conf"
+install_policy_rc_d
+mount_chroot_fs
+
+run_in_chroot apt-get update
+run_in_chroot apt-get install -y \
+  systemd-sysv \
+  locales \
+  openssh-server \
+  ca-certificates \
+  curl \
+  rsync \
+  sudo \
+  wget \
+  gnupg \
+  iproute2 \
+  ifupdown \
+  isc-dhcp-client \
+  netbase \
+  linux-image-amd64 \
+  grub-common \
+  grub-pc-bin \
+  grub-efi-amd64-bin \
+  openssl \
+  nftables \
+  python3
+
+configure_base_system
+bundle_source_tree
+install_bootstrap_files
+sanitize_rootfs
+remove_policy_rc_d
+cleanup_mounts
+
+create_tarball
+
+echo "Created: $DIST_DIR/$TARBALL_NAME"

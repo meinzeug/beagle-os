@@ -37,7 +37,9 @@ __FIRSTBOOT_SCRIPT__
           After=network-online.target systemd-resolved.service
           Wants=network-online.target systemd-resolved.service
           StartLimitIntervalSec=0
-          ConditionPathExists=!/var/lib/beagle/ubuntu-firstboot.done
+          # Keep rerunning until callback+reboot handoff completed, even if
+          # package/setup phase already finished and wrote ubuntu-firstboot.done.
+          ConditionPathExists=!/var/lib/beagle/ubuntu-firstboot-callback.done
 
           [Service]
           Type=oneshot

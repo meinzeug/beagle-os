@@ -1,5 +1,104 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-19, Hetzner installimage tarball pipeline for Beagle server)
+
+- Implemented a reproducible Hetzner `installimage` artifact path for Beagle server via new builder [scripts/build-server-installimage.sh](scripts/build-server-installimage.sh).
+- The new builder now:
+  - creates a Debian Bookworm rootfs with `debootstrap`,
+  - installs kernel, SSH, networking and GRUB userspace needed for Hetzner `custom_images`,
+  - injects Beagle first-boot bootstrap files from `server-installer/installimage/`,
+  - produces `Debian-1201-bookworm-amd64-beagle-server.tar.gz`,
+  - reuses repo disk guardrails so local packaging can recover from reproducible artifact pressure instead of manual random cleanup.
+- Added first-boot installimage bootstrap/runtime pieces under [server-installer/installimage/](server-installer/installimage):
+  - bootstrap service unpacks bundled Beagle sources and runs repo install flow on first boot,
+  - host SSH keys are regenerated on the target instead of reusing build-time keys,
+  - root SSH password login remains compatible with Hetzner installimage's rescue-password handoff.
+- Wired the new tarball into the existing release/public-download surfaces:
+  - [scripts/package.sh](scripts/package.sh)
+  - [scripts/install-beagle-host.sh](scripts/install-beagle-host.sh)
+  - [scripts/prepare-host-downloads.sh](scripts/prepare-host-downloads.sh)
+  - [scripts/lib/prepare_host_downloads.py](scripts/lib/prepare_host_downloads.py)
+  - [scripts/check-beagle-host.sh](scripts/check-beagle-host.sh)
+  - [scripts/create-github-release.sh](scripts/create-github-release.sh)
+  - [scripts/publish-public-update-artifacts.sh](scripts/publish-public-update-artifacts.sh)
+  - [scripts/publish-hosted-artifacts-to-public.sh](scripts/publish-hosted-artifacts-to-public.sh)
+  - [README.md](README.md)
+- Validation completed in workspace:
+  - shell syntax checks passed for the changed shell scripts,
+  - Python status-generator path compiles cleanly,
+  - the installimage tarball build completed successfully.
+- Security follow-up in the same run:
+  - first tarball build accidentally bundled local-only `AGENTS.md` and `CLAUDE.md` inside the embedded Beagle source archive,
+  - builder was patched immediately to exclude both files before publication/deployment.
+
+## Update (2026-04-19, libvirt beagle bridge/interface consistency fix for persistent forwarding)
+
+- Root-caused recurring "works only after manual nft forward allow" behavior to a bridge/interface mismatch in repo defaults:
+	- `scripts/install-beagle-host-services.sh` defined `beagle` network bridge as `virbr1` while provider/runtime uses `virbr10`.
+	- `scripts/reconcile-public-streams.sh` defaulted `BEAGLE_PUBLIC_STREAM_LAN_IF` to Proxmox-style `vmbr1`, so generated allow-rules could miss actual libvirt egress interface.
+- Implemented repo fix in [scripts/install-beagle-host-services.sh](scripts/install-beagle-host-services.sh):
+	- aligned beagle libvirt network bridge to `virbr10`,
+	- aligned DHCP range to `192.168.123.100-254` (matching provider defaults),
+	- persisted `BEAGLE_PUBLIC_STREAM_LAN_IF` as `virbr10` for beagle provider,
+	- added runtime bridge auto-detection from `virsh net-dumpxml beagle` and persisted detected value into env.
+- Implemented repo hardening in [scripts/reconcile-public-streams.sh](scripts/reconcile-public-streams.sh):
+	- when `BEAGLE_HOST_PROVIDER=beagle` and legacy default `vmbr1` is still present, auto-detect bridge iface from libvirt network XML,
+	- fallback to `virbr10` when detection is unavailable.
+- Effect:
+	- forwarding reconciliation now targets the real libvirt bridge consistently across install/runtime,
+	- reduces recurrence risk of guest egress and stream path failures that previously required manual host nft intervention.
+
+## Update (2026-04-19, local AGENTS cleanup and de-duplication)
+
+- Reworked local [AGENTS.md](/home/dennis/beagle-os/AGENTS.md) from a long mixed roadmap/policy file into a compact operator policy.
+- Kept the hard constraints intact:
+  - no big-bang refactors,
+  - repo-first reproducibility,
+  - provider-neutral architecture rules,
+  - mandatory security documentation and same-run patching where feasible,
+  - mandatory multi-agent handover docs,
+  - local-only handling for `AGENTS.md` / `CLAUDE.md`.
+- Removed or compressed outdated content from the local policy file:
+  - future-tense phase descriptions that are already partially implemented in the repo,
+  - duplicated placement rules,
+  - detailed architecture planning that already lives in `docs/refactor/*`.
+- New local `AGENTS.md` now explicitly treats these as already-established repo directions:
+  - `beagle-host/` as generic host surface,
+  - existing provider seams,
+  - `website/` as current Beagle Web Console,
+  - `proxmox-ui/` as already partly modularized transition layer.
+- No product runtime/build behavior changed in this step; this was documentation/process cleanup only.
+
+## Update (2026-04-19, security run policy + local SSH alias hardening)
+
+- Extended local [AGENTS.md](/home/dennis/beagle-os/AGENTS.md) with mandatory security-run rules:
+  - every run must look for security issues in the touched scope,
+  - findings must be recorded in `docs/refactor/11-security-findings.md`,
+  - directly patchable findings should be fixed in the same run,
+  - plaintext secrets must not be written into versioned repo files.
+- Added dedicated security findings register in [docs/refactor/11-security-findings.md](/home/dennis/beagle-os/docs/refactor/11-security-findings.md).
+- Added `.gitignore` protection for `AGENTS.md` and `CLAUDE.md` so these local operator files stop being eligible for accidental GitHub publication.
+- Removed `AGENTS.md` and `CLAUDE.md` from the Git index while keeping both files locally present for operator use.
+- Configured local SSH access alias for operations against `srv1.meinzeug.cloud`:
+  - generated dedicated key `/home/dennis/.ssh/meinzeug_ed25519`,
+  - installed the public key on the remote host,
+  - created local SSH alias `meinzeug` in `/home/dennis/.ssh/config`,
+  - verified passwordless login with `ssh meinzeug 'hostname && whoami'` -> `srv1.meinzeug.cloud` / `root`.
+- No product runtime/build code paths were changed in this step; scope is security/process/local operator hygiene only.
+
+## Update (2026-04-19, VM163 stuck `installing` after guest reached tty login)
+
+- Reproduced and root-caused the mismatch where VM `163` shows a Linux login prompt in noVNC but provisioning API remains `installing/firstboot`.
+- Confirmed firstboot script behavior in [beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl](beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl):
+	- package/setup phase writes `/var/lib/beagle/ubuntu-firstboot.done`,
+	- completion callback (`.../complete?restart=0`) and reboot happen only after that,
+	- if callback fails once, the run can end without `ubuntu-firstboot-callback.done` and without reboot.
+- Implemented repo fix in [beagle-host/templates/ubuntu-beagle/user-data.tpl](beagle-host/templates/ubuntu-beagle/user-data.tpl):
+	- changed systemd unit guard from `ConditionPathExists=!/var/lib/beagle/ubuntu-firstboot.done` to `ConditionPathExists=!/var/lib/beagle/ubuntu-firstboot-callback.done`.
+	- effect: firstboot service now retries the callback/reboot handoff instead of being permanently suppressed after setup-only completion.
+- Net effect:
+	- this addresses the exact symptom reported on VM163 (`guest up`, status still `installing`) by making callback completion retryable and deterministic.
+
 ## Update (2026-04-19, VM161 autoinstall late-command fallback rollback + live-progress proof)
 
 - Investigated the current no-reboot symptom on fresh VM `161` (`beagle-ubuntu-autotest-03`) and captured live installer screenshots from host libvirt.
@@ -404,4 +503,3 @@
 - Validation:
 	- editor diagnostics: no errors in the touched Python/shell files,
 	- `bash -n scripts/ensure-vm-stream-ready.sh`.
-

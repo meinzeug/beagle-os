@@ -212,6 +212,22 @@ detect_beagle_network_gateway_ipv4() {
   return 0
 }
 
+detect_beagle_network_bridge_iface() {
+  local bridge=""
+
+  if ! command -v virsh >/dev/null 2>&1; then
+    return 1
+  fi
+
+  bridge="$(virsh --connect qemu:///system net-dumpxml beagle 2>/dev/null | awk -F"'" '/<bridge name=/{print $2; exit}')"
+  if [[ -z "$bridge" ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "$bridge"
+  return 0
+}
+
 ensure_root "$@"
 
 if ! id "$USB_TUNNEL_USER" >/dev/null 2>&1; then
@@ -358,6 +374,7 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_UBUNTU_DISK_STORAGE" '"local"'
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_UBUNTU_ISO_STORAGE" '"local"'
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_UBUNTU_DEFAULT_BRIDGE" '"beagle"'
+  set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_PUBLIC_STREAM_LAN_IF" '"virbr10"'
 
   if ! standalone_runtime_tools_ready; then
     qemu_system_package="$(resolve_qemu_system_package)"
@@ -390,10 +407,10 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
 <network>
   <name>beagle</name>
   <forward mode='nat'/>
-  <bridge name='virbr1' stp='on' delay='0'/>
+  <bridge name='virbr10' stp='on' delay='0'/>
   <ip address='192.168.123.1' netmask='255.255.255.0'>
     <dhcp>
-      <range start='192.168.123.2' end='192.168.123.254'/>
+      <range start='192.168.123.100' end='192.168.123.254'/>
     </dhcp>
   </ip>
 </network>
@@ -407,6 +424,11 @@ NETEOF
       virsh --connect qemu:///system net-autostart beagle >/dev/null
     fi
     virsh --connect qemu:///system net-info beagle >/dev/null
+
+    detected_beagle_bridge_iface="$(detect_beagle_network_bridge_iface || true)"
+    if [[ -n "$detected_beagle_bridge_iface" ]]; then
+      set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_PUBLIC_STREAM_LAN_IF" "\"$detected_beagle_bridge_iface\""
+    fi
 
     # Create local storage pool if missing
     if ! virsh --connect qemu:///system pool-info local >/dev/null 2>&1; then

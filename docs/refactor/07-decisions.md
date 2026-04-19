@@ -135,3 +135,19 @@ Stand: 2026-04-13
 - Wirkung: Web UI zeigt nach frischer Installation wieder verlässlich den verpflichtenden Onboarding-Flow; bestehende bootstrap-only Zustände werden auf `pending` zurückgeführt, sobald Bootstrap-Auth deaktiviert ist.
 - Dateien: `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`, `beagle-host/services/auth_session.py`, `beagle-host/bin/beagle-control-plane.py`.
 
+## D-031: Security-Funde muessen pro Run dokumentiert und nach Moeglichkeit sofort gepatcht werden
+- Entscheidung: Jeder Agent-Run muss im bearbeiteten Scope aktiv nach Security-Funden suchen; neue Funde werden in `docs/refactor/11-security-findings.md` dokumentiert und direkt mitgepatcht, wenn der Fix reproduzierbar und risikoarm ist.
+- Grund: Security darf im laufenden Refactor nicht als spaetere Phase behandelt werden, sonst akkumulieren versteckte Risiken zwischen mehreren Agentenruns.
+
+## D-032: `AGENTS.md` und `CLAUDE.md` sind lokale Operator-Dateien und duerfen nicht versioniert werden
+- Entscheidung: `AGENTS.md` und `CLAUDE.md` bleiben lokal-only, stehen in `.gitignore` und muessen aus dem Git-Tracking entfernt werden.
+- Grund: Diese Dateien koennen interne Arbeitsanweisungen oder lokale Betriebsdetails enthalten und duerfen nicht versehentlich auf GitHub landen.
+
+## D-033: Operator-Zugriff fuer `srv1.meinzeug.cloud` laeuft lokal ueber SSH-Key alias `meinzeug`
+- Entscheidung: Lokaler Remote-Zugriff auf `srv1.meinzeug.cloud` wird ueber `ssh meinzeug` mit dediziertem Key `/home/dennis/.ssh/meinzeug_ed25519` abgewickelt.
+- Grund: Vereinheitlicht Operator-Zugriff im Workspace und reduziert Passwort-Nutzung im Tagesbetrieb.
+
+## D-034: `AGENTS.md` bleibt kompakte Policy, nicht der Volltext-Refactorplan
+- Entscheidung: Die lokale `AGENTS.md` wird kurz gehalten und enthaelt nur dauerhafte Arbeitsregeln, Sicherheitsvorgaben, Uebergabepflichten und lokale Operator-Hinweise.
+- Grund: Die alte Mischform aus Policy, Roadmap und Dateiplatzierungsdetails war drift-anfaellig und fuer neue Agents schwerer scanbar.
+- Detailplanung, Architekturfeinschnitt und Migrationsstand gehoeren stattdessen nach `docs/refactor/*`.

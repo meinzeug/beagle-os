@@ -57,3 +57,11 @@ Stand: 2026-04-13
   - Tier-1 capabilities zuerst
   - klare Wellenabnahmen
   - harte non-goals pro Welle
+
+## R8 - Lokale Operator-Dateien oder Secrets werden versehentlich versioniert
+- Risiko: Hoch
+- Wahrscheinlichkeit: Mittel
+- Mitigation:
+  - `AGENTS.md` und `CLAUDE.md` lokal-only halten und in `.gitignore` erzwingen
+  - Security-Funde pro Run in `docs/refactor/11-security-findings.md` dokumentieren
+  - keine Klartext-Secrets in versionierten Docs, Defaults oder Scripts zulassen

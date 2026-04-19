@@ -1,0 +1,13 @@
+[Unit]
+Description=Bootstrap Beagle host after installimage deployment
+After=network.target
+Wants=network.target
+ConditionPathExists=!/var/lib/beagle/installimage-bootstrap/done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/beagle-installimage-bootstrap
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

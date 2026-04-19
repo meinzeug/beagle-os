@@ -1,6 +1,53 @@
 # Next Steps
 
+## Immediate (Hetzner installimage path)
+
+0. **Rebuild and republish the corrected Beagle installimage tarball**:
+	- rebuild `Debian-1201-bookworm-amd64-beagle-server.tar.gz` after excluding local-only operator files from the embedded source bundle,
+	- verify the corrected tarball no longer contains `AGENTS.md` or `CLAUDE.md`,
+	- refresh top-level `dist/`, `SHA256SUMS`, hosted-download metadata and public artifact metadata from the corrected artifact only.
+
+0. **Publish the installimage artifact to both GitHub and beagle-os.com**:
+	- push only the intended repo changes for the new installimage pipeline,
+	- upload the tarball as a release/public artifact beside the existing installer ISOs,
+	- verify direct HTTP reachability plus checksum/status-json coverage for the tarball on `beagle-os.com`.
+
+0. **Install the public tarball on the new Hetzner server via Rescue + installimage**:
+	- use Rescue System with a custom-image `IMAGE_PATH` pointing at the published tarball,
+	- let installimage set root password from the active Rescue password,
+	- boot the installed system and confirm Beagle first-boot bootstrap completes successfully,
+	- create the requested operator user `beagle` after the target is reachable.
+
+## Immediate (docs/process consistency)
+
+0. **Keep the shortened local operator policy stable**:
+	- Treat `AGENTS.md` as compact policy only.
+	- Move future roadmap/detail architecture edits into `docs/refactor/*`, not back into `AGENTS.md`.
+	- If a new rule is truly permanent, add it concisely; if it is status, planning, or migration detail, document it elsewhere.
+
+## Immediate (security/process hygiene)
+
+0. **Commit and push the operator-file de-tracking change before the next shared sync**:
+	- Keep `AGENTS.md` and `CLAUDE.md` local-only and out of Git tracking.
+	- Verify the next commit removes both files from the shared repo state on GitHub.
+	- Confirm future local edits stay ignored by Git.
+
+0. **Run a targeted secret-leak sweep now that local operator docs are isolated**:
+	- Search the repo for plaintext passwords, tokens, SSH snippets and operator-only notes that should not be versioned.
+	- Document every finding in `docs/refactor/11-security-findings.md`.
+	- Patch or remove any safe-to-fix exposures in the same run.
+
 ## Immediate (blocking on environmental readiness, not code)
+
+0. **Deploy and validate the firstboot callback retry guard fix (VM163 blocker)**:
+	- Deploy updated [beagle-host/templates/ubuntu-beagle/user-data.tpl](beagle-host/templates/ubuntu-beagle/user-data.tpl) to `/opt/beagle/...` on beagleserver.
+	- Recreate one fresh ubuntu desktop VM and verify the firstboot systemd unit remains eligible until `/var/lib/beagle/ubuntu-firstboot-callback.done` exists.
+	- Simulate callback delay/failure once and confirm service retries and eventually posts `/complete?restart=0`.
+	- Confirm provisioning transitions out of `installing` and VM performs the expected post-completion reboot handoff.
+
+0. **Unstick currently affected VM163 runtime state**:
+	- Trigger callback endpoint `POST /api/v1/public/ubuntu-install/<token>/complete?restart=0` using VM163 token.
+	- Verify VM163 provisioning state becomes `completed/complete` and rerun stream-ready checks.
 
 0. **Finish live validation for the freshly recreated VM161**:
 	- Monitor VM `161` until provisioning transitions from `installing/autoinstall` to `firstboot`/`complete`.
@@ -19,6 +66,11 @@
 	- Sync all relevant changed host files (not only template) from repo `main` to `/opt/beagle/...`.
 	- Restart `beagle-control-plane` and verify runtime version/config behavior reflects 6.6.8 expectations.
 	- Re-run the same VM lifecycle checks after full code deploy to avoid validating against mixed runtime state.
+
+0. **Validate new bridge/interface consistency fix on fresh VM run**:
+	- Ensure runtime env on host contains `BEAGLE_PUBLIC_STREAM_LAN_IF` matching libvirt `beagle` network bridge (expected `virbr10`).
+	- Trigger `/opt/beagle/scripts/reconcile-public-streams.sh` and confirm generated `beagle-stream-allow` rules use detected bridge iface, not legacy `vmbr1`.
+	- Create one fresh ubuntu desktop VM and verify firstboot + callback complete without any manual host nft forward patching.
 
 1. **Guest IP and qemu-agent availability** (in progress on beagleserver):
 	- VMs 100, 101, 102 are running but have not yet obtained DHCP IP addresses.
@@ -66,4 +118,3 @@
 	- `06-next-steps.md`,
 	- `08-todo-global.md`,
 	- `09-provider-abstraction.md`.
-

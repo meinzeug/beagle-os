@@ -9,6 +9,7 @@ TITLE="${RELEASE_TITLE:-$TAG}"
 NOTES_FILE="${RELEASE_NOTES_FILE:-}"
 BEAGLE_OS_DIST_DIR="${BEAGLE_OS_DIST_DIR:-$DIST_DIR/beagle-os}"
 INCLUDE_BEAGLE_OS_ASSETS="${INCLUDE_BEAGLE_OS_ASSETS:-1}"
+SERVER_INSTALLIMAGE_NAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
 
 detect_github_repo() {
   local url=""
@@ -96,6 +97,7 @@ RELEASE_ASSETS=(
   "$DIST_DIR/beagle-os-installer-amd64.iso"
   "$DIST_DIR/beagle-os-server-installer.iso"
   "$DIST_DIR/beagle-os-server-installer-amd64.iso"
+  "$DIST_DIR/$SERVER_INSTALLIMAGE_NAME"
   "$DIST_DIR/beagle-kiosk-v${VERSION}-linux-x64.AppImage"
   "$DIST_DIR/kiosk-release.json"
   "$DIST_DIR/kiosk-release-hash.txt"

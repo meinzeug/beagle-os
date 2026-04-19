@@ -71,6 +71,8 @@ PY
 callback_tls_args() {
   if [[ -n "$CALLBACK_PINNED_PUBKEY" ]]; then
     printf '%s\n' -k --pinnedpubkey "$CALLBACK_PINNED_PUBKEY"
+  else
+    printf '%s\n' -k
   fi
 }
 
@@ -158,7 +160,9 @@ PY
   chmod 0600 /etc/netplan/01-beagle-dhcp.yaml
 
   ip link set "$iface" up >/dev/null 2>&1 || true
-  systemctl enable --now systemd-networkd.service systemd-networkd-wait-online.service >/dev/null 2>&1 || true
+  # Starting wait-online here can deadlock firstboot on some guests without a configured uplink yet.
+  systemctl enable systemd-networkd.service >/dev/null 2>&1 || true
+  systemctl start systemd-networkd.service >/dev/null 2>&1 || true
   netplan generate >/dev/null 2>&1 || true
   netplan apply >/dev/null 2>&1 || true
   networkctl reconfigure "$iface" >/dev/null 2>&1 || true

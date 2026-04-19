@@ -54,6 +54,27 @@ PY
 
 PUBLIC_STREAM_HOST="$(resolve_public_stream_host "$PUBLIC_STREAM_HOST_RAW")"
 
+detect_beagle_bridge_iface() {
+    local bridge=""
+
+    if ! command -v virsh >/dev/null 2>&1; then
+        return 1
+    fi
+
+    bridge="$(virsh --connect qemu:///system net-dumpxml beagle 2>/dev/null | awk -F"'" '/<bridge name=/{print $2; exit}')"
+    if [[ -z "$bridge" ]]; then
+        return 1
+    fi
+
+    printf '%s\n' "$bridge"
+    return 0
+}
+
+if [[ "${BEAGLE_HOST_PROVIDER:-}" == "beagle" && "$LAN_IFACE" == "vmbr1" ]]; then
+    LAN_IFACE="$(detect_beagle_bridge_iface || true)"
+    LAN_IFACE="${LAN_IFACE:-virbr10}"
+fi
+
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
     return 0

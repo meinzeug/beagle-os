@@ -41,6 +41,8 @@ VM_WINDOWS_INSTALLER_URL_TEMPLATE="$(beagle_vm_api_url_template "$SERVER_NAME" "
 STATUS_URL="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-downloads-status.json")"
 SHA256SUMS_URL="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "SHA256SUMS")"
 SERVER_INSTALLER_ISO_URL="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "beagle-os-server-installer-amd64.iso")"
+SERVER_INSTALLIMAGE_FILENAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
+SERVER_INSTALLIMAGE_URL="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "$SERVER_INSTALLIMAGE_FILENAME")"
 STATUS_JSON_PATH="$DIST_DIR/beagle-downloads-status.json"
 VM_INSTALLERS_METADATA_PATH="$DIST_DIR/beagle-vm-installers.json"
 INSTALLER_SHA256=""
@@ -78,8 +80,10 @@ ensure_current_packaged_artifacts() {
   local installer_build_iso="$DIST_DIR/pve-thin-client-installer/beagle-os-installer-amd64.iso"
   local installer_build_rootfs="$DIST_DIR/pve-thin-client-installer/live/filesystem.squashfs"
   local server_installer_build_iso="$DIST_DIR/beagle-os-server-installer/beagle-os-server-installer-amd64.iso"
+  local server_installimage_build_tarball="$DIST_DIR/beagle-os-server-installimage/$SERVER_INSTALLIMAGE_FILENAME"
   local root_iso="$DIST_DIR/beagle-os-installer-amd64.iso"
   local root_server_iso="$DIST_DIR/beagle-os-server-installer-amd64.iso"
+  local root_server_installimage="$DIST_DIR/$SERVER_INSTALLIMAGE_FILENAME"
   local packaged_payload="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
   local packaged_bootstrap="$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
   local packaged_installer="$DIST_DIR/pve-thin-client-usb-installer-latest.sh"
@@ -89,7 +93,7 @@ ensure_current_packaged_artifacts() {
   local source_windows_installer="$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.ps1"
   local source_server_installer="$ROOT_DIR/scripts/build-server-installer.sh"
 
-  if [[ ! -f "$root_iso" || ! -f "$root_server_iso" || ! -f "$packaged_payload" || ! -f "$packaged_bootstrap" || ! -f "$packaged_installer" || ! -f "$packaged_live_usb" || ! -f "$packaged_windows_installer" ]]; then
+  if [[ ! -f "$root_iso" || ! -f "$root_server_iso" || ! -f "$root_server_installimage" || ! -f "$packaged_payload" || ! -f "$packaged_bootstrap" || ! -f "$packaged_installer" || ! -f "$packaged_live_usb" || ! -f "$packaged_windows_installer" ]]; then
     needs_package=1
   fi
 
@@ -102,6 +106,10 @@ ensure_current_packaged_artifacts() {
   fi
 
   if [[ "$needs_package" -eq 0 && -f "$server_installer_build_iso" && "$server_installer_build_iso" -nt "$root_server_iso" ]]; then
+    needs_package=1
+  fi
+
+  if [[ "$needs_package" -eq 0 && -f "$server_installimage_build_tarball" && "$server_installimage_build_tarball" -nt "$root_server_installimage" ]]; then
     needs_package=1
   fi
 
@@ -155,6 +163,10 @@ ensure_current_packaged_artifacts
 }
 [[ -f "$DIST_DIR/beagle-os-server-installer-amd64.iso" ]] || {
   echo "Missing packaged server installer ISO: $DIST_DIR/beagle-os-server-installer-amd64.iso" >&2
+  exit 1
+}
+[[ -f "$DIST_DIR/$SERVER_INSTALLIMAGE_FILENAME" ]] || {
+  echo "Missing packaged server installimage tarball: $DIST_DIR/$SERVER_INSTALLIMAGE_FILENAME" >&2
   exit 1
 }
 
@@ -221,6 +233,7 @@ checksum_entries=(
   "beagle-os-installer-amd64.iso"
   "beagle-os-server-installer.iso"
   "beagle-os-server-installer-amd64.iso"
+  "$SERVER_INSTALLIMAGE_FILENAME"
 )
 
 while IFS= read -r installer_name; do
@@ -268,6 +281,7 @@ PAYLOAD_SHA256="$(sha256sum "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz
 BOOTSTRAP_SHA256="$(sha256sum "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz" | awk '{print $1}')"
 INSTALLER_ISO_SHA256="$(sha256sum "$DIST_DIR/beagle-os-installer-amd64.iso" | awk '{print $1}')"
 SERVER_INSTALLER_ISO_SHA256="$(sha256sum "$DIST_DIR/beagle-os-server-installer-amd64.iso" | awk '{print $1}')"
+SERVER_INSTALLIMAGE_SHA256="$(sha256sum "$DIST_DIR/$SERVER_INSTALLIMAGE_FILENAME" | awk '{print $1}')"
 
 cat > "$DIST_DIR/beagle-downloads-index.html" <<EOF
 <!doctype html>
@@ -293,6 +307,7 @@ cat > "$DIST_DIR/beagle-downloads-index.html" <<EOF
     <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-usb-installer-host-latest.ps1">Generic Windows USB installer launcher</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/beagle-os-installer-amd64.iso">Beagle OS installer ISO</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/beagle-os-server-installer-amd64.iso">Beagle OS server installer ISO</a></li>
+    <li><a href="${DOWNLOADS_PATH%/}/$SERVER_INSTALLIMAGE_FILENAME">Beagle OS Hetzner installimage tarball</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-usb-bootstrap-latest.tar.gz">USB bootstrap bundle (used while creating installer media)</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-usb-payload-latest.tar.gz">USB payload bundle</a></li>
     <li>VM-specific installer scripts now download the installer ISO, write the USB stick and embed the selected VM profile for unattended Beagle deployment.</li>
@@ -311,6 +326,7 @@ cat > "$DIST_DIR/beagle-downloads-index.html" <<EOF
     <tr><th>Hosted installer SHA256</th><td><code>${INSTALLER_SHA256}</code></td></tr>
     <tr><th>Endpoint ISO SHA256</th><td><code>${INSTALLER_ISO_SHA256}</code></td></tr>
     <tr><th>Server ISO SHA256</th><td><code>${SERVER_INSTALLER_ISO_SHA256}</code></td></tr>
+    <tr><th>Server installimage SHA256</th><td><code>${SERVER_INSTALLIMAGE_SHA256}</code></td></tr>
     <tr><th>Bootstrap SHA256</th><td><code>${BOOTSTRAP_SHA256}</code></td></tr>
     <tr><th>Payload SHA256</th><td><code>${PAYLOAD_SHA256}</code></td></tr>
   </table>
@@ -331,6 +347,7 @@ python3 "$PREPARE_HOST_DOWNLOADS_HELPER" write-download-status \
   --payload-url "$PAYLOAD_URL" \
   --installer-iso-url "$INSTALLER_ISO_URL" \
   --server-installer-iso-url "$SERVER_INSTALLER_ISO_URL" \
+  --server-installimage-url "$SERVER_INSTALLIMAGE_URL" \
   --status-url "$STATUS_URL" \
   --sha256sums-url "$SHA256SUMS_URL" \
   --installer-path "$HOST_INSTALLER_LATEST" \
@@ -340,11 +357,13 @@ python3 "$PREPARE_HOST_DOWNLOADS_HELPER" write-download-status \
   --payload-path "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" \
   --installer-iso-path "$DIST_DIR/beagle-os-installer-amd64.iso" \
   --server-installer-iso-path "$DIST_DIR/beagle-os-server-installer-amd64.iso" \
+  --server-installimage-path "$DIST_DIR/$SERVER_INSTALLIMAGE_FILENAME" \
   --installer-sha256 "$INSTALLER_SHA256" \
   --bootstrap-sha256 "$BOOTSTRAP_SHA256" \
   --payload-sha256 "$PAYLOAD_SHA256" \
   --installer-iso-sha256 "$INSTALLER_ISO_SHA256" \
   --server-installer-iso-sha256 "$SERVER_INSTALLER_ISO_SHA256" \
+  --server-installimage-sha256 "$SERVER_INSTALLIMAGE_SHA256" \
   --vm-installer-url-template "$VM_INSTALLER_URL_TEMPLATE" \
   --vm-windows-installer-url-template "$VM_WINDOWS_INSTALLER_URL_TEMPLATE" \
   --vm-live-usb-url-template "$VM_LIVE_USB_URL_TEMPLATE" \

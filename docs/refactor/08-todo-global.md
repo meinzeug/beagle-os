@@ -1,5 +1,19 @@
 # Global TODO
 
+- [x] Add a reproducible Hetzner `installimage` tarball builder for Beagle server and wire it into package/release/public-download metadata.
+- [x] Add first-boot bootstrap + SSH host-key regeneration files for installimage-based Beagle server deployments.
+- [x] Detect and remove local-only operator files from the embedded installimage source archive before publication.
+- [ ] Rebuild the corrected installimage tarball and refresh packaged/public checksums from that artifact.
+- [ ] Publish the installimage tarball to GitHub release assets and `beagle-os.com` public downloads.
+- [ ] Install the published installimage tarball on Hetzner rescue system and verify first boot.
+- [ ] Create requested target user `beagle` on the installed host after first-boot validation.
+
+- [x] Add security-run rule to local `AGENTS.md` so every run must document and opportunistically patch discovered security issues.
+- [x] Add dedicated security findings register in `docs/refactor/11-security-findings.md`.
+- [x] Add `.gitignore` protection for local-only operator files `AGENTS.md` and `CLAUDE.md`.
+- [x] Remove `AGENTS.md` and `CLAUDE.md` from Git tracking and keep them local-only on future pushes.
+- [x] Slim local `AGENTS.md` down to stable policy only and move roadmap/detail semantics back to `docs/refactor/*`.
+- [ ] Audit the repo for remaining plaintext credentials, tokens or operator-only notes that should not be versioned.
 - [x] Fix Web UI onboarding/login modal visibility conflicts.
 - [x] Fix Web UI auth request handling to avoid immediate logout on non-critical 401 responses.
 - [x] Fix session-token race condition in host auth service for concurrent requests.
@@ -26,9 +40,11 @@
 - [x] Add control-plane stale-state fallback from `installing/firstboot` -> `completed` (server-side finalize, no extra forced restart).
 - [x] Validate firstboot stale fallback timeout path on live VM100 token (`installing/firstboot` -> `completed` without manual callback forcing).
 - [ ] Re-run VM 100/101 autoinstall to true completion without manual callback forcing and confirm first-boot transition on its own (`installing` -> `running`).
+- [x] Fix firstboot systemd guard so callback/reboot handoff is retried until `ubuntu-firstboot-callback.done` (prevents tty-login + `installing` stuck state).
 - [x] Move VM-firstboot network workaround into repo template (DHCP-first with deterministic static fallback + non-fatal DNS recovery) so no manual in-guest hotfix is required.
 - [x] Deploy updated firstboot/autoinstall fallback templates to live beagleserver and restart control-plane.
 - [ ] Validate on fresh VM161 that provisioning exits autoinstall cleanly and `beagle-ubuntu-firstboot.service` auto-runs to completion without manual in-guest repair.
+- [ ] Apply VM163 completion callback once and verify current runtime state flips from `installing/firstboot` to `completed/complete`.
 - [ ] Deploy full repo 6.6.8 host runtime (not template-only) to beagleserver and re-run VM lifecycle validation to rule out mixed-version behavior.
 - [ ] Validate firstboot stale fallback guardrails on fresh runs (no premature completion while guest provisioning is still active).
 - [ ] Verify first-boot Sunshine readiness gate and callback end-to-end on a fully clean VM100/101 run (no manual completion override).
@@ -73,4 +89,3 @@
 - [ ] Add regression tests for concurrent auth refresh + dashboard polling.
 - [ ] Add UI-level provisioning smoke test in CI.
 - [ ] Backport VM-side hotfixes through a fresh ISO reinstall validation run.
-
