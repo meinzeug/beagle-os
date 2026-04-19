@@ -1,5 +1,36 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-19, Beagle OS 6.6.9 public installimage release + Hetzner host update)
+
+- Built and verified release `6.6.9` with the corrected Hetzner `installimage` tarball included in the release/public-download set.
+- Published `6.6.9` artifacts to `beagle-os.com/beagle-updates`:
+  - endpoint installer ISO,
+  - server installer ISO,
+  - Hetzner `Debian-1201-bookworm-amd64-beagle-server.tar.gz`,
+  - USB payload/bootstrap bundles,
+  - source tarball,
+  - kiosk AppImage,
+  - `SHA256SUMS` and `beagle-downloads-status.json`.
+- Verified public metadata reports `version: 6.6.9` and the installimage SHA256 `3d0a0623585265e9d690f9bcf7d9a1c7baa0aa0f85cbfa0544ef967f2fb7c34d`.
+- Installed the public installimage path on the real Hetzner host and updated the running system:
+  - host: `beagle-server`,
+  - `/opt/beagle/VERSION`: `6.6.9`,
+  - `beagle-control-plane.service`: active,
+  - nginx host-local downloads: active on `/beagle-downloads`,
+  - `virsh --connect qemu:///system list --all`: reachable.
+- Fixed first-boot standalone bootstrap failure on minimal installimage targets:
+  - `scripts/install-beagle-host-services.sh` now runs `apt-get update` before runtime package installs,
+  - missing runtime packages are no longer hidden behind a swallowed `apt-get install ... || true` path.
+- Hardened release packaging:
+  - `scripts/package.sh` no longer includes local-only `AGENTS.md` / `CLAUDE.md` in `beagle-os-v*.tar.gz`,
+  - `scripts/build-server-installer.sh` no longer includes those local files in the server installer embedded source archive,
+  - installimage embedded source archive was verified clean.
+- Improved local build cleanup:
+  - `scripts/lib/disk_guardrails.sh` now creates missing check paths inside the low-level `df` helper,
+  - reproducible artifact cleanup can use `sudo rm -rf` when previous root/live-build runs left root-owned outputs behind.
+- Known residual:
+  - GitHub release asset upload is still blocked in this workspace by missing local GitHub CLI/token auth; code changes still need to be pushed through an authenticated GitHub path.
+
 ## Update (2026-04-19, operator files exclusion from installimage tarballs)
 
 - Identified that AGENTS.md and CLAUDE.md (local-only operator files) were being accidentally bundled into the embedded source archive within the installimage tarball.

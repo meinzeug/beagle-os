@@ -7,9 +7,11 @@
   - Commit: `497eee2` — Fixed builder scripts to properly exclude AGENTS.md and CLAUDE.md via tar --exclude flags.
   - Tarball verified clean: no forbidden files in nested source archive.
   - Checksum: `3d0a0623585265e9d690f9bcf7d9a1c7baa0aa0f85cbfa0544ef967f2fb7c34d`.
-- [ ] Publish the installimage tarball to GitHub release assets and `beagle-os.com` public downloads.
-- [ ] Install the published installimage tarball on Hetzner rescue system and verify first boot.
-- [ ] Create requested target user `beagle` on the installed host after first-boot validation.
+- [x] Publish the installimage tarball to `beagle-os.com` public downloads with checksum/status-json coverage.
+- [ ] Publish the `6.6.9` release assets to GitHub release assets once an authenticated release-upload path is available.
+- [x] Install the published installimage tarball on Hetzner rescue system and verify first boot.
+- [x] Create requested target user `beagle` on the installed host after first-boot validation.
+- [x] Update the installed Hetzner host to `/opt/beagle/VERSION=6.6.9` and regenerate host-local downloads/status metadata.
 
 - [x] Add security-run rule to local `AGENTS.md` so every run must document and opportunistically patch discovered security issues.
 - [x] Add dedicated security findings register in `docs/refactor/11-security-findings.md`.
@@ -48,7 +50,8 @@
 - [x] Deploy updated firstboot/autoinstall fallback templates to live beagleserver and restart control-plane.
 - [ ] Validate on fresh VM161 that provisioning exits autoinstall cleanly and `beagle-ubuntu-firstboot.service` auto-runs to completion without manual in-guest repair.
 - [ ] Apply VM163 completion callback once and verify current runtime state flips from `installing/firstboot` to `completed/complete`.
-- [ ] Deploy full repo 6.6.8 host runtime (not template-only) to beagleserver and re-run VM lifecycle validation to rule out mixed-version behavior.
+- [x] Deploy full repo 6.6.9 host runtime to the Hetzner `beagle-server` and verify services/download metadata.
+- [ ] Re-run VM lifecycle validation on the full 6.6.9 host runtime to rule out mixed-version behavior.
 - [ ] Validate firstboot stale fallback guardrails on fresh runs (no premature completion while guest provisioning is still active).
 - [ ] Verify first-boot Sunshine readiness gate and callback end-to-end on a fully clean VM100/101 run (no manual completion override).
 - [x] Fix beagle-provider VM provisioning failure when libvirt pool `local` is missing (auto-create pool/fallback instead of hard-fail).

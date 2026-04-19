@@ -219,7 +219,6 @@ PY
 (
   cd "$ROOT_DIR"
   tar -czf "$DIST_DIR/$TARBALL_NAME" \
-    AGENTS.md \
     beagle-kiosk \
     beagle-host \
     beagle-os \
@@ -236,8 +235,7 @@ PY
     LICENSE \
     CHANGELOG.md \
     VERSION \
-    .gitignore \
-    CLAUDE.md
+    .gitignore
 )
 
 install -m 0644 "$DIST_DIR/$TARBALL_NAME" "$DIST_DIR/$TARBALL_LATEST_NAME"

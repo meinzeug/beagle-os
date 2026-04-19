@@ -151,3 +151,13 @@ Stand: 2026-04-13
 - Entscheidung: Die lokale `AGENTS.md` wird kurz gehalten und enthaelt nur dauerhafte Arbeitsregeln, Sicherheitsvorgaben, Uebergabepflichten und lokale Operator-Hinweise.
 - Grund: Die alte Mischform aus Policy, Roadmap und Dateiplatzierungsdetails war drift-anfaellig und fuer neue Agents schwerer scanbar.
 - Detailplanung, Architekturfeinschnitt und Migrationsstand gehoeren stattdessen nach `docs/refactor/*`.
+
+## D-035: Release- und Installer-Source-Bundles duerfen keine lokalen Operator-Dateien enthalten
+- Entscheidung: `AGENTS.md` und `CLAUDE.md` werden nicht in `beagle-os-v*.tar.gz`, server-installer embedded source bundles oder Hetzner installimage embedded source bundles aufgenommen.
+- Grund: Diese Dateien sind lokale Operator-Artefakte und koennen interne Hinweise oder Zugangsdaten enthalten; sie duerfen nicht ueber GitHub, ISO oder tar.gz verteilt werden.
+- Dateien: `scripts/package.sh`, `scripts/build-server-installer.sh`, `scripts/build-server-installimage.sh`.
+
+## D-036: Runtime-Paketinstallation muss APT-Index explizit aktualisieren und darf Fehler nicht verschlucken
+- Entscheidung: Standalone/Beagle-Provider Host-Service-Installationen fuehren vor Runtime-Paketinstallationen `apt-get update` aus und lassen fehlgeschlagene Pflichtinstallationen sichtbar fehlschlagen.
+- Grund: Minimal-Rootfs aus Hetzner `installimage` hat keine zuverlaessigen APT-Listen; ein still geschluckter Installationsfehler fuehrte zu fehlendem `virsh` und gebrochenem Firstboot.
+- Datei: `scripts/install-beagle-host-services.sh`.

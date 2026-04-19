@@ -7,6 +7,7 @@ beagle_format_gib_ceil() {
 
 beagle_path_available_kib() {
   local path="$1"
+  mkdir -p "$path"
   df -Pk "$path" | awk 'NR==2 {print $4}'
 }
 
@@ -60,7 +61,14 @@ beagle_cleanup_reproducible_paths() {
 
     size_kib="$(du -sk "$path" 2>/dev/null | awk 'NR==1 {print $1}')"
     size_kib="${size_kib:-0}"
-    rm -rf "$path"
+    if ! rm -rf "$path" 2>/dev/null; then
+      if command -v sudo >/dev/null 2>&1; then
+        sudo rm -rf "$path"
+      else
+        echo "Unable to remove cleanup path without sudo: $path" >&2
+        continue
+      fi
+    fi
     cleaned_kib=$((cleaned_kib + size_kib))
   done
 

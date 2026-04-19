@@ -110,6 +110,15 @@ resolve_qemu_system_package() {
   printf 'qemu-system-x86\n'
 }
 
+apt_update_for_runtime_packages() {
+  DEBIAN_FRONTEND=noninteractive apt-get update
+}
+
+install_runtime_packages() {
+  apt_update_for_runtime_packages
+  DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"
+}
+
 standalone_runtime_tools_ready() {
   command -v virsh >/dev/null 2>&1 &&
     command -v qemu-img >/dev/null 2>&1 &&
@@ -378,12 +387,11 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
 
   if ! standalone_runtime_tools_ready; then
     qemu_system_package="$(resolve_qemu_system_package)"
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-      libvirt-daemon-system libvirt-clients "$qemu_system_package" qemu-utils ovmf xorriso zip nodejs npm novnc websockify \
-      >/dev/null 2>&1 || true
+    install_runtime_packages \
+      libvirt-daemon-system libvirt-clients "$qemu_system_package" qemu-utils ovmf xorriso zip nodejs npm novnc websockify
   fi
   if ! command -v websockify >/dev/null 2>&1 || [[ ! -f /usr/share/novnc/vnc.html ]]; then
-    DEBIAN_FRONTEND=noninteractive apt-get install -y novnc websockify >/dev/null 2>&1 || true
+    install_runtime_packages novnc websockify
   fi
 
   if can_manage_libvirt_system; then

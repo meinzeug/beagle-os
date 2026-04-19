@@ -42,7 +42,7 @@ Stand: 2026-04-19
 
 ## S-003 - Installimage source bundle enthaelt lokale Operator-Dateien
 
-- Status: im selben Run mitigiert, Rebuild/Republish erforderlich
+- Status: mitigiert, neu gebaut, verifiziert und als `6.6.9` veroeffentlicht
 - Risiko: Hoch
 - Betroffene Dateien:
   - `scripts/build-server-installimage.sh`
@@ -52,8 +52,25 @@ Stand: 2026-04-19
   - Dadurch waeren lokale Operator-Hinweise ueber das oeffentlich verteilte installimage-Artefakt weitergegeben worden.
 - Mitigation:
   - Builder wurde direkt gepatcht, sodass nur explizit erlaubte Repo-Pfade gebuendelt werden und `AGENTS.md` / `CLAUDE.md` nicht mehr Teil des Source-Bundles sind.
-  - Vor Veroeffentlichung und Remote-Installation muss das Artefakt neu gebaut und gegen den korrigierten Inhalt verifiziert werden.
+  - Das korrigierte `Debian-1201-bookworm-amd64-beagle-server.tar.gz` wurde fuer `6.6.9` neu gebaut, gegen den eingebetteten Source-Tarball verifiziert und auf `beagle-os.com` veroeffentlicht.
+  - Die installierte Hetzner-Zielmaschine wurde auf dieses Artefakt aktualisiert.
 - Naechster Schritt:
-  - korrigiertes Tarball neu bauen,
-  - pruefen, dass weder `AGENTS.md` noch `CLAUDE.md` im eingebetteten Archiv vorkommen,
-  - nur das korrigierte Artefakt nach GitHub / `beagle-os.com` veroeffentlichen.
+  - GitHub Release Assets nachziehen, sobald ein authentifizierter Release-Upload-Pfad verfuegbar ist.
+
+## S-004 - Public source/server-installer bundles enthielten lokale Operator-Dateien
+
+- Status: mitigiert im Workspace und in `6.6.9` Release-Artefakten, GitHub-Push noch erforderlich
+- Risiko: Hoch
+- Betroffene Dateien:
+  - `scripts/package.sh`
+  - `scripts/build-server-installer.sh`
+  - `beagle-os-v*.tar.gz`
+  - server-installer embedded source archive
+- Beschreibung:
+  - Neben dem installimage-Pfad waren auch das public source tarball Packaging und der server-installer embedded source bundle fuer lokale Operator-Dateien anfaellig.
+  - Dadurch haetten `AGENTS.md` oder `CLAUDE.md` ueber allgemeine Release-Artefakte oder Server-Installer-ISO-Inhalte veroeffentlicht werden koennen.
+- Mitigation:
+  - `scripts/package.sh` und `scripts/build-server-installer.sh` wurden auf explizite erlaubte Repo-Pfade ohne `AGENTS.md` / `CLAUDE.md` umgestellt.
+  - `beagle-os-v6.6.9.tar.gz` und das `6.6.9` installimage embedded source bundle wurden lokal auf Abwesenheit dieser Dateien geprueft.
+- Naechster Schritt:
+  - Repo-Aenderungen nach GitHub pushen, damit die Scrubbing-Regeln nicht nur lokal und in den gebauten Artefakten existieren.

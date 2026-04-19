@@ -1,18 +1,17 @@
 # Next Steps
 
-## Immediate (Hetzner installimage path - CORRECTED)
+## Immediate (release publication follow-up)
 
-0. **Publish the corrected installimage tarball to both GitHub and beagle-os.com** (NEXT):
-	- push the repo changes from commit `497eee2` to main branch so the builder is available in public repo,
-	- upload the tarball as a release/public artifact beside the existing installer ISOs,
-	- verify direct HTTP reachability plus checksum/status-json coverage for the tarball on `beagle-os.com`,
-	- update public release metadata to include the new tarball with its validated checksum.
+0. **Push `6.6.9` repo changes to GitHub and attach release assets**:
+	- local/public artifact publication to `beagle-os.com` is complete and verified,
+	- running Hetzner host `beagle-server` is updated to `6.6.9`,
+	- remaining blocker is GitHub-side release publication from this workspace because local `gh`/git credentials are not available,
+	- next authenticated GitHub step must push the code changes and upload the already-built `6.6.9` release assets.
 
-0. **Install the public tarball on the new Hetzner server via Rescue + installimage**:
-	- use Rescue System with a custom-image `IMAGE_PATH` pointing at the published tarball,
-	- let installimage set root password from the active Rescue password,
-	- boot the installed system and confirm Beagle first-boot bootstrap completes successfully,
-	- create the requested operator user `beagle` after the target is reachable.
+0. **Keep `6.6.9` artifact verification attached to handoff**:
+	- public installimage SHA256: `3d0a0623585265e9d690f9bcf7d9a1c7baa0aa0f85cbfa0544ef967f2fb7c34d`,
+	- public source tarball SHA256 is recorded in `SHA256SUMS` because the source tarball is regenerated when handoff docs change,
+	- target host `/opt/beagle/dist/beagle-downloads-status.json` reports `version: 6.6.9`.
 
 ## Immediate (docs/process consistency)
 
@@ -23,10 +22,10 @@
 
 ## Immediate (security/process hygiene)
 
-0. **Commit and push the operator-file de-tracking change before the next shared sync**:
+0. **Commit and push the operator-file de-tracking/release-scrub changes before the next shared sync**:
 	- Keep `AGENTS.md` and `CLAUDE.md` local-only and out of Git tracking.
 	- Verify the next commit removes both files from the shared repo state on GitHub.
-	- Confirm future local edits stay ignored by Git.
+	- Confirm future local edits stay ignored by Git and excluded from source/release/installimage bundles.
 
 0. **Run a targeted secret-leak sweep now that local operator docs are isolated**:
 	- Search the repo for plaintext passwords, tokens, SSH snippets and operator-only notes that should not be versioned.
@@ -58,10 +57,9 @@
 	- Confirm `beagle-ubuntu-firstboot.service` reaches success, `lightdm` is installed/active, and callback transitions state out of `installing/firstboot`.
 	- Confirm Sunshine service and API port are reachable after completion.
 
-0. **Deploy full 6.6.8 runtime code on host before final acceptance**:
-	- Sync all relevant changed host files (not only template) from repo `main` to `/opt/beagle/...`.
-	- Restart `beagle-control-plane` and verify runtime version/config behavior reflects 6.6.8 expectations.
-	- Re-run the same VM lifecycle checks after full code deploy to avoid validating against mixed runtime state.
+0. **Deploy full 6.6.9 runtime code on host before final VM lifecycle acceptance**:
+	- `beagle-server` already runs `/opt/beagle/VERSION=6.6.9`.
+	- Re-run the same VM lifecycle checks after the full `6.6.9` code deploy to avoid validating against mixed runtime state.
 
 0. **Validate new bridge/interface consistency fix on fresh VM run**:
 	- Ensure runtime env on host contains `BEAGLE_PUBLIC_STREAM_LAN_IF` matching libvirt `beagle` network bridge (expected `virbr10`).

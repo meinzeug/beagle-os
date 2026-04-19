@@ -1,5 +1,13 @@
 # Changelog
 
+## v6.6.9 - 2026-04-19
+
+- Added the corrected Hetzner `installimage` tarball to the public release line and published it beside the endpoint ISO, server installer ISO, USB bundles, source tarball and kiosk AppImage on `beagle-os.com`.
+- Fixed first-boot standalone host bootstrap on minimal Debian installimage targets by running `apt-get update` before installing runtime packages and by failing visibly instead of swallowing missing-package errors.
+- Hardened release/source packaging so local-only operator files (`AGENTS.md`, `CLAUDE.md`) are excluded from the public source tarball, server installer embedded source bundle and Hetzner installimage embedded source bundle.
+- Improved build cleanup guardrails so root-owned reproducible build directories from live/debootstrap runs can be removed through `sudo` when local disk pressure requires cleanup.
+- Installed and updated the real Hetzner host `beagle-server` from the public installimage path, regenerated host-local download metadata and verified Control Plane, nginx downloads, libvirt/KVM and public checksums on version `6.6.9`.
+
 ## v6.6.8 - 2026-04-19
 
 - Hardened Ubuntu desktop autoinstall recovery so missed installer callbacks no longer leave new desktop VMs permanently stuck in `installing/autoinstall`.
