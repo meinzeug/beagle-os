@@ -2388,7 +2388,10 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/v1/auth/onboarding/status":
-            status_payload = auth_session_service().onboarding_status(bootstrap_username=AUTH_BOOTSTRAP_USERNAME)
+            status_payload = auth_session_service().onboarding_status(
+                bootstrap_username=AUTH_BOOTSTRAP_USERNAME,
+                bootstrap_disabled=AUTH_BOOTSTRAP_DISABLE,
+            )
             self._write_json(HTTPStatus.OK, {"ok": True, "onboarding": status_payload})
             return
 
@@ -2566,6 +2569,7 @@ class Handler(BaseHTTPRequestHandler):
                     username=username,
                     password=password,
                     bootstrap_username=AUTH_BOOTSTRAP_USERNAME,
+                    bootstrap_disabled=AUTH_BOOTSTRAP_DISABLE,
                 )
             except Exception as exc:
                 message = str(exc)

@@ -1798,7 +1798,7 @@
     }).join('');
   }
 
-  function renderProvisioningWorkspace() {
+  function loadProvisioningCatalog(idPrefix) {
     var catalog = state.provisioningCatalog || {};
     var defaults = catalog.defaults || {};
     var nodes = Array.isArray(catalog.nodes) ? catalog.nodes : [];
@@ -1807,7 +1807,6 @@
     var storages = catalog.storages || {};
     var imagesStorages = Array.isArray(storages.images) ? storages.images : [];
     var isoStorages = Array.isArray(storages.iso) ? storages.iso : [];
-    var recentRequests = Array.isArray(catalog.recent_requests) ? catalog.recent_requests : [];
 
     function fillSelect(selectId, items, valueFn, labelFn, selectedValue) {
       var select = qs(selectId);
@@ -1825,60 +1824,67 @@
       }).join('');
     }
 
-    fillSelect('prov-node', nodes, function (item) {
+    fillSelect(idPrefix + 'node', nodes, function (item) {
       return item.name || '';
     }, function (item) {
       return (item.name || 'node') + ' (' + (item.status || 'unknown') + ')';
     }, defaults.node || '');
 
-    fillSelect('prov-desktop', desktopProfiles, function (item) {
+    fillSelect(idPrefix + 'desktop', desktopProfiles, function (item) {
       return item.id || '';
     }, function (item) {
       return item.label || item.id || 'desktop';
     }, defaults.desktop || '');
 
-    fillSelect('prov-bridge', bridges, function (item) {
+    fillSelect(idPrefix + 'bridge', bridges, function (item) {
       return item;
     }, function (item) {
       return item;
     }, defaults.bridge || '');
 
-    fillSelect('prov-disk-storage', imagesStorages, function (item) {
+    fillSelect(idPrefix + 'disk-storage', imagesStorages, function (item) {
       return item.id || '';
     }, function (item) {
       return (item.id || 'storage') + ' [' + (item.type || 'n/a') + ']';
     }, defaults.disk_storage || '');
 
-    fillSelect('prov-iso-storage', isoStorages, function (item) {
+    fillSelect(idPrefix + 'iso-storage', isoStorages, function (item) {
       return item.id || '';
     }, function (item) {
       return (item.id || 'storage') + ' [' + (item.type || 'n/a') + ']';
     }, defaults.iso_storage || '');
 
-    if (qs('prov-vmid')) {
-      qs('prov-vmid').value = String(defaults.next_vmid || '');
+    if (qs(idPrefix + 'vmid')) {
+      qs(idPrefix + 'vmid').value = String(defaults.next_vmid || '');
     }
-    if (qs('prov-name')) {
-      qs('prov-name').value = defaults.next_vmid ? 'ubuntu-beagle-' + String(defaults.next_vmid) : '';
+    if (qs(idPrefix + 'name')) {
+      qs(idPrefix + 'name').value = defaults.next_vmid ? 'ubuntu-beagle-' + String(defaults.next_vmid) : '';
     }
-    if (qs('prov-memory')) {
-      qs('prov-memory').value = String(defaults.memory || '4096');
+    if (qs(idPrefix + 'memory')) {
+      qs(idPrefix + 'memory').value = String(defaults.memory || '4096');
     }
-    if (qs('prov-cores')) {
-      qs('prov-cores').value = String(defaults.cores || '4');
+    if (qs(idPrefix + 'cores')) {
+      qs(idPrefix + 'cores').value = String(defaults.cores || '4');
     }
-    if (qs('prov-disk')) {
-      qs('prov-disk').value = String(defaults.disk_gb || '64');
+    if (qs(idPrefix + 'disk')) {
+      qs(idPrefix + 'disk').value = String(defaults.disk_gb || '64');
     }
-    if (qs('prov-guest-user')) {
-      qs('prov-guest-user').value = String(defaults.guest_user || 'beagle');
+    if (qs(idPrefix + 'guest-user')) {
+      qs(idPrefix + 'guest-user').value = String(defaults.guest_user || 'beagle');
     }
-    if (qs('prov-guest-password')) {
-      qs('prov-guest-password').value = '';
+    if (qs(idPrefix + 'guest-password')) {
+      qs(idPrefix + 'guest-password').value = '';
     }
-    if (qs('prov-extra-packages')) {
-      qs('prov-extra-packages').value = '';
+    if (qs(idPrefix + 'extra-packages')) {
+      qs(idPrefix + 'extra-packages').value = '';
     }
+  }
+
+  function renderProvisioningWorkspace() {
+    var catalog = state.provisioningCatalog || {};
+    var recentRequests = Array.isArray(catalog.recent_requests) ? catalog.recent_requests : [];
+
+    loadProvisioningCatalog('prov-');
 
     if (qs('provision-recent-body')) {
       if (!recentRequests.length) {
@@ -1898,21 +1904,21 @@
     }
   }
 
-  function createProvisionedVm() {
+  function createProvisionedVmWithPrefix(idPrefix) {
     var payload = {
-      node: String(qs('prov-node') ? qs('prov-node').value : '').trim(),
-      vmid: Number(qs('prov-vmid') ? qs('prov-vmid').value : 0) || undefined,
-      name: String(qs('prov-name') ? qs('prov-name').value : '').trim(),
-      desktop: String(qs('prov-desktop') ? qs('prov-desktop').value : '').trim(),
-      memory: Number(qs('prov-memory') ? qs('prov-memory').value : 0) || undefined,
-      cores: Number(qs('prov-cores') ? qs('prov-cores').value : 0) || undefined,
-      disk_gb: Number(qs('prov-disk') ? qs('prov-disk').value : 0) || undefined,
-      bridge: String(qs('prov-bridge') ? qs('prov-bridge').value : '').trim(),
-      disk_storage: String(qs('prov-disk-storage') ? qs('prov-disk-storage').value : '').trim(),
-      iso_storage: String(qs('prov-iso-storage') ? qs('prov-iso-storage').value : '').trim(),
-      guest_user: String(qs('prov-guest-user') ? qs('prov-guest-user').value : '').trim(),
-      guest_password: String(qs('prov-guest-password') ? qs('prov-guest-password').value : ''),
-      extra_packages: parseCommaList(qs('prov-extra-packages') ? qs('prov-extra-packages').value : ''),
+      node: String(qs(idPrefix + 'node') ? qs(idPrefix + 'node').value : '').trim(),
+      vmid: Number(qs(idPrefix + 'vmid') ? qs(idPrefix + 'vmid').value : 0) || undefined,
+      name: String(qs(idPrefix + 'name') ? qs(idPrefix + 'name').value : '').trim(),
+      desktop: String(qs(idPrefix + 'desktop') ? qs(idPrefix + 'desktop').value : '').trim(),
+      memory: Number(qs(idPrefix + 'memory') ? qs(idPrefix + 'memory').value : 0) || undefined,
+      cores: Number(qs(idPrefix + 'cores') ? qs(idPrefix + 'cores').value : 0) || undefined,
+      disk_gb: Number(qs(idPrefix + 'disk') ? qs(idPrefix + 'disk').value : 0) || undefined,
+      bridge: String(qs(idPrefix + 'bridge') ? qs(idPrefix + 'bridge').value : '').trim(),
+      disk_storage: String(qs(idPrefix + 'disk-storage') ? qs(idPrefix + 'disk-storage').value : '').trim(),
+      iso_storage: String(qs(idPrefix + 'iso-storage') ? qs(idPrefix + 'iso-storage').value : '').trim(),
+      guest_user: String(qs(idPrefix + 'guest-user') ? qs(idPrefix + 'guest-user').value : '').trim(),
+      guest_password: String(qs(idPrefix + 'guest-password') ? qs(idPrefix + 'guest-password').value : ''),
+      extra_packages: parseCommaList(qs(idPrefix + 'extra-packages') ? qs(idPrefix + 'extra-packages').value : ''),
       start: true
     };
 
@@ -1932,6 +1938,7 @@
         var vmid = Number(vm.vmid || payload.vmid || 0);
         addToActivityLog('provision-create', vmid || null, 'ok', 'VM erstellt: ' + (payload.name || ''));
         setBanner('Provisioning gestartet fuer VM ' + (vmid || '?') + '.', 'ok');
+        closeProvisionModal();
         return loadDashboard().then(function () {
           if (vmid) {
             return loadDetail(vmid);
@@ -1943,6 +1950,38 @@
         setBanner('Provisioning fehlgeschlagen: ' + error.message, 'warn');
       });
     });
+  }
+
+  function createProvisionedVm() {
+    return createProvisionedVmWithPrefix('prov-');
+  }
+
+  function createProvisionedVmFromModal() {
+    return createProvisionedVmWithPrefix('prov-modal-');
+  }
+
+  function openProvisionModal() {
+    var modal = qs('provision-modal');
+    if (modal) {
+      modal.removeAttribute('hidden');
+      document.body.classList.add('modal-open');
+      loadProvisioningCatalog('prov-modal-');
+      if (qs('prov-modal-name')) {
+        qs('prov-modal-name').focus();
+      }
+    }
+  }
+
+  function closeProvisionModal() {
+    var modal = qs('provision-modal');
+    if (modal) {
+      modal.setAttribute('hidden', 'hidden');
+      document.body.classList.remove('modal-open');
+    }
+  }
+
+  function resetProvisioningFormWithPrefix(idPrefix) {
+    loadProvisioningCatalog(idPrefix);
   }
 
   function statCardFromHealth(payload, overview) {
@@ -2966,16 +3005,7 @@
   }
 
   function openProvisioningWorkspace() {
-    setActivePanel('virtualization');
-    var section = qs('virtualization-workspace-section');
-    if (section && typeof section.scrollIntoView === 'function') {
-      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-    if (qs('provision-create')) {
-      window.setTimeout(function () {
-        qs('provision-create').focus();
-      }, 80);
-    }
+    openProvisionModal();
   }
 
   function bindEvents() {
@@ -3426,6 +3456,23 @@
       qs('provision-reset').addEventListener('click', function () {
         renderProvisioningWorkspace();
         setBanner('Provisioning-Defaults geladen.', 'info');
+      });
+    }
+    if (qs('provision-modal-create')) {
+      qs('provision-modal-create').addEventListener('click', function () {
+        createProvisionedVmWithPrefix('prov-modal-');
+      });
+    }
+    if (qs('close-provision-modal')) {
+      qs('close-provision-modal').addEventListener('click', closeProvisionModal);
+    }
+    if (qs('provision-modal-cancel')) {
+      qs('provision-modal-cancel').addEventListener('click', closeProvisionModal);
+    }
+    if (qs('provision-modal-reset')) {
+      qs('provision-modal-reset').addEventListener('click', function () {
+        loadProvisioningCatalog('prov-modal-');
+        setBanner('Modal-Defaults geladen.', 'info');
       });
     }
     if (qs('refresh-catalog')) {

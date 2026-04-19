@@ -129,3 +129,9 @@ Stand: 2026-04-13
 - Wirkung: Installer kann den Host-Stack im chroot zu Ende provisionieren; Live-libvirt Initialisierung bleibt fuer den gebooteten Hostpfad erhalten.
 - Datei: `scripts/install-beagle-host-services.sh`.
 
+## D-030: Server-Installer erzwingt Onboarding-First statt Bootstrap-Admin-Autocomplete
+- Entscheidung: Der Server-Installer setzt im chroot Host-Installpfad `BEAGLE_AUTH_BOOTSTRAP_DISABLE=1`, und der Onboarding-Status behandelt bootstrap-only Nutzer in diesem Modus nicht als abgeschlossenes Setup.
+- Grund: Frische Host-Installationen zeigten keinen Onboarding-Dialog mehr, weil ein automatisch angelegter Bootstrap-User den Setup-Status auf `completed` setzte.
+- Wirkung: Web UI zeigt nach frischer Installation wieder verlässlich den verpflichtenden Onboarding-Flow; bestehende bootstrap-only Zustände werden auf `pending` zurückgeführt, sobald Bootstrap-Auth deaktiviert ist.
+- Dateien: `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`, `beagle-host/services/auth_session.py`, `beagle-host/bin/beagle-control-plane.py`.
+

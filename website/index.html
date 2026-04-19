@@ -109,6 +109,39 @@
       </div>
     </div>
 
+    <!-- VM Provisioning modal -->
+    <div class="modal" id="provision-modal" aria-hidden="true" hidden>
+      <div class="modal-dialog provision-dialog" role="dialog" aria-modal="true" aria-labelledby="provision-modal-title">
+        <div class="modal-dialog-head">
+          <div>
+            <span class="eyebrow">Provisioning</span>
+            <h2 id="provision-modal-title">Neue Beagle VM erstellen</h2>
+          </div>
+          <button class="icon-button" id="close-provision-modal" type="button" aria-label="Schliessen">×</button>
+        </div>
+        <div class="provision-grid" id="provision-modal-grid">
+          <label class="field"><span>Node</span><select id="prov-modal-node" class="input-select"></select></label>
+          <label class="field"><span>VMID</span><input id="prov-modal-vmid" type="number" min="100" step="1" placeholder="auto"></label>
+          <label class="field"><span>Name</span><input id="prov-modal-name" type="text" placeholder="ubuntu-beagle-123"></label>
+          <label class="field"><span>Desktop</span><select id="prov-modal-desktop" class="input-select"></select></label>
+          <label class="field"><span>RAM (MiB)</span><input id="prov-modal-memory" type="number" min="2048" step="256" placeholder="4096"></label>
+          <label class="field"><span>Cores</span><input id="prov-modal-cores" type="number" min="2" step="1" placeholder="4"></label>
+          <label class="field"><span>Disk (GB)</span><input id="prov-modal-disk" type="number" min="32" step="1" placeholder="64"></label>
+          <label class="field"><span>Bridge</span><select id="prov-modal-bridge" class="input-select"></select></label>
+          <label class="field"><span>Disk Storage</span><select id="prov-modal-disk-storage" class="input-select"></select></label>
+          <label class="field"><span>ISO Storage</span><select id="prov-modal-iso-storage" class="input-select"></select></label>
+          <label class="field"><span>Guest User</span><input id="prov-modal-guest-user" type="text" placeholder="beagle"></label>
+          <label class="field"><span>Guest Passwort</span><input id="prov-modal-guest-password" type="password" placeholder="optional"></label>
+          <label class="field field-wide"><span>Extra Pakete (komma-separiert)</span><input id="prov-modal-extra-packages" type="text" placeholder="htop,vim,steam-devices"></label>
+        </div>
+        <div class="button-row provision-modal-buttons">
+          <button class="button ghost" id="provision-modal-reset" type="button">Defaults laden</button>
+          <button class="button ghost" id="provision-modal-cancel" type="button">Abbrechen</button>
+          <button class="button primary" id="provision-modal-create" type="button">VM erstellen</button>
+        </div>
+      </div>
+    </div>
+
     <div class="app-shell">
       <aside class="sidebar">
         <div class="sidebar-brand">

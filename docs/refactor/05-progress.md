@@ -91,6 +91,10 @@
 	- Installer passed the previous failure stage and reached `Installing Beagle host stack...` and then `Installing bootloader...`.
 	- Installer reached terminal success dialog (`Installation complete`, mode `Beagle OS with Proxmox`).
 	- Previous fatal error string `libvirt qemu:///system is not ready` did not reappear in the successful retry log path.
+- Fixed onboarding regression where fresh installs could skip Web UI first-run setup:
+	- Installer now sets `BEAGLE_AUTH_BOOTSTRAP_DISABLE=1` in [server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer](server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer), so host bootstrap auth does not pre-complete onboarding.
+	- Onboarding status evaluation now respects bootstrap-disable mode in [beagle-host/services/auth_session.py](beagle-host/services/auth_session.py) and [beagle-host/bin/beagle-control-plane.py](beagle-host/bin/beagle-control-plane.py).
+	- Legacy bootstrap-only states are auto-reset to pending when bootstrap auth is disabled, so onboarding can appear again without manual file surgery.
 - New blocker discovered after success dialog during reboot validation:
 	- Domain currently attempts CD boot/no bootable device after media eject, so post-install disk boot validation is not complete yet.
 	- This is now tracked as the next immediate runtime blocker; installer-stage libvirt/chroot regression itself is resolved.
@@ -98,6 +102,10 @@
 - Extended Beagle Web Console endpoint detail actions for future thinclient creation flows:
 	- Added dedicated Live-USB script visibility and download action in [website/app.js](website/app.js) (`/vms/{vmid}/live-usb.sh` wiring).
 	- This closes a Web-UI gap where backend live-USB support existed but was not exposed in the Beagle Web Console action set.
+- Fixed VM creation UX in Beagle Web UI:
+	- Header action `+VM` now opens a dedicated fullscreen modal workflow instead of silently failing/no-op behavior.
+	- Sidebar action `+ VM erstellen` now uses the same modal flow instead of injecting a floating inline card in the current dashboard layout.
+	- Implemented in [website/index.html](website/index.html), [website/styles.css](website/styles.css), and [website/app.js](website/app.js) with shared provisioning catalog + submit wiring for modal fields.
 
 - Hardened provider-neutral ubuntu provisioning behavior for mixed provider defaults in [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py):
 	- `build_provisioning_catalog()` now only keeps configured default bridge when it is actually present in discovered bridge inventory; otherwise falls back to first available bridge.

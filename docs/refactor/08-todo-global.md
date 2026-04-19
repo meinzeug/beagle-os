@@ -9,6 +9,7 @@
 - [x] Add noVNC launch actions in Web UI for each VM (inventory + detail).
 - [x] Add host API endpoint for per-VM noVNC access metadata (`GET /api/v1/vms/{vmid}/novnc-access`).
 - [x] Implement beagle-provider noVNC backend path (libvirt VNC discovery + tokenized websockify + nginx route).
+- [x] Fix VM creation UX so both Header `+VM` and Sidebar `+ VM erstellen` use a dedicated modal flow (no hidden no-op and no inline floating card).
 - [x] Harden install flow so required dist artifacts are mandatory (no warning-only continue on missing installer assets).
 - [x] Rebuild server installer ISO from current workspace changes.
 - [x] Fix installer chroot host-stack failure `libvirt qemu:///system is not ready` in `scripts/install-beagle-host-services.sh`.
@@ -19,6 +20,9 @@
 - [x] Recreate VM 101 with the simplified `CIDATA` seed (`user-data` + `meta-data` only) and verify Subiquity advances past the former cloud-init wait state.
 - [ ] Re-run VM 101 autoinstall to true completion without manual callback forcing and confirm first-boot transition on its own.
 - [ ] Verify first-boot Sunshine readiness gate and callback end-to-end on a fully clean VM 101 run (no manual completion override).
+- [x] Ensure server-installer path keeps onboarding pending by disabling bootstrap-auth auto-user creation (`BEAGLE_AUTH_BOOTSTRAP_DISABLE=1`).
+- [x] Make onboarding status bootstrap-disable aware so bootstrap-only users do not suppress first-run setup.
+- [ ] Deploy onboarding regression fix to running beagleserver and verify `/api/v1/auth/onboarding/status` + Web UI modal behavior.
 - [ ] Validate new Moonlight app-name resolver against Sunshine `/api/apps` so `failed to find Application Desktop` is no longer reproducible on VM 101.
 - [x] Add reproducible Sunshine guest service self-heal in repo provisioning (automatic restart on crash/stop).
 - [ ] Validate Sunshine self-heal timer (`beagle-sunshine-healthcheck.timer`) on VM reboot and forced crash (`pkill sunshine`).

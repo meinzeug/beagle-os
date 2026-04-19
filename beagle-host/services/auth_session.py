@@ -247,7 +247,12 @@ class AuthSessionService:
                 return {str(value).strip() for value in item.get("permissions", []) if str(value).strip()}
         return set()
 
-    def onboarding_status(self, *, bootstrap_username: str = "admin") -> dict[str, Any]:
+    def onboarding_status(
+        self,
+        *,
+        bootstrap_username: str = "admin",
+        bootstrap_disabled: bool = False,
+    ) -> dict[str, Any]:
         onboarding = self._load_onboarding_doc()
         users = self.list_users()
         bootstrap = str(bootstrap_username or "admin").strip().lower() or "admin"
@@ -261,7 +266,49 @@ class AuthSessionService:
             for item in enabled_users
             if str(item.get("username") or "").strip().lower() != bootstrap
         ]
-        completed = bool(onboarding.get("completed")) or bool(enabled_users) or bool(non_bootstrap_users)
+
+        # If bootstrap auth is disabled, remove bootstrap-only legacy users so
+        # onboarding can create the real first admin account.
+        if bootstrap_disabled and not non_bootstrap_users and enabled_users:
+            users_doc = self._load_users_doc()
+            filtered_users = []
+            removed_bootstrap_user = False
+            for item in users_doc.get("users", []):
+                if not isinstance(item, dict):
+                    continue
+                username = str(item.get("username") or "").strip().lower()
+                if username == bootstrap:
+                    removed_bootstrap_user = True
+                    continue
+                filtered_users.append(item)
+            if removed_bootstrap_user:
+                users_doc["users"] = filtered_users
+                self._write_json_file(self._users_path, users_doc)
+                users = self.list_users()
+                enabled_users = [
+                    item
+                    for item in users
+                    if bool(item.get("enabled", True))
+                ]
+                non_bootstrap_users = [
+                    item
+                    for item in enabled_users
+                    if str(item.get("username") or "").strip().lower() != bootstrap
+                ]
+
+        completed = bool(onboarding.get("completed")) or bool(non_bootstrap_users)
+        if not bootstrap_disabled and enabled_users:
+            completed = True
+
+        # If bootstrap auth is disabled, a leftover bootstrap-only onboarding
+        # completion marker must not suppress onboarding.
+        if bootstrap_disabled and not non_bootstrap_users and bool(onboarding.get("completed")):
+            onboarding["completed"] = False
+            onboarding["completed_at"] = 0
+            onboarding["completed_by"] = ""
+            self._write_json_file(self._onboarding_path, onboarding)
+            completed = False
+
         if completed and not bool(onboarding.get("completed")):
             onboarding["completed"] = True
             onboarding["completed_at"] = int(self._now())
@@ -279,7 +326,14 @@ class AuthSessionService:
             "user_count": len(users),
         }
 
-    def complete_onboarding(self, *, username: str, password: str, bootstrap_username: str = "admin") -> dict[str, Any]:
+    def complete_onboarding(
+        self,
+        *,
+        username: str,
+        password: str,
+        bootstrap_username: str = "admin",
+        bootstrap_disabled: bool = False,
+    ) -> dict[str, Any]:
         user_name = str(username or "").strip()
         passwd = str(password or "")
         if not user_name:
@@ -287,7 +341,10 @@ class AuthSessionService:
         if not passwd:
             raise ValueError("password is required")
 
-        status = self.onboarding_status(bootstrap_username=bootstrap_username)
+        status = self.onboarding_status(
+            bootstrap_username=bootstrap_username,
+            bootstrap_disabled=bootstrap_disabled,
+        )
         if not bool(status.get("pending")):
             raise ValueError("onboarding already completed")
 
@@ -302,7 +359,10 @@ class AuthSessionService:
         onboarding["completed_at"] = int(self._now())
         onboarding["completed_by"] = user_name
         self._write_json_file(self._onboarding_path, onboarding)
-        return self.onboarding_status(bootstrap_username=bootstrap_username)
+        return self.onboarding_status(
+            bootstrap_username=bootstrap_username,
+            bootstrap_disabled=bootstrap_disabled,
+        )
 
     def login(self, *, username: str, password: str, remote_addr: str = "", user_agent: str = "") -> dict[str, Any] | None:
         with self._state_lock:

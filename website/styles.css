@@ -1323,7 +1323,8 @@ select {
 .modal[hidden] { display: none; }
 
 .modal-dialog,
-.auth-dialog {
+.auth-dialog,
+.provision-dialog {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -1333,6 +1334,21 @@ select {
   overflow-y: auto;
   box-shadow: var(--shadow);
 }
+
+.provision-dialog {
+  width: min(800px, 100%);
+}
+
+.modal-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.modal-dialog-head h2 { font-size: 1.4rem; font-weight: 700; margin: 4px 0 6px 0; }
+.modal-dialog-head p { color: var(--text-muted); font-size: 0.86rem; }
 
 .auth-dialog-head {
   display: flex;
@@ -1353,6 +1369,15 @@ select {
 }
 
 .auth-button-row { justify-content: flex-end; }
+
+.provision-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.provision-modal-buttons { justify-content: flex-end; gap: 12px; }
 
 /* Confirm dialog */
 .confirm-dialog .confirm-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
