@@ -102,7 +102,8 @@ mkdir -p "$(dirname "$BUILD_DIR/$BUNDLED_SOURCE_ARCHIVE_PATH")"
 (
   cd "$ROOT_DIR"
   tar -czf "$BUILD_DIR/$BUNDLED_SOURCE_ARCHIVE_PATH" \
-    AGENTS.md \
+    --exclude='AGENTS.md' \
+    --exclude='CLAUDE.md' \
     beagle-kiosk \
     beagle-host \
     beagle-os \
@@ -119,8 +120,7 @@ mkdir -p "$(dirname "$BUILD_DIR/$BUNDLED_SOURCE_ARCHIVE_PATH")"
     LICENSE \
     CHANGELOG.md \
     VERSION \
-    .gitignore \
-    CLAUDE.md
+    .gitignore
 )
 
 (

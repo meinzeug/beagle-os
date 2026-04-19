@@ -186,6 +186,8 @@ bundle_source_tree() {
   (
     cd "$ROOT_DIR"
     tar -czf "$SOURCE_ARCHIVE_PATH" \
+      --exclude='AGENTS.md' \
+      --exclude='CLAUDE.md' \
       beagle-kiosk \
       beagle-host \
       beagle-os \
