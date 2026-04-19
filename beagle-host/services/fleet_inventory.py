@@ -40,6 +40,19 @@ class FleetInventoryService:
         self._version = str(version or "")
         self._vm_installers_file = vm_installers_file
 
+    @staticmethod
+    def _effective_vm_status(base_status: str, provisioning: dict[str, Any] | None) -> str:
+        status = str(base_status or "unknown").strip().lower() or "unknown"
+        if not isinstance(provisioning, dict):
+            return status
+        prov_status = str(provisioning.get("status", "")).strip().lower()
+        prov_phase = str(provisioning.get("phase", "")).strip().lower()
+        if prov_status in {"creating", "installing"}:
+            return "installing"
+        if prov_phase in {"autoinstall", "firstboot"} and prov_status not in {"failed", "completed"}:
+            return "installing"
+        return status
+
     def build_inventory(self) -> dict[str, Any]:
         inventory: list[dict[str, Any]] = []
         installers = self._load_json_file(self._vm_installers_file, [])
@@ -55,12 +68,13 @@ class FleetInventoryService:
             last_action = self._summarize_action_result(self._load_action_result(vm.node, vm.vmid))
             pending_action_count = len(self._load_action_queue(vm.node, vm.vmid))
             provisioning = self._latest_ubuntu_beagle_state_for_vmid(vm.vmid)
+            effective_status = self._effective_vm_status(vm.status, provisioning)
             inventory.append(
                 {
                     "vmid": vm.vmid,
                     "node": vm.node,
                     "name": vm.name,
-                    "status": vm.status,
+                    "status": effective_status,
                     "stream_host": profile["stream_host"],
                     "moonlight_port": profile.get("moonlight_port", ""),
                     "sunshine_api_url": profile["sunshine_api_url"],

@@ -142,6 +142,41 @@
       eyebrow: 'Identity & Access',
       title: 'Benutzer & Rollen',
       description: 'Konsolen-Anmeldung, RBAC und Sessions zentral steuern.'
+    },
+    settings_general: {
+      eyebrow: 'Server-Einstellungen',
+      title: 'Allgemein',
+      description: 'Servername, Hostname, Zeitzone und oeffentliche URL konfigurieren.'
+    },
+    settings_security: {
+      eyebrow: 'Server-Einstellungen',
+      title: 'Sicherheit',
+      description: 'TLS-Zertifikate, Passwort-Richtlinien und Session-Konfiguration.'
+    },
+    settings_firewall: {
+      eyebrow: 'Server-Einstellungen',
+      title: 'Firewall',
+      description: 'UFW-Firewall-Regeln verwalten und Ports freigeben.'
+    },
+    settings_network: {
+      eyebrow: 'Server-Einstellungen',
+      title: 'Netzwerk',
+      description: 'Netzwerkschnittstellen, DNS-Server und Gateway-Konfiguration.'
+    },
+    settings_services: {
+      eyebrow: 'Server-Einstellungen',
+      title: 'Dienste',
+      description: 'Beagle-Systemdienste ueberwachen und neu starten.'
+    },
+    settings_updates: {
+      eyebrow: 'Server-Einstellungen',
+      title: 'System-Updates',
+      description: 'Verfuegbare Paket-Updates pruefen und installieren.'
+    },
+    settings_backup: {
+      eyebrow: 'Server-Einstellungen',
+      title: 'Backup',
+      description: 'Automatische Sicherung der Beagle-Konfiguration verwalten.'
     }
   };
 
@@ -452,6 +487,9 @@
     text('panel-eyebrow', meta.eyebrow);
     text('panel-title', meta.title);
     text('panel-description', meta.description);
+    if (next.indexOf('settings_') === 0) {
+      loadSettingsForPanel(next);
+    }
     syncHash();
   }
 
@@ -1565,10 +1603,11 @@
     }
     body.innerHTML = rows.map(function (vm) {
       var profile = profileOf(vm);
-      var statusTone = profile.status === 'running' ? 'ok' : 'warn';
+      var normalizedStatus = String(profile.status || '').trim().toLowerCase();
+      var statusTone = normalizedStatus === 'running' ? 'ok' : (normalizedStatus === 'installing' ? 'info' : 'warn');
       var installerTone = profile.installer_target_eligible ? 'ok' : 'muted';
-      var canStart = profile.status !== 'running';
-      var canStop = profile.status === 'running';
+      var canStart = normalizedStatus !== 'running' && normalizedStatus !== 'installing';
+      var canStop = normalizedStatus === 'running' || normalizedStatus === 'installing';
       return '' +
         '<tr class="vm-row' + (state.selectedVmid === profile.vmid ? ' selected' : '') + '" data-vmid="' + escapeHtml(profile.vmid) + '">' +
         '  <td><input class="row-select" type="checkbox" data-select-vmid="' + escapeHtml(profile.vmid) + '"' + (state.selectedVmids.indexOf(profile.vmid) !== -1 ? ' checked' : '') + '></td>' +
@@ -3008,6 +3047,7 @@
       state.authRoles = Array.isArray(results[8]) ? results[8] : [];
       recordAuthSuccess();
       setAuthMode(true);
+      updateSettingsVisibility();
       statCardFromHealth(health, state.virtualizationOverview);
       renderInventory();
       renderEndpointsOverview();
@@ -3219,6 +3259,427 @@
 
   function openProvisioningWorkspace() {
     openProvisionModal();
+  }
+
+  // =====================================================================
+  // SERVER SETTINGS
+  // =====================================================================
+
+  function isAdminRole() {
+    var role = (state.user && state.user.role) ? String(state.user.role).toLowerCase() : '';
+    return role === 'admin' || role === 'superadmin';
+  }
+
+  function updateSettingsVisibility() {
+    var show = isAdminRole();
+    var label = qs('settings-section-label');
+    if (label) {
+      label.style.display = show ? 'block' : 'none';
+    }
+    document.querySelectorAll('.sidebar-admin-item').forEach(function (btn) {
+      btn.style.display = show ? 'flex' : 'none';
+    });
+  }
+
+  function loadSettingsGeneral() {
+    return request('/settings/general').then(function (data) {
+      if (qs('sg-server-name')) { qs('sg-server-name').value = data.server_name || ''; }
+      if (qs('sg-hostname')) { qs('sg-hostname').value = data.hostname || ''; }
+      if (qs('sg-timezone')) { qs('sg-timezone').value = data.timezone || ''; }
+      if (qs('sg-public-url')) { qs('sg-public-url').value = data.public_url || ''; }
+    }).catch(function (err) {
+      setBanner('Allgemein laden fehlgeschlagen: ' + err.message, 'warn');
+    });
+  }
+
+  function saveSettingsGeneral() {
+    var payload = {
+      server_name: String(qs('sg-server-name') ? qs('sg-server-name').value : '').trim(),
+      hostname: String(qs('sg-hostname') ? qs('sg-hostname').value : '').trim(),
+      timezone: String(qs('sg-timezone') ? qs('sg-timezone').value : '').trim(),
+      public_url: String(qs('sg-public-url') ? qs('sg-public-url').value : '').trim()
+    };
+    return request('/settings/general', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (data) {
+      if (data.ok) {
+        setBanner('Allgemeine Einstellungen gespeichert.', 'info');
+        loadSettingsGeneral();
+      } else {
+        setBanner('Fehler: ' + (data.errors || []).join(', '), 'warn');
+      }
+    }).catch(function (err) {
+      setBanner('Speichern fehlgeschlagen: ' + err.message, 'warn');
+    });
+  }
+
+  function loadSettingsSecurity() {
+    return request('/settings/security').then(function (data) {
+      var tls = data.tls || {};
+      text('tls-domain', tls.domain || '(nicht konfiguriert)');
+      text('tls-provider', tls.provider || 'self-signed');
+      text('tls-cert-exists', tls.certificate_exists ? 'Ja' : 'Nein');
+      text('tls-nginx-active', tls.nginx_tls_enabled ? 'Ja' : 'Nein');
+      if (qs('tls-req-domain') && tls.domain) { qs('tls-req-domain').value = tls.domain; }
+      if (qs('tls-req-email') && tls.email) { qs('tls-req-email').value = tls.email; }
+      var pp = data.password_policy || {};
+      if (qs('sec-pw-min-length')) { qs('sec-pw-min-length').value = pp.min_length || 8; }
+      var sess = data.session || {};
+      if (qs('sec-session-idle')) { qs('sec-session-idle').value = sess.idle_timeout_minutes || 30; }
+      if (qs('sec-session-max')) { qs('sec-session-max').value = sess.max_sessions_per_user || 5; }
+    }).catch(function (err) {
+      setBanner('Sicherheit laden fehlgeschlagen: ' + err.message, 'warn');
+    });
+  }
+
+  function saveSettingsSecurity() {
+    var payload = {
+      password_policy: {
+        min_length: Number(qs('sec-pw-min-length') ? qs('sec-pw-min-length').value : 8)
+      },
+      session: {
+        idle_timeout_minutes: Number(qs('sec-session-idle') ? qs('sec-session-idle').value : 30),
+        max_sessions_per_user: Number(qs('sec-session-max') ? qs('sec-session-max').value : 5)
+      }
+    };
+    return request('/settings/security', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (data) {
+      if (data.ok) {
+        setBanner('Sicherheitseinstellungen gespeichert.', 'info');
+      } else {
+        setBanner('Fehler: ' + (data.errors || []).join(', '), 'warn');
+      }
+    }).catch(function (err) {
+      setBanner('Speichern fehlgeschlagen: ' + err.message, 'warn');
+    });
+  }
+
+  function requestLetsEncrypt() {
+    var domain = String(qs('tls-req-domain') ? qs('tls-req-domain').value : '').trim();
+    var email = String(qs('tls-req-email') ? qs('tls-req-email').value : '').trim();
+    if (!domain || !email) {
+      setBanner('Domain und E-Mail sind erforderlich.', 'warn');
+      return;
+    }
+    setBanner('Let\'s Encrypt Zertifikat wird angefordert...', 'info');
+    request('/settings/security/tls/letsencrypt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain: domain, email: email })
+    }).then(function (data) {
+      if (data.ok) {
+        setBanner('Zertifikat erfolgreich erstellt fuer ' + escapeHtml(domain), 'info');
+        loadSettingsSecurity();
+      } else {
+        setBanner('Let\'s Encrypt fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannter Fehler'), 'warn');
+      }
+    }).catch(function (err) {
+      setBanner('Let\'s Encrypt Fehler: ' + err.message, 'warn');
+    });
+  }
+
+  function loadSettingsFirewall() {
+    return request('/settings/firewall').then(function (data) {
+      text('fw-status', data.active ? 'Aktiv' : 'Inaktiv');
+      var tbody = qs('fw-rules-body');
+      if (!tbody) { return; }
+      var rules = data.rules || [];
+      if (rules.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="empty-cell">Keine Regeln vorhanden.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rules.map(function (r) {
+        return '<tr><td>' + escapeHtml(r.number) + '</td><td>' + escapeHtml(r.rule) + '</td><td><button class="button danger small fw-delete-rule" data-rule-num="' + escapeHtml(r.number) + '">Loeschen</button></td></tr>';
+      }).join('');
+    }).catch(function (err) {
+      setBanner('Firewall laden fehlgeschlagen: ' + err.message, 'warn');
+    });
+  }
+
+  function firewallAction(action, extra) {
+    var payload = Object.assign({ action: action }, extra || {});
+    return request('/settings/firewall', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (data) {
+      if (data.ok) {
+        setBanner('Firewall-Aktion erfolgreich.', 'info');
+        loadSettingsFirewall();
+      } else {
+        setBanner('Firewall-Fehler: ' + (data.errors || []).join(', '), 'warn');
+      }
+    }).catch(function (err) {
+      setBanner('Firewall-Fehler: ' + err.message, 'warn');
+    });
+  }
+
+  function loadSettingsNetwork() {
+    return request('/settings/network').then(function (data) {
+      var tbody = qs('net-interfaces-body');
+      if (tbody) {
+        var ifaces = data.interfaces || [];
+        if (ifaces.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="empty-cell">Keine Schnittstellen.</td></tr>';
+        } else {
+          tbody.innerHTML = ifaces.map(function (iface) {
+            var addrs = (iface.addresses || []).map(function (a) { return escapeHtml(a.address + '/' + a.prefix); }).join(', ');
+            return '<tr><td>' + escapeHtml(iface.name) + '</td><td>' + escapeHtml(iface.state) + '</td><td><code>' + escapeHtml(iface.mac) + '</code></td><td>' + (addrs || '—') + '</td></tr>';
+          }).join('');
+        }
+      }
+      text('net-dns-current', (data.dns_servers || []).join(', ') || '—');
+      text('net-gateway', data.default_gateway || '—');
+      if (qs('net-dns-input')) {
+        qs('net-dns-input').value = (data.dns_servers || []).join(', ');
+      }
+    }).catch(function (err) {
+      setBanner('Netzwerk laden fehlgeschlagen: ' + err.message, 'warn');
+    });
+  }
+
+  function saveNetworkDns() {
+    var raw = String(qs('net-dns-input') ? qs('net-dns-input').value : '').trim();
+    var servers = raw.split(/[,\s]+/).filter(function (s) { return s.length > 0; });
+    return request('/settings/network/dns', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dns_servers: servers })
+    }).then(function (data) {
+      if (data.ok) {
+        setBanner('DNS-Einstellungen gespeichert.', 'info');
+        loadSettingsNetwork();
+      } else {
+        setBanner('DNS-Fehler: ' + escapeHtml(data.error || 'Unbekannt'), 'warn');
+      }
+    }).catch(function (err) {
+      setBanner('DNS speichern fehlgeschlagen: ' + err.message, 'warn');
+    });
+  }
+
+  function loadSettingsServices() {
+    return request('/settings/services').then(function (data) {
+      var tbody = qs('svc-body');
+      if (!tbody) { return; }
+      var services = data.services || [];
+      if (services.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-cell">Keine Dienste.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = services.map(function (svc) {
+        var statusClass = svc.status === 'active' ? 'badge-ok' : 'badge-warn';
+        return '<tr><td>' + escapeHtml(svc.name) + '</td><td><span class="badge ' + statusClass + '">' + escapeHtml(svc.status) + '</span></td><td>' + escapeHtml(svc.enabled) + '</td><td><button class="button ghost small svc-restart-btn" data-svc="' + escapeHtml(svc.name) + '">Neustarten</button></td></tr>';
+      }).join('');
+    }).catch(function (err) {
+      setBanner('Dienste laden fehlgeschlagen: ' + err.message, 'warn');
+    });
+  }
+
+  function restartService(name) {
+    return request('/settings/services/' + encodeURIComponent(name) + '/restart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    }).then(function (data) {
+      if (data.ok) {
+        setBanner('Dienst "' + escapeHtml(name) + '" neugestartet. Status: ' + escapeHtml(data.status), 'info');
+        loadSettingsServices();
+      } else {
+        setBanner('Neustart fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannt'), 'warn');
+      }
+    }).catch(function (err) {
+      setBanner('Neustart-Fehler: ' + err.message, 'warn');
+    });
+  }
+
+  function loadSettingsUpdates() {
+    setBanner('Suche nach Updates...', 'info');
+    return request('/settings/updates', { __timeoutMs: 60000 }).then(function (data) {
+      text('upd-count', String(data.upgradable_count || 0));
+      var tbody = qs('upd-packages-body');
+      if (!tbody) { return; }
+      var pkgs = data.upgradable || [];
+      if (pkgs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2" class="empty-cell">System ist aktuell.</td></tr>';
+        setBanner('System ist aktuell.', 'info');
+        return;
+      }
+      tbody.innerHTML = pkgs.map(function (p) {
+        return '<tr><td>' + escapeHtml(p.package) + '</td><td><code>' + escapeHtml(p.line) + '</code></td></tr>';
+      }).join('');
+      setBanner(pkgs.length + ' Update(s) verfuegbar.', 'info');
+    }).catch(function (err) {
+      setBanner('Update-Check fehlgeschlagen: ' + err.message, 'warn');
+    });
+  }
+
+  function applyUpdates() {
+    if (!window.confirm('Alle verfuegbaren Updates jetzt installieren?')) { return; }
+    setBanner('Updates werden installiert...', 'info');
+    request('/settings/updates/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+      __timeoutMs: 600000
+    }).then(function (data) {
+      if (data.ok) {
+        setBanner('Updates erfolgreich installiert.', 'info');
+        loadSettingsUpdates();
+      } else {
+        setBanner('Update fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannt'), 'warn');
+      }
+    }).catch(function (err) {
+      setBanner('Update-Fehler: ' + err.message, 'warn');
+    });
+  }
+
+  function loadSettingsBackup() {
+    return request('/settings/backup').then(function (data) {
+      if (qs('bak-enabled')) { qs('bak-enabled').checked = Boolean(data.enabled); }
+      if (qs('bak-schedule')) { qs('bak-schedule').value = data.schedule || 'daily'; }
+      if (qs('bak-retention')) { qs('bak-retention').value = data.retention_days || 7; }
+      if (qs('bak-target')) { qs('bak-target').value = data.target_path || '/var/backups/beagle'; }
+      text('bak-last-run', data.last_backup || '(noch nie)');
+    }).catch(function (err) {
+      setBanner('Backup laden fehlgeschlagen: ' + err.message, 'warn');
+    });
+  }
+
+  function saveSettingsBackup() {
+    var payload = {
+      enabled: Boolean(qs('bak-enabled') && qs('bak-enabled').checked),
+      schedule: String(qs('bak-schedule') ? qs('bak-schedule').value : 'daily'),
+      retention_days: Number(qs('bak-retention') ? qs('bak-retention').value : 7),
+      target_path: String(qs('bak-target') ? qs('bak-target').value : '').trim()
+    };
+    return request('/settings/backup', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (data) {
+      if (data.ok) {
+        setBanner('Backup-Einstellungen gespeichert.', 'info');
+        loadSettingsBackup();
+      } else {
+        setBanner('Fehler: ' + (data.errors || []).join(', '), 'warn');
+      }
+    }).catch(function (err) {
+      setBanner('Backup speichern fehlgeschlagen: ' + err.message, 'warn');
+    });
+  }
+
+  function runBackupNow() {
+    setBanner('Backup wird erstellt...', 'info');
+    request('/settings/backup/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    }).then(function (data) {
+      if (data.ok) {
+        setBanner('Backup erstellt: ' + escapeHtml(data.archive || ''), 'info');
+        loadSettingsBackup();
+      } else {
+        setBanner('Backup fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannt'), 'warn');
+      }
+    }).catch(function (err) {
+      setBanner('Backup-Fehler: ' + err.message, 'warn');
+    });
+  }
+
+  function loadSettingsForPanel(panel) {
+    if (!isAdminRole()) { return; }
+    switch (panel) {
+      case 'settings_general': loadSettingsGeneral(); break;
+      case 'settings_security': loadSettingsSecurity(); break;
+      case 'settings_firewall': loadSettingsFirewall(); break;
+      case 'settings_network': loadSettingsNetwork(); break;
+      case 'settings_services': loadSettingsServices(); break;
+      case 'settings_updates': loadSettingsUpdates(); break;
+      case 'settings_backup': loadSettingsBackup(); break;
+    }
+  }
+
+  function bindSettingsEvents() {
+    if (qs('settings-general-save')) {
+      qs('settings-general-save').addEventListener('click', saveSettingsGeneral);
+    }
+    if (qs('settings-general-refresh')) {
+      qs('settings-general-refresh').addEventListener('click', loadSettingsGeneral);
+    }
+    if (qs('settings-security-save')) {
+      qs('settings-security-save').addEventListener('click', saveSettingsSecurity);
+    }
+    if (qs('settings-security-refresh')) {
+      qs('settings-security-refresh').addEventListener('click', loadSettingsSecurity);
+    }
+    if (qs('tls-request-cert')) {
+      qs('tls-request-cert').addEventListener('click', requestLetsEncrypt);
+    }
+    if (qs('settings-firewall-refresh')) {
+      qs('settings-firewall-refresh').addEventListener('click', loadSettingsFirewall);
+    }
+    if (qs('fw-enable')) {
+      qs('fw-enable').addEventListener('click', function () { firewallAction('enable'); });
+    }
+    if (qs('fw-disable')) {
+      qs('fw-disable').addEventListener('click', function () { firewallAction('disable'); });
+    }
+    if (qs('fw-add-rule')) {
+      qs('fw-add-rule').addEventListener('click', function () {
+        var rule = String(qs('fw-new-rule') ? qs('fw-new-rule').value : '').trim();
+        if (!rule) { setBanner('Bitte eine Regel eingeben.', 'warn'); return; }
+        firewallAction('add_rule', { rule: rule });
+      });
+    }
+    if (qs('fw-rules-body')) {
+      qs('fw-rules-body').addEventListener('click', function (event) {
+        var btn = event.target.closest('.fw-delete-rule');
+        if (!btn) { return; }
+        var num = btn.getAttribute('data-rule-num');
+        if (num && window.confirm('Regel #' + num + ' wirklich loeschen?')) {
+          firewallAction('delete_rule', { rule_number: num });
+        }
+      });
+    }
+    if (qs('settings-network-refresh')) {
+      qs('settings-network-refresh').addEventListener('click', loadSettingsNetwork);
+    }
+    if (qs('net-dns-save')) {
+      qs('net-dns-save').addEventListener('click', saveNetworkDns);
+    }
+    if (qs('settings-services-refresh')) {
+      qs('settings-services-refresh').addEventListener('click', loadSettingsServices);
+    }
+    if (qs('svc-body')) {
+      qs('svc-body').addEventListener('click', function (event) {
+        var btn = event.target.closest('.svc-restart-btn');
+        if (!btn) { return; }
+        var name = btn.getAttribute('data-svc');
+        if (name && window.confirm('Dienst "' + name + '" wirklich neustarten?')) {
+          restartService(name);
+        }
+      });
+    }
+    if (qs('settings-updates-refresh')) {
+      qs('settings-updates-refresh').addEventListener('click', loadSettingsUpdates);
+    }
+    if (qs('upd-apply')) {
+      qs('upd-apply').addEventListener('click', applyUpdates);
+    }
+    if (qs('settings-backup-refresh')) {
+      qs('settings-backup-refresh').addEventListener('click', loadSettingsBackup);
+    }
+    if (qs('settings-backup-save')) {
+      qs('settings-backup-save').addEventListener('click', saveSettingsBackup);
+    }
+    if (qs('settings-backup-run')) {
+      qs('settings-backup-run').addEventListener('click', runBackupNow);
+    }
   }
 
   function bindEvents() {
@@ -3792,6 +4253,8 @@
   updateAutoRefreshButton();
   consumeTokenFromLocation();
   bindEvents();
+  bindSettingsEvents();
+  updateSettingsVisibility();
   resetPolicyEditor();
   resetIamUserEditor();
   resetIamRoleEditor();

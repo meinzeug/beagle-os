@@ -32,6 +32,8 @@ class AuthzPolicyService:
                 return "auth:write"
             if re.match(r"^/api/v1/auth/users/[A-Za-z0-9._-]+/revoke-sessions$", route):
                 return "auth:write"
+            if route.startswith("/api/v1/settings/"):
+                return "settings:write"
         if verb == "PUT":
             if re.match(r"^/api/v1/provisioning/vms/\d+$", route):
                 return "provisioning:write"
@@ -39,6 +41,8 @@ class AuthzPolicyService:
                 return "policy:write"
             if route.startswith("/api/v1/auth/users/") or route.startswith("/api/v1/auth/roles/"):
                 return "auth:write"
+            if route.startswith("/api/v1/settings/"):
+                return "settings:write"
         if verb == "DELETE":
             if re.match(r"^/api/v1/provisioning/vms/\d+$", route):
                 return "provisioning:write"
@@ -49,6 +53,8 @@ class AuthzPolicyService:
         if verb == "GET":
             if route in {"/api/v1/auth/users", "/api/v1/auth/roles"}:
                 return "auth:read"
+            if route.startswith("/api/v1/settings/"):
+                return "settings:read"
         return None
 
     @staticmethod

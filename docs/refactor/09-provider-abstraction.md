@@ -50,6 +50,14 @@
 	- Provisioning default bridge selection in [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py) now validates configured defaults against discovered bridge inventory, reducing implicit coupling to environment-specific defaults (for example `vmbr1` in non-Proxmox labs).
 	- ISO staging helper added in the same provider-neutral provisioning service to align generated media availability with provider-advertised storage pool paths while preserving graceful fallback when pool paths are not writable in local simulation contexts.
 
+- 2026-04-19 VM lifecycle/status follow-up:
+	- Beagle-provider libvirt redefine fix was implemented strictly inside [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py):
+		- existing domain UUID is now read via libvirt and preserved in generated XML,
+		- avoids duplicate-domain define failures while keeping start behavior behind the generic `HostProvider.start_vm(...)` contract.
+	- Inventory status projection (`installing` during autoinstall/firstboot) was implemented in provider-neutral read aggregation [beagle-host/services/fleet_inventory.py](beagle-host/services/fleet_inventory.py), based on provisioning-state contracts, not provider-specific API calls.
+	- Provisioning finalize restart hardening was implemented in provider-neutral orchestration [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py).
+	- No new direct Proxmox coupling (`qm`, `pvesh`, `/api2/json`, `PVE.*`) was introduced by these fixes.
+
 - Current residual coupling risks discovered in local simulation harness (not production API coupling):
 	- `scripts/test-standalone-desktop-stream-sim.sh` still depends on local libvirt host permissions/ownership and kernel boot semantics that differ between developer hosts.
 	- These are test-harness environment assumptions and should be hardened inside simulation scripts/services, not by introducing provider-specific behavior into generic HTTP/UI layers.

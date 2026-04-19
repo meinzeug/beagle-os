@@ -644,12 +644,9 @@ class UbuntuBeagleProvisioningService:
         if restart:
             try:
                 self._provider.stop_vm(vmid, skiplock=True, timeout=None)
-            except subprocess.CalledProcessError:
+            except Exception:
                 pass
-            try:
-                self._provider.start_vm(vmid, timeout=None)
-            except subprocess.CalledProcessError:
-                pass
+            self._provider.start_vm(vmid, timeout=None)
         if self._reconcile_public_streams_script.is_file():
             try:
                 self._run_checked([str(self._reconcile_public_streams_script)], timeout=None)

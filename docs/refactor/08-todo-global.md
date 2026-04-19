@@ -20,7 +20,7 @@
 - [x] Reset/recreate beagleserver VM to boot from rebuilt server-installer ISO.
 - [x] Remove the explicit ubuntu-beagle installer network seed path that reproducibly trapped VM 101 in early cloud-init.
 - [x] Recreate VM 101 with the simplified `CIDATA` seed (`user-data` + `meta-data` only) and verify Subiquity advances past the former cloud-init wait state.
-- [ ] Re-run VM 101 autoinstall to true completion without manual callback forcing and confirm first-boot transition on its own.
+- [ ] Re-run VM 101 autoinstall to true completion without manual callback forcing and confirm first-boot transition on its own (`installing` -> `running`).
 - [ ] Verify first-boot Sunshine readiness gate and callback end-to-end on a fully clean VM 101 run (no manual completion override).
 - [x] Fix beagle-provider VM provisioning failure when libvirt pool `local` is missing (auto-create pool/fallback instead of hard-fail).
 - [x] Fix beagle-provider VM start failure when libvirt network `beagle` is missing (auto-create network/fallback instead of hard-fail).
@@ -31,7 +31,10 @@
 - [x] Add reproducible Sunshine guest service self-heal in repo provisioning (automatic restart on crash/stop).
 - [ ] Validate Sunshine self-heal timer (`beagle-sunshine-healthcheck.timer`) on VM reboot and forced crash (`pkill sunshine`).
 - [ ] Rebuild thin-client installer payload/bootstrap with patched non-interactive target-disk selection and rerun thinclient install.
-- [ ] Redeploy patched provider start/redefine behavior on installed beagleserver host and recreate VM 101 to remove stale-domain autoinstall loop risk.
+- [x] Redeploy patched provider start/redefine behavior on installed beagleserver host and recreate VM 101/100 start path to remove stale-domain autoinstall loop risk.
+- [x] Fix VM start error `domain 'beagle-100' already exists with uuid ...` in beagle libvirt provider by preserving existing domain UUID during redefine.
+- [x] Show `installing` VM status in inventory while ubuntu autoinstall/firstboot provisioning is active.
+- [x] Disable UI start action while VM status is `installing` to avoid conflicting manual power actions.
 - [x] Install beaglethinclient against the successfully provisioned VM 101 and verify Moonlight streaming end-to-end.
 - [x] Diagnose and fix RTSP handshake abort (`sessionUrl0` internal VM IP + host forward policy mismatch).
 - [x] Expose Live-USB creator download action in Beagle Web Console endpoint detail flow.

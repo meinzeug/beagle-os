@@ -77,6 +77,7 @@ from vm_mutation_surface import VmMutationSurfaceService
 from vm_profile import VmProfileService
 from vm_console_access import VmConsoleAccessService
 from vm_http_surface import VmHttpSurfaceService
+from server_settings import ServerSettingsService
 from vm_secret_bootstrap import VmSecretBootstrapService
 from vm_secret_store import VmSecretStoreService
 from vm_state import VmStateService
@@ -355,6 +356,7 @@ REQUEST_SUPPORT_SERVICE: RequestSupportService | None = None
 AUTH_SESSION_SERVICE: AuthSessionService | None = None
 AUDIT_LOG_SERVICE: AuditLogService | None = None
 AUTHZ_POLICY_SERVICE: AuthzPolicyService | None = None
+SERVER_SETTINGS_SERVICE: ServerSettingsService | None = None
 
 
 def resolve_public_stream_host(host: str) -> str:
@@ -511,6 +513,16 @@ def authz_policy_service() -> AuthzPolicyService:
     if AUTHZ_POLICY_SERVICE is None:
         AUTHZ_POLICY_SERVICE = AuthzPolicyService()
     return AUTHZ_POLICY_SERVICE
+
+
+def server_settings_service() -> ServerSettingsService:
+    global SERVER_SETTINGS_SERVICE
+    if SERVER_SETTINGS_SERVICE is None:
+        SERVER_SETTINGS_SERVICE = ServerSettingsService(
+            data_dir=ensure_data_dir(),
+            utcnow=utcnow,
+        )
+    return SERVER_SETTINGS_SERVICE
 
 
 def cache_get(key: str, ttl_seconds: float) -> Any:
@@ -2461,6 +2473,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._write_json(response["status"], response["payload"])
             return
 
+        if path.startswith("/api/v1/settings/"):
+            if not self._authorize_or_respond("GET", path):
+                return
+            response = server_settings_service().route_get(path)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
+                return
+
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -2812,6 +2832,29 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
+        if path.startswith("/api/v1/settings/"):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                json_payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            response = server_settings_service().route_post(path, json_payload or {})
+            if response is not None:
+                self._audit_event(
+                    "settings.mutation",
+                    "success" if int(response["status"]) < 400 else "error",
+                    method="POST",
+                    path=path,
+                    username=self._requester_identity(),
+                )
+                self._write_json(response["status"], response["payload"])
+                return
+
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 
     def do_PUT(self) -> None:  # noqa: N802
@@ -2865,6 +2908,25 @@ class Handler(BaseHTTPRequestHandler):
             return
         if not self._authorize_or_respond("PUT", path):
             return
+
+        if path.startswith("/api/v1/settings/"):
+            try:
+                json_payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            response = server_settings_service().route_put(path, json_payload or {})
+            if response is not None:
+                self._audit_event(
+                    "settings.mutation",
+                    "success" if int(response["status"]) < 400 else "error",
+                    method="PUT",
+                    path=path,
+                    username=self._requester_identity(),
+                )
+                self._write_json(response["status"], response["payload"])
+                return
+
         if not admin_http_surface_service().handles_put(path):
             self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
             return

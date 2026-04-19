@@ -1,5 +1,25 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-19)
+
+- Fixed VM start failure for existing libvirt domains (`domain 'beagle-100' already exists with uuid ...`) in [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py):
+	- Added libvirt UUID lookup (`domuuid`) for existing domains.
+	- Domain XML generation now preserves existing UUID during redefine.
+	- `start_vm()` can now safely refresh libvirt XML before start without hitting the duplicate-domain define error.
+- Implemented provisioning-aware runtime status projection in [beagle-host/services/fleet_inventory.py](beagle-host/services/fleet_inventory.py):
+	- VM inventory now reports `status: installing` while ubuntu provisioning is in `creating/installing` or autoinstall/firstboot phases.
+	- This fixes Web UI visibility where installing desktops previously appeared as `running` too early.
+- Hardened post-install restart behavior in [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py):
+	- Finalize flow now always attempts guest stop (best-effort) and enforces a real `start_vm()` call for restart.
+	- Start failures are no longer silently swallowed; finalize now fails explicitly if restart cannot be performed.
+- Web UI status handling updated in [website/app.js](website/app.js):
+	- `installing` now renders with info tone.
+	- Start button is disabled while status is `installing` to avoid conflicting user actions during autoinstall.
+- Live deployment + verification on `beagleserver` (`192.168.122.131`) completed:
+	- Backend + frontend files deployed under `/opt/beagle/...` and `beagle-control-plane` restarted successfully.
+	- VM100 power API re-test succeeded (`POST /api/v1/virtualization/vms/100/power` with `{"action":"start"}` returns `ok: true`).
+	- Inventory now correctly reports VM100 `status: installing` while provisioning state is `installing/autoinstall`.
+
 - Completed a fresh standalone beagleserver reinstall in the local `qemu:///system` harness and re-ran onboarding/API provisioning end-to-end:
 	- Host install succeeded via text-mode installer (`beagle/test123`), onboarding completed, admin login works, catalog loads.
 	- First VM create failures were root-caused to payload validation (`guest_password` length) and missing nested libvirt prerequisites.

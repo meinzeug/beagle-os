@@ -51,7 +51,7 @@ class AuthSessionService:
         return [
             {"name": "viewer", "permissions": []},
             {"name": "ops", "permissions": ["vm:mutate", "actions:bulk", "provisioning:write"]},
-            {"name": "admin", "permissions": ["vm:mutate", "actions:bulk", "provisioning:write", "policy:write", "auth:read"]},
+            {"name": "admin", "permissions": ["vm:mutate", "actions:bulk", "provisioning:write", "policy:write", "auth:read", "auth:write", "settings:read", "settings:write"]},
             {"name": "superadmin", "permissions": ["*"]},
         ]
 

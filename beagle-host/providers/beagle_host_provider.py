@@ -475,6 +475,12 @@ class BeagleHostProvider:
     def _libvirt_domain_name(self, vmid: int) -> str:
         return f"beagle-{int(vmid)}"
 
+    def _libvirt_domain_uuid(self, vmid: int) -> str:
+        try:
+            return self._run_virsh("domuuid", self._libvirt_domain_name(vmid)).strip()
+        except Exception:
+            return ""
+
     def _libvirt_domain_exists(self, vmid: int) -> bool:
         try:
             self._run_virsh("domstate", self._libvirt_domain_name(vmid))
@@ -618,7 +624,7 @@ class BeagleHostProvider:
             return pool.strip(), path_part.strip()
         return "local", spec.strip()
 
-    def _generate_domain_xml(self, vmid: int, config: dict[str, Any]) -> str:
+    def _generate_domain_xml(self, vmid: int, config: dict[str, Any], *, domain_uuid: str = "") -> str:
         domain_name = self._libvirt_domain_name(vmid)
         memory_mib = int(config.get("memory", 2048) or 2048)
         cores = int(config.get("cores", 2) or 2)
@@ -685,6 +691,10 @@ class BeagleHostProvider:
         lines = [
             "<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>",
             f"  <name>{domain_name}</name>",
+        ]
+        if str(domain_uuid or "").strip():
+            lines.append(f"  <uuid>{str(domain_uuid).strip()}</uuid>")
+        lines += [
             f"  <memory unit='MiB'>{memory_mib}</memory>",
             f"  <currentMemory unit='MiB'>{memory_mib}</currentMemory>",
             f"  <vcpu placement='static'>{cores}</vcpu>",
@@ -804,7 +814,8 @@ class BeagleHostProvider:
         node = str(record.get("node") or self._default_node_name).strip() or self._default_node_name
         config = self.get_vm_config(node, vmid)
         self._ensure_libvirt_disk(vmid, config)
-        xml = self._generate_domain_xml(vmid, config)
+        existing_uuid = self._libvirt_domain_uuid(vmid) if self._libvirt_domain_exists(vmid) else ""
+        xml = self._generate_domain_xml(vmid, config, domain_uuid=existing_uuid)
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False, encoding="utf-8") as f:
             f.write(xml)
             tmp_path = f.name
