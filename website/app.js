@@ -92,6 +92,7 @@
   var USAGE_WARN_THRESHOLD = 90;
   var USAGE_INFO_THRESHOLD = 70;
   var MIN_PASSWORD_LEN = 6;
+  var MIN_GUEST_PASSWORD_LEN = 8;
   var MAX_USERNAME_LEN = 64;
   var USERNAME_PATTERN = /^[A-Za-z0-9._-]+$/;
   var ROLE_NAME_PATTERN = /^[A-Za-z0-9._:-]+$/;
@@ -2101,8 +2102,12 @@
       setBanner('Provisioning: Node fehlt.', 'warn');
       return;
     }
-    if (payload.guest_password && payload.guest_password.length < MIN_PASSWORD_LEN) {
-      setBanner('Provisioning: Guest-Passwort ist zu kurz (min. ' + String(MIN_PASSWORD_LEN) + ').', 'warn');
+    if (!payload.guest_password) {
+      setBanner('Provisioning: Guest-Passwort ist erforderlich.', 'warn');
+      return;
+    }
+    if (payload.guest_password.length < MIN_GUEST_PASSWORD_LEN) {
+      setBanner('Provisioning: Guest-Passwort ist zu kurz (min. ' + String(MIN_GUEST_PASSWORD_LEN) + ').', 'warn');
       return;
     }
 
