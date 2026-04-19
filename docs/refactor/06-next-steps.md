@@ -2,8 +2,9 @@
 
 ## Immediate (blocking on environmental readiness, not code)
 
-0. **Finish live validation for the freshly recreated VM160**:
-	- Monitor VM `160` until provisioning transitions from `installing/autoinstall` to `firstboot`/`complete`.
+0. **Finish live validation for the freshly recreated VM161**:
+	- Monitor VM `161` until provisioning transitions from `installing/autoinstall` to `firstboot`/`complete`.
+	- Continue periodic installer screenshot checks to ensure progression beyond `stage-curthooks/.../installing-kernel` and detect any new deterministic stall point.
 	- Confirm VM XML cleanup after autoinstall transition (installer media + kernel args removed, disk boot only).
 	- Verify inside guest that `beagle-ubuntu-firstboot.service` exists and executes automatically on first boot.
 	- Verify `lightdm`, desktop session and `qemu-guest-agent` become active.
@@ -13,6 +14,11 @@
 	- Recreate a fresh ubuntu desktop VM from the provisioning API and verify firstboot no longer stalls at tty-only state.
 	- Confirm `beagle-ubuntu-firstboot.service` reaches success, `lightdm` is installed/active, and callback transitions state out of `installing/firstboot`.
 	- Confirm Sunshine service and API port are reachable after completion.
+
+0. **Deploy full 6.6.8 runtime code on host before final acceptance**:
+	- Sync all relevant changed host files (not only template) from repo `main` to `/opt/beagle/...`.
+	- Restart `beagle-control-plane` and verify runtime version/config behavior reflects 6.6.8 expectations.
+	- Re-run the same VM lifecycle checks after full code deploy to avoid validating against mixed runtime state.
 
 1. **Guest IP and qemu-agent availability** (in progress on beagleserver):
 	- VMs 100, 101, 102 are running but have not yet obtained DHCP IP addresses.

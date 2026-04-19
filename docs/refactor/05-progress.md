@@ -1,5 +1,24 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-19, VM161 autoinstall late-command fallback rollback + live-progress proof)
+
+- Investigated the current no-reboot symptom on fresh VM `161` (`beagle-ubuntu-autotest-03`) and captured live installer screenshots from host libvirt.
+- Confirmed previous blocker on VM `160`: installer was stuck while executing the oversized target-side `late-commands` firstboot artifact injection.
+- Applied repo-level rollback in [beagle-host/templates/ubuntu-beagle/user-data.tpl](beagle-host/templates/ubuntu-beagle/user-data.tpl):
+	- removed the target-side base64 write/enable `late-commands` line,
+	- kept the callback attempts (`installer context` + `curtin in-target`) unchanged.
+- Deployed updated template to the live host runtime (`/opt/beagle/beagle-host/templates/ubuntu-beagle/user-data.tpl`) and restarted `beagle-control-plane`.
+- Recreated test VM from API after cleanup:
+	- deleted VM `160`,
+	- created VM `161` with `ubuntu-24.04-desktop-sunshine` + `xfce`.
+- Current live runtime evidence for VM `161`:
+	- API state remains `installing/autoinstall` (no callback yet),
+	- libvirt CPU+disk counters are increasing across samples (`cpu.time`, `vda rd/wr`), proving installer is actively progressing,
+	- current screenshots show Subiquity/curtin in package/kernel install stages (`stage-curthooks/.../installing-kernel`), not UEFI shell and not the old late-command freeze.
+- Important operational note:
+	- host control-plane runtime still reports `version: 6.6.7`; only template rollback was redeployed in this validation cycle.
+	- full 6.6.8 runtime deployment + release publication pipeline is still pending.
+
 ## Update (2026-04-19, reproducible autoinstall fallback + clean VM recreate)
 
 - Implemented a repo-level hardening for missed ubuntu autoinstall callbacks:
