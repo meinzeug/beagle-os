@@ -1082,11 +1082,13 @@
     var rawOptions = Object.assign({}, options || {});
     var noRefreshRetry = Boolean(rawOptions.__noRefreshRetry);
     var suppressAuthLock = Boolean(rawOptions.__suppressAuthLock);
+    var timeoutMs = Number(rawOptions.__timeoutMs || 0);
     delete rawOptions.__noRefreshRetry;
     delete rawOptions.__suppressAuthLock;
+    delete rawOptions.__timeoutMs;
     var finalOptions = Object.assign({ method: 'GET', credentials: 'same-origin' }, rawOptions);
     finalOptions.headers = Object.assign({}, finalOptions.headers || {}, buildAuthHeaders());
-    return fetchWithTimeout(target, finalOptions).then(function (response) {
+    return fetchWithTimeout(target, finalOptions, timeoutMs > 0 ? timeoutMs : undefined).then(function (response) {
       if (!response.ok) {
         return response.text().then(function (body) {
           var detail = body;
@@ -1101,7 +1103,8 @@
               return refreshAccessToken().then(function () {
                 var retriedOptions = Object.assign({}, rawOptions, {
                   __noRefreshRetry: true,
-                  __suppressAuthLock: suppressAuthLock
+                  __suppressAuthLock: suppressAuthLock,
+                  __timeoutMs: timeoutMs > 0 ? timeoutMs : undefined
                 });
                 return request(path, retriedOptions);
               }).catch(function () {
@@ -2124,7 +2127,7 @@
       setProvisionProgressStep(1, 'active', 'laeuft');
       setProvisionProgressMessage('Provisioning-Request wird an den Host gesendet ...', 'info');
       setBanner('Provisioning: VM wird erstellt ...', 'info');
-      return postJson('/provisioning/vms', payload).then(function (response) {
+      return postJson('/provisioning/vms', payload, { __timeoutMs: 180000 }).then(function (response) {
         var vm = response && response.provisioned_vm ? response.provisioned_vm : {};
         var vmid = Number(vm.vmid || payload.vmid || 0);
         setProvisionProgressStep(1, 'done', 'ok');
@@ -3033,12 +3036,12 @@
     return dashboardLoadInFlight;
   }
 
-  function postJson(path, payload) {
-    return request(path, {
+  function postJson(path, payload, options) {
+    return request(path, Object.assign({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload || {})
-    });
+    }, options || {}));
   }
 
   function executeAction(action, sourceButton) {

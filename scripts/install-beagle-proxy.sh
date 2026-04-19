@@ -612,8 +612,8 @@ server {
       proxy_set_header Host \$host;
       proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
       proxy_set_header X-Forwarded-Proto https;
-      proxy_read_timeout 30;
-      proxy_send_timeout 30;
+      proxy_read_timeout 900;
+      proxy_send_timeout 900;
     }
 
     location /beagle-api/ {
@@ -623,8 +623,8 @@ server {
         proxy_set_header Host \$host;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
-        proxy_read_timeout 30;
-        proxy_send_timeout 30;
+        proxy_read_timeout 900;
+        proxy_send_timeout 900;
     }
 
 EOF

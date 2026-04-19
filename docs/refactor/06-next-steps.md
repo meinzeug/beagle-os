@@ -15,7 +15,7 @@
 4. Re-run clean reinstall once with the now-proven patched ISO path and confirm no residual transient state in `/var/log/beagle-server-installer.log`.
 5. Continue the requested realistic E2E product flow from installed host state:
 	- open Beagle Web UI,
-	- create Beagle Ubuntu/XFCE/Sunshine desktop VM,
+	- create Beagle Ubuntu/XFCE/Sunshine desktop VM (re-validate UI no longer reports `Request timeout` on provisioning create),
 	- download Live-USB installer script via Web UI,
 	- reinstall `beaglethinclient`,
 	- verify first-time Moonlight -> Sunshine auto-connect and active stream.
