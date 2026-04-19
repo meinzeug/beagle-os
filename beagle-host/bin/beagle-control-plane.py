@@ -246,7 +246,9 @@ UBUNTU_BEAGLE_LOCAL_ISO_DIR = Path(
     os.environ.get("BEAGLE_UBUNTU_LOCAL_ISO_DIR", "/var/lib/vz/template/iso").strip() or "/var/lib/vz/template/iso"
 )
 UBUNTU_BEAGLE_AUTOINSTALL_URL_TTL_SECONDS = int(os.environ.get("BEAGLE_UBUNTU_AUTOINSTALL_URL_TTL_SECONDS", "21600"))
+UBUNTU_BEAGLE_AUTOINSTALL_STALE_SECONDS = int(os.environ.get("BEAGLE_UBUNTU_AUTOINSTALL_STALE_SECONDS", "1800"))
 UBUNTU_BEAGLE_FIRSTBOOT_POWERDOWN_WAIT_SECONDS = int(os.environ.get("BEAGLE_UBUNTU_FIRSTBOOT_POWERDOWN_WAIT_SECONDS", "600"))
+UBUNTU_BEAGLE_FIRSTBOOT_STALE_SECONDS = int(os.environ.get("BEAGLE_UBUNTU_FIRSTBOOT_STALE_SECONDS", "900"))
 UBUNTU_BEAGLE_DESKTOPS: dict[str, dict[str, Any]] = {
     "xfce": {
         "id": "xfce",
@@ -1003,6 +1005,83 @@ def list_ubuntu_beagle_states(*, include_credentials: bool = False) -> list[dict
 
 
 def latest_ubuntu_beagle_state_for_vmid(vmid: int, *, include_credentials: bool = False) -> dict[str, Any] | None:
+    latest = ubuntu_beagle_state_service().latest_for_vmid(vmid, include_credentials=False)
+    if not isinstance(latest, dict):
+        return None
+
+    status = str(latest.get("status", "")).strip().lower()
+    phase = str(latest.get("phase", "")).strip().lower()
+    token = str(latest.get("token", "")).strip()
+
+    # Late-command callbacks can occasionally be missed by the installer runtime.
+    # If autoinstall has already powered off, or remains stale for too long,
+    # move to firstboot server-side so the lifecycle can continue deterministically.
+    if status == "installing" and phase == "autoinstall" and token:
+        vm = find_vm(int(vmid), refresh=True)
+        vm_status = str(getattr(vm, "status", "")).strip().lower() if vm is not None else ""
+        updated_at_raw = str(latest.get("updated_at", "")).strip()
+        autoinstall_stale = False
+        if updated_at_raw:
+            try:
+                updated_at = datetime.fromisoformat(updated_at_raw.replace("Z", "+00:00"))
+                age_seconds = (datetime.now(timezone.utc) - updated_at.astimezone(timezone.utc)).total_seconds()
+                autoinstall_stale = age_seconds >= float(max(300, UBUNTU_BEAGLE_AUTOINSTALL_STALE_SECONDS))
+            except Exception:
+                autoinstall_stale = False
+        should_force_firstboot = vm is not None and (
+            vm_status not in {"running", "paused", "starting"} or autoinstall_stale
+        )
+        if should_force_firstboot:
+            raw_state = load_ubuntu_beagle_state(token)
+            if isinstance(raw_state, dict):
+                try:
+                    ubuntu_beagle_provisioning_service().prepare_ubuntu_beagle_firstboot(raw_state)
+                    if autoinstall_stale:
+                        raw_state["message"] = (
+                            "Ubuntu-Autoinstall callback blieb aus; der Host hat nach Ablauf des "
+                            "Autoinstall-Stale-Timeouts serverseitig in den First-Boot-Modus gewechselt."
+                        )
+                    save_ubuntu_beagle_state(token, raw_state)
+                except Exception:
+                    pass
+
+    # If guest callbacks are missing after firstboot has been running for a long
+    # time, complete server-side so provisioning does not remain stuck forever.
+    if status == "installing" and phase == "firstboot" and token:
+        vm = find_vm(int(vmid), refresh=True)
+        vm_status = str(getattr(vm, "status", "")).strip().lower() if vm is not None else ""
+        updated_at_raw = str(latest.get("updated_at", "")).strip()
+        firstboot_stale = False
+        if updated_at_raw:
+            try:
+                updated_at = datetime.fromisoformat(updated_at_raw.replace("Z", "+00:00"))
+                age_seconds = (datetime.now(timezone.utc) - updated_at.astimezone(timezone.utc)).total_seconds()
+                firstboot_stale = age_seconds >= float(max(60, UBUNTU_BEAGLE_FIRSTBOOT_STALE_SECONDS))
+            except Exception:
+                firstboot_stale = False
+        if vm is not None and vm_status == "running" and firstboot_stale:
+            raw_state = load_ubuntu_beagle_state(token)
+            raw_status = str((raw_state or {}).get("status", "")).strip().lower()
+            raw_phase = str((raw_state or {}).get("phase", "")).strip().lower()
+            if isinstance(raw_state, dict) and raw_status == "installing" and raw_phase == "firstboot":
+                try:
+                    cleanup = ubuntu_beagle_provisioning_service().finalize_ubuntu_beagle_install(raw_state, restart=False)
+                    cancelled_restart = cancel_scheduled_ubuntu_beagle_vm_restart(raw_state)
+                    raw_state["completed_at"] = utcnow()
+                    raw_state["updated_at"] = utcnow()
+                    raw_state["status"] = "completed"
+                    raw_state["phase"] = "complete"
+                    raw_state["message"] = (
+                        "Ubuntu firstboot callback blieb aus; Installationsstatus wurde nach Ablauf "
+                        "des Stale-Timeouts serverseitig abgeschlossen."
+                    )
+                    raw_state["cleanup"] = cleanup
+                    if cancelled_restart:
+                        raw_state["host_restart_cancelled"] = cancelled_restart
+                    save_ubuntu_beagle_state(token, raw_state)
+                except Exception:
+                    pass
+
     return ubuntu_beagle_state_service().latest_for_vmid(vmid, include_credentials=include_credentials)
 
 

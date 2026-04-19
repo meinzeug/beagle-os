@@ -2,6 +2,12 @@
 
 ## Immediate (blocking on environmental readiness, not code)
 
+0. **Finish live validation for the freshly recreated VM160**:
+	- Monitor VM `160` until provisioning transitions from `installing/autoinstall` to `firstboot`/`complete`.
+	- Confirm VM XML cleanup after autoinstall transition (installer media + kernel args removed, disk boot only).
+	- Verify inside guest that `beagle-ubuntu-firstboot.service` exists and executes automatically on first boot.
+	- Verify `lightdm`, desktop session and `qemu-guest-agent` become active.
+
 0. **Deploy and validate repo-first firstboot hardening (new)**:
 	- Deploy updated template [beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl](beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl) to running beagleserver host stack.
 	- Recreate a fresh ubuntu desktop VM from the provisioning API and verify firstboot no longer stalls at tty-only state.

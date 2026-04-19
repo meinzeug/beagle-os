@@ -9,6 +9,7 @@ leaves the entrypoint.
 
 from __future__ import annotations
 
+import base64
 import secrets
 import shlex
 import shutil
@@ -582,6 +583,29 @@ class UbuntuBeagleProvisioningService:
                 "__CALLBACK_PINNED_PUBKEY__": self._manager_pinned_pubkey,
             },
         ).rstrip()
+        firstboot_service = "\n".join(
+            [
+                "[Unit]",
+                "Description=Beagle Ubuntu Desktop First Boot Provisioning",
+                "After=network-online.target systemd-resolved.service",
+                "Wants=network-online.target systemd-resolved.service",
+                "StartLimitIntervalSec=0",
+                "ConditionPathExists=!/var/lib/beagle/ubuntu-firstboot.done",
+                "",
+                "[Service]",
+                "Type=oneshot",
+                "ExecStart=/usr/local/sbin/beagle-ubuntu-firstboot.sh",
+                "Restart=on-failure",
+                "RestartSec=15",
+                "RemainAfterExit=yes",
+                "",
+                "[Install]",
+                "WantedBy=multi-user.target",
+                "",
+            ]
+        )
+        firstboot_script_b64 = base64.b64encode((firstboot_script + "\n").encode("utf-8")).decode("ascii")
+        firstboot_service_b64 = base64.b64encode(firstboot_service.encode("utf-8")).decode("ascii")
         user_data = self.render_template_file(
             self._template_dir / "user-data.tpl",
             {
@@ -595,6 +619,8 @@ class UbuntuBeagleProvisioningService:
                 "__PREPARE_FIRSTBOOT_CURL_ARGS__": f'-k --pinnedpubkey "{self._manager_pinned_pubkey}"' if self._manager_pinned_pubkey else "-k",
                 "__NETWORK_MAC__": network_mac,
                 "__FIRSTBOOT_SCRIPT__": self.indent_block(firstboot_script, "          "),
+                "__FIRSTBOOT_SCRIPT_B64__": firstboot_script_b64,
+                "__FIRSTBOOT_SERVICE_B64__": firstboot_service_b64,
             },
         )
         meta_data = self.render_template_file(

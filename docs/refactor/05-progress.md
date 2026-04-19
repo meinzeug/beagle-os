@@ -1,5 +1,28 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-19, reproducible autoinstall fallback + clean VM recreate)
+
+- Implemented a repo-level hardening for missed ubuntu autoinstall callbacks:
+	- [beagle-host/templates/ubuntu-beagle/user-data.tpl](beagle-host/templates/ubuntu-beagle/user-data.tpl):
+		- Added a `late-commands` fallback that writes firstboot script + systemd unit directly into `/target` using base64 placeholders, and enables `beagle-ubuntu-firstboot.service` in target multi-user boot.
+	- [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py):
+		- Added base64 rendering for firstboot script/service payloads (`__FIRSTBOOT_SCRIPT_B64__`, `__FIRSTBOOT_SERVICE_B64__`) used by the template fallback path.
+	- [beagle-host/bin/beagle-control-plane.py](beagle-host/bin/beagle-control-plane.py):
+		- Added `BEAGLE_UBUNTU_AUTOINSTALL_STALE_SECONDS` and server-side stale transition logic from `installing/autoinstall` -> `installing/firstboot` when callback does not arrive.
+		- Kept existing firstboot stale completion fallback (`installing/firstboot` -> `completed`) and wired missing config constant explicitly.
+
+- Deployed these repo changes to running `beagle-host` and restarted control-plane.
+
+- Runtime cleanup + recreate during verification:
+	- Removed broken VM `150` that dropped into UEFI shell (incomplete disk install state).
+	- Created clean replacement VM `160` (`beagle-ubuntu-autotest-02`) from API.
+	- Verified VM `160` currently boots with expected installer artifacts (`ubuntu ISO`, `seed ISO`, `-kernel/-initrd`) and is in provisioning `installing/autoinstall`.
+
+- Current live status:
+	- Reproducible fallback logic is now in repo and deployed.
+	- Fresh VM recreate path is functional.
+	- End-to-end proof that VM reaches graphical desktop and stream-ready is still pending while VM `160` remains in autoinstall phase.
+
 ## Update (2026-04-19, reproducible firstboot network hardening for ubuntu desktop provisioning)
 
 - Root cause for repeated `installing/firstboot` stalls was reproduced in VM102:

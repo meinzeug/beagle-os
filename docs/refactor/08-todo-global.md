@@ -21,12 +21,14 @@
 - [x] Remove the explicit ubuntu-beagle installer network seed path that reproducibly trapped VM 101 in early cloud-init.
 - [x] Recreate VM 101 with the simplified `CIDATA` seed (`user-data` + `meta-data` only) and verify Subiquity advances past the former cloud-init wait state.
 - [x] Harden ubuntu autoinstall late-command callback template to try both installer and target contexts (`sh -c` + `curtin in-target`) for `prepare-firstboot` dispatch.
+- [x] Add target-side firstboot artifact fallback in autoinstall (`late-commands` writes/enables `beagle-ubuntu-firstboot.service` in `/target`) to avoid missing cloud-init/runcmd execution.
 - [x] Add control-plane stale-state fallback from `installing/autoinstall` -> `installing/firstboot` when callback is missed.
 - [x] Add control-plane stale-state fallback from `installing/firstboot` -> `completed` (server-side finalize, no extra forced restart).
 - [x] Validate firstboot stale fallback timeout path on live VM100 token (`installing/firstboot` -> `completed` without manual callback forcing).
 - [ ] Re-run VM 100/101 autoinstall to true completion without manual callback forcing and confirm first-boot transition on its own (`installing` -> `running`).
 - [x] Move VM-firstboot network workaround into repo template (DHCP-first with deterministic static fallback + non-fatal DNS recovery) so no manual in-guest hotfix is required.
-- [ ] Deploy updated firstboot template to live beagleserver and validate on a freshly recreated VM that `beagle-ubuntu-firstboot.service` completes and installs `lightdm`/`xfce`/`sunshine`.
+- [x] Deploy updated firstboot/autoinstall fallback templates to live beagleserver and restart control-plane.
+- [ ] Validate on fresh VM160 that `beagle-ubuntu-firstboot.service` auto-runs to completion and installs `lightdm`/`xfce`/`sunshine` without manual in-guest repair.
 - [ ] Validate firstboot stale fallback guardrails on fresh runs (no premature completion while guest provisioning is still active).
 - [ ] Verify first-boot Sunshine readiness gate and callback end-to-end on a fully clean VM100/101 run (no manual completion override).
 - [x] Fix beagle-provider VM provisioning failure when libvirt pool `local` is missing (auto-create pool/fallback instead of hard-fail).
