@@ -103,6 +103,7 @@ class VmHttpSurfaceService:
                 "node": vm.node,
                 "thinclient_username": "thinclient",
                 "thinclient_password": str(secret.get("thinclient_password", "")),
+                "guest_password": str(secret.get("guest_password") or secret.get("password") or ""),
                 "sunshine_username": str(secret.get("sunshine_username", "")),
                 "sunshine_password": str(secret.get("sunshine_password", "")),
                 "sunshine_pin": str(secret.get("sunshine_pin", "")),

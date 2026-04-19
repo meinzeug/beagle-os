@@ -3,6 +3,14 @@ autoinstall:
   version: 1
   shutdown: poweroff
   locale: __IDENTITY_LOCALE__
+  network:
+    version: 2
+    ethernets:
+      primary:
+        match:
+          macaddress: "__NETWORK_MAC__"
+        dhcp4: true
+        dhcp6: false
   keyboard:
     layout: __IDENTITY_KEYMAP__
   identity:
@@ -43,4 +51,5 @@ __FIRSTBOOT_SCRIPT__
     runcmd:
       - [ systemctl, enable, --now, beagle-ubuntu-firstboot.service ]
   late-commands:
-    - curtin in-target --target=/target -- sh -c 'for attempt in $(seq 1 20); do curl -fsS __PREPARE_FIRSTBOOT_CURL_ARGS__ --connect-timeout 5 --max-time 20 --retry 2 --retry-delay 2 -X POST "__PREPARE_FIRSTBOOT_URL__" >/dev/null && exit 0; sleep 5; done; exit 0'
+    - sh -c 'for attempt in $(seq 1 20); do if command -v curl >/dev/null 2>&1; then curl -fsS __PREPARE_FIRSTBOOT_CURL_ARGS__ --connect-timeout 5 --max-time 20 --retry 2 --retry-delay 2 -X POST "__PREPARE_FIRSTBOOT_URL__" >/dev/null && exit 0; elif command -v wget >/dev/null 2>&1; then wget -qO- --no-check-certificate --timeout=20 --post-data="" "__PREPARE_FIRSTBOOT_URL__" >/dev/null && exit 0; elif command -v python3 >/dev/null 2>&1; then python3 -c "import ssl,urllib.request; ctx=ssl._create_unverified_context(); req=urllib.request.Request(\"__PREPARE_FIRSTBOOT_URL__\", data=b\"\", method=\"POST\"); urllib.request.urlopen(req, timeout=20, context=ctx).read()" >/dev/null 2>&1 && exit 0; fi; sleep 5; done; exit 0'
+    - curtin in-target --target=/target -- sh -c 'for attempt in $(seq 1 20); do if command -v curl >/dev/null 2>&1; then curl -fsS __PREPARE_FIRSTBOOT_CURL_ARGS__ --connect-timeout 5 --max-time 20 --retry 2 --retry-delay 2 -X POST "__PREPARE_FIRSTBOOT_URL__" >/dev/null && exit 0; elif command -v wget >/dev/null 2>&1; then wget -qO- --no-check-certificate --timeout=20 --post-data="" "__PREPARE_FIRSTBOOT_URL__" >/dev/null && exit 0; elif command -v python3 >/dev/null 2>&1; then python3 -c "import ssl,urllib.request; ctx=ssl._create_unverified_context(); req=urllib.request.Request(\"__PREPARE_FIRSTBOOT_URL__\", data=b\"\", method=\"POST\"); urllib.request.urlopen(req, timeout=20, context=ctx).read()" >/dev/null 2>&1 && exit 0; fi; sleep 5; done; exit 0'

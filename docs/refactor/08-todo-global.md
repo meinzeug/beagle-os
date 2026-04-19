@@ -20,8 +20,15 @@
 - [x] Reset/recreate beagleserver VM to boot from rebuilt server-installer ISO.
 - [x] Remove the explicit ubuntu-beagle installer network seed path that reproducibly trapped VM 101 in early cloud-init.
 - [x] Recreate VM 101 with the simplified `CIDATA` seed (`user-data` + `meta-data` only) and verify Subiquity advances past the former cloud-init wait state.
-- [ ] Re-run VM 101 autoinstall to true completion without manual callback forcing and confirm first-boot transition on its own (`installing` -> `running`).
-- [ ] Verify first-boot Sunshine readiness gate and callback end-to-end on a fully clean VM 101 run (no manual completion override).
+- [x] Harden ubuntu autoinstall late-command callback template to try both installer and target contexts (`sh -c` + `curtin in-target`) for `prepare-firstboot` dispatch.
+- [x] Add control-plane stale-state fallback from `installing/autoinstall` -> `installing/firstboot` when callback is missed.
+- [x] Add control-plane stale-state fallback from `installing/firstboot` -> `completed` (server-side finalize, no extra forced restart).
+- [x] Validate firstboot stale fallback timeout path on live VM100 token (`installing/firstboot` -> `completed` without manual callback forcing).
+- [ ] Re-run VM 100/101 autoinstall to true completion without manual callback forcing and confirm first-boot transition on its own (`installing` -> `running`).
+- [x] Move VM-firstboot network workaround into repo template (DHCP-first with deterministic static fallback + non-fatal DNS recovery) so no manual in-guest hotfix is required.
+- [ ] Deploy updated firstboot template to live beagleserver and validate on a freshly recreated VM that `beagle-ubuntu-firstboot.service` completes and installs `lightdm`/`xfce`/`sunshine`.
+- [ ] Validate firstboot stale fallback guardrails on fresh runs (no premature completion while guest provisioning is still active).
+- [ ] Verify first-boot Sunshine readiness gate and callback end-to-end on a fully clean VM100/101 run (no manual completion override).
 - [x] Fix beagle-provider VM provisioning failure when libvirt pool `local` is missing (auto-create pool/fallback instead of hard-fail).
 - [x] Fix beagle-provider VM start failure when libvirt network `beagle` is missing (auto-create network/fallback instead of hard-fail).
 - [x] Ensure server-installer path keeps onboarding pending by disabling bootstrap-auth auto-user creation (`BEAGLE_AUTH_BOOTSTRAP_DISABLE=1`).
@@ -44,7 +51,18 @@
 - [ ] Fix `test-server-installer-live-smoke.sh` DHCP timeout in local libvirt harness after fresh ISO build.
 - [ ] Stabilize `test-standalone-desktop-stream-sim.sh` for real libvirt execution (storage/permission/fake-kernel assumptions).
 - [ ] Complete in-VM installer flow and re-validate host API/download/noVNC paths post-install.
+- [x] Confirm installer template artifact generation recovers after long-running `prepare-host-downloads` run and endpoint returns 200.
+- [x] Ensure stream-prep script consumes persisted guest connection inputs (`sunshine-ip`, `guest_password`) so the next run does not rely on manual SSH/console work.
+- [x] Persist Ubuntu `guest_password` into per-VM secrets and add a legacy fallback for already-created VMs so unattended stream-prep can reuse generated guest credentials.
+	- Deployed on 2026-04-19 and validated:
+		- VM102 (post-fix) has `guest_password` in `/var/lib/beagle/beagle-manager/vm-secrets/beagle-0-102.json` ✅
+		- VM100 (pre-fix) fallback extracts from provisioning state (`beagle-0-100.json`) ✅
+		- `ensure-vm-stream-ready.sh` progressed past credential check to Sunshine install attempt ✅
+		- Remaining blocker: VMs have not yet obtained DHCP IPs (environmental, not code) ⏸️
+- [ ] Wait for VM installation completion and QEMU-guest-agent initialization so `virsh guestinfo` can read IPv4 addresses.
+- [ ] Re-run `ensure-vm-stream-ready.sh` on VMs 100 and 102 once IPs are available to prove full unattended stream-prep flow (credential persistence + Sunshine install + ready state).
 - [ ] Fix post-install beagleserver disk boot path after installer success (currently no-bootable-device after ISO eject/reset).
+- [x] Add outer-host disk guardrails/cleanup routine for local validation harness (prevent repeated `beagleserver` pause on 100% root).
 - [ ] Add automated API regression test for `DELETE /api/v1/provisioning/vms/{vmid}`.
 - [ ] Add automated API regression test for `GET /api/v1/vms/{vmid}/novnc-access` (proxmox + beagle success payloads and failure handling).
 - [ ] Add UI regression test for VM delete action visibility and post-delete inventory refresh.

@@ -12,6 +12,7 @@ DESKTOP_SESSION="__DESKTOP_SESSION__"
 DESKTOP_PACKAGES="__DESKTOP_PACKAGES__"
 SOFTWARE_PACKAGES="__SOFTWARE_PACKAGES__"
 PACKAGE_PRESETS="__PACKAGE_PRESETS__"
+NETWORK_MAC="__NETWORK_MAC__"
 SUNSHINE_USER="__SUNSHINE_USER__"
 SUNSHINE_PASSWORD="__SUNSHINE_PASSWORD__"
 SUNSHINE_PORT="__SUNSHINE_PORT__"
@@ -117,6 +118,126 @@ fi
 
 install -d -m 0755 /var/lib/beagle
 
+ensure_network_connectivity() {
+  local iface=""
+  local static_ip=""
+  local static_cidr=""
+  local static_gateway="192.168.123.1"
+
+  iface="$(ip -o link show | awk -F': ' '$2 != "lo" {print $2; exit}')"
+  if [[ -z "$iface" ]]; then
+    return 1
+  fi
+
+  install -d -m 0755 /etc/netplan
+  python3 - "$iface" "$NETWORK_MAC" >/etc/netplan/01-beagle-dhcp.yaml <<'PY'
+import json
+import sys
+
+iface = sys.argv[1]
+mac = sys.argv[2].strip().lower()
+lines = [
+    "network:",
+    "  version: 2",
+    "  renderer: networkd",
+    "  ethernets:",
+    f"    {iface}:",
+]
+if mac:
+    lines.extend([
+        "      match:",
+        f"        macaddress: \"{mac}\"",
+        f"      set-name: {iface}",
+    ])
+lines.extend([
+    "      dhcp4: true",
+    "      dhcp6: false",
+])
+print("\n".join(lines) + "\n")
+PY
+  chmod 0600 /etc/netplan/01-beagle-dhcp.yaml
+
+  ip link set "$iface" up >/dev/null 2>&1 || true
+  systemctl enable --now systemd-networkd.service systemd-networkd-wait-online.service >/dev/null 2>&1 || true
+  netplan generate >/dev/null 2>&1 || true
+  netplan apply >/dev/null 2>&1 || true
+  networkctl reconfigure "$iface" >/dev/null 2>&1 || true
+
+  for _attempt in $(seq 1 25); do
+    if ip -4 -o addr show dev "$iface" scope global | grep -q 'inet '; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  # DHCP can fail in some host bridge setups during first boot.
+  # Fall back to a deterministic static address derived from the VM MAC.
+  static_ip="$(python3 - "$NETWORK_MAC" <<'PY'
+import sys
+
+mac = str(sys.argv[1] or "").strip().lower()
+parts = [p for p in mac.split(":") if p]
+octet = 0
+if len(parts) >= 6:
+    try:
+        octet = int(parts[-1], 16)
+    except ValueError:
+        octet = 0
+if octet < 2:
+    octet = 200
+print(f"192.168.123.{octet}")
+PY
+)"
+  static_cidr="${static_ip}/24"
+
+  python3 - "$iface" "$NETWORK_MAC" "$static_cidr" "$static_gateway" >/etc/netplan/01-beagle-static.yaml <<'PY'
+import sys
+
+iface = sys.argv[1]
+mac = sys.argv[2].strip().lower()
+cidr = sys.argv[3].strip()
+gateway = sys.argv[4].strip()
+lines = [
+    "network:",
+    "  version: 2",
+    "  renderer: networkd",
+    "  ethernets:",
+    f"    {iface}:",
+]
+if mac:
+    lines.extend([
+        "      match:",
+        f"        macaddress: \"{mac}\"",
+        f"      set-name: {iface}",
+    ])
+lines.extend([
+    f"      addresses: [{cidr}]",
+    "      routes:",
+    "        - to: default",
+    f"          via: {gateway}",
+    "      nameservers:",
+    "        addresses: [1.1.1.1,8.8.8.8]",
+    "      dhcp4: false",
+    "      dhcp6: false",
+])
+print("\n".join(lines) + "\n")
+PY
+  chmod 0600 /etc/netplan/01-beagle-static.yaml
+
+  netplan generate >/dev/null 2>&1 || true
+  netplan apply >/dev/null 2>&1 || true
+  networkctl reconfigure "$iface" >/dev/null 2>&1 || true
+
+  for _attempt in $(seq 1 20); do
+    if ip -4 -o addr show dev "$iface" scope global | grep -q 'inet '; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  return 1
+}
+
 ensure_dns_resolution() {
   local default_iface=""
 
@@ -167,7 +288,7 @@ apt_retry() {
       return 0
     fi
     sleep $((attempt * 5))
-    ensure_dns_resolution
+    ensure_dns_resolution || true
   done
   return 1
 }
@@ -332,7 +453,8 @@ wait_for_sunshine_ready() {
 }
 
 if [[ ! -f "$DONE_FILE" ]]; then
-  ensure_dns_resolution
+  ensure_network_connectivity || true
+  ensure_dns_resolution || true
   disable_cdrom_apt_sources
   repair_interrupted_dpkg
 

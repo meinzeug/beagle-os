@@ -62,3 +62,29 @@
 	- `scripts/test-standalone-desktop-stream-sim.sh` still depends on local libvirt host permissions/ownership and kernel boot semantics that differ between developer hosts.
 	- These are test-harness environment assumptions and should be hardened inside simulation scripts/services, not by introducing provider-specific behavior into generic HTTP/UI layers.
 
+- 2026-04-19 autoinstall callback follow-up:
+	- Callback robustness changes were applied only in generic ubuntu provisioning template [beagle-host/templates/ubuntu-beagle/user-data.tpl](beagle-host/templates/ubuntu-beagle/user-data.tpl).
+	- Added dual-context callback dispatch (`installer` and `curtin in-target`) without introducing any provider-specific API calls or Proxmox coupling.
+	- Provider boundary remains unchanged: callback endpoint is still served by generic control-plane HTTP surface, and provider implementations remain isolated in `providers/*`.
+
+- 2026-04-19 firstboot stall mitigation follow-up:
+	- Additional stale-state lifecycle fallback was added in [beagle-host/bin/beagle-control-plane.py](beagle-host/bin/beagle-control-plane.py) for `installing/firstboot` timeout handling.
+	- The fallback uses existing provider-neutral orchestration (`finalize_ubuntu_beagle_install(..., restart=False)` and state persistence helpers), not provider-specific direct API calls.
+	- No new direct Proxmox coupling (`qm`, `pvesh`, `/api2/json`, `PVE.*`) was introduced.
+	- Live VM100 validation confirmed automatic timeout transition to `completed` after stale threshold was reached, with persisted cleanup metadata (`restart=guest-reboot`).
+	- Residual risk remains functional (possible premature completion if timeout is set too low), not architectural/provider-boundary coupling.
+
+- 2026-04-19 guest-password secret persistence follow-up:
+	- Secret persistence fix was applied to provider-neutral VM provisioning orchestration:
+		- Modified [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py) `_save_vm_secret()` call to include `guest_password` and `password` fields at VM creation time.
+		- Modified [beagle-host/services/vm_http_surface.py](beagle-host/services/vm_http_surface.py) credentials endpoint to expose `guest_password` in generic credentials payload.
+		- Both changes operate through provider-neutral service contracts, not provider-specific APIs.
+	- Fallback credential extraction for pre-fix VMs was added to generic stream-ready script:
+		- New function `latest_ubuntu_state_credential()` in [scripts/ensure-vm-stream-ready.sh](scripts/ensure-vm-stream-ready.sh) queries provisioning state files.
+		- Fallback gracefully handles VMs created before secret persistence fix without requiring provider-specific remediation paths.
+		- No new direct Proxmox coupling (`qm`, `pvesh`, `/api2/json`, `PVE.*`) was introduced.
+	- Validation on live beagleserver confirmed:
+		- VM102 (post-fix): guest_password persisted in generic vm-secrets JSON ✅
+		- VM100 (pre-fix): fallback successfully extracted guest_password from provisioning state ✅
+		- Stream-ready workflow progressed past credential retrieval barrier to Sunshine installation attempt ✅
+

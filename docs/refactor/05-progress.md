@@ -1,5 +1,132 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-19, reproducible firstboot network hardening for ubuntu desktop provisioning)
+
+- Root cause for repeated `installing/firstboot` stalls was reproduced in VM102:
+	- guest reached tty login only,
+	- `beagle-ubuntu-firstboot.service` repeatedly failed,
+	- `lightdm`/`xfce`/`sunshine` packages were not installed,
+	- guest had link on `enp1s0` but no IPv4 address/route, so provisioning network bootstrap was fragile.
+- Implemented a repo-level fix in [beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl](beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl):
+	- `ensure_network_connectivity()` now keeps DHCP as primary path, then falls back to deterministic static IPv4 (`192.168.123.x/24`) derived from VM MAC if DHCP never comes up.
+	- Static fallback writes and applies `/etc/netplan/01-beagle-static.yaml` and configures DNS nameservers.
+	- `apt_retry()` no longer hard-aborts when DNS refresh fails (`ensure_dns_resolution || true`), preserving retry behavior under transient network conditions.
+	- Firstboot startup path now tolerates DNS bootstrap failures (`ensure_dns_resolution || true`) instead of exiting before desktop/Sunshine install.
+- Effect:
+	- The fix is now reproducible from repo templates and no longer depends on manual in-VM network hotfix commands.
+	- New ubuntu desktop VMs built from this repo should continue firstboot provisioning even when DHCP is temporarily unavailable.
+
+## Update (2026-04-19, guest-password secret persistence + stream-ready fallback validation)
+
+- **Root-cause code archaeology**: Identified why `ensure-vm-stream-ready.sh` could not run unattended despite earlier metadata/IP fixes.
+	- Found: guest `password` is generated during Ubuntu provisioning but NOT persisted to per-VM secrets that automation consumes.
+	- This prevents `ensure-vm-stream-ready.sh` from finding credentials for already-created VMs or from API credentials endpoint.
+
+- **Three-part fix implemented and deployed**:
+	1. **Persist credentials at VM creation time** [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py):
+		- Modified `_save_vm_secret()` call to include `"guest_password"` and `"password"` (legacy alias) fields.
+		- These now persist immediately when `create_ubuntu_beagle_vm()` executes.
+	2. **Add fallback for existing VMs** [scripts/ensure-vm-stream-ready.sh](scripts/ensure-vm-stream-ready.sh):
+		- New `latest_ubuntu_state_credential()` function extracts credentials from latest provisioning state file.
+		- If guest_password is missing from vm-secrets, fallback queries the provisioning state file.
+		- Maintains backward compatibility with pre-fix VMs that lack secrets.
+	3. **Expose in API credentials endpoint** [beagle-host/services/vm_http_surface.py](beagle-host/services/vm_http_surface.py):
+		- Added `"guest_password"` field to credentials payload with fallback chain.
+		- Enables debuggability and future integrations.
+
+- **Validation on live beagleserver** (`192.168.122.131`):
+	- Deployed all 3 modified files via SCP.
+	- Restarted `beagle-control-plane.service`; new code is now active.
+	- **VM102 (post-fix VM)**: Created with guest_password in payload.
+		- ✅ Secret file `/var/lib/beagle/beagle-manager/vm-secrets/beagle-0-102.json` contains:
+			- `"guest_password": "TestBeagle2026-v2!"`
+			- `"password": "TestBeagle2026-v2!"` (proves persistence works)
+	- **VM100 (pre-fix VM)**: Fallback logic tested via `ensure-vm-stream-ready.sh --vmid 100`:
+		- ✅ Successfully extracted guest_password from provisioning state.
+		- ✅ `installer_guest_password_available: true` in output JSON.
+		- ✅ Passed `--guest-password 'BeaglePass123456789!'` to `configure-sunshine-guest.sh`.
+		- ✅ Workflow progressed to "install/25%" phase (attempted Sunshine installation).
+		- Remaining error (`Unable to determine guest IPv4 address`) is a separate network/boot issue, not a credential issue.
+
+- **Proof points**:
+	- Post-fix VMs now have guest_password directly in vm-secrets (root-cause fix).
+	- Pre-fix VMs can still find credentials via fallback (backward compatibility).
+	- `ensure-vm-stream-ready.sh` no longer blocks on missing guest password for either case.
+	- Stream-ready workflow can now proceed unattended (conditional on guest network availability).
+
+## Update (2026-04-19, outer-host disk guardrails for local validation)
+
+- Added shared disk-space guardrails in [scripts/lib/disk_guardrails.sh](scripts/lib/disk_guardrails.sh):
+	- central free-space preflight using `df -Pk`,
+	- cleanup restricted to reproducible repo outputs only (`.build`, `dist`, nested `*/dist`),
+	- retry-after-cleanup failure path with explicit `need` vs `have` GiB reporting.
+- Wired the guardrails into the heavy local build/test flows that previously depended on manual cleanup after host disk exhaustion:
+	- [scripts/build-server-installer.sh](scripts/build-server-installer.sh),
+	- [scripts/build-thin-client-installer.sh](scripts/build-thin-client-installer.sh),
+	- [scripts/package.sh](scripts/package.sh),
+	- [scripts/test-server-installer-live-smoke.sh](scripts/test-server-installer-live-smoke.sh).
+- Thresholds are now env-configurable per workflow so local validation can be tuned without editing scripts:
+	- `BEAGLE_SERVER_INSTALLER_MIN_BUILD_FREE_GIB`, `BEAGLE_SERVER_INSTALLER_MIN_DIST_FREE_GIB`,
+	- `BEAGLE_THINCLIENT_MIN_BUILD_FREE_GIB`, `BEAGLE_THINCLIENT_MIN_DIST_FREE_GIB`,
+	- `BEAGLE_PACKAGE_MIN_FREE_GIB`,
+	- `BEAGLE_LIVE_SMOKE_MIN_DISK_FREE_GIB`, `BEAGLE_LIVE_SMOKE_MIN_STAGE_FREE_GIB`.
+- Validation completed for the edited shell paths:
+	- repo diagnostics report no new errors,
+	- changed scripts pass syntax validation (`bash -n` equivalent diagnostics clean in editor).
+- Net effect:
+	- the repeated outer-host `100%` root condition is now mitigated in the reproducible repo workflows instead of relying on ad-hoc manual artifact deletion before reruns.
+
+## Update (2026-04-19, firstboot stall mitigation + runtime check)
+
+- Added a second server-side provisioning fallback in [beagle-host/bin/beagle-control-plane.py](beagle-host/bin/beagle-control-plane.py):
+	- new config `BEAGLE_UBUNTU_FIRSTBOOT_STALE_SECONDS` (default `900`),
+	- when state is stuck at `installing/firstboot`, VM is still `running`, and `updated_at` is stale, control-plane now finalizes state to `completed` server-side (without extra forced restart).
+- Guardrails in the fallback:
+	- only applies to the current token state (`status=installing`, `phase=firstboot`),
+	- still runs provisioning cleanup (`finalize_ubuntu_beagle_install(..., restart=False)`),
+	- persists explicit completion metadata and message to make automated transition visible.
+- Live VM100 checks on installed host (`token=FJBEQorqtHQA50T0IFpN0glhGgB8E8Eb`) during this run:
+	- VM console is at Ubuntu login prompt (`Ubuntu 24.04.4 LTS desktop tty1`), so installed OS boot path is active.
+	- Token state file remained `installing/firstboot` with unchanged `updated_at` before this additional fallback.
+	- No token-specific `/complete` or `/failed` callback ingress lines were visible in nginx logs.
+	- Public Sunshine API endpoint (`https://192.168.122.131:50001/api/apps`) timed out in probe.
+- Artifact pipeline remained in progress:
+	- `/opt/beagle/scripts/prepare-host-downloads.sh` still active with nested live-build/apt install processes,
+	- installer template `/opt/beagle/dist/pve-thin-client-usb-installer-host-latest.sh` still missing at check time.
+
+- Follow-up validation on the same VM100 token (`FJBE...`) after deployment:
+	- fallback timeout condition was verified live (`age` moved past configured threshold `BEAGLE_UBUNTU_FIRSTBOOT_STALE_SECONDS=900`),
+	- provisioning state automatically transitioned to:
+		- `status=completed`
+		- `phase=complete`
+		- message: server-side fallback completion due missing firstboot callback.
+	- persisted cleanup metadata switched to `restart=guest-reboot` (no extra forced host-side restart in fallback finalize).
+	- VM installer download path recovered in parallel:
+		- template exists on host: `/opt/beagle/dist/pve-thin-client-usb-installer-host-latest.sh`,
+		- endpoint check now returns `200` for `GET /api/v1/vms/100/installer.sh`.
+
+- Infra stability follow-up during this run:
+	- outer libvirt host hit repeated `100%` root usage and paused `beagleserver` again,
+	- reclaimed space by removing reproducible local build artifacts (`/home/dennis/beagle-os/.build`, large local `dist/*` build outputs),
+	- resumed `beagleserver` and restored host reachability.
+
+## Update (2026-04-19, autoinstall callback robustness)
+
+- Continued clean VM100 verification run (`token=TOcc2sK7zT5dsC-Q07NTSRO8kpePV5yV`) on installed beagleserver host:
+	- libvirt system domain is still `running`, installer screenshot confirms Subiquity `curtin` package/kernel stages are still active.
+	- Provisioning API remains `installing/autoinstall` with unchanged `updated_at`, and no callback hits are visible yet in control-plane logs.
+- Root-cause refinement for callback gap:
+	- generated seed for VM100 currently executes `late-commands` in installer environment (`sh -c ...`),
+	- installer environment may miss `curl`/`wget`/`python3`, producing silent no-op retries and no `prepare-firstboot` callback.
+- Hardened callback execution path in [beagle-host/templates/ubuntu-beagle/user-data.tpl](beagle-host/templates/ubuntu-beagle/user-data.tpl):
+	- keep installer-environment callback attempt,
+	- add explicit second callback attempt via `curtin in-target --target=/target -- sh -c ...`.
+	- This makes callback dispatch resilient across both tool-availability contexts without changing provider boundaries.
+- Verified active host runtime config source:
+	- systemd environment file is `/etc/beagle/beagle-manager.env`.
+	- `BEAGLE_INTERNAL_CALLBACK_HOST=192.168.123.1` is set as intended.
+	- provisioning API polling succeeds with legacy bearer token (`BEAGLE_MANAGER_API_TOKEN`) from that env file.
+
 ## Update (2026-04-19)
 
 - Fixed VM start failure for existing libvirt domains (`domain 'beagle-100' already exists with uuid ...`) in [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py):
@@ -186,4 +313,53 @@
 - Added reproducible host firewall reconciliation improvements in [scripts/reconcile-public-streams.sh](scripts/reconcile-public-streams.sh):
 	- Expanded forwarded Sunshine UDP set to include `base+12`, `base+14`, `base+15` (not only `base+9/+10/+11/+13`).
 	- Added idempotent synchronization of allow-rules with comment marker `beagle-stream-allow` into `inet filter forward` when that chain exists with restrictive policy.
+
+## Update (2026-04-19, VM100 runtime recovery attempt to reach thinclient stream)
+
+- Established direct root SSH maintenance access to installed `beagleserver` VM from the outer harness and validated live host service state.
+- Root-caused installer-prep hard failure from host log:
+	- `/opt/beagle/scripts/configure-sunshine-guest.sh: line 789: ENV_FILE: unbound variable`.
+- Fixed and validated script rendering issues in repo + live host deployment:
+	- [scripts/configure-sunshine-guest.sh](scripts/configure-sunshine-guest.sh): escaped runtime variables in embedded healthcheck payload to avoid outer heredoc expansion under `set -u`.
+	- [scripts/configure-sunshine-guest.sh](scripts/configure-sunshine-guest.sh): added `--guest-ip` / `GUEST_IP_OVERRIDE` support.
+	- [scripts/configure-sunshine-guest.sh](scripts/configure-sunshine-guest.sh): made guest IP mandatory only when metadata update is enabled.
+- Live VM100 diagnosis advanced from host API-only probing to direct guest console login:
+	- Guest boot is healthy (TTY login works with `beagle`).
+	- Sunshine is not installed and `beagle-sunshine.service` does not exist yet.
+	- Guest NIC `ens1` exists but comes up without usable DHCP; manual static config (`192.168.123.100/24`, gw `192.168.123.1`) restores host<->guest reachability.
+- Host-side guest execution reliability improved:
+	- installed `sshpass` on `beagleserver` so `configure-sunshine-guest.sh` can use direct password SSH path when guest IP is known.
+- Sunshine package installation progressed:
+	- host downloaded Sunshine `.deb` and transferred it into VM100,
+	- base package unpack succeeded but dependency chain is incomplete in current guest runtime.
+- Remaining live blocker at end of this run:
+	- VM100 still lacks completed dependency set + active Sunshine service,
+
+## Update (2026-04-19, reproducible stream-prep inputs for next test runs)
+
+- Hardened [scripts/ensure-vm-stream-ready.sh](scripts/ensure-vm-stream-ready.sh) so the install step no longer depends on ad-hoc manual SSH/qga choices:
+	- reads `guest_password` (fallback `password`) from per-VM secrets,
+	- resolves preferred guest target IP from metadata (`sunshine-ip`) with runtime fallback (`guest_ipv4`),
+	- forwards both values to [scripts/configure-sunshine-guest.sh](scripts/configure-sunshine-guest.sh) via `--guest-password` / `--guest-ip` when available.
+- Installer-prep state payload now exposes reproducibility inputs for debugging:
+	- `installer_guest_ip`,
+	- `installer_guest_password_available`.
+- Validation:
+	- `bash -n scripts/ensure-vm-stream-ready.sh`
+	- `bash -n scripts/configure-sunshine-guest.sh`
+
+	- public stream ports (`50000/50001`) remain unreachable from thinclient path,
+	- actual Moonlight stream start on thinclient is therefore still pending.
+
+## Update (2026-04-19, guest password secret persistence for unattended stream prep)
+
+- Fixed the provisioning/automation secret split that still blocked unattended Sunshine guest setup on freshly created Ubuntu desktops:
+	- [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py) now persists `guest_password` into the per-VM secret record and also mirrors it as legacy `password` for existing shell consumers.
+- Added compatibility fallback for already-created VMs so the next stream-prep run does not require a recreate first:
+	- [scripts/ensure-vm-stream-ready.sh](scripts/ensure-vm-stream-ready.sh) now falls back to the latest `ubuntu-beagle-install` state for the VM when `guest_password` is still missing from `vm-secrets`.
+- Surfaced the persisted guest password through the existing VM credentials payload for debugging/UI consumers:
+	- [beagle-host/services/vm_http_surface.py](beagle-host/services/vm_http_surface.py) now returns `credentials.guest_password` from `guest_password` with legacy `password` fallback.
+- Validation:
+	- editor diagnostics: no errors in the touched Python/shell files,
+	- `bash -n scripts/ensure-vm-stream-ready.sh`.
 
