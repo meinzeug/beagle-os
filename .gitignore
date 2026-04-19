@@ -1,6 +1,8 @@
 dist/
 .build/
 .DS_Store
+/AGENTS.md
+/CLAUDE.md
 *.swp
 *.swo
 *.tmp
