@@ -35,7 +35,8 @@ class VmConsoleAccessService:
 
     @staticmethod
     def _libvirt_vnc_port(vmid: int, domain_name: str | None = None) -> int | None:
-        domain = str(domain_name or "").strip() or f"beagle-{int(vmid)}"
+        default_domain = f"beagle-{int(vmid)}"
+        domain = str(domain_name or "").strip() or default_domain
         result = subprocess.run(
             ["virsh", "--connect", "qemu:///system", "vncdisplay", domain],
             capture_output=True,
@@ -43,6 +44,17 @@ class VmConsoleAccessService:
             timeout=8,
             check=False,
         )
+        # If the display name doesn't match the libvirt domain, retry with the
+        # canonical beagle-{vmid} pattern (vm.name is the display name, not the
+        # libvirt domain name).
+        if result.returncode != 0 and domain != default_domain:
+            result = subprocess.run(
+                ["virsh", "--connect", "qemu:///system", "vncdisplay", default_domain],
+                capture_output=True,
+                text=True,
+                timeout=8,
+                check=False,
+            )
         if result.returncode != 0:
             return None
         display = str(result.stdout or "").strip()
