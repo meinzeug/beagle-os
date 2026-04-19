@@ -201,6 +201,12 @@ sunshine_guest_status_json() {
   beagle_provider_guest_exec_sync_bash "$VMID" "$command"
 }
 
+repair_sunshine_guest_runtime() {
+  local command
+  command='if command -v /usr/local/bin/beagle-sunshine-healthcheck >/dev/null 2>&1; then /usr/local/bin/beagle-sunshine-healthcheck --repair-only >/dev/null 2>&1 || true; else systemctl daemon-reload >/dev/null 2>&1 || true; systemctl enable --now beagle-sunshine.service >/dev/null 2>&1 || true; systemctl restart beagle-sunshine.service >/dev/null 2>&1 || true; fi; binary=0; service=0; process=0; command -v sunshine >/dev/null 2>&1 && binary=1; (systemctl is-active sunshine >/dev/null 2>&1 || systemctl is-active beagle-sunshine.service >/dev/null 2>&1) && service=1; pgrep -x sunshine >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
+  beagle_provider_guest_exec_sync_bash "$VMID" "$command"
+}
+
 guest_ipv4() {
   beagle_provider_guest_ipv4 "$VMID"
 }
@@ -335,6 +341,51 @@ base["sunshine_status"] = {
 print(json.dumps(base))
 PY
 )"
+
+  if python3 - "$sunshine_status_json" <<'PY'
+import json, sys
+payload=json.loads(sys.argv[1])
+raise SystemExit(0 if payload.get('binary') and not payload.get('service') else 1)
+PY
+  then
+  write_state running repair 20 "Sunshine ist installiert, aber der Dienst ist inaktiv. Reparatur wird versucht." "$verify_extra_json"
+  sunshine_status_raw="$(repair_sunshine_guest_runtime)"
+  sunshine_status_json="$(python3 - "$sunshine_status_raw" <<'PY'
+import json, sys
+raw=sys.argv[1].strip()
+if not raw:
+  print('{"binary":0,"service":0,"process":0}')
+  raise SystemExit(0)
+try:
+  payload=json.loads(raw)
+except Exception:
+  payload={"binary":0,"service":0,"process":0}
+out=payload.get('out-data','') if isinstance(payload,dict) else ''
+try:
+  if out:
+    inner=json.loads(out.strip().splitlines()[-1])
+  else:
+    inner={"binary":0,"service":0,"process":0}
+except Exception:
+  inner={"binary":0,"service":0,"process":0}
+print(json.dumps(inner))
+PY
+)"
+  verify_extra_json="$(python3 - "$extra_json" "$sunshine_status_json" <<'PY'
+import json
+import sys
+
+base = json.loads(sys.argv[1])
+status = json.loads(sys.argv[2])
+base["sunshine_status"] = {
+  "binary": bool(status.get("binary")),
+  "service": bool(status.get("service")),
+  "process": bool(status.get("process")),
+}
+print(json.dumps(base))
+PY
+)"
+  fi
 
   if python3 - "$sunshine_status_json" <<'PY'
 import json, sys

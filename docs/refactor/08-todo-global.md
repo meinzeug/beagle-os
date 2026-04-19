@@ -11,15 +11,29 @@
 - [x] Implement beagle-provider noVNC backend path (libvirt VNC discovery + tokenized websockify + nginx route).
 - [x] Harden install flow so required dist artifacts are mandatory (no warning-only continue on missing installer assets).
 - [x] Rebuild server installer ISO from current workspace changes.
+- [x] Fix installer chroot host-stack failure `libvirt qemu:///system is not ready` in `scripts/install-beagle-host-services.sh`.
+- [x] Rebuild server installer ISO after libvirt/chroot fix and verify fresh checksum.
+- [x] Re-run real installer flow and verify it passes `Installing Beagle host stack...` to `Installing bootloader...` and reaches `Installation complete` dialog.
 - [x] Reset/recreate beagleserver VM to boot from rebuilt server-installer ISO.
 - [x] Remove the explicit ubuntu-beagle installer network seed path that reproducibly trapped VM 101 in early cloud-init.
 - [x] Recreate VM 101 with the simplified `CIDATA` seed (`user-data` + `meta-data` only) and verify Subiquity advances past the former cloud-init wait state.
 - [ ] Re-run VM 101 autoinstall to true completion without manual callback forcing and confirm first-boot transition on its own.
 - [ ] Verify first-boot Sunshine readiness gate and callback end-to-end on a fully clean VM 101 run (no manual completion override).
+- [ ] Validate new Moonlight app-name resolver against Sunshine `/api/apps` so `failed to find Application Desktop` is no longer reproducible on VM 101.
+- [x] Add reproducible Sunshine guest service self-heal in repo provisioning (automatic restart on crash/stop).
+- [ ] Validate Sunshine self-heal timer (`beagle-sunshine-healthcheck.timer`) on VM reboot and forced crash (`pkill sunshine`).
 - [ ] Rebuild thin-client installer payload/bootstrap with patched non-interactive target-disk selection and rerun thinclient install.
 - [ ] Redeploy patched provider start/redefine behavior on installed beagleserver host and recreate VM 101 to remove stale-domain autoinstall loop risk.
-- [ ] Install beaglethinclient against the successfully provisioned VM 101 and verify Moonlight streaming end-to-end.
+- [x] Install beaglethinclient against the successfully provisioned VM 101 and verify Moonlight streaming end-to-end.
+- [x] Diagnose and fix RTSP handshake abort (`sessionUrl0` internal VM IP + host forward policy mismatch).
+- [x] Expose Live-USB creator download action in Beagle Web Console endpoint detail flow.
+- [x] Harden provisioning catalog bridge default fallback to discovered bridge inventory.
+- [x] Rebuild server installer ISO artifact in current workspace (2026-04-19 run).
+- [ ] Validate stream persistence across full reboot without manual firewall/route intervention.
+- [ ] Fix `test-server-installer-live-smoke.sh` DHCP timeout in local libvirt harness after fresh ISO build.
+- [ ] Stabilize `test-standalone-desktop-stream-sim.sh` for real libvirt execution (storage/permission/fake-kernel assumptions).
 - [ ] Complete in-VM installer flow and re-validate host API/download/noVNC paths post-install.
+- [ ] Fix post-install beagleserver disk boot path after installer success (currently no-bootable-device after ISO eject/reset).
 - [ ] Add automated API regression test for `DELETE /api/v1/provisioning/vms/{vmid}`.
 - [ ] Add automated API regression test for `GET /api/v1/vms/{vmid}/novnc-access` (proxmox + beagle success payloads and failure handling).
 - [ ] Add UI regression test for VM delete action visibility and post-delete inventory refresh.

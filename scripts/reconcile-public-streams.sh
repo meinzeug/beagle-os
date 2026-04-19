@@ -248,7 +248,10 @@ if public_ips:
             base + 9: base + 9,
             base + 10: base + 10,
             base + 11: base + 11,
+            base + 12: base + 12,
             base + 13: base + 13,
+            base + 14: base + 14,
+            base + 15: base + 15,
         }
         for public_port, guest_port in tcp_ports.items():
             print(f"    ip daddr {daddr_expr} tcp dport {public_port} dnat to {guest_ip}:{guest_port}")
@@ -261,7 +264,7 @@ for item in inventory:
     guest_ip = item["guest_ip"]
     base = int(item["base_port"])
     print(f"    oifname \"{lan_iface}\" ip daddr {guest_ip} tcp dport {{ {base - 5}, {base}, {base + 1}, {base + 21} }} accept")
-    print(f"    oifname \"{lan_iface}\" ip daddr {guest_ip} udp dport {{ {base + 9}, {base + 10}, {base + 11}, {base + 13} }} accept")
+    print(f"    oifname \"{lan_iface}\" ip daddr {guest_ip} udp dport {{ {base + 9}, {base + 10}, {base + 11}, {base + 12}, {base + 13}, {base + 14}, {base + 15} }} accept")
 print("  }")
 print("}")
 PY
@@ -269,6 +272,45 @@ PY
 sysctl -w net.ipv4.ip_forward=1 >/dev/null
 nft delete table inet "$NFT_TABLE_NAME" >/dev/null 2>&1 || true
 nft -f "$nft_tmp"
+
+if nft list chain inet filter forward >/dev/null 2>&1; then
+    while read -r handle; do
+        [[ -n "$handle" ]] || continue
+        nft delete rule inet filter forward handle "$handle" >/dev/null 2>&1 || true
+    done < <(nft -a list chain inet filter forward | awk '/beagle-stream-allow/ {print $NF}')
+
+    while read -r guest_ip base; do
+        [[ -n "$guest_ip" && -n "$base" ]] || continue
+        nft add rule inet filter forward \
+            oifname "$LAN_IFACE" ip daddr "$guest_ip" \
+            tcp dport "{ $((base - 5)), $base, $((base + 1)), $((base + 21)) }" \
+            ct state new accept comment "beagle-stream-allow"
+        nft add rule inet filter forward \
+            iifname "$LAN_IFACE" ip saddr "$guest_ip" \
+            tcp sport "{ $((base - 5)), $base, $((base + 1)), $((base + 21)) }" \
+            accept comment "beagle-stream-allow"
+        nft add rule inet filter forward \
+            oifname "$LAN_IFACE" ip daddr "$guest_ip" \
+            udp dport "{ $((base + 9)), $((base + 10)), $((base + 11)), $((base + 12)), $((base + 13)), $((base + 14)), $((base + 15)) }" \
+            accept comment "beagle-stream-allow"
+        nft add rule inet filter forward \
+            iifname "$LAN_IFACE" ip saddr "$guest_ip" \
+            udp sport "{ $((base + 9)), $((base + 10)), $((base + 11)), $((base + 12)), $((base + 13)), $((base + 14)), $((base + 15)) }" \
+            accept comment "beagle-stream-allow"
+    done < <(python3 - "$inventory_file" <<'PY'
+import json
+import sys
+
+items = json.load(open(sys.argv[1], encoding='utf-8'))
+for item in items:
+        guest_ip = str(item.get('guest_ip') or '').strip()
+        base = int(item.get('base_port') or 0)
+        if guest_ip and base > 0:
+                print(f"{guest_ip} {base}")
+PY
+)
+fi
+
 install -D -m 0644 "$nft_tmp" "$NFT_STATE_FILE"
 
 echo "Reconciled Beagle public streams for host $PUBLIC_STREAM_HOST"

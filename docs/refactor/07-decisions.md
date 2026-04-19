@@ -123,3 +123,9 @@ Stand: 2026-04-13
 - Grund: Ohne diese Artefakte liefern VM-spezifische Wrapper-Endpunkte (`/vms/<vmid>/installer.sh`) auf frischen Hosts 503 oder unvollstaendige Payloads.
 - Datei: `scripts/install-beagle-host.sh`.
 
+## D-029: Host-Service-Installer darf in Installer-Chroot kein Live-libvirt erzwingen
+- Entscheidung: `scripts/install-beagle-host-services.sh` unterscheidet zwischen live-managebarer libvirt-Systemumgebung und chroot/offline Installationskontext; runtime-nahe libvirt waits/provisioning (`wait_for_libvirt_system`, `virsh net/pool`) werden nur in live Kontexten ausgefuehrt.
+- Grund: Frische Server-ISO Installationen brachen im chroot-Host-Stack-Schritt reproduzierbar mit `libvirt qemu:///system is not ready` ab, obwohl der Schritt nur Zielsystem-Datei/Service-Provisioning benoetigte.
+- Wirkung: Installer kann den Host-Stack im chroot zu Ende provisionieren; Live-libvirt Initialisierung bleibt fuer den gebooteten Hostpfad erhalten.
+- Datei: `scripts/install-beagle-host-services.sh`.
+

@@ -27,6 +27,8 @@ SUNSHINE_PIN="${SUNSHINE_PIN:-}"
 SUNSHINE_PORT="${SUNSHINE_PORT:-}"
 SUNSHINE_URL="${SUNSHINE_URL:-https://github.com/LizardByte/Sunshine/releases/download/v2025.924.154138/sunshine-ubuntu-24.04-amd64.deb}"
 SUNSHINE_ORIGIN_WEB_UI_ALLOWED="${SUNSHINE_ORIGIN_WEB_UI_ALLOWED:-wan}"
+SUNSHINE_HEALTHCHECK_INTERVAL_SEC="${SUNSHINE_HEALTHCHECK_INTERVAL_SEC:-45}"
+SUNSHINE_HEALTHCHECK_BOOT_DELAY_SEC="${SUNSHINE_HEALTHCHECK_BOOT_DELAY_SEC:-90}"
 PUBLIC_STREAM_HOST_RAW="${PUBLIC_STREAM_HOST:-}"
 UPDATE_METADATA="${UPDATE_METADATA:-1}"
 VM_REBOOT="${VM_REBOOT:-1}"
@@ -412,6 +414,8 @@ SUNSHINE_PASSWORD='${SUNSHINE_PASSWORD}'
 SUNSHINE_PORT='${SUNSHINE_PORT}'
 SUNSHINE_URL='${SUNSHINE_URL}'
 SUNSHINE_ORIGIN_WEB_UI_ALLOWED='${SUNSHINE_ORIGIN_WEB_UI_ALLOWED}'
+SUNSHINE_HEALTHCHECK_INTERVAL_SEC='${SUNSHINE_HEALTHCHECK_INTERVAL_SEC}'
+SUNSHINE_HEALTHCHECK_BOOT_DELAY_SEC='${SUNSHINE_HEALTHCHECK_BOOT_DELAY_SEC}'
 
 configure_system_locale() {
   local locale="\${IDENTITY_LOCALE:-de_DE.UTF-8}"
@@ -629,6 +633,7 @@ cat > /etc/systemd/system/beagle-sunshine.service <<SUNSHINESVC
 Description=Beagle Sunshine
 After=network-online.target display-manager.service graphical.target sound.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -644,11 +649,117 @@ Environment=PULSE_SERVER=unix:/run/user/\$GUEST_UID/pulse/native
 ExecStartPre=/bin/bash -lc 'pulse_socket="/run/user/\$GUEST_UID/pulse/native"; for _ in {1..180}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/\$GUEST_USER/.Xauthority && -d /run/user/\$GUEST_UID && -S /run/user/\$GUEST_UID/bus && -S "\\\$pulse_socket" ]] && DISPLAY=:0 XAUTHORITY=/home/\$GUEST_USER/.Xauthority xrandr --query >/dev/null 2>&1 && DISPLAY=:0 XAUTHORITY=/home/\$GUEST_USER/.Xauthority xrandr --query | grep -q " connected"; then sleep 5; exit 0; fi; sleep 1; done; echo "Timed out waiting for an active graphical/audio session on :0" >&2; exit 1'
 ExecStart=/usr/bin/sunshine
 Restart=always
-RestartSec=2
+RestartSec=3
+TimeoutStartSec=210
 
 [Install]
 WantedBy=graphical.target
 SUNSHINESVC
+
+install -d -m 0755 /etc/beagle
+cat > /etc/beagle/sunshine-healthcheck.env <<HEALTHENV
+SUNSHINE_USER=\$SUNSHINE_USER
+SUNSHINE_PASSWORD=\$SUNSHINE_PASSWORD
+SUNSHINE_PORT=\$SUNSHINE_PORT
+GUEST_USER=\$GUEST_USER
+GUEST_UID=\$GUEST_UID
+HEALTHENV
+chmod 0600 /etc/beagle/sunshine-healthcheck.env
+
+cat > /usr/local/bin/beagle-sunshine-healthcheck <<'HEALTHCHECK'
+#!/usr/bin/env bash
+set -euo pipefail
+
+ENV_FILE="/etc/beagle/sunshine-healthcheck.env"
+[[ -r "$ENV_FILE" ]] || exit 1
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+
+SUNSHINE_USER="${SUNSHINE_USER:-sunshine}"
+SUNSHINE_PASSWORD="${SUNSHINE_PASSWORD:-}"
+SUNSHINE_PORT="${SUNSHINE_PORT:-}"
+GUEST_USER="${GUEST_USER:-beagle}"
+GUEST_UID="${GUEST_UID:-$(id -u "$GUEST_USER" 2>/dev/null || echo 1000)}"
+
+repair="${1:-}"
+api_port=47990
+if [[ -n "$SUNSHINE_PORT" ]]; then
+  api_port="$((SUNSHINE_PORT + 1))"
+fi
+
+ensure_runtime() {
+  local runtime_dir="/run/user/${GUEST_UID}"
+  if [[ ! -d "$runtime_dir" ]]; then
+    loginctl enable-linger "$GUEST_USER" >/dev/null 2>&1 || true
+  fi
+}
+
+restart_stack() {
+  ensure_runtime
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  systemctl enable beagle-sunshine.service >/dev/null 2>&1 || true
+  systemctl restart beagle-sunshine.service >/dev/null 2>&1 || true
+}
+
+ensure_timer() {
+  systemctl enable --now beagle-sunshine-healthcheck.timer >/dev/null 2>&1 || true
+}
+
+is_api_ready() {
+  [[ -n "$SUNSHINE_PASSWORD" ]] || return 1
+  curl -kfsS --connect-timeout 3 --max-time 5 \
+    --user "${SUNSHINE_USER}:${SUNSHINE_PASSWORD}" \
+    "https://127.0.0.1:${api_port}/api/apps" >/dev/null
+}
+
+ensure_timer
+
+if [[ "$repair" == "--repair-only" ]]; then
+  restart_stack
+  exit 0
+fi
+
+if ! systemctl is-active --quiet beagle-sunshine.service; then
+  restart_stack
+  exit 0
+fi
+
+if ! pgrep -x sunshine >/dev/null 2>&1; then
+  restart_stack
+  exit 0
+fi
+
+if ! is_api_ready; then
+  restart_stack
+fi
+HEALTHCHECK
+chmod 0755 /usr/local/bin/beagle-sunshine-healthcheck
+
+cat > /etc/systemd/system/beagle-sunshine-healthcheck.service <<'HEALTHSVC'
+[Unit]
+Description=Beagle Sunshine Healthcheck and Repair
+After=network-online.target beagle-sunshine.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/beagle-sunshine-healthcheck
+HEALTHSVC
+
+cat > /etc/systemd/system/beagle-sunshine-healthcheck.timer <<HEALTHTIMER
+[Unit]
+Description=Run Beagle Sunshine healthcheck periodically
+
+[Timer]
+OnBootSec=\${SUNSHINE_HEALTHCHECK_BOOT_DELAY_SEC}s
+OnUnitActiveSec=\${SUNSHINE_HEALTHCHECK_INTERVAL_SEC}s
+Persistent=true
+RandomizedDelaySec=5s
+Unit=beagle-sunshine-healthcheck.service
+
+[Install]
+WantedBy=timers.target
+HEALTHTIMER
 
 systemctl disable sunshine >/dev/null 2>&1 || true
 systemctl stop sunshine >/dev/null 2>&1 || true
@@ -672,6 +783,8 @@ for _ in {1..60}; do
   sleep 1
 done
 systemctl enable --now beagle-sunshine.service >/dev/null 2>&1 || true
+systemctl enable --now beagle-sunshine-healthcheck.timer >/dev/null 2>&1 || true
+/usr/local/bin/beagle-sunshine-healthcheck >/dev/null 2>&1 || true
 EOF
 )"
 

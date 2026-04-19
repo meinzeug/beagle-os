@@ -1,17 +1,26 @@
 # Next Steps
 
-1. Rebuild and redeploy thin-client installer artifacts so the patched non-interactive disk selection logic is included in the booted media:
-	- rebuild payload/bootstrap artifacts,
-	- regenerate VM-specific wrapper from `/api/v1/vms/101/installer.sh`,
-	- recreate thinclient USB raw image and reattach to `beaglethinclient`.
-2. Re-run thinclient install from preset and verify it no longer fails at `line=2007 cmd=target_disk="$(choose_target_disk)"`.
-3. Recreate VM 101 once with patched host provider/start behavior deployed on the installed beagleserver host (or sync runtime code), then validate:
-	- no stale installer `args`/ISO after finalize,
-	- no UEFI shell fallback,
-	- guest gets IP and Sunshine readiness.
-4. After VM 101 is stream-ready, boot `beaglethinclient` from installed disk (not USB media) and verify automatic Moonlight connect using preset credentials.
-5. Capture final proof screenshot from `beaglethinclient` showing actual streamed desktop from VM 101.
-6. Once end-to-end passes, run final docs sync + commit/push:
+1. Fix immediate post-install disk boot on `beagleserver` after successful installer completion:
+	- verify effective libvirt boot-order/device mapping for `vda` vs empty `sda` cdrom,
+	- confirm GRUB/boot target on installed disk,
+	- reach first boot login on installed host without live-ISO runtime artifacts.
+2. Re-run clean reinstall once with the now-proven patched ISO path and confirm no residual transient state in `/var/log/beagle-server-installer.log`.
+3. Continue the requested realistic E2E product flow from installed host state:
+	- open Beagle Web UI,
+	- create Beagle Ubuntu/XFCE/Sunshine desktop VM,
+	- download Live-USB installer script via Web UI,
+	- reinstall `beaglethinclient`,
+	- verify first-time Moonlight -> Sunshine auto-connect and active stream.
+4. Persist and verify stream firewall reconciliation on installed beagleserver host:
+	- run `/opt/beagle/scripts/reconcile-public-streams.sh` on boot/service restart,
+	- confirm `inet filter forward` contains `beagle-stream-allow` rules for RTSP + UDP stream ports.
+5. Verify the guest `beagle-sunshine-healthcheck.timer` path on VM 101:
+	- timer active after reboot,
+	- forced crash (`pkill sunshine`) is recovered automatically,
+	- local `/api/apps` check succeeds again without manual intervention.
+6. Fix server-installer live smoke DHCP reliability in local libvirt harness (`scripts/test-server-installer-live-smoke.sh`) after the boot-path stabilization.
+7. Stabilize standalone stream simulation harness for real-libvirt execution (`scripts/test-standalone-desktop-stream-sim.sh`).
+8. Once end-to-end passes, run final docs sync + commit/push:
 	- `05-progress.md`,
 	- `06-next-steps.md`,
 	- `08-todo-global.md`,

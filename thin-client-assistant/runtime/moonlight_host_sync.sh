@@ -75,6 +75,22 @@ sync_moonlight_host_from_manager_response() {
     --port "$port"
 }
 
+retarget_moonlight_host_from_runtime_config() {
+  local config_path host connect_host port
+
+  config_path="$(moonlight_client_config_path 2>/dev/null || true)"
+  [[ -n "$config_path" && -w "$config_path" ]] || return 1
+  host="$(moonlight_host)"
+  connect_host="$(moonlight_connect_host)"
+  port="$(moonlight_port)"
+
+  python3 "$MOONLIGHT_HOST_REGISTRY_PY" retarget-config \
+    --config "$config_path" \
+    --host "$host" \
+    --connect-host "$connect_host" \
+    --port "$port"
+}
+
 bootstrap_moonlight_client() {
   moonlight_host_configured && return 0
   extract_moonlight_certificate_pem >/dev/null 2>&1 && return 0

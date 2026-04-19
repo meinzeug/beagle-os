@@ -36,3 +36,21 @@
 - Beagle-provider `start_vm` now redefines libvirt XML from current provider config before start, so generic service-layer cleanups (boot order/media removal) are actually enforced in runtime domains.
 - Thinclient preset installer disk-selection hardening in [thin-client-assistant/usb/pve-thin-client-local-installer.sh](thin-client-assistant/usb/pve-thin-client-local-installer.sh) is endpoint-runtime logic only and does not add provider-specific coupling.
 
+- RTSP stream-fix work stayed provider-neutral in host/runtime layers:
+	- Runtime-side Moonlight host retarget/sync hardening was implemented in thinclient runtime modules, not in provider-specific APIs.
+	- Public stream firewall reconciliation changes were implemented in [scripts/reconcile-public-streams.sh](scripts/reconcile-public-streams.sh), which already operates on generic stream inventory/ports and not on Proxmox-only APIs.
+	- No new direct coupling to `qm`, `pvesh`, `/api2/json`, or `PVE.*` was introduced by the RTSP fix path.
+
+- 2026-04-19 provider-neutral follow-up changes:
+	- Chroot/offline install behavior in [scripts/install-beagle-host-services.sh](scripts/install-beagle-host-services.sh) is now explicit:
+		- live libvirt readiness wait/provisioning only runs when a live libvirt system context is actually manageable,
+		- installer chroot mode skips those runtime-only operations instead of failing,
+		- no Proxmox-specific coupling was introduced in this fix path.
+	- Beagle Web Console now exposes existing generic live-USB endpoint actions from [website/app.js](website/app.js) (`/api/v1/vms/{vmid}/live-usb.sh`), without introducing any provider-specific UI API calls.
+	- Provisioning default bridge selection in [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py) now validates configured defaults against discovered bridge inventory, reducing implicit coupling to environment-specific defaults (for example `vmbr1` in non-Proxmox labs).
+	- ISO staging helper added in the same provider-neutral provisioning service to align generated media availability with provider-advertised storage pool paths while preserving graceful fallback when pool paths are not writable in local simulation contexts.
+
+- Current residual coupling risks discovered in local simulation harness (not production API coupling):
+	- `scripts/test-standalone-desktop-stream-sim.sh` still depends on local libvirt host permissions/ownership and kernel boot semantics that differ between developer hosts.
+	- These are test-harness environment assumptions and should be hardened inside simulation scripts/services, not by introducing provider-specific behavior into generic HTTP/UI layers.
+

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import secrets
 import shlex
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Callable
@@ -224,7 +225,11 @@ class UbuntuBeagleProvisioningService:
             item["name"]: self._list_bridge_inventory(item["name"]) for item in nodes if str(item.get("name", "")).strip()
         }
         bridges = sorted({bridge for values in bridges_by_node.values() for bridge in values if bridge})
-        default_bridge = self._ubuntu_beagle_default_bridge or (bridges[0] if bridges else "")
+        configured_bridge = str(self._ubuntu_beagle_default_bridge or "").strip()
+        if configured_bridge and configured_bridge in bridges:
+            default_bridge = configured_bridge
+        else:
+            default_bridge = bridges[0] if bridges else configured_bridge
         next_vmid_value = int(self._provider.next_vmid())
         return {
             "defaults": {
@@ -308,6 +313,49 @@ class UbuntuBeagleProvisioningService:
     def local_iso_storage_dir(self) -> Path:
         self._local_iso_dir.mkdir(parents=True, exist_ok=True)
         return self._local_iso_dir
+
+    def ensure_iso_in_storage_pool(self, storage_id: str, iso_path: Path) -> Path:
+        """Ensure an ISO exists in the selected storage path when a provider exposes one.
+
+        Some providers (for example libvirt-backed test providers) resolve
+        ``<storage>:iso/<filename>`` against their own pool path, not against
+        ``local_iso_storage_dir``. To keep provisioning reproducible, copy the
+        generated ISO into the selected pool path when needed.
+        """
+        source = Path(iso_path)
+        if not source.is_file():
+            raise FileNotFoundError(f"missing iso file: {source}")
+        target_storage = str(storage_id or "").strip()
+        if not target_storage:
+            return source
+        for entry in self._provider.list_storage_inventory():
+            if str(entry.get("storage", "")).strip() != target_storage:
+                continue
+            pool_path = str(entry.get("path", "")).strip()
+            if not pool_path:
+                return source
+            pool_dir = Path(pool_path)
+            try:
+                pool_dir.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                return source
+            target = pool_dir / source.name
+            if target.resolve() == source.resolve():
+                return source
+            needs_copy = True
+            if target.exists():
+                try:
+                    needs_copy = target.stat().st_size != source.stat().st_size
+                except OSError:
+                    needs_copy = True
+            if needs_copy:
+                try:
+                    shutil.copy2(source, target)
+                    target.chmod(0o644)
+                except OSError:
+                    return source
+            return target
+        return source
 
     def ubuntu_beagle_iso_filename(self, iso_url: str) -> str:
         candidate = Path(urlparse(iso_url).path).name or "ubuntu-live-server-amd64.iso"
@@ -728,6 +776,10 @@ class UbuntuBeagleProvisioningService:
             sunshine_port=sunshine_port,
             callback_url=callback_url,
         )
+        # Keep storage references reproducible across providers by ensuring
+        # both Ubuntu ISO and generated seed ISO are present in iso_storage.
+        self.ensure_iso_in_storage_pool(iso_storage, Path(iso_assets["iso_path"]))
+        self.ensure_iso_in_storage_pool(iso_storage, seed_path)
         description = self.build_ubuntu_beagle_description(
             hostname,
             guest_user,

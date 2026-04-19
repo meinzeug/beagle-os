@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+moonlight_pairing_timeout() {
+  printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_PAIRING_TIMEOUT:-30}"
+}
+
+ensure_paired() {
+  local bin host port pin pair_pid paired_ok attempt pair_status target
+
+  bin="$(moonlight_bin)"
+  host="$(moonlight_connect_host)"
+  port="$(moonlight_port)"
+  pin="${PVE_THIN_CLIENT_SUNSHINE_PIN:-}"
+  target="$(moonlight_target "$host" "$port")"
+
+  moonlight_list && return 0
+
+  if register_moonlight_client_via_manager; then
+    beagle_log_event "moonlight.registered" "host=${host} port=${port:-default}"
+    moonlight_list && return 0
+  fi
+
+  [[ -n "$pin" ]] || return 1
+  [[ -n "$target" ]] || return 1
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --preserve-status "$(moonlight_pairing_timeout)" "$bin" pair "$target" --pin "$pin" >"${MOONLIGHT_PAIR_LOG:-/dev/null}" 2>&1 &
+  else
+    "$bin" pair "$target" --pin "$pin" >"${MOONLIGHT_PAIR_LOG:-/dev/null}" 2>&1 &
+  fi
+  pair_pid=$!
+  paired_ok="0"
+
+  for attempt in $(seq 1 20); do
+    if ! kill -0 "$pair_pid" >/dev/null 2>&1; then
+      break
+    fi
+    if submit_sunshine_pin; then
+      paired_ok="1"
+      break
+    fi
+    sleep 1
+  done
+
+  pair_status=0
+  wait "$pair_pid" || pair_status=$?
+
+  [[ "$pair_status" == "0" ]] || return "$pair_status"
+  [[ "$paired_ok" == "1" ]] || return 1
+  moonlight_list
+}

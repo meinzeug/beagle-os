@@ -2115,6 +2115,7 @@
            fieldBlock('App', profile.moonlight_app) +
            fieldBlock('Sunshine API', profile.sunshine_api_url, 'mono') +
            fieldBlock('Installer Linux', profile.installer_url, 'mono') +
+         fieldBlock('Live USB Script', profile.live_usb_url, 'mono') +
            fieldBlock('Installer Windows', profile.installer_windows_url, 'mono') +
       '  </section>' +
       '  <section class="detail-section"><h3>Endpoint</h3>' +
@@ -2134,6 +2135,7 @@
         actionButton('vm-delete', 'Delete VM', 'ghost') +
            actionButton('installer-prep', 'Prepare Installer', 'primary') +
            actionButton('download-linux', 'Linux Installer', 'ghost') +
+           actionButton('download-live-usb', 'Live USB Script', 'ghost') +
            actionButton('download-windows', 'Windows Installer', 'ghost') +
            actionButton('usb-refresh', 'USB Refresh', 'ghost') +
            actionButton('healthcheck', 'Healthcheck', 'ghost') +
@@ -2808,6 +2810,12 @@
     if (action === 'download-windows') {
       blobRequest('/vms/' + vmid + '/installer.ps1', 'pve-thin-client-usb-installer-vm-' + vmid + '.ps1').catch(function (error) {
         setBanner('Windows-Installer Download failed:' + error.message, 'warn');
+      });
+      return;
+    }
+    if (action === 'download-live-usb') {
+      blobRequest('/vms/' + vmid + '/live-usb.sh', 'pve-thin-client-live-usb-vm-' + vmid + '.sh').catch(function (error) {
+        setBanner('Live-USB Download failed:' + error.message, 'warn');
       });
       return;
     }

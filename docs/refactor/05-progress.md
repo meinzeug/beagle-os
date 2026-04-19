@@ -78,3 +78,75 @@
 	- Installer ISO attached at `/tmp/beagleserver.iso` as CDROM, boot order `cdrom,hd`, autostart re-enabled.
 	- DHCP readiness check in smoke script timed out; VM reset/recreate itself completed and VM is running.
 
+## Update (2026-04-19)
+
+- Fixed and validated the server-installer failure path `libvirt qemu:///system is not ready` during chroot host-stack install:
+	- Updated [scripts/install-beagle-host-services.sh](scripts/install-beagle-host-services.sh) with chroot/offline detection (`can_manage_libvirt_system`).
+	- `wait_for_libvirt_system` and live `virsh` network/pool provisioning now run only when a live libvirt system context is available.
+	- In installer chroot mode, script now logs skip-path and continues instead of failing hard.
+- Rebuilt server installer ISO from patched repo state:
+	- `dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso`
+	- SHA256: `5d55aa06694d5d22f587a7b524f99cd2b2851f6bbfb77ca6e7ec9e3ca3b0e484`
+- Re-ran real reinstall flow in local libvirt harness with the fresh ISO:
+	- Installer passed the previous failure stage and reached `Installing Beagle host stack...` and then `Installing bootloader...`.
+	- Installer reached terminal success dialog (`Installation complete`, mode `Beagle OS with Proxmox`).
+	- Previous fatal error string `libvirt qemu:///system is not ready` did not reappear in the successful retry log path.
+- New blocker discovered after success dialog during reboot validation:
+	- Domain currently attempts CD boot/no bootable device after media eject, so post-install disk boot validation is not complete yet.
+	- This is now tracked as the next immediate runtime blocker; installer-stage libvirt/chroot regression itself is resolved.
+
+- Extended Beagle Web Console endpoint detail actions for future thinclient creation flows:
+	- Added dedicated Live-USB script visibility and download action in [website/app.js](website/app.js) (`/vms/{vmid}/live-usb.sh` wiring).
+	- This closes a Web-UI gap where backend live-USB support existed but was not exposed in the Beagle Web Console action set.
+
+- Hardened provider-neutral ubuntu provisioning behavior for mixed provider defaults in [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py):
+	- `build_provisioning_catalog()` now only keeps configured default bridge when it is actually present in discovered bridge inventory; otherwise falls back to first available bridge.
+	- Added ISO staging helper to keep generated seed/base ISOs available in selected storage pool paths when provider inventory exposes a pool path.
+	- Added non-fatal fallback in staging helper when pool path is not writable in local non-root simulation runs.
+
+- Rebuilt server installer ISO end-to-end on 2026-04-19:
+	- Fresh artifact created at `dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso` (timestamp 2026-04-19 04:57, ~999MB).
+	- Legacy top-level compatibility symlinks/files were not automatically refreshed by the build wrapper in this run; fresh artifact path above is authoritative for validation.
+
+- Test-run results in this environment (post-rebuild):
+	- `scripts/test-server-installer-live-smoke.sh` re-run against rebuilt ISO with extended DHCP wait still failed with `No DHCP lease observed` in this host lab.
+	- `scripts/test-standalone-desktop-stream-sim.sh` revealed multiple local-lab reproducibility issues (domain leftovers, bridge default mismatch, storage-path/permission assumptions, fake-kernel incompatibility under real libvirt/qemu execution).
+	- Script was partially hardened for portability (`bridge` fallback and temp-dir permissions), but full green run is still blocked by host-lab assumptions in the simulation path.
+
+- Hardened thin-client Moonlight runtime against app-name mismatches that still produced `failed to find Application Desktop` even after pairing:
+	- Added Sunshine app inventory fetch + resolver in [thin-client-assistant/runtime/moonlight_remote_api.sh](thin-client-assistant/runtime/moonlight_remote_api.sh).
+	- Resolver now matches app names case-insensitive and includes a Desktop alias fallback before defaulting to the first advertised app.
+	- Launch path now applies resolved app name before `moonlight stream` in [thin-client-assistant/runtime/launch-moonlight.sh](thin-client-assistant/runtime/launch-moonlight.sh).
+- Validation completed:
+	- `bash -n thin-client-assistant/runtime/moonlight_remote_api.sh`
+	- `bash -n thin-client-assistant/runtime/launch-moonlight.sh`
+
+- Implemented repo-managed Sunshine self-healing for VM guests to keep stream path stable after reboot/crash:
+	- Provisioning now writes hardened `beagle-sunshine.service` with unlimited start retries (`StartLimitIntervalSec=0`) and stronger startup timeout.
+	- Added root-owned guest repair script `/usr/local/bin/beagle-sunshine-healthcheck` that:
+		- verifies `beagle-sunshine.service` and `sunshine` process,
+		- performs local API probe (`/api/apps`) against `127.0.0.1`,
+		- restarts/enables Sunshine stack when unhealthy,
+		- supports forced repair mode (`--repair-only`).
+	- Added `beagle-sunshine-healthcheck.service` + `beagle-sunshine-healthcheck.timer` with persistent periodic checks (`OnBootSec` + `OnUnitActiveSec`).
+	- Healthcheck credentials are provisioned in `/etc/beagle/sunshine-healthcheck.env` with `0600` permissions.
+	- `ensure-vm-stream-ready.sh` now tries guest runtime repair before full Sunshine reinstall when binary exists but service is inactive.
+- Validation completed:
+	- `bash -n scripts/configure-sunshine-guest.sh`
+	- `bash -n scripts/ensure-vm-stream-ready.sh`
+
+- Resolved the primary Desktop stream blocker (`Starting RTSP Handshake` then abort) in the live VM101 path:
+	- Added client-side Moonlight stream output logging in [thin-client-assistant/runtime/launch-moonlight.sh](thin-client-assistant/runtime/launch-moonlight.sh) to capture exact handshake failures and exit codes.
+	- Confirmed root cause from live logs: Sunshine launch response returned `sessionUrl0=rtspenc://192.168.123.100:50053`, while host-level `nft` forward policy dropped RTSP/stream UDP despite existing iptables-style rules.
+	- Applied live host fix in authoritative `nft` forward policy to allow RTSP + stream ports for VM101 (`50053/tcp`, `50041-50047/udp`).
+	- Verified post-fix stream startup in Moonlight log: RTSP handshake completed, control/video/input streams initialized, first video packet received.
+	- Verified active client process after fix (`moonlight stream ...` remains running on thinclient).
+
+- Hardened runtime for reproducible troubleshooting and host-target consistency:
+	- Added deterministic host retarget/sync improvements in [thin-client-assistant/runtime/moonlight_host_registry.py](thin-client-assistant/runtime/moonlight_host_registry.py) and [thin-client-assistant/runtime/moonlight_host_sync.sh](thin-client-assistant/runtime/moonlight_host_sync.sh).
+	- Added fallback retarget call in [thin-client-assistant/runtime/launch-moonlight.sh](thin-client-assistant/runtime/launch-moonlight.sh) so stale host entries are corrected even when manager payload is not available.
+
+- Added reproducible host firewall reconciliation improvements in [scripts/reconcile-public-streams.sh](scripts/reconcile-public-streams.sh):
+	- Expanded forwarded Sunshine UDP set to include `base+12`, `base+14`, `base+15` (not only `base+9/+10/+11/+13`).
+	- Added idempotent synchronization of allow-rules with comment marker `beagle-stream-allow` into `inet filter forward` when that chain exists with restrictive policy.
+

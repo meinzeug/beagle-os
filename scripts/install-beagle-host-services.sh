@@ -131,6 +131,28 @@ wait_for_libvirt_system() {
   return 1
 }
 
+can_manage_libvirt_system() {
+  # When called from server-installer chroot, skip all libvirt management.
+  if [[ "${BEAGLE_IN_CHROOT_INSTALL:-0}" == "1" ]]; then
+    return 1
+  fi
+  # During server-installer chroot installs, libvirt sockets/services are not
+  # expected to be reachable. Defer runtime checks to first real boot.
+  if command -v systemd-detect-virt >/dev/null 2>&1; then
+    local virt_type
+    virt_type=$(systemd-detect-virt 2>/dev/null || true)
+    if [[ "$virt_type" == "chroot" ]]; then
+      return 1
+    fi
+  fi
+
+  if [[ ! -d /run/systemd/system ]]; then
+    return 1
+  fi
+
+  return 0
+}
+
 set_env_value() {
   local env_file="$1"
   local key="$2"
@@ -329,7 +351,11 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y novnc websockify >/dev/null 2>&1 || true
   fi
 
-  wait_for_libvirt_system
+  if can_manage_libvirt_system; then
+    wait_for_libvirt_system
+  else
+    echo "Skipping live libvirt readiness check during offline/chroot install" >&2
+  fi
 
   install -d -m 0755 /etc/beagle/novnc
   touch /etc/beagle/novnc/tokens
@@ -338,10 +364,11 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_NOVNC_PATH" '"/novnc"'
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_NOVNC_TOKEN_FILE" '"/etc/beagle/novnc/tokens"'
 
-  # Create beagle libvirt network (192.168.123.0/24) if missing
-  if ! virsh --connect qemu:///system net-info beagle >/dev/null 2>&1; then
-    tmpnet=$(mktemp /tmp/beagle-net-XXXXXX.xml)
-    cat >"$tmpnet" <<'NETEOF'
+  if can_manage_libvirt_system && virsh --connect qemu:///system list --all >/dev/null 2>&1; then
+    # Create beagle libvirt network (192.168.123.0/24) if missing
+    if ! virsh --connect qemu:///system net-info beagle >/dev/null 2>&1; then
+      tmpnet=$(mktemp /tmp/beagle-net-XXXXXX.xml)
+      cat >"$tmpnet" <<'NETEOF'
 <network>
   <name>beagle</name>
   <forward mode='nat'/>
@@ -353,28 +380,31 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   </ip>
 </network>
 NETEOF
-    virsh --connect qemu:///system net-define "$tmpnet" >/dev/null
-    virsh --connect qemu:///system net-start beagle >/dev/null 2>&1 || true
-    virsh --connect qemu:///system net-autostart beagle >/dev/null
-    rm -f "$tmpnet"
-  else
-    virsh --connect qemu:///system net-start beagle >/dev/null 2>&1 || true
-    virsh --connect qemu:///system net-autostart beagle >/dev/null
-  fi
-  virsh --connect qemu:///system net-info beagle >/dev/null
+      virsh --connect qemu:///system net-define "$tmpnet" >/dev/null
+      virsh --connect qemu:///system net-start beagle >/dev/null 2>&1 || true
+      virsh --connect qemu:///system net-autostart beagle >/dev/null
+      rm -f "$tmpnet"
+    else
+      virsh --connect qemu:///system net-start beagle >/dev/null 2>&1 || true
+      virsh --connect qemu:///system net-autostart beagle >/dev/null
+    fi
+    virsh --connect qemu:///system net-info beagle >/dev/null
 
-  # Create local storage pool if missing
-  if ! virsh --connect qemu:///system pool-info local >/dev/null 2>&1; then
-    mkdir -p "$BEAGLE_LIBVIRT_IMAGES_DIR"
-    virsh --connect qemu:///system pool-define-as local dir --target "$BEAGLE_LIBVIRT_IMAGES_DIR" >/dev/null
-    virsh --connect qemu:///system pool-build local >/dev/null 2>&1 || true
-    virsh --connect qemu:///system pool-start local >/dev/null 2>&1 || true
-    virsh --connect qemu:///system pool-autostart local >/dev/null
+    # Create local storage pool if missing
+    if ! virsh --connect qemu:///system pool-info local >/dev/null 2>&1; then
+      mkdir -p "$BEAGLE_LIBVIRT_IMAGES_DIR"
+      virsh --connect qemu:///system pool-define-as local dir --target "$BEAGLE_LIBVIRT_IMAGES_DIR" >/dev/null
+      virsh --connect qemu:///system pool-build local >/dev/null 2>&1 || true
+      virsh --connect qemu:///system pool-start local >/dev/null 2>&1 || true
+      virsh --connect qemu:///system pool-autostart local >/dev/null
+    else
+      virsh --connect qemu:///system pool-start local >/dev/null 2>&1 || true
+      virsh --connect qemu:///system pool-autostart local >/dev/null
+    fi
+    virsh --connect qemu:///system pool-info local >/dev/null
   else
-    virsh --connect qemu:///system pool-start local >/dev/null 2>&1 || true
-    virsh --connect qemu:///system pool-autostart local >/dev/null
+    echo "Skipping libvirt network/storage bootstrap during offline/chroot install" >&2
   fi
-  virsh --connect qemu:///system pool-info local >/dev/null
 
   # Ensure nvram dir exists for OVMF vars
   mkdir -p /var/lib/libvirt/qemu/nvram

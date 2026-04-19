@@ -94,10 +94,13 @@ def command_is_configured(args: argparse.Namespace) -> int:
         manual_port = entries.get(f"{idx}\\manualport", "").strip()
         local_port = entries.get(f"{idx}\\localport", "").strip()
 
-        if expected_hosts and manual_host not in expected_hosts and local_host not in expected_hosts:
+        # Keep host routing deterministic: both manual and local endpoints must
+        # match one of the runtime-expected targets so stale private subnets
+        # from previous environments are corrected automatically.
+        if expected_hosts and (manual_host not in expected_hosts or local_host not in expected_hosts):
             continue
 
-        if expected_ports and manual_port and manual_port not in expected_ports and local_port and local_port not in expected_ports:
+        if expected_ports and (manual_port not in expected_ports or local_port not in expected_ports):
             continue
 
         return 0
@@ -137,8 +140,6 @@ def command_sync_config(args: argparse.Namespace) -> int:
         lines.append("[hosts]")
 
     entries = _parse_entries(lines, section_start, section_end)
-    existing_local_address = entries.get("1\\localaddress", "").strip()
-    existing_local_port = entries.get("1\\localport", "").strip()
     existing_mac = entries.get("1\\mac", "@ByteArray()").strip() or "@ByteArray()"
     existing_nvidiasw = entries.get("1\\nvidiasw", "false").strip() or "false"
     existing_remote_address = entries.get("1\\remoteaddress", "").strip()
@@ -152,8 +153,8 @@ def command_sync_config(args: argparse.Namespace) -> int:
         f"1\\hostname={sunshine_name}",
         f"1\\ipv6address={existing_ipv6_address}",
         f"1\\ipv6port={existing_ipv6_port}",
-        f"1\\localaddress={existing_local_address}",
-        f"1\\localport={existing_local_port or manual_port}",
+        f"1\\localaddress={manual_host}",
+        f"1\\localport={manual_port}",
         f"1\\mac={existing_mac}",
         f"1\\manualaddress={manual_host}",
         f"1\\manualport={manual_port}",
@@ -161,6 +162,59 @@ def command_sync_config(args: argparse.Namespace) -> int:
         f"1\\remoteaddress={existing_remote_address}",
         f"1\\remoteport={existing_remote_port}",
         f"1\\srvcert=@ByteArray({escaped_cert})",
+        f"1\\uuid={uniqueid}",
+        "size=1",
+    ]
+
+    lines = lines[: section_start + 1] + updated_host_lines + lines[section_end:]
+    config_path.write_text("\n".join(lines).rstrip("\n") + "\n", encoding="utf-8")
+    return 0
+
+
+def command_retarget_config(args: argparse.Namespace) -> int:
+    config_path = Path(args.config)
+    host = (args.host or "").strip()
+    connect_host = (args.connect_host or "").strip()
+    port = (args.port or "").strip()
+
+    manual_host = connect_host or host
+    if not manual_host:
+        return 1
+
+    lines = _load_config_lines(config_path)
+    section_start, section_end = _find_hosts_section(lines)
+    if section_start is None:
+        return 1
+
+    entries = _parse_entries(lines, section_start, section_end)
+    uniqueid = entries.get("1\\uuid", "").strip()
+    cert_value = entries.get("1\\srvcert", "").strip()
+    if not uniqueid or "BEGIN CERTIFICATE" not in cert_value:
+        return 1
+
+    manual_port = port or entries.get("1\\manualport", "").strip() or entries.get("1\\localport", "").strip() or "47984"
+    sunshine_name = entries.get("1\\hostname", "").strip() or manual_host
+    existing_mac = entries.get("1\\mac", "@ByteArray()").strip() or "@ByteArray()"
+    existing_nvidiasw = entries.get("1\\nvidiasw", "false").strip() or "false"
+    existing_remote_address = entries.get("1\\remoteaddress", "").strip()
+    existing_remote_port = entries.get("1\\remoteport", "0").strip() or "0"
+    existing_ipv6_address = entries.get("1\\ipv6address", "").strip()
+    existing_ipv6_port = entries.get("1\\ipv6port", "0").strip() or "0"
+
+    updated_host_lines = [
+        "1\\customname=false",
+        f"1\\hostname={sunshine_name}",
+        f"1\\ipv6address={existing_ipv6_address}",
+        f"1\\ipv6port={existing_ipv6_port}",
+        f"1\\localaddress={manual_host}",
+        f"1\\localport={manual_port}",
+        f"1\\mac={existing_mac}",
+        f"1\\manualaddress={manual_host}",
+        f"1\\manualport={manual_port}",
+        f"1\\nvidiasw={existing_nvidiasw}",
+        f"1\\remoteaddress={existing_remote_address}",
+        f"1\\remoteport={existing_remote_port}",
+        f"1\\srvcert={cert_value}",
         f"1\\uuid={uniqueid}",
         "size=1",
     ]
@@ -196,6 +250,13 @@ def build_parser() -> argparse.ArgumentParser:
     sync_config.add_argument("--connect-host", default="")
     sync_config.add_argument("--port", default="")
     sync_config.set_defaults(func=command_sync_config)
+
+    retarget_config = subparsers.add_parser("retarget-config")
+    retarget_config.add_argument("--config", required=True)
+    retarget_config.add_argument("--host", default="")
+    retarget_config.add_argument("--connect-host", default="")
+    retarget_config.add_argument("--port", default="")
+    retarget_config.set_defaults(func=command_retarget_config)
 
     return parser
 

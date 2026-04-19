@@ -106,3 +106,23 @@ moonlight_connect_host() {
 
   printf '%s\n' "$host"
 }
+
+ensure_moonlight_local_host_route() {
+  local local_host connect_host route_line
+
+  local_host="$(moonlight_local_host)"
+  connect_host="$(moonlight_connect_host)"
+
+  [[ -n "$local_host" && -n "$connect_host" ]] || return 1
+  [[ "$local_host" != "$connect_host" ]] || return 1
+  command -v ip >/dev/null 2>&1 || return 1
+
+  if route_line="$(ip route get "$local_host" 2>/dev/null | head -n1 || true)"; then
+    if grep -q " via ${connect_host} " <<<"$route_line"; then
+      return 0
+    fi
+  fi
+
+  sudo ip route replace "${local_host}/32" via "$connect_host" >/dev/null 2>&1 || return 1
+  return 0
+}

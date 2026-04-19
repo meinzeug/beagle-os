@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_DIR="$(mktemp -d /tmp/beagle-standalone-e2e.XXXXXX)"
+chmod 0755 "${TMP_DIR}"
 PORT="${BEAGLE_TEST_PORT:-19088}"
 API_BASE="http://127.0.0.1:${PORT}/api/v1"
 CONTROL_PLANE_LOG="${TMP_DIR}/control-plane.log"
@@ -94,9 +95,6 @@ env \
   PVE_DCV_PROXY_SERVER_NAME=127.0.0.1 \
   BEAGLE_UBUNTU_ISO_URL="file://${FAKE_ISO_PATH}" \
   BEAGLE_UBUNTU_LOCAL_ISO_DIR="${TMP_DIR}/iso-cache" \
-  BEAGLE_UBUNTU_ISO_STORAGE=beagle-local \
-  BEAGLE_UBUNTU_DISK_STORAGE=beagle-local \
-  BEAGLE_UBUNTU_DEFAULT_BRIDGE=vmbr0 \
   python3 "${REPO_ROOT}/beagle-host/bin/beagle-control-plane.py" >"${CONTROL_PLANE_LOG}" 2>&1 &
 CP_PID="$!"
 
@@ -116,9 +114,18 @@ fi
 CATALOG_JSON="$(http_get '/provisioning/catalog')"
 NODE_NAME="$(printf '%s' "${CATALOG_JSON}" | json_get "data.get('catalog',{}).get('defaults',{}).get('node','')")"
 BRIDGE_NAME="$(printf '%s' "${CATALOG_JSON}" | json_get "data.get('catalog',{}).get('defaults',{}).get('bridge','')")"
+BRIDGE_CANDIDATE="$(printf '%s' "${CATALOG_JSON}" | json_get "(data.get('catalog',{}).get('bridges') or [''])[0]")"
 DESKTOP_DEFAULT="$(printf '%s' "${CATALOG_JSON}" | json_get "data.get('catalog',{}).get('defaults',{}).get('desktop','')")"
 DISK_STORAGE="$(printf '%s' "${CATALOG_JSON}" | json_get "data.get('catalog',{}).get('defaults',{}).get('disk_storage','')")"
 ISO_STORAGE="$(printf '%s' "${CATALOG_JSON}" | json_get "data.get('catalog',{}).get('defaults',{}).get('iso_storage','')")"
+
+if [[ -n "${BRIDGE_CANDIDATE}" && "${BRIDGE_NAME}" != "${BRIDGE_CANDIDATE}" ]]; then
+  BRIDGE_NAME="${BRIDGE_CANDIDATE}"
+fi
+
+if virsh --connect qemu:///system net-info default >/dev/null 2>&1; then
+  BRIDGE_NAME="default"
+fi
 
 if [[ -z "${NODE_NAME}" || -z "${BRIDGE_NAME}" ]]; then
   echo "[ERROR] Provisioning catalog missing required defaults" >&2

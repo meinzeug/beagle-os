@@ -365,7 +365,9 @@ rsync -a --delete \
 chown -R root:root "$INSTALL_DIR"
 find "$INSTALL_DIR" -type d -exec chmod 0755 {} +
 
-ensure_release_assets_or_die
+if [[ "${BEAGLE_IN_CHROOT_INSTALL:-0}" != "1" ]]; then
+  ensure_release_assets_or_die
+fi
 write_host_env_file
 BEAGLE_HOST_PROVIDER="$BEAGLE_HOST_PROVIDER" \
   BEAGLE_AUTH_BOOTSTRAP_USERNAME="$BEAGLE_AUTH_BOOTSTRAP_USERNAME" \
