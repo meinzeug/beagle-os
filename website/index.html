@@ -8,7 +8,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css?v=7.0.0.0">
+    <link rel="stylesheet" href="/styles.css?v=7.0.1.0">
   </head>
   <body class="auth-only">
     <!-- Hidden SVG icon sprite -->
@@ -138,6 +138,31 @@
           <button class="button ghost" id="provision-modal-reset" type="button">Defaults laden</button>
           <button class="button ghost" id="provision-modal-cancel" type="button">Abbrechen</button>
           <button class="button primary" id="provision-modal-create" type="button">VM erstellen</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VM Provisioning progress modal -->
+    <div class="modal" id="provision-progress-modal" aria-hidden="true" hidden>
+      <div class="modal-dialog provision-progress-dialog" role="dialog" aria-modal="true" aria-labelledby="provision-progress-title">
+        <div class="modal-dialog-head">
+          <div>
+            <span class="eyebrow">Provisioning laeuft</span>
+            <h2 id="provision-progress-title">VM wird erstellt ...</h2>
+            <p id="provision-progress-subtitle">Bitte die Seite nicht verlassen. Die Schritte werden live aktualisiert.</p>
+          </div>
+        </div>
+        <div class="provision-progress-hero" aria-hidden="true">
+          <div class="provision-progress-spinner"></div>
+          <div class="provision-progress-glow"></div>
+        </div>
+        <ol class="provision-progress-steps" id="provision-progress-steps">
+          <li class="provision-progress-step"><span class="step-dot"></span><div><strong>Start</strong><p>Warte auf Status ...</p></div><span class="step-state">pending</span></li>
+        </ol>
+        <div class="banner info provision-progress-banner" id="provision-progress-message">Initialisiere Provisioning-Workflow ...</div>
+        <div class="button-row provision-modal-buttons">
+          <button class="button ghost" id="provision-progress-close" type="button">Schliessen</button>
+          <button class="button primary" id="provision-progress-open-vm" type="button" hidden>Zur VM-Detailansicht</button>
         </div>
       </div>
     </div>
@@ -692,6 +717,6 @@
 
     <script src="/core/platform/browser-common.js"></script>
     <script src="/beagle-web-ui-config.js"></script>
-    <script src="/app.js?v=7.0.0.0"></script>
+    <script src="/app.js?v=7.0.1.0"></script>
   </body>
 </html>

@@ -83,6 +83,11 @@
   var dashboardLoadInFlight = null;
   var mutationInFlight = Object.create(null);
   var secretVault = Object.create(null);
+  var provisionProgressState = {
+    running: false,
+    vmid: null,
+    stepIndex: -1
+  };
 
   var USAGE_WARN_THRESHOLD = 90;
   var USAGE_INFO_THRESHOLD = 70;
@@ -1904,6 +1909,176 @@
     }
   }
 
+  function provisioningStepDescriptors() {
+    return [
+      {
+        title: 'Konfiguration validieren',
+        detail: 'Eingaben und Ziel-Provider werden geprueft.'
+      },
+      {
+        title: 'Provisioning Request senden',
+        detail: 'Host API erstellt den Provisioning-Auftrag.'
+      },
+      {
+        title: 'VM wird auf dem Host angelegt',
+        detail: 'Compute, Storage und Netzwerk werden vorbereitet.'
+      },
+      {
+        title: 'Inventar wird aktualisiert',
+        detail: 'Dashboard und Laufzeitdaten werden synchronisiert.'
+      },
+      {
+        title: 'Detailansicht wird geladen',
+        detail: 'Die neue VM wird direkt in der Console vorbereitet.'
+      }
+    ];
+  }
+
+  function openProvisionProgressModal(vmName) {
+    var modal = qs('provision-progress-modal');
+    var stepsNode = qs('provision-progress-steps');
+    var titleNode = qs('provision-progress-title');
+    var subtitleNode = qs('provision-progress-subtitle');
+    var messageNode = qs('provision-progress-message');
+    var openVmButton = qs('provision-progress-open-vm');
+    var closeButton = qs('provision-progress-close');
+    var descriptors = provisioningStepDescriptors();
+
+    if (!modal || !stepsNode) {
+      return;
+    }
+    provisionProgressState.running = true;
+    provisionProgressState.vmid = null;
+    provisionProgressState.stepIndex = -1;
+
+    if (titleNode) {
+      titleNode.textContent = 'VM wird erstellt: ' + String(vmName || 'Neue Beagle VM');
+    }
+    if (subtitleNode) {
+      subtitleNode.textContent = 'Der Workflow laeuft im Vordergrund mit Live-Schritten.';
+    }
+    if (messageNode) {
+      messageNode.className = 'banner info provision-progress-banner';
+      messageNode.textContent = 'Provisioning gestartet ...';
+    }
+    if (openVmButton) {
+      openVmButton.hidden = true;
+      openVmButton.disabled = true;
+    }
+    if (closeButton) {
+      closeButton.disabled = true;
+      closeButton.textContent = 'Laeuft ...';
+    }
+
+    stepsNode.innerHTML = descriptors.map(function (item, index) {
+      return '' +
+        '<li class="provision-progress-step" data-provision-step="' + String(index) + '">' +
+        '  <span class="step-dot"></span>' +
+        '  <div><strong>' + escapeHtml(item.title) + '</strong><p>' + escapeHtml(item.detail) + '</p></div>' +
+        '  <span class="step-state">pending</span>' +
+        '</li>';
+    }).join('');
+
+    modal.removeAttribute('hidden');
+    document.body.classList.add('modal-open');
+  }
+
+  function setProvisionProgressMessage(message, tone) {
+    var messageNode = qs('provision-progress-message');
+    if (!messageNode) {
+      return;
+    }
+    messageNode.className = 'banner ' + String(tone || 'info') + ' provision-progress-banner';
+    messageNode.textContent = String(message || '');
+  }
+
+  function setProvisionProgressStep(stepIndex, status, message) {
+    var stepsNode = qs('provision-progress-steps');
+    var row;
+    var stateNode;
+    if (!stepsNode) {
+      return;
+    }
+    row = stepsNode.querySelector('[data-provision-step="' + String(stepIndex) + '"]');
+    if (!row) {
+      return;
+    }
+    row.classList.remove('is-active', 'is-done', 'is-error');
+    if (status === 'active') {
+      row.classList.add('is-active');
+      provisionProgressState.stepIndex = stepIndex;
+    } else if (status === 'done') {
+      row.classList.add('is-done');
+    } else if (status === 'error') {
+      row.classList.add('is-error');
+      provisionProgressState.stepIndex = stepIndex;
+    }
+    stateNode = row.querySelector('.step-state');
+    if (stateNode) {
+      stateNode.textContent = String(message || status || 'pending');
+    }
+  }
+
+  function finishProvisionProgress(success, vmid, message) {
+    var closeButton = qs('provision-progress-close');
+    var openVmButton = qs('provision-progress-open-vm');
+    provisionProgressState.running = false;
+    provisionProgressState.vmid = Number(vmid || 0) || null;
+
+    if (success) {
+      setProvisionProgressMessage(message || 'Provisioning erfolgreich gestartet.', 'ok');
+    } else {
+      setProvisionProgressMessage(message || 'Provisioning fehlgeschlagen.', 'warn');
+    }
+
+    if (closeButton) {
+      closeButton.disabled = false;
+      closeButton.textContent = success ? 'Schliessen' : 'Zurueck';
+    }
+    if (openVmButton) {
+      if (success && provisionProgressState.vmid) {
+        openVmButton.hidden = false;
+        openVmButton.disabled = false;
+      } else {
+        openVmButton.hidden = true;
+        openVmButton.disabled = true;
+      }
+    }
+  }
+
+  function closeProvisionProgressModal(force) {
+    var modal = qs('provision-progress-modal');
+    var anyModalVisible = false;
+    var modals;
+    var index;
+    if (provisionProgressState.running && !force) {
+      return;
+    }
+    if (!modal) {
+      return;
+    }
+    modal.setAttribute('hidden', 'hidden');
+    modals = document.querySelectorAll('.modal');
+    for (index = 0; index < modals.length; index += 1) {
+      if (!modals[index].hasAttribute('hidden')) {
+        anyModalVisible = true;
+        break;
+      }
+    }
+    if (!anyModalVisible) {
+      document.body.classList.remove('modal-open');
+    }
+  }
+
+  function setProvisionCreateButtonsDisabled(disabled) {
+    if (qs('provision-create')) {
+      qs('provision-create').disabled = Boolean(disabled);
+    }
+    if (qs('provision-modal-create')) {
+      qs('provision-modal-create').disabled = Boolean(disabled);
+    }
+  }
+
   function createProvisionedVmWithPrefix(idPrefix) {
     var payload = {
       node: String(qs(idPrefix + 'node') ? qs(idPrefix + 'node').value : '').trim(),
@@ -1931,24 +2106,54 @@
       return;
     }
 
-    runSingleFlight('provision-create', function () {
+    if (idPrefix === 'prov-modal-') {
+      closeProvisionModal();
+    }
+    openProvisionProgressModal(payload.name || ('vm-' + String(payload.vmid || 'auto')));
+    setProvisionProgressStep(0, 'active', 'laeuft');
+    setProvisionProgressMessage('Konfiguration wird geprueft ...', 'info');
+
+    setProvisionCreateButtonsDisabled(true);
+    return runSingleFlight('provision-create', function () {
+      setProvisionProgressStep(0, 'done', 'ok');
+      setProvisionProgressStep(1, 'active', 'laeuft');
+      setProvisionProgressMessage('Provisioning-Request wird an den Host gesendet ...', 'info');
       setBanner('Provisioning: VM wird erstellt ...', 'info');
       return postJson('/provisioning/vms', payload).then(function (response) {
         var vm = response && response.provisioned_vm ? response.provisioned_vm : {};
         var vmid = Number(vm.vmid || payload.vmid || 0);
+        setProvisionProgressStep(1, 'done', 'ok');
+        setProvisionProgressStep(2, 'active', 'laeuft');
+        setProvisionProgressMessage('Host meldet VM-Initialisierung fuer #' + String(vmid || '?') + ' ...', 'info');
         addToActivityLog('provision-create', vmid || null, 'ok', 'VM erstellt: ' + (payload.name || ''));
         setBanner('Provisioning gestartet fuer VM ' + (vmid || '?') + '.', 'ok');
-        closeProvisionModal();
+        setProvisionProgressStep(2, 'done', 'ok');
+        setProvisionProgressStep(3, 'active', 'laeuft');
+        setProvisionProgressMessage('Dashboard und Inventar werden aktualisiert ...', 'info');
         return loadDashboard().then(function () {
+          setProvisionProgressStep(3, 'done', 'ok');
+          setProvisionProgressStep(4, 'active', 'laeuft');
           if (vmid) {
-            return loadDetail(vmid);
+            return loadDetail(vmid).then(function () {
+              setProvisionProgressStep(4, 'done', 'ok');
+              finishProvisionProgress(true, vmid, 'Provisioning fuer VM #' + String(vmid) + ' erfolgreich gestartet.');
+              return null;
+            });
           }
+          setProvisionProgressStep(4, 'done', 'uebersprungen');
+          finishProvisionProgress(true, null, 'Provisioning gestartet. Es wurde keine VMID zurueckgegeben.');
           return null;
         });
       }).catch(function (error) {
+        if (provisionProgressState.stepIndex >= 0) {
+          setProvisionProgressStep(provisionProgressState.stepIndex, 'error', 'fehler');
+        }
+        finishProvisionProgress(false, null, 'Provisioning fehlgeschlagen: ' + error.message);
         addToActivityLog('provision-create', null, 'warn', error.message);
         setBanner('Provisioning fehlgeschlagen: ' + error.message, 'warn');
       });
+    }).finally(function () {
+      setProvisionCreateButtonsDisabled(false);
     });
   }
 
@@ -3154,10 +3359,17 @@
     if (qs('sidebar-nav')) {
       qs('sidebar-nav').addEventListener('click', function (event) {
         var trigger = event.target.closest('[data-panel]');
+        var panelName;
         if (!trigger) {
           return;
         }
-        setActivePanel(trigger.getAttribute('data-panel'));
+        panelName = String(trigger.getAttribute('data-panel') || '').trim();
+        markSessionActivity();
+        if (panelName === 'provisioning') {
+          openProvisioningWorkspace();
+          return;
+        }
+        setActivePanel(panelName);
       });
     }
     document.addEventListener('keydown', function (event) {
@@ -3473,6 +3685,20 @@
       qs('provision-modal-reset').addEventListener('click', function () {
         loadProvisioningCatalog('prov-modal-');
         setBanner('Modal-Defaults geladen.', 'info');
+      });
+    }
+    if (qs('provision-progress-close')) {
+      qs('provision-progress-close').addEventListener('click', function () {
+        closeProvisionProgressModal(false);
+      });
+    }
+    if (qs('provision-progress-open-vm')) {
+      qs('provision-progress-open-vm').addEventListener('click', function () {
+        var vmid = Number(provisionProgressState.vmid || 0);
+        closeProvisionProgressModal(true);
+        if (vmid > 0) {
+          loadDetail(vmid);
+        }
       });
     }
     if (qs('refresh-catalog')) {

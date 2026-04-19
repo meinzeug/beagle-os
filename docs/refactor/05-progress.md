@@ -106,6 +106,7 @@
 	- Header action `+VM` now opens a dedicated fullscreen modal workflow instead of silently failing/no-op behavior.
 	- Sidebar action `+ VM erstellen` now uses the same modal flow instead of injecting a floating inline card in the current dashboard layout.
 	- Implemented in [website/index.html](website/index.html), [website/styles.css](website/styles.css), and [website/app.js](website/app.js) with shared provisioning catalog + submit wiring for modal fields.
+	- Added a dedicated provisioning progress overlay with animated loader + explicit workflow steps, so users no longer need to manually close the creation modal while status updates happen in the background.
 
 - Hardened provider-neutral ubuntu provisioning behavior for mixed provider defaults in [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py):
 	- `build_provisioning_catalog()` now only keeps configured default bridge when it is actually present in discovered bridge inventory; otherwise falls back to first available bridge.
