@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/disk_guardrails.sh"
 DIST_DIR="$ROOT_DIR/dist"
 INSTALLER_BUILD_DIR="${INSTALLER_BUILD_DIR:-${THINCLIENT_DIST_DIR:-$DIST_DIR/pve-thin-client-installer}}"
 SERVER_INSTALLER_DIST_DIR="${SERVER_INSTALLER_DIST_DIR:-$DIST_DIR/beagle-os-server-installer}"
@@ -37,6 +38,7 @@ SKIP_SERVER_INSTALLER_BUILD="${SKIP_SERVER_INSTALLER_BUILD:-0}"
 SKIP_KIOSK_BUILD="${SKIP_KIOSK_BUILD:-0}"
 PUBLIC_UPDATE_BASE_URL="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/beagle-updates}"
 PUBLIC_UPDATE_BASE_URL="${PUBLIC_UPDATE_BASE_URL%/}"
+PACKAGE_MIN_FREE_GIB="${BEAGLE_PACKAGE_MIN_FREE_GIB:-}"
 
 collect_beagle_os_assets() {
   local path
@@ -65,6 +67,35 @@ require_tool sha256sum
 require_tool python3
 require_tool node
 require_tool npm
+
+if [[ -z "$PACKAGE_MIN_FREE_GIB" ]]; then
+  PACKAGE_MIN_FREE_GIB=4
+  [[ "$SKIP_THIN_CLIENT_BUILD" != "1" ]] && PACKAGE_MIN_FREE_GIB=$((PACKAGE_MIN_FREE_GIB + 8))
+  [[ "$SKIP_SERVER_INSTALLER_BUILD" != "1" ]] && PACKAGE_MIN_FREE_GIB=$((PACKAGE_MIN_FREE_GIB + 6))
+  [[ "$SKIP_KIOSK_BUILD" != "1" ]] && PACKAGE_MIN_FREE_GIB=$((PACKAGE_MIN_FREE_GIB + 2))
+  [[ "$BUILD_BEAGLE_OS" == "1" ]] && PACKAGE_MIN_FREE_GIB=$((PACKAGE_MIN_FREE_GIB + 2))
+fi
+
+package_cleanup_paths=("$ROOT_DIR/.build")
+if [[ "$SKIP_THIN_CLIENT_BUILD" != "1" ]]; then
+  package_cleanup_paths+=("$INSTALLER_BUILD_DIR")
+fi
+if [[ "$SKIP_SERVER_INSTALLER_BUILD" != "1" ]]; then
+  package_cleanup_paths+=("$SERVER_INSTALLER_DIST_DIR")
+fi
+if [[ "$SKIP_KIOSK_BUILD" != "1" ]]; then
+  package_cleanup_paths+=("$KIOSK_DIST_DIR")
+fi
+if [[ "$BUILD_BEAGLE_OS" == "1" ]]; then
+  package_cleanup_paths+=("$BEAGLE_OS_DIST_DIR")
+fi
+
+ensure_free_space_with_cleanup \
+  "package workspace" \
+  "$DIST_DIR" \
+  "$((PACKAGE_MIN_FREE_GIB * 1024 * 1024))" \
+  "$ROOT_DIR" \
+  "${package_cleanup_paths[@]}"
 
 mkdir -p "$DIST_DIR"
 BEAGLE_OS_ASSETS=()

@@ -159,6 +159,34 @@ check_control_plane_novnc_rwpath() {
   record_failure
 }
 
+check_internal_callback_host() {
+  local current_provider=""
+  local callback_host=""
+
+  current_provider="$(host_provider_kind)"
+  if [[ "$current_provider" != "beagle" ]]; then
+    return 0
+  fi
+
+  callback_host="${BEAGLE_INTERNAL_CALLBACK_HOST:-}"
+  callback_host="${callback_host//\"/}"
+  callback_host="${callback_host//\'/}"
+
+  if [[ -z "$callback_host" ]]; then
+    echo "ERR cfg   BEAGLE_INTERNAL_CALLBACK_HOST missing in $BEAGLE_MANAGER_ENV_FILE"
+    record_failure
+    return 1
+  fi
+
+  if [[ "$callback_host" == "localhost" || "$callback_host" == 127.* ]]; then
+    echo "ERR cfg   BEAGLE_INTERNAL_CALLBACK_HOST must not be loopback ($callback_host)"
+    record_failure
+    return 1
+  fi
+
+  echo "OK  cfg   BEAGLE_INTERNAL_CALLBACK_HOST=$callback_host"
+}
+
 check_status_json() {
   local expected_installer_url=""
   local expected_bootstrap_url=""
@@ -292,6 +320,7 @@ check_file "$INSTALL_DIR/beagle-host/bin/beagle-usb-tunnel-session"
 check_file "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
 check_file "$BEAGLE_USB_TUNNEL_SSHD_DROPIN"
 check_control_plane_novnc_rwpath
+check_internal_callback_host
 
 if [[ "$(host_provider_kind)" == "proxmox" ]]; then
   check_file "$PVE_UI_JS_FILE"

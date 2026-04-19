@@ -2,11 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/disk_guardrails.sh"
 LB_TEMPLATE_DIR="$ROOT_DIR/thin-client-assistant/live-build"
 BUILD_DIR="${THINCLIENT_BUILD_DIR:-$ROOT_DIR/.build/pve-thin-client-live-build}"
 DIST_DIR="${THINCLIENT_DIST_DIR:-$ROOT_DIR/dist/pve-thin-client-installer}"
 THINCLIENT_ARCH="${THINCLIENT_ARCH:-amd64}"
 PROJECT_VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION" 2>/dev/null || echo dev)"
+THINCLIENT_MIN_BUILD_FREE_GIB="${BEAGLE_THINCLIENT_MIN_BUILD_FREE_GIB:-16}"
+THINCLIENT_MIN_DIST_FREE_GIB="${BEAGLE_THINCLIENT_MIN_DIST_FREE_GIB:-4}"
 OWNER_UID="${SUDO_UID:-$(id -u)}"
 OWNER_GID="${SUDO_GID:-$(id -g)}"
 MOONLIGHT_URL="${PVE_THIN_CLIENT_MOONLIGHT_URL:-https://github.com/moonlight-stream/moonlight-qt/releases/download/v6.1.0/Moonlight-6.1.0-x86_64.AppImage}"
@@ -20,7 +23,11 @@ ensure_root() {
     return 0
   fi
 
-  exec sudo THINCLIENT_ARCH="$THINCLIENT_ARCH" "$0" "$@"
+  exec sudo \
+    THINCLIENT_ARCH="$THINCLIENT_ARCH" \
+    BEAGLE_THINCLIENT_MIN_BUILD_FREE_GIB="$THINCLIENT_MIN_BUILD_FREE_GIB" \
+    BEAGLE_THINCLIENT_MIN_DIST_FREE_GIB="$THINCLIENT_MIN_DIST_FREE_GIB" \
+    "$0" "$@"
 }
 
 disable_proxmox_enterprise_repo() {
@@ -64,6 +71,20 @@ apt_update_with_proxmox_fallback() {
 }
 
 ensure_root "$@"
+ensure_free_space_with_cleanup \
+  "thin client live-build workspace" \
+  "$BUILD_DIR" \
+  "$((THINCLIENT_MIN_BUILD_FREE_GIB * 1024 * 1024))" \
+  "$ROOT_DIR" \
+  "$BUILD_DIR" \
+  "$DIST_DIR"
+ensure_free_space_with_cleanup \
+  "thin client installer artifacts" \
+  "$DIST_DIR" \
+  "$((THINCLIENT_MIN_DIST_FREE_GIB * 1024 * 1024))" \
+  "$ROOT_DIR" \
+  "$BUILD_DIR" \
+  "$DIST_DIR"
 apt_update_with_proxmox_fallback
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
   live-build \

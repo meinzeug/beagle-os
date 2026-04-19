@@ -1,5 +1,14 @@
 # Changelog
 
+## v6.6.8 - 2026-04-19
+
+- Hardened Ubuntu desktop autoinstall recovery so missed installer callbacks no longer leave new desktop VMs permanently stuck in `installing/autoinstall`.
+- Added target-side firstboot artifact fallback in cloud-init late-commands: generated seed now writes and enables `beagle-ubuntu-firstboot.service` directly in `/target` as a deterministic backup path.
+- Extended control-plane stale-state handling with `BEAGLE_UBUNTU_AUTOINSTALL_STALE_SECONDS` to force server-side transition from `autoinstall` to `firstboot` when callbacks are missing.
+- Kept and wired firstboot stale completion fallback to avoid indefinite `installing/firstboot` states.
+- Improved local release/build stability with reusable disk-space guardrails and integrated checks in packaging and installer build scripts.
+- Refreshed refactor handoff docs (`05-progress`, `06-next-steps`, `08-todo-global`) with live VM recreate validation status and remaining runtime validation steps.
+
 ## v6.6.7 - 2026-04-10
 
 - Continued the provider-neutral refactor without breaking the active Proxmox deployment path. The host control plane now routes the remaining Ubuntu Beagle guest-exec flows and scheduled restart helper through `beagle-host/providers/proxmox_host_provider.py` instead of shaping `qm guest exec`, `qm guest exec-status`, `qm start` and `qm stop` calls directly in `beagle-control-plane.py`.

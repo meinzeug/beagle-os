@@ -113,7 +113,9 @@ resolve_qemu_system_package() {
 standalone_runtime_tools_ready() {
   command -v virsh >/dev/null 2>&1 &&
     command -v qemu-img >/dev/null 2>&1 &&
-    command -v xorriso >/dev/null 2>&1
+    command -v xorriso >/dev/null 2>&1 &&
+    command -v zip >/dev/null 2>&1 &&
+    command -v npm >/dev/null 2>&1
 }
 
 wait_for_libvirt_system() {
@@ -192,6 +194,22 @@ detect_primary_ipv4() {
   fi
 
   return 1
+}
+
+detect_beagle_network_gateway_ipv4() {
+  local gateway=""
+
+  if ! command -v virsh >/dev/null 2>&1; then
+    return 1
+  fi
+
+  gateway="$(virsh --connect qemu:///system net-dumpxml beagle 2>/dev/null | awk -F"'" '/<ip address=/{print $2; exit}')"
+  if [[ -z "$gateway" ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "$gateway"
+  return 0
 }
 
 ensure_root "$@"
@@ -344,7 +362,7 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   if ! standalone_runtime_tools_ready; then
     qemu_system_package="$(resolve_qemu_system_package)"
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
-      libvirt-daemon-system libvirt-clients "$qemu_system_package" qemu-utils ovmf xorriso novnc websockify \
+      libvirt-daemon-system libvirt-clients "$qemu_system_package" qemu-utils ovmf xorriso zip nodejs npm novnc websockify \
       >/dev/null 2>&1 || true
   fi
   if ! command -v websockify >/dev/null 2>&1 || [[ ! -f /usr/share/novnc/vnc.html ]]; then
@@ -426,6 +444,33 @@ elif [[ -n "$configured_public_stream_host" ]]; then
   configured_public_stream_host="${configured_public_stream_host//\"/}"
   configured_public_stream_host="${configured_public_stream_host//\'/}"
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_PUBLIC_STREAM_HOST" "\"$configured_public_stream_host\""
+fi
+
+configured_internal_callback_host="${BEAGLE_INTERNAL_CALLBACK_HOST:-}"
+if [[ -z "$configured_internal_callback_host" ]]; then
+  configured_internal_callback_host="$(awk -F= '/^BEAGLE_INTERNAL_CALLBACK_HOST=/{print $2; exit}' "$BEAGLE_CONTROL_ENV_FILE" 2>/dev/null || true)"
+fi
+
+# For beagle provider VMs on the libvirt NAT network, callbacks must target the
+# host-side beagle bridge gateway (usually 192.168.123.1), not the external host IP.
+if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
+  if is_loopback_host "$configured_internal_callback_host"; then
+    configured_internal_callback_host=""
+  fi
+  if [[ -z "$configured_internal_callback_host" ]]; then
+    detected_internal_callback_host="$(detect_beagle_network_gateway_ipv4 || true)"
+    if [[ -n "$detected_internal_callback_host" ]]; then
+      set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_INTERNAL_CALLBACK_HOST" "\"$detected_internal_callback_host\""
+    fi
+  else
+    configured_internal_callback_host="${configured_internal_callback_host//\"/}"
+    configured_internal_callback_host="${configured_internal_callback_host//\'/}"
+    set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_INTERNAL_CALLBACK_HOST" "\"$configured_internal_callback_host\""
+  fi
+elif [[ -n "$configured_internal_callback_host" ]]; then
+  configured_internal_callback_host="${configured_internal_callback_host//\"/}"
+  configured_internal_callback_host="${configured_internal_callback_host//\'/}"
+  set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_INTERNAL_CALLBACK_HOST" "\"$configured_internal_callback_host\""
 fi
 
 if [[ -n "$BEAGLE_AUTH_BOOTSTRAP_USERNAME" ]]; then

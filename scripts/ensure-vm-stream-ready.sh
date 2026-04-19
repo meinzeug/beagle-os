@@ -233,6 +233,43 @@ print(str(value))
 PY
 }
 
+latest_ubuntu_state_credential() {
+  local field="$1"
+  python3 - "$MANAGER_DATA_DIR/ubuntu-beagle-install" "$VMID" "$field" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+tokens_dir = Path(sys.argv[1])
+vmid = int(sys.argv[2])
+field = str(sys.argv[3]).strip()
+if not tokens_dir.is_dir():
+    raise SystemExit(0)
+
+latest_created_at = ""
+latest_value = ""
+for path in sorted(tokens_dir.glob("*.json")):
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        continue
+    if not isinstance(payload, dict):
+        continue
+    if int(payload.get("vmid", 0) or 0) != vmid:
+        continue
+    value = str(payload.get(field, "") or "").strip()
+    if not value:
+        continue
+    created_at = str(payload.get("created_at", "") or "")
+    if created_at >= latest_created_at:
+        latest_created_at = created_at
+        latest_value = value
+
+if latest_value:
+    print(latest_value)
+PY
+}
+
 verify_public_api() {
   local api_url="$1"
   local sunshine_user="$2"
@@ -264,7 +301,7 @@ run_public_stream_reconcile() {
 }
 
 main() {
-  local stream_port sunshine_user sunshine_password sunshine_pin sunshine_pinned_pubkey guest_user sunshine_status_raw sunshine_status_json public_api_url direct_api_url guest_ip extra_json verify_extra_json
+  local stream_port sunshine_user sunshine_password sunshine_pin sunshine_pinned_pubkey guest_user guest_password sunshine_status_raw sunshine_status_json public_api_url direct_api_url guest_ip installer_guest_ip extra_json verify_extra_json
 
   parse_args "$@"
   [[ -n "$VMID" && -n "$NODE" ]] || { usage; exit 1; }
@@ -279,6 +316,13 @@ main() {
   sunshine_pin="$(vm_secret_get sunshine_pin)"
   sunshine_pinned_pubkey="$(vm_secret_get sunshine_pinned_pubkey)"
   guest_user="$(meta_get sunshine-guest-user)"
+  guest_password="$(vm_secret_get guest_password)"
+  if [[ -z "$guest_password" ]]; then
+    guest_password="$(vm_secret_get password)"
+  fi
+  if [[ -z "$guest_password" ]]; then
+    guest_password="$(latest_ubuntu_state_credential guest_password)"
+  fi
   [[ -n "$sunshine_user" ]] || sunshine_user="$SUNSHINE_DEFAULT_USER"
   [[ -n "$sunshine_password" ]] || sunshine_password="$SUNSHINE_DEFAULT_PASSWORD"
   [[ -n "$sunshine_pin" ]] || sunshine_pin="$SUNSHINE_DEFAULT_PIN"
@@ -289,17 +333,23 @@ main() {
   }
   [[ -n "$sunshine_pin" ]] || sunshine_pin="$(printf '%04d' $(( VMID % 10000 )))"
   [[ -n "$guest_user" ]] || guest_user="$SUNSHINE_DEFAULT_GUEST_USER"
+  installer_guest_ip="$(meta_get sunshine-ip)"
+  if [[ -z "$installer_guest_ip" ]]; then
+    installer_guest_ip="$(guest_ipv4 2>/dev/null || true)"
+  fi
   public_api_url="https://${PUBLIC_STREAM_HOST}:$((stream_port + 1))"
-  extra_json="$(python3 - "$VMID" "$PUBLIC_STREAM_HOST" "$stream_port" "$public_api_url" <<'PY'
+  extra_json="$(python3 - "$VMID" "$PUBLIC_STREAM_HOST" "$stream_port" "$public_api_url" "$installer_guest_ip" "$guest_password" <<'PY'
 import json
 import sys
 
-vmid, stream_host, moonlight_port, sunshine_api_url = sys.argv[1:5]
+vmid, stream_host, moonlight_port, sunshine_api_url, installer_guest_ip, guest_password = sys.argv[1:7]
 print(json.dumps({
     "installer_url": f"/beagle-api/api/v1/vms/{vmid}/installer.sh",
     "stream_host": stream_host,
     "moonlight_port": moonlight_port,
     "sunshine_api_url": sunshine_api_url,
+    "installer_guest_ip": installer_guest_ip,
+    "installer_guest_password_available": bool(guest_password),
 }))
 PY
 )"
@@ -396,16 +446,24 @@ PY
     write_state running verify 65 "Sunshine ist bereits installiert. Pruefe Sunshine API." "$verify_extra_json"
   else
     write_state running install 25 "Sunshine fehlt oder ist nicht aktiv. Installation wird gestartet." "$verify_extra_json"
-    /opt/beagle/scripts/configure-sunshine-guest.sh \
-      --proxmox-host localhost \
-      --vmid "$VMID" \
-      --guest-user "$guest_user" \
-      --sunshine-user "$sunshine_user" \
-      --sunshine-password "$sunshine_password" \
-      --sunshine-pin "$sunshine_pin" \
-      --sunshine-port "$stream_port" \
-      --public-stream-host "$PUBLIC_STREAM_HOST" \
+    local -a configure_args=(
+      --proxmox-host localhost
+      --vmid "$VMID"
+      --guest-user "$guest_user"
+      --sunshine-user "$sunshine_user"
+      --sunshine-password "$sunshine_password"
+      --sunshine-pin "$sunshine_pin"
+      --sunshine-port "$stream_port"
+      --public-stream-host "$PUBLIC_STREAM_HOST"
       --no-reboot
+    )
+    if [[ -n "$installer_guest_ip" ]]; then
+      configure_args+=(--guest-ip "$installer_guest_ip")
+    fi
+    if [[ -n "$guest_password" ]]; then
+      configure_args+=(--guest-password "$guest_password")
+    fi
+    /opt/beagle/scripts/configure-sunshine-guest.sh "${configure_args[@]}"
     sunshine_status_raw="$(sunshine_guest_status_json)"
     sunshine_status_json="$(python3 - "$sunshine_status_raw" <<'PY'
 import json, sys

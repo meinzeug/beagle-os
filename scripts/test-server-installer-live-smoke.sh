@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/disk_guardrails.sh"
 ISO_PATH="${BEAGLE_SERVER_INSTALLER_ISO:-$ROOT_DIR/dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso}"
 VM_NAME="${BEAGLE_LIVE_SMOKE_VM_NAME:-beagle-live-smoke}"
 DISK_PATH="${BEAGLE_LIVE_SMOKE_DISK_PATH:-/var/lib/libvirt/images/${VM_NAME}.qcow2}"
@@ -15,6 +16,8 @@ WAIT_DHCP_SECONDS="${BEAGLE_LIVE_SMOKE_WAIT_DHCP_SECONDS:-120}"
 WAIT_HEALTH_SECONDS="${BEAGLE_LIVE_SMOKE_WAIT_HEALTH_SECONDS:-240}"
 REQUIRE_HEALTH="${BEAGLE_LIVE_SMOKE_REQUIRE_HEALTH:-0}"
 KEEP_VM="${BEAGLE_LIVE_SMOKE_KEEP_VM:-0}"
+LIVE_SMOKE_MIN_DISK_FREE_GIB="${BEAGLE_LIVE_SMOKE_MIN_DISK_FREE_GIB:-$((DISK_SIZE_GB + 4))}"
+LIVE_SMOKE_MIN_STAGE_FREE_GIB="${BEAGLE_LIVE_SMOKE_MIN_STAGE_FREE_GIB:-4}"
 
 require_cmd() {
   local cmd="$1"
@@ -42,6 +45,8 @@ ensure_root() {
     BEAGLE_LIVE_SMOKE_WAIT_HEALTH_SECONDS="$WAIT_HEALTH_SECONDS" \
     BEAGLE_LIVE_SMOKE_REQUIRE_HEALTH="$REQUIRE_HEALTH" \
     BEAGLE_LIVE_SMOKE_KEEP_VM="$KEEP_VM" \
+    BEAGLE_LIVE_SMOKE_MIN_DISK_FREE_GIB="$LIVE_SMOKE_MIN_DISK_FREE_GIB" \
+    BEAGLE_LIVE_SMOKE_MIN_STAGE_FREE_GIB="$LIVE_SMOKE_MIN_STAGE_FREE_GIB" \
     "$0"
 }
 
@@ -115,6 +120,25 @@ if [[ ! -f "$ISO_PATH" ]]; then
 fi
 
 ensure_root
+
+ensure_free_space_with_cleanup \
+  "live smoke VM disk" \
+  "$(dirname "$DISK_PATH")" \
+  "$((LIVE_SMOKE_MIN_DISK_FREE_GIB * 1024 * 1024))" \
+  "$ROOT_DIR" \
+  "$ROOT_DIR/.build" \
+  "$ROOT_DIR/dist/pve-thin-client-installer" \
+  "$ROOT_DIR/dist/beagle-os" \
+  "$ROOT_DIR/beagle-kiosk/dist"
+ensure_free_space_with_cleanup \
+  "live smoke ISO staging" \
+  "$(dirname "$ISO_STAGING_PATH")" \
+  "$((LIVE_SMOKE_MIN_STAGE_FREE_GIB * 1024 * 1024))" \
+  "$ROOT_DIR" \
+  "$ROOT_DIR/.build" \
+  "$ROOT_DIR/dist/pve-thin-client-installer" \
+  "$ROOT_DIR/dist/beagle-os" \
+  "$ROOT_DIR/beagle-kiosk/dist"
 
 echo "[INFO] Staging ISO: $ISO_PATH -> $ISO_STAGING_PATH"
 cp "$ISO_PATH" "$ISO_STAGING_PATH"

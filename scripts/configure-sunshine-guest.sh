@@ -21,6 +21,7 @@ DESKTOP_SESSION="${DESKTOP_SESSION:-xfce}"
 PROXMOX_USER="${PROXMOX_USER:-}"
 PROXMOX_PASSWORD="${PROXMOX_PASSWORD:-}"
 PROXMOX_TOKEN="${PROXMOX_TOKEN:-}"
+GUEST_IP_OVERRIDE="${GUEST_IP_OVERRIDE:-}"
 SUNSHINE_USER="${SUNSHINE_USER:-sunshine}"
 SUNSHINE_PASSWORD="${SUNSHINE_PASSWORD:-}"
 SUNSHINE_PIN="${SUNSHINE_PIN:-}"
@@ -147,6 +148,7 @@ parse_args() {
       --vmid) VMID="$2"; shift 2 ;;
       --guest-user) GUEST_USER="$2"; shift 2 ;;
       --guest-password) GUEST_PASSWORD="$2"; shift 2 ;;
+      --guest-ip) GUEST_IP_OVERRIDE="$2"; shift 2 ;;
       --identity-locale) IDENTITY_LOCALE="$2"; shift 2 ;;
       --identity-keymap) IDENTITY_KEYMAP="$2"; shift 2 ;;
       --desktop-id) DESKTOP_ID="$2"; shift 2 ;;
@@ -192,7 +194,10 @@ guest_exec_script() {
   local chunk=""
   local chunk_size=3000
 
-  guest_ip="$(detect_guest_ip | tail -n1 | tr -d '\r' || true)"
+  guest_ip="$GUEST_IP_OVERRIDE"
+  if [[ -z "$guest_ip" ]]; then
+    guest_ip="$(detect_guest_ip | tail -n1 | tr -d '\r' || true)"
+  fi
   if [[ -n "$GUEST_PASSWORD" && -n "$guest_ip" ]] && command -v sshpass >/dev/null 2>&1; then
     local ssh_target="${GUEST_USER}@${guest_ip}"
     local tmp_script
@@ -671,26 +676,26 @@ cat > /usr/local/bin/beagle-sunshine-healthcheck <<'HEALTHCHECK'
 set -euo pipefail
 
 ENV_FILE="/etc/beagle/sunshine-healthcheck.env"
-[[ -r "$ENV_FILE" ]] || exit 1
+[[ -r "\$ENV_FILE" ]] || exit 1
 # shellcheck disable=SC1090
-source "$ENV_FILE"
+source "\$ENV_FILE"
 
-SUNSHINE_USER="${SUNSHINE_USER:-sunshine}"
-SUNSHINE_PASSWORD="${SUNSHINE_PASSWORD:-}"
-SUNSHINE_PORT="${SUNSHINE_PORT:-}"
-GUEST_USER="${GUEST_USER:-beagle}"
-GUEST_UID="${GUEST_UID:-$(id -u "$GUEST_USER" 2>/dev/null || echo 1000)}"
+SUNSHINE_USER="\${SUNSHINE_USER:-sunshine}"
+SUNSHINE_PASSWORD="\${SUNSHINE_PASSWORD:-}"
+SUNSHINE_PORT="\${SUNSHINE_PORT:-}"
+GUEST_USER="\${GUEST_USER:-beagle}"
+GUEST_UID="\${GUEST_UID:-\$(id -u "\$GUEST_USER" 2>/dev/null || echo 1000)}"
 
-repair="${1:-}"
+repair="\${1:-}"
 api_port=47990
-if [[ -n "$SUNSHINE_PORT" ]]; then
-  api_port="$((SUNSHINE_PORT + 1))"
+if [[ -n "\$SUNSHINE_PORT" ]]; then
+  api_port="\$((SUNSHINE_PORT + 1))"
 fi
 
 ensure_runtime() {
-  local runtime_dir="/run/user/${GUEST_UID}"
-  if [[ ! -d "$runtime_dir" ]]; then
-    loginctl enable-linger "$GUEST_USER" >/dev/null 2>&1 || true
+  local runtime_dir="/run/user/\${GUEST_UID}"
+  if [[ ! -d "\$runtime_dir" ]]; then
+    loginctl enable-linger "\$GUEST_USER" >/dev/null 2>&1 || true
   fi
 }
 
@@ -706,15 +711,15 @@ ensure_timer() {
 }
 
 is_api_ready() {
-  [[ -n "$SUNSHINE_PASSWORD" ]] || return 1
+  [[ -n "\$SUNSHINE_PASSWORD" ]] || return 1
   curl -kfsS --connect-timeout 3 --max-time 5 \
-    --user "${SUNSHINE_USER}:${SUNSHINE_PASSWORD}" \
-    "https://127.0.0.1:${api_port}/api/apps" >/dev/null
+    --user "\${SUNSHINE_USER}:\${SUNSHINE_PASSWORD}" \
+    "https://127.0.0.1:\${api_port}/api/apps" >/dev/null
 }
 
 ensure_timer
 
-if [[ "$repair" == "--repair-only" ]]; then
+if [[ "\$repair" == "--repair-only" ]]; then
   restart_stack
   exit 0
 fi
@@ -789,11 +794,14 @@ EOF
 )"
 
   guest_exec_script "$guest_script"
-  guest_ip="$(detect_guest_ip | tail -n1 | tr -d '\r')"
-  [[ -n "$guest_ip" ]] || {
+  guest_ip="$GUEST_IP_OVERRIDE"
+  if [[ -z "$guest_ip" ]]; then
+    guest_ip="$(detect_guest_ip 2>/dev/null | tail -n1 | tr -d '\r' || true)"
+  fi
+  if [[ "$UPDATE_METADATA" == "1" && -z "$guest_ip" ]]; then
     echo "Unable to determine guest IPv4 address for VM $VMID" >&2
     exit 1
-  }
+  fi
 
   if [[ "$UPDATE_METADATA" == "1" ]]; then
     update_vm_metadata "$guest_ip"
@@ -802,7 +810,7 @@ EOF
   if [[ "$VM_REBOOT" == "1" ]]; then
     reboot_current_vm
   fi
-  echo "Configured Sunshine guest VM $VMID on $PROXMOX_HOST (guest IP: $guest_ip)"
+  echo "Configured Sunshine guest VM $VMID on $PROXMOX_HOST (guest IP: ${guest_ip:-unknown})"
 }
 
 main "$@"

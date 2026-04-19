@@ -2,18 +2,25 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/disk_guardrails.sh"
 LB_TEMPLATE_DIR="$ROOT_DIR/server-installer/live-build"
 BUILD_DIR="${SERVER_INSTALLER_BUILD_DIR:-$ROOT_DIR/.build/beagle-server-installer-live-build}"
 DIST_DIR="${SERVER_INSTALLER_DIST_DIR:-$ROOT_DIR/dist/beagle-os-server-installer}"
 SERVER_INSTALLER_ARCH="${SERVER_INSTALLER_ARCH:-amd64}"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
+SERVER_INSTALLER_MIN_BUILD_FREE_GIB="${BEAGLE_SERVER_INSTALLER_MIN_BUILD_FREE_GIB:-14}"
+SERVER_INSTALLER_MIN_DIST_FREE_GIB="${BEAGLE_SERVER_INSTALLER_MIN_DIST_FREE_GIB:-4}"
 BUNDLED_SOURCE_ARCHIVE_PATH="config/includes.chroot/usr/local/share/beagle/beagle-os-source.tar.gz"
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
     return 0
   fi
-  exec sudo SERVER_INSTALLER_ARCH="$SERVER_INSTALLER_ARCH" "$0" "$@"
+  exec sudo \
+    SERVER_INSTALLER_ARCH="$SERVER_INSTALLER_ARCH" \
+    BEAGLE_SERVER_INSTALLER_MIN_BUILD_FREE_GIB="$SERVER_INSTALLER_MIN_BUILD_FREE_GIB" \
+    BEAGLE_SERVER_INSTALLER_MIN_DIST_FREE_GIB="$SERVER_INSTALLER_MIN_DIST_FREE_GIB" \
+    "$0" "$@"
 }
 
 disable_proxmox_enterprise_repo() {
@@ -54,6 +61,21 @@ apt_update_with_proxmox_fallback() {
 }
 
 ensure_root "$@"
+
+ensure_free_space_with_cleanup \
+  "server installer build workspace" \
+  "$BUILD_DIR" \
+  "$((SERVER_INSTALLER_MIN_BUILD_FREE_GIB * 1024 * 1024))" \
+  "$ROOT_DIR" \
+  "$BUILD_DIR" \
+  "$DIST_DIR"
+ensure_free_space_with_cleanup \
+  "server installer artifacts" \
+  "$DIST_DIR" \
+  "$((SERVER_INSTALLER_MIN_DIST_FREE_GIB * 1024 * 1024))" \
+  "$ROOT_DIR" \
+  "$BUILD_DIR" \
+  "$DIST_DIR"
 
 apt_update_with_proxmox_fallback
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
