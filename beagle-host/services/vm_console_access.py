@@ -37,6 +37,36 @@ class VmConsoleAccessService:
         return 8006
 
     @staticmethod
+    def _libvirt_guest_ip(vmid: int, domain_name: str | None = None) -> str | None:
+        """Try to find the guest's primary IPv4 address via the QEMU guest agent."""
+        default_domain = f"beagle-{int(vmid)}"
+        domain = str(domain_name or "").strip() or default_domain
+        for src in ("agent", "lease"):
+            for dom in (domain, default_domain):
+                result = subprocess.run(
+                    ["virsh", "--connect", "qemu:///system", "domifaddr", dom, "--source", src],
+                    capture_output=True,
+                    text=True,
+                    timeout=8,
+                    check=False,
+                )
+                if result.returncode != 0:
+                    continue
+                for line in result.stdout.splitlines():
+                    parts = line.split()
+                    # virsh domifaddr output: iface  MAC  protocol  address/prefix
+                    if len(parts) >= 4 and parts[2] == "ipv4":
+                        addr = parts[3].split("/")[0]
+                        try:
+                            import ipaddress
+                            ip = ipaddress.IPv4Address(addr)
+                            if not ip.is_loopback:
+                                return str(ip)
+                        except Exception:
+                            continue
+        return None
+
+    @staticmethod
     def _libvirt_vnc_port(vmid: int, domain_name: str | None = None) -> int | None:
         default_domain = f"beagle-{int(vmid)}"
         domain = str(domain_name or "").strip() or default_domain
@@ -71,9 +101,9 @@ class VmConsoleAccessService:
                 return 5900 + int(tail)
         return None
 
-    def _upsert_beagle_novnc_token(self, *, vmid: int, target_port: int) -> str:
+    def _upsert_beagle_novnc_token(self, *, vmid: int, target_port: int, target_host: str = "127.0.0.1") -> str:
         token = self._get_or_create_vm_secret_token(vmid)
-        line = f"{token}: 127.0.0.1:{int(target_port)}"
+        line = f"{token}: {target_host}:{int(target_port)}"
         token_file = self._novnc_token_file
         token_file.parent.mkdir(parents=True, exist_ok=True)
         entries: list[str] = []
@@ -184,11 +214,29 @@ class VmConsoleAccessService:
         fallback = self._primary_ipv4()
         return fallback or candidate
 
+    @staticmethod
+    def _tcp_port_open(host: str, port: int, timeout: float = 2.0) -> bool:
+        """Return True if a TCP connection to host:port can be established within timeout."""
+        try:
+            with socket.create_connection((host, int(port)), timeout=timeout):
+                return True
+        except OSError:
+            return False
+
     def _beagle_novnc_url(self, *, host: str, vmid: int, domain_name: str | None = None) -> str | None:
-        port = self._libvirt_vnc_port(vmid, domain_name)
-        if port is None:
-            return None
-        token = self._upsert_beagle_novnc_token(vmid=vmid, target_port=port)
+        # Prefer guest-side x11vnc (port 5901) which captures the actual X11 display.
+        # QEMU's built-in VNC captures the VGA text buffer (TTY1) which does not
+        # show the XFCE session when the guest uses KMS/modesetting (Virtual-1).
+        guest_ip = self._libvirt_guest_ip(vmid, domain_name)
+        if guest_ip and self._tcp_port_open(guest_ip, 5901):
+            token = self._upsert_beagle_novnc_token(vmid=vmid, target_port=5901, target_host=guest_ip)
+        else:
+            # Fall back to QEMU VGA VNC on localhost (shows TTY1 on KMS guests,
+            # but at least works as a fallback during firstboot/provisioning).
+            port = self._libvirt_vnc_port(vmid, domain_name)
+            if port is None:
+                return None
+            token = self._upsert_beagle_novnc_token(vmid=vmid, target_port=port)
         resolved_host = self._resolve_novnc_host(host)
         base_path = self._novnc_path.strip()
         if not base_path.startswith("/"):

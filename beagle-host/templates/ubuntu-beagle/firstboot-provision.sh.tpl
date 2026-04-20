@@ -9,6 +9,7 @@ IDENTITY_LANGUAGE="__IDENTITY_LANGUAGE__"
 IDENTITY_KEYMAP="__IDENTITY_KEYMAP__"
 DESKTOP_ID="__DESKTOP_ID__"
 DESKTOP_SESSION="__DESKTOP_SESSION__"
+DESKTOP_SESSION_EFFECTIVE="${DESKTOP_SESSION}"
 DESKTOP_PACKAGES="__DESKTOP_PACKAGES__"
 SOFTWARE_PACKAGES="__SOFTWARE_PACKAGES__"
 PACKAGE_PRESETS="__PACKAGE_PRESETS__"
@@ -285,6 +286,24 @@ EOF
   return 1
 }
 
+resolve_desktop_session() {
+  local session="${DESKTOP_SESSION:-}"
+
+  if [[ "${DESKTOP_ID}" == "xfce" ]]; then
+    if [[ -f /usr/share/xsessions/xfce.desktop ]]; then
+      session="xfce"
+    elif [[ -f /usr/share/xsessions/xfce4.desktop ]]; then
+      session="xfce4"
+    fi
+  fi
+
+  if [[ -z "$session" ]]; then
+    session="default"
+  fi
+
+  DESKTOP_SESSION_EFFECTIVE="$session"
+}
+
 apt_retry() {
   local attempt
   for attempt in $(seq 1 3); do
@@ -333,13 +352,13 @@ EOF
   cat > "/var/lib/AccountsService/users/$GUEST_USER" <<EOF
 [User]
 Language=${locale}
-XSession=${DESKTOP_SESSION}
+XSession=${DESKTOP_SESSION_EFFECTIVE}
 EOF
 
   cat > "/home/$GUEST_USER/.dmrc" <<EOF
 [Desktop]
 Language=${locale}
-Session=${DESKTOP_SESSION}
+Session=${DESKTOP_SESSION_EFFECTIVE}
 EOF
   chown "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.dmrc"
 }
@@ -450,6 +469,9 @@ wait_for_sunshine_ready() {
         fi
       done
     fi
+    if (( _ % 30 == 0 )); then
+      /usr/local/bin/beagle-sunshine-healthcheck --repair-only >/dev/null 2>&1 || true
+    fi
     sleep 2
   done
 
@@ -479,13 +501,15 @@ if [[ ! -f "$DONE_FILE" ]]; then
     wireplumber \
     pulseaudio-utils \
     usbutils \
-    xdg-utils
+    xdg-utils \
+    x11vnc
   if [[ -n "$DESKTOP_PACKAGES" ]]; then
     apt_retry apt-get install -y --fix-missing ${DESKTOP_PACKAGES}
   fi
   if [[ -n "$SOFTWARE_PACKAGES" ]]; then
     apt_retry apt-get install -y --fix-missing ${SOFTWARE_PACKAGES}
   fi
+  resolve_desktop_session
 
   TMPDIR_WORK="$(mktemp -d)"
   curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$SUNSHINE_URL"
@@ -498,8 +522,8 @@ if [[ ! -f "$DONE_FILE" ]]; then
   cat > /etc/lightdm/lightdm.conf.d/60-beagle.conf <<EOF
 [Seat:*]
 autologin-user=${GUEST_USER}
-autologin-session=${DESKTOP_SESSION}
-user-session=${DESKTOP_SESSION}
+autologin-session=${DESKTOP_SESSION_EFFECTIVE}
+user-session=${DESKTOP_SESSION_EFFECTIVE}
 greeter-session=lightdm-gtk-greeter
 EOF
 
@@ -572,6 +596,7 @@ EOF
 Description=Beagle Sunshine
 After=network-online.target display-manager.service graphical.target sound.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -584,10 +609,140 @@ Environment=XAUTHORITY=/home/${GUEST_USER}/.Xauthority
 Environment=XDG_RUNTIME_DIR=/run/user/${GUEST_UID}
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${GUEST_UID}/bus
 Environment=PULSE_SERVER=unix:/run/user/${GUEST_UID}/pulse/native
-ExecStartPre=/bin/bash -lc 'pulse_socket="/run/user/${GUEST_UID}/pulse/native"; for _ in {1..180}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/${GUEST_USER}/.Xauthority && -d /run/user/${GUEST_UID} && -S /run/user/${GUEST_UID}/bus && -S "\$pulse_socket" ]] && DISPLAY=:0 XAUTHORITY=/home/${GUEST_USER}/.Xauthority xrandr --query >/dev/null 2>&1 && DISPLAY=:0 XAUTHORITY=/home/${GUEST_USER}/.Xauthority xrandr --query | grep -q " connected"; then sleep 5; exit 0; fi; sleep 1; done; echo "Timed out waiting for an active graphical/audio session on :0" >&2; exit 1'
+ExecStartPre=/bin/bash -lc 'pulse_socket="/run/user/${GUEST_UID}/pulse/native"; for _ in {1..180}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/${GUEST_USER}/.Xauthority && -d /run/user/${GUEST_UID} && -S /run/user/${GUEST_UID}/bus && -S "\$pulse_socket" ]] && DISPLAY=:0 XAUTHORITY=/home/${GUEST_USER}/.Xauthority xrandr --query >/dev/null 2>&1; then sleep 5; exit 0; fi; sleep 1; done; echo "Timed out waiting for an active graphical/audio session on :0" >&2; exit 1'
 ExecStart=/usr/bin/sunshine
 Restart=always
 RestartSec=2
+TimeoutStartSec=210
+
+[Install]
+WantedBy=graphical.target
+EOF
+
+  install -d -m 0755 /etc/beagle
+  cat > /etc/beagle/sunshine-healthcheck.env <<EOF
+SUNSHINE_USER=${SUNSHINE_USER}
+SUNSHINE_PASSWORD=${SUNSHINE_PASSWORD}
+SUNSHINE_PORT=${SUNSHINE_PORT}
+GUEST_USER=${GUEST_USER}
+GUEST_UID=${GUEST_UID}
+EOF
+  chmod 0600 /etc/beagle/sunshine-healthcheck.env
+
+  cat > /usr/local/bin/beagle-sunshine-healthcheck <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+ENV_FILE="/etc/beagle/sunshine-healthcheck.env"
+[[ -r "$ENV_FILE" ]] || exit 1
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+
+SUNSHINE_USER="${SUNSHINE_USER:-sunshine}"
+SUNSHINE_PASSWORD="${SUNSHINE_PASSWORD:-}"
+SUNSHINE_PORT="${SUNSHINE_PORT:-}"
+GUEST_USER="${GUEST_USER:-beagle}"
+GUEST_UID="${GUEST_UID:-$(id -u "$GUEST_USER" 2>/dev/null || echo 1000)}"
+
+repair="${1:-}"
+api_port=47990
+if [[ -n "$SUNSHINE_PORT" ]]; then
+  api_port="$((SUNSHINE_PORT + 1))"
+fi
+
+ensure_runtime() {
+  local runtime_dir="/run/user/${GUEST_UID}"
+  if [[ ! -d "$runtime_dir" ]]; then
+    loginctl enable-linger "$GUEST_USER" >/dev/null 2>&1 || true
+  fi
+}
+
+restart_stack() {
+  ensure_runtime
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  systemctl enable beagle-sunshine.service >/dev/null 2>&1 || true
+  systemctl restart beagle-sunshine.service >/dev/null 2>&1 || true
+}
+
+ensure_timer() {
+  systemctl enable --now beagle-sunshine-healthcheck.timer >/dev/null 2>&1 || true
+}
+
+is_api_ready() {
+  [[ -n "$SUNSHINE_PASSWORD" ]] || return 1
+  curl -kfsS --connect-timeout 3 --max-time 5 \
+    --user "${SUNSHINE_USER}:${SUNSHINE_PASSWORD}" \
+    "https://127.0.0.1:${api_port}/api/apps" >/dev/null
+}
+
+ensure_timer
+
+if [[ "$repair" == "--repair-only" ]]; then
+  restart_stack
+  exit 0
+fi
+
+if ! systemctl is-active --quiet beagle-sunshine.service; then
+  restart_stack
+  exit 0
+fi
+
+if ! pgrep -x sunshine >/dev/null 2>&1; then
+  restart_stack
+  exit 0
+fi
+
+if ! is_api_ready; then
+  restart_stack
+fi
+EOF
+  chmod 0755 /usr/local/bin/beagle-sunshine-healthcheck
+
+  cat > /etc/systemd/system/beagle-sunshine-healthcheck.service <<'EOF'
+[Unit]
+Description=Beagle Sunshine Healthcheck and Repair
+After=network-online.target beagle-sunshine.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/beagle-sunshine-healthcheck
+EOF
+
+  cat > /etc/systemd/system/beagle-sunshine-healthcheck.timer <<EOF
+[Unit]
+Description=Run Beagle Sunshine healthcheck periodically
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+Persistent=true
+RandomizedDelaySec=5s
+Unit=beagle-sunshine-healthcheck.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+  # x11vnc: capture X11 display :0 so noVNC shows actual desktop (not QEMU VGA/TTY1)
+  cat > /etc/systemd/system/beagle-x11vnc.service <<EOF
+[Unit]
+Description=Beagle x11vnc Display Server
+After=display-manager.service graphical.target
+Wants=display-manager.service
+
+[Service]
+Type=simple
+User=${GUEST_USER}
+Group=${GUEST_USER}
+Environment=HOME=/home/${GUEST_USER}
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/${GUEST_USER}/.Xauthority
+ExecStartPre=/bin/bash -lc 'for _ in {1..180}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/${GUEST_USER}/.Xauthority ]] && DISPLAY=:0 XAUTHORITY=/home/${GUEST_USER}/.Xauthority xrandr --query >/dev/null 2>&1; then exit 0; fi; sleep 1; done; echo "Timed out waiting for X11 session" >&2; exit 1'
+ExecStart=/usr/bin/x11vnc -display :0 -rfbport 5901 -forever -nopw -auth /home/${GUEST_USER}/.Xauthority -shared -noxdamage -xkb
+Restart=always
+RestartSec=5
+TimeoutStartSec=210
 
 [Install]
 WantedBy=graphical.target
@@ -616,13 +771,20 @@ EOF
     sleep 1
   done
   systemctl enable --now beagle-sunshine.service >/dev/null 2>&1 || true
-  wait_for_sunshine_ready
+  systemctl enable --now beagle-sunshine-healthcheck.timer >/dev/null 2>&1 || true
+  systemctl enable beagle-x11vnc.service >/dev/null 2>&1 || true
+  if ! wait_for_sunshine_ready; then
+    echo "WARN: Sunshine did not become ready during firstboot; continuing and leaving repair timer active" >&2
+    /usr/local/bin/beagle-sunshine-healthcheck --repair-only >/dev/null 2>&1 || true
+  fi
 
   touch "$DONE_FILE"
 fi
 
 if [[ ! -f "$CALLBACK_DONE_FILE" ]]; then
-  post_completion_callback
+  if ! post_completion_callback; then
+    echo "WARN: firstboot completion callback failed; continuing with local finalize/reboot" >&2
+  fi
   touch "$CALLBACK_DONE_FILE"
   systemctl reboot >/dev/null 2>&1 || reboot >/dev/null 2>&1 || true
 fi

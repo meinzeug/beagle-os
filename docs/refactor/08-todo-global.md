@@ -75,8 +75,9 @@
 - [ ] Validate stream persistence across full reboot without manual firewall/route intervention.
 - [ ] Fix `test-server-installer-live-smoke.sh` DHCP timeout in local libvirt harness after fresh ISO build.
 - [ ] Stabilize `test-standalone-desktop-stream-sim.sh` for real libvirt execution (storage/permission/fake-kernel assumptions).
-- [ ] Complete in-VM installer flow and re-validate host API/download/noVNC paths post-install.
+- [ ] Complete in-VM installer flow and re-validate host API/download/noVNC paths post-install from the freshly rebuilt server-installer ISO.
 - [x] Confirm installer template artifact generation recovers after long-running `prepare-host-downloads` run and endpoint returns 200.
+- [x] Fix host-install reproducibility gap: always run `scripts/prepare-host-downloads.sh` in `scripts/install-beagle-host.sh` even when release artifacts already exist.
 - [x] Ensure stream-prep script consumes persisted guest connection inputs (`sunshine-ip`, `guest_password`) so the next run does not rely on manual SSH/console work.
 - [x] Persist Ubuntu `guest_password` into per-VM secrets and add a legacy fallback for already-created VMs so unattended stream-prep can reuse generated guest credentials.
 	- Deployed on 2026-04-19 and validated:
@@ -94,4 +95,5 @@
 - [ ] Add UI regression test for noVNC action buttons in inventory/detail and launch/error behavior.
 - [ ] Add regression tests for concurrent auth refresh + dashboard polling.
 - [ ] Add UI-level provisioning smoke test in CI.
-- [ ] Backport VM-side hotfixes through a fresh ISO reinstall validation run.
+- [x] Backport VM-side noVNC/XFCE hotfixes into repo-owned host install path and freshly rebuilt server-installer ISO.
+- [ ] Prove the same noVNC/XFCE hotfixes on a clean host installed from the rebuilt server-installer ISO.

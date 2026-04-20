@@ -1157,6 +1157,29 @@ class BeagleHostProvider:
         self._replace_vm(record)
         return f"stopped beagle vm {int(vmid)}"
 
+    def resume_vm(
+        self,
+        vmid: int,
+        *,
+        timeout: float | None | object = None,
+    ) -> str:
+        """Resume a paused/suspended VM. Handles the case where QEMU -S flag leaves VMs paused."""
+        del timeout
+        record = self._find_vm(vmid)
+        if record is None:
+            raise RuntimeError(f"VM {int(vmid)} not found in beagle provider state")
+        if self._libvirt_enabled() and self._libvirt_domain_exists(vmid):
+            domain_name = self._libvirt_domain_name(vmid)
+            try:
+                # Check domain state; if paused, resume it
+                state = self._run_virsh("domstate", domain_name).strip().lower()
+                if "paused" in state or "suspended" in state:
+                    self._run_virsh("resume", domain_name)
+            except Exception:
+                # Ignore if VM is not paused or doesn't exist
+                pass
+        return f"resumed beagle vm {int(vmid)}"
+
     def guest_exec_bash(
         self,
         vmid: int,

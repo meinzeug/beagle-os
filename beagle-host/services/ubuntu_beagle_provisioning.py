@@ -196,12 +196,53 @@ class UbuntuBeagleProvisioningService:
             }
         ]
 
+    @staticmethod
+    def _node_value_to_mib(value: Any) -> int:
+        """Convert provider node memory value to MiB.
+
+        Proxmox-style providers report bytes, while some local providers may
+        already report MiB-like values.
+        """
+        raw = int(value or 0)
+        if raw <= 0:
+            return 0
+        # Treat large values as bytes (>= 64 MiB in bytes).
+        if raw >= 64 * 1024 * 1024:
+            return int(raw / (1024 * 1024))
+        return raw
+
+    def _node_memory_budget_mib(self, node: str) -> int | None:
+        target = str(node or "").strip()
+        if not target:
+            return None
+        for item in self._list_nodes_inventory():
+            if str(item.get("name", "")).strip() != target:
+                continue
+            maxmem_mib = self._node_value_to_mib(item.get("maxmem", 0))
+            used_mib = self._node_value_to_mib(item.get("mem", 0))
+            if maxmem_mib <= 0:
+                return None
+            free_mib = max(maxmem_mib - used_mib, 0)
+            # Keep 1 GiB host reserve so VM startup does not OOM the node.
+            return max(free_mib - 1024, 0)
+        return None
+
+    def _recommended_default_memory_mib(self, node: str) -> int:
+        configured = max(int(self._ubuntu_beagle_default_memory_mib), 2048)
+        budget = self._node_memory_budget_mib(node)
+        if budget is None or budget <= 0:
+            return configured
+        # Keep UX simple: never suggest below the enforced minimum.
+        return max(2048, min(configured, budget))
+
     def build_provisioning_catalog(self) -> dict[str, Any]:
         nodes = self._list_nodes_inventory()
         storages = self._provider.list_storage_inventory()
         default_node = next((item["name"] for item in nodes if item.get("status") == "online"), "")
         if not default_node and nodes:
             default_node = str(nodes[0].get("name", "")).strip()
+        default_memory_mib = self._recommended_default_memory_mib(default_node)
+        default_memory_budget_mib = self._node_memory_budget_mib(default_node)
         images_storages = [
             {
                 "id": str(item.get("storage", "")).strip(),
@@ -236,7 +277,8 @@ class UbuntuBeagleProvisioningService:
             "defaults": {
                 "node": default_node,
                 "bridge": default_bridge,
-                "memory": self._ubuntu_beagle_default_memory_mib,
+                "memory": default_memory_mib,
+                "memory_recommended_max": default_memory_budget_mib,
                 "cores": self._ubuntu_beagle_default_cores,
                 "disk_gb": self._ubuntu_beagle_default_disk_gb,
                 "guest_user": self._ubuntu_beagle_default_guest_user,
@@ -666,14 +708,27 @@ class UbuntuBeagleProvisioningService:
                 self._provider.delete_vm_options(vmid, [option], timeout=None)
             except subprocess.CalledProcessError:
                 pass
-        if str(config.get("boot", "") or "").strip() != "order=scsi0":
-            self._provider.set_vm_boot_order(vmid, "order=scsi0", timeout=None)
+        boot_disk = ""
+        for candidate in ("scsi0", "virtio0", "sata0", "ide0"):
+            if candidate in config:
+                boot_disk = candidate
+                break
+        if not boot_disk:
+            boot_disk = "scsi0"
+        desired_boot = f"order={boot_disk}"
+        if str(config.get("boot", "") or "").strip() != desired_boot:
+            self._provider.set_vm_boot_order(vmid, desired_boot, timeout=None)
         if restart:
             try:
                 self._provider.stop_vm(vmid, skiplock=True, timeout=None)
             except Exception:
                 pass
             self._provider.start_vm(vmid, timeout=None)
+            # Ensure VM is not paused due to QEMU -S flag or other provisioning side effects
+            try:
+                self._provider.resume_vm(vmid, timeout=None)
+            except Exception:
+                pass
         if self._reconcile_public_streams_script.is_file():
             try:
                 self._run_checked([str(self._reconcile_public_streams_script)], timeout=None)
@@ -731,6 +786,17 @@ class UbuntuBeagleProvisioningService:
         cores = int(payload.get("cores", self._ubuntu_beagle_default_cores))
         if cores < 2:
             raise ValueError("cores must be at least 2")
+        memory_budget_mib = self._node_memory_budget_mib(node)
+        if memory_budget_mib is not None and memory_budget_mib < 2048:
+            raise ValueError(
+                f"insufficient host memory on node {node}: available budget {memory_budget_mib} MiB,"
+                " minimum required is 2048 MiB"
+            )
+        if memory_budget_mib is not None and memory > memory_budget_mib:
+            raise ValueError(
+                f"insufficient host memory on node {node}: requested {memory} MiB,"
+                f" available budget is {memory_budget_mib} MiB"
+            )
         disk_gb = int(payload.get("disk_gb", self._ubuntu_beagle_default_disk_gb))
         if disk_gb < 32:
             raise ValueError("disk_gb must be at least 32")

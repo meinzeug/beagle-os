@@ -104,6 +104,13 @@ class HostProvider(Protocol):
         timeout: float | None | object = None,
     ) -> str: ...
 
+    def resume_vm(
+        self,
+        vmid: int,
+        *,
+        timeout: float | None | object = None,
+    ) -> str: ...
+
     def guest_exec_bash(
         self,
         vmid: int,

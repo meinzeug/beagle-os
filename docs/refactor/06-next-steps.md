@@ -1,5 +1,19 @@
 # Next Steps
 
+## Immediate (2026-04-20 follow-up)
+
+0. **Complete full in-VM beagleserver installation after ISO boot recreate**:
+	- VM `beagleserver` has been recreated and is running from rebuilt server-installer ISO,
+	- complete installer flow inside VM (disk wipe + host config) and verify post-install disk boot.
+
+0. **Stabilize local server-installer harness against KVM availability variance**:
+	- local run encountered `failed to initialize kvm: Permission denied`,
+	- define a deterministic fallback strategy (`--virt-type qemu` or explicit preflight) in smoke/reinstall workflow to avoid false negatives.
+
+0. **Re-validate installer endpoint behavior on fresh host install**:
+	- after full install from the rebuilt ISO, verify `installer.sh` / `live-usb.sh` return `200` without manual file copies,
+	- this confirms the `install-beagle-host.sh` reproducibility fix is effective end-to-end.
+
 ## Immediate (release publication follow-up)
 
 0. **Push `6.6.9` repo changes to GitHub and attach release assets**:
@@ -51,10 +65,11 @@
 	- Verify inside guest that `beagle-ubuntu-firstboot.service` exists and executes automatically on first boot.
 	- Verify `lightdm`, desktop session and `qemu-guest-agent` become active.
 
-0. **Deploy and validate repo-first firstboot hardening (new)**:
-	- Deploy updated template [beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl](beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl) to running beagleserver host stack.
+0. **Validate fresh-install reproducibility of the XFCE/noVNC fix**:
+	- Boot a host from the freshly rebuilt server installer ISO and complete a clean Beagle host install.
 	- Recreate a fresh ubuntu desktop VM from the provisioning API and verify firstboot no longer stalls at tty-only state.
-	- Confirm `beagle-ubuntu-firstboot.service` reaches success, `lightdm` is installed/active, and callback transitions state out of `installing/firstboot`.
+	- Confirm `beagle-x11vnc.service` is present in the guest, reaches `active`, and listens on guest port `5901` without any manual edits.
+	- Confirm noVNC resolves to guest `x11vnc` when available and shows the real XFCE desktop instead of the VGA tty framebuffer.
 	- Confirm Sunshine service and API port are reachable after completion.
 
 0. **Deploy full 6.6.9 runtime code on host before final VM lifecycle acceptance**:

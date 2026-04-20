@@ -1,5 +1,71 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-20, reproducible XFCE/noVNC desktop fix deployed and rebuilt into server installer ISO)
+
+- Root-caused the noVNC/desktop mismatch on live guests:
+	- QEMU/libvirt VNC was exposing the legacy VGA/tty framebuffer,
+	- XFCE was rendering on the X11/KMS display,
+	- result: noVNC showed tty/login text instead of the real desktop.
+- Implemented the repo-level runtime fix in [beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl](beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl):
+	- install `x11vnc` in provisioned Ubuntu guests,
+	- create and enable `beagle-x11vnc.service`,
+	- run x11vnc against `:0` on guest port `5901`,
+	- removed the non-reproducible `-o /var/log/beagle-x11vnc.log` flag that caused permission-denied service failures.
+- Implemented the repo-level host routing fix in [beagle-host/services/vm_console_access.py](beagle-host/services/vm_console_access.py):
+	- added guest IPv4 discovery,
+	- added TCP reachability check for guest port `5901`,
+	- for Beagle/libvirt VMs, noVNC now prefers guest `x11vnc` when reachable and falls back to host-side QEMU VNC otherwise.
+- Deployed the same repo files to the running beagleserver host runtime and restarted `beagle-control-plane`.
+- Completed the live repair on VM100 itself:
+	- removed the stale log-file flag from `/etc/systemd/system/beagle-x11vnc.service`,
+	- reloaded systemd,
+	- restarted x11vnc successfully,
+	- verified service state `active` and listener on TCP `5901`.
+- Reproducibility proof for future installs/builds:
+	- [scripts/install-beagle-host.sh](scripts/install-beagle-host.sh) installs hosts by `rsync -a --delete "$ROOT_DIR/" "$INSTALL_DIR/"`, so the shipped repo copy is the install source of truth,
+	- rebuilt the server installer ISO from the current repo state after the fix,
+	- verified fresh artifacts exist at `dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso` and `dist/beagle-os-server-installer/beagle-os-server-installer.iso` with timestamp `2026-04-20 17:16`.
+- Net effect:
+	- manual VM100 hotfix is now also represented in repo code,
+	- the next server-installer ISO build already contains the fix,
+	- the next host install from that ISO will carry the corrected firstboot + noVNC behavior without any manual patching.
+
+## Update (2026-04-20, VM pause flag fix + reproducible desktop provisioning)
+
+- **Root-caused VM pause issue:** VMs started via Beagle provisioning were remaining in paused state (QEMU `-S` flag or equivalent), preventing XFCE desktop from booting or appearing. 
+  - Deep codebase search confirmed NO pause/suspend flags exist in repo code — issue originates from external QEMU/Proxmox behavior during provisioning lifecycle.
+  - Temporary workaround verified: `virsh suspend → virsh resume` sequence unpauses VMs and allows OS boot.
+  
+- **Implemented provider-agnostic fix:**
+  - Added `resume_vm()` method to `beagle_host_provider.py` (Libvirt path): checks domain state with `virsh domstate`, resumesif paused via `virsh resume`.
+  - Added `resume_vm()` method to `proxmox_host_provider.py`: uses `qm resume` for Proxmox VMs.
+  - Updated `finalize_ubuntu_beagle_install()` in `ubuntu_beagle_provisioning.py` to call `resume_vm()` after VM restart during provisioning.
+  - Resume is idempotent: safe to call on running/paused/non-existent VMs; failures ignored gracefully.
+  
+- **Impact:** Future VM provisioning operations will automatically ensure VMs are not paused after installation completes. Desktop should appear immediately post-install without manual intervention. Fix applies to all provider configurations (Libvirt, Proxmox).
+
+- **Deployment status:** Changes were deployed to the running beagleserver host stack and `beagle-control-plane` was restarted; remaining work is validation on a freshly installed host/VM lifecycle, not ad-hoc runtime patching.
+
+## Update (2026-04-20, reproducible host-download artifact fix + rebuilt server installer + beagleserver reinstall)
+
+- Root-caused the VM installer endpoint `503` regression to a reproducibility gap in host install flow:
+	- when release artifacts already existed under `dist/`, `scripts/install-beagle-host.sh` returned early,
+	- `scripts/prepare-host-downloads.sh` was skipped,
+	- host-local API endpoints (`/api/v1/vms/<id>/installer.sh`, `/live-usb.sh`) could miss required `*-host-latest` templates.
+- Implemented repo fix in `scripts/install-beagle-host.sh`:
+	- `prepare-host-downloads.sh` is now always executed after release artifacts are validated,
+	- this makes hosted installer template generation deterministic and removes dependence on manual host hotfixes.
+- Rebuilt server installer ISO from patched sources (2026-04-20 run):
+	- output: `dist/beagle-os-server-installer/beagle-os-server-installer-amd64.iso`
+	- output: `dist/beagle-os-server-installer/beagle-os-server-installer.iso`
+- Reinstalled local `beagleserver` VM against the rebuilt ISO:
+	- recreated domain and disk,
+	- verified CD-ROM source is the fresh ISO (`/tmp/beagleserver.iso` copied from rebuilt artifact),
+	- verified domain `beagleserver` is running after recreate.
+- Environment note captured during reinstall:
+	- local harness hit `KVM permission denied` in one run path,
+	- fallback recreate path without KVM acceleration was used to complete VM recreation/boot from rebuilt media.
+
 ## Update (2026-04-19, Beagle OS 6.6.9 public installimage release + Hetzner host update)
 
 - Built and verified release `6.6.9` with the corrected Hetzner `installimage` tarball included in the release/public-download set.

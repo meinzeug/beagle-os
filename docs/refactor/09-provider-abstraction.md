@@ -1,5 +1,17 @@
 # Provider-Abstraction Notes (2026-04-18)
 
+- 2026-04-20 VM pause-state fix follow-up:
+	- **Root cause:** VMs started via Beagle provisioning could remain in paused state (QEMU `-S` flag or equivalent), preventing OS boot and desktop startup.
+	- **Fix scope:** Issue is provider-independent, originating from external QEMU/Proxmox behavior during provisioning lifecycle (not from repo code).
+	- **Implementation:**
+		- Added `resume_vm()` contract method to [beagle-host/providers/host_provider_contract.py](beagle-host/providers/host_provider_contract.py).
+		- Beagle/Libvirt implementation in [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py): checks domain state with `virsh domstate`, resumes if paused via `virsh resume`.
+		- Proxmox implementation in [beagle-host/providers/proxmox_host_provider.py](beagle-host/providers/proxmox_host_provider.py): resumes via `qm resume`.
+	- **Provisioning orchestration:** Updated [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py) `finalize_ubuntu_beagle_install()` to call `resume_vm()` after VM restart.
+	- **Safety:** Resume is idempotent; failures are ignored gracefully. Safe to call on running, paused, or non-existent VMs.
+	- **Result:** All future VM provisioning operations automatically ensure VMs are not paused after installation. Desktop appears immediately post-install without manual intervention.
+	- **No new Proxmox coupling:** Both `qm resume` and `virsh resume` are provider-internal implementation details; no HTTP/UI layer changes required.
+
 - Session/auth stability fixes were implemented in provider-neutral surfaces:
 	- [beagle-host/services/auth_session.py](beagle-host/services/auth_session.py)
 	- [website/app.js](website/app.js)
@@ -21,11 +33,12 @@
 	- UI integration in [website/app.js](website/app.js) only calls the generic route.
 	- Provider-specific behavior is centralized in the service:
 		- `proxmox`: returns direct noVNC URL.
-		- `beagle`: resolves libvirt VNC display and returns Beagle-tokenized noVNC URL via local websockify proxy.
+		- `beagle`: prefers guest-side `x11vnc` on port `5901` when the guest IP/port are reachable and otherwise falls back to libvirt/QEMU VNC through the same generic route.
 - Beagle-specific noVNC runtime integration remains isolated to beagle host/proxy layers:
 	- Tokenized websocket proxy unit: [beagle-host/systemd/beagle-novnc-proxy.service](beagle-host/systemd/beagle-novnc-proxy.service).
 	- Host-service bootstrap: [scripts/install-beagle-host-services.sh](scripts/install-beagle-host-services.sh).
 	- Proxy route wiring: [scripts/install-beagle-proxy.sh](scripts/install-beagle-proxy.sh).
+	- Guest desktop capture bootstrap: [beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl](beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl).
 	- No new Proxmox UI/ExtJS coupling introduced.
 - Installer artifact reliability hardening in [scripts/install-beagle-host.sh](scripts/install-beagle-host.sh) is provider-neutral and enforces generic host prerequisites before service startup.
 - Standalone host runtime prerequisite handling was tightened in provider-adjacent install glue ([scripts/install-beagle-host-services.sh](scripts/install-beagle-host-services.sh)) without introducing provider leaks into HTTP/UI layers:

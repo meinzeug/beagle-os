@@ -270,24 +270,23 @@ download_release_assets() {
 ensure_release_assets_or_die() {
   local release_base_url="${PUBLIC_UPDATE_BASE_URL%/}"
 
-  if have_packaged_assets; then
-    return 0
-  fi
+  if ! have_packaged_assets; then
+    echo "Required release assets are missing in $INSTALL_DIR/dist; trying public artifact download..." >&2
+    if ! download_release_assets "$release_base_url"; then
+      echo "Public artifact download failed; trying local packaging..." >&2
+      if ! "$INSTALL_DIR/scripts/package.sh"; then
+        echo "Error: could not fetch or build required release assets." >&2
+        exit 1
+      fi
+    fi
 
-  echo "Required release assets are missing in $INSTALL_DIR/dist; trying public artifact download..." >&2
-  if ! download_release_assets "$release_base_url"; then
-    echo "Public artifact download failed; trying local packaging..." >&2
-    if ! "$INSTALL_DIR/scripts/package.sh"; then
-      echo "Error: could not fetch or build required release assets." >&2
+    if ! have_packaged_assets; then
+      echo "Error: required release assets are still missing after download/build." >&2
       exit 1
     fi
   fi
 
-  if ! have_packaged_assets; then
-    echo "Error: required release assets are still missing after download/build." >&2
-    exit 1
-  fi
-
+  # Always regenerate hosted download artifacts expected by installer endpoints.
   if ! "$INSTALL_DIR/scripts/prepare-host-downloads.sh"; then
     echo "Error: failed to prepare host downloads in $INSTALL_DIR/dist." >&2
     exit 1

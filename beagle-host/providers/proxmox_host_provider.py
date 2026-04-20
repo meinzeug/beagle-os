@@ -276,6 +276,20 @@ class ProxmoxHostProvider:
             command.extend(["--skiplock", "1"])
         return self._run_checked(command, timeout=timeout)
 
+    def resume_vm(
+        self,
+        vmid: int,
+        *,
+        timeout: float | None | object = None,
+    ) -> str:
+        """Resume a paused/suspended VM. Handles the case where QEMU -S flag leaves VMs paused."""
+        # In Proxmox, paused VMs can be resumed via 'qm resume' if they exist
+        try:
+            return self._run_checked(["qm", "resume", str(int(vmid))], timeout=timeout)
+        except Exception:
+            # VM might not be paused or not exist; ignore gracefully
+            return f"resume attempted for proxmox vm {int(vmid)}"
+
     def guest_exec_bash(
         self,
         vmid: int,
