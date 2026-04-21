@@ -218,3 +218,19 @@ Stand: 2026-04-19
 - Naechster Schritt:
   - `pip` im Runtime-/CI-Umfeld auf gefixte Version anheben,
   - npm findings im `beagle-kiosk` aufloesen oder begruendete Ignore-Liste mit Ablaufdatum einfuehren.
+
+## S-012 - Unsicherer Installer-Debug-SSH-Default (aktiv + Standardpasswort)
+
+- Status: mitigiert in Repo
+- Risiko: Hoch
+- Betroffene Dateien:
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+- Beschreibung:
+  - Der Server-Installer aktivierte Debug-SSH im Live-System per Default (`BEAGLE_SERVER_INSTALLER_DEBUG_SSH_ENABLE=1`) und setzte ein statisches Root-Passwort (`beagle-debug`).
+  - Auf exponierten Install-Netzen war damit ein triviales Remote-Login-Risiko vorhanden.
+- Mitigation:
+  - Debug-SSH ist jetzt standardmäßig deaktiviert (`BEAGLE_SERVER_INSTALLER_DEBUG_SSH_ENABLE=0`).
+  - Es gibt kein statisches Standardpasswort mehr (`BEAGLE_SERVER_INSTALLER_DEBUG_SSH_PASSWORD` ist per Default leer).
+  - Debug-SSH bleibt nur als explizit gesetzte Operator-Option verfügbar.
+- Naechster Schritt:
+  - Nach ISO-Rebuild verifizieren, dass Debug-SSH im Live-Boot ohne explizite Aktivierung nicht gestartet wird.

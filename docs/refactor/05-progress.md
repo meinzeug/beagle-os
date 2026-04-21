@@ -1,5 +1,21 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 06 Schritt 1-3: Server-Installer standalone + reproducible build env)
+
+- `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer` auf standalone-only refactored:
+	- Proxmox-Installmode-Branches entfernt/normalisiert,
+	- Proxmox-Repo/Key-Handling entfernt,
+	- Host-Paketpfad auf Beagle-only vereinheitlicht.
+- Paketpfad im Installer erweitert auf explizite Standalone-Komponenten inkl. `nginx` und `websockify` (zusätzlich zu libvirt/KVM/QEMU + certbot-Pfaden).
+- `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer-gui` ebenfalls auf einen einzigen Standalone-Modus reduziert (curses + plain fallback).
+- Reproducible-Build-Vorbereitung umgesetzt:
+	- neue zentrale Datei `server-installer/build.env` mit Build-Abhängigkeiten und Speicher-Guardrails,
+	- `scripts/build-server-installer.sh` lädt `build.env` automatisch.
+- `docs/gofuture/06-server-installer.md` aktualisiert:
+	- Schritt 1-3 Checkboxes auf `[x]`,
+	- ASCII-Flowchart des Installer-Ablaufs ergänzt,
+	- Umsetzungsnotizen je Schritt ergänzt.
+
 ## Update (2026-04-21, GoFuture Plan 05: Proxmox dauerhaft entfernt + Mock-Provider Tests)
 
 - `providers/proxmox/` und `proxmox-ui/` dauerhaft aus dem Repo geloescht (Plan 05 Schritt 5b).

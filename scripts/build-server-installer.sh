@@ -3,6 +3,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/disk_guardrails.sh"
+BUILD_ENV_FILE="$ROOT_DIR/server-installer/build.env"
+
+if [[ -f "$BUILD_ENV_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$BUILD_ENV_FILE"
+fi
+
 LB_TEMPLATE_DIR="$ROOT_DIR/server-installer/live-build"
 BUILD_DIR="${SERVER_INSTALLER_BUILD_DIR:-$ROOT_DIR/.build/beagle-server-installer-live-build}"
 DIST_DIR="${SERVER_INSTALLER_DIST_DIR:-$ROOT_DIR/dist/beagle-os-server-installer}"
@@ -11,6 +18,7 @@ VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 SERVER_INSTALLER_MIN_BUILD_FREE_GIB="${BEAGLE_SERVER_INSTALLER_MIN_BUILD_FREE_GIB:-14}"
 SERVER_INSTALLER_MIN_DIST_FREE_GIB="${BEAGLE_SERVER_INSTALLER_MIN_DIST_FREE_GIB:-4}"
 BUNDLED_SOURCE_ARCHIVE_PATH="config/includes.chroot/usr/local/share/beagle/beagle-os-source.tar.gz"
+SERVER_INSTALLER_BUILD_DEPENDENCIES="${BEAGLE_SERVER_INSTALLER_BUILD_DEPENDENCIES:-live-build debootstrap squashfs-tools xorriso grub2-common grub-pc-bin grub-efi-amd64-bin dosfstools mtools syslinux-utils rsync curl ca-certificates}"
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -21,43 +29,6 @@ ensure_root() {
     BEAGLE_SERVER_INSTALLER_MIN_BUILD_FREE_GIB="$SERVER_INSTALLER_MIN_BUILD_FREE_GIB" \
     BEAGLE_SERVER_INSTALLER_MIN_DIST_FREE_GIB="$SERVER_INSTALLER_MIN_DIST_FREE_GIB" \
     "$0" "$@"
-}
-
-disable_proxmox_enterprise_repo() {
-  local found=0
-  local file
-
-  while IFS= read -r file; do
-    grep -q 'enterprise.proxmox.com' "$file" || continue
-    cp "$file" "$file.beagle-backup"
-    awk '!/enterprise\.proxmox\.com/' "$file.beagle-backup" > "$file"
-    found=1
-  done < <(find /etc/apt -maxdepth 2 -type f \( -name '*.list' -o -name '*.sources' \) 2>/dev/null)
-
-  return $(( ! found ))
-}
-
-restore_proxmox_enterprise_repo() {
-  local backup original
-  while IFS= read -r backup; do
-    original="${backup%.beagle-backup}"
-    mv "$backup" "$original"
-  done < <(find /etc/apt -maxdepth 2 -type f -name '*.beagle-backup' 2>/dev/null)
-}
-
-apt_update_with_proxmox_fallback() {
-  if apt-get update; then
-    return 0
-  fi
-  if ! disable_proxmox_enterprise_repo; then
-    echo "apt-get update failed and no Proxmox enterprise repository fallback was available." >&2
-    exit 1
-  fi
-  if ! apt-get update; then
-    restore_proxmox_enterprise_repo
-    exit 1
-  fi
-  restore_proxmox_enterprise_repo
 }
 
 ensure_root "$@"
@@ -77,21 +48,8 @@ ensure_free_space_with_cleanup \
   "$BUILD_DIR" \
   "$DIST_DIR"
 
-apt_update_with_proxmox_fallback
-DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  live-build \
-  debootstrap \
-  squashfs-tools \
-  xorriso \
-  grub2-common \
-  grub-pc-bin \
-  grub-efi-amd64-bin \
-  dosfstools \
-  mtools \
-  syslinux-utils \
-  rsync \
-  curl \
-  ca-certificates
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y $SERVER_INSTALLER_BUILD_DEPENDENCIES
 
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR" "$DIST_DIR"

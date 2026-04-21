@@ -207,7 +207,7 @@ def screen_splash(stdscr) -> None:
             except curses.error:
                 pass
         center_text(stdscr, start_row + logo_h + 1, "  Server Installer  ", curses.color_pair(C_CHROME) | curses.A_BOLD)
-        center_text(stdscr, start_row + logo_h + 2, "Bare-metal host deployment - standalone & Proxmox modes", curses.color_pair(C_DIM))
+        center_text(stdscr, start_row + logo_h + 2, "Bare-metal host deployment - standalone mode", curses.color_pair(C_DIM))
         stdscr.refresh()
         time.sleep(0.55)
     center_text(stdscr, h - 2, "Press ENTER to continue", curses.color_pair(C_DIM))
@@ -541,16 +541,8 @@ def plain_password() -> str:
 
 
 def plain_select_mode() -> tuple[str, str]:
-    print("Installation modes:")
-    print("  1) Beagle OS standalone")
-    print("  2) Beagle OS with Proxmox")
-    while True:
-        choice = input("Select mode [1]: ").strip() or "1"
-        if choice == "1":
-            return "standalone", "Beagle OS standalone"
-        if choice == "2":
-            return "with-proxmox", "Beagle OS with Proxmox"
-        print("Please enter 1 or 2")
+    print("Installation mode: Beagle OS standalone")
+    return "standalone", "Beagle OS standalone"
 
 
 def plain_select_disk(disks: list[tuple[str, str, str]]) -> str:
@@ -592,7 +584,7 @@ def plain_main() -> dict:
     print("Starting installation...")
     return {
         "BEAGLE_SERVER_INSTALL_MODE": install_mode,
-        "BEAGLE_SERVER_HOST_PROVIDER": "beagle" if install_mode == "standalone" else "proxmox",
+        "BEAGLE_SERVER_HOST_PROVIDER": "beagle",
         "BEAGLE_GUI_INSTALL_MODE_LABEL": mode_label,
         "BEAGLE_GUI_HOSTNAME": hostname,
         "BEAGLE_GUI_USERNAME": username,
@@ -606,16 +598,9 @@ def tui_main(stdscr) -> dict:
     curses.curs_set(0)
     stdscr.keypad(True)
     screen_splash(stdscr)
-    screen_msgbox(stdscr, "  Welcome to Beagle OS Server Installer  ", ["", "  This wizard will install Debian and the Beagle", "  host stack on a local disk.", "", "  Two installation modes are available:", "    *  Beagle OS standalone", "    *  Beagle OS with Proxmox", "", "  The selected disk will be completely erased."])
-    mode_idx = screen_menu(
-        stdscr,
-        title="Installation Mode",
-        prompt="Select the server installation mode:",
-        items=[("1", "Beagle OS standalone  (no hypervisor)"), ("2", "Beagle OS with Proxmox  (Proxmox VE hypervisor)")],
-        default_idx=0,
-    )
-    install_mode = "standalone" if mode_idx == 0 else "with-proxmox"
-    mode_label = "Beagle OS standalone" if mode_idx == 0 else "Beagle OS with Proxmox"
+    screen_msgbox(stdscr, "  Welcome to Beagle OS Server Installer  ", ["", "  This wizard will install Debian and the Beagle", "  host stack on a local disk.", "", "  Installation mode:", "    *  Beagle OS standalone", "", "  The selected disk will be completely erased."])
+    install_mode = "standalone"
+    mode_label = "Beagle OS standalone"
     hostname = ""
     while not hostname:
         hostname = screen_input(stdscr, title="Server Hostname", prompt="Enter the hostname for this server:", default="beagle-host", validator=validate_hostname, validator_hint="lowercase letters, digits and hyphens (e.g. beagle-host)")
@@ -632,7 +617,7 @@ def tui_main(stdscr) -> dict:
         sys.exit(0)
     return {
         "BEAGLE_SERVER_INSTALL_MODE": install_mode,
-        "BEAGLE_SERVER_HOST_PROVIDER": "beagle" if install_mode == "standalone" else "proxmox",
+        "BEAGLE_SERVER_HOST_PROVIDER": "beagle",
         "BEAGLE_GUI_INSTALL_MODE_LABEL": mode_label,
         "BEAGLE_GUI_HOSTNAME": hostname.lower(),
         "BEAGLE_GUI_USERNAME": username,

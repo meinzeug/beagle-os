@@ -19,18 +19,14 @@ DEBIAN_MIRROR="${BEAGLE_SERVER_DEBIAN_MIRROR:-https://deb.debian.org/debian}"
 DEBIAN_SECURITY_MIRROR="${BEAGLE_SERVER_DEBIAN_SECURITY_MIRROR:-https://security.debian.org/debian-security}"
 BEAGLE_SERVER_INSTALL_MODE="${BEAGLE_SERVER_INSTALL_MODE:-}"
 BEAGLE_SERVER_HOST_PROVIDER="${BEAGLE_SERVER_HOST_PROVIDER:-beagle}"
-PROXMOX_REPO_URL="${BEAGLE_SERVER_PROXMOX_REPO_URL:-http://download.proxmox.com/debian/pve}"
-PROXMOX_REPO_SUITE="${BEAGLE_SERVER_PROXMOX_REPO_SUITE:-bookworm}"
-PROXMOX_REPO_COMPONENT="${BEAGLE_SERVER_PROXMOX_REPO_COMPONENT:-pve-no-subscription}"
-PROXMOX_KEY_URL="${BEAGLE_SERVER_PROXMOX_KEY_URL:-https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg}"
 BEAGLE_SOURCE_URL="${BEAGLE_SERVER_SOURCE_URL:-https://github.com/meinzeug/beagle-os/releases/download/v__BEAGLE_RELEASE_VERSION__/beagle-os-v__BEAGLE_RELEASE_VERSION__.tar.gz}"
 BEAGLE_PUBLIC_UPDATE_BASE_URL="${BEAGLE_SERVER_PUBLIC_UPDATE_BASE_URL:-https://github.com/meinzeug/beagle-os/releases/download/v__BEAGLE_RELEASE_VERSION__}"
 BEAGLE_INSTALL_DIR="${BEAGLE_SERVER_INSTALL_DIR:-/opt/beagle}"
 BUNDLED_BEAGLE_SOURCE_ARCHIVE="${BEAGLE_SERVER_BUNDLED_SOURCE_ARCHIVE:-/usr/local/share/beagle/beagle-os-source.tar.gz}"
 LIVE_INSTALL_LOCALE="${BEAGLE_SERVER_LIVE_INSTALL_LOCALE:-C.UTF-8}"
 BEAGLE_SERVER_SSH_PASSWORD_AUTH="${BEAGLE_SERVER_SSH_PASSWORD_AUTH:-yes}"
-BEAGLE_SERVER_INSTALLER_DEBUG_SSH_ENABLE="${BEAGLE_SERVER_INSTALLER_DEBUG_SSH_ENABLE:-1}"
-BEAGLE_SERVER_INSTALLER_DEBUG_SSH_PASSWORD="${BEAGLE_SERVER_INSTALLER_DEBUG_SSH_PASSWORD:-beagle-debug}"
+BEAGLE_SERVER_INSTALLER_DEBUG_SSH_ENABLE="${BEAGLE_SERVER_INSTALLER_DEBUG_SSH_ENABLE:-0}"
+BEAGLE_SERVER_INSTALLER_DEBUG_SSH_PASSWORD="${BEAGLE_SERVER_INSTALLER_DEBUG_SSH_PASSWORD:-}"
 
 cleanup() {
   umount "$TARGET_MOUNT/dev/pts" >/dev/null 2>&1 || true
@@ -183,7 +179,8 @@ install_mode_kind() {
       return 0
       ;;
     with-proxmox|with_proxmox|proxmox|pve)
-      printf 'with-proxmox\n'
+      # Legacy input values are normalized to standalone.
+      printf 'standalone\n'
       return 0
       ;;
     "")
@@ -193,7 +190,7 @@ install_mode_kind() {
           printf 'standalone\n'
           ;;
         ""|pve|proxmox)
-          printf 'with-proxmox\n'
+          printf 'standalone\n'
           ;;
         *)
           printf '%s\n' "$provider"
@@ -208,90 +205,26 @@ install_mode_kind() {
 }
 
 install_mode_label() {
-  case "$(install_mode_kind)" in
-    standalone)
-      printf 'Beagle OS standalone\n'
-      ;;
-    with-proxmox)
-      printf 'Beagle OS with Proxmox\n'
-      ;;
-    *)
-      printf 'unknown\n'
-      ;;
-  esac
+  printf 'Beagle OS standalone\n'
 }
 
 host_provider_kind() {
-  case "$(install_mode_kind)" in
-    standalone)
-      printf 'beagle\n'
-      ;;
-    with-proxmox)
-      printf 'proxmox\n'
-      ;;
-    *)
-      printf 'unsupported\n'
-      ;;
-  esac
+  printf 'beagle\n'
 }
 
 prompt_install_mode() {
-  local default_mode answer normalized
-  default_mode="$(install_mode_kind)"
-  if [[ "$default_mode" != "standalone" && "$default_mode" != "with-proxmox" ]]; then
-    default_mode="standalone"
-  fi
-  printf '\nInstall mode:\n' >&2
-  printf '1) Beagle OS standalone\n' >&2
-  printf '2) Beagle OS with Proxmox\n' >&2
-  if [[ "$default_mode" == "standalone" ]]; then
-    printf 'Choose install mode [1]: ' >&2
-  else
-    printf 'Choose install mode [2]: ' >&2
-  fi
-  IFS= read -r answer || true
-  answer="${answer//$'\r'/}"
-  case "${answer:-}" in
-    "")
-      normalized="$default_mode"
-      ;;
-    1)
-      normalized="standalone"
-      ;;
-    2)
-      normalized="with-proxmox"
-      ;;
-    *)
-      BEAGLE_SERVER_INSTALL_MODE="$answer"
-      normalized="$(install_mode_kind)"
-      ;;
-  esac
-  case "$normalized" in
-    standalone|with-proxmox)
-      BEAGLE_SERVER_INSTALL_MODE="$normalized"
-      BEAGLE_SERVER_HOST_PROVIDER="$(host_provider_kind)"
-      return 0
-      ;;
-    *)
-      echo "Unsupported server-installer install mode: ${answer:-$default_mode}" >&2
-      exit 1
-      ;;
-  esac
+  BEAGLE_SERVER_INSTALL_MODE="standalone"
+  BEAGLE_SERVER_HOST_PROVIDER="beagle"
 }
 
 require_supported_server_target() {
   local mode kind
   mode="$(install_mode_kind)"
   kind="$(host_provider_kind)"
-  case "$mode:$kind" in
-    standalone:beagle|with-proxmox:proxmox)
-      return 0
-      ;;
-    *)
-      echo "Unsupported server-installer mode/provider combination: mode=$mode provider=$kind" >&2
-      exit 1
-      ;;
-  esac
+  if [[ "$mode" != "standalone" || "$kind" != "beagle" ]]; then
+    echo "Unsupported server-installer mode/provider combination: mode=$mode provider=$kind" >&2
+    exit 1
+  fi
 }
 
 validate_hostname() {
@@ -512,21 +445,6 @@ EOF
 
 write_network_config() {
   mkdir -p "$TARGET_MOUNT/etc/network"
-  if [[ "$(install_mode_kind)" == "with-proxmox" ]]; then
-    cat >"$TARGET_MOUNT/etc/network/interfaces" <<EOF
-auto lo
-iface lo inet loopback
-
-iface $PRIMARY_IFACE inet manual
-
-auto vmbr0
-iface vmbr0 inet dhcp
-    bridge-ports $PRIMARY_IFACE
-    bridge-stp off
-    bridge-fd 0
-EOF
-    return 0
-  fi
   cat >"$TARGET_MOUNT/etc/network/interfaces" <<EOF
 auto lo
 iface lo inet loopback
@@ -547,24 +465,10 @@ EOF
 }
 
 write_provider_apt_sources() {
-  local kind
-  kind="$(host_provider_kind)"
-  mkdir -p "$TARGET_MOUNT/etc/apt/sources.list.d" "$TARGET_MOUNT/usr/share/keyrings"
-  case "$kind" in
-    beagle)
-      return 0
-      ;;
-    proxmox)
-      run_logged curl -fsSL "$PROXMOX_KEY_URL" -o "$TARGET_MOUNT/usr/share/keyrings/proxmox-archive-keyring.gpg"
-      cat >"$TARGET_MOUNT/etc/apt/sources.list.d/proxmox.list" <<EOF
-deb [signed-by=/usr/share/keyrings/proxmox-archive-keyring.gpg] $PROXMOX_REPO_URL $PROXMOX_REPO_SUITE $PROXMOX_REPO_COMPONENT
-EOF
-      ;;
-    *)
-      echo "Unsupported server-installer host provider: $kind" >&2
-      exit 1
-      ;;
-  esac
+  if [[ "$(host_provider_kind)" != "beagle" ]]; then
+    echo "Unsupported server-installer host provider: $(host_provider_kind)" >&2
+    exit 1
+  fi
 }
 
 mount_chroot_fs() {
@@ -653,31 +557,19 @@ install_target_packages() {
 }
 
 install_host_provider_packages() {
-  local kind
-  kind="$(host_provider_kind)"
-  case "$kind" in
-    beagle)
-      chroot_run_with_retry \
-        "install standalone host packages" \
-        "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server fail2ban unattended-upgrades apt-listchanges nftables git python3 rsync certbot python3-certbot-nginx linux-image-amd64 grub-pc grub-efi-amd64-bin efibootmgr dosfstools libvirt-daemon-system qemu-system-x86 qemu-utils"
-      ;;
-    proxmox)
-      chroot_run_with_retry \
-        "install proxmox host packages" \
-        "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server fail2ban unattended-upgrades apt-listchanges nftables proxmox-ve postfix open-iscsi chrony git python3 rsync grub-pc grub-efi-amd64-bin efibootmgr dosfstools"
-      ;;
-    *)
-      echo "Unsupported server-installer host provider: $kind" >&2
-      exit 1
-      ;;
-  esac
+  if [[ "$(host_provider_kind)" != "beagle" ]]; then
+    echo "Unsupported server-installer host provider: $(host_provider_kind)" >&2
+    exit 1
+  fi
+  chroot_run_with_retry \
+    "install standalone host packages" \
+    "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server fail2ban unattended-upgrades apt-listchanges nftables git python3 rsync certbot python3-certbot-nginx nginx websockify linux-image-amd64 grub-pc grub-efi-amd64-bin efibootmgr dosfstools libvirt-daemon-system qemu-system-x86 qemu-utils"
 }
 
 install_beagle_host_stack() {
-  local kind mode
+  local mode
   local install_dir_q hostname_q public_updates_q web_ui_q mode_q source_archive
   local bootstrap_username_q bootstrap_password_q
-  kind="$(host_provider_kind)"
   mode="$(install_mode_kind)"
   source_archive="/tmp/beagle-os.tar.gz"
   printf -v install_dir_q '%q' "$BEAGLE_INSTALL_DIR"
@@ -696,11 +588,10 @@ install_beagle_host_stack() {
   chroot_run "mkdir -p /usr/local/src/beagle-os-src /var/lib/beagle"
   install -m 0644 "$source_archive" "$TARGET_MOUNT/tmp/beagle-os.tar.gz"
   chroot_run "rm -rf /usr/local/src/beagle-os-src && mkdir -p /usr/local/src/beagle-os-src && tar -xzf /tmp/beagle-os.tar.gz -C /usr/local/src/beagle-os-src"
-  chroot_run "install_script=\$(find /usr/local/src/beagle-os-src -path '*/scripts/install-beagle-host.sh' -print -quit); [[ -n \"\$install_script\" ]] && source_root=\$(dirname \"\$(dirname \"\$install_script\")\") && cd \"\$source_root\" && BEAGLE_IN_CHROOT_INSTALL='1' BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q BEAGLE_SERVER_INSTALL_MODE=$mode_q BEAGLE_HOST_PROVIDER=$kind BEAGLE_AUTH_BOOTSTRAP_DISABLE='1' BEAGLE_AUTH_BOOTSTRAP_USERNAME=$bootstrap_username_q BEAGLE_AUTH_BOOTSTRAP_PASSWORD=$bootstrap_password_q PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-beagle-host.sh"
+  chroot_run "install_script=\$(find /usr/local/src/beagle-os-src -path '*/scripts/install-beagle-host.sh' -print -quit); [[ -n \"\$install_script\" ]] && source_root=\$(dirname \"\$(dirname \"\$install_script\")\") && cd \"\$source_root\" && BEAGLE_IN_CHROOT_INSTALL='1' BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q BEAGLE_SERVER_INSTALL_MODE=$mode_q BEAGLE_HOST_PROVIDER='beagle' BEAGLE_AUTH_BOOTSTRAP_DISABLE='1' BEAGLE_AUTH_BOOTSTRAP_USERNAME=$bootstrap_username_q BEAGLE_AUTH_BOOTSTRAP_PASSWORD=$bootstrap_password_q PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-beagle-host.sh"
 }
 
 harden_system() {
-  local proxmox_port_rule=""
   local ssh_password_auth=""
   log "applying system hardening"
 
@@ -713,10 +604,6 @@ harden_system() {
       ssh_password_auth="no"
       ;;
   esac
-
-  if [[ "$(host_provider_kind)" == "proxmox" ]]; then
-    proxmox_port_rule="\n    # Proxmox web UI (only needed in proxmox mode)\n    tcp dport 8006 ct state new limit rate 120/minute burst 120 packets accept"
-  fi
 
   # SSH hardening drop-in
   mkdir -p "$TARGET_MOUNT/etc/ssh/sshd_config.d"
@@ -798,7 +685,6 @@ table inet filter {
     # SSH (hardened), Beagle Web UI and API/download ingress
     tcp dport 22 ct state new limit rate 30/minute burst 30 packets accept
     tcp dport { 443, 8443 } ct state new limit rate 300/minute burst 300 packets accept
-${proxmox_port_rule}
   }
   chain forward {
     type filter hook forward priority 0; policy drop;

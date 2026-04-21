@@ -19,8 +19,8 @@ Proxmox wird dauerhaft entfernt — es gibt keine "Beagle OS with Proxmox"-Varia
 
 ### Schritt 1 — Installer-Ablauf dokumentieren und verifizieren
 
-- [ ] `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer` vollständig lesen.
-- [ ] Flowchart des aktuellen Installer-Ablaufs in `docs/gofuture/06-server-installer.md` als ASCII-Diagramm ergänzen.
+- [x] `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer` vollständig lesen.
+- [x] Flowchart des aktuellen Installer-Ablaufs in `docs/gofuture/06-server-installer.md` als ASCII-Diagramm ergänzen.
 
 Bevor der Installer weiterentwickelt wird muss der aktuelle Ablauf vollständig
 dokumentiert sein. Das verhindert dass Änderungen unerwartete Zweige brechen.
@@ -30,12 +30,53 @@ zum nächsten Schritt muss im Flowchart sichtbar sein. Nach der Dokumentation wi
 der Installer auf einer Test-VM (QEMU/KVM) manuell durchgeführt und das Ergebnis
 protokolliert. Breakpoints und Fehlerzustände werden für jeden Schritt notiert.
 
+Umsetzung 2026-04-21 (Ist-Flow, vereinfachte Darstellung):
+
+```
+[Boot Live ISO]
+	|
+	v
+[Start beagle-server-installer]
+	|
+	v
+[TUI/Plain Prompt]
+  Hostname, User, Passwort, Target-Disk
+	|
+	v
+[Disk wipe + Partitioning + mkfs + mount]
+	|
+	v
+[Netzwerk-Check + debootstrap]
+	|
+	v
+[Base config]
+  hostname, hosts, apt sources, fstab, network/interfaces
+	|
+	v
+[chroot apt install]
+  Debian base + KVM/libvirt + nginx + certbot + websockify
+	|
+	v
+[System hardening]
+  sshd drop-in, fail2ban, nftables, unattended-upgrades
+	|
+	v
+[Install beagle host stack]
+  scripts/install-beagle-host.sh (non-interactive)
+	|
+	v
+[GRUB install + update-grub]
+	|
+	v
+[Success dialog + reboot]
+```
+
 ---
 
 ### Schritt 2 — Installer auf reinen Beagle-OS-standalone-Modus fokussieren
 
-- [ ] Installer auf Beagle OS standalone (libvirt/KVM) fokussieren — kein Proxmox-Zweig.
-- [ ] Installer installiert: Debian base, KVM/QEMU, libvirt, beagle-host-services, nginx, noVNC-Proxy.
+- [x] Installer auf Beagle OS standalone (libvirt/KVM) fokussieren — kein Proxmox-Zweig.
+- [x] Installer installiert: Debian base, KVM/QEMU, libvirt, beagle-host-services, nginx, noVNC-Proxy.
 
 Da Proxmox dauerhaft entfernt wird gibt es keinen Installer-Zweig mehr der zwischen
 Standalone und Proxmox wählt. Der Installer hat genau einen Pfad: Beagle OS standalone.
@@ -45,12 +86,18 @@ Gemeinsamkeiten (Netzwerk-Setup, Disk-Partitionierung, beagle-user-Anlage) bleib
 geteilte Shell-Funktionen erhalten. Nach dem Schritt muss ein frischer Install auf
 einer Test-VM ohne Proxmox-Abhängigkeiten abschließen.
 
+Umsetzung 2026-04-21:
+- `beagle-server-installer` auf standalone-only normalisiert (Legacy-Modi werden auf `standalone` gemappt).
+- Proxmox-APT-Repo-/Key-Handling und Proxmox-Branch-Logik aus Installer-Flow entfernt.
+- Paketinstallation für den Host explizit auf Beagle-Standalone ausgerichtet, inkl. `nginx` und `websockify`.
+- `beagle-server-installer-gui` (curses + plain mode) auf einen einzigen Installmodus reduziert.
+
 ---
 
 ### Schritt 3 — Reproducible Builds sicherstellen
 
-- [ ] `scripts/build-server-installer.sh` so gestalten dass es auf einem frischen Debian-System aus dem Repo heraus reproduzierbar läuft.
-- [ ] Alle Abhängigkeiten dokumentiert in einem `Makefile` oder `build.env`.
+- [x] `scripts/build-server-installer.sh` so gestalten dass es auf einem frischen Debian-System aus dem Repo heraus reproduzierbar läuft.
+- [x] Alle Abhängigkeiten dokumentiert in einem `Makefile` oder `build.env`.
 
 Ein ISO-Build der nur auf dem Rechner des Maintainers funktioniert ist kein
 reproduzierbarer Build. Das Live-Build-System (Debian `live-build`) ist deterministisch
@@ -58,6 +105,11 @@ wenn Package-Pins und Mirror-URLs fix gesetzt sind. Die Build-Voraussetzungen
 (benötigte Pakete, Debian-Version des Build-Hosts) werden als Kommentar im
 Build-Skript und in `docs/` festgehalten. Der CI/CD-Pfad (GitHub Actions oder
 ähnlich) soll den Build-Schritt ausführen können ohne manuelle Vorbereitung.
+
+Umsetzung 2026-04-21:
+- Neue Datei `server-installer/build.env` als zentrale Build-Source-of-Truth für Abhängigkeiten und Speicher-Guardrails.
+- `scripts/build-server-installer.sh` lädt `server-installer/build.env` automatisch.
+- Proxmox-spezifischer `apt-get update`-Fallback aus dem Build-Skript entfernt; Build-Pfad nutzt jetzt nur den Debian-Standalone-Fluss.
 
 ---
 

@@ -1,5 +1,19 @@
 # Next Steps
 
+## Delta (2026-04-21 nach GoFuture Plan 06 Schritt 1-3)
+
+0. **Plan 06 Schritt 4 umsetzen (Installer/Post-Install vereinheitlichen)**:
+	- Dopplungen zwischen `server-installer` Post-Install-Pfad und `scripts/install-beagle-host.sh` identifizieren,
+	- gemeinsame idempotente Bootstrap-Funktionen extrahieren.
+
+0. **Plan 06 Schritt 5 umsetzen (Release signing chain)**:
+	- GPG-Signierung für Server-Installer-ISO in `scripts/create-github-release.sh` integrieren,
+	- SHA256 + `.sig` als Pflicht-Release-Assets veröffentlichen.
+
+0. **Plan 06 Testpflicht abschließen**:
+	- frische QEMU-Install aus aktueller ISO bis `beagle-control-plane active` durchfahren,
+	- Signatur-/Checksum-Verifikation in den Run integrieren und dokumentieren.
+
 ## Delta (2026-04-21 nach Auth/IAM-Surface-Extraktion)
 
 0. **Plan 04 Schritt 2 Restextraktion fortsetzen**:
