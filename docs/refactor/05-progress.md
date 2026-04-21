@@ -1,5 +1,13 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 04 Testpflicht: API-Smoke reproduzierbar abgeschlossen)
+
+- Neues reproduzierbares Smoke-Skript angelegt: `scripts/smoke-control-plane-api.sh`.
+- Das Skript prueft zentrale Read/Mutation/Auth-Routen mit erwarteten Statuscodes (`200/400/401`) gegen den laufenden Control Plane Endpoint.
+- Deploy nach `srv1.beagle-os.com` unter `/opt/beagle/scripts/smoke-control-plane-api.sh` und Live-Ausfuehrung erfolgreich.
+- Ergebnis auf `srv1`: `Smoke checks passed: 13` (13/13 erwartete Checks bestanden).
+- Damit ist die offene GoFuture-Checkbox `Alle API-Endpunkte antworten korrekt nach Refactoring (Smoke-Tests)` fuer Plan 04 als reproduzierbar verifiziert abgehakt.
+
 ## Update (2026-04-21, GoFuture Plan 04 Schritt 7 umgesetzt: Control-Plane als non-root Service)
 
 - `beagle-host/systemd/beagle-control-plane.service` gehaertet und auf dedizierten Runtime-User umgestellt:

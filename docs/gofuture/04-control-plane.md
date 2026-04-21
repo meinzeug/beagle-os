@@ -120,7 +120,7 @@ Ein Python-API-Server der auf Port 9088 läuft braucht keine root-Rechte; ein de
 
 ## Testpflicht nach Abschluss
 
-- [ ] Alle API-Endpunkte antworten korrekt nach Refactoring (Smoke-Tests).
+- [x] Alle API-Endpunkte antworten korrekt nach Refactoring (Smoke-Tests; reproduzierbar ueber `scripts/smoke-control-plane-api.sh`, auf `srv1.beagle-os.com` 2026-04-21 mit 13/13 Checks erfolgreich ausgefuehrt).
 - [x] RBAC: unauthentizierter POST auf `/api/v1/vms` gibt 401 zurück.
 - [x] RBAC: User ohne Admin-Rolle kann keine Settings ändern.
 - [x] Audit-Log schreibt Entries bei VM-Start, VM-Stop, User-Create (Handler-Auditpfad erweitert: `vm.start|vm.stop|vm.reboot` aus VM-Power-Responses, `auth.user.create` mit Resource-Metadaten; validiert durch `tests/unit/test_audit_helpers.py` + `tests/unit/test_audit_log.py` lokal und auf `srv1`).

@@ -2,9 +2,9 @@
 
 ## GoFuture Plan 04/05 Provider-Abstraction execution (2026-04-21)
 
-0. **Plan 04 Testpflicht verbleibend schliessen**:
-	- authenticated API-Smoke fuer mutierende Endpunkte auf `srv1` als reproduzierbares Script hinterlegen,
-	- open checkbox `Alle API-Endpunkte antworten korrekt nach Refactoring` mit Laufprotokoll abschliessen.
+0. **Plan 04 Testpflicht ausbauen (zusatzlich zu bestehendem unauth-Smoketest)**:
+	- `scripts/smoke-control-plane-api.sh` um authentifizierte Mutation-Checks erweitern (z.B. `/api/v1/auth/users`, `/api/v1/settings/*` mit Admin-Token),
+	- Ergebnisse als separaten Run im Progress-Log dokumentieren.
 
 0. **Plan 04 Schritt 6 (Fehlerformat) als naechster harter Backend-Block**:
 	- Error-Response-Schema vereinheitlichen (`error` + `code`) fuer alle Surface-Services,
