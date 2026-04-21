@@ -15,6 +15,14 @@
 	- `POST /api/v1/provisioning/vms` ohne Auth -> `401 unauthorized`.
 - Damit sind in `docs/gofuture/04-control-plane.md` Schritt 1 und Schritt 3 inklusive RBAC-Test-Checkboxen fuer `/api/v1/vms` und Settings-Adminschutz abgehakt.
 
+## Update (2026-04-21, GoFuture Plan 05 Schritt 4 umgesetzt: Registry Beagle-only)
+
+- `beagle-host/providers/registry.py` auf Beagle-only umgestellt:
+	- `_PROVIDER_MODULES` enthaelt nur noch `beagle`.
+	- Legacy-Provider-Werte `proxmox` und `pve` normalisieren auf `beagle`.
+- Dadurch bleibt Legacy-Env kompatibel, aber die effektive Provider-Instanz ist immer der Beagle-Provider.
+- Deploy auf `srv1.beagle-os.com` erfolgt, Control Plane startet stabil weiter (`active`).
+
 ## Update (2026-04-21, Let's Encrypt activation fix: issued cert is now applied to nginx)
 
 - Reproduced issue on `srv1.beagle-os.com`: certbot had a valid certificate in `/etc/letsencrypt/live/srv1.beagle-os.com/`, but nginx still served `/etc/beagle/tls/beagle-proxy.crt` (self-signed).

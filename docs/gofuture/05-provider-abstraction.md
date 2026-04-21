@@ -68,8 +68,8 @@ Proxmox-Provider implementieren damit Services ohne Anpassung zwischen Providern
 ### Schritt 4 — Provider-Registry vereinfachen: nur noch `beagle`-Provider
 
 - [x] beagle-control-plane.py: BEAGLE_HOST_PROVIDER default von "proxmox" auf "beagle" geändert.
-- [ ] `beagle-host/providers/registry.py` anzupassen — nur noch `providers/beagle/` laden wenn Proxmox weiterhin optional sein soll.
-- [ ] Config-Key `BEAGLE_HOST_PROVIDER` entwertet oder nur noch "beagle" als gültig.
+- [x] `beagle-host/providers/registry.py` angepasst: nur noch `providers/beagle/` wird geladen, Legacy-Keys (`proxmox`, `pve`) normalisieren auf `beagle`.
+- [x] Config-Key `BEAGLE_HOST_PROVIDER` effektiv auf `beagle` eingeschränkt (Legacy-Werte werden auf `beagle` gemappt).
 
 Da es nur noch einen Provider gibt wird die Registry maximal einfach: sie instanziiert
 den Beagle-Provider und gibt ihn zurück. Kein dynamisches Laden, kein Proxmox-Zweig.

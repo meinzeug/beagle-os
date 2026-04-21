@@ -9,11 +9,11 @@ ProviderFactory = Callable[..., HostProvider]
 
 _PROVIDER_MODULES: dict[str, tuple[str, str]] = {
     "beagle": ("beagle_host_provider", "BeagleHostProvider"),
-    "proxmox": ("proxmox_host_provider", "ProxmoxHostProvider"),
 }
 
 _PROVIDER_ALIASES: dict[str, str] = {
-    "pve": "proxmox",
+    "pve": "beagle",
+    "proxmox": "beagle",
 }
 
 _PROVIDER_FACTORIES: dict[str, ProviderFactory] = {}
