@@ -441,9 +441,16 @@ export function bindEvents() {
         renderInventory();
         return;
       }
-      const row = event.target.closest('tr[data-vmid]');
-      if (row) {
-        eventHooks.loadDetail(row.getAttribute('data-vmid'));
+      // "Details" button on a VM card
+      const detailButton = event.target.closest('button[data-vm-detail]');
+      if (detailButton) {
+        eventHooks.loadDetail(detailButton.getAttribute('data-vm-detail'));
+        return;
+      }
+      // Click anywhere on the VM card itself (not on buttons/checkboxes)
+      const card = event.target.closest('.vm-card[data-vmid]');
+      if (card) {
+        eventHooks.loadDetail(card.getAttribute('data-vmid'));
       }
     });
   }

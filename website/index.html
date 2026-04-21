@@ -11,7 +11,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css?v=6.7.0">
+    <link rel="stylesheet" href="/styles.css?v=6.7.0-r3">
   </head>
   <body class="auth-only">
     <!-- Hidden SVG icon sprite -->
@@ -509,28 +509,41 @@
 
           <!-- ============ ENDPOINTS (Inventory + Detail) ============ -->
           <section class="workspace-grid panel-section inventory-shell" id="inventory-section" data-panel-section="inventory">
+
+            <!-- LEFT: VM list -->
             <article class="card inventory-master-card">
-              <div class="card-head">
-                <div>
-                  <span class="eyebrow">Beagle Endpoints</span>
-                  <h2>Inventar</h2>
-                  <p class="inventory-subtitle">Waehl eine VM links aus, steuere sie rechts zentral und schneller.</p>
+
+              <!-- Header -->
+              <div class="inv-header">
+                <div class="inv-header-title">
+                  <div class="inv-header-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 10l4 3 4-3"/></svg>
+                  </div>
+                  <div>
+                    <h2>VMs &amp; Endpoints</h2>
+                    <p class="inv-subtitle">VM auswaehlen — rechts steuern</p>
+                  </div>
                 </div>
-                <div class="button-row">
+                <div class="inv-header-actions">
                   <button class="button ghost small" id="export-inventory-csv" type="button">CSV</button>
                   <button class="button ghost small" id="export-inventory-json" type="button">JSON</button>
+                  <label class="inv-select-all-label" title="Alle auswaehlen">
+                    <input id="inventory-select-all" type="checkbox" aria-label="Alle auswaehlen">
+                  </label>
                 </div>
               </div>
 
+              <!-- Stat pills -->
               <div class="inventory-metrics" id="inventory-metrics">
-                <div class="metric-pill"><span>Sichtbar</span><strong id="inv-stat-visible">0</strong></div>
-                <div class="metric-pill"><span>Ausgewaehlt</span><strong id="inv-stat-selected">0</strong></div>
-                <div class="metric-pill"><span>Running</span><strong id="inv-stat-running">0</strong></div>
-                <div class="metric-pill"><span>Installing</span><strong id="inv-stat-installing">0</strong></div>
+                <div class="metric-pill metric-pill-all"><span>Gesamt</span><strong id="inv-stat-visible">0</strong></div>
+                <div class="metric-pill metric-pill-running"><span>Running</span><strong id="inv-stat-running">0</strong></div>
+                <div class="metric-pill metric-pill-selected"><span>Ausgewaehlt</span><strong id="inv-stat-selected">0</strong></div>
+                <div class="metric-pill metric-pill-installing"><span>Installing</span><strong id="inv-stat-installing">0</strong></div>
               </div>
 
-              <div class="toolbar">
-                <input id="search-input" class="input-search" type="search" placeholder="Suchen ... (/)">
+              <!-- Filter bar -->
+              <div class="inv-filterbar">
+                <input id="search-input" class="input-search inv-search" type="search" placeholder="Suchen ... (/)">
                 <select id="role-filter" class="input-select">
                   <option value="all">Alle Rollen</option>
                   <option value="endpoint">Endpoints</option>
@@ -539,11 +552,12 @@
                 </select>
                 <label class="check-label">
                   <input id="eligible-only" type="checkbox">
-                  <span>Nur geeignet</span>
+                  <span>Eligible</span>
                 </label>
-                <button class="button ghost small" id="clear-filters" type="button">Filter loeschen</button>
+                <button class="button ghost small" id="clear-filters" type="button">Zuruecksetzen</button>
               </div>
 
+              <!-- Bulk action bar -->
               <div class="toolbar bulk-bar" id="bulk-bar">
                 <button class="button ghost small" id="bulk-vm-start" type="button">Start</button>
                 <button class="button ghost small" id="bulk-vm-stop" type="button">Stop</button>
@@ -557,37 +571,32 @@
                 <span class="bulk-selection" id="bulk-selection">0 ausgewaehlt</span>
               </div>
 
-              <div class="table-wrap inventory-table-wrap">
-                <table class="vm-table">
-                  <thead>
-                    <tr>
-                      <th class="col-check"><input id="inventory-select-all" type="checkbox" aria-label="Alle"></th>
-                      <th>VM</th>
-                      <th>Rolle</th>
-                      <th>Status</th>
-                      <th>Stream</th>
-                      <th>Installer</th>
-                      <th>Power</th>
-                    </tr>
-                  </thead>
-                  <tbody id="inventory-body">
-                    <tr><td colspan="7" class="empty-cell">Noch keine Daten geladen.</td></tr>
-                  </tbody>
-                </table>
+              <!-- VM card list (replaces table) -->
+              <div class="vm-cards" id="inventory-body">
+                <div class="vm-cards-empty">Noch keine Daten geladen.</div>
               </div>
+
             </article>
 
+            <!-- RIGHT: Detail panel -->
             <aside class="card detail-card inventory-detail-card">
-              <div class="card-head detail-head">
-                <div class="detail-title-wrap">
-                  <span class="eyebrow">Endpoint Detail</span>
-                  <h2 id="detail-title">Waehle einen Endpoint</h2>
-                  <div class="detail-vm-meta" id="detail-vm-meta">
-                    <span class="chip muted" id="detail-status-chip">Kein Status</span>
+
+              <div class="detail-head">
+                <div class="detail-server-header">
+                  <div class="detail-server-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 10l4 3 4-3"/></svg>
+                  </div>
+                  <div class="detail-title-wrap">
+                    <span class="eyebrow">Endpoint Detail</span>
+                    <h2 id="detail-title">Waehle einen Endpoint</h2>
+                    <div class="detail-vm-meta" id="detail-vm-meta">
+                      <span class="chip muted" id="detail-status-chip">Kein Status</span>
+                    </div>
                   </div>
                 </div>
                 <div class="detail-actions" id="detail-actions"></div>
               </div>
+
               <div class="detail-tabbar" id="detail-tabbar">
                 <button type="button" class="detail-tab detail-tab-active" data-detail-panel="summary">Profil</button>
                 <button type="button" class="detail-tab" data-detail-panel="updates">Updates</button>
@@ -597,9 +606,11 @@
                 <button type="button" class="detail-tab" data-detail-panel="config">Config</button>
                 <button type="button" class="detail-tab" data-detail-panel="bundles">Bundles</button>
               </div>
+
               <div class="detail-body" id="detail-stack">
                 <div class="banner info">Klicke einen Endpoint im Inventar an, um Details, Credentials und Aktionen zu sehen.</div>
               </div>
+
             </aside>
           </section>
 
@@ -1126,6 +1137,6 @@
 
     <script src="/beagle-web-ui-config.js"></script>
     <script src="/core/platform/browser-common.js"></script>
-    <script type="module" src="/main.js?v=6.7.0"></script>
+    <script type="module" src="/main.js?v=6.7.0-r3"></script>
   </body>
 </html>

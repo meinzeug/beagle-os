@@ -360,32 +360,64 @@ export function renderInventory() {
   }
   updateInventoryWorkspaceLayout(rows.length);
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="7" class="empty-cell">Keine passenden Beagle-VMs gefunden.</td></tr>';
+    body.innerHTML = '<div class="vm-cards-empty">Keine passenden Beagle-VMs gefunden.</div>';
     updateBulkUiState();
     return;
   }
+  // SVG icons inlined for card buttons
+  var iconPlay    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+  var iconStop    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
+  var iconReboot  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>';
+  var iconConsole = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>';
+  var iconVm      = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 10l4 3 4-3"/></svg>';
   body.innerHTML = rows.map((vm) => {
     const profile = profileOf(vm);
+    const vmid = profile.vmid;
     const normalizedStatus = String(profile.status || '').trim().toLowerCase();
-    const statusTone = normalizedStatus === 'running' ? 'ok' : (normalizedStatus === 'installing' ? 'info' : 'warn');
+    const isRunning = normalizedStatus === 'running';
+    const isInstalling = normalizedStatus === 'installing';
+    const statusTone = isRunning ? 'ok' : (isInstalling ? 'info' : 'warn');
     const installerTone = profile.installer_target_eligible ? 'ok' : 'muted';
-    const canStart = normalizedStatus !== 'running' && normalizedStatus !== 'installing';
-    const canStop = normalizedStatus === 'running' || normalizedStatus === 'installing';
+    const canStart = !isRunning && !isInstalling;
+    const canStop = isRunning || isInstalling;
+    const isSelected = state.selectedVmid === vmid;
+    const isChecked = state.selectedVmids.indexOf(vmid) !== -1;
+    const cardClass = 'vm-card' +
+      (isRunning ? ' vm-card-running' : (isInstalling ? ' vm-card-installing' : '')) +
+      (isSelected ? ' vm-card-selected' : '');
+    const role = roleOf(vm) || 'unassigned';
+    const streamInfo = profile.stream_host
+      ? escapeHtml(profile.stream_host) + (profile.moonlight_port ? ':' + escapeHtml(profile.moonlight_port) : '')
+      : '';
     return '' +
-      '<tr class="vm-row' + (state.selectedVmid === profile.vmid ? ' selected' : '') + '" data-vmid="' + escapeHtml(profile.vmid) + '">' +
-      '  <td><input class="row-select" type="checkbox" data-select-vmid="' + escapeHtml(profile.vmid) + '"' + (state.selectedVmids.indexOf(profile.vmid) !== -1 ? ' checked' : '') + '></td>' +
-      '  <td><span class="vm-name">' + escapeHtml(profile.name || ('VM ' + profile.vmid)) + '</span><div class="vm-sub">#' + escapeHtml(profile.vmid) + ' · ' + escapeHtml(profile.node || '') + '</div></td>' +
-      '  <td>' + chip(roleOf(vm) || 'unassigned', roleOf(vm) === 'desktop' ? 'info' : 'muted') + '</td>' +
-      '  <td>' + chip(profile.status || 'unknown', statusTone) + '</td>' +
-      '  <td><div>' + escapeHtml(profile.stream_host || 'n/a') + '</div><div class="vm-sub">' + escapeHtml(profile.moonlight_port || '') + '</div></td>' +
-      '  <td>' + chip(profile.installer_target_status || (profile.installer_target_eligible ? 'ready' : 'not eligible'), installerTone) + '</td>' +
-      '  <td class="power-cell"><div class="power-inline">' +
-      '    <button type="button" class="btn btn-ghost btn-small" data-vm-power="start" data-vmid="' + escapeHtml(profile.vmid) + '"' + (canStart ? '' : ' disabled') + '>Start</button>' +
-      '    <button type="button" class="btn btn-ghost btn-small" data-vm-power="stop" data-vmid="' + escapeHtml(profile.vmid) + '"' + (canStop ? '' : ' disabled') + '>Stop</button>' +
-      '    <button type="button" class="btn btn-primary btn-small" data-vm-power="reboot" data-vmid="' + escapeHtml(profile.vmid) + '">Reboot</button>' +
-      '    <button type="button" class="btn btn-ghost btn-small" data-vm-console="novnc" data-vmid="' + escapeHtml(profile.vmid) + '">noVNC</button>' +
-      '  </div></td>' +
-      '</tr>';
+      '<div class="' + cardClass + '" data-vmid="' + escapeHtml(vmid) + '">' +
+      '  <label class="vm-card-check" onclick="event.stopPropagation()">' +
+      '    <input class="row-select" type="checkbox" data-select-vmid="' + escapeHtml(vmid) + '"' + (isChecked ? ' checked' : '') + '>' +
+      '  </label>' +
+      '  <span class="vm-card-dot" aria-hidden="true"></span>' +
+      '  <span class="vm-card-icon" aria-hidden="true">' + iconVm + '</span>' +
+      '  <div class="vm-card-content">' +
+      '    <div class="vm-card-primary">' +
+      '      <strong class="vm-card-name" title="' + escapeHtml(profile.name || ('VM ' + vmid)) + '">' + escapeHtml(profile.name || ('VM ' + vmid)) + '</strong>' +
+      '      <span class="vm-card-id">#' + escapeHtml(vmid) + '</span>' +
+      '    </div>' +
+      '    <div class="vm-card-secondary">' +
+      (profile.node ? '<span class="vm-card-node">' + escapeHtml(profile.node) + '</span>' : '') +
+      (streamInfo ? '<span class="vm-card-stream">' + streamInfo + '</span>' : '') +
+      '    </div>' +
+      '  </div>' +
+      '  <div class="vm-card-badges">' +
+      chip(profile.status || 'unknown', statusTone) +
+      chip(role, role === 'desktop' ? 'info' : 'muted') +
+      '  </div>' +
+      '  <div class="vm-card-actions" onclick="event.stopPropagation()">' +
+      '    <button type="button" class="vm-card-btn vm-card-btn-manage" data-vm-detail="' + escapeHtml(vmid) + '" title="Details">Details</button>' +
+      '    <button type="button" class="vm-card-btn" data-vm-power="start" data-vmid="' + escapeHtml(vmid) + '" title="Start"' + (canStart ? '' : ' disabled') + '>' + iconPlay + '</button>' +
+      '    <button type="button" class="vm-card-btn" data-vm-power="stop" data-vmid="' + escapeHtml(vmid) + '" title="Stop"' + (canStop ? '' : ' disabled') + '>' + iconStop + '</button>' +
+      '    <button type="button" class="vm-card-btn" data-vm-power="reboot" data-vmid="' + escapeHtml(vmid) + '" title="Reboot">' + iconReboot + '</button>' +
+      '    <button type="button" class="vm-card-btn" data-vm-console="novnc" data-vmid="' + escapeHtml(vmid) + '" title="noVNC">' + iconConsole + '</button>' +
+      '  </div>' +
+      '</div>';
   }).join('');
   if (qs('inventory-select-all')) {
     qs('inventory-select-all').checked = rows.length > 0 && rows.every((vm) => {
