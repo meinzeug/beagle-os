@@ -43,6 +43,8 @@
 - [x] Execute GoFuture Plan 06 Schritt 1: fully read `beagle-server-installer` and document the current installer flow as ASCII diagram in `docs/gofuture/06-server-installer.md` (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 2: refactor server installer + GUI to standalone-only mode and remove Proxmox installer branches (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 3: add central `server-installer/build.env` and wire `scripts/build-server-installer.sh` to load reproducible build dependencies from it (2026-04-21).
+- [x] Execute GoFuture Plan 06 Schritt 4: unify installer and post-install host bootstrap via shared hook script (`scripts/install-beagle-host-postinstall.sh`) and remove duplicated inline postinstall logic (2026-04-21).
+- [x] Execute GoFuture Plan 06 Schritt 5: integrate release checksum regeneration + optional GPG ISO/signature asset flow in `scripts/create-github-release.sh` (2026-04-21).
 
 - [ ] Complete dedicated-host bootstrap validation on new Hetzner server `46.4.96.80` (`srv1.beagle-os.com`) and verify Beagle core services/ports.
 - [ ] Verify KVM availability on the new dedicated host (`/dev/kvm`, `virsh domcapabilities --virttype kvm`) and re-run VM provisioning smoke through Beagle API/UI.
@@ -109,8 +111,7 @@
 - [x] Deploy onboarding regression fix to running beagleserver and verify `/api/v1/auth/onboarding/status` + Web UI modal behavior.
 - [x] Fix standalone Let's Encrypt runtime so fresh hosts install `certbot` + nginx plugin automatically and the Security panel can issue certificates on `srv1.beagle-os.com`.
 - [ ] Rebuild and republish server-installer/installimage artifacts so fresh installs inherit the onboarding + Let's Encrypt fixes.
-- [ ] Complete GoFuture Plan 06 Schritt 4 by consolidating installer post-install logic with `scripts/install-beagle-host.sh` shared bootstrap functions.
-- [ ] Complete GoFuture Plan 06 Schritt 5 by integrating ISO GPG signing + checksum/signature release assets.
+- [ ] Validate Plan 06 release-signing flow on a signing-capable release host and verify uploaded `*.sig`/`SHA256SUMS.sig` artifacts against public key.
 - [ ] Add a regression test or disposable integration smoke for the Security/TLS Let's Encrypt API path.
 - [ ] Validate new Moonlight app-name resolver against Sunshine `/api/apps` so `failed to find Application Desktop` is no longer reproducible on VM 101.
 - [x] Add reproducible Sunshine guest service self-heal in repo provisioning (automatic restart on crash/stop).

@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-21 nach GoFuture Plan 06 Schritt 4-5)
+
+0. **Plan 06 Testpflicht finalisieren**:
+	- server-installer ISO im QEMU-Bootpfad bis Installer-Dialog und bis abgeschlossener Installation validieren,
+	- Post-Install-Check `systemctl is-active beagle-control-plane` auf frischer Zielinstallation dokumentieren.
+
+0. **Release signing runtime verifizieren**:
+	- `scripts/create-github-release.sh` auf einem Signier-Host mit echtem GPG-Key ausführen,
+	- erzeugte `SHA256SUMS.sig` und ISO-`*.sig` gegen den veröffentlichten Public-Key verifizieren.
+
 ## Delta (2026-04-21 nach GoFuture Plan 06 Schritt 1-3)
 
 0. **Plan 06 Schritt 4 umsetzen (Installer/Post-Install vereinheitlichen)**:

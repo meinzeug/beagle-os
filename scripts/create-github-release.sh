@@ -10,6 +10,70 @@ NOTES_FILE="${RELEASE_NOTES_FILE:-}"
 BEAGLE_OS_DIST_DIR="${BEAGLE_OS_DIST_DIR:-$DIST_DIR/beagle-os}"
 INCLUDE_BEAGLE_OS_ASSETS="${INCLUDE_BEAGLE_OS_ASSETS:-1}"
 SERVER_INSTALLIMAGE_NAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
+BEAGLE_RELEASE_SIGN="${BEAGLE_RELEASE_SIGN:-1}"
+BEAGLE_RELEASE_GPG_KEY="${BEAGLE_RELEASE_GPG_KEY:-}"
+
+signing_enabled() {
+  case "$(printf '%s' "$BEAGLE_RELEASE_SIGN" | tr '[:upper:]' '[:lower:]')" in
+    1|yes|true|on)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+generate_release_sha256sums() {
+  local -a checksum_inputs=()
+  local asset
+
+  for asset in "${RELEASE_ASSETS[@]}"; do
+    [[ "$asset" == "$DIST_DIR/SHA256SUMS" ]] && continue
+    [[ "$asset" == *.sig ]] && continue
+    checksum_inputs+=("$asset")
+  done
+
+  [[ ${#checksum_inputs[@]} -gt 0 ]] || {
+    echo "No release assets available for SHA256SUMS generation." >&2
+    exit 1
+  }
+
+  sha256sum "${checksum_inputs[@]}" > "$DIST_DIR/SHA256SUMS"
+}
+
+gpg_sign_asset() {
+  local target="$1"
+  local signature="${target}.sig"
+  if [[ -n "$BEAGLE_RELEASE_GPG_KEY" ]]; then
+    gpg --batch --yes --local-user "$BEAGLE_RELEASE_GPG_KEY" --detach-sign --output "$signature" "$target"
+    return 0
+  fi
+  gpg --batch --yes --detach-sign --output "$signature" "$target"
+}
+
+prepare_signature_assets() {
+  local -a sign_targets=()
+  local target
+
+  signing_enabled || return 0
+  require_tool gpg
+
+  sign_targets=(
+    "$DIST_DIR/beagle-os-server-installer.iso"
+    "$DIST_DIR/beagle-os-server-installer-amd64.iso"
+    "$DIST_DIR/SHA256SUMS"
+  )
+
+  for target in "${sign_targets[@]}"; do
+    [[ -f "$target" ]] || {
+      echo "Missing signing target: $target" >&2
+      exit 1
+    }
+    gpg_sign_asset "$target"
+    RELEASE_ASSETS+=("${target}.sig")
+  done
+}
 
 detect_github_repo() {
   local url=""
@@ -105,9 +169,12 @@ RELEASE_ASSETS=(
 )
 collect_beagle_os_release_assets
 
+generate_release_sha256sums
+prepare_signature_assets
+
 for asset in "${RELEASE_ASSETS[@]}"; do
   [[ -f "$asset" ]] || {
-    echo "Missing release asset: $asset" >&2
+    echo "Missing release asset after checksum/signing stage: $asset" >&2
     exit 1
   }
 done

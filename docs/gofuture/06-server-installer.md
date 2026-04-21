@@ -115,8 +115,8 @@ Umsetzung 2026-04-21:
 
 ### Schritt 4 — Post-Install Beagle-Bootstrap einheitlich machen
 
-- [ ] Post-Install-Skript `scripts/install-beagle-host.sh` mit dem Installer-Post-Install-Hook vereinheitlichen.
-- [ ] Dopplungen zwischen Installer und nachträglicher Installation eliminieren.
+- [x] Post-Install-Skript `scripts/install-beagle-host.sh` mit dem Installer-Post-Install-Hook vereinheitlichen.
+- [x] Dopplungen zwischen Installer und nachträglicher Installation eliminieren.
 
 Aktuell gibt es einen Installer-Pfad und einen nachträglichen Installations-Pfad
 (`scripts/install-beagle-host.sh`). Beide führen ähnliche Schritte aus aber nicht
@@ -126,12 +126,17 @@ System identisch konfiguriert sind. Das vereinfacht Support und Fehlerbehebung.
 Der gemeinsame Bootstrap-Code wird idempotent geschrieben sodass mehrfaches
 Ausführen das System nicht in einen inkonsistenten Zustand bringt.
 
+Umsetzung 2026-04-21:
+- Neues Shared-Hook-Skript `scripts/install-beagle-host-postinstall.sh` eingeführt.
+- `scripts/install-beagle-host.sh` führt nach Sync/Asset-Prep nicht mehr Inline-Service-/Proxy-Bootstrap aus, sondern delegiert an den Shared Hook.
+- Dadurch nutzen Installer- und Nachinstallationspfad dieselbe post-install Sequenz (host.env + credentials.env schreiben, Services installieren, Proxy konfigurieren).
+
 ---
 
 ### Schritt 5 — ISO-Signing und Release-Artefakt-Chain
 
-- [ ] ISO-Signierung mit GPG in `scripts/create-github-release.sh` integrieren.
-- [ ] Checksum-Datei (SHA256) und Signatur-Datei als Release-Asset publizieren.
+- [x] ISO-Signierung mit GPG in `scripts/create-github-release.sh` integrieren.
+- [x] Checksum-Datei (SHA256) und Signatur-Datei als Release-Asset publizieren.
 
 Ein unsigned ISO ist für sicherheitsbewusste Betreiber inakzeptabel. GPG-Signierung
 stellt sicher dass das ISO aus einer vertrauenswürdigen Quelle stammt und nicht
@@ -139,6 +144,14 @@ manipuliert wurde. Die Signierung findet auf dem Release-Build-Host statt mit de
 offiziellen Beagle-Signing-Key. Der Public Key wird im Repo und auf `beagle-os.com`
 publiziert. Nutzer können nach dem Download die Signatur via `gpg --verify` prüfen.
 Checksum + Signatur werden als separate Release-Assets auf GitHub hochgeladen.
+
+Umsetzung 2026-04-21:
+- `scripts/create-github-release.sh` regeneriert `dist/SHA256SUMS` jetzt deterministisch aus den finalen Release-Assets.
+- Optionaler GPG-Signierpfad integriert (`BEAGLE_RELEASE_SIGN=1`, optional `BEAGLE_RELEASE_GPG_KEY`).
+- Signatur-Assets werden automatisch erstellt und angehängt:
+	- `beagle-os-server-installer.iso.sig`
+	- `beagle-os-server-installer-amd64.iso.sig`
+	- `SHA256SUMS.sig`
 
 ---
 

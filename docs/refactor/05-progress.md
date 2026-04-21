@@ -1,5 +1,17 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 06 Schritt 4-5: shared postinstall hook + release signing chain)
+
+- Gemeinsamen Post-Install-Pfad umgesetzt:
+	- neues Shared-Hook-Skript `scripts/install-beagle-host-postinstall.sh` erstellt,
+	- `scripts/install-beagle-host.sh` delegiert den gesamten post-install Bootstrap jetzt an diesen Hook statt Inline-Logik.
+- Damit laufen Installer- und nachträglicher Installationspfad über dieselbe Sequenz (host env schreiben, services bootstrap, proxy setup).
+- Release-Chain für Installer-Artefakte gehaertet in `scripts/create-github-release.sh`:
+	- deterministische Regeneration von `dist/SHA256SUMS` aus den finalen Release-Assets,
+	- optionaler GPG-Signaturpfad (`BEAGLE_RELEASE_SIGN`, `BEAGLE_RELEASE_GPG_KEY`) integriert,
+	- automatische Veröffentlichung der Signaturartefakte (`*.iso.sig`, `SHA256SUMS.sig`) als Release-Assets vorbereitet.
+- `docs/gofuture/06-server-installer.md` Schritt 4 und 5 auf `[x]` gesetzt.
+
 ## Update (2026-04-21, GoFuture Plan 06 Schritt 1-3: Server-Installer standalone + reproducible build env)
 
 - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer` auf standalone-only refactored:
