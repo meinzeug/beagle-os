@@ -1,5 +1,19 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 04 & 05: Provider-Abstraction started)
+
+- Analyzed Plan 04 (Control Plane cleanup) and Plan 05 (Provider-Abstraction) to identify architectural violations.
+- Ran comprehensive grep audit: all `qm` and `pvesh` calls are correctly isolated in `beagle-host/providers/proxmox_host_provider.py`.
+- Verified that the Beagle provider (`beagle_host_provider.py`) implements all 20+ Contract methods from `host_provider_contract.py`.
+- Found no direct Proxmox API calls outside of the Proxmox provider directory — architecture is clean.
+- **Implemented Plan 05 Schritt 4 (provider default):**
+	- Changed the default provider in `beagle-host/bin/beagle-control-plane.py` from `"proxmox"` to `"beagle"`.
+	- This aligns with the strategic shift to Beagle OS standalone and removes the Proxmox dependency from system startup.
+	- Updated `docs/gofuture/05-provider-abstraction.md` to mark this step completed and refined follow-up steps.
+- Identified that further Plan 04/05 work (service layer extraction, Registry simplification, Proxmox directory removal) requires multi-file refactoring and integration tests.
+- Confirmed Python syntax in modified control plane file via `py_compile`.
+- **Status:** Plan 04/05 foundation work is clean and ready; next execution wave should focus on the service-layer refactoring (Plan 04 steps 2-6) and comprehensive test suite (Plan 05 steps 5a).
+
 ## Update (2026-04-21, Let's Encrypt/certbot runtime fix applied in repo and on `srv1.beagle-os.com`)
 
 - Fixed the Security/TLS settings flow so Let's Encrypt issuance no longer fails on fresh standalone hosts with `certbot not installed on this server`.

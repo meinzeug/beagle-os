@@ -1,5 +1,33 @@
 # Next Steps
 
+## GoFuture Plan 04/05 Provider-Abstraction execution (2026-04-21)
+
+0. **Plan 05 Schritt 2: Proxmox-Direktaufrufe final prüfen und migrieren**:
+   - grep -r "qm\|pvesh\|/api2/json\|PVEAuthCookie" komplettes Workspace durchlaufen (nicht nur beagle-host/),
+   - Check auf `providers/` direkte Aufrufe und versteckte Proxmox-Kopplungen,
+   - Verifizieren dass alle Proxmox-Aufrufe nur in `beagle-host/providers/proxmox_host_provider.py` existieren.
+
+0. **Plan 05 Schritt 3: Beagle-Provider (libvirt/KVM) auf Vollständigkeit prüfen**:
+   - Sicherstellen dass alle Contract-Methoden aus `host_provider_contract.py` implementiert sind,
+   - Stub-Implementierungen mit aussagekräftigen `NotImplementedError` ersetzen,
+   - libvirt-Konnektivität und Domain-Management auf minimal viable implementiert.
+
+0. **Plan 04 Schritt 2: Route-Handler von Business-Logik trennen**:
+   - `beagle-host/bin/beagle-control-plane.py` durchgehen und jeden >20-Zeiler Handler in Service extrahieren,
+   - Service-Modul unter `beagle-host/services/` als neuer Handler-Delegator einrichten,
+   - Provider-Registry-Nutzung vereinfachen (Default ist jetzt "beagle", kann Option durchgängig werden).
+
+0. **Plan 05 Schritt 5a: Provider-neutrale Unit-Tests für alle Services schreiben**:
+   - Mock-Provider implementieren der `HostProvider`-Contract erfüllt,
+   - `tests/unit/` Verzeichnis erweitern mit Service-Tests,
+   - kein echter libvirt oder Proxmox-Zugriff in Unit-Tests notwendig.
+
+0. **Plan 05 Schritt 5b: Proxmox-Verzeichnisse nach vollständiger Beagle-Migration löschen**:
+   - ERST nach erfolgreicher Beagle-Migration + Tests,
+   - `rm -rf providers/proxmox/ proxmox-ui/` mit finalen Verifikation,
+   - Alle Referenzen in Scripts, CI-Config entfernen,
+   - Dokumentation mit Löschdatum aktualisieren.
+
 ## Immediate TLS/onboarding follow-up (2026-04-21)
 
 0. **Rebuild and republish host installer artifacts with the latest onboarding + TLS fixes**:
