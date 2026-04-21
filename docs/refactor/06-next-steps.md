@@ -1,5 +1,18 @@
 # Next Steps
 
+## Delta (2026-04-21 nach Plan 18 Schritt 5 + Live-Checks)
+
+0. **Deprecation-Rollout konkretisieren**:
+	- weitere v1-Endpunkte, die in v2 entfallen sollen, in `BEAGLE_API_V1_DEPRECATED_ENDPOINTS` aufnehmen,
+	- dazu Migrationsabschnitte in der öffentlichen API-Doku ergänzen.
+
+0. **Plan 18 Schritt 4 starten (Webhook-Service)**:
+	- `beagle-host/services/webhook_service.py` mit Registry + HMAC-Signatur + Retry-Backoff implementieren,
+	- danach Web-Console-Settings-Integration nachziehen.
+
+0. **beaglectl erweitern**:
+	- über `list` hinaus mutierende Commands (`vm start/stop/reboot` mit klaren Exit-Codes) per srv1-Smoke gegen echte VMs verifizieren.
+
 ## Delta (2026-04-21 nach Plan 18 Schritt 1+3: OpenAPI + beaglectl)
 
 0. **OpenAPI-Generator präzisieren und CI-gebunden machen**:

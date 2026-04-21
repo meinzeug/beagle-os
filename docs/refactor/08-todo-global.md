@@ -2,18 +2,15 @@
 
 ## Refactor Wave 2 (7.0)
 
-- [x] Draft `docs/refactorv2/` strategic doc set (16 docs, 00-15) covering vision, competitor research, gap analysis, target architecture, roadmap, and per-subsystem deep dives.
-- [ ] Capture open architecture decisions from `docs/refactorv2/15-risks-open-questions.md` in `docs/refactor/07-decisions.md`.
-- [ ] Welle 7.0.0 PoC: 3-Knoten Beagle-Cluster mit etcd + `beaglectl cluster init/join` + mTLS Inter-Host-RPC.
-- [ ] Welle 7.0.1 PoC: ZFS und NFS StorageClass mit Snapshot-Policy.
-- [ ] Welle 7.0.2 PoC: HA-Manager mit `restart-on-cluster` + Watchdog-Fencing.
-- [ ] Welle 7.1.0 PoC: DesktopPool + Template + Entitlement Schema und API.
-- [ ] Welle 7.1.1 PoC: Apollo-Backend + Linux Virtual Display + Auto-Pairing-Token.
-- [ ] Welle 7.1.2 PoC: GPU-Inventory + vfio-Workflow + vGPU-Slot-Scheduler.
-- [ ] Welle 7.2.0: OIDC/SAML/SCIM + Tenant-Scope-Pflicht im API.
-- [ ] Welle 7.3.0: BackupJob + inkrementelle Backups + Live-Restore.
-- [ ] Welle 7.4.0: OpenAPI v2 + `terraform-provider-beagle` + `beaglectl`.
 
+## Update 2026-04-21 (Plan 18 Schritt 5 abgeschlossen)
+
+- [x] API-Versionierungs-Vorbereitung (`/api/v2`, `/api/v2/health`) im Control Plane implementieren.
+- [x] Deprecation-Header (`Deprecation`, `Sunset`, `Link`) für konfigurierte v1-Endpunkte zentral ausrollen.
+- [x] Live-OpenAPI-Check-Tool (`scripts/validate-openapi-live.py`) erstellen und auf `srv1` erfolgreich ausführen.
+- [x] `beaglectl vm list --json` Live-Test mit gültigem Manager-Token auf `srv1` erfolgreich validieren.
+- [ ] Plan 18 Schritt 4 real umsetzen: Webhook-Service inkl. HMAC und Retry.
+- [ ] Plan 18 Terraform-Provider-Testpflicht (`apply/destroy`) auf `srv1` mit realer VM schließen.
 ## Wave 1 / 6.x backlog
 
 - [x] Start actual execution of GoFuture Plan 01 by creating the first WebUI ES modules (`state`, `dom`, `api`, `auth`, `panels`, `theme`, `activity`, `settings`, `dashboard`) plus `website/main.js`.

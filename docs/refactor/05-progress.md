@@ -1,5 +1,23 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 18 Schritt 5 + Testpflicht-Teile)
+
+- API-Versionierungs-Vorbereitung umgesetzt:
+	- `beagle-host/bin/beagle-control-plane.py` ergänzt um `GET /api/v2` und `GET /api/v2/health` als v2-Prep-Surface.
+- Deprecation-Header für v1-Endpunkte umgesetzt:
+	- zentrale Header-Injektion in Response-Pipeline (`_write_json`, `_write_bytes`, `_write_proxy_response`),
+	- konfigurierbar über `BEAGLE_API_V1_DEPRECATED_ENDPOINTS`, `BEAGLE_API_V1_DEPRECATION_SUNSET`, `BEAGLE_API_V1_DEPRECATION_DOC_URL`.
+- Neues Validator-Tool:
+	- `scripts/validate-openapi-live.py` prüft dokumentierte `/api/v1`-Pfade gegen Live-API (kein 404 erlaubt).
+- `beaglectl` korrigiert:
+	- `vm list` nutzt nun den bestehenden Endpoint `/api/v1/vms` (statt fehlerhaftem `/api/v1/inventory`).
+- Live-Validierung auf `srv1.beagle-os.com`:
+	- `GET /api/v2` liefert `200` + Prep-Metadaten.
+	- `GET /api/v1/vms` liefert erwartete Deprecation/Sunset/Link-Header.
+	- `python3 scripts/validate-openapi-live.py ...` -> `openapi-live-validation=ok` (41 Pfade).
+	- `beaglectl vm list --json` mit `BEAGLE_MANAGER_API_TOKEN` liefert valides JSON (json.tool geprüft).
+- `docs/gofuture/18-api-iac-cli.md`: Schritt 5 beide Checkboxen und Testpflicht-Checkboxen für OpenAPI-live + `beaglectl vm list --json` auf `[x]` gesetzt.
+
 ## Update (2026-04-21, GoFuture Plan 18 Schritt 1+3: OpenAPI-Generator + beaglectl)
 
 - OpenAPI-v1-Generator umgesetzt:

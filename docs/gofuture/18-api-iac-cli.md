@@ -75,8 +75,8 @@ Backback bis zu 5 mal wiederholt.
 
 ### Schritt 5 — API-Versionierung und Deprecation-Policy
 
-- [ ] `/api/v2/` vorbereiten wenn Breaking Changes aus v1 nötig werden.
-- [ ] Deprecation-Header in v1-Responses setzen die in v2 entfernt werden.
+- [x] `/api/v2/` vorbereiten wenn Breaking Changes aus v1 nötig werden.
+- [x] Deprecation-Header in v1-Responses setzen die in v2 entfernt werden.
 
 API-Stabilität ist für Terraform-Provider und externe Integrationen essentiell.
 Breaking Changes erzwingen eine neue Major-Version. Non-Breaking-Changes (neue Felder,
@@ -86,11 +86,17 @@ zurück damit Client-Entwickler rechtzeitig migrieren können. `v1` bleibt minde
 12 Monate nach Erscheinen von `v2` aktiv. Die Migration-Guide für `v1` → `v2` wird
 in der API-Dokumentation publiziert.
 
+> Umsetzung 2026-04-21: In `beagle-host/bin/beagle-control-plane.py` wurden vorbereitende `GET /api/v2` und `GET /api/v2/health` Endpunkte ergänzt (Status: `preparation`, inkl. Sunset/Deprecation-Metadaten). Zusätzlich setzt die Response-Pipeline für konfigurierbare v1-Endpunkte (`BEAGLE_API_V1_DEPRECATED_ENDPOINTS`, Default: `/api/v1/vms,/api/v1/provisioning/vms`) automatisch `Deprecation`, `Sunset` und `Link` Header.
+
 ---
 
 ## Testpflicht nach Abschluss
 
-- [ ] OpenAPI-Schema validiert gegen alle Live-Endpoints (keine undokumentierten Endpoints).
+- [x] OpenAPI-Schema validiert gegen alle Live-Endpoints (keine undokumentierten Endpoints).
 - [ ] Terraform: `terraform apply` legt VM an, `terraform destroy` entfernt sie.
-- [ ] `beaglectl vm list` gibt korrekte VM-Liste aus, `--json` gibt valides JSON.
+- [x] `beaglectl vm list` gibt korrekte VM-Liste aus, `--json` gibt valides JSON.
 - [ ] Webhook: VM-Start-Event sendet HTTP-POST an registrierte URL mit korrekter HMAC-Signatur.
+
+> Live-Validierung 2026-04-21 auf `srv1.beagle-os.com`:
+> - `python3 scripts/validate-openapi-live.py --base-url http://127.0.0.1:9088 --coverage-file docs/api/openapi-v1-coverage.md` -> `openapi-live-validation=ok` (41 Pfade geprüft).
+> - `python3 scripts/beaglectl.py --server http://127.0.0.1:9088 --token <BEAGLE_MANAGER_API_TOKEN> vm list --json` -> valides JSON (via `python3 -m json.tool` geprüft).

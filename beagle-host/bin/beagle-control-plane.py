@@ -199,6 +199,24 @@ PUBLIC_STREAM_PORT_COUNT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_COUNT",
 PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
 WEB_UI_URL = os.environ.get("BEAGLE_WEB_UI_URL", "").strip()
 CORS_ALLOWED_ORIGINS_RAW = os.environ.get("BEAGLE_CORS_ALLOWED_ORIGINS", "").strip()
+API_V2_PREPARATION_ENABLED = os.environ.get("BEAGLE_API_V2_PREPARATION_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
+API_V1_DEPRECATED_ENDPOINTS_RAW = os.environ.get(
+    "BEAGLE_API_V1_DEPRECATED_ENDPOINTS",
+    "/api/v1/vms,/api/v1/provisioning/vms",
+).strip()
+API_V1_DEPRECATED_ENDPOINTS = {
+    (item.strip().rstrip("/") or "/")
+    for item in API_V1_DEPRECATED_ENDPOINTS_RAW.split(",")
+    if item.strip()
+}
+API_V1_DEPRECATION_SUNSET = os.environ.get(
+    "BEAGLE_API_V1_DEPRECATION_SUNSET",
+    "Tue, 21 Apr 2027 00:00:00 GMT",
+).strip() or "Tue, 21 Apr 2027 00:00:00 GMT"
+API_V1_DEPRECATION_DOC_URL = os.environ.get(
+    "BEAGLE_API_V1_DEPRECATION_DOC_URL",
+    "https://beagle-os.com/api/migrations/v1-to-v2",
+).strip() or "https://beagle-os.com/api/migrations/v1-to-v2"
 NOVNC_PATH = os.environ.get("BEAGLE_NOVNC_PATH", "/novnc").strip() or "/novnc"
 NOVNC_TOKEN_FILE = os.environ.get("BEAGLE_NOVNC_TOKEN_FILE", "/etc/beagle/novnc/tokens").strip() or "/etc/beagle/novnc/tokens"
 BEAGLE_HOST_PROVIDER_KIND = normalize_provider_kind(os.environ.get("BEAGLE_HOST_PROVIDER", "beagle"))
@@ -2602,6 +2620,18 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Credentials", "true")
             self.send_header("Vary", "Origin")
 
+    def _deprecation_headers_for_request(self) -> list[tuple[str, str]]:
+        path = str(urlparse(getattr(self, "path", "") or "").path or "").rstrip("/") or "/"
+        if not path.startswith("/api/v1/"):
+            return []
+        if path not in API_V1_DEPRECATED_ENDPOINTS:
+            return []
+        return [
+            ("Deprecation", "true"),
+            ("Sunset", API_V1_DEPRECATION_SUNSET),
+            ("Link", f'<{API_V1_DEPRECATION_DOC_URL}>; rel="deprecation"'),
+        ]
+
     def _write_json(self, status: HTTPStatus, payload: Any, *, extra_headers: list[tuple[str, str]] | None = None) -> None:
         if isinstance(payload, dict) and payload.get("ok") is False and payload.get("error") and not payload.get("code"):
             payload = dict(payload)
@@ -2611,7 +2641,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self._write_common_security_headers()
-        for header_name, header_value in (extra_headers or []):
+        merged_headers = list(extra_headers or []) + self._deprecation_headers_for_request()
+        for header_name, header_value in merged_headers:
             self.send_header(header_name, header_value)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -2688,6 +2719,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Cache-Control", "no-store")
         self._write_common_security_headers()
+        for header_name, header_value in self._deprecation_headers_for_request():
+            self.send_header(header_name, header_value)
         if filename:
             self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
         self.send_header("Content-Length", str(len(body)))
@@ -2711,6 +2744,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header(key, value)
         self.send_header("Cache-Control", "no-store")
         self._write_common_security_headers()
+        for header_name, header_value in self._deprecation_headers_for_request():
+            self.send_header(header_name, header_value)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -2784,6 +2819,25 @@ class Handler(BaseHTTPRequestHandler):
                 bootstrap_disabled=AUTH_BOOTSTRAP_DISABLE,
             )
             self._write_json(HTTPStatus.OK, {"ok": True, "onboarding": status_payload})
+            return
+
+        if API_V2_PREPARATION_ENABLED and path in {"/api/v2", "/api/v2/health"}:
+            self._write_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "api": {
+                        "current": "v1",
+                        "next": "v2",
+                        "status": "preparation",
+                        "deprecated_v1_endpoints": sorted(API_V1_DEPRECATED_ENDPOINTS),
+                        "deprecation_doc": API_V1_DEPRECATION_DOC_URL,
+                        "sunset": API_V1_DEPRECATION_SUNSET,
+                    },
+                },
+            )
             return
 
         if auth_http_surface_service().handles_get(path):

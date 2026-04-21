@@ -141,7 +141,7 @@ def normalize_vm_rows(payload: Any) -> list[dict[str, Any]]:
 
 def handle_vm(args: argparse.Namespace, server: str, token: str) -> int:
     if args.vm_action == "list":
-        payload = api_request(server, "GET", "/api/v1/inventory", token=token)
+        payload = api_request(server, "GET", "/api/v1/vms", token=token)
         if args.json:
             print_json(payload)
             return 0
