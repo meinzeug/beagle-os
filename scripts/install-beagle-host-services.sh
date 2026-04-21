@@ -271,7 +271,10 @@ install -d -m 0755 "$(dirname "$USB_TUNNEL_AUTH_ROOT")"
 install -d -m 0700 "$USB_TUNNEL_AUTH_ROOT" "$USB_TUNNEL_AUTH_ROOT/authorized_keys.d"
 touch "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
 chmod 0600 "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
-chown root:root "$USB_TUNNEL_AUTH_ROOT" "$USB_TUNNEL_AUTH_ROOT/authorized_keys.d" "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
+# The parent dir and authorized_keys file stay root:root so sshd trusts them.
+# authorized_keys.d is owned by beagle-manager so the service can write key fragments.
+chown root:root "$USB_TUNNEL_AUTH_ROOT" "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
+chown "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" "$USB_TUNNEL_AUTH_ROOT/authorized_keys.d"
 
 cat >"$USB_TUNNEL_SSHD_DROPIN" <<EOF
 Match User $USB_TUNNEL_USER
