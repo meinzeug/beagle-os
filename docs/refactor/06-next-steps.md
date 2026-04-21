@@ -1,6 +1,22 @@
 # Next Steps
 
-## Delta (2026-04-21 nach Plan-05-Schritt-2: Proxmox-Legacy-Cleanup)
+## Delta (2026-04-21 nach Plan 19 Schritt 1: Endpoint-Profile-Struktur)
+
+0. **Enrollment-Flow vorbereiten (Plan 19 Schritt 2)**:
+	- QR-Code-Generator für Enrollment-Tokens (Python/qrcode Library),
+	- Web-Console-Dialog "Neuen Endpoint enrollen" mit Token-Anzeige,
+	- Endpoint-seitige QR-Code-Anzeige beim Boot (Zielarbeit für Ende Q2).
+
+0. **A/B-Update-System-Vorbereitung (Plan 19 Schritt 3)**:
+	- Boot-Loader-Slot-Switch-Logik in `thin-client-assistant/boot/` definieren,
+	- Update-Service `thin-client-assistant/runtime/update_service.py` erweitern,
+	- GPG-Signatur-Verifikation für Update-Images.
+
+0. **Endpoint-Kiosk auf neueste Electron prüfen**:
+	- `beagle-kiosk/` nutzt bereits Electron 37.2.0 (aktuell),
+	- Beagle-Enrollment-Flow in Gaming-Kiosk später als separater Schritt.
+
+## Delta (2026-04-21 nach Plan 05: Provider-Abstraction vollständig)
 
 0. **Provider-Abstraction vollständig abgeschlossen**:
 	- Plan 05 alle Schritte [x]: Contract-Interface, Grep auf 0 Treffer, Beagle-Provider Vollausstatsung, Provider-Registry Vereinfachung, Tests, Dokumentation.

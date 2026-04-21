@@ -1,5 +1,14 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 19 Schritt 1: Endpoint-Profile-Struktur)
+
+- Profil-Management-System implementiert:
+	- Drei Profile angelegt: `beagle-os/profiles/desktop-thin-client/`, `gaming-kiosk/`, `engineering-station/`
+	- Jedes Profil mit `profile.conf` Konfigurationsdatei (13 Konfigurationsschlüssel).
+	- Profile Manager `beagle-os/profile_manager.py` erstellt (Profil-Discovery, JSON-Export).
+- Deployment auf `srv1.beagle-os.com` erfolgreich; alle 3 Profile korrekt geparst und geladen.
+- `docs/gofuture/19-endpoint-os.md` Schritt 1 auf `[x]` gesetzt.
+
 ## Update (2026-04-21, GoFuture Plan 05 Schritt 2: Proxmox-Legacy-Cleanup abgeschlossen)
 
 - Dead-Code-Pfade entfernt (Proxmox wird dauerhaft entfernt — Plan 05):
