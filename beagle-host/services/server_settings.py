@@ -221,6 +221,10 @@ class ServerSettingsService:
             stderr = (result.stderr or "").strip()[-500:]
             return {"ok": False, "error": f"certbot failed: {stderr}"}
 
+        switched, switch_error = _switch_nginx_tls_to_letsencrypt(domain)
+        if not switched:
+            return {"ok": False, "error": f"certificate issued but nginx switch failed: {switch_error}"}
+
         # Update settings
         settings = self._load_settings()
         settings["tls_domain"] = domain
@@ -240,6 +244,7 @@ class ServerSettingsService:
 
         cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem" if domain else ""
         cert_exists = bool(cert_path and os.path.exists(cert_path))
+        nginx_letsencrypt_active = False
 
         # Check nginx TLS config
         nginx_tls = False
@@ -254,6 +259,8 @@ class ServerSettingsService:
                 continue
             if "ssl_certificate" in nginx_conf:
                 nginx_tls = True
+            if cert_path and cert_path in nginx_conf:
+                nginx_letsencrypt_active = True
                 break
 
         return {
@@ -261,6 +268,7 @@ class ServerSettingsService:
             "provider": provider,
             "certificate_exists": cert_exists,
             "nginx_tls_enabled": nginx_tls,
+            "nginx_tls_uses_letsencrypt": nginx_letsencrypt_active,
             "email": settings.get("tls_email", ""),
         }
 
@@ -713,3 +721,70 @@ def _run_certbot_command(cmd: list[str], *, timeout: int) -> subprocess.Complete
         timeout=timeout,
         check=False,
     )
+
+
+def _switch_nginx_tls_to_letsencrypt(domain: str) -> tuple[bool, str]:
+    cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
+    key_path = f"/etc/letsencrypt/live/{domain}/privkey.pem"
+
+    if not Path(cert_path).exists() or not Path(key_path).exists():
+        return False, "missing issued certificate files"
+
+    candidate_files = [
+        Path("/etc/nginx/sites-available/beagle-proxy.conf"),
+        Path("/etc/nginx/sites-enabled/beagle-proxy.conf"),
+        Path("/etc/nginx/sites-enabled/beagle-proxy"),
+        Path("/etc/nginx/sites-enabled/beagle-web-ui"),
+    ]
+
+    backups: dict[Path, str] = {}
+    changed = False
+    seen: set[Path] = set()
+    for path in candidate_files:
+        resolved = path.resolve() if path.exists() else path
+        if resolved in seen or not path.exists():
+            continue
+        seen.add(resolved)
+        try:
+            original = resolved.read_text(encoding="utf-8")
+        except OSError:
+            continue
+
+        updated = re.sub(
+            r"(?m)^(\s*ssl_certificate\s+)\S+;",
+            rf"\1{cert_path};",
+            original,
+        )
+        updated = re.sub(
+            r"(?m)^(\s*ssl_certificate_key\s+)\S+;",
+            rf"\1{key_path};",
+            updated,
+        )
+
+        if updated != original:
+            backups[resolved] = original
+            try:
+                resolved.write_text(updated, encoding="utf-8")
+            except OSError as exc:
+                return False, f"failed writing nginx config {resolved}: {exc}"
+            changed = True
+
+    if not changed:
+        return False, "no nginx ssl_certificate directives found to update"
+
+    test = subprocess.run(["nginx", "-t"], capture_output=True, text=True, timeout=20, check=False)
+    if test.returncode != 0:
+        for path, content in backups.items():
+            try:
+                path.write_text(content, encoding="utf-8")
+            except OSError:
+                pass
+        stderr = (test.stderr or "").strip()[-300:]
+        return False, f"nginx config test failed: {stderr}"
+
+    reload_result = subprocess.run(["systemctl", "reload", "nginx"], capture_output=True, text=True, timeout=20, check=False)
+    if reload_result.returncode != 0:
+        stderr = (reload_result.stderr or "").strip()[-300:]
+        return False, f"nginx reload failed: {stderr}"
+
+    return True, "ok"

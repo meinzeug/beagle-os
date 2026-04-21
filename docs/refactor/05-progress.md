@@ -1,5 +1,19 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, Let's Encrypt activation fix: issued cert is now applied to nginx)
+
+- Reproduced issue on `srv1.beagle-os.com`: certbot had a valid certificate in `/etc/letsencrypt/live/srv1.beagle-os.com/`, but nginx still served `/etc/beagle/tls/beagle-proxy.crt` (self-signed).
+- Root cause: `request_letsencrypt()` issued certificates but did not switch nginx `ssl_certificate`/`ssl_certificate_key` directives to the issued Let's Encrypt paths.
+- Patched `beagle-host/services/server_settings.py`:
+	- after successful certbot run, it now rewrites nginx TLS paths to `/etc/letsencrypt/live/<domain>/fullchain.pem` and `/etc/letsencrypt/live/<domain>/privkey.pem`,
+	- runs `nginx -t`, reloads nginx, and rolls back on config-test failure,
+	- exposes `nginx_tls_uses_letsencrypt` in TLS status for explicit runtime visibility.
+- Hotfixed `srv1.beagle-os.com` immediately by deploying the patched service and applying the switch with the existing issued certificate.
+- Runtime validation on srv1:
+	- nginx config now points to Let's Encrypt certificate paths,
+	- external handshake now shows issuer `Let's Encrypt (E8)`,
+	- `ServerSettingsService().get_tls_status()` reports `provider=letsencrypt`, `certificate_exists=true`, `nginx_tls_uses_letsencrypt=true`.
+
 ## Update (2026-04-21, srv1.beagle-os.com runtime validation after server became available)
 
 - srv1.beagle-os.com came online; performed comprehensive runtime validation.

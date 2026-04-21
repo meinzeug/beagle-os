@@ -92,8 +92,10 @@ Stand: 2026-04-19
 - Mitigation:
   - Installpfade wurden auf automatische Installation von `certbot` und `python3-certbot-nginx` erweitert.
   - `server_settings.py` prueft nun explizit auf fehlendes `certbot` bzw. fehlenden nginx-Plugin-Support und liefert klare Fehlerbilder.
+  - `server_settings.py` schaltet nginx nach erfolgreicher Zertifikatserstellung jetzt aktiv auf die Let's-Encrypt-Pfade um (`fullchain.pem`/`privkey.pem`), prueft die Konfiguration mit `nginx -t` und laedt nginx neu.
+  - Damit wird verhindert, dass ein gueltiges LE-Zertifikat zwar ausgestellt ist, aber weiterhin ein Self-Signed-Zertifikat ausgeliefert wird.
   - TLS-Issuance laeuft bevorzugt ueber einen transienten `systemd-run` Prozess, damit die Funktion mit bestehender Service-Haertung kompatibel bleibt.
   - `ReadWritePaths=` des Control-Plane-Services wurde fuer relevante Let's-Encrypt/nginx-Pfade erweitert.
-  - Live auf `srv1.beagle-os.com` verifiziert: API-Issuance erfolgreich, Status meldet `provider=letsencrypt`, Zertifikat vorhanden, nginx TLS aktiv.
+  - Live auf `srv1.beagle-os.com` verifiziert: externer TLS-Handshake liefert Issuer `Let's Encrypt (E8)`, nginx referenziert LE-Pfade, Status meldet `provider=letsencrypt`, Zertifikat vorhanden, nginx TLS aktiv.
 - Naechster Schritt:
   - Den Fix ueber neu gebaute Installer-Artefakte ausrollen und einen Regressionstest fuer den Security/TLS-Pfad ergaenzen.
