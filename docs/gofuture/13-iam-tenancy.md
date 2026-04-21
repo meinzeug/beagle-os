@@ -100,8 +100,8 @@ Custom Roles werden per API und Web Console verwaltet.
 
 ### Schritt 6 — Multi-IdP gleichzeitig (local + OIDC + SAML)
 
-- [ ] `identity_provider_registry.py` anlegen: Liste konfigurierter IdPs, Auth-Routing per Provider-Hint.
-- [ ] Login-Screen zeigt alle konfigurierten Login-Methoden.
+- [x] `identity_provider_registry.py` anlegen: Liste konfigurierter IdPs, Auth-Routing per Provider-Hint.
+- [x] Login-Screen zeigt alle konfigurierten Login-Methoden.
 
 In Enterprise-Deployments ist es häufig gewünscht sowohl lokale Accounts (für Break-Glass-
 Zugriff) als auch OIDC- und SAML-Login gleichzeitig anbieten zu können. Die IdP-Registry
@@ -110,6 +110,14 @@ alle konfigurierten Methoden als separate Login-Buttons. Ein Provider-Hint-Param
 in der Login-URL ermöglicht direktes Weiterleiten zum gewünschten IdP ohne Auswahl-Screen.
 Lokaler Admin-Account bleibt immer als Fallback verfügbar und lässt sich nicht deaktivieren
 (Break-Glass-Prinzip).
+
+Umsetzung (2026-04-21):
+
+- Neuer Service `beagle-host/services/identity_provider_registry.py` implementiert.
+- Neue öffentliche Route `GET /api/v1/auth/providers` im Control Plane ergänzt.
+- Registry liest optional `/etc/beagle/identity-providers.json` (konfigurierbar über `BEAGLE_IDENTITY_PROVIDER_REGISTRY_FILE`) und fällt sicher auf lokalen Login zurück.
+- OIDC/SAML Redirect-Provider optional per `BEAGLE_OIDC_AUTH_URL` / `BEAGLE_SAML_LOGIN_URL` aktivierbar.
+- Web Console Login-Modal zeigt die verfügbaren Login-Methoden dynamisch (`website/ui/auth.js`, `website/index.html`, `website/styles/_modals.css`).
 
 ---
 

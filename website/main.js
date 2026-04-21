@@ -6,6 +6,7 @@ import {
   checkSessionTimeout,
   configureAuthUi,
   initTokenStores,
+  loadIdentityProviders,
   lockSession,
   refreshAccessToken
 } from './ui/auth.js';
@@ -153,7 +154,8 @@ export function bootstrapApp() {
     setBanner
   });
   configurePanels({
-    loadSettingsForPanel
+    loadSettingsForPanel,
+    loadIdentityProviders
   });
   configureAuthUi({
     setAuthMode,
@@ -192,6 +194,9 @@ export function bootstrapApp() {
   updateDarkModeButton();
   updateAutoRefreshButton();
   consumeTokenFromLocation();
+  loadIdentityProviders().catch((error) => {
+    console.warn('Identity provider registry unavailable, using local auth fallback:', error);
+  });
   bindEvents();
   bindSettingsEvents();
   renderActivityLog();

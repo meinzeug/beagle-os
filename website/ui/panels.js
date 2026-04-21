@@ -8,7 +8,8 @@ import { fetchWithTimeout, resolveApiTarget } from './api.js';
 import { clearPersistedTokens, setSessionTokens } from './auth.js';
 
 const panelHooks = {
-  loadSettingsForPanel() {}
+  loadSettingsForPanel() {},
+  loadIdentityProviders() {}
 };
 
 export function configurePanels(nextHooks) {
@@ -260,6 +261,9 @@ export function openAuthModal() {
     authModal.setAttribute('aria-hidden', 'false');
   }
   document.body.classList.add('auth-modal-open');
+  Promise.resolve(panelHooks.loadIdentityProviders()).catch((error) => {
+    void error;
+  });
   const field = qs('auth-username') || qs('api-token');
   let rememberedUsername = '';
   try {

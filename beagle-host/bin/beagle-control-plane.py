@@ -46,6 +46,7 @@ from enrollment_token_store import EnrollmentTokenStoreService
 from fleet_inventory import FleetInventoryService
 from health_payload import HealthPayloadService
 from host_provider_contract import HostProvider
+from identity_provider_registry import IdentityProviderRegistryService
 from installer_prep import InstallerPrepService
 from installer_script import InstallerScriptService
 from installer_template_patch import InstallerTemplatePatchService
@@ -199,6 +200,11 @@ PUBLIC_STREAM_PORT_STEP = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_STEP", "
 PUBLIC_STREAM_PORT_COUNT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_COUNT", "256"))
 PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
 WEB_UI_URL = os.environ.get("BEAGLE_WEB_UI_URL", "").strip()
+IDENTITY_PROVIDER_REGISTRY_FILE = Path(
+    os.environ.get("BEAGLE_IDENTITY_PROVIDER_REGISTRY_FILE", "/etc/beagle/identity-providers.json")
+)
+OIDC_AUTH_URL = os.environ.get("BEAGLE_OIDC_AUTH_URL", "").strip()
+SAML_LOGIN_URL = os.environ.get("BEAGLE_SAML_LOGIN_URL", "").strip()
 CORS_ALLOWED_ORIGINS_RAW = os.environ.get("BEAGLE_CORS_ALLOWED_ORIGINS", "").strip()
 API_V2_PREPARATION_ENABLED = os.environ.get("BEAGLE_API_V2_PREPARATION_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
 API_V1_DEPRECATED_ENDPOINTS_RAW = os.environ.get(
@@ -386,6 +392,7 @@ AUDIT_LOG_SERVICE: AuditLogService | None = None
 AUTHZ_POLICY_SERVICE: AuthzPolicyService | None = None
 SERVER_SETTINGS_SERVICE: ServerSettingsService | None = None
 WEBHOOK_SERVICE: WebhookService | None = None
+IDENTITY_PROVIDER_REGISTRY_SERVICE: IdentityProviderRegistryService | None = None
 
 
 def resolve_public_stream_host(host: str) -> str:
@@ -562,6 +569,19 @@ def webhook_service() -> WebhookService:
             utcnow=utcnow,
         )
     return WEBHOOK_SERVICE
+
+
+def identity_provider_registry_service() -> IdentityProviderRegistryService:
+    global IDENTITY_PROVIDER_REGISTRY_SERVICE
+    if IDENTITY_PROVIDER_REGISTRY_SERVICE is None:
+        IDENTITY_PROVIDER_REGISTRY_SERVICE = IdentityProviderRegistryService(
+            load_json_file=load_json_file,
+            registry_file=IDENTITY_PROVIDER_REGISTRY_FILE,
+            oidc_auth_url=OIDC_AUTH_URL,
+            saml_login_url=SAML_LOGIN_URL,
+            public_manager_url=PUBLIC_MANAGER_URL,
+        )
+    return IDENTITY_PROVIDER_REGISTRY_SERVICE
 
 
 def cache_get(key: str, ttl_seconds: float) -> Any:
@@ -2832,6 +2852,10 @@ class Handler(BaseHTTPRequestHandler):
                 bootstrap_disabled=AUTH_BOOTSTRAP_DISABLE,
             )
             self._write_json(HTTPStatus.OK, {"ok": True, "onboarding": status_payload})
+            return
+
+        if path == "/api/v1/auth/providers":
+            self._write_json(HTTPStatus.OK, identity_provider_registry_service().payload())
             return
 
         if API_V2_PREPARATION_ENABLED and path in {"/api/v2", "/api/v2/health"}:

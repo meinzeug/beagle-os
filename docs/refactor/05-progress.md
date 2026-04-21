@@ -1,5 +1,18 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 13 Schritt 6: Multi-IdP Registry + Login-Methoden)
+
+- Multi-IdP-Grundlage umgesetzt:
+	- neuer Service `beagle-host/services/identity_provider_registry.py` erstellt (Registry-Datei + sichere Defaults + Local-Fallback).
+- Control Plane erweitert:
+	- neue öffentliche API `GET /api/v1/auth/providers` in `beagle-host/bin/beagle-control-plane.py`.
+	- neue Env-Konfigurationen: `BEAGLE_IDENTITY_PROVIDER_REGISTRY_FILE`, `BEAGLE_OIDC_AUTH_URL`, `BEAGLE_SAML_LOGIN_URL`.
+- Web Console Login-UX erweitert:
+	- Login-Modal zeigt dynamisch alle konfigurierten Login-Methoden (`website/index.html`, `website/ui/auth.js`, `website/styles/_modals.css`, `website/ui/panels.js`, `website/main.js`).
+- Validierung:
+	- lokal: `python3 -m py_compile beagle-host/services/identity_provider_registry.py beagle-host/bin/beagle-control-plane.py` erfolgreich.
+	- lokal: `node --check website/main.js website/ui/auth.js website/ui/panels.js website/ui/state.js` erfolgreich.
+
 ## Update (2026-04-21, GoFuture Plan 18 Schritt 4: Webhook-System)
 
 - Webhook-Service real implementiert:

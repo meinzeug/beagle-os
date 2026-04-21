@@ -1,5 +1,18 @@
 # Next Steps
 
+## Delta (2026-04-21 nach Plan 13 Schritt 6: Multi-IdP Registry)
+
+0. **Plan 13 Schritt 1/2 anschließen**:
+	- OIDC-Service (`oidc_service.py`) und SAML-Service (`saml_service.py`) hinter die neue IdP-Registry hängen,
+	- Login-Buttons aus `GET /api/v1/auth/providers` auf echte OIDC/SAML-Flows routen.
+
+0. **Provider-Registry auf Runtime verifizieren**:
+	- auf `srv1.beagle-os.com` mit Registry-Datei (`/etc/beagle/identity-providers.json`) testen,
+	- Break-Glass-Fallback (`local`) bei fehlerhafter IdP-Konfiguration bestätigen.
+
+0. **Plan 18 Restpunkt weiter offen**:
+	- Terraform-Provider-Testpflicht (`apply/destroy`) auf `srv1` mit realer VM schließen.
+
 ## Delta (2026-04-21 nach Plan 18 Schritt 5 + Live-Checks)
 
 0. **Deprecation-Rollout konkretisieren**:

@@ -379,3 +379,69 @@ export function loginWithCredentials(username, password) {
     });
   });
 }
+
+function renderIdentityProviderMethods() {
+  const listNode = qs('auth-provider-methods');
+  if (!listNode) {
+    return;
+  }
+  const providers = Array.isArray(state.identityProviders) ? state.identityProviders : [];
+  if (!providers.length) {
+    listNode.innerHTML = '<div class="auth-method-item is-muted">Nur lokaler Login verfuegbar.</div>';
+    return;
+  }
+
+  const cards = providers.map((provider) => {
+    const type = String(provider.type || provider.id || '').trim().toLowerCase();
+    const label = String(provider.label || type || 'Provider').trim();
+    const description = String(provider.description || '').trim();
+    const enabled = provider.enabled !== false;
+    const loginUrl = String(provider.login_url || '').trim();
+    const actionLabel = type === 'local' ? 'Lokal' : (enabled && loginUrl ? 'Weiterleiten' : 'Nicht verfuegbar');
+    return [
+      '<div class="auth-method-item">',
+      '<div class="auth-method-copy">',
+      '<strong>' + label + '</strong>',
+      '<span>' + (description || 'Login-Methode konfiguriert.') + '</span>',
+      '</div>',
+      '<button type="button" class="button ghost auth-method-action" data-provider-id="' + String(provider.id || type || '') + '"',
+      enabled ? '' : ' disabled',
+      loginUrl ? ' data-provider-login-url="' + loginUrl.replace(/"/g, '&quot;') + '"' : '',
+      '>' + actionLabel + '</button>',
+      '</div>'
+    ].join('');
+  }).join('');
+  listNode.innerHTML = cards;
+
+  listNode.querySelectorAll('.auth-method-action[data-provider-login-url]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const url = String(node.getAttribute('data-provider-login-url') || '').trim();
+      if (url) {
+        window.location.href = url;
+      }
+    });
+  });
+}
+
+export function loadIdentityProviders() {
+  return fetchWithTimeout(resolveApiTarget('/auth/providers'), {
+    method: 'GET',
+    credentials: 'same-origin'
+  }).then((response) => {
+    if (!response.ok) {
+      throw new Error('HTTP ' + response.status);
+    }
+    return response.json();
+  }).then((payload) => {
+    const providers = payload && Array.isArray(payload.providers)
+      ? payload.providers
+      : [{ id: 'local', type: 'local', label: 'Lokaler Account', description: 'Benutzername + Passwort', enabled: true, login_url: '' }];
+    state.identityProviders = providers;
+    renderIdentityProviderMethods();
+    return providers;
+  }).catch((error) => {
+    state.identityProviders = [{ id: 'local', type: 'local', label: 'Lokaler Account', description: 'Benutzername + Passwort', enabled: true, login_url: '' }];
+    renderIdentityProviderMethods();
+    throw error;
+  });
+}

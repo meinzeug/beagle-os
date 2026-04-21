@@ -125,6 +125,7 @@ export const panelMeta = {
 export const state = {
   token: '',
   refreshToken: '',
+  identityProviders: [],
   user: null,
   onboarding: {
     pending: false,

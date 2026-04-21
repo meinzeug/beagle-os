@@ -5,6 +5,7 @@
 
 ## Update 2026-04-21 (Plan 18 Schritt 5 abgeschlossen)
 
+- [x] GoFuture Plan 13 Schritt 6 umsetzen: `identity_provider_registry.py` erstellen und Login-Screen auf dynamische Login-Methoden erweitern (`GET /api/v1/auth/providers`, WebUI-Modal-Rendering).
 - [x] API-Versionierungs-Vorbereitung (`/api/v2`, `/api/v2/health`) im Control Plane implementieren.
 - [x] Deprecation-Header (`Deprecation`, `Sunset`, `Link`) für konfigurierte v1-Endpunkte zentral ausrollen.
 - [x] Live-OpenAPI-Check-Tool (`scripts/validate-openapi-live.py`) erstellen und auf `srv1` erfolgreich ausführen.

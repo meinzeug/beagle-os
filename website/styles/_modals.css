@@ -7,6 +7,15 @@
 .modal-dialog-head h2, .auth-dialog-head h2 { font-size: 1.4rem; font-weight: 700; margin: 4px 0 6px 0; }
 .modal-dialog-head p, .auth-dialog-head p { color: var(--text-muted); font-size: 0.86rem; }
 .auth-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+.auth-methods { margin-bottom: 18px; border: 1px solid var(--border); background: var(--bg-elevated); border-radius: 12px; padding: 12px; }
+.auth-methods-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-faint); margin-bottom: 10px; }
+.auth-methods-list { display: grid; gap: 8px; }
+.auth-method-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--bg-card); }
+.auth-method-copy { display: grid; gap: 3px; }
+.auth-method-copy strong { font-size: 0.9rem; }
+.auth-method-copy span { font-size: 0.78rem; color: var(--text-muted); }
+.auth-method-item.is-muted { font-size: 0.84rem; color: var(--text-muted); }
+.auth-method-action { min-width: 132px; }
 .auth-button-row { justify-content: flex-end; }
 .provision-modal-buttons { justify-content: flex-end; gap: 12px; }
 .provision-progress-hero { position: relative; display: flex; align-items: center; justify-content: center; min-height: 112px; margin: 6px 0 14px; }
