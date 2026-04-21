@@ -75,6 +75,7 @@ const eventHooks = {
   loadDetail() {
     return Promise.resolve();
   },
+  closeDetail() {},
   setBanner() {},
   openProvisionModal() {
     openProvisioningWorkspace();
@@ -86,6 +87,30 @@ export function configureEvents(nextHooks) {
 }
 
 export function bindEvents() {
+  // Back button on VM detail page
+  if (qs('vdp-back')) {
+    qs('vdp-back').addEventListener('click', () => {
+      eventHooks.closeDetail();
+    });
+  }
+
+  // View toggle (list / grid)
+  const viewToggle = document.getElementById('inv-view-toggle');
+  if (viewToggle) {
+    viewToggle.addEventListener('click', (event) => {
+      const btn = event.target.closest('button[data-view]');
+      if (!btn) return;
+      const view = btn.getAttribute('data-view');
+      const body = document.getElementById('inventory-body');
+      if (!body) return;
+      body.classList.toggle('vm-body-list', view === 'list');
+      body.classList.toggle('vm-body-grid', view === 'grid');
+      viewToggle.querySelectorAll('.inv-view-btn').forEach((b) => {
+        b.classList.toggle('inv-view-btn-active', b === btn);
+      });
+    });
+  }
+
   if (qs('toggle-dark-mode')) {
     qs('toggle-dark-mode').addEventListener('click', toggleDarkMode);
   }

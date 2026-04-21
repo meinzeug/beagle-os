@@ -226,17 +226,37 @@ function buildBundlesPanelHtml(bundles) {
   );
 }
 
+function showDetailPage(show) {
+  const listSection = document.getElementById('inventory-section');
+  const detailPage = document.getElementById('vm-detail-page');
+  if (listSection) {
+    listSection.hidden = show;
+    listSection.classList.toggle('panel-section-active', !show && state.activePanel === 'inventory');
+  }
+  if (detailPage) {
+    detailPage.hidden = !show;
+    detailPage.classList.toggle('panel-section-active', show && state.activePanel === 'inventory');
+  }
+}
+
+function closeDetail() {
+  state.selectedVmid = null;
+  showDetailPage(false);
+  renderInventory();
+  syncHash();
+}
+
 function loadDetail(vmid) {
-  const numericVmid = Number(vmid);
-  if (!numericVmid) return Promise.resolve();
 
   state.selectedVmid = numericVmid;
-  renderInventory();
+  showDetailPage(true);
 
   const titleEl = document.getElementById('detail-title');
+  const breadcrumbEl = document.getElementById('vdp-breadcrumb-name');
   const actionsEl = document.getElementById('detail-actions');
   const statusChipEl = document.getElementById('detail-status-chip');
   const stackEl = document.getElementById('detail-stack');
+  const vmMetaEl = document.getElementById('detail-vm-meta');
 
   const vmEntry = state.inventory.find((v) => Number(profileOf(v).vmid) === numericVmid);
   const profile = vmEntry ? profileOf(vmEntry) : null;
@@ -245,12 +265,36 @@ function loadDetail(vmid) {
     : 'VM ' + numericVmid;
 
   if (titleEl) titleEl.textContent = displayName;
+  if (breadcrumbEl) breadcrumbEl.textContent = displayName;
 
   const status = String((profile && profile.status) || '').toLowerCase();
 
   if (statusChipEl) {
     statusChipEl.textContent = status ? status.toUpperCase() : 'UNBEKANNT';
     statusChipEl.className = 'chip ' + (status === 'running' ? 'ok' : status === 'installing' ? 'info' : status ? 'warn' : 'muted');
+  }
+
+  if (vmMetaEl) {
+    vmMetaEl.innerHTML =
+      (profile && profile.node ? '<span>#' + escapeHtml(String(numericVmid)) + ' &middot; ' + escapeHtml(profile.node) + '</span>' : '') +
+      (profile && profile.beagle_role ? '<span>' + escapeHtml(String(profile.beagle_role).toUpperCase()) + '</span>' : '');
+  }
+
+  // Populate hero stat tiles
+  const tileStatus = document.getElementById('vdp-tile-status');
+  const tileNode   = document.getElementById('vdp-tile-node');
+  const tileRole   = document.getElementById('vdp-tile-role');
+  const tileStream = document.getElementById('vdp-tile-stream');
+  const statStatus = document.getElementById('vdp-stat-status');
+
+  if (tileStatus) tileStatus.textContent = status ? status.charAt(0).toUpperCase() + status.slice(1) : '—';
+  if (tileNode)   tileNode.textContent   = (profile && profile.node)         ? String(profile.node)         : '—';
+  if (tileRole)   tileRole.textContent   = (profile && profile.beagle_role)  ? String(profile.beagle_role).toUpperCase() : '—';
+  if (tileStream) tileStream.textContent = (profile && profile.stream_host)  ? String(profile.stream_host) + (profile.moonlight_port ? ':' + profile.moonlight_port : '') : '—';
+  if (statStatus) {
+    statStatus.classList.remove('vdp-running', 'vdp-installing');
+    if (status === 'running')    statStatus.classList.add('vdp-running');
+    if (status === 'installing') statStatus.classList.add('vdp-installing');
   }
 
   if (actionsEl) {
@@ -268,6 +312,8 @@ function loadDetail(vmid) {
       '<div class="detail-panel" data-detail-panel="bundles"><div class="banner info">Wird geladen...</div></div>';
     setActiveDetailPanel(state.activeDetailPanel || 'summary');
   }
+
+  syncHash();
 
   return Promise.all([
     request('/vms/' + numericVmid + '/credentials').then((data) => {
@@ -397,7 +443,8 @@ export function bootstrapApp() {
   });
   configureEvents({
     setBanner,
-    loadDetail
+    loadDetail,
+    closeDetail
   });
   configurePanels({
     loadSettingsForPanel,

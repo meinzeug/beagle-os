@@ -223,6 +223,17 @@ export function setActivePanel(panelName) {
     const sectionPanel = node.getAttribute('data-panel-section');
     node.classList.toggle('panel-section-active', sectionPanel === next);
   });
+  // When switching to inventory, ensure the list is visible and detail page is hidden
+  if (next === 'inventory') {
+    const detailPage = document.getElementById('vm-detail-page');
+    const listSection = document.getElementById('inventory-section');
+    if (detailPage && !detailPage.hidden) {
+      // stay on detail if already open (navigated via hash)
+    } else {
+      if (listSection) { listSection.hidden = false; listSection.classList.add('panel-section-active'); }
+      if (detailPage)  { detailPage.hidden = true;   detailPage.classList.remove('panel-section-active'); }
+    }
+  }
   const meta = panelMeta[next] || panelMeta.overview;
   text('panel-eyebrow', meta.eyebrow);
   text('panel-title', meta.title);

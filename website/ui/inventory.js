@@ -316,19 +316,8 @@ export function bulkAction(action) {
   });
 }
 
-function updateInventoryWorkspaceLayout(visibleCount) {
-  const section = qs('inventory-section');
-  if (!section) {
-    return;
-  }
-  section.classList.remove('workspace-grid-compact', 'workspace-grid-single');
-  if (visibleCount <= 1) {
-    section.classList.add('workspace-grid-single');
-    return;
-  }
-  if (visibleCount <= 2) {
-    section.classList.add('workspace-grid-compact');
-  }
+function updateInventoryWorkspaceLayout(_visibleCount) {
+  // No-op: layout is now full-width, no split grid needed
 }
 
 export function renderInventory() {

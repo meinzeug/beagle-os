@@ -11,7 +11,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css?v=6.7.0-r3">
+    <link rel="stylesheet" href="/styles.css?v=6.7.0-r4">
   </head>
   <body class="auth-only">
     <!-- Hidden SVG icon sprite -->
@@ -508,10 +508,10 @@
           </section>
 
           <!-- ============ ENDPOINTS (Inventory + Detail) ============ -->
-          <section class="workspace-grid panel-section inventory-shell" id="inventory-section" data-panel-section="inventory">
+          <!-- ============ INVENTORY LIST ============ -->
+          <section class="panel-section inventory-list-section" id="inventory-section" data-panel-section="inventory">
 
-            <!-- LEFT: VM list -->
-            <article class="card inventory-master-card">
+            <article class="card inv-card">
 
               <!-- Header -->
               <div class="inv-header">
@@ -521,10 +521,18 @@
                   </div>
                   <div>
                     <h2>VMs &amp; Endpoints</h2>
-                    <p class="inv-subtitle">VM auswaehlen — rechts steuern</p>
+                    <p class="inv-subtitle">Beagle-VM auswaehlen</p>
                   </div>
                 </div>
                 <div class="inv-header-actions">
+                  <div class="inv-view-toggle" id="inv-view-toggle" role="group" aria-label="Ansicht">
+                    <button class="inv-view-btn inv-view-btn-active" id="inv-view-list" data-view="list" title="Listenansicht" type="button">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="3" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="3" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg>
+                    </button>
+                    <button class="inv-view-btn" id="inv-view-grid" data-view="grid" title="Kachelansicht" type="button">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+                    </button>
+                  </div>
                   <button class="button ghost small" id="export-inventory-csv" type="button">CSV</button>
                   <button class="button ghost small" id="export-inventory-json" type="button">JSON</button>
                   <label class="inv-select-all-label" title="Alle auswaehlen">
@@ -571,47 +579,79 @@
                 <span class="bulk-selection" id="bulk-selection">0 ausgewaehlt</span>
               </div>
 
-              <!-- VM card list (replaces table) -->
-              <div class="vm-cards" id="inventory-body">
+              <!-- VM list / grid (toggled via JS) -->
+              <div class="vm-body vm-body-list" id="inventory-body">
                 <div class="vm-cards-empty">Noch keine Daten geladen.</div>
               </div>
 
             </article>
+          </section>
 
-            <!-- RIGHT: Detail panel -->
-            <aside class="card detail-card inventory-detail-card">
+          <!-- ============ VM DETAIL PAGE (full-page, shown when a VM is selected) ============ -->
+          <section class="panel-section inv-detail-page" id="vm-detail-page" hidden>
 
-              <div class="detail-head">
-                <div class="detail-server-header">
-                  <div class="detail-server-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 10l4 3 4-3"/></svg>
-                  </div>
-                  <div class="detail-title-wrap">
-                    <span class="eyebrow">Endpoint Detail</span>
-                    <h2 id="detail-title">Waehle einen Endpoint</h2>
-                    <div class="detail-vm-meta" id="detail-vm-meta">
-                      <span class="chip muted" id="detail-status-chip">Kein Status</span>
-                    </div>
-                  </div>
+            <!-- Back bar -->
+            <div class="vdp-topbar">
+              <button class="vdp-back-btn" id="vdp-back" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+                <span>Alle VMs</span>
+              </button>
+              <div class="vdp-breadcrumb">
+                <span class="vdp-breadcrumb-sep">/</span>
+                <span id="vdp-breadcrumb-name">—</span>
+              </div>
+              <div class="vdp-topbar-actions" id="detail-actions"></div>
+            </div>
+
+            <!-- Hero -->
+            <div class="vdp-hero">
+              <div class="vdp-hero-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 10l4 3 4-3"/></svg>
+              </div>
+              <div class="vdp-hero-meta">
+                <div class="vdp-hero-name-row">
+                  <h1 id="detail-title">—</h1>
+                  <span class="chip muted" id="detail-status-chip">—</span>
                 </div>
-                <div class="detail-actions" id="detail-actions"></div>
+                <div id="detail-vm-meta" class="vdp-hero-sub"></div>
               </div>
-
-              <div class="detail-tabbar" id="detail-tabbar">
-                <button type="button" class="detail-tab detail-tab-active" data-detail-panel="summary">Profil</button>
-                <button type="button" class="detail-tab" data-detail-panel="updates">Updates</button>
-                <button type="button" class="detail-tab" data-detail-panel="tasks">Tasks</button>
-                <button type="button" class="detail-tab" data-detail-panel="usb">USB</button>
-                <button type="button" class="detail-tab" data-detail-panel="credentials">Credentials</button>
-                <button type="button" class="detail-tab" data-detail-panel="config">Config</button>
-                <button type="button" class="detail-tab" data-detail-panel="bundles">Bundles</button>
+              <!-- Animated stat tiles -->
+              <div class="vdp-stat-tiles" id="vdp-stat-tiles">
+                <div class="vdp-stat-tile" id="vdp-stat-status">
+                  <span class="vdp-stat-label">Status</span>
+                  <span class="vdp-stat-value" id="vdp-tile-status">—</span>
+                </div>
+                <div class="vdp-stat-tile" id="vdp-stat-node">
+                  <span class="vdp-stat-label">Node</span>
+                  <span class="vdp-stat-value" id="vdp-tile-node">—</span>
+                </div>
+                <div class="vdp-stat-tile" id="vdp-stat-role">
+                  <span class="vdp-stat-label">Rolle</span>
+                  <span class="vdp-stat-value" id="vdp-tile-role">—</span>
+                </div>
+                <div class="vdp-stat-tile" id="vdp-stat-stream">
+                  <span class="vdp-stat-label">Stream-Host</span>
+                  <span class="vdp-stat-value vdp-mono" id="vdp-tile-stream">—</span>
+                </div>
               </div>
+            </div>
 
-              <div class="detail-body" id="detail-stack">
-                <div class="banner info">Klicke einen Endpoint im Inventar an, um Details, Credentials und Aktionen zu sehen.</div>
-              </div>
+            <!-- Tab bar -->
+            <div class="vdp-tabbar" id="detail-tabbar">
+              <button type="button" class="detail-tab detail-tab-active" data-detail-panel="summary">Profil</button>
+              <button type="button" class="detail-tab" data-detail-panel="updates">Updates</button>
+              <button type="button" class="detail-tab" data-detail-panel="tasks">Tasks</button>
+              <button type="button" class="detail-tab" data-detail-panel="usb">USB</button>
+              <button type="button" class="detail-tab" data-detail-panel="credentials">Credentials</button>
+              <button type="button" class="detail-tab" data-detail-panel="config">Config</button>
+              <button type="button" class="detail-tab" data-detail-panel="bundles">Bundles</button>
+            </div>
 
-            </aside>
+            <!-- Tab content -->
+            <div class="vdp-content" id="detail-stack">
+              <div class="banner info">Lade VM-Daten...</div>
+            </div>
+
           </section>
 
           <!-- ============ INFRASTRUCTURE ============ -->
@@ -1137,6 +1177,6 @@
 
     <script src="/beagle-web-ui-config.js"></script>
     <script src="/core/platform/browser-common.js"></script>
-    <script type="module" src="/main.js?v=6.7.0-r3"></script>
+    <script type="module" src="/main.js?v=6.7.0-r4"></script>
   </body>
 </html>
