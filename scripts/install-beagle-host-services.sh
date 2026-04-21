@@ -17,6 +17,7 @@ BEAGLE_PUBLIC_STREAM_TIMER="beagle-public-streams.timer"
 BEAGLE_NOVNC_PROXY_SERVICE="beagle-novnc-proxy.service"
 BEAGLE_CONTROL_ENV_FILE="$CONFIG_DIR/beagle-manager.env"
 BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
+BEAGLE_CONTROL_USER="${BEAGLE_CONTROL_USER:-beagle-manager}"
 BEAGLE_AUTH_BOOTSTRAP_USERNAME="${BEAGLE_AUTH_BOOTSTRAP_USERNAME:-admin}"
 BEAGLE_AUTH_BOOTSTRAP_PASSWORD="${BEAGLE_AUTH_BOOTSTRAP_PASSWORD:-}"
 BEAGLE_AUTH_BOOTSTRAP_DISABLE="${BEAGLE_AUTH_BOOTSTRAP_DISABLE:-0}"
@@ -38,6 +39,7 @@ ensure_root() {
       INSTALL_DIR="$INSTALL_DIR" \
       PVE_DCV_CONFIG_DIR="$CONFIG_DIR" \
       BEAGLE_HOST_PROVIDER="$BEAGLE_HOST_PROVIDER" \
+      BEAGLE_CONTROL_USER="$BEAGLE_CONTROL_USER" \
       BEAGLE_AUTH_BOOTSTRAP_USERNAME="$BEAGLE_AUTH_BOOTSTRAP_USERNAME" \
       BEAGLE_AUTH_BOOTSTRAP_PASSWORD="$BEAGLE_AUTH_BOOTSTRAP_PASSWORD" \
         BEAGLE_AUTH_BOOTSTRAP_DISABLE="$BEAGLE_AUTH_BOOTSTRAP_DISABLE" \
@@ -244,6 +246,16 @@ detect_beagle_network_bridge_iface() {
 
 ensure_root "$@"
 
+if ! id "$BEAGLE_CONTROL_USER" >/dev/null 2>&1; then
+  useradd --system --home-dir /var/lib/beagle --no-create-home --shell /usr/sbin/nologin "$BEAGLE_CONTROL_USER"
+fi
+
+for runtime_group in libvirt kvm; do
+  if getent group "$runtime_group" >/dev/null 2>&1; then
+    usermod -a -G "$runtime_group" "$BEAGLE_CONTROL_USER"
+  fi
+done
+
 if ! id "$USB_TUNNEL_USER" >/dev/null 2>&1; then
   if [[ -z "$USB_TUNNEL_HOME" ]]; then
     USB_TUNNEL_HOME="/var/lib/beagle/${USB_TUNNEL_USER}"
@@ -375,10 +387,16 @@ BEAGLE_MANAGER_DATA_DIR="/var/lib/beagle/beagle-manager"
 BEAGLE_MANAGER_API_TOKEN="$(generate_token)"
 BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH="0"
 EOF
-  chmod 0600 "$BEAGLE_CONTROL_ENV_FILE"
+  chmod 0640 "$BEAGLE_CONTROL_ENV_FILE"
 fi
+chown root:"$BEAGLE_CONTROL_USER" "$BEAGLE_CONTROL_ENV_FILE"
+chmod 0640 "$BEAGLE_CONTROL_ENV_FILE"
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_HOST_PROVIDER" "\"$BEAGLE_HOST_PROVIDER\""
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_MANAGER_LISTEN_HOST" '"127.0.0.1"'
+
+install -d -m 0755 /var/lib/beagle
+install -d -m 0750 /var/lib/beagle/beagle-manager
+chown -R "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" /var/lib/beagle/beagle-manager
 
 if ! tls_runtime_tools_ready; then
   install_runtime_packages certbot python3-certbot-nginx
@@ -411,7 +429,9 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
 
   install -d -m 0755 /etc/beagle/novnc
   touch /etc/beagle/novnc/tokens
-  chmod 0640 /etc/beagle/novnc/tokens
+  chown root:"$BEAGLE_CONTROL_USER" /etc/beagle/novnc /etc/beagle/novnc/tokens
+  chmod 0750 /etc/beagle/novnc
+  chmod 0660 /etc/beagle/novnc/tokens
 
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_NOVNC_PATH" '"/novnc"'
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_NOVNC_TOKEN_FILE" '"/etc/beagle/novnc/tokens"'

@@ -6,6 +6,10 @@
 	- authenticated API-Smoke fuer mutierende Endpunkte auf `srv1` als reproduzierbares Script hinterlegen,
 	- open checkbox `Alle API-Endpunkte antworten korrekt nach Refactoring` mit Laufprotokoll abschliessen.
 
+0. **Plan 04 Schritt 6 (Fehlerformat) als naechster harter Backend-Block**:
+	- Error-Response-Schema vereinheitlichen (`error` + `code`) fuer alle Surface-Services,
+	- unhandled Exceptions zentral in sanitisiertes 500-Schema fuehren.
+
 0. **Plan 04 Schritt 3 ist umgesetzt, jetzt Schritt 2 und 4 fortsetzen**:
 	- Route-Handler weiter aus `beagle-control-plane.py` in `beagle-host/services/` extrahieren,
 	- serverseitige Payload-Whitelist-Validierung fuer Mutationsendpunkte nachziehen,

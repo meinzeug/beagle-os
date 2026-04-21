@@ -26,6 +26,7 @@
 - [x] Finish runtime validation on `srv1.beagle-os.com`: all 16 JS modules 200, all 24 CSS partials 200, CSP satisfied, API auth/RBAC correct (2026-04-21).
 - [x] Remove legacy `website/app.js` after authenticated runtime validation of the new entry path.
 - [x] Harden Plan 04 audit trail for VM power mutations and user-create metadata (`vm.start|vm.stop|vm.reboot`, `auth.user.create` resource fields) and validate via unit tests locally plus deploy/restart/log check on `srv1.beagle-os.com` (2026-04-21).
+- [x] Harden `beagle-control-plane.service` to run as non-root (`beagle-manager`), reduce restart/capability surface, and deploy+verify runtime behavior on `srv1.beagle-os.com` (2026-04-21).
 
 - [ ] Complete dedicated-host bootstrap validation on new Hetzner server `46.4.96.80` (`srv1.beagle-os.com`) and verify Beagle core services/ports.
 - [ ] Verify KVM availability on the new dedicated host (`/dev/kvm`, `virsh domcapabilities --virttype kvm`) and re-run VM provisioning smoke through Beagle API/UI.

@@ -105,14 +105,16 @@ damit auf ein konsistentes Error-Objekt mit `error`- und `code`-Feld reagieren.
 
 ### Schritt 7 — Service-Start und systemd-Unit sauber halten
 
-- [ ] `beagle-host/systemd/beagle-control-plane.service` auf korrekte `ExecStart`-Pfade, `Restart`-Policy und `CapabilityBoundingSet` prüfen.
-- [ ] Keine unnötigen Capabilities oder root-Privileges im Service-User.
+- [x] `beagle-host/systemd/beagle-control-plane.service` auf korrekte `ExecStart`-Pfade, `Restart`-Policy und `CapabilityBoundingSet` prüfen.
+- [x] Keine unnötigen Capabilities oder root-Privileges im Service-User.
 
 Ein Python-API-Server der auf Port 9088 läuft braucht keine root-Rechte; ein dedizierter
 `beagle`-User mit den minimal notwendigen Capabilities ist der sichere Default.
 `CapabilityBoundingSet=` in der systemd-Unit wird explizit auf das Notwendige beschränkt.
 `Restart=on-failure` und `RestartSec=5` stellen automatische Wiederanlauf sicher.
 `PrivateTmp=yes` und `NoNewPrivileges=yes` sind obligatorische Hardening-Optionen.
+
+> Umsetzung 2026-04-21: Unit auf dedizierten Service-User `beagle-manager` umgestellt (`User/Group`), `SupplementaryGroups=libvirt kvm` gesetzt, `Restart=on-failure` + `RestartSec=5` gesetzt, `CapabilityBoundingSet=` geleert und Proxmox-spezifische Write-Paths entfernt. Auf `srv1.beagle-os.com` per installiertem Script ausgerollt und verifiziert (`systemctl show` zeigt non-root + leeres Capability-Set, Service `active`).
 
 ---
 

@@ -1,5 +1,22 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 04 Schritt 7 umgesetzt: Control-Plane als non-root Service)
+
+- `beagle-host/systemd/beagle-control-plane.service` gehaertet und auf dedizierten Runtime-User umgestellt:
+	- `User=beagle-manager`, `Group=beagle-manager`, `SupplementaryGroups=libvirt kvm`
+	- `Restart=on-failure`, `RestartSec=5`
+	- `CapabilityBoundingSet=` (leer), weiterhin `NoNewPrivileges=yes` + `PrivateTmp=yes`
+	- Proxmox-spezifische `ReadWritePaths` entfernt (`/var/lib/vz`, `/etc/pve`, `/var/log/pve`).
+- `scripts/install-beagle-host-services.sh` erweitert:
+	- legt `beagle-manager` als System-User an (falls fehlend),
+	- haengt User an `libvirt`/`kvm` Gruppen,
+	- setzt Berechtigungen fuer `/var/lib/beagle/beagle-manager` sowie `/etc/beagle/beagle-manager.env` und `/etc/beagle/novnc/tokens` fuer non-root-Betrieb.
+- Deploy + Validierung auf `srv1.beagle-os.com`:
+	- aktualisierte Unit + Installer-Script ausgerollt,
+	- Service neu installiert/reloaded/restarted,
+	- `systemctl show` bestaetigt `User=beagle-manager`, `Restart=on-failure`, `RestartUSec=5s`, `CapabilityBoundingSet=`,
+	- `beagle-control-plane.service` ist `active`, keine Traceback-/Unhandled-Exception-Marker im Journal.
+
 ## Update (2026-04-21, GoFuture Plan 04 Testpflicht erweitert: Audit-Events + Log-Stabilitaet)
 
 - Control-Plane Audit-Pfad fuer VM-Power-Mutationen zentralisiert:
