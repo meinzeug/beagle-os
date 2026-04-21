@@ -12,7 +12,7 @@ LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-8443}"
 BACKEND_HOST="${PVE_DCV_PROXY_BACKEND_HOST:-}"
 BACKEND_PORT="${PVE_DCV_PROXY_BACKEND_PORT:-8443}"
 BACKEND_VMID="${PVE_DCV_PROXY_VMID:-}"
-BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-proxmox}"
+BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
 SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}"
 DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/beagle-downloads}"
 DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-https://${SERVER_NAME}:${LISTEN_PORT}${DOWNLOADS_PATH}}"
@@ -42,10 +42,10 @@ WEB_UI_URL="${BEAGLE_WEB_UI_URL:-$(default_web_ui_url)}"
 
 host_provider_kind() {
   local kind
-  kind="$(printf '%s' "${BEAGLE_HOST_PROVIDER:-proxmox}" | tr '[:upper:]' '[:lower:]')"
+  kind="$(printf '%s' "${BEAGLE_HOST_PROVIDER:-beagle}" | tr '[:upper:]' '[:lower:]')"
   case "$kind" in
-    ""|pve)
-      printf 'proxmox\n'
+    ""|pve|proxmox)
+      printf 'beagle\n'
       ;;
     *)
       printf '%s\n' "$kind"
@@ -54,23 +54,15 @@ host_provider_kind() {
 }
 
 default_cert_file() {
-  if [[ "$(host_provider_kind)" == "proxmox" ]]; then
-    printf '/etc/pve/local/pveproxy-ssl.pem\n'
-    return 0
-  fi
   printf '%s/beagle-proxy.crt\n' "$STANDALONE_TLS_DIR"
 }
 
 default_key_file() {
-  if [[ "$(host_provider_kind)" == "proxmox" ]]; then
-    printf '/etc/pve/local/pveproxy-ssl.key\n'
-    return 0
-  fi
   printf '%s/beagle-proxy.key\n' "$STANDALONE_TLS_DIR"
 }
 
 if [[ -z "$ASSET_ROOT" ]]; then
-  if [[ -d /opt/beagle/dist && -f /opt/beagle/proxmox-ui/beagle-autologin.js ]]; then
+  if [[ -d /opt/beagle/dist ]]; then
     ASSET_ROOT="/opt/beagle"
   else
     ASSET_ROOT="$ROOT_DIR"
@@ -384,11 +376,6 @@ ensure_tls_materials() {
     return 0
   fi
 
-  if [[ "$(host_provider_kind)" == "proxmox" ]]; then
-    echo "Certificate file not found: $CERT_FILE" >&2
-    exit 1
-  fi
-
   install -d -m 0700 "$STANDALONE_TLS_DIR"
   openssl req \
     -x509 \
@@ -579,11 +566,6 @@ server {
     add_header Cross-Origin-Opener-Policy "same-origin" always;
     add_header Cross-Origin-Resource-Policy "same-origin" always;
 
-    location = /beagle-autologin.js {
-        alias ${ASSET_ROOT}/proxmox-ui/beagle-autologin.js;
-        add_header Cache-Control "no-store";
-    }
-
     location = ${DOWNLOADS_PATH} {
         return 302 ${DOWNLOADS_PATH}/;
     }
@@ -688,9 +670,7 @@ ensure_root "$@"
 load_env_file
 ensure_dependencies
 
-if [[ "$(host_provider_kind)" != "proxmox" ]]; then
-  log "Proxy backend auto-detection currently expects the proxmox provider; active provider is '$BEAGLE_HOST_PROVIDER'."
-fi
+
 
 ensure_tls_materials
 

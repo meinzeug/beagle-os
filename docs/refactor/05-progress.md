@@ -1,5 +1,23 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 05: Proxmox dauerhaft entfernt + Mock-Provider Tests)
+
+- `providers/proxmox/` und `proxmox-ui/` dauerhaft aus dem Repo geloescht (Plan 05 Schritt 5b).
+- `beagle-host/providers/proxmox_host_provider.py` geloescht (nur noch `beagle_host_provider.py` und `registry.py`).
+- Neuer Unit-Test `tests/unit/test_vm_services_mock_provider.py` erstellt (Plan 05 Schritt 5a):
+  - `MockHostProvider` implementiert vollstaendigen `HostProvider`-Contract fuer Tests ohne libvirt.
+  - 21 Tests fuer `VirtualizationInventoryService` (Happy-Paths + Error-Paths) und Contract-Compliance.
+- `tests/unit/test_beagle_novnc_token.py` von pytest auf stdlib unittest umgeschrieben (portabel, kein pytest noetig).
+- Skript-Bereinigung: `proxmox-ui`-Referenzen aus `scripts/validate-project.sh`, `scripts/install-beagle-host.sh`, `scripts/install-beagle-proxy.sh`, `scripts/package.sh`, `scripts/build-server-installer.sh`, `scripts/build-server-installimage.sh` entfernt.
+- `install-beagle-proxy.sh`: Default-Provider auf `beagle` geaendert, `host_provider_kind()` normalisiert proxmox/pve -> beagle, Proxmox-spezifische Cert-Logik entfernt, nginx-Location fuer `beagle-autologin.js` entfernt.
+- `install-beagle-host.sh`: proxmox-ui-integration-call entfernt.
+- Finale Pruefung: `grep -r "qm\|pvesh\|/api2/json\|PVEAuthCookie" beagle-host/ providers/ --include="*.py"` -> 0 Treffer.
+- Lokale Tests: `python3 -m unittest discover -s tests/unit -q` -> `48 passed`.
+- Deploy + Validierung auf `srv1.beagle-os.com`:
+  - `tests/unit/` synchronisiert, `48 passed` auf srv1.
+  - `scripts/smoke-control-plane-api.sh` -> `13/13`.
+  - Alle Services `active`: `beagle-control-plane`, `beagle-novnc-proxy`, `nginx`.
+
 ## Update (2026-04-21, GoFuture Plan 04 Schritt 2: Route-Delegation weitergezogen)
 
 - Neue Service-Schicht fuer Auth/IAM-HTTP-Surface eingefuehrt: `beagle-host/services/auth_http_surface.py`.

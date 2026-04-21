@@ -401,18 +401,6 @@ BEAGLE_HOST_PROVIDER="$BEAGLE_HOST_PROVIDER" \
   BEAGLE_AUTH_BOOTSTRAP_DISABLE="$BEAGLE_AUTH_BOOTSTRAP_DISABLE" \
   "$INSTALL_DIR/scripts/install-beagle-host-services.sh"
 
-if [[ -d /usr/share/pve-manager/js ]]; then
-  PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME" \
-  PVE_DCV_PROXY_LISTEN_PORT="$LISTEN_PORT" \
-  BEAGLE_SITE_PORT="$SITE_PORT" \
-  BEAGLE_WEB_UI_URL="$WEB_UI_URL" \
-  BEAGLE_WEB_UI_TITLE="$WEB_UI_TITLE" \
-  PVE_DCV_DOWNLOADS_PATH="$DOWNLOADS_PATH" \
-  PVE_DCV_USB_INSTALLER_URL="$USB_INSTALLER_URL" \
-  "$INSTALL_DIR/scripts/install-proxmox-ui-integration.sh"
-
-fi
-
 if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" || -r /etc/pve/local/pveproxy-ssl.pem ]]; then
   PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME" \
   PVE_DCV_PROXY_LISTEN_PORT="$LISTEN_PORT" \

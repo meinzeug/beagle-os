@@ -111,7 +111,6 @@ mkdir -p "$(dirname "$BUILD_DIR/$BUNDLED_SOURCE_ARCHIVE_PATH")"
     docs \
     extension \
     providers \
-    proxmox-ui \
     scripts \
     server-installer \
     thin-client-assistant \

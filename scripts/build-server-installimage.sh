@@ -220,7 +220,6 @@ bundle_source_tree() {
       docs \
       extension \
       providers \
-      proxmox-ui \
       scripts \
       server-installer \
       thin-client-assistant \

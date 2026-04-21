@@ -82,8 +82,8 @@ mit einem Mock-Provider laufen der das Interface implementiert ohne echte System
 
 ### Schritt 5a — Provider-neutrale Tests schreiben
 
-- [ ] Für jeden Service in `beagle-host/services/` mindestens einen Unit-Test mit Mock-Provider anlegen.
-- [ ] `tests/unit/` Verzeichnis anlegen falls nicht vorhanden.
+- [x] Für jeden Service in `beagle-host/services/` mindestens einen Unit-Test mit Mock-Provider anlegen.
+- [x] `tests/unit/` Verzeichnis anlegen falls nicht vorhanden.
 
 Ohne Tests ist nicht verifizierbar ob der Refactoring-Schritt das Verhalten erhalten hat.
 Mock-Provider implementieren das Contract-Interface mit vorprogrammierten Antworten
@@ -95,10 +95,10 @@ Der CI-Lauf muss mindestens `pytest tests/unit/` erfolgreich ausführen können.
 
 ### Schritt 5b — `providers/proxmox/` und `proxmox-ui/` dauerhaft löschen
 
-- [ ] Nach erfolgreicher Beagle-Provider-Verifikation: `rm -rf providers/proxmox/`.
-- [ ] `rm -rf proxmox-ui/`.
-- [ ] Alle Referenzen in `scripts/`, CI-Konfiguration und Dokumentation entfernen.
-- [ ] `git commit` mit Message: "chore: permanently remove providers/proxmox/ and proxmox-ui/".
+- [x] Nach erfolgreicher Beagle-Provider-Verifikation: `rm -rf providers/proxmox/`.
+- [x] `rm -rf proxmox-ui/`.
+- [x] Alle Referenzen in `scripts/`, CI-Konfiguration und Dokumentation entfernen.
+- [x] `git commit` mit Message: "chore: permanently remove providers/proxmox/ and proxmox-ui/".
 
 Das Löschen ist ein einmaliger, irreversibler Schritt und muss erst dann ausgeführt
 werden wenn alle Funktionen des Proxmox-Providers im Beagle-Provider reimplementiert
@@ -113,7 +113,7 @@ Löschdatum und dem Verifikationsergebnis aktualisiert.
 ### Schritt 6 — Provider-Abstraction in Dokumentation festschreiben
 
 - [x] `docs/refactor/09-provider-abstraction.md` mit aktuellem Stand aktualisieren.
-- [ ] Begründung für jede neue Provider-Kopplung die nicht vermeidbar war dokumentieren.
+- [x] Begründung für jede neue Provider-Kopplung die nicht vermeidbar war dokumentieren.
 
 Die Dokumentation muss den aktuellen Ist-Stand widerspiegeln nicht den geplanten Soll-Stand.
 Neue Direktkopplungen die aus technischen Gründen kurzfristig notwendig waren
@@ -126,8 +126,8 @@ Dokument liest muss in 5 Minuten verstehen wo Provider-Grenzen verlaufen. Die Re
 
 ## Testpflicht nach Abschluss
 
-- [ ] `grep -r "qm\|pvesh\|/api2/json\|PVEAuthCookie" . --include="*.py" --include="*.js"` → 0 Treffer.
-- [ ] `providers/proxmox/` und `proxmox-ui/` existieren nicht mehr im Repo.
+- [x] `grep -r "qm\|pvesh\|/api2/json\|PVEAuthCookie" . --include="*.py" --include="*.js"` → 0 Treffer.
+- [x] `providers/proxmox/` und `proxmox-ui/` existieren nicht mehr im Repo.
 - [x] Beagle-Provider alle Contract-Methoden implementiert (kein `NotImplementedError`).
 - [x] `pytest tests/unit/` grün.
 - [x] `beagle-control-plane.py` startet ohne Fehler.
