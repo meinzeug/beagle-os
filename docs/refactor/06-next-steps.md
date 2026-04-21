@@ -1,5 +1,21 @@
 # Next Steps
 
+## Delta (2026-04-21 nach Plan-05-Schritt-2: Proxmox-Legacy-Cleanup)
+
+0. **Provider-Abstraction vollständig abgeschlossen**:
+	- Plan 05 alle Schritte [x]: Contract-Interface, Grep auf 0 Treffer, Beagle-Provider Vollausstatsung, Provider-Registry Vereinfachung, Tests, Dokumentation.
+	- Keine direkten Proxmox-API-Aufrufe (`qm`, `pvesh`, `/api2/json`) mehr im beagle-host-Code.
+	- Dead-Code-Pfade (`VmConsoleAccessService` Proxmox-UI-Port-Handling, `RequestSupportService` Proxmox-CORS) entfernt.
+	- Smoke-Tests auf `srv1.beagle-os.com` alle 13/13 bestanden nach Deploy der bereinigten Services.
+
+0. **Nächste Priorität: Plan 07 (Cluster Foundation) vorbereiten**:
+	- Plan 07 beginnt mit Libvirt-Network-Definitions und libvirt-Storage-Pool-API-Abstraktionen in `providers/beagle/`.
+	- Das ist Q3 2026 geplant, aber Vorbereitung könnte jetzt beginnen.
+
+0. **Kontinuierliche Aufräumarbeiten (Plan 19 / Plan 20)**:
+	- Plan 19 (Endpoint OS): Drei Profiles-Struktur aufbauen (desktop-thin-client, gaming-kiosk, engineering-station) — später Priorität.
+	- Plan 20 (Security): Alle Steps [x]; regelmäßige Security-Audits und Dependency-Updates fortsetzen.
+
 ## Delta (2026-04-21 nach Plan-20 Security-Gates-Welle)
 
 0. **Security-Gates operationalisieren**:
