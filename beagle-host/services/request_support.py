@@ -15,7 +15,6 @@ class RequestSupportService:
         cors_allowed_origins_raw: str,
         current_public_stream_host: Callable[[], str],
         listify: Callable[[object], list[str]],
-        proxmox_ui_ports_raw: str,
         public_downloads_port: int,
         public_manager_url: str,
         public_server_name: str,
@@ -27,7 +26,6 @@ class RequestSupportService:
         self._cors_allowed_origins_raw = str(cors_allowed_origins_raw or "")
         self._current_public_stream_host = current_public_stream_host
         self._listify = listify
-        self._proxmox_ui_ports_raw = str(proxmox_ui_ports_raw or "")
         self._public_downloads_port = int(public_downloads_port)
         self._public_manager_url = str(public_manager_url or "")
         self._public_server_name = str(public_server_name or "")
@@ -78,12 +76,6 @@ class RequestSupportService:
             str(urlparse(self._web_ui_url).hostname or "").strip(),
             str(urlparse(self._public_manager_url).hostname or "").strip(),
         }
-        for port in self._listify(self._proxmox_ui_ports_raw):
-            if not str(port).isdigit():
-                continue
-            for hostname in hostnames:
-                if hostname:
-                    candidates.add(f"https://{hostname}:{int(port)}")
         for origin in self._listify(self._cors_allowed_origins_raw):
             candidates.add(origin)
 

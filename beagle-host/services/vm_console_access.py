@@ -22,7 +22,6 @@ class VmConsoleAccessService:
         listify: Callable[[object], list[str]],
         novnc_path: str,
         novnc_token_file: str,
-        proxmox_ui_ports_raw: str,
         public_server_name: str,
     ) -> None:
         self._host_provider_kind = str(host_provider_kind or "").strip().lower()
@@ -32,15 +31,7 @@ class VmConsoleAccessService:
         self._novnc_token_file = Path(str(novnc_token_file or "/etc/beagle/novnc/tokens")).expanduser()
         # JSON store used by BeagleTokenFile plugin (single-use, TTL-based).
         self._novnc_console_token_store = self._novnc_token_file.parent / "console-tokens.json"
-        self._proxmox_ui_ports_raw = str(proxmox_ui_ports_raw or "")
         self._public_server_name = str(public_server_name or "").strip()
-
-    def _proxmox_ui_port(self) -> int:
-        for value in self._listify(self._proxmox_ui_ports_raw):
-            text = str(value or "").strip()
-            if text.isdigit():
-                return int(text)
-        return 8006
 
     @staticmethod
     def _libvirt_guest_ip(vmid: int, domain_name: str | None = None) -> str | None:
@@ -254,25 +245,6 @@ class VmConsoleAccessService:
                 "available": False,
                 "url": "",
                 "reason": "VM-Kontext fuer noVNC unvollstaendig.",
-            }
-        if self._host_provider_kind == "proxmox":
-            if not node:
-                return {
-                    "provider": "proxmox",
-                    "available": False,
-                    "url": "",
-                    "reason": "VM-Kontext fuer noVNC unvollstaendig.",
-                }
-            port = self._proxmox_ui_port()
-            params = "console=kvm&novnc=1&resize=scale&vmid={vmid}&node={node}".format(
-                vmid=vmid,
-                node=quote(node, safe=""),
-            )
-            return {
-                "provider": "proxmox",
-                "available": True,
-                "url": f"https://{host}:{port}/?{params}",
-                "reason": "",
             }
         if self._host_provider_kind == "beagle":
             vm_domain = str(getattr(vm, "name", "") or "").strip() or None

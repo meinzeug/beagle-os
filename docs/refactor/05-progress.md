@@ -1,5 +1,17 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 05 Schritt 2: Proxmox-Legacy-Cleanup abgeschlossen)
+
+- Dead-Code-Pfade entfernt (Proxmox wird dauerhaft entfernt — Plan 05):
+	- `VmConsoleAccessService`: Proxmox-Console-Access-Logik (Zeilen 258–274 Proxmox UI Port Handling) entfernt,
+	- `_proxmox_ui_port()` Methode gelöscht, `proxmox_ui_ports_raw` Parameter aus beiden Services (`VmConsoleAccessService`, `RequestSupportService`) entfernt,
+	- `BEAGLE_PROXMOX_UI_PORTS` Environment-Variable aus `beagle-control-plane.py` gelöscht,
+	- Proxy-CORS-Allow-Origins-Logik bereinigt (nur noch Beagle-relevante Origins).
+- Lokale Syntax-Checks erfolgreich.
+- Deployment auf `srv1.beagle-os.com` erfolgreich; Smoke-Tests alle 13/13 bestanden.
+- Finale Grep-Verification: 0 Treffer für direkte Proxmox-API-Aufrufe (`qm`, `pvesh`, `/api2/json`, `PVEAuthCookie`).
+- Plan 05 Schritt 2 auf `[x]` gesetzt.
+
 ## Update (2026-04-21, GoFuture Plan 20 Schritt 4+8: Secret-Gates + OWASP smoke baseline)
 
 - Neue security guardrails im Code umgesetzt:

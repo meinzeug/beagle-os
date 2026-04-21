@@ -38,7 +38,7 @@ Dieser Schritt muss vor jedem neuen Provider-Code abgeschlossen sein.
 ### Schritt 2 — Alle Proxmox-Direktaufrufe im Repo identifizieren und in Beagle-Provider migrieren
 
 - [x] `grep -r "qm\|pvesh\|/api2/json\|PVEAuthCookie" beagle-host/ --include="*.py"` ausführen.
-- [ ] Jeden Fund als Methode im Beagle-Provider (`providers/beagle/`) neu implementieren, Service auf Interface-Aufruf umschreiben.
+- [x] Jeden Fund als Methode im Beagle-Provider (`providers/beagle/`) neu implementieren, Service auf Interface-Aufruf umschreiben.
 
 Dieser Grep-Lauf ist der schnellste Weg die aktuelle Verletzungslage zu erfassen.
 Jeder Fund ist ein Architekturverstoß der behoben werden muss — die Proxmox-Aufrufe
@@ -47,6 +47,8 @@ werden nicht in `providers/proxmox/` bewahrt, sondern durch Beagle-Provider-Meth
 implementieren, Service auf Interface-Aufruf umschreiben. Alle Funde werden in
 `docs/refactor/09-provider-abstraction.md` dokumentiert. Nach der Migration wird
 der Grep nochmals ausgeführt und muss 0 Treffer liefern.
+
+> Umsetzung 2026-04-21: Dead-Code-Pfade entfernt — `VmConsoleAccessService` Proxmox-Console-Access-Logik (Zeilen 258–274), `_proxmox_ui_port()` Methode und `proxmox_ui_ports_raw` Parameter aus beiden Services entfernt. `PROXMOX_UI_PORTS_RAW` aus `beagle-control-plane.py` entfernt. Syntax check lokal erfolgreich, Smoke-Tests auf `srv1.beagle-os.com` alle 13/13 bestanden. Grep-Endstand: 0 Treffer für direkten Proxmox-API-Aufrufe (qm, pvesh, /api2/json, PVEAuthCookie).
 
 ---
 

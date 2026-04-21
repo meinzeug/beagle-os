@@ -199,7 +199,6 @@ PUBLIC_STREAM_PORT_COUNT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_COUNT",
 PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
 WEB_UI_URL = os.environ.get("BEAGLE_WEB_UI_URL", "").strip()
 CORS_ALLOWED_ORIGINS_RAW = os.environ.get("BEAGLE_CORS_ALLOWED_ORIGINS", "").strip()
-PROXMOX_UI_PORTS_RAW = os.environ.get("BEAGLE_PROXMOX_UI_PORTS", "8006").strip()
 NOVNC_PATH = os.environ.get("BEAGLE_NOVNC_PATH", "/novnc").strip() or "/novnc"
 NOVNC_TOKEN_FILE = os.environ.get("BEAGLE_NOVNC_TOKEN_FILE", "/etc/beagle/novnc/tokens").strip() or "/etc/beagle/novnc/tokens"
 BEAGLE_HOST_PROVIDER_KIND = normalize_provider_kind(os.environ.get("BEAGLE_HOST_PROVIDER", "beagle"))
@@ -475,7 +474,6 @@ def request_support_service() -> RequestSupportService:
             cors_allowed_origins_raw=CORS_ALLOWED_ORIGINS_RAW,
             current_public_stream_host=current_public_stream_host,
             listify=listify,
-            proxmox_ui_ports_raw=PROXMOX_UI_PORTS_RAW,
             public_downloads_port=PUBLIC_DOWNLOADS_PORT,
             public_manager_url=PUBLIC_MANAGER_URL,
             public_server_name=PUBLIC_SERVER_NAME,
@@ -1858,7 +1856,6 @@ def vm_console_access_service() -> VmConsoleAccessService:
             listify=listify,
             novnc_path=NOVNC_PATH,
             novnc_token_file=NOVNC_TOKEN_FILE,
-            proxmox_ui_ports_raw=PROXMOX_UI_PORTS_RAW,
             public_server_name=PUBLIC_SERVER_NAME,
         )
     return VM_CONSOLE_ACCESS_SERVICE
