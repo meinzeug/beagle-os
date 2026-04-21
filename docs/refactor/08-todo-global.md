@@ -39,6 +39,7 @@
 - [x] Harden Beagle systemd unit baseline (`CapabilityBoundingSet`, `RestrictAddressFamilies`) and move `beagle-novnc-proxy` to non-root runtime, then validate on `srv1.beagle-os.com` (2026-04-21).
 - [x] Tighten nginx CSP connect-src to include `wss:` (without `unsafe-inline`/`unsafe-eval`) and verify live header on `srv1.beagle-os.com` (2026-04-21).
 - [x] Extend `.gitignore` guardrails for `.env` / `.env.*` and verify no tracked `.env` secrets (2026-04-21).
+- [x] Continue Plan 04 Schritt 2 by extracting Auth/IAM route business logic from control-plane handlers into `beagle-host/services/auth_http_surface.py`, with local unit tests and srv1 smoke validation (2026-04-21).
 
 - [ ] Complete dedicated-host bootstrap validation on new Hetzner server `46.4.96.80` (`srv1.beagle-os.com`) and verify Beagle core services/ports.
 - [ ] Verify KVM availability on the new dedicated host (`/dev/kvm`, `virsh domcapabilities --virttype kvm`) and re-run VM provisioning smoke through Beagle API/UI.

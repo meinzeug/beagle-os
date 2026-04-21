@@ -34,8 +34,8 @@ in `docs/refactor/05-progress.md` und `docs/refactor/08-todo-global.md`.
 
 ### Schritt 2 — Route-Handler von Business-Logik trennen
 
-- [ ] Jeden langen Route-Handler-Block in eine Service-Funktion in `beagle-host/services/` extrahieren.
-- [ ] Route-Handler in `beagle-control-plane.py` werden zu 5–10-Zeilen-Deleagierern.
+- [x] Jeden langen Route-Handler-Block in eine Service-Funktion in `beagle-host/services/` extrahieren.
+- [x] Route-Handler in `beagle-control-plane.py` werden zu 5–10-Zeilen-Deleagierern.
 
 Ein Route-Handler der mehr als 20 Zeilen hat enthält mit hoher Wahrscheinlichkeit
 Business-Logik die nicht in den HTTP-Layer gehört. Die Extraktion folgt dem Muster:
@@ -43,6 +43,8 @@ Route-Handler valdiert Input, ruft Service auf, gibt Ergebnis als JSON zurück.
 Eingabevalidierung kann in dedizierte Validator-Funktionen ausgelagert werden.
 Der Service kann damit unabhängig von HTTP getestet werden. Dieser Schritt wird
 inkrementell ausgeführt: ein Handler nach dem anderen, jedes Mal mit Smoke-Test.
+
+> Umsetzung 2026-04-21: Neues Service-Modul `beagle-host/services/auth_http_surface.py` eingeführt und Auth/IAM-Business-Logik (`/api/v1/auth/users`, `/api/v1/auth/roles`, `.../revoke-sessions`, User/Role `PUT`/`DELETE`) aus `beagle-control-plane.py` extrahiert. `do_GET`/`do_POST`/`do_PUT`/`do_DELETE` delegieren diese Pfade jetzt an das Surface-Service-Modul. Zusätzlich Unit-Test `tests/unit/test_auth_http_surface.py` ergänzt (lokal: `pytest` grün) und Runtime-Smoke auf `srv1.beagle-os.com` erneut 13/13 erfolgreich.
 
 ---
 

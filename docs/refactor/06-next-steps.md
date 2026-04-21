@@ -1,5 +1,19 @@
 # Next Steps
 
+## Delta (2026-04-21 nach Auth/IAM-Surface-Extraktion)
+
+0. **Plan 04 Schritt 2 Restextraktion fortsetzen**:
+	- verbleibende groessere Bloecke in `do_POST` fuer Login/Refresh/Logout/Onboarding analog in eigenes Surface-Service-Modul verschieben,
+	- Ziel bleibt: HTTP-Handler nur Guard + Delegation + Response.
+
+0. **Plan 04 Schritt 2 Regressionstest erweitern**:
+	- authenticated API-Smokes fuer Auth/IAM-Mutationspfade ergaenzen (create/update/delete/revoke mit Admin-Token),
+	- als reproduzierbares Script unter `scripts/` dokumentieren.
+
+0. **Plan 04/05 Testpflicht weiterziehen**:
+	- neuen Auth-Surface-Pfad in bestehende Unit-/CI-Runs aufnehmen,
+	- danach naechste offene Service-Extraktionswelle fuer nicht-auth Mutationspfade starten.
+
 ## GoFuture Plan 04/05 Provider-Abstraction execution (2026-04-21)
 
 0. **Plan 04 Schritt 2 bleibt groesster Backend-Restblock**:

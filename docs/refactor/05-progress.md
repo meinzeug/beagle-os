@@ -1,5 +1,23 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 04 Schritt 2: Route-Delegation weitergezogen)
+
+- Neue Service-Schicht fuer Auth/IAM-HTTP-Surface eingefuehrt: `beagle-host/services/auth_http_surface.py`.
+- Aus `beagle-host/bin/beagle-control-plane.py` extrahiert und an Service delegiert:
+	- GET: `/api/v1/auth/users`, `/api/v1/auth/roles`
+	- POST: `/api/v1/auth/users`, `/api/v1/auth/roles`, `/api/v1/auth/users/{username}/revoke-sessions`
+	- PUT: `/api/v1/auth/users/{username}`, `/api/v1/auth/roles/{name}`
+	- DELETE: `/api/v1/auth/users/{username}`, `/api/v1/auth/roles/{name}`
+- Handler-Logik reduziert auf Auth/RBAC-Guard + JSON-Read + Service-Call + Response-Write.
+- Audit-Trail beibehalten ueber neuen Delegationspfad (`auth.user.*`, `auth.role.*`, `auth.user.revoke_sessions`).
+- Neue Unit-Tests: `tests/unit/test_auth_http_surface.py`.
+	- lokal: `pytest -q tests/unit/test_auth_http_surface.py tests/unit/test_auth_session.py tests/unit/test_authz_policy.py` -> `12 passed`.
+- Deploy + Runtime-Validierung auf `srv1.beagle-os.com`:
+	- aktualisierte Dateien nach `/opt/beagle` ausgerollt,
+	- `./scripts/install-beagle-host-services.sh` ausgefuehrt,
+	- `beagle-control-plane.service` neu gestartet (`active`),
+	- `scripts/smoke-control-plane-api.sh` erneut erfolgreich (`13/13`).
+
 ## Update (2026-04-21, GoFuture Plan 20: single-use noVNC tokens + HTTP-only refresh cookie wave)
 
 - **noVNC single-use tokens**: custom websockify plugin `beagle-host/bin/beagle_novnc_token.py` implementing `BeagleTokenFile` class.
