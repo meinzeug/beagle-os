@@ -1,5 +1,17 @@
 # Next Steps
 
+## Delta (2026-04-21 nach Plan 19 Schritt 6: Kiosk-Enrollment-Flow)
+
+0. **Plan 19 Testpflicht für Gaming-Kiosk vollständig fahren**:
+	- auf frischem Endpoint verifizieren: Boot -> Auto-Enrollment -> Spieleliste ohne manuelle `kiosk.conf`-Eingriffe,
+	- Ergebnis in `docs/gofuture/19-endpoint-os.md` Testpflicht-Checkbox dokumentieren.
+
+0. **Enrollment-Source im Installer weiterziehen**:
+	- sicherstellen, dass `BEAGLE_ENROLLMENT_URL`/`BEAGLE_ENROLLMENT_TOKEN` beim Kiosk-Install aus Preset/Runtime automatisch in `kiosk.conf` landen.
+
+0. **Kiosk-Ende-zu-Ende-Smoke auf srv1 ergänzen**:
+	- kurzer Headless-/Runtime-Smoke für Enrollment-Statuswechsel (pending -> enrolled) als reproduzierbares Script unter `scripts/`.
+
 ## Delta (2026-04-21 nach Plan 19 Schritt 1: Endpoint-Profile-Struktur)
 
 0. **Enrollment-Flow vorbereiten (Plan 19 Schritt 2)**:

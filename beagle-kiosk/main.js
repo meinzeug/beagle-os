@@ -22,6 +22,7 @@ const DEFAULT_ALLOWED_STORE_DOMAINS = [
   'humblebundle.com',
   'store.epicgames.com',
 ];
+const DEFAULT_ENROLLMENT_TIMEOUT_MS = 20000;
 const DEFAULT_GFN_STATE_ROOT =
   '/run/live/medium/pve-thin-client/state/gfn/home/.var/app/com.nvidia.geforcenow/.local/state/NVIDIA/GeForceNOW';
 
@@ -34,6 +35,12 @@ let sessionState = {
   gfnLoggedIn: false,
   lastKnownLibrarySync: null,
 };
+let enrollmentState = {
+  status: 'idle',
+  lastError: '',
+  lastAttemptAt: '',
+};
+let enrollmentPromise = null;
 
 const defaultConfig = {
   GFN_BINARY: '/usr/local/lib/pve-thin-client/runtime/launch-geforcenow.sh',
@@ -52,7 +59,138 @@ const defaultConfig = {
   STORE_WINDOW_BACKGROUND_COLOR: '#111315',
   DEFAULT_FILTER_GFN_ONLY: '1',
   STORE_ALLOWED_DOMAINS: DEFAULT_ALLOWED_STORE_DOMAINS.join(' '),
+  BEAGLE_ENROLLMENT_URL: '',
+  BEAGLE_ENROLLMENT_TOKEN: '',
+  BEAGLE_MANAGER_URL: '',
+  BEAGLE_MANAGER_TOKEN: '',
+  BEAGLE_ENDPOINT_ID: '',
+  BEAGLE_ENROLLED_AT: '',
 };
+
+function shellQuote(value) {
+  const normalized = String(value == null ? '' : value);
+  if (!normalized) {
+    return '""';
+  }
+  if (/^[A-Za-z0-9_./:-]+$/.test(normalized)) {
+    return normalized;
+  }
+  return `"${normalized.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function serializeShellConfig(payload) {
+  const lines = [];
+  for (const [key, value] of Object.entries(payload)) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      continue;
+    }
+    lines.push(`${key}=${shellQuote(value)}`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+async function updateConfigFile(values) {
+  const merged = { ...(await loadConfig()), ...values };
+  await fsp.mkdir(path.dirname(CONFIG_PATH), { recursive: true });
+  await fsp.writeFile(CONFIG_PATH, serializeShellConfig(merged), 'utf8');
+  return merged;
+}
+
+function enrollmentEndpointId(config) {
+  if (config.BEAGLE_ENDPOINT_ID) {
+    return String(config.BEAGLE_ENDPOINT_ID);
+  }
+  return `kiosk-${os.hostname()}`;
+}
+
+function enrollmentSummary(config) {
+  const tokenPresent = Boolean(String(config.BEAGLE_ENROLLMENT_TOKEN || '').trim());
+  const managerTokenPresent = Boolean(String(config.BEAGLE_MANAGER_TOKEN || '').trim());
+  return {
+    status: managerTokenPresent ? 'enrolled' : enrollmentState.status,
+    required: tokenPresent && !managerTokenPresent,
+    enrolled: managerTokenPresent,
+    endpointId: enrollmentEndpointId(config),
+    managerUrl: String(config.BEAGLE_MANAGER_URL || '').trim(),
+    lastError: enrollmentState.lastError,
+    lastAttemptAt: enrollmentState.lastAttemptAt,
+  };
+}
+
+async function enrollKioskIfNeeded({ force = false } = {}) {
+  if (enrollmentPromise) {
+    return enrollmentPromise;
+  }
+
+  enrollmentPromise = (async () => {
+    const config = await loadConfig();
+    const enrollmentUrl = String(config.BEAGLE_ENROLLMENT_URL || '').trim();
+    const enrollmentToken = String(config.BEAGLE_ENROLLMENT_TOKEN || '').trim();
+    const managerToken = String(config.BEAGLE_MANAGER_TOKEN || '').trim();
+
+    if (!enrollmentUrl || !enrollmentToken) {
+      return { ok: false, skipped: true, reason: 'missing enrollment config' };
+    }
+    if (managerToken && !force) {
+      enrollmentState.status = 'enrolled';
+      enrollmentState.lastError = '';
+      return { ok: true, skipped: true, reason: 'already enrolled' };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), DEFAULT_ENROLLMENT_TIMEOUT_MS);
+    enrollmentState.status = 'in-progress';
+    enrollmentState.lastError = '';
+    enrollmentState.lastAttemptAt = new Date().toISOString();
+    await pushBootstrapStateToRenderer();
+
+    try {
+      const endpointId = enrollmentEndpointId(config);
+      const response = await fetch(enrollmentUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          enrollment_token: enrollmentToken,
+          endpoint_id: endpointId,
+          hostname: os.hostname(),
+        }),
+        signal: controller.signal,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok !== true) {
+        const message = String(payload?.error || `HTTP ${response.status}`);
+        throw new Error(message);
+      }
+
+      const responseConfig = payload?.config && typeof payload.config === 'object' ? payload.config : {};
+      await updateConfigFile({
+        BEAGLE_MANAGER_URL: String(responseConfig.beagle_manager_url || config.BEAGLE_MANAGER_URL || ''),
+        BEAGLE_MANAGER_TOKEN: String(responseConfig.beagle_manager_token || ''),
+        BEAGLE_ENROLLMENT_TOKEN: '',
+        BEAGLE_ENDPOINT_ID: endpointId,
+        BEAGLE_ENROLLED_AT: new Date().toISOString(),
+      });
+
+      enrollmentState.status = 'enrolled';
+      enrollmentState.lastError = '';
+      await pushBootstrapStateToRenderer();
+      return { ok: true, endpointId };
+    } catch (error) {
+      enrollmentState.status = 'error';
+      enrollmentState.lastError = error instanceof Error ? error.message : String(error);
+      await pushBootstrapStateToRenderer();
+      return { ok: false, error: enrollmentState.lastError };
+    } finally {
+      clearTimeout(timeout);
+    }
+  })().finally(() => {
+    enrollmentPromise = null;
+  });
+
+  return enrollmentPromise;
+}
 
 function sessionStatePath() {
   return path.join(app.getPath('userData'), 'session_state.json');
@@ -1046,6 +1184,7 @@ async function bootstrapPayload() {
       defaultFilterGfnOnly: config.DEFAULT_FILTER_GFN_ONLY === '1',
     },
     sessionState,
+    enrollment: enrollmentSummary(config),
     library,
     games: decoratedGames,
     coverCacheDir: COVER_CACHE_DIR,
@@ -1113,6 +1252,8 @@ function registerIpcHandlers() {
     await shell.openExternal(url);
     return { ok: true };
   });
+
+  ipcMain.handle('kiosk:enroll-now', async () => enrollKioskIfNeeded({ force: true }));
 }
 
 app.whenReady().then(async () => {
@@ -1121,6 +1262,7 @@ app.whenReady().then(async () => {
   registerIpcHandlers();
   const config = await loadConfig();
   createMainWindow(config);
+  void enrollKioskIfNeeded();
   setInterval(() => {
     void pushBootstrapStateToRenderer();
   }, 5000).unref();

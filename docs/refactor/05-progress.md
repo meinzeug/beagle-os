@@ -1,5 +1,20 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 19 Schritt 6: Gaming-Kiosk Modernisierung)
+
+- `beagle-kiosk/` Step-6-Ziele umgesetzt:
+	- Electron-Version bereits modern (`^37.2.0`, >=29).
+	- Automatischer Kiosk-Enrollment-Flow implementiert statt manueller Konfiguration.
+- Technische Umsetzung:
+	- `beagle-kiosk/main.js`: Auto-Enrollment beim Start via `POST /api/v1/endpoints/enroll`, Persistenz von `BEAGLE_MANAGER_TOKEN`, Leeren von `BEAGLE_ENROLLMENT_TOKEN`, Enrollment-Statusmodell + IPC `kiosk:enroll-now`.
+	- `beagle-kiosk/preload.js`: Bridge `enrollNow()`.
+	- `beagle-kiosk/renderer/index.html`, `renderer/kiosk.js`, `renderer/style.css`: Enrollment-Statuspanel + Retry-Button im Sidebar-UI.
+	- `beagle-kiosk/kiosk.conf.example` und `beagle-os/overlay/usr/local/sbin/beagle-kiosk-install`: Enrollment-/Manager-Keys in Default-Konfiguration ergänzt.
+- Validierung:
+	- lokal: `cd beagle-kiosk && npm run lint` erfolgreich, `bash -n beagle-os/overlay/usr/local/sbin/beagle-kiosk-install` erfolgreich.
+	- `srv1.beagle-os.com`: geänderte Dateien nach `/opt/beagle` deployt, gleicher Lint-/Syntax-Smoke erfolgreich.
+- `docs/gofuture/19-endpoint-os.md` Schritt 6 auf `[x]` gesetzt.
+
 ## Update (2026-04-21, GoFuture Plan 19 Schritt 1: Endpoint-Profile-Struktur)
 
 - Profil-Management-System implementiert:

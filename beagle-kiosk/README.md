@@ -44,6 +44,14 @@ The release build produces:
 - `GeForce NOW`
   Runs as a child process launched by the kiosk. The kiosk closes or hides during streaming and returns when GFN exits.
 
+## Enrollment Flow
+
+The kiosk supports automatic Beagle enrollment on first boot.
+
+- If `BEAGLE_ENROLLMENT_URL` and `BEAGLE_ENROLLMENT_TOKEN` are present in `kiosk.conf`, the app calls the endpoint enrollment API automatically.
+- On success, `BEAGLE_MANAGER_TOKEN` is persisted and `BEAGLE_ENROLLMENT_TOKEN` is cleared.
+- The sidebar shows enrollment status and offers a manual retry button.
+
 ## Installation
 
 For repository-based installation on a running system:

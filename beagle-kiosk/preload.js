@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('beagleKiosk', {
   bootstrap: () => ipcRenderer.invoke('kiosk:bootstrap'),
+  enrollNow: () => ipcRenderer.invoke('kiosk:enroll-now'),
   startLogin: () => ipcRenderer.invoke('kiosk:start-login'),
   launchGame: (game) => ipcRenderer.invoke('kiosk:launch-game', game),
   refreshCatalog: () => ipcRenderer.invoke('kiosk:refresh-catalog'),

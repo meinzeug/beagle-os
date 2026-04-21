@@ -49,6 +49,7 @@
 - [x] Close final GoFuture Plan 06 test checkbox via enhanced QEMU live-smoke (`scripts/test-server-installer-live-smoke.sh` screenshot-based installer dialog detection) (2026-04-21).
 - [x] Complete GoFuture Plan 05 Schritt 2: Proxmox legacy dead-code cleanup (remove `_proxmox_ui_port()`, `proxmox_ui_ports_raw` parameters, Proxmox UI console path from services, PROXMOX_UI_PORTS_RAW from control-plane); verify grep-result 0 matches; smoke tests 13/13 pass on srv1.beagle-os.com (2026-04-21).
 - [x] Execute GoFuture Plan 19 Schritt 1: create three endpoint OS profiles (desktop-thin-client, gaming-kiosk, engineering-station) under `beagle-os/profiles/` with profile.conf config (name, description, version, packages, systemd targets/services, encryption defaults); implement profile manager `beagle-os/profile_manager.py` for discovery/loading/JSON export; deploy and test on srv1.beagle-os.com (all 3 profiles load correctly) (2026-04-21).
+- [x] Execute GoFuture Plan 19 Schritt 6: modernize `beagle-kiosk/` by validating Electron baseline (>=29, currently 37.2.0) and implementing automatic Beagle enrollment flow (auto enroll on startup with token, status/retry UI, config persistence); deploy + lint-smoke on srv1.beagle-os.com (2026-04-21).
 
 - [ ] Complete dedicated-host bootstrap validation on new Hetzner server `46.4.96.80` (`srv1.beagle-os.com`) and verify Beagle core services/ports.
 - [ ] Verify KVM availability on the new dedicated host (`/dev/kvm`, `virsh domcapabilities --virttype kvm`) and re-run VM provisioning smoke through Beagle API/UI.

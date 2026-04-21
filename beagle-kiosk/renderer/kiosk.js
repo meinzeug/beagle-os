@@ -15,6 +15,15 @@ const state = {
   sessionState: { gfnLoggedIn: false },
   gfnLaunchState: 'idle',
   catalogRefreshState: 'idle',
+  enrollment: {
+    status: 'idle',
+    required: false,
+    enrolled: false,
+    endpointId: '',
+    managerUrl: '',
+    lastError: '',
+    lastAttemptAt: '',
+  },
   activeGame: null,
   currentEntries: [],
   focusIndex: 0,
@@ -40,6 +49,9 @@ const elements = {
   gfnOnly: document.getElementById('gfn-only-toggle'),
   loginState: document.getElementById('login-state'),
   loginButton: document.getElementById('login-button'),
+  enrollmentState: document.getElementById('enrollment-state'),
+  enrollmentEndpoint: document.getElementById('enrollment-endpoint'),
+  enrollmentButton: document.getElementById('enrollment-button'),
   modal: document.getElementById('game-modal'),
   modalCover: document.getElementById('modal-cover'),
   modalGenre: document.getElementById('modal-genre'),
@@ -281,6 +293,56 @@ function updateCatalogRefreshState(message) {
 
   elements.catalogRefreshButton.disabled = false;
   elements.catalogRefreshStatus.textContent = message || 'Katalog manuell neu laden';
+}
+
+function updateEnrollmentState() {
+  const enrollment = state.enrollment || {};
+  const endpointLabel = enrollment.endpointId ? `Endpoint-ID: ${enrollment.endpointId}` : '';
+  elements.enrollmentEndpoint.textContent = endpointLabel;
+
+  if (enrollment.enrolled) {
+    elements.enrollmentState.textContent = 'Kiosk ist mit Beagle gekoppelt.';
+    elements.enrollmentButton.disabled = true;
+    elements.enrollmentButton.textContent = 'Enrollment abgeschlossen';
+    return;
+  }
+
+  if (enrollment.status === 'in-progress') {
+    elements.enrollmentState.textContent = 'Enrollment läuft…';
+    elements.enrollmentButton.disabled = true;
+    elements.enrollmentButton.textContent = 'Bitte warten…';
+    return;
+  }
+
+  if (enrollment.status === 'error') {
+    elements.enrollmentState.textContent = enrollment.lastError
+      ? `Enrollment fehlgeschlagen: ${enrollment.lastError}`
+      : 'Enrollment fehlgeschlagen.';
+    elements.enrollmentButton.disabled = false;
+    elements.enrollmentButton.textContent = 'Erneut versuchen';
+    return;
+  }
+
+  if (enrollment.required) {
+    elements.enrollmentState.textContent = 'Enrollment steht aus. Koppeln vor dem ersten Einsatz empfohlen.';
+    elements.enrollmentButton.disabled = false;
+    elements.enrollmentButton.textContent = 'Enrollment starten';
+    return;
+  }
+
+  elements.enrollmentState.textContent = 'Kein Enrollment-Token hinterlegt.';
+  elements.enrollmentButton.disabled = true;
+  elements.enrollmentButton.textContent = 'Kein Token vorhanden';
+}
+
+async function startEnrollment() {
+  try {
+    elements.enrollmentButton.disabled = true;
+    await window.beagleKiosk.enrollNow();
+  } catch (error) {
+    console.error(error);
+    alert(`Enrollment konnte nicht gestartet werden: ${error.message}`);
+  }
 }
 
 function createStoreButtons(game) {
@@ -820,6 +882,10 @@ function bindEvents() {
     void startLogin();
   });
 
+  elements.enrollmentButton.addEventListener('click', () => {
+    void startEnrollment();
+  });
+
   elements.modalPlayButton.addEventListener('click', () => {
     if (state.activeGame) {
       void launchGame(state.activeGame);
@@ -848,6 +914,7 @@ function applyBootstrap(bootstrap) {
   state.games = bootstrap.games || [];
   state.library = bootstrap.library || { games: [], logged_in: false };
   state.sessionState = bootstrap.sessionState || state.sessionState;
+  state.enrollment = bootstrap.enrollment || state.enrollment;
   if (state.library.logged_in || state.sessionState.gfnLoggedIn) {
     state.gfnLaunchState = 'idle';
   }
@@ -866,6 +933,7 @@ function applyBootstrap(bootstrap) {
   if (state.catalogRefreshState !== 'refreshing') {
     updateCatalogRefreshState();
   }
+  updateEnrollmentState();
   renderGenreOptions();
   renderGrid();
 }

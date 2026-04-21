@@ -93,10 +93,12 @@ Timeout (z.B. 7 Tage) invalidiert um Re-Enrollment zu erzwingen.
 
 ### Schritt 6 — Beagle Gaming Kiosk als erstes Profil modernisieren
 
-- [ ] `beagle-kiosk/` auf aktuelles Electron (>=29) updaten.
-- [ ] Electron-Kiosk bekommt Beagle-Enrollment-Flow (automatisches Pairing statt manuelle Config).
+ [x] `beagle-kiosk/` auf aktuelles Electron (>=29) updaten.
+ [x] Electron-Kiosk bekommt Beagle-Enrollment-Flow (automatisches Pairing statt manuelle Config).
 
 Der Gaming-Kiosk ist der bekannteste Beagle-Endpoint-Use-Case und soll als erstes
+
+> Umsetzung 2026-04-21: `beagle-kiosk/package.json` nutzt Electron `^37.2.0` (>=29 erfüllt). Zusätzlich wurde ein automatischer Enrollment-Flow im Kiosk implementiert (`beagle-kiosk/main.js`): bei gesetztem `BEAGLE_ENROLLMENT_URL` + `BEAGLE_ENROLLMENT_TOKEN` führt der Kiosk beim Start `POST /api/v1/endpoints/enroll` aus, persistiert `BEAGLE_MANAGER_TOKEN`, leert den Enrollment-Token und zeigt den Enrollment-Status inkl. Retry im Sidebar-UI (`beagle-kiosk/renderer/index.html`, `beagle-kiosk/renderer/kiosk.js`). Deployment + Lint-Smoketest auf `srv1.beagle-os.com` erfolgreich.
 Profil die neue Enrollment- und Update-Architektur demonstrieren. Das Electron-Update
 behebt potenzielle Security-Vulnerabilities im alten Electron-Build. Der neue
 Enrollment-Flow ersetzt die manuelle `kiosk.conf`-Konfiguration durch einen automatischen

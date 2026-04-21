@@ -114,6 +114,19 @@ body {
   background: var(--panel);
 }
 
+.enrollment-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.enrollment-panel h2 {
+  margin: 0;
+}
+
+.enrollment-panel p {
+  margin: 0;
+}
+
 .field {
   display: grid;
   gap: 8px;
