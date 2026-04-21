@@ -51,6 +51,8 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
             fake_certbot_work = Path(tmpdir) / "certbot" / "work"
             fake_certbot_logs = Path(tmpdir) / "certbot" / "logs"
             with mock.patch.object(MODULE, "_which", return_value="/usr/bin/certbot"), \
+                  mock.patch.object(MODULE, "_domain_has_ipv6_records", return_value=False), \
+                  mock.patch.object(MODULE, "_host_has_global_ipv6", return_value=False), \
                  mock.patch.object(MODULE, "_ACME_WEBROOT", fake_webroot), \
                  mock.patch.object(MODULE, "_CERTBOT_CONFIG_DIR", fake_certbot_config), \
                  mock.patch.object(MODULE, "_CERTBOT_WORK_DIR", fake_certbot_work), \
@@ -65,6 +67,17 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertIn("--config-dir", captured[0])
         self.assertIn("--work-dir", captured[0])
         self.assertIn("--logs-dir", captured[0])
+
+    def test_request_letsencrypt_rejects_aaaa_without_global_ipv6(self):
+        service = self.make_service()
+
+        with mock.patch.object(MODULE, "_which", return_value="/usr/bin/certbot"), \
+             mock.patch.object(MODULE, "_domain_has_ipv6_records", return_value=True), \
+             mock.patch.object(MODULE, "_host_has_global_ipv6", return_value=False):
+            result = service.request_letsencrypt("srv1.beagle-os.com", "ops@beagle-os.com")
+
+        self.assertFalse(result["ok"])
+        self.assertIn("AAAA/IPv6 DNS record", result["error"])
 
 
 if __name__ == "__main__":

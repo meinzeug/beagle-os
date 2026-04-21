@@ -454,7 +454,9 @@ server {
         allow all;
     }
 
-    return 301 ${web_redirect_target};
+    location / {
+      return 301 ${web_redirect_target};
+    }
 }
 
 limit_req_zone \$binary_remote_addr zone=beagle_auth:10m rate=10r/m;
@@ -698,7 +700,12 @@ apply_nginx_service_state
 
 # Create ACME webroot directory used by certbot --webroot for Let's Encrypt.
 mkdir -p /var/lib/beagle/beagle-manager/acme-webroot
+mkdir -p /var/lib/beagle/beagle-manager/acme-webroot/.well-known/acme-challenge
 chown -R beagle-manager:beagle-manager /var/lib/beagle/beagle-manager/acme-webroot
+chmod 0711 /var/lib/beagle/beagle-manager
+chmod 0755 /var/lib/beagle/beagle-manager/acme-webroot
+chmod 0755 /var/lib/beagle/beagle-manager/acme-webroot/.well-known
+chmod 0755 /var/lib/beagle/beagle-manager/acme-webroot/.well-known/acme-challenge
 
 # Allow beagle-manager service user to reload nginx and run nginx -t without
 # interactive D-Bus / polkit authentication (the service runs with NoNewPrivileges=yes).

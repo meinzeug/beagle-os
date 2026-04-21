@@ -117,7 +117,8 @@ export function requestLetsEncrypt() {
   request('/settings/security/tls/letsencrypt', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ domain, email })
+    body: JSON.stringify({ domain, email }),
+    __timeoutMs: 180000
   }).then((data) => {
     if (data.ok) {
       settingsHooks.setBanner('Zertifikat erfolgreich erstellt fuer ' + escapeHtml(domain), 'info');

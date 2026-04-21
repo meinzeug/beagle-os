@@ -16,6 +16,7 @@ import json
 import os
 import re
 import shlex
+import socket
 import subprocess
 from http import HTTPStatus
 from pathlib import Path
@@ -218,12 +219,25 @@ class ServerSettingsService:
         if not certbot:
             return {"ok": False, "error": "certbot not installed on this server"}
 
+        if _domain_has_ipv6_records(domain) and not _host_has_global_ipv6():
+            return {
+                "ok": False,
+                "error": (
+                    "domain has an AAAA/IPv6 DNS record, but this server has no global IPv6 address. "
+                    "Remove the AAAA record or configure public IPv6 before requesting a Let's Encrypt certificate."
+                ),
+            }
+
         # Use --webroot authenticator so certbot never touches nginx itself.
         # The nginx config exposes /.well-known/acme-challenge/ from this dir
         # on port 80 before the HTTPS redirect, so the ACME HTTP-01 challenge
         # works without needing polkit/systemd-run or nginx plugin privileges.
         acme_webroot = _ACME_WEBROOT
         acme_webroot.mkdir(parents=True, exist_ok=True)
+        challenge_dir = acme_webroot / ".well-known" / "acme-challenge"
+        challenge_dir.mkdir(parents=True, exist_ok=True)
+        for path in (acme_webroot, acme_webroot / ".well-known", challenge_dir):
+            path.chmod(0o755)
         _CERTBOT_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         _CERTBOT_WORK_DIR.mkdir(parents=True, exist_ok=True)
         _CERTBOT_LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -727,6 +741,29 @@ def _which(name: str) -> str | None:
         return None
 
 
+def _domain_has_ipv6_records(domain: str) -> bool:
+    try:
+        return bool(socket.getaddrinfo(domain, None, socket.AF_INET6, socket.SOCK_STREAM))
+    except socket.gaierror:
+        return False
+
+
+def _host_has_global_ipv6() -> bool:
+    try:
+        result = subprocess.run(
+            ["ip", "-6", "-o", "addr", "show", "scope", "global"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if result.returncode != 0:
+        return False
+    return bool((result.stdout or "").strip())
+
+
 def _certbot_has_plugin(certbot: str, plugin_name: str) -> bool:
     try:
         result = subprocess.run(
@@ -756,6 +793,7 @@ def _run_certbot_command(cmd: list[str], *, timeout: int) -> subprocess.Complete
         text=True,
         timeout=timeout,
         check=False,
+        preexec_fn=lambda: os.umask(0o022),
     )
 
 
