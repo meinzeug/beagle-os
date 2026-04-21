@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-21 nach Plan 13 Schritt 3: SCIM Surface)
+
+0. **SCIM-Flow vervollständigen**:
+	- `PATCH`-Semantik gemäß SCIM-Standard (Operations/Add/Replace/Remove) ergänzen,
+	- Group-Member-Mapping auf Rollen-/User-Zuordnung erweitern.
+
+0. **SCIM-Token-Hardening**:
+	- SCIM-Token-Rotation + optional Hash-at-rest in Settings/Secrets-Store ergänzen,
+	- Audit-Events für SCIM-Mutationen (`user.create/update/delete`, `group.create/update/delete`) pro Request schreiben.
+
 ## Delta (2026-04-21 nach Plan 13 Schritt 1+2: OIDC/SAML Basis)
 
 0. **OIDC-Hardening abschließen**:

@@ -65,6 +65,7 @@ from runtime_environment import RuntimeEnvironmentService
 from runtime_exec import RuntimeExecService
 from runtime_paths import RuntimePathsService
 from runtime_support import RuntimeSupportService
+from scim_service import ScimService
 from saml_service import SamlService
 from sunshine_access_token_store import SunshineAccessTokenStoreService
 from sunshine_integration import SunshineIntegrationService
@@ -224,6 +225,7 @@ SAML_NAMEID_FORMAT = os.environ.get(
     "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
 ).strip() or "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
 SAML_SIGNING_CERT_FILE = Path(os.environ.get("BEAGLE_SAML_SIGNING_CERT_FILE", "/etc/beagle/saml/sp-signing.crt"))
+SCIM_BEARER_TOKEN = os.environ.get("BEAGLE_SCIM_BEARER_TOKEN", "").strip()
 CORS_ALLOWED_ORIGINS_RAW = os.environ.get("BEAGLE_CORS_ALLOWED_ORIGINS", "").strip()
 API_V2_PREPARATION_ENABLED = os.environ.get("BEAGLE_API_V2_PREPARATION_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
 API_V1_DEPRECATED_ENDPOINTS_RAW = os.environ.get(
@@ -414,6 +416,7 @@ WEBHOOK_SERVICE: WebhookService | None = None
 IDENTITY_PROVIDER_REGISTRY_SERVICE: IdentityProviderRegistryService | None = None
 OIDC_SERVICE: OidcService | None = None
 SAML_SERVICE: SamlService | None = None
+SCIM_SERVICE: ScimService | None = None
 
 
 def resolve_public_stream_host(host: str) -> str:
@@ -642,6 +645,25 @@ def saml_service() -> SamlService:
             signing_cert_pem=cert_text,
         )
     return SAML_SERVICE
+
+
+def scim_service() -> ScimService:
+    global SCIM_SERVICE
+    if SCIM_SERVICE is None:
+        SCIM_SERVICE = ScimService(
+            create_user=auth_session_service().create_user,
+            delete_role=auth_session_service().delete_role,
+            delete_user=auth_session_service().delete_user,
+            list_roles=auth_session_service().list_roles,
+            list_users=auth_session_service().list_users,
+            save_role=auth_session_service().save_role,
+            service_name="beagle-control-plane",
+            token_urlsafe=secrets.token_urlsafe,
+            update_user=auth_session_service().update_user,
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return SCIM_SERVICE
 
 
 def cache_get(key: str, ttl_seconds: float) -> Any:
@@ -2692,6 +2714,14 @@ class Handler(BaseHTTPRequestHandler):
             return True
         return self._endpoint_identity() is not None
 
+    def _is_scim_authenticated(self) -> bool:
+        if not SCIM_BEARER_TOKEN:
+            return False
+        token = extract_bearer_token(self.headers.get("Authorization", ""))
+        if not token:
+            return False
+        return secrets.compare_digest(token, SCIM_BEARER_TOKEN)
+
     def _cors_origin(self) -> str:
         origin = normalized_origin(self.headers.get("Origin", ""))
         if origin and origin in cors_allowed_origins():
@@ -2923,6 +2953,17 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/v1/auth/providers":
             self._write_json(HTTPStatus.OK, identity_provider_registry_service().payload())
+            return
+
+        if scim_service().handles_path(path):
+            if not SCIM_BEARER_TOKEN:
+                self._write_json(HTTPStatus.NOT_IMPLEMENTED, {"ok": False, "error": "scim disabled"})
+                return
+            if not self._is_scim_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            response = scim_service().route_get(path)
+            self._write_json(response["status"], response["payload"])
             return
 
         if path == "/api/v1/auth/oidc/login":
@@ -3226,6 +3267,22 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.OK, {"ok": True, "onboarding": onboarding_state})
             return
 
+        if scim_service().handles_path(path):
+            if not SCIM_BEARER_TOKEN:
+                self._write_json(HTTPStatus.NOT_IMPLEMENTED, {"ok": False, "error": "scim disabled"})
+                return
+            if not self._is_scim_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            try:
+                json_payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            response = scim_service().route_post(path, json_payload)
+            self._write_json(response["status"], response["payload"])
+            return
+
         if auth_http_surface_service().handles_post(path):
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
@@ -3455,6 +3512,22 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
 
+        if scim_service().handles_path(path):
+            if not SCIM_BEARER_TOKEN:
+                self._write_json(HTTPStatus.NOT_IMPLEMENTED, {"ok": False, "error": "scim disabled"})
+                return
+            if not self._is_scim_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            try:
+                payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            response = scim_service().route_put(path, payload)
+            self._write_json(response["status"], response["payload"])
+            return
+
         if auth_http_surface_service().handles_put(path):
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
@@ -3521,6 +3594,23 @@ class Handler(BaseHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
+
+        if scim_service().handles_path(path):
+            if not SCIM_BEARER_TOKEN:
+                self._write_json(HTTPStatus.NOT_IMPLEMENTED, {"ok": False, "error": "scim disabled"})
+                return
+            if not self._is_scim_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            response = scim_service().route_delete(path)
+            if int(response["status"]) == int(HTTPStatus.NO_CONTENT):
+                self.send_response(HTTPStatus.NO_CONTENT)
+                self._write_common_security_headers()
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self._write_json(response["status"], response["payload"])
+            return
 
         if auth_http_surface_service().handles_delete(path):
             if not self._is_authenticated():

@@ -282,3 +282,21 @@ Stand: 2026-04-19
 - Nächster Schritt:
   - JWKS-Fetch + Key-Rotation + RSA/ECDSA-Signaturprüfung für `id_token` implementieren,
   - Claims erst nach erfolgreicher Signatur-, Issuer-, Audience- und Expiry-Validierung akzeptieren.
+
+## S-016 - SCIM-Bearer-Token aktuell als statischer Klartext-Env-Wert
+
+- Status: offen (mitigiert durch separate Token-Grenze, Rotation noch ausstehend)
+- Risiko: Mittel
+- Betroffene Dateien:
+  - `beagle-host/bin/beagle-control-plane.py`
+  - `beagle-host/services/scim_service.py`
+- Beschreibung:
+  - SCIM-Zugriff ist korrekt von Session/API-Token getrennt und erfordert `BEAGLE_SCIM_BEARER_TOKEN`,
+    aber der Token liegt derzeit als statischer Klartext-Environment-Wert vor.
+  - Ohne Rotation/Secret-Backend steigt das Risiko bei Host-Config-Leak oder Operator-Fehlbedienung.
+- Mitigation (bereits umgesetzt):
+  - eigener SCIM-Auth-Guard (`Authorization: Bearer <scim-token>`) auf allen `/scim/v2/*` Routen,
+  - fehlender/falscher Token liefert `401 unauthorized`.
+- Nächster Schritt:
+  - SCIM-Token-Rotation und optional Hash-at-rest/Secret-Store-Integration ergänzen,
+  - SCIM-Mutationsaufrufe strukturiert auditieren.

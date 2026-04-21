@@ -5,6 +5,7 @@
 
 ## Update 2026-04-21 (Plan 18 Schritt 5 abgeschlossen)
 
+- [x] GoFuture Plan 13 Schritt 3 umsetzen: `beagle-host/services/scim_service.py` mit `/scim/v2/Users` + `/scim/v2/Groups` (GET/POST/PUT/DELETE) implementieren und separaten SCIM-Bearer-Token (`BEAGLE_SCIM_BEARER_TOKEN`) im Control-Plane erzwingen.
 - [x] GoFuture Plan 13 Schritt 1 umsetzen: OIDC-Service (`beagle-host/services/oidc_service.py`) mit PKCE + Auth-Routen (`/api/v1/auth/oidc/login`, `/api/v1/auth/oidc/callback`) und Login-Button `Mit OIDC anmelden` in der WebUI.
 - [x] GoFuture Plan 13 Schritt 2 umsetzen: SAML-Service (`beagle-host/services/saml_service.py`) plus Routen (`/api/v1/auth/saml/login`, `/api/v1/auth/saml/metadata`) und WebUI-Buttons `Mit SAML anmelden` + `SP-Metadata`-Download.
 - [x] GoFuture Plan 13 Schritt 6 umsetzen: `identity_provider_registry.py` erstellen und Login-Screen auf dynamische Login-Methoden erweitern (`GET /api/v1/auth/providers`, WebUI-Modal-Rendering).

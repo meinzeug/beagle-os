@@ -1,5 +1,17 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 13 Schritt 3: SCIM 2.0 Surface)
+
+- SCIM-Service umgesetzt:
+	- neue Datei `beagle-host/services/scim_service.py` mit SCIM 2.0 `/Users` und `/Groups` Ressourcen.
+- Control Plane erweitert:
+	- `beagle-host/bin/beagle-control-plane.py` um SCIM-Routing für `GET/POST/PUT/DELETE` unter `/scim/v2/*`.
+	- separater SCIM-Auth-Guard über `BEAGLE_SCIM_BEARER_TOKEN` implementiert (getrennt von Session- und Legacy-API-Token).
+- Live-Deployment + Validierung auf `srv1.beagle-os.com`:
+	- `GET/POST/GET/DELETE` für `/scim/v2/Users` und `/scim/v2/Groups` erfolgreich getestet,
+	- ohne SCIM-Token liefern die Endpoints reproduzierbar `401`.
+	- Test-Entitäten (`scimtest`, `scim-ops`) nach Validierung wieder entfernt.
+
 ## Update (2026-04-21, GoFuture Plan 13 Schritt 1+2: OIDC + SAML Auth-Basis)
 
 - OIDC-Service implementiert:

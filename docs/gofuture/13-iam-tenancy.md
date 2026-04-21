@@ -68,8 +68,8 @@ Umsetzung (2026-04-21):
 
 ### Schritt 3 — SCIM 2.0 für User/Group-Lifecycle-Sync implementieren
 
-- [ ] `beagle-host/services/scim_service.py` anlegen: SCIM 2.0 `/Users` und `/Groups` Endpoints.
-- [ ] SCIM-Bearer-Token-Authentifizierung über separaten Admin-Token.
+- [x] `beagle-host/services/scim_service.py` anlegen: SCIM 2.0 `/Users` und `/Groups` Endpoints.
+- [x] SCIM-Bearer-Token-Authentifizierung über separaten Admin-Token.
 
 SCIM (System for Cross-domain Identity Management) ermöglicht die automatische
 Synchronisation von Usern und Gruppen vom Identity Provider zu Beagle. Wenn ein
@@ -79,6 +79,17 @@ in Beagle ebenfalls deaktiviert und seine aktiven Sessions werden beendet.
 SCIM-Endpoints folgen dem RFC 7643/7644-Standard. Der SCIM-Bearer-Token wird als
 Admin-Credential in der Web Console konfiguriert. Group-zu-Role-Mapping wird
 konfigurierbar gemacht.
+
+Umsetzung (2026-04-21):
+
+- Neuer Service `beagle-host/services/scim_service.py` implementiert (SCIM-ListResponse + Ressourcen für `User`/`Group`).
+- Neue SCIM-Endpoints in der Control Plane umgesetzt:
+	- `GET /scim/v2/Users`, `POST /scim/v2/Users`, `GET /scim/v2/Users/{id}`, `PUT /scim/v2/Users/{id}`, `DELETE /scim/v2/Users/{id}`
+	- `GET /scim/v2/Groups`, `POST /scim/v2/Groups`, `GET /scim/v2/Groups/{id}`, `PUT /scim/v2/Groups/{id}`, `DELETE /scim/v2/Groups/{id}`
+- Separater SCIM-Bearer-Token eingeführt über `BEAGLE_SCIM_BEARER_TOKEN` (nicht der normale API-Token).
+- Runtime-Validierung auf `srv1.beagle-os.com` erfolgreich:
+	- List/Create/Get/Delete auf `/scim/v2/Users` und `/scim/v2/Groups` funktionieren,
+	- ohne SCIM-Token liefern die Endpoints `401 unauthorized`.
 
 ---
 
