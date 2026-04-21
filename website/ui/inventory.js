@@ -380,7 +380,7 @@ export function renderInventory() {
       : '';
     return '' +
       '<div class="' + cardClass + '" data-vmid="' + escapeHtml(vmid) + '">' +
-      '  <label class="vm-card-check" onclick="event.stopPropagation()">' +
+      '  <label class="vm-card-check">' +
       '    <input class="row-select" type="checkbox" data-select-vmid="' + escapeHtml(vmid) + '"' + (isChecked ? ' checked' : '') + '>' +
       '  </label>' +
       '  <span class="vm-card-dot" aria-hidden="true"></span>' +
@@ -399,7 +399,7 @@ export function renderInventory() {
       chip(profile.status || 'unknown', statusTone) +
       chip(role, role === 'desktop' ? 'info' : 'muted') +
       '  </div>' +
-      '  <div class="vm-card-actions" onclick="event.stopPropagation()">' +
+      '  <div class="vm-card-actions">' +
       '    <button type="button" class="vm-card-btn vm-card-btn-manage" data-vm-detail="' + escapeHtml(vmid) + '" title="Details">Details</button>' +
       '    <button type="button" class="vm-card-btn" data-vm-power="start" data-vmid="' + escapeHtml(vmid) + '" title="Start"' + (canStart ? '' : ' disabled') + '>' + iconPlay + '</button>' +
       '    <button type="button" class="vm-card-btn" data-vm-power="stop" data-vmid="' + escapeHtml(vmid) + '" title="Stop"' + (canStop ? '' : ' disabled') + '>' + iconStop + '</button>' +

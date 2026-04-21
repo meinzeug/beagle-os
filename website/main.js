@@ -247,6 +247,8 @@ function closeDetail() {
 }
 
 function loadDetail(vmid) {
+  const numericVmid = Number(vmid);
+  if (!numericVmid) return Promise.resolve();
 
   state.selectedVmid = numericVmid;
   showDetailPage(true);

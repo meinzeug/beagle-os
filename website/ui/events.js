@@ -472,9 +472,13 @@ export function bindEvents() {
         eventHooks.loadDetail(detailButton.getAttribute('data-vm-detail'));
         return;
       }
-      // Click anywhere on the VM card itself (not on buttons/checkboxes)
+      // Click anywhere on the VM card itself (not on buttons/checkboxes/action area)
       const card = event.target.closest('.vm-card[data-vmid]');
       if (card) {
+        // Don't navigate when clicking inside the actions area or checkbox label
+        if (event.target.closest('.vm-card-actions') || event.target.closest('.vm-card-check')) {
+          return;
+        }
         eventHooks.loadDetail(card.getAttribute('data-vmid'));
       }
     });
