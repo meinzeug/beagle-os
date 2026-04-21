@@ -16,6 +16,7 @@ import json
 import os
 import re
 import shlex
+import signal
 import socket
 import subprocess
 from http import HTTPStatus
@@ -41,7 +42,7 @@ _SAFE_DOMAIN_PATTERN = re.compile(
 _SAFE_IP_PATTERN = re.compile(
     r"^(\d{1,3}\.){3}\d{1,3}$"
 )
-_ACME_WEBROOT = Path("/var/lib/beagle/beagle-manager/acme-webroot")
+_ACME_WEBROOT = Path("/var/lib/beagle/acme-webroot")
 _CERTBOT_BASE_DIR = Path("/var/lib/beagle/beagle-manager/letsencrypt")
 _CERTBOT_CONFIG_DIR = _CERTBOT_BASE_DIR / "config"
 _CERTBOT_WORK_DIR = _CERTBOT_BASE_DIR / "work"
@@ -793,7 +794,7 @@ def _run_certbot_command(cmd: list[str], *, timeout: int) -> subprocess.Complete
         text=True,
         timeout=timeout,
         check=False,
-        preexec_fn=lambda: os.umask(0o022),
+        preexec_fn=lambda: os.umask(0o002),
     )
 
 
@@ -804,73 +805,46 @@ def _switch_nginx_tls_to_letsencrypt(domain: str) -> tuple[bool, str]:
     ]
     live_dir: Path | None = None
     for candidate in live_candidates:
-        if (candidate / "fullchain.pem").exists() and (candidate / "privkey.pem").exists():
-            live_dir = candidate
-            break
+        try:
+            if (candidate / "fullchain.pem").exists() and (candidate / "privkey.pem").exists():
+                live_dir = candidate
+                break
+        except OSError:
+            continue
 
     if live_dir is None:
         return False, "missing issued certificate files"
 
-    cert_path = str(live_dir / "fullchain.pem")
-    key_path = str(live_dir / "privkey.pem")
+    source_cert = live_dir / "fullchain.pem"
+    source_key = live_dir / "privkey.pem"
+    target_dir = Path("/etc/beagle/tls")
+    target_cert = target_dir / "beagle-proxy.crt"
+    target_key = target_dir / "beagle-proxy.key"
 
-    candidate_files = [
-        Path("/etc/nginx/sites-available/beagle-proxy.conf"),
-        Path("/etc/nginx/sites-enabled/beagle-proxy.conf"),
-        Path("/etc/nginx/sites-enabled/beagle-proxy"),
-        Path("/etc/nginx/sites-enabled/beagle-web-ui"),
-    ]
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_cert.write_bytes(source_cert.read_bytes())
+        target_key.write_bytes(source_key.read_bytes())
+        os.chmod(target_cert, 0o644)
+        os.chmod(target_key, 0o600)
+    except OSError as exc:
+        return False, f"failed updating Beagle TLS files: {exc}"
 
-    backups: dict[Path, str] = {}
-    changed = False
-    seen: set[Path] = set()
-    for path in candidate_files:
-        resolved = path.resolve() if path.exists() else path
-        if resolved in seen or not path.exists():
-            continue
-        seen.add(resolved)
+    pid_candidates = [Path("/run/nginx.pid"), Path("/var/run/nginx.pid")]
+    nginx_pid: int | None = None
+    for pid_path in pid_candidates:
         try:
-            original = resolved.read_text(encoding="utf-8")
-        except OSError:
+            if pid_path.exists():
+                nginx_pid = int((pid_path.read_text(encoding="utf-8") or "").strip())
+                break
+        except (OSError, ValueError):
             continue
+    if nginx_pid is None:
+        return False, "nginx pid file not found"
 
-        updated = re.sub(
-            r"(?m)^(\s*ssl_certificate\s+)\S+;",
-            rf"\1{cert_path};",
-            original,
-        )
-        updated = re.sub(
-            r"(?m)^(\s*ssl_certificate_key\s+)\S+;",
-            rf"\1{key_path};",
-            updated,
-        )
-
-        if updated != original:
-            backups[resolved] = original
-            try:
-                resolved.write_text(updated, encoding="utf-8")
-            except OSError as exc:
-                return False, f"failed writing nginx config {resolved}: {exc}"
-            changed = True
-
-    if not changed:
-        return False, "no nginx ssl_certificate directives found to update"
-
-    # Use sudo so the beagle-manager service user (NoNewPrivileges=yes) can
-    # test and reload nginx. The sudoers rule is installed by install-beagle-proxy.sh.
-    test = subprocess.run(["sudo", "nginx", "-t"], capture_output=True, text=True, timeout=20, check=False)
-    if test.returncode != 0:
-        for path, content in backups.items():
-            try:
-                path.write_text(content, encoding="utf-8")
-            except OSError:
-                pass
-        stderr = (test.stderr or "").strip()[-300:]
-        return False, f"nginx config test failed: {stderr}"
-
-    reload_result = subprocess.run(["sudo", "systemctl", "reload", "nginx"], capture_output=True, text=True, timeout=20, check=False)
-    if reload_result.returncode != 0:
-        stderr = (reload_result.stderr or "").strip()[-300:]
-        return False, f"nginx reload failed: {stderr}"
+    try:
+        os.kill(nginx_pid, signal.SIGHUP)
+    except OSError as exc:
+        return False, f"nginx reload failed: {exc}"
 
     return True, "ok"

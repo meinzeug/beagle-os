@@ -386,6 +386,7 @@ ensure_tls_materials() {
     -out "$CERT_FILE" \
     -subj "/CN=${SERVER_NAME}" \
     -addext "subjectAltName=$(tls_subject_alt_name)" >/dev/null 2>&1
+  chown beagle-manager:beagle-manager "$KEY_FILE" "$CERT_FILE"
   chmod 0600 "$KEY_FILE"
   chmod 0644 "$CERT_FILE"
   log "Generated standalone TLS certificate at $CERT_FILE"
@@ -449,7 +450,7 @@ server {
     # ACME HTTP-01 challenge: served before the HTTPS redirect so certbot
     # --webroot can obtain Let's Encrypt certificates without nginx plugin.
     location ^~ /.well-known/acme-challenge/ {
-      root /var/lib/beagle/beagle-manager/acme-webroot;
+      root /var/lib/beagle/acme-webroot;
         default_type text/plain;
         allow all;
     }
@@ -699,13 +700,13 @@ nginx -t
 apply_nginx_service_state
 
 # Create ACME webroot directory used by certbot --webroot for Let's Encrypt.
-mkdir -p /var/lib/beagle/beagle-manager/acme-webroot
-mkdir -p /var/lib/beagle/beagle-manager/acme-webroot/.well-known/acme-challenge
-chown -R beagle-manager:beagle-manager /var/lib/beagle/beagle-manager/acme-webroot
-chmod 0711 /var/lib/beagle/beagle-manager
-chmod 0755 /var/lib/beagle/beagle-manager/acme-webroot
-chmod 0755 /var/lib/beagle/beagle-manager/acme-webroot/.well-known
-chmod 0755 /var/lib/beagle/beagle-manager/acme-webroot/.well-known/acme-challenge
+mkdir -p /var/lib/beagle/acme-webroot
+mkdir -p /var/lib/beagle/acme-webroot/.well-known/acme-challenge
+chown -R beagle-manager:beagle-manager /var/lib/beagle/acme-webroot
+chgrp -R www-data /var/lib/beagle/acme-webroot
+chmod 2775 /var/lib/beagle/acme-webroot
+chmod 2775 /var/lib/beagle/acme-webroot/.well-known
+chmod 2775 /var/lib/beagle/acme-webroot/.well-known/acme-challenge
 
 # Allow beagle-manager service user to reload nginx and run nginx -t without
 # interactive D-Bus / polkit authentication (the service runs with NoNewPrivileges=yes).
