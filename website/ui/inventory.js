@@ -316,12 +316,49 @@ export function bulkAction(action) {
   });
 }
 
+function updateInventoryWorkspaceLayout(visibleCount) {
+  const section = qs('inventory-section');
+  if (!section) {
+    return;
+  }
+  section.classList.remove('workspace-grid-compact', 'workspace-grid-single');
+  if (visibleCount <= 1) {
+    section.classList.add('workspace-grid-single');
+    return;
+  }
+  if (visibleCount <= 2) {
+    section.classList.add('workspace-grid-compact');
+  }
+}
+
 export function renderInventory() {
   const rows = filteredInventory();
+  const selectedCount = rows.filter((vm) => {
+    return state.selectedVmids.indexOf(profileOf(vm).vmid) !== -1;
+  }).length;
+  const runningCount = rows.filter((vm) => {
+    return String(profileOf(vm).status || '').trim().toLowerCase() === 'running';
+  }).length;
+  const installingCount = rows.filter((vm) => {
+    return String(profileOf(vm).status || '').trim().toLowerCase() === 'installing';
+  }).length;
+  if (qs('inv-stat-visible')) {
+    qs('inv-stat-visible').textContent = String(rows.length);
+  }
+  if (qs('inv-stat-selected')) {
+    qs('inv-stat-selected').textContent = String(selectedCount);
+  }
+  if (qs('inv-stat-running')) {
+    qs('inv-stat-running').textContent = String(runningCount);
+  }
+  if (qs('inv-stat-installing')) {
+    qs('inv-stat-installing').textContent = String(installingCount);
+  }
   const body = qs('inventory-body');
   if (!body) {
     return;
   }
+  updateInventoryWorkspaceLayout(rows.length);
   if (!rows.length) {
     body.innerHTML = '<tr><td colspan="7" class="empty-cell">Keine passenden Beagle-VMs gefunden.</td></tr>';
     updateBulkUiState();

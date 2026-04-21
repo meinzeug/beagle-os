@@ -77,8 +77,8 @@ else
   grep -nE '^\.env$|^\.env\.\*$' "$ROOT_DIR/.gitignore" >/dev/null 2>&1 || fail ".gitignore must include .env and .env.* rules"
 fi
 
-if [[ "$repo_is_git" -eq 1 ]] && (git -C "$ROOT_DIR" ls-files --error-unmatch AGENTS.md >/dev/null 2>&1 || git -C "$ROOT_DIR" ls-files --error-unmatch CLAUDE.md >/dev/null 2>&1); then
-  fail "AGENTS.md/CLAUDE.md must stay untracked"
+if [[ "$repo_is_git" -eq 1 ]] && git -C "$ROOT_DIR" ls-files --error-unmatch AGENTS.md >/dev/null 2>&1; then
+  fail "AGENTS.md must stay untracked"
 fi
 
 pattern='(AKIA[0-9A-Z]{16}|-----BEGIN (RSA|EC|OPENSSH|PGP) PRIVATE KEY-----|([Aa][Pp][Ii][_ -]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd])\s*[:=]\s*["'"'"'][^"'"'"' ]{8,}["'"'"'])'

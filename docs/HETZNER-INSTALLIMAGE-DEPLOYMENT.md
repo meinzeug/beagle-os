@@ -20,7 +20,7 @@ The tarball has been verified to include:
 - ✓ All bootstrap scripts for first-boot automation
 - ✓ Systemd service units for SSH hostkey and Beagle bootstrap
 - ✓ Nested Beagle source archive with full installation flow
-- ✓ No operator files (AGENTS.md, CLAUDE.md removed via builder fix)
+- ✓ No operator files (AGENTS.md removed via builder fix)
 - ✓ Clean filesystem without build artifacts
 - ✓ Proper extraction and integrity confirmed
 

@@ -390,7 +390,7 @@ Plan 13 ist vollständig abgehakt (Schritte 1–6 alle [x]).
 ## Immediate (security/process hygiene)
 
 0. **Commit and push the operator-file de-tracking/release-scrub changes before the next shared sync**:
-	- Keep `AGENTS.md` and `CLAUDE.md` local-only and out of Git tracking.
+	- Keep `AGENTS.md` and `AGENTS.md` local-only and out of Git tracking.
 	- Verify the next commit removes both files from the shared repo state on GitHub.
 	- Confirm future local edits stay ignored by Git and excluded from source/release/installimage bundles.
 

@@ -65,7 +65,7 @@
 - [x] Add first-boot bootstrap + SSH host-key regeneration files for installimage-based Beagle server deployments.
 - [x] Detect and remove local-only operator files from the embedded installimage source archive before publication.
 - [x] Rebuild the corrected installimage tarball and refresh packaged/public checksums from that artifact.
-  - Commit: `497eee2` — Fixed builder scripts to properly exclude AGENTS.md and CLAUDE.md via tar --exclude flags.
+  - Commit: `497eee2` — Fixed builder scripts to properly exclude AGENTS.md via tar --exclude flags.
   - Tarball verified clean: no forbidden files in nested source archive.
   - Checksum: `3d0a0623585265e9d690f9bcf7d9a1c7baa0aa0f85cbfa0544ef967f2fb7c34d`.
 - [x] Publish the installimage tarball to `beagle-os.com` public downloads with checksum/status-json coverage.
@@ -76,8 +76,8 @@
 
 - [x] Add security-run rule to local `AGENTS.md` so every run must document and opportunistically patch discovered security issues.
 - [x] Add dedicated security findings register in `docs/refactor/11-security-findings.md`.
-- [x] Add `.gitignore` protection for local-only operator files `AGENTS.md` and `CLAUDE.md`.
-- [x] Remove `AGENTS.md` and `CLAUDE.md` from Git tracking and keep them local-only on future pushes.
+- [x] Add `.gitignore` protection for local-only operator files `AGENTS.md` and `AGENTS.md`.
+- [x] Remove `AGENTS.md` and `AGENTS.md` from Git tracking and keep them local-only on future pushes.
 - [x] Slim local `AGENTS.md` down to stable policy only and move roadmap/detail semantics back to `docs/refactor/*`.
 - [ ] Audit the repo for remaining plaintext credentials, tokens or operator-only notes that should not be versioned.
 - [x] Fix Web UI onboarding/login modal visibility conflicts.

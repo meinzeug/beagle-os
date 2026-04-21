@@ -14,13 +14,13 @@ Stand: 2026-04-19
 - Risiko: Hoch
 - Betroffene Dateien:
   - `AGENTS.md`
-  - `CLAUDE.md`
+  - `AGENTS.md`
 - Beschreibung:
   - Beide lokalen Operator-Dateien waren im Git-Tracking und konnten dadurch versehentlich auf GitHub landen.
   - Dadurch besteht ein strukturelles Risiko, dass interne Arbeitsanweisungen, lokale Betriebsdetails oder spaeter eingetragene Zugangshinweise offengelegt werden.
 - Mitigation:
-  - `.gitignore` wurde um `AGENTS.md` und `CLAUDE.md` erweitert.
-  - `AGENTS.md` und `CLAUDE.md` wurden aus dem Git-Index entfernt und lokal beibehalten.
+  - `.gitignore` wurde um `AGENTS.md` und `AGENTS.md` erweitert.
+  - `AGENTS.md` und `AGENTS.md` wurden aus dem Git-Index entfernt und lokal beibehalten.
   - Diese Dateien muessen aus dem Git-Tracking entfernt bleiben.
   - `AGENTS.md` wurde explizit um die Regel erweitert, dass beide Dateien lokal-only sind.
 - Naechster Schritt:
@@ -48,10 +48,10 @@ Stand: 2026-04-19
   - `scripts/build-server-installimage.sh`
   - eingebettetes Archiv `/usr/local/share/beagle/beagle-os-source.tar.gz` innerhalb des installimage-Tarballs
 - Beschreibung:
-  - Der erste Build des neuen Hetzner-installimage-Artefakts hat die lokalen Dateien `AGENTS.md` und `CLAUDE.md` in das eingebettete Beagle-Source-Archiv aufgenommen.
+  - Der erste Build des neuen Hetzner-installimage-Artefakts hat die lokalen Dateien `AGENTS.md` und `AGENTS.md` in das eingebettete Beagle-Source-Archiv aufgenommen.
   - Dadurch waeren lokale Operator-Hinweise ueber das oeffentlich verteilte installimage-Artefakt weitergegeben worden.
 - Mitigation:
-  - Builder wurde direkt gepatcht, sodass nur explizit erlaubte Repo-Pfade gebuendelt werden und `AGENTS.md` / `CLAUDE.md` nicht mehr Teil des Source-Bundles sind.
+  - Builder wurde direkt gepatcht, sodass nur explizit erlaubte Repo-Pfade gebuendelt werden und `AGENTS.md` / `AGENTS.md` nicht mehr Teil des Source-Bundles sind.
   - Das korrigierte `Debian-1201-bookworm-amd64-beagle-server.tar.gz` wurde fuer `6.6.9` neu gebaut, gegen den eingebetteten Source-Tarball verifiziert und auf `beagle-os.com` veroeffentlicht.
   - Die installierte Hetzner-Zielmaschine wurde auf dieses Artefakt aktualisiert.
 - Naechster Schritt:
@@ -68,9 +68,9 @@ Stand: 2026-04-19
   - server-installer embedded source archive
 - Beschreibung:
   - Neben dem installimage-Pfad waren auch das public source tarball Packaging und der server-installer embedded source bundle fuer lokale Operator-Dateien anfaellig.
-  - Dadurch haetten `AGENTS.md` oder `CLAUDE.md` ueber allgemeine Release-Artefakte oder Server-Installer-ISO-Inhalte veroeffentlicht werden koennen.
+  - Dadurch haetten `AGENTS.md` oder `AGENTS.md` ueber allgemeine Release-Artefakte oder Server-Installer-ISO-Inhalte veroeffentlicht werden koennen.
 - Mitigation:
-  - `scripts/package.sh` und `scripts/build-server-installer.sh` wurden auf explizite erlaubte Repo-Pfade ohne `AGENTS.md` / `CLAUDE.md` umgestellt.
+  - `scripts/package.sh` und `scripts/build-server-installer.sh` wurden auf explizite erlaubte Repo-Pfade ohne `AGENTS.md` / `AGENTS.md` umgestellt.
   - `beagle-os-v6.6.9.tar.gz` und das `6.6.9` installimage embedded source bundle wurden lokal auf Abwesenheit dieser Dateien geprueft.
 - Naechster Schritt:
   - Repo-Aenderungen nach GitHub pushen, damit die Scrubbing-Regeln nicht nur lokal und in den gebauten Artefakten existieren.

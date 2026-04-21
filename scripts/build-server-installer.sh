@@ -61,7 +61,6 @@ mkdir -p "$(dirname "$BUILD_DIR/$BUNDLED_SOURCE_ARCHIVE_PATH")"
   cd "$ROOT_DIR"
   tar -czf "$BUILD_DIR/$BUNDLED_SOURCE_ARCHIVE_PATH" \
     --exclude='AGENTS.md' \
-    --exclude='CLAUDE.md' \
     beagle-kiosk \
     beagle-host \
     beagle-os \

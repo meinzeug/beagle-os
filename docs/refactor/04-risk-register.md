@@ -62,6 +62,6 @@ Stand: 2026-04-13
 - Risiko: Hoch
 - Wahrscheinlichkeit: Mittel
 - Mitigation:
-  - `AGENTS.md` und `CLAUDE.md` lokal-only halten und in `.gitignore` erzwingen
+  - `AGENTS.md` und `AGENTS.md` lokal-only halten und in `.gitignore` erzwingen
   - Security-Funde pro Run in `docs/refactor/11-security-findings.md` dokumentieren
   - keine Klartext-Secrets in versionierten Docs, Defaults oder Scripts zulassen

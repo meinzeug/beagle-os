@@ -77,6 +77,246 @@ import {
   loadDarkModePreference,
   updateDarkModeButton
 } from './ui/theme.js';
+  import { request } from './ui/api.js';
+  import {
+    actionButton,
+    escapeHtml,
+    fieldBlock,
+    formatDate,
+    maskedFieldBlock
+  } from './ui/dom.js';
+
+function buildDetailActionsHtml(status) {
+  let html = actionButton('refresh-detail', 'Refresh', 'ghost');
+  if (status === 'stopped' || status === 'shutoff') {
+    html += actionButton('vm-start', 'Starten', 'primary');
+  }
+  if (status === 'running') {
+    html += actionButton('vm-stop', 'Stoppen', 'ghost');
+    html += actionButton('vm-reboot', 'Neustart', 'ghost');
+    html += actionButton('novnc-ui', 'noVNC', 'ghost');
+    html += actionButton('sunshine-ui', 'Sunshine', 'ghost');
+    html += actionButton('download-linux', 'Installer Linux', 'ghost');
+    html += actionButton('download-windows', 'Installer Windows', 'ghost');
+    html += actionButton('download-live-usb', 'Live USB', 'ghost');
+  }
+  if (status === 'stopped' || status === 'shutoff') {
+    html += actionButton('download-linux', 'Installer Linux', 'ghost');
+    html += actionButton('download-windows', 'Installer Windows', 'ghost');
+    html += actionButton('download-live-usb', 'Live USB', 'ghost');
+  }
+  if (status === 'installing') {
+    html += actionButton('vm-stop', 'Stoppen', 'ghost');
+  }
+  html += actionButton('vm-delete', 'VM loeschen', 'danger');
+  return html;
+}
+
+function buildSummaryPanelHtml(vmid, profile) {
+  if (!profile) {
+    return '<div class="banner warn">VM ' + vmid + ': Kein Profil verfuegbar.</div>';
+  }
+  const role = String(profile.beagle_role || 'n/a').toUpperCase();
+  return (
+    '<div class="detail-section">' +
+    '<h3>Endpoint Profil</h3>' +
+    '<div class="detail-grid">' +
+    fieldBlock('VMID', String(profile.vmid || vmid)) +
+    fieldBlock('Name', profile.name || 'n/a') +
+    fieldBlock('Status', profile.status || 'n/a') +
+    fieldBlock('Node', profile.node || 'n/a') +
+    fieldBlock('Rolle', role) +
+    fieldBlock('Stream-Host', profile.stream_host || 'n/a') +
+    fieldBlock('Moonlight-Port', profile.moonlight_port ? String(profile.moonlight_port) : 'n/a') +
+    fieldBlock('Installer geeignet', profile.installer_target_eligible ? 'Ja' : 'Nein') +
+    fieldBlock('Letzte Aenderung', formatDate(profile.updated_at || profile.provisioned_at || '')) +
+    '</div>' +
+    '</div>'
+  );
+}
+
+function buildCredentialsPanelHtml(credentials) {
+  if (!credentials) {
+    return '<div class="banner warn">Credentials nicht verfuegbar.</div>';
+  }
+  return (
+    '<div class="detail-section">' +
+    '<h3>Sensitive Daten</h3>' +
+    '<div class="detail-grid">' +
+    maskedFieldBlock('Thin-Client Passwort', credentials.thinclient_password) +
+    maskedFieldBlock('Guest Passwort', credentials.guest_password) +
+    maskedFieldBlock('Sunshine Benutzername', credentials.sunshine_username) +
+    maskedFieldBlock('Sunshine Passwort', credentials.sunshine_password) +
+    maskedFieldBlock('Sunshine PIN', credentials.sunshine_pin) +
+    fieldBlock('USB-Tunnel Host', credentials.usb_tunnel_host || 'n/a') +
+    fieldBlock('USB-Tunnel Benutzer', credentials.usb_tunnel_user || 'n/a') +
+    fieldBlock('USB-Tunnel Port', credentials.usb_tunnel_port ? String(credentials.usb_tunnel_port) : 'n/a') +
+    '</div>' +
+    '</div>'
+  );
+}
+
+function buildUpdatesPanelHtml(update) {
+  if (!update) {
+    return '<div class="banner info">Keine Update-Informationen verfuegbar.</div>';
+  }
+  const policy = update.policy || {};
+  return (
+    '<div class="detail-section">' +
+    '<h3>Update Policy</h3>' +
+    '<div class="detail-grid">' +
+    fieldBlock('Update aktiviert', policy.enabled !== false ? 'Ja' : 'Nein') +
+    fieldBlock('Kanal', policy.channel || 'stable') +
+    fieldBlock('Verhalten', policy.behavior || 'prompt') +
+    fieldBlock('Version Pin', policy.version_pin || 'n/a') +
+    '</div>' +
+    '</div>' +
+    '<div class="button-row section-spaced-tight">' +
+    actionButton('update-check', 'Update pruefen', 'ghost') +
+    actionButton('update-apply', 'Update anwenden', 'primary') +
+    '</div>'
+  );
+}
+
+function buildUsbPanelHtml(usb) {
+  if (!usb) {
+    return '<div class="banner info">Keine USB-Informationen verfuegbar.</div>';
+  }
+  const attached = Array.isArray(usb.attached) ? usb.attached : [];
+  return (
+    '<div class="detail-section"><h3>USB Devices</h3><div class="button-row">' + actionButton('usb-refresh', 'USB aktualisieren', 'ghost') + '</div></div>' +
+    '<div class="table-wrap compact section-spaced-tight"><table class="vm-table compact-table"><thead><tr><th>Bus-ID</th><th>Name</th><th>Aktion</th></tr></thead><tbody>' +
+    (attached.length ? attached.map((d) =>
+      '<tr><td>' + escapeHtml(String(d.busid || '')) + '</td><td>' + escapeHtml(String(d.name || '')) + '</td>' +
+      '<td><button type="button" class="btn btn-ghost" data-action="usb-detach"' +
+      ' data-usb-busid="' + escapeHtml(String(d.busid || '')) + '"' +
+      ' data-usb-port="' + escapeHtml(String(d.port || '')) + '">Detach</button></td></tr>'
+    ).join('') : '<tr><td colspan="3" class="empty-cell">Keine USB-Geraete verbunden.</td></tr>') +
+    '</tbody></table></div>'
+  );
+}
+
+function buildTasksPanelHtml(pendingActions) {
+  if (!pendingActions || !pendingActions.length) {
+    return '<div class="banner info">Keine offenen Tasks.</div>';
+  }
+  return (
+    '<div class="detail-section"><h3>Queue</h3>' +
+    '<div class="table-wrap compact"><table class="vm-table compact-table"><thead><tr><th>Aktion</th><th>Status</th><th>Zeit</th></tr></thead><tbody>' +
+    pendingActions.map((a) =>
+      '<tr><td>' + escapeHtml(String(a.action || '')) + '</td><td>' + escapeHtml(String(a.status || '')) +
+      '</td><td>' + escapeHtml(formatDate(a.scheduled_at || a.created_at || '')) + '</td></tr>'
+    ).join('') +
+    '</tbody></table></div></div>'
+  );
+}
+
+function buildBundlesPanelHtml(bundles) {
+  if (!bundles || !bundles.length) {
+    return '<div class="banner info">Keine Support-Bundles vorhanden.</div>';
+  }
+  return (
+    '<div class="detail-section"><h3>Support Bundles</h3>' +
+    '<div class="table-wrap compact"><table class="vm-table compact-table"><thead><tr><th>Name</th><th>Groesse</th><th>Zeit</th></tr></thead><tbody>' +
+    bundles.map((b) =>
+      '<tr><td>' + escapeHtml(String(b.name || '')) + '</td><td>' + escapeHtml(String(b.size || '')) +
+      '</td><td>' + escapeHtml(formatDate(b.created_at || '')) + '</td></tr>'
+    ).join('') +
+    '</tbody></table></div></div>'
+  );
+}
+
+function loadDetail(vmid) {
+  const numericVmid = Number(vmid);
+  if (!numericVmid) return Promise.resolve();
+
+  state.selectedVmid = numericVmid;
+  renderInventory();
+
+  const titleEl = document.getElementById('detail-title');
+  const actionsEl = document.getElementById('detail-actions');
+  const statusChipEl = document.getElementById('detail-status-chip');
+  const stackEl = document.getElementById('detail-stack');
+
+  const vmEntry = state.inventory.find((v) => Number(profileOf(v).vmid) === numericVmid);
+  const profile = vmEntry ? profileOf(vmEntry) : null;
+  const displayName = profile
+    ? (String(profile.name || '').trim() || 'VM ' + numericVmid)
+    : 'VM ' + numericVmid;
+
+  if (titleEl) titleEl.textContent = displayName;
+
+  const status = String((profile && profile.status) || '').toLowerCase();
+
+  if (statusChipEl) {
+    statusChipEl.textContent = status ? status.toUpperCase() : 'UNBEKANNT';
+    statusChipEl.className = 'chip ' + (status === 'running' ? 'ok' : status === 'installing' ? 'info' : status ? 'warn' : 'muted');
+  }
+
+  if (actionsEl) {
+    actionsEl.innerHTML = buildDetailActionsHtml(status);
+  }
+
+  if (stackEl) {
+    stackEl.innerHTML =
+      '<div class="detail-panel" data-detail-panel="summary">' + buildSummaryPanelHtml(numericVmid, profile) + '</div>' +
+      '<div class="detail-panel" data-detail-panel="updates"><div class="banner info">Wird geladen...</div></div>' +
+      '<div class="detail-panel" data-detail-panel="tasks"><div class="banner info">Wird geladen...</div></div>' +
+      '<div class="detail-panel" data-detail-panel="usb"><div class="banner info">Wird geladen...</div></div>' +
+      '<div class="detail-panel" data-detail-panel="credentials"><div class="banner info">Wird geladen...</div></div>' +
+      '<div class="detail-panel" data-detail-panel="config"><div class="banner info">Konfiguration wird geladen...</div></div>' +
+      '<div class="detail-panel" data-detail-panel="bundles"><div class="banner info">Wird geladen...</div></div>';
+    setActiveDetailPanel(state.activeDetailPanel || 'summary');
+  }
+
+  return Promise.all([
+    request('/vms/' + numericVmid + '/credentials').then((data) => {
+      if (state.selectedVmid !== numericVmid || !stackEl) return;
+      const panel = stackEl.querySelector('[data-detail-panel="credentials"]');
+      if (panel) panel.innerHTML = buildCredentialsPanelHtml(data && data.credentials);
+    }).catch((err) => {
+      if (state.selectedVmid !== numericVmid || !stackEl) return;
+      const panel = stackEl.querySelector('[data-detail-panel="credentials"]');
+      if (panel) panel.innerHTML = '<div class="banner warn">Credentials: ' + escapeHtml(err.message) + '</div>';
+    }),
+    request('/vms/' + numericVmid + '/update').then((data) => {
+      if (state.selectedVmid !== numericVmid || !stackEl) return;
+      const panel = stackEl.querySelector('[data-detail-panel="updates"]');
+      if (panel) panel.innerHTML = buildUpdatesPanelHtml(data && data.update);
+    }).catch(() => {
+      if (state.selectedVmid !== numericVmid || !stackEl) return;
+      const panel = stackEl.querySelector('[data-detail-panel="updates"]');
+      if (panel) panel.innerHTML = '<div class="banner info">Update-Informationen nicht verfuegbar.</div>';
+    }),
+    request('/vms/' + numericVmid + '/usb').then((data) => {
+      if (state.selectedVmid !== numericVmid || !stackEl) return;
+      const panel = stackEl.querySelector('[data-detail-panel="usb"]');
+      if (panel) panel.innerHTML = buildUsbPanelHtml(data && data.usb);
+    }).catch(() => {
+      if (state.selectedVmid !== numericVmid || !stackEl) return;
+      const panel = stackEl.querySelector('[data-detail-panel="usb"]');
+      if (panel) panel.innerHTML = '<div class="banner info">USB-Informationen nicht verfuegbar.</div>';
+    }),
+    request('/vms/' + numericVmid + '/actions').then((data) => {
+      if (state.selectedVmid !== numericVmid || !stackEl) return;
+      const panel = stackEl.querySelector('[data-detail-panel="tasks"]');
+      if (panel) panel.innerHTML = buildTasksPanelHtml(data && data.pending_actions);
+    }).catch(() => {
+      if (state.selectedVmid !== numericVmid || !stackEl) return;
+      const panel = stackEl.querySelector('[data-detail-panel="tasks"]');
+      if (panel) panel.innerHTML = '<div class="banner info">Tasks nicht verfuegbar.</div>';
+    }),
+    request('/vms/' + numericVmid + '/support-bundles').then((data) => {
+      if (state.selectedVmid !== numericVmid || !stackEl) return;
+      const panel = stackEl.querySelector('[data-detail-panel="bundles"]');
+      if (panel) panel.innerHTML = buildBundlesPanelHtml(data && data.support_bundles);
+    }).catch(() => {
+      if (state.selectedVmid !== numericVmid || !stackEl) return;
+      const panel = stackEl.querySelector('[data-detail-panel="bundles"]');
+      if (panel) panel.innerHTML = '<div class="banner info">Bundles nicht verfuegbar.</div>';
+    }),
+  ]).then(() => undefined);
+}
 
 function bootstrapHashState() {
   const hashState = parseAppHash();
@@ -123,14 +363,19 @@ export function bootstrapApp() {
   });
   configureInventory({
     setActivePanel,
-    setBanner
+    setBanner,
+    addToActivityLog,
+    loadDashboard,
+    requestConfirm,
+    loadDetail
   });
   configureActions({
     addToActivityLog,
     loadDashboard,
     requestConfirm,
     runVmPowerAction,
-    setBanner
+    setBanner,
+    loadDetail
   });
   configurePolicies({
     addToActivityLog,
@@ -151,7 +396,8 @@ export function bootstrapApp() {
     setBanner
   });
   configureEvents({
-    setBanner
+    setBanner,
+    loadDetail
   });
   configurePanels({
     loadSettingsForPanel,
@@ -186,7 +432,8 @@ export function bootstrapApp() {
     renderProvisioningWorkspace,
     renderPolicies,
     renderIam,
-    setBanner
+    setBanner,
+    loadDetail
   });
 
   applyTitle();

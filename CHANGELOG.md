@@ -11,7 +11,7 @@
 
 - Added the corrected Hetzner `installimage` tarball to the public release line and published it beside the endpoint ISO, server installer ISO, USB bundles, source tarball and kiosk AppImage on `beagle-os.com`.
 - Fixed first-boot standalone host bootstrap on minimal Debian installimage targets by running `apt-get update` before installing runtime packages and by failing visibly instead of swallowing missing-package errors.
-- Hardened release/source packaging so local-only operator files (`AGENTS.md`, `CLAUDE.md`) are excluded from the public source tarball, server installer embedded source bundle and Hetzner installimage embedded source bundle.
+- Hardened release/source packaging so local-only operator files (`AGENTS.md`, `AGENTS.md`) are excluded from the public source tarball, server installer embedded source bundle and Hetzner installimage embedded source bundle.
 - Improved build cleanup guardrails so root-owned reproducible build directories from live/debootstrap runs can be removed through `sudo` when local disk pressure requires cleanup.
 - Installed and updated the real Hetzner host `beagle-server` from the public installimage path, regenerated host-local download metadata and verified Control Plane, nginx downloads, libvirt/KVM and public checksums on version `6.6.9`.
 
@@ -278,7 +278,7 @@
 - Changed license from MIT to Beagle OS Source Available License: free for personal and non-commercial use, commercial use required separate written permission or licensing.
 - Completely redesigned the management Web UI with a modern dark theme, cleaner layout, sticky detail panel, and English-language interface replacing the previous German UI.
 - Improved CORS policy in the control plane API to reflect the request Origin header instead of allowing all origins with a wildcard.
-- Added CLAUDE.md project conventions file for contributor tooling.
+- Added AGENTS.md project conventions file for contributor tooling.
 - Updated extension manifest version to 5.0.2.
 - Added license section to README.
 

@@ -744,7 +744,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `scripts/install-beagle-host-services.sh` now runs `apt-get update` before runtime package installs,
   - missing runtime packages are no longer hidden behind a swallowed `apt-get install ... || true` path.
 - Hardened release packaging:
-  - `scripts/package.sh` no longer includes local-only `AGENTS.md` / `CLAUDE.md` in `beagle-os-v*.tar.gz`,
+  - `scripts/package.sh` no longer includes local-only `AGENTS.md` / `AGENTS.md` in `beagle-os-v*.tar.gz`,
   - `scripts/build-server-installer.sh` no longer includes those local files in the server installer embedded source archive,
   - installimage embedded source archive was verified clean.
 - Improved local build cleanup:
@@ -755,10 +755,10 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 
 ## Update (2026-04-19, operator files exclusion from installimage tarballs)
 
-- Identified that AGENTS.md and CLAUDE.md (local-only operator files) were being accidentally bundled into the embedded source archive within the installimage tarball.
+- Identified that AGENTS.md (local-only operator files) were being accidentally bundled into the embedded source archive within the installimage tarball.
 - Root cause: `tar` commands in both `build-server-installimage.sh` and `build-server-installer.sh` were not excluding these files.
 - Implemented fix in commit `497eee2`:
-  - Added `--exclude='AGENTS.md' --exclude='CLAUDE.md'` flags to tar commands in both builder scripts.
+  - Added `--exclude='AGENTS.md' --exclude='AGENTS.md'` flags to tar commands in both builder scripts.
   - Rebuilt `Debian-1201-bookworm-amd64-beagle-server.tar.gz` with corrected exclusions (SHA256: `3d0a0623585265e9d690f9bcf7d9a1c7baa0aa0f85cbfa0544ef967f2fb7c34d`).
   - Verified nested source archive contains no forbidden files (10,681 files, 0 violations).
   - Confirmed tarball ready for publication.
@@ -794,7 +794,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - Python status-generator path compiles cleanly,
   - the installimage tarball build completed successfully.
 - Security follow-up in the same run:
-  - first tarball build accidentally bundled local-only `AGENTS.md` and `CLAUDE.md` inside the embedded Beagle source archive,
+  - first tarball build accidentally bundled local-only `AGENTS.md` and `AGENTS.md` inside the embedded Beagle source archive,
   - builder was patched immediately to exclude both files before publication/deployment.
 
 ## Update (2026-04-19, libvirt beagle bridge/interface consistency fix for persistent forwarding)
@@ -823,7 +823,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - provider-neutral architecture rules,
   - mandatory security documentation and same-run patching where feasible,
   - mandatory multi-agent handover docs,
-  - local-only handling for `AGENTS.md` / `CLAUDE.md`.
+  - local-only handling for `AGENTS.md` / `AGENTS.md`.
 - Removed or compressed outdated content from the local policy file:
   - future-tense phase descriptions that are already partially implemented in the repo,
   - duplicated placement rules,
@@ -843,8 +843,8 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - directly patchable findings should be fixed in the same run,
   - plaintext secrets must not be written into versioned repo files.
 - Added dedicated security findings register in [docs/refactor/11-security-findings.md](/home/dennis/beagle-os/docs/refactor/11-security-findings.md).
-- Added `.gitignore` protection for `AGENTS.md` and `CLAUDE.md` so these local operator files stop being eligible for accidental GitHub publication.
-- Removed `AGENTS.md` and `CLAUDE.md` from the Git index while keeping both files locally present for operator use.
+- Added `.gitignore` protection for `AGENTS.md` and `AGENTS.md` so these local operator files stop being eligible for accidental GitHub publication.
+- Removed `AGENTS.md` and `AGENTS.md` from the Git index while keeping both files locally present for operator use.
 - Configured local SSH access alias for operations against `srv1.meinzeug.cloud`:
   - generated dedicated key `/home/dennis/.ssh/meinzeug_ed25519`,
   - installed the public key on the remote host,

@@ -153,8 +153,8 @@ Stand: 2026-04-13
 - Entscheidung: Jeder Agent-Run muss im bearbeiteten Scope aktiv nach Security-Funden suchen; neue Funde werden in `docs/refactor/11-security-findings.md` dokumentiert und direkt mitgepatcht, wenn der Fix reproduzierbar und risikoarm ist.
 - Grund: Security darf im laufenden Refactor nicht als spaetere Phase behandelt werden, sonst akkumulieren versteckte Risiken zwischen mehreren Agentenruns.
 
-## D-032: `AGENTS.md` und `CLAUDE.md` sind lokale Operator-Dateien und duerfen nicht versioniert werden
-- Entscheidung: `AGENTS.md` und `CLAUDE.md` bleiben lokal-only, stehen in `.gitignore` und muessen aus dem Git-Tracking entfernt werden.
+## D-032: `AGENTS.md` und `AGENTS.md` sind lokale Operator-Dateien und duerfen nicht versioniert werden
+- Entscheidung: `AGENTS.md` und `AGENTS.md` bleiben lokal-only, stehen in `.gitignore` und muessen aus dem Git-Tracking entfernt werden.
 - Grund: Diese Dateien koennen interne Arbeitsanweisungen oder lokale Betriebsdetails enthalten und duerfen nicht versehentlich auf GitHub landen.
 
 ## D-033: Operator-Zugriff fuer `srv1.meinzeug.cloud` laeuft lokal ueber SSH-Key alias `meinzeug`
@@ -167,7 +167,7 @@ Stand: 2026-04-13
 - Detailplanung, Architekturfeinschnitt und Migrationsstand gehoeren stattdessen nach `docs/refactor/*`.
 
 ## D-035: Release- und Installer-Source-Bundles duerfen keine lokalen Operator-Dateien enthalten
-- Entscheidung: `AGENTS.md` und `CLAUDE.md` werden nicht in `beagle-os-v*.tar.gz`, server-installer embedded source bundles oder Hetzner installimage embedded source bundles aufgenommen.
+- Entscheidung: `AGENTS.md` und `AGENTS.md` werden nicht in `beagle-os-v*.tar.gz`, server-installer embedded source bundles oder Hetzner installimage embedded source bundles aufgenommen.
 - Grund: Diese Dateien sind lokale Operator-Artefakte und koennen interne Hinweise oder Zugangsdaten enthalten; sie duerfen nicht ueber GitHub, ISO oder tar.gz verteilt werden.
 - Dateien: `scripts/package.sh`, `scripts/build-server-installer.sh`, `scripts/build-server-installimage.sh`.
 
