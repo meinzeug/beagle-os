@@ -403,6 +403,14 @@ set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_LOGIN_BACKOFF_MAX_SECONDS"
 install -d -m 0755 /var/lib/beagle
 install -d -m 0750 /var/lib/beagle/beagle-manager
 chown -R "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" /var/lib/beagle/beagle-manager
+# Provider data dirs must be writable by beagle-manager
+install -d -m 0755 /var/lib/beagle/providers
+install -d -m 0755 /var/lib/beagle/providers/beagle
+install -d -m 0755 /var/lib/beagle/providers/beagle/vm-configs
+install -d -m 0755 /var/lib/beagle/providers/beagle/guest-exec-status
+install -d -m 0755 /var/lib/beagle/providers/beagle/guest-interfaces
+install -d -m 0755 /var/lib/beagle/providers/beagle/scheduled-restarts
+chown -R "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" /var/lib/beagle/providers
 
 if ! tls_runtime_tools_ready; then
   install_runtime_packages certbot python3-certbot-nginx
