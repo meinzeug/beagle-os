@@ -1,5 +1,16 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 20 Schritt 4+8: Secret-Gates + OWASP smoke baseline)
+
+- Neue security guardrails im Code umgesetzt:
+	- `scripts/security-secrets-check.sh` (kein getracktes `.env`, `.gitignore`-Regeln, Operator-Dateien untracked, Hardcoded-Secret-Pattern-Scan),
+	- `.security-secrets-allowlist` als explizite Ausnahme-Liste,
+	- CI-Workflow `.github/workflows/security-secrets-check.yml` (monatlich + manuell + push auf relevante Pfade).
+- Neue OWASP-basierte API-Baseline eingeführt:
+	- `scripts/security-owasp-smoke.sh` mit reproduzierbaren Checks für Access-Control/Auth/Input-Validation/Misconfiguration.
+- `docs/gofuture/20-security-hardening.md` Schritt 4 und 8 auf `[x]` gesetzt.
+- Security-Fund-Register in `docs/refactor/11-security-findings.md` um S-013 und S-014 ergänzt.
+
 ## Update (2026-04-21, GoFuture Plan 06 final test checkbox closed)
 
 - `scripts/test-server-installer-live-smoke.sh` erweitert:

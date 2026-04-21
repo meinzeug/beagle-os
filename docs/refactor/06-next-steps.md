@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-21 nach Plan-20 Security-Gates-Welle)
+
+0. **Security-Gates operationalisieren**:
+	- `scripts/security-secrets-check.sh` als verpflichtenden lokalen Pre-commit Hook dokumentieren,
+	- false positives regelmäßig gegen `.security-secrets-allowlist` reviewen (kein pauschales Whitelisting).
+
+0. **OWASP-Baseline erweitern**:
+	- `scripts/security-owasp-smoke.sh` um authentifizierte Negativ-/RBAC-Fälle ergänzen,
+	- Ergebnisse in periodischen Security-Runs in `docs/refactor/11-security-findings.md` mit Zeitstempel protokollieren.
+
 ## Delta (2026-04-21 nach vollstaendiger Plan-06-Testpflicht)
 
 0. **Plan 06 ist inhaltlich abgeschlossen; Fokus auf Release-Host-Operationalisierung**:

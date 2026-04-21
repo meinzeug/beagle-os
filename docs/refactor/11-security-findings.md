@@ -234,3 +234,34 @@ Stand: 2026-04-19
   - Debug-SSH bleibt nur als explizit gesetzte Operator-Option verfügbar.
 - Naechster Schritt:
   - Nach ISO-Rebuild verifizieren, dass Debug-SSH im Live-Boot ohne explizite Aktivierung nicht gestartet wird.
+
+## S-013 - Fehlende verpflichtende Secret-Hygiene-Gates im Repo
+
+- Status: mitigiert in Repo
+- Risiko: Hoch
+- Betroffene Dateien:
+  - `scripts/security-secrets-check.sh` (neu)
+  - `.github/workflows/security-secrets-check.yml` (neu)
+  - `.security-secrets-allowlist` (neu)
+- Beschreibung:
+  - Es fehlte ein verpflichtender Repo-Gate, der harte Secret-Leaks (getrackte `.env`, Operator-Dateien, typische Hardcoded-Secret-Muster) frühzeitig blockiert.
+- Mitigation:
+  - Neues Skript `scripts/security-secrets-check.sh` erzwingt Secret-Hygiene-Regeln und erzeugt Report in `dist/security-audit/secrets-check.txt`.
+  - CI-Workflow läuft monatlich + manuell + bei Änderungen an sicherheitsrelevanten Pfaden.
+  - Allowlist-Datei für explizite, reviewbare Ausnahmen ergänzt.
+
+## S-014 - OWASP-Baseline-Checks waren nicht reproduzierbar automatisiert
+
+- Status: mitigiert in Repo
+- Risiko: Mittel
+- Betroffene Dateien:
+  - `scripts/security-owasp-smoke.sh` (neu)
+- Beschreibung:
+  - OWASP Top-10 Abdeckung war primär textuell dokumentiert, aber nicht als reproduzierbarer API-Smoke in den operativen Skripten verfügbar.
+- Mitigation:
+  - `scripts/security-owasp-smoke.sh` implementiert reproduzierbare Baseline-Checks für zentrale OWASP-relevante Klassen:
+    - Broken Access Control (unauth mutating routes -> 401)
+    - Identification/Authentication Failures (auth endpoints unauth)
+    - Injection/Input Validation (malformed payload -> 400)
+    - Security Misconfiguration (unknown route handling)
+  - Script ist für lokale und srv1-Läufe vorgesehen.

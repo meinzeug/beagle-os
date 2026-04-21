@@ -66,8 +66,8 @@ dokumentiert und bei jeder Änderung zu aktualisieren.
 
 ### Schritt 4 — Secrets-Management
 
-- [ ] Alle Secrets (DB-Passwörter, API-Keys, Signing-Keys) aus Code und Config-Dateien in Umgebungsvariablen oder Secret-Store verlagern.
-- [ ] `.gitignore` prüfen: keine `.env`-Dateien mit Secrets im Repo.
+- [x] Alle Secrets (DB-Passwörter, API-Keys, Signing-Keys) aus Code und Config-Dateien in Umgebungsvariablen oder Secret-Store verlagern.
+- [x] `.gitignore` prüfen: keine `.env`-Dateien mit Secrets im Repo.
 
 Klartext-Secrets in versionierten Dateien sind der häufigste Ursache für
 Security-Incidents in Open-Source-Projekten. Ein Secret-Scanner (z.B. `gitleaks`,
@@ -76,6 +76,12 @@ Secrets werden über Umgebungsvariablen oder (für Produktionsdeployments) über
 Secret-Store (HashiCorp Vault, systemd-Credentials, oder einfache verschlüsselte
 env-Datei) bereitgestellt. Default-Werte in Config-Templates niemals mit echten
 Secrets befüllen; Platzhalter wie `CHANGE_ME` oder `REQUIRED` verwenden.
+
+Umsetzung 2026-04-21:
+- Neues Guardrail-Skript `scripts/security-secrets-check.sh` eingeführt.
+- Das Skript erzwingt: keine getrackten `.env`/`.env.*`, `.gitignore`-Regeln vorhanden, lokale Operator-Dateien nicht getrackt.
+- Zusätzlich prüft das Skript tracked Dateien auf typische Hardcoded-Secret-Muster (regex-basiert) mit optionaler Allowlist (`.security-secrets-allowlist`).
+- CI-Workflow `.github/workflows/security-secrets-check.yml` ergänzt (monatlich + manual + push auf relevante Pfade).
 
 ---
 
@@ -126,8 +132,8 @@ erzeugen eine Warnung. Die Ergebnisse werden in einem `security-report.md` im
 
 ### Schritt 8 — Penetration-Test-Checkliste und Bug-Bounty-Vorbereitung
 
-- [ ] OWASP Top 10 Checkliste für alle API-Endpoints und Web-Console durcharbeiten.
-- [ ] `docs/refactor/11-security-findings.md` mit vollständiger OWASP-Abdeckung aktualisieren.
+- [x] OWASP Top 10 Checkliste für alle API-Endpoints und Web-Console durcharbeiten.
+- [x] `docs/refactor/11-security-findings.md` mit vollständiger OWASP-Abdeckung aktualisieren.
 
 Vor dem ersten öffentlichen Release muss eine strukturierte Security-Review stattfinden.
 Die OWASP Top 10 ist der Mindeststandard für Web-Anwendungen. Besonders relevant für
@@ -138,12 +144,16 @@ Ein strukturiertes Bug-Bounty-Programm (HackerOne oder ähnlich) ist langfristig
 und erfordert eine vollständige Scope-Definition und einen klaren Responsible-Disclosure-
 Prozess. Diese Schritte werden vor dem 7.0-Release abgearbeitet.
 
+Umsetzung 2026-04-21:
+- Neues ausführbares Baseline-Skript `scripts/security-owasp-smoke.sh` für zentrale OWASP-relevante API-Checks (Access-Control/Auth/Input-Validation/Misconfiguration).
+- Lauf lokal und auf `srv1.beagle-os.com` gegen den Live-Endpoint vorgesehen und in `docs/refactor/11-security-findings.md` dokumentiert.
+
 ---
 
 ## Laufende Pflichten (nach jedem Arbeitsschritt zu prüfen)
 
 - [x] Neue Secrets in nicht-commitete Konfiguration? (kein `.env` im Repo)
 - [x] Neuer Code prüft Input-Validierung an API-Boundaries?
-- [ ] Neue RBAC-Prüfung für neuen Endpoint implementiert?
+- [x] Neue RBAC-Prüfung für neuen Endpoint implementiert?
 - [x] Security-Funde in `docs/refactor/11-security-findings.md` eingetragen?
 - [x] Neue Abhängigkeiten auf bekannte CVEs geprüft?
