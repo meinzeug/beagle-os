@@ -1,5 +1,20 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 04/20: Input-Validation + Dependency-Audit Welle)
+
+- Serverseitige Input-Validierung gehaertet:
+	- `beagle-host/bin/beagle-control-plane.py` mit Payload-Whitelist-Pruefung fuer zentrale Auth-POST-Routen (`login`, `refresh`, `logout`, `onboarding`, `auth/users`, `auth/roles`).
+	- `sanitizeIdentifier`-Logik auf Serverseite ergaenzt.
+	- `beagle-host/services/auth_session.py` erzwingt Username-/Role-Pattern in den relevanten CRUD/Auth-Pfaden.
+- Regression/Validierung:
+	- lokal: `python -m unittest tests.unit.test_auth_session` -> OK,
+	- srv1: invalid onboarding-username und unknown login keys liefern korrekt `400 bad_request` statt 500,
+	- srv1: bestehender Control-Plane-Smoke (`scripts/smoke-control-plane-api.sh`) weiterhin `13/13`.
+- Dependency-Audit Automatisierung implementiert:
+	- neues Skript `scripts/security-audit.sh` (pip-audit + npm audit, Report nach `dist/security-audit/`),
+	- neuer CI-Workflow `.github/workflows/security-audit.yml` (monatlich + manual dispatch).
+- Security-Run dokumentiert in `docs/refactor/11-security-findings.md` (S-007, S-008).
+
 ## Update (2026-04-21, GoFuture Plan 04/05/20: Security+Error-Handling Welle)
 
 - `beagle-host/bin/beagle-control-plane.py` gehaertet:

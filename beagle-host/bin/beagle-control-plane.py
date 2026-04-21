@@ -2549,6 +2549,32 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("invalid payload")
         return payload
 
+    @staticmethod
+    def _sanitize_identifier(value: Any, *, label: str, pattern: str) -> str:
+        text = str(value or "").strip()
+        if not text:
+            raise ValueError(f"{label} is required")
+        if not re.fullmatch(pattern, text):
+            raise ValueError(f"invalid {label}")
+        return text
+
+    @staticmethod
+    def _validate_payload_whitelist(
+        payload: dict[str, Any],
+        *,
+        required: set[str] | None = None,
+        optional: set[str] | None = None,
+    ) -> None:
+        required_keys = set(required or set())
+        optional_keys = set(optional or set())
+        allowed = required_keys | optional_keys
+        missing = [key for key in sorted(required_keys) if key not in payload]
+        if missing:
+            raise ValueError(f"missing keys: {', '.join(missing)}")
+        extras = [key for key in sorted(payload.keys()) if key not in allowed]
+        if extras:
+            raise ValueError(f"unexpected keys: {', '.join(extras)}")
+
     def _read_binary_body(self, *, max_bytes: int) -> bytes:
         length = int(self.headers.get("Content-Length", "0") or "0")
         if length <= 0 or length > max_bytes:
@@ -2744,12 +2770,13 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/v1/auth/login":
             try:
                 payload = self._read_json_body()
+                self._validate_payload_whitelist(payload, required={"username", "password"})
+                username = self._sanitize_identifier(payload.get("username"), label="username", pattern=r"^[A-Za-z0-9._-]{1,64}$")
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
-            username = str(payload.get("username") or "").strip()
             password = str(payload.get("password") or "")
-            if not username or not password:
+            if not password:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "username and password are required"})
                 return
             allowed, wait_seconds = self._check_login_guard(username)
@@ -2793,6 +2820,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/v1/auth/refresh":
             try:
                 payload = self._read_json_body()
+                self._validate_payload_whitelist(payload, optional={"refresh_token"})
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
@@ -2819,6 +2847,7 @@ class Handler(BaseHTTPRequestHandler):
             if int(self.headers.get("Content-Length", "0") or "0") > 0:
                 try:
                     payload = self._read_json_body()
+                    self._validate_payload_whitelist(payload, optional={"refresh_token"})
                 except Exception as exc:
                     self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                     return
@@ -2839,13 +2868,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/v1/auth/onboarding/complete":
             try:
                 payload = self._read_json_body()
+                self._validate_payload_whitelist(payload, required={"username", "password", "password_confirm"})
+                username = self._sanitize_identifier(payload.get("username"), label="username", pattern=r"^[A-Za-z0-9._-]{1,64}$")
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
-            username = str(payload.get("username") or "").strip()
             password = str(payload.get("password") or "")
             password_confirm = str(payload.get("password_confirm") or "")
-            if not username or not password:
+            if not password:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "username and password are required"})
                 return
             if password != password_confirm:
@@ -2880,12 +2910,14 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 payload = self._read_json_body()
+                self._validate_payload_whitelist(payload, required={"username", "password"}, optional={"role", "enabled"})
+                sanitized_username = self._sanitize_identifier(payload.get("username"), label="username", pattern=r"^[A-Za-z0-9._-]{1,64}$")
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
             try:
                 user = auth_session_service().create_user(
-                    username=str(payload.get("username") or "").strip(),
+                    username=sanitized_username,
                     password=str(payload.get("password") or ""),
                     role=str(payload.get("role") or "viewer").strip().lower() or "viewer",
                     enabled=bool(payload.get("enabled", True)),
@@ -2914,6 +2946,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 payload = self._read_json_body()
+                self._validate_payload_whitelist(payload, required={"name", "permissions"})
+                sanitized_role = self._sanitize_identifier(payload.get("name"), label="role", pattern=r"^[A-Za-z0-9._:-]{1,64}$").lower()
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
@@ -2921,7 +2955,7 @@ class Handler(BaseHTTPRequestHandler):
             permissions = [str(value).strip() for value in permissions_raw if str(value).strip()]
             try:
                 role = auth_session_service().save_role(
-                    name=str(payload.get("name") or "").strip().lower(),
+                    name=sanitized_role,
                     permissions=permissions,
                 )
             except Exception as exc:

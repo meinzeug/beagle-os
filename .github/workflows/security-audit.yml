@@ -1,0 +1,47 @@
+name: security-audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 1 * *'
+
+jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install beagle-kiosk dependencies
+        working-directory: beagle-kiosk
+        run: npm ci || npm install
+
+      - name: Run security audit
+        env:
+          BEAGLE_SECURITY_AUDIT_PYTHON: python
+          BEAGLE_SECURITY_AUDIT_STRICT: '0'
+        run: |
+          chmod +x scripts/security-audit.sh
+          scripts/security-audit.sh
+
+      - name: Upload audit reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-reports
+          path: dist/security-audit

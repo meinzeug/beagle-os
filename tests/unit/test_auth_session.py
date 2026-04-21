@@ -66,6 +66,18 @@ class AuthSessionOnboardingTests(unittest.TestCase):
             onboarding_doc = load_json_file(root / "auth" / "onboarding.json", {})
             self.assertEqual(onboarding_doc.get("completed_by"), "admin")
 
+    def test_create_user_rejects_invalid_username(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = self.make_service(Path(temp_dir))
+            with self.assertRaises(ValueError):
+                service.create_user(username="bad user", password="secret123", role="viewer", enabled=True)
+
+    def test_save_role_rejects_invalid_name(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = self.make_service(Path(temp_dir))
+            with self.assertRaises(ValueError):
+                service.save_role(name="bad role", permissions=["auth:read"])
+
 
 if __name__ == "__main__":
     unittest.main()

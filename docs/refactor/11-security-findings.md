@@ -126,3 +126,45 @@ Stand: 2026-04-19
   - Env-Werte auf `srv1` geprueft und auf Produktionswert (`240`) zurueckgesetzt.
 - Naechster Schritt:
   - Refresh-Token auf HTTP-only/SameSite=Strict Cookie-Flow umstellen (aktuell noch offen in GoFuture 20, Schritt 2).
+
+## S-007 - Fehlende serverseitige Payload-Whitelist/Identifier-Validation in Auth-POST-Routen
+
+- Status: mitigiert in Repo und auf `srv1.beagle-os.com`
+- Risiko: Mittel bis Hoch
+- Betroffene Dateien:
+  - `beagle-host/bin/beagle-control-plane.py`
+  - `beagle-host/services/auth_session.py`
+  - `tests/unit/test_auth_session.py`
+- Beschreibung:
+  - Mehrere Auth-POST-Routen akzeptierten bislang zusaetzliche oder ungueltige Felder ohne strikte Whitelist-Pruefung.
+  - Identifier-Checks waren nicht durchgaengig serverseitig erzwungen (z.B. User-/Role-Namen mit ungueltigen Zeichen).
+- Mitigation:
+  - Control-Plane hat jetzt Whitelist-Schema-Pruefung fuer zentrale Auth-POST-Routen (`login`, `refresh`, `logout`, `onboarding/complete`, `auth/users`, `auth/roles`).
+  - Serverseitige Identifier-Sanitizer in Handler + Auth-Session-Service ergaenzt.
+  - `AuthSessionService` erzwingt `USERNAME_PATTERN`/`ROLE_NAME_PATTERN` in `create_user`, `update_user`, `save_role`, `complete_onboarding`, `login`.
+  - Unit-Tests um negative Faelle erweitert (`invalid username`, `invalid role name`).
+- Validierung:
+  - Lokal: `python -m unittest tests.unit.test_auth_session` -> OK.
+  - `srv1`: `/api/v1/auth/onboarding/complete` mit `username="bad user"` liefert `400` + `code=bad_request`.
+  - `srv1`: `/api/v1/auth/login` mit zusaetzlichem Feld `extra` liefert `400` + `invalid payload: unexpected keys`.
+
+## S-008 - Fehlende automatisierte Dependency-Audit-Integration
+
+- Status: mitigiert (Automation vorhanden), Findings offen
+- Risiko: Mittel
+- Betroffene Dateien:
+  - `scripts/security-audit.sh`
+  - `.github/workflows/security-audit.yml`
+  - `.gitignore`
+- Beschreibung:
+  - Es fehlte ein reproduzierbarer, regelmaessig laufender CVE-Check fuer Python- und Node-Abhaengigkeiten.
+- Mitigation:
+  - Neues Skript `scripts/security-audit.sh` hinzugefuegt (`pip-audit` + `npm audit`, Report-Ausgabe nach `dist/security-audit/`).
+  - Neuer GitHub-Workflow `.github/workflows/security-audit.yml` mit monatlichem Schedule + manuellem Trigger + Report-Artefakt-Upload.
+  - `.gitignore` um `.env` / `.env.*` erweitert.
+- Validierung:
+  - Lokal ausgefuehrt (`BEAGLE_SECURITY_AUDIT_STRICT=0 scripts/security-audit.sh`).
+  - Ergebnis: bekannte Vulnerabilities gemeldet (`pip` im venv; npm audit findings im `beagle-kiosk`-Scope) und als Reports gespeichert.
+- Naechster Schritt:
+  - `pip` im Runtime-/CI-Umfeld auf gefixte Version anheben,
+  - npm findings im `beagle-kiosk` aufloesen oder begruendete Ignore-Liste mit Ablaufdatum einfuehren.

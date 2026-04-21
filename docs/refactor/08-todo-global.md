@@ -31,6 +31,9 @@
 - [x] Standardize backend error payloads with `code` field and add centralized sanitized `500 internal_error` boundary in control-plane request handling (2026-04-21).
 - [x] Tighten auth default access-token TTL to 15 minutes (`BEAGLE_AUTH_ACCESS_TTL_SECONDS=900`) in runtime and installer defaults (2026-04-21).
 - [x] Verify `pytest tests/unit` baseline passes (`15 passed`) and record provider-grep audit execution for GoFuture Plan 05 tracking (2026-04-21).
+- [x] Enforce server-side auth payload whitelists and identifier validation (`sanitizeIdentifier`-equivalent) in control-plane/auth-session, then validate on `srv1.beagle-os.com` (2026-04-21).
+- [x] Add automated dependency CVE audit tooling (`scripts/security-audit.sh`) and scheduled CI workflow (`.github/workflows/security-audit.yml`) with report artifacts (2026-04-21).
+- [x] Extend `.gitignore` guardrails for `.env` / `.env.*` and verify no tracked `.env` secrets (2026-04-21).
 
 - [ ] Complete dedicated-host bootstrap validation on new Hetzner server `46.4.96.80` (`srv1.beagle-os.com`) and verify Beagle core services/ports.
 - [ ] Verify KVM availability on the new dedicated host (`/dev/kvm`, `virsh domcapabilities --virttype kvm`) and re-run VM provisioning smoke through Beagle API/UI.

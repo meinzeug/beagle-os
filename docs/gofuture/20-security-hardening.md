@@ -111,8 +111,8 @@ Netzwerkkommunikation brauchen bekommen `PrivateNetwork=yes`.
 
 ### Schritt 7 — Dependency-Updates und CVE-Scanning
 
-- [ ] `requirements.txt` (Python) und `package.json` (Node.js) monatlich auf CVEs prüfen.
-- [ ] `pip-audit` oder `safety` für Python, `npm audit` für Node.js in CI integrieren.
+- [x] `requirements.txt` (Python) und `package.json` (Node.js) monatlich auf CVEs prüfen.
+- [x] `pip-audit` oder `safety` für Python, `npm audit` für Node.js in CI integrieren.
 
 Bekannte CVEs in Abhängigkeiten sind einer der am einfachsten ausnutzbaren Angriffsvektoren.
 Automatisches CVE-Scanning in CI warnt bei jeder Code-Änderung wenn eine bekannte
@@ -142,8 +142,8 @@ Prozess. Diese Schritte werden vor dem 7.0-Release abgearbeitet.
 
 ## Laufende Pflichten (nach jedem Arbeitsschritt zu prüfen)
 
-- [ ] Neue Secrets in nicht-commitete Konfiguration? (kein `.env` im Repo)
-- [ ] Neuer Code prüft Input-Validierung an API-Boundaries?
+- [x] Neue Secrets in nicht-commitete Konfiguration? (kein `.env` im Repo)
+- [x] Neuer Code prüft Input-Validierung an API-Boundaries?
 - [ ] Neue RBAC-Prüfung für neuen Endpoint implementiert?
 - [x] Security-Funde in `docs/refactor/11-security-findings.md` eingetragen?
-- [ ] Neue Abhängigkeiten auf bekannte CVEs geprüft?
+- [x] Neue Abhängigkeiten auf bekannte CVEs geprüft?

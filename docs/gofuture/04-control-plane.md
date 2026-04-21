@@ -63,8 +63,8 @@ Fehlendes RBAC auf einem Endpoint ist ein Security-Finding und landet in
 
 ### Schritt 4 — Input-Validierung bei API-Boundaries härten
 
-- [ ] Alle POSTed JSON-Bodies durch Whitelist-Schemata validieren.
-- [ ] `sanitizeIdentifier` und ähnliche Prüffunktionen serverseitig nicht nur clientseitig erzwingen.
+- [x] Alle POSTed JSON-Bodies durch Whitelist-Schemata validieren.
+- [x] `sanitizeIdentifier` und ähnliche Prüffunktionen serverseitig nicht nur clientseitig erzwingen.
 
 Clientseitige Validierung im JavaScript ist kein Sicherheitsmerkmal sondern nur UX.
 Alle Eingaben die an den Server gehen müssen server-seitig nochmals nach Typ, Länge

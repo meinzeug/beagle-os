@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 import threading
 import time
@@ -11,6 +12,8 @@ from typing import Any, Callable
 
 
 MIN_PASSWORD_LENGTH = 8
+USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+ROLE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
 
 
 class AuthSessionService:
@@ -81,6 +84,24 @@ class AuthSessionService:
     def _is_bootstrap_only_user(user: dict[str, Any]) -> bool:
         return bool(user.get("bootstrap_only", False))
 
+    @staticmethod
+    def _validate_username(username: str) -> str:
+        value = str(username or "").strip()
+        if not value:
+            raise ValueError("username is required")
+        if not USERNAME_PATTERN.fullmatch(value):
+            raise ValueError("invalid username")
+        return value
+
+    @staticmethod
+    def _validate_role_name(name: str) -> str:
+        value = str(name or "").strip().lower()
+        if not value:
+            raise ValueError("role name is required")
+        if not ROLE_NAME_PATTERN.fullmatch(value):
+            raise ValueError("invalid role name")
+        return value
+
     def list_users(self) -> list[dict[str, Any]]:
         users_doc = self._load_users_doc()
         result: list[dict[str, Any]] = []
@@ -99,15 +120,13 @@ class AuthSessionService:
         return sorted(result, key=lambda entry: entry["username"].lower())
 
     def create_user(self, *, username: str, password: str, role: str, enabled: bool = True) -> dict[str, Any]:
-        user_name = str(username or "").strip()
-        if not user_name:
-            raise ValueError("username is required")
+        user_name = self._validate_username(username)
         passwd = str(password or "")
         if not passwd:
             raise ValueError("password is required")
         if len(passwd) < MIN_PASSWORD_LENGTH:
             raise ValueError(f"password must be at least {MIN_PASSWORD_LENGTH} characters")
-        role_name = str(role or "").strip().lower() or "viewer"
+        role_name = self._validate_role_name(role or "viewer")
         if not self._role_exists(role_name):
             raise ValueError("unknown role")
         users_doc = self._load_users_doc()
@@ -138,9 +157,7 @@ class AuthSessionService:
         enabled: bool | None = None,
         password: str | None = None,
     ) -> dict[str, Any]:
-        user_name = str(username or "").strip()
-        if not user_name:
-            raise ValueError("username is required")
+        user_name = self._validate_username(username)
         users_doc = self._load_users_doc()
         users = users_doc.setdefault("users", [])
         target: dict[str, Any] | None = None
@@ -153,7 +170,7 @@ class AuthSessionService:
         if target is None:
             raise ValueError("user not found")
         if role is not None:
-            role_name = str(role or "").strip().lower() or "viewer"
+            role_name = self._validate_role_name(role or "viewer")
             if not self._role_exists(role_name):
                 raise ValueError("unknown role")
             target["role"] = role_name
@@ -207,9 +224,7 @@ class AuthSessionService:
         return sorted(output, key=lambda role: role["name"])
 
     def save_role(self, *, name: str, permissions: list[str]) -> dict[str, Any]:
-        role_name = str(name or "").strip().lower()
-        if not role_name:
-            raise ValueError("role name is required")
+        role_name = self._validate_role_name(name)
         perms = sorted({str(item).strip() for item in permissions if str(item).strip()})
         roles_doc = self._load_roles_doc()
         roles = roles_doc.setdefault("roles", [])
@@ -355,10 +370,8 @@ class AuthSessionService:
         bootstrap_username: str = "admin",
         bootstrap_disabled: bool = False,
     ) -> dict[str, Any]:
-        user_name = str(username or "").strip()
+        user_name = self._validate_username(username)
         passwd = str(password or "")
-        if not user_name:
-            raise ValueError("username is required")
         if not passwd:
             raise ValueError("password is required")
         if len(passwd) < MIN_PASSWORD_LENGTH:
@@ -389,7 +402,10 @@ class AuthSessionService:
 
     def login(self, *, username: str, password: str, remote_addr: str = "", user_agent: str = "") -> dict[str, Any] | None:
         with self._state_lock:
-            user = self._find_user(username)
+            user_name = str(username or "").strip()
+            if not USERNAME_PATTERN.fullmatch(user_name):
+                return None
+            user = self._find_user(user_name)
             if user is None:
                 return None
             if not bool(user.get("enabled", True)):
