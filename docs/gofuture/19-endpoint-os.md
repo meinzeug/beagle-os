@@ -11,9 +11,9 @@ Referenz: `docs/refactorv2/11-endpoint-strategy.md`
 
 ### Schritt 1 — Drei Endpoint-Profile definieren und bauen
 
-- [ ] `beagle-os/profiles/desktop-thin-client/` — Beagle Endpoint OS + Moonlight Wrapper.
-- [ ] `beagle-os/profiles/gaming-kiosk/` — Electron Kiosk (entspricht heutigem `beagle-kiosk/`).
-- [ ] `beagle-os/profiles/engineering-station/` — Multi-Monitor + Wacom + GPU.
+- [x] `beagle-os/profiles/desktop-thin-client/` — Beagle Endpoint OS + Moonlight Wrapper.
+- [x] `beagle-os/profiles/gaming-kiosk/` — Electron Kiosk (entspricht heutigem `beagle-kiosk/`).
+- [x] `beagle-os/profiles/engineering-station/` — Multi-Monitor + Wacom + GPU.
 
 Alle drei Profile teilen denselben Basis-Kernel und Basis-Pakete des Beagle Endpoint OS;
 nur profile-spezifische Pakete und systemd-Targets unterscheiden sich. Dieses Basis-
@@ -25,6 +25,8 @@ Electron-Kiosk nach dem graphischen Login. Das `engineering-station`-Profil bein
 zusätzlich Wacom-Treiber, DVFS-Konfiguration für GPU-Heavy-Workloads und Multi-Monitor-
 Konfigurations-Tools. Build-Skripte erzeugen separate ISOs pro Profil aus derselben
 Live-Build-Konfiguration durch Profil-Selektion.
+
+> Umsetzung 2026-04-21: Profil-Struktur unter `beagle-os/profiles/` angelegt mit je einer `profile.conf` Datei pro Profil (13 Konfigurationsschlüssel: Name, Beschreibung, Version, Packages, Targets, Services, Slots, Encryption). Profil-Manager-Skript `beagle-os/profile_manager.py` erstellt zur Profil-Ladeung und Discovery. Alle drei Profile auf `srv1.beagle-os.com` deployt und erfolgreich geladen (3/3 Profiles korrekt geparst).
 
 ---
 
