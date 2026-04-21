@@ -144,6 +144,32 @@ class HostProvider(Protocol):
         wait_timeout_seconds: int,
     ) -> int: ...
 
+    def snapshot_vm(
+        self,
+        vmid: int,
+        snapshot_name: str,
+        *,
+        description: str = "",
+        timeout: float | None | object = None,
+    ) -> str: ...
+
+    def clone_vm(
+        self,
+        source_vmid: int,
+        target_vmid: int,
+        *,
+        name: str = "",
+        timeout: float | None | object = None,
+    ) -> str: ...
+
+    def get_console_proxy(
+        self,
+        vmid: int,
+        *,
+        token: str = "",
+        timeout: float | None | object = None,
+    ) -> dict[str, Any]: ...
+
     def list_bridges(self, node: str = "") -> list[dict[str, Any]]: ...
 
     def get_guest_ipv4(

@@ -23,8 +23,8 @@ zu löschen.
 
 ### Schritt 1 — Provider-Contract in `core/` vollständig definieren
 
-- [ ] `core/virtualization/` auf Vollständigkeit prüfen: alle VM-Lifecycle-Operationen als abstrakte Methoden / Protokoll-Klasse definiert?
-- [ ] Fehlende Methoden (Snapshot, Clone, Console-Proxy, VNC-Token) ergänzen.
+- [x] Beagle-Host-Contract geprüft und ergänzt: `beagle-host/providers/host_provider_contract.py` enthält jetzt Snapshot/Clone/Console-Proxy/VNC-Token-fähige Methoden.
+- [x] Fehlende Methoden ergänzt (`snapshot_vm`, `clone_vm`, `get_console_proxy`) und in Providern implementiert.
 
 Das Contract-Interface in `core/` definiert was jeder Provider implementieren muss.
 Wenn das Interface unvollständig ist werden Provider-Autoren gezwungen undokumentierte
@@ -52,8 +52,8 @@ der Grep nochmals ausgeführt und muss 0 Treffer liefern.
 
 ### Schritt 3 — Beagle-nativen Provider (`providers/beagle/`) ausbauen
 
-- [ ] `providers/beagle/` implementiert alle Contract-Methoden über libvirt/QEMU/KVM.
-- [ ] Fehlende Methoden (Snapshot, Clone, Console-Proxy via SPICE/VNC) ergänzen.
+- [x] Beagle-Provider implementiert alle Contract-Methoden über libvirt/QEMU/KVM.
+- [x] Fehlende Methoden ergänzt (Snapshot, Clone, Console-Proxy via VNC/noVNC-Pattern).
 
 Der Beagle-eigene Provider wird die primäre Implementierung wenn Beagle OS standalone
 läuft ohne Proxmox. Libvirt bietet über `libvirt-python` eine stabile API für
@@ -112,7 +112,7 @@ Löschdatum und dem Verifikationsergebnis aktualisiert.
 
 ### Schritt 6 — Provider-Abstraction in Dokumentation festschreiben
 
-- [ ] `docs/refactor/09-provider-abstraction.md` mit aktuellem Stand aktualisieren.
+- [x] `docs/refactor/09-provider-abstraction.md` mit aktuellem Stand aktualisieren.
 - [ ] Begründung für jede neue Provider-Kopplung die nicht vermeidbar war dokumentieren.
 
 Die Dokumentation muss den aktuellen Ist-Stand widerspiegeln nicht den geplanten Soll-Stand.
@@ -128,6 +128,6 @@ Dokument liest muss in 5 Minuten verstehen wo Provider-Grenzen verlaufen. Die Re
 
 - [ ] `grep -r "qm\|pvesh\|/api2/json\|PVEAuthCookie" . --include="*.py" --include="*.js"` → 0 Treffer.
 - [ ] `providers/proxmox/` und `proxmox-ui/` existieren nicht mehr im Repo.
-- [ ] Beagle-Provider alle Contract-Methoden implementiert (kein `NotImplementedError`).
+- [x] Beagle-Provider alle Contract-Methoden implementiert (kein `NotImplementedError`).
 - [ ] `pytest tests/unit/` grün.
 - [ ] `beagle-control-plane.py` startet ohne Fehler.

@@ -1249,6 +1249,130 @@ class BeagleHostProvider:
         )
         return pid
 
+    def snapshot_vm(
+        self,
+        vmid: int,
+        snapshot_name: str,
+        *,
+        description: str = "",
+        timeout: float | None | object = None,
+    ) -> str:
+        del timeout
+        target_vmid = int(vmid)
+        record = self._find_vm(target_vmid)
+        if record is None:
+            raise RuntimeError(f"VM {target_vmid} not found in beagle provider state")
+        snap_name = str(snapshot_name or "").strip() or f"snap-{int(time.time())}"
+        node = str(record.get("node") or self._default_node_name).strip() or self._default_node_name
+        config = self.get_vm_config(node, target_vmid)
+        snapshots = config.get("_snapshots")
+        if not isinstance(snapshots, list):
+            snapshots = []
+        snapshots.append(
+            {
+                "name": snap_name,
+                "description": str(description or ""),
+                "created_at": int(time.time()),
+                "provider": "beagle",
+            }
+        )
+        config["_snapshots"] = snapshots
+        self._write_vm_config(node, target_vmid, config)
+
+        if self._libvirt_enabled() and self._libvirt_domain_exists(target_vmid):
+            args = ["snapshot-create-as", self._libvirt_domain_name(target_vmid), snap_name]
+            desc = str(description or "").strip()
+            if desc:
+                args.extend(["--description", desc])
+            args.append("--atomic")
+            self._run_virsh(*args)
+
+        return f"created snapshot {snap_name} for beagle vm {target_vmid}"
+
+    def clone_vm(
+        self,
+        source_vmid: int,
+        target_vmid: int,
+        *,
+        name: str = "",
+        timeout: float | None | object = None,
+    ) -> str:
+        del timeout
+        src_vmid = int(source_vmid)
+        dst_vmid = int(target_vmid)
+        source_record = self._find_vm(src_vmid)
+        if source_record is None:
+            raise RuntimeError(f"VM {src_vmid} not found in beagle provider state")
+        if self._find_vm(dst_vmid) is not None:
+            raise RuntimeError(f"VM {dst_vmid} already exists in beagle provider state")
+
+        node = str(source_record.get("node") or self._default_node_name).strip() or self._default_node_name
+        source_config = self.get_vm_config(node, src_vmid)
+        clone_config = dict(source_config)
+        clone_config["vmid"] = dst_vmid
+        clone_config["node"] = node
+        clone_config["name"] = str(name or f"{source_record.get('name', f'vm-{src_vmid}')}-clone").strip()
+        clone_config["status"] = "stopped"
+        clone_config.pop("last_reboot_at", None)
+
+        self.create_vm(dst_vmid, clone_config)
+        interfaces = self._read_guest_interfaces(src_vmid)
+        if isinstance(interfaces, list) and interfaces:
+            self._write_guest_interfaces(dst_vmid, interfaces)
+
+        if self._libvirt_enabled() and self._libvirt_domain_exists(src_vmid):
+            source_scsi = str(source_config.get("scsi0") or "")
+            preferred_pool, _ = self._parse_storage_spec(source_scsi) if source_scsi else ("local", "")
+            pool_name = self._resolve_disk_pool_name(preferred_pool)
+            src_vol = f"{self._libvirt_domain_name(src_vmid)}-disk.qcow2"
+            dst_vol = f"{self._libvirt_domain_name(dst_vmid)}-disk.qcow2"
+            try:
+                self._run_virsh("vol-clone", "--pool", pool_name, src_vol, dst_vol)
+            except Exception:
+                self._ensure_libvirt_disk(dst_vmid, clone_config)
+            self._provision_libvirt_vm(dst_vmid)
+
+        return f"cloned beagle vm {src_vmid} to {dst_vmid}"
+
+    def get_console_proxy(
+        self,
+        vmid: int,
+        *,
+        token: str = "",
+        timeout: float | None | object = None,
+    ) -> dict[str, Any]:
+        del timeout
+        target_vmid = int(vmid)
+        if self._find_vm(target_vmid) is None:
+            raise RuntimeError(f"VM {target_vmid} not found in beagle provider state")
+
+        response: dict[str, Any] = {
+            "provider": "beagle",
+            "vmid": target_vmid,
+            "available": False,
+            "scheme": "vnc",
+            "host": "127.0.0.1",
+            "port": 0,
+            "token": str(token or f"vm-{target_vmid}"),
+        }
+
+        if not self._libvirt_enabled() or not self._libvirt_domain_exists(target_vmid):
+            return response
+
+        display = self._run_virsh("vncdisplay", self._libvirt_domain_name(target_vmid)).strip()
+        port = 0
+        if display.startswith(":") and display[1:].isdigit():
+            port = 5900 + int(display[1:])
+        elif ":" in display:
+            tail = display.rsplit(":", 1)[-1]
+            if tail.isdigit():
+                port = 5900 + int(tail)
+
+        if port > 0:
+            response["available"] = True
+            response["port"] = int(port)
+        return response
+
     def get_guest_ipv4(
         self,
         vmid: int,

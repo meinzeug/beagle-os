@@ -394,6 +394,55 @@ class ProxmoxHostProvider:
         )
         return int(process.pid)
 
+    def snapshot_vm(
+        self,
+        vmid: int,
+        snapshot_name: str,
+        *,
+        description: str = "",
+        timeout: float | None | object = None,
+    ) -> str:
+        snap_name = str(snapshot_name or "").strip()
+        if not snap_name:
+            raise ValueError("snapshot_name is required")
+        command = ["qm", "snapshot", str(int(vmid)), snap_name]
+        desc = str(description or "").strip()
+        if desc:
+            command.extend(["--description", desc])
+        return self._run_checked(command, timeout=timeout)
+
+    def clone_vm(
+        self,
+        source_vmid: int,
+        target_vmid: int,
+        *,
+        name: str = "",
+        timeout: float | None | object = None,
+    ) -> str:
+        command = ["qm", "clone", str(int(source_vmid)), str(int(target_vmid)), "--full", "1"]
+        clone_name = str(name or "").strip()
+        if clone_name:
+            command.extend(["--name", clone_name])
+        return self._run_checked(command, timeout=timeout)
+
+    def get_console_proxy(
+        self,
+        vmid: int,
+        *,
+        token: str = "",
+        timeout: float | None | object = None,
+    ) -> dict[str, Any]:
+        del timeout
+        return {
+            "provider": "proxmox",
+            "vmid": int(vmid),
+            "available": False,
+            "scheme": "vnc",
+            "host": "127.0.0.1",
+            "port": 0,
+            "token": str(token or f"vm-{int(vmid)}"),
+        }
+
     def get_guest_ipv4(
         self,
         vmid: int,

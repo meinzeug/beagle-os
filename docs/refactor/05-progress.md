@@ -1,5 +1,22 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 05 step 1/3 umgesetzt: Provider Contract + Beagle Provider Erweiterung)
+
+- Provider-Contract erweitert in `beagle-host/providers/host_provider_contract.py` um:
+	- `snapshot_vm(...)`
+	- `clone_vm(...)`
+	- `get_console_proxy(...)`
+- Beagle-Provider implementiert diese Methoden real:
+	- Snapshot: lokale Snapshot-Metadaten + optionales libvirt snapshot-create.
+	- Clone: VM-State-Klon + optionales libvirt volume-clone mit Fallback.
+	- Console-Proxy: VNC-Metadaten aus libvirt (`vncdisplay`) fuer noVNC-Weiterverarbeitung.
+- Proxmox-Provider ebenfalls auf Contract-Paritaet erweitert (snapshot/clone/console payload), ohne neue Kopplung ausserhalb des Provider-Layers.
+- Unit-Test hinzugefuegt: `tests/unit/test_beagle_host_provider_contract_extensions.py` (3 Tests, alle gruen lokal).
+- Deploy + Runtime-Smoketest auf `srv1.beagle-os.com` erfolgreich:
+	- `snapshot_vm(301, "smoke-snap")` -> success,
+	- `clone_vm(301, 302)` -> success,
+	- `get_console_proxy(301)` -> valid payload.
+
 ## Update (2026-04-21, GoFuture Plan 04 Schritt 1+3 umgesetzt: RBAC-Nachruestung)
 
 - Control-Plane POST-Mutationspfad vereinheitlicht: `POST /api/v1/vms` wird jetzt als Legacy-Alias sicher auf den Provisioning-Mutationspfad gemappt.

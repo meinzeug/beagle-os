@@ -1,5 +1,18 @@
 # Provider-Abstraction Notes (2026-04-18)
 
+- 2026-04-21 contract-extension follow-up (Plan 05 step 1/3):
+	- Provider contract in [beagle-host/providers/host_provider_contract.py](beagle-host/providers/host_provider_contract.py) was extended with:
+		- `snapshot_vm(...)`
+		- `clone_vm(...)`
+		- `get_console_proxy(...)`
+	- Beagle implementation in [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py):
+		- snapshot metadata persisted in VM config (`_snapshots`) + optional libvirt snapshot creation (`virsh snapshot-create-as`).
+		- clone path creates new provider-state VM and attempts libvirt disk clone (`virsh vol-clone`) with safe fallback.
+		- console proxy payload returns VNC endpoint metadata when libvirt vncdisplay is available.
+	- Proxmox implementation in [beagle-host/providers/proxmox_host_provider.py](beagle-host/providers/proxmox_host_provider.py) was extended for contract parity (`qm snapshot`, `qm clone`, console payload scaffold).
+	- Unit tests added: [tests/unit/test_beagle_host_provider_contract_extensions.py](tests/unit/test_beagle_host_provider_contract_extensions.py).
+	- Live deploy validation on `srv1.beagle-os.com` executed by direct provider smoke-run (`snapshot_vm`, `clone_vm`, `get_console_proxy`) after control-plane restart.
+
 - 2026-04-20 VM pause-state fix follow-up:
 	- **Root cause:** VMs started via Beagle provisioning could remain in paused state (QEMU `-S` flag or equivalent), preventing OS boot and desktop startup.
 	- **Fix scope:** Issue is provider-independent, originating from external QEMU/Proxmox behavior during provisioning lifecycle (not from repo code).
