@@ -9,7 +9,8 @@ import { clearPersistedTokens, setSessionTokens } from './auth.js';
 
 const panelHooks = {
   loadSettingsForPanel() {},
-  loadIdentityProviders() {}
+  loadIdentityProviders() {},
+  loadAuditPanel() {}
 };
 
 export function configurePanels(nextHooks) {
@@ -238,6 +239,11 @@ export function setActivePanel(panelName) {
   text('panel-description', meta.description);
   if (next.indexOf('settings_') === 0) {
     panelHooks.loadSettingsForPanel(next);
+  }
+  if (next === 'audit') {
+    Promise.resolve(panelHooks.loadAuditPanel()).catch((error) => {
+      void error;
+    });
   }
   syncHash();
 }

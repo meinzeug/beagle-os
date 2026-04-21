@@ -1,5 +1,49 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, Hotfix: VM USB installer/live downloads + missing syncHash)
+
+- **Symptome**:
+	- Web UI VM-Detailansicht warf `ReferenceError: syncHash is not defined` aus `website/main.js`.
+	- `GET /api/v1/vms/{vmid}/installer.sh`, `/installer.ps1`, `/live-usb.sh` lieferten auf `srv1.beagle-os.com` reproduzierbar `503`.
+- **Root cause Frontend**:
+	- `website/main.js` verwendete `syncHash()` in `loadDetail()`/`closeDetail()`, importierte die Funktion aber nicht mehr aus `website/ui/panels.js`.
+- **Root cause Backend**:
+	- `InstallerScriptService` hing fuer VM-spezifische Downloads hart an Host-`dist/`-Artefakten (`pve-thin-client-usb-installer-host-latest.sh`, `pve-thin-client-live-usb-host-latest.sh`, `beagle-os-installer-amd64.iso`).
+	- Auf `srv1` fehlten genau diese Dateien unter `/opt/beagle/dist/`, obwohl das versionierte Quellskript unter `thin-client-assistant/usb/` vorhanden war.
+- **Fix**:
+	- `website/main.js`: `syncHash` wieder korrekt importiert.
+	- `website/index.html`: `main.js` Cache-Buster auf `6.7.0-r7` angehoben, damit Browser den Hotfix ziehen.
+	- `beagle-host/services/installer_script.py`: Shell-Downloads lesen jetzt bevorzugt die gehosteten Templates, fallen aber auf das versionierte Quellskript `thin-client-assistant/usb/pve-thin-client-usb-installer.sh` zurueck; lokale ISO-Pflicht fuer die drei generierten Download-Skripte entfernt.
+	- `beagle-host/bin/beagle-control-plane.py`: neues Raw-Shell-Template an `InstallerScriptService` verdrahtet.
+	- `tests/unit/test_installer_script.py`: neuer fokussierter Unit-Test fuer den Fallback ohne `dist/`-Artefakte.
+- **Validierung lokal**:
+	- `python3 -m pytest tests/unit/test_installer_script.py` -> `1 passed`.
+	- `python3 -m py_compile beagle-host/services/installer_script.py beagle-host/bin/beagle-control-plane.py` -> OK.
+- **Live-Validierung auf `srv1.beagle-os.com`**:
+	- Hotfix-Dateien nach `/opt/beagle/...` deployt und `beagle-control-plane` neu gestartet (`active`).
+	- `GET /api/v1/vms/100/installer.sh` -> `200`.
+	- `GET /api/v1/vms/100/installer.ps1` -> `200`.
+	- `GET /api/v1/vms/100/live-usb.sh` -> `200`.
+	- HTTPS-Index liefert `/main.js?v=6.7.0-r7`; ausgeliefertes `main.js` enthaelt den `syncHash`-Import.
+
+## Update (2026-04-21, GoFuture Plan 15 Schritte 1+3+4+5: Audit schema/report/viewer)
+
+- `core/audit_event.py` neu angelegt und als gemeinsames Audit-Schema mit `schema_version`, `action`, `resource_*`, `old_value`, `new_value`, `metadata` eingefuehrt.
+- `beagle-host/services/audit_log.py` auf das neue Schema migriert; Legacy-Records werden weiterhin ueber `AuditEvent.from_record(...)` normalisiert.
+- `beagle-host/services/audit_pii_filter.py` neu implementiert; Default-Redaction schwaerzt `password`, `secret`, `token`, `key` rekursiv in `old_value`/`new_value`.
+- `beagle-host/services/audit_report.py` neu implementiert; `GET /api/v1/audit/report` liefert JSON oder CSV je nach `Accept`-Header.
+- `beagle-host/services/authz_policy.py` erweitert: Audit-Report erfordert `auth:read`.
+- Web Console erweitert:
+	- neues Audit-Panel in `website/index.html`,
+	- State/Hooks in `website/ui/state.js`, `website/ui/panels.js`, `website/ui/events.js`, `website/ui/activity.js`,
+	- neues Modul `website/ui/audit.js` fuer Filter, Refresh, CSV-Export und Auto-Refresh.
+- **Validierung lokal**:
+	- `python3 -m pytest tests/unit/test_audit_log.py tests/unit/test_audit_helpers.py tests/unit/test_audit_report.py` -> `9 passed`.
+- **Live-Validierung auf `srv1.beagle-os.com`**:
+	- `beagle-control-plane.service` nach Deploy aktiv,
+	- `/api/v1/audit/report` liefert `200`, JSON `ok=true`, CSV mit Header,
+	- Redaction-Snippet auf `srv1` bestaetigt `[REDACTED]` fuer `password`/`api_token`/`private_key`.
+
 ## Update (2026-04-21, Hotfix: noVNC HTTP 500 — /etc/beagle/novnc permission)
 
 - **Root cause**: `/etc/beagle/novnc/` was `root:beagle-manager 0750` — group had `r-x` but not write.

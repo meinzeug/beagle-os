@@ -75,6 +75,11 @@ export const panelMeta = {
     title: 'Users & Roles',
     description: 'Konsolen-Anmeldung, RBAC und Sessions zentral steuern.'
   },
+  audit: {
+    eyebrow: 'Operations',
+    title: 'Audit',
+    description: 'Audit-Events filtern, live pruefen und Compliance-Reports als JSON oder CSV abrufen.'
+  },
   settings_general: {
     eyebrow: 'Platform',
     title: 'Allgemein',
@@ -137,6 +142,16 @@ export const state = {
   authUsers: [],
   authRoles: [],
   permissionCatalog: [],
+  auditReport: [],
+  auditFilters: {
+    range: '24h',
+    start: '',
+    end: '',
+    tenant_id: '',
+    action: '',
+    resource_type: '',
+    user_id: ''
+  },
   selectedAuthUser: '',
   selectedAuthRole: '',
   virtualizationOverview: null,

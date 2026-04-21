@@ -32,6 +32,7 @@ from admin_http_surface import AdminHttpSurfaceService
 from auth_http_surface import AuthHttpSurfaceService
 from audit_helpers import build_vm_power_audit_event
 from audit_log import AuditLogService
+from audit_report import AuditReportService
 from auth_session import AuthSessionService, default_now
 from authz_policy import AuthzPolicyService, PERMISSION_CATALOG
 from control_plane_read_surface import ControlPlaneReadSurfaceService
@@ -145,6 +146,7 @@ VM_INSTALLERS_FILE = ROOT_DIR / "dist" / "beagle-vm-installers.json"
 HOSTED_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-usb-installer-host-latest.sh"
 HOSTED_LIVE_USB_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-live-usb-host-latest.sh"
 HOSTED_WINDOWS_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-usb-installer-host-latest.ps1"
+RAW_SHELL_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "thin-client-assistant" / "usb" / "pve-thin-client-usb-installer.sh"
 RAW_WINDOWS_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "thin-client-assistant" / "usb" / "pve-thin-client-usb-installer.ps1"
 HOSTED_INSTALLER_ISO_FILE = ROOT_DIR / "dist" / "beagle-os-installer-amd64.iso"
 INSTALLER_PREP_SCRIPT_FILE = ROOT_DIR / "scripts" / "ensure-vm-stream-ready.sh"
@@ -411,6 +413,7 @@ METADATA_SUPPORT_SERVICE = MetadataSupportService()
 REQUEST_SUPPORT_SERVICE: RequestSupportService | None = None
 AUTH_SESSION_SERVICE: AuthSessionService | None = None
 AUDIT_LOG_SERVICE: AuditLogService | None = None
+AUDIT_REPORT_SERVICE: AuditReportService | None = None
 AUTHZ_POLICY_SERVICE: AuthzPolicyService | None = None
 SERVER_SETTINGS_SERVICE: ServerSettingsService | None = None
 WEBHOOK_SERVICE: WebhookService | None = None
@@ -566,6 +569,15 @@ def audit_log_service() -> AuditLogService:
             now_utc=utcnow,
         )
     return AUDIT_LOG_SERVICE
+
+
+def audit_report_service() -> AuditReportService:
+    global AUDIT_REPORT_SERVICE
+    if AUDIT_REPORT_SERVICE is None:
+        AUDIT_REPORT_SERVICE = AuditReportService(
+            log_file=ensure_data_dir() / "audit" / "events.log",
+        )
+    return AUDIT_REPORT_SERVICE
 
 
 def authz_policy_service() -> AuthzPolicyService:
@@ -2372,6 +2384,7 @@ def installer_script_service() -> InstallerScriptService:
             public_manager_url=PUBLIC_MANAGER_URL,
             public_payload_latest_download_url=download_metadata_service().public_payload_latest_download_url,
             public_server_name=PUBLIC_SERVER_NAME,
+            raw_shell_installer_template_file=RAW_SHELL_INSTALLER_TEMPLATE_FILE,
             raw_windows_installer_template_file=RAW_WINDOWS_INSTALLER_TEMPLATE_FILE,
             safe_hostname=metadata_support_service().safe_hostname,
             sunshine_guest_user=sunshine_guest_user,
@@ -2990,6 +3003,63 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/v1/auth/permission-tags":
             self._write_json(HTTPStatus.OK, {"ok": True, "catalog": PERMISSION_CATALOG})
+            return
+
+        if path == "/api/v1/audit/report":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("GET", path):
+                return
+            query = parse_qs(parsed.query or "")
+            start = str((query.get("start") or [""])[0] or "").strip()
+            end = str((query.get("end") or [""])[0] or "").strip()
+            tenant_id = str((query.get("tenant") or query.get("tenant_id") or [""])[0] or "").strip()
+            action = str((query.get("action") or [""])[0] or "").strip()
+            resource_type = str((query.get("resource_type") or [""])[0] or "").strip()
+            user_id = str((query.get("user") or query.get("user_id") or [""])[0] or "").strip()
+            accept = str(self.headers.get("Accept") or "").lower()
+            if "text/csv" in accept:
+                body = audit_report_service().build_csv_report(
+                    start=start,
+                    end=end,
+                    tenant_id=tenant_id,
+                    action=action,
+                    resource_type=resource_type,
+                    user_id=user_id,
+                )
+                self._write_bytes(
+                    HTTPStatus.OK,
+                    body,
+                    content_type="text/csv; charset=utf-8",
+                    filename="audit-report.csv",
+                )
+            else:
+                self._write_json(
+                    HTTPStatus.OK,
+                    audit_report_service().build_json_report(
+                        start=start,
+                        end=end,
+                        tenant_id=tenant_id,
+                        action=action,
+                        resource_type=resource_type,
+                        user_id=user_id,
+                    ),
+                )
+            self._audit_event(
+                "audit.report.download",
+                "success",
+                requested_by=self._requester_identity(),
+                resource_type="audit-report",
+                resource_id="audit-report",
+                start=start,
+                end=end,
+                tenant_id=tenant_id,
+                action_filter=action,
+                resource_filter=resource_type,
+                user_filter=user_id,
+                accept=accept,
+            )
             return
 
         if scim_service().handles_path(path):

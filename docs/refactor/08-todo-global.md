@@ -5,6 +5,12 @@
 
 ## Update 2026-04-21 (Plan 18 Schritt 5 abgeschlossen)
 
+- [x] GoFuture Plan 15 Schritt 1 umsetzen: `core/audit_event.py` einfuehren und `beagle-host/services/audit_log.py` auf das neue Schema migrieren.
+- [x] GoFuture Plan 15 Schritt 3 umsetzen: `beagle-host/services/audit_pii_filter.py` mit Default-Redaction fuer `password`/`secret`/`token`/`key` in `old_value` und `new_value` einbauen.
+- [x] GoFuture Plan 15 Schritt 4 umsetzen: `GET /api/v1/audit/report` als JSON/CSV-Report-Endpoint inkl. RBAC (`auth:read`) implementieren.
+- [x] GoFuture Plan 15 Schritt 5 umsetzen: Audit-Panel in der Web Console mit Filter-UI, Refresh und CSV-Export deployen.
+- [x] Fix VM-spezifische USB-Installer/Live-Downloads und `syncHash`-Regression im VM-Detail auf `srv1.beagle-os.com`.
+
 - [x] GoFuture Plan 14 Schritt 2 umsetzen: `beagle-host/services/recording_service.py` mit ffmpeg-basierter MP4-Aufzeichnung pro Session inkl. Start/Stop-API.
 - [x] GoFuture Plan 14 Schritt 5 umsetzen: Recording-Download-Endpoint `GET /api/v1/sessions/{id}/recording` mit RBAC-Tag `session:download_recording` und Audit-Event `session.recording.download`.
 

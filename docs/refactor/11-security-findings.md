@@ -2,6 +2,26 @@
 
 Stand: 2026-04-19
 
+## S-014 - Audit-Events schrieben Secrets/PII ungeschwaerzt in `old_value` / `new_value`
+
+- Status: mitigiert in Repo und auf `srv1.beagle-os.com`
+- Risiko: Mittel bis Hoch
+- Betroffene Dateien:
+  - `core/audit_event.py`
+  - `beagle-host/services/audit_pii_filter.py`
+  - `beagle-host/services/audit_log.py`
+  - `beagle-host/services/audit_report.py`
+- Beschreibung:
+  - Mit dem neuen Audit-Schema konnten sensible Inhalte wie Passwoerter, API-Tokens oder private Schluessel in `old_value` bzw. `new_value` landen.
+  - Ohne Redaction waeren diese Daten sowohl lokal im Audit-Log als auch im CSV/JSON-Export sichtbar geblieben.
+- Mitigation:
+  - Neues Modul `beagle-host/services/audit_pii_filter.py` schwaerzt rekursiv Felder, deren Name `password`, `secret`, `token` oder `key` enthaelt.
+  - `core/audit_event.py` wendet die Redaction zentral beim Erzeugen und Normalisieren von Audit-Records auf `old_value` und `new_value` an.
+  - Unit-Test deckt Passwoerter, verschachtelte Tokens und private Keys explizit ab.
+  - Live auf `srv1.beagle-os.com` per Python-Snippet gegen die deployte Runtime verifiziert (`[REDACTED]`).
+- Naechster Schritt:
+  - Optional konfigurierbare Pfadlisten/Pseudonymisierung fuer E-Mail, IP und Username ergaenzen, falls regulierte Deployments das verlangen.
+
 ## Zweck
 
 - Diese Datei sammelt alle waehrend der laufenden Refactor-Arbeit gefundenen Sicherheitsprobleme, Secret-Leaks, unsicheren Defaults und offenen Hardening-Punkte.

@@ -9,8 +9,8 @@ Priorität: 7.2 (Q3 2027)
 
 ### Schritt 1 — Audit-Event-Schema vereinheitlichen
 
-- [ ] `core/audit_event.py` anlegen: `AuditEvent`-Datenklasse mit allen Pflichtfeldern.
-- [ ] Alle bestehenden `audit_log.py`-Einträge auf das neue Schema migrieren.
+- [x] `core/audit_event.py` anlegen: `AuditEvent`-Datenklasse mit allen Pflichtfeldern.
+- [x] Alle bestehenden `audit_log.py`-Einträge auf das neue Schema migrieren.
 
 Ein einheitliches Audit-Schema ist Voraussetzung für alle nachfolgenden Export- und
 Analyse-Funktionen. Das Schema definiert Pflichtfelder: `id` (UUID), `timestamp` (UTC ISO 8601),
@@ -42,8 +42,8 @@ sie lokal gepuffert.
 
 ### Schritt 3 — PII-Schwärzungs-Filter implementieren
 
-- [ ] `beagle-host/services/audit_pii_filter.py`: konfigurierbare Felder-Schwärzung vor Export.
-- [ ] Default-Schwärzung: Passwörter, API-Keys, private Schlüssel in `old_value`/`new_value`.
+- [x] `beagle-host/services/audit_pii_filter.py`: konfigurierbare Felder-Schwärzung vor Export.
+- [x] Default-Schwärzung: Passwörter, API-Keys, private Schlüssel in `old_value`/`new_value`.
 
 PII (Personally Identifiable Information) und Secrets dürfen in Audit-Exporten nicht
 im Klartext erscheinen. Der PII-Filter wird zwischen Audit-Event-Erzeugung und Export
@@ -58,8 +58,8 @@ wenn sie geändert wird.
 
 ### Schritt 4 — Compliance-Report-Generator (CSV/JSON) implementieren
 
-- [ ] `GET /api/v1/audit/report` Endpoint mit Filtern: time range, tenant, action type, user.
-- [ ] Response: CSV oder JSON je nach `Accept`-Header.
+- [x] `GET /api/v1/audit/report` Endpoint mit Filtern: time range, tenant, action type, user.
+- [x] Response: CSV oder JSON je nach `Accept`-Header.
 
 Compliance-Berichte sind in regulierten Umgebungen periodisch erforderlich (monatlich,
 jährlich). Der Report-Generator erlaubt Filterung nach Zeitraum, Tenant, Action-Typ
@@ -74,8 +74,8 @@ gelöscht; der Download-Link läuft entsprechend ab.
 
 ### Schritt 5 — Audit-Viewer in Web Console
 
-- [ ] Neues Admin-Panel "Audit" in der Web Console mit Echtzeit-View und Filter-UI.
-- [ ] Filter: Zeitraum, User, Action-Typ, Resource-Typ, Tenant.
+- [x] Neues Admin-Panel "Audit" in der Web Console mit Echtzeit-View und Filter-UI.
+- [x] Filter: Zeitraum, User, Action-Typ, Resource-Typ, Tenant.
 
 Der Audit-Viewer zeigt Audit-Events als paginierte Tabelle mit Echtzeit-Aktualisierung.
 Ein Filter-Panel erlaubt Einschränkung auf Zeitraum (letzte 1h, 24h, 7 Tage, custom),
@@ -91,6 +91,6 @@ und `auditor` sichtbar.
 
 - [ ] Alle VM-Operationen erzeugen Audit-Events mit korrektem Schema.
 - [ ] S3-Export: Events landen im Minio-Bucket als JSON-Lines.
-- [ ] PII-Filter: Passwörter in `new_value` erscheinen als `[REDACTED]`.
+- [x] PII-Filter: Passwörter in `new_value` erscheinen als `[REDACTED]`.
 - [ ] Compliance-Report CSV enthält alle Events im Zeitraum, kein Inhalt fehlt.
 - [ ] Audit-Viewer: Filter nach User und Action-Typ funktionieren korrekt.

@@ -10,6 +10,9 @@ const activityHooks = {
   loadDashboard() {
     return Promise.resolve();
   },
+  loadAuditReport() {
+    return Promise.resolve();
+  },
   setBanner() {}
 };
 
@@ -81,6 +84,10 @@ export function startDashboardPoll() {
   }
   dashboardPollInterval = window.setInterval(() => {
     if (!state.autoRefresh || !state.token || document.hidden) {
+      return;
+    }
+    if (state.activePanel === 'audit') {
+      activityHooks.loadAuditReport();
       return;
     }
     activityHooks.loadDashboard();

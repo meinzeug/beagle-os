@@ -77,6 +77,14 @@ const eventHooks = {
   },
   closeDetail() {},
   setBanner() {},
+  loadAuditReport() {
+    return Promise.resolve();
+  },
+  resetAuditFilters() {},
+  exportAuditCsv() {
+    return Promise.resolve();
+  },
+  onAuditRangeChanged() {},
   openProvisionModal() {
     openProvisioningWorkspace();
   }
@@ -356,7 +364,40 @@ export function bindEvents() {
   if (qs('refresh-all')) {
     qs('refresh-all').addEventListener('click', () => {
       markSessionActivity();
+      if (state.activePanel === 'audit') {
+        eventHooks.loadAuditReport();
+        return;
+      }
       loadDashboard();
+    });
+  }
+  if (qs('audit-refresh')) {
+    qs('audit-refresh').addEventListener('click', () => {
+      markSessionActivity();
+      eventHooks.loadAuditReport();
+    });
+  }
+  if (qs('audit-reset')) {
+    qs('audit-reset').addEventListener('click', () => {
+      eventHooks.resetAuditFilters();
+      eventHooks.loadAuditReport();
+    });
+  }
+  if (qs('audit-export-csv')) {
+    qs('audit-export-csv').addEventListener('click', () => {
+      markSessionActivity();
+      eventHooks.exportAuditCsv();
+    });
+  }
+  if (qs('audit-apply')) {
+    qs('audit-apply').addEventListener('click', () => {
+      markSessionActivity();
+      eventHooks.loadAuditReport();
+    });
+  }
+  if (qs('audit-filter-range')) {
+    qs('audit-filter-range').addEventListener('change', () => {
+      eventHooks.onAuditRangeChanged();
     });
   }
   if (qs('open-provision-create')) {

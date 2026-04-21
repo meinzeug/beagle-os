@@ -12,7 +12,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css?v=6.7.0-r6">
+    <link rel="stylesheet" href="/styles.css?v=6.7.0-r7">
   </head>
   <body class="auth-only">
     <!-- Hidden SVG icon sprite -->
@@ -250,6 +250,10 @@
         <button type="button" class="nav-item" data-panel="iam">
           <svg class="nav-icon" aria-hidden="true"><use href="#i-access"/></svg>
           <span>Users &amp; Roles</span>
+        </button>
+        <button type="button" class="nav-item sidebar-admin-item" data-panel="audit">
+          <svg class="nav-icon" aria-hidden="true"><use href="#i-operations"/></svg>
+          <span>Audit</span>
         </button>
 
         <!-- ── Network ── -->
@@ -905,6 +909,62 @@
             </article>
           </section>
 
+          <!-- ============ AUDIT ============ -->
+          <section class="panel-section" id="audit-section" data-panel-section="audit">
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Compliance</span>
+                  <h2>Audit Events</h2>
+                </div>
+                <div class="button-row">
+                  <button class="button ghost small" id="audit-refresh" type="button">Refresh</button>
+                  <button class="button primary small" id="audit-export-csv" type="button">CSV Export</button>
+                </div>
+              </div>
+              <div class="inv-filterbar">
+                <select id="audit-filter-range" class="input-select">
+                  <option value="1h">Letzte 1h</option>
+                  <option value="24h" selected>Letzte 24h</option>
+                  <option value="7d">Letzte 7 Tage</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <input id="audit-filter-start" class="input-search" type="text" placeholder="Start ISO 8601">
+                <input id="audit-filter-end" class="input-search" type="text" placeholder="Ende ISO 8601">
+                <input id="audit-filter-user" class="input-search" type="search" placeholder="User">
+                <input id="audit-filter-tenant" class="input-search" type="search" placeholder="Tenant">
+                <select id="audit-filter-action" class="input-select">
+                  <option value="">Alle Aktionen</option>
+                  <option value="vm.start">vm.start</option>
+                  <option value="vm.stop">vm.stop</option>
+                  <option value="vm.reboot">vm.reboot</option>
+                  <option value="auth.user.create">auth.user.create</option>
+                  <option value="auth.user.delete">auth.user.delete</option>
+                  <option value="audit.report.download">audit.report.download</option>
+                </select>
+                <select id="audit-filter-resource" class="input-select">
+                  <option value="">Alle Ressourcen</option>
+                  <option value="vm">vm</option>
+                  <option value="user">user</option>
+                  <option value="audit-report">audit-report</option>
+                </select>
+                <button class="button ghost small" id="audit-reset" type="button">Zuruecksetzen</button>
+                <button class="button primary small" id="audit-apply" type="button">Anwenden</button>
+              </div>
+              <div class="toolbar">
+                <span class="bulk-selection">Treffer: <strong id="audit-count">0</strong></span>
+              </div>
+              <div class="table-wrap compact">
+                <table class="vm-table compact-table">
+                  <thead>
+                    <tr><th>Zeit</th><th>Aktion</th><th>Result</th><th>User</th><th>Typ</th><th>Resource</th><th>Details</th></tr>
+                  </thead>
+                  <tbody id="audit-table-body"><tr><td colspan="7" class="empty-cell">Noch keine Daten geladen.</td></tr></tbody>
+                </table>
+              </div>
+            </article>
+          </section>
+
           <!-- ============ SETTINGS: GENERAL ============ -->
           <section class="panel-section" id="settings-general-section" data-panel-section="settings_general">
             <article class="card">
@@ -1178,6 +1238,6 @@
 
     <script src="/beagle-web-ui-config.js"></script>
     <script src="/core/platform/browser-common.js"></script>
-    <script type="module" src="/main.js?v=6.7.0-r6"></script>
+    <script type="module" src="/main.js?v=6.7.0-r7"></script>
   </body>
 </html>

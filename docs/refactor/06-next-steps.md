@@ -1,5 +1,19 @@
 # Next Steps
 
+## Delta (2026-04-21 nach Audit Schritt 1/3/4/5 + VM-Installer-Hotfix)
+
+0. **Plan 15 Schritt 2 umsetzen**:
+	- `beagle-host/services/audit_export.py` fuer S3/Minio, Syslog und Webhook bauen,
+	- Retry/Pufferung fuer Export-Fehler definieren.
+
+0. **Plan 15 Rest-Validierung schliessen**:
+	- Audit-Viewer-Filter auf `srv1` noch gezielt gegen echte User-/Action-Kombinationen durchklicken,
+	- CSV-Inhalt gegen laengeren Zeitraum verifizieren und Testpflicht-Checkboxen sauber schliessen.
+
+0. **Host-Downloads wieder kanonisch vervollstaendigen**:
+	- `scripts/prepare-host-downloads.sh` bzw. Host-Artifact-Refresh so nachziehen, dass die `dist/`-Templates auf dem Host wieder vorhanden sind,
+	- Fallback in `InstallerScriptService` als Guardrail beibehalten.
+
 ## Delta (2026-04-21 nach Plan 14 Schritte 2+5)
 
 0. **Plan 14 Schritt 1 abschließen**:

@@ -29,6 +29,7 @@ class InstallerScriptService:
         public_manager_url: str,
         public_payload_latest_download_url: Callable[[], str],
         public_server_name: str,
+        raw_shell_installer_template_file: Path,
         raw_windows_installer_template_file: Path,
         safe_hostname: Callable[[str, int], str],
         sunshine_guest_user: Callable[[Any, dict[str, Any]], str],
@@ -50,9 +51,16 @@ class InstallerScriptService:
         self._public_manager_url = str(public_manager_url or "")
         self._public_payload_latest_download_url = public_payload_latest_download_url
         self._public_server_name = str(public_server_name or "")
+        self._raw_shell_installer_template_file = Path(raw_shell_installer_template_file)
         self._raw_windows_installer_template_file = raw_windows_installer_template_file
         self._safe_hostname = safe_hostname
         self._sunshine_guest_user = sunshine_guest_user
+
+    def _read_shell_template(self, preferred_template_file: Path) -> str:
+        for candidate in (Path(preferred_template_file), self._raw_shell_installer_template_file):
+            if candidate.is_file():
+                return candidate.read_text(encoding="utf-8")
+        raise FileNotFoundError(f"missing installer template: {preferred_template_file}")
 
     @staticmethod
     def _encode_installer_preset(preset: dict[str, Any]) -> str:
@@ -217,13 +225,9 @@ class InstallerScriptService:
         return preset, preset_name, preset_b64
 
     def render_installer_script(self, vm: Any) -> tuple[bytes, str]:
-        if not self._hosted_installer_template_file.is_file():
-            raise FileNotFoundError(f"missing installer template: {self._hosted_installer_template_file}")
-        if not self._hosted_installer_iso_file.is_file():
-            raise FileNotFoundError(f"missing installer ISO: {self._hosted_installer_iso_file}")
         _, preset_name, preset_b64 = self._build_preset_for_vm(vm)
         rendered = self._patch_installer_defaults(
-            self._hosted_installer_template_file.read_text(encoding="utf-8"),
+            self._read_shell_template(self._hosted_installer_template_file),
             preset_name,
             preset_b64,
             self._public_installer_iso_url(),
@@ -235,13 +239,9 @@ class InstallerScriptService:
         return rendered.encode("utf-8"), filename
 
     def render_live_usb_script(self, vm: Any) -> tuple[bytes, str]:
-        if not self._hosted_live_usb_template_file.is_file():
-            raise FileNotFoundError(f"missing live USB template: {self._hosted_live_usb_template_file}")
-        if not self._hosted_installer_iso_file.is_file():
-            raise FileNotFoundError(f"missing installer ISO: {self._hosted_installer_iso_file}")
         _, preset_name, preset_b64 = self._build_preset_for_vm(vm)
         rendered = self._patch_installer_defaults(
-            self._hosted_live_usb_template_file.read_text(encoding="utf-8"),
+            self._read_shell_template(self._hosted_live_usb_template_file),
             preset_name,
             preset_b64,
             self._public_installer_iso_url(),
@@ -257,8 +257,6 @@ class InstallerScriptService:
             raise FileNotFoundError(
                 f"missing windows installer template: {self._raw_windows_installer_template_file}"
             )
-        if not self._hosted_installer_iso_file.is_file():
-            raise FileNotFoundError(f"missing installer ISO: {self._hosted_installer_iso_file}")
         _, preset_name, preset_b64 = self._build_preset_for_vm(vm)
         rendered = self._patch_windows_installer_defaults(
             self._raw_windows_installer_template_file.read_text(encoding="utf-8"),

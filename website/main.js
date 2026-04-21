@@ -21,6 +21,7 @@ import {
   setActivePanel,
   setAuthMode,
   setBanner,
+  syncHash,
   updateSessionChrome
 } from './ui/panels.js';
 import {
@@ -53,6 +54,14 @@ import {
   configureIam,
   renderIam
 } from './ui/iam.js';
+import {
+  configureAudit,
+  exportAuditCsv,
+  loadAuditReport,
+  onAuditRangeChanged,
+  renderAudit,
+  resetAuditFilters
+} from './ui/audit.js';
 import {
   configureVirtualization,
   renderVirtualizationInspector,
@@ -440,17 +449,25 @@ export function bootstrapApp() {
     requestConfirm,
     setBanner
   });
+  configureAudit({
+    setBanner
+  });
   configureVirtualization({
     setBanner
   });
   configureEvents({
     setBanner,
     loadDetail,
-    closeDetail
+    closeDetail,
+    loadAuditReport,
+    resetAuditFilters,
+    exportAuditCsv,
+    onAuditRangeChanged
   });
   configurePanels({
     loadSettingsForPanel,
-    loadIdentityProviders
+    loadIdentityProviders,
+    loadAuditPanel: loadAuditReport
   });
   configureAuthUi({
     setAuthMode,
@@ -465,6 +482,7 @@ export function bootstrapApp() {
   });
   configureActivity({
     loadDashboard,
+    loadAuditReport,
     setBanner
   });
   configureDashboard({
@@ -504,6 +522,7 @@ export function bootstrapApp() {
   renderProvisioningWorkspace();
   renderPolicies();
   renderIam();
+  renderAudit();
   bootstrapHashState();
   setActivePanel(state.activePanel);
   setActiveDetailPanel(state.activeDetailPanel);

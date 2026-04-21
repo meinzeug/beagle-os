@@ -114,6 +114,8 @@ class AuthzPolicyService:
             if route.startswith("/api/v1/auth/users/") or route.startswith("/api/v1/auth/roles/"):
                 return "auth:write"
         if verb == "GET":
+            if route == "/api/v1/audit/report":
+                return "auth:read"
             if route in {"/api/v1/auth/users", "/api/v1/auth/roles"}:
                 return "auth:read"
             if route.startswith("/api/v1/settings/"):
