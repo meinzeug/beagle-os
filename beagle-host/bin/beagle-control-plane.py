@@ -33,7 +33,7 @@ from auth_http_surface import AuthHttpSurfaceService
 from audit_helpers import build_vm_power_audit_event
 from audit_log import AuditLogService
 from auth_session import AuthSessionService, default_now
-from authz_policy import AuthzPolicyService
+from authz_policy import AuthzPolicyService, PERMISSION_CATALOG
 from control_plane_read_surface import ControlPlaneReadSurfaceService
 from download_metadata import DownloadMetadataService
 from endpoint_lifecycle_surface import EndpointLifecycleSurfaceService
@@ -2938,6 +2938,7 @@ class Handler(BaseHTTPRequestHandler):
                         "username": str(principal.get("username") or ""),
                         "role": str(principal.get("role") or "viewer"),
                         "auth_type": str(principal.get("auth_type") or "session"),
+                        "tenant_id": principal.get("tenant_id") or None,
                     },
                 },
             )
@@ -2953,6 +2954,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/v1/auth/providers":
             self._write_json(HTTPStatus.OK, identity_provider_registry_service().payload())
+            return
+
+        if path == "/api/v1/auth/permission-tags":
+            self._write_json(HTTPStatus.OK, {"ok": True, "catalog": PERMISSION_CATALOG})
             return
 
         if scim_service().handles_path(path):
@@ -3045,7 +3050,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if not self._authorize_or_respond("GET", path):
                 return
-            response = auth_http_surface_service().route_get(path)
+            principal = self._auth_principal()
+            requester_tenant = (principal or {}).get("tenant_id") or None
+            response = auth_http_surface_service().route_get(
+                path, requester_tenant_id=requester_tenant
+            )
             self._write_json(response["status"], response["payload"])
             return
 
@@ -3296,7 +3305,11 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as exc:
                     self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                     return
-            response = auth_http_surface_service().route_post(path, json_payload=json_payload)
+            principal = self._auth_principal()
+            requester_tenant = (principal or {}).get("tenant_id") or None
+            response = auth_http_surface_service().route_post(
+                path, json_payload=json_payload, requester_tenant_id=requester_tenant
+            )
             self._audit_auth_surface_response("POST", path, response)
             self._write_json(response["status"], response["payload"])
             return
@@ -3539,7 +3552,11 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
-            response = auth_http_surface_service().route_put(path, json_payload=payload)
+            principal = self._auth_principal()
+            requester_tenant = (principal or {}).get("tenant_id") or None
+            response = auth_http_surface_service().route_put(
+                path, json_payload=payload, requester_tenant_id=requester_tenant
+            )
             self._audit_auth_surface_response("PUT", path, response)
             self._write_json(response["status"], response["payload"])
             return
@@ -3618,7 +3635,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if not self._authorize_or_respond("DELETE", path):
                 return
-            response = auth_http_surface_service().route_delete(path)
+            principal = self._auth_principal()
+            requester_tenant = (principal or {}).get("tenant_id") or None
+            response = auth_http_surface_service().route_delete(
+                path, requester_tenant_id=requester_tenant
+            )
             self._audit_auth_surface_response("DELETE", path, response)
             self._write_json(response["status"], response["payload"])
             return

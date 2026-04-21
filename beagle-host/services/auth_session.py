@@ -102,11 +102,17 @@ class AuthSessionService:
             raise ValueError("invalid role name")
         return value
 
-    def list_users(self) -> list[dict[str, Any]]:
+    def list_users(self, *, requester_tenant_id: str | None = None) -> list[dict[str, Any]]:
         users_doc = self._load_users_doc()
         result: list[dict[str, Any]] = []
         for item in users_doc.get("users", []):
             if not isinstance(item, dict):
+                continue
+            tid = item.get("tenant_id") or None
+            if tid is not None:
+                tid = str(tid).strip() or None
+            # Tenant-scoped requesters only see users in their own tenant
+            if requester_tenant_id is not None and tid != requester_tenant_id:
                 continue
             result.append(
                 {
@@ -115,11 +121,28 @@ class AuthSessionService:
                     "enabled": bool(item.get("enabled", True)),
                     "created_at": int(item.get("created_at") or 0),
                     "bootstrap_only": bool(item.get("bootstrap_only", False)),
+                    "tenant_id": tid,
                 }
             )
         return sorted(result, key=lambda entry: entry["username"].lower())
 
-    def create_user(self, *, username: str, password: str, role: str, enabled: bool = True) -> dict[str, Any]:
+    def get_user_tenant_id(self, username: str) -> str | None:
+        """Return the tenant_id for a user, or None if not set."""
+        user = self._find_user(str(username or "").strip())
+        if user is None:
+            return None
+        tid = user.get("tenant_id") or None
+        return str(tid).strip() or None if tid is not None else None
+
+    def create_user(
+        self,
+        *,
+        username: str,
+        password: str,
+        role: str,
+        enabled: bool = True,
+        tenant_id: str | None = None,
+    ) -> dict[str, Any]:
         user_name = self._validate_username(username)
         passwd = str(password or "")
         if not passwd:
@@ -129,17 +152,20 @@ class AuthSessionService:
         role_name = self._validate_role_name(role or "viewer")
         if not self._role_exists(role_name):
             raise ValueError("unknown role")
+        tid = str(tenant_id).strip() or None if tenant_id is not None else None
         users_doc = self._load_users_doc()
         users = users_doc.setdefault("users", [])
         if any(str(item.get("username") or "").strip().lower() == user_name.lower() for item in users if isinstance(item, dict)):
             raise ValueError("user already exists")
-        created = {
+        created: dict[str, Any] = {
             "username": user_name,
             "role": role_name,
             "password_hash": self.hash_password(passwd),
             "created_at": int(self._now()),
             "enabled": bool(enabled),
         }
+        if tid is not None:
+            created["tenant_id"] = tid
         users.append(created)
         self._write_json_file(self._users_path, users_doc)
         return {
@@ -147,6 +173,7 @@ class AuthSessionService:
             "role": role_name,
             "enabled": bool(enabled),
             "created_at": int(created["created_at"]),
+            "tenant_id": tid,
         }
 
     def update_user(
@@ -156,6 +183,7 @@ class AuthSessionService:
         role: str | None = None,
         enabled: bool | None = None,
         password: str | None = None,
+        tenant_id: str | None = ...,  # type: ignore[assignment]  # sentinel: ... = no-op
     ) -> dict[str, Any]:
         user_name = self._validate_username(username)
         users_doc = self._load_users_doc()
@@ -183,13 +211,21 @@ class AuthSessionService:
             if len(passwd) < MIN_PASSWORD_LENGTH:
                 raise ValueError(f"password must be at least {MIN_PASSWORD_LENGTH} characters")
             target["password_hash"] = self.hash_password(passwd)
+        if tenant_id is not ...:
+            tid = str(tenant_id).strip() or None if tenant_id is not None else None
+            if tid is None:
+                target.pop("tenant_id", None)
+            else:
+                target["tenant_id"] = tid
         target.pop("bootstrap_only", None)
         self._write_json_file(self._users_path, users_doc)
+        stored_tid = target.get("tenant_id") or None
         return {
             "username": str(target.get("username") or "").strip(),
             "role": str(target.get("role") or "viewer").strip() or "viewer",
             "enabled": bool(target.get("enabled", True)),
             "created_at": int(target.get("created_at") or 0),
+            "tenant_id": str(stored_tid).strip() or None if stored_tid is not None else None,
         }
 
     def delete_user(self, username: str) -> bool:
@@ -486,11 +522,14 @@ class AuthSessionService:
                 session["last_seen_at"] = now_ts
                 session["access_expires_at"] = now_ts + self._access_ttl_seconds
                 self._write_json_file(self._sessions_path, sessions_doc)
+                username = str(session.get("username") or "").strip()
+                tid = self.get_user_tenant_id(username)
                 return {
-                    "username": str(session.get("username") or "").strip(),
+                    "username": username,
                     "role": str(session.get("role") or "viewer").strip() or "viewer",
                     "auth_type": "session",
                     "session_id": str(session.get("id") or "").strip(),
+                    "tenant_id": tid,
                 }
             if dirty:
                 self._write_json_file(self._sessions_path, sessions_doc)

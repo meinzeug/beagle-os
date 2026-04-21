@@ -10,3 +10,10 @@ select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg x
 .check-label { display: inline-flex; align-items: center; gap: 8px; font-size: 0.84rem; color: var(--text-secondary); cursor: pointer; }
 .check-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--orange); }
 .check-label-padded { padding-top: 22px; }
+.field-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-muted); }
+.permission-tag-grid { display: flex; flex-direction: column; gap: 10px; padding: 10px 0; }
+.perm-group { display: flex; flex-direction: column; gap: 4px; }
+.perm-group-label { font-size: 0.70rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); padding-bottom: 2px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.perm-group-tags { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.perm-check { font-size: 0.82rem; }
+.perm-empty { font-size: 0.82rem; color: var(--text-muted); margin: 0; }

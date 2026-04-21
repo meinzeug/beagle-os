@@ -136,6 +136,7 @@ export const state = {
   policies: [],
   authUsers: [],
   authRoles: [],
+  permissionCatalog: [],
   selectedAuthUser: '',
   selectedAuthRole: '',
   virtualizationOverview: null,

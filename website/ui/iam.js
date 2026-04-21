@@ -57,14 +57,35 @@ export function resetIamUserEditor() {
   }
 }
 
+export function renderPermissionTagEditor(activePermissions) {
+  const container = qs('iam-role-permissions-grid');
+  if (!container) {
+    return;
+  }
+  const active = new Set(Array.isArray(activePermissions) ? activePermissions : []);
+  const hasWildcard = active.has('*');
+  if (!Array.isArray(state.permissionCatalog) || !state.permissionCatalog.length) {
+    container.innerHTML = '<p class="perm-empty">Berechtigungskatalog nicht geladen.</p>';
+    return;
+  }
+  container.innerHTML = state.permissionCatalog.map((group) => {
+    const tags = Array.isArray(group.tags) ? group.tags : [];
+    const checkboxes = tags.map((entry) => {
+      const tag = escapeHtml(String(entry.tag || ''));
+      const label = escapeHtml(String(entry.label || entry.tag || ''));
+      const checked = active.has(entry.tag) || (hasWildcard && entry.tag !== '*') ? ' checked' : '';
+      return '<label class="check-label perm-check"><input type="checkbox" class="perm-tag-cb" data-tag="' + tag + '"' + checked + '><span>' + label + '</span></label>';
+    }).join('');
+    return '<div class="perm-group"><div class="perm-group-label">' + escapeHtml(String(group.group || '')) + '</div><div class="perm-group-tags">' + checkboxes + '</div></div>';
+  }).join('');
+}
+
 export function resetIamRoleEditor() {
   state.selectedAuthRole = '';
   if (qs('iam-role-name')) {
     qs('iam-role-name').value = '';
   }
-  if (qs('iam-role-permissions')) {
-    qs('iam-role-permissions').value = '';
-  }
+  renderPermissionTagEditor([]);
 }
 
 export function loadIamUserIntoEditor(username) {
@@ -96,9 +117,7 @@ export function loadIamRoleIntoEditor(roleName) {
   if (qs('iam-role-name')) {
     qs('iam-role-name').value = role.name || '';
   }
-  if (qs('iam-role-permissions')) {
-    qs('iam-role-permissions').value = (role.permissions || []).join('\n');
-  }
+  renderPermissionTagEditor(Array.isArray(role.permissions) ? role.permissions : []);
 }
 
 export function renderIamUsers() {
@@ -143,10 +162,15 @@ export function renderIam() {
 export function refreshIamData() {
   return Promise.all([
     request('/auth/users').catch(() => []),
-    request('/auth/roles').catch(() => [])
+    request('/auth/roles').catch(() => []),
+    request('/auth/permission-tags').catch(() => null)
   ]).then((results) => {
     state.authUsers = Array.isArray(results[0]) ? results[0] : [];
     state.authRoles = Array.isArray(results[1]) ? results[1] : [];
+    const catalogPayload = results[2];
+    if (catalogPayload && Array.isArray(catalogPayload.catalog)) {
+      state.permissionCatalog = catalogPayload.catalog;
+    }
     if (state.selectedAuthUser && !state.authUsers.some((user) => user.username === state.selectedAuthUser)) {
       state.selectedAuthUser = '';
     }
@@ -154,6 +178,11 @@ export function refreshIamData() {
       state.selectedAuthRole = '';
     }
     renderIam();
+    if (state.selectedAuthRole) {
+      loadIamRoleIntoEditor(state.selectedAuthRole);
+    } else {
+      renderPermissionTagEditor([]);
+    }
   });
 }
 
@@ -257,9 +286,18 @@ export function revokeIamUserSessions() {
   });
 }
 
+function _collectRolePermissions() {
+  const container = qs('iam-role-permissions-grid');
+  if (!container) {
+    return [];
+  }
+  const checked = Array.from(container.querySelectorAll('.perm-tag-cb:checked'));
+  return checked.map((cb) => String(cb.dataset.tag || '').trim()).filter(Boolean);
+}
+
 export function saveIamRole() {
   let roleName = String(qs('iam-role-name') ? qs('iam-role-name').value : '').trim();
-  const permissions = parsePermissions(qs('iam-role-permissions') ? qs('iam-role-permissions').value : '');
+  const permissions = _collectRolePermissions();
   const existing = state.authRoles.find((role) => role.name === roleName);
   try {
     roleName = sanitizeIdentifier(roleName, 'Rollenname', ROLE_NAME_PATTERN, 2, 80);

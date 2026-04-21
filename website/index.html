@@ -825,10 +825,12 @@
                   </div>
                   <div class="iam-editor-grid iam-editor-stack">
                     <label class="field"><span>Rollenname</span><input id="iam-role-name" type="text" placeholder="ops-l2"></label>
-                    <label class="field field-wide">
-                      <span>Permissions (eine pro Zeile)</span>
-                      <textarea id="iam-role-permissions" rows="6" placeholder="vm:mutate&#10;actions:bulk&#10;auth:read"></textarea>
-                    </label>
+                    <div class="field field-wide">
+                      <span class="field-label">Berechtigungen</span>
+                      <div id="iam-role-permissions-grid" class="permission-tag-grid">
+                        <p class="perm-empty">Wird geladen…</p>
+                      </div>
+                    </div>
                   </div>
                   <div class="button-row">
                     <button class="button primary" id="iam-role-save" type="button">Speichern</button>

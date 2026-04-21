@@ -1,5 +1,18 @@
 # Next Steps
 
+## Aktueller Status (2026-04-21 nach Plan 13 Schritte 4+5)
+
+Plan 13 ist vollständig abgehakt (Schritte 1–6 alle [x]).
+
+**Nächste offene GoFuture-Schritte:**
+
+1. **Plan 14 — Session Recording + Watermark** (7.2.1): Recording-Infrastruktur für VDI-Sessions.
+2. **Plan 15 — Audit-Export + Compliance-Report** (7.2.2): Strukturierter Audit-Export, Retention-Policy.
+3. **OIDC-Hardening**: JWKS-Validierung für ID-Token-Signaturen ergänzen.
+4. **SAML-Hardening**: ACS-POST-Endpoint mit Assertion-Signaturprüfung.
+5. **SCIM PATCH**: Partial-Update-Semantik (RFC 7644 Operations).
+
+
 ## Delta (2026-04-21 nach Plan 13 Schritt 3: SCIM Surface)
 
 0. **SCIM-Flow vervollständigen**:

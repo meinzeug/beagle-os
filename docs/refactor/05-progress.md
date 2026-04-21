@@ -1,5 +1,23 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 13 Schritte 4+5: Tenant-Scope + Permission-Tags)
+
+**Schritt 4 — Tenant-Scope in mutierenden Endpoints:**
+- `beagle-host/services/auth_session.py`: `tenant_id` in User-Records (optional); `list_users` filtert nach Tenant; `create_user`/`update_user` akzeptieren `tenant_id`; `get_user_tenant_id()` Hilfsmethode; `resolve_access_token()` gibt `tenant_id` im Principal zurück.
+- `beagle-host/services/auth_http_surface.py`: `route_get/post/put/delete` bekommen `requester_tenant_id`; Cross-tenant-Zugriff → 403 Forbidden.
+- `beagle-host/bin/beagle-control-plane.py`: `requester_tenant_id` aus Principal weitergeleitet; `/api/v1/auth/me` gibt `tenant_id` zurück.
+- 12 neue Unit-Tests in `tests/unit/test_tenant_isolation.py` (alle bestanden).
+
+**Schritt 5 — Permission-Tag Checkboxen im Rollen-Editor:**
+- `beagle-host/services/authz_policy.py`: `PERMISSION_CATALOG` (7 Gruppen, 13 Tags).
+- Neuer Endpoint `GET /api/v1/auth/permission-tags`.
+- `website/ui/iam.js`: `renderPermissionTagEditor()`, Checkbox-basierter Rollen-Editor.
+- `website/index.html`: Rollen-Editor-Textarea → Checkbox-Grid.
+- `website/styles/_forms.css`: Permission-Tag-Grid CSS.
+
+Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Tests bestanden.
+
+
 ## Update (2026-04-21, GoFuture Plan 13 Schritt 3: SCIM 2.0 Surface)
 
 - SCIM-Service umgesetzt:

@@ -16,18 +16,24 @@ class _AuthSessionStub:
         self._users = [{"username": "admin", "role": "superadmin", "enabled": True}]
         self._roles = [{"name": "viewer", "permissions": ["inventory:read"]}]
 
-    def list_users(self):
+    def list_users(self, *, requester_tenant_id=None):
         return list(self._users)
 
     def list_roles(self):
         return list(self._roles)
 
-    def create_user(self, *, username: str, password: str, role: str, enabled: bool):
+    def create_user(self, *, username: str, password: str, role: str, enabled: bool, tenant_id=None):
         if not password:
             raise ValueError("password is required")
-        user = {"username": username, "role": role, "enabled": bool(enabled)}
+        user = {"username": username, "role": role, "enabled": bool(enabled), "tenant_id": tenant_id}
         self._users.append(user)
         return user
+
+    def get_user_tenant_id(self, username: str):
+        for user in self._users:
+            if user["username"] == username:
+                return user.get("tenant_id")
+        return None
 
     def save_role(self, *, name: str, permissions: list[str]):
         role = {"name": name, "permissions": permissions}
@@ -38,7 +44,7 @@ class _AuthSessionStub:
     def revoke_user_sessions(self, username: str):
         return 2 if username == "admin" else 0
 
-    def update_user(self, *, username: str, role, enabled, password):
+    def update_user(self, *, username: str, role, enabled, password, tenant_id=...):
         for user in self._users:
             if user["username"] == username:
                 if role is not None:

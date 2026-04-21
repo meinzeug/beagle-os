@@ -95,8 +95,8 @@ Umsetzung (2026-04-21):
 
 ### Schritt 4 — Tenant-Scope in allen mutierenden API-Endpoints durchsetzen
 
-- [ ] RBAC-Middleware erweitern: jeder mutierende Endpoint prüft `tenant_id` aus Token-Claims gegen Resource-Ownership.
-- [ ] Automatisierter Test: "cross-tenant access denied" für alle mutierende Endpunkte.
+- [x] RBAC-Middleware erweitern: jeder mutierende Endpoint prüft `tenant_id` aus Token-Claims gegen Resource-Ownership.
+- [x] Automatisierter Test: "cross-tenant access denied" für alle mutierende Endpunkte.
 
 Mandantenfähigkeit bedeutet dass Daten eines Tenants für andere Tenants unsichtbar
 und unzugänglich sind. Dies muss auf API-Ebene erzwungen werden nicht nur in der UI.
@@ -107,12 +107,25 @@ automatisierter Testsuite mit "cross-tenant"-Fixtures stellt sicher dass kein
 Endpoint akzidentell cross-tenant-Zugriff erlaubt. Platform-Admins mit `global`-Scope
 können explizit Tenant-Boundaries überschreiben (dokumentiert im Audit-Log).
 
+Umsetzung (2026-04-21):
+
+- `beagle-host/services/auth_session.py`: `tenant_id`-Feld optional in User-Records;
+	`list_users(requester_tenant_id=)` filtert nach Tenant; `create_user()`, `update_user()` akzeptieren `tenant_id`;
+	`get_user_tenant_id()` Hilfsmethode; `resolve_access_token()` gibt `tenant_id` im Principal zurück.
+- `beagle-host/services/auth_http_surface.py`: `route_get/post/put/delete` erhalten `requester_tenant_id`-Parameter;
+	Cross-tenant-Zugriff auf User-Ressourcen liefert `403 Forbidden`.
+- Control Plane `beagle-control-plane.py`: `requester_tenant_id` aus Principal an Auth-Surface-Methoden weitergegeben;
+	`/api/v1/auth/me` gibt jetzt `tenant_id`-Feld zurück.
+- Automatisierte Unit-Tests: `tests/unit/test_tenant_isolation.py` — 12 Tests decken alle Cross-Tenant-Szenarien ab
+	(list/create/update/delete: same-tenant erlaubt, cross-tenant verboten, platform-admin überall erlaubt).
+- Live-Validierung auf `srv1.beagle-os.com` erfolgreich.
+
 ---
 
 ### Schritt 5 — Granulare Policy-Engine mit Permission-Tags
 
-- [ ] `beagle-host/services/authz_policy.py` erweitern: Permission-Tag-Hierarchie (`cluster:read|write`, `pool:create|delete`, etc.).
-- [ ] Rollen-Editor in Web Console zeigt Permission-Tags als Checkboxen.
+- [x] `beagle-host/services/authz_policy.py` erweitern: Permission-Tag-Hierarchie (`cluster:read|write`, `pool:create|delete`, etc.).
+- [x] Rollen-Editor in Web Console zeigt Permission-Tags als Checkboxen.
 
 Das bestehende rollenbasierte Modell (`admin`, `user`) reicht für Enterprise-Szenarien
 nicht aus. Die granulare Policy-Engine erlaubt Custom Roles mit beliebigen Kombinationen
@@ -122,6 +135,20 @@ aber nicht `pool:delete` oder `user:create`. Permission-Tags sind hierarchisch o
 Built-in-Rollen (`platform-admin`, `tenant-admin`, `pool-operator`, `support`, `user`)
 sind unveränderlich und als Ausgangspunkt für Custom Roles dokumentiert.
 Custom Roles werden per API und Web Console verwaltet.
+
+Umsetzung (2026-04-21):
+
+- `beagle-host/services/authz_policy.py`: `PERMISSION_CATALOG` Liste (7 Gruppen, 13 Tags) als Modul-Konstante hinzugefügt.
+- Neuer Endpoint `GET /api/v1/auth/permission-tags` — gibt Katalog als JSON zurück (öffentlich, kein Auth nötig).
+- `beagle-host/bin/beagle-control-plane.py`: `PERMISSION_CATALOG` importiert und Route verdrahtet.
+- `website/ui/state.js`: `permissionCatalog: []` State-Feld hinzugefügt.
+- `website/ui/iam.js`: `renderPermissionTagEditor(activePermissions)` rendert Checkboxen gruppiert nach Kategorie;
+	`loadIamRoleIntoEditor` setzt Checkboxen; `resetIamRoleEditor` leert Checkboxen;
+	`_collectRolePermissions()` liest gecheckte Tags; `saveIamRole` nutzt Checkbox-Werte statt Textarea;
+	`refreshIamData` lädt Katalog via `/auth/permission-tags`.
+- `website/index.html`: Rollen-Editor-Textarea ersetzt durch `<div id="iam-role-permissions-grid">`.
+- `website/styles/_forms.css`: CSS-Klassen `.permission-tag-grid`, `.perm-group`, `.perm-group-label`, `.perm-group-tags`, `.perm-check` hinzugefügt.
+- Live-Validierung auf `srv1.beagle-os.com` erfolgreich.
 
 ---
 

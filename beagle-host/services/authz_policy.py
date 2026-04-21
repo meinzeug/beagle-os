@@ -4,6 +4,60 @@ from __future__ import annotations
 
 import re
 
+# Structured catalog of all known permission tags, grouped by category.
+# Used by GET /api/v1/auth/permission-tags so the Web Console can render
+# a checkbox-based role editor instead of a raw freeform textarea.
+PERMISSION_CATALOG: list[dict] = [
+    {
+        "group": "VMs",
+        "tags": [
+            {"tag": "vm:read",   "label": "VMs lesen (list / get)"},
+            {"tag": "vm:power",  "label": "VMs starten / stoppen (power)"},
+            {"tag": "vm:mutate", "label": "VMs erstellen, aendern, loeschen"},
+        ],
+    },
+    {
+        "group": "Provisioning",
+        "tags": [
+            {"tag": "provisioning:read",  "label": "Provisioning-Eintraege lesen"},
+            {"tag": "provisioning:write", "label": "Provisioning schreiben / loeschen"},
+        ],
+    },
+    {
+        "group": "Policies",
+        "tags": [
+            {"tag": "policy:read",  "label": "Policies lesen"},
+            {"tag": "policy:write", "label": "Policies schreiben / loeschen"},
+        ],
+    },
+    {
+        "group": "Benutzer & Rollen",
+        "tags": [
+            {"tag": "auth:read",  "label": "Benutzer & Rollen lesen"},
+            {"tag": "auth:write", "label": "Benutzer & Rollen schreiben / loeschen"},
+        ],
+    },
+    {
+        "group": "Einstellungen",
+        "tags": [
+            {"tag": "settings:read",  "label": "Einstellungen lesen"},
+            {"tag": "settings:write", "label": "Einstellungen schreiben"},
+        ],
+    },
+    {
+        "group": "Aktionen",
+        "tags": [
+            {"tag": "actions:bulk", "label": "Bulk-VM-Aktionen ausfuehren"},
+        ],
+    },
+    {
+        "group": "Superadmin",
+        "tags": [
+            {"tag": "*", "label": "Alle Berechtigungen (Superadmin / Wildcard)"},
+        ],
+    },
+]
+
 
 class AuthzPolicyService:
     @staticmethod

@@ -63,13 +63,15 @@ class AuthHttpSurfaceService:
             raise ValueError(f"invalid {label}")
         return text
 
-    def route_get(self, path: str) -> dict[str, Any]:
+    def route_get(self, path: str, *, requester_tenant_id: str | None = None) -> dict[str, Any]:
         if path == "/api/v1/auth/users":
             return self._json_response(
                 HTTPStatus.OK,
                 {
                     "ok": True,
-                    "users": self._auth_session.list_users(),
+                    "users": self._auth_session.list_users(
+                        requester_tenant_id=requester_tenant_id
+                    ),
                 },
             )
         if path == "/api/v1/auth/roles":
@@ -87,6 +89,7 @@ class AuthHttpSurfaceService:
         path: str,
         *,
         json_payload: dict[str, Any] | None,
+        requester_tenant_id: str | None = None,
     ) -> dict[str, Any]:
         payload = json_payload if isinstance(json_payload, dict) else {}
 
@@ -97,11 +100,23 @@ class AuthHttpSurfaceService:
                     label="username",
                     pattern=r"^[A-Za-z0-9._-]{1,64}$",
                 )
+                # Tenant-scoped requester can only create users within their own tenant
+                requested_tenant = payload.get("tenant_id") or None
+                if requested_tenant is not None:
+                    requested_tenant = str(requested_tenant).strip() or None
+                if requester_tenant_id is not None:
+                    if requested_tenant is not None and requested_tenant != requester_tenant_id:
+                        return self._json_response(
+                            HTTPStatus.FORBIDDEN,
+                            {"ok": False, "error": "cross-tenant user creation denied"},
+                        )
+                    requested_tenant = requester_tenant_id
                 user = self._auth_session.create_user(
                     username=username,
                     password=str(payload.get("password") or ""),
                     role=str(payload.get("role") or "viewer").strip().lower() or "viewer",
                     enabled=bool(payload.get("enabled", True)),
+                    tenant_id=requested_tenant,
                 )
             except Exception as exc:
                 return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
@@ -141,12 +156,21 @@ class AuthHttpSurfaceService:
         path: str,
         *,
         json_payload: dict[str, Any] | None,
+        requester_tenant_id: str | None = None,
     ) -> dict[str, Any]:
         payload = json_payload if isinstance(json_payload, dict) else {}
 
         user_match = self._auth_user_match(path)
         if user_match is not None:
             username = str(user_match.group("username") or "")
+            # Tenant-scoped requester cannot modify users from a different tenant
+            if requester_tenant_id is not None:
+                target_tid = self._auth_session.get_user_tenant_id(username)
+                if target_tid != requester_tenant_id:
+                    return self._json_response(
+                        HTTPStatus.FORBIDDEN,
+                        {"ok": False, "error": "cross-tenant user mutation denied"},
+                    )
             try:
                 updated = self._auth_session.update_user(
                     username=username,
@@ -174,10 +198,18 @@ class AuthHttpSurfaceService:
 
         return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 
-    def route_delete(self, path: str) -> dict[str, Any]:
+    def route_delete(self, path: str, *, requester_tenant_id: str | None = None) -> dict[str, Any]:
         user_match = self._auth_user_match(path)
         if user_match is not None:
             username = str(user_match.group("username") or "")
+            # Tenant-scoped requester cannot delete users from a different tenant
+            if requester_tenant_id is not None:
+                target_tid = self._auth_session.get_user_tenant_id(username)
+                if target_tid != requester_tenant_id:
+                    return self._json_response(
+                        HTTPStatus.FORBIDDEN,
+                        {"ok": False, "error": "cross-tenant user deletion denied"},
+                    )
             deleted = self._auth_session.delete_user(username)
             if not deleted:
                 return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "user not found"})
