@@ -1,5 +1,22 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 18 Schritt 4: Webhook-System)
+
+- Webhook-Service real implementiert:
+	- neue Datei `beagle-host/services/webhook_service.py` (persistente Registry, Event-Filter, HMAC-Signatur, Retry-Backoff, Delivery-Statusfelder).
+- Settings-API erweitert:
+	- `GET/PUT /api/v1/settings/webhooks`,
+	- `POST /api/v1/settings/webhooks/test` in `beagle-host/services/server_settings.py`.
+- Control Plane Integration:
+	- erfolgreiche VM-Power-Events (`vm.start|vm.stop|vm.reboot`) dispatchen Webhooks in `beagle-host/bin/beagle-control-plane.py`.
+- Web Console Integration:
+	- neuer Server-Settings-Bereich `settings_webhooks` inkl. List/Add/Delete/Test/Save-Flow (`website/index.html`, `website/ui/settings.js`, `website/ui/state.js`).
+- Validierung:
+	- lokal: `python3 -m py_compile` für betroffene Python-Dateien und `node --check` für UI-Module erfolgreich.
+	- `srv1.beagle-os.com`: Deploy + Service-Restart erfolgreich (`beagle-control-plane.service active`).
+	- Live-API: Webhook-Settings `PUT` + Test-Dispatch `POST` jeweils `HTTP 200`.
+	- Capture/HMAC: `X-Beagle-Signature` vorhanden und gegen Raw-Body verifiziert (`signature_valid=True`), Test-Dispatch `attempted=1`, `delivered=1`.
+
 ## Update (2026-04-21, GoFuture Plan 18 Schritt 5 + Testpflicht-Teile)
 
 - API-Versionierungs-Vorbereitung umgesetzt:

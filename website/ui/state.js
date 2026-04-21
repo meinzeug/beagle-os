@@ -110,6 +110,11 @@ export const panelMeta = {
     title: 'Backup & Recovery',
     description: 'Automatische Sicherung der Beagle-Konfiguration verwalten.'
   },
+  settings_webhooks: {
+    eyebrow: 'Operations',
+    title: 'Webhooks',
+    description: 'Externe Integrationen via Events und HMAC-signierten HTTP-POSTs anbinden.'
+  },
   sessions: {
     eyebrow: 'Beagle OS 7.0',
     title: 'Sessions',

@@ -60,8 +60,8 @@ Linux (amd64/arm64), macOS und Windows.
 
 ### Schritt 4 — Webhook-System für Externe Integrationen
 
-- [ ] `beagle-host/services/webhook_service.py` anlegen: Webhook-Registrierungen verwalten, Events dispatchen.
-- [ ] Web Console: Webhook-Manager unter Server-Settings.
+- [x] `beagle-host/services/webhook_service.py` anlegen: Webhook-Registrierungen verwalten, Events dispatchen.
+- [x] Web Console: Webhook-Manager unter Server-Settings.
 
 Webhooks ermöglichen es externen Systemen (Ticketing, Monitoring, Automatisierungsplattformen)
 auf Beagle-Events zu reagieren ohne dauerhaft API-Polling zu betreiben. Der Webhook-
@@ -70,6 +70,11 @@ sollen übermittelt werden) und HMAC-Secret für Authentizitäts-Verifikation. B
 eines Events wird ein HTTP-POST an alle registrierten Webhook-URLs gesendet mit dem
 Event-JSON im Body und der HMAC-Signatur im Header. Bei Fehlschlag wird mit exponentiellem
 Backback bis zu 5 mal wiederholt.
+
+> Umsetzung 2026-04-21: `beagle-host/services/webhook_service.py` implementiert (persistente Registry in `webhooks.json`, Event-Filter, HMAC-SHA256-Signatur `X-Beagle-Signature`, Retry-Backoff bis zu 5 Versuche, Zustandsfelder `last_status`/`last_error`).
+> Die Settings-API wurde um `GET/PUT /api/v1/settings/webhooks` und `POST /api/v1/settings/webhooks/test` erweitert (`beagle-host/services/server_settings.py`).
+> Die Web Console enthält jetzt ein dediziertes Panel `settings_webhooks` mit CRUD/Test-Flow (`website/index.html`, `website/ui/settings.js`, `website/ui/state.js`).
+> Zusätzlich dispatcht die Control Plane erfolgreiche VM-Power-Events (`vm.start|vm.stop|vm.reboot`) als Webhooks (`beagle-host/bin/beagle-control-plane.py`).
 
 ---
 
@@ -95,8 +100,9 @@ in der API-Dokumentation publiziert.
 - [x] OpenAPI-Schema validiert gegen alle Live-Endpoints (keine undokumentierten Endpoints).
 - [ ] Terraform: `terraform apply` legt VM an, `terraform destroy` entfernt sie.
 - [x] `beaglectl vm list` gibt korrekte VM-Liste aus, `--json` gibt valides JSON.
-- [ ] Webhook: VM-Start-Event sendet HTTP-POST an registrierte URL mit korrekter HMAC-Signatur.
+- [x] Webhook: VM-Start-Event sendet HTTP-POST an registrierte URL mit korrekter HMAC-Signatur.
 
 > Live-Validierung 2026-04-21 auf `srv1.beagle-os.com`:
 > - `python3 scripts/validate-openapi-live.py --base-url http://127.0.0.1:9088 --coverage-file docs/api/openapi-v1-coverage.md` -> `openapi-live-validation=ok` (41 Pfade geprüft).
 > - `python3 scripts/beaglectl.py --server http://127.0.0.1:9088 --token <BEAGLE_MANAGER_API_TOKEN> vm list --json` -> valides JSON (via `python3 -m json.tool` geprüft).
+> - Webhook-E2E gegen `srv1`: Registrierung/Test via Settings-API (`PUT /api/v1/settings/webhooks`, `POST /api/v1/settings/webhooks/test`) erfolgreich (`attempted=1`, `delivered=1`), Capture zeigt `X-Beagle-Signature`; HMAC-Validierung gegen Raw-Body ist `signature_valid=true`.

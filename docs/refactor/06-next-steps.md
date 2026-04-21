@@ -6,12 +6,15 @@
 	- weitere v1-Endpunkte, die in v2 entfallen sollen, in `BEAGLE_API_V1_DEPRECATED_ENDPOINTS` aufnehmen,
 	- dazu Migrationsabschnitte in der öffentlichen API-Doku ergänzen.
 
-0. **Plan 18 Schritt 4 starten (Webhook-Service)**:
-	- `beagle-host/services/webhook_service.py` mit Registry + HMAC-Signatur + Retry-Backoff implementieren,
-	- danach Web-Console-Settings-Integration nachziehen.
+0. **Plan 18 Schritt 4 ist abgeschlossen; Stabilisierung nachziehen**:
+	- optional Delivery-Queue mit asynchronen Worker-Dispatches ergänzen (statt inline Dispatch),
+	- erweiterte Event-Abdeckung über VM-Power hinaus priorisieren (z.B. Provisioning-/Backup-Events).
 
 0. **beaglectl erweitern**:
 	- über `list` hinaus mutierende Commands (`vm start/stop/reboot` mit klaren Exit-Codes) per srv1-Smoke gegen echte VMs verifizieren.
+
+0. **Plan 18 Restpunkt schließen**:
+	- Terraform-Provider (`terraform apply/destroy`) mit realer VM auf `srv1` validieren und letzte offene Testpflicht-Checkbox schließen.
 
 ## Delta (2026-04-21 nach Plan 18 Schritt 1+3: OpenAPI + beaglectl)
 

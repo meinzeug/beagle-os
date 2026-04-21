@@ -6,6 +6,8 @@ const settingsHooks = {
   setBanner() {}
 };
 
+let webhookRows = [];
+
 export function configureSettings(nextHooks) {
   Object.assign(settingsHooks, nextHooks || {});
 }
@@ -346,6 +348,164 @@ export function runBackupNow() {
   });
 }
 
+function parseWebhookEvents(raw) {
+  const values = String(raw || '').split(/[\s,]+/).map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0);
+  return Array.from(new Set(values));
+}
+
+function resetWebhookForm() {
+  if (qs('wh-url')) { qs('wh-url').value = ''; }
+  if (qs('wh-events')) { qs('wh-events').value = ''; }
+  if (qs('wh-secret')) { qs('wh-secret').value = ''; }
+  if (qs('wh-enabled')) { qs('wh-enabled').checked = true; }
+}
+
+function renderWebhookRows() {
+  const tbody = qs('wh-body');
+  if (!tbody) {
+    return;
+  }
+  if (!webhookRows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">Keine Webhooks konfiguriert.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = webhookRows.map((hook, idx) => {
+    const statusText = hook.enabled ? 'aktiv' : 'inaktiv';
+    const secretText = hook.has_secret || hook.secret ? 'gesetzt' : 'fehlt';
+    const lastDelivery = hook.last_delivery_at || '—';
+    const title = hook.last_error ? (' title="' + escapeHtml(hook.last_error) + '"') : '';
+    return '<tr>' +
+      '<td><code>' + escapeHtml(hook.id || ('draft-' + String(idx + 1))) + '</code></td>' +
+      '<td>' + escapeHtml(hook.url || '') + '</td>' +
+      '<td>' + escapeHtml((hook.events || []).join(', ')) + '</td>' +
+      '<td><span class="badge ' + (hook.enabled ? 'badge-ok' : 'badge-warn') + '">' + escapeHtml(statusText) + '</span></td>' +
+      '<td>' + escapeHtml(secretText) + '</td>' +
+      '<td><span' + title + '>' + escapeHtml(lastDelivery) + '</span></td>' +
+      '<td>' +
+        '<button class="button ghost small wh-test" data-wh-idx="' + escapeHtml(String(idx)) + '">Test</button> ' +
+        '<button class="button danger small wh-delete" data-wh-idx="' + escapeHtml(String(idx)) + '">Loeschen</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+export function loadSettingsWebhooks() {
+  return request('/settings/webhooks').then((data) => {
+    webhookRows = Array.isArray(data.webhooks) ? data.webhooks.map((item) => ({
+      id: String(item.id || '').trim(),
+      url: String(item.url || '').trim(),
+      events: Array.isArray(item.events) ? item.events.map((value) => String(value || '').trim().toLowerCase()).filter((value) => value.length > 0) : [],
+      enabled: Boolean(item.enabled),
+      has_secret: Boolean(item.has_secret),
+      secret: '',
+      last_delivery_at: String(item.last_delivery_at || ''),
+      last_status: Number(item.last_status || 0),
+      last_error: String(item.last_error || '')
+    })) : [];
+    renderWebhookRows();
+  }).catch((error) => {
+    settingsHooks.setBanner('Webhooks laden fehlgeschlagen: ' + error.message, 'warn');
+  });
+}
+
+export function addWebhookFromForm() {
+  const url = String(qs('wh-url') ? qs('wh-url').value : '').trim();
+  const events = parseWebhookEvents(qs('wh-events') ? qs('wh-events').value : '');
+  const secret = String(qs('wh-secret') ? qs('wh-secret').value : '').trim();
+  const enabled = Boolean(qs('wh-enabled') && qs('wh-enabled').checked);
+
+  if (!url || !(url.startsWith('https://') || url.startsWith('http://'))) {
+    settingsHooks.setBanner('Webhook-URL muss mit http:// oder https:// beginnen.', 'warn');
+    return;
+  }
+  if (!events.length) {
+    settingsHooks.setBanner('Mindestens ein Event ist erforderlich.', 'warn');
+    return;
+  }
+  if (!secret || secret.length < 12) {
+    settingsHooks.setBanner('Webhook-Secret muss mindestens 12 Zeichen lang sein.', 'warn');
+    return;
+  }
+
+  webhookRows.push({
+    id: '',
+    url,
+    events,
+    enabled,
+    has_secret: true,
+    secret,
+    last_delivery_at: '',
+    last_status: 0,
+    last_error: ''
+  });
+  renderWebhookRows();
+  resetWebhookForm();
+  settingsHooks.setBanner('Webhook zur lokalen Liste hinzugefuegt. Zum Anwenden bitte speichern.', 'info');
+}
+
+export function saveSettingsWebhooks() {
+  const webhooksPayload = webhookRows.map((hook) => {
+    const entry = {
+      id: hook.id || undefined,
+      url: hook.url,
+      events: Array.isArray(hook.events) ? hook.events : [],
+      enabled: Boolean(hook.enabled)
+    };
+    const secret = String(hook.secret || '').trim();
+    if (secret) {
+      entry.secret = secret;
+    }
+    return entry;
+  });
+  return request('/settings/webhooks', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ webhooks: webhooksPayload })
+  }).then((data) => {
+    if (data.ok) {
+      settingsHooks.setBanner('Webhooks gespeichert.', 'info');
+      loadSettingsWebhooks();
+    } else if (Array.isArray(data.errors) && data.errors.length) {
+      settingsHooks.setBanner('Webhook-Fehler: ' + data.errors.join(', '), 'warn');
+    } else {
+      settingsHooks.setBanner('Webhook-Speichern fehlgeschlagen.', 'warn');
+    }
+  }).catch((error) => {
+    settingsHooks.setBanner('Webhook-Speichern fehlgeschlagen: ' + error.message, 'warn');
+  });
+}
+
+function testWebhook(index) {
+  const item = webhookRows[index];
+  if (!item || !item.id) {
+    settingsHooks.setBanner('Webhook muss erst gespeichert werden, bevor ein Test moeglich ist.', 'warn');
+    return;
+  }
+  request('/settings/webhooks/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: item.id })
+  }).then((data) => {
+    if (data.ok) {
+      settingsHooks.setBanner('Webhook-Test gesendet: ' + String(data.delivered || 0) + '/' + String(data.attempted || 0) + ' erfolgreich.', 'info');
+      loadSettingsWebhooks();
+    } else {
+      settingsHooks.setBanner('Webhook-Test fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannt'), 'warn');
+    }
+  }).catch((error) => {
+    settingsHooks.setBanner('Webhook-Test fehlgeschlagen: ' + error.message, 'warn');
+  });
+}
+
+function deleteWebhook(index) {
+  if (index < 0 || index >= webhookRows.length) {
+    return;
+  }
+  webhookRows.splice(index, 1);
+  renderWebhookRows();
+  settingsHooks.setBanner('Webhook aus lokaler Liste entfernt. Zum Anwenden bitte speichern.', 'info');
+}
+
 export function loadSettingsForPanel(panel) {
   if (!isAdminRole()) {
     return;
@@ -371,6 +531,9 @@ export function loadSettingsForPanel(panel) {
       break;
     case 'settings_backup':
       loadSettingsBackup();
+      break;
+    case 'settings_webhooks':
+      loadSettingsWebhooks();
       break;
     default:
       break;
@@ -463,5 +626,36 @@ export function bindSettingsEvents() {
   }
   if (qs('settings-backup-run')) {
     qs('settings-backup-run').addEventListener('click', runBackupNow);
+  }
+  if (qs('settings-webhooks-refresh')) {
+    qs('settings-webhooks-refresh').addEventListener('click', loadSettingsWebhooks);
+  }
+  if (qs('wh-add')) {
+    qs('wh-add').addEventListener('click', addWebhookFromForm);
+  }
+  if (qs('wh-clear')) {
+    qs('wh-clear').addEventListener('click', resetWebhookForm);
+  }
+  if (qs('wh-save')) {
+    qs('wh-save').addEventListener('click', saveSettingsWebhooks);
+  }
+  if (qs('wh-body')) {
+    qs('wh-body').addEventListener('click', (event) => {
+      const testBtn = event.target.closest('.wh-test');
+      if (testBtn) {
+        const idx = Number(testBtn.getAttribute('data-wh-idx'));
+        if (!Number.isNaN(idx)) {
+          testWebhook(idx);
+        }
+        return;
+      }
+      const deleteBtn = event.target.closest('.wh-delete');
+      if (deleteBtn) {
+        const idx = Number(deleteBtn.getAttribute('data-wh-idx'));
+        if (!Number.isNaN(idx) && window.confirm('Webhook wirklich loeschen?')) {
+          deleteWebhook(idx);
+        }
+      }
+    });
   }
 }

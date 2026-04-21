@@ -9,7 +9,7 @@
 - [x] Deprecation-Header (`Deprecation`, `Sunset`, `Link`) für konfigurierte v1-Endpunkte zentral ausrollen.
 - [x] Live-OpenAPI-Check-Tool (`scripts/validate-openapi-live.py`) erstellen und auf `srv1` erfolgreich ausführen.
 - [x] `beaglectl vm list --json` Live-Test mit gültigem Manager-Token auf `srv1` erfolgreich validieren.
-- [ ] Plan 18 Schritt 4 real umsetzen: Webhook-Service inkl. HMAC und Retry.
+- [x] Plan 18 Schritt 4 real umsetzen: Webhook-Service inkl. HMAC und Retry.
 - [ ] Plan 18 Terraform-Provider-Testpflicht (`apply/destroy`) auf `srv1` mit realer VM schließen.
 ## Wave 1 / 6.x backlog
 

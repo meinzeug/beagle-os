@@ -75,6 +75,7 @@ from update_feed import UpdateFeedService
 from utility_support import UtilitySupportService
 from virtualization_inventory import VirtualizationInventoryService
 from virtualization_read_surface import VirtualizationReadSurfaceService
+from webhook_service import WebhookService
 from vm_mutation_surface import VmMutationSurfaceService
 from vm_profile import VmProfileService
 from vm_console_access import VmConsoleAccessService
@@ -384,6 +385,7 @@ AUTH_SESSION_SERVICE: AuthSessionService | None = None
 AUDIT_LOG_SERVICE: AuditLogService | None = None
 AUTHZ_POLICY_SERVICE: AuthzPolicyService | None = None
 SERVER_SETTINGS_SERVICE: ServerSettingsService | None = None
+WEBHOOK_SERVICE: WebhookService | None = None
 
 
 def resolve_public_stream_host(host: str) -> str:
@@ -547,8 +549,19 @@ def server_settings_service() -> ServerSettingsService:
         SERVER_SETTINGS_SERVICE = ServerSettingsService(
             data_dir=ensure_data_dir(),
             utcnow=utcnow,
+            webhook_service=webhook_service(),
         )
     return SERVER_SETTINGS_SERVICE
+
+
+def webhook_service() -> WebhookService:
+    global WEBHOOK_SERVICE
+    if WEBHOOK_SERVICE is None:
+        WEBHOOK_SERVICE = WebhookService(
+            data_dir=ensure_data_dir(),
+            utcnow=utcnow,
+        )
+    return WEBHOOK_SERVICE
 
 
 def cache_get(key: str, ttl_seconds: float) -> Any:
@@ -3219,6 +3232,19 @@ class Handler(BaseHTTPRequestHandler):
                     str(vm_power_event.get("outcome") or "unknown"),
                     **(vm_power_event.get("details") if isinstance(vm_power_event.get("details"), dict) else {}),
                 )
+                if str(vm_power_event.get("outcome") or "") == "success":
+                    event_type = str(vm_power_event.get("event_type") or "")
+                    event_details = vm_power_event.get("details") if isinstance(vm_power_event.get("details"), dict) else {}
+                    try:
+                        webhook_service().dispatch_event(
+                            event_type=event_type,
+                            event_payload={
+                                "vm": event_details,
+                                "requested_by": self._requester_identity(),
+                            },
+                        )
+                    except Exception:
+                        pass
             self._write_json(response["status"], response["payload"])
             return
 

@@ -21,6 +21,8 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Callable
 
+from webhook_service import WebhookService
+
 _SETTINGS_FILE = "/etc/beagle/server-settings.json"
 
 _MANAGED_SERVICES = [
@@ -47,10 +49,15 @@ class ServerSettingsService:
         *,
         data_dir: Path | None = None,
         utcnow: Callable[[], str] | None = None,
+        webhook_service: WebhookService | None = None,
     ) -> None:
         self._data_dir = data_dir or Path("/etc/beagle")
         self._utcnow = utcnow or (lambda: "")
         self._settings_path = self._data_dir / "server-settings.json"
+        self._webhook_service = webhook_service or WebhookService(
+            data_dir=self._data_dir,
+            utcnow=self._utcnow,
+        )
 
     # ------------------------------------------------------------------
     # Persistence helpers
@@ -574,6 +581,20 @@ class ServerSettingsService:
         return {"ok": True, "archive": archive}
 
     # ------------------------------------------------------------------
+    # Webhooks
+    # ------------------------------------------------------------------
+
+    def get_webhooks(self) -> dict[str, Any]:
+        return {"webhooks": self._webhook_service.list_webhooks()}
+
+    def update_webhooks(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._webhook_service.replace_webhooks(payload.get("webhooks"))
+
+    def send_webhook_test(self, payload: dict[str, Any]) -> dict[str, Any]:
+        webhook_id = str(payload.get("id") or "").strip()
+        return self._webhook_service.send_test_event(webhook_id)
+
+    # ------------------------------------------------------------------
     # HTTP surface routing
     # ------------------------------------------------------------------
 
@@ -594,6 +615,8 @@ class ServerSettingsService:
             return _ok(self.get_updates())
         if path == "/api/v1/settings/backup":
             return _ok(self.get_backup())
+        if path == "/api/v1/settings/webhooks":
+            return _ok(self.get_webhooks())
         return None
 
     def route_put(self, path: str, payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -617,6 +640,10 @@ class ServerSettingsService:
             result = self.update_backup(payload)
             status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
             return {"kind": "json", "status": status, "payload": result}
+        if path == "/api/v1/settings/webhooks":
+            result = self.update_webhooks(payload)
+            status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
+            return {"kind": "json", "status": status, "payload": result}
         return None
 
     def route_post(self, path: str, payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -633,6 +660,10 @@ class ServerSettingsService:
         if path == "/api/v1/settings/backup/run":
             result = self.run_backup_now()
             status = HTTPStatus.OK if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
+            return {"kind": "json", "status": status, "payload": result}
+        if path == "/api/v1/settings/webhooks/test":
+            result = self.send_webhook_test(payload)
+            status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
             return {"kind": "json", "status": status, "payload": result}
         if path.startswith("/api/v1/settings/services/") and path.endswith("/restart"):
             # /api/v1/settings/services/{name}/restart

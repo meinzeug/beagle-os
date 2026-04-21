@@ -272,6 +272,10 @@
           <svg class="nav-icon" aria-hidden="true"><use href="#i-backup"/></svg>
           <span>Backup &amp; Recovery</span>
         </button>
+        <button type="button" class="nav-item sidebar-admin-item" data-panel="settings_webhooks">
+          <svg class="nav-icon" aria-hidden="true"><use href="#i-network"/></svg>
+          <span>Webhooks</span>
+        </button>
 
         <!-- ── Platform ── -->
         <div class="sidebar-section-label sidebar-section-admin" id="settings-section-label">Platform</div>
@@ -1053,6 +1057,47 @@
                 <div class="button-row">
                   <button class="button primary" id="settings-backup-save" type="button">Speichern</button>
                   <button class="button ghost" id="settings-backup-run" type="button">Jetzt sichern</button>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <!-- ============ SETTINGS: WEBHOOKS ============ -->
+          <section class="panel-section" id="settings-webhooks-section" data-panel-section="settings_webhooks">
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Server-Einstellungen</span>
+                  <h2>Webhooks</h2>
+                </div>
+                <button class="button ghost small" id="settings-webhooks-refresh" type="button">Refresh</button>
+              </div>
+
+              <div class="settings-section-group">
+                <h3>Neuer Webhook</h3>
+                <div class="settings-form">
+                  <label class="field field-wide"><span>Ziel-URL</span><input id="wh-url" type="url" placeholder="https://example.internal/hooks/beagle"></label>
+                  <label class="field"><span>Events (kommagetrennt, z.B. vm.start)</span><input id="wh-events" type="text" placeholder="vm.start,vm.stop"></label>
+                  <label class="field"><span>HMAC Secret (nur bei Neuerstellung/Aenderung)</span><input id="wh-secret" type="password" placeholder="mindestens 12 Zeichen"></label>
+                  <label class="check-label check-label-padded">
+                    <input id="wh-enabled" type="checkbox" checked>
+                    <span>Aktiv</span>
+                  </label>
+                  <div class="button-row">
+                    <button class="button primary" id="wh-add" type="button">Zur Liste hinzufuegen</button>
+                    <button class="button ghost" id="wh-clear" type="button">Formular leeren</button>
+                    <button class="button ghost" id="wh-save" type="button">Liste speichern</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-section-group">
+                <h3>Registrierungen</h3>
+                <div class="table-wrap compact">
+                  <table class="vm-table compact-table">
+                    <thead><tr><th>ID</th><th>URL</th><th>Events</th><th>Status</th><th>Secret</th><th>Letzter Versand</th><th>Aktion</th></tr></thead>
+                    <tbody id="wh-body"><tr><td colspan="7" class="empty-cell">Keine Webhooks konfiguriert.</td></tr></tbody>
+                  </table>
                 </div>
               </div>
             </article>
