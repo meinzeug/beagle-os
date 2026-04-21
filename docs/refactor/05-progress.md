@@ -1,5 +1,21 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 18 Schritt 1+3: OpenAPI-Generator + beaglectl)
+
+- OpenAPI-v1-Generator umgesetzt:
+	- neues Tool `scripts/generate-openapi-v1.py` scannt `beagle-host/**/*.py` nach `/api/v1/*`-Routen,
+	- generiert `docs/api/openapi.v1.generated.yaml` und `docs/api/openapi-v1-coverage.md`.
+- API-Policy ergänzt:
+	- `docs/api/breaking-change-policy.md` erstellt (Breaking/Non-Breaking, Deprecation-Header, Supportfenster).
+- `beaglectl` CLI implementiert:
+	- neue dependency-freie CLI `scripts/beaglectl.py` (argparse + urllib),
+	- Subcommands: `vm`, `pool`, `user`, `node`, `backup`, `session`, `config`,
+	- JSON-Ausgabe (`--json`) und lokale Config-Verwaltung (`~/.config/beaglectl/config.json`),
+	- globale Flags funktionieren sowohl vor als auch nach dem Subcommand.
+- Validierung:
+	- lokal: `python3 scripts/generate-openapi-v1.py`, `python3 -m py_compile scripts/beaglectl.py scripts/generate-openapi-v1.py`, CLI-Smokes erfolgreich,
+	- `docs/gofuture/18-api-iac-cli.md` Schritt 1 und Schritt 3 auf `[x]` gesetzt.
+
 ## Update (2026-04-21, GoFuture Plan 19 Schritt 6: Gaming-Kiosk Modernisierung)
 
 - `beagle-kiosk/` Step-6-Ziele umgesetzt:

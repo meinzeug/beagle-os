@@ -9,8 +9,8 @@ Priorität: 7.4 (2028)
 
 ### Schritt 1 — OpenAPI v2-Schema vollständig definieren und generieren
 
-- [ ] OpenAPI-Schema für alle `/api/v1/`-Endpoints aus bestehendem Code generieren.
-- [ ] Fehlende Endpoints dokumentieren, Breaking-Change-Policy festschreiben.
+- [x] OpenAPI-Schema für alle `/api/v1/`-Endpoints aus bestehendem Code generieren.
+- [x] Fehlende Endpoints dokumentieren, Breaking-Change-Policy festschreiben.
 
 Ein vollständiges OpenAPI-Schema ist Voraussetzung für den Terraform-Provider und für
 externe Integrations-Entwickler. Das Schema wird entweder manuell gepflegt in
@@ -19,6 +19,8 @@ oder einem OpenAPI-Decorator). Alle Endpoints bekommen vollständige Request/Res
 Schema-Definitionen inklusive Fehlercodes. Eine Breaking-Change-Policy definiert
 welche Änderungen an der API new-major-version-würdig sind. Das Schema wird als
 Artifact bei jedem Release publiziert und auf `beagle-os.com/api` gehostet.
+
+> Umsetzung 2026-04-21: Generator `scripts/generate-openapi-v1.py` implementiert (statische Route-Discovery in `beagle-host/**/*.py`). Erzeugte Artefakte: `docs/api/openapi.v1.generated.yaml` und `docs/api/openapi-v1-coverage.md` (41 entdeckte `/api/v1`-Pfade). Breaking-Change-Policy in `docs/api/breaking-change-policy.md` festgeschrieben.
 
 ---
 
@@ -40,8 +42,8 @@ mit einem Mock-API-Server gegen realen Terraform-State-Tests.
 
 ### Schritt 3 — `beaglectl` CLI implementieren
 
-- [ ] `beaglectl` als Python-CLI (Typer/Click) oder Go-Binary anlegen.
-- [ ] Subcommands: `vm`, `pool`, `user`, `node`, `backup`, `session`, `config`.
+- [x] `beaglectl` als Python-CLI (Typer/Click) oder Go-Binary anlegen.
+- [x] Subcommands: `vm`, `pool`, `user`, `node`, `backup`, `session`, `config`.
 
 Die `beaglectl` CLI ist für Betreiber gedacht die lieber auf der Kommandozeile arbeiten
 als im Browser. Die CLI kommuniziert über die REST-API und benötigt einen konfigurierten
@@ -51,6 +53,8 @@ Default-Tenant). Subcommand-Struktur: `beaglectl vm list`, `beaglectl vm start <
 (Standard) und JSON (`--json`). Das Deployment als Single-Binary (Go) ist bevorzugt
 da es keine Laufzeit-Dependencies erfordert. Release als GitHub-Release-Asset für
 Linux (amd64/arm64), macOS und Windows.
+
+> Umsetzung 2026-04-21: `scripts/beaglectl.py` als dependency-freie Python-CLI (argparse + urllib) angelegt. Enthält die geforderten Subcommands `vm`, `pool`, `user`, `node`, `backup`, `session`, `config`, inkl. `--json` Ausgabe und lokaler Konfigurationsverwaltung (`~/.config/beaglectl/config.json`).
 
 ---
 

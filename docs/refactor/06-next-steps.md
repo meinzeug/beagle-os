@@ -1,5 +1,19 @@
 # Next Steps
 
+## Delta (2026-04-21 nach Plan 18 Schritt 1+3: OpenAPI + beaglectl)
+
+0. **OpenAPI-Generator präzisieren und CI-gebunden machen**:
+	- Methodenerkennung weiter schärfen (weniger GET-Defaults),
+	- Generator-Run als CI-Check einhängen (Fail bei Drift zwischen Code und `docs/api/openapi.v1.generated.yaml`).
+
+0. **beaglectl End-to-End mit Auth-Token gegen srv1 verifizieren**:
+	- `beaglectl vm list --json` mit gültigem Admin-/Service-Token live gegen `srv1.beagle-os.com` fahren,
+	- danach Testpflicht-Checkbox in `docs/gofuture/18-api-iac-cli.md` setzen.
+
+0. **Plan 18 Schritt 5 vorbereiten**:
+	- konkrete Liste v1-Endpunkte definieren, die Deprecation-Header erhalten sollen,
+	- Header-Ausgabe im Control-Plane-Response-Pfad zentral einziehen.
+
 ## Delta (2026-04-21 nach Plan 19 Schritt 6: Kiosk-Enrollment-Flow)
 
 0. **Plan 19 Testpflicht für Gaming-Kiosk vollständig fahren**:

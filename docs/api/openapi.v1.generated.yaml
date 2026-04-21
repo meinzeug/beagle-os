@@ -1,0 +1,350 @@
+openapi: 3.0.3
+info:
+  title: Beagle Control Plane API (generated)
+  version: v1-generated
+  description: Generated from route literals in beagle-host code.
+servers:
+  - url: https://beagle-server
+paths:
+  /api/v1/actions/bulk:
+    get:
+      operationId: get_api_v1_actions_bulk
+      responses:
+        '200':
+          description: Success
+    post:
+      operationId: post_api_v1_actions_bulk
+      responses:
+        '200':
+          description: Success
+    put:
+      operationId: put_api_v1_actions_bulk
+      responses:
+        '200':
+          description: Success
+  /api/v1/auth/login:
+    get:
+      operationId: get_api_v1_auth_login
+      responses:
+        '200':
+          description: Success
+  /api/v1/auth/logout:
+    get:
+      operationId: get_api_v1_auth_logout
+      responses:
+        '200':
+          description: Success
+  /api/v1/auth/me:
+    get:
+      operationId: get_api_v1_auth_me
+      responses:
+        '200':
+          description: Success
+  /api/v1/auth/onboarding/complete:
+    get:
+      operationId: get_api_v1_auth_onboarding_complete
+      responses:
+        '200':
+          description: Success
+  /api/v1/auth/onboarding/status:
+    get:
+      operationId: get_api_v1_auth_onboarding_status
+      responses:
+        '200':
+          description: Success
+  /api/v1/auth/refresh:
+    get:
+      operationId: get_api_v1_auth_refresh
+      responses:
+        '200':
+          description: Success
+  /api/v1/auth/roles:
+    get:
+      operationId: get_api_v1_auth_roles
+      responses:
+        '200':
+          description: Success
+    post:
+      operationId: post_api_v1_auth_roles
+      responses:
+        '200':
+          description: Success
+    put:
+      operationId: put_api_v1_auth_roles
+      responses:
+        '200':
+          description: Success
+  /api/v1/auth/users:
+    get:
+      operationId: get_api_v1_auth_users
+      responses:
+        '200':
+          description: Success
+    post:
+      operationId: post_api_v1_auth_users
+      responses:
+        '200':
+          description: Success
+    put:
+      operationId: put_api_v1_auth_users
+      responses:
+        '200':
+          description: Success
+  /api/v1/endpoints:
+    get:
+      operationId: get_api_v1_endpoints
+      responses:
+        '200':
+          description: Success
+  /api/v1/endpoints/actions/pull:
+    get:
+      operationId: get_api_v1_endpoints_actions_pull
+      responses:
+        '200':
+          description: Success
+  /api/v1/endpoints/actions/result:
+    get:
+      operationId: get_api_v1_endpoints_actions_result
+      responses:
+        '200':
+          description: Success
+  /api/v1/endpoints/check-in:
+    get:
+      operationId: get_api_v1_endpoints_check_in
+      responses:
+        '200':
+          description: Success
+    post:
+      operationId: post_api_v1_endpoints_check_in
+      responses:
+        '200':
+          description: Success
+  /api/v1/endpoints/enroll:
+    get:
+      operationId: get_api_v1_endpoints_enroll
+      responses:
+        '200':
+          description: Success
+    post:
+      operationId: post_api_v1_endpoints_enroll
+      responses:
+        '200':
+          description: Success
+  /api/v1/endpoints/moonlight/register:
+    get:
+      operationId: get_api_v1_endpoints_moonlight_register
+      responses:
+        '200':
+          description: Success
+  /api/v1/endpoints/support-bundles/upload:
+    get:
+      operationId: get_api_v1_endpoints_support_bundles_upload
+      responses:
+        '200':
+          description: Success
+    post:
+      operationId: post_api_v1_endpoints_support_bundles_upload
+      responses:
+        '200':
+          description: Success
+  /api/v1/endpoints/update-feed:
+    get:
+      operationId: get_api_v1_endpoints_update_feed
+      responses:
+        '200':
+          description: Success
+  /api/v1/health:
+    get:
+      operationId: get_api_v1_health
+      responses:
+        '200':
+          description: Success
+  /api/v1/policies:
+    get:
+      operationId: get_api_v1_policies
+      responses:
+        '200':
+          description: Success
+    post:
+      operationId: post_api_v1_policies
+      responses:
+        '200':
+          description: Success
+  /api/v1/provisioning/catalog:
+    get:
+      operationId: get_api_v1_provisioning_catalog
+      responses:
+        '200':
+          description: Success
+  /api/v1/provisioning/vms:
+    get:
+      operationId: get_api_v1_provisioning_vms
+      responses:
+        '200':
+          description: Success
+    post:
+      operationId: post_api_v1_provisioning_vms
+      responses:
+        '200':
+          description: Success
+    put:
+      operationId: put_api_v1_provisioning_vms
+      responses:
+        '200':
+          description: Success
+  /api/v1/settings/backup:
+    post:
+      operationId: post_api_v1_settings_backup
+      responses:
+        '200':
+          description: Success
+    put:
+      operationId: put_api_v1_settings_backup
+      responses:
+        '200':
+          description: Success
+  /api/v1/settings/backup/run:
+    get:
+      operationId: get_api_v1_settings_backup_run
+      responses:
+        '200':
+          description: Success
+  /api/v1/settings/firewall:
+    get:
+      operationId: get_api_v1_settings_firewall
+      responses:
+        '200':
+          description: Success
+  /api/v1/settings/general:
+    get:
+      operationId: get_api_v1_settings_general
+      responses:
+        '200':
+          description: Success
+    put:
+      operationId: put_api_v1_settings_general
+      responses:
+        '200':
+          description: Success
+  /api/v1/settings/network:
+    get:
+      operationId: get_api_v1_settings_network
+      responses:
+        '200':
+          description: Success
+  /api/v1/settings/network/dns:
+    get:
+      operationId: get_api_v1_settings_network_dns
+      responses:
+        '200':
+          description: Success
+  /api/v1/settings/security:
+    get:
+      operationId: get_api_v1_settings_security
+      responses:
+        '200':
+          description: Success
+    put:
+      operationId: put_api_v1_settings_security
+      responses:
+        '200':
+          description: Success
+  /api/v1/settings/security/tls:
+    get:
+      operationId: get_api_v1_settings_security_tls
+      responses:
+        '200':
+          description: Success
+  /api/v1/settings/security/tls/letsencrypt:
+    post:
+      operationId: post_api_v1_settings_security_tls_letsencrypt
+      responses:
+        '200':
+          description: Success
+  /api/v1/settings/services:
+    get:
+      operationId: get_api_v1_settings_services
+      responses:
+        '200':
+          description: Success
+  /api/v1/settings/updates:
+    put:
+      operationId: put_api_v1_settings_updates
+      responses:
+        '200':
+          description: Success
+  /api/v1/settings/updates/apply:
+    get:
+      operationId: get_api_v1_settings_updates_apply
+      responses:
+        '200':
+          description: Success
+  /api/v1/support-bundles/{bundle_id}/download:
+    get:
+      operationId: get_api_v1_support_bundles_bundle_id_download
+      responses:
+        '200':
+          description: Success
+      parameters:
+        - name: bundle_id
+          in: path
+          required: true
+          schema:
+            type: string
+  /api/v1/ubuntu-beagle-vms:
+    get:
+      operationId: get_api_v1_ubuntu_beagle_vms
+      responses:
+        '200':
+          description: Success
+    post:
+      operationId: post_api_v1_ubuntu_beagle_vms
+      responses:
+        '200':
+          description: Success
+    put:
+      operationId: put_api_v1_ubuntu_beagle_vms
+      responses:
+        '200':
+          description: Success
+  /api/v1/virtualization/bridges:
+    get:
+      operationId: get_api_v1_virtualization_bridges
+      responses:
+        '200':
+          description: Success
+  /api/v1/virtualization/hosts:
+    get:
+      operationId: get_api_v1_virtualization_hosts
+      responses:
+        '200':
+          description: Success
+  /api/v1/virtualization/nodes:
+    get:
+      operationId: get_api_v1_virtualization_nodes
+      responses:
+        '200':
+          description: Success
+  /api/v1/virtualization/overview:
+    get:
+      operationId: get_api_v1_virtualization_overview
+      responses:
+        '200':
+          description: Success
+  /api/v1/virtualization/storage:
+    get:
+      operationId: get_api_v1_virtualization_storage
+      responses:
+        '200':
+          description: Success
+  /api/v1/vms:
+    get:
+      operationId: get_api_v1_vms
+      responses:
+        '200':
+          description: Success
+    post:
+      operationId: post_api_v1_vms
+      responses:
+        '200':
+          description: Success
