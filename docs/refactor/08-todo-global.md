@@ -27,6 +27,10 @@
 - [x] Remove legacy `website/app.js` after authenticated runtime validation of the new entry path.
 - [x] Harden Plan 04 audit trail for VM power mutations and user-create metadata (`vm.start|vm.stop|vm.reboot`, `auth.user.create` resource fields) and validate via unit tests locally plus deploy/restart/log check on `srv1.beagle-os.com` (2026-04-21).
 - [x] Harden `beagle-control-plane.service` to run as non-root (`beagle-manager`), reduce restart/capability surface, and deploy+verify runtime behavior on `srv1.beagle-os.com` (2026-04-21).
+- [x] Add API-wide control-plane rate limiting + login brute-force protections (exponential backoff + lockout), deploy on `srv1.beagle-os.com`, and verify live `429 rate_limited` behavior (2026-04-21).
+- [x] Standardize backend error payloads with `code` field and add centralized sanitized `500 internal_error` boundary in control-plane request handling (2026-04-21).
+- [x] Tighten auth default access-token TTL to 15 minutes (`BEAGLE_AUTH_ACCESS_TTL_SECONDS=900`) in runtime and installer defaults (2026-04-21).
+- [x] Verify `pytest tests/unit` baseline passes (`15 passed`) and record provider-grep audit execution for GoFuture Plan 05 tracking (2026-04-21).
 
 - [ ] Complete dedicated-host bootstrap validation on new Hetzner server `46.4.96.80` (`srv1.beagle-os.com`) and verify Beagle core services/ports.
 - [ ] Verify KVM availability on the new dedicated host (`/dev/kvm`, `virsh domcapabilities --virttype kvm`) and re-run VM provisioning smoke through Beagle API/UI.

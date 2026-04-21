@@ -99,3 +99,30 @@ Stand: 2026-04-19
   - Live auf `srv1.beagle-os.com` verifiziert: externer TLS-Handshake liefert Issuer `Let's Encrypt (E8)`, nginx referenziert LE-Pfade, Status meldet `provider=letsencrypt`, Zertifikat vorhanden, nginx TLS aktiv.
 - Naechster Schritt:
   - Den Fix ueber neu gebaute Installer-Artefakte ausrollen und einen Regressionstest fuer den Security/TLS-Pfad ergaenzen.
+
+## S-006 - Control-Plane API ohne harte Gateway-Guards (Rate-Limit/Brute-Force/Error-Schema)
+
+- Status: mitigiert in Repo und auf `srv1.beagle-os.com`
+- Risiko: Hoch
+- Betroffene Dateien:
+  - `beagle-host/bin/beagle-control-plane.py`
+  - `scripts/install-beagle-host-services.sh`
+- Beschreibung:
+  - Die API hatte zuvor kein durchgaengiges Request-Rate-Limit auf allen `/api/*`-Routen.
+  - Login-Fehlversuche wurden nicht mit serverseitigem Exponential-Backoff + Lockout begrenzt.
+  - Error-Responses waren teilweise ohne einheitliches `code`-Feld.
+  - Unbehandelte Exceptions hatten keine zentrale Sanitization-Grenze.
+- Mitigation:
+  - Python-Middleware-Rate-Limit fuer alle API-Endpunkte implementiert (`BEAGLE_API_RATE_LIMIT_WINDOW_SECONDS`, `BEAGLE_API_RATE_LIMIT_MAX_REQUESTS`).
+  - Login-Brute-Force-Schutz mit Exponential-Backoff und Lockout implementiert (`BEAGLE_AUTH_LOGIN_LOCKOUT_THRESHOLD`, `BEAGLE_AUTH_LOGIN_LOCKOUT_SECONDS`, `BEAGLE_AUTH_LOGIN_BACKOFF_MAX_SECONDS`).
+  - Access-Token-Default auf 15 Minuten gehaertet (`BEAGLE_AUTH_ACCESS_TTL_SECONDS=900`).
+  - Einheitliches Error-Schema durch automatisches `code`-Feld auf Fehler-Payloads ergaenzt.
+  - Zentrale Exception-Grenze (`handle_one_request`) liefert sanitisiertes 500-JSON (`internal_error`).
+  - Strukturierte JSON-Response-Logs enthalten jetzt `user`, `action`, `resource_type`, `resource_id`.
+- Validierung:
+  - `srv1`: `/api/v1/auth/me` liefert `401` mit `code=unauthorized`.
+  - `srv1`: wiederholte falsche Logins liefern `429` mit `code=rate_limited` und `retry_after_seconds`.
+  - `srv1`: bei temporaerem Limit `BEAGLE_API_RATE_LIMIT_MAX_REQUESTS=5` schaltet API reproduzierbar auf `429 rate_limited` nach mehreren Requests.
+  - Env-Werte auf `srv1` geprueft und auf Produktionswert (`240`) zurueckgesetzt.
+- Naechster Schritt:
+  - Refresh-Token auf HTTP-only/SameSite=Strict Cookie-Flow umstellen (aktuell noch offen in GoFuture 20, Schritt 2).

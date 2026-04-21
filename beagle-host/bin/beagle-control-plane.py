@@ -120,11 +120,16 @@ AUTH_BOOTSTRAP_PASSWORD_FROM_API_TOKEN = os.environ.get("BEAGLE_AUTH_BOOTSTRAP_P
 if not AUTH_BOOTSTRAP_PASSWORD and AUTH_BOOTSTRAP_PASSWORD_FROM_API_TOKEN and API_TOKEN:
     AUTH_BOOTSTRAP_PASSWORD = API_TOKEN
 AUTH_BOOTSTRAP_DISABLE = os.environ.get("BEAGLE_AUTH_BOOTSTRAP_DISABLE", "0").strip().lower() in {"1", "true", "yes", "on"}
-AUTH_ACCESS_TTL_SECONDS = int(os.environ.get("BEAGLE_AUTH_ACCESS_TTL_SECONDS", "3600"))
+AUTH_ACCESS_TTL_SECONDS = int(os.environ.get("BEAGLE_AUTH_ACCESS_TTL_SECONDS", "900"))
 AUTH_REFRESH_TTL_SECONDS = int(os.environ.get("BEAGLE_AUTH_REFRESH_TTL_SECONDS", str(7 * 24 * 3600)))
 AUTH_IDLE_TIMEOUT_SECONDS = int(os.environ.get("BEAGLE_AUTH_IDLE_TIMEOUT_SECONDS", "1800"))
 AUTH_ABSOLUTE_TIMEOUT_SECONDS = int(os.environ.get("BEAGLE_AUTH_ABSOLUTE_TIMEOUT_SECONDS", str(7 * 24 * 3600)))
 AUTH_MAX_SESSIONS_PER_USER = int(os.environ.get("BEAGLE_AUTH_MAX_SESSIONS_PER_USER", "5"))
+API_RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("BEAGLE_API_RATE_LIMIT_WINDOW_SECONDS", "60"))
+API_RATE_LIMIT_MAX_REQUESTS = int(os.environ.get("BEAGLE_API_RATE_LIMIT_MAX_REQUESTS", "240"))
+AUTH_LOGIN_LOCKOUT_THRESHOLD = int(os.environ.get("BEAGLE_AUTH_LOGIN_LOCKOUT_THRESHOLD", "5"))
+AUTH_LOGIN_LOCKOUT_SECONDS = int(os.environ.get("BEAGLE_AUTH_LOGIN_LOCKOUT_SECONDS", "300"))
+AUTH_LOGIN_BACKOFF_MAX_SECONDS = int(os.environ.get("BEAGLE_AUTH_LOGIN_BACKOFF_MAX_SECONDS", "30"))
 ALLOW_LOCALHOST_NOAUTH = os.environ.get("BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH", "0").strip().lower() in {"1", "true", "yes", "on"}
 STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECONDS", "600"))
 DOWNLOADS_STATUS_FILE = ROOT_DIR / "dist" / "beagle-downloads-status.json"
@@ -2241,6 +2246,162 @@ def extract_bearer_token(header_value: str) -> str:
 
 class Handler(BaseHTTPRequestHandler):
     server_version = f"BeagleControlPlane/{VERSION}"
+    _rate_limit_state: dict[str, list[float]] = {}
+    _login_guard_state: dict[str, dict[str, float]] = {}
+    _security_state_lock = None
+
+    @classmethod
+    def _state_lock(cls):
+        if cls._security_state_lock is None:
+            import threading
+            cls._security_state_lock = threading.RLock()
+        return cls._security_state_lock
+
+    @staticmethod
+    def _error_code_for_status(status: int) -> str:
+        mapping = {
+            int(HTTPStatus.BAD_REQUEST): "bad_request",
+            int(HTTPStatus.UNAUTHORIZED): "unauthorized",
+            int(HTTPStatus.FORBIDDEN): "forbidden",
+            int(HTTPStatus.NOT_FOUND): "not_found",
+            int(HTTPStatus.CONFLICT): "conflict",
+            int(HTTPStatus.TOO_MANY_REQUESTS): "rate_limited",
+            int(HTTPStatus.BAD_GATEWAY): "bad_gateway",
+            int(HTTPStatus.INTERNAL_SERVER_ERROR): "internal_error",
+        }
+        return mapping.get(int(status), "request_error")
+
+    def _client_addr(self) -> str:
+        return self.client_address[0] if self.client_address else ""
+
+    def _login_guard_key(self, username: str) -> str:
+        return f"{self._client_addr()}::{str(username or '').strip().lower()}"
+
+    def _check_login_guard(self, username: str) -> tuple[bool, int]:
+        now_ts = time.time()
+        key = self._login_guard_key(username)
+        with self._state_lock():
+            state = self._login_guard_state.get(key)
+            if not isinstance(state, dict):
+                return True, 0
+            locked_until = float(state.get("locked_until") or 0.0)
+            next_allowed = float(state.get("next_allowed") or 0.0)
+            if locked_until > now_ts:
+                return False, int(max(1, locked_until - now_ts))
+            if next_allowed > now_ts:
+                return False, int(max(1, next_allowed - now_ts))
+        return True, 0
+
+    def _record_login_success(self, username: str) -> None:
+        key = self._login_guard_key(username)
+        with self._state_lock():
+            self._login_guard_state.pop(key, None)
+
+    def _record_login_failure(self, username: str) -> None:
+        now_ts = time.time()
+        key = self._login_guard_key(username)
+        with self._state_lock():
+            state = self._login_guard_state.get(key)
+            if not isinstance(state, dict):
+                state = {"failures": 0.0, "locked_until": 0.0, "next_allowed": 0.0}
+            failures = int(float(state.get("failures") or 0.0)) + 1
+            backoff_seconds = min(2 ** max(0, failures - 1), AUTH_LOGIN_BACKOFF_MAX_SECONDS)
+            state["failures"] = float(failures)
+            state["next_allowed"] = now_ts + float(backoff_seconds)
+            if failures >= max(1, AUTH_LOGIN_LOCKOUT_THRESHOLD):
+                state["locked_until"] = now_ts + float(max(1, AUTH_LOGIN_LOCKOUT_SECONDS))
+            self._login_guard_state[key] = state
+
+    def _rate_limit_key(self) -> str:
+        return self._client_addr() or "unknown"
+
+    def _enforce_api_rate_limit(self, path: str) -> bool:
+        if not str(path or "").startswith("/api/"):
+            return True
+        now_ts = time.time()
+        window = float(max(1, API_RATE_LIMIT_WINDOW_SECONDS))
+        max_requests = int(max(1, API_RATE_LIMIT_MAX_REQUESTS))
+        key = self._rate_limit_key()
+        with self._state_lock():
+            entries = self._rate_limit_state.get(key, [])
+            entries = [ts for ts in entries if now_ts - ts <= window]
+            if len(entries) >= max_requests:
+                self._rate_limit_state[key] = entries
+                self._write_json(
+                    HTTPStatus.TOO_MANY_REQUESTS,
+                    {
+                        "ok": False,
+                        "error": "rate limit exceeded",
+                        "code": "rate_limited",
+                        "retry_after_seconds": int(window),
+                    },
+                )
+                return False
+            entries.append(now_ts)
+            self._rate_limit_state[key] = entries
+        return True
+
+    def _log_response_event(self, status: int) -> None:
+        try:
+            path = str(urlparse(getattr(self, "path", "") or "").path)
+            action = f"{str(getattr(self, 'command', '')).upper()} {path}"
+            resource_type = ""
+            resource_id: str | int = ""
+            vm_match = re.search(r"/vms/(\d+)", path)
+            auth_user_match = re.search(r"/auth/users/([A-Za-z0-9._-]+)", path)
+            auth_role_match = re.search(r"/auth/roles/([A-Za-z0-9._:-]+)", path)
+            if vm_match is not None:
+                resource_type = "vm"
+                resource_id = int(vm_match.group(1))
+            elif auth_user_match is not None:
+                resource_type = "user"
+                resource_id = auth_user_match.group(1)
+            elif auth_role_match is not None:
+                resource_type = "role"
+                resource_id = auth_role_match.group(1)
+            print(
+                json.dumps(
+                    {
+                        "event": "api.response",
+                        "timestamp": utcnow(),
+                        "method": str(getattr(self, "command", "")),
+                        "path": path,
+                        "action": action,
+                        "status": int(status),
+                        "user": self._requester_identity(),
+                        "remote_addr": self._client_addr(),
+                        "resource_type": resource_type,
+                        "resource_id": resource_id,
+                    },
+                    ensure_ascii=True,
+                    separators=(",", ":"),
+                ),
+                flush=True,
+            )
+        except Exception:
+            pass
+
+    def _handle_unexpected_error(self, error: Exception) -> None:
+        self._audit_event(
+            "request.unhandled_exception",
+            "error",
+            method=str(getattr(self, "command", "")),
+            path=str(urlparse(getattr(self, "path", "") or "").path),
+            username=self._requester_identity(),
+            remote_addr=self._client_addr(),
+            error_type=type(error).__name__,
+        )
+        try:
+            self._write_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {
+                    "ok": False,
+                    "error": "internal server error",
+                    "code": "internal_error",
+                },
+            )
+        except Exception:
+            pass
 
     @staticmethod
     def _auth_user_match(path: str) -> re.Match[str] | None:
@@ -2365,6 +2526,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Vary", "Origin")
 
     def _write_json(self, status: HTTPStatus, payload: Any) -> None:
+        if isinstance(payload, dict) and payload.get("ok") is False and payload.get("error") and not payload.get("code"):
+            payload = dict(payload)
+            payload["code"] = self._error_code_for_status(int(status))
         body = json.dumps(payload, indent=2).encode("utf-8") + b"\n"
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -2373,6 +2537,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+        self._log_response_event(int(status))
 
     def _read_json_body(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length", "0") or "0")
@@ -2431,6 +2596,8 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
+        if not self._enforce_api_rate_limit(urlparse(self.path).path.rstrip("/") or "/"):
+            return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         query_text = parsed.query
@@ -2568,6 +2735,8 @@ class Handler(BaseHTTPRequestHandler):
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
+        if not self._enforce_api_rate_limit(urlparse(self.path).path.rstrip("/") or "/"):
+            return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query or "")
@@ -2583,6 +2752,18 @@ class Handler(BaseHTTPRequestHandler):
             if not username or not password:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "username and password are required"})
                 return
+            allowed, wait_seconds = self._check_login_guard(username)
+            if not allowed:
+                self._write_json(
+                    HTTPStatus.TOO_MANY_REQUESTS,
+                    {
+                        "ok": False,
+                        "error": "login temporarily blocked",
+                        "code": "rate_limited",
+                        "retry_after_seconds": int(max(1, wait_seconds)),
+                    },
+                )
+                return
             session_payload = auth_session_service().login(
                 username=username,
                 password=password,
@@ -2590,6 +2771,7 @@ class Handler(BaseHTTPRequestHandler):
                 user_agent=str(self.headers.get("User-Agent") or "")[:256],
             )
             if session_payload is None:
+                self._record_login_failure(username)
                 self._audit_event(
                     "auth.login",
                     "denied",
@@ -2598,6 +2780,7 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "invalid credentials"})
                 return
+            self._record_login_success(username)
             self._audit_event(
                 "auth.login",
                 "success",
@@ -2960,6 +3143,8 @@ class Handler(BaseHTTPRequestHandler):
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 
     def do_PUT(self) -> None:  # noqa: N802
+        if not self._enforce_api_rate_limit(urlparse(self.path).path.rstrip("/") or "/"):
+            return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
 
@@ -3051,6 +3236,8 @@ class Handler(BaseHTTPRequestHandler):
         self._write_json(response["status"], response["payload"])
 
     def do_DELETE(self) -> None:  # noqa: N802
+        if not self._enforce_api_rate_limit(urlparse(self.path).path.rstrip("/") or "/"):
+            return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
 
@@ -3100,6 +3287,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt: str, *args: Any) -> None:
         print(f"[{utcnow()}] {self.address_string()} {fmt % args}", flush=True)
+
+    def handle_one_request(self) -> None:
+        try:
+            super().handle_one_request()
+        except Exception as error:
+            self._handle_unexpected_error(error)
 
 
 def main() -> int:

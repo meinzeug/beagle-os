@@ -18,8 +18,8 @@ verwendet. Neue Security-Funde landen immer in `docs/refactor/11-security-findin
 
 ### Schritt 1 — API-Gateway-Härtung
 
-- [ ] Rate-Limiting auf alle API-Endpoints via nginx oder Python-Middleware.
-- [ ] Brute-Force-Schutz auf Login-Endpoint: Exponential Backoff + Lockout nach N Fehlversuchen.
+- [x] Rate-Limiting auf alle API-Endpoints via nginx oder Python-Middleware.
+- [x] Brute-Force-Schutz auf Login-Endpoint: Exponential Backoff + Lockout nach N Fehlversuchen.
 
 Ohne Rate-Limiting ist jeder API-Endpoint anfällig für Credential-Stuffing- und Brute-Force-Angriffe.
 Ein einfaches Rate-Limit (z.B. 10 Requests/Sekunde pro IP auf `/api/v1/auth/login`)
@@ -35,7 +35,7 @@ kein Sicherheitsmerkmal.
 
 ### Schritt 2 — Token-Management hardenen
 
-- [ ] JWT Access-Token Lebensdauer: <= 15 Minuten.
+- [x] JWT Access-Token Lebensdauer: <= 15 Minuten.
 - [ ] Refresh-Token: HTTP-only, SameSite=Strict Cookie; keine localStorage-Speicherung.
 
 Kurze Access-Token-Lebenszeiten begrenzen das Angriffsfenster bei Token-Diebstahl.
@@ -145,5 +145,5 @@ Prozess. Diese Schritte werden vor dem 7.0-Release abgearbeitet.
 - [ ] Neue Secrets in nicht-commitete Konfiguration? (kein `.env` im Repo)
 - [ ] Neuer Code prüft Input-Validierung an API-Boundaries?
 - [ ] Neue RBAC-Prüfung für neuen Endpoint implementiert?
-- [ ] Security-Funde in `docs/refactor/11-security-findings.md` eingetragen?
+- [x] Security-Funde in `docs/refactor/11-security-findings.md` eingetragen?
 - [ ] Neue Abhängigkeiten auf bekannte CVEs geprüft?

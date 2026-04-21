@@ -2,13 +2,16 @@
 
 ## GoFuture Plan 04/05 Provider-Abstraction execution (2026-04-21)
 
+0. **Plan 04 Schritt 5 Restpunkt abschliessen**:
+	- Vollstaendige Audit-Abdeckung fuer alle mutierenden Operationspfade pruefen und verbleibende Luecken im `audit_log.py`-Pfad schliessen.
+
 0. **Plan 04 Testpflicht ausbauen (zusatzlich zu bestehendem unauth-Smoketest)**:
 	- `scripts/smoke-control-plane-api.sh` um authentifizierte Mutation-Checks erweitern (z.B. `/api/v1/auth/users`, `/api/v1/settings/*` mit Admin-Token),
 	- Ergebnisse als separaten Run im Progress-Log dokumentieren.
 
 0. **Plan 04 Schritt 6 (Fehlerformat) als naechster harter Backend-Block**:
-	- Error-Response-Schema vereinheitlichen (`error` + `code`) fuer alle Surface-Services,
-	- unhandled Exceptions zentral in sanitisiertes 500-Schema fuehren.
+	- Error-Response-Schema ist umgesetzt; als Nachlauf nur noch Surface-spezifische Sonderfaelle pruefen,
+	- Regressionstest fuer `internal_error`-Boundary als Unit-/Integrationstest aufnehmen.
 
 0. **Plan 04 Schritt 3 ist umgesetzt, jetzt Schritt 2 und 4 fortsetzen**:
 	- Route-Handler weiter aus `beagle-control-plane.py` in `beagle-host/services/` extrahieren,

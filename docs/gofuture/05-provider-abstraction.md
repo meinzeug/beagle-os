@@ -37,7 +37,7 @@ Dieser Schritt muss vor jedem neuen Provider-Code abgeschlossen sein.
 
 ### Schritt 2 — Alle Proxmox-Direktaufrufe im Repo identifizieren und in Beagle-Provider migrieren
 
-- [ ] `grep -r "qm\|pvesh\|/api2/json\|PVEAuthCookie" beagle-host/ --include="*.py"` ausführen.
+- [x] `grep -r "qm\|pvesh\|/api2/json\|PVEAuthCookie" beagle-host/ --include="*.py"` ausführen.
 - [ ] Jeden Fund als Methode im Beagle-Provider (`providers/beagle/`) neu implementieren, Service auf Interface-Aufruf umschreiben.
 
 Dieser Grep-Lauf ist der schnellste Weg die aktuelle Verletzungslage zu erfassen.
@@ -129,5 +129,5 @@ Dokument liest muss in 5 Minuten verstehen wo Provider-Grenzen verlaufen. Die Re
 - [ ] `grep -r "qm\|pvesh\|/api2/json\|PVEAuthCookie" . --include="*.py" --include="*.js"` → 0 Treffer.
 - [ ] `providers/proxmox/` und `proxmox-ui/` existieren nicht mehr im Repo.
 - [x] Beagle-Provider alle Contract-Methoden implementiert (kein `NotImplementedError`).
-- [ ] `pytest tests/unit/` grün.
-- [ ] `beagle-control-plane.py` startet ohne Fehler.
+- [x] `pytest tests/unit/` grün.
+- [x] `beagle-control-plane.py` startet ohne Fehler.

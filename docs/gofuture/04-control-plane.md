@@ -77,7 +77,7 @@ Das Validierungsschema wird explizit dokumentiert und bei Änderungen mitgepfleg
 
 ### Schritt 5 — Logging und Audit-Trail standardisieren
 
-- [ ] Alle Service-Aufrufe bekommen strukturiertes Logging (JSON) mit User-ID, Action, Resource-ID.
+- [x] Alle Service-Aufrufe bekommen strukturiertes Logging (JSON) mit User-ID, Action, Resource-ID.
 - [ ] Audit-Events für alle mutablen Operationen werden in `services/audit_log.py` persistent gespeichert.
 
 Ohne Audit-Log ist es unmöglich im Nachhinein nachzuvollziehen wer wann welche VM
@@ -91,8 +91,8 @@ Resource-ID, alten Wert (redacted), neuen Wert (redacted), Ergebnis (success/fai
 
 ### Schritt 6 — Fehlerbehandlung vereinheitlichen
 
-- [ ] HTTP-Fehlerantworten auf konsistentes JSON-Schema bringen: `{"error": "...", "code": "..."}`.
-- [ ] Alle unhandelten Exceptions werden zu 500-Fehlern mit gesanitiztem Error-Text.
+- [x] HTTP-Fehlerantworten auf konsistentes JSON-Schema bringen: `{"error": "...", "code": "..."}`.
+- [x] Alle unhandelten Exceptions werden zu 500-Fehlern mit gesanitiztem Error-Text.
 
 Aktuell geben verschiedene Endpunkte unterschiedliche Fehlerformate zurück was die
 Frontend-Fehlerbehandlung verkompliziert und inkonsistent macht. Ein einheitliches

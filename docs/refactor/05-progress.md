@@ -1,5 +1,25 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 04/05/20: Security+Error-Handling Welle)
+
+- `beagle-host/bin/beagle-control-plane.py` gehaertet:
+	- API-Rate-Limit fuer alle `/api/*` Requests hinzugefuegt.
+	- Login-Brute-Force-Schutz mit Exponential-Backoff + Lockout hinzugefuegt.
+	- Fehler-Payloads bekommen jetzt konsistentes `code`-Feld.
+	- Unhandled-Exception-Grenze liefert sanitisiertes `500`-JSON (`internal_error`).
+	- Strukturierte JSON-Response-Logs erweitert um `user`, `action`, `resource_type`, `resource_id`.
+- Auth-Default gehaertet:
+	- Access-Token-Default auf 15 Minuten (`BEAGLE_AUTH_ACCESS_TTL_SECONDS=900`).
+- `scripts/install-beagle-host-services.sh` setzt Security-Defaults fuer die neuen Rate-Limit/Lockout-Parameter in `beagle-manager.env`.
+- Live auf `srv1.beagle-os.com` validiert:
+	- `401`-Antworten mit `code=unauthorized` verifiziert,
+	- Brute-Force-Verhalten verifiziert (`/api/v1/auth/login` liefert nach Wiederholungen `429 rate_limited`),
+	- API-Rate-Limit verifiziert (temporar auf 5 gesetzt, `429 rate_limited` reproduzierbar, danach auf 240 zurueckgesetzt),
+	- Service nach Deploy stabil `active`.
+- Provider-Abstraction/Testpflicht-Nachweise fuer Plan 05 ergaenzt:
+	- `grep`-Audit fuer Proxmox-Direktaufrufe in `beagle-host/` ausgefuehrt,
+	- `python -m pytest tests/unit -q` ausgefuehrt: `15 passed`.
+
 ## Update (2026-04-21, GoFuture Plan 04 Testpflicht: API-Smoke reproduzierbar abgeschlossen)
 
 - Neues reproduzierbares Smoke-Skript angelegt: `scripts/smoke-control-plane-api.sh`.
