@@ -28,6 +28,20 @@ Stand: 2026-04-13
 
 ## D-007: Bootstrap-Admin fuer Erstzugang
 - Entscheidung: Beim Start wird ein Bootstrap-Admin angelegt, wenn noch kein User existiert und Credentials gesetzt sind.
+
+## D-008: Refactor Wave 2 zielt auf 7.0 als Cluster + VDI + Streaming Plattform
+- Entscheidung: Naechster Versionssprung 7.0 erweitert Beagle OS um Cluster-Plane, VDI-Pools, Storage- und Network-Plane, GPU-Plane, IAM v2, Backup/DR, OpenAPI v2 und Terraform-Provider.
+- Detail: gesamter Plan in `docs/refactorv2/`, Roadmap in `docs/refactorv2/04-roadmap-v2.md`.
+- Grund: Heutiges Single-Node-Beagle ist konkurrenzfaehig fuer Single-Host-Streaming, aber strukturell nicht anschlussfaehig an Proxmox/Omnissa/Citrix/Win365/Parsec. Cluster + Pool + Identity sind die Tor-Features.
+- Provider-Neutralitaet bleibt verbindlich; Cluster-Plane lebt im `core/`-Layer und im Beagle-Provider, Proxmox-Adapter wird nachgezogen aber nicht zur Voraussetzung gemacht.
+
+## D-009: /api/v2 wird additiv eingefuehrt, /api/v1 bleibt stabil bis 8.0
+- Entscheidung: Neue Cluster-/Pool-/Tenant-Konzepte erscheinen unter /api/v2; /api/v1 wird nicht gebrochen, sondern als Single-Node-Compatibility-Shim ueber denselben Cluster-Store abgebildet.
+- Grund: bestehende Web Console, Endpoints und Skripte bleiben funktional waehrend des gesamten Wave-2-Rollouts.
+
+## D-010: Streaming-Backend wird konfigurierbar (Apollo bevorzugt)
+- Entscheidung: Default-Backend in 7.1.1 ist Apollo (Sunshine-Fork mit virtual display, HDR, per-client permissions); Sunshine-Mainline bleibt als Fallback waehlbar pro Pool.
+- Grund: Apollo loest die Engpaesse virtual display, HDR, multi-monitor und auto-resolution, die heute gegen Parsec/Win365 fehlen.
 - Grund: Ermöglicht kontrollierten Erstzugang ohne separaten Setup-Wizard.
 
 ## D-008: Session-Token als primaerer API-Auth-Mechanismus
@@ -161,3 +175,16 @@ Stand: 2026-04-13
 - Entscheidung: Standalone/Beagle-Provider Host-Service-Installationen fuehren vor Runtime-Paketinstallationen `apt-get update` aus und lassen fehlgeschlagene Pflichtinstallationen sichtbar fehlschlagen.
 - Grund: Minimal-Rootfs aus Hetzner `installimage` hat keine zuverlaessigen APT-Listen; ein still geschluckter Installationsfehler fuehrte zu fehlendem `virsh` und gebrochenem Firstboot.
 - Datei: `scripts/install-beagle-host-services.sh`.
+
+## D-037: KVM-only Provisioning ist an Bare-Metal-Hostfaehigkeit gebunden
+- Entscheidung: Wenn Beagle im KVM-only Modus betrieben wird, ist ein echter Bare-Metal-Host verpflichtend; virtuelle/vServer-Hosts ohne `/dev/kvm` gelten als nicht konforme Zielplattform fuer produktive Provisioning-Pfade.
+- Grund: Auf virtualisierten Hosts ohne nested KVM scheitert libvirt-domain define/start reproduzierbar mit `Emulator ... does not support virt type 'kvm'`.
+- Betriebsfolge:
+	- install/acceptance runbooks muessen KVM-Preflight enthalten (`/dev/kvm`, `virsh domcapabilities --virttype kvm`),
+	- bei negativem Preflight ist der Host vor produktiver Nutzung als KVM-Provider abzulehnen statt implizit auf langsame Software-Emulation auszuweichen.
+
+## D-038: Let's Encrypt wird aus dem Security-Handler ueber transienten systemd-Run ausgefuehrt
+- Entscheidung: `beagle-host/services/server_settings.py` fuehrt `certbot` fuer die Security/TLS-WebUI bevorzugt ueber `systemd-run --wait --pipe --collect --service-type=exec` aus, statt direkt im `beagle-control-plane.service` Prozess.
+- Grund: Der gehaertete Control-Plane-Service laeuft mit `ProtectSystem=strict`; direkter `certbot --nginx` Aufruf scheiterte reproduzierbar an Let's-Encrypt- und nginx-Logpfaden, obwohl die benoetigten Pakete installiert waren.
+- Wirkung: Die WebUI-TLS-Funktion bleibt mit der bestehenden Service-Haertung kompatibel, ohne die gesamte Control Plane unspezifisch zu entschaerfen.
+- Dateien: `beagle-host/services/server_settings.py`, `beagle-host/systemd/beagle-control-plane.service`.

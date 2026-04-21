@@ -659,7 +659,7 @@ install_host_provider_packages() {
     beagle)
       chroot_run_with_retry \
         "install standalone host packages" \
-        "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server fail2ban unattended-upgrades apt-listchanges nftables git python3 rsync linux-image-amd64 grub-pc grub-efi-amd64-bin efibootmgr dosfstools libvirt-daemon-system qemu-system-x86 qemu-utils"
+        "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server fail2ban unattended-upgrades apt-listchanges nftables git python3 rsync certbot python3-certbot-nginx linux-image-amd64 grub-pc grub-efi-amd64-bin efibootmgr dosfstools libvirt-daemon-system qemu-system-x86 qemu-utils"
       ;;
     proxmox)
       chroot_run_with_retry \

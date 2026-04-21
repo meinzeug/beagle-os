@@ -179,6 +179,31 @@ This system was installed from the Beagle installimage artifact.
 - Bootstrap logs: /var/log/beagle-installimage-bootstrap.log
 - Generated Beagle web credentials: /root/beagle-firstboot-credentials.txt
 EOF
+
+  # Hetzner installimage runs sed/rm against /etc/default/grub and
+  # /etc/kernel-img.conf during its grub stage. If these files are missing
+  # the boot loader install partially fails and the system never reboots
+  # into the installed disk. Seed them with safe defaults so installimage
+  # always finds a target file to edit.
+  install -d -m 0755 "$ROOTFS_DIR/etc/default"
+  cat >"$ROOTFS_DIR/etc/default/grub" <<'EOF'
+# Beagle OS installimage default grub configuration.
+# Hetzner installimage rewrites these values during the grub stage.
+GRUB_DEFAULT=0
+GRUB_TIMEOUT=5
+GRUB_DISTRIBUTOR="Beagle OS"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet"
+GRUB_CMDLINE_LINUX="consoleblank=0"
+GRUB_DISABLE_OS_PROBER=true
+GRUB_TERMINAL=console
+EOF
+  cat >"$ROOTFS_DIR/etc/kernel-img.conf" <<'EOF'
+# Beagle OS installimage kernel-img defaults.
+do_symlinks = no
+do_bootloader = no
+do_initrd = yes
+link_in_boot = no
+EOF
 }
 
 bundle_source_tree() {
@@ -289,6 +314,11 @@ install_policy_rc_d
 mount_chroot_fs
 
 run_in_chroot apt-get update
+# Pre-seed grub-pc so its postinst does not block on the install_devices
+# prompt during chroot install. Hetzner installimage decides the boot
+# device at install time anyway.
+run_in_chroot apt-get install -y debconf-utils
+run_in_chroot bash -c 'echo "grub-pc grub-pc/install_devices multiselect " | debconf-set-selections; echo "grub-pc grub-pc/install_devices_empty boolean true" | debconf-set-selections'
 run_in_chroot apt-get install -y \
   systemd-sysv \
   locales \
@@ -304,12 +334,23 @@ run_in_chroot apt-get install -y \
   isc-dhcp-client \
   netbase \
   linux-image-amd64 \
+  lvm2 \
   grub-common \
+  grub-pc \
   grub-pc-bin \
   grub-efi-amd64-bin \
+  os-prober \
   openssl \
   nftables \
   python3
+
+# Ensure /boot/grub/grub.cfg exists with valid entries for the kernel that
+# was just installed. Hetzner installimage's grub stage rewrites
+# /etc/default/grub, runs `grub-install $TARGET`, and re-runs update-grub
+# on the host - but if the chroot ships no grub.cfg at all, some installimage
+# code paths produce a system that boots stage1 from the MBR but cannot find
+# a stage2 menu and never reaches the kernel.
+run_in_chroot update-grub 2>/dev/null || true
 
 configure_base_system
 bundle_source_tree

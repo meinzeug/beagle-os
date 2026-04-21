@@ -1,0 +1,6 @@
+.iam-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 980px) { .iam-layout { grid-template-columns: 1fr; } }
+.iam-column { background: var(--bg-elevated); border-radius: var(--radius); border: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.iam-column h3 { font-size: 0.88rem; font-weight: 700; color: var(--text); }
+.iam-editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.iam-editor-stack { grid-template-columns: 1fr; }

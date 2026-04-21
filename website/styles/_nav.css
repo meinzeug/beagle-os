@@ -1,0 +1,6 @@
+.nav-item { display: flex; align-items: center; gap: 12px; min-height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--text-secondary); font-size: 0.86rem; font-weight: 600; text-align: left; cursor: pointer; transition: background var(--transition), color var(--transition), border-color var(--transition); text-decoration: none; }
+.nav-item:hover { background: var(--bg-card-hover); color: var(--text); text-decoration: none; }
+.nav-item-active { background: var(--amber-glow); color: var(--amber); border-color: var(--border-glow); }
+.nav-item .nav-icon { width: 18px; height: 18px; flex-shrink: 0; stroke-width: 1.8; }
+.nav-item-external::after { content: "↗"; margin-left: auto; font-size: 0.8rem; color: var(--text-muted); }
+.nav-badge-coming { margin-left: auto; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber-dim); background: var(--amber-glow); border: 1px solid var(--border-glow); border-radius: 6px; padding: 1px 5px; }

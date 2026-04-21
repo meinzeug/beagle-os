@@ -136,6 +136,8 @@ ensure_dependencies() {
   command -v python3 >/dev/null 2>&1 || package+=(python3)
   command -v openssl >/dev/null 2>&1 || package+=(openssl)
   command -v nft >/dev/null 2>&1 || package+=(nftables)
+  command -v certbot >/dev/null 2>&1 || package+=(certbot)
+  [[ -f /usr/lib/python3/dist-packages/certbot_nginx/__init__.py || -f /usr/lib/python3/dist-packages/certbot_nginx/_internal/configurator.py ]] || package+=(python3-certbot-nginx)
 
   if (( ${#package[@]} == 0 )); then
     return 0

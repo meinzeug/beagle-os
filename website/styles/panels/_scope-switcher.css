@@ -1,0 +1,4 @@
+.scope-switcher { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card); cursor: default; user-select: none; }
+.scope-icon { width: 15px; height: 15px; flex-shrink: 0; color: var(--amber-dim); stroke-width: 1.8; }
+.scope-label { font-size: 0.78rem; font-weight: 700; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scope-badge { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; color: var(--text-muted); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; white-space: nowrap; }

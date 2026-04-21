@@ -1,0 +1,41 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { min-height: 100%; }
+
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg-deepest);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 8% 8%, rgba(255, 138, 61, 0.08), transparent 30%),
+    radial-gradient(circle at 92% 12%, rgba(241, 192, 93, 0.07), transparent 28%),
+    radial-gradient(circle at 50% 110%, rgba(240, 90, 56, 0.06), transparent 40%);
+}
+
+body.light-mode::before {
+  background:
+    radial-gradient(circle at 8% 8%, rgba(255, 138, 61, 0.20), transparent 28%),
+    radial-gradient(circle at 92% 12%, rgba(241, 192, 93, 0.16), transparent 26%);
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--amber); text-decoration: none; }
+a:hover { color: var(--orange); text-decoration: underline; }
+::selection { background: var(--amber-glow); color: var(--text); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--amber-dim); }

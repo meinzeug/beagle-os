@@ -1,0 +1,10 @@
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border); white-space: nowrap; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); border-color: rgba(140, 226, 109, 0.30); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); border-color: rgba(255, 180, 84, 0.30); }
+.chip.danger { background: var(--danger-soft); color: var(--danger); border-color: rgba(255, 111, 94, 0.30); }
+.chip.info { background: var(--amber-glow); color: var(--amber); border-color: var(--border-glow); }
+.chip.muted { background: var(--bg-elevated); color: var(--text-muted); }
+.chip-amber { background: var(--amber-glow); color: var(--amber); border-color: var(--border-glow); }
+.badge-ok, .badge-warn { color: #fff; padding: 2px 8px; border-radius: var(--radius); font-size: 0.75rem; font-weight: 600; }
+.badge-ok { background: var(--green, #22c55e); }
+.badge-warn { background: var(--amber, #f59e0b); }

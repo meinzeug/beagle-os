@@ -1,0 +1,67 @@
+/* Beagle OS Web Console tokens */
+:root {
+  --amber: #f1c05d;
+  --amber-dim: #ca9230;
+  --amber-glow: rgba(241, 192, 93, 0.18);
+  --orange: #ff8a3d;
+  --orange-dim: #ca6b29;
+  --magenta: #f05a38;
+  --magenta-dim: #c64629;
+  --bg-deepest: #080707;
+  --bg-deep: #120f0f;
+  --bg-card: #191416;
+  --bg-card-hover: #231d1f;
+  --bg-elevated: #221c1e;
+  --bg-input: #100c0d;
+  --border: rgba(255, 233, 184, 0.11);
+  --border-strong: rgba(255, 233, 184, 0.22);
+  --border-glow: rgba(241, 192, 93, 0.32);
+  --text: #f6ead4;
+  --text-secondary: #d2c1a0;
+  --text-muted: #9b8c72;
+  --text-faint: #6e6457;
+  --ok: #8ce26d;
+  --ok-soft: rgba(140, 226, 109, 0.12);
+  --warn: #ffb454;
+  --warn-soft: rgba(255, 180, 84, 0.14);
+  --danger: #ff6f5e;
+  --danger-soft: rgba(255, 111, 94, 0.14);
+  --info: var(--amber);
+  --info-soft: var(--amber-glow);
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.30);
+  --shadow: 0 18px 38px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 0 1px var(--border-glow), 0 24px 48px rgba(241, 192, 93, 0.08);
+  --transition: 180ms ease;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", "Cascadia Code", "Menlo", "Consolas", monospace;
+  --sidebar-w: 248px;
+  --topbar-h: 64px;
+  --content-max: 1480px;
+}
+
+.svg-sprite {
+  position: absolute;
+}
+
+body.light-mode {
+  --bg-deepest: #f5f1ea;
+  --bg-deep: #faf6ee;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f4ede0;
+  --bg-elevated: #fbf7ef;
+  --bg-input: #ffffff;
+  --border: rgba(28, 18, 18, 0.10);
+  --border-strong: rgba(28, 18, 18, 0.20);
+  --border-glow: rgba(241, 132, 45, 0.40);
+  --text: #1a1410;
+  --text-secondary: #4d3f33;
+  --text-muted: #7a6b5a;
+  --text-faint: #a8998a;
+  --shadow: 0 18px 38px rgba(40, 25, 10, 0.12);
+  --shadow-sm: 0 4px 12px rgba(40, 25, 10, 0.08);
+}

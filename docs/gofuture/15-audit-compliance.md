@@ -1,0 +1,96 @@
+# 15 — 7.2.2 Audit + Compliance-Export
+
+Stand: 2026-04-20  
+Priorität: 7.2 (Q3 2027)
+
+---
+
+## Schritte
+
+### Schritt 1 — Audit-Event-Schema vereinheitlichen
+
+- [ ] `core/audit_event.py` anlegen: `AuditEvent`-Datenklasse mit allen Pflichtfeldern.
+- [ ] Alle bestehenden `audit_log.py`-Einträge auf das neue Schema migrieren.
+
+Ein einheitliches Audit-Schema ist Voraussetzung für alle nachfolgenden Export- und
+Analyse-Funktionen. Das Schema definiert Pflichtfelder: `id` (UUID), `timestamp` (UTC ISO 8601),
+`tenant_id`, `user_id`, `session_id` (optional), `action` (strukturierter Enum),
+`resource_type`, `resource_id`, `old_value` (JSON, redacted), `new_value` (JSON, redacted),
+`result` (success | failure | rejected), `source_ip`, `user_agent`. Der `action`-Enum
+deckt alle möglichen Plattform-Aktionen ab: `vm.start`, `vm.stop`, `vm.delete`, `user.create`,
+`pool.scale`, `session.start`, `session.end`, `recording.download`, etc. Das Schema
+ist versioniert damit künftige Erweiterungen rückwärtskompatibel bleiben.
+
+---
+
+### Schritt 2 — Audit-Export zu S3/Minio, Syslog und Webhook implementieren
+
+- [ ] `beagle-host/services/audit_export.py`: konfigurierbare Export-Targets.
+- [ ] Export-Targets: S3-kompatibel (Minio, AWS S3), Syslog (RFC 5424), HTTP-Webhook.
+
+Externe SIEM-Systeme (Splunk, Elastic, Graylog) brauchen einen Ingestion-Pfad für
+Audit-Events. S3-Export speichert Events als JSON-Lines-Dateien in stündlichen oder
+täglichen Batches. Syslog-Export sendet Events in Echtzeit als strukturierte Syslog-
+Nachrichten (RFC 5424 mit structured data). Webhook-Export sendet Events als HTTP POST
+JSON-Payloads an eine konfigurierte URL mit HMAC-Signatur für Authentizitäts-Verifikation.
+Alle Export-Targets sind optional und werden in der Web Console unter Server-Settings
+konfiguriert. Export-Fehler werden geloggt und nach konfigurierbarer Retry-Anzahl
+als Alert angezeigt. Audit-Events werden niemals verworfen; bei Export-Fehler werden
+sie lokal gepuffert.
+
+---
+
+### Schritt 3 — PII-Schwärzungs-Filter implementieren
+
+- [ ] `beagle-host/services/audit_pii_filter.py`: konfigurierbare Felder-Schwärzung vor Export.
+- [ ] Default-Schwärzung: Passwörter, API-Keys, private Schlüssel in `old_value`/`new_value`.
+
+PII (Personally Identifiable Information) und Secrets dürfen in Audit-Exporten nicht
+im Klartext erscheinen. Der PII-Filter wird zwischen Audit-Event-Erzeugung und Export
+geschaltet. Konfigurierbare Feldlisten definieren welche JSON-Pfade in `old_value`/
+`new_value` geschwärzt werden (ersetzt durch `[REDACTED]`). Default-Schwärzung greift
+auf alle Felder die `password`, `secret`, `token`, `key` im Namen enthalten.
+Optionale erweiterte Schwärzung kann IP-Adressen, E-Mail-Adressen und Benutzernamen
+pseudonymisieren. Die Schwärzungs-Konfiguration wird selbst im Audit-Log festgehalten
+wenn sie geändert wird.
+
+---
+
+### Schritt 4 — Compliance-Report-Generator (CSV/JSON) implementieren
+
+- [ ] `GET /api/v1/audit/report` Endpoint mit Filtern: time range, tenant, action type, user.
+- [ ] Response: CSV oder JSON je nach `Accept`-Header.
+
+Compliance-Berichte sind in regulierten Umgebungen periodisch erforderlich (monatlich,
+jährlich). Der Report-Generator erlaubt Filterung nach Zeitraum, Tenant, Action-Typ
+und Benutzer. Das CSV-Format ist für Tabellenkalkulationsprogramme gut geeignet;
+JSON für programmatische Verarbeitung. Beide Formate sind BOM-encoded utf-8 für
+maximale Kompatibilität. Große Reports werden asynchron generiert und als Download-URL
+zurückgegeben. Der Report-Download selbst erzeugt wieder einen Audit-Event (wer hat
+wann welchen Report heruntergeladen). Reports älter als 7 Tage werden automatisch
+gelöscht; der Download-Link läuft entsprechend ab.
+
+---
+
+### Schritt 5 — Audit-Viewer in Web Console
+
+- [ ] Neues Admin-Panel "Audit" in der Web Console mit Echtzeit-View und Filter-UI.
+- [ ] Filter: Zeitraum, User, Action-Typ, Resource-Typ, Tenant.
+
+Der Audit-Viewer zeigt Audit-Events als paginierte Tabelle mit Echtzeit-Aktualisierung.
+Ein Filter-Panel erlaubt Einschränkung auf Zeitraum (letzte 1h, 24h, 7 Tage, custom),
+Benutzer (Freitext-Suche), Action-Typ (Dropdown), Tenant (Dropdown für Platform-Admins).
+Jede Tabellen-Zeile ist aufklappbar für die vollständige Event-JSON-Darstellung.
+Ein "Report exportieren"-Button triggert den Report-Generator mit den aktuellen
+Filter-Einstellungen. Der Audit-Viewer ist nur für Rollen `platform-admin`, `tenant-admin`
+und `auditor` sichtbar.
+
+---
+
+## Testpflicht nach Abschluss
+
+- [ ] Alle VM-Operationen erzeugen Audit-Events mit korrektem Schema.
+- [ ] S3-Export: Events landen im Minio-Bucket als JSON-Lines.
+- [ ] PII-Filter: Passwörter in `new_value` erscheinen als `[REDACTED]`.
+- [ ] Compliance-Report CSV enthält alle Events im Zeitraum, kein Inhalt fehlt.
+- [ ] Audit-Viewer: Filter nach User und Action-Typ funktionieren korrekt.

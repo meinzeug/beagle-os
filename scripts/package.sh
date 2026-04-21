@@ -43,6 +43,21 @@ PUBLIC_UPDATE_BASE_URL="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/b
 PUBLIC_UPDATE_BASE_URL="${PUBLIC_UPDATE_BASE_URL%/}"
 PACKAGE_MIN_FREE_GIB="${BEAGLE_PACKAGE_MIN_FREE_GIB:-}"
 
+sync_web_ui_asset_versions() {
+  python3 - "$ROOT_DIR/website/index.html" "$VERSION" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+version = sys.argv[2]
+content = path.read_text()
+content = re.sub(r'/styles\.css\?v=[^"\']+', f'/styles.css?v={version}', content)
+content = re.sub(r'/main\.js\?v=[^"\']+', f'/main.js?v={version}', content)
+path.write_text(content)
+PY
+}
+
 collect_beagle_os_assets() {
   local path
   [[ -d "$BEAGLE_OS_DIST_DIR" ]] || return 0
@@ -70,6 +85,8 @@ require_tool sha256sum
 require_tool python3
 require_tool node
 require_tool npm
+
+sync_web_ui_asset_versions
 
 if [[ -z "$PACKAGE_MIN_FREE_GIB" ]]; then
   PACKAGE_MIN_FREE_GIB=4

@@ -1,0 +1,6 @@
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.toolbar .input-search, .toolbar .input-select { max-width: 220px; }
+.bulk-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bulk-selection { font-size: 0.78rem; color: var(--text-muted); margin-left: 8px; }
+.button-row, .btn-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.compact-row { gap: 6px; font-size: 0.78rem; }

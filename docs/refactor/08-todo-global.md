@@ -1,5 +1,35 @@
 # Global TODO
 
+## Refactor Wave 2 (7.0)
+
+- [x] Draft `docs/refactorv2/` strategic doc set (16 docs, 00-15) covering vision, competitor research, gap analysis, target architecture, roadmap, and per-subsystem deep dives.
+- [ ] Capture open architecture decisions from `docs/refactorv2/15-risks-open-questions.md` in `docs/refactor/07-decisions.md`.
+- [ ] Welle 7.0.0 PoC: 3-Knoten Beagle-Cluster mit etcd + `beaglectl cluster init/join` + mTLS Inter-Host-RPC.
+- [ ] Welle 7.0.1 PoC: ZFS und NFS StorageClass mit Snapshot-Policy.
+- [ ] Welle 7.0.2 PoC: HA-Manager mit `restart-on-cluster` + Watchdog-Fencing.
+- [ ] Welle 7.1.0 PoC: DesktopPool + Template + Entitlement Schema und API.
+- [ ] Welle 7.1.1 PoC: Apollo-Backend + Linux Virtual Display + Auto-Pairing-Token.
+- [ ] Welle 7.1.2 PoC: GPU-Inventory + vfio-Workflow + vGPU-Slot-Scheduler.
+- [ ] Welle 7.2.0: OIDC/SAML/SCIM + Tenant-Scope-Pflicht im API.
+- [ ] Welle 7.3.0: BackupJob + inkrementelle Backups + Live-Restore.
+- [ ] Welle 7.4.0: OpenAPI v2 + `terraform-provider-beagle` + `beaglectl`.
+
+## Wave 1 / 6.x backlog
+
+- [x] Start actual execution of GoFuture Plan 01 by creating the first WebUI ES modules (`state`, `dom`, `api`, `auth`, `panels`, `theme`, `activity`, `settings`, `dashboard`) plus `website/main.js`.
+- [x] Extract most of the Plan 01 runtime modules from `website/app.js` (`inventory`, `virtualization`, `provisioning`, `policies`, `iam`, `actions`).
+- [x] Extract the last remaining Plan 01 runtime module from `website/app.js` (`events`).
+- [x] Switch `website/index.html` from legacy `app.js` bootstrap to native ES-module bootstrap via `website/main.js` and validate the browser runtime on `srv1.beagle-os.com`.
+- [x] Start GoFuture Plan 02 and split `website/styles.css` into native CSS modules/partials.
+- [ ] Finish Plan 02 validation with authenticated panel-by-panel visual checks.
+- [x] Execute GoFuture Plan 03 entry cleanup: align `index.html` with `main.js`, normalize script order, and sync cache-busting to `VERSION` via `scripts/package.sh`.
+- [ ] Finish authenticated runtime validation on `srv1.beagle-os.com` with existing operator credentials or an approved temporary admin reset.
+- [x] Remove legacy `website/app.js` after authenticated runtime validation of the new entry path.
+
+- [ ] Complete dedicated-host bootstrap validation on new Hetzner server `46.4.96.80` (`srv1.beagle-os.com`) and verify Beagle core services/ports.
+- [ ] Verify KVM availability on the new dedicated host (`/dev/kvm`, `virsh domcapabilities --virttype kvm`) and re-run VM provisioning smoke through Beagle API/UI.
+- [ ] Add release-publication preflight that blocks installimage deployment when required `v${VERSION}` and `latest` thin-client artifacts are missing on `beagle-os.com/beagle-updates`.
+
 - [x] Add a reproducible Hetzner `installimage` tarball builder for Beagle server and wire it into package/release/public-download metadata.
 - [x] Add first-boot bootstrap + SSH host-key regeneration files for installimage-based Beagle server deployments.
 - [x] Detect and remove local-only operator files from the embedded installimage source archive before publication.
@@ -58,7 +88,10 @@
 - [x] Fix beagle-provider VM start failure when libvirt network `beagle` is missing (auto-create network/fallback instead of hard-fail).
 - [x] Ensure server-installer path keeps onboarding pending by disabling bootstrap-auth auto-user creation (`BEAGLE_AUTH_BOOTSTRAP_DISABLE=1`).
 - [x] Make onboarding status bootstrap-disable aware so bootstrap-only users do not suppress first-run setup.
-- [ ] Deploy onboarding regression fix to running beagleserver and verify `/api/v1/auth/onboarding/status` + Web UI modal behavior.
+- [x] Deploy onboarding regression fix to running beagleserver and verify `/api/v1/auth/onboarding/status` + Web UI modal behavior.
+- [x] Fix standalone Let's Encrypt runtime so fresh hosts install `certbot` + nginx plugin automatically and the Security panel can issue certificates on `srv1.beagle-os.com`.
+- [ ] Rebuild and republish server-installer/installimage artifacts so fresh installs inherit the onboarding + Let's Encrypt fixes.
+- [ ] Add a regression test or disposable integration smoke for the Security/TLS Let's Encrypt API path.
 - [ ] Validate new Moonlight app-name resolver against Sunshine `/api/apps` so `failed to find Application Desktop` is no longer reproducible on VM 101.
 - [x] Add reproducible Sunshine guest service self-heal in repo provisioning (automatic restart on crash/stop).
 - [ ] Validate Sunshine self-heal timer (`beagle-sunshine-healthcheck.timer`) on VM reboot and forced crash (`pkill sunshine`).

@@ -203,8 +203,10 @@ class ServerSettingsService:
         certbot = _which("certbot")
         if not certbot:
             return {"ok": False, "error": "certbot not installed on this server"}
+        if not _certbot_has_plugin(certbot, "nginx"):
+            return {"ok": False, "error": "certbot nginx plugin not installed on this server"}
 
-        result = subprocess.run(
+        result = _run_certbot_command(
             [
                 certbot, "certonly", "--nginx",
                 "-d", domain,
@@ -212,8 +214,6 @@ class ServerSettingsService:
                 "--agree-tos",
                 "-m", email,
             ],
-            capture_output=True,
-            text=True,
             timeout=120,
         )
 
@@ -243,11 +243,18 @@ class ServerSettingsService:
 
         # Check nginx TLS config
         nginx_tls = False
-        try:
-            nginx_conf = Path("/etc/nginx/sites-enabled/beagle-web-ui").read_text()
-            nginx_tls = "ssl_certificate" in nginx_conf
-        except OSError:
-            pass
+        for nginx_path in (
+            Path("/etc/nginx/sites-enabled/beagle-web-ui"),
+            Path("/etc/nginx/sites-enabled/beagle-proxy.conf"),
+            Path("/etc/nginx/sites-enabled/beagle-proxy"),
+        ):
+            try:
+                nginx_conf = nginx_path.read_text()
+            except OSError:
+                continue
+            if "ssl_certificate" in nginx_conf:
+                nginx_tls = True
+                break
 
         return {
             "domain": domain,
@@ -660,3 +667,49 @@ def _which(name: str) -> str | None:
         return r.stdout.strip() if r.returncode == 0 else None
     except (subprocess.TimeoutExpired, OSError):
         return None
+
+
+def _certbot_has_plugin(certbot: str, plugin_name: str) -> bool:
+    try:
+        result = subprocess.run(
+            [certbot, "plugins"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+    if result.returncode != 0:
+        return False
+    output = "\n".join([result.stdout or "", result.stderr or ""]).lower()
+    return plugin_name.strip().lower() in output
+
+
+def _run_certbot_command(cmd: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
+    systemd_run = _which("systemd-run")
+    if systemd_run:
+        transient_cmd = [
+            systemd_run,
+            "--quiet",
+            "--wait",
+            "--pipe",
+            "--collect",
+            "--service-type=exec",
+        ] + cmd
+        return subprocess.run(
+            transient_cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+
+    return subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )

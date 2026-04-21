@@ -106,7 +106,10 @@ node --check "$ROOT_DIR/extension/components/profile-modal.js"
 node --check "$ROOT_DIR/extension/components/vm-page-integration.js"
 node --check "$ROOT_DIR/extension/content.js"
 node --check "$ROOT_DIR/extension/options.js"
-node --check "$ROOT_DIR/website/app.js"
+node --check "$ROOT_DIR/website/main.js"
+for file in "$ROOT_DIR"/website/ui/*.js; do
+  node --check "$file"
+done
 node --check "$ROOT_DIR/beagle-kiosk/main.js"
 node --check "$ROOT_DIR/beagle-kiosk/preload.js"
 node --check "$ROOT_DIR/beagle-kiosk/renderer/kiosk.js"

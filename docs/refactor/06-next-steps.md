@@ -1,5 +1,102 @@
 # Next Steps
 
+## Immediate TLS/onboarding follow-up (2026-04-21)
+
+0. **Rebuild and republish host installer artifacts with the latest onboarding + TLS fixes**:
+	- rebuild the Hetzner installimage tarball and any server-installer artifacts so fresh installs ship both the corrected onboarding behavior and automatic `certbot`/`python3-certbot-nginx` installation,
+	- republish the updated artifact set before the next dedicated-host reinstall.
+
+0. **Add one end-to-end regression check for the Security/TLS API path**:
+	- cover the `request_letsencrypt()` execution wrapper path and/or an integration-level smoke against a disposable nginx/certbot environment,
+	- ensure a future sandbox or packaging regression cannot silently break the WebUI Security panel again.
+
+0. **Re-validate the fresh-install WebUI flow on `srv1.beagle-os.com`**:
+	- open the WebUI after a clean session,
+	- confirm the onboarding modal appears instead of the login-only flow,
+	- complete onboarding once and verify the bootstrap marker is cleared afterwards.
+
+## GoFuture execution now in progress (2026-04-20)
+
+0. **Plan 02/03 Restvalidierung abschliessen**:
+   - authentifizierte Panels auf Light/Dark visuell gegenpruefen,
+   - Login-Flow und Kernpanels unter dem neuen HTML/CSS/JS-Einstieg voll durchtesten,
+	- dafuer bestehende Operator-Credentials fuer `srv1.beagle-os.com` verwenden oder bewusst einen temporaeren Admin-Reset freigeben.
+
+0. **Modulpfad auf `srv1.beagle-os.com` weiter validieren**:
+   - Login mit echten Credentials testen,
+   - Dashboard-Datenpfade, Inventory, Provisioning, IAM und noVNC-Aktionen unter dem neuen Modul-Bootstrap durchklicken,
+   - verbleibende Browserfehler oder Import-Kopplungen direkt patchen.
+
+## WebUI 7.0 (website/) — next steps after navigation restructure
+
+0. **Deploy updated `website/` to `srv1.beagle-os.com`** once bootstrap finishes:
+   - Verify scope switcher, new nav sections and Sessions panel render correctly.
+   - Check that all existing panels load without JS errors.
+
+0. **Wire scope switcher to API** (`/api/v1/status` → node count → update `#scope-badge`).
+
+0. **Pools & Policies panel** – rename panel eyebrow/title already done; next: split the inline policy editor into a pools-oriented layout (pool directory table + per-pool assignment form).
+
+0. **Sessions panel real data** – requires 7.0 API endpoint `/api/v2/sessions`; document contract in `docs/refactorv2/14-platform-api-extensibility.md`.
+
+## Immediate (Dedicated host `46.4.96.80`, 2026-04-20)
+
+0. **Finalize bootstrap on new dedicated host**:
+	- wait for `beagle-installimage-bootstrap.service` to reach `active (exited)`,
+	- verify `beagle-control-plane`, `beagle-novnc-proxy`, `nginx` are active,
+	- verify listeners on `127.0.0.1:9088`, `:443`, `:8443`.
+
+0. **Validate KVM capability on bare metal and provisioning path**:
+	- assert `/dev/kvm` exists,
+	- assert `virsh domcapabilities --virttype kvm` succeeds,
+	- create one fresh ubuntu-beagle VM via API/UI and confirm no `virt type 'kvm'` error.
+
+0. **Close release artifact consistency gap that caused bootstrap 404**:
+	- ensure `beagle-os.com/beagle-updates/` always contains the full required `v${VERSION}` + `latest` thin-client installer/payload/bootstrap set,
+	- add this as a mandatory preflight in release publication flow before installimage deployment.
+
+0. **Capture final handoff state after bootstrap completes**:
+	- update `05-progress.md` with completed status and service health,
+	- update `08-todo-global.md` by marking dedicated reinstall + bootstrap validation done,
+	- append any runtime/security residue to `11-security-findings.md` if discovered.
+
+## Immediate (Hetzner installimage boot fix, 2026-04-20)
+
+0. **Recover `srv1.beagle-os.com` (178.104.179.245)** - BLOCKER:
+   - rescue ssh window expired by failed v1 install reboot,
+   - operator must re-activate Hetzner Rescue in the Hetzner panel for `srv1.beagle-os.com` and trigger hardware reboot (cannot be done from SSH),
+   - then provide fresh root rescue password so the v2 tarball can be uploaded + installimage re-run.
+
+0. **Bump VERSION to 6.7.1 + publish corrected tarball**:
+   - tarball `dist/beagle-os-server-installimage/Debian-1201-bookworm-amd64-beagle-server.tar.gz` (sha256 `11ee375adcfbafaa8982ed8ef0d0c9d0a37c9348428506d93109983dcf232095`, 738M, built 2026-04-20 20:02 UTC) is the validated artifact,
+   - run `scripts/publish-public-update-artifacts.sh` once VERSION is bumped so `https://beagle-os.com/beagle-updates/` serves the fixed image,
+   - update `beagle-downloads-status.json` + `SHA256SUMS`.
+
+0. **Add CI/smoke gate for installimage tarball**:
+   - assert tarball contains: non-empty `/etc/default/grub`, non-empty `/etc/kernel-img.conf`, `/usr/sbin/grub-install`, `/usr/sbin/update-grub`, `/boot/grub/grub.cfg` with at least one `menuentry`, plus `/boot/vmlinuz-*` and matching `/boot/initrd.img-*`,
+   - so this regression class cannot ship again.
+
+## Immediate (refactorv2 follow-up, 2026-04-20)
+
+0. **Resolve open architecture decisions in [docs/refactorv2/15-risks-open-questions.md](../refactorv2/15-risks-open-questions.md)** and capture each in `docs/refactor/07-decisions.md`:
+   - cluster store (etcd vs. Litestream vs. Corosync),
+   - default storage backend for 7.0.1 (ZFS / NFS / both),
+   - streaming backend in 7.1.1 (Apollo only vs. Apollo + Sunshine selectable),
+   - Linux virtual display (vkms / xvfb / xrandr-virtual),
+   - backup format (PBS / Restic / native),
+   - SDN scope (nftables only vs. nftables + OVS),
+   - CLI language (Python vs. Go).
+
+0. **Spike-Phase Welle 7.0.0 Cluster Foundation**:
+   - PoC mit etcd, Cluster-CA, `beaglectl cluster init/join`,
+   - Inter-Host RPC ueber mTLS,
+   - keine Aenderung an v1-API.
+
+0. **Spike-Phase Welle 7.1.1 Streaming v2**:
+   - Apollo-Build-Layer und systemd-Template,
+   - Linux Virtual Display PoC (vkms-basiert) auf Test-VM,
+   - Auto-Pairing-Token-Flow Ende-zu-Ende.
+
 ## Immediate (2026-04-20 follow-up)
 
 0. **Complete full in-VM beagleserver installation after ISO boot recreate**:

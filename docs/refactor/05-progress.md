@@ -1,5 +1,188 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, Let's Encrypt/certbot runtime fix applied in repo and on `srv1.beagle-os.com`)
+
+- Fixed the Security/TLS settings flow so Let's Encrypt issuance no longer fails on fresh standalone hosts with `certbot not installed on this server`.
+- Patched the canonical install paths to install the required TLS runtime packages automatically:
+	- `scripts/install-beagle-host-services.sh`
+	- `scripts/install-beagle-proxy.sh`
+	- `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+- Added backend preflight checks in `beagle-host/services/server_settings.py` for both the `certbot` binary and the nginx plugin, so missing dependencies now fail with a precise operator-visible error.
+- Root-caused and fixed a second live issue on `srv1.beagle-os.com`: API-triggered `certbot --nginx` failed inside the hardened `beagle-control-plane.service` sandbox even after packages were installed.
+- Mitigated the runtime constraint in two layers:
+	- expanded the systemd unit `ReadWritePaths=` for Let's Encrypt/nginx paths,
+	- execute certbot via transient `systemd-run` when available so the TLS workflow does not inherit the control-plane sandbox.
+- Corrected nginx TLS status detection to inspect the actual deployed site names (`beagle-web-ui`, `beagle-proxy.conf`, `beagle-proxy`) instead of assuming a single filename.
+- Added focused unit coverage in `tests/unit/test_server_settings.py` for the missing-certbot and missing-nginx-plugin cases.
+- Validated locally in the repo venv:
+	- `python -m unittest tests.unit.test_auth_session tests.unit.test_server_settings`
+	- result: `OK`
+- Applied the same repo-backed hotfix on `srv1.beagle-os.com`, re-ran the supported install scripts, restarted `beagle-control-plane.service`, and verified end-to-end:
+	- API call `POST /beagle-api/api/v1/settings/security/tls/letsencrypt` now returns `ok: true`,
+	- final security status reports `provider: letsencrypt`, `certificate_exists: true`, and `nginx_tls_enabled: true` for `srv1.beagle-os.com`.
+
+## Update (2026-04-21, fresh-install onboarding fix applied in repo and on `srv1.beagle-os.com`)
+
+- Fixed `beagle-host/services/auth_session.py` so a generated bootstrap admin no longer suppresses first-run onboarding.
+- Bootstrap-created users are now marked as `bootstrap_only`, and `update_user()` clears that marker when onboarding promotes the first real admin account.
+- Added focused unit coverage in `tests/unit/test_auth_session.py` for both cases:
+	- bootstrap-only admin keeps onboarding pending,
+	- completing onboarding with the same username promotes the account and clears `bootstrap_only`.
+- Validated locally with `python -m unittest tests.unit.test_auth_session` under the repo venv.
+- Applied the same backend fix on `srv1.beagle-os.com`, repaired the already-written auth state under `/var/lib/beagle/beagle-manager/auth/`, restarted `beagle-control-plane.service`, and verified:
+	- `GET /api/v1/auth/onboarding/status` now returns `pending: true`,
+	- the fresh install is no longer treated as already onboarded merely because the bootstrap `admin` account exists.
+
+## Update (2026-04-20, GoFuture Plan 03 executed: WebUI HTML entry cleanup)
+
+- `website/index.html` now uses the repo `VERSION` (`6.7.0`) for both `styles.css` and `main.js` cache-busting parameters instead of the stale hard-coded `7.1.0` value.
+- Script order was normalized so `beagle-web-ui-config.js` and `browser-common.js` load before the ES-module bootstrap.
+- Added `sync_web_ui_asset_versions()` to `scripts/package.sh` so release packaging keeps the WebUI asset version strings aligned with the root `VERSION` file automatically.
+- Validated on `srv1.beagle-os.com` after reload:
+  - `styles.css?v=6.7.0` and `main.js?v=6.7.0` are requested,
+  - all imported CSS partials and JS modules still load with HTTP 200,
+  - CSP remains satisfied without loosening `script-src 'self'`.
+- Removed legacy `website/app.js` and switched `scripts/validate-project.sh` from monolith validation to `website/main.js` plus `website/ui/*.js` module validation.
+- Added a local offline runtime validation fallback (static server with `website/` + `core/` path mapping) to continue WebUI checks while `srv1.beagle-os.com` was timing out.
+- Locally validated under Chromium DevTools:
+	- dark-mode preference persists across reload (`beagle.darkMode=0` + `body.light-mode` after refresh),
+	- hash routing `#panel=inventory` activates the Inventory panel and nav state,
+	- no CSP violations were reported in console output.
+- Validation blocker identified on `srv1.beagle-os.com`:
+  - onboarding is already completed by `admin`,
+  - no bootstrap auth environment is exposed via the systemd unit anymore,
+  - authenticated runtime validation now requires existing operator credentials or an explicit decision to rotate/create a temporary admin credential.
+
+## Update (2026-04-20, GoFuture Plan 02 executed: WebUI CSS split)
+
+- Replaced the `website/styles.css` monolith with a native CSS import barrel and split the former stylesheet into 24 partials under `website/styles/` and `website/styles/panels/`.
+- The split now mirrors the WebUI module boundaries already introduced in Plan 01:
+  - global layers: `_tokens`, `_reset`, `_layout`, `_nav`, `_buttons`, `_cards`, `_chips`, `_tables`, `_forms`, `_toolbar`, `_modals`, `_banners`, `_inspector`, `_helpers`, `_responsive`, `_reduced-motion`
+  - panel layers: `_inventory`, `_virtualization`, `_provisioning`, `_policies`, `_iam`, `_settings`, `_scope-switcher`, `_sessions`
+- Fixed an existing structural bug while extracting tokens: `.svg-sprite` no longer sits inside the `:root` block.
+- Synced the CSS split to `srv1.beagle-os.com` and validated the runtime in the browser:
+  - `styles.css` and all imported `/styles/*.css` and `/styles/panels/*.css` requests return HTTP 200,
+  - no blocking browser errors were introduced by the CSS split,
+  - responsive layout still renders at desktop/tablet/mobile widths.
+- Remaining Plan 02 follow-up is narrow:
+  - authenticated panel-by-panel visual comparison,
+  - theme persistence / dark-mode reload verification.
+
+## Update (2026-04-20, GoFuture Plan 01 execution started: WebUI ES module foundation)
+
+- Started the actual implementation of `docs/gofuture/01-webui-js-module.md` in `website/` instead of keeping the plan purely documentary.
+- Created the new native ES module directory `website/ui/`.
+- Landed the first extracted module tranche:
+	- `website/ui/state.js`
+	- `website/ui/dom.js`
+	- `website/ui/api.js`
+	- `website/ui/auth.js`
+	- `website/ui/panels.js`
+	- `website/ui/theme.js`
+	- `website/ui/activity.js`
+	- `website/ui/inventory.js`
+	- `website/ui/virtualization.js`
+	- `website/ui/provisioning.js`
+	- `website/ui/policies.js`
+	- `website/ui/iam.js`
+	- `website/ui/settings.js`
+	- `website/ui/dashboard.js`
+	- `website/ui/actions.js`
+	- `website/main.js`
+- The extraction keeps existing runtime behavior stable because `website/index.html` still boots the legacy `app.js` path until the final module-entry cutover is performed.
+- Security-sensitive WebUI behavior was preserved during extraction:
+	- API absolute targets remain opt-in only.
+	- Legacy `X-Beagle-Api-Token` stays opt-in only.
+	- credential reveal values stay in in-memory secret vault structures instead of DOM attributes.
+- Verified via workspace diagnostics that the newly added modules are syntax-clean and introduce no immediate JS errors.
+- Marked GoFuture Plan 01 steps 1 through 17 as completed.
+- Synced the new `website/ui/*.js` module files and `website/main.js` to the dedicated execution host `srv1.beagle-os.com` under `/opt/beagle/website/` so the server-side working tree stays aligned with GoFuture execution.
+- Switched `website/index.html` from legacy `app.js` bootstrap to `type="module"` via `website/main.js`.
+- Runtime validation on `srv1.beagle-os.com` succeeded in the browser:
+  - `main.js` and all extracted `ui/*.js` modules load with HTTP 200,
+  - no blocking JavaScript runtime errors remain in the console,
+  - page renders the login modal and dashboard shell correctly under the new module bootstrap.
+
+## Update (2026-04-20, WebUI 7.0 navigation restructure)
+
+- Implemented the first concrete step of the Beagle OS 7.0 Web Console Informationsarchitektur in `website/`:
+  - **Sidebar navigation restructured** from a flat "Workspaces / Verwaltung / Server-Einstellungen" layout to a professional datacenter hierarchy matching the 7.0 target architecture spec:
+    - `Datacenter` → Dashboard
+    - `Compute` → Nodes, VMs & Endpoints, VM erstellen
+    - `Pools & Sessions` → Pools & Policies, Sessions (placeholder)
+    - `Identity` → Users & Roles
+    - `Network` → Interfaces & DNS, Firewall
+    - `Operations` → Dienste, Updates, Backup & Recovery
+    - `Platform` → Allgemein, Sicherheit & TLS
+  - **New SVG icon sprites** added: `i-compute`, `i-pool`, `i-sessions`, `i-vm`, `i-operations`, `i-platform`.
+  - **Scope Switcher** added above the sidebar nav — shows current datacenter scope and node count.
+  - **Sessions panel placeholder** added (`data-panel-section="sessions"`) with architecture preview card showing the 7.0 Session object model, feature list, and a code schema preview.
+  - **`panelMeta` in `app.js`** updated: all eyebrow/title values now match the new domain groupings (Compute, Pools & Sessions, Identity, Network, Operations, Platform).
+  - **CSS additions** in `styles.css`: scope switcher widget, `chip-amber` variant, `nav-badge-coming` pill, full Sessions coming-soon panel styling.
+  - No `data-panel` or `data-panel-section` attribute values were changed → zero JS regressions.
+  - All 14 existing panel sections remain intact and operational.
+
+## Update (2026-04-20, Dedicated server reinstall runbook applied on new Hetzner host)
+
+- New target host provisioned by operator: Hetzner Server Auction `#2980076` with IPv4 `46.4.96.80` (Rescue active, SSH key-based access).
+- Install path executed reproducibly from repo/tooling:
+	- Hetzner `installimage` with Beagle tarball `Debian-1201-bookworm-amd64-beagle-server.tar.gz`.
+	- Post-install rescue fix re-applied (same as prior verified runbook):
+		- seed `/etc/default/grub` and `/etc/kernel-img.conf`,
+		- chroot install `lvm2`,
+		- `update-initramfs -u -k all`,
+		- `grub-install /dev/sda` + `update-grub`.
+- Host rebooted successfully and became reachable via SSH key on `46.4.96.80`.
+- Local SSH alias was migrated to the new host in local operator config (`~/.ssh/config`):
+	- `Host srv1.beagle-os.com` now points to `46.4.96.80` with `~/.ssh/beagle-dedicated_ed25519`.
+- First-boot bootstrap issue observed and mitigated during this run:
+	- bootstrap started correctly but initially hit `404` while downloading host release assets,
+	- missing `6.7.0` thin-client artifacts were uploaded to `beagle-os.com/beagle-updates/`,
+	- bootstrap resumed and continued package/runtime setup on host.
+- Reproducibility fix committed in repo scripts:
+	- `scripts/publish-hosted-artifacts-to-public.sh` now publishes required thin-client host artifacts (`pve-thin-client-usb-installer-v*.sh/.ps1`, `pve-thin-client-live-usb-v*.sh`) and refreshes their `latest` links,
+	- prevents future installimage first-boot bootstrap from failing with missing public artifact `404` due to incomplete publication set.
+- Current state at this checkpoint:
+	- host is online and bootstrap is actively installing runtime dependencies,
+	- no manual out-of-repo host edits were used beyond the documented rescue/chroot runbook and artifact publication step.
+
+## Update (2026-04-20, Hetzner installimage tarball fix v2)
+
+- Reproduced on Hetzner vServer `srv1.beagle-os.com` (178.104.179.245) that the published 6.7.0 server installimage tarball `Debian-1201-bookworm-amd64-beagle-server.tar.gz` mechanically completes Hetzner's installimage flow but the host never returns from `reboot`.
+- First fix attempt (commit before this entry): seeded `/etc/default/grub` + `/etc/kernel-img.conf` in the rootfs. Built locally, scp-uploaded to rescue, re-installed. INSTALLATION COMPLETE was clean (no more `sed` warnings) but the host stayed dark for 9+ minutes after reboot - identical symptom as 6.7.0.
+- Root cause v2: the tarball shipped `grub-common` + `grub-pc-bin` + `grub-efi-amd64-bin` but NOT `grub-pc`, the wrapper package providing the working `grub-install` script + dpkg postinst hooks. Hetzner installimage's grub stage runs `chroot $hdd grub-install /dev/sda` + `update-grub` and silently produces no `/boot/grub/grub.cfg` with kernel entries, so stage1 from the MBR finds no menu and the system never boots the installed kernel.
+- Fix v2 applied to `scripts/build-server-installimage.sh`:
+  - install `debconf-utils` + preseed `grub-pc/install_devices` empty so `grub-pc` postinst does not block in chroot,
+  - add `grub-pc` and `os-prober` to the apt install list,
+  - run `update-grub` once in the chroot so the tarball ships a valid `/boot/grub/grub.cfg` with menuentries for the installed kernel.
+- Tarball verified after rebuild: contains `/usr/sbin/grub-install`, `/usr/sbin/update-grub`, `/boot/grub/grub.cfg` (with kernel 6.1.0-44-amd64 entry), `/boot/vmlinuz-6.1.0-44-amd64`, `/boot/initrd.img-6.1.0-44-amd64`, plus the seeded `/etc/default/grub` + `/etc/kernel-img.conf`.
+- BLOCKED on host recovery: rescue session was already consumed by the failed v1 install reboot. Operator must re-activate Hetzner Rescue in the Hetzner panel for `srv1.beagle-os.com` and provide a fresh root password before the v2 tarball can be uploaded + installed.
+- Public publish (6.7.1) still pending; the fixed tarball lives only in `dist/beagle-os-server-installimage/` locally.
+
+## Update (2026-04-20, refactorv2 strategic doc set landed in `docs/refactorv2/`)
+
+- Added a 16-document refactor wave 2 doc set under [docs/refactorv2/](../refactorv2/README.md) targeting the 7.0 jump.
+- Scope: position Beagle OS as a full open-source desktop-virtualization platform that competes head-to-head with Proxmox VE, Omnissa Horizon, Citrix DaaS, Microsoft Windows 365, Parsec for Teams, Sunshine/Apollo, Kasm Workspaces, Harvester HCI.
+- New docs:
+  - [00-vision.md](../refactorv2/00-vision.md) — Nordstern + 30-min onboarding promise.
+  - [01-competitor-research.md](../refactorv2/01-competitor-research.md) — competitor analysis + feature matrix.
+  - [02-feature-gap-analysis.md](../refactorv2/02-feature-gap-analysis.md) — P0/P1/P2 gaps mapped to repo modules.
+  - [03-target-architecture-v2.md](../refactorv2/03-target-architecture-v2.md) — cluster + pool + tenant architecture, /api/v2.
+  - [04-roadmap-v2.md](../refactorv2/04-roadmap-v2.md) — waves 7.0.0 through 7.4.2.
+  - [05-streaming-protocol-strategy.md](../refactorv2/05-streaming-protocol-strategy.md) — Apollo backend, virtual display, auto-pairing.
+  - [06-iam-multitenancy.md](../refactorv2/06-iam-multitenancy.md) — OIDC/SAML/SCIM, tenant scope, audit.
+  - [07-storage-network-plane.md](../refactorv2/07-storage-network-plane.md) — StorageClass, NetworkZone, distributed firewall.
+  - [08-ha-cluster.md](../refactorv2/08-ha-cluster.md) — etcd-based cluster, live-migration, HA-Manager.
+  - [09-backup-dr.md](../refactorv2/09-backup-dr.md) — incremental backup, live-restore, replication.
+  - [10-gpu-device-passthrough.md](../refactorv2/10-gpu-device-passthrough.md) — vfio + vGPU + USB-class redirect.
+  - [11-endpoint-strategy.md](../refactorv2/11-endpoint-strategy.md) — A/B updates, enrollment-flow, endpoint profiles.
+  - [12-security-compliance.md](../refactorv2/12-security-compliance.md) — threat model, layered controls, SOC2/ISO/DSGVO posture.
+  - [13-observability-operations.md](../refactorv2/13-observability-operations.md) — Prometheus, OTLP, default dashboards.
+  - [14-platform-api-extensibility.md](../refactorv2/14-platform-api-extensibility.md) — /api/v2, terraform-provider-beagle, beaglectl, webhooks.
+  - [15-risks-open-questions.md](../refactorv2/15-risks-open-questions.md) — risk register and open architecture decisions.
+- No source code changed. Provider-neutrality preserved. No regressions.
+- Open decisions to be tracked in `docs/refactor/07-decisions.md` (cluster store, default storage, streaming backend, virtual display, backup format, SDN, CLI language).
+
 ## Update (2026-04-20, reproducible XFCE/noVNC desktop fix deployed and rebuilt into server installer ISO)
 
 - Root-caused the noVNC/desktop mismatch on live guests:

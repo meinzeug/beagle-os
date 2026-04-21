@@ -26,6 +26,12 @@ hosted_base_url="${2%/}"
 public_base_url="${3%/}"
 version="$4"
 server_installimage_filename="$5"
+usb_installer_sh_filename="pve-thin-client-usb-installer-v${version}.sh"
+usb_installer_sh_latest_filename="pve-thin-client-usb-installer-latest.sh"
+usb_installer_ps1_filename="pve-thin-client-usb-installer-v${version}.ps1"
+usb_installer_ps1_latest_filename="pve-thin-client-usb-installer-latest.ps1"
+live_usb_sh_filename="pve-thin-client-live-usb-v${version}.sh"
+live_usb_sh_latest_filename="pve-thin-client-live-usb-latest.sh"
 payload_filename="pve-thin-client-usb-payload-v${version}.tar.gz"
 payload_latest_filename="pve-thin-client-usb-payload-latest.tar.gz"
 bootstrap_filename="pve-thin-client-usb-bootstrap-v${version}.tar.gz"
@@ -47,6 +53,9 @@ trap cleanup EXIT
 
 curl -fsSL "$hosted_base_url/SHA256SUMS" -o "$tmp_dir/SHA256SUMS"
 curl -fsSL "$hosted_base_url/$source_tarball_filename" -o "$tmp_dir/$source_tarball_filename"
+curl -fsSL "$hosted_base_url/$usb_installer_sh_filename" -o "$tmp_dir/$usb_installer_sh_filename"
+curl -fsSL "$hosted_base_url/$usb_installer_ps1_filename" -o "$tmp_dir/$usb_installer_ps1_filename"
+curl -fsSL "$hosted_base_url/$live_usb_sh_filename" -o "$tmp_dir/$live_usb_sh_filename"
 curl -fsSL "$hosted_base_url/$payload_filename" -o "$tmp_dir/$payload_filename"
 curl -fsSL "$hosted_base_url/$installer_iso_filename" -o "$tmp_dir/$installer_iso_filename"
 curl -fsSL "$hosted_base_url/$server_installer_iso_filename" -o "$tmp_dir/$server_installer_iso_filename"
@@ -56,6 +65,9 @@ curl -fsSL "$hosted_base_url/$kiosk_manifest_filename" -o "$tmp_dir/$kiosk_manif
 curl -fsSL "$hosted_base_url/$kiosk_hash_filename" -o "$tmp_dir/$kiosk_hash_filename"
 
 expected_source_tarball="$(awk -v name="$source_tarball_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
+expected_usb_installer_sh="$(awk -v name="$usb_installer_sh_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
+expected_usb_installer_ps1="$(awk -v name="$usb_installer_ps1_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
+expected_live_usb_sh="$(awk -v name="$live_usb_sh_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_payload="$(awk -v name="$payload_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_bootstrap="$(awk -v name="$bootstrap_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_iso="$(awk -v name="$installer_iso_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
@@ -63,6 +75,9 @@ expected_server_iso="$(awk -v name="$server_installer_iso_filename" '$2 == name 
 expected_server_installimage="$(awk -v name="$server_installimage_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_kiosk="$(awk -v name="$kiosk_appimage_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 actual_source_tarball="$(sha256sum "$tmp_dir/$source_tarball_filename" | awk '{print $1}')"
+actual_usb_installer_sh="$(sha256sum "$tmp_dir/$usb_installer_sh_filename" | awk '{print $1}')"
+actual_usb_installer_ps1="$(sha256sum "$tmp_dir/$usb_installer_ps1_filename" | awk '{print $1}')"
+actual_live_usb_sh="$(sha256sum "$tmp_dir/$live_usb_sh_filename" | awk '{print $1}')"
 actual_payload="$(sha256sum "$tmp_dir/$payload_filename" | awk '{print $1}')"
 actual_iso="$(sha256sum "$tmp_dir/$installer_iso_filename" | awk '{print $1}')"
 actual_server_iso="$(sha256sum "$tmp_dir/$server_installer_iso_filename" | awk '{print $1}')"
@@ -70,6 +85,9 @@ actual_server_installimage="$(sha256sum "$tmp_dir/$server_installimage_filename"
 actual_kiosk="$(sha256sum "$tmp_dir/$kiosk_appimage_filename" | awk '{print $1}')"
 
 [[ -n "$expected_source_tarball" && "$actual_source_tarball" == "$expected_source_tarball" ]]
+[[ -n "$expected_usb_installer_sh" && "$actual_usb_installer_sh" == "$expected_usb_installer_sh" ]]
+[[ -n "$expected_usb_installer_ps1" && "$actual_usb_installer_ps1" == "$expected_usb_installer_ps1" ]]
+[[ -n "$expected_live_usb_sh" && "$actual_live_usb_sh" == "$expected_live_usb_sh" ]]
 [[ -n "$expected_payload" && "$actual_payload" == "$expected_payload" ]]
 [[ -n "$expected_bootstrap" && "$actual_payload" == "$expected_bootstrap" ]]
 [[ -n "$expected_iso" && "$actual_iso" == "$expected_iso" ]]
@@ -80,6 +98,12 @@ actual_kiosk="$(sha256sum "$tmp_dir/$kiosk_appimage_filename" | awk '{print $1}'
 install -m 0644 "$tmp_dir/SHA256SUMS" SHA256SUMS
 mv -f "$tmp_dir/$source_tarball_filename" "$source_tarball_filename"
 ln -f "$source_tarball_filename" "$source_tarball_latest_filename"
+mv -f "$tmp_dir/$usb_installer_sh_filename" "$usb_installer_sh_filename"
+ln -f "$usb_installer_sh_filename" "$usb_installer_sh_latest_filename"
+mv -f "$tmp_dir/$usb_installer_ps1_filename" "$usb_installer_ps1_filename"
+ln -f "$usb_installer_ps1_filename" "$usb_installer_ps1_latest_filename"
+mv -f "$tmp_dir/$live_usb_sh_filename" "$live_usb_sh_filename"
+ln -f "$live_usb_sh_filename" "$live_usb_sh_latest_filename"
 mv -f "$tmp_dir/$payload_filename" "$payload_filename"
 ln -f "$payload_filename" "$payload_latest_filename"
 ln -f "$payload_filename" "$bootstrap_filename"

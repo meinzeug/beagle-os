@@ -1,0 +1,12 @@
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > span { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-muted); }
+.field-wide { grid-column: 1 / -1; }
+.field-narrow { max-width: 140px; }
+input[type="text"], input[type="password"], input[type="number"], input[type="email"], input[type="search"], .input-search, .input-select, select, textarea { width: 100%; background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 0.86rem; transition: border-color var(--transition), box-shadow var(--transition); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+input:read-only { color: var(--text-muted); cursor: not-allowed; }
+textarea { font-family: var(--font-mono); font-size: 0.80rem; resize: vertical; min-height: 80px; }
+select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%239b8c72' d='M0 0l5 6 5-6z'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 30px; }
+.check-label { display: inline-flex; align-items: center; gap: 8px; font-size: 0.84rem; color: var(--text-secondary); cursor: pointer; }
+.check-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--orange); }
+.check-label-padded { padding-top: 22px; }

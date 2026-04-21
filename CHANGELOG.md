@@ -1,5 +1,12 @@
 # Changelog
 
+## v6.7.0 - 2026-04-21
+
+- Split the Beagle Web Console monolith into native ES modules under `website/ui/`, switched `website/index.html` to the new `website/main.js` entrypoint, and replaced the monolithic stylesheet with imported CSS partials under `website/styles/`.
+- Fixed fresh-install onboarding so standalone hosts keep the mandatory first-run setup flow even when a bootstrap admin exists, and deployed the same correction to `srv1.beagle-os.com`.
+- Hardened standalone TLS issuance in the Security settings flow by auto-installing `certbot` plus `python3-certbot-nginx`, adding explicit backend preflight checks, and executing `certbot` through a transient `systemd-run` context so Let's Encrypt works on hardened hosts.
+- Extended refactor/go-future documentation for the executed WebUI split, strategic 7.0 planning wave, live host recovery work, onboarding fix, and the validated Let's Encrypt runtime path.
+
 ## v6.6.9 - 2026-04-19
 
 - Added the corrected Hetzner `installimage` tarball to the public release line and published it beside the endpoint ISO, server installer ISO, USB bundles, source tarball and kiosk AppImage on `beagle-os.com`.

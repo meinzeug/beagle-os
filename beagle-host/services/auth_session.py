@@ -72,9 +72,14 @@ class AuthSessionService:
                 "password_hash": self.hash_password(passwd),
                 "created_at": int(self._now()),
                 "enabled": True,
+                "bootstrap_only": True,
             }
         )
         self._write_json_file(self._users_path, users_doc)
+
+    @staticmethod
+    def _is_bootstrap_only_user(user: dict[str, Any]) -> bool:
+        return bool(user.get("bootstrap_only", False))
 
     def list_users(self) -> list[dict[str, Any]]:
         users_doc = self._load_users_doc()
@@ -88,6 +93,7 @@ class AuthSessionService:
                     "role": str(item.get("role") or "viewer").strip() or "viewer",
                     "enabled": bool(item.get("enabled", True)),
                     "created_at": int(item.get("created_at") or 0),
+                    "bootstrap_only": bool(item.get("bootstrap_only", False)),
                 }
             )
         return sorted(result, key=lambda entry: entry["username"].lower())
@@ -160,6 +166,7 @@ class AuthSessionService:
             if len(passwd) < MIN_PASSWORD_LENGTH:
                 raise ValueError(f"password must be at least {MIN_PASSWORD_LENGTH} characters")
             target["password_hash"] = self.hash_password(passwd)
+        target.pop("bootstrap_only", None)
         self._write_json_file(self._users_path, users_doc)
         return {
             "username": str(target.get("username") or "").strip(),
@@ -268,23 +275,27 @@ class AuthSessionService:
             for item in users
             if bool(item.get("enabled", True))
         ]
+        bootstrap_only_users = [
+            item
+            for item in enabled_users
+            if self._is_bootstrap_only_user(item)
+        ]
         non_bootstrap_users = [
             item
             for item in enabled_users
-            if str(item.get("username") or "").strip().lower() != bootstrap
+            if not self._is_bootstrap_only_user(item)
         ]
 
         # If bootstrap auth is disabled, remove bootstrap-only legacy users so
         # onboarding can create the real first admin account.
-        if bootstrap_disabled and not non_bootstrap_users and enabled_users:
+        if bootstrap_disabled and not non_bootstrap_users and bootstrap_only_users:
             users_doc = self._load_users_doc()
             filtered_users = []
             removed_bootstrap_user = False
             for item in users_doc.get("users", []):
                 if not isinstance(item, dict):
                     continue
-                username = str(item.get("username") or "").strip().lower()
-                if username == bootstrap:
+                if self._is_bootstrap_only_user(item):
                     removed_bootstrap_user = True
                     continue
                 filtered_users.append(item)
@@ -297,19 +308,22 @@ class AuthSessionService:
                     for item in users
                     if bool(item.get("enabled", True))
                 ]
+                bootstrap_only_users = [
+                    item
+                    for item in enabled_users
+                    if self._is_bootstrap_only_user(item)
+                ]
                 non_bootstrap_users = [
                     item
                     for item in enabled_users
-                    if str(item.get("username") or "").strip().lower() != bootstrap
+                    if not self._is_bootstrap_only_user(item)
                 ]
 
         completed = bool(onboarding.get("completed")) or bool(non_bootstrap_users)
-        if not bootstrap_disabled and enabled_users:
-            completed = True
 
-        # If bootstrap auth is disabled, a leftover bootstrap-only onboarding
-        # completion marker must not suppress onboarding.
-        if bootstrap_disabled and not non_bootstrap_users and bool(onboarding.get("completed")):
+        # A bootstrap-only admin account must keep onboarding pending until the
+        # operator promotes or creates the real first admin via onboarding.
+        if not non_bootstrap_users and bootstrap_only_users and bool(onboarding.get("completed")) and str(onboarding.get("completed_by") or "").strip().lower() == bootstrap:
             onboarding["completed"] = False
             onboarding["completed_at"] = 0
             onboarding["completed_by"] = ""

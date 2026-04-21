@@ -127,6 +127,11 @@ standalone_runtime_tools_ready() {
     command -v npm >/dev/null 2>&1
 }
 
+tls_runtime_tools_ready() {
+  command -v certbot >/dev/null 2>&1 &&
+    [[ -f /usr/lib/python3/dist-packages/certbot_nginx/__init__.py || -f /usr/lib/python3/dist-packages/certbot_nginx/_internal/configurator.py ]]
+}
+
 wait_for_libvirt_system() {
   local attempt=""
 
@@ -374,6 +379,10 @@ EOF
 fi
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_HOST_PROVIDER" "\"$BEAGLE_HOST_PROVIDER\""
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_MANAGER_LISTEN_HOST" '"127.0.0.1"'
+
+if ! tls_runtime_tools_ready; then
+  install_runtime_packages certbot python3-certbot-nginx
+fi
 
 # When running with the beagle (libvirt/KVM) provider, set storage paths and
 # ensure libvirt + OVMF are installed.

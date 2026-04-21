@@ -1,0 +1,26 @@
+.button, .btn { appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); font-size: 0.84rem; font-weight: 600; cursor: pointer; transition: all var(--transition); text-decoration: none; white-space: nowrap; }
+.button:hover, .btn:hover { background: var(--bg-card-hover); border-color: var(--border-strong); text-decoration: none; transform: translateY(-1px); }
+.button:active, .btn:active { transform: translateY(0); }
+.button:disabled, .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.button.primary, .btn.btn-primary { background: linear-gradient(135deg, var(--orange) 0%, var(--magenta) 100%); color: #fff; border-color: var(--orange); box-shadow: 0 8px 18px rgba(255, 138, 61, 0.25); }
+.button.primary:hover, .btn.btn-primary:hover { background: linear-gradient(135deg, var(--orange) 10%, var(--magenta-dim) 100%); border-color: var(--orange); }
+.button.ghost, .btn.btn-ghost { background: transparent; }
+.button.danger, .btn.btn-danger { background: var(--danger-soft); color: var(--danger); border-color: rgba(255, 111, 94, 0.35); }
+.button.danger:hover, .btn.btn-danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+.button.paused { background: var(--warn-soft); color: var(--warn); border-color: rgba(255, 180, 84, 0.35); }
+.button.small, .btn.btn-small { min-height: 30px; padding: 0 10px; font-size: 0.78rem; }
+.icon-button { width: 36px; height: 36px; padding: 0; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); border-radius: 10px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all var(--transition); }
+.icon-button:hover { background: var(--bg-card-hover); color: var(--text); }
+.icon-button svg { width: 18px; height: 18px; }
+.account-shell { position: relative; }
+.avatar-button { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); cursor: pointer; font-weight: 600; font-size: 0.82rem; transition: all var(--transition); }
+.avatar-button:hover { background: var(--bg-card-hover); }
+.avatar-dot { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, var(--orange), var(--magenta)); display: inline-block; }
+.account-menu { display: none; position: absolute; right: 0; top: calc(100% + 8px); background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 8px; min-width: 220px; box-shadow: var(--shadow); z-index: 50; }
+.account-shell.menu-open .account-menu { display: block; }
+.account-menu-head { padding: 10px 12px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+.account-menu-head strong { display: block; font-size: 0.88rem; }
+.account-menu-head span { display: block; color: var(--text-muted); font-size: 0.74rem; margin-top: 2px; }
+.menu-button { display: block; width: 100%; text-align: left; background: transparent; border: 0; border-radius: 8px; padding: 9px 12px; font-size: 0.84rem; color: var(--text-secondary); cursor: pointer; font-weight: 500; }
+.menu-button:hover { background: var(--bg-card-hover); color: var(--text); }
+.menu-button.danger { color: var(--danger); }

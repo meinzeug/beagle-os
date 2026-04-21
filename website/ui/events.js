@@ -1,0 +1,681 @@
+import { qs, readSecretValue } from './dom.js';
+import {
+  clearSessionState,
+  loginWithCredentials,
+  logoutSession,
+  markSessionActivity,
+  saveToken,
+  sanitizeIdentifier,
+  sanitizePassword,
+  updateConnectButton
+} from './auth.js';
+import { toggleDarkMode } from './theme.js';
+import { toggleAutoRefresh, renderActivityLog } from './activity.js';
+import {
+  accountShell,
+  closeAccountMenu,
+  closeAuthModal,
+  completeOnboarding,
+  openAuthModal,
+  openOnboardingModal,
+  setActiveDetailPanel,
+  setActivePanel
+} from './panels.js';
+import {
+  bulkAction,
+  bulkVmPowerAction,
+  exportEndpointsJson,
+  exportInventoryCsv,
+  exportInventoryJson,
+  filteredInventory,
+  profileOf,
+  renderInventory,
+  resetInventoryFilters,
+  runVmPowerAction
+} from './inventory.js';
+import { executeAction } from './actions.js';
+import {
+  createProvisionedVm,
+  createProvisionedVmWithPrefix,
+  closeProvisionModal,
+  closeProvisionProgressModal,
+  loadProvisioningCatalog,
+  openProvisioningWorkspace,
+  renderProvisioningWorkspace
+} from './provisioning.js';
+import {
+  deleteSelectedPolicy,
+  loadPolicyIntoEditor,
+  resetPolicyEditor,
+  savePolicy
+} from './policies.js';
+import {
+  deleteIamRole,
+  deleteIamUser,
+  loadIamRoleIntoEditor,
+  loadIamUserIntoEditor,
+  refreshIamData,
+  renderIamRoles,
+  renderIamUsers,
+  resetIamRoleEditor,
+  resetIamUserEditor,
+  revokeIamUserSessions,
+  saveIamRole,
+  saveIamUser
+} from './iam.js';
+import {
+  loadVirtualizationInspector,
+  loadVmConfig,
+  setVirtualizationNodeFilter
+} from './virtualization.js';
+import { loadDashboard } from './dashboard.js';
+import { MAX_USERNAME_LEN, USERNAME_PATTERN, state } from './state.js';
+
+const eventHooks = {
+  loadDetail() {
+    return Promise.resolve();
+  },
+  setBanner() {},
+  openProvisionModal() {
+    openProvisioningWorkspace();
+  }
+};
+
+export function configureEvents(nextHooks) {
+  Object.assign(eventHooks, nextHooks || {});
+}
+
+export function bindEvents() {
+  if (qs('toggle-dark-mode')) {
+    qs('toggle-dark-mode').addEventListener('click', toggleDarkMode);
+  }
+  if (qs('toggle-auto-refresh')) {
+    qs('toggle-auto-refresh').addEventListener('click', toggleAutoRefresh);
+  }
+  if (qs('clear-activity-log')) {
+    qs('clear-activity-log').addEventListener('click', () => {
+      renderActivityLog();
+      eventHooks.setBanner('Aktivitaetslog geleert.', 'info');
+    });
+  }
+
+  const tokenField = qs('api-token');
+  const usernameField = qs('auth-username');
+  const passwordField = qs('auth-password');
+  const onboardingPasswordField = qs('onboarding-password');
+  const onboardingPasswordConfirmField = qs('onboarding-password-confirm');
+
+  if (tokenField) {
+    tokenField.value = state.token;
+    tokenField.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        saveToken();
+        loadDashboard();
+      }
+    });
+  }
+
+  if (passwordField) {
+    passwordField.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        const username = String(usernameField ? usernameField.value : '').trim();
+        const password = String(passwordField.value || '');
+        if (!username || !password) {
+          eventHooks.setBanner('Benutzername und Passwort erforderlich.', 'warn');
+          return;
+        }
+        loginWithCredentials(username, password)
+          .then(() => loadDashboard())
+          .catch((error) => {
+            eventHooks.setBanner('Login fehlgeschlagen: ' + error.message, 'warn');
+          });
+      }
+    });
+  }
+
+  if (qs('connect-button')) {
+    qs('connect-button').addEventListener('click', () => {
+      markSessionActivity();
+      if (state.onboarding && state.onboarding.pending) {
+        openOnboardingModal();
+        return;
+      }
+      const username = String(usernameField ? usernameField.value : '').trim();
+      const password = String(passwordField ? passwordField.value : '');
+      if (username || password) {
+        if (!username || !password) {
+          eventHooks.setBanner('Benutzername und Passwort erforderlich.', 'warn');
+          return;
+        }
+        loginWithCredentials(username, password)
+          .then(() => loadDashboard())
+          .catch((error) => {
+            eventHooks.setBanner('Login fehlgeschlagen: ' + error.message, 'warn');
+          });
+        return;
+      }
+      saveToken();
+      loadDashboard();
+    });
+  }
+
+  if (qs('open-connect-modal')) {
+    qs('open-connect-modal').addEventListener('click', () => {
+      if (state.token) {
+        logoutSession().finally(() => {
+          clearSessionState('Abgemeldet.', 'info');
+        });
+      } else {
+        openAuthModal();
+      }
+    });
+  }
+  if (qs('open-connect-menu')) {
+    qs('open-connect-menu').addEventListener('click', () => {
+      closeAccountMenu();
+      openAuthModal();
+    });
+  }
+  if (qs('close-auth-modal')) {
+    qs('close-auth-modal').addEventListener('click', closeAuthModal);
+  }
+
+  if (qs('onboarding-complete')) {
+    qs('onboarding-complete').addEventListener('click', () => {
+      Promise.resolve().then(() => {
+        try {
+          const onboardingUser = sanitizeIdentifier(
+            String(qs('onboarding-username') ? qs('onboarding-username').value : ''),
+            'Onboarding-Benutzername',
+            USERNAME_PATTERN,
+            1,
+            MAX_USERNAME_LEN
+          );
+          const onboardingPw = sanitizePassword(String(qs('onboarding-password') ? qs('onboarding-password').value : ''), 'Onboarding-Passwort');
+          if (qs('onboarding-username')) {
+            qs('onboarding-username').value = onboardingUser;
+          }
+          if (qs('onboarding-password')) {
+            qs('onboarding-password').value = onboardingPw;
+          }
+        } catch (error) {
+          eventHooks.setBanner(error.message, 'warn');
+          throw error;
+        }
+      }).then(() => completeOnboarding()).then(() => {
+        if (state.onboarding && !state.onboarding.pending) {
+          openAuthModal();
+        }
+      }).catch(() => null);
+    });
+  }
+
+  [onboardingPasswordField, onboardingPasswordConfirmField].forEach((field) => {
+    if (field) {
+      field.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && qs('onboarding-complete')) {
+          qs('onboarding-complete').click();
+        }
+      });
+    }
+  });
+
+  if (qs('avatar-toggle')) {
+    qs('avatar-toggle').addEventListener('click', () => {
+      const shell = accountShell();
+      if (shell) {
+        shell.classList.toggle('menu-open');
+      }
+    });
+  }
+
+  document.addEventListener('click', (event) => {
+    const shell = accountShell();
+    if (shell && !shell.contains(event.target)) {
+      shell.classList.remove('menu-open');
+    }
+  });
+
+  if (qs('sidebar-nav')) {
+    qs('sidebar-nav').addEventListener('click', (event) => {
+      const trigger = event.target.closest('[data-panel]');
+      if (!trigger) {
+        return;
+      }
+      const panelName = String(trigger.getAttribute('data-panel') || '').trim();
+      markSessionActivity();
+      if (panelName === 'provisioning') {
+        openProvisioningWorkspace();
+        closeMobileSidebar();
+        return;
+      }
+      setActivePanel(panelName);
+      closeMobileSidebar();
+    });
+  }
+
+  function openMobileSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const backdrop = qs('sidebar-backdrop');
+    if (sidebar) {
+      sidebar.classList.add('mobile-open');
+    }
+    if (backdrop) {
+      backdrop.classList.add('active');
+    }
+    document.body.classList.add('mobile-menu-open');
+  }
+
+  function closeMobileSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const backdrop = qs('sidebar-backdrop');
+    if (sidebar) {
+      sidebar.classList.remove('mobile-open');
+    }
+    if (backdrop) {
+      backdrop.classList.remove('active');
+    }
+    document.body.classList.remove('mobile-menu-open');
+  }
+
+  if (qs('mobile-menu-toggle')) {
+    qs('mobile-menu-toggle').addEventListener('click', openMobileSidebar);
+  }
+  if (qs('sidebar-close')) {
+    qs('sidebar-close').addEventListener('click', closeMobileSidebar);
+  }
+  if (qs('sidebar-backdrop')) {
+    qs('sidebar-backdrop').addEventListener('click', closeMobileSidebar);
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) {
+      return;
+    }
+    const target = event.target;
+    const tag = target && target.tagName ? String(target.tagName).toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea' || (target && target.isContentEditable)) {
+      return;
+    }
+    if (qs('search-input')) {
+      event.preventDefault();
+      qs('search-input').focus();
+    }
+  });
+
+  if (qs('clear-token')) {
+    qs('clear-token').addEventListener('click', () => {
+      logoutSession().finally(() => {
+        clearSessionState('Anmeldedaten geloescht.', 'info');
+      });
+      if (usernameField) {
+        usernameField.value = '';
+      }
+      if (passwordField) {
+        passwordField.value = '';
+      }
+      if (tokenField) {
+        tokenField.value = '';
+      }
+      closeAccountMenu();
+    });
+  }
+  if (qs('clear-token-menu')) {
+    qs('clear-token-menu').addEventListener('click', () => {
+      if (qs('clear-token')) {
+        qs('clear-token').click();
+      }
+    });
+  }
+
+  if (qs('refresh-all')) {
+    qs('refresh-all').addEventListener('click', () => {
+      markSessionActivity();
+      loadDashboard();
+    });
+  }
+  if (qs('open-provision-create')) {
+    qs('open-provision-create').addEventListener('click', () => {
+      markSessionActivity();
+      eventHooks.openProvisionModal();
+    });
+  }
+  if (qs('refresh-virt')) {
+    qs('refresh-virt').addEventListener('click', () => {
+      markSessionActivity();
+      loadDashboard();
+    });
+  }
+  if (qs('refresh-endpoints')) {
+    qs('refresh-endpoints').addEventListener('click', () => {
+      markSessionActivity();
+      loadDashboard();
+    });
+  }
+
+  if (qs('export-inventory-json')) {
+    qs('export-inventory-json').addEventListener('click', exportInventoryJson);
+  }
+  if (qs('export-inventory-csv')) {
+    qs('export-inventory-csv').addEventListener('click', exportInventoryCsv);
+  }
+  if (qs('export-endpoints-json')) {
+    qs('export-endpoints-json').addEventListener('click', exportEndpointsJson);
+  }
+
+  if (qs('search-input')) {
+    qs('search-input').addEventListener('input', renderInventory);
+  }
+  if (qs('role-filter')) {
+    qs('role-filter').addEventListener('change', renderInventory);
+  }
+  if (qs('eligible-only')) {
+    qs('eligible-only').addEventListener('change', renderInventory);
+  }
+  if (qs('clear-filters')) {
+    qs('clear-filters').addEventListener('click', () => {
+      resetInventoryFilters();
+      eventHooks.setBanner('Filter zurueckgesetzt.', 'info');
+    });
+  }
+  if (qs('inventory-select-all')) {
+    qs('inventory-select-all').addEventListener('change', (event) => {
+      const vmids = filteredInventory().map((vm) => profileOf(vm).vmid);
+      if (event.target.checked) {
+        state.selectedVmids = Array.from(new Set(state.selectedVmids.concat(vmids)));
+      } else {
+        state.selectedVmids = state.selectedVmids.filter((vmid) => vmids.indexOf(vmid) === -1);
+      }
+      renderInventory();
+    });
+  }
+
+  const bulkButtons = {
+    'bulk-healthcheck': () => bulkAction('healthcheck'),
+    'bulk-support-bundle': () => bulkAction('support-bundle'),
+    'bulk-restart-session': () => bulkAction('restart-session'),
+    'bulk-restart-runtime': () => bulkAction('restart-runtime'),
+    'bulk-update-scan': () => bulkAction('os-update-scan'),
+    'bulk-update-download': () => bulkAction('os-update-download'),
+    'bulk-vm-start': () => bulkVmPowerAction('start'),
+    'bulk-vm-stop': () => bulkVmPowerAction('stop'),
+    'bulk-vm-reboot': () => bulkVmPowerAction('reboot')
+  };
+  Object.keys(bulkButtons).forEach((id) => {
+    if (qs(id)) {
+      qs(id).addEventListener('click', bulkButtons[id]);
+    }
+  });
+
+  if (qs('inventory-body')) {
+    qs('inventory-body').addEventListener('click', (event) => {
+      const powerButton = event.target.closest('button[data-vm-power]');
+      if (powerButton) {
+        const actionName = powerButton.getAttribute('data-vm-power');
+        const actionVmid = Number(powerButton.getAttribute('data-vmid') || '0');
+        runVmPowerAction(actionVmid, actionName);
+        return;
+      }
+      const consoleButton = event.target.closest('button[data-vm-console]');
+      if (consoleButton) {
+        const consoleName = String(consoleButton.getAttribute('data-vm-console') || '').trim().toLowerCase();
+        const consoleVmid = Number(consoleButton.getAttribute('data-vmid') || '0');
+        if (consoleName === 'novnc' && consoleVmid > 0) {
+          const previousVmid = state.selectedVmid;
+          state.selectedVmid = consoleVmid;
+          executeAction('novnc-ui', consoleButton);
+          state.selectedVmid = previousVmid;
+        }
+        return;
+      }
+      const select = event.target.closest('input[data-select-vmid]');
+      if (select) {
+        const selectedVmid = Number(select.getAttribute('data-select-vmid'));
+        if (select.checked) {
+          if (state.selectedVmids.indexOf(selectedVmid) === -1) {
+            state.selectedVmids.push(selectedVmid);
+          }
+        } else {
+          state.selectedVmids = state.selectedVmids.filter((vmid) => vmid !== selectedVmid);
+        }
+        renderInventory();
+        return;
+      }
+      const row = event.target.closest('tr[data-vmid]');
+      if (row) {
+        eventHooks.loadDetail(row.getAttribute('data-vmid'));
+      }
+    });
+  }
+
+  if (qs('detail-tabbar')) {
+    qs('detail-tabbar').addEventListener('click', (event) => {
+      const trigger = event.target.closest('[data-detail-panel]');
+      if (!trigger) {
+        return;
+      }
+      const panelName = trigger.getAttribute('data-detail-panel');
+      setActiveDetailPanel(panelName);
+      if (panelName === 'config' && state.selectedVmid) {
+        loadVmConfig(state.selectedVmid);
+      }
+    });
+  }
+
+  if (qs('detail-stack')) {
+    qs('detail-stack').addEventListener('click', (event) => {
+      const revealBtn = event.target.closest('button[data-reveal-id]');
+      if (revealBtn) {
+        const targetId = revealBtn.getAttribute('data-reveal-id');
+        const secretSpan = document.getElementById(targetId);
+        if (secretSpan) {
+          const visible = secretSpan.getAttribute('data-visible') === '1';
+          if (visible) {
+            secretSpan.textContent = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+            secretSpan.setAttribute('data-visible', '0');
+            revealBtn.textContent = 'Anzeigen';
+          } else {
+            secretSpan.textContent = readSecretValue(targetId);
+            secretSpan.setAttribute('data-visible', '1');
+            revealBtn.textContent = 'Verbergen';
+          }
+        }
+        return;
+      }
+      const button = event.target.closest('button[data-action]');
+      if (button) {
+        executeAction(button.getAttribute('data-action'), button);
+      }
+    });
+  }
+
+  if (qs('detail-actions')) {
+    qs('detail-actions').addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-action]');
+      if (button) {
+        executeAction(button.getAttribute('data-action'), button);
+      }
+    });
+  }
+
+  if (qs('policies-list')) {
+    qs('policies-list').addEventListener('click', (event) => {
+      const card = event.target.closest('[data-policy-name]');
+      if (card) {
+        loadPolicyIntoEditor(card.getAttribute('data-policy-name'));
+      }
+    });
+  }
+  if (qs('policy-save')) {
+    qs('policy-save').addEventListener('click', savePolicy);
+  }
+  if (qs('policy-new')) {
+    qs('policy-new').addEventListener('click', () => {
+      resetPolicyEditor();
+      eventHooks.setBanner('Policy editor reset.', 'info');
+    });
+  }
+  if (qs('policy-delete')) {
+    qs('policy-delete').addEventListener('click', deleteSelectedPolicy);
+  }
+
+  if (qs('iam-refresh')) {
+    qs('iam-refresh').addEventListener('click', refreshIamData);
+  }
+  if (qs('iam-user-save')) {
+    qs('iam-user-save').addEventListener('click', saveIamUser);
+  }
+  if (qs('iam-user-new')) {
+    qs('iam-user-new').addEventListener('click', () => {
+      resetIamUserEditor();
+      eventHooks.setBanner('User-Editor zurueckgesetzt.', 'info');
+    });
+  }
+  if (qs('iam-user-delete')) {
+    qs('iam-user-delete').addEventListener('click', deleteIamUser);
+  }
+  if (qs('iam-user-revoke')) {
+    qs('iam-user-revoke').addEventListener('click', revokeIamUserSessions);
+  }
+  if (qs('iam-role-save')) {
+    qs('iam-role-save').addEventListener('click', saveIamRole);
+  }
+  if (qs('iam-role-new')) {
+    qs('iam-role-new').addEventListener('click', () => {
+      resetIamRoleEditor();
+      eventHooks.setBanner('Rollen-Editor zurueckgesetzt.', 'info');
+    });
+  }
+  if (qs('iam-role-delete')) {
+    qs('iam-role-delete').addEventListener('click', deleteIamRole);
+  }
+  if (qs('iam-users-body')) {
+    qs('iam-users-body').addEventListener('click', (event) => {
+      const row = event.target.closest('tr[data-iam-user]');
+      if (row) {
+        loadIamUserIntoEditor(row.getAttribute('data-iam-user'));
+        renderIamUsers();
+      }
+    });
+  }
+  if (qs('iam-roles-body')) {
+    qs('iam-roles-body').addEventListener('click', (event) => {
+      const row = event.target.closest('tr[data-iam-role]');
+      if (row) {
+        loadIamRoleIntoEditor(row.getAttribute('data-iam-role'));
+        renderIamRoles();
+      }
+    });
+  }
+
+  if (qs('provision-create')) {
+    qs('provision-create').addEventListener('click', createProvisionedVm);
+  }
+  if (qs('provision-reset')) {
+    qs('provision-reset').addEventListener('click', () => {
+      renderProvisioningWorkspace();
+      eventHooks.setBanner('Provisioning-Defaults geladen.', 'info');
+    });
+  }
+  if (qs('provision-modal-create')) {
+    qs('provision-modal-create').addEventListener('click', () => {
+      createProvisionedVmWithPrefix('prov-modal-');
+    });
+  }
+  if (qs('close-provision-modal')) {
+    qs('close-provision-modal').addEventListener('click', closeProvisionModal);
+  }
+  if (qs('provision-modal-cancel')) {
+    qs('provision-modal-cancel').addEventListener('click', closeProvisionModal);
+  }
+  if (qs('provision-modal-reset')) {
+    qs('provision-modal-reset').addEventListener('click', () => {
+      loadProvisioningCatalog('prov-modal-');
+      eventHooks.setBanner('Modal-Defaults geladen.', 'info');
+    });
+  }
+  if (qs('provision-progress-close')) {
+    qs('provision-progress-close').addEventListener('click', () => {
+      closeProvisionProgressModal(false);
+    });
+  }
+  if (qs('provision-progress-open-vm')) {
+    qs('provision-progress-open-vm').addEventListener('click', () => {
+      closeProvisionProgressModal(true);
+    });
+  }
+  if (qs('refresh-catalog')) {
+    qs('refresh-catalog').addEventListener('click', () => {
+      markSessionActivity();
+      loadDashboard();
+    });
+  }
+  if (qs('provision-recent-body')) {
+    qs('provision-recent-body').addEventListener('click', (event) => {
+      const row = event.target.closest('tr[data-vmid]');
+      if (row) {
+        const vmid = Number(row.getAttribute('data-vmid') || '0');
+        if (vmid > 0) {
+          eventHooks.loadDetail(vmid);
+        }
+      }
+    });
+  }
+
+  if (qs('virtualization-nodes-body')) {
+    qs('virtualization-nodes-body').addEventListener('click', (event) => {
+      const row = event.target.closest('tr[data-node]');
+      if (row) {
+        setVirtualizationNodeFilter(row.getAttribute('data-node'));
+      }
+    });
+  }
+  if (qs('virtualization-bridges-body')) {
+    qs('virtualization-bridges-body').addEventListener('click', (event) => {
+      const row = event.target.closest('tr[data-node]');
+      if (row) {
+        setVirtualizationNodeFilter(row.getAttribute('data-node'));
+      }
+    });
+  }
+  if (qs('clear-virt-node-filter')) {
+    qs('clear-virt-node-filter').addEventListener('click', () => {
+      setVirtualizationNodeFilter('');
+    });
+  }
+  if (qs('virt-inspector-load')) {
+    qs('virt-inspector-load').addEventListener('click', () => {
+      loadVirtualizationInspector(String(qs('virt-inspector-vmid') ? qs('virt-inspector-vmid').value : ''));
+    });
+  }
+  if (qs('virt-inspector-vmid')) {
+    qs('virt-inspector-vmid').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        loadVirtualizationInspector(String(event.target.value || ''));
+      }
+    });
+  }
+  if (qs('virt-inspector-use-selected')) {
+    qs('virt-inspector-use-selected').addEventListener('click', () => {
+      if (!state.selectedVmid) {
+        eventHooks.setBanner('Keine VM aus Inventar ausgewaehlt.', 'warn');
+        return;
+      }
+      if (qs('virt-inspector-vmid')) {
+        qs('virt-inspector-vmid').value = String(state.selectedVmid);
+      }
+      loadVirtualizationInspector(state.selectedVmid);
+    });
+  }
+
+  ['click', 'keydown', 'mousemove', 'touchstart'].forEach((eventName) => {
+    document.addEventListener(eventName, markSessionActivity, { passive: true });
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      return;
+    }
+    updateConnectButton();
+  });
+}

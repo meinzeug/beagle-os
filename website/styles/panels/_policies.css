@@ -1,0 +1,10 @@
+.policy-layout { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.4fr); gap: 16px; }
+@media (max-width: 980px) { .policy-layout { grid-template-columns: 1fr; } }
+.policy-form { display: flex; flex-direction: column; gap: 10px; }
+.policy-list { display: flex; flex-direction: column; gap: 8px; max-height: 540px; overflow-y: auto; padding-right: 4px; }
+.policy-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; cursor: pointer; transition: all var(--transition); }
+.policy-card:hover { border-color: var(--border-strong); background: var(--bg-card-hover); }
+.policy-card.active { border-color: var(--amber); background: var(--amber-glow); }
+.policy-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.policy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 720px) { .policy-grid { grid-template-columns: 1fr; } }

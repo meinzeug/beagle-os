@@ -1,0 +1,92 @@
+# 18 — 7.4.0 OpenAPI + Terraform-Provider + beaglectl CLI
+
+Stand: 2026-04-20  
+Priorität: 7.4 (2028)
+
+---
+
+## Schritte
+
+### Schritt 1 — OpenAPI v2-Schema vollständig definieren und generieren
+
+- [ ] OpenAPI-Schema für alle `/api/v1/`-Endpoints aus bestehendem Code generieren.
+- [ ] Fehlende Endpoints dokumentieren, Breaking-Change-Policy festschreiben.
+
+Ein vollständiges OpenAPI-Schema ist Voraussetzung für den Terraform-Provider und für
+externe Integrations-Entwickler. Das Schema wird entweder manuell gepflegt in
+`docs/api/openapi.yaml` oder auto-generiert aus Code-Annotations (z.B. mit `flask-smorest`
+oder einem OpenAPI-Decorator). Alle Endpoints bekommen vollständige Request/Response-
+Schema-Definitionen inklusive Fehlercodes. Eine Breaking-Change-Policy definiert
+welche Änderungen an der API new-major-version-würdig sind. Das Schema wird als
+Artifact bei jedem Release publiziert und auf `beagle-os.com/api` gehostet.
+
+---
+
+### Schritt 2 — Terraform-Provider `terraform-provider-beagle` implementieren
+
+- [ ] Go-Modul `terraform-provider-beagle` anlegen mit CRUD-Resources für VM, Pool, User, NetworkZone.
+- [ ] Provider auf Terraform Registry publizieren.
+
+Der Terraform-Provider ermöglicht Infrastructure-as-Code für Beagle-Deployments.
+Ein DevOps-Team kann dann Pools, Templates, Nutzer und Netzwerkkonfigurationen als
+HCL deklarieren und via `terraform apply` ausrollen. Go ist die Pflichtsprache für
+Terraform-Provider; die `hashicorp/terraform-plugin-sdk/v2` Bibliothek stellt das
+Framework bereit. CRUD-Resources initial: `beagle_vm`, `beagle_pool`, `beagle_template`,
+`beagle_user`, `beagle_role`. Data-Sources: `beagle_vm`, `beagle_pool`. Der Provider
+authentifiziert sich über die API-Token-Mechanik des Beagle-API-Servers. Tests laufen
+mit einem Mock-API-Server gegen realen Terraform-State-Tests.
+
+---
+
+### Schritt 3 — `beaglectl` CLI implementieren
+
+- [ ] `beaglectl` als Python-CLI (Typer/Click) oder Go-Binary anlegen.
+- [ ] Subcommands: `vm`, `pool`, `user`, `node`, `backup`, `session`, `config`.
+
+Die `beaglectl` CLI ist für Betreiber gedacht die lieber auf der Kommandozeile arbeiten
+als im Browser. Die CLI kommuniziert über die REST-API und benötigt einen konfigurierten
+API-Endpunkt und Token. Konfiguration in `~/.config/beaglectl/config.yaml` (URL, Token,
+Default-Tenant). Subcommand-Struktur: `beaglectl vm list`, `beaglectl vm start <id>`,
+`beaglectl pool create --template ubuntu24 --size 5`, etc. Ausgabe in Tabellen-Format
+(Standard) und JSON (`--json`). Das Deployment als Single-Binary (Go) ist bevorzugt
+da es keine Laufzeit-Dependencies erfordert. Release als GitHub-Release-Asset für
+Linux (amd64/arm64), macOS und Windows.
+
+---
+
+### Schritt 4 — Webhook-System für Externe Integrationen
+
+- [ ] `beagle-host/services/webhook_service.py` anlegen: Webhook-Registrierungen verwalten, Events dispatchen.
+- [ ] Web Console: Webhook-Manager unter Server-Settings.
+
+Webhooks ermöglichen es externen Systemen (Ticketing, Monitoring, Automatisierungsplattformen)
+auf Beagle-Events zu reagieren ohne dauerhaft API-Polling zu betreiben. Der Webhook-
+Manager erlaubt das Registrieren von Webhook-URLs mit Event-Filter (welche Event-Typen
+sollen übermittelt werden) und HMAC-Secret für Authentizitäts-Verifikation. Beim Auftreten
+eines Events wird ein HTTP-POST an alle registrierten Webhook-URLs gesendet mit dem
+Event-JSON im Body und der HMAC-Signatur im Header. Bei Fehlschlag wird mit exponentiellem
+Backback bis zu 5 mal wiederholt.
+
+---
+
+### Schritt 5 — API-Versionierung und Deprecation-Policy
+
+- [ ] `/api/v2/` vorbereiten wenn Breaking Changes aus v1 nötig werden.
+- [ ] Deprecation-Header in v1-Responses setzen die in v2 entfernt werden.
+
+API-Stabilität ist für Terraform-Provider und externe Integrationen essentiell.
+Breaking Changes erzwingen eine neue Major-Version. Non-Breaking-Changes (neue Felder,
+neue optionale Parameter) können in der bestehenden Version hinzugefügt werden.
+Deprecated Endpoints geben `Deprecation: true` und `Sunset: <RFC 7231-Datum>` Headers
+zurück damit Client-Entwickler rechtzeitig migrieren können. `v1` bleibt mindestens
+12 Monate nach Erscheinen von `v2` aktiv. Die Migration-Guide für `v1` → `v2` wird
+in der API-Dokumentation publiziert.
+
+---
+
+## Testpflicht nach Abschluss
+
+- [ ] OpenAPI-Schema validiert gegen alle Live-Endpoints (keine undokumentierten Endpoints).
+- [ ] Terraform: `terraform apply` legt VM an, `terraform destroy` entfernt sie.
+- [ ] `beaglectl vm list` gibt korrekte VM-Liste aus, `--json` gibt valides JSON.
+- [ ] Webhook: VM-Start-Event sendet HTTP-POST an registrierte URL mit korrekter HMAC-Signatur.

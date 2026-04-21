@@ -1,0 +1,13 @@
+.banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; font-size: 0.86rem; border: 1px solid var(--border); background: var(--bg-card); }
+.banner::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+.banner.info, .banner.banner-info { color: var(--text-secondary); border-color: rgba(241, 192, 93, 0.20); background: rgba(241, 192, 93, 0.05); }
+.banner.info::before, .banner.banner-info::before { background: var(--amber); }
+.banner.ok, .banner.banner-ok { color: var(--ok); border-color: rgba(140, 226, 109, 0.25); background: var(--ok-soft); }
+.banner.ok::before, .banner.banner-ok::before { background: var(--ok); }
+.banner.warn, .banner.banner-warn { color: var(--warn); border-color: rgba(255, 180, 84, 0.30); background: var(--warn-soft); }
+.banner.warn::before, .banner.banner-warn::before { background: var(--warn); }
+.banner.danger { color: var(--danger); border-color: rgba(255, 111, 94, 0.30); background: var(--danger-soft); }
+.banner.danger::before { background: var(--danger); }
+.banner.hidden { display: none; }
+.activity-log-card .table-wrap { background: var(--bg-card); }
+.activity-icon { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }

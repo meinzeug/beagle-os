@@ -74,3 +74,26 @@ Stand: 2026-04-19
   - `beagle-os-v6.6.9.tar.gz` und das `6.6.9` installimage embedded source bundle wurden lokal auf Abwesenheit dieser Dateien geprueft.
 - Naechster Schritt:
   - Repo-Aenderungen nach GitHub pushen, damit die Scrubbing-Regeln nicht nur lokal und in den gebauten Artefakten existieren.
+
+## S-005 - Security/TLS WebUI scheiterte auf frischen Hosts an unvollstaendiger Let's-Encrypt Runtime und Service-Sandbox
+
+- Status: mitigiert in Repo und auf `srv1.beagle-os.com`
+- Risiko: Mittel bis Hoch
+- Betroffene Dateien:
+  - `beagle-host/services/server_settings.py`
+  - `beagle-host/systemd/beagle-control-plane.service`
+  - `scripts/install-beagle-host-services.sh`
+  - `scripts/install-beagle-proxy.sh`
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+- Beschreibung:
+  - Die Security-Einstellungen konnten auf einem frisch installierten Standalone-Host kein Let's-Encrypt-Zertifikat ausstellen.
+  - Root Cause 1: `certbot` und `python3-certbot-nginx` wurden in den kanonischen Host-/Installer-Pfaden nicht zuverlaessig mitinstalliert.
+  - Root Cause 2: selbst nach Paketinstallation scheiterte der API-Pfad innerhalb des gehaerteten `beagle-control-plane.service`-Sandboxes bei `certbot --nginx`, weil Let's-Encrypt- und nginx-Logpfade nicht im gleichen Ausfuehrungskontext nutzbar waren.
+- Mitigation:
+  - Installpfade wurden auf automatische Installation von `certbot` und `python3-certbot-nginx` erweitert.
+  - `server_settings.py` prueft nun explizit auf fehlendes `certbot` bzw. fehlenden nginx-Plugin-Support und liefert klare Fehlerbilder.
+  - TLS-Issuance laeuft bevorzugt ueber einen transienten `systemd-run` Prozess, damit die Funktion mit bestehender Service-Haertung kompatibel bleibt.
+  - `ReadWritePaths=` des Control-Plane-Services wurde fuer relevante Let's-Encrypt/nginx-Pfade erweitert.
+  - Live auf `srv1.beagle-os.com` verifiziert: API-Issuance erfolgreich, Status meldet `provider=letsencrypt`, Zertifikat vorhanden, nginx TLS aktiv.
+- Naechster Schritt:
+  - Den Fix ueber neu gebaute Installer-Artefakte ausrollen und einen Regressionstest fuer den Security/TLS-Pfad ergaenzen.

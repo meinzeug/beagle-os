@@ -1,0 +1,2 @@
+.virt-inspector-controls input[type="number"] { max-width: 120px; }
+.virt-inspector-controls { gap: 8px; align-items: center; }
