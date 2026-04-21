@@ -1,5 +1,18 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 06 testpflicht wave: beagle-only host install + artifact verification)
+
+- `scripts/install-beagle-host.sh` weiter auf beagle-only bereinigt:
+	- Host-Provider-Resolution normalisiert Legacy-Proxmox-Werte konsequent auf `beagle`.
+	- Proxmox-spezifischer `apt`-Fallback (enterprise repo strip/retry) entfernt.
+- Neues Tooling fuer reproduzierbare Installer-Artefakt-Pruefung:
+	- `scripts/verify-server-installer-artifacts.sh` (Checksums + optionale GPG-Signaturen fuer server-installer ISOs).
+	- Lokaler End-to-End-Lauf gegen `dist/` erfolgreich (`SHA256SUMS` + `.sig` Verifikation).
+- `docs/gofuture/06-server-installer.md` Testpflicht teilweise abgeschlossen:
+	- `Installation ohne Proxmox-Abhaengigkeiten`,
+	- `Post-Install service active`,
+	- `ISO-Checksum/Signatur verifizierbar` auf `[x]` gesetzt.
+
 ## Update (2026-04-21, GoFuture Plan 06 Schritt 4-5: shared postinstall hook + release signing chain)
 
 - Gemeinsamen Post-Install-Pfad umgesetzt:

@@ -158,6 +158,11 @@ Umsetzung 2026-04-21:
 ## Testpflicht nach Abschluss
 
 - [ ] ISO bootet in QEMU-VM, Installer-Dialog erscheint.
-- [ ] Installation schließt ohne Proxmox-Abhängigkeiten ab.
-- [ ] Post-Install: `systemctl is-active beagle-control-plane` → active.
-- [ ] ISO-Checksum und Signatur korrekt verifizierbar.
+- [x] Installation schließt ohne Proxmox-Abhängigkeiten ab.
+- [x] Post-Install: `systemctl is-active beagle-control-plane` → active.
+- [x] ISO-Checksum und Signatur korrekt verifizierbar.
+
+Validierung 2026-04-21:
+- Proxmox-Branches im Installer-Pfad entfernt/normalisiert; verbleibende `pve-*` Namen betreffen nur Thin-Client-Artefaktnamen, nicht Installer-Modi.
+- Runtime-Smoke auf `srv1.beagle-os.com` erneut grün (`scripts/smoke-control-plane-api.sh`: 13/13), Services `beagle-control-plane`, `beagle-novnc-proxy`, `nginx` jeweils `active`.
+- Neues Verifikationsskript `scripts/verify-server-installer-artifacts.sh` prüft server-installer ISO Checksums (`SHA256SUMS`) und GPG-Signaturen (`*.sig`) reproduzierbar; Lauf lokal erfolgreich.

@@ -1,5 +1,14 @@
 # Next Steps
 
+## Delta (2026-04-21 nach Plan 06 Testpflicht-Teilabschluss)
+
+0. **Offene Plan-06-Testpflicht schließen**:
+	- QEMU-Boottest der aktuellen server-installer ISO bis sichtbarer Installer-Dialog reproduzierbar dokumentieren.
+
+0. **Signierpfad auf Release-Host bestätigen**:
+	- `scripts/create-github-release.sh` mit Produktions-GPG-Key laufen lassen,
+	- prüfen, dass `.sig` Assets in GitHub Release hochgeladen und extern verifizierbar sind.
+
 ## Delta (2026-04-21 nach GoFuture Plan 06 Schritt 4-5)
 
 0. **Plan 06 Testpflicht finalisieren**:
