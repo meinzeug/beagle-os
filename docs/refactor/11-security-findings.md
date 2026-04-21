@@ -148,6 +148,34 @@ Stand: 2026-04-19
   - `srv1`: `/api/v1/auth/onboarding/complete` mit `username="bad user"` liefert `400` + `code=bad_request`.
   - `srv1`: `/api/v1/auth/login` mit zusaetzlichem Feld `extra` liefert `400` + `invalid payload: unexpected keys`.
 
+## S-010 - Persistente noVNC-Tokens (kein TTL, nicht single-use)
+
+- Status: behoben in Repo und auf `srv1.beagle-os.com`
+- Risiko: Hoch
+- Betroffene Dateien:
+  - `beagle-host/services/vm_console_access.py`
+  - `beagle-host/bin/beagle_novnc_token.py` (neu)
+  - `beagle-host/systemd/beagle-novnc-proxy.service`
+- Beschreibung: noVNC-Tokens waren persistent pro VM (nie rotiert), wiederverwendbar und ohne TTL. Ein einmal erlangtes Token konnte unbegrenzt lange genutzt werden.
+- Mitigation:
+  - Pro Console-Öffnung wird jetzt ein frischer 32-Byte-Token generiert (TTL=30s).
+  - Tokens werden beim ersten erfolgreichen `lookup()` als verwendet markiert (single-use).
+  - Benutzerdefinierter websockify-Plugin `BeagleTokenFile` liest aus JSON-Store statt plaintext-Tokenfile.
+  - 8/8 Unit-Tests validiert; live auf `srv1.beagle-os.com` deployed und verifiziert via `journalctl`.
+
+## S-011 - Refresh-Token in localStorage / JSON-Body (kein HttpOnly Cookie)
+
+- Status: behoben in Repo und auf `srv1.beagle-os.com`
+- Risiko: Mittel-Hoch (XSS-exponiert)
+- Betroffene Dateien:
+  - `beagle-host/bin/beagle-control-plane.py`
+- Beschreibung: Refresh-Token war bisher im JSON-Response-Body enthalten, was Clients veranlassen konnte, ihn in localStorage zu speichern (XSS-zugänglich).
+- Mitigation:
+  - Login und Refresh setzen jetzt `Set-Cookie: beagle_refresh_token=...; HttpOnly; SameSite=Strict; Path=/api/v1/auth; Secure`.
+  - `/auth/refresh` liest Token aus Cookie wenn nicht im Body.
+  - Logout leert den Cookie via `Max-Age=0`.
+  - Fehlgeschlagener Refresh löscht Cookie ebenfalls.
+
 ## S-009 - Uneinheitliche systemd-Hardening/CSP-Baseline in Host-Units
 
 - Status: mitigiert in Repo und auf `srv1.beagle-os.com`

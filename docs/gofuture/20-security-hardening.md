@@ -36,7 +36,7 @@ kein Sicherheitsmerkmal.
 ### Schritt 2 — Token-Management hardenen
 
 - [x] JWT Access-Token Lebensdauer: <= 15 Minuten.
-- [ ] Refresh-Token: HTTP-only, SameSite=Strict Cookie; keine localStorage-Speicherung.
+- [x] Refresh-Token: HTTP-only, SameSite=Strict Cookie; keine localStorage-Speicherung.
 
 Kurze Access-Token-Lebenszeiten begrenzen das Angriffsfenster bei Token-Diebstahl.
 15 Minuten ist der Industriestandard für Access-Tokens in Web-Anwendungen. Refresh-
@@ -81,8 +81,8 @@ Secrets befüllen; Platzhalter wie `CHANGE_ME` oder `REQUIRED` verwenden.
 
 ### Schritt 5 — NoVNC-Proxy und Console-Zugang absichern
 
-- [ ] Console-Token-Generator: Single-Use-Token mit <= 30s TTL für noVNC-Session.
-- [ ] noVNC-Proxy akzeptiert nur validierte, nicht-wiederverwendbare Tokens.
+- [x] Console-Token-Generator: Single-Use-Token mit <= 30s TTL für noVNC-Session.
+- [x] noVNC-Proxy akzeptiert nur validierte, nicht-wiederverwendbare Tokens.
 
 Der noVNC-Proxy gibt Zugang zur VM-Console und ist damit ein hochsensibles Medium.
 Ein statisches oder langlebiges Token für alle Console-Zugänge ist ein kritisches

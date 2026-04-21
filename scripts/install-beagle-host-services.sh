@@ -439,6 +439,11 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   chmod 0750 /etc/beagle/novnc
   chmod 0660 /etc/beagle/novnc/tokens
 
+  # Deploy single-use noVNC token plugin for websockify
+  install -d -m 0755 /opt/beagle/lib
+  install -m 0644 "$ROOT_DIR/beagle-host/bin/beagle_novnc_token.py" /opt/beagle/lib/beagle_novnc_token.py
+  chown root:"$BEAGLE_CONTROL_USER" /opt/beagle/lib/beagle_novnc_token.py
+
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_NOVNC_PATH" '"/novnc"'
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_NOVNC_TOKEN_FILE" '"/etc/beagle/novnc/tokens"'
 

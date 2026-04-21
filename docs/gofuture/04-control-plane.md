@@ -78,7 +78,7 @@ Das Validierungsschema wird explizit dokumentiert und bei Änderungen mitgepfleg
 ### Schritt 5 — Logging und Audit-Trail standardisieren
 
 - [x] Alle Service-Aufrufe bekommen strukturiertes Logging (JSON) mit User-ID, Action, Resource-ID.
-- [ ] Audit-Events für alle mutablen Operationen werden in `services/audit_log.py` persistent gespeichert.
+- [x] Audit-Events für alle mutablen Operationen werden in `services/audit_log.py` persistent gespeichert.
 
 Ohne Audit-Log ist es unmöglich im Nachhinein nachzuvollziehen wer wann welche VM
 gelöscht oder welchen User geändert hat. Der Audit-Log ist Pflicht für RBAC-Compliance

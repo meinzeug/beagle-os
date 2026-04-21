@@ -2525,7 +2525,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Credentials", "true")
             self.send_header("Vary", "Origin")
 
-    def _write_json(self, status: HTTPStatus, payload: Any) -> None:
+    def _write_json(self, status: HTTPStatus, payload: Any, *, extra_headers: list[tuple[str, str]] | None = None) -> None:
         if isinstance(payload, dict) and payload.get("ok") is False and payload.get("error") and not payload.get("code"):
             payload = dict(payload)
             payload["code"] = self._error_code_for_status(int(status))
@@ -2534,10 +2534,35 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self._write_common_security_headers()
+        for header_name, header_value in (extra_headers or []):
+            self.send_header(header_name, header_value)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
         self._log_response_event(int(status))
+
+    def _refresh_cookie_header(self, refresh_token: str) -> tuple[str, str]:
+        """Return a Set-Cookie header tuple for the refresh token (HttpOnly, SameSite=Strict)."""
+        return (
+            "Set-Cookie",
+            f"beagle_refresh_token={refresh_token}; HttpOnly; SameSite=Strict; Path=/api/v1/auth; Secure",
+        )
+
+    def _clear_refresh_cookie_header(self) -> tuple[str, str]:
+        """Return a Set-Cookie header tuple that expires the refresh token cookie."""
+        return (
+            "Set-Cookie",
+            "beagle_refresh_token=; HttpOnly; SameSite=Strict; Path=/api/v1/auth; Secure; Max-Age=0",
+        )
+
+    def _read_refresh_cookie(self) -> str:
+        """Read the beagle_refresh_token value from the Cookie header, or return empty string."""
+        cookie_header = str(self.headers.get("Cookie") or "")
+        for part in cookie_header.split(";"):
+            name, _, value = part.strip().partition("=")
+            if name.strip() == "beagle_refresh_token":
+                return value.strip()
+        return ""
 
     def _read_json_body(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length", "0") or "0")
@@ -2814,7 +2839,11 @@ class Handler(BaseHTTPRequestHandler):
                 username=str(session_payload.get("user", {}).get("username") or username),
                 remote_addr=self.client_address[0] if self.client_address else "",
             )
-            self._write_json(HTTPStatus.OK, session_payload)
+            self._write_json(
+                HTTPStatus.OK,
+                session_payload,
+                extra_headers=[self._refresh_cookie_header(str(session_payload.get("refresh_token") or ""))],
+            )
             return
 
         if path == "/api/v1/auth/refresh":
@@ -2824,14 +2853,23 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
-            refresh_token = str(payload.get("refresh_token") or self.headers.get("X-Beagle-Refresh-Token") or "").strip()
+            refresh_token = str(
+                payload.get("refresh_token")
+                or self._read_refresh_cookie()
+                or self.headers.get("X-Beagle-Refresh-Token")
+                or ""
+            ).strip()
             if not refresh_token:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "refresh token missing"})
                 return
             session_payload = auth_session_service().refresh(refresh_token)
             if session_payload is None:
                 self._audit_event("auth.refresh", "denied", remote_addr=self.client_address[0] if self.client_address else "")
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "invalid refresh token"})
+                self._write_json(
+                    HTTPStatus.UNAUTHORIZED,
+                    {"ok": False, "error": "invalid refresh token"},
+                    extra_headers=[self._clear_refresh_cookie_header()],
+                )
                 return
             self._audit_event(
                 "auth.refresh",
@@ -2839,7 +2877,11 @@ class Handler(BaseHTTPRequestHandler):
                 username=str(session_payload.get("user", {}).get("username") or ""),
                 remote_addr=self.client_address[0] if self.client_address else "",
             )
-            self._write_json(HTTPStatus.OK, session_payload)
+            self._write_json(
+                HTTPStatus.OK,
+                session_payload,
+                extra_headers=[self._refresh_cookie_header(str(session_payload.get("refresh_token") or ""))],
+            )
             return
 
         if path == "/api/v1/auth/logout":
@@ -2852,6 +2894,9 @@ class Handler(BaseHTTPRequestHandler):
                     self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                     return
                 refresh_token = str(payload.get("refresh_token") or "").strip()
+            # Also accept the refresh token from the HttpOnly cookie
+            if not refresh_token:
+                refresh_token = self._read_refresh_cookie()
             revoked = auth_session_service().revoke(
                 access_token=extract_bearer_token(self.headers.get("Authorization", "")),
                 refresh_token=refresh_token,
@@ -2862,7 +2907,11 @@ class Handler(BaseHTTPRequestHandler):
                 username=self._requester_identity(),
                 remote_addr=self.client_address[0] if self.client_address else "",
             )
-            self._write_json(HTTPStatus.OK, {"ok": True, "revoked": bool(revoked)})
+            self._write_json(
+                HTTPStatus.OK,
+                {"ok": True, "revoked": bool(revoked)},
+                extra_headers=[self._clear_refresh_cookie_header()],
+            )
             return
 
         if path == "/api/v1/auth/onboarding/complete":
@@ -3073,6 +3122,13 @@ class Handler(BaseHTTPRequestHandler):
                 endpoint_identity=self._endpoint_identity(),
                 json_payload=json_payload,
                 remote_addr=self.client_address[0],
+            )
+            self._audit_event(
+                "endpoint.lifecycle",
+                "success" if int(response["status"]) < 400 else "error",
+                method="POST",
+                path=path,
+                status=int(response["status"]),
             )
             self._write_json(response["status"], response["payload"])
             return

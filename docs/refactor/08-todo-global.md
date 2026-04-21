@@ -33,6 +33,9 @@
 - [x] Verify `pytest tests/unit` baseline passes (`15 passed`) and record provider-grep audit execution for GoFuture Plan 05 tracking (2026-04-21).
 - [x] Enforce server-side auth payload whitelists and identifier validation (`sanitizeIdentifier`-equivalent) in control-plane/auth-session, then validate on `srv1.beagle-os.com` (2026-04-21).
 - [x] Add automated dependency CVE audit tooling (`scripts/security-audit.sh`) and scheduled CI workflow (`.github/workflows/security-audit.yml`) with report artifacts (2026-04-21).
+- [x] Implement single-use noVNC tokens with <=30s TTL via custom `BeagleTokenFile` websockify plugin; deploy to `srv1.beagle-os.com`; 8/8 unit tests pass (2026-04-21).
+- [x] Set refresh token as HTTP-only, SameSite=Strict cookie on login/refresh; clear on logout; read from cookie on refresh (2026-04-21).
+- [x] Add endpoint.lifecycle audit events for all lifecycle POST handlers (2026-04-21).
 - [x] Harden Beagle systemd unit baseline (`CapabilityBoundingSet`, `RestrictAddressFamilies`) and move `beagle-novnc-proxy` to non-root runtime, then validate on `srv1.beagle-os.com` (2026-04-21).
 - [x] Tighten nginx CSP connect-src to include `wss:` (without `unsafe-inline`/`unsafe-eval`) and verify live header on `srv1.beagle-os.com` (2026-04-21).
 - [x] Extend `.gitignore` guardrails for `.env` / `.env.*` and verify no tracked `.env` secrets (2026-04-21).

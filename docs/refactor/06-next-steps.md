@@ -16,10 +16,10 @@
 	- Error-Response-Schema ist umgesetzt; als Nachlauf nur noch Surface-spezifische Sonderfaelle pruefen,
 	- Regressionstest fuer `internal_error`-Boundary als Unit-/Integrationstest aufnehmen.
 
-0. **Plan 20 Security Follow-up aus Findings S-008/S-009**:
-	- `pip` im Runtime-/CI-Umfeld auf vuln-freien Stand heben,
-	- npm-Audit Findings im `beagle-kiosk` gezielt patchen oder zeitlich begrenzte Ausnahme dokumentieren,
-	- noVNC token-flow auf streng einmalige <=30s Tokens mit serverseitigem consume-Mechanismus weiterhaerten.
+0. **Plan 20 Security Follow-up** aus offenen Findings:
+	- Plan 20 Schritt 4 (Secrets-Management): `.gitignore` + gitleaks-Hook prüfen und nachziehen.
+	- OWASP Top 10 Checkliste für alle API-Endpoints (Plan 20 items 129/130).
+	- plan 06-server-installer.md: Installer auf Standalone fokussieren (nächste SOFORT-Aufgabe).
 
 0. **Plan 04 Schritt 3 ist umgesetzt, jetzt Schritt 2 und 4 fortsetzen**:
 	- Route-Handler weiter aus `beagle-control-plane.py` in `beagle-host/services/` extrahieren,
