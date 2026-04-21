@@ -59,6 +59,7 @@ from public_http_surface import PublicHttpSurfaceService
 from public_sunshine_surface import PublicSunshineSurfaceService
 from public_ubuntu_install_surface import PublicUbuntuInstallSurfaceService
 from public_streams import PublicStreamService
+from recording_service import RecordingService
 from request_support import RequestSupportService
 from registry import create_provider, list_providers, normalize_provider_kind
 from runtime_environment import RuntimeEnvironmentService
@@ -791,6 +792,7 @@ POLICY_NORMALIZATION_SERVICE: PolicyNormalizationService | None = None
 POLICY_STORE_SERVICE: PolicyStoreService | None = None
 PUBLIC_STREAM_SERVICE: PublicStreamService | None = None
 SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
+RECORDING_SERVICE: RecordingService | None = None
 ENDPOINT_ENROLLMENT_SERVICE: EndpointEnrollmentService | None = None
 UBUNTU_BEAGLE_INPUTS_SERVICE: UbuntuBeagleInputsService | None = None
 UBUNTU_BEAGLE_RESTART_SERVICE: UbuntuBeagleRestartService | None = None
@@ -815,6 +817,10 @@ def actions_dir() -> Path:
 
 def support_bundles_dir() -> Path:
     return runtime_paths_service().support_bundles_dir()
+
+
+def recordings_dir() -> Path:
+    return runtime_paths_service().ensure_named_dir("recordings")
 
 
 def policies_dir() -> Path:
@@ -1263,6 +1269,20 @@ def support_bundle_store_service() -> SupportBundleStoreService:
             write_json_file=write_json_file,
         )
     return SUPPORT_BUNDLE_STORE_SERVICE
+
+
+def recording_service() -> RecordingService:
+    global RECORDING_SERVICE
+    if RECORDING_SERVICE is None:
+        RECORDING_SERVICE = RecordingService(
+            load_json_file=load_json_file,
+            now_utc=utcnow,
+            popen=subprocess.Popen,
+            recordings_dir=recordings_dir,
+            safe_slug=utility_support_service().safe_slug,
+            write_json_file=write_json_file,
+        )
+    return RECORDING_SERVICE
 
 
 def ubuntu_beagle_inputs_service() -> UbuntuBeagleInputsService:
@@ -2556,6 +2576,18 @@ class Handler(BaseHTTPRequestHandler):
     def _auth_user_revoke_sessions_match(path: str) -> re.Match[str] | None:
         return re.match(r"^/api/v1/auth/users/(?P<username>[A-Za-z0-9._-]+)/revoke-sessions$", path)
 
+    @staticmethod
+    def _session_recording_get_match(path: str) -> re.Match[str] | None:
+        return re.match(r"^/api/v1/sessions/(?P<session_id>[A-Za-z0-9._:-]+)/recording$", path)
+
+    @staticmethod
+    def _session_recording_start_match(path: str) -> re.Match[str] | None:
+        return re.match(r"^/api/v1/sessions/(?P<session_id>[A-Za-z0-9._:-]+)/recording/start$", path)
+
+    @staticmethod
+    def _session_recording_stop_match(path: str) -> re.Match[str] | None:
+        return re.match(r"^/api/v1/sessions/(?P<session_id>[A-Za-z0-9._:-]+)/recording/stop$", path)
+
     def _audit_auth_surface_response(self, method: str, path: str, response: dict[str, Any]) -> None:
         status = int(response.get("status") or 500)
         outcome = "success" if status < 400 else "error"
@@ -3058,6 +3090,29 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
+        recording_get_match = self._session_recording_get_match(path)
+        if recording_get_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("GET", path):
+                return
+            session_id = str(recording_get_match.group("session_id") or "").strip()
+            file_payload = recording_service().read_recording_bytes(session_id=session_id)
+            if file_payload is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "recording not found"})
+                return
+            body, filename = file_payload
+            self._audit_event(
+                "session.recording.download",
+                "success",
+                session_id=session_id,
+                downloader=self._requester_identity(),
+                remote_addr=self.client_address[0] if self.client_address else "",
+            )
+            self._write_bytes(HTTPStatus.OK, body, content_type="video/mp4", filename=filename)
+            return
+
         if not self._is_authenticated():
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
             return
@@ -3312,6 +3367,57 @@ class Handler(BaseHTTPRequestHandler):
             )
             self._audit_auth_surface_response("POST", path, response)
             self._write_json(response["status"], response["payload"])
+            return
+
+        recording_start_match = self._session_recording_start_match(path)
+        if recording_start_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                payload = self._read_json_body() if int(self.headers.get("Content-Length", "0") or "0") > 0 else {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            session_id = str(recording_start_match.group("session_id") or "").strip()
+            response = recording_service().start_recording(
+                session_id=session_id,
+                input_url=str(payload.get("input_url") or "").strip(),
+                codec=str(payload.get("codec") or "h264").strip(),
+                test_source=bool(payload.get("test_source", False)),
+            )
+            self._audit_event(
+                "session.recording.start",
+                "success",
+                session_id=session_id,
+                requested_by=self._requester_identity(),
+                remote_addr=self.client_address[0] if self.client_address else "",
+            )
+            self._write_json(HTTPStatus.OK, response)
+            return
+
+        recording_stop_match = self._session_recording_stop_match(path)
+        if recording_stop_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            session_id = str(recording_stop_match.group("session_id") or "").strip()
+            response = recording_service().stop_recording(session_id=session_id)
+            if not bool(response.get("ok")):
+                self._write_json(HTTPStatus.NOT_FOUND, response)
+                return
+            self._audit_event(
+                "session.recording.stop",
+                "success",
+                session_id=session_id,
+                requested_by=self._requester_identity(),
+                remote_addr=self.client_address[0] if self.client_address else "",
+            )
+            self._write_json(HTTPStatus.OK, response)
             return
 
         sunshine_body: bytes | None = None

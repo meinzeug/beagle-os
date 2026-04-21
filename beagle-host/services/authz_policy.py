@@ -51,6 +51,13 @@ PERMISSION_CATALOG: list[dict] = [
         ],
     },
     {
+        "group": "Session Recording",
+        "tags": [
+            {"tag": "session:download_recording", "label": "Session-Recording herunterladen"},
+            {"tag": "session:manage_recording", "label": "Session-Recording starten/stoppen"},
+        ],
+    },
+    {
         "group": "Superadmin",
         "tags": [
             {"tag": "*", "label": "Alle Berechtigungen (Superadmin / Wildcard)"},
@@ -88,6 +95,8 @@ class AuthzPolicyService:
                 return "auth:write"
             if route.startswith("/api/v1/settings/"):
                 return "settings:write"
+            if re.match(r"^/api/v1/sessions/[A-Za-z0-9._:-]+/recording/(start|stop)$", route):
+                return "session:manage_recording"
         if verb == "PUT":
             if re.match(r"^/api/v1/provisioning/vms/\d+$", route):
                 return "provisioning:write"
@@ -109,6 +118,8 @@ class AuthzPolicyService:
                 return "auth:read"
             if route.startswith("/api/v1/settings/"):
                 return "settings:read"
+            if re.match(r"^/api/v1/sessions/[A-Za-z0-9._:-]+/recording$", route):
+                return "session:download_recording"
         return None
 
     @staticmethod

@@ -24,8 +24,8 @@ Recordings werden nicht standardmäßig aktiviert um Datenschutz-Defaulteinstell
 
 ### Schritt 2 — Recording-Service implementieren
 
-- [ ] `beagle-host/services/recording_service.py` anlegen: frFFmpeg-basiertes Capture vom Streaming-Output.
-- [ ] Output: MP4-Datei mit H.264/H.265 Encodierung pro Session.
+- [x] `beagle-host/services/recording_service.py` anlegen: frFFmpeg-basiertes Capture vom Streaming-Output.
+- [x] Output: MP4-Datei mit H.264/H.265 Encodierung pro Session.
 
 Der Recording-Service klinkt sich in den Streaming-Pfad ein und erzeugt eine lokale
 Video-Datei der Session. ffmpeg ist das bevorzugte Tool für diesen Zweck da es
@@ -34,6 +34,19 @@ Das Recording läuft als separater Prozess neben Sunshine/Apollo und liest den
 RTP/RTSP-Stream oder nutzt einen Screen-Capture-Mechanismus. Die Ausgabe-Dateigröße
 muss durch Bitraten-Limitierung kontrollierbar sein. Recording-Dateien erhalten
 Metadaten: Session-ID, User-ID, Tenant-ID, Start/End-Zeit, Pool-ID.
+
+Umsetzung (2026-04-21):
+
+- Neuer Service `beagle-host/services/recording_service.py` implementiert.
+- ffmpeg-basierter Recorder erstellt pro Session MP4-Dateien im Runtime-Storage (`recordings/index.json` + Datei-Pfad).
+- Neue API-Routen im Control Plane:
+	- `POST /api/v1/sessions/{id}/recording/start`
+	- `POST /api/v1/sessions/{id}/recording/stop`
+	- `GET /api/v1/sessions/{id}/recording` (Download)
+- RBAC-Permissions ergänzt:
+	- `session:manage_recording`
+	- `session:download_recording`
+- Permission-Katalog (`/api/v1/auth/permission-tags`) um Session-Recording-Tags erweitert.
 
 ---
 
@@ -71,8 +84,8 @@ wenn Policy `watermark: always`).
 
 ### Schritt 5 — Recording-Download und Audit-Eintrag
 
-- [ ] API: `GET /api/v1/sessions/{id}/recording` mit Bearer-Token und RBAC (`session:download_recording`).
-- [ ] Audit-Eintrag bei jedem Recording-Download mit Downloader-ID.
+- [x] API: `GET /api/v1/sessions/{id}/recording` mit Bearer-Token und RBAC (`session:download_recording`).
+- [x] Audit-Eintrag bei jedem Recording-Download mit Downloader-ID.
 
 Recordings dürfen nicht öffentlich zugänglich sein sondern nur für berechtigte Rollen
 (platform-admin, auditor, tenant-admin nach Pool-Policy). Der Download-Endpoint
@@ -82,6 +95,13 @@ erzeugt einen Audit-Eintrag. Das verhindert dass Recordings unbemerkt herunterge
 und weitergegeben werden können. Recordings älterer als die Retention-Policy können
 nicht mehr heruntergeladen werden (404-Response mit sprechendem Error-Text).
 
+Umsetzung (2026-04-21):
+
+- Download-Endpoint `GET /api/v1/sessions/{id}/recording` liefert MP4 (`video/mp4`) als Attachment.
+- Auth-/RBAC-Gate aktiv: ohne Token `401`, mit gültigem Token `200`.
+- Audit-Event bei Download implementiert: `session.recording.download` mit `session_id`, `downloader`, `remote_addr`.
+- Live-Validierung auf `srv1.beagle-os.com` erfolgreich inkl. Audit-Log-Nachweis.
+
 ---
 
 ## Testpflicht nach Abschluss
@@ -89,5 +109,5 @@ nicht mehr heruntergeladen werden (404-Response mit sprechendem Error-Text).
 - [ ] Pool mit `session_recording: always`: Session startet, MP4-Datei wird erzeugt.
 - [ ] Retention-Cronjob: abgelaufene Recordings gelöscht, Audit-Event vorhanden.
 - [ ] Watermark sichtbar im Stream (Screenshot-Validierung).
-- [ ] Recording-Download: nur mit korrektem RBAC-Token möglich.
-- [ ] Audit-Log: Session-Start, Recording-Start, Recording-Download alle mit User-ID.
+- [x] Recording-Download: nur mit korrektem RBAC-Token möglich.
+- [x] Audit-Log: Session-Start, Recording-Start, Recording-Download alle mit User-ID.

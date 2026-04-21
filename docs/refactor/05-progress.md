@@ -1,5 +1,26 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 14 Schritte 2+5: Recording-Service + Download-Audit)
+
+- `beagle-host/services/recording_service.py` neu implementiert (ffmpeg-basierte Session-Aufzeichnung, MP4-Output, `recordings/index.json`).
+- Control Plane erweitert:
+	- `POST /api/v1/sessions/{id}/recording/start`
+	- `POST /api/v1/sessions/{id}/recording/stop`
+	- `GET /api/v1/sessions/{id}/recording`
+- RBAC ergänzt:
+	- `session:manage_recording`
+	- `session:download_recording`
+	- Permission-Katalog (`/api/v1/auth/permission-tags`) erweitert.
+- Audit ergänzt:
+	- Download erzeugt `session.recording.download` inklusive Downloader-Identität.
+- Tests:
+	- neue Unit-Tests `tests/unit/test_recording_service.py` (2/2 pass),
+	- fokussierte Test-Suite inkl. IAM-Regressionen: 19/19 pass.
+- Live-Validierung auf `srv1.beagle-os.com`:
+	- Recording Start `200`, Download `200`, MP4-Datei vorhanden,
+	- ohne Token Download `401`,
+	- Audit-Event in `/var/lib/beagle/beagle-manager/audit/events.log` nachweisbar.
+
 ## Update (2026-04-21, GoFuture Plan 13 Schritte 4+5: Tenant-Scope + Permission-Tags)
 
 **Schritt 4 — Tenant-Scope in mutierenden Endpoints:**

@@ -1,5 +1,23 @@
 # Next Steps
 
+## Delta (2026-04-21 nach Plan 14 Schritte 2+5)
+
+0. **Plan 14 Schritt 1 abschließen**:
+	- `session_recording` Policy-Feld im Pool-Modell ergänzen,
+	- Recording-Policy im Web-Console Pool-Editor einführen.
+
+0. **Plan 14 Schritt 3 umsetzen**:
+	- Recording-Storage auf konfigurierbare Targets erweitern (lokal/NFS/S3),
+	- Retention-Cleanup-Job mit Audit-Events implementieren.
+
+0. **Plan 14 Schritt 4 umsetzen**:
+	- Watermark-Overlay (server- oder guest-seitig) integrieren,
+	- Watermark-Text konfigurierbar machen.
+
+0. **Recording-Download hardening**:
+	- Signed-URL-Modell statt direktem Byte-Download evaluieren und ggf. umsetzen,
+	- Tenant-bezogene Download-Scopes ergänzen.
+
 ## Aktueller Status (2026-04-21 nach Plan 13 Schritte 4+5)
 
 Plan 13 ist vollständig abgehakt (Schritte 1–6 alle [x]).
