@@ -1,5 +1,22 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 04 Testpflicht erweitert: Audit-Events + Log-Stabilitaet)
+
+- Control-Plane Audit-Pfad fuer VM-Power-Mutationen zentralisiert:
+	- neues Service-Helpermodul `beagle-host/services/audit_helpers.py` mit `build_vm_power_audit_event(...)`.
+	- `beagle-host/bin/beagle-control-plane.py` nutzt den Helper jetzt fuer `POST /api/v1/virtualization/vms/{vmid}/power` und schreibt explizite Audit-Events `vm.start`, `vm.stop`, `vm.reboot` mit `resource_type=vm` und `resource_id=<vmid>`.
+- `auth.user.create`-Audit angereichert um strukturierte Resource-Metadaten (`resource_type=user`, `resource_id=<username>`) plus `remote_addr`.
+- Neue Unit-Tests hinzugefuegt:
+	- `tests/unit/test_audit_helpers.py`
+	- `tests/unit/test_audit_log.py`
+- Lokale Validierung erfolgreich:
+	- `python -m unittest tests.unit.test_auth_session tests.unit.test_server_settings tests.unit.test_authz_policy tests.unit.test_audit_helpers tests.unit.test_audit_log` -> `OK`.
+- Deploy und Runtime-Check auf `srv1.beagle-os.com`:
+	- geaenderte Control-Plane-Dateien nach `/opt/beagle` synchronisiert,
+	- `beagle-control-plane.service` neu gestartet -> `active`,
+	- neue Audit-Unit-Tests auf `srv1` erfolgreich,
+	- `journalctl -u beagle-control-plane.service` zeigt keine `Traceback`/`Unhandled Exception`-Marker.
+
 ## Update (2026-04-21, GoFuture Plan 05 step 1/3 umgesetzt: Provider Contract + Beagle Provider Erweiterung)
 
 - Provider-Contract erweitert in `beagle-host/providers/host_provider_contract.py` um:

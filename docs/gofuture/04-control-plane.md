@@ -121,5 +121,5 @@ Ein Python-API-Server der auf Port 9088 läuft braucht keine root-Rechte; ein de
 - [ ] Alle API-Endpunkte antworten korrekt nach Refactoring (Smoke-Tests).
 - [x] RBAC: unauthentizierter POST auf `/api/v1/vms` gibt 401 zurück.
 - [x] RBAC: User ohne Admin-Rolle kann keine Settings ändern.
-- [ ] Audit-Log schreibt Entries bei VM-Start, VM-Stop, User-Create.
-- [ ] `journalctl -u beagle-control-plane` zeigt keine Unhandled-Exception-Traces.
+- [x] Audit-Log schreibt Entries bei VM-Start, VM-Stop, User-Create (Handler-Auditpfad erweitert: `vm.start|vm.stop|vm.reboot` aus VM-Power-Responses, `auth.user.create` mit Resource-Metadaten; validiert durch `tests/unit/test_audit_helpers.py` + `tests/unit/test_audit_log.py` lokal und auf `srv1`).
+- [x] `journalctl -u beagle-control-plane` zeigt keine Unhandled-Exception-Traces (verifiziert auf `srv1.beagle-os.com`, 2026-04-21).

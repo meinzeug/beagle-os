@@ -2,6 +2,10 @@
 
 ## GoFuture Plan 04/05 Provider-Abstraction execution (2026-04-21)
 
+0. **Plan 04 Testpflicht verbleibend schliessen**:
+	- authenticated API-Smoke fuer mutierende Endpunkte auf `srv1` als reproduzierbares Script hinterlegen,
+	- open checkbox `Alle API-Endpunkte antworten korrekt nach Refactoring` mit Laufprotokoll abschliessen.
+
 0. **Plan 04 Schritt 3 ist umgesetzt, jetzt Schritt 2 und 4 fortsetzen**:
 	- Route-Handler weiter aus `beagle-control-plane.py` in `beagle-host/services/` extrahieren,
 	- serverseitige Payload-Whitelist-Validierung fuer Mutationsendpunkte nachziehen,

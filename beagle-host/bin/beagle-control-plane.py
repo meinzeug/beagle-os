@@ -29,6 +29,7 @@ if str(SERVICES_DIR) not in sys.path:
 
 from action_queue import ActionQueueService
 from admin_http_surface import AdminHttpSurfaceService
+from audit_helpers import build_vm_power_audit_event
 from audit_log import AuditLogService
 from auth_session import AuthSessionService, default_now
 from authz_policy import AuthzPolicyService
@@ -2709,7 +2710,16 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
                 return
-            self._audit_event("auth.user.create", "success", username=user.get("username", ""), requested_by=self._requester_identity())
+            created_username = str(user.get("username", "")).strip()
+            self._audit_event(
+                "auth.user.create",
+                "success",
+                username=created_username,
+                requested_by=self._requester_identity(),
+                resource_type="user",
+                resource_id=created_username,
+                remote_addr=self.client_address[0] if self.client_address else "",
+            )
             self._write_json(HTTPStatus.CREATED, {"ok": True, "user": user})
             return
 
@@ -2883,6 +2893,13 @@ class Handler(BaseHTTPRequestHandler):
                 username=self._requester_identity(),
                 status=int(response["status"]),
             )
+            vm_power_event = build_vm_power_audit_event(response, requester_identity=self._requester_identity())
+            if isinstance(vm_power_event, dict):
+                self._audit_event(
+                    str(vm_power_event.get("event_type") or "vm.unknown"),
+                    str(vm_power_event.get("outcome") or "unknown"),
+                    **(vm_power_event.get("details") if isinstance(vm_power_event.get("details"), dict) else {}),
+                )
             self._write_json(response["status"], response["payload"])
             return
 
