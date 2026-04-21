@@ -18,8 +18,8 @@ Akzeptanz: Keycloak verbunden, User loggt sich per OIDC ein, sieht nur seine Ten
 
 ### Schritt 1 — OIDC-Login implementieren (Authorization Code + PKCE)
 
-- [ ] `beagle-host/services/oidc_service.py` anlegen: Authorization-Code-Flow mit PKCE.
-- [ ] Web Console: "Mit OIDC anmelden" Button auf dem Login-Screen.
+- [x] `beagle-host/services/oidc_service.py` anlegen: Authorization-Code-Flow mit PKCE.
+- [x] Web Console: "Mit OIDC anmelden" Button auf dem Login-Screen.
 
 OIDC (OpenID Connect) ist der Standard für moderne Web-Authentifizierung und ermöglicht
 Single Sign-On mit bestehenden Identity-Providern wie Keycloak, Authentik oder Microsoft
@@ -32,12 +32,20 @@ validiert den ID-Token (Signatur, Audience, Expiry) und erstellt eine lokale Ses
 OIDC-User erhalten automatisch eine lokale Beagle-Identität die ihrem OIDC-Sub-Claim
 zugeordnet ist.
 
+Umsetzung (2026-04-21):
+
+- Neuer Service `beagle-host/services/oidc_service.py` erstellt (Authorization-Code-Flow mit PKCE: `state`, `nonce`, `code_verifier`, `code_challenge=S256`).
+- Neue OIDC-Routen in der Control Plane:
+	- `GET /api/v1/auth/oidc/login` (Start des Flows, Redirect zum IdP),
+	- `GET /api/v1/auth/oidc/callback` (Code-State-Verarbeitung, Token-/Claims-Payload).
+- Login-Screen zeigt explizit den OIDC-Button `Mit OIDC anmelden` via Provider-Registry (`/api/v1/auth/providers`).
+
 ---
 
 ### Schritt 2 — SAML 2.0 SP-Implementierung
 
-- [ ] `beagle-host/services/saml_service.py` anlegen (z.B. basierend auf `python3-saml`).
-- [ ] Web Console: SAML-Login-Button und SP-Metadata-Download.
+- [x] `beagle-host/services/saml_service.py` anlegen (z.B. basierend auf `python3-saml`).
+- [x] Web Console: SAML-Login-Button und SP-Metadata-Download.
 
 SAML 2.0 ist in Enterprise-Umgebungen mit Active Directory Federation Services
 (ADFS) oder Azure AD als Identity Provider der vorherrschende Standard. Die Web Console
@@ -47,6 +55,14 @@ Nach dem SAML-Assertion-Austausch werden Gruppen-Claims aus dem SAML-Attribut-St
 extrahiert und auf Beagle-Rollen gemappt (Attribut-Mapping konfigurierbar).
 SAML-Assertion-Signaturen werden strikt validiert; ungültige Signaturen werden mit
 einem Audit-Event protokolliert und abgelehnt.
+
+Umsetzung (2026-04-21):
+
+- Neuer Service `beagle-host/services/saml_service.py` angelegt (SP-Metadata-Generierung, SSO-Redirect-Builder).
+- Neue SAML-Routen in der Control Plane:
+	- `GET /api/v1/auth/saml/login`,
+	- `GET /api/v1/auth/saml/metadata` (downloadbare SP-Metadata-XML).
+- Login-Screen zeigt den Button `Mit SAML anmelden` sowie den Download-Button `SP-Metadata` im Auth-Dialog.
 
 ---
 

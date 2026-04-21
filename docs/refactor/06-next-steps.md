@@ -1,5 +1,18 @@
 # Next Steps
 
+## Delta (2026-04-21 nach Plan 13 Schritt 1+2: OIDC/SAML Basis)
+
+0. **OIDC-Hardening abschließen**:
+	- ID-Token-Signatur/JWKS-Validierung ergänzen (aktuell Claims-Extraktion ohne kryptografische Verifikation),
+	- OIDC-Callback auf lokale Session-Erzeugung und UI-Redirect vervollständigen.
+
+0. **SAML-Assertion-Flow vervollständigen**:
+	- ACS-POST-Endpoint mit Signaturprüfung ergänzen,
+	- Gruppen-/Rollen-Mapping und Audit-Events für fehlerhafte Assertions hinzufügen.
+
+0. **Plan 18 Restpunkt bleibt offen**:
+	- Terraform-Testpflicht (`terraform apply`/`destroy` mit realer VM auf `srv1`) abschließen.
+
 ## Delta (2026-04-21 nach Plan 13 Schritt 6: Multi-IdP Registry)
 
 0. **Plan 13 Schritt 1/2 anschließen**:

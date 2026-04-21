@@ -1,5 +1,24 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 13 Schritt 1+2: OIDC + SAML Auth-Basis)
+
+- OIDC-Service implementiert:
+	- neue Datei `beagle-host/services/oidc_service.py` (Authorization-Code-Flow mit PKCE inklusive `state`/`nonce`/`code_verifier`).
+	- neue Routen `GET /api/v1/auth/oidc/login` und `GET /api/v1/auth/oidc/callback` in `beagle-host/bin/beagle-control-plane.py`.
+- SAML-Service implementiert:
+	- neue Datei `beagle-host/services/saml_service.py` (SP-Metadata-Generator und Login-Redirect).
+	- neue Routen `GET /api/v1/auth/saml/login` und `GET /api/v1/auth/saml/metadata`.
+- Multi-IdP-Registry erweitert:
+	- OIDC/SAML-Provider werden im Login-Dialog immer angezeigt (enabled/disabled via Env),
+	- explizite Labels `Mit OIDC anmelden` / `Mit SAML anmelden`,
+	- SAML-Metadata-URL in Provider-Payload.
+- WebUI Login-Dialog erweitert:
+	- SAML-Providerkarte mit zusätzlichem `SP-Metadata`-Download-Button (`website/ui/auth.js`, `website/styles/_modals.css`).
+- Validierung:
+	- lokal: `python3 -m py_compile` für neue/betroffene Python-Dateien erfolgreich, `node --check` für betroffene UI-Module erfolgreich.
+	- `srv1.beagle-os.com`: Deploy + Service-Restart erfolgreich (`beagle-control-plane.service active`).
+	- Live-Checks: `/api/v1/auth/providers` liefert lokale+OIDC+SAML-Methoden; `/api/v1/auth/saml/metadata` liefert 200 + XML.
+
 ## Update (2026-04-21, GoFuture Plan 13 Schritt 6: Multi-IdP Registry + Login-Methoden)
 
 - Multi-IdP-Grundlage umgesetzt:

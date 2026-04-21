@@ -16,12 +16,16 @@ class IdentityProviderRegistryService:
         oidc_auth_url: str,
         saml_login_url: str,
         public_manager_url: str,
+        oidc_enabled: bool,
+        saml_enabled: bool,
     ) -> None:
         self._load_json_file = load_json_file
         self._registry_file = Path(registry_file)
         self._oidc_auth_url = str(oidc_auth_url or "").strip()
         self._saml_login_url = str(saml_login_url or "").strip()
         self._public_manager_url = str(public_manager_url or "").strip()
+        self._oidc_enabled = bool(oidc_enabled)
+        self._saml_enabled = bool(saml_enabled)
 
     def list_providers(self) -> list[dict[str, Any]]:
         configured = self._load_from_registry_file()
@@ -40,33 +44,32 @@ class IdentityProviderRegistryService:
             }
         ]
 
-        oidc_url = self._normalize_url(self._oidc_auth_url)
-        if oidc_url:
-            providers.append(
-                {
-                    "id": "oidc",
-                    "type": "oidc",
-                    "label": "OIDC",
-                    "description": "Single Sign-On ueber OpenID Connect.",
-                    "mode": "redirect",
-                    "enabled": True,
-                    "login_url": oidc_url,
-                }
-            )
+        oidc_url = self._normalize_url(self._oidc_auth_url) or "/api/v1/auth/oidc/login"
+        providers.append(
+            {
+                "id": "oidc",
+                "type": "oidc",
+                "label": "Mit OIDC anmelden",
+                "description": "Single Sign-On ueber OpenID Connect.",
+                "mode": "redirect",
+                "enabled": bool(self._oidc_enabled),
+                "login_url": oidc_url,
+            }
+        )
 
-        saml_url = self._normalize_url(self._saml_login_url)
-        if saml_url:
-            providers.append(
-                {
-                    "id": "saml",
-                    "type": "saml",
-                    "label": "SAML",
-                    "description": "Enterprise-Login ueber SAML 2.0.",
-                    "mode": "redirect",
-                    "enabled": True,
-                    "login_url": saml_url,
-                }
-            )
+        saml_url = self._normalize_url(self._saml_login_url) or "/api/v1/auth/saml/login"
+        providers.append(
+            {
+                "id": "saml",
+                "type": "saml",
+                "label": "Mit SAML anmelden",
+                "description": "Enterprise-Login ueber SAML 2.0.",
+                "mode": "redirect",
+                "enabled": bool(self._saml_enabled),
+                "login_url": saml_url,
+                "metadata_url": "/api/v1/auth/saml/metadata",
+            }
+        )
 
         return providers
 
@@ -134,7 +137,10 @@ class IdentityProviderRegistryService:
 
     @staticmethod
     def _normalize_url(value: str) -> str:
-        parsed = urlparse(str(value or "").strip())
+        raw = str(value or "").strip()
+        if raw.startswith("/"):
+            return raw
+        parsed = urlparse(raw)
         if parsed.scheme not in {"http", "https"}:
             return ""
         if not parsed.netloc:

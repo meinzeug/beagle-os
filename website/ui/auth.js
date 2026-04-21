@@ -397,17 +397,24 @@ function renderIdentityProviderMethods() {
     const description = String(provider.description || '').trim();
     const enabled = provider.enabled !== false;
     const loginUrl = String(provider.login_url || '').trim();
+    const metadataUrl = String(provider.metadata_url || '').trim();
     const actionLabel = type === 'local' ? 'Lokal' : (enabled && loginUrl ? 'Weiterleiten' : 'Nicht verfuegbar');
+    const extraAction = type === 'saml' && metadataUrl
+      ? '<a class="button ghost auth-method-action" href="' + metadataUrl.replace(/"/g, '&quot;') + '" download="beagle-sp-metadata.xml">SP-Metadata</a>'
+      : '';
     return [
       '<div class="auth-method-item">',
       '<div class="auth-method-copy">',
       '<strong>' + label + '</strong>',
       '<span>' + (description || 'Login-Methode konfiguriert.') + '</span>',
       '</div>',
+      '<div class="auth-method-actions">',
       '<button type="button" class="button ghost auth-method-action" data-provider-id="' + String(provider.id || type || '') + '"',
       enabled ? '' : ' disabled',
       loginUrl ? ' data-provider-login-url="' + loginUrl.replace(/"/g, '&quot;') + '"' : '',
       '>' + actionLabel + '</button>',
+      extraAction,
+      '</div>',
       '</div>'
     ].join('');
   }).join('');

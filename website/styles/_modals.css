@@ -16,6 +16,7 @@
 .auth-method-copy span { font-size: 0.78rem; color: var(--text-muted); }
 .auth-method-item.is-muted { font-size: 0.84rem; color: var(--text-muted); }
 .auth-method-action { min-width: 132px; }
+.auth-method-actions { display: flex; align-items: center; gap: 8px; }
 .auth-button-row { justify-content: flex-end; }
 .provision-modal-buttons { justify-content: flex-end; gap: 12px; }
 .provision-progress-hero { position: relative; display: flex; align-items: center; justify-content: center; min-height: 112px; margin: 6px 0 14px; }

@@ -265,3 +265,20 @@ Stand: 2026-04-19
     - Injection/Input Validation (malformed payload -> 400)
     - Security Misconfiguration (unknown route handling)
   - Script ist für lokale und srv1-Läufe vorgesehen.
+
+## S-015 - OIDC-Callback ohne kryptografische ID-Token-Signaturprüfung
+
+- Status: offen (teilweise mitigiert, Follow-up erforderlich)
+- Risiko: Mittel bis Hoch
+- Betroffene Dateien:
+  - `beagle-host/services/oidc_service.py`
+  - `beagle-host/bin/beagle-control-plane.py`
+- Beschreibung:
+  - Der neue OIDC-Flow verarbeitet Authorization-Code + PKCE und extrahiert Claims aus `id_token`/`userinfo`, prüft derzeit aber die Signatur des `id_token` nicht gegen JWKS.
+  - Ohne Signaturprüfung ist die Claim-Quelle nicht kryptografisch abgesichert.
+- Mitigation (bereits umgesetzt):
+  - PKCE (`S256`) + `state`/`nonce` werden serverseitig erzeugt und verwaltet.
+  - Endpunkte sind auf explizite OIDC-Aktivierung (`BEAGLE_OIDC_ENABLED`) und konfigurierte IdP-URLs begrenzt.
+- Nächster Schritt:
+  - JWKS-Fetch + Key-Rotation + RSA/ECDSA-Signaturprüfung für `id_token` implementieren,
+  - Claims erst nach erfolgreicher Signatur-, Issuer-, Audience- und Expiry-Validierung akzeptieren.

@@ -51,6 +51,7 @@ from installer_prep import InstallerPrepService
 from installer_script import InstallerScriptService
 from installer_template_patch import InstallerTemplatePatchService
 from metadata_support import MetadataSupportService
+from oidc_service import OidcService
 from persistence_support import PersistenceSupportService
 from policy_normalization import PolicyNormalizationService
 from policy_store import PolicyStoreService
@@ -64,6 +65,7 @@ from runtime_environment import RuntimeEnvironmentService
 from runtime_exec import RuntimeExecService
 from runtime_paths import RuntimePathsService
 from runtime_support import RuntimeSupportService
+from saml_service import SamlService
 from sunshine_access_token_store import SunshineAccessTokenStoreService
 from sunshine_integration import SunshineIntegrationService
 from support_bundle_store import SupportBundleStoreService
@@ -205,6 +207,23 @@ IDENTITY_PROVIDER_REGISTRY_FILE = Path(
 )
 OIDC_AUTH_URL = os.environ.get("BEAGLE_OIDC_AUTH_URL", "").strip()
 SAML_LOGIN_URL = os.environ.get("BEAGLE_SAML_LOGIN_URL", "").strip()
+OIDC_ENABLED = os.environ.get("BEAGLE_OIDC_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+OIDC_ISSUER = os.environ.get("BEAGLE_OIDC_ISSUER", "").strip()
+OIDC_CLIENT_ID = os.environ.get("BEAGLE_OIDC_CLIENT_ID", "").strip()
+OIDC_REDIRECT_URI = os.environ.get("BEAGLE_OIDC_REDIRECT_URI", "").strip() or f"{PUBLIC_MANAGER_URL.rstrip('/')}/api/v1/auth/oidc/callback"
+OIDC_AUTHORIZATION_ENDPOINT = os.environ.get("BEAGLE_OIDC_AUTHORIZATION_ENDPOINT", "").strip() or OIDC_AUTH_URL
+OIDC_TOKEN_ENDPOINT = os.environ.get("BEAGLE_OIDC_TOKEN_ENDPOINT", "").strip()
+OIDC_USERINFO_ENDPOINT = os.environ.get("BEAGLE_OIDC_USERINFO_ENDPOINT", "").strip()
+OIDC_SCOPE = os.environ.get("BEAGLE_OIDC_SCOPE", "openid profile email").strip() or "openid profile email"
+SAML_ENABLED = os.environ.get("BEAGLE_SAML_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+SAML_ENTITY_ID = os.environ.get("BEAGLE_SAML_ENTITY_ID", "").strip() or f"{PUBLIC_MANAGER_URL.rstrip('/')}/api/v1/auth/saml/metadata"
+SAML_ACS_URL = os.environ.get("BEAGLE_SAML_ACS_URL", "").strip() or f"{PUBLIC_MANAGER_URL.rstrip('/')}/api/v1/auth/saml/callback"
+SAML_IDP_SSO_URL = os.environ.get("BEAGLE_SAML_IDP_SSO_URL", "").strip() or SAML_LOGIN_URL
+SAML_NAMEID_FORMAT = os.environ.get(
+    "BEAGLE_SAML_NAMEID_FORMAT",
+    "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+).strip() or "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+SAML_SIGNING_CERT_FILE = Path(os.environ.get("BEAGLE_SAML_SIGNING_CERT_FILE", "/etc/beagle/saml/sp-signing.crt"))
 CORS_ALLOWED_ORIGINS_RAW = os.environ.get("BEAGLE_CORS_ALLOWED_ORIGINS", "").strip()
 API_V2_PREPARATION_ENABLED = os.environ.get("BEAGLE_API_V2_PREPARATION_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
 API_V1_DEPRECATED_ENDPOINTS_RAW = os.environ.get(
@@ -393,6 +412,8 @@ AUTHZ_POLICY_SERVICE: AuthzPolicyService | None = None
 SERVER_SETTINGS_SERVICE: ServerSettingsService | None = None
 WEBHOOK_SERVICE: WebhookService | None = None
 IDENTITY_PROVIDER_REGISTRY_SERVICE: IdentityProviderRegistryService | None = None
+OIDC_SERVICE: OidcService | None = None
+SAML_SERVICE: SamlService | None = None
 
 
 def resolve_public_stream_host(host: str) -> str:
@@ -580,8 +601,47 @@ def identity_provider_registry_service() -> IdentityProviderRegistryService:
             oidc_auth_url=OIDC_AUTH_URL,
             saml_login_url=SAML_LOGIN_URL,
             public_manager_url=PUBLIC_MANAGER_URL,
+            oidc_enabled=OIDC_ENABLED,
+            saml_enabled=SAML_ENABLED,
         )
     return IDENTITY_PROVIDER_REGISTRY_SERVICE
+
+
+def oidc_service() -> OidcService:
+    global OIDC_SERVICE
+    if OIDC_SERVICE is None:
+        OIDC_SERVICE = OidcService(
+            data_dir=ensure_data_dir(),
+            enabled=OIDC_ENABLED,
+            issuer=OIDC_ISSUER,
+            client_id=OIDC_CLIENT_ID,
+            redirect_uri=OIDC_REDIRECT_URI,
+            authorization_endpoint=OIDC_AUTHORIZATION_ENDPOINT,
+            token_endpoint=OIDC_TOKEN_ENDPOINT,
+            userinfo_endpoint=OIDC_USERINFO_ENDPOINT,
+            scope=OIDC_SCOPE,
+            utcnow=utcnow,
+            load_json_file=load_json_file,
+            write_json_file=lambda path, payload: persistence_support_service().write_json_file(path, payload),
+        )
+    return OIDC_SERVICE
+
+
+def saml_service() -> SamlService:
+    global SAML_SERVICE
+    if SAML_SERVICE is None:
+        cert_text = ""
+        if SAML_SIGNING_CERT_FILE.exists():
+            cert_text = SAML_SIGNING_CERT_FILE.read_text(encoding="utf-8", errors="ignore")
+        SAML_SERVICE = SamlService(
+            enabled=SAML_ENABLED,
+            entity_id=SAML_ENTITY_ID,
+            acs_url=SAML_ACS_URL,
+            idp_sso_url=SAML_IDP_SSO_URL,
+            nameid_format=SAML_NAMEID_FORMAT,
+            signing_cert_pem=cert_text,
+        )
+    return SAML_SERVICE
 
 
 def cache_get(key: str, ttl_seconds: float) -> Any:
@@ -2760,6 +2820,13 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _write_redirect(self, location: str, *, status: HTTPStatus = HTTPStatus.FOUND) -> None:
+        self.send_response(status)
+        self._write_common_security_headers()
+        self.send_header("Location", str(location or "/"))
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def _requester_identity(self) -> str:
         principal = self._auth_principal()
         if principal and principal.get("username"):
@@ -2856,6 +2923,60 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/v1/auth/providers":
             self._write_json(HTTPStatus.OK, identity_provider_registry_service().payload())
+            return
+
+        if path == "/api/v1/auth/oidc/login":
+            try:
+                login_url = oidc_service().begin_login()
+            except RuntimeError as exc:
+                self._write_json(HTTPStatus.NOT_IMPLEMENTED, {"ok": False, "error": str(exc)})
+                return
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"oidc unavailable: {exc}"})
+                return
+            self._write_redirect(login_url)
+            return
+
+        if path == "/api/v1/auth/oidc/callback":
+            query = parse_qs(parsed.query or "")
+            code = str((query.get("code") or [""])[0] or "").strip()
+            state = str((query.get("state") or [""])[0] or "").strip()
+            if not code or not state:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "missing code/state"})
+                return
+            try:
+                payload = oidc_service().finish_login(code=code, state=state)
+            except PermissionError as exc:
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": str(exc)})
+                return
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"oidc callback failed: {exc}"})
+                return
+            self._write_json(HTTPStatus.OK, payload)
+            return
+
+        if path == "/api/v1/auth/saml/login":
+            query = parse_qs(parsed.query or "")
+            relay_state = str((query.get("relay") or [""])[0] or "").strip()
+            try:
+                login_url = saml_service().begin_login(relay_state=relay_state)
+            except RuntimeError as exc:
+                self._write_json(HTTPStatus.NOT_IMPLEMENTED, {"ok": False, "error": str(exc)})
+                return
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"saml unavailable: {exc}"})
+                return
+            self._write_redirect(login_url)
+            return
+
+        if path == "/api/v1/auth/saml/metadata":
+            xml = saml_service().metadata_xml().encode("utf-8")
+            self._write_bytes(
+                HTTPStatus.OK,
+                xml,
+                content_type="application/samlmetadata+xml; charset=utf-8",
+                filename="beagle-sp-metadata.xml",
+            )
             return
 
         if API_V2_PREPARATION_ENABLED and path in {"/api/v2", "/api/v2/health"}:
