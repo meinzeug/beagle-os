@@ -47,8 +47,14 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             fake_webroot = Path(tmpdir) / "acme-webroot"
+            fake_certbot_config = Path(tmpdir) / "certbot" / "config"
+            fake_certbot_work = Path(tmpdir) / "certbot" / "work"
+            fake_certbot_logs = Path(tmpdir) / "certbot" / "logs"
             with mock.patch.object(MODULE, "_which", return_value="/usr/bin/certbot"), \
                  mock.patch.object(MODULE, "_ACME_WEBROOT", fake_webroot), \
+                 mock.patch.object(MODULE, "_CERTBOT_CONFIG_DIR", fake_certbot_config), \
+                 mock.patch.object(MODULE, "_CERTBOT_WORK_DIR", fake_certbot_work), \
+                 mock.patch.object(MODULE, "_CERTBOT_LOGS_DIR", fake_certbot_logs), \
                  mock.patch.object(MODULE, "_run_certbot_command", side_effect=fake_run_certbot), \
                  mock.patch.object(MODULE, "_switch_nginx_tls_to_letsencrypt", return_value=(True, "ok")):
                 result = service.request_letsencrypt("srv1.beagle-os.com", "ops@beagle-os.com")
@@ -56,6 +62,9 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertIn("--webroot", captured[0])
         self.assertNotIn("--nginx", captured[0])
+        self.assertIn("--config-dir", captured[0])
+        self.assertIn("--work-dir", captured[0])
+        self.assertIn("--logs-dir", captured[0])
 
 
 if __name__ == "__main__":

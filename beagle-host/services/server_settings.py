@@ -40,7 +40,11 @@ _SAFE_DOMAIN_PATTERN = re.compile(
 _SAFE_IP_PATTERN = re.compile(
     r"^(\d{1,3}\.){3}\d{1,3}$"
 )
-_ACME_WEBROOT = Path("/var/lib/beagle/acme-webroot")
+_ACME_WEBROOT = Path("/var/lib/beagle/beagle-manager/acme-webroot")
+_CERTBOT_BASE_DIR = Path("/var/lib/beagle/beagle-manager/letsencrypt")
+_CERTBOT_CONFIG_DIR = _CERTBOT_BASE_DIR / "config"
+_CERTBOT_WORK_DIR = _CERTBOT_BASE_DIR / "work"
+_CERTBOT_LOGS_DIR = _CERTBOT_BASE_DIR / "logs"
 
 
 
@@ -220,11 +224,17 @@ class ServerSettingsService:
         # works without needing polkit/systemd-run or nginx plugin privileges.
         acme_webroot = _ACME_WEBROOT
         acme_webroot.mkdir(parents=True, exist_ok=True)
+        _CERTBOT_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        _CERTBOT_WORK_DIR.mkdir(parents=True, exist_ok=True)
+        _CERTBOT_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
         result = _run_certbot_command(
             [
                 certbot, "certonly", "--webroot",
                 "-w", str(acme_webroot),
+                "--config-dir", str(_CERTBOT_CONFIG_DIR),
+                "--work-dir", str(_CERTBOT_WORK_DIR),
+                "--logs-dir", str(_CERTBOT_LOGS_DIR),
                 "-d", domain,
                 "--non-interactive",
                 "--agree-tos",
@@ -750,11 +760,21 @@ def _run_certbot_command(cmd: list[str], *, timeout: int) -> subprocess.Complete
 
 
 def _switch_nginx_tls_to_letsencrypt(domain: str) -> tuple[bool, str]:
-    cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
-    key_path = f"/etc/letsencrypt/live/{domain}/privkey.pem"
+    live_candidates = [
+        Path(f"/etc/letsencrypt/live/{domain}"),
+        _CERTBOT_CONFIG_DIR / "live" / domain,
+    ]
+    live_dir: Path | None = None
+    for candidate in live_candidates:
+        if (candidate / "fullchain.pem").exists() and (candidate / "privkey.pem").exists():
+            live_dir = candidate
+            break
 
-    if not Path(cert_path).exists() or not Path(key_path).exists():
+    if live_dir is None:
         return False, "missing issued certificate files"
+
+    cert_path = str(live_dir / "fullchain.pem")
+    key_path = str(live_dir / "privkey.pem")
 
     candidate_files = [
         Path("/etc/nginx/sites-available/beagle-proxy.conf"),

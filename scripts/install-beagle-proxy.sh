@@ -449,7 +449,7 @@ server {
     # ACME HTTP-01 challenge: served before the HTTPS redirect so certbot
     # --webroot can obtain Let's Encrypt certificates without nginx plugin.
     location ^~ /.well-known/acme-challenge/ {
-        root /var/lib/beagle/acme-webroot;
+      root /var/lib/beagle/beagle-manager/acme-webroot;
         default_type text/plain;
         allow all;
     }
@@ -697,7 +697,8 @@ nginx -t
 apply_nginx_service_state
 
 # Create ACME webroot directory used by certbot --webroot for Let's Encrypt.
-mkdir -p /var/lib/beagle/acme-webroot
+mkdir -p /var/lib/beagle/beagle-manager/acme-webroot
+chown -R beagle-manager:beagle-manager /var/lib/beagle/beagle-manager/acme-webroot
 
 # Allow beagle-manager service user to reload nginx and run nginx -t without
 # interactive D-Bus / polkit authentication (the service runs with NoNewPrivileges=yes).
