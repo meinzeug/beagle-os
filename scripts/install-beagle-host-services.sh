@@ -489,6 +489,10 @@ NETEOF
       virsh --connect qemu:///system pool-start local >/dev/null 2>&1 || true
       virsh --connect qemu:///system pool-autostart local >/dev/null
     fi
+    # Ensure beagle-manager (in the libvirt group) can write ISOs and disk images
+    # into the libvirt images directory. libvirt sets this dir to 0711 by default.
+    chown root:libvirt "$BEAGLE_LIBVIRT_IMAGES_DIR"
+    chmod 0771 "$BEAGLE_LIBVIRT_IMAGES_DIR"
     virsh --connect qemu:///system pool-info local >/dev/null
   else
     echo "Skipping libvirt network/storage bootstrap during offline/chroot install" >&2
