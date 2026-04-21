@@ -1,5 +1,23 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 20: CSP + systemd hardening wave)
+
+- `scripts/install-beagle-proxy.sh` CSP tightened for nginx by adding secure websocket source:
+  - `connect-src 'self' wss:`
+  - no `unsafe-inline` and no `unsafe-eval` in the configured policy.
+- Hardened beagle systemd units with explicit `CapabilityBoundingSet=` and `RestrictAddressFamilies=`:
+  - `beagle-host/systemd/beagle-artifacts-refresh.service`
+  - `beagle-host/systemd/beagle-public-streams.service`
+  - `beagle-host/systemd/beagle-ui-reapply.service`
+  - `beagle-host/systemd/beagle-novnc-proxy.service`
+- `beagle-novnc-proxy.service` switched to non-root runtime:
+  - `User=beagle-manager`, `Group=beagle-manager`
+  - additional sandboxing (`NoNewPrivileges`, `ProtectSystem=strict`, syscall/address-family restrictions).
+- Deployed and validated on `srv1.beagle-os.com`:
+  - `beagle-novnc-proxy`, `beagle-control-plane`, `nginx` all `active` after rollout.
+  - `systemctl show` confirms non-root noVNC runtime and empty `CapabilityBoundingSet`.
+  - HTTPS response header confirms CSP contains `connect-src 'self' wss:`.
+
 ## Update (2026-04-21, GoFuture Plan 04/20: Input-Validation + Dependency-Audit Welle)
 
 - Serverseitige Input-Validierung gehaertet:

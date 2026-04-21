@@ -50,8 +50,8 @@ in localStorage liegen muss das sofort korrigiert werden.
 
 ### Schritt 3 — Content-Security-Policy (CSP) verschärfen
 
-- [ ] CSP-Header in nginx: `script-src 'self'`, `style-src 'self'`, `img-src 'self' data:`, `connect-src 'self' wss:`.
-- [ ] Keine `'unsafe-inline'`, kein `'unsafe-eval'`.
+- [x] CSP-Header in nginx: `script-src 'self'`, `style-src 'self'`, `img-src 'self' data:`, `connect-src 'self' wss:`.
+- [x] Keine `'unsafe-inline'`, kein `'unsafe-eval'`.
 
 Die CSP verhindert XSS-Angriffe indem sie dem Browser vorschreibt welche Ressourcen
 er laden und ausführen darf. `'unsafe-inline'` und `'unsafe-eval'` heben den XSS-Schutz
@@ -96,8 +96,8 @@ Sicherung ist in `/memories/repo/novnc-readwritepaths.md` dokumentiert.
 
 ### Schritt 6 — Systemd-Unit-Hardening für alle Beagle-Services
 
-- [ ] Jede systemd-Unit bekommt: `NoNewPrivileges=yes`, `PrivateTmp=yes`, `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6`, `CapabilityBoundingSet`.
-- [ ] Kein Service läuft als root wenn nicht zwingend erforderlich.
+- [x] Jede systemd-Unit bekommt: `NoNewPrivileges=yes`, `PrivateTmp=yes`, `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6`, `CapabilityBoundingSet`.
+- [x] Kein Service läuft als root wenn nicht zwingend erforderlich.
 
 Systemd bietet umfangreiche Sandboxing-Optionen die bei korrekter Anwendung erheblich
 den Blast-Radius eines kompromittierten Services begrenzen. `NoNewPrivileges=yes` verhindert

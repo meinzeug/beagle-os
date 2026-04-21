@@ -16,9 +16,10 @@
 	- Error-Response-Schema ist umgesetzt; als Nachlauf nur noch Surface-spezifische Sonderfaelle pruefen,
 	- Regressionstest fuer `internal_error`-Boundary als Unit-/Integrationstest aufnehmen.
 
-0. **Plan 20 Security Follow-up aus Findings S-008**:
+0. **Plan 20 Security Follow-up aus Findings S-008/S-009**:
 	- `pip` im Runtime-/CI-Umfeld auf vuln-freien Stand heben,
-	- npm-Audit Findings im `beagle-kiosk` gezielt patchen oder zeitlich begrenzte Ausnahme dokumentieren.
+	- npm-Audit Findings im `beagle-kiosk` gezielt patchen oder zeitlich begrenzte Ausnahme dokumentieren,
+	- noVNC token-flow auf streng einmalige <=30s Tokens mit serverseitigem consume-Mechanismus weiterhaerten.
 
 0. **Plan 04 Schritt 3 ist umgesetzt, jetzt Schritt 2 und 4 fortsetzen**:
 	- Route-Handler weiter aus `beagle-control-plane.py` in `beagle-host/services/` extrahieren,

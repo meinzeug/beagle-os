@@ -5,11 +5,30 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=root
-Group=root
+User=beagle-manager
+Group=beagle-manager
 ExecStart=/usr/bin/websockify --verbose --token-plugin TokenFile --token-source /etc/beagle/novnc/tokens 127.0.0.1:6080
 Restart=always
 RestartSec=2
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+ProtectSystem=strict
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+ReadWritePaths=/etc/beagle/novnc
+SystemCallArchitectures=native
+SystemCallFilter=@system-service @network-io @basic-io
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
 WantedBy=multi-user.target

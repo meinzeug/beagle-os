@@ -33,6 +33,8 @@
 - [x] Verify `pytest tests/unit` baseline passes (`15 passed`) and record provider-grep audit execution for GoFuture Plan 05 tracking (2026-04-21).
 - [x] Enforce server-side auth payload whitelists and identifier validation (`sanitizeIdentifier`-equivalent) in control-plane/auth-session, then validate on `srv1.beagle-os.com` (2026-04-21).
 - [x] Add automated dependency CVE audit tooling (`scripts/security-audit.sh`) and scheduled CI workflow (`.github/workflows/security-audit.yml`) with report artifacts (2026-04-21).
+- [x] Harden Beagle systemd unit baseline (`CapabilityBoundingSet`, `RestrictAddressFamilies`) and move `beagle-novnc-proxy` to non-root runtime, then validate on `srv1.beagle-os.com` (2026-04-21).
+- [x] Tighten nginx CSP connect-src to include `wss:` (without `unsafe-inline`/`unsafe-eval`) and verify live header on `srv1.beagle-os.com` (2026-04-21).
 - [x] Extend `.gitignore` guardrails for `.env` / `.env.*` and verify no tracked `.env` secrets (2026-04-21).
 
 - [ ] Complete dedicated-host bootstrap validation on new Hetzner server `46.4.96.80` (`srv1.beagle-os.com`) and verify Beagle core services/ports.

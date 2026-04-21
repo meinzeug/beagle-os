@@ -148,6 +148,28 @@ Stand: 2026-04-19
   - `srv1`: `/api/v1/auth/onboarding/complete` mit `username="bad user"` liefert `400` + `code=bad_request`.
   - `srv1`: `/api/v1/auth/login` mit zusaetzlichem Feld `extra` liefert `400` + `invalid payload: unexpected keys`.
 
+## S-009 - Uneinheitliche systemd-Hardening/CSP-Baseline in Host-Units
+
+- Status: mitigiert in Repo und auf `srv1.beagle-os.com`
+- Risiko: Mittel
+- Betroffene Dateien:
+  - `beagle-host/systemd/beagle-novnc-proxy.service`
+  - `beagle-host/systemd/beagle-artifacts-refresh.service`
+  - `beagle-host/systemd/beagle-public-streams.service`
+  - `beagle-host/systemd/beagle-ui-reapply.service`
+  - `scripts/install-beagle-proxy.sh`
+- Beschreibung:
+  - Mehrere Beagle-Units hatten keine explizite `CapabilityBoundingSet`-/`RestrictAddressFamilies`-Absicherung.
+  - noVNC lief als root obwohl kein privilegierter Port oder root-only capability erforderlich war.
+  - CSP im nginx-Proxypfad war ohne explizite `wss:`-Freigabe im `connect-src`.
+- Mitigation:
+  - Unit-Hardening auf die betroffenen Beagle-Units ausgerollt (`CapabilityBoundingSet=`, `RestrictAddressFamilies=...`).
+  - `beagle-novnc-proxy.service` auf non-root `beagle-manager` umgestellt und weiter gesandboxed.
+  - CSP im nginx-Proxypfad auf `connect-src 'self' wss:` angepasst, weiterhin ohne `unsafe-inline`/`unsafe-eval`.
+- Validierung:
+  - `srv1`: `systemctl show beagle-novnc-proxy.service` zeigt `User=beagle-manager`, `CapabilityBoundingSet=` und eingeschraenkte AddressFamilies.
+  - `srv1`: `curl -kI https://127.0.0.1/` zeigt den erwarteten CSP-Header mit `wss:`.
+
 ## S-008 - Fehlende automatisierte Dependency-Audit-Integration
 
 - Status: mitigiert (Automation vorhanden), Findings offen
