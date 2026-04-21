@@ -1,5 +1,13 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, Hotfix: noVNC HTTP 500 — /etc/beagle/novnc permission)
+
+- **Root cause**: `/etc/beagle/novnc/` was `root:beagle-manager 0750` — group had `r-x` but not write.
+- `VmConsoleAccessService._create_ephemeral_novnc_token` tried to create `console-tokens.json` in that dir → `PermissionError` → unhandled → 500.
+- **Fix**: `scripts/install-beagle-host-services.sh` changed from `chmod 0750` to `chmod 0770` for `/etc/beagle/novnc`.
+- Live-fixed on srv1 via `chmod 770 /etc/beagle/novnc`. Confirmed writable by beagle-manager.
+- Commit: `9a6d6c9`
+
 ## Update (2026-04-21, GoFuture Plan 14 Schritte 2+5: Recording-Service + Download-Audit)
 
 - `beagle-host/services/recording_service.py` neu implementiert (ffmpeg-basierte Session-Aufzeichnung, MP4-Output, `recordings/index.json`).
