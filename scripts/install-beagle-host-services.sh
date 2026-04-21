@@ -268,15 +268,19 @@ if [[ -z "$USB_TUNNEL_HOME" ]]; then
 fi
 install -d -m 0755 "$USB_TUNNEL_HOME"
 install -d -m 0755 "$(dirname "$USB_TUNNEL_AUTH_ROOT")"
-install -d -m 0700 "$USB_TUNNEL_AUTH_ROOT" "$USB_TUNNEL_AUTH_ROOT/authorized_keys.d"
+install -d -m 0710 "$USB_TUNNEL_AUTH_ROOT"
+install -d -m 0700 "$USB_TUNNEL_AUTH_ROOT/authorized_keys.d"
 touch "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
 chmod 0600 "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
-# The parent dir and authorized_keys file stay root:root so sshd trusts them.
-# authorized_keys.d is owned by beagle-manager so the service can write key fragments.
-chown root:root "$USB_TUNNEL_AUTH_ROOT" "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
-chown "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" "$USB_TUNNEL_AUTH_ROOT/authorized_keys.d"
+# auth_root: root owns the directory (sshd trusts it), group=beagle-manager with execute-only
+# so the service can traverse into authorized_keys.d and write authorized_keys.
+# authorized_keys.d is owned outright by beagle-manager for key fragments.
+chown root:"$BEAGLE_CONTROL_USER" "$USB_TUNNEL_AUTH_ROOT"
+chown "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" "$USB_TUNNEL_AUTH_ROOT/authorized_keys" "$USB_TUNNEL_AUTH_ROOT/authorized_keys.d"
 
 cat >"$USB_TUNNEL_SSHD_DROPIN" <<EOF
+# StrictModes off for beagle-manager-owned authorized_keys (managed service account)
+StrictModes no
 Match User $USB_TUNNEL_USER
     AuthenticationMethods publickey
     PasswordAuthentication no

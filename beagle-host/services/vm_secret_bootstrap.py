@@ -174,8 +174,8 @@ class VmSecretBootstrapService:
                 for line in managed_lines:
                     handle.write(line + "\n")
                 handle.write(end_marker + "\n")
-        os.chmod(auth_root, 0o700)
-        os.chmod(authorized_keys, 0o600)
+        # authorized_keys and auth_root are managed by the installer (root:beagle-manager 0710 /
+        # beagle-manager 0600). Only the per-VM snippet is owned here.
         os.chmod(snippet_path, 0o600)
 
     def ensure_vm_sunshine_pinned_pubkey(self, vm: Any, secret: dict[str, Any]) -> dict[str, Any]:
