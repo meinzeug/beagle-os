@@ -13,7 +13,7 @@ class AuthzPolicyService:
         if verb == "POST":
             if route == "/api/v1/actions/bulk":
                 return "actions:bulk"
-            if route in {"/api/v1/ubuntu-beagle-vms", "/api/v1/provisioning/vms"}:
+            if route in {"/api/v1/ubuntu-beagle-vms", "/api/v1/provisioning/vms", "/api/v1/vms"}:
                 return "provisioning:write"
             if route == "/api/v1/policies" or route.startswith("/api/v1/policies/"):
                 return "policy:write"

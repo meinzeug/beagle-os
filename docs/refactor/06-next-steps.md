@@ -2,6 +2,11 @@
 
 ## GoFuture Plan 04/05 Provider-Abstraction execution (2026-04-21)
 
+0. **Plan 04 Schritt 3 ist umgesetzt, jetzt Schritt 2 und 4 fortsetzen**:
+	- Route-Handler weiter aus `beagle-control-plane.py` in `beagle-host/services/` extrahieren,
+	- serverseitige Payload-Whitelist-Validierung fuer Mutationsendpunkte nachziehen,
+	- verbleibende Error-Schema-Vereinheitlichung (`error` + `code`) umsetzen.
+
 0. **Plan 05 Schritt 2: Proxmox-Direktaufrufe final prüfen und migrieren**:
    - grep -r "qm\|pvesh\|/api2/json\|PVEAuthCookie" komplettes Workspace durchlaufen (nicht nur beagle-host/),
    - Check auf `providers/` direkte Aufrufe und versteckte Proxmox-Kopplungen,

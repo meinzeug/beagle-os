@@ -2886,20 +2886,21 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
-        if admin_http_surface_service().handles_post(path):
+        admin_post_path = "/api/v1/provisioning/vms" if path == "/api/v1/vms" else path
+        if admin_http_surface_service().handles_post(admin_post_path):
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
-            if not self._authorize_or_respond("POST", path):
+            if not self._authorize_or_respond("POST", admin_post_path):
                 return
             try:
                 json_payload = self._read_json_body()
             except Exception as exc:
-                response = admin_http_surface_service().read_error_response("POST", path, exc)
+                response = admin_http_surface_service().read_error_response("POST", admin_post_path, exc)
                 self._write_json(response["status"], response["payload"])
                 return
             response = admin_http_surface_service().route_post(
-                path,
+                admin_post_path,
                 json_payload=json_payload,
                 requester_identity=self._requester_identity(),
             )
@@ -2908,7 +2909,8 @@ class Handler(BaseHTTPRequestHandler):
                 "success" if int(response["status"]) < 400 else "error",
                 method="POST",
                 path=path,
-                permission=authz_policy_service().required_permission("POST", path),
+                effective_path=admin_post_path,
+                permission=authz_policy_service().required_permission("POST", admin_post_path),
                 username=self._requester_identity(),
                 status=int(response["status"]),
             )

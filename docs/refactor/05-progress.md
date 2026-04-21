@@ -1,5 +1,20 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 04 Schritt 1+3 umgesetzt: RBAC-Nachruestung)
+
+- Control-Plane POST-Mutationspfad vereinheitlicht: `POST /api/v1/vms` wird jetzt als Legacy-Alias sicher auf den Provisioning-Mutationspfad gemappt.
+- Fehlende RBAC-Abdeckung fuer Legacy-Pfad behoben:
+	- `beagle-host/bin/beagle-control-plane.py`: neue `admin_post_path`-Normalisierung (`/api/v1/vms` -> `/api/v1/provisioning/vms`) inklusive Auth-/RBAC-Pruefung.
+	- `beagle-host/services/authz_policy.py`: `required_permission(POST, /api/v1/vms)` liefert jetzt `provisioning:write`.
+- Unit-Test hinzugefuegt: `tests/unit/test_authz_policy.py`
+	- verifiziert `viewer` darf `settings:write` nicht,
+	- verifiziert Admin darf `settings:write`,
+	- verifiziert Legacy-Route `/api/v1/vms` mappt auf `provisioning:write`.
+- Live-Verifikation auf `srv1.beagle-os.com` nach Deploy:
+	- `POST /api/v1/vms` ohne Auth -> `401 unauthorized`.
+	- `POST /api/v1/provisioning/vms` ohne Auth -> `401 unauthorized`.
+- Damit sind in `docs/gofuture/04-control-plane.md` Schritt 1 und Schritt 3 inklusive RBAC-Test-Checkboxen fuer `/api/v1/vms` und Settings-Adminschutz abgehakt.
+
 ## Update (2026-04-21, Let's Encrypt activation fix: issued cert is now applied to nginx)
 
 - Reproduced issue on `srv1.beagle-os.com`: certbot had a valid certificate in `/etc/letsencrypt/live/srv1.beagle-os.com/`, but nginx still served `/etc/beagle/tls/beagle-proxy.crt` (self-signed).

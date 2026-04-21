@@ -20,8 +20,8 @@ alle Business-Logik in `beagle-host/services/*.py` landet.
 
 ### Schritt 1 — Abhängigkeitsbaum und Service-Grenzen kartieren
 
-- [ ] `beagle-control-plane.py` vollständig lesen und alle Route-Handler mit zugehörigen Services identifizieren.
-- [ ] Liste aller direkten Provider-Aufrufe (qm, pvesh, libvirt, etc.) in nicht-Provider-Code erstellen.
+- [x] `beagle-control-plane.py` vollständig lesen und alle Route-Handler mit zugehörigen Services identifizieren.
+- [x] Liste aller direkten Provider-Aufrufe (qm, pvesh, libvirt, etc.) in nicht-Provider-Code erstellen.
 
 Bevor Code verschoben wird muss der aktuelle Zustand vollständig verstanden sein.
 Jede Zeile die direkt `qm`, `pvesh` oder `/api2/json` aufruft und sich nicht in
@@ -48,8 +48,8 @@ inkrementell ausgeführt: ein Handler nach dem anderen, jedes Mal mit Smoke-Test
 
 ### Schritt 3 — Auth- und RBAC-Middleware vereinheitlichen
 
-- [ ] Sicherstellen, dass alle mutierenden Endpoints (`POST`, `PUT`, `DELETE`, `PATCH`) durch RBAC-Middleware laufen.
-- [ ] Fehlende Middleware-Aufrufe identifizieren und nachrüsten.
+- [x] Sicherstellen, dass alle mutierenden Endpoints (`POST`, `PUT`, `DELETE`, `PATCH`) durch RBAC-Middleware laufen.
+- [x] Fehlende Middleware-Aufrufe identifizieren und nachrüsten.
 
 `docs/refactor/01-problem-analysis.md` hat bereits dokumentiert dass RBAC nicht
 durchgängig auf alle Mutations-Endpunkte erzwungen wird. Dieser Schritt schließt
@@ -119,7 +119,7 @@ Ein Python-API-Server der auf Port 9088 läuft braucht keine root-Rechte; ein de
 ## Testpflicht nach Abschluss
 
 - [ ] Alle API-Endpunkte antworten korrekt nach Refactoring (Smoke-Tests).
-- [ ] RBAC: unauthentizierter POST auf `/api/v1/vms` gibt 401 zurück.
-- [ ] RBAC: User ohne Admin-Rolle kann keine Settings ändern.
+- [x] RBAC: unauthentizierter POST auf `/api/v1/vms` gibt 401 zurück.
+- [x] RBAC: User ohne Admin-Rolle kann keine Settings ändern.
 - [ ] Audit-Log schreibt Entries bei VM-Start, VM-Stop, User-Create.
 - [ ] `journalctl -u beagle-control-plane` zeigt keine Unhandled-Exception-Traces.
