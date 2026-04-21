@@ -446,6 +446,14 @@ server {
   listen [::]:80 default_server;
     server_name _;
 
+    # ACME HTTP-01 challenge: served before the HTTPS redirect so certbot
+    # --webroot can obtain Let's Encrypt certificates without nginx plugin.
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/lib/beagle/acme-webroot;
+        default_type text/plain;
+        allow all;
+    }
+
     return 301 ${web_redirect_target};
 }
 
@@ -687,6 +695,18 @@ write_nginx_config
 link_nginx_config
 nginx -t
 apply_nginx_service_state
+
+# Create ACME webroot directory used by certbot --webroot for Let's Encrypt.
+mkdir -p /var/lib/beagle/acme-webroot
+
+# Allow beagle-manager service user to reload nginx and run nginx -t without
+# interactive D-Bus / polkit authentication (the service runs with NoNewPrivileges=yes).
+cat > /etc/sudoers.d/beagle-nginx-reload <<'SUDOERS'
+# Managed by install-beagle-proxy.sh — do not edit by hand.
+beagle-manager ALL=(root) NOPASSWD: /usr/sbin/nginx -t, /bin/systemctl reload nginx
+SUDOERS
+chmod 0440 /etc/sudoers.d/beagle-nginx-reload
+
 if [[ -n "$BACKEND_HOST" ]]; then
   log "Configured Beagle proxy on https://${SERVER_NAME}:${LISTEN_PORT}/ -> https://${BACKEND_HOST}:${BACKEND_PORT}/"
 else

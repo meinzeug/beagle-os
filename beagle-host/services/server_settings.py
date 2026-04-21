@@ -40,7 +40,10 @@ _SAFE_DOMAIN_PATTERN = re.compile(
 _SAFE_IP_PATTERN = re.compile(
     r"^(\d{1,3}\.){3}\d{1,3}$"
 )
-_SAFE_SERVICE_NAME = re.compile(r"^[a-zA-Z0-9._@-]+$")
+_ACME_WEBROOT = Path("/var/lib/beagle/acme-webroot")
+
+
+
 
 
 class ServerSettingsService:
@@ -210,12 +213,18 @@ class ServerSettingsService:
         certbot = _which("certbot")
         if not certbot:
             return {"ok": False, "error": "certbot not installed on this server"}
-        if not _certbot_has_plugin(certbot, "nginx"):
-            return {"ok": False, "error": "certbot nginx plugin not installed on this server"}
+
+        # Use --webroot authenticator so certbot never touches nginx itself.
+        # The nginx config exposes /.well-known/acme-challenge/ from this dir
+        # on port 80 before the HTTPS redirect, so the ACME HTTP-01 challenge
+        # works without needing polkit/systemd-run or nginx plugin privileges.
+        acme_webroot = _ACME_WEBROOT
+        acme_webroot.mkdir(parents=True, exist_ok=True)
 
         result = _run_certbot_command(
             [
-                certbot, "certonly", "--nginx",
+                certbot, "certonly", "--webroot",
+                "-w", str(acme_webroot),
                 "-d", domain,
                 "--non-interactive",
                 "--agree-tos",
@@ -789,7 +798,9 @@ def _switch_nginx_tls_to_letsencrypt(domain: str) -> tuple[bool, str]:
     if not changed:
         return False, "no nginx ssl_certificate directives found to update"
 
-    test = subprocess.run(["nginx", "-t"], capture_output=True, text=True, timeout=20, check=False)
+    # Use sudo so the beagle-manager service user (NoNewPrivileges=yes) can
+    # test and reload nginx. The sudoers rule is installed by install-beagle-proxy.sh.
+    test = subprocess.run(["sudo", "nginx", "-t"], capture_output=True, text=True, timeout=20, check=False)
     if test.returncode != 0:
         for path, content in backups.items():
             try:
@@ -799,7 +810,7 @@ def _switch_nginx_tls_to_letsencrypt(domain: str) -> tuple[bool, str]:
         stderr = (test.stderr or "").strip()[-300:]
         return False, f"nginx config test failed: {stderr}"
 
-    reload_result = subprocess.run(["systemctl", "reload", "nginx"], capture_output=True, text=True, timeout=20, check=False)
+    reload_result = subprocess.run(["sudo", "systemctl", "reload", "nginx"], capture_output=True, text=True, timeout=20, check=False)
     if reload_result.returncode != 0:
         stderr = (reload_result.stderr or "").strip()[-300:]
         return False, f"nginx reload failed: {stderr}"
