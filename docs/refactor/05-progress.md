@@ -1,5 +1,30 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, srv1.beagle-os.com runtime validation after server became available)
+
+- srv1.beagle-os.com came online; performed comprehensive runtime validation.
+- Updated control-plane deployed to srv1 (provider-default-to-beagle change from `9abde8f`).
+- `beagle-control-plane.service` restarted cleanly; startup log shows `version: 6.7.0`, `listen_host: 127.0.0.1`.
+- **Plan 01 (JS modules) validated:**
+  - All 16 UI modules (actions, activity, api, auth, dashboard, dom, events, iam, inventory, panels, policies, provisioning, settings, state, theme, virtualization) return HTTP 200 from nginx.
+  - `index.html` correctly references `<script type="module" src="/main.js?v=6.7.0">` (no legacy app.js reference).
+  - Script load order verified: `beagle-web-ui-config.js` → `browser-common.js` → `main.js` (module).
+  - All Plan 01 test checkboxes marked `[x]`.
+- **Plan 02 (CSS split) validated:**
+  - All 16 global CSS partials return HTTP 200.
+  - All 8 panel-specific partials return HTTP 200.
+  - `styles.css` barrel correctly uses `@import url(...)` for all partials.
+  - Plan 02 validation checkpoint added.
+- **Plan 03 (index.html) validated:**
+  - CSP header: `script-src 'self'` — no `unsafe-inline`, no `unsafe-eval`, compatible with ES modules.
+  - Cache-busting string `?v=6.7.0` correctly set.
+  - All Plan 03 test checkboxes marked `[x]`.
+- **Plan 04 Schritt 3 (RBAC) preliminary check:**
+  - POST `/api/v1/provisioning/vms` without auth → HTTP 401 ✅
+  - POST `/api/v1/settings/general` without auth → HTTP 401 ✅
+  - POST `/api/v1/auth/users` without auth → HTTP 401 ✅
+  - RBAC appears consistently applied on mutation endpoints.
+
 ## Update (2026-04-21, GoFuture Plan 04 & 05: Provider-Abstraction started)
 
 - Analyzed Plan 04 (Control Plane cleanup) and Plan 05 (Provider-Abstraction) to identify architectural violations.

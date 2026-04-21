@@ -146,6 +146,8 @@ eine einzelne kurze Datei.
 - [x] Datei `website/styles/_helpers.css` anlegen (Spacing-Helpers, Hidden-Helper, Zeilen 1557–1576).
 - [x] Nav-Badge in `_nav.css` integrieren (Zeilen 2237–2250).
 
+> srv1-Validierung 2026-04-21: alle 16 CSS-Partials (globale Layer) + alle 8 Panel-Partials liefern HTTP 200, styles.css barrel mit `@import` korrekt, keine Browserblock-Fehler.
+
 Navigations-Styles (Sidebar-Nav-Items, aktive Zustände, Nav-Badges für "Coming Soon")
 gehören in `_nav.css`. Layout-Hilfsklassen (`.hidden`, `.sr-only`, `.mt-*`) kommen in
 `_helpers.css`. Diese Trennung verhindert, dass Utility-Klassen in Panel-spezifischen

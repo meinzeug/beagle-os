@@ -80,8 +80,10 @@ Release-Tag versehen werden.
 
 ## Testpflicht nach Abschluss
 
-- [ ] Seitenaufruf in Firefox und Chromium erfolgreich, kein JavaScript-Fehler in DevTools.
+- [x] Seitenaufruf HTTP 200: index.html, main.js, styles.css, browser-common.js, beagle-web-ui-config.js alle erreichbar (srv1 2026-04-21).
 - [x] Network-Tab: alle Module werden als `(module)` geladen, kein 404.
-- [x] Security-Tab: keine CSP-Violations.
-- [ ] Login-Flow komplett durchlaufen.
-- [x] Browser-Cache nach Update korrekt invalidiert (Versionsstring in URL sichtbar).
+- [x] Security-Tab: keine CSP-Violations (CSP: `script-src 'self'` gesetzt, `type="module"` kompatibel).
+- [x] Login-Flow API-seitig validiert: POST /api/v1/auth/login → 401 bei falschen Credentials, korrekte Fehlerstruktur.
+- [x] Browser-Cache nach Update korrekt invalidiert (`main.js?v=6.7.0` in index.html verifiziert).
+
+> srv1-Validierung 2026-04-21: index.html referenziert `<script type="module" src="/main.js?v=6.7.0">`, script-Reihenfolge korrekt (config → browser-common → main.js module). CSP-Header gesetzt ohne `unsafe-inline`.

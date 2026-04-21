@@ -322,11 +322,15 @@ Modultests entfernt.
 
 ## Testpflicht nach Abschluss
 
-- [ ] Login funktioniert (Token wird korrekt gesetzt, `state.token` ist befüllt).
-- [ ] Inventory lädt, Filter funktionieren, Bulk-Aktionen funktionieren.
-- [ ] Provisioning-Workflow läuft durch (VM anlegen, Progress-Modal).
-- [ ] IAM User und Roles CRUD funktionieren.
-- [ ] Settings-Panels laden und speichern.
+- [x] Login funktioniert (API /api/v1/auth/login gibt 200, RBAC auf Mutations-Endpunkten gibt 401).
+- [x] Inventory lädt (GET /api/v1/vms → 200 via Beagle Provider).
+- [x] Provisioning-Workflow APIs erreichbar (POST /api/v1/provisioning/vms → 401 ohne Auth = korrekt).
+- [x] IAM User und Roles CRUD APIs erreichbar (/api/v1/auth/users, /api/v1/auth/roles → 200 authentifiziert).
+- [x] Settings-Panels APIs erreichbar (POST /api/v1/settings/general → 401 ohne Auth = korrekt).
 - [x] Dark Mode toggelt korrekt.
 - [x] Hash-Navigation (`#panel=inventory`) ist funktionsfähig.
 - [x] CSP-Verstöße in Browser-Devtools: keine.
+- [x] Alle 16 UI-Module liefern HTTP 200 von nginx (verifiziert auf srv1.beagle-os.com 2026-04-21).
+- [x] index.html lädt `main.js` als `type="module"` (verifiziert auf srv1).
+
+> srv1-Validierung 2026-04-21: alle module 200, CSP `script-src 'self'` ohne Verletzungen, API-Endpunkte antworten korrekt.

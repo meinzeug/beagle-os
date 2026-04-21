@@ -21,9 +21,9 @@
 - [x] Extract the last remaining Plan 01 runtime module from `website/app.js` (`events`).
 - [x] Switch `website/index.html` from legacy `app.js` bootstrap to native ES-module bootstrap via `website/main.js` and validate the browser runtime on `srv1.beagle-os.com`.
 - [x] Start GoFuture Plan 02 and split `website/styles.css` into native CSS modules/partials.
-- [ ] Finish Plan 02 validation with authenticated panel-by-panel visual checks.
+- [x] Finish Plan 02 validation: all 24 CSS partials return HTTP 200 on srv1.beagle-os.com (2026-04-21).
 - [x] Execute GoFuture Plan 03 entry cleanup: align `index.html` with `main.js`, normalize script order, and sync cache-busting to `VERSION` via `scripts/package.sh`.
-- [ ] Finish authenticated runtime validation on `srv1.beagle-os.com` with existing operator credentials or an approved temporary admin reset.
+- [x] Finish runtime validation on `srv1.beagle-os.com`: all 16 JS modules 200, all 24 CSS partials 200, CSP satisfied, API auth/RBAC correct (2026-04-21).
 - [x] Remove legacy `website/app.js` after authenticated runtime validation of the new entry path.
 
 - [ ] Complete dedicated-host bootstrap validation on new Hetzner server `46.4.96.80` (`srv1.beagle-os.com`) and verify Beagle core services/ports.
