@@ -32,8 +32,6 @@ Live-Build-Konfiguration durch Profil-Selektion.
 
 ### Schritt 2 — Enrollment-Flow implementieren
 
-- [ ] Endpoint zeigt QR-Code und Short-Code nach Boot.
-- [ ] Web Console: "Neuen Endpoint enrollen" Dialog der Token generiert und QR-Code anzeigt.
 
 Der Enrollment-Flow ersetzt den manuellen Konfigurations-Prozess durch einen geführten
 Pairing-Dialog. Beim ersten Boot zeigt der Endpoint einen kurzen alphanumerischen Code
@@ -46,7 +44,6 @@ versehentliches Re-Enrollment zu verhindern.
 
 ---
 
-### Schritt 3 — A/B-Update-System implementieren
 
 - [ ] Endpoint-OS bekommt zwei System-Slots (A/B) mit Boot-Loader-Slot-Switch.
 - [ ] Update-Service zieht signiertes Image, schreibt in inaktiven Slot, switcht nach Reboot.
