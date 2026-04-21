@@ -451,7 +451,7 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   install -d -m 0755 /etc/beagle/novnc
   touch /etc/beagle/novnc/tokens
   chown root:"$BEAGLE_CONTROL_USER" /etc/beagle/novnc /etc/beagle/novnc/tokens
-  chmod 0750 /etc/beagle/novnc
+  chmod 0770 /etc/beagle/novnc
   chmod 0660 /etc/beagle/novnc/tokens
 
   # Deploy single-use noVNC token plugin for websockify
