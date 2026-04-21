@@ -11,13 +11,20 @@ MEMORY_MB="${BEAGLE_LIVE_SMOKE_MEMORY_MB:-2048}"
 VCPUS="${BEAGLE_LIVE_SMOKE_VCPUS:-2}"
 NETWORK_NAME="${BEAGLE_LIVE_SMOKE_NETWORK:-default}"
 ISO_STAGING_PATH="${BEAGLE_LIVE_SMOKE_ISO_STAGING:-/tmp/${VM_NAME}.iso}"
+GRAPHICS_MODE="${BEAGLE_LIVE_SMOKE_GRAPHICS:-vnc,listen=127.0.0.1}"
 WAIT_VM_SECONDS="${BEAGLE_LIVE_SMOKE_WAIT_VM_SECONDS:-45}"
 WAIT_DHCP_SECONDS="${BEAGLE_LIVE_SMOKE_WAIT_DHCP_SECONDS:-120}"
 WAIT_HEALTH_SECONDS="${BEAGLE_LIVE_SMOKE_WAIT_HEALTH_SECONDS:-240}"
 REQUIRE_HEALTH="${BEAGLE_LIVE_SMOKE_REQUIRE_HEALTH:-0}"
+REQUIRE_INSTALLER_BANNER="${BEAGLE_LIVE_SMOKE_REQUIRE_INSTALLER_BANNER:-0}"
+REQUIRE_INSTALLER_SCREENSHOT="${BEAGLE_LIVE_SMOKE_REQUIRE_INSTALLER_SCREENSHOT:-1}"
+WAIT_BANNER_SECONDS="${BEAGLE_LIVE_SMOKE_WAIT_BANNER_SECONDS:-120}"
+WAIT_SCREENSHOT_SECONDS="${BEAGLE_LIVE_SMOKE_WAIT_SCREENSHOT_SECONDS:-120}"
+SKIP_DHCP="${BEAGLE_LIVE_SMOKE_SKIP_DHCP:-1}"
 KEEP_VM="${BEAGLE_LIVE_SMOKE_KEEP_VM:-0}"
 LIVE_SMOKE_MIN_DISK_FREE_GIB="${BEAGLE_LIVE_SMOKE_MIN_DISK_FREE_GIB:-$((DISK_SIZE_GB + 4))}"
 LIVE_SMOKE_MIN_STAGE_FREE_GIB="${BEAGLE_LIVE_SMOKE_MIN_STAGE_FREE_GIB:-4}"
+SCREENSHOT_PATH="${BEAGLE_LIVE_SMOKE_SCREENSHOT_PATH:-/tmp/${VM_NAME}-installer.ppm}"
 
 require_cmd() {
   local cmd="$1"
@@ -40,10 +47,17 @@ ensure_root() {
     BEAGLE_LIVE_SMOKE_VCPUS="$VCPUS" \
     BEAGLE_LIVE_SMOKE_NETWORK="$NETWORK_NAME" \
     BEAGLE_LIVE_SMOKE_ISO_STAGING="$ISO_STAGING_PATH" \
+    BEAGLE_LIVE_SMOKE_GRAPHICS="$GRAPHICS_MODE" \
     BEAGLE_LIVE_SMOKE_WAIT_VM_SECONDS="$WAIT_VM_SECONDS" \
     BEAGLE_LIVE_SMOKE_WAIT_DHCP_SECONDS="$WAIT_DHCP_SECONDS" \
     BEAGLE_LIVE_SMOKE_WAIT_HEALTH_SECONDS="$WAIT_HEALTH_SECONDS" \
     BEAGLE_LIVE_SMOKE_REQUIRE_HEALTH="$REQUIRE_HEALTH" \
+    BEAGLE_LIVE_SMOKE_REQUIRE_INSTALLER_BANNER="$REQUIRE_INSTALLER_BANNER" \
+    BEAGLE_LIVE_SMOKE_REQUIRE_INSTALLER_SCREENSHOT="$REQUIRE_INSTALLER_SCREENSHOT" \
+    BEAGLE_LIVE_SMOKE_WAIT_BANNER_SECONDS="$WAIT_BANNER_SECONDS" \
+    BEAGLE_LIVE_SMOKE_WAIT_SCREENSHOT_SECONDS="$WAIT_SCREENSHOT_SECONDS" \
+    BEAGLE_LIVE_SMOKE_SKIP_DHCP="$SKIP_DHCP" \
+    BEAGLE_LIVE_SMOKE_SCREENSHOT_PATH="$SCREENSHOT_PATH" \
     BEAGLE_LIVE_SMOKE_KEEP_VM="$KEEP_VM" \
     BEAGLE_LIVE_SMOKE_MIN_DISK_FREE_GIB="$LIVE_SMOKE_MIN_DISK_FREE_GIB" \
     BEAGLE_LIVE_SMOKE_MIN_STAGE_FREE_GIB="$LIVE_SMOKE_MIN_STAGE_FREE_GIB" \
@@ -57,6 +71,7 @@ cleanup() {
   virsh --connect qemu:///system destroy "$VM_NAME" >/dev/null 2>&1 || true
   virsh --connect qemu:///system undefine "$VM_NAME" --remove-all-storage >/dev/null 2>&1 || true
   rm -f "$ISO_STAGING_PATH" >/dev/null 2>&1 || true
+  rm -f "$SCREENSHOT_PATH" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
@@ -108,6 +123,55 @@ wait_for_health() {
   return 1
 }
 
+qemu_log_path() {
+  printf '/var/log/libvirt/qemu/%s.log\n' "$VM_NAME"
+}
+
+wait_for_installer_banner() {
+  local log_file deadline
+  log_file="$(qemu_log_path)"
+  deadline=$((SECONDS + WAIT_BANNER_SECONDS))
+  while (( SECONDS < deadline )); do
+    if [[ -f "$log_file" ]] && grep -Eiq 'Beagle OS Server Installer|Server Installer|beagle-server-installer' "$log_file"; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+screenshot_has_non_uniform_pixels() {
+  local image="$1"
+  [[ -s "$image" ]] || return 1
+  # virsh screenshot commonly writes PNG, regardless of extension; a non-trivial
+  # file size is a robust indicator that the guest framebuffer is available.
+  [[ "$(stat -c%s "$image" 2>/dev/null || echo 0)" -ge 4096 ]]
+}
+
+wait_for_installer_screen() {
+  local deadline
+  deadline=$((SECONDS + WAIT_SCREENSHOT_SECONDS))
+  while (( SECONDS < deadline )); do
+    virsh --connect qemu:///system screenshot "$VM_NAME" "$SCREENSHOT_PATH" >/dev/null 2>&1 || true
+    if screenshot_has_non_uniform_pixels "$SCREENSHOT_PATH"; then
+      return 0
+    fi
+    sleep 3
+  done
+  return 1
+}
+
+graphics_supports_screenshot() {
+  case "$(printf '%s' "$GRAPHICS_MODE" | tr '[:upper:]' '[:lower:]')" in
+    none|nographics)
+      return 1
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
 require_cmd virsh
 require_cmd virt-install
 require_cmd curl
@@ -157,7 +221,7 @@ virt-install \
   --cdrom "$ISO_STAGING_PATH" \
   --disk "path=$DISK_PATH,size=$DISK_SIZE_GB,format=qcow2" \
   --network "network=$NETWORK_NAME" \
-  --nographics \
+  --graphics "$GRAPHICS_MODE" \
   --boot cdrom \
   --osinfo detect=on,require=off \
   --noautoconsole >/dev/null
@@ -174,6 +238,36 @@ if [[ -z "$MAC" ]]; then
 fi
 
 echo "[INFO] VM running, MAC=$MAC"
+
+if [[ "$REQUIRE_INSTALLER_BANNER" == "1" ]]; then
+  echo "[INFO] Waiting for installer banner in QEMU log"
+  if ! wait_for_installer_banner; then
+    echo "[ERROR] Installer banner not observed within ${WAIT_BANNER_SECONDS}s" >&2
+    echo "[ERROR] Log path: $(qemu_log_path)" >&2
+    exit 1
+  fi
+  echo "[INFO] Installer banner detected"
+fi
+
+if [[ "$REQUIRE_INSTALLER_SCREENSHOT" == "1" ]]; then
+  if ! graphics_supports_screenshot; then
+    echo "[ERROR] Installer screenshot check requires graphics mode, current: $GRAPHICS_MODE" >&2
+    exit 1
+  fi
+  echo "[INFO] Waiting for non-empty installer screen capture"
+  if ! wait_for_installer_screen; then
+    echo "[ERROR] Installer screen not detected within ${WAIT_SCREENSHOT_SECONDS}s" >&2
+    echo "[ERROR] Screenshot path: $SCREENSHOT_PATH" >&2
+    exit 1
+  fi
+  echo "[INFO] Installer screen detected via screenshot"
+fi
+
+if [[ "$SKIP_DHCP" == "1" ]]; then
+  echo "[OK] Live-server smoke test passed (DHCP/health skipped)"
+  echo "[OK] VM=$VM_NAME REQUIRE_INSTALLER_BANNER=$REQUIRE_INSTALLER_BANNER SKIP_DHCP=$SKIP_DHCP KEEP_VM=$KEEP_VM"
+  exit 0
+fi
 
 IP="$(wait_for_vm_ip "$MAC" || true)"
 if [[ -z "$IP" ]]; then

@@ -1,5 +1,11 @@
 # Next Steps
 
+## Delta (2026-04-21 nach vollstaendiger Plan-06-Testpflicht)
+
+0. **Plan 06 ist inhaltlich abgeschlossen; Fokus auf Release-Host-Operationalisierung**:
+	- Signatur-Uploadpfad auf dem produktiven Release-Host laufen lassen,
+	- verifizierte `.sig` Assets im naechsten GitHub-Release zwingend mitpublizieren.
+
 ## Delta (2026-04-21 nach Plan 06 Testpflicht-Teilabschluss)
 
 0. **Offene Plan-06-Testpflicht schließen**:

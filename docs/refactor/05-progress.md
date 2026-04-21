@@ -1,5 +1,16 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-21, GoFuture Plan 06 final test checkbox closed)
+
+- `scripts/test-server-installer-live-smoke.sh` erweitert:
+	- screenshot-basierte Installer-Screen-Erkennung,
+	- konfigurierbarer Grafikmodus,
+	- optionale DHCP-Phase (`BEAGLE_LIVE_SMOKE_SKIP_DHCP=1`) fuer schnellen Boot-/Dialog-Nachweis,
+	- robuste Option-Weitergabe bei sudo-Reexec.
+- Lokaler Lauf erfolgreich:
+	- `BEAGLE_LIVE_SMOKE_SKIP_DHCP=1 BEAGLE_LIVE_SMOKE_REQUIRE_INSTALLER_SCREENSHOT=1 scripts/test-server-installer-live-smoke.sh` -> `[OK] Live-server smoke test passed`.
+- Damit ist der letzte offene Plan-06-Testpunkt (`ISO bootet in QEMU-VM, Installer-Dialog erscheint`) in `docs/gofuture/06-server-installer.md` auf `[x]` gesetzt.
+
 ## Update (2026-04-21, GoFuture Plan 06 testpflicht wave: beagle-only host install + artifact verification)
 
 - `scripts/install-beagle-host.sh` weiter auf beagle-only bereinigt:
