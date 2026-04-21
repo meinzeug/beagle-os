@@ -114,10 +114,14 @@ export function loadDashboard(options) {
     dashboardHooks.updateFleetHealthAlert();
     dashboardHooks.setBanner('Verbunden. Inventar, Policies und Virtualisierung sind aktuell.', 'ok');
     if (state.selectedVmid) {
-      return dashboardHooks.loadDetail(state.selectedVmid);
-    }
-    if (dashboardHooks.filteredInventory().length) {
-      return dashboardHooks.loadDetail(dashboardHooks.profileOf(dashboardHooks.filteredInventory()[0]).vmid);
+      // Only restore detail if the VM still exists in the loaded inventory
+      const exists = state.inventory.some((v) => Number(dashboardHooks.profileOf(v).vmid) === state.selectedVmid);
+      if (exists) {
+        return dashboardHooks.loadDetail(state.selectedVmid);
+      }
+      // VM no longer exists — clear it and show the list
+      state.selectedVmid = null;
+      dashboardHooks.renderInventory();
     }
     return null;
   }).catch((error) => {

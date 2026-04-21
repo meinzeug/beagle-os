@@ -532,6 +532,16 @@ export function bootstrapApp() {
     if (hashState.detail && hashState.detail !== state.activeDetailPanel) {
       setActiveDetailPanel(hashState.detail);
     }
+    // Handle vmid in hash (e.g. back/forward navigation)
+    if (hashState.vmid && /^\d+$/.test(hashState.vmid)) {
+      const vmid = Number(hashState.vmid);
+      if (vmid !== state.selectedVmid) {
+        loadDetail(vmid);
+      }
+    } else if (!hashState.vmid && state.selectedVmid && hashState.panel === 'inventory') {
+      // Hash lost vmid — go back to list
+      closeDetail();
+    }
   });
   startDashboardPoll();
 }

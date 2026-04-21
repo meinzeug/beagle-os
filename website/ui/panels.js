@@ -227,12 +227,10 @@ export function setActivePanel(panelName) {
   if (next === 'inventory') {
     const detailPage = document.getElementById('vm-detail-page');
     const listSection = document.getElementById('inventory-section');
-    if (detailPage && !detailPage.hidden) {
-      // stay on detail if already open (navigated via hash)
-    } else {
-      if (listSection) { listSection.hidden = false; listSection.classList.add('panel-section-active'); }
-      if (detailPage)  { detailPage.hidden = true;   detailPage.classList.remove('panel-section-active'); }
-    }
+    // Always reset to list view when navigating to inventory via sidebar
+    state.selectedVmid = null;
+    if (listSection) { listSection.hidden = false; listSection.classList.add('panel-section-active'); }
+    if (detailPage)  { detailPage.hidden = true;   detailPage.classList.remove('panel-section-active'); }
   }
   const meta = panelMeta[next] || panelMeta.overview;
   text('panel-eyebrow', meta.eyebrow);
