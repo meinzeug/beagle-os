@@ -727,24 +727,10 @@ def _certbot_has_plugin(certbot: str, plugin_name: str) -> bool:
 
 
 def _run_certbot_command(cmd: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
-    systemd_run = _which("systemd-run")
-    if systemd_run:
-        transient_cmd = [
-            systemd_run,
-            "--quiet",
-            "--wait",
-            "--pipe",
-            "--collect",
-            "--service-type=exec",
-        ] + cmd
-        return subprocess.run(
-            transient_cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
-
+    # Run certbot directly. Wrapping in systemd-run --service-type=exec requires
+    # interactive D-Bus/PolicyKit authentication which is unavailable from a
+    # background service, causing "Interactive authentication required" errors.
+    # certbot is designed to run standalone as root and needs no transient unit wrapper.
     return subprocess.run(
         cmd,
         capture_output=True,
