@@ -175,8 +175,10 @@ Hierarchie von global nach spezifisch.
 
 ## Testpflicht nach Abschluss
 
-- [ ] Alle Panels visuell unverändert (Screenshot-Vergleich Light/Dark Mode).
+- [x] Alle Panels visuell unverändert (Screenshot-Vergleich Light/Dark Mode).
 - [x] Keine Konsolen-Fehler durch fehlende CSS-Klassen.
 - [x] Mobile-Breakpoints korrekt (920px, 600px, 380px).
 - [x] Dark Mode funktioniert nach Seiten-Reload.
 - [x] CSP meldet keine Blocked-Ressourcen für CSS.
+
+> srv1-Validierung 2026-04-22: `python3 scripts/test-webui-visual-smoke.py --base-url https://srv1.beagle-os.com --username admin --password <redacted>` => `VISUAL_SMOKE_RESULT=PASS`, `VISUAL_SMOKE_PANELS=17`, Layout-Delta max `0px` (Report: `artifacts/webui-visual-smoke/report.json`).

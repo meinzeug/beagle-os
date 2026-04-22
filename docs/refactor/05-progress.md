@@ -1,5 +1,22 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 02 Testpflicht abgeschlossen: Light/Dark Screenshot-Vergleich)
+
+- Offene Plan-02-Checkbox geschlossen: visuelle Stabilitaet aller Panels ist jetzt reproduzierbar validiert.
+- Neues reproduzierbares Smoke-Script `scripts/test-webui-visual-smoke.py` implementiert.
+- Das Script loggt sich gegen die echte WebUI ein, iteriert alle Sidebar-Panels und erzeugt Full-Page-Screenshots fuer Light/Dark.
+- Zusaetzlich wird pro Panel eine Layout-Metrik (Bounding-Rects + Scroll-Dimensionen) verglichen und als JSON reportet.
+- Lokale/Live-Ausfuehrung gegen `https://srv1.beagle-os.com`:
+	- `VISUAL_SMOKE_RESULT=PASS`
+	- `VISUAL_SMOKE_PANELS=17`
+	- maximaler Layout-Delta `0px` (Threshold `4px`)
+	- Report: `artifacts/webui-visual-smoke/report.json`
+- Runtime-Hotfix auf `srv1` waehrend der Validierung:
+	- `/opt/beagle/website/ui/virtualization.js` auf Repo-Stand synchronisiert,
+	- fehlender Export `setStoragePoolQuota` war sonst ein Blocker fuer den `main.js`-Bootstrap.
+- Ergebnis:
+	- GoFuture Plan 02 ist jetzt vollstaendig abgehakt.
+
 ## Update (2026-04-22, GoFuture Plan 11 Schritt 1 abgeschlossen: Endpoint->Manager prepare-stream)
 
 - Offene Schritt-1-Checkbox geschlossen: Moonlight-Client liest lokale Aufloesung und triggert vor Streamstart einen Guest-Display-Prepare-Call.

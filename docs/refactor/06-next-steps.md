@@ -1,5 +1,20 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Abschluss von Plan 02)
+
+0. **Plan 11 Schritt 2 direkt umsetzen (Auto-Pairing Token)**:
+	- `beagle-host/services/pairing_service.py` anlegen,
+	- kurzlebige signierte Pairing-Tokens (VM/Scope/Expiry) einbauen,
+	- Endpoint-Flow von PIN-zentriert auf Token-Exchange umstellen.
+
+0. **Streaming-v2 Runtime hardenen**:
+	- CRTC-Limit fuer 4K-Apply weiter reduzieren (Guest-Grafikpfad),
+	- Moonlight-E2E mit 3840x2160@60 als Ziel-Nachweis abschliessen.
+
+0. **Visual Smoke in Host-Smokes integrieren**:
+	- `scripts/test-webui-visual-smoke.py` in einen bestehenden Host-Smoke-Lauf einhaengen,
+	- damit Light/Dark-Panel-Regressionschecks automatisch pro Deploy laufen.
+
 ## Delta (2026-04-22 nach Abschluss von Plan 10)
 
 0. **Plan 11 Schritt 2 starten (Auto-Pairing Token)**:
