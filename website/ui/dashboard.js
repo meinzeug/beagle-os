@@ -106,7 +106,7 @@ export function loadDashboard(options) {
       const templates = results[9].status === 'fulfilled' ? (results[9].value || { templates: [] }) : { templates: [] };
       const failedRequests = results.filter((result) => result.status !== 'fulfilled').length;
 
-    state.user = me.user || null;
+      state.user = me.user || null;
       state.inventory = vms.vms || [];
       state.endpointReports = endpoints.endpoints || [];
       state.policies = policies.policies || [];
