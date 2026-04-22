@@ -5,7 +5,7 @@ moonlight_pairing_timeout() {
 }
 
 ensure_paired() {
-  local bin host port pin pair_pid paired_ok attempt pair_status target
+  local bin host port pin pair_pid paired_ok attempt pair_status target pairing_token
 
   bin="$(moonlight_bin)"
   host="$(moonlight_connect_host)"
@@ -20,8 +20,16 @@ ensure_paired() {
     moonlight_list && return 0
   fi
 
-  [[ -n "$pin" ]] || return 1
   [[ -n "$target" ]] || return 1
+
+  if request_moonlight_pairing_token_via_manager; then
+    pairing_token="${PVE_THIN_CLIENT_MOONLIGHT_PAIRING_TOKEN:-}"
+    pin="${PVE_THIN_CLIENT_MOONLIGHT_PAIRING_PIN:-}"
+  else
+    pairing_token=""
+  fi
+
+  [[ -n "$pin" ]] || return 1
 
   if command -v timeout >/dev/null 2>&1; then
     timeout --preserve-status "$(moonlight_pairing_timeout)" "$bin" pair "$target" --pin "$pin" >"${MOONLIGHT_PAIR_LOG:-/dev/null}" 2>&1 &
@@ -35,7 +43,12 @@ ensure_paired() {
     if ! kill -0 "$pair_pid" >/dev/null 2>&1; then
       break
     fi
-    if submit_sunshine_pin; then
+    if [[ -n "$pairing_token" ]]; then
+      if exchange_moonlight_pairing_token_via_manager "$pairing_token"; then
+        paired_ok="1"
+        break
+      fi
+    elif submit_sunshine_pin; then
       paired_ok="1"
       break
     fi

@@ -1,5 +1,22 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 11 Schritt 2 abgeschlossen: signiertes Auto-Pairing)
+
+- GoFuture Plan 11 Schritt 2 vollstaendig umgesetzt:
+	- `beagle-host/services/pairing_service.py` erstellt (HMAC-signierte Pairing-Tokens mit Ablaufzeit),
+	- neue Endpoint-Routen `POST /api/v1/endpoints/moonlight/pair-token` und `POST /api/v1/endpoints/moonlight/pair-exchange` in der Endpoint-Surface,
+	- Control-Plane-Wiring fuer Token-Issue/Exchange in `beagle-control-plane.py` integriert.
+- Endpoint-Runtime auf Token-Flow umgestellt:
+	- `thin-client-assistant/runtime/moonlight_manager_registration.sh` erweitert (pair-token + pair-exchange),
+	- `thin-client-assistant/runtime/moonlight_pairing.sh` verwendet zuerst Token-Exchange, dann Legacy-Fallback.
+- Live-Fehler auf `srv1.beagle-os.com` (pair-token `500`) root-caused und behoben:
+	- Ursache: `PermissionError` im Endpoint-Token-Store (`chmod` auf bestehendem `endpoint-tokens`-Verzeichnis unter non-root systemd-User),
+	- Fix: `beagle-host/services/endpoint_token_store.py` macht `chmod` best-effort ohne Hard-Fail.
+- Reproduzierbare Validierung:
+	- Unit: `python3 -m pytest tests/unit/test_endpoint_token_store.py tests/unit/test_endpoint_http_surface.py tests/unit/test_pairing_service.py -q` => `11 passed`.
+	- Live: `POST /api/v1/endpoints/moonlight/pair-token` auf `srv1` liefert `201` inkl. signiertem Pairing-Token und PIN.
+	- Audit: keine neuen `request.unhandled_exception`-Eintraege fuer den vorherigen Permission-Fehlerpfad.
+
 ## Update (2026-04-22, GoFuture Plan 02 Testpflicht abgeschlossen: Light/Dark Screenshot-Vergleich)
 
 - Offene Plan-02-Checkbox geschlossen: visuelle Stabilitaet aller Panels ist jetzt reproduzierbar validiert.

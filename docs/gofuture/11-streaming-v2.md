@@ -54,8 +54,26 @@ Ein virtuelles Display ist notwendig damit Sunshine eine Auflösung rendern kann
 
 ### Schritt 2 — Auto-Pairing per signiertem Token implementieren
 
-- [ ] `beagle-host/services/pairing_service.py` anlegen: Pairing-Token erzeugen, signieren, validieren.
-- [ ] Sunshine/Apollo-Pairing-PIN durch Token-Exchange ersetzen.
+- [x] `beagle-host/services/pairing_service.py` anlegen: Pairing-Token erzeugen, signieren, validieren.
+- [x] Sunshine/Apollo-Pairing-PIN durch Token-Exchange ersetzen.
+
+Umsetzung (2026-04-22):
+- Neues Service-Modul `beagle-host/services/pairing_service.py` mit HMAC-SHA256 signierten, kurzlebigen Pairing-Tokens (`issued_at`, `expires_at`, Scope/VM/Endpoint-Bindung).
+- Neue Endpoint-API-Routen:
+	- `POST /api/v1/endpoints/moonlight/pair-token`
+	- `POST /api/v1/endpoints/moonlight/pair-exchange`
+- Control-Plane-Wiring in `beagle-host/bin/beagle-control-plane.py` + Endpoint-Surface in `beagle-host/services/endpoint_http_surface.py` umgesetzt.
+- Endpoint-Runtime umgestellt:
+	- `thin-client-assistant/runtime/moonlight_manager_registration.sh` nutzt Token-Ausgabe + Exchange-Call,
+	- `thin-client-assistant/runtime/moonlight_pairing.sh` versucht zuerst Token-Exchange und faellt bei Bedarf auf Legacy-PIN-Submit zurueck.
+- Stabilitaetsfix fuer Endpoint-Auth-Token-Lookup auf non-root Runtime:
+	- `beagle-host/services/endpoint_token_store.py` ignoriert `chmod`-Fehler robust statt `500`.
+
+Validierung:
+- Unit-Tests: `python3 -m pytest tests/unit/test_endpoint_token_store.py tests/unit/test_endpoint_http_surface.py tests/unit/test_pairing_service.py -q` => `11 passed`.
+- Live auf `srv1.beagle-os.com`:
+	- `POST /api/v1/endpoints/moonlight/pair-token` => `201` mit signiertem Token + PIN,
+	- keine `request.unhandled_exception`-Events mehr fuer den vorherigen `PermissionError` im Endpoint-Token-Pfad.
 
 Der manuelle PIN-Pairing-Prozess von Sunshine ist für Enterprise-VDI-Deployments nicht skalierbar. Ein signierter Token aus der Web Console ersetzt den PIN: Der Admin generiert einen Pairing-Token für eine VM (oder Pool) in der Web Console; der Token enthält verschlüsselt: VM-ID, Tenant-ID, Ablaufzeit, Berechtigungsscope. Das Endpoint-OS oder der Browser übergibt diesen Token beim ersten Verbindungsaufbau. Sunshine/Apollo bekommt einen HTTP-Hook den Beagle aufrufen kann um das Pairing automatisch zu bestätigen. Das verhindert dass Endnutzer einen manuellen PIN-Dialog auf der VM sehen müssen.
 

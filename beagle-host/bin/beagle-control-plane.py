@@ -61,6 +61,7 @@ from oidc_service import OidcService
 from persistence_support import PersistenceSupportService
 from policy_normalization import PolicyNormalizationService
 from policy_store import PolicyStoreService
+from pairing_service import PairingService
 from public_http_surface import PublicHttpSurfaceService
 from public_sunshine_surface import PublicSunshineSurfaceService
 from public_ubuntu_install_surface import PublicUbuntuInstallSurfaceService
@@ -272,6 +273,8 @@ NOVNC_TOKEN_FILE = os.environ.get("BEAGLE_NOVNC_TOKEN_FILE", "/etc/beagle/novnc/
 BEAGLE_HOST_PROVIDER_KIND = normalize_provider_kind(os.environ.get("BEAGLE_HOST_PROVIDER", "beagle"))
 ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_SECONDS", "86400"))
 SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_TOKEN_TTL_SECONDS", "600"))
+PAIRING_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_PAIRING_TOKEN_TTL_SECONDS", "120"))
+PAIRING_TOKEN_SECRET = os.environ.get("BEAGLE_PAIRING_TOKEN_SECRET", "").strip()
 USB_TUNNEL_SSH_USER = os.environ.get("BEAGLE_USB_TUNNEL_SSH_USER", "beagle-tunnel").strip() or "beagle-tunnel"
 USB_TUNNEL_HOME_RAW = os.environ.get("BEAGLE_USB_TUNNEL_HOME", "").strip()
 USB_TUNNEL_HOME = Path(USB_TUNNEL_HOME_RAW) if USB_TUNNEL_HOME_RAW else None
@@ -916,6 +919,7 @@ ENROLLMENT_TOKEN_STORE_SERVICE: EnrollmentTokenStoreService | None = None
 SUNSHINE_ACCESS_TOKEN_STORE_SERVICE: SunshineAccessTokenStoreService | None = None
 SUNSHINE_INTEGRATION_SERVICE: SunshineIntegrationService | None = None
 ENDPOINT_TOKEN_STORE_SERVICE: EndpointTokenStoreService | None = None
+PAIRING_SERVICE: PairingService | None = None
 
 
 def endpoints_dir() -> Path:
@@ -1061,6 +1065,18 @@ def sunshine_integration_service() -> SunshineIntegrationService:
             utcnow=utcnow,
         )
     return SUNSHINE_INTEGRATION_SERVICE
+
+
+def pairing_service() -> PairingService:
+    global PAIRING_SERVICE
+    if PAIRING_SERVICE is None:
+        signing_secret = PAIRING_TOKEN_SECRET or API_TOKEN or utility_support_service().random_secret(48)
+        PAIRING_SERVICE = PairingService(
+            signing_secret=signing_secret,
+            token_ttl_seconds=PAIRING_TOKEN_TTL_SECONDS,
+            utcnow=utcnow,
+        )
+    return PAIRING_SERVICE
 
 
 def endpoint_token_store_service() -> EndpointTokenStoreService:
@@ -1580,6 +1596,68 @@ def store_endpoint_token(token: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 def load_endpoint_token(token: str) -> dict[str, Any] | None:
     return endpoint_token_store_service().load(token)
+
+
+def issue_moonlight_pairing_token(vm: VmSummary, endpoint_identity: dict[str, Any], device_name: str) -> dict[str, Any]:
+    pin = random_pin()
+    endpoint_id = str(endpoint_identity.get("endpoint_id", "") or "").strip()
+    hostname = str(endpoint_identity.get("hostname", "") or "").strip()
+    token = pairing_service().issue_token(
+        {
+            "scope": "moonlight.pair",
+            "vmid": int(vm.vmid),
+            "node": str(vm.node),
+            "endpoint_id": endpoint_id,
+            "hostname": hostname,
+            "device_name": str(device_name or "").strip(),
+            "pairing_pin": pin,
+        }
+    )
+    payload = pairing_service().validate_token(token) or {}
+    return {
+        "ok": True,
+        "token": token,
+        "pin": pin,
+        "expires_at": str(payload.get("expires_at", "") or ""),
+    }
+
+
+def exchange_moonlight_pairing_token(vm: VmSummary, endpoint_identity: dict[str, Any], pairing_token: str) -> dict[str, Any]:
+    payload = pairing_service().validate_token(pairing_token)
+    if not isinstance(payload, dict):
+        return {"ok": False, "error": "invalid or expired pairing token"}
+
+    if int(payload.get("vmid", -1)) != int(vm.vmid) or str(payload.get("node", "")).strip() != str(vm.node).strip():
+        return {"ok": False, "error": "pairing token scope mismatch"}
+
+    scoped_endpoint_id = str(payload.get("endpoint_id", "") or "").strip()
+    identity_endpoint_id = str(endpoint_identity.get("endpoint_id", "") or "").strip()
+    if scoped_endpoint_id and identity_endpoint_id and scoped_endpoint_id != identity_endpoint_id:
+        return {"ok": False, "error": "pairing token endpoint mismatch"}
+
+    pin = str(payload.get("pairing_pin", "") or "").strip()
+    if not pin:
+        return {"ok": False, "error": "pairing token missing pin"}
+    device_name = str(payload.get("device_name", "") or "").strip() or f"beagle-vm{vm.vmid}-client"
+
+    status, _, body = proxy_sunshine_request(
+        vm,
+        request_path="/api/pin",
+        query="",
+        method="POST",
+        body=json.dumps({"pin": pin, "name": device_name}, separators=(",", ":"), ensure_ascii=True).encode("utf-8"),
+        request_headers={"Content-Type": "application/json", "Accept": "application/json"},
+    )
+    if int(status) >= 400:
+        return {"ok": False, "error": f"sunshine pin exchange failed with HTTP {int(status)}"}
+
+    try:
+        response_payload = json.loads((body or b"{}").decode("utf-8", errors="replace"))
+    except json.JSONDecodeError:
+        response_payload = {}
+    if not bool((response_payload or {}).get("status")):
+        return {"ok": False, "error": "sunshine pin exchange rejected"}
+    return {"ok": True}
 
 
 def sunshine_proxy_ticket_url(token: str) -> str:
@@ -2234,8 +2312,10 @@ def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
     if ENDPOINT_HTTP_SURFACE_SERVICE is None:
         ENDPOINT_HTTP_SURFACE_SERVICE = EndpointHttpSurfaceService(
             dequeue_vm_actions=dequeue_vm_actions,
+            exchange_moonlight_pairing_token=exchange_moonlight_pairing_token,
             fetch_sunshine_server_identity=fetch_sunshine_server_identity,
             find_vm=find_vm,
+            issue_moonlight_pairing_token=issue_moonlight_pairing_token,
             prepare_virtual_display_on_vm=prepare_virtual_display_on_vm,
             register_moonlight_certificate_on_vm=register_moonlight_certificate_on_vm,
             service_name="beagle-control-plane",

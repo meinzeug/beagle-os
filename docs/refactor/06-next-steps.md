@@ -2,10 +2,10 @@
 
 ## Delta (2026-04-22 nach Abschluss von Plan 02)
 
-0. **Plan 11 Schritt 2 direkt umsetzen (Auto-Pairing Token)**:
-	- `beagle-host/services/pairing_service.py` anlegen,
-	- kurzlebige signierte Pairing-Tokens (VM/Scope/Expiry) einbauen,
-	- Endpoint-Flow von PIN-zentriert auf Token-Exchange umstellen.
+0. **Plan 11 Schritt 3 direkt umsetzen (StreamingProfile)**:
+	- `StreamingProfile`-Objekt in `core/` definieren (Encoder/Bitrate/Resolution/FPS/Codec/HDR),
+	- erste read/write-Surface im Control-Plane vorbereiten,
+	- Profilbindung fuer Pool/VM als naechsten kleinen Runtime-Anchor starten.
 
 0. **Streaming-v2 Runtime hardenen**:
 	- CRTC-Limit fuer 4K-Apply weiter reduzieren (Guest-Grafikpfad),

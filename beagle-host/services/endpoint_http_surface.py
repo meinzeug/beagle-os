@@ -9,8 +9,10 @@ class EndpointHttpSurfaceService:
         self,
         *,
         dequeue_vm_actions: Callable[[str, int], list[dict[str, Any]]],
+        exchange_moonlight_pairing_token: Callable[[Any, dict[str, Any], str], dict[str, Any]],
         fetch_sunshine_server_identity: Callable[[Any, str], dict[str, Any]],
         find_vm: Callable[[int], Any | None],
+        issue_moonlight_pairing_token: Callable[[Any, dict[str, Any], str], dict[str, Any]],
         register_moonlight_certificate_on_vm: Callable[[Any, str], dict[str, Any]],
         service_name: str,
         prepare_virtual_display_on_vm: Callable[[Any, str], dict[str, Any]],
@@ -21,8 +23,10 @@ class EndpointHttpSurfaceService:
         version: str,
     ) -> None:
         self._dequeue_vm_actions = dequeue_vm_actions
+        self._exchange_moonlight_pairing_token = exchange_moonlight_pairing_token
         self._fetch_sunshine_server_identity = fetch_sunshine_server_identity
         self._find_vm = find_vm
+        self._issue_moonlight_pairing_token = issue_moonlight_pairing_token
         self._register_moonlight_certificate_on_vm = register_moonlight_certificate_on_vm
         self._prepare_virtual_display_on_vm = prepare_virtual_display_on_vm
         self._service_name = str(service_name or "beagle-control-plane")
@@ -55,6 +59,8 @@ class EndpointHttpSurfaceService:
         return path in {
             "/api/v1/endpoints/moonlight/register",
             "/api/v1/endpoints/moonlight/prepare-stream",
+            "/api/v1/endpoints/moonlight/pair-token",
+            "/api/v1/endpoints/moonlight/pair-exchange",
             "/api/v1/endpoints/actions/pull",
             "/api/v1/endpoints/actions/result",
             "/api/v1/endpoints/support-bundles/upload",
@@ -65,6 +71,8 @@ class EndpointHttpSurfaceService:
         return path in {
             "/api/v1/endpoints/moonlight/register",
             "/api/v1/endpoints/moonlight/prepare-stream",
+            "/api/v1/endpoints/moonlight/pair-token",
+            "/api/v1/endpoints/moonlight/pair-exchange",
             "/api/v1/endpoints/actions/pull",
             "/api/v1/endpoints/actions/result",
         }
@@ -162,6 +170,95 @@ class EndpointHttpSurfaceService:
                     ),
                 },
             )
+
+        if path == "/api/v1/endpoints/moonlight/pair-token":
+            vmid = int(identity.get("vmid", 0) or 0)
+            vm = self._find_vm(vmid)
+            if vm is None or str(identity.get("node", "")).strip() != vm.node:
+                return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            device_name = (
+                str(payload.get("device_name", "")).strip()
+                or str(identity.get("hostname", "")).strip()
+                or f"beagle-vm{vmid}-client"
+            )
+            try:
+                issued = self._issue_moonlight_pairing_token(vm, identity, device_name)
+            except Exception as exc:
+                return self._json_response(
+                    HTTPStatus.BAD_GATEWAY,
+                    {
+                        "ok": False,
+                        "error": f"pair token issue failed: {exc}",
+                        **self._envelope(vmid=vm.vmid, node=vm.node, device_name=device_name),
+                    },
+                )
+            if not bool(issued.get("ok")):
+                return self._json_response(
+                    HTTPStatus.BAD_GATEWAY,
+                    {
+                        "ok": False,
+                        "error": str(issued.get("error", "pair token issue failed") or "pair token issue failed"),
+                        **self._envelope(vmid=vm.vmid, node=vm.node, device_name=device_name),
+                    },
+                )
+            return self._json_response(
+                HTTPStatus.CREATED,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        vmid=vm.vmid,
+                        node=vm.node,
+                        device_name=device_name,
+                        pairing={
+                            "token": str(issued.get("token", "") or ""),
+                            "pin": str(issued.get("pin", "") or ""),
+                            "expires_at": str(issued.get("expires_at", "") or ""),
+                        },
+                    ),
+                },
+            )
+
+        if path == "/api/v1/endpoints/moonlight/pair-exchange":
+            vmid = int(identity.get("vmid", 0) or 0)
+            vm = self._find_vm(vmid)
+            if vm is None or str(identity.get("node", "")).strip() != vm.node:
+                return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            token = str(payload.get("pairing_token", "")).strip()
+            if not token:
+                return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid payload: missing pairing_token"})
+
+            try:
+                exchanged = self._exchange_moonlight_pairing_token(vm, identity, token)
+            except Exception as exc:
+                return self._json_response(
+                    HTTPStatus.BAD_GATEWAY,
+                    {
+                        "ok": False,
+                        "error": f"pair exchange failed: {exc}",
+                        **self._envelope(vmid=vm.vmid, node=vm.node),
+                    },
+                )
+            if not bool(exchanged.get("ok")):
+                return self._json_response(
+                    HTTPStatus.BAD_GATEWAY,
+                    {
+                        "ok": False,
+                        "error": str(exchanged.get("error", "pair exchange failed") or "pair exchange failed"),
+                        **self._envelope(vmid=vm.vmid, node=vm.node),
+                    },
+                )
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(vmid=vm.vmid, node=vm.node, paired=True),
+                },
+            )
+
         if path == "/api/v1/endpoints/actions/pull":
             payload = json_payload if isinstance(json_payload, dict) else {}
             try:

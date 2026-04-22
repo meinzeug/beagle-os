@@ -31,7 +31,11 @@ class EndpointTokenStoreService:
     def tokens_dir(self) -> Path:
         path = self._data_dir() / "endpoint-tokens"
         path.mkdir(parents=True, exist_ok=True)
-        os.chmod(path, 0o700)
+        try:
+            os.chmod(path, 0o700)
+        except OSError:
+            # Keep operating if mode changes are blocked by FS permissions.
+            pass
         return path
 
     def token_path(self, token: str) -> Path:

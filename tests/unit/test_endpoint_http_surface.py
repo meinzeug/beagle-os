@@ -34,8 +34,15 @@ def _service(*, prepare_ok: bool = True) -> EndpointHttpSurfaceService:
 
     return EndpointHttpSurfaceService(
         dequeue_vm_actions=lambda node, vmid: [],
+        exchange_moonlight_pairing_token=lambda vm, endpoint_identity, pairing_token: {"ok": pairing_token == "valid-token"},
         fetch_sunshine_server_identity=lambda vm, guest_user: {},
         find_vm=_find,
+        issue_moonlight_pairing_token=lambda vm, endpoint_identity, device_name: {
+            "ok": True,
+            "token": "valid-token",
+            "pin": "1234",
+            "expires_at": "2026-04-22T00:10:00Z",
+        },
         prepare_virtual_display_on_vm=_prepare,
         register_moonlight_certificate_on_vm=lambda vm, cert, device_name: {"ok": True},
         service_name="beagle-control-plane",
@@ -50,6 +57,8 @@ def _service(*, prepare_ok: bool = True) -> EndpointHttpSurfaceService:
 def test_handles_prepare_stream_path() -> None:
     assert EndpointHttpSurfaceService.handles_path("/api/v1/endpoints/moonlight/prepare-stream") is True
     assert EndpointHttpSurfaceService.requires_json_body("/api/v1/endpoints/moonlight/prepare-stream") is True
+    assert EndpointHttpSurfaceService.handles_path("/api/v1/endpoints/moonlight/pair-token") is True
+    assert EndpointHttpSurfaceService.handles_path("/api/v1/endpoints/moonlight/pair-exchange") is True
 
 
 def test_prepare_stream_route_success() -> None:
@@ -90,3 +99,44 @@ def test_prepare_stream_route_requires_resolution() -> None:
 
     assert int(response["status"]) == 400
     assert "missing resolution" in response["payload"]["error"]
+
+
+def test_pair_token_route_success() -> None:
+    service = _service()
+    response = service.route_post(
+        "/api/v1/endpoints/moonlight/pair-token",
+        endpoint_identity={"vmid": 100, "node": "beagle-0", "hostname": "endpoint-a"},
+        query={},
+        json_payload={"device_name": "endpoint-a"},
+    )
+
+    assert int(response["status"]) == 201
+    assert response["payload"]["ok"] is True
+    assert response["payload"]["pairing"]["token"] == "valid-token"
+    assert response["payload"]["pairing"]["pin"] == "1234"
+
+
+def test_pair_exchange_requires_token() -> None:
+    service = _service()
+    response = service.route_post(
+        "/api/v1/endpoints/moonlight/pair-exchange",
+        endpoint_identity={"vmid": 100, "node": "beagle-0", "hostname": "endpoint-a"},
+        query={},
+        json_payload={},
+    )
+
+    assert int(response["status"]) == 400
+    assert "missing pairing_token" in response["payload"]["error"]
+
+
+def test_pair_exchange_success() -> None:
+    service = _service()
+    response = service.route_post(
+        "/api/v1/endpoints/moonlight/pair-exchange",
+        endpoint_identity={"vmid": 100, "node": "beagle-0", "hostname": "endpoint-a"},
+        query={},
+        json_payload={"pairing_token": "valid-token"},
+    )
+
+    assert int(response["status"]) == 200
+    assert response["payload"]["ok"] is True
