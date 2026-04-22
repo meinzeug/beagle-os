@@ -229,8 +229,10 @@ verwendet werden.
 
 ## Testpflicht nach Abschluss
 
-- [ ] Pool von 5 Floating-Non-Persistent-VMs erstellen, alle starten, User bekommt freie VM.
-- [ ] Logout recycelt VM (reset auf Template-Stand) innerhalb von 60 Sekunden.
-- [ ] Persistent-Pool: User bekommt bei zweitem Login dieselbe VM.
-- [ ] Template-Builder: Golden-Image → Template → Pool ohne Fehler.
+- [x] Pool von 5 Floating-Non-Persistent-VMs erstellen, alle starten, User bekommt freie VM.
+- [x] Logout recycelt VM (reset auf Template-Stand) innerhalb von 60 Sekunden.
+- [x] Persistent-Pool: User bekommt bei zweitem Login dieselbe VM.
+- [x] Template-Builder: Golden-Image → Template → Pool ohne Fehler.
 - [ ] Entitlement: User ohne Entitlement sieht Pool nicht.
+
+> Reproduzierbare Smoke-Validierung 2026-04-22: neues Script `scripts/test-vdi-pools-smoke.py` deckt Builder- und Pool-Lifecycle mit Temp-State ab und wurde lokal sowie auf `srv1.beagle-os.com` erfolgreich ausgefuehrt (`VDI_POOL_SMOKE_OK`). Validiert wurden: synthetisches Golden-Image (`qemu-img create`) -> Template-Export -> Pool-Erstellung, Floating-Non-Persistent-Pool mit 5 Slots und erfolgreicher Zuweisung, Release/Recycling <60s, Persistent-Reassign derselben VM sowie API-Guard `403 not entitled to this pool` fuer unberechtigte Nutzer. Offen bleibt die explizite Sichtbarkeits-/Filter-Semantik "User sieht Pool nicht" in der User-facing Surface.

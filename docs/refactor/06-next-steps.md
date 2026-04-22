@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Plan 10 Testpflicht-Slice)
+
+0. **Letzte offene Plan-10-Testpflicht schliessen**:
+	- Entitlement nicht nur als `403` auf `allocate`, sondern als echte Sichtbarkeits-/Filter-Semantik fuer User-Surfaces nachweisen oder implementieren,
+	- anschliessend die letzte Checkbox in `docs/gofuture/10-vdi-pools.md` schliessen.
+
+0. **Plan 11 vorbereiten**:
+	- nach Abschluss der Entitlement-Sichtbarkeit mit `11-streaming-v2.md` weitermachen,
+	- dabei zuerst den kleinsten echten Apollo/vDisplay-Laufzeit-Anchor waehlen.
+
 ## Delta (2026-04-22 nach Plan 10 Schritt 6)
 
 0. **Plan 10 Testpflicht schliessen**:

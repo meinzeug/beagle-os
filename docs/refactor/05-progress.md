@@ -1,5 +1,24 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 10 Testpflicht-Slice: reproduzierbarer VDI Smoke)
+
+- Neues reproduzierbares Smoke-Script `scripts/test-vdi-pools-smoke.py` umgesetzt.
+- Das Script validiert Plan-10-Runtime mit temp-local State statt Live-Daten:
+	- synthetisches Golden-Image per `qemu-img create`,
+	- Template-Export ueber `DesktopTemplateBuilderService`,
+	- Floating-Non-Persistent-Pool mit 5 Slots,
+	- Release/Recycling-Flow inkl. `<60s`-Nachweis,
+	- Persistent-Pool mit Reassign derselben VM,
+	- Throwaway-Control-Plane mit `BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH=1` fuer echte API-Routen (`/pools`, `/entitlements`, `/allocate`, `/release`, `/recycle`).
+- Lokale Validierung:
+	- `python3 scripts/test-vdi-pools-smoke.py` => `VDI_POOL_SMOKE_OK`.
+- Deploy + Runtime-Validierung auf `srv1.beagle-os.com`:
+	- Script nach `/opt/beagle/scripts/test-vdi-pools-smoke.py` ausgerollt,
+	- `cd /opt/beagle && python3 scripts/test-vdi-pools-smoke.py` => `VDI_POOL_SMOKE_OK`.
+- Ergebnis:
+	- GoFuture Plan 10 Testpflicht-Checkboxen fuer Floating-5-Slots, Recycle-<=60s, Persistent-Reassign und Template->Pool geschlossen.
+	- Offen bleibt nur noch der explizite Sichtbarkeitsnachweis "User ohne Entitlement sieht Pool nicht"; aktuell ist reproduzierbar nur der API-Guard `403 not entitled to this pool` verifiziert.
+
 ## Update (2026-04-22, GoFuture Plan 10 Schritt 6: Template-Builder in Web Console)
 
 - Neue VM-Detailaktion `Als Template` in `website/main.js` fuer gestoppte VMs umgesetzt.
