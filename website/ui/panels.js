@@ -350,15 +350,36 @@ export function closeOnboardingModal() {
 }
 
 export function fetchOnboardingStatus() {
-  return fetchWithTimeout(resolveApiTarget('/auth/onboarding/status'), {
-    method: 'GET',
-    credentials: 'same-origin'
-  }).then((response) => {
-    if (!response.ok) {
-      throw new Error('HTTP ' + response.status);
-    }
-    return response.json();
-  }).then((payload) => {
+  const requestStatus = () => {
+    return fetchWithTimeout(resolveApiTarget('/auth/onboarding/status'), {
+      method: 'GET',
+      credentials: 'same-origin'
+    }).then((response) => {
+      if (!response.ok) {
+        throw new Error('HTTP ' + response.status);
+      }
+      return response.json();
+    });
+  };
+
+  // Frontend bootstrap should tolerate short backend restarts and upstream warmup.
+  const retryableStatus = { 502: true, 503: true, 504: true };
+  const requestWithRetry = (attempt) => {
+    return requestStatus().catch((error) => {
+      const match = /HTTP\s+(\d{3})/i.exec(String(error && error.message ? error.message : ''));
+      const status = match ? Number(match[1]) : 0;
+      const shouldRetry = Boolean(retryableStatus[status]) && attempt < 3;
+      if (!shouldRetry) {
+        throw error;
+      }
+      const delayMs = 350 * attempt;
+      return new Promise((resolve) => window.setTimeout(resolve, delayMs)).then(() => {
+        return requestWithRetry(attempt + 1);
+      });
+    });
+  };
+
+  return requestWithRetry(1).then((payload) => {
     const onboarding = payload && payload.onboarding ? payload.onboarding : {};
     state.onboarding = {
       pending: Boolean(onboarding.pending),

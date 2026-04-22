@@ -558,12 +558,12 @@ export function bootstrapApp() {
   updateSettingsVisibility();
 
   fetchOnboardingStatus().catch((error) => {
-    state.onboarding = { pending: true, completed: false };
-    state.token = '';
-    state.refreshToken = '';
-    state.user = null;
-    setAuthMode(false);
-    setBanner('Onboarding-Status konnte nicht geladen werden. Bitte Ersteinrichtung fortsetzen.', 'warn');
+    // Keep current session state intact on transient onboarding status errors.
+    // Otherwise temporary 5xx responses can incorrectly force users into onboarding.
+    if (!state.onboarding || typeof state.onboarding !== 'object') {
+      state.onboarding = { pending: false, completed: false };
+    }
+    setBanner('Onboarding-Status temporaer nicht verfuegbar. Bitte erneut versuchen.', 'warn');
     console.warn('Onboarding status fallback enabled:', error);
   }).then(() => {
     return loadDashboard().then(() => {
