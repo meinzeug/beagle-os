@@ -2,9 +2,9 @@
 
 ## Delta (2026-04-22 nach Plan 07 Schritt 6)
 
-0. **Plan 07 Schritt 3 starten**:
-	- `beagle-host/services/cluster_inventory.py` anlegen und lokale Inventory-Aggregation kapseln,
-	- danach optional Remote-Node-Aggregation über kommende Cluster-RPC-Schicht vorbereiten.
+0. **Plan 07 Schritt 3 fortsetzen**:
+	- bereits umgesetzt: `cluster_inventory.py` + `/api/v1/cluster/inventory`.
+	- als Nächstes: Remote-Node-Aggregation über kommende Cluster-RPC-Schicht vorbereiten.
 
 0. **Cluster-Panel live gegen Multi-Node validieren**:
 	- zwei Testknoten einbinden,

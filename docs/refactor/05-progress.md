@@ -1,5 +1,15 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 07 Schritt 3 (Teil 1): Cluster-Inventory-Service)
+
+- Neues Service-Modul `beagle-host/services/cluster_inventory.py` umgesetzt.
+- `beagle-control-plane.py` verdrahtet den Service als neue Read-API:
+	- `GET /api/v1/cluster/inventory`
+	- `GET /api/v1/cluster/nodes` (Alias)
+- Cluster-Inventory aggregiert Node-Metriken plus VM-Verteilung pro Node und markiert fehlende Nodes als `unreachable`.
+- Unit-Testabdeckung ergänzt mit `tests/unit/test_cluster_inventory.py` (Aggregation + unreachable-Fallback).
+- Damit ist der erste Checkbox-Punkt aus GoFuture Plan 07 Schritt 3 real implementiert.
+
 ## Update (2026-04-22, GoFuture Plan 07 Schritt 6: Cluster Panel in Web Console)
 
 - GoFuture 07 Schritt 6 (beide Checkboxen) umgesetzt: neues `Cluster`-Panel in der Navigation sowie Knotenliste mit Status, CPU-/RAM-Auslastung und VM-Count.

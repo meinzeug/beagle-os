@@ -50,8 +50,15 @@ Service gebündelt. Alle inter-host API-Calls über Port 9089 (gewählt) laufen 
 
 ### Schritt 3 — VM-Inventory über Cluster-Knoten konsolidieren
 
-- [ ] `beagle-host/services/cluster_inventory.py` anlegen der Inventory aus allen Knoten aggregiert.
+- [x] `beagle-host/services/cluster_inventory.py` anlegen der Inventory aus allen Knoten aggregiert.
 - [ ] Web Console zeigt Knoten-Label neben jeder VM.
+
+Umsetzung 2026-04-22:
+- Neues Backend-Service-Modul `beagle-host/services/cluster_inventory.py` eingeführt.
+- Service aggregiert Node-Metadaten (`status`, `cpu`, `mem`, `maxmem`, `maxcpu`) und VM-Verteilung pro Node aus bestehendem VM-Inventory.
+- Unbekannte/temporär nicht gelistete Nodes werden als `unreachable` modelliert, damit VM-Zuordnung im Cluster-Blick erhalten bleibt.
+- Neue Read-Endpunkte freigeschaltet: `GET /api/v1/cluster/inventory` und Alias `GET /api/v1/cluster/nodes`.
+- Unit-Tests ergänzt: `tests/unit/test_cluster_inventory.py`.
 
 Heute zeigt das Inventory nur VMs des lokalen Hosts. Im Cluster-Modus aggregiert
 `cluster_inventory.py` die Inventories aller Knoten über die Cluster-RPC-Schicht.

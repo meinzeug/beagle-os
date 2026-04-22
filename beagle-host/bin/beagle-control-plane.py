@@ -36,6 +36,7 @@ from audit_log import AuditLogService
 from audit_report import AuditReportService
 from auth_session import AuthSessionService, default_now
 from authz_policy import AuthzPolicyService, PERMISSION_CATALOG
+from cluster_inventory import ClusterInventoryService
 from control_plane_read_surface import ControlPlaneReadSurfaceService
 from download_metadata import DownloadMetadataService
 from endpoint_lifecycle_surface import EndpointLifecycleSurfaceService
@@ -842,6 +843,7 @@ DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
 RUNTIME_ENVIRONMENT_SERVICE: RuntimeEnvironmentService | None = None
 UPDATE_FEED_SERVICE: UpdateFeedService | None = None
 FLEET_INVENTORY_SERVICE: FleetInventoryService | None = None
+CLUSTER_INVENTORY_SERVICE: ClusterInventoryService | None = None
 HEALTH_PAYLOAD_SERVICE: HealthPayloadService | None = None
 INSTALLER_PREP_SERVICE: InstallerPrepService | None = None
 INSTALLER_SCRIPT_SERVICE: InstallerScriptService | None = None
@@ -2411,6 +2413,24 @@ def build_vm_inventory() -> dict[str, Any]:
     return fleet_inventory_service().build_inventory()
 
 
+def cluster_inventory_service() -> ClusterInventoryService:
+    global CLUSTER_INVENTORY_SERVICE
+    if CLUSTER_INVENTORY_SERVICE is None:
+        CLUSTER_INVENTORY_SERVICE = ClusterInventoryService(
+            build_vm_inventory=build_vm_inventory,
+            host_provider_kind=BEAGLE_HOST_PROVIDER_KIND,
+            list_nodes_inventory=list_nodes_inventory,
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return CLUSTER_INVENTORY_SERVICE
+
+
+def build_cluster_inventory() -> dict[str, Any]:
+    return cluster_inventory_service().build_inventory()
+
+
 def installer_script_service() -> InstallerScriptService:
     global INSTALLER_SCRIPT_SERVICE
     if INSTALLER_SCRIPT_SERVICE is None:
@@ -3342,6 +3362,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/v1/vms":
             self._write_json(HTTPStatus.OK, build_vm_inventory())
+            return
+        if path == "/api/v1/cluster/inventory" or path == "/api/v1/cluster/nodes":
+            self._write_json(HTTPStatus.OK, build_cluster_inventory())
             return
         if path.startswith("/api/v1/vms/"):
             response = vm_http_surface_service().route_get(path)
