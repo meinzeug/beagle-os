@@ -86,6 +86,9 @@ export function startDashboardPoll() {
     if (!state.autoRefresh || !state.token || document.hidden) {
       return;
     }
+    if (state.liveFeedConnected) {
+      return;
+    }
     if (state.activePanel === 'audit') {
       activityHooks.loadAuditReport();
       return;

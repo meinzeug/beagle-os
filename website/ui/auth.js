@@ -28,7 +28,9 @@ const uiHooks = {
   renderProvisioningWorkspace() {},
   renderEndpointsOverview() {},
   clearSecretVault() {},
-  addToActivityLog() {}
+  addToActivityLog() {},
+  connectLiveUpdates() {},
+  disconnectLiveUpdates() {}
 };
 
 function readStoredToken() {
@@ -79,6 +81,11 @@ export function setSessionTokens(accessToken, refreshToken) {
     writeStoredRefreshToken(state.refreshToken);
   } else {
     clearStoredRefreshToken();
+  }
+  if (state.token) {
+    uiHooks.connectLiveUpdates();
+  } else {
+    uiHooks.disconnectLiveUpdates();
   }
 }
 
@@ -171,6 +178,7 @@ export function clearSessionState(reason, tone) {
   uiHooks.renderVirtualizationInspector();
   uiHooks.renderProvisioningWorkspace();
   uiHooks.renderEndpointsOverview();
+  uiHooks.disconnectLiveUpdates();
   uiHooks.setAuthMode(false);
   uiHooks.setBanner(reason || 'Session gesperrt.', tone || 'warn');
 }
@@ -221,6 +229,7 @@ export function refreshAccessToken() {
       }
       writeStoredToken(state.token);
       state.user = payload.user || state.user;
+      uiHooks.connectLiveUpdates();
       uiHooks.updateSessionChrome();
       return state.token;
     });

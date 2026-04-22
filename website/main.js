@@ -86,6 +86,11 @@ import {
   loadDarkModePreference,
   updateDarkModeButton
 } from './ui/theme.js';
+import {
+  configureLive,
+  connectLiveUpdates,
+  disconnectLiveUpdates
+} from './ui/live.js';
   import { request } from './ui/api.js';
   import {
     actionButton,
@@ -477,12 +482,20 @@ export function bootstrapApp() {
     renderInventory,
     renderVirtualizationOverview,
     renderVirtualizationPanel,
-    renderVirtualizationInspector
-    ,renderProvisioningWorkspace
+    renderVirtualizationInspector,
+    renderProvisioningWorkspace,
+    connectLiveUpdates,
+    disconnectLiveUpdates
   });
   configureActivity({
     loadDashboard,
     loadAuditReport,
+    setBanner
+  });
+  configureLive({
+    loadDashboard,
+    loadAuditReport,
+    addToActivityLog,
     setBanner
   });
   configureDashboard({
@@ -539,7 +552,9 @@ export function bootstrapApp() {
     setBanner('Onboarding-Status konnte nicht geladen werden. Bitte Ersteinrichtung fortsetzen.', 'warn');
     console.warn('Onboarding status fallback enabled:', error);
   }).then(() => {
-    return loadDashboard();
+    return loadDashboard().then(() => {
+      connectLiveUpdates();
+    });
   });
 
   window.setInterval(checkSessionTimeout, 60000);
@@ -563,6 +578,10 @@ export function bootstrapApp() {
     }
   });
   startDashboardPoll();
+
+  window.addEventListener('beforeunload', () => {
+    disconnectLiveUpdates();
+  });
 }
 
 if (document.readyState === 'loading') {

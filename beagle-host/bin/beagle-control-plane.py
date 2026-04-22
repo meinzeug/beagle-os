@@ -2816,6 +2816,62 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return secrets.compare_digest(token, SCIM_BEARER_TOKEN)
 
+    def _stream_principal(self, parsed) -> dict[str, Any] | None:
+        # EventSource cannot send custom Authorization headers, so accept
+        # access_token query parameter for this dedicated stream endpoint.
+        query = parse_qs(parsed.query or "")
+        candidate = str((query.get("access_token") or query.get("token") or [""])[0] or "").strip()
+        if candidate:
+            session_principal = auth_session_service().resolve_access_token(candidate)
+            if session_principal is not None:
+                return session_principal
+            if API_TOKEN and secrets.compare_digest(candidate, API_TOKEN):
+                return {"username": "legacy-api-token", "role": "superadmin", "auth_type": "api_token"}
+        return self._auth_principal()
+
+    def _write_sse_event(self, event_name: str, payload: dict[str, Any]) -> None:
+        body = (
+            f"event: {str(event_name or 'message')}\n"
+            f"data: {json.dumps(payload, ensure_ascii=True, separators=(',', ':'))}\n\n"
+        ).encode("utf-8")
+        self.wfile.write(body)
+        self.wfile.flush()
+
+    def _stream_live_events(self, principal: dict[str, Any]) -> None:
+        try:
+            self.send_response(HTTPStatus.OK)
+            self._send_common_security_headers()
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+
+            self._write_sse_event(
+                "hello",
+                {
+                    "ok": True,
+                    "service": "beagle-control-plane",
+                    "version": VERSION,
+                    "user": str((principal or {}).get("username") or ""),
+                    "ts": utcnow(),
+                },
+            )
+
+            # Keep stream bounded so EventSource reconnects and refreshes auth state.
+            for _ in range(0, 180):
+                time.sleep(5)
+                self._write_sse_event(
+                    "tick",
+                    {
+                        "ok": True,
+                        "ts": utcnow(),
+                        "manager_status": "online",
+                    },
+                )
+        except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
+            return
+
     def _cors_origin(self) -> str:
         origin = normalized_origin(self.headers.get("Origin", ""))
         if origin and origin in cors_allowed_origins():
@@ -3066,6 +3122,14 @@ class Handler(BaseHTTPRequestHandler):
                     "provider_hint": "",
                 }
             self._write_json(HTTPStatus.OK, payload)
+            return
+
+        if path == "/api/v1/events/stream":
+            principal = self._stream_principal(parsed)
+            if principal is None:
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            self._stream_live_events(principal)
             return
 
         if path == "/api/v1/auth/permission-tags":

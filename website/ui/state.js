@@ -171,6 +171,7 @@ export const state = {
   activePanel: 'overview',
   detailCache: Object.create(null),
   autoRefresh: true,
+  liveFeedConnected: false,
   authFailCount: 0,
   authLockUntil: 0
 };
