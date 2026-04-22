@@ -2860,7 +2860,7 @@ class Handler(BaseHTTPRequestHandler):
     def _stream_live_events(self, principal: dict[str, Any]) -> None:
         try:
             self.send_response(HTTPStatus.OK)
-            self._send_common_security_headers()
+            self._write_common_security_headers()
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
             self.send_header("Cache-Control", "no-store")
             self.send_header("Connection", "keep-alive")
@@ -2889,6 +2889,28 @@ class Handler(BaseHTTPRequestHandler):
                         "manager_status": "online",
                     },
                 )
+        except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
+            return
+
+    def _stream_auth_error(self, status: HTTPStatus, code: str = "unauthorized", message: str = "unauthorized") -> None:
+        """Return an SSE-framed auth error so EventSource does not fail with MIME mismatch."""
+        try:
+            self.send_response(status)
+            self._write_common_security_headers()
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "close")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+            self._write_sse_event(
+                "error",
+                {
+                    "ok": False,
+                    "error": str(message or "unauthorized"),
+                    "code": str(code or "unauthorized"),
+                    "ts": utcnow(),
+                },
+            )
         except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
             return
 
@@ -3147,7 +3169,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/v1/events/stream":
             principal = self._stream_principal(parsed)
             if principal is None:
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                self._stream_auth_error(HTTPStatus.UNAUTHORIZED, code="unauthorized", message="unauthorized")
                 return
             self._stream_live_events(principal)
             return
