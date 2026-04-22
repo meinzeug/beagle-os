@@ -523,6 +523,29 @@ server {
         proxy_send_timeout 900;
     }
 
+    # Legacy compatibility for older/cached WebUI clients still calling /api/* directly.
+    location ^~ /api/v1/auth/ {
+      limit_req zone=beagle_auth burst=20 nodelay;
+      proxy_pass ${BEAGLE_API_UPSTREAM}/api/v1/auth/;
+      proxy_http_version 1.1;
+      proxy_set_header Host \$host;
+      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto https;
+      proxy_read_timeout 900;
+      proxy_send_timeout 900;
+    }
+
+    location /api/ {
+      limit_req zone=beagle_api burst=1200 nodelay;
+      proxy_pass ${BEAGLE_API_UPSTREAM}/api/;
+      proxy_http_version 1.1;
+      proxy_set_header Host \$host;
+      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto https;
+      proxy_read_timeout 900;
+      proxy_send_timeout 900;
+    }
+
     location ^~ /novnc/ {
       alias /usr/share/novnc/;
       index vnc.html;
@@ -620,6 +643,29 @@ server {
         proxy_set_header X-Forwarded-Proto https;
         proxy_read_timeout 900;
         proxy_send_timeout 900;
+    }
+
+    # Legacy compatibility for older/cached WebUI clients still calling /api/* directly.
+    location ^~ /api/v1/auth/ {
+      limit_req zone=beagle_auth burst=20 nodelay;
+      proxy_pass ${BEAGLE_API_UPSTREAM}/api/v1/auth/;
+      proxy_http_version 1.1;
+      proxy_set_header Host \$host;
+      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto https;
+      proxy_read_timeout 900;
+      proxy_send_timeout 900;
+    }
+
+    location /api/ {
+      limit_req zone=beagle_api burst=1200 nodelay;
+      proxy_pass ${BEAGLE_API_UPSTREAM}/api/;
+      proxy_http_version 1.1;
+      proxy_set_header Host \$host;
+      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto https;
+      proxy_read_timeout 900;
+      proxy_send_timeout 900;
     }
 
 EOF
