@@ -1,5 +1,20 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 11 Schritt 5 Bootstrap: stream_health Payload vorbereitet)
+
+- Plan 11 Schritt 5 initial eingeleitet (noch nicht abgeschlossen):
+	- `DesktopLease` traegt jetzt optional `stream_health` (`core/virtualization/desktop_pool.py`).
+	- Allocate/Release-Responses liefern ein stabiles Feld `stream_health` (`null` oder Dict) aus `beagle-host/services/pool_manager.py`.
+- Unit-Tests erweitert:
+	- `tests/unit/test_pool_manager.py` prueft, dass `lease_to_dict` `stream_health` bei `None` und bei gesetztem Dict korrekt serialisiert.
+- Live auf `srv1.beagle-os.com` verifiziert:
+	- mit Entitlement + `POST /api/v1/pools/{pool}/vms` + `POST /api/v1/pools/{pool}/allocate` kommt `stream_health: null` sauber zurueck,
+	- `release` zeigt dasselbe Feld ebenfalls konsistent,
+	- End-to-End Cleanup (`release`, `delete pool`) erfolgreich.
+- Wichtige Klarstellung fuer den API-Pfad:
+	- Allocate-Flow laeuft ueber `POST /api/v1/pools/{pool_id}/allocate`.
+	- Der zuvor benutzte Pfad `/api/v1/desktops/allocate` ist in dieser Surface nicht vorhanden (`404`).
+
 ## Update (2026-04-22, GoFuture Plan 11 Schritt 4 abgeschlossen: Audio-Input + Gamepad-Redirect erweitern)
 
 - Plan 11 Schritt 4 erste Parameter-Slice umgesetzt.

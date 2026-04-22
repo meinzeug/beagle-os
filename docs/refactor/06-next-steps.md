@@ -6,6 +6,17 @@
 	- Sunshine/Apollo-Session-Metriken (RTT, FPS, Dropped-Frames, Encoder-Load) via API in `session.stream_health` speichern,
 	- Web-Console Session-Detailansicht mit Stream-Health-Graph erweitern.
 
+## Delta (2026-04-22 nach Plan 11 Schritt 5 Bootstrap)
+
+0. **Plan 11 Schritt 5 weiterziehen (echte Metriken statt `null`)**:
+	- Polling-Quelle fuer Sunshine/Apollo-Stats fest in den Session-/Lease-Flow einhaengen,
+	- `session.stream_health` mit echten Feldern (`rtt_ms`, `fps`, `dropped_frames`, `encoder_load`) fuellen,
+	- API-Vertrag fuer Zeitreihenfenster (z. B. last N samples) festlegen.
+
+0. **Web-Console Session-Detail um Stream-Health erweitern**:
+	- vorhandenes `stream_health` Feld visualisieren (zuerst kompakte KPI-Kacheln),
+	- danach optional Live-Graph fuer Verlauf.
+
 0. **Streaming-v2 Runtime hardenen**:
 	- CRTC-Limit fuer 4K-Apply weiter reduzieren (Guest-Grafikpfad),
 	- Moonlight-E2E mit 3840x2160@60 als Ziel-Nachweis abschliessen.

@@ -10,7 +10,7 @@ if str(ROOT_DIR) not in sys.path:
 if str(ROOT_DIR / "beagle-host" / "services") not in sys.path:
     sys.path.insert(0, str(ROOT_DIR / "beagle-host" / "services"))
 
-from core.virtualization.desktop_pool import DesktopPoolMode, DesktopPoolSpec
+from core.virtualization.desktop_pool import DesktopLease, DesktopPoolMode, DesktopPoolSpec
 from core.virtualization.streaming_profile import StreamingColorCodec, StreamingEncoder, StreamingProfile
 from pool_manager import PoolManagerService
 
@@ -159,6 +159,32 @@ class PoolManagerServiceTests(unittest.TestCase):
         payload = service.pool_info_to_dict(updated)
         self.assertIn("streaming_profile", payload)
         self.assertEqual(payload["streaming_profile"]["encoder"], "software")
+
+    def test_lease_to_dict_includes_stream_health(self) -> None:
+        service = self._build_service()
+        lease_without_health = DesktopLease(
+            pool_id="pool-a",
+            vmid=101,
+            user_id="alice",
+            mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+            state="in_use",
+            assigned_at="2026-04-22T12:00:00Z",
+        )
+        payload_without_health = service.lease_to_dict(lease_without_health)
+        self.assertIn("stream_health", payload_without_health)
+        self.assertIsNone(payload_without_health["stream_health"])
+
+        lease_with_health = DesktopLease(
+            pool_id="pool-a",
+            vmid=101,
+            user_id="alice",
+            mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+            state="in_use",
+            assigned_at="2026-04-22T12:00:00Z",
+            stream_health={"fps": 60, "rtt_ms": 12},
+        )
+        payload_with_health = service.lease_to_dict(lease_with_health)
+        self.assertEqual(payload_with_health["stream_health"], {"fps": 60, "rtt_ms": 12})
 
 
 if __name__ == "__main__":

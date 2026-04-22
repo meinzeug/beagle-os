@@ -383,6 +383,7 @@ class PoolManagerService:
             mode=mode,
             state=str(vm.get("state", _STATE_FREE)),
             assigned_at=str(vm.get("assigned_at") or ""),
+            stream_health=vm.get("stream_health") if isinstance(vm.get("stream_health"), dict) else None,
         )
 
     def pool_info_to_dict(self, info: DesktopPoolInfo) -> dict[str, Any]:
@@ -409,4 +410,5 @@ class PoolManagerService:
             "mode": lease.mode.value if hasattr(lease.mode, "value") else str(lease.mode),
             "state": lease.state,
             "assigned_at": lease.assigned_at,
+            "stream_health": lease.stream_health,
         }

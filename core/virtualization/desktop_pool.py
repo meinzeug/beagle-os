@@ -37,6 +37,7 @@ class DesktopLease:
     mode: DesktopPoolMode
     state: str
     assigned_at: str = ""
+    stream_health: dict | None = None
 
 
 @dataclass(frozen=True)

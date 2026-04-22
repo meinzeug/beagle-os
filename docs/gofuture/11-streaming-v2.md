@@ -150,6 +150,18 @@ Die Audio-Input und Gamepad-Redirect Felder sind nun Backend-seitig typisiert un
 - [ ] Sunshine/Apollo-Metriken (RTT, FPS, Dropped-Frames, Encoder-Load) per API in `session.stream_health` speichern.
 - [ ] Web Console: Stream-Health-Anzeige in der Session-Detailansicht.
 
+Umsetzung (2026-04-22, Bootstrap-Slice):
+- Lease-/Session-Payload vorbereitet:
+	- `DesktopLease` in `core/virtualization/desktop_pool.py` um optionales Feld `stream_health` erweitert.
+	- `beagle-host/services/pool_manager.py` gibt `stream_health` in `lease_to_dict(...)` jetzt stabil immer aus (`null` oder Objekt).
+- API-Surface-Nachweis auf `srv1.beagle-os.com`:
+	- korrekter Allocate-Pfad verifiziert: `POST /api/v1/pools/{pool_id}/allocate` (nicht `/api/v1/desktops/allocate`),
+	- mit Entitlement + registrierter VM liefert Allocate/Release jetzt reproduzierbar `stream_health: null` im JSON.
+- Unit-Absicherung:
+	- `tests/unit/test_pool_manager.py` erweitert: `lease_to_dict` enthaelt `stream_health` sowohl fuer `None` als auch fuer Dict-Werte.
+
+Status: Schritt 5 ist damit technisch initialisiert; die eigentliche Metrik-Erhebung (RTT/FPS/Dropped-Frames/Encoder-Load) und UI-Visualisierung bleiben als naechster Umsetzungsschritt offen.
+
 Stream-Health-Telemetrie ermöglicht proaktives Support-Management: Wenn ein Nutzer hohe Latenz oder Dropped Frames meldet kann der Admin die Session-Metriken einsehen. Sunshine/Apollo bietet eine lokale Stats-API (`/api/v1/stats` oder metrics endpoint). `session_service.py` pollt diese API periodisch und speichert die letzten X Messpunkte im Session-Objekt. Die Web Console zeigt in der Session-Detailansicht ein Live-Graph für Latenz und FPS des aktiven Streams. Session-Health-Daten fließen ebenfalls in den Fleet-Health-Alert-Mechanismus der Web Console ein.
 
 ---
