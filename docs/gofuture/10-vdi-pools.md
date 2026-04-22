@@ -170,8 +170,19 @@ einen gültigen Entitlement für den angefragten Pool hat.
 
 ### Schritt 5 — Pool-Wizard in Web Console
 
-- [ ] Mehrschrittiger Pool-Wizard: Template auswählen → Pool-Größe → Modus → Entitlements → Bestätigung.
-- [ ] Pool-Übersicht: Status jeder VM im Pool (free, in-use, recycling, error).
+- [x] Mehrschrittiger Pool-Wizard: Template auswählen → Pool-Größe → Modus → Entitlements → Bestätigung.
+- [x] Pool-Übersicht: Status jeder VM im Pool (free, in-use, recycling, error).
+
+Umgesetzt (2026-04-22):
+- `website/index.html` auf echten 4-Schritt-Wizard umgestellt (Step-Navigation + Schritt-Panels + Zusammenfassungsseite).
+- `website/ui/policies.js` erweitert um Wizard-State-Logik (`setPoolWizardStep`, `nextPoolWizardStep`, `prevPoolWizardStep`), step-spezifische Validierung und Confirm-Summary vor dem Create.
+- Pool-Overview in `website/ui/policies.js` erweitert: Status-Counter fuer `free`, `in_use`, `recycling`, `error` plus weiterhin Slot-Liste je VM.
+- `website/ui/events.js` verdrahtet Wizard-Navigation (`Weiter`, `Zurueck`, direkter Step-Klick).
+- `website/styles/panels/_policies.css` um Stepper-/Summary-/Status-Styles erweitert.
+- Deploy + Smoke auf `srv1.beagle-os.com` erfolgreich:
+	- `./scripts/install-beagle-host-services.sh` => `INSTALL_OK`
+	- `https://127.0.0.1/` enthaelt `pool-step-btn-4`, `pool-wizard-next`, `pool-overview-stats`.
+	- `GET /beagle-api/api/v1/pools` liefert erwartetes `401` ohne Auth.
 
 Der Pool-Wizard macht das Anlegen eines neuen Desktop-Pools für Betreiber
 ohne Config-File-Kenntnisse zugänglich. Schritt 1: Verfügbare Templates aus dem

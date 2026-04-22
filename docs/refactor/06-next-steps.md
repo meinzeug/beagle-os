@@ -1,5 +1,19 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Plan 10 Schritt 5)
+
+0. **Plan 10 Schritt 6 umsetzen**:
+	- Aktion `Neue VM als Template konvertieren` in der VM-Detailansicht einbauen,
+	- Builder-Status-/Progress-Dialog fuer die Template-Erstellung in der Web Console anbinden.
+
+0. **Plan 10 Testpflicht ausfuehren**:
+	- auf `srv1.beagle-os.com` einen Pool mit 5 `floating_non_persistent`-Desktops erstellen,
+	- Allocate/Release/Recycle inkl. <=60s Reset-Verhalten reproduzierbar testen und dokumentieren.
+
+0. **Plan 10 Entitlement-Runtime gegen echte User pruefen**:
+	- User ohne Entitlement gegen `allocate` pruefen (erwartet `403`),
+	- Sichtbarkeit/Handling in der Web Console mit echten User-Rollen gegenvalidieren.
+
 ## Delta (2026-04-22 nach Plan 10 Schritt 1-4 Backend-Basis)
 
 0. **Plan 10 Web-Console-Surface bauen**:

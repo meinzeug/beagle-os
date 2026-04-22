@@ -1,5 +1,30 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 10 Schritt 5: Pool-Wizard + Pool-Uebersicht)
+
+- Web Console fuer VDI-Pools auf echten Mehrschritt-Wizard umgestellt:
+	- Schritt 1: Template + Pool-ID,
+	- Schritt 2: Groesse/Modus/Ressourcen,
+	- Schritt 3: Entitlements,
+	- Schritt 4: Bestaetigung mit Zusammenfassung.
+- `website/ui/policies.js` erweitert um Wizard-Flow-Logik:
+	- Step-State, Next/Prev/Direct-Step,
+	- step-spezifische Validierung,
+	- Confirm-Summary vor `POST /api/v1/pools`.
+- Pool-Uebersicht erweitert:
+	- VM-Slot-Tabelle bleibt erhalten,
+	- zusaetzliche Status-Summen fuer `free`, `in_use`, `recycling`, `error` pro ausgewaehltem Pool.
+- `website/ui/events.js` um Wizard-Events erweitert (`pool-wizard-next`, `pool-wizard-prev`, Stepper-Klick).
+- `website/styles/panels/_policies.css` mit Stepper-/Summary-/Stats-Styling erweitert.
+- Lokale Validierung:
+	- `node --check` auf geaenderte WebUI-Module erfolgreich,
+	- VSCode-Errors fuer geaenderte Dateien: keine.
+- Deploy + Runtime-Validierung auf `srv1.beagle-os.com`:
+	- Geaenderte Dateien nach `/opt/beagle/website/...` synchronisiert,
+	- `./scripts/install-beagle-host-services.sh` erfolgreich (`INSTALL_OK`),
+	- Live-Smoke: `https://127.0.0.1/` enthaelt `pool-step-btn-4`, `pool-wizard-next`, `pool-overview-stats`,
+	- `GET /beagle-api/api/v1/pools` ohne Auth liefert erwartetes `401`.
+
 ## Update (2026-04-22, GoFuture Plan 10 Schritt 1 Teil 2 + Schritt 2 Teil 2 + Schritt 3 Teil 2 + Schritt 4 Teil 2)
 
 - Neues Service-Modul `beagle-host/services/desktop_template_builder.py` umgesetzt.

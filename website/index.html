@@ -830,6 +830,99 @@
 
           <!-- ============ POLICIES ============ -->
           <section class="panel-section" id="policies-section" data-panel-section="policies">
+            <article class="card section-spaced-tight">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">VDI Pools</span>
+                  <h2>Desktop Pool Wizard</h2>
+                </div>
+                <div class="button-row compact-row">
+                  <button class="button ghost small" id="pool-wizard-reset" type="button">Reset</button>
+                  <button class="button ghost small" id="pool-data-refresh" type="button">Refresh</button>
+                </div>
+              </div>
+
+              <div class="pool-wizard-steps" id="pool-wizard-steps">
+                <button class="pool-wizard-step is-active" type="button" id="pool-step-btn-1" data-pool-step-target="1">1 Template</button>
+                <button class="pool-wizard-step" type="button" id="pool-step-btn-2" data-pool-step-target="2">2 Groesse &amp; Modus</button>
+                <button class="pool-wizard-step" type="button" id="pool-step-btn-3" data-pool-step-target="3">3 Entitlements</button>
+                <button class="pool-wizard-step" type="button" id="pool-step-btn-4" data-pool-step-target="4">4 Bestaetigung</button>
+              </div>
+
+              <div class="pool-wizard-grid" id="pool-wizard-grid">
+                <div class="pool-wizard-step-panel" data-pool-step="1">
+                  <label class="field"><span>Template</span><select id="pool-template" class="input-select"></select></label>
+                  <label class="field"><span>Pool ID</span><input id="pool-id" type="text" placeholder="pool-engineering"></label>
+                </div>
+
+                <div class="pool-wizard-step-panel" data-pool-step="2" hidden>
+                  <label class="field"><span>Modus</span>
+                    <select id="pool-mode" class="input-select">
+                      <option value="floating_non_persistent">floating_non_persistent</option>
+                      <option value="floating_persistent">floating_persistent</option>
+                      <option value="dedicated">dedicated</option>
+                    </select>
+                  </label>
+                  <label class="field"><span>Storage Pool</span><input id="pool-storage" type="text" placeholder="local"></label>
+                  <label class="field"><span>Min Groesse</span><input id="pool-min-size" type="number" min="1" step="1" value="1"></label>
+                  <label class="field"><span>Max Groesse</span><input id="pool-max-size" type="number" min="1" step="1" value="5"></label>
+                  <label class="field"><span>Warm Pool</span><input id="pool-warm-size" type="number" min="0" step="1" value="2"></label>
+                  <label class="field"><span>vCPU pro Desktop</span><input id="pool-cpu" type="number" min="1" step="1" value="2"></label>
+                  <label class="field"><span>RAM MiB pro Desktop</span><input id="pool-memory" type="number" min="1024" step="256" value="4096"></label>
+                </div>
+
+                <div class="pool-wizard-step-panel" data-pool-step="3" hidden>
+                  <label class="field field-wide"><span>Entitlements Benutzer (komma)</span><input id="pool-users" type="text" placeholder="alice,bob"></label>
+                  <label class="field field-wide"><span>Entitlements Gruppen (komma)</span><input id="pool-groups" type="text" placeholder="ops,qa"></label>
+                </div>
+
+                <div class="pool-wizard-step-panel" data-pool-step="4" hidden>
+                  <div class="pool-wizard-summary" id="pool-wizard-summary">
+                    <div class="empty-card">Bitte die Schritte 1 bis 3 ausfuellen.</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="button-row section-spaced">
+                <button class="button ghost" id="pool-wizard-prev" type="button">Zurueck</button>
+                <button class="button ghost" id="pool-wizard-next" type="button">Weiter</button>
+                <button class="button primary" id="pool-create" type="button" hidden>Pool erstellen</button>
+              </div>
+            </article>
+
+            <article class="card section-spaced-tight">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">VDI Runtime</span>
+                  <h2>Pool Uebersicht</h2>
+                </div>
+                <div class="button-row compact-row">
+                  <select id="pool-overview-select" class="input-select compact-select"></select>
+                  <button class="button ghost small" id="pool-overview-refresh" type="button">Status laden</button>
+                </div>
+              </div>
+
+              <div class="table-wrap compact">
+                <table class="vm-table compact-table">
+                  <thead><tr><th>VMID</th><th>User</th><th>Status</th><th>Zugewiesen</th></tr></thead>
+                  <tbody id="pool-overview-body">
+                    <tr><td colspan="4" class="empty-cell">Kein Pool ausgewaehlt.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="pool-overview-stats" id="pool-overview-stats">
+                <span class="chip muted">free 0</span>
+                <span class="chip muted">in_use 0</span>
+                <span class="chip muted">recycling 0</span>
+                <span class="chip muted">error 0</span>
+              </div>
+
+              <div id="pools-list" class="policy-list section-spaced-tight">
+                <div class="empty-card">Keine Pools geladen.</div>
+              </div>
+            </article>
+
             <article class="card">
               <div class="card-head">
                 <div>

@@ -44,9 +44,17 @@ import {
   renderProvisioningWorkspace
 } from './provisioning.js';
 import {
+  createPoolFromWizard,
   deleteSelectedPolicy,
   loadPolicyIntoEditor,
+  nextPoolWizardStep,
+  prevPoolWizardStep,
+  refreshPoolData,
+  refreshPoolOverview,
   resetPolicyEditor,
+  resetPoolWizard,
+  setPoolWizardStep,
+  selectPool,
   savePolicy
 } from './policies.js';
 import {
@@ -595,6 +603,59 @@ export function bindEvents() {
   }
   if (qs('policy-delete')) {
     qs('policy-delete').addEventListener('click', deleteSelectedPolicy);
+  }
+  if (qs('pool-create')) {
+    qs('pool-create').addEventListener('click', createPoolFromWizard);
+  }
+  if (qs('pool-wizard-next')) {
+    qs('pool-wizard-next').addEventListener('click', nextPoolWizardStep);
+  }
+  if (qs('pool-wizard-prev')) {
+    qs('pool-wizard-prev').addEventListener('click', prevPoolWizardStep);
+  }
+  if (qs('pool-wizard-reset')) {
+    qs('pool-wizard-reset').addEventListener('click', () => {
+      resetPoolWizard();
+      eventHooks.setBanner('Pool-Wizard zurueckgesetzt.', 'info');
+    });
+  }
+  if (qs('pool-wizard-steps')) {
+    qs('pool-wizard-steps').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-pool-step-target]');
+      if (!button) {
+        return;
+      }
+      const step = Number(button.getAttribute('data-pool-step-target') || 1);
+      setPoolWizardStep(step);
+    });
+  }
+  if (qs('pool-data-refresh')) {
+    qs('pool-data-refresh').addEventListener('click', () => {
+      refreshPoolData().catch((error) => {
+        eventHooks.setBanner('Pool-Daten konnten nicht geladen werden: ' + error.message, 'warn');
+      });
+    });
+  }
+  if (qs('pool-overview-refresh')) {
+    qs('pool-overview-refresh').addEventListener('click', () => {
+      refreshPoolOverview().catch((error) => {
+        eventHooks.setBanner('Pool-Status konnte nicht geladen werden: ' + error.message, 'warn');
+      });
+    });
+  }
+  if (qs('pool-overview-select')) {
+    qs('pool-overview-select').addEventListener('change', (event) => {
+      selectPool(event.target.value);
+    });
+  }
+  if (qs('pools-list')) {
+    qs('pools-list').addEventListener('click', (event) => {
+      const card = event.target.closest('[data-pool-id]');
+      if (!card) {
+        return;
+      }
+      selectPool(card.getAttribute('data-pool-id'));
+    });
   }
 
   if (qs('iam-refresh')) {

@@ -89,7 +89,9 @@ export function loadDashboard(options) {
     request('/virtualization/overview'),
     request('/provisioning/catalog', { __suppressAuthLock: true }).catch(() => { return { catalog: null }; }),
     request('/auth/users', { __suppressAuthLock: true }).catch(() => []),
-    request('/auth/roles', { __suppressAuthLock: true }).catch(() => [])
+    request('/auth/roles', { __suppressAuthLock: true }).catch(() => []),
+    request('/pools', { __suppressAuthLock: true }).catch(() => ({ pools: [] })),
+    request('/pool-templates', { __suppressAuthLock: true }).catch(() => ({ templates: [] }))
   ]).then((results) => {
     const me = results[0] || {};
     const health = results[1] || {};
@@ -101,6 +103,8 @@ export function loadDashboard(options) {
     state.provisioningCatalog = results[6] && results[6].catalog ? results[6].catalog : null;
     state.authUsers = Array.isArray(results[7]) ? results[7] : [];
     state.authRoles = Array.isArray(results[8]) ? results[8] : [];
+    state.desktopPools = Array.isArray(results[9] && results[9].pools) ? results[9].pools : [];
+    state.poolTemplates = Array.isArray(results[10] && results[10].templates) ? results[10].templates : [];
     dashboardHooks.recordAuthSuccess();
     dashboardHooks.setAuthMode(true);
     dashboardHooks.updateSettingsVisibility();

@@ -8,3 +8,15 @@
 .policy-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .policy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 @media (max-width: 720px) { .policy-grid { grid-template-columns: 1fr; } }
+
+.pool-wizard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.pool-wizard-steps { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.pool-wizard-step { border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text); border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+.pool-wizard-step.is-active { border-color: var(--amber); background: var(--amber-glow); }
+.pool-wizard-step.is-complete { border-color: rgba(31, 193, 127, 0.35); }
+.pool-wizard-step-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.pool-wizard-summary { border: 1px solid var(--border); background: var(--bg-elevated); border-radius: var(--radius); padding: 12px; }
+.compact-select { min-width: 220px; }
+.pool-card-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pool-overview-row td { vertical-align: middle; }
+.pool-overview-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
