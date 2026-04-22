@@ -4,11 +4,12 @@
 
 0. **Plan 08 Testpflicht schließen**:
 	- End-to-End-Validation der Backends (Directory/ZFS/NFS) gegen reale Host-Laufzeit durchführen,
-	- Quota-Ueberschreitungsfall reproduzierbar testen und die letzte Test-Checkbox in `docs/gofuture/08-storage-plane.md` schließen.
+	- die verbleibenden Test-Checkboxen fuer Directory/ZFS/NFS auf echter Runtime schließen.
 
-0. **Quota-Enforcement in Create-Path integrieren**:
-	- `create_volume`-Pfad quota-aware machen (aktuell API + UI vorhanden, harte Abweisung bei Ueberschreitung noch ausstehend),
-	- Fehlerbild standardisieren (`quota_exceeded`) und in API-Regressionstests abdecken.
+0. **Plan 08 Rest-Testpflicht (nur noch Storage-Backends)**:
+	- Directory: VM create/start/snapshot/restore als reproduzierbaren Smoke dokumentieren,
+	- ZFS: Snapshot + Clone auf echtem ZFS-Pool verifizieren,
+	- NFS + Migration: Shared-Storage-Lauf gegen zweiten Knoten mit Live-Migration abschliessen.
 
 ## Delta (2026-04-22 nach Plan 08 Schritt 4)
 

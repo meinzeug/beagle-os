@@ -1,5 +1,22 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 08 Testpflicht: Quota-Ueberschreitung)
+
+- Quota-Enforcement in den Ubuntu-Provisioning-Create-Pfad integriert:
+	- `beagle-host/services/ubuntu_beagle_provisioning.py` erweitert um `enforce_storage_quota(...)`.
+	- Quota-Pruefung wird jetzt vor VM-Erzeugung fuer den Ziel-Storage ausgefuehrt.
+	- Fehlerbild ist reproduzierbar als `quota_exceeded` standardisiert.
+- Control-Plane-Wiring aktualisiert:
+	- `beagle-host/bin/beagle-control-plane.py` uebergibt `get_storage_quota(...)` in den Provisioning-Service.
+- Neue Unit-Testabdeckung:
+	- `tests/unit/test_ubuntu_beagle_provisioning_quota.py` erstellt (2/2 gruen).
+- Live-Deployment + Validierung auf `srv1.beagle-os.com`:
+	- Geaenderte Dateien nach `/opt/beagle/...` ausgerollt, Services mit `scripts/install-beagle-host-services.sh` konsistent nachgezogen.
+	- `beagle-control-plane.service` laeuft danach wieder stabil (`active`).
+	- Reproduzierter API-Smoke: temporaer `quota_bytes=1` auf Pool `local`, danach `POST /api/v1/provisioning/vms` => `400 bad_request` mit `quota_exceeded`.
+	- Urspruengliche Quota nach Testlauf wiederhergestellt (`quota_bytes=0`).
+- Ergebnis: GoFuture Plan 08 Testpflicht-Checkbox "Quota-Ueberschreitung gibt korrekten Fehler zurueck" geschlossen.
+
 ## Update (2026-04-22, GoFuture Plan 08 Schritt 6: Storage-Quotas API + Web Console)
 
 - Neuer persistenter Quota-Service `beagle-host/services/storage_quota.py` umgesetzt (`storage-quotas.json` im Manager-Data-Dir).

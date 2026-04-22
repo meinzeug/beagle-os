@@ -139,4 +139,10 @@ Administratoren können Quotas per API oder Web Console setzen und ändern.
 - [ ] VM mit Directory-Backend anlegen, starten, Snapshot erstellen, Snapshot wiederherstellen.
 - [ ] VM mit ZFS-Backend: Snapshot und Clone erfolgreich.
 - [ ] NFS-Backend: VM auf gemountet-NFS starten, Live-Migration auf zweiten Knoten.
-- [ ] Quota-Überschreitung gibt korrekten Fehler zurück.
+- [x] Quota-Ueberschreitung gibt korrekten Fehler zurueck.
+
+Validierung (2026-04-22, srv1.beagle-os.com):
+- Lokaler Unit-Test `tests/unit/test_ubuntu_beagle_provisioning_quota.py` erfolgreich (2/2).
+- Live-Smoke ueber `POST /api/v1/provisioning/vms` mit temporaer auf `1` Byte gesetzter Pool-Quota:
+	API antwortet reproduzierbar mit `400 bad_request` und Fehlertext `quota_exceeded: pool 'local' ...`.
+- Urspruengliche Pool-Quota nach Testlauf automatisch wiederhergestellt (`quota_bytes: 0`).

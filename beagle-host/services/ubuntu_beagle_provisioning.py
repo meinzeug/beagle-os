@@ -31,6 +31,7 @@ class UbuntuBeagleProvisioningService:
         ensure_vm_secret: Callable[[Any], dict[str, Any]],
         expand_software_packages: Callable[[list[str], list[str]], list[str]],
         find_vm: Callable[..., Any | None],
+        get_storage_quota: Callable[[str], dict[str, Any]],
         get_vm_config: Callable[[str, int], dict[str, Any]],
         invalidate_vm_cache: Callable[[int | None, str], None],
         latest_ubuntu_beagle_state_for_vmid: Callable[..., dict[str, Any] | None],
@@ -93,6 +94,7 @@ class UbuntuBeagleProvisioningService:
         self._ensure_vm_secret = ensure_vm_secret
         self._expand_software_packages = expand_software_packages
         self._find_vm = find_vm
+        self._get_storage_quota = get_storage_quota
         self._get_vm_config = get_vm_config
         self._invalidate_vm_cache = invalidate_vm_cache
         self._latest_ubuntu_beagle_state_for_vmid = latest_ubuntu_beagle_state_for_vmid
@@ -352,6 +354,34 @@ class UbuntuBeagleProvisioningService:
                 if candidate:
                     return candidate
         raise RuntimeError(f"no Proxmox storage with content type '{content_type}' is available")
+
+    def _storage_inventory_entry(self, storage_id: str) -> dict[str, Any] | None:
+        target = str(storage_id or "").strip()
+        if not target:
+            return None
+        for entry in self._provider.list_storage_inventory():
+            if str(entry.get("storage", "")).strip() == target:
+                return entry
+        return None
+
+    def enforce_storage_quota(self, storage_id: str, requested_bytes: int) -> None:
+        pool = str(storage_id or "").strip()
+        if not pool:
+            return
+        requested = max(int(requested_bytes or 0), 0)
+        quota_payload = self._get_storage_quota(pool)
+        quota_bytes = max(int((quota_payload or {}).get("quota_bytes", 0) or 0), 0)
+        if quota_bytes <= 0:
+            return
+        storage_entry = self._storage_inventory_entry(pool)
+        if not isinstance(storage_entry, dict):
+            raise ValueError(f"quota_exceeded: storage pool '{pool}' not found for quota check")
+        used_bytes = max(int(storage_entry.get("used", 0) or 0), 0)
+        if used_bytes + requested > quota_bytes:
+            raise ValueError(
+                "quota_exceeded: "
+                f"pool '{pool}' limit={quota_bytes} used={used_bytes} requested={requested}"
+            )
 
     def local_iso_storage_dir(self) -> Path:
         self._local_iso_dir.mkdir(parents=True, exist_ok=True)
@@ -813,6 +843,7 @@ class UbuntuBeagleProvisioningService:
             "images",
             self._ubuntu_beagle_disk_storage,
         )
+        self.enforce_storage_quota(disk_storage, disk_gb * 1024 * 1024 * 1024)
         guest_user = self._validate_linux_username(
             str(payload.get("guest_user", self._ubuntu_beagle_default_guest_user)).strip() or self._ubuntu_beagle_default_guest_user,
             "guest_user",

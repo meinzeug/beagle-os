@@ -1890,6 +1890,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             ensure_vm_secret=ensure_vm_secret,
             expand_software_packages=ubuntu_beagle_inputs_service().expand_software_packages,
             find_vm=find_vm,
+            get_storage_quota=lambda pool_name: storage_quota_service().get_pool_quota(pool_name),
             get_vm_config=get_vm_config,
             invalidate_vm_cache=invalidate_vm_cache,
             latest_ubuntu_beagle_state_for_vmid=latest_ubuntu_beagle_state_for_vmid,
