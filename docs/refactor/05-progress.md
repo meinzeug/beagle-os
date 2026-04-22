@@ -1,5 +1,19 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 08 Schritt 6: Storage-Quotas API + Web Console)
+
+- Neuer persistenter Quota-Service `beagle-host/services/storage_quota.py` umgesetzt (`storage-quotas.json` im Manager-Data-Dir).
+- Neue API-Routen im Control Plane implementiert:
+	- `GET /api/v1/storage/pools/{pool}/quota`
+	- `PUT /api/v1/storage/pools/{pool}/quota`
+- RBAC/AuthZ fuer Quota-Routen ergänzt (`settings:read` / `settings:write`).
+- Virtualization-Overview liefert jetzt pro Storage-Pool `quota_bytes`.
+- Web Console erweitert:
+	- Storage-Tabellen mit Quota-Spalte,
+	- Quota-Setter-Aktion pro Pool (inkl. Refresh nach Update).
+- Unit-Test `tests/unit/test_storage_quota_service.py` ergänzt.
+- Damit ist GoFuture Plan 08 Schritt 6 vollständig erledigt.
+
 ## Update (2026-04-22, GoFuture Plan 08 Schritt 5: NFS-Backend)
 
 - Neues Provider-Modul `providers/beagle/storage/nfs.py` implementiert (`NfsStorageBackend`).

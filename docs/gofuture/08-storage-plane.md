@@ -111,8 +111,20 @@ Home-Lab- und SMB-Umgebungen gut geeignet.
 
 ### Schritt 6 — Quotas pro Tenant/Pool in Web Console verwalten
 
-- [ ] API-Endpunkt `GET/PUT /api/v1/storage/pools/{pool}/quota` anlegen.
-- [ ] Web Console: Storage-Pool-Übersicht mit Quota-Anzeige und Setter.
+- [x] API-Endpunkt `GET/PUT /api/v1/storage/pools/{pool}/quota` anlegen.
+- [x] Web Console: Storage-Pool-Übersicht mit Quota-Anzeige und Setter.
+
+Umgesetzt (2026-04-22):
+- Neuer persistenter Quota-Service `beagle-host/services/storage_quota.py` eingefuehrt (`/var/lib/beagle/beagle-manager/storage-quotas.json`).
+- Control-Plane-API implementiert:
+	- `GET /api/v1/storage/pools/{pool}/quota`
+	- `PUT /api/v1/storage/pools/{pool}/quota`
+- AuthZ-Mapping ergaenzt (`settings:read`/`settings:write`) fuer beide Quota-Routen.
+- Virtualization-Read-Surface erweitert: Storage-Payload liefert jetzt `quota_bytes` pro Pool.
+- Web Console erweitert:
+	- Storage-Tabellen zeigen Quota-Spalte,
+	- Storage-Pool-Ansicht bietet Quota-Setter (Prompt, PUT, Refresh).
+- Unit-Test `tests/unit/test_storage_quota_service.py` ergänzt.
 
 Quotas auf Storage-Pool-Ebene verhindern dass ein einzelner Tenant oder Pool den
 gesamten verfügbaren Speicher belegt. Die Quota wird beim Volume-`create_volume`-Aufruf

@@ -18,7 +18,8 @@ import { request } from './api.js';
 
 const virtualizationHooks = {
   openInventoryWithNodeFilter() {},
-  setBanner() {}
+  setBanner() {},
+  loadDashboard() {}
 };
 
 export function configureVirtualization(nextHooks) {
@@ -34,7 +35,7 @@ export function renderVirtualizationPanel() {
   }
   if (!overview || !state.token) {
     nodesGrid.innerHTML = '<div class="empty-card">Keine Daten. Verbinde dich zuerst mit dem API-Token.</div>';
-    storageBody.innerHTML = '<tr><td colspan="6" class="empty-cell">Keine Daten verfuegbar.</td></tr>';
+    storageBody.innerHTML = '<tr><td colspan="8" class="empty-cell">Keine Daten verfuegbar.</td></tr>';
     return;
   }
   const nodes = Array.isArray(overview.nodes) ? overview.nodes : [];
@@ -60,9 +61,11 @@ export function renderVirtualizationPanel() {
     }).join('');
   }
   if (!storage.length) {
-    storageBody.innerHTML = '<tr><td colspan="6" class="empty-cell">Kein Storage gefunden.</td></tr>';
+    storageBody.innerHTML = '<tr><td colspan="8" class="empty-cell">Kein Storage gefunden.</td></tr>';
   } else {
     storageBody.innerHTML = storage.map((item) => {
+      const quotaBytes = Number(item.quota_bytes || 0);
+      const quotaText = quotaBytes > 0 ? formatBytes(quotaBytes) : 'Unbegrenzt';
       return '<tr>' +
         '<td><strong>' + escapeHtml(item.name || item.id || '') + '</strong></td>' +
         '<td>' + escapeHtml(item.node || '') + '</td>' +
@@ -70,9 +73,40 @@ export function renderVirtualizationPanel() {
         '<td class="storage-content">' + escapeHtml(item.content || '') + '</td>' +
         '<td class="storage-usage">' + usageBar(item.used, item.total, formatBytes(item.used) + ' / ' + formatBytes(item.total)) + '</td>' +
         '<td>' + formatBytes(item.avail) + '</td>' +
+        '<td>' + escapeHtml(quotaText) + '</td>' +
+        '<td><button type="button" class="button ghost small" data-storage-quota-set="1" data-storage-pool="' + escapeHtml(item.name || item.id || '') + '" data-storage-quota-bytes="' + String(quotaBytes) + '">Quota</button></td>' +
         '</tr>';
     }).join('');
   }
+}
+
+export function setStoragePoolQuota(poolName, currentQuotaBytes) {
+  const pool = String(poolName || '').trim();
+  if (!pool) {
+    virtualizationHooks.setBanner('Storage-Pool fehlt.', 'warn');
+    return;
+  }
+  const currentGiB = Number(currentQuotaBytes || 0) > 0 ? (Number(currentQuotaBytes || 0) / (1024 ** 3)).toFixed(1) : '0';
+  const input = window.prompt('Quota fuer Pool "' + pool + '" in GiB setzen (0 = unbegrenzt):', currentGiB);
+  if (input == null) {
+    return;
+  }
+  const normalized = String(input || '').trim().replace(',', '.');
+  const quotaGiB = Number(normalized || '0');
+  if (!Number.isFinite(quotaGiB) || quotaGiB < 0) {
+    virtualizationHooks.setBanner('Ungueltiger Quota-Wert.', 'warn');
+    return;
+  }
+  const quotaBytes = Math.round(quotaGiB * (1024 ** 3));
+  request('/storage/pools/' + encodeURIComponent(pool) + '/quota', {
+    method: 'PUT',
+    body: { quota_bytes: quotaBytes }
+  }).then(() => {
+    virtualizationHooks.setBanner('Quota fuer Pool ' + pool + ' aktualisiert.', 'ok');
+    virtualizationHooks.loadDashboard();
+  }).catch((error) => {
+    virtualizationHooks.setBanner('Quota-Update fehlgeschlagen: ' + error.message, 'warn');
+  });
 }
 
 export function renderVmConfigPanel(config, interfaces) {
@@ -173,8 +207,10 @@ export function renderVirtualizationOverview() {
   if (storageBody) {
     storageBody.innerHTML = filteredStorage.length ? filteredStorage.map((item) => {
       const usedPercent = Number(item.total || 0) > 0 ? (Number(item.used || 0) / Number(item.total || 0)) * 100 : 0;
-      return '<tr><td>' + escapeHtml(item.name || item.id || 'storage') + '</td><td>' + escapeHtml(item.node || '-') + '</td><td>' + escapeHtml(item.type || '-') + '</td><td>' + escapeHtml(formatGiB(item.used) + ' / ' + formatGiB(item.total) + ' (' + usedPercent.toFixed(0) + '%)') + '</td></tr>';
-    }).join('') : '<tr><td colspan="4" class="empty-cell">Keine Storage-Daten vorhanden.</td></tr>';
+      const quotaBytes = Number(item.quota_bytes || 0);
+      const quotaText = quotaBytes > 0 ? formatGiB(quotaBytes) : 'unbegrenzt';
+      return '<tr><td>' + escapeHtml(item.name || item.id || 'storage') + '</td><td>' + escapeHtml(item.node || '-') + '</td><td>' + escapeHtml(item.type || '-') + '</td><td>' + escapeHtml(formatGiB(item.used) + ' / ' + formatGiB(item.total) + ' (' + usedPercent.toFixed(0) + '%)') + '</td><td>' + escapeHtml(quotaText) + '</td></tr>';
+    }).join('') : '<tr><td colspan="5" class="empty-cell">Keine Storage-Daten vorhanden.</td></tr>';
   }
 
   if (bridgeBody) {

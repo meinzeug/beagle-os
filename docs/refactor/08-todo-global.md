@@ -57,6 +57,7 @@
 - [x] Execute GoFuture Plan 08 Schritt 3: implement LVM-thin backend `providers/beagle/storage/lvm_thin.py` (`lvcreate/lvresize/lvremove/lvs` + clone/snapshot paths) with unit tests and srv1 smoke validation (2026-04-22).
 - [x] Execute GoFuture Plan 08 Schritt 4: implement ZFS backend `providers/beagle/storage/zfs.py` (`zfs create/set/snapshot/clone/destroy/list`) with unit tests and srv1 smoke validation (2026-04-22).
 - [x] Execute GoFuture Plan 08 Schritt 5: implement NFS backend `providers/beagle/storage/nfs.py` with mountpoint guard and qemu-img lifecycle operations plus unit tests and srv1 smoke validation (2026-04-22).
+- [x] Execute GoFuture Plan 08 Schritt 6: implement Storage-Quota API (`GET/PUT /api/v1/storage/pools/{pool}/quota`), persist quota state, and expose quota display/setter in Web Console storage views (2026-04-22).
 - [x] Execute GoFuture Plan 06 Schritt 1: fully read `beagle-server-installer` and document the current installer flow as ASCII diagram in `docs/gofuture/06-server-installer.md` (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 2: refactor server installer + GUI to standalone-only mode and remove Proxmox installer branches (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 3: add central `server-installer/build.env` and wire `scripts/build-server-installer.sh` to load reproducible build dependencies from it (2026-04-21).

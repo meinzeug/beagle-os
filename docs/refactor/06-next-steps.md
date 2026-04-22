@@ -2,13 +2,13 @@
 
 ## Delta (2026-04-22 nach Plan 08 Schritt 5)
 
-0. **Plan 08 Schritt 6 umsetzen**:
-	- Storage-Quota-API `GET/PUT /api/v1/storage/pools/{pool}/quota` im Control-Plane einfuehren,
-	- Quota-State persistent im Manager-Data-Dir verwalten und in Storage-Overview integrieren.
+0. **Plan 08 Testpflicht schließen**:
+	- End-to-End-Validation der Backends (Directory/ZFS/NFS) gegen reale Host-Laufzeit durchführen,
+	- Quota-Ueberschreitungsfall reproduzierbar testen und die letzte Test-Checkbox in `docs/gofuture/08-storage-plane.md` schließen.
 
-0. **Web Console Storage-Quota UI nachziehen**:
-	- Quota-Spalte + Edit-Dialog in der Storage-Pool-Ansicht implementieren,
-	- RBAC/Validation fuer Quota-Updates (nur Admin) durchgaengig testen.
+0. **Quota-Enforcement in Create-Path integrieren**:
+	- `create_volume`-Pfad quota-aware machen (aktuell API + UI vorhanden, harte Abweisung bei Ueberschreitung noch ausstehend),
+	- Fehlerbild standardisieren (`quota_exceeded`) und in API-Regressionstests abdecken.
 
 ## Delta (2026-04-22 nach Plan 08 Schritt 4)
 

@@ -89,6 +89,7 @@ from vm_profile import VmProfileService
 from vm_console_access import VmConsoleAccessService
 from vm_http_surface import VmHttpSurfaceService
 from server_settings import ServerSettingsService
+from storage_quota import StorageQuotaService
 from vm_secret_bootstrap import VmSecretBootstrapService
 from vm_secret_store import VmSecretStoreService
 from vm_state import VmStateService
@@ -430,6 +431,7 @@ AUDIT_EXPORT_SERVICE: AuditExportService | None = None
 AUDIT_REPORT_SERVICE: AuditReportService | None = None
 AUTHZ_POLICY_SERVICE: AuthzPolicyService | None = None
 SERVER_SETTINGS_SERVICE: ServerSettingsService | None = None
+STORAGE_QUOTA_SERVICE: StorageQuotaService | None = None
 WEBHOOK_SERVICE: WebhookService | None = None
 IDENTITY_PROVIDER_REGISTRY_SERVICE: IdentityProviderRegistryService | None = None
 OIDC_SERVICE: OidcService | None = None
@@ -634,6 +636,15 @@ def server_settings_service() -> ServerSettingsService:
             webhook_service=webhook_service(),
         )
     return SERVER_SETTINGS_SERVICE
+
+
+def storage_quota_service() -> StorageQuotaService:
+    global STORAGE_QUOTA_SERVICE
+    if STORAGE_QUOTA_SERVICE is None:
+        STORAGE_QUOTA_SERVICE = StorageQuotaService(
+            state_file=DATA_DIR / "storage-quotas.json",
+        )
+    return STORAGE_QUOTA_SERVICE
 
 
 def webhook_service() -> WebhookService:
@@ -2131,6 +2142,7 @@ def virtualization_read_surface_service() -> VirtualizationReadSurfaceService:
         VIRTUALIZATION_READ_SURFACE_SERVICE = VirtualizationReadSurfaceService(
             find_vm=find_vm,
             get_guest_network_interfaces=lambda vmid: get_guest_network_interfaces(vmid, timeout_seconds=GUEST_AGENT_TIMEOUT_SECONDS),
+            get_storage_quota=lambda pool_name: storage_quota_service().get_pool_quota(pool_name),
             get_vm_config=get_vm_config,
             host_provider_kind=BEAGLE_HOST_PROVIDER_KIND,
             list_bridges_inventory=lambda node="": HOST_PROVIDER.list_bridges(node),
@@ -3360,6 +3372,19 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
             return
 
+        storage_quota_match = re.match(r"^/api/v1/storage/pools/(?P<pool>[A-Za-z0-9._-]+)/quota$", path)
+        if storage_quota_match is not None:
+            if not self._authorize_or_respond("GET", path):
+                return
+            pool_name = str(storage_quota_match.group("pool") or "").strip()
+            try:
+                payload = storage_quota_service().get_pool_quota(pool_name)
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._write_json(HTTPStatus.OK, {"ok": True, **payload})
+            return
+
         if path == "/healthz":
             self._write_json(HTTPStatus.OK, {"ok": True, "service": "beagle-control-plane", "version": VERSION})
             return
@@ -3917,6 +3942,30 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
             return
         if not self._authorize_or_respond("PUT", path):
+            return
+
+        storage_quota_match = re.match(r"^/api/v1/storage/pools/(?P<pool>[A-Za-z0-9._-]+)/quota$", path)
+        if storage_quota_match is not None:
+            try:
+                json_payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            pool_name = str(storage_quota_match.group("pool") or "").strip()
+            quota_bytes = int((json_payload or {}).get("quota_bytes", 0) or 0)
+            try:
+                payload = storage_quota_service().set_pool_quota(pool_name, quota_bytes)
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event(
+                "storage.quota.update",
+                "success",
+                pool=pool_name,
+                quota_bytes=quota_bytes,
+                username=self._requester_identity(),
+            )
+            self._write_json(HTTPStatus.OK, {"ok": True, **payload})
             return
 
         if path.startswith("/api/v1/settings/"):

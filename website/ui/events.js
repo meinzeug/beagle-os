@@ -66,6 +66,7 @@ import {
 import {
   loadVirtualizationInspector,
   loadVmConfig,
+  setStoragePoolQuota,
   setVirtualizationNodeFilter
 } from './virtualization.js';
 import { loadDashboard } from './dashboard.js';
@@ -718,6 +719,17 @@ export function bindEvents() {
   if (qs('clear-virt-node-filter')) {
     qs('clear-virt-node-filter').addEventListener('click', () => {
       setVirtualizationNodeFilter('');
+    });
+  }
+  if (qs('storage-body')) {
+    qs('storage-body').addEventListener('click', (event) => {
+      const trigger = event.target.closest('button[data-storage-quota-set]');
+      if (!trigger) {
+        return;
+      }
+      const poolName = String(trigger.getAttribute('data-storage-pool') || '').trim();
+      const quotaBytes = Number(trigger.getAttribute('data-storage-quota-bytes') || '0');
+      setStoragePoolQuota(poolName, quotaBytes);
     });
   }
   if (qs('virt-inspector-load')) {

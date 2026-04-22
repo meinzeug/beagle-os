@@ -464,7 +464,8 @@ export function bootstrapApp() {
     setBanner
   });
   configureVirtualization({
-    setBanner
+    setBanner,
+    loadDashboard
   });
   configureCluster({
     openInventoryWithNodeFilter,

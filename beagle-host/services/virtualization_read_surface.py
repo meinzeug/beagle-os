@@ -11,6 +11,7 @@ class VirtualizationReadSurfaceService:
         *,
         find_vm: Callable[[int], Any | None],
         get_guest_network_interfaces: Callable[[int], list[dict[str, Any]]],
+        get_storage_quota: Callable[[str], dict[str, Any]],
         get_vm_config: Callable[[str, int], dict[str, Any]],
         host_provider_kind: str,
         list_bridges_inventory: Callable[[str], list[dict[str, Any]]],
@@ -22,6 +23,7 @@ class VirtualizationReadSurfaceService:
     ) -> None:
         self._find_vm = find_vm
         self._get_guest_network_interfaces = get_guest_network_interfaces
+        self._get_storage_quota = get_storage_quota
         self._get_vm_config = get_vm_config
         self._host_provider_kind = str(host_provider_kind or "")
         self._list_bridges_inventory = list_bridges_inventory
@@ -80,10 +82,16 @@ class VirtualizationReadSurfaceService:
                 nodes.append(normalized)
         return nodes
 
-    @staticmethod
-    def _normalize_storage(item: dict[str, Any]) -> dict[str, Any]:
+    def _normalize_storage(self, item: dict[str, Any]) -> dict[str, Any]:
         storage_name = str(item.get("storage") or item.get("name") or "").strip()
         node_name = str(item.get("node") or "").strip()
+        quota = {}
+        if storage_name:
+            try:
+                quota = self._get_storage_quota(storage_name)
+            except Exception:
+                quota = {}
+        quota_bytes = int((quota or {}).get("quota_bytes", 0) or 0)
         return {
             "id": storage_name,
             "name": storage_name,
@@ -95,6 +103,7 @@ class VirtualizationReadSurfaceService:
             "avail": int(item.get("avail", 0) or 0),
             "used": int(item.get("used", 0) or 0),
             "total": int(item.get("total", 0) or 0),
+            "quota_bytes": quota_bytes,
         }
 
     def _storage_payload(self) -> list[dict[str, Any]]:

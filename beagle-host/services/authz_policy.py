@@ -104,6 +104,8 @@ class AuthzPolicyService:
                 return "policy:write"
             if route.startswith("/api/v1/auth/users/") or route.startswith("/api/v1/auth/roles/"):
                 return "auth:write"
+            if re.match(r"^/api/v1/storage/pools/[A-Za-z0-9._-]+/quota$", route):
+                return "settings:write"
             if route.startswith("/api/v1/settings/"):
                 return "settings:write"
         if verb == "DELETE":
@@ -118,6 +120,8 @@ class AuthzPolicyService:
                 return "auth:read"
             if route in {"/api/v1/auth/users", "/api/v1/auth/roles"}:
                 return "auth:read"
+            if re.match(r"^/api/v1/storage/pools/[A-Za-z0-9._-]+/quota$", route):
+                return "settings:read"
             if route.startswith("/api/v1/settings/"):
                 return "settings:read"
             if re.match(r"^/api/v1/sessions/[A-Za-z0-9._:-]+/recording$", route):
