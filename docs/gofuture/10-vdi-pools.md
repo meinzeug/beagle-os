@@ -18,8 +18,17 @@ Desktop zugewiesen; Logout recycelt den Desktop automatisch.
 
 ### Schritt 1 — `DesktopTemplate`-Contract und Builder implementieren
 
-- [ ] `core/virtualization/desktop_template.py` anlegen mit `DesktopTemplate`-Protokoll.
+- [x] `core/virtualization/desktop_template.py` anlegen mit `DesktopTemplate`-Protokoll.
 - [ ] Template-Builder: Snapshot → Sysprep/cloud-init → sealed Backing-Image.
+
+Umgesetzt (2026-04-22, Teil 1/2):
+- Neues Core-Modul `core/virtualization/desktop_template.py` erstellt.
+- Provider-neutrales `DesktopTemplate`-Protocol eingefuehrt (build/get/list/delete).
+- Dataclass-Typen `DesktopTemplateBuildSpec` und `DesktopTemplateInfo` ergaenzt
+	(Template-ID, Source-VM, Snapshot, Backing-Image, CPU/RAM, Software-Metadaten).
+- Unit-Test `tests/unit/test_desktop_template_contract.py` hinzugefuegt (2/2 gruen).
+- srv1-Smoke erfolgreich: Modul nach `/opt/beagle/core/virtualization/desktop_template.py` deployt,
+	Import/Instanziierung per `python3` verifiziert.
 
 Ein `DesktopTemplate` ist das Basis-Image von dem alle Pool-VMs als Linked Clones
 abgeleitet werden. Der Builder-Prozess nimmt eine laufende oder gestoppte VM,

@@ -1,5 +1,20 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 10 Schritt 1 Teil 1: DesktopTemplate-Contract)
+
+- Neues Core-Modul `core/virtualization/desktop_template.py` umgesetzt.
+- Provider-neutrales `DesktopTemplate`-Protocol eingefuehrt mit Lifecycle-Methoden:
+	`build_template`, `get_template`, `list_templates`, `delete_template`.
+- Dataclass-Typen fuer den Builder-/Read-Pfad ergaenzt:
+	- `DesktopTemplateBuildSpec`
+	- `DesktopTemplateInfo`
+- Unit-Test `tests/unit/test_desktop_template_contract.py` erstellt (2/2 gruen).
+- Live-Deploy + Smoke auf `srv1.beagle-os.com`:
+	- Datei nach `/opt/beagle/core/virtualization/desktop_template.py` ausgerollt,
+	- Import/Instanziierung per Python-Smoke erfolgreich (`IMPORT_SMOKE_OK`).
+- Ergebnis: Erste Checkbox aus GoFuture Plan 10 Schritt 1 geschlossen;
+	Builder-Implementierung (zweite Checkbox) bleibt als naechster Block offen.
+
 ## Update (2026-04-22, GoFuture Plan 08 Testpflicht: Quota-Ueberschreitung)
 
 - Quota-Enforcement in den Ubuntu-Provisioning-Create-Pfad integriert:

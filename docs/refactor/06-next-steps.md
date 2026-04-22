@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Plan 10 Schritt 1 Teil 1)
+
+0. **Plan 10 Schritt 1 Teil 2 umsetzen**:
+	- Template-Builder-Service fuer `Snapshot -> Seal -> Backing-Image` implementieren,
+	- API-Seam fuer Build-Start/Status vorbereiten.
+
+0. **Plan 10 Basisschicht fortsetzen**:
+	- anschliessend `core/virtualization/desktop_pool.py` als naechsten Contract-Schritt bauen,
+	- danach Pool-Lifecycle in `beagle-host/services/pool_manager.py` beginnen.
+
 ## Delta (2026-04-22 nach Plan 08 Schritt 5)
 
 0. **Plan 08 Testpflicht schließen**:
