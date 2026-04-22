@@ -46,6 +46,22 @@ class EntitlementServiceTests(unittest.TestCase):
         service.remove_entitlement("pool-b", user_id="alice")
         self.assertFalse(service.is_entitled("pool-b", user_id="alice"))
 
+    def test_can_view_pool_defaults_to_visible_when_unrestricted(self) -> None:
+        service = self._build_service()
+
+        self.assertFalse(service.has_explicit_entitlements("pool-open"))
+        self.assertTrue(service.can_view_pool("pool-open", user_id="alice"))
+        self.assertFalse(service.can_view_pool("pool-open", user_id="alice", allow_unrestricted=False))
+
+    def test_can_view_pool_hides_restricted_pools_from_unentitled_users(self) -> None:
+        service = self._build_service()
+        service.set_entitlements("pool-c", users=["alice"], groups=["ops"])
+
+        self.assertTrue(service.has_explicit_entitlements("pool-c"))
+        self.assertTrue(service.can_view_pool("pool-c", user_id="alice"))
+        self.assertTrue(service.can_view_pool("pool-c", user_id="bob", groups=["ops"]))
+        self.assertFalse(service.can_view_pool("pool-c", user_id="mallory", groups=["sales"]))
+
     def test_rejects_empty_pool_id(self) -> None:
         service = self._build_service()
         with self.assertRaisesRegex(ValueError, "pool_id is required"):

@@ -94,6 +94,22 @@ class EntitlementService:
         groups = [item for item in current["groups"] if item != str(group_id or "").strip()]
         return self.set_entitlements(pool_id, users=users, groups=groups)
 
+    def has_explicit_entitlements(self, pool_id: str) -> bool:
+        current = self.get_entitlements(pool_id)
+        return bool(current["users"] or current["groups"])
+
+    def can_view_pool(
+        self,
+        pool_id: str,
+        *,
+        user_id: str = "",
+        groups: list[str] | None = None,
+        allow_unrestricted: bool = True,
+    ) -> bool:
+        if not self.has_explicit_entitlements(pool_id):
+            return bool(allow_unrestricted)
+        return self.is_entitled(pool_id, user_id=user_id, groups=groups)
+
     def is_entitled(self, pool_id: str, *, user_id: str = "", groups: list[str] | None = None) -> bool:
         current = self.get_entitlements(pool_id)
         user = str(user_id or "").strip()

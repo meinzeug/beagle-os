@@ -1,5 +1,31 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 10 letzte Testpflicht: Entitlement-Sichtbarkeit)
+
+- Serverseitige Pool-Sichtbarkeitsfilter in `beagle-host/bin/beagle-control-plane.py` umgesetzt:
+	- `GET /api/v1/pools` filtert jetzt restriktive Pools fuer nicht berechtigte `pool:read`-User heraus,
+	- `GET /api/v1/pools/{pool}` / `/vms` / `/entitlements` maskieren versteckte Pools als `404 pool not found`,
+	- Operator-/Admin-Bypass bleibt ueber `pool:write` bzw. `*` erhalten.
+- `beagle-host/services/entitlement_service.py` erweitert um explizite Sichtbarkeits-Semantik:
+	- `has_explicit_entitlements(...)`
+	- `can_view_pool(...)`
+- Reproduzierbarer Nachweis erweitert:
+	- `scripts/test-vdi-pools-smoke.py` fuehrt jetzt zusaetzlich einen authentifizierten Visibility-Smoke aus,
+	- Admin sieht alle Pools,
+	- berechtigter User sieht nur unrestricted + entitled Pools,
+	- unberechtigter User sieht restriktive Pools nicht und bekommt bei Direkt-Lookup `404`.
+- Lokale Validierung:
+	- `python3 -m pytest tests/unit/test_entitlement_service.py -q` => `5 passed`
+	- `python3 -m py_compile beagle-host/bin/beagle-control-plane.py` => OK
+	- `python3 scripts/test-vdi-pools-smoke.py` => `VDI_POOL_SMOKE_OK`
+- Deploy + Runtime-Validierung auf `srv1.beagle-os.com`:
+	- `beagle-control-plane.py`, `entitlement_service.py` und `scripts/test-vdi-pools-smoke.py` nach `/opt/beagle` synchronisiert,
+	- `./scripts/install-beagle-host-services.sh` erfolgreich,
+	- `cd /opt/beagle && python3 scripts/test-vdi-pools-smoke.py` => `VDI_POOL_SMOKE_OK`.
+- Ergebnis:
+	- Die letzte offene GoFuture-Plan-10-Testpflicht-Checkbox ist geschlossen.
+	- Plan 10 ist damit vollstaendig abgeschlossen.
+
 ## Update (2026-04-22, GoFuture Plan 10 Testpflicht-Slice: reproduzierbarer VDI Smoke)
 
 - Neues reproduzierbares Smoke-Script `scripts/test-vdi-pools-smoke.py` umgesetzt.

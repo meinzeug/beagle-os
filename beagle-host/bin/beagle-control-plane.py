@@ -3108,6 +3108,41 @@ class Handler(BaseHTTPRequestHandler):
             return self.client_address[0]
         return "unknown"
 
+    def _requester_groups(self) -> list[str]:
+        principal = self._auth_principal() or {}
+        raw_groups = principal.get("groups", [])
+        if isinstance(raw_groups, str):
+            raw_groups = [raw_groups]
+        groups: list[str] = []
+        seen: set[str] = set()
+        for item in raw_groups if isinstance(raw_groups, list) else []:
+            value = str(item or "").strip()
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            groups.append(value)
+        return groups
+
+    def _requester_permissions(self) -> set[str]:
+        principal = self._auth_principal()
+        if principal is None:
+            return set()
+        role = str(principal.get("role") or "viewer").strip().lower() or "viewer"
+        return auth_session_service().role_permissions(role)
+
+    def _can_bypass_pool_visibility(self) -> bool:
+        permissions = self._requester_permissions()
+        return "*" in permissions or "pool:write" in permissions
+
+    def _can_view_pool(self, pool_id: str) -> bool:
+        if self._can_bypass_pool_visibility():
+            return True
+        return entitlement_service().can_view_pool(
+            pool_id,
+            user_id=self._requester_identity(),
+            groups=self._requester_groups(),
+        )
+
     def _write_proxy_response(self, status_code: int, headers: dict[str, str], body: bytes) -> None:
         self.send_response(status_code)
         for key, value in headers.items():
@@ -3428,7 +3463,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/v1/pools":
             if not self._authorize_or_respond("GET", path):
                 return
-            pools = pool_manager_service().list_pools()
+            pools = [pool for pool in pool_manager_service().list_pools() if self._can_view_pool(pool.pool_id)]
             self._write_json(HTTPStatus.OK, {
                 "ok": True,
                 "pools": [pool_manager_service().pool_info_to_dict(p) for p in pools],
@@ -3440,6 +3475,9 @@ class Handler(BaseHTTPRequestHandler):
             if not self._authorize_or_respond("GET", path):
                 return
             pool_id = pool_match.group("pool_id")
+            if not self._can_view_pool(pool_id):
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "pool not found"})
+                return
             pool_info = pool_manager_service().get_pool(pool_id)
             if pool_info is None:
                 self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "pool not found"})
@@ -3452,6 +3490,9 @@ class Handler(BaseHTTPRequestHandler):
             if not self._authorize_or_respond("GET", path):
                 return
             pool_id = pool_vms_match.group("pool_id")
+            if not self._can_view_pool(pool_id):
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "pool not found"})
+                return
             try:
                 desktops = pool_manager_service().list_desktops(pool_id)
             except ValueError as exc:
@@ -3465,6 +3506,9 @@ class Handler(BaseHTTPRequestHandler):
             if not self._authorize_or_respond("GET", path):
                 return
             pool_id = pool_entitlements_get_match.group("pool_id")
+            if not self._can_view_pool(pool_id):
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "pool not found"})
+                return
             try:
                 result = entitlement_service().get_entitlements(pool_id)
             except ValueError as exc:

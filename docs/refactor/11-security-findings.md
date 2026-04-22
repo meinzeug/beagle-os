@@ -2,6 +2,27 @@
 
 Stand: 2026-04-19
 
+## S-015 - Restriktive VDI-Pools waren fuer beliebige `pool:read`-Principals sichtbar
+
+- Status: mitigiert in Repo und auf `srv1.beagle-os.com`
+- Risiko: Mittel
+- Betroffene Dateien:
+  - `beagle-host/bin/beagle-control-plane.py`
+  - `beagle-host/services/entitlement_service.py`
+  - `scripts/test-vdi-pools-smoke.py`
+- Beschreibung:
+  - Die Pool-GET-Routen lieferten bisher alle VDI-Pools an jeden authentifizierten Principal mit `pool:read` aus.
+  - Dadurch waren Pool-IDs, Modi und Slot-Status restriktiver Pools sichtbar, obwohl dieselben User spaeter bei `POST /allocate` korrekt ein `403 not entitled to this pool` erhielten.
+  - Das war ein Informationsleck zwischen Sichtbarkeit und Mutations-Guard.
+- Mitigation:
+  - `GET /api/v1/pools` filtert restriktive Pools jetzt serverseitig anhand der Entitlements.
+  - `GET /api/v1/pools/{pool}`, `/vms` und `/entitlements` maskieren nicht sichtbare Pools als `404 pool not found`.
+  - Operator-/Admin-Bearbeiter mit `pool:write` bzw. `*` behalten den Vollzugriff fuer Betrieb und Diagnose.
+  - `EntitlementService` fuehrt die explizite Sichtbarkeits-Semantik (`has_explicit_entitlements`, `can_view_pool`) zentral.
+  - `scripts/test-vdi-pools-smoke.py` prueft den Fall jetzt reproduzierbar mit echten Bearer-Sessions (Admin vs. berechtigter User vs. unberechtigter User) lokal und auf `srv1.beagle-os.com`.
+- Naechster Schritt:
+  - Wenn Auth-Principals kuenftig echte Gruppenclaims aus OIDC/SAML/SCIM tragen, denselben Sichtbarkeits-/Allocate-Pfad auch fuer Gruppen-Entitlements live verifizieren.
+
 ## S-014 - Audit-Events schrieben Secrets/PII ungeschwaerzt in `old_value` / `new_value`
 
 - Status: mitigiert in Repo und auf `srv1.beagle-os.com`

@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Abschluss von Plan 10)
+
+0. **Plan 11 starten**:
+	- `docs/gofuture/11-streaming-v2.md` lesen,
+	- den kleinsten echten Apollo-/Virtual-Display-Laufzeit-Anchor identifizieren,
+	- den ersten reproduzierbaren Runtime-Schritt auf `srv1.beagle-os.com` umsetzen.
+
+0. **Entitlement-Gruppenpfad spaeter end-to-end schliessen**:
+	- sobald Auth-Principals echte Gruppenclaims tragen (OIDC/SAML/SCIM), dieselbe Sichtbarkeits-/Allocate-Semantik fuer Gruppen-Entitlements gegen echte Gruppenmitglieder validieren.
+
 ## Delta (2026-04-22 nach Plan 10 Testpflicht-Slice)
 
 0. **Letzte offene Plan-10-Testpflicht schliessen**:
