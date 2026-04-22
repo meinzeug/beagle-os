@@ -101,6 +101,22 @@ class AuditLogServiceTests(unittest.TestCase):
         self.assertEqual(record["new_value"]["profile"][0]["session_token"], "[REDACTED]")
         self.assertEqual(record["new_value"]["username"], "alice")
 
+    def test_write_event_calls_export_hook(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir) / "audit" / "events.log"
+            seen = []
+            service = AuditLogService(
+                log_file=log_path,
+                now_utc=lambda: "2026-04-21T10:00:00Z",
+                export_event=lambda payload: seen.append(payload),
+            )
+
+            service.write_event("vm.reboot", "success", {"resource_type": "vm", "resource_id": 77})
+
+            self.assertEqual(len(seen), 1)
+            self.assertEqual(seen[0]["action"], "vm.reboot")
+            self.assertEqual(seen[0]["resource_id"], "77")
+
 
 if __name__ == "__main__":
     unittest.main()

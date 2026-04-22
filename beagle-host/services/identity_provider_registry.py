@@ -81,7 +81,11 @@ class IdentityProviderRegistryService:
         }
 
     def _load_from_registry_file(self) -> list[dict[str, Any]]:
-        raw = self._load_json_file(self._registry_file, {})
+        try:
+            raw = self._load_json_file(self._registry_file, {})
+        except Exception:
+            # Invalid registry path/state must never break login discovery.
+            return []
         if not isinstance(raw, dict):
             return []
         raw_items = raw.get("providers")

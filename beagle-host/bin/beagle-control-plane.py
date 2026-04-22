@@ -31,6 +31,7 @@ from action_queue import ActionQueueService
 from admin_http_surface import AdminHttpSurfaceService
 from auth_http_surface import AuthHttpSurfaceService
 from audit_helpers import build_vm_power_audit_event
+from audit_export import AuditExportConfig, AuditExportService
 from audit_log import AuditLogService
 from audit_report import AuditReportService
 from auth_session import AuthSessionService, default_now
@@ -135,6 +136,17 @@ AUTH_ABSOLUTE_TIMEOUT_SECONDS = int(os.environ.get("BEAGLE_AUTH_ABSOLUTE_TIMEOUT
 AUTH_MAX_SESSIONS_PER_USER = int(os.environ.get("BEAGLE_AUTH_MAX_SESSIONS_PER_USER", "5"))
 API_RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("BEAGLE_API_RATE_LIMIT_WINDOW_SECONDS", "60"))
 API_RATE_LIMIT_MAX_REQUESTS = int(os.environ.get("BEAGLE_API_RATE_LIMIT_MAX_REQUESTS", "240"))
+AUDIT_EXPORT_S3_BUCKET = os.environ.get("BEAGLE_AUDIT_EXPORT_S3_BUCKET", "").strip()
+AUDIT_EXPORT_S3_PREFIX = os.environ.get("BEAGLE_AUDIT_EXPORT_S3_PREFIX", "audit").strip() or "audit"
+AUDIT_EXPORT_S3_REGION = os.environ.get("BEAGLE_AUDIT_EXPORT_S3_REGION", "us-east-1").strip() or "us-east-1"
+AUDIT_EXPORT_S3_ENDPOINT = os.environ.get("BEAGLE_AUDIT_EXPORT_S3_ENDPOINT", "").strip()
+AUDIT_EXPORT_S3_ACCESS_KEY = os.environ.get("BEAGLE_AUDIT_EXPORT_S3_ACCESS_KEY", "").strip()
+AUDIT_EXPORT_S3_SECRET_KEY = os.environ.get("BEAGLE_AUDIT_EXPORT_S3_SECRET_KEY", "").strip()
+AUDIT_EXPORT_SYSLOG_ADDRESS = os.environ.get("BEAGLE_AUDIT_EXPORT_SYSLOG_ADDRESS", "").strip()
+AUDIT_EXPORT_SYSLOG_TRANSPORT = os.environ.get("BEAGLE_AUDIT_EXPORT_SYSLOG_TRANSPORT", "udp").strip() or "udp"
+AUDIT_EXPORT_WEBHOOK_URL = os.environ.get("BEAGLE_AUDIT_EXPORT_WEBHOOK_URL", "").strip()
+AUDIT_EXPORT_WEBHOOK_SECRET = os.environ.get("BEAGLE_AUDIT_EXPORT_WEBHOOK_SECRET", "").strip()
+AUDIT_EXPORT_WEBHOOK_TIMEOUT_SECONDS = float(os.environ.get("BEAGLE_AUDIT_EXPORT_WEBHOOK_TIMEOUT_SECONDS", "5"))
 AUTH_LOGIN_LOCKOUT_THRESHOLD = int(os.environ.get("BEAGLE_AUTH_LOGIN_LOCKOUT_THRESHOLD", "5"))
 AUTH_LOGIN_LOCKOUT_SECONDS = int(os.environ.get("BEAGLE_AUTH_LOGIN_LOCKOUT_SECONDS", "300"))
 AUTH_LOGIN_BACKOFF_MAX_SECONDS = int(os.environ.get("BEAGLE_AUTH_LOGIN_BACKOFF_MAX_SECONDS", "30"))
@@ -413,6 +425,7 @@ METADATA_SUPPORT_SERVICE = MetadataSupportService()
 REQUEST_SUPPORT_SERVICE: RequestSupportService | None = None
 AUTH_SESSION_SERVICE: AuthSessionService | None = None
 AUDIT_LOG_SERVICE: AuditLogService | None = None
+AUDIT_EXPORT_SERVICE: AuditExportService | None = None
 AUDIT_REPORT_SERVICE: AuditReportService | None = None
 AUTHZ_POLICY_SERVICE: AuthzPolicyService | None = None
 SERVER_SETTINGS_SERVICE: ServerSettingsService | None = None
@@ -561,12 +574,36 @@ def auth_session_service() -> AuthSessionService:
     return AUTH_SESSION_SERVICE
 
 
+def audit_export_service() -> AuditExportService:
+    global AUDIT_EXPORT_SERVICE
+    if AUDIT_EXPORT_SERVICE is None:
+        AUDIT_EXPORT_SERVICE = AuditExportService(
+            config=AuditExportConfig(
+                s3_bucket=AUDIT_EXPORT_S3_BUCKET,
+                s3_prefix=AUDIT_EXPORT_S3_PREFIX,
+                s3_region=AUDIT_EXPORT_S3_REGION,
+                s3_endpoint=AUDIT_EXPORT_S3_ENDPOINT,
+                s3_access_key=AUDIT_EXPORT_S3_ACCESS_KEY,
+                s3_secret_key=AUDIT_EXPORT_S3_SECRET_KEY,
+                syslog_address=AUDIT_EXPORT_SYSLOG_ADDRESS,
+                syslog_transport=AUDIT_EXPORT_SYSLOG_TRANSPORT,
+                webhook_url=AUDIT_EXPORT_WEBHOOK_URL,
+                webhook_secret=AUDIT_EXPORT_WEBHOOK_SECRET,
+                webhook_timeout_seconds=AUDIT_EXPORT_WEBHOOK_TIMEOUT_SECONDS,
+            ),
+            data_dir=ensure_data_dir(),
+            now_utc=utcnow,
+        )
+    return AUDIT_EXPORT_SERVICE
+
+
 def audit_log_service() -> AuditLogService:
     global AUDIT_LOG_SERVICE
     if AUDIT_LOG_SERVICE is None:
         AUDIT_LOG_SERVICE = AuditLogService(
             log_file=ensure_data_dir() / "audit" / "events.log",
             now_utc=utcnow,
+            export_event=audit_export_service().export_event,
         )
     return AUDIT_LOG_SERVICE
 
@@ -611,15 +648,26 @@ def webhook_service() -> WebhookService:
 def identity_provider_registry_service() -> IdentityProviderRegistryService:
     global IDENTITY_PROVIDER_REGISTRY_SERVICE
     if IDENTITY_PROVIDER_REGISTRY_SERVICE is None:
-        IDENTITY_PROVIDER_REGISTRY_SERVICE = IdentityProviderRegistryService(
-            load_json_file=load_json_file,
-            registry_file=IDENTITY_PROVIDER_REGISTRY_FILE,
-            oidc_auth_url=OIDC_AUTH_URL,
-            saml_login_url=SAML_LOGIN_URL,
-            public_manager_url=PUBLIC_MANAGER_URL,
-            oidc_enabled=OIDC_ENABLED,
-            saml_enabled=SAML_ENABLED,
-        )
+        try:
+            IDENTITY_PROVIDER_REGISTRY_SERVICE = IdentityProviderRegistryService(
+                load_json_file=load_json_file,
+                registry_file=IDENTITY_PROVIDER_REGISTRY_FILE,
+                oidc_auth_url=OIDC_AUTH_URL,
+                saml_login_url=SAML_LOGIN_URL,
+                public_manager_url=PUBLIC_MANAGER_URL,
+                oidc_enabled=OIDC_ENABLED,
+                saml_enabled=SAML_ENABLED,
+            )
+        except TypeError:
+            # Backward compatibility for stale runtime module copies that may
+            # still expose the pre-oidc/saml constructor signature.
+            IDENTITY_PROVIDER_REGISTRY_SERVICE = IdentityProviderRegistryService(
+                load_json_file=load_json_file,
+                registry_file=IDENTITY_PROVIDER_REGISTRY_FILE,
+                oidc_auth_url=OIDC_AUTH_URL,
+                saml_login_url=SAML_LOGIN_URL,
+                public_manager_url=PUBLIC_MANAGER_URL,
+            )
     return IDENTITY_PROVIDER_REGISTRY_SERVICE
 
 
@@ -2564,6 +2612,7 @@ class Handler(BaseHTTPRequestHandler):
             username=self._requester_identity(),
             remote_addr=self._client_addr(),
             error_type=type(error).__name__,
+            error_message=str(error),
         )
         try:
             self._write_json(
@@ -2998,7 +3047,25 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/v1/auth/providers":
-            self._write_json(HTTPStatus.OK, identity_provider_registry_service().payload())
+            try:
+                payload = identity_provider_registry_service().payload()
+            except Exception:
+                payload = {
+                    "ok": True,
+                    "providers": [
+                        {
+                            "id": "local",
+                            "type": "local",
+                            "label": "Lokaler Account",
+                            "description": "Benutzername + Passwort (Break-Glass).",
+                            "mode": "password",
+                            "enabled": True,
+                            "login_url": "",
+                        }
+                    ],
+                    "provider_hint": "",
+                }
+            self._write_json(HTTPStatus.OK, payload)
             return
 
         if path == "/api/v1/auth/permission-tags":

@@ -16,9 +16,16 @@ from core.audit_event import AuditEvent
 
 
 class AuditLogService:
-    def __init__(self, *, log_file: Path, now_utc: Callable[[], str]) -> None:
+    def __init__(
+        self,
+        *,
+        log_file: Path,
+        now_utc: Callable[[], str],
+        export_event: Callable[[dict[str, Any]], None] | None = None,
+    ) -> None:
         self._log_file = Path(log_file)
         self._now_utc = now_utc
+        self._export_event = export_event
 
     def write_event(self, event_type: str, outcome: str, details: dict[str, Any] | None = None) -> None:
         payload = AuditEvent.create(
@@ -31,3 +38,5 @@ class AuditLogService:
         self._log_file.parent.mkdir(parents=True, exist_ok=True)
         with self._log_file.open("a", encoding="utf-8") as handle:
             handle.write(line)
+        if self._export_event is not None:
+            self._export_event(payload)

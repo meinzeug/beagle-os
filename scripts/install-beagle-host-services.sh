@@ -16,6 +16,7 @@ BEAGLE_PUBLIC_STREAM_SERVICE="beagle-public-streams.service"
 BEAGLE_PUBLIC_STREAM_TIMER="beagle-public-streams.timer"
 BEAGLE_NOVNC_PROXY_SERVICE="beagle-novnc-proxy.service"
 BEAGLE_CONTROL_ENV_FILE="$CONFIG_DIR/beagle-manager.env"
+IDENTITY_PROVIDER_REGISTRY_FILE="${BEAGLE_IDENTITY_PROVIDER_REGISTRY_FILE:-$CONFIG_DIR/identity-providers.json}"
 BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
 BEAGLE_CONTROL_USER="${BEAGLE_CONTROL_USER:-beagle-manager}"
 BEAGLE_AUTH_BOOTSTRAP_USERNAME="${BEAGLE_AUTH_BOOTSTRAP_USERNAME:-admin}"
@@ -398,8 +399,45 @@ EOF
 fi
 chown root:"$BEAGLE_CONTROL_USER" "$BEAGLE_CONTROL_ENV_FILE"
 chmod 0640 "$BEAGLE_CONTROL_ENV_FILE"
+
+if [[ ! -f "$IDENTITY_PROVIDER_REGISTRY_FILE" ]]; then
+  cat > "$IDENTITY_PROVIDER_REGISTRY_FILE" <<'EOF'
+{
+  "providers": [
+    {
+      "id": "local",
+      "type": "local",
+      "label": "Lokaler Account",
+      "description": "Benutzername + Passwort (Break-Glass).",
+      "enabled": true,
+      "login_url": ""
+    },
+    {
+      "id": "oidc",
+      "type": "oidc",
+      "label": "Mit OIDC anmelden",
+      "description": "Single Sign-On ueber OpenID Connect.",
+      "enabled": false,
+      "login_url": "/api/v1/auth/oidc/login"
+    },
+    {
+      "id": "saml",
+      "type": "saml",
+      "label": "Mit SAML anmelden",
+      "description": "Enterprise-Login ueber SAML 2.0.",
+      "enabled": false,
+      "login_url": "/api/v1/auth/saml/login"
+    }
+  ]
+}
+EOF
+fi
+chown root:"$BEAGLE_CONTROL_USER" "$IDENTITY_PROVIDER_REGISTRY_FILE"
+chmod 0640 "$IDENTITY_PROVIDER_REGISTRY_FILE"
+
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_HOST_PROVIDER" "\"$BEAGLE_HOST_PROVIDER\""
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_MANAGER_LISTEN_HOST" '"127.0.0.1"'
+set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_IDENTITY_PROVIDER_REGISTRY_FILE" "\"$IDENTITY_PROVIDER_REGISTRY_FILE\""
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_ACCESS_TTL_SECONDS" '"900"'
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_API_RATE_LIMIT_WINDOW_SECONDS" '"60"'
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_API_RATE_LIMIT_MAX_REQUESTS" '"240"'
