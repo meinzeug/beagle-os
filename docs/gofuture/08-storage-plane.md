@@ -51,7 +51,14 @@ ohne spezialisierte Storage-Hardware. Quotas werden als File-System-Level-Implem
 
 ### Schritt 3 — LVM-Thin-Backend implementieren
 
-- [ ] `providers/beagle/storage/lvm_thin.py` implementiert den Contract für LVM-Thin-Provisioning.
+- [x] `providers/beagle/storage/lvm_thin.py` implementiert den Contract für LVM-Thin-Provisioning.
+
+Umgesetzt (2026-04-22):
+- Neues Modul `providers/beagle/storage/lvm_thin.py` erstellt (`LvmThinStorageBackend`).
+- Contract-Methoden real umgesetzt: `create_volume`, `delete_volume`, `resize_volume`, `snapshot`, `clone`, `list_volumes`.
+- LVM-Befehle integriert: `lvcreate --thin`, `lvcreate -s`, `lvresize`, `lvremove`, `lvs`.
+- Linked-Clone und Full-Clone-Pfad (mit `qemu-img convert` auf Raw-Devices) umgesetzt.
+- Unit-Test `tests/unit/test_lvm_thin_storage_backend.py` ergänzt (4/4 grün).
 
 LVM-Thin-Provisioning ist besonders effizient bei vielen ähnlichen VMs (VDI-Pools)
 da Thin-Volumes nur den tatsächlich genutzten Speicher belegen. `create_volume` legt

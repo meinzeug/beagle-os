@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Plan 08 Schritt 3)
+
+0. **Plan 08 Schritt 4 umsetzen**:
+	- `providers/beagle/storage/zfs.py` auf dem gleichen `StorageClass`-Contract implementieren,
+	- Snapshot-/Clone-Operationen mit nativen `zfs`-Kommandos abdecken.
+
+0. **Cross-Backend Surface angleichen**:
+	- konsistente Volume-ID-/Pool-Semantik fuer directory/lvm/zfs in einem zentralen Storage-Manager harmonisieren,
+	- danach Quota-API (Schritt 6) auf stabilen Backend-Abstraktionen aufsetzen.
+
 ## Delta (2026-04-22 nach Plan 08 Schritt 2)
 
 0. **Plan 08 Schritt 3 starten**:
