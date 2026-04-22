@@ -1,5 +1,22 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 10 Schritt 4 Teil 1: Entitlement-Service)
+
+- Neues Modul `beagle-host/services/entitlement_service.py` umgesetzt.
+- Service implementiert persistente Pool-Entitlements fuer User/Gruppen in JSON-State:
+	- `get_entitlements`
+	- `set_entitlements`
+	- `add_entitlement`
+	- `remove_entitlement`
+	- `is_entitled`
+- Eingabe-Validierung + Normalisierung enthalten (keine leere `pool_id`, deduplizierte IDs).
+- Unit-Test `tests/unit/test_entitlement_service.py` erstellt (3/3 gruen).
+- Live-Deploy + Smoke auf `srv1.beagle-os.com`:
+	- Datei nach `/opt/beagle/beagle-host/services/entitlement_service.py` ausgerollt,
+	- Import + Grundfunktion erfolgreich (`ENTITLEMENT_IMPORT_SMOKE_OK`).
+- Ergebnis: Erste Checkbox aus GoFuture Plan 10 Schritt 4 geschlossen;
+	API-Route fuer `POST /api/v1/pools/{pool}/entitlements` bleibt als naechster Block offen.
+
 ## Update (2026-04-22, GoFuture Plan 10 Schritt 2 Teil 1 + Schritt 3 Teil 1)
 
 - Neues Core-Modul `core/virtualization/desktop_pool.py` umgesetzt.

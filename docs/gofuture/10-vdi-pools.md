@@ -91,8 +91,18 @@ ist nur mit explizitem Datenverlust-Hinweis erlaubt.
 
 ### Schritt 4 — Entitlements (User/Gruppe → Pool) implementieren
 
-- [ ] `beagle-host/services/entitlement_service.py` anlegen.
+- [x] `beagle-host/services/entitlement_service.py` anlegen.
 - [ ] API: `POST /api/v1/pools/{pool}/entitlements` mit User-ID oder Gruppe.
+
+Umgesetzt (2026-04-22, Teil 1/2):
+- Neues Service-Modul `beagle-host/services/entitlement_service.py` eingefuehrt.
+- Persistente JSON-Store-Logik fuer Pool-Entitlements umgesetzt (`users` + `groups`).
+- Service-Operationen implementiert:
+	`get_entitlements`, `set_entitlements`, `add_entitlement`, `remove_entitlement`, `is_entitled`.
+- Eingabe-Normalisierung + Guardrails eingebaut (deduplizierte IDs, `pool_id`-Validierung).
+- Unit-Test `tests/unit/test_entitlement_service.py` hinzugefuegt (3/3 gruen).
+- srv1-Smoke erfolgreich: Modul nach `/opt/beagle/beagle-host/services/entitlement_service.py` deployt,
+	Import und Funktionsaufruf per `python3` verifiziert.
 
 Entitlements steuern wer auf welchen Pool zugreifen darf. Ein User ohne
 Entitlement für einen Pool sieht diesen Pool in seiner Session-Auswahl nicht.

@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Plan 10 Schritt 4 Teil 1)
+
+0. **Plan 10 Entitlement-API nachziehen**:
+	- `POST /api/v1/pools/{pool}/entitlements` im Control-Plane verdrahten,
+	- RBAC fuer Pool-Entitlement-Mutationen festlegen und testen.
+
+0. **Plan 10 Runtime-Verknuepfung bauen**:
+	- `pool_manager.py` und Entitlement-Service koppeln,
+	- Session-Zuweisung nur bei gueltigem Entitlement zulassen.
+
 ## Delta (2026-04-22 nach Plan 10 Schritt 2 Teil 1 + Schritt 3 Teil 1)
 
 0. **Plan 10 Pool-Lifecycle starten**:

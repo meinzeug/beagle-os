@@ -62,6 +62,7 @@
 - [x] Execute GoFuture Plan 10 Schritt 1 (Teil 1): add `core/virtualization/desktop_template.py` with provider-neutral `DesktopTemplate` protocol plus contract tests and srv1 import-smoke validation (2026-04-22).
 - [x] Execute GoFuture Plan 10 Schritt 2 (Teil 1): add `core/virtualization/desktop_pool.py` with provider-neutral `DesktopPool` protocol and typed pool/lease specs plus tests and srv1 import-smoke validation (2026-04-22).
 - [x] Execute GoFuture Plan 10 Schritt 3 (Teil 1): add `DesktopPoolMode` enum (`floating_non_persistent | floating_persistent | dedicated`) and wire it into `DesktopPoolSpec`/`DesktopLease` (2026-04-22).
+- [x] Execute GoFuture Plan 10 Schritt 4 (Teil 1): implement `beagle-host/services/entitlement_service.py` with persisted user/group entitlements and eligibility checks, including unit tests and srv1 smoke validation (2026-04-22).
 - [x] Execute GoFuture Plan 06 Schritt 1: fully read `beagle-server-installer` and document the current installer flow as ASCII diagram in `docs/gofuture/06-server-installer.md` (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 2: refactor server installer + GUI to standalone-only mode and remove Proxmox installer branches (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 3: add central `server-installer/build.env` and wire `scripts/build-server-installer.sh` to load reproducible build dependencies from it (2026-04-21).
