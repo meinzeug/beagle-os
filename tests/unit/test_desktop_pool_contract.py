@@ -13,6 +13,7 @@ from core.virtualization.desktop_pool import (
     DesktopPoolMode,
     DesktopPoolSpec,
 )
+from core.virtualization.streaming_profile import StreamingProfile
 
 
 class DesktopPoolContractTests(unittest.TestCase):
@@ -33,6 +34,7 @@ class DesktopPoolContractTests(unittest.TestCase):
             memory_mib=8192,
             storage_pool="local",
             labels=("xfce", "office"),
+            streaming_profile=StreamingProfile(),
         )
         self.assertEqual(spec.pool_id, "pool-ux-1")
         self.assertEqual(spec.template_id, "tmpl-ubuntu-xfce-01")
@@ -44,6 +46,7 @@ class DesktopPoolContractTests(unittest.TestCase):
         self.assertEqual(spec.memory_mib, 8192)
         self.assertEqual(spec.storage_pool, "local")
         self.assertEqual(spec.labels, ("xfce", "office"))
+        self.assertIsNotNone(spec.streaming_profile)
         self.assertTrue(spec.enabled)
 
     def test_pool_info_and_lease_fields(self) -> None:
@@ -58,6 +61,7 @@ class DesktopPoolContractTests(unittest.TestCase):
             in_use_desktops=2,
             recycling_desktops=0,
             error_desktops=0,
+            streaming_profile=StreamingProfile(resolution="2560x1440", fps=120),
         )
         lease = DesktopLease(
             pool_id="pool-ux-1",
@@ -70,6 +74,7 @@ class DesktopPoolContractTests(unittest.TestCase):
         self.assertEqual(info.mode, DesktopPoolMode.FLOATING_PERSISTENT)
         self.assertEqual(info.free_desktops, 3)
         self.assertEqual(info.in_use_desktops, 2)
+        self.assertEqual(info.streaming_profile.resolution if info.streaming_profile else "", "2560x1440")
         self.assertEqual(lease.vmid, 210)
         self.assertEqual(lease.user_id, "user-123")
         self.assertEqual(lease.state, "in-use")

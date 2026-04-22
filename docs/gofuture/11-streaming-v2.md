@@ -81,8 +81,31 @@ Der manuelle PIN-Pairing-Prozess von Sunshine ist für Enterprise-VDI-Deployment
 
 ### Schritt 3 — Encoder-Auswahl pro Pool/VM/Profil implementieren
 
-- [ ] `StreamingProfile`-Objekt in `core/` definieren: encoder (nvenc/vaapi/quicksync/software), bitrate, resolution, fps, color (H264/H265/AV1), hdr.
+- [x] `StreamingProfile`-Objekt in `core/` definieren: encoder (nvenc/vaapi/quicksync/software), bitrate, resolution, fps, color (H264/H265/AV1), hdr.
 - [ ] Web Console: Streaming-Profil-Editor im Pool-Wizard.
+
+Umsetzung (2026-04-22):
+- Neues Core-Modul `core/virtualization/streaming_profile.py` eingefuehrt.
+- Typisierte Basisschicht vorhanden fuer:
+	- `encoder`: `auto|nvenc|vaapi|quicksync|software`
+	- `color`: `h264|h265|av1`
+	- `bitrate_kbps`, `resolution`, `fps`, `hdr`
+- Pool-Contract erweitert:
+	- `core/virtualization/desktop_pool.py` traegt `streaming_profile` jetzt in `DesktopPoolSpec` und `DesktopPoolInfo`.
+- Control-Plane + Pool-Manager verdrahtet:
+	- `POST /api/v1/pools` akzeptiert `streaming_profile`,
+	- `PUT /api/v1/pools/{pool}` aktualisiert `streaming_profile`,
+	- `GET /api/v1/pools` und `GET /api/v1/pools/{pool}` liefern das Profil zurueck.
+
+Validierung:
+- Lokal:
+	- `python3 -m pytest tests/unit/test_streaming_profile_contract.py tests/unit/test_desktop_pool_contract.py tests/unit/test_pool_manager.py -q` => `12 passed`
+	- `python3 -m py_compile beagle-host/bin/beagle-control-plane.py` => OK
+- Live auf `srv1.beagle-os.com`:
+	- temp Pool mit `streaming_profile` erfolgreich erstellt (`201`),
+	- per `GET` verifiziert,
+	- per `PUT` von `vaapi/h264/1920x1080/60` auf `software/av1/2560x1440/75` geaendert,
+	- anschliessend erfolgreich geloescht (`200`).
 
 Eine feste Encoder-Konfiguration für alle VMs ist nicht optimal da verschiedene Workloads und Hardware unterschiedliche Encoder bevorzugen. NVENC ist ideal für NVIDIA-GPU-passthrough-VMs. VA-API ist für Intel-iGPU-basierte VMs geeignet. QuickSync bietet hohe Qualität bei moderatem CPU-Overhead auf Intel-Systemen. Software-Encoding (x264/x265) ist immer verfügbar aber CPU-intensiv. Das `StreamingProfile`-Objekt wird pro Pool gesetzt und kann für einzelne VMs überschrieben werden. Ungültige Encoder-Konfigurationen (NVENC ohne GPU) werden bei Pool-Erstellung mit einer Warnung markiert.
 

@@ -11,6 +11,7 @@ if str(ROOT_DIR / "beagle-host" / "services") not in sys.path:
     sys.path.insert(0, str(ROOT_DIR / "beagle-host" / "services"))
 
 from core.virtualization.desktop_pool import DesktopPoolMode, DesktopPoolSpec
+from core.virtualization.streaming_profile import StreamingColorCodec, StreamingEncoder, StreamingProfile
 from pool_manager import PoolManagerService
 
 
@@ -110,6 +111,54 @@ class PoolManagerServiceTests(unittest.TestCase):
         service.release_desktop("pool-d", 301, "alice")
         lease2 = service.allocate_desktop("pool-d", "alice")
         self.assertEqual(lease2.vmid, 301)
+
+    def test_streaming_profile_persist_and_update(self) -> None:
+        service = self._build_service()
+        info = service.create_pool(
+            DesktopPoolSpec(
+                pool_id="pool-stream",
+                template_id="tpl-1",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+                streaming_profile=StreamingProfile(
+                    encoder=StreamingEncoder.NVENC,
+                    bitrate_kbps=30000,
+                    resolution="2560x1440",
+                    fps=120,
+                    color=StreamingColorCodec.AV1,
+                    hdr=True,
+                ),
+            )
+        )
+        self.assertIsNotNone(info.streaming_profile)
+        self.assertEqual(info.streaming_profile.encoder, StreamingEncoder.NVENC)
+        self.assertEqual(info.streaming_profile.resolution, "2560x1440")
+
+        updated = service.update_pool(
+            "pool-stream",
+            {
+                "streaming_profile": {
+                    "encoder": "software",
+                    "bitrate_kbps": 12000,
+                    "resolution": "1920x1080",
+                    "fps": 60,
+                    "color": "h264",
+                    "hdr": False,
+                }
+            },
+        )
+        self.assertIsNotNone(updated.streaming_profile)
+        self.assertEqual(updated.streaming_profile.encoder, StreamingEncoder.SOFTWARE)
+        self.assertEqual(updated.streaming_profile.color, StreamingColorCodec.H264)
+
+        payload = service.pool_info_to_dict(updated)
+        self.assertIn("streaming_profile", payload)
+        self.assertEqual(payload["streaming_profile"]["encoder"], "software")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,11 @@ from core.virtualization.desktop_pool import (
     DesktopPoolMode,
     DesktopPoolSpec,
 )
+from core.virtualization.streaming_profile import (
+    StreamingProfile,
+    streaming_profile_from_payload,
+    streaming_profile_to_dict,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +97,7 @@ class PoolManagerService:
             "storage_pool": spec.storage_pool,
             "enabled": spec.enabled,
             "labels": list(spec.labels),
+            "streaming_profile": streaming_profile_to_dict(spec.streaming_profile),
             "created_at": self._utcnow(),
         }
         self._save(state)
@@ -122,16 +128,31 @@ class PoolManagerService:
 
     def update_pool(self, pool_id: str, updates: dict[str, Any]) -> DesktopPoolInfo:
         """Update mutable pool fields (min/max size, enabled)."""
-        _allowed = {"min_pool_size", "max_pool_size", "warm_pool_size", "enabled", "labels"}
+        _allowed = {"min_pool_size", "max_pool_size", "warm_pool_size", "enabled", "labels", "streaming_profile"}
         state = self._load()
         if pool_id not in state["pools"]:
             raise ValueError(f"pool {pool_id!r} not found")
         pool_entry = state["pools"][pool_id]
         for key, value in updates.items():
             if key in _allowed:
-                pool_entry[key] = value
+                if key == "streaming_profile":
+                    profile = None if value is None else streaming_profile_from_payload(value)
+                    pool_entry[key] = streaming_profile_to_dict(profile)
+                else:
+                    pool_entry[key] = value
         self._save(state)
         return self._pool_info(state, pool_id)
+
+    @staticmethod
+    def _parse_streaming_profile(raw: Any) -> StreamingProfile | None:
+        if raw is None:
+            return None
+        if not isinstance(raw, dict):
+            return None
+        try:
+            return streaming_profile_from_payload(raw)
+        except ValueError:
+            return None
 
     # ------------------------------------------------------------------
     # VM slot management
@@ -179,6 +200,7 @@ class PoolManagerService:
             recycling_desktops=counts[_STATE_RECYCLING],
             error_desktops=counts[_STATE_ERROR],
             enabled=bool(pool.get("enabled", True)),
+            streaming_profile=self._parse_streaming_profile(pool.get("streaming_profile")),
         )
 
     # ------------------------------------------------------------------
@@ -376,6 +398,7 @@ class PoolManagerService:
             "recycling_desktops": info.recycling_desktops,
             "error_desktops": info.error_desktops,
             "enabled": info.enabled,
+            "streaming_profile": streaming_profile_to_dict(info.streaming_profile),
         }
 
     def lease_to_dict(self, lease: DesktopLease) -> dict[str, Any]:

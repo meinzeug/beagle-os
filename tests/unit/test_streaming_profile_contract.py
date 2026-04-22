@@ -1,0 +1,56 @@
+import unittest
+
+import sys
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from core.virtualization.streaming_profile import (  # noqa: E402
+    StreamingColorCodec,
+    StreamingEncoder,
+    streaming_profile_from_payload,
+    streaming_profile_to_dict,
+)
+
+
+class StreamingProfileContractTests(unittest.TestCase):
+    def test_defaults(self) -> None:
+        profile = streaming_profile_from_payload({})
+        self.assertEqual(profile.encoder, StreamingEncoder.AUTO)
+        self.assertEqual(profile.bitrate_kbps, 20000)
+        self.assertEqual(profile.resolution, "1920x1080")
+        self.assertEqual(profile.fps, 60)
+        self.assertEqual(profile.color, StreamingColorCodec.H265)
+        self.assertFalse(profile.hdr)
+
+    def test_valid_custom_payload(self) -> None:
+        profile = streaming_profile_from_payload(
+            {
+                "encoder": "nvenc",
+                "bitrate_kbps": 35000,
+                "resolution": "3840x2160",
+                "fps": 120,
+                "color": "av1",
+                "hdr": True,
+            }
+        )
+        payload = streaming_profile_to_dict(profile)
+        self.assertIsInstance(payload, dict)
+        self.assertEqual(payload.get("encoder"), "nvenc")
+        self.assertEqual(payload.get("resolution"), "3840x2160")
+        self.assertEqual(payload.get("color"), "av1")
+        self.assertTrue(payload.get("hdr"))
+
+    def test_rejects_invalid_codec(self) -> None:
+        with self.assertRaises(ValueError):
+            streaming_profile_from_payload({"color": "vp9"})
+
+    def test_rejects_invalid_resolution(self) -> None:
+        with self.assertRaises(ValueError):
+            streaming_profile_from_payload({"resolution": "abc"})
+
+
+if __name__ == "__main__":
+    unittest.main()

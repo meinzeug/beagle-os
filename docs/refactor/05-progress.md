@@ -1,5 +1,28 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 11 Schritt 3 Teil 1 abgeschlossen: StreamingProfile-Core + Pool-API)
+
+- Erste offene Checkbox aus GoFuture Plan 11 Schritt 3 abgeschlossen.
+- Neues Core-Modul `core/virtualization/streaming_profile.py` umgesetzt:
+	- Encoder-Typen `auto|nvenc|vaapi|quicksync|software`,
+	- Codec-Feld `h264|h265|av1`,
+	- `bitrate_kbps`, `resolution`, `fps`, `hdr` inkl. Validierung/Normalisierung.
+- Desktop-Pool-Contract erweitert:
+	- `core/virtualization/desktop_pool.py` traegt `streaming_profile` jetzt in `DesktopPoolSpec` und `DesktopPoolInfo`.
+- Pool-API live verdrahtet:
+	- `POST /api/v1/pools` akzeptiert `streaming_profile`,
+	- `PUT /api/v1/pools/{pool}` aktualisiert es,
+	- `GET /api/v1/pools` und `GET /api/v1/pools/{pool}` geben es zurueck.
+- Pool-Manager persistiert das Profil jetzt im State und serialisiert es sauber fuer API-Responses.
+- Reproduzierbare Validierung:
+	- `python3 -m pytest tests/unit/test_streaming_profile_contract.py tests/unit/test_desktop_pool_contract.py tests/unit/test_pool_manager.py -q` => `12 passed`.
+	- `python3 -m py_compile beagle-host/bin/beagle-control-plane.py` => OK.
+	- Live-Smoke auf `srv1.beagle-os.com` erfolgreich:
+		- Pool mit `streaming_profile` erstellt,
+		- Profil per `GET` gelesen,
+		- Profil per `PUT` mutiert,
+		- Pool wieder geloescht.
+
 ## Update (2026-04-22, GoFuture Plan 11 Schritt 2 abgeschlossen: signiertes Auto-Pairing)
 
 - GoFuture Plan 11 Schritt 2 vollstaendig umgesetzt:

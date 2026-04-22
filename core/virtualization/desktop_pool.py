@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol
 
+from core.virtualization.streaming_profile import StreamingProfile
+
 
 class DesktopPoolMode(str, Enum):
     FLOATING_NON_PERSISTENT = "floating_non_persistent"
@@ -24,6 +26,7 @@ class DesktopPoolSpec:
     storage_pool: str
     enabled: bool = True
     labels: tuple[str, ...] = field(default_factory=tuple)
+    streaming_profile: StreamingProfile | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,7 @@ class DesktopPoolInfo:
     recycling_desktops: int
     error_desktops: int
     enabled: bool = True
+    streaming_profile: StreamingProfile | None = None
 
 
 class DesktopPool(Protocol):

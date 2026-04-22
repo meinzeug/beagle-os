@@ -4092,8 +4092,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
             from core.virtualization.desktop_pool import DesktopPoolMode, DesktopPoolSpec
+            from core.virtualization.streaming_profile import streaming_profile_from_payload
             try:
                 mode = DesktopPoolMode(str(body.get("mode", "floating_non_persistent")))
+                streaming_profile = None
+                if "streaming_profile" in body and body.get("streaming_profile") is not None:
+                    if not isinstance(body.get("streaming_profile"), dict):
+                        raise ValueError("streaming_profile must be an object")
+                    streaming_profile = streaming_profile_from_payload(body.get("streaming_profile"))
                 spec = DesktopPoolSpec(
                     pool_id=str(body.get("pool_id", "") or "").strip(),
                     template_id=str(body.get("template_id", "") or ""),
@@ -4106,6 +4112,7 @@ class Handler(BaseHTTPRequestHandler):
                     storage_pool=str(body.get("storage_pool", "local") or "local"),
                     enabled=bool(body.get("enabled", True)),
                     labels=tuple(str(l) for l in body.get("labels", [])),
+                    streaming_profile=streaming_profile,
                 )
                 pool_info = pool_manager_service().create_pool(spec)
             except (ValueError, TypeError) as exc:
