@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Plan 08 Schritt 2)
+
+0. **Plan 08 Schritt 3 starten**:
+	- `providers/beagle/storage/lvm_thin.py` als naechstes Backend auf denselben `StorageClass`-Contract umsetzen,
+	- Command-Adapter und Fehlerbehandlung analog zum Directory-Backend aufbauen.
+
+0. **Storage-Plane Integration vorbereiten**:
+	- Backend-Auswahl (directory/lvm_thin/...) in einem `storage_manager`-Service konsolidieren,
+	- API-Seam fuer spaetere Quota-Endpunkte (`/api/v1/storage/pools/{pool}/quota`) vorziehen.
+
 ## Delta (2026-04-22 nach Plan 08 Schritt 1)
 
 0. **Plan 08 Schritt 2 umsetzen**:

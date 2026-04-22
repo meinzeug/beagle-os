@@ -31,7 +31,13 @@ Das Protokoll wird in `core/` definiert und in `providers/beagle/storage/` imple
 
 ### Schritt 2 — Directory-Backend implementieren
 
-- [ ] `providers/beagle/storage/directory.py` implementiert den Contract für lokalen Verzeichnis-Storage.
+- [x] `providers/beagle/storage/directory.py` implementiert den Contract für lokalen Verzeichnis-Storage.
+
+Umgesetzt (2026-04-22):
+- Neues Modul `providers/beagle/storage/directory.py` eingefuehrt (`DirectoryStorageBackend`).
+- Contract-Methoden real umgesetzt: `create_volume`, `delete_volume`, `resize_volume`, `snapshot`, `clone`, `list_volumes`.
+- Umsetzung ueber `qemu-img`-Kommandos mit validierter Namens-/Formatlogik und Path-Escape-Schutz.
+- Unit-Test `tests/unit/test_directory_storage_backend.py` ergaenzt (4/4 gruen).
 
 Directory-Storage ist das einfachste Backend: qcow2-Dateien in einem konfigurierbaren
 Verzeichnis (`/var/lib/beagle/images/` als Default). `create_volume` legt eine neue

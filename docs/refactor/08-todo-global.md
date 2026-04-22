@@ -53,6 +53,7 @@
 - [x] Execute GoFuture Plan 07 Schritt 6: add Web Console `Cluster` panel in navigation and implement node status table (status, CPU, RAM, VM-count) with inventory node-filter action (2026-04-22).
 - [x] Execute GoFuture Plan 07 Schritt 3 (Teil 1): implement `beagle-host/services/cluster_inventory.py` and expose `GET /api/v1/cluster/inventory` plus `GET /api/v1/cluster/nodes` in control-plane (2026-04-22).
 - [x] Execute GoFuture Plan 08 Schritt 1: define provider-neutral `StorageClass` contract + `VolumeSpec`/`SnapshotSpec`/`StoragePoolInfo` in `core/virtualization/storage.py` with unit test coverage (2026-04-22).
+- [x] Execute GoFuture Plan 08 Schritt 2: implement local directory backend `providers/beagle/storage/directory.py` on top of `StorageClass` (`qemu-img create/resize/snapshot/clone/list`) with unit tests (2026-04-22).
 - [x] Execute GoFuture Plan 06 Schritt 1: fully read `beagle-server-installer` and document the current installer flow as ASCII diagram in `docs/gofuture/06-server-installer.md` (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 2: refactor server installer + GUI to standalone-only mode and remove Proxmox installer branches (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 3: add central `server-installer/build.env` and wire `scripts/build-server-installer.sh` to load reproducible build dependencies from it (2026-04-21).

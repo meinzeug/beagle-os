@@ -1,5 +1,19 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 08 Schritt 2: Directory-Storage-Backend)
+
+- Neues Provider-Modul `providers/beagle/storage/directory.py` implementiert (`DirectoryStorageBackend`).
+- Real implementierte Storage-Lifecycle-Operationen:
+	- `create_volume` (`qemu-img create`)
+	- `delete_volume`
+	- `resize_volume` (`qemu-img resize`)
+	- `snapshot` (`qemu-img snapshot -c`)
+	- `clone` (linked/full via `qemu-img create -b` bzw. `qemu-img convert`)
+	- `list_volumes`
+- Sicherheitsrelevante Guards integriert: Name-/Formatvalidierung und Path-Escape-Schutz unterhalb `base_dir`.
+- Unit-Tests `tests/unit/test_directory_storage_backend.py` hinzugefuegt (4/4 pass).
+- Damit ist GoFuture Plan 08 Schritt 2 vollstaendig abgehakt.
+
 ## Update (2026-04-22, GoFuture Plan 08 Schritt 1: StorageClass-Contract)
 
 - Neues Core-Modul `core/virtualization/storage.py` eingefuehrt.
