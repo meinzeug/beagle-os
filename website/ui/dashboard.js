@@ -22,6 +22,7 @@ const dashboardHooks = {
   renderIam() {},
   renderVirtualizationPanel() {},
   renderClusterPanel() {},
+  renderSessionsPanel() {},
   renderProvisioningWorkspace() {},
   updateFleetHealthAlert() {},
   setBanner() {},
@@ -91,7 +92,8 @@ export function loadDashboard(options) {
       request('/auth/users', { __suppressAuthLock: true }),
       request('/auth/roles', { __suppressAuthLock: true }),
       request('/pools', { __suppressAuthLock: true }),
-      request('/pool-templates', { __suppressAuthLock: true })
+      request('/pool-templates', { __suppressAuthLock: true }),
+      request('/sessions', { __suppressAuthLock: true })
     ];
     return Promise.allSettled(endpointRequests).then((results) => {
       const health = results[0].status === 'fulfilled' ? (results[0].value || {}) : {};
@@ -104,6 +106,7 @@ export function loadDashboard(options) {
       const authRoles = results[7].status === 'fulfilled' && Array.isArray(results[7].value) ? results[7].value : [];
       const pools = results[8].status === 'fulfilled' ? (results[8].value || { pools: [] }) : { pools: [] };
       const templates = results[9].status === 'fulfilled' ? (results[9].value || { templates: [] }) : { templates: [] };
+      const sessions = results[10].status === 'fulfilled' ? (results[10].value || { sessions: [] }) : { sessions: [] };
       const failedRequests = results.filter((result) => result.status !== 'fulfilled').length;
 
       state.user = me.user || null;
@@ -116,6 +119,7 @@ export function loadDashboard(options) {
       state.authRoles = authRoles;
       state.desktopPools = Array.isArray(pools.pools) ? pools.pools : [];
       state.poolTemplates = Array.isArray(templates.templates) ? templates.templates : [];
+      state.sessions = Array.isArray(sessions.sessions) ? sessions.sessions : [];
       dashboardHooks.recordAuthSuccess();
       dashboardHooks.setAuthMode(true);
       dashboardHooks.updateSettingsVisibility();
@@ -127,6 +131,7 @@ export function loadDashboard(options) {
       dashboardHooks.renderIam();
       dashboardHooks.renderVirtualizationPanel();
       dashboardHooks.renderClusterPanel();
+      dashboardHooks.renderSessionsPanel();
       dashboardHooks.renderProvisioningWorkspace();
       dashboardHooks.updateFleetHealthAlert();
       if (failedRequests > 0) {

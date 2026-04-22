@@ -1041,38 +1041,35 @@
             </article>
           </section>
 
-          <!-- ============ SESSIONS (7.0 placeholder) ============ -->
+          <!-- ============ SESSIONS ============ -->
           <section class="panel-section" id="sessions-section" data-panel-section="sessions">
-            <article class="card sessions-coming-card">
+            <article class="card sessions-card">
               <div class="card-head">
                 <div>
-                  <span class="eyebrow">Beagle OS 7.0</span>
+                  <span class="eyebrow">Pools &amp; Sessions</span>
                   <h2>Sessions</h2>
                 </div>
-                <span class="chip chip-amber">Geplant 7.0</span>
+                <div class="button-row">
+                  <span class="chip muted" id="sessions-count-chip">0 aktiv</span>
+                  <button class="button ghost small" id="sessions-refresh" type="button">Refresh</button>
+                </div>
               </div>
-              <div class="sessions-coming-body">
-                <svg class="sessions-coming-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="4" width="15" height="11" rx="2"/><path d="M17 8l5 3-5 3V8z"/><path d="M2 19h15M5 22h9"/></svg>
-                <h3>Session Management</h3>
-                <p>In Beagle OS 7.0 wird jede aktive Streaming-Session ein first-class Objekt in der Konsole&thinsp;&mdash;&thinsp;mit Live-Telemetrie, Endpoint-Zuordnung und Qualitaets-Metriken.</p>
-                <ul class="sessions-feature-list">
-                  <li><span class="feature-check">&#10003;</span> User, Endpoint und Pool in einer Zeile</li>
-                  <li><span class="feature-check">&#10003;</span> Stream-Qualitaet: RTT, Paketverlust, Encoder-FPS</li>
-                  <li><span class="feature-check">&#10003;</span> Watermark- und Recording-Status live</li>
-                  <li><span class="feature-check">&#10003;</span> Session-Policies und USB-Passthrough-Status</li>
-                  <li><span class="feature-check">&#10003;</span> Forciertes Disconnect mit Audit-Eintrag</li>
-                </ul>
-                <div class="sessions-schema-preview">
-                  <div class="schema-label">Session-Objekt (Vorschau)</div>
-                  <pre class="schema-code">Session:
-  user:     alice@acme.example
-  endpoint: thin-client-7c2a
-  pool:     pool-engineering
-  vm:       142
-  protocol: moonlight
-  rtt_ms:   18
-  fps:      60
-  hdr:      true</pre>
+              <div class="sessions-layout">
+                <section class="sessions-table-pane">
+                  <div class="table-wrap compact">
+                    <table class="vm-table compact-table">
+                      <thead>
+                        <tr><th>Session</th><th>User</th><th>Pool</th><th>VM</th><th>Status</th><th>Stream Health</th></tr>
+                      </thead>
+                      <tbody id="sessions-table-body"><tr><td colspan="6" class="empty-cell">Keine aktiven Sessions.</td></tr></tbody>
+                    </table>
+                  </div>
+                </section>
+                <section class="sessions-detail-pane">
+                  <h3>Session-Detail</h3>
+                  <div id="session-detail-body" class="section-spaced-tight">
+                    <div class="empty-card">Keine Session ausgewaehlt.</div>
+                  </div>
                 </div>
               </div>
             </article>

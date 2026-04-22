@@ -3545,6 +3545,18 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         # --- VDI Pool & Template GET routes ---
+        if path == "/api/v1/sessions":
+            if not self._authorize_or_respond("GET", path):
+                return
+            sessions = []
+            for session in pool_manager_service().list_active_sessions():
+                pool_id = str(session.get("pool_id") or "")
+                if pool_id and not self._can_view_pool(pool_id):
+                    continue
+                sessions.append(session)
+            self._write_json(HTTPStatus.OK, {"ok": True, "sessions": sessions})
+            return
+
         if path == "/api/v1/pools":
             if not self._authorize_or_respond("GET", path):
                 return
@@ -4080,6 +4092,45 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         # --- VDI Pool & Template POST routes ---
+        if path == "/api/v1/sessions/stream-health":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                body = self._read_json_body() or {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            try:
+                pool_id = str(body.get("pool_id") or "").strip()
+                vmid = int(body.get("vmid") or 0)
+                if not pool_id:
+                    raise ValueError("pool_id is required")
+                if vmid <= 0:
+                    raise ValueError("vmid must be > 0")
+                stream_health_raw = body.get("stream_health")
+                if stream_health_raw is not None and not isinstance(stream_health_raw, dict):
+                    raise ValueError("stream_health must be an object")
+                lease = pool_manager_service().update_stream_health(
+                    pool_id=pool_id,
+                    vmid=vmid,
+                    stream_health=stream_health_raw,
+                )
+            except (ValueError, TypeError) as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event(
+                "session.stream_health.update",
+                "success",
+                pool_id=pool_id,
+                vmid=vmid,
+                username=self._requester_identity(),
+            )
+            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().lease_to_dict(lease)})
+            return
+
         if path == "/api/v1/pools":
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})

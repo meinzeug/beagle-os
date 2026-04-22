@@ -186,6 +186,45 @@ class PoolManagerServiceTests(unittest.TestCase):
         payload_with_health = service.lease_to_dict(lease_with_health)
         self.assertEqual(payload_with_health["stream_health"], {"fps": 60, "rtt_ms": 12})
 
+    def test_list_active_sessions_and_update_stream_health(self) -> None:
+        service = self._build_service()
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="pool-session",
+                template_id="tpl-1",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=2,
+                warm_pool_size=1,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+            )
+        )
+        service.register_vm("pool-session", 501)
+        lease = service.allocate_desktop("pool-session", "alice")
+        self.assertEqual(lease.vmid, 501)
+
+        sessions = service.list_active_sessions()
+        self.assertEqual(len(sessions), 1)
+        self.assertEqual(sessions[0]["session_id"], "pool-session:501")
+        self.assertIsNone(sessions[0]["stream_health"])
+
+        updated = service.update_stream_health(
+            pool_id="pool-session",
+            vmid=501,
+            stream_health={
+                "rtt_ms": 18,
+                "fps": 60,
+                "dropped_frames": 2,
+                "encoder_load": 76,
+                "updated_at": "2026-04-22T12:05:00Z",
+            },
+        )
+        payload = service.lease_to_dict(updated)
+        self.assertEqual(payload["stream_health"]["rtt_ms"], 18)
+        self.assertEqual(payload["stream_health"]["fps"], 60)
+
 
 if __name__ == "__main__":
     unittest.main()

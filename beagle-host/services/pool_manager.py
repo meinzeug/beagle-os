@@ -293,12 +293,15 @@ class PoolManagerService:
             vm["state"] = _STATE_RECYCLING
             vm["user_id"] = None
             vm["assigned_at"] = None
+            vm["stream_health"] = None
         elif mode == DesktopPoolMode.FLOATING_PERSISTENT:
             vm["state"] = _STATE_FREE
             # keep user_id for next login
+            vm["stream_health"] = None
         elif mode == DesktopPoolMode.DEDICATED:
             vm["state"] = _STATE_FREE
             # keep user_id permanently
+            vm["stream_health"] = None
         self._save(state)
         if self._stop_vm is not None:
             try:
@@ -337,6 +340,7 @@ class PoolManagerService:
         vm["state"] = _STATE_FREE
         vm["user_id"] = None
         vm["assigned_at"] = None
+        vm["stream_health"] = None
         self._save(state)
         return self._make_lease(pool_id, vm, mode)
 
@@ -346,6 +350,65 @@ class PoolManagerService:
         if pool_id not in state["pools"]:
             raise ValueError(f"pool {pool_id!r} not found")
         return list(self._pool_vms(state, pool_id))
+
+    def list_active_sessions(self) -> list[dict[str, Any]]:
+        """Return all in-use desktop leases as session objects."""
+        state = self._load()
+        sessions: list[dict[str, Any]] = []
+        for vm in state["vms"].values():
+            if str(vm.get("state") or "") != _STATE_IN_USE:
+                continue
+            pool_id = str(vm.get("pool_id") or "").strip()
+            if not pool_id:
+                continue
+            pool_cfg = state["pools"].get(pool_id, {})
+            mode_raw = pool_cfg.get("mode", DesktopPoolMode.FLOATING_NON_PERSISTENT.value)
+            try:
+                mode = DesktopPoolMode(mode_raw)
+            except ValueError:
+                mode = DesktopPoolMode.FLOATING_NON_PERSISTENT
+            vmid = int(vm.get("vmid") or 0)
+            session_id = f"{pool_id}:{vmid}"
+            sessions.append(
+                {
+                    "session_id": session_id,
+                    "pool_id": pool_id,
+                    "vmid": vmid,
+                    "user_id": str(vm.get("user_id") or ""),
+                    "mode": mode.value,
+                    "state": _STATE_IN_USE,
+                    "assigned_at": str(vm.get("assigned_at") or ""),
+                    "stream_health": vm.get("stream_health") if isinstance(vm.get("stream_health"), dict) else None,
+                }
+            )
+        sessions.sort(key=lambda item: str(item.get("assigned_at") or ""), reverse=True)
+        return sessions
+
+    def update_stream_health(self, *, pool_id: str, vmid: int, stream_health: dict[str, Any] | None) -> DesktopLease:
+        """Persist stream-health telemetry for one in-use desktop lease."""
+        state = self._load()
+        vm_key = str(vmid)
+        vm = state["vms"].get(vm_key)
+        if vm is None or vm.get("pool_id") != pool_id:
+            raise ValueError(f"vmid {vmid} not found in pool {pool_id!r}")
+
+        pool_cfg = state["pools"].get(pool_id, {})
+        mode_raw = pool_cfg.get("mode", DesktopPoolMode.FLOATING_NON_PERSISTENT.value)
+        try:
+            mode = DesktopPoolMode(mode_raw)
+        except ValueError:
+            mode = DesktopPoolMode.FLOATING_NON_PERSISTENT
+
+        metrics = stream_health if isinstance(stream_health, dict) else {}
+        vm["stream_health"] = {
+            "rtt_ms": int(metrics["rtt_ms"]) if metrics.get("rtt_ms") is not None else None,
+            "fps": int(metrics["fps"]) if metrics.get("fps") is not None else None,
+            "dropped_frames": int(metrics["dropped_frames"]) if metrics.get("dropped_frames") is not None else None,
+            "encoder_load": int(metrics["encoder_load"]) if metrics.get("encoder_load") is not None else None,
+            "updated_at": str(metrics.get("updated_at") or self._utcnow()),
+        }
+        self._save(state)
+        return self._make_lease(pool_id, vm, mode)
 
     # ------------------------------------------------------------------
     # Scale pool

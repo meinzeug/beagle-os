@@ -32,6 +32,14 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             AuthzPolicyService.required_permission("GET", "/api/v1/pool-templates"),
             "pool:read",
         )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/sessions"),
+            "pool:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/sessions/stream-health"),
+            "pool:write",
+        )
 
     def test_viewer_cannot_write_pools(self):
         permission = AuthzPolicyService.required_permission("POST", "/api/v1/pools")

@@ -11,6 +11,11 @@ import {
   refreshAccessToken
 } from './ui/auth.js';
 import {
+  bindSessionsEvents,
+  configureSessions,
+  renderSessionsPanel
+} from './ui/sessions.js';
+import {
   applyTitle,
   configurePanels,
   consumeTokenFromLocation,
@@ -483,6 +488,9 @@ export function bootstrapApp() {
     openInventoryWithNodeFilter,
     setBanner
   });
+  configureSessions({
+    setBanner
+  });
   configureEvents({
     setBanner,
     loadDetail,
@@ -534,6 +542,7 @@ export function bootstrapApp() {
     renderVirtualizationOverview,
     renderVirtualizationPanel,
     renderClusterPanel,
+    renderSessionsPanel,
     renderProvisioningWorkspace,
     renderPolicies,
     renderIam,
@@ -551,6 +560,7 @@ export function bootstrapApp() {
   });
   bindEvents();
   bindClusterEvents();
+  bindSessionsEvents();
   bindSettingsEvents();
   renderActivityLog();
   renderInventory();
@@ -558,6 +568,7 @@ export function bootstrapApp() {
   renderVirtualizationOverview();
   renderVirtualizationPanel();
   renderClusterPanel();
+  renderSessionsPanel();
   renderVirtualizationInspector();
   renderProvisioningWorkspace();
   renderPolicies();

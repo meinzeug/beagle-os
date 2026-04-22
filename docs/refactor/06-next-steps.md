@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Abschluss von Plan 11 Schritt 5)
+
+0. **Plan 11 Schritt 4 Test-Matrix schliessen**:
+	- Audio-In/Gamepad/Wacom/USB-Redirect als reproduzierbare Matrix in `docs/gofuture/11-streaming-v2.md` dokumentieren,
+	- fuer den aktuell umgesetzten Scope mindestens Audio-In + Gamepad live mit klaren API/UI-Belegen als `✓` nachziehen.
+
+0. **Plan 11 Schritt 6 vorbereiten (Windows Apollo Eval)**:
+	- minimalen Windows-Guest-Eval-Plan fuer Apollo + SudoVDA festziehen,
+	- Vergleichskriterien Sunshine(Linux) vs Apollo(Windows) als messbare Baseline definieren.
+
 ## Delta (2026-04-22 nach Abschluss von Plan 11 Schritt 4)
 
 0. **Plan 11 Schritt 5 einleiten (Stream-Health-Telemetrie)**:

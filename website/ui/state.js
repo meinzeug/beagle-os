@@ -143,6 +143,8 @@ export const state = {
   },
   inventory: [],
   endpointReports: [],
+  sessions: [],
+  selectedSessionId: '',
   policies: [],
   desktopPools: [],
   poolTemplates: [],

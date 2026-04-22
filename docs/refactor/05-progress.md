@@ -1,5 +1,21 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 11 Schritt 5 abgeschlossen: Session Stream-Health API + UI)
+
+- Plan 11 Schritt 5 vollstaendig umgesetzt:
+	- `GET /api/v1/sessions` liefert aktive Session-Objekte,
+	- `POST /api/v1/sessions/stream-health` schreibt `rtt_ms`, `fps`, `dropped_frames`, `encoder_load` in `session.stream_health`.
+- Backend:
+	- `PoolManagerService` erweitert um `list_active_sessions()` und `update_stream_health(...)`.
+	- Lease-Responses enthalten `stream_health` stabil (`null` oder Objekt).
+	- RBAC-Mapping auf `pool:read`/`pool:write` fuer die neuen Routes ergaenzt.
+- Web Console:
+	- Sessions-Panel von Placeholder auf echte Liste+Detailansicht migriert.
+	- Session-Detail zeigt Stream-Health-KPIs inkl. Zeitstempel.
+- Reproduzierbare Validierung:
+	- Lokal: `16 passed` (pool_manager/authz/desktop_pool) plus py_compile/node-check OK.
+	- Live `srv1.beagle-os.com`: End-to-End-Script prueft Create/Entitlement/Register/Allocate -> Stream-Health-POST -> Sessions-GET -> Release/Delete; alle Statuscodes OK, gespeicherte Metriken in Session-JSON sichtbar.
+
 ## Update (2026-04-22, GoFuture Plan 11 Schritt 5 Bootstrap: stream_health Payload vorbereitet)
 
 - Plan 11 Schritt 5 initial eingeleitet (noch nicht abgeschlossen):

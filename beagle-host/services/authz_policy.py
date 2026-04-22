@@ -108,6 +108,8 @@ class AuthzPolicyService:
                 return "pool:write"
             if route == "/api/v1/pool-templates":
                 return "pool:write"
+            if route == "/api/v1/sessions/stream-health":
+                return "pool:write"
         if verb == "PUT":
             if re.match(r"^/api/v1/provisioning/vms/\d+$", route):
                 return "provisioning:write"
@@ -146,6 +148,8 @@ class AuthzPolicyService:
             if route == "/api/v1/pools" or re.match(r"^/api/v1/pools/[A-Za-z0-9._-]+(/.*)?$", route):
                 return "pool:read"
             if route == "/api/v1/pool-templates" or re.match(r"^/api/v1/pool-templates/[A-Za-z0-9._-]+$", route):
+                return "pool:read"
+            if route == "/api/v1/sessions":
                 return "pool:read"
         return None
 
