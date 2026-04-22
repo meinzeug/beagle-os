@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Plan 08 Schritt 1)
+
+0. **Plan 08 Schritt 2 umsetzen**:
+	- `providers/beagle/storage/directory.py` als erste konkrete `StorageClass`-Implementierung bauen,
+	- qemu-img-basierte create/resize/snapshot/clone-Operationen plus `list_volumes` integrieren.
+
+0. **Storage-Provider-Testabdeckung erweitern**:
+	- Unit-Tests fuer Directory-Backend mit Command-Stubs und Dateisystem-Fallbacks ergaenzen,
+	- auf `srv1.beagle-os.com` per Import-/Smoke-Test validieren.
+
 ## Delta (2026-04-22 nach Plan 07 Schritt 6)
 
 0. **Plan 07 Schritt 3 fortsetzen**:

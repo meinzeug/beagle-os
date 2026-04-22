@@ -1,5 +1,13 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 08 Schritt 1: StorageClass-Contract)
+
+- Neues Core-Modul `core/virtualization/storage.py` eingefuehrt.
+- `StorageClass`-Protocol mit Lifecycle-Methoden (`create_volume`, `delete_volume`, `resize_volume`, `snapshot`, `clone`, `list_volumes`) definiert.
+- Typen `VolumeSpec`, `SnapshotSpec`, `StoragePoolInfo` als Dataclasses umgesetzt.
+- Unit-Test `tests/unit/test_storage_contract.py` erstellt und lokal erfolgreich ausgefuehrt (3/3 pass).
+- Damit ist GoFuture Plan 08 Schritt 1 vollstaendig abgehakt.
+
 ## Update (2026-04-22, GoFuture Plan 07 Schritt 3 (Teil 1): Cluster-Inventory-Service)
 
 - Neues Service-Modul `beagle-host/services/cluster_inventory.py` umgesetzt.

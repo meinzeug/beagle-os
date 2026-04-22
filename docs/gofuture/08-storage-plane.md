@@ -10,8 +10,14 @@ Referenz: `docs/refactorv2/07-storage-network-plane.md`
 
 ### Schritt 1 — `StorageClass`-Contract in `core/` definieren
 
-- [ ] `core/virtualization/storage.py` (o.ä.) anlegen mit `StorageClass`-Protokoll: `create_volume`, `delete_volume`, `resize_volume`, `snapshot`, `clone`, `list_volumes`.
-- [ ] Typen: `VolumeSpec`, `SnapshotSpec`, `StoragePoolInfo` definieren.
+- [x] `core/virtualization/storage.py` (o.ä.) anlegen mit `StorageClass`-Protokoll: `create_volume`, `delete_volume`, `resize_volume`, `snapshot`, `clone`, `list_volumes`.
+- [x] Typen: `VolumeSpec`, `SnapshotSpec`, `StoragePoolInfo` definieren.
+
+Umgesetzt (2026-04-22):
+- Neues Modul `core/virtualization/storage.py` erstellt.
+- `StorageClass` als provider-neutrales `Protocol` mit den sechs Lifecycle-Methoden umgesetzt.
+- Dataclass-Typen `VolumeSpec`, `SnapshotSpec`, `StoragePoolInfo` implementiert.
+- Unit-Test `tests/unit/test_storage_contract.py` ergänzt (3/3 grün).
 
 Der `StorageClass`-Contract ist das Fundament der Storage-Plane und entspricht dem
 Prinzip der Kubernetes-StorageClass aber angepasst an VM-Workloads. Jede konkrete
