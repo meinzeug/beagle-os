@@ -29,6 +29,7 @@ class BeagleHostProvider:
             str(configured_state_dir).strip() or "/var/lib/beagle/providers/beagle"
         ).expanduser()
         self._default_node_name = str(os.environ.get("BEAGLE_BEAGLE_PROVIDER_DEFAULT_NODE", "beagle-0")).strip() or "beagle-0"
+        self._cpu_stat_prev: tuple[float, float] | None = None  # (idle_time, total_time)
         self._ensure_layout()
 
     def _ensure_layout(self) -> None:
@@ -147,7 +148,84 @@ class BeagleHostProvider:
             }
         ]
 
+    def _read_proc_stat_cpu_fields(self) -> list[int] | None:
+        """Return the first aggregate cpu line from /proc/stat as a list of ints."""
+        try:
+            with open("/proc/stat", "r", encoding="utf-8") as fh:
+                for line in fh:
+                    if line.startswith("cpu "):
+                        return [int(x) for x in line.split()[1:]]
+        except Exception:
+            pass
+        return None
+
+    def _compute_cpu_utilization(self) -> float:
+        """Instantaneous CPU utilization as a fraction 0.0–1.0 using /proc/stat delta."""
+        fields = self._read_proc_stat_cpu_fields()
+        if fields is None or len(fields) < 4:
+            return 0.0
+        # /proc/stat columns: user nice system idle iowait irq softirq steal ...
+        idle = float(fields[3] + (fields[4] if len(fields) > 4 else 0))  # idle + iowait
+        total = float(sum(fields))
+        prev = self._cpu_stat_prev
+        self._cpu_stat_prev = (idle, total)
+        if prev is None or total == 0.0:
+            return 0.0
+        delta_total = total - prev[1]
+        delta_idle = idle - prev[0]
+        if delta_total <= 0.0:
+            return 0.0
+        return max(0.0, min(1.0, (delta_total - delta_idle) / delta_total))
+
+    def _read_mem_bytes(self) -> tuple[int, int]:
+        """Return (mem_total_bytes, mem_used_bytes) from /proc/meminfo."""
+        try:
+            info: dict[str, int] = {}
+            with open("/proc/meminfo", "r", encoding="utf-8") as fh:
+                for line in fh:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        key = parts[0].rstrip(":")
+                        try:
+                            info[key] = int(parts[1])
+                        except ValueError:
+                            pass
+            mem_total_kb = info.get("MemTotal", 0)
+            mem_free_kb = info.get("MemFree", 0)
+            mem_buffers_kb = info.get("Buffers", 0)
+            mem_cached_kb = info.get("Cached", 0)
+            mem_sreclaimable_kb = info.get("SReclaimable", 0)
+            # used = total - free - buffers - page-cache - reclaimable slab
+            mem_used_kb = mem_total_kb - mem_free_kb - mem_buffers_kb - mem_cached_kb - mem_sreclaimable_kb
+            return (mem_total_kb * 1024, max(0, mem_used_kb) * 1024)
+        except Exception:
+            return (0, 0)
+
+    def _discover_live_node_metrics(self) -> list[dict[str, Any]]:
+        """Read real CPU and RAM metrics for the local node from /proc."""
+        try:
+            cpu_count = os.cpu_count() or 1
+            cpu_usage = self._compute_cpu_utilization()
+            mem_total, mem_used = self._read_mem_bytes()
+            if mem_total == 0:
+                return []
+            return [
+                {
+                    "name": self._default_node_name,
+                    "status": "online",
+                    "cpu": round(cpu_usage, 4),
+                    "mem": mem_used,
+                    "maxmem": mem_total,
+                    "maxcpu": cpu_count,
+                }
+            ]
+        except Exception:
+            return []
+
     def _load_nodes(self) -> list[dict[str, Any]]:
+        live_nodes = self._discover_live_node_metrics()
+        if live_nodes:
+            return live_nodes
         payload = self._read_json_file(self._nodes_path(), self._default_nodes())
         if not isinstance(payload, list):
             return self._default_nodes()
@@ -184,6 +262,18 @@ class BeagleHostProvider:
             name = str(item.get("storage") or item.get("name") or "").strip()
             if not name:
                 continue
+            avail = int(item.get("avail", 0) or 0)
+            used = int(item.get("used", 0) or 0)
+            total = int(item.get("total", 0) or 0)
+            # When no size data is present, read from the state dir filesystem.
+            if total == 0:
+                try:
+                    st = os.statvfs(str(self._state_dir))
+                    total = st.f_frsize * st.f_blocks
+                    avail = st.f_frsize * st.f_bavail
+                    used = total - avail
+                except Exception:
+                    pass
             storage.append(
                 {
                     "storage": name,
@@ -192,9 +282,9 @@ class BeagleHostProvider:
                     "content": str(item.get("content", "images,iso")).strip() or "images,iso",
                     "shared": int(item.get("shared", 0) or 0),
                     "active": int(item.get("active", 1) or 0),
-                    "avail": int(item.get("avail", 0) or 0),
-                    "used": int(item.get("used", 0) or 0),
-                    "total": int(item.get("total", 0) or 0),
+                    "avail": avail,
+                    "used": used,
+                    "total": total,
                 }
             )
         return storage or self._default_storage()
@@ -271,6 +361,17 @@ class BeagleHostProvider:
                     available = self._size_to_bytes(avail_match.group(1), avail_match.group(2))
             except Exception:
                 pass
+            # Use os.statvfs for dir-type pools to get accurate disk usage.
+            # virsh pool-info sizes are rounded and can report avail > total.
+            if pool_path:
+                try:
+                    st = os.statvfs(pool_path)
+                    capacity = st.f_frsize * st.f_blocks
+                    available = st.f_frsize * st.f_bavail
+                except Exception:
+                    pass
+            # Compute real used space from total - available.
+            real_used = max(0, capacity - available) if capacity > 0 else allocation
             storage.append(
                 {
                     "storage": name,
@@ -280,7 +381,7 @@ class BeagleHostProvider:
                     "shared": 0,
                     "active": active,
                     "avail": available,
-                    "used": allocation,
+                    "used": real_used,
                     "total": capacity,
                     "path": pool_path,
                     "autostart": autostart,
