@@ -43,8 +43,18 @@ OS-Typ, CPU/RAM-Konfiguration, Vorinstallierte Software-Liste, Erstellungsdatum.
 
 ### Schritt 2 — `DesktopPool`-Contract und Lifecycle implementieren
 
-- [ ] `core/virtualization/desktop_pool.py` anlegen.
+- [x] `core/virtualization/desktop_pool.py` anlegen.
 - [ ] `beagle-host/services/pool_manager.py` implementiert Pool-Lifecycle: provisioning, scaling, recycling.
+
+Umgesetzt (2026-04-22, Teil 1/2):
+- Neues Core-Modul `core/virtualization/desktop_pool.py` erstellt.
+- Provider-neutrales `DesktopPool`-Protocol mit Lifecycle-Seam eingefuehrt
+	(`create/get/list/delete`, `scale_pool`, `allocate/release/recycle`).
+- Dataclass-Typen fuer Pool-/Lease-Status ergaenzt:
+	`DesktopPoolSpec`, `DesktopPoolInfo`, `DesktopLease`.
+- Unit-Test `tests/unit/test_desktop_pool_contract.py` hinzugefuegt (3/3 gruen).
+- srv1-Smoke erfolgreich: Modul nach `/opt/beagle/core/virtualization/desktop_pool.py` deployt,
+	Import und Spec-Instanziierung per `python3` verifiziert.
 
 Ein `DesktopPool` ist eine Gruppe von VMs die aus demselben Template stammen und
 für eine Gruppe von berechtigten Nutzern bereitgestellt werden. Der Pool-Manager
@@ -59,8 +69,15 @@ Scaling-Regeln (min_pool_size, max_pool_size, scale_up_threshold) sind konfiguri
 
 ### Schritt 3 — Persistent, Non-Persistent und Dedicated Modi
 
-- [ ] `DesktopPool.mode` Enum: `floating_non_persistent | floating_persistent | dedicated`.
+- [x] `DesktopPool.mode` Enum: `floating_non_persistent | floating_persistent | dedicated`.
 - [ ] Pool-Manager implementiert alle drei Modi korrekt.
+
+Umgesetzt (2026-04-22, Teil 1/2):
+- `DesktopPoolMode` als Enum in `core/virtualization/desktop_pool.py` eingefuehrt.
+- Enum-Werte entsprechen exakt den Plan-Modi:
+	`floating_non_persistent`, `floating_persistent`, `dedicated`.
+- `DesktopPoolSpec.mode` und `DesktopLease.mode` nutzen den Enum typisiert.
+- Validierung ueber Unit-Tests (`test_pool_mode_values`) und srv1-Import-Smoke abgeschlossen.
 
 Floating-Non-Persistent ist das klassische VDI-Modell: Jeder Nutzer bekommt einen
 freien Desktop aus dem Pool; beim Logout wird der Desktop auf den Template-Stand

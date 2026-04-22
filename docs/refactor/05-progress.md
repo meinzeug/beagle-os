@@ -1,5 +1,26 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 10 Schritt 2 Teil 1 + Schritt 3 Teil 1)
+
+- Neues Core-Modul `core/virtualization/desktop_pool.py` umgesetzt.
+- Provider-neutrales `DesktopPool`-Protocol eingefuehrt mit den Lifecycle-Seams:
+	`create_pool`, `get_pool`, `list_pools`, `delete_pool`, `scale_pool`,
+	`allocate_desktop`, `release_desktop`, `recycle_desktop`.
+- Neue typisierte Pool-/Lease-Datenmodelle hinzugefuegt:
+	- `DesktopPoolSpec`
+	- `DesktopPoolInfo`
+	- `DesktopLease`
+- Schritt-3-Mode-Baustein real umgesetzt:
+	- `DesktopPoolMode` Enum mit
+		`floating_non_persistent | floating_persistent | dedicated`.
+	- Mode ist in Spec/Lease-Feldern typisiert verdrahtet.
+- Unit-Test `tests/unit/test_desktop_pool_contract.py` ergaenzt (3/3 gruen).
+- Live-Deploy + Smoke auf `srv1.beagle-os.com`:
+	- Datei nach `/opt/beagle/core/virtualization/desktop_pool.py` ausgerollt,
+	- Import/Instanziierung per Python-Smoke erfolgreich (`POOL_IMPORT_SMOKE_OK`).
+- Ergebnis: GoFuture Plan 10 Checkboxen fuer
+	`core/virtualization/desktop_pool.py` und den Mode-Enum geschlossen.
+
 ## Update (2026-04-22, GoFuture Plan 10 Schritt 1 Teil 1: DesktopTemplate-Contract)
 
 - Neues Core-Modul `core/virtualization/desktop_template.py` umgesetzt.

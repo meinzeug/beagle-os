@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Plan 10 Schritt 2 Teil 1 + Schritt 3 Teil 1)
+
+0. **Plan 10 Pool-Lifecycle starten**:
+	- `beagle-host/services/pool_manager.py` als naechsten umsetzbaren Block implementieren,
+	- dabei zuerst `floating_non_persistent` Ende-zu-Ende lauffaehig machen.
+
+0. **Plan 10 Modus-Umsetzung fortsetzen**:
+	- Enum ist vorhanden, als naechstes die mode-spezifische Runtime-Logik im Pool-Manager abbilden,
+	- anschliessend API-Seam fuer Pool-CRUD + Lease-Aktionen vorbereiten.
+
 ## Delta (2026-04-22 nach Plan 10 Schritt 1 Teil 1)
 
 0. **Plan 10 Schritt 1 Teil 2 umsetzen**:
