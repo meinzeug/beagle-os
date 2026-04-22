@@ -71,7 +71,8 @@
 - [x] Execute GoFuture Plan 10 Schritt 6: add VM-detail action `Als Template` and implement Template-Builder modal + Sysprep/Seal progress dialog in Web Console, wired to `POST /api/v1/pool-templates`, then deploy and smoke-check on `srv1.beagle-os.com` (2026-04-22).
 - [x] Close GoFuture Plan 10 test checklist items for template->pool smoke, floating 5-slot allocation, <=60s recycle, and persistent same-VM reassignment via `scripts/test-vdi-pools-smoke.py`, validated locally and on `srv1.beagle-os.com` (2026-04-22).
 - [x] Close the final GoFuture Plan 10 entitlement visibility checkbox by implementing server-side pool filtering/masked lookups and proving it via the authenticated `scripts/test-vdi-pools-smoke.py` visibility slice on localhost and `srv1.beagle-os.com` (2026-04-22).
-- [ ] Execute GoFuture Plan 11 Schritt 1: start the first real Apollo/virtual-display runtime slice with a reproducible smoke on `srv1.beagle-os.com`.
+- [x] Execute GoFuture Plan 11 Schritt 1 (Linux first): Moonlight endpoint now sends detected `WIDTHxHEIGHT` to manager (`/api/v1/endpoints/moonlight/prepare-stream`), guest applies xrandr prepare before stream start; baseline smoke remains `pass_with_4k_limit` on `srv1/beagle-100` (2026-04-22).
+- [ ] Execute GoFuture Plan 11 Schritt 2: implement signed token-based auto-pairing (`pairing_service.py`) and replace PIN-driven endpoint flow with token exchange.
 - [x] Execute GoFuture Plan 06 Schritt 1: fully read `beagle-server-installer` and document the current installer flow as ASCII diagram in `docs/gofuture/06-server-installer.md` (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 2: refactor server installer + GUI to standalone-only mode and remove Proxmox installer branches (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 3: add central `server-installer/build.env` and wire `scripts/build-server-installer.sh` to load reproducible build dependencies from it (2026-04-21).

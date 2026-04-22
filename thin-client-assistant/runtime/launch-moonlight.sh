@@ -119,6 +119,14 @@ main() {
     app="$resolved_app"
   fi
 
+  local requested_resolution
+  requested_resolution="$(moonlight_resolution)"
+  if prepare_moonlight_stream_via_manager "$requested_resolution" "$app"; then
+    beagle_log_event "moonlight.prepare-stream.ok" "resolution=${requested_resolution} app=${app}"
+  else
+    beagle_log_event "moonlight.prepare-stream.skip" "resolution=${requested_resolution} app=${app}"
+  fi
+
   build_stream_args args
   if [[ -n "$connect_host" && "$connect_host" != "$host" ]]; then
     echo "Starting Moonlight stream: host=$host resolved_ipv4=$connect_host port=${port:-default} app=$app resolution=$(moonlight_resolution) fps=${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}" >&2

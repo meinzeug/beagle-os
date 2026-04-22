@@ -282,6 +282,68 @@ PY
             "stream_port": str(payload.get("stream_port", "") or "").strip(),
         }
 
+        def prepare_virtual_display_on_vm(self, vm: Any, *, resolution: str) -> dict[str, Any]:
+                configured = str(resolution or "").strip().lower()
+                if not re.fullmatch(r"\d{3,5}x\d{3,5}", configured):
+                        return {
+                                "ok": False,
+                                "error": "invalid resolution",
+                                "resolution": configured,
+                                "exitcode": 1,
+                                "stdout": "",
+                                "stderr": "invalid resolution format",
+                        }
+
+                guest_user = self.sunshine_guest_user(vm)
+                script = f"""#!/usr/bin/env bash
+set -euo pipefail
+
+RESOLUTION={configured!r}
+DISPLAY=:0
+XAUTHORITY=/home/{guest_user}/.Xauthority
+export DISPLAY XAUTHORITY
+
+if ! xrandr --query >/dev/null 2>&1; then
+    echo "xrandr unavailable for DISPLAY=:0" >&2
+    exit 2
+fi
+
+output="$(xrandr --query | awk '/ connected/{{print $1; exit}}')"
+if [[ -z "$output" ]]; then
+    echo "no connected display output" >&2
+    exit 3
+fi
+
+if xrandr --output "$output" --mode "$RESOLUTION" >/dev/null 2>&1; then
+    echo "APPLIED:$output:$RESOLUTION"
+    xrandr --query
+    exit 0
+fi
+
+if [[ "$RESOLUTION" == "3840x2160" ]]; then
+    xrandr --newmode "3840x2160_60.00" 712.75 3840 4160 4576 5312 2160 2163 2168 2237 -hsync +vsync >/dev/null 2>&1 || true
+    xrandr --addmode "$output" "3840x2160_60.00" >/dev/null 2>&1 || true
+    if xrandr --output "$output" --mode "3840x2160_60.00" >/dev/null 2>&1; then
+        echo "APPLIED:$output:3840x2160_60.00"
+        xrandr --query
+        exit 0
+    fi
+fi
+
+echo "failed to apply resolution on output $output" >&2
+xrandr --query >/dev/null 2>&1 || true
+exit 4
+"""
+                exitcode, stdout, stderr = self.guest_exec_text(vm.vmid, script)
+                return {
+                        "ok": exitcode == 0,
+                        "exitcode": exitcode,
+                        "resolution": configured,
+                        "stdout": stdout,
+                        "stderr": stderr,
+                        "guest_user": guest_user,
+                }
+
     def internal_sunshine_api_url(self, vm: Any, profile: dict[str, Any] | None = None) -> str:
         resolved_profile = profile if isinstance(profile, dict) else self._build_profile(vm)
         public_stream = resolved_profile.get("public_stream") if isinstance(resolved_profile.get("public_stream"), dict) else None

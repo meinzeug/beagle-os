@@ -15,6 +15,21 @@ print(json.dumps({
 PY
 }
 
+build_moonlight_stream_prepare_payload() {
+  local resolution="${1:-}"
+  local app="${2:-Desktop}"
+
+  python3 - "$resolution" "$app" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "resolution": sys.argv[1],
+    "app": sys.argv[2],
+}))
+PY
+}
+
 register_moonlight_client_via_manager() {
   local manager_url manager_token manager_pin manager_ca_cert device_name client_cert response_file payload_file http_status
   local curl_bin
@@ -57,4 +72,37 @@ register_moonlight_client_via_manager() {
   rm -f "$payload_file"
   rm -f "$response_file"
   return 0
+}
+
+prepare_moonlight_stream_via_manager() {
+  local resolution="${1:-}"
+  local app="${2:-Desktop}"
+  local manager_url manager_token manager_pin manager_ca_cert response_file payload_file http_status
+  local curl_bin
+  local -a curl_args tls_args
+
+  [[ -n "$resolution" ]] || return 1
+  [[ "$resolution" =~ ^[0-9]{3,5}x[0-9]{3,5}$ ]] || return 1
+
+  manager_url="${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}"
+  manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
+  manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
+  manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"
+  [[ -n "$manager_url" && -n "$manager_token" ]] || return 1
+
+  response_file="$(mktemp)"
+  payload_file="$(mktemp)"
+  curl_bin="$(moonlight_curl_bin)"
+  curl_args=("$curl_bin" -fsS --connect-timeout 6 --max-time 30 --output "$response_file" --write-out '%{http_code}' \
+    -H "Authorization: Bearer ${manager_token}" \
+    -H 'Content-Type: application/json')
+  mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/moonlight/prepare-stream" "$manager_pin" "$manager_ca_cert")
+  curl_args+=("${tls_args[@]}")
+
+  build_moonlight_stream_prepare_payload "$resolution" "$app" >"$payload_file"
+  http_status="$(${curl_args[@]} --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/moonlight/prepare-stream" || true)"
+
+  rm -f "$payload_file"
+  rm -f "$response_file"
+  [[ "$http_status" == "200" ]]
 }

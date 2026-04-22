@@ -13,6 +13,7 @@ class EndpointHttpSurfaceService:
         find_vm: Callable[[int], Any | None],
         register_moonlight_certificate_on_vm: Callable[[Any, str], dict[str, Any]],
         service_name: str,
+        prepare_virtual_display_on_vm: Callable[[Any, str], dict[str, Any]],
         store_action_result: Callable[[str, int, dict[str, Any]], None],
         store_support_bundle: Callable[[str, int, str, str, bytes], dict[str, Any]],
         summarize_action_result: Callable[[dict[str, Any] | None], dict[str, Any]],
@@ -23,6 +24,7 @@ class EndpointHttpSurfaceService:
         self._fetch_sunshine_server_identity = fetch_sunshine_server_identity
         self._find_vm = find_vm
         self._register_moonlight_certificate_on_vm = register_moonlight_certificate_on_vm
+        self._prepare_virtual_display_on_vm = prepare_virtual_display_on_vm
         self._service_name = str(service_name or "beagle-control-plane")
         self._store_action_result = store_action_result
         self._store_support_bundle = store_support_bundle
@@ -52,6 +54,7 @@ class EndpointHttpSurfaceService:
     def handles_path(path: str) -> bool:
         return path in {
             "/api/v1/endpoints/moonlight/register",
+            "/api/v1/endpoints/moonlight/prepare-stream",
             "/api/v1/endpoints/actions/pull",
             "/api/v1/endpoints/actions/result",
             "/api/v1/endpoints/support-bundles/upload",
@@ -61,6 +64,7 @@ class EndpointHttpSurfaceService:
     def requires_json_body(path: str) -> bool:
         return path in {
             "/api/v1/endpoints/moonlight/register",
+            "/api/v1/endpoints/moonlight/prepare-stream",
             "/api/v1/endpoints/actions/pull",
             "/api/v1/endpoints/actions/result",
         }
@@ -134,6 +138,30 @@ class EndpointHttpSurfaceService:
                 },
             )
 
+        if path == "/api/v1/endpoints/moonlight/prepare-stream":
+            vmid = int(identity.get("vmid", 0) or 0)
+            vm = self._find_vm(vmid)
+            if vm is None or str(identity.get("node", "")).strip() != vm.node:
+                return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            resolution = str(payload.get("resolution", "")).strip()
+            if not resolution:
+                return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid payload: missing resolution"})
+
+            result = self._prepare_virtual_display_on_vm(vm, resolution)
+            return self._json_response(
+                HTTPStatus.OK if bool(result.get("ok")) else HTTPStatus.BAD_GATEWAY,
+                {
+                    "ok": bool(result.get("ok")),
+                    **self._envelope(
+                        vmid=vm.vmid,
+                        node=vm.node,
+                        resolution=resolution,
+                        result=result,
+                    ),
+                },
+            )
         if path == "/api/v1/endpoints/actions/pull":
             payload = json_payload if isinstance(json_payload, dict) else {}
             try:

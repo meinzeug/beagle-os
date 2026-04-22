@@ -1,5 +1,59 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 11 Schritt 1 abgeschlossen: Endpoint->Manager prepare-stream)
+
+- Offene Schritt-1-Checkbox geschlossen: Moonlight-Client liest lokale Aufloesung und triggert vor Streamstart einen Guest-Display-Prepare-Call.
+- Neuer Endpoint-API-Pfad implementiert:
+	- `POST /api/v1/endpoints/moonlight/prepare-stream`
+	- in `beagle-host/services/endpoint_http_surface.py`.
+- Neue Guest-Display-Prepare-Logik in `beagle-host/services/sunshine_integration.py`:
+	- `prepare_virtual_display_on_vm(...)` setzt `DISPLAY=:0` + `XAUTHORITY` und versucht `xrandr --output <out> --mode <resolution>`.
+	- fuer `3840x2160` wird zusaetzlich ein 4K-Modeline-Add/Apply-Fallback versucht.
+- Control-Plane-Wiring in `beagle-host/bin/beagle-control-plane.py` erweitert (Wrapper + Endpoint-Surface-Injektion).
+- Endpoint-Runtime integriert:
+	- `thin-client-assistant/runtime/moonlight_manager_registration.sh` um `prepare_moonlight_stream_via_manager(...)` erweitert.
+	- `thin-client-assistant/runtime/launch-moonlight.sh` ruft den Prepare-Call vor dem eigentlichen Moonlight-Stream auf.
+- Testabdeckung erweitert:
+	- `tests/unit/test_endpoint_http_surface.py` neu (prepare-stream path/status/payload).
+	- `python3 -m pytest tests/unit/test_endpoint_http_surface.py tests/unit/test_streaming_backend_service.py -q` => `9 passed`.
+- Runtime-Smoke:
+	- `python3 scripts/test-streaming-quality-smoke.py --host srv1.beagle-os.com --domain beagle-100` => `pass_with_4k_limit`.
+	- `x11_prereq`, `xrandr_query`, `vkms_sunshine`, `sunshine_api_apps` gruen; 4K-Apply weiterhin durch CRTC-Limit begrenzt.
+
+## Update (2026-04-22, GoFuture Plan 11 Schritt 1 Start: Linux vkms + Windows Apollo Split)
+
+- Plan-11-Strategie auf realen Runtime-Stand gebracht:
+	- `docs/gofuture/11-streaming-v2.md` von pauschalem Apollo-Ziel auf Plattform-Split umgestellt,
+	- Linux-Desktop-Pfad: Sunshine + `vkms` (Virtual Display),
+	- Windows-Desktop-Pfad: Apollo + SudoVDA (optional/eval).
+- Architekturentscheidung dokumentiert in `docs/refactor/07-decisions.md`:
+	- neue Entscheidung `D-031` beschreibt den platform-aware Backend-Ansatz,
+	- `guest_os=linux` -> Sunshine+vkms,
+	- `guest_os=windows` -> Apollo,
+	- Sunshine bleibt Fallback fuer Apollo-Fehlerpfade.
+- Technischer Runtime-Anker umgesetzt:
+	- neues Provisioning-Template `beagle-host/templates/ubuntu-beagle/virtual-display-setup.sh.tpl` angelegt,
+	- `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl` um `configure_virtual_display_vkms()` erweitert,
+	- firstboot laedt jetzt `vkms`, persistiert Modul-Load (`/etc/modules-load.d/vkms.conf`), installiert `vkms-virtual-display.service`, und startet ein XFCE-Autostart-Skript zur 4K-Mode-Setzung via `xrandr`.
+	- neuer platform-aware Selector `beagle-host/services/streaming_backend.py` implementiert (Linux default `sunshine`, Windows default `apollo`, optional `allow_apollo_on_linux` fuer Eval-Pfade).
+	- Unit-Tests fuer Selector (`tests/unit/test_streaming_backend_service.py`) hinzugefuegt (`5 passed`).
+- Live-Check auf `srv1.beagle-os.com` / `beagle-100`:
+	- Sunshine-Version in VM bestaetigt (`2025.924.154138`),
+	- `vkms` per guest-agent erfolgreich geladen (`lsmod` zeigt Modul),
+	- `xrandr` im guest-agent-Kontext liefert erwartbar `Can't open display` (kein DISPLAY im nicht-interaktiven Agent-Kontext), was den bekannten Unterschied zu echter XFCE-Session bestaetigt.
+	- anschliessend in echter Session validiert: `DISPLAY=:0 XAUTHORITY=/home/beagle/.Xauthority xrandr --query` funktioniert und zeigt `Virtual-1` inkl. Modus `3840x2160_60.00`.
+	- 4K-Apply laeuft aktuell in `xrandr: Configure crtc 0 failed`; deshalb wurde ein robuster Fallback auf `1920x1080` in den vkms-Setup-Skripten implementiert.
+	- neuer reproduzierbarer Qualitaets-Smoke `scripts/test-streaming-quality-smoke.py` hinzugefuegt und ausgefuehrt:
+		- `x11_prereq`: ok
+		- `xrandr_query`: ok (`Virtual-1`, current `1280x800`, 4K-Mode vorhanden)
+		- `xrandr_set_4k`: nicht erfolgreich (`Configure crtc 0 failed`)
+		- `vkms_sunshine`: ok
+		- `sunshine_api_apps`: ok
+		- Gesamtresultat: `pass_with_4k_limit`.
+- Ergebnis:
+	- Plan 11 ist gestartet und hat einen reproduzierbaren Linux-vDisplay-Implementierungsanker im Repo,
+	- offene Restarbeit fuer Abschluss von Schritt 1: Moonlight-E2E-Stream-Nachweis gegen den vkms-Guest und Aufloesungs-Uplift auf 4K in kompatibler VM-Grafikkonfiguration.
+
 ## Update (2026-04-22, GoFuture Plan 10 letzte Testpflicht: Entitlement-Sichtbarkeit)
 
 - Serverseitige Pool-Sichtbarkeitsfilter in `beagle-host/bin/beagle-control-plane.py` umgesetzt:

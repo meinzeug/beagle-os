@@ -399,6 +399,74 @@ EOF
   apt_retry apt-get install -y --no-install-recommends google-chrome-stable
 }
 
+configure_virtual_display_vkms() {
+  if ! modinfo vkms >/dev/null 2>&1; then
+    echo "WARN: vkms module is not available; continuing without virtual display module" >&2
+    return 0
+  fi
+
+  if ! lsmod | grep -q '^vkms\b'; then
+    modprobe vkms >/dev/null 2>&1 || true
+  fi
+
+  install -d -m 0755 /etc/modules-load.d
+  cat > /etc/modules-load.d/vkms.conf <<'EOF'
+vkms
+EOF
+
+  cat > /etc/systemd/system/vkms-virtual-display.service <<'EOF'
+[Unit]
+Description=Beagle Virtual Display (vkms)
+Before=display-manager.service
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -lc 'lsmod | grep -q "^vkms\\b" || modprobe vkms'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  cat > /usr/local/bin/beagle-vkms-xrandr-setup <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+for _ in {1..30}; do
+  if xrandr --query >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+output="$(xrandr --query | awk '/ connected/{print $1; exit}')"
+[[ -n "$output" ]] || exit 0
+
+xrandr --newmode "3840x2160_60.00" 712.75 3840 4160 4576 5312 2160 2163 2168 2237 -hsync +vsync >/dev/null 2>&1 || true
+xrandr --addmode "$output" "3840x2160_60.00" >/dev/null 2>&1 || true
+if xrandr --output "$output" --primary --mode "3840x2160_60.00" >/dev/null 2>&1; then
+  exit 0
+fi
+
+xrandr --output "$output" --primary --mode "1920x1080" >/dev/null 2>&1 || true
+EOF
+  chmod 0755 /usr/local/bin/beagle-vkms-xrandr-setup
+
+  cat > /etc/xdg/autostart/beagle-vkms-xrandr.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Beagle vkms xrandr setup
+Exec=/usr/local/bin/beagle-vkms-xrandr-setup
+OnlyShowIn=XFCE;
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+EOF
+
+  systemctl daemon-reload
+  systemctl enable vkms-virtual-display.service >/dev/null 2>&1 || true
+}
+
 configure_default_browser() {
   install -d -m 0700 -o "$GUEST_USER" -g "$GUEST_USER" \
     "/home/$GUEST_USER/.config" \
@@ -516,6 +584,7 @@ if [[ ! -f "$DONE_FILE" ]]; then
   apt_retry apt-get install -y "$TMPDIR_WORK/sunshine.deb"
   configure_system_locale
   configure_keyboard_layout
+  configure_virtual_display_vkms
   install_google_chrome
 
   install -d -m 0755 /etc/lightdm/lightdm.conf.d

@@ -149,6 +149,24 @@ Stand: 2026-04-13
 - Wirkung: Web UI zeigt nach frischer Installation wieder verlässlich den verpflichtenden Onboarding-Flow; bestehende bootstrap-only Zustände werden auf `pending` zurückgeführt, sobald Bootstrap-Auth deaktiviert ist.
 - Dateien: `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`, `beagle-host/services/auth_session.py`, `beagle-host/bin/beagle-control-plane.py`.
 
+## D-031: Streaming-Backend-Strategie: Windows-Apollo + Linux-Sunshine-vkms
+- Entscheidung: Plan 11 (Streaming v2) teilt sich in zwei Pfade: (1) **Windows-Desktops nutzen Apollo** mit nativer Virtual Display (SudoVDA), HDR, Multi-Monitor; (2) **Linux-Desktops nutzen Sunshine** mit Virtual Display via DRM-vkms PoC (Standard), optional Apollo-Build aus Source (ohne Virtual Display).
+- Grund: Apollo ist Windows-only für Virtual Display (`SudoVDA`-Treiber, geplant für Linux aber nicht implementiert). Linux-Desktops brauchen Virtual Display für headless Hosts (keine physischen Monitore). vkms ist im Mainline-Kernel enthalten und wird per Firstboot-Skript provisioniert.
+- Konsequenz: `beagle-host/services/streaming_backend.py` wird platform-aware: `guest_os == "windows"` → Apollo (default), `guest_os == "linux"` → Sunshine + vkms. Fallback für Apollo-Fehler: Sunshine mainline. Provider-Neutralität bleibt erhalten.
+- Umsetzung:
+  1. **Schritt 1 (2026-04)**: Sunshine mainline bleibt Default für alle VMs bis vkms-PoC validiert ist.
+  2. **Schritt 2 (2026-05)**: vkms PoC auf Linux Desktop-VM validieren (resolution persistence, Moonlight compatibility).
+  3. **Schritt 3 (Q1 2027)**: Apollo Build aus Source für Linux evaluieren (nur für Vergleichsmessungen, ohne Virtual Display-Features).
+  4. **Schritt 4 (Q1 2027)**: Windows Guest-VM mit Apollo + SudoVDA evaluieren (Baseline für kompetitives Benchmarking).
+- Testakzeptanz: Linux-Desktop streamt 3840×2160@60 (Sunshine + vkms); Windows-Desktop streamt 3840×2160@60 HDR (Apollo + SudoVDA); beide ohne Artefakte und mit Endpunkt-Moonlight-Kompatibilität.
+- Dateien: `docs/gofuture/11-streaming-v2.md`, `docs/refactorv2/05-streaming-protocol-strategy.md`, `beagle-host/services/streaming_backend.py` (neu).
+
+## D-032: Endpoint triggert Guest-Display-Prepare vor Moonlight-Stream
+- Entscheidung: Vor dem Moonlight-Stream ruft der Endpoint den Manager-Hook `POST /api/v1/endpoints/moonlight/prepare-stream` auf und uebergibt die lokal erkannte Aufloesung (`WIDTHxHEIGHT`).
+- Grund: Der Linux-vkms-Guest muss die Zielauflosung vor Streamstart aktiv setzen (xrandr), damit Stream-Session nicht auf statischem Fallback verbleibt.
+- Umsetzung: `thin-client-assistant/runtime/launch-moonlight.sh` + `moonlight_manager_registration.sh` triggern den Hook; Backend setzt per guest-exec (`DISPLAY=:0`, `XAUTHORITY`) via `xrandr`.
+- Dateien: `beagle-host/services/endpoint_http_surface.py`, `beagle-host/services/sunshine_integration.py`, `thin-client-assistant/runtime/launch-moonlight.sh`, `thin-client-assistant/runtime/moonlight_manager_registration.sh`.
+
 ## D-031: Security-Funde muessen pro Run dokumentiert und nach Moeglichkeit sofort gepatcht werden
 - Entscheidung: Jeder Agent-Run muss im bearbeiteten Scope aktiv nach Security-Funden suchen; neue Funde werden in `docs/refactor/11-security-findings.md` dokumentiert und direkt mitgepatcht, wenn der Fix reproduzierbar und risikoarm ist.
 - Grund: Security darf im laufenden Refactor nicht als spaetere Phase behandelt werden, sonst akkumulieren versteckte Risiken zwischen mehreren Agentenruns.

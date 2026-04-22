@@ -2,10 +2,18 @@
 
 ## Delta (2026-04-22 nach Abschluss von Plan 10)
 
-0. **Plan 11 starten**:
-	- `docs/gofuture/11-streaming-v2.md` lesen,
-	- den kleinsten echten Apollo-/Virtual-Display-Laufzeit-Anchor identifizieren,
-	- den ersten reproduzierbaren Runtime-Schritt auf `srv1.beagle-os.com` umsetzen.
+0. **Plan 11 Schritt 2 starten (Auto-Pairing Token)**:
+	- `beagle-host/services/pairing_service.py` anlegen,
+	- kurzlebige signierte Pairing-Tokens (VM/Scope/Expiry) einbauen,
+	- Endpoint-Flow von PIN-zentriert auf Token-Exchange umstellen.
+
+0. **Plan 11 Rest aus Schritt 1 hardenen**:
+	- CRTC-Limit fuer 4K-Apply (`xrandr: Configure crtc 0 failed`) in der VM-Grafikpipeline reduzieren,
+	- Moonlight-E2E mit 3840x2160@60 als Ziel-Nachweis abschliessen.
+
+0. **Plan 11 Backend-Selector vorbereiten**:
+	- `beagle-host/services/streaming_backend.py` als platform-aware Selector (`linux -> sunshine`, `windows -> apollo`) anlegen,
+	- Initial-Wiring im Provisioning-/Pool-Pfad vorbereiten ohne bestehenden Sunshine-Default zu brechen.
 
 0. **Entitlement-Gruppenpfad spaeter end-to-end schliessen**:
 	- sobald Auth-Principals echte Gruppenclaims tragen (OIDC/SAML/SCIM), dieselbe Sichtbarkeits-/Allocate-Semantik fuer Gruppen-Entitlements gegen echte Gruppenmitglieder validieren.

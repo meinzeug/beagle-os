@@ -1518,6 +1518,10 @@ def fetch_sunshine_server_identity(vm: VmSummary, guest_user: str) -> dict[str, 
     return sunshine_integration_service().fetch_sunshine_server_identity(vm, guest_user)
 
 
+def prepare_virtual_display_on_vm(vm: VmSummary, resolution: str) -> dict[str, Any]:
+    return sunshine_integration_service().prepare_virtual_display_on_vm(vm, resolution=resolution)
+
+
 def internal_sunshine_api_url(vm: VmSummary, profile: dict[str, Any] | None = None) -> str:
     return sunshine_integration_service().internal_sunshine_api_url(vm, profile)
 
@@ -2232,6 +2236,7 @@ def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
             dequeue_vm_actions=dequeue_vm_actions,
             fetch_sunshine_server_identity=fetch_sunshine_server_identity,
             find_vm=find_vm,
+            prepare_virtual_display_on_vm=prepare_virtual_display_on_vm,
             register_moonlight_certificate_on_vm=register_moonlight_certificate_on_vm,
             service_name="beagle-control-plane",
             store_action_result=store_action_result,
