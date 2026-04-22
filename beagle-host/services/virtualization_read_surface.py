@@ -74,7 +74,11 @@ class VirtualizationReadSurfaceService:
 
     def _nodes_payload(self) -> list[dict[str, Any]]:
         nodes: list[dict[str, Any]] = []
-        for item in self._list_nodes_inventory():
+        try:
+            raw_nodes = self._list_nodes_inventory()
+        except Exception:
+            return nodes
+        for item in raw_nodes:
             if not isinstance(item, dict):
                 continue
             normalized = self._normalize_node(item)
@@ -108,7 +112,11 @@ class VirtualizationReadSurfaceService:
 
     def _storage_payload(self) -> list[dict[str, Any]]:
         storage: list[dict[str, Any]] = []
-        for item in self._list_storage_inventory():
+        try:
+            raw_storage = self._list_storage_inventory()
+        except Exception:
+            return storage
+        for item in raw_storage:
             if not isinstance(item, dict):
                 continue
             normalized = self._normalize_storage(item)
@@ -134,7 +142,11 @@ class VirtualizationReadSurfaceService:
 
     def _bridges_payload(self) -> list[dict[str, Any]]:
         bridges: list[dict[str, Any]] = []
-        for item in self._list_bridges_inventory(""):
+        try:
+            raw_bridges = self._list_bridges_inventory("")
+        except Exception:
+            return bridges
+        for item in raw_bridges:
             if not isinstance(item, dict):
                 continue
             normalized = self._normalize_bridge(item)

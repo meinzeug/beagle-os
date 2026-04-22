@@ -45,11 +45,32 @@ class HealthPayloadService:
         self._vm_installers_file = vm_installers_file
 
     def build_payload(self) -> dict[str, Any]:
-        downloads_status = self._load_json_file(self._downloads_status_file, {})
-        vm_installers = self._load_json_file(self._vm_installers_file, [])
-        endpoint_reports = self._list_endpoint_reports()
-        policies = self._list_policies()
-        vms = self._list_vms()
+        warnings: list[str] = []
+        try:
+            downloads_status = self._load_json_file(self._downloads_status_file, {})
+        except Exception as exc:
+            downloads_status = {}
+            warnings.append(f"downloads_status_unavailable:{exc}")
+        try:
+            vm_installers = self._load_json_file(self._vm_installers_file, [])
+        except Exception as exc:
+            vm_installers = []
+            warnings.append(f"vm_installers_unavailable:{exc}")
+        try:
+            endpoint_reports = self._list_endpoint_reports()
+        except Exception as exc:
+            endpoint_reports = []
+            warnings.append(f"endpoint_reports_unavailable:{exc}")
+        try:
+            policies = self._list_policies()
+        except Exception as exc:
+            policies = []
+            warnings.append(f"policies_unavailable:{exc}")
+        try:
+            vms = self._list_vms()
+        except Exception as exc:
+            vms = []
+            warnings.append(f"vm_inventory_unavailable:{exc}")
         status_counts = {
             "healthy": 0,
             "degraded": 0,
@@ -60,8 +81,16 @@ class HealthPayloadService:
         }
         pending_action_count = 0
         for vm in vms:
-            profile = self._build_profile(vm)
-            endpoint = self._summarize_endpoint_report(self._load_endpoint_report(vm.node, vm.vmid) or {})
+            try:
+                profile = self._build_profile(vm)
+            except Exception as exc:
+                profile = {}
+                warnings.append(f"vm_profile_unavailable:{getattr(vm, 'vmid', 'unknown')}:{exc}")
+            try:
+                endpoint = self._summarize_endpoint_report(self._load_endpoint_report(vm.node, vm.vmid) or {})
+            except Exception as exc:
+                endpoint = {}
+                warnings.append(f"endpoint_summary_unavailable:{getattr(vm, 'vmid', 'unknown')}:{exc}")
             role = str(profile.get("beagle_role", "")).strip().lower()
             report_age = endpoint.get("report_age_seconds")
             if role in {"endpoint", "thinclient", "client"}:
@@ -78,13 +107,22 @@ class HealthPayloadService:
             else:
                 status = "unmanaged"
             status_counts[status] = status_counts.get(status, 0) + 1
-            pending_action_count += len(self._load_action_queue(vm.node, vm.vmid))
+            try:
+                pending_action_count += len(self._load_action_queue(vm.node, vm.vmid))
+            except Exception as exc:
+                warnings.append(f"action_queue_unavailable:{getattr(vm, 'vmid', 'unknown')}:{exc}")
+                continue
+        available_providers: list[str] = []
+        try:
+            available_providers = self._list_providers()
+        except Exception as exc:
+            warnings.append(f"providers_unavailable:{exc}")
         return {
             "service": self._service_name,
             "ok": True,
             "version": self._version,
             "provider": self._host_provider_kind,
-            "available_providers": self._list_providers(),
+            "available_providers": available_providers,
             "generated_at": self._utcnow(),
             "downloads_status_present": self._downloads_status_file.exists(),
             "downloads_status": downloads_status,
@@ -96,4 +134,5 @@ class HealthPayloadService:
             "pending_action_count": pending_action_count,
             "endpoint_status_counts": status_counts,
             "data_dir": str(self._data_dir),
+            "warnings": warnings,
         }
