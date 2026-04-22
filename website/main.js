@@ -44,6 +44,10 @@ import {
   configureActions
 } from './ui/actions.js';
 import {
+  configureTemplateBuilder,
+  openTemplateBuilderModal
+} from './ui/template_builder.js';
+import {
   configurePolicies,
   renderPolicies
 } from './ui/policies.js';
@@ -121,6 +125,7 @@ function buildDetailActionsHtml(status) {
     html += actionButton('download-live-usb', 'Live USB', 'ghost');
   }
   if (status === 'stopped' || status === 'shutoff') {
+    html += actionButton('open-template-builder', 'Als Template', 'ghost');
     html += actionButton('download-linux', 'Installer Linux', 'ghost');
     html += actionButton('download-windows', 'Installer Windows', 'ghost');
     html += actionButton('download-live-usb', 'Live USB', 'ghost');
@@ -442,6 +447,13 @@ export function bootstrapApp() {
     loadDashboard,
     requestConfirm,
     runVmPowerAction,
+    setBanner,
+    loadDetail,
+    openTemplateBuilderModal
+  });
+  configureTemplateBuilder({
+    addToActivityLog,
+    loadDashboard,
     setBanner,
     loadDetail
   });

@@ -195,8 +195,27 @@ der Pool-Manager asynchron die ersten VMs und zeigt Progress in der Pool-Übersi
 
 ### Schritt 6 — Template-Builder in Web Console
 
-- [ ] "Neue VM als Template konvertieren"-Aktion in der VM-Detailansicht.
-- [ ] Builder-Status-Dialog zeigt Sysprep/Seal-Fortschritt.
+- [x] "Neue VM als Template konvertieren"-Aktion in der VM-Detailansicht.
+- [x] Builder-Status-Dialog zeigt Sysprep/Seal-Fortschritt.
+
+Umgesetzt (2026-04-22):
+- Neue VM-Detailaktion `Als Template` in `website/main.js` fuer gestoppte VMs (`stopped`/`shutoff`) eingebaut.
+- Neues UI-Modul `website/ui/template_builder.js` implementiert:
+	- Template-Builder-Modal oeffnen/schliessen,
+	- Payload-Build fuer `POST /api/v1/pool-templates`,
+	- Progress-Dialog mit Schrittstatus (`Input validieren`, `Sysprep/Seal`, `Backing-Image exportieren`, `Metadaten persistieren`),
+	- Erfolgs-/Fehlerbehandlung inkl. Activity-Log, Banner und Refresh (`loadDashboard`/`loadDetail`).
+- `website/ui/actions.js` erweitert um Action-Dispatch `open-template-builder`.
+- `website/ui/events.js` erweitert um Modal-/Progress-Buttons (`template-builder-create`, close/cancel, progress-close).
+- `website/index.html` um zwei neue Modals erweitert:
+	- `template-builder-modal`
+	- `template-builder-progress-modal`
+- `website/main.js` verdrahtet (`configureTemplateBuilder`, Hook in `configureActions`).
+- Deploy + Runtime-Validierung auf `srv1.beagle-os.com` erfolgreich:
+	- `./scripts/install-beagle-host-services.sh` => `INSTALL_OK`
+	- `https://127.0.0.1/` enthaelt `template-builder-modal`, `template-builder-progress-modal`, `template-builder-create`
+	- `https://127.0.0.1/main.js` enthaelt `open-template-builder`
+	- `GET /beagle-api/api/v1/pool-templates` liefert ohne Auth erwartetes `401`.
 
 Betreiber sollen Templates direkt aus der Web Console heraus erstellen können
 ohne CLI-Befehle ausführen zu müssen. Der Template-Builder-Dialog erscheint wenn

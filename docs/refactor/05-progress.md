@@ -1,5 +1,25 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 10 Schritt 6: Template-Builder in Web Console)
+
+- Neue VM-Detailaktion `Als Template` in `website/main.js` fuer gestoppte VMs umgesetzt.
+- Neues Modul `website/ui/template_builder.js` implementiert:
+	- Template-Builder-Modal,
+	- API-Call `POST /api/v1/pool-templates`,
+	- Fortschrittsdialog mit Sysprep/Seal-/Export-/Persistenz-Schritten,
+	- Erfolgs-/Fehlerpfad mit Banner + Activity + Refresh.
+- `website/ui/actions.js` um Action-Dispatch `open-template-builder` erweitert.
+- `website/ui/events.js` um Template-Builder-Modal-/Progress-Events erweitert.
+- `website/index.html` um `template-builder-modal` und `template-builder-progress-modal` erweitert.
+- Lokale Validierung:
+	- `node --check website/main.js website/ui/actions.js website/ui/events.js website/ui/template_builder.js` => alle erfolgreich.
+- Deploy + Runtime-Validierung auf `srv1.beagle-os.com`:
+	- geaenderte Dateien nach `/opt/beagle/website/...` ausgerollt,
+	- `./scripts/install-beagle-host-services.sh` => `INSTALL_OK`,
+	- Live-Smoke: `template-builder-modal`, `template-builder-progress-modal`, `template-builder-create` in `/` vorhanden,
+	- Live-Smoke: `open-template-builder` in ausgeliefertem `main.js` vorhanden,
+	- `GET /beagle-api/api/v1/pool-templates` ohne Auth => `401` (erwartet).
+
 ## Update (2026-04-22, GoFuture Plan 10 Schritt 5: Pool-Wizard + Pool-Uebersicht)
 
 - Web Console fuer VDI-Pools auf echten Mehrschritt-Wizard umgestellt:

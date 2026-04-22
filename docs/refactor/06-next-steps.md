@@ -1,5 +1,20 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Plan 10 Schritt 6)
+
+0. **Plan 10 Testpflicht schliessen**:
+	- auf `srv1.beagle-os.com` einen Pool mit 5 `floating_non_persistent`-VMs erzeugen,
+	- Allocate/Release/Recycle-Flow inkl. <=60s Reset reproduzierbar dokumentieren,
+	- persistenten Pool auf "zweiter Login bekommt dieselbe VM" verifizieren.
+
+0. **Plan 10 Template-Builder E2E validieren**:
+	- gestoppte Golden-VM in der Web Console zu Template bauen,
+	- daraus Pool erstellen und erfolgreiche Verwendung der neuen Template-ID nachweisen.
+
+0. **Plan 10 Entitlement-Testpflicht schliessen**:
+	- User ohne Entitlement gegen Pool-Sicht/Allocate pruefen (erwartet kein Zugriff bzw. `403`),
+	- Ergebnis inkl. API-Belegen und UI-Sicht dokumentieren.
+
 ## Delta (2026-04-22 nach Plan 10 Schritt 5)
 
 0. **Plan 10 Schritt 6 umsetzen**:

@@ -68,6 +68,7 @@
 - [x] Execute GoFuture Plan 10 Schritt 4 (Teil 1): implement `beagle-host/services/entitlement_service.py` with persisted user/group entitlements and eligibility checks, including unit tests and srv1 smoke validation (2026-04-22).
 - [x] Execute GoFuture Plan 10 Schritt 4 (Teil 2): wire Pool/Template/Entitlement API routes into `beagle-control-plane.py`, add `pool:read`/`pool:write` RBAC, and validate live unauthorized guards on `srv1.beagle-os.com` (2026-04-22).
 - [x] Execute GoFuture Plan 10 Schritt 5: implement multi-step Pool Wizard in Web Console (Template -> Size/Mode -> Entitlements -> Confirmation) and extend Pool overview with per-status VM counters (`free`, `in_use`, `recycling`, `error`), then deploy and smoke-check on `srv1.beagle-os.com` (2026-04-22).
+- [x] Execute GoFuture Plan 10 Schritt 6: add VM-detail action `Als Template` and implement Template-Builder modal + Sysprep/Seal progress dialog in Web Console, wired to `POST /api/v1/pool-templates`, then deploy and smoke-check on `srv1.beagle-os.com` (2026-04-22).
 - [x] Execute GoFuture Plan 06 Schritt 1: fully read `beagle-server-installer` and document the current installer flow as ASCII diagram in `docs/gofuture/06-server-installer.md` (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 2: refactor server installer + GUI to standalone-only mode and remove Proxmox installer branches (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 3: add central `server-installer/build.env` and wire `scripts/build-server-installer.sh` to load reproducible build dependencies from it (2026-04-21).

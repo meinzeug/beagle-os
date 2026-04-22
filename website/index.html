@@ -188,6 +188,64 @@
       </div>
     </div>
 
+    <!-- VM Template Builder modal -->
+    <div class="modal" id="template-builder-modal" aria-hidden="true" hidden>
+      <div class="modal-dialog provision-dialog" role="dialog" aria-modal="true" aria-labelledby="template-builder-title">
+        <div class="modal-dialog-head">
+          <div>
+            <span class="eyebrow">VDI Templates</span>
+            <h2 id="template-builder-title">VM als Template konvertieren</h2>
+          </div>
+          <button class="icon-button" id="close-template-builder-modal" type="button" aria-label="Schliessen">×</button>
+        </div>
+        <div class="provision-grid" id="template-builder-grid">
+          <label class="field"><span>Source VMID</span><input id="template-source-vmid" type="number" readonly></label>
+          <label class="field"><span>Template ID (optional)</span><input id="template-id" type="text" placeholder="tmpl-vm100-20260422"></label>
+          <label class="field"><span>Template Name</span><input id="template-name" type="text" placeholder="golden-vm100"></label>
+          <label class="field"><span>OS Family</span>
+            <select id="template-os-family" class="input-select">
+              <option value="linux" selected>linux</option>
+              <option value="windows">windows</option>
+            </select>
+          </label>
+          <label class="field"><span>Storage Pool</span><input id="template-storage-pool" type="text" placeholder="local"></label>
+          <label class="field"><span>Snapshot Name</span><input id="template-snapshot-name" type="text" placeholder="sealed"></label>
+          <label class="field"><span>vCPU</span><input id="template-cpu-cores" type="number" min="1" step="1" value="2"></label>
+          <label class="field"><span>RAM MiB</span><input id="template-memory-mib" type="number" min="1024" step="256" value="4096"></label>
+          <label class="field field-wide"><span>Pakete (komma-separiert)</span><input id="template-software-packages" type="text" placeholder="xfce4,moonlight-qt,sunshine"></label>
+          <label class="field field-wide"><span>Notizen</span><textarea id="template-notes" rows="3" placeholder="Golden image fuer Engineering Pool"></textarea></label>
+        </div>
+        <div class="button-row provision-modal-buttons">
+          <button class="button ghost" id="template-builder-cancel" type="button">Abbrechen</button>
+          <button class="button primary" id="template-builder-create" type="button">Template bauen</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VM Template Builder progress modal -->
+    <div class="modal" id="template-builder-progress-modal" aria-hidden="true" hidden>
+      <div class="modal-dialog provision-progress-dialog" role="dialog" aria-modal="true" aria-labelledby="template-builder-progress-title">
+        <div class="modal-dialog-head">
+          <div>
+            <span class="eyebrow">Template Builder</span>
+            <h2 id="template-builder-progress-title">Template wird erstellt ...</h2>
+            <p id="template-builder-progress-subtitle">Sysprep/Seal und Export laufen auf dem Host.</p>
+          </div>
+        </div>
+        <div class="provision-progress-hero" aria-hidden="true">
+          <div class="provision-progress-spinner"></div>
+          <div class="provision-progress-glow"></div>
+        </div>
+        <ol class="provision-progress-steps" id="template-builder-progress-steps">
+          <li class="provision-progress-step"><span class="step-dot"></span><div><strong>Start</strong><p>Warte auf Status ...</p></div><span class="step-state">pending</span></li>
+        </ol>
+        <div class="banner info provision-progress-banner" id="template-builder-progress-message">Template-Builder wird gestartet ...</div>
+        <div class="button-row provision-modal-buttons">
+          <button class="button ghost" id="template-builder-progress-close" type="button">Schliessen</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Mobile sidebar backdrop -->
     <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 

@@ -44,6 +44,11 @@ import {
   renderProvisioningWorkspace
 } from './provisioning.js';
 import {
+  closeTemplateBuilderModal,
+  closeTemplateBuilderProgressModal,
+  createTemplateFromModal
+} from './template_builder.js';
+import {
   createPoolFromWizard,
   deleteSelectedPolicy,
   loadPolicyIntoEditor,
@@ -720,6 +725,18 @@ export function bindEvents() {
     qs('provision-modal-create').addEventListener('click', () => {
       createProvisionedVmWithPrefix('prov-modal-');
     });
+  }
+  if (qs('close-template-builder-modal')) {
+    qs('close-template-builder-modal').addEventListener('click', closeTemplateBuilderModal);
+  }
+  if (qs('template-builder-cancel')) {
+    qs('template-builder-cancel').addEventListener('click', closeTemplateBuilderModal);
+  }
+  if (qs('template-builder-create')) {
+    qs('template-builder-create').addEventListener('click', createTemplateFromModal);
+  }
+  if (qs('template-builder-progress-close')) {
+    qs('template-builder-progress-close').addEventListener('click', closeTemplateBuilderProgressModal);
   }
   if (qs('close-provision-modal')) {
     qs('close-provision-modal').addEventListener('click', closeProvisionModal);

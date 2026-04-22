@@ -15,6 +15,9 @@ const actionHooks = {
   },
   loadDashboard() {
     return Promise.resolve();
+  },
+  openTemplateBuilderModal() {
+    return null;
   }
 };
 
@@ -29,6 +32,10 @@ export function executeAction(action, sourceButton) {
   }
   if (action === 'refresh-detail') {
     actionHooks.loadDetail(vmid);
+    return;
+  }
+  if (action === 'open-template-builder') {
+    actionHooks.openTemplateBuilderModal(vmid);
     return;
   }
   if (action === 'download-linux') {
