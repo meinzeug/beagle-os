@@ -91,7 +91,14 @@ auf dem Host (bei Debian via `zfsutils-linux`).
 
 ### Schritt 5 — NFS-Backend implementieren
 
-- [ ] `providers/beagle/storage/nfs.py` implementiert den Contract für NFS-gemountete Storage-Pools.
+- [x] `providers/beagle/storage/nfs.py` implementiert den Contract für NFS-gemountete Storage-Pools.
+
+Umgesetzt (2026-04-22):
+- Neues Modul `providers/beagle/storage/nfs.py` eingefuehrt (`NfsStorageBackend`).
+- Contract-Methoden real umgesetzt: `create_volume`, `delete_volume`, `resize_volume`, `snapshot`, `clone`, `list_volumes`.
+- NFS-Mount-Guard integriert (`mount_path` muss existieren + als Mountpoint validieren), damit kein versehentliches Schreiben auf lokale Pfade erfolgt.
+- Storage-Operationen via `qemu-img` auf NFS-Dateien umgesetzt (inkl. linked/full clone).
+- Unit-Test `tests/unit/test_nfs_storage_backend.py` ergänzt (4/4 grün).
 
 NFS-Storage ermöglicht shared Storage über mehrere Cluster-Knoten was Live-Migration
 ohne Disk-Transfer ermöglicht. `create_volume` legt eine qcow2-Datei auf dem NFS-Mount

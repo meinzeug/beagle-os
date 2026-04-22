@@ -1,5 +1,16 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 08 Schritt 5: NFS-Backend)
+
+- Neues Provider-Modul `providers/beagle/storage/nfs.py` implementiert (`NfsStorageBackend`).
+- Storage-Lifecycle-Operationen fuer NFS umgesetzt:
+	- `create_volume`/`resize_volume`/`snapshot`/`clone` via `qemu-img`
+	- `delete_volume` und `list_volumes` auf NFS-Dateiobjekten
+- Sicherheits-/Betriebs-Guard ergänzt: explizite Mountpoint-Pruefung (`mount_path` muss wirklich gemountet sein).
+- Unit-Tests in `tests/unit/test_nfs_storage_backend.py` ergänzt (4/4 pass).
+- Deploy-/Smoke-Validierung auf `srv1.beagle-os.com` erfolgreich (Import + create/snapshot/clone/list mit Command-Stub).
+- Damit ist GoFuture Plan 08 Schritt 5 vollständig erledigt.
+
 ## Update (2026-04-22, GoFuture Plan 08 Schritt 4: ZFS-Backend)
 
 - Neues Provider-Modul `providers/beagle/storage/zfs.py` umgesetzt (`ZfsStorageBackend`).
