@@ -48,7 +48,15 @@ function collectPoolWizardInput() {
     max_pool_size: Number(qs('pool-max-size') ? qs('pool-max-size').value : '5') || 5,
     warm_pool_size: Number(qs('pool-warm-size') ? qs('pool-warm-size').value : '2') || 2,
     cpu_cores: Number(qs('pool-cpu') ? qs('pool-cpu').value : '2') || 2,
-    memory_mib: Number(qs('pool-memory') ? qs('pool-memory').value : '4096') || 4096
+    memory_mib: Number(qs('pool-memory') ? qs('pool-memory').value : '4096') || 4096,
+    streaming_profile: {
+      encoder: String(qs('pool-stream-encoder') ? qs('pool-stream-encoder').value : 'auto').trim() || 'auto',
+      color: String(qs('pool-stream-color') ? qs('pool-stream-color').value : 'h265').trim() || 'h265',
+      bitrate_kbps: Number(qs('pool-stream-bitrate') ? qs('pool-stream-bitrate').value : '20000') || 20000,
+      fps: Number(qs('pool-stream-fps') ? qs('pool-stream-fps').value : '60') || 60,
+      resolution: String(qs('pool-stream-resolution') ? qs('pool-stream-resolution').value : '1920x1080').trim() || '1920x1080',
+      hdr: Boolean(qs('pool-stream-hdr') ? qs('pool-stream-hdr').checked : false)
+    }
   };
   return { payload, users, groups };
 }
@@ -68,6 +76,15 @@ function validatePoolWizardStep(step, payload) {
     }
     if (payload.warm_pool_size > payload.max_pool_size) {
       return 'Warm-Pool darf nicht groesser als Max-Groesse sein.';
+    }
+    if (!/^\d{3,5}x\d{3,5}$/.test(String(payload.streaming_profile && payload.streaming_profile.resolution ? payload.streaming_profile.resolution : '').trim())) {
+      return 'Streaming-Resolution muss als WIDTHxHEIGHT gesetzt sein.';
+    }
+    if (Number(payload.streaming_profile && payload.streaming_profile.bitrate_kbps) < 2000) {
+      return 'Streaming-Bitrate muss mindestens 2000 Kbps betragen.';
+    }
+    if (Number(payload.streaming_profile && payload.streaming_profile.fps) < 24) {
+      return 'Streaming-FPS muessen mindestens 24 betragen.';
     }
   }
   return '';
@@ -95,6 +112,8 @@ function renderPoolWizardSummary() {
     fieldBlock('Storage', payload.storage_pool || '-') +
     fieldBlock('Min/Max/Warm', String(payload.min_pool_size) + ' / ' + String(payload.max_pool_size) + ' / ' + String(payload.warm_pool_size)) +
     fieldBlock('CPU / RAM', String(payload.cpu_cores) + ' vCPU / ' + String(payload.memory_mib) + ' MiB') +
+    fieldBlock('Streaming', String(payload.streaming_profile.encoder || '-') + ' / ' + String(payload.streaming_profile.color || '-') + ' / ' + String(payload.streaming_profile.resolution || '-')) +
+    fieldBlock('Bitrate / FPS / HDR', String(payload.streaming_profile.bitrate_kbps || '-') + ' Kbps / ' + String(payload.streaming_profile.fps || '-') + ' fps / ' + (payload.streaming_profile.hdr ? 'on' : 'off')) +
     fieldBlock('Users', users.length ? users.join(', ') : '-') +
     fieldBlock('Groups', groups.length ? groups.join(', ') : '-') +
     '</div>';
@@ -209,12 +228,17 @@ function renderPoolsList() {
   node.innerHTML = pools.map((pool) => {
     const poolId = String(pool.pool_id || '').trim();
     const mode = String(pool.mode || 'unknown').trim();
+    const stream = pool.streaming_profile && typeof pool.streaming_profile === 'object' ? pool.streaming_profile : null;
+    const streamSummary = stream
+      ? String(stream.encoder || 'auto') + ' / ' + String(stream.color || 'h265') + ' / ' + String(stream.resolution || '1920x1080')
+      : 'default';
     const selectedClass = state.selectedPoolId === poolId ? ' active' : '';
     return '<article class="policy-card' + selectedClass + '" data-pool-id="' + escapeHtml(poolId) + '">' +
       '<div class="policy-head"><strong>' + escapeHtml(poolId) + '</strong>' + chip(mode, 'muted') + '</div>' +
       '<div class="pool-card-meta">' +
       fieldBlock('Template', String(pool.template_id || '-'), 'mono') +
       fieldBlock('Warm/Max', String(pool.warm_pool_size || 0) + ' / ' + String(pool.max_pool_size || 0)) +
+      fieldBlock('Streaming', streamSummary) +
       '</div>' +
       '</article>';
   }).join('');
@@ -336,6 +360,24 @@ export function resetPoolWizard() {
   }
   if (qs('pool-groups')) {
     qs('pool-groups').value = '';
+  }
+  if (qs('pool-stream-encoder')) {
+    qs('pool-stream-encoder').value = 'auto';
+  }
+  if (qs('pool-stream-color')) {
+    qs('pool-stream-color').value = 'h265';
+  }
+  if (qs('pool-stream-bitrate')) {
+    qs('pool-stream-bitrate').value = '20000';
+  }
+  if (qs('pool-stream-fps')) {
+    qs('pool-stream-fps').value = '60';
+  }
+  if (qs('pool-stream-resolution')) {
+    qs('pool-stream-resolution').value = '1920x1080';
+  }
+  if (qs('pool-stream-hdr')) {
+    qs('pool-stream-hdr').checked = false;
   }
   poolWizardStep = 1;
   renderPoolTemplateOptions();

@@ -2,10 +2,10 @@
 
 ## Delta (2026-04-22 nach Abschluss von Plan 02)
 
-0. **Plan 11 Schritt 3 weiterziehen (Pool-Wizard Profil-Editor)**:
-	- Web-Console-Form fuer `streaming_profile` im Pool-Wizard anbinden,
-	- API-Payload auf die neue Pool-Surface mappen,
-	- Live-Smoke fuer Create/Edit/Read in der echten WebUI auf `srv1.beagle-os.com` nachziehen.
+0. **Plan 11 Schritt 4 direkt umsetzen (zusätzliche Streaming-Parameter)**:
+	- `StreamingProfile` um weitere relevante Moonlight/Sunshine-Parameter erweitern,
+	- zuerst den kleinsten reproduzierbaren Slice fuer Audio/Gamepad/HDR-Metadaten waehlen,
+	- anschliessend die UI-Felder gezielt auf die erweiterte Contract-Schicht nachziehen.
 
 0. **Streaming-v2 Runtime hardenen**:
 	- CRTC-Limit fuer 4K-Apply weiter reduzieren (Guest-Grafikpfad),

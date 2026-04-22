@@ -1,5 +1,22 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 11 Schritt 3 Teil 2 abgeschlossen: Pool-Wizard Streaming-Profil-Editor)
+
+- Zweite offene Checkbox aus GoFuture Plan 11 Schritt 3 abgeschlossen.
+- Web-Console-Pool-Wizard erweitert:
+	- neue Eingabefelder fuer `encoder`, `codec`, `bitrate_kbps`, `fps`, `resolution`, `hdr`,
+	- Payload-Mapping auf `streaming_profile`,
+	- Frontend-Basisvalidierung fuer Resolution/Bitrate/FPS,
+	- Summary-Block zeigt Streaming-Profil explizit an,
+	- Pool-Karten zeigen das gewaehlte Streaming-Profil ebenfalls kompakt an.
+- Live nach `srv1.beagle-os.com` deployt:
+	- `website/index.html`, `website/ui/policies.js`, `website/styles/panels/_policies.css` synchronisiert,
+	- ausgelieferte HTML-Struktur auf `srv1` enthaelt die neuen Pool-Wizard-IDs fuer das Streaming-Profil.
+- Validierung:
+	- `node --check website/ui/policies.js website/ui/events.js` => OK,
+	- Browser/Playwright-Smokes gegen `srv1` fuer Wizard-Slice und Create/Cleanup mit temporaerem Template durchgefuehrt,
+	- API-Read/Write-Nachweis fuer `streaming_profile` bleibt durch den vorherigen Schritt bereits live abgesichert.
+
 ## Update (2026-04-22, GoFuture Plan 11 Schritt 3 Teil 1 abgeschlossen: StreamingProfile-Core + Pool-API)
 
 - Erste offene Checkbox aus GoFuture Plan 11 Schritt 3 abgeschlossen.

@@ -20,3 +20,8 @@
 .pool-card-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .pool-overview-row td { vertical-align: middle; }
 .pool-overview-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.pool-streaming-group { grid-column: 1 / -1; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.pool-streaming-group-head { display: flex; flex-direction: column; gap: 4px; }
+.pool-streaming-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.checkbox-field { justify-content: space-between; align-items: center; }
+.checkbox-field input[type="checkbox"] { width: 18px; height: 18px; margin-top: 10px; }

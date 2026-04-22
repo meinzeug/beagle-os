@@ -927,6 +927,34 @@
                   <label class="field"><span>Warm Pool</span><input id="pool-warm-size" type="number" min="0" step="1" value="2"></label>
                   <label class="field"><span>vCPU pro Desktop</span><input id="pool-cpu" type="number" min="1" step="1" value="2"></label>
                   <label class="field"><span>RAM MiB pro Desktop</span><input id="pool-memory" type="number" min="1024" step="256" value="4096"></label>
+                  <div class="pool-streaming-group field-wide">
+                    <div class="pool-streaming-group-head">
+                      <span class="eyebrow">Streaming-Profil</span>
+                      <strong>Encoder, Codec und Zielqualitaet</strong>
+                    </div>
+                    <div class="pool-streaming-grid">
+                      <label class="field"><span>Encoder</span>
+                        <select id="pool-stream-encoder" class="input-select">
+                          <option value="auto">auto</option>
+                          <option value="nvenc">nvenc</option>
+                          <option value="vaapi">vaapi</option>
+                          <option value="quicksync">quicksync</option>
+                          <option value="software">software</option>
+                        </select>
+                      </label>
+                      <label class="field"><span>Codec</span>
+                        <select id="pool-stream-color" class="input-select">
+                          <option value="h264">h264</option>
+                          <option value="h265" selected>h265</option>
+                          <option value="av1">av1</option>
+                        </select>
+                      </label>
+                      <label class="field"><span>Bitrate Kbps</span><input id="pool-stream-bitrate" type="number" min="2000" max="150000" step="500" value="20000"></label>
+                      <label class="field"><span>FPS</span><input id="pool-stream-fps" type="number" min="24" max="240" step="1" value="60"></label>
+                      <label class="field"><span>Resolution</span><input id="pool-stream-resolution" type="text" value="1920x1080" placeholder="2560x1440"></label>
+                      <label class="field checkbox-field"><span>HDR</span><input id="pool-stream-hdr" type="checkbox"></label>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="pool-wizard-step-panel" data-pool-step="3" hidden>
