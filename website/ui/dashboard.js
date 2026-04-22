@@ -80,56 +80,73 @@ export function loadDashboard(options) {
     return Promise.resolve();
   }
   dashboardHooks.setBanner('Lade Beagle Manager...', 'info');
-  dashboardLoadInFlight = Promise.all([
-    request('/auth/me'),
-    request('/health'),
-    request('/vms'),
-    request('/endpoints'),
-    request('/policies'),
-    request('/virtualization/overview'),
-    request('/provisioning/catalog', { __suppressAuthLock: true }).catch(() => { return { catalog: null }; }),
-    request('/auth/users', { __suppressAuthLock: true }).catch(() => []),
-    request('/auth/roles', { __suppressAuthLock: true }).catch(() => []),
-    request('/pools', { __suppressAuthLock: true }).catch(() => ({ pools: [] })),
-    request('/pool-templates', { __suppressAuthLock: true }).catch(() => ({ templates: [] }))
-  ]).then((results) => {
-    const me = results[0] || {};
-    const health = results[1] || {};
+  dashboardLoadInFlight = request('/auth/me').then((me) => {
+    const endpointRequests = [
+      request('/health'),
+      request('/vms'),
+      request('/endpoints'),
+      request('/policies'),
+      request('/virtualization/overview'),
+      request('/provisioning/catalog', { __suppressAuthLock: true }),
+      request('/auth/users', { __suppressAuthLock: true }),
+      request('/auth/roles', { __suppressAuthLock: true }),
+      request('/pools', { __suppressAuthLock: true }),
+      request('/pool-templates', { __suppressAuthLock: true })
+    ];
+    return Promise.allSettled(endpointRequests).then((results) => {
+      const health = results[0].status === 'fulfilled' ? (results[0].value || {}) : {};
+      const vms = results[1].status === 'fulfilled' ? (results[1].value || {}) : {};
+      const endpoints = results[2].status === 'fulfilled' ? (results[2].value || {}) : {};
+      const policies = results[3].status === 'fulfilled' ? (results[3].value || {}) : {};
+      const virtualizationOverview = results[4].status === 'fulfilled' ? (results[4].value || null) : null;
+      const provisioningCatalog = results[5].status === 'fulfilled' ? (results[5].value || { catalog: null }) : { catalog: null };
+      const authUsers = results[6].status === 'fulfilled' && Array.isArray(results[6].value) ? results[6].value : [];
+      const authRoles = results[7].status === 'fulfilled' && Array.isArray(results[7].value) ? results[7].value : [];
+      const pools = results[8].status === 'fulfilled' ? (results[8].value || { pools: [] }) : { pools: [] };
+      const templates = results[9].status === 'fulfilled' ? (results[9].value || { templates: [] }) : { templates: [] };
+      const failedRequests = results.filter((result) => result.status !== 'fulfilled').length;
+
     state.user = me.user || null;
-    state.inventory = (results[2] && results[2].vms) || [];
-    state.endpointReports = (results[3] && results[3].endpoints) || [];
-    state.policies = (results[4] && results[4].policies) || [];
-    state.virtualizationOverview = results[5] || null;
-    state.provisioningCatalog = results[6] && results[6].catalog ? results[6].catalog : null;
-    state.authUsers = Array.isArray(results[7]) ? results[7] : [];
-    state.authRoles = Array.isArray(results[8]) ? results[8] : [];
-    state.desktopPools = Array.isArray(results[9] && results[9].pools) ? results[9].pools : [];
-    state.poolTemplates = Array.isArray(results[10] && results[10].templates) ? results[10].templates : [];
-    dashboardHooks.recordAuthSuccess();
-    dashboardHooks.setAuthMode(true);
-    dashboardHooks.updateSettingsVisibility();
-    statCardFromHealth(health, state.virtualizationOverview);
-    dashboardHooks.renderInventory();
-    dashboardHooks.renderEndpointsOverview();
-    dashboardHooks.renderVirtualizationOverview();
-    dashboardHooks.renderPolicies();
-    dashboardHooks.renderIam();
-    dashboardHooks.renderVirtualizationPanel();
-    dashboardHooks.renderClusterPanel();
-    dashboardHooks.renderProvisioningWorkspace();
-    dashboardHooks.updateFleetHealthAlert();
-    dashboardHooks.setBanner('Verbunden. Inventar, Policies und Virtualisierung sind aktuell.', 'ok');
-    if (state.selectedVmid) {
-      // Only restore detail if the VM still exists in the loaded inventory
-      const exists = state.inventory.some((v) => Number(dashboardHooks.profileOf(v).vmid) === state.selectedVmid);
-      if (exists) {
-        return dashboardHooks.loadDetail(state.selectedVmid);
-      }
-      // VM no longer exists — clear it and show the list
-      state.selectedVmid = null;
+      state.inventory = vms.vms || [];
+      state.endpointReports = endpoints.endpoints || [];
+      state.policies = policies.policies || [];
+      state.virtualizationOverview = virtualizationOverview;
+      state.provisioningCatalog = provisioningCatalog.catalog || null;
+      state.authUsers = authUsers;
+      state.authRoles = authRoles;
+      state.desktopPools = Array.isArray(pools.pools) ? pools.pools : [];
+      state.poolTemplates = Array.isArray(templates.templates) ? templates.templates : [];
+      dashboardHooks.recordAuthSuccess();
+      dashboardHooks.setAuthMode(true);
+      dashboardHooks.updateSettingsVisibility();
+      statCardFromHealth(health, state.virtualizationOverview);
       dashboardHooks.renderInventory();
-    }
-    return null;
+      dashboardHooks.renderEndpointsOverview();
+      dashboardHooks.renderVirtualizationOverview();
+      dashboardHooks.renderPolicies();
+      dashboardHooks.renderIam();
+      dashboardHooks.renderVirtualizationPanel();
+      dashboardHooks.renderClusterPanel();
+      dashboardHooks.renderProvisioningWorkspace();
+      dashboardHooks.updateFleetHealthAlert();
+      if (failedRequests > 0) {
+        dashboardHooks.setBanner('Verbunden. ' + String(failedRequests) + ' API-Aufrufe momentan nicht verfuegbar.', 'warn');
+      } else {
+        dashboardHooks.setBanner('Verbunden. Inventar, Policies und Virtualisierung sind aktuell.', 'ok');
+      }
+
+      if (state.selectedVmid) {
+        // Only restore detail if the VM still exists in the loaded inventory
+        const exists = state.inventory.some((v) => Number(dashboardHooks.profileOf(v).vmid) === state.selectedVmid);
+        if (exists) {
+          return dashboardHooks.loadDetail(state.selectedVmid);
+        }
+        // VM no longer exists — clear it and show the list
+        state.selectedVmid = null;
+        dashboardHooks.renderInventory();
+      }
+      return null;
+    });
   }).catch((error) => {
     dashboardHooks.recordAuthFailure();
     text('stat-manager', 'Error');
