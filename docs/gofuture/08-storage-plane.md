@@ -71,7 +71,14 @@ werden kann. Quotas sind über LVM-Thin-Pool-Limits implementierbar.
 
 ### Schritt 4 — ZFS-Backend implementieren
 
-- [ ] `providers/beagle/storage/zfs.py` implementiert den Contract für ZFS-Datasets.
+- [x] `providers/beagle/storage/zfs.py` implementiert den Contract für ZFS-Datasets.
+
+Umgesetzt (2026-04-22):
+- Neues Modul `providers/beagle/storage/zfs.py` eingefuehrt (`ZfsStorageBackend`).
+- Contract-Methoden real umgesetzt: `create_volume`, `delete_volume`, `resize_volume`, `snapshot`, `clone`, `list_volumes`.
+- Native ZFS-Kommandos integriert: `zfs create -V`, `zfs set volsize=`, `zfs snapshot`, `zfs clone`, `zfs destroy -r`, `zfs list`.
+- Clone-Pfad nutzt Copy-on-Write-Semantik (Snapshot + Clone) fuer zvol-Datasets.
+- Unit-Test `tests/unit/test_zfs_storage_backend.py` ergänzt (4/4 grün).
 
 ZFS bietet Copy-on-Write-Snapshots mit vernachlässigbarem Overhead was es ideal für
 VM-Snapshots und Clones macht. `create_volume` legt ein ZFS-Volume (`zvol`) an.

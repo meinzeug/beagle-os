@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Plan 08 Schritt 4)
+
+0. **Plan 08 Schritt 5 umsetzen**:
+	- `providers/beagle/storage/nfs.py` als Shared-Storage-Backend auf Basis des bestehenden `DirectoryStorageBackend`-Patterns implementieren,
+	- Pfad-/Mount-Validierung fuer konsistente Cluster-NFS-Mounts einbauen.
+
+0. **Plan 08 Schritt 6 vorbereiten**:
+	- API-Surface fuer Storage-Quota (`GET/PUT /api/v1/storage/pools/{pool}/quota`) im Control-Plane modellieren,
+	- quota-aware create-path in Storage-Manager integrieren.
+
 ## Delta (2026-04-22 nach Plan 08 Schritt 3)
 
 0. **Plan 08 Schritt 4 umsetzen**:

@@ -1,5 +1,19 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 08 Schritt 4: ZFS-Backend)
+
+- Neues Provider-Modul `providers/beagle/storage/zfs.py` umgesetzt (`ZfsStorageBackend`).
+- Storage-Lifecycle-Operationen fuer ZFS implementiert:
+	- `create_volume` via `zfs create -V`
+	- `delete_volume` via `zfs destroy -r`
+	- `resize_volume` via `zfs set volsize=`
+	- `snapshot` via `zfs snapshot`
+	- `clone` via Snapshot + `zfs clone`
+	- `list_volumes` via `zfs list -t volume`
+- Unit-Tests in `tests/unit/test_zfs_storage_backend.py` ergänzt (4/4 pass).
+- Deploy-/Smoke-Validierung auf `srv1.beagle-os.com` erfolgreich (Import + create/snapshot/clone/list mit Command-Stub).
+- Damit ist GoFuture Plan 08 Schritt 4 vollständig erledigt.
+
 ## Update (2026-04-22, GoFuture Plan 08 Schritt 3: LVM-Thin-Backend)
 
 - Neues Provider-Modul `providers/beagle/storage/lvm_thin.py` umgesetzt (`LvmThinStorageBackend`).
