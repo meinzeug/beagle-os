@@ -1,5 +1,19 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Plan 07 Schritt 6)
+
+0. **Plan 07 Schritt 3 starten**:
+	- `beagle-host/services/cluster_inventory.py` anlegen und lokale Inventory-Aggregation kapseln,
+	- danach optional Remote-Node-Aggregation über kommende Cluster-RPC-Schicht vorbereiten.
+
+0. **Cluster-Panel live gegen Multi-Node validieren**:
+	- zwei Testknoten einbinden,
+	- verifizieren, dass Status/CPU/RAM/VM-Count pro Knoten korrekt und stabil aktualisieren.
+
+0. **Plan 07 Schritt 4 vorbereiten**:
+	- API-Seam für `migration_service.py` definieren,
+	- UI-Aktion "VM verschieben" im VM-Detail als nächster implementierbarer Block planen.
+
 ## Delta (2026-04-21 nach Audit Schritt 1/3/4/5 + VM-Installer-Hotfix)
 
 0. **Plan 15 Schritt 2 umsetzen**:

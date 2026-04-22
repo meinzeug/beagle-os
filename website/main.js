@@ -34,6 +34,7 @@ import {
 import {
   configureInventory,
   filteredInventory,
+  openInventoryWithNodeFilter,
   profileOf,
   renderEndpointsOverview,
   renderInventory,
@@ -69,6 +70,11 @@ import {
   renderVirtualizationPanel
 } from './ui/virtualization.js';
 import {
+  bindClusterEvents,
+  configureCluster,
+  renderClusterPanel
+} from './ui/cluster.js';
+import {
   bindEvents,
   configureEvents
 } from './ui/events.js';
@@ -91,14 +97,14 @@ import {
   connectLiveUpdates,
   disconnectLiveUpdates
 } from './ui/live.js';
-  import { request } from './ui/api.js';
-  import {
-    actionButton,
-    escapeHtml,
-    fieldBlock,
-    formatDate,
-    maskedFieldBlock
-  } from './ui/dom.js';
+import { request } from './ui/api.js';
+import {
+  actionButton,
+  escapeHtml,
+  fieldBlock,
+  formatDate,
+  maskedFieldBlock
+} from './ui/dom.js';
 
 function buildDetailActionsHtml(status) {
   let html = actionButton('refresh-detail', 'Refresh', 'ghost');
@@ -460,6 +466,10 @@ export function bootstrapApp() {
   configureVirtualization({
     setBanner
   });
+  configureCluster({
+    openInventoryWithNodeFilter,
+    setBanner
+  });
   configureEvents({
     setBanner,
     loadDetail,
@@ -484,6 +494,7 @@ export function bootstrapApp() {
     renderVirtualizationPanel,
     renderVirtualizationInspector,
     renderProvisioningWorkspace,
+    renderClusterPanel,
     connectLiveUpdates,
     disconnectLiveUpdates
   });
@@ -509,6 +520,7 @@ export function bootstrapApp() {
     renderEndpointsOverview,
     renderVirtualizationOverview,
     renderVirtualizationPanel,
+    renderClusterPanel,
     renderProvisioningWorkspace,
     renderPolicies,
     renderIam,
@@ -525,12 +537,14 @@ export function bootstrapApp() {
     console.warn('Identity provider registry unavailable, using local auth fallback:', error);
   });
   bindEvents();
+  bindClusterEvents();
   bindSettingsEvents();
   renderActivityLog();
   renderInventory();
   renderEndpointsOverview();
   renderVirtualizationOverview();
   renderVirtualizationPanel();
+  renderClusterPanel();
   renderVirtualizationInspector();
   renderProvisioningWorkspace();
   renderPolicies();

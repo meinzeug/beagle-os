@@ -21,6 +21,7 @@ const dashboardHooks = {
   renderPolicies() {},
   renderIam() {},
   renderVirtualizationPanel() {},
+  renderClusterPanel() {},
   renderProvisioningWorkspace() {},
   updateFleetHealthAlert() {},
   setBanner() {},
@@ -110,6 +111,7 @@ export function loadDashboard(options) {
     dashboardHooks.renderPolicies();
     dashboardHooks.renderIam();
     dashboardHooks.renderVirtualizationPanel();
+    dashboardHooks.renderClusterPanel();
     dashboardHooks.renderProvisioningWorkspace();
     dashboardHooks.updateFleetHealthAlert();
     dashboardHooks.setBanner('Verbunden. Inventar, Policies und Virtualisierung sind aktuell.', 'ok');

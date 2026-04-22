@@ -50,6 +50,7 @@
 - [x] Tighten nginx CSP connect-src to include `wss:` (without `unsafe-inline`/`unsafe-eval`) and verify live header on `srv1.beagle-os.com` (2026-04-21).
 - [x] Extend `.gitignore` guardrails for `.env` / `.env.*` and verify no tracked `.env` secrets (2026-04-21).
 - [x] Continue Plan 04 Schritt 2 by extracting Auth/IAM route business logic from control-plane handlers into `beagle-host/services/auth_http_surface.py`, with local unit tests and srv1 smoke validation (2026-04-21).
+- [x] Execute GoFuture Plan 07 Schritt 6: add Web Console `Cluster` panel in navigation and implement node status table (status, CPU, RAM, VM-count) with inventory node-filter action (2026-04-22).
 - [x] Execute GoFuture Plan 06 Schritt 1: fully read `beagle-server-installer` and document the current installer flow as ASCII diagram in `docs/gofuture/06-server-installer.md` (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 2: refactor server installer + GUI to standalone-only mode and remove Proxmox installer branches (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 3: add central `server-installer/build.env` and wire `scripts/build-server-installer.sh` to load reproducible build dependencies from it (2026-04-21).

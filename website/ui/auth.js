@@ -27,6 +27,7 @@ const uiHooks = {
   renderVirtualizationInspector() {},
   renderProvisioningWorkspace() {},
   renderEndpointsOverview() {},
+  renderClusterPanel() {},
   clearSecretVault() {},
   addToActivityLog() {},
   connectLiveUpdates() {},
@@ -178,6 +179,7 @@ export function clearSessionState(reason, tone) {
   uiHooks.renderVirtualizationInspector();
   uiHooks.renderProvisioningWorkspace();
   uiHooks.renderEndpointsOverview();
+  uiHooks.renderClusterPanel();
   uiHooks.disconnectLiveUpdates();
   uiHooks.setAuthMode(false);
   uiHooks.setBanner(reason || 'Session gesperrt.', tone || 'warn');

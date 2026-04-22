@@ -1,5 +1,22 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 07 Schritt 6: Cluster Panel in Web Console)
+
+- GoFuture 07 Schritt 6 (beide Checkboxen) umgesetzt: neues `Cluster`-Panel in der Navigation sowie Knotenliste mit Status, CPU-/RAM-Auslastung und VM-Count.
+- Neue UI-Datei `website/ui/cluster.js` implementiert:
+	- Rendert Knotenstatus aus `state.virtualizationOverview.nodes`.
+	- Aggregiert VM-Anzahl pro Knoten aus `state.inventory`.
+	- Bietet direkte Aktion "VMs anzeigen" pro Knoten (Node-Filter ins Inventory).
+- Integration in den bestehenden Datenfluss:
+	- `website/main.js`: Modul importiert/verdrahtet (`configureCluster`, `bindClusterEvents`, `renderClusterPanel`).
+	- `website/ui/dashboard.js`: `renderClusterPanel()` in den regulären Dashboard-Refresh eingebunden.
+	- `website/ui/auth.js`: Cluster-Ansicht wird bei Session-Clear ebenfalls konsistent zurückgesetzt.
+	- `website/ui/state.js`: `panelMeta.cluster` ergänzt.
+	- `website/index.html`: neues Nav-Element (`data-panel="cluster"`) + neue Panel-Sektion (`data-panel-section="cluster"`).
+- Sicherheits-/Architektur-Status:
+	- Keine neuen Provider-Kopplungen, kein Proxmox-Code.
+	- Datenquelle bleibt provider-neutral über bestehende Read-Surfaces (`/virtualization/overview`, `/vms`).
+
 ## Update (2026-04-21, Hotfix: VM USB installer/live downloads + missing syncHash)
 
 - **Symptome**:

@@ -96,8 +96,14 @@ Knoten sofort in der Knoten-Liste.
 
 ### Schritt 6 — Cluster-Status in Web Console anzeigen
 
-- [ ] Neues Panel "Cluster" in der Web Console Navigation anlegen.
-- [ ] Knoten-Liste mit Status, CPU-/RAM-Auslastung, VM-Count.
+- [x] Neues Panel "Cluster" in der Web Console Navigation anlegen.
+- [x] Knoten-Liste mit Status, CPU-/RAM-Auslastung, VM-Count.
+
+Umsetzung 2026-04-22:
+- WebUI-Navigation um `Cluster`-Panel erweitert (`website/index.html`, `data-panel="cluster"`) inkl. eigener Panel-Metadaten in `website/ui/state.js`.
+- Neues Modul `website/ui/cluster.js` implementiert: rendert Cluster-Knoten-Tabelle aus `state.virtualizationOverview.nodes`, berechnet CPU-/RAM-Auslastung und VM-Count pro Knoten (Aggregation aus `state.inventory`).
+- Dashboard-Load verdrahtet (`website/ui/dashboard.js` + `website/main.js`), sodass Clusterdaten bei jedem Refresh/SSE-Tick live aktualisiert werden.
+- Cluster-Panel bietet direkte Aktion „VMs anzeigen" pro Knoten via Filter-Deep-Link ins Inventory.
 
 Das Cluster-Panel ist der erste Punkt in der Web Console wo mehrere Hosts sichtbar
 und managebar sind. Die Knoten-Karten zeigen: Knoten-Name, IP, Status (online/offline/joining),

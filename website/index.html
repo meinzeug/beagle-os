@@ -217,6 +217,11 @@
           <svg class="nav-icon" aria-hidden="true"><use href="#i-dashboard"/></svg>
           <span>Dashboard</span>
         </button>
+        <button type="button" class="nav-item" data-panel="cluster">
+          <svg class="nav-icon" aria-hidden="true"><use href="#i-infra"/></svg>
+          <span>Cluster</span>
+          <span class="nav-badge-coming">7.0</span>
+        </button>
 
         <!-- ── Compute ── -->
         <div class="sidebar-section-label">Compute</div>
@@ -510,6 +515,51 @@
                 </div>
               </article>
             </div>
+          </section>
+
+          <!-- ============ CLUSTER (7.0 foundation) ============ -->
+          <section class="panel-section" id="cluster-section" data-panel-section="cluster">
+            <div class="stats-row">
+              <article class="stat-card">
+                <span class="stat-label">Nodes gesamt</span>
+                <span class="stat-value" id="cluster-total-nodes">0</span>
+                <span class="stat-meta">Alle registrierten Knoten</span>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">Nodes online</span>
+                <span class="stat-value" id="cluster-online-nodes">0</span>
+                <span class="stat-meta">Heartbeat aktiv</span>
+              </article>
+              <article class="stat-card stat-card-accent">
+                <span class="stat-label">Nodes unreachable</span>
+                <span class="stat-value" id="cluster-unreachable-nodes">0</span>
+                <span class="stat-meta">Offline oder nicht erreichbar</span>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">VMs gesamt</span>
+                <span class="stat-value" id="cluster-total-vms">0</span>
+                <span class="stat-meta">Aus Inventory aggregiert</span>
+              </article>
+            </div>
+
+            <article class="card section-spaced">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Cluster Foundation</span>
+                  <h2>Knoten-Status</h2>
+                </div>
+              </div>
+              <div class="table-wrap compact">
+                <table class="vm-table compact-table">
+                  <thead>
+                    <tr><th>Knoten</th><th>Status</th><th>CPU</th><th>RAM</th><th>VMs</th><th>Aktion</th></tr>
+                  </thead>
+                  <tbody id="cluster-nodes-body">
+                    <tr><td colspan="6" class="empty-cell">Noch keine Cluster-Daten.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
           </section>
 
           <!-- ============ ENDPOINTS (Inventory + Detail) ============ -->

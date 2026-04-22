@@ -60,6 +60,11 @@ export const panelMeta = {
     title: 'Nodes',
     description: 'Provider-neutrale Sicht auf Compute, Persistenz und Netz-Bridges.'
   },
+  cluster: {
+    eyebrow: 'Datacenter',
+    title: 'Cluster',
+    description: 'Cluster-Status mit Knoten-Health, Kapazitaet und VM-Verteilung.'
+  },
   provisioning: {
     eyebrow: 'Compute',
     title: 'VM erstellen',
