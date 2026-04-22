@@ -15,6 +15,35 @@ class AuthzPolicyServiceTests(unittest.TestCase):
         permission = AuthzPolicyService.required_permission("POST", "/api/v1/vms")
         self.assertEqual(permission, "provisioning:write")
 
+    def test_pool_routes_have_pool_permissions(self):
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/pools"),
+            "pool:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/pools"),
+            "pool:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/pools/pool-a/entitlements"),
+            "pool:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/pool-templates"),
+            "pool:read",
+        )
+
+    def test_viewer_cannot_write_pools(self):
+        permission = AuthzPolicyService.required_permission("POST", "/api/v1/pools")
+        self.assertEqual(permission, "pool:write")
+        allowed = AuthzPolicyService.is_allowed("viewer", permission, {"pool:read"})
+        self.assertFalse(allowed)
+
+    def test_admin_can_write_pools(self):
+        permission = AuthzPolicyService.required_permission("POST", "/api/v1/pools")
+        allowed = AuthzPolicyService.is_allowed("admin", permission, {"pool:write"})
+        self.assertTrue(allowed)
+
     def test_viewer_cannot_mutate_settings(self):
         permission = AuthzPolicyService.required_permission("PUT", "/api/v1/settings/general")
         self.assertEqual(permission, "settings:write")

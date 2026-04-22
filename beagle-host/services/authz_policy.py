@@ -51,6 +51,13 @@ PERMISSION_CATALOG: list[dict] = [
         ],
     },
     {
+        "group": "VDI Pools",
+        "tags": [
+            {"tag": "pool:read",  "label": "Desktop-Pools & Templates lesen"},
+            {"tag": "pool:write", "label": "Desktop-Pools & Templates verwalten"},
+        ],
+    },
+    {
         "group": "Session Recording",
         "tags": [
             {"tag": "session:download_recording", "label": "Session-Recording herunterladen"},
@@ -97,6 +104,10 @@ class AuthzPolicyService:
                 return "settings:write"
             if re.match(r"^/api/v1/sessions/[A-Za-z0-9._:-]+/recording/(start|stop)$", route):
                 return "session:manage_recording"
+            if route == "/api/v1/pools" or re.match(r"^/api/v1/pools/[A-Za-z0-9._-]+/(vms|entitlements|scale|allocate|release|recycle)$", route):
+                return "pool:write"
+            if route == "/api/v1/pool-templates":
+                return "pool:write"
         if verb == "PUT":
             if re.match(r"^/api/v1/provisioning/vms/\d+$", route):
                 return "provisioning:write"
@@ -108,6 +119,8 @@ class AuthzPolicyService:
                 return "settings:write"
             if route.startswith("/api/v1/settings/"):
                 return "settings:write"
+            if re.match(r"^/api/v1/pools/[A-Za-z0-9._-]+$", route):
+                return "pool:write"
         if verb == "DELETE":
             if re.match(r"^/api/v1/provisioning/vms/\d+$", route):
                 return "provisioning:write"
@@ -115,6 +128,10 @@ class AuthzPolicyService:
                 return "policy:write"
             if route.startswith("/api/v1/auth/users/") or route.startswith("/api/v1/auth/roles/"):
                 return "auth:write"
+            if re.match(r"^/api/v1/pools/[A-Za-z0-9._-]+$", route):
+                return "pool:write"
+            if re.match(r"^/api/v1/pool-templates/[A-Za-z0-9._-]+$", route):
+                return "pool:write"
         if verb == "GET":
             if route == "/api/v1/audit/report":
                 return "auth:read"
@@ -126,6 +143,10 @@ class AuthzPolicyService:
                 return "settings:read"
             if re.match(r"^/api/v1/sessions/[A-Za-z0-9._:-]+/recording$", route):
                 return "session:download_recording"
+            if route == "/api/v1/pools" or re.match(r"^/api/v1/pools/[A-Za-z0-9._-]+(/.*)?$", route):
+                return "pool:read"
+            if route == "/api/v1/pool-templates" or re.match(r"^/api/v1/pool-templates/[A-Za-z0-9._-]+$", route):
+                return "pool:read"
         return None
 
     @staticmethod

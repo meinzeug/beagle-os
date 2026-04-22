@@ -1,5 +1,43 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 10 Schritt 1 Teil 2 + Schritt 2 Teil 2 + Schritt 3 Teil 2 + Schritt 4 Teil 2)
+
+- Neues Service-Modul `beagle-host/services/desktop_template_builder.py` umgesetzt.
+- Template-Builder realisiert jetzt den geplanten Basispfad `Snapshot/Seal/Backing-Image`:
+	- VM-Stopp-Hook,
+	- cloud-init-/Sysprep-Seal ueber `virt-sysprep` bzw. `guestfish`,
+	- qcow2-Backing-Image-Export per `qemu-img convert`,
+	- persistente Template-Metadaten in `desktop-templates.json`.
+- Neues Service-Modul `beagle-host/services/pool_manager.py` umgesetzt.
+- Pool-Lifecycle fuer VDI-Basisschicht realisiert:
+	- Pool-CRUD,
+	- VM-Slot-Registrierung,
+	- Allocation / Release / Recycle,
+	- Scale-State,
+	- Statuszaehlung fuer `free | in_use | recycling | error`.
+- Mode-spezifische Runtime-Logik fuer `floating_non_persistent`, `floating_persistent` und `dedicated` im Pool-Manager umgesetzt und per Unit-Tests verifiziert.
+- Control Plane erweitert um Plan-10-Basis-API:
+	- `GET/POST/PUT/DELETE /api/v1/pools`
+	- `GET /api/v1/pools/{pool}/vms`
+	- `POST /api/v1/pools/{pool}/vms|allocate|release|recycle|scale|entitlements`
+	- `GET /api/v1/pool-templates`
+	- `POST /api/v1/pool-templates`
+	- `DELETE /api/v1/pool-templates/{id}`
+- RBAC fuer die neue Surface ergaenzt (`pool:read`, `pool:write`) und mit `tests/unit/test_authz_policy.py` abgesichert.
+- Wichtiger Runtime-Fix: Control-Plane importiert jetzt den Repo-Root auf `sys.path`, neue Services sprechen stabil gegen `core.virtualization.*` statt gegen fragile Bare-Imports.
+- Lokale Validierung:
+	- `python3 -m pytest tests/unit/test_pool_manager.py tests/unit/test_desktop_template_builder.py tests/unit/test_entitlement_service.py tests/unit/test_authz_policy.py -q` => `14 passed`.
+	- Throwaway-Control-Plane auf Port `19088` gestartet; `GET /api/v1/pools` und `GET /api/v1/pool-templates` lieferten im localhost-noauth Modus `200`, `POST /api/v1/pools` mit `{}` lieferte `400 pool_id is required`.
+- Deploy + Runtime-Validierung auf `srv1.beagle-os.com`:
+	- geaenderte Dateien nach `/opt/beagle/...` synchronisiert,
+	- `./scripts/install-beagle-host-services.sh` ausgefuehrt,
+	- `beagle-control-plane.service` nach Restart `active`.
+	- Live-Smoke auf `127.0.0.1:9088`:
+		- `GET /api/v1/pools` => `401 unauthorized`,
+		- `GET /api/v1/pool-templates` => `401 unauthorized`,
+		- `POST /api/v1/pools` => `401 unauthorized`.
+	- Journal zeigt sauberes Handling des neuen POST-Pfads ohne Exception.
+
 ## Update (2026-04-22, GoFuture Plan 10 Schritt 4 Teil 1: Entitlement-Service)
 
 - Neues Modul `beagle-host/services/entitlement_service.py` umgesetzt.

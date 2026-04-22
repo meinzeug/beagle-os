@@ -19,7 +19,7 @@ Desktop zugewiesen; Logout recycelt den Desktop automatisch.
 ### Schritt 1 — `DesktopTemplate`-Contract und Builder implementieren
 
 - [x] `core/virtualization/desktop_template.py` anlegen mit `DesktopTemplate`-Protokoll.
-- [ ] Template-Builder: Snapshot → Sysprep/cloud-init → sealed Backing-Image.
+- [x] Template-Builder: Snapshot → Sysprep/cloud-init → sealed Backing-Image.
 
 Umgesetzt (2026-04-22, Teil 1/2):
 - Neues Core-Modul `core/virtualization/desktop_template.py` erstellt.
@@ -29,6 +29,21 @@ Umgesetzt (2026-04-22, Teil 1/2):
 - Unit-Test `tests/unit/test_desktop_template_contract.py` hinzugefuegt (2/2 gruen).
 - srv1-Smoke erfolgreich: Modul nach `/opt/beagle/core/virtualization/desktop_template.py` deployt,
 	Import/Instanziierung per `python3` verifiziert.
+
+Umgesetzt (2026-04-22, Teil 2/2):
+- Neues Service-Modul `beagle-host/services/desktop_template_builder.py` umgesetzt.
+- Builder fuehrt den geplanten Sealing-Pfad real aus:
+	- VM-Stopp-Hook,
+	- cloud-init-/Sysprep-Seal ueber `virt-sysprep` bzw. `guestfish`,
+	- Export eines versiegelten qcow2-Backing-Images per `qemu-img convert`,
+	- persistente Template-Metadaten in JSON-State.
+- Neue Unit-Tests `tests/unit/test_desktop_template_builder.py` ergaenzt; zusammen mit dem Contract-/Pool-/Entitlement-/RBAC-Slice lokal `14 passed`.
+- Lokaler Throwaway-Control-Plane-Smoke erfolgreich:
+	- `GET /api/v1/pool-templates` => `200` (localhost-noauth Testmodus),
+	- Builder-Importpfad ueber `core.virtualization.*` verifiziert.
+- srv1-Deploy + Runtime-Validierung erfolgreich nach Service-Restart:
+	- `beagle-control-plane.service` `active`,
+	- neue Pool-/Template-Routen antworten ueber `127.0.0.1:9088` korrekt mit Auth-Guards (`401` ohne Auth).
 
 Ein `DesktopTemplate` ist das Basis-Image von dem alle Pool-VMs als Linked Clones
 abgeleitet werden. Der Builder-Prozess nimmt eine laufende oder gestoppte VM,
@@ -44,7 +59,7 @@ OS-Typ, CPU/RAM-Konfiguration, Vorinstallierte Software-Liste, Erstellungsdatum.
 ### Schritt 2 — `DesktopPool`-Contract und Lifecycle implementieren
 
 - [x] `core/virtualization/desktop_pool.py` anlegen.
-- [ ] `beagle-host/services/pool_manager.py` implementiert Pool-Lifecycle: provisioning, scaling, recycling.
+- [x] `beagle-host/services/pool_manager.py` implementiert Pool-Lifecycle: provisioning, scaling, recycling.
 
 Umgesetzt (2026-04-22, Teil 1/2):
 - Neues Core-Modul `core/virtualization/desktop_pool.py` erstellt.
@@ -55,6 +70,20 @@ Umgesetzt (2026-04-22, Teil 1/2):
 - Unit-Test `tests/unit/test_desktop_pool_contract.py` hinzugefuegt (3/3 gruen).
 - srv1-Smoke erfolgreich: Modul nach `/opt/beagle/core/virtualization/desktop_pool.py` deployt,
 	Import und Spec-Instanziierung per `python3` verifiziert.
+
+Umgesetzt (2026-04-22, Teil 2/2):
+- Neues Service-Modul `beagle-host/services/pool_manager.py` implementiert.
+- Pool-Lifecycle real umgesetzt:
+	- `create_pool` / `get_pool` / `list_pools` / `delete_pool`,
+	- `scale_pool`,
+	- VM-Slot-Registrierung,
+	- `allocate_desktop` / `release_desktop` / `recycle_desktop`,
+	- Pool-VM-Statusliste fuer freie/in-use/recycling/error Slots.
+- Persistenter JSON-State fuer Pools und Pool-VM-Slots eingefuehrt.
+- Neue Unit-Tests `tests/unit/test_pool_manager.py` decken Non-Persistent-, Persistent- und Dedicated-Flows ab.
+- srv1-Deploy + Runtime-Validierung erfolgreich:
+	- `GET /api/v1/pools` liefert ohne Auth reproduzierbar `401`,
+	- Route ist nach Restart aktiv und sauber im Journal sichtbar.
 
 Ein `DesktopPool` ist eine Gruppe von VMs die aus demselben Template stammen und
 für eine Gruppe von berechtigten Nutzern bereitgestellt werden. Der Pool-Manager
@@ -70,7 +99,7 @@ Scaling-Regeln (min_pool_size, max_pool_size, scale_up_threshold) sind konfiguri
 ### Schritt 3 — Persistent, Non-Persistent und Dedicated Modi
 
 - [x] `DesktopPool.mode` Enum: `floating_non_persistent | floating_persistent | dedicated`.
-- [ ] Pool-Manager implementiert alle drei Modi korrekt.
+- [x] Pool-Manager implementiert alle drei Modi korrekt.
 
 Umgesetzt (2026-04-22, Teil 1/2):
 - `DesktopPoolMode` als Enum in `core/virtualization/desktop_pool.py` eingefuehrt.
@@ -78,6 +107,13 @@ Umgesetzt (2026-04-22, Teil 1/2):
 	`floating_non_persistent`, `floating_persistent`, `dedicated`.
 - `DesktopPoolSpec.mode` und `DesktopLease.mode` nutzen den Enum typisiert.
 - Validierung ueber Unit-Tests (`test_pool_mode_values`) und srv1-Import-Smoke abgeschlossen.
+
+Umgesetzt (2026-04-22, Teil 2/2):
+- `PoolManagerService.allocate_desktop(...)` / `release_desktop(...)` / `recycle_desktop(...)` unterscheiden die drei Modi runtime-seitig korrekt.
+- `floating_non_persistent` setzt Freigaben auf `recycling` und bereitet Reset auf Template-Stand vor.
+- `floating_persistent` haelt User-zu-VM-Zuordnung ueber Sessions hinweg stabil.
+- `dedicated` reserviert denselben Desktop dauerhaft pro User.
+- Verifiziert durch lokale Unit-Tests fuer alle drei Modi.
 
 Floating-Non-Persistent ist das klassische VDI-Modell: Jeder Nutzer bekommt einen
 freien Desktop aus dem Pool; beim Logout wird der Desktop auf den Template-Stand
@@ -92,7 +128,7 @@ ist nur mit explizitem Datenverlust-Hinweis erlaubt.
 ### Schritt 4 — Entitlements (User/Gruppe → Pool) implementieren
 
 - [x] `beagle-host/services/entitlement_service.py` anlegen.
-- [ ] API: `POST /api/v1/pools/{pool}/entitlements` mit User-ID oder Gruppe.
+- [x] API: `POST /api/v1/pools/{pool}/entitlements` mit User-ID oder Gruppe.
 
 Umgesetzt (2026-04-22, Teil 1/2):
 - Neues Service-Modul `beagle-host/services/entitlement_service.py` eingefuehrt.
@@ -103,6 +139,25 @@ Umgesetzt (2026-04-22, Teil 1/2):
 - Unit-Test `tests/unit/test_entitlement_service.py` hinzugefuegt (3/3 gruen).
 - srv1-Smoke erfolgreich: Modul nach `/opt/beagle/beagle-host/services/entitlement_service.py` deployt,
 	Import und Funktionsaufruf per `python3` verifiziert.
+
+Umgesetzt (2026-04-22, Teil 2/2):
+- Control-Plane-Routen fuer Plan-10-Basissurface umgesetzt:
+	- `GET/POST/PUT/DELETE /api/v1/pools`
+	- `GET /api/v1/pools/{pool}/vms`
+	- `POST /api/v1/pools/{pool}/vms`
+	- `POST /api/v1/pools/{pool}/allocate`
+	- `POST /api/v1/pools/{pool}/release`
+	- `POST /api/v1/pools/{pool}/recycle`
+	- `POST /api/v1/pools/{pool}/scale`
+	- `GET/POST /api/v1/pools/{pool}/entitlements`
+	- `GET/POST/DELETE /api/v1/pool-templates`
+- RBAC erweitert um `pool:read` / `pool:write` und mit Unit-Tests abgesichert.
+- Allocation-Route koppelt Entitlement-Pruefung bereits an die Session-Zuweisung; nicht berechtigte User erhalten `403 not entitled to this pool`.
+- Lokaler Throwaway-Control-Plane-Smoke erfolgreich (`GET /api/v1/pools` => `200`, `POST /api/v1/pools` mit leerem Body => `400 pool_id is required` im localhost-noauth Modus).
+- srv1-Validierung erfolgreich nach sauberem Restart:
+	- `GET /api/v1/pools` => `401 unauthorized`,
+	- `GET /api/v1/pool-templates` => `401 unauthorized`,
+	- `POST /api/v1/pools` => `401 unauthorized`.
 
 Entitlements steuern wer auf welchen Pool zugreifen darf. Ein User ohne
 Entitlement für einen Pool sieht diesen Pool in seiner Session-Auswahl nicht.

@@ -20,8 +20,11 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse, urlunparse
 
+ROOT_DIR = Path(__file__).resolve().parents[2]
 PROVIDERS_DIR = Path(__file__).resolve().parents[1] / "providers"
 SERVICES_DIR = Path(__file__).resolve().parents[1] / "services"
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 if str(PROVIDERS_DIR) not in sys.path:
     sys.path.insert(0, str(PROVIDERS_DIR))
 if str(SERVICES_DIR) not in sys.path:
@@ -90,6 +93,9 @@ from vm_console_access import VmConsoleAccessService
 from vm_http_surface import VmHttpSurfaceService
 from server_settings import ServerSettingsService
 from storage_quota import StorageQuotaService
+from entitlement_service import EntitlementService
+from pool_manager import PoolManagerService
+from desktop_template_builder import DesktopTemplateBuilderService
 from vm_secret_bootstrap import VmSecretBootstrapService
 from vm_secret_store import VmSecretStoreService
 from vm_state import VmStateService
@@ -116,7 +122,6 @@ load_env_defaults("/etc/beagle/host.env")
 load_env_defaults("/etc/beagle/beagle-proxy.env")
 
 VERSION = "dev"
-ROOT_DIR = Path(__file__).resolve().parents[2]
 VERSION_FILE = ROOT_DIR / "VERSION"
 if VERSION_FILE.exists():
     VERSION = VERSION_FILE.read_text(encoding="utf-8").strip() or VERSION
@@ -432,6 +437,9 @@ AUDIT_REPORT_SERVICE: AuditReportService | None = None
 AUTHZ_POLICY_SERVICE: AuthzPolicyService | None = None
 SERVER_SETTINGS_SERVICE: ServerSettingsService | None = None
 STORAGE_QUOTA_SERVICE: StorageQuotaService | None = None
+ENTITLEMENT_SERVICE: EntitlementService | None = None
+POOL_MANAGER_SERVICE: PoolManagerService | None = None
+DESKTOP_TEMPLATE_BUILDER_SERVICE: DesktopTemplateBuilderService | None = None
 WEBHOOK_SERVICE: WebhookService | None = None
 IDENTITY_PROVIDER_REGISTRY_SERVICE: IdentityProviderRegistryService | None = None
 OIDC_SERVICE: OidcService | None = None
@@ -645,6 +653,36 @@ def storage_quota_service() -> StorageQuotaService:
             state_file=DATA_DIR / "storage-quotas.json",
         )
     return STORAGE_QUOTA_SERVICE
+
+
+def entitlement_service() -> EntitlementService:
+    global ENTITLEMENT_SERVICE
+    if ENTITLEMENT_SERVICE is None:
+        ENTITLEMENT_SERVICE = EntitlementService(
+            state_file=DATA_DIR / "pool-entitlements.json",
+        )
+    return ENTITLEMENT_SERVICE
+
+
+def pool_manager_service() -> PoolManagerService:
+    global POOL_MANAGER_SERVICE
+    if POOL_MANAGER_SERVICE is None:
+        POOL_MANAGER_SERVICE = PoolManagerService(
+            state_file=DATA_DIR / "desktop-pools.json",
+            utcnow=utcnow,
+        )
+    return POOL_MANAGER_SERVICE
+
+
+def desktop_template_builder_service() -> DesktopTemplateBuilderService:
+    global DESKTOP_TEMPLATE_BUILDER_SERVICE
+    if DESKTOP_TEMPLATE_BUILDER_SERVICE is None:
+        DESKTOP_TEMPLATE_BUILDER_SERVICE = DesktopTemplateBuilderService(
+            state_file=DATA_DIR / "desktop-templates.json",
+            template_images_dir=DATA_DIR / "template-images",
+            utcnow=utcnow,
+        )
+    return DESKTOP_TEMPLATE_BUILDER_SERVICE
 
 
 def webhook_service() -> WebhookService:
@@ -3386,6 +3424,77 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.OK, {"ok": True, **payload})
             return
 
+        # --- VDI Pool & Template GET routes ---
+        if path == "/api/v1/pools":
+            if not self._authorize_or_respond("GET", path):
+                return
+            pools = pool_manager_service().list_pools()
+            self._write_json(HTTPStatus.OK, {
+                "ok": True,
+                "pools": [pool_manager_service().pool_info_to_dict(p) for p in pools],
+            })
+            return
+
+        pool_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)$", path)
+        if pool_match is not None:
+            if not self._authorize_or_respond("GET", path):
+                return
+            pool_id = pool_match.group("pool_id")
+            pool_info = pool_manager_service().get_pool(pool_id)
+            if pool_info is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "pool not found"})
+                return
+            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().pool_info_to_dict(pool_info)})
+            return
+
+        pool_vms_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/vms$", path)
+        if pool_vms_match is not None:
+            if not self._authorize_or_respond("GET", path):
+                return
+            pool_id = pool_vms_match.group("pool_id")
+            try:
+                desktops = pool_manager_service().list_desktops(pool_id)
+            except ValueError as exc:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": str(exc)})
+                return
+            self._write_json(HTTPStatus.OK, {"ok": True, "vms": desktops})
+            return
+
+        pool_entitlements_get_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/entitlements$", path)
+        if pool_entitlements_get_match is not None:
+            if not self._authorize_or_respond("GET", path):
+                return
+            pool_id = pool_entitlements_get_match.group("pool_id")
+            try:
+                result = entitlement_service().get_entitlements(pool_id)
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._write_json(HTTPStatus.OK, {"ok": True, **result})
+            return
+
+        if path == "/api/v1/pool-templates":
+            if not self._authorize_or_respond("GET", path):
+                return
+            templates = desktop_template_builder_service().list_templates()
+            self._write_json(HTTPStatus.OK, {
+                "ok": True,
+                "templates": [desktop_template_builder_service().template_info_to_dict(t) for t in templates],
+            })
+            return
+
+        pool_template_match = re.match(r"^/api/v1/pool-templates/(?P<tid>[A-Za-z0-9._-]+)$", path)
+        if pool_template_match is not None:
+            if not self._authorize_or_respond("GET", path):
+                return
+            tid = pool_template_match.group("tid")
+            tmpl = desktop_template_builder_service().get_template(tid)
+            if tmpl is None:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "template not found"})
+                return
+            self._write_json(HTTPStatus.OK, {"ok": True, **desktop_template_builder_service().template_info_to_dict(tmpl)})
+            return
+
         if path == "/healthz":
             self._write_json(HTTPStatus.OK, {"ok": True, "service": "beagle-control-plane", "version": VERSION})
             return
@@ -3841,6 +3950,234 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
+        # --- VDI Pool & Template POST routes ---
+        if path == "/api/v1/pools":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                body = self._read_json_body() or {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            from core.virtualization.desktop_pool import DesktopPoolMode, DesktopPoolSpec
+            try:
+                mode = DesktopPoolMode(str(body.get("mode", "floating_non_persistent")))
+                spec = DesktopPoolSpec(
+                    pool_id=str(body.get("pool_id", "") or "").strip(),
+                    template_id=str(body.get("template_id", "") or ""),
+                    mode=mode,
+                    min_pool_size=int(body.get("min_pool_size", 0)),
+                    max_pool_size=int(body.get("max_pool_size", 10)),
+                    warm_pool_size=int(body.get("warm_pool_size", 2)),
+                    cpu_cores=int(body.get("cpu_cores", 2)),
+                    memory_mib=int(body.get("memory_mib", 2048)),
+                    storage_pool=str(body.get("storage_pool", "local") or "local"),
+                    enabled=bool(body.get("enabled", True)),
+                    labels=tuple(str(l) for l in body.get("labels", [])),
+                )
+                pool_info = pool_manager_service().create_pool(spec)
+            except (ValueError, TypeError) as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event("pool.create", "success", pool_id=pool_info.pool_id, username=self._requester_identity())
+            self._write_json(HTTPStatus.CREATED, {"ok": True, **pool_manager_service().pool_info_to_dict(pool_info)})
+            return
+
+        pool_entitlements_post_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/entitlements$", path)
+        if pool_entitlements_post_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            pool_id = pool_entitlements_post_match.group("pool_id")
+            try:
+                body = self._read_json_body() or {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            action = str(body.get("action", "set")).strip().lower()
+            try:
+                if action == "add":
+                    result = entitlement_service().add_entitlement(
+                        pool_id,
+                        user_id=str(body.get("user_id", "") or ""),
+                        group_id=str(body.get("group_id", "") or ""),
+                    )
+                elif action == "remove":
+                    result = entitlement_service().remove_entitlement(
+                        pool_id,
+                        user_id=str(body.get("user_id", "") or ""),
+                        group_id=str(body.get("group_id", "") or ""),
+                    )
+                else:
+                    result = entitlement_service().set_entitlements(
+                        pool_id,
+                        users=body.get("users"),
+                        groups=body.get("groups"),
+                    )
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event("pool.entitlement.update", "success", pool_id=pool_id, action=action, username=self._requester_identity())
+            self._write_json(HTTPStatus.OK, {"ok": True, **result})
+            return
+
+        pool_vm_register_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/vms$", path)
+        if pool_vm_register_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            pool_id = pool_vm_register_match.group("pool_id")
+            try:
+                body = self._read_json_body() or {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            try:
+                vmid = int(body.get("vmid") or 0)
+                if not vmid:
+                    raise ValueError("vmid is required")
+                result = pool_manager_service().register_vm(pool_id, vmid)
+            except (ValueError, TypeError) as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event("pool.vm.register", "success", pool_id=pool_id, vmid=vmid, username=self._requester_identity())
+            self._write_json(HTTPStatus.CREATED, {"ok": True, **result})
+            return
+
+        pool_allocate_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/allocate$", path)
+        if pool_allocate_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            pool_id = pool_allocate_match.group("pool_id")
+            try:
+                body = self._read_json_body() or {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            user_id = str(body.get("user_id", "") or "").strip() or self._requester_identity()
+            try:
+                # Check entitlement
+                if not entitlement_service().is_entitled(pool_id, user_id=user_id):
+                    self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "not entitled to this pool"})
+                    return
+                lease = pool_manager_service().allocate_desktop(pool_id, user_id)
+            except (ValueError, RuntimeError) as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event("pool.desktop.allocate", "success", pool_id=pool_id, user_id=user_id, vmid=lease.vmid, username=self._requester_identity())
+            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().lease_to_dict(lease)})
+            return
+
+        pool_release_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/release$", path)
+        if pool_release_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            pool_id = pool_release_match.group("pool_id")
+            try:
+                body = self._read_json_body() or {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            try:
+                vmid = int(body.get("vmid") or 0)
+                user_id = str(body.get("user_id", "") or "").strip() or self._requester_identity()
+                lease = pool_manager_service().release_desktop(pool_id, vmid, user_id)
+            except (ValueError, RuntimeError) as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event("pool.desktop.release", "success", pool_id=pool_id, vmid=vmid, username=self._requester_identity())
+            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().lease_to_dict(lease)})
+            return
+
+        pool_recycle_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/recycle$", path)
+        if pool_recycle_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            pool_id = pool_recycle_match.group("pool_id")
+            try:
+                body = self._read_json_body() or {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            try:
+                vmid = int(body.get("vmid") or 0)
+                lease = pool_manager_service().recycle_desktop(pool_id, vmid)
+            except (ValueError, RuntimeError) as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event("pool.desktop.recycle", "success", pool_id=pool_id, vmid=vmid, username=self._requester_identity())
+            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().lease_to_dict(lease)})
+            return
+
+        pool_scale_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/scale$", path)
+        if pool_scale_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            pool_id = pool_scale_match.group("pool_id")
+            try:
+                body = self._read_json_body() or {}
+                target_size = int(body.get("target_size") or 0)
+                pool_info = pool_manager_service().scale_pool(pool_id, target_size)
+            except (ValueError, TypeError) as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event("pool.scale", "success", pool_id=pool_id, target_size=target_size, username=self._requester_identity())
+            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().pool_info_to_dict(pool_info)})
+            return
+
+        if path == "/api/v1/pool-templates":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                body = self._read_json_body() or {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            from core.virtualization.desktop_template import DesktopTemplateBuildSpec
+            try:
+                spec = DesktopTemplateBuildSpec(
+                    template_id=str(body.get("template_id", "") or "").strip(),
+                    source_vmid=int(body.get("source_vmid") or 0),
+                    template_name=str(body.get("template_name", "") or "").strip(),
+                    os_family=str(body.get("os_family", "linux") or "linux"),
+                    storage_pool=str(body.get("storage_pool", "local") or "local"),
+                    snapshot_name=str(body.get("snapshot_name", "sealed") or "sealed"),
+                    backing_image=str(body.get("backing_image", "") or ""),
+                    cpu_cores=int(body.get("cpu_cores", 2)),
+                    memory_mib=int(body.get("memory_mib", 2048)),
+                    software_packages=tuple(str(p) for p in body.get("software_packages", [])),
+                    notes=str(body.get("notes", "") or ""),
+                )
+                tmpl_info = desktop_template_builder_service().build_template(spec)
+            except (ValueError, RuntimeError, TypeError) as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event("pool_template.create", "success", template_id=tmpl_info.template_id, username=self._requester_identity())
+            self._write_json(HTTPStatus.CREATED, {"ok": True, **desktop_template_builder_service().template_info_to_dict(tmpl_info)})
+            return
+
         admin_post_path = "/api/v1/provisioning/vms" if path == "/api/v1/vms" else path
         if admin_http_surface_service().handles_post(admin_post_path):
             if not self._is_authenticated():
@@ -3969,6 +4306,28 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.OK, {"ok": True, **payload})
             return
 
+        pool_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)$", path)
+        if pool_match is not None:
+            try:
+                json_payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            pool_id = str(pool_match.group("pool_id") or "").strip()
+            try:
+                payload = pool_manager_service().update_pool(pool_id, json_payload or {})
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event(
+                "pool.update",
+                "success",
+                pool_id=pool_id,
+                username=self._requester_identity(),
+            )
+            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().pool_info_to_dict(payload)})
+            return
+
         if path.startswith("/api/v1/settings/"):
             try:
                 json_payload = self._read_json_body()
@@ -4051,6 +4410,38 @@ class Handler(BaseHTTPRequestHandler):
             return
         if not self._authorize_or_respond("DELETE", path):
             return
+        pool_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)$", path)
+        if pool_match is not None:
+            pool_id = pool_match.group("pool_id")
+            deleted = pool_manager_service().delete_pool(pool_id)
+            if not deleted:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "pool not found"})
+                return
+            self._audit_event(
+                "pool.delete",
+                "success",
+                pool_id=pool_id,
+                username=self._requester_identity(),
+            )
+            self._write_json(HTTPStatus.OK, {"ok": True, "pool_id": pool_id, "deleted": True})
+            return
+
+        template_match = re.match(r"^/api/v1/pool-templates/(?P<template_id>[A-Za-z0-9._-]+)$", path)
+        if template_match is not None:
+            template_id = template_match.group("template_id")
+            deleted = desktop_template_builder_service().delete_template(template_id)
+            if not deleted:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "template not found"})
+                return
+            self._audit_event(
+                "pool_template.delete",
+                "success",
+                template_id=template_id,
+                username=self._requester_identity(),
+            )
+            self._write_json(HTTPStatus.OK, {"ok": True, "template_id": template_id, "deleted": True})
+            return
+
         if not admin_http_surface_service().handles_delete(path):
             self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
             return

@@ -1,5 +1,19 @@
 # Next Steps
 
+## Delta (2026-04-22 nach Plan 10 Schritt 1-4 Backend-Basis)
+
+0. **Plan 10 Web-Console-Surface bauen**:
+	- Pool-Wizard in `website/` umsetzen (`Template -> Groesse -> Modus -> Entitlements -> Bestaetigung`),
+	- Pool-Uebersicht mit VM-Statusliste (`free`, `in-use`, `recycling`, `error`) anbinden.
+
+0. **Plan 10 Template-Builder-UI nachziehen**:
+	- Aktion `Neue VM als Template konvertieren` in der VM-Detailansicht verdrahten,
+	- Builder-Progress-/Status-Dialog gegen die neue `/api/v1/pool-templates` Surface anbinden.
+
+0. **Plan 10 Runtime-Testpflicht erweitern**:
+	- echten Pool mit mehreren Slot-VMs auf `srv1.beagle-os.com` anlegen,
+	- Entitlement-/Allocate-/Release-/Recycle-Flow gegen reale VM-Zustaende validieren.
+
 ## Delta (2026-04-22 nach Plan 10 Schritt 4 Teil 1)
 
 0. **Plan 10 Entitlement-API nachziehen**:
