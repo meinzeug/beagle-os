@@ -27,6 +27,8 @@ class StreamingProfile:
     fps: int = 60
     color: StreamingColorCodec = StreamingColorCodec.H265
     hdr: bool = False
+    audio_input_enabled: bool = False
+    gamepad_redirect_enabled: bool = False
 
 
 def _normalize_resolution(value: Any) -> str:
@@ -69,6 +71,8 @@ def streaming_profile_from_payload(payload: dict[str, Any] | None) -> StreamingP
         fps=fps,
         color=color,
         hdr=bool(body.get("hdr", False)),
+        audio_input_enabled=bool(body.get("audio_input_enabled", False)),
+        gamepad_redirect_enabled=bool(body.get("gamepad_redirect_enabled", False)),
     )
 
 
@@ -82,4 +86,6 @@ def streaming_profile_to_dict(profile: StreamingProfile | None) -> dict[str, Any
         "fps": int(profile.fps),
         "color": profile.color.value,
         "hdr": bool(profile.hdr),
+        "audio_input_enabled": bool(profile.audio_input_enabled),
+        "gamepad_redirect_enabled": bool(profile.gamepad_redirect_enabled),
     }

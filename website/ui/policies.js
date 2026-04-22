@@ -55,7 +55,9 @@ function collectPoolWizardInput() {
       bitrate_kbps: Number(qs('pool-stream-bitrate') ? qs('pool-stream-bitrate').value : '20000') || 20000,
       fps: Number(qs('pool-stream-fps') ? qs('pool-stream-fps').value : '60') || 60,
       resolution: String(qs('pool-stream-resolution') ? qs('pool-stream-resolution').value : '1920x1080').trim() || '1920x1080',
-      hdr: Boolean(qs('pool-stream-hdr') ? qs('pool-stream-hdr').checked : false)
+      hdr: Boolean(qs('pool-stream-hdr') ? qs('pool-stream-hdr').checked : false),
+      audio_input_enabled: Boolean(qs('pool-stream-audio-input') ? qs('pool-stream-audio-input').checked : false),
+      gamepad_redirect_enabled: Boolean(qs('pool-stream-gamepad') ? qs('pool-stream-gamepad').checked : false)
     }
   };
   return { payload, users, groups };
@@ -114,6 +116,7 @@ function renderPoolWizardSummary() {
     fieldBlock('CPU / RAM', String(payload.cpu_cores) + ' vCPU / ' + String(payload.memory_mib) + ' MiB') +
     fieldBlock('Streaming', String(payload.streaming_profile.encoder || '-') + ' / ' + String(payload.streaming_profile.color || '-') + ' / ' + String(payload.streaming_profile.resolution || '-')) +
     fieldBlock('Bitrate / FPS / HDR', String(payload.streaming_profile.bitrate_kbps || '-') + ' Kbps / ' + String(payload.streaming_profile.fps || '-') + ' fps / ' + (payload.streaming_profile.hdr ? 'on' : 'off')) +
+    fieldBlock('Audio / Gamepad', (payload.streaming_profile.audio_input_enabled ? 'audio' : '-') + ' / ' + (payload.streaming_profile.gamepad_redirect_enabled ? 'gamepad' : '-')) +
     fieldBlock('Users', users.length ? users.join(', ') : '-') +
     fieldBlock('Groups', groups.length ? groups.join(', ') : '-') +
     '</div>';
@@ -378,6 +381,12 @@ export function resetPoolWizard() {
   }
   if (qs('pool-stream-hdr')) {
     qs('pool-stream-hdr').checked = false;
+  }
+  if (qs('pool-stream-audio-input')) {
+    qs('pool-stream-audio-input').checked = false;
+  }
+  if (qs('pool-stream-gamepad')) {
+    qs('pool-stream-gamepad').checked = false;
   }
   poolWizardStep = 1;
   renderPoolTemplateOptions();

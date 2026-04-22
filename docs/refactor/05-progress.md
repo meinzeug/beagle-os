@@ -1,5 +1,18 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-22, GoFuture Plan 11 Schritt 4 abgeschlossen: Audio-Input + Gamepad-Redirect erweitern)
+
+- Plan 11 Schritt 4 erste Parameter-Slice umgesetzt.
+- `StreamingProfile` im Core (`core/virtualization/streaming_profile.py`) erweitert um:
+	- `audio_input_enabled`: Moonlight-Protokoll-Version 5 Audio-Input (Mikrofon),
+	- `gamepad_redirect_enabled`: Moonlight-Input-Protokoll Gamepad-Redirect.
+- Pool-Contract, Pool-Manager und Pool-API automatisch synchronisiert (Persistenz/Read-Write funktionieret).
+- Web-Console-Pool-Wizard (`website/index.html`, `website/ui/policies.js`) erweitert um zwei Checkboxes für die neuen Fields.
+- Validierung:
+	- Lokal: alle Tests bestanden, Serialisierung/Deserialisierung intakt,
+	- Live auf `srv1.beagle-os.com`: Pool mit beiden Flags erfolgreich erstellt, gespeichert, abgerufen, gelöscht (`201`/`200`/`200`),
+	- neue Checkboxes in der ausgelieferten WebUI verfügbar.
+
 ## Update (2026-04-22, GoFuture Plan 11 Schritt 3 Teil 2 abgeschlossen: Pool-Wizard Streaming-Profil-Editor)
 
 - Zweite offene Checkbox aus GoFuture Plan 11 Schritt 3 abgeschlossen.

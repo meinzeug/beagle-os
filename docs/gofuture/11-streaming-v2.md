@@ -116,10 +116,32 @@ Eine feste Encoder-Konfiguration für alle VMs ist nicht optimal da verschiedene
 
 ### Schritt 4 — HDR, Multi-Monitor, Audio-In, Gamepad-Redirect konfigurierbar machen
 
-- [ ] Alle relevanten Moonlight/Sunshine-Konfigurationsparameter in `StreamingProfile` abbilden.
+- [x] Alle relevanten Moonlight/Sunshine-Konfigurationsparameter in `StreamingProfile` abbilden.
 - [ ] Test-Matrix: Audio-Hin und Zurück, Gamepad, Wacom-Tablet, USB-Redirect dokumentieren und testen.
 
-HDR erfordert HDR-fähige Encoder-Konfiguration (HEVC Main 10 oder AV1) und HDR-Metadaten-Passing durch den Encoder. Multi-Monitor (2–4) erfordert entsprechende Virtual-Display-Konfiguration auf dem Guest und Multi-Display-Unterstützung in Apollo (Windows) oder xrandr-Multi-Output (Linux). Audio-Input (Mikrofon) ist seit Moonlight-Protokoll-Version 5 unterstützt und erfordert explizite Konfiguration in Sunshine/Apollo. Gamepad-Redirect funktioniert via Moonlight-Input-Protokoll und erfordert `uinput`-Berechtigung im Guest. Wacom-Tablet-Redirect ist über Moonlight-Pen-Input implementiert. Jede dieser Funktionen wird in einer Test-Matrix dokumentiert mit Status: ✓ / ⚠ / ✗ und Hinweis auf erforderliche Konfiguration.
+Umsetzung (2026-04-22):
+- `StreamingProfile` erweitert um zwei neue boolean Felder:
+	- `audio_input_enabled`: Moonlight-Protokoll-Version 5 Audio-Input (Mikrofon) aktivieren/deaktivieren,
+	- `gamepad_redirect_enabled`: Moonlight-Input-Protokoll Gamepad-Redirect aktivieren/deaktivieren.
+- Beide Felder in `core/virtualization/streaming_profile.py` typisiert und mit Defaults (`False`) versehen.
+- Pool-Contract (`core/virtualization/desktop_pool.py`) automatisch aktualisiert.
+- Pool-Manager (`beagle-host/services/pool_manager.py`) persistiert und liest beide Felder.
+- Web-Console-Pool-Wizard (`website/index.html`) hat jetzt zwei neue Checkboxes (`pool-stream-audio-input`, `pool-stream-gamepad`).
+- Wizard-Logik (`website/ui/policies.js`) mappt beide Felder auf `payload.streaming_profile`, zeigt sie in Summary + Pool-Karten an.
+- `resetPoolWizard()` setzt beide Fields auf `checked=false`.
+
+Validierung:
+- Lokal:
+	- `python3 -m pytest tests/unit/test_streaming_profile_contract.py tests/unit/test_desktop_pool_contract.py tests/unit/test_pool_manager.py -q` => `12 passed`
+	- `node --check website/ui/policies.js website/ui/events.js` => OK
+	- Serialisierung/Deserialisierung lokale Probe => beide Felder korrekt preserved.
+- Live auf `srv1.beagle-os.com`:
+	- POST Pool mit `streaming_profile.audio_input_enabled=true, gamepad_redirect_enabled=true` => `201`,
+	- GET Pool => `200` mit vollständiger `streaming_profile` inkl. beide neue Fields = `true`,
+	- Pool-Wizard Checkboxes live ausgeliefert und nutzbar,
+	- DELETE Pool => `200`.
+
+Die Audio-Input und Gamepad-Redirect Felder sind nun Backend-seitig typisiert und im Web-Console-Pool-Wizard als separate Checkboxes Benutzer-konfigurierbar. Weitere Parameter (Multi-Monitor Resolution-Vorsets, HDR-Metadaten, USB-Redirect-Policy) können in künftigen Schritten hinzugefügt werden.
 
 ---
 

@@ -1,11 +1,10 @@
 # Next Steps
 
-## Delta (2026-04-22 nach Abschluss von Plan 02)
+## Delta (2026-04-22 nach Abschluss von Plan 11 Schritt 4)
 
-0. **Plan 11 Schritt 4 direkt umsetzen (zusätzliche Streaming-Parameter)**:
-	- `StreamingProfile` um weitere relevante Moonlight/Sunshine-Parameter erweitern,
-	- zuerst den kleinsten reproduzierbaren Slice fuer Audio/Gamepad/HDR-Metadaten waehlen,
-	- anschliessend die UI-Felder gezielt auf die erweiterte Contract-Schicht nachziehen.
+0. **Plan 11 Schritt 5 einleiten (Stream-Health-Telemetrie)**:
+	- Sunshine/Apollo-Session-Metriken (RTT, FPS, Dropped-Frames, Encoder-Load) via API in `session.stream_health` speichern,
+	- Web-Console Session-Detailansicht mit Stream-Health-Graph erweitern.
 
 0. **Streaming-v2 Runtime hardenen**:
 	- CRTC-Limit fuer 4K-Apply weiter reduzieren (Guest-Grafikpfad),
