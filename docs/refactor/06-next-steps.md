@@ -1,5 +1,16 @@
 # Next Steps
 
+## Delta (2026-04-23 nach Abschluss von Plan 11 Schritt 4 Test-Matrix)
+
+0. **Plan 11 Schritt 6 beginnen (Windows Apollo Eval)**:
+	- Windows Guest + SudoVDA Evaluationspfad vorbereiten,
+	- erste reproduzierbare Apollo-Laufzeitpruefung mit klaren PASS/FAIL-Kriterien aufsetzen.
+
+0. **Plan 11 Testpflicht verbleibende Punkte schliessen**:
+	- 4K@60 ohne Artefakte (Linux vkms) weiterhaerten,
+	- Auto-Pairing End-to-End ohne manuellen PIN als Live-Nachweis fahren,
+	- Stream-Health-Metriken waehrend aktiver Session in der WebUI sichtbar nachweisen.
+
 ## Delta (2026-04-23 nach Abschluss von Plan 09 Schritt 5)
 
 0. **Plan 09 Testpflicht-Checkboxen schliessen**:

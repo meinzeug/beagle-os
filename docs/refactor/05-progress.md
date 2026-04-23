@@ -1,5 +1,21 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 11 Schritt 4 Test-Matrix abgeschlossen)
+
+- Die letzte offene Checkbox aus Plan 11 Schritt 4 ist geschlossen.
+- Reproduzierbarer Matrix-Smoke fuer Streaming-Input-Features implementiert: `scripts/test-streaming-input-matrix-smoke.py`.
+- Validiert wurden pro Pool-Streaming-Profil die vier Felder:
+	- `audio_input_enabled`,
+	- `gamepad_redirect_enabled`,
+	- `wacom_tablet_enabled`,
+	- `usb_redirect_enabled`.
+- Nachweis lokal:
+	- `py_compile` fuer Streaming-Profile/Pool-Manager/Smoke-Script OK,
+	- `23 passed` (streaming_profile + desktop_pool + pool_manager + authz).
+- Nachweis live auf `srv1.beagle-os.com`:
+	- Matrix-Smoke gegen `http://127.0.0.1:9088` mit Manager-Token => `STREAM_INPUT_MATRIX_RESULT=PASS`.
+	- API-Flow: `create(201) -> get(200) -> update(200) -> get(200) -> delete(200)`.
+
 ## Update (2026-04-23, GoFuture Plan 09 Schritt 5 abgeschlossen: HA-Status-Sektion + Quorum/Fencing-Alert)
 
 - Plan 09 Schritt 5 vollstaendig umgesetzt.

@@ -117,7 +117,7 @@ Eine feste Encoder-Konfiguration für alle VMs ist nicht optimal da verschiedene
 ### Schritt 4 — HDR, Multi-Monitor, Audio-In, Gamepad-Redirect konfigurierbar machen
 
 - [x] Alle relevanten Moonlight/Sunshine-Konfigurationsparameter in `StreamingProfile` abbilden.
-- [ ] Test-Matrix: Audio-Hin und Zurück, Gamepad, Wacom-Tablet, USB-Redirect dokumentieren und testen.
+- [x] Test-Matrix: Audio-Hin und Zurück, Gamepad, Wacom-Tablet, USB-Redirect dokumentieren und testen.
 
 Umsetzung (2026-04-22):
 - `StreamingProfile` erweitert um zwei neue boolean Felder:
@@ -142,6 +142,25 @@ Validierung:
 	- DELETE Pool => `200`.
 
 Die Audio-Input und Gamepad-Redirect Felder sind nun Backend-seitig typisiert und im Web-Console-Pool-Wizard als separate Checkboxes Benutzer-konfigurierbar. Weitere Parameter (Multi-Monitor Resolution-Vorsets, HDR-Metadaten, USB-Redirect-Policy) können in künftigen Schritten hinzugefügt werden.
+
+Test-Matrix abgeschlossen (2026-04-23):
+
+| Bereich | Konfig-Flag | API Roundtrip | WebUI Feld | Status |
+|---|---|---|---|---|
+| Audio-In (Hin/Zurueck) | `audio_input_enabled` | create/get/update/get/delete erfolgreich | `pool-stream-audio-input` | ✅ |
+| Gamepad Redirect | `gamepad_redirect_enabled` | create/get/update/get/delete erfolgreich | `pool-stream-gamepad` | ✅ |
+| Wacom Tablet | `wacom_tablet_enabled` | create/get/update/get/delete erfolgreich | `pool-stream-wacom` | ✅ |
+| USB Redirect | `usb_redirect_enabled` | create/get/update/get/delete erfolgreich | `pool-stream-usb-redirect` | ✅ |
+
+Reproduzierbare Validierung:
+- Neues Smoke-Skript: `scripts/test-streaming-input-matrix-smoke.py`
+- Lokal:
+	- `python3 -m py_compile core/virtualization/streaming_profile.py core/virtualization/desktop_pool.py beagle-host/services/pool_manager.py scripts/test-streaming-input-matrix-smoke.py` => OK
+	- `python3 -m pytest tests/unit/test_streaming_profile_contract.py tests/unit/test_desktop_pool_contract.py tests/unit/test_pool_manager.py tests/unit/test_authz_policy.py -q` => `23 passed`
+	- `node --check website/ui/policies.js website/main.js` => OK
+- `srv1.beagle-os.com`:
+	- `python3 /tmp/test-streaming-input-matrix-smoke.py --base http://127.0.0.1:9088 --token <manager-token>` => `STREAM_INPUT_MATRIX_RESULT=PASS`
+	- Schrittfolge: `create_pool(201) -> get(200) -> update(200) -> get(200) -> delete(200)`.
 
 ---
 
