@@ -1,5 +1,14 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 12 Schritt 2: GPU-Passthrough abgeschlossen)
+
+- `beagle-host/services/gpu_passthrough_service.py` neu: vfio-pci-Binding via sysfs, Treiber-Detach, libvirt-XML-Patch (assign/release).
+- `beagle-host/services/gpu_passthrough_surface.py` neu: POST /api/v1/virtualization/gpus/<pci>/assign + release.
+- `beagle-host/bin/beagle-control-plane.py` verdrahtet: GpuPassthroughService + GpuPassthroughSurfaceService als lazy-init Factories.
+- Web Console: "Zuweisen"/"Freigeben"-Buttons in GPU-Inventory-Tabelle, Handler in virtualization.js + events.js.
+- 14 Unit-Tests fuer GpuPassthroughService + GpuPassthroughSurfaceService: alle gruen.
+- Deploy + Live-Smoke auf srv1.beagle-os.com: assign + release Routen aktiv, korrekte Fehlerantwort fuer unbekannte VM, 400 bei fehlendem vmid.
+
 ## Update (2026-04-24, GoFuture Plan 12 Schritt 1: GPU-Inventory abgeschlossen)
 
 - `beagle-host/services/gpu_inventory.py` neu: PCI-Scan via `lspci -Dnn`, IOMMU-Gruppen aus `/sys/kernel/iommu_groups/`, Treiber via `os.readlink()`, Passthrough-Readiness-Flag.

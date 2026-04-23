@@ -220,8 +220,15 @@ export function renderVirtualizationOverview() {
     gpuBody.innerHTML = filteredGpus.length ? filteredGpus.map((item) => {
       const iommu = item.iommu_group ? ('Group ' + String(item.iommu_group) + ' (' + String(item.iommu_group_size || 0) + ')') : '-';
       const tone = item.passthrough_ready ? 'ok' : 'warn';
-      return '<tr data-node="' + escapeHtml(item.node || '') + '"' + ((nodeFilter && String(item.node || '') === nodeFilter) ? ' class="node-filter-selected"' : '') + '><td>' + escapeHtml(item.node || '-') + '</td><td class="mono">' + escapeHtml(item.pci_address || '-') + '</td><td>' + escapeHtml(item.model || item.vendor || '-') + '</td><td>' + escapeHtml(item.driver || '-') + '</td><td>' + escapeHtml(iommu) + '</td><td>' + chip(item.status || 'unknown', tone) + '</td></tr>';
-    }).join('') : '<tr><td colspan="6" class="empty-cell">Keine GPU-Daten vorhanden.</td></tr>';
+      const pci = escapeHtml(item.pci_address || '');
+      let actionBtn = '';
+      if (item.status === 'available-for-passthrough') {
+        actionBtn = '<button type="button" class="button ghost small" data-gpu-assign="1" data-gpu-pci="' + pci + '">Zuweisen</button>';
+      } else if (item.status === 'assigned') {
+        actionBtn = '<button type="button" class="button ghost small" data-gpu-release="1" data-gpu-pci="' + pci + '">Freigeben</button>';
+      }
+      return '<tr data-node="' + escapeHtml(item.node || '') + '"' + ((nodeFilter && String(item.node || '') === nodeFilter) ? ' class="node-filter-selected"' : '') + '><td>' + escapeHtml(item.node || '-') + '</td><td class="mono">' + escapeHtml(item.pci_address || '-') + '</td><td>' + escapeHtml(item.model || item.vendor || '-') + '</td><td>' + escapeHtml(item.driver || '-') + '</td><td>' + escapeHtml(iommu) + '</td><td>' + chip(item.status || 'unknown', tone) + '</td><td>' + actionBtn + '</td></tr>';
+    }).join('') : '<tr><td colspan="7" class="empty-cell">Keine GPU-Daten vorhanden.</td></tr>';
   }
 
   if (bridgeBody) {
@@ -236,6 +243,66 @@ export function setVirtualizationNodeFilter(nodeName) {
   state.virtualizationNodeFilter = next;
   renderVirtualizationOverview();
   virtualizationHooks.setBanner(next ? ('Node-Filter aktiv: ' + next) : 'Node-Filter entfernt.', 'info');
+}
+
+export function assignGpuToVm(pciAddress) {
+  const pci = String(pciAddress || '').trim();
+  if (!pci) {
+    virtualizationHooks.setBanner('PCI-Adresse fehlt.', 'warn');
+    return;
+  }
+  const input = window.prompt('GPU ' + pci + ' einer VM zuweisen.\nVM-ID eingeben:', '');
+  if (input == null) {
+    return;
+  }
+  const vmid = parseInt(String(input || '').trim(), 10);
+  if (!Number.isFinite(vmid) || vmid <= 0) {
+    virtualizationHooks.setBanner('Ungültige VM-ID.', 'warn');
+    return;
+  }
+  request(
+    '/api/v1/virtualization/gpus/' + encodeURIComponent(pci) + '/assign',
+    { method: 'POST', body: JSON.stringify({ vmid }) }
+  ).then((res) => {
+    if (res.ok) {
+      virtualizationHooks.setBanner('GPU ' + pci + ' wurde VM ' + vmid + ' zugewiesen.', 'ok');
+      virtualizationHooks.loadDashboard();
+    } else {
+      virtualizationHooks.setBanner('Fehler: ' + (res.error || JSON.stringify(res)), 'warn');
+    }
+  }).catch((err) => {
+    virtualizationHooks.setBanner('Fehler: ' + (err.message || String(err)), 'warn');
+  });
+}
+
+export function releaseGpuFromVm(pciAddress) {
+  const pci = String(pciAddress || '').trim();
+  if (!pci) {
+    virtualizationHooks.setBanner('PCI-Adresse fehlt.', 'warn');
+    return;
+  }
+  const input = window.prompt('GPU ' + pci + ' freigeben.\nVM-ID eingeben:', '');
+  if (input == null) {
+    return;
+  }
+  const vmid = parseInt(String(input || '').trim(), 10);
+  if (!Number.isFinite(vmid) || vmid <= 0) {
+    virtualizationHooks.setBanner('Ungültige VM-ID.', 'warn');
+    return;
+  }
+  request(
+    '/api/v1/virtualization/gpus/' + encodeURIComponent(pci) + '/release',
+    { method: 'POST', body: JSON.stringify({ vmid }) }
+  ).then((res) => {
+    if (res.ok) {
+      virtualizationHooks.setBanner('GPU ' + pci + ' von VM ' + vmid + ' freigegeben.', 'ok');
+      virtualizationHooks.loadDashboard();
+    } else {
+      virtualizationHooks.setBanner('Fehler: ' + (res.error || JSON.stringify(res)), 'warn');
+    }
+  }).catch((err) => {
+    virtualizationHooks.setBanner('Fehler: ' + (err.message || String(err)), 'warn');
+  });
 }
 
 export function renderVirtualizationInspector() {

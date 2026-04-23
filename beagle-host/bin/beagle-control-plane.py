@@ -92,6 +92,8 @@ from ubuntu_beagle_provisioning import UbuntuBeagleProvisioningService
 from update_feed import UpdateFeedService
 from utility_support import UtilitySupportService
 from gpu_inventory import GpuInventoryService
+from gpu_passthrough_service import GpuPassthroughService
+from gpu_passthrough_surface import GpuPassthroughSurfaceService
 from virtualization_inventory import VirtualizationInventoryService
 from virtualization_read_surface import VirtualizationReadSurfaceService
 from webhook_service import WebhookService
@@ -890,6 +892,8 @@ VIRTUALIZATION_INVENTORY = VirtualizationInventoryService(
 )
 
 GPU_INVENTORY_SERVICE: GpuInventoryService | None = None
+GPU_PASSTHROUGH_SERVICE: GpuPassthroughService | None = None
+GPU_PASSTHROUGH_SURFACE_SERVICE: GpuPassthroughSurfaceService | None = None
 VM_PROFILE_SERVICE: VmProfileService | None = None
 VM_CONSOLE_ACCESS_SERVICE: VmConsoleAccessService | None = None
 VM_HTTP_SURFACE_SERVICE: VmHttpSurfaceService | None = None
@@ -2550,6 +2554,34 @@ def gpu_inventory_service() -> GpuInventoryService:
             run_text=lambda command: run_text(command),
         )
     return GPU_INVENTORY_SERVICE
+
+
+def gpu_passthrough_service() -> GpuPassthroughService:
+    global GPU_PASSTHROUGH_SERVICE
+    if GPU_PASSTHROUGH_SERVICE is None:
+        GPU_PASSTHROUGH_SERVICE = GpuPassthroughService(
+            run_virsh=lambda command: str(getattr(HOST_PROVIDER, "_run_virsh")(*command)),
+            define_domain_xml=lambda xml_text: getattr(HOST_PROVIDER, "_run_virsh")(
+                "define", "/dev/stdin", input_data=xml_text
+            ),
+            libvirt_domain_name=lambda vmid: str(
+                getattr(HOST_PROVIDER, "_libvirt_domain_name", lambda v: f"beagle-{int(v)}")(int(vmid))
+            ),
+        )
+    return GPU_PASSTHROUGH_SERVICE
+
+
+def gpu_passthrough_surface_service() -> GpuPassthroughSurfaceService:
+    global GPU_PASSTHROUGH_SURFACE_SERVICE
+    if GPU_PASSTHROUGH_SURFACE_SERVICE is None:
+        GPU_PASSTHROUGH_SURFACE_SERVICE = GpuPassthroughSurfaceService(
+            assign_gpu=lambda pci, vmid: gpu_passthrough_service().assign_gpu(pci, vmid),
+            release_gpu=lambda pci, vmid: gpu_passthrough_service().release_gpu(pci, vmid),
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return GPU_PASSTHROUGH_SURFACE_SERVICE
 
 
 def virtualization_read_surface_service() -> VirtualizationReadSurfaceService:
@@ -4677,6 +4709,32 @@ class Handler(BaseHTTPRequestHandler):
                         )
                     except Exception:
                         pass
+            self._write_json(response["status"], response["payload"])
+            return
+
+        if gpu_passthrough_surface_service().handles_path(path):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                json_payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            response = gpu_passthrough_surface_service().route_post(
+                path,
+                json_payload=json_payload,
+            )
+            self._audit_event(
+                "gpu.passthrough.request",
+                "success" if int(response["status"]) < 400 else "error",
+                method="POST",
+                path=path,
+                username=self._requester_identity(),
+                status=int(response["status"]),
+            )
             self._write_json(response["status"], response["payload"])
             return
 

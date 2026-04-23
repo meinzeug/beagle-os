@@ -26,8 +26,8 @@ bereits zugeteilt, nicht isolierbar (IOMMU-Gruppe enthält weitere Geräte).
 
 ### Schritt 2 — GPU-Passthrough-Workflow mit Host-Treiber-Detach implementieren
 
-- [ ] `gpu_passthrough_service.py` anlegen: `vfio-pci`-Binding, Treiber-Detach, libvirt-XML-Patch.
-- [ ] Web Console: "GPU zu VM zuweisen" Action im VM-Detail.
+- [x] `gpu_passthrough_service.py` anlegen: `vfio-pci`-Binding, Treiber-Detach, libvirt-XML-Patch.
+- [x] Web Console: "GPU zu VM zuweisen" Action im VM-Detail.
 
 GPU-Passthrough erfordert dass der Host-Treiber (nvidia, amdgpu, i915) von der GPU
 entladen und `vfio-pci` als Ersatz-Treiber gebunden wird. Dieser Prozess erfordert

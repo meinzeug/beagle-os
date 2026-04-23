@@ -80,7 +80,9 @@ import {
   loadVirtualizationInspector,
   loadVmConfig,
   setStoragePoolQuota,
-  setVirtualizationNodeFilter
+  setVirtualizationNodeFilter,
+  assignGpuToVm,
+  releaseGpuFromVm
 } from './virtualization.js';
 import { loadDashboard } from './dashboard.js';
 import { MAX_USERNAME_LEN, USERNAME_PATTERN, state } from './state.js';
@@ -796,6 +798,16 @@ export function bindEvents() {
   }
   if (qs('virtualization-gpus-body')) {
     qs('virtualization-gpus-body').addEventListener('click', (event) => {
+      const assignBtn = event.target.closest('button[data-gpu-assign]');
+      if (assignBtn) {
+        assignGpuToVm(assignBtn.getAttribute('data-gpu-pci'));
+        return;
+      }
+      const releaseBtn = event.target.closest('button[data-gpu-release]');
+      if (releaseBtn) {
+        releaseGpuFromVm(releaseBtn.getAttribute('data-gpu-pci'));
+        return;
+      }
       const row = event.target.closest('tr[data-node]');
       if (row) {
         setVirtualizationNodeFilter(row.getAttribute('data-node'));

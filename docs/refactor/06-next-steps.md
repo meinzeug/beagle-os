@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-23 nach Abschluss von Plan 12 Schritt 2: GPU-Passthrough)
+
+0. **Plan 12 Schritt 3 starten (NVIDIA vGPU / mdev)**:
+	- `vgpu_service.py` implementieren: mdev-Typen aus `/sys/class/mdev_bus/*/mdev_supported_types/` lesen, Instanzen anlegen,
+	- Web Console: vGPU-Typ und Slot auswählen bei VM-Konfiguration.
+
+0. **Plan 11 verbleibende Testpflicht (runtime-blockiert)**:
+	- Linux 4K@60 ohne Artefakte (vkms/xrandr Blocker auf srv1),
+	- Auto-Pairing ohne manuellen PIN (Sunshine pair-exchange 502 Blocker).
+
 ## Delta (2026-04-24 nach Abschluss von Plan 12 Schritt 1: GPU-Inventory)
 
 0. **Plan 12 Schritt 2 starten (GPU-Passthrough-Workflow)**:
