@@ -90,6 +90,8 @@
 - [x] Execute GoFuture Plan 11 Schritt 5 full slice: implement `GET /api/v1/sessions` + `POST /api/v1/sessions/stream-health`, persist stream metrics (`rtt_ms`,`fps`,`dropped_frames`,`encoder_load`), replace sessions placeholder with real list/detail UI, and validate end-to-end on `srv1.beagle-os.com` (2026-04-22).
 - [x] Close GoFuture Plan 11 test checklist item "Stream-Health metrics visible during active session" via new reproducible smoke `scripts/test-stream-health-active-session-smoke.py` (create/register/entitle/allocate -> stream-health POST -> sessions GET -> cleanup) on local checks plus live run on `srv1.beagle-os.com` (2026-04-23).
 - [ ] Execute GoFuture Plan 11 Schritt 6: Windows Apollo + SudoVDA evaluation plus benchmark/documentation baseline.
+- [x] Execute GoFuture Plan 12 Schritt 5: add optional `gpu_class` to DesktopPool and implement GPU-slot-aware VM registration with persisted reservations + `pending-gpu` fallback when no matching slot exists; validated via local unit tests and live API smoke on `srv1.beagle-os.com` (2026-04-23).
+- [ ] Close GoFuture Plan 12 remaining GPU hardware testpflicht on a GPU-capable runtime (passthrough proof, 4x vGPU + 5th pending, reboot proof).
 - [x] Execute GoFuture Plan 06 Schritt 1: fully read `beagle-server-installer` and document the current installer flow as ASCII diagram in `docs/gofuture/06-server-installer.md` (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 2: refactor server installer + GUI to standalone-only mode and remove Proxmox installer branches (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 3: add central `server-installer/build.env` and wire `scripts/build-server-installer.sh` to load reproducible build dependencies from it (2026-04-21).

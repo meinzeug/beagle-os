@@ -689,6 +689,7 @@ def pool_manager_service() -> PoolManagerService:
             utcnow=utcnow,
             list_nodes=lambda: HOST_PROVIDER.list_nodes(),
             vm_node_of=lambda vmid: str(getattr(find_vm(int(vmid), refresh=True), "node", "") or ""),
+            list_gpu_inventory=lambda: gpu_inventory_service().list_gpus(),
         )
     return POOL_MANAGER_SERVICE
 
@@ -4885,6 +4886,7 @@ class Handler(BaseHTTPRequestHandler):
                     cpu_cores=int(body.get("cpu_cores", 2)),
                     memory_mib=int(body.get("memory_mib", 2048)),
                     storage_pool=str(body.get("storage_pool", "local") or "local"),
+                    gpu_class=str(body.get("gpu_class", "") or "").strip(),
                     enabled=bool(body.get("enabled", True)),
                     labels=tuple(str(l) for l in body.get("labels", [])),
                     streaming_profile=streaming_profile,

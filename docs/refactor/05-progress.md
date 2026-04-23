@@ -1,5 +1,22 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 12 Schritt 5: gpu_class Scheduler-Constraint abgeschlossen)
+
+- `core/virtualization/desktop_pool.py` erweitert: `DesktopPoolSpec.gpu_class` und `DesktopPoolInfo.gpu_class` eingefuehrt.
+- `beagle-host/services/pool_manager.py` erweitert:
+	- `gpu_class` wird in Pool-Config persistiert und ueber API serialisiert.
+	- GPU-Slot-Reservierungen im Cluster-Store-State (`gpu_reservations`) eingefuehrt.
+	- `register_vm()` reserviert bei passendem Slot eine konkrete GPU (`slot`), andernfalls VM-Status `pending-gpu`.
+	- `scale_pool()` begrenzt `warm_pool_size` bei aktivem `gpu_class` auf verfuegbare GPU-Slots.
+- `beagle-host/bin/beagle-control-plane.py` verdrahtet:
+	- Pool-Create nimmt `gpu_class` an.
+	- `PoolManagerService` bekommt GPU-Inventory-Injektion fuer Slot-Matching.
+- Unit-Tests erweitert: `tests/unit/test_pool_manager.py` mit neuen Faellen fuer `gpu_class` Persistenz, Slot-Reservierung und `pending-gpu`.
+- Teststand lokal: `62 passed` (`test_pool_manager`, `test_gpu_inventory_service`, `test_gpu_passthrough_service`, `test_vgpu_service`).
+- Live-Deploy auf `srv1.beagle-os.com`:
+	- Service restart `active`.
+	- API-Smoke: Pool mit `gpu_class=passthrough-nvidia` erstellt, `register_vm` liefert auf GPU-loser Runtime erwartungsgemaess `state=pending-gpu`.
+
 ## Update (2026-04-24, GoFuture Plan 12 Schritt 3+4: NVIDIA vGPU (mdev) + Intel SR-IOV abgeschlossen)
 
 - `beagle-host/services/vgpu_service.py` neu: VgpuService + SriovService Classes.

@@ -72,8 +72,8 @@ dokumentiert.
 
 ### Schritt 5 — Pool-Constraint `gpu_class` im Scheduler implementieren
 
-- [ ] `DesktopPool` bekommt optionales Feld `gpu_class` (z.B. `nvidia-l4-1g`, `passthrough-amd-rx7900`).
-- [ ] Scheduler reserviert GPU-Slots bei Pool-Scaling und weist VMs nur Knoten mit passendem GPU-Slot zu.
+- [x] `DesktopPool` bekommt optionales Feld `gpu_class` (z.B. `nvidia-l4-1g`, `passthrough-amd-rx7900`).
+- [x] Scheduler reserviert GPU-Slots bei Pool-Scaling und weist VMs nur Knoten mit passendem GPU-Slot zu.
 
 Der Scheduler muss bei der Zuweisung von Pool-VMs auf Knoten nicht nur CPU/RAM
 sondern auch GPU-Slots berücksichtigen. Ein Pool mit `gpu_class: nvidia-l4-1g`

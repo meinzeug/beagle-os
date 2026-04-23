@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-23 nach Abschluss von Plan 12 Schritt 5: gpu_class Constraint)
+
+0. **Plan 12 Testpflicht abschliessen (runtime-blockiert auf srv1)**:
+	- GPU-Passthrough- und vGPU-Nachweise benoetigen echte GPU-Hardware (inkl. `nvidia-smi` / Mehr-VM-vGPU-Lauf),
+	- auf `srv1.beagle-os.com` sind keine mdev/SR-IOV-faehigen GPUs verfuegbar; daher nur API-/State-Smoke reproduzierbar.
+
+0. **Naechster umsetzbarer offener GoFuture-Block**:
+	- Plan 11 Schritt 6 (Windows Apollo + SudoVDA Eval + Benchmark) oder
+	- Plan 15 Schritt 2 (Audit-Export-Targets S3/Syslog/Webhook) je nach verfuegbarer Runtime.
+
 ## Delta (2026-04-23 nach Abschluss von Plan 12 Schritt 2: GPU-Passthrough)
 
 0. **Plan 12 Schritt 3 starten (NVIDIA vGPU / mdev)**:

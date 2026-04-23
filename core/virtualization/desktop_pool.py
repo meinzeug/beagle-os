@@ -24,6 +24,7 @@ class DesktopPoolSpec:
     cpu_cores: int
     memory_mib: int
     storage_pool: str
+    gpu_class: str = ""
     enabled: bool = True
     labels: tuple[str, ...] = field(default_factory=tuple)
     streaming_profile: StreamingProfile | None = None
@@ -48,6 +49,7 @@ class DesktopPoolInfo:
     min_pool_size: int
     max_pool_size: int
     warm_pool_size: int
+    gpu_class: str
     free_desktops: int
     in_use_desktops: int
     recycling_desktops: int

@@ -25,6 +25,7 @@ _STATE_FREE = "free"
 _STATE_IN_USE = "in_use"
 _STATE_RECYCLING = "recycling"
 _STATE_ERROR = "error"
+_STATE_PENDING_GPU = "pending-gpu"
 
 
 class PoolManagerService:
@@ -47,6 +48,7 @@ class PoolManagerService:
         reset_vm_to_template: Any = None,
         list_nodes: Any = None,
         vm_node_of: Any = None,
+        list_gpu_inventory: Any = None,
     ) -> None:
         self._state_file = Path(state_file)
         self._utcnow = utcnow or (lambda: __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
@@ -56,6 +58,7 @@ class PoolManagerService:
         self._reset_vm_to_template = reset_vm_to_template  # callable(vmid, template_id) -> None
         self._list_nodes = list_nodes  # callable() -> list[dict]
         self._vm_node_of = vm_node_of  # callable(vmid) -> str
+        self._list_gpu_inventory = list_gpu_inventory  # callable() -> list[dict]
 
     # ------------------------------------------------------------------
     # State persistence helpers
@@ -63,7 +66,7 @@ class PoolManagerService:
 
     def _load(self) -> dict[str, Any]:
         if not self._state_file.exists():
-            return {"pools": {}, "vms": {}}
+            return {"pools": {}, "vms": {}, "gpu_reservations": {}}
         try:
             data = json.loads(self._state_file.read_text(encoding="utf-8") or "{}")
         except (json.JSONDecodeError, OSError):
@@ -72,6 +75,8 @@ class PoolManagerService:
             data["pools"] = {}
         if not isinstance(data.get("vms"), dict):
             data["vms"] = {}
+        if not isinstance(data.get("gpu_reservations"), dict):
+            data["gpu_reservations"] = {}
         return data
 
     def _save(self, state: dict[str, Any]) -> None:
@@ -100,6 +105,7 @@ class PoolManagerService:
             "cpu_cores": spec.cpu_cores,
             "memory_mib": spec.memory_mib,
             "storage_pool": spec.storage_pool,
+            "gpu_class": str(spec.gpu_class or "").strip(),
             "enabled": spec.enabled,
             "labels": list(spec.labels),
             "streaming_profile": streaming_profile_to_dict(spec.streaming_profile),
@@ -128,12 +134,25 @@ class PoolManagerService:
             vmid: vm for vmid, vm in state["vms"].items()
             if vm.get("pool_id") != pool_id
         }
+        state["gpu_reservations"] = {
+            vmid: item
+            for vmid, item in state.get("gpu_reservations", {}).items()
+            if str(item.get("pool_id") or "") != pool_id
+        }
         self._save(state)
         return True
 
     def update_pool(self, pool_id: str, updates: dict[str, Any]) -> DesktopPoolInfo:
         """Update mutable pool fields (min/max size, enabled)."""
-        _allowed = {"min_pool_size", "max_pool_size", "warm_pool_size", "enabled", "labels", "streaming_profile"}
+        _allowed = {
+            "min_pool_size",
+            "max_pool_size",
+            "warm_pool_size",
+            "enabled",
+            "labels",
+            "streaming_profile",
+            "gpu_class",
+        }
         state = self._load()
         if pool_id not in state["pools"]:
             raise ValueError(f"pool {pool_id!r} not found")
@@ -143,10 +162,95 @@ class PoolManagerService:
                 if key == "streaming_profile":
                     profile = None if value is None else streaming_profile_from_payload(value)
                     pool_entry[key] = streaming_profile_to_dict(profile)
+                elif key == "gpu_class":
+                    pool_entry[key] = str(value or "").strip()
                 else:
                     pool_entry[key] = value
         self._save(state)
         return self._pool_info(state, pool_id)
+
+    @staticmethod
+    def _gpu_class_normalized(gpu_class: Any) -> str:
+        return str(gpu_class or "").strip().lower()
+
+    @staticmethod
+    def _gpu_matches_class(gpu_item: dict[str, Any], gpu_class: str) -> bool:
+        if not isinstance(gpu_item, dict):
+            return False
+        normalized = PoolManagerService._gpu_class_normalized(gpu_class)
+        if not normalized:
+            return True
+        status = str(gpu_item.get("status") or "").strip().lower()
+        if not status:
+            return False
+        # Current implementation supports passthrough classes from inventory.
+        if normalized.startswith("passthrough-"):
+            remainder = normalized[len("passthrough-"):]
+            vendor = ""
+            model_token = ""
+            if "-" in remainder:
+                vendor, model_token = remainder.split("-", 1)
+            else:
+                vendor = remainder
+            item_vendor = str(gpu_item.get("vendor") or "").strip().lower()
+            item_model = str(gpu_item.get("model") or "").strip().lower()
+            if vendor and item_vendor != vendor:
+                return False
+            if model_token:
+                model_parts = [part for part in model_token.split("-") if part]
+                if any(part not in item_model for part in model_parts):
+                    return False
+            return status in ("available-for-passthrough", "assigned")
+        return False
+
+    def _gpu_slots_by_node(self, gpu_class: str) -> dict[str, list[str]]:
+        if self._list_gpu_inventory is None:
+            return {}
+        try:
+            inventory = self._list_gpu_inventory()
+        except Exception:
+            return {}
+        slots_by_node: dict[str, list[str]] = {}
+        for item in inventory if isinstance(inventory, list) else []:
+            if not isinstance(item, dict):
+                continue
+            if not self._gpu_matches_class(item, gpu_class):
+                continue
+            node = str(item.get("node") or "").strip()
+            pci = str(item.get("pci_address") or "").strip().lower()
+            status = str(item.get("status") or "").strip().lower()
+            if not node or not pci:
+                continue
+            if status != "available-for-passthrough":
+                continue
+            slots_by_node.setdefault(node, [])
+            if pci not in slots_by_node[node]:
+                slots_by_node[node].append(pci)
+        return slots_by_node
+
+    @staticmethod
+    def _reserved_slots(state: dict[str, Any], gpu_class: str) -> set[str]:
+        normalized = PoolManagerService._gpu_class_normalized(gpu_class)
+        reserved: set[str] = set()
+        for item in state.get("gpu_reservations", {}).values():
+            if not isinstance(item, dict):
+                continue
+            if PoolManagerService._gpu_class_normalized(item.get("gpu_class")) != normalized:
+                continue
+            slot = str(item.get("slot") or "").strip().lower()
+            if slot:
+                reserved.add(slot)
+        return reserved
+
+    @staticmethod
+    def _cleanup_stale_gpu_reservations(state: dict[str, Any]) -> None:
+        vms = state.get("vms", {})
+        reservations = state.get("gpu_reservations", {})
+        if not isinstance(vms, dict) or not isinstance(reservations, dict):
+            return
+        stale = [vmid for vmid in reservations.keys() if vmid not in vms]
+        for vmid in stale:
+            del reservations[vmid]
 
     @staticmethod
     def _parse_streaming_profile(raw: Any) -> StreamingProfile | None:
@@ -241,6 +345,11 @@ class PoolManagerService:
         if pool_id not in state["pools"]:
             raise ValueError(f"pool {pool_id!r} not found")
 
+        pool_cfg = state["pools"][pool_id]
+        gpu_class = str(pool_cfg.get("gpu_class") or "").strip()
+
+        self._cleanup_stale_gpu_reservations(state)
+
         policy = scheduler_policy if isinstance(scheduler_policy, SchedulerPolicy) else scheduler_policy_from_payload(scheduler_policy)
         placements: dict[int, str] = {}
         for item in self._pool_vms(state, pool_id):
@@ -254,15 +363,53 @@ class PoolManagerService:
                 placements[existing_vmid] = existing_node
 
         node = self._choose_node_for_vmid(vmid=int(vmid), policy=policy, placements=placements)
+        vm_state = _STATE_FREE
+        reserved_slot = ""
+
+        if gpu_class:
+            slots_by_node = self._gpu_slots_by_node(gpu_class)
+            if slots_by_node:
+                reserved = self._reserved_slots(state, gpu_class)
+                candidate_nodes = [
+                    node_name
+                    for node_name in sorted(slots_by_node.keys())
+                    if any(slot not in reserved for slot in slots_by_node.get(node_name, []))
+                ]
+                if candidate_nodes:
+                    if node in candidate_nodes:
+                        selected_node = node
+                    else:
+                        selected_node = candidate_nodes[0]
+                    node = selected_node
+                    for slot in slots_by_node.get(selected_node, []):
+                        if slot not in reserved:
+                            reserved_slot = slot
+                            break
+                else:
+                    node = ""
+                    vm_state = _STATE_PENDING_GPU
+            else:
+                node = ""
+                vm_state = _STATE_PENDING_GPU
+
         vm_key = str(vmid)
         state["vms"][vm_key] = {
             "vmid": vmid,
             "pool_id": pool_id,
             "node": node,
-            "state": _STATE_FREE,
+            "state": vm_state,
             "user_id": None,
             "assigned_at": None,
         }
+        if gpu_class and vm_state == _STATE_FREE and reserved_slot:
+            state["gpu_reservations"][vm_key] = {
+                "pool_id": pool_id,
+                "vmid": int(vmid),
+                "gpu_class": gpu_class,
+                "node": node,
+                "slot": reserved_slot,
+                "reserved_at": self._utcnow(),
+            }
         self._save(state)
         return state["vms"][vm_key]
 
@@ -287,6 +434,7 @@ class PoolManagerService:
             min_pool_size=int(pool.get("min_pool_size", 0)),
             max_pool_size=int(pool.get("max_pool_size", 0)),
             warm_pool_size=int(pool.get("warm_pool_size", 0)),
+            gpu_class=str(pool.get("gpu_class") or "").strip(),
             free_desktops=counts[_STATE_FREE],
             in_use_desktops=counts[_STATE_IN_USE],
             recycling_desktops=counts[_STATE_RECYCLING],
@@ -517,10 +665,16 @@ class PoolManagerService:
         pool_cfg = state["pools"][pool_id]
         min_size = int(pool_cfg.get("min_pool_size", 0))
         max_size = int(pool_cfg.get("max_pool_size", 999))
+        gpu_class = str(pool_cfg.get("gpu_class") or "").strip()
         if target_size < min_size:
             target_size = min_size
         if target_size > max_size:
             target_size = max_size
+        if gpu_class:
+            slots_by_node = self._gpu_slots_by_node(gpu_class)
+            total_slots = sum(len(slots) for slots in slots_by_node.values())
+            if total_slots > 0 and target_size > total_slots:
+                target_size = total_slots
         pool_cfg["warm_pool_size"] = target_size
         self._save(state)
         return self._pool_info(state, pool_id)
@@ -549,6 +703,7 @@ class PoolManagerService:
             "min_pool_size": info.min_pool_size,
             "max_pool_size": info.max_pool_size,
             "warm_pool_size": info.warm_pool_size,
+            "gpu_class": info.gpu_class,
             "free_desktops": info.free_desktops,
             "in_use_desktops": info.in_use_desktops,
             "recycling_desktops": info.recycling_desktops,

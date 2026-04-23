@@ -16,11 +16,17 @@ from pool_manager import PoolManagerService
 
 
 class PoolManagerServiceTests(unittest.TestCase):
-    def _build_service(self) -> PoolManagerService:
+    def _build_service(self, *, list_nodes=None, vm_node_of=None, list_gpu_inventory=None) -> PoolManagerService:
         temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(temp_dir.cleanup)
         state_file = Path(temp_dir.name) / "desktop-pools.json"
-        return PoolManagerService(state_file=state_file, utcnow=lambda: "2026-04-22T12:00:00Z")
+        return PoolManagerService(
+            state_file=state_file,
+            utcnow=lambda: "2026-04-22T12:00:00Z",
+            list_nodes=list_nodes,
+            vm_node_of=vm_node_of,
+            list_gpu_inventory=list_gpu_inventory,
+        )
 
     def test_create_pool_and_list(self) -> None:
         service = self._build_service()
@@ -39,6 +45,26 @@ class PoolManagerServiceTests(unittest.TestCase):
         )
         self.assertEqual(info.pool_id, "pool-a")
         self.assertEqual(len(service.list_pools()), 1)
+
+    def test_create_pool_persists_gpu_class(self) -> None:
+        service = self._build_service()
+        info = service.create_pool(
+            DesktopPoolSpec(
+                pool_id="pool-gpu",
+                template_id="tpl-1",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+                gpu_class="passthrough-nvidia",
+            )
+        )
+        self.assertEqual(info.gpu_class, "passthrough-nvidia")
+        payload = service.pool_info_to_dict(info)
+        self.assertEqual(payload["gpu_class"], "passthrough-nvidia")
 
     def test_allocate_release_recycle_non_persistent(self) -> None:
         service = self._build_service()
@@ -320,6 +346,82 @@ class PoolManagerServiceTests(unittest.TestCase):
 
         self.assertEqual(first["node"], "node-b")
         self.assertEqual(second["node"], "node-b")
+
+    def test_register_vm_with_gpu_class_reserves_slot(self) -> None:
+        online_nodes = [{"name": "node-a", "status": "online"}]
+        gpu_inventory = [
+            {
+                "node": "node-a",
+                "pci_address": "0000:01:00.0",
+                "vendor": "nvidia",
+                "model": "NVIDIA L4",
+                "status": "available-for-passthrough",
+            }
+        ]
+        service = self._build_service(
+            list_nodes=lambda: online_nodes,
+            list_gpu_inventory=lambda: gpu_inventory,
+        )
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="pool-gpu",
+                template_id="tpl-1",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+                gpu_class="passthrough-nvidia",
+            )
+        )
+
+        vm = service.register_vm("pool-gpu", 701)
+        self.assertEqual(vm["state"], "free")
+        self.assertEqual(vm["node"], "node-a")
+
+        state = service._load()
+        reservation = state["gpu_reservations"].get("701")
+        self.assertIsNotNone(reservation)
+        self.assertEqual(reservation["slot"], "0000:01:00.0")
+        self.assertEqual(reservation["gpu_class"], "passthrough-nvidia")
+
+    def test_register_vm_sets_pending_gpu_when_no_slot(self) -> None:
+        online_nodes = [{"name": "node-a", "status": "online"}]
+        gpu_inventory = [
+            {
+                "node": "node-a",
+                "pci_address": "0000:01:00.0",
+                "vendor": "nvidia",
+                "model": "NVIDIA L4",
+                "status": "available-for-passthrough",
+            }
+        ]
+        service = self._build_service(
+            list_nodes=lambda: online_nodes,
+            list_gpu_inventory=lambda: gpu_inventory,
+        )
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="pool-gpu",
+                template_id="tpl-1",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=2,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+                gpu_class="passthrough-nvidia",
+            )
+        )
+
+        first = service.register_vm("pool-gpu", 801)
+        second = service.register_vm("pool-gpu", 802)
+        self.assertEqual(first["state"], "free")
+        self.assertEqual(second["state"], "pending-gpu")
+        self.assertEqual(second["node"], "")
 
 
 if __name__ == "__main__":
