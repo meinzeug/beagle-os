@@ -330,6 +330,15 @@ class UbuntuBeagleProvisioningService:
         normalized["extra_packages"] = self._normalize_package_names(payload.get("extra_packages", []), field_name="extra_packages")
         return self.create_ubuntu_beagle_vm(normalized)
 
+    @staticmethod
+    def _normalize_ha_policy(value: Any) -> str:
+        policy = str(value or "").strip().lower().replace("-", "_")
+        if not policy:
+            return ""
+        if policy not in {"disabled", "restart", "fail_over"}:
+            raise ValueError("ha_policy must be one of: disabled, restart, fail_over")
+        return policy
+
     def storage_supports_content(self, storage_id: str, content_type: str) -> bool:
         target = str(storage_id or "").strip()
         if not target:
@@ -870,6 +879,7 @@ class UbuntuBeagleProvisioningService:
         public_base_port = self._allocate_public_stream_base_port(node, vmid)
         sunshine_port: int | None = None
         network_mac = self.ubuntu_beagle_network_mac(vmid)
+        ha_policy = self._normalize_ha_policy(payload.get("ha_policy", ""))
         resolved_public_stream_host = self._current_public_stream_host()
         if resolved_public_stream_host and public_base_port is not None:
             ports = self._stream_ports(public_base_port)
@@ -990,6 +1000,12 @@ class UbuntuBeagleProvisioningService:
                 ],
                 timeout=None,
             )
+            if ha_policy:
+                self._provider.set_vm_options(
+                    vmid,
+                    [("ha_policy", ha_policy)],
+                    timeout=None,
+                )
             self._provider.set_vm_boot_order(vmid, "order=scsi0;ide2;ide3", timeout=None)
             if start_after_create:
                 self._provider.start_vm(vmid, timeout=None)
@@ -1067,6 +1083,7 @@ class UbuntuBeagleProvisioningService:
             "state": state,
             "provisioning": self._summarize_ubuntu_beagle_state(state, include_credentials=True),
             "public_stream": public_stream,
+            "ha_policy": ha_policy,
         }
 
     def update_ubuntu_beagle_vm(self, vmid: int, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1114,6 +1131,10 @@ class UbuntuBeagleProvisioningService:
             extra_packages=extra_packages,
         )
         self._provider.set_vm_description(vmid, description, timeout=None)
+        ha_policy = ""
+        if "ha_policy" in payload:
+            ha_policy = self._normalize_ha_policy(payload.get("ha_policy"))
+            self._provider.set_vm_options(vmid, [("ha_policy", ha_policy)], timeout=None)
 
         applied = False
         if vm.status == "running":
@@ -1192,4 +1213,5 @@ class UbuntuBeagleProvisioningService:
                 if applied
                 else "VM metadata was updated. Start the guest and re-run the edit action to apply packages inside Ubuntu."
             ),
+            "ha_policy": ha_policy,
         }

@@ -34,8 +34,28 @@ Kein Fencing verfügbar muss explizit akzeptiert und im Web Console-Setup dokume
 
 ### Schritt 2 — Restart-Policies pro VM und Pool implementieren
 
-- [ ] VM-Config bekommt opt. Feld `ha_policy`: `disabled | restart | fail_over`.
-- [ ] HA-Manager prüft Policy nach Knoten-Ausfall und startet/verschiebt VM entsprechend.
+- [x] VM-Config bekommt opt. Feld `ha_policy`: `disabled | restart | fail_over`.
+- [x] HA-Manager prüft Policy nach Knoten-Ausfall und startet/verschiebt VM entsprechend.
+
+Umgesetzt (2026-04-23):
+- Neues Modul `beagle-host/services/ha_manager.py` eingefuehrt (`HaManagerService`).
+- HA-Reconcile-Logik implementiert (`reconcile_failed_node`):
+	- `ha_policy=disabled` -> Skip,
+	- `ha_policy=restart` -> Cold-Restart auf online Target-Node,
+	- `ha_policy=fail_over` -> Live-Migration-Versuch, bei Fehler automatischer Cold-Restart-Fallback.
+- VM-Policy-Verdrahtung im Provisioning-Flow umgesetzt:
+	- Create: `ha_policy` wird validiert und als VM-Option persistiert.
+	- Update: `ha_policy` kann per API geaendert werden (`disabled|restart|fail_over`).
+- Neuer API-Endpunkt `POST /api/v1/ha/reconcile-failed-node` in der Control Plane.
+- RBAC-Mapping ergaenzt (`cluster:write`) fuer HA-Reconcile-Endpunkt.
+- Unit-Tests ergaenzt:
+	- `tests/unit/test_ha_manager.py` (Restart, Live-Migration, Fallback),
+	- `tests/unit/test_ha_policy_validation.py` (Policy-Validierung).
+
+Validierung (2026-04-23, lokal + srv1):
+- Lokal: `python3 -m pytest tests/unit/test_ha_manager.py tests/unit/test_ha_policy_validation.py tests/unit/test_ha_watchdog.py -q` => `8 passed`.
+- srv1: identischer Testlauf => `8 passed`.
+- Live-Smoke: `POST /api/v1/ha/reconcile-failed-node` mit `{"failed_node":"ha-smoke-node"}` liefert `ok=true` und valide HA-Reconcile-Response.
 
 Restart-Policies ermöglichen feingranulare Kontrolle darüber wie bei Knoten-Ausfall
 verfahren wird. `disabled` bedeutet die VM wird nicht automatisch neugestartet.

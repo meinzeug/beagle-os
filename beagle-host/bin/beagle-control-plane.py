@@ -54,6 +54,7 @@ from endpoint_token_store import EndpointTokenStoreService
 from enrollment_token_store import EnrollmentTokenStoreService
 from fleet_inventory import FleetInventoryService
 from health_payload import HealthPayloadService
+from ha_manager import HaManagerService
 from host_provider_contract import HostProvider
 from identity_provider_registry import IdentityProviderRegistryService
 from installer_prep import InstallerPrepService
@@ -898,6 +899,7 @@ ENDPOINT_LIFECYCLE_SURFACE_SERVICE: EndpointLifecycleSurfaceService | None = Non
 PUBLIC_SUNSHINE_SURFACE_SERVICE: PublicSunshineSurfaceService | None = None
 VM_MUTATION_SURFACE_SERVICE: VmMutationSurfaceService | None = None
 MIGRATION_SERVICE: MigrationService | None = None
+HA_MANAGER_SERVICE: HaManagerService | None = None
 CLUSTER_MEMBERSHIP_SERVICE: ClusterMembershipService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
 DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
@@ -2339,6 +2341,38 @@ def migration_service() -> MigrationService:
             version=VERSION,
         )
     return MIGRATION_SERVICE
+
+
+def ha_manager_service() -> HaManagerService:
+    global HA_MANAGER_SERVICE
+    if HA_MANAGER_SERVICE is None:
+        def cold_restart_vm(vmid: int, source_node: str, target_node: str) -> dict[str, Any]:
+            persist_vm_node(vmid, source_node, target_node)
+            provider_result = HOST_PROVIDER.start_vm(int(vmid), timeout=None)
+            return {
+                "vmid": int(vmid),
+                "source_node": str(source_node or "").strip(),
+                "target_node": str(target_node or "").strip(),
+                "provider_result": str(provider_result or ""),
+            }
+
+        HA_MANAGER_SERVICE = HaManagerService(
+            list_nodes=lambda: HOST_PROVIDER.list_nodes(),
+            list_vms=lambda: list_vms(refresh=True),
+            get_vm_config=lambda node, vmid: HOST_PROVIDER.get_vm_config(node, int(vmid)),
+            migrate_vm=lambda vmid, target_node, live, copy_storage, requester_identity: migration_service().migrate_vm(
+                int(vmid),
+                target_node=target_node,
+                live=bool(live),
+                copy_storage=bool(copy_storage),
+                requester_identity=str(requester_identity or ""),
+            ),
+            cold_restart_vm=cold_restart_vm,
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return HA_MANAGER_SERVICE
 
 
 def should_use_public_stream(meta: dict[str, str], guest_ip: str) -> bool:
@@ -3909,6 +3943,32 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query or "")
+
+        if path == "/api/v1/ha/reconcile-failed-node":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                payload = self._read_json_body()
+                failed_node = str(payload.get("failed_node") or "").strip()
+                result = ha_manager_service().reconcile_failed_node(
+                    failed_node=failed_node,
+                    requester_identity=self._requester_identity(),
+                )
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event(
+                "ha.reconcile_failed_node",
+                "success",
+                failed_node=str(result.get("failed_node") or ""),
+                handled_vm_count=int(result.get("handled_vm_count") or 0),
+                username=self._requester_identity(),
+            )
+            self._write_json(HTTPStatus.OK, {"ok": True, **result})
+            return
 
         if path == "/api/v1/cluster/init":
             if not self._is_authenticated():
