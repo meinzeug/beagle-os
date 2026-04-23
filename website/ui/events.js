@@ -82,7 +82,13 @@ import {
   setStoragePoolQuota,
   setVirtualizationNodeFilter,
   assignGpuToVm,
-  releaseGpuFromVm
+  releaseGpuFromVm,
+  loadMdevTypes,
+  createMdevInstance,
+  assignMdevToVm,
+  deleteMdevInstance,
+  loadSriovDevices,
+  setSriovVfCount
 } from './virtualization.js';
 import { loadDashboard } from './dashboard.js';
 import { MAX_USERNAME_LEN, USERNAME_PATTERN, state } from './state.js';
@@ -818,6 +824,46 @@ export function bindEvents() {
     qs('clear-virt-node-filter').addEventListener('click', () => {
       setVirtualizationNodeFilter('');
     });
+  }
+  if (qs('vgpu-refresh')) {
+    qs('vgpu-refresh').addEventListener('click', () => {
+      loadMdevTypes();
+    });
+  }
+  if (qs('vgpu-types-body')) {
+    qs('vgpu-types-body').addEventListener('click', (event) => {
+      const btn = event.target.closest('button[data-mdev-create]');
+      if (btn) {
+        createMdevInstance(btn.getAttribute('data-mdev-pci'), btn.getAttribute('data-mdev-type'));
+      }
+    });
+  }
+  if (qs('vgpu-instances-body')) {
+    qs('vgpu-instances-body').addEventListener('click', (event) => {
+      const assignBtn = event.target.closest('button[data-mdev-assign]');
+      if (assignBtn) {
+        assignMdevToVm(assignBtn.getAttribute('data-mdev-uuid'));
+        return;
+      }
+      const deleteBtn = event.target.closest('button[data-mdev-delete]');
+      if (deleteBtn) {
+        deleteMdevInstance(deleteBtn.getAttribute('data-mdev-uuid'));
+      }
+    });
+  }
+  if (qs('sriov-refresh')) {
+    qs('sriov-refresh').addEventListener('click', () => {
+      loadSriovDevices();
+    });
+  }
+  if (qs('sriov-devices-body')) {
+    qs('sriov-devices-body').addEventListener('click', (event) => {
+      const btn = event.target.closest('button[data-sriov-set]');
+      if (btn) {
+        setSriovVfCount(btn.getAttribute('data-sriov-pci'), btn.getAttribute('data-sriov-total'));
+      }
+    });
+  }
   }
   if (qs('storage-body')) {
     qs('storage-body').addEventListener('click', (event) => {

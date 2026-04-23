@@ -41,8 +41,8 @@ dann die GPU als physisches Gerät und kann den nativen Treiber installieren.
 
 ### Schritt 3 — NVIDIA Mediated Devices (vGPU) implementieren
 
-- [ ] `vgpu_service.py` anlegen: mdev-Typen lesen, mdev-Instanzen anlegen, VMs zuweisen.
-- [ ] Web Console: vGPU-Typ und Slot auswählen bei VM-Konfiguration.
+- [x] `vgpu_service.py` anlegen: mdev-Typen lesen, mdev-Instanzen anlegen, VMs zuweisen.
+- [x] Web Console: vGPU-Typ und Slot auswählen bei VM-Konfiguration.
 
 NVIDIA vGPU (Mediated Devices) ermöglicht die Teilung einer physischen GPU in mehrere
 virtuelle GPU-Instanzen. Voraussetzung: NVIDIA-vGPU-Treiber (erfordert NVIDIA-Lizenz,
@@ -56,8 +56,8 @@ kostenpflichtig sind ist vGPU ein optionales Feature das explizit aktiviert wird
 
 ### Schritt 4 — Intel SR-IOV vGPU implementieren
 
-- [ ] Intel SR-IOV on Arc/Xe-LP: VF-Erzeugung, libvirt-Assignment.
-- [ ] Dokumentation: Hardware-Voraussetzungen und Kernel-Modul-Konfiguration.
+- [x] Intel SR-IOV on Arc/Xe-LP: VF-Erzeugung, libvirt-Assignment.
+- [x] Dokumentation: Hardware-Voraussetzungen und Kernel-Modul-Konfiguration.
 
 Intel GPU SR-IOV (verfügbar ab Intel Arc / Xe-LP Architektur) erlaubt ähnlich wie
 NVIDIA vGPU die Aufteilung einer GPU in virtuelle Funktionen (VFs). Die Anzahl VFs

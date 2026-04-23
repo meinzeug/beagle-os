@@ -1,5 +1,42 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-24, GoFuture Plan 12 Schritt 3+4: NVIDIA vGPU (mdev) + Intel SR-IOV abgeschlossen)
+
+- `beagle-host/services/vgpu_service.py` neu: VgpuService + SriovService Classes.
+  - VgpuService: `list_mdev_types()`, `create_mdev_instance()`, `delete_mdev_instance()`, `assign_mdev_to_vm()`, `release_mdev_from_vm()`.
+  - SriovService: `list_sriov_devices()`, `set_vf_count()`, `list_vfs()`.
+  - Alle sysfs-I/O vollstaendig injizierbar fuer Testing ohne Hardware.
+- `beagle-host/services/vgpu_surface.py` neu: VgpuSurfaceService HTTP-Oberflaeche.
+  - GET `/api/v1/virtualization/mdev/types` → mdev-Typen-Katalog.
+  - GET `/api/v1/virtualization/mdev/instances` → aktive mdev-Instanzen.
+  - GET `/api/v1/virtualization/sriov` → SR-IOV-fähige GPUs + VF-Status.
+  - POST `/api/v1/virtualization/mdev/create` → neue mdev-Instanz erzeugen.
+  - POST `/api/v1/virtualization/mdev/{uuid}/(assign|release|delete)` → Lifecycle.
+  - POST `/api/v1/virtualization/sriov/{pci}/set-vfs` → VF-Anzahl konfigurieren.
+  - Vollstaendige Payload-Validierung, 400 + 422 Error-Handling.
+- `beagle-host/bin/beagle-control-plane.py` verdrahtet:
+  - Imports: `from vgpu_service import VgpuService, SriovService` + `from vgpu_surface import VgpuSurfaceService`.
+  - Globals: `VGPU_SERVICE`, `SRIOV_SERVICE`, `VGPU_SURFACE_SERVICE`.
+  - Factory-Funktionen: `vgpu_service()`, `sriov_service()`, `vgpu_surface_service()`.
+  - GET-Route-Dispatch: Nach `virtualization_read_surface_service()`, vor `/api/v1/health`.
+  - POST-Route-Dispatch: Nach `gpu_passthrough_surface_service()`, vor VDI-Routen.
+  - Audit-Logging: `gpu.vgpu.request` Events.
+- Web Console:
+  - `website/index.html`: Zwei neue Karten ("vGPU / Mediated Devices" + "Intel SR-IOV") mit Tabellen fuer Typen/Instanzen/SR-IOV-Geraete.
+  - `website/ui/virtualization.js`: Neue Export-Funktionen `loadMdevTypes()`, `createMdevInstance()`, `assignMdevToVm()`, `deleteMdevInstance()`, `loadSriovDevices()`, `setSriovVfCount()`.
+  - `website/ui/events.js`: Click-Handler fuer vGPU Create/Assign/Delete + SR-IOV VF-Setter.
+- Unit-Tests: `tests/unit/test_vgpu_service.py` neu, 35/35 passed.
+  - VgpuService: list_mdev_types, create, delete, assign, release.
+  - SriovService: list_sriov_devices, set_vf_count, list_vfs.
+  - VgpuSurfaceService: handles_path_*, GET + POST validation.
+- Deploy + Live-Smoke auf srv1.beagle-os.com:
+  - Alle Dateien nach `/opt/beagle/beagle-host/services/`, `/opt/beagle/beagle-host/bin/`, `/opt/beagle/website/`.
+  - Systemd-Restart erfolgreich, Service `active`.
+  - GET `/api/v1/virtualization/mdev/types` → 200 OK, `mdev_types=[]` (erwartet, kein Hardware).
+  - GET `/api/v1/virtualization/mdev/instances` → 200 OK, `mdev_instances=[]`.
+  - GET `/api/v1/virtualization/sriov` → 200 OK, `sriov_devices=[]`.
+  - POST `/api/v1/virtualization/mdev/create` mit fehlendem `gpu_pci` → 400 BAD_REQUEST, Validierung OK.
+
 ## Update (2026-04-23, GoFuture Plan 12 Schritt 2: GPU-Passthrough abgeschlossen)
 
 - `beagle-host/services/gpu_passthrough_service.py` neu: vfio-pci-Binding via sysfs, Treiber-Detach, libvirt-XML-Patch (assign/release).

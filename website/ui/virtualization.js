@@ -403,3 +403,188 @@ export function loadVirtualizationInspector(vmid) {
     virtualizationHooks.setBanner('VM Inspector Fehler: ' + error.message, 'warn');
   });
 }
+
+export function loadMdevTypes(gpuPci) {
+  const typesBody = qs('vgpu-types-body');
+  const instancesBody = qs('vgpu-instances-body');
+  if (!typesBody || !instancesBody) {
+    return;
+  }
+  const url = gpuPci
+    ? '/api/v1/virtualization/mdev/types?gpu_pci=' + encodeURIComponent(gpuPci)
+    : '/api/v1/virtualization/mdev/types';
+  request(url).then((res) => {
+    const types = Array.isArray(res.mdev_types) ? res.mdev_types : [];
+    if (!types.length) {
+      typesBody.innerHTML = '<tr><td colspan="6" class="empty-cell">Keine vGPU-Typen gefunden (kein NVIDIA-mdev-fähiges Gerät?).</td></tr>';
+    } else {
+      typesBody.innerHTML = types.map((t) => {
+        const pci = escapeHtml(t.gpu_pci || '');
+        const tid = escapeHtml(t.type_id || '');
+        return '<tr>' +
+          '<td class="mono">' + pci + '</td>' +
+          '<td class="mono">' + tid + '</td>' +
+          '<td>' + escapeHtml(t.name || '-') + '</td>' +
+          '<td>' + escapeHtml(String(t.available_instances ?? '-')) + '</td>' +
+          '<td>' + escapeHtml(String(t.max_instances ?? '-')) + '</td>' +
+          '<td><button type="button" class="button ghost small" data-mdev-create="1" data-mdev-pci="' + pci + '" data-mdev-type="' + tid + '">Erstellen</button></td>' +
+          '</tr>';
+      }).join('');
+    }
+  }).catch((err) => {
+    typesBody.innerHTML = '<tr><td colspan="6" class="empty-cell">Fehler: ' + escapeHtml(err.message) + '</td></tr>';
+  });
+  request('/api/v1/virtualization/mdev/instances').then((res) => {
+    const instances = Array.isArray(res.mdev_instances) ? res.mdev_instances : [];
+    if (!instances.length) {
+      instancesBody.innerHTML = '<tr><td colspan="4" class="empty-cell">Keine aktiven mdev-Instanzen.</td></tr>';
+    } else {
+      instancesBody.innerHTML = instances.map((inst) => {
+        const uid = escapeHtml(inst.uuid || '');
+        return '<tr>' +
+          '<td class="mono">' + uid + '</td>' +
+          '<td class="mono">' + escapeHtml(inst.type_id || '-') + '</td>' +
+          '<td class="mono">' + escapeHtml(inst.gpu_pci || '-') + '</td>' +
+          '<td>' +
+          '<button type="button" class="button ghost small" data-mdev-assign="1" data-mdev-uuid="' + uid + '" style="margin-right:4px">Zuweisen</button>' +
+          '<button type="button" class="button ghost small danger" data-mdev-delete="1" data-mdev-uuid="' + uid + '">Löschen</button>' +
+          '</td></tr>';
+      }).join('');
+    }
+  }).catch((err) => {
+    instancesBody.innerHTML = '<tr><td colspan="4" class="empty-cell">Fehler: ' + escapeHtml(err.message) + '</td></tr>';
+  });
+}
+
+export function createMdevInstance(gpuPci, typeId) {
+  const pci = String(gpuPci || '').trim();
+  const tid = String(typeId || '').trim();
+  if (!pci || !tid) {
+    virtualizationHooks.setBanner('GPU-PCI und Typ-ID sind erforderlich.', 'warn');
+    return;
+  }
+  request('/api/v1/virtualization/mdev/create', {
+    method: 'POST',
+    body: { gpu_pci: pci, type_id: tid }
+  }).then((res) => {
+    if (res.ok) {
+      virtualizationHooks.setBanner('mdev-Instanz erstellt: ' + (res.uuid || ''), 'ok');
+      loadMdevTypes();
+    } else {
+      virtualizationHooks.setBanner('Fehler: ' + (res.error || JSON.stringify(res)), 'warn');
+    }
+  }).catch((err) => {
+    virtualizationHooks.setBanner('Fehler: ' + err.message, 'warn');
+  });
+}
+
+export function assignMdevToVm(mdevUuid) {
+  const uid = String(mdevUuid || '').trim();
+  if (!uid) {
+    virtualizationHooks.setBanner('UUID fehlt.', 'warn');
+    return;
+  }
+  const input = window.prompt('mdev-Instanz ' + uid + ' einer VM zuweisen.\nVM-ID eingeben:', '');
+  if (input == null) {
+    return;
+  }
+  const vmid = parseInt(String(input || '').trim(), 10);
+  if (!Number.isFinite(vmid) || vmid <= 0) {
+    virtualizationHooks.setBanner('Ungültige VM-ID.', 'warn');
+    return;
+  }
+  request('/api/v1/virtualization/mdev/' + encodeURIComponent(uid) + '/assign', {
+    method: 'POST',
+    body: { vmid }
+  }).then((res) => {
+    if (res.ok) {
+      virtualizationHooks.setBanner('mdev ' + uid + ' VM ' + vmid + ' zugewiesen.', 'ok');
+      loadMdevTypes();
+    } else {
+      virtualizationHooks.setBanner('Fehler: ' + (res.error || JSON.stringify(res)), 'warn');
+    }
+  }).catch((err) => {
+    virtualizationHooks.setBanner('Fehler: ' + err.message, 'warn');
+  });
+}
+
+export function deleteMdevInstance(mdevUuid) {
+  const uid = String(mdevUuid || '').trim();
+  if (!uid) {
+    virtualizationHooks.setBanner('UUID fehlt.', 'warn');
+    return;
+  }
+  if (!window.confirm('mdev-Instanz ' + uid + ' wirklich löschen?')) {
+    return;
+  }
+  request('/api/v1/virtualization/mdev/' + encodeURIComponent(uid) + '/delete', {
+    method: 'POST',
+    body: {}
+  }).then((res) => {
+    if (res.ok) {
+      virtualizationHooks.setBanner('mdev-Instanz ' + uid + ' gelöscht.', 'ok');
+      loadMdevTypes();
+    } else {
+      virtualizationHooks.setBanner('Fehler: ' + (res.error || JSON.stringify(res)), 'warn');
+    }
+  }).catch((err) => {
+    virtualizationHooks.setBanner('Fehler: ' + err.message, 'warn');
+  });
+}
+
+export function loadSriovDevices() {
+  const body = qs('sriov-devices-body');
+  if (!body) {
+    return;
+  }
+  request('/api/v1/virtualization/sriov').then((res) => {
+    const devices = Array.isArray(res.sriov_devices) ? res.sriov_devices : [];
+    if (!devices.length) {
+      body.innerHTML = '<tr><td colspan="5" class="empty-cell">Keine SR-IOV-fähigen GPUs gefunden.</td></tr>';
+    } else {
+      body.innerHTML = devices.map((dev) => {
+        const pci = escapeHtml(dev.pci || '');
+        return '<tr>' +
+          '<td class="mono">' + pci + '</td>' +
+          '<td>' + escapeHtml(dev.driver || '-') + '</td>' +
+          '<td>' + escapeHtml(String(dev.total_vfs ?? '-')) + '</td>' +
+          '<td>' + escapeHtml(String(dev.current_vfs ?? '-')) + '</td>' +
+          '<td><button type="button" class="button ghost small" data-sriov-set="1" data-sriov-pci="' + pci + '" data-sriov-total="' + escapeHtml(String(dev.total_vfs ?? '0')) + '">VFs setzen</button></td>' +
+          '</tr>';
+      }).join('');
+    }
+  }).catch((err) => {
+    body.innerHTML = '<tr><td colspan="5" class="empty-cell">Fehler: ' + escapeHtml(err.message) + '</td></tr>';
+  });
+}
+
+export function setSriovVfCount(pciAddress, totalVfs) {
+  const pci = String(pciAddress || '').trim();
+  if (!pci) {
+    virtualizationHooks.setBanner('PCI-Adresse fehlt.', 'warn');
+    return;
+  }
+  const max = Number(totalVfs || 0);
+  const input = window.prompt('SR-IOV VF-Anzahl für ' + pci + ' setzen (0–' + max + '):', '0');
+  if (input == null) {
+    return;
+  }
+  const count = parseInt(String(input || '').trim(), 10);
+  if (!Number.isFinite(count) || count < 0 || count > max) {
+    virtualizationHooks.setBanner('Ungültige VF-Anzahl (0–' + max + ').', 'warn');
+    return;
+  }
+  request('/api/v1/virtualization/sriov/' + encodeURIComponent(pci) + '/set-vfs', {
+    method: 'POST',
+    body: { count }
+  }).then((res) => {
+    if (res.ok) {
+      virtualizationHooks.setBanner('SR-IOV VFs für ' + pci + ' auf ' + count + ' gesetzt.', 'ok');
+      loadSriovDevices();
+    } else {
+      virtualizationHooks.setBanner('Fehler: ' + (res.error || JSON.stringify(res)), 'warn');
+    }
+  }).catch((err) => {
+    virtualizationHooks.setBanner('Fehler: ' + err.message, 'warn');
+  });
+}

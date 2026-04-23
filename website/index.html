@@ -555,6 +555,55 @@
               <article class="card">
                 <div class="card-head">
                   <div>
+                    <span class="eyebrow">GPU Plane</span>
+                    <h2>vGPU / Mediated Devices</h2>
+                  </div>
+                  <div class="card-actions">
+                    <button type="button" class="button ghost small" id="vgpu-refresh">Aktualisieren</button>
+                  </div>
+                </div>
+                <div class="table-wrap compact">
+                  <table class="vm-table compact-table">
+                    <thead><tr><th>GPU PCI</th><th>Typ-ID</th><th>Name</th><th>Verfügbar</th><th>Max</th><th>Aktion</th></tr></thead>
+                    <tbody id="vgpu-types-body">
+                      <tr><td colspan="6" class="empty-cell">Noch keine vGPU-Typen.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="table-wrap compact" style="margin-top:0.75rem">
+                  <h4 style="padding:0 0 0.4rem 0;font-size:0.8rem;color:var(--muted)">Aktive mdev-Instanzen</h4>
+                  <table class="vm-table compact-table">
+                    <thead><tr><th>UUID</th><th>Typ-ID</th><th>GPU PCI</th><th>Aktion</th></tr></thead>
+                    <tbody id="vgpu-instances-body">
+                      <tr><td colspan="4" class="empty-cell">Keine aktiven mdev-Instanzen.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="card">
+                <div class="card-head">
+                  <div>
+                    <span class="eyebrow">GPU Plane</span>
+                    <h2>Intel SR-IOV</h2>
+                  </div>
+                  <div class="card-actions">
+                    <button type="button" class="button ghost small" id="sriov-refresh">Aktualisieren</button>
+                  </div>
+                </div>
+                <div class="table-wrap compact">
+                  <table class="vm-table compact-table">
+                    <thead><tr><th>PCI</th><th>Treiber</th><th>VFs gesamt</th><th>VFs aktiv</th><th>Aktion</th></tr></thead>
+                    <tbody id="sriov-devices-body">
+                      <tr><td colspan="5" class="empty-cell">Keine SR-IOV-fähigen GPUs.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="card">
+                <div class="card-head">
+                  <div>
                     <span class="eyebrow">Persistenz</span>
                     <h2>Storage</h2>
                   </div>

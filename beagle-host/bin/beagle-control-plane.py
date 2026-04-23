@@ -94,6 +94,8 @@ from utility_support import UtilitySupportService
 from gpu_inventory import GpuInventoryService
 from gpu_passthrough_service import GpuPassthroughService
 from gpu_passthrough_surface import GpuPassthroughSurfaceService
+from vgpu_service import VgpuService, SriovService
+from vgpu_surface import VgpuSurfaceService
 from virtualization_inventory import VirtualizationInventoryService
 from virtualization_read_surface import VirtualizationReadSurfaceService
 from webhook_service import WebhookService
@@ -894,6 +896,9 @@ VIRTUALIZATION_INVENTORY = VirtualizationInventoryService(
 GPU_INVENTORY_SERVICE: GpuInventoryService | None = None
 GPU_PASSTHROUGH_SERVICE: GpuPassthroughService | None = None
 GPU_PASSTHROUGH_SURFACE_SERVICE: GpuPassthroughSurfaceService | None = None
+VGPU_SERVICE: VgpuService | None = None
+SRIOV_SERVICE: SriovService | None = None
+VGPU_SURFACE_SERVICE: VgpuSurfaceService | None = None
 VM_PROFILE_SERVICE: VmProfileService | None = None
 VM_CONSOLE_ACCESS_SERVICE: VmConsoleAccessService | None = None
 VM_HTTP_SURFACE_SERVICE: VmHttpSurfaceService | None = None
@@ -2584,6 +2589,48 @@ def gpu_passthrough_surface_service() -> GpuPassthroughSurfaceService:
     return GPU_PASSTHROUGH_SURFACE_SERVICE
 
 
+def vgpu_service() -> VgpuService:
+    global VGPU_SERVICE
+    if VGPU_SERVICE is None:
+        VGPU_SERVICE = VgpuService(
+            run_virsh=lambda command: str(getattr(HOST_PROVIDER, "_run_virsh")(*command)),
+            define_domain_xml=lambda xml_text: getattr(HOST_PROVIDER, "_run_virsh")(
+                "define", "/dev/stdin", input_data=xml_text
+            ),
+            libvirt_domain_name=lambda vmid: str(
+                getattr(HOST_PROVIDER, "_libvirt_domain_name", lambda v: f"beagle-{int(v)}")(int(vmid))
+            ),
+        )
+    return VGPU_SERVICE
+
+
+def sriov_service() -> SriovService:
+    global SRIOV_SERVICE
+    if SRIOV_SERVICE is None:
+        SRIOV_SERVICE = SriovService()
+    return SRIOV_SERVICE
+
+
+def vgpu_surface_service() -> VgpuSurfaceService:
+    global VGPU_SURFACE_SERVICE
+    if VGPU_SURFACE_SERVICE is None:
+        VGPU_SURFACE_SERVICE = VgpuSurfaceService(
+            list_mdev_types=lambda gpu_pci: vgpu_service().list_mdev_types(gpu_pci),
+            list_mdev_instances=lambda: vgpu_service().list_mdev_instances(),
+            create_mdev_instance=lambda pci, tid: vgpu_service().create_mdev_instance(pci, tid),
+            delete_mdev_instance=lambda uid: vgpu_service().delete_mdev_instance(uid),
+            assign_mdev_to_vm=lambda uid, vmid: vgpu_service().assign_mdev_to_vm(uid, vmid),
+            release_mdev_from_vm=lambda uid, vmid: vgpu_service().release_mdev_from_vm(uid, vmid),
+            list_sriov_devices=lambda: sriov_service().list_sriov_devices(),
+            set_vf_count=lambda pci, count: sriov_service().set_vf_count(pci, count),
+            list_vfs=lambda pci: sriov_service().list_vfs(pci),
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return VGPU_SURFACE_SERVICE
+
+
 def virtualization_read_surface_service() -> VirtualizationReadSurfaceService:
     global VIRTUALIZATION_READ_SURFACE_SERVICE
     if VIRTUALIZATION_READ_SURFACE_SERVICE is None:
@@ -4145,6 +4192,13 @@ class Handler(BaseHTTPRequestHandler):
         if response is not None:
             self._write_json(response["status"], response["payload"])
             return
+        if vgpu_surface_service().handles_path_get(path):
+            if not self._authorize_or_respond("GET", path):
+                return
+            response = vgpu_surface_service().route_get(path)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
+            return
         if path == "/api/v1/health":
             self._write_json(HTTPStatus.OK, build_health_payload())
             return
@@ -4729,6 +4783,29 @@ class Handler(BaseHTTPRequestHandler):
             )
             self._audit_event(
                 "gpu.passthrough.request",
+                "success" if int(response["status"]) < 400 else "error",
+                method="POST",
+                path=path,
+                username=self._requester_identity(),
+                status=int(response["status"]),
+            )
+            self._write_json(response["status"], response["payload"])
+            return
+
+        if vgpu_surface_service().handles_path_post(path):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                json_payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            response = vgpu_surface_service().route_post(path, json_payload=json_payload)
+            self._audit_event(
+                "gpu.vgpu.request",
                 "success" if int(response["status"]) < 400 else "error",
                 method="POST",
                 path=path,
