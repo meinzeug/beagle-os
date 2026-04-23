@@ -39,7 +39,10 @@ from audit_log import AuditLogService
 from audit_report import AuditReportService
 from auth_session import AuthSessionService, default_now
 from authz_policy import AuthzPolicyService, PERMISSION_CATALOG
+from ca_manager import ClusterCaService
 from cluster_inventory import ClusterInventoryService
+from cluster_membership import ClusterMembershipService
+from cluster_rpc import ClusterRpcError, ClusterRpcService
 from control_plane_read_surface import ControlPlaneReadSurfaceService
 from download_metadata import DownloadMetadataService
 from endpoint_lifecycle_surface import EndpointLifecycleSurfaceService
@@ -173,6 +176,9 @@ HOSTED_INSTALLER_ISO_FILE = ROOT_DIR / "dist" / "beagle-os-installer-amd64.iso"
 INSTALLER_PREP_SCRIPT_FILE = ROOT_DIR / "scripts" / "ensure-vm-stream-ready.sh"
 CREDENTIALS_ENV_FILE = Path(os.environ.get("PVE_DCV_CREDENTIALS_ENV_FILE", "/etc/beagle/credentials.env"))
 MANAGER_CERT_FILE = Path(os.environ.get("BEAGLE_MANAGER_CERT_FILE", "/etc/pve/local/pveproxy-ssl.pem"))
+CLUSTER_NODE_NAME = os.environ.get("BEAGLE_CLUSTER_NODE_NAME", os.uname().nodename).strip() or os.uname().nodename
+CLUSTER_RPC_LISTEN_HOST = os.environ.get("BEAGLE_CLUSTER_RPC_LISTEN_HOST", "0.0.0.0").strip() or "0.0.0.0"
+CLUSTER_RPC_PORT = int(os.environ.get("BEAGLE_CLUSTER_RPC_PORT", "9089"))
 UBUNTU_BEAGLE_TEMPLATE_DIR = ROOT_DIR / "beagle-host" / "templates" / "ubuntu-beagle"
 def _resolve_public_hostname(name: str) -> str:
     """Normalise a configured public hostname for use in outward-facing URLs.
@@ -892,6 +898,7 @@ ENDPOINT_LIFECYCLE_SURFACE_SERVICE: EndpointLifecycleSurfaceService | None = Non
 PUBLIC_SUNSHINE_SURFACE_SERVICE: PublicSunshineSurfaceService | None = None
 VM_MUTATION_SURFACE_SERVICE: VmMutationSurfaceService | None = None
 MIGRATION_SERVICE: MigrationService | None = None
+CLUSTER_MEMBERSHIP_SERVICE: ClusterMembershipService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
 DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
 RUNTIME_ENVIRONMENT_SERVICE: RuntimeEnvironmentService | None = None
@@ -922,6 +929,8 @@ SUNSHINE_ACCESS_TOKEN_STORE_SERVICE: SunshineAccessTokenStoreService | None = No
 SUNSHINE_INTEGRATION_SERVICE: SunshineIntegrationService | None = None
 ENDPOINT_TOKEN_STORE_SERVICE: EndpointTokenStoreService | None = None
 PAIRING_SERVICE: PairingService | None = None
+CLUSTER_RPC_SERVER: ThreadingHTTPServer | None = None
+CLUSTER_RPC_THREAD: threading.Thread | None = None
 
 
 def endpoints_dir() -> Path:
@@ -2117,6 +2126,125 @@ def list_nodes_inventory() -> list[dict[str, Any]]:
     return VIRTUALIZATION_INVENTORY.list_nodes_inventory()
 
 
+def cluster_ca_service() -> ClusterCaService:
+    return ClusterCaService(data_dir=DATA_DIR)
+
+
+def cluster_membership_service() -> ClusterMembershipService:
+    global CLUSTER_MEMBERSHIP_SERVICE
+    if CLUSTER_MEMBERSHIP_SERVICE is None:
+        CLUSTER_MEMBERSHIP_SERVICE = ClusterMembershipService(
+            data_dir=DATA_DIR,
+            ca_service=cluster_ca_service(),
+            public_manager_url=PUBLIC_MANAGER_URL,
+            rpc_port=CLUSTER_RPC_PORT,
+            utcnow=utcnow,
+        )
+    return CLUSTER_MEMBERSHIP_SERVICE
+
+
+def _cluster_local_rpc_credentials() -> tuple[Path, Path, Path] | None:
+    local_member = cluster_membership_service().local_member()
+    if not isinstance(local_member, dict):
+        return None
+    node_name = str(local_member.get("name") or "").strip()
+    if not node_name:
+        return None
+    node_dir = cluster_ca_service().nodes_dir() / node_name
+    cert_path = node_dir / "node.crt"
+    key_path = node_dir / "node.key"
+    ca_cert_path = cluster_ca_service().ca_cert_path()
+    if not cert_path.is_file() or not key_path.is_file() or not ca_cert_path.is_file():
+        return None
+    return cert_path, key_path, ca_cert_path
+
+
+def build_cluster_inventory_snapshot() -> dict[str, Any]:
+    return {
+        "nodes": list_nodes_inventory(),
+        "vms": [
+            {
+                "vmid": int(vm.vmid),
+                "node": str(vm.node or ""),
+                "status": str(vm.status or "unknown"),
+                "name": str(vm.name or ""),
+                "tags": str(vm.tags or ""),
+            }
+            for vm in list_vms(refresh=True)
+        ],
+    }
+
+
+def _cluster_remote_snapshots() -> list[dict[str, Any]]:
+    credentials = _cluster_local_rpc_credentials()
+    if credentials is None:
+        return []
+    cert_path, key_path, ca_cert_path = credentials
+    snapshots: list[dict[str, Any]] = []
+    for member in cluster_membership_service().remote_members():
+        if not isinstance(member, dict):
+            continue
+        rpc_url = str(member.get("rpc_url") or "").strip()
+        if not rpc_url:
+            continue
+        try:
+            payload = ClusterRpcService.request_json(
+                url=rpc_url,
+                ca_cert_path=ca_cert_path,
+                cert_path=cert_path,
+                key_path=key_path,
+                method="cluster.inventory.snapshot",
+                params={},
+                request_id=f"cluster-inventory-{member.get('name', 'peer')}",
+                timeout=5,
+                check_hostname=False,
+            )
+            result = payload.get("result") if isinstance(payload, dict) else None
+            if isinstance(result, dict):
+                snapshots.append(result)
+                continue
+        except ClusterRpcError:
+            pass
+        snapshots.append(
+            {
+                "nodes": [
+                    {
+                        "name": str(member.get("name") or "").strip(),
+                        "status": "unreachable",
+                        "cpu": 0.0,
+                        "mem": 0,
+                        "maxmem": 0,
+                        "maxcpu": 0,
+                    }
+                ],
+                "vms": [],
+            }
+        )
+    return snapshots
+
+
+def ensure_cluster_rpc_listener() -> None:
+    global CLUSTER_RPC_SERVER, CLUSTER_RPC_THREAD
+    if CLUSTER_RPC_SERVER is not None:
+        return
+    credentials = _cluster_local_rpc_credentials()
+    if credentials is None:
+        return
+    cert_path, key_path, ca_cert_path = credentials
+    rpc = ClusterRpcService(node_name=CLUSTER_NODE_NAME)
+    rpc.register_method("cluster.ping", lambda params, peer: {"node": CLUSTER_NODE_NAME, "peer": peer.common_name})
+    rpc.register_method("cluster.inventory.snapshot", lambda params, peer: build_cluster_inventory_snapshot())
+    server, thread = rpc.serve_in_thread(
+        host=CLUSTER_RPC_LISTEN_HOST,
+        port=CLUSTER_RPC_PORT,
+        ca_cert_path=ca_cert_path,
+        cert_path=cert_path,
+        key_path=key_path,
+    )
+    CLUSTER_RPC_SERVER = server
+    CLUSTER_RPC_THREAD = thread
+
+
 def list_storage_inventory() -> list[dict[str, Any]]:
     return HOST_PROVIDER.list_storage_inventory()
 
@@ -2636,6 +2764,8 @@ def cluster_inventory_service() -> ClusterInventoryService:
         CLUSTER_INVENTORY_SERVICE = ClusterInventoryService(
             build_vm_inventory=build_vm_inventory,
             host_provider_kind=BEAGLE_HOST_PROVIDER_KIND,
+            list_remote_inventories=_cluster_remote_snapshots,
+            list_cluster_members=lambda: cluster_membership_service().list_members() if cluster_membership_service().is_initialized() else [],
             list_nodes_inventory=list_nodes_inventory,
             service_name="beagle-control-plane",
             utcnow=utcnow,
@@ -3743,7 +3873,12 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.OK, build_vm_inventory())
             return
         if path == "/api/v1/cluster/inventory" or path == "/api/v1/cluster/nodes":
+            cluster_membership_service().probe_and_update_member_statuses(timeout=3.0)
             self._write_json(HTTPStatus.OK, build_cluster_inventory())
+            return
+        if path == "/api/v1/cluster/status":
+            cluster_membership_service().probe_and_update_member_statuses(timeout=3.0)
+            self._write_json(HTTPStatus.OK, {"ok": True, **cluster_membership_service().status_payload()})
             return
         if path.startswith("/api/v1/vms/"):
             response = vm_http_surface_service().route_get(path)
@@ -3774,6 +3909,76 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query or "")
+
+        if path == "/api/v1/cluster/init":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                payload = self._read_json_body()
+                result = cluster_membership_service().initialize_cluster(
+                    node_name=str(payload.get("node_name") or CLUSTER_NODE_NAME).strip(),
+                    api_url=str(payload.get("api_url") or PUBLIC_MANAGER_URL).strip(),
+                    advertise_host=str(payload.get("advertise_host") or PUBLIC_SERVER_NAME).strip(),
+                )
+                ensure_cluster_rpc_listener()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._write_json(HTTPStatus.CREATED, {"ok": True, **result})
+            return
+
+        if path == "/api/v1/cluster/join-token":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                payload = self._read_json_body()
+                result = cluster_membership_service().create_join_token(ttl_seconds=int(payload.get("ttl_seconds") or 900))
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._write_json(HTTPStatus.CREATED, {"ok": True, **result})
+            return
+
+        if path == "/api/v1/cluster/apply-join":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                payload = self._read_json_body()
+                result = cluster_membership_service().apply_join_response(
+                    node_name=str(payload.get("node_name") or CLUSTER_NODE_NAME).strip(),
+                    payload=payload.get("join_response") if isinstance(payload.get("join_response"), dict) else {},
+                )
+                ensure_cluster_rpc_listener()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._write_json(HTTPStatus.OK, {"ok": True, **result})
+            return
+
+        if path == "/api/v1/cluster/join":
+            try:
+                payload = self._read_json_body()
+                join_payload = cluster_membership_service().accept_join_request(
+                    join_token=str(payload.get("join_token") or "").strip(),
+                    node_name=str(payload.get("node_name") or "").strip(),
+                    api_url=str(payload.get("api_url") or "").strip(),
+                    advertise_host=str(payload.get("advertise_host") or "").strip(),
+                    rpc_url=str(payload.get("rpc_url") or "").strip(),
+                )
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._write_json(HTTPStatus.OK, {"ok": True, **join_payload})
+            return
 
         if path == "/api/v1/auth/login":
             try:
@@ -4737,6 +4942,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> int:
     effective_data_dir = ensure_data_dir()
+    ensure_cluster_rpc_listener()
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
     print(
         json.dumps(
@@ -4757,6 +4963,11 @@ def main() -> int:
         pass
     finally:
         server.server_close()
+        if CLUSTER_RPC_SERVER is not None:
+            CLUSTER_RPC_SERVER.shutdown()
+            CLUSTER_RPC_SERVER.server_close()
+        if CLUSTER_RPC_THREAD is not None:
+            CLUSTER_RPC_THREAD.join(timeout=5)
     return 0
 
 

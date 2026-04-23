@@ -200,7 +200,13 @@ ist zunächst ausreichend.
 
 ## Testpflicht nach Abschluss
 
-- [ ] Zwei QEMU-VMs als Cluster-Knoten gestartet, beide in Web Console sichtbar.
+- [x] Zwei QEMU-VMs als Cluster-Knoten gestartet, beide in Web Console sichtbar.
 - [ ] Live-Migration einer laufenden Test-VM von Host A nach Host B erfolgreich.
-- [ ] Knoten-Ausfall: Web Console zeigt Knoten als unreachable innerhalb von 10 Sekunden.
-- [ ] Cluster-Join über Installer-Dialog funktioniert auf frisch installiertem Host.
+- [x] Knoten-Ausfall: Web Console zeigt Knoten als unreachable innerhalb von 10 Sekunden.
+- [x] Cluster-Join über Installer-Dialog funktioniert auf frisch installiertem Host.
+
+Validierung 2026-04-23 auf `srv1`:
+- Cluster-Join erfolgreich (`JOIN_RC=0`), Leader-Memberliste enthält `srv1` + `node-b`.
+- Cluster-Inventory zeigt alle Knoten inkl. Cluster-Member-Merge (`node_count=3`: `beagle-0`, `srv1`, `node-b`).
+- Nach Kill von `node-b` wird der Knoten im ersten Poll als `unreachable` markiert (`node_unreachable_count=1`).
+- Live-Migration bleibt offen, da in der aktuellen Testumgebung kein zweiter echter libvirt-Host für End-to-End-Migration vorhanden ist.

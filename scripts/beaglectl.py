@@ -8,6 +8,7 @@ runtime requirements minimal on hosts and recovery systems.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import sys
@@ -19,6 +20,14 @@ from typing import Any
 
 
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "beaglectl" / "config.json"
+
+
+def _join_api_url(base: str, path: str) -> str:
+    base_norm = str(base or "").rstrip("/")
+    path_norm = path if str(path or "").startswith("/") else "/" + str(path or "")
+    if base_norm.endswith("/api/v1") and path_norm.startswith("/api/v1/"):
+        path_norm = path_norm[len("/api/v1") :]
+    return f"{base_norm}{path_norm}"
 
 
 def read_config(path: Path) -> dict[str, Any]:
@@ -47,8 +56,7 @@ def resolve_setting(args: argparse.Namespace, cfg: dict[str, Any], key: str, env
 
 
 def api_request(server: str, method: str, path: str, token: str = "", body: dict[str, Any] | None = None) -> Any:
-    base = server.rstrip("/")
-    target = f"{base}{path if path.startswith('/') else '/' + path}"
+    target = _join_api_url(server, path)
     data = None
     headers = {"Accept": "application/json"}
     if body is not None:
@@ -180,6 +188,95 @@ def handle_simple_list(args: argparse.Namespace, server: str, token: str) -> int
     return 0 if payload.get("ok", True) else 1
 
 
+def decode_join_token(token: str) -> dict[str, Any]:
+    text = str(token or "").strip()
+    padding = "=" * (-len(text) % 4)
+    raw = base64.urlsafe_b64decode(text + padding)
+    payload = json.loads(raw.decode("utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
+def infer_rpc_url(api_url: str, advertise_host: str) -> str:
+    parsed = urllib.parse.urlparse(str(api_url or "").strip())
+    host = parsed.hostname or str(advertise_host or "").strip()
+    if not host:
+        return ""
+    port = parsed.port
+    rpc_port = (int(port) + 1) if isinstance(port, int) else 9089
+    return f"https://{host}:{rpc_port}/rpc"
+
+
+def handle_cluster(args: argparse.Namespace, server: str, token: str) -> int:
+    if args.cluster_action == "status":
+        payload = api_request(server, "GET", "/api/v1/cluster/status", token=token)
+        print_json(payload)
+        return 0 if payload.get("ok", True) else 1
+
+    if args.cluster_action == "init":
+        payload = api_request(
+            server,
+            "POST",
+            "/api/v1/cluster/init",
+            token=token,
+            body={
+                "node_name": args.node_name,
+                "api_url": args.api_url or server.rstrip("/"),
+                "advertise_host": args.advertise_host,
+            },
+        )
+        print_json(payload)
+        return 0 if payload.get("ok", True) else 1
+
+    if args.cluster_action == "create-token":
+        payload = api_request(
+            server,
+            "POST",
+            "/api/v1/cluster/join-token",
+            token=token,
+            body={"ttl_seconds": int(args.ttl_seconds)},
+        )
+        print_json(payload)
+        return 0 if payload.get("ok", True) else 1
+
+    if args.cluster_action == "join":
+        token_payload = decode_join_token(args.join_token)
+        leader_api_url = str(args.leader_url or token_payload.get("leader_api_url") or "").strip()
+        if not leader_api_url:
+            print_json({"ok": False, "error": "leader_api_url missing from token or --leader-url"})
+            return 1
+        local_api_url = args.api_url or server.rstrip("/")
+        rpc_url = str(args.rpc_url or infer_rpc_url(local_api_url, args.advertise_host)).strip()
+        join_response = api_request(
+            leader_api_url,
+            "POST",
+            "/api/v1/cluster/join",
+            body={
+                "join_token": args.join_token,
+                "node_name": args.node_name,
+                "api_url": local_api_url,
+                "advertise_host": args.advertise_host,
+                "rpc_url": rpc_url,
+            },
+        )
+        if not join_response.get("ok", True):
+            print_json(join_response)
+            return 1
+        payload = api_request(
+            server,
+            "POST",
+            "/api/v1/cluster/apply-join",
+            token=token,
+            body={
+                "node_name": args.node_name,
+                "join_response": join_response,
+            },
+        )
+        print_json(payload)
+        return 0 if payload.get("ok", True) else 1
+
+    return 2
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Beagle control-plane CLI")
     parser.add_argument("--config-path", default=str(DEFAULT_CONFIG_PATH), help="Path to config JSON")
@@ -200,6 +297,23 @@ def build_parser() -> argparse.ArgumentParser:
         cmd = subparsers.add_parser(name, help=f"{name.capitalize()} operations")
         cmd_sub = cmd.add_subparsers(dest=f"{name}_action", required=True)
         cmd_sub.add_parser("list", help=f"List {name}s")
+
+    cluster = subparsers.add_parser("cluster", help="Cluster operations")
+    cluster_sub = cluster.add_subparsers(dest="cluster_action", required=True)
+    cluster_sub.add_parser("status", help="Show cluster status")
+    cluster_init = cluster_sub.add_parser("init", help="Initialize local node as cluster leader")
+    cluster_init.add_argument("--node-name", required=True)
+    cluster_init.add_argument("--advertise-host", required=True)
+    cluster_init.add_argument("--api-url", default="")
+    cluster_token = cluster_sub.add_parser("create-token", help="Create a cluster join token")
+    cluster_token.add_argument("--ttl-seconds", type=int, default=900)
+    cluster_join = cluster_sub.add_parser("join", help="Join an existing cluster")
+    cluster_join.add_argument("--join-token", required=True)
+    cluster_join.add_argument("--node-name", required=True)
+    cluster_join.add_argument("--advertise-host", required=True)
+    cluster_join.add_argument("--api-url", default="")
+    cluster_join.add_argument("--rpc-url", default="")
+    cluster_join.add_argument("--leader-url", default="")
 
     config = subparsers.add_parser("config", help="Manage beaglectl config")
     config_sub = config.add_subparsers(dest="config_action", required=True)
@@ -260,6 +374,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "vm":
         return handle_vm(args, server, token)
+
+    if args.command == "cluster":
+        return handle_cluster(args, server, token)
 
     return handle_simple_list(args, server, token)
 

@@ -25,6 +25,7 @@ class ClusterInventoryServiceTests(unittest.TestCase):
                 ]
             },
             host_provider_kind="beagle",
+            list_remote_inventories=lambda: [],
             list_nodes_inventory=lambda: [
                 {"name": "node-a", "status": "online", "cpu": 0.25, "mem": 1024, "maxmem": 4096, "maxcpu": 8},
                 {"name": "node-b", "status": "offline", "cpu": 0.0, "mem": 0, "maxmem": 4096, "maxcpu": 8},
@@ -54,6 +55,7 @@ class ClusterInventoryServiceTests(unittest.TestCase):
                 ]
             },
             host_provider_kind="beagle",
+            list_remote_inventories=lambda: [],
             list_nodes_inventory=lambda: [],
             service_name="beagle-control-plane",
             utcnow=lambda: "2026-04-22T08:30:00Z",
@@ -67,6 +69,86 @@ class ClusterInventoryServiceTests(unittest.TestCase):
         self.assertEqual(payload["nodes"][0]["name"], "node-z")
         self.assertEqual(payload["nodes"][0]["status"], "unreachable")
         self.assertEqual(payload["nodes"][0]["vm_count"], 1)
+
+    def test_build_inventory_merges_remote_cluster_snapshots(self):
+        service = ClusterInventoryService(
+            build_vm_inventory=lambda: {
+                "vms": [
+                    {"vmid": 110, "node": "node-a", "status": "running"},
+                ]
+            },
+            host_provider_kind="beagle",
+            list_remote_inventories=lambda: [
+                {
+                    "nodes": [
+                        {"name": "node-b", "status": "online", "cpu": 0.1, "mem": 512, "maxmem": 2048, "maxcpu": 4},
+                    ],
+                    "vms": [
+                        {"vmid": 210, "node": "node-b", "status": "running"},
+                    ],
+                }
+            ],
+            list_nodes_inventory=lambda: [
+                {"name": "node-a", "status": "online", "cpu": 0.25, "mem": 1024, "maxmem": 4096, "maxcpu": 8},
+            ],
+            service_name="beagle-control-plane",
+            utcnow=lambda: "2026-04-22T09:00:00Z",
+            version="7.0.0-dev",
+        )
+
+        payload = service.build_inventory()
+
+        self.assertEqual(payload["node_count"], 2)
+        self.assertEqual(payload["vm_count"], 2)
+        nodes = {item["name"]: item for item in payload["nodes"]}
+        self.assertEqual(nodes["node-b"]["vm_count"], 1)
+        self.assertEqual(nodes["node-b"]["status"], "online")
+
+    def test_build_inventory_includes_cluster_members_as_nodes(self):
+        """Cluster members appear in inventory even without libvirt nodes."""
+        service = ClusterInventoryService(
+            build_vm_inventory=lambda: {"vms": []},
+            host_provider_kind="beagle",
+            list_remote_inventories=lambda: [],
+            list_cluster_members=lambda: [
+                {"name": "srv1", "api_url": "http://127.0.0.1:9088/api/v1", "status": "online", "local": True},
+                {"name": "node-b", "api_url": "http://127.0.0.1:9191/api/v1", "status": "online", "local": False},
+            ],
+            list_nodes_inventory=lambda: [
+                {"name": "beagle-0", "status": "online", "cpu": 0.1, "mem": 1024, "maxmem": 4096, "maxcpu": 8},
+            ],
+            service_name="beagle-control-plane",
+            utcnow=lambda: "2026-04-23T10:00:00Z",
+            version="7.0.0-dev",
+        )
+
+        payload = service.build_inventory()
+
+        node_names = {item["name"] for item in payload["nodes"]}
+        self.assertIn("node-b", node_names)
+        self.assertIn("beagle-0", node_names)
+
+    def test_build_inventory_cluster_member_unreachable_after_kill(self):
+        """Member marked unreachable is reflected in inventory status."""
+        service = ClusterInventoryService(
+            build_vm_inventory=lambda: {"vms": []},
+            host_provider_kind="beagle",
+            list_remote_inventories=lambda: [],
+            list_cluster_members=lambda: [
+                {"name": "srv1", "api_url": "http://127.0.0.1:9088/api/v1", "status": "online", "local": True},
+                {"name": "node-b", "api_url": "http://127.0.0.1:9191/api/v1", "status": "unreachable", "local": False},
+            ],
+            list_nodes_inventory=lambda: [],
+            service_name="beagle-control-plane",
+            utcnow=lambda: "2026-04-23T10:00:00Z",
+            version="7.0.0-dev",
+        )
+
+        payload = service.build_inventory()
+
+        nodes = {item["name"]: item for item in payload["nodes"]}
+        self.assertEqual(nodes["node-b"]["status"], "unreachable")
+        self.assertEqual(payload["node_unreachable_count"], 1)
 
 
 if __name__ == "__main__":

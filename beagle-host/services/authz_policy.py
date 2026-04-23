@@ -45,6 +45,13 @@ PERMISSION_CATALOG: list[dict] = [
         ],
     },
     {
+        "group": "Cluster",
+        "tags": [
+            {"tag": "cluster:read",  "label": "Cluster-Status lesen"},
+            {"tag": "cluster:write", "label": "Cluster initialisieren / Join verwalten"},
+        ],
+    },
+    {
         "group": "Aktionen",
         "tags": [
             {"tag": "actions:bulk", "label": "Bulk-VM-Aktionen ausfuehren"},
@@ -103,6 +110,8 @@ class AuthzPolicyService:
                 return "auth:write"
             if route.startswith("/api/v1/settings/"):
                 return "settings:write"
+            if route in {"/api/v1/cluster/init", "/api/v1/cluster/join-token", "/api/v1/cluster/apply-join"}:
+                return "cluster:write"
             if re.match(r"^/api/v1/sessions/[A-Za-z0-9._:-]+/recording/(start|stop)$", route):
                 return "session:manage_recording"
             if route == "/api/v1/pools" or re.match(r"^/api/v1/pools/[A-Za-z0-9._-]+/(vms|entitlements|scale|allocate|release|recycle)$", route):
@@ -144,6 +153,8 @@ class AuthzPolicyService:
                 return "settings:read"
             if route.startswith("/api/v1/settings/"):
                 return "settings:read"
+            if route == "/api/v1/cluster/status":
+                return "cluster:read"
             if re.match(r"^/api/v1/sessions/[A-Za-z0-9._:-]+/recording$", route):
                 return "session:download_recording"
             if route == "/api/v1/pools" or re.match(r"^/api/v1/pools/[A-Za-z0-9._-]+(/.*)?$", route):
