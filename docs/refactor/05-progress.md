@@ -1,5 +1,22 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 07 Schritt 2 + Schritt 3 Teil 2 abgeschlossen: Cluster mTLS-RPC + Node-Labels)
+
+- Plan 07 Schritt 2 vollstaendig umgesetzt.
+- Neue Cluster-Services:
+	- `beagle-host/services/cluster_rpc.py` fuer mTLS-geschuetzte JSON-RPC Calls mit ALPN (`h2`, `http/1.1`).
+	- `beagle-host/services/ca_manager.py` fuer Cluster-CA, Node-Key/CSR/Cert-Ausstellung und Join-Signing.
+- Neue Tests/Smokes:
+	- `tests/unit/test_ca_manager.py`
+	- `tests/unit/test_cluster_rpc.py`
+	- `scripts/test-cluster-rpc-smoke.py`
+- Reproduzierbare Validierung:
+	- Lokal: `5 passed` + `CLUSTER_RPC_SMOKE=PASS`.
+	- Live `srv1.beagle-os.com`: `5 passed` + `CLUSTER_RPC_SMOKE=PASS`.
+- Plan 07 Schritt 3 Teil 2 ebenfalls geschlossen:
+	- Inventory-Karten zeigen pro VM jetzt ein explizites `Node`-Label.
+	- Geaenderte Dateien `website/ui/inventory.js` und `website/styles/panels/_inventory.css` nach `srv1` deployt und verifiziert.
+
 ## Update (2026-04-23, GoFuture Plan 07 Schritt 1 abgeschlossen: Cluster-Store-PoC + Alternativevaluierung)
 
 - Plan 07 Schritt 1 vollstaendig umgesetzt.

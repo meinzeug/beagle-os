@@ -50,8 +50,26 @@ Der PoC-Code landet in `providers/beagle/cluster/` und ist nicht produktionsreif
 
 ### Schritt 2 — Inter-Host-RPC mit mTLS implementieren
 
-- [ ] `beagle-host/services/cluster_rpc.py` anlegen mit HTTP/2 oder gRPC-Basis und mTLS-Zertifikaten.
-- [ ] Cluster-CA anlegen, Node-Zertifikate beim Cluster-Join signieren.
+- [x] `beagle-host/services/cluster_rpc.py` anlegen mit HTTP/2 oder gRPC-Basis und mTLS-Zertifikaten.
+- [x] Cluster-CA anlegen, Node-Zertifikate beim Cluster-Join signieren.
+
+Umsetzung 2026-04-23:
+- Neues Service-Modul `beagle-host/services/cluster_rpc.py` eingefuehrt:
+	- JSON-RPC Surface auf HTTPS/mTLS,
+	- TLS >= 1.2,
+	- ALPN fuer `h2` + `http/1.1` gesetzt,
+	- Client-Zertifikate sind verpflichtend (`CERT_REQUIRED`).
+- Neues Service-Modul `beagle-host/services/ca_manager.py` eingefuehrt:
+	- erstellt eine lokale Cluster-CA,
+	- generiert Node-Key/CSR/Cert-Bundles fuer Join-Szenarien,
+	- signiert Node-Zertifikate mit SANs fuer DNS/IP.
+- Neue reproduzierbare Validierung:
+	- Unit-Tests `tests/unit/test_ca_manager.py` und `tests/unit/test_cluster_rpc.py`.
+	- Smoke-Skript `scripts/test-cluster-rpc-smoke.py` erzeugt CA + Node-Zertifikate, startet einen lokalen mTLS-RPC-Server und prueft erfolgreichen Client-Handshake.
+- Validierung:
+	- Lokal: `python3 -m pytest tests/unit/test_ca_manager.py tests/unit/test_cluster_rpc.py -q` => `5 passed`.
+	- Lokal: `python3 scripts/test-cluster-rpc-smoke.py` => `CLUSTER_RPC_SMOKE=PASS`.
+	- Live `srv1.beagle-os.com`: derselbe Testpfad erfolgreich (`5 passed`, `CLUSTER_RPC_SMOKE=PASS`).
 
 mTLS bedeutet dass beide Seiten einer Verbindung sich gegenseitig mit Zertifikaten
 authentifizieren. Die Cluster-CA ist ein selbst-signiertes CA-Zertifikat das nur
@@ -66,7 +84,7 @@ Service gebündelt. Alle inter-host API-Calls über Port 9089 (gewählt) laufen 
 ### Schritt 3 — VM-Inventory über Cluster-Knoten konsolidieren
 
 - [x] `beagle-host/services/cluster_inventory.py` anlegen der Inventory aus allen Knoten aggregiert.
-- [ ] Web Console zeigt Knoten-Label neben jeder VM.
+- [x] Web Console zeigt Knoten-Label neben jeder VM.
 
 Umsetzung 2026-04-22:
 - Neues Backend-Service-Modul `beagle-host/services/cluster_inventory.py` eingeführt.
@@ -74,6 +92,11 @@ Umsetzung 2026-04-22:
 - Unbekannte/temporär nicht gelistete Nodes werden als `unreachable` modelliert, damit VM-Zuordnung im Cluster-Blick erhalten bleibt.
 - Neue Read-Endpunkte freigeschaltet: `GET /api/v1/cluster/inventory` und Alias `GET /api/v1/cluster/nodes`.
 - Unit-Tests ergänzt: `tests/unit/test_cluster_inventory.py`.
+
+Ergaenzung 2026-04-23:
+- `website/ui/inventory.js` zeigt pro VM jetzt ein explizites `Node`-Label mit Knotennamen in jeder Inventory-Karte.
+- `website/styles/panels/_inventory.css` um eigenes Node-Pill-Styling erweitert.
+- Live auf `srv1.beagle-os.com` deployt und per Asset-Grep auf ausgelieferten Dateien verifiziert.
 
 Heute zeigt das Inventory nur VMs des lokalen Hosts. Im Cluster-Modus aggregiert
 `cluster_inventory.py` die Inventories aller Knoten über die Cluster-RPC-Schicht.

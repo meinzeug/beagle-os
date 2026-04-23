@@ -402,7 +402,35 @@ body.light-mode .vm-card-icon {
   display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
 }
 
-.vm-card-node   { font-size: 0.7rem; color: var(--text-muted); }
+.vm-card-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 183, 77, 0.08);
+  border: 1px solid rgba(255, 183, 77, 0.16);
+}
+
+.vm-card-node-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.vm-card-node-value {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+body.light-mode .vm-card-node {
+  background: rgba(255, 166, 44, 0.10);
+  border-color: rgba(255, 166, 44, 0.22);
+}
+
 .vm-card-stream {
   font-size: 0.7rem; color: var(--text-muted);
   font-family: var(--font-mono);

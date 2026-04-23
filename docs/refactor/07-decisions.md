@@ -214,3 +214,13 @@ Stand: 2026-04-13
   1. Inter-Host-RPC/Join-Flows in Plan 07 Schritt 2 bauen auf etcd-Clusterzustand auf.
   2. SQLite+Litestream wird optional als Replikations-/DR-Baustein betrachtet, nicht als primarer Konsistenz-/Leader-Layer.
 - Dateien: `providers/beagle/cluster/store_poc.py`, `providers/beagle/cluster/run_etcd_cluster_poc.sh`, `providers/beagle/cluster/README.md`, `docs/gofuture/07-cluster-foundation.md`.
+
+## D-040: Cluster-Interconnect nutzt mTLS mit lokaler Cluster-CA und node-signierten Zertifikaten
+- Entscheidung: Inter-Host-RPC fuer Plan 07 laeuft ueber eine mTLS-geschuetzte JSON-RPC-Surface; jede Cluster-Verbindung verlangt ein von der Cluster-CA signiertes Node-Zertifikat.
+- Grund: Der neue Cluster-RPC-Smoke konnte lokal und auf `srv1.beagle-os.com` reproduzierbar einen gegenseitig authentifizierten TLS-Handshake zwischen zwei Nodes nachweisen (`CLUSTER_RPC_SMOKE=PASS`).
+- Detail:
+  1. `beagle-host/services/ca_manager.py` besitzt die CA und signiert Join-Zertifikate fuer Nodes.
+  2. `beagle-host/services/cluster_rpc.py` erzwingt `CERT_REQUIRED`, TLS >= 1.2 und ALPN fuer `h2`/`http/1.1`.
+  3. SANs (`DNS:`/`IP:`) werden bei Node-Zertifikaten explizit mit ausgestellt.
+- Konsequenz: Cluster-Join, Remote-Inventory und spaetere Migrations-/Maintenance-RPCs verwenden keine shared secrets als Primarauthentisierung, sondern CA-vertrauensbasierte Node-Identitaeten.
+- Dateien: `beagle-host/services/ca_manager.py`, `beagle-host/services/cluster_rpc.py`, `tests/unit/test_ca_manager.py`, `tests/unit/test_cluster_rpc.py`, `scripts/test-cluster-rpc-smoke.py`.

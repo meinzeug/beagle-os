@@ -1,18 +1,19 @@
 # Next Steps
 
-## Delta (2026-04-23 nach Abschluss von Plan 07 Schritt 1)
+## Delta (2026-04-23 nach Abschluss von Plan 07 Schritt 2 + Schritt 3 Teil 2)
 
-0. **Plan 07 Schritt 2 starten (Inter-Host-RPC + mTLS)**:
-	- `beagle-host/services/cluster_rpc.py` als minimale mTLS-RPC-Surface anlegen,
-	- Cluster-CA + Node-Zertifikat-Join-Fluss in `beagle-host/services/ca_manager.py` modellieren.
+0. **Plan 07 Schritt 4 umsetzen (Live-Migration)**:
+	- `beagle-host/services/migration_service.py` mit libvirt-managed Migration anlegen,
+	- API-Seam fuer Vorbedingungen/Progress/Error-State definieren,
+	- anschliessend UI-Aktion `VM verschieben` in der Detailansicht verdrahten.
 
-0. **Plan 07 Schritt 3 Teil 2 schliessen (Knoten-Label bei jeder VM)**:
-	- Inventory-Tabelle um klares Node-Label pro VM erweitern,
-	- UI-Smoke auf `srv1.beagle-os.com` gegen Cluster-Panel + Inventory-Darstellung nachziehen.
+0. **Plan 07 Schritt 5 starten (Cluster-Join im Installer)**:
+	- Installer-Dialog fuer Cluster-Join (`Ja/Nein`) ergaenzen,
+	- Eingabe fuer Leader-IP oder Join-Token und Uebergabe an den neuen CA-/RPC-Pfad vorbereiten.
 
-0. **Plan 07 Schritt 4 vorbereiten (Live-Migration)**:
-	- `migration_service.py` API-Seam und Vorbedingungen definieren,
-	- VM-Detailaktion `VM verschieben` als naechsten UI-Anchor entwerfen.
+0. **Plan 07 Testpflicht vorbereiten**:
+	- zwei echte Cluster-Knoten gegen `srv1.beagle-os.com` aufbauen,
+	- Multi-Node-Sichtbarkeit und `unreachable`-Darstellung gegen das bestehende Cluster-Panel validieren.
 
 ## Delta (2026-04-22 nach Abschluss von Plan 11 Schritt 5)
 

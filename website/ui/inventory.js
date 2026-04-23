@@ -378,6 +378,9 @@ export function renderInventory() {
     const streamInfo = profile.stream_host
       ? escapeHtml(profile.stream_host) + (profile.moonlight_port ? ':' + escapeHtml(profile.moonlight_port) : '')
       : '';
+    const nodeInfo = profile.node
+      ? '<span class="vm-card-node"><span class="vm-card-node-label">Node</span><span class="vm-card-node-value">' + escapeHtml(profile.node) + '</span></span>'
+      : '';
     return '' +
       '<div class="' + cardClass + '" data-vmid="' + escapeHtml(vmid) + '">' +
       '  <label class="vm-card-check">' +
@@ -391,7 +394,7 @@ export function renderInventory() {
       '      <span class="vm-card-id">#' + escapeHtml(vmid) + '</span>' +
       '    </div>' +
       '    <div class="vm-card-secondary">' +
-      (profile.node ? '<span class="vm-card-node">' + escapeHtml(profile.node) + '</span>' : '') +
+      nodeInfo +
       (streamInfo ? '<span class="vm-card-stream">' + streamInfo + '</span>' : '') +
       '    </div>' +
       '  </div>' +
