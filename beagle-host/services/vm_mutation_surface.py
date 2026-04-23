@@ -135,12 +135,27 @@ class VmMutationSurfaceService:
             return self._json_response(HTTPStatus.ACCEPTED, {"ok": True, **migration})
 
         if path.startswith("/api/v1/virtualization/vms/") and path.endswith("/power"):
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            action_name = str(payload.get("action", "")).strip().lower()
+            vmid_text = path.split("/")[-2]
+            vmid_hint = int(vmid_text) if vmid_text.isdigit() else 0
             vm, error = self._vm_from_segment(path, -2)
             if vm is None:
                 status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
-                return self._json_response(status, {"ok": False, "error": error})
-            payload = json_payload if isinstance(json_payload, dict) else {}
-            action_name = str(payload.get("action", "")).strip().lower()
+                response_payload: dict[str, Any] = {"ok": False, "error": error}
+                if action_name in {"start", "stop", "reboot"}:
+                    response_payload.update(
+                        self._envelope(
+                            vm_power={
+                                "vmid": vmid_hint,
+                                "node": "",
+                                "action": action_name,
+                                "requested_by": requester_identity,
+                                "provider_result": "",
+                            }
+                        )
+                    )
+                return self._json_response(status, response_payload)
             if action_name not in {"start", "stop", "reboot"}:
                 return self._json_response(
                     HTTPStatus.BAD_REQUEST,

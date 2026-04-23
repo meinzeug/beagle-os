@@ -65,3 +65,30 @@ def test_migrate_route_dispatches_to_service() -> None:
     assert int(response["status"]) == 202
     assert response["payload"]["ok"] is True
     assert calls == [(100, "node-b", True, False, "admin")]
+
+
+def test_power_route_includes_vm_power_for_not_found() -> None:
+    service, _ = _service()
+    response = service.route_post(
+        "/api/v1/virtualization/vms/999999/power",
+        json_payload={"action": "start"},
+        requester_identity="admin",
+    )
+
+    assert int(response["status"]) == 404
+    assert response["payload"]["ok"] is False
+    vm_power = response["payload"]["vm_power"]
+    assert vm_power["vmid"] == 999999
+    assert vm_power["action"] == "start"
+
+
+def test_power_route_rejects_invalid_action() -> None:
+    service, _ = _service()
+    response = service.route_post(
+        "/api/v1/virtualization/vms/100/power",
+        json_payload={"action": "hibernate"},
+        requester_identity="admin",
+    )
+
+    assert int(response["status"]) == 400
+    assert response["payload"]["ok"] is False
