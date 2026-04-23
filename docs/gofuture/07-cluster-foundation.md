@@ -18,8 +18,23 @@ live von Host A auf Host B migriert.
 
 ### Schritt 1 — Cluster-Store-Technologie entscheiden und PoC bauen
 
-- [ ] PoC: etcd als Cluster-Store auf zwei VM-Hosts aufsetzen und Leader-Election testen.
-- [ ] Falls etcd-Footprint zu groß: SQLite + Litestream als Alternative evaluieren.
+- [x] PoC: etcd als Cluster-Store auf zwei VM-Hosts aufsetzen und Leader-Election testen.
+- [x] Falls etcd-Footprint zu groß: SQLite + Litestream als Alternative evaluieren.
+
+Umsetzung 2026-04-23:
+- Neues PoC-Modul `providers/beagle/cluster/store_poc.py` eingefuehrt mit zwei Modi:
+	- `etcd`: validiert Leader-Election via `etcdctl move-leader` und prueft den neuen Leader.
+	- `sqlite-eval`: liefert eine Vergleichsmatrix fuer etcd vs SQLite+Litestream.
+- Neues Runtime-Helper-Skript `providers/beagle/cluster/run_etcd_cluster_poc.sh` eingefuehrt:
+	- startet drei lokale etcd-Member (`host-a`, `host-b`, `witness`) als 2-Host+Witness Topologie,
+	- fuehrt den PoC reproduzierbar aus,
+	- beendet alle Prozesse nach dem Lauf.
+- Unit-Tests fuer Parsing/Entscheidungslogik ergaenzt: `tests/unit/test_cluster_store_poc.py`.
+- Lokale Validierung: `python3 -m pytest tests/unit/test_cluster_store_poc.py -q` => `3 passed`.
+- Live-Validierung auf `srv1.beagle-os.com`:
+	- PoC-Dateien nach `/opt/beagle/providers/beagle/cluster/` deployt,
+	- etcd Runtime (`etcd-server`, `etcd-client`) installiert,
+	- `providers/beagle/cluster/run_etcd_cluster_poc.sh` erfolgreich mit `ETCD_POC_RESULT=PASS`.
 
 Die Wahl des Cluster-Stores ist die wichtigste architekturelle Entscheidung für 7.0.
 etcd bietet starke Konsistenzgarantien und Leader-Election out-of-the-box aber erfordert

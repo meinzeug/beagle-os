@@ -1,5 +1,19 @@
 # Next Steps
 
+## Delta (2026-04-23 nach Abschluss von Plan 07 Schritt 1)
+
+0. **Plan 07 Schritt 2 starten (Inter-Host-RPC + mTLS)**:
+	- `beagle-host/services/cluster_rpc.py` als minimale mTLS-RPC-Surface anlegen,
+	- Cluster-CA + Node-Zertifikat-Join-Fluss in `beagle-host/services/ca_manager.py` modellieren.
+
+0. **Plan 07 Schritt 3 Teil 2 schliessen (Knoten-Label bei jeder VM)**:
+	- Inventory-Tabelle um klares Node-Label pro VM erweitern,
+	- UI-Smoke auf `srv1.beagle-os.com` gegen Cluster-Panel + Inventory-Darstellung nachziehen.
+
+0. **Plan 07 Schritt 4 vorbereiten (Live-Migration)**:
+	- `migration_service.py` API-Seam und Vorbedingungen definieren,
+	- VM-Detailaktion `VM verschieben` als naechsten UI-Anchor entwerfen.
+
 ## Delta (2026-04-22 nach Abschluss von Plan 11 Schritt 5)
 
 0. **Plan 11 Schritt 4 Test-Matrix schliessen**:

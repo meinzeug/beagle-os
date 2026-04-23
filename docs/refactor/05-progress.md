@@ -1,5 +1,20 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 07 Schritt 1 abgeschlossen: Cluster-Store-PoC + Alternativevaluierung)
+
+- Plan 07 Schritt 1 vollstaendig umgesetzt.
+- Neues PoC-Paket unter `providers/beagle/cluster/`:
+	- `store_poc.py` mit `etcd`-Leader-Election-Test und `sqlite-eval`-Vergleich.
+	- `run_etcd_cluster_poc.sh` fuer reproduzierbaren 2-Host+Witness etcd-Lauf.
+	- `README.md` mit Ablauf und Voraussetzungen.
+- Unit-Tests ergaenzt: `tests/unit/test_cluster_store_poc.py`.
+- Fehlerpfad waehrend Live-Run behoben:
+	- etcd `move-leader` erwartete Member-ID als Hex ohne `0x`-Prefix.
+	- ID-Normalisierung in `store_poc.py` entsprechend korrigiert.
+- Reproduzierbare Validierung:
+	- Lokal: `python3 -m pytest tests/unit/test_cluster_store_poc.py -q` => `3 passed`.
+	- Live `srv1.beagle-os.com`: Deployment nach `/opt/beagle`, PoC-Run erfolgreich mit `ETCD_POC_RESULT=PASS`.
+
 ## Update (2026-04-22, GoFuture Plan 11 Schritt 5 abgeschlossen: Session Stream-Health API + UI)
 
 - Plan 11 Schritt 5 vollstaendig umgesetzt:

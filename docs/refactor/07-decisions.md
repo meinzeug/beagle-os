@@ -206,3 +206,11 @@ Stand: 2026-04-13
 - Grund: Der gehaertete Control-Plane-Service laeuft mit `ProtectSystem=strict`; direkter `certbot --nginx` Aufruf scheiterte reproduzierbar an Let's-Encrypt- und nginx-Logpfaden, obwohl die benoetigten Pakete installiert waren.
 - Wirkung: Die WebUI-TLS-Funktion bleibt mit der bestehenden Service-Haertung kompatibel, ohne die gesamte Control Plane unspezifisch zu entschaerfen.
 - Dateien: `beagle-host/services/server_settings.py`, `beagle-host/systemd/beagle-control-plane.service`.
+
+## D-039: Cluster-Store fuer 7.0 ist etcd mit Witness; SQLite+Litestream bleibt DR-Option
+- Entscheidung: Plan-07 Cluster-Foundation nutzt etcd als autoritativen Cluster-Store mit nativer Leader-Election; fuer Zwei-Host-Betrieb wird ein dritter Witness eingeplant.
+- Grund: Der PoC unter `providers/beagle/cluster/` hat reproduzierbar Leader-Wechsel mit etcd gezeigt (`ETCD_POC_RESULT=PASS` auf `srv1.beagle-os.com`). SQLite+Litestream reduziert zwar den Footprint, bietet aber keine eingebaute Leader-Election-Authority.
+- Konsequenz:
+  1. Inter-Host-RPC/Join-Flows in Plan 07 Schritt 2 bauen auf etcd-Clusterzustand auf.
+  2. SQLite+Litestream wird optional als Replikations-/DR-Baustein betrachtet, nicht als primarer Konsistenz-/Leader-Layer.
+- Dateien: `providers/beagle/cluster/store_poc.py`, `providers/beagle/cluster/run_etcd_cluster_poc.sh`, `providers/beagle/cluster/README.md`, `docs/gofuture/07-cluster-foundation.md`.
