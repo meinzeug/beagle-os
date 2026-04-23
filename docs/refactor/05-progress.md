@@ -1,5 +1,16 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 16 Schritt 2 abgeschlossen)
+
+- `beagle-host/services/backup_service.py` als neuer Backup-Service eingefuehrt (Policy pro Pool/VM, Job-Historie, `run_backup_now`, `run_scheduled_backups`).
+- Control-Plane um Backup-Policy/Run/Jobs-Endpunkte erweitert und Background-Scheduler verdrahtet.
+- RBAC fuer neue Backup-Routen in `beagle-host/services/authz_policy.py` auf `settings:read|write` gemappt.
+- Web-Console-Backup-Panel auf Scope-basiertes Policy-Management umgestellt (`pool|vm` + Scope-ID + Job-Tabelle).
+- Reproduzierbarer Live-Smoke `scripts/test-backup-scope-smoke.sh` hinzugefuegt.
+- Validierung:
+	- Lokal: `pytest -q tests/unit/test_backup_service.py tests/unit/test_authz_policy.py` => `11 passed`.
+	- Live auf `srv1.beagle-os.com`: `beagle-control-plane.service active`, `BACKUP_SCOPE_SMOKE=PASS`.
+
 ## Update (2026-04-23, GoFuture Plan 16 Schritt 1 abgeschlossen)
 
 - Architekturentscheidung fuer Backup/DR dokumentiert (`docs/refactor/07-decisions.md`, `D-042`):

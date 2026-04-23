@@ -110,6 +110,8 @@ class AuthzPolicyService:
                 return "auth:write"
             if route.startswith("/api/v1/settings/"):
                 return "settings:write"
+            if route == "/api/v1/backups/run":
+                return "settings:write"
             if route in {"/api/v1/cluster/init", "/api/v1/cluster/join-token", "/api/v1/cluster/apply-join"}:
                 return "cluster:write"
             if route == "/api/v1/ha/reconcile-failed-node":
@@ -135,6 +137,8 @@ class AuthzPolicyService:
                 return "settings:write"
             if route.startswith("/api/v1/settings/"):
                 return "settings:write"
+            if re.match(r"^/api/v1/backups/policies/(pools/[A-Za-z0-9._-]+|vms/\d+)$", route):
+                return "settings:write"
             if re.match(r"^/api/v1/pools/[A-Za-z0-9._-]+$", route):
                 return "pool:write"
         if verb == "DELETE":
@@ -156,6 +160,10 @@ class AuthzPolicyService:
             if re.match(r"^/api/v1/storage/pools/[A-Za-z0-9._-]+/quota$", route):
                 return "settings:read"
             if route.startswith("/api/v1/settings/"):
+                return "settings:read"
+            if route == "/api/v1/backups/jobs":
+                return "settings:read"
+            if re.match(r"^/api/v1/backups/policies/(pools/[A-Za-z0-9._-]+|vms/\d+)$", route):
                 return "settings:read"
             if route == "/api/v1/cluster/status":
                 return "cluster:read"

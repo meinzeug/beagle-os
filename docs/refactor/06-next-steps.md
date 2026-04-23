@@ -1,10 +1,11 @@
 # Next Steps
 
-## Delta (2026-04-23 nach Abschluss Plan 16 Schritt 1)
+## Delta (2026-04-23 nach Abschluss Plan 16 Schritt 2)
 
-0. **Plan 16 Schritt 2 starten (Backup-Service + Scheduling)**:
-	- `beagle-host/services/backup_service.py` mit Jobmodell und Zeitplanung einfuehren,
-	- API/Runtime-Hooks fuer Full/Incremental Backup-Lauf vorbereiten.
+0. **Plan 16 Schritt 3 starten (Backup-Targets lokal/NFS/S3)**:
+	- `BackupTarget`-Protokoll in `core/` definieren (`write_chunk`, `read_chunk`, `list_snapshots`),
+	- konkrete Targets (`LocalBackupTarget`, `NfsBackupTarget`, `S3BackupTarget`) einziehen,
+	- API-/Service-Anbindung fuer Target-Auswahl pro Scope vorbereiten.
 
 0. **Plan 16 PoC-Metrik weiter optimieren**:
 	- Restic-Delta-Ratio aus PoC (`0.5097`) Richtung Testpflichtziel `<10%` verbessern,

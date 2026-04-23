@@ -77,6 +77,24 @@ class AuthzPolicyServiceTests(unittest.TestCase):
         allowed = AuthzPolicyService.is_allowed("admin", permission, {"settings:write"})
         self.assertTrue(allowed)
 
+    def test_backup_routes_use_settings_permissions(self):
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/backups/jobs"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/backups/policies/pools/default"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("PUT", "/api/v1/backups/policies/vms/101"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/backups/run"),
+            "settings:write",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

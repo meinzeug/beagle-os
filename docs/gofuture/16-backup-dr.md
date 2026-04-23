@@ -45,8 +45,8 @@ Validierung (2026-04-23):
 
 ### Schritt 2 — Backup-Service mit Scheduling implementieren
 
-- [ ] `beagle-host/services/backup_service.py` anlegen mit Backup-Jobs und Scheduling.
-- [ ] Web Console: Backup-Policy pro Pool/VM (Zeitplan, Retention).
+- [x] `beagle-host/services/backup_service.py` anlegen mit Backup-Jobs und Scheduling.
+- [x] Web Console: Backup-Policy pro Pool/VM (Zeitplan, Retention).
 
 Der Backup-Service verwaltet Backup-Jobs und führt sie nach Zeitplan aus. Jeder
 Pool und jede VM kann eine eigene Backup-Policy haben: Backup-Zeitplan (Cron-Ausdruck),
@@ -55,6 +55,38 @@ Ein Background-Worker verarbeitet die Backup-Queue und führt Backups sequenziel
 um Storage-I/O-Überlastung zu vermeiden. Der Web Console zeigt den Status aller
 laufenden und letzten vergangenen Backup-Jobs. Backup-Fehler erzeugen Alerts und
 Audit-Events.
+
+Umsetzung (2026-04-23):
+
+- Neuer Service `beagle-host/services/backup_service.py` mit:
+	- Pool-/VM-spezifischen Backup-Policies (`enabled`, `schedule`, `retention_days`, `target_path`, `last_backup`),
+	- Job-Historie (`job_id`, `status`, `archive`, `error`, Zeitstempel),
+	- `run_backup_now(scope_type, scope_id)` und `run_scheduled_backups()`.
+- Control-Plane verdrahtet (`beagle-host/bin/beagle-control-plane.py`):
+	- GET ` /api/v1/backups/policies/pools/{pool_id}`,
+	- GET ` /api/v1/backups/policies/vms/{vmid}`,
+	- PUT ` /api/v1/backups/policies/pools/{pool_id}`,
+	- PUT ` /api/v1/backups/policies/vms/{vmid}`,
+	- POST ` /api/v1/backups/run`,
+	- GET ` /api/v1/backups/jobs`.
+- Background-Scheduler-Thread im Control-Plane ergänzt (`BEAGLE_BACKUP_SCHEDULER_INTERVAL_SECONDS`, Default 300s).
+- RBAC-Mapping ergänzt: neue Backup-Routen laufen über `settings:read` / `settings:write`.
+- Web Console Backup-Panel erweitert (`website/index.html`, `website/ui/settings.js`):
+	- Scope-Auswahl (`pool|vm`) + Scope-ID,
+	- Policy laden/speichern pro Scope,
+	- `Jetzt sichern` pro Scope,
+	- Job-Tabelle mit Status/Start/Ende/Ergebnis.
+- Reproduzierbarer Live-Smoke ergänzt: `scripts/test-backup-scope-smoke.sh`.
+
+Validierung (2026-04-23):
+
+- Lokal:
+	- `pytest -q tests/unit/test_backup_service.py tests/unit/test_authz_policy.py` => `11 passed`.
+	- `bash -n scripts/test-backup-scope-smoke.sh` => `SCRIPT_SYNTAX=PASS`.
+- Live auf `srv1.beagle-os.com`:
+	- Service-Restart `beagle-control-plane.service` erfolgreich (`active`).
+	- Backup-API-Smoke erfolgreich: `BACKUP_SCOPE_SMOKE=PASS`.
+	- Endpunkte `PUT/GET policy`, `POST run`, `GET jobs` liefern jeweils `HTTP 200` und `ok=true`.
 
 ---
 

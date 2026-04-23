@@ -1523,6 +1523,13 @@
                 <button class="button ghost small" id="settings-backup-refresh" type="button">Refresh</button>
               </div>
               <div class="settings-form" id="settings-backup-form">
+                <label class="field"><span>Scope</span>
+                  <select id="bak-scope-type" class="input-select">
+                    <option value="pool" selected>Pool</option>
+                    <option value="vm">VM</option>
+                  </select>
+                </label>
+                <label class="field"><span>Scope-ID</span><input id="bak-scope-id" type="text" value="default" placeholder="z.B. default oder 101"></label>
                 <label class="check-label check-label-padded">
                   <input id="bak-enabled" type="checkbox">
                   <span>Automatisches Backup aktiviert</span>
@@ -1542,6 +1549,22 @@
                 <div class="button-row">
                   <button class="button primary" id="settings-backup-save" type="button">Speichern</button>
                   <button class="button ghost" id="settings-backup-run" type="button">Jetzt sichern</button>
+                </div>
+                <div class="table-card">
+                  <table class="table" aria-label="Backup Jobs">
+                    <thead>
+                      <tr>
+                        <th>Job</th>
+                        <th>Status</th>
+                        <th>Start</th>
+                        <th>Ende</th>
+                        <th>Ergebnis</th>
+                      </tr>
+                    </thead>
+                    <tbody id="bak-jobs-body">
+                      <tr><td colspan="5" class="empty-cell">Keine Backup-Jobs vorhanden.</td></tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </article>

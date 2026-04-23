@@ -296,26 +296,83 @@ export function applyUpdates() {
   });
 }
 
+function backupScope() {
+  const scopeType = String(qs('bak-scope-type') ? qs('bak-scope-type').value : 'pool').trim().toLowerCase();
+  const scopeId = String(qs('bak-scope-id') ? qs('bak-scope-id').value : '').trim();
+  if ((scopeType !== 'pool' && scopeType !== 'vm') || !scopeId) {
+    return null;
+  }
+  return { scopeType, scopeId };
+}
+
+function backupPolicyPath(scope) {
+  if (scope.scopeType === 'pool') {
+    return '/backups/policies/pools/' + encodeURIComponent(scope.scopeId);
+  }
+  return '/backups/policies/vms/' + encodeURIComponent(scope.scopeId);
+}
+
+function renderBackupJobs(jobs) {
+  const tbody = qs('bak-jobs-body');
+  if (!tbody) {
+    return;
+  }
+  if (!Array.isArray(jobs) || !jobs.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-cell">Keine Backup-Jobs vorhanden.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = jobs.map((job) => {
+    return '<tr>' +
+      '<td><code>' + escapeHtml(String(job.job_id || '')) + '</code></td>' +
+      '<td>' + escapeHtml(String(job.status || '')) + '</td>' +
+      '<td>' + escapeHtml(String(job.created_at || '')) + '</td>' +
+      '<td>' + escapeHtml(String(job.finished_at || '')) + '</td>' +
+      '<td>' + escapeHtml(String(job.archive || job.error || '')) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function loadBackupJobs(scope) {
+  const path = '/backups/jobs?scope_type=' + encodeURIComponent(scope.scopeType) + '&scope_id=' + encodeURIComponent(scope.scopeId);
+  return request(path).then((data) => {
+    renderBackupJobs(data.jobs || []);
+  }).catch((error) => {
+    settingsHooks.setBanner('Backup-Jobs laden fehlgeschlagen: ' + error.message, 'warn');
+  });
+}
+
 export function loadSettingsBackup() {
-  return request('/settings/backup').then((data) => {
+  const scope = backupScope();
+  if (!scope) {
+    settingsHooks.setBanner('Backup-Scope ungueltig: Typ und ID setzen.', 'warn');
+    renderBackupJobs([]);
+    return Promise.resolve();
+  }
+  return request(backupPolicyPath(scope)).then((data) => {
     if (qs('bak-enabled')) { qs('bak-enabled').checked = Boolean(data.enabled); }
     if (qs('bak-schedule')) { qs('bak-schedule').value = data.schedule || 'daily'; }
     if (qs('bak-retention')) { qs('bak-retention').value = data.retention_days || 7; }
     if (qs('bak-target')) { qs('bak-target').value = data.target_path || '/var/backups/beagle'; }
     text('bak-last-run', data.last_backup || '(noch nie)');
+    return loadBackupJobs(scope);
   }).catch((error) => {
     settingsHooks.setBanner('Backup laden fehlgeschlagen: ' + error.message, 'warn');
   });
 }
 
 export function saveSettingsBackup() {
+  const scope = backupScope();
+  if (!scope) {
+    settingsHooks.setBanner('Backup-Scope ungueltig: Typ und ID setzen.', 'warn');
+    return Promise.resolve();
+  }
   const payload = {
     enabled: Boolean(qs('bak-enabled') && qs('bak-enabled').checked),
     schedule: String(qs('bak-schedule') ? qs('bak-schedule').value : 'daily'),
     retention_days: Number(qs('bak-retention') ? qs('bak-retention').value : 7),
     target_path: String(qs('bak-target') ? qs('bak-target').value : '').trim()
   };
-  return request('/settings/backup', {
+  return request(backupPolicyPath(scope), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -324,7 +381,7 @@ export function saveSettingsBackup() {
       settingsHooks.setBanner('Backup-Einstellungen gespeichert.', 'info');
       loadSettingsBackup();
     } else {
-      settingsHooks.setBanner('Fehler: ' + (data.errors || []).join(', '), 'warn');
+      settingsHooks.setBanner('Backup speichern fehlgeschlagen.', 'warn');
     }
   }).catch((error) => {
     settingsHooks.setBanner('Backup speichern fehlgeschlagen: ' + error.message, 'warn');
@@ -332,17 +389,25 @@ export function saveSettingsBackup() {
 }
 
 export function runBackupNow() {
+  const scope = backupScope();
+  if (!scope) {
+    settingsHooks.setBanner('Backup-Scope ungueltig: Typ und ID setzen.', 'warn');
+    return;
+  }
   settingsHooks.setBanner('Backup wird erstellt...', 'info');
-  request('/settings/backup/run', {
+  request('/backups/run', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({})
+    body: JSON.stringify({ scope_type: scope.scopeType, scope_id: scope.scopeId })
   }).then((data) => {
     if (data.ok) {
-      settingsHooks.setBanner('Backup erstellt: ' + escapeHtml(data.archive || ''), 'info');
+      const job = data.job || {};
+      settingsHooks.setBanner('Backup erstellt: ' + escapeHtml(String(job.archive || '')), 'info');
       loadSettingsBackup();
     } else {
-      settingsHooks.setBanner('Backup fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannt'), 'warn');
+      const job = data.job || {};
+      settingsHooks.setBanner('Backup fehlgeschlagen: ' + escapeHtml(String(job.error || data.error || 'Unbekannt')), 'warn');
+      loadSettingsBackup();
     }
   }).catch((error) => {
     settingsHooks.setBanner('Backup-Fehler: ' + error.message, 'warn');
@@ -621,6 +686,12 @@ export function bindSettingsEvents() {
   }
   if (qs('settings-backup-refresh')) {
     qs('settings-backup-refresh').addEventListener('click', loadSettingsBackup);
+  }
+  if (qs('bak-scope-type')) {
+    qs('bak-scope-type').addEventListener('change', loadSettingsBackup);
+  }
+  if (qs('bak-scope-id')) {
+    qs('bak-scope-id').addEventListener('change', loadSettingsBackup);
   }
   if (qs('settings-backup-save')) {
     qs('settings-backup-save').addEventListener('click', saveSettingsBackup);

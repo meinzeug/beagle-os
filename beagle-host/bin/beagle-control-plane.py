@@ -38,6 +38,7 @@ from audit_helpers import build_vm_power_audit_event
 from audit_export import AuditExportConfig, AuditExportService
 from audit_log import AuditLogService
 from audit_report import AuditReportService
+from backup_service import BackupService
 from auth_session import AuthSessionService, default_now
 from authz_policy import AuthzPolicyService, PERMISSION_CATALOG
 from ca_manager import ClusterCaService
@@ -178,6 +179,7 @@ RECORDING_S3_ACCESS_KEY = os.environ.get("BEAGLE_RECORDING_S3_ACCESS_KEY", "").s
 RECORDING_S3_SECRET_KEY = os.environ.get("BEAGLE_RECORDING_S3_SECRET_KEY", "").strip()
 RECORDING_RETENTION_DEFAULT_DAYS = int(os.environ.get("BEAGLE_RECORDING_RETENTION_DEFAULT_DAYS", "30"))
 RECORDING_RETENTION_CRON_SECONDS = int(os.environ.get("BEAGLE_RECORDING_RETENTION_CRON_SECONDS", "3600"))
+BACKUP_SCHEDULER_INTERVAL_SECONDS = int(os.environ.get("BEAGLE_BACKUP_SCHEDULER_INTERVAL_SECONDS", "300"))
 AUTH_LOGIN_LOCKOUT_THRESHOLD = int(os.environ.get("BEAGLE_AUTH_LOGIN_LOCKOUT_THRESHOLD", "5"))
 AUTH_LOGIN_LOCKOUT_SECONDS = int(os.environ.get("BEAGLE_AUTH_LOGIN_LOCKOUT_SECONDS", "300"))
 AUTH_LOGIN_BACKOFF_MAX_SECONDS = int(os.environ.get("BEAGLE_AUTH_LOGIN_BACKOFF_MAX_SECONDS", "30"))
@@ -474,6 +476,7 @@ IDENTITY_PROVIDER_REGISTRY_SERVICE: IdentityProviderRegistryService | None = Non
 OIDC_SERVICE: OidcService | None = None
 SAML_SERVICE: SamlService | None = None
 SCIM_SERVICE: ScimService | None = None
+BACKUP_SERVICE: BackupService | None = None
 
 
 def resolve_public_stream_host(host: str) -> str:
@@ -673,6 +676,16 @@ def server_settings_service() -> ServerSettingsService:
             webhook_service=webhook_service(),
         )
     return SERVER_SETTINGS_SERVICE
+
+
+def backup_service() -> BackupService:
+    global BACKUP_SERVICE
+    if BACKUP_SERVICE is None:
+        BACKUP_SERVICE = BackupService(
+            state_file=DATA_DIR / "backup-state.json",
+            utcnow=utcnow,
+        )
+    return BACKUP_SERVICE
 
 
 def storage_quota_service() -> StorageQuotaService:
@@ -963,6 +976,8 @@ CLUSTER_RPC_SERVER: ThreadingHTTPServer | None = None
 CLUSTER_RPC_THREAD: threading.Thread | None = None
 RECORDING_RETENTION_THREAD: threading.Thread | None = None
 RECORDING_RETENTION_STOP_EVENT: threading.Event | None = None
+BACKUP_SCHEDULER_THREAD: threading.Thread | None = None
+BACKUP_SCHEDULER_STOP_EVENT: threading.Event | None = None
 
 
 def endpoints_dir() -> Path:
@@ -1512,6 +1527,41 @@ def _start_recording_retention_thread() -> None:
     thread.start()
     RECORDING_RETENTION_STOP_EVENT = stop_event
     RECORDING_RETENTION_THREAD = thread
+
+
+def _start_backup_scheduler_thread() -> None:
+    global BACKUP_SCHEDULER_THREAD, BACKUP_SCHEDULER_STOP_EVENT
+    if BACKUP_SCHEDULER_THREAD is not None and BACKUP_SCHEDULER_THREAD.is_alive():
+        return
+    stop_event = threading.Event()
+    interval_seconds = max(60, int(BACKUP_SCHEDULER_INTERVAL_SECONDS))
+
+    def _worker() -> None:
+        while not stop_event.is_set():
+            try:
+                for job in backup_service().run_scheduled_backups():
+                    if not isinstance(job, dict):
+                        continue
+                    outcome = "success" if str(job.get("status") or "") == "success" else "error"
+                    audit_log_service().write_event(
+                        "backup.scheduled.run",
+                        outcome,
+                        {
+                            "scope_type": str(job.get("scope_type") or ""),
+                            "scope_id": str(job.get("scope_id") or ""),
+                            "job_id": str(job.get("job_id") or ""),
+                            "archive": str(job.get("archive") or ""),
+                            "error": str(job.get("error") or ""),
+                        },
+                    )
+            except Exception:
+                pass
+            stop_event.wait(interval_seconds)
+
+    thread = threading.Thread(target=_worker, name="backup-scheduler", daemon=True)
+    thread.start()
+    BACKUP_SCHEDULER_STOP_EVENT = stop_event
+    BACKUP_SCHEDULER_THREAD = thread
 
 
 def ubuntu_beagle_inputs_service() -> UbuntuBeagleInputsService:
@@ -3887,6 +3937,7 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         query_text = parsed.query
+        query = parse_qs(parsed.query or "")
 
         response = public_sunshine_surface_service().route_request(
             parsed.path,
@@ -4174,6 +4225,37 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.OK, {"ok": True, **payload})
             return
 
+        backup_pool_policy_match = re.match(r"^/api/v1/backups/policies/pools/(?P<pool_id>[A-Za-z0-9._-]+)$", path)
+        if backup_pool_policy_match is not None:
+            if not self._authorize_or_respond("GET", path):
+                return
+            pool_id = str(backup_pool_policy_match.group("pool_id") or "").strip()
+            try:
+                payload = backup_service().get_pool_policy(pool_id)
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._write_json(HTTPStatus.OK, {"ok": True, **payload})
+            return
+
+        backup_vm_policy_match = re.match(r"^/api/v1/backups/policies/vms/(?P<vmid>\d+)$", path)
+        if backup_vm_policy_match is not None:
+            if not self._authorize_or_respond("GET", path):
+                return
+            vmid = int(backup_vm_policy_match.group("vmid") or 0)
+            payload = backup_service().get_vm_policy(vmid)
+            self._write_json(HTTPStatus.OK, {"ok": True, **payload})
+            return
+
+        if path == "/api/v1/backups/jobs":
+            if not self._authorize_or_respond("GET", path):
+                return
+            scope_type = str(query.get("scope_type", [""])[0] or "").strip().lower()
+            scope_id = str(query.get("scope_id", [""])[0] or "").strip()
+            jobs = backup_service().list_jobs(scope_type=scope_type, scope_id=scope_id)
+            self._write_json(HTTPStatus.OK, {"ok": True, "jobs": jobs})
+            return
+
         # --- VDI Pool & Template GET routes ---
         if path == "/api/v1/sessions":
             if not self._authorize_or_respond("GET", path):
@@ -4340,6 +4422,32 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query or "")
+
+        if path == "/api/v1/backups/run":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            payload = self._read_json_body()
+            scope_type = str(payload.get("scope_type") or "").strip().lower()
+            scope_id = str(payload.get("scope_id") or "").strip()
+            try:
+                result = backup_service().run_backup_now(scope_type=scope_type, scope_id=scope_id)
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            outcome = "success" if result.get("ok") else "error"
+            self._audit_event(
+                "backup.run",
+                outcome,
+                scope_type=scope_type,
+                scope_id=scope_id,
+                job_id=str((result.get("job") or {}).get("job_id") or ""),
+                username=self._requester_identity(),
+            )
+            self._write_json(HTTPStatus.OK if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR, result)
+            return
 
         if path == "/api/v1/ha/reconcile-failed-node":
             if not self._is_authenticated():
@@ -5375,6 +5483,40 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.OK, {"ok": True, **payload})
             return
 
+        backup_pool_policy_match = re.match(r"^/api/v1/backups/policies/pools/(?P<pool_id>[A-Za-z0-9._-]+)$", path)
+        if backup_pool_policy_match is not None:
+            payload = self._read_json_body()
+            pool_id = str(backup_pool_policy_match.group("pool_id") or "").strip()
+            try:
+                result = backup_service().update_pool_policy(pool_id, payload)
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event(
+                "backup.policy.update",
+                "success",
+                scope_type="pool",
+                scope_id=pool_id,
+                username=self._requester_identity(),
+            )
+            self._write_json(HTTPStatus.OK, {"ok": True, **result})
+            return
+
+        backup_vm_policy_match = re.match(r"^/api/v1/backups/policies/vms/(?P<vmid>\d+)$", path)
+        if backup_vm_policy_match is not None:
+            payload = self._read_json_body()
+            vmid = int(backup_vm_policy_match.group("vmid") or 0)
+            result = backup_service().update_vm_policy(vmid, payload)
+            self._audit_event(
+                "backup.policy.update",
+                "success",
+                scope_type="vm",
+                scope_id=str(vmid),
+                username=self._requester_identity(),
+            )
+            self._write_json(HTTPStatus.OK, {"ok": True, **result})
+            return
+
         pool_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)$", path)
         if pool_match is not None:
             try:
@@ -5540,6 +5682,7 @@ def main() -> int:
     effective_data_dir = ensure_data_dir()
     ensure_cluster_rpc_listener()
     _start_recording_retention_thread()
+    _start_backup_scheduler_thread()
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
     print(
         json.dumps(
@@ -5564,6 +5707,10 @@ def main() -> int:
             RECORDING_RETENTION_STOP_EVENT.set()
         if RECORDING_RETENTION_THREAD is not None:
             RECORDING_RETENTION_THREAD.join(timeout=5)
+        if BACKUP_SCHEDULER_STOP_EVENT is not None:
+            BACKUP_SCHEDULER_STOP_EVENT.set()
+        if BACKUP_SCHEDULER_THREAD is not None:
+            BACKUP_SCHEDULER_THREAD.join(timeout=5)
         if CLUSTER_RPC_SERVER is not None:
             CLUSTER_RPC_SERVER.shutdown()
             CLUSTER_RPC_SERVER.server_close()
