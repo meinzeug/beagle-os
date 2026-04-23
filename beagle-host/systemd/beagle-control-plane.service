@@ -28,7 +28,7 @@ RestrictRealtime=yes
 RestrictSUIDSGID=yes
 RuntimeDirectory=beagle-control-plane
 RuntimeDirectoryMode=0750
-ReadWritePaths=/var/lib/beagle /run/beagle-control-plane -/var/lib/libvirt/images -/var/lib/libvirt/qemu /etc/beagle /etc/beagle/novnc /etc/beagle/tls /etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt /var/log/nginx
+ReadWritePaths=/var/lib/beagle /var/backups/beagle /var/restores/beagle /run/beagle-control-plane -/var/lib/libvirt/images -/var/lib/libvirt/qemu /etc/beagle /etc/beagle/novnc /etc/beagle/tls /etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt /var/log/nginx
 AmbientCapabilities=CAP_KILL
 CapabilityBoundingSet=CAP_KILL
 

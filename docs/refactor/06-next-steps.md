@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-23 nach Abschluss Plan 16 Schritt 3-6)
+
+Plan 16 ist vollstaendig abgeschlossen. Naechste offene Plaene:
+
+0. **Plan 17 starten (SDN / Firewall)**: `docs/gofuture/17-sdn-firewall.md` - VLAN + IPAM + nftables.
+0. **Plan 18 starten (API / IaC / CLI)**: `docs/gofuture/18-api-iac-cli.md` - OpenAPI + Terraform + beaglectl.
+0. **Plan 16 Testpflicht-Metriken** (noch offen):
+	- Inkrementelles Backup < 10% des ersten,
+	- Full-Restore <= 5 min auf lokalem NVMe.
+
 ## Delta (2026-04-23 nach Abschluss Plan 16 Schritt 2)
 
 0. **Plan 16 Schritt 3 starten (Backup-Targets lokal/NFS/S3)**:

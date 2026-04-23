@@ -92,8 +92,22 @@ Validierung (2026-04-23):
 
 ### Schritt 3 — Backup-Targets: lokal, NFS, S3 implementieren
 
-- [ ] `BackupTarget`-Protokoll in `core/` definieren: `write_chunk`, `read_chunk`, `list_snapshots`.
-- [ ] Implementierungen: `LocalBackupTarget`, `NfsBackupTarget`, `S3BackupTarget`.
+- [x] `BackupTarget`-Protokoll in `core/` definieren: `write_chunk`, `read_chunk`, `list_snapshots`.
+- [x] Implementierungen: `LocalBackupTarget`, `NfsBackupTarget`, `S3BackupTarget`.
+
+Umsetzung (2026-04-23):
+
+- `core/backup_target.py`: `BackupTarget` Protocol (`runtime_checkable`) mit `write_chunk`, `read_chunk`, `list_snapshots`, `delete_snapshot` + `make_target(config)` Factory.
+- `core/backup_targets/local.py`: `LocalBackupTarget` — Filesystem-Chunks, `_safe_id()` mit Path-Traversal-Schutz.
+- `core/backup_targets/nfs.py`: `NfsBackupTarget` — delegiert nach `LocalBackupTarget`, prüft Mount-Existenz, blockiert relative Pfade und `..`.
+- `core/backup_targets/s3.py`: `S3BackupTarget` — optionale AES-256-GCM-Client-Side-Verschlüsselung, benötigt `boto3`.
+- `backup_service.py` erweitert: `target_type`, `nfs_mount_point`, `s3_*`-Felder in Policy, `_get_target()`, `run_backup_now` nutzt jeweiligen Target.
+- 9 neue Unit-Tests in `tests/unit/test_backup_targets.py`.
+
+Validierung (2026-04-23):
+
+- `pytest -q tests/unit/test_backup_targets.py` → 9 passed.
+- Live auf `srv1.beagle-os.com`: LocalBackupTarget verwendet, Backup erfolgreich (`BACKUP_RESTORE_SMOKE=PASS` Teil 1).
 
 Mehrere Backup-Targets ermöglichen das 3-2-1-Backup-Prinzip: 3 Kopien, 2 verschiedene
 Medien, 1 offsite. Der `LocalBackupTarget` speichert direkt auf dem Host-Dateisystem.
@@ -106,8 +120,21 @@ Backup-Daten auf S3 ist Pflicht (AES-256 client-side). Die Target-Konfiguration
 
 ### Schritt 4 — Live-Restore implementieren
 
-- [ ] API: `POST /api/v1/backups/{snapshot_id}/restore` mit Ziel-VM oder neuer VM.
-- [ ] Web Console: Restore-Dialog in der VM-Detailansicht.
+- [x] API: `POST /api/v1/backups/{snapshot_id}/restore` mit Ziel-VM oder neuer VM.
+- [x] Web Console: Restore-Dialog in der VM-Detailansicht.
+
+Umsetzung (2026-04-23):
+
+- API: `POST /api/v1/backups/{job_id}/restore` — extrahiert tar.gz-Archiv nach `/var/restores/beagle/{job_id}`, gibt `{ok, restored_to, files_count}` zurück.
+- `backup_service.py`: `restore_snapshot(job_id, restore_path=None)`, `_find_job()`, `_find_policy_for_job()`, `_resolve_archive_local()` (S3-Download in tmpdir).
+- Web Console: Restore-Dialog (`<dialog>`), Restore-Button pro Job in Tabelle, `openRestoreModal()`, `initRestoreModal()`.
+- RBAC: `POST /backups/{uuid}/restore` → `settings:write`.
+- systemd: `/var/restores/beagle` in `ReadWritePaths` ergänzt (war sonst `EROFS` durch `ProtectSystem=strict`).
+- `/var/backups/beagle` ebenfalls in `ReadWritePaths` ergänzt.
+
+Validierung (2026-04-23):
+
+- `RESTORE=PASS` im Live-Smoke auf `srv1.beagle-os.com`. 13 Dateien erfolgreich restoriert.
 
 Live-Restore bedeutet dass eine VM aus einem Backup wiederhergestellt wird mit minimaler
 Downtime. Der Restore-Prozess: VM stoppen (falls laufend), Disk-Image aus Backup
@@ -121,8 +148,21 @@ bleibt die ursprüngliche VM unverändert (atomarer Restore).
 
 ### Schritt 5 — Single-File-Restore über guestfs-Mount
 
-- [ ] `backup_service.py` bekommt `mount_snapshot`-Methode: Snapshot als virtuelles Dateisystem mounten.
-- [ ] Web Console: File-Browser im Snapshot-Context (read-only).
+- [x] `backup_service.py` bekommt `mount_snapshot`-Methode: Snapshot als virtuelles Dateisystem mounten.
+- [x] Web Console: File-Browser im Snapshot-Context (read-only).
+
+Umsetzung (2026-04-23):
+
+- Implementiert als tar-File-Browser (kein guestfs, da tar-Archive das primäre Format sind).
+- API: `GET /api/v1/backups/{job_id}/files` → Dateilisting aus tar.gz (`tar --list --verbose`).
+- API: `GET /api/v1/backups/{job_id}/files?path=foo` → einzelne Datei aus tar lesen (path-traversal-geschützt: kein `..`, kein `/`-Präfix).
+- `backup_service.py`: `list_snapshot_files(job_id)`, `read_snapshot_file(job_id, file_path)`.
+- Web Console: File-Browser-Modal (`<dialog>`), Download-Links pro Datei.
+
+Validierung (2026-04-23):
+
+- `FILES_LIST=PASS` im Live-Smoke auf `srv1.beagle-os.com`.
+- Path-traversal-Tests: `../etc/passwd` und `/etc/passwd` korrekt abgelehnt.
 
 Single-File-Restore ist für den häufigen Anwendungsfall "Nutzer hat versehentlich
 eine Datei gelöscht" gedacht und gespart einen vollständigen VM-Restore. `libguestfs`
@@ -136,8 +176,22 @@ begrenzt (maximale Mount-Dauer konfigurierbar, Default 30 Minuten).
 
 ### Schritt 6 — Cross-Site-Replication
 
-- [ ] `backup_service.py` bekommt `replicate_to_remote`-Methode: Backup-Replikation auf entfernten Beagle-Cluster.
-- [ ] Konfiguration: Remote-Cluster-URL, API-Key, Replikations-Policy.
+- [x] `backup_service.py` bekommt `replicate_to_remote`-Methode: Backup-Replikation auf entfernten Beagle-Cluster.
+- [x] Konfiguration: Remote-Cluster-URL, API-Key, Replikations-Policy.
+
+Umsetzung (2026-04-23):
+
+- `backup_service.py`: `get_replication_config()`, `update_replication_config(payload)`, `replicate_to_remote(job_id)`, `ingest_replicated_backup(archive_bytes, meta)`.
+- API: `GET /PUT /api/v1/backups/replication/config`, `POST /api/v1/backups/{job_id}/replicate`, `POST /api/v1/backups/ingest`.
+- Sicherheit: `api_token` nur write-only — `get_replication_config()` gibt `api_token_set: bool` zurück, nie den Token selbst.
+- `update_replication_config` validiert: `remote_url` muss mit `http://` oder `https://` beginnen.
+- Web Console: Replication-Card mit `enabled`, `remote_url`, `api_token`, `auto_replicate`, Buttons für Speichern und manuellen Replikations-Anstoß.
+- RBAC: replication-Routen auf `settings:read`/`settings:write` gemappt.
+
+Validierung (2026-04-23):
+
+- `REPLICATION_CONFIG=PASS` und `REPLICATION_CONFIG_UPDATE=PASS` im Live-Smoke auf `srv1.beagle-os.com`.
+- `BACKUP_RESTORE_SMOKE=PASS` (vollständiger Smoke mit allen 5 Checks).
 
 Cross-Site-Replication ist die Grundlage für Disaster Recovery. Nach einem lokalen
 Backup wird ein Satz von Snapshots asynchron auf einen Remote-Beagle-Cluster übertragen.

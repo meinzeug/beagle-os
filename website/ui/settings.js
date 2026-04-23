@@ -318,16 +318,22 @@ function renderBackupJobs(jobs) {
     return;
   }
   if (!Array.isArray(jobs) || !jobs.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-cell">Keine Backup-Jobs vorhanden.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-cell">Keine Backup-Jobs vorhanden.</td></tr>';
     return;
   }
   tbody.innerHTML = jobs.map((job) => {
+    const jid = escapeHtml(String(job.job_id || ''));
+    const actions = job.status === 'success'
+      ? '<button class="button ghost small" onclick="openRestoreModal(\'' + jid + '\')" type="button">Restore</button> ' +
+        '<button class="button ghost small" onclick="openFileBrowser(\'' + jid + '\')" type="button">Dateien</button>'
+      : '';
     return '<tr>' +
-      '<td><code>' + escapeHtml(String(job.job_id || '')) + '</code></td>' +
+      '<td><code>' + jid + '</code></td>' +
       '<td>' + escapeHtml(String(job.status || '')) + '</td>' +
       '<td>' + escapeHtml(String(job.created_at || '')) + '</td>' +
       '<td>' + escapeHtml(String(job.finished_at || '')) + '</td>' +
       '<td>' + escapeHtml(String(job.archive || job.error || '')) + '</td>' +
+      '<td>' + actions + '</td>' +
     '</tr>';
   }).join('');
 }
@@ -353,11 +359,28 @@ export function loadSettingsBackup() {
     if (qs('bak-schedule')) { qs('bak-schedule').value = data.schedule || 'daily'; }
     if (qs('bak-retention')) { qs('bak-retention').value = data.retention_days || 7; }
     if (qs('bak-target')) { qs('bak-target').value = data.target_path || '/var/backups/beagle'; }
+    const targetType = data.target_type || 'local';
+    if (qs('bak-target-type')) { qs('bak-target-type').value = targetType; }
+    updateBackupTargetFields(targetType);
+    if (qs('bak-nfs-mount')) { qs('bak-nfs-mount').value = data.nfs_mount_point || ''; }
+    if (qs('bak-s3-bucket')) { qs('bak-s3-bucket').value = data.s3_bucket || ''; }
+    if (qs('bak-s3-prefix')) { qs('bak-s3-prefix').value = data.s3_prefix || 'beagle-backup/'; }
+    if (qs('bak-s3-endpoint')) { qs('bak-s3-endpoint').value = data.s3_endpoint_url || ''; }
+    if (qs('bak-s3-key')) { qs('bak-s3-key').value = data.s3_access_key || ''; }
     text('bak-last-run', data.last_backup || '(noch nie)');
     return loadBackupJobs(scope);
   }).catch((error) => {
     settingsHooks.setBanner('Backup laden fehlgeschlagen: ' + error.message, 'warn');
   });
+}
+
+function updateBackupTargetFields(targetType) {
+  const localDiv = document.getElementById('bak-target-local');
+  const nfsDiv = document.getElementById('bak-target-nfs');
+  const s3Div = document.getElementById('bak-target-s3');
+  if (localDiv) { localDiv.style.display = targetType === 'local' ? '' : 'none'; }
+  if (nfsDiv) { nfsDiv.style.display = targetType === 'nfs' ? '' : 'none'; }
+  if (s3Div) { s3Div.style.display = targetType === 's3' ? '' : 'none'; }
 }
 
 export function saveSettingsBackup() {
@@ -366,11 +389,20 @@ export function saveSettingsBackup() {
     settingsHooks.setBanner('Backup-Scope ungueltig: Typ und ID setzen.', 'warn');
     return Promise.resolve();
   }
+  const targetType = qs('bak-target-type') ? qs('bak-target-type').value : 'local';
   const payload = {
     enabled: Boolean(qs('bak-enabled') && qs('bak-enabled').checked),
     schedule: String(qs('bak-schedule') ? qs('bak-schedule').value : 'daily'),
     retention_days: Number(qs('bak-retention') ? qs('bak-retention').value : 7),
-    target_path: String(qs('bak-target') ? qs('bak-target').value : '').trim()
+    target_type: targetType,
+    target_path: String(qs('bak-target') ? qs('bak-target').value : '').trim(),
+    nfs_mount_point: String(qs('bak-nfs-mount') ? qs('bak-nfs-mount').value : '').trim(),
+    s3_bucket: String(qs('bak-s3-bucket') ? qs('bak-s3-bucket').value : '').trim(),
+    s3_prefix: String(qs('bak-s3-prefix') ? qs('bak-s3-prefix').value : 'beagle-backup/').trim(),
+    s3_endpoint_url: String(qs('bak-s3-endpoint') ? qs('bak-s3-endpoint').value : '').trim(),
+    s3_access_key: String(qs('bak-s3-key') ? qs('bak-s3-key').value : '').trim(),
+    s3_secret_key: String(qs('bak-s3-secret') ? qs('bak-s3-secret').value : '').trim(),
+    s3_encryption_key: String(qs('bak-s3-enc') ? qs('bak-s3-enc').value : '').trim(),
   };
   return request(backupPolicyPath(scope), {
     method: 'PUT',
@@ -412,6 +444,151 @@ export function runBackupNow() {
   }).catch((error) => {
     settingsHooks.setBanner('Backup-Fehler: ' + error.message, 'warn');
   });
+}
+
+// ---------- Restore Modal (Schritt 4) ----------
+
+window.openRestoreModal = function(jobId) {
+  const modal = document.getElementById('bak-restore-modal');
+  if (!modal) { return; }
+  document.getElementById('bak-restore-job-id').value = jobId;
+  document.getElementById('bak-restore-job-label').textContent = jobId;
+  document.getElementById('bak-restore-path').value = '';
+  document.getElementById('bak-restore-result').innerHTML = '';
+  modal.showModal ? modal.showModal() : (modal.open = true);
+};
+
+function initRestoreModal() {
+  const confirmBtn = document.getElementById('bak-restore-confirm');
+  const cancelBtn = document.getElementById('bak-restore-cancel');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      const modal = document.getElementById('bak-restore-modal');
+      if (modal) { modal.close ? modal.close() : (modal.open = false); }
+    });
+  }
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', () => {
+      const jobId = document.getElementById('bak-restore-job-id').value;
+      const restorePath = document.getElementById('bak-restore-path').value.trim();
+      const resultDiv = document.getElementById('bak-restore-result');
+      resultDiv.textContent = 'Wiederherstellen…';
+      request('/backups/' + encodeURIComponent(jobId) + '/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(restorePath ? { restore_path: restorePath } : {})
+      }).then((data) => {
+        if (data.ok) {
+          resultDiv.innerHTML = '<span style="color:green">Fertig: ' + escapeHtml(String(data.restored_to || '')) + ' (' + (data.files_count || 0) + ' Dateien)</span>';
+        } else {
+          resultDiv.innerHTML = '<span style="color:red">Fehler: ' + escapeHtml(String(data.error || 'Unbekannt')) + '</span>';
+        }
+      }).catch((err) => { resultDiv.innerHTML = '<span style="color:red">Fehler: ' + escapeHtml(err.message) + '</span>'; });
+    });
+  }
+}
+
+// ---------- File Browser Modal (Schritt 5) ----------
+
+window.openFileBrowser = function(jobId) {
+  const modal = document.getElementById('bak-files-modal');
+  const tbody = document.getElementById('bak-files-body');
+  if (!modal || !tbody) { return; }
+  tbody.innerHTML = '<tr><td colspan="4" class="empty-cell">Lade Dateien…</td></tr>';
+  modal.showModal ? modal.showModal() : (modal.open = true);
+  request('/backups/' + encodeURIComponent(jobId) + '/files').then((data) => {
+    if (!data.ok || !Array.isArray(data.files) || !data.files.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-cell">Keine Dateien gefunden.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.files.map((f) => {
+      const dlBtn = !f.is_dir
+        ? '<a class="button ghost small" href="/api/v1/backups/' + encodeURIComponent(jobId) + '/files?path=' + encodeURIComponent(f.path) + '" target="_blank" download>Download</a>'
+        : '';
+      return '<tr>' +
+        '<td><code>' + escapeHtml(String(f.path || '')) + '</code></td>' +
+        '<td>' + escapeHtml(String(f.size || 0)) + '</td>' +
+        '<td>' + (f.is_dir ? 'Dir' : 'Datei') + '</td>' +
+        '<td>' + dlBtn + '</td>' +
+        '</tr>';
+    }).join('');
+  }).catch((err) => {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-cell">Fehler: ' + escapeHtml(err.message) + '</td></tr>';
+  });
+};
+
+function initFileBrowserModal() {
+  const closeBtn = document.getElementById('bak-files-close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      const modal = document.getElementById('bak-files-modal');
+      if (modal) { modal.close ? modal.close() : (modal.open = false); }
+    });
+  }
+}
+
+// ---------- Replication (Schritt 6) ----------
+
+export function loadSettingsReplication() {
+  return request('/backups/replication/config').then((data) => {
+    if (qs('repl-enabled')) { qs('repl-enabled').checked = Boolean(data.enabled); }
+    if (qs('repl-auto')) { qs('repl-auto').checked = Boolean(data.auto_replicate); }
+    if (qs('repl-url')) { qs('repl-url').value = data.remote_url || ''; }
+    const statusEl = document.getElementById('repl-status');
+    if (statusEl) {
+      statusEl.textContent = data.api_token_set ? 'API-Token gesetzt.' : 'Kein API-Token konfiguriert.';
+    }
+  }).catch((err) => {
+    settingsHooks.setBanner('Replikation laden fehlgeschlagen: ' + err.message, 'warn');
+  });
+}
+
+export function saveSettingsReplication() {
+  const payload = {
+    enabled: Boolean(qs('repl-enabled') && qs('repl-enabled').checked),
+    auto_replicate: Boolean(qs('repl-auto') && qs('repl-auto').checked),
+    remote_url: String(qs('repl-url') ? qs('repl-url').value : '').trim(),
+  };
+  const token = String(qs('repl-token') ? qs('repl-token').value : '').trim();
+  if (token) { payload.api_token = token; }
+  return request('/backups/replication/config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).then((data) => {
+    if (data.ok) {
+      settingsHooks.setBanner('Replikations-Einstellungen gespeichert.', 'info');
+      if (qs('repl-token')) { qs('repl-token').value = ''; }
+      loadSettingsReplication();
+    } else {
+      settingsHooks.setBanner('Replikation speichern fehlgeschlagen.', 'warn');
+    }
+  }).catch((err) => { settingsHooks.setBanner('Replikation-Fehler: ' + err.message, 'warn'); });
+}
+
+export function runReplicationNow() {
+  // Replicate the most recent successful job
+  const scope = backupScope();
+  request('/backups/jobs' + (scope ? '?scope_type=' + encodeURIComponent(scope.scopeType) + '&scope_id=' + encodeURIComponent(scope.scopeId) : '')).then((data) => {
+    const jobs = (data.jobs || []).filter((j) => j.status === 'success');
+    if (!jobs.length) {
+      settingsHooks.setBanner('Kein erfolgreicher Backup-Job vorhanden.', 'warn');
+      return;
+    }
+    const jobId = jobs[0].job_id;
+    settingsHooks.setBanner('Repliziere Job ' + escapeHtml(String(jobId)) + '…', 'info');
+    return request('/backups/' + encodeURIComponent(jobId) + '/replicate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    }).then((res) => {
+      if (res.ok) {
+        settingsHooks.setBanner('Replikation erfolgreich.', 'info');
+      } else {
+        settingsHooks.setBanner('Replikation fehlgeschlagen: ' + escapeHtml(String(res.error || 'Unbekannt')), 'warn');
+      }
+    });
+  }).catch((err) => { settingsHooks.setBanner('Replikation-Fehler: ' + err.message, 'warn'); });
 }
 
 function parseWebhookEvents(raw) {
@@ -597,6 +774,7 @@ export function loadSettingsForPanel(panel) {
       break;
     case 'settings_backup':
       loadSettingsBackup();
+      loadSettingsReplication();
       break;
     case 'settings_webhooks':
       loadSettingsWebhooks();
@@ -693,12 +871,30 @@ export function bindSettingsEvents() {
   if (qs('bak-scope-id')) {
     qs('bak-scope-id').addEventListener('change', loadSettingsBackup);
   }
+  if (qs('bak-target-type')) {
+    qs('bak-target-type').addEventListener('change', () => {
+      updateBackupTargetFields(qs('bak-target-type').value);
+    });
+  }
   if (qs('settings-backup-save')) {
     qs('settings-backup-save').addEventListener('click', saveSettingsBackup);
   }
   if (qs('settings-backup-run')) {
     qs('settings-backup-run').addEventListener('click', runBackupNow);
   }
+  // Replication
+  if (qs('settings-replication-refresh')) {
+    qs('settings-replication-refresh').addEventListener('click', loadSettingsReplication);
+  }
+  if (qs('settings-replication-save')) {
+    qs('settings-replication-save').addEventListener('click', saveSettingsReplication);
+  }
+  if (qs('settings-replication-run')) {
+    qs('settings-replication-run').addEventListener('click', runReplicationNow);
+  }
+  // Restore + File Browser modals
+  initRestoreModal();
+  initFileBrowserModal();
   if (qs('settings-webhooks-refresh')) {
     qs('settings-webhooks-refresh').addEventListener('click', loadSettingsWebhooks);
   }

@@ -4256,6 +4256,43 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.OK, {"ok": True, "jobs": jobs})
             return
 
+        if path == "/api/v1/backups/snapshots":
+            if not self._authorize_or_respond("GET", path):
+                return
+            scope_type = str(query.get("scope_type", [""])[0] or "").strip().lower()
+            scope_id = str(query.get("scope_id", [""])[0] or "").strip()
+            snapshots = backup_service().list_snapshots(scope_type=scope_type, scope_id=scope_id)
+            self._write_json(HTTPStatus.OK, {"ok": True, "snapshots": snapshots})
+            return
+
+        backup_snapshot_files_match = re.match(r"^/api/v1/backups/(?P<job_id>[0-9a-f-]{36})/files$", path)
+        if backup_snapshot_files_match is not None:
+            if not self._authorize_or_respond("GET", path):
+                return
+            job_id = backup_snapshot_files_match.group("job_id")
+            file_path = str(query.get("path", [""])[0] or "").strip()
+            if file_path:
+                try:
+                    data = backup_service().read_snapshot_file(job_id, file_path)
+                except (ValueError, FileNotFoundError) as exc:
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                    return
+                self._write_bytes(HTTPStatus.OK, data, content_type="application/octet-stream", filename=file_path.split("/")[-1] or "file")
+            else:
+                try:
+                    result = backup_service().list_snapshot_files(job_id)
+                except ValueError as exc:
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                    return
+                self._write_json(HTTPStatus.OK, result)
+            return
+
+        if path == "/api/v1/backups/replication/config":
+            if not self._authorize_or_respond("GET", path):
+                return
+            self._write_json(HTTPStatus.OK, {"ok": True, **backup_service().get_replication_config()})
+            return
+
         # --- VDI Pool & Template GET routes ---
         if path == "/api/v1/sessions":
             if not self._authorize_or_respond("GET", path):
@@ -4447,6 +4484,85 @@ class Handler(BaseHTTPRequestHandler):
                 username=self._requester_identity(),
             )
             self._write_json(HTTPStatus.OK if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR, result)
+            return
+
+        backup_restore_match = re.match(r"^/api/v1/backups/(?P<job_id>[0-9a-f-]{36})/restore$", path)
+        if backup_restore_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            job_id = backup_restore_match.group("job_id")
+            body = self._read_json_body()
+            restore_path = str(body.get("restore_path") or "").strip() or None
+            try:
+                result = backup_service().restore_snapshot(job_id, restore_path=restore_path)
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event(
+                "backup.restore",
+                "success" if result.get("ok") else "error",
+                job_id=job_id,
+                restore_path=str(result.get("restored_to") or ""),
+                username=self._requester_identity(),
+            )
+            self._write_json(HTTPStatus.OK if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR, result)
+            return
+
+        backup_replicate_match = re.match(r"^/api/v1/backups/(?P<job_id>[0-9a-f-]{36})/replicate$", path)
+        if backup_replicate_match is not None:
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            job_id = backup_replicate_match.group("job_id")
+            try:
+                result = backup_service().replicate_to_remote(job_id)
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event(
+                "backup.replicate",
+                "success" if result.get("ok") else "error",
+                job_id=job_id,
+                username=self._requester_identity(),
+            )
+            self._write_json(HTTPStatus.OK if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR, result)
+            return
+
+        if path == "/api/v1/backups/ingest":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            content_length = int(self.headers.get("Content-Length") or 0)
+            if content_length <= 0 or content_length > 10 * 1024 * 1024 * 1024:  # max 10 GB
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid Content-Length"})
+                return
+            archive_bytes = self.rfile.read(content_length)
+            meta_raw = str(self.headers.get("X-Beagle-Backup-Meta") or "{}").strip()
+            try:
+                import json as _json  # noqa: PLC0415
+                meta = _json.loads(meta_raw)
+            except Exception:
+                meta = {}
+            try:
+                result = backup_service().ingest_replicated_backup(archive_bytes=archive_bytes, meta=meta)
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event(
+                "backup.ingest",
+                "success",
+                job_id=str(result.get("job_id") or ""),
+                origin_job_id=str(meta.get("job_id") or ""),
+                username=self._requester_identity(),
+            )
+            self._write_json(HTTPStatus.OK, result)
             return
 
         if path == "/api/v1/ha/reconcile-failed-node":
@@ -5514,6 +5630,19 @@ class Handler(BaseHTTPRequestHandler):
                 scope_id=str(vmid),
                 username=self._requester_identity(),
             )
+            self._write_json(HTTPStatus.OK, {"ok": True, **result})
+            return
+
+        if path == "/api/v1/backups/replication/config":
+            if not self._authorize_or_respond("PUT", path):
+                return
+            payload = self._read_json_body()
+            try:
+                result = backup_service().update_replication_config(payload)
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event("backup.replication.config.update", "success", username=self._requester_identity())
             self._write_json(HTTPStatus.OK, {"ok": True, **result})
             return
 

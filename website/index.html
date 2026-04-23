@@ -1542,7 +1542,27 @@
                   </select>
                 </label>
                 <label class="field field-narrow"><span>Aufbewahrung (Tage)</span><input id="bak-retention" type="number" min="1" max="365" value="7"></label>
-                <label class="field field-wide"><span>Zielpfad</span><input id="bak-target" type="text" placeholder="/var/backups/beagle"></label>
+                <label class="field"><span>Ziel-Backend</span>
+                  <select id="bak-target-type" class="input-select">
+                    <option value="local" selected>Lokal</option>
+                    <option value="nfs">NFS</option>
+                    <option value="s3">S3-kompatibel</option>
+                  </select>
+                </label>
+                <div id="bak-target-local">
+                  <label class="field field-wide"><span>Zielpfad</span><input id="bak-target" type="text" placeholder="/var/backups/beagle"></label>
+                </div>
+                <div id="bak-target-nfs" style="display:none">
+                  <label class="field field-wide"><span>NFS-Einhängepunkt</span><input id="bak-nfs-mount" type="text" placeholder="/mnt/beagle-backup"></label>
+                </div>
+                <div id="bak-target-s3" style="display:none">
+                  <label class="field field-wide"><span>S3 Bucket</span><input id="bak-s3-bucket" type="text" placeholder="my-beagle-backups"></label>
+                  <label class="field field-wide"><span>S3 Prefix</span><input id="bak-s3-prefix" type="text" placeholder="beagle-backup/"></label>
+                  <label class="field field-wide"><span>S3 Endpoint-URL</span><input id="bak-s3-endpoint" type="text" placeholder="https://s3.amazonaws.com (leer = AWS)"></label>
+                  <label class="field field-wide"><span>S3 Access Key</span><input id="bak-s3-key" type="text"></label>
+                  <label class="field field-wide"><span>S3 Secret Key</span><input id="bak-s3-secret" type="password" autocomplete="new-password"></label>
+                  <label class="field field-wide"><span>Verschlüsselungs-Key (64 Hex-Zeichen, AES-256)</span><input id="bak-s3-enc" type="password" autocomplete="new-password" placeholder="optional"></label>
+                </div>
                 <div class="settings-info-grid">
                   <div class="info-item"><span class="info-label">Letztes Backup</span><span class="info-value" id="bak-last-run">—</span></div>
                 </div>
@@ -1559,15 +1579,78 @@
                         <th>Start</th>
                         <th>Ende</th>
                         <th>Ergebnis</th>
+                        <th>Aktionen</th>
                       </tr>
                     </thead>
                     <tbody id="bak-jobs-body">
-                      <tr><td colspan="5" class="empty-cell">Keine Backup-Jobs vorhanden.</td></tr>
+                      <tr><td colspan="6" class="empty-cell">Keine Backup-Jobs vorhanden.</td></tr>
                     </tbody>
                   </table>
                 </div>
               </div>
             </article>
+
+            <!-- Replication Card -->
+            <article class="card" style="margin-top:1.5rem">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Server-Einstellungen</span>
+                  <h2>Cross-Site-Replikation</h2>
+                </div>
+                <button class="button ghost small" id="settings-replication-refresh" type="button">Refresh</button>
+              </div>
+              <div class="settings-form" id="settings-replication-form">
+                <label class="check-label check-label-padded">
+                  <input id="repl-enabled" type="checkbox">
+                  <span>Replikation aktiviert</span>
+                </label>
+                <label class="check-label check-label-padded">
+                  <input id="repl-auto" type="checkbox">
+                  <span>Nach jedem Backup automatisch replizieren</span>
+                </label>
+                <label class="field field-wide"><span>Remote-URL</span><input id="repl-url" type="text" placeholder="https://remote-beagle.example.com"></label>
+                <label class="field field-wide"><span>API-Token (write-only)</span><input id="repl-token" type="password" autocomplete="new-password" placeholder="Leer lassen um bestehenden Token zu behalten"></label>
+                <div class="button-row">
+                  <button class="button primary" id="settings-replication-save" type="button">Speichern</button>
+                  <button class="button ghost" id="settings-replication-run" type="button">Letzten Job jetzt replizieren</button>
+                </div>
+                <div id="repl-status" class="info-item" style="margin-top:.5rem"></div>
+              </div>
+            </article>
+
+            <!-- Restore Modal -->
+            <dialog id="bak-restore-modal" class="modal">
+              <article class="card" style="min-width:420px">
+                <div class="card-head"><h3>Backup Wiederherstellen</h3></div>
+                <div class="settings-form">
+                  <input type="hidden" id="bak-restore-job-id">
+                  <p class="hint">Job: <span id="bak-restore-job-label"></span></p>
+                  <label class="field field-wide"><span>Zielpfad (leer = sicheres Temp-Verzeichnis)</span><input id="bak-restore-path" type="text" placeholder="/var/restores/beagle/..."></label>
+                  <div class="button-row">
+                    <button class="button primary" id="bak-restore-confirm" type="button">Wiederherstellen</button>
+                    <button class="button ghost" id="bak-restore-cancel" type="button">Abbrechen</button>
+                  </div>
+                  <div id="bak-restore-result" style="margin-top:.5rem"></div>
+                </div>
+              </article>
+            </dialog>
+
+            <!-- File Browser Modal -->
+            <dialog id="bak-files-modal" class="modal">
+              <article class="card" style="min-width:520px;max-width:80vw">
+                <div class="card-head">
+                  <h3>Snapshot-Dateien</h3>
+                  <button class="button ghost small" id="bak-files-close" type="button">Schließen</button>
+                </div>
+                <div class="table-card" style="max-height:60vh;overflow-y:auto">
+                  <table class="table" aria-label="Snapshot-Dateien">
+                    <thead><tr><th>Pfad</th><th>Größe</th><th>Typ</th><th>Download</th></tr></thead>
+                    <tbody id="bak-files-body"><tr><td colspan="4" class="empty-cell">Lade Dateien…</td></tr></tbody>
+                  </table>
+                </div>
+              </article>
+            </dialog>
+
           </section>
 
           <!-- ============ SETTINGS: WEBHOOKS ============ -->

@@ -1,6 +1,16 @@
 # Progress (2026-04-18)
 
-## Update (2026-04-23, GoFuture Plan 16 Schritt 2 abgeschlossen)
+## Update (2026-04-23, GoFuture Plan 16 Schritt 3-6 abgeschlossen)
+
+- `core/backup_target.py`: BackupTarget Protocol + `make_target()` Factory.
+- `core/backup_targets/`: LocalBackupTarget, NfsBackupTarget, S3BackupTarget (AES-256-GCM).
+- `backup_service.py`: Erweiterung um Snapshots-Listing, Restore, File-Browse, Replication.
+- Control-Plane: 6 neue API-Routen (GET snapshots/files/replication, POST restore/replicate/ingest, PUT replication).
+- RBAC: alle neuen Routen auf `settings:read|write` gemappt.
+- Web Console: BackupTarget-Typ-Auswahl, Restore-Modal, File-Browser-Modal, Replication-Card.
+- systemd: `/var/backups/beagle` und `/var/restores/beagle` in `ReadWritePaths` ergaenzt (notwendig wg. `ProtectSystem=strict`).
+- 32 Unit-Tests: alle gruen.
+- Live auf `srv1.beagle-os.com`: `BACKUP_RESTORE_SMOKE=PASS` (5 von 5 Checks).
 
 - `beagle-host/services/backup_service.py` als neuer Backup-Service eingefuehrt (Policy pro Pool/VM, Job-Historie, `run_backup_now`, `run_scheduled_backups`).
 - Control-Plane um Backup-Policy/Run/Jobs-Endpunkte erweitert und Background-Scheduler verdrahtet.
