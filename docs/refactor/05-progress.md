@@ -1,5 +1,25 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 08 Testpflicht erweitert + reproduzierbare Smokes)
+
+- Neuer Directory-Storage Live-Smoke `scripts/test-storage-directory-smoke.sh` hinzugefuegt und auf `srv1.beagle-os.com` erfolgreich ausgefuehrt:
+	- VM (qcow2 auf Directory) angelegt und gestartet,
+	- Snapshot erstellt,
+	- Snapshot wiederhergestellt,
+	- `STORAGE_DIRECTORY_SMOKE=PASS`.
+- Neuer ZFS-Storage Live-Smoke `scripts/test-storage-zfs-smoke.sh` hinzugefuegt und auf `srv1.beagle-os.com` erfolgreich ausgefuehrt:
+	- temporaerer ZFS-Pool (Loopback) erstellt,
+	- VM mit zvol-Disk gestartet,
+	- Snapshot + Clone erstellt,
+	- `STORAGE_ZFS_SMOKE=PASS`.
+- `docs/gofuture/08-storage-plane.md` aktualisiert: Testpflicht-Checkboxen fuer Directory und ZFS auf `[x]` gesetzt.
+
+## Update (2026-04-23, GoFuture Plan 15 S3-MinIO-Nachweis gehaertet)
+
+- Runtime-Dependency-Fix im Installer: `scripts/install-beagle-host-services.sh` installiert jetzt `python3-boto3`, damit S3-Audit-Export auf frischen Hosts reproduzierbar funktioniert.
+- Audit-Compliance-Live-Smoke `scripts/test-audit-compliance-live-smoke.sh` aktualisiert (stabilerer Objekt-Nachweis im MinIO-Listing).
+- Live-Nachweis auf `srv1.beagle-os.com`: `AUDIT_COMPLIANCE_SMOKE=PASS` inklusive S3-Objekt im MinIO-Bucket.
+
 ## Update (2026-04-23, GoFuture Plan 14 Schritt 3: Recording-Storage + Retention abgeschlossen)
 
 - `recording_retention_days` im Pool-Contract und Pool-Runtime eingefuehrt:

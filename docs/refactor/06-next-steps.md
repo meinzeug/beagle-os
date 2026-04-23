@@ -1,5 +1,19 @@
 # Next Steps
 
+## Delta (2026-04-23 nach Abschluss Plan 08 Testpflicht Directory+ZFS)
+
+0. **Plan 08 verbleibende Testpflicht abschliessen (NFS + Migration)**:
+	- NFS-Backend-Live-Nachweis benoetigt konfiguriertes NFS (`exportfs`/`showmount`) plus zweiten erreichbaren Cluster-Host,
+	- danach offenen NFS-Checkboxpunkt in `docs/gofuture/08-storage-plane.md` schliessen.
+
+0. **Plan 07 verbleibende Live-Migration-Testpflicht**:
+	- echter Host-A→Host-B Nachweis bleibt offen bis zweiter libvirt-Host von `srv1` aus erreichbar ist,
+	- nach Bereitstellung: `POST /api/v1/vms/{vmid}/migrate` End-to-End mit laufender VM validieren und Checkbox setzen.
+
+0. **Plan 11 verbleibende Streaming-v2 Testpflicht**:
+	- Linux 4K@60 ohne Artefakte und Auto-Pairing End-to-End auf Runtime reproduzierbar abschliessen,
+	- Windows/Apollo-Vergleich nur bei verfuegbarer Windows-Guest-Umgebung weiterziehen.
+
 ## Delta (2026-04-23 nach Abschluss von Plan 14 Schritt 1: session_recording Policy)
 
 0. **Plan 14 offene Testpflicht priorisieren**:

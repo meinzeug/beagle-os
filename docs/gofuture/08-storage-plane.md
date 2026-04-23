@@ -137,7 +137,7 @@ Administratoren können Quotas per API oder Web Console setzen und ändern.
 ## Testpflicht nach Abschluss
 
 - [x] VM mit Directory-Backend anlegen, starten, Snapshot erstellen, Snapshot wiederherstellen.
-- [ ] VM mit ZFS-Backend: Snapshot und Clone erfolgreich.
+- [x] VM mit ZFS-Backend: Snapshot und Clone erfolgreich.
 - [ ] NFS-Backend: VM auf gemountet-NFS starten, Live-Migration auf zweiten Knoten.
 - [x] Quota-Ueberschreitung gibt korrekten Fehler zurueck.
 
@@ -154,4 +154,11 @@ Validierung (2026-04-23, srv1.beagle-os.com):
 	- Snapshot erfolgreich erstellt,
 	- Snapshot erfolgreich wiederhergestellt,
 	- Exit-Code `0`.
-- Offene Folgechecks (ZFS/NFS) aktuell infra-seitig blockiert auf `srv1`: `zfs`, `zpool`, `exportfs`, `showmount` nicht installiert/konfiguriert; fuer NFS-Live-Migration ist zusaetzlich ein zweiter erreichbarer Cluster-Host erforderlich.
+- ZFS-Live-Smoke auf `srv1.beagle-os.com` ergaenzt: `scripts/test-storage-zfs-smoke.sh`.
+- Ergebnis: `STORAGE_ZFS_SMOKE=PASS` mit folgenden Checks:
+	- temporaerer ZFS-Pool auf Loopback-Device erstellt,
+	- VM mit ZFS-zvol Disk angelegt und gestartet,
+	- ZFS-Snapshot erstellt,
+	- ZFS-Clone erstellt,
+	- Exit-Code `0`.
+- Offener Folgecheck (NFS) bleibt infra-seitig blockiert auf `srv1`: `exportfs`/`showmount` sind nicht konfiguriert und fuer den Live-Migrationsteil ist zusaetzlich ein zweiter erreichbarer Cluster-Host erforderlich.

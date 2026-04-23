@@ -210,3 +210,8 @@ Validierung 2026-04-23 auf `srv1`:
 - Cluster-Inventory zeigt alle Knoten inkl. Cluster-Member-Merge (`node_count=3`: `beagle-0`, `srv1`, `node-b`).
 - Nach Kill von `node-b` wird der Knoten im ersten Poll als `unreachable` markiert (`node_unreachable_count=1`).
 - Live-Migration bleibt offen, da in der aktuellen Testumgebung kein zweiter echter libvirt-Host für End-to-End-Migration vorhanden ist.
+
+Validierung (2026-04-23, erneuter Check auf `srv1.beagle-os.com`):
+- `GET /api/v1/cluster/nodes` liefert `srv1` und `beagle-0` als online, aber keinen erreichbaren zweiten Migrations-Host.
+- Nicht-lokale Knotennamen sind aus `srv1` weder per DNS noch per SSH erreichbar (`resolved=false`, `ssh=false`).
+- Damit bleibt ein echter Host-A→Host-B Live-Migrationsnachweis weiterhin offen.
