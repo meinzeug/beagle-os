@@ -110,8 +110,28 @@ als `status: unknown` markiert. Die Web Console kann dann einen Knoten-Filter an
 
 ### Schritt 4 — Live-Migration implementieren
 
-- [ ] `beagle-host/services/migration_service.py` anlegen mit libvirt-managed Live-Migration.
-- [ ] Web Console bekommt "VM verschieben"-Button in der Detailansicht.
+ [x] `beagle-host/services/migration_service.py` anlegen mit libvirt-managed Live-Migration.
+ [x] Web Console bekommt "VM verschieben"-Button in der Detailansicht.
+
+ Umsetzung 2026-04-23:
+ - Neues Service-Modul `beagle-host/services/migration_service.py` eingefuehrt:
+ 	- prueft Zielknoten gegen das aggregierte Cluster-Inventory,
+ 	- blockiert Self-Migration und Offline-Ziele,
+ 	- baut libvirt-managed Migrationsaufrufe fuer Live-Migration/Copy-Storage reproduzierbar auf.
+ - Mutation-Surface erweitert:
+ 	- neuer Route-Handler `POST /api/v1/vms/{vmid}/migrate` in `beagle-host/services/vm_mutation_surface.py`,
+ 	- RBAC-Mapping in `beagle-host/services/authz_policy.py` auf `vm:mutate`,
+ 	- Control-Plane-Wiring in `beagle-host/bin/beagle-control-plane.py` inkl. Node-Persistenz nach erfolgreicher Migration.
+ - Web Console erweitert:
+ 	- `website/main.js` zeigt fuer laufende VMs die Detailaktion `VM verschieben`,
+ 	- `website/ui/actions.js` ermittelt online Zielknoten aus dem Cluster-Overview, fragt bei mehreren Zielen nach und ruft die generische Migrationsroute auf.
+ - Tests und Smokes:
+ 	- neue Unit-Tests `tests/unit/test_migration_service.py` und `tests/unit/test_vm_mutation_surface.py`,
+ 	- neues Smoke-Skript `scripts/test-vm-migration-smoke.py` fuer den Servicepfad.
+ - Validierung:
+ 	- Lokal: `py_compile` OK, `6 passed`, `VM_MIGRATION_SMOKE=PASS`, `node --check` fuer `website/main.js` + `website/ui/actions.js` OK.
+ 	- Live `srv1.beagle-os.com`: dieselben Python-Tests/Smokes gruen, Host-Service neu installiert, ausgelieferte Assets enthalten Button/Route/Action.
+ 	- API-Live-Smoke auf `srv1`: `POST /api/v1/vms/999999/migrate` liefert JSON-`404 not_found` statt Missing-Path-HTML, die Route ist also runtime-seitig aktiv.
 
 Live-Migration überträgt den RAM-Zustand einer laufenden VM auf den Ziel-Knoten ohne
 sichtbaren Downtime (bei shared storage). Die libvirt-API `virDomainMigrate3` übernimmt
@@ -126,8 +146,26 @@ späterer Schritt vorgesehen.
 
 ### Schritt 5 — Cluster-Setup-Assistent im Server-Installer
 
-- [ ] Installer-Dialog: "Diesen Host einem Cluster beitreten?" (Ja/Nein).
-- [ ] Bei Ja: Join-Token oder IP des bestehenden Cluster-Leaders eingeben.
+ [x] Installer-Dialog: "Diesen Host einem Cluster beitreten?" (Ja/Nein).
+ [x] Bei Ja: Join-Token oder IP des bestehenden Cluster-Leaders eingeben.
+
+ Umsetzung 2026-04-23:
+ - Server-Installer-GUI erweitert:
+ 	- `beagle-server-installer-gui` fragt jetzt explizit `Soll dieser Host einem Cluster beitreten?`,
+ 	- bei `Yes` folgt ein Pflichtfeld fuer `Join-Token oder Leader-IP/URL`.
+ - Text-/Seriell-Fallback ebenfalls erweitert:
+ 	- `beagle-server-installer` stellt dieselbe Ja/Nein-Frage auch ohne curses-GUI,
+ 	- Join-Target wird validiert und darf bei aktiviertem Join nicht leer bleiben.
+ - Installer-Handoff durchgaengig verdrahtet:
+ 	- GUI-State traegt `BEAGLE_GUI_CLUSTER_JOIN` und `BEAGLE_GUI_CLUSTER_JOIN_TARGET`,
+ 	- Chroot-Install uebergibt die Werte an `scripts/install-beagle-host.sh`,
+ 	- Postinstall persistiert sie in `/etc/beagle/cluster-join.env` (0600) und markiert den Join-Wunsch in den Runtime-Env-Dateien.
+ - Security/Runtime:
+ 	- Join-Target wird bewusst nicht breit in `host.env` oder Proxy-Env repliziert, sondern in einer dedizierten Root-Datei gehalten.
+ 	- `beagle-manager.env` enthaelt nur Join-Flag plus Pfad zur Secret-Datei fuer spaetere Join-Orchestrierung.
+ - Validierung:
+ 	- Lokal: Python/Bash-Syntax gruen; Plain-Mode-Lauf schreibt `BEAGLE_GUI_CLUSTER_JOIN='yes'` und `BEAGLE_GUI_CLUSTER_JOIN_TARGET='10.0.0.15'` in die State-Datei.
+ 	- Live `srv1.beagle-os.com`: derselbe Syntax- und Plain-Mode-State-Test erfolgreich mit `leader.beagle-os.com` als Join-Ziel.
 
 Der Cluster-Join-Prozess muss für Betreiber ohne Kubernetes-Kenntnisse zugänglich sein.
 Ein einfacher Dialog im `beagle-server-installer`-Skript fragt ob der neue Host einem

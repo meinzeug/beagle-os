@@ -2,6 +2,24 @@
 
 Stand: 2026-04-19
 
+## S-016 - Cluster-Join-Ziel waere als Installer-Secret in breit konsumierten Env-Dateien geleakt
+
+- Status: mitigiert in Repo und auf `srv1.beagle-os.com`
+- Risiko: Mittel
+- Betroffene Dateien:
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer-gui`
+  - `scripts/install-beagle-host.sh`
+  - `scripts/install-beagle-host-postinstall.sh`
+  - `scripts/install-beagle-host-services.sh`
+- Beschreibung:
+  - Mit dem neuen Installer-Join-Dialog aus Plan 07 Schritt 5 muessen Join-Token oder Leader-Ziele durch den Installpfad transportiert werden.
+  - Wuerden diese Werte direkt in `host.env`, Proxy-Env oder andere breit gesourcte Runtime-Dateien geschrieben, waeren sie fuer mehr Prozesse/Operator-Pfade sichtbar als noetig.
+- Mitigation:
+  - Join-Daten werden jetzt in `/etc/beagle/cluster-join.env` mit Modus `0600` persistiert.
+  - Allgemeine Runtime-Env-Dateien enthalten nur `BEAGLE_CLUSTER_JOIN_REQUESTED` und den Pfad zur Secret-Datei, nicht das eigentliche Join-Ziel.
+  - Der Plain-Mode- und GUI-Installerpfad wurde lokal und auf `srv1.beagle-os.com` mit erfolgreicher State-Erzeugung verifiziert.
+
 ## S-015 - Restriktive VDI-Pools waren fuer beliebige `pool:read`-Principals sichtbar
 
 - Status: mitigiert in Repo und auf `srv1.beagle-os.com`

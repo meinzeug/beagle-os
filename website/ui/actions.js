@@ -30,6 +30,10 @@ export function executeAction(action, sourceButton) {
   if (!vmid) {
     return;
   }
+  const selectedVm = Array.isArray(state.inventory)
+    ? state.inventory.find((vm) => Number((vm && vm.vmid) || 0) === Number(vmid))
+    : null;
+  const selectedProfile = selectedVm && selectedVm.profile ? selectedVm.profile : (selectedVm || null);
   if (action === 'refresh-detail') {
     actionHooks.loadDetail(vmid);
     return;
@@ -157,6 +161,58 @@ export function executeAction(action, sourceButton) {
   if (action === 'vm-start' || action === 'vm-stop' || action === 'vm-reboot') {
     const powerAction = action === 'vm-start' ? 'start' : action === 'vm-stop' ? 'stop' : 'reboot';
     actionHooks.runVmPowerAction(vmid, powerAction);
+    return;
+  }
+  if (action === 'vm-migrate') {
+    const currentNode = String((selectedProfile && selectedProfile.node) || '').trim();
+    const nodes = state.virtualizationOverview && Array.isArray(state.virtualizationOverview.nodes)
+      ? state.virtualizationOverview.nodes
+      : [];
+    const targets = nodes
+      .map((node) => ({
+        name: String((node && (node.name || node.node)) || '').trim(),
+        status: String((node && node.status) || '').trim().toLowerCase()
+      }))
+      .filter((node) => node.name && node.name !== currentNode && node.status === 'online');
+    if (!targets.length) {
+      actionHooks.setBanner('Keine online Migration-Zielknoten verfuegbar.', 'warn');
+      return;
+    }
+    let targetNode = targets.length === 1 ? targets[0].name : '';
+    if (!targetNode) {
+      const suggestion = targets.map((node) => node.name).join(', ');
+      const answer = window.prompt('Zielknoten fuer VM ' + vmid + ' waehlen: ' + suggestion, targets[0].name);
+      targetNode = String(answer || '').trim();
+      if (!targetNode) {
+        return;
+      }
+    }
+    if (!targets.some((node) => node.name === targetNode)) {
+      actionHooks.setBanner('Ungueltiger Zielknoten: ' + targetNode, 'warn');
+      return;
+    }
+    actionHooks.requestConfirm({
+      title: 'VM ' + vmid + ' nach ' + targetNode + ' verschieben?',
+      message: 'Die laufende VM wird per Live-Migration auf den Zielknoten verschoben.',
+      confirmLabel: 'Verschieben',
+      danger: false
+    }).then((ok) => {
+      if (!ok) {
+        return;
+      }
+      runSingleFlight('vm-action:' + vmid + ':migrate:' + targetNode, () => {
+        actionHooks.setBanner('Live-Migration von VM ' + vmid + ' nach ' + targetNode + ' wird gestartet ...', 'info');
+        return postJson('/vms/' + vmid + '/migrate', { target_node: targetNode }).then(() => {
+          actionHooks.addToActivityLog('vm-migrate', vmid, 'ok', 'VM nach ' + targetNode + ' migriert');
+          return actionHooks.loadDashboard({ force: true }).then(() => actionHooks.loadDetail(vmid));
+        }).then(() => {
+          actionHooks.setBanner('VM ' + vmid + ' wurde nach ' + targetNode + ' verschoben.', 'ok');
+        }).catch((error) => {
+          actionHooks.addToActivityLog('vm-migrate', vmid, 'warn', error.message);
+          actionHooks.setBanner('VM-Migration fehlgeschlagen: ' + error.message, 'warn');
+        });
+      });
+    });
     return;
   }
   if (action === 'vm-delete') {

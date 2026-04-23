@@ -13,6 +13,15 @@
 	- Unit tests added: [tests/unit/test_beagle_host_provider_contract_extensions.py](tests/unit/test_beagle_host_provider_contract_extensions.py).
 	- Live deploy validation on `srv1.beagle-os.com` executed by direct provider smoke-run (`snapshot_vm`, `clone_vm`, `get_console_proxy`) after control-plane restart.
 
+- 2026-04-23 cluster migration slice (Plan 07 Schritt 4):
+	- Neue Live-Migration wurde bewusst **nicht** als sofortige Contract-Erweiterung ueber `HostProvider` eingefuehrt.
+	- `beagle-host/services/migration_service.py` arbeitet stattdessen ueber eng begrenzte Control-Plane-Callbacks fuer:
+		- VM-Lookup/Cluster-Inventory,
+		- libvirt-Migrationskommando,
+		- Node-Persistenz/Cache-Invalidierung.
+	- Grund: Im aktuellen Repo existiert bereits nur im Beagle-Pfad die noetige libvirt-Seam; eine uebereilte Contract-Erweiterung haette entweder Schein-Paritaet oder neue tote Proxmox-Flaechen erzeugt.
+	- Folge: HTTP/UI bleiben provider-neutral (`POST /api/v1/vms/{vmid}/migrate`), waehrend die konkrete libvirt-Migrationslogik lokal im Beagle-Hostpfad gekapselt bleibt.
+
 - 2026-04-20 VM pause-state fix follow-up:
 	- **Root cause:** VMs started via Beagle provisioning could remain in paused state (QEMU `-S` flag or equivalent), preventing OS boot and desktop startup.
 	- **Fix scope:** Issue is provider-independent, originating from external QEMU/Proxmox behavior during provisioning lifecycle (not from repo code).

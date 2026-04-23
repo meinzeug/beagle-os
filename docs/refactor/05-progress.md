@@ -1,5 +1,24 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 07 Schritt 4 + Schritt 5 abgeschlossen: VM-Migration + Installer-Join-Dialog)
+
+- Plan 07 Schritt 4 vollstaendig umgesetzt.
+- Neuer Migrationspfad:
+	- `beagle-host/services/migration_service.py` fuer libvirt-managed Live-Migration,
+	- `POST /api/v1/vms/{vmid}/migrate` in der VM-Mutation-Surface,
+	- RBAC-Mapping ueber `vm:mutate`,
+	- Detailaktion `VM verschieben` in der Web Console.
+- Reproduzierbare Validierung:
+	- Lokal: `py_compile` OK, `6 passed`, `VM_MIGRATION_SMOKE=PASS`, Frontend-Syntax OK.
+	- Live `srv1.beagle-os.com`: Tests + Smoke gruen, Host-Service neu installiert, Route live verifiziert (`JSON 404 not_found` auf Test-VM statt Missing-Path).
+- Plan 07 Schritt 5 ebenfalls abgeschlossen.
+- Server-Installer fragt jetzt sowohl im curses-TUI als auch im Plain-/Serial-Mode:
+	- ob der Host einem bestehenden Cluster beitreten soll,
+	- und bei `Ja` nach Join-Token oder Leader-IP/URL.
+- Join-Konfiguration wird sicher in `/etc/beagle/cluster-join.env` abgelegt; Runtime-Env bekommt nur Flag + Dateipfad statt Klartext-Ziel in breit konsumierten Env-Files.
+- Validierung:
+	- Lokal und auf `srv1.beagle-os.com` per Plain-Mode-Installerlauf mit erzeugter State-Datei verifiziert.
+
 ## Update (2026-04-23, GoFuture Plan 07 Schritt 2 + Schritt 3 Teil 2 abgeschlossen: Cluster mTLS-RPC + Node-Labels)
 
 - Plan 07 Schritt 2 vollstaendig umgesetzt.

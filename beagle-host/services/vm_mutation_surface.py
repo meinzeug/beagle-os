@@ -14,6 +14,7 @@ class VmMutationSurfaceService:
         find_vm: Callable[[int], Any | None],
         invalidate_vm_cache: Callable[[int | None, str], None],
         issue_sunshine_access_token: Callable[[Any], tuple[str, dict[str, Any]]],
+        migrate_vm: Callable[[int, str, bool, bool, str], dict[str, Any]],
         queue_vm_action: Callable[[Any, str, str, dict[str, Any] | None], dict[str, Any]],
         reboot_vm: Callable[[int], str],
         service_name: str,
@@ -33,6 +34,7 @@ class VmMutationSurfaceService:
         self._find_vm = find_vm
         self._invalidate_vm_cache = invalidate_vm_cache
         self._issue_sunshine_access_token = issue_sunshine_access_token
+        self._migrate_vm = migrate_vm
         self._queue_vm_action = queue_vm_action
         self._reboot_vm = reboot_vm
         self._service_name = str(service_name or "beagle-control-plane")
@@ -72,6 +74,7 @@ class VmMutationSurfaceService:
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/refresh"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/attach"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/detach"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/migrate"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/sunshine-access"))
             or (path.startswith("/api/v1/virtualization/vms/") and path.endswith("/power"))
         )
@@ -82,6 +85,7 @@ class VmMutationSurfaceService:
             (path.startswith("/api/v1/vms/") and path.endswith("/actions"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/attach"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/detach"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/migrate"))
             or (path.startswith("/api/v1/virtualization/vms/") and path.endswith("/power"))
         )
 
@@ -105,6 +109,31 @@ class VmMutationSurfaceService:
         json_payload: dict[str, Any] | None,
         requester_identity: str,
     ) -> dict[str, Any]:
+        if path.startswith("/api/v1/vms/") and path.endswith("/migrate"):
+            vm, error = self._vm_from_segment(path, -2)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            target_node = str(payload.get("target_node", "")).strip()
+            live = payload.get("live", True) is not False
+            copy_storage = payload.get("copy_storage", False) is True
+            if not target_node:
+                return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid payload: missing target_node"})
+            try:
+                migration = self._migrate_vm(int(vm.vmid), target_node, bool(live), bool(copy_storage), requester_identity)
+            except Exception as exc:
+                return self._json_response(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "ok": False,
+                        "error": f"vm migration failed: {exc}",
+                        "vmid": int(vm.vmid),
+                        "target_node": target_node,
+                    },
+                )
+            return self._json_response(HTTPStatus.ACCEPTED, {"ok": True, **migration})
+
         if path.startswith("/api/v1/virtualization/vms/") and path.endswith("/power"):
             vm, error = self._vm_from_segment(path, -2)
             if vm is None:

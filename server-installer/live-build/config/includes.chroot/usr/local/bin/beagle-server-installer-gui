@@ -470,6 +470,12 @@ def validate_username(v: str):
     return True, ""
 
 
+def validate_cluster_join_target(v: str):
+    if not v.strip():
+        return False, "Join-Token oder Leader-IP darf nicht leer sein"
+    return True, ""
+
+
 def write_state(state: dict) -> None:
     os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
     with open(STATE_FILE, "w", encoding="utf-8") as file_handle:
@@ -567,6 +573,16 @@ def plain_confirm_wipe(disk: str) -> bool:
     return answer == "YES"
 
 
+def plain_confirm_cluster_join() -> bool:
+    while True:
+        answer = input("Soll dieser Host einem Cluster beitreten? [no]: ").strip().lower() or "no"
+        if answer in {"y", "yes", "j", "ja"}:
+            return True
+        if answer in {"n", "no", "nein"}:
+            return False
+        print("Bitte yes oder no eingeben")
+
+
 def plain_main() -> dict:
     plain_banner()
     install_mode, mode_label = plain_select_mode()
@@ -580,6 +596,10 @@ def plain_main() -> dict:
     target_disk = plain_select_disk(disks)
     if not plain_confirm_wipe(target_disk):
         sys.exit(0)
+    cluster_join = plain_confirm_cluster_join()
+    cluster_join_target = ""
+    if cluster_join:
+        cluster_join_target = plain_prompt("Join-Token oder Leader-IP/URL eingeben", "", validate_cluster_join_target)
     print()
     print("Starting installation...")
     return {
@@ -590,6 +610,8 @@ def plain_main() -> dict:
         "BEAGLE_GUI_USERNAME": username,
         "BEAGLE_GUI_PASSWORD": password,
         "BEAGLE_GUI_TARGET_DISK": target_disk,
+        "BEAGLE_GUI_CLUSTER_JOIN": "yes" if cluster_join else "no",
+        "BEAGLE_GUI_CLUSTER_JOIN_TARGET": cluster_join_target,
     }
 
 
@@ -615,6 +637,24 @@ def tui_main(stdscr) -> dict:
     target_disk = screen_disk_select(stdscr, disks)
     if not screen_confirm_wipe(stdscr, target_disk):
         sys.exit(0)
+    join_index = screen_menu(
+        stdscr,
+        title="Cluster Join",
+        prompt="Soll dieser Host einem Cluster beitreten?",
+        items=[("No", "Eigenstaendigen Host installieren"), ("Yes", "Mit bestehendem Cluster verbinden")],
+        default_idx=0,
+    )
+    cluster_join = join_index == 1
+    cluster_join_target = ""
+    while cluster_join and not cluster_join_target:
+        cluster_join_target = screen_input(
+            stdscr,
+            title="Cluster Leader",
+            prompt="Join-Token oder Leader-IP/URL eingeben:",
+            default="",
+            validator=validate_cluster_join_target,
+            validator_hint="z. B. 10.0.0.15 oder beagle-cluster-token",
+        )
     return {
         "BEAGLE_SERVER_INSTALL_MODE": install_mode,
         "BEAGLE_SERVER_HOST_PROVIDER": "beagle",
@@ -623,6 +663,8 @@ def tui_main(stdscr) -> dict:
         "BEAGLE_GUI_USERNAME": username,
         "BEAGLE_GUI_PASSWORD": password,
         "BEAGLE_GUI_TARGET_DISK": target_disk,
+        "BEAGLE_GUI_CLUSTER_JOIN": "yes" if cluster_join else "no",
+        "BEAGLE_GUI_CLUSTER_JOIN_TARGET": cluster_join_target,
     }
 
 

@@ -121,6 +121,7 @@ function buildDetailActionsHtml(status) {
     html += actionButton('vm-start', 'Starten', 'primary');
   }
   if (status === 'running') {
+    html += actionButton('vm-migrate', 'VM verschieben', 'ghost');
     html += actionButton('vm-stop', 'Stoppen', 'ghost');
     html += actionButton('vm-reboot', 'Neustart', 'ghost');
     html += actionButton('novnc-ui', 'noVNC', 'ghost');

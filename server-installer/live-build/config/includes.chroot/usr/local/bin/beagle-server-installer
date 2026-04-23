@@ -12,6 +12,8 @@ INSTALL_HOSTNAME=""
 INSTALL_USERNAME=""
 INSTALL_PASSWORD=""
 INSTALL_DISK=""
+INSTALL_CLUSTER_JOIN="no"
+INSTALL_CLUSTER_JOIN_TARGET=""
 PRIMARY_IFACE=""
 
 DEBIAN_RELEASE="${BEAGLE_SERVER_DEBIAN_RELEASE:-bookworm}"
@@ -215,6 +217,38 @@ host_provider_kind() {
 prompt_install_mode() {
   BEAGLE_SERVER_INSTALL_MODE="standalone"
   BEAGLE_SERVER_HOST_PROVIDER="beagle"
+}
+
+prompt_cluster_join_choice() {
+  local answer=""
+  while true; do
+    answer="$(prompt_value 'Diesen Host einem Cluster beitreten? (yes/no)' 'no')"
+    answer="$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')"
+    case "$answer" in
+      y|yes|j|ja)
+        printf 'yes\n'
+        return 0
+        ;;
+      n|no|nein)
+        printf 'no\n'
+        return 0
+        ;;
+    esac
+    echo "Please answer yes or no." >&2
+  done
+}
+
+prompt_cluster_join_target() {
+  local value=""
+  while true; do
+    value="$(prompt_value 'Join-Token oder Leader-IP/URL' "$INSTALL_CLUSTER_JOIN_TARGET")"
+    value="${value//$'\r'/}"
+    if [[ -n "$value" ]]; then
+      printf '%s\n' "$value"
+      return 0
+    fi
+    echo "Join-Token oder Leader-IP darf nicht leer sein." >&2
+  done
 }
 
 require_supported_server_target() {
@@ -570,8 +604,10 @@ install_beagle_host_stack() {
   local mode
   local install_dir_q hostname_q public_updates_q web_ui_q mode_q source_archive
   local bootstrap_username_q bootstrap_password_q
+  local cluster_join_env_file cluster_join_env_file_q
   mode="$(install_mode_kind)"
   source_archive="/tmp/beagle-os.tar.gz"
+  cluster_join_env_file="/tmp/beagle-cluster-join.env"
   printf -v install_dir_q '%q' "$BEAGLE_INSTALL_DIR"
   printf -v hostname_q '%q' "$INSTALL_HOSTNAME"
   printf -v public_updates_q '%q' "$BEAGLE_PUBLIC_UPDATE_BASE_URL"
@@ -579,16 +615,22 @@ install_beagle_host_stack() {
   printf -v mode_q '%q' "$mode"
   printf -v bootstrap_username_q '%q' "$INSTALL_USERNAME"
   printf -v bootstrap_password_q '%q' "$INSTALL_PASSWORD"
+  printf -v cluster_join_env_file_q '%q' "$cluster_join_env_file"
   if [[ -f "$BUNDLED_BEAGLE_SOURCE_ARCHIVE" ]]; then
     log "using bundled beagle source archive: $BUNDLED_BEAGLE_SOURCE_ARCHIVE"
     install -m 0644 "$BUNDLED_BEAGLE_SOURCE_ARCHIVE" "$source_archive"
   else
     run_with_retry "download beagle source archive" curl -fsSL "$BEAGLE_SOURCE_URL" -o "$source_archive"
   fi
+  cat >"$TARGET_MOUNT$cluster_join_env_file" <<EOF
+BEAGLE_CLUSTER_JOIN_REQUESTED='${INSTALL_CLUSTER_JOIN//\'/\'\\\'\''}'
+BEAGLE_CLUSTER_JOIN_TARGET='${INSTALL_CLUSTER_JOIN_TARGET//\'/\'\\\'\''}'
+EOF
+  chmod 0600 "$TARGET_MOUNT$cluster_join_env_file"
   chroot_run "mkdir -p /usr/local/src/beagle-os-src /var/lib/beagle"
   install -m 0644 "$source_archive" "$TARGET_MOUNT/tmp/beagle-os.tar.gz"
   chroot_run "rm -rf /usr/local/src/beagle-os-src && mkdir -p /usr/local/src/beagle-os-src && tar -xzf /tmp/beagle-os.tar.gz -C /usr/local/src/beagle-os-src"
-  chroot_run "install_script=\$(find /usr/local/src/beagle-os-src -path '*/scripts/install-beagle-host.sh' -print -quit); [[ -n \"\$install_script\" ]] && source_root=\$(dirname \"\$(dirname \"\$install_script\")\") && cd \"\$source_root\" && BEAGLE_IN_CHROOT_INSTALL='1' BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q BEAGLE_SERVER_INSTALL_MODE=$mode_q BEAGLE_HOST_PROVIDER='beagle' BEAGLE_AUTH_BOOTSTRAP_DISABLE='1' BEAGLE_AUTH_BOOTSTRAP_USERNAME=$bootstrap_username_q BEAGLE_AUTH_BOOTSTRAP_PASSWORD=$bootstrap_password_q PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-beagle-host.sh"
+  chroot_run "install_script=\$(find /usr/local/src/beagle-os-src -path '*/scripts/install-beagle-host.sh' -print -quit); [[ -n \"\$install_script\" ]] && source_root=\$(dirname \"\$(dirname \"\$install_script\")\") && cd \"\$source_root\" && set -a && source $cluster_join_env_file_q && set +a && BEAGLE_IN_CHROOT_INSTALL='1' BEAGLE_INSTALL_NONINTERACTIVE='1' INSTALL_DIR=$install_dir_q BEAGLE_SERVER_INSTALL_MODE=$mode_q BEAGLE_HOST_PROVIDER='beagle' BEAGLE_AUTH_BOOTSTRAP_DISABLE='1' BEAGLE_AUTH_BOOTSTRAP_USERNAME=$bootstrap_username_q BEAGLE_AUTH_BOOTSTRAP_PASSWORD=$bootstrap_password_q PVE_DCV_PROXY_SERVER_NAME=$hostname_q BEAGLE_WEB_UI_URL=$web_ui_q PVE_DCV_PROXY_LISTEN_PORT='8443' BEAGLE_SITE_PORT='443' BEAGLE_PUBLIC_UPDATE_BASE_URL=$public_updates_q ./scripts/install-beagle-host.sh"
 }
 
 harden_system() {
@@ -765,6 +807,8 @@ load_gui_state() {
   INSTALL_USERNAME="${BEAGLE_GUI_USERNAME:-}"
   INSTALL_PASSWORD="${BEAGLE_GUI_PASSWORD:-}"
   INSTALL_DISK="${BEAGLE_GUI_TARGET_DISK:-}"
+  INSTALL_CLUSTER_JOIN="${BEAGLE_GUI_CLUSTER_JOIN:-no}"
+  INSTALL_CLUSTER_JOIN_TARGET="${BEAGLE_GUI_CLUSTER_JOIN_TARGET:-}"
 }
 
 main() {
@@ -817,6 +861,15 @@ main() {
       echo "Installation cancelled."
       exit 1
     }
+    INSTALL_CLUSTER_JOIN="$(prompt_cluster_join_choice)"
+    if [[ "$INSTALL_CLUSTER_JOIN" == "yes" ]]; then
+      INSTALL_CLUSTER_JOIN_TARGET="$(prompt_cluster_join_target)"
+    fi
+  fi
+
+  if [[ "$INSTALL_CLUSTER_JOIN" == "yes" && -z "$INSTALL_CLUSTER_JOIN_TARGET" ]]; then
+    echo "Cluster-Join wurde aktiviert, aber Join-Token oder Leader-IP fehlt." >&2
+    exit 1
   fi
 
   require_supported_server_target
@@ -825,6 +878,7 @@ main() {
   log "hostname: $INSTALL_HOSTNAME"
   log "username: $INSTALL_USERNAME"
   log "disk: $INSTALL_DISK"
+  log "cluster join requested: $INSTALL_CLUSTER_JOIN"
 
   PRIMARY_IFACE="$(detect_primary_iface)"
   [[ -n "$PRIMARY_IFACE" ]] || {

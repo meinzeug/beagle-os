@@ -57,6 +57,7 @@ from installer_prep import InstallerPrepService
 from installer_script import InstallerScriptService
 from installer_template_patch import InstallerTemplatePatchService
 from metadata_support import MetadataSupportService
+from migration_service import MigrationService
 from oidc_service import OidcService
 from persistence_support import PersistenceSupportService
 from policy_normalization import PolicyNormalizationService
@@ -890,6 +891,7 @@ AUTH_HTTP_SURFACE_SERVICE: AuthHttpSurfaceService | None = None
 ENDPOINT_LIFECYCLE_SURFACE_SERVICE: EndpointLifecycleSurfaceService | None = None
 PUBLIC_SUNSHINE_SURFACE_SERVICE: PublicSunshineSurfaceService | None = None
 VM_MUTATION_SURFACE_SERVICE: VmMutationSurfaceService | None = None
+MIGRATION_SERVICE: MigrationService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
 DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
 RUNTIME_ENVIRONMENT_SERVICE: RuntimeEnvironmentService | None = None
@@ -2139,6 +2141,78 @@ def find_vm(vmid: int, *, refresh: bool = False) -> VmSummary | None:
     return VIRTUALIZATION_INVENTORY.find_vm(vmid, refresh=refresh)
 
 
+def persist_vm_node(vmid: int, source_node: str, target_node: str) -> None:
+    vm = find_vm(vmid, refresh=True)
+    if vm is None:
+        raise RuntimeError(f"VM {int(vmid)} not found")
+
+    source = str(source_node or getattr(vm, "node", "") or "").strip()
+    target = str(target_node or "").strip()
+    if not source or not target:
+        raise RuntimeError("source and target node are required")
+
+    config = HOST_PROVIDER.get_vm_config(source, int(vmid))
+    if not isinstance(config, dict):
+        config = {}
+    config["node"] = target
+
+    write_vm_config = getattr(HOST_PROVIDER, "_write_vm_config", None)
+    replace_vm = getattr(HOST_PROVIDER, "_replace_vm", None)
+    vm_config_path = getattr(HOST_PROVIDER, "_vm_config_path", None)
+    if callable(write_vm_config):
+        write_vm_config(target, int(vmid), config)
+    if callable(vm_config_path):
+        old_path = Path(vm_config_path(source, int(vmid)))
+        new_path = Path(vm_config_path(target, int(vmid)))
+        if old_path != new_path and old_path.exists():
+            try:
+                old_path.unlink()
+            except OSError:
+                pass
+    if callable(replace_vm):
+        replace_vm(
+            {
+                "vmid": int(vmid),
+                "node": target,
+                "name": str(getattr(vm, "name", "") or f"vm-{int(vmid)}"),
+                "status": str(getattr(vm, "status", "unknown") or "unknown"),
+                "tags": str(getattr(vm, "tags", "") or ""),
+            }
+        )
+
+
+def migration_service() -> MigrationService:
+    global MIGRATION_SERVICE
+    if MIGRATION_SERVICE is None:
+        migration_uri_template = os.environ.get(
+            "BEAGLE_CLUSTER_MIGRATION_URI_TEMPLATE",
+            "qemu+ssh://{target_node}/system",
+        ).strip() or "qemu+ssh://{target_node}/system"
+
+        def build_migration_uri(source_node: str, target_node: str, vmid: int) -> str:
+            return migration_uri_template.format(
+                source_node=str(source_node or "").strip(),
+                target_node=str(target_node or "").strip(),
+                vmid=int(vmid),
+            )
+
+        MIGRATION_SERVICE = MigrationService(
+            build_migration_uri=build_migration_uri,
+            find_vm=find_vm,
+            invalidate_vm_cache=invalidate_vm_cache,
+            libvirt_domain_exists=lambda vmid: bool(getattr(HOST_PROVIDER, "_libvirt_domain_exists", lambda _vmid: False)(int(vmid))),
+            libvirt_domain_name=lambda vmid: str(getattr(HOST_PROVIDER, "_libvirt_domain_name", lambda _vmid: f"beagle-{int(_vmid)}")(int(vmid))),
+            libvirt_enabled=lambda: bool(getattr(HOST_PROVIDER, "_libvirt_enabled", lambda: False)()),
+            list_nodes=lambda: HOST_PROVIDER.list_nodes(),
+            persist_vm_node=persist_vm_node,
+            run_virsh_command=lambda command: str(getattr(HOST_PROVIDER, "_run_virsh")(*command)),
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return MIGRATION_SERVICE
+
+
 def should_use_public_stream(meta: dict[str, str], guest_ip: str) -> bool:
     return vm_profile_service().should_use_public_stream(meta, guest_ip)
 
@@ -2388,6 +2462,13 @@ def vm_mutation_surface_service() -> VmMutationSurfaceService:
             find_vm=find_vm,
             invalidate_vm_cache=invalidate_vm_cache,
             issue_sunshine_access_token=issue_sunshine_access_token,
+            migrate_vm=lambda vmid, target_node, live, copy_storage, requester_identity: migration_service().migrate_vm(
+                int(vmid),
+                target_node=str(target_node or "").strip(),
+                live=bool(live),
+                copy_storage=bool(copy_storage),
+                requester_identity=requester_identity,
+            ),
             queue_vm_action=queue_vm_action,
             reboot_vm=lambda vmid: HOST_PROVIDER.reboot_vm(int(vmid), timeout=None),
             service_name="beagle-control-plane",

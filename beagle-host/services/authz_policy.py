@@ -91,6 +91,7 @@ class AuthzPolicyService:
                 or route.endswith("/usb/refresh")
                 or route.endswith("/usb/attach")
                 or route.endswith("/usb/detach")
+                or route.endswith("/migrate")
                 or route.endswith("/sunshine-access")
             ):
                 return "vm:mutate"

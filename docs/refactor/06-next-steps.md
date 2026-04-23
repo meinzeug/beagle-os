@@ -1,5 +1,20 @@
 # Next Steps
 
+## Delta (2026-04-23 nach Abschluss von Plan 07 Schritt 4 + Schritt 5)
+
+0. **Plan 07 Testpflicht gegen echte Multi-Node-Runtime schliessen**:
+	- zwei echte Cluster-Knoten parallel betreiben und beide in der Web Console sichtbar machen,
+	- Live-Migration einer laufenden Test-VM zwischen zwei Hosts real ausfuehren,
+	- `unreachable`-Anzeige innerhalb von 10 Sekunden gegen echten Knotenausfall pruefen.
+
+0. **Installer-Join Ende-zu-Ende fertigziehen**:
+	- frisch installierten Host mit dem neuen Dialog gegen einen bestehenden Leader joinen lassen,
+	- Zertifikatsausstellung, Cluster-Store-Registrierung und sofortige Sichtbarkeit in der Knoten-Liste live nachweisen.
+
+0. **Plan 11 Resume danach wieder aufnehmen**:
+	- Audio-In/Gamepad-Matrix sauber dokumentieren,
+	- anschliessend Windows-Apollo-Eval fuer Streaming-v2 vorbereiten.
+
 ## Delta (2026-04-23 nach Abschluss von Plan 07 Schritt 2 + Schritt 3 Teil 2)
 
 0. **Plan 07 Schritt 4 umsetzen (Live-Migration)**:

@@ -218,6 +218,12 @@ Stand: 2026-04-13
 ## D-040: Cluster-Interconnect nutzt mTLS mit lokaler Cluster-CA und node-signierten Zertifikaten
 - Entscheidung: Inter-Host-RPC fuer Plan 07 laeuft ueber eine mTLS-geschuetzte JSON-RPC-Surface; jede Cluster-Verbindung verlangt ein von der Cluster-CA signiertes Node-Zertifikat.
 - Grund: Der neue Cluster-RPC-Smoke konnte lokal und auf `srv1.beagle-os.com` reproduzierbar einen gegenseitig authentifizierten TLS-Handshake zwischen zwei Nodes nachweisen (`CLUSTER_RPC_SMOKE=PASS`).
+
+## D-041: Installer-Cluster-Join-Ziele liegen in separater Secret-Datei statt in breit konsumierten Env-Dateien
+- Entscheidung: Der Server-Installer schreibt Join-Wunsch und Join-Ziel fuer neue Cluster-Nodes in eine dedizierte Datei `/etc/beagle/cluster-join.env` mit Modus `0600`; allgemeine Runtime-Env-Dateien enthalten nur das Flag und den Dateipfad.
+- Grund: Join-Token oder Leader-Ziele koennen sensitiv sein. `host.env` und Proxy-nahe Env-Dateien werden von mehreren Scripts/Units gelesen und sind deshalb der falsche Ort fuer solche Daten.
+- Wirkung: Der neue Installer-Dialog aus Plan 07 Schritt 5 bleibt fuer spaetere Join-Orchestrierung nutzbar, ohne den Token breit ueber Runtime-Glue oder Logs zu verteilen.
+- Dateien: `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`, `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer-gui`, `scripts/install-beagle-host.sh`, `scripts/install-beagle-host-postinstall.sh`, `scripts/install-beagle-host-services.sh`.
 - Detail:
   1. `beagle-host/services/ca_manager.py` besitzt die CA und signiert Join-Zertifikate fuer Nodes.
   2. `beagle-host/services/cluster_rpc.py` erzwingt `CERT_REQUIRED`, TLS >= 1.2 und ALPN fuer `h2`/`http/1.1`.
