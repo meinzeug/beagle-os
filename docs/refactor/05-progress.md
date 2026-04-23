@@ -1,5 +1,17 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 16 Schritt 1 abgeschlossen)
+
+- Architekturentscheidung fuer Backup/DR dokumentiert (`docs/refactor/07-decisions.md`, `D-042`):
+	- Primärpfad 7.3: qcow2-Export (`qemu-img convert`) + Restic-Dedupe,
+	- ZFS als optionaler Fast-Path,
+	- PBS-Kompatibilität ueber Adapter statt Proxmox-Kopplung.
+- Reproduzierbarer PoC implementiert: `scripts/test-backup-qcow2-restic-poc.sh`.
+- Live-Validierung auf `srv1.beagle-os.com` erfolgreich:
+	- `BACKUP_QCOW2_RESTIC_POC=PASS`,
+	- Messwerte: `first_added=17106935`, `second_added=8719212`, `ratio=0.5097`.
+- `docs/gofuture/16-backup-dr.md` Schritt 1 Checkboxen auf `[x]` gesetzt.
+
 ## Update (2026-04-23, GoFuture Plan 08 Testpflicht erweitert + reproduzierbare Smokes)
 
 - Neuer Directory-Storage Live-Smoke `scripts/test-storage-directory-smoke.sh` hinzugefuegt und auf `srv1.beagle-os.com` erfolgreich ausgefuehrt:

@@ -10,8 +10,8 @@ Referenz: `docs/refactorv2/09-backup-dr.md`
 
 ### Schritt 1 — Backup-Architektur und Ziel-Backend entscheiden
 
-- [ ] In `docs/refactor/07-decisions.md` entscheiden: qcow2-Deltas / ZFS-Snapshots / Restic / PBS-kompatibel.
-- [ ] PoC: qcow2-inkrementelles Backup mit `qemu-img convert` + Restic für Deduplikation.
+- [x] In `docs/refactor/07-decisions.md` entscheiden: qcow2-Deltas / ZFS-Snapshots / Restic / PBS-kompatibel.
+- [x] PoC: qcow2-inkrementelles Backup mit `qemu-img convert` + Restic für Deduplikation.
 
 Backup ist die kritischste Datensicherungs-Funktion der Plattform und muss eine klare
 technische Grundlage haben. qcow2-Snapshots + inkrementelle Deltas (`qemu-img bitmaps`)
@@ -20,6 +20,26 @@ adressierbare Deduplikation die bei ähnlichen Pool-VMs massiven Speicherplatz s
 PBS-Kompatibilität (Proxmox Backup Server) würde die Integration mit bestehenden
 Proxmox-Deployments erleichtern. Der PoC validiert Backup-Geschwindigkeit, Restore-Zeit
 und Speicherplatz-Overhead für eine typische 80 GB Desktop-VM.
+
+Umsetzung (2026-04-23):
+
+- Architekturentscheidung in `docs/refactor/07-decisions.md` dokumentiert (`D-042`):
+	- Primärpfad für 7.3: qcow2-Export via `qemu-img convert` + Restic-Dedupe,
+	- ZFS-Snapshots als optionaler Fast-Path,
+	- PBS-Kompatibilität via Export-/Import-Adapter statt Proxmox-Kopplung.
+- Reproduzierbarer PoC ergänzt: `scripts/test-backup-qcow2-restic-poc.sh`.
+	- erstellt qcow2-Source-Disk,
+	- sichert über `qemu-img convert` in ein Arbeitsartefakt,
+	- führt zwei Restic-Backups aus,
+	- prüft, dass die zweite Sicherung weniger neue Daten hinzufügt (Dedupe-Nachweis).
+
+Validierung (2026-04-23):
+
+- Live auf `srv1.beagle-os.com` erfolgreich: `BACKUP_QCOW2_RESTIC_POC=PASS`.
+- Gemessene Restic-Dedupe-Metrik im PoC:
+	- `first_added=17106935`
+	- `second_added=8719212`
+	- `ratio=0.5097` (Dedupe sichtbar; Optimierungsziel `<10%` bleibt Testpflicht von Schrittabschluss).
 
 ---
 

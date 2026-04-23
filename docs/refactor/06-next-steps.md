@@ -1,5 +1,20 @@
 # Next Steps
 
+## Delta (2026-04-23 nach Abschluss Plan 16 Schritt 1)
+
+0. **Plan 16 Schritt 2 starten (Backup-Service + Scheduling)**:
+	- `beagle-host/services/backup_service.py` mit Jobmodell und Zeitplanung einfuehren,
+	- API/Runtime-Hooks fuer Full/Incremental Backup-Lauf vorbereiten.
+
+0. **Plan 16 PoC-Metrik weiter optimieren**:
+	- Restic-Delta-Ratio aus PoC (`0.5097`) Richtung Testpflichtziel `<10%` verbessern,
+	- dafuer qemu-dirty-bitmap/externe Snapshot-Kette als naechste Iteration evaluieren.
+
+0. **Infra-blockierte Punkte bleiben offen**:
+	- Plan 07 Live-Migration Host-A→B,
+	- Plan 08 NFS + Live-Migration auf zweitem Host,
+	- Plan 11 Auto-Pairing (aktuell `pair-exchange 502`).
+
 ## Delta (2026-04-23 nach Abschluss Plan 08 Testpflicht Directory+ZFS)
 
 0. **Plan 08 verbleibende Testpflicht abschliessen (NFS + Migration)**:

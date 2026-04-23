@@ -220,6 +220,13 @@ Stand: 2026-04-13
 - Grund: Der neue Cluster-RPC-Smoke konnte lokal und auf `srv1.beagle-os.com` reproduzierbar einen gegenseitig authentifizierten TLS-Handshake zwischen zwei Nodes nachweisen (`CLUSTER_RPC_SMOKE=PASS`).
 
 ## D-041: Installer-Cluster-Join-Ziele liegen in separater Secret-Datei statt in breit konsumierten Env-Dateien
+
+## D-042: Backup-Basis fuer 7.3 ist qcow2-export + Restic-Dedupe; ZFS bleibt optionales Backend
+- Entscheidung: Fuer 7.3 wird Backup auf Beagle-Hosts primär als `qemu-img convert`-Export von qcow2-Diskständen plus Restic-Repository-Deduplikation umgesetzt.
+- Entscheidung: ZFS-Snapshots bleiben ein optionaler Fast-Path auf Hosts mit ZFS, sind aber nicht mehr harte Voraussetzung der Backup-Architektur.
+- Entscheidung: PBS-Kompatibilität wird über Export-/Import-Adapter und Snapshot-Metadaten vorgesehen, nicht über direkte Proxmox-Abhängigkeiten.
+- Grund: Der Ansatz funktioniert provider-neutral auf Nicht-ZFS-Hosts, nutzt existierende QEMU-Tools und reduziert Storage-Bedarf über content-addressed Dedupe.
+- Validierung: reproduzierbarer PoC `scripts/test-backup-qcow2-restic-poc.sh` zeigt auf Runtime deduplizierte zweite Sicherung (`BACKUP_QCOW2_RESTIC_POC=PASS`).
 - Entscheidung: Der Server-Installer schreibt Join-Wunsch und Join-Ziel fuer neue Cluster-Nodes in eine dedizierte Datei `/etc/beagle/cluster-join.env` mit Modus `0600`; allgemeine Runtime-Env-Dateien enthalten nur das Flag und den Dateipfad.
 - Grund: Join-Token oder Leader-Ziele koennen sensitiv sein. `host.env` und Proxy-nahe Env-Dateien werden von mehreren Scripts/Units gelesen und sind deshalb der falsche Ort fuer solche Daten.
 - Wirkung: Der neue Installer-Dialog aus Plan 07 Schritt 5 bleibt fuer spaetere Join-Orchestrierung nutzbar, ohne den Token breit ueber Runtime-Glue oder Logs zu verteilen.
