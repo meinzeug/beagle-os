@@ -10,6 +10,7 @@ from core.virtualization.desktop_pool import (
     DesktopPoolMode,
     DesktopPoolSpec,
 )
+from core.virtualization.scheduler_policy import SchedulerPolicy, scheduler_policy_from_payload
 from core.virtualization.streaming_profile import (
     StreamingProfile,
     streaming_profile_from_payload,
@@ -44,6 +45,8 @@ class PoolManagerService:
         start_vm: Any = None,
         stop_vm: Any = None,
         reset_vm_to_template: Any = None,
+        list_nodes: Any = None,
+        vm_node_of: Any = None,
     ) -> None:
         self._state_file = Path(state_file)
         self._utcnow = utcnow or (lambda: __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
@@ -51,6 +54,8 @@ class PoolManagerService:
         self._start_vm = start_vm  # callable(vmid) -> None
         self._stop_vm = stop_vm    # callable(vmid) -> None
         self._reset_vm_to_template = reset_vm_to_template  # callable(vmid, template_id) -> None
+        self._list_nodes = list_nodes  # callable() -> list[dict]
+        self._vm_node_of = vm_node_of  # callable(vmid) -> str
 
     # ------------------------------------------------------------------
     # State persistence helpers
@@ -158,15 +163,102 @@ class PoolManagerService:
     # VM slot management
     # ------------------------------------------------------------------
 
-    def register_vm(self, pool_id: str, vmid: int) -> dict[str, Any]:
+    def _online_nodes(self) -> list[str]:
+        if self._list_nodes is None:
+            return []
+        nodes: list[str] = []
+        try:
+            payload = self._list_nodes()
+        except Exception:
+            return []
+        for item in payload if isinstance(payload, list) else []:
+            if not isinstance(item, dict):
+                continue
+            node = str(item.get("name") or item.get("node") or "").strip()
+            status = str(item.get("status") or "unknown").strip().lower()
+            if not node or status != "online":
+                continue
+            if node not in nodes:
+                nodes.append(node)
+        return sorted(nodes)
+
+    def _known_vm_node(self, vmid: int) -> str:
+        if self._vm_node_of is None:
+            return ""
+        try:
+            return str(self._vm_node_of(int(vmid)) or "").strip()
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _nodes_for_group(group_vmids: tuple[int, ...], placements: dict[int, str], *, skip_vmid: int) -> set[str]:
+        nodes: set[str] = set()
+        for item in group_vmids:
+            if int(item) == int(skip_vmid):
+                continue
+            node = str(placements.get(int(item), "") or "").strip()
+            if node:
+                nodes.add(node)
+        return nodes
+
+    def _choose_node_for_vmid(
+        self,
+        *,
+        vmid: int,
+        policy: SchedulerPolicy,
+        placements: dict[int, str],
+    ) -> str:
+        online_nodes = self._online_nodes()
+        current = str(placements.get(int(vmid), "") or self._known_vm_node(int(vmid)) or "").strip()
+        if not online_nodes:
+            return current
+
+        avoid_nodes: set[str] = set()
+        preferred_nodes: set[str] = set()
+
+        for group in policy.anti_affinity_groups:
+            if int(vmid) in set(group.vmids):
+                avoid_nodes |= self._nodes_for_group(group.vmids, placements, skip_vmid=int(vmid))
+
+        for group in policy.affinity_groups:
+            if int(vmid) in set(group.vmids):
+                preferred_nodes |= self._nodes_for_group(group.vmids, placements, skip_vmid=int(vmid))
+
+        candidates = [node for node in online_nodes if node not in avoid_nodes]
+        if not candidates:
+            candidates = list(online_nodes)
+
+        preferred_candidates = [node for node in sorted(preferred_nodes) if node in candidates]
+        if preferred_candidates:
+            return preferred_candidates[0]
+        if current and current in candidates:
+            return current
+        return sorted(candidates)[0]
+
+    def register_vm(self, pool_id: str, vmid: int, *, scheduler_policy: SchedulerPolicy | dict[str, Any] | None = None) -> dict[str, Any]:
         """Register a VM slot in the pool as free."""
         state = self._load()
         if pool_id not in state["pools"]:
             raise ValueError(f"pool {pool_id!r} not found")
+
+        policy = scheduler_policy if isinstance(scheduler_policy, SchedulerPolicy) else scheduler_policy_from_payload(scheduler_policy)
+        placements: dict[int, str] = {}
+        for item in self._pool_vms(state, pool_id):
+            if not isinstance(item, dict):
+                continue
+            existing_vmid = int(item.get("vmid") or 0)
+            if existing_vmid <= 0:
+                continue
+            existing_node = str(item.get("node") or self._known_vm_node(existing_vmid) or "").strip()
+            if existing_node:
+                placements[existing_vmid] = existing_node
+
+        node = self._choose_node_for_vmid(vmid=int(vmid), policy=policy, placements=placements)
         vm_key = str(vmid)
         state["vms"][vm_key] = {
             "vmid": vmid,
             "pool_id": pool_id,
+            "node": node,
             "state": _STATE_FREE,
             "user_id": None,
             "assigned_at": None,

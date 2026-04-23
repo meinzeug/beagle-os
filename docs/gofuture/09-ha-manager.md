@@ -107,8 +107,34 @@ Nach der Wartung wird Maintenance-Mode manuell deaktiviert.
 
 ### Schritt 4 — Anti-Affinity- und Affinity-Regeln implementieren
 
-- [ ] `SchedulerPolicy`-Objekt in `core/` definieren mit `affinity_groups` und `anti_affinity_groups`.
-- [ ] VM-Scheduler berücksichtigt Policy bei Placement-Entscheidungen.
+- [x] `SchedulerPolicy`-Objekt in `core/` definieren mit `affinity_groups` und `anti_affinity_groups`.
+- [x] VM-Scheduler berücksichtigt Policy bei Placement-Entscheidungen.
+
+Umgesetzt (2026-04-23):
+- Neues Core-Modul `core/virtualization/scheduler_policy.py` eingefuehrt (`SchedulerPolicy`, `SchedulerGroup`, `scheduler_policy_from_payload`).
+- Pool-Scheduler in `beagle-host/services/pool_manager.py` erweitert:
+	- ermittelt online Knoten,
+	- beruecksichtigt `anti_affinity_groups` als Hard-Preference (Nodes vermeiden),
+	- beruecksichtigt `affinity_groups` als Co-Location-Preference,
+	- persistiert den gewaehlten `node` pro registrierter Pool-VM.
+- API-Wiring umgesetzt:
+	- `POST /api/v1/pools/{pool_id}/vms` akzeptiert jetzt optional `scheduler_policy`.
+	- `pool_manager_service()` verdrahtet Node-Callbacks (`list_nodes`, `vm_node_of`) fuer Placement.
+- Tests ergaenzt:
+	- `tests/unit/test_scheduler_policy_contract.py`
+	- `tests/unit/test_pool_manager.py` um Anti-Affinity-/Affinity-Placement-Faelle.
+
+Validierung (2026-04-23, lokal + srv1):
+- Lokal:
+	- `python3 -m py_compile core/virtualization/scheduler_policy.py beagle-host/services/pool_manager.py beagle-host/bin/beagle-control-plane.py` => OK
+	- `python3 -m pytest tests/unit/test_scheduler_policy_contract.py tests/unit/test_pool_manager.py tests/unit/test_authz_policy.py tests/unit/test_maintenance_service.py tests/unit/test_ha_manager.py tests/unit/test_ha_policy_validation.py tests/unit/test_ha_watchdog.py -q` => `28 passed`
+	- `python3 -m pytest tests/unit/test_cluster_membership.py tests/unit/test_cluster_inventory.py tests/unit/test_beaglectl_cluster.py tests/unit/test_cluster_rpc.py -q` => `14 passed`
+- srv1:
+	- `py_compile` fuer die geaenderten Module => OK
+	- Dienst-Neustart `beagle-control-plane.service` => `active`
+	- Live-Smoke gegen `/api/v1/pools/{pool}/vms` mit `scheduler_policy.anti_affinity_groups`:
+		- Create/Register/Register/List/Delete => `201/201/201/200/200`
+		- auf Single-Node-Host landen beide VMs erwartbar auf `beagle-0`; Multi-Node-Verteilung wird durch Unit-Tests mit zwei Online-Knoten reproduzierbar abgedeckt.
 
 Affinity-Regeln stellen sicher dass bestimmte VMs bevorzugt auf demselben Knoten
 laufen (z.B. Datenbank und Anwendungsserver für niedrige Latenz). Anti-Affinity-Regeln

@@ -1,5 +1,25 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 09 Schritt 4 abgeschlossen: SchedulerPolicy + Affinity/Anti-Affinity Placement)
+
+- Plan 09 Schritt 4 vollstaendig umgesetzt.
+- Neues Core-Objekt `SchedulerPolicy` unter `core/virtualization/scheduler_policy.py` eingefuehrt (`affinity_groups`, `anti_affinity_groups`).
+- Pool-Placement in `beagle-host/services/pool_manager.py` policy-aware erweitert:
+	- Online-Node-Auswahl,
+	- Anti-Affinity-Node-Vermeidung,
+	- Affinity-Co-Location-Praeferenz,
+	- persistentes `node`-Feld pro registrierter Pool-VM.
+- Control-Plane verdrahtet:
+	- `POST /api/v1/pools/{pool_id}/vms` nimmt optional `scheduler_policy` an,
+	- Pool-Service nutzt Host-Callbacks fuer Node-Lookup (`list_nodes`, `vm_node_of`).
+- Testabdeckung erweitert:
+	- `tests/unit/test_scheduler_policy_contract.py` neu,
+	- `tests/unit/test_pool_manager.py` um Affinity/Anti-Affinity-Faelle erweitert.
+- Reproduzierbare Validierung:
+	- Lokal: `py_compile` OK, `28 passed` (HA/Pool/Authz-Suite) + `14 passed` (Cluster-Suite).
+	- `srv1.beagle-os.com`: geaenderte Dateien deployt, `beagle-control-plane.service` aktiv nach Restart, Pool-API-Live-Smoke (`create/register/register/list/delete`) erfolgreich (`201/201/201/200/200`).
+	- Erwartetes Runtime-Limit auf Single-Node-Host dokumentiert: Anti-Affinity kann dort nur best effort arbeiten.
+
 ## Update (2026-04-23, GoFuture Plan 07 Schritt 4 + Schritt 5 abgeschlossen: VM-Migration + Installer-Join-Dialog)
 
 - Plan 07 Schritt 4 vollstaendig umgesetzt.

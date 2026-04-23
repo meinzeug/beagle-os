@@ -235,6 +235,92 @@ class PoolManagerServiceTests(unittest.TestCase):
         self.assertEqual(payload["stream_health"]["rtt_ms"], 18)
         self.assertEqual(payload["stream_health"]["fps"], 60)
 
+    def test_register_vm_honors_anti_affinity_policy(self) -> None:
+        online_nodes = [
+            {"name": "node-a", "status": "online"},
+            {"name": "node-b", "status": "online"},
+        ]
+
+        def vm_node_of(vmid: int) -> str:
+            mapping = {501: "node-a", 502: "node-a"}
+            return mapping.get(int(vmid), "")
+
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        service = PoolManagerService(
+            state_file=Path(temp_dir.name) / "desktop-pools.json",
+            utcnow=lambda: "2026-04-22T12:00:00Z",
+            list_nodes=lambda: online_nodes,
+            vm_node_of=vm_node_of,
+        )
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="pool-anti",
+                template_id="tpl-1",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=2,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+            )
+        )
+
+        policy = {
+            "anti_affinity_groups": [
+                {"group_id": "replicas", "vmids": [501, 502]},
+            ]
+        }
+        first = service.register_vm("pool-anti", 501, scheduler_policy=policy)
+        second = service.register_vm("pool-anti", 502, scheduler_policy=policy)
+
+        self.assertEqual(first["node"], "node-a")
+        self.assertEqual(second["node"], "node-b")
+
+    def test_register_vm_honors_affinity_policy(self) -> None:
+        online_nodes = [
+            {"name": "node-a", "status": "online"},
+            {"name": "node-b", "status": "online"},
+        ]
+
+        def vm_node_of(vmid: int) -> str:
+            mapping = {601: "node-b", 602: "node-a"}
+            return mapping.get(int(vmid), "")
+
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        service = PoolManagerService(
+            state_file=Path(temp_dir.name) / "desktop-pools.json",
+            utcnow=lambda: "2026-04-22T12:00:00Z",
+            list_nodes=lambda: online_nodes,
+            vm_node_of=vm_node_of,
+        )
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="pool-aff",
+                template_id="tpl-1",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=2,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+            )
+        )
+
+        policy = {
+            "affinity_groups": [
+                {"group_id": "app-db", "vmids": [601, 602]},
+            ]
+        }
+        first = service.register_vm("pool-aff", 601, scheduler_policy=policy)
+        second = service.register_vm("pool-aff", 602, scheduler_policy=policy)
+
+        self.assertEqual(first["node"], "node-b")
+        self.assertEqual(second["node"], "node-b")
+
 
 if __name__ == "__main__":
     unittest.main()

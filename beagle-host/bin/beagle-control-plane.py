@@ -682,6 +682,8 @@ def pool_manager_service() -> PoolManagerService:
         POOL_MANAGER_SERVICE = PoolManagerService(
             state_file=DATA_DIR / "desktop-pools.json",
             utcnow=utcnow,
+            list_nodes=lambda: HOST_PROVIDER.list_nodes(),
+            vm_node_of=lambda vmid: str(getattr(find_vm(int(vmid), refresh=True), "node", "") or ""),
         )
     return POOL_MANAGER_SERVICE
 
@@ -4647,7 +4649,11 @@ class Handler(BaseHTTPRequestHandler):
                 vmid = int(body.get("vmid") or 0)
                 if not vmid:
                     raise ValueError("vmid is required")
-                result = pool_manager_service().register_vm(pool_id, vmid)
+                result = pool_manager_service().register_vm(
+                    pool_id,
+                    vmid,
+                    scheduler_policy=body.get("scheduler_policy"),
+                )
             except (ValueError, TypeError) as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
                 return

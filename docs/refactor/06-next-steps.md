@@ -1,5 +1,19 @@
 # Next Steps
 
+## Delta (2026-04-23 nach Abschluss von Plan 09 Schritt 4)
+
+0. **Plan 09 Schritt 5 umsetzen (HA-Status in Web Console)**:
+	- Cluster-Panel um HA-Status-Sektion erweitern (Node-Health, letzter Heartbeat, HA-geschuetzte VM-Anzahl),
+	- globalen Alert-Banner fuer Quorum-Untergrenze und aktive Fencing-Aktionen anbinden.
+
+0. **Plan 09 Testpflicht-Checkboxen schliessen**:
+	- reproduzierbare Nachweise fuer Knoten-Ausfall-Recovery-Zeiten, Fencing-Startblockade und Anti-Affinity auf echter Multi-Node-Runtime liefern,
+	- offene Test-Checkboxen in `docs/gofuture/09-ha-manager.md` danach schliessen.
+
+0. **Single-Node-Runtime-Hinweis fuer SchedulerPolicy beibehalten**:
+	- bei nur einem Online-Knoten bleibt Anti-Affinity best effort,
+	- Multi-Node-Verteilung weiterhin als Pflicht-Smoke auf zwei echten Hosts validieren.
+
 ## Delta (2026-04-23 nach Abschluss von Plan 07 Schritt 4 + Schritt 5)
 
 0. **Plan 07 Testpflicht gegen echte Multi-Node-Runtime schliessen**:
