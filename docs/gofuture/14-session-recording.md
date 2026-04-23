@@ -74,8 +74,8 @@ Umsetzung (2026-04-21):
 
 ### Schritt 3 — Recording-Storage mit Retention-Policy implementieren
 
-- [ ] Recordings landen in einem konfigurierbaren Storage-Pfad (lokal, NFS, S3).
-- [ ] `RetentionPolicy` pro Pool: Aufbewahrungsdauer in Tagen, Auto-Deletion-Cronjob.
+- [x] Recordings landen in einem konfigurierbaren Storage-Pfad (lokal, NFS, S3).
+- [x] `RetentionPolicy` pro Pool: Aufbewahrungsdauer in Tagen, Auto-Deletion-Cronjob.
 
 Recordings können erhebliche Mengen Speicherplatz belegen; ohne Retention-Policy
 füllt sich der Storage in kurzer Zeit. Die Retention-Policy definiert wie lange
@@ -84,6 +84,29 @@ Recordings auf ihr Ablaufdatum und löscht abgelaufene Dateien. Vor dem Löschen
 wird ein Audit-Event mit Session-ID und Lösch-Grund erzeugt. Das Löschen kann
 nicht vom User rückgängig gemacht werden; bei Compliance-Anforderungen mit
 längerer Aufbewahrungspflicht muss die Policy entsprechend gesetzt werden.
+
+Umsetzung (2026-04-23):
+
+- `beagle-host/services/recording_service.py` erweitert:
+	- konfigurierbares Storage-Backend (`local|nfs|s3`) via Env (`BEAGLE_RECORDING_STORAGE_*`, `BEAGLE_RECORDING_S3_*`),
+	- S3 Upload/Download-Pfade für Recording-Dateien,
+	- `cleanup_expired_recordings(...)` für Retention-Deletion (lokal + S3).
+- `core/virtualization/desktop_pool.py` + `beagle-host/services/pool_manager.py` erweitert:
+	- neues Pool-Feld `recording_retention_days` inkl. Persistenz, Normalisierung, API-Ausgabe.
+- `beagle-host/bin/beagle-control-plane.py` erweitert:
+	- Env-Surface für Recording-Storage und Retention-Defaults,
+	- Background-Cron (`recording-retention-cron`) mit periodischer Löschung,
+	- Audit-Event `session.recording.retention_delete` pro gelöschter Recording-Session.
+- Web Console erweitert:
+	- Pool-Wizard-Feld `Recording Retention (Tage)` in `website/index.html` + `website/ui/policies.js`.
+
+Validierung:
+
+- Lokal: `pytest -q tests/unit/test_recording_service.py tests/unit/test_pool_manager.py tests/unit/test_desktop_pool_contract.py` => `21 passed`.
+- Live auf `srv1.beagle-os.com`:
+	- Pool-Creation mit `session_recording=always` + `recording_retention_days=7` erfolgreich,
+	- Retention-Cron hat Test-Recording gelöscht (`RETENTION_DELETED=yes`, `RETENTION_INDEX_REMOVED=yes`),
+	- Audit-Nachweis in `/var/lib/beagle/beagle-manager/audit/events.log` mit `action=session.recording.retention_delete`.
 
 ---
 
@@ -129,7 +152,7 @@ Umsetzung (2026-04-21):
 ## Testpflicht nach Abschluss
 
 - [ ] Pool mit `session_recording: always`: Session startet, MP4-Datei wird erzeugt.
-- [ ] Retention-Cronjob: abgelaufene Recordings gelöscht, Audit-Event vorhanden.
+- [x] Retention-Cronjob: abgelaufene Recordings gelöscht, Audit-Event vorhanden.
 - [ ] Watermark sichtbar im Stream (Screenshot-Validierung).
 - [x] Recording-Download: nur mit korrektem RBAC-Token möglich.
 - [x] Audit-Log: Session-Start, Recording-Start, Recording-Download alle mit User-ID.

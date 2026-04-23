@@ -2,13 +2,13 @@
 
 ## Delta (2026-04-23 nach Abschluss von Plan 14 Schritt 1: session_recording Policy)
 
-0. **Plan 14 Schritt 3 umsetzen (Storage + Retention)**:
-	- konfigurierbaren Recording-Storage-Pfad fuer lokal/NFS/S3 einziehen,
-	- Retention-Policy pro Pool mit Auto-Deletion-Job inkl. Audit-Event verdrahten.
-
 0. **Plan 14 offene Testpflicht priorisieren**:
 	- Pool `session_recording: always` gegen echte Session + MP4-Erzeugung auf Runtime nachweisen,
-	- Retention-Deletion-Nachweis und Watermark-Sichtbarkeit als reproduzierbare Smokes einfuehren.
+	- Watermark-Sichtbarkeit als reproduzierbaren Smoke einfuehren (Plan 14 Schritt 4).
+
+0. **Plan 14 Schritt 4 umsetzen (Watermark-Overlay)**:
+	- Apollo-Plug-in oder guest-side Overlay-Layer implementieren,
+	- konfigurierbaren Watermark-Text (Nutzername/Timestamp/Freitext) in Session-Start-Flow verdrahten.
 
 ## Delta (2026-04-23 nach Abschluss von Plan 15 Schritt 2: Audit-Export)
 

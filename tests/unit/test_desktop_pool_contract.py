@@ -61,6 +61,7 @@ class DesktopPoolContractTests(unittest.TestCase):
             warm_pool_size=5,
             gpu_class="",
             session_recording=SessionRecordingPolicy.DISABLED,
+            recording_retention_days=30,
             free_desktops=3,
             in_use_desktops=2,
             recycling_desktops=0,
@@ -76,6 +77,7 @@ class DesktopPoolContractTests(unittest.TestCase):
             assigned_at="2026-04-22T09:00:00Z",
         )
         self.assertEqual(info.mode, DesktopPoolMode.FLOATING_PERSISTENT)
+        self.assertEqual(info.recording_retention_days, 30)
         self.assertEqual(info.free_desktops, 3)
         self.assertEqual(info.in_use_desktops, 2)
         self.assertEqual(info.streaming_profile.resolution if info.streaming_profile else "", "2560x1440")

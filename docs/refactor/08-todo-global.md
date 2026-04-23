@@ -14,6 +14,7 @@
 
 - [x] GoFuture Plan 14 Schritt 2 umsetzen: `beagle-host/services/recording_service.py` mit ffmpeg-basierter MP4-Aufzeichnung pro Session inkl. Start/Stop-API.
 - [x] GoFuture Plan 14 Schritt 1 umsetzen: `session_recording` Policy (`disabled|on_demand|always`) in DesktopPool-Contract/Pool-API/Web-Console-Wizard integrieren; lokal + srv1 validiert (2026-04-23).
+- [x] GoFuture Plan 14 Schritt 3 umsetzen: konfigurierbaren Recording-Storage (`local|nfs|s3`) plus Pool-Feld `recording_retention_days`, Retention-Cronjob und Audit-Event `session.recording.retention_delete` implementieren; lokal + srv1 validiert (2026-04-23).
 - [x] GoFuture Plan 14 Schritt 5 umsetzen: Recording-Download-Endpoint `GET /api/v1/sessions/{id}/recording` mit RBAC-Tag `session:download_recording` und Audit-Event `session.recording.download`.
 
 - [x] GoFuture Plan 13 Schritt 3 umsetzen: `beagle-host/services/scim_service.py` mit `/scim/v2/Users` + `/scim/v2/Groups` (GET/POST/PUT/DELETE) implementieren und separaten SCIM-Bearer-Token (`BEAGLE_SCIM_BEARER_TOKEN`) im Control-Plane erzwingen.

@@ -10,6 +10,7 @@ import secrets
 import shlex
 import tempfile
 import time
+import threading
 import uuid
 import sys
 from dataclasses import dataclass
@@ -166,6 +167,16 @@ AUDIT_EXPORT_SYSLOG_TRANSPORT = os.environ.get("BEAGLE_AUDIT_EXPORT_SYSLOG_TRANS
 AUDIT_EXPORT_WEBHOOK_URL = os.environ.get("BEAGLE_AUDIT_EXPORT_WEBHOOK_URL", "").strip()
 AUDIT_EXPORT_WEBHOOK_SECRET = os.environ.get("BEAGLE_AUDIT_EXPORT_WEBHOOK_SECRET", "").strip()
 AUDIT_EXPORT_WEBHOOK_TIMEOUT_SECONDS = float(os.environ.get("BEAGLE_AUDIT_EXPORT_WEBHOOK_TIMEOUT_SECONDS", "5"))
+RECORDING_STORAGE_BACKEND = os.environ.get("BEAGLE_RECORDING_STORAGE_BACKEND", "local").strip().lower() or "local"
+RECORDING_STORAGE_PATH = os.environ.get("BEAGLE_RECORDING_STORAGE_PATH", "").strip()
+RECORDING_S3_BUCKET = os.environ.get("BEAGLE_RECORDING_S3_BUCKET", "").strip()
+RECORDING_S3_PREFIX = os.environ.get("BEAGLE_RECORDING_S3_PREFIX", "recordings").strip() or "recordings"
+RECORDING_S3_REGION = os.environ.get("BEAGLE_RECORDING_S3_REGION", "us-east-1").strip() or "us-east-1"
+RECORDING_S3_ENDPOINT = os.environ.get("BEAGLE_RECORDING_S3_ENDPOINT", "").strip()
+RECORDING_S3_ACCESS_KEY = os.environ.get("BEAGLE_RECORDING_S3_ACCESS_KEY", "").strip()
+RECORDING_S3_SECRET_KEY = os.environ.get("BEAGLE_RECORDING_S3_SECRET_KEY", "").strip()
+RECORDING_RETENTION_DEFAULT_DAYS = int(os.environ.get("BEAGLE_RECORDING_RETENTION_DEFAULT_DAYS", "30"))
+RECORDING_RETENTION_CRON_SECONDS = int(os.environ.get("BEAGLE_RECORDING_RETENTION_CRON_SECONDS", "3600"))
 AUTH_LOGIN_LOCKOUT_THRESHOLD = int(os.environ.get("BEAGLE_AUTH_LOGIN_LOCKOUT_THRESHOLD", "5"))
 AUTH_LOGIN_LOCKOUT_SECONDS = int(os.environ.get("BEAGLE_AUTH_LOGIN_LOCKOUT_SECONDS", "300"))
 AUTH_LOGIN_BACKOFF_MAX_SECONDS = int(os.environ.get("BEAGLE_AUTH_LOGIN_BACKOFF_MAX_SECONDS", "30"))
@@ -949,6 +960,8 @@ ENDPOINT_TOKEN_STORE_SERVICE: EndpointTokenStoreService | None = None
 PAIRING_SERVICE: PairingService | None = None
 CLUSTER_RPC_SERVER: ThreadingHTTPServer | None = None
 CLUSTER_RPC_THREAD: threading.Thread | None = None
+RECORDING_RETENTION_THREAD: threading.Thread | None = None
+RECORDING_RETENTION_STOP_EVENT: threading.Event | None = None
 
 
 def endpoints_dir() -> Path:
@@ -965,6 +978,14 @@ def support_bundles_dir() -> Path:
 
 def recordings_dir() -> Path:
     return runtime_paths_service().ensure_named_dir("recordings")
+
+
+def recordings_storage_dir() -> Path:
+    if RECORDING_STORAGE_PATH:
+        path = Path(RECORDING_STORAGE_PATH)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+    return recordings_dir()
 
 
 def policies_dir() -> Path:
@@ -1435,10 +1456,61 @@ def recording_service() -> RecordingService:
             now_utc=utcnow,
             popen=subprocess.Popen,
             recordings_dir=recordings_dir,
+            storage_backend=RECORDING_STORAGE_BACKEND,
+            storage_path=str(recordings_storage_dir()),
+            s3_bucket=RECORDING_S3_BUCKET,
+            s3_prefix=RECORDING_S3_PREFIX,
+            s3_region=RECORDING_S3_REGION,
+            s3_endpoint=RECORDING_S3_ENDPOINT,
+            s3_access_key=RECORDING_S3_ACCESS_KEY,
+            s3_secret_key=RECORDING_S3_SECRET_KEY,
             safe_slug=utility_support_service().safe_slug,
             write_json_file=write_json_file,
+            now_epoch=lambda: datetime.now(timezone.utc).timestamp(),
         )
     return RECORDING_SERVICE
+
+
+def _start_recording_retention_thread() -> None:
+    global RECORDING_RETENTION_THREAD, RECORDING_RETENTION_STOP_EVENT
+    if RECORDING_RETENTION_THREAD is not None and RECORDING_RETENTION_THREAD.is_alive():
+        return
+    stop_event = threading.Event()
+    interval_seconds = max(60, int(RECORDING_RETENTION_CRON_SECONDS))
+    default_days = max(1, int(RECORDING_RETENTION_DEFAULT_DAYS))
+
+    def _worker() -> None:
+        while not stop_event.wait(interval_seconds):
+            try:
+                result = recording_service().cleanup_expired_recordings(
+                    retention_days_for_pool=lambda pool_id: pool_manager_service().get_pool_recording_retention_days(pool_id),
+                    default_retention_days=default_days,
+                )
+                deleted_items = result.get("deleted") if isinstance(result, dict) else []
+                if isinstance(deleted_items, list):
+                    for item in deleted_items:
+                        if not isinstance(item, dict):
+                            continue
+                        try:
+                            audit_log_service().write_event(
+                                "session.recording.retention_delete",
+                                "success",
+                                {
+                                    "session_id": str(item.get("session_id") or ""),
+                                    "pool_id": str(item.get("pool_id") or ""),
+                                    "filename": str(item.get("filename") or ""),
+                                    "retention_days": int(item.get("retention_days") or default_days),
+                                },
+                            )
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+    thread = threading.Thread(target=_worker, name="recording-retention-cron", daemon=True)
+    thread.start()
+    RECORDING_RETENTION_STOP_EVENT = stop_event
+    RECORDING_RETENTION_THREAD = thread
 
 
 def ubuntu_beagle_inputs_service() -> UbuntuBeagleInputsService:
@@ -4888,6 +4960,7 @@ class Handler(BaseHTTPRequestHandler):
                     storage_pool=str(body.get("storage_pool", "local") or "local"),
                     gpu_class=str(body.get("gpu_class", "") or "").strip(),
                     session_recording=SessionRecordingPolicy(str(body.get("session_recording", "disabled") or "disabled").strip().lower()),
+                    recording_retention_days=int(body.get("recording_retention_days", 30)),
                     enabled=bool(body.get("enabled", True)),
                     labels=tuple(str(l) for l in body.get("labels", [])),
                     streaming_profile=streaming_profile,
@@ -5388,6 +5461,7 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> int:
     effective_data_dir = ensure_data_dir()
     ensure_cluster_rpc_listener()
+    _start_recording_retention_thread()
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
     print(
         json.dumps(
@@ -5408,6 +5482,10 @@ def main() -> int:
         pass
     finally:
         server.server_close()
+        if RECORDING_RETENTION_STOP_EVENT is not None:
+            RECORDING_RETENTION_STOP_EVENT.set()
+        if RECORDING_RETENTION_THREAD is not None:
+            RECORDING_RETENTION_THREAD.join(timeout=5)
         if CLUSTER_RPC_SERVER is not None:
             CLUSTER_RPC_SERVER.shutdown()
             CLUSTER_RPC_SERVER.server_close()

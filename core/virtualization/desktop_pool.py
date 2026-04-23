@@ -32,6 +32,7 @@ class DesktopPoolSpec:
     storage_pool: str
     gpu_class: str = ""
     session_recording: SessionRecordingPolicy = SessionRecordingPolicy.DISABLED
+    recording_retention_days: int = 30
     enabled: bool = True
     labels: tuple[str, ...] = field(default_factory=tuple)
     streaming_profile: StreamingProfile | None = None
@@ -58,6 +59,7 @@ class DesktopPoolInfo:
     warm_pool_size: int
     gpu_class: str
     session_recording: SessionRecordingPolicy
+    recording_retention_days: int
     free_desktops: int
     in_use_desktops: int
     recycling_desktops: int

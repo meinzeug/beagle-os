@@ -108,6 +108,7 @@ class PoolManagerService:
             "storage_pool": spec.storage_pool,
             "gpu_class": str(spec.gpu_class or "").strip(),
             "session_recording": self._normalize_session_recording(spec.session_recording),
+            "recording_retention_days": self._normalize_retention_days(spec.recording_retention_days),
             "enabled": spec.enabled,
             "labels": list(spec.labels),
             "streaming_profile": streaming_profile_to_dict(spec.streaming_profile),
@@ -155,6 +156,7 @@ class PoolManagerService:
             "streaming_profile",
             "gpu_class",
             "session_recording",
+            "recording_retention_days",
         }
         state = self._load()
         if pool_id not in state["pools"]:
@@ -169,6 +171,8 @@ class PoolManagerService:
                     pool_entry[key] = str(value or "").strip()
                 elif key == "session_recording":
                     pool_entry[key] = self._normalize_session_recording(value)
+                elif key == "recording_retention_days":
+                    pool_entry[key] = self._normalize_retention_days(value)
                 else:
                     pool_entry[key] = value
         self._save(state)
@@ -188,6 +192,21 @@ class PoolManagerService:
         if raw not in allowed:
             return SessionRecordingPolicy.DISABLED.value
         return raw
+
+    @staticmethod
+    def _normalize_retention_days(value: Any) -> int:
+        try:
+            days = int(value)
+        except Exception:
+            days = 30
+        return max(1, min(days, 3650))
+
+    def get_pool_recording_retention_days(self, pool_id: str) -> int:
+        state = self._load()
+        pool = state.get("pools", {}).get(str(pool_id or "").strip())
+        if not isinstance(pool, dict):
+            return 30
+        return self._normalize_retention_days(pool.get("recording_retention_days", 30))
 
     @staticmethod
     def _gpu_class_normalized(gpu_class: Any) -> str:
@@ -461,6 +480,7 @@ class PoolManagerService:
             warm_pool_size=int(pool.get("warm_pool_size", 0)),
             gpu_class=str(pool.get("gpu_class") or "").strip(),
             session_recording=session_recording,
+            recording_retention_days=self._normalize_retention_days(pool.get("recording_retention_days", 30)),
             free_desktops=counts[_STATE_FREE],
             in_use_desktops=counts[_STATE_IN_USE],
             recycling_desktops=counts[_STATE_RECYCLING],
@@ -731,6 +751,7 @@ class PoolManagerService:
             "warm_pool_size": info.warm_pool_size,
             "gpu_class": info.gpu_class,
             "session_recording": info.session_recording.value if hasattr(info.session_recording, "value") else str(info.session_recording),
+            "recording_retention_days": int(info.recording_retention_days),
             "free_desktops": info.free_desktops,
             "in_use_desktops": info.in_use_desktops,
             "recycling_desktops": info.recycling_desktops,

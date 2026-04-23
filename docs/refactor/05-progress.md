@@ -1,5 +1,22 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 14 Schritt 3: Recording-Storage + Retention abgeschlossen)
+
+- `recording_retention_days` im Pool-Contract und Pool-Runtime eingefuehrt:
+	- `core/virtualization/desktop_pool.py`: Feld in `DesktopPoolSpec`/`DesktopPoolInfo`.
+	- `beagle-host/services/pool_manager.py`: Persistenz, Normalisierung, API-Serialisierung, Lookup pro Pool.
+- Recording-Service erweitert:
+	- `beagle-host/services/recording_service.py` unterstuetzt konfigurierbare Storage-Backends (`local|nfs|s3`) via Env.
+	- Retention-Cleanup (`cleanup_expired_recordings`) loescht abgelaufene Recordings lokal/S3.
+- Control-Plane erweitert:
+	- Env-Surface fuer Recording-Storage/Retention (`BEAGLE_RECORDING_STORAGE_*`, `BEAGLE_RECORDING_S3_*`, `BEAGLE_RECORDING_RETENTION_*`).
+	- Background-Cron-Thread fuehrt periodisches Retention-Cleanup aus und schreibt Audit-Events `session.recording.retention_delete`.
+- Web Console erweitert:
+	- Pool-Wizard hat neues Feld `Recording Retention (Tage)` inkl. Payload + Summary + Kartenanzeige (`website/index.html`, `website/ui/policies.js`).
+- Validierung:
+	- Lokal: `21 passed` (`test_recording_service`, `test_pool_manager`, `test_desktop_pool_contract`).
+	- Live auf `srv1.beagle-os.com`: Pool mit `recording_retention_days=7` erstellt, Retention-Cron loescht abgelaufenes Test-Recording, Audit-Nachweis in `/var/lib/beagle/beagle-manager/audit/events.log` vorhanden.
+
 ## Update (2026-04-23, GoFuture Plan 14 Schritt 1: Session-Recording-Policy pro Pool abgeschlossen)
 
 - `session_recording` Policy in Pool-Contracts eingefuehrt:

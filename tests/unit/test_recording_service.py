@@ -96,3 +96,59 @@ def test_second_start_returns_already_active(tmp_path: Path) -> None:
     assert second["ok"] is True
     assert second["already_active"] is True
     assert len(popen.calls) == 1
+
+
+def test_cleanup_expired_recordings_respects_pool_retention(tmp_path: Path) -> None:
+    popen = _PopenStub()
+    service = RecordingService(
+        load_json_file=_load_json_file,
+        now_utc=lambda: "2026-04-21T12:00:00Z",
+        popen=popen,
+        recordings_dir=lambda: tmp_path,
+        storage_backend="local",
+        storage_path=str(tmp_path),
+        safe_slug=_safe_slug,
+        write_json_file=_write_json_file,
+        now_epoch=lambda: 1_777_000_000.0,
+    )
+
+    # Old recording (should be deleted for 7-day retention)
+    old_path = tmp_path / "pool-a-1-old.mp4"
+    old_path.write_bytes(b"old")
+    # Recent recording (should survive)
+    new_path = tmp_path / "pool-a-2-new.mp4"
+    new_path.write_bytes(b"new")
+
+    index_payload = {
+        "sessions": {
+            "pool-a:1": {
+                "session_id": "pool-a:1",
+                "pool_id": "pool-a",
+                "status": "stopped",
+                "path": str(old_path),
+                "filename": "pool-a-1-old.mp4",
+                "ended_at": "2025-12-01T00:00:00Z",
+                "storage_backend": "local",
+            },
+            "pool-a:2": {
+                "session_id": "pool-a:2",
+                "pool_id": "pool-a",
+                "status": "stopped",
+                "path": str(new_path),
+                "filename": "pool-a-2-new.mp4",
+                "ended_at": "2026-04-20T00:00:00Z",
+                "storage_backend": "local",
+            },
+        }
+    }
+    _write_json_file(tmp_path / "index.json", index_payload)
+
+    cleanup = service.cleanup_expired_recordings(
+        retention_days_for_pool=lambda pool_id: 7,
+        default_retention_days=30,
+    )
+    assert cleanup["ok"] is True
+    assert len(cleanup["deleted"]) == 1
+    assert cleanup["deleted"][0]["session_id"] == "pool-a:1"
+    assert not old_path.exists()
+    assert new_path.exists()
