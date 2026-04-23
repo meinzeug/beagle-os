@@ -1,5 +1,18 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 15 Schritt 2: Audit-Export-Targets abgeschlossen)
+
+- Plan 15 Schritt 2 als abgeschlossen validiert und dokumentiert:
+	- `beagle-host/services/audit_export.py` mit konfigurierbaren S3/Minio-, Syslog- und Webhook-Targets,
+	- `AuditLogService` exportiert Events direkt nach lokalem Append,
+	- Control-Plane-Env-Surface (`BEAGLE_AUDIT_EXPORT_*`) aktiv verdrahtet.
+- Lokale Tests: `python3 -m pytest tests/unit/test_audit_export.py tests/unit/test_audit_log.py -q` => `7 passed`.
+- Live-Smoke auf `srv1.beagle-os.com`:
+	- Webhook-Ziel temporär aktiviert,
+	- Audit-Event via fehlgeschlagenem Login erzeugt,
+	- Capture bestaetigt `path=/audit`, `X-Beagle-Signature` vorhanden, `action=auth.login`, `result=rejected`,
+	- Runtime-Env nach Test wiederhergestellt, `beagle-control-plane` final `active`.
+
 ## Update (2026-04-23, GoFuture Plan 12 Schritt 5: gpu_class Scheduler-Constraint abgeschlossen)
 
 - `core/virtualization/desktop_pool.py` erweitert: `DesktopPoolSpec.gpu_class` und `DesktopPoolInfo.gpu_class` eingefuehrt.

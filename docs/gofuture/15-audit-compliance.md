@@ -25,8 +25,8 @@ ist versioniert damit künftige Erweiterungen rückwärtskompatibel bleiben.
 
 ### Schritt 2 — Audit-Export zu S3/Minio, Syslog und Webhook implementieren
 
-- [ ] `beagle-host/services/audit_export.py`: konfigurierbare Export-Targets.
-- [ ] Export-Targets: S3-kompatibel (Minio, AWS S3), Syslog (RFC 5424), HTTP-Webhook.
+- [x] `beagle-host/services/audit_export.py`: konfigurierbare Export-Targets.
+- [x] Export-Targets: S3-kompatibel (Minio, AWS S3), Syslog (RFC 5424), HTTP-Webhook.
 
 Externe SIEM-Systeme (Splunk, Elastic, Graylog) brauchen einen Ingestion-Pfad für
 Audit-Events. S3-Export speichert Events als JSON-Lines-Dateien in stündlichen oder
@@ -37,6 +37,25 @@ Alle Export-Targets sind optional und werden in der Web Console unter Server-Set
 konfiguriert. Export-Fehler werden geloggt und nach konfigurierbarer Retry-Anzahl
 als Alert angezeigt. Audit-Events werden niemals verworfen; bei Export-Fehler werden
 sie lokal gepuffert.
+
+Umsetzung (2026-04-23):
+- `beagle-host/services/audit_export.py` implementiert:
+	- `AuditExportConfig` fuer S3-, Syslog- und Webhook-Targets,
+	- `AuditExportService.export_event(...)` mit fan-out auf alle aktivierten Targets,
+	- Failure-Queueing in `audit/export-failures.log` bei Target-Fehlern.
+- `beagle-host/bin/beagle-control-plane.py` verdrahtet:
+	- Env-Konfiguration (`BEAGLE_AUDIT_EXPORT_*`) fuer alle Targets,
+	- `audit_export_service()` als lazy-init,
+	- `audit_log_service()` ruft Export direkt nach lokalem Event-Append auf.
+- `beagle-host/services/audit_log.py` exportiert Events ueber `export_event` Hook.
+
+Validierung:
+- Lokal: `python3 -m pytest tests/unit/test_audit_export.py tests/unit/test_audit_log.py -q` => `7 passed`.
+- Live auf `srv1.beagle-os.com`:
+	- temporärer Webhook-Target (`http://127.0.0.1:18081/audit`) gesetzt,
+	- Audit-Event durch fehlgeschlagenen Login erzeugt,
+	- Webhook-Capture bestaetigt `path=/audit`, `X-Beagle-Signature` vorhanden, Event `action=auth.login`, `result=rejected`,
+	- Env danach wiederhergestellt und `beagle-control-plane` erneut `active`.
 
 ---
 

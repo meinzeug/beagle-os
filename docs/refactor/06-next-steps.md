@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-23 nach Abschluss von Plan 15 Schritt 2: Audit-Export)
+
+0. **Plan 15 Testpflicht weiter schliessen**:
+	- S3/Minio-Live-Nachweis (`JSON-Lines` im Bucket) auf Test-Target fahren,
+	- CSV-Report-Vollstaendigkeit und Audit-Viewer-Filter-Live-Nachweis reproduzierbar dokumentieren.
+
+0. **Naechster umsetzbarer offener GoFuture-Codeblock**:
+	- Plan 14 Schritt 1 (`session_recording` Feld + Pool-Editor),
+	- danach Storage/Retention-Schritte in Plan 14 weiterziehen.
+
 ## Delta (2026-04-23 nach Abschluss von Plan 12 Schritt 5: gpu_class Constraint)
 
 0. **Plan 12 Testpflicht abschliessen (runtime-blockiert auf srv1)**:
