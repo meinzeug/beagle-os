@@ -152,3 +152,32 @@ def test_cleanup_expired_recordings_respects_pool_retention(tmp_path: Path) -> N
     assert cleanup["deleted"][0]["session_id"] == "pool-a:1"
     assert not old_path.exists()
     assert new_path.exists()
+
+
+def test_start_recording_with_watermark_adds_drawtext_filter(tmp_path: Path) -> None:
+    popen = _PopenStub()
+    service = RecordingService(
+        load_json_file=_load_json_file,
+        now_utc=lambda: "2026-04-21T12:00:00Z",
+        popen=popen,
+        recordings_dir=lambda: tmp_path,
+        safe_slug=_safe_slug,
+        write_json_file=_write_json_file,
+    )
+
+    start = service.start_recording(
+        session_id="pool-x:101",
+        test_source=True,
+        watermark_enabled=True,
+        watermark_username="alice",
+        watermark_custom_text="compliance",
+        watermark_show_timestamp=True,
+    )
+    assert start["ok"] is True
+    assert len(popen.calls) == 1
+    cmd = popen.calls[0]
+    assert "-vf" in cmd
+    vf = cmd[cmd.index("-vf") + 1]
+    assert "drawtext=" in vf
+    assert "alice" in vf
+    assert "compliance" in vf

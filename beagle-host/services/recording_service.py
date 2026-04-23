@@ -135,6 +135,39 @@ class RecordingService:
             return ["-c:v", "libx265"]
         return ["-c:v", "libx264"]
 
+    @staticmethod
+    def _escape_drawtext(text: str) -> str:
+        raw = str(text or "")
+        raw = raw.replace("\\", "\\\\")
+        raw = raw.replace(":", "\\:")
+        raw = raw.replace("'", "\\'")
+        raw = raw.replace("%", "\\%")
+        return raw
+
+    def _build_watermark_filter(self, *, username: str, custom_text: str, show_timestamp: bool) -> str:
+        parts: list[str] = []
+        user = str(username or "").strip()
+        custom = str(custom_text or "").strip()
+        if user:
+            parts.append(f"user={user}")
+        if custom:
+            parts.append(custom)
+        text = " | ".join(parts)
+        if not show_timestamp and not text:
+            return ""
+        if show_timestamp:
+            if text:
+                text += " | "
+            text += "%{gmtime\\:%Y-%m-%d %H\\:%M\\:%S UTC}"
+        escaped = self._escape_drawtext(text)
+        return (
+            "drawtext="
+            f"text='{escaped}':"
+            "x=w-tw-28:y=h-th-24:"
+            "fontcolor=white:fontsize=22:"
+            "box=1:boxcolor=black@0.45:boxborderw=12"
+        )
+
     def _build_ffmpeg_command(
         self,
         *,
@@ -142,6 +175,10 @@ class RecordingService:
         input_url: str,
         codec: str,
         test_source: bool,
+        watermark_enabled: bool,
+        watermark_username: str,
+        watermark_custom_text: str,
+        watermark_show_timestamp: bool,
     ) -> list[str]:
         cmd = ["ffmpeg", "-y"]
         if test_source:
@@ -151,6 +188,14 @@ class RecordingService:
         else:
             # Fallback for Linux hosts without explicit stream URL.
             cmd += ["-f", "x11grab", "-framerate", "30", "-i", ":0.0"]
+        if watermark_enabled:
+            watermark_filter = self._build_watermark_filter(
+                username=watermark_username,
+                custom_text=watermark_custom_text,
+                show_timestamp=watermark_show_timestamp,
+            )
+            if watermark_filter:
+                cmd += ["-vf", watermark_filter]
         cmd += self._codec_args(codec)
         # Keep deterministic short recordings in test_source mode to allow
         # immediate API validation without asynchronous wait loops.
@@ -165,6 +210,10 @@ class RecordingService:
         input_url: str = "",
         codec: str = "h264",
         test_source: bool = False,
+        watermark_enabled: bool = False,
+        watermark_username: str = "",
+        watermark_custom_text: str = "",
+        watermark_show_timestamp: bool = True,
     ) -> dict[str, Any]:
         sid = self._safe_slug(str(session_id or "").strip(), "session")
         index_payload = self._load_index()
@@ -181,6 +230,10 @@ class RecordingService:
             input_url=str(input_url or "").strip(),
             codec=codec,
             test_source=bool(test_source),
+            watermark_enabled=bool(watermark_enabled),
+            watermark_username=str(watermark_username or "").strip(),
+            watermark_custom_text=str(watermark_custom_text or "").strip(),
+            watermark_show_timestamp=bool(watermark_show_timestamp),
         )
         proc = self._popen(
             cmd,
@@ -210,6 +263,10 @@ class RecordingService:
             "started_at": self._now_utc(),
             "ended_at": ended_at,
             "storage_backend": "local" if self._storage_backend in {"local", "nfs"} else self._storage_backend,
+            "watermark_enabled": bool(watermark_enabled),
+            "watermark_username": str(watermark_username or "").strip(),
+            "watermark_custom_text": str(watermark_custom_text or "").strip(),
+            "watermark_show_timestamp": bool(watermark_show_timestamp),
         }
         if status == "stopped":
             try:

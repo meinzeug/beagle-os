@@ -81,11 +81,15 @@ class PoolManagerServiceTests(unittest.TestCase):
                 storage_pool="local",
                 session_recording="always",
                 recording_retention_days=90,
+                recording_watermark_enabled=True,
+                recording_watermark_custom_text="compliance",
             )
         )
         payload = service.pool_info_to_dict(info)
         self.assertEqual(payload["session_recording"], "always")
         self.assertEqual(payload["recording_retention_days"], 90)
+        self.assertTrue(payload["recording_watermark_enabled"])
+        self.assertEqual(payload["recording_watermark_custom_text"], "compliance")
 
     def test_update_pool_normalizes_invalid_session_recording(self) -> None:
         service = self._build_service()
@@ -121,9 +125,18 @@ class PoolManagerServiceTests(unittest.TestCase):
                 storage_pool="local",
             )
         )
-        updated = service.update_pool("pool-rec", {"recording_retention_days": 0})
+        updated = service.update_pool(
+            "pool-rec",
+            {
+                "recording_retention_days": 0,
+                "recording_watermark_enabled": True,
+                "recording_watermark_custom_text": "  legal  ",
+            },
+        )
         payload = service.pool_info_to_dict(updated)
         self.assertEqual(payload["recording_retention_days"], 1)
+        self.assertTrue(payload["recording_watermark_enabled"])
+        self.assertEqual(payload["recording_watermark_custom_text"], "legal")
 
     def test_allocate_release_recycle_non_persistent(self) -> None:
         service = self._build_service()

@@ -113,6 +113,7 @@ from vm_secret_bootstrap import VmSecretBootstrapService
 from vm_secret_store import VmSecretStoreService
 from vm_state import VmStateService
 from vm_usb import VmUsbService
+from core.virtualization.desktop_pool import SessionRecordingPolicy
 
 def load_env_defaults(path: str) -> None:
     env_path = Path(path)
@@ -3416,6 +3417,25 @@ class Handler(BaseHTTPRequestHandler):
     def _session_recording_stop_match(path: str) -> re.Match[str] | None:
         return re.match(r"^/api/v1/sessions/(?P<session_id>[A-Za-z0-9._:-]+)/recording/stop$", path)
 
+    def _active_session_by_id(self, session_id: str) -> dict[str, Any] | None:
+        sid = str(session_id or "").strip()
+        if not sid:
+            return None
+        for session in pool_manager_service().list_active_sessions():
+            if str(session.get("session_id") or "").strip() == sid:
+                return session
+        return None
+
+    def _pool_recording_policy(self, pool_id: str) -> str:
+        pool_info = pool_manager_service().get_pool(str(pool_id or "").strip())
+        if pool_info is None:
+            return SessionRecordingPolicy.DISABLED.value
+        policy = pool_info.session_recording.value if hasattr(pool_info.session_recording, "value") else str(pool_info.session_recording)
+        return str(policy or SessionRecordingPolicy.DISABLED.value).strip().lower() or SessionRecordingPolicy.DISABLED.value
+
+    def _pool_recording_watermark(self, pool_id: str) -> dict[str, Any]:
+        return pool_manager_service().get_pool_recording_watermark(str(pool_id or "").strip())
+
     def _audit_auth_surface_response(self, method: str, path: str, response: dict[str, Any]) -> None:
         status = int(response.get("status") or 500)
         outcome = "success" if status < 400 else "error"
@@ -4652,11 +4672,19 @@ class Handler(BaseHTTPRequestHandler):
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
             session_id = str(recording_start_match.group("session_id") or "").strip()
+            active_session = self._active_session_by_id(session_id)
+            pool_id = str((active_session or {}).get("pool_id") or "").strip()
+            user_id = str((active_session or {}).get("user_id") or self._requester_identity()).strip()
+            watermark = self._pool_recording_watermark(pool_id) if pool_id else {"enabled": False, "custom_text": ""}
             response = recording_service().start_recording(
                 session_id=session_id,
                 input_url=str(payload.get("input_url") or "").strip(),
                 codec=str(payload.get("codec") or "h264").strip(),
                 test_source=bool(payload.get("test_source", False)),
+                watermark_enabled=bool(payload.get("watermark_enabled", watermark.get("enabled", False))),
+                watermark_username=str(payload.get("watermark_username") or user_id).strip(),
+                watermark_custom_text=str(payload.get("watermark_custom_text") or watermark.get("custom_text", "")).strip(),
+                watermark_show_timestamp=bool(payload.get("watermark_show_timestamp", True)),
             )
             self._audit_event(
                 "session.recording.start",
@@ -4961,6 +4989,8 @@ class Handler(BaseHTTPRequestHandler):
                     gpu_class=str(body.get("gpu_class", "") or "").strip(),
                     session_recording=SessionRecordingPolicy(str(body.get("session_recording", "disabled") or "disabled").strip().lower()),
                     recording_retention_days=int(body.get("recording_retention_days", 30)),
+                    recording_watermark_enabled=bool(body.get("recording_watermark_enabled", False)),
+                    recording_watermark_custom_text=str(body.get("recording_watermark_custom_text", "") or "").strip(),
                     enabled=bool(body.get("enabled", True)),
                     labels=tuple(str(l) for l in body.get("labels", [])),
                     streaming_profile=streaming_profile,
@@ -5065,6 +5095,40 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, RuntimeError) as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
                 return
+
+            policy = self._pool_recording_policy(pool_id)
+            if policy == SessionRecordingPolicy.ALWAYS.value:
+                try:
+                    watermark = self._pool_recording_watermark(pool_id)
+                    recording_service().start_recording(
+                        session_id=f"{pool_id}:{lease.vmid}",
+                        input_url=str(body.get("recording_input_url") or "").strip(),
+                        codec=str(body.get("recording_codec") or "h264").strip(),
+                        test_source=bool(body.get("recording_test_source", False)),
+                        watermark_enabled=bool(watermark.get("enabled", False)),
+                        watermark_username=str(lease.user_id or user_id or self._requester_identity()).strip(),
+                        watermark_custom_text=str(watermark.get("custom_text") or "").strip(),
+                        watermark_show_timestamp=True,
+                    )
+                    self._audit_event(
+                        "session.recording.start",
+                        "success",
+                        session_id=f"{pool_id}:{lease.vmid}",
+                        requested_by=self._requester_identity(),
+                        auto_policy="always",
+                        remote_addr=self.client_address[0] if self.client_address else "",
+                    )
+                except Exception as exc:
+                    self._audit_event(
+                        "session.recording.start",
+                        "error",
+                        session_id=f"{pool_id}:{lease.vmid}",
+                        requested_by=self._requester_identity(),
+                        auto_policy="always",
+                        error=str(exc),
+                        remote_addr=self.client_address[0] if self.client_address else "",
+                    )
+
             self._audit_event("pool.desktop.allocate", "success", pool_id=pool_id, user_id=user_id, vmid=lease.vmid, username=self._requester_identity())
             self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().lease_to_dict(lease)})
             return
@@ -5089,6 +5153,20 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, RuntimeError) as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
                 return
+
+            policy = self._pool_recording_policy(pool_id)
+            if policy == SessionRecordingPolicy.ALWAYS.value:
+                session_id = f"{pool_id}:{vmid}"
+                stop_result = recording_service().stop_recording(session_id=session_id)
+                if bool(stop_result.get("ok")):
+                    self._audit_event(
+                        "session.recording.stop",
+                        "success",
+                        session_id=session_id,
+                        requested_by=self._requester_identity(),
+                        auto_policy="always",
+                        remote_addr=self.client_address[0] if self.client_address else "",
+                    )
             self._audit_event("pool.desktop.release", "success", pool_id=pool_id, vmid=vmid, username=self._requester_identity())
             self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().lease_to_dict(lease)})
             return

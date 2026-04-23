@@ -109,6 +109,8 @@ class PoolManagerService:
             "gpu_class": str(spec.gpu_class or "").strip(),
             "session_recording": self._normalize_session_recording(spec.session_recording),
             "recording_retention_days": self._normalize_retention_days(spec.recording_retention_days),
+            "recording_watermark_enabled": bool(spec.recording_watermark_enabled),
+            "recording_watermark_custom_text": self._normalize_watermark_text(spec.recording_watermark_custom_text),
             "enabled": spec.enabled,
             "labels": list(spec.labels),
             "streaming_profile": streaming_profile_to_dict(spec.streaming_profile),
@@ -157,6 +159,8 @@ class PoolManagerService:
             "gpu_class",
             "session_recording",
             "recording_retention_days",
+            "recording_watermark_enabled",
+            "recording_watermark_custom_text",
         }
         state = self._load()
         if pool_id not in state["pools"]:
@@ -173,6 +177,10 @@ class PoolManagerService:
                     pool_entry[key] = self._normalize_session_recording(value)
                 elif key == "recording_retention_days":
                     pool_entry[key] = self._normalize_retention_days(value)
+                elif key == "recording_watermark_enabled":
+                    pool_entry[key] = bool(value)
+                elif key == "recording_watermark_custom_text":
+                    pool_entry[key] = self._normalize_watermark_text(value)
                 else:
                     pool_entry[key] = value
         self._save(state)
@@ -201,12 +209,27 @@ class PoolManagerService:
             days = 30
         return max(1, min(days, 3650))
 
+    @staticmethod
+    def _normalize_watermark_text(value: Any) -> str:
+        text = str(value or "").strip()
+        return text[:120]
+
     def get_pool_recording_retention_days(self, pool_id: str) -> int:
         state = self._load()
         pool = state.get("pools", {}).get(str(pool_id or "").strip())
         if not isinstance(pool, dict):
             return 30
         return self._normalize_retention_days(pool.get("recording_retention_days", 30))
+
+    def get_pool_recording_watermark(self, pool_id: str) -> dict[str, Any]:
+        state = self._load()
+        pool = state.get("pools", {}).get(str(pool_id or "").strip())
+        if not isinstance(pool, dict):
+            return {"enabled": False, "custom_text": ""}
+        return {
+            "enabled": bool(pool.get("recording_watermark_enabled", False)),
+            "custom_text": self._normalize_watermark_text(pool.get("recording_watermark_custom_text", "")),
+        }
 
     @staticmethod
     def _gpu_class_normalized(gpu_class: Any) -> str:
@@ -487,6 +510,8 @@ class PoolManagerService:
             error_desktops=counts[_STATE_ERROR],
             enabled=bool(pool.get("enabled", True)),
             streaming_profile=self._parse_streaming_profile(pool.get("streaming_profile")),
+            recording_watermark_enabled=bool(pool.get("recording_watermark_enabled", False)),
+            recording_watermark_custom_text=self._normalize_watermark_text(pool.get("recording_watermark_custom_text", "")),
         )
 
     # ------------------------------------------------------------------
@@ -752,6 +777,8 @@ class PoolManagerService:
             "gpu_class": info.gpu_class,
             "session_recording": info.session_recording.value if hasattr(info.session_recording, "value") else str(info.session_recording),
             "recording_retention_days": int(info.recording_retention_days),
+            "recording_watermark_enabled": bool(info.recording_watermark_enabled),
+            "recording_watermark_custom_text": str(info.recording_watermark_custom_text or ""),
             "free_desktops": info.free_desktops,
             "in_use_desktops": info.in_use_desktops,
             "recycling_desktops": info.recycling_desktops,

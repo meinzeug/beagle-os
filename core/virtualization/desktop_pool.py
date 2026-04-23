@@ -33,6 +33,8 @@ class DesktopPoolSpec:
     gpu_class: str = ""
     session_recording: SessionRecordingPolicy = SessionRecordingPolicy.DISABLED
     recording_retention_days: int = 30
+    recording_watermark_enabled: bool = False
+    recording_watermark_custom_text: str = ""
     enabled: bool = True
     labels: tuple[str, ...] = field(default_factory=tuple)
     streaming_profile: StreamingProfile | None = None
@@ -66,6 +68,8 @@ class DesktopPoolInfo:
     error_desktops: int
     enabled: bool = True
     streaming_profile: StreamingProfile | None = None
+    recording_watermark_enabled: bool = False
+    recording_watermark_custom_text: str = ""
 
 
 class DesktopPool(Protocol):

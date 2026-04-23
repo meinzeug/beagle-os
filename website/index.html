@@ -1046,6 +1046,13 @@
                     </select>
                   </label>
                   <label class="field"><span>Recording Retention (Tage)</span><input id="pool-recording-retention-days" type="number" min="1" step="1" value="30"></label>
+                  <label class="field"><span>Recording Watermark</span>
+                    <select id="pool-recording-watermark-enabled" class="input-select">
+                      <option value="false" selected>disabled</option>
+                      <option value="true">enabled</option>
+                    </select>
+                  </label>
+                  <label class="field field-wide"><span>Watermark Text (optional)</span><input id="pool-recording-watermark-custom-text" type="text" maxlength="120" placeholder="z.B. Compliance"></label>
                   <div class="pool-streaming-group field-wide">
                     <div class="pool-streaming-group-head">
                       <span class="eyebrow">Streaming-Profil</span>

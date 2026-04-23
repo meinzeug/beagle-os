@@ -51,6 +51,8 @@ function collectPoolWizardInput() {
     memory_mib: Number(qs('pool-memory') ? qs('pool-memory').value : '4096') || 4096,
     session_recording: String(qs('pool-session-recording') ? qs('pool-session-recording').value : 'disabled').trim() || 'disabled',
     recording_retention_days: Number(qs('pool-recording-retention-days') ? qs('pool-recording-retention-days').value : '30') || 30,
+    recording_watermark_enabled: String(qs('pool-recording-watermark-enabled') ? qs('pool-recording-watermark-enabled').value : 'false').trim().toLowerCase() === 'true',
+    recording_watermark_custom_text: String(qs('pool-recording-watermark-custom-text') ? qs('pool-recording-watermark-custom-text').value : '').trim(),
     streaming_profile: {
       encoder: String(qs('pool-stream-encoder') ? qs('pool-stream-encoder').value : 'auto').trim() || 'auto',
       color: String(qs('pool-stream-color') ? qs('pool-stream-color').value : 'h265').trim() || 'h265',
@@ -120,6 +122,7 @@ function renderPoolWizardSummary() {
     fieldBlock('CPU / RAM', String(payload.cpu_cores) + ' vCPU / ' + String(payload.memory_mib) + ' MiB') +
     fieldBlock('Session Recording', String(payload.session_recording || 'disabled')) +
     fieldBlock('Retention', String(payload.recording_retention_days || 30) + ' Tage') +
+    fieldBlock('Watermark', (payload.recording_watermark_enabled ? 'enabled' : 'disabled') + (payload.recording_watermark_custom_text ? ' / ' + payload.recording_watermark_custom_text : '')) +
     fieldBlock('Streaming', String(payload.streaming_profile.encoder || '-') + ' / ' + String(payload.streaming_profile.color || '-') + ' / ' + String(payload.streaming_profile.resolution || '-')) +
     fieldBlock('Bitrate / FPS / HDR', String(payload.streaming_profile.bitrate_kbps || '-') + ' Kbps / ' + String(payload.streaming_profile.fps || '-') + ' fps / ' + (payload.streaming_profile.hdr ? 'on' : 'off')) +
     fieldBlock('Audio / Gamepad', (payload.streaming_profile.audio_input_enabled ? 'audio' : '-') + ' / ' + (payload.streaming_profile.gamepad_redirect_enabled ? 'gamepad' : '-')) +
@@ -241,6 +244,8 @@ function renderPoolsList() {
     const stream = pool.streaming_profile && typeof pool.streaming_profile === 'object' ? pool.streaming_profile : null;
     const sessionRecording = String(pool.session_recording || 'disabled').trim() || 'disabled';
     const retentionDays = Number(pool.recording_retention_days || 30) || 30;
+    const watermarkEnabled = !!pool.recording_watermark_enabled;
+    const watermarkCustom = String(pool.recording_watermark_custom_text || '').trim();
     const streamSummary = stream
       ? String(stream.encoder || 'auto') + ' / ' + String(stream.color || 'h265') + ' / ' + String(stream.resolution || '1920x1080')
       : 'default';
@@ -252,6 +257,7 @@ function renderPoolsList() {
       fieldBlock('Warm/Max', String(pool.warm_pool_size || 0) + ' / ' + String(pool.max_pool_size || 0)) +
       fieldBlock('Recording', sessionRecording) +
       fieldBlock('Retention', String(retentionDays) + ' Tage') +
+      fieldBlock('Watermark', (watermarkEnabled ? 'enabled' : 'disabled') + (watermarkCustom ? ' / ' + watermarkCustom : '')) +
       fieldBlock('Streaming', streamSummary) +
       '</div>' +
       '</article>';
