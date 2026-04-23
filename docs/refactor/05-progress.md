@@ -1,5 +1,19 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 11 Testpflicht: Stream-Health waehrend aktiver Session abgeschlossen)
+
+- Offene Testpflicht-Checkbox in Plan 11 geschlossen: Stream-Health-Metriken sind waehrend aktiver Session reproduzierbar sichtbar.
+- Neues Live-Smoke-Script implementiert: `scripts/test-stream-health-active-session-smoke.py`.
+- Reproduzierbarer Nachweis auf `srv1.beagle-os.com` gegen die laufende API (`http://127.0.0.1:9088`):
+	- Pool create/register/entitlement/allocate erfolgreich,
+	- `POST /api/v1/sessions/stream-health` erfolgreich,
+	- `GET /api/v1/sessions` zeigt aktive Session mit den gesetzten Metriken (`rtt_ms`, `fps`, `dropped_frames`, `encoder_load`),
+	- Cleanup (`release`, `delete pool`) erfolgreich.
+- Validierung lokal:
+	- `python3 -m py_compile` fuer neues Smoke-Script und betroffene Runtime-Dateien OK,
+	- `pytest`-Subset (`pool_manager`, `authz_policy`, `desktop_pool_contract`) => `19 passed`,
+	- `node --check` fuer Sessions/Dashboard/Main OK.
+
 ## Update (2026-04-23, GoFuture Plan 11 Schritt 4 Test-Matrix abgeschlossen)
 
 - Die letzte offene Checkbox aus Plan 11 Schritt 4 ist geschlossen.

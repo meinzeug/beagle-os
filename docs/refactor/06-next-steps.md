@@ -1,5 +1,21 @@
 # Next Steps
 
+## Delta (2026-04-23 nach Abschluss von Plan 11 Testpflicht "Stream-Health waehrend aktiver Session")
+
+0. **Plan 11 Schritt 6 starten (Windows Apollo Eval/Benchmark)**:
+	- Windows Guest + SudoVDA Eval-Lauf aufsetzen,
+	- reproduzierbare Benchmark-Matrix Sunshine (Linux) vs Apollo (Windows) fuer gleiche Workload/Resolution definieren,
+	- Ergebnisse in `docs/refactor/07-decisions.md` unter `D-031` nachziehen.
+
+0. **Plan 11 verbleibende Testpflicht schliessen**:
+	- Linux 4K@60 ohne Artefakte weiter absichern,
+	- Auto-Pairing ohne manuellen PIN als E2E-Live-Nachweis fahren,
+	- Multi-Monitor-Linux-Lauf mit dokumentiertem Ergebnis validieren.
+
+0. **Plan 09 Multi-Node-Testpflicht bleibt runtime-blockiert**:
+	- aktueller Live-Stand `srv1` zeigt nur einen Online-Knoten,
+	- fuer offene HA-/Anti-Affinity-Nachweise ist ein zweiter online libvirt-Host erforderlich.
+
 ## Delta (2026-04-23 nach Abschluss von Plan 11 Schritt 4 Test-Matrix)
 
 0. **Plan 11 Schritt 6 beginnen (Windows Apollo Eval)**:

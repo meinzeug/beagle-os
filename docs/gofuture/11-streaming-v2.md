@@ -215,5 +215,13 @@ Apollo nutzt SudoVDA als Virtual Display-Treiber (Windows-spezifisch). Der Evalu
 - [ ] Windows Desktop (optional): Apollo-VM streamt 3840×2160@60 HDR auf Moonlight ohne Artefakte.
 - [ ] Auto-Pairing ohne manuellen PIN: Token generieren → Client verbindet automatisch.
 - [ ] Multi-Monitor (Linux): zwei xrandr-Outputs konfiguriert, Moonlight zeigt beide (wenn supported).
-- [ ] Stream-Health-Metriken in Web Console sichtbar während Session läuft.
+- [x] Stream-Health-Metriken in Web Console sichtbar während Session läuft.
+
+Validierung (2026-04-23):
+- Reproduzierbarer Live-Smoke ergänzt: `scripts/test-stream-health-active-session-smoke.py`.
+- Smoke-Flow auf `srv1.beagle-os.com` (gegen `http://127.0.0.1:9088`):
+	- `create_pool(201) -> register_vm(201) -> set_entitlements(200) -> allocate_session(200)`
+	- `post_stream_health(200) -> get_sessions(200)` mit aktiver Session (`state=in_use`) und persistierten Metriken.
+	- Cleanup erfolgreich: `release_session(200) -> delete_pool(200)`.
+- Ergebnis: `STREAM_HEALTH_ACTIVE_RESULT=PASS`.
 
