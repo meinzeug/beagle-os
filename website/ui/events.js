@@ -794,6 +794,14 @@ export function bindEvents() {
       }
     });
   }
+  if (qs('virtualization-gpus-body')) {
+    qs('virtualization-gpus-body').addEventListener('click', (event) => {
+      const row = event.target.closest('tr[data-node]');
+      if (row) {
+        setVirtualizationNodeFilter(row.getAttribute('data-node'));
+      }
+    });
+  }
   if (qs('clear-virt-node-filter')) {
     qs('clear-virt-node-filter').addEventListener('click', () => {
       setVirtualizationNodeFilter('');

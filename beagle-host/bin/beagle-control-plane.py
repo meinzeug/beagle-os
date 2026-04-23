@@ -91,6 +91,7 @@ from ubuntu_beagle_state import UbuntuBeagleStateService
 from ubuntu_beagle_provisioning import UbuntuBeagleProvisioningService
 from update_feed import UpdateFeedService
 from utility_support import UtilitySupportService
+from gpu_inventory import GpuInventoryService
 from virtualization_inventory import VirtualizationInventoryService
 from virtualization_read_surface import VirtualizationReadSurfaceService
 from webhook_service import WebhookService
@@ -888,6 +889,7 @@ VIRTUALIZATION_INVENTORY = VirtualizationInventoryService(
     default_bridge=UBUNTU_BEAGLE_DEFAULT_BRIDGE,
 )
 
+GPU_INVENTORY_SERVICE: GpuInventoryService | None = None
 VM_PROFILE_SERVICE: VmProfileService | None = None
 VM_CONSOLE_ACCESS_SERVICE: VmConsoleAccessService | None = None
 VM_HTTP_SURFACE_SERVICE: VmHttpSurfaceService | None = None
@@ -2541,6 +2543,15 @@ def control_plane_read_surface_service() -> ControlPlaneReadSurfaceService:
     return CONTROL_PLANE_READ_SURFACE_SERVICE
 
 
+def gpu_inventory_service() -> GpuInventoryService:
+    global GPU_INVENTORY_SERVICE
+    if GPU_INVENTORY_SERVICE is None:
+        GPU_INVENTORY_SERVICE = GpuInventoryService(
+            run_text=lambda command: run_text(command),
+        )
+    return GPU_INVENTORY_SERVICE
+
+
 def virtualization_read_surface_service() -> VirtualizationReadSurfaceService:
     global VIRTUALIZATION_READ_SURFACE_SERVICE
     if VIRTUALIZATION_READ_SURFACE_SERVICE is None:
@@ -2551,6 +2562,7 @@ def virtualization_read_surface_service() -> VirtualizationReadSurfaceService:
             get_vm_config=get_vm_config,
             host_provider_kind=BEAGLE_HOST_PROVIDER_KIND,
             list_bridges_inventory=lambda node="": HOST_PROVIDER.list_bridges(node),
+            list_gpu_inventory=lambda: gpu_inventory_service().list_gpus(),
             list_nodes_inventory=list_nodes_inventory,
             list_storage_inventory=list_storage_inventory,
             service_name="beagle-control-plane",

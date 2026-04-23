@@ -178,13 +178,16 @@ export function renderVirtualizationOverview() {
   const nodes = Array.isArray(overview.nodes) ? overview.nodes : [];
   const storage = Array.isArray(overview.storage) ? overview.storage : [];
   const bridges = Array.isArray(overview.bridges) ? overview.bridges : [];
+  const gpus = Array.isArray(overview.gpus) ? overview.gpus : [];
   const nodeFilter = String(state.virtualizationNodeFilter || '').trim();
   const filteredStorage = nodeFilter ? storage.filter((item) => String(item.node || '').trim() === nodeFilter) : storage;
   const filteredBridges = nodeFilter ? bridges.filter((item) => String(item.node || '').trim() === nodeFilter) : bridges;
+  const filteredGpus = nodeFilter ? gpus.filter((item) => String(item.node || '').trim() === nodeFilter) : gpus;
   const hostBody = qs('virtualization-hosts-body');
   const nodeBody = qs('virtualization-nodes-body');
   const storageBody = qs('virtualization-storage-body');
   const bridgeBody = qs('virtualization-bridges-body');
+  const gpuBody = qs('virtualization-gpus-body');
   text('virtualization-node-filter', nodeFilter || 'Alle Nodes');
   if (qs('clear-virt-node-filter')) {
     qs('clear-virt-node-filter').disabled = !nodeFilter;
@@ -211,6 +214,14 @@ export function renderVirtualizationOverview() {
       const quotaText = quotaBytes > 0 ? formatGiB(quotaBytes) : 'unbegrenzt';
       return '<tr><td>' + escapeHtml(item.name || item.id || 'storage') + '</td><td>' + escapeHtml(item.node || '-') + '</td><td>' + escapeHtml(item.type || '-') + '</td><td>' + escapeHtml(formatGiB(item.used) + ' / ' + formatGiB(item.total) + ' (' + usedPercent.toFixed(0) + '%)') + '</td><td>' + escapeHtml(quotaText) + '</td></tr>';
     }).join('') : '<tr><td colspan="5" class="empty-cell">Keine Storage-Daten vorhanden.</td></tr>';
+  }
+
+  if (gpuBody) {
+    gpuBody.innerHTML = filteredGpus.length ? filteredGpus.map((item) => {
+      const iommu = item.iommu_group ? ('Group ' + String(item.iommu_group) + ' (' + String(item.iommu_group_size || 0) + ')') : '-';
+      const tone = item.passthrough_ready ? 'ok' : 'warn';
+      return '<tr data-node="' + escapeHtml(item.node || '') + '"' + ((nodeFilter && String(item.node || '') === nodeFilter) ? ' class="node-filter-selected"' : '') + '><td>' + escapeHtml(item.node || '-') + '</td><td class="mono">' + escapeHtml(item.pci_address || '-') + '</td><td>' + escapeHtml(item.model || item.vendor || '-') + '</td><td>' + escapeHtml(item.driver || '-') + '</td><td>' + escapeHtml(iommu) + '</td><td>' + chip(item.status || 'unknown', tone) + '</td></tr>';
+    }).join('') : '<tr><td colspan="6" class="empty-cell">Keine GPU-Daten vorhanden.</td></tr>';
   }
 
   if (bridgeBody) {

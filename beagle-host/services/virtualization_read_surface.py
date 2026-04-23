@@ -15,6 +15,7 @@ class VirtualizationReadSurfaceService:
         get_vm_config: Callable[[str, int], dict[str, Any]],
         host_provider_kind: str,
         list_bridges_inventory: Callable[[str], list[dict[str, Any]]],
+        list_gpu_inventory: Callable[[], list[dict[str, Any]]],
         list_nodes_inventory: Callable[[], list[dict[str, Any]]],
         list_storage_inventory: Callable[[], list[dict[str, Any]]],
         service_name: str,
@@ -27,6 +28,7 @@ class VirtualizationReadSurfaceService:
         self._get_vm_config = get_vm_config
         self._host_provider_kind = str(host_provider_kind or "")
         self._list_bridges_inventory = list_bridges_inventory
+        self._list_gpu_inventory = list_gpu_inventory
         self._list_nodes_inventory = list_nodes_inventory
         self._list_storage_inventory = list_storage_inventory
         self._service_name = str(service_name or "beagle-control-plane")
@@ -154,6 +156,30 @@ class VirtualizationReadSurfaceService:
                 bridges.append(normalized)
         return bridges
 
+    def _gpus_payload(self) -> list[dict[str, Any]]:
+        gpus: list[dict[str, Any]] = []
+        try:
+            raw_gpus = self._list_gpu_inventory()
+        except Exception:
+            return gpus
+        for item in raw_gpus if isinstance(raw_gpus, list) else []:
+            if not isinstance(item, dict):
+                continue
+            gpus.append(
+                {
+                    "node": str(item.get("node") or "").strip(),
+                    "pci_address": str(item.get("pci_address") or "").strip(),
+                    "model": str(item.get("model") or "").strip(),
+                    "vendor": str(item.get("vendor") or "").strip(),
+                    "driver": str(item.get("driver") or "").strip(),
+                    "iommu_group": str(item.get("iommu_group") or "").strip(),
+                    "iommu_group_size": int(item.get("iommu_group_size") or 0),
+                    "passthrough_ready": bool(item.get("passthrough_ready")),
+                    "status": str(item.get("status") or "unknown").strip() or "unknown",
+                }
+            )
+        return gpus
+
     def _vm_config_payload(self, vmid: int) -> dict[str, Any] | None:
         vm = self._find_vm(vmid)
         if vm is None:
@@ -180,6 +206,7 @@ class VirtualizationReadSurfaceService:
             storage = self._storage_payload()
             hosts = self._hosts_payload()
             bridges = self._bridges_payload()
+            gpus = self._gpus_payload()
             return self._json_response(
                 HTTPStatus.OK,
                 self._envelope(
@@ -187,10 +214,12 @@ class VirtualizationReadSurfaceService:
                     nodes=nodes,
                     storage=storage,
                     bridges=bridges,
+                    gpus=gpus,
                     host_count=len(hosts),
                     node_count=len(nodes),
                     storage_count=len(storage),
                     bridge_count=len(bridges),
+                    gpu_count=len(gpus),
                 ),
             )
 
@@ -216,6 +245,12 @@ class VirtualizationReadSurfaceService:
             return self._json_response(
                 HTTPStatus.OK,
                 self._envelope(bridges=self._bridges_payload()),
+            )
+
+        if path == "/api/v1/virtualization/gpus":
+            return self._json_response(
+                HTTPStatus.OK,
+                self._envelope(gpus=self._gpus_payload()),
             )
 
         match = re.match(r"^/api/v1/virtualization/vms/(?P<vmid>\d+)/config$", path)

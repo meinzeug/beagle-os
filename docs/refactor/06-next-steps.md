@@ -1,6 +1,16 @@
 # Next Steps
 
-## Delta (2026-04-23 nach Abschluss von Plan 11 Testpflicht "Stream-Health waehrend aktiver Session")
+## Delta (2026-04-24 nach Abschluss von Plan 12 Schritt 1: GPU-Inventory)
+
+0. **Plan 12 Schritt 2 starten (GPU-Passthrough-Workflow)**:
+	- `gpu_passthrough_service.py` implementieren: vfio-pci-Binding, Treiber-Detach, libvirt-XML-Patch,
+	- Web Console: "GPU zu VM zuweisen" Action im VM-Detail.
+
+0. **Plan 11 verbleibende Testpflicht (runtime-blockiert)**:
+	- Linux 4K@60 ohne Artefakte (vkms/xrandr Blocker auf srv1),
+	- Auto-Pairing ohne manuellen PIN (Sunshine pair-exchange 502 Blocker).
+
+
 
 0. **Plan 11 Schritt 6 starten (Windows Apollo Eval/Benchmark)**:
 	- Windows Guest + SudoVDA Eval-Lauf aufsetzen,

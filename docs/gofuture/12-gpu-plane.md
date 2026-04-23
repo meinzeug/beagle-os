@@ -10,8 +10,8 @@ Referenz: `docs/refactorv2/10-gpu-device-passthrough.md`
 
 ### Schritt 1 — GPU-Inventory (PCI-Scan, IOMMU-Gruppen) implementieren
 
-- [ ] `beagle-host/services/gpu_inventory.py` anlegen: PCI-Scan, IOMMU-Gruppen ermitteln, GPU-Modelle identifizieren.
-- [ ] Web Console: GPU-Inventory-Sektion im Knoten-Detail.
+- [x] `beagle-host/services/gpu_inventory.py` anlegen: PCI-Scan, IOMMU-Gruppen ermitteln, GPU-Modelle identifizieren.
+- [x] Web Console: GPU-Inventory-Sektion im Knoten-Detail.
 
 Das GPU-Inventory ist die Grundvoraussetzung für alle weiteren GPU-Plane-Funktionen.
 Es scannt die PCI-Devices des Hosts via `lspci` und filtert GPU-Klassen (03xx).

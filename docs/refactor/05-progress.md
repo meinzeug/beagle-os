@@ -1,5 +1,16 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-24, GoFuture Plan 12 Schritt 1: GPU-Inventory abgeschlossen)
+
+- `beagle-host/services/gpu_inventory.py` neu: PCI-Scan via `lspci -Dnn`, IOMMU-Gruppen aus `/sys/kernel/iommu_groups/`, Treiber via `os.readlink()`, Passthrough-Readiness-Flag.
+- `VirtualizationReadSurfaceService` erweitert: `GET /api/v1/virtualization/gpus` + `gpu_count` im Overview.
+- `beagle-control-plane.py` verdrahtet: `GpuInventoryService` als lazy-init Factory.
+- `website/index.html` + `website/ui/virtualization.js` + `website/ui/events.js`: GPU-Inventory-Tabelle in Web Console.
+- Unit-Test `tests/unit/test_gpu_inventory_service.py`: 15 passed.
+- Deploy + Live-Smoke auf `srv1.beagle-os.com`: `/api/v1/virtualization/gpus` und `overview` antworten korrekt, `gpu_count=0` (kein physischer GPU auf srv1 — erwartet).
+
+
+
 ## Update (2026-04-23, GoFuture Plan 11 Testpflicht: Stream-Health waehrend aktiver Session abgeschlossen)
 
 - Offene Testpflicht-Checkbox in Plan 11 geschlossen: Stream-Health-Metriken sind waehrend aktiver Session reproduzierbar sichtbar.
