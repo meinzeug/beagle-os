@@ -10,8 +10,15 @@ Referenz: `docs/refactorv2/08-ha-cluster.md`
 
 ### Schritt 1 — Watchdog-Fencing pro Host implementieren
 
-- [ ] `beagle-host/services/ha_watchdog.py` anlegen mit Heartbeat-Sende- und Empfangs-Logik.
-- [ ] Bei ausbleibendem Heartbeat: Fencing-Aktion auslösen (IPMI-Reset, Watchdog-Timer, VM-Forcestop).
+- [x] `beagle-host/services/ha_watchdog.py` anlegen mit Heartbeat-Sende- und Empfangs-Logik.
+- [x] Bei ausbleibendem Heartbeat: Fencing-Aktion auslösen (IPMI-Reset, Watchdog-Timer, VM-Forcestop).
+
+Umgesetzt (2026-04-23):
+- Neues Modul `beagle-host/services/ha_watchdog.py` implementiert (`HaWatchdogService`).
+- Heartbeat-Lifecycle real umgesetzt: Heartbeats senden (`send_heartbeats`), empfangen/verbuchen (`record_heartbeat`) und Timeout-Pruefung (`evaluate_timeouts`).
+- Fencing-Prioritaeten umgesetzt: `ipmi_reset` -> `watchdog_timer` -> `vm_forcestop` -> `software_isolation`.
+- Persistenter Service-State in JSON (`state_file`) fuer Node-Health, letztes Heartbeat-Timestamp und letzte Fencing-Methode.
+- Unit-Test `tests/unit/test_ha_watchdog.py` deckt Heartbeat-Sendung, Timeout/Fencing und No-Timeout-Pfad ab (3/3 gruen).
 
 HA ohne Fencing ist gefährlich: wenn ein Knoten nur temporär nicht erreichbar ist
 (Netzwerk-Partition) aber noch läuft, können beim Neustart der VMs auf einem anderen
