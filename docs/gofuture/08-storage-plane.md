@@ -136,7 +136,7 @@ Administratoren können Quotas per API oder Web Console setzen und ändern.
 
 ## Testpflicht nach Abschluss
 
-- [ ] VM mit Directory-Backend anlegen, starten, Snapshot erstellen, Snapshot wiederherstellen.
+- [x] VM mit Directory-Backend anlegen, starten, Snapshot erstellen, Snapshot wiederherstellen.
 - [ ] VM mit ZFS-Backend: Snapshot und Clone erfolgreich.
 - [ ] NFS-Backend: VM auf gemountet-NFS starten, Live-Migration auf zweiten Knoten.
 - [x] Quota-Ueberschreitung gibt korrekten Fehler zurueck.
@@ -146,3 +146,12 @@ Validierung (2026-04-22, srv1.beagle-os.com):
 - Live-Smoke ueber `POST /api/v1/provisioning/vms` mit temporaer auf `1` Byte gesetzter Pool-Quota:
 	API antwortet reproduzierbar mit `400 bad_request` und Fehlertext `quota_exceeded: pool 'local' ...`.
 - Urspruengliche Pool-Quota nach Testlauf automatisch wiederhergestellt (`quota_bytes: 0`).
+
+Validierung (2026-04-23, srv1.beagle-os.com):
+- Neuer reproduzierbarer Smoke `scripts/test-storage-directory-smoke.sh` ausgefuehrt.
+- Ergebnis: `STORAGE_DIRECTORY_SMOKE=PASS` mit folgenden Checks:
+	- VM auf Directory/qcow2 angelegt und gestartet,
+	- Snapshot erfolgreich erstellt,
+	- Snapshot erfolgreich wiederhergestellt,
+	- Exit-Code `0`.
+- Offene Folgechecks (ZFS/NFS) aktuell infra-seitig blockiert auf `srv1`: `zfs`, `zpool`, `exportfs`, `showmount` nicht installiert/konfiguriert; fuer NFS-Live-Migration ist zusaetzlich ein zweiter erreichbarer Cluster-Host erforderlich.

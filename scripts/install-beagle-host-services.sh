@@ -465,6 +465,10 @@ if ! tls_runtime_tools_ready; then
   install_runtime_packages certbot python3-certbot-nginx
 fi
 
+if ! python3 -c 'import boto3' >/dev/null 2>&1; then
+  install_runtime_packages python3-boto3
+fi
+
 # When running with the beagle (libvirt/KVM) provider, set storage paths and
 # ensure libvirt + OVMF are installed.
 if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then

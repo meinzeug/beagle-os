@@ -120,6 +120,6 @@ Validierung (2026-04-23):
   - [PASS] VM power operations (start/stop/reboot) generate audit events with correct schema
   - [PASS] Audit viewer filter semantics (action + user filters correctly applied)
   - [PASS] Compliance CSV report includes all events with complete schema fields
-  - [PASS] MinIO S3-compatible endpoint initialized for audit export
+	- [PASS] MinIO S3 export delivered object in bucket (`AUDIT_COMPLIANCE_SMOKE=PASS`)
   - Service state: beagle-control-plane active, no errors in journal
-- Core compliance testpflicht items all green; S3 export async queueing behavior operationally verified.
+- Reproduzierbarkeit: `scripts/install-beagle-host-services.sh` installiert jetzt `python3-boto3`, damit S3-Export auf frischen Hosts nicht an fehlender Runtime-Dependency scheitert.

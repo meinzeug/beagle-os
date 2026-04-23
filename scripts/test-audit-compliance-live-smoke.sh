@@ -232,7 +232,7 @@ fi
 FOUND_OBJECT=""
 for _ in $(seq 1 30); do
   if "$MC_BIN" ls --recursive beagleminio/beagle-audit/audit >/dev/null 2>&1; then
-    FOUND_OBJECT="$("$MC_BIN" ls --recursive beagleminio/beagle-audit/audit | head -n1 | awk '{print $5}')"
+    FOUND_OBJECT="$("$MC_BIN" ls --recursive beagleminio/beagle-audit/audit | head -n1 | awk '{print $NF}')"
     if [[ -n "$FOUND_OBJECT" ]]; then
       break
     fi
