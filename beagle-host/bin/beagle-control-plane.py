@@ -2860,6 +2860,159 @@ def build_cluster_inventory() -> dict[str, Any]:
     return cluster_inventory_service().build_inventory()
 
 
+def _load_watchdog_state_nodes() -> dict[str, dict[str, Any]]:
+    watchdog_state_file = DATA_DIR / "ha-watchdog-state.json"
+    try:
+        payload = json.loads(watchdog_state_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    raw_nodes = payload.get("nodes") if isinstance(payload, dict) else {}
+    if not isinstance(raw_nodes, dict):
+        return {}
+    normalized: dict[str, dict[str, Any]] = {}
+    for raw_name, raw_item in raw_nodes.items():
+        name = str(raw_name or "").strip()
+        if not name:
+            continue
+        normalized[name] = raw_item if isinstance(raw_item, dict) else {}
+    return normalized
+
+
+def build_ha_status_payload() -> dict[str, Any]:
+    nodes_raw = HOST_PROVIDER.list_nodes()
+    vms = list_vms(refresh=True)
+    maintenance_nodes = set(maintenance_service().maintenance_nodes())
+    watchdog_nodes = _load_watchdog_state_nodes()
+
+    node_status_map: dict[str, str] = {}
+    node_names: list[str] = []
+    for item in nodes_raw if isinstance(nodes_raw, list) else []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or item.get("node") or "").strip()
+        if not name:
+            continue
+        if name not in node_names:
+            node_names.append(name)
+        node_status_map[name] = str(item.get("status") or "unknown").strip().lower() or "unknown"
+
+    for node_name in watchdog_nodes.keys():
+        if node_name not in node_names:
+            node_names.append(node_name)
+        node_status_map.setdefault(node_name, "unknown")
+
+    vm_ha_policy: dict[int, str] = {}
+    protected_vms_by_node: dict[str, int] = {}
+    for vm in vms:
+        vmid = int(getattr(vm, "vmid", 0) or 0)
+        node = str(getattr(vm, "node", "") or "").strip()
+        if vmid <= 0 or not node:
+            continue
+        try:
+            config = HOST_PROVIDER.get_vm_config(node, vmid)
+        except Exception:
+            config = {}
+        policy = ha_manager_service().normalize_ha_policy(config.get("ha_policy") if isinstance(config, dict) else "")
+        vm_ha_policy[vmid] = policy
+        if policy in {"restart", "fail_over"}:
+            protected_vms_by_node[node] = int(protected_vms_by_node.get(node, 0) or 0) + 1
+
+    total_nodes = len(node_names)
+    online_nodes = sum(1 for name in node_names if node_status_map.get(name, "unknown") == "online")
+    quorum_min = max(1, (total_nodes // 2) + 1) if total_nodes > 0 else 1
+    quorum_ok = online_nodes >= quorum_min
+
+    ha_nodes: list[dict[str, Any]] = []
+    fencing_nodes: list[dict[str, Any]] = []
+    for name in sorted(node_names):
+        provider_status = node_status_map.get(name, "unknown")
+        wd_item = watchdog_nodes.get(name) if isinstance(watchdog_nodes.get(name), dict) else {}
+        wd_status = str(wd_item.get("status") or "").strip().lower()
+        fencing_active = bool(wd_item.get("fencing_active"))
+        last_fencing_method = str(wd_item.get("last_fencing_method") or "").strip()
+        maintenance = name in maintenance_nodes
+
+        health_status = wd_status or provider_status
+        if maintenance and health_status in {"online", "active", "unknown"}:
+            health_status = "maintenance"
+        if fencing_active:
+            health_status = "fencing"
+
+        if fencing_active or health_status == "fenced" or last_fencing_method:
+            fencing_nodes.append(
+                {
+                    "name": name,
+                    "status": health_status,
+                    "method": last_fencing_method,
+                    "active": fencing_active,
+                }
+            )
+
+        ha_nodes.append(
+            {
+                "name": name,
+                "status": health_status,
+                "provider_status": provider_status,
+                "maintenance": maintenance,
+                "last_heartbeat_utc": str(wd_item.get("last_heartbeat_utc") or ""),
+                "fencing_active": fencing_active,
+                "last_fencing_method": last_fencing_method,
+                "ha_protected_vms": int(protected_vms_by_node.get(name, 0) or 0),
+            }
+        )
+
+    protected_total = sum(1 for value in vm_ha_policy.values() if value in {"restart", "fail_over"})
+    unreachable_nodes = sum(
+        1
+        for item in ha_nodes
+        if str(item.get("status") or "").lower() in {"offline", "unreachable", "fenced"}
+    )
+    fencing_active_any = any(bool(item.get("active")) for item in fencing_nodes)
+
+    ha_state = "ok"
+    if not quorum_ok:
+        ha_state = "failed"
+    elif fencing_active_any or unreachable_nodes > 0:
+        ha_state = "degraded"
+
+    alerts: list[str] = []
+    if not quorum_ok:
+        alerts.append(
+            f"Quorum unterschritten: online={online_nodes}, minimum={quorum_min}."
+        )
+    for item in fencing_nodes:
+        method = str(item.get("method") or "").strip()
+        if method:
+            alerts.append(f"Fencing aktiv/zuletzt auf {item.get('name')}: {method}.")
+        else:
+            alerts.append(f"Fencing aktiv auf {item.get('name')}.")
+
+    return {
+        "service": "beagle-control-plane",
+        "version": VERSION,
+        "generated_at": utcnow(),
+        "ha_state": ha_state,
+        "summary": {
+            "total_nodes": total_nodes,
+            "online_nodes": online_nodes,
+            "unreachable_nodes": unreachable_nodes,
+            "ha_protected_vms": protected_total,
+            "fencing_active": fencing_active_any,
+        },
+        "quorum": {
+            "minimum_nodes": quorum_min,
+            "online_nodes": online_nodes,
+            "ok": quorum_ok,
+        },
+        "fencing": {
+            "active": fencing_active_any,
+            "nodes": fencing_nodes,
+        },
+        "nodes": ha_nodes,
+        "alerts": alerts,
+    }
+
+
 def installer_script_service() -> InstallerScriptService:
     global INSTALLER_SCRIPT_SERVICE
     if INSTALLER_SCRIPT_SERVICE is None:
@@ -3961,6 +4114,11 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/v1/cluster/status":
             cluster_membership_service().probe_and_update_member_statuses(timeout=3.0)
             self._write_json(HTTPStatus.OK, {"ok": True, **cluster_membership_service().status_payload()})
+            return
+        if path == "/api/v1/ha/status":
+            if not self._authorize_or_respond("GET", path):
+                return
+            self._write_json(HTTPStatus.OK, {"ok": True, **build_ha_status_payload()})
             return
         if path.startswith("/api/v1/vms/"):
             response = vm_http_surface_service().route_get(path)

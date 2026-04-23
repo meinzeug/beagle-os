@@ -88,6 +88,7 @@ export function loadDashboard(options) {
       request('/endpoints'),
       request('/policies'),
       request('/virtualization/overview'),
+      request('/ha/status', { __suppressAuthLock: true }),
       request('/provisioning/catalog', { __suppressAuthLock: true }),
       request('/auth/users', { __suppressAuthLock: true }),
       request('/auth/roles', { __suppressAuthLock: true }),
@@ -101,12 +102,13 @@ export function loadDashboard(options) {
       const endpoints = results[2].status === 'fulfilled' ? (results[2].value || {}) : {};
       const policies = results[3].status === 'fulfilled' ? (results[3].value || {}) : {};
       const virtualizationOverview = results[4].status === 'fulfilled' ? (results[4].value || null) : null;
-      const provisioningCatalog = results[5].status === 'fulfilled' ? (results[5].value || { catalog: null }) : { catalog: null };
-      const authUsers = results[6].status === 'fulfilled' && Array.isArray(results[6].value) ? results[6].value : [];
-      const authRoles = results[7].status === 'fulfilled' && Array.isArray(results[7].value) ? results[7].value : [];
-      const pools = results[8].status === 'fulfilled' ? (results[8].value || { pools: [] }) : { pools: [] };
-      const templates = results[9].status === 'fulfilled' ? (results[9].value || { templates: [] }) : { templates: [] };
-      const sessions = results[10].status === 'fulfilled' ? (results[10].value || { sessions: [] }) : { sessions: [] };
+      const haStatus = results[5].status === 'fulfilled' ? (results[5].value || null) : null;
+      const provisioningCatalog = results[6].status === 'fulfilled' ? (results[6].value || { catalog: null }) : { catalog: null };
+      const authUsers = results[7].status === 'fulfilled' && Array.isArray(results[7].value) ? results[7].value : [];
+      const authRoles = results[8].status === 'fulfilled' && Array.isArray(results[8].value) ? results[8].value : [];
+      const pools = results[9].status === 'fulfilled' ? (results[9].value || { pools: [] }) : { pools: [] };
+      const templates = results[10].status === 'fulfilled' ? (results[10].value || { templates: [] }) : { templates: [] };
+      const sessions = results[11].status === 'fulfilled' ? (results[11].value || { sessions: [] }) : { sessions: [] };
       const failedRequests = results.filter((result) => result.status !== 'fulfilled').length;
 
       state.user = me.user || null;
@@ -114,6 +116,7 @@ export function loadDashboard(options) {
       state.endpointReports = endpoints.endpoints || [];
       state.policies = policies.policies || [];
       state.virtualizationOverview = virtualizationOverview;
+      state.haStatus = haStatus;
       state.provisioningCatalog = provisioningCatalog.catalog || null;
       state.authUsers = authUsers;
       state.authRoles = authRoles;

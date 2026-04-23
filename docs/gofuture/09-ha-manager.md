@@ -147,8 +147,32 @@ wird der Operator über einen Alert in der Web Console informiert.
 
 ### Schritt 5 — HA-Status in Web Console anzeigen
 
-- [ ] Cluster-Panel: HA-Status-Sektion mit Knoten-Health und VM-HA-Übersicht.
-- [ ] Alert-Banner wenn Quorum unter Mindestgröße oder Fencing-Aktion aktiv.
+- [x] Cluster-Panel: HA-Status-Sektion mit Knoten-Health und VM-HA-Übersicht.
+- [x] Alert-Banner wenn Quorum unter Mindestgröße oder Fencing-Aktion aktiv.
+
+Umgesetzt (2026-04-23):
+- Neuer API-Endpunkt `GET /api/v1/ha/status` in der Control Plane implementiert.
+	- aggregiert Quorum (`minimum_nodes`, `online_nodes`, `ok`),
+	- globalen HA-Status (`ok|degraded|failed`),
+	- Fencing-Status inkl. letzter Methode,
+	- Node-Health-Liste mit letztem Heartbeat und Anzahl HA-geschuetzter VMs.
+- RBAC erweitert: `GET /api/v1/ha/status` mappt auf `cluster:read`.
+- Web Console Cluster-Panel erweitert:
+	- neue HA-Status-Sektion mit Karten fuer `HA Health`, `HA-Protected VMs`, `Quorum`, `Fencing aktiv`,
+	- Node-HA-Tabelle (`Status`, `Letzter Heartbeat`, `HA-VMs`, `Fencing`),
+	- Alert-Banner fuer Quorum-Unterschreitung/Fencing-Ereignisse.
+
+Validierung (2026-04-23, lokal + srv1):
+- Lokal:
+	- `python3 -m py_compile beagle-host/bin/beagle-control-plane.py beagle-host/services/authz_policy.py` => OK
+	- `python3 -m pytest tests/unit/test_authz_policy.py tests/unit/test_maintenance_service.py tests/unit/test_ha_manager.py tests/unit/test_ha_watchdog.py tests/unit/test_cluster_inventory.py tests/unit/test_cluster_membership.py -q` => `23 passed`
+	- `node --check website/ui/cluster.js website/ui/dashboard.js website/main.js` => OK
+- srv1:
+	- `py_compile` auf deployten Dateien => OK
+	- `pytest` (`authz_policy`, `maintenance`, `ha_manager`, `ha_watchdog`) => `15 passed`
+	- `beagle-control-plane.service` Restart => `active`
+	- API-Smoke `GET /api/v1/ha/status` => `200`, `ha_state=ok`, `quorum.ok=true`, `fencing.active=false`, `alerts_count=0`
+	- UI-Smoke auf deployten Assets: Marker `cluster-ha-alert`, `cluster-ha-nodes-body` und `renderHaStatusPanel` vorhanden.
 
 Der HA-Status ist für Betreiber das wichtigste Monitoring-Instrument im Cluster-Betrieb.
 Eine Karte pro Knoten zeigt: letzter Heartbeat-Zeitpunkt, Status (active/maintenance/fencing),

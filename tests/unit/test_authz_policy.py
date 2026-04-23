@@ -43,6 +43,10 @@ class AuthzPolicyServiceTests(unittest.TestCase):
 
     def test_ha_routes_require_cluster_write(self):
         self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/ha/status"),
+            "cluster:read",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("POST", "/api/v1/ha/reconcile-failed-node"),
             "cluster:write",
         )

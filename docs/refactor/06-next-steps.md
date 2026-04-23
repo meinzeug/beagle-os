@@ -1,5 +1,16 @@
 # Next Steps
 
+## Delta (2026-04-23 nach Abschluss von Plan 09 Schritt 5)
+
+0. **Plan 09 Testpflicht-Checkboxen schliessen**:
+	- Knoten-Ausfall-Recovery <=60s als reproduzierbaren Lauf auf echter Multi-Node-Runtime nachweisen,
+	- Fencing-Startblockade (kein VM-Start vor Abschluss) live pruefen,
+	- Maintenance-Drain-Ende-zu-Ende sowie Anti-Affinity-Verteilung auf mindestens zwei echten Nodes validieren.
+
+0. **HA-Alerts an echte Fencing-Ereignisse koppeln**:
+	- Watchdog/Fencing-Eventpfad im Runtime-Betrieb triggern,
+	- pruefen dass Bannertext und Node-Status in der Web Console waehrend/nach Fencing korrekt wechseln.
+
 ## Delta (2026-04-23 nach Abschluss von Plan 09 Schritt 4)
 
 0. **Plan 09 Schritt 5 umsetzen (HA-Status in Web Console)**:

@@ -1,0 +1,8 @@
+.cluster-ha-health-ok { color: var(--ok); }
+.cluster-ha-health-degraded { color: var(--warn); }
+.cluster-ha-health-failed { color: var(--danger); }
+
+#cluster-ha-alert { margin-bottom: 12px; }
+
+.cluster-ha-fencing { color: var(--danger); font-weight: 700; }
+.cluster-ha-heartbeat { color: var(--text-secondary); font-size: 0.78rem; }

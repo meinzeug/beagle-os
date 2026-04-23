@@ -79,6 +79,109 @@ function clampPercent(value) {
   return Math.round(numeric);
 }
 
+function clusterHaChipClass(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'online' || normalized === 'active') {
+    return 'chip good';
+  }
+  if (normalized === 'maintenance') {
+    return 'chip muted';
+  }
+  if (normalized === 'fencing' || normalized === 'fenced' || normalized === 'offline' || normalized === 'unreachable') {
+    return 'chip bad';
+  }
+  return 'chip muted';
+}
+
+function renderHaStatusPanel() {
+  const haStatus = state.haStatus || {};
+  const summary = haStatus.summary || {};
+  const quorum = haStatus.quorum || {};
+  const fencing = haStatus.fencing || {};
+  const nodes = Array.isArray(haStatus.nodes) ? haStatus.nodes : [];
+  const alerts = Array.isArray(haStatus.alerts) ? haStatus.alerts : [];
+
+  const healthEl = qs('cluster-ha-health');
+  const healthMetaEl = qs('cluster-ha-health-meta');
+  const protectedEl = qs('cluster-ha-protected-vms');
+  const quorumEl = qs('cluster-ha-quorum');
+  const quorumMetaEl = qs('cluster-ha-quorum-meta');
+  const fencingEl = qs('cluster-ha-fencing');
+  const alertEl = qs('cluster-ha-alert');
+  const bodyEl = qs('cluster-ha-nodes-body');
+
+  const stateValue = String(haStatus.ha_state || 'unknown').toLowerCase();
+  const stateText = stateValue ? stateValue.toUpperCase() : 'UNKNOWN';
+  const quorumOnline = Number(quorum.online_nodes || 0);
+  const quorumMin = Number(quorum.minimum_nodes || 0);
+  const protectedVms = Number(summary.ha_protected_vms || 0);
+  const fencingActive = Number((Array.isArray(fencing.nodes) ? fencing.nodes : []).filter((item) => Boolean(item && item.active)).length);
+
+  if (healthEl) {
+    healthEl.textContent = stateText;
+    healthEl.classList.remove('cluster-ha-health-ok', 'cluster-ha-health-degraded', 'cluster-ha-health-failed');
+    if (stateValue === 'ok') {
+      healthEl.classList.add('cluster-ha-health-ok');
+    } else if (stateValue === 'degraded') {
+      healthEl.classList.add('cluster-ha-health-degraded');
+    } else if (stateValue === 'failed') {
+      healthEl.classList.add('cluster-ha-health-failed');
+    }
+  }
+  if (healthMetaEl) {
+    healthMetaEl.textContent = String(haStatus.generated_at || 'Keine Zeitbasis verfuegbar');
+  }
+  if (protectedEl) {
+    protectedEl.textContent = String(protectedVms);
+  }
+  if (quorumEl) {
+    quorumEl.textContent = String(quorumOnline) + '/' + String(quorumMin || 0);
+  }
+  if (quorumMetaEl) {
+    quorumMetaEl.textContent = quorum.ok ? 'Quorum erfuellt' : 'Quorum unterschritten';
+  }
+  if (fencingEl) {
+    fencingEl.textContent = String(fencingActive);
+    fencingEl.classList.toggle('cluster-ha-fencing', fencingActive > 0);
+  }
+
+  if (alertEl) {
+    if (alerts.length) {
+      alertEl.textContent = alerts.join(' ');
+      alertEl.classList.remove('hidden');
+    } else {
+      alertEl.textContent = 'Kein HA-Alert aktiv.';
+      alertEl.classList.add('hidden');
+    }
+  }
+
+  if (!bodyEl) {
+    return;
+  }
+  if (!nodes.length) {
+    bodyEl.innerHTML = '<tr><td colspan="5" class="empty-cell">Noch keine HA-Daten.</td></tr>';
+    return;
+  }
+
+  bodyEl.innerHTML = nodes.map((node) => {
+    const name = String(node && node.name ? node.name : '').trim() || '-';
+    const status = String(node && node.status ? node.status : 'unknown').trim() || 'unknown';
+    const lastHeartbeat = String(node && node.last_heartbeat_utc ? node.last_heartbeat_utc : '').trim() || '-';
+    const protectedVmCount = Number(node && node.ha_protected_vms ? node.ha_protected_vms : 0);
+    const fencingMethod = String(node && node.last_fencing_method ? node.last_fencing_method : '').trim();
+    const fencingState = node && node.fencing_active ? 'aktiv' : (fencingMethod ? 'zuletzt: ' + fencingMethod : '-');
+    return (
+      '<tr>' +
+      '<td>' + escapeHtml(name) + '</td>' +
+      '<td><span class="' + clusterHaChipClass(status) + '">' + escapeHtml(status) + '</span></td>' +
+      '<td><span class="cluster-ha-heartbeat">' + escapeHtml(lastHeartbeat) + '</span></td>' +
+      '<td>' + String(protectedVmCount) + '</td>' +
+      '<td>' + escapeHtml(fencingState) + '</td>' +
+      '</tr>'
+    );
+  }).join('');
+}
+
 export function renderClusterPanel() {
   const body = qs('cluster-nodes-body');
   if (!body) {
@@ -124,6 +227,7 @@ export function renderClusterPanel() {
 
   if (!nodes.length) {
     body.innerHTML = '<tr><td colspan="6" class="empty-cell">Keine Cluster-Node-Daten verfuegbar.</td></tr>';
+    renderHaStatusPanel();
     return;
   }
 
@@ -149,4 +253,6 @@ export function renderClusterPanel() {
       '</tr>'
     );
   }).join('');
+
+  renderHaStatusPanel();
 }

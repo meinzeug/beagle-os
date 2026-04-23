@@ -1,5 +1,23 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 09 Schritt 5 abgeschlossen: HA-Status-Sektion + Quorum/Fencing-Alert)
+
+- Plan 09 Schritt 5 vollstaendig umgesetzt.
+- Neuer Control-Plane-Endpoint `GET /api/v1/ha/status` liefert:
+	- globalen HA-State (`ok|degraded|failed`),
+	- Quorum-Daten,
+	- Fencing-Status,
+	- Node-HA-Status inkl. letztem Heartbeat und HA-geschuetzten VM-Zaehlern.
+- RBAC erweitert: HA-Status-Read laeuft ueber `cluster:read`.
+- Web Console Cluster-Panel erweitert um:
+	- HA-Status-KPI-Karten,
+	- HA-Node-Tabelle,
+	- Alert-Banner bei Quorum-Unterschreitung oder Fencing.
+- Reproduzierbare Validierung:
+	- Lokal: `23 passed` + JS-Syntaxcheck gruen.
+	- `srv1.beagle-os.com`: `15 passed`, Service-Reboot aktiv, `/api/v1/ha/status` live `200` mit `ha_state=ok` und `quorum.ok=true`.
+	- Deployte UI-Dateien auf `srv1` enthalten die neuen HA-Status-Marker.
+
 ## Update (2026-04-23, GoFuture Plan 09 Schritt 4 abgeschlossen: SchedulerPolicy + Affinity/Anti-Affinity Placement)
 
 - Plan 09 Schritt 4 vollstaendig umgesetzt.

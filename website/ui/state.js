@@ -167,6 +167,7 @@ export const state = {
   selectedAuthUser: '',
   selectedAuthRole: '',
   virtualizationOverview: null,
+  haStatus: null,
   virtualizationNodeFilter: '',
   virtualizationInspector: {
     vmid: null,

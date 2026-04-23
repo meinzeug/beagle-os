@@ -618,6 +618,51 @@
                 </table>
               </div>
             </article>
+
+            <article class="card section-spaced">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">HA Manager</span>
+                  <h2>HA-Status</h2>
+                </div>
+              </div>
+
+              <div id="cluster-ha-alert" class="banner warn hidden">Kein HA-Alert aktiv.</div>
+
+              <div class="stats-row section-spaced-tight">
+                <article class="stat-card">
+                  <span class="stat-label">HA Health</span>
+                  <span class="stat-value" id="cluster-ha-health">UNKNOWN</span>
+                  <span class="stat-meta" id="cluster-ha-health-meta">Keine HA-Daten geladen</span>
+                </article>
+                <article class="stat-card">
+                  <span class="stat-label">HA-Protected VMs</span>
+                  <span class="stat-value" id="cluster-ha-protected-vms">0</span>
+                  <span class="stat-meta">ha_policy restart/fail_over</span>
+                </article>
+                <article class="stat-card">
+                  <span class="stat-label">Quorum</span>
+                  <span class="stat-value" id="cluster-ha-quorum">0/0</span>
+                  <span class="stat-meta" id="cluster-ha-quorum-meta">Nicht bewertet</span>
+                </article>
+                <article class="stat-card stat-card-accent">
+                  <span class="stat-label">Fencing aktiv</span>
+                  <span class="stat-value" id="cluster-ha-fencing">0</span>
+                  <span class="stat-meta">Knoten im Fencing-Prozess</span>
+                </article>
+              </div>
+
+              <div class="table-wrap compact section-spaced-tight">
+                <table class="vm-table compact-table">
+                  <thead>
+                    <tr><th>Knoten</th><th>HA-Status</th><th>Letzter Heartbeat</th><th>HA-VMs</th><th>Fencing</th></tr>
+                  </thead>
+                  <tbody id="cluster-ha-nodes-body">
+                    <tr><td colspan="5" class="empty-cell">Noch keine HA-Daten.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
           </section>
 
           <!-- ============ ENDPOINTS (Inventory + Detail) ============ -->

@@ -159,6 +159,8 @@ class AuthzPolicyService:
                 return "settings:read"
             if route == "/api/v1/cluster/status":
                 return "cluster:read"
+            if route == "/api/v1/ha/status":
+                return "cluster:read"
             if re.match(r"^/api/v1/sessions/[A-Za-z0-9._:-]+/recording$", route):
                 return "session:download_recording"
             if route == "/api/v1/pools" or re.match(r"^/api/v1/pools/[A-Za-z0-9._-]+(/.*)?$", route):

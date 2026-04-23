@@ -14,6 +14,7 @@
 @import url("/styles/_helpers.css");
 @import url("/styles/panels/_inventory.css");
 @import url("/styles/panels/_virtualization.css");
+@import url("/styles/panels/_cluster.css");
 @import url("/styles/panels/_provisioning.css");
 @import url("/styles/panels/_policies.css");
 @import url("/styles/panels/_iam.css");
