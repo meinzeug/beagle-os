@@ -1,5 +1,21 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-23, GoFuture Plan 14 Schritt 1: Session-Recording-Policy pro Pool abgeschlossen)
+
+- `session_recording` Policy in Pool-Contracts eingefuehrt:
+	- `core/virtualization/desktop_pool.py`: `SessionRecordingPolicy` Enum + Feld in `DesktopPoolSpec`/`DesktopPoolInfo`.
+- Pool-Runtime erweitert:
+	- `beagle-host/services/pool_manager.py` persistiert und normalisiert `session_recording` (`disabled|on_demand|always`).
+	- Feld wird via API-Serialisierung an WebUI ausgeliefert.
+- API/Create-Flow erweitert:
+	- `beagle-host/bin/beagle-control-plane.py` akzeptiert `session_recording` in `POST /api/v1/pools`.
+- Web Console erweitert:
+	- `website/index.html` Pool-Wizard Schritt 2 hat neues Select `Session Recording`.
+	- `website/ui/policies.js` uebergibt den Wert im Payload und zeigt ihn in Summary/Pool-Karte an.
+- Validierung:
+	- Lokal: `17 passed` (`test_pool_manager`, `test_desktop_pool_contract`) + Syntaxchecks gruen.
+	- Live auf `srv1.beagle-os.com`: Pool mit `session_recording=always` erzeugt, API liefert Feld korrekt, Cleanup erfolgreich.
+
 ## Update (2026-04-23, GoFuture Plan 15 Schritt 2: Audit-Export-Targets abgeschlossen)
 
 - Plan 15 Schritt 2 als abgeschlossen validiert und dokumentiert:

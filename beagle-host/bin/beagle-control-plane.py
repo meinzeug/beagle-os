@@ -4867,7 +4867,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
-            from core.virtualization.desktop_pool import DesktopPoolMode, DesktopPoolSpec
+            from core.virtualization.desktop_pool import DesktopPoolMode, DesktopPoolSpec, SessionRecordingPolicy
             from core.virtualization.streaming_profile import streaming_profile_from_payload
             try:
                 mode = DesktopPoolMode(str(body.get("mode", "floating_non_persistent")))
@@ -4887,6 +4887,7 @@ class Handler(BaseHTTPRequestHandler):
                     memory_mib=int(body.get("memory_mib", 2048)),
                     storage_pool=str(body.get("storage_pool", "local") or "local"),
                     gpu_class=str(body.get("gpu_class", "") or "").strip(),
+                    session_recording=SessionRecordingPolicy(str(body.get("session_recording", "disabled") or "disabled").strip().lower()),
                     enabled=bool(body.get("enabled", True)),
                     labels=tuple(str(l) for l in body.get("labels", [])),
                     streaming_profile=streaming_profile,

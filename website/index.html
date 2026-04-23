@@ -1038,6 +1038,13 @@
                   <label class="field"><span>Warm Pool</span><input id="pool-warm-size" type="number" min="0" step="1" value="2"></label>
                   <label class="field"><span>vCPU pro Desktop</span><input id="pool-cpu" type="number" min="1" step="1" value="2"></label>
                   <label class="field"><span>RAM MiB pro Desktop</span><input id="pool-memory" type="number" min="1024" step="256" value="4096"></label>
+                  <label class="field"><span>Session Recording</span>
+                    <select id="pool-session-recording" class="input-select">
+                      <option value="disabled" selected>disabled</option>
+                      <option value="on_demand">on_demand</option>
+                      <option value="always">always</option>
+                    </select>
+                  </label>
                   <div class="pool-streaming-group field-wide">
                     <div class="pool-streaming-group-head">
                       <span class="eyebrow">Streaming-Profil</span>

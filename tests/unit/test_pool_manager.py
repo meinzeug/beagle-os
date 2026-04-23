@@ -66,6 +66,44 @@ class PoolManagerServiceTests(unittest.TestCase):
         payload = service.pool_info_to_dict(info)
         self.assertEqual(payload["gpu_class"], "passthrough-nvidia")
 
+    def test_create_pool_persists_session_recording_policy(self) -> None:
+        service = self._build_service()
+        info = service.create_pool(
+            DesktopPoolSpec(
+                pool_id="pool-rec",
+                template_id="tpl-1",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+                session_recording="always",
+            )
+        )
+        payload = service.pool_info_to_dict(info)
+        self.assertEqual(payload["session_recording"], "always")
+
+    def test_update_pool_normalizes_invalid_session_recording(self) -> None:
+        service = self._build_service()
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="pool-rec",
+                template_id="tpl-1",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+            )
+        )
+        updated = service.update_pool("pool-rec", {"session_recording": "invalid_value"})
+        payload = service.pool_info_to_dict(updated)
+        self.assertEqual(payload["session_recording"], "disabled")
+
     def test_allocate_release_recycle_non_persistent(self) -> None:
         service = self._build_service()
         service.create_pool(

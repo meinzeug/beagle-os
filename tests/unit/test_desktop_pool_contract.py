@@ -12,6 +12,7 @@ from core.virtualization.desktop_pool import (
     DesktopPoolInfo,
     DesktopPoolMode,
     DesktopPoolSpec,
+    SessionRecordingPolicy,
 )
 from core.virtualization.streaming_profile import StreamingProfile
 
@@ -33,6 +34,7 @@ class DesktopPoolContractTests(unittest.TestCase):
             cpu_cores=4,
             memory_mib=8192,
             storage_pool="local",
+            session_recording=SessionRecordingPolicy.ON_DEMAND,
             labels=("xfce", "office"),
             streaming_profile=StreamingProfile(),
         )
@@ -57,6 +59,8 @@ class DesktopPoolContractTests(unittest.TestCase):
             min_pool_size=2,
             max_pool_size=10,
             warm_pool_size=5,
+            gpu_class="",
+            session_recording=SessionRecordingPolicy.DISABLED,
             free_desktops=3,
             in_use_desktops=2,
             recycling_desktops=0,

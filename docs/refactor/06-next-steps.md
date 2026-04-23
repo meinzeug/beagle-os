@@ -1,5 +1,15 @@
 # Next Steps
 
+## Delta (2026-04-23 nach Abschluss von Plan 14 Schritt 1: session_recording Policy)
+
+0. **Plan 14 Schritt 3 umsetzen (Storage + Retention)**:
+	- konfigurierbaren Recording-Storage-Pfad fuer lokal/NFS/S3 einziehen,
+	- Retention-Policy pro Pool mit Auto-Deletion-Job inkl. Audit-Event verdrahten.
+
+0. **Plan 14 offene Testpflicht priorisieren**:
+	- Pool `session_recording: always` gegen echte Session + MP4-Erzeugung auf Runtime nachweisen,
+	- Retention-Deletion-Nachweis und Watermark-Sichtbarkeit als reproduzierbare Smokes einfuehren.
+
 ## Delta (2026-04-23 nach Abschluss von Plan 15 Schritt 2: Audit-Export)
 
 0. **Plan 15 Testpflicht weiter schliessen**:

@@ -13,6 +13,12 @@ class DesktopPoolMode(str, Enum):
     DEDICATED = "dedicated"
 
 
+class SessionRecordingPolicy(str, Enum):
+    DISABLED = "disabled"
+    ON_DEMAND = "on_demand"
+    ALWAYS = "always"
+
+
 @dataclass(frozen=True)
 class DesktopPoolSpec:
     pool_id: str
@@ -25,6 +31,7 @@ class DesktopPoolSpec:
     memory_mib: int
     storage_pool: str
     gpu_class: str = ""
+    session_recording: SessionRecordingPolicy = SessionRecordingPolicy.DISABLED
     enabled: bool = True
     labels: tuple[str, ...] = field(default_factory=tuple)
     streaming_profile: StreamingProfile | None = None
@@ -50,6 +57,7 @@ class DesktopPoolInfo:
     max_pool_size: int
     warm_pool_size: int
     gpu_class: str
+    session_recording: SessionRecordingPolicy
     free_desktops: int
     in_use_desktops: int
     recycling_desktops: int

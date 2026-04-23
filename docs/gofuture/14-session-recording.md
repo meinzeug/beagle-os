@@ -9,8 +9,8 @@ Priorität: 7.2 (Q2–Q3 2027)
 
 ### Schritt 1 — Session-Recording-Policy pro Pool konfigurierbar machen
 
-- [ ] `DesktopPool` bekommt Feld `session_recording`: `disabled | on_demand | always`.
-- [ ] Web Console: Recording-Policy im Pool-Editor.
+- [x] `DesktopPool` bekommt Feld `session_recording`: `disabled | on_demand | always`.
+- [x] Web Console: Recording-Policy im Pool-Editor.
 
 Session Recording ist eine Compliance-Funktion die in regulierten Branchen
 (Finanz, Gesundheit, Behörden) häufig Pflicht ist. Die Policy `always` aktiviert
@@ -19,6 +19,28 @@ das Recording einzelner Sessions zu starten. `disabled` (Default) schaltet Recor
 komplett aus. Die Policy wird beim Session-Start an den Recording-Service weitergegeben.
 Recordings werden nicht standardmäßig aktiviert um Datenschutz-Defaulteinstellungen
 (Privacy by Default) zu respektieren. Jede Recording-Aktivierung erzeugt ein Audit-Event.
+
+Umsetzung (2026-04-23):
+
+- `core/virtualization/desktop_pool.py` erweitert:
+	- neues Enum `SessionRecordingPolicy` (`disabled`, `on_demand`, `always`),
+	- `DesktopPoolSpec.session_recording` und `DesktopPoolInfo.session_recording` eingefuehrt.
+- `beagle-host/services/pool_manager.py` erweitert:
+	- Persistenz + Normalisierung des Felds `session_recording`,
+	- Auslieferung in `pool_info_to_dict(...)` fuer API/WebUI.
+- `beagle-host/bin/beagle-control-plane.py` erweitert:
+	- `POST /api/v1/pools` akzeptiert `session_recording` und mappt auf `SessionRecordingPolicy`.
+- Web Console Pool-Wizard erweitert:
+	- neues Select-Feld `Session Recording` (disabled/on_demand/always),
+	- Payload + Summary + Pool-Karte zeigen den gesetzten Recording-Mode.
+
+Validierung:
+
+- Lokal: `python3 -m pytest tests/unit/test_pool_manager.py tests/unit/test_desktop_pool_contract.py -q` => `17 passed`.
+- Live auf `srv1.beagle-os.com`:
+	- Pool mit `session_recording=always` erstellt,
+	- `GET /api/v1/pools/{pool_id}` liefert `session_recording: "always"`,
+	- Cleanup erfolgreich (`deleted: true`).
 
 ---
 

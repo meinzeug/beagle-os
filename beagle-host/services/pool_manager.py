@@ -9,6 +9,7 @@ from core.virtualization.desktop_pool import (
     DesktopPoolInfo,
     DesktopPoolMode,
     DesktopPoolSpec,
+    SessionRecordingPolicy,
 )
 from core.virtualization.scheduler_policy import SchedulerPolicy, scheduler_policy_from_payload
 from core.virtualization.streaming_profile import (
@@ -106,6 +107,7 @@ class PoolManagerService:
             "memory_mib": spec.memory_mib,
             "storage_pool": spec.storage_pool,
             "gpu_class": str(spec.gpu_class or "").strip(),
+            "session_recording": self._normalize_session_recording(spec.session_recording),
             "enabled": spec.enabled,
             "labels": list(spec.labels),
             "streaming_profile": streaming_profile_to_dict(spec.streaming_profile),
@@ -152,6 +154,7 @@ class PoolManagerService:
             "labels",
             "streaming_profile",
             "gpu_class",
+            "session_recording",
         }
         state = self._load()
         if pool_id not in state["pools"]:
@@ -164,10 +167,27 @@ class PoolManagerService:
                     pool_entry[key] = streaming_profile_to_dict(profile)
                 elif key == "gpu_class":
                     pool_entry[key] = str(value or "").strip()
+                elif key == "session_recording":
+                    pool_entry[key] = self._normalize_session_recording(value)
                 else:
                     pool_entry[key] = value
         self._save(state)
         return self._pool_info(state, pool_id)
+
+    @staticmethod
+    def _normalize_session_recording(value: Any) -> str:
+        if isinstance(value, SessionRecordingPolicy):
+            raw = value.value
+        else:
+            raw = str(value or SessionRecordingPolicy.DISABLED.value).strip().lower()
+        allowed = {
+            SessionRecordingPolicy.DISABLED.value,
+            SessionRecordingPolicy.ON_DEMAND.value,
+            SessionRecordingPolicy.ALWAYS.value,
+        }
+        if raw not in allowed:
+            return SessionRecordingPolicy.DISABLED.value
+        return raw
 
     @staticmethod
     def _gpu_class_normalized(gpu_class: Any) -> str:
@@ -427,6 +447,11 @@ class PoolManagerService:
             mode = DesktopPoolMode(mode_raw)
         except ValueError:
             mode = DesktopPoolMode.FLOATING_NON_PERSISTENT
+        recording_raw = self._normalize_session_recording(pool.get("session_recording"))
+        try:
+            session_recording = SessionRecordingPolicy(recording_raw)
+        except ValueError:
+            session_recording = SessionRecordingPolicy.DISABLED
         return DesktopPoolInfo(
             pool_id=pool_id,
             template_id=pool.get("template_id", ""),
@@ -435,6 +460,7 @@ class PoolManagerService:
             max_pool_size=int(pool.get("max_pool_size", 0)),
             warm_pool_size=int(pool.get("warm_pool_size", 0)),
             gpu_class=str(pool.get("gpu_class") or "").strip(),
+            session_recording=session_recording,
             free_desktops=counts[_STATE_FREE],
             in_use_desktops=counts[_STATE_IN_USE],
             recycling_desktops=counts[_STATE_RECYCLING],
@@ -704,6 +730,7 @@ class PoolManagerService:
             "max_pool_size": info.max_pool_size,
             "warm_pool_size": info.warm_pool_size,
             "gpu_class": info.gpu_class,
+            "session_recording": info.session_recording.value if hasattr(info.session_recording, "value") else str(info.session_recording),
             "free_desktops": info.free_desktops,
             "in_use_desktops": info.in_use_desktops,
             "recycling_desktops": info.recycling_desktops,
