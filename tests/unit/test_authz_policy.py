@@ -41,6 +41,16 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "pool:write",
         )
 
+    def test_ha_routes_require_cluster_write(self):
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/ha/reconcile-failed-node"),
+            "cluster:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/ha/maintenance/drain"),
+            "cluster:write",
+        )
+
     def test_viewer_cannot_write_pools(self):
         permission = AuthzPolicyService.required_permission("POST", "/api/v1/pools")
         self.assertEqual(permission, "pool:write")

@@ -60,6 +60,7 @@ from identity_provider_registry import IdentityProviderRegistryService
 from installer_prep import InstallerPrepService
 from installer_script import InstallerScriptService
 from installer_template_patch import InstallerTemplatePatchService
+from maintenance_service import MaintenanceService
 from metadata_support import MetadataSupportService
 from migration_service import MigrationService
 from oidc_service import OidcService
@@ -900,6 +901,7 @@ PUBLIC_SUNSHINE_SURFACE_SERVICE: PublicSunshineSurfaceService | None = None
 VM_MUTATION_SURFACE_SERVICE: VmMutationSurfaceService | None = None
 MIGRATION_SERVICE: MigrationService | None = None
 HA_MANAGER_SERVICE: HaManagerService | None = None
+MAINTENANCE_SERVICE: MaintenanceService | None = None
 CLUSTER_MEMBERSHIP_SERVICE: ClusterMembershipService | None = None
 VM_STATE_SERVICE: VmStateService | None = None
 DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
@@ -2375,6 +2377,50 @@ def ha_manager_service() -> HaManagerService:
     return HA_MANAGER_SERVICE
 
 
+def maintenance_service() -> MaintenanceService:
+    global MAINTENANCE_SERVICE
+    if MAINTENANCE_SERVICE is None:
+        maintenance_state_file = DATA_DIR / "ha-maintenance-state.json"
+
+        def cold_restart_vm(vmid: int, source_node: str, target_node: str) -> dict[str, Any]:
+            persist_vm_node(vmid, source_node, target_node)
+            provider_result = HOST_PROVIDER.start_vm(int(vmid), timeout=None)
+            return {
+                "vmid": int(vmid),
+                "source_node": str(source_node or "").strip(),
+                "target_node": str(target_node or "").strip(),
+                "provider_result": str(provider_result or ""),
+            }
+
+        MAINTENANCE_SERVICE = MaintenanceService(
+            state_file=maintenance_state_file,
+            list_nodes=lambda: HOST_PROVIDER.list_nodes(),
+            list_vms=lambda: list_vms(refresh=True),
+            get_vm_config=lambda node, vmid: HOST_PROVIDER.get_vm_config(node, int(vmid)),
+            migrate_vm=lambda vmid, target_node, live, copy_storage, requester_identity: migration_service().migrate_vm(
+                int(vmid),
+                target_node=target_node,
+                live=bool(live),
+                copy_storage=bool(copy_storage),
+                requester_identity=str(requester_identity or ""),
+            ),
+            cold_restart_vm=cold_restart_vm,
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return MAINTENANCE_SERVICE
+
+
+def start_vm_checked(vmid: int) -> str:
+    vm = find_vm(int(vmid), refresh=True)
+    if vm is None:
+        raise RuntimeError(f"VM {int(vmid)} not found")
+    if maintenance_service().is_node_in_maintenance(str(vm.node)):
+        raise RuntimeError(f"node {vm.node} is in maintenance mode; VM start rejected")
+    return HOST_PROVIDER.start_vm(int(vmid), timeout=None)
+
+
 def should_use_public_stream(meta: dict[str, str], guest_ip: str) -> bool:
     return vm_profile_service().should_use_public_stream(meta, guest_ip)
 
@@ -2634,7 +2680,7 @@ def vm_mutation_surface_service() -> VmMutationSurfaceService:
             queue_vm_action=queue_vm_action,
             reboot_vm=lambda vmid: HOST_PROVIDER.reboot_vm(int(vmid), timeout=None),
             service_name="beagle-control-plane",
-            start_vm=lambda vmid: HOST_PROVIDER.start_vm(int(vmid), timeout=None),
+            start_vm=lambda vmid: start_vm_checked(int(vmid)),
             start_installer_prep=start_installer_prep,
             stop_vm=lambda vmid: HOST_PROVIDER.stop_vm(int(vmid), skiplock=True, timeout=None),
             summarize_action_result=summarize_action_result,
@@ -3964,6 +4010,31 @@ class Handler(BaseHTTPRequestHandler):
                 "ha.reconcile_failed_node",
                 "success",
                 failed_node=str(result.get("failed_node") or ""),
+                handled_vm_count=int(result.get("handled_vm_count") or 0),
+                username=self._requester_identity(),
+            )
+            self._write_json(HTTPStatus.OK, {"ok": True, **result})
+            return
+
+        if path == "/api/v1/ha/maintenance/drain":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                payload = self._read_json_body()
+                result = maintenance_service().drain_node(
+                    node_name=str(payload.get("node_name") or "").strip(),
+                    requester_identity=self._requester_identity(),
+                )
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._audit_event(
+                "ha.maintenance.drain",
+                "success",
+                node_name=str(result.get("node_name") or ""),
                 handled_vm_count=int(result.get("handled_vm_count") or 0),
                 username=self._requester_identity(),
             )

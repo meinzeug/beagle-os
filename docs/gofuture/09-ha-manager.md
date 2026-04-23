@@ -70,8 +70,30 @@ VM-spezifischer Wert gesetzt ist.
 
 ### Schritt 3 — Maintenance-Mode (Drain) implementieren
 
-- [ ] `beagle-host/services/maintenance_service.py` anlegen: alle VMs eines Knotens koordiniert auf andere Knoten verschieben.
-- [ ] Web Console: "In Maintenance versetzen" Button im Cluster-Panel.
+- [x] `beagle-host/services/maintenance_service.py` anlegen: alle VMs eines Knotens koordiniert auf andere Knoten verschieben.
+- [x] Web Console: "In Maintenance versetzen" Button im Cluster-Panel.
+
+Umgesetzt (2026-04-23):
+- Neues Modul `beagle-host/services/maintenance_service.py` eingefuehrt (`MaintenanceService`).
+- Maintenance-Drain-Flow implementiert (`drain_node`):
+	- markiert Knoten persistent als Maintenance,
+	- verarbeitet Knoten-VMs policy-basiert (`disabled` skip, `restart` cold restart, `fail_over` live migration mit cold-restart fallback),
+	- persisted `maintenance_nodes` in `ha-maintenance-state.json`.
+- Neuer API-Endpunkt `POST /api/v1/ha/maintenance/drain` in der Control Plane.
+- Start-Guard fuer VM-Power-Start in Maintenance-Modus verdrahtet (`start_vm_checked`), damit Starts auf Maintenance-Knoten abgelehnt werden.
+- RBAC-Mapping erweitert (`cluster:write`) fuer Maintenance-Drain-Endpoint.
+- Web Console Cluster-Panel erweitert:
+	- neuer Button `In Maintenance versetzen` je Knoten,
+	- UI ruft Drain-Endpoint auf und refresht Dashboard nach erfolgreichem Drain.
+- Unit-Tests ergaenzt:
+	- `tests/unit/test_maintenance_service.py`,
+	- `tests/unit/test_authz_policy.py` um HA-Maintenance-Routen.
+
+Validierung (2026-04-23, lokal + srv1):
+- Lokal: `python3 -m pytest tests/unit/test_maintenance_service.py tests/unit/test_authz_policy.py tests/unit/test_ha_manager.py tests/unit/test_ha_policy_validation.py tests/unit/test_ha_watchdog.py -q` => `17 passed`.
+- srv1: identischer Testlauf => `17 passed`.
+- Live-Smoke auf srv1: `POST /api/v1/ha/maintenance/drain` fuer `node_name=beagle-0` liefert `200` und `ok=true`.
+- UI-Smoke auf srv1: ausgeliefertes `website/ui/cluster.js` enthaelt `In Maintenance versetzen`.
 
 Maintenance-Mode ist notwendig für geplante Wartung (Kernel-Update, Hardware-Tausch)
 ohne VM-Downtime. Beim Drain werden alle laufenden VMs mit aktiver HA-Policy

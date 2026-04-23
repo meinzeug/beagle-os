@@ -1,9 +1,11 @@
 import { qs, escapeHtml } from './dom.js';
+import { postJson } from './api.js';
 import { state } from './state.js';
 
 const clusterHooks = {
   openInventoryWithNodeFilter() {},
-  setBanner() {}
+  setBanner() {},
+  loadDashboard() {}
 };
 
 let clusterEventsBound = false;
@@ -17,6 +19,28 @@ export function bindClusterEvents() {
     return;
   }
   document.addEventListener('click', (event) => {
+    const maintenanceTrigger = event.target.closest('[data-cluster-maintenance-node]');
+    if (maintenanceTrigger) {
+      const nodeName = String(maintenanceTrigger.getAttribute('data-cluster-maintenance-node') || '').trim();
+      if (!nodeName) {
+        return;
+      }
+      if (!window.confirm('Knoten ' + nodeName + ' in Maintenance versetzen und Drain starten?')) {
+        return;
+      }
+      maintenanceTrigger.disabled = true;
+      postJson('/ha/maintenance/drain', { node_name: nodeName }).then((payload) => {
+        const handled = Number(payload && payload.handled_vm_count ? payload.handled_vm_count : 0);
+        clusterHooks.setBanner('Maintenance-Drain fuer ' + nodeName + ' gestartet (' + handled + ' VMs behandelt).', 'success');
+        return clusterHooks.loadDashboard();
+      }).catch((error) => {
+        clusterHooks.setBanner('Maintenance-Drain fehlgeschlagen: ' + error.message, 'error');
+      }).finally(() => {
+        maintenanceTrigger.disabled = false;
+      });
+      return;
+    }
+
     const trigger = event.target.closest('[data-cluster-node]');
     if (!trigger) {
       return;
@@ -118,7 +142,10 @@ export function renderClusterPanel() {
       '<td>' + String(cpuPercent) + '%</td>' +
       '<td>' + String(ramPercent) + '%</td>' +
       '<td>' + String(vmCount) + '</td>' +
-      '<td><button type="button" class="button ghost small" data-cluster-node="' + escapeHtml(nodeName) + '">VMs anzeigen</button></td>' +
+      '<td>' +
+      '<button type="button" class="button ghost small" data-cluster-node="' + escapeHtml(nodeName) + '">VMs anzeigen</button> ' +
+      '<button type="button" class="button ghost small" data-cluster-maintenance-node="' + escapeHtml(nodeName) + '">In Maintenance versetzen</button>' +
+      '</td>' +
       '</tr>'
     );
   }).join('');

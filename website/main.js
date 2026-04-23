@@ -487,7 +487,8 @@ export function bootstrapApp() {
   });
   configureCluster({
     openInventoryWithNodeFilter,
-    setBanner
+    setBanner,
+    loadDashboard
   });
   configureSessions({
     setBanner
