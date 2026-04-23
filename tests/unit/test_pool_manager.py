@@ -132,6 +132,10 @@ class PoolManagerServiceTests(unittest.TestCase):
                     fps=120,
                     color=StreamingColorCodec.AV1,
                     hdr=True,
+                    audio_input_enabled=True,
+                    gamepad_redirect_enabled=True,
+                    wacom_tablet_enabled=True,
+                    usb_redirect_enabled=True,
                 ),
             )
         )
@@ -149,12 +153,18 @@ class PoolManagerServiceTests(unittest.TestCase):
                     "fps": 60,
                     "color": "h264",
                     "hdr": False,
+                    "audio_input_enabled": False,
+                    "gamepad_redirect_enabled": False,
+                    "wacom_tablet_enabled": False,
+                    "usb_redirect_enabled": False,
                 }
             },
         )
         self.assertIsNotNone(updated.streaming_profile)
         self.assertEqual(updated.streaming_profile.encoder, StreamingEncoder.SOFTWARE)
         self.assertEqual(updated.streaming_profile.color, StreamingColorCodec.H264)
+        self.assertFalse(updated.streaming_profile.wacom_tablet_enabled)
+        self.assertFalse(updated.streaming_profile.usb_redirect_enabled)
 
         payload = service.pool_info_to_dict(updated)
         self.assertIn("streaming_profile", payload)

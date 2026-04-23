@@ -24,6 +24,10 @@ class StreamingProfileContractTests(unittest.TestCase):
         self.assertEqual(profile.fps, 60)
         self.assertEqual(profile.color, StreamingColorCodec.H265)
         self.assertFalse(profile.hdr)
+        self.assertFalse(profile.audio_input_enabled)
+        self.assertFalse(profile.gamepad_redirect_enabled)
+        self.assertFalse(profile.wacom_tablet_enabled)
+        self.assertFalse(profile.usb_redirect_enabled)
 
     def test_valid_custom_payload(self) -> None:
         profile = streaming_profile_from_payload(
@@ -34,6 +38,10 @@ class StreamingProfileContractTests(unittest.TestCase):
                 "fps": 120,
                 "color": "av1",
                 "hdr": True,
+                "audio_input_enabled": True,
+                "gamepad_redirect_enabled": True,
+                "wacom_tablet_enabled": True,
+                "usb_redirect_enabled": True,
             }
         )
         payload = streaming_profile_to_dict(profile)
@@ -42,6 +50,10 @@ class StreamingProfileContractTests(unittest.TestCase):
         self.assertEqual(payload.get("resolution"), "3840x2160")
         self.assertEqual(payload.get("color"), "av1")
         self.assertTrue(payload.get("hdr"))
+        self.assertTrue(payload.get("audio_input_enabled"))
+        self.assertTrue(payload.get("gamepad_redirect_enabled"))
+        self.assertTrue(payload.get("wacom_tablet_enabled"))
+        self.assertTrue(payload.get("usb_redirect_enabled"))
 
     def test_rejects_invalid_codec(self) -> None:
         with self.assertRaises(ValueError):

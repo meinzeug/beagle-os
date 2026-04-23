@@ -57,7 +57,9 @@ function collectPoolWizardInput() {
       resolution: String(qs('pool-stream-resolution') ? qs('pool-stream-resolution').value : '1920x1080').trim() || '1920x1080',
       hdr: Boolean(qs('pool-stream-hdr') ? qs('pool-stream-hdr').checked : false),
       audio_input_enabled: Boolean(qs('pool-stream-audio-input') ? qs('pool-stream-audio-input').checked : false),
-      gamepad_redirect_enabled: Boolean(qs('pool-stream-gamepad') ? qs('pool-stream-gamepad').checked : false)
+      gamepad_redirect_enabled: Boolean(qs('pool-stream-gamepad') ? qs('pool-stream-gamepad').checked : false),
+      wacom_tablet_enabled: Boolean(qs('pool-stream-wacom') ? qs('pool-stream-wacom').checked : false),
+      usb_redirect_enabled: Boolean(qs('pool-stream-usb-redirect') ? qs('pool-stream-usb-redirect').checked : false)
     }
   };
   return { payload, users, groups };
@@ -117,6 +119,7 @@ function renderPoolWizardSummary() {
     fieldBlock('Streaming', String(payload.streaming_profile.encoder || '-') + ' / ' + String(payload.streaming_profile.color || '-') + ' / ' + String(payload.streaming_profile.resolution || '-')) +
     fieldBlock('Bitrate / FPS / HDR', String(payload.streaming_profile.bitrate_kbps || '-') + ' Kbps / ' + String(payload.streaming_profile.fps || '-') + ' fps / ' + (payload.streaming_profile.hdr ? 'on' : 'off')) +
     fieldBlock('Audio / Gamepad', (payload.streaming_profile.audio_input_enabled ? 'audio' : '-') + ' / ' + (payload.streaming_profile.gamepad_redirect_enabled ? 'gamepad' : '-')) +
+    fieldBlock('Wacom / USB', (payload.streaming_profile.wacom_tablet_enabled ? 'wacom' : '-') + ' / ' + (payload.streaming_profile.usb_redirect_enabled ? 'usb' : '-')) +
     fieldBlock('Users', users.length ? users.join(', ') : '-') +
     fieldBlock('Groups', groups.length ? groups.join(', ') : '-') +
     '</div>';
@@ -387,6 +390,12 @@ export function resetPoolWizard() {
   }
   if (qs('pool-stream-gamepad')) {
     qs('pool-stream-gamepad').checked = false;
+  }
+  if (qs('pool-stream-wacom')) {
+    qs('pool-stream-wacom').checked = false;
+  }
+  if (qs('pool-stream-usb-redirect')) {
+    qs('pool-stream-usb-redirect').checked = false;
   }
   poolWizardStep = 1;
   renderPoolTemplateOptions();

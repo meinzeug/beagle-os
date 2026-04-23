@@ -29,6 +29,8 @@ class StreamingProfile:
     hdr: bool = False
     audio_input_enabled: bool = False
     gamepad_redirect_enabled: bool = False
+    wacom_tablet_enabled: bool = False
+    usb_redirect_enabled: bool = False
 
 
 def _normalize_resolution(value: Any) -> str:
@@ -73,6 +75,8 @@ def streaming_profile_from_payload(payload: dict[str, Any] | None) -> StreamingP
         hdr=bool(body.get("hdr", False)),
         audio_input_enabled=bool(body.get("audio_input_enabled", False)),
         gamepad_redirect_enabled=bool(body.get("gamepad_redirect_enabled", False)),
+        wacom_tablet_enabled=bool(body.get("wacom_tablet_enabled", False)),
+        usb_redirect_enabled=bool(body.get("usb_redirect_enabled", False)),
     )
 
 
@@ -88,4 +92,6 @@ def streaming_profile_to_dict(profile: StreamingProfile | None) -> dict[str, Any
         "hdr": bool(profile.hdr),
         "audio_input_enabled": bool(profile.audio_input_enabled),
         "gamepad_redirect_enabled": bool(profile.gamepad_redirect_enabled),
+        "wacom_tablet_enabled": bool(profile.wacom_tablet_enabled),
+        "usb_redirect_enabled": bool(profile.usb_redirect_enabled),
     }
