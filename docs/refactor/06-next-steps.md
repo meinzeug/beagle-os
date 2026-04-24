@@ -1,5 +1,14 @@
 # Next Steps
 
+## Delta (2026-04-24 nach Plan 18 Schritt 2 Teil 1)
+
+Terraform-Provider-Grundmodul ist angelegt. Naechste offene Schritte:
+
+0. **Plan 18 Schritt 2 Teil 2**: Provider auf Terraform Registry publizieren.
+0. **Plan 18 Testpflicht**: `terraform apply` erzeugt VM und `terraform destroy` entfernt VM reproduzierbar auf `srv1`.
+0. **Plan 17 Schritt 4 Teil 2**: Overlay-L2-Test mit zwei Cluster-Knoten (INFRA-BLOCKED auf Single-Host).
+
+
 ## Delta (2026-04-24 nach Plan 17 Schritt 4 Teil 1)
 
 Plan 17 Schritt 4 Teil 1 (`vxlan.py`) ist umgesetzt. Naechste offene Schritte:

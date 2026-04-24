@@ -1,5 +1,14 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-24, GoFuture Plan 18 Schritt 2 Teil 1 umgesetzt)
+
+- Neues Go-Modul `terraform-provider-beagle/` angelegt.
+- Provider-Grundstruktur implementiert (`main.go`, `beagle/provider.go`, `beagle/client.go`, `beagle/config.go`) auf Basis `terraform-plugin-sdk/v2`.
+- CRUD-Resources implementiert: `beagle_vm`, `beagle_pool`, `beagle_user`, `beagle_network_zone`.
+- Deployment auf `srv1.beagle-os.com`: Modul nach `/opt/beagle/terraform-provider-beagle/` synchronisiert und Dateibaum verifiziert.
+- `docs/gofuture/18-api-iac-cli.md`: Schritt-2-Checkbox "Go-Modul ... anlegen" auf `[x]` gesetzt.
+
+
 ## Update (2026-04-24, GoFuture Plan 17 Schritt 4 Teil 1 umgesetzt)
 
 - `providers/beagle/network/vxlan.py`: `VxlanBackend` implementiert (Linux VXLAN-Device via `ip link add ... type vxlan`, Bridge-Anbindung, FDB-Sync via `bridge fdb`, State in `/var/lib/beagle/beagle-manager/vxlan-zones.json`).
