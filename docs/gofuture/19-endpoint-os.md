@@ -70,8 +70,24 @@ Bei Fehler: automatisches Fallback auf alten Slot, Fehlermeldung in Web Console.
 
 ### Schritt 4 — TPM-basierte Disk-Verschlüsselung als Default
 
-- [ ] `thin-client-assistant/installer`: LUKS2 + TPM2-Unlock als Default für installierte Endpoints.
-- [ ] Fallback: Passphrase-basiertes Unlock wenn kein TPM vorhanden.
+- [x] `thin-client-assistant/installer`: LUKS2 + TPM2-Unlock als Default für installierte Endpoints.
+- [x] Fallback: Passphrase-basiertes Unlock wenn kein TPM vorhanden.
+
+Umsetzung (2026-04-24):
+
+- Neues Skript `thin-client-assistant/installer/setup-tpm2-encryption.sh` implementiert:
+	- LUKS2-Container-Initialisierung via `cryptsetup luksFormat` (AES-XTS, Argon2i).
+	- TPM2-Binding via `clevis luks bind` mit automatischer Detektion.
+	- Fallback auf Passphrase-Eingabe wenn TPM2 nicht vorhanden oder `--method passphrase` gesetzt.
+	- Automatische `dracut`-Konfiguration für LUKS2-Auto-Unlock im Initramfs.
+	- LUKS-Header-Backup nach Setup in `/var/lib/beagle-endpoint/luks-backup.bin`.
+	- Crypttab-Integration mit `x-systemd.device-timeout=0` für zuverlässiges Boot-Verhalten.
+- Usage:
+	```bash
+	sudo thin-client-assistant/installer/setup-tpm2-encryption.sh --device /dev/vda [--method auto|tpm2|passphrase]
+	```
+- Auto-Modus: Prüft TPM2-Verfügbarkeit via `/dev/tpm0`, `/dev/tpmrm0` oder `tpm2_getcap`.
+- Rauchtest: `scripts/test-tpm2-encryption-smoke.sh` lokale Validierung.
 
 Disk-Verschlüsselung schützt Endpoint-Klienten-Daten bei physischem Geräteverlust.
 TPM2-basiertes Unlock (via `clevis` + `luks2`) ist die benutzerfreundlichste Methode
