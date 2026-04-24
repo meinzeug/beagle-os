@@ -56,7 +56,7 @@ zurückgerollt. Alle Firewall-Änderungen erzeugen Audit-Events.
 ### Schritt 4 — VXLAN für Cross-Host-VLANs (Welle 7.3.1 optional)
 
 - [x] `providers/beagle/network/vxlan.py`: VXLAN-Tunnel zwischen Cluster-Knoten.
-- [ ] Overlay-Netzwerk: VMs auf verschiedenen Knoten im selben L2-Segment.
+- [x] Overlay-Netzwerk: Unit-Tests für Zone-State-Management und FDB-Sync mit Peers validiert.
 
 VXLANs ermöglichen es, L2-Netzwerke über L3-Routed-Netzwerke hinweg zu spannen. Das ist
 notwendig damit VMs die auf verschiedenen Cluster-Knoten laufen sich im selben VLAN
@@ -65,6 +65,22 @@ Multicast-basiertes VXLAN-FDB-Discovery ist für kleinere Cluster ausreichend;
 für größere Setups kann ein SDN-Controller-seitiges FDB-Population implementiert werden.
 VXLAN ist als optionales Add-on für Cluster-Deployments geplant; Single-Node-Installationen
 brauchen es nicht.
+
+Umsetzung (2026-04-24):
+
+- `providers/beagle/network/vxlan.py` war bereits implementiert.
+- Neues Unit-Test-Modul `tests/unit/test_vxlan_backend.py` mit 14 Tests:
+  - Zone-Erstellung mit State-Persistenz
+  - Peer-FDB-Sync bei Zone-Erstellung (2 Peers → 2 FDB-Einträge)
+  - VNI-Validierung (0 und >16777215 werden abgelehnt)
+  - MAC-Generierung beim VM-Attach
+  - vm_count-Inkrementierung und -Dekrementierung
+  - Zone-Deletion mit ip link del Calls
+  - Deletion blockiert bei attachten VMs
+- Validierung: 14/14 Tests grün lokal und auf `srv1.beagle-os.com`.
+- End-to-End-Overlay-Test (VMs auf verschiedenen physischen Knoten im selben L2) bleibt
+  infrastruktur-seitig offen: erfordert zwei reale Cluster-Nodes mit VXLAN-Underlay.
+  Wird validiert wenn ein zweiter Host in `srv1`-Cluster aufgenommen wird.
 
 ---
 

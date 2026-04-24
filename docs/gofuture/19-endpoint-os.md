@@ -32,6 +32,25 @@ Live-Build-Konfiguration durch Profil-Selektion.
 
 ### Schritt 2 — Enrollment-Flow implementieren
 
+- [x] Endpoint zeigt kurzen alphanumerischen Code und QR-Code beim ersten Boot.
+- [x] Polling-Loop erkennt abgeschlossenes Enrollment, beendet den Dialog sauber.
+
+Umsetzung (2026-04-24):
+
+- `thin-client-assistant/runtime/first_boot_enrollment_display.py` implementiert:
+  - Erkennt "nicht enrolled" Zustand via `PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN` aus Config/Credentials.
+  - Generiert deterministischen `XXXX-DDDD` Display-Code aus `/etc/machine-id` via SHA-256.
+  - Baut Enrollment-URL: `{MANAGER_URL}/enroll?code={CODE}` für Web-Console-Deep-Link.
+  - ASCII-QR-Code: nutzt `qrencode` CLI falls vorhanden, sonst URL-Text-Fallback.
+  - Polling-Loop (alle 10s, konfigurierbar): erkennt wenn Manager-Token in Config gesetzt wird.
+  - `--once`-Modus für systemd-Conditions und Smoke-Tests.
+- Server-seitig war die Enrollment-Infrastruktur bereits vorhanden:
+  - `beagle-host/services/endpoint_enrollment.py`: Token-Issuance, `enroll_endpoint()`.
+  - `beagle-host/services/enrollment_token_store.py`: Persistenz, TTL, `is_valid()`.
+  - `thin-client-assistant/runtime/runtime_endpoint_enrollment.sh`: API-Call zum Enrollment-Endpoint.
+  - `thin-client-assistant/runtime/apply_enrollment_config.py`: Response → Config-Dateien.
+- Smoke-Test: `scripts/test-enrollment-display-smoke.sh` — 7/7 Tests grün lokal + `srv1.beagle-os.com`.
+- `ENROLLMENT_DISPLAY_SMOKE=PASS` auf srv1 verifiziert.
 
 Der Enrollment-Flow ersetzt den manuellen Konfigurations-Prozess durch einen geführten
 Pairing-Dialog. Beim ersten Boot zeigt der Endpoint einen kurzen alphanumerischen Code

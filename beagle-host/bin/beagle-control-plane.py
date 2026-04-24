@@ -82,7 +82,7 @@ from runtime_exec import RuntimeExecService
 from runtime_paths import RuntimePathsService
 from runtime_support import RuntimeSupportService
 from scim_service import ScimService
-from saml_service import SamlService
+from saml_service import SamlAssertionError, SamlService
 from sunshine_access_token_store import SunshineAccessTokenStoreService
 from sunshine_integration import SunshineIntegrationService
 from support_bundle_store import SupportBundleStoreService
@@ -4755,6 +4755,54 @@ class Handler(BaseHTTPRequestHandler):
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
                 return
             self._write_json(HTTPStatus.OK, {"ok": True, **join_payload})
+            return
+
+        if path == "/api/v1/auth/saml/callback":
+            # SAML ACS (Assertion Consumer Service) endpoint.
+            # The IdP POSTs a SAMLResponse (form-encoded) to this URL.
+            content_type = str(self.headers.get("Content-Type") or "").lower()
+            remote_addr = self.client_address[0] if self.client_address else ""
+            try:
+                content_length = int(self.headers.get("Content-Length") or 0)
+                raw_body = self.rfile.read(max(0, content_length)).decode("utf-8", errors="replace") if content_length > 0 else ""
+            except Exception:
+                raw_body = ""
+            # Parse form-encoded body
+            from urllib.parse import parse_qs as _parse_qs
+            form = _parse_qs(raw_body) if raw_body else {}
+            saml_response_b64 = str((form.get("SAMLResponse") or [""])[0] or "").strip()
+            if not saml_response_b64:
+                audit_log_service().write_event(
+                    "auth.saml.assertion_rejected",
+                    "denied",
+                    {"reason": "missing SAMLResponse", "remote_addr": remote_addr},
+                )
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "missing SAMLResponse"})
+                return
+            try:
+                claims = saml_service().validate_assertion(saml_response_b64)
+            except SamlAssertionError as exc:
+                audit_log_service().write_event(
+                    "auth.saml.assertion_rejected",
+                    "denied",
+                    {"reason": str(exc), "remote_addr": remote_addr},
+                )
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": f"saml assertion rejected: {exc}"})
+                return
+            except Exception as exc:
+                audit_log_service().write_event(
+                    "auth.saml.assertion_rejected",
+                    "denied",
+                    {"reason": f"internal error: {exc}", "remote_addr": remote_addr},
+                )
+                self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "saml callback failed"})
+                return
+            audit_log_service().write_event(
+                "auth.saml.assertion_accepted",
+                "success",
+                {"name_id": str(claims.get("name_id") or ""), "remote_addr": remote_addr},
+            )
+            self._write_json(HTTPStatus.OK, {"ok": True, "claims": claims})
             return
 
         if path == "/api/v1/auth/login":

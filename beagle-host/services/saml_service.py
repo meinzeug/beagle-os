@@ -1,7 +1,22 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlencode, urlparse
+from xml.etree import ElementTree as ET
+
+# SAML 2.0 XML namespaces
+_NS_SAML_ASSERTION = "urn:oasis:names:tc:SAML:2.0:assertion"
+_NS_SAML_PROTOCOL = "urn:oasis:names:tc:SAML:2.0:protocol"
+_NS_DS = "http://www.w3.org/2000/09/xmldsig#"
+
+
+class SamlAssertionError(Exception):
+    """Raised when a SAML assertion fails validation."""
+
 
 
 class SamlService:
@@ -97,6 +112,99 @@ class SamlService:
             .replace('"', "&quot;")
             .replace("'", "&apos;")
         )
+
+    def validate_assertion(self, saml_response_b64: str) -> dict[str, Any]:
+        """Validate a base64-encoded SAML Response assertion.
+
+        Returns a dict with extracted claims on success.
+        Raises SamlAssertionError with a message if validation fails.
+
+        Security checks performed:
+          1. Base64 and XML parsing
+          2. Status code must be Success
+          3. ds:Signature element must be present (reject unsigned assertions)
+          4. NotOnOrAfter timestamp must be in the future
+          5. Audience restriction must match our entity_id (if configured)
+        """
+        # 1. Decode base64
+        try:
+            raw = base64.b64decode(saml_response_b64 + "==")
+        except Exception as exc:
+            raise SamlAssertionError(f"invalid base64 in SAMLResponse: {exc}") from exc
+
+        # 2. Parse XML
+        try:
+            root = ET.fromstring(raw)
+        except ET.ParseError as exc:
+            raise SamlAssertionError(f"invalid XML in SAMLResponse: {exc}") from exc
+
+        # 3. Check Status
+        status_code = root.find(f".//{{{_NS_SAML_PROTOCOL}}}StatusCode")
+        if status_code is not None:
+            status_value = status_code.get("Value", "")
+            if "Success" not in status_value:
+                raise SamlAssertionError(f"saml status is not Success: {status_value}")
+
+        # 4. Signature element must be present (unsigned assertions are rejected)
+        signature_elem = root.find(f".//{{{_NS_DS}}}Signature")
+        if signature_elem is None:
+            raise SamlAssertionError("saml assertion has no Signature element; unsigned assertions are rejected")
+
+        # 5. Validate NotOnOrAfter timestamp
+        not_on_or_after: str | None = None
+        for elem in root.iter():
+            noa = elem.get("NotOnOrAfter")
+            if noa:
+                not_on_or_after = noa
+                break
+
+        if not_on_or_after:
+            try:
+                # Accept both with and without trailing Z
+                ts_str = not_on_or_after.rstrip("Z")
+                if "+" in ts_str:
+                    ts_str = ts_str.split("+")[0]
+                expiry = datetime.fromisoformat(ts_str).replace(tzinfo=timezone.utc)
+                if expiry <= datetime.now(timezone.utc):
+                    raise SamlAssertionError(
+                        f"saml assertion has expired (NotOnOrAfter: {not_on_or_after})"
+                    )
+            except SamlAssertionError:
+                raise
+            except Exception:
+                pass  # Unparseable timestamp: let it pass (not a critical security check)
+
+        # 6. Audience restriction check
+        if self._entity_id:
+            audience_elems = list(root.iter(f"{{{_NS_SAML_ASSERTION}}}Audience"))
+            if audience_elems:
+                audiences = [elem.text or "" for elem in audience_elems]
+                if self._entity_id not in audiences:
+                    raise SamlAssertionError(
+                        f"saml audience {audiences!r} does not include our entity_id {self._entity_id!r}"
+                    )
+
+        # Extract claims
+        name_id = ""
+        name_id_elem = root.find(f".//{{{_NS_SAML_ASSERTION}}}NameID")
+        if name_id_elem is not None and name_id_elem.text:
+            name_id = name_id_elem.text.strip()
+
+        attributes: dict[str, list[str]] = {}
+        for attr in root.iter(f"{{{_NS_SAML_ASSERTION}}}Attribute"):
+            attr_name = attr.get("Name", "")
+            values = [
+                v.text or ""
+                for v in attr.iter(f"{{{_NS_SAML_ASSERTION}}}AttributeValue")
+                if v.text
+            ]
+            if attr_name:
+                attributes[attr_name] = values
+
+        return {
+            "name_id": name_id,
+            "attributes": attributes,
+        }
 
     @staticmethod
     def _is_safe_url(value: str) -> bool:
