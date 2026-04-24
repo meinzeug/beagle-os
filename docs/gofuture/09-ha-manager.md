@@ -187,8 +187,8 @@ alle HA-Ereignisse (Fencing-Start, Fencing-Complete, VM-Restart, VM-Migration) e
 
 - [ ] Knoten-Ausfall: HA-Manager erkennt in <= 60s, VM auf gesundem Knoten läuft in <= 60s.
 - [x] Fencing blockiert VM-Start vor Abschluss (kein Split-Brain).
-- [ ] Maintenance-Mode: alle VMs abgewandert, neuer VM-Start auf Maintenance-Knoten abgelehnt.
-- [ ] Anti-Affinity: zwei VMs gleicher Gruppe landen auf unterschiedlichen Knoten.
+- [x] Maintenance-Mode: alle VMs abgewandert, neuer VM-Start auf Maintenance-Knoten abgelehnt. (`tests/unit/test_ha_maintenance_and_anti_affinity.py` 8 tests pass lokal + srv1; is_node_in_maintenance-Guard in beagle-control-plane.py line ~2580)
+- [x] Anti-Affinity: zwei VMs gleicher Gruppe landen auf unterschiedlichen Knoten. (`anti_affinity_scheduler.py` + 11 unit tests; pick_node/check_placement API; lokal + srv1 19/19 pass)
 
 Validierung (2026-04-24, srv1):
 - Temporärer Watchdog-State gesetzt: `nodes.beagle-0.status=fencing` und `fencing_active=true`.
