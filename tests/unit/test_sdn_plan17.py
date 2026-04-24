@@ -12,6 +12,7 @@ import pytest
 from ipam_service import IpamService, IpLease
 from firewall_service import FirewallService, FirewallProfile, FirewallRule
 from beagle.network.vlan import VlanBackend
+from beagle.network.vxlan import VxlanBackend
 from core.virtualization.network import NetworkZoneSpec
 
 
@@ -124,6 +125,89 @@ class TestIpamService:
         ipam = IpamService(state_file=self.tmp_path / "ipam.json")
         with pytest.raises(ValueError):
             ipam.register_zone("zone-bad", "invalid/subnet", "1.1.1.1", "1.1.1.2")
+
+
+class TestVxlanBackend:
+    """Tests for VXLAN backend."""
+
+    def setup_method(self):
+        """Setup test fixtures."""
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.tmp_path = Path(self.tmpdir.name)
+
+    def teardown_method(self):
+        """Cleanup test fixtures."""
+        self.tmpdir.cleanup()
+
+    @patch('beagle.network.vxlan.subprocess.run')
+    def test_create_zone(self, mock_run):
+        """Test creating a VXLAN network zone."""
+        mock_run.return_value = MagicMock(stdout="", returncode=0)
+
+        state_file = self.tmp_path / "vxlan-zones.json"
+        backend = VxlanBackend(
+            state_file=state_file,
+            underlay_interface="eth0",
+            local_ip="10.10.10.1",
+            peers=["10.10.10.2", "10.10.10.3"],
+        )
+        spec = NetworkZoneSpec(
+            zone_id="ovl-1",
+            zone_name="Overlay",
+            vlan_id=10001,
+            subnet="10.200.1.0/24",
+            gateway="10.200.1.1",
+            dhcp_start="10.200.1.10",
+            dhcp_end="10.200.1.250",
+            dns_servers=["1.1.1.1"],
+        )
+        zone_info = backend.create_zone(spec)
+        assert zone_info.zone_id == "ovl-1"
+        assert zone_info.vlan_id == 10001
+        assert zone_info.status == "active"
+
+    @patch('beagle.network.vxlan.subprocess.run')
+    def test_attach_and_detach_vm(self, mock_run):
+        """Test VM membership bookkeeping in VXLAN zone."""
+        mock_run.return_value = MagicMock(stdout="", returncode=0)
+
+        state_file = self.tmp_path / "vxlan-zones.json"
+        backend = VxlanBackend(state_file=state_file)
+        spec = NetworkZoneSpec(
+            zone_id="ovl-2",
+            zone_name="Overlay 2",
+            vlan_id=20002,
+            subnet="10.200.2.0/24",
+            gateway="10.200.2.1",
+            dhcp_start="10.200.2.10",
+            dhcp_end="10.200.2.250",
+            dns_servers=["8.8.8.8"],
+        )
+        backend.create_zone(spec)
+
+        mac = backend.attach_vm_to_zone("ovl-2", "vm-101")
+        assert mac.startswith("52:54:")
+        assert backend.get_zone_vms("ovl-2") == ["vm-101"]
+
+        backend.detach_vm_from_zone("ovl-2", "vm-101")
+        assert backend.get_zone_vms("ovl-2") == []
+
+    def test_invalid_vni(self):
+        """Test that invalid VNI is rejected."""
+        state_file = self.tmp_path / "vxlan-zones.json"
+        backend = VxlanBackend(state_file=state_file)
+        spec = NetworkZoneSpec(
+            zone_id="ovl-bad",
+            zone_name="Bad",
+            vlan_id=0,
+            subnet="10.201.0.0/24",
+            gateway="10.201.0.1",
+            dhcp_start="10.201.0.10",
+            dhcp_end="10.201.0.250",
+            dns_servers=["8.8.8.8"],
+        )
+        with pytest.raises(ValueError):
+            backend.create_zone(spec)
 
 
 class TestFirewallService:

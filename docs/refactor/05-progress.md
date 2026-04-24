@@ -1,5 +1,14 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-24, GoFuture Plan 17 Schritt 4 Teil 1 umgesetzt)
+
+- `providers/beagle/network/vxlan.py`: `VxlanBackend` implementiert (Linux VXLAN-Device via `ip link add ... type vxlan`, Bridge-Anbindung, FDB-Sync via `bridge fdb`, State in `/var/lib/beagle/beagle-manager/vxlan-zones.json`).
+- `providers/beagle/network/__init__.py`: Export von `VxlanBackend` ergänzt.
+- `tests/unit/test_sdn_plan17.py`: neue `TestVxlanBackend`-Tests (`create_zone`, VM attach/detach, invalid VNI) hinzugefügt.
+- Lokal validiert: `pytest -q tests/unit/test_sdn_plan17.py` => `12 passed`.
+- Deployment auf `srv1.beagle-os.com`: `providers/beagle/network/vxlan.py` + `core/virtualization/network.py` synchronisiert, Import-Schnelltest `VXLAN_IMPORT_OK` erfolgreich.
+- `docs/gofuture/17-sdn-firewall.md`: Schritt 4 Checkbox für `vxlan.py` auf `[x]` gesetzt.
+
 ## Update (2026-04-24, GoFuture Plan 17 Schritt 2+5 abgeschlossen)
 
 - `website/index.html`: IPAM-Abschnitt in Netzwerk-Settings ergänzt (Zone-Select, Lease-Tabelle mit IP/MAC/VM-ID/Hostname/Typ/Ablauf).

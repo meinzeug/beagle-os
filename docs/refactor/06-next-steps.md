@@ -1,5 +1,13 @@
 # Next Steps
 
+## Delta (2026-04-24 nach Plan 17 Schritt 4 Teil 1)
+
+Plan 17 Schritt 4 Teil 1 (`vxlan.py`) ist umgesetzt. Naechste offene Schritte:
+
+0. **Plan 17 Schritt 4 Testpflicht (Overlay-Netz)**: L2-Overlay-Validierung mit zwei realen Cluster-Knoten (VMs auf unterschiedlichen Hosts im selben Segment) — INFRA-BLOCKED (2+ Hosts notwendig).
+0. **Plan 17 Testpflicht Schritt 1-5**: VLAN-Isolation, DHCP/IPAM-Zuordnung, Firewall-Block/Allow, Rollback-End-to-End auf Multi-VM-Lab reproduzierbar fahren.
+0. **Plan 18 starten (API / IaC / CLI)**: `docs/gofuture/18-api-iac-cli.md` — OpenAPI-Spec generieren, `beaglectl` Python-CLI anlegen, Terraform-Provider-Stub.
+
 ## Delta (2026-04-24 nach Plan 17 Schritt 2+5)
 
 Plan 17 Schritt 2 (IPAM Web Console) und Schritt 5 (Stream-Reconciler) abgeschlossen. Naechste offene Schritte:

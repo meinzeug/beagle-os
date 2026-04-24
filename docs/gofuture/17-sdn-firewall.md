@@ -55,7 +55,7 @@ zurückgerollt. Alle Firewall-Änderungen erzeugen Audit-Events.
 
 ### Schritt 4 — VXLAN für Cross-Host-VLANs (Welle 7.3.1 optional)
 
-- [ ] `providers/beagle/network/vxlan.py`: VXLAN-Tunnel zwischen Cluster-Knoten.
+- [x] `providers/beagle/network/vxlan.py`: VXLAN-Tunnel zwischen Cluster-Knoten.
 - [ ] Overlay-Netzwerk: VMs auf verschiedenen Knoten im selben L2-Segment.
 
 VXLANs ermöglichen es, L2-Netzwerke über L3-Routed-Netzwerke hinweg zu spannen. Das ist
