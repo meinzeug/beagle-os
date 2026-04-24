@@ -864,7 +864,6 @@ export function bindEvents() {
       }
     });
   }
-  }
   if (qs('storage-body')) {
     qs('storage-body').addEventListener('click', (event) => {
       const trigger = event.target.closest('button[data-storage-quota-set]');
