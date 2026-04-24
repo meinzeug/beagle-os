@@ -10,8 +10,8 @@ Referenz: `docs/refactorv2/07-storage-network-plane.md`
 
 ### Schritt 1 — VLAN-Unterstützung pro VM/Pool
 
-- [ ] `NetworkZone`-Contract in `core/` definieren: VLAN-ID, Subnetz, DHCP-Pool, Gateway.
-- [ ] `providers/beagle/network/vlan.py`: Linux-Bridge + VLAN-Tags über `ip link` / `bridge` API.
+- [x] `NetworkZone`-Contract in `core/` definieren: VLAN-ID, Subnetz, DHCP-Pool, Gateway.
+- [x] `providers/beagle/network/vlan.py`: Linux-Bridge + VLAN-Tags über `ip link` / `bridge` API.
 
 VLANs sind die wichtigste Netzwerk-Isolations-Primitiv für Multi-Tenant-Deployments.
 Jede NetworkZone bekommt eine VLAN-ID (1–4094). VM-Interfaces werden über Linux-Bridge
@@ -25,7 +25,7 @@ DHCP wird pro VLAN über `dnsmasq` oder einen zentralen DHCP-Service bereitgeste
 
 ### Schritt 2 — IPAM (IP Address Management) pro NetworkZone
 
-- [ ] `beagle-host/services/ipam_service.py`: IP-Vergabe, Lease-Tracking, DNS-Reverse-Zone.
+- [x] `beagle-host/services/ipam_service.py`: IP-Vergabe, Lease-Tracking, DNS-Reverse-Zone.
 - [ ] Web Console: IPAM-Tabelle pro Zone mit statischen und dynamischen Einträgen.
 
 IPAM verhindert IP-Konflikte und gibt Betreibern Sichtbarkeit welche IP welcher VM
@@ -39,8 +39,8 @@ IPAM-Tabelle: IP, MAC-Adresse, VM-Name, Hostname, Lease-Ablaufzeit, statisch/dyn
 
 ### Schritt 3 — Verteilte Firewall pro VM/Pool/Tenant mit nftables
 
-- [ ] `beagle-host/services/firewall_service.py`: nftables-Regelgenerierung, Apply, Rollback.
-- [ ] `FirewallProfile`-Objekt: eingehende und ausgehende Regeln als strukturierter Typ.
+- [x] `beagle-host/services/firewall_service.py`: nftables-Regelgenerierung, Apply, Rollback.
+- [x] `FirewallProfile`-Objekt: eingehende und ausgehende Regeln als strukturierter Typ.
 
 Die verteilte Firewall läuft auf dem Hypervisor und filtert Traffic der VMs auf
 Kernel-Level mit nftables. Regeln werden pro VM oder pro Pool als strukturierte

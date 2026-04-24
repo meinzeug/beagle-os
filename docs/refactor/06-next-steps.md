@@ -1,5 +1,14 @@
 # Next Steps
 
+## Delta (2026-04-24 nach Plan 17 Schritt 1-3)
+
+Plan 17 Schritt 1-3 abgeschlossen. Naechste offene Schritte:
+
+0. **Plan 17 Schritt 2 Web Console** (teilweise offen): IPAM-Tabelle pro Zone in der Web Console.
+0. **Plan 17 Schritt 4 (VXLAN)**: Cross-Host VLANs via VXLAN-Tunnel (`providers/beagle/network/vxlan.py`).
+0. **Plan 17 Schritt 5 (Stream-Reconciler)**: `reconcile-public-streams.sh` in Python-Service portieren.
+0. **Plan 18 starten (API / IaC / CLI)**: `docs/gofuture/18-api-iac-cli.md` - OpenAPI + Terraform + beaglectl.
+
 ## Delta (2026-04-23 nach Abschluss Plan 16 Schritt 3-6)
 
 Plan 16 ist vollstaendig abgeschlossen. Naechste offene Plaene:

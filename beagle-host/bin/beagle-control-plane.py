@@ -115,6 +115,8 @@ from vm_secret_store import VmSecretStoreService
 from vm_state import VmStateService
 from vm_usb import VmUsbService
 from core.virtualization.desktop_pool import SessionRecordingPolicy
+from ipam_service import IpamService
+from firewall_service import FirewallService
 
 def load_env_defaults(path: str) -> None:
     env_path = Path(path)
@@ -477,6 +479,8 @@ OIDC_SERVICE: OidcService | None = None
 SAML_SERVICE: SamlService | None = None
 SCIM_SERVICE: ScimService | None = None
 BACKUP_SERVICE: BackupService | None = None
+IPAM_SERVICE: IpamService | None = None
+FIREWALL_SERVICE: FirewallService | None = None
 
 
 def resolve_public_stream_host(host: str) -> str:
@@ -686,6 +690,20 @@ def backup_service() -> BackupService:
             utcnow=utcnow,
         )
     return BACKUP_SERVICE
+
+
+def ipam_service() -> IpamService:
+    global IPAM_SERVICE
+    if IPAM_SERVICE is None:
+        IPAM_SERVICE = IpamService()
+    return IPAM_SERVICE
+
+
+def firewall_service() -> FirewallService:
+    global FIREWALL_SERVICE
+    if FIREWALL_SERVICE is None:
+        FIREWALL_SERVICE = FirewallService()
+    return FIREWALL_SERVICE
 
 
 def storage_quota_service() -> StorageQuotaService:
@@ -4451,6 +4469,41 @@ class Handler(BaseHTTPRequestHandler):
                 self._write_json(response["status"], response["payload"])
                 return
 
+        if path == "/api/v1/network/ipam/zones":
+            if not self._authorize_or_respond("GET", path):
+                return
+            state = ipam_service().get_all_zones()
+            self._write_json(HTTPStatus.OK, {"ok": True, "zones": state})
+            return
+
+        ipam_leases_match = re.match(r"^/api/v1/network/ipam/zones/(?P<zone_id>[A-Za-z0-9._-]+)/leases$", path)
+        if ipam_leases_match is not None:
+            if not self._authorize_or_respond("GET", path):
+                return
+            zone_id = ipam_leases_match.group("zone_id")
+            leases = ipam_service().get_zone_leases(zone_id)
+            self._write_json(HTTPStatus.OK, {"ok": True, "leases": [l.__dict__ for l in leases]})
+            return
+
+        if path == "/api/v1/network/firewall/profiles":
+            if not self._authorize_or_respond("GET", path):
+                return
+            profiles = firewall_service().list_profiles()
+            self._write_json(HTTPStatus.OK, {"ok": True, "profiles": profiles})
+            return
+
+        firewall_profile_match = re.match(r"^/api/v1/network/firewall/profiles/(?P<profile_id>[A-Za-z0-9._-]+)$", path)
+        if firewall_profile_match is not None:
+            if not self._authorize_or_respond("GET", path):
+                return
+            profile_id = firewall_profile_match.group("profile_id")
+            try:
+                profile = firewall_service().get_profile(profile_id)
+                self._write_json(HTTPStatus.OK, {"ok": True, "profile": profile.__dict__})
+            except KeyError:
+                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "profile not found"})
+            return
+
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -5524,6 +5577,108 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 self._write_json(response["status"], response["payload"])
                 return
+
+        if path == "/api/v1/network/ipam/zones":
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                body = self._read_json_body() or {}
+                zone_id = str(body.get("zone_id") or "").strip()
+                subnet = str(body.get("subnet") or "").strip()
+                dhcp_start = str(body.get("dhcp_start") or "").strip()
+                dhcp_end = str(body.get("dhcp_end") or "").strip()
+                if not all([zone_id, subnet, dhcp_start, dhcp_end]):
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "zone_id, subnet, dhcp_start, dhcp_end required"})
+                    return
+                ipam_service().register_zone(zone_id, subnet, dhcp_start, dhcp_end)
+                self._write_json(HTTPStatus.OK, {"ok": True, "zone_id": zone_id})
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            return
+
+        ipam_allocate_match = re.match(r"^/api/v1/network/ipam/zones/(?P<zone_id>[A-Za-z0-9._-]+)/allocate$", path)
+        if ipam_allocate_match is not None:
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                body = self._read_json_body() or {}
+                zone_id = ipam_allocate_match.group("zone_id")
+                vm_id = str(body.get("vm_id") or "").strip()
+                mac = str(body.get("mac_address") or "").strip()
+                hostname = str(body.get("hostname") or vm_id).strip()
+                static_ip = str(body.get("static_ip") or "").strip() or None
+                if not all([vm_id, mac]):
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "vm_id, mac_address required"})
+                    return
+                ip = ipam_service().allocate_ip(zone_id, vm_id, mac, hostname, static_ip=static_ip)
+                self._write_json(HTTPStatus.OK, {"ok": True, "ip_address": ip})
+            except (ValueError, KeyError) as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            return
+
+        ipam_release_match = re.match(r"^/api/v1/network/ipam/zones/(?P<zone_id>[A-Za-z0-9._-]+)/release$", path)
+        if ipam_release_match is not None:
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                body = self._read_json_body() or {}
+                zone_id = ipam_release_match.group("zone_id")
+                vm_id = str(body.get("vm_id") or "").strip()
+                if not vm_id:
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "vm_id required"})
+                    return
+                ipam_service().release_ip(zone_id, vm_id)
+                self._write_json(HTTPStatus.OK, {"ok": True})
+            except (ValueError, KeyError) as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            return
+
+        if path == "/api/v1/network/firewall/profiles":
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                from firewall_service import FirewallProfile, FirewallRule
+                body = self._read_json_body() or {}
+                profile_id = str(body.get("profile_id") or "").strip()
+                name = str(body.get("name") or profile_id).strip()
+                rules_data = body.get("rules") or []
+                if not profile_id:
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "profile_id required"})
+                    return
+                rules = [
+                    FirewallRule(
+                        direction=str(r.get("direction") or "inbound"),
+                        protocol=str(r.get("protocol") or "tcp"),
+                        port=int(r.get("port") or 0),
+                        action=str(r.get("action") or "allow"),
+                        source_cidr=str(r.get("source_cidr") or "") or None,
+                    )
+                    for r in rules_data
+                    if isinstance(r, dict)
+                ]
+                profile = FirewallProfile(profile_id=profile_id, name=name, rules=rules)
+                firewall_service().create_profile(profile)
+                self._write_json(HTTPStatus.OK, {"ok": True, "profile_id": profile_id})
+            except (ValueError, KeyError) as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            return
+
+        firewall_apply_match = re.match(r"^/api/v1/network/firewall/profiles/(?P<profile_id>[A-Za-z0-9._-]+)/apply$", path)
+        if firewall_apply_match is not None:
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                body = self._read_json_body() or {}
+                profile_id = firewall_apply_match.group("profile_id")
+                vm_id = str(body.get("vm_id") or "").strip()
+                if not vm_id:
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "vm_id required"})
+                    return
+                firewall_service().apply_profile_to_vm(profile_id, vm_id)
+                self._write_json(HTTPStatus.OK, {"ok": True})
+            except (ValueError, KeyError) as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            return
 
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 

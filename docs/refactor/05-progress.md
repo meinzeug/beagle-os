@@ -1,5 +1,18 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-24, GoFuture Plan 17 Schritt 1-3 abgeschlossen)
+
+- `core/virtualization/network.py`: NetworkZoneSpec, NetworkZoneInfo, VlanInterfaceSpec Dataclasses + `NetworkBackend` Protocol (7 Methoden).
+- `providers/beagle/network/vlan.py`: VlanBackend — Linux-Bridge + VLAN-Tags via `ip link`, State-Persistenz in `/var/lib/beagle/beagle-manager/network-zones.json`.
+- `beagle-host/services/ipam_service.py`: IpamService — IP-Vergabe, Lease-Tracking, statische und dynamische IPs, State in `ipam-state.json`.
+- `beagle-host/services/firewall_service.py`: FirewallService — nftables-Regelgenerierung, Apply, Rollback; FirewallProfile + FirewallRule Dataclasses.
+- Control-Plane: 7 neue API-Routen (GET ipam/zones, GET ipam/zones/{id}/leases, GET firewall/profiles, GET firewall/profiles/{id}, POST ipam/zones, POST ipam/zones/{id}/allocate, POST ipam/zones/{id}/release, POST firewall/profiles, POST firewall/profiles/{id}/apply).
+- RBAC: alle neuen Routen über bestehenden `_authorize_or_respond()` Mechanismus gesichert.
+- 9 Unit-Tests grün (TestVlanBackend, TestIpamService, TestFirewallService).
+- Alle 276 Unit-Tests bestanden.
+- Live auf `srv1.beagle-os.com`: Service active, IPAM/Firewall-Endpunkte antworten korrekt (zone + profile angelegt, GET gibt korrekte Daten zurück).
+- `docs/gofuture/17-sdn-firewall.md` Schritt 1 + 3 Checkboxen auf `[x]` gesetzt (Schritt 2 IPAM-Service fertig, Web Console ausstehend).
+
 ## Update (2026-04-23, GoFuture Plan 16 Schritt 3-6 abgeschlossen)
 
 - `core/backup_target.py`: BackupTarget Protocol + `make_target()` Factory.
