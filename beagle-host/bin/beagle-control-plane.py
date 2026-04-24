@@ -3919,6 +3919,10 @@ class Handler(BaseHTTPRequestHandler):
         role = str(principal.get("role") or "viewer").strip().lower() or "viewer"
         return auth_session_service().role_permissions(role)
 
+    def _requester_tenant_id(self) -> str:
+        principal = self._auth_principal() or {}
+        return str(principal.get("tenant_id") or "").strip()
+
     def _can_bypass_pool_visibility(self) -> bool:
         permissions = self._requester_permissions()
         return "*" in permissions or "pool:write" in permissions
@@ -3926,6 +3930,12 @@ class Handler(BaseHTTPRequestHandler):
     def _can_view_pool(self, pool_id: str) -> bool:
         if self._can_bypass_pool_visibility():
             return True
+        # Tenant isolation: non-admin users can only see pools in their own tenant.
+        requester_tid = self._requester_tenant_id()
+        if requester_tid:
+            pool_info = pool_manager_service().get_pool(pool_id)
+            if pool_info is not None and pool_info.tenant_id and pool_info.tenant_id != requester_tid:
+                return False
         return entitlement_service().can_view_pool(
             pool_id,
             user_id=self._requester_identity(),
@@ -4333,7 +4343,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/v1/pools":
             if not self._authorize_or_respond("GET", path):
                 return
-            pools = [pool for pool in pool_manager_service().list_pools() if self._can_view_pool(pool.pool_id)]
+            # Tenant-Isolation: non-admin users see only pools in their own tenant.
+            requester_tid = self._requester_tenant_id() if not self._can_bypass_pool_visibility() else None
+            pools = [pool for pool in pool_manager_service().list_pools(tenant_id=requester_tid) if self._can_view_pool(pool.pool_id)]
             self._write_json(HTTPStatus.OK, {
                 "ok": True,
                 "pools": [pool_manager_service().pool_info_to_dict(p) for p in pools],
@@ -5277,6 +5289,7 @@ class Handler(BaseHTTPRequestHandler):
                     enabled=bool(body.get("enabled", True)),
                     labels=tuple(str(l) for l in body.get("labels", [])),
                     streaming_profile=streaming_profile,
+                    tenant_id=str(body.get("tenant_id", "") or self._requester_tenant_id()).strip(),
                 )
                 pool_info = pool_manager_service().create_pool(spec)
             except (ValueError, TypeError) as exc:

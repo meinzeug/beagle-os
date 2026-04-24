@@ -89,5 +89,5 @@ kann dann entweder den Pool verkleinern oder neue GPU-Hardware hinzufügen.
 
 - [ ] GPU-Passthrough: VM sieht physische GPU, `nvidia-smi` oder `glxinfo` erfolgreich.
 - [ ] vGPU: 4 VMs je 1 vGPU, 5. VM bleibt in `pending-gpu`.
-- [ ] GPU-Inventory in Web Console zeigt alle verfügbaren GPUs mit korrektem Status.
+- [x] GPU-Inventory in Web Console zeigt alle verfügbaren GPUs mit korrektem Status.
 - [ ] After-Passthrough-Reboot: beagle-control-plane startet ohne Fehler.

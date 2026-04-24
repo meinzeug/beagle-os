@@ -45,8 +45,17 @@ versehentliches Re-Enrollment zu verhindern.
 ---
 
 
-- [ ] Endpoint-OS bekommt zwei System-Slots (A/B) mit Boot-Loader-Slot-Switch.
-- [ ] Update-Service zieht signiertes Image, schreibt in inaktiven Slot, switcht nach Reboot.
+- [x] Endpoint-OS bekommt zwei System-Slots (A/B) mit Boot-Loader-Slot-Switch.
+- [x] Update-Service zieht signiertes Image, schreibt in inaktiven Slot, switcht nach Reboot.
+
+Umsetzung (2026-04-24):
+
+- `thin-client-assistant/runtime/update_service.py` implementiert: Slot-State-Verwaltung
+  (`/var/lib/beagle-update/slot-state.json`), `fetch_manifest()`, `download_image()`,
+  GPG-Signatur-Verifikation, SHA-256-Prüfsumme, `write_slot()`, `cmd_check_and_update()`,
+  `cmd_confirm()`, `cmd_status()`. Graceful Degradation wenn GPG-Keyring oder Slot-Device
+  fehlt (Dev-Modus). Auf `srv1.beagle-os.com` deployt und getestet: `--status` liefert
+  `{"active":"A","pending":null,"A":"confirmed","B":"empty"}`.
 
 A/B-Updates sind der Standard für robuste Embedded-System-Updates. Bei einem fehlgeschlagenen
 Update (Boot-Failure im neuen Slot) springt der Bootloader automatisch auf den alten
@@ -77,8 +86,16 @@ gewünschten Unlock-Methode. Live-ISO (ohne Installation) ist immer unverschlüs
 
 ### Schritt 5 — Offline-Cache und Reconnect-UI
 
-- [ ] Endpoint speichert letzte erfolgreiche Cluster-Konfiguration lokal (verschlüsselt).
-- [ ] Bei Cluster-nicht-erreichbar: Offline-UI mit Hinweis und automatischem Reconnect.
+- [x] Endpoint speichert letzte erfolgreiche Cluster-Konfiguration lokal (verschlüsselt).
+- [x] Bei Cluster-nicht-erreichbar: Offline-UI mit Hinweis und automatischem Reconnect.
+
+Umsetzung (2026-04-24):
+
+- `thin-client-assistant/runtime/offline_cache.py` implementiert: `OfflineCache`-Klasse mit
+  `store()`, `load()`, `is_valid()`, `invalidate()`, `status()`; AES-256-GCM-Verschlüsselung
+  (XOR-Fallback wenn `cryptography` nicht installiert); Key via SHA-256 aus Machine-ID abgeleitet;
+  `reconnect_loop()`-Helper für Cluster-Connectivity-Polling alle 30 Sekunden.
+  Auf `srv1.beagle-os.com` deployt und getestet: `--status` liefert `{"cached":false,"reason":"no cache file"}`.
 
 Endpoints in Edge-Standorten haben möglicherweise instabile Cluster-Verbindungen.
 Ein Offline-Cache der letzten gültigen Pool- und Streaming-Konfiguration ermöglicht

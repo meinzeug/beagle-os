@@ -38,6 +38,7 @@ class DesktopPoolSpec:
     enabled: bool = True
     labels: tuple[str, ...] = field(default_factory=tuple)
     streaming_profile: StreamingProfile | None = None
+    tenant_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,7 @@ class DesktopPoolInfo:
     streaming_profile: StreamingProfile | None = None
     recording_watermark_enabled: bool = False
     recording_watermark_custom_text: str = ""
+    tenant_id: str = ""
 
 
 class DesktopPool(Protocol):

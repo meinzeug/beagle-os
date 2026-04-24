@@ -61,7 +61,8 @@ PERMISSION_CATALOG: list[dict] = [
         "group": "VDI Pools",
         "tags": [
             {"tag": "pool:read",  "label": "Desktop-Pools & Templates lesen"},
-            {"tag": "pool:write", "label": "Desktop-Pools & Templates verwalten"},
+            {"tag": "pool:scale", "label": "Desktop-Pool skalieren (pool-operator)"},
+            {"tag": "pool:write", "label": "Desktop-Pools & Templates verwalten (erstellen, loeschen)"},
         ],
     },
     {
@@ -124,7 +125,9 @@ class AuthzPolicyService:
                 return "cluster:write"
             if re.match(r"^/api/v1/sessions/[A-Za-z0-9._:-]+/recording/(start|stop)$", route):
                 return "session:manage_recording"
-            if route == "/api/v1/pools" or re.match(r"^/api/v1/pools/[A-Za-z0-9._-]+/(vms|entitlements|scale|allocate|release|recycle)$", route):
+            if re.match(r"^/api/v1/pools/[A-Za-z0-9._-]+/scale$", route):
+                return "pool:scale"
+            if route == "/api/v1/pools" or re.match(r"^/api/v1/pools/[A-Za-z0-9._-]+/(vms|entitlements|allocate|release|recycle)$", route):
                 return "pool:write"
             if route == "/api/v1/pool-templates":
                 return "pool:write"
@@ -199,4 +202,9 @@ class AuthzPolicyService:
         if role_name == "superadmin":
             return True
         permissions = {str(value).strip() for value in role_permissions if str(value).strip()}
-        return "*" in permissions or permission in permissions
+        if "*" in permissions or permission in permissions:
+            return True
+        # pool:write implicitly grants pool:scale (backwards compat)
+        if permission == "pool:scale" and "pool:write" in permissions:
+            return True
+        return False

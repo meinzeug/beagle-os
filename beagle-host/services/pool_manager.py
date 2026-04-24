@@ -114,6 +114,7 @@ class PoolManagerService:
             "enabled": spec.enabled,
             "labels": list(spec.labels),
             "streaming_profile": streaming_profile_to_dict(spec.streaming_profile),
+            "tenant_id": str(spec.tenant_id or "").strip(),
             "created_at": self._utcnow(),
         }
         self._save(state)
@@ -125,9 +126,13 @@ class PoolManagerService:
             return None
         return self._pool_info(state, pool_id)
 
-    def list_pools(self) -> list[DesktopPoolInfo]:
+    def list_pools(self, tenant_id: str | None = None) -> list[DesktopPoolInfo]:
         state = self._load()
-        return [self._pool_info(state, pid) for pid in state["pools"]]
+        pools = [self._pool_info(state, pid) for pid in state["pools"]]
+        if tenant_id is not None and str(tenant_id).strip():
+            tid = str(tenant_id).strip()
+            pools = [p for p in pools if p.tenant_id == tid]
+        return pools
 
     def delete_pool(self, pool_id: str) -> bool:
         state = self._load()
@@ -512,6 +517,7 @@ class PoolManagerService:
             streaming_profile=self._parse_streaming_profile(pool.get("streaming_profile")),
             recording_watermark_enabled=bool(pool.get("recording_watermark_enabled", False)),
             recording_watermark_custom_text=self._normalize_watermark_text(pool.get("recording_watermark_custom_text", "")),
+            tenant_id=str(pool.get("tenant_id") or "").strip(),
         )
 
     # ------------------------------------------------------------------
@@ -785,6 +791,7 @@ class PoolManagerService:
             "error_desktops": info.error_desktops,
             "enabled": info.enabled,
             "streaming_profile": streaming_profile_to_dict(info.streaming_profile),
+            "tenant_id": info.tenant_id,
         }
 
     def lease_to_dict(self, lease: DesktopLease) -> dict[str, Any]:

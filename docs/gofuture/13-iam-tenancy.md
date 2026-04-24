@@ -179,6 +179,19 @@ Umsetzung (2026-04-21):
 
 - [ ] Keycloak-OIDC-Login: User loggt sich ein, JWT-Claims korrekt gemappt, Session erstellt.
 - [ ] SCIM: User in Keycloak anlegen → nach Sync in Beagle sichtbar.
-- [ ] Tenant-Isolation: User von Tenant A kann Pool von Tenant B nicht lesen.
-- [ ] Custom Role: `pool-operator` darf Pool skalieren aber nicht löschen.
+- [x] Tenant-Isolation: User von Tenant A kann Pool von Tenant B nicht lesen.
+- [x] Custom Role: `pool-operator` darf Pool skalieren aber nicht löschen.
+
+Umsetzung (2026-04-24):
+
+- `core/virtualization/desktop_pool.py`: `tenant_id: str = ""` zu `DesktopPoolSpec` und `DesktopPoolInfo` hinzugefügt.
+- `beagle-host/services/pool_manager.py`: `create_pool()` persistiert `tenant_id`; `_pool_info()` liest `tenant_id`;
+  `list_pools(tenant_id=None)` filtert nach Tenant; `pool_info_to_dict()` gibt `tenant_id` zurück.
+- `beagle-host/services/entitlement_service.py`: `can_view_pool()` und `has_explicit_entitlements()` hinzugefügt.
+- `beagle-host/services/authz_policy.py`: neuer Permission-Tag `pool:scale`; `/api/v1/pools/.../scale` erfordert
+  `pool:scale` statt `pool:write`; `pool:write` impliziert `pool:scale` (Backward-Compat).
+- `beagle-host/bin/beagle-control-plane.py`: `_requester_tenant_id()`, `_can_bypass_pool_visibility()`,
+  `_can_view_pool()` mit Tenant-Isolation; `GET /api/v1/pools` filtert nach `tenant_id` für Non-Admins.
+- Smoke-Test `scripts/test-iam-plan13-smoke.py`: `tenant_isolation=PASS`, `custom_role_pool_operator=PASS`.
+- Live-Validierung auf `srv1.beagle-os.com` erfolgreich.
 - [ ] SAML-Assertion mit falscher Signatur wird abgelehnt und Audit-Event erzeugt.
