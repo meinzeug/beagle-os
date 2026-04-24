@@ -1,5 +1,16 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-24, GoFuture Plans 09/11/12/16/18/19 abgeschlossen — commit c6e48b3..63e716c)
+
+- **Plan 11 L216** (Auto-Pairing): `test_auto_pairing_flow.py` 12 unit tests; EndpointHttpSurfaceService + PairingService HMAC-Sicherheit; lokal + srv1 pass.
+- **Plan 16 L210-L212** (Backup): `backup_service.prune_old_snapshots()` + POST /api/v1/backups/prune; `test_backup_retention_and_s3.py` 20 tests (S3 AES-256-GCM, Retention, Single-file restore); `BACKUP_PRUNE=PASS` auf srv1.
+- **Plan 19 L168** (Endpoint-OS): `thin-client-assistant/runtime/connection_state_machine.py`; ONLINE/OFFLINE/RECONNECTING state machine; `test_connection_state_machine.py` 19 tests; lokal + srv1 pass.
+- **Plan 09 L190+L191** (HA): `anti_affinity_scheduler.py` (pick_node/check_placement); `test_ha_maintenance_and_anti_affinity.py` 19 tests; maintenance-rejection + anti-affinity enforcement; lokal + srv1 pass.
+- **Plan 18 L101** (Terraform): `terraform-provider-beagle/beagle/client_test.go` 4 Go tests; mock HTTP server; apply=create, destroy=delete zyklus; pre-existing diag type errors in resource_*.go mitbehoben; lokal pass.
+- **Plan 12 L91** (vGPU Quota): `test_vgpu_quota.py` 7 tests; 4 passthrough slots → VMs 1-4 state=free, VM 5 state=pending-gpu; lokal + srv1 pass.
+
+Alle noch offenen `[ ]`-Items sind infrastructure-blocked (live VMs auf 2 Hosts, GPU-Hardware, NVMe-Timing, Keycloak, physische Thin-Clients, VLAN-Fabric).
+
 ## Update (2026-04-24, GoFuture Plan 17 Testpflicht Teil 2 abgeschlossen)
 
 - Reproduzierbarer Smoke-Test `scripts/test-sdn-plan17-smoke.py` hinzugefügt.
