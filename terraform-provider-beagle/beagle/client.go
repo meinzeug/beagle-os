@@ -69,3 +69,8 @@ func (c *Client) request(method, path string, payload any) (map[string]any, erro
 	}
 	return decoded, nil
 }
+
+// RequestForTest exposes the internal request method for unit tests.
+func (c *Client) RequestForTest(method, path string, payload any) (map[string]any, error) {
+	return c.request(method, path, payload)
+}

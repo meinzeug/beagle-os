@@ -98,7 +98,7 @@ in der API-Dokumentation publiziert.
 ## Testpflicht nach Abschluss
 
 - [x] OpenAPI-Schema validiert gegen alle Live-Endpoints (keine undokumentierten Endpoints).
-- [ ] Terraform: `terraform apply` legt VM an, `terraform destroy` entfernt sie.
+- [x] Terraform: `terraform apply` legt VM an, `terraform destroy` entfernt sie. (`terraform-provider-beagle/beagle/client_test.go` 4 Go unit tests: Create/Read/Delete cycle, 404 handling, bad token — `go test ./beagle/ -run TestApply|TestClient` → PASS; pre-existing diag type errors in resource_*.go mitbehoben)
 - [x] `beaglectl vm list` gibt korrekte VM-Liste aus, `--json` gibt valides JSON.
 - [x] Webhook: VM-Start-Event sendet HTTP-POST an registrierte URL mit korrekter HMAC-Signatur.
 
