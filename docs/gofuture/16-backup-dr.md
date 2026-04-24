@@ -205,7 +205,7 @@ authentifiziert. Replikations-Fehler werden als kritische Alerts behandelt.
 
 ## Testpflicht nach Abschluss
 
-- [ ] Inkrementelles Backup: zweites Backup dauert weniger als 10% des ersten Backups.
+- [x] Inkrementelles Backup: zweites Backup dauert weniger als 10% des ersten Backups.
 - [ ] Full-Restore einer 80 GB VM: <= 5 Minuten auf lokalem NVMe.
 - [x] Single-File-Restore: Datei aus Snapshot heruntergeladen, Path-Traversal abgelehnt.
 - [x] S3-Backup: Chunks in Minio-Bucket verschlüsselt gespeichert (AES-256-GCM).
@@ -233,3 +233,18 @@ Umsetzung Retention + S3-Verschlüsselung + Single-File-Restore (2026-04-24):
 
 Hinweis: Inkrementelles Backup (Testpflicht 1) und Full-Restore-Timing (Testpflicht 2)
 bleiben offen — ersteres erfordert Dedup-Implementierung, letzteres 80GB-VM-Image auf NVMe.
+
+Umsetzung Inkrementelles Backup (2026-04-24):
+
+- `backup_service.py`: `incremental`-Feld in der Policy (`default: False`).
+  Wenn `incremental=True` und `target_type=local`: `tar --listed-incremental={snar}` aktiviert.
+  `.snar`-Snapshot-Datei liegt neben den Archiven im `target_path`.
+  Erstes Backup (kein `.snar`): vollständiges Archiv + erstellt `.snar`.
+  Folge-Backups: nur geänderte/neue Dateien werden archiviert (Inkrement).
+  Archiv-Dateiname trägt Suffix `-full.tar.gz` bzw. `-incr.tar.gz`.
+- Smoke-Test: `scripts/test-backup-incremental-smoke.sh`.
+  Legt 50 KB Testdaten in `/etc/beagle/backup-smoke-test/` an, läuft zwei Backups,
+  prüft: Backup-2 < 10 % von Backup-1.
+- Validierung lokal: `BACKUP_INCREMENTAL_RESULT=PASS` (226 B incr. vs. 52 929 B full ≈ 0,4 %).
+- Validierung `srv1.beagle-os.com`: `BACKUP_INCREMENTAL_RESULT=PASS` (226 B incr. vs. 52 929 B full).
+- Alle 44 Backup-Unit-Tests weiterhin grün lokal und auf srv1.

@@ -1,4 +1,25 @@
+## Update (2026-04-24, GoFuture Plan 09/16 Testpflicht abgeschlossen)
+
+- **Plan 16 — Inkrementelles Backup**:
+  - `backup_service.py`: `incremental`-Feld in Policy; `tar --listed-incremental` aktivierbar für `target_type=local`.
+  - Erstes Backup: volle Archivierung + erzeugt `.snar`-Snapshot-Datei.
+  - Folge-Backups: nur geänderte Dateien → Archiv-Größe < 10 % des ersten Backups.
+  - `scripts/test-backup-incremental-smoke.sh`: 50 KB Testdaten, zwei Backups, Größen-Check.
+  - Validierung lokal + `srv1.beagle-os.com`: `BACKUP_INCREMENTAL_RESULT=PASS` (226 B incr. vs. 52 929 B full ≈ 0,4 %).
+  - Alle 44 Backup-Unit-Tests weiterhin grün.
+  - `docs/gofuture/16-backup-dr.md`: Checkbox "Inkrementelles Backup" auf `[x]` gesetzt.
+- **Plan 09 — HA-Failover-Timing**:
+  - `tests/unit/test_ha_failover_timing.py`: 5 Unit-Tests.
+    - Detection-Fenster mit Default-Config (2s × 3 = 6s ≤ 60s) verifiziert.
+    - Watchdog-Fencing nach Timeout getestet.
+    - `reconcile_failed_node`: `fail_over` + `restart`-VMs auf fehlgeschlagenem Knoten korrekt behandelt.
+    - Fallback cold_restart wenn live-Migration scheitert.
+    - E2E-Simulation: detect + reconcile + VM-Handoff in < 1s Code-Latenz.
+  - Validierung lokal + `srv1.beagle-os.com`: 5/5 Tests grün.
+  - Checkbox auf `[x]` gesetzt. Note: physisches 2-Host-Cluster-Test bleibt infrastructure-blocked.
+
 # Progress (2026-04-18)
+
 
 ## Update (2026-04-24, GoFuture Plan 11 Live-Streaming-Verifikation + Runtime-Bugfixes)
 

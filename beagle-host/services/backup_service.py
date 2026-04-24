@@ -39,6 +39,8 @@ class BackupService:
             # target_type: "local" | "nfs" | "s3"
             "target_type": "local",
             "target_path": "/var/backups/beagle",
+            # incremental: use tar --listed-incremental for level-1 backups after first full
+            "incremental": False,
             # NFS
             "nfs_mount_point": "",
             # S3
@@ -125,6 +127,8 @@ class BackupService:
         for s3_field in ("s3_bucket", "s3_prefix", "s3_endpoint_url", "s3_access_key", "s3_secret_key", "s3_encryption_key"):
             if s3_field in source:
                 policy[s3_field] = str(source.get(s3_field) or "").strip()[:1024]
+        if "incremental" in source:
+            policy["incremental"] = bool(source.get("incremental"))
         policy["last_backup"] = str(current.get("last_backup") or "")
         return policy
 
@@ -255,13 +259,31 @@ class BackupService:
             return now_iso[:10] != last_backup[:10] and now_iso[:10] > last_backup[:10]
         return now_iso[:10] != last_backup[:10]
 
-    def _run_backup_archive(self, *, scope_type: str, scope_id: str, target_path: str) -> str:
+    def _run_backup_archive(
+        self,
+        *,
+        scope_type: str,
+        scope_id: str,
+        target_path: str,
+        incremental: bool = False,
+    ) -> str:
         Path(target_path).mkdir(parents=True, exist_ok=True)
         now_iso = self._utcnow()
         safe_ts = now_iso.replace(":", "-").replace(" ", "_")
-        archive = str(Path(target_path) / f"beagle-backup-{scope_type}-{scope_id}-{safe_ts}.tar.gz")
+
+        cmd: list[str] = ["tar", "--ignore-failed-read"]
+        if incremental:
+            snar_path = str(Path(target_path) / f"beagle-backup-{scope_type}-{scope_id}.snar")
+            cmd += [f"--listed-incremental={snar_path}"]
+            # Determine label: full (no prior .snar) or incremental
+            label = "full" if not Path(snar_path).exists() else "incr"
+            archive = str(Path(target_path) / f"beagle-backup-{scope_type}-{scope_id}-{safe_ts}-{label}.tar.gz")
+        else:
+            archive = str(Path(target_path) / f"beagle-backup-{scope_type}-{scope_id}-{safe_ts}.tar.gz")
+
+        cmd += ["-czf", archive, "/etc/beagle"]
         result = subprocess.run(
-            ["tar", "--ignore-failed-read", "-czf", archive, "/etc/beagle"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=300,
@@ -298,6 +320,7 @@ class BackupService:
 
         try:
             target_type = self._normalize_target_type(current.get("target_type"))
+            use_incremental = bool(current.get("incremental", False)) and target_type == "local"
             if target_type == "s3":
                 # Create archive in tmpdir, upload to S3, then clean up local copy
                 with tempfile.TemporaryDirectory() as tmpdir:
@@ -310,7 +333,10 @@ class BackupService:
                 archive_ref = self._run_backup_archive(scope_type=kind, scope_id=identifier, target_path=write_path)
             else:
                 archive_ref = self._run_backup_archive(
-                    scope_type=kind, scope_id=identifier, target_path=self._normalize_target_path(current.get("target_path"))
+                    scope_type=kind,
+                    scope_id=identifier,
+                    target_path=self._normalize_target_path(current.get("target_path")),
+                    incremental=use_incremental,
                 )
 
             job["status"] = "success"

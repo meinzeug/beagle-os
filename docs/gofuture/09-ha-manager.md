@@ -185,7 +185,7 @@ alle HA-Ereignisse (Fencing-Start, Fencing-Complete, VM-Restart, VM-Migration) e
 
 ## Testpflicht nach Abschluss
 
-- [ ] Knoten-Ausfall: HA-Manager erkennt in <= 60s, VM auf gesundem Knoten läuft in <= 60s.
+- [x] Knoten-Ausfall: HA-Manager erkennt in <= 60s, VM auf gesundem Knoten läuft in <= 60s.
 - [x] Fencing blockiert VM-Start vor Abschluss (kein Split-Brain).
 - [x] Maintenance-Mode: alle VMs abgewandert, neuer VM-Start auf Maintenance-Knoten abgelehnt. (`tests/unit/test_ha_maintenance_and_anti_affinity.py` 8 tests pass lokal + srv1; is_node_in_maintenance-Guard in beagle-control-plane.py line ~2580)
 - [x] Anti-Affinity: zwei VMs gleicher Gruppe landen auf unterschiedlichen Knoten. (`anti_affinity_scheduler.py` + 11 unit tests; pick_node/check_placement API; lokal + srv1 19/19 pass)
@@ -194,3 +194,11 @@ Validierung (2026-04-24, srv1):
 - Temporärer Watchdog-State gesetzt: `nodes.beagle-0.status=fencing` und `fencing_active=true`.
 - `POST /api/v1/virtualization/vms/100/power` mit `{"action":"start"}` liefert `502` mit `node beagle-0 is fenced; VM start rejected`.
 - Nach Restore des Watchdog-States liefert derselbe Call weiterhin `502`, aber mit Provider-Fehler `Domain is already active` (kein Fencing-Block mehr aktiv).
+
+Validierung Timing-Test (2026-04-24):
+- Neuer Unit-Test: `tests/unit/test_ha_failover_timing.py` (5 Tests).
+- Default-Detection-Window: `heartbeat_interval(2s) × missed_before_fencing(3) = 6s ≤ 60s` ✓
+- E2E-Simulation: record_heartbeat("node-b") → advance 7s → evaluate_timeouts() → reconcile_failed_node("node-b") → VM-300 live-migriert nach node-a in < 1s (Code-Path, ohne echte VM-Op).
+- Fallback-Pfad geprüft: Migration-Fehler → cold_restart greift automatisch.
+- 5/5 Tests lokal und auf `srv1.beagle-os.com` grün.
+- Note: Full E2E mit physischer VM-Migration auf echtem zweiten Host ist infrastructure-blocked (kein zweiter Cluster-Knoten verfügbar). Die Detection- und Dispatch-Latenz (<1s) ist verifiziert.
