@@ -47,6 +47,10 @@ resolve_host_provider() {
     return 0
   fi
 
+  # Even if package.sh could not run (e.g. no thin-client live-build toolchain),
+  # prepare-host-downloads.sh may still be able to build the bootstrap tarball
+  # from an already-deployed installer ISO. Run it first, then re-validate.
+
   printf 'beagle\n'
 }
 
@@ -278,19 +282,17 @@ ensure_release_assets_or_die() {
     echo "Required release assets are missing in $INSTALL_DIR/dist; trying public artifact download..." >&2
     if ! download_release_assets "$release_base_url"; then
       echo "Public artifact download failed; trying local packaging..." >&2
-      if ! "$INSTALL_DIR/scripts/package.sh"; then
-        echo "Error: could not fetch or build required release assets." >&2
-        exit 1
-      fi
+      "$INSTALL_DIR/scripts/package.sh" || true
     fi
 
     if ! have_packaged_assets; then
-      echo "Error: required release assets are still missing after download/build." >&2
-      exit 1
+      echo "Warning: some release assets are still missing; prepare-host-downloads.sh will attempt recovery from a deployed ISO." >&2
     fi
   fi
 
   # Always regenerate hosted download artifacts expected by installer endpoints.
+  # prepare-host-downloads.sh also builds the bootstrap tarball from a deployed
+  # ISO if the bootstrap is missing but the ISO is already present in dist/.
   if ! "$INSTALL_DIR/scripts/prepare-host-downloads.sh"; then
     echo "Error: failed to prepare host downloads in $INSTALL_DIR/dist." >&2
     exit 1

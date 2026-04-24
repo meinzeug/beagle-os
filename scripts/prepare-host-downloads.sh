@@ -74,6 +74,68 @@ ensure_dist_permissions() {
   find "$DIST_DIR" -type f -exec chmod 0644 {} +
   find "$DIST_DIR" -type f -name '*.sh' -exec chmod 0755 {} +
 }
+}
+
+# Build bootstrap + payload tarballs from an already-present installer ISO
+# (e.g. deployed via rsync without running the full thin-client live-build).
+# Called automatically when the bootstrap tarball is missing but the ISO exists.
+ensure_bootstrap_from_deployed_iso() {
+  local iso="$DIST_DIR/beagle-os-installer-amd64.iso"
+  local packaged_bootstrap="$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
+  local packaged_payload="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
+
+  # Nothing to do if the bootstrap is already present and up-to-date
+  [[ -f "$packaged_bootstrap" ]] && [[ "$packaged_bootstrap" -nt "$iso" ]] && return 0
+  # Nothing to do if the ISO is missing
+  [[ -f "$iso" ]] || return 0
+
+  command -v xorriso >/dev/null 2>&1 || {
+    echo "xorriso not found; cannot extract live assets from $iso — skipping bootstrap build" >&2
+    return 0
+  }
+
+  echo "Building USB bootstrap tarball from deployed ISO: $iso"
+
+  local tmproot tmpstage
+  tmproot="$(mktemp -d)"
+  tmpstage="$(mktemp -d)"
+  local live_dir="$tmpstage/dist/pve-thin-client-installer/live"
+  mkdir -p "$live_dir"
+
+  trap 'rm -rf "$tmproot" "$tmpstage"' RETURN
+
+  xorriso -osirrox on -indev "$iso" \
+    -extract /live/vmlinuz          "$live_dir/vmlinuz" \
+    -extract /live/initrd.img       "$live_dir/initrd.img" \
+    -extract /live/filesystem.squashfs "$live_dir/filesystem.squashfs" \
+    -extract /live/SHA256SUMS       "$live_dir/SHA256SUMS" \
+    >/dev/null 2>&1 || {
+      echo "Failed to extract live assets from $iso" >&2
+      return 1
+    }
+
+  local tarball_versioned="$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
+  local payload_versioned="$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz"
+
+  (
+    cd /
+    tar -czf "$tarball_versioned" \
+      -C "$ROOT_DIR" thin-client-assistant \
+      -C "$ROOT_DIR" scripts \
+      -C "$ROOT_DIR" docs \
+      -C "$ROOT_DIR" README.md \
+      -C "$ROOT_DIR" LICENSE \
+      -C "$ROOT_DIR" CHANGELOG.md \
+      -C "$ROOT_DIR" VERSION \
+      -C "$tmpstage" "dist/pve-thin-client-installer/live"
+  )
+
+  install -m 0644 "$tarball_versioned" "$packaged_bootstrap"
+  install -m 0644 "$tarball_versioned" "$payload_versioned"
+  install -m 0644 "$tarball_versioned" "$packaged_payload"
+
+  echo "USB bootstrap tarball built: $packaged_bootstrap"
+}
 
 ensure_current_packaged_artifacts() {
   local needs_package=0
@@ -134,6 +196,9 @@ ensure_current_packaged_artifacts() {
   fi
 }
 
+# Fast path: if bootstrap is missing but the ISO is already deployed, build it
+# without triggering the expensive full thin-client live-build.
+ensure_bootstrap_from_deployed_iso
 ensure_current_packaged_artifacts
 
 [[ -f "$GENERIC_INSTALLER" ]] || {
