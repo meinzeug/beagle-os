@@ -186,6 +186,11 @@ alle HA-Ereignisse (Fencing-Start, Fencing-Complete, VM-Restart, VM-Migration) e
 ## Testpflicht nach Abschluss
 
 - [ ] Knoten-Ausfall: HA-Manager erkennt in <= 60s, VM auf gesundem Knoten läuft in <= 60s.
-- [ ] Fencing blockiert VM-Start vor Abschluss (kein Split-Brain).
+- [x] Fencing blockiert VM-Start vor Abschluss (kein Split-Brain).
 - [ ] Maintenance-Mode: alle VMs abgewandert, neuer VM-Start auf Maintenance-Knoten abgelehnt.
 - [ ] Anti-Affinity: zwei VMs gleicher Gruppe landen auf unterschiedlichen Knoten.
+
+Validierung (2026-04-24, srv1):
+- Temporärer Watchdog-State gesetzt: `nodes.beagle-0.status=fencing` und `fencing_active=true`.
+- `POST /api/v1/virtualization/vms/100/power` mit `{"action":"start"}` liefert `502` mit `node beagle-0 is fenced; VM start rejected`.
+- Nach Restore des Watchdog-States liefert derselbe Call weiterhin `502`, aber mit Provider-Fehler `Domain is already active` (kein Fencing-Block mehr aktiv).

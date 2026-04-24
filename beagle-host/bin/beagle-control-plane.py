@@ -2571,6 +2571,12 @@ def start_vm_checked(vmid: int) -> str:
     vm = find_vm(int(vmid), refresh=True)
     if vm is None:
         raise RuntimeError(f"VM {int(vmid)} not found")
+    watchdog_nodes = _load_watchdog_state_nodes()
+    watchdog_item = watchdog_nodes.get(str(vm.node), {})
+    if isinstance(watchdog_item, dict):
+        watchdog_status = str(watchdog_item.get("status") or "").strip().lower()
+        if bool(watchdog_item.get("fencing_active")) or watchdog_status in {"fenced", "fencing"}:
+            raise RuntimeError(f"node {vm.node} is fenced; VM start rejected")
     if maintenance_service().is_node_in_maintenance(str(vm.node)):
         raise RuntimeError(f"node {vm.node} is in maintenance mode; VM start rejected")
     return HOST_PROVIDER.start_vm(int(vmid), timeout=None)
