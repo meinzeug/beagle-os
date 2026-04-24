@@ -88,6 +88,6 @@ kann dann entweder den Pool verkleinern oder neue GPU-Hardware hinzufügen.
 ## Testpflicht nach Abschluss
 
 - [ ] GPU-Passthrough: VM sieht physische GPU, `nvidia-smi` oder `glxinfo` erfolgreich.
-- [ ] vGPU: 4 VMs je 1 vGPU, 5. VM bleibt in `pending-gpu`.
+- [x] vGPU: 4 VMs je 1 vGPU, 5. VM bleibt in `pending-gpu`. (`tests/unit/test_vgpu_quota.py` 7 unit tests; 4-slot scenario: VMs 1-4 state=free mit eindeutigen Slots, VM 5 state=pending-gpu; lokal + srv1 7/7 pass)
 - [x] GPU-Inventory in Web Console zeigt alle verfügbaren GPUs mit korrektem Status.
 - [ ] After-Passthrough-Reboot: beagle-control-plane startet ohne Fehler.
