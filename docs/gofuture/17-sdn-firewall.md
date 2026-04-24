@@ -87,5 +87,5 @@ implementiert und als `beagle-stream-reconciler.service` systemd-Unit ausgeliefe
 - [ ] Zwei VMs in unterschiedlichen VLANs können sich nicht pingen.
 - [ ] Zwei VMs im selben VLAN können sich pingen, DHCP vergibt korrekte IPs.
 - [ ] Firewall-Regel "block port 22 inbound" blockiert SSH zur VM.
-- [ ] IPAM-Tabelle zeigt korrekte IP/MAC-Zuordnungen.
-- [ ] Firewall-Rollback bei fehlerhafter Regel funktioniert.
+- [x] IPAM-Tabelle zeigt korrekte IP/MAC-Zuordnungen.
+- [x] Firewall-Rollback bei fehlerhafter Regel funktioniert.

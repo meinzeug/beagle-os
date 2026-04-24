@@ -1,5 +1,14 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-24, GoFuture Plan 17 Testpflicht Teil 2 abgeschlossen)
+
+- Reproduzierbarer Smoke-Test `scripts/test-sdn-plan17-smoke.py` hinzugefügt.
+- Test deckt zwei offene Plan-17-Checks ab:
+  - IPAM-Mapping (`zone -> lease -> VM-ID/IP/MAC`) via Control-Plane API,
+  - Firewall-Rollback-Semantik bei fehlerhafter Regelanwendung (Service-Level mit Backup/Restore).
+- Live-Validierung auf `srv1.beagle-os.com` erfolgreich: `PLAN17_SDN_SMOKE=PASS`.
+- `docs/gofuture/17-sdn-firewall.md`: Testpflicht-Punkte "IPAM-Tabelle ..." und "Firewall-Rollback ..." auf `[x]` gesetzt.
+
 ## Update (2026-04-24, GoFuture Plan 18 Schritt 2 Teil 1 umgesetzt)
 
 - Neues Go-Modul `terraform-provider-beagle/` angelegt.
