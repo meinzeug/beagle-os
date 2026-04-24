@@ -1,6 +1,13 @@
 # Progress (2026-04-18)
 
-## Update (2026-04-24, GoFuture Plan 17 Schritt 1-3 abgeschlossen)
+## Update (2026-04-24, GoFuture Plan 17 Schritt 2+5 abgeschlossen)
+
+- `website/index.html`: IPAM-Abschnitt in Netzwerk-Settings ergänzt (Zone-Select, Lease-Tabelle mit IP/MAC/VM-ID/Hostname/Typ/Ablauf).
+- `website/ui/settings.js`: `loadIpamZones()` + `loadIpamLeases(zoneId)` implementiert; automatisches Nachladen beim Panel-Öffnen; Zone-Select-Ereignis verdrahtet.
+- `beagle-host/services/stream_reconciler.py`: `StreamReconcilerService` — Portierung der `reconcile-public-streams.sh` Logik in Python (Port-Mapping, nftables-Generierung, DNS-Auflösung, Streams-JSON persistieren); `_run_daemon()` als Standalone-Einstiegspunkt.
+- `beagle-host/systemd/beagle-stream-reconciler.service`: systemd-Unit für Daemon-Betrieb (Restart=on-failure, 30s RestartSec).
+- Deployed auf srv1: IPAM-API `/api/v1/network/ipam/zones` antwortet korrekt; Web Console lädt IPAM-Tabelle; stream_reconciler.py Syntax-Check + Deployment OK.
+- `docs/gofuture/17-sdn-firewall.md` Schritt 2 (Web Console) + Schritt 5 (Reconciler) auf `[x]` gesetzt.
 
 - `core/virtualization/network.py`: NetworkZoneSpec, NetworkZoneInfo, VlanInterfaceSpec Dataclasses + `NetworkBackend` Protocol (7 Methoden).
 - `providers/beagle/network/vlan.py`: VlanBackend — Linux-Bridge + VLAN-Tags via `ip link`, State-Persistenz in `/var/lib/beagle/beagle-manager/network-zones.json`.

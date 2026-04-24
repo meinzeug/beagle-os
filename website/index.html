@@ -1451,6 +1451,20 @@
                 </div>
               </div>
               <div class="settings-section-group">
+                <h3>IPAM — Zonen &amp; Leases</h3>
+                <div class="settings-form">
+                  <label class="field"><span>Zone</span>
+                    <select id="ipam-zone-select"><option value="">— Zone wählen —</option></select>
+                  </label>
+                </div>
+                <div class="table-wrap compact">
+                  <table class="vm-table compact-table">
+                    <thead><tr><th>IP</th><th>MAC</th><th>VM-ID</th><th>Hostname</th><th>Typ</th><th>Ablauf</th></tr></thead>
+                    <tbody id="ipam-leases-body"><tr><td colspan="6" class="empty-cell">Zone wählen.</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="settings-section-group">
                 <h3>DNS Server</h3>
                 <div class="settings-info-grid" id="net-dns-grid">
                   <div class="info-item"><span class="info-label">Aktuell</span><span class="info-value" id="net-dns-current">—</span></div>

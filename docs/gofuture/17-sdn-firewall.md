@@ -26,7 +26,7 @@ DHCP wird pro VLAN über `dnsmasq` oder einen zentralen DHCP-Service bereitgeste
 ### Schritt 2 — IPAM (IP Address Management) pro NetworkZone
 
 - [x] `beagle-host/services/ipam_service.py`: IP-Vergabe, Lease-Tracking, DNS-Reverse-Zone.
-- [ ] Web Console: IPAM-Tabelle pro Zone mit statischen und dynamischen Einträgen.
+- [x] Web Console: IPAM-Tabelle pro Zone mit statischen und dynamischen Einträgen.
 
 IPAM verhindert IP-Konflikte und gibt Betreibern Sichtbarkeit welche IP welcher VM
 zugeordnet ist. Beim VM-Start reserviert der IPAM-Service eine IP aus dem konfigurierten
@@ -70,8 +70,8 @@ brauchen es nicht.
 
 ### Schritt 5 — Public-Stream-Reconciliation in SDN-Plane integrieren
 
-- [ ] `scripts/reconcile-public-streams.sh` Logik in `beagle-host/services/stream_reconciler.py` überführen.
-- [ ] Reconciler läuft als Teil des Netzwerk-Services, nicht als Shell-Skript.
+- [x] `scripts/reconcile-public-streams.sh` Logik in `beagle-host/services/stream_reconciler.py` überführen.
+- [x] Reconciler läuft als Teil des Netzwerk-Services, nicht als Shell-Skript.
 
 Das bestehende `reconcile-public-streams.sh` ist ein Shell-Skript das manuell oder
 per Cron ausgeführt werden muss. Als Service in der SDN-Plane wird er Teil des

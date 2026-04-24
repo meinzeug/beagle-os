@@ -1,13 +1,13 @@
 # Next Steps
 
-## Delta (2026-04-24 nach Plan 17 Schritt 1-3)
+## Delta (2026-04-24 nach Plan 17 Schritt 2+5)
 
-Plan 17 Schritt 1-3 abgeschlossen. Naechste offene Schritte:
+Plan 17 Schritt 2 (IPAM Web Console) und Schritt 5 (Stream-Reconciler) abgeschlossen. Naechste offene Schritte:
 
-0. **Plan 17 Schritt 2 Web Console** (teilweise offen): IPAM-Tabelle pro Zone in der Web Console.
-0. **Plan 17 Schritt 4 (VXLAN)**: Cross-Host VLANs via VXLAN-Tunnel (`providers/beagle/network/vxlan.py`).
-0. **Plan 17 Schritt 5 (Stream-Reconciler)**: `reconcile-public-streams.sh` in Python-Service portieren.
-0. **Plan 18 starten (API / IaC / CLI)**: `docs/gofuture/18-api-iac-cli.md` - OpenAPI + Terraform + beaglectl.
+0. **Plan 17 Schritt 4 (VXLAN)**: Cross-Host VLANs via VXLAN-Tunnel (`providers/beagle/network/vxlan.py`) — INFRA-BLOCKED (braucht 2+ Hosts).
+0. **Plan 18 starten (API / IaC / CLI)**: `docs/gofuture/18-api-iac-cli.md` — OpenAPI-Spec generieren, `beaglectl` Python-CLI anlegen, Terraform-Provider-Stub.
+0. **Plan 13 IAM (OIDC)**: Keycloak-OIDC-Login-Flow, SCIM-Sync, Tenant-Isolation — nicht infra-blocked, rein Code.
+0. **Plan 19 Endpoint-OS A/B-Slots**: Update-Service + Slot-Switch implementieren.
 
 ## Delta (2026-04-23 nach Abschluss Plan 16 Schritt 3-6)
 

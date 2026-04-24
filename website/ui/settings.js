@@ -190,8 +190,61 @@ export function loadSettingsNetwork() {
     if (qs('net-dns-input')) {
       qs('net-dns-input').value = (data.dns_servers || []).join(', ');
     }
+    loadIpamZones();
   }).catch((error) => {
     settingsHooks.setBanner('Netzwerk laden fehlgeschlagen: ' + error.message, 'warn');
+  });
+}
+
+export function loadIpamZones() {
+  return request('/api/v1/network/ipam/zones').then((data) => {
+    const select = document.getElementById('ipam-zone-select');
+    if (!select) { return; }
+    const zones = data.zones || {};
+    const zoneIds = Object.keys(zones);
+    const current = select.value;
+    select.innerHTML = '<option value="">— Zone wählen —</option>' +
+      zoneIds.map((zid) => {
+        const info = zones[zid];
+        const label = escapeHtml(zid) + ' (' + escapeHtml(info.subnet || '') + ')';
+        return '<option value="' + escapeHtml(zid) + '">' + label + '</option>';
+      }).join('');
+    if (current && zoneIds.includes(current)) {
+      select.value = current;
+      loadIpamLeases(current);
+    } else {
+      const tbody = qs('ipam-leases-body');
+      if (tbody) { tbody.innerHTML = '<tr><td colspan="6" class="empty-cell">Zone wählen.</td></tr>'; }
+    }
+  }).catch((error) => {
+    settingsHooks.setBanner('IPAM-Zonen laden fehlgeschlagen: ' + error.message, 'warn');
+  });
+}
+
+export function loadIpamLeases(zoneId) {
+  if (!zoneId) { return Promise.resolve(); }
+  return request('/api/v1/network/ipam/zones/' + encodeURIComponent(zoneId) + '/leases').then((data) => {
+    const tbody = qs('ipam-leases-body');
+    if (!tbody) { return; }
+    const leases = data.leases || [];
+    if (!leases.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-cell">Keine Leases in dieser Zone.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = leases.map((lease) => {
+      const typ = lease.static ? '<span class="badge badge-ok">statisch</span>' : 'dynamisch';
+      const expires = lease.expires_at ? escapeHtml(lease.expires_at.slice(0, 19).replace('T', ' ')) : '—';
+      return '<tr>' +
+        '<td><code>' + escapeHtml(lease.ip_address || '—') + '</code></td>' +
+        '<td><code>' + escapeHtml(lease.mac_address || '—') + '</code></td>' +
+        '<td>' + escapeHtml(String(lease.vm_id || '—')) + '</td>' +
+        '<td>' + escapeHtml(lease.hostname || '—') + '</td>' +
+        '<td>' + typ + '</td>' +
+        '<td>' + expires + '</td>' +
+      '</tr>';
+    }).join('');
+  }).catch((error) => {
+    settingsHooks.setBanner('IPAM-Leases laden fehlgeschlagen: ' + error.message, 'warn');
   });
 }
 
@@ -840,6 +893,10 @@ export function bindSettingsEvents() {
   }
   if (qs('net-dns-save')) {
     qs('net-dns-save').addEventListener('click', saveNetworkDns);
+  }
+  const ipamZoneSelect = document.getElementById('ipam-zone-select');
+  if (ipamZoneSelect) {
+    ipamZoneSelect.addEventListener('change', () => loadIpamLeases(ipamZoneSelect.value));
   }
   if (qs('settings-services-refresh')) {
     qs('settings-services-refresh').addEventListener('click', loadSettingsServices);
