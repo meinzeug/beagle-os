@@ -153,6 +153,12 @@ Stand: 2026-04-13
 - Entscheidung: Plan 11 (Streaming v2) teilt sich in zwei Pfade: (1) **Windows-Desktops nutzen Apollo** mit nativer Virtual Display (SudoVDA), HDR, Multi-Monitor; (2) **Linux-Desktops nutzen Sunshine** mit Virtual Display via DRM-vkms PoC (Standard), optional Apollo-Build aus Source (ohne Virtual Display).
 - Grund: Apollo ist Windows-only für Virtual Display (`SudoVDA`-Treiber, geplant für Linux aber nicht implementiert). Linux-Desktops brauchen Virtual Display für headless Hosts (keine physischen Monitore). vkms ist im Mainline-Kernel enthalten und wird per Firstboot-Skript provisioniert.
 - Konsequenz: `beagle-host/services/streaming_backend.py` wird platform-aware: `guest_os == "windows"` → Apollo (default), `guest_os == "linux"` → Sunshine + vkms. Fallback für Apollo-Fehler: Sunshine mainline. Provider-Neutralität bleibt erhalten.
+- Performance-Baseline (2026-04-24, Linux): `python3 scripts/test-streaming-quality-smoke.py --host srv1.beagle-os.com --domain beagle-100` => `result=pass_with_4k_limit` (4K-Modus aktuell nicht setzbar, aber reproduzierbarer Virtual-Output + Sunshine-API funktionsfähig).
+- Backend-Auswahl-Kriterien:
+  1. Linux-Guest: Sunshine bevorzugt, solange `vkms`/Virtual-Output reproduzierbar ist und `sunshine_api_apps=ok` bleibt.
+  2. Windows-Guest: Apollo bevorzugt, wenn SudoVDA verfügbar und HDR/Multi-Monitor-Anforderungen bestehen.
+  3. Fallback-Regel: Wenn Primär-Backend nicht stabil ist (Healthchecks/Smoke fehlschlagen), auf Sunshine zurückschalten.
+  4. Release-Gate: Änderungen am Default-Backend nur mit reproduzierbarem Smoke-Ergebnis und dokumentierter Entscheidung in D-031.
 - Umsetzung:
   1. **Schritt 1 (2026-04)**: Sunshine mainline bleibt Default für alle VMs bis vkms-PoC validiert ist.
   2. **Schritt 2 (2026-05)**: vkms PoC auf Linux Desktop-VM validieren (resolution persistence, Moonlight compatibility).

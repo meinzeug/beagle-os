@@ -202,7 +202,7 @@ Stream-Health-Telemetrie ermöglicht proaktives Support-Management: Wenn ein Nut
 
 - [ ] Separat: Windows Guest-Desktop mit Apollo + SudoVDA evaluieren (optional, 2026-Q2).
 - [ ] Benchmarking: Vergleich Sunshine (Linux) vs Apollo (Windows) für gleiche Workload/Resolution.
-- [ ] Dokumentation: Performance-Baseline und Backend-Auswahl-Kriterien in `docs/refactor/07-decisions.md#D-031`.
+- [x] Dokumentation: Performance-Baseline und Backend-Auswahl-Kriterien in `docs/refactor/07-decisions.md#D-031`.
 
 Apollo nutzt SudoVDA als Virtual Display-Treiber (Windows-spezifisch). Der Evaluationsschritt prüft ob Apollo in Windows-Gast-VMs Superior-Features (HDR, Auto-Resolution, Per-Client-Permissions) zu messbarem Performance-Vorteil nutzt. Falls ja wird Apollo optional für Windows-Desktop-Pools empfohlen. Falls nein bleibt Sunshine Default für alle Plattformen.
 
