@@ -4604,6 +4604,36 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.OK if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR, result)
             return
 
+        if path == "/api/v1/backups/prune":
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                payload = self._read_json_body()
+                scope_type = str(payload.get("scope_type") or "").strip()
+                scope_id = str(payload.get("scope_id") or "").strip()
+                pruned = backup_service().prune_old_snapshots(
+                    scope_type=scope_type,
+                    scope_id=scope_id,
+                )
+            except ValueError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            for pjob in pruned:
+                self._audit_event(
+                    "backup.snapshot_pruned",
+                    "success",
+                    job_id=str(pjob.get("job_id") or ""),
+                    scope_type=str(pjob.get("scope_type") or ""),
+                    scope_id=str(pjob.get("scope_id") or ""),
+                    created_at=str(pjob.get("created_at") or ""),
+                    username=self._requester_identity(),
+                )
+            self._write_json(HTTPStatus.OK, {"ok": True, "pruned_count": len(pruned), "pruned_jobs": [j.get("job_id") for j in pruned]})
+            return
+
         if path == "/api/v1/backups/ingest":
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})

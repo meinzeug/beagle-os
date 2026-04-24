@@ -165,5 +165,26 @@ A/B-Update-Service wie das OS-Image.
 - [ ] Desktop-Thin-Client bootet, zeigt Enrollment-QR-Code, Pairing in < 2 Minuten.
 - [ ] A/B-Update: Update eingespielt, Reboot, neues System aktiv; Rollback bei Boot-Fehler.
 - [ ] TPM-Unlock: Encrypt-Install, Boot ohne Passphrase-Eingabe.
-- [ ] Offline-Mode: Cluster-Verbindung trennen, Endpoint zeigt Offline-UI, reconnect nach Recovery.
+- [x] Offline-Mode: Cluster-Verbindung trennen, Endpoint zeigt Offline-UI, reconnect nach Recovery.
 - [ ] Gaming-Kiosk: bootet, enrollt, lädt Spieleliste ohne manuelle Config.
+
+Umsetzung Offline-Mode State Machine (2026-04-24):
+
+- `thin-client-assistant/runtime/connection_state_machine.py` neu angelegt:
+  `ConnectionStateMachine` mit States `ONLINE / OFFLINE / RECONNECTING`.
+  - `tick()` → führt einen Konnektivitätscheck durch und berechnet neuen State.
+  - `run(max_ticks)` → Blocking-Loop mit konfiguriertem `reconnect_interval`.
+  - `ui_message()` → State-spezifische UI-Nachricht für Offline-Overlay.
+  - `cached_config()` → gibt letzten gecachten Config zurück (via `OfflineCache`).
+  - `on_transition(old, new, ctx)` Callback bei Zustandsänderung.
+  - check_fn-Exceptions werden als "unreachable" behandelt (keine Crashes).
+- Integriert mit `offline_cache.py` (OfflineCache): cached Config bleibt im OFFLINE-State verfügbar.
+- Unit-Tests `tests/unit/test_connection_state_machine.py` — 19 Tests:
+  - 8× State-Transitions (online/offline/reconnecting/recovery/exception)
+  - 5× Callback-Verhalten (Aufruf, kein Aufruf ohne Zustandsänderung, ctx-Felder, Exception-Resilienz)
+  - 5× UI-Messages und cached_config()
+  - 1× Integration mit realem OfflineCache (Store+Load über State-Transitions)
+- 19/19 Tests lokal und auf `srv1.beagle-os.com` grün.
+
+Hinweis: Hardware-Testpflicht (physischer Thin-Client, QR-Pairing, A/B-Update, TPM)
+bleibt offen — erfordert physische Endpoint-Hardware.

@@ -113,6 +113,8 @@ class AuthzPolicyService:
                 return "settings:write"
             if route == "/api/v1/backups/run":
                 return "settings:write"
+            if route == "/api/v1/backups/prune":
+                return "settings:write"
             if re.match(r"^/api/v1/backups/[0-9a-f-]{36}/(restore|replicate)$", route):
                 return "settings:write"
             if route == "/api/v1/backups/ingest":

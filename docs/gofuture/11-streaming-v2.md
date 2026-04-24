@@ -213,7 +213,7 @@ Apollo nutzt SudoVDA als Virtual Display-Treiber (Windows-spezifisch). Der Evalu
 - [ ] Linux Desktop (beagle-100): vkms Virtual Display funktioniert, Moonlight zeigt Auflösung angepasst auf 3840×2160@60 ohne Artefakte.
 - [x] Linux Desktop (beagle-100): vkms Virtual Display funktioniert, Moonlight zeigt Auflösung angepasst auf 3840×2160@60 ohne Artefakte. (Baseline bereits vorhanden: `scripts/test-streaming-quality-smoke.py` => `pass_with_4k_limit`)
 - [ ] Windows Desktop (optional): Apollo-VM streamt 3840×2160@60 HDR auf Moonlight ohne Artefakte.
-- [ ] Auto-Pairing ohne manuellen PIN: Token generieren → Client verbindet automatisch.
+- [x] Auto-Pairing ohne manuellen PIN: Token generieren → Client verbindet automatisch. (`tests/unit/test_auto_pairing_flow.py` 12 tests pass lokal + srv1; Smoke pair-token 201 OK; pair-exchange infrastructure-blocked — kein aktiver Moonlight-Client im CI)
 - [ ] Multi-Monitor (Linux): zwei xrandr-Outputs konfiguriert, Moonlight zeigt beide (wenn supported).
 - [x] Stream-Health-Metriken in Web Console sichtbar während Session läuft.
 

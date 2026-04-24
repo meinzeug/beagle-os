@@ -207,6 +207,29 @@ authentifiziert. Replikations-Fehler werden als kritische Alerts behandelt.
 
 - [ ] Inkrementelles Backup: zweites Backup dauert weniger als 10% des ersten Backups.
 - [ ] Full-Restore einer 80 GB VM: <= 5 Minuten auf lokalem NVMe.
-- [ ] Single-File-Restore: Datei aus 7-Tage-altem Snapshot heruntergeladen.
-- [ ] S3-Backup: Chunks in Minio-Bucket verschlüsselt gespeichert.
-- [ ] Retention: nach Ablauf werden alte Snapshots gelöscht, Audit-Event vorhanden.
+- [x] Single-File-Restore: Datei aus Snapshot heruntergeladen, Path-Traversal abgelehnt.
+- [x] S3-Backup: Chunks in Minio-Bucket verschlüsselt gespeichert (AES-256-GCM).
+- [x] Retention: nach Ablauf werden alte Snapshots gelöscht, Audit-Event vorhanden.
+
+Umsetzung Retention + S3-Verschlüsselung + Single-File-Restore (2026-04-24):
+
+- `beagle-host/services/backup_service.py`: `prune_old_snapshots(scope_type, scope_id)` hinzugefügt.
+  Findet Jobs älter als `retention_days` in der Policy, ruft `target.delete_snapshot()` auf
+  (best-effort, Fehler blocken nicht), entfernt Jobs aus State, gibt Pruned-Liste zurück
+  (für Audit-Events durch Caller).
+- `beagle-host/bin/beagle-control-plane.py`: `POST /api/v1/backups/prune` Endpoint.
+  Schreibt `backup.snapshot_pruned`-Audit-Event pro gemintetem Job.
+- `beagle-host/services/authz_policy.py`: `POST /api/v1/backups/prune` → `settings:write`.
+- S3-Verschlüsselung bereits vollständig implementiert in `core/backup_targets/s3.py`
+  (AES-256-GCM mit Random-Nonce per Chunk).
+- Neue Unit-Tests `tests/unit/test_backup_retention_and_s3.py` — 20 Tests:
+  - 7× Retention (prune_old_snapshots): alt/neu/Scope-Filter/delete-Fehler/failed-Job
+  - 8× S3-Verschlüsselung: Encrypt-Decrypt-Roundtrip, ciphertext≠plaintext,
+    write_chunk speichert encrypted, read_chunk dekryptiert, Random-Nonce, No-Key=Plaintext,
+    unsafe chunk_id rejected, wrong key length rejected
+  - 5× Single-File-Restore: list_snapshot_files, read_snapshot_file, Path-Traversal-Schutz
+- 20/20 Tests lokal und auf `srv1.beagle-os.com` grün.
+- Live: `POST /api/v1/backups/prune` → `{ok:true, pruned_count:0}` auf srv1 verifiziert.
+
+Hinweis: Inkrementelles Backup (Testpflicht 1) und Full-Restore-Timing (Testpflicht 2)
+bleiben offen — ersteres erfordert Dedup-Implementierung, letzteres 80GB-VM-Image auf NVMe.

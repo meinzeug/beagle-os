@@ -620,3 +620,95 @@ class BackupService:
         state["jobs"].append(job)
         self._save(state)
         return {"ok": True, "job_id": job["job_id"]}
+
+    # ------------------------------------------------------------------
+    # Retention enforcement (Schritt 7 — Plan 16 Testpflicht)
+    # ------------------------------------------------------------------
+
+    def prune_old_snapshots(
+        self,
+        *,
+        scope_type: str = "",
+        scope_id: str = "",
+    ) -> list[dict[str, Any]]:
+        """Delete backup jobs older than the policy's retention_days.
+
+        Archives are deleted from their target store (best-effort; errors
+        are silently skipped to avoid blocking pruning of other jobs).
+
+        Returns the list of pruned job records so the caller can emit
+        audit events (e.g. backup.snapshot_pruned).
+        """
+        from datetime import date as _date  # noqa: PLC0415
+
+        state = self._load()
+        now_iso = self._utcnow()
+        now_date_str = now_iso[:10]  # YYYY-MM-DD
+
+        jobs_to_keep: list[dict[str, Any]] = []
+        pruned: list[dict[str, Any]] = []
+
+        for job in state.get("jobs", []):
+            if not isinstance(job, dict):
+                continue
+            jtype = str(job.get("scope_type") or "")
+            jid = str(job.get("scope_id") or "")
+
+            # Filter to requested scope
+            if scope_type and jtype != scope_type:
+                jobs_to_keep.append(job)
+                continue
+            if scope_id and jid != scope_id:
+                jobs_to_keep.append(job)
+                continue
+
+            # Only prune completed (success) jobs; keep errors/running
+            if job.get("status") != "success":
+                jobs_to_keep.append(job)
+                continue
+
+            # Determine retention_days from matching policy
+            try:
+                if jtype == "pool":
+                    policy = self.get_pool_policy(jid)
+                elif jid.isdigit():
+                    policy = self.get_vm_policy(int(jid))
+                else:
+                    jobs_to_keep.append(job)
+                    continue
+            except Exception:  # noqa: BLE001
+                jobs_to_keep.append(job)
+                continue
+
+            retention_days = int(policy.get("retention_days") or 7)
+            created_at = str(job.get("created_at") or "")[:10]
+
+            if not created_at:
+                jobs_to_keep.append(job)
+                continue
+
+            try:
+                age_days = (_date.fromisoformat(now_date_str) - _date.fromisoformat(created_at)).days
+            except ValueError:
+                jobs_to_keep.append(job)
+                continue
+
+            if age_days < retention_days:
+                jobs_to_keep.append(job)
+                continue
+
+            # Job has exceeded retention — delete archive and mark pruned
+            archive = str(job.get("archive") or "")
+            if archive:
+                try:
+                    self._get_target(policy).delete_snapshot(archive)
+                except Exception:  # noqa: BLE001
+                    pass  # best-effort: don't block pruning
+
+            pruned.append(dict(job))
+
+        if pruned:
+            state["jobs"] = jobs_to_keep
+            self._save(state)
+
+        return pruned
