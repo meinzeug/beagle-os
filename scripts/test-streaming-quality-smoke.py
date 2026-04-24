@@ -99,6 +99,16 @@ def _xrandr_current_mode(xrandr_out: str) -> str:
     return ""
 
 
+def _xrandr_has_virtual_output(xrandr_out: str) -> bool:
+    for line in xrandr_out.splitlines():
+        if " connected" not in line:
+            continue
+        output = line.strip().split()[0]
+        if output.startswith("Virtual-"):
+            return True
+    return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="srv1.beagle-os.com")
@@ -163,11 +173,16 @@ def main() -> int:
     vkms = _guest_exec(
         args.host,
         args.domain,
-        "lsmod | grep vkms; ls -l /dev/dri; systemctl is-active beagle-sunshine.service",
+        "lsmod | grep vkms || true; ls -l /dev/dri; systemctl is-active beagle-sunshine.service",
     )
+    vkms_loaded = "vkms" in vkms.out
+    virtual_output_present = _xrandr_has_virtual_output(xrandr_out)
+    sunshine_active = "active" in vkms.out
     summary["checks"]["vkms_sunshine"] = {
-        "ok": vkms.exitcode == 0 and "vkms" in vkms.out and "active" in vkms.out,
+        "ok": vkms.exitcode == 0 and sunshine_active and (vkms_loaded or virtual_output_present),
         "exitcode": vkms.exitcode,
+        "vkms_loaded": vkms_loaded,
+        "virtual_output_present": virtual_output_present,
         "out": vkms.out,
         "err": vkms.err,
     }

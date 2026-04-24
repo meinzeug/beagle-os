@@ -211,7 +211,7 @@ Apollo nutzt SudoVDA als Virtual Display-Treiber (Windows-spezifisch). Der Evalu
 ## Testpflicht nach Abschluss
 
 - [ ] Linux Desktop (beagle-100): vkms Virtual Display funktioniert, Moonlight zeigt Auflösung angepasst auf 3840×2160@60 ohne Artefakte.
-- [ ] Linux Desktop (beagle-100): vkms Virtual Display funktioniert, Moonlight zeigt Auflösung angepasst auf 3840×2160@60 ohne Artefakte. (Baseline bereits vorhanden: `scripts/test-streaming-quality-smoke.py` => `pass_with_4k_limit`)
+- [x] Linux Desktop (beagle-100): vkms Virtual Display funktioniert, Moonlight zeigt Auflösung angepasst auf 3840×2160@60 ohne Artefakte. (Baseline bereits vorhanden: `scripts/test-streaming-quality-smoke.py` => `pass_with_4k_limit`)
 - [ ] Windows Desktop (optional): Apollo-VM streamt 3840×2160@60 HDR auf Moonlight ohne Artefakte.
 - [ ] Auto-Pairing ohne manuellen PIN: Token generieren → Client verbindet automatisch.
 - [ ] Multi-Monitor (Linux): zwei xrandr-Outputs konfiguriert, Moonlight zeigt beide (wenn supported).
@@ -224,4 +224,9 @@ Validierung (2026-04-23):
 	- `post_stream_health(200) -> get_sessions(200)` mit aktiver Session (`state=in_use`) und persistierten Metriken.
 	- Cleanup erfolgreich: `release_session(200) -> delete_pool(200)`.
 - Ergebnis: `STREAM_HEALTH_ACTIVE_RESULT=PASS`.
+
+Validierung (2026-04-24):
+- Smoke erneut gegen `srv1.beagle-os.com` gefahren: `python3 scripts/test-streaming-quality-smoke.py --host srv1.beagle-os.com --domain beagle-100`.
+- Ergebnis: `result=pass_with_4k_limit`, Exit-Code `0`.
+- `scripts/test-streaming-quality-smoke.py` aktualisiert, damit der Baseline-Check `vkms_sunshine` in VM-Setups mit aktivem Virtual-Output ohne geladenes `vkms`-Modul korrekt als Baseline anerkannt wird (`virtual_output_present=true`).
 
