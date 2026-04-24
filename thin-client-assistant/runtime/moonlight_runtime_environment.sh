@@ -30,8 +30,11 @@ configure_graphics_runtime() {
 
   if [[ "$(moonlight_video_decoder)" == "software" ]]; then
     export QT_QUICK_BACKEND="${QT_QUICK_BACKEND:-software}"
-    export LIBVA_DRIVER_NAME="${LIBVA_DRIVER_NAME:-none}"
-    export VDPAU_DRIVER="${VDPAU_DRIVER:-noop}"
+    # Do NOT set LIBVA_DRIVER_NAME=none or VDPAU_DRIVER=noop — those values
+    # cause dlopen failures for non-existent .so files (none_drv_video.so,
+    # libvdpau_noop.so), which crash the FFmpeg software fallback chain.
+    # With --video-decoder software, Moonlight handles hw-decoder skipping itself.
+    unset LIBVA_DRIVER_NAME VDPAU_DRIVER 2>/dev/null || true
   fi
 }
 

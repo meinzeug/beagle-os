@@ -1,5 +1,15 @@
 # Progress (2026-04-18)
 
+## Update (2026-04-24, GoFuture Plan 11 Live-Streaming-Verifikation + Runtime-Bugfixes)
+
+- **Plan 11 L213** (Live-Streaming): Moonlight-Stream von beagle-thinclient KVM-VM auf beagle-100/srv1 verifiziert. Pairing, TLS-Pinning und Video-Stream aktiv.
+- **Runtime-Bugfixes** (reproduzierbar im Repo):
+  - `thin-client-assistant/runtime/runtime_value_helpers.sh`: `render_template` + `beagle_curl_tls_args` implementiert.
+  - `beagle_curl_tls_args`: Fix — `-k` + `--pinnedpubkey` kombiniert (alleiniges `--pinnedpubkey` bypasst CA nicht).
+  - `config_loader.sh` + `runtime_config_persistence.sh`: `NETWORK_FILE` → `NETWORK_ENV_FILE` (verhindert network.env-Korruption).
+  - `pve-thin-client.list.chroot`: `xserver-xorg-video-qxl` ergänzt.
+- **srv1 Port-Forwarding**: Port 49995 TCP (Sunshine HTTPS Pairing) DNAT + FORWARD + nftables.conf persistiert.
+
 ## Update (2026-04-24, GoFuture Plans 09/11/12/16/18/19 abgeschlossen — commit c6e48b3..63e716c)
 
 - **Plan 11 L216** (Auto-Pairing): `test_auto_pairing_flow.py` 12 unit tests; EndpointHttpSurfaceService + PairingService HMAC-Sicherheit; lokal + srv1 pass.

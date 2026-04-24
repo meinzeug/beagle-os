@@ -1,6 +1,18 @@
 # Security Findings
 
-Stand: 2026-04-19
+Stand: 2026-04-24
+
+## S-017 - beagle_curl_tls_args: --pinnedpubkey ohne -k bypasst CA-Verifizierung nicht
+
+- Status: **gefixt** in Repo (2026-04-24)
+- Risiko: Mittel (verhinderte TLS-Pinning-Nutzung; kein Sicherheits-Downgrade, aber Pairing-Block)
+- Betroffene Datei: `thin-client-assistant/runtime/runtime_value_helpers.sh`
+- Beschreibung:
+  - `beagle_curl_tls_args` gab bei konfiguriertem Pinned-Pubkey nur `--pinnedpubkey SHA` aus.
+  - Bei self-signed Sunshine-Certs (keine CA-Kette) scheiterte curl zuerst an `SSL certificate problem: self-signed certificate` (Error 60), bevor der Pubkey-Check greifen konnte.
+  - Effekt: Moonlight-Pairing-API-Calls schlugen fehl; `credentials.env` wurde nicht korrekt evaluiert.
+- Fix: `-k` wird nun immer zusammen mit `--pinnedpubkey` ausgegeben (CA-Check bypassen, Pubkey-Pinning bleibt aktiv als Sicherheitsgarantie).
+- Verbleibende Note: Mit `-k --pinnedpubkey` schützt nur der Pubkey-Hash; falls Sunshine-Key rotiert wird, muss `PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY` in `credentials.env` ebenfalls aktualisiert werden.
 
 ## S-016 - Cluster-Join-Ziel waere als Installer-Secret in breit konsumierten Env-Dateien geleakt
 

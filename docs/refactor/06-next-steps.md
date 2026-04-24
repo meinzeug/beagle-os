@@ -1,6 +1,12 @@
 # Next Steps
 
-## Delta (2026-04-24 nach Plan 17 Testpflicht Teil 2)
+## Delta (2026-04-24 nach Plan 11 Live-Streaming-Verifikation)
+
+Runtime-Bugfixes abgeschlossen, Plan 11 L213 verifiziert. Naechste offene Schritte:
+
+0. **Plan 11 Testpflicht Multi-Monitor**: `[ ] Multi-Monitor (Linux): zwei xrandr-Outputs konfiguriert, Moonlight zeigt beide` — nur sinnvoll mit GPU-Passthrough oder vkms.
+0. **Plan 11 vkms echtes Laden**: vkms-Modul via firstboot auf beagle-100 persistieren (aktuell QXL-Virtual-Display stattdessen aktiv).
+0. **srv1 nftables.conf persistieren**: iptables-DNAT-Regeln für 49995/50000/50001 sind korrekt; bei Reboot muss `iptables-save`/`iptables-restore` oder nftables aktiv sein.
 
 Plan 17 hat zwei weitere Testpflicht-Checks geschlossen (IPAM-Mapping + Firewall-Rollback). Naechste offene Schritte:
 

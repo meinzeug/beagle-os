@@ -4,19 +4,19 @@ moonlight_video_decoder() {
   local configured
   configured="${PVE_THIN_CLIENT_MOONLIGHT_VIDEO_DECODER:-auto}"
 
-  if [[ "$configured" == "auto" ]] && [[ ! -e /dev/dri/renderD128 ]] && [[ ! -e /dev/dri/card0 ]]; then
-    printf 'software\n'
-    return 0
-  fi
-
-  if [[ "$configured" == "auto" ]] && [[ -e /dev/dri/renderD128 ]] && [[ ! -r /dev/dri/renderD128 || ! -w /dev/dri/renderD128 ]]; then
-    printf 'software\n'
-    return 0
-  fi
-
-  if [[ "$configured" == "auto" ]] && [[ ! -e /dev/dri/renderD128 ]] && [[ -e /dev/dri/card0 ]] && [[ ! -r /dev/dri/card0 || ! -w /dev/dri/card0 ]]; then
-    printf 'software\n'
-    return 0
+  if [[ "$configured" == "auto" ]]; then
+    # Hardware decode (VAAPI/VDPAU/Vulkan) requires /dev/dri/renderD128 (render node).
+    # card0 is the KMS display node only; without renderD128 there is no working
+    # hardware video decoder, so force software to avoid the blocking warning dialog.
+    if [[ ! -e /dev/dri/renderD128 ]]; then
+      printf 'software\n'
+      return 0
+    fi
+    # renderD128 exists but is not accessible
+    if [[ ! -r /dev/dri/renderD128 || ! -w /dev/dri/renderD128 ]]; then
+      printf 'software\n'
+      return 0
+    fi
   fi
 
   printf '%s\n' "$configured"

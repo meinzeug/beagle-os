@@ -48,7 +48,7 @@ load_runtime_config() {
 
   CONFIG_DIR="$dir"
   CONFIG_FILE="$dir/thinclient.conf"
-  NETWORK_FILE="$dir/network.env"
+  NETWORK_ENV_FILE="$dir/network.env"
   CREDENTIALS_FILE="$dir/credentials.env"
   LOCAL_AUTH_FILE="$dir/local-auth.env"
 
@@ -58,7 +58,7 @@ load_runtime_config() {
   fi
 
   source_runtime_env_file "$CONFIG_FILE" "config"
-  source_runtime_env_file "$NETWORK_FILE" "network" || true
+  source_runtime_env_file "$NETWORK_ENV_FILE" "network" || true
   source_runtime_env_file "$CREDENTIALS_FILE" "credentials" || true
 
   apply_runtime_mode_overrides

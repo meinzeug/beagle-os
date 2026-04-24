@@ -20,7 +20,7 @@ runtime_set_config_dir_paths() {
 
   CONFIG_DIR="$config_dir"
   CONFIG_FILE="$config_dir/thinclient.conf"
-  NETWORK_FILE="$config_dir/network.env"
+  NETWORK_ENV_FILE="$config_dir/network.env"
   CREDENTIALS_FILE="$config_dir/credentials.env"
   LOCAL_AUTH_FILE="$config_dir/local-auth.env"
 }

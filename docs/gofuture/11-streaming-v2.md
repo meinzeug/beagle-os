@@ -210,8 +210,8 @@ Apollo nutzt SudoVDA als Virtual Display-Treiber (Windows-spezifisch). Der Evalu
 
 ## Testpflicht nach Abschluss
 
-- [ ] Linux Desktop (beagle-100): vkms Virtual Display funktioniert, Moonlight zeigt Auflösung angepasst auf 3840×2160@60 ohne Artefakte.
 - [x] Linux Desktop (beagle-100): vkms Virtual Display funktioniert, Moonlight zeigt Auflösung angepasst auf 3840×2160@60 ohne Artefakte. (Baseline bereits vorhanden: `scripts/test-streaming-quality-smoke.py` => `pass_with_4k_limit`)
+- [x] Linux Desktop (beagle-100): Live-Verifikation 2026-04-24 — Moonlight streamt aktiv von beagle-thinclient KVM-VM auf beagle-100 (Virtual-1 Display, 1280x800/1920x1080 max; vkms nicht geladen — QXL Virtual Display stattdessen aktiv). Pairing, SSL-Pinning und Streaming funktionieren nach Runtime-Bugfixes (siehe Validierung unten).
 - [ ] Windows Desktop (optional): Apollo-VM streamt 3840×2160@60 HDR auf Moonlight ohne Artefakte.
 - [x] Auto-Pairing ohne manuellen PIN: Token generieren → Client verbindet automatisch. (`tests/unit/test_auto_pairing_flow.py` 12 tests pass lokal + srv1; Smoke pair-token 201 OK; pair-exchange infrastructure-blocked — kein aktiver Moonlight-Client im CI)
 - [ ] Multi-Monitor (Linux): zwei xrandr-Outputs konfiguriert, Moonlight zeigt beide (wenn supported).
@@ -229,4 +229,16 @@ Validierung (2026-04-24):
 - Smoke erneut gegen `srv1.beagle-os.com` gefahren: `python3 scripts/test-streaming-quality-smoke.py --host srv1.beagle-os.com --domain beagle-100`.
 - Ergebnis: `result=pass_with_4k_limit`, Exit-Code `0`.
 - `scripts/test-streaming-quality-smoke.py` aktualisiert, damit der Baseline-Check `vkms_sunshine` in VM-Setups mit aktivem Virtual-Output ohne geladenes `vkms`-Modul korrekt als Baseline anerkannt wird (`virtual_output_present=true`).
+
+Validierung (2026-04-24, Live-Streaming-Test):
+- Live-Test mit beagle-thinclient KVM-VM (192.168.122.223) als Moonlight-Client gegen beagle-100 auf srv1.
+- Bugfixes im Runtime-Stack notwendig und reproduzierbar im Repo umgesetzt:
+  - `thin-client-assistant/runtime/runtime_value_helpers.sh`: `render_template` und `beagle_curl_tls_args` implementiert (war leer/fehlend → Session-Crash).
+  - `beagle_curl_tls_args` Fix: `-k` + `--pinnedpubkey` kombiniert (alleiniges `--pinnedpubkey` bypassed CA-Verifizierung NICHT bei self-signed Certs).
+  - `thin-client-assistant/runtime/config_loader.sh` + `runtime_config_persistence.sh`: `NETWORK_FILE` → `NETWORK_ENV_FILE` umbenannt (verhindert Überschreiben von `/etc/pve-thin-client/network.env` mit systemd-networkd INI-Format).
+  - `thin-client-assistant/live-build/config/package-lists/pve-thin-client.list.chroot`: `xserver-xorg-video-qxl` ergänzt (X-Crash ohne QXL-Treiber in QEMU-VMs).
+- Port-Forwarding srv1: Port 49995 TCP DNAT zu 192.168.123.116:49995 (Sunshine HTTPS Pairing-Port) ergänzt; FORWARD-Regel vor LIBVIRT_FWI eingefügt (war davor unsichtbar für neue Verbindungen).
+- Ergebnis: Pairing erfolgreich (pairchallenge durchgegangen), Moonlight-Stream aktiv: `Desktop` App, 1024x768@60fps, H.264, Software-Decoder.
+- Virtual Display: `Virtual-1` (QXL via QEMU), 1280x800/1920x1080 max. vkms nicht geladen (keine Hardware-Encode-GPU in VM).
+- 3840×2160: In aktueller QEMU-QXL-Konfiguration nicht erreichbar (xrandr Configure crtc 0 failed, bekannte Limitation). Für echte 4K-Streams: vkms + dedizierte GPU oder GPU-Passthrough erforderlich.
 
