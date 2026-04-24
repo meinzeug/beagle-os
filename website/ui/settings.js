@@ -378,9 +378,9 @@ function updateBackupTargetFields(targetType) {
   const localDiv = document.getElementById('bak-target-local');
   const nfsDiv = document.getElementById('bak-target-nfs');
   const s3Div = document.getElementById('bak-target-s3');
-  if (localDiv) { localDiv.style.display = targetType === 'local' ? '' : 'none'; }
-  if (nfsDiv) { nfsDiv.style.display = targetType === 'nfs' ? '' : 'none'; }
-  if (s3Div) { s3Div.style.display = targetType === 's3' ? '' : 'none'; }
+  if (localDiv) { localDiv.classList.toggle('hidden', targetType !== 'local'); }
+  if (nfsDiv) { nfsDiv.classList.toggle('hidden', targetType !== 'nfs'); }
+  if (s3Div) { s3Div.classList.toggle('hidden', targetType !== 's3'); }
 }
 
 export function saveSettingsBackup() {

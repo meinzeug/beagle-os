@@ -570,8 +570,8 @@
                     </tbody>
                   </table>
                 </div>
-                <div class="table-wrap compact" style="margin-top:0.75rem">
-                  <h4 style="padding:0 0 0.4rem 0;font-size:0.8rem;color:var(--muted)">Aktive mdev-Instanzen</h4>
+                <div class="table-wrap compact mdev-instances-wrap">
+                  <h4 class="mdev-section-label">Aktive mdev-Instanzen</h4>
                   <table class="vm-table compact-table">
                     <thead><tr><th>UUID</th><th>Typ-ID</th><th>GPU PCI</th><th>Aktion</th></tr></thead>
                     <tbody id="vgpu-instances-body">
@@ -1552,10 +1552,10 @@
                 <div id="bak-target-local">
                   <label class="field field-wide"><span>Zielpfad</span><input id="bak-target" type="text" placeholder="/var/backups/beagle"></label>
                 </div>
-                <div id="bak-target-nfs" style="display:none">
+                <div id="bak-target-nfs" class="hidden">
                   <label class="field field-wide"><span>NFS-Einhängepunkt</span><input id="bak-nfs-mount" type="text" placeholder="/mnt/beagle-backup"></label>
                 </div>
-                <div id="bak-target-s3" style="display:none">
+                <div id="bak-target-s3" class="hidden">
                   <label class="field field-wide"><span>S3 Bucket</span><input id="bak-s3-bucket" type="text" placeholder="my-beagle-backups"></label>
                   <label class="field field-wide"><span>S3 Prefix</span><input id="bak-s3-prefix" type="text" placeholder="beagle-backup/"></label>
                   <label class="field field-wide"><span>S3 Endpoint-URL</span><input id="bak-s3-endpoint" type="text" placeholder="https://s3.amazonaws.com (leer = AWS)"></label>
@@ -1591,7 +1591,7 @@
             </article>
 
             <!-- Replication Card -->
-            <article class="card" style="margin-top:1.5rem">
+            <article class="card card-spaced">
               <div class="card-head">
                 <div>
                   <span class="eyebrow">Server-Einstellungen</span>
@@ -1614,13 +1614,13 @@
                   <button class="button primary" id="settings-replication-save" type="button">Speichern</button>
                   <button class="button ghost" id="settings-replication-run" type="button">Letzten Job jetzt replizieren</button>
                 </div>
-                <div id="repl-status" class="info-item" style="margin-top:.5rem"></div>
+                <div id="repl-status" class="info-item mt-2"></div>
               </div>
             </article>
 
             <!-- Restore Modal -->
             <dialog id="bak-restore-modal" class="modal">
-              <article class="card" style="min-width:420px">
+              <article class="card modal-card-sm">
                 <div class="card-head"><h3>Backup Wiederherstellen</h3></div>
                 <div class="settings-form">
                   <input type="hidden" id="bak-restore-job-id">
@@ -1630,19 +1630,19 @@
                     <button class="button primary" id="bak-restore-confirm" type="button">Wiederherstellen</button>
                     <button class="button ghost" id="bak-restore-cancel" type="button">Abbrechen</button>
                   </div>
-                  <div id="bak-restore-result" style="margin-top:.5rem"></div>
+                  <div id="bak-restore-result" class="mt-2"></div>
                 </div>
               </article>
             </dialog>
 
             <!-- File Browser Modal -->
             <dialog id="bak-files-modal" class="modal">
-              <article class="card" style="min-width:520px;max-width:80vw">
+              <article class="card modal-card-lg">
                 <div class="card-head">
                   <h3>Snapshot-Dateien</h3>
                   <button class="button ghost small" id="bak-files-close" type="button">Schließen</button>
                 </div>
-                <div class="table-card" style="max-height:60vh;overflow-y:auto">
+                <div class="table-card scroll-table-container">
                   <table class="table" aria-label="Snapshot-Dateien">
                     <thead><tr><th>Pfad</th><th>Größe</th><th>Typ</th><th>Download</th></tr></thead>
                     <tbody id="bak-files-body"><tr><td colspan="4" class="empty-cell">Lade Dateien…</td></tr></tbody>
