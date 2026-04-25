@@ -1,0 +1,85 @@
+name: no-proxmox-references
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check-no-proxmox:
+    name: Reject new Proxmox references outside proxmox dirs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for Proxmox references outside allowed paths
+        run: |
+          echo "Scanning for Proxmox-specific identifiers in non-Proxmox files..."
+          FOUND=0
+
+          # Patterns that are Proxmox-specific and must NOT appear in new code
+          PATTERNS=(
+            'pvesh'
+            '\bqm\b'
+            'PVEAuthCookie'
+            'api2/json'
+            '/pve/'
+            'proxmoxlib'
+          )
+
+          # Paths that are allowlisted (Proxmox code being actively removed)
+          ALLOWLIST_PATHS=(
+            'proxmox-ui/'
+            'providers/proxmox/'
+            'scripts/check-proxmox-host.sh'
+            'scripts/install-proxmox-host'
+            'scripts/optimize-proxmox-vm'
+            'scripts/install-proxmox-ui'
+            'docs/'
+            'CHANGELOG.md'
+            'README.md'
+          )
+
+          build_exclude_args() {
+            local args=()
+            for path in "${ALLOWLIST_PATHS[@]}"; do
+              args+=(--exclude-dir="${path%/}")
+              args+=(--exclude="${path##*/}")
+            done
+            echo "${args[@]}"
+          }
+
+          for pattern in "${PATTERNS[@]}"; do
+            while IFS= read -r match; do
+              if [ -n "$match" ]; then
+                # Check if the match is in an allowlisted path
+                IS_ALLOWED=0
+                for allowed in "${ALLOWLIST_PATHS[@]}"; do
+                  if [[ "$match" == $allowed* ]]; then
+                    IS_ALLOWED=1
+                    break
+                  fi
+                done
+                if [ "$IS_ALLOWED" -eq 0 ]; then
+                  echo "VIOLATION ($pattern): $match"
+                  FOUND=1
+                fi
+              fi
+            done < <(
+              grep -rInl "$pattern" \
+                --include="*.py" --include="*.sh" --include="*.js" --include="*.ts" \
+                --exclude-dir=".git" --exclude-dir="proxmox-ui" --exclude-dir=".build" \
+                --exclude-dir="providers/proxmox" \
+                . 2>/dev/null || true
+            )
+          done
+
+          if [ "$FOUND" -eq 1 ]; then
+            echo ""
+            echo "ERROR: New Proxmox references detected outside allowed dirs."
+            echo "Proxmox is being removed from Beagle OS (see AGENTS.md + docs/goadvanced/11-proxmox-endbeseitigung.md)."
+            echo "If this reference is in the process of being removed, add it to the allowlist in this workflow."
+            exit 1
+          fi
+          echo "OK: No undocumented Proxmox references found."

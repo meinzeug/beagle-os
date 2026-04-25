@@ -1,0 +1,138 @@
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y shellcheck
+
+      - name: Lint shell scripts
+        run: |
+          # Collect all .sh files outside .git and build dirs
+          mapfile -t SCRIPTS < <(
+            find . -name '*.sh' \
+              -not -path './.git/*' \
+              -not -path './.build/*' \
+              -not -path './node_modules/*' \
+              -not -path './.artifacts/*' \
+              2>/dev/null
+          )
+          echo "Checking ${#SCRIPTS[@]} shell scripts..."
+          if [ ${#SCRIPTS[@]} -eq 0 ]; then
+            echo "No scripts found."
+            exit 0
+          fi
+          shellcheck --severity=warning --format=gcc "${SCRIPTS[@]}"
+
+  ruff:
+    name: ruff (Python lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff
+        run: |
+          ruff check \
+            core/ \
+            beagle-host/services/ \
+            providers/ \
+            scripts/ \
+            tests/ \
+            --ignore E501,E402,F401,F841
+
+  mypy:
+    name: mypy (type check — core/)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install mypy + stubs
+        run: |
+          pip install mypy
+
+      - name: Run mypy (strict on core/)
+        run: |
+          mypy core/ \
+            --strict \
+            --ignore-missing-imports \
+            --no-error-summary \
+            || true   # warn only — upgrade to hard fail after stub coverage improves
+
+  eslint:
+    name: eslint (JS lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install eslint
+        run: |
+          npm install --save-dev eslint@9 globals @eslint/js --prefix /tmp/eslint-runner
+
+      - name: Create eslint config
+        run: |
+          cat > /tmp/eslint.config.mjs << 'EOF'
+          import js from "@eslint/js";
+          import globals from "globals";
+
+          export default [
+            js.configs.recommended,
+            {
+              languageOptions: {
+                ecmaVersion: 2022,
+                sourceType: "module",
+                globals: {
+                  ...globals.browser,
+                  ...globals.es2021,
+                },
+              },
+              rules: {
+                "no-unused-vars": ["warn", { "varsIgnorePattern": "^_", "argsIgnorePattern": "^_" }],
+                "no-undef": "error",
+                "no-eval": "error",
+                "no-implied-eval": "error",
+                "no-new-func": "error",
+              },
+            },
+          ];
+          EOF
+
+      - name: Lint website/ui JS
+        run: |
+          node /tmp/eslint-runner/node_modules/.bin/eslint \
+            --flag unstable_config_lookup_from_file \
+            --config /tmp/eslint.config.mjs \
+            website/ui/*.js \
+            extension/*.js \
+            || true   # warn only — upgrade to hard fail once all files clean
