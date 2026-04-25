@@ -789,7 +789,7 @@ def pool_manager_service() -> PoolManagerService:
             start_vm=lambda vmid: start_vm_checked(int(vmid)),
             stop_vm=lambda vmid: HOST_PROVIDER.stop_vm(int(vmid), skiplock=True, timeout=None),
             reset_vm_to_template=reset_vm_to_template,
-            list_nodes=lambda: HOST_PROVIDER.list_nodes(),
+            list_nodes=_cluster_nodes_for_migration,
             vm_node_of=lambda vmid: str(getattr(find_vm(int(vmid), refresh=True), "node", "") or ""),
             list_gpu_inventory=lambda: gpu_inventory_service().list_gpus(),
         )
@@ -2529,6 +2529,20 @@ def persist_vm_node(vmid: int, source_node: str, target_node: str) -> None:
         )
 
 
+def _cluster_nodes_for_migration() -> list[dict[str, Any]]:
+    """Return all cluster nodes (local + remote members) for migration/HA targeting.
+
+    Uses the ClusterInventoryService which merges local provider nodes with
+    cluster RPC members and remote inventory snapshots.  This ensures that
+    remote hypervisor nodes (e.g. beagle-1 on srv2) are visible to the
+    MigrationService and HaManagerService even though HOST_PROVIDER only
+    knows about the local node.
+    """
+    inventory = build_cluster_inventory()
+    nodes = inventory.get("nodes") if isinstance(inventory, dict) else []
+    return nodes if isinstance(nodes, list) else []
+
+
 def migration_service() -> MigrationService:
     global MIGRATION_SERVICE
     if MIGRATION_SERVICE is None:
@@ -2551,7 +2565,7 @@ def migration_service() -> MigrationService:
             libvirt_domain_exists=lambda vmid: bool(getattr(HOST_PROVIDER, "_libvirt_domain_exists", lambda _vmid: False)(int(vmid))),
             libvirt_domain_name=lambda vmid: str(getattr(HOST_PROVIDER, "_libvirt_domain_name", lambda _vmid: f"beagle-{int(_vmid)}")(int(vmid))),
             libvirt_enabled=lambda: bool(getattr(HOST_PROVIDER, "_libvirt_enabled", lambda: False)()),
-            list_nodes=lambda: HOST_PROVIDER.list_nodes(),
+            list_nodes=_cluster_nodes_for_migration,
             persist_vm_node=persist_vm_node,
             run_virsh_command=lambda command: str(getattr(HOST_PROVIDER, "_run_virsh")(*command)),
             service_name="beagle-control-plane",
@@ -2575,7 +2589,7 @@ def ha_manager_service() -> HaManagerService:
             }
 
         HA_MANAGER_SERVICE = HaManagerService(
-            list_nodes=lambda: HOST_PROVIDER.list_nodes(),
+            list_nodes=_cluster_nodes_for_migration,
             list_vms=lambda: list_vms(refresh=True),
             get_vm_config=lambda node, vmid: HOST_PROVIDER.get_vm_config(node, int(vmid)),
             migrate_vm=lambda vmid, target_node, live, copy_storage, requester_identity: migration_service().migrate_vm(
@@ -2610,7 +2624,7 @@ def maintenance_service() -> MaintenanceService:
 
         MAINTENANCE_SERVICE = MaintenanceService(
             state_file=maintenance_state_file,
-            list_nodes=lambda: HOST_PROVIDER.list_nodes(),
+            list_nodes=_cluster_nodes_for_migration,
             list_vms=lambda: list_vms(refresh=True),
             get_vm_config=lambda node, vmid: HOST_PROVIDER.get_vm_config(node, int(vmid)),
             migrate_vm=lambda vmid, target_node, live, copy_storage, requester_identity: migration_service().migrate_vm(
