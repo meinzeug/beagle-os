@@ -1,3 +1,23 @@
+## Update (2026-04-25, Cluster-API iptables-Haertung Port 9088)
+
+**Scope**: S-020 von "known mitigated" auf aktiv gehaertet gebracht (reproduzierbar + live auf srv1/srv2 ausgerollt).
+
+### Neu erstellt
+- `scripts/harden-cluster-api-iptables.sh`
+  - idempotentes Hardening fuer tcp/9088 mit dedizierter Chain `BEAGLE_CLUSTER_API_9088`
+  - erlaubt nur localhost + explizite Peer-IPs, sonst DROP
+  - optionale Persistenz (`--persist auto|always|never`), Dry-Run-Support
+
+### Live-Rollout
+- Script auf `srv1`/`srv2` deployed nach `/opt/beagle/scripts/`
+- Aktivierung:
+  - `srv1`: `--peer 176.9.127.50`
+  - `srv2`: `--peer 46.4.96.80`
+- Persistenz aktiviert: `netfilter-persistent` + `iptables-persistent` installiert, `netfilter-persistent save` ausgefuehrt
+- Verifiziert: `/etc/iptables/rules.v4` auf beiden Hosts enthaelt `BEAGLE_CLUSTER_API_9088` und `--dport 9088`
+
+---
+
 ## Update (2026-04-25, GoEnterprise: VM Stateless Reset + RBAC kiosk_operator)
 
 **Scope**: VM-Reset auf Snapshot in den Beagle-Provider integriert, Pool-Reset-Wiring aktiviert und RBAC fuer `kiosk_operator` umgesetzt.

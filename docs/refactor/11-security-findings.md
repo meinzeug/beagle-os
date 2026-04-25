@@ -1,28 +1,33 @@
 # Security Findings
 
-Stand: 2026-04-25 (ergänzt: Cluster-Mode API-Binding)
+Stand: 2026-04-25 (ergänzt: S-020 iptables-Härtung aktiv)
 
-## S-020 — Cluster-Mode: API bindet auf 0.0.0.0 (KNOWN, MITIGATED)
+## S-020 — Cluster-Mode: API bindet auf 0.0.0.0 (PATCHED, HARDENED)
 
-- Status: **bekannt, mitigiert** (2026-04-25)
-- Risiko: **Niedrig** (API ist vollständig authentifiziert + rate-limitiert)
+- Status: **gepatcht/gehärtet** (2026-04-25)
+- Risiko: **Niedrig** (auth + rate-limit + IP-Allowlist auf 9088)
 - Betroffene Server: `srv1.beagle-os.com` (46.4.96.80), `srv2.beagle-os.com` (176.9.127.50)
-- Betroffene Dateien: `/etc/beagle/beagle-manager.env` (nicht versioniert — lokale Operatorkonfiguration)
+- Betroffene Dateien:
+  - `scripts/harden-cluster-api-iptables.sh`
+  - `/etc/beagle/beagle-manager.env` (nicht versioniert — lokale Operatorkonfiguration)
+  - `/etc/iptables/rules.v4` auf `srv1` und `srv2`
 - Beschreibung:
   - Für Cluster-Betrieb muss `BEAGLE_MANAGER_LISTEN_HOST=0.0.0.0` gesetzt sein, damit der andere Node
     die API (Port 9088) für Join-Token-Validierung und Health-Probes erreichen kann.
-  - Default in `install-beagle-host-services.sh` bleibt `127.0.0.1` (sicher für Single-Node).
-  - Port 9088 ist nun von beiden Public IPs aus erreichbar.
+  - Dadurch war Port 9088 grundsätzlich breit erreichbar.
 - Mitigationen aktiv:
   - API-Authentifizierung: alle Management-Endpoints erfordern `Authorization: Bearer` oder Session-Cookie
   - Ausnahmen nur: `/api/v1/cluster/join` (join-token-validiert intern), `/api/v1/health`, öffentliche Endpoints
   - Rate Limiting: 240 Requests/60s pro IP, Lockout nach 5 fehlgeschlagenen Logins (300s)
-  - Login-Lockout schützt vor Brute-Force
+  - Neue IP-Allowlist-Chain `BEAGLE_CLUSTER_API_9088`:
+    - `srv1`: erlaubt `127.0.0.1/32` und `176.9.127.50`, sonst DROP auf tcp/9088
+    - `srv2`: erlaubt `127.0.0.1/32` und `46.4.96.80`, sonst DROP auf tcp/9088
+  - Persistenz aktiv via `netfilter-persistent`/`iptables-persistent` (Regeln reboot-fest)
 - Verbleibende Restrisiken:
-  - Kein IP-Whitelist-Filter auf Port 9088 (könnte via iptables eingeschränkt werden)
-  - Empfehlung für Härtung: `iptables -A INPUT -p tcp --dport 9088 ! -s <peer-ip> -j DROP`
-  - Für Production-Cluster empfohlen: VPN-Mesh (WireGuard) zwischen Nodes, Binding dann auf VPN-Interface
-- Nächster Schritt (optional): iptables-Regel für Port 9088 (nur srv1↔srv2) automatisch in Cluster-Init generieren
+  - Public-IP-Transport bleibt ohne VPN grundsätzlich exponiert (trotz Auth + IP-Filter).
+  - Empfohlen bleibt ein WireGuard-Mesh und Binding auf das VPN-Interface.
+- Nächster Schritt:
+  - Optional: automatisches Anwenden der Script-Logik direkt im Cluster-Init/Join-Workflow verdrahten.
 
 ---
 

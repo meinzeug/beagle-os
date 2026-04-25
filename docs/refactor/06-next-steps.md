@@ -28,6 +28,10 @@
 - **GoEnterprise: RBAC kiosk_operator** umgesetzt:
   - Neue Default-Rolle `kiosk_operator` mit `vm:read`, `vm:power`
   - VM-Power-Endpoint nutzt jetzt Permission `vm:power` (Backwards-Compat für `vm:mutate` bleibt)
+- **Cluster-Sicherheit Port 9088 gehärtet**:
+  - Neues reproduzierbares Script `scripts/harden-cluster-api-iptables.sh` (idempotent, Chain `BEAGLE_CLUSTER_API_9088`)
+  - Live ausgerollt auf `srv1`/`srv2` mit Peer-Allowlist (`srv1` erlaubt `176.9.127.50`, `srv2` erlaubt `46.4.96.80`)
+  - Persistenz aktiviert (`netfilter-persistent` + `iptables-persistent`, `rules.v4` enthält 9088-Chain)
 
 ---
 
@@ -36,8 +40,5 @@
 1. **Plan 09 Schritt 6**: Branch-Protection-Regeln in GitHub repository settings aktivieren.
    _Manueller Schritt im GitHub UI._
 
-2. **Cluster-Sicherheit (optional)**: iptables-Regel für Port 9088 nur srv1↔srv2
-   (Details in `docs/refactor/11-security-findings.md` S-020).
-
-3. **Live-Migration vollständig validieren**: Migration einer kleinen Test-VM (< 20 GB) von beagle-0 → beagle-1
+2. **Live-Migration vollständig validieren**: Migration einer kleinen Test-VM (< 20 GB) von beagle-0 → beagle-1
    über die API (`POST /api/v1/virtualization/vms/{vmid}/migrate`, `target_node: beagle-1`).

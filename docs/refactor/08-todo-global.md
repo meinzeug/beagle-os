@@ -6,6 +6,7 @@
 
 - [x] GoEnterprise: VM Stateless Reset implementieren (Provider-Contract + `reset_vm_to_snapshot`, Pool-Manager-Reset-Wiring)
 - [x] GoEnterprise: RBAC `kiosk_operator` implementieren (`vm:read`, `vm:power`; Power-Route auf `vm:power` umgestellt)
+- [x] S-020 Cluster-API-Haertung umsetzen: reproduzierbares `scripts/harden-cluster-api-iptables.sh` erstellen, auf `srv1`/`srv2` ausrollen und Regeln persistent machen
 
 
 ## Update 2026-04-21 (Plan 18 Schritt 5 abgeschlossen)
