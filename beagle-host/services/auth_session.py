@@ -53,6 +53,7 @@ class AuthSessionService:
     def _default_roles() -> list[dict[str, Any]]:
         return [
             {"name": "viewer", "permissions": []},
+            {"name": "kiosk_operator", "permissions": ["vm:read", "vm:power"]},
             {"name": "ops", "permissions": ["vm:mutate", "actions:bulk", "provisioning:write"]},
             {
                 "name": "admin",

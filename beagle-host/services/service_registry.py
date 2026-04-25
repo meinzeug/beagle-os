@@ -786,6 +786,9 @@ def pool_manager_service() -> PoolManagerService:
         POOL_MANAGER_SERVICE = PoolManagerService(
             state_file=DATA_DIR / "desktop-pools.json",
             utcnow=utcnow,
+            start_vm=lambda vmid: start_vm_checked(int(vmid)),
+            stop_vm=lambda vmid: HOST_PROVIDER.stop_vm(int(vmid), skiplock=True, timeout=None),
+            reset_vm_to_template=reset_vm_to_template,
             list_nodes=lambda: HOST_PROVIDER.list_nodes(),
             vm_node_of=lambda vmid: str(getattr(find_vm(int(vmid), refresh=True), "node", "") or ""),
             list_gpu_inventory=lambda: gpu_inventory_service().list_gpus(),
@@ -2638,6 +2641,17 @@ def start_vm_checked(vmid: int) -> str:
     if maintenance_service().is_node_in_maintenance(str(vm.node)):
         raise RuntimeError(f"node {vm.node} is in maintenance mode; VM start rejected")
     return HOST_PROVIDER.start_vm(int(vmid), timeout=None)
+
+
+def reset_vm_to_template(vmid: int, template_id: str) -> str:
+    template_key = str(template_id or "").strip()
+    if not template_key:
+        raise RuntimeError("template_id is required")
+    template = desktop_template_builder_service().get_template(template_key)
+    if template is None:
+        raise RuntimeError(f"template {template_key!r} not found")
+    snapshot_name = str(template.snapshot_name or "").strip() or "sealed"
+    return HOST_PROVIDER.reset_vm_to_snapshot(int(vmid), snapshot_name, timeout=None)
 
 
 def should_use_public_stream(meta: dict[str, str], guest_ip: str) -> bool:

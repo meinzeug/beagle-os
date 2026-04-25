@@ -36,6 +36,18 @@ class BeagleHostProviderContractExtensionsTests(unittest.TestCase):
         self.assertTrue(isinstance(snapshots, list) and len(snapshots) >= 1)
         self.assertEqual(snapshots[-1]["name"], "pre-update")
 
+    def test_reset_vm_to_snapshot_uses_recorded_metadata_without_libvirt(self):
+        self.provider.snapshot_vm(101, "sealed")
+        msg = self.provider.reset_vm_to_snapshot(101, "sealed")
+        self.assertIn("reset beagle vm 101 to snapshot sealed", msg)
+        vms = self.provider.list_vms(refresh=True)
+        vm = next(item for item in vms if int(item["vmid"]) == 101)
+        self.assertEqual(vm.get("status"), "stopped")
+
+    def test_reset_vm_to_snapshot_rejects_unknown_snapshot_without_libvirt(self):
+        with self.assertRaises(RuntimeError):
+            self.provider.reset_vm_to_snapshot(101, "sealed")
+
     def test_clone_vm_creates_target_vm_record(self):
         msg = self.provider.clone_vm(101, 202, name="vm-202-clone")
         self.assertIn("cloned beagle vm 101 to 202", msg)

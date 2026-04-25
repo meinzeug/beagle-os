@@ -22,6 +22,12 @@
   - **Hinweis für Produktion**: `--copy-storage-inc` erfordert pre-created sparse qcow2 auf Ziel-Node;
     für `--copy-storage-all` muss genug Speicher für Preallokation vorhanden sein (schlägt bei 1 TB fehl)
     → Empfehlung: Shared Storage (NFS/Ceph) für transparente Migration ohne `--copy-storage`
+- **GoEnterprise: VM Stateless Reset** umgesetzt:
+  - Neuer Provider-Contract + Implementierung `reset_vm_to_snapshot(...)`
+  - Pool-Manager-Wiring aktiv (`reset_vm_to_template`), nutzt Template-`snapshot_name`
+- **GoEnterprise: RBAC kiosk_operator** umgesetzt:
+  - Neue Default-Rolle `kiosk_operator` mit `vm:read`, `vm:power`
+  - VM-Power-Endpoint nutzt jetzt Permission `vm:power` (Backwards-Compat für `vm:mutate` bleibt)
 
 ---
 
@@ -30,12 +36,8 @@
 1. **Plan 09 Schritt 6**: Branch-Protection-Regeln in GitHub repository settings aktivieren.
    _Manueller Schritt im GitHub UI._
 
-2. **GoEnterprise: VM Stateless Reset** — `providers/beagle/libvirt_provider.py`: `reset_vm_to_snapshot()`
-
-3. **GoEnterprise: RBAC kiosk_operator** — Rolle + Berechtigungsprüfung in IAM
-
-4. **Cluster-Sicherheit (optional)**: iptables-Regel für Port 9088 nur srv1↔srv2
+2. **Cluster-Sicherheit (optional)**: iptables-Regel für Port 9088 nur srv1↔srv2
    (Details in `docs/refactor/11-security-findings.md` S-020).
 
-5. **Live-Migration vollständig validieren**: Migration einer kleinen Test-VM (< 20 GB) von beagle-0 → beagle-1
+3. **Live-Migration vollständig validieren**: Migration einer kleinen Test-VM (< 20 GB) von beagle-0 → beagle-1
    über die API (`POST /api/v1/virtualization/vms/{vmid}/migrate`, `target_node: beagle-1`).

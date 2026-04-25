@@ -104,7 +104,7 @@ class AuthzPolicyService:
             ):
                 return "vm:mutate"
             if route.startswith("/api/v1/virtualization/vms/") and route.endswith("/power"):
-                return "vm:mutate"
+                return "vm:power"
             if route == "/api/v1/auth/users" or route == "/api/v1/auth/roles":
                 return "auth:write"
             if re.match(r"^/api/v1/auth/users/[A-Za-z0-9._-]+/revoke-sessions$", route):
@@ -205,6 +205,8 @@ class AuthzPolicyService:
             return True
         permissions = {str(value).strip() for value in role_permissions if str(value).strip()}
         if "*" in permissions or permission in permissions:
+            return True
+        if permission == "vm:power" and "vm:mutate" in permissions:
             return True
         # pool:write implicitly grants pool:scale (backwards compat)
         if permission == "pool:scale" and "pool:write" in permissions:

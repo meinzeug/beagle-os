@@ -78,6 +78,13 @@ class AuthSessionOnboardingTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 service.save_role(name="bad role", permissions=["auth:read"])
 
+    def test_default_roles_include_kiosk_operator(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = self.make_service(Path(temp_dir))
+            roles = {item["name"]: set(item.get("permissions", [])) for item in service.list_roles()}
+            self.assertIn("kiosk_operator", roles)
+            self.assertEqual(roles["kiosk_operator"], {"vm:read", "vm:power"})
+
 
 if __name__ == "__main__":
     unittest.main()

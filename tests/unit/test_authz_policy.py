@@ -95,6 +95,14 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:write",
         )
 
+    def test_virtualization_power_route_uses_vm_power_permission(self):
+        permission = AuthzPolicyService.required_permission("POST", "/api/v1/virtualization/vms/101/power")
+        self.assertEqual(permission, "vm:power")
+
+    def test_vm_mutate_still_grants_vm_power_backwards_compat(self):
+        allowed = AuthzPolicyService.is_allowed("ops", "vm:power", {"vm:mutate"})
+        self.assertTrue(allowed)
+
 
 if __name__ == "__main__":
     unittest.main()

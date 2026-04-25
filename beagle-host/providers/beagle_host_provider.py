@@ -1390,6 +1390,51 @@ class BeagleHostProvider:
 
         return f"created snapshot {snap_name} for beagle vm {target_vmid}"
 
+    def reset_vm_to_snapshot(
+        self,
+        vmid: int,
+        snapshot_name: str,
+        *,
+        timeout: float | None | object = None,
+    ) -> str:
+        del timeout
+        target_vmid = int(vmid)
+        record = self._find_vm(target_vmid)
+        if record is None:
+            raise RuntimeError(f"VM {target_vmid} not found in beagle provider state")
+
+        snap_name = str(snapshot_name or "").strip()
+        if not snap_name:
+            raise RuntimeError("snapshot_name is required")
+
+        node = str(record.get("node") or self._default_node_name).strip() or self._default_node_name
+        config = self.get_vm_config(node, target_vmid)
+        snapshots = config.get("_snapshots")
+        known_snapshots = {
+            str(item.get("name") or "").strip()
+            for item in (snapshots or [])
+            if isinstance(item, dict)
+        }
+
+        if self._libvirt_enabled() and self._libvirt_domain_exists(target_vmid):
+            if str(record.get("status") or "").strip().lower() == "running":
+                try:
+                    self._run_virsh("destroy", self._libvirt_domain_name(target_vmid))
+                except Exception:
+                    pass
+            self._run_virsh(
+                "snapshot-revert",
+                self._libvirt_domain_name(target_vmid),
+                snap_name,
+                "--force",
+            )
+        elif snap_name not in known_snapshots:
+            raise RuntimeError(f"snapshot {snap_name!r} not found for VM {target_vmid}")
+
+        record["status"] = "stopped"
+        self._replace_vm(record)
+        return f"reset beagle vm {target_vmid} to snapshot {snap_name}"
+
     def clone_vm(
         self,
         source_vmid: int,

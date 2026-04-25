@@ -2,6 +2,11 @@
 
 ## Refactor Wave 2 (7.0)
 
+## Update 2026-04-25 (GoEnterprise VM Reset + RBAC kiosk_operator)
+
+- [x] GoEnterprise: VM Stateless Reset implementieren (Provider-Contract + `reset_vm_to_snapshot`, Pool-Manager-Reset-Wiring)
+- [x] GoEnterprise: RBAC `kiosk_operator` implementieren (`vm:read`, `vm:power`; Power-Route auf `vm:power` umgestellt)
+
 
 ## Update 2026-04-21 (Plan 18 Schritt 5 abgeschlossen)
 

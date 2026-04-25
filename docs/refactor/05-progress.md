@@ -1,3 +1,27 @@
+## Update (2026-04-25, GoEnterprise: VM Stateless Reset + RBAC kiosk_operator)
+
+**Scope**: VM-Reset auf Snapshot in den Beagle-Provider integriert, Pool-Reset-Wiring aktiviert und RBAC fuer `kiosk_operator` umgesetzt.
+
+### Geaendert
+- `beagle-host/providers/host_provider_contract.py`
+	- Neuer Contract: `reset_vm_to_snapshot(vmid, snapshot_name, timeout=...)`
+- `beagle-host/providers/beagle_host_provider.py`
+	- Neue Implementierung `reset_vm_to_snapshot(...)` mit Snapshot-Validierung, `virsh snapshot-revert --force` (wenn libvirt aktiv) und Status-Update auf `stopped`
+- `beagle-host/services/service_registry.py`
+	- `PoolManagerService` bekommt jetzt `start_vm`, `stop_vm` und `reset_vm_to_template`
+	- Neuer Helper `reset_vm_to_template(vmid, template_id)` loest Template auf und ruft Provider-Reset gegen `template.snapshot_name` auf
+- `beagle-host/services/auth_session.py`
+	- Neue Default-Rolle: `kiosk_operator` mit `vm:read`, `vm:power`
+- `beagle-host/services/authz_policy.py`
+	- `POST /api/v1/virtualization/vms/{vmid}/power` mappt auf `vm:power` (statt `vm:mutate`)
+	- Backwards-Compat: `vm:mutate` impliziert weiterhin `vm:power`
+
+### Tests
+- `pytest -q tests/unit/test_beagle_host_provider_contract_extensions.py tests/unit/test_authz_policy.py tests/unit/test_auth_session.py`
+- Ergebnis: **20 passed**
+
+---
+
 ## Update (2026-05-XX, Service Registry Extraction — commit e2e4c38)
 
 **Scope**: LOC-Reduktion Control Plane — Service Factory Section in service_registry.py extrahiert.
