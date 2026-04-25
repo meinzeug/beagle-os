@@ -45,11 +45,18 @@ return resourceVMRead(ctx, d, m)
 
 func resourceVMRead(_ context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 client := m.(*Client)
+// First try the virtualization (runtime) API — VM is fully up
 _, err := client.request("GET", "/api/v1/virtualization/vms/"+d.Id(), nil)
-if err != nil {
-d.SetId("")
+if err == nil {
 return nil
 }
+// VM not yet visible in virtualization — check provisioning (still installing)
+_, err2 := client.request("GET", "/api/v1/provisioning/vms/"+d.Id(), nil)
+if err2 != nil {
+// Not found in either endpoint — truly absent, remove from state
+d.SetId("")
+}
+// Still provisioning — keep ID, don't blank it
 return nil
 }
 
