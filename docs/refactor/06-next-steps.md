@@ -955,3 +955,12 @@ Plan 13 ist vollständig abgehakt (Schritte 1–6 alle [x]).
 	- `06-next-steps.md`,
 	- `08-todo-global.md`,
 	- `09-provider-abstraction.md`.
+
+## GoAdvanced Welle A (Sofort, Sicherheit + Datenintegritaet)
+
+12. Plan 01 — Data Integrity: `core/persistence/json_state_store.py` mit Atomic-Write + fcntl-Lock einfuehren und in `device_registry.py`, `pool_manager.py`, `session_manager.py` migrieren ([docs/goadvanced/01-data-integrity.md](docs/goadvanced/01-data-integrity.md)).
+13. Plan 02 — TLS-Hardening: alle `curl -k` aus Skripten entfernen, CA-Pinning, HSTS/CSP-Header in nginx, CI-Guard `security-tls-check.yml` ([docs/goadvanced/02-tls-hardening.md](docs/goadvanced/02-tls-hardening.md)).
+14. Plan 03 — Secret-Management: `SecretStoreService` mit Rotation/Versioning + `beaglectl secret rotate`-CLI ([docs/goadvanced/03-secret-management.md](docs/goadvanced/03-secret-management.md)).
+15. Plan 04 — Subprocess-Sandboxing: `run_cmd_safe` + `LibvirtRunner` + Argument-Validatoren + CI-Guard ([docs/goadvanced/04-subprocess-sandboxing.md](docs/goadvanced/04-subprocess-sandboxing.md)).
+
+Nach Welle A: weiter mit Welle B (Plan 05 Control-Plane-Split, Plan 09 CI, Plan 10 Integration-Tests). Welle C (06/07/08/11/12) ist Langfrist.

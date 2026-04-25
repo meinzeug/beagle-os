@@ -2278,3 +2278,23 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - Validation:
 	- editor diagnostics: no errors in the touched Python/shell files,
 	- `bash -n scripts/ensure-vm-stream-ready.sh`.
+
+## Update (2026-04-25, GoAdvanced 12-Plan-Serie ergaenzt)
+
+- Vollstaendige Repo-Auditierung durchgefuehrt (Sicherheit, Refactor, Tests, Operations, Performance, UX, Doku).
+- Neue Plan-Serie `docs/goadvanced/` mit 12 Plan-Dateien + Index erstellt:
+        - [docs/goadvanced/00-index.md](docs/goadvanced/00-index.md) — Uebersicht + 3-Wave-Roadmap (A Sofort / B Mittelfrist / C Langfrist)
+        - [docs/goadvanced/01-data-integrity.md](docs/goadvanced/01-data-integrity.md) — Atomic JSON + fcntl-Lock
+        - [docs/goadvanced/02-tls-hardening.md](docs/goadvanced/02-tls-hardening.md) — `curl -k`-Eradication, HSTS/CSP, CI-Guard
+        - [docs/goadvanced/03-secret-management.md](docs/goadvanced/03-secret-management.md) — Rotation/Versioning + Vault-Adapter Ph2
+        - [docs/goadvanced/04-subprocess-sandboxing.md](docs/goadvanced/04-subprocess-sandboxing.md) — `run_cmd_safe` + Validators
+        - [docs/goadvanced/05-control-plane-split.md](docs/goadvanced/05-control-plane-split.md) — 6000-LOC-Monolith → Surfaces
+        - [docs/goadvanced/06-state-sqlite-migration.md](docs/goadvanced/06-state-sqlite-migration.md) — JSON → SQLite via Repository
+        - [docs/goadvanced/07-async-job-queue.md](docs/goadvanced/07-async-job-queue.md) — JobQueue + SSE
+        - [docs/goadvanced/08-observability.md](docs/goadvanced/08-observability.md) — Prometheus + Structured Logs
+        - [docs/goadvanced/09-ci-pipeline.md](docs/goadvanced/09-ci-pipeline.md) — shellcheck/bats/ISO-Build/SBOM
+        - [docs/goadvanced/10-integration-tests.md](docs/goadvanced/10-integration-tests.md) — Integrations + E2E
+        - [docs/goadvanced/11-proxmox-endbeseitigung.md](docs/goadvanced/11-proxmox-endbeseitigung.md) — Hard-Delete-Plan
+        - [docs/goadvanced/12-ux-accessibility.md](docs/goadvanced/12-ux-accessibility.md) — i18n + ARIA + Mobile
+- Welle A (Sofort) deckt Plaene 01-04 ab; Welle B 05/09/10; Welle C 06/07/08/11/12.
+- Naechster Run: mit Plan 01 (Data-Integrity) beginnen.

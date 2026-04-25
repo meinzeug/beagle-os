@@ -1,0 +1,100 @@
+# Plan 10 — Integrations- und E2E-Tests
+
+**Dringlichkeit**: HIGH
+**Welle**: B (Mittelfrist)
+**Audit-Bezug**: C-001
+
+## Problem
+
+Es gibt aktuell 643 Unit-Tests, aber **keine Integrations- oder End-to-End-Tests** fuer die geschaeftskritischen Pfade:
+
+- Endpoint-Boot → Enrollment → Streaming-Session
+- Backup → Restore (Datenintegritaet)
+- HA-Failover (Cluster: Node down → VM auf anderer Node automatisch hoch)
+- VDI-Pool: Template → Klon → Stream → Cleanup
+- Pairing → Token-Rotation → Revocation
+
+Bei Refactor (z.B. Plan 05 control-plane-split) waere ein vollstaendiges Regressions-Sicherheitsnetz noetig.
+
+## Ziel
+
+1. Integrations-Test-Suite in `tests/integration/` mit echten Komponenten gegen Mocks/Stubs.
+2. E2E-Test-Suite in `tests/e2e/` gegen `srv1.beagle-os.com` (live).
+3. Tests laufen automatisch auf jedem PR (Integration) bzw. nightly (E2E).
+
+## Schritte
+
+- [ ] **Schritt 1** — Test-Infrastruktur
+  - [ ] `tests/integration/conftest.py`:
+    - Fixtures: `temp_state_dir`, `mock_libvirt`, `mock_audit_log`, `test_http_client`
+    - Stub fuer `virsh` (gibt vordefinierte XMLs zurueck)
+    - Stub fuer `tpm2_pcrread`
+  - [ ] `tests/e2e/conftest.py`:
+    - Fixture: `srv1_client` mit Bearer-Token aus Env-Var (NICHT committet)
+    - Fixture: `srv1_test_vmid` (ephemere Test-VM, automatischer Cleanup)
+
+- [ ] **Schritt 2** — Endpoint-Boot-to-Streaming
+  - [ ] `tests/integration/test_endpoint_boot_to_streaming.py`:
+    - Simulierter Endpoint registriert sich via Pairing-Token
+    - Empfaengt Stream-Konfiguration
+    - Faellt zurueck auf Fallback-Channel bei Stream-Failure
+    - Reconnects nach Token-Rotation
+  - [ ] Stubs fuer Sunshine + Moonlight (Mock-Process)
+
+- [ ] **Schritt 3** — Backup → Restore
+  - [ ] `tests/integration/test_backup_restore_chain.py`:
+    - Erzeuge VM mit Test-Disk + Snapshot
+    - `backup_service.create()` → Archiv in temp_dir
+    - `backup_service.restore()` in neuen Pool
+    - Vergleiche Disk-Hash + VM-Config
+  - [ ] Edge-Cases: korruptes Archiv, fehlende Files, Disk-Full
+
+- [ ] **Schritt 4** — HA-Failover
+  - [ ] `tests/integration/test_ha_failover.py`:
+    - 2-Node-Cluster (mock libvirt)
+    - VM auf Node A
+    - Simuliere Node-A-Ausfall (Heartbeat-Timeout)
+    - Erwarte: VM startet auf Node B innerhalb T_max
+    - Fencing-Trigger gepruefte
+  - [ ] Vorbedingung: HA-Manager existiert (siehe `docs/gofuture/09-ha-manager.md`)
+
+- [ ] **Schritt 5** — VDI-Pool-Lifecycle
+  - [ ] `tests/integration/test_vdi_pool_lifecycle.py`:
+    - Template-VM erstellen
+    - Pool mit min=2 max=5 anlegen
+    - 3 Sessions claimen → 3 Klone aktiv
+    - Sessions schliessen → Klone werden recycled
+    - Quotas: 6. Session → wird abgewiesen mit klarer Fehlermeldung
+
+- [ ] **Schritt 6** — Pairing-Lifecycle
+  - [ ] `tests/integration/test_pairing_lifecycle.py`:
+    - Pairing-Token generieren (TTL 60s)
+    - Endpoint paart sich → langlebiger Bearer-Token
+    - Token-Rotation (alter Token wird ungueltig)
+    - Revocation → Token sofort ungueltig
+
+- [ ] **Schritt 7** — E2E gegen srv1
+  - [ ] `tests/e2e/test_smoke_srv1.py`:
+    - `GET /api/v1/health` → healthy
+    - `GET /api/v1/vms` → Liste
+    - VM-Lifecycle: create → start → snapshot → delete
+    - Cleanup-Hook: alle Test-Artefakte loeschen
+  - [ ] Nightly-Cron in CI (mit Secret BEARER_TOKEN)
+
+- [ ] **Schritt 8** — Doku
+  - [ ] `tests/integration/README.md`: Wie laufen lokal, welche Stubs, wie debuggen
+  - [ ] `tests/e2e/README.md`: Voraussetzungen (BEARER_TOKEN), Cleanup-Verhalten
+
+## Abnahmekriterien
+
+- [ ] Mind. 6 Integrations-Test-Module produktiv.
+- [ ] Mind. 1 E2E-Test laeuft nightly gegen srv1.
+- [ ] Integrations-Tests laufen auf PR (in CI).
+- [ ] Test-Coverage fuer kritische Pfade dokumentiert.
+- [ ] Cleanup-Hooks verlassen srv1 in sauberem Zustand.
+
+## Risiko
+
+- E2E-Tests koennen srv1-Stabilitaet beeintraechtigen → striktes Cleanup, separater Test-Pool
+- Integrations-Tests mit Mock-libvirt koennen reale Bugs verstecken → mind. 1 E2E pro Pfad zur Validierung
+- Test-Daten muessen reproduzierbar sein → Seeds + deterministische UUIDs
