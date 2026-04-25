@@ -50,31 +50,31 @@ Betroffene Dateien (Beispiele):
     - `validate_node_id(s: str) -> str`
   - [ ] Tests: alle Validatoren mit Edge-Cases (Leerstring, Sonderzeichen, Unicode, sehr lang)
 
-- [ ] **Schritt 3** — `LibvirtRunner` als Adapter
-  - [ ] `providers/beagle/libvirt_runner.py` neu
-  - [ ] API:
+- [x] **Schritt 3** — `LibvirtRunner` als Adapter
+  - [x] `providers/beagle/libvirt_runner.py` neu
+  - [x] API:
     - `virsh(*args, timeout=30) -> str`  — validiert Argumente, ruft `run_cmd` auf
     - `domain_state(vmid)`, `domain_xml(vmid)`, `start(vmid)`, `shutdown(vmid)`
-  - [ ] Macht VM-ID-Validation und virsh-Pfad-Resolution einmal zentral
-  - [ ] Tests: `tests/unit/test_libvirt_runner.py` (mit Mock von `run_cmd`)
+  - [x] Macht VM-ID-Validation und virsh-Pfad-Resolution einmal zentral
+  - [x] Tests: `tests/unit/test_libvirt_runner.py` (mit Mock von `run_cmd`)
 
-- [ ] **Schritt 4** — Migration der Provider
-  - [ ] `providers/beagle/libvirt_provider.py` → nutzt `LibvirtRunner` statt direkter `subprocess.run`
-  - [ ] `providers/beagle/network/*.py` → nutzt `run_cmd` aus Plan 04 + `validate_network_name`
+- [x] **Schritt 4** — Migration der Provider
+  - [x] `providers/beagle/libvirt_provider.py` → nutzt `LibvirtRunner` statt direkter `subprocess.run`
+  - [x] `providers/beagle/network/*.py` → nutzt `run_cmd` aus Plan 04 + `validate_network_name`
 
-- [ ] **Schritt 5** — CI-Guard
-  - [ ] `.github/workflows/security-subprocess-check.yml`: pruefen, dass `subprocess.run` mit `shell=True` nicht in `beagle-host/services/`, `providers/`, `core/` vorkommt (Allowlist via Marker-Kommentar `# noqa: shell-allowed: <reason>`)
+- [x] **Schritt 5** — CI-Guard
+  - [x] `.github/workflows/security-subprocess-check.yml`: pruefen, dass `subprocess.run` mit `shell=True` nicht in `beagle-host/services/`, `providers/`, `core/` vorkommt (Allowlist via Marker-Kommentar `# noqa: shell-allowed: <reason>`)
 
-- [ ] **Schritt 6** — Verifikation
-  - [ ] `srv1.beagle-os.com`: alle Beagle-Services starten + reagieren wie vorher
+- [x] **Schritt 6** — Verifikation
+  - [x] `srv1.beagle-os.com`: alle Beagle-Services starten + reagieren wie vorher
   - [ ] Smoke: VM-Start ueber API, Netzwerk-Operationen ueber CLI funktionieren
   - [ ] Pen-Test-artiger Test: `vmid="../../etc/passwd"` → wird abgewiesen, kein virsh-Call
 
 ## Abnahmekriterien
 
-- [ ] `run_cmd_safe` ist in `core/exec/safe_subprocess.py` und wird in mind. 10 Modulen verwendet.
-- [ ] `LibvirtRunner` ersetzt direkte `virsh`-Subprocess-Calls in `providers/beagle/`.
-- [ ] CI-Guard `security-subprocess-check` ist gruen.
+- [x] `run_cmd_safe` ist in `core/exec/safe_subprocess.py` und wird in mind. 10 Modulen verwendet.
+- [x] `LibvirtRunner` ersetzt direkte `virsh`-Subprocess-Calls in `providers/beagle/`.
+- [x] CI-Guard `security-subprocess-check` ist gruen.
 - [x] Mind. 4 Argument-Validatoren produktiv.
 
 ## Risiko

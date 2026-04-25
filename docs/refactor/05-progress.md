@@ -1,3 +1,38 @@
+## Update (2026-04-25, GoAdvanced Wave A Plans 03+04: Secret Mgmt + Subprocess Sandbox — vollständig)
+
+**Scope**: Plans 03 + 04 komplett abgeschlossen, deployed auf srv1+srv2.
+
+### Neu erstellt
+- `providers/beagle/libvirt_runner.py` — zentraler virsh-Adapter mit Injection-Guard (_safe_arg)
+- `website/ui/secrets_admin.js` — Web-UI für Secret-Verwaltung (RBAC: security_admin)
+- `docs/security/secret-inventory.md` — Vollständige Secret-Inventur mit TTLs + Rotation-Status
+- `docs/security/secret-lifecycle.md` — Operator-Guide: Rotation, Revocation, Bootstrap
+- `.github/workflows/security-subprocess-check.yml` — CI-Guard shell=True + string-args
+- `tests/unit/test_libvirt_runner.py` — LibvirtRunner Tests mit injected run_cmd Mock
+
+### Geändert
+- `beagle-host/bin/beagle-control-plane.py` — Auto-Bootstrap (manager-api-token, pairing-token-secret), Audit-Wiring
+- `beagle-host/services/vm_console_access.py` — migriert auf LibvirtRunner
+- `scripts/beaglectl.py` — `secret` Subcommand (list/get/rotate/revoke/check)
+- `providers/beagle/network/vlan.py`, `vxlan.py` — migriert auf run_cmd()
+- `providers/beagle/storage/lvm_thin.py`, `zfs.py`, `nfs.py`, `directory.py` — migriert auf run_cmd()
+- `tests/unit/test_sdn_plan17.py` — Mock-Targets auf _run_cmd_safe aktualisiert
+
+### Server-Setup (einmalig)
+- `mkdir -p /var/lib/beagle/secrets && chmod 700 + chown beagle-manager` auf srv1 + srv2
+
+### Tests
+- **Ergebnis**: 710 Tests grün (9 pre-existing GPU-Test-Fehler unverändert)
+
+### Deploy
+- srv1.beagle-os.com: ✅ deployed, beagle-control-plane neu gestartet, health OK (v6.7.0)
+- srv2.beagle-os.com: ✅ deployed, beagle-control-plane neu gestartet, health OK (v6.7.0)
+
+### Commit
+- `11bc0ed` feat(goadvanced): wave-a plans 03+04 — secret bootstrap/cli/ui, libvirt runner, provider migration
+
+---
+
 ## Update (2026-04-25, GoAdvanced Wave A — Plans 01-04: Data Integrity, TLS, Secrets, Subprocess Sandbox)
 
 **Scope**: GoAdvanced Wave A vollständig implementiert und auf srv1+srv2 deployed.
