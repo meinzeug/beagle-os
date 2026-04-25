@@ -118,6 +118,10 @@ from core.virtualization.desktop_pool import SessionRecordingPolicy
 from ipam_service import IpamService
 from firewall_service import FirewallService
 from secret_store_service import SecretStoreService
+from backups_http_surface import BackupsHttpSurfaceService
+from pools_http_surface import PoolsHttpSurfaceService
+from cluster_http_surface import ClusterHttpSurfaceService
+from network_http_surface import NetworkHttpSurfaceService
 
 def load_env_defaults(path: str) -> None:
     env_path = Path(path)
@@ -742,6 +746,19 @@ def firewall_service() -> FirewallService:
     return FIREWALL_SERVICE
 
 
+def network_http_surface_service() -> NetworkHttpSurfaceService:
+    global NETWORK_HTTP_SURFACE_SERVICE
+    if NETWORK_HTTP_SURFACE_SERVICE is None:
+        NETWORK_HTTP_SURFACE_SERVICE = NetworkHttpSurfaceService(
+            ipam_service=ipam_service(),
+            firewall_service=firewall_service(),
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return NETWORK_HTTP_SURFACE_SERVICE
+
+
 def storage_quota_service() -> StorageQuotaService:
     global STORAGE_QUOTA_SERVICE
     if STORAGE_QUOTA_SERVICE is None:
@@ -1024,6 +1041,7 @@ VM_USB_SERVICE: VmUsbService | None = None
 ENROLLMENT_TOKEN_STORE_SERVICE: EnrollmentTokenStoreService | None = None
 SUNSHINE_ACCESS_TOKEN_STORE_SERVICE: SunshineAccessTokenStoreService | None = None
 SUNSHINE_INTEGRATION_SERVICE: SunshineIntegrationService | None = None
+NETWORK_HTTP_SURFACE_SERVICE: NetworkHttpSurfaceService | None = None
 ENDPOINT_TOKEN_STORE_SERVICE: EndpointTokenStoreService | None = None
 PAIRING_SERVICE: PairingService | None = None
 CLUSTER_RPC_SERVER: ThreadingHTTPServer | None = None
@@ -3546,6 +3564,55 @@ class Handler(BaseHTTPRequestHandler):
     def _pool_recording_watermark(self, pool_id: str) -> dict[str, Any]:
         return pool_manager_service().get_pool_recording_watermark(str(pool_id or "").strip())
 
+    def _backups_surface(self) -> BackupsHttpSurfaceService:
+        return BackupsHttpSurfaceService(
+            backup_service=backup_service(),
+            storage_quota_service=storage_quota_service(),
+            audit_event=self._audit_event,
+            requester_identity=self._requester_identity,
+            read_binary_body=lambda n: self.rfile.read(n),
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+
+    def _cluster_surface(self) -> ClusterHttpSurfaceService:
+        return ClusterHttpSurfaceService(
+            cluster_membership_service=cluster_membership_service(),
+            ha_manager_service=ha_manager_service(),
+            maintenance_service=maintenance_service(),
+            build_cluster_inventory=build_cluster_inventory,
+            build_ha_status_payload=build_ha_status_payload,
+            ensure_cluster_rpc_listener=ensure_cluster_rpc_listener,
+            audit_event=self._audit_event,
+            requester_identity=self._requester_identity,
+            cluster_node_name=CLUSTER_NODE_NAME,
+            public_manager_url=PUBLIC_MANAGER_URL,
+            public_server_name=PUBLIC_SERVER_NAME,
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+
+    def _pools_surface(self) -> PoolsHttpSurfaceService:
+        return PoolsHttpSurfaceService(
+            pool_manager_service=pool_manager_service(),
+            entitlement_service=entitlement_service(),
+            desktop_template_builder_service=desktop_template_builder_service(),
+            recording_service=recording_service(),
+            audit_event=self._audit_event,
+            requester_identity=self._requester_identity,
+            requester_tenant_id=self._requester_tenant_id,
+            can_bypass_pool_visibility=self._can_bypass_pool_visibility,
+            can_view_pool=self._can_view_pool,
+            pool_recording_policy=self._pool_recording_policy,
+            pool_recording_watermark=self._pool_recording_watermark,
+            remote_addr=lambda: self.client_address[0] if self.client_address else "",
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+
     def _audit_auth_surface_response(self, method: str, path: str, response: dict[str, Any]) -> None:
         status = int(response.get("status") or 500)
         outcome = "success" if status < 400 else "error"
@@ -4282,179 +4349,23 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
             return
 
-        storage_quota_match = re.match(r"^/api/v1/storage/pools/(?P<pool>[A-Za-z0-9._-]+)/quota$", path)
-        if storage_quota_match is not None:
+        if self._backups_surface().handles_get(path):
             if not self._authorize_or_respond("GET", path):
                 return
-            pool_name = str(storage_quota_match.group("pool") or "").strip()
-            try:
-                payload = storage_quota_service().get_pool_quota(pool_name)
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._write_json(HTTPStatus.OK, {"ok": True, **payload})
+            response = self._backups_surface().route_get(path, query=query)
+            if response is not None:
+                if response.get("kind") == "bytes":
+                    self._write_bytes(response["status"], response["body"], content_type=response["content_type"], filename=response.get("filename", ""))
+                else:
+                    self._write_json(response["status"], response["payload"])
             return
 
-        backup_pool_policy_match = re.match(r"^/api/v1/backups/policies/pools/(?P<pool_id>[A-Za-z0-9._-]+)$", path)
-        if backup_pool_policy_match is not None:
+        if self._pools_surface().handles_get(path):
             if not self._authorize_or_respond("GET", path):
                 return
-            pool_id = str(backup_pool_policy_match.group("pool_id") or "").strip()
-            try:
-                payload = backup_service().get_pool_policy(pool_id)
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._write_json(HTTPStatus.OK, {"ok": True, **payload})
-            return
-
-        backup_vm_policy_match = re.match(r"^/api/v1/backups/policies/vms/(?P<vmid>\d+)$", path)
-        if backup_vm_policy_match is not None:
-            if not self._authorize_or_respond("GET", path):
-                return
-            vmid = int(backup_vm_policy_match.group("vmid") or 0)
-            payload = backup_service().get_vm_policy(vmid)
-            self._write_json(HTTPStatus.OK, {"ok": True, **payload})
-            return
-
-        if path == "/api/v1/backups/jobs":
-            if not self._authorize_or_respond("GET", path):
-                return
-            scope_type = str(query.get("scope_type", [""])[0] or "").strip().lower()
-            scope_id = str(query.get("scope_id", [""])[0] or "").strip()
-            jobs = backup_service().list_jobs(scope_type=scope_type, scope_id=scope_id)
-            self._write_json(HTTPStatus.OK, {"ok": True, "jobs": jobs})
-            return
-
-        if path == "/api/v1/backups/snapshots":
-            if not self._authorize_or_respond("GET", path):
-                return
-            scope_type = str(query.get("scope_type", [""])[0] or "").strip().lower()
-            scope_id = str(query.get("scope_id", [""])[0] or "").strip()
-            snapshots = backup_service().list_snapshots(scope_type=scope_type, scope_id=scope_id)
-            self._write_json(HTTPStatus.OK, {"ok": True, "snapshots": snapshots})
-            return
-
-        backup_snapshot_files_match = re.match(r"^/api/v1/backups/(?P<job_id>[0-9a-f-]{36})/files$", path)
-        if backup_snapshot_files_match is not None:
-            if not self._authorize_or_respond("GET", path):
-                return
-            job_id = backup_snapshot_files_match.group("job_id")
-            file_path = str(query.get("path", [""])[0] or "").strip()
-            if file_path:
-                try:
-                    data = backup_service().read_snapshot_file(job_id, file_path)
-                except (ValueError, FileNotFoundError) as exc:
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                    return
-                self._write_bytes(HTTPStatus.OK, data, content_type="application/octet-stream", filename=file_path.split("/")[-1] or "file")
-            else:
-                try:
-                    result = backup_service().list_snapshot_files(job_id)
-                except ValueError as exc:
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                    return
-                self._write_json(HTTPStatus.OK, result)
-            return
-
-        if path == "/api/v1/backups/replication/config":
-            if not self._authorize_or_respond("GET", path):
-                return
-            self._write_json(HTTPStatus.OK, {"ok": True, **backup_service().get_replication_config()})
-            return
-
-        # --- VDI Pool & Template GET routes ---
-        if path == "/api/v1/sessions":
-            if not self._authorize_or_respond("GET", path):
-                return
-            sessions = []
-            for session in pool_manager_service().list_active_sessions():
-                pool_id = str(session.get("pool_id") or "")
-                if pool_id and not self._can_view_pool(pool_id):
-                    continue
-                sessions.append(session)
-            self._write_json(HTTPStatus.OK, {"ok": True, "sessions": sessions})
-            return
-
-        if path == "/api/v1/pools":
-            if not self._authorize_or_respond("GET", path):
-                return
-            # Tenant-Isolation: non-admin users see only pools in their own tenant.
-            requester_tid = self._requester_tenant_id() if not self._can_bypass_pool_visibility() else None
-            pools = [pool for pool in pool_manager_service().list_pools(tenant_id=requester_tid) if self._can_view_pool(pool.pool_id)]
-            self._write_json(HTTPStatus.OK, {
-                "ok": True,
-                "pools": [pool_manager_service().pool_info_to_dict(p) for p in pools],
-            })
-            return
-
-        pool_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)$", path)
-        if pool_match is not None:
-            if not self._authorize_or_respond("GET", path):
-                return
-            pool_id = pool_match.group("pool_id")
-            if not self._can_view_pool(pool_id):
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "pool not found"})
-                return
-            pool_info = pool_manager_service().get_pool(pool_id)
-            if pool_info is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "pool not found"})
-                return
-            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().pool_info_to_dict(pool_info)})
-            return
-
-        pool_vms_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/vms$", path)
-        if pool_vms_match is not None:
-            if not self._authorize_or_respond("GET", path):
-                return
-            pool_id = pool_vms_match.group("pool_id")
-            if not self._can_view_pool(pool_id):
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "pool not found"})
-                return
-            try:
-                desktops = pool_manager_service().list_desktops(pool_id)
-            except ValueError as exc:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": str(exc)})
-                return
-            self._write_json(HTTPStatus.OK, {"ok": True, "vms": desktops})
-            return
-
-        pool_entitlements_get_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/entitlements$", path)
-        if pool_entitlements_get_match is not None:
-            if not self._authorize_or_respond("GET", path):
-                return
-            pool_id = pool_entitlements_get_match.group("pool_id")
-            if not self._can_view_pool(pool_id):
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "pool not found"})
-                return
-            try:
-                result = entitlement_service().get_entitlements(pool_id)
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._write_json(HTTPStatus.OK, {"ok": True, **result})
-            return
-
-        if path == "/api/v1/pool-templates":
-            if not self._authorize_or_respond("GET", path):
-                return
-            templates = desktop_template_builder_service().list_templates()
-            self._write_json(HTTPStatus.OK, {
-                "ok": True,
-                "templates": [desktop_template_builder_service().template_info_to_dict(t) for t in templates],
-            })
-            return
-
-        pool_template_match = re.match(r"^/api/v1/pool-templates/(?P<tid>[A-Za-z0-9._-]+)$", path)
-        if pool_template_match is not None:
-            if not self._authorize_or_respond("GET", path):
-                return
-            tid = pool_template_match.group("tid")
-            tmpl = desktop_template_builder_service().get_template(tid)
-            if tmpl is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "template not found"})
-                return
-            self._write_json(HTTPStatus.OK, {"ok": True, **desktop_template_builder_service().template_info_to_dict(tmpl)})
+            response = self._pools_surface().route_get(path)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
             return
 
         if path == "/healthz":
@@ -4489,18 +4400,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/v1/vms":
             self._write_json(HTTPStatus.OK, build_vm_inventory())
             return
-        if path == "/api/v1/cluster/inventory" or path == "/api/v1/cluster/nodes":
-            cluster_membership_service().probe_and_update_member_statuses(timeout=3.0)
-            self._write_json(HTTPStatus.OK, build_cluster_inventory())
-            return
-        if path == "/api/v1/cluster/status":
-            cluster_membership_service().probe_and_update_member_statuses(timeout=3.0)
-            self._write_json(HTTPStatus.OK, {"ok": True, **cluster_membership_service().status_payload()})
-            return
-        if path == "/api/v1/ha/status":
+        if self._cluster_surface().handles_get(path):
             if not self._authorize_or_respond("GET", path):
                 return
-            self._write_json(HTTPStatus.OK, {"ok": True, **build_ha_status_payload()})
+            response = self._cluster_surface().route_get(path)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
             return
         if path.startswith("/api/v1/vms/"):
             response = vm_http_surface_service().route_get(path)
@@ -4523,39 +4428,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._write_json(response["status"], response["payload"])
                 return
 
-        if path == "/api/v1/network/ipam/zones":
+        if network_http_surface_service().handles_get(path):
             if not self._authorize_or_respond("GET", path):
                 return
-            state = ipam_service().get_all_zones()
-            self._write_json(HTTPStatus.OK, {"ok": True, "zones": state})
-            return
-
-        ipam_leases_match = re.match(r"^/api/v1/network/ipam/zones/(?P<zone_id>[A-Za-z0-9._-]+)/leases$", path)
-        if ipam_leases_match is not None:
-            if not self._authorize_or_respond("GET", path):
-                return
-            zone_id = ipam_leases_match.group("zone_id")
-            leases = ipam_service().get_zone_leases(zone_id)
-            self._write_json(HTTPStatus.OK, {"ok": True, "leases": [l.__dict__ for l in leases]})
-            return
-
-        if path == "/api/v1/network/firewall/profiles":
-            if not self._authorize_or_respond("GET", path):
-                return
-            profiles = firewall_service().list_profiles()
-            self._write_json(HTTPStatus.OK, {"ok": True, "profiles": profiles})
-            return
-
-        firewall_profile_match = re.match(r"^/api/v1/network/firewall/profiles/(?P<profile_id>[A-Za-z0-9._-]+)$", path)
-        if firewall_profile_match is not None:
-            if not self._authorize_or_respond("GET", path):
-                return
-            profile_id = firewall_profile_match.group("profile_id")
-            try:
-                profile = firewall_service().get_profile(profile_id)
-                self._write_json(HTTPStatus.OK, {"ok": True, "profile": profile.__dict__})
-            except KeyError:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "profile not found"})
+            response = network_http_surface_service().route_get(path)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
             return
 
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
@@ -4567,260 +4445,46 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query or "")
 
-        if path == "/api/v1/backups/run":
+        if self._backups_surface().handles_post(path):
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
             if not self._authorize_or_respond("POST", path):
                 return
-            payload = self._read_json_body()
-            scope_type = str(payload.get("scope_type") or "").strip().lower()
-            scope_id = str(payload.get("scope_id") or "").strip()
-            try:
-                result = backup_service().run_backup_now(scope_type=scope_type, scope_id=scope_id)
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            outcome = "success" if result.get("ok") else "error"
-            self._audit_event(
-                "backup.run",
-                outcome,
-                scope_type=scope_type,
-                scope_id=scope_id,
-                job_id=str((result.get("job") or {}).get("job_id") or ""),
-                username=self._requester_identity(),
-            )
-            self._write_json(HTTPStatus.OK if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR, result)
+            if path == "/api/v1/backups/ingest":
+                content_length = int(self.headers.get("Content-Length") or 0)
+                if content_length <= 0 or content_length > 10 * 1024 * 1024 * 1024:  # max 10 GB
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid Content-Length"})
+                    return
+                raw_body = self.rfile.read(content_length)
+                raw_headers = {"X-Beagle-Backup-Meta": str(self.headers.get("X-Beagle-Backup-Meta") or "{}")}
+                response = self._backups_surface().route_post(path, raw_body=raw_body, raw_headers=raw_headers)
+            else:
+                try:
+                    json_payload = self._read_json_body() if int(self.headers.get("Content-Length", "0") or "0") > 0 else {}
+                except Exception as exc:
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                    return
+                response = self._backups_surface().route_post(path, json_payload=json_payload)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
             return
 
-        backup_restore_match = re.match(r"^/api/v1/backups/(?P<job_id>[0-9a-f-]{36})/restore$", path)
-        if backup_restore_match is not None:
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            job_id = backup_restore_match.group("job_id")
-            body = self._read_json_body()
-            restore_path = str(body.get("restore_path") or "").strip() or None
+        if self._cluster_surface().handles_post(path):
+            if path != "/api/v1/cluster/join":
+                if not self._is_authenticated():
+                    self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                    return
+                if not self._authorize_or_respond("POST", path):
+                    return
             try:
-                result = backup_service().restore_snapshot(job_id, restore_path=restore_path)
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event(
-                "backup.restore",
-                "success" if result.get("ok") else "error",
-                job_id=job_id,
-                restore_path=str(result.get("restored_to") or ""),
-                username=self._requester_identity(),
-            )
-            self._write_json(HTTPStatus.OK if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR, result)
-            return
-
-        backup_replicate_match = re.match(r"^/api/v1/backups/(?P<job_id>[0-9a-f-]{36})/replicate$", path)
-        if backup_replicate_match is not None:
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            job_id = backup_replicate_match.group("job_id")
-            try:
-                result = backup_service().replicate_to_remote(job_id)
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event(
-                "backup.replicate",
-                "success" if result.get("ok") else "error",
-                job_id=job_id,
-                username=self._requester_identity(),
-            )
-            self._write_json(HTTPStatus.OK if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR, result)
-            return
-
-        if path == "/api/v1/backups/prune":
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            try:
-                payload = self._read_json_body()
-                scope_type = str(payload.get("scope_type") or "").strip()
-                scope_id = str(payload.get("scope_id") or "").strip()
-                pruned = backup_service().prune_old_snapshots(
-                    scope_type=scope_type,
-                    scope_id=scope_id,
-                )
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            for pjob in pruned:
-                self._audit_event(
-                    "backup.snapshot_pruned",
-                    "success",
-                    job_id=str(pjob.get("job_id") or ""),
-                    scope_type=str(pjob.get("scope_type") or ""),
-                    scope_id=str(pjob.get("scope_id") or ""),
-                    created_at=str(pjob.get("created_at") or ""),
-                    username=self._requester_identity(),
-                )
-            self._write_json(HTTPStatus.OK, {"ok": True, "pruned_count": len(pruned), "pruned_jobs": [j.get("job_id") for j in pruned]})
-            return
-
-        if path == "/api/v1/backups/ingest":
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            content_length = int(self.headers.get("Content-Length") or 0)
-            if content_length <= 0 or content_length > 10 * 1024 * 1024 * 1024:  # max 10 GB
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid Content-Length"})
-                return
-            archive_bytes = self.rfile.read(content_length)
-            meta_raw = str(self.headers.get("X-Beagle-Backup-Meta") or "{}").strip()
-            try:
-                import json as _json  # noqa: PLC0415
-                meta = _json.loads(meta_raw)
-            except Exception:
-                meta = {}
-            try:
-                result = backup_service().ingest_replicated_backup(archive_bytes=archive_bytes, meta=meta)
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event(
-                "backup.ingest",
-                "success",
-                job_id=str(result.get("job_id") or ""),
-                origin_job_id=str(meta.get("job_id") or ""),
-                username=self._requester_identity(),
-            )
-            self._write_json(HTTPStatus.OK, result)
-            return
-
-        if path == "/api/v1/ha/reconcile-failed-node":
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            try:
-                payload = self._read_json_body()
-                failed_node = str(payload.get("failed_node") or "").strip()
-                result = ha_manager_service().reconcile_failed_node(
-                    failed_node=failed_node,
-                    requester_identity=self._requester_identity(),
-                )
+                json_payload = self._read_json_body() if int(self.headers.get("Content-Length", "0") or "0") > 0 else {}
             except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
-            self._audit_event(
-                "ha.reconcile_failed_node",
-                "success",
-                failed_node=str(result.get("failed_node") or ""),
-                handled_vm_count=int(result.get("handled_vm_count") or 0),
-                username=self._requester_identity(),
-            )
-            self._write_json(HTTPStatus.OK, {"ok": True, **result})
-            return
-
-        if path == "/api/v1/ha/maintenance/drain":
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            try:
-                payload = self._read_json_body()
-                result = maintenance_service().drain_node(
-                    node_name=str(payload.get("node_name") or "").strip(),
-                    requester_identity=self._requester_identity(),
-                )
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event(
-                "ha.maintenance.drain",
-                "success",
-                node_name=str(result.get("node_name") or ""),
-                handled_vm_count=int(result.get("handled_vm_count") or 0),
-                username=self._requester_identity(),
-            )
-            self._write_json(HTTPStatus.OK, {"ok": True, **result})
-            return
-
-        if path == "/api/v1/cluster/init":
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            try:
-                payload = self._read_json_body()
-                result = cluster_membership_service().initialize_cluster(
-                    node_name=str(payload.get("node_name") or CLUSTER_NODE_NAME).strip(),
-                    api_url=str(payload.get("api_url") or PUBLIC_MANAGER_URL).strip(),
-                    advertise_host=str(payload.get("advertise_host") or PUBLIC_SERVER_NAME).strip(),
-                )
-                ensure_cluster_rpc_listener()
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._write_json(HTTPStatus.CREATED, {"ok": True, **result})
-            return
-
-        if path == "/api/v1/cluster/join-token":
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            try:
-                payload = self._read_json_body()
-                result = cluster_membership_service().create_join_token(ttl_seconds=int(payload.get("ttl_seconds") or 900))
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._write_json(HTTPStatus.CREATED, {"ok": True, **result})
-            return
-
-        if path == "/api/v1/cluster/apply-join":
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            try:
-                payload = self._read_json_body()
-                result = cluster_membership_service().apply_join_response(
-                    node_name=str(payload.get("node_name") or CLUSTER_NODE_NAME).strip(),
-                    payload=payload.get("join_response") if isinstance(payload.get("join_response"), dict) else {},
-                )
-                ensure_cluster_rpc_listener()
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._write_json(HTTPStatus.OK, {"ok": True, **result})
-            return
-
-        if path == "/api/v1/cluster/join":
-            try:
-                payload = self._read_json_body()
-                join_payload = cluster_membership_service().accept_join_request(
-                    join_token=str(payload.get("join_token") or "").strip(),
-                    node_name=str(payload.get("node_name") or "").strip(),
-                    api_url=str(payload.get("api_url") or "").strip(),
-                    advertise_host=str(payload.get("advertise_host") or "").strip(),
-                    rpc_url=str(payload.get("rpc_url") or "").strip(),
-                )
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._write_json(HTTPStatus.OK, {"ok": True, **join_payload})
+            response = self._cluster_surface().route_post(path, json_payload=json_payload)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
             return
 
         if path == "/api/v1/auth/saml/callback":
@@ -5325,336 +4989,20 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
-        # --- VDI Pool & Template POST routes ---
-        if path == "/api/v1/sessions/stream-health":
+        if self._pools_surface().handles_post(path):
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
             if not self._authorize_or_respond("POST", path):
                 return
             try:
-                body = self._read_json_body() or {}
+                json_payload = self._read_json_body() if int(self.headers.get("Content-Length", "0") or "0") > 0 else {}
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
-            try:
-                pool_id = str(body.get("pool_id") or "").strip()
-                vmid = int(body.get("vmid") or 0)
-                if not pool_id:
-                    raise ValueError("pool_id is required")
-                if vmid <= 0:
-                    raise ValueError("vmid must be > 0")
-                stream_health_raw = body.get("stream_health")
-                if stream_health_raw is not None and not isinstance(stream_health_raw, dict):
-                    raise ValueError("stream_health must be an object")
-                lease = pool_manager_service().update_stream_health(
-                    pool_id=pool_id,
-                    vmid=vmid,
-                    stream_health=stream_health_raw,
-                )
-            except (ValueError, TypeError) as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event(
-                "session.stream_health.update",
-                "success",
-                pool_id=pool_id,
-                vmid=vmid,
-                username=self._requester_identity(),
-            )
-            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().lease_to_dict(lease)})
-            return
-
-        if path == "/api/v1/pools":
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            try:
-                body = self._read_json_body() or {}
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            from core.virtualization.desktop_pool import DesktopPoolMode, DesktopPoolSpec, SessionRecordingPolicy
-            from core.virtualization.streaming_profile import streaming_profile_from_payload
-            try:
-                mode = DesktopPoolMode(str(body.get("mode", "floating_non_persistent")))
-                streaming_profile = None
-                if "streaming_profile" in body and body.get("streaming_profile") is not None:
-                    if not isinstance(body.get("streaming_profile"), dict):
-                        raise ValueError("streaming_profile must be an object")
-                    streaming_profile = streaming_profile_from_payload(body.get("streaming_profile"))
-                spec = DesktopPoolSpec(
-                    pool_id=str(body.get("pool_id", "") or "").strip(),
-                    template_id=str(body.get("template_id", "") or ""),
-                    mode=mode,
-                    min_pool_size=int(body.get("min_pool_size", 0)),
-                    max_pool_size=int(body.get("max_pool_size", 10)),
-                    warm_pool_size=int(body.get("warm_pool_size", 2)),
-                    cpu_cores=int(body.get("cpu_cores", 2)),
-                    memory_mib=int(body.get("memory_mib", 2048)),
-                    storage_pool=str(body.get("storage_pool", "local") or "local"),
-                    gpu_class=str(body.get("gpu_class", "") or "").strip(),
-                    session_recording=SessionRecordingPolicy(str(body.get("session_recording", "disabled") or "disabled").strip().lower()),
-                    recording_retention_days=int(body.get("recording_retention_days", 30)),
-                    recording_watermark_enabled=bool(body.get("recording_watermark_enabled", False)),
-                    recording_watermark_custom_text=str(body.get("recording_watermark_custom_text", "") or "").strip(),
-                    enabled=bool(body.get("enabled", True)),
-                    labels=tuple(str(l) for l in body.get("labels", [])),
-                    streaming_profile=streaming_profile,
-                    tenant_id=str(body.get("tenant_id", "") or self._requester_tenant_id()).strip(),
-                )
-                pool_info = pool_manager_service().create_pool(spec)
-            except (ValueError, TypeError) as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event("pool.create", "success", pool_id=pool_info.pool_id, username=self._requester_identity())
-            self._write_json(HTTPStatus.CREATED, {"ok": True, **pool_manager_service().pool_info_to_dict(pool_info)})
-            return
-
-        pool_entitlements_post_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/entitlements$", path)
-        if pool_entitlements_post_match is not None:
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            pool_id = pool_entitlements_post_match.group("pool_id")
-            try:
-                body = self._read_json_body() or {}
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            action = str(body.get("action", "set")).strip().lower()
-            try:
-                if action == "add":
-                    result = entitlement_service().add_entitlement(
-                        pool_id,
-                        user_id=str(body.get("user_id", "") or ""),
-                        group_id=str(body.get("group_id", "") or ""),
-                    )
-                elif action == "remove":
-                    result = entitlement_service().remove_entitlement(
-                        pool_id,
-                        user_id=str(body.get("user_id", "") or ""),
-                        group_id=str(body.get("group_id", "") or ""),
-                    )
-                else:
-                    result = entitlement_service().set_entitlements(
-                        pool_id,
-                        users=body.get("users"),
-                        groups=body.get("groups"),
-                    )
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event("pool.entitlement.update", "success", pool_id=pool_id, action=action, username=self._requester_identity())
-            self._write_json(HTTPStatus.OK, {"ok": True, **result})
-            return
-
-        pool_vm_register_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/vms$", path)
-        if pool_vm_register_match is not None:
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            pool_id = pool_vm_register_match.group("pool_id")
-            try:
-                body = self._read_json_body() or {}
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            try:
-                vmid = int(body.get("vmid") or 0)
-                if not vmid:
-                    raise ValueError("vmid is required")
-                result = pool_manager_service().register_vm(
-                    pool_id,
-                    vmid,
-                    scheduler_policy=body.get("scheduler_policy"),
-                )
-            except (ValueError, TypeError) as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event("pool.vm.register", "success", pool_id=pool_id, vmid=vmid, username=self._requester_identity())
-            self._write_json(HTTPStatus.CREATED, {"ok": True, **result})
-            return
-
-        pool_allocate_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/allocate$", path)
-        if pool_allocate_match is not None:
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            pool_id = pool_allocate_match.group("pool_id")
-            try:
-                body = self._read_json_body() or {}
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            user_id = str(body.get("user_id", "") or "").strip() or self._requester_identity()
-            try:
-                # Check entitlement
-                if not entitlement_service().is_entitled(pool_id, user_id=user_id):
-                    self._write_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "not entitled to this pool"})
-                    return
-                lease = pool_manager_service().allocate_desktop(pool_id, user_id)
-            except (ValueError, RuntimeError) as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-
-            policy = self._pool_recording_policy(pool_id)
-            if policy == SessionRecordingPolicy.ALWAYS.value:
-                try:
-                    watermark = self._pool_recording_watermark(pool_id)
-                    recording_service().start_recording(
-                        session_id=f"{pool_id}:{lease.vmid}",
-                        input_url=str(body.get("recording_input_url") or "").strip(),
-                        codec=str(body.get("recording_codec") or "h264").strip(),
-                        test_source=bool(body.get("recording_test_source", False)),
-                        watermark_enabled=bool(watermark.get("enabled", False)),
-                        watermark_username=str(lease.user_id or user_id or self._requester_identity()).strip(),
-                        watermark_custom_text=str(watermark.get("custom_text") or "").strip(),
-                        watermark_show_timestamp=True,
-                    )
-                    self._audit_event(
-                        "session.recording.start",
-                        "success",
-                        session_id=f"{pool_id}:{lease.vmid}",
-                        requested_by=self._requester_identity(),
-                        auto_policy="always",
-                        remote_addr=self.client_address[0] if self.client_address else "",
-                    )
-                except Exception as exc:
-                    self._audit_event(
-                        "session.recording.start",
-                        "error",
-                        session_id=f"{pool_id}:{lease.vmid}",
-                        requested_by=self._requester_identity(),
-                        auto_policy="always",
-                        error=str(exc),
-                        remote_addr=self.client_address[0] if self.client_address else "",
-                    )
-
-            self._audit_event("pool.desktop.allocate", "success", pool_id=pool_id, user_id=user_id, vmid=lease.vmid, username=self._requester_identity())
-            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().lease_to_dict(lease)})
-            return
-
-        pool_release_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/release$", path)
-        if pool_release_match is not None:
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            pool_id = pool_release_match.group("pool_id")
-            try:
-                body = self._read_json_body() or {}
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            try:
-                vmid = int(body.get("vmid") or 0)
-                user_id = str(body.get("user_id", "") or "").strip() or self._requester_identity()
-                lease = pool_manager_service().release_desktop(pool_id, vmid, user_id)
-            except (ValueError, RuntimeError) as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-
-            policy = self._pool_recording_policy(pool_id)
-            if policy == SessionRecordingPolicy.ALWAYS.value:
-                session_id = f"{pool_id}:{vmid}"
-                stop_result = recording_service().stop_recording(session_id=session_id)
-                if bool(stop_result.get("ok")):
-                    self._audit_event(
-                        "session.recording.stop",
-                        "success",
-                        session_id=session_id,
-                        requested_by=self._requester_identity(),
-                        auto_policy="always",
-                        remote_addr=self.client_address[0] if self.client_address else "",
-                    )
-            self._audit_event("pool.desktop.release", "success", pool_id=pool_id, vmid=vmid, username=self._requester_identity())
-            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().lease_to_dict(lease)})
-            return
-
-        pool_recycle_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/recycle$", path)
-        if pool_recycle_match is not None:
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            pool_id = pool_recycle_match.group("pool_id")
-            try:
-                body = self._read_json_body() or {}
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            try:
-                vmid = int(body.get("vmid") or 0)
-                lease = pool_manager_service().recycle_desktop(pool_id, vmid)
-            except (ValueError, RuntimeError) as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event("pool.desktop.recycle", "success", pool_id=pool_id, vmid=vmid, username=self._requester_identity())
-            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().lease_to_dict(lease)})
-            return
-
-        pool_scale_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/scale$", path)
-        if pool_scale_match is not None:
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            pool_id = pool_scale_match.group("pool_id")
-            try:
-                body = self._read_json_body() or {}
-                target_size = int(body.get("target_size") or 0)
-                pool_info = pool_manager_service().scale_pool(pool_id, target_size)
-            except (ValueError, TypeError) as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event("pool.scale", "success", pool_id=pool_id, target_size=target_size, username=self._requester_identity())
-            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().pool_info_to_dict(pool_info)})
-            return
-
-        if path == "/api/v1/pool-templates":
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            try:
-                body = self._read_json_body() or {}
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            from core.virtualization.desktop_template import DesktopTemplateBuildSpec
-            try:
-                spec = DesktopTemplateBuildSpec(
-                    template_id=str(body.get("template_id", "") or "").strip(),
-                    source_vmid=int(body.get("source_vmid") or 0),
-                    template_name=str(body.get("template_name", "") or "").strip(),
-                    os_family=str(body.get("os_family", "linux") or "linux"),
-                    storage_pool=str(body.get("storage_pool", "local") or "local"),
-                    snapshot_name=str(body.get("snapshot_name", "sealed") or "sealed"),
-                    backing_image=str(body.get("backing_image", "") or ""),
-                    cpu_cores=int(body.get("cpu_cores", 2)),
-                    memory_mib=int(body.get("memory_mib", 2048)),
-                    software_packages=tuple(str(p) for p in body.get("software_packages", [])),
-                    notes=str(body.get("notes", "") or ""),
-                )
-                tmpl_info = desktop_template_builder_service().build_template(spec)
-            except (ValueError, RuntimeError, TypeError) as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event("pool_template.create", "success", template_id=tmpl_info.template_id, username=self._requester_identity())
-            self._write_json(HTTPStatus.CREATED, {"ok": True, **desktop_template_builder_service().template_info_to_dict(tmpl_info)})
+            response = self._pools_surface().route_post(path, json_payload=json_payload)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
             return
 
         admin_post_path = "/api/v1/provisioning/vms" if path == "/api/v1/vms" else path
@@ -5711,106 +5059,20 @@ class Handler(BaseHTTPRequestHandler):
                 self._write_json(response["status"], response["payload"])
                 return
 
-        if path == "/api/v1/network/ipam/zones":
+        if network_http_surface_service().handles_post(path):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
             if not self._authorize_or_respond("POST", path):
                 return
             try:
-                body = self._read_json_body() or {}
-                zone_id = str(body.get("zone_id") or "").strip()
-                subnet = str(body.get("subnet") or "").strip()
-                dhcp_start = str(body.get("dhcp_start") or "").strip()
-                dhcp_end = str(body.get("dhcp_end") or "").strip()
-                if not all([zone_id, subnet, dhcp_start, dhcp_end]):
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "zone_id, subnet, dhcp_start, dhcp_end required"})
-                    return
-                ipam_service().register_zone(zone_id, subnet, dhcp_start, dhcp_end)
-                self._write_json(HTTPStatus.OK, {"ok": True, "zone_id": zone_id})
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-            return
-
-        ipam_allocate_match = re.match(r"^/api/v1/network/ipam/zones/(?P<zone_id>[A-Za-z0-9._-]+)/allocate$", path)
-        if ipam_allocate_match is not None:
-            if not self._authorize_or_respond("POST", path):
+                json_payload = self._read_json_body() if int(self.headers.get("Content-Length", "0") or "0") > 0 else {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
-            try:
-                body = self._read_json_body() or {}
-                zone_id = ipam_allocate_match.group("zone_id")
-                vm_id = str(body.get("vm_id") or "").strip()
-                mac = str(body.get("mac_address") or "").strip()
-                hostname = str(body.get("hostname") or vm_id).strip()
-                static_ip = str(body.get("static_ip") or "").strip() or None
-                if not all([vm_id, mac]):
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "vm_id, mac_address required"})
-                    return
-                ip = ipam_service().allocate_ip(zone_id, vm_id, mac, hostname, static_ip=static_ip)
-                self._write_json(HTTPStatus.OK, {"ok": True, "ip_address": ip})
-            except (ValueError, KeyError) as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-            return
-
-        ipam_release_match = re.match(r"^/api/v1/network/ipam/zones/(?P<zone_id>[A-Za-z0-9._-]+)/release$", path)
-        if ipam_release_match is not None:
-            if not self._authorize_or_respond("POST", path):
-                return
-            try:
-                body = self._read_json_body() or {}
-                zone_id = ipam_release_match.group("zone_id")
-                vm_id = str(body.get("vm_id") or "").strip()
-                if not vm_id:
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "vm_id required"})
-                    return
-                ipam_service().release_ip(zone_id, vm_id)
-                self._write_json(HTTPStatus.OK, {"ok": True})
-            except (ValueError, KeyError) as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-            return
-
-        if path == "/api/v1/network/firewall/profiles":
-            if not self._authorize_or_respond("POST", path):
-                return
-            try:
-                from firewall_service import FirewallProfile, FirewallRule
-                body = self._read_json_body() or {}
-                profile_id = str(body.get("profile_id") or "").strip()
-                name = str(body.get("name") or profile_id).strip()
-                rules_data = body.get("rules") or []
-                if not profile_id:
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "profile_id required"})
-                    return
-                rules = [
-                    FirewallRule(
-                        direction=str(r.get("direction") or "inbound"),
-                        protocol=str(r.get("protocol") or "tcp"),
-                        port=int(r.get("port") or 0),
-                        action=str(r.get("action") or "allow"),
-                        source_cidr=str(r.get("source_cidr") or "") or None,
-                    )
-                    for r in rules_data
-                    if isinstance(r, dict)
-                ]
-                profile = FirewallProfile(profile_id=profile_id, name=name, rules=rules)
-                firewall_service().create_profile(profile)
-                self._write_json(HTTPStatus.OK, {"ok": True, "profile_id": profile_id})
-            except (ValueError, KeyError) as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-            return
-
-        firewall_apply_match = re.match(r"^/api/v1/network/firewall/profiles/(?P<profile_id>[A-Za-z0-9._-]+)/apply$", path)
-        if firewall_apply_match is not None:
-            if not self._authorize_or_respond("POST", path):
-                return
-            try:
-                body = self._read_json_body() or {}
-                profile_id = firewall_apply_match.group("profile_id")
-                vm_id = str(body.get("vm_id") or "").strip()
-                if not vm_id:
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "vm_id required"})
-                    return
-                firewall_service().apply_profile_to_vm(profile_id, vm_id)
-                self._write_json(HTTPStatus.OK, {"ok": True})
-            except (ValueError, KeyError) as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            response = network_http_surface_service().route_post(path, json_payload=json_payload)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
             return
 
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
@@ -5863,97 +5125,26 @@ class Handler(BaseHTTPRequestHandler):
         if not self._authorize_or_respond("PUT", path):
             return
 
-        storage_quota_match = re.match(r"^/api/v1/storage/pools/(?P<pool>[A-Za-z0-9._-]+)/quota$", path)
-        if storage_quota_match is not None:
+        if self._backups_surface().handles_put(path):
             try:
                 json_payload = self._read_json_body()
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
-            pool_name = str(storage_quota_match.group("pool") or "").strip()
-            quota_bytes = int((json_payload or {}).get("quota_bytes", 0) or 0)
-            try:
-                payload = storage_quota_service().set_pool_quota(pool_name, quota_bytes)
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event(
-                "storage.quota.update",
-                "success",
-                pool=pool_name,
-                quota_bytes=quota_bytes,
-                username=self._requester_identity(),
-            )
-            self._write_json(HTTPStatus.OK, {"ok": True, **payload})
+            response = self._backups_surface().route_put(path, json_payload=json_payload)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
             return
 
-        backup_pool_policy_match = re.match(r"^/api/v1/backups/policies/pools/(?P<pool_id>[A-Za-z0-9._-]+)$", path)
-        if backup_pool_policy_match is not None:
-            payload = self._read_json_body()
-            pool_id = str(backup_pool_policy_match.group("pool_id") or "").strip()
-            try:
-                result = backup_service().update_pool_policy(pool_id, payload)
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event(
-                "backup.policy.update",
-                "success",
-                scope_type="pool",
-                scope_id=pool_id,
-                username=self._requester_identity(),
-            )
-            self._write_json(HTTPStatus.OK, {"ok": True, **result})
-            return
-
-        backup_vm_policy_match = re.match(r"^/api/v1/backups/policies/vms/(?P<vmid>\d+)$", path)
-        if backup_vm_policy_match is not None:
-            payload = self._read_json_body()
-            vmid = int(backup_vm_policy_match.group("vmid") or 0)
-            result = backup_service().update_vm_policy(vmid, payload)
-            self._audit_event(
-                "backup.policy.update",
-                "success",
-                scope_type="vm",
-                scope_id=str(vmid),
-                username=self._requester_identity(),
-            )
-            self._write_json(HTTPStatus.OK, {"ok": True, **result})
-            return
-
-        if path == "/api/v1/backups/replication/config":
-            if not self._authorize_or_respond("PUT", path):
-                return
-            payload = self._read_json_body()
-            try:
-                result = backup_service().update_replication_config(payload)
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event("backup.replication.config.update", "success", username=self._requester_identity())
-            self._write_json(HTTPStatus.OK, {"ok": True, **result})
-            return
-
-        pool_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)$", path)
-        if pool_match is not None:
+        if self._pools_surface().handles_put(path):
             try:
                 json_payload = self._read_json_body()
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
-            pool_id = str(pool_match.group("pool_id") or "").strip()
-            try:
-                payload = pool_manager_service().update_pool(pool_id, json_payload or {})
-            except ValueError as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
-                return
-            self._audit_event(
-                "pool.update",
-                "success",
-                pool_id=pool_id,
-                username=self._requester_identity(),
-            )
-            self._write_json(HTTPStatus.OK, {"ok": True, **pool_manager_service().pool_info_to_dict(payload)})
+            response = self._pools_surface().route_put(path, json_payload=json_payload)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
             return
 
         if path.startswith("/api/v1/settings/"):
@@ -6038,36 +5229,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if not self._authorize_or_respond("DELETE", path):
             return
-        pool_match = re.match(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)$", path)
-        if pool_match is not None:
-            pool_id = pool_match.group("pool_id")
-            deleted = pool_manager_service().delete_pool(pool_id)
-            if not deleted:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "pool not found"})
-                return
-            self._audit_event(
-                "pool.delete",
-                "success",
-                pool_id=pool_id,
-                username=self._requester_identity(),
-            )
-            self._write_json(HTTPStatus.OK, {"ok": True, "pool_id": pool_id, "deleted": True})
-            return
-
-        template_match = re.match(r"^/api/v1/pool-templates/(?P<template_id>[A-Za-z0-9._-]+)$", path)
-        if template_match is not None:
-            template_id = template_match.group("template_id")
-            deleted = desktop_template_builder_service().delete_template(template_id)
-            if not deleted:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "template not found"})
-                return
-            self._audit_event(
-                "pool_template.delete",
-                "success",
-                template_id=template_id,
-                username=self._requester_identity(),
-            )
-            self._write_json(HTTPStatus.OK, {"ok": True, "template_id": template_id, "deleted": True})
+        if self._pools_surface().handles_delete(path):
+            response = self._pools_surface().route_delete(path)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
             return
 
         if not admin_http_surface_service().handles_delete(path):
