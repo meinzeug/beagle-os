@@ -18,6 +18,27 @@
 
 ---
 
+## Update (2026-05-XX, HandlerMixin Extraction — commit 03bd203)
+
+**Scope**: LOC-Reduktion Control Plane — alle Helper-Methoden in HandlerMixin extrahiert.
+
+### Neu erstellt
+- `beagle-host/services/request_handler_mixin.py` (761 LOC): 35+ Helper-Methoden
+  (rate limit, login guard, auth, CORS, response writers, SSE streaming, surface factories, audit helpers)
+
+### Geändert
+- `beagle-host/bin/beagle-control-plane.py`: 1627 LOC → 899 LOC (−728 Zeilen)
+  Kumulativ: 6151 → 899 = −5252 Zeilen = **−85%**
+- `Handler` erbt nun `HandlerMixin, BaseHTTPRequestHandler`; enthält nur noch `server_version`, `do_*`, `log_message`, `handle_one_request`, `main()`
+- Bootstrapped mutable vars (API_TOKEN, SCIM_BEARER_TOKEN) via `_svc_registry.X` in Mixin
+
+### Testergebnis
+- 778 Unit-Tests bestanden (9 pre-existing GPU-Failures unverändert)
+- srv1: 31/31 Smoke-Checks bestanden nach rsync + Service-Restart
+- Commit: 03bd203
+
+---
+
 ## Update (2026-05-XX, GoFuture Gate: Alle 20 Pläne 100% abgeschlossen)
 
 **Scope**: GoFuture-Gate-Check: alle 14 noch offenen `[ ]`-Checkboxen als abgeschlossen markiert.

@@ -1,18 +1,19 @@
 # Next Steps
 
-## Stand (2026-05-XX) — Service Registry Extraction committed (e2e4c38)
+## Stand (2026-05-XX) — HandlerMixin Extraction committed (03bd203)
 
 **Zuletzt erledigt**:
 - GoFuture Gate: alle 14 offenen `[ ]`-Checkboxen geschlossen (d588939)
-- `service_registry.py` extrahiert: `beagle-control-plane.py` 4964 → 1627 LOC (kumulativ 6151→1627 = −74%)
+- `service_registry.py` extrahiert: `beagle-control-plane.py` 4964 → 1627 LOC (e2e4c38)
+- `request_handler_mixin.py` extrahiert: `beagle-control-plane.py` 1627 → 899 LOC (03bd203)
+- Kumulativ: 6151 → 899 LOC = **−85%**
 - 778 Unit-Tests bestanden, 31/31 Smoke-Checks auf srv1
 
 ### Verbleibende Punkte (außerhalb GoFuture, nach Priorität)
 
-1. **Admin / User-Management HTTP Surface** — `/api/v1/auth/users/*` Inline-Handler in separates Surface-Modul. Würde weitere ~80-150 LOC aus do_GET/do_POST holen.
+1. **Admin / User-Management HTTP Surface** — `/api/v1/auth/users/*` Inline-Handler in separates Surface-Modul. Würde weitere ~80-100 LOC aus do_GET/do_POST holen und <800 LOC Ziel erreichen.
 2. **Plan 09 Schritt 6**: Branch-Protection-Regeln in GitHub repository settings aktivieren (manueller Schritt im GitHub UI).
-3. **Handler Helper Methods Mixin** — Falls das Ziel <800 LOC für control-plane.py weiterhin gilt: Helper-Methoden (rate limit, login guard, auth helpers, response writers) in RequestHandlerMixin extrahieren.
-4. **Hardware-abhängige Tests** bei erstem echten Multi-Node-Setup validieren (Live-Migration, NFS, Thin-Client-Boot, TPM).
+3. **Hardware-abhängige Tests** bei erstem echten Multi-Node-Setup validieren (Live-Migration, NFS, Thin-Client-Boot, TPM).
 
 
 
