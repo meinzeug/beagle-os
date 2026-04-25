@@ -1,23 +1,22 @@
 # Next Steps
 
-## Stand (2026-04-29) — GoAdvanced Plan 05 Schritt 4 — Control Plane Surface-Wiring committed
+## Stand (2026-04-25) — Plan 05 Schritt 5 + Plan 09 Schritt 4/5/7 — Smoke Tests + CI Pipelines + Contributing Docs
 
-**Zuletzt erledigt (commit adbb20f)**:
-- Plan 05 Schritt 4: 4 HTTP Surfaces (`backups`, `pools`, `cluster`, `network`) in `beagle-control-plane.py` verdrahtet
-- `do_GET/do_POST/do_PUT/do_DELETE` delegieren jetzt an Surface-Instanzen
-- 835 Zeilen Inline-Handler-Code entfernt (6151 → 5316 LOC)
-- Security-Fix: `_is_authenticated()` für Network POST-Endpunkte hinzugefügt
-- 778 Unit-Tests bestanden (9 pre-existing GPU failures)
+**Zuletzt erledigt**:
+- Plan 05 Schritt 5: Smoke-Tests auf srv1.beagle-os.com ausgeführt — 31/31 bestanden
+  - `scripts/smoke-control-plane-api.sh` um 18 neue Checks für backups/pools/cluster/network Surfaces erweitert
+  - `beagle-host/bin/` + `beagle-host/services/` auf srv1 deployed (rsync), Service neu gestartet
+- Plan 09 Schritt 4: `.github/workflows/build-iso.yml` — ISO-Build-Pipeline (push to main + manual dispatch)
+- Plan 09 Schritt 5: `.github/workflows/release.yml` — Release-Pipeline (tag `v*` → GitHub Release mit ISO + installimage + SHA256SUMS)
+- Plan 09 Schritt 7: `docs/contributing.md` — Setup, Tests, Branch-Strategie, Commit-Konventionen, CI-Übersicht
 
 ### Nächste sofortige Schritte (nach Priorität)
 
-1. **Plan 05 Schritt 5 — Smoke-Tests** auf srv1: `scripts/smoke-control-plane-api.sh` für alle neuen Surface-Endpunkte erweitern + ausführen. Deploy der neuen Version auf srv1.
-2. **Plan 09 Schritt 4 — `build-iso.yml`**: ISO-Build-Pipeline (tag-triggered).
-3. **Plan 09 Schritt 5 — `release.yml`**: Release-Pipeline (GitHub Release + Artifacts).
-4. **Plan 09 Schritt 7 — `docs/contributing.md`**: Branch-Protection + PR-Prozess dokumentieren.
-5. **Weitere LOC-Reduktion**: `beagle-control-plane.py` hat noch ~5316 LOC. Ziel <800 LOC erfordert weitere Surface-Extraktion (VM, Auth, Admin HTTP-Surfaces vollständig ausbauen).
+1. **Weitere LOC-Reduktion**: `beagle-control-plane.py` hat noch ~5316 LOC. Ziel <800 LOC erfordert weitere Surface-Extraktion (VM, Admin HTTP-Surfaces).
+2. **Plan 09 Schritt 6**: Branch-Protection-Regeln in GitHub repository settings aktivieren (manueller Schritt im GitHub UI).
+3. **Weitere GoFuture-Pläne**: Hardware-abhängige Tests (Live-Migration, GPU, NFS-Backend) auf Produktionshardware.
 
-### Offene Punkte (GoEnterprise / Runtime)
+
 
 1. **Plan 02 — WireGuard Enrollment (Runtime)**: E2E-Test mit echtem WireGuard braucht srv1/srv2.
 2. **Plan 03 — VM Stateless Reset**: `providers/beagle/libvirt_provider.py`: `reset_vm_to_snapshot()`

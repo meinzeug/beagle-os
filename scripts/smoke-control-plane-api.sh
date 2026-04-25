@@ -53,4 +53,30 @@ request "provisioning unauth" "POST" "/api/v1/provisioning/vms" "401" "{}"
 request "legacy vms post unauth" "POST" "/api/v1/vms" "401" "{}"
 request "not found" "GET" "/api/v1/does-not-exist" "401"
 
+# ── Backup surface (Plan 05 Schritt 4) ────────────────────────────────────────
+request "backup jobs unauth" "GET" "/api/v1/backups/jobs" "401"
+request "backup policies unauth" "GET" "/api/v1/backups/policies/vm" "401"
+request "backup snapshots unauth" "GET" "/api/v1/backups/snapshots" "401"
+request "backup run unauth" "POST" "/api/v1/backups/run" "401" "{}"
+request "backup restore unauth" "POST" "/api/v1/backups/00000000-0000-0000-0000-000000000001/restore" "401" "{}"
+
+# ── Pools surface (Plan 05 Schritt 4) ─────────────────────────────────────────
+request "pools list unauth" "GET" "/api/v1/pools" "401"
+request "sessions list unauth" "GET" "/api/v1/sessions" "401"
+request "pool templates unauth" "GET" "/api/v1/pool-templates" "401"
+request "pool create unauth" "POST" "/api/v1/pools" "401" "{}"
+request "pool allocate unauth" "POST" "/api/v1/pools/test-pool/allocate" "401" "{}"
+
+# ── Cluster surface (Plan 05 Schritt 4) ───────────────────────────────────────
+request "cluster inventory unauth" "GET" "/api/v1/cluster/inventory" "401"
+request "cluster nodes unauth" "GET" "/api/v1/cluster/nodes" "401"
+request "cluster status unauth" "GET" "/api/v1/cluster/status" "401"
+request "ha status unauth" "GET" "/api/v1/ha/status" "401"
+
+# ── Network surface (Plan 05 Schritt 4) ───────────────────────────────────────
+request "ipam zones unauth" "GET" "/api/v1/network/ipam/zones" "401"
+request "firewall profiles unauth" "GET" "/api/v1/network/firewall/profiles" "401"
+request "ipam zone create unauth" "POST" "/api/v1/network/ipam/zones" "401" "{}"
+request "firewall profile create unauth" "POST" "/api/v1/network/firewall/profiles" "401" "{}"
+
 echo "Smoke checks passed: $PASS_COUNT"

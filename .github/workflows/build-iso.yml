@@ -1,0 +1,117 @@
+name: build-iso
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server-installer/**'
+      - 'beagle-host/**'
+      - 'scripts/build-server-installer.sh'
+      - 'scripts/build-server-installimage.sh'
+      - 'VERSION'
+  workflow_dispatch:
+    inputs:
+      build_target:
+        description: 'Which build target to run'
+        required: false
+        default: 'installimage'
+        type: choice
+        options:
+          - installimage
+          - iso
+          - both
+
+jobs:
+  build-installimage:
+    name: Build server installimage tarball
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.build_target == 'installimage' || github.event.inputs.build_target == 'both') ||
+      github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read VERSION
+        id: version
+        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            grub2-common \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            dosfstools \
+            mtools \
+            syslinux-utils \
+            rsync \
+            curl \
+            ca-certificates
+
+      - name: Build installimage tarball
+        run: sudo bash scripts/build-server-installimage.sh
+        env:
+          BEAGLE_SERVER_INSTALLIMAGE_BUILD_DIR: ${{ github.workspace }}/.build/installimage
+          BEAGLE_SERVER_INSTALLIMAGE_DIST_DIR: ${{ github.workspace }}/dist/installimage
+          BEAGLE_SERVER_INSTALLIMAGE_MIN_BUILD_FREE_GIB: "0"
+          BEAGLE_SERVER_INSTALLIMAGE_MIN_DIST_FREE_GIB: "0"
+
+      - name: Upload installimage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: beagle-server-installimage-${{ steps.version.outputs.version }}
+          path: dist/installimage/
+          retention-days: 30
+
+  build-iso:
+    name: Build live-build ISO
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.build_target == 'iso' || github.event.inputs.build_target == 'both')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read VERSION
+        id: version
+        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            live-build \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            grub2-common \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            dosfstools \
+            mtools \
+            syslinux-utils \
+            rsync \
+            curl \
+            ca-certificates
+
+      - name: Build server installer ISO
+        run: sudo bash scripts/build-server-installer.sh
+        env:
+          SERVER_INSTALLER_BUILD_DIR: ${{ github.workspace }}/.build/iso
+          SERVER_INSTALLER_DIST_DIR: ${{ github.workspace }}/dist/iso
+          BEAGLE_SERVER_INSTALLER_MIN_BUILD_FREE_GIB: "0"
+          BEAGLE_SERVER_INSTALLER_MIN_DIST_FREE_GIB: "0"
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: beagle-server-installer-${{ steps.version.outputs.version }}
+          path: dist/iso/
+          retention-days: 30

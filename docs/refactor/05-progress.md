@@ -1,4 +1,20 @@
-## Update (2026-04-29, GoAdvanced Plan 05 Schritt 4 — Wire Surfaces into Control Plane)
+## Update (2026-04-25, GoAdvanced Plan 05 Schritt 5 + Plan 09 Schritt 4/5/7)
+
+**Scope**: Smoke-Tests auf srv1, CI-Pipelines, Contributing-Docs.
+
+### Neu / geändert
+- `scripts/smoke-control-plane-api.sh`: 13 → 31 Checks (+18 für backups/pools/cluster/network Surfaces)
+- `.github/workflows/build-iso.yml`: neuer Workflow — installimage build on push to main + manual ISO trigger
+- `.github/workflows/release.yml`: neuer Workflow — tag-triggered, baut ISO + installimage, erstellt GitHub Release mit SHA256SUMS
+- `docs/contributing.md`: Dev-Setup, Tests, Branch-Strategie, Commit-Konventionen, CI-Pipeline-Übersicht
+
+### Smoke-Test Ergebnis (srv1.beagle-os.com)
+- 31/31 Checks bestanden
+- `beagle-host/bin/` + `beagle-host/services/` per rsync auf srv1 deployed (adbb20f)
+
+---
+
+
 
 **Scope**: Plan 05 Schritt 4 — 4 neue HTTP Surface-Module in `beagle-control-plane.py` verdrahtet.
 
