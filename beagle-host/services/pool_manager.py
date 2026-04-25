@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
+from core.persistence.json_state_store import JsonStateStore
 from core.virtualization.desktop_pool import (
     DesktopLease,
     DesktopPoolInfo,
@@ -52,7 +52,11 @@ class PoolManagerService:
         vm_node_of: Any = None,
         list_gpu_inventory: Any = None,
     ) -> None:
-        self._state_file = Path(state_file)
+        self._store = JsonStateStore(
+            Path(state_file),
+            default_factory=lambda: {"pools": {}, "vms": {}, "gpu_reservations": {}},
+            mode=0o644,
+        )
         self._utcnow = utcnow or (lambda: __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
         # Optional provider callables (may be None in unit tests / offline mode)
         self._start_vm = start_vm  # callable(vmid) -> None
@@ -67,12 +71,7 @@ class PoolManagerService:
     # ------------------------------------------------------------------
 
     def _load(self) -> dict[str, Any]:
-        if not self._state_file.exists():
-            return {"pools": {}, "vms": {}, "gpu_reservations": {}}
-        try:
-            data = json.loads(self._state_file.read_text(encoding="utf-8") or "{}")
-        except (json.JSONDecodeError, OSError):
-            return {"pools": {}, "vms": {}}
+        data = self._store.load()
         if not isinstance(data.get("pools"), dict):
             data["pools"] = {}
         if not isinstance(data.get("vms"), dict):
@@ -82,8 +81,7 @@ class PoolManagerService:
         return data
 
     def _save(self, state: dict[str, Any]) -> None:
-        self._state_file.parent.mkdir(parents=True, exist_ok=True)
-        self._state_file.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+        self._store.save(state)
 
     # ------------------------------------------------------------------
     # Pool CRUD

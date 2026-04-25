@@ -114,7 +114,8 @@ wait_for_health() {
   ip="$1"
   deadline=$((SECONDS + WAIT_HEALTH_SECONDS))
   while (( SECONDS < deadline )); do
-    payload="$(curl -k -sS --max-time 5 "https://${ip}/beagle-api/api/v1/health" || true)"
+    # tls-bypass-allowlist: smoke-test against fresh install without valid cert — set BEAGLE_TLS_SKIP=1
+    payload="$(curl ${BEAGLE_TLS_SKIP:+--insecure} -sS --max-time 5 "https://${ip}/beagle-api/api/v1/health" || true)"
     if [[ "$payload" == *'"ok": true'* ]]; then
       return 0
     fi

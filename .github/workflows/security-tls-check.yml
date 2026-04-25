@@ -1,0 +1,64 @@
+name: security-tls-check
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  tls-check:
+    name: No insecure TLS bypass
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for curl -k / --insecure outside allowlist
+        run: |
+          # Find all curl -k or curl --insecure usages NOT marked as allowlisted
+          # Allowlist marker: line must contain "# tls-bypass-allowlist:"
+          VIOLATIONS=0
+          while IFS=: read -r file line content; do
+            # Skip if the line (or nearby comment) is marked as allowlisted
+            if echo "$content" | grep -q 'tls-bypass-allowlist:'; then
+              continue
+            fi
+            echo "::error file=$file,line=$line::Insecure TLS bypass found: $content"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          done < <(grep -RIn \
+            'curl.*--insecure\|curl -k \|curl -[a-zA-Z]*k[a-zA-Z]* ' \
+            --include='*.sh' --include='*.py' --include='*.tpl' \
+            --exclude-dir='.venv' \
+            . 2>/dev/null || true)
+
+          if [[ $VIOLATIONS -gt 0 ]]; then
+            echo "::error::Found $VIOLATIONS insecure TLS bypass(es). Add to docs/security/tls-bypass-allowlist.md and annotate with '# tls-bypass-allowlist: <reason>'."
+            exit 1
+          fi
+
+          echo "✓ No unauthorised TLS bypasses found."
+
+      - name: Check for Python verify=False outside tests
+        run: |
+          VIOLATIONS=0
+          while IFS=: read -r file line content; do
+            # Allow in test files (tests/ directory) and .venv
+            if [[ "$file" == tests/* ]] || [[ "$file" == .venv/* ]]; then
+              continue
+            fi
+            if echo "$content" | grep -q 'tls-bypass-allowlist:'; then
+              continue
+            fi
+            echo "::error file=$file,line=$line::requests verify=False found outside tests: $content"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          done < <(grep -RIn 'verify=False' \
+            --include='*.py' \
+            --exclude-dir='.venv' \
+            . 2>/dev/null || true)
+
+          if [[ $VIOLATIONS -gt 0 ]]; then
+            echo "::error::Found $VIOLATIONS 'verify=False' in non-test Python code."
+            exit 1
+          fi
+
+          echo "✓ No verify=False in production Python code."

@@ -7,10 +7,11 @@ GoEnterprise Plan 02, Schritte 1 + 4 + 5:
 """
 from __future__ import annotations
 
-import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
+
+from core.persistence.json_state_store import JsonStateStore
 
 DeviceStatus = Literal["online", "offline", "locked", "wipe_pending", "wiped"]
 
@@ -75,10 +76,12 @@ class DeviceRegistryService:
     STATE_FILE = Path("/var/lib/beagle/beagle-manager/device-registry.json")
 
     def __init__(self, state_file: Path | None = None, utcnow: Any = None) -> None:
-        self._state_file = state_file or self.STATE_FILE
-        self._state_file.parent.mkdir(parents=True, exist_ok=True)
+        self._store = JsonStateStore(
+            state_file or self.STATE_FILE,
+            default_factory=lambda: {"devices": {}},
+        )
         self._utcnow = utcnow or self._default_utcnow
-        self._state = self._load()
+        self._state = self._store.load()
 
     # ------------------------------------------------------------------
     # CRUD
@@ -208,13 +211,8 @@ class DeviceRegistryService:
             raise KeyError(f"Device {device_id!r} not found")
         return self._state["devices"][device_id]
 
-    def _load(self) -> dict[str, Any]:
-        if self._state_file.exists():
-            return json.loads(self._state_file.read_text())
-        return {"devices": {}}
-
     def _save(self) -> None:
-        self._state_file.write_text(json.dumps(self._state, indent=2))
+        self._store.save(self._state)
 
     @staticmethod
     def _default_utcnow() -> str:

@@ -119,7 +119,8 @@ wait_for_proxy_health() {
     'https://127.0.0.1/beagle-api/api/v1/health' \
     'https://127.0.0.1:8443/beagle-api/api/v1/health'; do
     for _ in $(seq 1 30); do
-      if curl -k -sS --max-time 5 "$url" | grep -q '"ok": true'; then
+      # tls-bypass-allowlist: live-bootstrap — proxy not yet provisioned with valid cert at this stage
+      if curl --insecure -sS --max-time 5 "$url" | grep -q '"ok": true'; then
         log "proxy health ready via $url"
         return 0
       fi

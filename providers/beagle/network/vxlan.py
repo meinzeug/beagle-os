@@ -6,11 +6,11 @@ to local VLAN zones.
 """
 from __future__ import annotations
 
-import json
 import subprocess
 from pathlib import Path
 from typing import Any
 
+from core.persistence.json_state_store import JsonStateStore
 from core.virtualization.network import NetworkZoneInfo, NetworkZoneSpec
 
 
@@ -28,19 +28,18 @@ class VxlanBackend:
     ):
         if state_file is not None:
             self.STATE_FILE = state_file
-        self.STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        self._state = self._load_state()
+        self._store = JsonStateStore(
+            self.STATE_FILE,
+            default_factory=lambda: {"zones": {}, "zone_vms": {}},
+            mode=0o644,
+        )
+        self._state = self._store.load()
         self._underlay_interface = underlay_interface
         self._local_ip = local_ip
         self._peers = peers or []
 
-    def _load_state(self) -> dict[str, Any]:
-        if self.STATE_FILE.exists():
-            return json.loads(self.STATE_FILE.read_text())
-        return {"zones": {}, "zone_vms": {}}
-
     def _save_state(self) -> None:
-        self.STATE_FILE.write_text(json.dumps(self._state, indent=2))
+        self._store.save(self._state)
 
     def _run_cmd(self, cmd: list[str]) -> str:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)

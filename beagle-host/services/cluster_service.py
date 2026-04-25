@@ -5,11 +5,12 @@ GoEnterprise Plan 08, Schritt 4
 from __future__ import annotations
 
 import hashlib
-import json
 import secrets
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 @dataclass
@@ -44,11 +45,13 @@ class ClusterEnrollmentService:
         utcnow: Callable[[], str] | None = None,
         ttl_hours: int = DEFAULT_TTL_HOURS,
     ) -> None:
-        self._state_file = state_file or self.STATE_FILE
-        self._state_file.parent.mkdir(parents=True, exist_ok=True)
+        self._store = JsonStateStore(
+            state_file or self.STATE_FILE,
+            default_factory=lambda: {"tokens": {}},
+        )
         self._utcnow = utcnow or self._default_utcnow
         self._ttl_hours = ttl_hours
-        self._state = self._load()
+        self._state = self._store.load()
 
     # ------------------------------------------------------------------
     # Token generation
@@ -176,13 +179,8 @@ class ClusterEnrollmentService:
                 continue
         raise ValueError(f"Cannot parse timestamp: {ts!r}")
 
-    def _load(self) -> dict[str, Any]:
-        if self._state_file.exists():
-            return json.loads(self._state_file.read_text())
-        return {"tokens": {}}
-
     def _save(self) -> None:
-        self._state_file.write_text(json.dumps(self._state, indent=2))
+        self._store.save(self._state)
 
     @staticmethod
     def _default_utcnow() -> str:

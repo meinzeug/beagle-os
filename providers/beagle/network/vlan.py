@@ -1,11 +1,11 @@
 """Linux bridge + VLAN implementation for NetworkBackend."""
 from __future__ import annotations
 
-import json
 import subprocess
 from pathlib import Path
 from typing import Any
 
+from core.persistence.json_state_store import JsonStateStore
 from core.virtualization.network import NetworkBackend, NetworkZoneInfo, NetworkZoneSpec, VlanInterfaceSpec
 
 
@@ -18,18 +18,16 @@ class VlanBackend:
         """Initialize VLAN backend with persisted state."""
         if state_file is not None:
             self.STATE_FILE = state_file
-        self.STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        self._state = self._load_state()
-
-    def _load_state(self) -> dict[str, Any]:
-        """Load persisted zones state."""
-        if self.STATE_FILE.exists():
-            return json.loads(self.STATE_FILE.read_text())
-        return {"zones": {}, "zone_vms": {}}
+        self._store = JsonStateStore(
+            self.STATE_FILE,
+            default_factory=lambda: {"zones": {}, "zone_vms": {}},
+            mode=0o644,
+        )
+        self._state = self._store.load()
 
     def _save_state(self) -> None:
-        """Save zones state to disk."""
-        self.STATE_FILE.write_text(json.dumps(self._state, indent=2))
+        """Save zones state to disk (atomic write via JsonStateStore)."""
+        self._store.save(self._state)
 
     def _run_cmd(self, cmd: list[str]) -> str:
         """Run a shell command and return output."""

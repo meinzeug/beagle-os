@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 class PersistenceSupportService:
@@ -18,10 +19,6 @@ class PersistenceSupportService:
             return fallback
 
     def write_json_file(self, path: Path, payload: Any, *, mode: int = 0o600) -> None:
-        target = Path(path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        try:
-            os.chmod(target, mode)
-        except OSError:
-            pass
+        """Atomic write via JsonStateStore (tempfile + fsync + rename)."""
+        store = JsonStateStore(Path(path), default_factory=dict, mode=mode)
+        store.save(payload)

@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import ipaddress
-import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 @dataclass
@@ -32,18 +33,16 @@ class IpamService:
         """Initialize IPAM service with persisted state."""
         if state_file is not None:
             self.STATE_FILE = state_file
-        self.STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        self._state = self._load_state()
-
-    def _load_state(self) -> dict[str, Any]:
-        """Load persisted IPAM state."""
-        if self.STATE_FILE.exists():
-            return json.loads(self.STATE_FILE.read_text())
-        return {"leases": {}, "zone_subnets": {}}
+        self._store = JsonStateStore(
+            self.STATE_FILE,
+            default_factory=lambda: {"leases": {}, "zone_subnets": {}},
+            mode=0o644,
+        )
+        self._state = self._store.load()
 
     def _save_state(self) -> None:
-        """Save IPAM state to disk."""
-        self.STATE_FILE.write_text(json.dumps(self._state, indent=2))
+        """Save IPAM state to disk (atomic write)."""
+        self._store.save(self._state)
 
     def register_zone(self, zone_id: str, subnet: str, dhcp_start: str, dhcp_end: str) -> None:
         """Register a zone for IPAM tracking."""

@@ -4,10 +4,11 @@ GoEnterprise Plan 06, Schritte 1 + 2 + 3
 """
 from __future__ import annotations
 
-import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 @dataclass
@@ -61,15 +62,17 @@ class SessionManagerService:
         restore_vm_state: Callable[[int, str], None] | None = None,
         transfer_checkpoint: Callable[[str, str, str], None] | None = None,
     ) -> None:
-        self._state_file = state_file or self.STATE_FILE
-        self._state_file.parent.mkdir(parents=True, exist_ok=True)
+        self._store = JsonStateStore(
+            state_file or self.STATE_FILE,
+            default_factory=lambda: {"sessions": {}},
+        )
         self._ckpt_dir = checkpoint_dir or self.CHECKPOINT_DIR
         self._ckpt_dir.mkdir(parents=True, exist_ok=True)
         self._utcnow = utcnow or self._default_utcnow
         self._save_vm_state = save_vm_state
         self._restore_vm_state = restore_vm_state
         self._transfer_checkpoint = transfer_checkpoint
-        self._state = self._load()
+        self._state = self._store.load()
 
     # ------------------------------------------------------------------
     # Session registration
@@ -231,13 +234,8 @@ class SessionManagerService:
     # Internals
     # ------------------------------------------------------------------
 
-    def _load(self) -> dict[str, Any]:
-        if self._state_file.exists():
-            return json.loads(self._state_file.read_text())
-        return {"sessions": {}}
-
     def _save(self) -> None:
-        self._state_file.write_text(json.dumps(self._state, indent=2))
+        self._store.save(self._state)
 
     @staticmethod
     def _default_utcnow() -> str:

@@ -10,11 +10,12 @@ GoEnterprise Plan 01, Schritt 3
 from __future__ import annotations
 
 import ipaddress
-import json
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 @dataclass
@@ -70,7 +71,12 @@ class WireguardMeshService:
         self._state_dir = Path(state_dir) if state_dir else self.STATE_DIR
         self._state_dir.mkdir(parents=True, exist_ok=True)
         self._run_cmd = run_cmd or self._default_run
-        self._state = self._load_state()
+        self._store = JsonStateStore(
+            self._state_dir / "mesh-state.json",
+            default_factory=lambda: {"peers": {}, "allocated_ips": []},
+            mode=0o600,
+        )
+        self._state = self._store.load()
 
     # ------------------------------------------------------------------
     # Public API
@@ -180,15 +186,8 @@ class WireguardMeshService:
             cmd += ["preshared-key", "/dev/stdin"]
         self._run_cmd(cmd)
 
-    def _load_state(self) -> dict[str, Any]:
-        f = self._state_dir / "mesh-state.json"
-        if f.exists():
-            return json.loads(f.read_text())
-        return {"peers": {}, "allocated_ips": []}
-
     def _save_state(self) -> None:
-        f = self._state_dir / "mesh-state.json"
-        f.write_text(json.dumps(self._state, indent=2))
+        self._store.save(self._state)
 
     @staticmethod
     def _default_run(cmd: list[str]) -> None:
