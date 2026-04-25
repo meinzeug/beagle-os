@@ -1,5 +1,31 @@
 # Security Findings
 
+Stand: 2026-04-25 (ergänzt: Cluster-Mode API-Binding)
+
+## S-020 — Cluster-Mode: API bindet auf 0.0.0.0 (KNOWN, MITIGATED)
+
+- Status: **bekannt, mitigiert** (2026-04-25)
+- Risiko: **Niedrig** (API ist vollständig authentifiziert + rate-limitiert)
+- Betroffene Server: `srv1.beagle-os.com` (46.4.96.80), `srv2.beagle-os.com` (176.9.127.50)
+- Betroffene Dateien: `/etc/beagle/beagle-manager.env` (nicht versioniert — lokale Operatorkonfiguration)
+- Beschreibung:
+  - Für Cluster-Betrieb muss `BEAGLE_MANAGER_LISTEN_HOST=0.0.0.0` gesetzt sein, damit der andere Node
+    die API (Port 9088) für Join-Token-Validierung und Health-Probes erreichen kann.
+  - Default in `install-beagle-host-services.sh` bleibt `127.0.0.1` (sicher für Single-Node).
+  - Port 9088 ist nun von beiden Public IPs aus erreichbar.
+- Mitigationen aktiv:
+  - API-Authentifizierung: alle Management-Endpoints erfordern `Authorization: Bearer` oder Session-Cookie
+  - Ausnahmen nur: `/api/v1/cluster/join` (join-token-validiert intern), `/api/v1/health`, öffentliche Endpoints
+  - Rate Limiting: 240 Requests/60s pro IP, Lockout nach 5 fehlgeschlagenen Logins (300s)
+  - Login-Lockout schützt vor Brute-Force
+- Verbleibende Restrisiken:
+  - Kein IP-Whitelist-Filter auf Port 9088 (könnte via iptables eingeschränkt werden)
+  - Empfehlung für Härtung: `iptables -A INPUT -p tcp --dport 9088 ! -s <peer-ip> -j DROP`
+  - Für Production-Cluster empfohlen: VPN-Mesh (WireGuard) zwischen Nodes, Binding dann auf VPN-Interface
+- Nächster Schritt (optional): iptables-Regel für Port 9088 (nur srv1↔srv2) automatisch in Cluster-Init generieren
+
+---
+
 Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
 
 ## S-019 — Network POST Endpoints: Fehlende _is_authenticated()-Prüfung (PATCHED)
