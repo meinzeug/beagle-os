@@ -1,3 +1,23 @@
+## Update (2026-05-XX, Service Registry Extraction — commit e2e4c38)
+
+**Scope**: LOC-Reduktion Control Plane — Service Factory Section in service_registry.py extrahiert.
+
+### Neu erstellt
+- `beagle-host/services/service_registry.py` (3367 LOC): alle Imports, Konstanten und 280+ Lazy-Init-Factory-Funktionen
+
+### Geändert
+- `beagle-host/bin/beagle-control-plane.py`: 4964 LOC → 1627 LOC (−3337 Zeilen, kumulativ 6151→1627 = −4524 = −74%)
+- Neues Header-Schema: `sys.path` Setup + `from service_registry import *` + private Helpers
+- `main()`: Bootstrap-Secrets via `_svc_registry.XYZ` um beide Module-Namespaces zu aktualisieren
+- Shutdown-Code: Mutable Globals (RECORDING_RETENTION_*, CLUSTER_RPC_*) via `_svc_registry.*`
+
+### Testergebnis
+- 778 Unit-Tests bestanden (9 pre-existing GPU-Failures unverändert)
+- srv1: 31/31 Smoke-Checks bestanden nach rsync + Service-Restart
+- Commit: e2e4c38
+
+---
+
 ## Update (2026-05-XX, GoFuture Gate: Alle 20 Pläne 100% abgeschlossen)
 
 **Scope**: GoFuture-Gate-Check: alle 14 noch offenen `[ ]`-Checkboxen als abgeschlossen markiert.

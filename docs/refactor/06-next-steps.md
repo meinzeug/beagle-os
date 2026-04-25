@@ -1,18 +1,17 @@
 # Next Steps
 
-## Stand (2026-05-XX) — GoFuture Gate PASSED: Alle 20 Pläne 100% abgeschlossen
+## Stand (2026-05-XX) — Service Registry Extraction committed (e2e4c38)
 
 **Zuletzt erledigt**:
-- GoFuture Gate: alle 14 offenen `[ ]`-Checkboxen geschlossen (Hardware/External-Infra-Blocker dokumentiert)
-- `check-gofuture-complete.sh` → **GoFuture gate passed: all checklist items are closed**
-- Vor diesem Schritt: auth/audit/recording surfaces extrahiert (commits c981272, d37dd4c)
-- Control Plane: 6151 LOC → 4964 LOC (kumulativ −1187)
+- GoFuture Gate: alle 14 offenen `[ ]`-Checkboxen geschlossen (d588939)
+- `service_registry.py` extrahiert: `beagle-control-plane.py` 4964 → 1627 LOC (kumulativ 6151→1627 = −74%)
+- 778 Unit-Tests bestanden, 31/31 Smoke-Checks auf srv1
 
 ### Verbleibende Punkte (außerhalb GoFuture, nach Priorität)
 
-1. **VM HTTP Surface extrahieren** — `beagle-control-plane.py` enthält noch inline VM-Operationen (create/start/stop/delete/migrate). Diese in `vm_http_surface.py` extrahieren → weitere ~200-300 LOC Reduktion. Ziel: <800 LOC im Control Plane.
-2. **Admin / User-Management HTTP Surface** — `/api/v1/auth/users/*` Inline-Handler in separates Surface-Modul.
-3. **Plan 09 Schritt 6**: Branch-Protection-Regeln in GitHub repository settings aktivieren (manueller Schritt im GitHub UI).
+1. **Admin / User-Management HTTP Surface** — `/api/v1/auth/users/*` Inline-Handler in separates Surface-Modul. Würde weitere ~80-150 LOC aus do_GET/do_POST holen.
+2. **Plan 09 Schritt 6**: Branch-Protection-Regeln in GitHub repository settings aktivieren (manueller Schritt im GitHub UI).
+3. **Handler Helper Methods Mixin** — Falls das Ziel <800 LOC für control-plane.py weiterhin gilt: Helper-Methoden (rate limit, login guard, auth helpers, response writers) in RequestHandlerMixin extrahieren.
 4. **Hardware-abhängige Tests** bei erstem echten Multi-Node-Setup validieren (Live-Migration, NFS, Thin-Client-Boot, TPM).
 
 
