@@ -75,6 +75,7 @@ from public_sunshine_surface import PublicSunshineSurfaceService
 from public_ubuntu_install_surface import PublicUbuntuInstallSurfaceService
 from public_streams import PublicStreamService
 from prometheus_metrics import PrometheusMetricsService
+from health_aggregator import HealthAggregatorService
 from recording_service import RecordingService
 from request_support import RequestSupportService
 from registry import create_provider, list_providers, normalize_provider_kind
@@ -294,6 +295,12 @@ SCIM_BEARER_TOKEN = os.environ.get("BEAGLE_SCIM_BEARER_TOKEN", "").strip()
 # /metrics is unauthenticated — appropriate for hosts behind a reverse
 # proxy or local-only scrapes. See docs/observability/setup.md.
 METRICS_BEARER_TOKEN = os.environ.get("BEAGLE_METRICS_BEARER_TOKEN", "").strip()
+# When set to a truthy value, /api/v1/health returns HTTP 503 if the
+# aggregated component status is "unhealthy". Default off to preserve
+# back-compat with monitoring that expects 200.
+HEALTH_503_ON_UNHEALTHY = os.environ.get(
+    "BEAGLE_HEALTH_503_ON_UNHEALTHY", ""
+).strip().lower() in {"1", "true", "yes", "on"}
 CORS_ALLOWED_ORIGINS_RAW = os.environ.get("BEAGLE_CORS_ALLOWED_ORIGINS", "").strip()
 API_V2_PREPARATION_ENABLED = os.environ.get("BEAGLE_API_V2_PREPARATION_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
 API_V1_DEPRECATED_ENDPOINTS_RAW = os.environ.get(
@@ -1042,6 +1049,7 @@ POLICY_NORMALIZATION_SERVICE: PolicyNormalizationService | None = None
 POLICY_STORE_SERVICE: PolicyStoreService | None = None
 PUBLIC_STREAM_SERVICE: PublicStreamService | None = None
 PROMETHEUS_METRICS_SERVICE: PrometheusMetricsService | None = None
+HEALTH_AGGREGATOR_SERVICE: HealthAggregatorService | None = None
 SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
 RECORDING_SERVICE: RecordingService | None = None
 ENDPOINT_ENROLLMENT_SERVICE: EndpointEnrollmentService | None = None
@@ -1133,6 +1141,29 @@ def prometheus_metrics_service() -> PrometheusMetricsService:
         PROMETHEUS_METRICS_SERVICE = PrometheusMetricsService()
         PROMETHEUS_METRICS_SERVICE.register_defaults()
     return PROMETHEUS_METRICS_SERVICE
+
+
+def health_aggregator_service() -> HealthAggregatorService:
+    """Singleton component-health aggregator (GoAdvanced Plan 08 Schritt 5)."""
+    global HEALTH_AGGREGATOR_SERVICE
+    if HEALTH_AGGREGATOR_SERVICE is None:
+        agg = HealthAggregatorService(
+            check_timeout_seconds=2.0,
+            utcnow=utcnow,
+        )
+        agg.register("control_plane", agg.control_plane_check)
+        agg.register(
+            "providers",
+            HealthAggregatorService.provider_check(list_providers),
+        )
+        agg.register(
+            "data_dir",
+            lambda: HealthAggregatorService.writable_path_check(
+                runtime_paths_service().data_dir()
+            )(),
+        )
+        HEALTH_AGGREGATOR_SERVICE = agg
+    return HEALTH_AGGREGATOR_SERVICE
 
 
 def vm_secret_store_service() -> VmSecretStoreService:

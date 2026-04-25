@@ -224,7 +224,23 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
                 self._write_json(response["status"], response["payload"])
             return
         if path == "/api/v1/health":
-            self._write_json(HTTPStatus.OK, build_health_payload())
+            payload = build_health_payload()
+            try:
+                aggregated = health_aggregator_service().run()
+            except Exception as exc:  # never fail the health endpoint itself
+                aggregated = {
+                    "status": "unhealthy",
+                    "components": {},
+                    "error": f"aggregator_unavailable:{exc}",
+                }
+            payload["status"] = aggregated.get("status", "healthy")
+            payload["components"] = aggregated.get("components", {})
+            if "error" in aggregated:
+                payload.setdefault("warnings", []).append(aggregated["error"])
+            status_code = HTTPStatus.OK
+            if HEALTH_503_ON_UNHEALTHY and payload["status"] == "unhealthy":
+                status_code = HTTPStatus.SERVICE_UNAVAILABLE
+            self._write_json(status_code, payload)
             return
         if path == "/api/v1/vms":
             self._write_json(HTTPStatus.OK, build_vm_inventory())

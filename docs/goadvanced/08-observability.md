@@ -49,20 +49,12 @@
   - [ ] `X-Request-Id` in Response-Header zurueck
   - [ ] (Phase 2 optional) OpenTelemetry-Adapter fuer Distributed Tracing
 
-- [ ] **Schritt 5** — Health-Aggregation
-  - [ ] `health_http_surface.py`: `GET /api/v1/health`:
-    ```json
-    {
-      "status": "healthy" | "degraded" | "unhealthy",
-      "components": {
-        "libvirt": {"status": "healthy", "latency_ms": 12},
-        "database": {"status": "healthy"},
-        "control_plane": {"status": "healthy", "uptime_seconds": 3600}
-      }
-    }
-    ```
-  - [ ] Per-Component-Check mit Timeout 2s
-  - [ ] HTTP-Status: 200 healthy, 200 degraded, 503 unhealthy
+- [x] **Schritt 5** — Health-Aggregation
+  - [x] `health_aggregator.py` (`HealthAggregatorService`): Per-Component-Checks mit 2s-Timeout (Thread-Watchdog), Aggregation `healthy | degraded | unhealthy`, Eingebaute Checks: `control_plane_check` (uptime), `provider_check` (list_providers), `writable_path_check` (data_dir).
+  - [x] `service_registry.health_aggregator_service()` Singleton mit drei Default-Checks (`control_plane`, `providers`, `data_dir`).
+  - [x] `control_plane_handler.do_GET` `/api/v1/health`: alte Felder bleiben, `status` + `components` werden ergänzt.
+  - [x] HTTP-Status: 200 default; Opt-In `BEAGLE_HEALTH_503_ON_UNHEALTHY=1` schaltet 503 fuer `unhealthy`.
+  - [x] Tests: `tests/unit/test_health_aggregator.py` (16 Tests — Aggregation, Timeout, Exception, Replace, Built-Ins).
 
 - [ ] **Schritt 6** — Dashboards
   - [ ] `docs/observability/grafana-dashboard.json` (importierbar)

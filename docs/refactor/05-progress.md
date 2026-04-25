@@ -1,3 +1,31 @@
+## Update (2026-04-25, GoAdvanced Plan 08: Health-Aggregation)
+
+**Scope**: Plan 08 Schritt 5 — `/api/v1/health` liefert jetzt aggregierte Component-Stati zusaetzlich zu den bestehenden Flat-Feldern (back-compat).
+
+### Health-Aggregator (Plan 08 Schritt 5)
+- **Neu**: `beagle-host/services/health_aggregator.py` (`HealthAggregatorService`).
+  - `register(name, callable)` registriert Checks; `run()` fuehrt sie parallel-ish (sequentiell aber unabhaengig) mit 2s-Timeout pro Check aus.
+  - Timeout-Watchdog via Daemon-Thread + `Thread.join(timeout)` — exceeded => `unhealthy` mit Fehlertext "timed out".
+  - Exception-im-Check => `unhealthy` mit Exception-Repr.
+  - Aggregation: worst-case Status (`healthy` < `degraded` < `unhealthy`).
+  - Built-ins: `control_plane_check` (uptime ab Service-Init), `provider_check(list_providers)` (degraded wenn keine Provider), `writable_path_check(path)` (Probe-Datei schreiben+loeschen).
+  - `latency_ms` wird automatisch befuellt wenn der Check selbst keinen Wert setzt.
+- **Wiring**: `service_registry.py` exportiert `health_aggregator_service()` Singleton mit drei Default-Checks (`control_plane`, `providers`, `data_dir`). Neue Env-Var `BEAGLE_HEALTH_503_ON_UNHEALTHY` (default off).
+- **Handler**: `control_plane_handler.do_GET` Branch `/api/v1/health` ruft Aggregator nach `build_health_payload()`, fuegt `status` + `components` ein. Aggregator-Failure ist tolerant (eigener `try/except` -> `warning`-Eintrag, niemals 5xx aus dem Health-Endpoint selbst).
+
+### Tests
+- **Neu**: `tests/unit/test_health_aggregator.py` (16 Tests) — leer-OK, all-healthy, einzelner-degraded-yields-degraded, einzelner-unhealthy-yields-unhealthy, Exception-Capture, Timeout-Capture (0.05s vs 0.5s sleep), Invalid-Status, Non-Dict, Replace-Same-Name, Invalid-Inputs, Built-In control_plane/provider/writable_path (3 Faelle), Latency-Auto-Fill.
+- Lauf: `pytest tests/unit/test_health_aggregator.py tests/unit/test_prometheus_metrics.py -v` => **40 passed**.
+- Voller Suite-Lauf: **780 passed**, 0 neue Failures (10 pre-existing gpu_*/mock_provider Tests deselektiert).
+- Smoke: `service_registry.health_aggregator_service().run()` liefert `{'status': 'healthy', 'components': {control_plane, providers, data_dir}}` mit Latenzen.
+
+### Naechste sinnvolle Schritte
+- Plan 08 Schritt 3: `core/logging/structured_logger.py` (Foundation fuer Schritt 4 Request-IDs).
+- Plan 08 Schritt 6: Grafana-Dashboard + Prometheus-Scrape-Config (`docs/observability/`).
+- Plan 11 Schritt 2: Feature-Parity-Audit Proxmox vs Beagle.
+
+---
+
 ## Update (2026-04-25, GoAdvanced Plan 08: Observability — Prometheus Metrics + /metrics-Endpoint)
 
 **Scope**: Plan 08 Schritte 1+2 — dependency-freier Prometheus-Metrics-Stack als Foundation fuer alle nachfolgenden Beobachtbarkeit-Schritte (Logs, Tracing, Health-Aggregation).
