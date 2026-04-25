@@ -181,11 +181,14 @@ This system was installed from the Beagle installimage artifact.
 EOF
 
   # Hetzner installimage runs sed/rm against /etc/default/grub and
-  # /etc/kernel-img.conf during its grub stage. If these files are missing
-  # the boot loader install partially fails and the system never reboots
-  # into the installed disk. Seed them with safe defaults so installimage
-  # always finds a target file to edit.
+  # /etc/kernel-img.conf during its grub stage. For RAID installs it also
+  # expects /etc/default/mdadm and /etc/mdadm to exist before it generates
+  # the array config. If these files are missing the boot loader install
+  # partially fails and the system never reboots into the installed disk.
+  # Seed them with safe defaults so installimage always finds a target file
+  # to edit.
   install -d -m 0755 "$ROOTFS_DIR/etc/default"
+  install -d -m 0755 "$ROOTFS_DIR/etc/mdadm"
   cat >"$ROOTFS_DIR/etc/default/grub" <<'EOF'
 # Beagle OS installimage default grub configuration.
 # Hetzner installimage rewrites these values during the grub stage.
@@ -204,6 +207,15 @@ do_bootloader = no
 do_initrd = yes
 link_in_boot = no
 EOF
+  cat >"$ROOTFS_DIR/etc/default/mdadm" <<'EOF'
+# Beagle OS installimage mdadm defaults.
+# Hetzner installimage rewrites these values during its RAID stage.
+START_DAEMON=true
+INITRDSTART='all'
+AUTO='+all'
+DAEMON_OPTIONS='--syslog'
+EOF
+  : >"$ROOTFS_DIR/etc/mdadm/mdadm.conf"
 }
 
 bundle_source_tree() {
@@ -240,6 +252,9 @@ install_bootstrap_files() {
   install -m 0755 \
     "$INSTALLIMAGE_FILES_DIR/usr/local/sbin/beagle-ssh-hostkeys-prepare" \
     "$ROOTFS_DIR/usr/local/sbin/beagle-ssh-hostkeys-prepare"
+  install -m 0755 \
+    "$INSTALLIMAGE_FILES_DIR/usr/local/sbin/beagle-network-interface-heal" \
+    "$ROOTFS_DIR/usr/local/sbin/beagle-network-interface-heal"
   install -m 0644 \
     "$INSTALLIMAGE_FILES_DIR/etc/systemd/system/beagle-installimage-bootstrap.service" \
     "$ROOTFS_DIR/etc/systemd/system/beagle-installimage-bootstrap.service"
@@ -247,9 +262,13 @@ install_bootstrap_files() {
     "$INSTALLIMAGE_FILES_DIR/etc/systemd/system/beagle-ssh-hostkeys.service" \
     "$ROOTFS_DIR/etc/systemd/system/beagle-ssh-hostkeys.service"
   install -m 0644 \
+    "$INSTALLIMAGE_FILES_DIR/etc/systemd/system/beagle-network-interface-heal.service" \
+    "$ROOTFS_DIR/etc/systemd/system/beagle-network-interface-heal.service"
+  install -m 0644 \
     "$INSTALLIMAGE_FILES_DIR/etc/systemd/system/ssh.service.d/10-beagle-hostkeys.conf" \
     "$ROOTFS_DIR/etc/systemd/system/ssh.service.d/10-beagle-hostkeys.conf"
   run_in_chroot systemctl enable beagle-installimage-bootstrap.service >/dev/null 2>&1 || true
+  run_in_chroot systemctl enable beagle-network-interface-heal.service >/dev/null 2>&1 || true
 }
 
 sanitize_rootfs() {
@@ -340,8 +359,8 @@ run_in_chroot apt-get install -y \
   os-prober \
   openssl \
   nftables \
-  python3
-
+  python3 \
+  mdadm
 # Ensure /boot/grub/grub.cfg exists with valid entries for the kernel that
 # was just installed. Hetzner installimage's grub stage rewrites
 # /etc/default/grub, runs `grub-install $TARGET`, and re-runs update-grub
