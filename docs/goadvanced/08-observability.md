@@ -20,17 +20,19 @@
 
 ## Schritte
 
-- [ ] **Schritt 1** — Metrics-Service
-  - [ ] `beagle-host/services/prometheus_metrics.py`:
+- [x] **Schritt 1** — Metrics-Service
+  - [x] `beagle-host/services/prometheus_metrics.py`:
     - `counter(name, labels=())`, `gauge(name, labels=())`, `histogram(name, buckets=...)`
     - In-Memory-Registry, Render-Funktion fuer Prometheus-Text-Format
-    - Default-Metriken: `beagle_http_requests_total`, `beagle_http_request_duration_seconds`, `beagle_vm_count`, `beagle_session_count`, `beagle_auth_failures_total`, `beagle_rate_limit_drops_total`
-  - [ ] Tests: `tests/unit/test_prometheus_metrics.py`
+    - Default-Metriken: `beagle_http_requests_total`, `beagle_http_request_duration_seconds`, `beagle_vm_count`, `beagle_session_count`, `beagle_auth_failures_total`, `beagle_rate_limit_drops_total`, `beagle_process_start_time_seconds`
+    - Thread-safe (Lock pro Metric), Label-Cardinality-Cap (default 10000) mit Drop-Warnung auf stderr und Noop-Sentinels fuer ueberlaufende Combinations
+  - [x] Tests: `tests/unit/test_prometheus_metrics.py` (23 Tests)
 
-- [ ] **Schritt 2** — `/metrics`-Endpoint
-  - [ ] `health_http_surface.py` erweitern um `GET /metrics` (text/plain)
-  - [ ] Auth: optional via `?token=...` oder Bearer (Prometheus-Scrape-Token)
-  - [ ] Tests: Endpoint liefert valides Prometheus-Format
+- [x] **Schritt 2** — `/metrics`-Endpoint
+  - [x] `control_plane_handler.py` `do_GET`: `GET /metrics` liefert Prometheus-Text (Content-Type `text/plain; version=0.0.4; charset=utf-8`)
+  - [x] Auth: optional via `BEAGLE_METRICS_BEARER_TOKEN` (Bearer-Header, `hmac.compare_digest`); ohne Token unauthenticated (lokal/Reverse-Proxy)
+  - [x] Singleton via `service_registry.prometheus_metrics_service()` mit `register_defaults()` beim Erstaufruf
+  - [ ] Smoke-Test gegen laufenden Server (verschoben — siehe Schritt 7)
 
 - [ ] **Schritt 3** — Strukturierte Logs
   - [ ] `core/logging/structured_logger.py`:

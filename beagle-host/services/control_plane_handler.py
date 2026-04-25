@@ -9,6 +9,8 @@ boilerplate routing / auth / json-parse glue.
 """
 from __future__ import annotations
 
+import hmac
+
 # Pull every symbol used below (BaseHTTPRequestHandler, HTTPStatus, urlparse,
 # parse_qs, json, VERSION, all *_service() factories, …) from service_registry.
 from service_registry import *  # noqa: F401,F403
@@ -33,6 +35,25 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
         query_text = parsed.query
         query = parse_qs(parsed.query or "")
+
+        # Prometheus scrape endpoint (GoAdvanced Plan 08 Schritt 2).
+        # Optional bearer token via BEAGLE_METRICS_BEARER_TOKEN. When unset
+        # the endpoint is unauthenticated (suitable for localhost scrape or
+        # behind a reverse proxy with network-level ACL).
+        if path == "/metrics":
+            if METRICS_BEARER_TOKEN:
+                auth_header = self.headers.get("Authorization", "") or ""
+                expected = f"Bearer {METRICS_BEARER_TOKEN}"
+                if not hmac.compare_digest(auth_header, expected):
+                    self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                    return
+            body = prometheus_metrics_service().render_bytes()
+            self._write_bytes(
+                HTTPStatus.OK,
+                body,
+                content_type=prometheus_metrics_service().content_type,
+            )
+            return
 
         response = public_sunshine_surface_service().route_request(
             parsed.path,

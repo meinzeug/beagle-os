@@ -1,3 +1,43 @@
+## Update (2026-04-25, GoAdvanced Plan 08: Observability — Prometheus Metrics + /metrics-Endpoint)
+
+**Scope**: Plan 08 Schritte 1+2 — dependency-freier Prometheus-Metrics-Stack als Foundation fuer alle nachfolgenden Beobachtbarkeit-Schritte (Logs, Tracing, Health-Aggregation).
+
+### Prometheus-Metrics-Service (Plan 08 Schritt 1)
+- **Neu**: `beagle-host/services/prometheus_metrics.py` (~440 LOC, stdlib-only):
+  - `PrometheusMetricsService.counter() / gauge() / histogram()` mit Re-Registration-Guard (Typkonflikt-Erkennung).
+  - Counter/Gauge/Histogram thread-safe via per-Metric `Lock`.
+  - Label-Cardinality-Cap (default 10000 Combinations) mit stderr-Warnung + Noop-Sentinel-Childs (`_NoopCounter` etc.) — verhindert OOM bei naive Caller-Code.
+  - Prometheus-Text-Format-Renderer (`render()` / `render_bytes()`), `content_type = "text/plain; version=0.0.4; charset=utf-8"`.
+  - `register_defaults()` legt 7 Default-Metriken an: `beagle_http_requests_total`, `beagle_http_request_duration_seconds`, `beagle_vm_count`, `beagle_session_count`, `beagle_auth_failures_total`, `beagle_rate_limit_drops_total`, `beagle_process_start_time_seconds`.
+  - Validierung: Metric-/Label-Namen gegen Prometheus-Spec, Label-Werte korrekt escaped (`"`/`\`/`\n`), `__`-prefix-reserved Labels abgelehnt.
+  - Histogram-Buckets default `(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, +Inf)`.
+
+### Wiring (Plan 08 Schritt 2)
+- **`service_registry.py`**: `PrometheusMetricsService`-Import, `PROMETHEUS_METRICS_SERVICE`-Slot, `prometheus_metrics_service()`-Factory ruft `register_defaults()` beim Erstaufruf. Neue Env-Var `BEAGLE_METRICS_BEARER_TOKEN` (optional) fuer Scrape-Auth.
+- **`control_plane_handler.py` `do_GET`**: neuer `/metrics`-Branch ganz oben (nach Rate-Limit). Wenn `BEAGLE_METRICS_BEARER_TOKEN` gesetzt: `Authorization: Bearer ...` per `hmac.compare_digest`. Body via `prometheus_metrics_service().render_bytes()` mit korrektem Content-Type. `import hmac` ergaenzt.
+
+### Tests
+- **Neu**: `tests/unit/test_prometheus_metrics.py` (23 Tests) — Counter (labelled/unlabelled/negative-rejected/zero-default), Gauge (set/inc/dec/labelled), Histogram (observe/buckets/labelled/+Inf-append/negative-rejected), Validation (Name/Label-Regeln/Escaping/Mismatch), Re-Registration (same-type-idempotent/diff-type-rejected), Concurrency (20 Threads × 1000 Inc), Cardinality-Cap-Drop, Defaults (7 Metriken), `render_bytes`/`content_type`, `isinstance`-Typcheck.
+- Lauf: `pytest tests/unit/test_prometheus_metrics.py -v` => **23 passed in 0.08s**.
+- Voller Suite-Lauf: **763 passed**, 0 neue Failures (10 pre-existing gpu_*/mock_provider Tests deselektiert).
+- Smoke: `service_registry.prometheus_metrics_service()` Singleton liefert nach `.inc()` korrekt formatierte Counter-/Gauge-/Histogram-Zeilen.
+
+### Plan-08-Status
+- Schritt 1 (Metrics-Service): `[x]`
+- Schritt 2 (`/metrics`-Endpoint): `[x]` (nur Smoke gegen Live-Server steht aus → Schritt 7)
+- Schritt 3 (Strukturierte Logs): offen
+- Schritt 4 (Request-IDs/Tracing): offen
+- Schritt 5 (Health-Aggregation): offen
+- Schritt 6 (Dashboards): offen
+- Schritt 7 (srv1-Verifikation): offen
+
+### Naechste sinnvolle Schritte
+- Plan 08 Schritt 3: `core/logging/structured_logger.py` als Folge-Foundation (kombinierbar mit Schritt 4 Request-IDs).
+- Plan 11 Schritt 2: Feature-Parity-Audit Proxmox vs Beagle.
+- Plan 06: SQLite-State-Migration.
+
+---
+
 ## Update (2026-04-25, GoAdvanced Plan 05: Control-Plane-Split — Handler-Extraktion)
 
 **Scope**: Plan 05 (Control-Plane Split) — `beagle-control-plane.py` von 899 LOC auf **88 LOC** geschrumpft (Ziel < 800 LOC) durch Extraktion der Handler-Klasse.

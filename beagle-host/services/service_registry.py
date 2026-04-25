@@ -74,6 +74,7 @@ from public_http_surface import PublicHttpSurfaceService
 from public_sunshine_surface import PublicSunshineSurfaceService
 from public_ubuntu_install_surface import PublicUbuntuInstallSurfaceService
 from public_streams import PublicStreamService
+from prometheus_metrics import PrometheusMetricsService
 from recording_service import RecordingService
 from request_support import RequestSupportService
 from registry import create_provider, list_providers, normalize_provider_kind
@@ -289,6 +290,10 @@ SAML_NAMEID_FORMAT = os.environ.get(
 ).strip() or "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
 SAML_SIGNING_CERT_FILE = Path(os.environ.get("BEAGLE_SAML_SIGNING_CERT_FILE", "/etc/beagle/saml/sp-signing.crt"))
 SCIM_BEARER_TOKEN = os.environ.get("BEAGLE_SCIM_BEARER_TOKEN", "").strip()
+# Optional Bearer-Token for /metrics scraping (Prometheus). When empty,
+# /metrics is unauthenticated — appropriate for hosts behind a reverse
+# proxy or local-only scrapes. See docs/observability/setup.md.
+METRICS_BEARER_TOKEN = os.environ.get("BEAGLE_METRICS_BEARER_TOKEN", "").strip()
 CORS_ALLOWED_ORIGINS_RAW = os.environ.get("BEAGLE_CORS_ALLOWED_ORIGINS", "").strip()
 API_V2_PREPARATION_ENABLED = os.environ.get("BEAGLE_API_V2_PREPARATION_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
 API_V1_DEPRECATED_ENDPOINTS_RAW = os.environ.get(
@@ -1036,6 +1041,7 @@ ACTION_QUEUE_SERVICE: ActionQueueService | None = None
 POLICY_NORMALIZATION_SERVICE: PolicyNormalizationService | None = None
 POLICY_STORE_SERVICE: PolicyStoreService | None = None
 PUBLIC_STREAM_SERVICE: PublicStreamService | None = None
+PROMETHEUS_METRICS_SERVICE: PrometheusMetricsService | None = None
 SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
 RECORDING_SERVICE: RecordingService | None = None
 ENDPOINT_ENROLLMENT_SERVICE: EndpointEnrollmentService | None = None
@@ -1118,6 +1124,15 @@ def runtime_environment_service() -> RuntimeEnvironmentService:
             run_subprocess=subprocess.run,
         )
     return RUNTIME_ENVIRONMENT_SERVICE
+
+
+def prometheus_metrics_service() -> PrometheusMetricsService:
+    """Singleton Prometheus metrics registry (GoAdvanced Plan 08)."""
+    global PROMETHEUS_METRICS_SERVICE
+    if PROMETHEUS_METRICS_SERVICE is None:
+        PROMETHEUS_METRICS_SERVICE = PrometheusMetricsService()
+        PROMETHEUS_METRICS_SERVICE.register_defaults()
+    return PROMETHEUS_METRICS_SERVICE
 
 
 def vm_secret_store_service() -> VmSecretStoreService:
