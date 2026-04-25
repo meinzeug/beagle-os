@@ -19,3 +19,4 @@ beagle-kiosk/games.json
 beagle-kiosk/kiosk.conf
 .env
 .env.*
+.artifacts/

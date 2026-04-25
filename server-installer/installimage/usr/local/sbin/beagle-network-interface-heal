@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+LOG_FILE="/var/log/beagle-network-heal.log"
+IFACES_FILE="/etc/network/interfaces"
+BACKUP_FILE="/etc/network/interfaces.beagle.bak"
+
+exec >>"$LOG_FILE" 2>&1
+
+log() {
+  printf '[%s] %s\n' "$(date -Is 2>/dev/null || date)" "$*"
+}
+
+configured_ifaces() {
+  awk '
+    /^\s*auto\s+/ {
+      for (i = 2; i <= NF; i++) {
+        if ($i != "lo") {
+          print $i
+        }
+      }
+    }
+    /^\s*allow-hotplug\s+/ {
+      for (i = 2; i <= NF; i++) {
+        if ($i != "lo") {
+          print $i
+        }
+      }
+    }
+  ' "$IFACES_FILE" | sort -u
+}
+
+iface_exists() {
+  local iface="$1"
+  [[ -n "$iface" && -d "/sys/class/net/$iface" ]]
+}
+
+detect_iface() {
+  local route_iface=""
+  route_iface="$(ip -o route show default 2>/dev/null | awk '{print $5; exit}')"
+  if iface_exists "$route_iface"; then
+    printf '%s\n' "$route_iface"
+    return 0
+  fi
+
+  local candidate=""
+  candidate="$(ls -1 /sys/class/net 2>/dev/null | awk '$0 != "lo" {print; exit}')"
+  if iface_exists "$candidate"; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  return 1
+}
+
+rewrite_interface_name() {
+  local old_iface="$1"
+  local new_iface="$2"
+
+  awk -v old="$old_iface" -v new="$new_iface" '
+    /^\s*auto\s+/ {
+      for (i = 1; i <= NF; i++) if ($i == old) $i = new
+      print
+      next
+    }
+    /^\s*allow-hotplug\s+/ {
+      for (i = 1; i <= NF; i++) if ($i == old) $i = new
+      print
+      next
+    }
+    /^\s*iface\s+/ {
+      if ($2 == old) $2 = new
+      print
+      next
+    }
+    { print }
+  ' "$IFACES_FILE" >"$IFACES_FILE.tmp"
+
+  mv "$IFACES_FILE.tmp" "$IFACES_FILE"
+}
+
+main() {
+  log "network heal start"
+
+  if [[ ! -f "$IFACES_FILE" ]]; then
+    log "interfaces file missing: $IFACES_FILE"
+    exit 0
+  fi
+
+  local ifaces
+  ifaces="$(configured_ifaces || true)"
+  if [[ -z "$ifaces" ]]; then
+    log "no non-loopback interfaces configured"
+    exit 0
+  fi
+
+  local current
+  while IFS= read -r current; do
+    if iface_exists "$current"; then
+      log "configured interface exists: $current; no rewrite needed"
+      exit 0
+    fi
+  done <<<"$ifaces"
+
+  local detected=""
+  detected="$(detect_iface || true)"
+  if [[ -z "$detected" ]]; then
+    log "could not detect any runtime interface"
+    exit 0
+  fi
+
+  if [[ ! -f "$BACKUP_FILE" ]]; then
+    cp "$IFACES_FILE" "$BACKUP_FILE"
+    log "backup created: $BACKUP_FILE"
+  fi
+
+  local old
+  while IFS= read -r old; do
+    [[ -z "$old" ]] && continue
+    log "rewriting interface $old -> $detected"
+    rewrite_interface_name "$old" "$detected"
+  done <<<"$ifaces"
+
+  if command -v ifup >/dev/null 2>&1; then
+    ifup "$detected" || true
+    log "ifup attempted for $detected"
+  fi
+
+  log "network heal finished"
+}
+
+main "$@"

@@ -1,0 +1,88 @@
+"""Tests for MDM Policy Service (GoEnterprise Plan 02, Schritt 3)."""
+import sys
+from pathlib import Path
+import pytest
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+if str(ROOT_DIR / "beagle-host" / "services") not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR / "beagle-host" / "services"))
+
+from mdm_policy_service import MDMPolicy, MDMPolicyService
+
+
+def make_svc(tmp_path: Path) -> MDMPolicyService:
+    return MDMPolicyService(state_file=tmp_path / "mdm.json")
+
+
+def test_create_and_get_policy(tmp_path):
+    svc = make_svc(tmp_path)
+    p = MDMPolicy(
+        policy_id="corp",
+        name="Corporate",
+        allowed_pools=["pool-finance", "pool-hr"],
+        screen_lock_timeout_seconds=300,
+    )
+    svc.create_policy(p)
+    got = svc.get_policy("corp")
+    assert got is not None
+    assert got.screen_lock_timeout_seconds == 300
+    assert "pool-finance" in got.allowed_pools
+
+
+def test_assign_to_device_and_resolve(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.create_policy(MDMPolicy(policy_id="corp", name="Corp", allowed_pools=["pool-a"]))
+    svc.assign_to_device("dev-001", "corp")
+    resolved = svc.resolve_policy("dev-001")
+    assert resolved.policy_id == "corp"
+
+
+def test_group_assignment_inherited(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.create_policy(MDMPolicy(policy_id="lab", name="Lab"))
+    svc.assign_to_group("lab-group", "lab")
+    resolved = svc.resolve_policy("dev-999", group="lab-group")
+    assert resolved.policy_id == "lab"
+
+
+def test_device_overrides_group(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.create_policy(MDMPolicy(policy_id="lab", name="Lab"))
+    svc.create_policy(MDMPolicy(policy_id="special", name="Special"))
+    svc.assign_to_group("lab-group", "lab")
+    svc.assign_to_device("dev-001", "special")
+    resolved = svc.resolve_policy("dev-001", group="lab-group")
+    assert resolved.policy_id == "special"
+
+
+def test_default_policy_fallback(tmp_path):
+    svc = make_svc(tmp_path)
+    resolved = svc.resolve_policy("unknown-device")
+    assert resolved.policy_id == "__default__"
+
+
+def test_pool_allowed(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.create_policy(MDMPolicy(policy_id="restricted", name="R", allowed_pools=["pool-a"]))
+    svc.assign_to_device("dev-001", "restricted")
+    assert svc.is_pool_allowed("dev-001", "pool-a") is True
+    assert svc.is_pool_allowed("dev-001", "pool-b") is False
+
+
+def test_codec_allowed(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.create_policy(MDMPolicy(policy_id="hq", name="HQ", allowed_codecs=["h265", "av1"]))
+    svc.assign_to_device("dev-001", "hq")
+    assert svc.is_codec_allowed("dev-001", "h265") is True
+    assert svc.is_codec_allowed("dev-001", "h264") is False
+
+
+def test_delete_removes_assignments(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.create_policy(MDMPolicy(policy_id="temp", name="Temp"))
+    svc.assign_to_device("dev-001", "temp")
+    svc.update_policy(MDMPolicy(policy_id="temp", name="Temp Updated"))
+    got = svc.get_policy("temp")
+    assert got.name == "Temp Updated"

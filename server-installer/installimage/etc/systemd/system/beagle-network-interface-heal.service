@@ -1,0 +1,14 @@
+[Unit]
+Description=Heal installimage network interface naming
+DefaultDependencies=no
+After=local-fs.target
+Before=network-pre.target networking.service ssh.service
+Wants=network-pre.target
+ConditionPathExists=/etc/network/interfaces
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/beagle-network-interface-heal
+
+[Install]
+WantedBy=multi-user.target

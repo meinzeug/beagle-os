@@ -1,3 +1,43 @@
+## Update (2026-04-27, GoEnterprise Plans 01-10 — Services, Tests, Shell-Skripte)
+
+**Scope**: Alle 10 GoEnterprise-Pläne (Beagle OS 8.x Enterprise) bearbeitet. Services implementiert, Unit-Tests geschrieben und alle auf grün gebracht, Shell-Skripte erstellt, Docs aktualisiert.
+
+### Neu erstellt / bearbeitet
+
+**Beagle-Host Services** (alle in `beagle-host/services/`):
+- `wireguard_mesh_service.py` — WireGuard Mesh Coordinator (Plan 01, Schritt 3)
+- `stream_policy_service.py` — Stream-Policy-Engine per Pool (Plan 01, Schritt 4)
+- `device_registry.py` — Enrolled Thin-Client Registry inkl. Wipe/Lock/Gruppen (Plan 02, Schritte 1+4+5)
+- `attestation_service.py` — TPM Remote-Attestation (Plan 02, Schritt 2)
+- `mdm_policy_service.py` — MDM Policy Engine (Plan 02, Schritt 3)
+- `gaming_metrics_service.py` — Gaming-Session-Metriken + Alerts (Plan 03, Schritt 4)
+- `metrics_collector.py` — Time-Series-Metriken (Plan 04, Schritt 1)
+- `workload_pattern_analyzer.py` — Peak/Idle-Mustererkennung (Plan 04, Schritt 2)
+- `smart_scheduler.py` — Prädiktives VM-Placement + Rebalancing (Plan 04, Schritte 3+4)
+- `cost_model_service.py` — Ressourcen-Preismodell + Chargeback (Plan 05, Schritte 1+3+4)
+- `usage_tracking_service.py` — Session-Nutzungserfassung (Plan 05, Schritt 2)
+- `fleet_telemetry_service.py` — Fleet Health + Predictive Maintenance (Plan 07, Schritte 1-4)
+- `energy_service.py` — Energie + CO₂ + CSRD-Export (Plan 09, Schritte 1-3+5)
+- `gpu_streaming_service.py` — GPU-Inventory + Metriken + Pool-Rebalancer (Plan 10, Schritte 1+3+4)
+
+**Weiteres**:
+- `server-installer/seed_config_parser.py` — Zero-Touch Installer YAML-Parser (Plan 08, Schritt 2)
+- `core/virtualization/desktop_pool.py` — `DesktopPoolType` Enum + `session_time_limit_minutes` + `session_cost_per_minute` ergänzt (Plan 03)
+- `thin-client-assistant/runtime/enrollment_wireguard.sh` — WireGuard Enrollment-Skript (Plan 02, Schritt 0)
+- `thin-client-assistant/runtime/protocol_selector.sh` — Protokoll-Fallback-Selektor (Plan 01, Schritt 6)
+
+**Unit-Tests** (alle in `tests/unit/`, alle 513 Tests grün):
+- `test_wireguard_mesh.py`, `test_stream_policy.py`, `test_device_registry.py`
+- `test_attestation_service.py`, `test_mdm_policy.py`, `test_gaming_pool.py`
+- `test_metrics_collector.py`, `test_workload_pattern.py`, `test_smart_scheduler.py`
+- `test_cost_model.py`, `test_fleet_telemetry.py`, `test_energy_service.py`
+- `test_gpu_streaming.py`, `test_seed_config_parser.py`
+
+**Bugs behoben**:
+- `wireguard_mesh_service.py`: `list.discard()` Fehler → set-Konvertierung
+- `gpu_streaming_service.py`: `_classify_gpu` `"a40"` Substring-Collision mit `"a4000"` → Padding-Fix
+- `seed_config_parser.py`: YAML-Parser vollständig neu geschrieben (korrekte Stack-Logik für Listen)
+
 ## Update (2026-04-24, GoFuture Plan 09/16 Testpflicht abgeschlossen)
 
 - **Plan 16 — Inkrementelles Backup**:

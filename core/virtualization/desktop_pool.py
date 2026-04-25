@@ -13,6 +13,13 @@ class DesktopPoolMode(str, Enum):
     DEDICATED = "dedicated"
 
 
+class DesktopPoolType(str, Enum):
+    """GoEnterprise Plan 03: Pool-Typ für unterschiedliche Workloads."""
+    DESKTOP = "desktop"       # Standard VDI Desktop
+    GAMING = "gaming"         # GPU-Pflicht, hohe Bitrate, gaming-grade FPS
+    KIOSK = "kiosk"           # Session-Time-Limit, stateless (VM-Reset nach Session)
+
+
 class SessionRecordingPolicy(str, Enum):
     DISABLED = "disabled"
     ON_DEMAND = "on_demand"
@@ -39,6 +46,10 @@ class DesktopPoolSpec:
     labels: tuple[str, ...] = field(default_factory=tuple)
     streaming_profile: StreamingProfile | None = None
     tenant_id: str = ""
+    # GoEnterprise Plan 03: Gaming/Kiosk pools
+    pool_type: DesktopPoolType = DesktopPoolType.DESKTOP
+    session_time_limit_minutes: int = 0     # 0 = unlimited (kiosk: set >0)
+    session_cost_per_minute: float = 0.0    # for kiosk billing
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,34 @@
 # Next Steps
 
+## Stand (2026-04-27) — GoEnterprise Plans 01-10 Services + Tests abgeschlossen
+
+Alle 14 GoEnterprise-Services, 14 Unit-Test-Dateien (513 Tests), 2 Shell-Skripte und `seed_config_parser.py` sind fertig. Alle Tests grün.
+
+### Nächste GoEnterprise-Schritte (offene Checkboxen in Plans 01-10)
+
+1. **Plan 03 — `pool_manager.py`**: Pool-Typ-spezifische Allocation-Logik (nur Service-Integration, kein neuer Service)
+2. **Plan 03 — Kiosk-Controller UI**: `website/ui/kiosk_controller.js` (Frontend-Work)
+3. **Plan 04 — AI Scheduler Insights Dashboard**: `website/ui/scheduler_insights.js` (Frontend)
+4. **Plan 05 — Cost Dashboard**: `website/ui/cost_dashboard.js` (Frontend)
+5. **Plan 07 — Fleet Health Dashboard**: `website/ui/fleet_health.js` (Frontend)
+6. **Plan 08 — PXE Server Setup**: `scripts/setup-pxe-server.sh` + PXE-Boot-Test auf srv1
+7. **Plan 08 — Cluster Enrollment Token**: `cluster_service.py` für `generate_enrollment_token()`
+8. **Plan 09 — Energy Dashboard**: `website/ui/energy_dashboard.js` (Frontend)
+9. **Plan 09 — RAPL-Integration**: Echte Power-Readings via `/sys/class/powercap/` auf srv1
+10. **Plan 10 — GPU Dashboard**: `website/ui/gpu_dashboard.js` (Frontend)
+11. **Plan 10 — libvirt GPU Passthrough Modi**: `providers/beagle/libvirt_provider.py` GPU-Assign-Logik
+
+### Nächste backend-seitige Priorität
+
+- **Control Plane Endpoints**: `/api/v1/vpn/register`, `/api/v1/streams/register`, `/api/v1/reports/chargeback` in `beagle-host/bin/beagle-control-plane.py` ergänzen
+- **Smoke-Test auf srv1**: `enrollment_wireguard.sh` + `protocol_selector.sh` gegen live srv1 testen
+
 ## Stand (2026-04-25) — Alle bearbeitbaren GoFuture-Checkboxen abgeschlossen
+
+Alle 20 `docs/gofuture/`-Pläne sind vollständig abgearbeitet. Die verbleibenden offenen Items sind external-action-blocked oder hardware-gebunden:
+
+- **Plan 12 — GPU VM nvidia-smi-Test**: OVMF-VM mit NVIDIA-Treiber auf srv2 (Produktionsserver). Voraussetzung: whole-group-passthrough (PCIe Root Port 00:01.0 + GPU 01:00.0 in IOMMU-Gruppe 1, kein ACS-Support in Hardware/Stock-Kernel). Betreiber-Entscheidung ob separate Test-VM sinnvoll.
+- **Plan 18 — Terraform Registry publish**: Erfordert externes GitHub-Konto mit Terraform Registry Verifizierung. Manueller menschlicher Schritt.
 
 Alle 20 `docs/gofuture/`-Pläne sind vollständig abgearbeitet. Die verbleibenden offenen Items sind external-action-blocked oder hardware-gebunden:
 
