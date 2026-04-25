@@ -1,4 +1,39 @@
+## Update (2026-04-25, GoAdvanced Plan 05: Control-Plane-Split — Handler-Extraktion)
+
+**Scope**: Plan 05 (Control-Plane Split) — `beagle-control-plane.py` von 899 LOC auf **88 LOC** geschrumpft (Ziel < 800 LOC) durch Extraktion der Handler-Klasse.
+
+### Handler-Extraktion (Plan 05 Schritt 4)
+- **Neu**: `beagle-host/services/control_plane_handler.py` (829 LOC) — enthaelt die komplette `Handler(HandlerMixin, BaseHTTPRequestHandler)` Klasse mit `do_GET`/`do_POST`/`do_PUT`/`do_DELETE`/`do_OPTIONS`/`log_message`/`handle_one_request`. Keine API-Verhaltensaenderung; reine Verschiebung.
+- **Geschrumpft**: `beagle-host/bin/beagle-control-plane.py` 899 → **88 LOC**. Enthaelt jetzt nur noch:
+  - sys.path-Setup (3 Eintraege fuer ROOT/PROVIDERS/SERVICES)
+  - `from service_registry import *`
+  - `from control_plane_handler import Handler`
+  - `main()`: Secret-Bootstrap, AuditLogService-Wiring fuer SecretStore, `ensure_data_dir()`, `ensure_cluster_rpc_listener()`, Recording-/Backup-Scheduler-Threads, ThreadingHTTPServer-Start, Cleanup-/Signal-Handling
+
+### Plan-05 Status nach Audit
+- Schritt 1 (Inventur): bereits durch Vorgaenger-Welle erledigt → `[x]`
+- Schritt 2 (Router-Abstraktion): `api_router_service.py` (185 LOC) + 16 Tests → `[x]`
+- Schritt 3 (Surface-Migration): 12 von 10 geplanten Surfaces produktiv (z.B. `vm_http_surface`, `pools_http_surface`, `cluster_http_surface`, `endpoint_http_surface`, `auth_session_http_surface`, plus Bonus `admin/audit_report/auth/backups/network/public/recording`) → `[/]` (Reports/Energy/Fleet/Health-Metrics noch in Handler/admin)
+- Schritt 4 (Handler-Extraktion): **`[x]` — heute erledigt, Ziel deutlich unterschritten**
+- Schritt 5 (Surface-Tests): teilweise → `[/]`
+- Schritt 6 (Smoke auf srv1): ausstehend → `[/]`
+
+### Tests
+- `python3 -m py_compile` auf beide Dateien => OK
+- `import control_plane_handler` mit allen Service-Inits funktioniert (alle 5 do_* Methoden vorhanden)
+- `pytest tests/unit/ -k 'router or surface or runtime or service_registry or smoke'` => **100 passed**
+- Voller Lauf: 782 passed, 10 pre-existing Failures (gpu_metrics/streaming/rebalancing/mock_provider — unabhaengig vom Refactor, durch Stash-Vergleich verifiziert)
+
+### Naechste sinnvolle Schritte
+- Plan 05 Schritt 6: Smoke auf srv1 nach naechstem Deploy
+- Plan 11 Schritt 2: Feature-Parity-Audit-Tabelle Proxmox vs Beagle
+- Plan 06: SQLite-State-Migration
+
+---
+
 ## Update (2026-04-25, GoAdvanced Plan 09: CI-Pipeline Bats-Tests + Workflow-Audit)
+
+
 
 **Scope**: Plan 09 (CI-Pipeline) — Bats-Test fuer TPM-Attestation, Bestands-Workflows auditiert + dokumentiert, post_install_check.bats stabilisiert.
 

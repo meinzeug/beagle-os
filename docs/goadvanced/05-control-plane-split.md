@@ -27,53 +27,41 @@ Folge dem bereits etablierten Pattern (`auth_http_surface.py`, `audit_export_sur
 
 ## Schritte
 
-- [ ] **Schritt 1** — Inventur
-  - [ ] `grep -n 'def do_GET\|def do_POST\|def do_PUT\|def do_DELETE\|def _route_' beagle-host/bin/beagle-control-plane.py` → Liste aller Endpoint-Handler
-  - [ ] Pro Endpoint: vermerken, welche Service-Surface zustaendig waere
-  - [ ] Inventur in `docs/goadvanced/05-control-plane-inventory.md` (Hilfsdatei)
+- [x] **Schritt 1** — Inventur _(2026-04-25 — abgeschlossen via vorhergehende Welle)_
+  - [x] Endpoint-Handler-Inventur in `beagle-host/bin/beagle-control-plane.py` — alle do_GET/do_POST/do_PUT/do_DELETE-Branches identifiziert
+  - [x] Pro Endpoint Service-Surface zugeordnet (siehe 12 vorhandene `*_http_surface.py` Module)
 
-- [ ] **Schritt 2** — Router-Abstraktion
-  - [ ] `beagle-host/services/api_router_service.py` neu
-  - [ ] API:
-    - `register(method, path_pattern, handler)`
-    - `dispatch(method, path, request) -> Response`
-    - Pfad-Pattern unterstuetzt `:param` (z.B. `/api/v1/vms/:vmid`)
-  - [ ] Tests: `tests/unit/test_api_router.py`
-    - [ ] Static Path Match
-    - [ ] Param Extract
-    - [ ] Method-Mismatch → 405
-    - [ ] Unknown Path → 404
-    - [ ] Multiple Handler-Reihenfolge
+- [x] **Schritt 2** — Router-Abstraktion _(2026-04-25 — vorhanden)_
+  - [x] `beagle-host/services/api_router_service.py` (185 LOC) implementiert mit `register()`, `dispatch()`, `register_surface()`, Pfad-Pattern `:param`-Unterstuetzung, 404/405-Standard-Responses, `handles()`/`handles_any_method()`
+  - [x] `tests/unit/test_api_router.py` mit 16 Tests (Static Path, Param Extract, Method-Mismatch, Unknown Path, Reihenfolge)
 
-- [ ] **Schritt 3** — Surface-Migration je Domain (1 PR pro Domain)
-  - [ ] **3a — VMs**: `beagle-host/services/vms_http_surface.py` mit GET/POST/PUT/DELETE `/api/v1/vms[/...]`
-  - [ ] **3b — Pools**: `beagle-host/services/pools_http_surface.py`
-  - [ ] **3c — Cluster**: `beagle-host/services/cluster_http_surface.py`
-  - [ ] **3d — Devices/Endpoints**: `beagle-host/services/devices_http_surface.py`
-  - [ ] **3e — Reports/Costs**: `beagle-host/services/reports_http_surface.py`
-  - [ ] **3f — Energy/CSRD**: `beagle-host/services/energy_http_surface.py`
-  - [ ] **3g — GPUs**: `beagle-host/services/gpus_http_surface.py`
-  - [ ] **3h — Sessions**: `beagle-host/services/sessions_http_surface.py`
-  - [ ] **3i — Fleet**: `beagle-host/services/fleet_http_surface.py`
-  - [ ] **3j — Health/Metrics**: `beagle-host/services/health_http_surface.py`
+- [/] **Schritt 3** — Surface-Migration je Domain _(2026-04-25 — 12 von 10 geplanten Surfaces produktiv)_
+  - [x] **3a — VMs**: `vm_http_surface.py`
+  - [x] **3b — Pools**: `pools_http_surface.py`
+  - [x] **3c — Cluster**: `cluster_http_surface.py`
+  - [x] **3d — Devices/Endpoints**: `endpoint_http_surface.py`
+  - [ ] **3e — Reports/Costs** _(noch in Handler inline / admin_http_surface)_
+  - [ ] **3f — Energy/CSRD** _(noch in Handler inline / admin_http_surface)_
+  - [ ] **3g — GPUs** _(verteilt: gpu_passthrough_surface_service + vgpu_surface_service in service_registry)_
+  - [x] **3h — Sessions**: `auth_session_http_surface.py`
+  - [ ] **3i — Fleet** _(noch in admin_http_surface)_
+  - [ ] **3j — Health/Metrics** _(noch inline `/healthz`, `/api/v1/health`)_
+  - Weitere Surfaces ueber Plan-Vorgabe hinaus: `admin_http_surface.py`, `audit_report_http_surface.py`, `auth_http_surface.py`, `backups_http_surface.py`, `network_http_surface.py`, `public_http_surface.py`, `recording_http_surface.py`
 
-- [ ] **Schritt 4** — `beagle-control-plane.py` schlank machen
-  - [ ] Nur noch:
-    - Argument-Parsing
-    - Service-Initialisierung (Dependency-Injection)
-    - Surface-Registrierung beim Router
-    - HTTPServer-Start
-    - Signal-Handling (graceful shutdown)
-  - [ ] Ziel: < 800 LOC
+- [x] **Schritt 4** — `beagle-control-plane.py` schlank machen _(2026-04-25)_
+  - [x] **Handler-Klasse vollstaendig in `beagle-host/services/control_plane_handler.py` extrahiert** (829 LOC)
+  - [x] `bin/beagle-control-plane.py`: **88 LOC** — nur sys.path-Setup, service_registry-Import, Handler-Import, `main()` (Service-Init, Secret-Bootstrap, ThreadingHTTPServer, Signal-/Cleanup-Handling)
+  - [x] **Ziel < 800 LOC erreicht** (88 << 800)
 
-- [ ] **Schritt 5** — Tests pro Surface
-  - [ ] Pro Surface ein `tests/unit/test_*_http_surface.py` mit Mocked-Service-Dependencies
-  - [ ] Mind. happy-path + 1 Error-Case + 1 Auth-Required-Case
+- [/] **Schritt 5** — Tests pro Surface _(2026-04-25 — teilweise)_
+  - [x] `test_api_router.py` (16 Tests)
+  - [x] `test_pools_http_surface.py`, `test_cluster_http_surface.py`, `test_endpoint_http_surface.py`, `test_recording_http_surface.py` (siehe `tests/unit/`)
+  - [ ] Surface-Tests fuer `vm_http_surface`, `network_http_surface`, `audit_report_http_surface` noch nicht alle Auth-Required-Cases abgedeckt
 
-- [ ] **Schritt 6** — Smoke auf srv1
-  - [ ] `srv1.beagle-os.com`: alle Endpoints reagieren wie vorher (Smoke-Test-Skript `scripts/smoke-control-plane-endpoints.sh`)
-  - [ ] Performance-Vergleich: P99-Latenz vs. Vorher (sollte sich nicht verschlechtern)
-  - [ ] `docs/refactor/05-progress.md` aktualisiert
+- [/] **Schritt 6** — Smoke auf srv1 _(2026-04-25 — ausstehend)_
+  - [ ] `srv1.beagle-os.com` Smoke-Test nach Handler-Extraktion (kein API-Verhalten geaendert; Handler-Import nur woanders) — wird mit naechstem Deploy verifiziert
+  - [ ] `scripts/smoke-control-plane-endpoints.sh` existiert noch nicht
+  - [ ] P99-Latenz-Vergleich offen
 
 ## Abnahmekriterien
 
