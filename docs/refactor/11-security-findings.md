@@ -1,6 +1,18 @@
 # Security Findings
 
-Stand: 2026-04-24 (ergänzt: WireGuard Zero-Trust + BeagleStream-Protokoll-Analyse)
+Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
+
+## S-019 — Network POST Endpoints: Fehlende _is_authenticated()-Prüfung (PATCHED)
+
+- Status: **gepatcht** (commit `adbb20f`)
+- Risiko: **Mittel** (war — unauthentifizierte Anfragen an Network POST-Endpoints)
+- Betroffene Dateien: `beagle-host/bin/beagle-control-plane.py` (do_POST, network-Sektion)
+- Beschreibung:
+  - Die originalen `do_POST`-Handler für `/api/v1/network/ipam/zones`, `/api/v1/network/ipam/zones/*/allocate`, `/api/v1/network/ipam/zones/*/release`, `/api/v1/network/firewall/profiles`, `/api/v1/network/firewall/profiles/*/apply` hatten kein explizites `_is_authenticated()`-Check.
+  - `_authorize_or_respond()` wurde aufgerufen, aber wenn `_auth_principal()` `None` zurückgab (unauthentifiziert + keine Permission konfiguriert), wurde `True` zurückgegeben ohne Authentifizierungsprüfung.
+- Fix: Bei Verdrahtung der NetworkHttpSurfaceService in `do_POST` wurde `if not self._is_authenticated():` explizit hinzugefügt.
+
+---
 
 ## S-018 — BeagleStream (Sunshine-Fork): Unverschlüsselter LAN-Stream ohne WireGuard
 

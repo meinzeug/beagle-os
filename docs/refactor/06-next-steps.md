@@ -1,6 +1,32 @@
 # Next Steps
 
-## Stand (2026-04-28) — GoEnterprise Plans 02-10 Restschritte abgeschlossen
+## Stand (2026-04-29) — GoAdvanced Plan 05 Schritt 4 — Control Plane Surface-Wiring committed
+
+**Zuletzt erledigt (commit adbb20f)**:
+- Plan 05 Schritt 4: 4 HTTP Surfaces (`backups`, `pools`, `cluster`, `network`) in `beagle-control-plane.py` verdrahtet
+- `do_GET/do_POST/do_PUT/do_DELETE` delegieren jetzt an Surface-Instanzen
+- 835 Zeilen Inline-Handler-Code entfernt (6151 → 5316 LOC)
+- Security-Fix: `_is_authenticated()` für Network POST-Endpunkte hinzugefügt
+- 778 Unit-Tests bestanden (9 pre-existing GPU failures)
+
+### Nächste sofortige Schritte (nach Priorität)
+
+1. **Plan 05 Schritt 5 — Smoke-Tests** auf srv1: `scripts/smoke-control-plane-api.sh` für alle neuen Surface-Endpunkte erweitern + ausführen. Deploy der neuen Version auf srv1.
+2. **Plan 09 Schritt 4 — `build-iso.yml`**: ISO-Build-Pipeline (tag-triggered).
+3. **Plan 09 Schritt 5 — `release.yml`**: Release-Pipeline (GitHub Release + Artifacts).
+4. **Plan 09 Schritt 7 — `docs/contributing.md`**: Branch-Protection + PR-Prozess dokumentieren.
+5. **Weitere LOC-Reduktion**: `beagle-control-plane.py` hat noch ~5316 LOC. Ziel <800 LOC erfordert weitere Surface-Extraktion (VM, Auth, Admin HTTP-Surfaces vollständig ausbauen).
+
+### Offene Punkte (GoEnterprise / Runtime)
+
+1. **Plan 02 — WireGuard Enrollment (Runtime)**: E2E-Test mit echtem WireGuard braucht srv1/srv2.
+2. **Plan 03 — VM Stateless Reset**: `providers/beagle/libvirt_provider.py`: `reset_vm_to_snapshot()`
+3. **Plan 03 — RBAC kiosk_operator**: Rolle + Berechtigungsprüfung in IAM
+4. **Plan 06 — Session Handover E2E**: `tests/integration/test_session_handover_timing.py`
+5. **Plan 08 — TUI-Installer + PXE**
+6. **Plan 10 — GPU Assignment Modes**: passthrough/timeslice/vGPU-Modi in libvirt_provider.py
+
+
 
 Alle GoEnterprise-Services, Unit-Tests (643 gesamt, alle grün), Shell-Skripte und Website-UI-Module sind fertig. Plans 01-10 sind weitgehend durchgearbeitet; verbleibende offene Checkboxen betreffen meist Runtime/E2E-Tests und Infrastruktur-abhängige Punkte.
 

@@ -1,3 +1,56 @@
+## Update (2026-04-29, GoAdvanced Plan 05 Schritt 4 — Wire Surfaces into Control Plane)
+
+**Scope**: Plan 05 Schritt 4 — 4 neue HTTP Surface-Module in `beagle-control-plane.py` verdrahtet.
+
+### Änderungen
+- `beagle-host/bin/beagle-control-plane.py`: 6151 LOC → 5316 LOC (−835 Zeilen)
+- Neue Imports: `BackupsHttpSurfaceService`, `PoolsHttpSurfaceService`, `ClusterHttpSurfaceService`, `NetworkHttpSurfaceService`
+- Neues Singleton: `NETWORK_HTTP_SURFACE_SERVICE` + `network_http_surface_service()`-Factory
+- Neue Handler-Hilfsmethoden: `_backups_surface()`, `_cluster_surface()`, `_pools_surface()` (per-Request-Instanzen)
+- `do_GET`: Backup/Pool/Cluster/Network GET inline blocks ersetzt durch Surface-Dispatch
+- `do_POST`: Backup/Cluster/Pool/Network POST inline blocks ersetzt durch Surface-Dispatch
+- `do_PUT`: Backup PUT + StorageQuota PUT + Pool Update PUT ersetzt durch Surface-Dispatch
+- `do_DELETE`: Pool/Template DELETE ersetzt durch Pools Surface-Dispatch
+- Security-Fix: `_is_authenticated()` zu Network POST hinzugefügt (vorher fehlend)
+- Commit: `adbb20f`
+
+### Testergebnis
+- 778 Unit-Tests bestanden (9 pre-existing GPU-Failures unverändert)
+
+---
+
+## Update (2026-04-29, GoAdvanced Plan 05 Schritt 3 — Backups/Pools/Cluster/Network HTTP Surfaces + Plan 09 CI Pipelines)
+
+**Scope**: Plan 05 Schritt 3 (4 neue Surface-Module) + Plan 09 CI-Pipelines committed.
+
+### Neu erstellt
+- `beagle-host/services/backups_http_surface.py` — BackupsHttpSurfaceService (Backup/Snapshots/StorageQuota, 280 LOC)
+- `beagle-host/services/pools_http_surface.py` — PoolsHttpSurfaceService (VDI-Pools/Templates/Sessions, ~350 LOC)
+- `beagle-host/services/cluster_http_surface.py` — ClusterHttpSurfaceService (Cluster-Membership/HA/Maintenance, 170 LOC)
+- `beagle-host/services/network_http_surface.py` — NetworkHttpSurfaceService (IPAM/Firewall-Profiles, 175 LOC)
+- `beagle-host/services/api_router_service.py` — ApiRouter deklarativer Router (Plan 05 Schritt 2)
+- `tests/unit/test_backups_http_surface.py` — 21 Tests (alle grün)
+- `tests/unit/test_cluster_http_surface.py` — 14 Tests (alle grün)
+- `tests/unit/test_network_http_surface.py` — 16 Tests (alle grün)
+- `tests/unit/test_api_router.py` — 16 Tests (alle grün)
+- `.github/workflows/lint.yml` — shellcheck + ruff + mypy + eslint
+- `.github/workflows/tests.yml` — pytest matrix (Python 3.11+3.12) + bats
+- `.github/workflows/no-proxmox-references.yml` — rejects pvesh/qm/PVEAuthCookie outside allowed dirs
+- `tests/bats/post_install_check.bats` + `tests/bats/README.md` — Bats post-install tests
+
+### Tests
+- **Ergebnis**: 778 Tests (9 pre-existing GPU-Test-Fehler unverändert; alle neuen Tests grün)
+
+### Commit
+- `b3312f4` feat(goadvanced): plan05 schritt3 — backups/pools/cluster/network HTTP surfaces + plan09 CI pipelines
+
+### Nächste Schritte
+- Plan 05 Schritt 4: Surface-Module in `beagle-control-plane.py` verdrahten (LOC-Reduktion)
+- Plan 05 Schritt 5: Per-Surface Smoke-Tests
+- Plan 09: `build-iso.yml` + `release.yml` + `docs/contributing.md`
+
+---
+
 ## Update (2026-04-25, GoAdvanced Wave A Plans 03+04: Secret Mgmt + Subprocess Sandbox — vollständig)
 
 **Scope**: Plans 03 + 04 komplett abgeschlossen, deployed auf srv1+srv2.
