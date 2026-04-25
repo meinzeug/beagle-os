@@ -34,7 +34,7 @@ Heute: GPU wird einem VM-Slot fix zugewiesen (Passthrough) — auch wenn die VM 
   - Erkennt alle GPUs pro Node: `nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv`
   - Klassifiziert: `class=gaming` (RTX consumer) | `class=workstation` (RTX Pro/Quadro) | `class=compute` (A100/H100)
   - Felder: `gpu_id`, `node_id`, `model`, `vram_gb`, `supports_vgpu`, `supports_timeslice`, `current_assignment`
-- [ ] Tests: `tests/unit/test_gpu_inventory.py`
+- [x] Tests: `tests/unit/test_gpu_inventory.py`
 
 ### Schritt 2 — GPU-Zuweisung-Modi
 
@@ -51,7 +51,7 @@ Heute: GPU wird einem VM-Slot fix zugewiesen (Passthrough) — auch wenn die VM 
   - Alle 10s: GPU-Auslastung (%) + VRAM-Nutzung + GPU-Temperatur + Encoder-Auslastung (NVENC) pro VM
   - Stream-Routing: wenn GPU-Encoder (NVENC) überlastet (>90%) → warne oder migriere VM auf weniger ausgelasteten Node
 - [ ] Integration mit AI-Scheduler (Plan 04): GPU-Auslastungs-Prognose für Placement
-- [ ] Tests: `tests/unit/test_gpu_metrics.py`
+- [x] Tests: `tests/unit/test_gpu_metrics.py`
 
 ### Schritt 4 — GPU-Pool-Rebalancing
 
@@ -59,8 +59,8 @@ Heute: GPU wird einem VM-Slot fix zugewiesen (Passthrough) — auch wenn die VM 
   - Erkennt: GPU A bei 95%, GPU B bei 20% → empfiehlt VM-Migration
   - Berücksichtigt `gpu_class`: Gaming-VMs nur auf `class=gaming` GPUs migrieren
   - Auto-Modus: führt Migration durch (wenn konfiguriert)
-- [ ] Web Console: GPU-Pool-Übersicht mit Auslastungs-Bars, Migration-Button
-- [ ] Tests: `tests/unit/test_gpu_rebalancing.py`
+- [x] Web Console: GPU-Pool-Übersicht mit Auslastungs-Bars, Migration-Button
+- [x] Tests: `tests/unit/test_gpu_rebalancing.py`
 
 ### Schritt 5 — GPU-Dashboard + Capacity Planning
 

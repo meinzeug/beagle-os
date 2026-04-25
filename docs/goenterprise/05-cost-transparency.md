@@ -44,8 +44,8 @@ IT-Abteilungen investieren in Beagle-Server, aber können den Abteilungen nicht 
   - Jede Session: `user_id`, `department`, `pool_id`, `vm_id`, `start_time`, `end_time`, `resources_used`
   - Tägliche Aggregation: Kosten pro User, pro Abteilung, pro Pool
   - Speicherung in SQLite: `/var/lib/beagle/usage/usage.db`
-- [ ] Integration mit Session-Manager: bei `session_end` → `record_usage(session)`
-- [ ] Tests: `tests/unit/test_usage_tracking.py`
+- [x] Integration mit Session-Manager: bei `session_end` → `record_usage(session)`
+- [x] Tests: `tests/unit/test_usage_tracking.py`
 
 ### Schritt 3 — Chargeback-Reports
 
@@ -53,20 +53,20 @@ IT-Abteilungen investieren in Beagle-Server, aber können den Abteilungen nicht 
   - Ausgabe: CSV + JSON
   - Felder: `department`, `user`, `sessions`, `cpu_hours`, `gpu_hours`, `storage_gb`, `total_cost`
   - Drill-down: von Abteilung → User → einzelne Session
-- [ ] `beagle-host/bin/beagle-control-plane.py`: `GET /api/v1/reports/chargeback?month=2025-04&department=marketing`
-- [ ] Tests: `tests/unit/test_chargeback_report.py`
+- [x] `beagle-host/bin/beagle-control-plane.py`: `GET /api/v1/reports/chargeback?month=2025-04&department=marketing`
+- [x] Tests: `tests/unit/test_chargeback_report.py`
 
 ### Schritt 4 — Budget-Alerts
 
 - [x] `beagle-host/services/cost_model_service.py`: `BudgetAlert`:
   - `department`, `monthly_budget`, `alert_at_percent` (z.B. 80%)
   - E-Mail/Webhook wenn Schwelle erreicht
-- [ ] Web Console: Budget-Verwaltung pro Abteilung
-- [ ] Tests: `tests/unit/test_budget_alert.py`
+- [x] Web Console: Budget-Verwaltung pro Abteilung
+- [x] Tests: `tests/unit/test_budget_alert.py`
 
 ### Schritt 5 — Cost-Dashboard
 
-- [ ] `website/ui/cost_dashboard.js`:
+- [x] `website/ui/cost_dashboard.js`:
   - Monatskosten nach Abteilung (Balkendiagramm)
   - Top-10 kostenintensivste VMs
   - GPU-Cost vs CPU-Cost Aufteilung

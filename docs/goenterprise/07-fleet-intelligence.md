@@ -45,17 +45,17 @@ Ein IT-Admin mit 500 Thin-Clients und 20 Nodes sieht heute nur: "Alles grün" od
   - Vergleiche aktuelle Werte mit 30-Tage-Baseline (Mittelwert + Standardabweichung)
   - Anomalie wenn: `value > baseline + 3 * std_dev` oder linearer Trend zeigt auf kritischen Schwellwert in <7 Tagen
   - Ergebnis: `AnomalyReport {device_id, metric, current_value, baseline, trend, estimated_failure_days}`
-- [ ] Tests: `tests/unit/test_anomaly_detection.py`
+- [x] Tests: `tests/unit/test_anomaly_detection.py`
 
 ### Schritt 3 — Predictive-Alert-System
 
-- [ ] `beagle-host/services/alert_service.py`: Erweiterung um Fleet-Alerts:
+- [x] `beagle-host/services/alert_service.py`: Erweiterung um Fleet-Alerts:
   - `disk_failure_predicted` — SMART-Trending auf Fehlergrenze
   - `gpu_thermal_limit_approaching` — GPU-Temp trendend auf >85°C
   - `thin_client_hardware_degradation` — >5 Reboots/Woche
   - `node_memory_ecc_errors` — ECC-Fehlerrate steigt
 - [ ] Alerts via: Web Console Notification, E-Mail, Webhook (Slack/Teams)
-- [ ] Tests: `tests/unit/test_fleet_alerts.py`
+- [x] Tests: `tests/unit/test_fleet_alerts.py`
 
 ### Schritt 4 — Maintenance-Scheduling
 
@@ -63,12 +63,12 @@ Ein IT-Admin mit 500 Thin-Clients und 20 Nodes sieht heute nur: "Alles grün" od
   - Legt Maintenance-Fenster an (z.B. "Nächster Sonntag 2-6 Uhr")
   - Migriert VMs vom Node weg bevor Maintenance beginnt (automatisch via Smart-Scheduler)
   - Nach Maintenance: Node wieder in Rotation
-- [ ] Web Console: Maintenance-Kalender pro Node/Thin-Client
-- [ ] Tests: `tests/unit/test_maintenance_scheduling.py`
+- [x] Web Console: Maintenance-Kalender pro Node/Thin-Client
+- [x] Tests: `tests/unit/test_maintenance_scheduling.py`
 
 ### Schritt 5 — Fleet-Health-Dashboard
 
-- [ ] `website/ui/fleet_health.js`:
+- [x] `website/ui/fleet_health.js`:
   - Heatmap: Gesundheitsstatus aller Nodes + Thin-Clients
   - Risikoliste: "Diese 5 Geräte benötigen bald Wartung"
   - Metriken-Graphen: SMART, Temperatur, Fehlerrate über Zeit

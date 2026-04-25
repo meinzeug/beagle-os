@@ -49,7 +49,7 @@ Beagle OS ist die einzige Virtualisierungsplattform die:
 - [x] `core/virtualization/desktop_pool.py`: `pool_type` Feld erweitern: `desktop` | `gaming` | `kiosk`
   - `gaming`-Pools: GPU-Slot-Pflicht, höhere Standard-Bitrate (50-100Mbps), 60/120/144fps Standard
   - `kiosk`-Pools: Session-Time-Limit, keine Persistenz (VM reset nach Session), keine Datei-Uploads
-- [ ] `beagle-host/services/pool_manager.py`: Pool-Typ-spezifische Allocation-Logik
+- [x] `beagle-host/services/pool_manager.py`: Pool-Typ-spezifische Allocation-Logik
   - Gaming-Pool: blockiert wenn keine GPU verfügbar (kein Soft-Fallback auf CPU)
 - [ ] Web Console: Pool-Typ-Auswahl beim Erstellen
 - [x] Tests: `tests/unit/test_gaming_pool.py`
@@ -57,17 +57,17 @@ Beagle OS ist die einzige Virtualisierungsplattform die:
 ### Schritt 2 — Session-Time-Limit + Kiosk-Abrechnung
 
 - [x] `core/virtualization/desktop_pool.py`: `session_time_limit_minutes` (0 = unbegrenzt)
-- [ ] `beagle-host/services/pool_manager.py`:
+- [x] `beagle-host/services/pool_manager.py`:
   - Beim Allocate: `session_expires_at = now + time_limit`
   - Background-Task: Session automatisch terminieren wenn abgelaufen
   - `session_cost_per_minute` Feld (für Abrechnung)
-- [ ] `beagle-host/bin/beagle-control-plane.py`: `GET /api/v1/sessions/{id}/time-remaining`
-- [ ] Web Console: Timer-Anzeige in Session-Übersicht (Kiosk-Betreiber sieht wie lang jede Session noch läuft)
-- [ ] Tests: `tests/unit/test_session_time_limit.py`
+- [x] `beagle-host/bin/beagle-control-plane.py`: `GET /api/v1/sessions/{id}/time-remaining`
+- [x] Web Console: Timer-Anzeige in Session-Übersicht (Kiosk-Betreiber sieht wie lang jede Session noch läuft)
+- [x] Tests: `tests/unit/test_session_time_limit.py`
 
 ### Schritt 3 — Kiosk-Controller-Dashboard
 
-- [ ] `website/ui/kiosk_controller.js`: Echtzeit-Dashboard für Kiosk-Betreiber:
+- [x] `website/ui/kiosk_controller.js`: Echtzeit-Dashboard für Kiosk-Betreiber:
   - Grid aller Kiosk-Stationen (VM-Status, aktiver User, laufendes Spiel, verbleibende Zeit)
   - Aktionen: Session verlängern, vorzeitig beenden, VM-Reset anstoßen
   - Live-Metriken: GPU-Auslastung, FPS, Latenz der aktiven Streams

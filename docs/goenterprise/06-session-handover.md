@@ -31,20 +31,20 @@ Heute: Session trennen, VM einfrieren, in München neu verbinden (20-60 Sekunden
 
 ### Schritt 1 — Session-State-Checkpoint
 
-- [ ] `beagle-host/services/session_manager.py`: `checkpoint_session(session_id)`:
+- [x] `beagle-host/services/session_manager.py`: `checkpoint_session(session_id)`:
   - Speichert aktuellen Session-State: aktiver VM-State (QEMU-Checkpoint), Moonlight-Connection-State, User-Context
   - Checkpoint-Datei in `/var/lib/beagle/session-checkpoints/{session_id}.ckpt`
-- [ ] Provoke: `providers/beagle/libvirt_provider.py`: `save_vm_state(vmid, checkpoint_path)` via virsh managedsave
-- [ ] Tests: `tests/unit/test_session_checkpoint.py`
+- [x] Provoke: `providers/beagle/libvirt_provider.py`: `save_vm_state(vmid, checkpoint_path)` via virsh managedsave
+- [x] Tests: `tests/unit/test_session_checkpoint.py`
 
 ### Schritt 2 — Cross-Node Checkpoint-Transfer
 
-- [ ] `beagle-host/services/session_manager.py`: `transfer_session(session_id, target_node)`:
+- [x] `beagle-host/services/session_manager.py`: `transfer_session(session_id, target_node)`:
   - Checkpoint zu Ziel-Node übertragen (rsync/SCP über Management-Netzwerk)
   - VM auf Quell-Node stoppen, auf Ziel-Node aus Checkpoint restoren
   - Moonlight: neue Verbindung zu Ziel-Node aufbauen, Client bekommt neue Server-IP
-- [ ] `providers/beagle/libvirt_provider.py`: `restore_vm_from_checkpoint(vmid, checkpoint_path)`
-- [ ] Tests: `tests/unit/test_session_transfer.py`
+- [x] `providers/beagle/libvirt_provider.py`: `restore_vm_from_checkpoint(vmid, checkpoint_path)`
+- [x] Tests: `tests/unit/test_session_transfer.py`
 
 ### Schritt 3 — Transparent Client Reconnect
 

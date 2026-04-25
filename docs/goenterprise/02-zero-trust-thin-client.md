@@ -75,7 +75,7 @@ Ergebnis: Ein Thin-Client ohne gültigen WireGuard-Key + Attestation bekommt **k
 
 ### Schritt 2 — Remote-Attestation via TPM
 
-- [ ] `thin-client-assistant/runtime/tpm_attestation.sh`:
+- [x] `thin-client-assistant/runtime/tpm_attestation.sh`:
   - Liest TPM-PCR-Werte (Secure Boot Chain, Kernel-Hash)
   - Erstellt einen signierten Attestation-Report
   - Sendet Report bei Enrollment + periodisch an Control Plane

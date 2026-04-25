@@ -104,6 +104,9 @@ class GpuInventoryService:
 
     def register_gpu(self, device: GpuDevice) -> GpuDevice:
         """Manually register a GPU (for testing or non-NVIDIA cards)."""
+        if device.gpu_class == "unknown":
+            from dataclasses import replace
+            device = replace(device, gpu_class=_classify_gpu(device.model))
         self._state[device.gpu_id] = asdict(device)
         self._save()
         return device

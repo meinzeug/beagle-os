@@ -1,3 +1,49 @@
+## Update (2026-04-28, GoEnterprise Plans 02-10 — Restliche Services, Tests, Shell-Skripte, UI-Module)
+
+**Scope**: Restliche offene GoEnterprise-Checkboxen (Plans 02-10) abgearbeitet. Neue Services und Unit-Tests implementiert, Service-Bugs behoben, Shell-Skripte und Website-UI-Module erstellt. Alle 643 Unit-Tests grün.
+
+### Neu erstellt / bearbeitet
+
+**Beagle-Host Services** (neu):
+- `session_manager.py` — Session-Checkpoint + Live-Transfer (Plan 06, Schritte 1-2)
+- `alert_service.py` — Fleet-Alert-Rules + Notification-Dispatch (Plan 07, Schritt 3)
+- `cluster_service.py` — Cluster-Enrollment-Tokens (Plan 08, Schritt 4)
+
+**Modifikationen bestehender Services**:
+- `pool_manager.py` — `pool_type` + `session_time_limit_minutes` gespeichert; `time_remaining_seconds()`, `expire_overdue_sessions()` ergänzt
+- `core/virtualization/desktop_pool.py` — `DesktopPoolInfo` um `pool_type` + `session_time_limit_minutes` erweitert
+- `gpu_streaming_service.py` — `register_gpu()` auto-klassifiziert GPU wenn `gpu_class="unknown"`
+- `energy_service.py` — `compute_energy_kwh()` um `days`-Parameter erweitert; CSRD-Report nutzt `days=400`; `by_month` + `period` Felder ergänzt
+- `session_manager.py` — `SessionCheckpoint.error` Feld hinzugefügt
+
+**Shell-Skripte**:
+- `thin-client-assistant/runtime/tpm_attestation.sh` — TPM PCR-Attestation mit POST an Control Plane (Plan 02, Schritt 2)
+- `server-installer/post-install-check.sh` — Post-Install Health-Check (Plan 08, Schritt 5)
+
+**Website UI ES-Module** (alle in `website/ui/`):
+- `kiosk_controller.js` — Live-Session-Liste, Restzeit-Anzeige, Session-Beenden (Plan 03, Schritt 3)
+- `scheduler_insights.js` — Node-Heatmap, Placement-Empfehlungen, Rebalance-Button (Plan 04)
+- `cost_dashboard.js` — Kosten nach Abteilung, Budget-Alerts, Chargeback-CSV-Export (Plan 05)
+- `fleet_health.js` — Geräte-Tabelle, Anomalie-Badges, Maintenance-Einträge (Plan 07)
+- `energy_dashboard.js` — Node-Power-Bars, CO₂-Verlauf, CSRD-Export (Plan 09)
+- `gpu_dashboard.js` — GPU-Pool-Auslastung, Zuweisung-Liste, Migration-Button (Plan 10)
+
+**Unit-Tests** (alle grün, 643 total):
+- `test_anomaly_detection.py`, `test_usage_tracking.py`, `test_chargeback_report.py`
+- `test_budget_alert.py`, `test_carbon_calculation.py`, `test_csrd_export.py`
+- `test_gpu_inventory.py`, `test_gpu_metrics.py`, `test_gpu_rebalancing.py`
+- `test_session_time_limit.py`, `test_session_checkpoint.py`, `test_session_transfer.py`
+- `test_fleet_alerts.py`, `test_maintenance_scheduling.py`, `test_cluster_enrollment_token.py`
+
+**Bugs behoben**:
+- `energy_service.py`: `get_samples(days=62)` schnitt historische Q1-Daten ab wenn Systemzeit nach Q1 → `days`-Parameter + CSRD nutzt `days=400`
+- `session_manager.py`: `SessionCheckpoint` fehlte `error`-Feld für Checkpoint-Failure-Handling
+- `gpu_streaming_service.py`: `register_gpu()` erkannte GPU-Klasse nicht automatisch → `_classify_gpu()` bei `gpu_class="unknown"` aufgerufen
+
+**GoEnterprise Docs**: 37 Checkboxen in Plans 02-10 auf `[x]` gesetzt.
+
+---
+
 ## Update (2026-04-27, GoEnterprise Plans 01-10 — Services, Tests, Shell-Skripte)
 
 **Scope**: Alle 10 GoEnterprise-Pläne (Beagle OS 8.x Enterprise) bearbeitet. Services implementiert, Unit-Tests geschrieben und alle auf grün gebracht, Shell-Skripte erstellt, Docs aktualisiert.

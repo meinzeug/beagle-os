@@ -83,6 +83,8 @@ class DesktopPoolInfo:
     recording_watermark_enabled: bool = False
     recording_watermark_custom_text: str = ""
     tenant_id: str = ""
+    pool_type: DesktopPoolType = DesktopPoolType.DESKTOP
+    session_time_limit_minutes: int = 0
 
 
 class DesktopPool(Protocol):

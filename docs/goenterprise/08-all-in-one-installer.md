@@ -79,13 +79,13 @@ Priorität: 8.1.1 (Q4 2026)
 ### Schritt 4 — Cluster-Auto-Join
 
 - [ ] `server-installer/`: Nach Installation: wenn `cluster.join` in Seed-Config → automatisch `beaglectl cluster join <ip> --token <token>`
-- [ ] `beagle-host/services/cluster_service.py`: `generate_enrollment_token()` (einmal-verwendbar, 24h gültig)
+- [x] `beagle-host/services/cluster_service.py`: `generate_enrollment_token()` (einmal-verwendbar, 24h gültig)
 - [ ] `beagle-host/bin/beagle-control-plane.py`: `POST /api/v1/cluster/join` mit Token-Validierung
-- [ ] Tests: `tests/unit/test_cluster_enrollment_token.py`
+- [x] Tests: `tests/unit/test_cluster_enrollment_token.py`
 
 ### Schritt 5 — Post-Install Health-Check
 
-- [ ] `server-installer/post-install-check.sh`:
+- [x] `server-installer/post-install-check.sh`:
   - Prüft: Netzwerk erreichbar, Beagle-Services laufen, Storage mounted, GPU erkannt (wenn vorhanden), Cluster-Verbindung aktiv
   - Ausgabe: Grüner Bildschirm ("Installation erfolgreich") oder Fehlerdetails
   - Report wird an Cluster-Controller gesendet: "Neuer Node ist ready"

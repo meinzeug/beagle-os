@@ -48,7 +48,7 @@ Unternehmen mit >500 Mitarbeitern müssen Scope-2-Emissionen (IT-Infrastruktur) 
   - Stündlich aktualisierbar (für Echtzeit-Spotmarkt-Strommix per API)
   - Kalkuliert: `co2_grams = energy_kwh * co2_grams_per_kwh`
 - [ ] Admin-Konfiguration in Web Console
-- [ ] Tests: `tests/unit/test_carbon_calculation.py`
+- [x] Tests: `tests/unit/test_carbon_calculation.py`
 
 ### Schritt 3 — Energie-Kostenintegration
 
@@ -71,12 +71,12 @@ Unternehmen mit >500 Mitarbeitern müssen Scope-2-Emissionen (IT-Infrastruktur) 
 - [x] `beagle-host/services/energy_service.py`: `generate_csrd_report(year, quarter)`:
   - Ausgabe: JSON + Excel (via openpyxl) im CSRD Scope-2-Format
   - Felder: Zeitraum, Total-kWh, Total-CO₂, Aufschlüsselung nach Abteilung
-- [ ] `website/ui/energy_dashboard.js`:
+- [x] `website/ui/energy_dashboard.js`:
   - Echtzeit-Energie-Verbrauch (kW aktuell)
   - CO₂-Footprint: heute, diese Woche, dieses Jahr
   - Ranking: effizienteste vs. energieintensivste VMs
   - "Grüne Stunden" Heatmap (wann ist der Strommix am saubersten)
-- [ ] Tests: `tests/unit/test_csrd_export.py`
+- [x] Tests: `tests/unit/test_csrd_export.py`
 
 ---
 

@@ -1,13 +1,24 @@
 # Next Steps
 
-## Stand (2026-04-27) — GoEnterprise Plans 01-10 Services + Tests abgeschlossen
+## Stand (2026-04-28) — GoEnterprise Plans 02-10 Restschritte abgeschlossen
 
-Alle 14 GoEnterprise-Services, 14 Unit-Test-Dateien (513 Tests), 2 Shell-Skripte und `seed_config_parser.py` sind fertig. Alle Tests grün.
+Alle GoEnterprise-Services, Unit-Tests (643 gesamt, alle grün), Shell-Skripte und Website-UI-Module sind fertig. Plans 01-10 sind weitgehend durchgearbeitet; verbleibende offene Checkboxen betreffen meist Runtime/E2E-Tests und Infrastruktur-abhängige Punkte.
 
-### Nächste GoEnterprise-Schritte (offene Checkboxen in Plans 01-10)
+### Verbleibende offene Punkte (nach Priorisierung)
 
-1. **Plan 03 — `pool_manager.py`**: Pool-Typ-spezifische Allocation-Logik (nur Service-Integration, kein neuer Service)
-2. **Plan 03 — Kiosk-Controller UI**: `website/ui/kiosk_controller.js` (Frontend-Work)
+1. **Plan 02 — WireGuard Enrollment (Runtime)**: `enrollment_wireguard.sh` läuft, aber E2E-Test mit echtem WireGuard (`test_enrollment_wireguard.py`) noch offen. Braucht srv1/srv2.
+2. **Plan 03 — VM Stateless Reset**: `providers/beagle/libvirt_provider.py`: `reset_vm_to_snapshot()` + `test_vm_stateless_reset.py`
+3. **Plan 03 — RBAC kiosk_operator**: Rolle + Berechtigungsprüfung in IAM implementieren
+4. **Plan 06 — Session Handover E2E**: `tests/integration/test_session_handover_timing.py` + Geo-Routing (`test_geo_routing.py`)
+5. **Plan 08 — TUI-Installer**: `whiptail`/`dialog`-basierter TUI-Installer für `server-installer/`
+6. **Plan 08 — PXE**: `scripts/setup-pxe-server.sh` + `docs/deployment/pxe-deployment.md`
+7. **Plan 09 — Energy-Cost-Integration**: `test_energy_cost_integration.py` (Plan 05 ↔ Plan 09)
+8. **Plan 10 — GPU Assignment Modes**: `libvirt_provider.py` passthrough/timeslice/vGPU-Modi + `test_gpu_assignment_modes.py`
+
+### GoFuture Plans (laufend)
+- Plans 01-20 in `docs/gofuture/` weiterlaufen nach Bedarf
+
+
 3. **Plan 04 — AI Scheduler Insights Dashboard**: `website/ui/scheduler_insights.js` (Frontend)
 4. **Plan 05 — Cost Dashboard**: `website/ui/cost_dashboard.js` (Frontend)
 5. **Plan 07 — Fleet Health Dashboard**: `website/ui/fleet_health.js` (Frontend)

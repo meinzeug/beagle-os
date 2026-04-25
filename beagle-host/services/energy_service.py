@@ -134,12 +134,13 @@ class EnergyService:
         *,
         month: str,                  # "YYYY-MM"
         vm_id: str | None = None,
+        days: int = 62,
     ) -> float:
         """
         Compute kWh consumed by a node (or specific VM) in a given month.
         Assumes samples are taken every ~60 seconds.
         """
-        samples = self.get_samples(node_id, days=62)
+        samples = self.get_samples(node_id, days=days)
         total_wh = 0.0
         SAMPLE_INTERVAL_H = 1 / 60.0  # ~60s samples → 1/60 hour each
 
@@ -192,7 +193,7 @@ class EnergyService:
         for month in months:
             month_kwh = 0.0
             for nid in node_ids:
-                month_kwh += self.compute_energy_kwh(nid, month=month)
+                month_kwh += self.compute_energy_kwh(nid, month=month, days=400)
             by_month[month] = {
                 "kwh": month_kwh,
                 "co2_kg": round(self.compute_co2(month_kwh) / 1000.0, 3),
@@ -210,6 +211,8 @@ class EnergyService:
             "total_cost_eur": self.compute_energy_cost(total_kwh),
             "co2_grams_per_kwh_used": cfg.co2_grams_per_kwh,
             "breakdown": by_month,
+            "by_month": by_month,
+            "period": f"{year}-Q{quarter}",
             "scope": "Scope-2 (location-based)",
         }
 
