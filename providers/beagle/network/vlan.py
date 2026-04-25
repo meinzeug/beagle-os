@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from core.exec.safe_subprocess import run_cmd as _run_cmd_safe
 from core.persistence.json_state_store import JsonStateStore
 from core.virtualization.network import NetworkBackend, NetworkZoneInfo, NetworkZoneSpec, VlanInterfaceSpec
 
@@ -30,13 +31,13 @@ class VlanBackend:
         self._store.save(self._state)
 
     def _run_cmd(self, cmd: list[str]) -> str:
-        """Run a shell command and return output."""
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        """Run a command and return output."""
+        result = _run_cmd_safe(cmd, check=True)
         return result.stdout.strip()
 
     def _run_cmd_ignore_error(self, cmd: list[str]) -> str:
-        """Run a shell command, ignoring errors."""
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        """Run a command, ignoring errors."""
+        result = _run_cmd_safe(cmd, check=False)
         return result.stdout.strip()
 
     def _validate_vlan_id(self, vlan_id: int) -> None:

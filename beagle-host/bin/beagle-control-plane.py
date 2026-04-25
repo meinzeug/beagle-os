@@ -117,6 +117,7 @@ from vm_usb import VmUsbService
 from core.virtualization.desktop_pool import SessionRecordingPolicy
 from ipam_service import IpamService
 from firewall_service import FirewallService
+from secret_store_service import SecretStoreService
 
 def load_env_defaults(path: str) -> None:
     env_path = Path(path)
@@ -481,6 +482,41 @@ SCIM_SERVICE: ScimService | None = None
 BACKUP_SERVICE: BackupService | None = None
 IPAM_SERVICE: IpamService | None = None
 FIREWALL_SERVICE: FirewallService | None = None
+SECRET_STORE_SERVICE: SecretStoreService | None = None
+
+
+def _secret_store() -> SecretStoreService:
+    """Return the singleton SecretStoreService (lazy-init, thread-safe enough for startup)."""
+    global SECRET_STORE_SERVICE
+    if SECRET_STORE_SERVICE is None:
+        SECRET_STORE_SERVICE = SecretStoreService(
+            secrets_dir=Path("/var/lib/beagle/secrets"),
+        )
+    return SECRET_STORE_SERVICE
+
+
+def _bootstrap_secret(name: str, env_value: str, *, generate: bool = True) -> str:
+    """Return env_value if set, otherwise load from SecretStore.
+
+    If the secret does not exist in the store yet and generate=True, a new
+    random value is generated and stored.  The value is NEVER logged.
+    """
+    if env_value:
+        return env_value
+    store = _secret_store()
+    try:
+        return store.get_secret(name).value
+    except Exception:  # noqa: BLE001
+        pass
+    if not generate:
+        return ""
+    import logging as _logging
+    sv = store.set_secret(name, secrets.token_hex(32))
+    _logging.getLogger(__name__).info(
+        "[BEAGLE BOOTSTRAP] Generated secret %r (v%d) — retrieve with: beaglectl secret get %s",
+        name, sv.version, name,
+    )
+    return sv.value
 
 
 def resolve_public_stream_host(host: str) -> str:
@@ -6060,6 +6096,17 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> int:
+    global API_TOKEN, SCIM_BEARER_TOKEN, PAIRING_TOKEN_SECRET
+    # Auto-bootstrap: if secrets not set via env, load or generate from SecretStore
+    API_TOKEN = _bootstrap_secret("manager-api-token", API_TOKEN, generate=True)
+    SCIM_BEARER_TOKEN = _bootstrap_secret("scim-bearer-token", SCIM_BEARER_TOKEN, generate=False)
+    PAIRING_TOKEN_SECRET = _bootstrap_secret("pairing-token-secret", PAIRING_TOKEN_SECRET, generate=True)
+    # Wire AuditLogService into SecretStoreService (audit fn must be set after audit log is ready)
+    def _audit_secret_event(event: str, details: dict) -> None:
+        # Never include secret values in audit events
+        safe_details = {k: v for k, v in details.items() if k != "value"}
+        audit_log_service().write_event(event, "ok", details=safe_details)
+    _secret_store()._audit_fn = _audit_secret_event
     effective_data_dir = ensure_data_dir()
     ensure_cluster_rpc_listener()
     _start_recording_retention_thread()

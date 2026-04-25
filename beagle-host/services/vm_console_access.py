@@ -5,11 +5,18 @@ import json
 import os
 import secrets
 import socket
-import subprocess
 import time
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import quote
+
+import sys as _sys
+_PROVIDERS_DIR = Path(__file__).resolve().parents[2] / "providers" / "beagle"
+if str(_PROVIDERS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_PROVIDERS_DIR))
+from libvirt_runner import LibvirtRunner as _LibvirtRunner
+
+_LIBVIRT = _LibvirtRunner()
 
 _NOVNC_TOKEN_TTL_SECONDS: float = 30.0
 
@@ -36,26 +43,22 @@ class VmConsoleAccessService:
     @staticmethod
     def _libvirt_guest_ip(vmid: int, domain_name: str | None = None) -> str | None:
         """Try to find the guest's primary IPv4 address via the QEMU guest agent."""
-        default_domain = f"beagle-{int(vmid)}"
+        from core.validation.identifiers import validate_vmid
+        vmid_int = validate_vmid(vmid)
+        default_domain = f"beagle-{vmid_int}"
         domain = str(domain_name or "").strip() or default_domain
         for src in ("agent", "lease"):
             for dom in (domain, default_domain):
-                result = subprocess.run(
-                    ["virsh", "--connect", "qemu:///system", "domifaddr", dom, "--source", src],
-                    capture_output=True,
-                    text=True,
-                    timeout=8,
-                    check=False,
-                )
-                if result.returncode != 0:
+                try:
+                    raw = _LIBVIRT.virsh("domifaddr", dom, "--source", src)
+                except Exception:
                     continue
-                for line in result.stdout.splitlines():
+                for line in raw.splitlines():
                     parts = line.split()
                     # virsh domifaddr output: iface  MAC  protocol  address/prefix
                     if len(parts) >= 4 and parts[2] == "ipv4":
                         addr = parts[3].split("/")[0]
                         try:
-                            import ipaddress
                             ip = ipaddress.IPv4Address(addr)
                             if not ip.is_loopback:
                                 return str(ip)
@@ -65,29 +68,21 @@ class VmConsoleAccessService:
 
     @staticmethod
     def _libvirt_vnc_port(vmid: int, domain_name: str | None = None) -> int | None:
-        default_domain = f"beagle-{int(vmid)}"
+        from core.validation.identifiers import validate_vmid
+        vmid_int = validate_vmid(vmid)
+        default_domain = f"beagle-{vmid_int}"
         domain = str(domain_name or "").strip() or default_domain
-        result = subprocess.run(
-            ["virsh", "--connect", "qemu:///system", "vncdisplay", domain],
-            capture_output=True,
-            text=True,
-            timeout=8,
-            check=False,
-        )
-        # If the display name doesn't match the libvirt domain, retry with the
-        # canonical beagle-{vmid} pattern (vm.name is the display name, not the
-        # libvirt domain name).
-        if result.returncode != 0 and domain != default_domain:
-            result = subprocess.run(
-                ["virsh", "--connect", "qemu:///system", "vncdisplay", default_domain],
-                capture_output=True,
-                text=True,
-                timeout=8,
-                check=False,
-            )
-        if result.returncode != 0:
-            return None
-        display = str(result.stdout or "").strip()
+        try:
+            raw = _LIBVIRT.vncdisplay(domain)
+        except Exception:
+            if domain == default_domain:
+                return None
+            try:
+                raw = _LIBVIRT.vncdisplay(default_domain)
+            except Exception:
+                return None
+        result_stdout = raw
+        display = str(result_stdout or "").strip()
         if not display:
             return None
         if display.startswith(":") and display[1:].isdigit():

@@ -1,0 +1,64 @@
+name: security-subprocess-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check-shell-true:
+    name: Reject new shell=True subprocess calls
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for shell=True without allowlist marker
+        run: |
+          echo "Scanning for shell=True in service/provider/core Python files..."
+          # Find shell=True usage that is NOT marked with # noqa: shell-allowed:
+          FOUND=0
+          while IFS= read -r -d '' file; do
+            while IFS= read -r line; do
+              if echo "$line" | grep -qE 'shell\s*=\s*True'; then
+                if ! echo "$line" | grep -q '# noqa: shell-allowed:'; then
+                  echo "VIOLATION: $file"
+                  echo "  $line"
+                  FOUND=1
+                fi
+              fi
+            done < "$file"
+          done < <(find beagle-host/services providers/beagle core -name "*.py" -print0 2>/dev/null)
+          if [ "$FOUND" -eq 1 ]; then
+            echo ""
+            echo "ERROR: Found shell=True without 'noqa: shell-allowed:' marker."
+            echo "Use run_cmd() from core.exec.safe_subprocess instead."
+            echo "If shell=True is truly required, add '# noqa: shell-allowed: <reason>' on the same line."
+            exit 1
+          fi
+          echo "OK: No undocumented shell=True usage found."
+
+  check-subprocess-string-args:
+    name: Reject subprocess calls with string (non-list) args
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for subprocess.run/check_output with string arg
+        run: |
+          echo "Scanning for subprocess.run/check_output with string literal commands..."
+          FOUND=0
+          # Match patterns like subprocess.run("cmd ...) or subprocess.check_output("cmd
+          while IFS= read -r -d '' file; do
+            if grep -nE 'subprocess\.(run|check_output|call)\s*\(\s*["\x27]' "$file"; then
+              echo "VIOLATION in: $file"
+              FOUND=1
+            fi
+          done < <(find beagle-host/services providers/beagle core -name "*.py" -print0 2>/dev/null)
+          if [ "$FOUND" -eq 1 ]; then
+            echo ""
+            echo "ERROR: Found subprocess calls with string argument (not list)."
+            echo "Use run_cmd(['cmd', 'arg']) from core.exec.safe_subprocess."
+            exit 1
+          fi
+          echo "OK: No string-argument subprocess calls found."

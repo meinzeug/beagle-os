@@ -28,11 +28,12 @@ class TestVlanBackend:
         """Cleanup test fixtures."""
         self.tmpdir.cleanup()
 
-    @patch('beagle.network.vlan.subprocess.run')
+    @patch('beagle.network.vlan._run_cmd_safe')
     def test_create_zone(self, mock_run):
         """Test creating a network zone."""
-        # Mock subprocess to succeed
-        mock_run.return_value = MagicMock(stdout="", returncode=0)
+        # Mock run_cmd to succeed
+        import subprocess as _sp
+        mock_run.return_value = _sp.CompletedProcess([], 0, stdout="", stderr="")
         
         state_file = self.tmp_path / "network-zones.json"
         backend = VlanBackend(state_file=state_file)
@@ -139,10 +140,11 @@ class TestVxlanBackend:
         """Cleanup test fixtures."""
         self.tmpdir.cleanup()
 
-    @patch('beagle.network.vxlan.subprocess.run')
+    @patch('beagle.network.vxlan._run_cmd_safe')
     def test_create_zone(self, mock_run):
         """Test creating a VXLAN network zone."""
-        mock_run.return_value = MagicMock(stdout="", returncode=0)
+        import subprocess as _sp
+        mock_run.return_value = _sp.CompletedProcess([], 0, stdout="", stderr="")
 
         state_file = self.tmp_path / "vxlan-zones.json"
         backend = VxlanBackend(
@@ -166,10 +168,11 @@ class TestVxlanBackend:
         assert zone_info.vlan_id == 10001
         assert zone_info.status == "active"
 
-    @patch('beagle.network.vxlan.subprocess.run')
+    @patch('beagle.network.vxlan._run_cmd_safe')
     def test_attach_and_detach_vm(self, mock_run):
         """Test VM membership bookkeeping in VXLAN zone."""
-        mock_run.return_value = MagicMock(stdout="", returncode=0)
+        import subprocess as _sp
+        mock_run.return_value = _sp.CompletedProcess([], 0, stdout="", stderr="")
 
         state_file = self.tmp_path / "vxlan-zones.json"
         backend = VxlanBackend(state_file=state_file)

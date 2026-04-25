@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from core.exec.safe_subprocess import run_cmd as _run_cmd_safe
 from core.persistence.json_state_store import JsonStateStore
 from core.virtualization.network import NetworkZoneInfo, NetworkZoneSpec
 
@@ -42,11 +43,11 @@ class VxlanBackend:
         self._store.save(self._state)
 
     def _run_cmd(self, cmd: list[str]) -> str:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = _run_cmd_safe(cmd, check=True)
         return result.stdout.strip()
 
     def _run_cmd_ignore_error(self, cmd: list[str]) -> str:
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = _run_cmd_safe(cmd, check=False)
         return result.stdout.strip()
 
     def _validate_vni(self, vni: int) -> None:

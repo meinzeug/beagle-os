@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import re
-import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
+from core.exec.safe_subprocess import run_cmd as _run_cmd_safe
 from core.virtualization.storage import SnapshotSpec, StorageClass, VolumeSpec
 
 
@@ -29,8 +29,8 @@ class NfsStorageBackend(StorageClass):
 
     @staticmethod
     def _default_run_checked(command: list[str]) -> str:
-        completed = subprocess.run(command, check=True, capture_output=True, text=True)
-        return str(completed.stdout or "").strip()
+        result = _run_cmd_safe(command, check=True)
+        return str(result.stdout or "").strip()
 
     def _normalize_name(self, value: str, *, field: str) -> str:
         normalized = str(value or "").strip()

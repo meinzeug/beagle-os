@@ -277,6 +277,104 @@ def handle_cluster(args: argparse.Namespace, server: str, token: str) -> int:
     return 2
 
 
+# ---------------------------------------------------------------------------
+# Secret management — operates on local SecretStore (requires host access)
+# ---------------------------------------------------------------------------
+
+def _load_secret_service() -> Any:
+    """Load SecretStoreService from the beagle-host services directory."""
+    services_dir = Path(__file__).resolve().parents[1] / "beagle-host" / "services"
+    root_dir = Path(__file__).resolve().parents[1]
+    for p in (str(root_dir), str(services_dir)):
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    from secret_store_service import SecretStoreService  # noqa: PLC0415
+    return SecretStoreService()
+
+
+def handle_secret(args: argparse.Namespace) -> int:
+    try:
+        svc = _load_secret_service()
+    except ImportError as exc:
+        print(f"Cannot load SecretStoreService: {exc}", file=sys.stderr)
+        print("Ensure beaglectl is run on the Beagle host server.", file=sys.stderr)
+        return 2
+
+    if args.secret_action == "list":
+        from secret_store_service import SecretMeta  # noqa: PLC0415
+        metas = svc.list_secrets()
+        if not metas:
+            print("(no secrets)")
+            return 0
+        rows = [
+            {
+                "name": m.name,
+                "version": m.version,
+                "created_at": m.created_at,
+                "status": m.status,
+                "versions": m.versions_count,
+            }
+            for m in metas
+        ]
+        if getattr(args, "json", False):
+            print_json(rows)
+        else:
+            print_table(rows, ["name", "version", "created_at", "status", "versions"])
+        return 0
+
+    if args.secret_action == "get":
+        from secret_store_service import SecretNotFoundError  # noqa: PLC0415
+        try:
+            sv = svc.get_secret(args.name)
+        except SecretNotFoundError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+        info = {
+            "name": args.name,
+            "version": sv.version,
+            "status": sv.status,
+            "created_at": sv.created_at,
+            "expires_at": sv.expires_at,
+            # NOTE: value is intentionally NOT printed
+        }
+        print_json(info)
+        return 0
+
+    if args.secret_action == "rotate":
+        from secret_store_service import SecretNotFoundError  # noqa: PLC0415
+        try:
+            new_value = args.value.strip() if args.value else None
+            sv = svc.rotate_secret(args.name, new_value=new_value)
+        except SecretNotFoundError as exc:
+            print(f"Error: {exc}\nHint: use 'beaglectl secret set <name>' to create a new secret.", file=sys.stderr)
+            return 1
+        print(f"Rotated {args.name!r} to version {sv.version}.")
+        print("NOTE: old version remains valid for 24h (grace period).")
+        return 0
+
+    if args.secret_action == "revoke":
+        from secret_store_service import SecretNotFoundError  # noqa: PLC0415
+        try:
+            svc.revoke_secret(args.name, args.version)
+        except SecretNotFoundError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+        print(f"Revoked {args.name!r} version {args.version} immediately.")
+        return 0
+
+    if args.secret_action == "check":
+        value = sys.stdin.readline().strip()
+        if not value:
+            print("Error: provide value via stdin.", file=sys.stderr)
+            return 2
+        valid = svc.is_valid(args.name, value)
+        print("valid" if valid else "invalid")
+        return 0 if valid else 1
+
+    print(f"Unknown secret action: {args.secret_action}", file=sys.stderr)
+    return 2
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Beagle control-plane CLI")
     parser.add_argument("--config-path", default=str(DEFAULT_CONFIG_PATH), help="Path to config JSON")
@@ -323,6 +421,20 @@ def build_parser() -> argparse.ArgumentParser:
     set_cmd.add_argument("value")
     config_sub.add_parser("show", help="Show config")
 
+    secret = subparsers.add_parser("secret", help="Manage control-plane secrets (local, requires root)")
+    secret_sub = secret.add_subparsers(dest="secret_action", required=True)
+    secret_sub.add_parser("list", help="List all secrets (metadata only, no values)")
+    secret_get = secret_sub.add_parser("get", help="Get active secret metadata (no value printed)")
+    secret_get.add_argument("name", help="Secret name")
+    secret_rotate = secret_sub.add_parser("rotate", help="Rotate a secret to a new version")
+    secret_rotate.add_argument("name", help="Secret name")
+    secret_rotate.add_argument("--value", default="", help="New value (auto-generated if omitted)")
+    secret_revoke = secret_sub.add_parser("revoke", help="Immediately revoke a specific version")
+    secret_revoke.add_argument("name", help="Secret name")
+    secret_revoke.add_argument("version", type=int, help="Version number to revoke")
+    secret_check = secret_sub.add_parser("check", help="Check if a value is valid (reads stdin)")
+    secret_check.add_argument("name", help="Secret name")
+
     return parser
 
 
@@ -365,6 +477,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "config":
         return handle_config(args, cfg_path, cfg)
+
+    # Secret subcommand: operates locally, does NOT need server/token
+    if args.command == "secret":
+        return handle_secret(args)
 
     server = resolve_setting(args, cfg, "server", env_name="BEAGLE_SERVER")
     token = resolve_setting(args, cfg, "token", env_name="BEAGLE_TOKEN")
