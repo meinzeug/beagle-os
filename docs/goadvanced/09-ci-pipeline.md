@@ -42,11 +42,11 @@ Ohne CI sind Regressionen schwer zu vermeiden.
   - [x] `tests/bats/tpm_attestation.bats` _(neu)_: 9 Tests — Stubs fuer `tpm2_pcrread`/`curl`/`hostname`; deckt Happy-Path (accepted), rejected, HTTP 403, TPM-Fehler, leere PCRs, fehlendes `tpm2_pcrread` und alle drei Pflicht-Env-Vars ab. Tests skip-en sauber wenn `jq`/`python3-yaml` fehlt.
   - [ ] `tests/bats/README.md` _(deferred — kommt mit `install_beagle_host.bats`)_
 
-- [/] **Schritt 4** — ISO-Build-Pipeline _(2026-04-25 — Basis vorhanden, SBOM+cron offen)_
+- [/] **Schritt 4** — ISO-Build-Pipeline _(2026-04-25 — cron + SBOM-Job ergaenzt)_
   - [x] `.github/workflows/build-iso.yml`: `workflow_dispatch` mit Auswahl `installimage`/`iso`/`both`, push-Trigger fuer `server-installer/`/`beagle-host/`/Build-Skripte/`VERSION`, baut via `build-server-installimage.sh` und `build-server-installer.sh`, lädt Artefakte hoch (Retention 30d)
-  - [ ] cron-Schedule (taeglich) — offen
+  - [x] **Neu 2026-04-25**: cron-Schedule `17 3 * * *` (taeglicher Reproduzibilitaets-Build der installimage-Variante)
+  - [x] **Neu 2026-04-25**: `sbom` Job — erzeugt CycloneDX-SBOMs fuer Python (cyclonedx-bom) und Node (`extension/`, `beagle-kiosk/` via cyclonedx-npm), bundelt SHA256SUMS, Artefakt-Retention 90d
   - [ ] `build-thin-client-installer.sh`-Job — offen
-  - [ ] SBOM (`cyclonedx-bom` + `cyclonedx-npm`) — offen
   - [ ] SHA256-Reproduzibilitaets-Vergleich vs Vortags-Build — offen
 
 - [/] **Schritt 5** — Release-Pipeline _(2026-04-25 — Basis vorhanden, Cosign offen)_
