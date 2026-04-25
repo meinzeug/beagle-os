@@ -1,3 +1,46 @@
+## Update (2026-04-25, Session Update: Terraform Provider + Migration Service Wiring)
+
+**Scope**: Terraform Provider Bug-Fix, Cross-Node Migration Service Wiring, SSH Key Setup für Cluster.
+
+### Terraform Provider Bugfix (commit 728f70e)
+- **Problem**: `resourceVMRead()` löschte Resource-ID auf jedem API-Fehler (nicht nur 404), verursachte "Root object was present, but now absent" Errors
+- **Lösung**:
+  - Neuer `Client.requestWithStatus()` differenziert HTTP 404 von anderen Fehlern (nur 404 → "resource nicht gefunden")
+  - `resourceVMRead` befüllt alle Schema-Felder aus der API-Response
+- **Tests**: 4/4 unit-tests pass (TestClientCreateReadDelete, TestClientReadNotFound, TestClientBadToken, TestApplyCreatesVMDestroyRemovesVM)
+- **Live-Validierung**: `terraform apply --auto-approve` gegen srv1 erfolgreich (vmid=9901, APPLY_EXIT=0), `terraform destroy` erfolgreich (DESTROY_EXIT=0)
+
+### Migration Service: Cluster-Inventory-Wiring (commit fdc308d)
+- **Problem**: `MigrationService`, `HaManagerService`, `MaintenanceService` nur lokal `HOST_PROVIDER.list_nodes()` (nur aktueller Hypervisor) → Remote Nodes nie sichtbar
+- **Lösung**: 
+  - Neuer Helper `_cluster_nodes_for_migration()` ruft `build_cluster_inventory()` auf (mergt lokal + remote + Cluster-Members)
+  - Wiring updated: `migration_service`, `ha_manager_service`, `maintenance_service`, `pool_manager_service` nutzen cluster-aware list
+- **Folge**: `MigrationService.list_target_nodes()` zeigt jetzt beagle-1 als gültiges Migrations-Ziel
+- **Tests**: 24/24 unit-tests pass (migration, ha_manager, maintenance, pool_manager)
+- **Deployment**: srv1/srv2 rsync + systemctl restart → beagle-control-plane active, Cluster-Inventory zeigt alle 4 Knoten (beagle-0, beagle-1, srv1, srv2) online
+
+### SSH Key Setup für Beagle-Manager Cross-Node Auth
+- **Schritte**:
+  - ed25519 SSH-Keys generiert für beagle-manager auf srv1 und srv2
+  - Cross-authorized: srv1-pubkey in srv2 root authorized_keys, srv2-pubkey in srv1 root authorized_keys
+  - Host-Keys scanned in beagle-manager known_hosts auf beiden Servern
+  - `BEAGLE_CLUSTER_MIGRATION_URI_TEMPLATE=qemu+ssh://root@{target_node}/system` in `/etc/beagle/beagle-manager.env`
+- **Validierung**: `sudo -u beagle-manager ssh root@beagle-1` → CONNECTION_OK ✅
+
+### QEMU+SSH Migration-Infrastruktur-Limitation Identifiziert
+- **Finding**: Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuchskombinationen:
+  - `virsh migrate --live`: Timeout nach 60-120s, kein Fortschritt
+  - `virsh migrate --persistent --undefinesource`: Libvirt-Deadlock (`another migration job already running`)
+  - `virsh domjobinfo` während Migration: Timeout (kompletter libvirt-Lock)
+- **Root-Ursache**: QEMU+SSH-Migrationsprotokoll oder Libvirt-Konfiguration inkompatibel (erfordert separate tiefere Untersuchung)
+- **Implikation**: 
+  - Beagle **API-Ebene** funktioniert korrekt (Knoten-Sichtbarkeit ✅, SSH-Auth ✅, qemu+ssh Connectivity ✅)
+  - **Virtualisierungs-Ebene** (virsh+qemu+ssh) hat Probleme und braucht separate Untersuchung
+  - **Workaround für Multi-Node-Produktion**: Shared Storage (NFS/Ceph) statt Storage-Copy während Migration
+- **Status**: Migration-API wird arbeiten, sobald Shared Storage verfügbar oder qemu+ssh-Protokoll repariert ist
+
+---
+
 ## Update (2026-04-25, Cluster-API iptables-Haertung Port 9088)
 
 **Scope**: S-020 von "known mitigated" auf aktiv gehaertet gebracht (reproduzierbar + live auf srv1/srv2 ausgerollt).

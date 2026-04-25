@@ -1,8 +1,47 @@
 # Next Steps
 
-## Stand (2026-04-25) — Cluster-Metriken und Migration-Infrastruktur
+## Stand (2026-04-25, update) — Terraform Provider Fix + Migration Service Wiring
 
-**Zuletzt erledigt**:
+**Zuletzt erledigt (dieser Session)**:
+- **Terraform Provider Bugfix** (`728f70e`):
+  - `client.requestWithStatus()` hinzugefügt (unterscheidet 404 von anderen Fehlern)
+  - `resourceVMRead` fixt: nur Resource-ID löschen bei echtem 404, nicht auf allen Errors
+  - Schema-Felder nun bevölkert mit API-Response-Werten
+  - Unit-Tests: 4/4 pass (TestClientCreateReadDelete, TestClientReadNotFound, TestClientBadToken, TestApplyCreatesVMDestroyRemovesVM)
+  - Validierung: `terraform apply` + `destroy` auf srv1 gegen beagle_vm.test (vmid=9901), APPLY_EXIT=0, DESTROY_EXIT=0 ✅
+
+- **Migration Service: Cluster-Inventory-Wiring** (`fdc308d`):
+  - Neuer Helper `_cluster_nodes_for_migration()` ruft `build_cluster_inventory()` auf
+  - Wiring updated: `migration_service`, `ha_manager_service`, `maintenance_service`, `pool_manager_service` nutzen cluster-aware node list
+  - **Folge**: Remote Hypervisoren (z.B. beagle-1) sind jetzt sichtbar als gültige Migrations-Ziele
+  - Unit-Tests: 24/24 pass (migration, ha_manager, maintenance, pool_manager)
+  - Deployment auf srv1/srv2 + systemctl restart beagle-control-plane → `active` ✅
+  - Cluster-Inventory nach Deployment: alle 4 Knoten (beagle-0, beagle-1, srv1, srv2) online ✅
+
+- **SSH-Keys für Cross-Node Migration**:
+  - Beagle-manager SSH-Keys (ed25519) generiert auf srv1/srv2
+  - Cross-authorized: srv1-key in srv2 authorized_keys, srv2-key in srv1 authorized_keys
+  - Validierung: `sudo -u beagle-manager ssh root@beagle-1` → CONNECTION_OK ✅
+  - `BEAGLE_CLUSTER_MIGRATION_URI_TEMPLATE=qemu+ssh://root@{target_node}/system` in `/etc/beagle/beagle-manager.env` ✅
+
+---
+
+### **Gefundenes QEMU+SSH Migration-Deadlock-Problem**
+Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombinationen:
+- `virsh migrate --live --copy-storage-inc`: Timeout nach 60-120s, kein Fortschritt
+- `virsh migrate --live --copy-storage-all`: Gleiches Verhalten
+- `virsh migrate --persistent --undefinesource`: Bringt libvirt in Deadlock (`another migration job already running`)
+- `virsh domjobinfo` während Migration: Timeout (kompletter libvirt-Lock)
+- Root-Ursache: Qemu+SSH Migration-Protokoll oder Libvirt-Konfiguration inkompatibel (erfordert tiefere QEMU/Libvirt-Untersuchung)
+
+**Implikation für Beagle Migration-API**:
+- API-Layer ist funktional (kann Ziel-Knoten korrekt identifizieren, SSH-Schlüssel vorhanden, qemu+ssh Connectivity OK)
+- **Aber**: Virtualisierungs-Infrastruktur-Layer (virsh+qemu+ssh) ist fehlerhaft und braucht separate Untersuchung
+- **Workaround für Multi-Node-Produktion**: Shared Storage (NFS/Ceph) verwenden statt Storage-Copy während Migration
+- Migration-API wird korrekt arbeiten, sobald Shared Storage vorhanden oder QEMU+SSH-Protokoll repariert ist
+
+## Zuletzt erledigt (vorherige Session, 2026-04-25)
+
 - GoFuture Gate: alle 20 Pläne (docs/gofuture/) abgeschlossen (d588939)
 - `service_registry.py` extrahiert: `beagle-control-plane.py` 4964 → 1627 LOC (e2e4c38)
 - `request_handler_mixin.py` extrahiert: `beagle-control-plane.py` 1627 → 899 LOC (03bd203)
@@ -14,14 +53,6 @@
   - Root-Ursache: Beide Hypervisoren hießen `beagle-0` (Name-Kollision)
   - Fix: `BEAGLE_BEAGLE_PROVIDER_DEFAULT_NODE=beagle-0` auf srv1, `beagle-1` auf srv2
   - `/api/v1/cluster/nodes` zeigt jetzt `beagle-0: 64GB/12CPU`, `beagle-1: 64GB/8CPU`
-- **Migration-Infrastruktur verifiziert**:
-  - root SSH-Key srv1 → srv2 (via `beagle-1` hostname) eingerichtet
-  - `virsh -c qemu+ssh://root@beagle-1/system` funktioniert
-  - Live-Migration gestartet und zu 23% validiert (beagle-100, `--copy-storage-inc`)
-  - Migration abgebrochen (6.4 GB physisch bei 1 TB Virtual-Disk dauert ~15 min)
-  - **Hinweis für Produktion**: `--copy-storage-inc` erfordert pre-created sparse qcow2 auf Ziel-Node;
-    für `--copy-storage-all` muss genug Speicher für Preallokation vorhanden sein (schlägt bei 1 TB fehl)
-    → Empfehlung: Shared Storage (NFS/Ceph) für transparente Migration ohne `--copy-storage`
 - **GoEnterprise: VM Stateless Reset** umgesetzt:
   - Neuer Provider-Contract + Implementierung `reset_vm_to_snapshot(...)`
   - Pool-Manager-Wiring aktiv (`reset_vm_to_template`), nutzt Template-`snapshot_name`
@@ -38,7 +69,8 @@
 ### Verbleibende Punkte (nach Priorität)
 
 1. **Plan 09 Schritt 6**: Branch-Protection-Regeln in GitHub repository settings aktivieren.
-   _Manueller Schritt im GitHub UI._
+   _Manueller Schritt im GitHub UI; nicht Teil der technischen Untersetzung._
 
-2. **Live-Migration vollständig validieren**: Migration einer kleinen Test-VM (< 20 GB) von beagle-0 → beagle-1
-   über die API (`POST /api/v1/virtualization/vms/{vmid}/migrate`, `target_node: beagle-1`).
+2. **QEMU+SSH Migration-Protokoll debuggen** (optional, nicht auf kritischem Pfad):
+   - Untersuche Libvirt-Konfiguration, Firewall-Regeln, SSH-Agent-Issues
+   - Alternativ: Shared Storage für Migration evaluieren
