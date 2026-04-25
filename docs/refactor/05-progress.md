@@ -1,3 +1,32 @@
+## Update (2026-04-25, GoAdvanced Wave A — Plans 01-04: Data Integrity, TLS, Secrets, Subprocess Sandbox)
+
+**Scope**: GoAdvanced Wave A vollständig implementiert und auf srv1+srv2 deployed.
+
+### Neu erstellt
+- `core/persistence/json_state_store.py` — atomare JSON-Schreiber (mkstemp+fsync+flock); 10 Services migriert
+- `core/exec/safe_subprocess.py` — `run_cmd()` mit list-only, timeout, output-cap
+- `core/validation/identifiers.py` — validate_vmid/network_name/pool_id/node_id/device_id/secret_name
+- `beagle-host/services/secret_store_service.py` — SecretStoreService mit Rotation, Grace Period, Audit
+- `scripts/lib/beagle_curl_safe.sh` — TLS-safe curl wrappers
+- `docs/security/tls-bypass-allowlist.md` — dokumentierte Ausnahmen für TLS-Bypass
+- `.github/workflows/security-tls-check.yml` — CI-Guard gegen neue curl -k + verify=False
+
+### Tests
+- `tests/unit/test_json_state_store.py` — 20+ Tests inkl. 20-Thread Stress-Test
+- `tests/unit/test_secret_store.py` — 20+ Tests (Rotation, Grace Period, Revocation, Audit, Permissions)
+- `tests/unit/test_safe_subprocess.py` + `test_identifiers.py` — Subprocess + Validator Tests
+- **Ergebnis**: 699 Tests grün (9 pre-existing GPU-Test-Fehler unverändert)
+
+### Deploy
+- srv1.beagle-os.com: ✅ deployed, beagle-control-plane neu gestartet, health OK
+- srv2.beagle-os.com: ✅ deployed, beagle-control-plane neu gestartet, health OK
+- State-File-Permissions: 0o600 bestätigt auf srv1
+
+### Commit
+- `a6ef6d8` feat(goadvanced): wave-a plans 01-04
+
+---
+
 ## Update (2026-04-28, GoEnterprise Plans 02-10 — Restliche Services, Tests, Shell-Skripte, UI-Module)
 
 **Scope**: Restliche offene GoEnterprise-Checkboxen (Plans 02-10) abgearbeitet. Neue Services und Unit-Tests implementiert, Service-Bugs behoben, Shell-Skripte und Website-UI-Module erstellt. Alle 643 Unit-Tests grün.

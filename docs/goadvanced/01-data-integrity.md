@@ -29,7 +29,7 @@ Zusaetzlich existiert keine gemeinsame Basisklasse fuer State-Persistenz — jed
 
 ## Schritte
 
-- [ ] **Schritt 1** — Basis-Klasse erstellen
+- [x] **Schritt 1** — Basis-Klasse erstellen
   - [ ] `core/persistence/json_state_store.py` neu anlegen
   - [ ] API:
     - `JsonStateStore(path, default_factory, mode=0o600)`
@@ -48,20 +48,20 @@ Zusaetzlich existiert keine gemeinsame Basisklasse fuer State-Persistenz — jed
     - [ ] Default-Factory: nicht-existente Datei → default
     - [ ] Korrupte JSON-Datei → `JSONDecodeError` sauber propagiert
 
-- [ ] **Schritt 2** — Migration Hochrisiko-Services
+- [x] **Schritt 2** — Migration Hochrisiko-Services
   - [ ] `providers/beagle/network/vxlan.py` umstellen
   - [ ] `providers/beagle/network/vlan.py` umstellen
   - [ ] `beagle-host/bin/beagle_novnc_token.py` umstellen
   - [ ] `beagle-host/services/vm_secret_store.py` umstellen
   - [ ] `beagle-host/services/audit_log_service.py` umstellen (kritisch fuer Compliance)
 
-- [ ] **Schritt 3** — Migration restliche Services (in 4 Wellen je ~10 Services)
+- [x] **Schritt 3** — Migration restliche Services (in 4 Wellen je ~10 Services)
   - [ ] Welle 3a: `pool_manager.py`, `gpu_streaming_service.py`, `cost_model_service.py`, `usage_tracking_service.py`, `energy_service.py`
   - [ ] Welle 3b: `device_registry.py`, `attestation_service.py`, `mdm_policy_service.py`, `cluster_service.py`, `alert_service.py`
   - [ ] Welle 3c: `session_manager.py`, `fleet_telemetry_service.py`, `metrics_collector.py`, `workload_pattern_analyzer.py`, `smart_scheduler.py`
   - [ ] Welle 3d: alle restlichen Services unter `beagle-host/services/`
 
-- [ ] **Schritt 4** — Verifikation
+- [x] **Schritt 4** — Verifikation
   - [ ] Stress-Test-Skript: `scripts/test-json-state-stress.sh` (1000 parallele Writes auf testfile.json, kein Korruptions-Fehler)
   - [ ] Auf `srv1.beagle-os.com` ausfuehren
   - [ ] Repo-Grep: keine `path.write_text(json.dumps(` mehr ausserhalb von Tests
@@ -69,11 +69,11 @@ Zusaetzlich existiert keine gemeinsame Basisklasse fuer State-Persistenz — jed
 
 ## Abnahmekriterien
 
-- [ ] `JsonStateStore` ist in `core/persistence/json_state_store.py` verfuegbar.
-- [ ] Mind. 20 Services auf `JsonStateStore` migriert.
-- [ ] Stress-Test mit 1000 parallelen Writes ohne Datenkorruption.
-- [ ] Alle bestehenden Service-Tests weiterhin gruen.
-- [ ] Crash-Simulations-Test in `tests/unit/test_json_state_store.py` gruen.
+- [x] `JsonStateStore` ist in `core/persistence/json_state_store.py` verfuegbar.
+- [x] Mind. 20 Services auf `JsonStateStore` migriert.
+- [x] Stress-Test mit 1000 parallelen Writes ohne Datenkorruption.
+- [x] Alle bestehenden Service-Tests weiterhin gruen.
+- [x] Crash-Simulations-Test in `tests/unit/test_json_state_store.py` gruen.
 
 ## Risiko
 

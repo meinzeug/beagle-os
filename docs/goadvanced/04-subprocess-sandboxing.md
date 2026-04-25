@@ -30,7 +30,7 @@ Betroffene Dateien (Beispiele):
 
 ## Schritte
 
-- [ ] **Schritt 1** — `core/exec/safe_subprocess.py`
+- [x] **Schritt 1** — `core/exec/safe_subprocess.py`
   - [ ] `run_cmd(cmd: list[str], *, timeout=30, check=True, max_output=10*1024*1024, capture=True) -> CompletedProcess`
   - [ ] Validierung: `cmd` muss `list`, nicht `str` sein → ValueError sonst
   - [ ] `shell=False` immer; `shell=True` separater Wrapper `run_shell_unsafe()` mit lautem Warning-Log
@@ -42,7 +42,7 @@ Betroffene Dateien (Beispiele):
     - [ ] Output > max_output → trunkiert + log
     - [ ] Non-zero exit + check=True → CalledProcessError
 
-- [ ] **Schritt 2** — Argument-Validatoren
+- [x] **Schritt 2** — Argument-Validatoren
   - [ ] `core/validation/identifiers.py`:
     - `validate_vmid(s: str) -> int`  (regex `^[0-9]{1,9}$`)
     - `validate_network_name(s: str) -> str` (regex `^[a-zA-Z0-9_-]{1,63}$`)
@@ -75,7 +75,7 @@ Betroffene Dateien (Beispiele):
 - [ ] `run_cmd_safe` ist in `core/exec/safe_subprocess.py` und wird in mind. 10 Modulen verwendet.
 - [ ] `LibvirtRunner` ersetzt direkte `virsh`-Subprocess-Calls in `providers/beagle/`.
 - [ ] CI-Guard `security-subprocess-check` ist gruen.
-- [ ] Mind. 4 Argument-Validatoren produktiv.
+- [x] Mind. 4 Argument-Validatoren produktiv.
 
 ## Risiko
 

@@ -30,7 +30,7 @@ Probleme:
   - [ ] Mind. erfassen: alle BEAGLE_*-Env-Vars in `beagle-control-plane.py`
   - [ ] Pro Secret: kann es zur Laufzeit rotiert werden ohne Service-Restart?
 
-- [ ] **Schritt 2** — `SecretStoreService`
+- [x] **Schritt 2** — `SecretStoreService`
   - [ ] `beagle-host/services/secret_store_service.py` neu
   - [ ] API:
     - `get_secret(name) -> SecretValue`  (mit `version`, `created_at`, `expires_at`)
