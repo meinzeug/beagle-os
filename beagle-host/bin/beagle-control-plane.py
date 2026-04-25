@@ -121,7 +121,9 @@ from secret_store_service import SecretStoreService
 from backups_http_surface import BackupsHttpSurfaceService
 from pools_http_surface import PoolsHttpSurfaceService
 from cluster_http_surface import ClusterHttpSurfaceService
+from audit_report_http_surface import AuditReportHttpSurfaceService
 from auth_session_http_surface import AuthSessionHttpSurfaceService
+from recording_http_surface import RecordingHttpSurfaceService
 from network_http_surface import NetworkHttpSurfaceService
 
 def load_env_defaults(path: str) -> None:
@@ -3535,18 +3537,6 @@ class Handler(BaseHTTPRequestHandler):
     def _auth_user_revoke_sessions_match(path: str) -> re.Match[str] | None:
         return re.match(r"^/api/v1/auth/users/(?P<username>[A-Za-z0-9._-]+)/revoke-sessions$", path)
 
-    @staticmethod
-    def _session_recording_get_match(path: str) -> re.Match[str] | None:
-        return re.match(r"^/api/v1/sessions/(?P<session_id>[A-Za-z0-9._:-]+)/recording$", path)
-
-    @staticmethod
-    def _session_recording_start_match(path: str) -> re.Match[str] | None:
-        return re.match(r"^/api/v1/sessions/(?P<session_id>[A-Za-z0-9._:-]+)/recording/start$", path)
-
-    @staticmethod
-    def _session_recording_stop_match(path: str) -> re.Match[str] | None:
-        return re.match(r"^/api/v1/sessions/(?P<session_id>[A-Za-z0-9._:-]+)/recording/stop$", path)
-
     def _active_session_by_id(self, session_id: str) -> dict[str, Any] | None:
         sid = str(session_id or "").strip()
         if not sid:
@@ -3589,6 +3579,26 @@ class Handler(BaseHTTPRequestHandler):
             bearer_token=lambda: extract_bearer_token(self.headers.get("Authorization", "")),
             read_raw_body=lambda n: self.rfile.read(n),
             audit_event=self._audit_event,
+        )
+
+    def _audit_report_surface(self) -> AuditReportHttpSurfaceService:
+        return AuditReportHttpSurfaceService(
+            audit_report_service=audit_report_service(),
+            audit_event=self._audit_event,
+            requester_identity=self._requester_identity,
+            accept_header=lambda: str(self.headers.get("Accept") or ""),
+        )
+
+    def _recording_surface(self) -> RecordingHttpSurfaceService:
+        return RecordingHttpSurfaceService(
+            recording_service=recording_service(),
+            audit_event=self._audit_event,
+            requester_identity=self._requester_identity,
+            remote_addr=lambda: self.client_address[0] if self.client_address else "",
+            active_session_by_id=self._active_session_by_id,
+            pool_recording_watermark=self._pool_recording_watermark,
+            read_json_body=self._read_json_body,
+            has_body=lambda: int(self.headers.get("Content-Length", "0") or "0") > 0,
         )
 
     def _backups_surface(self) -> BackupsHttpSurfaceService:
@@ -4155,61 +4165,17 @@ class Handler(BaseHTTPRequestHandler):
             self._stream_live_events(principal)
             return
 
-        if path == "/api/v1/audit/report":
+        if AuditReportHttpSurfaceService.handles_get(path):
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
             if not self._authorize_or_respond("GET", path):
                 return
-            query = parse_qs(parsed.query or "")
-            start = str((query.get("start") or [""])[0] or "").strip()
-            end = str((query.get("end") or [""])[0] or "").strip()
-            tenant_id = str((query.get("tenant") or query.get("tenant_id") or [""])[0] or "").strip()
-            action = str((query.get("action") or [""])[0] or "").strip()
-            resource_type = str((query.get("resource_type") or [""])[0] or "").strip()
-            user_id = str((query.get("user") or query.get("user_id") or [""])[0] or "").strip()
-            accept = str(self.headers.get("Accept") or "").lower()
-            if "text/csv" in accept:
-                body = audit_report_service().build_csv_report(
-                    start=start,
-                    end=end,
-                    tenant_id=tenant_id,
-                    action=action,
-                    resource_type=resource_type,
-                    user_id=user_id,
-                )
-                self._write_bytes(
-                    HTTPStatus.OK,
-                    body,
-                    content_type="text/csv; charset=utf-8",
-                    filename="audit-report.csv",
-                )
+            response = self._audit_report_surface().route_get(path, query=query)
+            if response["kind"] == "bytes":
+                self._write_bytes(response["status"], response["body"], content_type=response["content_type"], filename=response.get("filename", ""))
             else:
-                self._write_json(
-                    HTTPStatus.OK,
-                    audit_report_service().build_json_report(
-                        start=start,
-                        end=end,
-                        tenant_id=tenant_id,
-                        action=action,
-                        resource_type=resource_type,
-                        user_id=user_id,
-                    ),
-                )
-            self._audit_event(
-                "audit.report.download",
-                "success",
-                requested_by=self._requester_identity(),
-                resource_type="audit-report",
-                resource_id="audit-report",
-                start=start,
-                end=end,
-                tenant_id=tenant_id,
-                action_filter=action,
-                resource_filter=resource_type,
-                user_filter=user_id,
-                accept=accept,
-            )
+                self._write_json(response["status"], response["payload"])
             return
 
         if scim_service().handles_path(path):
@@ -4256,27 +4222,14 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
-        recording_get_match = self._session_recording_get_match(path)
-        if recording_get_match is not None:
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
+        if self._recording_surface().handles_get(path):
             if not self._authorize_or_respond("GET", path):
                 return
-            session_id = str(recording_get_match.group("session_id") or "").strip()
-            file_payload = recording_service().read_recording_bytes(session_id=session_id)
-            if file_payload is None:
-                self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "recording not found"})
-                return
-            body, filename = file_payload
-            self._audit_event(
-                "session.recording.download",
-                "success",
-                session_id=session_id,
-                downloader=self._requester_identity(),
-                remote_addr=self.client_address[0] if self.client_address else "",
-            )
-            self._write_bytes(HTTPStatus.OK, body, content_type="video/mp4", filename=filename)
+            response = self._recording_surface().route_get(path)
+            if response["kind"] == "bytes":
+                self._write_bytes(response["status"], response["body"], content_type=response["content_type"], filename=response.get("filename", ""))
+            else:
+                self._write_json(response["status"], response["payload"])
             return
 
         if not self._is_authenticated():
@@ -4473,63 +4426,17 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
-        recording_start_match = self._session_recording_start_match(path)
-        if recording_start_match is not None:
+        if self._recording_surface().handles_post(path):
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
             if not self._authorize_or_respond("POST", path):
                 return
-            try:
-                payload = self._read_json_body() if int(self.headers.get("Content-Length", "0") or "0") > 0 else {}
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            session_id = str(recording_start_match.group("session_id") or "").strip()
-            active_session = self._active_session_by_id(session_id)
-            pool_id = str((active_session or {}).get("pool_id") or "").strip()
-            user_id = str((active_session or {}).get("user_id") or self._requester_identity()).strip()
-            watermark = self._pool_recording_watermark(pool_id) if pool_id else {"enabled": False, "custom_text": ""}
-            response = recording_service().start_recording(
-                session_id=session_id,
-                input_url=str(payload.get("input_url") or "").strip(),
-                codec=str(payload.get("codec") or "h264").strip(),
-                test_source=bool(payload.get("test_source", False)),
-                watermark_enabled=bool(payload.get("watermark_enabled", watermark.get("enabled", False))),
-                watermark_username=str(payload.get("watermark_username") or user_id).strip(),
-                watermark_custom_text=str(payload.get("watermark_custom_text") or watermark.get("custom_text", "")).strip(),
-                watermark_show_timestamp=bool(payload.get("watermark_show_timestamp", True)),
-            )
-            self._audit_event(
-                "session.recording.start",
-                "success",
-                session_id=session_id,
-                requested_by=self._requester_identity(),
-                remote_addr=self.client_address[0] if self.client_address else "",
-            )
-            self._write_json(HTTPStatus.OK, response)
-            return
-
-        recording_stop_match = self._session_recording_stop_match(path)
-        if recording_stop_match is not None:
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            if not self._authorize_or_respond("POST", path):
-                return
-            session_id = str(recording_stop_match.group("session_id") or "").strip()
-            response = recording_service().stop_recording(session_id=session_id)
-            if not bool(response.get("ok")):
-                self._write_json(HTTPStatus.NOT_FOUND, response)
-                return
-            self._audit_event(
-                "session.recording.stop",
-                "success",
-                session_id=session_id,
-                requested_by=self._requester_identity(),
-                remote_addr=self.client_address[0] if self.client_address else "",
-            )
-            self._write_json(HTTPStatus.OK, response)
+            response = self._recording_surface().route_post(path)
+            if response["kind"] == "bytes":
+                self._write_bytes(response["status"], response["body"], content_type=response["content_type"])
+            else:
+                self._write_json(response["status"], response["payload"])
             return
 
         sunshine_body: bytes | None = None
