@@ -1,3 +1,35 @@
+## Update (2026-04-25, GoAdvanced Plan 09: CI-Pipeline Bats-Tests + Workflow-Audit)
+
+**Scope**: Plan 09 (CI-Pipeline) — Bats-Test fuer TPM-Attestation, Bestands-Workflows auditiert + dokumentiert, post_install_check.bats stabilisiert.
+
+### Bats-Tests (Plan 09 Schritt 3)
+- **Neu**: `tests/bats/tpm_attestation.bats` — 9 Tests fuer `thin-client-assistant/runtime/tpm_attestation.sh`. Stubs fuer `tpm2_pcrread` (sha256 PCR YAML), `curl` (--write-out + --output) und `hostname`. Deckt Pflicht-Env-Vars (3 Tests), Happy-Path, REJECTED, HTTP 403, TPM-Fehler, leere PCRs und fehlendes `tpm2_pcrread`-Binary ab. Tests skippen sauber wenn `jq`/`python3-yaml` fehlen.
+- **Fix**: `tests/bats/post_install_check.bats` hatte 4 Bugs die alle Tests crashen liessen oder das Happy-Path-Test sabotierten:
+  1. `load "$(command -v bats-support 2>/dev/null || true)"` mit leerem Argument crasht bats 1.10 → guard mit `if command -v bats-support`
+  2. `dirname "$BATS_TEST_FILE"` lieferte relativen Pfad → ersetzt durch `${BATS_TEST_DIRNAME}` (immer absolut)
+  3. systemctl-Stub parste `is-active --quiet libvirtd` falsch (nahm `--quiet` als Service-Name) → Schleife ueberspringt jetzt `--`-Flags
+  4. curl-Stub ignorierte `--output`/`--write-out` → printete JSON-Body statt HTTP-Code zurueck → vollstaendiger Stub mit Arg-Parsing
+- Resultat: **16/16 Bats-Tests gruen** (`bats tests/bats/`).
+
+### Workflow-Wiring (Plan 09 Schritt 2)
+- `.github/workflows/tests.yml`: separater `bats` Job ergaenzt — installiert `bats jq python3-yaml` via apt und laeuft `bats --tap tests/bats/`.
+
+### Audit Bestand
+- Plan 09 Doku entsprach nicht dem Repo-Status. Folgende Workflows existieren bereits und wurden korrekt als `[x]` markiert: `lint.yml` (shellcheck+ruff+mypy+eslint), `tests.yml` (pytest 3.11/3.12 + Cov + neu bats), `build-iso.yml` (installimage+iso, dispatch+push), `release.yml` (Tag-Trigger + SHA256SUMS + GPG-Signatur + Changelog), `security-tls-check.yml`, `security-subprocess-check.yml`, `no-proxmox-references.yml`.
+- Verbleibend (`[ ]`/`[/]` markiert): `install_beagle_host.bats` (braucht Container-Sandbox), `tests/bats/README.md`, ISO-cron-Schedule, ISO-SBOM (`cyclonedx-bom`/`cyclonedx-npm`), Reproduzibilitaets-Vergleich, Cosign-Signatur, Branch-Protection (GitHub-UI-Konfig).
+
+### Tests
+- `bats tests/bats/` => **16 ok** (lokal mit `bats 1.10.0`)
+- `bash -n` auf alle bats-Files: OK
+- `python3 -m py_compile` keine Aenderung — kein Python betroffen
+
+### Naechste sinnvolle Schritte
+- Plan 09 Schritt 4: ISO-Build cron + SBOM-Generierung
+- Plan 11 Schritt 2: Feature-Parity-Audit-Tabelle Proxmox vs Beagle
+- Plan 05: control-plane.py-Split (HIGH, vollstaendig offen)
+
+---
+
 ## Update (2026-04-25, GoAdvanced Plan 11 Teil 1: Proxmox-Cert-Defaults + CI-Guard)
 
 **Scope**: Erste konkrete Code-Schritte zu Plan 11 (Proxmox-Endbeseitigung). Soft-Disable + Cert-Default-Migration + CI-Guard-Hardening.

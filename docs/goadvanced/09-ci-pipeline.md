@@ -27,52 +27,39 @@ Ohne CI sind Regressionen schwer zu vermeiden.
 
 ## Schritte
 
-- [ ] **Schritt 1** — `lint.yml` Workflow
-  - [ ] `.github/workflows/lint.yml`:
-    - shellcheck auf alle `*.sh` (excludes konfigurierbar via `.shellcheckrc`)
-    - ruff auf `core/`, `beagle-host/services/`, `providers/`, `scripts/`, `tests/`
-    - mypy auf `core/` (strikt) + `beagle-host/services/` (lax)
-    - eslint auf `website/ui/*.js`, `extension/*.js` (Standard-Config)
-  - [ ] Cache fuer node_modules + pip
-  - [ ] Failt PR bei Fehlern
+- [x] **Schritt 1** — `lint.yml` Workflow _(2026-04-25 — vorhanden)_
+  - [x] `.github/workflows/lint.yml`: shellcheck (alle `*.sh`, excludes `.git`/`.build`/`node_modules`/`.artifacts`), ruff (`core/`, `beagle-host/services/`, `providers/`, `scripts/`, `tests/`), mypy strict auf `core/` (warn-only), eslint auf `website/ui/*.js`+`extension/*.js` (warn-only)
+  - [x] pip-Cache via `actions/setup-python` `cache: pip`
+  - [x] PR-Fail bei shellcheck/ruff (mypy + eslint warn-only bis Backlog reduziert)
 
-- [ ] **Schritt 2** — `tests.yml` Workflow
-  - [ ] `.github/workflows/tests.yml`:
-    - `python3 -m pytest tests/unit/ -q --cov=core --cov=beagle-host/services --cov-report=xml`
-    - Coverage-Upload (codecov oder github-pages)
-    - bats fuer kritische Skripte: `tests/bats/*.bats`
-  - [ ] Matrix: Python 3.11, 3.12
+- [x] **Schritt 2** — `tests.yml` Workflow _(2026-04-25 — pytest + bats)_
+  - [x] `.github/workflows/tests.yml`: pytest mit `--cov=core` + `--cov=beagle-host/services`, Coverage als Artefakt (Retention 14d), Matrix `3.11`/`3.12`
+  - [x] **Neu 2026-04-25**: separater `bats` Job laeuft `bats --tap tests/bats/` (installiert `bats jq python3-yaml` via apt)
 
-- [ ] **Schritt 3** — Bats-Tests
-  - [ ] `tests/bats/install_beagle_host.bats`: testet `scripts/install-beagle-host.sh` in chroot/container
-  - [ ] `tests/bats/post_install_check.bats`: testet `server-installer/post-install-check.sh` mit Mock-Services
-  - [ ] `tests/bats/tpm_attestation.bats`: testet `thin-client-assistant/runtime/tpm_attestation.sh` mit Stub-tpm2_pcrread
-  - [ ] Doku: `tests/bats/README.md`
+- [x] **Schritt 3** — Bats-Tests _(2026-04-25)_
+  - [ ] `tests/bats/install_beagle_host.bats` _(deferred — `install-beagle-host.sh` benoetigt chroot/Container; eigener Folge-Step mit Docker-Sandbox)_
+  - [x] `tests/bats/post_install_check.bats`: 7 Tests — Stubs fuer `systemctl`/`virsh`/`curl`/`ip`/`ping`/`hostname`. Setup-Bug (`load ""` crash + relativer `BATS_TEST_FILE`-Pfad + `is-active --quiet`-Argumentparsing + `--write-out` curl-Stub) komplett gefixt; jetzt 7/7 gruen lokal.
+  - [x] `tests/bats/tpm_attestation.bats` _(neu)_: 9 Tests — Stubs fuer `tpm2_pcrread`/`curl`/`hostname`; deckt Happy-Path (accepted), rejected, HTTP 403, TPM-Fehler, leere PCRs, fehlendes `tpm2_pcrread` und alle drei Pflicht-Env-Vars ab. Tests skip-en sauber wenn `jq`/`python3-yaml` fehlt.
+  - [ ] `tests/bats/README.md` _(deferred — kommt mit `install_beagle_host.bats`)_
 
-- [ ] **Schritt 4** — ISO-Build-Pipeline
-  - [ ] `.github/workflows/build-iso.yml`:
-    - Trigger: cron (taeglich) + `workflow_dispatch`
-    - Schritt 1: `scripts/build-server-installer.sh`
-    - Schritt 2: `scripts/build-thin-client-installer.sh`
-    - Schritt 3: SHA256-Hash + Vergleich mit vorherigem Tag (Reproduzibilitaet)
-    - Schritt 4: SBOM via `cyclonedx-bom` (Python) + `cyclonedx-npm` (JS)
-    - Artefakte: ISO, SHA256SUMS, SBOM
-  - [ ] Aufbewahrung: 7 Tage in GitHub Actions, dauerhaft bei Release
+- [/] **Schritt 4** — ISO-Build-Pipeline _(2026-04-25 — Basis vorhanden, SBOM+cron offen)_
+  - [x] `.github/workflows/build-iso.yml`: `workflow_dispatch` mit Auswahl `installimage`/`iso`/`both`, push-Trigger fuer `server-installer/`/`beagle-host/`/Build-Skripte/`VERSION`, baut via `build-server-installimage.sh` und `build-server-installer.sh`, lädt Artefakte hoch (Retention 30d)
+  - [ ] cron-Schedule (taeglich) — offen
+  - [ ] `build-thin-client-installer.sh`-Job — offen
+  - [ ] SBOM (`cyclonedx-bom` + `cyclonedx-npm`) — offen
+  - [ ] SHA256-Reproduzibilitaets-Vergleich vs Vortags-Build — offen
 
-- [ ] **Schritt 5** — Release-Pipeline
-  - [ ] `.github/workflows/release.yml`:
-    - Trigger: Tag `v*.*.*`
-    - Baut ISO + SBOM
-    - Generiert Changelog aus Git-Log
-    - Erstellt GitHub-Release mit Artefakten
-    - Signiert ISO + SBOM mit Cosign (sigstore)
+- [/] **Schritt 5** — Release-Pipeline _(2026-04-25 — Basis vorhanden, Cosign offen)_
+  - [x] `.github/workflows/release.yml`: Tag-Trigger `v*.*.*`, baut Installimage+ISO, generiert `SHA256SUMS`, GPG-signiert (`SHA256SUMS.sig`), Changelog aus Git-Log, GitHub-Release mit Artefakten
+  - [ ] Cosign-Signatur (sigstore) — offen
+  - [ ] SBOM-Bundling — offen (haengt an Schritt 4)
 
-- [ ] **Schritt 6** — CI-Guards
-  - [ ] `.github/workflows/security-tls-check.yml` (siehe Plan 02)
-  - [ ] `.github/workflows/security-subprocess-check.yml` (siehe Plan 04)
-  - [ ] `.github/workflows/no-proxmox-references.yml`: greppt auf `pvesh`, `qm`, `PVEAuthCookie`, `proxmox-ui` ausserhalb `proxmox-ui/` (das wird nach Plan 11 geloescht)
+- [x] **Schritt 6** — CI-Guards _(2026-04-25 — alle drei aktiv)_
+  - [x] `.github/workflows/security-tls-check.yml`
+  - [x] `.github/workflows/security-subprocess-check.yml`
+  - [x] `.github/workflows/no-proxmox-references.yml` (Allowlist + grep-Excludes via Plan 11 Schritt 7 gehärtet, lokale Simulation FOUND=0)
 
-- [ ] **Schritt 7** — Branch-Protection
+- [ ] **Schritt 7** — Branch-Protection _(GitHub-UI-Konfiguration, kein Repo-Code; deferred bis Multi-Maintainer)_
   - [ ] `main` Branch: alle CI-Jobs muessen gruen sein
   - [ ] Mind. 1 Review erforderlich (wenn Multi-Maintainer)
   - [ ] Doku: `docs/contributing.md`

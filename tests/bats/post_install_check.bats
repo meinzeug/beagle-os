@@ -6,7 +6,9 @@
 
 setup() {
     # Load bats helper libraries if available
-    load "$(command -v bats-support 2>/dev/null || true)"
+    if command -v bats-support >/dev/null 2>&1; then
+        load "$(command -v bats-support)"
+    fi
 
     # Create a temp dir for stubs
     BATS_TEST_TMPDIR="$(mktemp -d)"
@@ -19,7 +21,13 @@ setup() {
     cat > "$BATS_TEST_TMPDIR/bin/systemctl" << 'EOF'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "is-active" ]]; then
-  service="${2:-}"
+  shift
+  service=""
+  for arg in "$@"; do
+    [[ "$arg" == --* ]] && continue
+    service="$arg"
+    break
+  done
   if [[ "${STUB_FAILED_SERVICES:-}" == *"$service"* ]]; then
     echo "inactive"
     exit 1
@@ -44,14 +52,35 @@ EOF
     # curl stub
     cat > "$BATS_TEST_TMPDIR/bin/curl" << 'EOF'
 #!/usr/bin/env bash
-# Extract URL from args
-url="${*: -1}"
+# Honor --output <file> and --write-out "%{http_code}".
+out_file=""
+write_out=""
+url=""
+prev=""
+for arg in "$@"; do
+  case "$prev" in
+    --output) out_file="$arg" ;;
+    --write-out) write_out="$arg" ;;
+  esac
+  case "$arg" in
+    http*|https*) url="$arg" ;;
+  esac
+  prev="$arg"
+done
 if [[ "${STUB_CURL_FAIL:-}" == "1" ]]; then
+  [[ -n "$out_file" ]] && : > "$out_file"
+  [[ "$write_out" == *"%{http_code}"* ]] && printf '000'
   exit 6
 fi
-if [[ "$url" == *"/api/v1/health"* || "$url" == *":8420"* ]]; then
-  echo '{"ok":true,"version":"6.7.0"}'
-  exit 0
+body='{"ok":true,"version":"6.7.0"}'
+if [[ -n "$out_file" ]]; then
+  printf '%s' "$body" > "$out_file"
+fi
+http_code="${STUB_CURL_HTTP_CODE:-200}"
+if [[ "$write_out" == *"%{http_code}"* ]]; then
+  printf '%s' "$http_code"
+elif [[ -z "$out_file" ]]; then
+  printf '%s' "$body"
 fi
 exit 0
 EOF
@@ -80,7 +109,7 @@ EOF
 
     chmod +x "$BATS_TEST_TMPDIR/bin/"*
 
-    SCRIPT="$(cd "$(dirname "$BATS_TEST_FILE")/../.." && pwd)/server-installer/post-install-check.sh"
+    SCRIPT="$(cd "${BATS_TEST_DIRNAME}/../.." && pwd)/server-installer/post-install-check.sh"
     export SCRIPT
 }
 
@@ -91,6 +120,9 @@ teardown() {
 # ── Happy path ──────────────────────────────────────────────────────────────
 
 @test "all checks pass — exits 0" {
+    if [ ! -r /dev/kvm ]; then
+        skip "/dev/kvm not readable in test environment"
+    fi
     run bash "$SCRIPT"
     [ "$status" -eq 0 ]
 }
