@@ -121,6 +121,7 @@ from secret_store_service import SecretStoreService
 from backups_http_surface import BackupsHttpSurfaceService
 from pools_http_surface import PoolsHttpSurfaceService
 from cluster_http_surface import ClusterHttpSurfaceService
+from auth_session_http_surface import AuthSessionHttpSurfaceService
 from network_http_surface import NetworkHttpSurfaceService
 
 def load_env_defaults(path: str) -> None:
@@ -1042,6 +1043,7 @@ ENROLLMENT_TOKEN_STORE_SERVICE: EnrollmentTokenStoreService | None = None
 SUNSHINE_ACCESS_TOKEN_STORE_SERVICE: SunshineAccessTokenStoreService | None = None
 SUNSHINE_INTEGRATION_SERVICE: SunshineIntegrationService | None = None
 NETWORK_HTTP_SURFACE_SERVICE: NetworkHttpSurfaceService | None = None
+# no module-level singleton for AuthSessionHttpSurfaceService: it has per-request callables
 ENDPOINT_TOKEN_STORE_SERVICE: EndpointTokenStoreService | None = None
 PAIRING_SERVICE: PairingService | None = None
 CLUSTER_RPC_SERVER: ThreadingHTTPServer | None = None
@@ -3564,6 +3566,31 @@ class Handler(BaseHTTPRequestHandler):
     def _pool_recording_watermark(self, pool_id: str) -> dict[str, Any]:
         return pool_manager_service().get_pool_recording_watermark(str(pool_id or "").strip())
 
+    def _auth_session_surface(self) -> AuthSessionHttpSurfaceService:
+        return AuthSessionHttpSurfaceService(
+            auth_session=auth_session_service(),
+            identity_provider_registry=identity_provider_registry_service(),
+            oidc_service=oidc_service(),
+            saml_service=saml_service(),
+            permission_catalog=PERMISSION_CATALOG,
+            auth_bootstrap_username=AUTH_BOOTSTRAP_USERNAME,
+            auth_bootstrap_disabled=AUTH_BOOTSTRAP_DISABLE,
+            auth_principal=self._auth_principal,
+            remote_addr=lambda: self.client_address[0] if self.client_address else "",
+            user_agent=lambda: str(self.headers.get("User-Agent") or "")[:256],
+            read_json_body=self._read_json_body,
+            has_body=lambda: int(self.headers.get("Content-Length", "0") or "0") > 0,
+            check_login_guard=self._check_login_guard,
+            record_login_success=self._record_login_success,
+            record_login_failure=self._record_login_failure,
+            refresh_cookie_header=self._refresh_cookie_header,
+            clear_refresh_cookie_header=self._clear_refresh_cookie_header,
+            read_refresh_cookie=self._read_refresh_cookie,
+            bearer_token=lambda: extract_bearer_token(self.headers.get("Authorization", "")),
+            read_raw_body=lambda n: self.rfile.read(n),
+            audit_event=self._audit_event,
+        )
+
     def _backups_surface(self) -> BackupsHttpSurfaceService:
         return BackupsHttpSurfaceService(
             backup_service=backup_service(),
@@ -4106,53 +4133,18 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
-        if path == "/api/v1/auth/me":
-            principal = self._auth_principal()
-            if principal is None:
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            self._write_json(
-                HTTPStatus.OK,
-                {
-                    "ok": True,
-                    "user": {
-                        "username": str(principal.get("username") or ""),
-                        "role": str(principal.get("role") or "viewer"),
-                        "auth_type": str(principal.get("auth_type") or "session"),
-                        "tenant_id": principal.get("tenant_id") or None,
-                    },
-                },
-            )
-            return
-
-        if path == "/api/v1/auth/onboarding/status":
-            status_payload = auth_session_service().onboarding_status(
-                bootstrap_username=AUTH_BOOTSTRAP_USERNAME,
-                bootstrap_disabled=AUTH_BOOTSTRAP_DISABLE,
-            )
-            self._write_json(HTTPStatus.OK, {"ok": True, "onboarding": status_payload})
-            return
-
-        if path == "/api/v1/auth/providers":
-            try:
-                payload = identity_provider_registry_service().payload()
-            except Exception:
-                payload = {
-                    "ok": True,
-                    "providers": [
-                        {
-                            "id": "local",
-                            "type": "local",
-                            "label": "Lokaler Account",
-                            "description": "Benutzername + Passwort (Break-Glass).",
-                            "mode": "password",
-                            "enabled": True,
-                            "login_url": "",
-                        }
-                    ],
-                    "provider_hint": "",
-                }
-            self._write_json(HTTPStatus.OK, payload)
+        if self._auth_session_surface().handles_get(path):
+            response = self._auth_session_surface().route_get(path, query=query)
+            if response["kind"] == "redirect":
+                self._write_redirect(response["location"])
+            elif response["kind"] == "bytes":
+                self._write_bytes(response["status"], response["body"], content_type=response["content_type"])
+            else:
+                self._write_json(
+                    response["status"],
+                    response["payload"],
+                    extra_headers=response.get("extra_headers"),
+                )
             return
 
         if path == "/api/v1/events/stream":
@@ -4161,10 +4153,6 @@ class Handler(BaseHTTPRequestHandler):
                 self._stream_auth_error(HTTPStatus.UNAUTHORIZED, code="unauthorized", message="unauthorized")
                 return
             self._stream_live_events(principal)
-            return
-
-        if path == "/api/v1/auth/permission-tags":
-            self._write_json(HTTPStatus.OK, {"ok": True, "catalog": PERMISSION_CATALOG})
             return
 
         if path == "/api/v1/audit/report":
@@ -4233,60 +4221,6 @@ class Handler(BaseHTTPRequestHandler):
                 return
             response = scim_service().route_get(path)
             self._write_json(response["status"], response["payload"])
-            return
-
-        if path == "/api/v1/auth/oidc/login":
-            try:
-                login_url = oidc_service().begin_login()
-            except RuntimeError as exc:
-                self._write_json(HTTPStatus.NOT_IMPLEMENTED, {"ok": False, "error": str(exc)})
-                return
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"oidc unavailable: {exc}"})
-                return
-            self._write_redirect(login_url)
-            return
-
-        if path == "/api/v1/auth/oidc/callback":
-            query = parse_qs(parsed.query or "")
-            code = str((query.get("code") or [""])[0] or "").strip()
-            state = str((query.get("state") or [""])[0] or "").strip()
-            if not code or not state:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "missing code/state"})
-                return
-            try:
-                payload = oidc_service().finish_login(code=code, state=state)
-            except PermissionError as exc:
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": str(exc)})
-                return
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"oidc callback failed: {exc}"})
-                return
-            self._write_json(HTTPStatus.OK, payload)
-            return
-
-        if path == "/api/v1/auth/saml/login":
-            query = parse_qs(parsed.query or "")
-            relay_state = str((query.get("relay") or [""])[0] or "").strip()
-            try:
-                login_url = saml_service().begin_login(relay_state=relay_state)
-            except RuntimeError as exc:
-                self._write_json(HTTPStatus.NOT_IMPLEMENTED, {"ok": False, "error": str(exc)})
-                return
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"saml unavailable: {exc}"})
-                return
-            self._write_redirect(login_url)
-            return
-
-        if path == "/api/v1/auth/saml/metadata":
-            xml = saml_service().metadata_xml().encode("utf-8")
-            self._write_bytes(
-                HTTPStatus.OK,
-                xml,
-                content_type="application/samlmetadata+xml; charset=utf-8",
-                filename="beagle-sp-metadata.xml",
-            )
             return
 
         if API_V2_PREPARATION_ENABLED and path in {"/api/v2", "/api/v2/health"}:
@@ -4487,211 +4421,18 @@ class Handler(BaseHTTPRequestHandler):
                 self._write_json(response["status"], response["payload"])
             return
 
-        if path == "/api/v1/auth/saml/callback":
-            # SAML ACS (Assertion Consumer Service) endpoint.
-            # The IdP POSTs a SAMLResponse (form-encoded) to this URL.
-            content_type = str(self.headers.get("Content-Type") or "").lower()
-            remote_addr = self.client_address[0] if self.client_address else ""
-            try:
-                content_length = int(self.headers.get("Content-Length") or 0)
-                raw_body = self.rfile.read(max(0, content_length)).decode("utf-8", errors="replace") if content_length > 0 else ""
-            except Exception:
-                raw_body = ""
-            # Parse form-encoded body
-            from urllib.parse import parse_qs as _parse_qs
-            form = _parse_qs(raw_body) if raw_body else {}
-            saml_response_b64 = str((form.get("SAMLResponse") or [""])[0] or "").strip()
-            if not saml_response_b64:
-                audit_log_service().write_event(
-                    "auth.saml.assertion_rejected",
-                    "denied",
-                    {"reason": "missing SAMLResponse", "remote_addr": remote_addr},
-                )
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "missing SAMLResponse"})
-                return
-            try:
-                claims = saml_service().validate_assertion(saml_response_b64)
-            except SamlAssertionError as exc:
-                audit_log_service().write_event(
-                    "auth.saml.assertion_rejected",
-                    "denied",
-                    {"reason": str(exc), "remote_addr": remote_addr},
-                )
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": f"saml assertion rejected: {exc}"})
-                return
-            except Exception as exc:
-                audit_log_service().write_event(
-                    "auth.saml.assertion_rejected",
-                    "denied",
-                    {"reason": f"internal error: {exc}", "remote_addr": remote_addr},
-                )
-                self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "saml callback failed"})
-                return
-            audit_log_service().write_event(
-                "auth.saml.assertion_accepted",
-                "success",
-                {"name_id": str(claims.get("name_id") or ""), "remote_addr": remote_addr},
-            )
-            self._write_json(HTTPStatus.OK, {"ok": True, "claims": claims})
-            return
-
-        if path == "/api/v1/auth/login":
-            try:
-                payload = self._read_json_body()
-                self._validate_payload_whitelist(payload, required={"username", "password"})
-                username = self._sanitize_identifier(payload.get("username"), label="username", pattern=r"^[A-Za-z0-9._-]{1,64}$")
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            password = str(payload.get("password") or "")
-            if not password:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "username and password are required"})
-                return
-            allowed, wait_seconds = self._check_login_guard(username)
-            if not allowed:
+        if self._auth_session_surface().handles_post(path):
+            response = self._auth_session_surface().route_post(path)
+            if response["kind"] == "redirect":
+                self._write_redirect(response["location"])
+            elif response["kind"] == "bytes":
+                self._write_bytes(response["status"], response["body"], content_type=response["content_type"])
+            else:
                 self._write_json(
-                    HTTPStatus.TOO_MANY_REQUESTS,
-                    {
-                        "ok": False,
-                        "error": "login temporarily blocked",
-                        "code": "rate_limited",
-                        "retry_after_seconds": int(max(1, wait_seconds)),
-                    },
+                    response["status"],
+                    response["payload"],
+                    extra_headers=response.get("extra_headers"),
                 )
-                return
-            session_payload = auth_session_service().login(
-                username=username,
-                password=password,
-                remote_addr=self.client_address[0] if self.client_address else "",
-                user_agent=str(self.headers.get("User-Agent") or "")[:256],
-            )
-            if session_payload is None:
-                self._record_login_failure(username)
-                self._audit_event(
-                    "auth.login",
-                    "denied",
-                    username=username,
-                    remote_addr=self.client_address[0] if self.client_address else "",
-                )
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "invalid credentials"})
-                return
-            self._record_login_success(username)
-            self._audit_event(
-                "auth.login",
-                "success",
-                username=str(session_payload.get("user", {}).get("username") or username),
-                remote_addr=self.client_address[0] if self.client_address else "",
-            )
-            self._write_json(
-                HTTPStatus.OK,
-                session_payload,
-                extra_headers=[self._refresh_cookie_header(str(session_payload.get("refresh_token") or ""))],
-            )
-            return
-
-        if path == "/api/v1/auth/refresh":
-            try:
-                payload = self._read_json_body()
-                self._validate_payload_whitelist(payload, optional={"refresh_token"})
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            refresh_token = str(
-                payload.get("refresh_token")
-                or self._read_refresh_cookie()
-                or self.headers.get("X-Beagle-Refresh-Token")
-                or ""
-            ).strip()
-            if not refresh_token:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "refresh token missing"})
-                return
-            session_payload = auth_session_service().refresh(refresh_token)
-            if session_payload is None:
-                self._audit_event("auth.refresh", "denied", remote_addr=self.client_address[0] if self.client_address else "")
-                self._write_json(
-                    HTTPStatus.UNAUTHORIZED,
-                    {"ok": False, "error": "invalid refresh token"},
-                    extra_headers=[self._clear_refresh_cookie_header()],
-                )
-                return
-            self._audit_event(
-                "auth.refresh",
-                "success",
-                username=str(session_payload.get("user", {}).get("username") or ""),
-                remote_addr=self.client_address[0] if self.client_address else "",
-            )
-            self._write_json(
-                HTTPStatus.OK,
-                session_payload,
-                extra_headers=[self._refresh_cookie_header(str(session_payload.get("refresh_token") or ""))],
-            )
-            return
-
-        if path == "/api/v1/auth/logout":
-            refresh_token = ""
-            if int(self.headers.get("Content-Length", "0") or "0") > 0:
-                try:
-                    payload = self._read_json_body()
-                    self._validate_payload_whitelist(payload, optional={"refresh_token"})
-                except Exception as exc:
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                    return
-                refresh_token = str(payload.get("refresh_token") or "").strip()
-            # Also accept the refresh token from the HttpOnly cookie
-            if not refresh_token:
-                refresh_token = self._read_refresh_cookie()
-            revoked = auth_session_service().revoke(
-                access_token=extract_bearer_token(self.headers.get("Authorization", "")),
-                refresh_token=refresh_token,
-            )
-            self._audit_event(
-                "auth.logout",
-                "success" if revoked else "noop",
-                username=self._requester_identity(),
-                remote_addr=self.client_address[0] if self.client_address else "",
-            )
-            self._write_json(
-                HTTPStatus.OK,
-                {"ok": True, "revoked": bool(revoked)},
-                extra_headers=[self._clear_refresh_cookie_header()],
-            )
-            return
-
-        if path == "/api/v1/auth/onboarding/complete":
-            try:
-                payload = self._read_json_body()
-                self._validate_payload_whitelist(payload, required={"username", "password", "password_confirm"})
-                username = self._sanitize_identifier(payload.get("username"), label="username", pattern=r"^[A-Za-z0-9._-]{1,64}$")
-            except Exception as exc:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
-                return
-            password = str(payload.get("password") or "")
-            password_confirm = str(payload.get("password_confirm") or "")
-            if not password:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "username and password are required"})
-                return
-            if password != password_confirm:
-                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "password confirmation mismatch"})
-                return
-            try:
-                onboarding_state = auth_session_service().complete_onboarding(
-                    username=username,
-                    password=password,
-                    bootstrap_username=AUTH_BOOTSTRAP_USERNAME,
-                    bootstrap_disabled=AUTH_BOOTSTRAP_DISABLE,
-                )
-            except Exception as exc:
-                message = str(exc)
-                status_code = HTTPStatus.CONFLICT if message == "onboarding already completed" else HTTPStatus.BAD_REQUEST
-                self._write_json(status_code, {"ok": False, "error": message})
-                return
-            self._audit_event(
-                "auth.onboarding.complete",
-                "success",
-                username=username,
-                remote_addr=self.client_address[0] if self.client_address else "",
-            )
-            self._write_json(HTTPStatus.OK, {"ok": True, "onboarding": onboarding_state})
             return
 
         if scim_service().handles_path(path):
