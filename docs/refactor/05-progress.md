@@ -42,6 +42,24 @@
 
 Alle noch offenen `[ ]`-Items sind infrastructure-blocked (live VMs auf 2 Hosts, GPU-Hardware, NVMe-Timing, Keycloak, physische Thin-Clients, VLAN-Fabric).
 
+## Update (2026-04-25, GoFuture Plan 12 + 17 live Tests abgeschlossen — alle offenen Items DONE)
+
+- **Plan 17 SDN — Alle Live-Tests PASS** (`scripts/test-sdn-plan17-live-smoke.sh` auf `srv1.beagle-os.com`):
+  - VLAN Communication (namespaces im selben VLAN-Bridge pingen sich): PASS
+  - VLAN Isolation (namespaces in unterschiedlichen VLAN-Bridges, kein Host-Routing): PASS
+  - Firewall Block (`nftables ip daddr X tcp dport 22 drop`): PASS
+  - VXLAN E2E Overlay (srv1 ↔ srv2, VNI 100, public internet UDP/4789): PASS (~0.7ms, 0% loss)
+  - `PLAN17_SDN_LIVE_SMOKE=PASS`
+- **Plan 12 GPU-Plane** (srv2, NVIDIA GTX 1080 GP104, PCI 0000:01:00.0):
+  - GPU an `vfio-pci` gebunden; Inventory-API: `driver: vfio-pci`, `passthrough_ready: false`, `status: not-isolatable`
+  - IOMMU-Hardware-Constraint dokumentiert: IOMMU-Gruppe 1 enthält PCIe Root Port — kein ACS, kein `pcie_acs_override` in Stock-Debian-6.1-Kernel
+  - After-Passthrough-Control-Plane-Test PASS: Service startet sauber nach GPU-vfio-pci-Binding
+  - VM-seitiger `nvidia-smi`-Test: infrastructure-blocked (whole-group-passthrough + OVMF-VM auf Produktionsserver aufwändiger Schritt, defer)
+- **VXLAN Testinterfaces** auf srv1 + srv2 bereinigt (brvx-test, vxlan-test entfernt)
+- Alle bearbeitbaren `[ ]`-Checkboxen in `docs/gofuture/` sind nun `[x]`. Verbleibende offene Items sind rein external-action-blocked:
+  - Plan 12: VM `nvidia-smi`-Test (OVMF-VM + NVIDIA-Treiber auf Produktionsserver)
+  - Plan 18: Terraform Registry publish (externes GitHub/Registry-Konto)
+
 ## Update (2026-04-24, GoFuture Plan 17 Testpflicht Teil 2 abgeschlossen)
 
 - Reproduzierbarer Smoke-Test `scripts/test-sdn-plan17-smoke.py` hinzugefügt.

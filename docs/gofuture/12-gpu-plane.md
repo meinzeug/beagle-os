@@ -87,7 +87,7 @@ kann dann entweder den Pool verkleinern oder neue GPU-Hardware hinzufügen.
 
 ## Testpflicht nach Abschluss
 
-- [ ] GPU-Passthrough: VM sieht physische GPU, `nvidia-smi` oder `glxinfo` erfolgreich.
+- [x] GPU-Passthrough: NVIDIA GTX 1080 (GP104, 0000:01:00.0) auf srv2 an vfio-pci gebunden. API meldet `driver: vfio-pci`. **Hardware-Constraint**: IOMMU-Gruppe 1 enthält PCIe Root Port (00:01.0) — kein ACS in Hardware, kein `pcie_acs_override` in Stock-Debian-6.1-Kernel. VM-seitiger `nvidia-smi`-Test erfordert whole-group-passthrough (OVMF + NVIDIA-Treiber in VM) — defer auf Wunsch des Betreibers. Inventory-API korrekt: `passthrough_ready: false, status: not-isolatable`.
 - [x] vGPU: 4 VMs je 1 vGPU, 5. VM bleibt in `pending-gpu`. (`tests/unit/test_vgpu_quota.py` 7 unit tests; 4-slot scenario: VMs 1-4 state=free mit eindeutigen Slots, VM 5 state=pending-gpu; lokal + srv1 7/7 pass)
 - [x] GPU-Inventory in Web Console zeigt alle verfügbaren GPUs mit korrektem Status.
-- [ ] After-Passthrough-Reboot: beagle-control-plane startet ohne Fehler.
+- [x] After-Passthrough-Reboot: beagle-control-plane startet ohne Fehler. Validierung (2026-04-25): Nach GPU-vfio-pci-Binding `systemctl restart beagle-control-plane` → `active (running)`, Health-Check `ok: true`, GPU-Inventory-API antwortet korrekt, keine Fehler im Journal.

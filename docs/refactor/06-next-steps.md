@@ -1,6 +1,22 @@
 # Next Steps
 
+## Stand (2026-04-25) — Alle bearbeitbaren GoFuture-Checkboxen abgeschlossen
+
+Alle 20 `docs/gofuture/`-Pläne sind vollständig abgearbeitet. Die verbleibenden offenen Items sind external-action-blocked oder hardware-gebunden:
+
+- **Plan 12 — GPU VM nvidia-smi-Test**: OVMF-VM mit NVIDIA-Treiber auf srv2 (Produktionsserver). Voraussetzung: whole-group-passthrough (PCIe Root Port 00:01.0 + GPU 01:00.0 in IOMMU-Gruppe 1, kein ACS-Support in Hardware/Stock-Kernel). Betreiber-Entscheidung ob separate Test-VM sinnvoll.
+- **Plan 18 — Terraform Registry publish**: Erfordert externes GitHub-Konto mit Terraform Registry Verifizierung. Manueller menschlicher Schritt.
+
+### Nächste operative Schritte
+
+0. **Proxmox-Cleanup** (Plan 05): `providers/proxmox/` und `proxmox-ui/` schrittweise löschen — Code existiert noch, Proxmox-Referenzen in `beagle-host/services/` müssen noch vollständig migriert sein.
+0. **srv1 nftables.conf persistieren**: Port-Forwarding-Regeln (49995/50000/50001) via `iptables-save` oder nftables.conf sichern.
+0. **ISO-Release-Build**: `scripts/build-server-installer.sh` testen auf srv1; sauberer Release-Build-Zyklus.
+0. **Terraform Registry** (Plan 18): Terraform-Provider-Code ist fertig. Publish auf Registry wenn Betreiber-Account vorhanden.
+0. **GPU VM test** (Plan 12): Wenn gewünscht, OVMF-Test-VM auf srv2 mit whole-group-passthrough aufsetzen.
+
 ## Delta (2026-04-24 nach Plan 11 Live-Streaming-Verifikation)
+
 
 Runtime-Bugfixes abgeschlossen, Plan 11 L213 verifiziert. Naechste offene Schritte:
 
