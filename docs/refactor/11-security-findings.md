@@ -1,6 +1,22 @@
 # Security Findings
 
-Stand: 2026-04-24
+Stand: 2026-04-24 (ergänzt: WireGuard Zero-Trust + BeagleStream-Protokoll-Analyse)
+
+## S-018 — BeagleStream (Sunshine-Fork): Unverschlüsselter LAN-Stream ohne WireGuard
+
+- Status: **architektonisch bekannt**, Mitigation in Plan 01 (GoEnterprise) dokumentiert
+- Risiko: **Hoch** (Produktionsumgebungen ohne Verschlüsselung auf dem Streaming-Kanal)
+- Betroffene Dateien: `beagle-host/services/sunshine_integration.py`, zukünftig `beagle-stream-server/`
+- Beschreibung:
+  - Vanilla Sunshine/Moonlight überträgt Video/Audio über UDP ohne Transportverschlüsselung.
+  - Im LAN ist ein Angreifer mit physischem Netzwerkzugang in der Lage, Streaming-Traffic mitzulesen oder zu manipulieren (MITM auf UDP-Ebene).
+  - Betrifft alle heutigen Beagle-Deployments.
+- Mitigation (in Plan 01 GoEnterprise):
+  - WireGuard-Mesh: alle Streaming-Verbindungen laufen durch verschlüsselten Tunnel.
+  - WireGuard-Latenz-Overhead: **+0.003ms** (gemessen auf srv1, 24.04.2026) — latenz-neutral.
+  - `network_mode=vpn_required` in Stream-Policy: Server lehnt Direktverbindungen ohne WireGuard ab.
+  - Hardware-Beschleunigung bestätigt: `aes`, `avx2`, `vaes`, `vpclmulqdq` vorhanden auf srv1.
+- Nächster konkreter Schritt: `beagle-host/services/wireguard_mesh_service.py` implementieren (Plan 01, Schritt 3).
 
 ## S-017 - beagle_curl_tls_args: --pinnedpubkey ohne -k bypasst CA-Verifizierung nicht
 

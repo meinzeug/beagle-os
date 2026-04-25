@@ -74,7 +74,6 @@ ensure_dist_permissions() {
   find "$DIST_DIR" -type f -exec chmod 0644 {} +
   find "$DIST_DIR" -type f -name '*.sh' -exec chmod 0755 {} +
 }
-}
 
 # Build bootstrap + payload tarballs from an already-present installer ISO
 # (e.g. deployed via rsync without running the full thin-client live-build).
