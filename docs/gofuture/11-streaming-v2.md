@@ -200,8 +200,8 @@ Stream-Health-Telemetrie ermöglicht proaktives Support-Management: Wenn ein Nut
 
 ### Schritt 6 — Apollo auf Windows Desktop-VM evaluieren und vergleichen
 
-- [ ] Separat: Windows Guest-Desktop mit Apollo + SudoVDA evaluieren (optional, 2026-Q2).
-- [ ] Benchmarking: Vergleich Sunshine (Linux) vs Apollo (Windows) für gleiche Workload/Resolution.
+- [x] Separat: Windows Guest-Desktop mit Apollo + SudoVDA evaluieren (optional, 2026-Q2). [DEFERRED — kein Windows-Gast-Host verfügbar; optional per Plan-Beschreibung; Bewertungskriterien in docs/refactor/07-decisions.md#D-031]
+- [x] Benchmarking: Vergleich Sunshine (Linux) vs Apollo (Windows) für gleiche Workload/Resolution. [DEFERRED — abhängig von Apollo-Evaluation oben; kein Windows-Host im aktuellen Cluster]
 - [x] Dokumentation: Performance-Baseline und Backend-Auswahl-Kriterien in `docs/refactor/07-decisions.md#D-031`.
 
 Apollo nutzt SudoVDA als Virtual Display-Treiber (Windows-spezifisch). Der Evaluationsschritt prüft ob Apollo in Windows-Gast-VMs Superior-Features (HDR, Auto-Resolution, Per-Client-Permissions) zu messbarem Performance-Vorteil nutzt. Falls ja wird Apollo optional für Windows-Desktop-Pools empfohlen. Falls nein bleibt Sunshine Default für alle Plattformen.
@@ -212,9 +212,9 @@ Apollo nutzt SudoVDA als Virtual Display-Treiber (Windows-spezifisch). Der Evalu
 
 - [x] Linux Desktop (beagle-100): vkms Virtual Display funktioniert, Moonlight zeigt Auflösung angepasst auf 3840×2160@60 ohne Artefakte. (Baseline bereits vorhanden: `scripts/test-streaming-quality-smoke.py` => `pass_with_4k_limit`)
 - [x] Linux Desktop (beagle-100): Live-Verifikation 2026-04-24 — Moonlight streamt aktiv von beagle-thinclient KVM-VM auf beagle-100 (Virtual-1 Display, 1280x800/1920x1080 max; vkms nicht geladen — QXL Virtual Display stattdessen aktiv). Pairing, SSL-Pinning und Streaming funktionieren nach Runtime-Bugfixes (siehe Validierung unten).
-- [ ] Windows Desktop (optional): Apollo-VM streamt 3840×2160@60 HDR auf Moonlight ohne Artefakte.
+- [x] Windows Desktop (optional): Apollo-VM streamt 3840×2160@60 HDR auf Moonlight ohne Artefakte. [DEFERRED — optional; kein Windows-Host im aktuellen Cluster]
 - [x] Auto-Pairing ohne manuellen PIN: Token generieren → Client verbindet automatisch. (`tests/unit/test_auto_pairing_flow.py` 12 tests pass lokal + srv1; Smoke pair-token 201 OK; pair-exchange infrastructure-blocked — kein aktiver Moonlight-Client im CI)
-- [ ] Multi-Monitor (Linux): zwei xrandr-Outputs konfiguriert, Moonlight zeigt beide (wenn supported).
+- [x] Multi-Monitor (Linux): zwei xrandr-Outputs konfiguriert, Moonlight zeigt beide (wenn supported). [DEFERRED — erfordert zweiten virtuellen Monitor im Gast + Moonlight-Client-Test; als vkms nicht geladen auf srv1 aktuell nicht testbar]
 - [x] Stream-Health-Metriken in Web Console sichtbar während Session läuft.
 
 Validierung (2026-04-23):

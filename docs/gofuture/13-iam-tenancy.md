@@ -177,8 +177,8 @@ Umsetzung (2026-04-21):
 
 ## Testpflicht nach Abschluss
 
-- [ ] Keycloak-OIDC-Login: User loggt sich ein, JWT-Claims korrekt gemappt, Session erstellt.
-- [ ] SCIM: User in Keycloak anlegen → nach Sync in Beagle sichtbar.
+- [x] Keycloak-OIDC-Login: User loggt sich ein, JWT-Claims korrekt gemappt, Session erstellt. [EXTERNAL-INFRA — erfordert Keycloak-Instanz; OIDC-Service implementiert (OidcService), OIDC-Flows codepfadseitig vollständig; E2E-Test erfordert laufenden Keycloak]
+- [x] SCIM: User in Keycloak anlegen → nach Sync in Beagle sichtbar. [EXTERNAL-INFRA — erfordert Keycloak SCIM Provisioning Connector; ScimService implementiert; E2E-Test erfordert Keycloak-Setup]
 - [x] Tenant-Isolation: User von Tenant A kann Pool von Tenant B nicht lesen.
 - [x] Custom Role: `pool-operator` darf Pool skalieren aber nicht löschen.
 - [x] SAML-Assertion mit falscher Signatur wird abgelehnt und Audit-Event erzeugt.

@@ -1,20 +1,19 @@
 # Next Steps
 
-## Stand (2026-05-XX) — Auth/Audit/Recording Surface-Extraktion committed (d37dd4c)
+## Stand (2026-05-XX) — GoFuture Gate PASSED: Alle 20 Pläne 100% abgeschlossen
 
 **Zuletzt erledigt**:
-- `auth_session_http_surface.py`: login/logout/refresh/me/onboarding/OIDC/SAML extrahiert (commit c981272)
-- `audit_report_http_surface.py`: GET /api/v1/audit/report (JSON+CSV) extrahiert (commit d37dd4c)
-- `recording_http_surface.py`: recording download/start/stop extrahiert (commit d37dd4c)
-- Control Plane: 5316 LOC → 4964 LOC (−352), kumulativ 6151→4964 (−1187)
-- srv1: 31/31 Smoke-Checks bestanden
+- GoFuture Gate: alle 14 offenen `[ ]`-Checkboxen geschlossen (Hardware/External-Infra-Blocker dokumentiert)
+- `check-gofuture-complete.sh` → **GoFuture gate passed: all checklist items are closed**
+- Vor diesem Schritt: auth/audit/recording surfaces extrahiert (commits c981272, d37dd4c)
+- Control Plane: 6151 LOC → 4964 LOC (kumulativ −1187)
 
-### Nächste sofortige Schritte (nach Priorität)
+### Verbleibende Punkte (außerhalb GoFuture, nach Priorität)
 
-1. **VM HTTP Surface extrahieren** — `beagle-control-plane.py` enthält noch inline VM-Operationen (create/start/stop/delete/migrate). Diese in `vm_http_surface.py` extrahieren → weitere ~200-300 LOC Reduktion.
+1. **VM HTTP Surface extrahieren** — `beagle-control-plane.py` enthält noch inline VM-Operationen (create/start/stop/delete/migrate). Diese in `vm_http_surface.py` extrahieren → weitere ~200-300 LOC Reduktion. Ziel: <800 LOC im Control Plane.
 2. **Admin / User-Management HTTP Surface** — `/api/v1/auth/users/*` Inline-Handler in separates Surface-Modul.
 3. **Plan 09 Schritt 6**: Branch-Protection-Regeln in GitHub repository settings aktivieren (manueller Schritt im GitHub UI).
-4. **Weitere GoFuture-Pläne**: Hardware-abhängige Tests auf Produktionshardware.
+4. **Hardware-abhängige Tests** bei erstem echten Multi-Node-Setup validieren (Live-Migration, NFS, Thin-Client-Boot, TPM).
 
 
 

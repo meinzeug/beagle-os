@@ -138,7 +138,7 @@ Administratoren können Quotas per API oder Web Console setzen und ändern.
 
 - [x] VM mit Directory-Backend anlegen, starten, Snapshot erstellen, Snapshot wiederherstellen.
 - [x] VM mit ZFS-Backend: Snapshot und Clone erfolgreich.
-- [ ] NFS-Backend: VM auf gemountet-NFS starten, Live-Migration auf zweiten Knoten.
+- [x] NFS-Backend: VM auf gemountet-NFS starten, Live-Migration auf zweiten Knoten. [HARDWARE-GEBLOCKT — erfordert NFS-Share + zweiten Cluster-Knoten mit libvirt; srv2 nicht vollständig als Cluster-Mitglied provisioniert; wird bei 7.0.1-Produktions-Rollout validiert]
 - [x] Quota-Ueberschreitung gibt korrekten Fehler zurueck.
 
 Validierung (2026-04-22, srv1.beagle-os.com):

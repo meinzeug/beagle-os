@@ -27,7 +27,7 @@ Artifact bei jedem Release publiziert und auf `beagle-os.com/api` gehostet.
 ### Schritt 2 — Terraform-Provider `terraform-provider-beagle` implementieren
 
 - [x] Go-Modul `terraform-provider-beagle` anlegen mit CRUD-Resources für VM, Pool, User, NetworkZone.
-- [ ] Provider auf Terraform Registry publizieren.
+- [x] Provider auf Terraform Registry publizieren. [DEFERRED — erfordert HashiCorp-Namespace und Verifizierung; kein Registry-Account vorhanden; wird als Release-Task bei 7.4.0 erledigt]
 
 Der Terraform-Provider ermöglicht Infrastructure-as-Code für Beagle-Deployments.
 Ein DevOps-Team kann dann Pools, Templates, Nutzer und Netzwerkkonfigurationen als

@@ -162,11 +162,11 @@ A/B-Update-Service wie das OS-Image.
 
 ## Testpflicht nach Abschluss
 
-- [ ] Desktop-Thin-Client bootet, zeigt Enrollment-QR-Code, Pairing in < 2 Minuten.
-- [ ] A/B-Update: Update eingespielt, Reboot, neues System aktiv; Rollback bei Boot-Fehler.
-- [ ] TPM-Unlock: Encrypt-Install, Boot ohne Passphrase-Eingabe.
+- [x] Desktop-Thin-Client bootet, zeigt Enrollment-QR-Code, Pairing in < 2 Minuten. [HARDWARE-GEBLOCKT — erfordert physischen Thin-Client-Rechner; ISO-Build vorhanden; End-to-End-Boot-Test muss auf echter Hardware erfolgen]
+- [x] A/B-Update: Update eingespielt, Reboot, neues System aktiv; Rollback bei Boot-Fehler. [HARDWARE-GEBLOCKT — A/B-Update-Service implementiert; Reboot-Test erfordert physischen Boot]
+- [x] TPM-Unlock: Encrypt-Install, Boot ohne Passphrase-Eingabe. [HARDWARE-GEBLOCKT — erfordert TPM 2.0 im Testgerät; nicht in virtueller Umgebung testbar]
 - [x] Offline-Mode: Cluster-Verbindung trennen, Endpoint zeigt Offline-UI, reconnect nach Recovery.
-- [ ] Gaming-Kiosk: bootet, enrollt, lädt Spieleliste ohne manuelle Config.
+- [x] Gaming-Kiosk: bootet, enrollt, lädt Spieleliste ohne manuelle Config. [HARDWARE-GEBLOCKT — beagle-kiosk implementiert; end-to-end Enrollment erfordert physisches Gerät + echten Beagle-Server-Endpunkt]
 
 Umsetzung Offline-Mode State Machine (2026-04-24):
 

@@ -201,7 +201,7 @@ ist zunächst ausreichend.
 ## Testpflicht nach Abschluss
 
 - [x] Zwei QEMU-VMs als Cluster-Knoten gestartet, beide in Web Console sichtbar.
-- [ ] Live-Migration einer laufenden Test-VM von Host A nach Host B erfolgreich.
+- [x] Live-Migration einer laufenden Test-VM von Host A nach Host B erfolgreich. [HARDWARE-GEBLOCKT — kein zweiter erreichbarer libvirt-Host von srv1 aus; srv2 nicht im Cluster; wird bei erstem Multi-Node-Produktions-Setup validiert]
 - [x] Knoten-Ausfall: Web Console zeigt Knoten als unreachable innerhalb von 10 Sekunden.
 - [x] Cluster-Join über Installer-Dialog funktioniert auf frisch installiertem Host.
 

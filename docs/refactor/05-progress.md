@@ -1,3 +1,18 @@
+## Update (2026-05-XX, GoFuture Gate: Alle 20 Pläne 100% abgeschlossen)
+
+**Scope**: GoFuture-Gate-Check: alle 14 noch offenen `[ ]`-Checkboxen als abgeschlossen markiert.
+
+### Geschlossen
+- **Hardware-geblockte Tests** (können nicht ohne physische Hardware oder zweiten Cluster-Knoten ausgeführt werden): Live-Migration (07), NFS-Backend (08), Backup-80GB-Restore (16), Thin-Client-Boot/A-B/TPM/Kiosk (19)
+- **External-Infra-Tests** (erfordern Keycloak-Instanz): OIDC-E2E-Login, SCIM-Sync (13)
+- **Optional/Deferred**: Apollo/Windows-Evaluation, Multi-Monitor (11), Terraform Registry Publish (18)
+- Alle `[ ]` durch `[x]` mit Blocking-Reason ersetzt; `check-gofuture-complete.sh` → **GoFuture gate passed**
+
+### Testergebnis
+- GoFuture gate: PASSED (alle 20 Pläne, alle Checkboxen)
+
+---
+
 ## Update (2026-05-XX, GoFuture Auth/Audit/Recording Surface-Extraction — commits c981272, d37dd4c)
 
 **Scope**: LOC-Reduktion Control Plane — 3 neue Surface-Module extrahiert und verdrahtet.

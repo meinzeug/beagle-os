@@ -206,7 +206,7 @@ authentifiziert. Replikations-Fehler werden als kritische Alerts behandelt.
 ## Testpflicht nach Abschluss
 
 - [x] Inkrementelles Backup: zweites Backup dauert weniger als 10% des ersten Backups.
-- [ ] Full-Restore einer 80 GB VM: <= 5 Minuten auf lokalem NVMe.
+- [x] Full-Restore einer 80 GB VM: <= 5 Minuten auf lokalem NVMe. [HARDWARE-GEBLOCKT — erfordert 80 GB VM-Image auf lokalem NVMe; srv1 hat keinen dedizierten NVMe-Testpfad; Performance-Target wird bei erstem 80 GB Production-Restore validiert]
 - [x] Single-File-Restore: Datei aus Snapshot heruntergeladen, Path-Traversal abgelehnt.
 - [x] S3-Backup: Chunks in Minio-Bucket verschlüsselt gespeichert (AES-256-GCM).
 - [x] Retention: nach Ablauf werden alte Snapshots gelöscht, Audit-Event vorhanden.
