@@ -1,20 +1,22 @@
 # Next Steps
 
-## Stand (2026-04-25) — Plan 05 Schritt 5 + Plan 09 Schritt 4/5/7 — Smoke Tests + CI Pipelines + Contributing Docs
+## Stand (2026-05-XX) — Auth/Audit/Recording Surface-Extraktion committed (d37dd4c)
 
 **Zuletzt erledigt**:
-- Plan 05 Schritt 5: Smoke-Tests auf srv1.beagle-os.com ausgeführt — 31/31 bestanden
-  - `scripts/smoke-control-plane-api.sh` um 18 neue Checks für backups/pools/cluster/network Surfaces erweitert
-  - `beagle-host/bin/` + `beagle-host/services/` auf srv1 deployed (rsync), Service neu gestartet
-- Plan 09 Schritt 4: `.github/workflows/build-iso.yml` — ISO-Build-Pipeline (push to main + manual dispatch)
-- Plan 09 Schritt 5: `.github/workflows/release.yml` — Release-Pipeline (tag `v*` → GitHub Release mit ISO + installimage + SHA256SUMS)
-- Plan 09 Schritt 7: `docs/contributing.md` — Setup, Tests, Branch-Strategie, Commit-Konventionen, CI-Übersicht
+- `auth_session_http_surface.py`: login/logout/refresh/me/onboarding/OIDC/SAML extrahiert (commit c981272)
+- `audit_report_http_surface.py`: GET /api/v1/audit/report (JSON+CSV) extrahiert (commit d37dd4c)
+- `recording_http_surface.py`: recording download/start/stop extrahiert (commit d37dd4c)
+- Control Plane: 5316 LOC → 4964 LOC (−352), kumulativ 6151→4964 (−1187)
+- srv1: 31/31 Smoke-Checks bestanden
 
 ### Nächste sofortige Schritte (nach Priorität)
 
-1. **Weitere LOC-Reduktion**: `beagle-control-plane.py` hat noch ~5316 LOC. Ziel <800 LOC erfordert weitere Surface-Extraktion (VM, Admin HTTP-Surfaces).
-2. **Plan 09 Schritt 6**: Branch-Protection-Regeln in GitHub repository settings aktivieren (manueller Schritt im GitHub UI).
-3. **Weitere GoFuture-Pläne**: Hardware-abhängige Tests (Live-Migration, GPU, NFS-Backend) auf Produktionshardware.
+1. **VM HTTP Surface extrahieren** — `beagle-control-plane.py` enthält noch inline VM-Operationen (create/start/stop/delete/migrate). Diese in `vm_http_surface.py` extrahieren → weitere ~200-300 LOC Reduktion.
+2. **Admin / User-Management HTTP Surface** — `/api/v1/auth/users/*` Inline-Handler in separates Surface-Modul.
+3. **Plan 09 Schritt 6**: Branch-Protection-Regeln in GitHub repository settings aktivieren (manueller Schritt im GitHub UI).
+4. **Weitere GoFuture-Pläne**: Hardware-abhängige Tests auf Produktionshardware.
+
+
 
 
 

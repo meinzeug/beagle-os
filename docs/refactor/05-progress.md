@@ -1,3 +1,25 @@
+## Update (2026-05-XX, GoFuture Auth/Audit/Recording Surface-Extraction — commits c981272, d37dd4c)
+
+**Scope**: LOC-Reduktion Control Plane — 3 neue Surface-Module extrahiert und verdrahtet.
+
+### Neu erstellt
+- `beagle-host/services/auth_session_http_surface.py` — AuthSessionHttpSurfaceService (~390 LOC): login, logout, refresh, me, onboarding, OIDC, SAML
+- `beagle-host/services/audit_report_http_surface.py` — AuditReportHttpSurfaceService (~90 LOC): GET /api/v1/audit/report (JSON + CSV)
+- `beagle-host/services/recording_http_surface.py` — RecordingHttpSurfaceService (~150 LOC): session recording download/start/stop
+
+### Geändert
+- `beagle-host/bin/beagle-control-plane.py`: 5316 LOC → 4964 LOC (−352 Zeilen, kumulativ seit Start: 6151→4964 = −1187)
+- Neue Handler-Hilfsmethoden: `_auth_session_surface()`, `_audit_report_surface()`, `_recording_surface()`
+- Inline-Handler in do_GET/do_POST durch Surface-Dispatch ersetzt
+- Dead code entfernt: `_session_recording_get/start/stop_match` statische Methoden gelöscht
+
+### Testergebnis
+- 778 Unit-Tests bestanden (9 pre-existing GPU-Failures unverändert)
+- srv1: 31/31 Smoke-Checks bestanden nach rsync + Service-Restart
+- Commits: c981272 (auth session), d37dd4c (audit + recording)
+
+---
+
 ## Update (2026-04-25, GoAdvanced Plan 05 Schritt 5 + Plan 09 Schritt 4/5/7)
 
 **Scope**: Smoke-Tests auf srv1, CI-Pipelines, Contributing-Docs.
