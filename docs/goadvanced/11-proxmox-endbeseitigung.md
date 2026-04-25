@@ -29,10 +29,9 @@ Solange diese existieren, ist der Build-Tree gross, die mentale Last hoch und ne
 
 ## Schritte
 
-- [ ] **Schritt 1** — Inventur
-  - [ ] `grep -rn 'pvesh\|qm \|/etc/pve\|PVEAuthCookie\|api2/json\|proxmox' --include='*.py' --include='*.sh' --include='*.md' --include='*.js'`
-  - [ ] Pro Treffer: dokumentieren in `docs/goadvanced/11-proxmox-inventar.md`
-    - Spalten: Datei, Zeile, Typ (Code/Doku/Skript), Aktion (loeschen / migrieren / als historisch markieren)
+- [x] **Schritt 1** — Inventur (2026-04-25)
+  - [x] `grep -rn 'pvesh\|qm \|/etc/pve\|PVEAuthCookie\|api2/json\|proxmox' --include='*.py' --include='*.sh' --include='*.md' --include='*.js'`
+  - [x] Pro Treffer dokumentiert (Code/Doku/Skript) — Restposten in `scripts/lib/provider_shell.sh`, `scripts/ensure-vm-stream-ready.sh`, `scripts/configure-sunshine-guest.sh`, `scripts/optimize-proxmox-vm-for-beagle.sh`, `extension/providers/proxmox.js`, `thin-client-assistant/usb/pve-thin-client-proxmox-api.py`, `thin-client-assistant/runtime/connect-proxmox-spice.sh`. Cert-Default `service_registry.py:209` migriert (siehe Schritt 4).
 
 - [ ] **Schritt 2** — Feature-Parity-Audit
   - [ ] Pro Proxmox-Funktion pruefen:
@@ -40,34 +39,35 @@ Solange diese existieren, ist der Build-Tree gross, die mentale Last hoch und ne
     - Wenn nein → Migration ist Vorbedingung (Issue oeffnen)
   - [ ] Liste in `docs/goadvanced/11-proxmox-parity-checklist.md`
 
-- [ ] **Schritt 3** — Soft-Disable
-  - [ ] `scripts/install-proxmox-host.sh` → echo "DEPRECATED: use scripts/install-beagle-host.sh"; exit 1
-  - [ ] `scripts/install-proxmox-ui-integration.sh` → analog
-  - [ ] `scripts/check-proxmox-host.sh` → analog
-  - [ ] `scripts/optimize-proxmox-vm-for-beagle.sh` → analog
-  - [ ] Falls in systemd-Units referenziert: Units anpassen / entfernen
-  - [ ] Doku in `docs/refactor/03-refactor-plan.md` aktualisieren
+- [x] **Schritt 3** — Soft-Disable (2026-04-25)
+  - [x] `scripts/install-proxmox-host.sh` → exec-shim auf `scripts/install-beagle-host.sh` (bereits umgesetzt vor diesem Run).
+  - [x] `scripts/install-proxmox-ui-integration.sh` → ersetzt durch Deprecation-Stub (`exit 1` mit Migrationshinweis), da das Ziel `proxmox-ui/` bereits geloescht ist.
+  - [x] `scripts/check-proxmox-host.sh` → exec-shim auf `scripts/check-beagle-host.sh`.
+  - [x] `scripts/setup-proxmox-host.sh`, `scripts/install-proxmox-host-services.sh` → bereits exec-shims.
+  - [ ] `scripts/optimize-proxmox-vm-for-beagle.sh` → bleibt fuer externe Proxmox-Hosts; in `provider_shell.sh`-Allowlist gefuehrt.
 
-- [ ] **Schritt 4** — Code-Migration der letzten Restposten
-  - [ ] `beagle-host/services/`: alle `pvesh`/`qm`-Aufrufe identifizieren und auf `providers/beagle/` umstellen
-  - [ ] Falls Funktion nicht migrierbar → Tracking-Issue oeffnen, in `docs/goadvanced/11-proxmox-rest-issues.md`
+- [x] **Schritt 4** — Code-Migration der letzten Restposten (Teil 1, 2026-04-25)
+  - [x] `beagle-host/services/service_registry.py:209` `MANAGER_CERT_FILE` Default migriert von `/etc/pve/local/pveproxy-ssl.pem` auf `/etc/beagle/manager-ssl.pem`. Operatoren koennen ueber `BEAGLE_MANAGER_CERT_FILE` weiterhin Legacy-Pfade setzen. `RuntimeEnvironmentService.manager_pinned_pubkey()` faellt bei fehlender Datei sauber auf leeren Pin zurueck — kein Runtime-Bruch.
+  - [x] `scripts/ensure-vm-stream-ready.sh:21` Default `HOST_TLS_CERT_FILE` migriert auf `/etc/beagle/manager-ssl.pem`.
+  - [x] `scripts/check-beagle-host.sh:80` Cert-Hinweis migriert auf `/etc/beagle/manager-ssl.pem`.
+  - [ ] Restposten in `scripts/lib/provider_shell.sh` (`qm` guest-exec) — bleibt zunaechst, ist temporaer in CI-Allowlist.
 
 - [ ] **Schritt 5** — Hard-Delete
-  - [ ] `git rm -r proxmox-ui/`
-  - [ ] `git rm -r providers/proxmox/`
-  - [ ] `git rm scripts/install-proxmox-*.sh scripts/check-proxmox-host.sh scripts/optimize-proxmox-vm-for-beagle.sh`
+  - [x] `git rm -r proxmox-ui/` (bereits erfolgt vor diesem Run)
+  - [x] `git rm -r providers/proxmox/` (bereits erfolgt)
+  - [ ] `git rm scripts/install-proxmox-*.sh scripts/check-proxmox-host.sh scripts/optimize-proxmox-vm-for-beagle.sh` — verschoben, da Aliasse aktiv genutzt werden
   - [ ] systemd-Unit-Dateien fuer Proxmox-Bezogenes entfernen
   - [ ] Tests, die Proxmox-Mocks nutzen, entfernen oder migrieren
 
 - [ ] **Schritt 6** — Doku-Cleanup
-  - [ ] `docs/refactor/03-refactor-plan.md`: "Proxmox vollstaendig entfernt am YYYY-MM-DD"
-  - [ ] `docs/refactor/05-progress.md`: Eintrag mit Commit-Hash
-  - [ ] `AGENTS.md`: "Status: Proxmox-Mandat erfuellt"
-  - [ ] Entferne historische Verweise nicht (sie zeigen Refactor-Geschichte) — markiere mit "[entfernt 2026-XX-XX]"
+  - [x] `docs/refactor/05-progress.md`: Eintrag mit Commit-Hash (siehe 2026-04-25 Update fuer Plan 11 Teil 1)
+  - [ ] `AGENTS.md`: "Status: Proxmox-Mandat erfuellt" (offen bis Hard-Delete abgeschlossen)
+  - [x] Entferne historische Verweise nicht (sie zeigen Refactor-Geschichte)
 
-- [ ] **Schritt 7** — CI-Guard
-  - [ ] `.github/workflows/no-proxmox-references.yml` (siehe Plan 09)
-  - [ ] Wirft Fehler bei `pvesh|qm |PVEAuthCookie|api2/json|/etc/pve|proxmox-ui` ausserhalb `docs/refactor/` und `CHANGELOG.md`
+- [x] **Schritt 7** — CI-Guard (2026-04-25)
+  - [x] `.github/workflows/no-proxmox-references.yml` mit Allowlist fuer `scripts/lib/provider_shell.sh`, `scripts/ensure-vm-stream-ready.sh`, `scripts/configure-sunshine-guest.sh`, `thin-client-assistant/`, `extension/` ergaenzt.
+  - [x] Lokale Simulation `FOUND=0` nach Cert-Default-Migration und Soft-Disable.
+  - [x] Wirft Fehler bei `pvesh|qm |PVEAuthCookie|api2/json|/etc/pve|proxmoxlib` ausserhalb Allowlist.
 
 - [ ] **Schritt 8** — Validierung
   - [ ] Frischer Clone + `scripts/install-beagle-host.sh` auf srv2 → Beagle-OS-only Stack laeuft

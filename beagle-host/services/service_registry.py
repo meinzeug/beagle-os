@@ -206,7 +206,9 @@ RAW_WINDOWS_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "thin-client-assistant" / "usb"
 HOSTED_INSTALLER_ISO_FILE = ROOT_DIR / "dist" / "beagle-os-installer-amd64.iso"
 INSTALLER_PREP_SCRIPT_FILE = ROOT_DIR / "scripts" / "ensure-vm-stream-ready.sh"
 CREDENTIALS_ENV_FILE = Path(os.environ.get("PVE_DCV_CREDENTIALS_ENV_FILE", "/etc/beagle/credentials.env"))
-MANAGER_CERT_FILE = Path(os.environ.get("BEAGLE_MANAGER_CERT_FILE", "/etc/pve/local/pveproxy-ssl.pem"))
+# Beagle-native default for the management TLS certificate. Operators may still
+# override via BEAGLE_MANAGER_CERT_FILE for legacy installations.
+MANAGER_CERT_FILE = Path(os.environ.get("BEAGLE_MANAGER_CERT_FILE", "/etc/beagle/manager-ssl.pem"))
 CLUSTER_NODE_NAME = os.environ.get("BEAGLE_CLUSTER_NODE_NAME", os.uname().nodename).strip() or os.uname().nodename
 CLUSTER_RPC_LISTEN_HOST = os.environ.get("BEAGLE_CLUSTER_RPC_LISTEN_HOST", "0.0.0.0").strip() or "0.0.0.0"
 CLUSTER_RPC_PORT = int(os.environ.get("BEAGLE_CLUSTER_RPC_PORT", "9089"))

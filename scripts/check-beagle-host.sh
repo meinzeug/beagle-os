@@ -77,7 +77,7 @@ host_tls_cert_file() {
     return 0
   fi
   if [[ "$(host_provider_kind)" == "proxmox" ]]; then
-    printf '/etc/pve/local/pve-ssl.pem\n'
+    printf '/etc/beagle/manager-ssl.pem\n'
     return 0
   fi
   printf '%s/beagle-proxy.crt\n' "$BEAGLE_PROXY_TLS_DIR"

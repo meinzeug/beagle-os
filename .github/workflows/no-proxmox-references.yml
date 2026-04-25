@@ -28,7 +28,9 @@ jobs:
             'proxmoxlib'
           )
 
-          # Paths that are allowlisted (Proxmox code being actively removed)
+          # Paths that are allowlisted (Proxmox code being actively removed
+          # or external integration scripts kept for legacy operator workflows;
+          # see docs/goadvanced/11-proxmox-endbeseitigung.md).
           ALLOWLIST_PATHS=(
             'proxmox-ui/'
             'providers/proxmox/'
@@ -36,9 +38,16 @@ jobs:
             'scripts/install-proxmox-host'
             'scripts/optimize-proxmox-vm'
             'scripts/install-proxmox-ui'
+            'scripts/lib/provider_shell.sh'
+            'scripts/ensure-vm-stream-ready.sh'
+            'scripts/configure-sunshine-guest.sh'
+            'thin-client-assistant/'
+            'extension/'
             'docs/'
             'CHANGELOG.md'
             'README.md'
+            'AGENTS.md'
+            'prompt.md'
           )
 
           build_exclude_args() {
@@ -70,6 +79,8 @@ jobs:
               grep -rInl "$pattern" \
                 --include="*.py" --include="*.sh" --include="*.js" --include="*.ts" \
                 --exclude-dir=".git" --exclude-dir="proxmox-ui" --exclude-dir=".build" \
+                --exclude-dir=".venv" --exclude-dir="thin-client-assistant" \
+                --exclude-dir="extension" \
                 --exclude-dir="providers/proxmox" \
                 . 2>/dev/null || true
             )

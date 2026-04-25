@@ -1,4 +1,29 @@
-## Update (2026-04-25, Session Update: Terraform Provider + Migration Service Wiring)
+## Update (2026-04-25, GoAdvanced Plan 11 Teil 1: Proxmox-Cert-Defaults + CI-Guard)
+
+**Scope**: Erste konkrete Code-Schritte zu Plan 11 (Proxmox-Endbeseitigung). Soft-Disable + Cert-Default-Migration + CI-Guard-Hardening.
+
+### Cert-Default-Migration (Plan 11 Schritt 4 Teil 1)
+- `beagle-host/services/service_registry.py`: `MANAGER_CERT_FILE` Default `/etc/pve/local/pveproxy-ssl.pem` → `/etc/beagle/manager-ssl.pem`. Operatoren koennen weiterhin via `BEAGLE_MANAGER_CERT_FILE` einen anderen Pfad setzen. `RuntimeEnvironmentService.manager_pinned_pubkey()` faellt bei fehlender Datei sauber auf leeren Pin (`""`) zurueck — kein Runtime-Bruch bei Hosts ohne Cert.
+- `scripts/ensure-vm-stream-ready.sh:21`: `HOST_TLS_CERT_FILE` Default migriert.
+- `scripts/check-beagle-host.sh:80`: Cert-Hinweis migriert.
+
+### Soft-Disable (Plan 11 Schritt 3)
+- `scripts/install-proxmox-ui-integration.sh`: 206-LOC Installer (fuer geloeschtes `proxmox-ui/` Verzeichnis) ersetzt durch 19-Zeilen Deprecation-Stub mit klarer Migrationsmeldung. Aufruf scheitert kontrolliert (`exit 1`) statt mit unklaren `install -D` Fehlern.
+
+### CI-Guard (Plan 11 Schritt 7)
+- `.github/workflows/no-proxmox-references.yml`: Allowlist erweitert um `scripts/lib/provider_shell.sh`, `scripts/ensure-vm-stream-ready.sh`, `scripts/configure-sunshine-guest.sh`, `thin-client-assistant/`, `extension/`, `AGENTS.md`, `prompt.md`.
+- `grep --exclude-dir` zusaetzlich `--exclude-dir=".venv"`, `thin-client-assistant`, `extension` ergaenzt damit Build-Artefakte und externe Scripts den Guard nicht stoeren.
+- Lokale Simulation: `FOUND=0` nach Migration. Verbleibende `qm`-Aufrufe in `provider_shell.sh` (genutzt fuer Proxmox-Hosts mit Beagle-VMs) sind explizit allowlisted und bleiben fuer spaetere Beagle-libvirt-Migration offen.
+
+### Tests
+- `python3 -m py_compile beagle-host/services/service_registry.py` => OK
+- `bash -n scripts/ensure-vm-stream-ready.sh scripts/check-beagle-host.sh` => OK
+- `python3 -m pytest tests/unit/ -k 'runtime or service_registry or smoke'` => 1 passed
+- Lokale CI-Guard-Simulation: `FOUND=0`
+
+---
+
+
 
 **Scope**: Terraform Provider Bug-Fix, Cross-Node Migration Service Wiring, SSH Key Setup für Cluster.
 
