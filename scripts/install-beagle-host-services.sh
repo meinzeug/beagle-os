@@ -452,6 +452,9 @@ set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_CLUSTER_JOIN_ENV_FILE" "\"$BEAG
 install -d -m 0755 /var/lib/beagle
 install -d -m 0750 /var/lib/beagle/beagle-manager
 chown -R "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" /var/lib/beagle/beagle-manager
+install -d -m 0750 /var/backups/beagle
+install -d -m 0750 /var/restores/beagle
+chown "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" /var/backups/beagle /var/restores/beagle
 # Provider data dirs must be writable by beagle-manager
 install -d -m 0755 /var/lib/beagle/providers
 install -d -m 0755 /var/lib/beagle/providers/beagle
