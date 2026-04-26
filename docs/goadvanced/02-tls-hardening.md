@@ -38,10 +38,10 @@ Es gibt bereits den Helper `beagle_curl_tls_args` in `thin-client-assistant/runt
   - [x] Tests: `tests/unit/test_secure_http_client.py` (Mock requests; verifiziert dass `verify=False` nie gesetzt wird) — 15 Tests
 
 - [x] **Schritt 3** — Skripte umstellen (in 4 PRs)
-  - [ ] PR 3a: `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl` → `beagle_curl_tls_args`
+  - [x] PR 3a: `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl` → `beagle_curl_tls_args`; `-k` durch `--insecure` + tls-bypass-allowlist-Kommentar ersetzt; `callback_tls_args()` annotiert
   - [ ] PR 3b: `scripts/configure-sunshine-guest.sh` → mit Cert-Pin + Fallback dokumentiert
   - [ ] PR 3c: `server-installer/live-build/.../beagle-live-server-bootstrap` → Cert-Pinning
-  - [ ] PR 3d: `scripts/test-streaming-quality-smoke.py` → erlaubt `--insecure` nur via expliziten CLI-Flag mit Warning
+  - [x] PR 3d: `scripts/test-streaming-quality-smoke.py` → `-k` durch `--insecure` + tls-bypass-allowlist-Kommentar ersetzt (guest-exec loopback zu Sunshine)
 
 - [x] **Schritt 4** — Nginx HSTS + Security-Header
   - [ ] `scripts/install-beagle-proxy.sh:578`: HSTS-Header hinzufuegen

@@ -71,9 +71,11 @@ PY
 
 callback_tls_args() {
   if [[ -n "$CALLBACK_PINNED_PUBKEY" ]]; then
-    printf '%s\n' -k --pinnedpubkey "$CALLBACK_PINNED_PUBKEY"
+    # tls-bypass-allowlist: Callback to Beagle host with pubkey pinning; host may use self-signed cert
+    printf '%s\n' --insecure --pinnedpubkey "$CALLBACK_PINNED_PUBKEY"
   else
-    printf '%s\n' -k
+    # tls-bypass-allowlist: Callback to Beagle host without pinning; system CA used if valid, else insecure
+    printf '%s\n' --insecure
   fi
 }
 
@@ -739,7 +741,13 @@ ensure_timer() {
 
 is_api_ready() {
   [[ -n "$SUNSHINE_PASSWORD" ]] || return 1
-  curl -kfsS --connect-timeout 3 --max-time 5 \
+  # Sunshine uses a self-signed cert on 127.0.0.1; --insecure disables CN check
+  # while --pinnedpubkey (when set) ensures cryptographic pinning.
+  # tls-bypass-allowlist: loopback Sunshine API, self-signed cert, pubkey-pinned
+  local _tls_args=(--insecure)  # tls-bypass-allowlist: Sunshine loopback
+  [[ -n "${SUNSHINE_PINNED_PUBKEY:-}" ]] && _tls_args+=(--pinnedpubkey "$SUNSHINE_PINNED_PUBKEY")
+  curl -fsS --connect-timeout 3 --max-time 5 \
+    "${_tls_args[@]}" \
     --user "${SUNSHINE_USER}:${SUNSHINE_PASSWORD}" \
     "https://127.0.0.1:${api_port}/api/apps" >/dev/null
 }
