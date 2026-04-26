@@ -1818,13 +1818,18 @@
 
               <div class="settings-update-unified-actions">
                 <button class="button ghost" id="settings-updates-refresh" type="button">Alles neu laden</button>
+                <button class="button primary" id="updates-auto-enable" type="button">Vollautomatik aktivieren</button>
+                <button class="button primary" id="updates-maintenance-run" type="button">Jetzt komplett pflegen</button>
+                <button class="button ghost" id="repo-update-check" type="button">Repo jetzt pruefen</button>
                 <button class="button ghost" id="settings-artifacts-refresh" type="button">Build-Status neu laden</button>
-                <button class="button primary" id="repo-update-check" type="button">Repo jetzt pruefen</button>
-                <button class="button primary" id="upd-apply" type="button">Systemupdates installieren</button>
-                <button class="button primary" id="artifacts-refresh-start" type="button">Artefakte jetzt bauen</button>
+                <button class="button ghost" id="upd-apply" type="button">Systemupdates installieren</button>
+                <button class="button ghost" id="artifacts-refresh-start" type="button">Artefakte jetzt bauen</button>
               </div>
+              <p class="settings-update-quick-hint">Empfehlung: Einmal auf "Vollautomatik aktivieren" klicken. Danach regelt der Server Repo-Checks und Artefakt-Reparatur selbst.</p>
 
-              <div class="settings-update-unified-grid">
+              <details class="settings-disclosure settings-update-advanced">
+                <summary>Erweiterte Steuerung und Details</summary>
+                <div class="settings-update-unified-grid">
                 <section class="settings-update-unified-block">
                   <h3>System (APT)</h3>
                   <div class="settings-update-status-banner" id="upd-summary-message">Die automatische Pruefung startet beim Oeffnen dieser Seite.</div>
@@ -1955,7 +1960,8 @@
                     </div>
                   </details>
                 </section>
-              </div>
+                </div>
+              </details>
             </article>
           </section>
 

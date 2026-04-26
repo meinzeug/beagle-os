@@ -86,12 +86,24 @@
 }
 .settings-update-unified-actions {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin: 16px 0 18px;
 }
 .settings-update-unified-actions .button {
   justify-content: center;
+}
+.settings-update-unified-actions .button#updates-auto-enable,
+.settings-update-unified-actions .button#updates-maintenance-run {
+  font-weight: 800;
+}
+.settings-update-quick-hint {
+  margin: -6px 0 14px;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+.settings-update-advanced {
+  margin-top: 8px;
 }
 .settings-update-unified-grid {
   display: grid;

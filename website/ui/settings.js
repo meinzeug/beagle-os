@@ -821,6 +821,39 @@ export function runArtifactWatchdog() {
   });
 }
 
+export function enableFullAutoMaintenance() {
+  if (qs('repo-update-enabled')) {
+    qs('repo-update-enabled').checked = true;
+  }
+  if (qs('artifact-watchdog-enabled')) {
+    qs('artifact-watchdog-enabled').checked = true;
+  }
+  settingsHooks.setBanner('Vollautomatik wird aktiviert...', 'info');
+  return saveRepoAutoUpdate()
+    .then(() => saveArtifactWatchdog())
+    .then(() => Promise.all([loadSettingsUpdates(), loadArtifactStatus({ silent: true })]))
+    .then(() => {
+      settingsHooks.setBanner('Vollautomatik aktiv: Repo-Checks und Artefakt-Reparatur laufen jetzt automatisch.', 'info');
+    })
+    .catch((error) => {
+      settingsHooks.setBanner('Vollautomatik konnte nicht vollstaendig aktiviert werden: ' + error.message, 'warn');
+    });
+}
+
+export function runFullMaintenanceNow() {
+  settingsHooks.setBanner('Komplettpflege wird gestartet...', 'info');
+  return Promise.resolve()
+    .then(() => runRepoAutoUpdateCheck())
+    .then(() => runArtifactWatchdog())
+    .then(() => Promise.all([loadSettingsUpdates(), loadArtifactStatus({ silent: true })]))
+    .then(() => {
+      settingsHooks.setBanner('Komplettpflege gestartet. Status wird automatisch aktualisiert.', 'info');
+    })
+    .catch((error) => {
+      settingsHooks.setBanner('Komplettpflege fehlgeschlagen: ' + error.message, 'warn');
+    });
+}
+
 export function applyUpdates() {
   if (!window.confirm('Alle verfuegbaren Updates jetzt installieren?')) {
     return;
@@ -1492,6 +1525,12 @@ export function bindSettingsEvents() {
   }
   if (qs('repo-update-check')) {
     qs('repo-update-check').addEventListener('click', runRepoAutoUpdateCheck);
+  }
+  if (qs('updates-auto-enable')) {
+    qs('updates-auto-enable').addEventListener('click', enableFullAutoMaintenance);
+  }
+  if (qs('updates-maintenance-run')) {
+    qs('updates-maintenance-run').addEventListener('click', runFullMaintenanceNow);
   }
   if (qs('settings-backup-refresh')) {
     qs('settings-backup-refresh').addEventListener('click', loadSettingsBackup);
