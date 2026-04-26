@@ -336,7 +336,9 @@ fi
 
 for runtime_group in libvirt kvm; do
   if getent group "$runtime_group" >/dev/null 2>&1; then
-    run_account_cmd usermod -a -G "$runtime_group" "$BEAGLE_CONTROL_USER"
+    if ! id -nG "$BEAGLE_CONTROL_USER" | tr ' ' '\n' | grep -qx "$runtime_group"; then
+      run_account_cmd usermod -a -G "$runtime_group" "$BEAGLE_CONTROL_USER"
+    fi
   fi
 done
 
