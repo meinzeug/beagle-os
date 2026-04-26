@@ -131,7 +131,19 @@ if checked_at_raw:
         last_checked = datetime.fromisoformat(checked_at_raw)
     except ValueError:
         last_checked = None
-if last_checked and now - last_checked < timedelta(minutes=max(5, config["interval_minutes"])):
+config_matches_status = (
+    bool(status.get("enabled", False)) == config["enabled"]
+    and str(status.get("repo_url") or "").strip() == config["repo_url"]
+    and str(status.get("branch") or "").strip() == config["branch"]
+    and int(status.get("interval_minutes") or 0) == config["interval_minutes"]
+)
+has_installed_commit = bool(current_commit)
+if (
+    last_checked
+    and config_matches_status
+    and has_installed_commit
+    and now - last_checked < timedelta(minutes=max(5, config["interval_minutes"]))
+):
     payload.update(status)
     payload["checked_at"] = now.isoformat()
     payload["state"] = str(status.get("state") or "idle")
@@ -228,8 +240,20 @@ if rsync.returncode != 0:
 
 commit_file.write_text(remote_commit + "\n", encoding="utf-8")
 
-install = run([str(install_dir / "scripts/install-beagle-host-services.sh")], cwd=install_dir, timeout=1800)
-if install.returncode != 0:
+install = None
+for attempt in range(1, 4):
+    install = run([str(install_dir / "scripts/install-beagle-host-services.sh")], cwd=install_dir, timeout=1800)
+    combined_install_output = f"{install.stdout}\n{install.stderr}".lower()
+    if install.returncode == 0:
+        break
+    if "cannot lock /etc/passwd" not in combined_install_output and "cannot lock /etc/group" not in combined_install_output:
+        break
+    payload["message"] = f"Host-Install wartet auf Account-Lock (Versuch {attempt}/3)."
+    write_status(payload)
+    import time
+    time.sleep(3)
+
+if install is None or install.returncode != 0:
     payload["state"] = "error"
     payload["reaction"] = "host_install_failed"
     payload["message"] = (install.stderr or install.stdout or "install-beagle-host-services.sh failed").strip()[-400:]
