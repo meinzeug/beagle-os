@@ -1776,186 +1776,186 @@
 
           <!-- ============ SETTINGS: UPDATES ============ -->
           <section class="panel-section settings-update-grid" id="settings-updates-section" data-panel-section="settings_updates">
-            <article class="card settings-update-card settings-update-card-system">
+            <article class="card settings-update-card settings-update-card-unified">
               <div class="settings-update-card-glow" aria-hidden="true"></div>
-              <div class="settings-update-card-head">
-                <div class="settings-update-card-icon">APT</div>
-                <div>
-                  <span class="eyebrow">System Update</span>
-                  <h2>System-Update (APT)</h2>
-                  <p>Betriebssystempakete werden beim Oeffnen automatisch geprueft. Installieren bleibt ein bewusster manueller Schritt.</p>
-                </div>
-                <div class="settings-update-card-pulse is-running" id="update-flow-packages">
-                  <span></span>
-                  <strong id="update-flow-packages-state">wartet</strong>
-                </div>
-              </div>
-              <div class="settings-update-status-banner" id="upd-summary-message">Die automatische Pruefung startet beim Oeffnen dieser Seite.</div>
-              <div class="settings-update-metrics">
-                <div class="settings-update-metric is-primary">
-                  <span>Offene Updates</span>
-                  <strong id="upd-count">—</strong>
-                </div>
-                <div class="settings-update-metric">
-                  <span>Quelle</span>
-                  <strong id="upd-source">—</strong>
-                </div>
-              </div>
-              <div class="settings-update-actions">
-                <button class="button ghost" id="settings-updates-refresh" type="button">Status aktualisieren</button>
-                <button class="button primary" id="upd-apply" type="button">Manuell installieren</button>
-              </div>
-              <details class="settings-disclosure settings-update-details">
-                <summary>Paketliste anzeigen</summary>
-                <div class="table-wrap compact">
-                  <table class="vm-table compact-table">
-                    <thead><tr><th>Paket</th><th>Details</th></tr></thead>
-                    <tbody id="upd-packages-body"><tr><td colspan="2" class="empty-cell">Noch nicht geprueft.</td></tr></tbody>
-                  </table>
-                </div>
-              </details>
-            </article>
 
-            <article class="card settings-update-card settings-update-card-repo">
-              <div class="settings-update-card-glow" aria-hidden="true"></div>
               <div class="settings-update-card-head">
-                <div class="settings-update-card-icon">GIT</div>
+                <div class="settings-update-card-icon">UPD</div>
                 <div>
-                  <span class="eyebrow">Beagle GitHub</span>
-                  <h2>Repo-Update</h2>
-                  <p>Beagle OS folgt <code>meinzeug/beagle-os</code>. Automatik installiert neue Commits und triggert danach die Artefaktpflege.</p>
-                </div>
-                <div class="settings-update-card-pulse is-running" id="update-flow-repo">
-                  <span></span>
-                  <strong id="update-flow-repo-state">wartet</strong>
+                  <span class="eyebrow">Update Center</span>
+                  <h2>Alles an einem Ort</h2>
+                  <p>Hier siehst du System-Updates, GitHub-Status und Artefakt-Build in einer einzigen Ansicht. Knopf druecken, fertig.</p>
                 </div>
               </div>
-              <input id="repo-update-url" type="hidden" value="https://github.com/meinzeug/beagle-os.git">
-              <input id="repo-update-branch" type="hidden" value="main">
-              <input id="repo-update-interval" type="hidden" value="1">
-              <label class="settings-switch settings-update-switch">
-                <input id="repo-update-enabled" type="checkbox">
-                <span class="settings-switch-track" aria-hidden="true"></span>
-                <span>
-                  <strong>Automatisch aktuell halten</strong>
-                  <small id="update-auto-mode">AUTO AUS</small>
-                </span>
-              </label>
-              <div class="settings-update-status-banner" id="repo-update-simple-message">Der GitHub-Status wird automatisch geladen.</div>
-              <div class="settings-update-metrics">
-                <div class="settings-update-metric is-primary"><span>Status</span><strong id="repo-update-state">—</strong></div>
-                <div class="settings-update-metric"><span>Geprueft</span><strong id="repo-update-checked">—</strong></div>
-                <div class="settings-update-metric"><span>Update</span><strong id="repo-update-available">—</strong></div>
-                <div class="settings-update-metric"><span>Installiert</span><strong id="repo-update-current">—</strong></div>
-              </div>
-              <div class="settings-update-actions">
-                <button class="button ghost" id="repo-update-save" type="button">Automatik speichern</button>
-                <button class="button primary" id="repo-update-check" type="button">Manuell pruefen</button>
-              </div>
-              <details class="settings-disclosure settings-update-details">
-                <summary>Update-Details anzeigen</summary>
-                <div class="settings-info-grid settings-info-grid-compact">
-                  <div class="info-item"><span class="info-label">Remote Commit</span><span class="info-value" id="repo-update-remote">—</span></div>
-                  <div class="info-item"><span class="info-label">Letztes Update</span><span class="info-value" id="repo-update-last-update">—</span></div>
-                  <div class="info-item"><span class="info-label">Service</span><span class="info-value" id="repo-update-service">—</span></div>
-                  <div class="info-item"><span class="info-label">Timer</span><span class="info-value" id="repo-update-timer">—</span></div>
-                </div>
-                <div class="banner subtle" id="repo-update-message">Repo-Auto-Update wird mit dem Update-Status geladen.</div>
-              </details>
-            </article>
 
-            <article class="card settings-update-card settings-update-card-artifacts">
-              <div class="settings-update-card-glow" aria-hidden="true"></div>
-              <div class="settings-update-card-head">
-                <div class="settings-update-card-icon">ISO</div>
-                <div>
-                  <span class="eyebrow">Downloads & Installer</span>
-                  <h2>Artefakte bauen</h2>
-                  <p>Installer, Live-USBs und Downloads werden ueberwacht und koennen automatisch repariert oder manuell neu gebaut werden.</p>
+              <div class="settings-update-console is-checking" id="settings-update-console">
+                <div class="settings-update-scanline" aria-hidden="true"></div>
+                <div class="settings-update-console-head">
+                  <div>
+                    <h3 id="update-console-title">Status wird geladen</h3>
+                    <p id="update-console-subtitle">Die Pruefung startet automatisch, sobald diese Seite geoeffnet wird.</p>
+                  </div>
+                  <span class="settings-update-mode is-off" id="update-auto-mode">AUTO AUS</span>
                 </div>
-                <div class="settings-update-card-pulse is-running" id="update-flow-artifacts">
-                  <span></span>
-                  <strong id="update-flow-artifacts-state">wartet</strong>
+                <div class="settings-update-flow">
+                  <div class="settings-update-flow-node is-idle" id="update-flow-packages">
+                    <span class="settings-update-flow-dot" aria-hidden="true"></span>
+                    <span class="settings-update-flow-label">System</span>
+                    <strong id="update-flow-packages-state">wartet</strong>
+                  </div>
+                  <div class="settings-update-flow-node is-idle" id="update-flow-repo">
+                    <span class="settings-update-flow-dot" aria-hidden="true"></span>
+                    <span class="settings-update-flow-label">Repo</span>
+                    <strong id="update-flow-repo-state">wartet</strong>
+                  </div>
+                  <div class="settings-update-flow-node is-idle" id="update-flow-artifacts">
+                    <span class="settings-update-flow-dot" aria-hidden="true"></span>
+                    <span class="settings-update-flow-label">Build</span>
+                    <strong id="update-flow-artifacts-state">wartet</strong>
+                  </div>
                 </div>
               </div>
-              <input id="artifact-watchdog-auto-repair" type="checkbox" checked hidden>
-              <input id="artifact-watchdog-max-age-hours" type="hidden" value="6">
-              <label class="settings-switch settings-update-switch">
-                <input id="artifact-watchdog-enabled" type="checkbox">
-                <span class="settings-switch-track" aria-hidden="true"></span>
-                <span>
-                  <strong>Automatisch reparieren</strong>
-                  <small>Maximal 6 Stunden alte Artefakte</small>
-                </span>
-              </label>
-              <div class="settings-update-status-banner" id="artifact-summary-message">Der Artefaktstatus wird automatisch geladen.</div>
-              <div class="settings-update-metrics">
-                <div class="settings-update-metric is-primary"><span>Bereit</span><strong id="artifact-ready">—</strong></div>
-                <div class="settings-update-metric"><span>Refresh</span><strong id="artifact-refresh-result">—</strong></div>
-                <div class="settings-update-metric"><span>Fehlend</span><strong id="artifact-missing-count">—</strong></div>
-                <div class="settings-update-metric"><span>Fortschritt</span><strong id="artifact-refresh-progress">—</strong></div>
+
+              <div class="settings-update-unified-actions">
+                <button class="button ghost" id="settings-updates-refresh" type="button">Alles neu laden</button>
+                <button class="button ghost" id="settings-artifacts-refresh" type="button">Build-Status neu laden</button>
+                <button class="button primary" id="repo-update-check" type="button">Repo jetzt pruefen</button>
+                <button class="button primary" id="upd-apply" type="button">Systemupdates installieren</button>
+                <button class="button primary" id="artifacts-refresh-start" type="button">Artefakte jetzt bauen</button>
               </div>
-              <div class="settings-update-live">
-                <span>Aktueller Schritt</span>
-                <strong id="artifact-refresh-step">—</strong>
+
+              <div class="settings-update-unified-grid">
+                <section class="settings-update-unified-block">
+                  <h3>System (APT)</h3>
+                  <div class="settings-update-status-banner" id="upd-summary-message">Die automatische Pruefung startet beim Oeffnen dieser Seite.</div>
+                  <div class="settings-update-metrics">
+                    <div class="settings-update-metric is-primary"><span>Offene Updates</span><strong id="upd-count">—</strong></div>
+                    <div class="settings-update-metric"><span>Quelle</span><strong id="upd-source">—</strong></div>
+                  </div>
+                  <details class="settings-disclosure settings-update-details">
+                    <summary>Paketliste anzeigen</summary>
+                    <div class="table-wrap compact">
+                      <table class="vm-table compact-table">
+                        <thead><tr><th>Paket</th><th>Details</th></tr></thead>
+                        <tbody id="upd-packages-body"><tr><td colspan="2" class="empty-cell">Noch nicht geprueft.</td></tr></tbody>
+                      </table>
+                    </div>
+                  </details>
+                </section>
+
+                <section class="settings-update-unified-block">
+                  <h3>Repo (GitHub)</h3>
+                  <input id="repo-update-url" type="hidden" value="https://github.com/meinzeug/beagle-os.git">
+                  <input id="repo-update-branch" type="hidden" value="main">
+                  <input id="repo-update-interval" type="hidden" value="1">
+                  <label class="settings-switch settings-update-switch">
+                    <input id="repo-update-enabled" type="checkbox">
+                    <span class="settings-switch-track" aria-hidden="true"></span>
+                    <span>
+                      <strong>Automatisch aktuell halten</strong>
+                      <small id="repo-update-mode-text">Regelmaessige Pruefung im Hintergrund</small>
+                    </span>
+                  </label>
+                  <div class="settings-update-status-banner" id="repo-update-simple-message">Der GitHub-Status wird automatisch geladen.</div>
+                  <div class="settings-update-metrics">
+                    <div class="settings-update-metric is-primary"><span>Status</span><strong id="repo-update-state">—</strong></div>
+                    <div class="settings-update-metric"><span>Geprueft</span><strong id="repo-update-checked">—</strong></div>
+                    <div class="settings-update-metric"><span>Update</span><strong id="repo-update-available">—</strong></div>
+                    <div class="settings-update-metric"><span>Installiert</span><strong id="repo-update-current">—</strong></div>
+                  </div>
+                  <div class="settings-update-unified-inline-actions">
+                    <button class="button ghost" id="repo-update-save" type="button">Repo-Automatik speichern</button>
+                  </div>
+                  <details class="settings-disclosure settings-update-details">
+                    <summary>Repo-Details anzeigen</summary>
+                    <div class="settings-info-grid settings-info-grid-compact">
+                      <div class="info-item"><span class="info-label">Remote Commit</span><span class="info-value" id="repo-update-remote">—</span></div>
+                      <div class="info-item"><span class="info-label">Letztes Update</span><span class="info-value" id="repo-update-last-update">—</span></div>
+                      <div class="info-item"><span class="info-label">Service</span><span class="info-value" id="repo-update-service">—</span></div>
+                      <div class="info-item"><span class="info-label">Timer</span><span class="info-value" id="repo-update-timer">—</span></div>
+                    </div>
+                    <div class="banner subtle" id="repo-update-message">Repo-Auto-Update wird mit dem Update-Status geladen.</div>
+                  </details>
+                </section>
+
+                <section class="settings-update-unified-block">
+                  <h3>Artefakte / Build</h3>
+                  <input id="artifact-watchdog-auto-repair" type="checkbox" checked hidden>
+                  <input id="artifact-watchdog-max-age-hours" type="hidden" value="6">
+                  <label class="settings-switch settings-update-switch">
+                    <input id="artifact-watchdog-enabled" type="checkbox">
+                    <span class="settings-switch-track" aria-hidden="true"></span>
+                    <span>
+                      <strong>Automatisch reparieren</strong>
+                      <small>Maximal 6 Stunden alte Artefakte</small>
+                    </span>
+                  </label>
+                  <div class="settings-update-status-banner" id="artifact-summary-message">Der Artefaktstatus wird automatisch geladen.</div>
+                  <div class="settings-update-metrics">
+                    <div class="settings-update-metric is-primary"><span>Bereit</span><strong id="artifact-ready">—</strong></div>
+                    <div class="settings-update-metric"><span>Refresh</span><strong id="artifact-refresh-result">—</strong></div>
+                    <div class="settings-update-metric"><span>Fehlend</span><strong id="artifact-missing-count">—</strong></div>
+                    <div class="settings-update-metric"><span>Fortschritt</span><strong id="artifact-refresh-progress">—</strong></div>
+                  </div>
+                  <div class="settings-update-live">
+                    <span>Aktueller Schritt</span>
+                    <strong id="artifact-refresh-step">—</strong>
+                  </div>
+                  <div class="settings-build-activity" id="artifact-build-activity">
+                    <div class="settings-build-activity-head">
+                      <span>Live-Build</span>
+                      <strong id="artifact-build-phase">wartet</strong>
+                    </div>
+                    <div class="settings-build-bar" aria-hidden="true"><span id="artifact-build-progress-bar"></span></div>
+                    <p id="artifact-build-detail">Wenn ein Build laeuft, zeigt diese Karte die aktuelle Phase und erklaert, warum sie dauern kann.</p>
+                    <div class="settings-build-meta">
+                      <span>Laufzeit: <strong id="artifact-build-elapsed">—</strong></span>
+                      <span>Aktiv: <strong id="artifact-build-process-count">0 Prozesse</strong></span>
+                    </div>
+                    <p class="settings-build-hint" id="artifact-build-hint">Lange ISO-/SquashFS-Builds koennen mehrere Minuten dauern.</p>
+                  </div>
+                  <div class="settings-update-status-banner" id="artifact-refresh-message">Noch kein laufender Refresh.</div>
+                  <div class="settings-update-unified-inline-actions">
+                    <button class="button ghost" id="artifact-watchdog-save" type="button">Build-Automatik speichern</button>
+                    <button class="button ghost" id="artifact-watchdog-check" type="button">Watchdog jetzt pruefen</button>
+                  </div>
+                  <details class="settings-disclosure settings-update-details">
+                    <summary>Artefakt-Details anzeigen</summary>
+                    <div class="settings-info-grid settings-info-grid-compact">
+                      <div class="info-item"><span class="info-label">Zuletzt aktualisiert</span><span class="info-value" id="artifact-refresh-updated">—</span></div>
+                      <div class="info-item"><span class="info-label">Watchdog</span><span class="info-value" id="artifact-watchdog-state">—</span></div>
+                      <div class="info-item"><span class="info-label">Zuletzt geprueft</span><span class="info-value" id="artifact-watchdog-checked">—</span></div>
+                      <div class="info-item"><span class="info-label">Reparatur</span><span class="info-value" id="artifact-watchdog-reaction">—</span></div>
+                      <div class="info-item"><span class="info-label">Refresh Service</span><span class="info-value" id="artifact-refresh-service">—</span></div>
+                      <div class="info-item"><span class="info-label">Refresh Timer</span><span class="info-value" id="artifact-refresh-timer">—</span></div>
+                      <div class="info-item"><span class="info-label">Freier Speicher</span><span class="info-value" id="artifact-preflight-free">—</span></div>
+                      <div class="info-item"><span class="info-label">Build-Abhaengigkeiten</span><span class="info-value" id="artifact-preflight-deps">—</span></div>
+                      <div class="info-item"><span class="info-label">Service-Unit</span><span class="info-value" id="artifact-preflight-service-unit">—</span></div>
+                      <div class="info-item"><span class="info-label">Start faehig</span><span class="info-value" id="artifact-preflight-start-capable">—</span></div>
+                      <div class="info-item"><span class="info-label">Latest fehlt</span><span class="info-value" id="artifact-gate-missing-latest">—</span></div>
+                      <div class="info-item"><span class="info-label">Versioniert fehlt</span><span class="info-value" id="artifact-gate-missing-versioned">—</span></div>
+                      <div class="info-item"><span class="info-label">Artefakt-Alter</span><span class="info-value" id="artifact-watchdog-age">—</span></div>
+                      <div class="info-item"><span class="info-label">Watchdog Timer</span><span class="info-value" id="artifact-watchdog-timer">—</span></div>
+                      <div class="info-item"><span class="info-label">Automatik aktiv</span><span class="info-value" id="artifact-watchdog-enabled-state">—</span></div>
+                      <div class="info-item"><span class="info-label">Maximales Alter</span><span class="info-value" id="artifact-watchdog-max-age-state">—</span></div>
+                    </div>
+                    <div class="banner subtle" id="artifact-watchdog-simple-message">Die Download-Automatik wird mit dem Artefaktstatus geladen.</div>
+                    <div class="banner subtle" id="artifact-watchdog-message">Watchdog wird mit dem Artefaktstatus geladen.</div>
+                    <div class="banner subtle" id="artifact-preflight-message">Preflight wird mit dem Status geladen.</div>
+                    <div class="banner subtle" id="artifact-gate-message">Noch keine Gate-Pruefung geladen.</div>
+                    <div class="settings-inline-meta">
+                      <a id="artifact-status-link" href="#" target="_blank" rel="noopener noreferrer">Status-JSON</a>
+                      <a id="artifact-downloads-link" href="#" target="_blank" rel="noopener noreferrer">Downloads</a>
+                    </div>
+                    <div class="table-wrap compact">
+                      <table class="vm-table compact-table">
+                        <thead><tr><th>Artefakt</th><th>Status</th><th>Bytes</th><th>mtime</th></tr></thead>
+                        <tbody id="artifact-body"><tr><td colspan="4" class="empty-cell">Noch nicht geprueft.</td></tr></tbody>
+                      </table>
+                    </div>
+                  </details>
+                </section>
               </div>
-              <div class="settings-build-activity" id="artifact-build-activity">
-                <div class="settings-build-activity-head">
-                  <span>Live-Build</span>
-                  <strong id="artifact-build-phase">wartet</strong>
-                </div>
-                <div class="settings-build-bar" aria-hidden="true">
-                  <span id="artifact-build-progress-bar"></span>
-                </div>
-                <p id="artifact-build-detail">Wenn ein Build laeuft, zeigt diese Karte die aktuelle Phase und erklaert, warum sie dauern kann.</p>
-                <div class="settings-build-meta">
-                  <span>Laufzeit: <strong id="artifact-build-elapsed">—</strong></span>
-                  <span>Aktiv: <strong id="artifact-build-process-count">0 Prozesse</strong></span>
-                </div>
-                <p class="settings-build-hint" id="artifact-build-hint">Lange ISO-/SquashFS-Builds koennen mehrere Minuten dauern.</p>
-              </div>
-              <div class="settings-update-status-banner" id="artifact-refresh-message">Noch kein laufender Refresh.</div>
-              <div class="settings-update-actions">
-                <button class="button ghost" id="settings-artifacts-refresh" type="button">Status aktualisieren</button>
-                <button class="button ghost" id="artifact-watchdog-save" type="button">Automatik speichern</button>
-                <button class="button ghost" id="artifact-watchdog-check" type="button">Manuell pruefen</button>
-                <button class="button primary" id="artifacts-refresh-start" type="button">Manuell bauen</button>
-              </div>
-              <details class="settings-disclosure settings-update-details">
-                <summary>Artefakt-Details anzeigen</summary>
-                <div class="settings-info-grid settings-info-grid-compact">
-                  <div class="info-item"><span class="info-label">Zuletzt aktualisiert</span><span class="info-value" id="artifact-refresh-updated">—</span></div>
-                  <div class="info-item"><span class="info-label">Watchdog</span><span class="info-value" id="artifact-watchdog-state">—</span></div>
-                  <div class="info-item"><span class="info-label">Zuletzt geprueft</span><span class="info-value" id="artifact-watchdog-checked">—</span></div>
-                  <div class="info-item"><span class="info-label">Reparatur</span><span class="info-value" id="artifact-watchdog-reaction">—</span></div>
-                  <div class="info-item"><span class="info-label">Refresh Service</span><span class="info-value" id="artifact-refresh-service">—</span></div>
-                  <div class="info-item"><span class="info-label">Refresh Timer</span><span class="info-value" id="artifact-refresh-timer">—</span></div>
-                  <div class="info-item"><span class="info-label">Freier Speicher</span><span class="info-value" id="artifact-preflight-free">—</span></div>
-                  <div class="info-item"><span class="info-label">Build-Abhaengigkeiten</span><span class="info-value" id="artifact-preflight-deps">—</span></div>
-                  <div class="info-item"><span class="info-label">Service-Unit</span><span class="info-value" id="artifact-preflight-service-unit">—</span></div>
-                  <div class="info-item"><span class="info-label">Start faehig</span><span class="info-value" id="artifact-preflight-start-capable">—</span></div>
-                  <div class="info-item"><span class="info-label">Latest fehlt</span><span class="info-value" id="artifact-gate-missing-latest">—</span></div>
-                  <div class="info-item"><span class="info-label">Versioniert fehlt</span><span class="info-value" id="artifact-gate-missing-versioned">—</span></div>
-                  <div class="info-item"><span class="info-label">Artefakt-Alter</span><span class="info-value" id="artifact-watchdog-age">—</span></div>
-                  <div class="info-item"><span class="info-label">Watchdog Timer</span><span class="info-value" id="artifact-watchdog-timer">—</span></div>
-                  <div class="info-item"><span class="info-label">Automatik aktiv</span><span class="info-value" id="artifact-watchdog-enabled-state">—</span></div>
-                  <div class="info-item"><span class="info-label">Maximales Alter</span><span class="info-value" id="artifact-watchdog-max-age-state">—</span></div>
-                </div>
-                <div class="banner subtle" id="artifact-watchdog-simple-message">Die Download-Automatik wird mit dem Artefaktstatus geladen.</div>
-                <div class="banner subtle" id="artifact-watchdog-message">Watchdog wird mit dem Artefaktstatus geladen.</div>
-                <div class="banner subtle" id="artifact-preflight-message">Preflight wird mit dem Status geladen.</div>
-                <div class="banner subtle" id="artifact-gate-message">Noch keine Gate-Pruefung geladen.</div>
-                <div class="settings-inline-meta">
-                  <a id="artifact-status-link" href="#" target="_blank" rel="noopener noreferrer">Status-JSON</a>
-                  <a id="artifact-downloads-link" href="#" target="_blank" rel="noopener noreferrer">Downloads</a>
-                </div>
-                <div class="table-wrap compact">
-                  <table class="vm-table compact-table">
-                    <thead><tr><th>Artefakt</th><th>Status</th><th>Bytes</th><th>mtime</th></tr></thead>
-                    <tbody id="artifact-body"><tr><td colspan="4" class="empty-cell">Noch nicht geprueft.</td></tr></tbody>
-                  </table>
-                </div>
-              </details>
             </article>
           </section>
 

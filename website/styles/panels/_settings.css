@@ -20,7 +20,7 @@
 .settings-info-grid-compact { margin-bottom: 0; }
 .panel-section.settings-update-grid.panel-section-active {
   display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
@@ -80,6 +80,39 @@
     radial-gradient(circle at 20% 0%, rgba(140, 226, 109, 0.18), transparent 34%),
     radial-gradient(circle at 105% 20%, rgba(241, 192, 93, 0.13), transparent 32%),
     linear-gradient(145deg, rgba(20, 29, 21, 0.96), rgba(8, 12, 9, 0.98));
+}
+.settings-update-card-unified {
+  min-height: 0;
+}
+.settings-update-unified-actions {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0 18px;
+}
+.settings-update-unified-actions .button {
+  justify-content: center;
+}
+.settings-update-unified-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.settings-update-unified-block {
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.16);
+  padding: 12px;
+}
+.settings-update-unified-block h3 {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+}
+.settings-update-unified-inline-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 10px;
 }
 .settings-update-card-head {
   display: grid;
@@ -520,6 +553,8 @@ body.light-mode .settings-build-activity {
   .panel-section.settings-update-grid.panel-section-active { grid-template-columns: 1fr; }
   .settings-update-card { min-height: 0; }
   .settings-update-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .settings-update-unified-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settings-update-unified-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
   .settings-update-card { padding: 16px; }
@@ -527,6 +562,7 @@ body.light-mode .settings-build-activity {
   .settings-update-card-pulse { grid-column: 1 / -1; justify-items: start; grid-template-columns: auto auto; align-items: center; min-width: 0; }
   .settings-update-metrics { grid-template-columns: 1fr 1fr; }
   .settings-update-card .settings-update-actions .button { flex-basis: 100%; }
+  .settings-update-unified-actions { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
   .settings-update-metrics { grid-template-columns: 1fr; }
