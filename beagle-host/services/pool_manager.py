@@ -51,6 +51,12 @@ class PoolManagerService:
         list_nodes: Any = None,
         vm_node_of: Any = None,
         list_gpu_inventory: Any = None,
+        assign_gpu_passthrough: Any = None,
+        release_gpu_passthrough: Any = None,
+        assign_gpu_timeslice: Any = None,
+        release_gpu_timeslice: Any = None,
+        assign_gpu_vgpu: Any = None,
+        release_gpu_vgpu: Any = None,
     ) -> None:
         self._store = JsonStateStore(
             Path(state_file),
@@ -65,6 +71,13 @@ class PoolManagerService:
         self._list_nodes = list_nodes  # callable() -> list[dict]
         self._vm_node_of = vm_node_of  # callable(vmid) -> str
         self._list_gpu_inventory = list_gpu_inventory  # callable() -> list[dict]
+        # GPU assignment callables (GoEnterprise Plan 10)
+        self._assign_gpu_passthrough = assign_gpu_passthrough   # callable(pci_addr, vmid) -> dict
+        self._release_gpu_passthrough = release_gpu_passthrough  # callable(pci_addr, vmid) -> dict
+        self._assign_gpu_timeslice = assign_gpu_timeslice        # callable(gpu_id, vmid) -> dict
+        self._release_gpu_timeslice = release_gpu_timeslice      # callable(gpu_id, vmid) -> dict
+        self._assign_gpu_vgpu = assign_gpu_vgpu                  # callable(mdev_uuid, vmid) -> dict
+        self._release_gpu_vgpu = release_gpu_vgpu                # callable(mdev_uuid, vmid) -> dict
 
     # ------------------------------------------------------------------
     # State persistence helpers
@@ -555,6 +568,13 @@ class PoolManagerService:
         except ValueError:
             mode = DesktopPoolMode.FLOATING_NON_PERSISTENT
 
+        # Resolve GPU pool type for routing
+        pool_type_raw = pool_cfg.get("pool_type", DesktopPoolType.DESKTOP.value)
+        try:
+            pool_type = DesktopPoolType(pool_type_raw)
+        except ValueError:
+            pool_type = DesktopPoolType.DESKTOP
+
         vms = self._pool_vms(state, pool_id)
 
         # For persistent/dedicated modes: try to find existing assigned VM
@@ -588,7 +608,10 @@ class PoolManagerService:
                         self._start_vm(vm["vmid"])
                     except Exception:
                         pass
+                # GPU pool type: trigger GPU assignment after VM is started
+                self._maybe_assign_gpu(pool_type, pool_cfg, vm, state)
                 return self._make_lease(pool_id, vm, mode)
+
 
         raise RuntimeError(f"no free desktop available in pool {pool_id!r}")
 
@@ -681,6 +704,14 @@ class PoolManagerService:
             mode = DesktopPoolMode(mode_raw)
         except ValueError:
             mode = DesktopPoolMode.FLOATING_NON_PERSISTENT
+
+        # GPU pool type: release GPU before VM state change
+        pool_type_raw = pool_cfg.get("pool_type", DesktopPoolType.DESKTOP.value)
+        try:
+            pool_type = DesktopPoolType(pool_type_raw)
+        except ValueError:
+            pool_type = DesktopPoolType.DESKTOP
+        self._maybe_release_gpu(pool_type, pool_cfg, vm)
 
         if mode == DesktopPoolMode.FLOATING_NON_PERSISTENT:
             vm["state"] = _STATE_RECYCLING
@@ -880,3 +911,72 @@ class PoolManagerService:
             "assigned_at": lease.assigned_at,
             "stream_health": lease.stream_health,
         }
+
+    # ------------------------------------------------------------------
+    # GPU pool routing helpers (GoEnterprise Plan 10)
+    # ------------------------------------------------------------------
+
+    def _maybe_assign_gpu(
+        self,
+        pool_type: DesktopPoolType,
+        pool_cfg: dict[str, Any],
+        vm: dict[str, Any],
+        state: dict[str, Any],
+    ) -> None:
+        """If the pool is a GPU pool, trigger the appropriate GPU assignment."""
+        vmid = vm.get("vmid")
+        if vmid is None:
+            return
+        if pool_type == DesktopPoolType.GPU_PASSTHROUGH and self._assign_gpu_passthrough:
+            pci = str(pool_cfg.get("gpu_pci_address") or "").strip()
+            if pci:
+                try:
+                    self._assign_gpu_passthrough(pci, vmid)
+                except Exception:
+                    pass  # non-fatal: VM still allocated, admin must resolve
+        elif pool_type == DesktopPoolType.GPU_TIMESLICE and self._assign_gpu_timeslice:
+            gpu_id = str(pool_cfg.get("gpu_id") or "").strip()
+            if gpu_id:
+                try:
+                    self._assign_gpu_timeslice(gpu_id, vmid)
+                except Exception:
+                    pass
+        elif pool_type == DesktopPoolType.GPU_VGPU and self._assign_gpu_vgpu:
+            mdev_uuid = str(pool_cfg.get("gpu_mdev_uuid") or "").strip()
+            if mdev_uuid:
+                try:
+                    self._assign_gpu_vgpu(mdev_uuid, vmid)
+                except Exception:
+                    pass
+
+    def _maybe_release_gpu(
+        self,
+        pool_type: DesktopPoolType,
+        pool_cfg: dict[str, Any],
+        vm: dict[str, Any],
+    ) -> None:
+        """If the pool is a GPU pool, release the GPU assignment."""
+        vmid = vm.get("vmid")
+        if vmid is None:
+            return
+        if pool_type == DesktopPoolType.GPU_PASSTHROUGH and self._release_gpu_passthrough:
+            pci = str(pool_cfg.get("gpu_pci_address") or "").strip()
+            if pci:
+                try:
+                    self._release_gpu_passthrough(pci, vmid)
+                except Exception:
+                    pass
+        elif pool_type == DesktopPoolType.GPU_TIMESLICE and self._release_gpu_timeslice:
+            gpu_id = str(pool_cfg.get("gpu_id") or "").strip()
+            if gpu_id:
+                try:
+                    self._release_gpu_timeslice(gpu_id, vmid)
+                except Exception:
+                    pass
+        elif pool_type == DesktopPoolType.GPU_VGPU and self._release_gpu_vgpu:
+            mdev_uuid = str(pool_cfg.get("gpu_mdev_uuid") or "").strip()
+            if mdev_uuid:
+                try:
+                    self._release_gpu_vgpu(mdev_uuid, vmid)
+                except Exception:
+                    pass

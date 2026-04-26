@@ -14,10 +14,13 @@ class DesktopPoolMode(str, Enum):
 
 
 class DesktopPoolType(str, Enum):
-    """GoEnterprise Plan 03: Pool-Typ für unterschiedliche Workloads."""
-    DESKTOP = "desktop"       # Standard VDI Desktop
-    GAMING = "gaming"         # GPU-Pflicht, hohe Bitrate, gaming-grade FPS
-    KIOSK = "kiosk"           # Session-Time-Limit, stateless (VM-Reset nach Session)
+    """GoEnterprise Plan 03/10: Pool-Typ für unterschiedliche Workloads."""
+    DESKTOP = "desktop"             # Standard VDI Desktop
+    GAMING = "gaming"               # GPU-Pflicht, hohe Bitrate, gaming-grade FPS
+    KIOSK = "kiosk"                 # Session-Time-Limit, stateless (VM-Reset nach Session)
+    GPU_PASSTHROUGH = "gpu_passthrough"  # Exklusive GPU-Zuweisung via PCI-Passthrough
+    GPU_TIMESLICE = "gpu_timeslice"      # Geteilte GPU via CUDA Time-Slicing (N VMs, 1 GPU)
+    GPU_VGPU = "gpu_vgpu"               # NVIDIA vGPU (mdev) — Hardware-vGPU pro VM
 
 
 class SessionRecordingPolicy(str, Enum):

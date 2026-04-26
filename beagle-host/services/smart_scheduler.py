@@ -17,6 +17,7 @@ class NodeCapacity:
     free_ram_mib: int
     gpu_slots_free: int = 0
     predicted_cpu_pct_4h: float = 0.0   # predicted load over next 4 hours
+    gpu_utilization_pct: float = 0.0    # current average GPU utilization (Plan 10)
 
 
 @dataclass
@@ -71,6 +72,7 @@ class SmartSchedulerService:
         required_ram_mib: int,
         gpu_required: bool = False,
         preferred_hour: int | None = None,
+        gpu_utilization_threshold: float = 85.0,
     ) -> SmartPlacementResult:
         """
         Pick best node for a new VM.
@@ -78,6 +80,7 @@ class SmartSchedulerService:
         Scoring:
         - Must have free_cpu_cores >= required and free_ram_mib >= required
         - GPU slot required if gpu_required=True
+        - For GPU-required VMs: prefer nodes with lower gpu_utilization_pct (Plan 10)
         - Prefer lower predicted_cpu_pct_4h (pre-warming aware)
         - Tie-break: most free RAM
         """
@@ -90,7 +93,13 @@ class SmartSchedulerService:
                 continue
             if gpu_required and node.gpu_slots_free < 1:
                 continue
+            # Exclude nodes whose GPU is already over the threshold (Plan 10)
+            if gpu_required and node.gpu_utilization_pct >= gpu_utilization_threshold:
+                continue
             score = 100.0 - node.predicted_cpu_pct_4h
+            # GPU-aware scoring: penalise nodes with high GPU utilization
+            if gpu_required:
+                score -= node.gpu_utilization_pct * 0.5
             candidates.append((score, node.free_ram_mib, node))
 
         if not candidates:
@@ -106,7 +115,11 @@ class SmartSchedulerService:
 
         return SmartPlacementResult(
             node_id=best.node_id,
-            reason=f"best_score: free_cpu={best.free_cpu_cores}, predicted_load={best.predicted_cpu_pct_4h:.1f}%",
+            reason=(
+                f"best_score: free_cpu={best.free_cpu_cores},"
+                f" predicted_load={best.predicted_cpu_pct_4h:.1f}%"
+                + (f", gpu_util={best.gpu_utilization_pct:.1f}%" if gpu_required else "")
+            ),
             confidence=min(1.0, candidates[0][0] / 100.0),
             alternative_nodes=alternatives,
         )

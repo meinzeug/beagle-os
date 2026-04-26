@@ -1,3 +1,31 @@
+## Update (2026-05-XX, GoEnterprise Plan 10: GPU-Streaming-Pools)
+
+**Scope**: Plan 10 — GPU Assignment Modi, Pool-Manager GPU-Typen, Dashboard, AI-Scheduler Integration
+
+### GPU Assignment Modes (Plan 10, Schritt 2)
+
+- `beagle-host/services/gpu_assignment_modes.py` (NEU): `GpuAssignmentModeService` mit allen 3 Modi:
+  - `assign_passthrough / release_passthrough`: PCI-Passthrough via vfio-pci + libvirt XML
+  - `assign_timeslice / release_timeslice`: CUDA Time-Slicing, MAX_TIMESLICE_VMS=8 cap
+  - `assign_vgpu / release_vgpu`: NVIDIA mdev/vGPU via libvirt `<hostdev type="mdev">`
+- `core/virtualization/desktop_pool.py`: `DesktopPoolType` um `GPU_PASSTHROUGH`, `GPU_TIMESLICE`, `GPU_VGPU` erweitert
+- `beagle-host/services/pool_manager.py`: `__init__` um 6 GPU-Callables erweitert; `_maybe_assign_gpu` / `_maybe_release_gpu` helpers; GPU-Pool-Routing in `allocate_desktop` + `release_desktop`
+- `beagle-host/services/smart_scheduler.py`: `NodeCapacity.gpu_utilization_pct` Feld; `pick_node()` berücksichtigt GPU-Auslastung als Scoring-Faktor + Ausschluss bei Überlastung (>85%)
+- `website/ui/gpu_dashboard.js`: Temperatur-Badge, Modus-Badge, VRAM-Nutzung, `capacityPlanningHtml()` mit Ø/Peak-Auslastung + Empfehlung
+- `tests/unit/test_gpu_assignment_modes.py` (NEU, 28 Tests): 11 Passthrough, 9 Timeslice, 8 vGPU
+
+### srv2 Deployment
+
+- srv2.beagle-os.com: NVIDIA GTX 1080 (GP104, 01:00.0), IOMMU aktiv, vfio_pci geladen, Debian 12
+- Repo vollständig deployed via rsync, libvirtd aktiv
+- GPU-Treiber auf srv2 nicht installiert — für Passthrough nicht nötig; für nvidia-smi: nvidia-driver Installation erforderlich
+
+### Test-Baseline nach Plan 10
+
+- **Unit+Integration-Tests**: **1018 passed** (+28 neue Tests)
+
+---
+
 ## Update (2026-05-XX, GoAdvanced Plan 07 Schritt 3: Async POST-Endpoints)
 
 **Scope**: Plan 07 Schritt 3 — HTTP-Surfaces für Backup-Run + VM-Snapshot auf Job-Queue verdrahtet
