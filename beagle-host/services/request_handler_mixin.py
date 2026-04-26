@@ -571,6 +571,9 @@ class HandlerMixin:
             "Content-Security-Policy",
             "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
         )
+        request_id = getattr(self, "_beagle_request_id", "") or ""
+        if request_id:
+            self.send_header("X-Request-Id", request_id)
         origin = self._cors_origin()
         if origin:
             self.send_header("Access-Control-Allow-Origin", origin)

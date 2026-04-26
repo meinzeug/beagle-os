@@ -34,20 +34,24 @@
   - [x] Singleton via `service_registry.prometheus_metrics_service()` mit `register_defaults()` beim Erstaufruf
   - [ ] Smoke-Test gegen laufenden Server (verschoben — siehe Schritt 7)
 
-- [ ] **Schritt 3** — Strukturierte Logs
-  - [ ] `core/logging/structured_logger.py`:
-    - `log(level, event, **fields)` → JSON-Zeile auf stdout
-    - Pflichtfelder: `timestamp`, `level`, `service`, `event`
-    - Optional: `request_id`, `user_id`, `correlation_id`, `duration_ms`
-  - [ ] Migration: alle `print(...)`-Aufrufe in `beagle-control-plane.py` und Services umstellen
-  - [ ] Tests: Log-Output-Parser pruefen
-  - [ ] systemd-journald uebernimmt Rotation automatisch
+- [x] **Schritt 3** — Strukturierte Logs
+  - [x] `beagle-host/services/structured_logger.py` (`StructuredLogger`):
+    - `debug/info/warn/error(event, **fields)` => JSON-Zeile auf stdout (oder beliebigen Stream).
+    - Pflichtfelder: `timestamp`, `level`, `service`, `event`. Per-Thread-Context (`with log.context(...)`, `log.bind(...)`, `log.clear()`) merged Felder in jeden Emit.
+    - Min-Level-Filter via `BEAGLE_LOG_LEVEL` env (default `info`). Thread-safe via `Lock`. Fallback fuer non-JSONable Werte (set/tuple/bytes/repr).
+    - Compat-Shim `log_message(fmt, *args)` als Drop-In fuer `BaseHTTPRequestHandler.log_message`.
+  - [x] Singleton `service_registry.structured_logger()`.
+  - [x] `control_plane_handler.log_message` routet HTTP-Access-Logs durch den strukturierten Logger (Fallback `print` bei Fehler).
+  - [x] Tests: `tests/unit/test_structured_logger.py` (15 Tests).
+  - [ ] Massen-Migration aller `print()`-Aufrufe (deferred — separater Run pro Modul, niedriges Risiko, hohe Streuung).
+  - [x] systemd-journald uebernimmt Rotation automatisch.
 
-- [ ] **Schritt 4** — Request-IDs + Tracing
-  - [ ] HTTP-Middleware: liest `X-Request-Id`-Header oder generiert UUID
-  - [ ] Request-ID wird in alle Logs der Request-Verarbeitung eingebaut
-  - [ ] `X-Request-Id` in Response-Header zurueck
-  - [ ] (Phase 2 optional) OpenTelemetry-Adapter fuer Distributed Tracing
+- [x] **Schritt 4** — Request-IDs + Tracing
+  - [x] `control_plane_handler.handle_one_request` ist neu implementiert (statt `super().handle_one_request()`): liest `X-Request-Id`-Header (akzeptiert `[A-Za-z0-9._-]{1,128}`), faellt sonst auf `uuid4().hex` zurueck.
+  - [x] Request-Id wird auf `self._beagle_request_id` gesetzt und in `request_handler_mixin._write_common_security_headers` als `X-Request-Id` Response-Header gesendet.
+  - [x] Per-Request strukturiert-Logger-Context mit `request_id`, `method`, `path`, `client` umschliesst die `do_*()`-Dispatch — alle Logs der Request-Verarbeitung tragen die Felder automatisch.
+  - [x] Tests: `tests/integration/test_request_id_middleware.py` (5 Tests — /metrics, generated-id, echo-incoming, unsafe-id replaced, unique-per-request).
+  - [ ] OpenTelemetry-Adapter (Phase 2 optional, nicht in diesem Run).
 
 - [x] **Schritt 5** — Health-Aggregation
   - [x] `health_aggregator.py` (`HealthAggregatorService`): Per-Component-Checks mit 2s-Timeout (Thread-Watchdog), Aggregation `healthy | degraded | unhealthy`, Eingebaute Checks: `control_plane_check` (uptime), `provider_check` (list_providers), `writable_path_check` (data_dir).

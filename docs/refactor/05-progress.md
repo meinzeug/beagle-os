@@ -1,3 +1,40 @@
+## Update (2026-04-26, GoAdvanced Plan 08: Strukturierte Logs + Request-ID-Middleware)
+
+**Scope**: Plan 08 Schritt 3+4 — JSON-Line-Logger als Foundation und HTTP-Request-ID-Middleware (X-Request-Id Header + Per-Request-Log-Context).
+
+### StructuredLogger (Plan 08 Schritt 3)
+- **Neu**: `beagle-host/services/structured_logger.py`. JSON-Line-Output mit Pflichtfeldern `timestamp`/`level`/`service`/`event`, Per-Thread-Context-Stack (`with log.context(...)`/`bind`/`clear`), Min-Level-Filter via `BEAGLE_LOG_LEVEL`, Compat-Shim `log_message(fmt, *args)` als Drop-In fuer `BaseHTTPRequestHandler.log_message`. Thread-safe via `Lock`. Nicht-JSON-encodable Werte (set/tuple/bytes/objects) werden via `_json_default` graceful auf list/str/repr abgebildet.
+- **Wiring**: `service_registry.structured_logger()` Singleton. `control_plane_handler.log_message` routet stdlib-HTTP-Server-Access-Logs durch den Logger (Fallback `print` bei Fehler).
+- **Tests**: `tests/unit/test_structured_logger.py` (15 Tests) — Levels, Min-Level-Filter, Context-Merge/Nesting/Thread-Isolation/Override, log_message-Compat, Format-Error-Recovery, Unjsonable-Values, Concurrent-200x4-Writes ohne Interleaving, Event-Coercion. **15 passed in 0.06s**.
+- **Nicht in Scope**: Massen-Migration aller `print()`-Aufrufe (siehe `08-observability.md`). Wird modulweise in spaeteren Runs nachgezogen — niedriges Risiko, hohe Streuung.
+
+### Request-ID-Middleware (Plan 08 Schritt 4)
+- **Neu**: `control_plane_handler.handle_one_request` neu implementiert (ersetzt vormaligen `super()`-Pass-Through). Liest `X-Request-Id`-Header (Whitelist `[A-Za-z0-9._-]{1,128}`), faellt sonst auf `uuid4().hex` zurueck. Setzt `self._beagle_request_id`. Oeffnet `structured_logger().context(request_id=..., method=..., path=..., client=...)` *vor* dem `do_*()`-Dispatch — alle Logs aus der Request-Verarbeitung tragen die Felder automatisch.
+- **Header-Echo**: `request_handler_mixin._write_common_security_headers` ergaenzt um `X-Request-Id`-Response-Header (sofern gesetzt). Funktioniert fuer JSON, Bytes, Proxy, Errors.
+- **Robustheit**: `parse_request`/`do_*`-Lookup-Fehler werden wie im stdlib-Original mit `send_error` behandelt (`REQUEST_URI_TOO_LONG`, `NOT_IMPLEMENTED`, Exception-Pass-Through an `_handle_unexpected_error`).
+- **Imports**: `import uuid` in `control_plane_handler.py` ergaenzt.
+- **Tests**: `tests/integration/test_request_id_middleware.py` (5 Tests, real `ThreadingHTTPServer` auf Ephemeral-Port) — `/metrics` 200 + Prometheus-Content-Type + `# HELP`/`# TYPE`-Lines, jede Response hat X-Request-Id, eingehende ID wird echoed, unsichere ID wird ersetzt, jede Request hat unique ID. **5 passed in 0.59s**.
+
+### Suite
+- Voller Unit-Lauf: **795 passed**, 0 neue Failures (10 pre-existing gpu_*/mock_provider Tests deselektiert; +15 Tests gegenueber 780 vorher).
+- Integration-Test deckt Server-Startup-Pfad mit Singletons ab.
+
+### Plan-08-Status nach diesem Run
+- Schritt 1 (Metrics-Service): `[x]`
+- Schritt 2 (`/metrics`-Endpoint): `[x]`
+- Schritt 3 (Strukturierte Logs): `[x]` (Massen-Migration `print()` separater Run)
+- Schritt 4 (Request-IDs/Tracing): `[x]` (OTel-Adapter Phase 2)
+- Schritt 5 (Health-Aggregation): `[x]`
+- Schritt 6 (Dashboards): offen
+- Schritt 7 (srv1-Verifikation): offen
+
+### Naechste sinnvolle Schritte
+- Plan 08 Schritt 6: `docs/observability/grafana-dashboard.json` + `prometheus-scrape-config.yml` + `setup.md`.
+- Plan 08 Schritt 7: Smoke gegen srv1 (curl /metrics, journalctl JSON parse, /api/v1/health).
+- Plan 11 Schritt 2: Feature-Parity-Audit Proxmox vs Beagle.
+
+---
+
 ## Update (2026-04-25, GoAdvanced Plan 08: Health-Aggregation)
 
 **Scope**: Plan 08 Schritt 5 — `/api/v1/health` liefert jetzt aggregierte Component-Stati zusaetzlich zu den bestehenden Flat-Feldern (back-compat).

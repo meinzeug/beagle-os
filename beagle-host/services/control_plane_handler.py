@@ -10,6 +10,7 @@ boilerplate routing / auth / json-parse glue.
 from __future__ import annotations
 
 import hmac
+import uuid
 
 # Pull every symbol used below (BaseHTTPRequestHandler, HTTPStatus, urlparse,
 # parse_qs, json, VERSION, all *_service() factories, …) from service_registry.
@@ -857,10 +858,74 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
         self._write_json(response["status"], response["payload"])
 
     def log_message(self, fmt: str, *args: Any) -> None:
-        print(f"[{utcnow()}] {self.address_string()} {fmt % args}", flush=True)
+        # Route stdlib HTTP-server access logs through the structured logger
+        # so request_id/method/path get emitted as JSON fields. Keep the
+        # legacy printable format inside the "message" field for grep-compat.
+        try:
+            structured_logger().log_message(fmt, *args)
+        except Exception:
+            print(f"[{utcnow()}] {self.address_string()} {fmt % args}", flush=True)
 
     def handle_one_request(self) -> None:
+        # GoAdvanced Plan 08 Schritt 4: Request-Id middleware.
+        # Mirrors BaseHTTPRequestHandler.handle_one_request but injects a
+        # per-request structured-logger context with request_id/method/path
+        # *before* the do_*() dispatch runs.
+        self._beagle_request_id = ""
         try:
-            super().handle_one_request()
+            self.raw_requestline = self.rfile.readline(65537)
+            if len(self.raw_requestline) > 65536:
+                self.requestline = ""
+                self.request_version = ""
+                self.command = ""
+                self.send_error(HTTPStatus.REQUEST_URI_TOO_LONG)
+                return
+            if not self.raw_requestline:
+                self.close_connection = True
+                return
+            if not self.parse_request():
+                return
+
+            incoming = (self.headers.get("X-Request-Id", "") or "").strip()
+            if incoming and len(incoming) <= 128 and all(
+                c.isalnum() or c in "-_." for c in incoming
+            ):
+                self._beagle_request_id = incoming
+            else:
+                self._beagle_request_id = uuid.uuid4().hex
+
+            try:
+                log = structured_logger()
+            except Exception:
+                log = None
+
+            mname = "do_" + (self.command or "")
+            if not hasattr(self, mname):
+                self.send_error(
+                    HTTPStatus.NOT_IMPLEMENTED,
+                    f"Unsupported method ({self.command!r})",
+                )
+                return
+            method = getattr(self, mname)
+
+            if log is not None:
+                with log.context(
+                    request_id=self._beagle_request_id,
+                    method=self.command or "",
+                    path=getattr(self, "path", "") or "",
+                    client=self.address_string(),
+                ):
+                    method()
+            else:
+                method()
+            try:
+                self.wfile.flush()
+            except Exception:
+                pass
+        except TimeoutError as exc:
+            # stdlib raises socket.timeout (subclass of OSError) on timeout
+            self.log_error("Request timed out: %r", exc)
+            self.close_connection = True
+            return
         except Exception as error:
             self._handle_unexpected_error(error)

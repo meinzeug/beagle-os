@@ -76,6 +76,7 @@ from public_ubuntu_install_surface import PublicUbuntuInstallSurfaceService
 from public_streams import PublicStreamService
 from prometheus_metrics import PrometheusMetricsService
 from health_aggregator import HealthAggregatorService
+from structured_logger import StructuredLogger
 from recording_service import RecordingService
 from request_support import RequestSupportService
 from registry import create_provider, list_providers, normalize_provider_kind
@@ -1050,6 +1051,7 @@ POLICY_STORE_SERVICE: PolicyStoreService | None = None
 PUBLIC_STREAM_SERVICE: PublicStreamService | None = None
 PROMETHEUS_METRICS_SERVICE: PrometheusMetricsService | None = None
 HEALTH_AGGREGATOR_SERVICE: HealthAggregatorService | None = None
+STRUCTURED_LOGGER: StructuredLogger | None = None
 SUPPORT_BUNDLE_STORE_SERVICE: SupportBundleStoreService | None = None
 RECORDING_SERVICE: RecordingService | None = None
 ENDPOINT_ENROLLMENT_SERVICE: EndpointEnrollmentService | None = None
@@ -1164,6 +1166,17 @@ def health_aggregator_service() -> HealthAggregatorService:
         )
         HEALTH_AGGREGATOR_SERVICE = agg
     return HEALTH_AGGREGATOR_SERVICE
+
+
+def structured_logger() -> StructuredLogger:
+    """Singleton JSON-line logger (GoAdvanced Plan 08 Schritt 3)."""
+    global STRUCTURED_LOGGER
+    if STRUCTURED_LOGGER is None:
+        STRUCTURED_LOGGER = StructuredLogger(
+            service="beagle-control-plane",
+            min_level=os.environ.get("BEAGLE_LOG_LEVEL", "info").strip().lower() or "info",
+        )
+    return STRUCTURED_LOGGER
 
 
 def vm_secret_store_service() -> VmSecretStoreService:
