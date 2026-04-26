@@ -465,9 +465,15 @@ rm -f "$USB_TUNNEL_TEST_DROPIN" "$USB_TUNNEL_AUTH_COMMAND"
 # The artifact refresh service runs as beagle-manager and rebuilds package
 # outputs directly from the deployed repo checkout under /opt/beagle.
 if [[ -d "$INSTALL_DIR" ]]; then
-  chgrp -R "$BEAGLE_CONTROL_USER" "$INSTALL_DIR"
-  chmod -R g+rwX "$INSTALL_DIR"
-  find "$INSTALL_DIR" -type d -exec chmod g+s {} +
+  find "$INSTALL_DIR" \
+    -path "$INSTALL_DIR/.build" -prune -o \
+    -exec chgrp "$BEAGLE_CONTROL_USER" {} +
+  find "$INSTALL_DIR" \
+    -path "$INSTALL_DIR/.build" -prune -o \
+    -exec chmod g+rwX {} +
+  find "$INSTALL_DIR" \
+    -path "$INSTALL_DIR/.build" -prune -o \
+    -type d -exec chmod g+s {} +
 fi
 
 install -d -m 0755 "$CONFIG_DIR"
