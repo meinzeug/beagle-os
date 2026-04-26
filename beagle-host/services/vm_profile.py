@@ -214,6 +214,7 @@ class VmProfileService:
         installer_url = f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh"
         live_usb_url = f"/beagle-api/api/v1/vms/{vm.vmid}/live-usb.sh"
         installer_windows_url = f"/beagle-api/api/v1/vms/{vm.vmid}/installer.ps1"
+        live_usb_windows_url = f"/beagle-api/api/v1/vms/{vm.vmid}/live-usb.ps1"
         installer_iso_url = self._public_installer_iso_url()
         vm_secret = self._load_vm_secret(vm.node, vm.vmid)
         has_sunshine_password = bool((vm_secret or {}).get("sunshine_password"))
@@ -288,6 +289,7 @@ class VmProfileService:
             "installer_url": installer_url,
             "live_usb_url": live_usb_url,
             "installer_windows_url": installer_windows_url,
+            "live_usb_windows_url": live_usb_windows_url,
             "installer_iso_url": installer_iso_url,
             "public_stream": public_stream,
             "metadata_keys": sorted(meta.keys()),

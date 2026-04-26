@@ -139,6 +139,9 @@ class FleetInventoryService:
                     "installer_windows_url": profile.get(
                         "installer_windows_url", f"/beagle-api/api/v1/vms/{vmid}/installer.ps1"
                     ),
+                    "live_usb_windows_url": profile.get(
+                        "live_usb_windows_url", f"/beagle-api/api/v1/vms/{vmid}/live-usb.ps1"
+                    ),
                     "installer_iso_url": profile.get("installer_iso_url", self._public_installer_iso_url()),
                     "installer_target_eligible": profile.get("installer_target_eligible", False),
                     "installer_target_message": profile.get("installer_target_message", ""),

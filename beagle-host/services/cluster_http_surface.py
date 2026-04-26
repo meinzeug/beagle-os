@@ -10,6 +10,7 @@ Handles:
   POST   /api/v1/cluster/setup-code
   POST   /api/v1/cluster/add-server-preflight
   POST   /api/v1/cluster/auto-join
+  POST   /api/v1/cluster/auto-join-async
   POST   /api/v1/cluster/join-token
   POST   /api/v1/cluster/join-existing
   POST   /api/v1/cluster/join-with-setup-code
@@ -17,7 +18,9 @@ Handles:
   POST   /api/v1/cluster/apply-join
   POST   /api/v1/cluster/join
   POST   /api/v1/ha/reconcile-failed-node
+  POST   /api/v1/ha/maintenance/preview
   POST   /api/v1/ha/maintenance/drain
+  POST   /api/v1/ha/maintenance/drain-async
   PATCH  /api/v1/cluster/members/{name}
   DELETE /api/v1/cluster/members/{name}
 
@@ -43,6 +46,7 @@ class ClusterHttpSurfaceService:
         "/api/v1/cluster/setup-code",
         "/api/v1/cluster/add-server-preflight",
         "/api/v1/cluster/auto-join",
+        "/api/v1/cluster/auto-join-async",
         "/api/v1/cluster/join-token",
         "/api/v1/cluster/join-existing",
         "/api/v1/cluster/leave-local",
@@ -51,7 +55,9 @@ class ClusterHttpSurfaceService:
         "/api/v1/cluster/join",
         "/api/v1/cluster/migrate",
         "/api/v1/ha/reconcile-failed-node",
+        "/api/v1/ha/maintenance/preview",
         "/api/v1/ha/maintenance/drain",
+        "/api/v1/ha/maintenance/drain-async",
     }
 
     def __init__(
@@ -293,6 +299,51 @@ class ClusterHttpSurfaceService:
             )
             return self._json(HTTPStatus.OK, {"ok": True, "auto_join": result})
 
+        if path == "/api/v1/cluster/auto-join-async":
+            if not self._enqueue_job:
+                return self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": "job queue not available"})
+            try:
+                ikey = str(p.get("idempotency_key") or "").strip() or (
+                    "cluster.auto_join."
+                    + str(p.get("node_name") or "").strip()
+                    + "."
+                    + str(p.get("advertise_host") or "").strip()
+                )
+                job = self._enqueue_job(
+                    "cluster.auto_join",
+                    {
+                        "setup_code": str(p.get("setup_code") or "").strip(),
+                        "node_name": str(p.get("node_name") or "").strip(),
+                        "api_url": str(p.get("api_url") or "").strip(),
+                        "advertise_host": str(p.get("advertise_host") or "").strip(),
+                        "rpc_url": str(p.get("rpc_url") or "").strip(),
+                        "ssh_port": int(p.get("ssh_port") or 22),
+                        "timeout": float(p.get("timeout") or 5.0),
+                        "token_ttl_seconds": int(p.get("token_ttl_seconds") or 900),
+                    },
+                    idempotency_key=ikey,
+                    owner=requester,
+                )
+            except Exception as exc:
+                return self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(exc)})
+            job_id = str(job.job_id)
+            self._audit_event(
+                "cluster.auto_join_async",
+                "initiated",
+                username=requester,
+                node_name=str(p.get("node_name") or ""),
+                job_id=job_id,
+            )
+            return self._json(
+                HTTPStatus.ACCEPTED,
+                {
+                    "ok": True,
+                    "job_id": job_id,
+                    "node_name": str(p.get("node_name") or "").strip(),
+                    "advertise_host": str(p.get("advertise_host") or "").strip(),
+                },
+            )
+
         if path == "/api/v1/cluster/join-existing":
             try:
                 result = self._cluster_membership.join_existing_cluster(
@@ -413,6 +464,53 @@ class ClusterHttpSurfaceService:
                 username=requester,
             )
             return self._json(HTTPStatus.OK, {"ok": True, **result})
+
+        if path == "/api/v1/ha/maintenance/preview":
+            try:
+                result = self._maintenance.preview_drain_node(
+                    node_name=str(p.get("node_name") or "").strip(),
+                )
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            return self._json(HTTPStatus.OK, {"ok": True, **result})
+
+        if path == "/api/v1/ha/maintenance/drain-async":
+            node_name = str(p.get("node_name") or "").strip()
+            if not node_name:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "missing node_name"})
+            if self._enqueue_job is None:
+                return self._json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"ok": False, "error": "job queue unavailable"},
+                )
+            ikey = str(p.get("idempotency_key") or "").strip() or f"cluster.maintenance_drain.{node_name}"
+            try:
+                job = self._enqueue_job(
+                    "cluster.maintenance_drain",
+                    {"node_name": node_name},
+                    idempotency_key=ikey,
+                    owner=requester,
+                )
+            except Exception as exc:
+                return self._json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"ok": False, "error": f"failed to enqueue maintenance drain job: {exc}"},
+                )
+            self._audit_event(
+                "ha.maintenance.drain.enqueued",
+                "success",
+                node_name=node_name,
+                job_id=str(getattr(job, "job_id", "") or ""),
+                username=requester,
+            )
+            return self._json(
+                HTTPStatus.ACCEPTED,
+                {
+                    "ok": True,
+                    "job_id": str(getattr(job, "job_id", "") or ""),
+                    "node_name": node_name,
+                },
+            )
 
         if path == "/api/v1/cluster/migrate":
             source_node = str(p.get("source_node") or "").strip()

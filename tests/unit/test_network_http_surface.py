@@ -102,10 +102,17 @@ class TestNetworkPostRouting:
                 "subnet": "10.1.0.0/24",
                 "dhcp_start": "10.1.0.10",
                 "dhcp_end": "10.1.0.200",
+                "bridge_name": "br0",
             },
         )
         assert resp["status"] == HTTPStatus.OK
-        ipam.register_zone.assert_called_once()
+        ipam.register_zone.assert_called_once_with(
+            "z2",
+            "10.1.0.0/24",
+            "10.1.0.10",
+            "10.1.0.200",
+            bridge_name="br0",
+        )
 
     def test_register_zone_missing_fields(self):
         svc, _, _ = _make_svc()

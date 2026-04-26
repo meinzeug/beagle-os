@@ -135,10 +135,16 @@ class ClusterInventoryService:
                 continue
             remote_vms = snapshot.get("vms") if isinstance(snapshot.get("vms"), list) else []
             remote_nodes = snapshot.get("nodes") if isinstance(snapshot.get("nodes"), list) else []
-            remote_alias_map = self._canonical_member_name(self._member_name_from_snapshot(snapshot), remote_nodes)
+            remote_member_name = self._member_name_from_snapshot(snapshot)
+            remote_alias_map = self._canonical_member_name(remote_member_name, remote_nodes)
             for item in remote_vms:
                 if isinstance(item, dict):
-                    vm_list.append(self._canonicalize_vm_node(item, remote_alias_map))
+                    # Canonicalize node name per remote member's alias map
+                    canonicalized = self._canonicalize_vm_node(item, remote_alias_map)
+                    # Add source member name to uniquely identify which remote member this VM comes from
+                    if remote_member_name:
+                        canonicalized["source_member"] = remote_member_name
+                    vm_list.append(canonicalized)
 
         vm_count_by_node: dict[str, int] = {}
         for vm in vm_list:

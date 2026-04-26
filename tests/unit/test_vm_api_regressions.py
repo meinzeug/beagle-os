@@ -99,6 +99,7 @@ def make_vm_surface(vm: Vm | None, novnc_payload: dict) -> VmHttpSurfaceService:
         render_vm_installer_script=lambda _vm: (b"", "installer.sh"),
         render_vm_live_usb_script=lambda _vm: (b"", "live-usb.sh"),
         render_vm_windows_installer_script=lambda _vm: (b"", "installer.ps1"),
+        render_vm_windows_live_usb_script=lambda _vm: (b"", "live-usb.ps1"),
         service_name="beagle-control-plane",
         summarize_endpoint_report=lambda _report: {},
         summarize_installer_prep_state=lambda _vm, _state: {},
@@ -125,6 +126,15 @@ def test_novnc_access_returns_404_for_missing_vm() -> None:
 
     assert response["status"] == HTTPStatus.NOT_FOUND
     assert response["payload"] == {"ok": False, "error": "vm not found"}
+
+
+def test_windows_live_usb_download_route_returns_script() -> None:
+    surface = make_vm_surface(Vm(vmid=101), {})
+
+    response = surface.route_get("/api/v1/vms/101/live-usb.ps1")
+
+    assert response["status"] == HTTPStatus.OK
+    assert response["filename"] == "live-usb.ps1"
 
 
 def test_concurrent_refreshes_do_not_corrupt_session_state() -> None:

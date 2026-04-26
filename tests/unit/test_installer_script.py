@@ -44,7 +44,7 @@ class InstallerScriptServiceTests(unittest.TestCase):
                 encoding="utf-8",
             )
             raw_windows.write_text(
-                'iso=__BEAGLE_DEFAULT_RELEASE_ISO_URL__\nname=__BEAGLE_DEFAULT_PRESET_NAME__\npreset=__BEAGLE_DEFAULT_PRESET_B64__\n',
+                'iso=__BEAGLE_DEFAULT_RELEASE_ISO_URL__\nvariant=__BEAGLE_DEFAULT_WRITER_VARIANT__\nname=__BEAGLE_DEFAULT_PRESET_NAME__\npreset=__BEAGLE_DEFAULT_PRESET_B64__\n',
                 encoding="utf-8",
             )
 
@@ -86,20 +86,25 @@ class InstallerScriptServiceTests(unittest.TestCase):
             installer_body, installer_name = service.render_installer_script(vm)
             live_body, live_name = service.render_live_usb_script(vm)
             windows_body, windows_name = service.render_windows_installer_script(vm)
+            windows_live_body, windows_live_name = service.render_windows_live_usb_script(vm)
 
             installer_text = installer_body.decode("utf-8")
             live_text = live_body.decode("utf-8")
             windows_text = windows_body.decode("utf-8")
+            windows_live_text = windows_live_body.decode("utf-8")
 
             self.assertEqual(installer_name, "pve-thin-client-usb-installer-vm-100.sh")
             self.assertEqual(live_name, "pve-thin-client-live-usb-vm-100.sh")
             self.assertEqual(windows_name, "pve-thin-client-usb-installer-vm-100.ps1")
+            self.assertEqual(windows_live_name, "pve-thin-client-live-usb-vm-100.ps1")
             self.assertIn('USB_WRITER_VARIANT="${PVE_THIN_CLIENT_USB_WRITER_VARIANT:-installer}"', installer_text)
             self.assertIn('USB_WRITER_VARIANT="${PVE_THIN_CLIENT_USB_WRITER_VARIANT:-live}"', live_text)
             self.assertIn('RELEASE_ISO_URL="${RELEASE_ISO_URL:-https://downloads.example/beagle-os-installer-amd64.iso}"', installer_text)
             self.assertIn('RELEASE_BOOTSTRAP_URL="${RELEASE_BOOTSTRAP_URL:-https://downloads.example/bootstrap.tar.gz}"', installer_text)
             self.assertIn('INSTALL_PAYLOAD_URL="${INSTALL_PAYLOAD_URL:-https://downloads.example/payload.tar.gz}"', live_text)
             self.assertIn('iso=https://downloads.example/beagle-os-installer-amd64.iso', windows_text)
+            self.assertIn('variant=installer', windows_text)
+            self.assertIn('variant=live', windows_live_text)
 
 
 if __name__ == "__main__":

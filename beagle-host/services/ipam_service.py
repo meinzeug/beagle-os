@@ -44,7 +44,15 @@ class IpamService:
         """Save IPAM state to disk (atomic write)."""
         self._store.save(self._state)
 
-    def register_zone(self, zone_id: str, subnet: str, dhcp_start: str, dhcp_end: str) -> None:
+    def register_zone(
+        self,
+        zone_id: str,
+        subnet: str,
+        dhcp_start: str,
+        dhcp_end: str,
+        *,
+        bridge_name: str = "",
+    ) -> None:
         """Register a zone for IPAM tracking."""
         try:
             network = ipaddress.ip_network(subnet, strict=False)
@@ -62,6 +70,7 @@ class IpamService:
             "subnet": subnet,
             "dhcp_start": dhcp_start,
             "dhcp_end": dhcp_end,
+            "bridge_name": str(bridge_name or "").strip(),
         }
         self._save_state()
 
@@ -168,6 +177,7 @@ class IpamService:
                 "subnet": info["subnet"],
                 "dhcp_start": info["dhcp_start"],
                 "dhcp_end": info["dhcp_end"],
+                "bridge_name": str(info.get("bridge_name") or "").strip(),
             }
             for zone_id, info in self._state.get("zone_subnets", {}).items()
         }

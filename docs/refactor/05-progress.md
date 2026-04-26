@@ -1,3 +1,82 @@
+## Update (2026-04-26, Plan 19 Schritt 7: Windows USB Writer + Live USB)
+
+- `thin-client-assistant/usb/pve-thin-client-usb-installer.ps1` von einfachem ISO-Kopierer auf variantenfaehigen Writer (`installer` / `live`) umgebaut.
+- Installer-Pfad korrigiert:
+  - Preset wird jetzt an beide erwarteten Stellen geschrieben (`pve-thin-client/preset.env`, `pve-thin-client/live/preset.env`).
+  - Eigene textbasierte GRUB-Konfiguration fuer den Preset-Installer wird erzeugt.
+- Neuer Windows-Live-USB-Pfad:
+  - schreibt Live-Assets nach `/live`,
+  - schreibt Runtime-State-Dateien unter `pve-thin-client/state`,
+  - erzeugt eine eigene Runtime-GRUB-Konfiguration mit `pve_thin_client.mode=runtime`.
+- Backend/API/UI erweitert:
+  - neuer Downloadpfad `GET /api/v1/vms/{vmid}/live-usb.ps1`,
+  - neue Profil-/Inventory-Felder `live_usb_windows_url`,
+  - neuer WebUI-Button `Live USB Windows`.
+- Packaging/Host-Downloads erweitert:
+  - neue Release-/Host-Artefakte `pve-thin-client-live-usb-*.ps1`,
+  - `scripts/package.sh`, `scripts/prepare-host-downloads.sh`, `scripts/install-beagle-host.sh`, `scripts/publish-hosted-artifacts-to-public.sh`, `scripts/create-github-release.sh` nachgezogen.
+- Validierung:
+  - `12 passed` in fokussierten Unit-Tests,
+  - `py_compile`, `node --check`, `bash -n` fuer alle geaenderten Service-/UI-/Shell-Pfade gruen.
+
+## Update (2026-04-26, Plan 08 Virtualization Node-Detail-Slice)
+
+**Scope**: GoFuture Plan 08 Schritt 7 weiter umgesetzt: `/#panel=virtualization` hat jetzt eine echte Node-Detail-Ansicht statt nur Node-Cards und Tabellen.
+
+### Umgesetzt
+
+- `beagle-host/services/virtualization_read_surface.py`:
+  - `GET /api/v1/virtualization/nodes/{node}/detail` neu.
+  - Liefert pro Node: Cluster-/Member-Metadaten, API-/RPC-URL, Service-Status (`kvm`, `libvirt`, `virsh`, `control_plane`, `rpc`), lokale Preflight-Checks, gefilterte Storage-/Bridge-/GPU-Daten und Warnungen.
+  - Lokale/Remote-Erkennung korrigiert, damit Remote-Nodes nicht faelschlich als `local=true` markiert werden.
+- `beagle-host/services/service_registry.py`: Virtualization-Read-Surface bekommt jetzt Cluster-Member-Liste und lokalen KVM/libvirt-Preflight injiziert.
+- `website/ui/virtualization.js`:
+  - Node-Cards haben jetzt einen echten `Details`-Button.
+  - Neuer Detail-Modal fuer Services, Reachability, Storage, Bridges, GPUs und Warnings.
+- `website/ui/events.js`: `data-virt-node-detail` verdrahtet.
+- `tests/unit/test_virtualization_read_surface.py`: neue Detail-Tests fuer lokalen und Remote-Node.
+
+### Validierung
+
+- Lokal: `node --check website/ui/virtualization.js` und `node --check website/ui/events.js` => OK.
+- Lokal: `python3 -m pytest tests/unit/test_virtualization_read_surface.py -q` => **4 passed**.
+- Live: Slice auf `srv1` und `srv2` ausgerollt; `beagle-control-plane` auf beiden Hosts `active`.
+- Live: `GET /api/v1/virtualization/nodes/srv1/detail` liefert auf `srv1` `local=true`, auf `srv2` `local=false`.
+- Live: ausgelieferte `https://srv1.beagle-os.com/ui/virtualization.js`, `.../ui/events.js`, `https://srv2.beagle-os.com/ui/virtualization.js`, `.../ui/events.js` enthalten den neuen Detail-Flow.
+
+### Rest-Risiken
+
+- Der Node-Detail-Flow zeigt heute vor allem Diagnose- und Reachability-Daten; editierbare Storage-/Bridge-Aktionen fehlen noch.
+- Auf den Live-Hosts liefern die Detaildaten fuer `srv1` aktuell keine Storage-/Bridge-/GPU-Eintraege; das muss im naechsten Plan-08-Slice explizit fuer die Bedienpfade und die Datenherkunft geklaert werden.
+
+### Folge-Slice
+
+- `website/index.html`, `website/ui/virtualization.js`, `website/ui/events.js`, `website/styles/panels/_virtualization.css`:
+  - Storage-Bereich in `/#panel=virtualization` von Tabelle auf echte Storage-Cards umgestellt.
+  - Pro Pool sichtbar: Typ, Node, aktiv/inaktiv, Auslastung, verfuegbar, Quota, shared.
+  - Aktionen: `Quota setzen` nutzt den vorhandenen echten Backend-Pfad; `Health pruefen` oeffnet den Node-Detail-Flow des zugehoerigen Hosts.
+- Live auf `srv1` und `srv2` ausgerollt; ausgelieferte HTML/JS/CSS-Dateien enthalten die neue Storage-Card-Ansicht.
+- `beagle-host/services/ipam_service.py`, `beagle-host/services/network_http_surface.py`, `beagle-host/services/virtualization_read_surface.py`, `beagle-host/services/service_registry.py`:
+  - IPAM-Zonen koennen jetzt optional an eine Bridge gebunden werden (`bridge_name`).
+  - Neuer Bridge-Detail-Pfad `GET /api/v1/virtualization/bridges/{bridge}/detail` aggregiert Bridge-Metadaten, lokale VM-Nutzung, Firewall-Profil-Zuordnung, IPAM-Zonen und Lease-Counts.
+- `website/index.html`, `website/ui/virtualization.js`, `website/ui/events.js`, `website/styles/panels/_virtualization.css`:
+  - Bridge-Bereich in `/#panel=virtualization` von Tabelle auf bedienbare Bridge-Cards umgestellt.
+  - Actions: `Details`, `IPAM-Zone`, `Node filtern`.
+  - Bridge-Detail-Modal zeigt Warnungen, VM-Nutzung, IPAM-Zonen/Leases und verfuegbare Firewall-Profile.
+- Lokal: `python3 -m pytest tests/unit/test_virtualization_read_surface.py tests/unit/test_network_http_surface.py -q` => **22 passed**.
+- Live: auf `srv1` und `srv2` ausgerollt und verifiziert; `GET /api/v1/virtualization/bridges/beagle/detail` liefert auf `srv1` `vm_count=1`, auf `srv2` `vm_count=0`.
+- `website/index.html`, `website/ui/virtualization.js`, `website/ui/events.js`, `website/ui/state.js`:
+  - VM-Inspector in `/#panel=virtualization` verbessert: `Letzte VM`, Recent-Shortcuts, getrennte Tabellen fuer Allgemein, Disks, Netzwerk-Config und Guest-Interfaces.
+  - Der Inspector merkt sich geladene VMIDs innerhalb der Session und erlaubt einen schnellen Ruecksprung auf die letzte geladene VM.
+- Live: aktualisierte `index.html`, `ui/virtualization.js`, `ui/events.js` und `ui/state.js` auf `srv1`/`srv2` ausgerollt und in den ausgelieferten Assets verifiziert.
+- Neuer reproduzierbarer UI-Smoke: [scripts/test-virtualization-panel-smoke.py](/home/dennis/beagle-os/scripts/test-virtualization-panel-smoke.py:1)
+  - login, Panel-Navigation, Node-/Storage-/Bridge-Cards, Node-/Bridge-Detail-Modals, VM-Inspector, Console-/Page-Error-Check.
+  - Live gegen `srv1` und `srv2` erfolgreich (`VIRT_PANEL_SMOKE=PASS`).
+- `website/index.html`, `website/ui/virtualization.js`, `website/styles/panels/_virtualization.css`:
+  - GPU-Bereich im Virtualization-Panel von Tabelle auf erklaerende Karten umgestellt.
+  - Fuer physische GPUs sichtbar: Treiberbindung, IOMMU-Gruppe, Passthrough-Status, konkrete Ursache und naechster Schritt.
+  - `srv2`-Fall explizit entschärft: GTX 1080 zeigt jetzt live `nicht isolierbar` samt Grund `IOMMU-Gruppe enthaelt weitere Geraete (3)`.
+
 ## Update (2026-05-XX, Plan 07 Member-Edit/Local-Preflight + Plan 08 Virt-Panel UX)
 
 **Scope**: GoFuture Plan 07 — `update_member()`, PATCH/DELETE Member-Endpoints, Local-KVM/libvirt-Preflight; GoFuture Plan 08 — Node-Cards mit Health-Badges und Actions, Storage-Health-Spalte, Risk-Banner.
@@ -97,6 +176,76 @@
 **Scope**: GoFuture-Plan wieder geoeffnet, weil mehrere produktrelevante Bereiche zwar Backend-/Status-Funktion haben, aber noch nicht vollstaendig ueber die Beagle Web Console bedienbar sind.
 
 ### Plan-Erweiterung in `docs/gofuture/`
+
+---
+
+## Update (2026-04-26, Live-Migration srv1→srv2 Blocker behoben + End-to-End-Validierung)
+
+**Scope**: Live-Migration zwischen srv1 und srv2 war blockiert. Root-Ursache identifiziert und behoben, End-to-End-Migration einer Test-VM erfolgreich ausgeführt.
+
+### Problem & Ursache
+
+- `virsh migrate` mit `qemu+ssh://srv2.beagle-os.com/system` hing ohne Fehlermeldung.
+- Root Cause: `srv2.beagle-os.com` löste auf srv1 nur per IPv6 (`2a01:4f8:151:912c::2`) auf — IPv6-Konnektivität zwischen srv1 und srv2 ist aber defekt/geblockt.
+- IPv4 (`176.9.127.50`) funktioniert einwandfrei.
+
+### Umgesetzt
+
+1. **root-SSH-Schlüssel ausgetauscht**: srv1-Root-Pubkey in srv2 `authorized_keys` eingetragen; `PermitRootLogin without-password` auf srv2 bestätigt.
+2. **IPv4-Hosts-Eintrag auf srv1**: `176.9.127.50 srv2.beagle-os.com srv2` in `/etc/hosts` auf srv1 eingetragen — überschreibt IPv6-DNS-Auflösung lokal.
+3. **Verbindung verifiziert**: `ssh root@srv2.beagle-os.com` und `virsh -c qemu+ssh://beagle-1/system list` und `virsh -c qemu+ssh://srv2.beagle-os.com/system list` — alle verbinden ohne Hänger.
+4. **Test-VM erstellt**: Minimale VM (`beagle-test-migration`) mit Host-Kernel + busybox-Initrd auf srv1 gestartet.
+5. **Live-Migration erfolgreich**: `virsh migrate --live --persistent --undefinesource --copy-storage-all beagle-test-migration qemu+ssh://root@srv2.beagle-os.com/system` → `Migration: [100 %]`. VM lief danach auf srv2.
+6. **Aufräumen**: Test-VM und alle Hilfsdateien auf beiden Servern entfernt.
+
+### GoFuture Plan 07 Status
+
+- `docs/gofuture/07-cluster-foundation.md`: "Live-Migration nach erfolgreichem Join validieren" → ✅
+- "Live-Migration einer laufenden Test-VM von Host A nach Host B" → ✅
+
+### Keine Codeänderungen nötig
+
+Die Migration-Service-Implementierung und URI-Template (`qemu+ssh://{target_node}/system`) sind korrekt. Der Blocker war rein infrastrukturell (IPv6-DNS). Die `/etc/hosts`-Lösung auf srv1 ist persistent und erfordert keine Softwareänderungen.
+
+---
+
+## Update (2026-04-26, Cluster-Inventory Bug Fix — Remote-VM Disambiguation)
+
+**Scope**: Kritischer Bug behoben: ubuntu-beagle-100 wurde auf srv1 mit Node="beagle-0" angezeigt, aber auf srv2 mit Node="beagle-1". Der Bug resultierten aus fehlender Quellkennzeichnung von Remote-VMs in der Cluster-Inventory-Aggregation.
+
+### Problem & Ursache
+
+- Beobachtung: VM-ID 100 zeigte sich auf unterschiedlichen Nodes auf unterschiedlichen Cluster-Membern an.
+- Root Cause: Remote-VMs in der Cluster-Inventory-Aggregation waren nicht mit ihrer Quell-Member gekennzeichnet, was zu Verwechslungen zwischen lokalen und Remote-VMs führte.
+- Auswirkung: Die Cluster-Inventory konnte Remote-VMs nicht eindeutig einer Member zuordnen.
+
+### Umgesetzt
+
+- `beagle-host/services/cluster_inventory.py`: Remote-VMs erhalten jetzt ein `"source_member": "<member_name>"` Attribut in der Aggregation.
+  - Jede Remote-VM aus einem anderen Cluster-Member wird mit der Quell-Member gekennzeichnet.
+  - Verhindert Node-Name-Kollisionen zwischen lokalen und Remote-VMs.
+  - Ermöglicht der WebUI, Remote-VMs korrekt zu filtern oder zu kennzeichnen.
+- `tests/unit/test_cluster_inventory.py`: Neuer Test `test_build_inventory_marks_remote_vms_with_source_member` validiert das Attribut.
+- All 82 Cluster-Tests bestanden ohne Regressionen.
+
+### Validierung
+
+- Lokal: `python3 -m pytest tests/unit/test_cluster_inventory.py -xvs` => **8 passed** (davon 1 neu).
+- Lokal: `python3 -m pytest tests/unit/test_cluster_*.py -xvs` => **82 passed** (keine Regressions).
+
+### Vollständige Lösung benötigt
+
+Die Cluster-Inventory-Seite ist gelöst, aber die WebUI nutzt `/api/v1/vms` (Fleet-Inventory) statt `/api/v1/cluster/inventory` für VM-Listen:
+- **Option A**: WebUI sollte den Cluster-Inventory Endpoint verwenden, um Remote-VMs zu sehen.
+- **Option B**: Fleet-Inventory sollte erweitert werden, um Remote-VMs mit `source_member` zu aggregieren.
+
+Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separate Aufgabe im Cluster-Wizard-Operability-Track.
+
+### Rest-Risiken
+
+- Die Fleet-Inventory (`/api/v1/vms`) zeigt nach wie vor nur lokale VMs. Remote-VMs sind nur in der Cluster-Inventory (`/api/v1/cluster/inventory`) sichtbar.
+- WebUI-Tests für die Remote-VM-Darstellung müssen als Teil des Cluster-Wizard-UX-Updates hinzugefügt werden.
+
 
 - `00-index.md`: Status von "Gate passed" auf aktiven Re-Open gesetzt und WebUI-Bedienbarkeit als Abschlussbedingung dokumentiert.
 - `07-cluster-foundation.md`: neuer Schritt 7 fuer Cluster-Operations-Wizards (`/#panel=cluster`): Cluster erstellen, Server hinzufuegen, Preflight, Job-Progress, Member-Verwaltung, Maintenance/Drain, srv1/srv2-Validierung.
@@ -3085,3 +3234,141 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - Remaining risk:
 	- `8443` remains public as legacy download/API port and must be reduced to downloads-only or retired after installer/download paths are moved to `443`.
 	- `srv2` still serves a self-signed TLS certificate on public HTTPS.
+## Update (2026-04-26, Plan 07 Cluster-Job-Progress live gemacht)
+
+**Scope**: GoFuture Plan 07 Schritt 7 weiter geschlossen: Auto-Join-Async liefert jetzt echte Job-Progress-Signale in der WebUI statt nur eines blockierenden Requests; die Live-Runtime auf `srv1`/`srv2` wurde auf denselben Handler-/Entry-Point-Stand gebracht.
+
+### Umgesetzt
+
+- `beagle-host/services/cluster_http_surface.py`:
+  - `POST /api/v1/cluster/auto-join-async` enqueued jetzt korrekt einen `cluster.auto_join`-Job und gibt eine echte `job_id` zurueck.
+- `beagle-host/services/cluster_job_handlers.py`:
+  - Handler liest `job.payload` statt eines veralteten `job.params`.
+  - Sichtbare Progress-Schritte: `preflight`, `token`, `remote-join`, `rpc-check`, `inventory-refresh`, `final-validation`.
+  - Audit-Events schreiben Details jetzt korrekt als `details={...}` und brechen nicht mehr mit falschen Keyword-Argumenten.
+- `beagle-host/services/control_plane_handler.py`:
+  - Job-Read- und Stream-Routen werden frueh in `do_GET` behandelt, damit `/api/v1/jobs*` nicht im allgemeinen 404-Pfad landen.
+- `beagle-host/bin/beagle-control-plane.py`:
+  - Runtime laedt wieder den extrahierten aktuellen `Handler`; der veraltete eingebettete Legacy-Handler auf den Zielhosts war die Root-Ursache fuer die frueheren 404 auf `/api/v1/jobs*`.
+- `website/ui/cluster.js`:
+  - Cluster-Auto-Join nutzt den Async-Jobpfad.
+  - Job-Progress verwendet `apiBase()` statt hartem `/api/v1`.
+  - SSE bekommt den `access_token` als Query-Parameter.
+  - Wenn der Stream nicht sofort Events liefert oder am Proxy haengt, faellt der Dialog automatisch auf Polling von `GET /jobs/{id}` zurueck.
+- `website/ui/api.js`:
+  - Live-Drift auf `srv1`/`srv2` bereinigt; `deleteJson()` ist konsistent mit `cluster.js` ausgeliefert.
+
+### Validierung
+
+- Lokal: `node --check website/ui/cluster.js && node --check website/ui/api.js` => OK.
+- Lokal: `python3 -m pytest tests/unit/test_jobs_http_surface.py tests/unit/test_cluster_http_surface.py tests/unit/test_cluster_job_handlers.py -q` => **63 passed**.
+- Live: `srv1` und `srv2` neu ausgerollt; `beagle-control-plane` auf beiden Hosts `active`.
+- Live: `GET /api/v1/jobs` und `GET /api/v1/jobs/{id}` liefern auf `srv1` jetzt `200` statt `404`.
+- Live: Smoke gegen `POST /api/v1/cluster/auto-join-async` auf `srv1` erzeugt echte Jobs; der Detail-Endpoint zeigt den Fehlerpfad reproduzierbar als `failed / Fehler: Preflight fehlgeschlagen`, statt dass die UI am Request selbst haengen bleibt.
+
+### Rest-Risiken
+
+- Der SSE-Stream antwortet live mit `200`, aber das sichtbare UI-Verhalten haengt hinter Reverse-Proxy/Browser-Caching stark von der Transportkette ab; deshalb bleibt der neue Polling-Fallback bewusst aktiv.
+- `cluster.auto_join` endet im Smoke mit einem echten fachlichen Preflight-Fehler fuers absichtlich ungueltige Setup-Code-Szenario. Das ist erwartetes Verhalten und kein Runtime-Defekt mehr.
+- Der naechste offene Cluster-Punkt ist weiter `Maintenance/Drain in denselben Operator-Flow integrieren`.
+## Update (2026-04-26, Plan 07 Maintenance/Drain als Operator-Flow)
+
+**Scope**: GoFuture Plan 07 Schritt 7 weiter geschlossen: Maintenance/Drain ist nicht mehr nur ein direkter POST-Button, sondern ein WebUI-Flow mit Vorschau, Async-Job und Ergebnisliste.
+
+### Umgesetzt
+
+- `beagle-host/services/maintenance_service.py`:
+  - `preview_drain_node()` neu: liefert betroffene VMs und geplante Aktionen ohne Seiteneffekt.
+  - `drain_node()` fuehrt jetzt nur im echten Drain die Aktionen aus; die fruehere Vermischung von Vorschau und Ausfuehrung wurde entfernt.
+- `beagle-host/services/cluster_http_surface.py`:
+  - `POST /api/v1/ha/maintenance/preview` neu.
+  - `POST /api/v1/ha/maintenance/drain-async` neu, enqueued `cluster.maintenance_drain`.
+- `beagle-host/services/cluster_job_handlers.py`:
+  - Maintenance-Jobhandler nutzt jetzt den echten `MaintenanceService`, meldet `Preflight`, `Analyse`, `Ausfuehrung`, `Verifikation` und liefert die finale Ergebnisliste zurueck.
+- `beagle-host/services/service_registry.py`:
+  - Job-Worker verdrahtet `cluster.maintenance_drain` jetzt gegen `maintenance_service()` statt gegen eine Read-Surface.
+- `website/ui/cluster.js`:
+  - Klick auf `In Maintenance versetzen` oeffnet zuerst einen Vorschau-Dialog.
+  - Der Dialog zeigt die betroffenen VMs und die geplanten Aktionen.
+  - Erst nach Bestaetigung startet der Async-Drain-Job; der bestehende Job-Progress-Dialog zeigt danach auch die Ergebnisliste an.
+
+### Validierung
+
+- Lokal: `node --check website/ui/cluster.js` => OK.
+- Lokal: `python3 -m pytest tests/unit/test_maintenance_service.py tests/unit/test_cluster_job_handlers.py tests/unit/test_cluster_http_surface.py tests/unit/test_authz_policy.py -q` => **59 passed**.
+- Live auf `srv1`:
+  - `POST /api/v1/ha/maintenance/preview` => `200`, Vorschau ohne Seiteneffekt.
+  - `POST /api/v1/ha/maintenance/drain-async` => `202`, liefert `job_id`.
+  - `GET /api/v1/jobs/{id}` => `completed`, Ergebnisliste im Payload.
+- Cleanup: Der durch den Smoke gesetzte Maintenance-Status auf `srv1` wurde danach sofort wieder auf `maintenance_nodes=[]` zurueckgesetzt.
+
+### Rest-Risiken
+
+- Es gibt weiterhin noch keinen separaten UI-Flow zum Aufheben von Maintenance; fuer den Smoke wurde der Testzustand direkt ueber die State-Datei bereinigt.
+- Als naechster offener Cluster-Punkt bleiben die UI-Regressions fuer Wizard-/Drain-Buttons, Fehlerzustaende und Dashboard-Refresh.
+## Update (2026-04-26, Plan 07 Cluster-Wizard-UI-Regressions)
+
+**Scope**: Letzter offener Plan-07-Operatorpunkt geschlossen: reproduzierbare UI-Regressions fuer Cluster-Wizards und Maintenance-Flow.
+
+### Umgesetzt
+
+- `scripts/test-cluster-wizard-smoke.py` neu:
+  - loggt sich in die echte WebUI ein,
+  - oeffnet `/#panel=cluster`,
+  - prueft den Fehlerpfad ohne Setup-Code (kein Request darf rausgehen),
+  - interceptet `cluster/auto-join-async` und validiert den vom Wizard abgeleiteten Payload,
+  - prueft den Job-Progress-Fallback ueber `/jobs/{id}`,
+  - interceptet Maintenance-Preview und Async-Drain,
+  - validiert, dass nach erfolgreichem Job wieder ein Dashboard-Refresh angestossen wird.
+
+### Validierung
+
+- Lokal: `python3 -m py_compile scripts/test-cluster-wizard-smoke.py` => OK.
+- Live: `python3 scripts/test-cluster-wizard-smoke.py --base-url https://srv1.beagle-os.com/ --username <admin> --password <secret>` => `EXIT:0`.
+
+### Rest-Risiken
+
+- Plan 07 Schritt 7 ist jetzt fuer Cluster-Wizards/Drain/Job-Progress geschlossen.
+- Offene Zwei-Server-/GPU-Themen liegen jetzt primaer in Plan 08 (`/#panel=virtualization`) und Plan 12 (`GPU`), danach in GoEnterprise-/GoAdvanced-Bloecken.
+
+## Update (2026-04-26, Thinclient Preset-Installer mkfs-Fix)
+
+**Scope**: Preset-Installation vom VM-spezifischen Thinclient-USB reproduzierbar lokal nachgestellt, Installer gegen hardware-nahe Partitionierungsfehler gehaertet und `srv1`-Downloadartefakte neu erzeugt.
+
+### Umgesetzt
+
+- `thin-client-assistant/usb/pve-thin-client-local-installer.sh` gehaertet:
+  - Live-Target-Erkennung vergleicht jetzt Root-Disk-Beziehungen statt nur exakter Device-Namen.
+  - Nach `parted` werden Partitionstabellen explizit per `blockdev --rereadpt`, `partprobe`, `partx -u` und `udevadm settle` aktualisiert.
+  - Neue `wait_for_block_device`-/`wait_for_target_partitions`-Guards warten auf wirklich beschreibbare Partition-Devices.
+  - `mkfs.vfat` und `mkfs.ext4` laufen jetzt ueber einen Retry-Pfad, damit langsame oder kurzzeitig blockierte Geraete nicht direkt als harter Installer-Abbruch enden.
+  - Tool-Preflight erweitert (`partprobe`, `partx`, `udevadm`, `blockdev`).
+- Lokale E2E-Reproduktion mit dem echten `vm100`-Preset von `srv1` gebaut:
+  - simulierten USB-Stick per Loop-Device beschrieben,
+  - lokale QEMU-VM davon gebootet,
+  - `Start preset installation` erfolgreich bis `Installation Complete` durchlaufen,
+  - Ziel-Disk danach direkt gebootet.
+- Installierte Ziel-Disk validiert:
+  - `pve-thin-client/state/thinclient.conf` enthaelt `PVE_THIN_CLIENT_PROFILE_NAME="vm-100"`,
+  - `PVE_THIN_CLIENT_MOONLIGHT_HOST="46.4.96.80"`,
+  - `PVE_THIN_CLIENT_SUNSHINE_API_URL="https://46.4.96.80:50001"`,
+  - `BEAGLE_MANAGER_URL` / `BEAGLE_ENROLLMENT_URL` zeigen auf `srv1`,
+  - `credentials.env` und `local-auth.env` wurden korrekt geschrieben.
+- `srv1` ausgerollt:
+  - gepatchtes `thin-client-assistant/usb/pve-thin-client-local-installer.sh` nach `/opt/beagle` kopiert,
+  - `scripts/prepare-host-downloads.sh` ausgefuehrt,
+  - veralteten `pve-thin-client-usb-bootstrap-*.tar.gz`/`payload-*.tar.gz` bewusst entfernt und aus dem vorhandenen ISO + aktuellem Repo neu gebaut,
+  - verifiziert, dass `dist/pve-thin-client-usb-bootstrap-latest.tar.gz` nun denselben SHA256 fuer `thin-client-assistant/usb/pve-thin-client-local-installer.sh` enthaelt wie der Repo-Fix.
+
+### Validierung
+
+- Lokal: `bash -n thin-client-assistant/usb/pve-thin-client-local-installer.sh` => OK.
+- Lokal: VM100-Installer von `srv1` auf Loop-USB geschrieben und in QEMU gebootet; Preset-Installation lief bis `Installation Complete`.
+- Lokal: installierte Ziel-Disk bootet mit Beagle-GRUB (`Beagle OS Desktop`, `Gaming`, Safe/Legacy/Fallback-Eintraege).
+- Lokal: installierte Runtime-Konfiguration auf der Ziel-Disk enthaelt die erwartete Moonlight-/Sunshine-/Manager-Konfiguration fuer `vm100`.
+- Live auf `srv1`: `scripts/prepare-host-downloads.sh` erfolgreich; gehosteter Bootstrap-Bundle traegt jetzt den gepatchten Installer-SHA.
+
+### Rest-Risiken
+
+- Der ursprüngliche physische Hardware-Fail auf dem bereits erstellten Alt-USB-Stick wurde nicht 1:1 konserviert; der Fix basiert auf der reproduzierbaren lokalen E2E-Validierung und der gehaerteten Partition-/Target-Logik.
+- Die grafische Moonlight-Session der lokal installierten Runtime wurde in diesem Run nicht per Framebuffer-Screenshot bis zum sichtbaren Stream-Inhalt abgenommen; die installierte Laufzeit-Konfiguration fuer `vm100` ist jedoch korrekt auf der Ziel-Disk vorhanden.

@@ -1,5 +1,5 @@
 import { qs, escapeHtml, text } from './dom.js';
-import { postJson, patchJson, deleteJson } from './api.js';
+import { apiBase, postJson, patchJson, deleteJson, request } from './api.js';
 import { state } from './state.js';
 
 const clusterHooks = {
@@ -88,19 +88,7 @@ export function bindClusterEvents() {
       if (!nodeName) {
         return;
       }
-      if (!window.confirm('Knoten ' + nodeName + ' in Maintenance versetzen und Drain starten?')) {
-        return;
-      }
-      maintenanceTrigger.disabled = true;
-      postJson('/ha/maintenance/drain', { node_name: nodeName }).then((payload) => {
-        const handled = Number(payload && payload.handled_vm_count ? payload.handled_vm_count : 0);
-        clusterHooks.setBanner('Maintenance-Drain fuer ' + nodeName + ' gestartet (' + handled + ' VMs behandelt).', 'success');
-        return clusterHooks.loadDashboard();
-      }).catch((error) => {
-        clusterHooks.setBanner('Maintenance-Drain fehlgeschlagen: ' + error.message, 'error');
-      }).finally(() => {
-        maintenanceTrigger.disabled = false;
-      });
+      openMaintenanceDrainModal(nodeName, maintenanceTrigger);
       return;
     }
 
@@ -397,29 +385,36 @@ function runAddServerPreflight() {
   if (button) {
     button.disabled = true;
   }
+  renderAddServerPreflight({
+    checks: [
+      { name: 'job', status: 'pass', message: 'Cluster-Job wird gestartet ...', required: true }
+    ]
+  });
   clusterHooks.setBanner('Verbinde ' + payload.advertise_host + ' sicher per Setup-Code ...', 'info');
-  postJson('/cluster/auto-join', payload, { __timeoutMs: 30000 }).then((data) => {
-    const autoJoin = data && data.auto_join ? data.auto_join : {};
-    const preflight = autoJoin.preflight || {};
-    renderAddServerPreflight(preflight);
-    const target = autoJoin.target || {};
-    const tokenOut = qs('cluster-add-server-token-output');
-    if (tokenOut) {
-      tokenOut.value = autoJoin.ok
-        ? 'Server verbunden. Cluster: ' + String(target.cluster_id || '—') + '\nMember: ' + String(target.member && target.member.name ? target.member.name : payload.node_name) + '\nMember gesamt: ' + String(target.member_count || '—')
-        : 'Auto-Join nicht abgeschlossen. Siehe Pruefung oben.';
+  postJson('/cluster/auto-join-async', payload, { __timeoutMs: 10000 }).then((data) => {
+    const jobId = String(data && data.job_id ? data.job_id : '').trim();
+    if (!jobId) {
+      throw new Error('Keine job_id vom Cluster-Job erhalten');
     }
-    if (autoJoin.ok) {
-      clusterHooks.setBanner('Server wurde per Setup-Code verbunden.', 'success');
-      return clusterHooks.loadDashboard({ force: true });
-    }
-    if (preflight && preflight.ok === false) {
-      clusterHooks.setBanner('Der Server ist noch nicht bereit. Pruefung im Assistenten zeigt, was fehlt.', 'error');
-    } else {
-      clusterHooks.setBanner('Auto-Join wurde nicht abgeschlossen.', 'error');
-    }
+    openJobProgressModal(jobId, 'Server sicher verbinden', (result) => {
+      const autoJoin = result && result.ok ? result : {};
+      const preflight = autoJoin.preflight || {};
+      const target = autoJoin.target || {};
+      renderAddServerPreflight(preflight);
+      const tokenOut = qs('cluster-add-server-token-output');
+      if (tokenOut) {
+        tokenOut.value = autoJoin.ok
+          ? 'Server verbunden. Cluster: ' + String(target.cluster_id || '—') + '\nMember: ' + String(target.member && target.member.name ? target.member.name : payload.node_name) + '\nMember gesamt: ' + String(target.member_count || '—')
+          : 'Auto-Join nicht abgeschlossen. Siehe Pruefung oben.';
+      }
+    });
   }).catch((error) => {
     clusterHooks.setBanner('Auto-Join fehlgeschlagen: ' + error.message, 'error');
+    renderAddServerPreflight({
+      checks: [
+        { name: 'job', status: 'fail', message: String(error.message || error), required: true }
+      ]
+    });
   }).finally(() => {
     if (button) {
       button.disabled = false;
@@ -595,6 +590,125 @@ function removeClusterMember(nodeName, triggerEl) {
   }).catch((error) => {
     clusterHooks.setBanner('Member-Entfernung fehlgeschlagen: ' + error.message, 'error');
   }).finally(() => {
+    if (triggerEl) {
+      triggerEl.disabled = false;
+    }
+  });
+}
+
+function actionSummaryLabel(action) {
+  const result = String(action && action.result || '').trim();
+  if (result === 'live_migration') {
+    return 'Live-Migration';
+  }
+  if (result === 'cold_restart') {
+    return 'Cold-Restart';
+  }
+  if (result === 'cold_restart_fallback') {
+    return 'Fallback-Restart';
+  }
+  if (result === 'skipped') {
+    return 'Skip';
+  }
+  return result || 'Aktion';
+}
+
+function openMaintenanceDrainModal(nodeName, triggerEl) {
+  if (triggerEl) {
+    triggerEl.disabled = true;
+  }
+  clusterHooks.setBanner('Pruefe betroffene VMs fuer Maintenance auf ' + nodeName + ' ...', 'info');
+  postJson('/ha/maintenance/preview', { node_name: nodeName }, { __timeoutMs: 10000 }).then((payload) => {
+    const actions = Array.isArray(payload && payload.actions) ? payload.actions : [];
+    const modal = document.createElement('div');
+    modal.className = 'modal cluster-job-progress-modal';
+    modal.id = `maintenance-preview-modal-${nodeName}`;
+    modal.innerHTML = `
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>${escapeHtml('Maintenance vorbereiten: ' + nodeName)}</h3>
+        </div>
+        <div class="modal-body">
+          <div class="progress-message">
+            ${escapeHtml('Vor dem Drain werden alle betroffenen VMs geprueft. Danach startet ein Hintergrund-Job und zeigt den Fortschritt live an.')}
+          </div>
+          <div class="progress-log">
+            ${
+              actions.length
+                ? actions.map((action) => {
+                  const vmid = Number(action && action.vmid ? action.vmid : 0);
+                  const vmName = String(action && action.vm_name ? action.vm_name : '').trim() || ('vm-' + String(vmid || '?'));
+                  const targetNode = String(action && action.target_node ? action.target_node : '').trim();
+                  const reason = String(action && (action.reason || action.fallback_reason) ? (action.reason || action.fallback_reason) : '').trim();
+                  return (
+                    '<div class="log-entry">' +
+                    '<strong>' + escapeHtml(vmName) + '</strong> ' +
+                    '<span>(' + escapeHtml(String(vmid || '?')) + ')</span> · ' +
+                    escapeHtml(actionSummaryLabel(action)) +
+                    (targetNode ? ' → ' + escapeHtml(targetNode) : '') +
+                    (reason ? ' · ' + escapeHtml(reason) : '') +
+                    '</div>'
+                  );
+                }).join('')
+                : '<div class="log-entry">Keine betroffenen VMs auf diesem Knoten gefunden.</div>'
+            }
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="button ghost" id="maintenance-preview-cancel-${nodeName}">Abbrechen</button>
+          <button type="button" class="button danger" id="maintenance-preview-confirm-${nodeName}">Maintenance starten</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.body.classList.add('modal-open');
+    modal.classList.add('modal-open');
+
+    const cleanup = () => {
+      modal.remove();
+      if (document.querySelectorAll('.modal.modal-open').length === 0) {
+        document.body.classList.remove('modal-open');
+      }
+      if (triggerEl) {
+        triggerEl.disabled = false;
+      }
+    };
+
+    const cancelBtn = document.getElementById(`maintenance-preview-cancel-${nodeName}`);
+    const confirmBtn = document.getElementById(`maintenance-preview-confirm-${nodeName}`);
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', cleanup);
+    }
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => {
+        confirmBtn.disabled = true;
+        if (cancelBtn) {
+          cancelBtn.disabled = true;
+        }
+        clusterHooks.setBanner('Maintenance-Drain fuer ' + nodeName + ' wird als Job gestartet ...', 'info');
+        postJson('/ha/maintenance/drain-async', { node_name: nodeName }, { __timeoutMs: 10000 }).then((response) => {
+          const jobId = String(response && response.job_id ? response.job_id : '').trim();
+          if (!jobId) {
+            throw new Error('Keine job_id fuer Maintenance-Drain erhalten');
+          }
+          cleanup();
+          openJobProgressModal(jobId, 'Maintenance-Drain: ' + nodeName, (result) => {
+            const handled = Number(result && result.handled_vm_count ? result.handled_vm_count : 0);
+            clusterHooks.setBanner('Maintenance-Drain fuer ' + nodeName + ' abgeschlossen (' + handled + ' VM-Aktion(en)).', 'success');
+          });
+        }).catch((error) => {
+          if (confirmBtn) {
+            confirmBtn.disabled = false;
+          }
+          if (cancelBtn) {
+            cancelBtn.disabled = false;
+          }
+          clusterHooks.setBanner('Maintenance-Drain konnte nicht gestartet werden: ' + error.message, 'error');
+        });
+      });
+    }
+  }).catch((error) => {
+    clusterHooks.setBanner('Maintenance-Vorschau fehlgeschlagen: ' + error.message, 'error');
     if (triggerEl) {
       triggerEl.disabled = false;
     }
@@ -807,4 +921,279 @@ export function renderClusterPanel() {
   }).join('');
 
   renderHaStatusPanel();
+}
+
+// Job-based async cluster join with SSE progress streaming
+function streamJobProgress(jobId, onProgress, onComplete, onError) {
+  /**
+   * Stream job progress via Server-Sent Events.
+   * Calls onProgress with {percent, message} for each update.
+   * Calls onComplete with final result when job finishes.
+   * Calls onError with error message if streaming fails.
+   */
+  const jobPath = '/jobs/' + encodeURIComponent(jobId);
+  const streamUrl = new URL(apiBase() + jobPath + '/stream', window.location.origin);
+  if (state.token) {
+    streamUrl.searchParams.set('access_token', state.token);
+  }
+  let eventSource = null;
+  let pollTimer = 0;
+  let settled = false;
+  let lastSignature = '';
+  let sseFailed = false;
+
+  function cleanup() {
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    if (pollTimer) {
+      window.clearTimeout(pollTimer);
+      pollTimer = 0;
+    }
+  }
+
+  function emitFromPayload(data) {
+    const progress = Number(data && data.progress || 0);
+    const message = String(data && data.message || '').trim();
+    const status = String(data && data.status || '').toLowerCase();
+    const error = String(data && data.error || '').trim();
+    const signature = JSON.stringify([status, progress, message, error]);
+    if (signature !== lastSignature) {
+      lastSignature = signature;
+      onProgress({ percent: progress, message });
+    }
+    if (status === 'completed') {
+      settled = true;
+      cleanup();
+      onComplete(data.result || data);
+      return true;
+    }
+    if (status === 'failed' || status === 'cancelled') {
+      settled = true;
+      cleanup();
+      onError(error || 'Job fehlgeschlagen');
+      return true;
+    }
+    return false;
+  }
+
+  function pollJob() {
+    if (settled) {
+      return;
+    }
+    request(jobPath, { __suppressAuthLock: true }).then((data) => {
+      if (settled) {
+        return;
+      }
+      emitFromPayload(data || {});
+      if (!settled) {
+        pollTimer = window.setTimeout(pollJob, 1200);
+      }
+    }).catch((error) => {
+      if (settled) {
+        return;
+      }
+      cleanup();
+      onError(String(error && error.message ? error.message : error || 'Cluster-Job nicht erreichbar'));
+    });
+  }
+
+  try {
+    eventSource = new EventSource(streamUrl.toString());
+    eventSource.onmessage = (event) => {
+      if (settled) {
+        return;
+      }
+      try {
+        const data = JSON.parse(event.data);
+        emitFromPayload(data || {});
+      } catch (error) {
+        console.error('Failed to parse job event:', error);
+      }
+    };
+    eventSource.onerror = () => {
+      if (settled || sseFailed) {
+        return;
+      }
+      sseFailed = true;
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+      pollJob();
+    };
+    pollTimer = window.setTimeout(pollJob, 1500);
+  } catch (error) {
+    void error;
+    pollJob();
+  }
+
+  return cleanup;
+}
+
+function openJobProgressModal(jobId, title, onCompleteResult) {
+  /**
+   * Show a progress modal for a long-running job and stream updates via SSE.
+   */
+  const modal = document.createElement('div');
+  modal.className = 'modal cluster-job-progress-modal';
+  modal.id = `job-progress-modal-${jobId}`;
+  modal.innerHTML = `
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>${escapeHtml(title)}</h3>
+      </div>
+      <div class="modal-body">
+        <div class="progress-container">
+          <div class="progress-bar-wrapper">
+            <div class="progress-bar" id="job-progress-bar-${jobId}" style="width: 0%"></div>
+          </div>
+          <div class="progress-percent" id="job-progress-percent-${jobId}">0%</div>
+        </div>
+        <div class="progress-message" id="job-progress-message-${jobId}">Starten...</div>
+        <div class="progress-log" id="job-progress-log-${jobId}"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="button ghost" id="job-progress-close-${jobId}" disabled>Schließen</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  document.body.classList.add('modal-open');
+  modal.classList.add('modal-open');
+  
+  const closeBtn = document.getElementById(`job-progress-close-${jobId}`);
+  const progressBar = document.getElementById(`job-progress-bar-${jobId}`);
+  const progressPercent = document.getElementById(`job-progress-percent-${jobId}`);
+  const progressMessage = document.getElementById(`job-progress-message-${jobId}`);
+  const progressLog = document.getElementById(`job-progress-log-${jobId}`);
+  
+  const stopStreaming = streamJobProgress(
+    jobId,
+    // onProgress
+    (update) => {
+      if (progressBar) progressBar.style.width = update.percent + '%';
+      if (progressPercent) progressPercent.textContent = update.percent + '%';
+      if (progressMessage && update.message) {
+        progressMessage.textContent = update.message;
+      }
+      if (progressLog && update.message) {
+        const logEntry = document.createElement('div');
+        logEntry.className = 'log-entry';
+        logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${update.message}`;
+        progressLog.appendChild(logEntry);
+        progressLog.scrollTop = progressLog.scrollHeight;
+      }
+    },
+    // onComplete
+    (result) => {
+      if (progressBar) progressBar.style.width = '100%';
+      if (progressPercent) progressPercent.textContent = '100%';
+      if (closeBtn) closeBtn.disabled = false;
+      if (progressMessage) progressMessage.textContent = 'Abgeschlossen!';
+      if (typeof onCompleteResult === 'function') {
+        onCompleteResult(result);
+      }
+      
+      if (progressLog) {
+        if (result && Array.isArray(result.actions) && result.actions.length) {
+          result.actions.forEach((action) => {
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            const vmid = Number(action && action.vmid ? action.vmid : 0);
+            const vmName = String(action && action.vm_name ? action.vm_name : '').trim() || ('vm-' + String(vmid || '?'));
+            const targetNode = String(action && action.target_node ? action.target_node : '').trim();
+            const reason = String(action && (action.reason || action.fallback_reason) ? (action.reason || action.fallback_reason) : '').trim();
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${vmName} (${String(vmid || '?')}) · ${actionSummaryLabel(action)}${targetNode ? ' -> ' + targetNode : ''}${reason ? ' · ' + reason : ''}`;
+            progressLog.appendChild(logEntry);
+          });
+        }
+        const logEntry = document.createElement('div');
+        logEntry.className = 'log-entry log-entry-success';
+        logEntry.textContent = `[${new Date().toLocaleTimeString()}] ✓ Job erfolgreich abgeschlossen`;
+        progressLog.appendChild(logEntry);
+        progressLog.scrollTop = progressLog.scrollHeight;
+      }
+      
+      // Auto-close and refresh after 2 seconds
+      setTimeout(() => {
+        stopStreaming();
+        modal.remove();
+        if (document.querySelectorAll('.modal.modal-open').length === 0) {
+          document.body.classList.remove('modal-open');
+        }
+        clusterHooks.setBanner('Cluster-Operation erfolgreich.', 'success');
+        clusterHooks.loadDashboard({ force: true });
+      }, 2000);
+    },
+    // onError
+    (errorMsg) => {
+      if (progressPercent) progressPercent.classList.add('error');
+      if (closeBtn) closeBtn.disabled = false;
+      if (progressMessage) progressMessage.textContent = `Fehler: ${errorMsg}`;
+      
+      if (progressLog) {
+        const logEntry = document.createElement('div');
+        logEntry.className = 'log-entry log-entry-error';
+        logEntry.textContent = `[${new Date().toLocaleTimeString()}] ✗ Fehler: ${errorMsg}`;
+        progressLog.appendChild(logEntry);
+        progressLog.scrollTop = progressLog.scrollHeight;
+      }
+    }
+  );
+  
+  closeBtn.addEventListener('click', () => {
+    stopStreaming();
+    modal.remove();
+    if (document.querySelectorAll('.modal.modal-open').length === 0) {
+      document.body.classList.remove('modal-open');
+    }
+  });
+}
+
+function joinExistingClusterAsyncFromWizard() {
+  /**
+   * Join cluster using async auto-join-async endpoint with job progress streaming.
+   * Uses the setup code from cluster-setup-code-output or reads input from token field.
+   * This is an alternative to the synchronous joinExistingClusterFromWizard().
+   */
+  let setupCode = fieldValue('cluster-setup-code-input');
+  if (!setupCode) {
+    // Fallback: try to read from the output field if it was copied there
+    setupCode = fieldValue('cluster-setup-code-output');
+  }
+  
+  const payload = {
+    setup_code: setupCode,
+    node_name: fieldValue('cluster-existing-node'),
+    api_url: fieldValue('cluster-existing-api-url'),
+    advertise_host: fieldValue('cluster-existing-advertise'),
+    rpc_url: fieldValue('cluster-existing-rpc') || '',
+    ssh_port: parseInt(fieldValue('cluster-existing-ssh-port') || '22'),
+    timeout: 5.0,
+    token_ttl_seconds: 900
+  };
+  
+  if (!payload.setup_code) {
+    clusterHooks.setBanner('Setup-Code ist erforderlich. Bitte erzeuge einen Code auf dem Zielserver.', 'warn');
+    return;
+  }
+  if (!payload.node_name || !payload.api_url || !payload.advertise_host) {
+    clusterHooks.setBanner('Erforderliche Felder fehlen: Node Name, API URL, Advertise Host', 'warn');
+    return;
+  }
+  
+  clusterHooks.setBanner('Starte Cluster-Beitritt mit Job-Progress-Tracking...', 'info');
+  
+  postJson('/cluster/auto-join-async', payload, { __timeoutMs: 5000 }).then((response) => {
+    if (!response.ok || !response.job_id) {
+      throw new Error(response.error || 'Keine job_id in response');
+    }
+    closeClusterModals();
+    openJobProgressModal(response.job_id, `Tritt Cluster bei: ${payload.node_name}`);
+  }).catch((error) => {
+    clusterHooks.setBanner('Cluster-Beitritt konnte nicht gestartet werden: ' + error.message, 'error');
+  });
 }

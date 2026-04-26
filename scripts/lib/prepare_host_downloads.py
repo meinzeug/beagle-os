@@ -81,13 +81,14 @@ def patch_host_shell_template(
     path.write_text(rendered, encoding="utf-8")
 
 
-def patch_host_windows_template(*, path: Path, installer_iso_url: str) -> None:
+def patch_host_windows_template(*, path: Path, installer_iso_url: str, writer_variant: str) -> None:
     template_patch = InstallerTemplatePatchService()
     rendered = template_patch.patch_windows_installer_defaults(
         path.read_text(encoding="utf-8"),
         "",
         "",
         str(installer_iso_url or ""),
+        str(writer_variant or ""),
     )
     path.write_text(rendered, encoding="utf-8")
 
@@ -242,6 +243,7 @@ def _build_vm_catalog_entry(
             "installer_url": f"/beagle-api/api/v1/vms/{vmid}/installer.sh",
             "live_usb_url": f"/beagle-api/api/v1/vms/{vmid}/live-usb.sh",
             "installer_windows_url": f"/beagle-api/api/v1/vms/{vmid}/installer.ps1",
+            "live_usb_windows_url": f"/beagle-api/api/v1/vms/{vmid}/live-usb.ps1",
             "installer_iso_url": installer_iso_url,
             "stream_host": preset.get("PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST", ""),
             "sunshine_api_url": preset.get("PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL", ""),
@@ -263,6 +265,8 @@ def _build_vm_catalog_entry(
         "live_usb_url": profile_contract["live_usb_url"],
         "installer_windows_filename": "",
         "installer_windows_url": profile_contract["installer_windows_url"],
+        "live_usb_windows_filename": "",
+        "live_usb_windows_url": profile_contract["live_usb_windows_url"],
         "installer_iso_url": profile_contract["installer_iso_url"],
         "available_modes": available_modes,
     }
@@ -333,6 +337,7 @@ def write_download_status(
     installer_url: str,
     live_usb_url: str,
     installer_windows_url: str,
+    live_usb_windows_url: str,
     bootstrap_url: str,
     payload_url: str,
     installer_iso_url: str,
@@ -343,6 +348,7 @@ def write_download_status(
     installer_path: Path,
     live_usb_path: Path,
     installer_windows_path: Path,
+    live_usb_windows_path: Path,
     bootstrap_path: Path,
     payload_path: Path,
     installer_iso_path: Path,
@@ -356,6 +362,7 @@ def write_download_status(
     server_installimage_sha256: str,
     vm_installer_url_template: str,
     vm_windows_installer_url_template: str,
+    vm_windows_live_usb_url_template: str,
     vm_live_usb_url_template: str,
     vm_installers_path: Path,
 ) -> None:
@@ -369,6 +376,7 @@ def write_download_status(
         "installer_url": installer_url,
         "live_usb_url": live_usb_url,
         "installer_windows_url": installer_windows_url,
+        "live_usb_windows_url": live_usb_windows_url,
         "installer_iso_url": installer_iso_url,
         "bootstrap_url": bootstrap_url,
         "payload_url": payload_url,
@@ -377,6 +385,7 @@ def write_download_status(
         "installer_size": installer_path.stat().st_size,
         "live_usb_size": live_usb_path.stat().st_size,
         "installer_windows_size": installer_windows_path.stat().st_size,
+        "live_usb_windows_size": live_usb_windows_path.stat().st_size,
         "bootstrap_size": bootstrap_path.stat().st_size,
         "payload_size": payload_path.stat().st_size,
         "installer_iso_size": installer_iso_path.stat().st_size,
@@ -391,6 +400,7 @@ def write_download_status(
         "installer_filename": installer_path.name,
         "live_usb_filename": live_usb_path.name,
         "installer_windows_filename": installer_windows_path.name,
+        "live_usb_windows_filename": live_usb_windows_path.name,
         "installer_iso_filename": installer_iso_path.name,
         "server_installer_iso_filename": server_installer_iso_path.name,
         "server_installimage_filename": server_installimage_path.name,
@@ -400,6 +410,7 @@ def write_download_status(
         "server_installimage_url": server_installimage_url,
         "vm_installer_url_template": vm_installer_url_template,
         "vm_windows_installer_url_template": vm_windows_installer_url_template,
+        "vm_windows_live_usb_url_template": vm_windows_live_usb_url_template,
         "vm_live_usb_url_template": vm_live_usb_url_template,
         "vm_installer_count": len(vm_installers),
         "vm_installers": vm_installers,
@@ -421,6 +432,7 @@ def _build_parser() -> argparse.ArgumentParser:
     patch_windows_parser = subparsers.add_parser("patch-host-windows-template")
     patch_windows_parser.add_argument("--path", required=True)
     patch_windows_parser.add_argument("--installer-iso-url", required=True)
+    patch_windows_parser.add_argument("--writer-variant", required=True)
 
     metadata_parser = subparsers.add_parser("generate-vm-installers-metadata")
     metadata_parser.add_argument("--provider-module-path", required=True)
@@ -441,6 +453,7 @@ def _build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--installer-url", required=True)
     status_parser.add_argument("--live-usb-url", required=True)
     status_parser.add_argument("--installer-windows-url", required=True)
+    status_parser.add_argument("--live-usb-windows-url", required=True)
     status_parser.add_argument("--bootstrap-url", required=True)
     status_parser.add_argument("--payload-url", required=True)
     status_parser.add_argument("--installer-iso-url", required=True)
@@ -451,6 +464,7 @@ def _build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--installer-path", required=True)
     status_parser.add_argument("--live-usb-path", required=True)
     status_parser.add_argument("--installer-windows-path", required=True)
+    status_parser.add_argument("--live-usb-windows-path", required=True)
     status_parser.add_argument("--bootstrap-path", required=True)
     status_parser.add_argument("--payload-path", required=True)
     status_parser.add_argument("--installer-iso-path", required=True)
@@ -464,6 +478,7 @@ def _build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--server-installimage-sha256", required=True)
     status_parser.add_argument("--vm-installer-url-template", required=True)
     status_parser.add_argument("--vm-windows-installer-url-template", required=True)
+    status_parser.add_argument("--vm-windows-live-usb-url-template", required=True)
     status_parser.add_argument("--vm-live-usb-url-template", required=True)
     status_parser.add_argument("--vm-installers-path", required=True)
 
@@ -488,6 +503,7 @@ def main(argv: list[str] | None = None) -> int:
         patch_host_windows_template(
             path=Path(args.path),
             installer_iso_url=args.installer_iso_url,
+            writer_variant=args.writer_variant,
         )
         return 0
 
@@ -514,6 +530,7 @@ def main(argv: list[str] | None = None) -> int:
             installer_url=args.installer_url,
             live_usb_url=args.live_usb_url,
             installer_windows_url=args.installer_windows_url,
+            live_usb_windows_url=args.live_usb_windows_url,
             bootstrap_url=args.bootstrap_url,
             payload_url=args.payload_url,
             installer_iso_url=args.installer_iso_url,
@@ -524,6 +541,7 @@ def main(argv: list[str] | None = None) -> int:
             installer_path=Path(args.installer_path),
             live_usb_path=Path(args.live_usb_path),
             installer_windows_path=Path(args.installer_windows_path),
+            live_usb_windows_path=Path(args.live_usb_windows_path),
             bootstrap_path=Path(args.bootstrap_path),
             payload_path=Path(args.payload_path),
             installer_iso_path=Path(args.installer_iso_path),
@@ -537,6 +555,7 @@ def main(argv: list[str] | None = None) -> int:
             server_installimage_sha256=args.server_installimage_sha256,
             vm_installer_url_template=args.vm_installer_url_template,
             vm_windows_installer_url_template=args.vm_windows_installer_url_template,
+            vm_windows_live_usb_url_template=args.vm_windows_live_usb_url_template,
             vm_live_usb_url_template=args.vm_live_usb_url_template,
             vm_installers_path=Path(args.vm_installers_path),
         )

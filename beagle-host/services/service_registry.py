@@ -45,6 +45,7 @@ from ca_manager import ClusterCaService
 from cluster_inventory import ClusterInventoryService
 from cluster_membership import ClusterMembershipService
 from cluster_rpc import ClusterRpcError, ClusterRpcService
+from cluster_job_handlers import make_cluster_auto_join_handler, make_cluster_maintenance_drain_handler
 from control_plane_read_surface import ControlPlaneReadSurfaceService
 from download_metadata import DownloadMetadataService
 from endpoint_lifecycle_surface import EndpointLifecycleSurfaceService
@@ -1204,6 +1205,33 @@ def job_worker() -> JobWorker:
     return JOB_WORKER
 
 
+def initialize_job_worker_handlers() -> None:
+    """Register all job handlers and start the worker if not already running.
+    
+    Must be called once at startup. Safe to call multiple times.
+    """
+    worker = job_worker()
+    
+    # Register cluster handlers
+    if "cluster.auto_join" not in worker.registered_names():
+        handler = make_cluster_auto_join_handler(
+            cluster_membership_service=cluster_membership_service(),
+            audit_event=audit_log_service().write_event,
+        )
+        worker.register("cluster.auto_join", handler)
+    
+    if "cluster.maintenance_drain" not in worker.registered_names():
+        handler = make_cluster_maintenance_drain_handler(
+            maintenance_service=maintenance_service(),
+            audit_event=audit_log_service().write_event,
+        )
+        worker.register("cluster.maintenance_drain", handler)
+    
+    # Start the worker if not already running
+    if not worker.is_running:
+        worker.start()
+
+
 def jobs_http_surface() -> JobsHttpSurface:
     """Singleton jobs HTTP surface (GoAdvanced Plan 07 Schritt 4)."""
     global JOBS_HTTP_SURFACE
@@ -2092,12 +2120,19 @@ def patch_installer_defaults(
     )
 
 
-def patch_windows_installer_defaults(script_text: str, preset_name: str, preset_b64: str, installer_iso_url: str) -> str:
+def patch_windows_installer_defaults(
+    script_text: str,
+    preset_name: str,
+    preset_b64: str,
+    installer_iso_url: str,
+    writer_variant: str,
+) -> str:
     return installer_template_patch_service().patch_windows_installer_defaults(
         script_text,
         preset_name,
         preset_b64,
         installer_iso_url,
+        writer_variant,
     )
 
 
@@ -2864,6 +2899,7 @@ def vm_http_surface_service() -> VmHttpSurfaceService:
             render_vm_installer_script=render_vm_installer_script,
             render_vm_live_usb_script=render_vm_live_usb_script,
             render_vm_windows_installer_script=render_vm_windows_installer_script,
+            render_vm_windows_live_usb_script=render_vm_windows_live_usb_script,
             service_name="beagle-control-plane",
             summarize_endpoint_report=summarize_endpoint_report,
             summarize_installer_prep_state=summarize_installer_prep_state,
@@ -2978,13 +3014,20 @@ def virtualization_read_surface_service() -> VirtualizationReadSurfaceService:
             build_cluster_inventory=build_cluster_inventory,
             find_vm=find_vm,
             get_guest_network_interfaces=lambda vmid: get_guest_network_interfaces(vmid, timeout_seconds=GUEST_AGENT_TIMEOUT_SECONDS),
+            get_ipam_zone_leases=lambda zone_id: ipam_service().get_zone_leases(zone_id),
+            get_ipam_zones=lambda: ipam_service().get_all_zones(),
+            get_local_preflight=lambda: cluster_membership_service().local_preflight_kvm_libvirt(),
             get_storage_quota=lambda pool_name: storage_quota_service().get_pool_quota(pool_name),
             get_vm_config=get_vm_config,
+            get_vm_firewall_profile=lambda vm_id: firewall_service().get_vm_profile(vm_id),
             host_provider_kind=BEAGLE_HOST_PROVIDER_KIND,
+            list_cluster_members=lambda: cluster_membership_service().list_members(),
             list_bridges_inventory=lambda node="": HOST_PROVIDER.list_bridges(node),
+            list_firewall_profiles=lambda: firewall_service().list_profiles(),
             list_gpu_inventory=lambda: gpu_inventory_service().list_gpus(),
             list_nodes_inventory=list_nodes_inventory,
             list_storage_inventory=list_storage_inventory,
+            list_vms=list_vms,
             service_name="beagle-control-plane",
             utcnow=utcnow,
             version=VERSION,
@@ -3495,6 +3538,10 @@ def render_vm_live_usb_script(vm: VmSummary) -> tuple[bytes, str]:
 
 def render_vm_windows_installer_script(vm: VmSummary) -> tuple[bytes, str]:
     return installer_script_service().render_windows_installer_script(vm)
+
+
+def render_vm_windows_live_usb_script(vm: VmSummary) -> tuple[bytes, str]:
+    return installer_script_service().render_windows_live_usb_script(vm)
 
 
 def extract_bearer_token(header_value: str) -> str:

@@ -87,19 +87,24 @@ kann dann entweder den Pool verkleinern oder neue GPU-Hardware hinzufügen.
 
 ### Schritt 6 — `/#panel=virtualization` UX-Refactor: GPU/vGPU/SR-IOV bedienbar machen
 
-- [ ] GPU-Bereich im Virtualization-Panel neu strukturieren: physische GPUs, Passthrough, vGPU/mdev und SR-IOV getrennt anzeigen.
-- [ ] GPU-Readiness klar erklären: IOMMU-Gruppe, aktueller Treiber, `passthrough_ready`, Status `available|assigned|not-isolatable|driver-bound`.
-- [ ] Für nicht nutzbare GPUs konkrete Ursache und nächsten Schritt anzeigen, z.B. `IOMMU-Gruppe enthält Root Port`, `ACS fehlt`, `vfio-pci nicht aktiv`, `Host-Reboot erforderlich`.
+- [x] GPU-Bereich im Virtualization-Panel neu strukturieren: physische GPUs, Passthrough, vGPU/mdev und SR-IOV getrennt anzeigen.
+- [x] GPU-Readiness klar erklären: IOMMU-Gruppe, aktueller Treiber, `passthrough_ready`, Status `available|assigned|not-isolatable|driver-bound`.
+- [x] Für nicht nutzbare GPUs konkrete Ursache und nächsten Schritt anzeigen, z.B. `IOMMU-Gruppe enthält Root Port`, `ACS fehlt`, `vfio-pci nicht aktiv`, `Host-Reboot erforderlich`.
 - [ ] GPU-Zuweisung als Wizard bauen: GPU wählen, Ziel-VM wählen, Risiko-/Reboot-Hinweis, XML-Änderung bestätigen, Ergebnis anzeigen.
 - [ ] Release/Detach als eigener Flow mit Bestätigung und sichtbarer Auswirkung auf VM-/GPU-State.
 - [ ] vGPU/mdev-Flow verbessern: unterstützte Typen als Cards, Slot-Kapazität, Erzeugen/Löschen/Zuweisen mit Fehlerzuständen.
 - [ ] SR-IOV-Flow verbessern: VF-Anzahl setzen, VFs anzeigen, VM-Zuweisung vorbereiten, Kernel-/Hardware-Constraints erklären.
-- [ ] srv2-spezifischen Status sichtbar machen: NVIDIA GTX 1080 vorhanden, `vfio-pci` gebunden, aber `passthrough_ready=false` wegen nicht isolierbarer IOMMU-Gruppe.
+- [x] srv2-spezifischen Status sichtbar machen: NVIDIA GTX 1080 vorhanden, `vfio-pci` gebunden, aber `passthrough_ready=false` wegen nicht isolierbarer IOMMU-Gruppe.
 - [ ] UI-Regressions ergänzen: not-isolatable Rendering, Wizard-Payload, Assign/Release-Fehler, mdev/SR-IOV Empty-States.
 - [ ] E2E-Validierung erst abhaken, wenn eine VM-seitige GPU-Prüfung (`nvidia-smi` oder äquivalent) erfolgreich ist oder der Hardware-Blocker explizit als nicht lösbar entschieden wurde.
 
 Warum dieser Schritt noch offen ist:
 Die GPU-APIs und erste Tabellen existieren, aber die WebUI muss Betreiber vor gefährlichen oder unmöglichen Aktionen schützen. `srv2` zeigt den typischen Fall: Die GPU ist vorhanden und an `vfio-pci` gebunden, aber wegen IOMMU-Gruppierung nicht sauber isolierbar. Das darf nicht als generischer Fehler in einer Tabelle verschwinden, sondern muss als verständliche Handlungsanweisung in der Web Console erscheinen.
+
+Validierung (2026-04-26, srv2.beagle-os.com):
+- Die WebUI liefert physische GPUs jetzt als Karten mit Readiness-Label, Treiberbindung, IOMMU-Gruppeninfo, Ursache und nächstem Schritt statt als nackte Tabelle.
+- `srv2` zeigt für die GTX 1080 live: `nicht isolierbar`, `vfio-pci`, `Group 1 (3)` und den Hinweis `IOMMU-Gruppe enthaelt weitere Geraete (3)`.
+- Ausgelieferte Assets `index.html`, `ui/virtualization.js` und `styles/panels/_virtualization.css` auf `srv1`/`srv2` verifiziert.
 
 ---
 

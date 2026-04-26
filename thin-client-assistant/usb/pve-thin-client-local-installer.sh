@@ -234,7 +234,7 @@ ensure_apt_dns() {
 require_tools() {
   local missing=()
   local tool
-  for tool in grub-install mkfs.vfat mkfs.ext4 parted lsblk blkid findmnt python3 curl tar; do
+  for tool in grub-install mkfs.vfat mkfs.ext4 parted partprobe partx udevadm blockdev lsblk blkid findmnt python3 curl tar; do
     if ! command -v "$tool" >/dev/null 2>&1; then
       missing+=("$tool")
     fi
@@ -259,6 +259,8 @@ require_tools() {
       dosfstools \
       e2fsprogs \
       parted \
+      util-linux \
+      udev \
       grub2-common \
       grub-pc-bin \
       grub-efi-amd64-bin \
@@ -314,6 +316,112 @@ run_logged_function() {
   log_msg "$label"
   "$@" >>"$LOG_FILE" 2>&1
   sync_logs_to_medium
+}
+
+device_root_disk() {
+  local device="$1"
+  local type="" parent_name=""
+
+  [[ -n "$device" && -b "$device" ]] || return 1
+  type="$(lsblk -ndo TYPE "$device" 2>/dev/null || true)"
+  if [[ "$type" == "disk" ]]; then
+    printf '%s\n' "$device"
+    return 0
+  fi
+
+  parent_name="$(lsblk -ndo PKNAME "$device" 2>/dev/null || true)"
+  [[ -n "$parent_name" ]] || return 1
+  printf '/dev/%s\n' "$parent_name"
+}
+
+device_resolves_to_root_disk() {
+  local candidate="$1"
+  local root_disk="$2"
+  local resolved=""
+
+  [[ -n "$candidate" && -n "$root_disk" ]] || return 1
+  resolved="$(device_root_disk "$candidate" 2>/dev/null || true)"
+  [[ -n "$resolved" && "$resolved" == "$root_disk" ]]
+}
+
+wait_for_block_device() {
+  local device="$1"
+  local attempts="${2:-20}"
+  local delay="${3:-0.5}"
+  local attempt=1
+  local ro_state=""
+
+  while (( attempt <= attempts )); do
+    if [[ -b "$device" ]]; then
+      ro_state="$(blockdev --getro "$device" 2>/dev/null || printf '1')"
+      if [[ "$ro_state" == "0" ]]; then
+        return 0
+      fi
+      log_msg "wait_for_block_device: $device exists but is still read-only (attempt $attempt/$attempts)"
+    else
+      log_msg "wait_for_block_device: $device not present yet (attempt $attempt/$attempts)"
+    fi
+    udevadm settle >/dev/null 2>&1 || true
+    sleep "$delay"
+    attempt=$((attempt + 1))
+  done
+
+  log_msg "wait_for_block_device: $device did not become writable in time"
+  return 1
+}
+
+refresh_partition_table() {
+  local target_disk="$1"
+  local attempt=1
+
+  while (( attempt <= 10 )); do
+    log_msg "refresh_partition_table: target=$target_disk attempt=$attempt"
+    blockdev --rereadpt "$target_disk" >>"$LOG_FILE" 2>&1 || true
+    partprobe "$target_disk" >>"$LOG_FILE" 2>&1 || true
+    partx -u "$target_disk" >>"$LOG_FILE" 2>&1 || true
+    udevadm settle >>"$LOG_FILE" 2>&1 || true
+    sync_logs_to_medium
+    sleep 0.5
+    attempt=$((attempt + 1))
+  done
+}
+
+wait_for_target_partitions() {
+  local target_disk="$1"
+  shift
+  local part=""
+
+  refresh_partition_table "$target_disk"
+  for part in "$@"; do
+    wait_for_block_device "$part" 20 0.5 || return 1
+  done
+}
+
+run_logged_step_with_retry() {
+  local label="$1"
+  local attempts="$2"
+  local delay="$3"
+  shift 3
+  local attempt=1
+  local rc=0
+
+  while (( attempt <= attempts )); do
+    log_msg "$label (attempt $attempt/$attempts)"
+    if "$@" >>"$LOG_FILE" 2>&1; then
+      sync_logs_to_medium
+      return 0
+    fi
+    rc=$?
+    sync_logs_to_medium
+    log_msg "$label failed with rc=$rc"
+    if (( attempt >= attempts )); then
+      return "$rc"
+    fi
+    sleep "$delay"
+    attempt=$((attempt + 1))
+  done
+
+  return "$rc"
 }
 
 log_runtime_snapshot() {
@@ -961,7 +1069,7 @@ PY
 }
 
 choose_target_disk() {
-  local live_disk menu_items preferred_items fallback_items device label name size model type rm transport answer tty_path live_flag
+  local live_disk menu_items preferred_items fallback_items device label name size model type rm transport answer tty_path live_flag root_candidate
   local -a live_disks=()
   if [[ -n "$TARGET_DISK_OVERRIDE" ]]; then
     printf '%s\n' "$TARGET_DISK_OVERRIDE"
@@ -989,6 +1097,13 @@ choose_target_disk() {
     live_flag="0"
     if printf '%s\n' "${live_disks[@]}" | grep -Fxq "$device"; then
       live_flag="1"
+    else
+      for root_candidate in "${live_disks[@]}"; do
+        if device_resolves_to_root_disk "$device" "$root_candidate"; then
+          live_flag="1"
+          break
+        fi
+      done
     fi
     label="${model:-disk} ${size:-unknown} rm=${rm:-0} ${transport:-}"
     log_msg "choose_target_disk: candidate device=$device size=${size:-unknown} model=${model:-disk} rm=${rm:-0} tran=${transport:-} live=$live_flag"
@@ -2035,16 +2150,18 @@ main() {
   run_logged parted -s "$target_disk" set 2 esp on
   run_logged parted -s "$target_disk" set 2 boot on
   run_logged parted -s "$target_disk" mkpart primary ext4 515MiB 100%
-  run_logged partprobe "$target_disk"
-  run_logged udevadm settle
+  wait_for_target_partitions "$target_disk" "$bios_part" "$boot_part" "$root_part" || {
+    echo "Target partitions did not become ready on $target_disk" >&2
+    exit 1
+  }
 
   [[ -b "$bios_part" ]] || {
     echo "BIOS boot partition could not be created on $target_disk" >&2
     exit 1
   }
 
-  run_logged_step "formatting EFI partition $boot_part" mkfs.vfat -F 32 -n BEAGLEBOOT "$boot_part"
-  run_logged_step "formatting root partition $root_part" mkfs.ext4 -F -L BEAGLEROOT "$root_part"
+  run_logged_step_with_retry "formatting EFI partition $boot_part" 5 1 mkfs.vfat -F 32 -n BEAGLEBOOT "$boot_part"
+  run_logged_step_with_retry "formatting root partition $root_part" 5 1 mkfs.ext4 -F -L BEAGLEROOT "$root_part"
 
   run_logged install -d -m 0755 "$TARGET_MOUNT" "$EFI_MOUNT"
   run_logged mount "$root_part" "$TARGET_MOUNT"

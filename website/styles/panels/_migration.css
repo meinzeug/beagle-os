@@ -1,0 +1,397 @@
+/* ─── VM Migration Modal ─────────────────────────────────────────────── */
+
+.migrate-dialog {
+  width: min(700px, 100%);
+}
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+
+.migrate-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.migrate-modal-head .eyebrow {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--amber);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.migrate-modal-head h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+}
+
+.migrate-modal-head p {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  margin: 0;
+}
+
+/* ── Topology canvas ─────────────────────────────────────────────────── */
+
+.migrate-topology {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-height: 192px;
+  margin: 8px 0 28px;
+  padding: 24px 16px;
+  background: var(--bg-deepest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* subtle grid background */
+.migrate-topology::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(241, 192, 93, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(241, 192, 93, 0.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+
+/* ── Node cards in topology ─────────────────────────────────────────── */
+
+.migrate-node-list {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+.migrate-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  min-width: 130px;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  user-select: none;
+}
+
+.migrate-node:hover:not(.migrate-node-source):not(.migrate-node-offline) {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-glow);
+  transform: translateY(-2px);
+}
+
+.migrate-node-source {
+  border-color: var(--border-strong);
+  cursor: default;
+}
+
+.migrate-node-selected {
+  border-color: var(--amber) !important;
+  box-shadow: 0 0 0 3px var(--amber-glow), var(--shadow);
+  transform: translateY(-2px);
+}
+
+.migrate-node-offline {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Empty-state placeholder node (no targets available) */
+.migrate-node-empty {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Target-node list column */
+.migrate-target-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.migrate-node-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  transition: background 160ms ease;
+}
+
+.migrate-node-source .migrate-node-icon {
+  background: rgba(241, 192, 93, 0.12);
+  border-color: var(--border-glow);
+}
+
+.migrate-node-selected .migrate-node-icon {
+  background: rgba(241, 192, 93, 0.14);
+  border-color: var(--amber);
+}
+
+.migrate-node-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+}
+
+.migrate-node-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.4;
+}
+
+.migrate-node-badge {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--amber);
+  color: #1a1410;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 2px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+.migrate-node-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 2px rgba(140, 226, 109, 0.2);
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+}
+
+.migrate-node-status-dot.offline {
+  background: var(--text-faint);
+  box-shadow: none;
+}
+
+/* ── Arrow / connection line between nodes ──────────────────────────── */
+
+.migrate-arrow-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 64px;
+  position: relative;
+  z-index: 2;
+}
+
+.migrate-arrow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.migrate-arrow-line {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
+  position: relative;
+  transition: background 300ms ease;
+}
+
+.migrate-arrow-head {
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid var(--border);
+  transition: border-left-color 300ms ease;
+}
+
+.migrate-arrow-label {
+  font-size: 0.65rem;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+/* active arrow when target is selected */
+.migrate-topology.has-target .migrate-arrow-line {
+  background: linear-gradient(90deg, var(--amber-dim), var(--amber));
+  animation: migrate-flow 1.5s linear infinite;
+  background-size: 200% 100%;
+}
+
+.migrate-topology.has-target .migrate-arrow-head {
+  border-left-color: var(--amber);
+}
+
+@keyframes migrate-flow {
+  0%   { background-position: 200% 0; }
+  100% { background-position: 0% 0; }
+}
+
+/* ── VM chip shown on source node ───────────────────────────────────── */
+
+.migrate-vm-chip {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 99px;
+  padding: 2px 10px;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  z-index: 3;
+}
+
+/* ── VM chip flying animation ───────────────────────────────────────── */
+
+.migrate-topology.is-migrating .migrate-vm-chip {
+  animation: migrate-vm-fly 1.8s ease-in-out infinite;
+}
+
+@keyframes migrate-vm-fly {
+  0%   { transform: translateX(-50%) translateX(0);  opacity: 1; }
+  45%  { transform: translateX(calc(-50% + 80px));   opacity: 0.6; }
+  50%  { opacity: 0; }
+  51%  { transform: translateX(-50%); opacity: 0; }
+  100% { transform: translateX(-50%); opacity: 1; }
+}
+
+/* ── Footer / options row ───────────────────────────────────────────── */
+
+.migrate-options {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.migrate-option-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.migrate-option-toggle input[type="checkbox"] {
+  accent-color: var(--amber);
+  width: 14px;
+  height: 14px;
+}
+
+/* ── Status/progress row ────────────────────────────────────────────── */
+
+.migrate-status {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+}
+
+.migrate-status.visible {
+  display: flex;
+}
+
+.migrate-status-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.12);
+  border-top-color: var(--amber);
+  animation: provision-spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Hide spinner via class instead of inline style (CSP-safe) */
+.migrate-status-spinner.is-hidden {
+  display: none;
+}
+
+.migrate-status.is-error {
+  border-color: rgba(255, 111, 94, 0.4);
+  color: var(--danger);
+}
+
+.migrate-status.is-ok {
+  border-color: rgba(140, 226, 109, 0.3);
+  color: var(--ok);
+}
+
+/* ── Button row ─────────────────────────────────────────────────────── */
+
+.migrate-modal-buttons {
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* ── Node hover checkmark ────────────────────────────────────────────── */
+
+.migrate-node-check {
+  display: none;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--amber);
+  color: #1a1410;
+  font-size: 0.7rem;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.migrate-node-selected .migrate-node-check {
+  display: flex;
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .migrate-topology.has-target .migrate-arrow-line,
+  .migrate-topology.is-migrating .migrate-vm-chip,
+  .migrate-status-spinner {
+    animation: none;
+  }
+}

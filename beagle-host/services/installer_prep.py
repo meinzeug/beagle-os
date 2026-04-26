@@ -157,6 +157,7 @@ class InstallerPrepService:
         payload["installer_url"] = str(payload.get("installer_url") or profile_surface["installer_url"])
         payload["live_usb_url"] = str(payload.get("live_usb_url") or profile_surface["live_usb_url"])
         payload["installer_windows_url"] = str(payload.get("installer_windows_url") or profile_surface["installer_windows_url"])
+        payload["live_usb_windows_url"] = str(payload.get("live_usb_windows_url") or profile_surface["live_usb_windows_url"])
         payload["installer_iso_url"] = str(payload.get("installer_iso_url") or profile_surface["installer_iso_url"])
         payload["stream_host"] = str(payload.get("stream_host") or profile_surface["stream_host"])
         payload["moonlight_port"] = str(payload.get("moonlight_port") or profile_surface["moonlight_port"])

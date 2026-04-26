@@ -48,6 +48,15 @@ class MigrationService:
             "status": str(item.get("status") or "unknown").strip().lower() or "unknown",
         }
 
+    @staticmethod
+    def _supports_incremental_storage_copy_error(message: str) -> bool:
+        text = str(message or "").lower()
+        return (
+            "unknown option" in text
+            or "unsupported" in text
+            or "copy-storage-inc" in text and "invalid" in text
+        )
+
     def list_target_nodes(self, vmid: int) -> list[dict[str, Any]]:
         vm = self._find_vm(int(vmid))
         if vm is None:
@@ -105,11 +114,27 @@ class MigrationService:
         command = ["migrate", "--persistent", "--undefinesource", "--verbose"]
         if live:
             command.append("--live")
+        storage_copy_mode = "none"
         if copy_storage:
-            command.append("--copy-storage-all")
-        command.extend([domain_name, destination_uri])
-
-        provider_result = self._run_virsh_command(command)
+            # Prefer incremental storage-copy so sparse qcow2 images do not force
+            # full preallocation on the destination host.
+            incremental_command = list(command)
+            incremental_command.append("--copy-storage-inc")
+            incremental_command.extend([domain_name, destination_uri])
+            try:
+                provider_result = self._run_virsh_command(incremental_command)
+                storage_copy_mode = "incremental"
+            except RuntimeError as exc:
+                if not self._supports_incremental_storage_copy_error(str(exc)):
+                    raise
+                fallback_command = list(command)
+                fallback_command.append("--copy-storage-all")
+                fallback_command.extend([domain_name, destination_uri])
+                provider_result = self._run_virsh_command(fallback_command)
+                storage_copy_mode = "all"
+        else:
+            command.extend([domain_name, destination_uri])
+            provider_result = self._run_virsh_command(command)
         self._persist_vm_node(int(vmid), source_node, normalized_target)
         self._invalidate_vm_cache(int(vmid), source_node)
         self._invalidate_vm_cache(int(vmid), normalized_target)
@@ -121,6 +146,7 @@ class MigrationService:
                 "target_node": normalized_target,
                 "live": bool(live),
                 "copy_storage": bool(copy_storage),
+                "copy_storage_mode": storage_copy_mode,
                 "domain_name": domain_name,
                 "destination_uri": destination_uri,
                 "requested_by": str(requester_identity or ""),

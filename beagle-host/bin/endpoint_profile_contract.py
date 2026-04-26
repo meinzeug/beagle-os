@@ -17,6 +17,7 @@ def normalize_endpoint_profile_contract(
     payload["installer_url"] = str(payload.get("installer_url") or f"/beagle-api/api/v1/vms/{int(vmid)}/installer.sh")
     payload["live_usb_url"] = str(payload.get("live_usb_url") or f"/beagle-api/api/v1/vms/{int(vmid)}/live-usb.sh")
     payload["installer_windows_url"] = str(payload.get("installer_windows_url") or f"/beagle-api/api/v1/vms/{int(vmid)}/installer.ps1")
+    payload["live_usb_windows_url"] = str(payload.get("live_usb_windows_url") or f"/beagle-api/api/v1/vms/{int(vmid)}/live-usb.ps1")
     payload["installer_iso_url"] = str(payload.get("installer_iso_url") or installer_iso_url or "")
     payload["stream_host"] = str(payload.get("stream_host") or "")
     payload["moonlight_port"] = str(payload.get("moonlight_port") or "")
@@ -51,6 +52,7 @@ def installer_profile_surface(
         "installer_url": payload["installer_url"],
         "live_usb_url": payload["live_usb_url"],
         "installer_windows_url": payload["installer_windows_url"],
+        "live_usb_windows_url": payload["live_usb_windows_url"],
         "installer_iso_url": payload["installer_iso_url"],
         "stream_host": payload["stream_host"],
         "moonlight_port": payload["moonlight_port"],

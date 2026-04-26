@@ -18,6 +18,7 @@ def _make_svc(**overrides):
     ha.reconcile_failed_node.return_value = {"failed_node": "n1", "handled_vm_count": 2}
     maint = MagicMock()
     maint.drain_node.return_value = {"node_name": "n1", "handled_vm_count": 1}
+    maint.preview_drain_node.return_value = {"node_name": "n1", "evaluated_vm_count": 1, "actions": []}
 
     defaults = dict(
         cluster_membership_service=cm,
@@ -154,6 +155,50 @@ class TestClusterPostRouting:
         audit.assert_called_once()
         assert "setup_code" not in audit.call_args.kwargs
 
+    def test_cluster_auto_join_async(self):
+        audit = MagicMock()
+
+        class _Job:
+            def __init__(self, job_id: str) -> None:
+                self.job_id = job_id
+
+        enqueue = MagicMock(return_value=_Job("job-123"))
+        svc, _, _, _ = _make_svc(audit_event=audit, enqueue_job=enqueue)
+
+        resp = svc.route_post(
+            "/api/v1/cluster/auto-join-async",
+            json_payload={
+                "setup_code": "BGL-code",
+                "node_name": "node-b",
+                "api_url": "https://node-b.example.test/beagle-api/api/v1",
+                "advertise_host": "node-b.example.test",
+                "rpc_url": "https://node-b.example.test:9089/rpc",
+                "ssh_port": 22,
+            },
+        )
+
+        assert resp["status"] == HTTPStatus.ACCEPTED
+        assert resp["payload"]["ok"] is True
+        assert resp["payload"]["job_id"] == "job-123"
+        enqueue.assert_called_once()
+        eargs, ekw = enqueue.call_args
+        assert eargs[0] == "cluster.auto_join"
+        assert eargs[1]["setup_code"] == "BGL-code"
+        assert ekw["owner"] == "admin"
+        assert ekw["idempotency_key"] == "cluster.auto_join.node-b.node-b.example.test"
+        audit.assert_called_once()
+
+    def test_cluster_auto_join_async_without_queue(self):
+        svc, _, _, _ = _make_svc()
+
+        resp = svc.route_post(
+            "/api/v1/cluster/auto-join-async",
+            json_payload={"node_name": "node-b"},
+        )
+
+        assert resp["status"] == HTTPStatus.SERVICE_UNAVAILABLE
+        assert resp["payload"]["ok"] is False
+
     def test_cluster_join_existing(self):
         svc, cm, _, _ = _make_svc()
         cm.join_existing_cluster.return_value = {"member": {"name": "node-b"}}
@@ -265,6 +310,45 @@ class TestClusterPostRouting:
         assert resp["status"] == HTTPStatus.OK
         maint.drain_node.assert_called_once_with(node_name="n1", requester_identity="admin")
 
+    def test_ha_maintenance_preview(self):
+        svc, _, _, maint = _make_svc()
+        resp = svc.route_post(
+            "/api/v1/ha/maintenance/preview",
+            json_payload={"node_name": "n1"},
+        )
+        assert resp["status"] == HTTPStatus.OK
+        maint.preview_drain_node.assert_called_once_with(node_name="n1")
+
+    def test_ha_maintenance_drain_async(self):
+        class _Job:
+            def __init__(self, jid: str) -> None:
+                self.job_id = jid
+        enqueue = MagicMock(return_value=_Job("maint-job-1"))
+        svc, _, _, _ = _make_svc(enqueue_job=enqueue)
+        resp = svc.route_post(
+            "/api/v1/ha/maintenance/drain-async",
+            json_payload={"node_name": "n1"},
+        )
+        assert resp["status"] == HTTPStatus.ACCEPTED
+        assert resp["payload"]["job_id"] == "maint-job-1"
+        assert enqueue.call_args.args[0] == "cluster.maintenance_drain"
+
+    def test_ha_maintenance_drain_async_requires_node(self):
+        svc, _, _, _ = _make_svc(enqueue_job=MagicMock())
+        resp = svc.route_post(
+            "/api/v1/ha/maintenance/drain-async",
+            json_payload={},
+        )
+        assert resp["status"] == HTTPStatus.BAD_REQUEST
+
+    def test_ha_maintenance_drain_async_without_queue(self):
+        svc, _, _, _ = _make_svc()
+        resp = svc.route_post(
+            "/api/v1/ha/maintenance/drain-async",
+            json_payload={"node_name": "n1"},
+        )
+        assert resp["status"] == HTTPStatus.SERVICE_UNAVAILABLE
+
     def test_unknown_post_returns_none(self):
         svc, _, _, _ = _make_svc()
         assert svc.route_post("/api/v1/unknown") is None
@@ -279,6 +363,8 @@ class TestClusterPostRouting:
         assert svc.handles_post("/api/v1/cluster/leave-local")
         assert svc.handles_post("/api/v1/cluster/join-with-setup-code")
         assert svc.handles_post("/api/v1/ha/maintenance/drain")
+        assert svc.handles_post("/api/v1/ha/maintenance/preview")
+        assert svc.handles_post("/api/v1/ha/maintenance/drain-async")
         assert svc.handles_post("/api/v1/cluster/migrate")
         assert not svc.handles_post("/api/v1/vms")
 

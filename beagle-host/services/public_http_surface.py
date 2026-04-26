@@ -103,6 +103,8 @@ class PublicHttpSurfaceService:
             return self._json_response(HTTPStatus.FORBIDDEN, {"ok": False, "error": "public live USB download disabled"})
         if path.startswith("/api/v1/public/vms/") and path.endswith("/installer.ps1"):
             return self._json_response(HTTPStatus.FORBIDDEN, {"ok": False, "error": "public installer download disabled"})
+        if path.startswith("/api/v1/public/vms/") and path.endswith("/live-usb.ps1"):
+            return self._json_response(HTTPStatus.FORBIDDEN, {"ok": False, "error": "public live USB download disabled"})
         return None
 
     def endpoint_update_feed(

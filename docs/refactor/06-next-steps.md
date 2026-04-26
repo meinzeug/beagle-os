@@ -12,6 +12,7 @@
 - Echter Zielserver-Setup-Code fuer Auto-Join ist implementiert: Zielserver erzeugt nach Login einen kurzlebigen, gehasht gespeicherten Einmal-Code; Leader verbindet per Hostname + Code ohne offene Remote-Health-/Inventory-Abfrage.
 - Cluster-Member-Leave folgt jetzt einem 2-Phasen-Flow: Leader entfernt den Member autoritativ per mTLS-RPC, danach wird lokal aufgeraeumt.
 - `GET /api/v1/virtualization/overview` ist cluster-aware; `srv1` und `srv2` zeigen beide dieselbe Knotenliste statt nur den lokalen Node.
+- `/#panel=virtualization` hat jetzt einen echten Node-Detail-Flow mit Backend-Endpoint `GET /api/v1/virtualization/nodes/{node}/detail`, Service-/Reachability-Status und Live-Validierung auf `srv1`/`srv2`.
 - Join-Tokens haben jetzt eine echte serverseitige Ablaufpruefung.
 - Auth-503-Bursts reduziert: nginx `beagle_auth` Rate-Limit angehoben und Dashboard fragt IAM-User/Roles nur noch im IAM-Panel ab.
 - Artifact-Operations-Slice umgesetzt: `GET/POST /api/v1/settings/artifacts*` plus WebUI-Status/Refresh im Updates-Panel.
@@ -19,13 +20,16 @@
 
 **Naechste konkrete Schritte**:
 
-1. **Security vor Cluster-Komfort**: `8443` auf downloads-only reduzieren oder schließen; Installer-/Download-Pfade vorher sauber auf `443` migrieren.
-2. **Plan 07 Schritt 7 fortsetzen**: Remote-KVM/libvirt-Preflight und Job-Progress fuer Auto-Join ergaenzen (`preflight`, `token`, `remote-join`, `rpc-check`, `inventory-refresh`).
-3. **Leader-State-Reconcile bauen**: Drift in `members.json` reproduzierbar erkennen und vom Leader aus sauber neu aufbauen oder gegen den Cluster-Store abgleichen.
-4. **Migration-Blocker isolieren**: qemu+ssh/libvirt-Deadlock reproduzierbar einkreisen oder Shared-Storage-Migrationspfad als produktiven Pfad priorisieren.
-5. **Plan 08/12 Virtualization-Panel**: `/#panel=virtualization` in Nodes, Storage, Bridges, GPU und VM Inspector aufteilen; keine UI-Aktion ohne Backend-Pfad.
-6. **Plan 10 Policies-Panel**: `/#panel=policies` von Tabellen-/Mischansicht auf Cards, Details, Wizards und sichere Danger-Actions umbauen.
-7. **Plan 13/15 Admin-Panels**: IAM- und Audit-Flows fuer User/Rollen/IdP/SCIM/Sessions sowie Report-/Export-/Replay-Bedienung umsetzen.
+1. **Thinclient-Hardware-Rerun auf echtem Stick**: neuen VM100-USB-Stick von `srv1` erzeugen und den bisher fehlgeschlagenen physischen `Preset Installation starten`-Pfad auf echter Hardware erneut abnehmen.
+2. **Thinclient-Runtime visuell abnehmen**: lokale installierte Ziel-Disk mit grafischem Capture/Screenshot bis zur sichtbaren Moonlight-Session gegen `vm100` pruefen.
+3. **Security vor Cluster-Komfort**: `8443` auf downloads-only reduzieren oder schließen; Installer-/Download-Pfade vorher sauber auf `443` migrieren.
+4. **Plan 08 Schritt 7 fortsetzen**: `/#panel=virtualization` in klare Bereiche schneiden und den Ist-Zustand dokumentieren.
+5. **Plan 12 Schritt 6 fortsetzen**: GPU-Zuweisung und Release als gefuehrten Wizard/Danger-Flow bauen statt Prompt-Aktionen.
+6. **Plan 12 Schritt 6 fortsetzen**: vGPU-/mdev- und SR-IOV-Bereiche von Tabellen auf Cards/erklaerende Operator-Flows umstellen.
+7. **Leader-State-Reconcile bauen**: Drift in `members.json` reproduzierbar erkennen und vom Leader aus sauber neu aufbauen oder gegen den Cluster-Store abgleichen.
+8. **Migration-Blocker isolieren**: qemu+ssh/libvirt-Deadlock reproduzierbar einkreisen oder Shared-Storage-Migrationspfad als produktiven Pfad priorisieren.
+9. **Plan 10 Policies-Panel**: `/#panel=policies` von Tabellen-/Mischansicht auf Cards, Details, Wizards und sichere Danger-Actions umbauen.
+10. **Plan 13/15 Admin-Panels**: IAM- und Audit-Flows fuer User/Rollen/IdP/SCIM/Sessions sowie Report-/Export-/Replay-Bedienung umsetzen.
 
 **Blocker/Risiken**:
 - `srv2` GPU: GTX 1080 ist an `vfio-pci`, aber IOMMU-Gruppe enthaelt weitere Geraete; Passthrough bleibt ohne ACS/BIOS/Hardware-Aenderung nicht sicher freigebbar.
@@ -125,3 +129,6 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 2. **QEMU+SSH Migration-Protokoll debuggen** (optional, nicht auf kritischem Pfad):
    - Untersuche Libvirt-Konfiguration, Firewall-Regeln, SSH-Agent-Issues
    - Alternativ: Shared Storage für Migration evaluieren
+- Echten Runtime-Test fuer den neuen Windows-Live-USB-Writer auf Windows/UEFI-Hardware oder Windows-VM durchziehen und Bootverhalten verifizieren.
+- Host-Downloads auf `srv1.beagle-os.com` und `srv2.beagle-os.com` mit den neuen `pve-thin-client-live-usb-*.ps1` Artefakten aktualisieren und per Download-Status gegenpruefen.
+- WebUI-VM-Detail live auf `srv1`/`srv2` gegen den neuen `live-usb.ps1`-Pfad smoke-testen.

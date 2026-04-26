@@ -139,17 +139,30 @@ Administratoren können Quotas per API oder Web Console setzen und ändern.
 - [ ] Ist-Zustand von `/#panel=virtualization` dokumentieren: Welche Tabellen existieren, welche Aktionen fehlen, welche Operator-Fragen bleiben unbeantwortet.
 - [ ] Panel in klare Bereiche schneiden: `Nodes`, `Storage`, `Bridges/Networking`, `GPU`, `VM Inspector`, `Operations`.
 - [x] Node-Cards bauen: Hostname, Status, CPU/RAM, Storage-Druck, VM-Zahl, libvirt/KVM-Health, Actions `Details`, `Maintenance`, `Refresh`.
-- [ ] Node-Detail-Drawer oder Detailseite ergänzen: Services, KVM/IOMMU, libvirt URI, SSH/RPC-Reachability, relevante Logs/Warnings.
-- [ ] Storage-Bereich als editierbare Cards statt reiner Tabelle darstellen: Backend-Typ, Kapazität, aktiv/inaktiv, Quota, Mount/Pool-Health, Actions `Quota setzen`, `Health prüfen`.
-- [ ] Bridge-/Netzwerkbereich bedienbar machen: Bridge-Liste, VM-Nutzung, IPAM-Zuordnung, Warnungen für fehlende/inkonsistente Bridges.
-- [ ] VM-Inspector verbessern: VMID-Suche, zuletzt gewählte VM, Config-Diff, Netzwerkinterfaces, Storage-Belegung und direkte Aktionen klar gruppieren.
+- [x] Node-Detail-Drawer oder Detailseite ergänzen: Services, KVM/IOMMU, libvirt URI, SSH/RPC-Reachability, relevante Logs/Warnings.
+- [x] Storage-Bereich als editierbare Cards statt reiner Tabelle darstellen: Backend-Typ, Kapazität, aktiv/inaktiv, Quota, Mount/Pool-Health, Actions `Quota setzen`, `Health prüfen`.
+- [x] Bridge-/Netzwerkbereich bedienbar machen: Bridge-Liste, VM-Nutzung, IPAM-Zuordnung, Warnungen für fehlende/inkonsistente Bridges.
+- [x] VM-Inspector verbessern: VMID-Suche, zuletzt gewählte VM, Config-Diff, Netzwerkinterfaces, Storage-Belegung und direkte Aktionen klar gruppieren.
 - [x] Risk-/Health-Banner ergänzen: `KVM fehlt`, `libvirt nicht erreichbar`, `Storage fast voll`, `Bridge fehlt`, `Quota überschritten`.
-- [ ] API-Lücken erfassen und schließen, bevor UI-Aktionen Mock-Daten verwenden: kein UI-Button ohne echten Backend-Pfad.
-- [ ] UI-Regressions ergänzen: Node-Card-Rendering, Quota-Setter, Inspector-Suche, Empty-/Error-State.
-- [ ] srv1/srv2-Smoke durchführen: beide Hosts sichtbar, Storage/Bridge/Quota korrekt, keine Console Errors.
+- [x] API-Lücken erfassen und schließen, bevor UI-Aktionen Mock-Daten verwenden: kein UI-Button ohne echten Backend-Pfad.
+- [x] UI-Regressions ergänzen: Node-Card-Rendering, Quota-Setter, Inspector-Suche, Empty-/Error-State.
+- [x] srv1/srv2-Smoke durchführen: beide Hosts sichtbar, Storage/Bridge/Quota korrekt, keine Console Errors.
 
 Warum dieser Schritt noch offen ist:
 Die Storage- und Virtualization-Backends sind technisch weitgehend implementiert, aber `/#panel=virtualization` ist noch zu stark eine Diagnose-Tabelle. Betreiber müssen dort reale Infrastruktur verwalten können: Nodes prüfen, Quotas setzen, Netzwerk-/Storage-Probleme erkennen und zielgerichtete Aktionen starten. Ohne diesen Refactor bleibt Virtualization ein Entwickler-/Debug-Panel statt einer Web Console für produktiven Betrieb.
+
+Validierung (2026-04-26, srv1.beagle-os.com + srv2.beagle-os.com):
+- `GET /api/v1/virtualization/nodes/{node}/detail` live auf beiden Hosts verifiziert; `srv1` wird auf `srv1` korrekt als `local=true`, auf `srv2` korrekt als `local=false` ausgeliefert.
+- Ausgelieferte WebUI-Dateien `ui/virtualization.js` und `ui/events.js` enthalten den `Details`-Flow auf beiden Hosts.
+- Der Storage-Bereich wird live als Card-Ansicht statt Tabelle ausgeliefert; `Quota setzen` und `Health pruefen` sind auf beiden Hosts in den ausgelieferten Assets vorhanden.
+- Bridge-Flow live verifiziert: `GET /api/v1/virtualization/bridges/{bridge}/detail` liefert auf `srv1` fuer `beagle` echte VM-Nutzung (`vm_count=1`) und auf `srv2` den erwarteten Leerzustand (`vm_count=0`).
+- Die WebUI liefert Bridge-Cards, Detail-Flow und den echten IPAM-Zone-Pfad `POST /api/v1/network/ipam/zones` auf beiden Hosts aus.
+- Der VM-Inspector liefert jetzt getrennte Bereiche fuer Allgemein, Disks, Netzwerk-Config und Guest-Interfaces sowie `Letzte VM`-/Recent-Shortcuts; ausgelieferte Assets auf `srv1`/`srv2` enthalten den neuen Flow.
+- Lokale Tests: `python3 -m pytest tests/unit/test_virtualization_read_surface.py tests/unit/test_network_http_surface.py -q` => `22 passed`.
+- Reproduzierbarer Browser-Smoke `scripts/test-virtualization-panel-smoke.py` gegen `srv1` und `srv2` erfolgreich:
+  - `srv1`: `nodes=2 storage=1 bridges=2 inspector_vmid=100`
+  - `srv2`: `nodes=2 storage=1 bridges=1 inspector_vmid=-`
+  - keine Console-/Page-Errors, Exit-Code `0`.
 
 ---
 

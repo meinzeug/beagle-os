@@ -167,6 +167,82 @@
   margin-top: 12px;
 }
 
+/* Job Progress Modal */
+.cluster-job-progress-modal .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-bar-wrapper {
+  flex: 1;
+  height: 24px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ok), var(--info));
+  transition: width 0.3s ease;
+  min-width: 0;
+}
+
+.progress-percent {
+  min-width: 50px;
+  text-align: right;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.progress-percent.error {
+  color: var(--danger);
+}
+
+.progress-message {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--info);
+  min-height: 32px;
+}
+
+.progress-log {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.01);
+  padding: 8px;
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+.log-entry {
+  color: var(--text-secondary);
+  padding: 4px 0;
+  line-height: 1.3;
+}
+
+.log-entry-success {
+  color: var(--ok);
+}
+
+.log-entry-error {
+  color: var(--danger);
+}
+
 @media (max-width: 760px) {
   .cluster-setup-summary { grid-template-columns: 1fr; }
   .cluster-action-card { min-height: 140px; }

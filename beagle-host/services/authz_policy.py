@@ -123,7 +123,7 @@ class AuthzPolicyService:
                 return "cluster:write"
             if route == "/api/v1/ha/reconcile-failed-node":
                 return "cluster:write"
-            if route == "/api/v1/ha/maintenance/drain":
+            if route in {"/api/v1/ha/maintenance/preview", "/api/v1/ha/maintenance/drain", "/api/v1/ha/maintenance/drain-async"}:
                 return "cluster:write"
             if re.match(r"^/api/v1/sessions/[A-Za-z0-9._:-]+/recording/(start|stop)$", route):
                 return "session:manage_recording"

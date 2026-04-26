@@ -44,6 +44,30 @@ def _service(*, vm: _Vm | None = None, nodes: list[dict] | None = None, exists: 
     return service, calls
 
 
+def _service_with_virsh_calls(run_virsh_command, *, vm: _Vm | None = None, nodes: list[dict] | None = None, exists: bool = True):
+    vm_obj = vm or _Vm(vmid=101, node="node-a", status="running")
+    node_list = nodes or [
+        {"name": "node-a", "status": "online"},
+        {"name": "node-b", "status": "online"},
+    ]
+
+    service = MigrationService(
+        build_migration_uri=lambda source_node, target_node, vmid: f"qemu+ssh://{target_node}/system?source={source_node}&vmid={vmid}",
+        find_vm=lambda vmid: vm_obj if int(vmid) == vm_obj.vmid else None,
+        invalidate_vm_cache=lambda vmid, node: None,
+        libvirt_domain_exists=lambda vmid: bool(exists),
+        libvirt_domain_name=lambda vmid: f"beagle-{int(vmid)}",
+        libvirt_enabled=lambda: True,
+        list_nodes=lambda: node_list,
+        persist_vm_node=lambda vmid, source_node, target_node: None,
+        run_virsh_command=run_virsh_command,
+        service_name="beagle-control-plane",
+        utcnow=lambda: "2026-04-23T10:00:00Z",
+        version="test",
+    )
+    return service
+
+
 def test_list_target_nodes_filters_online_non_source_nodes() -> None:
     service, _calls = _service(nodes=[
         {"name": "node-a", "status": "online"},
@@ -93,3 +117,36 @@ def test_migrate_vm_rejects_same_target_node() -> None:
         assert "must differ" in str(exc)
     else:
         raise AssertionError("expected same-node validation to fail")
+
+
+def test_migrate_vm_copy_storage_prefers_incremental_mode() -> None:
+    calls: list[list[str]] = []
+
+    def _run(command: list[str]) -> str:
+        calls.append(list(command))
+        return "ok"
+
+    service = _service_with_virsh_calls(_run)
+    payload = service.migrate_vm(101, target_node="node-b", live=True, copy_storage=True)
+
+    assert calls and "--copy-storage-inc" in calls[0]
+    assert "--copy-storage-all" not in calls[0]
+    assert payload["migration"]["copy_storage_mode"] == "incremental"
+
+
+def test_migrate_vm_copy_storage_falls_back_to_all_when_inc_unsupported() -> None:
+    calls: list[list[str]] = []
+
+    def _run(command: list[str]) -> str:
+        calls.append(list(command))
+        if "--copy-storage-inc" in command:
+            raise RuntimeError("virsh: error: unknown option --copy-storage-inc")
+        return "ok"
+
+    service = _service_with_virsh_calls(_run)
+    payload = service.migrate_vm(101, target_node="node-b", live=True, copy_storage=True)
+
+    assert len(calls) == 2
+    assert "--copy-storage-inc" in calls[0]
+    assert "--copy-storage-all" in calls[1]
+    assert payload["migration"]["copy_storage_mode"] == "all"

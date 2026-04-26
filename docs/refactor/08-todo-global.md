@@ -13,8 +13,14 @@
 - [x] Ersten Cluster-Wizard-Slice implementieren: lokaler Join in bestehenden Cluster via WebUI/API (`POST /api/v1/cluster/join-existing`).
 - [x] Leader-seitigen "Server hinzufügen"-Preflight implementieren: DNS/API/RPC/SSH pruefen und Join-Token nach bestandenem Pflicht-Preflight erzeugen.
 - [x] GoFuture Plan 07 Schritt 7 Setup-Code-Slice umsetzen: Zielserver erzeugt kurzlebigen Setup-Code, Leader verbindet per Hostname + Code, keine offene Remote-Health-/Inventory-Abfrage.
-- [ ] GoFuture Plan 07 Schritt 7 fortsetzen: Remote-KVM/libvirt-Preflight, Job-Fortschritt und Member-Edit/Remove implementieren.
+- [x] GoFuture Plan 07 Schritt 7 fortsetzen: Cluster-Wizard-UI-Regressions implementieren.
 - [ ] GoFuture Plan 08 Schritt 7 umsetzen: `/#panel=virtualization` UX- und Bedienbarkeits-Refactor fuer Nodes/Storage/Networking.
+- [x] GoFuture Plan 08 Schritt 7 Teil-Slice: Node-Detail-Endpoint + WebUI-Detail-Modal fuer Services, Reachability, Storage, Bridges, GPUs und Warnings auf `srv1`/`srv2` live ausrollen.
+- [x] GoFuture Plan 08 Schritt 7 Teil-Slice: Storage-Tabelle in `/#panel=virtualization` durch bedienbare Storage-Cards mit Quota-/Health-Aktionen ersetzen und live auf `srv1`/`srv2` ausrollen.
+- [x] GoFuture Plan 08 Schritt 7 Teil-Slice: Bridge-/Networking-Bereich in `/#panel=virtualization` durch Bridge-Cards, Bridge-Detail-Flow und echten IPAM-Zone-Flow auf `srv1`/`srv2` bedienbar machen.
+- [x] GoFuture Plan 08 Schritt 7 Teil-Slice: VM-Inspector in `/#panel=virtualization` mit `Letzte VM`-/Recent-Shortcuts und getrennten Allgemein-/Disk-/Netzwerk-Bereichen auf `srv1`/`srv2` ausrollen.
+- [x] GoFuture Plan 08 Schritt 7 Teil-Slice: reproduzierbaren Browser-Smoke fuer `/#panel=virtualization` erstellen und gegen `srv1`/`srv2` erfolgreich ausfuehren.
+- [x] GoFuture Plan 12 Schritt 6 Teil-Slice: physische GPU-Karten mit Readiness-/Ursachenanzeige fuer `srv2` GTX-1080-Blocker im Virtualization-Panel ausrollen.
 - [ ] GoFuture Plan 12 Schritt 6 umsetzen: GPU/vGPU/SR-IOV Bedienung und sichere Passthrough-Diagnose im Virtualization-Panel.
 - [ ] GoFuture Plan 10 Schritt 7 umsetzen: `/#panel=policies` grundlegend ueberarbeiten.
 - [ ] GoFuture Plan 13 Schritt 7 umsetzen: `/#panel=iam` grundlegend ueberarbeiten.
@@ -216,7 +222,7 @@
 - [ ] Validate new Moonlight app-name resolver against Sunshine `/api/apps` so `failed to find Application Desktop` is no longer reproducible on VM 101.
 - [x] Add reproducible Sunshine guest service self-heal in repo provisioning (automatic restart on crash/stop).
 - [ ] Validate Sunshine self-heal timer (`beagle-sunshine-healthcheck.timer`) on VM reboot and forced crash (`pkill sunshine`).
-- [ ] Rebuild thin-client installer payload/bootstrap with patched non-interactive target-disk selection and rerun thinclient install.
+- [x] Rebuild thin-client installer payload/bootstrap with patched target-disk/partition-readiness logic, rerun VM100 thinclient preset install locally to completion, and refresh the hosted `srv1` bootstrap bundle.
 - [x] Redeploy patched provider start/redefine behavior on installed beagleserver host and recreate VM 101/100 start path to remove stale-domain autoinstall loop risk.
 - [x] Fix VM start error `domain 'beagle-100' already exists with uuid ...` in beagle libvirt provider by preserving existing domain UUID during redefine.
 - [x] Show `installing` VM status in inventory while ubuntu autoinstall/firstboot provisioning is active.
@@ -251,3 +257,5 @@
 - [ ] Add UI-level provisioning smoke test in CI.
 - [x] Backport VM-side noVNC/XFCE hotfixes into repo-owned host install path and freshly rebuilt server-installer ISO.
 - [ ] Prove the same noVNC/XFCE hotfixes on a clean host installed from the rebuilt server-installer ISO.
+- [x] Execute GoFuture Plan 19 Schritt 7: bring the Windows USB writer to installer/live parity, add `GET /api/v1/vms/{vmid}/live-usb.ps1`, expose a dedicated `Live USB Windows` WebUI action, and extend packaging/host-download publication for `pve-thin-client-live-usb-*.ps1` artifacts (2026-04-26).
+- [ ] Validate the new Windows live USB writer with a real Windows/UEFI boot test and confirm the medium boots directly into Beagle OS runtime without manual GRUB repair.

@@ -27,6 +27,7 @@ class VmHttpSurfaceService:
         render_vm_installer_script: Callable[[Any], tuple[bytes, str]],
         render_vm_live_usb_script: Callable[[Any], tuple[bytes, str]],
         render_vm_windows_installer_script: Callable[[Any], tuple[bytes, str]],
+        render_vm_windows_live_usb_script: Callable[[Any], tuple[bytes, str]],
         service_name: str,
         summarize_endpoint_report: Callable[[dict[str, Any]], dict[str, Any]],
         summarize_installer_prep_state: Callable[[Any, dict[str, Any] | None], dict[str, Any]],
@@ -51,6 +52,7 @@ class VmHttpSurfaceService:
         self._render_vm_installer_script = render_vm_installer_script
         self._render_vm_live_usb_script = render_vm_live_usb_script
         self._render_vm_windows_installer_script = render_vm_windows_installer_script
+        self._render_vm_windows_live_usb_script = render_vm_windows_live_usb_script
         self._service_name = str(service_name or "beagle-control-plane")
         self._summarize_endpoint_report = summarize_endpoint_report
         self._summarize_installer_prep_state = summarize_installer_prep_state
@@ -243,6 +245,19 @@ class VmHttpSurfaceService:
                 content_type="text/plain; charset=utf-8",
             )
         if path.endswith("/installer.ps1"):
+            return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+
+        match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/live-usb\.ps1$", path)
+        if match:
+            vm = self._find_vm(int(match.group("vmid")))
+            if vm is None:
+                return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+            return self._render_script_download(
+                vm,
+                render=self._render_vm_windows_live_usb_script,
+                content_type="text/plain; charset=utf-8",
+            )
+        if path.endswith("/live-usb.ps1"):
             return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
 
         if path.endswith("/credentials"):

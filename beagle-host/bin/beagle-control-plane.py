@@ -20,6 +20,7 @@ from service_registry import (  # private helpers used in main()
     _secret_store,
     _start_recording_retention_thread,
     _start_backup_scheduler_thread,
+    initialize_job_worker_handlers,
 )
 import service_registry as _svc_registry  # needed to update module-level secrets in main()
 from request_handler_mixin import HandlerMixin
@@ -46,6 +47,7 @@ def main() -> int:
     _secret_store()._audit_fn = _audit_secret_event
     effective_data_dir = ensure_data_dir()
     ensure_cluster_rpc_listener()
+    initialize_job_worker_handlers()
     _start_recording_retention_thread()
     _start_backup_scheduler_thread()
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)

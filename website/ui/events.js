@@ -79,6 +79,9 @@ import {
 import {
   loadVirtualizationInspector,
   loadVmConfig,
+  createIpamZoneForBridge,
+  openVirtualizationBridgeDetail,
+  openVirtualizationNodeDetail,
   setStoragePoolQuota,
   setVirtualizationNodeFilter,
   assignGpuToVm,
@@ -794,11 +797,29 @@ export function bindEvents() {
       }
     });
   }
-  if (qs('virtualization-bridges-body')) {
-    qs('virtualization-bridges-body').addEventListener('click', (event) => {
-      const row = event.target.closest('tr[data-node]');
-      if (row) {
-        setVirtualizationNodeFilter(row.getAttribute('data-node'));
+  if (qs('virtualization-bridge-cards')) {
+    qs('virtualization-bridge-cards').addEventListener('click', (event) => {
+      const detailBtn = event.target.closest('button[data-virt-bridge-detail]');
+      if (detailBtn) {
+        openVirtualizationBridgeDetail(String(detailBtn.getAttribute('data-virt-bridge-detail') || '').trim());
+        return;
+      }
+      const ipamBtn = event.target.closest('button[data-virt-bridge-ipam]');
+      if (ipamBtn) {
+        createIpamZoneForBridge(
+          String(ipamBtn.getAttribute('data-virt-bridge-ipam') || '').trim(),
+          String(ipamBtn.getAttribute('data-virt-bridge-cidr') || '').trim()
+        );
+        return;
+      }
+      const filterBtn = event.target.closest('button[data-virt-node-filter]');
+      if (filterBtn) {
+        setVirtualizationNodeFilter(String(filterBtn.getAttribute('data-virt-node-filter') || '').trim());
+        return;
+      }
+      const card = event.target.closest('[data-node]');
+      if (card) {
+        setVirtualizationNodeFilter(card.getAttribute('data-node'));
       }
     });
   }
@@ -827,6 +848,11 @@ export function bindEvents() {
   }
   if (qs('nodes-grid')) {
     qs('nodes-grid').addEventListener('click', (event) => {
+      const detailBtn = event.target.closest('button[data-virt-node-detail]');
+      if (detailBtn) {
+        openVirtualizationNodeDetail(String(detailBtn.getAttribute('data-virt-node-detail') || '').trim());
+        return;
+      }
       const filterBtn = event.target.closest('button[data-virt-node-filter]');
       if (filterBtn) {
         setVirtualizationNodeFilter(String(filterBtn.getAttribute('data-virt-node-filter') || '').trim());
@@ -898,6 +924,21 @@ export function bindEvents() {
       setStoragePoolQuota(poolName, quotaBytes);
     });
   }
+  if (qs('virtualization-storage-cards')) {
+    qs('virtualization-storage-cards').addEventListener('click', (event) => {
+      const quotaBtn = event.target.closest('button[data-storage-quota-set]');
+      if (quotaBtn) {
+        const poolName = String(quotaBtn.getAttribute('data-storage-pool') || '').trim();
+        const quotaBytes = Number(quotaBtn.getAttribute('data-storage-quota-bytes') || '0');
+        setStoragePoolQuota(poolName, quotaBytes);
+        return;
+      }
+      const healthBtn = event.target.closest('button[data-storage-health-node]');
+      if (healthBtn) {
+        openVirtualizationNodeDetail(String(healthBtn.getAttribute('data-storage-health-node') || '').trim());
+      }
+    });
+  }
   if (qs('virt-inspector-load')) {
     qs('virt-inspector-load').addEventListener('click', () => {
       loadVirtualizationInspector(String(qs('virt-inspector-vmid') ? qs('virt-inspector-vmid').value : ''));
@@ -920,6 +961,35 @@ export function bindEvents() {
         qs('virt-inspector-vmid').value = String(state.selectedVmid);
       }
       loadVirtualizationInspector(state.selectedVmid);
+    });
+  }
+  if (qs('virt-inspector-use-last')) {
+    qs('virt-inspector-use-last').addEventListener('click', () => {
+      const lastVmid = Number((state.virtualizationInspector || {}).lastVmid || 0);
+      if (!Number.isFinite(lastVmid) || lastVmid <= 0) {
+        eventHooks.setBanner('Noch keine zuletzt geladene VM vorhanden.', 'warn');
+        return;
+      }
+      if (qs('virt-inspector-vmid')) {
+        qs('virt-inspector-vmid').value = String(lastVmid);
+      }
+      loadVirtualizationInspector(lastVmid);
+    });
+  }
+  if (qs('virt-inspector-recent')) {
+    qs('virt-inspector-recent').addEventListener('click', (event) => {
+      const btn = event.target.closest('button[data-virt-inspector-recent]');
+      if (!btn) {
+        return;
+      }
+      const vmid = Number(btn.getAttribute('data-virt-inspector-recent') || '0');
+      if (!Number.isFinite(vmid) || vmid <= 0) {
+        return;
+      }
+      if (qs('virt-inspector-vmid')) {
+        qs('virt-inspector-vmid').value = String(vmid);
+      }
+      loadVirtualizationInspector(vmid);
     });
   }
 

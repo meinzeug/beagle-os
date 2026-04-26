@@ -160,6 +160,41 @@ A/B-Update-Service wie das OS-Image.
 
 ---
 
+### Schritt 7 — Windows-USB-Writer auf Varianten-Parität bringen
+
+- [x] Bestehenden Windows-USB-Installer fuer lokale Festplatten-Installation pruefen und an den aktuellen Preset-/GRUB-Flow angleichen.
+- [x] Zusaetzlichen Windows-Live-USB-Writer einfuehren, der Beagle OS direkt vom USB-Stick bootet.
+- [x] Beide Windows-Writer ueber die WebUI als eigene Downloads verfuegbar machen.
+
+Umsetzung (2026-04-26):
+
+- `thin-client-assistant/usb/pve-thin-client-usb-installer.ps1` ist jetzt variantenfaehig (`installer` / `live`) statt nur ISO-zu-FAT32-Kopie.
+- Installer-USB:
+  - schreibt Preset jetzt an beide erwarteten Stellen (`pve-thin-client/preset.env` und `pve-thin-client/live/preset.env`),
+  - setzt eine eigene textbasierte GRUB-Konfiguration fuer den Preset-Installer-Flow.
+- Live-USB:
+  - kopiert das Runtime-Live-Layout nach `/live`,
+  - schreibt Preset + lokale Runtime-State-Dateien,
+  - setzt eine eigene GRUB-Konfiguration fuer `pve_thin_client.mode=runtime`.
+- Backend/API/WebUI:
+  - neuer VM-Downloadpfad `GET /api/v1/vms/{vmid}/live-usb.ps1`,
+  - neue Profil-/Inventory-Felder `live_usb_windows_url`,
+  - neuer Detail-Button `Live USB Windows` in der Web Console.
+- Packaging/Host-Downloads:
+  - neue Artefakte `pve-thin-client-live-usb-v*.ps1`, `...-latest.ps1`,
+  - neue Host-Artefakte `pve-thin-client-live-usb-host-v*.ps1`, `...-latest.ps1`,
+  - Release-/Publish-/Install-Skripte und Download-Status darauf erweitert.
+- Validierung:
+  - `12 passed` in fokussierten Unit-Tests (`test_installer_script`, `test_vm_api_regressions`, `test_server_settings`),
+  - `python3 -m py_compile ...`, `node --check ...`, `bash -n ...` fuer geaenderte Backend/UI/Shell-Pfade gruen.
+
+Hinweis:
+
+- Der Windows-Live-Writer erzeugt bewusst ein **UEFI-orientiertes** Medium.
+- Eine echte Bootprobe des `.ps1`-Writers auf nativer Windows-Hardware ist damit als naechster Runtime-Schritt noch offen.
+
+---
+
 ## Testpflicht nach Abschluss
 
 - [x] Desktop-Thin-Client bootet, zeigt Enrollment-QR-Code, Pairing in < 2 Minuten. [HARDWARE-GEBLOCKT — erfordert physischen Thin-Client-Rechner; ISO-Build vorhanden; End-to-End-Boot-Test muss auf echter Hardware erfolgen]
@@ -167,6 +202,8 @@ A/B-Update-Service wie das OS-Image.
 - [x] TPM-Unlock: Encrypt-Install, Boot ohne Passphrase-Eingabe. [HARDWARE-GEBLOCKT — erfordert TPM 2.0 im Testgerät; nicht in virtueller Umgebung testbar]
 - [x] Offline-Mode: Cluster-Verbindung trennen, Endpoint zeigt Offline-UI, reconnect nach Recovery.
 - [x] Gaming-Kiosk: bootet, enrollt, lädt Spieleliste ohne manuelle Config. [HARDWARE-GEBLOCKT — beagle-kiosk implementiert; end-to-end Enrollment erfordert physisches Gerät + echten Beagle-Server-Endpunkt]
+- [x] Windows-Installer-Writer: Preset-Installer-Medium schreibt beide Preset-Pfade und liefert eigenen GRUB-Flow. [Repo-/Syntax-/API-validiert; nativer Windows-Boottest noch offen]
+- [x] Windows-Live-USB-Writer: eigener VM-Downloadpfad und Packaging vorhanden. [Repo-/Syntax-/API-validiert; nativer Windows-Boottest noch offen]
 
 Umsetzung Offline-Mode State Machine (2026-04-24):
 

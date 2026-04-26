@@ -112,6 +112,7 @@ als `status: unknown` markiert. Die Web Console kann dann einen Knoten-Filter an
 
  [x] `beagle-host/services/migration_service.py` anlegen mit libvirt-managed Live-Migration.
  [x] Web Console bekommt "VM verschieben"-Button in der Detailansicht.
+ [x] Modernes animiertes Migrations-Modal mit Topologie-Ansicht (website/ui/migration_modal.js + website/styles/panels/_migration.css).
 
  Umsetzung 2026-04-23:
  - Neues Service-Modul `beagle-host/services/migration_service.py` eingefuehrt:
@@ -213,12 +214,12 @@ ist zunächst ausreichend.
 - [x] Authentifizierten Remote-Join aus dem Leader-Wizard ergänzen: Leader nimmt Hostname + kurzlebigen Zielserver-Setup-Code entgegen und löst den Auto-Join ohne manuelles SSH aus; Secret-Werte werden nicht auditiert.
 - [x] Zielserver-Setup-Code implementieren: Zielserver erzeugt nach Login einen kurzlebigen Code; Leader-Wizard verifiziert damit den Zielserver, ohne offene Health-/Inventory-Daten aus dem Internet zu ziehen.
 - [x] Remote-KVM/libvirt-Preflight ergänzen: `/dev/kvm`, libvirt aktiv, `beagle-control-plane` erreichbar, Port 9088/9089 offen, Uhrzeit plausibel.
-- [ ] Wizard-Progress über Jobs modellieren: Schritte `preflight`, `token`, `remote-join`, `rpc-check`, `inventory-refresh`, `final-validation` mit sichtbarem Fortschritt und Fehlerdetails.
+- [x] Wizard-Progress über Jobs modellieren: Schritte `preflight`, `token`, `remote-join`, `rpc-check`, `inventory-refresh`, `final-validation` mit sichtbarem Fortschritt und Fehlerdetails.
 - [x] Cluster-Member editierbar machen: Anzeigename/API-URL/RPC-URL ändern, Member deaktivieren/entfernen, Reachability neu prüfen.
-- [ ] Maintenance/Drain in denselben Operator-Flow integrieren: Bestätigung, betroffene VMs anzeigen, Job-Fortschritt, Ergebnisliste.
+- [x] Maintenance/Drain in denselben Operator-Flow integrieren: Bestätigung, betroffene VMs anzeigen, Job-Fortschritt, Ergebnisliste.
 - [x] srv1/srv2-End-to-End validieren: `srv1` als Leader, `srv2` per WebUI hinzufügen, Cluster-Status auf beiden Seiten prüfen.
-- [ ] Live-Migration nach erfolgreichem Join erneut validieren und dokumentieren; aktueller Blocker ist der hängende libvirt-Migrationslauf mit `migration out`/paused target.
-- [ ] UI-Regressions für Cluster-Wizards ergänzen: Buttons sichtbar, Payloads korrekt, Fehlerzustände rendern, Dashboard refresh nach Erfolg.
+- [x] Live-Migration nach erfolgreichem Join erneut validieren und dokumentieren; Blocker behoben (IPv6-DNS-Fix für srv2 auf srv1, root-SSH-Schlüssel ausgetauscht, libvirt-Remote-Transport bestätigt, End-to-End-Migration von Test-VM erfolgreich).
+- [x] UI-Regressions für Cluster-Wizards ergänzen: Buttons sichtbar, Payloads korrekt, Fehlerzustände rendern, Dashboard refresh nach Erfolg.
 - [x] API-Regressionstests für `join-existing`, Preflight-Basispfade und RBAC `cluster:write` ergänzen.
 
 Umsetzung 2026-04-26:
@@ -232,7 +233,16 @@ Umsetzung 2026-04-26:
 - Die Cluster-WebUI blendet auf normalen Mitgliedern den Aktionsbereich aus und bietet den Leave nur im Technikbereich an; der lokale Leader bleibt markant sichtbar.
 - `GET /api/v1/virtualization/overview` nutzt jetzt clusterweit aggregierte Nodes aus `cluster/inventory`, damit beide WebUIs dieselbe Knotenliste zeigen statt nur den lokalen Host.
 - Live-Validierung auf `srv1` und `srv2`: `/virtualization/overview` und `/cluster/inventory` liefern auf beiden Hosts `beagle-0`, `beagle-1`, `srv1`, `srv2`; `/cluster/status` zeigt `srv1` und `srv2`.
+- `POST /api/v1/cluster/auto-join-async` liefert jetzt echte `job_id`s; der Jobhandler arbeitet mit `job.payload`, meldet die Schritte `preflight`, `token`, `remote-join`, `rpc-check`, `inventory-refresh`, `final-validation` und schreibt Audit-Details ohne Secret-Leak.
+- `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}` und `GET /api/v1/jobs/{id}/stream` sind live auf `srv1`/`srv2` nutzbar; der fruehere Runtime-Drift kam von einem alten `beagle-control-plane.py` ohne aktuelle Handler-Extraktion.
+- Der Cluster-Wizard nutzt fuer Job-Progress jetzt `apiBase()` statt eines harten `/api/v1`-Pfads, haengt den `access_token` an den SSE-Stream und faellt bei Stream-/Proxy-Problemen automatisch auf Polling von `/jobs/{id}` zurueck.
+- Maintenance ist jetzt derselbe Operator-Flow statt eines Blind-Buttons: `POST /api/v1/ha/maintenance/preview` liefert die betroffenen VMs und geplanten Aktionen ohne Seiteneffekt; `POST /api/v1/ha/maintenance/drain-async` startet den eigentlichen Drain als Hintergrund-Job.
+- Die Cluster-WebUI zeigt vor dem Drain einen Vorschau-Dialog mit VM-Liste und geplanter Aktion (`Live-Migration`, `Cold-Restart`, `Skip`) und haengt danach denselben Job-Progress-/Result-Dialog an.
+- Neuer reproduzierbarer Browser-Smoke `scripts/test-cluster-wizard-smoke.py`: oeffnet `/#panel=cluster`, prueft fehlenden Setup-Code ohne Request, verifiziert abgeleiteten Auto-Join-Payload, Job-Progress-Fallback, Maintenance-Preview-Payload, Async-Drain-Start und den Dashboard-Refresh nach erfolgreichem Job.
 - Lokale Regression: `python3 -m pytest tests/unit/test_virtualization_read_surface.py tests/unit/test_cluster_membership.py tests/unit/test_cluster_http_surface.py tests/unit/test_authz_policy.py -q` => `50 passed`.
+- Zusatz-Regression: `python3 -m pytest tests/unit/test_jobs_http_surface.py tests/unit/test_cluster_http_surface.py tests/unit/test_cluster_job_handlers.py -q` => `63 passed`.
+- Maintenance-Regression: `python3 -m pytest tests/unit/test_maintenance_service.py tests/unit/test_cluster_job_handlers.py tests/unit/test_cluster_http_surface.py tests/unit/test_authz_policy.py -q` => `59 passed`.
+- Browser-Smoke: `python3 scripts/test-cluster-wizard-smoke.py --base-url https://srv1.beagle-os.com/ --username <admin> --password <secret>` => `EXIT:0`.
 
 Warum dieser Schritt noch offen war:
 Die bisherigen Cluster-Schritte haben API, mTLS-RPC, Join-Token, Installer-Join und Statusanzeigen geliefert. Für Betreiber fehlte aber der wichtigste Teil: der geführte Ablauf in der Web Console, um einen Cluster zu erstellen und Server hinzuzufügen. Ohne diese Wizards bleibt Cluster-Setup ein SSH-/CLI-Prozess und ist damit nicht produktreif. `srv1` und `srv2` existieren inzwischen als reale Validierungsumgebung; deshalb muss der Plan nicht mehr auf hypothetische Hardware warten. Der aktuelle Stand beweist außerdem, dass reine API-Reachability nicht reicht: `srv1`/`srv2` können sich per SSH/libvirt erreichen, aber der Live-Migrations-Smoke blieb hängen und braucht sichtbare Diagnose- und Recovery-Flows in der WebUI.
@@ -242,7 +252,7 @@ Die bisherigen Cluster-Schritte haben API, mTLS-RPC, Join-Token, Installer-Join 
 ## Testpflicht nach Abschluss
 
 - [x] Zwei QEMU-VMs als Cluster-Knoten gestartet, beide in Web Console sichtbar.
-- [ ] Live-Migration einer laufenden Test-VM von Host A nach Host B erfolgreich. [AKTUELL BLOCKIERT — `srv1` und `srv2` sind per SSH/libvirt erreichbar, aber qemu+ssh Live-Migration haengt in `migration out`/paused target; braucht Debug oder Shared-Storage-Abnahmepfad]
+- [x] Live-Migration einer laufenden Test-VM von Host A nach Host B erfolgreich. [ERLEDIGT 2026-04-26 — Root-Ursache war IPv6-DNS-Auflösung für srv2 auf srv1: `srv2.beagle-os.com` löste nur IPv6 auf, IPv6 hing. Fix: IPv4 `176.9.127.50 srv2.beagle-os.com` in `/etc/hosts` auf srv1 eingetragen. Root-SSH-Schlüssel (srv1→srv2) ausgetauscht. `virsh -c qemu+ssh://beagle-1/system` und `qemu+ssh://srv2.beagle-os.com/system` verbinden sich beide ohne Hänger. Live-Migration einer kleinen Kernel+Initrd-VM (`beagle-test-migration`) mit `--live --copy-storage-all` abgeschlossen (100%).]
 - [x] Knoten-Ausfall: Web Console zeigt Knoten als unreachable innerhalb von 10 Sekunden.
 - [x] Cluster-Join über Installer-Dialog funktioniert auf frisch installiertem Host.
 

@@ -3,9 +3,10 @@ param(
     [int]$DiskNumber = -1,
     [switch]$ListDisks,
     [switch]$Force,
-    [string]$UsbLabel = "BEAGLEOS",
+    [string]$UsbLabel = "",
     [string]$WorkingDirectory = "",
     [string]$ReleaseIsoUrl = "",
+    [string]$WriterVariant = "",
     [string]$PresetName = "",
     [string]$PresetBase64 = ""
 )
@@ -13,8 +14,39 @@ param(
 $ErrorActionPreference = "Stop"
 
 $DefaultReleaseIsoUrl = "__BEAGLE_DEFAULT_RELEASE_ISO_URL__"
+$DefaultWriterVariant = "__BEAGLE_DEFAULT_WRITER_VARIANT__"
 $DefaultPresetName = "__BEAGLE_DEFAULT_PRESET_NAME__"
 $DefaultPresetBase64 = "__BEAGLE_DEFAULT_PRESET_B64__"
+
+function Write-Step {
+    param([string]$Message)
+    Write-Host ("[Beagle OS] {0}" -f $Message)
+}
+
+function Resolve-WriterVariant {
+    param(
+        [string]$RequestedVariant,
+        [string]$DefaultVariant
+    )
+
+    $candidate = [string]$RequestedVariant
+    if ([string]::IsNullOrWhiteSpace($candidate)) {
+        $candidate = [string]$DefaultVariant
+    }
+    if ([string]::IsNullOrWhiteSpace($candidate)) {
+        $scriptName = [IO.Path]::GetFileName($PSCommandPath)
+        if ($scriptName -match 'live-usb') {
+            $candidate = 'live'
+        } else {
+            $candidate = 'installer'
+        }
+    }
+    $normalized = $candidate.Trim().ToLowerInvariant()
+    if ($normalized -notin @('installer', 'live')) {
+        throw "Unsupported WriterVariant: $candidate"
+    }
+    return $normalized
+}
 
 if ([string]::IsNullOrWhiteSpace($ReleaseIsoUrl)) {
     $ReleaseIsoUrl = $DefaultReleaseIsoUrl
@@ -25,10 +57,9 @@ if ([string]::IsNullOrWhiteSpace($PresetName)) {
 if ([string]::IsNullOrWhiteSpace($PresetBase64)) {
     $PresetBase64 = $DefaultPresetBase64
 }
-
-function Write-Step {
-    param([string]$Message)
-    Write-Host ("[Beagle OS] {0}" -f $Message)
+$WriterVariant = Resolve-WriterVariant -RequestedVariant $WriterVariant -DefaultVariant $DefaultWriterVariant
+if ([string]::IsNullOrWhiteSpace($UsbLabel)) {
+    $UsbLabel = if ($WriterVariant -eq "live") { "BEAGLELIVE" } else { "BEAGLEOS" }
 }
 
 function Assert-Administrator {
@@ -172,40 +203,347 @@ function Prepare-UsbDisk {
     return ("{0}:" -f $driveLetter)
 }
 
-function Copy-IsoContents {
+function Copy-Tree {
     param(
-        [string]$SourceDrive,
-        [string]$TargetDrive
+        [string]$SourcePath,
+        [string]$TargetPath
     )
-    Write-Step ("Kopiere Installer-Inhalte auf {0} ..." -f $TargetDrive)
-    $source = "{0}\" -f $SourceDrive.TrimEnd("\")
-    $target = "{0}\" -f $TargetDrive.TrimEnd("\")
-    $null = & robocopy $source $target /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP
+    if (-not (Test-Path -LiteralPath $SourcePath)) {
+        return
+    }
+    New-Item -ItemType Directory -Path $TargetPath -Force | Out-Null
+    $null = & robocopy $SourcePath $TargetPath /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP
     $code = $LASTEXITCODE
     if ($code -ge 8) {
         throw "robocopy ist fehlgeschlagen (ExitCode $code)."
     }
 }
 
-function Write-PresetFile {
+function Copy-IsoDirectory {
+    param(
+        [string]$SourceDrive,
+        [string]$RelativePath,
+        [string]$TargetPath
+    )
+    $sourcePath = Join-Path $SourceDrive $RelativePath
+    Copy-Tree -SourcePath $sourcePath -TargetPath $TargetPath
+}
+
+function Copy-IsoFile {
+    param(
+        [string]$SourceDrive,
+        [string]$RelativePath,
+        [string]$TargetPath
+    )
+    $sourcePath = Join-Path $SourceDrive $RelativePath
+    if (-not (Test-Path -LiteralPath $sourcePath)) {
+        return
+    }
+    $parent = Split-Path -Parent $TargetPath
+    if (-not [string]::IsNullOrWhiteSpace($parent)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+    Copy-Item -LiteralPath $sourcePath -Destination $TargetPath -Force
+}
+
+function Write-PresetFiles {
     param(
         [string]$TargetDrive,
-        [string]$PresetBase64Value
+        [string]$PresetBase64Value,
+        [string]$Variant
     )
     if ([string]::IsNullOrWhiteSpace($PresetBase64Value)) {
         return
     }
-    $targetDir = Join-Path $TargetDrive "pve-thin-client"
-    New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
     $bytes = [Convert]::FromBase64String($PresetBase64Value)
-    [IO.File]::WriteAllBytes((Join-Path $targetDir "preset.env"), $bytes)
+    $presetDir = Join-Path $TargetDrive "pve-thin-client"
+    New-Item -ItemType Directory -Path $presetDir -Force | Out-Null
+    [IO.File]::WriteAllBytes((Join-Path $presetDir "preset.env"), $bytes)
+
+    $secondaryPresetPath = if ($Variant -eq "live") {
+        Join-Path $TargetDrive "live\preset.env"
+    } else {
+        Join-Path $TargetDrive "pve-thin-client\live\preset.env"
+    }
+    $secondaryDir = Split-Path -Parent $secondaryPresetPath
+    New-Item -ItemType Directory -Path $secondaryDir -Force | Out-Null
+    [IO.File]::WriteAllBytes($secondaryPresetPath, $bytes)
+}
+
+function Parse-PresetEnv {
+    param([string]$PresetPath)
+
+    $result = @{}
+    foreach ($rawLine in Get-Content -LiteralPath $PresetPath -ErrorAction Stop) {
+        $line = [string]$rawLine
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+        $trimmed = $line.Trim()
+        if ($trimmed.StartsWith("#")) {
+            continue
+        }
+        $index = $trimmed.IndexOf("=")
+        if ($index -lt 1) {
+            continue
+        }
+        $key = $trimmed.Substring(0, $index).Trim()
+        $value = $trimmed.Substring($index + 1).Trim()
+        if ($value.Length -ge 2 -and $value.StartsWith("'") -and $value.EndsWith("'")) {
+            $value = $value.Substring(1, $value.Length - 2)
+            $value = $value.Replace("'\"'\"'", "'")
+        } elseif ($value.Length -ge 2 -and $value.StartsWith('"') -and $value.EndsWith('"')) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+        $result[$key] = $value
+    }
+    return $result
+}
+
+function Get-PresetValue {
+    param(
+        [hashtable]$Preset,
+        [string]$Key,
+        [string]$Default = ""
+    )
+    if ($Preset.ContainsKey($Key) -and -not [string]::IsNullOrWhiteSpace([string]$Preset[$Key])) {
+        return [string]$Preset[$Key]
+    }
+    return [string]$Default
+}
+
+function Write-LiveRuntimeState {
+    param(
+        [string]$TargetDrive,
+        [string]$PresetBase64Value
+    )
+
+    if ([string]::IsNullOrWhiteSpace($PresetBase64Value)) {
+        throw "Live USB creation requires an embedded VM preset."
+    }
+
+    $tempPreset = Join-Path $env:TEMP ("beagle-preset-{0}.env" -f ([Guid]::NewGuid().ToString("N")))
+    try {
+        [IO.File]::WriteAllBytes($tempPreset, [Convert]::FromBase64String($PresetBase64Value))
+        $preset = Parse-PresetEnv -PresetPath $tempPreset
+        $stateDir = Join-Path $TargetDrive "pve-thin-client\state"
+        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+
+        $mode = Get-PresetValue -Preset $preset -Key "PVE_THIN_CLIENT_PRESET_DEFAULT_MODE" -Default "MOONLIGHT"
+        if ([string]::IsNullOrWhiteSpace($mode) -and -not [string]::IsNullOrWhiteSpace((Get-PresetValue -Preset $preset -Key "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST"))) {
+            $mode = "MOONLIGHT"
+        }
+        if ($mode -ne "MOONLIGHT") {
+            throw "Live USB preset does not define a supported default mode."
+        }
+
+        $thinclientConf = @(
+            '# pve-thin-client runtime configuration'
+            ('PVE_THIN_CLIENT_MODE="{0}"' -f $mode)
+            ('PVE_THIN_CLIENT_RUNTIME_USER="thinclient"' )
+            ('PVE_THIN_CLIENT_AUTOSTART="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_AUTOSTART" "1"))
+            ('PVE_THIN_CLIENT_PROFILE_NAME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_PROFILE_NAME" "default"))
+            ('PVE_THIN_CLIENT_HOSTNAME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE" "beagle-live"))
+            ('PVE_THIN_CLIENT_CONNECTION_METHOD="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_CONNECTION_METHOD" "direct"))
+            ('PVE_THIN_CLIENT_MOONLIGHT_HOST="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST"))
+            ('PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_LOCAL_HOST"))
+            ('PVE_THIN_CLIENT_MOONLIGHT_PORT="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_PORT"))
+            ('PVE_THIN_CLIENT_MOONLIGHT_APP="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP" "Desktop"))
+            ('PVE_THIN_CLIENT_MOONLIGHT_BIN="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN" "moonlight"))
+            ('PVE_THIN_CLIENT_MOONLIGHT_RESOLUTION="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION" "auto"))
+            ('PVE_THIN_CLIENT_MOONLIGHT_FPS="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS" "60"))
+            ('PVE_THIN_CLIENT_MOONLIGHT_BITRATE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE" "20000"))
+            ('PVE_THIN_CLIENT_MOONLIGHT_VIDEO_CODEC="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC" "H.264"))
+            ('PVE_THIN_CLIENT_MOONLIGHT_VIDEO_DECODER="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER" "auto"))
+            ('PVE_THIN_CLIENT_MOONLIGHT_AUDIO_CONFIG="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG" "stereo"))
+            ('PVE_THIN_CLIENT_MOONLIGHT_ABSOLUTE_MOUSE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE" "1"))
+            ('PVE_THIN_CLIENT_MOONLIGHT_QUIT_AFTER="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER" "0"))
+            ('PVE_THIN_CLIENT_SUNSHINE_API_URL="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL"))
+            ('PVE_THIN_CLIENT_PROXMOX_SCHEME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_PROXMOX_SCHEME" "https"))
+            ('PVE_THIN_CLIENT_PROXMOX_HOST="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_PROXMOX_HOST"))
+            ('PVE_THIN_CLIENT_PROXMOX_PORT="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_PROXMOX_PORT" "8006"))
+            ('PVE_THIN_CLIENT_PROXMOX_NODE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_PROXMOX_NODE"))
+            ('PVE_THIN_CLIENT_PROXMOX_VMID="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_PROXMOX_VMID"))
+            ('PVE_THIN_CLIENT_PROXMOX_REALM="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_PROXMOX_REALM" "pam"))
+            ('PVE_THIN_CLIENT_PROXMOX_VERIFY_TLS="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS" "1"))
+            ('PVE_THIN_CLIENT_BEAGLE_MANAGER_URL="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL"))
+            ('PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_PINNED_PUBKEY"))
+            ('PVE_THIN_CLIENT_BEAGLE_ENROLLMENT_URL="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_URL"))
+            ('PVE_THIN_CLIENT_BEAGLE_UPDATE_ENABLED="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_ENABLED" "1"))
+            ('PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_CHANNEL" "stable"))
+            ('PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_BEHAVIOR" "prompt"))
+            ('PVE_THIN_CLIENT_BEAGLE_UPDATE_FEED_URL="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_FEED_URL"))
+            ('PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_VERSION_PIN"))
+            ('PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_MODE" "direct"))
+            ('PVE_THIN_CLIENT_BEAGLE_EGRESS_TYPE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_TYPE"))
+            ('PVE_THIN_CLIENT_BEAGLE_EGRESS_INTERFACE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_INTERFACE" "beagle-egress"))
+            ('PVE_THIN_CLIENT_BEAGLE_EGRESS_DOMAINS="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_DOMAINS"))
+            ('PVE_THIN_CLIENT_BEAGLE_EGRESS_RESOLVERS="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_RESOLVERS"))
+            ('PVE_THIN_CLIENT_BEAGLE_EGRESS_ALLOWED_IPS="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_ALLOWED_IPS"))
+            ('PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_ADDRESS="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_ADDRESS"))
+            ('PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_DNS="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_DNS"))
+            ('PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PUBLIC_KEY="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PUBLIC_KEY"))
+            ('PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_ENDPOINT="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_ENDPOINT"))
+            ('PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE" "25"))
+            ('PVE_THIN_CLIENT_IDENTITY_HOSTNAME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_IDENTITY_HOSTNAME"))
+            ('PVE_THIN_CLIENT_IDENTITY_TIMEZONE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_IDENTITY_TIMEZONE"))
+            ('PVE_THIN_CLIENT_IDENTITY_LOCALE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_IDENTITY_LOCALE"))
+            ('PVE_THIN_CLIENT_IDENTITY_KEYMAP="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_IDENTITY_KEYMAP"))
+            ('PVE_THIN_CLIENT_IDENTITY_CHROME_PROFILE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_IDENTITY_CHROME_PROFILE" "default"))
+            ('PVE_THIN_CLIENT_BEAGLE_USB_ENABLED="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_USB_ENABLED"))
+            ('PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_HOST="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_USB_TUNNEL_HOST"))
+            ('PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_USER="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_USB_TUNNEL_USER"))
+            ('PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_PORT="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_USB_TUNNEL_PORT"))
+            ('PVE_THIN_CLIENT_BEAGLE_USB_ATTACH_HOST="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_USB_ATTACH_HOST"))
+            ('PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_PRIVATE_KEY_FILE=""')
+            ('PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_KNOWN_HOSTS_FILE=""')
+        ) -join "`n"
+
+        $networkEnv = @(
+            ('PVE_THIN_CLIENT_NETWORK_MODE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_NETWORK_MODE" "dhcp"))
+            ('PVE_THIN_CLIENT_NETWORK_INTERFACE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE" "eth0"))
+            ('PVE_THIN_CLIENT_NETWORK_STATIC_ADDRESS="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_ADDRESS"))
+            ('PVE_THIN_CLIENT_NETWORK_STATIC_PREFIX="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_PREFIX" "24"))
+            ('PVE_THIN_CLIENT_NETWORK_GATEWAY="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_NETWORK_GATEWAY"))
+            ('PVE_THIN_CLIENT_NETWORK_DNS_SERVERS="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_NETWORK_DNS_SERVERS" "1.1.1.1 8.8.8.8"))
+        ) -join "`n"
+
+        $credentialsEnv = @(
+            ('PVE_THIN_CLIENT_CONNECTION_USERNAME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME"))
+            ('PVE_THIN_CLIENT_CONNECTION_PASSWORD="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD"))
+            ('PVE_THIN_CLIENT_CONNECTION_TOKEN="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN"))
+            ('PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN"))
+            ('PVE_THIN_CLIENT_BEAGLE_ENROLLMENT_TOKEN="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_TOKEN"))
+            ('PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PRIVATE_KEY="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRIVATE_KEY"))
+            ('PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PRESHARED_KEY="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRESHARED_KEY"))
+            ('PVE_THIN_CLIENT_SUNSHINE_USERNAME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME"))
+            ('PVE_THIN_CLIENT_SUNSHINE_PASSWORD="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD"))
+            ('PVE_THIN_CLIENT_SUNSHINE_PIN="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN"))
+            ('PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_PINNED_PUBKEY"))
+            ('PVE_THIN_CLIENT_SUNSHINE_SERVER_NAME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_NAME"))
+            ('PVE_THIN_CLIENT_SUNSHINE_SERVER_STREAM_PORT="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_STREAM_PORT"))
+            ('PVE_THIN_CLIENT_SUNSHINE_SERVER_UNIQUEID="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_UNIQUEID"))
+            ('PVE_THIN_CLIENT_SUNSHINE_SERVER_CERT_B64="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_CERT_B64"))
+        ) -join "`n"
+
+        $localAuthEnv = ('PVE_THIN_CLIENT_RUNTIME_PASSWORD="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_THINCLIENT_PASSWORD"))
+
+        [IO.File]::WriteAllText((Join-Path $stateDir "thinclient.conf"), $thinclientConf + "`n", [Text.Encoding]::UTF8)
+        [IO.File]::WriteAllText((Join-Path $stateDir "network.env"), $networkEnv + "`n", [Text.Encoding]::UTF8)
+        [IO.File]::WriteAllText((Join-Path $stateDir "credentials.env"), $credentialsEnv + "`n", [Text.Encoding]::UTF8)
+        [IO.File]::WriteAllText((Join-Path $stateDir "local-auth.env"), $localAuthEnv + "`n", [Text.Encoding]::UTF8)
+    } finally {
+        Remove-Item -LiteralPath $tempPreset -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Write-GrubConfig {
+    param(
+        [string]$TargetDrive,
+        [string]$Variant,
+        [string]$PresetBase64Value
+    )
+
+    $grubDir = Join-Path $TargetDrive "boot\grub"
+    New-Item -ItemType Directory -Path $grubDir -Force | Out-Null
+
+    if ($Variant -eq "live") {
+        $hostname = "beagle-live"
+        if (-not [string]::IsNullOrWhiteSpace($PresetBase64Value)) {
+            $tempPreset = Join-Path $env:TEMP ("beagle-preset-grub-{0}.env" -f ([Guid]::NewGuid().ToString("N")))
+            try {
+                [IO.File]::WriteAllBytes($tempPreset, [Convert]::FromBase64String($PresetBase64Value))
+                $preset = Parse-PresetEnv -PresetPath $tempPreset
+                $hostname = Get-PresetValue -Preset $preset -Key "PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE" -Default "beagle-live"
+            } finally {
+                Remove-Item -LiteralPath $tempPreset -Force -ErrorAction SilentlyContinue
+            }
+        }
+        $content = @"
+insmod part_gpt
+insmod fat
+terminal_output console
+set default=0
+set timeout=5
+
+menuentry 'Beagle OS Live' {
+  linux /live/vmlinuz boot=live components username=thinclient hostname=$hostname live-media-path=/live live-media-timeout=10 ignore_uuid ip=dhcp quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime
+  initrd /live/initrd.img
+}
+
+menuentry 'Beagle OS Live (safe mode)' {
+  linux /live/vmlinuz boot=live components username=thinclient hostname=$hostname live-media-path=/live live-media-timeout=10 ignore_uuid ip=dhcp loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic pve_thin_client.mode=runtime
+  initrd /live/initrd.img
+}
+
+menuentry 'Beagle OS Live (legacy IRQ mode)' {
+  linux /live/vmlinuz boot=live components username=thinclient hostname=$hostname live-media-path=/live live-media-timeout=10 ignore_uuid ip=dhcp loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic pve_thin_client.mode=runtime
+  initrd /live/initrd.img
+}
+"@
+    } else {
+        $timeout = if ([string]::IsNullOrWhiteSpace($PresetBase64Value) -and [string]::IsNullOrWhiteSpace($PresetName)) { "5" } else { "0" }
+        $content = @"
+terminal_output console
+set default=0
+set timeout=$timeout
+set gfxpayload=text
+
+menuentry 'Beagle OS Installer' {
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 plymouth.ignore-serial-consoles systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
+  initrd /pve-thin-client/live/initrd.img
+}
+
+menuentry 'Beagle OS Installer (compatibility mode)' {
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
+  initrd /pve-thin-client/live/initrd.img
+}
+
+menuentry 'Beagle OS Installer (legacy IRQ mode)' {
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer live-media-path=/pve-thin-client/live live-media-timeout=10 ip=dhcp console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll noapic nolapic systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
+  initrd /pve-thin-client/live/initrd.img
+}
+
+menuentry 'Boot from local disk' {
+  exit
+}
+"@
+    }
+
+    [IO.File]::WriteAllText((Join-Path $grubDir "grub.cfg"), $content, [Text.Encoding]::UTF8)
+}
+
+function Build-InstallerUsb {
+    param(
+        [string]$SourceDrive,
+        [string]$TargetDrive,
+        [string]$Variant,
+        [string]$PresetBase64Value
+    )
+
+    Write-Step ("Erstelle {0}-USB-Inhalte auf {1} ..." -f $Variant, $TargetDrive)
+    Copy-IsoDirectory -SourceDrive $SourceDrive -RelativePath "EFI" -TargetPath (Join-Path $TargetDrive "EFI")
+    Copy-IsoDirectory -SourceDrive $SourceDrive -RelativePath "boot" -TargetPath (Join-Path $TargetDrive "boot")
+
+    if ($Variant -eq "live") {
+        Copy-IsoDirectory -SourceDrive $SourceDrive -RelativePath "live" -TargetPath (Join-Path $TargetDrive "live")
+        Write-PresetFiles -TargetDrive $TargetDrive -PresetBase64Value $PresetBase64Value -Variant $Variant
+        Write-LiveRuntimeState -TargetDrive $TargetDrive -PresetBase64Value $PresetBase64Value
+    } else {
+        Copy-IsoDirectory -SourceDrive $SourceDrive -RelativePath "live" -TargetPath (Join-Path $TargetDrive "pve-thin-client\live")
+        Copy-IsoFile -SourceDrive $SourceDrive -RelativePath "start-installer-menu.sh" -TargetPath (Join-Path $TargetDrive "start-installer-menu.sh")
+        Write-PresetFiles -TargetDrive $TargetDrive -PresetBase64Value $PresetBase64Value -Variant $Variant
+    }
+
+    Write-GrubConfig -TargetDrive $TargetDrive -Variant $Variant -PresetBase64Value $PresetBase64Value
 }
 
 function Write-Manifest {
     param(
         [string]$TargetDrive,
         [string]$IsoUrl,
-        [string]$ProfileName
+        [string]$ProfileName,
+        [string]$Variant
     )
     $manifest = [ordered]@{
         version = "windows-builder"
@@ -213,6 +551,8 @@ function Write-Manifest {
         iso_url = $IsoUrl
         preset_name = $ProfileName
         platform = "windows"
+        writer_variant = $Variant
+        boot_mode = "uefi"
     } | ConvertTo-Json -Depth 4
     [IO.File]::WriteAllText((Join-Path $TargetDrive ".beagle-windows-usb.json"), $manifest, [Text.Encoding]::UTF8)
 }
@@ -249,10 +589,12 @@ $mountedIso = $null
 try {
     $mountedIso = Get-MountedIsoLetter -ImagePath $isoPath
     $usbDrive = Prepare-UsbDisk -TargetDiskNumber $DiskNumber -Label $UsbLabel
-    Copy-IsoContents -SourceDrive $mountedIso.DriveLetter -TargetDrive $usbDrive
-    Write-PresetFile -TargetDrive $usbDrive -PresetBase64Value $PresetBase64
-    Write-Manifest -TargetDrive $usbDrive -IsoUrl $ReleaseIsoUrl -ProfileName $PresetName
-    Write-Step ("Windows USB-Installer fertig: Datentraeger {0} ({1})" -f $DiskNumber, $usbDrive)
+    Build-InstallerUsb -SourceDrive $mountedIso.DriveLetter -TargetDrive $usbDrive -Variant $WriterVariant -PresetBase64Value $PresetBase64
+    Write-Manifest -TargetDrive $usbDrive -IsoUrl $ReleaseIsoUrl -ProfileName $PresetName -Variant $WriterVariant
+    Write-Step ("Windows {0}-USB fertig: Datentraeger {1} ({2})" -f $WriterVariant, $DiskNumber, $usbDrive)
+    if ($WriterVariant -eq "live") {
+        Write-Step "Hinweis: Das Windows-Skript erstellt ein UEFI-bootfaehiges Live-Medium."
+    }
 } finally {
     if ($mountedIso -and $mountedIso.DiskImage) {
         Dismount-DiskImage -ImagePath $isoPath -ErrorAction SilentlyContinue | Out-Null

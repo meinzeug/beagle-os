@@ -247,6 +247,58 @@ detect_beagle_network_bridge_iface() {
   return 0
 }
 
+# ---------------------------------------------------------------------------
+# setup_beagle_manager_migration_ssh
+#
+# Ensures the beagle-manager service account has a dedicated ed25519 key and
+# an SSH client config that:
+#   - forces IPv4 (avoids IPv6/dual-stack DNS ambiguity)
+#   - accepts new host keys automatically on first contact (accept-new)
+#   - uses BatchMode so libvirt/virsh can't block on interactive prompts
+#
+# The public key is printed to stdout so operators / automation can distribute
+# it to peer nodes via beagle-cluster-ssh-setup.sh or manually via
+# ssh-copy-id / authorized_keys management.
+#
+# Idempotent: re-running never overwrites an existing key.
+# ---------------------------------------------------------------------------
+setup_beagle_manager_migration_ssh() {
+  local ssh_home="/var/lib/beagle/.ssh"
+  local key_file="$ssh_home/id_ed25519"
+  local config_file="$ssh_home/config"
+
+  install -d -m 0700 -o "$BEAGLE_CONTROL_USER" -g "$BEAGLE_CONTROL_USER" "$ssh_home"
+
+  if [[ ! -f "$key_file" ]]; then
+    ssh-keygen -t ed25519 -N '' \
+      -f "$key_file" \
+      -C "beagle-manager@$(hostname -s)-migration" \
+      >/dev/null
+    chown "$BEAGLE_CONTROL_USER:$BEAGLE_CONTROL_USER" "$key_file" "${key_file}.pub"
+    chmod 0600 "$key_file"
+    chmod 0644 "${key_file}.pub"
+    echo "beagle-manager SSH key generated: $key_file" >&2
+  fi
+
+  # Write SSH client config — safe to overwrite (only manages our settings)
+  cat > "$config_file" <<'SSHCFG'
+# Managed by beagle install-beagle-host-services.sh — do not edit manually.
+# Used by beagle-manager for virsh qemu+ssh:// live-migration connections.
+Host *
+    IdentityFile /var/lib/beagle/.ssh/id_ed25519
+    AddressFamily inet
+    StrictHostKeyChecking accept-new
+    BatchMode yes
+    ConnectTimeout 10
+SSHCFG
+  chown "$BEAGLE_CONTROL_USER:$BEAGLE_CONTROL_USER" "$config_file"
+  chmod 0600 "$config_file"
+
+  echo "beagle-manager SSH config written: $config_file" >&2
+  echo "beagle-manager public key (distribute to cluster peers):"
+  cat "${key_file}.pub"
+}
+
 ensure_root "$@"
 
 if ! id "$BEAGLE_CONTROL_USER" >/dev/null 2>&1; then
@@ -564,6 +616,10 @@ NETEOF
 
   # Ensure nvram dir exists for OVMF vars
   mkdir -p /var/lib/libvirt/qemu/nvram
+
+  # Set up SSH key + config for beagle-manager so virsh live-migration
+  # (qemu+ssh://) can connect to peer nodes without interactive prompts.
+  setup_beagle_manager_migration_ssh
 fi
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH" '"0"'
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_USB_TUNNEL_SSH_USER" "\"$USB_TUNNEL_USER\""

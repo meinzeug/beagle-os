@@ -63,10 +63,12 @@ class InstallerTemplatePatchService:
         preset_name: str,
         preset_b64: str,
         installer_iso_url: str,
+        writer_variant: str,
     ) -> str:
         return (
             script_text
             .replace("__BEAGLE_DEFAULT_RELEASE_ISO_URL__", str(installer_iso_url or ""))
+            .replace("__BEAGLE_DEFAULT_WRITER_VARIANT__", str(writer_variant or ""))
             .replace("__BEAGLE_DEFAULT_PRESET_NAME__", str(preset_name or ""))
             .replace("__BEAGLE_DEFAULT_PRESET_B64__", str(preset_b64 or ""))
         )

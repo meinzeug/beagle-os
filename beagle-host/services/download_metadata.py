@@ -57,6 +57,9 @@ class DownloadMetadataService:
     def public_windows_installer_url(self) -> str:
         return self._hosted_download_url("pve-thin-client-usb-installer-host-latest.ps1")
 
+    def public_windows_live_usb_url(self) -> str:
+        return self._hosted_download_url("pve-thin-client-live-usb-host-latest.ps1")
+
     def public_update_sha256sums_url(self) -> str:
         return f"{self._public_update_base_url}/SHA256SUMS"
 

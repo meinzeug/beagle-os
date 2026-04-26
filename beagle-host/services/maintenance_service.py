@@ -108,7 +108,7 @@ class MaintenanceService:
             raise RuntimeError(f"no online non-maintenance target node available for {source}")
         return sorted(candidates)[0]
 
-    def drain_node(self, *, node_name: str, requester_identity: str = "") -> dict[str, Any]:
+    def _plan_drain_actions(self, *, node_name: str) -> tuple[str, list[dict[str, Any]]]:
         source_node = str(node_name or "").strip()
         if not source_node:
             raise ValueError("node_name is required")
@@ -120,8 +120,6 @@ class MaintenanceService:
         }
         if source_node not in known_nodes:
             raise RuntimeError(f"node {source_node} not found")
-
-        self._set_node_maintenance(source_node, True)
 
         actions: list[dict[str, Any]] = []
         for vm in self._list_vms():
@@ -139,6 +137,7 @@ class MaintenanceService:
                 "vm_name": vm_name,
                 "source_node": vm_source,
                 "ha_policy": policy,
+                "vm_status": vm_status,
             }
 
             if policy == "disabled":
@@ -150,26 +149,59 @@ class MaintenanceService:
             action["target_node"] = target_node
 
             if policy == "restart":
-                details = self._cold_restart_vm(vmid, vm_source, target_node)
-                action.update({"handled": True, "result": "cold_restart", "details": details})
+                action.update({"handled": True, "result": "cold_restart"})
                 actions.append(action)
+                continue
+
+            action.update({"handled": True, "result": "live_migration"})
+            actions.append(action)
+
+        return source_node, actions
+
+    def preview_drain_node(self, *, node_name: str) -> dict[str, Any]:
+        source_node, actions = self._plan_drain_actions(node_name=node_name)
+        return self._envelope(
+            node_name=source_node,
+            maintenance_enabled=self.is_node_in_maintenance(source_node),
+            evaluated_vm_count=len(actions),
+            handled_vm_count=sum(1 for item in actions if item.get("handled") is True),
+            actions=actions,
+            maintenance_nodes=self.maintenance_nodes(),
+        )
+
+    def drain_node(self, *, node_name: str, requester_identity: str = "") -> dict[str, Any]:
+        source_node = str(node_name or "").strip()
+        _, planned_actions = self._plan_drain_actions(node_name=node_name)
+        self._set_node_maintenance(source_node, True)
+        actions: list[dict[str, Any]] = []
+
+        for action in planned_actions:
+            current = dict(action)
+            if current.get("handled") is not True:
+                actions.append(current)
+                continue
+            vmid = int(current.get("vmid") or 0)
+            vm_source = str(current.get("source_node") or source_node).strip()
+            target_node = str(current.get("target_node") or "").strip()
+            policy = self._normalize_ha_policy(current.get("ha_policy"))
+            vm_status = str(current.get("vm_status") or "unknown").strip().lower()
+
+            if policy == "restart":
+                details = self._cold_restart_vm(vmid, vm_source, target_node)
+                current["details"] = details
+                actions.append(current)
                 continue
 
             live = vm_status == "running"
             try:
                 details = self._migrate_vm(vmid, target_node, live, False, requester_identity)
-                action.update({"handled": True, "result": "live_migration", "details": details})
+                current["details"] = details
             except Exception as exc:
                 details = self._cold_restart_vm(vmid, vm_source, target_node)
-                action.update(
-                    {
-                        "handled": True,
-                        "result": "cold_restart_fallback",
-                        "fallback_reason": str(exc),
-                        "details": details,
-                    }
-                )
-            actions.append(action)
+                current["details"] = details
+                current["result"] = "cold_restart_fallback"
+                current["fallback_reason"] = str(exc)
+            actions.append(current)
 
         return self._envelope(
             node_name=source_node,

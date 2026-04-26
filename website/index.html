@@ -188,6 +188,49 @@
       </div>
     </div>
 
+    <!-- VM Migration modal -->
+    <div class="modal" id="migrate-modal" aria-hidden="true" hidden>
+      <div class="modal-dialog migrate-dialog" role="dialog" aria-modal="true" aria-labelledby="migrate-modal-title">
+        <div class="migrate-modal-head">
+          <div>
+            <span class="eyebrow">Live-Migration</span>
+            <h2 id="migrate-modal-title">VM verschieben</h2>
+            <p id="migrate-modal-subtitle"></p>
+          </div>
+          <button class="icon-button" id="close-migrate-modal" type="button" aria-label="Schliessen">×</button>
+        </div>
+
+        <!-- topology canvas — populated by migration_modal.js -->
+        <div class="migrate-topology" id="migrate-topology">
+          <div class="migrate-node-list" id="migrate-node-list"></div>
+        </div>
+
+        <!-- options -->
+        <div class="migrate-options">
+          <label class="migrate-option-toggle">
+            <input type="checkbox" id="migrate-opt-live" checked>
+            Live-Migration (VM bleibt laufend)
+          </label>
+          <label class="migrate-option-toggle">
+            <input type="checkbox" id="migrate-opt-copy" checked>
+            Storage mitübertragen (--copy-storage-all)
+          </label>
+        </div>
+
+        <!-- inline status -->
+        <div class="migrate-status" id="migrate-status" role="status" aria-live="polite">
+          <div class="migrate-status-spinner" aria-hidden="true"></div>
+          <span id="migrate-status-text"></span>
+        </div>
+
+        <!-- buttons -->
+        <div class="button-row migrate-modal-buttons">
+          <button class="button ghost" id="migrate-cancel-btn" type="button">Abbrechen</button>
+          <button class="button primary" id="migrate-confirm-btn" type="button" disabled>Zielknoten wählen</button>
+        </div>
+      </div>
+    </div>
+
     <!-- VM Template Builder modal -->
     <div class="modal" id="template-builder-modal" aria-hidden="true" hidden>
       <div class="modal-dialog provision-dialog" role="dialog" aria-modal="true" aria-labelledby="template-builder-title">
@@ -538,16 +581,12 @@
                 <div class="card-head">
                   <div>
                     <span class="eyebrow">GPU Plane</span>
-                    <h2>GPU Inventory</h2>
+                    <h2>Physische GPUs</h2>
+                    <p class="muted-text">Zeigt Readiness, aktuelle Treiberbindung und die naechste sinnvolle Aktion fuer Passthrough.</p>
                   </div>
                 </div>
-                <div class="table-wrap compact">
-                  <table class="vm-table compact-table">
-                    <thead><tr><th>Node</th><th>PCI</th><th>Modell</th><th>Treiber</th><th>IOMMU</th><th>Status</th><th>Aktion</th></tr></thead>
-                    <tbody id="virtualization-gpus-body">
-                      <tr><td colspan="7" class="empty-cell">Noch keine GPU-Daten.</td></tr>
-                    </tbody>
-                  </table>
+                <div class="nodes-grid gpu-grid" id="virtualization-gpu-cards">
+                  <div class="empty-card">Noch keine GPU-Daten.</div>
                 </div>
               </article>
 
@@ -607,13 +646,8 @@
                     <h2>Storage</h2>
                   </div>
                 </div>
-                <div class="table-wrap compact">
-                  <table class="vm-table compact-table">
-                    <thead><tr><th>Name</th><th>Node</th><th>Typ</th><th>Auslastung</th><th>Quota</th></tr></thead>
-                    <tbody id="virtualization-storage-body">
-                      <tr><td colspan="5" class="empty-cell">Noch keine Daten.</td></tr>
-                    </tbody>
-                  </table>
+                <div class="nodes-grid storage-grid" id="virtualization-storage-cards">
+                  <div class="empty-card">Noch keine Daten.</div>
                 </div>
               </article>
 
@@ -628,13 +662,8 @@
                     <button class="button ghost small" id="clear-virt-node-filter" type="button">Filter</button>
                   </div>
                 </div>
-                <div class="table-wrap compact">
-                  <table class="vm-table compact-table">
-                    <thead><tr><th>Name</th><th>Node</th><th>Adresse</th><th>Ports</th><th>Aktiv</th></tr></thead>
-                    <tbody id="virtualization-bridges-body">
-                      <tr><td colspan="5" class="empty-cell">Noch keine Daten.</td></tr>
-                    </tbody>
-                  </table>
+                <div class="nodes-grid bridge-grid" id="virtualization-bridge-cards">
+                  <div class="empty-card">Noch keine Daten.</div>
                 </div>
               </article>
             </div>
@@ -825,7 +854,8 @@
                   <details class="field field-wide cluster-expert-details">
                     <summary>Manuellen Join-Token-Fallback anzeigen</summary>
                     <div class="settings-form cluster-expert-grid">
-                      <label class="field field-wide"><span>Join-Token</span><textarea id="cluster-existing-token" rows="3" placeholder="Token vom Leader einfuegen"></textarea></label>
+                      <label class="field field-wide"><span>Setup-Code (Automatischer Join)</span><input id="cluster-setup-code-input" type="text" placeholder="Setup-Code vom Zielserver"></input></label>
+                      <label class="field field-wide"><span>Join-Token (Manueller Fallback)</span><textarea id="cluster-existing-token" rows="3" placeholder="Token vom Leader einfuegen"></textarea></label>
                       <label class="field"><span>Leader API URL (optional)</span><input id="cluster-existing-leader" type="url" placeholder="aus Token, falls leer"></label>
                       <label class="field"><span>Lokaler Node Name</span><input id="cluster-existing-node" type="text" placeholder="srv2"></label>
                       <label class="field"><span>Lokale API URL</span><input id="cluster-existing-api-url" type="url" placeholder="https://srv2.example.com/beagle-api/api/v1"></label>
@@ -1146,7 +1176,12 @@
                   <input id="virt-inspector-vmid" type="number" min="1" step="1" placeholder="VMID">
                   <button class="button primary small" id="virt-inspector-load" type="button">Laden</button>
                   <button class="button ghost small" id="virt-inspector-use-selected" type="button">Aus Auswahl</button>
+                  <button class="button ghost small" id="virt-inspector-use-last" type="button">Letzte VM</button>
                 </div>
+              </div>
+
+              <div id="virt-inspector-recent" class="button-row compact-row section-spaced-tight">
+                <span class="chip muted">Noch keine zuletzt geladenen VMs.</span>
               </div>
 
               <div id="virt-inspector-summary" class="detail-grid">
@@ -1158,6 +1193,24 @@
                   <thead><tr><th>Config Key</th><th>Wert</th></tr></thead>
                   <tbody id="virt-inspector-config-body">
                     <tr><td colspan="2" class="empty-cell">Noch keine Config geladen.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="table-wrap compact section-spaced-tight">
+                <table class="vm-table compact-table">
+                  <thead><tr><th>Disk</th><th>Ziel / Details</th></tr></thead>
+                  <tbody id="virt-inspector-disks-body">
+                    <tr><td colspan="2" class="empty-cell">Noch keine Disk-Daten geladen.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="table-wrap compact section-spaced-tight">
+                <table class="vm-table compact-table">
+                  <thead><tr><th>Netz-Config</th><th>Wert</th></tr></thead>
+                  <tbody id="virt-inspector-netcfg-body">
+                    <tr><td colspan="2" class="empty-cell">Noch keine Netzwerk-Config geladen.</td></tr>
                   </tbody>
                 </table>
               </div>

@@ -117,13 +117,20 @@ class NetworkHttpSurfaceService:
             subnet = str(p.get("subnet") or "").strip()
             dhcp_start = str(p.get("dhcp_start") or "").strip()
             dhcp_end = str(p.get("dhcp_end") or "").strip()
+            bridge_name = str(p.get("bridge_name") or "").strip()
             if not all([zone_id, subnet, dhcp_start, dhcp_end]):
                 return self._json(
                     HTTPStatus.BAD_REQUEST,
                     {"ok": False, "error": "zone_id, subnet, dhcp_start, dhcp_end required"},
                 )
             try:
-                self._ipam.register_zone(zone_id, subnet, dhcp_start, dhcp_end)
+                self._ipam.register_zone(
+                    zone_id,
+                    subnet,
+                    dhcp_start,
+                    dhcp_end,
+                    bridge_name=bridge_name,
+                )
             except ValueError as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
             return self._json(HTTPStatus.OK, {"ok": True, "zone_id": zone_id})

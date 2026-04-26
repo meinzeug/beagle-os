@@ -16,6 +16,7 @@
 @import url("/styles/panels/_virtualization.css");
 @import url("/styles/panels/_cluster.css");
 @import url("/styles/panels/_provisioning.css");
+@import url("/styles/panels/_migration.css");
 @import url("/styles/panels/_policies.css");
 @import url("/styles/panels/_iam.css");
 @import url("/styles/panels/_settings.css");

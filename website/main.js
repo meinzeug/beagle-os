@@ -53,6 +53,10 @@ import {
   openTemplateBuilderModal
 } from './ui/template_builder.js';
 import {
+  initMigrateModal,
+  openMigrateModal
+} from './ui/migration_modal.js';
+import {
   configurePolicies,
   renderPolicies
 } from './ui/policies.js';
@@ -129,12 +133,14 @@ function buildDetailActionsHtml(status) {
     html += actionButton('download-linux', 'Installer Linux', 'ghost');
     html += actionButton('download-windows', 'Installer Windows', 'ghost');
     html += actionButton('download-live-usb', 'Live USB', 'ghost');
+    html += actionButton('download-live-usb-windows', 'Live USB Windows', 'ghost');
   }
   if (status === 'stopped' || status === 'shutoff') {
     html += actionButton('open-template-builder', 'Als Template', 'ghost');
     html += actionButton('download-linux', 'Installer Linux', 'ghost');
     html += actionButton('download-windows', 'Installer Windows', 'ghost');
     html += actionButton('download-live-usb', 'Live USB', 'ghost');
+    html += actionButton('download-live-usb-windows', 'Live USB Windows', 'ghost');
   }
   if (status === 'installing') {
     html += actionButton('vm-stop', 'Stoppen', 'ghost');
@@ -428,6 +434,7 @@ export function bootstrapApp() {
   }
 
   initTokenStores(browserCommon);
+  initMigrateModal();
   configureApiAuth({
     buildAuthHeaders,
     refreshAccessToken,
@@ -455,7 +462,8 @@ export function bootstrapApp() {
     runVmPowerAction,
     setBanner,
     loadDetail,
-    openTemplateBuilderModal
+    openTemplateBuilderModal,
+    openMigrateModal: (opts) => openMigrateModal(opts),
   });
   configureTemplateBuilder({
     addToActivityLog,

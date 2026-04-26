@@ -81,6 +81,30 @@ class MaintenanceServiceTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             service.drain_node(node_name="node-missing", requester_identity="tester")
 
+    def test_preview_does_not_enable_maintenance(self) -> None:
+        service = MaintenanceService(
+            state_file=self.state_file,
+            list_nodes=lambda: [
+                {"name": "node-a", "status": "online"},
+                {"name": "node-b", "status": "online"},
+            ],
+            list_vms=lambda: [
+                VmItem(vmid=201, node="node-a", name="vm-preview", status="running"),
+            ],
+            get_vm_config=lambda node, vmid: {"ha_policy": "fail_over"},
+            migrate_vm=lambda vmid, target_node, live, copy_storage, requester_identity: {"ok": True},
+            cold_restart_vm=lambda vmid, source_node, target_node: {"ok": True},
+            service_name="test",
+            utcnow=lambda: "2026-04-23T00:00:00Z",
+            version="1",
+        )
+
+        payload = service.preview_drain_node(node_name="node-a")
+
+        self.assertEqual(payload["node_name"], "node-a")
+        self.assertEqual(payload["evaluated_vm_count"], 1)
+        self.assertFalse(service.is_node_in_maintenance("node-a"))
+
 
 if __name__ == "__main__":
     unittest.main()

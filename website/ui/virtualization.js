@@ -14,13 +14,237 @@ import {
   text,
   usageBar
 } from './dom.js';
-import { request } from './api.js';
+import { postJson, request } from './api.js';
 
 const virtualizationHooks = {
   openInventoryWithNodeFilter() {},
   setBanner() {},
   loadDashboard() {}
 };
+
+function serviceTone(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'pass' || normalized === 'online' || normalized === 'active') {
+    return 'ok';
+  }
+  if (normalized === 'warn' || normalized === 'warning' || normalized === 'maintenance') {
+    return 'warn';
+  }
+  if (normalized === 'fail' || normalized === 'offline' || normalized === 'unreachable') {
+    return 'bad';
+  }
+  return 'muted';
+}
+
+function storageHealth(used, total) {
+  const totalBytes = Number(total || 0);
+  const usedBytes = Number(used || 0);
+  const usedPct = totalBytes > 0 ? (usedBytes / totalBytes) * 100 : 0;
+  if (usedPct >= 90) {
+    return { tone: 'bad', label: 'kritisch', usedPct };
+  }
+  if (usedPct >= 75) {
+    return { tone: 'warn', label: 'hoch', usedPct };
+  }
+  return { tone: 'ok', label: 'ok', usedPct };
+}
+
+function gpuReadiness(item) {
+  const status = String((item && item.status) || '').trim();
+  const driver = String((item && item.driver) || '').trim();
+  const groupSize = Number((item && item.iommu_group_size) || 0);
+  if (status === 'not-isolatable') {
+    return {
+      tone: 'bad',
+      label: 'nicht isolierbar',
+      reason: 'IOMMU-Gruppe enthaelt weitere Geraete (' + String(groupSize || 0) + ').',
+      nextStep: 'Passthrough erst nach sauberer Isolierung per BIOS/ACS/anderer Hardwaretopologie freigeben.',
+    };
+  }
+  if (status === 'assigned') {
+    return {
+      tone: 'ok',
+      label: 'bereit / vfio-pci',
+      reason: driver ? ('GPU ist bereits an ' + driver + ' gebunden.') : 'GPU ist bereits fuer Passthrough vorbereitet.',
+      nextStep: 'Kann einer ausgeschalteten VM zugewiesen oder von ihr geloest werden.',
+    };
+  }
+  if (status === 'available-for-passthrough') {
+    return {
+      tone: 'warn',
+      label: 'vorbereitbar',
+      reason: driver && driver !== 'vfio-pci' ? ('Aktuell noch an Host-Treiber ' + driver + ' gebunden.') : 'GPU ist isolierbar und fuer Passthrough geeignet.',
+      nextStep: driver && driver !== 'vfio-pci'
+        ? 'Vor Zuweisung den Host-Treiber loesen bzw. auf vfio-pci umstellen; je nach Host ist ein Reboot noetig.'
+        : 'Kann einer passenden VM zugewiesen werden.',
+    };
+  }
+  if (status === 'no-iommu-group') {
+    return {
+      tone: 'bad',
+      label: 'kein IOMMU-Schutz',
+      reason: 'Fuer diese GPU wurde keine IOMMU-Gruppe erkannt.',
+      nextStep: 'IOMMU im BIOS/Kernel aktivieren, bevor Passthrough oder vGPU verwendet wird.',
+    };
+  }
+  return {
+    tone: 'warn',
+    label: status || 'unbekannt',
+    reason: 'GPU-Status konnte nicht eindeutig klassifiziert werden.',
+    nextStep: 'Knoten-Details und Host-Logs pruefen, bevor Aenderungen an der VM-Zuordnung vorgenommen werden.',
+  };
+}
+
+function vmInspectorStatePatch() {
+  const current = state.virtualizationInspector || {};
+  return {
+    lastVmid: current.lastVmid || null,
+    recentVmids: Array.isArray(current.recentVmids) ? current.recentVmids.slice(0, 6) : [],
+  };
+}
+
+function rememberInspectorVmid(vmid) {
+  const numericVmid = Number(vmid || 0);
+  if (!Number.isFinite(numericVmid) || numericVmid <= 0) {
+    return vmInspectorStatePatch();
+  }
+  const current = vmInspectorStatePatch();
+  const recent = [numericVmid].concat(current.recentVmids.filter((item) => Number(item || 0) !== numericVmid)).slice(0, 6);
+  return {
+    lastVmid: numericVmid,
+    recentVmids: recent,
+  };
+}
+
+function renderInspectorRecentVmids() {
+  const recentEl = qs('virt-inspector-recent');
+  if (!recentEl) {
+    return;
+  }
+  const inspector = state.virtualizationInspector || {};
+  const recent = Array.isArray(inspector.recentVmids) ? inspector.recentVmids : [];
+  if (!recent.length) {
+    recentEl.innerHTML = '<span class="chip muted">Noch keine zuletzt geladenen VMs.</span>';
+    return;
+  }
+  recentEl.innerHTML = recent.map((vmid) => {
+    const active = Number(inspector.vmid || 0) === Number(vmid || 0);
+    return '<button type="button" class="button ' + (active ? 'primary' : 'ghost') + ' small" data-virt-inspector-recent="' + escapeHtml(String(vmid)) + '">VM ' + escapeHtml(String(vmid)) + '</button>';
+  }).join('');
+}
+
+function currentSuggestedVmid() {
+  const selected = Number(state.selectedVmid || 0);
+  if (Number.isFinite(selected) && selected > 0) {
+    return selected;
+  }
+  const inspectorVmid = Number((state.virtualizationInspector || {}).vmid || 0);
+  if (Number.isFinite(inspectorVmid) && inspectorVmid > 0) {
+    return inspectorVmid;
+  }
+  return 0;
+}
+
+function openGpuActionModal(pciAddress, mode) {
+  const pci = String(pciAddress || '').trim();
+  const action = String(mode || '').trim() === 'release' ? 'release' : 'assign';
+  if (!pci) {
+    virtualizationHooks.setBanner('PCI-Adresse fehlt.', 'warn');
+    return;
+  }
+  const suggestedVmid = currentSuggestedVmid();
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.id = 'gpu-action-modal';
+  modal.innerHTML = `
+    <div class="modal-dialog provision-dialog" role="dialog" aria-modal="true" aria-labelledby="gpu-action-title">
+      <div class="modal-dialog-head">
+        <div>
+          <span class="eyebrow">GPU Aktion</span>
+          <h2 id="gpu-action-title">${escapeHtml(action === 'assign' ? 'GPU einer VM zuweisen' : 'GPU von VM loesen')}</h2>
+          <p>${escapeHtml(pci)} · ${escapeHtml(action === 'assign' ? 'Diese Aenderung wirkt direkt auf die Ziel-VM.' : 'Die GPU wird aus der Ziel-VM-Konfiguration entfernt.')}</p>
+        </div>
+        <button class="icon-button" type="button" aria-label="Schliessen" id="gpu-action-close">×</button>
+      </div>
+      <div class="settings-form">
+        <div class="field field-wide cluster-security-note">
+          <span>Wichtiger Hinweis</span>
+          <p>${escapeHtml(action === 'assign'
+            ? 'Passthrough- oder vfio-aehnliche Geraete sollten nur ausgeschalteten oder sauber vorbereiteten VMs zugewiesen werden.'
+            : 'Das Loesen einer GPU kann Treiber- oder Boot-Folgen in der VM haben und sollte geplant erfolgen.')}</p>
+        </div>
+        <label class="field field-wide">
+          <span>VM-ID</span>
+          <input id="gpu-action-vmid" type="number" min="1" step="1" value="${escapeHtml(suggestedVmid > 0 ? String(suggestedVmid) : '')}" placeholder="z.B. 100">
+        </label>
+      </div>
+      <div class="button-row provision-modal-buttons">
+        <button class="button ghost" type="button" id="gpu-action-cancel">Abbrechen</button>
+        <button class="button ${action === 'assign' ? 'primary' : 'danger'}" type="button" id="gpu-action-confirm">${escapeHtml(action === 'assign' ? 'GPU zuweisen' : 'GPU loesen')}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.body.classList.add('modal-open');
+  modal.hidden = false;
+  modal.setAttribute('aria-hidden', 'false');
+
+  const close = () => {
+    modal.remove();
+    if (document.querySelectorAll('.modal[aria-hidden="false"]').length === 0) {
+      document.body.classList.remove('modal-open');
+    }
+  };
+  const closeBtn = document.getElementById('gpu-action-close');
+  const cancelBtn = document.getElementById('gpu-action-cancel');
+  const confirmBtn = document.getElementById('gpu-action-confirm');
+  const vmidInput = document.getElementById('gpu-action-vmid');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', close);
+  }
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', close);
+  }
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) {
+      close();
+    }
+  });
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', () => {
+      const vmid = parseInt(String(vmidInput ? vmidInput.value : '').trim(), 10);
+      if (!Number.isFinite(vmid) || vmid <= 0) {
+        virtualizationHooks.setBanner('Ungueltige VM-ID.', 'warn');
+        return;
+      }
+      const path = action === 'assign'
+        ? '/api/v1/virtualization/gpus/' + encodeURIComponent(pci) + '/assign'
+        : '/api/v1/virtualization/gpus/' + encodeURIComponent(pci) + '/release';
+      request(path, {
+        method: 'POST',
+        body: JSON.stringify({ vmid })
+      }).then((res) => {
+        if (res.ok) {
+          virtualizationHooks.setBanner(
+            action === 'assign'
+              ? ('GPU ' + pci + ' wurde VM ' + vmid + ' zugewiesen.')
+              : ('GPU ' + pci + ' wurde von VM ' + vmid + ' geloest.'),
+            'ok'
+          );
+          close();
+          virtualizationHooks.loadDashboard();
+          return;
+        }
+        virtualizationHooks.setBanner('Fehler: ' + (res.error || JSON.stringify(res)), 'warn');
+      }).catch((err) => {
+        virtualizationHooks.setBanner('Fehler: ' + (err.message || String(err)), 'warn');
+      });
+    });
+  }
+  if (vmidInput) {
+    window.setTimeout(() => vmidInput.focus(), 30);
+  }
+}
 
 export function configureVirtualization(nextHooks) {
   Object.assign(virtualizationHooks, nextHooks || {});
@@ -101,6 +325,7 @@ export function renderVirtualizationPanel() {
         '<span>' + escapeHtml(node.provider || (overview && overview.provider) || '') + '</span>' +
         '</div>' +
         '<div class="node-actions">' +
+        '<button type="button" class="button ghost small" data-virt-node-detail="' + escapeHtml(nodeName) + '">Details</button> ' +
         '<button type="button" class="button ghost small" data-virt-node-filter="' + escapeHtml(nodeName) + '">VMs filtern</button> ' +
         '<button type="button" class="button ghost small" data-virt-local-preflight="' + escapeHtml(nodeName) + '">Preflight</button>' +
         '</div>' +
@@ -236,9 +461,9 @@ export function renderVirtualizationOverview() {
   const filteredGpus = nodeFilter ? gpus.filter((item) => String(item.node || '').trim() === nodeFilter) : gpus;
   const hostBody = qs('virtualization-hosts-body');
   const nodeBody = qs('virtualization-nodes-body');
-  const storageBody = qs('virtualization-storage-body');
-  const bridgeBody = qs('virtualization-bridges-body');
-  const gpuBody = qs('virtualization-gpus-body');
+  const storageCards = qs('virtualization-storage-cards');
+  const bridgeCards = qs('virtualization-bridge-cards');
+  const gpuCards = qs('virtualization-gpu-cards');
   text('virtualization-node-filter', nodeFilter || 'Alle Nodes');
   if (qs('clear-virt-node-filter')) {
     qs('clear-virt-node-filter').disabled = !nodeFilter;
@@ -258,34 +483,122 @@ export function renderVirtualizationOverview() {
     }).join('') : '<tr><td colspan="4" class="empty-cell">Keine Node-Daten vorhanden.</td></tr>';
   }
 
-  if (storageBody) {
-    storageBody.innerHTML = filteredStorage.length ? filteredStorage.map((item) => {
-      const usedPercent = Number(item.total || 0) > 0 ? (Number(item.used || 0) / Number(item.total || 0)) * 100 : 0;
+  if (storageCards) {
+    storageCards.innerHTML = filteredStorage.length ? filteredStorage.map((item) => {
       const quotaBytes = Number(item.quota_bytes || 0);
       const quotaText = quotaBytes > 0 ? formatGiB(quotaBytes) : 'unbegrenzt';
-      return '<tr><td>' + escapeHtml(item.name || item.id || 'storage') + '</td><td>' + escapeHtml(item.node || '-') + '</td><td>' + escapeHtml(item.type || '-') + '</td><td>' + escapeHtml(formatGiB(item.used) + ' / ' + formatGiB(item.total) + ' (' + usedPercent.toFixed(0) + '%)') + '</td><td>' + escapeHtml(quotaText) + '</td></tr>';
-    }).join('') : '<tr><td colspan="5" class="empty-cell">Keine Storage-Daten vorhanden.</td></tr>';
+      const health = storageHealth(item.used, item.total);
+      const nodeName = String(item.node || '').trim();
+      const usageText = formatBytes(item.used || 0) + ' / ' + formatBytes(item.total || 0) + ' (' + health.usedPct.toFixed(0) + '%)';
+      const healthButton = nodeName
+        ? '<button type="button" class="button ghost small" data-storage-health-node="' + escapeHtml(nodeName) + '">Health pruefen</button>'
+        : '<button type="button" class="button ghost small" disabled>Health pruefen</button>';
+      return '<article class="storage-card ' + health.tone + '">' +
+        '<div class="storage-card-head">' +
+        '<div>' +
+        '<strong class="node-name">' + escapeHtml(item.name || item.id || 'storage') + '</strong>' +
+        '<div class="storage-card-meta">' +
+        chip(item.type || 'n/a', 'muted') +
+        chip(nodeName || 'ohne Node', 'muted') +
+        chip(health.label, health.tone) +
+        '</div>' +
+        '</div>' +
+        '<div>' + chip(item.active ? 'aktiv' : 'inaktiv', item.active ? 'ok' : 'warn') + '</div>' +
+        '</div>' +
+        '<div class="storage-card-usage">' +
+        '<span class="usage-key">Auslastung</span>' +
+        usageBar(item.used, item.total, usageText).replace('usage-bar-outer', 'usage-bar-outer ' + health.tone) +
+        '</div>' +
+        '<div class="settings-info-grid compact-grid">' +
+        '<div class="info-item"><span class="info-label">Content</span><span class="info-value">' + escapeHtml(item.content || '-') + '</span></div>' +
+        '<div class="info-item"><span class="info-label">Verfuegbar</span><span class="info-value">' + escapeHtml(formatBytes(item.avail || 0)) + '</span></div>' +
+        '<div class="info-item"><span class="info-label">Quota</span><span class="info-value">' + escapeHtml(quotaText) + '</span></div>' +
+        '<div class="info-item"><span class="info-label">Shared</span><span class="info-value">' + escapeHtml(item.shared ? 'ja' : 'nein') + '</span></div>' +
+        '</div>' +
+        '<div class="storage-card-actions">' +
+        '<button type="button" class="button ghost small" data-storage-quota-set="1" data-storage-pool="' + escapeHtml(item.name || item.id || '') + '" data-storage-quota-bytes="' + String(quotaBytes) + '">Quota setzen</button>' +
+        healthButton +
+        '</div>' +
+        '</article>';
+    }).join('') : '<div class="empty-card">Keine Storage-Daten vorhanden.</div>';
   }
 
-  if (gpuBody) {
-    gpuBody.innerHTML = filteredGpus.length ? filteredGpus.map((item) => {
+  if (gpuCards) {
+    gpuCards.innerHTML = filteredGpus.length ? filteredGpus.map((item) => {
+      const readiness = gpuReadiness(item);
       const iommu = item.iommu_group ? ('Group ' + String(item.iommu_group) + ' (' + String(item.iommu_group_size || 0) + ')') : '-';
-      const tone = item.passthrough_ready ? 'ok' : 'warn';
       const pci = escapeHtml(item.pci_address || '');
+      const nodeName = String(item.node || '').trim();
       let actionBtn = '';
-      if (item.status === 'available-for-passthrough') {
-        actionBtn = '<button type="button" class="button ghost small" data-gpu-assign="1" data-gpu-pci="' + pci + '">Zuweisen</button>';
-      } else if (item.status === 'assigned') {
-        actionBtn = '<button type="button" class="button ghost small" data-gpu-release="1" data-gpu-pci="' + pci + '">Freigeben</button>';
+      if (item.status === 'available-for-passthrough' || item.status === 'assigned') {
+        actionBtn = item.status === 'assigned'
+          ? '<button type="button" class="button ghost small" data-gpu-release="1" data-gpu-pci="' + pci + '">Von VM loesen</button>'
+          : '<button type="button" class="button ghost small" data-gpu-assign="1" data-gpu-pci="' + pci + '">VM zuweisen</button>';
+      } else {
+        actionBtn = '<button type="button" class="button ghost small" disabled>Nicht sicher zuweisbar</button>';
       }
-      return '<tr data-node="' + escapeHtml(item.node || '') + '"' + ((nodeFilter && String(item.node || '') === nodeFilter) ? ' class="node-filter-selected"' : '') + '><td>' + escapeHtml(item.node || '-') + '</td><td class="mono">' + escapeHtml(item.pci_address || '-') + '</td><td>' + escapeHtml(item.model || item.vendor || '-') + '</td><td>' + escapeHtml(item.driver || '-') + '</td><td>' + escapeHtml(iommu) + '</td><td>' + chip(item.status || 'unknown', tone) + '</td><td>' + actionBtn + '</td></tr>';
-    }).join('') : '<tr><td colspan="7" class="empty-cell">Keine GPU-Daten vorhanden.</td></tr>';
+      return '<article class="gpu-card ' + readiness.tone + '" data-node="' + escapeHtml(nodeName) + '">' +
+        '<div class="gpu-card-head">' +
+        '<div>' +
+        '<strong class="node-name">' + escapeHtml(item.model || item.vendor || 'GPU') + '</strong>' +
+        '<div class="gpu-card-meta">' +
+        chip(nodeName || 'ohne Node', 'muted') +
+        chip(item.vendor || 'vendor', 'muted') +
+        chip(readiness.label, readiness.tone) +
+        '</div>' +
+        '</div>' +
+        '<div>' + chip(item.driver || 'kein Treiber', item.driver === 'vfio-pci' ? 'ok' : 'warn') + '</div>' +
+        '</div>' +
+        '<div class="settings-info-grid compact-grid">' +
+        '<div class="info-item"><span class="info-label">PCI</span><span class="info-value mono">' + escapeHtml(item.pci_address || '-') + '</span></div>' +
+        '<div class="info-item"><span class="info-label">IOMMU</span><span class="info-value">' + escapeHtml(iommu) + '</span></div>' +
+        '<div class="info-item"><span class="info-label">Status</span><span class="info-value">' + escapeHtml(String(item.status || 'unknown')) + '</span></div>' +
+        '<div class="info-item"><span class="info-label">Passthrough</span><span class="info-value">' + escapeHtml(item.passthrough_ready ? 'bereit' : 'blockiert') + '</span></div>' +
+        '</div>' +
+        '<div class="gpu-readiness-note">' +
+        '<strong>Warum gerade dieser Status?</strong>' +
+        '<div>' + escapeHtml(readiness.reason) + '</div>' +
+        '<div class="muted-text">' + escapeHtml(readiness.nextStep) + '</div>' +
+        '</div>' +
+        '<div class="gpu-card-actions">' +
+        actionBtn +
+        '<button type="button" class="button ghost small" data-virt-node-detail="' + escapeHtml(nodeName) + '">Host pruefen</button>' +
+        '</div>' +
+        '</article>';
+    }).join('') : '<div class="empty-card">Keine GPU-Daten vorhanden.</div>';
   }
 
-  if (bridgeBody) {
-    bridgeBody.innerHTML = filteredBridges.length ? filteredBridges.map((item) => {
-      return '<tr data-node="' + escapeHtml(item.node || '') + '"' + ((nodeFilter && String(item.node || '') === nodeFilter) ? ' class="node-filter-selected"' : '') + '><td>' + escapeHtml(item.name || item.id || 'bridge') + '</td><td>' + escapeHtml(item.node || '-') + '</td><td>' + escapeHtml(item.cidr || item.address || '-') + '</td><td>' + escapeHtml(item.bridge_ports || '-') + '</td><td>' + chip(item.active ? 'active' : 'inactive', item.active ? 'ok' : 'muted') + '</td></tr>';
-    }).join('') : '<tr><td colspan="5" class="empty-cell">Keine Bridge-Daten vorhanden.</td></tr>';
+  if (bridgeCards) {
+    bridgeCards.innerHTML = filteredBridges.length ? filteredBridges.map((item) => {
+      const nodeName = String(item.node || '').trim();
+      const warningCount = (!item.active ? 1 : 0) + (!item.bridge_ports ? 1 : 0) + (!(item.cidr || item.address) ? 1 : 0);
+      const tone = !item.active ? 'bad' : (warningCount > 0 ? 'warn' : 'ok');
+      return '<article class="bridge-card ' + tone + '"' +
+        ((nodeFilter && nodeName === nodeFilter) ? ' data-node="' + escapeHtml(nodeName) + '"' : ' data-node="' + escapeHtml(nodeName) + '"') +
+        '>' +
+        '<div class="bridge-card-head">' +
+        '<div>' +
+        '<strong class="node-name">' + escapeHtml(item.name || item.id || 'bridge') + '</strong>' +
+        '<div class="bridge-card-meta">' +
+        chip(nodeName || 'ohne Node', 'muted') +
+        chip(item.active ? 'aktiv' : 'inaktiv', item.active ? 'ok' : 'warn') +
+        chip(warningCount ? (warningCount + ' Warnungen') : 'bereit', tone) +
+        '</div>' +
+        '</div>' +
+        '<div>' + chip(item.type || 'bridge', 'muted') + '</div>' +
+        '</div>' +
+        '<div class="settings-info-grid compact-grid">' +
+        '<div class="info-item"><span class="info-label">Adresse</span><span class="info-value">' + escapeHtml(item.cidr || item.address || '-') + '</span></div>' +
+        '<div class="info-item"><span class="info-label">Ports</span><span class="info-value">' + escapeHtml(item.bridge_ports || '-') + '</span></div>' +
+        '<div class="info-item"><span class="info-label">Autostart</span><span class="info-value">' + escapeHtml(item.autostart ? 'ja' : 'nein') + '</span></div>' +
+        '</div>' +
+        '<div class="bridge-card-actions">' +
+        '<button type="button" class="button ghost small" data-virt-bridge-detail="' + escapeHtml(item.name || item.id || '') + '">Details</button>' +
+        '<button type="button" class="button ghost small" data-virt-bridge-ipam="' + escapeHtml(item.name || item.id || '') + '" data-virt-bridge-cidr="' + escapeHtml(item.cidr || '') + '">IPAM-Zone</button>' +
+        '<button type="button" class="button ghost small" data-virt-node-filter="' + escapeHtml(nodeName) + '">Node filtern</button>' +
+        '</div>' +
+        '</article>';
+    }).join('') : '<div class="empty-card">Keine Bridge-Daten vorhanden.</div>';
   }
 }
 
@@ -296,76 +609,269 @@ export function setVirtualizationNodeFilter(nodeName) {
   virtualizationHooks.setBanner(next ? ('Node-Filter aktiv: ' + next) : 'Node-Filter entfernt.', 'info');
 }
 
-export function assignGpuToVm(pciAddress) {
-  const pci = String(pciAddress || '').trim();
-  if (!pci) {
-    virtualizationHooks.setBanner('PCI-Adresse fehlt.', 'warn');
+export function openVirtualizationNodeDetail(nodeName) {
+  const node = String(nodeName || '').trim();
+  if (!node) {
+    virtualizationHooks.setBanner('Node-Name fehlt.', 'warn');
     return;
   }
-  const input = window.prompt('GPU ' + pci + ' einer VM zuweisen.\nVM-ID eingeben:', '');
-  if (input == null) {
-    return;
-  }
-  const vmid = parseInt(String(input || '').trim(), 10);
-  if (!Number.isFinite(vmid) || vmid <= 0) {
-    virtualizationHooks.setBanner('Ungültige VM-ID.', 'warn');
-    return;
-  }
-  request(
-    '/api/v1/virtualization/gpus/' + encodeURIComponent(pci) + '/assign',
-    { method: 'POST', body: JSON.stringify({ vmid }) }
-  ).then((res) => {
-    if (res.ok) {
-      virtualizationHooks.setBanner('GPU ' + pci + ' wurde VM ' + vmid + ' zugewiesen.', 'ok');
-      virtualizationHooks.loadDashboard();
-    } else {
-      virtualizationHooks.setBanner('Fehler: ' + (res.error || JSON.stringify(res)), 'warn');
+  virtualizationHooks.setBanner('Lade Node-Details fuer ' + node + ' ...', 'info');
+  request('/virtualization/nodes/' + encodeURIComponent(node) + '/detail').then((payload) => {
+    const detail = payload || {};
+    const nodeData = detail.node || {};
+    const warnings = Array.isArray(detail.warnings) ? detail.warnings : [];
+    const services = detail.services || {};
+    const serviceMessages = detail.service_messages || {};
+    const storage = Array.isArray(detail.storage) ? detail.storage : [];
+    const bridges = Array.isArray(detail.bridges) ? detail.bridges : [];
+    const gpus = Array.isArray(detail.gpus) ? detail.gpus : [];
+
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'virt-node-detail-modal';
+    modal.innerHTML = `
+      <div class="modal-dialog provision-dialog" role="dialog" aria-modal="true" aria-labelledby="virt-node-detail-title">
+        <div class="modal-dialog-head">
+          <div>
+            <span class="eyebrow">Node Detail</span>
+            <h2 id="virt-node-detail-title">${escapeHtml(String(nodeData.label || nodeData.name || node))}</h2>
+            <p>${escapeHtml(String(nodeData.local ? 'Lokaler Host' : 'Cluster-Knoten'))}${nodeData.api_url ? ' · ' + escapeHtml(String(nodeData.api_url)) : ''}</p>
+          </div>
+          <button class="icon-button" type="button" aria-label="Schliessen" id="virt-node-detail-close">×</button>
+        </div>
+        <div class="settings-form">
+          ${warnings.length ? `
+            <div class="field field-wide">
+              <span>Warnungen</span>
+              <div class="settings-info-grid compact-grid">
+                ${warnings.map((warning) => '<div class="info-item"><span class="info-label">Hinweis</span><span class="info-value">' + escapeHtml(String(warning || '')) + '</span></div>').join('')}
+              </div>
+            </div>
+          ` : ''}
+          <div class="field field-wide">
+            <span>Services & Reachability</span>
+            <div class="settings-info-grid compact-grid">
+              ${Object.keys(services).map((key) => (
+                '<div class="info-item">' +
+                '<span class="info-label">' + escapeHtml(key) + '</span>' +
+                '<span class="info-value">' + chip(String(services[key] || 'unknown'), serviceTone(services[key])) + (serviceMessages[key] ? ' ' + escapeHtml(String(serviceMessages[key])) : '') + '</span>' +
+                '</div>'
+              )).join('')}
+            </div>
+          </div>
+          <div class="field field-wide">
+            <span>Storage</span>
+            <div class="settings-info-grid compact-grid">
+              ${storage.length ? storage.map((item) => (
+                '<div class="info-item">' +
+                '<span class="info-label">' + escapeHtml(String(item.name || item.id || 'storage')) + '</span>' +
+                '<span class="info-value">' + escapeHtml(String(item.type || '-')) + ' · ' + escapeHtml(formatBytes(item.used || 0) + ' / ' + formatBytes(item.total || 0)) + '</span>' +
+                '</div>'
+              )).join('') : '<div class="empty-cell">Keine Storage-Pools fuer diesen Node.</div>'}
+            </div>
+          </div>
+          <div class="field field-wide">
+            <span>Bridges</span>
+            <div class="settings-info-grid compact-grid">
+              ${bridges.length ? bridges.map((item) => (
+                '<div class="info-item">' +
+                '<span class="info-label">' + escapeHtml(String(item.name || item.id || 'bridge')) + '</span>' +
+                '<span class="info-value">' + escapeHtml(String(item.cidr || item.address || '-')) + ' · ' + escapeHtml(String(item.bridge_ports || '-')) + '</span>' +
+                '</div>'
+              )).join('') : '<div class="empty-cell">Keine Bridges fuer diesen Node.</div>'}
+            </div>
+          </div>
+          <div class="field field-wide">
+            <span>GPUs</span>
+            <div class="settings-info-grid compact-grid">
+              ${gpus.length ? gpus.map((item) => (
+                '<div class="info-item">' +
+                '<span class="info-label">' + escapeHtml(String(item.pci_address || item.model || 'gpu')) + '</span>' +
+                '<span class="info-value">' + escapeHtml(String(item.status || 'unknown')) + (item.driver ? ' · ' + escapeHtml(String(item.driver)) : '') + '</span>' +
+                '</div>'
+              )).join('') : '<div class="empty-cell">Keine GPUs fuer diesen Node erkannt.</div>'}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.body.classList.add('modal-open');
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+
+    const close = () => {
+      modal.remove();
+      if (document.querySelectorAll('.modal[aria-hidden="false"]').length === 0) {
+        document.body.classList.remove('modal-open');
+      }
+    };
+    const closeBtn = document.getElementById('virt-node-detail-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', close);
     }
-  }).catch((err) => {
-    virtualizationHooks.setBanner('Fehler: ' + (err.message || String(err)), 'warn');
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        close();
+      }
+    });
+  }).catch((error) => {
+    virtualizationHooks.setBanner('Node-Details konnten nicht geladen werden: ' + error.message, 'warn');
   });
 }
 
-export function releaseGpuFromVm(pciAddress) {
-  const pci = String(pciAddress || '').trim();
-  if (!pci) {
-    virtualizationHooks.setBanner('PCI-Adresse fehlt.', 'warn');
+export function createIpamZoneForBridge(bridgeName, bridgeCidr) {
+  const bridge = String(bridgeName || '').trim();
+  if (!bridge) {
+    virtualizationHooks.setBanner('Bridge-Name fehlt.', 'warn');
     return;
   }
-  const input = window.prompt('GPU ' + pci + ' freigeben.\nVM-ID eingeben:', '');
-  if (input == null) {
+  const subnet = window.prompt('IPAM-Zone fuer Bridge "' + bridge + '" anlegen.\nSubnetz/CIDR:', String(bridgeCidr || '').trim());
+  if (subnet == null) {
     return;
   }
-  const vmid = parseInt(String(input || '').trim(), 10);
-  if (!Number.isFinite(vmid) || vmid <= 0) {
-    virtualizationHooks.setBanner('Ungültige VM-ID.', 'warn');
+  const dhcpStart = window.prompt('DHCP-Start fuer "' + bridge + '":', '');
+  if (dhcpStart == null) {
     return;
   }
-  request(
-    '/api/v1/virtualization/gpus/' + encodeURIComponent(pci) + '/release',
-    { method: 'POST', body: JSON.stringify({ vmid }) }
-  ).then((res) => {
-    if (res.ok) {
-      virtualizationHooks.setBanner('GPU ' + pci + ' von VM ' + vmid + ' freigegeben.', 'ok');
-      virtualizationHooks.loadDashboard();
-    } else {
-      virtualizationHooks.setBanner('Fehler: ' + (res.error || JSON.stringify(res)), 'warn');
-    }
-  }).catch((err) => {
-    virtualizationHooks.setBanner('Fehler: ' + (err.message || String(err)), 'warn');
+  const dhcpEnd = window.prompt('DHCP-Ende fuer "' + bridge + '":', '');
+  if (dhcpEnd == null) {
+    return;
+  }
+  virtualizationHooks.setBanner('Lege IPAM-Zone fuer ' + bridge + ' an ...', 'info');
+  postJson('/network/ipam/zones', {
+    zone_id: bridge,
+    bridge_name: bridge,
+    subnet: String(subnet || '').trim(),
+    dhcp_start: String(dhcpStart || '').trim(),
+    dhcp_end: String(dhcpEnd || '').trim(),
+  }).then(() => {
+    virtualizationHooks.setBanner('IPAM-Zone fuer ' + bridge + ' angelegt.', 'ok');
+    virtualizationHooks.loadDashboard();
+  }).catch((error) => {
+    virtualizationHooks.setBanner('IPAM-Zone konnte nicht angelegt werden: ' + error.message, 'warn');
   });
+}
+
+export function openVirtualizationBridgeDetail(bridgeName) {
+  const bridge = String(bridgeName || '').trim();
+  if (!bridge) {
+    virtualizationHooks.setBanner('Bridge-Name fehlt.', 'warn');
+    return;
+  }
+  virtualizationHooks.setBanner('Lade Bridge-Details fuer ' + bridge + ' ...', 'info');
+  request('/virtualization/bridges/' + encodeURIComponent(bridge) + '/detail').then((payload) => {
+    const detail = payload || {};
+    const bridgeData = detail.bridge || {};
+    const warnings = Array.isArray(detail.warnings) ? detail.warnings : [];
+    const vms = Array.isArray(detail.vms) ? detail.vms : [];
+    const zones = Array.isArray(detail.ipam_zones) ? detail.ipam_zones : [];
+    const profiles = Array.isArray(detail.firewall_profiles) ? detail.firewall_profiles : [];
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'virt-bridge-detail-modal';
+    modal.innerHTML = `
+      <div class="modal-dialog provision-dialog" role="dialog" aria-modal="true" aria-labelledby="virt-bridge-detail-title">
+        <div class="modal-dialog-head">
+          <div>
+            <span class="eyebrow">Bridge Detail</span>
+            <h2 id="virt-bridge-detail-title">${escapeHtml(String(bridgeData.name || bridge))}</h2>
+            <p>${escapeHtml(String(bridgeData.node || '-'))} · ${escapeHtml(String(bridgeData.cidr || bridgeData.address || 'ohne Adresse'))}</p>
+          </div>
+          <button class="icon-button" type="button" aria-label="Schliessen" id="virt-bridge-detail-close">×</button>
+        </div>
+        <div class="settings-form">
+          ${warnings.length ? `
+            <div class="field field-wide">
+              <span>Warnungen</span>
+              <div class="settings-info-grid compact-grid">
+                ${warnings.map((warning) => '<div class="info-item"><span class="info-label">Hinweis</span><span class="info-value">' + escapeHtml(String(warning || '')) + '</span></div>').join('')}
+              </div>
+            </div>
+          ` : ''}
+          <div class="field field-wide">
+            <span>VM-Nutzung</span>
+            <div class="settings-info-grid compact-grid">
+              ${vms.length ? vms.map((item) => (
+                '<div class="info-item">' +
+                '<span class="info-label">VM ' + escapeHtml(String(item.vmid || '')) + '</span>' +
+                '<span class="info-value">' + escapeHtml(String(item.name || 'vm')) + ' · ' + escapeHtml(String(item.status || 'unknown')) + (item.firewall_profile_name ? ' · FW ' + escapeHtml(String(item.firewall_profile_name || '')) : '') + '</span>' +
+                '</div>'
+              )).join('') : '<div class="empty-cell">Keine lokalen VMs auf dieser Bridge.</div>'}
+            </div>
+          </div>
+          <div class="field field-wide">
+            <span>IPAM-Zonen & Leases</span>
+            <div class="settings-info-grid compact-grid">
+              ${zones.length ? zones.map((zone) => (
+                '<div class="info-item">' +
+                '<span class="info-label">' + escapeHtml(String(zone.zone_id || 'zone')) + '</span>' +
+                '<span class="info-value">' + escapeHtml(String(zone.subnet || '-')) + ' · ' + escapeHtml(String(zone.lease_count || 0) + ' Leases') + '</span>' +
+                '</div>'
+              )).join('') : '<div class="empty-cell">Noch keine IPAM-Zone fuer diese Bridge.</div>'}
+            </div>
+          </div>
+          <div class="field field-wide">
+            <span>Verfuegbare Firewall-Profile</span>
+            <div class="settings-info-grid compact-grid">
+              ${profiles.length ? profiles.map((item) => (
+                '<div class="info-item">' +
+                '<span class="info-label">' + escapeHtml(String(item.name || item.profile_id || 'Profil')) + '</span>' +
+                '<span class="info-value">' + escapeHtml(String(item.rule_count || 0) + ' Regeln') + '</span>' +
+                '</div>'
+              )).join('') : '<div class="empty-cell">Keine Firewall-Profile vorhanden.</div>'}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.body.classList.add('modal-open');
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    const close = () => {
+      modal.remove();
+      if (document.querySelectorAll('.modal[aria-hidden="false"]').length === 0) {
+        document.body.classList.remove('modal-open');
+      }
+    };
+    const closeBtn = document.getElementById('virt-bridge-detail-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', close);
+    }
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        close();
+      }
+    });
+  }).catch((error) => {
+    virtualizationHooks.setBanner('Bridge-Details konnten nicht geladen werden: ' + error.message, 'warn');
+  });
+}
+
+export function assignGpuToVm(pciAddress) {
+  openGpuActionModal(pciAddress, 'assign');
+}
+
+export function releaseGpuFromVm(pciAddress) {
+  openGpuActionModal(pciAddress, 'release');
 }
 
 export function renderVirtualizationInspector() {
   const summary = qs('virt-inspector-summary');
   const configBody = qs('virt-inspector-config-body');
+  const disksBody = qs('virt-inspector-disks-body');
+  const netcfgBody = qs('virt-inspector-netcfg-body');
   const ifaceBody = qs('virt-inspector-iface-body');
-  if (!summary || !configBody || !ifaceBody) {
+  renderInspectorRecentVmids();
+  if (!summary || !configBody || !disksBody || !netcfgBody || !ifaceBody) {
     return;
   }
   if (!state.token) {
     summary.innerHTML = '<div class="kv"><div class="kv-label">Status</div><div class="kv-value">Bitte anmelden, um VM-Details zu laden.</div></div>';
     configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Nicht angemeldet.</td></tr>';
+    disksBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Nicht angemeldet.</td></tr>';
+    netcfgBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Nicht angemeldet.</td></tr>';
     ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">Nicht angemeldet.</td></tr>';
     return;
   }
@@ -373,18 +879,24 @@ export function renderVirtualizationInspector() {
   if (inspector.loading) {
     summary.innerHTML = '<div class="kv"><div class="kv-label">Status</div><div class="kv-value">Lade VM-Inspector ...</div></div>';
     configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Lade Konfiguration ...</td></tr>';
+    disksBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Lade Disk-Daten ...</td></tr>';
+    netcfgBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Lade Netzwerk-Config ...</td></tr>';
     ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">Lade Interfaces ...</td></tr>';
     return;
   }
   if (inspector.error) {
     summary.innerHTML = '<div class="kv"><div class="kv-label">Fehler</div><div class="kv-value">' + escapeHtml(inspector.error) + '</div></div>';
     configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Keine Config verfuegbar.</td></tr>';
+    disksBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Keine Disk-Daten verfuegbar.</td></tr>';
+    netcfgBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Keine Netzwerk-Config verfuegbar.</td></tr>';
     ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">Keine Interface-Daten verfuegbar.</td></tr>';
     return;
   }
   if (!inspector.vmid || !inspector.config) {
     summary.innerHTML = '<div class="kv"><div class="kv-label">Status</div><div class="kv-value">Noch keine VM geladen.</div></div>';
     configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Noch keine Config geladen.</td></tr>';
+    disksBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Noch keine Disk-Daten geladen.</td></tr>';
+    netcfgBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Noch keine Netzwerk-Config geladen.</td></tr>';
     ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">Noch keine Interfaces geladen.</td></tr>';
     return;
   }
@@ -392,18 +904,24 @@ export function renderVirtualizationInspector() {
   const interfaces = Array.isArray(inspector.interfaces) ? inspector.interfaces : [];
   const diskKeys = Object.keys(config).filter((key) => DISK_KEY_PATTERN.test(key)).sort();
   const netKeys = Object.keys(config).filter((key) => NET_KEY_PATTERN.test(key)).sort();
-  const configKeys = VM_MAIN_KEYS.concat(diskKeys).concat(netKeys).filter((key, index, arr) => {
-    return arr.indexOf(key) === index && config[key] != null && config[key] !== '';
-  });
+  const generalKeys = VM_MAIN_KEYS.filter((key) => config[key] != null && config[key] !== '');
   summary.innerHTML = [
     fieldBlock('VMID', String(inspector.vmid)),
     fieldBlock('Name', String(config.name || 'n/a')),
     fieldBlock('Node', String(config.node || 'n/a')),
-    fieldBlock('Status', String(config.status || 'unknown'))
+    fieldBlock('Status', String(config.status || 'unknown')),
+    fieldBlock('Disks', String(diskKeys.length)),
+    fieldBlock('NICs', String(netKeys.length))
   ].join('');
-  configBody.innerHTML = configKeys.length ? configKeys.map((key) => {
+  configBody.innerHTML = generalKeys.length ? generalKeys.map((key) => {
     return '<tr><td>' + escapeHtml(key) + '</td><td class="storage-content">' + escapeHtml(String(config[key])) + '</td></tr>';
   }).join('') : '<tr><td colspan="2" class="empty-cell">Keine Config-Werte verfuegbar.</td></tr>';
+  disksBody.innerHTML = diskKeys.length ? diskKeys.map((key) => {
+    return '<tr><td>' + escapeHtml(key) + '</td><td class="storage-content">' + escapeHtml(String(config[key] || '')) + '</td></tr>';
+  }).join('') : '<tr><td colspan="2" class="empty-cell">Keine Disk-Config vorhanden.</td></tr>';
+  netcfgBody.innerHTML = netKeys.length ? netKeys.map((key) => {
+    return '<tr><td>' + escapeHtml(key) + '</td><td class="storage-content">' + escapeHtml(String(config[key] || '')) + '</td></tr>';
+  }).join('') : '<tr><td colspan="2" class="empty-cell">Keine Netzwerk-Config vorhanden.</td></tr>';
   ifaceBody.innerHTML = interfaces.length ? interfaces.map((iface) => {
     const ipList = Array.isArray(iface['ip-addresses']) ? iface['ip-addresses'] : [];
     const addresses = ipList.map((entry) => {
@@ -421,7 +939,9 @@ export function loadVirtualizationInspector(vmid) {
     virtualizationHooks.setBanner('VM Inspector: gueltige VMID erforderlich.', 'warn');
     return;
   }
+  const remembered = rememberInspectorVmid(numericVmid);
   state.virtualizationInspector = {
+    ...remembered,
     vmid: numericVmid,
     loading: true,
     config: null,
@@ -433,7 +953,9 @@ export function loadVirtualizationInspector(vmid) {
     request('/virtualization/vms/' + numericVmid + '/config'),
     request('/virtualization/vms/' + numericVmid + '/interfaces').catch(() => { return { interfaces: [] }; })
   ]).then((results) => {
+    const rememberedSuccess = rememberInspectorVmid(numericVmid);
     state.virtualizationInspector = {
+      ...rememberedSuccess,
       vmid: numericVmid,
       loading: false,
       config: (results[0] && results[0].config) || {},
@@ -443,7 +965,9 @@ export function loadVirtualizationInspector(vmid) {
     renderVirtualizationInspector();
     virtualizationHooks.setBanner('VM Inspector geladen fuer VM ' + numericVmid + '.', 'ok');
   }).catch((error) => {
+    const rememberedError = rememberInspectorVmid(numericVmid);
     state.virtualizationInspector = {
+      ...rememberedError,
       vmid: numericVmid,
       loading: false,
       config: null,

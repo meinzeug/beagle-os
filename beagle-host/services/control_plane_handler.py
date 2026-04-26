@@ -108,6 +108,19 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             self._stream_live_events(principal)
             return
 
+        if path == "/api/v1/jobs" or path.startswith("/api/v1/jobs/"):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            requester = self._requester_identity()
+            flat_query = {k: v[0] for k, v in query.items() if v}
+            response = jobs_http_surface().route_get(path, flat_query, requester=requester)
+            if response["kind"] == "sse":
+                self._stream_sse_job(response["generator"])
+            else:
+                self._write_json(response["status"], response["payload"])
+            return
+
         if AuditReportHttpSurfaceService.handles_get(path):
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
@@ -279,19 +292,6 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
                 return
             response = network_http_surface_service().route_get(path)
             if response is not None:
-                self._write_json(response["status"], response["payload"])
-            return
-
-        if jobs_http_surface().handles_get(path):
-            if not self._is_authenticated():
-                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
-                return
-            requester = self._requester_identity()
-            flat_query = {k: v[0] for k, v in query.items() if v}
-            response = jobs_http_surface().route_get(path, flat_query, requester=requester)
-            if response["kind"] == "sse":
-                self._stream_sse_job(response["generator"])
-            else:
                 self._write_json(response["status"], response["payload"])
             return
 
@@ -872,7 +872,7 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
-        if jobs_http_surface().handles_delete(path):
+        if path.startswith("/api/v1/jobs/"):
             if not self._is_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return

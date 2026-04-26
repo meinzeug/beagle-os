@@ -263,6 +263,23 @@ class InstallerScriptService:
             preset_name,
             preset_b64,
             self._public_installer_iso_url(),
+            "installer",
         )
         filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.ps1"
+        return rendered.encode("utf-8"), filename
+
+    def render_windows_live_usb_script(self, vm: Any) -> tuple[bytes, str]:
+        if not self._raw_windows_installer_template_file.is_file():
+            raise FileNotFoundError(
+                f"missing windows installer template: {self._raw_windows_installer_template_file}"
+            )
+        _, preset_name, preset_b64 = self._build_preset_for_vm(vm)
+        rendered = self._patch_windows_installer_defaults(
+            self._raw_windows_installer_template_file.read_text(encoding="utf-8"),
+            preset_name,
+            preset_b64,
+            self._public_installer_iso_url(),
+            "live",
+        )
+        filename = f"pve-thin-client-live-usb-vm-{vm.vmid}.ps1"
         return rendered.encode("utf-8"), filename

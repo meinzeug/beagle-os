@@ -172,6 +172,8 @@ export const state = {
   virtualizationNodeFilter: '',
   virtualizationInspector: {
     vmid: null,
+    lastVmid: null,
+    recentVmids: [],
     loading: false,
     config: null,
     interfaces: [],
@@ -193,6 +195,8 @@ export const state = {
 export function resetVirtualizationInspector() {
   state.virtualizationInspector = {
     vmid: null,
+    lastVmid: null,
+    recentVmids: [],
     loading: false,
     config: null,
     interfaces: [],

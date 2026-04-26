@@ -39,6 +39,7 @@ _MANAGED_SERVICES = [
 _REQUIRED_ARTIFACTS = [
     "beagle-downloads-status.json",
     "pve-thin-client-live-usb-latest.sh",
+    "pve-thin-client-live-usb-latest.ps1",
     "pve-thin-client-usb-installer-latest.sh",
     "pve-thin-client-usb-installer-latest.ps1",
     "pve-thin-client-usb-payload-latest.tar.gz",
