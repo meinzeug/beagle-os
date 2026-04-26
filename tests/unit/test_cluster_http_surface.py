@@ -137,4 +137,85 @@ class TestClusterPostRouting:
         svc, _, _, _ = _make_svc()
         assert svc.handles_post("/api/v1/cluster/init")
         assert svc.handles_post("/api/v1/ha/maintenance/drain")
+        assert svc.handles_post("/api/v1/cluster/migrate")
         assert not svc.handles_post("/api/v1/vms")
+
+
+class TestClusterMigrateAsync:
+    def _make_job(self, job_id: str = "migrate-job-1"):
+        class _Job:
+            def __init__(self, jid: str) -> None:
+                self.job_id = jid
+        return _Job(job_id)
+
+    def test_migrate_enqueues_job_and_returns_202(self):
+        enqueue = MagicMock(return_value=self._make_job("mig-1"))
+        svc, _, _, _ = _make_svc(enqueue_job=enqueue)
+
+        resp = svc.route_post(
+            "/api/v1/cluster/migrate",
+            json_payload={"source_node": "node-a", "target_node": "node-b"},
+        )
+
+        assert resp["status"] == HTTPStatus.ACCEPTED
+        assert resp["payload"]["ok"] is True
+        assert resp["payload"]["job_id"] == "mig-1"
+        assert resp["payload"]["source_node"] == "node-a"
+        assert resp["payload"]["target_node"] == "node-b"
+        enqueue.assert_called_once()
+        _, ekw = enqueue.call_args
+        assert ekw["idempotency_key"] == "cluster.migrate.node-a.node-b"
+
+    def test_migrate_missing_source_returns_400(self):
+        enqueue = MagicMock(return_value=self._make_job())
+        svc, _, _, _ = _make_svc(enqueue_job=enqueue)
+
+        resp = svc.route_post(
+            "/api/v1/cluster/migrate",
+            json_payload={"target_node": "node-b"},
+        )
+
+        assert resp["status"] == HTTPStatus.BAD_REQUEST
+        assert resp["payload"]["ok"] is False
+        enqueue.assert_not_called()
+
+    def test_migrate_no_job_queue_returns_503(self):
+        svc, _, _, _ = _make_svc()  # no enqueue_job
+
+        resp = svc.route_post(
+            "/api/v1/cluster/migrate",
+            json_payload={"source_node": "node-a", "target_node": "node-b"},
+        )
+
+        assert resp["status"] == HTTPStatus.SERVICE_UNAVAILABLE
+        assert resp["payload"]["ok"] is False
+
+    def test_migrate_enqueue_failure_returns_500(self):
+        enqueue = MagicMock(side_effect=RuntimeError("queue full"))
+        svc, _, _, _ = _make_svc(enqueue_job=enqueue)
+
+        resp = svc.route_post(
+            "/api/v1/cluster/migrate",
+            json_payload={"source_node": "node-a", "target_node": "node-b"},
+        )
+
+        assert resp["status"] == HTTPStatus.INTERNAL_SERVER_ERROR
+        assert resp["payload"]["ok"] is False
+        assert "queue full" in resp["payload"]["error"]
+
+    def test_migrate_client_idempotency_key_in_payload(self):
+        """Client-supplied idempotency_key in JSON payload overrides server-computed key."""
+        enqueue = MagicMock(return_value=self._make_job("custom-mig"))
+        svc, _, _, _ = _make_svc(enqueue_job=enqueue)
+
+        svc.route_post(
+            "/api/v1/cluster/migrate",
+            json_payload={
+                "source_node": "node-a",
+                "target_node": "node-b",
+                "idempotency_key": "my-migration-key",
+            },
+        )
+
+        _, ekw = enqueue.call_args
+        assert ekw["idempotency_key"] == "my-migration-key"

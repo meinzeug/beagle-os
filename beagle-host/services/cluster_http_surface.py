@@ -32,6 +32,7 @@ class ClusterHttpSurfaceService:
         "/api/v1/cluster/join-token",
         "/api/v1/cluster/apply-join",
         "/api/v1/cluster/join",
+        "/api/v1/cluster/migrate",
         "/api/v1/ha/reconcile-failed-node",
         "/api/v1/ha/maintenance/drain",
     }
@@ -53,6 +54,7 @@ class ClusterHttpSurfaceService:
         service_name: str = "beagle-control-plane",
         utcnow: Callable[[], str],
         version: str = "",
+        enqueue_job: Callable[..., Any] | None = None,
     ) -> None:
         self._cluster_membership = cluster_membership_service
         self._ha_manager = ha_manager_service
@@ -68,6 +70,7 @@ class ClusterHttpSurfaceService:
         self._service_name = str(service_name or "beagle-control-plane")
         self._utcnow = utcnow
         self._version = str(version or "")
+        self._enqueue_job = enqueue_job
 
     @staticmethod
     def _json(status: HTTPStatus, payload: dict[str, Any]) -> dict[str, Any]:
@@ -194,5 +197,49 @@ class ClusterHttpSurfaceService:
                 username=requester,
             )
             return self._json(HTTPStatus.OK, {"ok": True, **result})
+
+        if path == "/api/v1/cluster/migrate":
+            source_node = str(p.get("source_node") or "").strip()
+            target_node = str(p.get("target_node") or "").strip()
+            if not source_node:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "missing source_node"})
+            if self._enqueue_job is not None:
+                ikey = str(p.get("idempotency_key") or "").strip() or f"cluster.migrate.{source_node}.{target_node}"
+                try:
+                    job = self._enqueue_job(
+                        "cluster.migrate",
+                        {
+                            "source_node": source_node,
+                            "target_node": target_node,
+                        },
+                        idempotency_key=ikey,
+                        owner=requester,
+                    )
+                except Exception as exc:
+                    return self._json(
+                        HTTPStatus.INTERNAL_SERVER_ERROR,
+                        {"ok": False, "error": f"failed to enqueue cluster migrate job: {exc}"},
+                    )
+                self._audit_event(
+                    "cluster.migrate.enqueued",
+                    "success",
+                    source_node=source_node,
+                    target_node=target_node,
+                    job_id=str(job.job_id),
+                    username=requester,
+                )
+                return self._json(
+                    HTTPStatus.ACCEPTED,
+                    {
+                        "ok": True,
+                        "job_id": str(job.job_id),
+                        "source_node": source_node,
+                        "target_node": target_node,
+                    },
+                )
+            return self._json(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                {"ok": False, "error": "job queue not available"},
+            )
 
         return None
