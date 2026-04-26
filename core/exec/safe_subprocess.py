@@ -2,7 +2,7 @@
 
 Replaces ad-hoc ``subprocess.run`` calls with a single entry point that:
 
-* Rejects ``shell=True`` (must use ``run_shell_unsafe`` for documented exceptions)
+* Rejects shell execution (must use ``run_shell_unsafe`` for documented exceptions)
 * Enforces list-style commands (no string commands)
 * Has a mandatory timeout (default 30 s)
 * Caps captured output size to prevent memory exhaustion
@@ -76,7 +76,7 @@ def run_cmd(
         text=True,
         check=False,          # we handle check ourselves so we can truncate output first
         timeout=timeout,
-        shell=False,          # NEVER shell=True in this helper
+        shell=False,          # Keep shell execution disabled in this helper.
         env=env,
         cwd=cwd,
     )
