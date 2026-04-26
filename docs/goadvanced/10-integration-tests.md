@@ -24,30 +24,30 @@ Bei Refactor (z.B. Plan 05 control-plane-split) waere ein vollstaendiges Regress
 
 ## Schritte
 
-- [ ] **Schritt 1** — Test-Infrastruktur
-  - [ ] `tests/integration/conftest.py`:
+- [x] **Schritt 1** — Test-Infrastruktur
+  - [x] `tests/integration/conftest.py`:
     - Fixtures: `temp_state_dir`, `mock_libvirt`, `mock_audit_log`, `test_http_client`
     - Stub fuer `virsh` (gibt vordefinierte XMLs zurueck)
     - Stub fuer `tpm2_pcrread`
-  - [ ] `tests/e2e/conftest.py`:
+  - [x] `tests/e2e/conftest.py`:
     - Fixture: `srv1_client` mit Bearer-Token aus Env-Var (NICHT committet)
     - Fixture: `srv1_test_vmid` (ephemere Test-VM, automatischer Cleanup)
 
-- [ ] **Schritt 2** — Endpoint-Boot-to-Streaming
-  - [ ] `tests/integration/test_endpoint_boot_to_streaming.py`:
+- [x] **Schritt 2** — Endpoint-Boot-to-Streaming
+  - [x] `tests/integration/test_endpoint_boot_to_streaming.py`:
     - Simulierter Endpoint registriert sich via Pairing-Token
     - Empfaengt Stream-Konfiguration
     - Faellt zurueck auf Fallback-Channel bei Stream-Failure
     - Reconnects nach Token-Rotation
-  - [ ] Stubs fuer Sunshine + Moonlight (Mock-Process)
+  - [x] Stubs fuer Sunshine + Moonlight (Mock-Process)
 
-- [ ] **Schritt 3** — Backup → Restore
-  - [ ] `tests/integration/test_backup_restore_chain.py`:
+- [x] **Schritt 3** — Backup → Restore
+  - [x] `tests/integration/test_backup_restore_chain.py`:
     - Erzeuge VM mit Test-Disk + Snapshot
     - `backup_service.create()` → Archiv in temp_dir
     - `backup_service.restore()` in neuen Pool
     - Vergleiche Disk-Hash + VM-Config
-  - [ ] Edge-Cases: korruptes Archiv, fehlende Files, Disk-Full
+  - [x] Edge-Cases: korruptes Archiv, fehlende Files, Disk-Full
 
 - [ ] **Schritt 4** — HA-Failover
   - [ ] `tests/integration/test_ha_failover.py`:
@@ -66,24 +66,24 @@ Bei Refactor (z.B. Plan 05 control-plane-split) waere ein vollstaendiges Regress
     - Sessions schliessen → Klone werden recycled
     - Quotas: 6. Session → wird abgewiesen mit klarer Fehlermeldung
 
-- [ ] **Schritt 6** — Pairing-Lifecycle
-  - [ ] `tests/integration/test_pairing_lifecycle.py`:
+- [x] **Schritt 6** — Pairing-Lifecycle
+  - [x] `tests/integration/test_pairing_lifecycle.py`:
     - Pairing-Token generieren (TTL 60s)
     - Endpoint paart sich → langlebiger Bearer-Token
     - Token-Rotation (alter Token wird ungueltig)
     - Revocation → Token sofort ungueltig
 
-- [ ] **Schritt 7** — E2E gegen srv1
-  - [ ] `tests/e2e/test_smoke_srv1.py`:
+- [x] **Schritt 7** — E2E gegen srv1
+  - [x] `tests/e2e/test_smoke_srv1.py`:
     - `GET /api/v1/health` → healthy
     - `GET /api/v1/vms` → Liste
     - VM-Lifecycle: create → start → snapshot → delete
     - Cleanup-Hook: alle Test-Artefakte loeschen
-  - [ ] Nightly-Cron in CI (mit Secret BEARER_TOKEN)
+  - [x] Nightly-Cron in CI (mit Secret BEARER_TOKEN)
 
-- [ ] **Schritt 8** — Doku
-  - [ ] `tests/integration/README.md`: Wie laufen lokal, welche Stubs, wie debuggen
-  - [ ] `tests/e2e/README.md`: Voraussetzungen (BEARER_TOKEN), Cleanup-Verhalten
+- [x] **Schritt 8** — Doku
+  - [x] `tests/integration/README.md`: Wie laufen lokal, welche Stubs, wie debuggen
+  - [x] `tests/e2e/README.md`: Voraussetzungen (BEARER_TOKEN), Cleanup-Verhalten
 
 ## Abnahmekriterien
 

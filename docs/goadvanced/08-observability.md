@@ -66,7 +66,7 @@
   - [x] `docs/observability/setup.md` (5 Sektionen: Scrape-Config, Health-Endpoint, Strukturierte Logs, Request-ID-Propagation, Grafana-Import).
 
 - [ ] **Schritt 7** — Verifikation auf srv1
-  - [ ] `curl https://srv1/metrics` liefert Prometheus-Format
+  - [ ] `curl https://srv1.beagle-os.com/metrics` liefert Prometheus-Format
   - [ ] `journalctl -u beagle-control-plane -o json | jq` zeigt strukturierte Logs
   - [ ] Health-Endpoint zeigt `degraded` wenn libvirt down ist
 
