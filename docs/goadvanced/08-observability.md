@@ -60,10 +60,10 @@
   - [x] HTTP-Status: 200 default; Opt-In `BEAGLE_HEALTH_503_ON_UNHEALTHY=1` schaltet 503 fuer `unhealthy`.
   - [x] Tests: `tests/unit/test_health_aggregator.py` (16 Tests — Aggregation, Timeout, Exception, Replace, Built-Ins).
 
-- [ ] **Schritt 6** — Dashboards
-  - [ ] `docs/observability/grafana-dashboard.json` (importierbar)
-  - [ ] `docs/observability/prometheus-scrape-config.yml`
-  - [ ] Doku: `docs/observability/setup.md`
+- [x] **Schritt 6** — Dashboards
+  - [x] `docs/observability/grafana-dashboard.json` (importierbar, 7 Panels: HTTP rate/latency, Auth-Failures, Rate-Limit-Drops, VM-Count, Sessions, Uptime).
+  - [x] `docs/observability/prometheus-scrape-config.yml` (15s Scrape, optional Bearer-Token, srv1+srv2 Targets, instance-Relabel).
+  - [x] `docs/observability/setup.md` (5 Sektionen: Scrape-Config, Health-Endpoint, Strukturierte Logs, Request-ID-Propagation, Grafana-Import).
 
 - [ ] **Schritt 7** — Verifikation auf srv1
   - [ ] `curl https://srv1/metrics` liefert Prometheus-Format

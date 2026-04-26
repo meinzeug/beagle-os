@@ -1,0 +1,52 @@
+# Beagle OS — Prometheus scrape configuration
+#
+# Drop into `prometheus.yml` under `scrape_configs:` and adjust hostnames.
+# GoAdvanced Plan 08 Schritt 6.
+
+scrape_configs:
+  - job_name: beagle-control-plane
+    metrics_path: /metrics
+    scheme: https
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+    # Optional bearer token. Mirror the value of
+    # BEAGLE_METRICS_BEARER_TOKEN from beagle-control-plane.service.
+    # Omit both if /metrics is unauthenticated (localhost or behind ACL).
+    # bearer_token_file: /etc/prometheus/beagle-metrics-token
+    #
+    # If your Beagle host uses a self-signed cert during bring-up:
+    # tls_config:
+    #   ca_file: /etc/prometheus/beagle-ca.pem
+    #   insecure_skip_verify: false
+
+    static_configs:
+      - targets:
+          - srv1.beagle-os.com:8443
+          - srv2.beagle-os.com:8443
+        labels:
+          environment: production
+
+    relabel_configs:
+      # Strip the :port suffix from the instance label.
+      - source_labels: [__address__]
+        regex: '([^:]+)(:.+)?'
+        target_label: instance
+        replacement: '$1'
+
+  # Optional: control-plane health check via blackbox_exporter.
+  # - job_name: beagle-health-blackbox
+  #   metrics_path: /probe
+  #   params:
+  #     module: [http_2xx]
+  #   static_configs:
+  #     - targets:
+  #         - https://srv1.beagle-os.com/api/v1/health
+  #         - https://srv2.beagle-os.com/api/v1/health
+  #   relabel_configs:
+  #     - source_labels: [__address__]
+  #       target_label: __param_target
+  #     - source_labels: [__param_target]
+  #       target_label: instance
+  #     - target_label: __address__
+  #       replacement: blackbox-exporter:9115
