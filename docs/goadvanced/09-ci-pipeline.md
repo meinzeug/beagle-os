@@ -46,8 +46,8 @@ Ohne CI sind Regressionen schwer zu vermeiden.
   - [x] `.github/workflows/build-iso.yml`: `workflow_dispatch` mit Auswahl `installimage`/`iso`/`both`, push-Trigger fuer `server-installer/`/`beagle-host/`/Build-Skripte/`VERSION`, baut via `build-server-installimage.sh` und `build-server-installer.sh`, lädt Artefakte hoch (Retention 30d)
   - [x] **Neu 2026-04-25**: cron-Schedule `17 3 * * *` (taeglicher Reproduzibilitaets-Build der installimage-Variante)
   - [x] **Neu 2026-04-25**: `sbom` Job — erzeugt CycloneDX-SBOMs fuer Python (cyclonedx-bom) und Node (`extension/`, `beagle-kiosk/` via cyclonedx-npm), bundelt SHA256SUMS, Artefakt-Retention 90d
-  - [ ] `build-thin-client-installer.sh`-Job — offen
-  - [ ] SHA256-Reproduzibilitaets-Vergleich vs Vortags-Build — offen
+  - [x] `build-thin-client-installer.sh`-Job — implementiert in `build-iso.yml` (job: `build-thin-client`)
+  - [x] SHA256-Reproduzibilitaets-Vergleich vs Vortags-Build — implementiert (job: `reproducibility-check`, schedule-only, warn-only)
 
 - [/] **Schritt 5** — Release-Pipeline _(2026-04-25 — Basis vorhanden, Cosign offen)_
   - [x] `.github/workflows/release.yml`: Tag-Trigger `v*.*.*`, baut Installimage+ISO, generiert `SHA256SUMS`, GPG-signiert (`SHA256SUMS.sig`), Changelog aus Git-Log, GitHub-Release mit Artefakten

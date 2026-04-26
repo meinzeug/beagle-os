@@ -192,3 +192,134 @@ jobs:
           path: dist/sbom/
           retention-days: 90
           if-no-files-found: warn
+
+  build-thin-client:
+    name: Build thin-client installer
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      github.event_name == 'schedule'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read VERSION
+        id: version
+        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            squashfs-tools \
+            xorriso \
+            grub2-common \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            dosfstools \
+            mtools \
+            rsync \
+            ca-certificates
+
+      - name: Build thin-client installer
+        run: sudo bash scripts/build-thin-client-installer.sh
+        env:
+          THIN_CLIENT_BUILD_DIR: ${{ github.workspace }}/.build/thin-client
+          THIN_CLIENT_DIST_DIR: ${{ github.workspace }}/dist/thin-client
+          BEAGLE_THIN_CLIENT_MIN_BUILD_FREE_GIB: "0"
+          BEAGLE_THIN_CLIENT_MIN_DIST_FREE_GIB: "0"
+
+      - name: Compute SHA256 for thin-client artifacts
+        id: sha256
+        run: |
+          if compgen -G "dist/thin-client/*" > /dev/null; then
+            (cd dist/thin-client && sha256sum * > SHA256SUMS) || true
+            echo "sha256=$(cat dist/thin-client/SHA256SUMS | head -1 | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload thin-client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: beagle-thin-client-${{ steps.version.outputs.version }}
+          path: dist/thin-client/
+          retention-days: 30
+          if-no-files-found: warn
+
+  reproducibility-check:
+    name: SHA256 reproducibility check (installimage)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    needs: build-installimage
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read VERSION
+        id: version
+        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Download today's build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: beagle-server-installimage-${{ steps.version.outputs.version }}
+          path: dist/today/
+
+      - name: Compute today's SHA256SUMS
+        id: today
+        run: |
+          mkdir -p dist/check
+          if compgen -G "dist/today/*" > /dev/null; then
+            (cd dist/today && find . -type f ! -name 'SHA256SUMS' | sort | xargs sha256sum > ../check/SHA256SUMS.today)
+            cat dist/check/SHA256SUMS.today
+          else
+            echo "No artifacts found"
+            exit 1
+          fi
+
+      - name: Download previous build artifact (if exists)
+        id: prev
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: build-iso.yml
+          event: schedule
+          name_is_regexp: true
+          name: beagle-server-installimage-.*
+          path: dist/previous/
+          skip_unpack: false
+
+      - name: Compare SHA256SUMS (warn-only)
+        if: steps.prev.outcome == 'success'
+        run: |
+          mkdir -p dist/check
+          if compgen -G "dist/previous/**/*" > /dev/null; then
+            find dist/previous -type f ! -name 'SHA256SUMS' | sort | \
+              xargs -I{} sh -c 'echo "$(sha256sum {} | awk "{print \$1}") $(basename {})"' | \
+              sort > dist/check/SHA256SUMS.previous
+
+            echo "=== Today ==="
+            cat dist/check/SHA256SUMS.today
+            echo ""
+            echo "=== Previous ==="
+            cat dist/check/SHA256SUMS.previous
+            echo ""
+
+            if diff -u dist/check/SHA256SUMS.previous dist/check/SHA256SUMS.today; then
+              echo "✓ Builds are reproducible — SHA256 checksums match."
+            else
+              echo "⚠ SHA256 mismatch detected. Non-reproducible build (warn-only)."
+              # Do NOT fail — non-reproducibility is a warning, not a hard blocker
+            fi
+          else
+            echo "No previous artifacts to compare against (first nightly run)."
+          fi
+
+      - name: Upload reproducibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reproducibility-check-${{ github.run_id }}
+          path: dist/check/
+          retention-days: 14
+          if-no-files-found: ignore
