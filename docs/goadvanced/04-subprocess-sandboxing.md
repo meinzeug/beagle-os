@@ -31,24 +31,23 @@ Betroffene Dateien (Beispiele):
 ## Schritte
 
 - [x] **Schritt 1** — `core/exec/safe_subprocess.py`
-  - [ ] `run_cmd(cmd: list[str], *, timeout=30, check=True, max_output=10*1024*1024, capture=True) -> CompletedProcess`
-  - [ ] Validierung: `cmd` muss `list`, nicht `str` sein → ValueError sonst
-  - [ ] `shell=False` immer; `shell=True` separater Wrapper `run_shell_unsafe()` mit lautem Warning-Log
-  - [ ] Timeout ist Pflicht (kein `None` als Default)
-  - [ ] Output ueber `max_output` abgeschnitten + Warning-Log
-  - [ ] Tests: `tests/unit/test_safe_subprocess.py`
-    - [ ] Liste vs String → ValueError
-    - [ ] Timeout greift
-    - [ ] Output > max_output → trunkiert + log
-    - [ ] Non-zero exit + check=True → CalledProcessError
+  - [x] `run_cmd(cmd: list[str], *, timeout=30, check=True, max_output=10*1024*1024, capture=True) -> CompletedProcess`
+  - [x] Validierung: `cmd` muss `list`, nicht `str` sein → ValueError sonst
+  - [x] `shell=False` immer; `shell=True` separater Wrapper `run_shell_unsafe()` mit lautem Warning-Log
+  - [x] Timeout ist Pflicht (kein `None` als Default)
+  - [x] Output ueber `max_output` abgeschnitten + Warning-Log
+  - [x] Tests: `tests/unit/test_safe_subprocess.py`
+    - [x] Liste vs String → ValueError
+    - [x] Timeout greift
+    - [x] Output > max_output → trunkiert + log
+    - [x] Non-zero exit + check=True → CalledProcessError
 
 - [x] **Schritt 2** — Argument-Validatoren
-  - [ ] `core/validation/identifiers.py`:
-    - `validate_vmid(s: str) -> int`  (regex `^[0-9]{1,9}$`)
+  - [x] `core/validation/identifiers.py`:
+  - [x] Tests: alle Validatoren mit Edge-Cases (Leerstring, Sonderzeichen, Unicode, sehr lang) — 25 Tests in `test_identifiers.py`
     - `validate_network_name(s: str) -> str` (regex `^[a-zA-Z0-9_-]{1,63}$`)
     - `validate_pool_id(s: str) -> str`
     - `validate_node_id(s: str) -> str`
-  - [ ] Tests: alle Validatoren mit Edge-Cases (Leerstring, Sonderzeichen, Unicode, sehr lang)
 
 - [x] **Schritt 3** — `LibvirtRunner` als Adapter
   - [x] `providers/beagle/libvirt_runner.py` neu
@@ -68,7 +67,7 @@ Betroffene Dateien (Beispiele):
 - [x] **Schritt 6** — Verifikation
   - [x] `srv1.beagle-os.com`: alle Beagle-Services starten + reagieren wie vorher
   - [ ] Smoke: VM-Start ueber API, Netzwerk-Operationen ueber CLI funktionieren
-  - [ ] Pen-Test-artiger Test: `vmid="../../etc/passwd"` → wird abgewiesen, kein virsh-Call
+  - [x] Pen-Test-artiger Test: `vmid="../../etc/passwd"` → wird abgewiesen, kein virsh-Call — `test_identifiers.py::test_path_traversal_raises`
 
 ## Abnahmekriterien
 
