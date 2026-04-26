@@ -29,7 +29,9 @@
 - [x] GoFuture Plan 06 Schritt 6 fortsetzen: Artifact-Job-Fortschritt, Preflight, Fehlerauszug und WebUI-Regressions ergaenzen.
 - [x] GoFuture Plan 06 Schritt 6 erweitern: Artifact-Watchdog in WebUI + Host-Timer mit optionalem Auto-Repair umsetzen.
 - [x] `/#panel=settings_updates` auf drei moderne Operator-Karten reduzieren und Direktaufruf-Autoload nach Admin-Login reparieren; live auf `srv1`/`srv2` per Browser-Smoke validiert.
+- [x] Lange Artifact-/ISO-Builds in `/#panel=settings_updates` sichtbar machen: Live-Phase, Laufzeit, aktive Prozesse, Fortschrittsbalken und Heartbeat-Status fuer `refresh.status.json`.
 - [x] Laufenden Artifact-Refresh auf `srv1` abschliessen lassen und danach `scripts/check-beagle-host.sh` auf `srv1`/`srv2` validieren.
+- [ ] Laufenden Repo-Auto-Update-Build auf `srv1`/`srv2` bis `state=healthy` final abnehmen und Commit-Datei auf neuesten Push pruefen.
 - [ ] APT-Automatik-Policy entscheiden und ggf. sicheren unattended-upgrades-/Timer-Pfad bauen; aktuell prueft die WebUI automatisch, installiert APT-Pakete aber bewusst nur manuell.
 - [ ] Watchdog-Auto-Repair live auf mindestens einem Host mit echter Drift verifizieren (`reaction=started_refresh`).
 - [ ] QEMU+SSH Live-Migration-Deadlock zwischen `srv1` und `srv2` weiter eingrenzen oder Shared-Storage-Migration als Abnahmepfad dokumentieren.

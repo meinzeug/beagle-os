@@ -9,6 +9,15 @@
 - Artifact-Watchdog kann direkt in der Artefaktkarte als Automatik gespeichert werden; Manual-Actions bleiben als klare Buttons sichtbar.
 - Live-Validierung: Hot-Deploy auf `srv1` und `srv2`; Browser-Smoke gegen beide Hosts zeigt exakt drei Karten, automatische `GET /settings/updates`- und `GET /settings/artifacts`-Requests ohne Button-Klick, `repo=healthy`, `artifacts=Ja`, `console_errors=0`.
 
+## Update (2026-04-26, Long-Build Live-Transparenz)
+
+**Scope**: Lange Artifact-/ISO-Builds duerfen in der WebUI nicht mehr wie ein eingefrorener 20%-Status wirken.
+
+- `beagle-host/services/server_settings.py`: `GET /api/v1/settings/artifacts` liefert jetzt `build_activity` mit Live-Phase, erklaerendem Detailtext, Laufzeit und aktiven Build-Prozessen aus der aktuellen Prozesskette.
+- `scripts/refresh-host-artifacts.sh`: schreibt waehrend `prepare-host-downloads`/`package.sh` Heartbeats in `refresh.status.json`, inklusive konkreter Phasen wie Paketinstallation, Initramfs, chroot-Hooks, SquashFS und ISO-Erzeugung.
+- `website/index.html`, `website/ui/settings.js`, `website/styles/panels/_settings.css`: Artefakt-Karte zeigt jetzt Live-Build-Phase, Fortschrittsbalken, Laufzeit, aktive Prozessanzahl, Detailerklaerung und Dauerhinweis.
+- Live-Validierung auf laufenden Builds: `srv1` zeigt `Thin-Client-Live-Image wird gebaut`, `srv2` zeigt `Pakete werden in das Live-System installiert`; beide mit Laufzeit/Prozessanzahl und `console_errors=0`.
+
 ## Update (2026-04-26, Plan 19 Schritt 7: Windows USB Writer + Live USB)
 
 - `thin-client-assistant/usb/pve-thin-client-usb-installer.ps1` von einfachem ISO-Kopierer auf variantenfaehigen Writer (`installer` / `live`) umgebaut.

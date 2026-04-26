@@ -1899,6 +1899,21 @@
                 <span>Aktueller Schritt</span>
                 <strong id="artifact-refresh-step">—</strong>
               </div>
+              <div class="settings-build-activity" id="artifact-build-activity">
+                <div class="settings-build-activity-head">
+                  <span>Live-Build</span>
+                  <strong id="artifact-build-phase">wartet</strong>
+                </div>
+                <div class="settings-build-bar" aria-hidden="true">
+                  <span id="artifact-build-progress-bar"></span>
+                </div>
+                <p id="artifact-build-detail">Wenn ein Build laeuft, zeigt diese Karte die aktuelle Phase und erklaert, warum sie dauern kann.</p>
+                <div class="settings-build-meta">
+                  <span>Laufzeit: <strong id="artifact-build-elapsed">—</strong></span>
+                  <span>Aktiv: <strong id="artifact-build-process-count">0 Prozesse</strong></span>
+                </div>
+                <p class="settings-build-hint" id="artifact-build-hint">Lange ISO-/SquashFS-Builds koennen mehrere Minuten dauern.</p>
+              </div>
               <div class="settings-update-status-banner" id="artifact-refresh-message">Noch kein laufender Refresh.</div>
               <div class="settings-update-actions">
                 <button class="button ghost" id="settings-artifacts-refresh" type="button">Status aktualisieren</button>

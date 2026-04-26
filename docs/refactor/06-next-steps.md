@@ -18,21 +18,23 @@
 - Artifact-Operations-Slice umgesetzt: `GET/POST /api/v1/settings/artifacts*` plus WebUI-Status/Refresh im Updates-Panel.
 - Artifact-Watchdog umgesetzt: WebUI kann den Host-Watchdog aktivieren, konfigurieren und direkt anstoßen; `srv1` und `srv2` melden nach abgeschlossenem Refresh jetzt `healthy` und `public_ready=true`.
 - `/#panel=settings_updates` vereinfacht: nur noch drei moderne Karten fuer APT-Systemupdates, GitHub-Repo-Updates und Artefaktbau; Direktaufruf laedt Statusdaten nach Admin-Login automatisch ohne Button-Klick.
+- Lange Artifact-/ISO-Builds sind in der WebUI jetzt sichtbar: Live-Phase, Laufzeit, aktive Prozessanzahl, Fortschrittsbalken und erklaerender Hinweis werden waehrend des laufenden Builds angezeigt.
 - Lokale Regression: `42 passed` fuer Auth-HTTP, Cluster-Membership, Cluster-HTTP-Surface und AuthZ; Live-Burst auf `srv1` gegen `/auth/roles`: 35x `401`, 0x `503`.
 
 **Naechste konkrete Schritte**:
 
 1. **Repo-Auto-Update live fertig validieren**: nach Push auf `origin/main` `repo_auto_update_enabled=true` auf `srv1` und `srv2` setzen, manuellen GitHub-Check aus der WebUI/API anstoßen und bestaetigen, dass `/opt/beagle` auf den neuen Commit aktualisiert wird.
-2. **Watchdog mit Repo-Update zusammenspielen lassen**: auf einem Host absichtlich Artefakt-Drift nach erfolgreichem Repo-Update erzeugen und bestaetigen, dass der Watchdog `reaction=started_refresh` setzt und wieder `healthy/public_ready=true` erreicht.
-3. **GitHub Release-Workflow erneut gegen echten Push pruefen**: bestaetigen, dass `.github/workflows/release.yml` nach dem Parse-Fix wieder laeuft und auf Push nach `main` einen neuen Rolling-/Release-Lauf erzeugt.
-4. **APT-Automatik-Policy klaeren**: derzeit prueft die Karte automatisch und installiert APT manuell; falls OS-Paketupdates vollautomatisch installiert werden sollen, muss ein eigener sicherer unattended-upgrades-/Timer-Pfad gebaut werden.
-5. **Plan 12 Schritt 6 fortsetzen**: GPU-Zuweisung und Release als gefuehrten Wizard/Danger-Flow bauen statt Prompt-Aktionen.
-6. **Plan 12 Schritt 6 fortsetzen**: vGPU-/mdev- und SR-IOV-Bereiche von Tabellen auf Cards/erklaerende Operator-Flows umstellen.
-7. **Thinclient-Hardware-Rerun auf echtem Stick**: neuen VM100-USB-Stick von `srv1` erzeugen und den bisher fehlgeschlagenen physischen `Preset Installation starten`-Pfad auf echter Hardware erneut abnehmen.
-8. **Thinclient-Runtime visuell abnehmen**: lokale installierte Ziel-Disk mit grafischem Capture/Screenshot bis zur sichtbaren Moonlight-Session gegen `vm100` pruefen.
-9. **Security vor Cluster-Komfort**: `8443` auf downloads-only reduzieren oder schließen; Installer-/Download-Pfade vorher sauber auf `443` migrieren.
-10. **Leader-State-Reconcile bauen**: Drift in `members.json` reproduzierbar erkennen und vom Leader aus sauber neu aufbauen oder gegen den Cluster-Store abgleichen.
-11. **Plan 10/13/15 Panels fortsetzen**: `/#panel=policies`, `/#panel=iam`, `/#panel=audit` von Statusansichten zu echten Operator-Flows umbauen.
+2. **Long-Build-Status final abnehmen**: laufende Repo-Auto-Updates auf `srv1`/`srv2` bis `state=healthy` beobachten und bestaetigen, dass die neue Live-Statusanzeige bis zum Abschluss korrekt bleibt.
+3. **Watchdog mit Repo-Update zusammenspielen lassen**: auf einem Host absichtlich Artefakt-Drift nach erfolgreichem Repo-Update erzeugen und bestaetigen, dass der Watchdog `reaction=started_refresh` setzt und wieder `healthy/public_ready=true` erreicht.
+4. **GitHub Release-Workflow erneut gegen echten Push pruefen**: bestaetigen, dass `.github/workflows/release.yml` nach dem Parse-Fix wieder laeuft und auf Push nach `main` einen neuen Rolling-/Release-Lauf erzeugt.
+5. **APT-Automatik-Policy klaeren**: derzeit prueft die Karte automatisch und installiert APT manuell; falls OS-Paketupdates vollautomatisch installiert werden sollen, muss ein eigener sicherer unattended-upgrades-/Timer-Pfad gebaut werden.
+6. **Plan 12 Schritt 6 fortsetzen**: GPU-Zuweisung und Release als gefuehrten Wizard/Danger-Flow bauen statt Prompt-Aktionen.
+7. **Plan 12 Schritt 6 fortsetzen**: vGPU-/mdev- und SR-IOV-Bereiche von Tabellen auf Cards/erklaerende Operator-Flows umstellen.
+8. **Thinclient-Hardware-Rerun auf echtem Stick**: neuen VM100-USB-Stick von `srv1` erzeugen und den bisher fehlgeschlagenen physischen `Preset Installation starten`-Pfad auf echter Hardware erneut abnehmen.
+9. **Thinclient-Runtime visuell abnehmen**: lokale installierte Ziel-Disk mit grafischem Capture/Screenshot bis zur sichtbaren Moonlight-Session gegen `vm100` pruefen.
+10. **Security vor Cluster-Komfort**: `8443` auf downloads-only reduzieren oder schließen; Installer-/Download-Pfade vorher sauber auf `443` migrieren.
+11. **Leader-State-Reconcile bauen**: Drift in `members.json` reproduzierbar erkennen und vom Leader aus sauber neu aufbauen oder gegen den Cluster-Store abgleichen.
+12. **Plan 10/13/15 Panels fortsetzen**: `/#panel=policies`, `/#panel=iam`, `/#panel=audit` von Statusansichten zu echten Operator-Flows umbauen.
 
 **Blocker/Risiken**:
 - `srv2` GPU: GTX 1080 ist an `vfio-pci`, aber IOMMU-Gruppe enthaelt weitere Geraete; Passthrough bleibt ohne ACS/BIOS/Hardware-Aenderung nicht sicher freigebbar.

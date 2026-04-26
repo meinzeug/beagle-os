@@ -185,6 +185,78 @@
 }
 .settings-update-live span { margin: 0; }
 .settings-update-live strong { color: var(--text); font-size: 0.95rem; overflow-wrap: anywhere; }
+.settings-build-activity {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid rgba(140, 226, 109, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(140, 226, 109, 0.10), rgba(125, 224, 255, 0.06)),
+    rgba(0, 0, 0, 0.18);
+}
+.settings-build-activity.is-running {
+  border-color: rgba(140, 226, 109, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 24px rgba(140, 226, 109, 0.10);
+}
+.settings-build-activity.is-running .settings-build-bar span {
+  animation: settings-build-flow 1.8s ease-in-out infinite;
+}
+.settings-build-activity-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+.settings-build-activity-head span,
+.settings-build-meta span {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.settings-build-activity-head strong {
+  color: var(--ok);
+  font-size: 0.92rem;
+  text-align: right;
+}
+.settings-build-bar {
+  overflow: hidden;
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.settings-build-bar span {
+  display: block;
+  width: 0%;
+  min-width: 10px;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--ok), rgba(125, 224, 255, 0.95), var(--amber));
+  box-shadow: 0 0 20px rgba(140, 226, 109, 0.28);
+  transition: width 420ms ease;
+}
+.settings-build-activity p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+.settings-build-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+}
+.settings-build-meta strong {
+  color: var(--text);
+  font-size: 0.78rem;
+}
+.settings-build-hint {
+  color: var(--amber) !important;
+}
 .settings-update-status-banner {
   padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.10);
@@ -234,7 +306,8 @@ body.light-mode .settings-update-card {
 }
 body.light-mode .settings-update-metric,
 body.light-mode .settings-update-switch,
-body.light-mode .settings-update-details {
+body.light-mode .settings-update-details,
+body.light-mode .settings-build-activity {
   background: rgba(255, 255, 255, 0.52);
   border-color: rgba(92, 76, 49, 0.14);
 }
@@ -423,6 +496,10 @@ body.light-mode .settings-update-details {
   0%, 38% { transform: translateX(-130%); opacity: 0; }
   45% { opacity: 1; }
   72%, 100% { transform: translateX(130%); opacity: 0; }
+}
+@keyframes settings-build-flow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.35); }
 }
 @keyframes settings-scanline {
   from { transform: translateX(-100%); }

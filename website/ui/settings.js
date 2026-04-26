@@ -558,6 +558,9 @@ function renderArtifactStatus(data) {
   const artifacts = Array.isArray(data && data.artifacts) ? data.artifacts : [];
   const missing = Array.isArray(data && data.missing) ? data.missing : [];
   const refreshStatus = data && data.refresh_status ? data.refresh_status : {};
+  const buildActivity = data && data.build_activity
+    ? data.build_activity
+    : (refreshStatus && refreshStatus.build_activity ? refreshStatus.build_activity : {});
   const preflight = data && data.preflight ? data.preflight : {};
   const publishGate = data && data.publish_gate ? data.publish_gate : {};
   const links = data && data.links ? data.links : {};
@@ -575,9 +578,27 @@ function renderArtifactStatus(data) {
   text('artifact-refresh-service', String((data && data.services && data.services['beagle-artifacts-refresh.service']) || 'unknown'));
   text('artifact-refresh-timer', String((data && data.services && data.services['beagle-artifacts-refresh.timer']) || 'unknown'));
   text('artifact-refresh-step', String(refreshStatus.step || '—'));
-  text('artifact-refresh-progress', refreshStatus.progress != null ? (String(refreshStatus.progress) + '%') : '—');
+  const visibleProgress = buildActivity && buildActivity.progress != null
+    ? Number(buildActivity.progress)
+    : Number(refreshStatus.progress);
+  text('artifact-refresh-progress', Number.isFinite(visibleProgress) ? (String(Math.max(0, Math.min(100, Math.round(visibleProgress)))) + '%') : '—');
   text('artifact-refresh-updated', formatDate(refreshStatus.updated_at || refreshStatus.finished_at || refreshStatus.started_at || ''));
   text('artifact-refresh-result', String(refreshStatus.last_result || refreshStatus.status || '—'));
+  text('artifact-build-phase', String((buildActivity && buildActivity.label) || (runningRefresh ? 'Build laeuft' : 'wartet')));
+  text('artifact-build-detail', String((buildActivity && buildActivity.detail) || (runningRefresh ? 'Der Server baut gerade Artefakte. Die Details werden live aktualisiert.' : 'Wenn ein Build laeuft, zeigt diese Karte die aktuelle Phase und erklaert, warum sie dauern kann.')));
+  text('artifact-build-hint', String((buildActivity && buildActivity.hint) || 'Lange ISO-/SquashFS-Builds koennen mehrere Minuten dauern.'));
+  text('artifact-build-elapsed', formatDurationCompact(buildActivity && buildActivity.elapsed_seconds != null ? buildActivity.elapsed_seconds : refreshStatus.duration_seconds));
+  const activeProcesses = Array.isArray(buildActivity && buildActivity.active_processes) ? buildActivity.active_processes : [];
+  text('artifact-build-process-count', String(activeProcesses.length) + (activeProcesses.length === 1 ? ' Prozess' : ' Prozesse'));
+  const buildActivityNode = qs('artifact-build-activity');
+  if (buildActivityNode) {
+    buildActivityNode.classList.toggle('is-running', runningRefresh);
+  }
+  const buildProgressBar = qs('artifact-build-progress-bar');
+  if (buildProgressBar) {
+    const width = Number.isFinite(visibleProgress) ? Math.max(0, Math.min(100, Math.round(visibleProgress))) : 0;
+    buildProgressBar.style.width = String(width) + '%';
+  }
   text('artifact-preflight-free', formatBytesCompact(preflight.free_bytes || 0));
   text('artifact-preflight-deps', missingRequired.length ? ('fehlt: ' + missingRequired.join(', ')) : 'ok');
   text('artifact-preflight-service-unit', preflight.service_unit_present ? 'vorhanden' : 'fehlt');
@@ -605,7 +626,7 @@ function renderArtifactStatus(data) {
 
   const refreshMessage = qs('artifact-refresh-message');
   if (refreshMessage) {
-    refreshMessage.textContent = String(refreshStatus.message || 'Noch kein Refresh aktiv.');
+    refreshMessage.textContent = String((runningRefresh && buildActivity && buildActivity.detail) || refreshStatus.message || 'Noch kein Refresh aktiv.');
     refreshMessage.className = 'banner ' + (refreshStatus.status === 'failed' ? 'warn' : runningRefresh ? 'info' : 'subtle');
   }
   const artifactSummaryMessage = qs('artifact-summary-message');

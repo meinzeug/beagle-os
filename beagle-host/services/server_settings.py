@@ -711,6 +711,10 @@ class ServerSettingsService:
         refresh_timer = _run_cmd(["systemctl", "is-active", "beagle-artifacts-refresh.timer"]) or "unknown"
         refresh_state = str(refresh_status.get("status") or "").strip().lower()
         running_refresh = refresh_state in {"queued", "running"} or refresh_service.strip() == "active"
+        build_activity = self._artifact_build_activity(
+            refresh_status=refresh_status,
+            running_refresh=running_refresh,
+        )
         preflight = self._artifact_preflight(dist_dir=dist_dir, running_refresh=running_refresh)
         publish_gate = self._artifact_publish_gate(dist_dir=dist_dir, version=version)
         watchdog = self.get_artifact_watchdog(status_json=status_json, refresh_status=refresh_status)
@@ -729,6 +733,7 @@ class ServerSettingsService:
             "missing": missing,
             "ready": not missing and bool(status_json),
             "running_refresh": running_refresh,
+            "build_activity": build_activity,
             "preflight": preflight,
             "publish_gate": publish_gate,
             "watchdog": watchdog,
@@ -742,6 +747,155 @@ class ServerSettingsService:
                 "beagle-artifacts-watchdog.service": _run_cmd(["systemctl", "is-active", "beagle-artifacts-watchdog.service"], fallback="unknown") or "unknown",
                 "beagle-artifacts-watchdog.timer": _run_cmd(["systemctl", "is-active", "beagle-artifacts-watchdog.timer"], fallback="unknown") or "unknown",
             },
+        }
+
+    def _artifact_build_activity(self, *, refresh_status: dict[str, Any], running_refresh: bool) -> dict[str, Any]:
+        started_at = str(refresh_status.get("started_at") or "").strip()
+        elapsed_seconds = None
+        if started_at:
+            try:
+                from datetime import datetime, timezone
+
+                started = datetime.fromisoformat(started_at)
+                if started.tzinfo is None:
+                    started = started.replace(tzinfo=timezone.utc)
+                elapsed_seconds = max(0, int((datetime.now(timezone.utc) - started).total_seconds()))
+            except ValueError:
+                elapsed_seconds = None
+
+        if not running_refresh:
+            return {
+                "running": False,
+                "elapsed_seconds": elapsed_seconds,
+                "label": "",
+                "detail": "",
+                "hint": "",
+                "active_processes": [],
+            }
+
+        process_rows: list[dict[str, Any]] = []
+        try:
+            result = subprocess.run(
+                ["ps", "-eo", "pid=,ppid=,etimes=,pcpu=,pmem=,args="],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            result = None
+
+        interesting = (
+            "repo-auto-update.sh",
+            "refresh-host-artifacts.sh",
+            "prepare-host-downloads.sh",
+            "package.sh",
+            "build-thin-client-installer.sh",
+            "build-server-installer.sh",
+            "build-server-installimage.sh",
+            "/usr/lib/live/build/",
+            "lb build",
+            "apt-get",
+            "dpkg",
+            "update-initramfs",
+            "mkinitramfs",
+            "mksquashfs",
+            "xorriso",
+            "grub-mkrescue",
+            "npm run dist",
+        )
+        if result and result.returncode == 0:
+            for line in (result.stdout or "").splitlines():
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                parts = stripped.split(None, 5)
+                if len(parts) < 6:
+                    continue
+                pid, ppid, etimes, pcpu, pmem, command = parts
+                if not any(token in command for token in interesting):
+                    continue
+                process_rows.append({
+                    "pid": pid,
+                    "ppid": ppid,
+                    "elapsed_seconds": int(etimes) if str(etimes).isdigit() else None,
+                    "cpu_percent": pcpu,
+                    "mem_percent": pmem,
+                    "command": command[:220],
+                })
+
+        command_blob = "\n".join(str(row.get("command") or "") for row in process_rows).lower()
+        label = "Build laeuft"
+        detail = "Der Server baut oder prueft Download-Artefakte. Das kann je nach Host mehrere Minuten dauern."
+        hint = "Bitte warten: die Seite aktualisiert diesen Status automatisch."
+        progress = refresh_status.get("progress")
+
+        def progress_floor(value: int) -> int:
+            try:
+                current = int(progress or 0)
+            except (TypeError, ValueError):
+                current = 0
+            return max(current, value)
+
+        if "mksquashfs" in command_blob:
+            label = "Root-Dateisystem wird komprimiert"
+            detail = "Das Live-System wird gerade als SquashFS gepackt. Dieser CPU-/IO-intensive Schritt wirkt oft lange unveraendert, arbeitet aber aktiv."
+            hint = "Typisch mehrere Minuten; bei grossen Images auch laenger."
+            progress = progress_floor(68)
+        elif "xorriso" in command_blob or "grub-mkrescue" in command_blob:
+            label = "ISO wird geschrieben"
+            detail = "Boot-Dateien, GRUB und Live-Dateisystem werden zu einer startfaehigen ISO zusammengebaut."
+            hint = "Kurz vor Abschluss des Thin-Client-Images."
+            progress = progress_floor(76)
+        elif "mkinitramfs" in command_blob or "update-initramfs" in command_blob:
+            label = "Boot-Image wird vorbereitet"
+            detail = "Kernel- und Initramfs-Dateien fuer das Live-System werden erzeugt."
+            hint = "Dieser Schritt kann auf langsamer Storage mehrere Minuten laufen."
+            progress = progress_floor(58)
+        elif "chroot_hooks" in command_blob:
+            label = "Live-System wird konfiguriert"
+            detail = "Beagle-spezifische Hooks konfigurieren Dienste, Bootmenue, Runtime und Installer im Live-System."
+            hint = "Nach den Hooks folgt das Packen des Root-Dateisystems."
+            progress = progress_floor(54)
+        elif "chroot_install-packages" in command_blob or "apt-get" in command_blob or "dpkg" in command_blob:
+            label = "Pakete werden in das Live-System installiert"
+            detail = "Debian-Pakete, Treiber, Firmware, Moonlight-Abhaengigkeiten und Installer-Tools werden in das chroot installiert."
+            hint = "Download und Paketkonfiguration sind der laengste Teil des Build-Prozesses."
+            progress = progress_floor(42)
+        elif "binary_rootfs" in command_blob or "/usr/lib/live/build/binary" in command_blob:
+            label = "Bootfaehiges Image wird zusammengesetzt"
+            detail = "Live-build erzeugt die finalen Binary-Artefakte aus dem vorbereiteten Root-Dateisystem."
+            hint = "Die Artefakte werden danach versioniert und veroeffentlicht."
+            progress = progress_floor(64)
+        elif "build-thin-client-installer.sh" in command_blob or "/usr/lib/live/build/" in command_blob:
+            label = "Thin-Client-Live-Image wird gebaut"
+            detail = "Der Server baut das Beagle OS Thin-Client-Image inklusive Bootloader, Runtime und Installer."
+            hint = "Je nach Cache-Zustand typischerweise 10 bis 30 Minuten."
+            progress = progress_floor(35)
+        elif "build-server-installimage.sh" in command_blob:
+            label = "Server-Installimage wird gebaut"
+            detail = "Das Bare-Metal-Server-Installimage wird vorbereitet und paketiert."
+            hint = "Dieser Schritt erzeugt grosse Archive."
+            progress = progress_floor(84)
+        elif "build-server-installer.sh" in command_blob:
+            label = "Server-Installer-ISO wird gebaut"
+            detail = "Die Beagle Server-Installer-ISO wird erzeugt."
+            hint = "Nach diesem Schritt folgen Checksummen und Statusdateien."
+            progress = progress_floor(80)
+        elif "package.sh" in command_blob:
+            label = "Release-Paketierung laeuft"
+            detail = "Downloads, Checksummen und versionierte Artefakte werden zusammengefuehrt."
+            hint = "Dieser Schritt startet bei Bedarf weitere Unter-Builds."
+            progress = progress_floor(28)
+
+        return {
+            "running": True,
+            "label": label,
+            "detail": detail,
+            "hint": hint,
+            "progress": progress,
+            "elapsed_seconds": elapsed_seconds,
+            "active_processes": process_rows[:12],
         }
 
     def start_artifact_refresh(self) -> dict[str, Any]:
