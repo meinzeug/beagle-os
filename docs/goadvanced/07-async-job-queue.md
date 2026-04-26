@@ -67,9 +67,17 @@ Lange Operationen wie VM-Snapshots, Live-Migration, Backups blockieren den HTTP-
   - [x] TTL fuer Idempotency-Keys: 24h (bereits in `job_queue_service.py` implementiert, `DEFAULT_IDEMPOTENCY_TTL=86400`)
   - [x] Tests: `tests/unit/test_job_idempotency.py` (10 Tests: TTL-Expiry, Dedup, Client-Key-Override, Server-Fallback)
 
-- [ ] **Schritt 6** — Web-UI
-  - [ ] `website/ui/jobs_panel.js`:
-    - Liste laufender Jobs mit Progress-Bars
+- [x] **Schritt 6** — Web-UI
+  - [x] `website/ui/jobs_panel.js`:
+    - `initJobsPanel()`: mount + polling-Fallback (5s), refresh-Button
+    - `subscribeJob(jobId)`: SSE-Subscribe für einzelnen Job mit Auto-Reconnect
+    - `showJobToast(msg, tone)`: Toast-Notification (info/success/warn/error) mit Auto-Dismiss
+    - `onAsyncResponse(resp, label)`: helper — call after POST → auto-subscribe wenn `job_id` in Response
+    - `teardownJobsPanel()`: cleanup
+  - [x] `website/styles/panels/_jobs.css`: Toast-Container (fixed bottom-right) + Panel-Table-Styles
+  - [x] `website/styles.css`: `@import` für `_jobs.css` hinzugefügt
+  - [x] Bei VM-Operation im UI: nach POST → automatisch SSE-Subscribe via `onAsyncResponse()`
+  - [x] Toast bei Job-Completion (SSE `job_done` Event)    - Liste laufender Jobs mit Progress-Bars
     - Filter (status, type)
     - Cancel-Button
   - [ ] Bei VM-Operation im UI: nach POST → automatisch SSE-Subscribe
