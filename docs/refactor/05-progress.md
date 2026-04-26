@@ -1,3 +1,14 @@
+## Update (2026-04-26, Settings-Updates Drei-Karten-UX)
+
+**Scope**: `/#panel=settings_updates` von technischer Sammelansicht auf eine laienfreundliche Operator-Ansicht reduziert.
+
+- `website/index.html`: Updates-Panel zeigt nur noch drei Hauptkarten: `System-Update (APT)`, `Repo-Update` und `Artefakte bauen`.
+- `website/styles/panels/_settings.css`: neue moderne Karten-UI mit gestaffeltem Eintritt, Scanline-/Sweep-Effekt, Live-Pulse pro Update-Bereich und responsivem Layout.
+- `website/ui/settings.js`: Direktaufrufe von `#panel=settings_updates` laden nach erfolgreicher Admin-Authentifizierung automatisch nach; vorher ging der erste Load verloren, wenn `state.user` noch nicht gesetzt war.
+- Repo-Update-Konfiguration ist fuer Laien nicht mehr als API-/GitHub-Formular sichtbar; sichere Defaults bleiben als Hidden-Inputs erhalten.
+- Artifact-Watchdog kann direkt in der Artefaktkarte als Automatik gespeichert werden; Manual-Actions bleiben als klare Buttons sichtbar.
+- Live-Validierung: Hot-Deploy auf `srv1` und `srv2`; Browser-Smoke gegen beide Hosts zeigt exakt drei Karten, automatische `GET /settings/updates`- und `GET /settings/artifacts`-Requests ohne Button-Klick, `repo=healthy`, `artifacts=Ja`, `console_errors=0`.
+
 ## Update (2026-04-26, Plan 19 Schritt 7: Windows USB Writer + Live USB)
 
 - `thin-client-assistant/usb/pve-thin-client-usb-installer.ps1` von einfachem ISO-Kopierer auf variantenfaehigen Writer (`installer` / `live`) umgebaut.

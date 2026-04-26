@@ -8,6 +8,7 @@ const settingsHooks = {
 
 let webhookRows = [];
 let artifactRefreshPollTimer = 0;
+let lastSettingsVisibilityPanel = '';
 
 function formatBytesCompact(value) {
   const bytes = Number(value || 0);
@@ -69,7 +70,10 @@ function formatDurationCompact(secondsValue) {
 function setUpdateFlowStep(name, stateName, label) {
   const node = qs('update-flow-' + name);
   if (node) {
-    node.className = 'settings-update-flow-node is-' + String(stateName || 'idle');
+    const baseClass = node.classList.contains('settings-update-card-pulse')
+      ? 'settings-update-card-pulse'
+      : 'settings-update-flow-node';
+    node.className = baseClass + ' is-' + String(stateName || 'idle');
   }
   text('update-flow-' + name + '-state', label || 'wartet');
 }
@@ -124,6 +128,19 @@ export function updateSettingsVisibility() {
   document.querySelectorAll('.sidebar-admin-item').forEach((btn) => {
     btn.style.display = show ? 'flex' : 'none';
   });
+  if (!show) {
+    lastSettingsVisibilityPanel = '';
+    return;
+  }
+  const activePanel = String(state.activePanel || '');
+  if (activePanel.indexOf('settings_') === 0 && activePanel !== lastSettingsVisibilityPanel) {
+    lastSettingsVisibilityPanel = activePanel;
+    window.setTimeout(() => {
+      if (String(state.activePanel || '') === activePanel) {
+        loadSettingsForPanel(activePanel);
+      }
+    }, 0);
+  }
 }
 
 export function loadSettingsGeneral() {
@@ -574,6 +591,15 @@ function renderArtifactStatus(data) {
   text('artifact-watchdog-timer', String((data && data.services && data.services['beagle-artifacts-watchdog.timer']) || 'unknown'));
   text('artifact-watchdog-enabled-state', watchdogConfig.enabled ? 'Ja' : 'Nein');
   text('artifact-watchdog-max-age-state', String(watchdogConfig.max_age_hours || 6) + ' h');
+  if (qs('artifact-watchdog-enabled')) {
+    qs('artifact-watchdog-enabled').checked = Boolean(watchdogConfig.enabled);
+  }
+  if (qs('artifact-watchdog-auto-repair')) {
+    qs('artifact-watchdog-auto-repair').checked = Boolean(watchdogConfig.auto_repair);
+  }
+  if (qs('artifact-watchdog-max-age-hours')) {
+    qs('artifact-watchdog-max-age-hours').value = String(watchdogConfig.max_age_hours || 6);
+  }
   setArtifactLink('artifact-status-link', links.status_json);
   setArtifactLink('artifact-downloads-link', links.downloads_index);
 
@@ -732,9 +758,11 @@ export function refreshArtifacts() {
 }
 
 export function saveArtifactWatchdog() {
+  const enabled = Boolean(qs('artifact-watchdog-enabled') && qs('artifact-watchdog-enabled').checked);
+  const autoRepairInput = qs('artifact-watchdog-auto-repair');
   const payload = {
-    enabled: Boolean(qs('artifact-watchdog-enabled') && qs('artifact-watchdog-enabled').checked),
-    auto_repair: Boolean(qs('artifact-watchdog-auto-repair') && qs('artifact-watchdog-auto-repair').checked),
+    enabled,
+    auto_repair: enabled && (autoRepairInput ? Boolean(autoRepairInput.checked) : true),
     max_age_hours: Number(qs('artifact-watchdog-max-age-hours') ? qs('artifact-watchdog-max-age-hours').value : 6) || 6
   };
   settingsHooks.setBanner('Watchdog-Einstellungen werden gespeichert...', 'info');
@@ -798,8 +826,8 @@ export function saveRepoAutoUpdate() {
   const enabled = Boolean(qs('repo-update-enabled') && qs('repo-update-enabled').checked);
   const payload = {
     enabled,
-    repo_url: String(qs('repo-update-url') ? qs('repo-update-url').value : '').trim(),
-    branch: String(qs('repo-update-branch') ? qs('repo-update-branch').value : '').trim(),
+    repo_url: String(qs('repo-update-url') ? qs('repo-update-url').value : 'https://github.com/meinzeug/beagle-os.git').trim(),
+    branch: String(qs('repo-update-branch') ? qs('repo-update-branch').value : 'main').trim(),
     interval_minutes: Number(qs('repo-update-interval') ? qs('repo-update-interval').value : 1) || 1
   };
   const watchdogPayload = {
