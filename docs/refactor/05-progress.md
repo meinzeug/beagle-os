@@ -2869,3 +2869,30 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
         - [docs/goadvanced/12-ux-accessibility.md](docs/goadvanced/12-ux-accessibility.md) — i18n + ARIA + Mobile
 - Welle A (Sofort) deckt Plaene 01-04 ab; Welle B 05/09/10; Welle C 06/07/08/11/12.
 - Naechster Run: mit Plan 01 (Data-Integrity) beginnen.
+
+---
+
+## Update (2026-05-XX, GoAdvanced Plans 02/03/04/09 — CI, Security, TLS)
+
+**Scope**: Plan 09 Schritt 4+5, Plan 03 Schritt 3+7, Plan 02 Schritt 1+2+3+5, Plan 04 Schritt 1+2+6
+
+### Plan 09 CI Pipeline (Schritte 4+5)
+- `build-iso.yml`: Neue Jobs `build-thin-client` (runs `build-thin-client-installer.sh`, uploads `dist/thin-client/`) und `reproducibility-check` (nightly SHA256 comparison vs previous build, warn-only, 14d artifact)
+- `release.yml`: Neue Permissions `id-token: write`, neuer `sbom` Job (CycloneDX Python+Node), Cosign keyless signing (`sigstore/cosign-installer@v3`, `SHA256SUMS.cosign.bundle`), SBOM als Release-Assets
+
+### Plan 03 Secret Management (Schritt 3+7)
+- `tests/unit/test_secret_bootstrap.py`: 7 Tests — env-override, existing-secret, generate-new, generate=False, distinct-tokens, audit-log-safety (secret value never in log)
+- `docs/refactor/11-security-findings.md`: S-017 (GELOEST) — manager-api-token + secrets jetzt per SecretStore
+
+### Plan 02 TLS Hardening (Schritte 1+2+3a+3d+5)
+- `core/security/http_client.py` + `core/security/__init__.py`: SecureSession, get(), post(), TLSSecurityError; verify=False blockiert; BEAGLE_TLS_CA_BUNDLE + BEAGLE_TLS_INSECURE_OVERRIDE env vars
+- `scripts/lib/beagle_curl_safe.sh`: beagle_curl_tls_args() Funktion hinzugefügt (BEAGLE_TLS_PINNED_PUBKEY, BEAGLE_CA_CERT, BEAGLE_TLS_SKIP=1)
+- `tests/unit/test_secure_http_client.py`: 15 Tests
+- `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`: curl -k → --insecure + tls-bypass-allowlist-Marker; SUNSHINE_PINNED_PUBKEY Support in is_api_ready()
+- `scripts/test-streaming-quality-smoke.py`: curl -kfsS → --insecure + tls-bypass-allowlist-Kommentar
+
+### Plan 04 Subprocess Sandboxing (Schritte 1+2+6)
+- Implementierungen bereits vorhanden; Plan-Checkboxen auf [x] gesetzt (safe_subprocess.py 9 Tests, identifiers.py 25 Tests inkl. path-traversal)
+
+### Test-Baseline
+- **990 passed** (unit + integration), 4 deselected — +22 neue Tests in diesem Run
