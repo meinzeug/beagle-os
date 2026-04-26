@@ -80,6 +80,7 @@ _CERTBOT_LOGS_DIR = _CERTBOT_BASE_DIR / "logs"
 _ARTIFACT_WATCHDOG_STATUS_FILE = Path("/var/lib/beagle/artifact-watchdog-status.json")
 _ARTIFACT_WATCHDOG_RULE_FILE = Path("/etc/polkit-1/rules.d/49-beagle-artifacts-watchdog.rules")
 _REPO_AUTO_UPDATE_STATUS_FILE = Path("/var/lib/beagle/repo-auto-update-status.json")
+_REPO_AUTO_UPDATE_FORCE_FILE = Path("/var/lib/beagle/repo-auto-update-force")
 _REPO_AUTO_UPDATE_RULE_FILE = Path("/etc/polkit-1/rules.d/49-beagle-repo-auto-update.rules")
 _DEFAULT_REPO_AUTO_UPDATE_URL = "https://github.com/meinzeug/beagle-os.git"
 _DEFAULT_REPO_AUTO_UPDATE_BRANCH = "main"
@@ -646,6 +647,15 @@ class ServerSettingsService:
         return {"ok": True, "repo_auto_update": self.get_repo_auto_update()}
 
     def run_repo_auto_update(self) -> dict[str, Any]:
+        try:
+            _REPO_AUTO_UPDATE_FORCE_FILE.write_text("1\n", encoding="utf-8")
+            try:
+                shutil.chown(_REPO_AUTO_UPDATE_FORCE_FILE, group="beagle-manager")
+            except Exception:
+                pass
+            _REPO_AUTO_UPDATE_FORCE_FILE.chmod(0o640)
+        except OSError:
+            pass
         r = _run_systemctl_privileged(["--no-block", "start", "beagle-repo-auto-update.service"], timeout=30)
         if r.returncode != 0:
             return {"ok": False, "error": f"repo auto update start failed: {r.stderr.strip()[:300]}"}

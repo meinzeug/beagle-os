@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SETTINGS_FILE="${BEAGLE_SETTINGS_FILE:-${BEAGLE_MANAGER_DATA_DIR:-/var/lib/beagle/beagle-manager}/server-settings.json}"
 STATUS_DIR="${BEAGLE_STATUS_DIR:-/var/lib/beagle}"
 STATUS_FILE="$STATUS_DIR/repo-auto-update-status.json"
+FORCE_FILE="$STATUS_DIR/repo-auto-update-force"
 CACHE_DIR="${BEAGLE_REPO_AUTO_UPDATE_CACHE_DIR:-$STATUS_DIR/repo-auto-update-cache}"
 WORKTREE_DIR="$CACHE_DIR/repo"
 STAGING_DIR="$CACHE_DIR/staging"
@@ -28,7 +29,7 @@ ensure_root() {
 ensure_root "$@"
 install -d -m 0755 "$STATUS_DIR" "$CACHE_DIR"
 
-python3 - "$SETTINGS_FILE" "$STATUS_FILE" "$WORKTREE_DIR" "$STAGING_DIR" "$INSTALL_DIR" "$COMMIT_FILE" "$DEFAULT_REPO_URL" "$DEFAULT_BRANCH" "$DEFAULT_INTERVAL_MINUTES" <<'PY'
+python3 - "$SETTINGS_FILE" "$STATUS_FILE" "$FORCE_FILE" "$WORKTREE_DIR" "$STAGING_DIR" "$INSTALL_DIR" "$COMMIT_FILE" "$DEFAULT_REPO_URL" "$DEFAULT_BRANCH" "$DEFAULT_INTERVAL_MINUTES" <<'PY'
 from __future__ import annotations
 
 import json
@@ -41,13 +42,14 @@ from pathlib import Path
 
 settings_path = Path(sys.argv[1])
 status_path = Path(sys.argv[2])
-worktree_dir = Path(sys.argv[3])
-staging_dir = Path(sys.argv[4])
-install_dir = Path(sys.argv[5])
-commit_file = Path(sys.argv[6])
-default_repo_url = sys.argv[7]
-default_branch = sys.argv[8]
-default_interval = int(sys.argv[9])
+force_path = Path(sys.argv[3])
+worktree_dir = Path(sys.argv[4])
+staging_dir = Path(sys.argv[5])
+install_dir = Path(sys.argv[6])
+commit_file = Path(sys.argv[7])
+default_repo_url = sys.argv[8]
+default_branch = sys.argv[9]
+default_interval = int(sys.argv[10])
 
 
 def utcnow() -> datetime:
@@ -119,6 +121,13 @@ try:
 except OSError:
     current_commit = ""
 payload["current_commit"] = current_commit
+force_check = False
+try:
+    if force_path.is_file():
+        force_check = True
+        force_path.unlink()
+except OSError:
+    force_check = True
 
 if not config["enabled"]:
     write_status(payload)
@@ -138,10 +147,17 @@ config_matches_status = (
     and int(status.get("interval_minutes") or 0) == config["interval_minutes"]
 )
 has_installed_commit = bool(current_commit)
+status_state = str(status.get("state") or "").strip().lower()
+status_current_commit = str(status.get("current_commit") or "").strip()
+status_update_available = bool(status.get("update_available", False))
 if (
     last_checked
     and config_matches_status
+    and not force_check
     and has_installed_commit
+    and status_current_commit == current_commit
+    and status_state not in {"error", "updating"}
+    and not status_update_available
     and now - last_checked < timedelta(minutes=max(5, config["interval_minutes"]))
 ):
     payload.update(status)
@@ -238,8 +254,6 @@ if rsync.returncode != 0:
     write_status(payload)
     raise SystemExit(1)
 
-commit_file.write_text(remote_commit + "\n", encoding="utf-8")
-
 install = None
 for attempt in range(1, 4):
     install = run([str(install_dir / "scripts/install-beagle-host-services.sh")], cwd=install_dir, timeout=1800)
@@ -275,5 +289,6 @@ payload["current_commit"] = remote_commit
 payload["remote_commit"] = remote_commit
 payload["update_available"] = False
 payload["last_update_at"] = utcnow().isoformat()
+commit_file.write_text(remote_commit + "\n", encoding="utf-8")
 write_status(payload)
 PY
