@@ -1,0 +1,65 @@
+name: e2e-nightly
+
+on:
+  schedule:
+    # Runs daily at 03:30 UTC
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+    inputs:
+      skip_mutating:
+        description: 'Skip mutating tests (VM create/delete)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+concurrency:
+  group: e2e-nightly
+  cancel-in-progress: false
+
+jobs:
+  e2e-smoke:
+    name: E2E Smoke (srv1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          pip install \
+            pytest \
+            pytest-timeout \
+            cryptography
+
+      - name: Run E2E smoke tests
+        env:
+          BEAGLE_E2E_TOKEN: ${{ secrets.BEAGLE_E2E_TOKEN }}
+          BEAGLE_E2E_BASE_URL: ${{ secrets.BEAGLE_E2E_BASE_URL }}
+          BEAGLE_E2E_INSECURE: ${{ secrets.BEAGLE_E2E_INSECURE }}
+          BEAGLE_E2E_SKIP_MUTATING: ${{ github.event.inputs.skip_mutating || 'false' }}
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/beagle-host/services
+          BEAGLE_BEAGLE_PROVIDER_STATE_DIR: /tmp/beagle-e2e
+        run: |
+          python3 -m pytest tests/e2e/ -v \
+            --timeout=60 \
+            --tb=short \
+            -x
+
+      - name: Upload pytest results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results-${{ github.run_id }}
+          path: .pytest_results/
+          if-no-files-found: ignore
+          retention-days: 7

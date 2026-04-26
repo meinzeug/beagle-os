@@ -1,10 +1,11 @@
 # Next Steps
 
-## Stand (2026-05-XX, GoAdvanced Plan 07 Schritt 5: Idempotency-Key Header)
+## Stand (2026-05-XX, GoAdvanced Plan 07 Schritt 5 + Plan 10 CI)
 
 **Zuletzt erledigt**:
 - Plan 07 Schritt 5: `Idempotency-Key`-Header in HTTP-Surfaces verdrahtet (backup + snapshot)
 - Plan 07 Schritt 3: `POST /api/v1/vms/{vmid}/snapshot` + `POST /api/v1/backups/run` → enqueue + 202
+- Plan 10 Schritt 7 CI: `.github/workflows/e2e-nightly.yml` erstellt (BEAGLE_E2E_TOKEN Secret, cron 03:30 UTC)
 - 10 neue Unit-Tests für Idempotency-Key (test_job_idempotency.py)
 - Plan 10 Schritte 1+2+3+6+7+8 vollständig (82 Integration-Tests, 9 E2E-Skip-Tests)
 - Plan 07 Schritte 1–5 (Async-Job-Queue) committed
@@ -13,8 +14,8 @@
 **Nächste konkrete Schritte**:
 
 1. **Plan 07 Schritt 3 Rest** (MEDIUM): `cluster_http_surface.py`: `POST /api/v1/cluster/migrate` → enqueue + 202.
-2. **Plan 10 Schritt 7 CI** (MEDIUM): Nightly GitHub Actions Workflow mit `BEAGLE_E2E_TOKEN` Secret für srv1.
-3. **Plan 07 Schritt 6** (MEDIUM): Web-UI Jobs-Panel mit SSE-Subscribe + Toast bei Job-Completion.
+2. **Plan 07 Schritt 6** (MEDIUM): Web-UI Jobs-Panel mit SSE-Subscribe + Toast bei Job-Completion.
+3. **Plan 09 CI Pipeline** (MEDIUM): Restliche CI-Checks (lint, security) in bestehenden Workflows konsolidieren.
 4. **Plan 09** (HIGH, in Planung): HA-Manager — Prerequisit für Plan 10 Schritt 4 (HA-Failover-Tests).
 
 ---
