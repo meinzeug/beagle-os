@@ -111,6 +111,7 @@ class VmMutationSurfaceService:
         *,
         json_payload: dict[str, Any] | None,
         requester_identity: str,
+        client_idempotency_key: str = "",
     ) -> dict[str, Any]:
         if path.startswith("/api/v1/vms/") and path.endswith("/snapshot"):
             vm, error = self._vm_from_segment(path, -2)
@@ -120,11 +121,12 @@ class VmMutationSurfaceService:
             payload = json_payload if isinstance(json_payload, dict) else {}
             snap_name = str(payload.get("name") or "").strip() or f"snap-{self._utcnow()[:10]}"
             if self._enqueue_job is not None:
+                ikey = client_idempotency_key or f"vm.snapshot.{vm.vmid}.{snap_name}"
                 try:
                     job = self._enqueue_job(
                         "vm.snapshot",
                         {"vmid": int(vm.vmid), "node": str(vm.node), "name": snap_name},
-                        idempotency_key=f"vm.snapshot.{vm.vmid}.{snap_name}",
+                        idempotency_key=ikey,
                         owner=requester_identity,
                     )
                     return self._json_response(

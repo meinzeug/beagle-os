@@ -324,7 +324,12 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
                 except Exception as exc:
                     self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                     return
-                response = self._backups_surface().route_post(path, json_payload=json_payload)
+                client_idem_key = str(self.headers.get("Idempotency-Key") or "").strip()
+                response = self._backups_surface().route_post(
+                    path,
+                    json_payload=json_payload,
+                    client_idempotency_key=client_idem_key,
+                )
             if response is not None:
                 self._write_json(response["status"], response["payload"])
             return
@@ -527,6 +532,7 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
                 path,
                 json_payload=json_payload,
                 requester_identity=self._requester_identity(),
+                client_idempotency_key=str(self.headers.get("Idempotency-Key") or "").strip(),
             )
             self._audit_event(
                 "mutation.request",

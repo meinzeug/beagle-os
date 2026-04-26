@@ -61,11 +61,11 @@ Lange Operationen wie VM-Snapshots, Live-Migration, Backups blockieren den HTTP-
   - [x] Tests: `tests/unit/test_jobs_http_surface.py` (22 tests)
   - [ ] Auth: User darf nur eigene Jobs sehen (RBAC) — offen (naechste Iteration)
 
-- [ ] **Schritt 5** — Idempotency
-  - [ ] Client kann `Idempotency-Key`-Header senden
-  - [ ] Bei Wiederholung mit gleichem Key → gleicher Job, kein neuer Enqueue
-  - [ ] TTL fuer Idempotency-Keys: 24h
-  - [ ] Tests: `tests/unit/test_job_idempotency.py`
+- [x] **Schritt 5** — Idempotency
+  - [x] Client kann `Idempotency-Key`-Header senden (Control-Plane-Handler extrahiert Header, leitet als `client_idempotency_key` weiter)
+  - [x] Bei Wiederholung mit gleichem Key → gleicher Job, kein neuer Enqueue (Server-computed Key als Fallback wenn kein Client-Key)
+  - [x] TTL fuer Idempotency-Keys: 24h (bereits in `job_queue_service.py` implementiert, `DEFAULT_IDEMPOTENCY_TTL=86400`)
+  - [x] Tests: `tests/unit/test_job_idempotency.py` (10 Tests: TTL-Expiry, Dedup, Client-Key-Override, Server-Fallback)
 
 - [ ] **Schritt 6** — Web-UI
   - [ ] `website/ui/jobs_panel.js`:

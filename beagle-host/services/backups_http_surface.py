@@ -181,6 +181,7 @@ class BackupsHttpSurfaceService:
         json_payload: dict[str, Any] | None = None,
         raw_body: bytes | None = None,
         raw_headers: dict[str, str] | None = None,
+        client_idempotency_key: str = "",
     ) -> dict[str, Any] | None:
         p = json_payload or {}
         requester = self._requester_identity()
@@ -190,11 +191,12 @@ class BackupsHttpSurfaceService:
             scope_id = str(p.get("scope_id") or "").strip()
             if self._enqueue_job is not None:
                 # Async path: enqueue and return 202 Accepted immediately.
+                ikey = client_idempotency_key or f"backup.run.{scope_type}.{scope_id}"
                 try:
                     job = self._enqueue_job(
                         "backup.run",
                         {"scope_type": scope_type, "scope_id": scope_id},
-                        idempotency_key=f"backup.run.{scope_type}.{scope_id}",
+                        idempotency_key=ikey,
                         owner=requester,
                     )
                 except Exception as exc:

@@ -1,20 +1,20 @@
 # Next Steps
 
-## Stand (2026-05-XX, GoAdvanced Plan 07 Schritt 3: Async POST-Endpoints)
+## Stand (2026-05-XX, GoAdvanced Plan 07 Schritt 5: Idempotency-Key Header)
 
 **Zuletzt erledigt**:
+- Plan 07 Schritt 5: `Idempotency-Key`-Header in HTTP-Surfaces verdrahtet (backup + snapshot)
 - Plan 07 Schritt 3: `POST /api/v1/vms/{vmid}/snapshot` + `POST /api/v1/backups/run` → enqueue + 202
-- 10 neue Unit-Tests für async Backup-Run + VM-Snapshot-Route
+- 10 neue Unit-Tests für Idempotency-Key (test_job_idempotency.py)
 - Plan 10 Schritte 1+2+3+6+7+8 vollständig (82 Integration-Tests, 9 E2E-Skip-Tests)
-- 2 Service-Bugs in `backup_service.py` durch Integration-Tests entdeckt + gefixt
-- Plan 07 Schritte 1–4 (Async-Job-Queue) committed
+- Plan 07 Schritte 1–5 (Async-Job-Queue) committed
 - Plan 11 Schritte 2+5 (Proxmox Hard-Delete) committed
 
 **Nächste konkrete Schritte**:
 
 1. **Plan 07 Schritt 3 Rest** (MEDIUM): `cluster_http_surface.py`: `POST /api/v1/cluster/migrate` → enqueue + 202.
-2. **Plan 07 Schritt 5** (MEDIUM): Idempotency-Key-TTL-Tests (Job-Queue) — sicherstellen dass abgelaufene Idempotency-Keys nicht mehr deduplicaten.
-3. **Plan 10 Schritt 7 CI** (MEDIUM): Nightly GitHub Actions Workflow mit `BEAGLE_E2E_TOKEN` Secret für srv1.
+2. **Plan 10 Schritt 7 CI** (MEDIUM): Nightly GitHub Actions Workflow mit `BEAGLE_E2E_TOKEN` Secret für srv1.
+3. **Plan 07 Schritt 6** (MEDIUM): Web-UI Jobs-Panel mit SSE-Subscribe + Toast bei Job-Completion.
 4. **Plan 09** (HIGH, in Planung): HA-Manager — Prerequisit für Plan 10 Schritt 4 (HA-Failover-Tests).
 
 ---
