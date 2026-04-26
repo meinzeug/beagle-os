@@ -40,6 +40,7 @@ Stand: 2026-04-26 (ergänzt: S-024 Security-Default fuer Repo-/Artifact-Automati
 - Fix:
   - Die Secret-Pruefung wurde in den Shell-Schritt verlegt.
   - Der Schritt importiert den GPG-Key jetzt nur noch, wenn `BEAGLE_RELEASE_GPG_KEY` in `env` gesetzt ist; sonst wird sauber ohne Signaturpfad weitergelaufen.
+  - Follow-up: der `no-proxmox-references`-Workflow normalisiert `./`-Pfade vor dem Allowlist-Vergleich, damit erlaubte Legacy-Dateien nicht faelschlich als neue Proxmox-Referenzen blockieren.
 - Rest-Risiko:
   - Die eigentliche Release-Erzeugung auf GitHub muss nach Push erneut live bestaetigt werden.
 

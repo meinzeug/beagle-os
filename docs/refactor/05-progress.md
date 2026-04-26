@@ -3440,6 +3440,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - GitHub-Workflow-Fix:
   - `.github/workflows/release.yml` ist repariert; der optionale GPG-Key wird nicht mehr ueber ein unzulaessiges `if: secrets...` ausgewertet, sondern innerhalb des Shell-Schritts.
   - Damit verschwindet der aktuelle GitHub-Parse-Fehler `Unrecognized named-value: 'secrets'`.
+  - Follow-up: `.github/workflows/no-proxmox-references.yml` normalisiert `./`-Pfade vor dem Allowlist-Vergleich, damit erlaubte Legacy-Pfade wie `scripts/lib/provider_shell.sh` nicht faelschlich als neue Proxmox-Verstoesse gemeldet werden.
 
 ## Update (2026-04-26, Security-Default fuer Repo-/Artifact-Automatik)
 

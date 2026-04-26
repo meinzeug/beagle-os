@@ -62,16 +62,17 @@ jobs:
           for pattern in "${PATTERNS[@]}"; do
             while IFS= read -r match; do
               if [ -n "$match" ]; then
+                normalized="${match#./}"
                 # Check if the match is in an allowlisted path
                 IS_ALLOWED=0
                 for allowed in "${ALLOWLIST_PATHS[@]}"; do
-                  if [[ "$match" == $allowed* ]]; then
+                  if [[ "$normalized" == $allowed* ]]; then
                     IS_ALLOWED=1
                     break
                   fi
                 done
                 if [ "$IS_ALLOWED" -eq 0 ]; then
-                  echo "VIOLATION ($pattern): $match"
+                  echo "VIOLATION ($pattern): $normalized"
                   FOUND=1
                 fi
               fi
