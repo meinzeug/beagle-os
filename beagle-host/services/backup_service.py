@@ -129,7 +129,11 @@ class BackupService:
                 policy[s3_field] = str(source.get(s3_field) or "").strip()[:1024]
         if "incremental" in source:
             policy["incremental"] = bool(source.get("incremental"))
-        policy["last_backup"] = str(current.get("last_backup") or "")
+        # Preserve last_backup from source first (for GET reads), fall back to
+        # current (for UPDATE where user payload does not include last_backup).
+        policy["last_backup"] = str(
+            source.get("last_backup") or current.get("last_backup") or ""
+        )
         return policy
 
     def get_pool_policy(self, pool_id: str) -> dict[str, Any]:
@@ -420,7 +424,10 @@ class BackupService:
             raise ValueError(f"Job {job_id!r} did not succeed (status={job.get('status')!r})")
 
         policy = self._find_policy_for_job(job)
-        local_archive, is_temp = self._resolve_archive_local(job, policy)
+        try:
+            local_archive, is_temp = self._resolve_archive_local(job, policy)
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
         try:
             safe_dest = str(restore_path or f"/var/restores/beagle/{job_id}").strip()
             if ".." in safe_dest:
@@ -467,7 +474,10 @@ class BackupService:
             raise ValueError(f"Job {job_id!r} did not succeed (status={job.get('status')!r})")
 
         policy = self._find_policy_for_job(job)
-        local_archive, is_temp = self._resolve_archive_local(job, policy)
+        try:
+            local_archive, is_temp = self._resolve_archive_local(job, policy)
+        except Exception as exc:
+            return {"ok": False, "error": str(exc), "files": []}
         try:
             result = subprocess.run(
                 ["tar", "--list", "--verbose", "-f", local_archive],
