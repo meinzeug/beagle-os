@@ -66,6 +66,32 @@ function formatDurationCompact(secondsValue) {
   return (hours / 24).toFixed(1) + ' d';
 }
 
+function setUpdateFlowStep(name, stateName, label) {
+  const node = qs('update-flow-' + name);
+  if (node) {
+    node.className = 'settings-update-flow-node is-' + String(stateName || 'idle');
+  }
+  text('update-flow-' + name + '-state', label || 'wartet');
+}
+
+function setUpdateConsoleState(stateName, title, subtitle) {
+  const consoleNode = qs('settings-update-console');
+  if (consoleNode) {
+    consoleNode.className = 'settings-update-console is-' + String(stateName || 'idle');
+  }
+  text('update-console-title', title || 'Status wird geladen');
+  text('update-console-subtitle', subtitle || 'Die Pruefung startet automatisch, sobald diese Seite geoeffnet wird.');
+}
+
+function setUpdateAutoMode(enabled) {
+  const label = enabled ? 'AUTO AKTIV' : 'AUTO AUS';
+  text('update-auto-mode', label);
+  const node = qs('update-auto-mode');
+  if (node) {
+    node.className = 'settings-update-mode ' + (enabled ? 'is-on' : 'is-off');
+  }
+}
+
 function stopArtifactRefreshPolling() {
   if (artifactRefreshPollTimer) {
     window.clearTimeout(artifactRefreshPollTimer);
@@ -378,6 +404,10 @@ export function restartService(name) {
 
 export function loadSettingsUpdates() {
   settingsHooks.setBanner('Suche nach Updates...', 'info');
+  setUpdateConsoleState('checking', 'Live-Pruefung laeuft', 'Der Server fragt Systempakete, GitHub und Download-Artefakte ab.');
+  setUpdateFlowStep('packages', 'running', 'fragt an');
+  setUpdateFlowStep('repo', 'running', 'fragt an');
+  setUpdateFlowStep('artifacts', 'running', 'fragt an');
   loadArtifactStatus();
   return request('/settings/updates', { __timeoutMs: 60000 }).then((data) => {
     const packageCount = Number(data.upgradable_count || 0);
@@ -403,16 +433,20 @@ export function loadSettingsUpdates() {
     const packages = data.upgradable || [];
     if (!packages.length) {
       tbody.innerHTML = '<tr><td colspan="2" class="empty-cell">System ist aktuell.</td></tr>';
+      setUpdateFlowStep('packages', 'good', 'aktuell');
       settingsHooks.setBanner('Systempakete sind aktuell.', 'info');
       renderRepoUpdateStatus(data.repo_auto_update || {});
       return;
     }
+    setUpdateFlowStep('packages', 'warn', String(packages.length) + ' offen');
     tbody.innerHTML = packages.map((pkg) => {
       return '<tr><td>' + escapeHtml(pkg.package) + '</td><td><code>' + escapeHtml(pkg.line) + '</code></td></tr>';
     }).join('');
     renderRepoUpdateStatus(data.repo_auto_update || {});
     settingsHooks.setBanner(packages.length + ' Paket-Update(s) verfuegbar.', 'info');
   }).catch((error) => {
+    setUpdateConsoleState('error', 'Update-Pruefung fehlgeschlagen', error.message);
+    setUpdateFlowStep('packages', 'error', 'Fehler');
     settingsHooks.setBanner('Update-Check fehlgeschlagen: ' + error.message, 'warn');
   });
 }
@@ -424,6 +458,7 @@ function renderRepoUpdateStatus(data) {
   const services = repoData.services || {};
   const enabled = Boolean(config.enabled);
   const healthy = String(status.state || '') === 'healthy';
+  setUpdateAutoMode(enabled);
   text('repo-update-state', String(status.state || (config.enabled ? 'unknown' : 'disabled')));
   text('repo-update-checked', formatDate(status.checked_at || ''));
   text('repo-update-last-update', formatDate(status.last_update_at || ''));
@@ -463,6 +498,30 @@ function renderRepoUpdateStatus(data) {
       simpleMessage.textContent = 'Automatische Beagle-Updates sind aktiv. Der naechste GitHub-Check erfolgt im Hintergrund.';
       simpleMessage.className = 'banner subtle';
     }
+  }
+  if (status.state === 'error') {
+    setUpdateFlowStep('repo', 'error', 'Fehler');
+  } else if (status.state === 'updating') {
+    setUpdateFlowStep('repo', 'running', 'installiert');
+  } else if (status.update_available) {
+    setUpdateFlowStep('repo', 'warn', 'Update da');
+  } else if (healthy) {
+    setUpdateFlowStep('repo', 'good', 'aktuell');
+  } else if (!enabled) {
+    setUpdateFlowStep('repo', 'idle', 'Auto aus');
+  } else {
+    setUpdateFlowStep('repo', 'idle', 'wartet');
+  }
+  const packageCount = Number(qs('upd-count') ? qs('upd-count').textContent : 0) || 0;
+  const artifactReady = String(qs('artifact-ready') ? qs('artifact-ready').textContent : '').toLowerCase() === 'ja';
+  if (status.state === 'error') {
+    setUpdateConsoleState('error', 'Automatik braucht Aufmerksamkeit', String(status.message || 'Der GitHub-Check ist fehlgeschlagen.'));
+  } else if (packageCount > 0 || status.update_available) {
+    setUpdateConsoleState('warn', 'Updates verfuegbar', 'Ein Teil des Systems kann aktualisiert werden.');
+  } else if (healthy && artifactReady) {
+    setUpdateConsoleState('good', 'Alles aktuell', enabled ? 'Vollautomatik ist aktiv und die Downloads sind bereit.' : 'Der Server ist aktuell. Die Vollautomatik ist ausgeschaltet.');
+  } else {
+    setUpdateConsoleState('checking', 'Status wird zusammengefuehrt', 'Der Server prueft noch die Download-Artefakte.');
   }
   if (qs('repo-update-enabled')) {
     qs('repo-update-enabled').checked = Boolean(config.enabled);
@@ -586,6 +645,27 @@ function renderArtifactStatus(data) {
       watchdogSimpleMessage.className = 'banner subtle';
     }
   }
+  if (runningRefresh) {
+    setUpdateFlowStep('artifacts', 'running', 'refresh');
+  } else if (missing.length) {
+    setUpdateFlowStep('artifacts', 'warn', String(missing.length) + ' fehlen');
+  } else if (watchdogStatus.state === 'drift') {
+    setUpdateFlowStep('artifacts', 'warn', 'Drift');
+  } else if (watchdogStatus.state === 'repairing') {
+    setUpdateFlowStep('artifacts', 'running', 'repariert');
+  } else if (data && data.ready) {
+    setUpdateFlowStep('artifacts', 'good', 'bereit');
+  } else {
+    setUpdateFlowStep('artifacts', 'idle', 'wartet');
+  }
+  const repoState = String(qs('repo-update-state') ? qs('repo-update-state').textContent : '');
+  const packageCount = Number(qs('upd-count') ? qs('upd-count').textContent : 0) || 0;
+  const repoHealthy = repoState === 'healthy';
+  if (missing.length || watchdogStatus.state === 'drift') {
+    setUpdateConsoleState('warn', 'Downloads brauchen Pflege', 'Fehlende oder veraltete Dateien koennen automatisch repariert werden.');
+  } else if (repoHealthy && packageCount <= 0 && data && data.ready) {
+    setUpdateConsoleState('good', 'Alles aktuell', watchdogConfig.enabled && watchdogConfig.auto_repair ? 'Vollautomatik ist aktiv und alle Downloads sind bereit.' : 'Der Server ist aktuell. Die Download-Automatik ist eingeschraenkt.');
+  }
 
   if (runningRefresh) {
     scheduleArtifactRefreshPolling();
@@ -622,6 +702,7 @@ export function loadArtifactStatus(options) {
     renderArtifactStatus(data);
   }).catch((error) => {
     stopArtifactRefreshPolling();
+    setUpdateFlowStep('artifacts', 'error', 'Fehler');
     if (!silent) {
       settingsHooks.setBanner('Artifact-Status laden fehlgeschlagen: ' + error.message, 'warn');
     }

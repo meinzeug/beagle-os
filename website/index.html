@@ -1784,6 +1784,48 @@
                 </div>
                 <button class="button ghost small" id="settings-updates-refresh" type="button">Pruefen</button>
               </div>
+              <div class="settings-update-console" id="settings-update-console">
+                <div class="settings-update-scanline" aria-hidden="true"></div>
+                <div class="settings-update-console-head">
+                  <div>
+                    <span class="eyebrow">Live Update Control</span>
+                    <h3 id="update-console-title">Status wird geladen</h3>
+                    <p id="update-console-subtitle">Die Pruefung startet automatisch, sobald diese Seite geoeffnet wird.</p>
+                  </div>
+                  <span class="settings-update-mode" id="update-auto-mode">AUTO AUS</span>
+                </div>
+                <div class="settings-update-flow" aria-label="Update-Pruefung">
+                  <div class="settings-update-flow-node is-running" id="update-flow-packages">
+                    <span class="settings-update-flow-dot"></span>
+                    <span class="settings-update-flow-label">Systempakete</span>
+                    <strong id="update-flow-packages-state">wartet</strong>
+                  </div>
+                  <div class="settings-update-flow-node is-running" id="update-flow-repo">
+                    <span class="settings-update-flow-dot"></span>
+                    <span class="settings-update-flow-label">Beagle GitHub</span>
+                    <strong id="update-flow-repo-state">wartet</strong>
+                  </div>
+                  <div class="settings-update-flow-node is-running" id="update-flow-artifacts">
+                    <span class="settings-update-flow-dot"></span>
+                    <span class="settings-update-flow-label">Downloads</span>
+                    <strong id="update-flow-artifacts-state">wartet</strong>
+                  </div>
+                </div>
+                <div class="settings-update-actions">
+                  <label class="settings-switch">
+                    <input id="repo-update-enabled" type="checkbox">
+                    <span class="settings-switch-track" aria-hidden="true"></span>
+                    <span>
+                      <strong>Vollautomatik</strong>
+                      <small>GitHub-Updates installieren und Downloads selbst reparieren</small>
+                    </span>
+                  </label>
+                  <div class="button-row">
+                    <button class="button ghost" id="repo-update-save" type="button">Automatik speichern</button>
+                    <button class="button primary" id="repo-update-check" type="button">Jetzt live pruefen</button>
+                  </div>
+                </div>
+              </div>
               <div class="settings-section-group">
                 <div class="banner subtle" id="upd-summary-message">Das System prueft automatisch, ob neue Betriebssystem-Updates verfuegbar sind.</div>
                 <div class="settings-info-grid">
@@ -1813,13 +1855,6 @@
                   <div class="info-item"><span class="info-label">Letztes Update</span><span class="info-value" id="repo-update-last-update">—</span></div>
                 </div>
                 <div class="banner subtle" id="repo-update-message">Repo-Auto-Update wird mit dem Update-Status geladen.</div>
-                <div class="settings-form">
-                  <label class="check-label settings-toggle-wide"><input id="repo-update-enabled" type="checkbox"> Beagle automatisch aus GitHub aktualisieren</label>
-                </div>
-                <div class="button-row">
-                  <button class="button ghost" id="repo-update-save" type="button">Automatik speichern</button>
-                  <button class="button primary" id="repo-update-check" type="button">Jetzt GitHub pruefen</button>
-                </div>
                 <details class="settings-disclosure">
                   <summary>Technische Einstellungen anzeigen</summary>
                   <div class="settings-info-grid settings-info-grid-compact">
