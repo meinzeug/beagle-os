@@ -86,10 +86,7 @@ class FleetTelemetryService:
     def get_history(self, device_id: str, *, days: int = 30) -> list[DeviceTelemetry]:
         """Return telemetry history for a device (last N days)."""
         import datetime
-        cutoff = (
-            datetime.datetime.now(datetime.timezone.utc)
-            - datetime.timedelta(days=days)
-        ).strftime("%Y-%m-%dT%H:%M:%S")
+        cutoff = (self._current_datetime() - datetime.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S")
 
         shard = self._dir / f"{device_id}.jsonl"
         if not shard.exists():
@@ -214,10 +211,7 @@ class FleetTelemetryService:
     def _prune(self, device_id: str) -> None:
         """Remove telemetry older than RETENTION_DAYS."""
         import datetime
-        cutoff = (
-            datetime.datetime.now(datetime.timezone.utc)
-            - datetime.timedelta(days=self.RETENTION_DAYS)
-        ).strftime("%Y-%m-%dT%H:%M:%S")
+        cutoff = (self._current_datetime() - datetime.timedelta(days=self.RETENTION_DAYS)).strftime("%Y-%m-%dT%H:%M:%S")
         shard = self._dir / f"{device_id}.jsonl"
         if not shard.exists():
             return
@@ -231,3 +225,16 @@ class FleetTelemetryService:
     def _default_utcnow() -> str:
         import datetime
         return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def _current_datetime(self):
+        import datetime
+        raw = str(self._utcnow() or "").strip()
+        if raw:
+            try:
+                parsed = datetime.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+                return parsed.astimezone(datetime.timezone.utc)
+            except ValueError:
+                pass
+        return datetime.datetime.now(datetime.timezone.utc)

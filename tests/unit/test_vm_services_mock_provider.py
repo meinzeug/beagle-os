@@ -140,6 +140,9 @@ class MockHostProvider:
     def snapshot_vm(self, vmid: int, name: str, *, description: str = "") -> str:
         return f"created snapshot {name} for vm {vmid}"
 
+    def reset_vm_to_snapshot(self, vmid: int, snapshot_name: str, *, timeout: Any = None) -> str:
+        return f"reset vm {vmid} to snapshot {snapshot_name}"
+
     def clone_vm(self, vmid: int, newid: int, *, name: str = "", node: str = "") -> str:
         return f"cloned {vmid} to {newid}"
 

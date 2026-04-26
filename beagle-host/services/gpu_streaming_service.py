@@ -215,10 +215,9 @@ class GpuMetricsService:
 
     def get_recent(self, gpu_id: str, *, minutes: int = 10) -> list[GpuMetricSample]:
         import datetime
-        cutoff = (
-            datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=minutes)
-        ).strftime("%Y-%m-%dT%H:%M:%S")
-        today = self._utcnow()[:10]
+        now = self._current_datetime()
+        cutoff = (now - datetime.timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%S")
+        today = now.strftime("%Y-%m-%d")
         shard = self._dir / f"{gpu_id}_{today}.jsonl"
         if not shard.exists():
             return []
@@ -248,6 +247,19 @@ class GpuMetricsService:
     def _default_utcnow() -> str:
         import datetime
         return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def _current_datetime(self):
+        import datetime
+        raw = str(self._utcnow() or "").strip()
+        if raw:
+            try:
+                parsed = datetime.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+                return parsed.astimezone(datetime.timezone.utc)
+            except ValueError:
+                pass
+        return datetime.datetime.now(datetime.timezone.utc)
 
 
 # ===========================================================================

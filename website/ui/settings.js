@@ -570,7 +570,7 @@ function renderArtifactStatus(data) {
   text('artifact-watchdog-state', String(watchdogStatus.state || (watchdogConfig.enabled ? 'unknown' : 'disabled')));
   text('artifact-watchdog-checked', formatDate(watchdogStatus.checked_at || ''));
   text('artifact-watchdog-age', formatDurationCompact(watchdogStatus.artifact_age_seconds));
-  text('artifact-watchdog-reaction', Boolean(watchdogConfig.auto_repair) ? 'Aktiv' : 'Nur Hinweis');
+  text('artifact-watchdog-reaction', watchdogConfig.auto_repair ? 'Aktiv' : 'Nur Hinweis');
   text('artifact-watchdog-timer', String((data && data.services && data.services['beagle-artifacts-watchdog.timer']) || 'unknown'));
   text('artifact-watchdog-enabled-state', watchdogConfig.enabled ? 'Ja' : 'Nein');
   text('artifact-watchdog-max-age-state', String(watchdogConfig.max_age_hours || 6) + ' h');
