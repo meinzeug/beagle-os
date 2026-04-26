@@ -38,10 +38,24 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
+          set +e
           python -m pytest tests/unit/ \
             -q \
             --timeout=180 \
-            -p no:warnings
+            -p no:warnings \
+            2>&1 | tee /tmp/beagle-pytest.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            python - <<'PY'
+          from pathlib import Path
+          from urllib.parse import quote
+
+          log = Path("/tmp/beagle-pytest.log").read_text(errors="replace").splitlines()
+          tail = "\n".join(log[-80:])[-7000:]
+          print(f"::error file=.github/workflows/tests.yml,line=43,title=pytest failed::{quote(tail)}")
+          PY
+            exit "$rc"
+          fi
 
   bats:
     name: bats (shell tests)
