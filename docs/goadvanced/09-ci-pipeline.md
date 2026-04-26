@@ -51,8 +51,8 @@ Ohne CI sind Regressionen schwer zu vermeiden.
 
 - [/] **Schritt 5** — Release-Pipeline _(2026-04-25 — Basis vorhanden, Cosign offen)_
   - [x] `.github/workflows/release.yml`: Tag-Trigger `v*.*.*`, baut Installimage+ISO, generiert `SHA256SUMS`, GPG-signiert (`SHA256SUMS.sig`), Changelog aus Git-Log, GitHub-Release mit Artefakten
-  - [ ] Cosign-Signatur (sigstore) — offen
-  - [ ] SBOM-Bundling — offen (haengt an Schritt 4)
+  - [x] Cosign-Signatur (sigstore) — `sigstore/cosign-installer@v3`, keyless sign-blob, `.cosign.bundle` sidecar im Release; continue-on-error (kein Hard-Blocker bei fehlendem OIDC-Token)
+  - [x] SBOM-Bundling — neuer `sbom`-Job im release.yml, alle `.cdx.json` als Release-Assets angehaengt
 
 - [x] **Schritt 6** — CI-Guards _(2026-04-25 — alle drei aktiv)_
   - [x] `.github/workflows/security-tls-check.yml`

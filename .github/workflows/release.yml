@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  # Required for Cosign keyless signing via OIDC
+  id-token: write
 
 jobs:
   build-installimage:
@@ -92,9 +94,70 @@ jobs:
           path: dist/iso/
           retention-days: 1
 
+  sbom:
+    name: Generate SBOM for release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install CycloneDX generators
+        run: |
+          pip install cyclonedx-bom
+          npm install -g @cyclonedx/cyclonedx-npm
+
+      - name: Generate Python SBOM
+        run: |
+          mkdir -p dist/sbom
+          if [[ -f requirements.txt ]]; then
+            cyclonedx-py requirements requirements.txt \
+              -o dist/sbom/sbom-python.cdx.json || true
+          else
+            cyclonedx-py environment \
+              -o dist/sbom/sbom-python.cdx.json || true
+          fi
+
+      - name: Generate Node SBOMs
+        run: |
+          if [[ -f extension/package.json ]]; then
+            (cd extension && cyclonedx-npm \
+              --output-format JSON \
+              --output-file ../dist/sbom/sbom-extension.cdx.json) || true
+          fi
+          if [[ -f beagle-kiosk/package.json ]]; then
+            (cd beagle-kiosk && cyclonedx-npm \
+              --output-format JSON \
+              --output-file ../dist/sbom/sbom-kiosk.cdx.json) || true
+          fi
+
+      - name: Generate SHA256SUMS for SBOM bundle
+        run: |
+          if compgen -G "dist/sbom/*.json" > /dev/null; then
+            (cd dist/sbom && sha256sum *.json > SHA256SUMS) || true
+          fi
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-sbom
+          path: dist/sbom/
+          retention-days: 1
+          if-no-files-found: warn
+
   create-release:
     name: Create GitHub Release
-    needs: [build-installimage, build-iso]
+    needs: [build-installimage, build-iso, sbom]
     runs-on: ubuntu-latest
 
     steps:
@@ -116,10 +179,16 @@ jobs:
           name: iso-dist
           path: dist/iso/
 
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-sbom
+          path: dist/sbom/
+
       - name: Generate SHA256SUMS
         run: |
           mkdir -p dist
-          find dist/installimage/ dist/iso/ -type f | sort | xargs sha256sum > dist/SHA256SUMS
+          find dist/installimage/ dist/iso/ dist/sbom/ -type f ! -name 'SHA256SUMS*' | sort | xargs sha256sum > dist/SHA256SUMS
           cat dist/SHA256SUMS
 
       - name: Import GPG key (optional)
@@ -127,6 +196,24 @@ jobs:
         run: |
           echo "${{ secrets.BEAGLE_RELEASE_GPG_KEY }}" | gpg --batch --import
           gpg --armor --detach-sign --output dist/SHA256SUMS.sig dist/SHA256SUMS
+
+      - name: Sign SHA256SUMS with Cosign (keyless / sigstore)
+        uses: sigstore/cosign-installer@v3
+        continue-on-error: true
+
+      - name: Cosign sign
+        continue-on-error: true
+        run: |
+          # Keyless signing — requires id-token: write permission
+          # Signs the SHA256SUMS file and produces a .bundle sidecar
+          if command -v cosign &>/dev/null; then
+            cosign sign-blob \
+              --yes \
+              --bundle dist/SHA256SUMS.cosign.bundle \
+              dist/SHA256SUMS || true
+          else
+            echo "cosign not available — skipping keyless signature"
+          fi
 
       - name: Create GitHub Release
         env:
@@ -142,6 +229,11 @@ jobs:
           done < <(find dist/installimage/ dist/iso/ -type f -print0 | sort -z)
           assets+=("dist/SHA256SUMS")
           [[ -f dist/SHA256SUMS.sig ]] && assets+=("dist/SHA256SUMS.sig")
+          [[ -f dist/SHA256SUMS.cosign.bundle ]] && assets+=("dist/SHA256SUMS.cosign.bundle")
+          # Bundle SBOM files
+          while IFS= read -r -d '' f; do
+            assets+=("$f")
+          done < <(find dist/sbom/ -type f -print0 | sort -z)
 
           # Extract changelog section for this version if CHANGELOG.md exists
           notes_args=()
