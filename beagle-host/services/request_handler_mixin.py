@@ -273,6 +273,7 @@ class HandlerMixin:
             service_name="beagle-control-plane",
             utcnow=utcnow,
             version=VERSION,
+            enqueue_job=job_queue_service().enqueue,
         )
 
     def _cluster_surface(self) -> ClusterHttpSurfaceService:

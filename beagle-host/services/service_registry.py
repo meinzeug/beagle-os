@@ -3116,6 +3116,7 @@ def vm_mutation_surface_service() -> VmMutationSurfaceService:
                 timeout_seconds=USB_ACTION_WAIT_SECONDS,
             ),
             detach_usb_from_guest=lambda vm, port, busid: detach_usb_from_guest(vm, port=port, busid=busid),
+            enqueue_job=lambda name, payload, **kw: job_queue_service().enqueue(name, payload, **kw),
         )
     return VM_MUTATION_SURFACE_SERVICE
 

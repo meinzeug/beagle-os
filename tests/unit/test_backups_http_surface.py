@@ -193,3 +193,50 @@ class TestBackupsPutRouting:
         )
         assert resp["status"] == HTTPStatus.OK
         qsvc.set_pool_quota.assert_called_once_with("local", 2048)
+
+
+class TestBackupRunAsync:
+    def _make_job(self, job_id: str = "cafebabe1234"):
+        class _Job:
+            def __init__(self, jid: str) -> None:
+                self.job_id = jid
+        return _Job(job_id)
+
+    def test_run_backup_enqueues_job_and_returns_202(self):
+        job = self._make_job("abc123")
+        enqueue = MagicMock(return_value=job)
+        svc, bk, _ = _make_svc(enqueue_job=enqueue)
+
+        resp = svc.route_post("/api/v1/backups/run", json_payload={"scope_type": "pool", "scope_id": "p1"})
+
+        assert resp["status"] == HTTPStatus.ACCEPTED
+        assert resp["payload"]["ok"] is True
+        assert resp["payload"]["job_id"] == "abc123"
+        assert resp["payload"]["scope_type"] == "pool"
+        assert resp["payload"]["scope_id"] == "p1"
+        bk.run_backup_now.assert_not_called()
+        enqueue.assert_called_once_with(
+            "backup.run",
+            {"scope_type": "pool", "scope_id": "p1"},
+            idempotency_key="backup.run.pool.p1",
+            owner="testuser",
+        )
+
+    def test_run_backup_enqueue_failure_returns_500(self):
+        enqueue = MagicMock(side_effect=RuntimeError("queue full"))
+        svc, bk, _ = _make_svc(enqueue_job=enqueue)
+
+        resp = svc.route_post("/api/v1/backups/run", json_payload={"scope_type": "pool", "scope_id": "p1"})
+
+        assert resp["status"] == HTTPStatus.INTERNAL_SERVER_ERROR
+        assert resp["payload"]["ok"] is False
+        assert "queue full" in resp["payload"]["error"]
+        bk.run_backup_now.assert_not_called()
+
+    def test_run_backup_sync_fallback_without_enqueue_job(self):
+        svc, bk, _ = _make_svc()  # no enqueue_job
+        resp = svc.route_post("/api/v1/backups/run", json_payload={"scope_type": "vm", "scope_id": "200"})
+
+        assert resp["status"] == HTTPStatus.OK
+        assert resp["payload"]["ok"] is True
+        bk.run_backup_now.assert_called_once_with(scope_type="vm", scope_id="200")

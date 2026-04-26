@@ -52,6 +52,7 @@ class BackupsHttpSurfaceService:
         service_name: str = "beagle-control-plane",
         utcnow: Callable[[], str],
         version: str = "",
+        enqueue_job: Callable[..., Any] | None = None,
     ) -> None:
         self._backup = backup_service
         self._storage_quota = storage_quota_service
@@ -61,6 +62,7 @@ class BackupsHttpSurfaceService:
         self._service_name = str(service_name or "beagle-control-plane")
         self._utcnow = utcnow
         self._version = str(version or "")
+        self._enqueue_job = enqueue_job
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -186,6 +188,38 @@ class BackupsHttpSurfaceService:
         if path == "/api/v1/backups/run":
             scope_type = str(p.get("scope_type") or "").strip().lower()
             scope_id = str(p.get("scope_id") or "").strip()
+            if self._enqueue_job is not None:
+                # Async path: enqueue and return 202 Accepted immediately.
+                try:
+                    job = self._enqueue_job(
+                        "backup.run",
+                        {"scope_type": scope_type, "scope_id": scope_id},
+                        idempotency_key=f"backup.run.{scope_type}.{scope_id}",
+                        owner=requester,
+                    )
+                except Exception as exc:
+                    return self._json(
+                        HTTPStatus.INTERNAL_SERVER_ERROR,
+                        {"ok": False, "error": f"failed to enqueue backup job: {exc}"},
+                    )
+                self._audit_event(
+                    "backup.run.enqueued",
+                    "success",
+                    scope_type=scope_type,
+                    scope_id=scope_id,
+                    job_id=str(job.job_id),
+                    username=requester,
+                )
+                return self._json(
+                    HTTPStatus.ACCEPTED,
+                    {
+                        "ok": True,
+                        "job_id": str(job.job_id),
+                        "scope_type": scope_type,
+                        "scope_id": scope_id,
+                    },
+                )
+            # Synchronous fallback (no job queue): run inline and return 200.
             try:
                 result = self._backup.run_backup_now(scope_type=scope_type, scope_id=scope_id)
             except ValueError as exc:

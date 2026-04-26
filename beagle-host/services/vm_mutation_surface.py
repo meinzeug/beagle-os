@@ -28,6 +28,7 @@ class VmMutationSurfaceService:
         version: str,
         wait_for_action_result: Callable[[str, int, str], dict[str, Any] | None],
         detach_usb_from_guest: Callable[[Any, int | None, str], dict[str, Any]],
+        enqueue_job: Callable[..., Any] | None = None,
     ) -> None:
         self._attach_usb_to_guest = attach_usb_to_guest
         self._build_vm_usb_state = build_vm_usb_state
@@ -48,6 +49,7 @@ class VmMutationSurfaceService:
         self._version = str(version or "")
         self._wait_for_action_result = wait_for_action_result
         self._detach_usb_from_guest = detach_usb_from_guest
+        self._enqueue_job = enqueue_job
 
     @staticmethod
     def _json_response(status: HTTPStatus, payload: dict[str, Any]) -> dict[str, Any]:
@@ -75,6 +77,7 @@ class VmMutationSurfaceService:
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/attach"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/detach"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/migrate"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/snapshot"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/sunshine-access"))
             or (path.startswith("/api/v1/virtualization/vms/") and path.endswith("/power"))
         )
@@ -109,6 +112,41 @@ class VmMutationSurfaceService:
         json_payload: dict[str, Any] | None,
         requester_identity: str,
     ) -> dict[str, Any]:
+        if path.startswith("/api/v1/vms/") and path.endswith("/snapshot"):
+            vm, error = self._vm_from_segment(path, -2)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            snap_name = str(payload.get("name") or "").strip() or f"snap-{self._utcnow()[:10]}"
+            if self._enqueue_job is not None:
+                try:
+                    job = self._enqueue_job(
+                        "vm.snapshot",
+                        {"vmid": int(vm.vmid), "node": str(vm.node), "name": snap_name},
+                        idempotency_key=f"vm.snapshot.{vm.vmid}.{snap_name}",
+                        owner=requester_identity,
+                    )
+                    return self._json_response(
+                        HTTPStatus.ACCEPTED,
+                        {
+                            "ok": True,
+                            "job_id": str(job.job_id),
+                            "vmid": int(vm.vmid),
+                            "name": snap_name,
+                        },
+                    )
+                except Exception as exc:
+                    return self._json_response(
+                        HTTPStatus.INTERNAL_SERVER_ERROR,
+                        {"ok": False, "error": f"failed to enqueue snapshot job: {exc}"},
+                    )
+            # No job queue wired: reject with 503 to avoid silent data loss
+            return self._json_response(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                {"ok": False, "error": "job queue not available"},
+            )
+
         if path.startswith("/api/v1/vms/") and path.endswith("/migrate"):
             vm, error = self._vm_from_segment(path, -2)
             if vm is None:

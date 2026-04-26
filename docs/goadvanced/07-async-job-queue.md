@@ -45,10 +45,10 @@ Lange Operationen wie VM-Snapshots, Live-Migration, Backups blockieren den HTTP-
     - `register("backup.create", backup_handler)`
   - [x] Tests: `tests/unit/test_job_worker.py` (11 tests, inkl. cancel + parallel)
 
-- [ ] **Schritt 3** — Integration in HTTP-Surfaces
-  - [ ] `vms_http_surface.py`: `POST /api/v1/vms/{vmid}/snapshot` → enqueue + 202
-  - [ ] `backup_http_surface.py`: `POST /api/v1/backups` → enqueue + 202
-  - [ ] `cluster_http_surface.py`: `POST /api/v1/cluster/migrate` → enqueue + 202
+- [x] **Schritt 3** — Integration in HTTP-Surfaces
+  - [x] `vm_mutation_surface.py`: `POST /api/v1/vms/{vmid}/snapshot` → enqueue + 202 (enqueue_job optional, 503 if not wired)
+  - [x] `backups_http_surface.py`: `POST /api/v1/backups/run` → enqueue + 202 (sync fallback wenn kein enqueue_job)
+  - [ ] `cluster_http_surface.py`: `POST /api/v1/cluster/migrate` → enqueue + 202 (noch offen)
 
 - [x] **Schritt 4** — Status-Endpoints (7390f8d)
   - [x] `jobs_http_surface.py`:

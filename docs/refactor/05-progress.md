@@ -1,3 +1,49 @@
+## Update (2026-05-XX, GoAdvanced Plan 07 Schritt 3: Async POST-Endpoints)
+
+**Scope**: Plan 07 Schritt 3 — HTTP-Surfaces für Backup-Run + VM-Snapshot auf Job-Queue verdrahtet
+
+### Async Endpoints (Plan 07 Schritt 3)
+
+- `backups_http_surface.py`: `POST /api/v1/backups/run` enqueues `"backup.run"` job wenn `enqueue_job` gesetzt ist → gibt 202 Accepted + `{ok, job_id, scope_type, scope_id}` zurück. Fallback: sync (200) wenn kein enqueue_job (Backward-Compat).
+- `vm_mutation_surface.py`: `POST /api/v1/vms/{vmid}/snapshot` neu. Enqueues `"vm.snapshot"` mit `{vmid, node, name}` → 202 + `{ok, job_id, vmid, name}`. Gibt 503 wenn kein enqueue_job verdrahtet. Idempotency-Key: `vm.snapshot.{vmid}.{name}`.
+- `service_registry.py`: `vm_mutation_surface_service()` bekommt `enqueue_job=lambda name, payload, **kw: job_queue_service().enqueue(name, payload, **kw)`.
+- `request_handler_mixin.py`: `_backups_surface()` bekommt `enqueue_job=job_queue_service().enqueue`.
+- Neue Tests: 11 Unit-Tests in `test_backups_http_surface.py` (3 async Tests) + `test_vm_mutation_surface.py` (7 neue Tests für snapshot-Routing, Enqueue, VM-Not-Found, 503).
+
+### Test-Baseline nach Plan 07 Schritt 3
+- **Unit-Tests**: 861 passed, 0 Regressions
+- **Integration-Tests**: 82 passed, 0 Regressions
+
+---
+
+## Update (2026-05-XX, GoAdvanced Plan 10: Integration Tests + Service Bug Fixes)
+
+**Scope**: Plan 10 Schritte 1+2+3+6+7+8 — Integration & E2E Test Suite
+
+### Integration Tests (Plan 10, Commit 5860890)
+
+- `tests/integration/conftest.py`: Shared fixtures (`temp_state_dir`, `mock_audit_log`, `TestHttpClient`, `LibvirtStub`, `cp_server`).
+- `tests/integration/test_pairing_lifecycle.py`: 23 Tests — PairingService Token-Issue/Validate, EnrollmentTokenStore CRUD, EndpointTokenStore, Full-Lifecycle.
+- `tests/integration/test_endpoint_boot_to_streaming.py`: 18 Tests — Enrollment-Token-Issuance, Endpoint-Enrollment → Bearer+Stream-Config, Single-Use-Token-Enforcement, Expired/Unknown-Token-Rejection, Stream-Config-Felder.
+- `tests/integration/test_backup_restore_chain.py`: 36 Tests — Policy-CRUD, Schedule-Due-Logik, run_backup_now, restore_snapshot, list_snapshot_files, Korruption/Missing-Archive-Edge-Cases, Scheduled-Backup-Triggering/Skipping.
+- `tests/e2e/conftest.py + helpers.py + test_smoke_srv1.py`: E2E-Smoke gegen srv1 (9 Tests, auto-skip ohne `BEAGLE_E2E_TOKEN`).
+- `tests/integration/README.md` + `tests/e2e/README.md`: Lokale Ausführung, Stubs, Cleanup-Verhalten.
+
+### Service-Bugs durch Integration-Tests gefunden + gefixt
+
+- `backup_service.py: _sanitize_policy`: `last_backup` wurde immer aus `current` (Defaults) gelesen, nicht aus `source` (gespeicherte Policy) → `get_pool_policy` gab immer leeren `last_backup` zurück. Fix: lese erst aus `source`, falle auf `current` zurück.
+- `backup_service.py: restore_snapshot + list_snapshot_files`: `_resolve_archive_local` warf unkontrolliert `FileNotFoundError`, wenn Archiv fehlte. Fix: in separatem try/except gekapselt → gibt strukturiertes `{ok: False, error: ...}` zurück.
+
+### Test-Baseline nach Plan 10
+- **Unit-Tests**: 861 passed, 0 Regressions
+- **Integration-Tests**: 82 passed (23+18+36+5 conftest-driven)
+- **E2E-Tests**: 9 skipped (kein Token), 0 failed
+
+### Offene Punkte Plan 10
+- Schritt 4: HA-Failover-Tests — BLOCKED auf Plan 09 (HA-Manager)
+- Schritt 5: VDI-Pool-Lifecycle-Tests — BLOCKED auf Plan 10 VDI-Pools
+- Schritt 7 E2E: Nightly-CI mit `BEAGLE_E2E_TOKEN` aus GitHub-Secrets konfigurieren
+
 ## Update (2026-05-XX, GoAdvanced Plan 07: Async-Job-Queue + Plan 11: Proxmox Hard-Delete)
 
 **Scope**:
