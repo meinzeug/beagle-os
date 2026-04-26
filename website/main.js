@@ -119,6 +119,20 @@ import {
   maskedFieldBlock
 } from './ui/dom.js';
 
+function buildUsbDownloadMenuHtml() {
+  return (
+    '<details class="detail-action-menu">' +
+    '<summary class="btn btn-ghost">USB Sticks</summary>' +
+    '<div class="detail-action-menu-panel">' +
+    actionButton('download-linux', 'Installer Linux', 'ghost') +
+    actionButton('download-windows', 'Installer Windows', 'ghost') +
+    actionButton('download-live-usb', 'Live USB', 'ghost') +
+    actionButton('download-live-usb-windows', 'Live USB Windows', 'ghost') +
+    '</div>' +
+    '</details>'
+  );
+}
+
 function buildDetailActionsHtml(status) {
   let html = actionButton('refresh-detail', 'Refresh', 'ghost');
   if (status === 'stopped' || status === 'shutoff') {
@@ -130,17 +144,11 @@ function buildDetailActionsHtml(status) {
     html += actionButton('vm-reboot', 'Neustart', 'ghost');
     html += actionButton('novnc-ui', 'noVNC', 'ghost');
     html += actionButton('sunshine-ui', 'Sunshine', 'ghost');
-    html += actionButton('download-linux', 'Installer Linux', 'ghost');
-    html += actionButton('download-windows', 'Installer Windows', 'ghost');
-    html += actionButton('download-live-usb', 'Live USB', 'ghost');
-    html += actionButton('download-live-usb-windows', 'Live USB Windows', 'ghost');
+    html += buildUsbDownloadMenuHtml();
   }
   if (status === 'stopped' || status === 'shutoff') {
     html += actionButton('open-template-builder', 'Als Template', 'ghost');
-    html += actionButton('download-linux', 'Installer Linux', 'ghost');
-    html += actionButton('download-windows', 'Installer Windows', 'ghost');
-    html += actionButton('download-live-usb', 'Live USB', 'ghost');
-    html += actionButton('download-live-usb-windows', 'Live USB Windows', 'ghost');
+    html += buildUsbDownloadMenuHtml();
   }
   if (status === 'installing') {
     html += actionButton('vm-stop', 'Stoppen', 'ghost');

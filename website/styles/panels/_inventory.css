@@ -569,6 +569,63 @@ body.light-mode .vdp-back-btn:hover {
   align-items: center;
 }
 
+.detail-action-menu {
+  position: relative;
+}
+
+.detail-action-menu summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.detail-action-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.detail-action-menu summary::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-right: 1.7px solid currentColor;
+  border-bottom: 1.7px solid currentColor;
+  transform: rotate(45deg) translateY(-1px);
+  transition: transform 0.16s ease;
+  opacity: 0.75;
+}
+
+.detail-action-menu[open] summary::after {
+  transform: rotate(-135deg) translate(-2px, -1px);
+}
+
+.detail-action-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 12;
+  min-width: 210px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  background: rgba(12, 17, 24, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+}
+
+.detail-action-menu-panel .btn {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+body.light-mode .detail-action-menu-panel {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.14);
+}
+
 /* ─── Hero ─── */
 .vdp-hero {
   background: linear-gradient(135deg, #0f1520 0%, #0c1118 100%);
