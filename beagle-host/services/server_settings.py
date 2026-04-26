@@ -6,7 +6,7 @@ Provides read/write access to server configuration:
 - Firewall (UFW rules)
 - Network (interfaces, DNS)
 - Services (systemd service status/restart)
-- Updates (apt update check / apply)
+- Updates (apt update check / apply + repo auto-update)
 - Backup (configuration)
 """
 
@@ -16,6 +16,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import signal
 import socket
 import subprocess
@@ -33,6 +34,10 @@ _MANAGED_SERVICES = [
     "beagle-websockify",
     "beagle-artifacts-refresh",
     "beagle-artifacts-refresh.timer",
+    "beagle-artifacts-watchdog",
+    "beagle-artifacts-watchdog.timer",
+    "beagle-repo-auto-update",
+    "beagle-repo-auto-update.timer",
     "nginx",
 ]
 
@@ -49,6 +54,15 @@ _REQUIRED_ARTIFACTS = [
     "Debian-1201-bookworm-amd64-beagle-server.tar.gz",
 ]
 
+_PUBLIC_THIN_CLIENT_LATEST_ARTIFACTS = [
+    "pve-thin-client-usb-installer-latest.sh",
+    "pve-thin-client-usb-installer-latest.ps1",
+    "pve-thin-client-live-usb-latest.sh",
+    "pve-thin-client-live-usb-latest.ps1",
+    "pve-thin-client-usb-payload-latest.tar.gz",
+    "pve-thin-client-usb-bootstrap-latest.tar.gz",
+]
+
 _SAFE_TIMEZONE_PATTERN = re.compile(r"^[A-Za-z_]+/[A-Za-z0-9_/+-]+$")
 _SAFE_HOSTNAME_PATTERN = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$")
 _SAFE_DOMAIN_PATTERN = re.compile(
@@ -63,6 +77,12 @@ _CERTBOT_BASE_DIR = Path("/var/lib/beagle/beagle-manager/letsencrypt")
 _CERTBOT_CONFIG_DIR = _CERTBOT_BASE_DIR / "config"
 _CERTBOT_WORK_DIR = _CERTBOT_BASE_DIR / "work"
 _CERTBOT_LOGS_DIR = _CERTBOT_BASE_DIR / "logs"
+_ARTIFACT_WATCHDOG_STATUS_FILE = Path("/var/lib/beagle/artifact-watchdog-status.json")
+_ARTIFACT_WATCHDOG_RULE_FILE = Path("/etc/polkit-1/rules.d/49-beagle-artifacts-watchdog.rules")
+_REPO_AUTO_UPDATE_STATUS_FILE = Path("/var/lib/beagle/repo-auto-update-status.json")
+_REPO_AUTO_UPDATE_RULE_FILE = Path("/etc/polkit-1/rules.d/49-beagle-repo-auto-update.rules")
+_DEFAULT_REPO_AUTO_UPDATE_URL = "https://github.com/meinzeug/beagle-os.git"
+_DEFAULT_REPO_AUTO_UPDATE_BRANCH = "main"
 
 
 
@@ -545,12 +565,101 @@ class ServerSettingsService:
         return {
             "upgradable_count": len(upgradable),
             "upgradable": upgradable[:100],
+            "source": "apt",
+            "repo_auto_update": self.get_repo_auto_update(),
         }
+
+    def get_repo_auto_update(self) -> dict[str, Any]:
+        settings = self._load_settings()
+        config = {
+            "enabled": bool(settings.get("repo_auto_update_enabled", False)),
+            "repo_url": str(settings.get("repo_auto_update_repo_url") or _DEFAULT_REPO_AUTO_UPDATE_URL).strip() or _DEFAULT_REPO_AUTO_UPDATE_URL,
+            "branch": str(settings.get("repo_auto_update_branch") or _DEFAULT_REPO_AUTO_UPDATE_BRANCH).strip() or _DEFAULT_REPO_AUTO_UPDATE_BRANCH,
+            "interval_minutes": int(settings.get("repo_auto_update_interval_minutes", 15) or 15),
+        }
+        status: dict[str, Any] = {}
+        try:
+            if _REPO_AUTO_UPDATE_STATUS_FILE.is_file():
+                loaded = json.loads(_REPO_AUTO_UPDATE_STATUS_FILE.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    status.update(loaded)
+        except (OSError, json.JSONDecodeError):
+            status = {"error": "unreadable"}
+
+        status.setdefault("state", "disabled" if not config["enabled"] else "unknown")
+        status.setdefault("checked_at", "")
+        status.setdefault("last_update_at", "")
+        status.setdefault("current_commit", "")
+        status.setdefault("remote_commit", "")
+        status.setdefault("update_available", False)
+        status.setdefault("message", "Repo-Auto-Update ist deaktiviert." if not config["enabled"] else "Noch nicht geprueft.")
+
+        return {
+            "config": config,
+            "status": status,
+            "services": {
+                "beagle-repo-auto-update.service": _run_cmd(["systemctl", "is-active", "beagle-repo-auto-update.service"], fallback="unknown") or "unknown",
+                "beagle-repo-auto-update.timer": _run_cmd(["systemctl", "is-active", "beagle-repo-auto-update.timer"], fallback="unknown") or "unknown",
+            },
+            "start_capable": _can_start_systemd_unit("beagle-repo-auto-update.service", rule_file=_REPO_AUTO_UPDATE_RULE_FILE),
+        }
+
+    def update_repo_auto_update(self, payload: dict[str, Any]) -> dict[str, Any]:
+        settings = self._load_settings()
+        errors: list[str] = []
+
+        enabled = payload.get("enabled")
+        if enabled is not None:
+            settings["repo_auto_update_enabled"] = bool(enabled)
+
+        repo_url = payload.get("repo_url")
+        if repo_url is not None:
+            repo_url = str(repo_url).strip()
+            if not repo_url.startswith("https://github.com/") or not repo_url.endswith(".git"):
+                errors.append("repo_url must point to a GitHub HTTPS repository and end with .git")
+            else:
+                settings["repo_auto_update_repo_url"] = repo_url
+
+        branch = payload.get("branch")
+        if branch is not None:
+            branch = str(branch).strip()
+            if not re.fullmatch(r"[A-Za-z0-9._/-]{1,120}", branch or ""):
+                errors.append("branch contains invalid characters")
+            else:
+                settings["repo_auto_update_branch"] = branch
+
+        interval_minutes = payload.get("interval_minutes")
+        if interval_minutes is not None:
+            try:
+                interval = int(interval_minutes)
+            except (TypeError, ValueError):
+                interval = 0
+            if interval < 5 or interval > 1440:
+                errors.append("interval_minutes must be between 5 and 1440")
+            else:
+                settings["repo_auto_update_interval_minutes"] = interval
+
+        if errors:
+            return {"ok": False, "errors": errors}
+
+        self._save_settings(settings)
+        return {"ok": True, "repo_auto_update": self.get_repo_auto_update()}
+
+    def run_repo_auto_update(self) -> dict[str, Any]:
+        r = _run_systemctl_privileged(["--no-block", "start", "beagle-repo-auto-update.service"], timeout=30)
+        if r.returncode != 0:
+            return {"ok": False, "error": f"repo auto update start failed: {r.stderr.strip()[:300]}"}
+        return {"ok": True, "repo_auto_update": self.get_repo_auto_update()}
 
     def get_artifacts(self) -> dict[str, Any]:
         dist_dir = self._install_dir / "dist"
         status_file = dist_dir / "beagle-downloads-status.json"
         refresh_status_file = Path("/var/lib/beagle/refresh.status.json")
+        version = ""
+        try:
+            version = (self._install_dir / "VERSION").read_text(encoding="utf-8").strip()
+        except OSError:
+            version = ""
         artifacts: list[dict[str, Any]] = []
         for rel_path in _REQUIRED_ARTIFACTS:
             path = dist_dir / rel_path
@@ -585,31 +694,203 @@ class ServerSettingsService:
         missing = [item["path"] for item in artifacts if not item["exists"]]
         refresh_service = _run_cmd(["systemctl", "is-active", "beagle-artifacts-refresh.service"]) or "unknown"
         refresh_timer = _run_cmd(["systemctl", "is-active", "beagle-artifacts-refresh.timer"]) or "unknown"
+        refresh_state = str(refresh_status.get("status") or "").strip().lower()
+        running_refresh = refresh_state in {"queued", "running"} or refresh_service.strip() == "active"
+        preflight = self._artifact_preflight(dist_dir=dist_dir, running_refresh=running_refresh)
+        publish_gate = self._artifact_publish_gate(dist_dir=dist_dir, version=version)
+        watchdog = self.get_artifact_watchdog(status_json=status_json, refresh_status=refresh_status)
+        status_url = str(status_json.get("status_url") or "").strip()
+        downloads_path = str(status_json.get("downloads_path") or "/beagle-downloads").strip() or "/beagle-downloads"
+        if not downloads_path.startswith("/"):
+            downloads_path = "/" + downloads_path
         return {
             "dist_dir": str(dist_dir),
             "status_file": str(status_file),
             "refresh_status_file": str(refresh_status_file),
+            "version": version or str(status_json.get("version") or "").strip(),
             "status": status_json,
             "refresh_status": refresh_status,
             "artifacts": artifacts,
             "missing": missing,
             "ready": not missing and bool(status_json),
+            "running_refresh": running_refresh,
+            "preflight": preflight,
+            "publish_gate": publish_gate,
+            "watchdog": watchdog,
+            "links": {
+                "status_json": status_url or f"{downloads_path.rstrip('/')}/beagle-downloads-status.json",
+                "downloads_index": f"{downloads_path.rstrip('/')}/beagle-downloads-index.html",
+            },
             "services": {
                 "beagle-artifacts-refresh.service": refresh_service.strip(),
                 "beagle-artifacts-refresh.timer": refresh_timer.strip(),
+                "beagle-artifacts-watchdog.service": _run_cmd(["systemctl", "is-active", "beagle-artifacts-watchdog.service"], fallback="unknown") or "unknown",
+                "beagle-artifacts-watchdog.timer": _run_cmd(["systemctl", "is-active", "beagle-artifacts-watchdog.timer"], fallback="unknown") or "unknown",
             },
         }
 
     def start_artifact_refresh(self) -> dict[str, Any]:
-        r = subprocess.run(
-            ["systemctl", "start", "beagle-artifacts-refresh.service"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        self._write_refresh_status({
+            "status": "queued",
+            "step": "systemd",
+            "progress": 1,
+            "message": "Refresh-Service wird gestartet ...",
+            "last_result": "queued",
+        })
+        r = _run_systemctl_privileged(["--no-block", "start", "beagle-artifacts-refresh.service"], timeout=30)
         if r.returncode != 0:
+            self._write_refresh_status({
+                "status": "failed",
+                "step": "systemd",
+                "progress": 0,
+                "message": "Refresh-Service konnte nicht gestartet werden.",
+                "last_result": "failed",
+                "error_excerpt": (r.stderr or r.stdout or "").strip()[:400],
+            })
             return {"ok": False, "error": f"artifact refresh start failed: {r.stderr.strip()[:300]}"}
         return {"ok": True, "artifacts": self.get_artifacts()}
+
+    def get_artifact_watchdog(self, *, status_json: dict[str, Any] | None = None, refresh_status: dict[str, Any] | None = None) -> dict[str, Any]:
+        settings = self._load_settings()
+        config = {
+            "enabled": bool(settings.get("artifact_watchdog_enabled", False)),
+            "max_age_hours": int(settings.get("artifact_watchdog_max_age_hours", 24) or 24),
+            "auto_repair": bool(settings.get("artifact_watchdog_auto_repair", True)),
+        }
+        status: dict[str, Any] = {}
+        try:
+            if _ARTIFACT_WATCHDOG_STATUS_FILE.is_file():
+                loaded = json.loads(_ARTIFACT_WATCHDOG_STATUS_FILE.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    status.update(loaded)
+        except (OSError, json.JSONDecodeError):
+            status = {"error": "unreadable"}
+        status.setdefault("state", "disabled" if not config["enabled"] else "unknown")
+        status.setdefault("checked_at", "")
+        status.setdefault("artifact_age_seconds", None)
+        status.setdefault("reaction", "none")
+        status.setdefault("findings", [])
+        status.setdefault("message", "Watchdog noch nicht gelaufen." if config["enabled"] else "Watchdog ist deaktiviert.")
+        return {
+            "config": config,
+            "status": status,
+            "start_capable": _can_start_systemd_unit("beagle-artifacts-watchdog.service", rule_file=_ARTIFACT_WATCHDOG_RULE_FILE),
+        }
+
+    def update_artifact_watchdog(self, payload: dict[str, Any]) -> dict[str, Any]:
+        settings = self._load_settings()
+        errors: list[str] = []
+
+        enabled = payload.get("enabled")
+        if enabled is not None:
+            settings["artifact_watchdog_enabled"] = bool(enabled)
+
+        max_age_hours = payload.get("max_age_hours")
+        if max_age_hours is not None:
+            try:
+                value = int(max_age_hours)
+            except (TypeError, ValueError):
+                value = 0
+            if value < 1 or value > 168:
+                errors.append("max_age_hours must be between 1 and 168")
+            else:
+                settings["artifact_watchdog_max_age_hours"] = value
+
+        auto_repair = payload.get("auto_repair")
+        if auto_repair is not None:
+            settings["artifact_watchdog_auto_repair"] = bool(auto_repair)
+
+        if errors:
+            return {"ok": False, "errors": errors}
+
+        self._save_settings(settings)
+        return {"ok": True, "watchdog": self.get_artifact_watchdog()}
+
+    def run_artifact_watchdog(self) -> dict[str, Any]:
+        r = _run_systemctl_privileged(["--no-block", "start", "beagle-artifacts-watchdog.service"], timeout=30)
+        if r.returncode != 0:
+            return {"ok": False, "error": f"artifact watchdog start failed: {r.stderr.strip()[:300]}"}
+        return {"ok": True, "watchdog": self.get_artifact_watchdog()}
+
+    def _artifact_preflight(self, *, dist_dir: Path, running_refresh: bool) -> dict[str, Any]:
+        free_bytes = 0
+        total_bytes = 0
+        try:
+            usage = shutil.disk_usage(dist_dir if dist_dir.exists() else self._install_dir)
+            free_bytes = int(usage.free)
+            total_bytes = int(usage.total)
+        except OSError:
+            pass
+
+        required_tools = [
+            "zip",
+            "tar",
+            "sha256sum",
+            "python3",
+            "node",
+            "npm",
+            "systemctl",
+        ]
+        optional_build_tools = [
+            "lb",
+            "xorriso",
+            "mksquashfs",
+            "grub-mkstandalone",
+        ]
+        missing_required = [tool for tool in required_tools if _which(tool) is None]
+        missing_optional = [tool for tool in optional_build_tools if _which(tool) is None]
+        service_present = bool(_run_cmd(["systemctl", "show", "-p", "FragmentPath", "beagle-artifacts-refresh.service"]))
+        return {
+            "free_bytes": free_bytes,
+            "total_bytes": total_bytes,
+            "running_refresh": running_refresh,
+            "service_unit_present": service_present,
+            "systemd_start_capable": _can_start_artifact_refresh_service(),
+            "missing_required_tools": missing_required,
+            "missing_optional_build_tools": missing_optional,
+            "ok": not running_refresh and service_present and not missing_required and _can_start_artifact_refresh_service(),
+        }
+
+    def _artifact_publish_gate(self, *, dist_dir: Path, version: str) -> dict[str, Any]:
+        version = str(version or "").strip()
+        versioned = []
+        if version:
+            versioned = [
+                f"pve-thin-client-usb-installer-v{version}.sh",
+                f"pve-thin-client-usb-installer-v{version}.ps1",
+                f"pve-thin-client-live-usb-v{version}.sh",
+                f"pve-thin-client-live-usb-v{version}.ps1",
+                f"pve-thin-client-usb-payload-v{version}.tar.gz",
+                f"pve-thin-client-usb-bootstrap-v{version}.tar.gz",
+            ]
+        missing_latest = [name for name in _PUBLIC_THIN_CLIENT_LATEST_ARTIFACTS if not (dist_dir / name).is_file()]
+        missing_versioned = [name for name in versioned if not (dist_dir / name).is_file()]
+        return {
+            "public_ready": not missing_latest and not missing_versioned,
+            "missing_latest": missing_latest,
+            "missing_versioned": missing_versioned,
+            "latest_expected": list(_PUBLIC_THIN_CLIENT_LATEST_ARTIFACTS),
+            "versioned_expected": versioned,
+        }
+
+    def _write_refresh_status(self, payload: dict[str, Any]) -> None:
+        path = Path("/var/lib/beagle/refresh.status.json")
+        existing: dict[str, Any] = {}
+        try:
+            if path.is_file():
+                loaded = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    existing.update(loaded)
+        except (OSError, json.JSONDecodeError):
+            existing = {}
+
+        merged = dict(existing)
+        merged.update(payload)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+        except OSError:
+            return
 
     def apply_updates(self) -> dict[str, Any]:
         r = subprocess.run(
@@ -754,6 +1035,14 @@ class ServerSettingsService:
             result = self.update_network_dns(payload)
             status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
             return {"kind": "json", "status": status, "payload": result}
+        if path == "/api/v1/settings/artifacts/watchdog":
+            result = self.update_artifact_watchdog(payload)
+            status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
+            return {"kind": "json", "status": status, "payload": result}
+        if path == "/api/v1/settings/updates/repo-auto":
+            result = self.update_repo_auto_update(payload)
+            status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
+            return {"kind": "json", "status": status, "payload": result}
         if path == "/api/v1/settings/backup":
             result = self.update_backup(payload)
             status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
@@ -775,8 +1064,16 @@ class ServerSettingsService:
             result = self.apply_updates()
             status = HTTPStatus.OK if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
             return {"kind": "json", "status": status, "payload": result}
+        if path == "/api/v1/settings/updates/repo-auto/check":
+            result = self.run_repo_auto_update()
+            status = HTTPStatus.ACCEPTED if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
+            return {"kind": "json", "status": status, "payload": result}
         if path == "/api/v1/settings/artifacts/refresh":
             result = self.start_artifact_refresh()
+            status = HTTPStatus.ACCEPTED if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
+            return {"kind": "json", "status": status, "payload": result}
+        if path == "/api/v1/settings/artifacts/watchdog/check":
+            result = self.run_artifact_watchdog()
             status = HTTPStatus.ACCEPTED if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
             return {"kind": "json", "status": status, "payload": result}
         if path == "/api/v1/settings/backup/run":
@@ -828,6 +1125,42 @@ def _which(name: str) -> str | None:
         return r.stdout.strip() if r.returncode == 0 else None
     except (subprocess.TimeoutExpired, OSError):
         return None
+
+
+def _run_systemctl_privileged(args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess[str]:
+    command = ["systemctl", *args]
+    direct = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    if direct.returncode == 0 or os.geteuid() == 0:
+        return direct
+    if _which("sudo"):
+        return subprocess.run(["sudo", "-n", *command], capture_output=True, text=True, timeout=timeout)
+    return direct
+
+
+def _can_start_artifact_refresh_service() -> bool:
+    return _can_start_systemd_unit("beagle-artifacts-refresh.service", rule_file=Path("/etc/polkit-1/rules.d/49-beagle-artifacts-refresh.rules"))
+
+
+def _can_start_systemd_unit(unit_name: str, *, rule_file: Path | None = None) -> bool:
+    if os.geteuid() == 0:
+        return True
+    try:
+        if rule_file and rule_file.is_file():
+            return True
+    except OSError:
+        pass
+    if not _which("sudo"):
+        return False
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "systemctl", "show", "-p", "Id", unit_name],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    return result.returncode == 0
 
 
 def _domain_has_ipv6_records(domain: str) -> bool:

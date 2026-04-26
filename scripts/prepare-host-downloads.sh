@@ -80,6 +80,17 @@ ensure_dist_permissions() {
   find "$DIST_DIR" -type f -name '*.sh' -exec chmod 0755 {} +
 }
 
+copy_if_missing_or_older() {
+  local source_path="$1"
+  local target_path="$2"
+  local mode="$3"
+
+  [[ -f "$source_path" ]] || return 0
+  if [[ ! -f "$target_path" || "$source_path" -nt "$target_path" ]]; then
+    install -m "$mode" "$source_path" "$target_path"
+  fi
+}
+
 # Build bootstrap + payload tarballs from an already-present installer ISO
 # (e.g. deployed via rsync without running the full thin-client live-build).
 # Called automatically when the bootstrap tarball is missing but the ISO exists.
@@ -100,13 +111,14 @@ ensure_bootstrap_from_deployed_iso() {
 
   echo "Building USB bootstrap tarball from deployed ISO: $iso"
 
-  local tmproot tmpstage
+  local tmproot tmpstage cleanup_cmd
   tmproot="$(mktemp -d)"
   tmpstage="$(mktemp -d)"
   local live_dir="$tmpstage/dist/pve-thin-client-installer/live"
   mkdir -p "$live_dir"
 
-  trap 'rm -rf "$tmproot" "$tmpstage"' RETURN
+  cleanup_cmd="$(printf 'rm -rf %q %q' "$tmproot" "$tmpstage")"
+  trap "$cleanup_cmd" RETURN
 
   xorriso -osirrox on -indev "$iso" \
     -extract /live/vmlinuz          "$live_dir/vmlinuz" \
@@ -139,6 +151,37 @@ ensure_bootstrap_from_deployed_iso() {
   install -m 0644 "$tarball_versioned" "$packaged_payload"
 
   echo "USB bootstrap tarball built: $packaged_bootstrap"
+  trap - RETURN
+  eval "$cleanup_cmd"
+}
+
+recover_packaged_artifacts_from_existing_builds() {
+  local installer_build_iso="$DIST_DIR/pve-thin-client-installer/beagle-os-installer-amd64.iso"
+  local installer_build_iso_legacy="$DIST_DIR/pve-thin-client-installer/pve-thin-client-installer-amd64.iso"
+  local installer_build_iso_generic="$DIST_DIR/pve-thin-client-installer/beagle-os-installer.iso"
+  local installer_build_iso_legacy_generic="$DIST_DIR/pve-thin-client-installer/pve-thin-client-installer.iso"
+  local server_installer_build_iso="$DIST_DIR/beagle-os-server-installer/beagle-os-server-installer-amd64.iso"
+  local server_installer_build_iso_generic="$DIST_DIR/beagle-os-server-installer/beagle-os-server-installer.iso"
+  local server_installimage_build_tarball="$DIST_DIR/beagle-os-server-installimage/$SERVER_INSTALLIMAGE_FILENAME"
+
+  copy_if_missing_or_older "$installer_build_iso" "$DIST_DIR/beagle-os-installer-amd64.iso" 0644
+  copy_if_missing_or_older "$installer_build_iso_legacy" "$DIST_DIR/beagle-os-installer-amd64.iso" 0644
+  copy_if_missing_or_older "$installer_build_iso_generic" "$DIST_DIR/beagle-os-installer.iso" 0644
+  copy_if_missing_or_older "$installer_build_iso_legacy_generic" "$DIST_DIR/beagle-os-installer.iso" 0644
+  copy_if_missing_or_older "$server_installer_build_iso" "$DIST_DIR/beagle-os-server-installer-amd64.iso" 0644
+  copy_if_missing_or_older "$server_installer_build_iso_generic" "$DIST_DIR/beagle-os-server-installer.iso" 0644
+  copy_if_missing_or_older "$server_installimage_build_tarball" "$DIST_DIR/$SERVER_INSTALLIMAGE_FILENAME" 0644
+
+  copy_if_missing_or_older "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.sh" "$GENERIC_INSTALLER" 0755
+  copy_if_missing_or_older "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.sh" "$GENERIC_LIVE_USB" 0755
+  copy_if_missing_or_older "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.sh" "$DIST_DIR/pve-thin-client-usb-installer-latest.sh" 0755
+  copy_if_missing_or_older "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.sh" "$DIST_DIR/pve-thin-client-live-usb-latest.sh" 0755
+  copy_if_missing_or_older "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.ps1" "$GENERIC_WINDOWS_INSTALLER" 0644
+  copy_if_missing_or_older "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.ps1" "$GENERIC_WINDOWS_LIVE_USB" 0644
+  copy_if_missing_or_older "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.ps1" "$DIST_DIR/pve-thin-client-usb-installer-latest.ps1" 0644
+  copy_if_missing_or_older "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.ps1" "$DIST_DIR/pve-thin-client-live-usb-latest.ps1" 0644
+
+  ensure_bootstrap_from_deployed_iso
 }
 
 ensure_current_packaged_artifacts() {
@@ -159,6 +202,8 @@ ensure_current_packaged_artifacts() {
   local source_installer="$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.sh"
   local source_windows_installer="$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.ps1"
   local source_server_installer="$ROOT_DIR/scripts/build-server-installer.sh"
+
+  recover_packaged_artifacts_from_existing_builds
 
   if [[ ! -f "$root_iso" || ! -f "$root_server_iso" || ! -f "$root_server_installimage" || ! -f "$packaged_payload" || ! -f "$packaged_bootstrap" || ! -f "$packaged_installer" || ! -f "$packaged_live_usb" || ! -f "$packaged_windows_installer" || ! -f "$packaged_windows_live_usb" ]]; then
     needs_package=1

@@ -84,30 +84,278 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
             install_dir = Path(tmpdir) / "beagle"
             dist = install_dir / "dist"
             dist.mkdir(parents=True)
+            (install_dir / "VERSION").write_text("6.7.0-test\n", encoding="utf-8")
             (dist / "beagle-downloads-status.json").write_text('{"version":"test"}\n', encoding="utf-8")
             (dist / "pve-thin-client-live-usb-latest.sh").write_text("#!/bin/sh\n", encoding="utf-8")
             service = ServerSettingsService(data_dir=Path(tmpdir) / "data", install_dir=install_dir)
 
-            with mock.patch.object(MODULE, "_run_cmd", return_value="active"):
+            with mock.patch.object(MODULE, "_run_cmd", return_value="active"), \
+                 mock.patch.object(MODULE, "_which", side_effect=lambda tool: f"/usr/bin/{tool}"):
                 result = service.get_artifacts()
 
         self.assertFalse(result["ready"])
         self.assertIn("pve-thin-client-usb-installer-latest.sh", result["missing"])
         self.assertEqual(result["status"]["version"], "test")
         self.assertEqual(result["services"]["beagle-artifacts-refresh.service"], "active")
+        self.assertIn("preflight", result)
+        self.assertIn("publish_gate", result)
+        self.assertEqual(result["publish_gate"]["missing_latest"].count("pve-thin-client-usb-installer-latest.sh"), 1)
+        self.assertEqual(result["links"]["downloads_index"], "/beagle-downloads/beagle-downloads-index.html")
 
     def test_start_artifact_refresh_starts_systemd_service(self):
         service = self.make_service()
         proc = mock.Mock()
         proc.returncode = 0
         proc.stderr = ""
-        with mock.patch.object(MODULE.subprocess, "run", return_value=proc) as run, \
+        with mock.patch.object(MODULE, "_which", return_value="/usr/bin/sudo"), \
+             mock.patch.object(MODULE.subprocess, "run", return_value=proc) as run, \
              mock.patch.object(service, "get_artifacts", return_value={"ready": True}):
             result = service.start_artifact_refresh()
 
         self.assertTrue(result["ok"])
         run.assert_called_once()
-        self.assertEqual(run.call_args.args[0], ["systemctl", "start", "beagle-artifacts-refresh.service"])
+        self.assertEqual(run.call_args.args[0], ["systemctl", "--no-block", "start", "beagle-artifacts-refresh.service"])
+
+    def test_start_artifact_refresh_returns_error_and_failed_status_when_systemd_start_fails(self):
+        service = self.make_service()
+        proc = mock.Mock()
+        proc.returncode = 1
+        proc.stderr = "Interactive authentication required"
+        captured_status = []
+
+        with mock.patch.object(MODULE, "_run_systemctl_privileged", return_value=proc), \
+             mock.patch.object(service, "_write_refresh_status", side_effect=lambda payload: captured_status.append(payload)):
+            result = service.start_artifact_refresh()
+
+        self.assertFalse(result["ok"])
+        self.assertIn("artifact refresh start failed", result["error"])
+        self.assertGreaterEqual(len(captured_status), 2)
+        payload = captured_status[-1]
+        self.assertEqual(payload["status"], "failed")
+        self.assertEqual(payload["step"], "systemd")
+        self.assertIn("Interactive authentication required", payload["error_excerpt"])
+
+    def test_route_get_artifacts_returns_ok_wrapper(self):
+        service = self.make_service()
+
+        with mock.patch.object(service, "get_artifacts", return_value={"ready": True, "missing": []}):
+            response = service.route_get("/api/v1/settings/artifacts")
+
+        self.assertIsNotNone(response)
+        assert response is not None
+        self.assertEqual(int(response["status"]), 200)
+        self.assertTrue(response["payload"]["ok"])
+        self.assertTrue(response["payload"]["ready"])
+
+    def test_route_post_artifact_refresh_returns_accepted(self):
+        service = self.make_service()
+
+        with mock.patch.object(service, "start_artifact_refresh", return_value={"ok": True, "artifacts": {"running_refresh": True}}):
+            response = service.route_post("/api/v1/settings/artifacts/refresh", {})
+
+        self.assertIsNotNone(response)
+        assert response is not None
+        self.assertEqual(int(response["status"]), 202)
+        self.assertTrue(response["payload"]["ok"])
+
+    def test_route_post_artifact_refresh_returns_internal_error_on_failure(self):
+        service = self.make_service()
+
+        with mock.patch.object(service, "start_artifact_refresh", return_value={"ok": False, "error": "boom"}):
+            response = service.route_post("/api/v1/settings/artifacts/refresh", {})
+
+        self.assertIsNotNone(response)
+        assert response is not None
+        self.assertEqual(int(response["status"]), 500)
+        self.assertFalse(response["payload"]["ok"])
+
+    def test_get_artifacts_includes_watchdog_config_and_status(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            install_dir = Path(tmpdir) / "beagle"
+            dist = install_dir / "dist"
+            data_dir = Path(tmpdir) / "data"
+            watchdog_status_file = Path(tmpdir) / "artifact-watchdog-status.json"
+            dist.mkdir(parents=True)
+            data_dir.mkdir(parents=True)
+            (install_dir / "VERSION").write_text("6.7.0-test\n", encoding="utf-8")
+            (data_dir / "server-settings.json").write_text(
+                MODULE.json.dumps(
+                    {
+                        "artifact_watchdog_enabled": True,
+                        "artifact_watchdog_max_age_hours": 12,
+                        "artifact_watchdog_auto_repair": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            watchdog_status_file.write_text(
+                MODULE.json.dumps(
+                    {
+                        "state": "drift",
+                        "checked_at": "2026-04-26T15:00:00+00:00",
+                        "reaction": "notify_only",
+                        "message": "Artefakt-Drift erkannt.",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            service = ServerSettingsService(data_dir=data_dir, install_dir=install_dir)
+
+            with mock.patch.object(MODULE, "_run_cmd", return_value="inactive"), \
+                 mock.patch.object(MODULE, "_which", side_effect=lambda tool: f"/usr/bin/{tool}"), \
+                 mock.patch.object(MODULE, "_can_start_systemd_unit", return_value=True), \
+                 mock.patch.object(MODULE, "_ARTIFACT_WATCHDOG_STATUS_FILE", watchdog_status_file):
+                result = service.get_artifacts()
+
+        self.assertIn("watchdog", result)
+        self.assertTrue(result["watchdog"]["config"]["enabled"])
+        self.assertEqual(result["watchdog"]["config"]["max_age_hours"], 12)
+        self.assertEqual(result["watchdog"]["status"]["state"], "drift")
+        self.assertEqual(result["watchdog"]["status"]["reaction"], "notify_only")
+
+    def test_update_artifact_watchdog_validates_max_age(self):
+        service = self.make_service()
+
+        result = service.update_artifact_watchdog({"enabled": True, "max_age_hours": 0, "auto_repair": True})
+
+        self.assertFalse(result["ok"])
+        self.assertIn("max_age_hours", result["errors"][0])
+
+    def test_update_artifact_watchdog_persists_values(self):
+        service = self.make_service()
+
+        with mock.patch.object(service, "get_artifact_watchdog", return_value={"config": {"enabled": True}}):
+            result = service.update_artifact_watchdog({"enabled": True, "max_age_hours": 18, "auto_repair": False})
+
+        self.assertTrue(result["ok"])
+        settings = MODULE.json.loads(service._settings_path.read_text(encoding="utf-8"))
+        self.assertTrue(settings["artifact_watchdog_enabled"])
+        self.assertEqual(settings["artifact_watchdog_max_age_hours"], 18)
+        self.assertFalse(settings["artifact_watchdog_auto_repair"])
+
+    def test_run_artifact_watchdog_returns_accepted_payload(self):
+        service = self.make_service()
+        proc = mock.Mock()
+        proc.returncode = 0
+        proc.stderr = ""
+
+        with mock.patch.object(MODULE, "_run_systemctl_privileged", return_value=proc), \
+             mock.patch.object(service, "get_artifact_watchdog", return_value={"status": {"state": "healthy"}}):
+            result = service.run_artifact_watchdog()
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["watchdog"]["status"]["state"], "healthy")
+
+    def test_get_artifacts_publish_gate_turns_ready_when_latest_and_versioned_exist(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            install_dir = Path(tmpdir) / "beagle"
+            dist = install_dir / "dist"
+            dist.mkdir(parents=True)
+            version = "6.7.0-test"
+            (install_dir / "VERSION").write_text(version + "\n", encoding="utf-8")
+            (dist / "beagle-downloads-status.json").write_text(
+                '{"version":"%s","downloads_path":"/beagle-downloads","status_url":"https://srv1/beagle-downloads/beagle-downloads-status.json"}\n' % version,
+                encoding="utf-8",
+            )
+            for name in MODULE._REQUIRED_ARTIFACTS:
+                if name == "beagle-downloads-status.json":
+                    continue
+                (dist / name).write_text("x\n", encoding="utf-8")
+            for name in [
+                f"pve-thin-client-usb-installer-v{version}.sh",
+                f"pve-thin-client-usb-installer-v{version}.ps1",
+                f"pve-thin-client-live-usb-v{version}.sh",
+                f"pve-thin-client-live-usb-v{version}.ps1",
+                f"pve-thin-client-usb-payload-v{version}.tar.gz",
+                f"pve-thin-client-usb-bootstrap-v{version}.tar.gz",
+            ]:
+                (dist / name).write_text("x\n", encoding="utf-8")
+
+            service = ServerSettingsService(data_dir=Path(tmpdir) / "data", install_dir=install_dir)
+            with mock.patch.object(MODULE, "_run_cmd", return_value="inactive"), \
+                 mock.patch.object(MODULE, "_which", side_effect=lambda tool: f"/usr/bin/{tool}"):
+                result = service.get_artifacts()
+
+        self.assertTrue(result["publish_gate"]["public_ready"])
+        self.assertEqual(result["publish_gate"]["missing_latest"], [])
+        self.assertEqual(result["publish_gate"]["missing_versioned"], [])
+        self.assertEqual(result["links"]["status_json"], "https://srv1/beagle-downloads/beagle-downloads-status.json")
+
+    def test_get_updates_includes_repo_auto_update_state(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = Path(tmpdir) / "data"
+            data_dir.mkdir(parents=True)
+            status_file = Path(tmpdir) / "repo-auto-update-status.json"
+            status_file.write_text(MODULE.json.dumps({"state": "healthy", "current_commit": "abc123", "remote_commit": "abc123"}), encoding="utf-8")
+            (data_dir / "server-settings.json").write_text(
+                MODULE.json.dumps(
+                    {
+                        "repo_auto_update_enabled": True,
+                        "repo_auto_update_repo_url": "https://github.com/meinzeug/beagle-os.git",
+                        "repo_auto_update_branch": "main",
+                        "repo_auto_update_interval_minutes": 30,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            service = ServerSettingsService(data_dir=data_dir)
+            run_values = {
+                ("apt-get", "update", "-qq"): "",
+                ("apt", "list", "--upgradable"): "Listing...\n",
+                ("systemctl", "is-active", "beagle-repo-auto-update.service"): "inactive",
+                ("systemctl", "is-active", "beagle-repo-auto-update.timer"): "active",
+            }
+
+            def fake_run(cmd, **_kwargs):
+                return run_values.get(tuple(cmd), "")
+
+            with mock.patch.object(MODULE, "_run_cmd", side_effect=fake_run), \
+                 mock.patch.object(MODULE, "_can_start_systemd_unit", return_value=True), \
+                 mock.patch.object(MODULE, "_REPO_AUTO_UPDATE_STATUS_FILE", status_file):
+                result = service.get_updates()
+
+        self.assertEqual(result["source"], "apt")
+        self.assertIn("repo_auto_update", result)
+        self.assertTrue(result["repo_auto_update"]["config"]["enabled"])
+        self.assertEqual(result["repo_auto_update"]["status"]["state"], "healthy")
+
+    def test_update_repo_auto_update_validates_repo_and_interval(self):
+        service = self.make_service()
+
+        result = service.update_repo_auto_update({"repo_url": "git@github.com:bad", "interval_minutes": 1})
+
+        self.assertFalse(result["ok"])
+        self.assertGreaterEqual(len(result["errors"]), 1)
+
+    def test_update_repo_auto_update_persists_values(self):
+        service = self.make_service()
+
+        with mock.patch.object(service, "get_repo_auto_update", return_value={"config": {"enabled": True}}):
+            result = service.update_repo_auto_update({
+                "enabled": True,
+                "repo_url": "https://github.com/meinzeug/beagle-os.git",
+                "branch": "main",
+                "interval_minutes": 20,
+            })
+
+        self.assertTrue(result["ok"])
+        settings = MODULE.json.loads(service._settings_path.read_text(encoding="utf-8"))
+        self.assertTrue(settings["repo_auto_update_enabled"])
+        self.assertEqual(settings["repo_auto_update_branch"], "main")
+        self.assertEqual(settings["repo_auto_update_interval_minutes"], 20)
+
+    def test_run_repo_auto_update_returns_accepted_payload(self):
+        service = self.make_service()
+        proc = mock.Mock()
+        proc.returncode = 0
+        proc.stderr = ""
+
+        with mock.patch.object(MODULE, "_run_systemctl_privileged", return_value=proc), \
+             mock.patch.object(service, "get_repo_auto_update", return_value={"status": {"state": "updating"}}):
+            result = service.run_repo_auto_update()
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["repo_auto_update"]["status"]["state"], "updating")
 
 
 if __name__ == "__main__":

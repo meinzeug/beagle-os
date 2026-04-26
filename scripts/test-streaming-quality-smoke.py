@@ -194,7 +194,7 @@ def main() -> int:
             "source /etc/beagle/sunshine-healthcheck.env >/dev/null 2>&1; "
             "api_port=$((SUNSHINE_PORT+1)); "
             # tls-bypass-allowlist: guest-exec loopback to Sunshine API; self-signed cert on 127.0.0.1
-            "curl --insecure -fsS --connect-timeout 3 --max-time 5 "
+            "curl --insecure -fsS --connect-timeout 3 --max-time 5 "  # tls-bypass-allowlist: guest-exec loopback to Sunshine API
             "--user \"${SUNSHINE_USER}:${SUNSHINE_PASSWORD}\" "
             "\"https://127.0.0.1:${api_port}/api/apps\" >/dev/null && echo APPS_OK || echo APPS_FAIL"
         ),

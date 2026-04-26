@@ -1,0 +1,14 @@
+polkit.addRule(function(action, subject) {
+  if (action.id !== "org.freedesktop.systemd1.manage-units") {
+    return null;
+  }
+  if (!subject.isInGroup("beagle-manager") && subject.user !== "beagle-manager") {
+    return null;
+  }
+  var unit = String(action.lookup("unit") || "");
+  var verb = String(action.lookup("verb") || "");
+  if (unit === "beagle-repo-auto-update.service" && verb === "start") {
+    return polkit.Result.YES;
+  }
+  return null;
+});

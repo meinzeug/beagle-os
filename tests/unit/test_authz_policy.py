@@ -118,6 +118,24 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:write",
         )
 
+    def test_artifact_routes_use_settings_permissions(self):
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/settings/artifacts"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/settings/artifacts/refresh"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("PUT", "/api/v1/settings/artifacts/watchdog"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/settings/artifacts/watchdog/check"),
+            "settings:write",
+        )
+
     def test_virtualization_power_route_uses_vm_power_permission(self):
         permission = AuthzPolicyService.required_permission("POST", "/api/v1/virtualization/vms/101/power")
         self.assertEqual(permission, "vm:power")

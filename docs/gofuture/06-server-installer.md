@@ -161,15 +161,52 @@ Umsetzung 2026-04-21:
 - [x] API-Endpunkt zum Starten eines Artifact-Refresh ergänzen: `beagle-artifacts-refresh.service` reproduzierbar über systemd starten, keine langen blocking Requests.
 - [x] WebUI-Panel im Updates-/Artifact-Bereich ergänzen: Status-Kacheln für Pflichtartefakte, fehlende Downloads, Refresh-Service und Refresh-Timer.
 - [x] WebUI-Button "Artefakte neu bauen/refreshen" ergänzen; Start läuft über systemd und kehrt sofort zurück.
-- [ ] Job-Fortschritt sichtbar machen: Startzeit, laufender Schritt, letztes Ergebnis, Fehlerauszug, Link zu Status-JSON und Downloads.
-- [ ] Artifact-Preflight erweitern: freier Speicher, laufender Refresh, root/service capability, fehlende Build-Abhängigkeiten.
-- [ ] Download-/Publikations-Gate in der WebUI anzeigen: installimage darf erst als public ready gelten, wenn alle `v${VERSION}`- und `latest`-Thin-Client-Artefakte vorhanden sind.
-- [ ] srv1/srv2 validieren: Refresh auf `srv1` starten, Status in WebUI sehen, Downloads erreichbar, `scripts/check-beagle-host.sh` grün; danach Artefakte auf `srv2` prüfen/synchronisieren.
+- [x] Job-Fortschritt sichtbar machen: Startzeit, laufender Schritt, letztes Ergebnis, Fehlerauszug, Link zu Status-JSON und Downloads.
+- [x] Artifact-Preflight erweitern: freier Speicher, laufender Refresh, root/service capability, fehlende Build-Abhängigkeiten.
+- [x] Download-/Publikations-Gate in der WebUI anzeigen: installimage darf erst als public ready gelten, wenn alle `v${VERSION}`- und `latest`-Thin-Client-Artefakte vorhanden sind.
+- [x] srv1/srv2 validieren: Refresh auf `srv1` starten, Status in WebUI sehen, Downloads erreichbar, `scripts/check-beagle-host.sh` grün; danach Artefakte auf `srv2` prüfen/synchronisieren.
 - [x] API-Regressionstests für fehlende Artefakte und Refresh-Start ergänzen.
-- [ ] UI-/API-Regressionstests ergänzen: laufender Job, erfolgreicher Refresh, fehlgeschlagener Refresh, RBAC `settings:write`, WebUI-Rendering.
+- [x] UI-/API-Regressionstests ergänzen: laufender Job, erfolgreicher Refresh, fehlgeschlagener Refresh, RBAC `settings:write`, WebUI-Rendering.
+- [x] Artifact-Watchdog ergänzen: in der WebUI aktivierbar, Status/Drift sichtbar, Host-Timer prüft fehlende oder veraltete Artefakte und kann optional Auto-Repair über `beagle-artifacts-refresh.service` auslösen.
 
 Warum dieser Schritt noch offen ist:
 Der Host-Artifact-Refresh existiert als Shell-/systemd-Pfad und wird aktuell per SSH validiert. Das ist für Betreiber nicht ausreichend, weil frische Installationen und Release-/Download-Probleme direkt in der Web Console sichtbar und reparierbar sein müssen. Der aktuelle `srv1`/`srv2`-Check hat gezeigt, dass fehlende Artefakte den Host-Smoke brechen können, obwohl die Services laufen. Deshalb muss die WebUI nicht nur Downloads verlinken, sondern auch den Zustand der Artefaktkette bewerten und Refresh/Repair auslösen können.
+
+Umsetzung 2026-04-26:
+- `GET /api/v1/settings/artifacts` liefert jetzt zusätzlich `watchdog.config`, `watchdog.status` und die Status der Units `beagle-artifacts-watchdog.service/.timer`.
+- `PUT /api/v1/settings/artifacts/watchdog` speichert `enabled`, `max_age_hours`, `auto_repair`.
+- `POST /api/v1/settings/artifacts/watchdog/check` startet den Watchdog-Lauf reproduzierbar über systemd.
+- Neues Hostskript `scripts/artifact-watchdog.sh` schreibt `/var/lib/beagle/artifact-watchdog-status.json` und erkennt `missing_required`, `missing_latest`, `missing_versioned` sowie `out_of_date`.
+- Neue Units `beagle-artifacts-watchdog.service` und `beagle-artifacts-watchdog.timer` installiert; WebUI zeigt Status, letzte Prüfung, Artefakt-Alter, Reaktion und Konfiguration.
+- Lokale Regressionen grün:
+  - `python3 -m pytest tests/unit/test_server_settings.py tests/unit/test_authz_policy.py -q` => `25 passed`
+  - `python3 scripts/test-settings-artifacts-smoke.py --base-url https://srv1.beagle-os.com/ --username admin --password test1234` => `SETTINGS_ARTIFACTS_SMOKE=PASS`
+- Live auf `srv1` und `srv2` validiert:
+  - Timer aktiv (`beagle-artifacts-watchdog.timer`)
+  - `PUT /settings/artifacts/watchdog` => `200`
+  - `POST /settings/artifacts/watchdog/check` => `202`
+  - Status zeigt bei aktivem Watchdog mit `auto_repair=false` erwartungsgemäß `state=drift`, `reaction=notify_only`
+- Follow-up 2026-04-26, Artifact-Refresh live geschlossen:
+  - `scripts/prepare-host-downloads.sh` rekonstruiert fehlende Root-`dist`-Artefakte jetzt direkt aus vorhandenen Build-Outputs/ISOs und stellt generische USB-Skripte ohne erzwungenen Vollbuild wieder her.
+  - `scripts/refresh-host-artifacts.sh` nutzt denselben Recovery-Pfad ueber `prepare-host-downloads.sh`, statt immer zuerst `package.sh` zu erzwingen.
+  - `srv1`: `scripts/check-beagle-host.sh` erfolgreich, `refresh.status.json=status=ok`, Watchdog `state=healthy`, `public_ready=true`.
+  - `srv2`: top-level `dist` von `srv1` synchronisiert, host-lokale Download-Metadaten neu geschrieben, `scripts/check-beagle-host.sh` erfolgreich, `refresh.status.json=status=ok`, Watchdog `state=healthy`, `public_ready=true`.
+- Follow-up 2026-04-26, Repo-Auto-Update + Watchdog-Kopplung:
+  - `GET /api/v1/settings/updates` zeigt jetzt weiterhin die lokale `apt`-Lage, aber zusaetzlich einen separaten GitHub-basierten Block `repo_auto_update`.
+  - Neue Mutationspfade:
+    - `PUT /api/v1/settings/updates/repo-auto`
+    - `POST /api/v1/settings/updates/repo-auto/check`
+  - Neues Hostskript `scripts/repo-auto-update.sh`:
+    - prueft `https://github.com/meinzeug/beagle-os.git` auf neue Commits,
+    - spiegelt den Ziel-Commit nach `/opt/beagle`,
+    - fuehrt danach `install-beagle-host-services.sh` und `refresh-host-artifacts.sh` aus,
+    - schreibt Laufstatus nach `/var/lib/beagle/repo-auto-update-status.json`.
+  - Neue Units:
+    - `beagle-repo-auto-update.service`
+    - `beagle-repo-auto-update.timer`
+  - WebUI `Server-Einstellungen -> System-Updates` kann Repo-URL, Branch, Intervall und Aktivierung jetzt direkt verwalten; der Watchdog haelt nach erfolgreichen Repo-Updates die Artefaktkette weiter aktuell.
+  - Host-Installer-Fix: die neue Repo-Update-Unit wird jetzt wie die anderen systemd-Units korrekt mit `__INSTALL_DIR__ -> /opt/beagle` templated installiert; dadurch startet der Timer reproduzierbar auf `srv1` und `srv2`.
+  - GitHub-CI-Fix: `.github/workflows/release.yml` nutzt den optionalen GPG-Key nicht mehr in einem unzulaessigen `if: secrets...`-Ausdruck, sondern prueft ihn innerhalb des Shell-Schritts. Das beseitigt den aktuellen GitHub-Parse-Fehler der Release-Workflow-Datei.
 
 ---
 

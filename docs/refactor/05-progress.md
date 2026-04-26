@@ -3372,3 +3372,71 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 
 - Der ursprüngliche physische Hardware-Fail auf dem bereits erstellten Alt-USB-Stick wurde nicht 1:1 konserviert; der Fix basiert auf der reproduzierbaren lokalen E2E-Validierung und der gehaerteten Partition-/Target-Logik.
 - Die grafische Moonlight-Session der lokal installierten Runtime wurde in diesem Run nicht per Framebuffer-Screenshot bis zum sichtbaren Stream-Inhalt abgenommen; die installierte Laufzeit-Konfiguration fuer `vm100` ist jedoch korrekt auf der Ziel-Disk vorhanden.
+## Update (2026-04-26, Plan 06 Artifact-Watchdog in WebUI + Host-Timer)
+
+- `beagle-host/services/server_settings.py` erweitert:
+  - `GET /api/v1/settings/artifacts` liefert jetzt zusaetzlich `watchdog.config` + `watchdog.status`.
+  - neue Mutationspfade `PUT /api/v1/settings/artifacts/watchdog` und `POST /api/v1/settings/artifacts/watchdog/check`.
+- Neuer Host-Mechanismus:
+  - [scripts/artifact-watchdog.sh](/home/dennis/beagle-os/scripts/artifact-watchdog.sh) prueft Pflichtartefakte, Publish-Gate und Artefakt-Alter.
+  - schreibt Status nach `/var/lib/beagle/artifact-watchdog-status.json`.
+  - kann optional automatisch `beagle-artifacts-refresh.service` starten.
+- Neue systemd-/Polkit-Bausteine:
+  - `beagle-artifacts-watchdog.service`
+  - `beagle-artifacts-watchdog.timer`
+  - `beagle-host/polkit/beagle-artifacts-watchdog.rules`
+  - `scripts/install-beagle-host-services.sh` installiert und aktiviert den Timer jetzt mit.
+- WebUI:
+  - `/#panel=settings_updates` hat jetzt einen eigenen Watchdog-Bereich mit Aktivieren, Auto-Repair, Altersschwelle, Status, letzter Prüfung und `Jetzt pruefen`.
+- Regressionen:
+  - `python3 -m pytest tests/unit/test_server_settings.py tests/unit/test_authz_policy.py -q` => `25 passed`
+  - `python3 scripts/test-settings-artifacts-smoke.py --base-url https://srv1.beagle-os.com/ --username admin --password test1234` => `SETTINGS_ARTIFACTS_SMOKE=PASS`
+- Live:
+  - auf `srv1` und `srv2` ausgerollt
+  - `beagle-control-plane`, `nginx`, `beagle-artifacts-watchdog.timer` jeweils `active`
+  - `PUT /api/v1/settings/artifacts/watchdog` und `POST /api/v1/settings/artifacts/watchdog/check` laufen auf beiden Hosts
+  - Watchdog ist zur Validierung aktuell auf beiden Hosts aktiv mit `auto_repair=false` und meldet erwartungsgemaess `drift` wegen der noch fehlenden Artefakte
+
+## Update (2026-04-26, Plan 06 Artifact-Refresh Recovery + Live-Abschluss auf srv1/srv2)
+
+- `scripts/prepare-host-downloads.sh` gehaertet:
+  - rekonstruiert fehlende Root-`dist`-Artefakte jetzt aus vorhandenen Build-Outputs/ISOs,
+  - stellt generische `latest`-/`v${VERSION}`-USB-Skripte wieder her,
+  - korrigiert den `RETURN`-Trap im Bootstrap-Recovery-Pfad, der unter `set -u` mit `tmproot: unbound variable` abbrechen konnte.
+- `scripts/refresh-host-artifacts.sh` vereinfacht:
+  - nutzt jetzt direkt `prepare-host-downloads.sh` als kanonischen Refresh-/Recovery-Pfad,
+  - erzwingt nicht mehr immer zuerst `package.sh`, wenn die noetigen Artefakte bereits vorhanden oder rekonstruierbar sind.
+- Live auf `srv1`:
+  - `scripts/prepare-host-downloads.sh` erfolgreich,
+  - `scripts/check-beagle-host.sh` erfolgreich,
+  - `refresh.status.json` danach `status=ok`,
+  - `artifact-watchdog-status.json` danach `state=healthy`, `refresh_status=ok`, `public_ready=true`.
+- Live auf `srv2`:
+  - top-level `dist` von `srv1` synchronisiert,
+  - host-lokale Download-Metadaten mit `prepare-host-downloads.sh` auf `srv2` neu geschrieben,
+  - `scripts/check-beagle-host.sh` erfolgreich,
+  - `refresh.status.json` danach `status=ok`,
+  - `artifact-watchdog-status.json` danach `state=healthy`, `refresh_status=ok`, `public_ready=true`.
+- Lokal validiert:
+  - `bash -n scripts/prepare-host-downloads.sh scripts/refresh-host-artifacts.sh`
+  - `python3 -m pytest tests/unit/test_server_settings.py tests/unit/test_authz_policy.py -q` => `25 passed`
+
+## Update (2026-04-26, Plan 06 Repo-Auto-Update + GitHub-Release-Workflow Fix)
+
+- `beagle-host/services/server_settings.py` erweitert:
+  - `GET /api/v1/settings/updates` liefert weiter die lokale `apt`-Lage, jetzt aber zusaetzlich mit separatem `repo_auto_update`-Block.
+  - neue Mutationspfade `PUT /api/v1/settings/updates/repo-auto` und `POST /api/v1/settings/updates/repo-auto/check`.
+- Neuer Host-Mechanismus:
+  - [scripts/repo-auto-update.sh](/home/dennis/beagle-os/scripts/repo-auto-update.sh) prueft `https://github.com/meinzeug/beagle-os.git` auf dem konfigurierten Branch, deployed neue Commits nach `/opt/beagle`, fuehrt danach `install-beagle-host-services.sh` und `refresh-host-artifacts.sh` aus und schreibt Status nach `/var/lib/beagle/repo-auto-update-status.json`.
+  - `beagle-artifacts-watchdog` bleibt dadurch die zweite Stufe: nach Host-Update weiter Artefakt-Drift erkennen und bei Bedarf reparieren.
+- Neue systemd-/Polkit-Bausteine:
+  - `beagle-repo-auto-update.service`
+  - `beagle-repo-auto-update.timer`
+  - `beagle-host/polkit/beagle-repo-auto-update.rules`
+- WebUI:
+  - `Server-Einstellungen -> System-Updates` hat jetzt einen bedienbaren Block `Beagle Repo Auto-Update` fuer Aktivierung, Repo-URL, Branch, Intervall, manuellen GitHub-Check sowie Service-/Timer-/Commit-Status.
+- Installer-/Deploy-Fix:
+  - [scripts/install-beagle-host-services.sh](/home/dennis/beagle-os/scripts/install-beagle-host-services.sh) schreibt templated systemd-Units jetzt wieder mit aufgeloestem `INSTALL_DIR`; der Live-Fehler `__INSTALL_DIR__/scripts/repo-auto-update.sh` in `beagle-repo-auto-update.service` ist damit beseitigt.
+- GitHub-Workflow-Fix:
+  - `.github/workflows/release.yml` ist repariert; der optionale GPG-Key wird nicht mehr ueber ein unzulaessiges `if: secrets...` ausgewertet, sondern innerhalb des Shell-Schritts.
+  - Damit verschwindet der aktuelle GitHub-Parse-Fehler `Unrecognized named-value: 'secrets'`.

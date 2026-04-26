@@ -16,24 +16,25 @@
 - Join-Tokens haben jetzt eine echte serverseitige Ablaufpruefung.
 - Auth-503-Bursts reduziert: nginx `beagle_auth` Rate-Limit angehoben und Dashboard fragt IAM-User/Roles nur noch im IAM-Panel ab.
 - Artifact-Operations-Slice umgesetzt: `GET/POST /api/v1/settings/artifacts*` plus WebUI-Status/Refresh im Updates-Panel.
+- Artifact-Watchdog umgesetzt: WebUI kann den Host-Watchdog aktivieren, konfigurieren und direkt anstoßen; `srv1` und `srv2` melden nach abgeschlossenem Refresh jetzt `healthy` und `public_ready=true`.
 - Lokale Regression: `42 passed` fuer Auth-HTTP, Cluster-Membership, Cluster-HTTP-Surface und AuthZ; Live-Burst auf `srv1` gegen `/auth/roles`: 35x `401`, 0x `503`.
 
 **Naechste konkrete Schritte**:
 
-1. **Thinclient-Hardware-Rerun auf echtem Stick**: neuen VM100-USB-Stick von `srv1` erzeugen und den bisher fehlgeschlagenen physischen `Preset Installation starten`-Pfad auf echter Hardware erneut abnehmen.
-2. **Thinclient-Runtime visuell abnehmen**: lokale installierte Ziel-Disk mit grafischem Capture/Screenshot bis zur sichtbaren Moonlight-Session gegen `vm100` pruefen.
-3. **Security vor Cluster-Komfort**: `8443` auf downloads-only reduzieren oder schließen; Installer-/Download-Pfade vorher sauber auf `443` migrieren.
-4. **Plan 08 Schritt 7 fortsetzen**: `/#panel=virtualization` in klare Bereiche schneiden und den Ist-Zustand dokumentieren.
-5. **Plan 12 Schritt 6 fortsetzen**: GPU-Zuweisung und Release als gefuehrten Wizard/Danger-Flow bauen statt Prompt-Aktionen.
-6. **Plan 12 Schritt 6 fortsetzen**: vGPU-/mdev- und SR-IOV-Bereiche von Tabellen auf Cards/erklaerende Operator-Flows umstellen.
-7. **Leader-State-Reconcile bauen**: Drift in `members.json` reproduzierbar erkennen und vom Leader aus sauber neu aufbauen oder gegen den Cluster-Store abgleichen.
-8. **Migration-Blocker isolieren**: qemu+ssh/libvirt-Deadlock reproduzierbar einkreisen oder Shared-Storage-Migrationspfad als produktiven Pfad priorisieren.
-9. **Plan 10 Policies-Panel**: `/#panel=policies` von Tabellen-/Mischansicht auf Cards, Details, Wizards und sichere Danger-Actions umbauen.
-10. **Plan 13/15 Admin-Panels**: IAM- und Audit-Flows fuer User/Rollen/IdP/SCIM/Sessions sowie Report-/Export-/Replay-Bedienung umsetzen.
+1. **Repo-Auto-Update live fertig validieren**: nach Push auf `origin/main` `repo_auto_update_enabled=true` auf `srv1` und `srv2` setzen, manuellen GitHub-Check aus der WebUI/API anstoßen und bestaetigen, dass `/opt/beagle` auf den neuen Commit aktualisiert wird.
+2. **Watchdog mit Repo-Update zusammenspielen lassen**: auf einem Host absichtlich Artefakt-Drift nach erfolgreichem Repo-Update erzeugen und bestaetigen, dass der Watchdog `reaction=started_refresh` setzt und wieder `healthy/public_ready=true` erreicht.
+3. **GitHub Release-Workflow erneut gegen echten Push pruefen**: bestaetigen, dass `.github/workflows/release.yml` nach dem Parse-Fix wieder laeuft und auf Push nach `main` einen neuen Rolling-/Release-Lauf erzeugt.
+4. **Plan 12 Schritt 6 fortsetzen**: GPU-Zuweisung und Release als gefuehrten Wizard/Danger-Flow bauen statt Prompt-Aktionen.
+5. **Plan 12 Schritt 6 fortsetzen**: vGPU-/mdev- und SR-IOV-Bereiche von Tabellen auf Cards/erklaerende Operator-Flows umstellen.
+6. **Thinclient-Hardware-Rerun auf echtem Stick**: neuen VM100-USB-Stick von `srv1` erzeugen und den bisher fehlgeschlagenen physischen `Preset Installation starten`-Pfad auf echter Hardware erneut abnehmen.
+7. **Thinclient-Runtime visuell abnehmen**: lokale installierte Ziel-Disk mit grafischem Capture/Screenshot bis zur sichtbaren Moonlight-Session gegen `vm100` pruefen.
+8. **Security vor Cluster-Komfort**: `8443` auf downloads-only reduzieren oder schließen; Installer-/Download-Pfade vorher sauber auf `443` migrieren.
+9. **Leader-State-Reconcile bauen**: Drift in `members.json` reproduzierbar erkennen und vom Leader aus sauber neu aufbauen oder gegen den Cluster-Store abgleichen.
+10. **Plan 10/13/15 Panels fortsetzen**: `/#panel=policies`, `/#panel=iam`, `/#panel=audit` von Statusansichten zu echten Operator-Flows umbauen.
 
 **Blocker/Risiken**:
 - `srv2` GPU: GTX 1080 ist an `vfio-pci`, aber IOMMU-Gruppe enthaelt weitere Geraete; Passthrough bleibt ohne ACS/BIOS/Hardware-Aenderung nicht sicher freigebbar.
-- Artifact-Build auf `srv1` laeuft noch; bis zum erfolgreichen Host-Check darf kein Release-/Installimage-Abschluss behauptet werden.
+- Artifact-Refresh ist jetzt auf `srv1` und `srv2` gruen; offener Rest fuer Plan 06 ist jetzt das echte Zusammenspiel `GitHub-Repo-Update -> Host-Deploy -> Artifact-Watchdog`.
 
 ---
 

@@ -2,8 +2,11 @@ name: release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -94,6 +97,50 @@ jobs:
           path: dist/iso/
           retention-days: 1
 
+  build-thin-client:
+    name: Build thin-client installer
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read VERSION
+        id: version
+        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            live-build \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            grub2-common \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            dosfstools \
+            mtools \
+            rsync \
+            curl \
+            ca-certificates
+
+      - name: Build thin-client installer
+        run: sudo bash scripts/build-thin-client-installer.sh
+        env:
+          THIN_CLIENT_BUILD_DIR: ${{ github.workspace }}/.build/thin-client
+          THIN_CLIENT_DIST_DIR: ${{ github.workspace }}/dist/thin-client
+          BEAGLE_THIN_CLIENT_MIN_BUILD_FREE_GIB: "0"
+          BEAGLE_THIN_CLIENT_MIN_DIST_FREE_GIB: "0"
+
+      - name: Upload thin-client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: thin-client-dist
+          path: dist/thin-client/
+          retention-days: 1
+          if-no-files-found: warn
+
   sbom:
     name: Generate SBOM for release
     runs-on: ubuntu-latest
@@ -157,7 +204,7 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    needs: [build-installimage, build-iso, sbom]
+    needs: [build-installimage, build-iso, build-thin-client, sbom]
     runs-on: ubuntu-latest
 
     steps:
@@ -185,17 +232,28 @@ jobs:
           name: release-sbom
           path: dist/sbom/
 
+      - name: Download thin-client artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: thin-client-dist
+          path: dist/thin-client/
+
       - name: Generate SHA256SUMS
         run: |
           mkdir -p dist
-          find dist/installimage/ dist/iso/ dist/sbom/ -type f ! -name 'SHA256SUMS*' | sort | xargs sha256sum > dist/SHA256SUMS
+          find dist/installimage/ dist/iso/ dist/thin-client/ dist/sbom/ -type f ! -name 'SHA256SUMS*' | sort | xargs sha256sum > dist/SHA256SUMS
           cat dist/SHA256SUMS
 
       - name: Import GPG key (optional)
-        if: ${{ secrets.BEAGLE_RELEASE_GPG_KEY != '' }}
+        env:
+          BEAGLE_RELEASE_GPG_KEY: ${{ secrets.BEAGLE_RELEASE_GPG_KEY }}
         run: |
-          echo "${{ secrets.BEAGLE_RELEASE_GPG_KEY }}" | gpg --batch --import
-          gpg --armor --detach-sign --output dist/SHA256SUMS.sig dist/SHA256SUMS
+          if [[ -n "${BEAGLE_RELEASE_GPG_KEY:-}" ]]; then
+            echo "$BEAGLE_RELEASE_GPG_KEY" | gpg --batch --import
+            gpg --armor --detach-sign --output dist/SHA256SUMS.sig dist/SHA256SUMS
+          else
+            echo "No BEAGLE_RELEASE_GPG_KEY configured - skipping GPG signature"
+          fi
 
       - name: Sign SHA256SUMS with Cosign (keyless / sigstore)
         uses: sigstore/cosign-installer@v3
@@ -219,7 +277,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ github.ref_name }}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            TAG="${{ github.ref_name }}"
+            RELEASE_TITLE="Beagle OS ${{ steps.version.outputs.version }}"
+            PRERELEASE_FLAG=""
+          else
+            TAG="rolling-main"
+            RELEASE_TITLE="Beagle OS rolling main (${{ github.sha }})"
+            PRERELEASE_FLAG="--prerelease"
+            gh release delete "$TAG" --yes --cleanup-tag >/dev/null 2>&1 || true
+          fi
           VERSION="${{ steps.version.outputs.version }}"
 
           # Collect all release assets
@@ -230,6 +297,9 @@ jobs:
           assets+=("dist/SHA256SUMS")
           [[ -f dist/SHA256SUMS.sig ]] && assets+=("dist/SHA256SUMS.sig")
           [[ -f dist/SHA256SUMS.cosign.bundle ]] && assets+=("dist/SHA256SUMS.cosign.bundle")
+          while IFS= read -r -d '' f; do
+            assets+=("$f")
+          done < <(find dist/thin-client/ -type f -print0 | sort -z)
           # Bundle SBOM files
           while IFS= read -r -d '' f; do
             assets+=("$f")
@@ -244,6 +314,7 @@ jobs:
           fi
 
           gh release create "$TAG" \
-            --title "Beagle OS $VERSION" \
+            --title "$RELEASE_TITLE" \
+            ${PRERELEASE_FLAG:-} \
             "${notes_args[@]}" \
             "${assets[@]}"

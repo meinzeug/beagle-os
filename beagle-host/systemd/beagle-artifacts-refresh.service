@@ -9,7 +9,7 @@ EnvironmentFile=-/etc/beagle/host.env
 ExecStart=__INSTALL_DIR__/scripts/refresh-host-artifacts.sh
 WorkingDirectory=__INSTALL_DIR__
 UMask=0077
-NoNewPrivileges=yes
+NoNewPrivileges=no
 PrivateTmp=yes
 ProtectHome=yes
 ProtectControlGroups=yes
@@ -20,9 +20,8 @@ ProtectKernelTunables=yes
 LockPersonality=yes
 RestrictNamespaces=yes
 RestrictRealtime=yes
-RestrictSUIDSGID=yes
+RestrictSUIDSGID=no
 SystemCallArchitectures=native
-CapabilityBoundingSet=
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]

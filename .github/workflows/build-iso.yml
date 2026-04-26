@@ -212,6 +212,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
+            live-build \
+            debootstrap \
             squashfs-tools \
             xorriso \
             grub2-common \

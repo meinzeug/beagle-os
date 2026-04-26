@@ -280,7 +280,7 @@ verify_public_api() {
   if [[ "$api_url" == https://* ]]; then
     if [[ -n "$pinned_pubkey" ]]; then
       # tls-bypass-allowlist: sunshine API uses self-signed cert; pubkey-pinning provides the security guarantee
-      curl_args+=(--insecure --pinnedpubkey "$pinned_pubkey")
+      curl_args+=(--insecure --pinnedpubkey "$pinned_pubkey") # tls-bypass-allowlist: sunshine API uses self-signed cert; pubkey pinning is enforced
     elif [[ -n "${BEAGLE_PUBLIC_TLS_PINNED_PUBKEY:-}" ]]; then
       curl_args+=(--pinnedpubkey "${BEAGLE_PUBLIC_TLS_PINNED_PUBKEY}")
     elif [[ -f "$HOST_TLS_CERT_FILE" ]]; then

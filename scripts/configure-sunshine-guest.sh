@@ -712,9 +712,7 @@ ensure_timer() {
 
 is_api_ready() {
   [[ -n "\$SUNSHINE_PASSWORD" ]] || return 1
-  curl -kfsS --connect-timeout 3 --max-time 5 \
-    --user "\${SUNSHINE_USER}:\${SUNSHINE_PASSWORD}" \
-    "https://127.0.0.1:\${api_port}/api/apps" >/dev/null
+  curl -kfsS --connect-timeout 3 --max-time 5 --user "\${SUNSHINE_USER}:\${SUNSHINE_PASSWORD}" "https://127.0.0.1:\${api_port}/api/apps" >/dev/null # tls-bypass-allowlist: loopback health check against local Sunshine self-signed API
 }
 
 ensure_timer

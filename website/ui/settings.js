@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { escapeHtml, qs, text } from './dom.js';
+import { escapeHtml, formatDate, qs, text } from './dom.js';
 import { request } from './api.js';
 
 const settingsHooks = {
@@ -7,6 +7,78 @@ const settingsHooks = {
 };
 
 let webhookRows = [];
+let artifactRefreshPollTimer = 0;
+
+function formatBytesCompact(value) {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let current = bytes;
+  let index = 0;
+  while (current >= 1024 && index < units.length - 1) {
+    current /= 1024;
+    index += 1;
+  }
+  return current.toFixed(current >= 10 || index === 0 ? 0 : 1) + ' ' + units[index];
+}
+
+function setArtifactLink(id, href) {
+  const node = qs(id);
+  if (!node) {
+    return;
+  }
+  const target = String(href || '').trim();
+  if (!target) {
+    node.setAttribute('href', '#');
+    node.setAttribute('aria-disabled', 'true');
+    return;
+  }
+  node.setAttribute('href', target);
+  node.removeAttribute('aria-disabled');
+}
+
+function shortCommit(value) {
+  const textValue = String(value || '').trim();
+  if (!textValue) {
+    return '—';
+  }
+  return textValue.slice(0, 12);
+}
+
+function formatDurationCompact(secondsValue) {
+  const seconds = Number(secondsValue);
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return '—';
+  }
+  if (seconds < 60) {
+    return String(Math.round(seconds)) + 's';
+  }
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return String(minutes) + ' min';
+  }
+  const hours = (seconds / 3600);
+  if (hours < 48) {
+    return hours.toFixed(hours >= 10 ? 0 : 1) + ' h';
+  }
+  return (hours / 24).toFixed(1) + ' d';
+}
+
+function stopArtifactRefreshPolling() {
+  if (artifactRefreshPollTimer) {
+    window.clearTimeout(artifactRefreshPollTimer);
+    artifactRefreshPollTimer = 0;
+  }
+}
+
+function scheduleArtifactRefreshPolling() {
+  stopArtifactRefreshPolling();
+  artifactRefreshPollTimer = window.setTimeout(() => {
+    loadArtifactStatus({ silent: true });
+  }, 5000);
+}
 
 export function configureSettings(nextHooks) {
   Object.assign(settingsHooks, nextHooks || {});
@@ -309,6 +381,7 @@ export function loadSettingsUpdates() {
   loadArtifactStatus();
   return request('/settings/updates', { __timeoutMs: 60000 }).then((data) => {
     text('upd-count', String(data.upgradable_count || 0));
+    text('upd-source', String(data.source || 'apt'));
     const tbody = qs('upd-packages-body');
     if (!tbody) {
       return;
@@ -316,25 +389,153 @@ export function loadSettingsUpdates() {
     const packages = data.upgradable || [];
     if (!packages.length) {
       tbody.innerHTML = '<tr><td colspan="2" class="empty-cell">System ist aktuell.</td></tr>';
-      settingsHooks.setBanner('System ist aktuell.', 'info');
+      settingsHooks.setBanner('Systempakete sind aktuell.', 'info');
+      renderRepoUpdateStatus(data.repo_auto_update || {});
       return;
     }
     tbody.innerHTML = packages.map((pkg) => {
       return '<tr><td>' + escapeHtml(pkg.package) + '</td><td><code>' + escapeHtml(pkg.line) + '</code></td></tr>';
     }).join('');
-    settingsHooks.setBanner(packages.length + ' Update(s) verfuegbar.', 'info');
+    renderRepoUpdateStatus(data.repo_auto_update || {});
+    settingsHooks.setBanner(packages.length + ' Paket-Update(s) verfuegbar.', 'info');
   }).catch((error) => {
     settingsHooks.setBanner('Update-Check fehlgeschlagen: ' + error.message, 'warn');
   });
 }
 
+function renderRepoUpdateStatus(data) {
+  const repoData = data || {};
+  const config = repoData.config || {};
+  const status = repoData.status || {};
+  const services = repoData.services || {};
+  text('repo-update-state', String(status.state || (config.enabled ? 'unknown' : 'disabled')));
+  text('repo-update-checked', formatDate(status.checked_at || ''));
+  text('repo-update-last-update', formatDate(status.last_update_at || ''));
+  text('repo-update-available', status.update_available ? 'Ja' : 'Nein');
+  text('repo-update-current', shortCommit(status.current_commit));
+  text('repo-update-remote', shortCommit(status.remote_commit));
+  text('repo-update-service', String(services['beagle-repo-auto-update.service'] || 'unknown'));
+  text('repo-update-timer', String(services['beagle-repo-auto-update.timer'] || 'unknown'));
+  const message = qs('repo-update-message');
+  if (message) {
+    message.textContent = String(status.message || (config.enabled ? 'Noch nicht geprueft.' : 'Repo-Auto-Update ist deaktiviert.'));
+    message.className = 'banner ' + (
+      status.state === 'healthy' ? 'info' :
+        status.state === 'updating' ? 'info' :
+          status.state === 'error' ? 'warn' :
+            status.update_available ? 'warn' : 'subtle'
+    );
+  }
+  if (qs('repo-update-enabled')) {
+    qs('repo-update-enabled').checked = Boolean(config.enabled);
+  }
+  if (qs('repo-update-url')) {
+    qs('repo-update-url').value = String(config.repo_url || 'https://github.com/meinzeug/beagle-os.git');
+  }
+  if (qs('repo-update-branch')) {
+    qs('repo-update-branch').value = String(config.branch || 'main');
+  }
+  if (qs('repo-update-interval')) {
+    qs('repo-update-interval').value = String(config.interval_minutes || 15);
+  }
+}
+
 function renderArtifactStatus(data) {
   const artifacts = Array.isArray(data && data.artifacts) ? data.artifacts : [];
   const missing = Array.isArray(data && data.missing) ? data.missing : [];
+  const refreshStatus = data && data.refresh_status ? data.refresh_status : {};
+  const preflight = data && data.preflight ? data.preflight : {};
+  const publishGate = data && data.publish_gate ? data.publish_gate : {};
+  const links = data && data.links ? data.links : {};
+  const watchdog = data && data.watchdog ? data.watchdog : {};
+  const watchdogConfig = watchdog && watchdog.config ? watchdog.config : {};
+  const watchdogStatus = watchdog && watchdog.status ? watchdog.status : {};
+  const runningRefresh = Boolean(data && data.running_refresh);
+  const missingRequired = Array.isArray(preflight.missing_required_tools) ? preflight.missing_required_tools : [];
+  const missingOptional = Array.isArray(preflight.missing_optional_build_tools) ? preflight.missing_optional_build_tools : [];
+  const missingLatest = Array.isArray(publishGate.missing_latest) ? publishGate.missing_latest : [];
+  const missingVersioned = Array.isArray(publishGate.missing_versioned) ? publishGate.missing_versioned : [];
+
   text('artifact-ready', data && data.ready ? 'Ja' : 'Nein');
   text('artifact-missing-count', String(missing.length));
   text('artifact-refresh-service', String((data && data.services && data.services['beagle-artifacts-refresh.service']) || 'unknown'));
   text('artifact-refresh-timer', String((data && data.services && data.services['beagle-artifacts-refresh.timer']) || 'unknown'));
+  text('artifact-refresh-step', String(refreshStatus.step || '—'));
+  text('artifact-refresh-progress', refreshStatus.progress != null ? (String(refreshStatus.progress) + '%') : '—');
+  text('artifact-refresh-updated', formatDate(refreshStatus.updated_at || refreshStatus.finished_at || refreshStatus.started_at || ''));
+  text('artifact-refresh-result', String(refreshStatus.last_result || refreshStatus.status || '—'));
+  text('artifact-preflight-free', formatBytesCompact(preflight.free_bytes || 0));
+  text('artifact-preflight-deps', missingRequired.length ? ('fehlt: ' + missingRequired.join(', ')) : 'ok');
+  text('artifact-preflight-service-unit', preflight.service_unit_present ? 'vorhanden' : 'fehlt');
+  text('artifact-preflight-start-capable', preflight.systemd_start_capable ? 'Ja' : 'Nein');
+  text('artifact-gate-missing-latest', String(missingLatest.length));
+  text('artifact-gate-missing-versioned', String(missingVersioned.length));
+  text('artifact-watchdog-state', String(watchdogStatus.state || (watchdogConfig.enabled ? 'unknown' : 'disabled')));
+  text('artifact-watchdog-checked', formatDate(watchdogStatus.checked_at || ''));
+  text('artifact-watchdog-age', formatDurationCompact(watchdogStatus.artifact_age_seconds));
+  text('artifact-watchdog-reaction', String(watchdogStatus.reaction || 'none'));
+  text('artifact-watchdog-timer', String((data && data.services && data.services['beagle-artifacts-watchdog.timer']) || 'unknown'));
+  setArtifactLink('artifact-status-link', links.status_json);
+  setArtifactLink('artifact-downloads-link', links.downloads_index);
+  if (qs('artifact-watchdog-enabled')) {
+    qs('artifact-watchdog-enabled').checked = Boolean(watchdogConfig.enabled);
+  }
+  if (qs('artifact-watchdog-auto-repair')) {
+    qs('artifact-watchdog-auto-repair').checked = Boolean(watchdogConfig.auto_repair);
+  }
+  if (qs('artifact-watchdog-max-age-hours')) {
+    qs('artifact-watchdog-max-age-hours').value = String(watchdogConfig.max_age_hours || 24);
+  }
+
+  const refreshMessage = qs('artifact-refresh-message');
+  if (refreshMessage) {
+    refreshMessage.textContent = String(refreshStatus.message || 'Noch kein Refresh aktiv.');
+    refreshMessage.className = 'banner ' + (refreshStatus.status === 'failed' ? 'warn' : runningRefresh ? 'info' : 'subtle');
+  }
+  const preflightMessage = qs('artifact-preflight-message');
+  if (preflightMessage) {
+    let preflightText = 'Host ist fuer Artifact-Refresh bereit.';
+    if (runningRefresh) {
+      preflightText = 'Ein Refresh laeuft bereits. Neuer Start sollte warten.';
+    } else if (!preflight.service_unit_present) {
+      preflightText = 'Die systemd-Unit beagle-artifacts-refresh.service fehlt.';
+    } else if (missingRequired.length) {
+      preflightText = 'Fehlende Pflicht-Tools: ' + missingRequired.join(', ');
+    } else if (missingOptional.length) {
+      preflightText = 'Optionale Build-Tools fehlen: ' + missingOptional.join(', ');
+    }
+    preflightMessage.textContent = preflightText;
+    preflightMessage.className = 'banner ' + ((missingRequired.length || !preflight.service_unit_present) ? 'warn' : runningRefresh ? 'info' : 'subtle');
+  }
+  const gateMessage = qs('artifact-gate-message');
+  if (gateMessage) {
+    if (publishGate.public_ready) {
+      gateMessage.textContent = 'Installimage/Public-Release ist freigegeben: latest- und versionierte Thin-Client-Artefakte sind vorhanden.';
+      gateMessage.className = 'banner info';
+    } else {
+      gateMessage.textContent = 'Public-Gate blockiert. Latest fehlt: ' +
+        (missingLatest.length ? missingLatest.join(', ') : '0') +
+        '. Versioniert fehlt: ' +
+        (missingVersioned.length ? missingVersioned.join(', ') : '0') + '.';
+      gateMessage.className = 'banner warn';
+    }
+  }
+  const watchdogMessage = qs('artifact-watchdog-message');
+  if (watchdogMessage) {
+    watchdogMessage.textContent = String(watchdogStatus.message || (watchdogConfig.enabled ? 'Watchdog noch nicht gelaufen.' : 'Watchdog ist deaktiviert.'));
+    watchdogMessage.className = 'banner ' + (
+      watchdogStatus.state === 'healthy' ? 'info' :
+        watchdogStatus.state === 'repairing' ? 'info' :
+          watchdogStatus.state === 'drift' ? 'warn' : 'subtle'
+    );
+  }
+
+  if (runningRefresh) {
+    scheduleArtifactRefreshPolling();
+  } else {
+    stopArtifactRefreshPolling();
+  }
+
   const tbody = qs('artifact-body');
   if (!tbody) {
     return;
@@ -346,22 +547,27 @@ function renderArtifactStatus(data) {
   tbody.innerHTML = artifacts.map((item) => {
     const exists = Boolean(item && item.exists);
     const size = Number(item && item.size_bytes ? item.size_bytes : 0);
+    const mtime = item && item.mtime_epoch ? formatDate(new Date(Number(item.mtime_epoch) * 1000).toISOString()) : '—';
     return (
       '<tr>' +
       '<td><code>' + escapeHtml(String(item.path || '')) + '</code></td>' +
       '<td><span class="' + (exists ? 'chip good' : 'chip bad') + '">' + (exists ? 'vorhanden' : 'fehlt') + '</span></td>' +
-      '<td>' + String(size) + '</td>' +
-      '<td>' + escapeHtml(String(item.mtime_epoch || '—')) + '</td>' +
+      '<td>' + escapeHtml(formatBytesCompact(size)) + '</td>' +
+      '<td>' + escapeHtml(mtime) + '</td>' +
       '</tr>'
     );
   }).join('');
 }
 
-export function loadArtifactStatus() {
+export function loadArtifactStatus(options) {
+  const silent = Boolean(options && options.silent);
   return request('/settings/artifacts', { __timeoutMs: 30000 }).then((data) => {
     renderArtifactStatus(data);
   }).catch((error) => {
-    settingsHooks.setBanner('Artifact-Status laden fehlgeschlagen: ' + error.message, 'warn');
+    stopArtifactRefreshPolling();
+    if (!silent) {
+      settingsHooks.setBanner('Artifact-Status laden fehlgeschlagen: ' + error.message, 'warn');
+    }
   });
 }
 
@@ -378,12 +584,53 @@ export function refreshArtifacts() {
   }).then((data) => {
     if (data.ok) {
       renderArtifactStatus(data.artifacts || {});
-      settingsHooks.setBanner('Artifact-Refresh wurde gestartet. Status regelmaessig aktualisieren.', 'info');
+      settingsHooks.setBanner('Artifact-Refresh wurde gestartet. Fortschritt wird automatisch aktualisiert.', 'info');
     } else {
       settingsHooks.setBanner('Artifact-Refresh fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannt'), 'warn');
     }
   }).catch((error) => {
     settingsHooks.setBanner('Artifact-Refresh Fehler: ' + error.message, 'warn');
+  });
+}
+
+export function saveArtifactWatchdog() {
+  const payload = {
+    enabled: Boolean(qs('artifact-watchdog-enabled') && qs('artifact-watchdog-enabled').checked),
+    auto_repair: Boolean(qs('artifact-watchdog-auto-repair') && qs('artifact-watchdog-auto-repair').checked),
+    max_age_hours: Number(qs('artifact-watchdog-max-age-hours') ? qs('artifact-watchdog-max-age-hours').value : 24) || 24
+  };
+  settingsHooks.setBanner('Watchdog-Einstellungen werden gespeichert...', 'info');
+  return request('/settings/artifacts/watchdog', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    __timeoutMs: 30000
+  }).then((data) => {
+    if (data.ok) {
+      settingsHooks.setBanner('Watchdog gespeichert.', 'info');
+      return loadArtifactStatus({ silent: true });
+    }
+    settingsHooks.setBanner('Watchdog konnte nicht gespeichert werden: ' + escapeHtml((data.errors || []).join(', ') || data.error || 'Unbekannt'), 'warn');
+  }).catch((error) => {
+    settingsHooks.setBanner('Watchdog speichern fehlgeschlagen: ' + error.message, 'warn');
+  });
+}
+
+export function runArtifactWatchdog() {
+  settingsHooks.setBanner('Artifact-Watchdog wird gestartet...', 'info');
+  return request('/settings/artifacts/watchdog/check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+    __timeoutMs: 30000
+  }).then((data) => {
+    if (data.ok) {
+      settingsHooks.setBanner('Artifact-Watchdog gestartet. Status wird aktualisiert.', 'info');
+      return loadArtifactStatus({ silent: true });
+    }
+    settingsHooks.setBanner('Artifact-Watchdog fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannt'), 'warn');
+  }).catch((error) => {
+    settingsHooks.setBanner('Artifact-Watchdog Fehler: ' + error.message, 'warn');
   });
 }
 
@@ -406,6 +653,48 @@ export function applyUpdates() {
     }
   }).catch((error) => {
     settingsHooks.setBanner('Update-Fehler: ' + error.message, 'warn');
+  });
+}
+
+export function saveRepoAutoUpdate() {
+  const payload = {
+    enabled: Boolean(qs('repo-update-enabled') && qs('repo-update-enabled').checked),
+    repo_url: String(qs('repo-update-url') ? qs('repo-update-url').value : '').trim(),
+    branch: String(qs('repo-update-branch') ? qs('repo-update-branch').value : '').trim(),
+    interval_minutes: Number(qs('repo-update-interval') ? qs('repo-update-interval').value : 15) || 15
+  };
+  settingsHooks.setBanner('Repo-Auto-Update wird gespeichert...', 'info');
+  return request('/settings/updates/repo-auto', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    __timeoutMs: 30000
+  }).then((data) => {
+    if (data.ok) {
+      settingsHooks.setBanner('Repo-Auto-Update gespeichert.', 'info');
+      return loadSettingsUpdates();
+    }
+    settingsHooks.setBanner('Repo-Auto-Update konnte nicht gespeichert werden: ' + escapeHtml((data.errors || []).join(', ') || data.error || 'Unbekannt'), 'warn');
+  }).catch((error) => {
+    settingsHooks.setBanner('Repo-Auto-Update speichern fehlgeschlagen: ' + error.message, 'warn');
+  });
+}
+
+export function runRepoAutoUpdateCheck() {
+  settingsHooks.setBanner('GitHub-Repo wird geprueft...', 'info');
+  return request('/settings/updates/repo-auto/check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+    __timeoutMs: 30000
+  }).then((data) => {
+    if (data.ok) {
+      settingsHooks.setBanner('Repo-Check gestartet. Status wird neu geladen.', 'info');
+      return loadSettingsUpdates();
+    }
+    settingsHooks.setBanner('Repo-Check fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannt'), 'warn');
+  }).catch((error) => {
+    settingsHooks.setBanner('Repo-Check Fehler: ' + error.message, 'warn');
   });
 }
 
@@ -982,8 +1271,20 @@ export function bindSettingsEvents() {
   if (qs('artifacts-refresh-start')) {
     qs('artifacts-refresh-start').addEventListener('click', refreshArtifacts);
   }
+  if (qs('artifact-watchdog-save')) {
+    qs('artifact-watchdog-save').addEventListener('click', saveArtifactWatchdog);
+  }
+  if (qs('artifact-watchdog-check')) {
+    qs('artifact-watchdog-check').addEventListener('click', runArtifactWatchdog);
+  }
   if (qs('upd-apply')) {
     qs('upd-apply').addEventListener('click', applyUpdates);
+  }
+  if (qs('repo-update-save')) {
+    qs('repo-update-save').addEventListener('click', saveRepoAutoUpdate);
+  }
+  if (qs('repo-update-check')) {
+    qs('repo-update-check').addEventListener('click', runRepoAutoUpdateCheck);
   }
   if (qs('settings-backup-refresh')) {
     qs('settings-backup-refresh').addEventListener('click', loadSettingsBackup);

@@ -9,11 +9,19 @@ CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 SYSTEMD_DIR="/etc/systemd/system"
 SERVICE_NAME="beagle-artifacts-refresh.service"
 TIMER_NAME="beagle-artifacts-refresh.timer"
+WATCHDOG_SERVICE_NAME="beagle-artifacts-watchdog.service"
+WATCHDOG_TIMER_NAME="beagle-artifacts-watchdog.timer"
+REPO_AUTO_UPDATE_SERVICE_NAME="beagle-repo-auto-update.service"
+REPO_AUTO_UPDATE_TIMER_NAME="beagle-repo-auto-update.timer"
 UI_REAPPLY_SERVICE="beagle-ui-reapply.service"
 UI_REAPPLY_PATH="beagle-ui-reapply.path"
 BEAGLE_CONTROL_SERVICE="beagle-control-plane.service"
 BEAGLE_PUBLIC_STREAM_SERVICE="beagle-public-streams.service"
 BEAGLE_PUBLIC_STREAM_TIMER="beagle-public-streams.timer"
+POLKIT_RULES_DIR="/etc/polkit-1/rules.d"
+ARTIFACT_POLKIT_RULE_NAME="49-beagle-artifacts-refresh.rules"
+ARTIFACT_WATCHDOG_POLKIT_RULE_NAME="49-beagle-artifacts-watchdog.rules"
+REPO_AUTO_UPDATE_POLKIT_RULE_NAME="49-beagle-repo-auto-update.rules"
 BEAGLE_NOVNC_PROXY_SERVICE="beagle-novnc-proxy.service"
 BEAGLE_CONTROL_ENV_FILE="$CONFIG_DIR/beagle-manager.env"
 IDENTITY_PROVIDER_REGISTRY_FILE="${BEAGLE_IDENTITY_PROVIDER_REGISTRY_FILE:-$CONFIG_DIR/identity-providers.json}"
@@ -58,6 +66,7 @@ install_unit() {
   local target_file="$2"
 
   sed "s|__INSTALL_DIR__|$INSTALL_DIR|g" "$source_file" > "$target_file"
+  chmod 0644 "$target_file"
 }
 
 install_file_if_needed() {
@@ -362,6 +371,10 @@ install -d -m 0755 "$HOST_RUNTIME_DIR/services"
 install -d -m 0755 "$HOST_RUNTIME_DIR/templates/ubuntu-beagle"
 install_unit "$ROOT_DIR/beagle-host/systemd/$SERVICE_NAME" "$SYSTEMD_DIR/$SERVICE_NAME"
 install -m 0644 "$ROOT_DIR/beagle-host/systemd/$TIMER_NAME" "$SYSTEMD_DIR/$TIMER_NAME"
+install_unit "$ROOT_DIR/beagle-host/systemd/$WATCHDOG_SERVICE_NAME" "$SYSTEMD_DIR/$WATCHDOG_SERVICE_NAME"
+install -m 0644 "$ROOT_DIR/beagle-host/systemd/$WATCHDOG_TIMER_NAME" "$SYSTEMD_DIR/$WATCHDOG_TIMER_NAME"
+install_unit "$ROOT_DIR/beagle-host/systemd/$REPO_AUTO_UPDATE_SERVICE_NAME" "$SYSTEMD_DIR/$REPO_AUTO_UPDATE_SERVICE_NAME"
+install -m 0644 "$ROOT_DIR/beagle-host/systemd/$REPO_AUTO_UPDATE_TIMER_NAME" "$SYSTEMD_DIR/$REPO_AUTO_UPDATE_TIMER_NAME"
 if has_ui_reapply_units; then
   install_unit "$ROOT_DIR/beagle-host/systemd/$UI_REAPPLY_SERVICE" "$SYSTEMD_DIR/$UI_REAPPLY_SERVICE"
   install -m 0644 "$ROOT_DIR/beagle-host/systemd/$UI_REAPPLY_PATH" "$SYSTEMD_DIR/$UI_REAPPLY_PATH"
@@ -448,6 +461,14 @@ if [[ -e "$LEGACY_HOST_RUNTIME_DIR" && ! -L "$LEGACY_HOST_RUNTIME_DIR" ]]; then
 fi
 ln -sfn "$HOST_RUNTIME_DIR" "$LEGACY_HOST_RUNTIME_DIR"
 rm -f "$USB_TUNNEL_TEST_DROPIN" "$USB_TUNNEL_AUTH_COMMAND"
+
+# The artifact refresh service runs as beagle-manager and rebuilds package
+# outputs directly from the deployed repo checkout under /opt/beagle.
+if [[ -d "$INSTALL_DIR" ]]; then
+  chgrp -R "$BEAGLE_CONTROL_USER" "$INSTALL_DIR"
+  chmod -R g+rwX "$INSTALL_DIR"
+  find "$INSTALL_DIR" -type d -exec chmod g+s {} +
+fi
 
 install -d -m 0755 "$CONFIG_DIR"
 if [[ ! -f "$BEAGLE_CONTROL_ENV_FILE" ]]; then
@@ -699,7 +720,35 @@ fi
 
 systemctl daemon-reload 2>/dev/null || true
 systemctl restart ssh.service >/dev/null 2>&1 || systemctl restart sshd.service >/dev/null 2>&1 || true
+
+cat > /etc/sudoers.d/beagle-artifacts-refresh <<'SUDOERS'
+# Managed by install-beagle-host-services.sh — do not edit by hand.
+beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-artifacts-refresh.service, /bin/systemctl show -p Id beagle-artifacts-refresh.service
+beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-artifacts-watchdog.service, /bin/systemctl show -p Id beagle-artifacts-watchdog.service
+beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-repo-auto-update.service, /bin/systemctl show -p Id beagle-repo-auto-update.service
+SUDOERS
+chmod 0440 /etc/sudoers.d/beagle-artifacts-refresh
+
+install -d -m 0755 "$POLKIT_RULES_DIR"
+install -m 0644 "$INSTALL_DIR/beagle-host/polkit/beagle-artifacts-refresh.rules" "$POLKIT_RULES_DIR/$ARTIFACT_POLKIT_RULE_NAME"
+install -m 0644 "$INSTALL_DIR/beagle-host/polkit/beagle-artifacts-watchdog.rules" "$POLKIT_RULES_DIR/$ARTIFACT_WATCHDOG_POLKIT_RULE_NAME"
+install -m 0644 "$INSTALL_DIR/beagle-host/polkit/beagle-repo-auto-update.rules" "$POLKIT_RULES_DIR/$REPO_AUTO_UPDATE_POLKIT_RULE_NAME"
+if [[ -f /var/lib/beagle/refresh.status.json ]]; then
+  chgrp beagle-manager /var/lib/beagle/refresh.status.json 2>/dev/null || true
+  chmod 0640 /var/lib/beagle/refresh.status.json 2>/dev/null || true
+fi
+if [[ -f /var/lib/beagle/artifact-watchdog-status.json ]]; then
+  chgrp beagle-manager /var/lib/beagle/artifact-watchdog-status.json 2>/dev/null || true
+  chmod 0640 /var/lib/beagle/artifact-watchdog-status.json 2>/dev/null || true
+fi
+if [[ -f /var/lib/beagle/repo-auto-update-status.json ]]; then
+  chgrp beagle-manager /var/lib/beagle/repo-auto-update-status.json 2>/dev/null || true
+  chmod 0640 /var/lib/beagle/repo-auto-update-status.json 2>/dev/null || true
+fi
+
 systemctl enable "$TIMER_NAME" 2>/dev/null || true
+systemctl enable "$WATCHDOG_TIMER_NAME" 2>/dev/null || true
+systemctl enable "$REPO_AUTO_UPDATE_TIMER_NAME" 2>/dev/null || true
 if has_ui_reapply_units; then
   systemctl enable "$UI_REAPPLY_SERVICE" 2>/dev/null || true
   systemctl enable "$UI_REAPPLY_PATH" 2>/dev/null || true
@@ -718,9 +767,9 @@ else
   systemctl stop "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
 fi
 if has_ui_reapply_units; then
-  systemctl start "$TIMER_NAME" "$UI_REAPPLY_PATH" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
+  systemctl start "$TIMER_NAME" "$WATCHDOG_TIMER_NAME" "$REPO_AUTO_UPDATE_TIMER_NAME" "$UI_REAPPLY_PATH" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
 else
-  systemctl start "$TIMER_NAME" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
+  systemctl start "$TIMER_NAME" "$WATCHDOG_TIMER_NAME" "$REPO_AUTO_UPDATE_TIMER_NAME" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
 fi
 
-echo "Installed host services: $SERVICE_NAME, $TIMER_NAME, $UI_REAPPLY_SERVICE, $UI_REAPPLY_PATH, $BEAGLE_CONTROL_SERVICE, $BEAGLE_PUBLIC_STREAM_SERVICE, $BEAGLE_PUBLIC_STREAM_TIMER, $BEAGLE_NOVNC_PROXY_SERVICE"
+echo "Installed host services: $SERVICE_NAME, $TIMER_NAME, $WATCHDOG_SERVICE_NAME, $WATCHDOG_TIMER_NAME, $REPO_AUTO_UPDATE_SERVICE_NAME, $REPO_AUTO_UPDATE_TIMER_NAME, $UI_REAPPLY_SERVICE, $UI_REAPPLY_PATH, $BEAGLE_CONTROL_SERVICE, $BEAGLE_PUBLIC_STREAM_SERVICE, $BEAGLE_PUBLIC_STREAM_TIMER, $BEAGLE_NOVNC_PROXY_SERVICE"

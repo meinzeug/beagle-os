@@ -1787,6 +1787,7 @@
               <div class="settings-section-group">
                 <div class="settings-info-grid">
                   <div class="info-item"><span class="info-label">Verfuegbare Updates</span><span class="info-value" id="upd-count">—</span></div>
+                  <div class="info-item"><span class="info-label">Quelle</span><span class="info-value" id="upd-source">—</span></div>
                 </div>
                 <div class="table-wrap compact">
                   <table class="vm-table compact-table">
@@ -1796,6 +1797,39 @@
                 </div>
                 <div class="button-row">
                   <button class="button primary" id="upd-apply" type="button">Updates installieren</button>
+                </div>
+              </div>
+              <div class="settings-section-group section-spaced">
+                <h3>Beagle Repo Auto-Update</h3>
+                <div class="settings-info-grid">
+                  <div class="info-item"><span class="info-label">Status</span><span class="info-value" id="repo-update-state">—</span></div>
+                  <div class="info-item"><span class="info-label">Zuletzt geprueft</span><span class="info-value" id="repo-update-checked">—</span></div>
+                  <div class="info-item"><span class="info-label">Letztes Update</span><span class="info-value" id="repo-update-last-update">—</span></div>
+                  <div class="info-item"><span class="info-label">Update verfuegbar</span><span class="info-value" id="repo-update-available">—</span></div>
+                  <div class="info-item"><span class="info-label">Installierter Commit</span><span class="info-value" id="repo-update-current">—</span></div>
+                  <div class="info-item"><span class="info-label">Remote Commit</span><span class="info-value" id="repo-update-remote">—</span></div>
+                  <div class="info-item"><span class="info-label">Service</span><span class="info-value" id="repo-update-service">—</span></div>
+                  <div class="info-item"><span class="info-label">Timer</span><span class="info-value" id="repo-update-timer">—</span></div>
+                </div>
+                <div class="banner subtle" id="repo-update-message">Repo-Auto-Update wird mit dem Update-Status geladen.</div>
+                <div class="settings-form">
+                  <label class="check-label"><input id="repo-update-enabled" type="checkbox"> Automatische Repo-Updates aktivieren</label>
+                  <label class="field">
+                    <span>GitHub Repository</span>
+                    <input id="repo-update-url" type="text" value="https://github.com/meinzeug/beagle-os.git">
+                  </label>
+                  <label class="field">
+                    <span>Branch</span>
+                    <input id="repo-update-branch" type="text" value="main">
+                  </label>
+                  <label class="field">
+                    <span>Pruefintervall (Minuten)</span>
+                    <input id="repo-update-interval" type="number" min="5" max="1440" step="1" value="15">
+                  </label>
+                </div>
+                <div class="button-row">
+                  <button class="button ghost" id="repo-update-save" type="button">Repo-Auto-Update speichern</button>
+                  <button class="button primary" id="repo-update-check" type="button">Jetzt GitHub pruefen</button>
                 </div>
               </div>
             </article>
@@ -1813,6 +1847,61 @@
                   <div class="info-item"><span class="info-label">Fehlende Pflichtartefakte</span><span class="info-value" id="artifact-missing-count">—</span></div>
                   <div class="info-item"><span class="info-label">Refresh Service</span><span class="info-value" id="artifact-refresh-service">—</span></div>
                   <div class="info-item"><span class="info-label">Refresh Timer</span><span class="info-value" id="artifact-refresh-timer">—</span></div>
+                </div>
+                <div class="settings-section-group">
+                  <h3>Refresh-Status</h3>
+                  <div class="settings-info-grid">
+                    <div class="info-item"><span class="info-label">Aktueller Schritt</span><span class="info-value" id="artifact-refresh-step">—</span></div>
+                    <div class="info-item"><span class="info-label">Fortschritt</span><span class="info-value" id="artifact-refresh-progress">—</span></div>
+                    <div class="info-item"><span class="info-label">Zuletzt aktualisiert</span><span class="info-value" id="artifact-refresh-updated">—</span></div>
+                    <div class="info-item"><span class="info-label">Ergebnis</span><span class="info-value" id="artifact-refresh-result">—</span></div>
+                  </div>
+                  <div class="banner subtle" id="artifact-refresh-message">Noch kein laufender Refresh.</div>
+                  <div class="settings-inline-meta">
+                    <a id="artifact-status-link" href="#" target="_blank" rel="noopener noreferrer">Status-JSON</a>
+                    <a id="artifact-downloads-link" href="#" target="_blank" rel="noopener noreferrer">Downloads</a>
+                  </div>
+                </div>
+                <div class="settings-section-group">
+                  <h3>Preflight</h3>
+                  <div class="settings-info-grid">
+                    <div class="info-item"><span class="info-label">Freier Speicher</span><span class="info-value" id="artifact-preflight-free">—</span></div>
+                    <div class="info-item"><span class="info-label">Build-Abhaengigkeiten</span><span class="info-value" id="artifact-preflight-deps">—</span></div>
+                    <div class="info-item"><span class="info-label">Service-Unit</span><span class="info-value" id="artifact-preflight-service-unit">—</span></div>
+                    <div class="info-item"><span class="info-label">Start faehig</span><span class="info-value" id="artifact-preflight-start-capable">—</span></div>
+                  </div>
+                  <div class="banner subtle" id="artifact-preflight-message">Preflight wird mit dem Status geladen.</div>
+                </div>
+                <div class="settings-section-group">
+                  <h3>Publish-Gate</h3>
+                  <div class="settings-info-grid">
+                    <div class="info-item"><span class="info-label">Latest fehlt</span><span class="info-value" id="artifact-gate-missing-latest">—</span></div>
+                    <div class="info-item"><span class="info-label">Versioniert fehlt</span><span class="info-value" id="artifact-gate-missing-versioned">—</span></div>
+                  </div>
+                  <div class="banner subtle" id="artifact-gate-message">Noch keine Gate-Pruefung geladen.</div>
+                </div>
+                <div class="settings-section-group">
+                  <h3>Watchdog</h3>
+                  <div class="settings-info-grid">
+                    <div class="info-item"><span class="info-label">Status</span><span class="info-value" id="artifact-watchdog-state">—</span></div>
+                    <div class="info-item"><span class="info-label">Zuletzt geprueft</span><span class="info-value" id="artifact-watchdog-checked">—</span></div>
+                    <div class="info-item"><span class="info-label">Artefakt-Alter</span><span class="info-value" id="artifact-watchdog-age">—</span></div>
+                    <div class="info-item"><span class="info-label">Reaktion</span><span class="info-value" id="artifact-watchdog-reaction">—</span></div>
+                  </div>
+                  <div class="banner subtle" id="artifact-watchdog-message">Watchdog wird mit dem Artefaktstatus geladen.</div>
+                  <div class="settings-form">
+                    <label class="check-label"><input id="artifact-watchdog-enabled" type="checkbox"> Watchdog aktivieren</label>
+                    <label class="check-label"><input id="artifact-watchdog-auto-repair" type="checkbox"> Fehlende/veraltete Artefakte automatisch reparieren</label>
+                    <label class="field">
+                      <span>Maximales Artefakt-Alter (Stunden)</span>
+                      <input id="artifact-watchdog-max-age-hours" type="number" min="1" max="168" step="1" value="24">
+                    </label>
+                    <div class="info-item"><span class="info-label">Timer</span><span class="info-value" id="artifact-watchdog-timer">—</span></div>
+                  </div>
+                  <div class="button-row">
+                    <button class="button ghost" id="artifact-watchdog-save" type="button">Watchdog speichern</button>
+                    <button class="button primary" id="artifact-watchdog-check" type="button">Jetzt pruefen</button>
+                  </div>
                 </div>
                 <div class="table-wrap compact">
                   <table class="vm-table compact-table">

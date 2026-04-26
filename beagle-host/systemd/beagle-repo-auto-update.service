@@ -1,0 +1,19 @@
+[Unit]
+Description=Check GitHub repo for Beagle updates and apply them
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=__INSTALL_DIR__/scripts/repo-auto-update.sh
+WorkingDirectory=__INSTALL_DIR__
+User=root
+Group=root
+NoNewPrivileges=no
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+ReadWritePaths=__INSTALL_DIR__ /var/lib/beagle /etc/beagle
+
+[Install]
+WantedBy=multi-user.target

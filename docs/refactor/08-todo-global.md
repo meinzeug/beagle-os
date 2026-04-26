@@ -26,8 +26,10 @@
 - [ ] GoFuture Plan 13 Schritt 7 umsetzen: `/#panel=iam` grundlegend ueberarbeiten.
 - [ ] GoFuture Plan 15 Schritt 6 umsetzen: `/#panel=audit` grundlegend ueberarbeiten.
 - [x] GoFuture Plan 06 Schritt 6 erster Slice: Artifact-Status-API, Refresh-Start und WebUI-Statusbereich im Updates-Panel umsetzen.
-- [ ] GoFuture Plan 06 Schritt 6 fortsetzen: Artifact-Job-Fortschritt, Preflight, Fehlerauszug und WebUI-Regressions ergaenzen.
-- [ ] Laufenden Artifact-Refresh auf `srv1` abschliessen lassen und danach `scripts/check-beagle-host.sh` auf `srv1`/`srv2` validieren.
+- [x] GoFuture Plan 06 Schritt 6 fortsetzen: Artifact-Job-Fortschritt, Preflight, Fehlerauszug und WebUI-Regressions ergaenzen.
+- [x] GoFuture Plan 06 Schritt 6 erweitern: Artifact-Watchdog in WebUI + Host-Timer mit optionalem Auto-Repair umsetzen.
+- [x] Laufenden Artifact-Refresh auf `srv1` abschliessen lassen und danach `scripts/check-beagle-host.sh` auf `srv1`/`srv2` validieren.
+- [ ] Watchdog-Auto-Repair live auf mindestens einem Host mit echter Drift verifizieren (`reaction=started_refresh`).
 - [ ] QEMU+SSH Live-Migration-Deadlock zwischen `srv1` und `srv2` weiter eingrenzen oder Shared-Storage-Migration als Abnahmepfad dokumentieren.
 
 ## Refactor Wave 2 (7.0)
@@ -259,3 +261,6 @@
 - [ ] Prove the same noVNC/XFCE hotfixes on a clean host installed from the rebuilt server-installer ISO.
 - [x] Execute GoFuture Plan 19 Schritt 7: bring the Windows USB writer to installer/live parity, add `GET /api/v1/vms/{vmid}/live-usb.ps1`, expose a dedicated `Live USB Windows` WebUI action, and extend packaging/host-download publication for `pve-thin-client-live-usb-*.ps1` artifacts (2026-04-26).
 - [ ] Validate the new Windows live USB writer with a real Windows/UEFI boot test and confirm the medium boots directly into Beagle OS runtime without manual GRUB repair.
+- [x] Add GitHub-based repo auto-update controls in `Server-Einstellungen -> System-Updates`, backed by `beagle-repo-auto-update.service/.timer`, so hosts can regularly compare against `meinzeug/beagle-os` and self-update before the artifact watchdog reconciles downloads again (2026-04-26).
+- [x] Fix `.github/workflows/release.yml` parse failure caused by `if: secrets...` so pushes to `main` can again create a valid release workflow run (2026-04-26).
+- [ ] Validate live on `srv1` and `srv2` that a pushed GitHub commit is pulled by the new repo auto-update path and followed by a healthy artifact watchdog state.

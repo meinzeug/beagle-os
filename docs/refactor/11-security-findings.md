@@ -2,6 +2,43 @@
 
 Stand: 2026-04-26 (ergänzt: S-021 Cluster-Preflight/Port-Härtung + Setup-Code Auto-Join)
 
+## S-023 — GitHub Release Workflow war durch unzulaessigen `secrets`-Ausdruck deaktiviert (PATCHED)
+
+- Status: **gepatcht** (2026-04-26)
+- Risiko: **Mittel**
+- Betroffene Dateien:
+  - `.github/workflows/release.yml`
+- Beschreibung:
+  - Der Release-Workflow nutzte `if: ${{ secrets.BEAGLE_RELEASE_GPG_KEY != '' }}`.
+  - GitHub Actions akzeptiert `secrets.*` an dieser Stelle nicht; der gesamte Workflow wurde deshalb schon beim Parsen als invalid verworfen.
+  - Folge: Pushes nach `main` bzw. Release-Laeufe konnten keinen gueltigen Workflow-Run erzeugen, Artefakte/Checksummen/Signaturen wurden gar nicht mehr gebaut.
+- Fix:
+  - Die Secret-Pruefung wurde in den Shell-Schritt verlegt.
+  - Der Schritt importiert den GPG-Key jetzt nur noch, wenn `BEAGLE_RELEASE_GPG_KEY` in `env` gesetzt ist; sonst wird sauber ohne Signaturpfad weitergelaufen.
+- Rest-Risiko:
+  - Die eigentliche Release-Erzeugung auf GitHub muss nach Push erneut live bestaetigt werden.
+
+---
+
+## S-022 — Artifact-Watchdog las initial die falsche Settings-Datei (PATCHED)
+
+- Status: **gepatcht** (2026-04-26)
+- Risiko: **Niedrig bis Mittel**
+- Betroffene Dateien:
+  - `scripts/artifact-watchdog.sh`
+  - `beagle-host/services/server_settings.py`
+- Beschreibung:
+  - Die WebUI speichert Server-/Artifact-Einstellungen im Manager-Datenpfad (`/var/lib/beagle/beagle-manager/server-settings.json`).
+  - Der neue Artifact-Watchdog las initial `/etc/beagle/server-settings.json` und konnte dadurch `enabled`/`auto_repair`/`max_age_hours` ignorieren.
+  - Folge: UI-Konfiguration und Host-Reaktion konnten auseinanderlaufen.
+- Fix:
+  - Watchdog liest jetzt standardmaessig denselben Manager-Datenpfad wie die Control-Plane (`${BEAGLE_MANAGER_DATA_DIR:-/var/lib/beagle/beagle-manager}/server-settings.json`).
+  - Live auf `srv1` und `srv2` verifiziert: `PUT /settings/artifacts/watchdog` + `POST /settings/artifacts/watchdog/check` fuehren jetzt zu konsistentem `watchdog.config` und `watchdog.status`.
+- Rest-Risiko:
+  - Solange der Artifact-Refresh selbst noch fehlschlaegt bzw. Artefakte fehlen, meldet der Watchdog korrekt `drift`; das ist kein Sicherheitsproblem, sondern Betriebszustand.
+
+---
+
 ## S-021 — Cluster-Preflight und RPC-Port waren zu offen (PATCHED, REST-RISIKO 8443)
 
 - Status: **kritische Punkte gepatcht/live gehärtet** (2026-04-26)

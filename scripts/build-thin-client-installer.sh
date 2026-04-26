@@ -10,6 +10,7 @@ THINCLIENT_ARCH="${THINCLIENT_ARCH:-amd64}"
 PROJECT_VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION" 2>/dev/null || echo dev)"
 THINCLIENT_MIN_BUILD_FREE_GIB="${BEAGLE_THINCLIENT_MIN_BUILD_FREE_GIB:-16}"
 THINCLIENT_MIN_DIST_FREE_GIB="${BEAGLE_THINCLIENT_MIN_DIST_FREE_GIB:-4}"
+THINCLIENT_LB_BUILD_ATTEMPTS="${BEAGLE_THINCLIENT_LB_BUILD_ATTEMPTS:-2}"
 OWNER_UID="${SUDO_UID:-$(id -u)}"
 OWNER_GID="${SUDO_GID:-$(id -g)}"
 MOONLIGHT_URL="${PVE_THIN_CLIENT_MOONLIGHT_URL:-https://github.com/moonlight-stream/moonlight-qt/releases/download/v6.1.0/Moonlight-6.1.0-x86_64.AppImage}"
@@ -427,13 +428,25 @@ chmod 0755 "$BUILD_DIR"
 
 pushd "$BUILD_DIR" >/dev/null
 chmod +x auto/config
-THINCLIENT_ARCH="$THINCLIENT_ARCH" ./auto/config
-lb clean --purge || true
-BUILD_RC=0
-set +e
-lb build
-BUILD_RC=$?
-set -e
+BUILD_RC=1
+attempt=1
+while (( attempt <= THINCLIENT_LB_BUILD_ATTEMPTS )); do
+  THINCLIENT_ARCH="$THINCLIENT_ARCH" ./auto/config
+  lb clean --purge || true
+  set +e
+  lb build
+  BUILD_RC=$?
+  set -e
+  if [[ "$BUILD_RC" -eq 0 ]]; then
+    break
+  fi
+  echo "live-build attempt $attempt/$THINCLIENT_LB_BUILD_ATTEMPTS failed with status $BUILD_RC" >&2
+  if (( attempt < THINCLIENT_LB_BUILD_ATTEMPTS )); then
+    echo "Retrying thin-client live-build after cleanup..." >&2
+    cleanup_stale_build_mounts
+  fi
+  attempt=$((attempt + 1))
+done
 if [[ "$BUILD_RC" -ne 0 ]]; then
   echo "live-build exited with status $BUILD_RC; rebuilding final live assets and installer ISO from the staged rootfs." >&2
 fi

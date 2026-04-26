@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Beagle artifacts watchdog regularly
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Unit=beagle-artifacts-watchdog.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target
