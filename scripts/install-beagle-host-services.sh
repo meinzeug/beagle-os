@@ -116,6 +116,21 @@ print(crypt.crypt(password, f"$6${salt}$"))
 PY
 }
 
+run_account_cmd() {
+  local attempt=0
+  local max_attempts=5
+  while true; do
+    if "$@"; then
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    if (( attempt >= max_attempts )); then
+      return 1
+    fi
+    sleep 2
+  done
+}
+
 resolve_qemu_system_package() {
   local package_name=""
 
@@ -316,12 +331,12 @@ SSHCFG
 ensure_root "$@"
 
 if ! id "$BEAGLE_CONTROL_USER" >/dev/null 2>&1; then
-  useradd --system --home-dir /var/lib/beagle --no-create-home --shell /usr/sbin/nologin "$BEAGLE_CONTROL_USER"
+  run_account_cmd useradd --system --home-dir /var/lib/beagle --no-create-home --shell /usr/sbin/nologin "$BEAGLE_CONTROL_USER"
 fi
 
 for runtime_group in libvirt kvm; do
   if getent group "$runtime_group" >/dev/null 2>&1; then
-    usermod -a -G "$runtime_group" "$BEAGLE_CONTROL_USER"
+    run_account_cmd usermod -a -G "$runtime_group" "$BEAGLE_CONTROL_USER"
   fi
 done
 
@@ -329,8 +344,8 @@ if ! id "$USB_TUNNEL_USER" >/dev/null 2>&1; then
   if [[ -z "$USB_TUNNEL_HOME" ]]; then
     USB_TUNNEL_HOME="/var/lib/beagle/${USB_TUNNEL_USER}"
   fi
-  useradd --system --home-dir "$USB_TUNNEL_HOME" --create-home --shell /bin/bash "$USB_TUNNEL_USER"
-  usermod -p "$(generate_password_hash)" "$USB_TUNNEL_USER"
+  run_account_cmd useradd --system --home-dir "$USB_TUNNEL_HOME" --create-home --shell /bin/bash "$USB_TUNNEL_USER"
+  run_account_cmd usermod -p "$(generate_password_hash)" "$USB_TUNNEL_USER"
 fi
 if [[ -z "$USB_TUNNEL_HOME" ]]; then
   USB_TUNNEL_HOME="$(getent passwd "$USB_TUNNEL_USER" | cut -d: -f6)"
