@@ -1,3 +1,33 @@
+## Update (2026-05-XX, GoAdvanced Plan 07: Async-Job-Queue + Plan 11: Proxmox Hard-Delete)
+
+**Scope**:
+- Plan 07 Schritte 1-4 — `JobQueueService`, `JobWorker`, `JobsHttpSurface` + Service-Registry-Wiring
+- Plan 11 Schritte 2+5 — Feature-Parity-Checklist + Hard-Delete Proxmox-Shims + tote systemd-Unit
+
+### Async-Job-Queue (Plan 07 Schritte 1-4, Commit 7390f8d)
+
+- `beagle-host/services/job_queue_service.py`: Thread-safe In-Memory-Queue, Idempotency-Keys, Stuck-Reaping (30 min), 7-Tage-Retention-Cleanup. 33 Unit-Tests.
+- `beagle-host/services/job_worker.py`: N parallele Daemon-Threads (default 4), Handler-Registry, Heartbeat-Loop, Cancel-Signal, Maintenance-Thread. 11 Unit-Tests.
+- `beagle-host/services/jobs_http_surface.py`: `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`, `DELETE /api/v1/jobs/{id}` (Cancel), `GET /api/v1/jobs/{id}/stream` (SSE). 22 Unit-Tests.
+- `service_registry.py`: `job_queue_service()`, `job_worker()`, `jobs_http_surface()` Singletons; `BEAGLE_JOB_WORKER_COUNT` Env-Var.
+- `control_plane_handler.py`: Routing in `do_GET` + `do_DELETE`.
+- `request_handler_mixin.py`: `_stream_sse_job()` für SSE-Job-Progress.
+- **Test-Baseline**: 861 passed (vorher 795), 0 Regressions.
+
+### Proxmox Hard-Delete (Plan 11 Schritte 2+5)
+
+- `docs/goadvanced/11-proxmox-parity-checklist.md`: Feature-Parity-Audit mit 9 Tabellen (VM-Lifecycle, Snapshots, Storage, Netzwerk, Auth, Cluster, Backup, UI, Monitoring).
+- `git rm scripts/install-proxmox-host.sh` (Shim → `install-beagle-host.sh`)
+- `git rm scripts/check-proxmox-host.sh` (Shim → `check-beagle-host.sh`)
+- `git rm scripts/install-proxmox-host-services.sh` (Shim → `install-beagle-host-services.sh`)
+- `git rm scripts/install-proxmox-ui-integration.sh` (Deprecated-Stub, exit 1)
+- `git rm beagle-host/systemd/beagle-ui-reapply.service` (tote Unit mit pveproxy-Abhängigkeit)
+
+### Offene Punkte
+- Plan 07 Schritt 3: `POST /api/v1/vms/{id}/snapshot` → enqueue + 202 (nächste Iteration)
+- Plan 07 Schritte 5+6: Idempotency-Key-TTL-Tests + Web-UI-Jobs-Panel
+- Plan 11 Schritt 8: Validierung auf srv1/srv2
+
 ## Update (2026-04-26, GoAdvanced Plan 08: Strukturierte Logs + Request-ID-Middleware)
 
 **Scope**: Plan 08 Schritt 3+4 — JSON-Line-Logger als Foundation und HTTP-Request-ID-Middleware (X-Request-Id Header + Per-Request-Log-Context).

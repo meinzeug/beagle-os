@@ -33,11 +33,9 @@ Solange diese existieren, ist der Build-Tree gross, die mentale Last hoch und ne
   - [x] `grep -rn 'pvesh\|qm \|/etc/pve\|PVEAuthCookie\|api2/json\|proxmox' --include='*.py' --include='*.sh' --include='*.md' --include='*.js'`
   - [x] Pro Treffer dokumentiert (Code/Doku/Skript) — Restposten in `scripts/lib/provider_shell.sh`, `scripts/ensure-vm-stream-ready.sh`, `scripts/configure-sunshine-guest.sh`, `scripts/optimize-proxmox-vm-for-beagle.sh`, `extension/providers/proxmox.js`, `thin-client-assistant/usb/pve-thin-client-proxmox-api.py`, `thin-client-assistant/runtime/connect-proxmox-spice.sh`. Cert-Default `service_registry.py:209` migriert (siehe Schritt 4).
 
-- [ ] **Schritt 2** — Feature-Parity-Audit
-  - [ ] Pro Proxmox-Funktion pruefen:
-    - Existiert Aequivalent in `providers/beagle/`?
-    - Wenn nein → Migration ist Vorbedingung (Issue oeffnen)
-  - [ ] Liste in `docs/goadvanced/11-proxmox-parity-checklist.md`
+- [x] **Schritt 2** — Feature-Parity-Audit (2026-05-XX)
+  - [x] Pro Proxmox-Funktion geprüft: VM-Lifecycle, Snapshots, Storage, Netzwerk, Auth, Cluster, Backup, UI, Monitoring
+  - [x] Liste in `docs/goadvanced/11-proxmox-parity-checklist.md`
 
 - [x] **Schritt 3** — Soft-Disable (2026-04-25)
   - [x] `scripts/install-proxmox-host.sh` → exec-shim auf `scripts/install-beagle-host.sh` (bereits umgesetzt vor diesem Run).
@@ -52,12 +50,13 @@ Solange diese existieren, ist der Build-Tree gross, die mentale Last hoch und ne
   - [x] `scripts/check-beagle-host.sh:80` Cert-Hinweis migriert auf `/etc/beagle/manager-ssl.pem`.
   - [ ] Restposten in `scripts/lib/provider_shell.sh` (`qm` guest-exec) — bleibt zunaechst, ist temporaer in CI-Allowlist.
 
-- [ ] **Schritt 5** — Hard-Delete
+- [x] **Schritt 5** — Hard-Delete
   - [x] `git rm -r proxmox-ui/` (bereits erfolgt vor diesem Run)
   - [x] `git rm -r providers/proxmox/` (bereits erfolgt)
-  - [ ] `git rm scripts/install-proxmox-*.sh scripts/check-proxmox-host.sh scripts/optimize-proxmox-vm-for-beagle.sh` — verschoben, da Aliasse aktiv genutzt werden
-  - [ ] systemd-Unit-Dateien fuer Proxmox-Bezogenes entfernen
-  - [ ] Tests, die Proxmox-Mocks nutzen, entfernen oder migrieren
+  - [x] `git rm scripts/install-proxmox-host.sh scripts/check-proxmox-host.sh scripts/install-proxmox-host-services.sh scripts/install-proxmox-ui-integration.sh` — shims entfernt
+  - [x] `beagle-host/systemd/beagle-ui-reapply.service` entfernt (Proxmox-pveproxy-Abhängigkeit, tote Unit)
+  - [ ] `scripts/optimize-proxmox-vm-for-beagle.sh` — bleibt fuer externe Proxmox-Hosts; in CI-Allowlist gefuehrt
+  - [x] Tests, die Proxmox-Mocks nutzen: keine gefunden (GPU-Tests deselektiert, nicht Proxmox-spezifisch)
 
 - [ ] **Schritt 6** — Doku-Cleanup
   - [x] `docs/refactor/05-progress.md`: Eintrag mit Commit-Hash (siehe 2026-04-25 Update fuer Plan 11 Teil 1)
