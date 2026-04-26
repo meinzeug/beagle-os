@@ -27,15 +27,15 @@ Es gibt bereits den Helper `beagle_curl_tls_args` in `thin-client-assistant/runt
 ## Schritte
 
 - [x] **Schritt 1** — Inventur und Dokumentation
-  - [ ] `grep -RIn 'curl.*-k\|curl.*--insecure\|verify=False' --include='*.sh' --include='*.py' --include='*.tpl' .` → Liste in `docs/refactor/11-security-findings.md`
-  - [ ] Jede Stelle klassifizieren: (a) interne Beagle-zu-Beagle, (b) externe Drittanbieter, (c) Test-Code
+  - [x] `grep -RIn 'curl.*-k\|curl.*--insecure\|verify=False' --include='*.sh' --include='*.py' --include='*.tpl' .` → Liste in `docs/refactor/11-security-findings.md`
+  - [x] Jede Stelle klassifizieren: (a) interne Beagle-zu-Beagle, (b) externe Drittanbieter, (c) Test-Code
 
 - [x] **Schritt 2** — Cert-Pinning-Helper konsolidieren
-  - [ ] `scripts/lib/beagle_curl_safe.sh` erstellen, der `beagle_curl_tls_args` reusable macht
-  - [ ] `core/security/http_client.py` (Python) erstellen mit:
+  - [x] `scripts/lib/beagle_curl_safe.sh` erstellen, der `beagle_curl_tls_args` reusable macht
+  - [x] `core/security/http_client.py` (Python) erstellen mit:
     - `secure_get(url, ca_path=None, pinned_pubkey=None, timeout=30)`
     - Wrapper um `requests` mit `verify=ca_path` und Pinning-Verification
-  - [ ] Tests: `tests/unit/test_secure_http_client.py` (Mock requests; verifiziert dass `verify=False` nie gesetzt wird)
+  - [x] Tests: `tests/unit/test_secure_http_client.py` (Mock requests; verifiziert dass `verify=False` nie gesetzt wird) — 15 Tests
 
 - [x] **Schritt 3** — Skripte umstellen (in 4 PRs)
   - [ ] PR 3a: `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl` → `beagle_curl_tls_args`
@@ -55,8 +55,8 @@ Es gibt bereits den Helper `beagle_curl_tls_args` in `thin-client-assistant/runt
   - [ ] Test: `curl -I https://srv1.beagle-os.com/` → alle Header vorhanden
 
 - [x] **Schritt 5** — CI-Guard
-  - [ ] `.github/workflows/security-tls-check.yml` neu: grep nach `curl.*-k\|curl.*--insecure\|verify=False` schlaegt fehl ausser in Allowlist
-  - [ ] Allowlist-Datei `docs/security/tls-bypass-allowlist.md` mit Begruendung pro Eintrag
+  - [x] `.github/workflows/security-tls-check.yml` neu: grep nach `curl.*-k\|curl.*--insecure\|verify=False` schlaegt fehl ausser in Allowlist
+  - [x] Allowlist-Datei `docs/security/tls-bypass-allowlist.md` mit Begruendung pro Eintrag (3 Eintraege)
 
 - [x] **Schritt 6** — Verifikation auf srv1
   - [ ] `ssh srv1.beagle-os.com 'curl -I https://localhost/api/v1/health'` zeigt HSTS-Header

@@ -85,3 +85,34 @@ beagle_curl_insecure_test() {
     "$@" \
     "$url"
 }
+
+# ---------------------------------------------------------------------------
+# beagle_curl_tls_args
+#   Outputs (via _BEAGLE_CURL_TLS_ARGS array) the reusable TLS curl args.
+#   Use when you need to compose curl calls manually:
+#
+#     beagle_curl_tls_args
+#     curl "${_BEAGLE_CURL_TLS_ARGS[@]}" ... "$url"
+#
+# Respects:
+#   BEAGLE_CA_CERT          — path to CA bundle (default: /etc/beagle/tls/ca.crt)
+#   BEAGLE_TLS_PINNED_PUBKEY — SHA-256 pubkey pin for --pinnedpubkey
+#   BEAGLE_TLS_SKIP=1       — enables --insecure (test-only, warns loudly)
+# ---------------------------------------------------------------------------
+beagle_curl_tls_args() {
+  _BEAGLE_CURL_TLS_ARGS=()
+
+  if [[ "${BEAGLE_TLS_SKIP:-0}" == "1" ]]; then
+    echo "[beagle_curl_tls_args][WARNING] TLS verification disabled via BEAGLE_TLS_SKIP — TEST USE ONLY" >&2
+    _BEAGLE_CURL_TLS_ARGS=(--insecure)
+    return 0
+  fi
+
+  if [[ -f "${BEAGLE_CA_CERT:-}" ]]; then
+    _BEAGLE_CURL_TLS_ARGS+=(--cacert "$BEAGLE_CA_CERT")
+  fi
+
+  if [[ -n "${BEAGLE_TLS_PINNED_PUBKEY:-}" ]]; then
+    _BEAGLE_CURL_TLS_ARGS+=(--pinnedpubkey "$BEAGLE_TLS_PINNED_PUBKEY")
+  fi
+}
