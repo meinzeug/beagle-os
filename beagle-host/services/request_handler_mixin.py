@@ -454,7 +454,7 @@ class HandlerMixin:
 
     def _is_authenticated(self) -> bool:
         path = urlparse(self.path).path.rstrip("/") or "/"
-        if path in {"/healthz", "/api/v1/health"}:
+        if path == "/healthz":
             return True
         return self._auth_principal() is not None
 
@@ -779,4 +779,3 @@ class HandlerMixin:
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
-

@@ -79,6 +79,36 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("AAAA/IPv6 DNS record", result["error"])
 
+    def test_get_artifacts_reports_missing_and_present_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            install_dir = Path(tmpdir) / "beagle"
+            dist = install_dir / "dist"
+            dist.mkdir(parents=True)
+            (dist / "beagle-downloads-status.json").write_text('{"version":"test"}\n', encoding="utf-8")
+            (dist / "pve-thin-client-live-usb-latest.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            service = ServerSettingsService(data_dir=Path(tmpdir) / "data", install_dir=install_dir)
+
+            with mock.patch.object(MODULE, "_run_cmd", return_value="active"):
+                result = service.get_artifacts()
+
+        self.assertFalse(result["ready"])
+        self.assertIn("pve-thin-client-usb-installer-latest.sh", result["missing"])
+        self.assertEqual(result["status"]["version"], "test")
+        self.assertEqual(result["services"]["beagle-artifacts-refresh.service"], "active")
+
+    def test_start_artifact_refresh_starts_systemd_service(self):
+        service = self.make_service()
+        proc = mock.Mock()
+        proc.returncode = 0
+        proc.stderr = ""
+        with mock.patch.object(MODULE.subprocess, "run", return_value=proc) as run, \
+             mock.patch.object(service, "get_artifacts", return_value={"ready": True}):
+            result = service.start_artifact_refresh()
+
+        self.assertTrue(result["ok"])
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[0], ["systemctl", "start", "beagle-artifacts-refresh.service"])
+
 
 if __name__ == "__main__":
     unittest.main()

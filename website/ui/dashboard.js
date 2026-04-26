@@ -82,6 +82,7 @@ export function loadDashboard(options) {
   }
   dashboardHooks.setBanner('Lade Beagle Manager...', 'info');
   dashboardLoadInFlight = request('/auth/me').then((me) => {
+    const shouldLoadIam = state.activePanel === 'iam';
     const endpointRequests = [
       request('/health'),
       request('/vms'),
@@ -89,9 +90,10 @@ export function loadDashboard(options) {
       request('/policies'),
       request('/virtualization/overview'),
       request('/ha/status', { __suppressAuthLock: true }),
+      request('/cluster/status', { __suppressAuthLock: true }),
       request('/provisioning/catalog', { __suppressAuthLock: true }),
-      request('/auth/users', { __suppressAuthLock: true }),
-      request('/auth/roles', { __suppressAuthLock: true }),
+      shouldLoadIam ? request('/auth/users', { __suppressAuthLock: true }) : Promise.resolve(state.authUsers),
+      shouldLoadIam ? request('/auth/roles', { __suppressAuthLock: true }) : Promise.resolve(state.authRoles),
       request('/pools', { __suppressAuthLock: true }),
       request('/pool-templates', { __suppressAuthLock: true }),
       request('/sessions', { __suppressAuthLock: true })
@@ -103,12 +105,13 @@ export function loadDashboard(options) {
       const policies = results[3].status === 'fulfilled' ? (results[3].value || {}) : {};
       const virtualizationOverview = results[4].status === 'fulfilled' ? (results[4].value || null) : null;
       const haStatus = results[5].status === 'fulfilled' ? (results[5].value || null) : null;
-      const provisioningCatalog = results[6].status === 'fulfilled' ? (results[6].value || { catalog: null }) : { catalog: null };
-      const authUsers = results[7].status === 'fulfilled' && Array.isArray(results[7].value) ? results[7].value : [];
-      const authRoles = results[8].status === 'fulfilled' && Array.isArray(results[8].value) ? results[8].value : [];
-      const pools = results[9].status === 'fulfilled' ? (results[9].value || { pools: [] }) : { pools: [] };
-      const templates = results[10].status === 'fulfilled' ? (results[10].value || { templates: [] }) : { templates: [] };
-      const sessions = results[11].status === 'fulfilled' ? (results[11].value || { sessions: [] }) : { sessions: [] };
+      const clusterStatus = results[6].status === 'fulfilled' ? (results[6].value || null) : null;
+      const provisioningCatalog = results[7].status === 'fulfilled' ? (results[7].value || { catalog: null }) : { catalog: null };
+      const authUsers = results[8].status === 'fulfilled' && Array.isArray(results[8].value) ? results[8].value : [];
+      const authRoles = results[9].status === 'fulfilled' && Array.isArray(results[9].value) ? results[9].value : [];
+      const pools = results[10].status === 'fulfilled' ? (results[10].value || { pools: [] }) : { pools: [] };
+      const templates = results[11].status === 'fulfilled' ? (results[11].value || { templates: [] }) : { templates: [] };
+      const sessions = results[12].status === 'fulfilled' ? (results[12].value || { sessions: [] }) : { sessions: [] };
       const failedRequests = results.filter((result) => result.status !== 'fulfilled').length;
 
       state.user = me.user || null;
@@ -116,6 +119,7 @@ export function loadDashboard(options) {
       state.endpointReports = endpoints.endpoints || [];
       state.policies = policies.policies || [];
       state.virtualizationOverview = virtualizationOverview;
+      state.clusterStatus = clusterStatus;
       state.haStatus = haStatus;
       state.provisioningCatalog = provisioningCatalog.catalog || null;
       state.authUsers = authUsers;

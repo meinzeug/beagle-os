@@ -1,16 +1,25 @@
 """Cluster + HA HTTP Surface — Plan 05 Schritt 3c.
 
 Handles:
-  GET  /api/v1/cluster/inventory
-  GET  /api/v1/cluster/nodes
-  GET  /api/v1/cluster/status
-  GET  /api/v1/ha/status
-  POST /api/v1/cluster/init
-  POST /api/v1/cluster/join-token
-  POST /api/v1/cluster/apply-join
-  POST /api/v1/cluster/join
-  POST /api/v1/ha/reconcile-failed-node
-  POST /api/v1/ha/maintenance/drain
+  GET    /api/v1/cluster/inventory
+  GET    /api/v1/cluster/nodes
+  GET    /api/v1/cluster/status
+  GET    /api/v1/cluster/local-preflight
+  GET    /api/v1/ha/status
+  POST   /api/v1/cluster/init
+  POST   /api/v1/cluster/setup-code
+  POST   /api/v1/cluster/add-server-preflight
+  POST   /api/v1/cluster/auto-join
+  POST   /api/v1/cluster/join-token
+  POST   /api/v1/cluster/join-existing
+  POST   /api/v1/cluster/join-with-setup-code
+  POST   /api/v1/cluster/leave-local
+  POST   /api/v1/cluster/apply-join
+  POST   /api/v1/cluster/join
+  POST   /api/v1/ha/reconcile-failed-node
+  POST   /api/v1/ha/maintenance/drain
+  PATCH  /api/v1/cluster/members/{name}
+  DELETE /api/v1/cluster/members/{name}
 
 Extracted from beagle-control-plane.py (Plan 05 Schritt 3c).
 """
@@ -25,12 +34,20 @@ class ClusterHttpSurfaceService:
         "/api/v1/cluster/inventory",
         "/api/v1/cluster/nodes",
         "/api/v1/cluster/status",
+        "/api/v1/cluster/local-preflight",
         "/api/v1/ha/status",
     }
+    _MEMBERS_PREFIX = "/api/v1/cluster/members/"
     _POST_PATHS = {
         "/api/v1/cluster/init",
+        "/api/v1/cluster/setup-code",
+        "/api/v1/cluster/add-server-preflight",
+        "/api/v1/cluster/auto-join",
         "/api/v1/cluster/join-token",
+        "/api/v1/cluster/join-existing",
+        "/api/v1/cluster/leave-local",
         "/api/v1/cluster/apply-join",
+        "/api/v1/cluster/join-with-setup-code",
         "/api/v1/cluster/join",
         "/api/v1/cluster/migrate",
         "/api/v1/ha/reconcile-failed-node",
@@ -81,7 +98,13 @@ class ClusterHttpSurfaceService:
     # ------------------------------------------------------------------
 
     def handles_get(self, path: str) -> bool:
-        return path in self._GET_PATHS
+        return path in self._GET_PATHS or path.startswith(self._MEMBERS_PREFIX)
+
+    def handles_patch(self, path: str) -> bool:
+        return path.startswith(self._MEMBERS_PREFIX)
+
+    def handles_delete(self, path: str) -> bool:
+        return path.startswith(self._MEMBERS_PREFIX)
 
     def route_get(self, path: str) -> dict[str, Any] | None:
         if path in {"/api/v1/cluster/inventory", "/api/v1/cluster/nodes"}:
@@ -94,6 +117,81 @@ class ClusterHttpSurfaceService:
 
         if path == "/api/v1/ha/status":
             return self._json(HTTPStatus.OK, {"ok": True, **self._build_ha_status()})
+
+        if path == "/api/v1/cluster/local-preflight":
+            try:
+                result = self._cluster_membership.local_preflight_kvm_libvirt()
+            except Exception as exc:
+                return self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(exc)})
+            return self._json(HTTPStatus.OK, result)
+
+        return None
+
+    # ------------------------------------------------------------------
+    # PATCH routing
+    # ------------------------------------------------------------------
+
+    def route_patch(
+        self,
+        path: str,
+        *,
+        json_payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        p = json_payload or {}
+        requester = self._requester_identity()
+
+        if path.startswith(self._MEMBERS_PREFIX):
+            node_name = path[len(self._MEMBERS_PREFIX):].split("/")[0]
+            if not node_name:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "node_name is required in path"})
+            try:
+                result = self._cluster_membership.update_member(
+                    node_name=node_name,
+                    display_name=str(p.get("display_name") or ""),
+                    api_url=str(p.get("api_url") or ""),
+                    rpc_url=str(p.get("rpc_url") or ""),
+                    enabled=p.get("enabled") if "enabled" in p else None,
+                )
+            except RuntimeError as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._audit_event(
+                "cluster.member.updated",
+                "success",
+                node_name=node_name,
+                username=requester,
+            )
+            return self._json(HTTPStatus.OK, result)
+
+        return None
+
+    # ------------------------------------------------------------------
+    # DELETE routing
+    # ------------------------------------------------------------------
+
+    def route_delete(
+        self,
+        path: str,
+    ) -> dict[str, Any] | None:
+        requester = self._requester_identity()
+
+        if path.startswith(self._MEMBERS_PREFIX):
+            node_name = path[len(self._MEMBERS_PREFIX):].split("/")[0]
+            if not node_name:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "node_name is required in path"})
+            try:
+                result = self._cluster_membership.remove_member(
+                    node_name=node_name,
+                    requester_node_name=self._cluster_node_name,
+                )
+            except RuntimeError as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._audit_event(
+                "cluster.member.removed",
+                "success",
+                node_name=node_name,
+                username=requester,
+            )
+            return self._json(HTTPStatus.OK, result)
 
         return None
 
@@ -133,6 +231,124 @@ class ClusterHttpSurfaceService:
             except Exception as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
             return self._json(HTTPStatus.CREATED, {"ok": True, **result})
+
+        if path == "/api/v1/cluster/setup-code":
+            try:
+                result = self._cluster_membership.create_setup_code(
+                    ttl_seconds=int(p.get("ttl_seconds") or 600)
+                )
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._audit_event(
+                "cluster.setup_code.create",
+                "success",
+                ttl_seconds=int(result.get("ttl_seconds") or 0),
+                username=requester,
+            )
+            return self._json(HTTPStatus.CREATED, {"ok": True, **result})
+
+        if path == "/api/v1/cluster/add-server-preflight":
+            try:
+                result = self._cluster_membership.preflight_add_server(
+                    node_name=str(p.get("node_name") or "").strip(),
+                    api_url=str(p.get("api_url") or "").strip(),
+                    advertise_host=str(p.get("advertise_host") or "").strip(),
+                    rpc_url=str(p.get("rpc_url") or "").strip(),
+                    ssh_port=int(p.get("ssh_port") or 22),
+                    timeout=float(p.get("timeout") or 3.0),
+                    issue_join_token=bool(p.get("issue_join_token")),
+                    token_ttl_seconds=int(p.get("token_ttl_seconds") or 900),
+                )
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._audit_event(
+                "cluster.add_server_preflight",
+                "success" if result.get("ok") else "failed",
+                node_name=str(result.get("node_name") or ""),
+                api_url=str(result.get("api_url") or ""),
+                username=requester,
+            )
+            return self._json(HTTPStatus.OK, {"ok": True, "preflight": result})
+
+        if path == "/api/v1/cluster/auto-join":
+            try:
+                result = self._cluster_membership.auto_join_server(
+                    setup_code=str(p.get("setup_code") or "").strip(),
+                    node_name=str(p.get("node_name") or "").strip(),
+                    api_url=str(p.get("api_url") or "").strip(),
+                    advertise_host=str(p.get("advertise_host") or "").strip(),
+                    rpc_url=str(p.get("rpc_url") or "").strip(),
+                    ssh_port=int(p.get("ssh_port") or 22),
+                    timeout=float(p.get("timeout") or 5.0),
+                    token_ttl_seconds=int(p.get("token_ttl_seconds") or 900),
+                )
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._audit_event(
+                "cluster.auto_join",
+                "success" if result.get("ok") else "failed",
+                node_name=str((result.get("preflight") or {}).get("node_name") or ""),
+                api_url=str((result.get("preflight") or {}).get("api_url") or ""),
+                username=requester,
+            )
+            return self._json(HTTPStatus.OK, {"ok": True, "auto_join": result})
+
+        if path == "/api/v1/cluster/join-existing":
+            try:
+                result = self._cluster_membership.join_existing_cluster(
+                    join_token=str(p.get("join_token") or "").strip(),
+                    node_name=str(p.get("node_name") or self._cluster_node_name).strip(),
+                    api_url=str(p.get("api_url") or self._public_manager_url).strip(),
+                    advertise_host=str(p.get("advertise_host") or self._public_server_name).strip(),
+                    rpc_url=str(p.get("rpc_url") or "").strip(),
+                    leader_api_url=str(p.get("leader_api_url") or "").strip(),
+                )
+                self._ensure_rpc()
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._audit_event(
+                "cluster.join_existing",
+                "success",
+                node_name=str((result.get("member") or {}).get("name") or ""),
+                leader_api_url=str(result.get("leader_api_url") or ""),
+                username=requester,
+            )
+            return self._json(HTTPStatus.OK, {"ok": True, **result})
+
+        if path == "/api/v1/cluster/join-with-setup-code":
+            try:
+                result = self._cluster_membership.join_with_setup_code(
+                    setup_code=str(p.get("setup_code") or "").strip(),
+                    join_token=str(p.get("join_token") or "").strip(),
+                    leader_api_url=str(p.get("leader_api_url") or "").strip(),
+                    node_name=str(p.get("node_name") or self._cluster_node_name).strip(),
+                    api_url=str(p.get("api_url") or self._public_manager_url).strip(),
+                    advertise_host=str(p.get("advertise_host") or self._public_server_name).strip(),
+                    rpc_url=str(p.get("rpc_url") or "").strip(),
+                )
+                self._ensure_rpc()
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._audit_event(
+                "cluster.join_with_setup_code",
+                "success",
+                node_name=str((result.get("member") or {}).get("name") or ""),
+            )
+            return self._json(HTTPStatus.OK, {"ok": True, **result})
+
+        if path == "/api/v1/cluster/leave-local":
+            try:
+                result = self._cluster_membership.leave_local_cluster()
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._audit_event(
+                "cluster.leave_local",
+                "success",
+                detached_node=str(result.get("detached_node") or ""),
+                former_leader_node=str(result.get("former_leader_node") or ""),
+                username=requester,
+            )
+            return self._json(HTTPStatus.OK, result)
 
         if path == "/api/v1/cluster/apply-join":
             try:

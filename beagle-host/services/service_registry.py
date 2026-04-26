@@ -2453,6 +2453,8 @@ def cluster_membership_service() -> ClusterMembershipService:
             public_manager_url=PUBLIC_MANAGER_URL,
             rpc_port=CLUSTER_RPC_PORT,
             utcnow=utcnow,
+            rpc_request=ClusterRpcService.request_json,
+            rpc_credentials=_cluster_local_rpc_credentials,
         )
     return CLUSTER_MEMBERSHIP_SERVICE
 
@@ -2474,7 +2476,10 @@ def _cluster_local_rpc_credentials() -> tuple[Path, Path, Path] | None:
 
 
 def build_cluster_inventory_snapshot() -> dict[str, Any]:
+    local_member = cluster_membership_service().local_member() or {}
     return {
+        "local_member_name": str(local_member.get("name") or "").strip(),
+        "local_member_api_url": str(local_member.get("api_url") or "").strip(),
         "nodes": list_nodes_inventory(),
         "vms": [
             {
@@ -2548,6 +2553,13 @@ def ensure_cluster_rpc_listener() -> None:
     rpc = ClusterRpcService(node_name=CLUSTER_NODE_NAME)
     rpc.register_method("cluster.ping", lambda params, peer: {"node": CLUSTER_NODE_NAME, "peer": peer.common_name})
     rpc.register_method("cluster.inventory.snapshot", lambda params, peer: build_cluster_inventory_snapshot())
+    rpc.register_method(
+        "cluster.member.leave",
+        lambda params, peer: cluster_membership_service().remove_member(
+            node_name=str((params or {}).get("node_name") or "").strip(),
+            requester_node_name=str(peer.common_name or "").strip(),
+        ),
+    )
     server, thread = rpc.serve_in_thread(
         host=CLUSTER_RPC_LISTEN_HOST,
         port=CLUSTER_RPC_PORT,
@@ -2963,6 +2975,7 @@ def virtualization_read_surface_service() -> VirtualizationReadSurfaceService:
     global VIRTUALIZATION_READ_SURFACE_SERVICE
     if VIRTUALIZATION_READ_SURFACE_SERVICE is None:
         VIRTUALIZATION_READ_SURFACE_SERVICE = VirtualizationReadSurfaceService(
+            build_cluster_inventory=build_cluster_inventory,
             find_vm=find_vm,
             get_guest_network_interfaces=lambda vmid: get_guest_network_interfaces(vmid, timeout_seconds=GUEST_AGENT_TIMEOUT_SECONDS),
             get_storage_quota=lambda pool_name: storage_quota_service().get_pool_quota(pool_name),
@@ -3486,5 +3499,3 @@ def render_vm_windows_installer_script(vm: VmSummary) -> tuple[bytes, str]:
 
 def extract_bearer_token(header_value: str) -> str:
     return request_support_service().extract_bearer_token(header_value)
-
-

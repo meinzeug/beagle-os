@@ -1,3 +1,147 @@
+## Update (2026-05-XX, Plan 07 Member-Edit/Local-Preflight + Plan 08 Virt-Panel UX)
+
+**Scope**: GoFuture Plan 07 — `update_member()`, PATCH/DELETE Member-Endpoints, Local-KVM/libvirt-Preflight; GoFuture Plan 08 — Node-Cards mit Health-Badges und Actions, Storage-Health-Spalte, Risk-Banner.
+
+### Umgesetzt
+
+- `beagle-host/services/cluster_membership.py`:
+  - `update_member()` neu: aendert `display_name`, `api_url`, `rpc_url`, `enabled`-Flag fuer beliebige Member.
+  - `local_preflight_kvm_libvirt()` neu: prueft `/dev/kvm`, `libvirtd`, `virsh -c qemu:///system`, control-plane auf 127.0.0.1:8006. Gibt Check-Liste mit pass/fail/warn zurueck.
+- `beagle-host/services/cluster_http_surface.py`:
+  - `handles_patch(path)` + `route_patch(path, json_payload)` neu: `PATCH /api/v1/cluster/members/{name}` → `update_member()`.
+  - `handles_delete(path)` + `route_delete(path)` neu: `DELETE /api/v1/cluster/members/{name}` → `remove_member()`.
+  - `GET /api/v1/cluster/local-preflight` neu: ruft `local_preflight_kvm_libvirt()` auf.
+- `website/ui/api.js`: `patchJson()` und `deleteJson()` exportiert.
+- `website/ui/cluster.js`:
+  - `openMemberEditForm()`, `saveClusterMemberEdit()`, `removeClusterMember()` neu.
+  - Edit/Remove-Buttons in jeder Zeile der Knotenübersicht.
+  - Click-Handler fuer `data-cluster-member-edit` und `data-cluster-member-remove`.
+- `website/index.html`: `#cluster-member-edit-modal` ergaenzt.
+- `website/ui/virtualization.js` — `renderVirtualizationPanel()`:
+  - Risk/Health-Banner (`#virt-risk-banner`): KVM fehlt, libvirt down, Storage >90%.
+  - KVM/libvirt-Health-Badges je Node-Card.
+  - Node-Card-Actions: `VMs filtern`, `Preflight`.
+  - Storage-Health-Spalte: ok/hoch/kritisch nach Fuellgrad.
+- `website/ui/events.js`: Click-Handler fuer `data-virt-node-filter` und `data-virt-local-preflight` in `nodes-grid`.
+- `website/index.html`: `#virt-risk-banner` vor `nodes-grid`, Storage-Tabelle hat Health-Spalte.
+- Tests: +18 neue Tests in `test_cluster_membership.py` (update_member, local_preflight) und `test_cluster_http_surface.py` (PATCH, DELETE, local-preflight).
+
+### Test-Baseline nach diesem Update
+
+- `python3 -m pytest tests/unit tests/integration -q --deselect ...` => **1062 passed** (vorher 1018, +44).
+
+### Rest-Risiken
+
+- `route_patch`/`route_delete` sind noch nicht in `control_plane_handler.py` verdrahtet — ein neuer HTTP-Dispatch-Pfad fuer PATCH/DELETE-Methoden muss im Handler hinzugefuegt werden.
+- Local-Preflight laeuft nur lokal auf dem Server der Anfrage; der Wizard-Flow fuer "Remote-Preflight vor Join" ist konzeptionell noch offen (Plan 07 Schritt bleibt teilweise offen).
+
+---
+
+## Update (2026-04-26, Cluster Leave Standard + Clusterweite Virtualization-Ansicht)
+
+**Scope**: GoFuture Plan 07 Schritt 7 weiter umgesetzt: Cluster-Member koennen sich jetzt kontrolliert ueber den Leader abmelden; die WebUI zeigt Cluster-/Virtualisierungsdaten auf `srv1` und `srv2` konsistent an.
+
+### Umgesetzt
+
+- `beagle-host/services/cluster_membership.py`: Leave-Flow auf 2-Phasen-Modell umgestellt. Ein Mitglied fordert `leave-local` an, der Leader entfernt den Node autoritativ per mTLS-RPC aus `members.json`, erst danach wird lokal aufgeraeumt.
+- `beagle-host/services/service_registry.py`: Cluster-RPC um `cluster.member.leave` verdrahtet; `ClusterMembershipService` bekommt RPC-Request/Credentials injiziert.
+- `beagle-host/services/cluster_http_surface.py`: `POST /api/v1/cluster/leave-local` dient jetzt als sicherer Einstieg fuer den standardisierten Member-Leave.
+- `website/ui/cluster.js` und `website/index.html`: normale Cluster-Mitglieder zeigen keinen allgemeinen Aktionsbereich mehr; der Leave-Button sitzt nur noch im Technikbereich und erklaert den Ablauf laienfreundlich.
+- `beagle-host/services/virtualization_read_surface.py`: `GET /api/v1/virtualization/overview` verwendet jetzt bevorzugt die clusterweite Inventory-Aggregation statt nur lokale Nodes.
+- `tests/unit/test_virtualization_read_surface.py` neu; Cluster-/AuthZ-/HTTP-Surface-Tests fuer den Leave-Flow erweitert.
+- Live-Reparatur auf `srv1`: lokale `members.json` wieder auf den realen Zwei-Node-Stand (`srv1`, `srv2`) gebracht, nachdem der Host nur noch sich selbst kannte.
+
+### Validierung
+
+- Lokal: `python3 -m py_compile beagle-host/services/virtualization_read_surface.py beagle-host/services/service_registry.py` OK.
+- Lokal: `python3 -m pytest tests/unit/test_virtualization_read_surface.py tests/unit/test_cluster_membership.py tests/unit/test_cluster_http_surface.py tests/unit/test_authz_policy.py -q` => **50 passed**.
+- Live: `srv1` und `srv2` neu ausgerollt und `beagle-control-plane` auf beiden Hosts neu gestartet.
+- Live: `/api/v1/virtualization/overview` liefert auf `srv1` und `srv2` dieselben Nodes: `beagle-0`, `beagle-1`, `srv1`, `srv2`.
+- Live: `/api/v1/cluster/status` liefert auf `srv1` und `srv2` dieselben Member: `srv1`, `srv2`.
+
+### Rest-Risiken
+
+- Die auf `srv1` gefundene Drift in `members.json` wurde live repariert, ist aber noch kein automatischer Reconcile-Pfad. Wenn ein Leader-Node seinen lokalen Cluster-State verliert, braucht es derzeit noch einen expliziten Sync-/Repair-Mechanismus.
+- Remote-KVM/libvirt-Preflight und Wizard-Job-Progress im Cluster-Panel bleiben offen.
+
+## Update (2026-04-26, Cluster Auto-Join Setup-Code + Login Runtime Fix)
+
+**Scope**: GoFuture Plan 07 Schritt 7 — echter Zielserver-Setup-Code fuer sicheren Auto-Join; Live-Runtime-Mix korrigiert, der `/auth/login` mit HTTP 500 brechen konnte.
+
+### Umgesetzt
+
+- `beagle-host/services/cluster_membership.py`: Setup-Code-Store ergaenzt (`setup-codes.json`, Modus 0600), Codes werden nur gehasht gespeichert, laufen nach 60-1800 Sekunden ab und sind einmalig nutzbar.
+- `POST /api/v1/cluster/setup-code`: authentifizierter Zielserver-Endpunkt zum Erzeugen eines Auto-Join-Codes.
+- `POST /api/v1/cluster/auto-join`: Leader-Endpunkt, der Hostname + Setup-Code verarbeitet, invasive offene Remote-Health-/Inventory-Abfragen vermeidet und den Join auf dem Zielserver ausloest.
+- `POST /api/v1/cluster/join-with-setup-code`: setup-code-geschuetzter Zielserver-Endpunkt fuer den Auto-Join.
+- Join-Tokens haben jetzt eine echte Ablaufpruefung; abgelaufene Tokens werden beim Einloesen verworfen.
+- WebUI `/#panel=cluster`: Zielserver kann Setup-Code erzeugen; Leader-Wizard fragt nur Servername + Setup-Code ab und zeigt Auto-Join-Ergebnis/Preflight laienfreundlich an.
+- Form-Readability-Fix: readonly Input-/Textarea-Felder nutzen dunklen Input-Hintergrund und lesbaren Text.
+
+### Validierung
+
+- Lokal: `py_compile` fuer Cluster/AuthZ/Handler OK.
+- Lokal: `node --check website/ui/cluster.js` OK.
+- Lokal: `bash -n scripts/check-beagle-host.sh` OK.
+- Lokal: `python3 -m pytest tests/unit/test_cluster_membership.py tests/unit/test_cluster_http_surface.py tests/unit/test_authz_policy.py -q` => **44 passed**.
+- Live-Hotfix vor diesem Slice: `srv1` und `srv2` akzeptieren Login wieder; die Control-Plane-Service-Dateien wurden synchronisiert und `beagle-control-plane` auf beiden Hosts neu gestartet.
+
+### Rest-Risiken
+
+- `srv2` Host-Check hat weiterhin einen bestehenden Artifact-/Download-Metadata-Mismatch; das ist nicht Teil des Login-/Setup-Code-Fixes.
+- `8443` bleibt als Legacy-Port oeffentlich und muss separat auf downloads-only reduziert oder geschlossen werden.
+- Remote-KVM/libvirt-Proof und Job-Progress fuer den Cluster-Wizard bleiben offen.
+
+## Update (2026-04-26, GoFuture Re-Open: WebUI-Operability + Cluster-Wizard-Slice)
+
+**Scope**: GoFuture-Plan wieder geoeffnet, weil mehrere produktrelevante Bereiche zwar Backend-/Status-Funktion haben, aber noch nicht vollstaendig ueber die Beagle Web Console bedienbar sind.
+
+### Plan-Erweiterung in `docs/gofuture/`
+
+- `00-index.md`: Status von "Gate passed" auf aktiven Re-Open gesetzt und WebUI-Bedienbarkeit als Abschlussbedingung dokumentiert.
+- `07-cluster-foundation.md`: neuer Schritt 7 fuer Cluster-Operations-Wizards (`/#panel=cluster`): Cluster erstellen, Server hinzufuegen, Preflight, Job-Progress, Member-Verwaltung, Maintenance/Drain, srv1/srv2-Validierung.
+- `08-storage-plane.md` + `12-gpu-plane.md`: neue UX-/Bedienbarkeitsplaene fuer `/#panel=virtualization` mit Nodes, Storage, Bridges, VM Inspector, GPU/vGPU/SR-IOV.
+- `10-vdi-pools.md`: neuer Schritt 7 fuer `/#panel=policies` mit Pool-/Template-/Entitlement-/Policy-Refactor.
+- `13-iam-tenancy.md`: neuer Schritt 7 fuer `/#panel=iam` mit User-, Rollen-, IdP-, SCIM-, Session- und Tenant-Flows.
+- `15-audit-compliance.md`: neuer Schritt 6 fuer `/#panel=audit` mit Audit-Viewer, Report-Builder, Export-Zielen und Failure-Replay.
+- `06-server-installer.md`: neuer Schritt 6 fuer Host-/Artifact-Operations in der WebUI.
+
+### Erster umgesetzter Code-Slice
+
+- `beagle-host/services/cluster_membership.py`: `join_existing_cluster()` ergaenzt; ein Server kann ueber Token + Leader-API einem bestehenden Cluster aus seiner lokalen WebUI heraus beitreten.
+- `beagle-host/services/cluster_http_surface.py`: `POST /api/v1/cluster/join-existing` hinzugefuegt.
+- `beagle-host/services/authz_policy.py`: Route auf `cluster:write` gelegt.
+- `website/ui/cluster.js`, `website/ui/dashboard.js`, `website/ui/state.js`, `website/index.html`: Cluster-Panel um Setup-Card und drei Wizards erweitert (`Cluster erstellen`, `Join-Token erzeugen`, `dieser Server tritt bestehendem Cluster bei`).
+
+### Validierung
+
+- Lokal: `python3 -m pytest tests/unit/test_cluster_membership.py tests/unit/test_cluster_http_surface.py tests/unit/test_authz_policy.py tests/unit/test_vm_api_regressions.py` => **42 passed**.
+- `node --check website/ui/cluster.js && node --check website/ui/dashboard.js && node --check website/ui/state.js` => OK.
+- `srv1`: KVM/libvirt/control-plane/nginx/noVNC laufen; Artefakt-Refresh ist noch aktiv und baut den Server-Installer via `live-build`.
+- `srv2`: KVM/libvirt/control-plane laufen; NVIDIA GTX 1080 wird erkannt, ist aber wegen nicht isolierbarer IOMMU-Gruppe nicht passthrough-ready.
+- Terraform gegen echte `srv1`-API: VM create/destroy erfolgreich validiert.
+
+### Bekannte Rest-Risiken
+
+- Leader-seitiger "Server hinzufügen"-Wizard fehlt noch; bisher existiert nur der lokale Join-Wizard und die API-Grundlage.
+- Live-Migration zwischen `srv1` und `srv2` bleibt blockiert: libvirt/qemu+ssh haengt in `migration out`/paused target trotz SSH/libvirt-Reachability.
+- Artifact-/Release-Gate ist nicht abgeschlossen, solange der laufende `srv1`-Build und danach `scripts/check-beagle-host.sh` nicht erfolgreich durchlaufen.
+
+### Nachtrag Cluster-Wizard-Slice
+
+- `POST /api/v1/cluster/add-server-preflight` ergaenzt: Leader prueft Zielserver-DNS, API-TCP, API-Health, RPC-TCP, SSH-TCP und Node-Name-Duplikate.
+- Der WebUI-Wizard "Server vom Leader aus vorbereiten" erzeugt nur bei bestandenem Pflicht-Preflight ein Join-Token.
+- Remote-KVM/libvirt-Proof und Remote-Join bleiben offen, weil dafuer ein authentifizierter Zielserver-Flow ohne Secret-Leak benoetigt wird.
+
+### Nachtrag Artifact-Operations-Slice
+
+- `GET /api/v1/settings/artifacts` ergaenzt: liest `dist/beagle-downloads-status.json`, `/var/lib/beagle/refresh.status.json`, Pflichtartefakte und systemd Service-/Timer-Status.
+- `POST /api/v1/settings/artifacts/refresh` ergaenzt: startet `beagle-artifacts-refresh.service` und kehrt ohne langen blocking Request zurueck.
+- `/#panel=settings_updates` zeigt jetzt Artefakt-Readiness, fehlende Pflichtartefakte, Refresh-Service/Timer und eine Artefakt-Tabelle.
+- Lokal: Cluster + Settings + VM-Regressions => **47 passed**.
+
+---
+
 ## Update (2026-05-XX, GoEnterprise Plan 10: GPU-Streaming-Pools)
 
 **Scope**: Plan 10 — GPU Assignment Modi, Pool-Manager GPU-Typen, Dashboard, AI-Scheduler Integration
@@ -2924,3 +3068,20 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 
 ### Test-Baseline
 - **990 passed** (unit + integration), 4 deselected — +22 neue Tests in diesem Run
+
+## Update (2026-04-26, Security audit: public ports and cluster preflight hardening)
+
+- Audited `srv1.beagle-os.com` and `srv2.beagle-os.com` for externally reachable ports and unauthenticated API exposure.
+- Found externally reachable before hardening: `22`, `80`, `443`, `8443`, `9089`.
+- Patched and deployed:
+	- `9089` is now protected by persistent iptables chain `BEAGLE_CLUSTER_RPC_9089` on both hosts, allowing only localhost and the peer IP.
+	- `/api/v1/health` no longer bypasses authentication; unauthenticated public access now returns `401`.
+	- `/api/v1/auth/onboarding/status` now exposes only `pending/completed` publicly.
+	- Cluster add-server preflight no longer fetches unauthenticated `/health` from target hosts; `api_health` is skipped until a real remote setup-token flow exists.
+- Verification after hardening:
+	- External TCP test shows only `22`, `80`, `443`, `8443` reachable.
+	- `srv1`/`srv2`: `/beagle-api/api/v1/health` -> `401`; `/cluster/status` -> `401`; onboarding status contains no `completed_by`/`user_count`.
+	- Local tests: `python3 -m pytest tests/unit/test_cluster_membership.py tests/unit/test_cluster_http_surface.py tests/unit/test_authz_policy.py` -> 37 passed.
+- Remaining risk:
+	- `8443` remains public as legacy download/API port and must be reduced to downloads-only or retired after installer/download paths are moved to `443`.
+	- `srv2` still serves a self-signed TLS certificate on public HTTPS.

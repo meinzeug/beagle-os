@@ -1,5 +1,48 @@
 # Security Findings
 
+Stand: 2026-04-26 (ergänzt: S-021 Cluster-Preflight/Port-Härtung + Setup-Code Auto-Join)
+
+## S-021 — Cluster-Preflight und RPC-Port waren zu offen (PATCHED, REST-RISIKO 8443)
+
+- Status: **kritische Punkte gepatcht/live gehärtet** (2026-04-26)
+- Risiko vorher: **Hoch**
+- Risiko nach Fix: **Mittel** wegen weiter öffentlich erreichbarem Legacy-Port `8443`
+- Betroffene Server: `srv1.beagle-os.com`, `srv2.beagle-os.com`
+- Betroffene Dateien:
+  - `beagle-host/services/request_handler_mixin.py`
+  - `beagle-host/services/auth_session_http_surface.py`
+  - `beagle-host/services/cluster_membership.py`
+  - `scripts/harden-cluster-api-iptables.sh` (live erneut fuer `9089` genutzt)
+  - `/etc/iptables/rules.v4` auf `srv1` und `srv2`
+- Gefundene Ist-Situation:
+  - Von extern erreichbar waren `22`, `80`, `443`, `8443`, `9089`.
+  - `9088` war bereits peer-gefiltert, `9089` aber noch nicht.
+  - `/beagle-api/api/v1/health` lieferte ohne Login detaillierte Betriebsinformationen.
+  - `/beagle-api/api/v1/auth/onboarding/status` lieferte ohne Login interne Details wie `completed_by` und `user_count`.
+  - Der Cluster-Preflight rief auf Zielservern unauthentifiziert `/health` ab.
+- Fix:
+  - `9089` auf beiden Hosts mit persistenter iptables-Chain `BEAGLE_CLUSTER_RPC_9089` auf localhost + Peer-IP begrenzt.
+  - `/api/v1/health` erfordert jetzt Authentifizierung; nur `/healthz` bleibt als minimaler Liveness-Pfad public.
+  - Onboarding-Status gibt public nur noch `pending` und `completed` aus.
+  - Cluster-Preflight macht keine unauthentifizierte `/health`-Abfrage mehr; `api_health` wird bis zum echten Remote-Setup-Token als `skipped` markiert.
+  - Zielserver-Setup-Code umgesetzt: `POST /api/v1/cluster/setup-code` erzeugt nach Login einen kurzlebigen Einmal-Code, speichert nur den SHA-256-Hash und gibt keine Secrets ins Audit.
+  - Leader-Auto-Join umgesetzt: `POST /api/v1/cluster/auto-join` verbindet neue Server per Hostname + Setup-Code; der Zielserver akzeptiert `POST /api/v1/cluster/join-with-setup-code` nur bei gültigem Code.
+  - Join-Tokens pruefen jetzt serverseitig ihr Ablaufdatum und werden nach Ablauf verworfen.
+  - Cluster-Member-Leave folgt jetzt einem Leader-bestaetigten 2-Phasen-Flow; ein normales Mitglied kann die Leader-Memberliste nicht mehr lokal still ueberschreiben.
+- Verifikation:
+  - Externer TCP-Test nach Fix: öffentlich erreichbar nur noch `22`, `80`, `443`, `8443`; `9088/9089` nicht mehr extern offen.
+  - Public API nach Fix: `/health` -> `401`, `/cluster/status` -> `401`, `/auth/onboarding/status` -> nur `{pending, completed}`.
+  - `9089` ohne Client-Zertifikat gab vorher keine Daten heraus (`TLS alert certificate required`), ist jetzt zusaetzlich netzseitig begrenzt.
+- Rest-Risiken:
+  - `8443` ist weiterhin öffentlich erreichbar und spiegelt Legacy-Download/API-Funktionen. Auth schützt Management-Routen, aber der Port vergrößert die Angriffsfläche.
+  - `22` ist öffentlich erreichbar; SSH-Key-Policy/Fail2ban/Allowlist muss separat bewertet werden.
+  - `srv2` nutzt derzeit ein self-signed TLS-Zertifikat auf `443/8443`.
+- Naechster Schritt:
+  - `8443` entweder auf reine Downloads ohne `/beagle-api` reduzieren oder per Firewall schließen, sobald alle Installer-/Download-Pfade auf `443` umgestellt sind.
+  - Remote-KVM/libvirt-Preflight nur ueber den setup-code-geschuetzten Zielserverpfad ausfuehren, nicht ueber offene Detail-Endpunkte.
+
+---
+
 Stand: 2026-04-25 (ergänzt: S-020 iptables-Härtung aktiv)
 
 ## S-020 — Cluster-Mode: API bindet auf 0.0.0.0 (PATCHED, HARDENED)
@@ -17,11 +60,14 @@ Stand: 2026-04-25 (ergänzt: S-020 iptables-Härtung aktiv)
   - Dadurch war Port 9088 grundsätzlich breit erreichbar.
 - Mitigationen aktiv:
   - API-Authentifizierung: alle Management-Endpoints erfordern `Authorization: Bearer` oder Session-Cookie
-  - Ausnahmen nur: `/api/v1/cluster/join` (join-token-validiert intern), `/api/v1/health`, öffentliche Endpoints
+  - Ausnahmen nur: `/api/v1/cluster/join` (join-token-validiert intern), `/healthz`, öffentliche Endpoints
   - Rate Limiting: 240 Requests/60s pro IP, Lockout nach 5 fehlgeschlagenen Logins (300s)
   - Neue IP-Allowlist-Chain `BEAGLE_CLUSTER_API_9088`:
     - `srv1`: erlaubt `127.0.0.1/32` und `176.9.127.50`, sonst DROP auf tcp/9088
     - `srv2`: erlaubt `127.0.0.1/32` und `46.4.96.80`, sonst DROP auf tcp/9088
+  - Neue IP-Allowlist-Chain `BEAGLE_CLUSTER_RPC_9089`:
+    - `srv1`: erlaubt `127.0.0.1/32` und `176.9.127.50`, sonst DROP auf tcp/9089
+    - `srv2`: erlaubt `127.0.0.1/32` und `46.4.96.80`, sonst DROP auf tcp/9089
   - Persistenz aktiv via `netfilter-persistent`/`iptables-persistent` (Regeln reboot-fest)
 - Verbleibende Restrisiken:
   - Public-IP-Transport bleibt ohne VPN grundsätzlich exponiert (trotz Auth + IP-Filter).
@@ -451,3 +497,19 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
 - Naechster Schritt:
   - Phase 2: optionaler Vault/AWS-Secrets-Manager-Adapter (deferred, Plan 03 Schritt 2 Phase 2).
   - S-016 (SCIM-Token) als naechstes SecretStore-integrieren.
+
+## S-018 - Operator-Debug-Traces koennen Runtime-Secrets in Logs ausgeben
+
+- Status: offen (prozessual erkannt, technischer Guard noch ausstehend)
+- Risiko: Mittel bis Hoch
+- Betroffene Bereiche:
+  - Operator-Ausfuehrung von Shell-Skripten mit `bash -x`
+  - Skripte, die `/etc/beagle/*.env` oder andere Secret-/Runtime-Env-Dateien sourcen
+- Beschreibung:
+  - Shell-xtrace kann expandierte Environment-Werte und Funktionsaufrufe in Terminal-/CI-/Agent-Logs schreiben.
+  - Wenn solche Skripte Runtime-Env-Dateien sourcen, koennen Tokens oder andere sensitive Werte in nicht dafuer vorgesehene Logs gelangen.
+  - In diesem Run wurden keine Secret-Werte in Repo-Dateien dokumentiert; der Fund betrifft die Arbeitsweise und kuenftige Reproduzierbarkeit.
+- Naechster Schritt:
+  - Operator-Runbooks und kritische Skripte so haerten, dass Secret-sourcende Abschnitte `set +x` erzwingen.
+  - Optional einen Shellcheck-/grep-Smoke ergaenzen, der `bash -x`/`set -x` in Kombination mit `/etc/beagle/*.env` markiert.
+  - WebUI-/Job-Logs duerfen Secret-Felder nur redacted anzeigen.

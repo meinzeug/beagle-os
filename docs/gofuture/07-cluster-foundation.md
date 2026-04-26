@@ -198,10 +198,51 @@ ist zunächst ausreichend.
 
 ---
 
+### Schritt 7 — Cluster-Operations-Wizards in der Web Console
+
+- [x] Cluster-Panel nicht mehr nur als Anzeige behandeln, sondern als Operator-Bereich mit Setup-Card erweitern.
+- [x] WebUI-Wizard "Neuen Cluster auf diesem Server erstellen" mit Feldern `node_name`, `api_url`, `advertise_host` ergänzen.
+- [x] WebUI-Wizard "Join-Token für neuen Server erzeugen" ergänzen und erzeugtes Token sichtbar/kopierbar machen.
+- [x] Backend-Endpunkt `POST /api/v1/cluster/join-existing` ergänzen, damit ein Server einem bestehenden Cluster aus seiner lokalen WebUI heraus beitreten kann.
+- [x] WebUI-Wizard "Diesen Server bestehendem Cluster hinzufügen" ergänzen (`join_token`, optional `leader_api_url`, lokaler Node/API/RPC Host).
+- [x] Leader-seitigen Wizard "Server hinzufügen" als ersten sicheren Schnitt bauen: Hostname/IP, API-URL, RPC-URL, SSH-Port erfassen, Preflight starten und Join-Token nach bestandenem Pflicht-Preflight erzeugen.
+- [x] WebUI erkennt den lokalen Leader-Status und zeigt ihn markant an; Leader-only Aktionen werden nur auf dem Leader sichtbar.
+- [x] Leader-Wizard laienfreundlich vereinfachen: Standardansicht fragt nur den Servername (`srv2.beagle-os.com`) ab; API/RPC/SSH-Werte werden automatisch abgeleitet und nur im Expertenbereich angezeigt.
+- [x] Unsichere Vorpruefung entfernt: Leader ruft auf Zielservern kein unauthentifiziertes `/health` mehr ab; `9089` ist live auf `srv1`/`srv2` peer-gefiltert.
+- [x] Wizard-Preflight für neue Server implementieren: DNS, API-TCP, API-Health, RPC-TCP, SSH-TCP, Hostname eindeutig; KVM/libvirt werden bewusst als `skipped` markiert, bis ein authentifizierter Remote-Preflight-Job existiert.
+- [x] Authentifizierten Remote-Join aus dem Leader-Wizard ergänzen: Leader nimmt Hostname + kurzlebigen Zielserver-Setup-Code entgegen und löst den Auto-Join ohne manuelles SSH aus; Secret-Werte werden nicht auditiert.
+- [x] Zielserver-Setup-Code implementieren: Zielserver erzeugt nach Login einen kurzlebigen Code; Leader-Wizard verifiziert damit den Zielserver, ohne offene Health-/Inventory-Daten aus dem Internet zu ziehen.
+- [x] Remote-KVM/libvirt-Preflight ergänzen: `/dev/kvm`, libvirt aktiv, `beagle-control-plane` erreichbar, Port 9088/9089 offen, Uhrzeit plausibel.
+- [ ] Wizard-Progress über Jobs modellieren: Schritte `preflight`, `token`, `remote-join`, `rpc-check`, `inventory-refresh`, `final-validation` mit sichtbarem Fortschritt und Fehlerdetails.
+- [x] Cluster-Member editierbar machen: Anzeigename/API-URL/RPC-URL ändern, Member deaktivieren/entfernen, Reachability neu prüfen.
+- [ ] Maintenance/Drain in denselben Operator-Flow integrieren: Bestätigung, betroffene VMs anzeigen, Job-Fortschritt, Ergebnisliste.
+- [x] srv1/srv2-End-to-End validieren: `srv1` als Leader, `srv2` per WebUI hinzufügen, Cluster-Status auf beiden Seiten prüfen.
+- [ ] Live-Migration nach erfolgreichem Join erneut validieren und dokumentieren; aktueller Blocker ist der hängende libvirt-Migrationslauf mit `migration out`/paused target.
+- [ ] UI-Regressions für Cluster-Wizards ergänzen: Buttons sichtbar, Payloads korrekt, Fehlerzustände rendern, Dashboard refresh nach Erfolg.
+- [x] API-Regressionstests für `join-existing`, Preflight-Basispfade und RBAC `cluster:write` ergänzen.
+
+Umsetzung 2026-04-26:
+- Zielserver-Setup-Codes sind jetzt echte Runtime-Artefakte (`POST /api/v1/cluster/setup-code`): Code wird nur gehasht gespeichert, ist kurzlebig, einmalig nutzbar und wird nicht in Audit-Events geschrieben.
+- Der Leader-Wizard "Weiteren Server vorbereiten" fragt nur Servername plus Setup-Code ab und ruft `POST /api/v1/cluster/auto-join` auf.
+- Der Auto-Join fuehrt nur DNS/API-TCP/SSH-TCP als nicht-invasive Checks aus; kein offenes `/health` oder Inventory wird vom Zielserver abgefragt.
+- Der Zielserver akzeptiert `POST /api/v1/cluster/join-with-setup-code` ohne Session nur dann, wenn der Setup-Code gültig ist; danach wird der normale mTLS-/Join-Token-Pfad genutzt.
+- Join-Tokens haben jetzt eine echte serverseitige Ablaufpruefung und werden nach Ablauf verworfen.
+- WebUI-Fallback fuer manuelles Join-Token bleibt als Expertenpfad erhalten, ist aber nicht mehr der Standardablauf.
+- Cluster-Mitglieder loesen sich jetzt branchenueblich in zwei Schritten: das Mitglied fordert den Leave lokal an, der Leader entfernt es autoritativ per mTLS-RPC aus der Memberliste und erst danach wird der lokale Cluster-State geloescht.
+- Die Cluster-WebUI blendet auf normalen Mitgliedern den Aktionsbereich aus und bietet den Leave nur im Technikbereich an; der lokale Leader bleibt markant sichtbar.
+- `GET /api/v1/virtualization/overview` nutzt jetzt clusterweit aggregierte Nodes aus `cluster/inventory`, damit beide WebUIs dieselbe Knotenliste zeigen statt nur den lokalen Host.
+- Live-Validierung auf `srv1` und `srv2`: `/virtualization/overview` und `/cluster/inventory` liefern auf beiden Hosts `beagle-0`, `beagle-1`, `srv1`, `srv2`; `/cluster/status` zeigt `srv1` und `srv2`.
+- Lokale Regression: `python3 -m pytest tests/unit/test_virtualization_read_surface.py tests/unit/test_cluster_membership.py tests/unit/test_cluster_http_surface.py tests/unit/test_authz_policy.py -q` => `50 passed`.
+
+Warum dieser Schritt noch offen war:
+Die bisherigen Cluster-Schritte haben API, mTLS-RPC, Join-Token, Installer-Join und Statusanzeigen geliefert. Für Betreiber fehlte aber der wichtigste Teil: der geführte Ablauf in der Web Console, um einen Cluster zu erstellen und Server hinzuzufügen. Ohne diese Wizards bleibt Cluster-Setup ein SSH-/CLI-Prozess und ist damit nicht produktreif. `srv1` und `srv2` existieren inzwischen als reale Validierungsumgebung; deshalb muss der Plan nicht mehr auf hypothetische Hardware warten. Der aktuelle Stand beweist außerdem, dass reine API-Reachability nicht reicht: `srv1`/`srv2` können sich per SSH/libvirt erreichen, aber der Live-Migrations-Smoke blieb hängen und braucht sichtbare Diagnose- und Recovery-Flows in der WebUI.
+
+---
+
 ## Testpflicht nach Abschluss
 
 - [x] Zwei QEMU-VMs als Cluster-Knoten gestartet, beide in Web Console sichtbar.
-- [x] Live-Migration einer laufenden Test-VM von Host A nach Host B erfolgreich. [HARDWARE-GEBLOCKT — kein zweiter erreichbarer libvirt-Host von srv1 aus; srv2 nicht im Cluster; wird bei erstem Multi-Node-Produktions-Setup validiert]
+- [ ] Live-Migration einer laufenden Test-VM von Host A nach Host B erfolgreich. [AKTUELL BLOCKIERT — `srv1` und `srv2` sind per SSH/libvirt erreichbar, aber qemu+ssh Live-Migration haengt in `migration out`/paused target; braucht Debug oder Shared-Storage-Abnahmepfad]
 - [x] Knoten-Ausfall: Web Console zeigt Knoten als unreachable innerhalb von 10 Sekunden.
 - [x] Cluster-Join über Installer-Dialog funktioniert auf frisch installiertem Host.
 

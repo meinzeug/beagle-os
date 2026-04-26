@@ -85,6 +85,24 @@ kann dann entweder den Pool verkleinern oder neue GPU-Hardware hinzufügen.
 
 ---
 
+### Schritt 6 — `/#panel=virtualization` UX-Refactor: GPU/vGPU/SR-IOV bedienbar machen
+
+- [ ] GPU-Bereich im Virtualization-Panel neu strukturieren: physische GPUs, Passthrough, vGPU/mdev und SR-IOV getrennt anzeigen.
+- [ ] GPU-Readiness klar erklären: IOMMU-Gruppe, aktueller Treiber, `passthrough_ready`, Status `available|assigned|not-isolatable|driver-bound`.
+- [ ] Für nicht nutzbare GPUs konkrete Ursache und nächsten Schritt anzeigen, z.B. `IOMMU-Gruppe enthält Root Port`, `ACS fehlt`, `vfio-pci nicht aktiv`, `Host-Reboot erforderlich`.
+- [ ] GPU-Zuweisung als Wizard bauen: GPU wählen, Ziel-VM wählen, Risiko-/Reboot-Hinweis, XML-Änderung bestätigen, Ergebnis anzeigen.
+- [ ] Release/Detach als eigener Flow mit Bestätigung und sichtbarer Auswirkung auf VM-/GPU-State.
+- [ ] vGPU/mdev-Flow verbessern: unterstützte Typen als Cards, Slot-Kapazität, Erzeugen/Löschen/Zuweisen mit Fehlerzuständen.
+- [ ] SR-IOV-Flow verbessern: VF-Anzahl setzen, VFs anzeigen, VM-Zuweisung vorbereiten, Kernel-/Hardware-Constraints erklären.
+- [ ] srv2-spezifischen Status sichtbar machen: NVIDIA GTX 1080 vorhanden, `vfio-pci` gebunden, aber `passthrough_ready=false` wegen nicht isolierbarer IOMMU-Gruppe.
+- [ ] UI-Regressions ergänzen: not-isolatable Rendering, Wizard-Payload, Assign/Release-Fehler, mdev/SR-IOV Empty-States.
+- [ ] E2E-Validierung erst abhaken, wenn eine VM-seitige GPU-Prüfung (`nvidia-smi` oder äquivalent) erfolgreich ist oder der Hardware-Blocker explizit als nicht lösbar entschieden wurde.
+
+Warum dieser Schritt noch offen ist:
+Die GPU-APIs und erste Tabellen existieren, aber die WebUI muss Betreiber vor gefährlichen oder unmöglichen Aktionen schützen. `srv2` zeigt den typischen Fall: Die GPU ist vorhanden und an `vfio-pci` gebunden, aber wegen IOMMU-Gruppierung nicht sauber isolierbar. Das darf nicht als generischer Fehler in einer Tabelle verschwinden, sondern muss als verständliche Handlungsanweisung in der Web Console erscheinen.
+
+---
+
 ## Testpflicht nach Abschluss
 
 - [x] GPU-Passthrough: NVIDIA GTX 1080 (GP104, 0000:01:00.0) auf srv2 an vfio-pci gebunden. API meldet `driver: vfio-pci`. **Hardware-Constraint**: IOMMU-Gruppe 1 enthält PCIe Root Port (00:01.0) — kein ACS in Hardware, kein `pcie_acs_override` in Stock-Debian-6.1-Kernel. VM-seitiger `nvidia-smi`-Test erfordert whole-group-passthrough (OVMF + NVIDIA-Treiber in VM) — defer auf Wunsch des Betreibers. Inventory-API korrekt: `passthrough_ready: false, status: not-isolatable`.

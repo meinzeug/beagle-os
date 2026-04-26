@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import json
 import secrets
+import shutil
+import socket
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -21,12 +26,16 @@ class ClusterMembershipService:
         public_manager_url: str,
         rpc_port: int,
         utcnow,
+        rpc_request=None,
+        rpc_credentials=None,
     ) -> None:
         self._data_dir = Path(data_dir)
         self._ca_service = ca_service
         self._public_manager_url = str(public_manager_url or "").strip().rstrip("/")
         self._rpc_port = int(rpc_port)
         self._utcnow = utcnow
+        self._rpc_request = rpc_request
+        self._rpc_credentials = rpc_credentials
 
     def cluster_dir(self) -> Path:
         path = self._data_dir / "cluster"
@@ -41,6 +50,9 @@ class ClusterMembershipService:
 
     def join_tokens_file(self) -> Path:
         return self.cluster_dir() / "join-tokens.json"
+
+    def setup_codes_file(self) -> Path:
+        return self.cluster_dir() / "setup-codes.json"
 
     def _read_json(self, path: Path, default: Any) -> Any:
         try:
@@ -93,6 +105,247 @@ class ClusterMembershipService:
             raise ValueError("cluster host is required")
         return f"https://{normalized_host}:{int(self._rpc_port)}/rpc"
 
+    @staticmethod
+    def _api_v1_url(base_url: str, path: str) -> str:
+        base = str(base_url or "").strip().rstrip("/")
+        route = "/" + str(path or "").strip().lstrip("/")
+        if not base:
+            raise ValueError("leader api url is required")
+        parsed = urlparse(base)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("leader api url must be an absolute http(s) URL")
+        if base.endswith("/api/v1"):
+            return f"{base}{route}"
+        return f"{base}/api/v1{route}"
+
+    @staticmethod
+    def _healthz_url(base_url: str) -> str:
+        base = str(base_url or "").strip().rstrip("/")
+        if not base:
+            raise ValueError("api url is required")
+        if base.endswith("/api/v1"):
+            base = base[:-len("/api/v1")]
+        return f"{base}/healthz"
+
+    @staticmethod
+    def _post_json(url: str, payload: dict[str, Any], *, timeout: float = 15.0) -> dict[str, Any]:
+        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=body,
+            method="POST",
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                response_body = resp.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            error_body = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"cluster leader returned HTTP {exc.code}: {error_body[:500]}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"cluster leader unreachable: {exc.reason}") from exc
+        parsed = json.loads(response_body or "{}")
+        if not isinstance(parsed, dict):
+            raise RuntimeError("cluster leader returned invalid JSON")
+        if parsed.get("ok") is False:
+            raise RuntimeError(str(parsed.get("error") or "cluster leader rejected join"))
+        return parsed
+
+    @staticmethod
+    def _tcp_check(host: str, port: int, *, timeout: float = 3.0) -> tuple[bool, str]:
+        try:
+            with socket.create_connection((host, int(port)), timeout=timeout):
+                return True, "reachable"
+        except OSError as exc:
+            return False, str(exc)
+
+    @staticmethod
+    def _preflight_check(name: str, status: str, message: str, *, required: bool = True) -> dict[str, Any]:
+        return {
+            "name": name,
+            "status": status,
+            "message": message,
+            "required": bool(required),
+        }
+
+    def preflight_add_server(
+        self,
+        *,
+        node_name: str,
+        api_url: str,
+        advertise_host: str = "",
+        rpc_url: str = "",
+        ssh_port: int = 22,
+        timeout: float = 3.0,
+        issue_join_token: bool = False,
+        token_ttl_seconds: int = 900,
+        require_rpc: bool = True,
+    ) -> dict[str, Any]:
+        normalized_node = str(node_name or "").strip()
+        normalized_api_url = str(api_url or "").strip().rstrip("/")
+        normalized_host = str(advertise_host or self._host_from_url(normalized_api_url)).strip()
+        normalized_rpc_url = str(rpc_url or "").strip().rstrip("/")
+        if not normalized_rpc_url and normalized_host:
+            normalized_rpc_url = self._build_rpc_url(host=normalized_host)
+
+        checks: list[dict[str, Any]] = []
+        if not self.is_initialized():
+            checks.append(self._preflight_check("cluster_initialized", "fail", "cluster is not initialized"))
+        else:
+            checks.append(self._preflight_check("cluster_initialized", "pass", "cluster is initialized"))
+
+        if not normalized_node:
+            checks.append(self._preflight_check("node_name", "fail", "node_name is required"))
+        elif any(str(member.get("name") or "") == normalized_node for member in self.list_members() if isinstance(member, dict)):
+            checks.append(self._preflight_check("node_name", "fail", f"node '{normalized_node}' already exists"))
+        else:
+            checks.append(self._preflight_check("node_name", "pass", f"node '{normalized_node}' is available"))
+
+        if not normalized_api_url:
+            checks.append(self._preflight_check("api_url", "fail", "api_url is required"))
+            api_parsed = None
+        else:
+            api_parsed = urlparse(normalized_api_url)
+            if api_parsed.scheme not in {"http", "https"} or not api_parsed.hostname:
+                checks.append(self._preflight_check("api_url", "fail", "api_url must be an absolute http(s) URL"))
+            else:
+                checks.append(self._preflight_check("api_url", "pass", "api_url format is valid"))
+
+        if not normalized_host:
+            checks.append(self._preflight_check("advertise_host", "fail", "advertise_host is required"))
+        else:
+            try:
+                socket.getaddrinfo(normalized_host, None)
+                checks.append(self._preflight_check("dns", "pass", f"{normalized_host} resolves"))
+            except OSError as exc:
+                checks.append(self._preflight_check("dns", "fail", f"{normalized_host} does not resolve: {exc}"))
+
+        if api_parsed is not None and api_parsed.hostname:
+            api_port = int(api_parsed.port or (443 if api_parsed.scheme == "https" else 80))
+            ok, detail = self._tcp_check(api_parsed.hostname, api_port, timeout=timeout)
+            checks.append(self._preflight_check("api_tcp", "pass" if ok else "fail", f"{api_parsed.hostname}:{api_port} {detail}"))
+            checks.append(self._preflight_check(
+                "api_health",
+                "skipped",
+                "authenticated remote setup token required; unauthenticated health probes are not used",
+                required=False,
+            ))
+
+        rpc_parsed = urlparse(normalized_rpc_url)
+        if not require_rpc:
+            checks.append(self._preflight_check(
+                "rpc_tcp",
+                "skipped",
+                "RPC proof runs after setup-code verification and cluster join",
+                required=False,
+            ))
+        elif rpc_parsed.hostname:
+            rpc_port = int(rpc_parsed.port or self._rpc_port)
+            ok, detail = self._tcp_check(rpc_parsed.hostname, rpc_port, timeout=timeout)
+            checks.append(self._preflight_check("rpc_tcp", "pass" if ok else "fail", f"{rpc_parsed.hostname}:{rpc_port} {detail}"))
+        else:
+            checks.append(self._preflight_check("rpc_url", "fail", "rpc_url could not be derived"))
+
+        if normalized_host:
+            ok, detail = self._tcp_check(normalized_host, int(ssh_port or 22), timeout=timeout)
+            checks.append(self._preflight_check("ssh_tcp", "pass" if ok else "warn", f"{normalized_host}:{int(ssh_port or 22)} {detail}", required=False))
+        else:
+            checks.append(self._preflight_check("ssh_tcp", "skipped", "advertise_host missing", required=False))
+
+        checks.append(self._preflight_check("kvm", "skipped", "remote KVM/libvirt proof requires authenticated remote preflight job", required=False))
+        checks.append(self._preflight_check("libvirt", "skipped", "remote libvirt proof requires authenticated remote preflight job", required=False))
+
+        required_failed = [item for item in checks if item.get("required") and item.get("status") != "pass"]
+        payload: dict[str, Any] = {
+            "ok": not required_failed,
+            "node_name": normalized_node,
+            "api_url": normalized_api_url,
+            "advertise_host": normalized_host,
+            "rpc_url": normalized_rpc_url,
+            "checks": checks,
+            "summary": {
+                "passed": len([item for item in checks if item.get("status") == "pass"]),
+                "failed": len([item for item in checks if item.get("status") == "fail"]),
+                "warnings": len([item for item in checks if item.get("status") == "warn"]),
+                "skipped": len([item for item in checks if item.get("status") == "skipped"]),
+            },
+        }
+        if issue_join_token and payload["ok"]:
+            payload["join_token"] = self.create_join_token(ttl_seconds=token_ttl_seconds)
+        return payload
+
+    @staticmethod
+    def _setup_code_hash(code: str) -> str:
+        text = str(code or "").strip()
+        if not text:
+            raise ValueError("setup_code is required")
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def _load_setup_codes(self) -> dict[str, dict[str, Any]]:
+        payload = self._read_json(self.setup_codes_file(), {})
+        return payload if isinstance(payload, dict) else {}
+
+    def _cleanup_setup_codes(self) -> dict[str, dict[str, Any]]:
+        now = int(time.time())
+        codes = self._load_setup_codes()
+        cleaned: dict[str, dict[str, Any]] = {}
+        for digest, entry in codes.items():
+            if not isinstance(entry, dict):
+                continue
+            if bool(entry.get("used")):
+                cleaned[str(digest)] = entry
+                continue
+            if int(entry.get("expires_at") or 0) <= now:
+                continue
+            cleaned[str(digest)] = entry
+        if cleaned != codes:
+            self._write_json(self.setup_codes_file(), cleaned)
+        return cleaned
+
+    def create_setup_code(self, *, ttl_seconds: int = 600) -> dict[str, Any]:
+        if self.is_initialized():
+            raise RuntimeError("server is already part of a cluster")
+        ttl = max(60, min(1800, int(ttl_seconds or 600)))
+        code = "BGL-" + secrets.token_urlsafe(18)
+        digest = self._setup_code_hash(code)
+        expires_at = int(time.time()) + ttl
+        codes = self._cleanup_setup_codes()
+        codes[digest] = {
+            "hash": digest,
+            "created_at": self._utcnow(),
+            "expires_at": expires_at,
+            "used": False,
+        }
+        self._write_json(self.setup_codes_file(), codes)
+        return {
+            "setup_code": code,
+            "expires_at": expires_at,
+            "ttl_seconds": ttl,
+        }
+
+    def consume_setup_code(self, setup_code: str) -> None:
+        digest = self._setup_code_hash(setup_code)
+        codes = self._cleanup_setup_codes()
+        entry = codes.get(digest)
+        if not isinstance(entry, dict):
+            raise RuntimeError("invalid or expired setup code")
+        if bool(entry.get("used")):
+            raise RuntimeError("setup code already used")
+        if int(entry.get("expires_at") or 0) <= int(time.time()):
+            codes.pop(digest, None)
+            self._write_json(self.setup_codes_file(), codes)
+            raise RuntimeError("invalid or expired setup code")
+        stored_hash = str(entry.get("hash") or digest)
+        if not hmac.compare_digest(stored_hash, digest):
+            raise RuntimeError("invalid or expired setup code")
+        entry["used"] = True
+        entry["used_at"] = self._utcnow()
+        codes[digest] = entry
+        self._write_json(self.setup_codes_file(), codes)
+
     def cluster_state(self) -> dict[str, Any]:
         return self._read_json(self.state_file(), {})
 
@@ -120,12 +373,23 @@ class ClusterMembershipService:
             members.append(item)
         return members
 
+    def leader_member(self) -> dict[str, Any] | None:
+        leader_node = str(self.cluster_state().get("leader_node") or "").strip()
+        if not leader_node:
+            return None
+        for item in self.list_members():
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("name") or "").strip() == leader_node:
+                return item
+        return None
+
     def _probe_member_health(self, member: dict[str, Any], *, timeout: float = 3.0) -> bool:
-        """Return True if the member's API health endpoint responds 200."""
+        """Return True if the member's minimal liveness endpoint responds 200."""
         api_url = str(member.get("api_url") or "").strip().rstrip("/")
         if not api_url:
             return False
-        health_url = f"{api_url}/health"
+        health_url = self._healthz_url(api_url)
         try:
             req = urllib.request.Request(health_url, method="GET", headers={"Accept": "application/json"})
             with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -213,10 +477,12 @@ class ClusterMembershipService:
         local_member = self.local_member()
         if local_member is None:
             raise RuntimeError("cluster is not initialized")
+        ttl = max(60, min(86400, int(ttl_seconds or 900)))
         secret = secrets.token_urlsafe(24)
+        expires_at = int(time.time()) + ttl
         entry = {
             "secret": secret,
-            "expires_at": int(ttl_seconds),
+            "expires_at": expires_at,
             "created_at": self._utcnow(),
             "used": False,
         }
@@ -234,6 +500,8 @@ class ClusterMembershipService:
             "join_token": self._encode_join_token(token_payload),
             "leader_api_url": local_member.get("api_url", ""),
             "cluster_id": self.cluster_state().get("cluster_id", ""),
+            "expires_at": expires_at,
+            "ttl_seconds": ttl,
         }
 
     def _validate_join_secret(self, secret: str) -> None:
@@ -245,6 +513,10 @@ class ClusterMembershipService:
             raise RuntimeError("invalid cluster join token")
         if entry.get("used") is True:
             raise RuntimeError("cluster join token already used")
+        if int(entry.get("expires_at") or 0) <= int(time.time()):
+            tokens.pop(secret, None)
+            self._write_json(self.join_tokens_file(), tokens)
+            raise RuntimeError("cluster join token expired")
         entry["used"] = True
         entry["used_at"] = self._utcnow()
         tokens[secret] = entry
@@ -337,6 +609,128 @@ class ClusterMembershipService:
             "members": normalized_members,
         }
 
+    def join_existing_cluster(
+        self,
+        *,
+        join_token: str,
+        node_name: str,
+        api_url: str,
+        advertise_host: str,
+        rpc_url: str = "",
+        leader_api_url: str = "",
+    ) -> dict[str, Any]:
+        token_payload = self.decode_join_token(join_token)
+        leader_url = str(leader_api_url or token_payload.get("leader_api_url") or "").strip()
+        if not leader_url:
+            raise ValueError("leader api url is required")
+        normalized_node = str(node_name or "").strip()
+        normalized_api_url = str(api_url or self._public_manager_url).strip().rstrip("/")
+        normalized_host = str(advertise_host or self._host_from_url(normalized_api_url)).strip()
+        normalized_rpc_url = str(rpc_url or "").strip().rstrip("/")
+        if not normalized_rpc_url:
+            normalized_rpc_url = self._build_rpc_url(host=normalized_host)
+        if not normalized_node:
+            raise ValueError("node_name is required")
+        if not normalized_api_url or not normalized_host:
+            raise ValueError("api_url and advertise_host are required")
+
+        join_response = self._post_json(
+            self._api_v1_url(leader_url, "/cluster/join"),
+            {
+                "join_token": str(join_token or "").strip(),
+                "node_name": normalized_node,
+                "api_url": normalized_api_url,
+                "advertise_host": normalized_host,
+                "rpc_url": normalized_rpc_url,
+            },
+        )
+        applied = self.apply_join_response(node_name=normalized_node, payload=join_response)
+        return {
+            "leader_api_url": leader_url,
+            "join_response": {
+                "cluster_id": str((join_response.get("cluster") or {}).get("cluster_id") or ""),
+                "member": join_response.get("member") if isinstance(join_response.get("member"), dict) else {},
+                "member_count": len(join_response.get("members") if isinstance(join_response.get("members"), list) else []),
+            },
+            **applied,
+        }
+
+    def join_with_setup_code(
+        self,
+        *,
+        setup_code: str,
+        join_token: str,
+        node_name: str,
+        api_url: str,
+        advertise_host: str,
+        rpc_url: str = "",
+        leader_api_url: str = "",
+    ) -> dict[str, Any]:
+        if self.is_initialized():
+            raise RuntimeError("server is already part of a cluster")
+        self.consume_setup_code(setup_code)
+        return self.join_existing_cluster(
+            join_token=join_token,
+            node_name=node_name,
+            api_url=api_url,
+            advertise_host=advertise_host,
+            rpc_url=rpc_url,
+            leader_api_url=leader_api_url,
+        )
+
+    def auto_join_server(
+        self,
+        *,
+        setup_code: str,
+        node_name: str,
+        api_url: str,
+        advertise_host: str,
+        rpc_url: str = "",
+        ssh_port: int = 22,
+        timeout: float = 5.0,
+        token_ttl_seconds: int = 900,
+    ) -> dict[str, Any]:
+        if not str(setup_code or "").strip():
+            raise ValueError("setup_code is required")
+        preflight = self.preflight_add_server(
+            node_name=node_name,
+            api_url=api_url,
+            advertise_host=advertise_host,
+            rpc_url=rpc_url,
+            ssh_port=ssh_port,
+            timeout=timeout,
+            issue_join_token=False,
+            token_ttl_seconds=token_ttl_seconds,
+            require_rpc=False,
+        )
+        if not preflight.get("ok"):
+            return {"ok": False, "preflight": preflight}
+        token = self.create_join_token(ttl_seconds=token_ttl_seconds)
+        local_member = self.local_member() or {}
+        leader_api_url = str(local_member.get("api_url") or self._public_manager_url).strip()
+        target_response = self._post_json(
+            self._api_v1_url(str(api_url or "").strip(), "/cluster/join-with-setup-code"),
+            {
+                "setup_code": str(setup_code or "").strip(),
+                "join_token": str(token.get("join_token") or ""),
+                "leader_api_url": leader_api_url,
+                "node_name": str(node_name or "").strip(),
+                "api_url": str(api_url or "").strip(),
+                "advertise_host": str(advertise_host or "").strip(),
+                "rpc_url": str(rpc_url or "").strip(),
+            },
+            timeout=timeout,
+        )
+        return {
+            "ok": True,
+            "preflight": preflight,
+            "target": {
+                "cluster_id": str((target_response.get("cluster") or {}).get("cluster_id") or ""),
+                "member": target_response.get("member") if isinstance(target_response.get("member"), dict) else {},
+                "member_count": len(target_response.get("members") if isinstance(target_response.get("members"), list) else []),
+            },
+        }
+
     def status_payload(self) -> dict[str, Any]:
         state = self.cluster_state()
         members = self.list_members()
@@ -346,4 +740,218 @@ class ClusterMembershipService:
             "member_count": len(members),
             "local_member": self.local_member(),
             "initialized": self.is_initialized(),
+        }
+
+    def update_member(
+        self,
+        *,
+        node_name: str,
+        display_name: str = "",
+        api_url: str = "",
+        rpc_url: str = "",
+        enabled: bool | None = None,
+    ) -> dict[str, Any]:
+        if not self.is_initialized():
+            raise RuntimeError("cluster is not initialized")
+        target_name = str(node_name or "").strip()
+        if not target_name:
+            raise ValueError("node_name is required")
+        members = self.list_members()
+        updated: dict[str, Any] | None = None
+        updated_members: list[dict[str, Any]] = []
+        for item in members:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("name") or "").strip() == target_name:
+                m = dict(item)
+                if display_name:
+                    m["display_name"] = str(display_name).strip()
+                if api_url:
+                    m["api_url"] = str(api_url).strip().rstrip("/")
+                if rpc_url:
+                    m["rpc_url"] = str(rpc_url).strip().rstrip("/")
+                if enabled is not None:
+                    m["enabled"] = bool(enabled)
+                m["updated_at"] = self._utcnow()
+                updated = m
+                updated_members.append(m)
+            else:
+                updated_members.append(item)
+        if updated is None:
+            raise RuntimeError("cluster member not found")
+        self._write_json(self.members_file(), updated_members)
+        state = self.cluster_state()
+        state["updated_at"] = self._utcnow()
+        self._write_json(self.state_file(), state)
+        return {"ok": True, "member": updated}
+
+    def local_preflight_kvm_libvirt(self) -> dict[str, Any]:
+        import os
+        import subprocess
+
+        checks: list[dict[str, Any]] = []
+
+        # /dev/kvm
+        kvm_exists = os.path.exists("/dev/kvm")
+        checks.append(self._preflight_check(
+            "kvm_device",
+            "pass" if kvm_exists else "fail",
+            "/dev/kvm exists — KVM is enabled" if kvm_exists else "/dev/kvm not found — enable Intel VT-x / AMD-V and load kvm module",
+        ))
+
+        # libvirt daemon
+        libvirt_running = False
+        for svc in ("libvirtd", "libvirt"):
+            try:
+                result = subprocess.run(
+                    ["systemctl", "is-active", "--quiet", svc],
+                    timeout=5,
+                    check=False,
+                )
+                if result.returncode == 0:
+                    libvirt_running = True
+                    break
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        checks.append(self._preflight_check(
+            "libvirtd",
+            "pass" if libvirt_running else "fail",
+            "libvirtd is active" if libvirt_running else "libvirtd is not running — run: systemctl enable --now libvirtd",
+        ))
+
+        # virsh connection
+        virsh_ok = False
+        virsh_detail = "virsh not found"
+        try:
+            result = subprocess.run(
+                ["virsh", "-c", "qemu:///system", "version", "--daemon"],
+                timeout=5,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                virsh_ok = True
+                virsh_detail = result.stdout.strip().splitlines()[0] if result.stdout.strip() else "ok"
+            else:
+                virsh_detail = (result.stderr or result.stdout or "exit " + str(result.returncode)).strip()[:200]
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            virsh_detail = str(exc)
+        checks.append(self._preflight_check(
+            "virsh_connection",
+            "pass" if virsh_ok else "fail",
+            virsh_detail,
+        ))
+
+        # control-plane socket/port
+        cp_ok, cp_detail = self._tcp_check("127.0.0.1", 8006, timeout=2.0)
+        checks.append(self._preflight_check(
+            "control_plane_api",
+            "pass" if cp_ok else "warn",
+            "control-plane API reachable on 127.0.0.1:8006" if cp_ok else f"control-plane API not reachable on :8006 — {cp_detail}",
+            required=False,
+        ))
+
+        required_failed = [c for c in checks if c.get("required") and c.get("status") != "pass"]
+        return {
+            "ok": not required_failed,
+            "checks": checks,
+            "summary": {
+                "passed": len([c for c in checks if c.get("status") == "pass"]),
+                "failed": len([c for c in checks if c.get("status") == "fail"]),
+                "warnings": len([c for c in checks if c.get("status") == "warn"]),
+                "skipped": len([c for c in checks if c.get("status") == "skipped"]),
+            },
+        }
+
+    def remove_member(
+        self,
+        *,
+        node_name: str,
+        requester_node_name: str = "",
+    ) -> dict[str, Any]:
+        if not self.is_initialized():
+            raise RuntimeError("cluster is not initialized")
+        target_name = str(node_name or "").strip()
+        if not target_name:
+            raise ValueError("node_name is required")
+        leader_node = str(self.cluster_state().get("leader_node") or "").strip()
+        if leader_node and target_name == leader_node:
+            raise RuntimeError("cluster leader cannot be removed from cluster membership")
+        if requester_node_name and str(requester_node_name).strip() != target_name:
+            raise RuntimeError("requester is not allowed to remove a different cluster member")
+
+        members = self.list_members()
+        kept: list[dict[str, Any]] = []
+        removed_member: dict[str, Any] | None = None
+        for item in members:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("name") or "").strip() == target_name:
+                removed_member = dict(item)
+                continue
+            kept.append(item)
+        if removed_member is None:
+            raise RuntimeError("cluster member not found")
+        self._write_json(self.members_file(), kept)
+        state = self.cluster_state()
+        state["updated_at"] = self._utcnow()
+        self._write_json(self.state_file(), state)
+        return {
+            "ok": True,
+            "removed_node": target_name,
+            "remaining_member_count": len(kept),
+        }
+
+    def _cleanup_local_cluster_state(self, local_name: str) -> None:
+        node_dir = self._ca_service.nodes_dir() / str(local_name or "").strip()
+        if node_dir.exists():
+            shutil.rmtree(node_dir, ignore_errors=True)
+        cluster_dir = self.cluster_dir()
+        if cluster_dir.exists():
+            shutil.rmtree(cluster_dir, ignore_errors=True)
+
+    def leave_local_cluster(self) -> dict[str, Any]:
+        if not self.is_initialized():
+            raise RuntimeError("server is not part of a cluster")
+        local_member = self.local_member()
+        if not isinstance(local_member, dict):
+            raise RuntimeError("local cluster member not found")
+        leader_node = str(self.cluster_state().get("leader_node") or "").strip()
+        local_name = str(local_member.get("name") or "").strip()
+        if leader_node and local_name and leader_node == local_name:
+            raise RuntimeError("cluster leader cannot be detached locally")
+        leader_member = self.leader_member()
+        if not isinstance(leader_member, dict):
+            raise RuntimeError("cluster leader member not found")
+        leader_rpc_url = str(leader_member.get("rpc_url") or "").strip()
+        if not leader_rpc_url:
+            raise RuntimeError("cluster leader rpc_url is missing")
+        if self._rpc_request is None or self._rpc_credentials is None:
+            raise RuntimeError("cluster rpc leave workflow is not configured")
+        credentials = self._rpc_credentials()
+        if credentials is None:
+            raise RuntimeError("local cluster rpc credentials are unavailable")
+        cert_path, key_path, ca_cert_path = credentials
+        payload = self._rpc_request(
+            url=leader_rpc_url,
+            ca_cert_path=ca_cert_path,
+            cert_path=cert_path,
+            key_path=key_path,
+            method="cluster.member.leave",
+            params={"node_name": local_name},
+            request_id=f"cluster-leave-{local_name}",
+            timeout=5,
+            check_hostname=False,
+        )
+        result = payload.get("result") if isinstance(payload, dict) else {}
+        if not isinstance(result, dict) or result.get("ok") is not True:
+            raise RuntimeError("cluster leader did not confirm member removal")
+        self._cleanup_local_cluster_state(local_name)
+
+        return {
+            "ok": True,
+            "detached_node": local_name,
+            "former_leader_node": leader_node,
+            "leader_confirmed": True,
         }

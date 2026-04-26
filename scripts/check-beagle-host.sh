@@ -159,6 +159,56 @@ check_control_plane_novnc_rwpath() {
   record_failure
 }
 
+check_control_plane_runtime_imports() {
+  local service_dir="$INSTALL_DIR/beagle-host/services"
+  local bin_dir="$INSTALL_DIR/beagle-host/bin"
+  local required=(
+    "service_registry.py"
+    "job_queue_service.py"
+    "job_worker.py"
+    "jobs_http_surface.py"
+    "prometheus_metrics.py"
+    "health_aggregator.py"
+    "structured_logger.py"
+  )
+  local missing=0
+  local module
+  for module in "${required[@]}"; do
+    if [[ ! -f "$service_dir/$module" ]]; then
+      echo "ERR file  $service_dir/$module"
+      missing=1
+    fi
+  done
+  if (( missing > 0 )); then
+    record_failure
+    return 1
+  fi
+
+  if python3 - "$bin_dir" "$service_dir" <<'PY' >/dev/null 2>&1
+import sys
+from pathlib import Path
+
+bin_dir = Path(sys.argv[1])
+service_dir = Path(sys.argv[2])
+sys.path.insert(0, str(bin_dir))
+sys.path.insert(0, str(service_dir))
+
+import service_registry  # noqa: F401
+
+required_attrs = ("job_queue_service", "jobs_http_surface", "structured_logger")
+missing = [name for name in required_attrs if not hasattr(service_registry, name)]
+if missing:
+    raise SystemExit("missing service_registry attrs: " + ",".join(missing))
+PY
+  then
+    echo "OK  py    control-plane service_registry import + job queue exports"
+    return 0
+  fi
+  echo "ERR py    control-plane service_registry import + job queue exports"
+  record_failure
+  return 1
+}
+
 check_internal_callback_host() {
   local current_provider=""
   local callback_host=""
@@ -331,6 +381,7 @@ check_file "$INSTALL_DIR/beagle-host/bin/beagle-usb-tunnel-session"
 check_file "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
 check_file "$BEAGLE_USB_TUNNEL_SSHD_DROPIN"
 check_control_plane_novnc_rwpath
+check_control_plane_runtime_imports
 check_internal_callback_host
 
 if [[ "$(host_provider_kind)" == "proxmox" ]]; then

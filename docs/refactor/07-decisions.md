@@ -243,3 +243,30 @@ Stand: 2026-04-13
   3. SANs (`DNS:`/`IP:`) werden bei Node-Zertifikaten explizit mit ausgestellt.
 - Konsequenz: Cluster-Join, Remote-Inventory und spaetere Migrations-/Maintenance-RPCs verwenden keine shared secrets als Primarauthentisierung, sondern CA-vertrauensbasierte Node-Identitaeten.
 - Dateien: `beagle-host/services/ca_manager.py`, `beagle-host/services/cluster_rpc.py`, `tests/unit/test_ca_manager.py`, `tests/unit/test_cluster_rpc.py`, `scripts/test-cluster-rpc-smoke.py`.
+
+## D-043: WebUI-Bedienbarkeit ist Abschlusskriterium fuer GoFuture-Operator-Flows
+
+- Entscheidung: Ein GoFuture-Schritt mit Operator-Bezug gilt nicht mehr als abgeschlossen, wenn nur API, CLI, Statusanzeige oder Rohdaten-Tabelle existieren.
+- Entscheidung: Abschluss erfordert einen bedienbaren WebUI-Flow mit Validierung, sichtbarem Fortschritt/Job-Status, Fehlerdetails, sicherer Bestaetigung fuer riskante Aktionen und dokumentiertem Testpfad.
+- Grund: Die Beagle Web Console ist die einzige Operator-Oberflaeche. Cluster, Virtualization, Policies, IAM und Audit muessen dort nicht nur sichtbar, sondern vollstaendig editierbar und betrieblich nutzbar sein.
+- Konsequenz: `docs/gofuture/00-index.md` fuehrt aktive Re-Open-Punkte fuer `/#panel=cluster`, `/#panel=virtualization`, `/#panel=policies`, `/#panel=iam` und `/#panel=audit`.
+- Konsequenz: Statusanzeigen alleine sind explizit unzureichend; UI-Buttons duerfen erst als erledigt gelten, wenn ein echter Backend-Pfad, RBAC, Fehlerzustand und Regressionstest existieren.
+- Dateien: `docs/gofuture/00-index.md`, `docs/gofuture/07-cluster-foundation.md`, `docs/gofuture/08-storage-plane.md`, `docs/gofuture/10-vdi-pools.md`, `docs/gofuture/13-iam-tenancy.md`, `docs/gofuture/15-audit-compliance.md`.
+
+## D-044: Cluster Auto-Join nutzt Zielserver-Setup-Code statt offener Remote-Probes
+
+- Entscheidung: Der Standardpfad zum Hinzufuegen eines Servers ist Hostname + kurzlebiger Setup-Code, den der Zielserver nach Login erzeugt.
+- Entscheidung: Der Leader fragt keine unauthentifizierten Detail-Endpunkte wie `/api/v1/health` oder Inventory auf dem Zielserver ab.
+- Entscheidung: Setup-Codes werden auf dem Zielserver nur gehasht gespeichert, sind einmalig nutzbar, laufen kurzlebig ab und werden nicht in Audit-Events geschrieben.
+- Entscheidung: Join-Tokens besitzen eine echte serverseitige Ablaufpruefung und werden beim Einloesen als used markiert.
+- Grund: Ein Cluster-Wizard darf keine offen aus dem Internet auslesbaren Serverinformationen voraussetzen. Der Betreiber muss den Zielserver bewusst in dessen WebUI vorbereiten, bevor ein Leader ihn verbinden kann.
+- Konsequenz: `POST /api/v1/cluster/setup-code` ist authentifiziert, `POST /api/v1/cluster/join-with-setup-code` ist nur setup-code-geschuetzt und darf keine Secrets auditieren.
+- Dateien: `beagle-host/services/cluster_membership.py`, `beagle-host/services/cluster_http_surface.py`, `beagle-host/services/control_plane_handler.py`, `website/ui/cluster.js`, `website/index.html`.
+## 2026-04-26 - Cluster Leave und Virtualization Overview bleiben leader-/cluster-autoritativ
+
+- Ein Cluster-Mitglied darf seinen lokalen Cluster-State loeschen, aber nicht den Leader-State still implizit veraendern.
+- Deshalb laeuft Member-Leave jetzt in zwei Phasen:
+  1. Das Mitglied fordert `leave-local` an.
+  2. Der Leader entfernt den Member autoritativ ueber den mTLS-RPC-Pfad `cluster.member.leave`.
+  3. Erst danach wird lokal aufgeraeumt.
+- `GET /api/v1/virtualization/overview` bleibt die Datenquelle fuer die Virtualization-WebUI, wird aber nicht mehr host-lokal interpretiert. Der Endpoint liest bevorzugt die clusterweit aggregierte Inventory, damit die WebUI auf jedem Host denselben Clusterstand zeigt.

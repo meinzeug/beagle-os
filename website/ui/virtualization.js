@@ -30,6 +30,7 @@ export function renderVirtualizationPanel() {
   const overview = state.virtualizationOverview;
   const nodesGrid = qs('nodes-grid');
   const storageBody = qs('storage-body');
+  const riskBannerEl = qs('virt-risk-banner');
   if (!nodesGrid || !storageBody) {
     return;
   }
@@ -40,22 +41,68 @@ export function renderVirtualizationPanel() {
   }
   const nodes = Array.isArray(overview.nodes) ? overview.nodes : [];
   const storage = Array.isArray(overview.storage) ? overview.storage : [];
+
+  // Build risk/health banner messages
+  const risks = [];
+  nodes.forEach((node) => {
+    const name = String(node.name || node.id || 'node');
+    const health = node.health || {};
+    if (health.kvm === false) {
+      risks.push(name + ': KVM nicht verfuegbar (/dev/kvm fehlt)');
+    }
+    if (health.libvirt === false) {
+      risks.push(name + ': libvirtd nicht erreichbar');
+    }
+    if (String(node.status || '').toLowerCase() !== 'online') {
+      risks.push(name + ': Node offline / nicht erreichbar');
+    }
+  });
+  storage.forEach((item) => {
+    const usedPct = Number(item.total || 0) > 0 ? (Number(item.used || 0) / Number(item.total || 0)) * 100 : 0;
+    if (usedPct >= 90) {
+      risks.push('Storage ' + String(item.name || item.id || '') + ': ' + usedPct.toFixed(0) + '% belegt (kritisch)');
+    }
+  });
+  if (riskBannerEl) {
+    if (risks.length) {
+      riskBannerEl.textContent = risks.join(' · ');
+      riskBannerEl.classList.remove('hidden');
+      riskBannerEl.classList.add('banner-warn');
+    } else {
+      riskBannerEl.textContent = '';
+      riskBannerEl.classList.add('hidden');
+      riskBannerEl.classList.remove('banner-warn');
+    }
+  }
+
   if (!nodes.length) {
     nodesGrid.innerHTML = '<div class="empty-card">Keine Nodes gefunden.</div>';
   } else {
     nodesGrid.innerHTML = nodes.map((node) => {
       const statusTone = node.status === 'online' ? 'ok' : 'warn';
       const cpuUsed = node.maxcpu > 0 ? Math.round((node.cpu || 0) * 100) : 0;
+      const health = node.health || {};
+      const kvmOk = health.kvm !== false;
+      const libvirtOk = health.libvirt !== false;
+      const healthBadges =
+        '<span class="chip ' + (kvmOk ? 'ok' : 'bad') + '" title="KVM">KVM</span> ' +
+        '<span class="chip ' + (libvirtOk ? 'ok' : 'bad') + '" title="libvirt">libvirt</span>';
+      const nodeName = String(node.name || node.id || 'node');
       return '<article class="node-card">' +
         '<div class="node-head">' +
-        '<strong class="node-name">' + escapeHtml(node.name || node.id || 'node') + '</strong>' +
+        '<strong class="node-name">' + escapeHtml(nodeName) + '</strong>' +
         '<span class="chip ' + statusTone + '">' + escapeHtml(node.status || 'unknown') + '</span>' +
         '</div>' +
         '<div class="node-meta"><span class="usage-key">CPU</span>' + usageBar(cpuUsed, 100, cpuUsed + '%') + '</div>' +
         '<div class="node-meta"><span class="usage-key">RAM</span>' + usageBar(node.mem, node.maxmem, formatBytes(node.mem) + ' / ' + formatBytes(node.maxmem)) + '</div>' +
+        '<div class="node-health">' + healthBadges + '</div>' +
         '<div class="node-footer">' +
         '<span>' + String(node.maxcpu || 0) + '\u00a0vCPU</span>' +
         '<span>' + escapeHtml(node.provider || (overview && overview.provider) || '') + '</span>' +
+        '</div>' +
+        '<div class="node-actions">' +
+        '<button type="button" class="button ghost small" data-virt-node-filter="' + escapeHtml(nodeName) + '">VMs filtern</button> ' +
+        '<button type="button" class="button ghost small" data-virt-local-preflight="' + escapeHtml(nodeName) + '">Preflight</button>' +
         '</div>' +
         '</article>';
     }).join('');
@@ -66,6 +113,9 @@ export function renderVirtualizationPanel() {
     storageBody.innerHTML = storage.map((item) => {
       const quotaBytes = Number(item.quota_bytes || 0);
       const quotaText = quotaBytes > 0 ? formatBytes(quotaBytes) : 'Unbegrenzt';
+      const usedPct = Number(item.total || 0) > 0 ? (Number(item.used || 0) / Number(item.total || 0)) * 100 : 0;
+      const healthTone = usedPct >= 90 ? 'bad' : (usedPct >= 75 ? 'warn' : 'ok');
+      const healthLabel = usedPct >= 90 ? 'kritisch' : (usedPct >= 75 ? 'hoch' : 'ok');
       return '<tr>' +
         '<td><strong>' + escapeHtml(item.name || item.id || '') + '</strong></td>' +
         '<td>' + escapeHtml(item.node || '') + '</td>' +
@@ -74,6 +124,7 @@ export function renderVirtualizationPanel() {
         '<td class="storage-usage">' + usageBar(item.used, item.total, formatBytes(item.used) + ' / ' + formatBytes(item.total)) + '</td>' +
         '<td>' + formatBytes(item.avail) + '</td>' +
         '<td>' + escapeHtml(quotaText) + '</td>' +
+        '<td>' + chip(healthLabel, healthTone) + '</td>' +
         '<td><button type="button" class="button ghost small" data-storage-quota-set="1" data-storage-pool="' + escapeHtml(item.name || item.id || '') + '" data-storage-quota-bytes="' + String(quotaBytes) + '">Quota</button></td>' +
         '</tr>';
     }).join('');

@@ -43,6 +43,18 @@ source_tarball_latest_filename="beagle-os-latest.tar.gz"
 kiosk_appimage_filename="beagle-kiosk-v${version}-linux-x64.AppImage"
 kiosk_manifest_filename="kiosk-release.json"
 kiosk_hash_filename="kiosk-release-hash.txt"
+required_thin_client_public_artifacts=(
+  "$usb_installer_sh_filename"
+  "$usb_installer_sh_latest_filename"
+  "$usb_installer_ps1_filename"
+  "$usb_installer_ps1_latest_filename"
+  "$live_usb_sh_filename"
+  "$live_usb_sh_latest_filename"
+  "$payload_filename"
+  "$payload_latest_filename"
+  "$bootstrap_filename"
+  "$bootstrap_latest_filename"
+)
 
 cd "$remote_dir"
 tmp_dir="$(mktemp -d)"
@@ -112,6 +124,20 @@ mv -f "$tmp_dir/$installer_iso_filename" "$installer_iso_filename"
 ln -f "$installer_iso_filename" beagle-os-installer.iso
 mv -f "$tmp_dir/$server_installer_iso_filename" "$server_installer_iso_filename"
 ln -f "$server_installer_iso_filename" beagle-os-server-installer.iso
+
+missing_public_thin_client_artifacts=()
+for artifact in "${required_thin_client_public_artifacts[@]}"; do
+  if [[ ! -s "$artifact" ]]; then
+    missing_public_thin_client_artifacts+=("$artifact")
+  fi
+done
+
+if [[ "${#missing_public_thin_client_artifacts[@]}" -gt 0 ]]; then
+  printf 'Refusing to publish installimage; missing required public thin-client artifacts:\n' >&2
+  printf '  %s\n' "${missing_public_thin_client_artifacts[@]}" >&2
+  exit 1
+fi
+
 mv -f "$tmp_dir/$server_installimage_filename" "$server_installimage_filename"
 mv -f "$tmp_dir/$kiosk_appimage_filename" "$kiosk_appimage_filename"
 mv -f "$tmp_dir/$kiosk_manifest_filename" "$kiosk_manifest_filename"

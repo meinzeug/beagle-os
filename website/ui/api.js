@@ -246,3 +246,18 @@ export function postJson(path, payload, options) {
     body: JSON.stringify(payload || {})
   }, options || {}));
 }
+
+export function patchJson(path, payload, options) {
+  return request(path, Object.assign({
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {})
+  }, options || {}));
+}
+
+export function deleteJson(path, options) {
+  return request(path, Object.assign({
+    method: 'DELETE',
+    headers: { 'Accept': 'application/json' }
+  }, options || {}));
+}

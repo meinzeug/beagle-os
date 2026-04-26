@@ -306,6 +306,7 @@ export function restartService(name) {
 
 export function loadSettingsUpdates() {
   settingsHooks.setBanner('Suche nach Updates...', 'info');
+  loadArtifactStatus();
   return request('/settings/updates', { __timeoutMs: 60000 }).then((data) => {
     text('upd-count', String(data.upgradable_count || 0));
     const tbody = qs('upd-packages-body');
@@ -324,6 +325,65 @@ export function loadSettingsUpdates() {
     settingsHooks.setBanner(packages.length + ' Update(s) verfuegbar.', 'info');
   }).catch((error) => {
     settingsHooks.setBanner('Update-Check fehlgeschlagen: ' + error.message, 'warn');
+  });
+}
+
+function renderArtifactStatus(data) {
+  const artifacts = Array.isArray(data && data.artifacts) ? data.artifacts : [];
+  const missing = Array.isArray(data && data.missing) ? data.missing : [];
+  text('artifact-ready', data && data.ready ? 'Ja' : 'Nein');
+  text('artifact-missing-count', String(missing.length));
+  text('artifact-refresh-service', String((data && data.services && data.services['beagle-artifacts-refresh.service']) || 'unknown'));
+  text('artifact-refresh-timer', String((data && data.services && data.services['beagle-artifacts-refresh.timer']) || 'unknown'));
+  const tbody = qs('artifact-body');
+  if (!tbody) {
+    return;
+  }
+  if (!artifacts.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-cell">Noch keine Artefaktdaten.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = artifacts.map((item) => {
+    const exists = Boolean(item && item.exists);
+    const size = Number(item && item.size_bytes ? item.size_bytes : 0);
+    return (
+      '<tr>' +
+      '<td><code>' + escapeHtml(String(item.path || '')) + '</code></td>' +
+      '<td><span class="' + (exists ? 'chip good' : 'chip bad') + '">' + (exists ? 'vorhanden' : 'fehlt') + '</span></td>' +
+      '<td>' + String(size) + '</td>' +
+      '<td>' + escapeHtml(String(item.mtime_epoch || '—')) + '</td>' +
+      '</tr>'
+    );
+  }).join('');
+}
+
+export function loadArtifactStatus() {
+  return request('/settings/artifacts', { __timeoutMs: 30000 }).then((data) => {
+    renderArtifactStatus(data);
+  }).catch((error) => {
+    settingsHooks.setBanner('Artifact-Status laden fehlgeschlagen: ' + error.message, 'warn');
+  });
+}
+
+export function refreshArtifacts() {
+  if (!window.confirm('Host-Artefakte jetzt neu bauen/refreshen? Dieser Vorgang kann lange laufen.')) {
+    return;
+  }
+  settingsHooks.setBanner('Artifact-Refresh wird gestartet...', 'info');
+  return request('/settings/artifacts/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+    __timeoutMs: 60000
+  }).then((data) => {
+    if (data.ok) {
+      renderArtifactStatus(data.artifacts || {});
+      settingsHooks.setBanner('Artifact-Refresh wurde gestartet. Status regelmaessig aktualisieren.', 'info');
+    } else {
+      settingsHooks.setBanner('Artifact-Refresh fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannt'), 'warn');
+    }
+  }).catch((error) => {
+    settingsHooks.setBanner('Artifact-Refresh Fehler: ' + error.message, 'warn');
   });
 }
 
@@ -915,6 +975,12 @@ export function bindSettingsEvents() {
   }
   if (qs('settings-updates-refresh')) {
     qs('settings-updates-refresh').addEventListener('click', loadSettingsUpdates);
+  }
+  if (qs('settings-artifacts-refresh')) {
+    qs('settings-artifacts-refresh').addEventListener('click', loadArtifactStatus);
+  }
+  if (qs('artifacts-refresh-start')) {
+    qs('artifacts-refresh-start').addEventListener('click', refreshArtifacts);
   }
   if (qs('upd-apply')) {
     qs('upd-apply').addEventListener('click', applyUpdates);

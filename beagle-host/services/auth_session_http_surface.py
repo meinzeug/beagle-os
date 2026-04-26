@@ -223,7 +223,11 @@ class AuthSessionHttpSurfaceService:
             bootstrap_username=self._bootstrap_username,
             bootstrap_disabled=self._bootstrap_disabled,
         )
-        return self._json(HTTPStatus.OK, {"ok": True, "onboarding": status_payload})
+        public_status = {
+            "pending": bool(status_payload.get("pending")),
+            "completed": bool(status_payload.get("completed")),
+        }
+        return self._json(HTTPStatus.OK, {"ok": True, "onboarding": public_status})
 
     def _handle_providers(self) -> dict[str, Any]:
         try:

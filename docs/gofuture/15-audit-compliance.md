@@ -106,6 +106,25 @@ und `auditor` sichtbar.
 
 ---
 
+### Schritt 6 — `/#panel=audit` UX- und Bedienbarkeits-Refactor
+
+- [ ] Ist-Zustand von `/#panel=audit` dokumentieren: Filter, Tabelle, Export-Buttons, fehlende Details, unklare Fehlerzustände.
+- [ ] Audit-Panel in klare Bereiche schneiden: `Live Events`, `Filter`, `Report Builder`, `Export Targets`, `Failures/Replay`.
+- [ ] Event-Tabelle verbessern: Severity/Result-Chips, Zeitachse, User/Resource-Spalten, expandierbare JSON-Details mit Redaction-Markern.
+- [ ] Filter UX verbessern: Zeitraum-Presets, Custom-Date-Range, User-/Action-/Resource-Suche, Tenant-Scope, Reset/Apply sichtbar.
+- [ ] Report-Builder als Wizard bauen: Zeitraum wählen, Filter bestätigen, Format wählen, Export starten, Download/Job-Status anzeigen.
+- [ ] Export-Ziele bedienbar machen: S3/Minio, Syslog, Webhook Status-Cards, Test-Button, letzter Fehler, Retry/Replay.
+- [ ] Compliance-Ansicht ergänzen: gespeicherte Reports, Ablaufdatum, Download-Audit, Prüfsummen/Integrität.
+- [ ] Failure-Queue sichtbar machen: Export-Fehler anzeigen, einzelne oder alle Events erneut senden.
+- [ ] Security-Guardrails: keine Secrets in Detail-JSON, PII-Filter sichtbar kennzeichnen, Download-Berechtigung prüfen.
+- [ ] UI-Regressions ergänzen: Filter-Kombinationen, CSV/JSON-Export, Detail-Expand, Export-Target-Test, Empty-/Error-State.
+- [ ] srv1-Smoke durchführen: Events erzeugen, filtern, Report exportieren, Webhook/S3-Status prüfen, keine Console Errors.
+
+Warum dieser Schritt noch offen ist:
+Audit und Compliance sind backendseitig vorhanden, aber die WebUI muss aus Audit-Daten handlungsfähige Informationen machen. Betreiber brauchen nicht nur eine Tabelle, sondern geführte Report-Erstellung, Export-Diagnose, Failure-Replay und klare Hinweise auf Redaction/PII. Ohne diese Bedienbarkeit bleibt Audit ein Rohdaten-Viewer und erfüllt den Compliance-Anspruch nur teilweise.
+
+---
+
 ## Testpflicht nach Abschluss
 
 - [x] Alle VM-Operationen erzeugen Audit-Events mit korrektem Schema.

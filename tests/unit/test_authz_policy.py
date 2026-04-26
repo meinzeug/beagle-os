@@ -54,6 +54,29 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             AuthzPolicyService.required_permission("POST", "/api/v1/ha/maintenance/drain"),
             "cluster:write",
         )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/cluster/join-existing"),
+            "cluster:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/cluster/add-server-preflight"),
+            "cluster:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/cluster/setup-code"),
+            "cluster:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/cluster/auto-join"),
+            "cluster:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/cluster/leave-local"),
+            "cluster:write",
+        )
+        self.assertIsNone(
+            AuthzPolicyService.required_permission("POST", "/api/v1/cluster/join-with-setup-code"),
+        )
 
     def test_viewer_cannot_write_pools(self):
         permission = AuthzPolicyService.required_permission("POST", "/api/v1/pools")

@@ -90,6 +90,142 @@ class TestClusterPostRouting:
         assert resp["status"] == HTTPStatus.CREATED
         cm.create_join_token.assert_called_once_with(ttl_seconds=900)
 
+    def test_cluster_setup_code(self):
+        audit = MagicMock()
+        svc, cm, _, _ = _make_svc(audit_event=audit)
+        cm.create_setup_code.return_value = {
+            "setup_code": "BGL-code",
+            "expires_at": 1770000000,
+            "ttl_seconds": 600,
+        }
+        resp = svc.route_post("/api/v1/cluster/setup-code", json_payload={"ttl_seconds": 600})
+        assert resp["status"] == HTTPStatus.CREATED
+        assert resp["payload"]["setup_code"] == "BGL-code"
+        cm.create_setup_code.assert_called_once_with(ttl_seconds=600)
+        audit.assert_called_once()
+        assert "setup_code" not in audit.call_args.kwargs
+
+    def test_cluster_add_server_preflight(self):
+        svc, cm, _, _ = _make_svc()
+        cm.preflight_add_server.return_value = {
+            "ok": True,
+            "node_name": "node-b",
+            "api_url": "https://node-b.example.test/beagle-api",
+            "checks": [],
+        }
+        resp = svc.route_post(
+            "/api/v1/cluster/add-server-preflight",
+            json_payload={
+                "node_name": "node-b",
+                "api_url": "https://node-b.example.test/beagle-api",
+                "advertise_host": "node-b.example.test",
+                "issue_join_token": True,
+            },
+        )
+        assert resp["status"] == HTTPStatus.OK
+        assert resp["payload"]["preflight"]["ok"] is True
+        cm.preflight_add_server.assert_called_once()
+
+    def test_cluster_auto_join(self):
+        audit = MagicMock()
+        svc, cm, _, _ = _make_svc(audit_event=audit)
+        cm.auto_join_server.return_value = {
+            "ok": True,
+            "preflight": {
+                "node_name": "node-b",
+                "api_url": "https://node-b.example.test/beagle-api/api/v1",
+                "checks": [],
+            },
+            "target": {"member": {"name": "node-b"}},
+        }
+        resp = svc.route_post(
+            "/api/v1/cluster/auto-join",
+            json_payload={
+                "setup_code": "BGL-code",
+                "node_name": "node-b",
+                "api_url": "https://node-b.example.test/beagle-api/api/v1",
+                "advertise_host": "node-b.example.test",
+            },
+        )
+        assert resp["status"] == HTTPStatus.OK
+        assert resp["payload"]["auto_join"]["ok"] is True
+        cm.auto_join_server.assert_called_once()
+        assert cm.auto_join_server.call_args.kwargs["setup_code"] == "BGL-code"
+        audit.assert_called_once()
+        assert "setup_code" not in audit.call_args.kwargs
+
+    def test_cluster_join_existing(self):
+        svc, cm, _, _ = _make_svc()
+        cm.join_existing_cluster.return_value = {"member": {"name": "node-b"}}
+        resp = svc.route_post(
+            "/api/v1/cluster/join-existing",
+            json_payload={
+                "join_token": "tok",
+                "leader_api_url": "https://leader.example.test/beagle-api",
+                "node_name": "node-b",
+                "api_url": "https://node-b.example.test/beagle-api",
+                "advertise_host": "node-b.example.test",
+                "rpc_url": "https://node-b.example.test:9089/rpc",
+            },
+        )
+        assert resp["status"] == HTTPStatus.OK
+        assert resp["payload"]["ok"] is True
+        cm.join_existing_cluster.assert_called_once_with(
+            join_token="tok",
+            leader_api_url="https://leader.example.test/beagle-api",
+            node_name="node-b",
+            api_url="https://node-b.example.test/beagle-api",
+            advertise_host="node-b.example.test",
+            rpc_url="https://node-b.example.test:9089/rpc",
+        )
+
+    def test_cluster_join_with_setup_code(self):
+        ensure_rpc = MagicMock()
+        audit = MagicMock()
+        svc, cm, _, _ = _make_svc(ensure_cluster_rpc_listener=ensure_rpc, audit_event=audit)
+        cm.join_with_setup_code.return_value = {"member": {"name": "node-b"}}
+        resp = svc.route_post(
+            "/api/v1/cluster/join-with-setup-code",
+            json_payload={
+                "setup_code": "BGL-code",
+                "join_token": "tok",
+                "leader_api_url": "https://leader.example.test/beagle-api",
+                "node_name": "node-b",
+                "api_url": "https://node-b.example.test/beagle-api",
+                "advertise_host": "node-b.example.test",
+                "rpc_url": "https://node-b.example.test:9089/rpc",
+            },
+        )
+        assert resp["status"] == HTTPStatus.OK
+        assert resp["payload"]["ok"] is True
+        ensure_rpc.assert_called_once()
+        cm.join_with_setup_code.assert_called_once_with(
+            setup_code="BGL-code",
+            join_token="tok",
+            leader_api_url="https://leader.example.test/beagle-api",
+            node_name="node-b",
+            api_url="https://node-b.example.test/beagle-api",
+            advertise_host="node-b.example.test",
+            rpc_url="https://node-b.example.test:9089/rpc",
+        )
+        audit.assert_called_once()
+        assert "setup_code" not in audit.call_args.kwargs
+        assert "join_token" not in audit.call_args.kwargs
+
+    def test_cluster_leave_local(self):
+        audit = MagicMock()
+        svc, cm, _, _ = _make_svc(audit_event=audit)
+        cm.leave_local_cluster.return_value = {
+            "ok": True,
+            "detached_node": "node-b",
+            "former_leader_node": "leader-node",
+        }
+        resp = svc.route_post("/api/v1/cluster/leave-local", json_payload={})
+        assert resp["status"] == HTTPStatus.OK
+        assert resp["payload"]["ok"] is True
+        cm.leave_local_cluster.assert_called_once_with()
+        audit.assert_called_once()
+
     def test_cluster_apply_join(self):
         svc, cm, _, _ = _make_svc()
         cm.apply_join_response.return_value = {"joined": True}
@@ -136,6 +272,12 @@ class TestClusterPostRouting:
     def test_handles_post(self):
         svc, _, _, _ = _make_svc()
         assert svc.handles_post("/api/v1/cluster/init")
+        assert svc.handles_post("/api/v1/cluster/setup-code")
+        assert svc.handles_post("/api/v1/cluster/add-server-preflight")
+        assert svc.handles_post("/api/v1/cluster/auto-join")
+        assert svc.handles_post("/api/v1/cluster/join-existing")
+        assert svc.handles_post("/api/v1/cluster/leave-local")
+        assert svc.handles_post("/api/v1/cluster/join-with-setup-code")
         assert svc.handles_post("/api/v1/ha/maintenance/drain")
         assert svc.handles_post("/api/v1/cluster/migrate")
         assert not svc.handles_post("/api/v1/vms")
@@ -219,3 +361,103 @@ class TestClusterMigrateAsync:
 
         _, ekw = enqueue.call_args
         assert ekw["idempotency_key"] == "my-migration-key"
+
+
+class TestClusterMemberPatchRoute:
+    def test_patch_member_calls_update_member(self):
+        svc, cm, _, _ = _make_svc()
+        cm.update_member.return_value = {"ok": True, "member": {"name": "node-b", "display_name": "Node B"}}
+
+        resp = svc.route_patch(
+            "/api/v1/cluster/members/node-b",
+            json_payload={"display_name": "Node B"},
+        )
+
+        assert resp["status"] == HTTPStatus.OK
+        assert resp["payload"]["ok"] is True
+        cm.update_member.assert_called_once()
+        kw = cm.update_member.call_args.kwargs
+        assert kw["node_name"] == "node-b"
+        assert kw["display_name"] == "Node B"
+
+    def test_patch_member_empty_name_returns_400(self):
+        svc, cm, _, _ = _make_svc()
+        resp = svc.route_patch("/api/v1/cluster/members/", json_payload={})
+        assert resp["status"] == HTTPStatus.BAD_REQUEST
+        assert resp["payload"]["ok"] is False
+
+    def test_patch_member_service_error_returns_400(self):
+        svc, cm, _, _ = _make_svc()
+        cm.update_member.side_effect = RuntimeError("not found")
+
+        resp = svc.route_patch(
+            "/api/v1/cluster/members/ghost",
+            json_payload={"api_url": "https://x.example.com"},
+        )
+
+        assert resp["status"] == HTTPStatus.BAD_REQUEST
+        assert "not found" in resp["payload"]["error"]
+
+    def test_handles_patch(self):
+        svc, _, _, _ = _make_svc()
+        assert svc.handles_patch("/api/v1/cluster/members/node-a")
+        assert not svc.handles_patch("/api/v1/cluster/init")
+
+    def test_non_member_path_patch_returns_none(self):
+        svc, _, _, _ = _make_svc()
+        assert svc.route_patch("/api/v1/cluster/init", json_payload={}) is None
+
+
+class TestClusterMemberDeleteRoute:
+    def test_delete_member_calls_remove_member(self):
+        svc, cm, _, _ = _make_svc()
+        cm.remove_member.return_value = {"ok": True, "removed_node": "node-b", "remaining_member_count": 1}
+
+        resp = svc.route_delete("/api/v1/cluster/members/node-b")
+
+        assert resp["status"] == HTTPStatus.OK
+        assert resp["payload"]["ok"] is True
+        cm.remove_member.assert_called_once()
+        kw = cm.remove_member.call_args.kwargs
+        assert kw["node_name"] == "node-b"
+
+    def test_delete_member_empty_name_returns_400(self):
+        svc, _, _, _ = _make_svc()
+        resp = svc.route_delete("/api/v1/cluster/members/")
+        assert resp["status"] == HTTPStatus.BAD_REQUEST
+
+    def test_delete_member_service_error_returns_400(self):
+        svc, cm, _, _ = _make_svc()
+        cm.remove_member.side_effect = RuntimeError("leader cannot be removed")
+
+        resp = svc.route_delete("/api/v1/cluster/members/leader")
+        assert resp["status"] == HTTPStatus.BAD_REQUEST
+        assert "leader" in resp["payload"]["error"]
+
+    def test_handles_delete(self):
+        svc, _, _, _ = _make_svc()
+        assert svc.handles_delete("/api/v1/cluster/members/node-a")
+        assert not svc.handles_delete("/api/v1/cluster/init")
+
+    def test_non_member_path_delete_returns_none(self):
+        svc, _, _, _ = _make_svc()
+        assert svc.route_delete("/api/v1/cluster/other") is None
+
+
+class TestClusterLocalPreflight:
+    def test_local_preflight_returns_checks(self):
+        svc, cm, _, _ = _make_svc()
+        cm.local_preflight_kvm_libvirt.return_value = {
+            "ok": True,
+            "checks": [{"name": "kvm_device", "status": "pass", "message": "ok", "required": True}],
+            "summary": {"passed": 1, "failed": 0, "warnings": 0, "skipped": 0},
+        }
+
+        resp = svc.route_get("/api/v1/cluster/local-preflight")
+        assert resp["status"] == HTTPStatus.OK
+        assert resp["payload"]["ok"] is True
+        assert len(resp["payload"]["checks"]) == 1
+
+    def test_handles_get_local_preflight(self):
+        svc, _, _, _ = _make_svc()
+        assert svc.handles_get("/api/v1/cluster/local-preflight")

@@ -8,12 +8,12 @@
 
 > **Open-source hypervisor OS, endpoint runtime, and gaming kiosk — batteries included, Proxmox optional.**
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License: Source Available](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE)
 [Download Latest](https://beagle-os.com/download/)
 [![Shell](https://img.shields.io/badge/shell-54%25-green)]()
 [![Python](https://img.shields.io/badge/python-24%25-blue)]()
 
-Beagle OS is an MIT-licensed, standalone virtualization platform. It runs its own compute, storage, and network stack on bare metal and delivers streamed desktops and gaming sessions to thin clients — no Proxmox required.
+Beagle OS is a source-available, standalone virtualization platform. Free for private use — commercial use requires a license (see [LICENSE](LICENSE) or visit [beagle-os.com](https://beagle-os.com)). It runs its own compute, storage, and network stack on bare metal and delivers streamed desktops and gaming sessions to thin clients — no Proxmox required.
 
 ### Three modes, one ISO
 
@@ -170,4 +170,7 @@ Common release steps:
 
 ## License
 
-This repository is licensed under the [MIT License](LICENSE).
+This repository is licensed under the [Beagle OS Source Available License](LICENSE).
+
+- **Private use** is free of charge.
+- **Commercial use** requires a separate license — request one at [beagle-os.com](https://beagle-os.com).

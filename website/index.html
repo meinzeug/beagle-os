@@ -278,7 +278,6 @@
         <button type="button" class="nav-item" data-panel="cluster">
           <svg class="nav-icon" aria-hidden="true"><use href="#i-infra"/></svg>
           <span>Cluster</span>
-          <span class="nav-badge-coming">7.0</span>
         </button>
 
         <!-- ── Compute ── -->
@@ -643,6 +642,228 @@
 
           <!-- ============ CLUSTER (7.0 foundation) ============ -->
           <section class="panel-section" id="cluster-section" data-panel-section="cluster">
+            <article class="card section-spaced cluster-setup-card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Cluster-Assistent</span>
+                  <h2>Server gemeinsam betreiben</h2>
+                  <p class="muted-text">Fuehre mehrere Beagle-Server zusammen. Die Assistenten fragen nur das ab, was fuer den naechsten Schritt wirklich gebraucht wird.</p>
+                </div>
+              </div>
+
+              <div class="cluster-setup-summary">
+                <div class="cluster-setup-state">
+                  <span class="cluster-setup-state-label">Aktueller Zustand</span>
+                  <strong id="cluster-status-initialized">—</strong>
+                  <span>Lokaler Server: <b id="cluster-status-local">—</b></span>
+                </div>
+                <div class="cluster-leader-card" id="cluster-leader-card">
+                  <span class="cluster-leader-badge" id="cluster-leader-badge">SETUP</span>
+                  <strong id="cluster-leader-title">Noch kein Cluster eingerichtet</strong>
+                  <span id="cluster-leader-copy">Starte zuerst auf diesem Server einen Cluster oder fuege ihn einem bestehenden Cluster hinzu.</span>
+                </div>
+                <details class="cluster-technical-details">
+                  <summary>Technische Details anzeigen</summary>
+                  <div class="settings-info-grid">
+                    <div class="info-item"><span class="info-label">Cluster ID</span><span class="info-value" id="cluster-status-id">—</span></div>
+                    <div class="info-item"><span class="info-label">Leader</span><span class="info-value" id="cluster-status-leader">—</span></div>
+                  </div>
+                  <div class="cluster-technical-actions" id="cluster-technical-actions" hidden>
+                    <button class="button danger" id="cluster-leave-local-btn" type="button">Server aus Cluster loesen</button>
+                    <p>Fordert den Leader an, diesen Server sauber aus dem Cluster zu entfernen, und raeumt danach die lokale Cluster-Konfiguration auf.</p>
+                  </div>
+                </details>
+              </div>
+
+              <div class="settings-section-group" id="cluster-actions-section">
+                <h3>Was moechtest du tun?</h3>
+                <div class="cluster-action-grid">
+                  <button class="cluster-action-card" id="cluster-action-init" type="button" data-open-cluster-modal="cluster-init-modal">
+                    <span class="cluster-action-icon"><svg aria-hidden="true"><use href="#i-platform"/></svg></span>
+                    <span class="cluster-action-title">Ersten Cluster starten</span>
+                    <span class="cluster-action-copy">Nutze diesen Server als Startpunkt fuer einen neuen Verbund.</span>
+                  </button>
+                  <button class="cluster-action-card" id="cluster-action-add-server" type="button" data-open-cluster-modal="cluster-add-server-modal">
+                    <span class="cluster-action-icon"><svg aria-hidden="true"><use href="#i-network"/></svg></span>
+                    <span class="cluster-action-title">Weiteren Server vorbereiten</span>
+                    <span class="cluster-action-copy">Verbinde einen vorbereiteten Server mit Hostname und Setup-Code.</span>
+                  </button>
+                  <button class="cluster-action-card" id="cluster-action-join-existing" type="button" data-open-cluster-modal="cluster-existing-modal">
+                    <span class="cluster-action-icon"><svg aria-hidden="true"><use href="#i-services"/></svg></span>
+                    <span class="cluster-action-title">Diesen Server vorbereiten</span>
+                    <span class="cluster-action-copy">Erzeuge hier den Setup-Code, den du auf dem Leader eingibst.</span>
+                  </button>
+                  <button class="cluster-action-card secondary" id="cluster-action-token" type="button" data-open-cluster-modal="cluster-token-modal">
+                    <span class="cluster-action-icon"><svg aria-hidden="true"><use href="#i-lock"/></svg></span>
+                    <span class="cluster-action-title">Nur Beitritts-Code erzeugen</span>
+                    <span class="cluster-action-copy">Fuer erfahrene Betreiber, wenn die Vorpruefung nicht benoetigt wird.</span>
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <div class="modal" id="cluster-init-modal" aria-hidden="true" hidden>
+              <div class="modal-dialog provision-dialog" role="dialog" aria-modal="true" aria-labelledby="cluster-init-modal-title">
+                <div class="modal-dialog-head">
+                  <div>
+                    <span class="eyebrow">Assistent</span>
+                    <h2 id="cluster-init-modal-title">Ersten Cluster starten</h2>
+                    <p>Dieser Server wird zum Startpunkt. Weitere Server koennen danach beitreten.</p>
+                  </div>
+                  <button class="icon-button" type="button" data-close-cluster-modal aria-label="Schliessen">×</button>
+                </div>
+                <div class="settings-form">
+                  <label class="field"><span>Node Name</span><input id="cluster-init-node" type="text" placeholder="srv1"></label>
+                  <label class="field"><span>API URL</span><input id="cluster-init-api-url" type="url" placeholder="https://srv1.example.com/beagle-api/api/v1"></label>
+                  <label class="field"><span>Advertise Host</span><input id="cluster-init-advertise-host" type="text" placeholder="srv1.example.com"></label>
+                </div>
+                <div class="button-row provision-modal-buttons">
+                  <button class="button ghost" type="button" data-close-cluster-modal>Abbrechen</button>
+                  <button class="button primary" id="cluster-init-btn" type="button">Cluster erstellen</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal" id="cluster-add-server-modal" aria-hidden="true" hidden>
+              <div class="modal-dialog provision-dialog" role="dialog" aria-modal="true" aria-labelledby="cluster-add-server-modal-title">
+                <div class="modal-dialog-head">
+                  <div>
+                    <span class="eyebrow">Assistent</span>
+                    <h2 id="cluster-add-server-modal-title">Weiteren Server vorbereiten</h2>
+                    <p>Gib den Namen des neuen Servers und den Setup-Code ein, den du auf diesem Zielserver erzeugt hast. Danach verbindet der Leader den Server automatisch.</p>
+                  </div>
+                  <button class="icon-button" type="button" data-close-cluster-modal aria-label="Schliessen">×</button>
+                </div>
+                <div class="settings-form">
+                  <label class="field field-wide cluster-simple-field">
+                    <span>Servername</span>
+                    <input id="cluster-add-server-hostname" type="text" placeholder="srv2.beagle-os.com" autocomplete="off">
+                    <small>Beispiel: <b>srv2.beagle-os.com</b>. Der Server muss bereits installiert und ueber HTTPS erreichbar sein.</small>
+                  </label>
+                  <label class="field field-wide cluster-simple-field">
+                    <span>Setup-Code vom Zielserver</span>
+                    <input id="cluster-add-server-setup-code" type="text" placeholder="BGL-..." autocomplete="one-time-code">
+                    <small>Auf dem Zielserver in dessen WebUI "Diesen Server vorbereiten" oeffnen und den Code erzeugen. Der Code ist kurzlebig und nur einmal nutzbar.</small>
+                  </label>
+                  <div class="field field-wide cluster-security-note">
+                    <span>Sicherheitsmodell</span>
+                    <p>Der Leader fragt keine offenen Inventar- oder Health-Daten vom Zielserver ab. Der Zielserver akzeptiert den Auto-Join nur mit einem lokal erzeugten Setup-Code; ohne Code wird kein Join ausgefuehrt.</p>
+                  </div>
+                  <details class="field field-wide cluster-expert-details">
+                    <summary>Expertenwerte anzeigen</summary>
+                    <div class="settings-form cluster-expert-grid">
+                      <label class="field"><span>Node Name</span><input id="cluster-add-server-node" type="text" placeholder="srv2"></label>
+                      <label class="field"><span>API URL</span><input id="cluster-add-server-api-url" type="url" placeholder="https://srv2.example.com/beagle-api/api/v1"></label>
+                      <label class="field"><span>Host/IP</span><input id="cluster-add-server-host" type="text" placeholder="srv2.example.com"></label>
+                      <label class="field"><span>RPC URL</span><input id="cluster-add-server-rpc" type="url" placeholder="https://srv2.example.com:9089/rpc"></label>
+                      <label class="field"><span>SSH Port</span><input id="cluster-add-server-ssh-port" type="number" min="1" max="65535" value="22"></label>
+                      <label class="field"><span>Internes Join-Fenster</span><input id="cluster-add-server-token-ttl" type="number" min="60" max="86400" step="60" value="900"></label>
+                    </div>
+                  </details>
+                  <input id="cluster-add-server-issue-token" type="checkbox" checked hidden>
+                  <div class="field field-wide">
+                    <span>Pruefung</span>
+                    <div id="cluster-add-server-preflight-output" class="settings-info-grid compact-grid">
+                      <div class="empty-cell">Noch nicht verbunden. Gib Servername und Setup-Code ein und klicke auf "Server sicher verbinden".</div>
+                    </div>
+                  </div>
+                  <label class="field field-wide"><span>Ergebnis</span><textarea id="cluster-add-server-token-output" rows="3" readonly placeholder="Auto-Join-Ergebnis erscheint hier"></textarea></label>
+                </div>
+                <div class="button-row provision-modal-buttons">
+                  <button class="button ghost" type="button" data-close-cluster-modal>Schliessen</button>
+                  <button class="button primary" id="cluster-add-server-preflight-btn" type="button">Server sicher verbinden</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal" id="cluster-token-modal" aria-hidden="true" hidden>
+              <div class="modal-dialog provision-dialog" role="dialog" aria-modal="true" aria-labelledby="cluster-token-modal-title">
+                <div class="modal-dialog-head">
+                  <div>
+                    <span class="eyebrow">Assistent</span>
+                    <h2 id="cluster-token-modal-title">Beitritts-Code manuell erzeugen</h2>
+                    <p>Erstellt nur den Code. Nutze das nur, wenn der Zielserver bereits geprueft wurde.</p>
+                  </div>
+                  <button class="icon-button" type="button" data-close-cluster-modal aria-label="Schliessen">×</button>
+                </div>
+                <div class="settings-form">
+                  <label class="field"><span>Gueltigkeit (Sekunden)</span><input id="cluster-join-ttl" type="number" min="60" max="86400" step="60" value="900"></label>
+                  <label class="field field-wide"><span>Join-Token</span><textarea id="cluster-join-token-output" rows="3" readonly placeholder="Noch kein Token erzeugt"></textarea></label>
+                  <div class="info-item"><span class="info-label">Token Info</span><span class="info-value" id="cluster-join-token-meta">—</span></div>
+                </div>
+                <div class="button-row provision-modal-buttons">
+                  <button class="button ghost" type="button" data-close-cluster-modal>Schliessen</button>
+                  <button class="button primary" id="cluster-join-token-create" type="button">Join-Token erzeugen</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal" id="cluster-existing-modal" aria-hidden="true" hidden>
+              <div class="modal-dialog provision-dialog" role="dialog" aria-modal="true" aria-labelledby="cluster-existing-modal-title">
+                <div class="modal-dialog-head">
+                  <div>
+                    <span class="eyebrow">Assistent</span>
+                    <h2 id="cluster-existing-modal-title">Diesen Server vorbereiten</h2>
+                    <p>Erzeuge hier einen kurzlebigen Setup-Code. Danach wechselst du zum Leader und gibst dort Servername plus Code ein.</p>
+                  </div>
+                  <button class="icon-button" type="button" data-close-cluster-modal aria-label="Schliessen">×</button>
+                </div>
+                <div class="settings-form">
+                  <label class="field">
+                    <span>Gueltigkeit (Sekunden)</span>
+                    <input id="cluster-setup-code-ttl" type="number" min="60" max="1800" step="60" value="600">
+                  </label>
+                  <div class="field field-wide cluster-security-note">
+                    <span>Was passiert mit dem Code?</span>
+                    <p>Der Code wird nur gehasht auf diesem Zielserver gespeichert, laeuft automatisch ab und kann genau einmal fuer den Auto-Join verwendet werden. Er ist kein dauerhaftes Passwort.</p>
+                  </div>
+                  <label class="field field-wide">
+                    <span>Setup-Code fuer den Leader</span>
+                    <textarea id="cluster-setup-code-output" rows="3" readonly placeholder="Noch kein Setup-Code erzeugt"></textarea>
+                  </label>
+                  <div class="info-item"><span class="info-label">Setup-Code Info</span><span class="info-value" id="cluster-setup-code-meta">—</span></div>
+                  <details class="field field-wide cluster-expert-details">
+                    <summary>Manuellen Join-Token-Fallback anzeigen</summary>
+                    <div class="settings-form cluster-expert-grid">
+                      <label class="field field-wide"><span>Join-Token</span><textarea id="cluster-existing-token" rows="3" placeholder="Token vom Leader einfuegen"></textarea></label>
+                      <label class="field"><span>Leader API URL (optional)</span><input id="cluster-existing-leader" type="url" placeholder="aus Token, falls leer"></label>
+                      <label class="field"><span>Lokaler Node Name</span><input id="cluster-existing-node" type="text" placeholder="srv2"></label>
+                      <label class="field"><span>Lokale API URL</span><input id="cluster-existing-api-url" type="url" placeholder="https://srv2.example.com/beagle-api/api/v1"></label>
+                      <label class="field"><span>Advertise Host</span><input id="cluster-existing-advertise" type="text" placeholder="srv2.example.com"></label>
+                      <label class="field"><span>RPC URL (optional)</span><input id="cluster-existing-rpc" type="url" placeholder="https://srv2.example.com:9089/rpc"></label>
+                    </div>
+                  </details>
+                </div>
+                <div class="button-row provision-modal-buttons">
+                  <button class="button ghost" type="button" data-close-cluster-modal>Abbrechen</button>
+                  <button class="button ghost" id="cluster-existing-btn" type="button">Manuell per Join-Token beitreten</button>
+                  <button class="button primary" id="cluster-setup-code-create" type="button">Setup-Code erzeugen</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal" id="cluster-member-edit-modal" aria-hidden="true" hidden>
+              <div class="modal-dialog provision-dialog" role="dialog" aria-modal="true" aria-labelledby="cluster-member-edit-modal-title">
+                <div class="modal-header">
+                  <h2 id="cluster-member-edit-modal-title">Cluster-Member bearbeiten</h2>
+                  <button class="icon-button" type="button" data-close-cluster-modal aria-label="Schliessen">×</button>
+                </div>
+                <div class="provision-form">
+                  <input type="hidden" id="cluster-member-edit-name">
+                  <div class="settings-form cluster-expert-grid">
+                    <label class="field field-wide"><span>Anzeigename (optional)</span><input id="cluster-member-edit-display" type="text" placeholder="Anzeigename fuer diesen Node"></label>
+                    <label class="field field-wide"><span>API URL</span><input id="cluster-member-edit-api-url" type="url" placeholder="https://srv2.example.com/beagle-api/api/v1"></label>
+                    <label class="field field-wide"><span>RPC URL</span><input id="cluster-member-edit-rpc-url" type="url" placeholder="https://srv2.example.com:9089/rpc"></label>
+                    <label class="field field-wide"><span><input id="cluster-member-edit-enabled" type="checkbox" checked> Member aktiv (deaktivieren = aus Scheduling ausschliessen)</span></label>
+                  </div>
+                </div>
+                <div class="button-row provision-modal-buttons">
+                  <button class="button ghost" type="button" data-close-cluster-modal>Abbrechen</button>
+                  <button class="button primary" id="cluster-member-edit-save-btn" type="button">Speichern</button>
+                </div>
+              </div>
+            </div>
+
             <div class="stats-row">
               <article class="stat-card">
                 <span class="stat-label">Nodes gesamt</span>
@@ -888,6 +1109,7 @@
                 </div>
                 <button class="button ghost small" id="refresh-virt" type="button">Refresh</button>
               </div>
+              <div id="virt-risk-banner" class="banner banner-warn hidden" role="alert" aria-live="polite"></div>
               <div id="nodes-grid" class="nodes-grid">
                 <div class="empty-card">Noch keine Daten geladen.</div>
               </div>
@@ -904,7 +1126,7 @@
                 <table class="storage-table">
                   <thead>
                     <tr>
-                      <th>Name</th><th>Node</th><th>Typ</th><th>Inhalt</th><th>Auslastung</th><th>Frei</th><th>Quota</th><th>Aktion</th>
+                      <th>Name</th><th>Node</th><th>Typ</th><th>Inhalt</th><th>Auslastung</th><th>Frei</th><th>Quota</th><th>Health</th><th>Aktion</th>
                     </tr>
                   </thead>
                   <tbody id="storage-body">
@@ -1521,6 +1743,32 @@
                 </div>
                 <div class="button-row">
                   <button class="button primary" id="upd-apply" type="button">Updates installieren</button>
+                </div>
+              </div>
+            </article>
+            <article class="card section-spaced">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Host-Artefakte</span>
+                  <h2>Downloads & Installer-Artefakte</h2>
+                </div>
+                <button class="button ghost small" id="settings-artifacts-refresh" type="button">Status aktualisieren</button>
+              </div>
+              <div class="settings-section-group">
+                <div class="settings-info-grid">
+                  <div class="info-item"><span class="info-label">Public ready</span><span class="info-value" id="artifact-ready">—</span></div>
+                  <div class="info-item"><span class="info-label">Fehlende Pflichtartefakte</span><span class="info-value" id="artifact-missing-count">—</span></div>
+                  <div class="info-item"><span class="info-label">Refresh Service</span><span class="info-value" id="artifact-refresh-service">—</span></div>
+                  <div class="info-item"><span class="info-label">Refresh Timer</span><span class="info-value" id="artifact-refresh-timer">—</span></div>
+                </div>
+                <div class="table-wrap compact">
+                  <table class="vm-table compact-table">
+                    <thead><tr><th>Artefakt</th><th>Status</th><th>Bytes</th><th>mtime</th></tr></thead>
+                    <tbody id="artifact-body"><tr><td colspan="4" class="empty-cell">Noch nicht geprueft.</td></tr></tbody>
+                  </table>
+                </div>
+                <div class="button-row">
+                  <button class="button primary" id="artifacts-refresh-start" type="button">Artefakte neu bauen/refreshen</button>
                 </div>
               </div>
             </article>

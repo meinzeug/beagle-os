@@ -335,7 +335,7 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             return
 
         if self._cluster_surface().handles_post(path):
-            if path != "/api/v1/cluster/join":
+            if path not in {"/api/v1/cluster/join", "/api/v1/cluster/join-with-setup-code"}:
                 if not self._is_authenticated():
                     self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                     return
@@ -812,6 +812,28 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
         )
         self._write_json(response["status"], response["payload"])
 
+    def do_PATCH(self) -> None:  # noqa: N802
+        if not self._enforce_api_rate_limit(urlparse(self.path).path.rstrip("/") or "/"):
+            return
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+        if not self._is_authenticated():
+            self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+            return
+        if not self._authorize_or_respond("PATCH", path):
+            return
+        try:
+            json_payload = self._read_json_body()
+        except Exception as exc:
+            self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+            return
+        if self._cluster_surface().handles_patch(path):
+            response = self._cluster_surface().route_patch(path, json_payload=json_payload)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
+            return
+        self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
+
     def do_DELETE(self) -> None:  # noqa: N802
         if not self._enforce_api_rate_limit(urlparse(self.path).path.rstrip("/") or "/"):
             return
@@ -868,6 +890,12 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             return
         if self._pools_surface().handles_delete(path):
             response = self._pools_surface().route_delete(path)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
+            return
+
+        if self._cluster_surface().handles_delete(path):
+            response = self._cluster_surface().route_delete(path)
             if response is not None:
                 self._write_json(response["status"], response["payload"])
             return

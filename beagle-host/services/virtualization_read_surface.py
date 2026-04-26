@@ -9,6 +9,7 @@ class VirtualizationReadSurfaceService:
     def __init__(
         self,
         *,
+        build_cluster_inventory: Callable[[], dict[str, Any]] | None = None,
         find_vm: Callable[[int], Any | None],
         get_guest_network_interfaces: Callable[[int], list[dict[str, Any]]],
         get_storage_quota: Callable[[str], dict[str, Any]],
@@ -23,6 +24,7 @@ class VirtualizationReadSurfaceService:
         version: str,
     ) -> None:
         self._find_vm = find_vm
+        self._build_cluster_inventory = build_cluster_inventory or (lambda: {})
         self._get_guest_network_interfaces = get_guest_network_interfaces
         self._get_storage_quota = get_storage_quota
         self._get_vm_config = get_vm_config
@@ -54,7 +56,8 @@ class VirtualizationReadSurfaceService:
         return {
             "id": name,
             "name": name,
-            "label": name,
+            "label": str(item.get("label") or name).strip() or name,
+            "provider_node_name": str(item.get("provider_node_name") or "").strip(),
             "status": str(item.get("status", "unknown")).strip() or "unknown",
             "cpu": float(item.get("cpu", 0) or 0),
             "mem": int(item.get("mem", 0) or 0),
@@ -68,6 +71,7 @@ class VirtualizationReadSurfaceService:
                 "id": node["id"],
                 "name": node["name"],
                 "label": node["label"],
+                "provider_node_name": node["provider_node_name"],
                 "status": node["status"],
                 "provider": self._host_provider_kind,
             }
@@ -75,6 +79,22 @@ class VirtualizationReadSurfaceService:
         ]
 
     def _nodes_payload(self) -> list[dict[str, Any]]:
+        try:
+            cluster_inventory = self._build_cluster_inventory()
+        except Exception:
+            cluster_inventory = {}
+        cluster_nodes = cluster_inventory.get("nodes") if isinstance(cluster_inventory, dict) else []
+        if isinstance(cluster_nodes, list) and cluster_nodes:
+            nodes: list[dict[str, Any]] = []
+            for item in cluster_nodes:
+                if not isinstance(item, dict):
+                    continue
+                normalized = self._normalize_node(item)
+                if normalized["id"]:
+                    nodes.append(normalized)
+            if nodes:
+                return nodes
+
         nodes: list[dict[str, Any]] = []
         try:
             raw_nodes = self._list_nodes_inventory()

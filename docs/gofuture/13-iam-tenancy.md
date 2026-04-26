@@ -175,6 +175,25 @@ Umsetzung (2026-04-21):
 
 ---
 
+### Schritt 7 — `/#panel=iam` UX- und Bedienbarkeits-Refactor
+
+- [ ] Ist-Zustand von `/#panel=iam` dokumentieren: User-Liste, Rollen-Editor, Permission-Grid, IdP-Anzeige und fehlende Admin-Flows.
+- [ ] IAM-Panel in klare Bereiche schneiden: `Users`, `Roles`, `Identity Provider`, `SCIM`, `Sessions`, `Tenants`.
+- [ ] User-Management als Detail-Drawer bauen: Basisdaten, Rolle, Tenant, Status, Gruppen, aktive Sessions, Aktionen `deaktivieren`, `Sessions widerrufen`, `Passwort zurücksetzen`.
+- [ ] Rollen-Editor verbessern: Permission-Gruppen als lesbare Cards, Such-/Filterfunktion, Built-in-Rollen geschützt, Änderungsdiff vor Speichern.
+- [ ] IdP-Konfigurations-Wizard ergänzen: OIDC, SAML und Local als Karten mit Setup-Status, Test-Login, Metadata/Redirect-URI-Hinweisen.
+- [ ] SCIM-Verwaltung in WebUI ergänzen: Endpoint-URL, Token-Status ohne Secret-Leak, Token rotieren, Test-Request/Sync-Status anzeigen.
+- [ ] Tenant-Verwaltung sichtbar machen: Tenant-Liste, User-Zuordnung, Role-Scope, Cross-Tenant-Warnungen.
+- [ ] Session-Verwaltung integrieren: aktive Sessions nach User/Role/Tenant filtern und gezielt widerrufen.
+- [ ] Security-Guardrails ergänzen: kein Token im Klartext anzeigen, Danger-Actions bestätigen, Audit-Events für alle IAM-Mutationen sichtbar verlinken.
+- [ ] UI-Regressions ergänzen: User CRUD, Rollen-Permission-Auswahl, Session-Revoke, IdP-/SCIM-Empty-State, RBAC-Sichtbarkeit.
+- [ ] E2E-Smoke mit lokalem Login auf `srv1`; Keycloak/OIDC/SCIM-E2E bleibt separat blockiert, bis eine externe IdP-Testinstanz verfügbar ist.
+
+Warum dieser Schritt noch offen ist:
+IAM v2 ist backendseitig breit angelegt, aber die WebUI bleibt noch zu sehr ein technischer Editor. Betreiber brauchen geführte Flows für User, Rollen, IdPs, SCIM und Sessions, weil Fehlkonfigurationen hier direkt Security-Auswirkungen haben. OIDC/SAML/SCIM dürfen nicht nur als Login-Buttons oder API-Endpunkte existieren; ihre Konfiguration, Diagnose und sichere Rotation müssen in der Web Console nachvollziehbar bedienbar sein.
+
+---
+
 ## Testpflicht nach Abschluss
 
 - [x] Keycloak-OIDC-Login: User loggt sich ein, JWT-Claims korrekt gemappt, Session erstellt. [EXTERNAL-INFRA — erfordert Keycloak-Instanz; OIDC-Service implementiert (OidcService), OIDC-Flows codepfadseitig vollständig; E2E-Test erfordert laufenden Keycloak]

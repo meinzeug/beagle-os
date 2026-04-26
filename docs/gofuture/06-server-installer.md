@@ -155,6 +155,24 @@ Umsetzung 2026-04-21:
 
 ---
 
+### Schritt 6 — Host-/Artifact-Operations in der Web Console bedienbar machen
+
+- [x] API-Endpunkt für Host-Artifact-Status ergänzen: `dist/beagle-downloads-status.json`, `/var/lib/beagle/refresh.status.json`, fehlende Pflichtartefakte und Service-/Timer-Status zusammenführen.
+- [x] API-Endpunkt zum Starten eines Artifact-Refresh ergänzen: `beagle-artifacts-refresh.service` reproduzierbar über systemd starten, keine langen blocking Requests.
+- [x] WebUI-Panel im Updates-/Artifact-Bereich ergänzen: Status-Kacheln für Pflichtartefakte, fehlende Downloads, Refresh-Service und Refresh-Timer.
+- [x] WebUI-Button "Artefakte neu bauen/refreshen" ergänzen; Start läuft über systemd und kehrt sofort zurück.
+- [ ] Job-Fortschritt sichtbar machen: Startzeit, laufender Schritt, letztes Ergebnis, Fehlerauszug, Link zu Status-JSON und Downloads.
+- [ ] Artifact-Preflight erweitern: freier Speicher, laufender Refresh, root/service capability, fehlende Build-Abhängigkeiten.
+- [ ] Download-/Publikations-Gate in der WebUI anzeigen: installimage darf erst als public ready gelten, wenn alle `v${VERSION}`- und `latest`-Thin-Client-Artefakte vorhanden sind.
+- [ ] srv1/srv2 validieren: Refresh auf `srv1` starten, Status in WebUI sehen, Downloads erreichbar, `scripts/check-beagle-host.sh` grün; danach Artefakte auf `srv2` prüfen/synchronisieren.
+- [x] API-Regressionstests für fehlende Artefakte und Refresh-Start ergänzen.
+- [ ] UI-/API-Regressionstests ergänzen: laufender Job, erfolgreicher Refresh, fehlgeschlagener Refresh, RBAC `settings:write`, WebUI-Rendering.
+
+Warum dieser Schritt noch offen ist:
+Der Host-Artifact-Refresh existiert als Shell-/systemd-Pfad und wird aktuell per SSH validiert. Das ist für Betreiber nicht ausreichend, weil frische Installationen und Release-/Download-Probleme direkt in der Web Console sichtbar und reparierbar sein müssen. Der aktuelle `srv1`/`srv2`-Check hat gezeigt, dass fehlende Artefakte den Host-Smoke brechen können, obwohl die Services laufen. Deshalb muss die WebUI nicht nur Downloads verlinken, sondern auch den Zustand der Artefaktkette bewerten und Refresh/Repair auslösen können.
+
+---
+
 ## Testpflicht nach Abschluss
 
 - [x] ISO bootet in QEMU-VM, Installer-Dialog erscheint.

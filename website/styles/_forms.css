@@ -2,9 +2,12 @@
 .field > span { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-muted); }
 .field-wide { grid-column: 1 / -1; }
 .field-narrow { max-width: 140px; }
-input[type="text"], input[type="password"], input[type="number"], input[type="email"], input[type="search"], .input-search, .input-select, select, textarea { width: 100%; background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 0.86rem; transition: border-color var(--transition), box-shadow var(--transition); }
+input[type="text"], input[type="url"], input[type="password"], input[type="number"], input[type="email"], input[type="search"], .input-search, .input-select, select, textarea { width: 100%; background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 0.86rem; transition: border-color var(--transition), box-shadow var(--transition); caret-color: var(--amber); color-scheme: dark; }
+input::placeholder, textarea::placeholder { color: var(--text-faint); opacity: 1; }
+input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, textarea:-webkit-autofill, textarea:-webkit-autofill:hover, textarea:-webkit-autofill:focus, select:-webkit-autofill, select:-webkit-autofill:hover, select:-webkit-autofill:focus { -webkit-text-fill-color: var(--text); box-shadow: 0 0 0 1000px var(--bg-input) inset; transition: background-color 9999s ease-out 0s; caret-color: var(--amber); }
+body.light-mode input[type="text"], body.light-mode input[type="url"], body.light-mode input[type="password"], body.light-mode input[type="number"], body.light-mode input[type="email"], body.light-mode input[type="search"], body.light-mode .input-search, body.light-mode .input-select, body.light-mode select, body.light-mode textarea { color-scheme: light; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
-input:read-only { color: var(--text-muted); cursor: not-allowed; }
+input:read-only, textarea:read-only { background: var(--bg-input); color: var(--text); cursor: text; }
 textarea { font-family: var(--font-mono); font-size: 0.80rem; resize: vertical; min-height: 80px; }
 select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%239b8c72' d='M0 0l5 6 5-6z'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 30px; }
 .check-label { display: inline-flex; align-items: center; gap: 8px; font-size: 0.84rem; color: var(--text-secondary); cursor: pointer; }

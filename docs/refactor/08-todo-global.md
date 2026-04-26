@@ -1,5 +1,29 @@
 # Global TODO
 
+## Update 2026-04-26 (GoFuture Re-Open: WebUI-Operability)
+
+- [x] GoFuture-Index wieder oeffnen und WebUI-Bedienbarkeit als Abschlusskriterium fuer Operator-Flows dokumentieren.
+- [x] Detailplan fuer `/#panel=cluster` erweitern: Cluster erstellen, Server hinzufuegen, Join-Token, Preflight, Job-Progress, Member-Verwaltung, srv1/srv2-Validierung.
+- [x] Cluster-Member-Leave auf 2-Phasen-Standard umstellen: Leader entfernt Member autoritativ per mTLS-RPC, danach lokales Cleanup und UI-Danger-Action nur auf dem betroffenen Member.
+- [x] `GET /api/v1/virtualization/overview` cluster-aware machen, damit `srv1` und `srv2` dieselbe Knotenliste rendern; Live-Drift in `srv1`-`members.json` repariert.
+- [x] Detailplan fuer `/#panel=virtualization` erweitern: Nodes, Storage, Bridges, VM Inspector und GPU/vGPU/SR-IOV bedienbar machen.
+- [x] Detailplan fuer `/#panel=policies` erweitern: Pool-/Template-/Entitlement-/Policy-UX ueberarbeiten.
+- [x] Detailplan fuer `/#panel=iam` erweitern: User-, Rollen-, IdP-, SCIM-, Session- und Tenant-Flows als Admin-Wizards planen.
+- [x] Detailplan fuer `/#panel=audit` erweitern: Audit-Viewer, Report-Builder, Export-Ziele, Failure-Replay und Compliance-Ansicht planen.
+- [x] Ersten Cluster-Wizard-Slice implementieren: lokaler Join in bestehenden Cluster via WebUI/API (`POST /api/v1/cluster/join-existing`).
+- [x] Leader-seitigen "Server hinzufügen"-Preflight implementieren: DNS/API/RPC/SSH pruefen und Join-Token nach bestandenem Pflicht-Preflight erzeugen.
+- [x] GoFuture Plan 07 Schritt 7 Setup-Code-Slice umsetzen: Zielserver erzeugt kurzlebigen Setup-Code, Leader verbindet per Hostname + Code, keine offene Remote-Health-/Inventory-Abfrage.
+- [ ] GoFuture Plan 07 Schritt 7 fortsetzen: Remote-KVM/libvirt-Preflight, Job-Fortschritt und Member-Edit/Remove implementieren.
+- [ ] GoFuture Plan 08 Schritt 7 umsetzen: `/#panel=virtualization` UX- und Bedienbarkeits-Refactor fuer Nodes/Storage/Networking.
+- [ ] GoFuture Plan 12 Schritt 6 umsetzen: GPU/vGPU/SR-IOV Bedienung und sichere Passthrough-Diagnose im Virtualization-Panel.
+- [ ] GoFuture Plan 10 Schritt 7 umsetzen: `/#panel=policies` grundlegend ueberarbeiten.
+- [ ] GoFuture Plan 13 Schritt 7 umsetzen: `/#panel=iam` grundlegend ueberarbeiten.
+- [ ] GoFuture Plan 15 Schritt 6 umsetzen: `/#panel=audit` grundlegend ueberarbeiten.
+- [x] GoFuture Plan 06 Schritt 6 erster Slice: Artifact-Status-API, Refresh-Start und WebUI-Statusbereich im Updates-Panel umsetzen.
+- [ ] GoFuture Plan 06 Schritt 6 fortsetzen: Artifact-Job-Fortschritt, Preflight, Fehlerauszug und WebUI-Regressions ergaenzen.
+- [ ] Laufenden Artifact-Refresh auf `srv1` abschliessen lassen und danach `scripts/check-beagle-host.sh` auf `srv1`/`srv2` validieren.
+- [ ] QEMU+SSH Live-Migration-Deadlock zwischen `srv1` und `srv2` weiter eingrenzen oder Shared-Storage-Migration als Abnahmepfad dokumentieren.
+
 ## Refactor Wave 2 (7.0)
 
 ## Update 2026-04-25 (GoEnterprise VM Reset + RBAC kiosk_operator)
@@ -32,7 +56,7 @@
 - [x] Live-OpenAPI-Check-Tool (`scripts/validate-openapi-live.py`) erstellen und auf `srv1` erfolgreich ausführen.
 - [x] `beaglectl vm list --json` Live-Test mit gültigem Manager-Token auf `srv1` erfolgreich validieren.
 - [x] Plan 18 Schritt 4 real umsetzen: Webhook-Service inkl. HMAC und Retry.
-- [ ] Plan 18 Terraform-Provider-Testpflicht (`apply/destroy`) auf `srv1` mit realer VM schließen.
+- [x] Plan 18 Terraform-Provider-Testpflicht (`apply/destroy`) auf `srv1` mit realer VM schließen.
 ## Wave 1 / 6.x backlog
 
 - [x] Start actual execution of GoFuture Plan 01 by creating the first WebUI ES modules (`state`, `dom`, `api`, `auth`, `panels`, `theme`, `activity`, `settings`, `dashboard`) plus `website/main.js`.
@@ -118,7 +142,7 @@
 
 - [ ] Complete dedicated-host bootstrap validation on new Hetzner server `46.4.96.80` (`srv1.beagle-os.com`) and verify Beagle core services/ports.
 - [ ] Verify KVM availability on the new dedicated host (`/dev/kvm`, `virsh domcapabilities --virttype kvm`) and re-run VM provisioning smoke through Beagle API/UI.
-- [ ] Add release-publication preflight that blocks installimage deployment when required `v${VERSION}` and `latest` thin-client artifacts are missing on `beagle-os.com/beagle-updates`.
+- [x] Add release-publication preflight that blocks installimage deployment when required `v${VERSION}` and `latest` thin-client artifacts are missing on `beagle-os.com/beagle-updates`.
 
 - [x] Add a reproducible Hetzner `installimage` tarball builder for Beagle server and wire it into package/release/public-download metadata.
 - [x] Add first-boot bootstrap + SSH host-key regeneration files for installimage-based Beagle server deployments.
@@ -138,11 +162,17 @@
 - [x] Add `.gitignore` protection for local-only operator files `AGENTS.md` and `AGENTS.md`.
 - [x] Remove `AGENTS.md` and `AGENTS.md` from Git tracking and keep them local-only on future pushes.
 - [x] Slim local `AGENTS.md` down to stable policy only and move roadmap/detail semantics back to `docs/refactor/*`.
-- [ ] Audit the repo for remaining plaintext credentials, tokens or operator-only notes that should not be versioned.
+- [x] Audit the repo for remaining plaintext credentials, tokens or operator-only notes that should not be versioned.
 - [x] Fix Web UI onboarding/login modal visibility conflicts.
 - [x] Fix Web UI auth request handling to avoid immediate logout on non-critical 401 responses.
 - [x] Fix session-token race condition in host auth service for concurrent requests.
 - [x] Increase nginx API/auth rate limits to prevent refresh-path 503s during burst traffic.
+- [x] Prevent dashboard live refresh from polling IAM users/roles outside the IAM panel and mark the local cluster leader prominently in the Cluster panel.
+- [x] Simplify the Cluster "weiteren Server vorbereiten" wizard to hostname-first UX with auto-derived expert values.
+- [x] Harden public Cluster RPC port `9089` on `srv1`/`srv2` with peer-only iptables rules.
+- [x] Remove unauthenticated `/api/v1/health` exposure and stop Cluster preflight from probing target `/health` without verification.
+- [ ] Reduce or retire public legacy port `8443` after moving installer/download paths to `443`.
+- [x] Implement real target-server setup-code verification for Cluster add-server wizard.
 - [x] Restore VM provisioning prerequisites on beagleserver (network/storage) and verify API create works.
 - [x] Add VM delete function in inventory detail (Web UI + backend route + provider wiring).
 - [x] Add noVNC launch actions in Web UI for each VM (inventory + detail).
@@ -213,11 +243,11 @@
 - [ ] Re-run `ensure-vm-stream-ready.sh` on VMs 100 and 102 once IPs are available to prove full unattended stream-prep flow (credential persistence + Sunshine install + ready state).
 - [ ] Fix post-install beagleserver disk boot path after installer success (currently no-bootable-device after ISO eject/reset).
 - [x] Add outer-host disk guardrails/cleanup routine for local validation harness (prevent repeated `beagleserver` pause on 100% root).
-- [ ] Add automated API regression test for `DELETE /api/v1/provisioning/vms/{vmid}`.
-- [ ] Add automated API regression test for `GET /api/v1/vms/{vmid}/novnc-access` (proxmox + beagle success payloads and failure handling).
+- [x] Add automated API regression test for `DELETE /api/v1/provisioning/vms/{vmid}`.
+- [x] Add automated API regression test for `GET /api/v1/vms/{vmid}/novnc-access` (beagle success payloads and failure handling).
 - [ ] Add UI regression test for VM delete action visibility and post-delete inventory refresh.
 - [ ] Add UI regression test for noVNC action buttons in inventory/detail and launch/error behavior.
-- [ ] Add regression tests for concurrent auth refresh + dashboard polling.
+- [x] Add regression tests for concurrent auth refresh + dashboard polling.
 - [ ] Add UI-level provisioning smoke test in CI.
 - [x] Backport VM-side noVNC/XFCE hotfixes into repo-owned host install path and freshly rebuilt server-installer ISO.
 - [ ] Prove the same noVNC/XFCE hotfixes on a clean host installed from the rebuilt server-installer ISO.

@@ -825,6 +825,29 @@ export function bindEvents() {
       setVirtualizationNodeFilter('');
     });
   }
+  if (qs('nodes-grid')) {
+    qs('nodes-grid').addEventListener('click', (event) => {
+      const filterBtn = event.target.closest('button[data-virt-node-filter]');
+      if (filterBtn) {
+        setVirtualizationNodeFilter(String(filterBtn.getAttribute('data-virt-node-filter') || '').trim());
+        return;
+      }
+      const preflightBtn = event.target.closest('button[data-virt-local-preflight]');
+      if (preflightBtn) {
+        const nodeName = String(preflightBtn.getAttribute('data-virt-local-preflight') || '').trim();
+        preflightBtn.disabled = true;
+        import('./api.js').then(({ request: req }) => req('/cluster/local-preflight')).then((data) => {
+          const checks = Array.isArray(data && data.checks) ? data.checks : [];
+          const lines = checks.map((c) => String(c.status || '?').toUpperCase() + ' ' + String(c.name || '') + ': ' + String(c.message || '')).join('\n');
+          window.alert('Preflight fuer ' + nodeName + ':\n\n' + (lines || 'Keine Daten.'));
+        }).catch((err) => {
+          window.alert('Preflight fehlgeschlagen: ' + String(err && err.message ? err.message : err));
+        }).finally(() => {
+          preflightBtn.disabled = false;
+        });
+      }
+    });
+  }
   if (qs('vgpu-refresh')) {
     qs('vgpu-refresh').addEventListener('click', () => {
       loadMdevTypes();

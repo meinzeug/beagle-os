@@ -31,7 +31,21 @@ _MANAGED_SERVICES = [
     "beagle-control-plane",
     "beagle-usb-tunnel",
     "beagle-websockify",
+    "beagle-artifacts-refresh",
+    "beagle-artifacts-refresh.timer",
     "nginx",
+]
+
+_REQUIRED_ARTIFACTS = [
+    "beagle-downloads-status.json",
+    "pve-thin-client-live-usb-latest.sh",
+    "pve-thin-client-usb-installer-latest.sh",
+    "pve-thin-client-usb-installer-latest.ps1",
+    "pve-thin-client-usb-payload-latest.tar.gz",
+    "pve-thin-client-usb-bootstrap-latest.tar.gz",
+    "beagle-os-installer-amd64.iso",
+    "beagle-os-server-installer-amd64.iso",
+    "Debian-1201-bookworm-amd64-beagle-server.tar.gz",
 ]
 
 _SAFE_TIMEZONE_PATTERN = re.compile(r"^[A-Za-z_]+/[A-Za-z0-9_/+-]+$")
@@ -42,6 +56,7 @@ _SAFE_DOMAIN_PATTERN = re.compile(
 _SAFE_IP_PATTERN = re.compile(
     r"^(\d{1,3}\.){3}\d{1,3}$"
 )
+_SAFE_SERVICE_NAME = re.compile(r"^[A-Za-z0-9_.@-]+$")
 _ACME_WEBROOT = Path("/var/lib/beagle/acme-webroot")
 _CERTBOT_BASE_DIR = Path("/var/lib/beagle/beagle-manager/letsencrypt")
 _CERTBOT_CONFIG_DIR = _CERTBOT_BASE_DIR / "config"
@@ -57,10 +72,12 @@ class ServerSettingsService:
         self,
         *,
         data_dir: Path | None = None,
+        install_dir: Path | None = None,
         utcnow: Callable[[], str] | None = None,
         webhook_service: WebhookService | None = None,
     ) -> None:
         self._data_dir = data_dir or Path("/etc/beagle")
+        self._install_dir = install_dir or Path(os.environ.get("BEAGLE_INSTALL_DIR", "/opt/beagle"))
         self._utcnow = utcnow or (lambda: "")
         self._settings_path = self._data_dir / "server-settings.json"
         self._webhook_service = webhook_service or WebhookService(
@@ -529,6 +546,70 @@ class ServerSettingsService:
             "upgradable": upgradable[:100],
         }
 
+    def get_artifacts(self) -> dict[str, Any]:
+        dist_dir = self._install_dir / "dist"
+        status_file = dist_dir / "beagle-downloads-status.json"
+        refresh_status_file = Path("/var/lib/beagle/refresh.status.json")
+        artifacts: list[dict[str, Any]] = []
+        for rel_path in _REQUIRED_ARTIFACTS:
+            path = dist_dir / rel_path
+            exists = path.is_file()
+            size = 0
+            mtime = None
+            try:
+                if exists:
+                    stat = path.stat()
+                    size = int(stat.st_size)
+                    mtime = int(stat.st_mtime)
+            except OSError:
+                exists = False
+            artifacts.append({
+                "path": rel_path,
+                "exists": exists,
+                "size_bytes": size,
+                "mtime_epoch": mtime,
+            })
+
+        status_json: dict[str, Any] = {}
+        refresh_status: dict[str, Any] = {}
+        for path, target in ((status_file, status_json), (refresh_status_file, refresh_status)):
+            try:
+                if path.is_file():
+                    loaded = json.loads(path.read_text(encoding="utf-8"))
+                    if isinstance(loaded, dict):
+                        target.update(loaded)
+            except (OSError, json.JSONDecodeError):
+                target["error"] = "unreadable"
+
+        missing = [item["path"] for item in artifacts if not item["exists"]]
+        refresh_service = _run_cmd(["systemctl", "is-active", "beagle-artifacts-refresh.service"]) or "unknown"
+        refresh_timer = _run_cmd(["systemctl", "is-active", "beagle-artifacts-refresh.timer"]) or "unknown"
+        return {
+            "dist_dir": str(dist_dir),
+            "status_file": str(status_file),
+            "refresh_status_file": str(refresh_status_file),
+            "status": status_json,
+            "refresh_status": refresh_status,
+            "artifacts": artifacts,
+            "missing": missing,
+            "ready": not missing and bool(status_json),
+            "services": {
+                "beagle-artifacts-refresh.service": refresh_service.strip(),
+                "beagle-artifacts-refresh.timer": refresh_timer.strip(),
+            },
+        }
+
+    def start_artifact_refresh(self) -> dict[str, Any]:
+        r = subprocess.run(
+            ["systemctl", "start", "beagle-artifacts-refresh.service"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if r.returncode != 0:
+            return {"ok": False, "error": f"artifact refresh start failed: {r.stderr.strip()[:300]}"}
+        return {"ok": True, "artifacts": self.get_artifacts()}
+
     def apply_updates(self) -> dict[str, Any]:
         r = subprocess.run(
             ["apt-get", "upgrade", "-y", "-qq"],
@@ -647,6 +728,8 @@ class ServerSettingsService:
             return _ok(self.get_services())
         if path == "/api/v1/settings/updates":
             return _ok(self.get_updates())
+        if path == "/api/v1/settings/artifacts":
+            return _ok(self.get_artifacts())
         if path == "/api/v1/settings/backup":
             return _ok(self.get_backup())
         if path == "/api/v1/settings/webhooks":
@@ -690,6 +773,10 @@ class ServerSettingsService:
         if path == "/api/v1/settings/updates/apply":
             result = self.apply_updates()
             status = HTTPStatus.OK if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
+            return {"kind": "json", "status": status, "payload": result}
+        if path == "/api/v1/settings/artifacts/refresh":
+            result = self.start_artifact_refresh()
+            status = HTTPStatus.ACCEPTED if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
             return {"kind": "json", "status": status, "payload": result}
         if path == "/api/v1/settings/backup/run":
             result = self.run_backup_now()

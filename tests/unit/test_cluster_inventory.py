@@ -126,7 +126,70 @@ class ClusterInventoryServiceTests(unittest.TestCase):
 
         node_names = {item["name"] for item in payload["nodes"]}
         self.assertIn("node-b", node_names)
-        self.assertIn("beagle-0", node_names)
+        self.assertIn("srv1", node_names)
+
+    def test_build_inventory_collapses_local_provider_node_into_local_member_name(self):
+        service = ClusterInventoryService(
+            build_vm_inventory=lambda: {
+                "vms": [
+                    {"vmid": 100, "node": "beagle-0", "status": "running"},
+                ]
+            },
+            host_provider_kind="beagle",
+            list_remote_inventories=lambda: [],
+            list_cluster_members=lambda: [
+                {"name": "srv1", "api_url": "http://46.4.96.80:9088/api/v1", "status": "online", "local": True},
+            ],
+            list_nodes_inventory=lambda: [
+                {"name": "beagle-0", "status": "online", "cpu": 0.1, "mem": 1024, "maxmem": 4096, "maxcpu": 8},
+            ],
+            service_name="beagle-control-plane",
+            utcnow=lambda: "2026-04-26T12:00:00Z",
+            version="7.0.0-dev",
+        )
+
+        payload = service.build_inventory()
+
+        self.assertEqual(payload["node_count"], 1)
+        self.assertEqual(payload["local_member_name"], "srv1")
+        node = payload["nodes"][0]
+        self.assertEqual(node["name"], "srv1")
+        self.assertEqual(node["label"], "srv1")
+        self.assertEqual(node["provider_node_name"], "beagle-0")
+        self.assertEqual(node["vm_count"], 1)
+
+    def test_build_inventory_collapses_remote_provider_node_into_remote_member_name(self):
+        service = ClusterInventoryService(
+            build_vm_inventory=lambda: {"vms": []},
+            host_provider_kind="beagle",
+            list_remote_inventories=lambda: [
+                {
+                    "local_member_name": "srv2",
+                    "nodes": [
+                        {"name": "beagle-1", "status": "online", "cpu": 0.1, "mem": 512, "maxmem": 2048, "maxcpu": 4},
+                    ],
+                    "vms": [
+                        {"vmid": 210, "node": "beagle-1", "status": "running"},
+                    ],
+                }
+            ],
+            list_cluster_members=lambda: [
+                {"name": "srv1", "api_url": "http://46.4.96.80:9088/api/v1", "status": "online", "local": True},
+                {"name": "srv2", "api_url": "http://176.9.127.50:9088/api/v1", "status": "online", "local": False},
+            ],
+            list_nodes_inventory=lambda: [
+                {"name": "beagle-0", "status": "online", "cpu": 0.1, "mem": 1024, "maxmem": 4096, "maxcpu": 8},
+            ],
+            service_name="beagle-control-plane",
+            utcnow=lambda: "2026-04-26T12:30:00Z",
+            version="7.0.0-dev",
+        )
+
+        payload = service.build_inventory()
+
+        nodes = {item["name"]: item for item in payload["nodes"]}
+        self.assertEqual(nodes["srv2"]["provider_node_name"], "beagle-1")
+        self.assertEqual(nodes["srv2"]["vm_count"], 1)
 
     def test_build_inventory_cluster_member_unreachable_after_kill(self):
         """Member marked unreachable is reflected in inventory status."""

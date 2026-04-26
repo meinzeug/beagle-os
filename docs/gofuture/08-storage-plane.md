@@ -134,6 +134,25 @@ Administratoren können Quotas per API oder Web Console setzen und ändern.
 
 ---
 
+### Schritt 7 — `/#panel=virtualization` UX- und Bedienbarkeits-Refactor: Nodes/Storage/Networking
+
+- [ ] Ist-Zustand von `/#panel=virtualization` dokumentieren: Welche Tabellen existieren, welche Aktionen fehlen, welche Operator-Fragen bleiben unbeantwortet.
+- [ ] Panel in klare Bereiche schneiden: `Nodes`, `Storage`, `Bridges/Networking`, `GPU`, `VM Inspector`, `Operations`.
+- [x] Node-Cards bauen: Hostname, Status, CPU/RAM, Storage-Druck, VM-Zahl, libvirt/KVM-Health, Actions `Details`, `Maintenance`, `Refresh`.
+- [ ] Node-Detail-Drawer oder Detailseite ergänzen: Services, KVM/IOMMU, libvirt URI, SSH/RPC-Reachability, relevante Logs/Warnings.
+- [ ] Storage-Bereich als editierbare Cards statt reiner Tabelle darstellen: Backend-Typ, Kapazität, aktiv/inaktiv, Quota, Mount/Pool-Health, Actions `Quota setzen`, `Health prüfen`.
+- [ ] Bridge-/Netzwerkbereich bedienbar machen: Bridge-Liste, VM-Nutzung, IPAM-Zuordnung, Warnungen für fehlende/inkonsistente Bridges.
+- [ ] VM-Inspector verbessern: VMID-Suche, zuletzt gewählte VM, Config-Diff, Netzwerkinterfaces, Storage-Belegung und direkte Aktionen klar gruppieren.
+- [x] Risk-/Health-Banner ergänzen: `KVM fehlt`, `libvirt nicht erreichbar`, `Storage fast voll`, `Bridge fehlt`, `Quota überschritten`.
+- [ ] API-Lücken erfassen und schließen, bevor UI-Aktionen Mock-Daten verwenden: kein UI-Button ohne echten Backend-Pfad.
+- [ ] UI-Regressions ergänzen: Node-Card-Rendering, Quota-Setter, Inspector-Suche, Empty-/Error-State.
+- [ ] srv1/srv2-Smoke durchführen: beide Hosts sichtbar, Storage/Bridge/Quota korrekt, keine Console Errors.
+
+Warum dieser Schritt noch offen ist:
+Die Storage- und Virtualization-Backends sind technisch weitgehend implementiert, aber `/#panel=virtualization` ist noch zu stark eine Diagnose-Tabelle. Betreiber müssen dort reale Infrastruktur verwalten können: Nodes prüfen, Quotas setzen, Netzwerk-/Storage-Probleme erkennen und zielgerichtete Aktionen starten. Ohne diesen Refactor bleibt Virtualization ein Entwickler-/Debug-Panel statt einer Web Console für produktiven Betrieb.
+
+---
+
 ## Testpflicht nach Abschluss
 
 - [x] VM mit Directory-Backend anlegen, starten, Snapshot erstellen, Snapshot wiederherstellen.

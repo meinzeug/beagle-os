@@ -1,5 +1,38 @@
 # Next Steps
 
+## Stand (2026-04-26, GoFuture Re-Open: WebUI-Operability)
+
+**Zuletzt erledigt**:
+- GoFuture-Index und Detailplaene fuer `/#panel=cluster`, `/#panel=virtualization`, `/#panel=policies`, `/#panel=iam` und `/#panel=audit` mit echten Checkbox-Backlogs erweitert.
+- Abschlussregel geschaerft: Statusanzeigen reichen nicht; Operator-Flows muessen in der WebUI bedienbar, validiert, progress-faehig und getestet sein.
+- Erster Cluster-Wizard-Slice umgesetzt: lokaler Join in bestehenden Cluster per WebUI/API (`POST /api/v1/cluster/join-existing`) plus Setup-Card im Cluster-Panel.
+- Leader-Preflight-Slice umgesetzt: `POST /api/v1/cluster/add-server-preflight` plus WebUI-Wizard fuer DNS/API/RPC/SSH-Pruefung und Join-Token nach bestandenem Pflicht-Preflight.
+- Cluster-Panel markiert den lokalen Host jetzt sichtbar als `LEADER`, `MEMBER` oder `SETUP`; Leader-only Aktionen werden nur auf dem Leader angeboten.
+- Der Leader-Wizard "Weiteren Server vorbereiten" ist jetzt auf eine Laien-Eingabe reduziert: Servername und Zielserver-Setup-Code eingeben; technische Felder liegen im Expertenbereich.
+- Echter Zielserver-Setup-Code fuer Auto-Join ist implementiert: Zielserver erzeugt nach Login einen kurzlebigen, gehasht gespeicherten Einmal-Code; Leader verbindet per Hostname + Code ohne offene Remote-Health-/Inventory-Abfrage.
+- Cluster-Member-Leave folgt jetzt einem 2-Phasen-Flow: Leader entfernt den Member autoritativ per mTLS-RPC, danach wird lokal aufgeraeumt.
+- `GET /api/v1/virtualization/overview` ist cluster-aware; `srv1` und `srv2` zeigen beide dieselbe Knotenliste statt nur den lokalen Node.
+- Join-Tokens haben jetzt eine echte serverseitige Ablaufpruefung.
+- Auth-503-Bursts reduziert: nginx `beagle_auth` Rate-Limit angehoben und Dashboard fragt IAM-User/Roles nur noch im IAM-Panel ab.
+- Artifact-Operations-Slice umgesetzt: `GET/POST /api/v1/settings/artifacts*` plus WebUI-Status/Refresh im Updates-Panel.
+- Lokale Regression: `42 passed` fuer Auth-HTTP, Cluster-Membership, Cluster-HTTP-Surface und AuthZ; Live-Burst auf `srv1` gegen `/auth/roles`: 35x `401`, 0x `503`.
+
+**Naechste konkrete Schritte**:
+
+1. **Security vor Cluster-Komfort**: `8443` auf downloads-only reduzieren oder schließen; Installer-/Download-Pfade vorher sauber auf `443` migrieren.
+2. **Plan 07 Schritt 7 fortsetzen**: Remote-KVM/libvirt-Preflight und Job-Progress fuer Auto-Join ergaenzen (`preflight`, `token`, `remote-join`, `rpc-check`, `inventory-refresh`).
+3. **Leader-State-Reconcile bauen**: Drift in `members.json` reproduzierbar erkennen und vom Leader aus sauber neu aufbauen oder gegen den Cluster-Store abgleichen.
+4. **Migration-Blocker isolieren**: qemu+ssh/libvirt-Deadlock reproduzierbar einkreisen oder Shared-Storage-Migrationspfad als produktiven Pfad priorisieren.
+5. **Plan 08/12 Virtualization-Panel**: `/#panel=virtualization` in Nodes, Storage, Bridges, GPU und VM Inspector aufteilen; keine UI-Aktion ohne Backend-Pfad.
+6. **Plan 10 Policies-Panel**: `/#panel=policies` von Tabellen-/Mischansicht auf Cards, Details, Wizards und sichere Danger-Actions umbauen.
+7. **Plan 13/15 Admin-Panels**: IAM- und Audit-Flows fuer User/Rollen/IdP/SCIM/Sessions sowie Report-/Export-/Replay-Bedienung umsetzen.
+
+**Blocker/Risiken**:
+- `srv2` GPU: GTX 1080 ist an `vfio-pci`, aber IOMMU-Gruppe enthaelt weitere Geraete; Passthrough bleibt ohne ACS/BIOS/Hardware-Aenderung nicht sicher freigebbar.
+- Artifact-Build auf `srv1` laeuft noch; bis zum erfolgreichen Host-Check darf kein Release-/Installimage-Abschluss behauptet werden.
+
+---
+
 ## Stand (2026-05-XX, GoAdvanced Plan 07 vollständig: Async Job Queue)
 
 **Zuletzt erledigt**:
