@@ -43,6 +43,44 @@ beagle_is_safe_cleanup_path() {
   return 1
 }
 
+beagle_unmount_recursive_path() {
+  local target="$1"
+  local resolved=""
+  local mounted_path=""
+  local -a mounted_paths=()
+
+  [[ -e "$target" ]] || return 0
+  resolved="$(readlink -f "$target" 2>/dev/null || true)"
+  [[ -n "$resolved" ]] || return 0
+
+  if command -v findmnt >/dev/null 2>&1; then
+    while IFS= read -r mounted_path; do
+      [[ -n "$mounted_path" ]] || continue
+      mounted_paths+=("$mounted_path")
+    done < <(findmnt -rn -R -o TARGET -- "$resolved" 2>/dev/null | sort -r || true)
+  fi
+
+  if [[ -r /proc/self/mountinfo ]]; then
+    while IFS= read -r mounted_path; do
+      [[ -n "$mounted_path" ]] || continue
+      mounted_paths+=("$mounted_path")
+    done < <(awk -v root="$resolved" '$5 == root || index($5, root "/") == 1 { print $5 }' /proc/self/mountinfo 2>/dev/null | sort -r || true)
+  fi
+
+  [[ "${#mounted_paths[@]}" -gt 0 ]] || return 0
+
+  printf '%s\n' "${mounted_paths[@]}" | awk '!seen[$0]++' | while IFS= read -r mounted_path; do
+    [[ -n "$mounted_path" ]] || continue
+    if ! umount -l "$mounted_path" 2>/dev/null; then
+      if command -v sudo >/dev/null 2>&1; then
+        sudo umount -l "$mounted_path" 2>/dev/null || true
+      else
+        echo "Unable to unmount stale cleanup mount: $mounted_path" >&2
+      fi
+    fi
+  done
+}
+
 beagle_cleanup_reproducible_paths() {
   local root_dir="$1"
   shift
@@ -58,6 +96,8 @@ beagle_cleanup_reproducible_paths() {
       echo "Skipping unsafe cleanup path: $path" >&2
       continue
     fi
+
+    beagle_unmount_recursive_path "$path"
 
     size_kib="$(du -sk "$path" 2>/dev/null | awk 'NR==1 {print $1}')"
     size_kib="${size_kib:-0}"
