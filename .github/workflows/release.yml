@@ -312,6 +312,45 @@ jobs:
             assets+=("$f")
           done < <(find dist/sbom/ -type f -print0 | sort -z)
 
+          # GitHub Release assets have a hard per-file size limit. Keep the
+          # release green and publish a manifest for files that must stay as
+          # workflow artifacts or be mirrored by external hosting.
+          max_release_asset_bytes=$((2 * 1024 * 1024 * 1024 - 1))
+          manifest="dist/RELEASE_ASSETS.md"
+          filtered_assets=()
+          skipped_assets=()
+          {
+            echo "# Beagle OS release assets"
+            echo
+            echo "Per-file release asset limit: ${max_release_asset_bytes} bytes."
+            echo
+            echo "## Included"
+          } > "$manifest"
+          for asset in "${assets[@]}"; do
+            size=$(stat -c '%s' "$asset")
+            if (( size <= max_release_asset_bytes )); then
+              filtered_assets+=("$asset")
+              printf -- '- `%s` (%s bytes)\n' "$asset" "$size" >> "$manifest"
+            else
+              skipped_assets+=("$asset:$size")
+            fi
+          done
+          {
+            echo
+            echo "## Skipped"
+          } >> "$manifest"
+          if (( ${#skipped_assets[@]} )); then
+            for item in "${skipped_assets[@]}"; do
+              path="${item%:*}"
+              size="${item##*:}"
+              printf -- '- `%s` (%s bytes): exceeds GitHub Release per-file limit; available as workflow artifact.\n' "$path" "$size" >> "$manifest"
+            done
+          else
+            echo "- none" >> "$manifest"
+          fi
+          filtered_assets+=("$manifest")
+          assets=("${filtered_assets[@]}")
+
           # Extract changelog section for this version if CHANGELOG.md exists
           notes_args=()
           if [[ -f CHANGELOG.md ]]; then
@@ -320,8 +359,21 @@ jobs:
             notes_args+=(--generate-notes)
           fi
 
+          set +e
           gh release create "$TAG" \
             --title "$RELEASE_TITLE" \
             ${PRERELEASE_FLAG:-} \
             "${notes_args[@]}" \
-            "${assets[@]}"
+            "${assets[@]}" 2>&1 | tee /tmp/beagle-release-create.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            python - <<'PY'
+          from pathlib import Path
+          from urllib.parse import quote
+
+          log = Path("/tmp/beagle-release-create.log").read_text(errors="replace").splitlines()
+          tail = "\n".join(log[-80:])[-7000:]
+          print(f"::error file=.github/workflows/release.yml,line=275,title=gh release create failed::{quote(tail)}")
+          PY
+            exit "$rc"
+          fi
