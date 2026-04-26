@@ -74,6 +74,9 @@ from public_http_surface import PublicHttpSurfaceService
 from public_sunshine_surface import PublicSunshineSurfaceService
 from public_ubuntu_install_surface import PublicUbuntuInstallSurfaceService
 from public_streams import PublicStreamService
+from job_queue_service import JobQueueService
+from job_worker import JobWorker
+from jobs_http_surface import JobsHttpSurface
 from prometheus_metrics import PrometheusMetricsService
 from health_aggregator import HealthAggregatorService
 from structured_logger import StructuredLogger
@@ -1049,6 +1052,9 @@ ACTION_QUEUE_SERVICE: ActionQueueService | None = None
 POLICY_NORMALIZATION_SERVICE: PolicyNormalizationService | None = None
 POLICY_STORE_SERVICE: PolicyStoreService | None = None
 PUBLIC_STREAM_SERVICE: PublicStreamService | None = None
+JOB_QUEUE_SERVICE: JobQueueService | None = None
+JOB_WORKER: JobWorker | None = None
+JOBS_HTTP_SURFACE: JobsHttpSurface | None = None
 PROMETHEUS_METRICS_SERVICE: PrometheusMetricsService | None = None
 HEALTH_AGGREGATOR_SERVICE: HealthAggregatorService | None = None
 STRUCTURED_LOGGER: StructuredLogger | None = None
@@ -1177,6 +1183,33 @@ def structured_logger() -> StructuredLogger:
             min_level=os.environ.get("BEAGLE_LOG_LEVEL", "info").strip().lower() or "info",
         )
     return STRUCTURED_LOGGER
+
+
+def job_queue_service() -> JobQueueService:
+    """Singleton async-job queue (GoAdvanced Plan 07 Schritt 1)."""
+    global JOB_QUEUE_SERVICE
+    if JOB_QUEUE_SERVICE is None:
+        JOB_QUEUE_SERVICE = JobQueueService()
+    return JOB_QUEUE_SERVICE
+
+
+def job_worker() -> JobWorker:
+    """Singleton background job worker (GoAdvanced Plan 07 Schritt 2)."""
+    global JOB_WORKER
+    if JOB_WORKER is None:
+        JOB_WORKER = JobWorker(
+            queue=job_queue_service(),
+            max_workers=int(os.environ.get("BEAGLE_JOB_WORKER_COUNT", "4")),
+        )
+    return JOB_WORKER
+
+
+def jobs_http_surface() -> JobsHttpSurface:
+    """Singleton jobs HTTP surface (GoAdvanced Plan 07 Schritt 4)."""
+    global JOBS_HTTP_SURFACE
+    if JOBS_HTTP_SURFACE is None:
+        JOBS_HTTP_SURFACE = JobsHttpSurface(queue=job_queue_service())
+    return JOBS_HTTP_SURFACE
 
 
 def vm_secret_store_service() -> VmSecretStoreService:

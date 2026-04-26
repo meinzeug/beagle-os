@@ -534,6 +534,22 @@ class HandlerMixin:
         except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
             return
 
+    def _stream_sse_job(self, generator) -> None:
+        """Stream SSE events from a job-progress generator (Plan 07 Schritt 4)."""
+        try:
+            self.send_response(HTTPStatus.OK)
+            self._write_common_security_headers()
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+            for chunk in generator:
+                self.wfile.write(chunk)
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
+            return
+
     def _stream_auth_error(self, status: HTTPStatus, code: str = "unauthorized", message: str = "unauthorized") -> None:
         """Return an SSE-framed auth error so EventSource does not fail with MIME mismatch."""
         try:

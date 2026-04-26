@@ -282,6 +282,19 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
                 self._write_json(response["status"], response["payload"])
             return
 
+        if jobs_http_surface().handles_get(path):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            requester = self._requester_identity()
+            flat_query = {k: v[0] for k, v in query.items() if v}
+            response = jobs_http_surface().route_get(path, flat_query, requester=requester)
+            if response["kind"] == "sse":
+                self._stream_sse_job(response["generator"])
+            else:
+                self._write_json(response["status"], response["payload"])
+            return
+
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -828,6 +841,17 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
                 path, requester_tenant_id=requester_tenant
             )
             self._audit_auth_surface_response("DELETE", path, response)
+            self._write_json(response["status"], response["payload"])
+            return
+
+        if jobs_http_surface().handles_delete(path):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("DELETE", path):
+                return
+            requester = self._requester_identity()
+            response = jobs_http_surface().route_delete(path, requester=requester)
             self._write_json(response["status"], response["payload"])
             return
 
