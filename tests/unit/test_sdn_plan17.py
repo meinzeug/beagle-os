@@ -265,6 +265,7 @@ class TestFirewallService:
         fw.apply_profile_to_vm("https", "vm-001")
         retrieved = fw.get_vm_profile("vm-001")
         assert retrieved.profile_id == "https"
+        assert (self.tmp_path / "fw.backup.json").exists()
 
 
 if __name__ == "__main__":

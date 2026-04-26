@@ -41,9 +41,12 @@ class FirewallService:
         """Initialize firewall service."""
         if state_file is not None:
             self.STATE_FILE = state_file
+            if backup_file is None:
+                self.BACKUP_FILE = state_file.with_name(f"{state_file.stem}.backup{state_file.suffix}")
         if backup_file is not None:
             self.BACKUP_FILE = backup_file
         self.STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        self.BACKUP_FILE.parent.mkdir(parents=True, exist_ok=True)
         self._state = self._load_state()
 
     def _load_state(self) -> dict[str, Any]:
