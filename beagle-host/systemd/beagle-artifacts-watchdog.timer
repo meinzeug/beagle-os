@@ -2,8 +2,9 @@
 Description=Run Beagle artifacts watchdog regularly
 
 [Timer]
-OnBootSec=5min
+OnBootSec=2min
 OnUnitActiveSec=15min
+AccuracySec=30s
 Unit=beagle-artifacts-watchdog.service
 Persistent=true
 

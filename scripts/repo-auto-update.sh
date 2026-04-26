@@ -13,7 +13,7 @@ INSTALL_DIR="${BEAGLE_INSTALL_DIR:-/opt/beagle}"
 COMMIT_FILE="$INSTALL_DIR/.beagle-installed-commit"
 DEFAULT_REPO_URL="${BEAGLE_REPO_AUTO_UPDATE_REPO_URL:-https://github.com/meinzeug/beagle-os.git}"
 DEFAULT_BRANCH="${BEAGLE_REPO_AUTO_UPDATE_BRANCH:-main}"
-DEFAULT_INTERVAL_MINUTES="${BEAGLE_REPO_AUTO_UPDATE_INTERVAL_MINUTES:-15}"
+DEFAULT_INTERVAL_MINUTES="${BEAGLE_REPO_AUTO_UPDATE_INTERVAL_MINUTES:-1}"
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -92,7 +92,7 @@ def run(cmd: list[str], *, cwd: Path | None = None, timeout: int = 1800) -> subp
 settings = load_json(settings_path)
 status = load_json(status_path)
 config = {
-    "enabled": bool(settings.get("repo_auto_update_enabled", False)),
+    "enabled": bool(settings.get("repo_auto_update_enabled", True)),
     "repo_url": str(settings.get("repo_auto_update_repo_url") or default_repo_url).strip() or default_repo_url,
     "branch": str(settings.get("repo_auto_update_branch") or default_branch).strip() or default_branch,
     "interval_minutes": int(settings.get("repo_auto_update_interval_minutes", default_interval) or default_interval),
@@ -158,7 +158,7 @@ if (
     and status_current_commit == current_commit
     and status_state not in {"error", "updating"}
     and not status_update_available
-    and now - last_checked < timedelta(minutes=max(5, config["interval_minutes"]))
+    and now - last_checked < timedelta(minutes=max(1, config["interval_minutes"]))
 ):
     payload.update(status)
     payload["checked_at"] = now.isoformat()

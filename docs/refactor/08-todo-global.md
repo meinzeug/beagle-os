@@ -263,4 +263,5 @@
 - [ ] Validate the new Windows live USB writer with a real Windows/UEFI boot test and confirm the medium boots directly into Beagle OS runtime without manual GRUB repair.
 - [x] Add GitHub-based repo auto-update controls in `Server-Einstellungen -> System-Updates`, backed by `beagle-repo-auto-update.service/.timer`, so hosts can regularly compare against `meinzeug/beagle-os` and self-update before the artifact watchdog reconciles downloads again (2026-04-26).
 - [x] Fix `.github/workflows/release.yml` parse failure caused by `if: secrets...` so pushes to `main` can again create a valid release workflow run (2026-04-26).
+- [x] Make Repo-Auto-Update and Artifact-Watchdog secure-by-default for fresh Beagle server installs: GitHub check every 1 minute, watchdog auto-repair enabled, artifact max age 6 hours (2026-04-26).
 - [ ] Validate live on `srv1` and `srv2` that a pushed GitHub commit is pulled by the new repo auto-update path and followed by a healthy artifact watchdog state.

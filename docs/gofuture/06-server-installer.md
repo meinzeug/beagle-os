@@ -207,6 +207,11 @@ Umsetzung 2026-04-26:
   - WebUI `Server-Einstellungen -> System-Updates` kann Repo-URL, Branch, Intervall und Aktivierung jetzt direkt verwalten; der Watchdog haelt nach erfolgreichen Repo-Updates die Artefaktkette weiter aktuell.
   - Host-Installer-Fix: die neue Repo-Update-Unit wird jetzt wie die anderen systemd-Units korrekt mit `__INSTALL_DIR__ -> /opt/beagle` templated installiert; dadurch startet der Timer reproduzierbar auf `srv1` und `srv2`.
   - GitHub-CI-Fix: `.github/workflows/release.yml` nutzt den optionalen GPG-Key nicht mehr in einem unzulaessigen `if: secrets...`-Ausdruck, sondern prueft ihn innerhalb des Shell-Schritts. Das beseitigt den aktuellen GitHub-Parse-Fehler der Release-Workflow-Datei.
+  - Security-Default 2026-04-26:
+    - Frische Beagle-Serverinstallationen aktivieren Repo-Auto-Update und Artifact-Watchdog jetzt automatisch.
+    - Repo-Auto-Update prueft `meinzeug/beagle-os` Branch `main` alle 1 Minute.
+    - Artifact-Watchdog nutzt `auto_repair=true` und maximal 6 Stunden Artefaktalter.
+    - `install-beagle-host-services.sh` schreibt diese Defaults nur, wenn die jeweilige Einstellung noch fehlt.
 
 ---
 

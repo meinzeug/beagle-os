@@ -1,6 +1,31 @@
 # Security Findings
 
-Stand: 2026-04-26 (ergänzt: S-021 Cluster-Preflight/Port-Härtung + Setup-Code Auto-Join)
+Stand: 2026-04-26 (ergänzt: S-024 Security-Default fuer Repo-/Artifact-Automatik)
+
+## S-024 — Beagle-Repo-Updates und Artifact-Reparatur waren nicht standardmaessig scharf genug (PATCHED)
+
+- Status: **gepatcht** (2026-04-26)
+- Risiko: **Mittel**
+- Betroffene Dateien:
+  - `beagle-host/services/server_settings.py`
+  - `scripts/repo-auto-update.sh`
+  - `scripts/artifact-watchdog.sh`
+  - `scripts/install-beagle-host-services.sh`
+  - `beagle-host/systemd/beagle-repo-auto-update.timer`
+  - `beagle-host/systemd/beagle-artifacts-watchdog.timer`
+- Beschreibung:
+  - Frische Serverinstallationen mussten Repo-Auto-Update und Artifact-Watchdog bisher effektiv per UI/Operator-Konfiguration schaerfen.
+  - In einem Schwachstellenfall ist das zu langsam: ein Host kann dadurch auf einem alten Repo-Stand oder mit veralteten Installer-/Download-Artefakten bleiben.
+- Fix:
+  - Repo-Auto-Update ist per Default aktiv, prueft `meinzeug/beagle-os` Branch `main` und nutzt `interval_minutes=1`.
+  - Der Repo-Timer startet nach 1 Minute Bootzeit und laeuft danach jede Minute mit `AccuracySec=10s`.
+  - Der Artifact-Watchdog ist per Default aktiv, repariert automatisch und setzt `max_age_hours=6`.
+  - Der Host-Service-Installer schreibt diese Defaults fuer frische Installationen idempotent in `/var/lib/beagle/beagle-manager/server-settings.json`, ohne bestehende Operator-Werte zu ueberschreiben.
+- Rest-Risiko:
+  - Wenn ein Operator die Automatik bewusst deaktiviert, bleibt der Host absichtlich im manuellen Betriebsmodus.
+  - GitHub-/Netzwerk-Ausfaelle verhindern weiterhin den Pull neuer Commits; der Status muss dann in der WebUI sichtbar bleiben.
+
+---
 
 ## S-023 — GitHub Release Workflow war durch unzulaessigen `secrets`-Ausdruck deaktiviert (PATCHED)
 

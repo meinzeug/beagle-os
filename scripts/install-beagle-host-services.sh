@@ -557,6 +557,38 @@ set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_CLUSTER_JOIN_ENV_FILE" "\"$BEAG
 install -d -m 0755 /var/lib/beagle
 install -d -m 0750 /var/lib/beagle/beagle-manager
 chown -R "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" /var/lib/beagle/beagle-manager
+python3 - /var/lib/beagle/beagle-manager/server-settings.json <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    settings = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+except (OSError, json.JSONDecodeError):
+    settings = {}
+if not isinstance(settings, dict):
+    settings = {}
+
+defaults = {
+    "repo_auto_update_enabled": True,
+    "repo_auto_update_repo_url": "https://github.com/meinzeug/beagle-os.git",
+    "repo_auto_update_branch": "main",
+    "repo_auto_update_interval_minutes": 1,
+    "artifact_watchdog_enabled": True,
+    "artifact_watchdog_auto_repair": True,
+    "artifact_watchdog_max_age_hours": 6,
+}
+changed = False
+for key, value in defaults.items():
+    if key not in settings:
+        settings[key] = value
+        changed = True
+if changed or not path.is_file():
+    path.write_text(json.dumps(settings, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+chown "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" /var/lib/beagle/beagle-manager/server-settings.json
+chmod 0640 /var/lib/beagle/beagle-manager/server-settings.json
 install -d -m 0750 /var/backups/beagle
 install -d -m 0750 /var/restores/beagle
 chown "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" /var/backups/beagle /var/restores/beagle

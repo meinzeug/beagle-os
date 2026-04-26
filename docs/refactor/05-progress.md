@@ -3440,3 +3440,22 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - GitHub-Workflow-Fix:
   - `.github/workflows/release.yml` ist repariert; der optionale GPG-Key wird nicht mehr ueber ein unzulaessiges `if: secrets...` ausgewertet, sondern innerhalb des Shell-Schritts.
   - Damit verschwindet der aktuelle GitHub-Parse-Fehler `Unrecognized named-value: 'secrets'`.
+
+## Update (2026-04-26, Security-Default fuer Repo-/Artifact-Automatik)
+
+- Repo-Auto-Update ist fuer neue Serverinstallationen jetzt standardmaessig aktiv:
+  - Default-Repo: `https://github.com/meinzeug/beagle-os.git`
+  - Default-Branch: `main`
+  - Default-Intervall: `1` Minute
+  - `beagle-repo-auto-update.timer`: `OnBootSec=1min`, `OnUnitActiveSec=1min`, `AccuracySec=10s`.
+- Artifact-Watchdog ist fuer neue Serverinstallationen jetzt standardmaessig aktiv:
+  - `auto_repair=true`
+  - `max_age_hours=6`
+  - `beagle-artifacts-watchdog.timer`: Start nach 2 Minuten, danach alle 15 Minuten.
+- `scripts/install-beagle-host-services.sh` schreibt die Sicherheitsdefaults fuer frische Hosts idempotent nach `/var/lib/beagle/beagle-manager/server-settings.json`, ohne bestehende Operator-Konfiguration zu ueberschreiben.
+- WebUI `Server-Einstellungen -> System-Updates` akzeptiert und zeigt jetzt 1-Minuten-Repo-Checks; beim Aktivieren der Vollautomatik wird der Watchdog auf 6 Stunden Maximalalter mitgezogen.
+- Lokal validiert:
+  - `bash -n scripts/repo-auto-update.sh scripts/artifact-watchdog.sh scripts/install-beagle-host-services.sh scripts/package.sh scripts/build-thin-client-installer.sh`
+  - `python3 -m py_compile beagle-host/services/server_settings.py`
+  - `node --check website/ui/settings.js`
+  - `python3 -m pytest tests/unit/test_server_settings.py tests/unit/test_authz_policy.py -q` => `31 passed`

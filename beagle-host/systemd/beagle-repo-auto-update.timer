@@ -2,8 +2,9 @@
 Description=Run Beagle repo auto update regularly
 
 [Timer]
-OnBootSec=7min
-OnUnitActiveSec=15min
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=10s
 Unit=beagle-repo-auto-update.service
 Persistent=true
 

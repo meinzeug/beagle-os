@@ -84,6 +84,11 @@ _REPO_AUTO_UPDATE_FORCE_FILE = Path("/var/lib/beagle/repo-auto-update-force")
 _REPO_AUTO_UPDATE_RULE_FILE = Path("/etc/polkit-1/rules.d/49-beagle-repo-auto-update.rules")
 _DEFAULT_REPO_AUTO_UPDATE_URL = "https://github.com/meinzeug/beagle-os.git"
 _DEFAULT_REPO_AUTO_UPDATE_BRANCH = "main"
+_DEFAULT_REPO_AUTO_UPDATE_ENABLED = True
+_DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES = 1
+_DEFAULT_ARTIFACT_WATCHDOG_ENABLED = True
+_DEFAULT_ARTIFACT_WATCHDOG_MAX_AGE_HOURS = 6
+_DEFAULT_ARTIFACT_WATCHDOG_AUTO_REPAIR = True
 
 
 
@@ -573,10 +578,10 @@ class ServerSettingsService:
     def get_repo_auto_update(self) -> dict[str, Any]:
         settings = self._load_settings()
         config = {
-            "enabled": bool(settings.get("repo_auto_update_enabled", False)),
+            "enabled": bool(settings.get("repo_auto_update_enabled", _DEFAULT_REPO_AUTO_UPDATE_ENABLED)),
             "repo_url": str(settings.get("repo_auto_update_repo_url") or _DEFAULT_REPO_AUTO_UPDATE_URL).strip() or _DEFAULT_REPO_AUTO_UPDATE_URL,
             "branch": str(settings.get("repo_auto_update_branch") or _DEFAULT_REPO_AUTO_UPDATE_BRANCH).strip() or _DEFAULT_REPO_AUTO_UPDATE_BRANCH,
-            "interval_minutes": int(settings.get("repo_auto_update_interval_minutes", 15) or 15),
+            "interval_minutes": int(settings.get("repo_auto_update_interval_minutes", _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES) or _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES),
         }
         status: dict[str, Any] = {}
         try:
@@ -635,8 +640,8 @@ class ServerSettingsService:
                 interval = int(interval_minutes)
             except (TypeError, ValueError):
                 interval = 0
-            if interval < 5 or interval > 1440:
-                errors.append("interval_minutes must be between 5 and 1440")
+            if interval < 1 or interval > 1440:
+                errors.append("interval_minutes must be between 1 and 1440")
             else:
                 settings["repo_auto_update_interval_minutes"] = interval
 
@@ -763,9 +768,9 @@ class ServerSettingsService:
     def get_artifact_watchdog(self, *, status_json: dict[str, Any] | None = None, refresh_status: dict[str, Any] | None = None) -> dict[str, Any]:
         settings = self._load_settings()
         config = {
-            "enabled": bool(settings.get("artifact_watchdog_enabled", False)),
-            "max_age_hours": int(settings.get("artifact_watchdog_max_age_hours", 24) or 24),
-            "auto_repair": bool(settings.get("artifact_watchdog_auto_repair", True)),
+            "enabled": bool(settings.get("artifact_watchdog_enabled", _DEFAULT_ARTIFACT_WATCHDOG_ENABLED)),
+            "max_age_hours": int(settings.get("artifact_watchdog_max_age_hours", _DEFAULT_ARTIFACT_WATCHDOG_MAX_AGE_HOURS) or _DEFAULT_ARTIFACT_WATCHDOG_MAX_AGE_HOURS),
+            "auto_repair": bool(settings.get("artifact_watchdog_auto_repair", _DEFAULT_ARTIFACT_WATCHDOG_AUTO_REPAIR)),
         }
         status: dict[str, Any] = {}
         try:

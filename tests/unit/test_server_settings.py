@@ -221,6 +221,16 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("max_age_hours", result["errors"][0])
 
+    def test_artifact_watchdog_defaults_to_auto_repair_with_six_hour_age(self):
+        service = self.make_service()
+
+        with mock.patch.object(MODULE, "_can_start_systemd_unit", return_value=True):
+            result = service.get_artifact_watchdog()
+
+        self.assertTrue(result["config"]["enabled"])
+        self.assertTrue(result["config"]["auto_repair"])
+        self.assertEqual(result["config"]["max_age_hours"], 6)
+
     def test_update_artifact_watchdog_persists_values(self):
         service = self.make_service()
 
@@ -322,10 +332,22 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
     def test_update_repo_auto_update_validates_repo_and_interval(self):
         service = self.make_service()
 
-        result = service.update_repo_auto_update({"repo_url": "git@github.com:bad", "interval_minutes": 1})
+        result = service.update_repo_auto_update({"repo_url": "git@github.com:bad", "interval_minutes": 0})
 
         self.assertFalse(result["ok"])
         self.assertGreaterEqual(len(result["errors"]), 1)
+
+    def test_repo_auto_update_defaults_to_security_automation(self):
+        service = self.make_service()
+
+        with mock.patch.object(MODULE, "_run_cmd", return_value="inactive"), \
+             mock.patch.object(MODULE, "_can_start_systemd_unit", return_value=True):
+            result = service.get_repo_auto_update()
+
+        self.assertTrue(result["config"]["enabled"])
+        self.assertEqual(result["config"]["repo_url"], "https://github.com/meinzeug/beagle-os.git")
+        self.assertEqual(result["config"]["branch"], "main")
+        self.assertEqual(result["config"]["interval_minutes"], 1)
 
     def test_update_repo_auto_update_persists_values(self):
         service = self.make_service()
@@ -335,14 +357,14 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
                 "enabled": True,
                 "repo_url": "https://github.com/meinzeug/beagle-os.git",
                 "branch": "main",
-                "interval_minutes": 20,
+                "interval_minutes": 1,
             })
 
         self.assertTrue(result["ok"])
         settings = MODULE.json.loads(service._settings_path.read_text(encoding="utf-8"))
         self.assertTrue(settings["repo_auto_update_enabled"])
         self.assertEqual(settings["repo_auto_update_branch"], "main")
-        self.assertEqual(settings["repo_auto_update_interval_minutes"], 20)
+        self.assertEqual(settings["repo_auto_update_interval_minutes"], 1)
 
     def test_run_repo_auto_update_returns_accepted_payload(self):
         service = self.make_service()

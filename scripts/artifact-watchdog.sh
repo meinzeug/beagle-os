@@ -67,8 +67,8 @@ def load_json(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 settings = load_json(settings_path)
-enabled = bool(settings.get("artifact_watchdog_enabled", False))
-max_age_hours = int(settings.get("artifact_watchdog_max_age_hours", 24) or 24)
+enabled = bool(settings.get("artifact_watchdog_enabled", True))
+max_age_hours = int(settings.get("artifact_watchdog_max_age_hours", 6) or 6)
 auto_repair = bool(settings.get("artifact_watchdog_auto_repair", True))
 refresh_status = load_json(refresh_status_path)
 status_json = load_json(dist_dir / "beagle-downloads-status.json")

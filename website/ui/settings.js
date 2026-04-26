@@ -533,7 +533,7 @@ function renderRepoUpdateStatus(data) {
     qs('repo-update-branch').value = String(config.branch || 'main');
   }
   if (qs('repo-update-interval')) {
-    qs('repo-update-interval').value = String(config.interval_minutes || 15);
+    qs('repo-update-interval').value = String(config.interval_minutes || 1);
   }
 }
 
@@ -573,7 +573,7 @@ function renderArtifactStatus(data) {
   text('artifact-watchdog-reaction', Boolean(watchdogConfig.auto_repair) ? 'Aktiv' : 'Nur Hinweis');
   text('artifact-watchdog-timer', String((data && data.services && data.services['beagle-artifacts-watchdog.timer']) || 'unknown'));
   text('artifact-watchdog-enabled-state', watchdogConfig.enabled ? 'Ja' : 'Nein');
-  text('artifact-watchdog-max-age-state', String(watchdogConfig.max_age_hours || 24) + ' h');
+  text('artifact-watchdog-max-age-state', String(watchdogConfig.max_age_hours || 6) + ' h');
   setArtifactLink('artifact-status-link', links.status_json);
   setArtifactLink('artifact-downloads-link', links.downloads_index);
 
@@ -735,7 +735,7 @@ export function saveArtifactWatchdog() {
   const payload = {
     enabled: Boolean(qs('artifact-watchdog-enabled') && qs('artifact-watchdog-enabled').checked),
     auto_repair: Boolean(qs('artifact-watchdog-auto-repair') && qs('artifact-watchdog-auto-repair').checked),
-    max_age_hours: Number(qs('artifact-watchdog-max-age-hours') ? qs('artifact-watchdog-max-age-hours').value : 24) || 24
+    max_age_hours: Number(qs('artifact-watchdog-max-age-hours') ? qs('artifact-watchdog-max-age-hours').value : 6) || 6
   };
   settingsHooks.setBanner('Watchdog-Einstellungen werden gespeichert...', 'info');
   return request('/settings/artifacts/watchdog', {
@@ -800,12 +800,12 @@ export function saveRepoAutoUpdate() {
     enabled,
     repo_url: String(qs('repo-update-url') ? qs('repo-update-url').value : '').trim(),
     branch: String(qs('repo-update-branch') ? qs('repo-update-branch').value : '').trim(),
-    interval_minutes: Number(qs('repo-update-interval') ? qs('repo-update-interval').value : 15) || 15
+    interval_minutes: Number(qs('repo-update-interval') ? qs('repo-update-interval').value : 1) || 1
   };
   const watchdogPayload = {
     enabled,
     auto_repair: enabled,
-    max_age_hours: 24
+    max_age_hours: 6
   };
   settingsHooks.setBanner('Die Update-Automatik wird gespeichert...', 'info');
   return request('/settings/updates/repo-auto', {
