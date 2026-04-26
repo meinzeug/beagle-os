@@ -430,3 +430,24 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
 - Nächster Schritt:
   - SCIM-Token-Rotation und optional Hash-at-rest/Secret-Store-Integration ergänzen,
   - SCIM-Mutationsaufrufe strukturiert auditieren.
+
+## S-017 - manager-api-token und weitere Secrets nicht mehr als Klartext-Env (GELOEST)
+
+- Status: geloest (GoAdvanced Plan 03, 2026-04)
+- Risiko: Hoch → Geschlossen
+- Beschreibung:
+  - `BEAGLE_MANAGER_API_TOKEN`, `BEAGLE_AUTH_SECRET` und weitere Laufzeit-Secrets wurden beim
+    ersten Start als Klartext-Env-Vars gesetzt oder fehlten vollstaendig.
+  - Ohne Rotation/Versioning war ein kompromittierter Token dauerhaft gueltig.
+- Mitigation (umgesetzt):
+  - `SecretStoreService` (Plan 03 Schritt 2): JSON-Backend unter `/var/lib/beagle/secrets/` (mode 0o600),
+    Versions-Tracking, Grace-Period (24h), sofortige Revocation.
+  - Auto-Bootstrap (Plan 03 Schritt 3): beim ersten Start wird `secrets.token_hex(32)` generiert
+    und nur ins Journal geloggt (Name + Version, KEIN Wert), Env-Var bleibt als Override-Option.
+  - Audit-Events (Plan 03 Schritt 4): `secret_accessed` / `secret_rotated` / `secret_revoked` im AuditLog
+    — Klartext-Werte landen NICHT im Audit-Log (Test: `test_secret_bootstrap.py::TestBootstrapAuditLogSafety`).
+  - Rotation-CLI: `beaglectl secret rotate|list|revoke` (Plan 03 Schritt 5).
+  - SecretStore-Kopplung: `_bootstrap_secret()` in `service_registry.py` liest aus SecretStore statt Env.
+- Naechster Schritt:
+  - Phase 2: optionaler Vault/AWS-Secrets-Manager-Adapter (deferred, Plan 03 Schritt 2 Phase 2).
+  - S-016 (SCIM-Token) als naechstes SecretStore-integrieren.

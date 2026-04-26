@@ -48,7 +48,7 @@ Probleme:
 - [x] **Schritt 3** — Auto-Bootstrap
   - [x] Beim ersten Start von `beagle-control-plane`: wenn `secrets/manager-api-token.json` fehlt → `secrets.token_hex(32)` generieren, in SecretStore ablegen, Operator-Hinweis ins Journal loggen (NICHT in Datei)
   - [x] Env-Vars werden weiterhin als Override unterstuetzt (Backwards-kompat), aber Standard ist SecretStore
-  - [ ] Tests: `tests/unit/test_secret_bootstrap.py`
+  - [x] Tests: `tests/unit/test_secret_bootstrap.py` — 7 Tests (env-override, existing-secret, generate-new, generate=False, distinct-tokens, audit-log safety)
 
 - [x] **Schritt 4** — Audit-Integration
   - [x] Jeder `get_secret(name)`-Aufruf erzeugt Audit-Event `secret_accessed` (nur Name + Version, NICHT Wert)
@@ -68,7 +68,7 @@ Probleme:
 
 - [x] **Schritt 7** — Dokumentation
   - [x] `docs/security/secret-lifecycle.md`: empfohlene TTLs, Rotation-Procedure, Notfall-Revocation
-  - [ ] Update `docs/refactor/11-security-findings.md`: S-003 als geloest markieren
+  - [x] Update `docs/refactor/11-security-findings.md`: S-017 als geloest dokumentiert (Plan 03 Scope — manager-api-token + Audit-Safety)
 
 ## Abnahmekriterien
 
