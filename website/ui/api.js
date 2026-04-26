@@ -5,6 +5,7 @@ import {
 } from './state.js';
 
 const mutationInFlight = Object.create(null);
+let rateLimitBackoffUntil = 0;
 
 const authHooks = {
   buildAuthHeaders() {
@@ -143,18 +144,52 @@ export function fetchWithTimeout(url, options, timeoutMs) {
   });
 }
 
+function parseRetryAfterSeconds(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return 0;
+  }
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return numeric;
+  }
+  const unixTs = Date.parse(raw);
+  if (Number.isFinite(unixTs)) {
+    const deltaMs = unixTs - Date.now();
+    return deltaMs > 0 ? Math.ceil(deltaMs / 1000) : 0;
+  }
+  return 0;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, Math.max(1, Number(ms) || 1));
+  });
+}
+
 export function request(path, options) {
   const target = resolveApiTarget(path);
   const rawOptions = Object.assign({}, options || {});
   const noRefreshRetry = Boolean(rawOptions.__noRefreshRetry);
+  const noRateLimitRetry = Boolean(rawOptions.__noRateLimitRetry);
   const suppressAuthLock = Boolean(rawOptions.__suppressAuthLock);
   const timeoutMs = Number(rawOptions.__timeoutMs || 0);
   delete rawOptions.__noRefreshRetry;
+  delete rawOptions.__noRateLimitRetry;
   delete rawOptions.__suppressAuthLock;
   delete rawOptions.__timeoutMs;
   const finalOptions = Object.assign({ method: 'GET', credentials: 'same-origin' }, rawOptions);
   finalOptions.headers = Object.assign({}, finalOptions.headers || {}, authHooks.buildAuthHeaders());
-  return fetchWithTimeout(target, finalOptions, timeoutMs > 0 ? timeoutMs : undefined)
+  const method = String(finalOptions.method || 'GET').toUpperCase();
+  const startRequest = () => fetchWithTimeout(target, finalOptions, timeoutMs > 0 ? timeoutMs : undefined);
+  const startWithBackoff = () => {
+    const delayMs = rateLimitBackoffUntil - Date.now();
+    if (delayMs > 0) {
+      return wait(delayMs).then(startRequest);
+    }
+    return startRequest();
+  };
+  return startWithBackoff()
     .then((response) => {
       if (!response.ok) {
         return response.text().then((body) => {
@@ -165,11 +200,27 @@ export function request(path, options) {
           } catch (error) {
             void error;
           }
+          if (response.status === 429) {
+            const retryAfterRaw = response.headers.get('Retry-After') || '';
+            const retryAfterSeconds = parseRetryAfterSeconds(retryAfterRaw);
+            const cooldownMs = Math.max(2000, retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 5000);
+            rateLimitBackoffUntil = Math.max(rateLimitBackoffUntil, Date.now() + cooldownMs);
+            if (!noRateLimitRetry && (method === 'GET' || method === 'HEAD')) {
+              const retriedOptions = Object.assign({}, rawOptions, {
+                __noRefreshRetry: noRefreshRetry,
+                __noRateLimitRetry: true,
+                __suppressAuthLock: suppressAuthLock,
+                __timeoutMs: timeoutMs > 0 ? timeoutMs : undefined
+              });
+              return wait(cooldownMs).then(() => request(path, retriedOptions));
+            }
+          }
           if ((response.status === 401 || response.status === 403) && state.token) {
             if (!noRefreshRetry && state.refreshToken && authHooks.canRefreshAfterAuthError(path)) {
               return authHooks.refreshAccessToken().then(() => {
                 const retriedOptions = Object.assign({}, rawOptions, {
                   __noRefreshRetry: true,
+                  __noRateLimitRetry: noRateLimitRetry,
                   __suppressAuthLock: suppressAuthLock,
                   __timeoutMs: timeoutMs > 0 ? timeoutMs : undefined
                 });

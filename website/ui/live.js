@@ -15,6 +15,10 @@ const liveHooks = {
 let source = null;
 let reconnectTimer = null;
 let reconnectDelayMs = 1500;
+const LIVE_DASHBOARD_REFRESH_INTERVAL_MS = 20000;
+const LIVE_AUDIT_REFRESH_INTERVAL_MS = 20000;
+let lastDashboardRefreshAt = 0;
+let lastAuditRefreshAt = 0;
 
 export function configureLive(nextHooks) {
   Object.assign(liveHooks, nextHooks || {});
@@ -35,10 +39,19 @@ function onTickEvent() {
   if (!state.token || document.hidden) {
     return;
   }
+  const now = Date.now();
   if (state.activePanel === 'audit') {
+    if (now - lastAuditRefreshAt < LIVE_AUDIT_REFRESH_INTERVAL_MS) {
+      return;
+    }
+    lastAuditRefreshAt = now;
     liveHooks.loadAuditReport();
     return;
   }
+  if (now - lastDashboardRefreshAt < LIVE_DASHBOARD_REFRESH_INTERVAL_MS) {
+    return;
+  }
+  lastDashboardRefreshAt = now;
   liveHooks.loadDashboard();
 }
 
