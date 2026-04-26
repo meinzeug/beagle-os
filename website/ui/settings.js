@@ -380,8 +380,22 @@ export function loadSettingsUpdates() {
   settingsHooks.setBanner('Suche nach Updates...', 'info');
   loadArtifactStatus();
   return request('/settings/updates', { __timeoutMs: 60000 }).then((data) => {
-    text('upd-count', String(data.upgradable_count || 0));
-    text('upd-source', String(data.source || 'apt'));
+    const packageCount = Number(data.upgradable_count || 0);
+    text('upd-count', String(packageCount));
+    text('upd-source', String(data.source || 'apt').toUpperCase());
+    const updateSummary = qs('upd-summary-message');
+    if (updateSummary) {
+      if (packageCount <= 0) {
+        updateSummary.textContent = 'Der Server ist aktuell. Momentan sind keine neuen Betriebssystem-Updates noetig.';
+        updateSummary.className = 'banner info';
+      } else if (packageCount === 1) {
+        updateSummary.textContent = 'Es ist 1 Betriebssystem-Update verfuegbar. Du kannst es direkt von hier installieren.';
+        updateSummary.className = 'banner warn';
+      } else {
+        updateSummary.textContent = 'Es sind ' + String(packageCount) + ' Betriebssystem-Updates verfuegbar. Du kannst sie direkt von hier installieren.';
+        updateSummary.className = 'banner warn';
+      }
+    }
     const tbody = qs('upd-packages-body');
     if (!tbody) {
       return;
@@ -408,6 +422,8 @@ function renderRepoUpdateStatus(data) {
   const config = repoData.config || {};
   const status = repoData.status || {};
   const services = repoData.services || {};
+  const enabled = Boolean(config.enabled);
+  const healthy = String(status.state || '') === 'healthy';
   text('repo-update-state', String(status.state || (config.enabled ? 'unknown' : 'disabled')));
   text('repo-update-checked', formatDate(status.checked_at || ''));
   text('repo-update-last-update', formatDate(status.last_update_at || ''));
@@ -425,6 +441,28 @@ function renderRepoUpdateStatus(data) {
           status.state === 'error' ? 'warn' :
             status.update_available ? 'warn' : 'subtle'
     );
+  }
+  const simpleMessage = qs('repo-update-simple-message');
+  if (simpleMessage) {
+    if (!enabled) {
+      simpleMessage.textContent = 'Automatische Beagle-Updates sind ausgeschaltet. Updates muessen dann manuell angestossen werden.';
+      simpleMessage.className = 'banner subtle';
+    } else if (healthy && !status.update_available) {
+      simpleMessage.textContent = 'Automatische Beagle-Updates sind aktiv. Dieser Server ist bereits auf dem neuesten Stand.';
+      simpleMessage.className = 'banner info';
+    } else if (status.state === 'updating') {
+      simpleMessage.textContent = 'Der Server verarbeitet gerade ein Beagle-Update aus GitHub.';
+      simpleMessage.className = 'banner info';
+    } else if (status.update_available) {
+      simpleMessage.textContent = 'Es ist ein neues Beagle-Update verfuegbar oder wird gerade vorbereitet.';
+      simpleMessage.className = 'banner warn';
+    } else if (status.state === 'error') {
+      simpleMessage.textContent = 'Die automatische GitHub-Pruefung braucht Aufmerksamkeit. Details stehen unten im Status.';
+      simpleMessage.className = 'banner warn';
+    } else {
+      simpleMessage.textContent = 'Automatische Beagle-Updates sind aktiv. Der naechste GitHub-Check erfolgt im Hintergrund.';
+      simpleMessage.className = 'banner subtle';
+    }
   }
   if (qs('repo-update-enabled')) {
     qs('repo-update-enabled').checked = Boolean(config.enabled);
@@ -473,24 +511,30 @@ function renderArtifactStatus(data) {
   text('artifact-watchdog-state', String(watchdogStatus.state || (watchdogConfig.enabled ? 'unknown' : 'disabled')));
   text('artifact-watchdog-checked', formatDate(watchdogStatus.checked_at || ''));
   text('artifact-watchdog-age', formatDurationCompact(watchdogStatus.artifact_age_seconds));
-  text('artifact-watchdog-reaction', String(watchdogStatus.reaction || 'none'));
+  text('artifact-watchdog-reaction', Boolean(watchdogConfig.auto_repair) ? 'Aktiv' : 'Nur Hinweis');
   text('artifact-watchdog-timer', String((data && data.services && data.services['beagle-artifacts-watchdog.timer']) || 'unknown'));
+  text('artifact-watchdog-enabled-state', watchdogConfig.enabled ? 'Ja' : 'Nein');
+  text('artifact-watchdog-max-age-state', String(watchdogConfig.max_age_hours || 24) + ' h');
   setArtifactLink('artifact-status-link', links.status_json);
   setArtifactLink('artifact-downloads-link', links.downloads_index);
-  if (qs('artifact-watchdog-enabled')) {
-    qs('artifact-watchdog-enabled').checked = Boolean(watchdogConfig.enabled);
-  }
-  if (qs('artifact-watchdog-auto-repair')) {
-    qs('artifact-watchdog-auto-repair').checked = Boolean(watchdogConfig.auto_repair);
-  }
-  if (qs('artifact-watchdog-max-age-hours')) {
-    qs('artifact-watchdog-max-age-hours').value = String(watchdogConfig.max_age_hours || 24);
-  }
 
   const refreshMessage = qs('artifact-refresh-message');
   if (refreshMessage) {
     refreshMessage.textContent = String(refreshStatus.message || 'Noch kein Refresh aktiv.');
     refreshMessage.className = 'banner ' + (refreshStatus.status === 'failed' ? 'warn' : runningRefresh ? 'info' : 'subtle');
+  }
+  const artifactSummaryMessage = qs('artifact-summary-message');
+  if (artifactSummaryMessage) {
+    if (data && data.ready && !missing.length) {
+      artifactSummaryMessage.textContent = 'Alle benoetigten Downloads und Installationsdateien sind vorhanden.';
+      artifactSummaryMessage.className = 'banner info';
+    } else if (missing.length) {
+      artifactSummaryMessage.textContent = 'Es fehlen ' + String(missing.length) + ' wichtige Datei(en). Mit "Artefakte neu bauen/refreshen" kann der Server sie neu erstellen.';
+      artifactSummaryMessage.className = 'banner warn';
+    } else {
+      artifactSummaryMessage.textContent = 'Der Server prueft, ob alle benoetigten Downloads und Installationsdateien vorhanden sind.';
+      artifactSummaryMessage.className = 'banner subtle';
+    }
   }
   const preflightMessage = qs('artifact-preflight-message');
   if (preflightMessage) {
@@ -528,6 +572,19 @@ function renderArtifactStatus(data) {
         watchdogStatus.state === 'repairing' ? 'info' :
           watchdogStatus.state === 'drift' ? 'warn' : 'subtle'
     );
+  }
+  const watchdogSimpleMessage = qs('artifact-watchdog-simple-message');
+  if (watchdogSimpleMessage) {
+    if (watchdogConfig.enabled && watchdogConfig.auto_repair) {
+      watchdogSimpleMessage.textContent = 'Die automatische Download-Reparatur ist aktiv. Fehlende oder veraltete Dateien werden selbststaendig korrigiert.';
+      watchdogSimpleMessage.className = 'banner info';
+    } else if (watchdogConfig.enabled) {
+      watchdogSimpleMessage.textContent = 'Die Download-Ueberwachung ist aktiv, repariert aber nicht automatisch.';
+      watchdogSimpleMessage.className = 'banner warn';
+    } else {
+      watchdogSimpleMessage.textContent = 'Die automatische Download-Reparatur ist ausgeschaltet.';
+      watchdogSimpleMessage.className = 'banner subtle';
+    }
   }
 
   if (runningRefresh) {
@@ -607,7 +664,7 @@ export function saveArtifactWatchdog() {
     __timeoutMs: 30000
   }).then((data) => {
     if (data.ok) {
-      settingsHooks.setBanner('Watchdog gespeichert.', 'info');
+      settingsHooks.setBanner('Die automatische Download-Ueberwachung wurde gespeichert.', 'info');
       return loadArtifactStatus({ silent: true });
     }
     settingsHooks.setBanner('Watchdog konnte nicht gespeichert werden: ' + escapeHtml((data.errors || []).join(', ') || data.error || 'Unbekannt'), 'warn');
@@ -617,7 +674,7 @@ export function saveArtifactWatchdog() {
 }
 
 export function runArtifactWatchdog() {
-  settingsHooks.setBanner('Artifact-Watchdog wird gestartet...', 'info');
+  settingsHooks.setBanner('Die Download-Ueberwachung startet...', 'info');
   return request('/settings/artifacts/watchdog/check', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -657,31 +714,51 @@ export function applyUpdates() {
 }
 
 export function saveRepoAutoUpdate() {
+  const enabled = Boolean(qs('repo-update-enabled') && qs('repo-update-enabled').checked);
   const payload = {
-    enabled: Boolean(qs('repo-update-enabled') && qs('repo-update-enabled').checked),
+    enabled,
     repo_url: String(qs('repo-update-url') ? qs('repo-update-url').value : '').trim(),
     branch: String(qs('repo-update-branch') ? qs('repo-update-branch').value : '').trim(),
     interval_minutes: Number(qs('repo-update-interval') ? qs('repo-update-interval').value : 15) || 15
   };
-  settingsHooks.setBanner('Repo-Auto-Update wird gespeichert...', 'info');
+  const watchdogPayload = {
+    enabled,
+    auto_repair: enabled,
+    max_age_hours: 24
+  };
+  settingsHooks.setBanner('Die Update-Automatik wird gespeichert...', 'info');
   return request('/settings/updates/repo-auto', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
     __timeoutMs: 30000
   }).then((data) => {
-    if (data.ok) {
-      settingsHooks.setBanner('Repo-Auto-Update gespeichert.', 'info');
-      return loadSettingsUpdates();
+    if (!data.ok) {
+      settingsHooks.setBanner('Repo-Auto-Update konnte nicht gespeichert werden: ' + escapeHtml((data.errors || []).join(', ') || data.error || 'Unbekannt'), 'warn');
+      return;
     }
-    settingsHooks.setBanner('Repo-Auto-Update konnte nicht gespeichert werden: ' + escapeHtml((data.errors || []).join(', ') || data.error || 'Unbekannt'), 'warn');
+    return request('/settings/artifacts/watchdog', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(watchdogPayload),
+      __timeoutMs: 30000
+    }).then((watchdogData) => {
+      if (!watchdogData.ok) {
+        settingsHooks.setBanner('Die Download-Automatik konnte nicht mitgezogen werden: ' + escapeHtml((watchdogData.errors || []).join(', ') || watchdogData.error || 'Unbekannt'), 'warn');
+        return;
+      }
+      settingsHooks.setBanner(enabled
+        ? 'Die volle Automatik ist aktiv: GitHub-Updates und Download-Reparaturen laufen jetzt selbststaendig.'
+        : 'Die Automatik wurde ausgeschaltet. Updates und Reparaturen muessen nun manuell angestossen werden.', 'info');
+      return Promise.all([loadSettingsUpdates(), loadArtifactStatus({ silent: true })]);
+    });
   }).catch((error) => {
     settingsHooks.setBanner('Repo-Auto-Update speichern fehlgeschlagen: ' + error.message, 'warn');
   });
 }
 
 export function runRepoAutoUpdateCheck() {
-  settingsHooks.setBanner('GitHub-Repo wird geprueft...', 'info');
+  settingsHooks.setBanner('GitHub wird auf neue Beagle-Versionen geprueft...', 'info');
   return request('/settings/updates/repo-auto/check', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

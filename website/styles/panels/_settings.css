@@ -11,6 +11,13 @@
 .settings-inline-meta a { color: var(--amber); text-decoration: none; font-size: 0.84rem; }
 .settings-inline-meta a[aria-disabled="true"] { color: var(--text-muted); pointer-events: none; }
 .settings-form .check-label { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255, 255, 255, 0.02); }
+.settings-toggle-wide { grid-column: 1 / -1; }
+.settings-disclosure { margin-top: 12px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255, 255, 255, 0.02); overflow: hidden; }
+.settings-disclosure summary { cursor: pointer; list-style: none; padding: 12px 14px; font-size: 0.9rem; font-weight: 700; color: var(--text); }
+.settings-disclosure summary::-webkit-details-marker { display: none; }
+.settings-disclosure[open] summary { border-bottom: 1px solid var(--border); }
+.settings-disclosure > *:not(summary) { padding: 12px 14px 14px; }
+.settings-info-grid-compact { margin-bottom: 0; }
 .banner.subtle { color: var(--text-secondary); background: rgba(255, 255, 255, 0.03); border-color: var(--border); }
 .banner.subtle::before { background: var(--text-muted); }
 .sidebar-section-admin, .sidebar-admin-item { display: none; }
