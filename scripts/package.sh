@@ -116,6 +116,8 @@ if [[ "$BUILD_BEAGLE_OS" == "1" ]]; then
   package_cleanup_paths+=("$BEAGLE_OS_DIST_DIR")
 fi
 
+beagle_unmount_recursive_path "$ROOT_DIR/.build"
+
 ensure_free_space_with_cleanup \
   "package workspace" \
   "$DIST_DIR" \

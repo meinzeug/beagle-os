@@ -71,9 +71,9 @@ beagle_unmount_recursive_path() {
 
   printf '%s\n' "${mounted_paths[@]}" | awk '!seen[$0]++' | while IFS= read -r mounted_path; do
     [[ -n "$mounted_path" ]] || continue
-    if ! umount -l "$mounted_path" 2>/dev/null; then
+    if ! umount -lf "$mounted_path" 2>/dev/null; then
       if command -v sudo >/dev/null 2>&1; then
-        sudo umount -l "$mounted_path" 2>/dev/null || true
+        sudo umount -lf "$mounted_path" 2>/dev/null || true
       else
         echo "Unable to unmount stale cleanup mount: $mounted_path" >&2
       fi
