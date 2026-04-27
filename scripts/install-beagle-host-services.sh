@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL_DIR="${INSTALL_DIR:-/opt/beagle}"
 HOST_RUNTIME_DIR="$INSTALL_DIR/beagle-host"
-LEGACY_HOST_RUNTIME_DIR="$INSTALL_DIR/beagle-host"
+LEGACY_HOST_RUNTIME_DIR="$INSTALL_DIR/beagle_host"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 SYSTEMD_DIR="/etc/systemd/system"
 SERVICE_NAME="beagle-artifacts-refresh.service"
@@ -80,6 +80,22 @@ install_file_if_needed() {
   fi
 
   install -m "$mode" "$source_file" "$target_file"
+}
+
+repair_host_runtime_links() {
+  if [[ -L "$HOST_RUNTIME_DIR" ]]; then
+    local target=""
+    target="$(readlink "$HOST_RUNTIME_DIR" 2>/dev/null || true)"
+    if [[ "$target" == "$HOST_RUNTIME_DIR" || "$target" == "/opt/beagle/beagle-host" || "$target" == "beagle-host" ]]; then
+      rm -f "$HOST_RUNTIME_DIR"
+      install -d -m 0755 "$HOST_RUNTIME_DIR"
+    fi
+  fi
+
+  if [[ -e "$LEGACY_HOST_RUNTIME_DIR" && ! -L "$LEGACY_HOST_RUNTIME_DIR" ]]; then
+    rm -rf "$LEGACY_HOST_RUNTIME_DIR"
+  fi
+  ln -sfn "beagle-host" "$LEGACY_HOST_RUNTIME_DIR"
 }
 
 has_ui_reapply_units() {
@@ -330,6 +346,7 @@ SSHCFG
 }
 
 ensure_root "$@"
+repair_host_runtime_links
 
 if ! id "$BEAGLE_CONTROL_USER" >/dev/null 2>&1; then
   run_account_cmd useradd --system --home-dir /var/lib/beagle --no-create-home --shell /usr/sbin/nologin "$BEAGLE_CONTROL_USER"
@@ -478,10 +495,7 @@ for template_file in "$ROOT_DIR"/beagle-host/templates/ubuntu-beagle/*; do
   [[ -f "$template_file" ]] || continue
   install_file_if_needed 0644 "$template_file" "$HOST_RUNTIME_DIR/templates/ubuntu-beagle/$(basename "$template_file")"
 done
-if [[ -e "$LEGACY_HOST_RUNTIME_DIR" && ! -L "$LEGACY_HOST_RUNTIME_DIR" ]]; then
-  rm -rf "$LEGACY_HOST_RUNTIME_DIR"
-fi
-ln -sfn "$HOST_RUNTIME_DIR" "$LEGACY_HOST_RUNTIME_DIR"
+repair_host_runtime_links
 rm -f "$USB_TUNNEL_TEST_DROPIN" "$USB_TUNNEL_AUTH_COMMAND"
 
 # The artifact refresh service runs as beagle-manager and rebuilds package

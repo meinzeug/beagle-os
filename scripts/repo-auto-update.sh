@@ -78,6 +78,34 @@ def write_status(payload: dict) -> None:
         pass
 
 
+def repair_runtime_tree(root: Path) -> None:
+    host_runtime = root / "beagle-host"
+    legacy_alias = root / "beagle_host"
+
+    if host_runtime.is_symlink():
+        try:
+            target = os.readlink(host_runtime)
+        except OSError:
+            target = ""
+        if target in {"beagle-host", str(host_runtime)}:
+            host_runtime.unlink(missing_ok=True)
+
+    if host_runtime.exists() and not host_runtime.is_dir():
+        if host_runtime.is_symlink():
+            host_runtime.unlink(missing_ok=True)
+        else:
+            raise RuntimeError(f"runtime path is not a directory: {host_runtime}")
+
+    host_runtime.mkdir(parents=True, exist_ok=True)
+
+    if legacy_alias.exists() or legacy_alias.is_symlink():
+        if legacy_alias.is_dir() and not legacy_alias.is_symlink():
+            shutil.rmtree(legacy_alias)
+        else:
+            legacy_alias.unlink(missing_ok=True)
+    legacy_alias.symlink_to("beagle-host")
+
+
 def run(cmd: list[str], *, cwd: Path | None = None, timeout: int = 1800) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         cmd,
@@ -222,6 +250,15 @@ write_status(payload)
 if staging_dir.exists():
     shutil.rmtree(staging_dir)
 staging_dir.mkdir(parents=True, exist_ok=True)
+
+try:
+    repair_runtime_tree(install_dir)
+except Exception as exc:
+    payload["state"] = "error"
+    payload["reaction"] = "repair_runtime_tree_failed"
+    payload["message"] = str(exc).strip()[:400]
+    write_status(payload)
+    raise SystemExit(1)
 
 archive_cmd = f"git -C {worktree_dir} archive {remote_commit} | tar -xf - -C {staging_dir}"
 archive = subprocess.run(["bash", "-lc", archive_cmd], capture_output=True, text=True, timeout=1800, check=False)

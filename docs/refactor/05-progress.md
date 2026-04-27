@@ -1,3 +1,21 @@
+## Update (2026-04-27, Repo-Auto-Update Self-Heal gegen Runtime-Symlink-Loops)
+
+**Scope**: Der Update-Center-Fehler auf `srv1` war kein normaler Fetch-/Build-Fail, sondern ein kaputter Runtime-Baum unter `/opt/beagle`: `beagle-host` zeigte als Self-Symlink auf sich selbst, `beagle_host` zeigte darauf weiter. Dadurch konnten `install-beagle-host-services.sh` und in Folge `beagle-repo-auto-update.service` den Host nicht mehr selbst reparieren.
+
+- Root-Cause-Fix im Repo:
+  - [scripts/install-beagle-host-services.sh](/home/dennis/beagle-os/scripts/install-beagle-host-services.sh): `LEGACY_HOST_RUNTIME_DIR` korrigiert auf `/opt/beagle/beagle_host`; neuer Guard `repair_host_runtime_links()` repariert Self-Symlink-/Alias-Schäden aktiv vor und während des Install-Laufs.
+  - [scripts/repo-auto-update.sh](/home/dennis/beagle-os/scripts/repo-auto-update.sh): neuer Preflight `repair_runtime_tree()` räumt `beagle-host`/`beagle_host` vor `rsync` und Host-Install auf, damit Self-Heal nicht mehr vom bestehenden Runtime-Zustand abhängt.
+- Regression:
+  - [tests/unit/test_install_beagle_host_services_regressions.py](/home/dennis/beagle-os/tests/unit/test_install_beagle_host_services_regressions.py)
+  - [tests/unit/test_repo_auto_update_regressions.py](/home/dennis/beagle-os/tests/unit/test_repo_auto_update_regressions.py)
+- Validierung lokal:
+  - `bash -n scripts/install-beagle-host-services.sh scripts/repo-auto-update.sh`
+  - `python3 -m pytest tests/unit/test_install_beagle_host_services_regressions.py tests/unit/test_repo_auto_update_regressions.py -q` => `3 passed`
+- Live-Repair auf `srv1`:
+  - kaputte Links unter `/opt/beagle/beagle-host` und `/opt/beagle/beagle_host` manuell entfernt
+  - Runtime-Baeume `beagle-host/` und `scripts/` direkt aus dem Workspace nach `/opt/beagle/` synchronisiert
+  - `sudo /opt/beagle/scripts/install-beagle-host-services.sh` danach wieder erfolgreich (`RC=0`)
+
 ## Update (2026-04-27, Plan 11 Parity: Storage Browser + Download)
 
 **Scope**: Die offene Storage-Parity fuer Inhaltsliste und Download ist jetzt geschlossen. Storage-Pools koennen API-seitig gelistet und dateibasiert heruntergeladen werden; die WebUI stellt dafuer im Virtualization-Panel einen direkten Operator-Flow bereit.
