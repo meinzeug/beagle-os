@@ -805,6 +805,7 @@ Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separat
 - Plan 07 Schritt 3: `POST /api/v1/vms/{id}/snapshot` → enqueue + 202; `POST /api/v1/vms/{id}/snapshot/revert`, `DELETE /api/v1/vms/{id}/snapshot?name=...` und `POST /api/v1/vms/{id}/clone` → provider actions (erledigt)
 - Plan 11 Parity: QEMU guest exec läuft jetzt über libvirt `qemu-agent-command`; `scripts/lib/provider_shell.sh` bleibt nur Fallback/CI-Allowlist.
 - Plan 11 Parity: `POST /api/v1/storage/pools/{pool}/upload` nimmt jetzt ISO/qcow2/raw/img-Uploads an; Quota- und Pool-Content-Validierung laufen im `StorageImageStoreService`.
+- Plan 11 Parity: direkter LDAP-Bind und lokaler TOTP-Zweitfaktor sind jetzt im Auth-Stack umgesetzt (`ldap_auth.py`, `AuthSessionService`, `AuthHttpSurfaceService`).
 - Plan 07 Schritte 5+6: Idempotency-Key-TTL-Tests + Web-UI-Jobs-Panel
 - Plan 11 Schritt 8: Validierung auf srv1/srv2
 

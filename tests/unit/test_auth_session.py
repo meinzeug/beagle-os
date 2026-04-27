@@ -149,6 +149,54 @@ class AuthSessionOnboardingTests(unittest.TestCase):
             self.assertIn("kiosk_operator", role_names)
             self.assertEqual(writes, [roles_path])
 
+    def test_login_requires_valid_totp_when_enabled(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = self.make_service(Path(temp_dir))
+            service.create_user(username="alice", password="secret123", role="viewer", enabled=True)
+            enrolled = service.enroll_totp("alice", issuer="Beagle OS")
+
+            with self.assertRaises(PermissionError):
+                service.login(username="alice", password="secret123", remote_addr="127.0.0.1", user_agent="pytest")
+
+            code = service._totp_at(enrolled["secret"], int(service._now()) // 30)  # noqa: SLF001
+            session = service.login(
+                username="alice",
+                password="secret123",
+                totp_code=code,
+                remote_addr="127.0.0.1",
+                user_agent="pytest",
+            )
+
+            self.assertIsNotNone(session)
+            self.assertTrue(session["user"]["totp_enabled"])
+
+    def test_ldap_login_creates_shadow_user(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = AuthSessionService(
+                data_dir=Path(temp_dir),
+                load_json_file=load_json_file,
+                write_json_file=write_json_file,
+                now=lambda: 1_700_000_000,
+                token_urlsafe=lambda length: "token",
+                ldap_authenticate=lambda username, password: {
+                    "username": username,
+                    "role": "viewer",
+                    "auth_source": "ldap",
+                } if username == "bob" and password == "secret123" else None,
+            )
+
+            session = service.login(
+                username="bob",
+                password="secret123",
+                remote_addr="127.0.0.1",
+                user_agent="pytest",
+            )
+
+            self.assertIsNotNone(session)
+            users = service.list_users()
+            self.assertEqual(users[0]["username"], "bob")
+            self.assertEqual(users[0]["auth_source"], "ldap")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -26,6 +26,14 @@ class AuthHttpSurfaceService:
         return re.match(r"^/api/v1/auth/users/(?P<username>[A-Za-z0-9._-]+)/revoke-sessions$", path)
 
     @staticmethod
+    def _auth_user_totp_enroll_match(path: str) -> re.Match[str] | None:
+        return re.match(r"^/api/v1/auth/users/(?P<username>[A-Za-z0-9._-]+)/totp/enroll$", path)
+
+    @staticmethod
+    def _auth_user_totp_disable_match(path: str) -> re.Match[str] | None:
+        return re.match(r"^/api/v1/auth/users/(?P<username>[A-Za-z0-9._-]+)/totp/disable$", path)
+
+    @staticmethod
     def handles_get(path: str) -> bool:
         return path in {"/api/v1/auth/users", "/api/v1/auth/roles", "/api/v1/auth/sessions", "/api/v1/auth/tenants"}
 
@@ -34,6 +42,8 @@ class AuthHttpSurfaceService:
         return (
             path in {"/api/v1/auth/users", "/api/v1/auth/roles"}
             or AuthHttpSurfaceService._auth_user_revoke_sessions_match(path) is not None
+            or AuthHttpSurfaceService._auth_user_totp_enroll_match(path) is not None
+            or AuthHttpSurfaceService._auth_user_totp_disable_match(path) is not None
         )
 
     @staticmethod
@@ -172,6 +182,25 @@ class AuthHttpSurfaceService:
                     "revoked_count": revoked_count,
                 },
             )
+
+        enroll_match = self._auth_user_totp_enroll_match(path)
+        if enroll_match is not None:
+            username = str(enroll_match.group("username") or "").strip()
+            issuer = str(payload.get("issuer") or "Beagle OS").strip() or "Beagle OS"
+            try:
+                enrolled = self._auth_session.enroll_totp(username, issuer=issuer)
+            except Exception as exc:
+                status = HTTPStatus.NOT_FOUND if str(exc) == "user not found" else HTTPStatus.BAD_REQUEST
+                return self._json_response(status, {"ok": False, "error": str(exc)})
+            return self._json_response(HTTPStatus.CREATED, {"ok": True, "totp": enrolled})
+
+        disable_match = self._auth_user_totp_disable_match(path)
+        if disable_match is not None:
+            username = str(disable_match.group("username") or "").strip()
+            disabled = self._auth_session.disable_totp(username)
+            if not disabled:
+                return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "user not found"})
+            return self._json_response(HTTPStatus.OK, {"ok": True, "username": username, "totp_enabled": False})
 
         return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 

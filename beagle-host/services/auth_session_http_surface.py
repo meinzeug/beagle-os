@@ -305,7 +305,7 @@ class AuthSessionHttpSurfaceService:
     def _handle_login(self) -> dict[str, Any]:
         try:
             payload = self._read_json_body()
-            self._validate_whitelist(payload, required={"username", "password"})
+            self._validate_whitelist(payload, required={"username", "password"}, optional={"totp_code"})
             username = self._sanitize_identifier(
                 payload.get("username"),
                 label="username",
@@ -332,12 +332,27 @@ class AuthSessionHttpSurfaceService:
                     "retry_after_seconds": int(max(1, wait_seconds)),
                 },
             )
-        session_payload = self._auth_session.login(
-            username=username,
-            password=password,
-            remote_addr=self._remote_addr(),
-            user_agent=self._user_agent(),
-        )
+        try:
+            session_payload = self._auth_session.login(
+                username=username,
+                password=password,
+                totp_code=str(payload.get("totp_code") or ""),
+                remote_addr=self._remote_addr(),
+                user_agent=self._user_agent(),
+            )
+        except PermissionError as exc:
+            self._record_login_failure(username)
+            self._audit_event(
+                "auth.login",
+                "denied",
+                username=username,
+                remote_addr=self._remote_addr(),
+                reason=str(exc),
+            )
+            return self._json(
+                HTTPStatus.UNAUTHORIZED,
+                {"ok": False, "error": str(exc), "code": "invalid_totp"},
+            )
         if session_payload is None:
             self._record_login_failure(username)
             self._audit_event(

@@ -12,6 +12,9 @@ from auth_session_http_surface import AuthSessionHttpSurfaceService
 
 
 class _AuthSessionStub:
+    def __init__(self) -> None:
+        self._require_totp = False
+
     def role_permissions(self, role: str) -> set[str]:
         if role == "kiosk_operator":
             return {"vm:read", "vm:power", "kiosk:operate"}
@@ -20,15 +23,27 @@ class _AuthSessionStub:
     def onboarding_status(self, *, bootstrap_username: str, bootstrap_disabled: bool):
         return {"pending": False, "completed": True}
 
+    def login(self, *, username: str, password: str, totp_code: str = "", remote_addr: str = "", user_agent: str = ""):
+        if self._require_totp and not totp_code:
+            raise PermissionError("invalid one-time code")
+        return {
+            "ok": True,
+            "access_token": "access",
+            "refresh_token": "refresh",
+            "token_type": "Bearer",
+            "expires_in": 900,
+            "user": {"username": username, "role": "viewer", "totp_enabled": self._require_totp},
+        }
+
 
 class _IdpRegistryStub:
     def payload(self):
         return {"ok": True, "providers": []}
 
 
-def _service(principal):
+def _service(principal, *, auth_session=None, read_json_body=None):
     return AuthSessionHttpSurfaceService(
-        auth_session=_AuthSessionStub(),
+        auth_session=auth_session or _AuthSessionStub(),
         identity_provider_registry=_IdpRegistryStub(),
         oidc_service=object(),
         saml_service=object(),
@@ -38,7 +53,7 @@ def _service(principal):
         auth_principal=lambda: principal,
         remote_addr=lambda: "127.0.0.1",
         user_agent=lambda: "pytest",
-        read_json_body=lambda: {},
+        read_json_body=read_json_body or (lambda: {}),
         has_body=lambda: False,
         check_login_guard=lambda username: (True, 0),
         record_login_success=lambda username: None,
@@ -69,3 +84,17 @@ def test_auth_me_includes_effective_permissions() -> None:
     assert user["role"] == "kiosk_operator"
     assert sorted(user["permissions"]) == ["kiosk:operate", "vm:power", "vm:read"]
 
+
+def test_auth_login_returns_invalid_totp_when_code_missing() -> None:
+    auth_session = _AuthSessionStub()
+    auth_session._require_totp = True
+    service = _service(
+        None,
+        auth_session=auth_session,
+        read_json_body=lambda: {"username": "alice", "password": "secret123"},
+    )
+
+    response = service.route_post("/api/v1/auth/login")
+
+    assert int(response["status"]) == 401
+    assert response["payload"]["code"] == "invalid_totp"

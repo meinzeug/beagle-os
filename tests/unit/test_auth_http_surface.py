@@ -13,7 +13,7 @@ from auth_http_surface import AuthHttpSurfaceService
 
 class _AuthSessionStub:
     def __init__(self) -> None:
-        self._users = [{"username": "admin", "role": "superadmin", "enabled": True}]
+        self._users = [{"username": "admin", "role": "superadmin", "enabled": True, "auth_source": "local", "totp_enabled": False}]
         self._roles = [{"name": "viewer", "permissions": ["inventory:read"], "built_in": True, "protected": True}]
 
     def list_users(self, *, requester_tenant_id=None):
@@ -25,7 +25,7 @@ class _AuthSessionStub:
     def create_user(self, *, username: str, password: str, role: str, enabled: bool, tenant_id=None, session_geo_routing=None):
         if not password:
             raise ValueError("password is required")
-        user = {"username": username, "role": role, "enabled": bool(enabled), "tenant_id": tenant_id, "session_geo_routing": session_geo_routing}
+        user = {"username": username, "role": role, "enabled": bool(enabled), "tenant_id": tenant_id, "session_geo_routing": session_geo_routing, "auth_source": "local", "totp_enabled": False}
         self._users.append(user)
         return user
 
@@ -71,6 +71,20 @@ class _AuthSessionStub:
         before = len(self._roles)
         self._roles = [item for item in self._roles if item["name"] != name]
         return len(self._roles) < before
+
+    def enroll_totp(self, username: str, *, issuer: str):
+        for user in self._users:
+            if user["username"] == username:
+                user["totp_enabled"] = True
+                return {"username": username, "secret": "ABCDEF", "otpauth_url": f"otpauth://totp/{issuer}:{username}", "totp_enabled": True}
+        raise ValueError("user not found")
+
+    def disable_totp(self, username: str):
+        for user in self._users:
+            if user["username"] == username:
+                user["totp_enabled"] = False
+                return True
+        return False
 
 
 def _service() -> AuthHttpSurfaceService:
@@ -122,6 +136,24 @@ def test_route_post_revoke_sessions() -> None:
     assert int(response["status"]) == 200
     assert response["payload"]["username"] == "admin"
     assert response["payload"]["revoked_count"] == 2
+
+
+def test_route_post_enroll_and_disable_totp() -> None:
+    service = _service()
+
+    enroll_response = service.route_post(
+        "/api/v1/auth/users/admin/totp/enroll",
+        json_payload={"issuer": "Beagle OS"},
+    )
+    disable_response = service.route_post(
+        "/api/v1/auth/users/admin/totp/disable",
+        json_payload=None,
+    )
+
+    assert int(enroll_response["status"]) == 201
+    assert enroll_response["payload"]["totp"]["totp_enabled"] is True
+    assert int(disable_response["status"]) == 200
+    assert disable_response["payload"]["totp_enabled"] is False
 
 
 def test_route_put_not_found_user_maps_to_404() -> None:

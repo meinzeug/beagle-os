@@ -78,6 +78,7 @@ from public_streams import PublicStreamService
 from job_queue_service import JobQueueService
 from job_worker import JobWorker
 from jobs_http_surface import JobsHttpSurface
+from ldap_auth import LdapAuthService
 from prometheus_metrics import PrometheusMetricsService
 from health_aggregator import HealthAggregatorService
 from structured_logger import StructuredLogger
@@ -177,6 +178,11 @@ AUTH_REFRESH_TTL_SECONDS = int(os.environ.get("BEAGLE_AUTH_REFRESH_TTL_SECONDS",
 AUTH_IDLE_TIMEOUT_SECONDS = int(os.environ.get("BEAGLE_AUTH_IDLE_TIMEOUT_SECONDS", "1800"))
 AUTH_ABSOLUTE_TIMEOUT_SECONDS = int(os.environ.get("BEAGLE_AUTH_ABSOLUTE_TIMEOUT_SECONDS", str(7 * 24 * 3600)))
 AUTH_MAX_SESSIONS_PER_USER = int(os.environ.get("BEAGLE_AUTH_MAX_SESSIONS_PER_USER", "5"))
+AUTH_LDAP_URI = os.environ.get("BEAGLE_AUTH_LDAP_URI", "").strip()
+AUTH_LDAP_BIND_DN_TEMPLATE = os.environ.get("BEAGLE_AUTH_LDAP_BIND_DN_TEMPLATE", "").strip()
+AUTH_LDAP_DEFAULT_ROLE = os.environ.get("BEAGLE_AUTH_LDAP_DEFAULT_ROLE", "viewer").strip().lower() or "viewer"
+AUTH_LDAP_STARTTLS = os.environ.get("BEAGLE_AUTH_LDAP_STARTTLS", "0").strip().lower() in {"1", "true", "yes", "on"}
+AUTH_LDAP_CA_CERT_FILE = os.environ.get("BEAGLE_AUTH_LDAP_CA_CERT_FILE", "").strip()
 API_RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("BEAGLE_API_RATE_LIMIT_WINDOW_SECONDS", "60"))
 API_RATE_LIMIT_MAX_REQUESTS = int(os.environ.get("BEAGLE_API_RATE_LIMIT_MAX_REQUESTS", "240"))
 AUDIT_EXPORT_S3_BUCKET = os.environ.get("BEAGLE_AUDIT_EXPORT_S3_BUCKET", "").strip()
@@ -496,6 +502,7 @@ UTILITY_SUPPORT_SERVICE = UtilitySupportService(
 METADATA_SUPPORT_SERVICE = MetadataSupportService()
 REQUEST_SUPPORT_SERVICE: RequestSupportService | None = None
 AUTH_SESSION_SERVICE: AuthSessionService | None = None
+LDAP_AUTH_SERVICE: LdapAuthService | None = None
 AUDIT_LOG_SERVICE: AuditLogService | None = None
 AUDIT_EXPORT_SERVICE: AuditExportService | None = None
 AUDIT_REPORT_SERVICE: AuditReportService | None = None
@@ -702,6 +709,7 @@ def auth_session_service() -> AuthSessionService:
             write_json_file=lambda path, payload: persistence_support_service().write_json_file(path, payload),
             now=default_now,
             token_urlsafe=secrets.token_urlsafe,
+            ldap_authenticate=lambda username, password: ldap_auth_service().authenticate(username=username, password=password),
             access_ttl_seconds=AUTH_ACCESS_TTL_SECONDS,
             refresh_ttl_seconds=AUTH_REFRESH_TTL_SECONDS,
             idle_timeout_seconds=AUTH_IDLE_TIMEOUT_SECONDS,
@@ -714,6 +722,19 @@ def auth_session_service() -> AuthSessionService:
                 password=AUTH_BOOTSTRAP_PASSWORD,
             )
     return AUTH_SESSION_SERVICE
+
+
+def ldap_auth_service() -> LdapAuthService:
+    global LDAP_AUTH_SERVICE
+    if LDAP_AUTH_SERVICE is None:
+        LDAP_AUTH_SERVICE = LdapAuthService(
+            server_uri=AUTH_LDAP_URI,
+            bind_dn_template=AUTH_LDAP_BIND_DN_TEMPLATE,
+            default_role=AUTH_LDAP_DEFAULT_ROLE,
+            start_tls=AUTH_LDAP_STARTTLS,
+            ca_cert_file=AUTH_LDAP_CA_CERT_FILE,
+        )
+    return LDAP_AUTH_SERVICE
 
 
 def audit_export_service() -> AuditExportService:

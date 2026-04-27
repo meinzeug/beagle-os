@@ -71,12 +71,12 @@ Status-Legende:
 | Beagle host-Funktion | Beagle-Äquivalent | Status |
 |---|---|---|
 | Local User + PAM Auth | `auth_service.py` + `auth_http_surface.py` | ✅ |
-| LDAP/AD Auth | Nicht implementiert | 🔶 SCIM-Import implementiert; direktes LDAP-Bind fehlt |
+| LDAP/AD Auth | `ldap_auth.py` + `AuthSessionService.login()` | ✅ Direktes LDAP-Bind als optionales Auth-Backend |
 | SAML SSO | `saml_service.py` | ✅ |
 | OIDC/OAuth2 | `auth_session_http_surface.py` | ✅ |
 | RBAC / Permissions | `authz_policy_service()` | ✅ |
 | Token-basierter API-Zugang | `BEAGLE_API_TOKEN` + Bearer | ✅ |
-| Two-Factor Auth (TOTP) | Nicht implementiert | ❌ Backlog |
+| Two-Factor Auth (TOTP) | `AuthSessionService` + `/api/v1/auth/users/{user}/totp/*` | ✅ Lokaler TOTP-Zweitfaktor vorhanden |
 | Ticket-basierter Zugang (`PVEAuthCookie`) | **Absichtlich entfernt** | 🚫 |
 
 ## 6. Cluster / HA
@@ -128,8 +128,6 @@ Status-Legende:
 |---|---|---|
 | MEDIUM | SDN/Overlay Netzwerk | Plan 17 |
 | MEDIUM | HA-Manager | Plan 09 |
-| LOW | LDAP-Bind Auth | Auth-Service Erweiterung |
-| LOW | TOTP 2FA | Auth-Service Erweiterung |
 | LOW | Cluster Live-Migration (zero-downtime) | Plan 07 |
 
 ---

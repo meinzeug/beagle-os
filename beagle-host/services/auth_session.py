@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
 import re
 import secrets
 import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import quote
 
 
 MIN_PASSWORD_LENGTH = 8
@@ -26,6 +29,7 @@ class AuthSessionService:
         write_json_file: Callable[[Path, Any], None],
         now: Callable[[], float],
         token_urlsafe: Callable[[int], str],
+        ldap_authenticate: Callable[[str, str], dict[str, Any] | None] | None = None,
         access_ttl_seconds: int = 3600,
         refresh_ttl_seconds: int = 7 * 24 * 3600,
         idle_timeout_seconds: int = 1800,
@@ -37,6 +41,7 @@ class AuthSessionService:
         self._write_json_file = write_json_file
         self._now = now
         self._token_urlsafe = token_urlsafe
+        self._ldap_authenticate = ldap_authenticate
         self._access_ttl_seconds = max(60, int(access_ttl_seconds))
         self._refresh_ttl_seconds = max(self._access_ttl_seconds, int(refresh_ttl_seconds))
         self._idle_timeout_seconds = max(60, int(idle_timeout_seconds))
@@ -139,6 +144,8 @@ class AuthSessionService:
                     "bootstrap_only": bool(item.get("bootstrap_only", False)),
                     "tenant_id": tid,
                     "session_geo_routing": self._normalize_session_geo_routing(item.get("session_geo_routing")),
+                    "auth_source": str(item.get("auth_source") or "local").strip().lower() or "local",
+                    "totp_enabled": bool(item.get("totp_enabled", False) and item.get("totp_secret")),
                 }
             )
         return sorted(result, key=lambda entry: entry["username"].lower())
@@ -188,6 +195,7 @@ class AuthSessionService:
             "password_hash": self.hash_password(passwd),
             "created_at": int(self._now()),
             "enabled": bool(enabled),
+            "auth_source": "local",
         }
         if tid is not None:
             created["tenant_id"] = tid
@@ -203,6 +211,8 @@ class AuthSessionService:
             "created_at": int(created["created_at"]),
             "tenant_id": tid,
             "session_geo_routing": geo_routing,
+            "auth_source": "local",
+            "totp_enabled": False,
         }
 
     def update_user(
@@ -263,6 +273,8 @@ class AuthSessionService:
             "created_at": int(target.get("created_at") or 0),
             "tenant_id": str(stored_tid).strip() or None if stored_tid is not None else None,
             "session_geo_routing": self._normalize_session_geo_routing(target.get("session_geo_routing")),
+            "auth_source": str(target.get("auth_source") or "local").strip().lower() or "local",
+            "totp_enabled": bool(target.get("totp_enabled", False) and target.get("totp_secret")),
         }
 
     def delete_user(self, username: str) -> bool:
@@ -482,21 +494,41 @@ class AuthSessionService:
             bootstrap_disabled=bootstrap_disabled,
         )
 
-    def login(self, *, username: str, password: str, remote_addr: str = "", user_agent: str = "") -> dict[str, Any] | None:
+    def login(
+        self,
+        *,
+        username: str,
+        password: str,
+        totp_code: str = "",
+        remote_addr: str = "",
+        user_agent: str = "",
+    ) -> dict[str, Any] | None:
         with self._state_lock:
             user_name = str(username or "").strip()
             if not USERNAME_PATTERN.fullmatch(user_name):
                 return None
             user = self._find_user(user_name)
             if user is None:
-                return None
+                user = self._provision_ldap_shadow_user(user_name, str(password or ""))
+                if user is None:
+                    return None
             if not bool(user.get("enabled", True)):
                 return None
-            if not self.verify_password(str(password or ""), str(user.get("password_hash") or "")):
+            auth_source = str(user.get("auth_source") or "local").strip().lower() or "local"
+            if auth_source == "ldap":
+                if self._provision_ldap_shadow_user(user_name, str(password or ""), existing_user=user) is None:
+                    return None
+            elif not self.verify_password(str(password or ""), str(user.get("password_hash") or "")):
                 return None
+            if bool(user.get("totp_enabled", False)) and str(user.get("totp_secret") or "").strip():
+                code = re.sub(r"\s+", "", str(totp_code or ""))
+                if not self.verify_totp_code(str(user.get("totp_secret") or ""), code):
+                    raise PermissionError("invalid one-time code")
             return self._issue_session(
                 username=str(user.get("username") or "").strip(),
                 role=str(user.get("role") or "viewer").strip() or "viewer",
+                tenant_id=(str(user.get("tenant_id")).strip() or None) if user.get("tenant_id") is not None else None,
+                totp_enabled=bool(user.get("totp_enabled", False) and user.get("totp_secret")),
                 remote_addr=remote_addr,
                 user_agent=user_agent,
             )
@@ -541,6 +573,7 @@ class AuthSessionService:
                     "user": {
                         "username": username,
                         "role": role,
+                        "totp_enabled": bool(user.get("totp_enabled", False) and user.get("totp_secret")),
                     },
                 }
             return None
@@ -708,11 +741,76 @@ class AuthSessionService:
         candidate = hashlib.pbkdf2_hmac("sha256", str(password or "").encode("utf-8"), salt, iterations)
         return secrets.compare_digest(candidate, expected)
 
+    def enroll_totp(self, username: str, *, issuer: str = "Beagle OS") -> dict[str, Any]:
+        with self._state_lock:
+            user = self._find_user(username)
+            if user is None:
+                raise ValueError("user not found")
+            secret = self._generate_totp_secret()
+            user["totp_secret"] = secret
+            user["totp_enabled"] = True
+            self._persist_user_record(user)
+            account_name = str(user.get("username") or username).strip()
+            return {
+                "username": account_name,
+                "secret": secret,
+                "otpauth_url": (
+                    f"otpauth://totp/{quote(str(issuer or 'Beagle OS'))}:{quote(account_name)}"
+                    f"?secret={secret}&issuer={quote(str(issuer or 'Beagle OS'))}"
+                ),
+                "totp_enabled": True,
+            }
+
+    def disable_totp(self, username: str) -> bool:
+        with self._state_lock:
+            user = self._find_user(username)
+            if user is None:
+                return False
+            user.pop("totp_secret", None)
+            user["totp_enabled"] = False
+            self._persist_user_record(user)
+            return True
+
+    @staticmethod
+    def _generate_totp_secret() -> str:
+        return base64.b32encode(secrets.token_bytes(20)).decode("ascii").rstrip("=")
+
+    def verify_totp_code(self, secret: str, code: str, *, drift_steps: int = 1) -> bool:
+        normalized_secret = str(secret or "").strip().upper()
+        normalized_code = re.sub(r"\s+", "", str(code or ""))
+        if not normalized_secret or not normalized_code.isdigit() or len(normalized_code) != 6:
+            return False
+        now_ts = int(self._now())
+        timestep = 30
+        for offset in range(-abs(int(drift_steps)), abs(int(drift_steps)) + 1):
+            counter = int((now_ts // timestep) + offset)
+            if self._totp_at(normalized_secret, counter) == normalized_code:
+                return True
+        return False
+
+    @staticmethod
+    def _totp_at(secret: str, counter: int, digits: int = 6) -> str:
+        padded = secret + ("=" * ((8 - (len(secret) % 8)) % 8))
+        key = base64.b32decode(padded, casefold=True)
+        msg = int(counter).to_bytes(8, "big", signed=False)
+        digest = hmac.new(key, msg, hashlib.sha1).digest()
+        offset = digest[-1] & 0x0F
+        binary = (
+            ((digest[offset] & 0x7F) << 24)
+            | ((digest[offset + 1] & 0xFF) << 16)
+            | ((digest[offset + 2] & 0xFF) << 8)
+            | (digest[offset + 3] & 0xFF)
+        )
+        otp = binary % (10 ** digits)
+        return f"{otp:0{digits}d}"
+
     def _issue_session(
         self,
         *,
         username: str,
         role: str,
+        tenant_id: str | None,
+        totp_enabled: bool = False,
         remote_addr: str,
         user_agent: str,
         sessions_doc: dict[str, Any] | None = None,
@@ -727,6 +825,7 @@ class AuthSessionService:
                 "id": session_id,
                 "username": username,
                 "role": role,
+                "tenant_id": tenant_id,
                 "access_token": access_token,
                 "refresh_token": refresh_token,
                 "created_at": now_ts,
@@ -753,6 +852,8 @@ class AuthSessionService:
                 "user": {
                     "username": username,
                     "role": role,
+                    "tenant_id": tenant_id,
+                    "totp_enabled": bool(totp_enabled),
                 },
             }
 
@@ -921,6 +1022,52 @@ class AuthSessionService:
             if str(item.get("username") or "").strip().lower() == name:
                 return item
         return None
+
+    def _persist_user_record(self, target: dict[str, Any]) -> None:
+        users_doc = self._load_users_doc()
+        users = users_doc.setdefault("users", [])
+        target_name = str(target.get("username") or "").strip().lower()
+        for index, item in enumerate(users):
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("username") or "").strip().lower() == target_name:
+                users[index] = target
+                self._write_json_file(self._users_path, users_doc)
+                return
+        users.append(target)
+        self._write_json_file(self._users_path, users_doc)
+
+    def _provision_ldap_shadow_user(
+        self,
+        username: str,
+        password: str,
+        *,
+        existing_user: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        if self._ldap_authenticate is None:
+            return None
+        payload = self._ldap_authenticate(str(username or "").strip(), str(password or ""))
+        if not isinstance(payload, dict):
+            return None
+        user = existing_user if isinstance(existing_user, dict) else self._find_user(username)
+        if user is None:
+            user = {
+                "username": str(payload.get("username") or username).strip(),
+                "role": str(payload.get("role") or "viewer").strip().lower() or "viewer",
+                "created_at": int(self._now()),
+                "enabled": True,
+                "auth_source": "ldap",
+            }
+            tenant_id = payload.get("tenant_id")
+            if tenant_id is not None and str(tenant_id).strip():
+                user["tenant_id"] = str(tenant_id).strip()
+            self._persist_user_record(user)
+            return user
+        user["auth_source"] = "ldap"
+        if not user.get("role"):
+            user["role"] = str(payload.get("role") or "viewer").strip().lower() or "viewer"
+        self._persist_user_record(user)
+        return user
 
 
 def default_now() -> float:
