@@ -182,6 +182,8 @@ class AuthzPolicyService:
         if verb == "GET":
             if route in {"/api/v1/audit/report", "/api/v1/audit/export-targets", "/api/v1/audit/failures"}:
                 return "auth:read"
+            if route == "/api/v1/installer-logs" or re.match(r"^/api/v1/installer-logs/[A-Za-z0-9._-]{8,96}$", route):
+                return "settings:read"
             if route in {"/api/v1/auth/users", "/api/v1/auth/roles"}:
                 return "auth:read"
             if route in {"/api/v1/auth/sessions", "/api/v1/auth/tenants"}:

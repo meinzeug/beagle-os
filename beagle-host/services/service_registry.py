@@ -61,6 +61,7 @@ from ha_manager import HaManagerService
 from host_provider_contract import HostProvider
 from identity_provider_registry import IdentityProviderRegistryService
 from installer_prep import InstallerPrepService
+from installer_log_service import InstallerLogService
 from installer_script import InstallerScriptService
 from installer_template_patch import InstallerTemplatePatchService
 from maintenance_service import MaintenanceService
@@ -347,6 +348,8 @@ ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_S
 SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_TOKEN_TTL_SECONDS", "600"))
 PAIRING_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_PAIRING_TOKEN_TTL_SECONDS", "120"))
 PAIRING_TOKEN_SECRET = os.environ.get("BEAGLE_PAIRING_TOKEN_SECRET", "").strip()
+INSTALLER_LOG_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_INSTALLER_LOG_TOKEN_TTL_SECONDS", "86400"))
+INSTALLER_LOG_TOKEN_SECRET = os.environ.get("BEAGLE_INSTALLER_LOG_TOKEN_SECRET", "").strip()
 USB_TUNNEL_SSH_USER = os.environ.get("BEAGLE_USB_TUNNEL_SSH_USER", "beagle-tunnel").strip() or "beagle-tunnel"
 USB_TUNNEL_HOME_RAW = os.environ.get("BEAGLE_USB_TUNNEL_HOME", "").strip()
 USB_TUNNEL_HOME = Path(USB_TUNNEL_HOME_RAW) if USB_TUNNEL_HOME_RAW else None
@@ -1124,6 +1127,7 @@ FLEET_INVENTORY_SERVICE: FleetInventoryService | None = None
 CLUSTER_INVENTORY_SERVICE: ClusterInventoryService | None = None
 HEALTH_PAYLOAD_SERVICE: HealthPayloadService | None = None
 INSTALLER_PREP_SERVICE: InstallerPrepService | None = None
+INSTALLER_LOG_SERVICE: InstallerLogService | None = None
 INSTALLER_SCRIPT_SERVICE: InstallerScriptService | None = None
 INSTALLER_TEMPLATE_PATCH_SERVICE: InstallerTemplatePatchService | None = None
 ENDPOINT_REPORT_SERVICE: EndpointReportService | None = None
@@ -2213,6 +2217,27 @@ def installer_template_patch_service() -> InstallerTemplatePatchService:
     if INSTALLER_TEMPLATE_PATCH_SERVICE is None:
         INSTALLER_TEMPLATE_PATCH_SERVICE = InstallerTemplatePatchService()
     return INSTALLER_TEMPLATE_PATCH_SERVICE
+
+
+def installer_log_service() -> InstallerLogService:
+    global INSTALLER_LOG_SERVICE
+    if INSTALLER_LOG_SERVICE is None:
+        INSTALLER_LOG_SERVICE = InstallerLogService(
+            log_dir=runtime_paths_service().data_dir() / "installer-logs",
+            signing_secret=_bootstrap_secret("installer_log_token_secret", INSTALLER_LOG_TOKEN_SECRET),
+            token_ttl_seconds=INSTALLER_LOG_TOKEN_TTL_SECONDS,
+            utcnow=utcnow,
+        )
+    return INSTALLER_LOG_SERVICE
+
+
+def issue_installer_log_context(*, vmid: int, node: str, script_kind: str, script_name: str) -> dict[str, str]:
+    return installer_log_service().issue_log_context(
+        vmid=vmid,
+        node=node,
+        script_kind=script_kind,
+        script_name=script_name,
+    )
 
 
 def patch_installer_defaults(
@@ -3636,6 +3661,7 @@ def installer_script_service() -> InstallerScriptService:
             hosted_installer_template_file=HOSTED_INSTALLER_TEMPLATE_FILE,
             hosted_live_usb_template_file=HOSTED_LIVE_USB_TEMPLATE_FILE,
             issue_enrollment_token=issue_enrollment_token,
+            issue_installer_log_context=issue_installer_log_context,
             manager_pinned_pubkey=manager_pinned_pubkey(),
             parse_description_meta=metadata_support_service().parse_description_meta,
             patch_installer_defaults=installer_template_patch_service().patch_installer_defaults,

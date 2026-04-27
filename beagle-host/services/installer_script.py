@@ -20,6 +20,7 @@ class InstallerScriptService:
         hosted_installer_template_file: Path,
         hosted_live_usb_template_file: Path,
         issue_enrollment_token: Callable[[Any], tuple[str, dict[str, Any]]],
+        issue_installer_log_context: Callable[..., dict[str, str]],
         manager_pinned_pubkey: str,
         parse_description_meta: Callable[[str], dict[str, str]],
         patch_installer_defaults: Callable[..., str],
@@ -42,6 +43,7 @@ class InstallerScriptService:
         self._hosted_installer_template_file = hosted_installer_template_file
         self._hosted_live_usb_template_file = hosted_live_usb_template_file
         self._issue_enrollment_token = issue_enrollment_token
+        self._issue_installer_log_context = issue_installer_log_context
         self._manager_pinned_pubkey = str(manager_pinned_pubkey or "")
         self._parse_description_meta = parse_description_meta
         self._patch_installer_defaults = patch_installer_defaults
@@ -225,8 +227,23 @@ class InstallerScriptService:
         preset_b64 = self._encode_installer_preset(preset)
         return preset, preset_name, preset_b64
 
+    def _installer_log_context(self, vm: Any, *, script_kind: str, script_name: str) -> dict[str, str]:
+        context = self._issue_installer_log_context(
+            vmid=int(vm.vmid),
+            node=str(vm.node),
+            script_kind=script_kind,
+            script_name=script_name,
+        )
+        return {
+            "url": f"{self._public_manager_url.rstrip('/')}/api/v1/public/installer-logs",
+            "token": str(context.get("token") or ""),
+            "session_id": str(context.get("session_id") or ""),
+        }
+
     def render_installer_script(self, vm: Any) -> tuple[bytes, str]:
         _, preset_name, preset_b64 = self._build_preset_for_vm(vm)
+        filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.sh"
+        log_context = self._installer_log_context(vm, script_kind="linux-installer-usb", script_name=filename)
         rendered = self._patch_installer_defaults(
             self._read_shell_template(self._hosted_installer_template_file),
             preset_name,
@@ -235,12 +252,16 @@ class InstallerScriptService:
             self._public_bootstrap_latest_download_url(),
             self._public_payload_latest_download_url(),
             "installer",
+            log_context["url"],
+            log_context["token"],
+            log_context["session_id"],
         )
-        filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.sh"
         return rendered.encode("utf-8"), filename
 
     def render_live_usb_script(self, vm: Any) -> tuple[bytes, str]:
         _, preset_name, preset_b64 = self._build_preset_for_vm(vm)
+        filename = f"pve-thin-client-live-usb-vm-{vm.vmid}.sh"
+        log_context = self._installer_log_context(vm, script_kind="linux-live-usb", script_name=filename)
         rendered = self._patch_installer_defaults(
             self._read_shell_template(self._hosted_live_usb_template_file),
             preset_name,
@@ -249,8 +270,10 @@ class InstallerScriptService:
             self._public_bootstrap_latest_download_url(),
             self._public_payload_latest_download_url(),
             "live",
+            log_context["url"],
+            log_context["token"],
+            log_context["session_id"],
         )
-        filename = f"pve-thin-client-live-usb-vm-{vm.vmid}.sh"
         return rendered.encode("utf-8"), filename
 
     def render_windows_installer_script(self, vm: Any) -> tuple[bytes, str]:
@@ -259,14 +282,18 @@ class InstallerScriptService:
                 f"missing windows installer template: {self._raw_windows_installer_template_file}"
             )
         _, preset_name, preset_b64 = self._build_preset_for_vm(vm)
+        filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.ps1"
+        log_context = self._installer_log_context(vm, script_kind="windows-installer-usb", script_name=filename)
         rendered = self._patch_windows_installer_defaults(
             self._raw_windows_installer_template_file.read_text(encoding="utf-8"),
             preset_name,
             preset_b64,
             self._public_installer_iso_url(),
             "installer",
+            log_context["url"],
+            log_context["token"],
+            log_context["session_id"],
         )
-        filename = f"pve-thin-client-usb-installer-vm-{vm.vmid}.ps1"
         return rendered.encode("utf-8"), filename
 
     def render_windows_live_usb_script(self, vm: Any) -> tuple[bytes, str]:
@@ -275,12 +302,16 @@ class InstallerScriptService:
                 f"missing windows installer template: {self._raw_windows_installer_template_file}"
             )
         _, preset_name, preset_b64 = self._build_preset_for_vm(vm)
+        filename = f"pve-thin-client-live-usb-vm-{vm.vmid}.ps1"
+        log_context = self._installer_log_context(vm, script_kind="windows-live-usb", script_name=filename)
         rendered = self._patch_windows_installer_defaults(
             self._raw_windows_installer_template_file.read_text(encoding="utf-8"),
             preset_name,
             preset_b64,
             self._public_installer_iso_url(),
             "live",
+            log_context["url"],
+            log_context["token"],
+            log_context["session_id"],
         )
-        filename = f"pve-thin-client-live-usb-vm-{vm.vmid}.ps1"
         return rendered.encode("utf-8"), filename

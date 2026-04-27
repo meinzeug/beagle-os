@@ -53,7 +53,12 @@ def _make_surface(
     def _default_exchange(_vm, _identity, pairing_token):
         return {"ok": exchange_ok}
 
+    class _SessionManagerStub:
+        def find_active_session(self, *, session_id="", vm_id=0):
+            return None
+
     return EndpointHttpSurfaceService(
+        build_vm_profile=lambda item: {},
         dequeue_vm_actions=lambda node, vmid: [],
         exchange_moonlight_pairing_token=exchange_fn or _default_exchange,
         fetch_sunshine_server_identity=lambda vm, guest_user: {},
@@ -62,6 +67,7 @@ def _make_surface(
         prepare_virtual_display_on_vm=lambda vm, res: {"ok": True, "resolution": res, "exitcode": 0, "stdout": "", "stderr": ""},
         register_moonlight_certificate_on_vm=lambda vm, cert, device_name: {"ok": True},
         service_name="beagle-control-plane",
+        session_manager_service=_SessionManagerStub(),
         store_action_result=lambda node, vmid, payload: None,
         store_support_bundle=lambda node, vmid, action_id, filename, payload: {},
         summarize_action_result=lambda action_id, result: "",

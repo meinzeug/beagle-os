@@ -45,14 +45,14 @@ class _TenantAuthSessionStub:
                 return user.get("tenant_id")
         return None
 
-    def create_user(self, *, username, password, role, enabled, tenant_id=None):
+    def create_user(self, *, username, password, role, enabled, tenant_id=None, session_geo_routing=None):
         if not password:
             raise ValueError("password is required")
         user = {"username": username, "role": role, "enabled": enabled, "tenant_id": tenant_id}
         self._users.append(user)
         return user
 
-    def update_user(self, *, username, role=None, enabled=None, password=None, tenant_id=...):
+    def update_user(self, *, username, role=None, enabled=None, password=None, tenant_id=..., session_geo_routing=...):
         for user in self._users:
             if user["username"] == username:
                 if role is not None:

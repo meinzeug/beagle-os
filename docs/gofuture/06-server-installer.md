@@ -212,6 +212,13 @@ Umsetzung 2026-04-26:
     - Repo-Auto-Update prueft `meinzeug/beagle-os` Branch `main` alle 1 Minute.
     - Artifact-Watchdog nutzt `auto_repair=true` und maximal 6 Stunden Artefaktalter.
     - `install-beagle-host-services.sh` schreibt diese Defaults nur, wenn die jeweilige Einstellung noch fehlt.
+- Follow-up 2026-04-27, nachweisbare Installer-/USB-Skript-Laufprotokolle:
+  - VM-spezifische Linux- und Windows-Installerdownloads enthalten jetzt einen kurzlebigen, write-only Installer-Log-Token statt Admin-/Session-Credentials.
+  - Neuer Public-Intake `POST /api/v1/public/installer-logs` nimmt nur Bearer-Tokens mit Scope `installer-log:write` an; ungueltige Tokens liefern live auf `srv1` `401`.
+  - Neuer Operator-Read `GET /api/v1/installer-logs` / `{session_id}` ist per RBAC auf `settings:read` begrenzt und persistiert Events unter `/var/lib/beagle/beagle-manager/installer-logs`.
+  - Shell-/PowerShell-USB-Skripte loggen Start, Bootstrap, Device-Listing, Privilege, Dependency, Asset, Write, Completion und Failure; Log-Fehler blockieren die Installation nicht.
+  - Der Template-Patcher ist self-healing fuer alte `dist/*latest.sh`-Templates ohne Log-Variablen, damit Hosted-Template-Drift keinen `500` erzeugt.
+  - Live auf `srv1`: generiertes VM100-Skript enthaelt Log-URL/-Token/-Session, ein echter `--list-devices`-Lauf schrieb Events per API, und `/beagle-downloads/` liefert neue `latest`-Skripte mit Logging-Hooks und ohne `8443`.
 
 ---
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## v8.0 - 2026-04-27
+
+- Added token-scoped installer run logging for generated Linux and Windows USB scripts. VM-specific installer and live-USB downloads now carry a short-lived write-only log token and post lifecycle events to the Beagle Control Plane without embedding admin credentials.
+- Added `/api/v1/public/installer-logs` as the unauthenticated token intake and authenticated `GET /api/v1/installer-logs` read APIs for operators with `settings:read`, including redaction of sensitive payload keys before persistence.
+- Hardened the USB writer scripts with non-blocking API log calls for script start, bootstrap, device listing, privilege escalation, dependency, asset, write, completion and failure stages.
+- Promoted the public release line to `8.0` so GitHub and hosted artifacts no longer present the older `6.6.x` release as current.
+
 ## v6.7.0 - 2026-04-21
 
 - Split the Beagle Web Console monolith into native ES modules under `website/ui/`, switched `website/index.html` to the new `website/main.js` entrypoint, and replaced the monolithic stylesheet with imported CSS partials under `website/styles/`.

@@ -77,7 +77,9 @@ node --check "$ROOT_DIR/extension/shared/vm-profile-mapper.js"
 node --check "$ROOT_DIR/extension/shared/vm-profile-helpers.js"
 node --check "$ROOT_DIR/extension/common.js"
 node --check "$ROOT_DIR/extension/provider-registry.js"
-node --check "$ROOT_DIR/extension/providers/beagle.js"
+if [[ -f "$ROOT_DIR/extension/providers/beagle.js" ]]; then
+  node --check "$ROOT_DIR/extension/providers/beagle.js"
+fi
 node --check "$ROOT_DIR/extension/services/virtualization.js"
 node --check "$ROOT_DIR/extension/services/platform.js"
 node --check "$ROOT_DIR/extension/services/profile.js"

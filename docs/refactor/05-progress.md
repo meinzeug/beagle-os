@@ -1,3 +1,23 @@
+## Update (2026-04-27, Installer-Skripte schreiben nachweisbare API-Logs)
+
+**Scope**: VM-spezifische USB-Installer-/Live-Skripte und die daraus veroeffentlichten Download-Skripte sind jetzt nachvollziehbar. Skripte schreiben Laufereignisse ueber einen kurzlebigen write-only Token an die Control Plane; es werden keine Admin-, Session- oder Manager-Tokens in Installer-Downloads eingebettet.
+
+- Backend:
+  - [beagle-host/services/installer_log_service.py](/home/dennis/beagle-os/beagle-host/services/installer_log_service.py): HMAC-signierte Installer-Log-Tokens, Public-Intake, JSONL-Eventpersistenz, Session-Summary und Redaction sensibler Keys.
+  - [beagle-host/services/control_plane_handler.py](/home/dennis/beagle-os/beagle-host/services/control_plane_handler.py): `POST /api/v1/public/installer-logs` und authenticated `GET /api/v1/installer-logs`.
+  - [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py): Log-Read-Routen auf `settings:read`.
+- Skripte:
+  - [thin-client-assistant/usb/pve-thin-client-usb-installer.sh](/home/dennis/beagle-os/thin-client-assistant/usb/pve-thin-client-usb-installer.sh): non-blocking Logevents fuer Start, Bootstrap, Device-Listing, Privilege, Dependencies, Assets, USB-Write, Completion und Failure.
+  - [thin-client-assistant/usb/pve-thin-client-usb-installer.ps1](/home/dennis/beagle-os/thin-client-assistant/usb/pve-thin-client-usb-installer.ps1): entsprechender Windows-Logpfad via `Invoke-RestMethod`.
+  - [beagle-host/services/installer_template_patch.py](/home/dennis/beagle-os/beagle-host/services/installer_template_patch.py): self-healing fuer alte Hosted-Templates ohne Log-Defaults.
+- Release:
+  - `VERSION`, Extension-Manifest, Kiosk-Package und Changelog auf `8.0` angehoben.
+- Validierung:
+  - Lokal: `python3 -m pytest tests/unit/test_installer_script.py tests/unit/test_installer_log_service.py tests/unit/test_authz_policy.py -q` => `19 passed`.
+  - Live `srv1`: generiertes VM100-Installer-Skript enthaelt Log-Kontext; echter `--list-devices`-Lauf schrieb `script_started`, `bootstrap_helpers_present`, `device_listing_started`, `device_listing_completed`, `script_completed` per API.
+  - Live `srv1`: `POST /api/v1/public/installer-logs` mit ungueltigem Token liefert `401`.
+  - Live `srv1`: `/beagle-downloads/` liefert `200`, neue Linux-/Windows-`latest`-Skripte enthalten Logging-Hooks, Linux-`latest` enthaelt kein `8443`.
+
 ## Update (2026-04-27, Repo-Auto-Update Self-Heal gegen Runtime-Symlink-Loops)
 
 **Scope**: Der Update-Center-Fehler auf `srv1` war kein normaler Fetch-/Build-Fail, sondern ein kaputter Runtime-Baum unter `/opt/beagle`: `beagle-host` zeigte als Self-Symlink auf sich selbst, `beagle_host` zeigte darauf weiter. Dadurch konnten `install-beagle-host-services.sh` und in Folge `beagle-repo-auto-update.service` den Host nicht mehr selbst reparieren.

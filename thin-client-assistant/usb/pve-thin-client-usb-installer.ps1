@@ -8,7 +8,10 @@ param(
     [string]$ReleaseIsoUrl = "",
     [string]$WriterVariant = "",
     [string]$PresetName = "",
-    [string]$PresetBase64 = ""
+    [string]$PresetBase64 = "",
+    [string]$InstallerLogUrl = "",
+    [string]$InstallerLogToken = "",
+    [string]$InstallerLogSessionId = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,10 +20,50 @@ $DefaultReleaseIsoUrl = "__BEAGLE_DEFAULT_RELEASE_ISO_URL__"
 $DefaultWriterVariant = "__BEAGLE_DEFAULT_WRITER_VARIANT__"
 $DefaultPresetName = "__BEAGLE_DEFAULT_PRESET_NAME__"
 $DefaultPresetBase64 = "__BEAGLE_DEFAULT_PRESET_B64__"
+$DefaultInstallerLogUrl = "__BEAGLE_DEFAULT_INSTALLER_LOG_URL__"
+$DefaultInstallerLogToken = "__BEAGLE_DEFAULT_INSTALLER_LOG_TOKEN__"
+$DefaultInstallerLogSessionId = "__BEAGLE_DEFAULT_INSTALLER_LOG_SESSION_ID__"
+$script:BeagleInstallerStage = "init"
 
 function Write-Step {
     param([string]$Message)
     Write-Host ("[Beagle OS] {0}" -f $Message)
+}
+
+function Send-InstallerLog {
+    param(
+        [string]$Event,
+        [string]$Stage = $script:BeagleInstallerStage,
+        [string]$Status = "info",
+        [string]$Message = "",
+        [hashtable]$Details = @{}
+    )
+
+    if ([string]::IsNullOrWhiteSpace($InstallerLogUrl) -or [string]::IsNullOrWhiteSpace($InstallerLogToken)) {
+        return
+    }
+
+    try {
+        $body = [ordered]@{
+            session_id = $InstallerLogSessionId
+            event = $Event
+            stage = $Stage
+            status = $Status
+            message = $Message
+            script = [IO.Path]::GetFileName($PSCommandPath)
+            writer_variant = $WriterVariant
+            details = $Details
+        } | ConvertTo-Json -Depth 5
+        Invoke-RestMethod `
+            -Uri $InstallerLogUrl `
+            -Method Post `
+            -Headers @{ Authorization = ("Bearer {0}" -f $InstallerLogToken) } `
+            -ContentType "application/json" `
+            -Body $body `
+            -TimeoutSec 5 | Out-Null
+    } catch {
+        # Installer logging must never block USB provisioning.
+    }
 }
 
 function Resolve-WriterVariant {
@@ -57,10 +100,35 @@ if ([string]::IsNullOrWhiteSpace($PresetName)) {
 if ([string]::IsNullOrWhiteSpace($PresetBase64)) {
     $PresetBase64 = $DefaultPresetBase64
 }
+if ([string]::IsNullOrWhiteSpace($InstallerLogUrl)) {
+    $InstallerLogUrl = $DefaultInstallerLogUrl
+}
+if ([string]::IsNullOrWhiteSpace($InstallerLogToken)) {
+    $InstallerLogToken = $DefaultInstallerLogToken
+}
+if ([string]::IsNullOrWhiteSpace($InstallerLogSessionId)) {
+    $InstallerLogSessionId = $DefaultInstallerLogSessionId
+}
+if ($InstallerLogUrl -like "__BEAGLE_DEFAULT_*") {
+    $InstallerLogUrl = ""
+}
+if ($InstallerLogToken -like "__BEAGLE_DEFAULT_*") {
+    $InstallerLogToken = ""
+}
+if ($InstallerLogSessionId -like "__BEAGLE_DEFAULT_*") {
+    $InstallerLogSessionId = ""
+}
 $WriterVariant = Resolve-WriterVariant -RequestedVariant $WriterVariant -DefaultVariant $DefaultWriterVariant
 if ([string]::IsNullOrWhiteSpace($UsbLabel)) {
     $UsbLabel = if ($WriterVariant -eq "live") { "BEAGLELIVE" } else { "BEAGLEOS" }
 }
+
+trap {
+    Send-InstallerLog -Event "script_failed" -Stage $script:BeagleInstallerStage -Status "error" -Message $_.Exception.Message
+    break
+}
+
+Send-InstallerLog -Event "script_started" -Stage "init" -Status "ok" -Message "Windows USB writer script started"
 
 function Assert-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -108,9 +176,12 @@ function Download-Iso {
         [string]$Url,
         [string]$TargetPath
     )
+    $script:BeagleInstallerStage = "iso_download"
     Write-Step ("Lade Beagle OS Installer ISO von {0} ..." -f $Url)
+    Send-InstallerLog -Event "iso_download_started" -Stage $script:BeagleInstallerStage -Status "running" -Message $Url
     try {
         Invoke-WebRequest -Uri $Url -OutFile $TargetPath -UseBasicParsing
+        Send-InstallerLog -Event "iso_download_completed" -Stage $script:BeagleInstallerStage -Status "ok" -Message $TargetPath
     } catch {
         throw "ISO-Download fehlgeschlagen: $($_.Exception.Message)"
     }
@@ -175,7 +246,9 @@ function Prepare-UsbDisk {
         throw "Der gewaehlte Datentraeger ist zu klein."
     }
 
+    $script:BeagleInstallerStage = "usb_prepare"
     Write-Step ("Bereite USB-Datentraeger {0} vor ..." -f $TargetDiskNumber)
+    Send-InstallerLog -Event "usb_prepare_started" -Stage $script:BeagleInstallerStage -Status "running" -Message ("disk={0}" -f $TargetDiskNumber)
     if (-not $Force) {
         $confirmation = Read-Host ("Alle Daten auf Datentraeger {0} werden geloescht. Zum Fortfahren YES eingeben" -f $TargetDiskNumber)
         if ($confirmation -ne "YES") {
@@ -200,6 +273,7 @@ function Prepare-UsbDisk {
     if (-not $volume) {
         throw "USB-Datentraeger wurde vorbereitet, aber Laufwerk $driveLetter`: konnte nicht bestaetigt werden."
     }
+    Send-InstallerLog -Event "usb_prepare_completed" -Stage $script:BeagleInstallerStage -Status "ok" -Message ("drive={0}:" -f $driveLetter)
     return ("{0}:" -f $driveLetter)
 }
 
@@ -521,7 +595,9 @@ function Build-InstallerUsb {
         [string]$PresetBase64Value
     )
 
+    $script:BeagleInstallerStage = "usb_write"
     Write-Step ("Erstelle {0}-USB-Inhalte auf {1} ..." -f $Variant, $TargetDrive)
+    Send-InstallerLog -Event "usb_write_started" -Stage $script:BeagleInstallerStage -Status "running" -Message ("target={0}" -f $TargetDrive)
     Copy-IsoDirectory -SourceDrive $SourceDrive -RelativePath "EFI" -TargetPath (Join-Path $TargetDrive "EFI")
     Copy-IsoDirectory -SourceDrive $SourceDrive -RelativePath "boot" -TargetPath (Join-Path $TargetDrive "boot")
 
@@ -536,6 +612,7 @@ function Build-InstallerUsb {
     }
 
     Write-GrubConfig -TargetDrive $TargetDrive -Variant $Variant -PresetBase64Value $PresetBase64Value
+    Send-InstallerLog -Event "usb_write_completed" -Stage $script:BeagleInstallerStage -Status "ok" -Message ("target={0}" -f $TargetDrive)
 }
 
 function Write-Manifest {
@@ -557,10 +634,14 @@ function Write-Manifest {
     [IO.File]::WriteAllText((Join-Path $TargetDrive ".beagle-windows-usb.json"), $manifest, [Text.Encoding]::UTF8)
 }
 
+$script:BeagleInstallerStage = "privilege"
 Assert-Administrator
 
 if ($ListDisks) {
+    $script:BeagleInstallerStage = "device_listing"
+    Send-InstallerLog -Event "device_listing_started" -Stage $script:BeagleInstallerStage -Status "running" -Message "listing candidate USB disks"
     Show-DiskTable
+    Send-InstallerLog -Event "device_listing_completed" -Stage $script:BeagleInstallerStage -Status "ok" -Message "candidate USB disks listed"
     exit 0
 }
 
@@ -574,6 +655,7 @@ if (-not $candidates) {
 }
 
 if ($DiskNumber -lt 0) {
+    $script:BeagleInstallerStage = "device_selection"
     Show-DiskTable
     $selection = Read-Host "Datentraegernummer eingeben"
     if (-not [int]::TryParse($selection, [ref]$DiskNumber)) {
@@ -587,11 +669,14 @@ $isoPath = Join-Path $workingRoot "beagle-os-installer-amd64.iso"
 Download-Iso -Url $ReleaseIsoUrl -TargetPath $isoPath
 $mountedIso = $null
 try {
+    $script:BeagleInstallerStage = "iso_mount"
     $mountedIso = Get-MountedIsoLetter -ImagePath $isoPath
     $usbDrive = Prepare-UsbDisk -TargetDiskNumber $DiskNumber -Label $UsbLabel
     Build-InstallerUsb -SourceDrive $mountedIso.DriveLetter -TargetDrive $usbDrive -Variant $WriterVariant -PresetBase64Value $PresetBase64
     Write-Manifest -TargetDrive $usbDrive -IsoUrl $ReleaseIsoUrl -ProfileName $PresetName -Variant $WriterVariant
+    $script:BeagleInstallerStage = "complete"
     Write-Step ("Windows {0}-USB fertig: Datentraeger {1} ({2})" -f $WriterVariant, $DiskNumber, $usbDrive)
+    Send-InstallerLog -Event "script_completed" -Stage $script:BeagleInstallerStage -Status "ok" -Message ("disk={0}; drive={1}" -f $DiskNumber, $usbDrive)
     if ($WriterVariant -eq "live") {
         Write-Step "Hinweis: Das Windows-Skript erstellt ein UEFI-bootfaehiges Live-Medium."
     }

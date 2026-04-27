@@ -3,6 +3,8 @@
 ## Stand (2026-04-27, two-host follow-up)
 
 **Zuletzt erledigt**:
+- Installer-/USB-Downloadskripte schreiben jetzt nachweisbare API-Logs mit kurzlebigen write-only Tokens; `srv1`-Live-Smoke fuer VM100-Logkontext, Script-Events, Invalid-Token-401 und `/beagle-downloads/` ist gruen.
+- Release-Linie wurde im Repo auf `8.0` angehoben; GitHub-Release-Erstellung ist der naechste abschliessende Schritt nach Commit/Push und finaler Validierung.
 - Repo-Auto-Update-/Host-Install-Self-Heal gegen kaputte Runtime-Symlink-Loops (`/opt/beagle/beagle-host` / `beagle_host`) ist jetzt im Repo verankert.
 - Plan 11 Parity bekam jetzt auch den fehlenden ISO/qcow2/raw/img-Upload-Endpunkt (`POST /api/v1/storage/pools/{pool}/upload`) inklusive Quota- und Content-Validierung.
 - Plan 11 Parity bekam jetzt auch Storage-Dateiliste und Download (`GET /api/v1/storage/pools/{pool}/files` plus `?filename=...`) inklusive Virtualization-UI-Flow im Storage-Panel.
@@ -29,10 +31,11 @@
 **Naechste konkrete Schritte**:
 
 1. **Cluster-WebUI-Operations vervollstaendigen**: `docs/gofuture/00-index.md` Schritt "Cluster-Operations in der WebUI vollständig machen" bleibt als echter Zwei-Host-Operator-Block offen.
-2. **Installer-Restgrenze sauber schliessen**: Mehrdisk-RAID und echter PXE-Boot mit DHCP-seitiger Seed-Uebergabe bleiben als verbleibender Installer-Nachlauf offen.
-3. **Plan-11-Parity-Rest auf die großen Themen begrenzen**: offen bleiben jetzt nur noch SDN/Overlay, HA-Manager und zero-downtime Live-Migration.
-4. **VM-Operator-Regressionen weiter verdichten**: nachgezogene noVNC-/Delete-UI-Regressions sind jetzt im Repo; naechster sinnvolle CI-Rest waere ein echter UI-Provisioning-Smoke.
-5. **Self-Heal live nochmals beweisen**: nach Push muss `srv1` den neuen `origin/main`-Stand per `beagle-repo-auto-update.service` selbst ziehen und mit `state=healthy` enden.
+2. **Release 8.0 abschliessen**: nach finalem Testlauf committen, pushen, Tag/Release `v8.0` auf GitHub erzeugen und pruefen, dass GitHub nicht mehr `6.6.7` als neuesten Release zeigt.
+3. **Installer-Restgrenze sauber schliessen**: Mehrdisk-RAID und echter PXE-Boot mit DHCP-seitiger Seed-Uebergabe bleiben als verbleibender Installer-Nachlauf offen.
+4. **Plan-11-Parity-Rest auf die großen Themen begrenzen**: offen bleiben jetzt nur noch SDN/Overlay, HA-Manager und zero-downtime Live-Migration.
+5. **VM-Operator-Regressionen weiter verdichten**: nachgezogene noVNC-/Delete-UI-Regressions sind jetzt im Repo; naechster sinnvolle CI-Rest waere ein echter UI-Provisioning-Smoke.
+6. **Self-Heal live nochmals beweisen**: nach Push muss `srv1` den neuen `origin/main`-Stand per `beagle-repo-auto-update.service` selbst ziehen und mit `state=healthy` enden.
 
 ## Stand (2026-04-26, GoFuture Re-Open: WebUI-Operability)
 

@@ -1,6 +1,30 @@
 # Security Findings
 
-Stand: 2026-04-27 (ergänzt: S-027 Seed-Config Klartext-Admin-Passwort als verbleibendes Zero-Touch-Risiko)
+Stand: 2026-04-27 (ergänzt: S-028 Installer-Skript-Logging mit scoped write-only Tokens)
+
+## S-028 — Installer-Skript-Laufprotokolle duerfen keine Operator-Credentials benoetigen (PATCHED)
+
+- Status: **gepatcht** (2026-04-27)
+- Risiko: **Mittel**
+- Betroffene Dateien:
+  - `beagle-host/services/installer_log_service.py`
+  - `beagle-host/services/installer_script.py`
+  - `beagle-host/services/installer_template_patch.py`
+  - `beagle-host/services/control_plane_handler.py`
+  - `thin-client-assistant/usb/pve-thin-client-usb-installer.sh`
+  - `thin-client-assistant/usb/pve-thin-client-usb-installer.ps1`
+- Beschreibung:
+  - Betreiber brauchen nachvollziehbare Laufprotokolle fuer heruntergeladene USB-Installer-/Live-Skripte.
+  - Eine naive Implementierung mit Manager-/Admin-/Session-Token im Skript haette bei Weitergabe des Skripts volle API-Rechte offengelegt.
+  - Deshalb bekommen VM-spezifische Skripte jetzt einen eigenen kurzlebigen HMAC-Token mit Scope `installer-log:write`, der nur Events an `POST /api/v1/public/installer-logs` schreiben kann.
+- Fix:
+  - Read-API fuer Logs ist authentifiziert und per RBAC auf `settings:read` begrenzt.
+  - Persistierte Event-Details redigieren Felder mit `token`, `secret`, `password`, `credential` oder `key`.
+  - Shell-/PowerShell-Logging ist non-blocking, damit ein Log-Endpoint-Ausfall keine Provisionierung verhindert.
+  - Alte Hosted-Templates werden beim Patchen um fehlende Log-Defaults ergaenzt, damit veraltete Download-Artefakte keinen 500er verursachen.
+- Validierung:
+  - Lokal: `tests/unit/test_installer_log_service.py`, `test_installer_script.py`, `test_authz_policy.py` gruen.
+  - Live `srv1`: gueltiger VM100-Token schreibt Skript-Events; ungueltiger Bearer-Token liefert `401`; `/beagle-downloads` liefert neue Skripte mit Logging-Hooks.
 
 ## S-027 — Zero-Touch-Seed-Configs benoetigen aktuell ein Klartext-Admin-Passwort (DOCUMENTED)
 

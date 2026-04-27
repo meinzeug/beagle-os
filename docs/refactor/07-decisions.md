@@ -271,6 +271,16 @@ Stand: 2026-04-13
   1. Die Ausnahme gilt nur fuer den unauthentifizierten Liveness-Probe.
   2. Privilegierte Cluster-RPCs bleiben weiter am mTLS-Cluster-CA-Modell haengen.
 - Dateien: `beagle-host/services/cluster_membership.py`.
+
+## D-046: Downloadbare Installer-Skripte nutzen scoped Log-Tokens statt Operator-Credentials
+
+- Entscheidung: VM-spezifisch generierte USB-Installer-/Live-Skripte duerfen keine Admin-, Session- oder Manager-Tokens enthalten. Fuer Laufprotokolle wird pro Skript ein kurzlebiger HMAC-signierter write-only Token mit Scope `installer-log:write` erzeugt.
+- Entscheidung: Der Token darf nur `POST /api/v1/public/installer-logs` schreiben; Lesen der Logs bleibt authentifiziert und benoetigt `settings:read`.
+- Entscheidung: Logging ist non-blocking. Ein nicht erreichbarer Log-Endpoint darf keine Provisionierung abbrechen; echte Skriptfehler werden trotzdem ueber `ERR`/PowerShell-`trap` protokolliert, wenn der Endpoint erreichbar ist.
+- Grund: Operatoren muessen nachweisen koennen, was heruntergeladene Installer-Skripte getan haben, ohne den Sicherheitsumfang der Skripte auf volle API-Berechtigungen zu erweitern.
+- Konsequenz: Alte Hosted-Templates ohne Log-Defaults werden beim Patchen self-healing ergaenzt, damit Download-Drift keinen `500` erzeugt.
+- Dateien: `beagle-host/services/installer_log_service.py`, `beagle-host/services/installer_script.py`, `beagle-host/services/installer_template_patch.py`, `thin-client-assistant/usb/pve-thin-client-usb-installer.sh`, `thin-client-assistant/usb/pve-thin-client-usb-installer.ps1`.
+
 ## 2026-04-26 - Cluster Leave und Virtualization Overview bleiben leader-/cluster-autoritativ
 
 - Ein Cluster-Mitglied darf seinen lokalen Cluster-State loeschen, aber nicht den Leader-State still implizit veraendern.

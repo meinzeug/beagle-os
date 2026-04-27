@@ -209,6 +209,13 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
             return
 
+        if installer_log_service().handles_get(path):
+            if not self._authorize_or_respond("GET", path):
+                return
+            response = installer_log_service().route_get(path, query=query)
+            self._write_json(response["status"], response["payload"])
+            return
+
         if self._backups_surface().handles_get(path):
             if not self._authorize_or_respond("GET", path):
                 return
@@ -325,6 +332,21 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query or "")
+
+        if path == "/api/v1/public/installer-logs":
+            try:
+                json_payload = self._read_json_body() if int(self.headers.get("Content-Length", "0") or "0") > 0 else {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            response = installer_log_service().submit_event(
+                payload=json_payload,
+                authorization_header=str(self.headers.get("Authorization") or ""),
+                remote_addr=self.client_address[0] if self.client_address else "",
+                user_agent=str(self.headers.get("User-Agent") or ""),
+            )
+            self._write_json(response["status"], response["payload"])
+            return
 
         if self._backups_surface().handles_post(path):
             if not self._is_authenticated():

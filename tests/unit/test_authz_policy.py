@@ -148,6 +148,16 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:write",
         )
 
+    def test_installer_log_routes_use_settings_read_permission(self):
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/installer-logs"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/installer-logs/inst-abc12345"),
+            "settings:read",
+        )
+
     def test_virtualization_power_route_uses_vm_power_permission(self):
         permission = AuthzPolicyService.required_permission("POST", "/api/v1/virtualization/vms/101/power")
         self.assertEqual(permission, "vm:power")

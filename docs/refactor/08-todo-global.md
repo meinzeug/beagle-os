@@ -57,6 +57,8 @@
 - [x] Laufenden Repo-Auto-Update-Build auf `srv1`/`srv2` bis `state=healthy` final abnehmen und Commit-Datei auf neuesten Push pruefen.
 - [x] APT-Automatik-Policy entscheiden: Betriebssystempakete bleiben bewusst manuell installierbar; die Automatik gilt nur fuer Repo-/Artefakt-Refresh.
 - [x] Watchdog-Auto-Repair live auf mindestens einem Host mit echter Drift verifizieren (`reaction=started_refresh`).
+- [x] Downloadbare USB-Installer-/Live-Skripte mit nachweisbaren API-Logs ausstatten: scoped write-only Token, Public-Intake, Operator-Read-API, Shell/PowerShell-Hooks, Live-Smoke auf `srv1` und neue `/beagle-downloads`-Skripte.
+- [x] Release-Linie im Repo auf `8.0` anheben: `VERSION`, Extension-Manifest, Kiosk-Package, Changelog und WebUI-Cache-Buster aktualisiert.
 - [ ] QEMU+SSH Live-Migration-Deadlock zwischen `srv1` und `srv2` weiter eingrenzen oder Shared-Storage-Migration als Abnahmepfad dokumentieren.
 
 ## Refactor Wave 2 (7.0)

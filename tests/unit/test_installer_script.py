@@ -20,6 +20,38 @@ from installer_template_patch import InstallerTemplatePatchService
 
 
 class InstallerScriptServiceTests(unittest.TestCase):
+    def test_patch_service_injects_log_defaults_into_stale_hosted_shell_template(self):
+        stale_template = "\n".join(
+            [
+                'USB_WRITER_VARIANT="${PVE_THIN_CLIENT_USB_WRITER_VARIANT:-installer}"',
+                'PVE_THIN_CLIENT_PRESET_NAME="${PVE_THIN_CLIENT_PRESET_NAME:-}"',
+                'PVE_THIN_CLIENT_PRESET_B64="${PVE_THIN_CLIENT_PRESET_B64:-}"',
+                'RELEASE_ISO_URL="${RELEASE_ISO_URL:-}"',
+                'RELEASE_BOOTSTRAP_URL="${RELEASE_BOOTSTRAP_URL:-}"',
+                'RELEASE_PAYLOAD_URL="${RELEASE_PAYLOAD_URL:-}"',
+                'INSTALL_PAYLOAD_URL="${INSTALL_PAYLOAD_URL:-}"',
+                'BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-0}"',
+                "",
+            ]
+        )
+
+        patched = InstallerTemplatePatchService().patch_installer_defaults(
+            stale_template,
+            "vm100",
+            "abc",
+            "https://downloads.example/beagle.iso",
+            "https://downloads.example/bootstrap.tar.gz",
+            "https://downloads.example/payload.tar.gz",
+            "installer",
+            "https://manager.example/api/v1/public/installer-logs",
+            "log-token",
+            "log-session",
+        )
+
+        self.assertIn('INSTALLER_LOG_URL="${BEAGLE_INSTALLER_LOG_URL:-https://manager.example/api/v1/public/installer-logs}"', patched)
+        self.assertIn('INSTALLER_LOG_TOKEN="${BEAGLE_INSTALLER_LOG_TOKEN:-log-token}"', patched)
+        self.assertIn('INSTALLER_LOG_SESSION_ID="${BEAGLE_INSTALLER_LOG_SESSION_ID:-log-session}"', patched)
+
     def test_shell_downloads_fall_back_to_raw_template_when_dist_templates_are_missing(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -39,12 +71,15 @@ class InstallerScriptServiceTests(unittest.TestCase):
                     'RELEASE_PAYLOAD_URL="${RELEASE_PAYLOAD_URL:-}"',
                     'INSTALL_PAYLOAD_URL="${INSTALL_PAYLOAD_URL:-}"',
                     'BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-0}"',
+                    'INSTALLER_LOG_URL="${BEAGLE_INSTALLER_LOG_URL:-}"',
+                    'INSTALLER_LOG_TOKEN="${BEAGLE_INSTALLER_LOG_TOKEN:-}"',
+                    'INSTALLER_LOG_SESSION_ID="${BEAGLE_INSTALLER_LOG_SESSION_ID:-}"',
                     '',
                 ]),
                 encoding="utf-8",
             )
             raw_windows.write_text(
-                'iso=__BEAGLE_DEFAULT_RELEASE_ISO_URL__\nvariant=__BEAGLE_DEFAULT_WRITER_VARIANT__\nname=__BEAGLE_DEFAULT_PRESET_NAME__\npreset=__BEAGLE_DEFAULT_PRESET_B64__\n',
+                'iso=__BEAGLE_DEFAULT_RELEASE_ISO_URL__\nvariant=__BEAGLE_DEFAULT_WRITER_VARIANT__\nname=__BEAGLE_DEFAULT_PRESET_NAME__\npreset=__BEAGLE_DEFAULT_PRESET_B64__\nlog_url=__BEAGLE_DEFAULT_INSTALLER_LOG_URL__\nlog_token=__BEAGLE_DEFAULT_INSTALLER_LOG_TOKEN__\nlog_session=__BEAGLE_DEFAULT_INSTALLER_LOG_SESSION_ID__\n',
                 encoding="utf-8",
             )
 
@@ -67,6 +102,10 @@ class InstallerScriptServiceTests(unittest.TestCase):
                     "token-123",
                     {"thinclient_password": "thin-pass"},
                 ),
+                issue_installer_log_context=lambda **kwargs: {
+                    "token": f"log-token-{kwargs['script_kind']}",
+                    "session_id": f"log-session-{kwargs['script_kind']}",
+                },
                 manager_pinned_pubkey="manager-pubkey",
                 parse_description_meta=lambda text: {},
                 patch_installer_defaults=InstallerTemplatePatchService().patch_installer_defaults,
@@ -102,9 +141,15 @@ class InstallerScriptServiceTests(unittest.TestCase):
             self.assertIn('RELEASE_ISO_URL="${RELEASE_ISO_URL:-https://downloads.example/beagle-os-installer-amd64.iso}"', installer_text)
             self.assertIn('RELEASE_BOOTSTRAP_URL="${RELEASE_BOOTSTRAP_URL:-https://downloads.example/bootstrap.tar.gz}"', installer_text)
             self.assertIn('INSTALL_PAYLOAD_URL="${INSTALL_PAYLOAD_URL:-https://downloads.example/payload.tar.gz}"', live_text)
+            self.assertIn('INSTALLER_LOG_URL="${BEAGLE_INSTALLER_LOG_URL:-https://manager.example/beagle-api/api/v1/public/installer-logs}"', installer_text)
+            self.assertIn('INSTALLER_LOG_TOKEN="${BEAGLE_INSTALLER_LOG_TOKEN:-log-token-linux-installer-usb}"', installer_text)
+            self.assertIn('INSTALLER_LOG_SESSION_ID="${BEAGLE_INSTALLER_LOG_SESSION_ID:-log-session-linux-live-usb}"', live_text)
             self.assertIn('iso=https://downloads.example/beagle-os-installer-amd64.iso', windows_text)
             self.assertIn('variant=installer', windows_text)
             self.assertIn('variant=live', windows_live_text)
+            self.assertIn('log_url=https://manager.example/beagle-api/api/v1/public/installer-logs', windows_text)
+            self.assertIn('log_token=log-token-windows-installer-usb', windows_text)
+            self.assertIn('log_session=log-session-windows-live-usb', windows_live_text)
 
 
 if __name__ == "__main__":

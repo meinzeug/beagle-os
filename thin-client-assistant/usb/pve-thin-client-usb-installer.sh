@@ -44,6 +44,9 @@ INSTALL_PAYLOAD_URL="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-}}"
 RELEASE_BOOTSTRAP_URL="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-}}"
 RELEASE_ISO_URL="${RELEASE_ISO_URL:-}"
 BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-0}"
+INSTALLER_LOG_URL="${BEAGLE_INSTALLER_LOG_URL:-}"
+INSTALLER_LOG_TOKEN="${BEAGLE_INSTALLER_LOG_TOKEN:-}"
+INSTALLER_LOG_SESSION_ID="${BEAGLE_INSTALLER_LOG_SESSION_ID:-}"
 BOOTSTRAP_CACHE_DIR="${PVE_DCV_BOOTSTRAP_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME:-/root}/.cache}/pve-dcv-usb}"
 BOOTSTRAP_DIR=""
 BOOTSTRAPPED_STANDALONE="0"
@@ -52,6 +55,74 @@ MIN_DEVICE_BYTES="${MIN_DEVICE_BYTES:-4294967296}"
 PVE_THIN_CLIENT_PRESET_NAME="${PVE_THIN_CLIENT_PRESET_NAME:-}"
 PVE_THIN_CLIENT_PRESET_B64="${PVE_THIN_CLIENT_PRESET_B64:-}"
 GRUB_BACKGROUND_SRC="$REPO_ROOT/thin-client-assistant/usb/assets/grub-background.jpg"
+CURRENT_STAGE="init"
+
+beagle_json_escape() {
+  local value="$1"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$value" <<'PY'
+import json
+import sys
+print(json.dumps(sys.argv[1], ensure_ascii=True)[1:-1])
+PY
+    return 0
+  fi
+  printf '%s' "$value" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037'
+}
+
+beagle_installer_log_event() {
+  local event="${1:-event}"
+  local stage="${2:-${CURRENT_STAGE:-unknown}}"
+  local status="${3:-info}"
+  local message="${4:-}"
+  local payload=""
+
+  [[ -n "$INSTALLER_LOG_URL" && -n "$INSTALLER_LOG_TOKEN" ]] || return 0
+  command -v curl >/dev/null 2>&1 || return 0
+
+  payload="$(printf '{"session_id":"%s","event":"%s","stage":"%s","status":"%s","message":"%s","script":"%s","writer_variant":"%s"}' \
+    "$(beagle_json_escape "$INSTALLER_LOG_SESSION_ID")" \
+    "$(beagle_json_escape "$event")" \
+    "$(beagle_json_escape "$stage")" \
+    "$(beagle_json_escape "$status")" \
+    "$(beagle_json_escape "$message")" \
+    "$(beagle_json_escape "$SCRIPT_BASENAME")" \
+    "$(beagle_json_escape "$USB_WRITER_VARIANT")")"
+
+  curl --fail --silent --show-error --location --max-time 5 \
+    --header "Authorization: Bearer $INSTALLER_LOG_TOKEN" \
+    --header "Content-Type: application/json" \
+    --data "$payload" \
+    "$INSTALLER_LOG_URL" >/dev/null 2>&1 || true
+}
+
+cleanup() {
+  if [[ -n "$BOOTSTRAP_DIR" && -d "$BOOTSTRAP_DIR" ]]; then
+    rm -rf "$BOOTSTRAP_DIR"
+  fi
+}
+
+beagle_installer_on_error() {
+  local rc="$?"
+  local line="${1:-unknown}"
+  beagle_installer_log_event "script_failed" "${CURRENT_STAGE:-unknown}" "error" "line=$line rc=$rc"
+  return "$rc"
+}
+
+beagle_installer_on_exit() {
+  local rc="$?"
+  trap - EXIT ERR
+  if [[ "$rc" -eq 0 ]]; then
+    beagle_installer_log_event "script_completed" "complete" "ok" "USB writer script completed"
+  fi
+  cleanup
+  exit "$rc"
+}
+
+trap 'beagle_installer_on_error $LINENO' ERR
+trap beagle_installer_on_exit EXIT
+
+beagle_installer_log_event "script_started" "init" "ok" "USB writer script started"
 
 have_usb_writer_helpers() {
   [[ -f "$REPO_ROOT/$USB_MANIFEST_HELPER_RELATIVE" ]] &&
@@ -86,8 +157,12 @@ bootstrap_usb_writer_helpers() {
   local checksum_file=""
   local checksum_entry=""
 
-  have_usb_writer_helpers && return 0
+  if have_usb_writer_helpers; then
+    beagle_installer_log_event "bootstrap_helpers_present" "bootstrap" "ok" "USB writer helpers are bundled"
+    return 0
+  fi
 
+  CURRENT_STAGE="bootstrap"
   command -v curl >/dev/null 2>&1 || {
     echo "Missing required tool for standalone USB installer: curl" >&2
     exit 1
@@ -114,6 +189,7 @@ bootstrap_usb_writer_helpers() {
   tarball="$BOOTSTRAP_DIR/$payload_name"
 
   echo "Bootstrapping USB installer helpers from $bootstrap_url ..." >&2
+  beagle_installer_log_event "bootstrap_download_started" "bootstrap" "running" "$bootstrap_url"
   curl --fail --show-error --location --retry 3 --retry-delay 2 "$bootstrap_url" -o "$tarball"
 
   checksum_url="${bootstrap_url%/*}/SHA256SUMS"
@@ -140,6 +216,7 @@ bootstrap_usb_writer_helpers() {
   ASSET_DIR="$DIST_DIR/live"
   BOOTSTRAPPED_STANDALONE="1"
   GRUB_BACKGROUND_SRC="$REPO_ROOT/thin-client-assistant/usb/assets/grub-background.jpg"
+  beagle_installer_log_event "bootstrap_download_completed" "bootstrap" "ok" "$payload_name"
 
   have_usb_writer_helpers || {
     echo "Bootstrap bundle from $bootstrap_url does not contain the expected USB writer helpers." >&2
@@ -200,13 +277,6 @@ The script can be started as a normal user and escalates to sudo only for the wr
 EOF
 }
 
-cleanup() {
-  if [[ -n "$BOOTSTRAP_DIR" && -d "$BOOTSTRAP_DIR" ]]; then
-    rm -rf "$BOOTSTRAP_DIR"
-  fi
-}
-trap cleanup EXIT
-
 rerun_as_root() {
   local sudo_args=()
   if [[ "${EUID}" -eq 0 ]]; then
@@ -226,12 +296,16 @@ rerun_as_root() {
   [[ "$REQUIRE_CHECKSUMS" == "1" ]] && sudo_args+=(--require-checksums)
   [[ "$ALLOW_NON_USB_DEVICE" == "1" ]] && sudo_args+=(--allow-non-usb)
   [[ "$ALLOW_SYSTEM_DISK" == "1" ]] && sudo_args+=(--allow-system-disk)
+  beagle_installer_log_event "privilege_escalation" "privilege" "running" "re-running through sudo"
   exec sudo \
     USB_LABEL="$USB_LABEL" \
     RELEASE_PAYLOAD_URL="$RELEASE_PAYLOAD_URL" \
     INSTALL_PAYLOAD_URL="$INSTALL_PAYLOAD_URL" \
     RELEASE_BOOTSTRAP_URL="$RELEASE_BOOTSTRAP_URL" \
     RELEASE_ISO_URL="$RELEASE_ISO_URL" \
+    BEAGLE_INSTALLER_LOG_URL="$INSTALLER_LOG_URL" \
+    BEAGLE_INSTALLER_LOG_TOKEN="$INSTALLER_LOG_TOKEN" \
+    BEAGLE_INSTALLER_LOG_SESSION_ID="$INSTALLER_LOG_SESSION_ID" \
     PVE_DCV_SKIP_CONFIRMATION="$SKIP_CONFIRMATION" \
     PVE_DCV_BOOTSTRAP_CACHE_DIR="$BOOTSTRAP_CACHE_DIR" \
     PVE_DCV_BOOTSTRAP_BASE="${PVE_DCV_BOOTSTRAP_BASE:-}" \
@@ -499,30 +573,47 @@ print_write_plan() {
   usb_writer_print_write_plan
 }
 
+CURRENT_STAGE="argument_parse"
 parse_args "$@"
 if [[ "$LIST_DEVICES" == "1" ]]; then
+  CURRENT_STAGE="device_listing"
+  beagle_installer_log_event "device_listing_started" "$CURRENT_STAGE" "running" "listing candidate USB devices"
   if [[ "$LIST_JSON" == "1" ]]; then
     print_devices_json
   else
     print_devices
   fi
+  beagle_installer_log_event "device_listing_completed" "$CURRENT_STAGE" "ok" "candidate USB devices listed"
   exit 0
 fi
+beagle_installer_log_event "arguments_parsed" "argument_parse" "ok" "arguments parsed"
 require_tool lsblk
 if [[ -z "$TARGET_DEVICE" ]]; then
+  CURRENT_STAGE="device_selection"
   TARGET_DEVICE="$(choose_device)"
 fi
 if [[ "$SKIP_CONFIRMATION" != "1" ]]; then
+  CURRENT_STAGE="device_confirmation"
   confirm_device_selection
   SKIP_CONFIRMATION="1"
 fi
+CURRENT_STAGE="privilege"
 rerun_as_root
+CURRENT_STAGE="device_validation"
 confirm_device
+beagle_installer_log_event "device_confirmed" "$CURRENT_STAGE" "ok" "$TARGET_DEVICE"
+CURRENT_STAGE="bootstrap"
 bootstrap_repo_root
+CURRENT_STAGE="dependencies"
 install_dependencies
+beagle_installer_log_event "dependencies_ready" "$CURRENT_STAGE" "ok" "required USB writer dependencies are present"
+CURRENT_STAGE="asset_download"
 ensure_live_assets
 validate_live_assets
 echo "Downloads completed. Writing Beagle OS installer USB to $TARGET_DEVICE ..."
+beagle_installer_log_event "assets_ready" "$CURRENT_STAGE" "ok" "installer assets are ready"
+CURRENT_STAGE="usb_write"
 write_usb
+beagle_installer_log_event "usb_write_completed" "$CURRENT_STAGE" "ok" "$TARGET_DEVICE"
 echo "USB stick completed: $TARGET_DEVICE"
 echo "USB installer media prepared on $TARGET_DEVICE"
