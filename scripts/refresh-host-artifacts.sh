@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-$CONFIG_DIR/host.env}"
+PROXY_ENV_FILE="${PVE_DCV_PROXY_ENV_FILE:-$CONFIG_DIR/beagle-proxy.env}"
 STATUS_DIR="${PVE_DCV_STATUS_DIR:-/var/lib/beagle}"
 REFRESH_STATUS_FILE="$STATUS_DIR/refresh.status.json"
 BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
@@ -209,6 +210,10 @@ load_host_env() {
   if [[ -f "$HOST_ENV_FILE" ]]; then
     # shellcheck disable=SC1090
     source "$HOST_ENV_FILE"
+  fi
+  if [[ -f "$PROXY_ENV_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$PROXY_ENV_FILE"
   fi
 }
 

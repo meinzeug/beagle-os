@@ -36,10 +36,11 @@ class DownloadMetadataService:
         self._version = str(version or "").strip()
 
     def _hosted_download_url(self, filename: str) -> str:
-        return (
-            f"https://{self._public_server_name}:{self._public_downloads_port}"
-            f"{self._public_downloads_path}/{filename}"
-        )
+        if self._public_downloads_port == 443:
+            origin = f"https://{self._public_server_name}"
+        else:
+            origin = f"https://{self._public_server_name}:{self._public_downloads_port}"
+        return f"{origin}{self._public_downloads_path}/{filename}"
 
     def _get_cached(self, key: str, ttl_seconds: float) -> Any:
         if not key or ttl_seconds <= 0 or self._cache_get is None:

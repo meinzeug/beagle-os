@@ -4207,3 +4207,18 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - Regressions erweitert: Template-Contract, Template-Builder und Policies-Template-Flow.
   - Live auf `srv1` verifiziert; `verwenden` setzt den Pool-Wizard auf das Template, Console bleibt fehlerfrei.
   - Pool-Karten haben jetzt eine bestätigte `löschen`-Danger-Action mit konkreter Slot-Anzahl im Dialog.
+
+## 2026-04-27 - Hosted download URLs self-heal to 443
+
+- Fixed stale proxy-port precedence across the runtime:
+  - `beagle-host/services/service_registry.py` now lets `/etc/beagle/beagle-proxy.env` override old values from `/etc/beagle/host.env`
+  - `scripts/prepare-host-downloads.sh`, `scripts/refresh-host-artifacts.sh` and `scripts/check-beagle-host.sh` now source `beagle-proxy.env` after `host.env`
+  - `scripts/install-beagle-proxy.sh` now actively syncs proxy-facing keys back into `host.env`, so stale `8443` leftovers are repaired on deploy
+- Normalized hosted download URLs so default HTTPS no longer emits explicit `:443` in generated artifacts and API metadata.
+- Added regressions:
+  - `tests/unit/test_public_download_url_regressions.py`
+  - `tests/unit/test_proxy_env_precedence_regressions.py`
+- Validated:
+  - local: `6 passed`, shell syntax checks and `py_compile` green
+  - live on `srv1`: `/opt/beagle/dist/beagle-downloads-status.json` now reports `listen_port=443`
+  - live on `srv1`: `/opt/beagle/dist/pve-thin-client-live-usb-host-latest.sh` and `GET /api/v1/vms/100/live-usb.sh` no longer contain `8443`

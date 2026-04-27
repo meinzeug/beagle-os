@@ -138,7 +138,7 @@ from network_http_surface import NetworkHttpSurfaceService
 from node_install_check_service import NodeInstallCheckService
 from session_manager import SessionManagerService
 
-def load_env_defaults(path: str) -> None:
+def load_env_defaults(path: str, *, override: bool = False) -> None:
     env_path = Path(path)
     if not env_path.exists():
         return
@@ -148,7 +148,7 @@ def load_env_defaults(path: str) -> None:
             continue
         key, value = line.split("=", 1)
         key = key.strip()
-        if not key or key in os.environ:
+        if not key or (key in os.environ and not override):
             continue
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
@@ -156,7 +156,7 @@ def load_env_defaults(path: str) -> None:
         os.environ[key] = value
 
 load_env_defaults("/etc/beagle/host.env")
-load_env_defaults("/etc/beagle/beagle-proxy.env")
+load_env_defaults("/etc/beagle/beagle-proxy.env", override=True)
 
 VERSION = "dev"
 VERSION_FILE = ROOT_DIR / "VERSION"
@@ -276,13 +276,17 @@ PUBLIC_SERVER_NAME = _resolve_public_hostname(
 )
 PUBLIC_DOWNLOADS_PORT = int(os.environ.get("PVE_DCV_PROXY_LISTEN_PORT", "443"))
 PUBLIC_DOWNLOADS_PATH = os.environ.get("PVE_DCV_DOWNLOADS_PATH", "/beagle-downloads").strip() or "/beagle-downloads"
-PUBLIC_UPDATE_BASE_URL = os.environ.get("BEAGLE_PUBLIC_UPDATE_BASE_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}{PUBLIC_DOWNLOADS_PATH}"
+if PUBLIC_DOWNLOADS_PORT == 443:
+    _public_origin = f"https://{PUBLIC_SERVER_NAME}"
+else:
+    _public_origin = f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}"
+PUBLIC_UPDATE_BASE_URL = os.environ.get("BEAGLE_PUBLIC_UPDATE_BASE_URL", "").strip() or f"{_public_origin}{PUBLIC_DOWNLOADS_PATH}"
 PUBLIC_STREAM_HOST_RAW = os.environ.get("BEAGLE_PUBLIC_STREAM_HOST", "").strip() or PUBLIC_SERVER_NAME
 INTERNAL_CALLBACK_HOST_RAW = os.environ.get("BEAGLE_INTERNAL_CALLBACK_HOST", "").strip()
 PUBLIC_STREAM_BASE_PORT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_BASE_PORT", "50000"))
 PUBLIC_STREAM_PORT_STEP = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_STEP", "32"))
 PUBLIC_STREAM_PORT_COUNT = int(os.environ.get("BEAGLE_PUBLIC_STREAM_PORT_COUNT", "256"))
-PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}/beagle-api"
+PUBLIC_MANAGER_URL = os.environ.get("PVE_DCV_BEAGLE_MANAGER_URL", "").strip() or f"{_public_origin}/beagle-api"
 WEB_UI_URL = os.environ.get("BEAGLE_WEB_UI_URL", "").strip()
 IDENTITY_PROVIDER_REGISTRY_FILE = Path(
     os.environ.get("BEAGLE_IDENTITY_PROVIDER_REGISTRY_FILE", "/etc/beagle/identity-providers.json")

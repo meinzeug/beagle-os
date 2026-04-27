@@ -346,6 +346,44 @@ PVE_DCV_PROXY_KEY_FILE="$KEY_FILE"
 EOF
 }
 
+sync_host_env_proxy_defaults() {
+  install -d -m 0755 "$CONFIG_DIR"
+  python3 - "$HOST_ENV_FILE" "$SERVER_NAME" "$LISTEN_PORT" "$SITE_PORT" "$DOWNLOADS_PATH" "$DOWNLOADS_BASE_URL" "$WEB_UI_URL" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+updates = {
+    "PVE_DCV_PROXY_SERVER_NAME": sys.argv[2],
+    "PVE_DCV_PROXY_LISTEN_PORT": sys.argv[3],
+    "BEAGLE_SITE_PORT": sys.argv[4],
+    "PVE_DCV_DOWNLOADS_PATH": sys.argv[5],
+    "PVE_DCV_DOWNLOADS_BASE_URL": sys.argv[6],
+    "BEAGLE_WEB_UI_URL": sys.argv[7],
+}
+
+lines: list[str] = []
+seen: set[str] = set()
+if path.exists():
+    for raw_line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            lines.append(raw_line)
+            continue
+        key, _value = stripped.split("=", 1)
+        key = key.strip()
+        if key in updates:
+            lines.append(f'{key}="{updates[key]}"')
+            seen.add(key)
+        else:
+            lines.append(raw_line)
+for key, value in updates.items():
+    if key not in seen:
+        lines.append(f'{key}="{value}"')
+path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+PY
+}
+
 tls_subject_alt_name() {
   if [[ "$SERVER_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     printf 'IP:%s,IP:127.0.0.1\n' "$SERVER_NAME"
@@ -634,6 +672,7 @@ if [[ -z "$BACKEND_HOST" ]]; then
 fi
 
 write_env_file
+sync_host_env_proxy_defaults
 write_web_ui_config
 cleanup_legacy_port_forward
 write_nginx_config

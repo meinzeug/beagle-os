@@ -63,11 +63,15 @@ class RequestSupportService:
         if cached is not None:
             return set(cached)
 
+        public_downloads_origin = f"https://{self._public_server_name}"
+        if self._public_downloads_port != 443:
+            public_downloads_origin = f"{public_downloads_origin}:{self._public_downloads_port}"
+
         candidates: set[str] = {
             self._web_ui_url,
             self._public_manager_url,
             f"https://{self._public_server_name}",
-            f"https://{self._public_server_name}:{self._public_downloads_port}",
+            public_downloads_origin,
         }
         hostnames = {
             self._public_server_name.strip(),

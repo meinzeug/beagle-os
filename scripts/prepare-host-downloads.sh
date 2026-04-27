@@ -7,11 +7,22 @@ PREPARE_HOST_DOWNLOADS_HELPER="$ROOT_DIR/scripts/lib/prepare_host_downloads.py"
 HOSTED_DOWNLOAD_LAYOUT_HELPER="$ROOT_DIR/scripts/lib/hosted_download_layout.sh"
 DIST_DIR="$ROOT_DIR/dist"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
+CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-/etc/beagle/host.env}"
-if [[ -f "$HOST_ENV_FILE" ]]; then
-  # shellcheck disable=SC1090
-  source "$HOST_ENV_FILE"
-fi
+PROXY_ENV_FILE="${PVE_DCV_PROXY_ENV_FILE:-$CONFIG_DIR/beagle-proxy.env}"
+
+load_runtime_env() {
+  if [[ -f "$HOST_ENV_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$HOST_ENV_FILE"
+  fi
+  if [[ -f "$PROXY_ENV_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$PROXY_ENV_FILE"
+  fi
+}
+
+load_runtime_env
 # shellcheck disable=SC1090
 source "$HOSTED_DOWNLOAD_LAYOUT_HELPER"
 SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}"

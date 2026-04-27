@@ -6,6 +6,7 @@ HOSTED_DOWNLOAD_LAYOUT_HELPER="$ROOT_DIR/scripts/lib/hosted_download_layout.sh"
 INSTALL_DIR="${INSTALL_DIR:-/opt/beagle}"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-$CONFIG_DIR/host.env}"
+PROXY_ENV_FILE="${PVE_DCV_PROXY_ENV_FILE:-$CONFIG_DIR/beagle-proxy.env}"
 SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}"
 LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-443}"
 SITE_PORT="${BEAGLE_SITE_PORT:-443}"
@@ -50,6 +51,10 @@ load_host_env() {
   if [[ -f "$HOST_ENV_FILE" ]]; then
     # shellcheck disable=SC1090
     source "$HOST_ENV_FILE"
+  fi
+  if [[ -f "$PROXY_ENV_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$PROXY_ENV_FILE"
   fi
 
   SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$SERVER_NAME}"

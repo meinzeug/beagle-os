@@ -176,6 +176,9 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 - Echten Runtime-Test fuer den neuen Windows-Live-USB-Writer auf Windows/UEFI-Hardware oder Windows-VM durchziehen und Bootverhalten verifizieren.
 - Host-Downloads auf `srv1.beagle-os.com` und `srv2.beagle-os.com` mit den neuen `pve-thin-client-live-usb-*.ps1` Artefakten aktualisieren und per Download-Status gegenpruefen.
 - WebUI-VM-Detail live auf `srv1`/`srv2` gegen den neuen `live-usb.ps1`-Pfad smoke-testen.
+- Repo-/Artifact-Self-Heal weiter härten:
+  - End-to-end smoke for VM installer/live-USB downloads after repo auto-update on `srv1`
+  - verify that regenerated hosted artifacts and VM-specific scripts still stay on `443` after the next unattended update cycle
 - `srv2` TLS-/Zertifikatskette pruefen: Chrome DevTools sah am 27.04.2026 initial `ERR_CERT_AUTHORITY_INVALID`, obwohl die WebUI nach Ausnahme-Proceed und der Login-POST selbst funktionierten.
 - Optional: Login-Modal/weitere Passwortfelder im HTML in echte `<form>`-Container ueberfuehren, damit die verbleibenden DevTools-DOM-Warnungen (`Password field is not contained in a form`) verschwinden.
 - GoEnterprise Plan 03 weiterziehen:
