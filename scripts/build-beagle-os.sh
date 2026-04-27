@@ -28,9 +28,6 @@ SUNSHINE_API_URL="${BEAGLE_OS_SUNSHINE_API_URL:-}"
 SUNSHINE_USERNAME="${BEAGLE_OS_SUNSHINE_USERNAME:-}"
 SUNSHINE_PASSWORD="${BEAGLE_OS_SUNSHINE_PASSWORD:-}"
 SUNSHINE_PIN="${BEAGLE_OS_SUNSHINE_PIN:-}"
-PROXMOX_HOST="${BEAGLE_OS_PROXMOX_HOST:-}"
-PROXMOX_NODE="${BEAGLE_OS_PROXMOX_NODE:-}"
-PROXMOX_VMID="${BEAGLE_OS_PROXMOX_VMID:-}"
 MANAGER_URL="${BEAGLE_OS_MANAGER_URL:-}"
 MANAGER_TOKEN="${BEAGLE_OS_MANAGER_TOKEN:-}"
 
@@ -104,52 +101,12 @@ require_root() {
   if [[ "$EUID" -eq 0 ]]; then
     return
   fi
-  exec sudo --preserve-env=BEAGLE_OS_RELEASE,BEAGLE_OS_ARCH,BEAGLE_OS_MIRROR,BEAGLE_OS_KERNEL_VERSION,BEAGLE_OS_KERNEL_LOCALVERSION,BEAGLE_OS_KERNEL_DEB_PATH,BEAGLE_OS_SKIP_KERNEL_BUILD,BEAGLE_OS_HOSTNAME,BEAGLE_OS_USER,BEAGLE_OS_IMAGE_SIZE_GB,BEAGLE_OS_WORK_DIR,BEAGLE_OS_OUT_DIR,BEAGLE_OS_JOBS,BEAGLE_OS_PROFILE_DIR,BEAGLE_OS_MOONLIGHT_URL,BEAGLE_OS_MOONLIGHT_HOST,BEAGLE_OS_MOONLIGHT_PORT,BEAGLE_OS_MOONLIGHT_APP,BEAGLE_OS_MOONLIGHT_RESOLUTION,BEAGLE_OS_MOONLIGHT_FPS,BEAGLE_OS_MOONLIGHT_BITRATE,BEAGLE_OS_SUNSHINE_API_URL,BEAGLE_OS_SUNSHINE_USERNAME,BEAGLE_OS_SUNSHINE_PASSWORD,BEAGLE_OS_SUNSHINE_PIN,BEAGLE_OS_PROXMOX_HOST,BEAGLE_OS_PROXMOX_NODE,BEAGLE_OS_PROXMOX_VMID,BEAGLE_OS_MANAGER_URL,BEAGLE_OS_MANAGER_TOKEN "$0" "$@"
-}
-
-disable_proxmox_enterprise_repo() {
-  local found=0
-  local file
-
-  while IFS= read -r file; do
-    grep -q 'enterprise.proxmox.com' "$file" || continue
-    cp "$file" "$file.beagle-backup"
-    awk '!/enterprise\.proxmox\.com/' "$file.beagle-backup" > "$file"
-    found=1
-  done < <(find /etc/apt -maxdepth 2 -type f \( -name '*.list' -o -name '*.sources' \) 2>/dev/null)
-
-  return $(( ! found ))
-}
-
-restore_proxmox_enterprise_repo() {
-  local backup original
-
-  while IFS= read -r backup; do
-    original="${backup%.beagle-backup}"
-    mv "$backup" "$original"
-  done < <(find /etc/apt -maxdepth 2 -type f -name '*.beagle-backup' 2>/dev/null)
-}
-
-apt_update_with_proxmox_fallback() {
-  if apt-get update; then
-    return 0
-  fi
-
-  if ! disable_proxmox_enterprise_repo; then
-    echo "apt-get update failed and no Proxmox enterprise repository fallback was available." >&2
-    exit 1
-  fi
-
-  if ! apt-get update; then
-    restore_proxmox_enterprise_repo
-    exit 1
-  fi
-  restore_proxmox_enterprise_repo
+  exec sudo --preserve-env=BEAGLE_OS_RELEASE,BEAGLE_OS_ARCH,BEAGLE_OS_MIRROR,BEAGLE_OS_KERNEL_VERSION,BEAGLE_OS_KERNEL_LOCALVERSION,BEAGLE_OS_KERNEL_DEB_PATH,BEAGLE_OS_SKIP_KERNEL_BUILD,BEAGLE_OS_HOSTNAME,BEAGLE_OS_USER,BEAGLE_OS_IMAGE_SIZE_GB,BEAGLE_OS_WORK_DIR,BEAGLE_OS_OUT_DIR,BEAGLE_OS_JOBS,BEAGLE_OS_PROFILE_DIR,BEAGLE_OS_MOONLIGHT_URL,BEAGLE_OS_MOONLIGHT_HOST,BEAGLE_OS_MOONLIGHT_PORT,BEAGLE_OS_MOONLIGHT_APP,BEAGLE_OS_MOONLIGHT_RESOLUTION,BEAGLE_OS_MOONLIGHT_FPS,BEAGLE_OS_MOONLIGHT_BITRATE,BEAGLE_OS_SUNSHINE_API_URL,BEAGLE_OS_SUNSHINE_USERNAME,BEAGLE_OS_SUNSHINE_PASSWORD,BEAGLE_OS_SUNSHINE_PIN,BEAGLE_OS_MANAGER_URL,BEAGLE_OS_MANAGER_TOKEN "$0" "$@"
 }
 
 install_dependencies() {
   export DEBIAN_FRONTEND=noninteractive
-  apt_update_with_proxmox_fallback
+  apt-get update
   apt-get install -y \
     debootstrap \
     curl \
@@ -427,7 +384,7 @@ install_project_payload() {
 install_thin_client_runtime() {
   local install_root
 
-  install_root="$ROOTFS_DIR/usr/local/lib/pve-thin-client"
+  install_root="$ROOTFS_DIR/usr/local/lib/beagle-thin-client"
   install -d -m 0755 "$install_root/runtime" "$install_root/installer" "$install_root/templates"
 
   rsync -a --chown=root:root "$ROOT_DIR/thin-client-assistant/runtime/" "$install_root/runtime/"
@@ -440,6 +397,7 @@ install_thin_client_runtime() {
   install -m 0755 "$ROOT_DIR/thin-client-assistant/runtime/common.sh" "$install_root/common.sh"
   install -m 0755 "$ROOT_DIR/thin-client-assistant/runtime/apply-network-config.sh" "$install_root/apply-network-config.sh"
   install -m 0755 "$ROOT_DIR/thin-client-assistant/installer/write-config.sh" "$install_root/installer/write-config.sh"
+  # TODO: rename to beagle-thin-client-prepare.service once the unit file itself is renamed
   install -m 0644 "$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-prepare.service" "$ROOTFS_DIR/etc/systemd/system/pve-thin-client-prepare.service"
 }
 
@@ -462,12 +420,6 @@ BEAGLE_ENDPOINT_SUNSHINE_API_URL="${SUNSHINE_API_URL}"
 BEAGLE_ENDPOINT_SUNSHINE_USERNAME="${SUNSHINE_USERNAME}"
 BEAGLE_ENDPOINT_SUNSHINE_PASSWORD="${SUNSHINE_PASSWORD}"
 BEAGLE_ENDPOINT_SUNSHINE_PIN="${SUNSHINE_PIN}"
-BEAGLE_ENDPOINT_PROXMOX_HOST="${PROXMOX_HOST}"
-BEAGLE_ENDPOINT_PROXMOX_PORT="8006"
-BEAGLE_ENDPOINT_PROXMOX_NODE="${PROXMOX_NODE}"
-BEAGLE_ENDPOINT_PROXMOX_VMID="${PROXMOX_VMID}"
-BEAGLE_ENDPOINT_PROXMOX_REALM="pam"
-BEAGLE_ENDPOINT_PROXMOX_VERIFY_TLS="1"
 BEAGLE_ENDPOINT_MANAGER_URL="${MANAGER_URL}"
 BEAGLE_ENDPOINT_MANAGER_TOKEN="${MANAGER_TOKEN}"
 BEAGLE_ENDPOINT_NETWORK_MODE="dhcp"

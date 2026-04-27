@@ -32,17 +32,9 @@ jobs:
           # or external integration scripts kept for legacy operator workflows;
           # see docs/goadvanced/11-proxmox-endbeseitigung.md).
           ALLOWLIST_PATHS=(
-            'proxmox-ui/'
-            'providers/proxmox/'
-            'scripts/check-proxmox-host.sh'
-            'scripts/install-proxmox-host'
-            'scripts/optimize-proxmox-vm'
-            'scripts/install-proxmox-ui'
             'scripts/lib/provider_shell.sh'
             'scripts/ensure-vm-stream-ready.sh'
             'scripts/configure-sunshine-guest.sh'
-            'thin-client-assistant/'
-            'extension/'
             'docs/'
             'CHANGELOG.md'
             'README.md'
@@ -79,10 +71,8 @@ jobs:
             done < <(
               grep -rInl "$pattern" \
                 --include="*.py" --include="*.sh" --include="*.js" --include="*.ts" \
-                --exclude-dir=".git" --exclude-dir="proxmox-ui" --exclude-dir=".build" \
-                --exclude-dir=".venv" --exclude-dir="thin-client-assistant" \
-                --exclude-dir="extension" \
-                --exclude-dir="providers/proxmox" \
+                --exclude-dir=".git" --exclude-dir=".build" \
+                --exclude-dir=".venv" \
                 . 2>/dev/null || true
             )
           done

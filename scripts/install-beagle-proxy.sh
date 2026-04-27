@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$ROOT_DIR/scripts/lib/beagle_provider.py}"
+# Legacy variable names from the Proxmox era; kept for backwards compatibility with existing deployments
 ASSET_ROOT="${PVE_DCV_PROXY_ASSET_ROOT:-}"
 CONFIG_DIR="${PVE_DCV_PROXY_CONFIG_DIR:-/etc/beagle}"
 ENV_FILE="$CONFIG_DIR/beagle-proxy.env"
@@ -44,7 +45,7 @@ host_provider_kind() {
   local kind
   kind="$(printf '%s' "${BEAGLE_HOST_PROVIDER:-beagle}" | tr '[:upper:]' '[:lower:]')"
   case "$kind" in
-    ""|pve|proxmox)
+    "")
       printf 'beagle\n'
       ;;
     *)
@@ -135,48 +136,8 @@ ensure_dependencies() {
     return 0
   fi
 
-  apt_update_with_proxmox_fallback
+  apt-get update
   DEBIAN_FRONTEND=noninteractive apt-get install -y "${package[@]}"
-}
-
-disable_proxmox_enterprise_repo() {
-  local found=0
-  local file
-
-  while IFS= read -r file; do
-    grep -q 'enterprise.proxmox.com' "$file" || continue
-    cp "$file" "$file.beagle-backup"
-    awk '!/enterprise\.proxmox\.com/' "$file.beagle-backup" > "$file"
-    found=1
-  done < <(find /etc/apt -maxdepth 2 -type f \( -name '*.list' -o -name '*.sources' \) 2>/dev/null)
-
-  return $(( ! found ))
-}
-
-restore_proxmox_enterprise_repo() {
-  local backup original
-
-  while IFS= read -r backup; do
-    original="${backup%.beagle-backup}"
-    mv "$backup" "$original"
-  done < <(find /etc/apt -maxdepth 2 -type f -name '*.beagle-backup' 2>/dev/null)
-}
-
-apt_update_with_proxmox_fallback() {
-  if apt-get update; then
-    return 0
-  fi
-
-  if ! disable_proxmox_enterprise_repo; then
-    echo "apt-get update failed and no Proxmox enterprise repository fallback was available." >&2
-    exit 1
-  fi
-
-  if ! apt-get update; then
-    restore_proxmox_enterprise_repo
-    exit 1
-  fi
-  restore_proxmox_enterprise_repo
 }
 
 load_env_file() {
