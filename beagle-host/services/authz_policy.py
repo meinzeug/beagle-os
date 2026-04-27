@@ -188,6 +188,8 @@ class AuthzPolicyService:
                 return "auth:read"
             if re.match(r"^/api/v1/storage/pools/[A-Za-z0-9._-]+/quota$", route):
                 return "settings:read"
+            if re.match(r"^/api/v1/storage/pools/[A-Za-z0-9._-]+/files$", route):
+                return "settings:read"
             if route.startswith("/api/v1/settings/"):
                 return "settings:read"
             if route == "/api/v1/backups/jobs":

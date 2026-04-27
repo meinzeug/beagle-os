@@ -10,7 +10,7 @@
 		- clone path creates new provider-state VM and attempts libvirt disk clone (`virsh vol-clone`) with safe fallback.
 		- console proxy payload returns VNC endpoint metadata when libvirt vncdisplay is available.
 		- guest exec now uses libvirt `qemu-agent-command` when libvirt is available; the shell helper remains a fallback only.
-	- Generic storage upload path added in [beagle-host/services/storage_image_store.py](beagle-host/services/storage_image_store.py) and [beagle-host/services/backups_http_surface.py](beagle-host/services/backups_http_surface.py): pool-path resolution stays provider-backed via inventory, HTTP/UI remain on `/api/v1/storage/*`.
+	- Generic storage upload/list/download paths added in [beagle-host/services/storage_image_store.py](beagle-host/services/storage_image_store.py) and [beagle-host/services/backups_http_surface.py](beagle-host/services/backups_http_surface.py): pool-path resolution stays provider-backed via inventory, HTTP/UI remain on `/api/v1/storage/*`.
 	- Beagle host implementation in [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py) was extended for contract parity (`qm snapshot`, `qm clone`, console payload scaffold).
 	- Unit tests added: [tests/unit/test_beagle_host_provider_contract_extensions.py](tests/unit/test_beagle_host_provider_contract_extensions.py).
 	- Live deploy validation on `srv1.beagle-os.com` executed by direct provider smoke-run (`snapshot_vm`, `clone_vm`, `get_console_proxy`) after control-plane restart.

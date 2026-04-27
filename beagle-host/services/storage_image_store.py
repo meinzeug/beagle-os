@@ -70,6 +70,70 @@ class StorageImageStoreService:
         base_dir.mkdir(parents=True, exist_ok=True)
         return base_dir / filename
 
+    @staticmethod
+    def _content_type_for_suffix(filename: str) -> str:
+        suffix = Path(filename).suffix.lower()
+        if suffix == ".iso":
+            return "application/x-iso9660-image"
+        if suffix == ".qcow2":
+            return "application/octet-stream"
+        if suffix == ".img":
+            return "application/octet-stream"
+        if suffix == ".raw":
+            return "application/octet-stream"
+        return "application/octet-stream"
+
+    def _resolve_existing_path(self, pool_name: str, filename: str) -> tuple[dict[str, Any], str, Path]:
+        pool = self._normalize_pool(pool_name)
+        name = self._normalize_filename(filename)
+        entry = self._storage_entry(pool)
+        content_kind = self._content_kind_for_filename(name)
+        target = self._target_path(entry, name, content_kind=content_kind)
+        if not target.exists() or not target.is_file():
+            raise ValueError(f"file '{name}' not found in pool '{pool}'")
+        return entry, content_kind, target
+
+    def list_images(self, pool_name: str) -> list[dict[str, Any]]:
+        pool = self._normalize_pool(pool_name)
+        entry = self._storage_entry(pool)
+        pool_path = str(entry.get("path", "")).strip()
+        if not pool_path:
+            raise ValueError(f"storage pool '{pool}' has no writable path")
+        base_dir = Path(pool_path).expanduser()
+        if not base_dir.exists():
+            return []
+        items: list[dict[str, Any]] = []
+        for child in sorted(base_dir.iterdir(), key=lambda item: item.name.lower()):
+            if not child.is_file():
+                continue
+            try:
+                content_kind = self._content_kind_for_filename(child.name)
+            except ValueError:
+                continue
+            stat = child.stat()
+            items.append(
+                {
+                    "pool": pool,
+                    "filename": child.name,
+                    "content_kind": content_kind,
+                    "size_bytes": int(stat.st_size),
+                    "modified_at": int(stat.st_mtime),
+                    "storage_ref": f"{pool}:{content_kind}/{child.name}",
+                }
+            )
+        return items
+
+    def read_image(self, pool_name: str, filename: str) -> dict[str, Any]:
+        _, content_kind, target = self._resolve_existing_path(pool_name, filename)
+        payload = target.read_bytes()
+        return {
+            "filename": target.name,
+            "content_kind": content_kind,
+            "content_type": self._content_type_for_suffix(target.name),
+            "size_bytes": len(payload),
+            "payload": payload,
+        }
+
     def upload_image(
         self,
         pool_name: str,

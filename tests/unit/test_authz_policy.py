@@ -114,6 +114,10 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:read",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/storage/pools/local/files"),
+            "settings:read",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("GET", "/api/v1/backups/policies/pools/default"),
             "settings:read",
         )

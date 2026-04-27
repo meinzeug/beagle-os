@@ -4,6 +4,7 @@
 
 **Zuletzt erledigt**:
 - Plan 11 Parity bekam jetzt auch den fehlenden ISO/qcow2/raw/img-Upload-Endpunkt (`POST /api/v1/storage/pools/{pool}/upload`) inklusive Quota- und Content-Validierung.
+- Plan 11 Parity bekam jetzt auch Storage-Dateiliste und Download (`GET /api/v1/storage/pools/{pool}/files` plus `?filename=...`) inklusive Virtualization-UI-Flow im Storage-Panel.
 - Plan 11 Parity bekam jetzt auch direktes LDAP-Bind und lokalen TOTP-Zweitfaktor im Auth-Stack.
 - Policies-Panel hat jetzt eine Subnavigation fuer die Hauptbereiche; der Ist-Zustand ist in Plan 10 dokumentiert.
 - Passwort-/Username-Felder in Hidden- und Modal-Flows sind in sauberere Form-Kontexte gezogen; die Browser-Warnungen sind deutlich reduziert.
@@ -29,6 +30,7 @@
 1. **Cluster-WebUI-Operations vervollstaendigen**: `docs/gofuture/00-index.md` Schritt "Cluster-Operations in der WebUI vollständig machen" bleibt als echter Zwei-Host-Operator-Block offen.
 2. **Installer-Restgrenze sauber schliessen**: Mehrdisk-RAID und echter PXE-Boot mit DHCP-seitiger Seed-Uebergabe bleiben als verbleibender Installer-Nachlauf offen.
 3. **Plan-11-Parity-Rest auf die großen Themen begrenzen**: offen bleiben jetzt nur noch SDN/Overlay, HA-Manager und zero-downtime Live-Migration.
+4. **VM-Operator-Regressionen weiter verdichten**: nachgezogene noVNC-/Delete-UI-Regressions sind jetzt im Repo; naechster sinnvolle CI-Rest waere ein echter UI-Provisioning-Smoke.
 
 ## Stand (2026-04-26, GoFuture Re-Open: WebUI-Operability)
 

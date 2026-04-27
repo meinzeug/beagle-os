@@ -14,7 +14,7 @@ import {
   text,
   usageBar
 } from './dom.js';
-import { postJson, request } from './api.js';
+import { blobRequest, postJson, request } from './api.js';
 
 const virtualizationHooks = {
   openInventoryWithNodeFilter() {},
@@ -432,7 +432,7 @@ export function renderVirtualizationPanel() {
         '<td>' + formatBytes(item.avail) + '</td>' +
         '<td>' + escapeHtml(quotaText) + '</td>' +
         '<td>' + chip(healthLabel, healthTone) + '</td>' +
-        '<td><button type="button" class="button ghost small" data-storage-quota-set="1" data-storage-pool="' + escapeHtml(item.name || item.id || '') + '" data-storage-quota-bytes="' + String(quotaBytes) + '">Quota</button></td>' +
+        '<td><button type="button" class="button ghost small" data-storage-detail="' + escapeHtml(item.name || item.id || '') + '">Dateien</button> <button type="button" class="button ghost small" data-storage-quota-set="1" data-storage-pool="' + escapeHtml(item.name || item.id || '') + '" data-storage-quota-bytes="' + String(quotaBytes) + '">Quota</button></td>' +
         '</tr>';
     }).join('');
   }
@@ -464,6 +464,116 @@ export function setStoragePoolQuota(poolName, currentQuotaBytes) {
     virtualizationHooks.loadDashboard();
   }).catch((error) => {
     virtualizationHooks.setBanner('Quota-Update fehlgeschlagen: ' + error.message, 'warn');
+  });
+}
+
+function formatStorageImageTimestamp(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return '-';
+  }
+  try {
+    return new Date(numeric * 1000).toLocaleString('de-DE');
+  } catch (error) {
+    void error;
+    return '-';
+  }
+}
+
+function storageImageTone(kind) {
+  const normalized = String(kind || '').trim().toLowerCase();
+  if (normalized === 'iso') {
+    return 'ok';
+  }
+  if (normalized === 'images') {
+    return 'muted';
+  }
+  return 'warn';
+}
+
+export function openStoragePoolDetail(poolName) {
+  const pool = String(poolName || '').trim();
+  if (!pool) {
+    virtualizationHooks.setBanner('Storage-Pool fehlt.', 'warn');
+    return;
+  }
+  virtualizationHooks.setBanner('Lade Storage-Inhalt fuer ' + pool + ' ...', 'info');
+  request('/storage/pools/' + encodeURIComponent(pool) + '/files').then((payload) => {
+    const files = Array.isArray(payload && payload.files) ? payload.files : [];
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'virt-storage-detail-modal';
+    modal.innerHTML = `
+      <div class="modal-dialog provision-dialog" role="dialog" aria-modal="true" aria-labelledby="virt-storage-detail-title">
+        <div class="modal-dialog-head">
+          <div>
+            <span class="eyebrow">Storage Detail</span>
+            <h2 id="virt-storage-detail-title">${escapeHtml(pool)}</h2>
+            <p>${escapeHtml(String(files.length))} Datei(en) im aktuell lesbaren Pool-Inhalt.</p>
+          </div>
+          <button class="icon-button" type="button" aria-label="Schliessen" id="virt-storage-detail-close">×</button>
+        </div>
+        <div class="settings-form">
+          <div class="field field-wide">
+            <span>Dateien</span>
+            <div class="settings-info-grid compact-grid">
+              ${files.length ? files.map((item) => (
+                '<div class="info-item">' +
+                '<span class="info-label">' + escapeHtml(String(item.filename || '-')) + '</span>' +
+                '<span class="info-value">' +
+                chip(String(item.content_kind || 'datei'), storageImageTone(item.content_kind)) + ' ' +
+                escapeHtml(formatBytes(item.size_bytes || 0)) + ' · ' +
+                escapeHtml(formatStorageImageTimestamp(item.modified_at)) +
+                ' <button type="button" class="button ghost small" data-storage-file-download="' + escapeHtml(String(item.filename || '')) + '" data-storage-file-pool="' + escapeHtml(pool) + '">Download</button>' +
+                '</span>' +
+                '</div>'
+              )).join('') : '<div class="empty-cell">Keine ISO-/Disk-Images im Pool gefunden.</div>'}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.body.classList.add('modal-open');
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+
+    const close = () => {
+      modal.remove();
+      if (document.querySelectorAll('.modal[aria-hidden="false"]').length === 0) {
+        document.body.classList.remove('modal-open');
+      }
+    };
+    const closeBtn = document.getElementById('virt-storage-detail-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', close);
+    }
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        close();
+      }
+    });
+    modal.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-storage-file-download]');
+      if (!button) {
+        return;
+      }
+      const filename = String(button.getAttribute('data-storage-file-download') || '').trim();
+      if (!filename) {
+        return;
+      }
+      button.disabled = true;
+      blobRequest(
+        '/storage/pools/' + encodeURIComponent(pool) + '/files?filename=' + encodeURIComponent(filename),
+        filename
+      ).catch((error) => {
+        virtualizationHooks.setBanner('Storage-Download fehlgeschlagen: ' + error.message, 'warn');
+      }).finally(() => {
+        button.disabled = false;
+      });
+    });
+  }).catch((error) => {
+    virtualizationHooks.setBanner('Storage-Inhalt konnte nicht geladen werden: ' + error.message, 'warn');
   });
 }
 
@@ -598,6 +708,7 @@ export function renderVirtualizationOverview() {
         '<div class="info-item"><span class="info-label">Shared</span><span class="info-value">' + escapeHtml(item.shared ? 'ja' : 'nein') + '</span></div>' +
         '</div>' +
         '<div class="storage-card-actions">' +
+        '<button type="button" class="button ghost small" data-storage-detail="' + escapeHtml(item.name || item.id || '') + '">Dateien</button>' +
         '<button type="button" class="button ghost small" data-storage-quota-set="1" data-storage-pool="' + escapeHtml(item.name || item.id || '') + '" data-storage-quota-bytes="' + String(quotaBytes) + '">Quota setzen</button>' +
         healthButton +
         '</div>' +

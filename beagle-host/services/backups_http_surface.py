@@ -28,6 +28,7 @@ class BackupsHttpSurfaceService:
     _BACKUP_VM_POLICY = re.compile(r"^/api/v1/backups/policies/vms/(?P<vmid>\d+)$")
     _STORAGE_POOL_QUOTA = re.compile(r"^/api/v1/storage/pools/(?P<pool>[A-Za-z0-9._-]+)/quota$")
     _STORAGE_POOL_UPLOAD = re.compile(r"^/api/v1/storage/pools/(?P<pool>[A-Za-z0-9._-]+)/upload$")
+    _STORAGE_POOL_FILES = re.compile(r"^/api/v1/storage/pools/(?P<pool>[A-Za-z0-9._-]+)/files$")
 
     # All static GET paths handled here.
     _GET_PATHS = {
@@ -96,6 +97,8 @@ class BackupsHttpSurfaceService:
             return True
         if self._STORAGE_POOL_UPLOAD.match(path):
             return True
+        if self._STORAGE_POOL_FILES.match(path):
+            return True
         return False
 
     def route_get(
@@ -163,6 +166,29 @@ class BackupsHttpSurfaceService:
             except ValueError as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
             return self._json(HTTPStatus.OK, {"ok": True, **payload})
+
+        m = self._STORAGE_POOL_FILES.match(path)
+        if m:
+            pool_name = str(m.group("pool") or "").strip()
+            filename = str(q.get("filename", [""])[0] or "").strip()
+            if filename:
+                try:
+                    image = self._storage_images.read_image(pool_name, filename)
+                except ValueError as exc:
+                    message = str(exc)
+                    status = HTTPStatus.NOT_FOUND if "not found" in message else HTTPStatus.BAD_REQUEST
+                    return self._json(status, {"ok": False, "error": message})
+                return self._bytes(
+                    HTTPStatus.OK,
+                    bytes(image.get("payload") or b""),
+                    str(image.get("content_type") or "application/octet-stream"),
+                    str(image.get("filename") or filename),
+                )
+            try:
+                files = self._storage_images.list_images(pool_name)
+            except ValueError as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            return self._json(HTTPStatus.OK, {"ok": True, "files": files})
 
         return None
 

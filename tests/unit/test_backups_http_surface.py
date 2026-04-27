@@ -42,6 +42,23 @@ def _make_svc(**overrides):
         "path": "/var/lib/libvirt/images/ubuntu.iso",
         "overwritten": False,
     }
+    storage_image_svc.list_images.return_value = [
+        {
+            "pool": "local",
+            "filename": "ubuntu.iso",
+            "content_kind": "iso",
+            "size_bytes": 11,
+            "modified_at": 1_700_000_000,
+            "storage_ref": "local:iso/ubuntu.iso",
+        }
+    ]
+    storage_image_svc.read_image.return_value = {
+        "filename": "ubuntu.iso",
+        "content_kind": "iso",
+        "content_type": "application/x-iso9660-image",
+        "size_bytes": 11,
+        "payload": b"hello world",
+    }
 
     defaults = dict(
         backup_service=backup_svc,
@@ -109,6 +126,21 @@ class TestBackupsGetRouting:
         resp = svc.route_get("/api/v1/storage/pools/local/quota")
         assert resp["payload"]["quota_bytes"] == 1024
         qsvc.get_pool_quota.assert_called_once_with("local")
+
+    def test_storage_files_list(self):
+        svc, _, _, storage_svc = _make_svc()
+        resp = svc.route_get("/api/v1/storage/pools/local/files")
+        assert resp["status"] == HTTPStatus.OK
+        assert resp["payload"]["ok"] is True
+        assert resp["payload"]["files"][0]["filename"] == "ubuntu.iso"
+        storage_svc.list_images.assert_called_once_with("local")
+
+    def test_storage_file_download(self):
+        svc, _, _, storage_svc = _make_svc()
+        resp = svc.route_get("/api/v1/storage/pools/local/files", query={"filename": ["ubuntu.iso"]})
+        assert resp["kind"] == "bytes"
+        assert resp["filename"] == "ubuntu.iso"
+        storage_svc.read_image.assert_called_once_with("local", "ubuntu.iso")
 
     def test_unknown_path_returns_none(self):
         svc, _, _, _ = _make_svc()

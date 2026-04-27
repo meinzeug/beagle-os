@@ -46,9 +46,9 @@ Status-Legende:
 | Beagle host-Funktion | Beagle-Äquivalent | Status |
 |---|---|---|
 | Storage-Pool anlegen | `providers/beagle/storage/` (directory, lvm_thin, nfs, zfs) | 🔶 Backends implementiert; Provisioning-API noch nicht vollständig |
-| Storage-Inhalt listen | `/api/v1/storage/pools/*/quota` via `backups_http_surface` | 🔶 Quota implementiert; Inhaltsliste offen |
+| Storage-Inhalt listen | `GET /api/v1/storage/pools/{pool}/files` | ✅ |
 | Disk Image hochladen | `POST /api/v1/storage/pools/{pool}/upload` | ✅ ISO/qcow2/raw/img Upload-Endpoint vorhanden |
-| Disk Image herunterladen | Nicht implementiert | ❌ |
+| Disk Image herunterladen | `GET /api/v1/storage/pools/{pool}/files?filename=...` | ✅ |
 | Storage Migration (VM Disk verschieben) | `migration_service.migrate_vm()` (Host-Migration) | 🔶 Nur Host-Migration; Storage-only Migration fehlt |
 | ZFS Storage | `providers/beagle/storage/zfs.py` | ✅ |
 | LVM-thin | `providers/beagle/storage/lvm_thin.py` | ✅ |

@@ -95,6 +95,7 @@ import {
   loadVirtualizationInspector,
   loadVmConfig,
   createIpamZoneForBridge,
+  openStoragePoolDetail,
   openVirtualizationBridgeDetail,
   openVirtualizationNodeDetail,
   setStoragePoolQuota,
@@ -1134,6 +1135,11 @@ export function bindEvents() {
   }
   if (qs('storage-body')) {
     qs('storage-body').addEventListener('click', (event) => {
+      const detailTrigger = event.target.closest('button[data-storage-detail]');
+      if (detailTrigger) {
+        openStoragePoolDetail(String(detailTrigger.getAttribute('data-storage-detail') || '').trim());
+        return;
+      }
       const trigger = event.target.closest('button[data-storage-quota-set]');
       if (!trigger) {
         return;
@@ -1145,6 +1151,11 @@ export function bindEvents() {
   }
   if (qs('virtualization-storage-cards')) {
     qs('virtualization-storage-cards').addEventListener('click', (event) => {
+      const detailBtn = event.target.closest('button[data-storage-detail]');
+      if (detailBtn) {
+        openStoragePoolDetail(String(detailBtn.getAttribute('data-storage-detail') || '').trim());
+        return;
+      }
       const quotaBtn = event.target.closest('button[data-storage-quota-set]');
       if (quotaBtn) {
         const poolName = String(quotaBtn.getAttribute('data-storage-pool') || '').trim();

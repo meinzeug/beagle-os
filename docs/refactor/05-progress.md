@@ -1,3 +1,25 @@
+## Update (2026-04-27, Plan 11 Parity: Storage Browser + Download)
+
+**Scope**: Die offene Storage-Parity fuer Inhaltsliste und Download ist jetzt geschlossen. Storage-Pools koennen API-seitig gelistet und dateibasiert heruntergeladen werden; die WebUI stellt dafuer im Virtualization-Panel einen direkten Operator-Flow bereit.
+
+- Backend:
+  - [beagle-host/services/storage_image_store.py](/home/dennis/beagle-os/beagle-host/services/storage_image_store.py): `list_images()` und `read_image()` listen ISO-/Disk-Images pro Pool und lesen Dateien strikt aus validierten Pool-Pfaden.
+  - [beagle-host/services/backups_http_surface.py](/home/dennis/beagle-os/beagle-host/services/backups_http_surface.py): neuer Read-Pfad `GET /api/v1/storage/pools/{pool}/files` plus Download via `?filename=...`.
+  - [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py): neuer RBAC-Read-Mapping fuer Storage-Dateiliste/Download auf `settings:read`.
+- WebUI:
+  - [website/ui/virtualization.js](/home/dennis/beagle-os/website/ui/virtualization.js): Storage-Detail-Modal mit Dateiliste, Typ, Groesse, Zeitstempel und Download-Action.
+  - [website/ui/events.js](/home/dennis/beagle-os/website/ui/events.js): Storage-Detail-Buttons in Tabellen- und Kartenansicht verdrahtet.
+- Regression:
+  - [tests/unit/test_storage_image_store.py](/home/dennis/beagle-os/tests/unit/test_storage_image_store.py)
+  - [tests/unit/test_backups_http_surface.py](/home/dennis/beagle-os/tests/unit/test_backups_http_surface.py)
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
+  - [tests/unit/test_virtualization_storage_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_virtualization_storage_ui_regressions.py)
+  - [tests/unit/test_vm_actions_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_vm_actions_ui_regressions.py)
+- Validierung:
+  - `node --check website/ui/virtualization.js website/ui/events.js`
+  - `python3 -m py_compile beagle-host/services/storage_image_store.py beagle-host/services/backups_http_surface.py beagle-host/services/authz_policy.py`
+  - `python3 -m pytest tests/unit/test_storage_image_store.py tests/unit/test_backups_http_surface.py tests/unit/test_authz_policy.py tests/unit/test_virtualization_storage_ui_regressions.py tests/unit/test_vm_actions_ui_regressions.py -q` => `58 passed`
+
 ## Update (2026-04-27, APT-Policy bewusst manuell festgelegt)
 
 **Scope**: Die offene APT-Automatikfrage wurde bewusst gegen Vollautomatik entschieden. Betriebssystempakete bleiben manuell installierbar; die Automatik im Update-Center gilt nur fuer GitHub-Repo-Update und Artefakt-Refresh. Die WebUI kommuniziert das jetzt explizit.

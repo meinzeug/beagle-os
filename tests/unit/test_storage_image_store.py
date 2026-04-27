@@ -65,6 +65,31 @@ class StorageImageStoreServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "quota_exceeded"):
             self.service.upload_image("local", "ubuntu.iso", b"1234")
 
+    def test_list_images_returns_supported_files_only(self) -> None:
+        (self._pool_dir / "ubuntu.iso").write_bytes(b"iso")
+        (self._pool_dir / "disk.qcow2").write_bytes(b"disk")
+        (self._pool_dir / "notes.txt").write_text("ignore", encoding="utf-8")
+
+        items = self.service.list_images("local")
+
+        self.assertEqual([item["filename"] for item in items], ["disk.qcow2", "ubuntu.iso"])
+        self.assertEqual(items[0]["content_kind"], "images")
+        self.assertEqual(items[1]["content_kind"], "iso")
+
+    def test_read_image_returns_bytes_and_content_type(self) -> None:
+        (self._pool_dir / "ubuntu.iso").write_bytes(b"iso-data")
+
+        result = self.service.read_image("local", "ubuntu.iso")
+
+        self.assertEqual(result["filename"], "ubuntu.iso")
+        self.assertEqual(result["content_kind"], "iso")
+        self.assertEqual(result["content_type"], "application/x-iso9660-image")
+        self.assertEqual(result["payload"], b"iso-data")
+
+    def test_read_image_rejects_missing_file(self) -> None:
+        with self.assertRaisesRegex(ValueError, "not found"):
+            self.service.read_image("local", "missing.iso")
+
 
 if __name__ == "__main__":
     unittest.main()
