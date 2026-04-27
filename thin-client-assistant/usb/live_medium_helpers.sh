@@ -54,12 +54,26 @@ candidate_live_asset_dir() {
   local target="$1"
   local require_boot_assets="${2:-0}"
   local live_dir=""
+  local manifest_path=""
+  local bundled_relpath=""
 
-  if [[ -f "$target/pve-thin-client/live/filesystem.squashfs" ]]; then
+  if [[ -f "$target/.pve-dcv-usb-manifest.json" ]]; then
+    manifest_path="$target/.pve-dcv-usb-manifest.json"
+  fi
+  if [[ -n "$manifest_path" && -f "$manifest_path" ]]; then
+    bundled_relpath="$(python3 "$USB_MANIFEST_HELPER" read-bundled-payload-relpath --path "$manifest_path" 2>/dev/null || true)"
+    if [[ -n "$bundled_relpath" && -f "$target/$bundled_relpath/filesystem.squashfs" ]]; then
+      live_dir="$target/$bundled_relpath"
+    fi
+  fi
+
+  if [[ -z "$live_dir" && -f "$target/pve-thin-client/live/filesystem.squashfs" ]]; then
     live_dir="$target/pve-thin-client/live"
-  elif [[ -f "$target/filesystem.squashfs" ]]; then
+  elif [[ -z "$live_dir" && -f "$target/filesystem.squashfs" ]]; then
     live_dir="$target"
-  else
+  fi
+
+  if [[ -z "$live_dir" ]]; then
     return 1
   fi
 

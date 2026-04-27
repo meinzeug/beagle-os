@@ -793,7 +793,7 @@ if manifest_file and Path(manifest_file).is_file():
         payload["host_ip"] = str(manifest.get("beagle_api_host_ip", payload["host_ip"]) or payload["host_ip"])
         payload["port"] = str(manifest.get("beagle_api_port", payload["port"]) or payload["port"])
         payload["verify_tls"] = str(manifest.get("beagle_api_verify_tls", payload["verify_tls"]) or payload["verify_tls"])
-        source = manifest.get("payload_source", "")
+        source = manifest.get("payload_source_url", "") or manifest.get("payload_source", "")
         if source and not payload["host"]:
             parsed = urlparse(source)
             if parsed.scheme:

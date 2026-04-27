@@ -29,13 +29,15 @@ release_target_device() {
 
 write_usb_manifest() {
   local mount_dir="$1"
-  local payload_source installer_sha payload_sha
+  local payload_source installer_sha payload_sha bundled_payload_relpath
   local live_dir
 
   if [[ "$USB_WRITER_VARIANT" == "live" ]]; then
     live_dir="$mount_dir/live"
+    bundled_payload_relpath="live"
   else
     live_dir="$mount_dir/pve-thin-client/live"
+    bundled_payload_relpath="pve-thin-client/live"
   fi
   payload_source="$(resolve_usb_install_payload_source "$REPO_ROOT")"
   if [[ -f "$mount_dir/start-installer-menu.sh" ]]; then
@@ -51,6 +53,9 @@ write_usb_manifest() {
     --usb-label "$USB_LABEL" \
     --target-device "$TARGET_DEVICE" \
     --payload-source "$payload_source" \
+    --payload-source-url "$payload_source" \
+    --payload-source-kind bundled-usb \
+    --bundled-payload-relpath "$bundled_payload_relpath" \
     --start-installer-menu-sha256 "$installer_sha" \
     --filesystem-squashfs-sha256 "$payload_sha" \
     --preset-name "${PVE_THIN_CLIENT_PRESET_NAME:-}" \

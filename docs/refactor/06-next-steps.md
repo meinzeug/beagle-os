@@ -179,6 +179,10 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 - Repo-/Artifact-Self-Heal weiter härten:
   - End-to-end smoke for VM installer/live-USB downloads after repo auto-update on `srv1`
   - verify that regenerated hosted artifacts and VM-specific scripts still stay on `443` after the next unattended update cycle
+- Thin-client USB install path runtime-smoke:
+  - boot a freshly written USB installer/live medium in a VM
+  - verify from installer logs that local bundled payload assets are used after the target-disk selection step
+  - ensure no second remote payload download happens unless `PVE_THIN_CLIENT_FORCE_REMOTE_PAYLOAD=1`
 - `srv2` TLS-/Zertifikatskette pruefen: Chrome DevTools sah am 27.04.2026 initial `ERR_CERT_AUTHORITY_INVALID`, obwohl die WebUI nach Ausnahme-Proceed und der Login-POST selbst funktionierten.
 - Optional: Login-Modal/weitere Passwortfelder im HTML in echte `<form>`-Container ueberfuehren, damit die verbleibenden DevTools-DOM-Warnungen (`Password field is not contained in a form`) verschwinden.
 - GoEnterprise Plan 03 weiterziehen:

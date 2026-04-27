@@ -4222,3 +4222,24 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - local: `6 passed`, shell syntax checks and `py_compile` green
   - live on `srv1`: `/opt/beagle/dist/beagle-downloads-status.json` now reports `listen_port=443`
   - live on `srv1`: `/opt/beagle/dist/pve-thin-client-live-usb-host-latest.sh` and `GET /api/v1/vms/100/live-usb.sh` no longer contain `8443`
+
+## 2026-04-27 - USB installer stops re-downloading bundled payloads
+
+- Fixed the thin-client USB media flow so the local installer prefers the payload already written onto the stick instead of falling back to the remote payload URL after the disk-selection menu.
+- Changes:
+  - `thin-client-assistant/usb/usb_manifest.py`
+    - USB manifests now store both `payload_source_url` and `bundled_payload_relpath`
+    - new reader for `bundled_payload_relpath`
+  - `thin-client-assistant/usb/usb_writer_write_stage.sh`
+    - writes the bundled payload path (`pve-thin-client/live` or `live`) into the USB manifest
+  - `thin-client-assistant/usb/live_medium_helpers.sh`
+    - resolves bundled live assets via the manifest path before falling back to heuristics
+  - `thin-client-assistant/usb/pve-thin-client-live-menu.sh`
+    - uses `payload_source_url` for API defaults, keeping the remote host metadata separate from the local payload path
+- Added regressions:
+  - `tests/unit/test_usb_manifest.py`
+  - `tests/unit/test_usb_payload_resolution_regressions.py`
+- Validated:
+  - local: `5 passed`, `py_compile` and shell syntax checks green
+  - live on `srv1`: rebuilt `pve-thin-client-usb-payload-latest.tar.gz` contains the updated USB installer files
+  - live on `srv1`: VM-specific `installer.sh` still renders the correct hosted `RELEASE_*` URLs while the payload bundle contains the new local-resolution logic

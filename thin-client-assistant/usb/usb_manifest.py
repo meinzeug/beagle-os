@@ -28,12 +28,22 @@ def read_project_version(path: Path) -> str:
 
 def read_payload_source(path: Path) -> str:
     payload = _read_json(path)
-    value = str(payload.get("payload_source", "")).strip()
+    value = str(payload.get("payload_source_url", "")).strip()
+    if not value:
+        value = str(payload.get("payload_source", "")).strip()
     if not value:
         raise ValueError("manifest does not contain payload_source")
     parsed = urlparse(value)
     if parsed.scheme not in ("http", "https"):
         raise ValueError("manifest payload_source must be http(s)")
+    return value
+
+
+def read_bundled_payload_relpath(path: Path) -> str:
+    payload = _read_json(path)
+    value = str(payload.get("bundled_payload_relpath", "")).strip().strip("/")
+    if not value:
+        raise ValueError("manifest does not contain bundled_payload_relpath")
     return value
 
 
@@ -66,6 +76,11 @@ def command_read_payload_source(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_read_bundled_payload_relpath(args: argparse.Namespace) -> int:
+    print(read_bundled_payload_relpath(Path(args.path)))
+    return 0
+
+
 def command_write_install_manifest(args: argparse.Namespace) -> int:
     _write_json(
         Path(args.path),
@@ -86,7 +101,9 @@ def command_write_install_manifest(args: argparse.Namespace) -> int:
 
 
 def command_write_usb_manifest(args: argparse.Namespace) -> int:
-    parsed = urlparse(args.payload_source) if args.payload_source else None
+    payload_source_url = str(args.payload_source_url or args.payload_source or "").strip()
+    payload_source_kind = str(args.payload_source_kind or "").strip() or "bundled-usb"
+    parsed = urlparse(payload_source_url) if payload_source_url else None
     beagle_host = parsed.hostname if parsed and parsed.hostname else ""
     _write_json(
         Path(args.path),
@@ -96,7 +113,9 @@ def command_write_usb_manifest(args: argparse.Namespace) -> int:
             "usb_label": args.usb_label,
             "target_device": args.target_device,
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "payload_source": args.payload_source,
+            "payload_source": payload_source_kind,
+            "payload_source_url": payload_source_url,
+            "bundled_payload_relpath": str(args.bundled_payload_relpath or "").strip().strip("/"),
             "start_installer_menu_sha256": args.start_installer_menu_sha256,
             "filesystem_squashfs_sha256": args.filesystem_squashfs_sha256,
             "preset_name": args.preset_name,
@@ -122,6 +141,10 @@ def build_parser() -> argparse.ArgumentParser:
     payload_parser.add_argument("--path", required=True)
     payload_parser.set_defaults(func=command_read_payload_source)
 
+    bundled_payload_parser = subparsers.add_parser("read-bundled-payload-relpath")
+    bundled_payload_parser.add_argument("--path", required=True)
+    bundled_payload_parser.set_defaults(func=command_read_bundled_payload_relpath)
+
     install_parser = subparsers.add_parser("write-install-manifest")
     install_parser.add_argument("--path", required=True)
     install_parser.add_argument("--project-version", default="")
@@ -141,6 +164,9 @@ def build_parser() -> argparse.ArgumentParser:
     usb_parser.add_argument("--usb-label", default="")
     usb_parser.add_argument("--target-device", default="")
     usb_parser.add_argument("--payload-source", default="")
+    usb_parser.add_argument("--payload-source-url", default="")
+    usb_parser.add_argument("--payload-source-kind", default="bundled-usb")
+    usb_parser.add_argument("--bundled-payload-relpath", default="")
     usb_parser.add_argument("--start-installer-menu-sha256", default="")
     usb_parser.add_argument("--filesystem-squashfs-sha256", default="")
     usb_parser.add_argument("--preset-name", default="")
