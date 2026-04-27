@@ -7,7 +7,7 @@ INSTALL_DIR="${INSTALL_DIR:-/opt/beagle}"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-$CONFIG_DIR/host.env}"
 SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}"
-LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-8443}"
+LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-443}"
 SITE_PORT="${BEAGLE_SITE_PORT:-443}"
 DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/beagle-downloads}"
 # shellcheck disable=SC1090
@@ -20,7 +20,7 @@ STATUS_JSON_FILE="$INSTALL_DIR/dist/beagle-downloads-status.json"
 REFRESH_STATUS_FILE="${PVE_DCV_STATUS_DIR:-/var/lib/beagle}/refresh.status.json"
 BEAGLE_MANAGER_ENV_FILE="${PVE_DCV_BEAGLE_MANAGER_ENV_FILE:-$CONFIG_DIR/beagle-manager.env}"
 BEAGLE_API_TOKEN=""
-BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-proxmox}"
+BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
 USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-beagle-tunnel}"
 USB_TUNNEL_HOME="${BEAGLE_USB_TUNNEL_HOME:-}"
 USB_TUNNEL_AUTH_ROOT="${BEAGLE_USB_TUNNEL_AUTH_ROOT:-/var/lib/beagle/usb-tunnel/$USB_TUNNEL_USER}"
@@ -35,10 +35,10 @@ BEAGLE_USB_TUNNEL_SSHD_DROPIN="${BEAGLE_USB_TUNNEL_SSHD_DROPIN:-/etc/ssh/sshd_co
 
 host_provider_kind() {
   local kind
-  kind="$(printf '%s' "${BEAGLE_HOST_PROVIDER:-proxmox}" | tr '[:upper:]' '[:lower:]')"
+  kind="$(printf '%s' "${BEAGLE_HOST_PROVIDER:-beagle}" | tr '[:upper:]' '[:lower:]')"
   case "$kind" in
     ""|pve)
-      printf 'proxmox\n'
+      printf 'beagle\n'
       ;;
     *)
       printf '%s\n' "$kind"
@@ -76,7 +76,7 @@ host_tls_cert_file() {
     printf '%s\n' "$BEAGLE_HOST_TLS_CERT_FILE"
     return 0
   fi
-  if [[ "$(host_provider_kind)" == "proxmox" ]]; then
+  if [[ "$(host_provider_kind)" == "beagle" ]]; then
     printf '/etc/beagle/manager-ssl.pem\n'
     return 0
   fi
@@ -384,7 +384,7 @@ check_control_plane_novnc_rwpath
 check_control_plane_runtime_imports
 check_internal_callback_host
 
-if [[ "$(host_provider_kind)" == "proxmox" ]]; then
+if [[ "$(host_provider_kind)" == "beagle" ]]; then
   check_file "$PVE_UI_JS_FILE"
   check_file "$PVE_UI_CONFIG_FILE"
   check_file "$BEAGLE_PROXY_SITE_FILE"
@@ -412,7 +412,7 @@ fi
 check_service_active "beagle-artifacts-refresh.timer"
 check_service_active "beagle-control-plane"
 
-if [[ "$(host_provider_kind)" == "proxmox" ]]; then
+if [[ "$(host_provider_kind)" == "beagle" ]]; then
   check_service_active "pveproxy"
   check_service_active "nginx"
   check_service_active "beagle-ui-reapply.path"

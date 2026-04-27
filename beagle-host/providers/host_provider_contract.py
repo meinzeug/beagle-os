@@ -153,6 +153,14 @@ class HostProvider(Protocol):
         timeout: float | None | object = None,
     ) -> str: ...
 
+    def delete_vm_snapshot(
+        self,
+        vmid: int,
+        snapshot_name: str,
+        *,
+        timeout: float | None | object = None,
+    ) -> str: ...
+
     def reset_vm_to_snapshot(
         self,
         vmid: int,

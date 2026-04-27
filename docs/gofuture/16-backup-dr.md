@@ -17,8 +17,8 @@ Backup ist die kritischste Datensicherungs-Funktion der Plattform und muss eine 
 technische Grundlage haben. qcow2-Snapshots + inkrementelle Deltas (`qemu-img bitmaps`)
 sind der naheliegendste Ansatz für QEMU-VMs. Restic als Storage-Layer bietet content-
 adressierbare Deduplikation die bei ähnlichen Pool-VMs massiven Speicherplatz spart.
-PBS-Kompatibilität (Proxmox Backup Server) würde die Integration mit bestehenden
-Proxmox-Deployments erleichtern. Der PoC validiert Backup-Geschwindigkeit, Restore-Zeit
+PBS-Kompatibilität (Beagle host Backup Server) würde die Integration mit bestehenden
+Beagle host-Deployments erleichtern. Der PoC validiert Backup-Geschwindigkeit, Restore-Zeit
 und Speicherplatz-Overhead für eine typische 80 GB Desktop-VM.
 
 Umsetzung (2026-04-23):
@@ -26,7 +26,7 @@ Umsetzung (2026-04-23):
 - Architekturentscheidung in `docs/refactor/07-decisions.md` dokumentiert (`D-042`):
 	- Primärpfad für 7.3: qcow2-Export via `qemu-img convert` + Restic-Dedupe,
 	- ZFS-Snapshots als optionaler Fast-Path,
-	- PBS-Kompatibilität via Export-/Import-Adapter statt Proxmox-Kopplung.
+	- PBS-Kompatibilität via Export-/Import-Adapter statt Beagle host-Kopplung.
 - Reproduzierbarer PoC ergänzt: `scripts/test-backup-qcow2-restic-poc.sh`.
 	- erstellt qcow2-Source-Disk,
 	- sichert über `qemu-img convert` in ein Arbeitsartefakt,

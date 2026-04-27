@@ -8,7 +8,7 @@ visualise them in Grafana, and parse structured logs from journald.
 ## 1. Prometheus scrape configuration
 
 Beagle exposes Prometheus-format metrics at `GET /metrics` on the control
-plane (default port 8443). The endpoint is **unauthenticated by default**
+plane (default port 443). The endpoint is **unauthenticated by default**
 which is appropriate when:
 
 - Prometheus runs on the same host (`localhost` scrape).

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Beagle OS Integration",
   "version": "6.7.0",
-  "description": "Adds Beagle profile, installer and control-plane actions to Proxmox VE VM pages.",
+  "description": "Adds Beagle profile, installer and control-plane actions to VM pages.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://*/*"
@@ -14,7 +14,6 @@
         "core/platform/browser-common.js",
         "common.js",
         "provider-registry.js",
-        "providers/proxmox.js",
         "services/virtualization.js",
         "services/platform.js",
         "shared/vm-profile-mapper.js",

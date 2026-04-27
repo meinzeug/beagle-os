@@ -28,7 +28,7 @@ Erweitert die Zielarchitektur aus `docs/refactor/02-target-architecture.md` um C
 +----------------------------------------------------------------------------+
 |  Provider Adapters (providers/)                                              |
 |   - beagle (libvirt + KVM/QEMU + nft + zfs/ceph/longhorn) -- DEFAULT        |
-|   - proxmox (qm/pvesh) -- OPTIONAL                                          |
+|   - beagle-host (qm/pvesh) -- OPTIONAL                                          |
 +----------------------------------------------------------------------------+
 |  Beagle Server OS (Debian-basierte Distro mit beagle-host vorinstalliert)   |
 +----------------------------------------------------------------------------+
@@ -50,7 +50,7 @@ Erweitert die Zielarchitektur aus `docs/refactor/02-target-architecture.md` um C
 
 ## Web Console Informationsarchitektur (7.0 Leitbild)
 
-Die bestehende Web Console darf fuer 7.0 nicht weiter als lose Sammlung einzelner Panels wachsen. Ab 7.0 wird die UI entlang klarer Plattform-Scopes organisiert, wie man es von Proxmox-, VMware- oder Citrix-aehnlichen Umgebungen erwartet, aber provider-neutral und streaming-orientiert.
+Die bestehende Web Console darf fuer 7.0 nicht weiter als lose Sammlung einzelner Panels wachsen. Ab 7.0 wird die UI entlang klarer Plattform-Scopes organisiert, wie man es von Beagle host-, VMware- oder Citrix-aehnlichen Umgebungen erwartet, aber provider-neutral und streaming-orientiert.
 
 ### Navigationsprinzip
 
@@ -93,7 +93,7 @@ Die UI folgt denselben first-class Objekten wie die API:
 
 #### 1. Datacenter Dashboard
 
-- Zweck: Proxmox-aehnlicher Gesamtblick auf die Plattform.
+- Zweck: Beagle host-aehnlicher Gesamtblick auf die Plattform.
 - Widgets:
   - Cluster Health,
   - Host-Auslastung,

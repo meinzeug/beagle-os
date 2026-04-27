@@ -90,11 +90,11 @@ class InstallerScriptService:
         meta = self._parse_description_meta(config.get("description", ""))
         vm_name = str(config.get("name") or vm.name or f"vm-{vm.vmid}")
         # Legacy meta-keys kept for thin-client backwards compat; rename local vars to beagle_*
-        beagle_scheme = meta.get("proxmox-scheme", "https")
-        beagle_host = meta.get("proxmox-host", self._public_server_name)
-        beagle_port = meta.get("proxmox-port", "8006")
-        beagle_realm = meta.get("proxmox-realm", "pam")
-        beagle_verify_tls = meta.get("proxmox-verify-tls", "1")
+        beagle_scheme = meta.get("beagle-scheme", "https")
+        beagle_host = meta.get("beagle-host", self._public_server_name)
+        beagle_port = meta.get("beagle-port", "8006")
+        beagle_realm = meta.get("beagle-realm", "pam")
+        beagle_verify_tls = meta.get("beagle-verify-tls", "1")
         expected_profile_name = str(profile.get("expected_profile_name") or f"vm-{vm.vmid}")
         moonlight_host = str(profile.get("stream_host", "") or "")
         moonlight_local_host = str(profile.get("moonlight_local_host", "") or "")
@@ -141,13 +141,13 @@ class InstallerScriptService:
             default_mode="MOONLIGHT" if moonlight_host else "",
             network_mode=meta.get("thinclient-network-mode", "dhcp"),
             network_interface=meta.get("thinclient-network-interface", "eth0"),
-            proxmox_scheme=beagle_scheme,
-            proxmox_host=beagle_host,
-            proxmox_port=beagle_port,
-            proxmox_node=vm.node,
-            proxmox_vmid=str(vm.vmid),
-            proxmox_realm=beagle_realm,
-            proxmox_verify_tls=beagle_verify_tls,
+            beagle_scheme=beagle_scheme,
+            beagle_host=beagle_host,
+            beagle_port=beagle_port,
+            beagle_node=vm.node,
+            beagle_vmid=str(vm.vmid),
+            beagle_realm=beagle_realm,
+            beagle_verify_tls=beagle_verify_tls,
             beagle_manager_url=self._public_manager_url,
             moonlight_host=moonlight_host,
             moonlight_local_host=moonlight_local_host,

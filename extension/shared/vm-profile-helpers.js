@@ -18,10 +18,10 @@
       "PVE_THIN_CLIENT_MODE=\"MOONLIGHT\"",
       "PVE_THIN_CLIENT_PROFILE_NAME=\"" + endpointProfileName + "\"",
       "PVE_THIN_CLIENT_AUTOSTART=\"1\"",
-      "PVE_THIN_CLIENT_PROXMOX_HOST=\"" + (profile.proxmoxHost || window.location.hostname) + "\"",
-      "PVE_THIN_CLIENT_PROXMOX_PORT=\"8006\"",
-      "PVE_THIN_CLIENT_PROXMOX_NODE=\"" + (profile.node || "") + "\"",
-      "PVE_THIN_CLIENT_PROXMOX_VMID=\"" + String(profile.vmid || "") + "\"",
+      "PVE_THIN_CLIENT_BEAGLE_HOST=\"" + (profile.beagleHost || window.location.hostname) + "\"",
+      "PVE_THIN_CLIENT_BEAGLE_PORT=\"8006\"",
+      "PVE_THIN_CLIENT_BEAGLE_NODE=\"" + (profile.node || "") + "\"",
+      "PVE_THIN_CLIENT_BEAGLE_VMID=\"" + String(profile.vmid || "") + "\"",
       "PVE_THIN_CLIENT_BEAGLE_MANAGER_URL=\"" + (profile.managerUrl || "") + "\""
     ];
 

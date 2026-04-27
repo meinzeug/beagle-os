@@ -67,7 +67,7 @@ fetch_moonlight_current_session_via_manager() {
   manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
   manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"
   session_id="${PVE_THIN_CLIENT_SESSION_ID:-}"
-  vmid="${PVE_THIN_CLIENT_PROXMOX_VMID:-${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}}"
+  vmid="${PVE_THIN_CLIENT_BEAGLE_VMID:-${PVE_THIN_CLIENT_PRESET_BEAGLE_VMID:-}}"
   [[ -n "$manager_url" && -n "$manager_token" ]] || return 1
   [[ -n "$session_id" || -n "$vmid" ]] || return 1
 

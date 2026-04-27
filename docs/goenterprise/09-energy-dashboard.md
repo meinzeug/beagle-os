@@ -25,7 +25,7 @@ Unternehmen mit >500 Mitarbeitern müssen Scope-2-Emissionen (IT-Infrastruktur) 
 |---|---|
 | Azure / AWS | Cloud-Anbieter haben eigene Carbon-Dashboards (aber nur ihre Cloud) |
 | Citrix | Nichts integriert |
-| Proxmox | Nichts |
+| Beagle host | Nichts |
 | VMware | vRealize Operations Energy (nur auf VMware-Hardware, teuer) |
 | **Beagle GoEnterprise** | **Integriert, On-Prem, CSRD-ready** |
 

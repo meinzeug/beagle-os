@@ -8,7 +8,7 @@ REMOTE_INSTALL_DIR="${BEAGLE_REMOTE_INSTALL_DIR:-/opt/beagle}"
 REMOTE_PROVIDER_MODULE_PATH="${BEAGLE_REMOTE_PROVIDER_MODULE_PATH:-${REMOTE_INSTALL_DIR%/}/scripts/lib/beagle_provider.py}"
 PROVIDER_HELPER_AVAILABLE_CACHE="${PROVIDER_HELPER_AVAILABLE_CACHE:-}"
 
-PROXMOX_HOST="${PROXMOX_HOST:-proxmox.local}"
+BEAGLE_HOST="${BEAGLE_HOST:-beagle.local}"
 VMID="${VMID:-}"
 GUEST_USER="${GUEST_USER:-beagle}"
 GUEST_PASSWORD="${GUEST_PASSWORD:-}"
@@ -18,9 +18,9 @@ IDENTITY_KEYMAP="${IDENTITY_KEYMAP:-de}"
 DESKTOP_ID="${DESKTOP_ID:-xfce}"
 DESKTOP_LABEL="${DESKTOP_LABEL:-XFCE}"
 DESKTOP_SESSION="${DESKTOP_SESSION:-xfce}"
-PROXMOX_USER="${PROXMOX_USER:-}"
-PROXMOX_PASSWORD="${PROXMOX_PASSWORD:-}"
-PROXMOX_TOKEN="${PROXMOX_TOKEN:-}"
+BEAGLE_USER="${BEAGLE_USER:-}"
+BEAGLE_PASSWORD="${BEAGLE_PASSWORD:-}"
+BEAGLE_TOKEN="${BEAGLE_TOKEN:-}"
 GUEST_IP_OVERRIDE="${GUEST_IP_OVERRIDE:-}"
 SUNSHINE_USER="${SUNSHINE_USER:-sunshine}"
 SUNSHINE_PASSWORD="${SUNSHINE_PASSWORD:-}"
@@ -75,7 +75,7 @@ PUBLIC_STREAM_HOST="$(resolve_public_stream_host "$PUBLIC_STREAM_HOST_RAW")"
 
 usage() {
   cat <<EOF
-Usage: $0 --vmid VMID [--proxmox-host HOST] [--guest-user USER] [--guest-password PASS] [--identity-locale LOCALE] [--identity-keymap KEYMAP] [--desktop-id ID] [--desktop-label LABEL] [--desktop-session SESSION] [--desktop-package PKG]... [--software-package PKG]... [--package-preset ID]... [--extra-package PKG]... [--proxmox-user USER@REALM] [--proxmox-password PASS|--proxmox-token TOKEN] [--sunshine-user USER] --sunshine-password PASS [--sunshine-pin PIN] [--sunshine-port PORT] [--public-stream-host HOST]
+Usage: $0 --vmid VMID [--beagle-host HOST] [--guest-user USER] [--guest-password PASS] [--identity-locale LOCALE] [--identity-keymap KEYMAP] [--desktop-id ID] [--desktop-label LABEL] [--desktop-session SESSION] [--desktop-package PKG]... [--software-package PKG]... [--package-preset ID]... [--extra-package PKG]... [--beagle-user USER@REALM] [--beagle-password PASS|--beagle-token TOKEN] [--sunshine-user USER] --sunshine-password PASS [--sunshine-pin PIN] [--sunshine-port PORT] [--public-stream-host HOST]
 EOF
 }
 
@@ -144,7 +144,7 @@ require_tool() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --beagle-host|--proxmox-host) PROXMOX_HOST="$2"; shift 2 ;; # --proxmox-host kept for backwards compat
+      --beagle-host|--beagle-host) BEAGLE_HOST="$2"; shift 2 ;; # --beagle-host kept for backwards compat
       --vmid) VMID="$2"; shift 2 ;;
       --guest-user) GUEST_USER="$2"; shift 2 ;;
       --guest-password) GUEST_PASSWORD="$2"; shift 2 ;;
@@ -158,9 +158,9 @@ parse_args() {
       --software-package) SOFTWARE_PACKAGES+=("$2"); shift 2 ;;
       --package-preset) PACKAGE_PRESETS+=("$2"); shift 2 ;;
       --extra-package) EXTRA_PACKAGES+=("$2"); shift 2 ;;
-      --proxmox-user) PROXMOX_USER="$2"; shift 2 ;;
-      --proxmox-password) PROXMOX_PASSWORD="$2"; shift 2 ;;
-      --proxmox-token) PROXMOX_TOKEN="$2"; shift 2 ;;
+      --beagle-user) BEAGLE_USER="$2"; shift 2 ;;
+      --beagle-password) BEAGLE_PASSWORD="$2"; shift 2 ;;
+      --beagle-token) BEAGLE_TOKEN="$2"; shift 2 ;;
       --sunshine-user) SUNSHINE_USER="$2"; shift 2 ;;
       --sunshine-password) SUNSHINE_PASSWORD="$2"; shift 2 ;;
       --sunshine-pin) SUNSHINE_PIN="$2"; shift 2 ;;
@@ -263,7 +263,7 @@ update_vm_metadata() {
   encoded_desc="$(current_vm_description)"
 
   new_desc_b64="$(
-    python3 - "$encoded_desc" "$guest_ip" "$stream_host" "$stream_port" "$stream_api_url" "$SUNSHINE_USER" "$SUNSHINE_PASSWORD" "$SUNSHINE_PIN" "$PROXMOX_USER" "$PROXMOX_PASSWORD" "$PROXMOX_TOKEN" "$GUEST_USER" "$IDENTITY_LOCALE" "$IDENTITY_KEYMAP" "$DESKTOP_ID" "$DESKTOP_LABEL" "$DESKTOP_SESSION" "$(join_csv "${PACKAGE_PRESETS[@]}")" "$(join_csv "${EXTRA_PACKAGES[@]}")" <<'PY'
+    python3 - "$encoded_desc" "$guest_ip" "$stream_host" "$stream_port" "$stream_api_url" "$SUNSHINE_USER" "$SUNSHINE_PASSWORD" "$SUNSHINE_PIN" "$BEAGLE_USER" "$BEAGLE_PASSWORD" "$BEAGLE_TOKEN" "$GUEST_USER" "$IDENTITY_LOCALE" "$IDENTITY_KEYMAP" "$DESKTOP_ID" "$DESKTOP_LABEL" "$DESKTOP_SESSION" "$(join_csv "${PACKAGE_PRESETS[@]}")" "$(join_csv "${EXTRA_PACKAGES[@]}")" <<'PY'
 import base64
 import sys
 from urllib.parse import unquote
@@ -277,9 +277,9 @@ from urllib.parse import unquote
     sunshine_user,
     sunshine_password,
     sunshine_pin,
-    proxmox_user,
-    proxmox_password,
-    proxmox_token,
+    beagle_user,
+    beagle_password,
+    beagle_token,
     guest_user,
     identity_locale,
     identity_keymap,
@@ -297,9 +297,9 @@ skip = {
     "sunshine-user",
     "sunshine-password",
     "sunshine-pin",
-    "proxmox-user",
-    "proxmox-password",
-    "proxmox-token",
+    "beagle-user",
+    "beagle-password",
+    "beagle-token",
     "beagle-public-stream-host",
     "beagle-public-moonlight-port",
     "beagle-public-sunshine-api-url",
@@ -808,7 +808,7 @@ EOF
   if [[ "$VM_REBOOT" == "1" ]]; then
     reboot_current_vm
   fi
-  echo "Configured Sunshine guest VM $VMID on $PROXMOX_HOST (guest IP: ${guest_ip:-unknown})"
+  echo "Configured Sunshine guest VM $VMID on $BEAGLE_HOST (guest IP: ${guest_ip:-unknown})"
 }
 
 main "$@"

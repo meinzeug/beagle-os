@@ -212,12 +212,12 @@ systemctl is-active --quiet beagle-control-plane || {
 }
 
 for _ in $(seq 1 30); do
-  if curl -fsS "$BASE_URL/api/v1/health" >/dev/null 2>&1; then
+  if curl -fsS "$BASE_URL/api/v1/health" "${AUTH[@]}" >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
-if ! curl -fsS "$BASE_URL/api/v1/health" >/dev/null 2>&1; then
+if ! curl -fsS "$BASE_URL/api/v1/health" "${AUTH[@]}" >/dev/null 2>&1; then
   echo "[FAIL] beagle-control-plane did not become healthy after restart" >&2
   exit 1
 fi

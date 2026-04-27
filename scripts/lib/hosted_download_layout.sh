@@ -8,6 +8,10 @@ beagle_host_origin_url() {
   local server_name="$1"
   local listen_port="$2"
 
+  if [[ "$listen_port" == "443" || -z "$listen_port" ]]; then
+    printf 'https://%s\n' "$server_name"
+    return 0
+  fi
   printf 'https://%s:%s\n' "$server_name" "$listen_port"
 }
 

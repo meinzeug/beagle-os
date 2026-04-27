@@ -7,7 +7,7 @@ Beagle OS ist eine eigenstaendige Virtualisierungs- und Streaming-Plattform:
 - Compute + Storage + Network + IAM + HA + Backup + Operations in einer Plattform
 - Thinclient-Streaming pro VM als natives Kernmerkmal
 - Eigene Web Console und eigene Host Control Plane
-- Keine dauerhafte technische Abhaengigkeit von Proxmox
+- Keine dauerhafte technische Abhaengigkeit von Beagle host
 
 ## Nordstern
 Beagle OS soll funktional so maechtig sein wie etablierte Enterprise-Virtualisierungsplattformen, aber mit nativ integrierter Endpoint-/Streaming-Orchestrierung pro VM.
@@ -20,7 +20,7 @@ Beagle OS soll funktional so maechtig sein wie etablierte Enterprise-Virtualisie
 - thin-client-assistant/: Endpoint Runtime, Installer, USB
 - server-installer/: Bare-Metal Installer Build
 - beagle-os/: Endpoint OS Build
-- extension/ und proxmox-ui/: historische Integrationen, als Migrationsquellen
+- extension/ und beagle-ui/: historische Integrationen, als Migrationsquellen
 
 ## Zielplattform-Domaenen
 - Virtualization Runtime: VM lifecycle, templates, clone, snapshots, migration

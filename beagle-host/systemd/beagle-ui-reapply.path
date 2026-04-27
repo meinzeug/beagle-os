@@ -1,5 +1,5 @@
 [Unit]
-Description=Watch Proxmox UI files and reapply Beagle OS after updates
+Description=Watch Beagle UI files and reapply Beagle OS after updates
 
 [Path]
 PathChanged=/usr/share/pve-manager/index.html.tpl

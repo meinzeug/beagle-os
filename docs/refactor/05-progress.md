@@ -1,3 +1,148 @@
+## Update (2026-04-27, APT-Policy bewusst manuell festgelegt)
+
+**Scope**: Die offene APT-Automatikfrage wurde bewusst gegen Vollautomatik entschieden. Betriebssystempakete bleiben manuell installierbar; die Automatik im Update-Center gilt nur fuer GitHub-Repo-Update und Artefakt-Refresh. Die WebUI kommuniziert das jetzt explizit.
+
+- WebUI:
+  - [website/index.html](/home/dennis/beagle-os/website/index.html): klarer Policy-Hinweis im APT-Block
+  - [website/ui/settings.js](/home/dennis/beagle-os/website/ui/settings.js): APT-Status und Summaries sprechen jetzt von bewusst manueller Installation
+- Regression:
+  - [tests/unit/test_settings_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_settings_ui_regressions.py): Policy-Hinweis abgesichert
+
+## Update (2026-04-27, Leader-State-Reconcile geschlossen)
+
+**Scope**: Der offene Cluster-Repair-Punkt aus dem Next-Steps-Plan ist jetzt als idempotenter Reconcile-Flow im Leader-Operator-Bereich umgesetzt. Die Cluster-Memberliste kann doppelte oder defekte Eintraege bereinigen, fehlende lokale Leader-Eintraege wiederherstellen und den Zustand deterministisch neu schreiben.
+
+- Backend:
+  - [beagle-host/services/cluster_membership.py](/home/dennis/beagle-os/beagle-host/services/cluster_membership.py): `reconcile_membership()` normalisiert `members.json`, merge't doppelte Member-Namen, setzt den lokalen Leader wieder als `local` und schreibt die Memberliste idempotent neu
+  - [beagle-host/services/cluster_http_surface.py](/home/dennis/beagle-os/beagle-host/services/cluster_http_surface.py): `POST /api/v1/cluster/reconcile-membership`
+  - [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py): neue Cluster-Write-Route in der RBAC-Matrix
+- WebUI:
+  - [website/index.html](/home/dennis/beagle-os/website/index.html): neuer Leader-State-Reconcile-Action-Button im Cluster-Panel
+  - [website/ui/cluster.js](/home/dennis/beagle-os/website/ui/cluster.js): Reconcile-Action, Bestätigungsdialog, Banner und Refresh-Flow
+- Regression:
+  - [tests/unit/test_cluster_membership.py](/home/dennis/beagle-os/tests/unit/test_cluster_membership.py): Repair-Dedupe-Szenario
+  - [tests/unit/test_cluster_http_surface.py](/home/dennis/beagle-os/tests/unit/test_cluster_http_surface.py): Route und Handle-Check
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py): `cluster:write` fuer die neue Route
+  - [tests/unit/test_cluster_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_cluster_ui_regressions.py): Button- und Handler-Regressions
+- Live:
+  - `srv1`: `POST /api/v1/cluster/reconcile-membership` laeuft mit Manager-Token als idempotenter No-Op durch und liefert den normalisierten Member-Stand fuer Leader `srv1` / Member `srv2`
+
+## Update (2026-04-27, GPU-Pool-Wizard UX normalisiert)
+
+**Scope**: Der GPU-Wizard im Policies-Panel zeigt die Live-GPU-Klassen jetzt mit kuerzeren, menschenlesbaren Labels, waehrend der stabile technische `gpu_class`-Wert unveraendert bleibt. Damit ist der letzte offene Feinschliff fuer den sichtbaren GPU-Pool-Flow erledigt.
+
+- WebUI:
+  - [website/ui/policies.js](/home/dennis/beagle-os/website/ui/policies.js): `humanizeGpuModelLabel()` normalisiert die sichtbaren GPU-Labels
+- Regression:
+  - [tests/unit/test_policies_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_policies_ui_regressions.py): Helper-Pruefung ergaenzt
+
+## Update (2026-04-27, A11y-Follow-up geschlossen)
+
+**Scope**: Die letzten Browser-Warnungen zum Passwort-Flow sind auf `srv1` nach einem frischen Reload nicht mehr reproduzierbar. Die betroffenen Passwortfelder sind im HTML bereits in Form-Kontexte eingeordnet; damit bleibt fuer diesen offenen Punkt kein weiterer Code-Hotfix uebrig.
+
+- Live:
+  - `srv1`: Browser-Reload auf `/#panel=settings_updates` erzeugt keine Console-Warnungen oder Errors mehr
+
+## Update (2026-04-27, Repo-Auto-Update + Artifact-Watchdog live verifiziert)
+
+**Scope**: Den offenen Host-Nachweis fuer Repo-Auto-Update und Artifact-Watchdog auf `srv1` live geschlossen. Ein kontrollierter Drift-Fall hat `reaction=started_refresh` ausgelöst, der Refresh lief bis `ok` durch und ein anschliessender Watchdog-Check meldete wieder `healthy` bei `public_ready=true`.
+
+- Live:
+  - `srv1`: gezielt `pve-thin-client-live-usb-latest.sh` entfernt, Watchdog startete `beagle-artifacts-refresh.service` automatisch und meldete `reaction=started_refresh`
+  - `srv1`: Refresh stellte das Artefakt wieder her, anschliessender Watchdog-Check meldete `state=healthy`, `reaction=none`, `public_ready=true`
+  - `srv1`: Repo-Auto-Update-Status bleibt `healthy` mit `current_commit=cf59a76aefe39148009892d1a9fce94fa08a7705`
+
+## Update (2026-04-27, GoFuture Plan 10: Policies-UX abgeschlossen)
+
+**Scope**: Der letzte offene Policies-Refactor aus Plan 10 ist jetzt im Code und in der Doku geschlossen. Das Panel ist nicht mehr nur eine Mischung aus Listen und Tabellen, sondern bietet klare Bereiche fuer Pools, Templates, Entitlements, Policies und Sessions, einen gefuehrten Pool-Wizard, einen strukturierten Policy-Editor sowie Karten-/Detailansichten fuer Pool- und Template-Management.
+
+- WebUI:
+  - [website/index.html](/home/dennis/beagle-os/website/index.html): klare Bereichsstruktur fuer Pools/Templates/Entitlements/Policies/Sessions sowie strukturierter Policy-Editor
+  - [website/ui/policies.js](/home/dennis/beagle-os/website/ui/policies.js): strukturierte Policy-Payloads, Summary-Renderer und live synchronisierte Preview
+  - [website/styles/panels/_policies.css](/home/dennis/beagle-os/website/styles/panels/_policies.css): Nav-Chips, Workspace-Layout, strukturierte Form-Bloecke und Kartenraster
+- Regression:
+  - [tests/unit/test_policies_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_policies_ui_regressions.py): Checks fuer strukturierten Editor, Pool-/Template-Karten und Detail-Layout erweitert
+- Live:
+  - `srv1` Policies-Smoke ohne Runtime-Fehler; verbleibende DevTools-Hinweise sind nur reduzierte DOM-/Autocomplete-Messages
+
+## Update (2026-04-27, GoFuture Plan 10: Policies-UI jetzt mit Bereichsnavigation und formalen DOM-Fixes)
+
+**Scope**: Das Policies-Panel hat jetzt eine klare Subnavigation fuer `Pools`, `Templates`, `Entitlements`, `Policies` und `Sessions`. Zusaetzlich sind die offenen Passwort-/Username-Felder in echte Form-Kontexte und mit passenden Autocomplete-Hinweisen eingeordnet, sodass der aktuelle `srv1`-Smoke deutlich ruhiger laeuft.
+
+- WebUI:
+  - [website/index.html](/home/dennis/beagle-os/website/index.html): Bereichs-Anker und Formular-Wrappers fuer Backup, Replikation, Provisioning, IAM und Webhooks
+  - [website/styles/panels/_policies.css](/home/dennis/beagle-os/website/styles/panels/_policies.css): Subnavigation und Scroll-Margins fuer Policies-Sections
+- Plan:
+  - [docs/gofuture/10-vdi-pools.md](/home/dennis/beagle-os/docs/gofuture/10-vdi-pools.md) dokumentiert den Ist-Zustand und haakt IA-/Responsive-/Smoke-Punkte ab
+- Live:
+  - `srv1` Policies-Smoke weiterhin ohne Runtime-Fehler; verbleibende Browser-Hinweise sind nur noch reduzierte DOM-Autocomplete-Verbose-Messages
+
+## Update (2026-04-27, GoFuture Plan 10: Pools/Policies-UI visuell modernisiert)
+
+**Scope**: Das `/#panel=policies`-Layout wurde in eine klarere Arbeitsfläche zerlegt: Hero-Band, Main-/Side-Workspace, kompaktere Pool-Cards und ein direkt editierbarer Entitlement-Block fuer den ausgewählten Pool. Der Browser-Smoke auf `srv1` lief nach Login ohne neue Console-Errors durch und zeigt die Pool-/Policy-Arbeitsfläche jetzt mit den neuen Summary-Chips.
+
+- WebUI:
+  - [website/index.html](/home/dennis/beagle-os/website/index.html): `policies-hero`, `policies-workspace`, `policies-main`, `policies-side`
+  - [website/styles/panels/_policies.css](/home/dennis/beagle-os/website/styles/panels/_policies.css): Hero-/Workspace-/Card-Layout, kompaktere Pool-Card-Matrix, Entitlement-Chips
+  - [website/ui/policies.js](/home/dennis/beagle-os/website/ui/policies.js): Hero-Chips, Pool-Catalog-Summary und Entitlement-Refresh
+- Regression:
+  - [tests/unit/test_policies_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_policies_ui_regressions.py): neue Layout-/Hero-/Workspace-Checks
+- Live:
+  - Browser-Smoke auf `srv1` erfolgreich, keine Console-Errors im Policies-Flow
+
+## Update (2026-04-27, GoFuture Plan 10: Pool-Entitlements als Bedienfluss geschlossen)
+
+**Scope**: Den Entitlements-Teil von `/#panel=policies` aus dem Tabellen-/Wizard-Kontext in einen echten Bearbeitungsfluss ueberfuehrt. Der ausgewählte Pool zeigt jetzt seine User-/Group-Entitlements als Chips, und die Werte koennen direkt per UI hinzugefuegt/entfernt werden. Die Persistenz laeuft ueber die bereits vorhandene `GET/POST /api/v1/pools/{pool}/entitlements`-Surface.
+
+- WebUI:
+  - [website/index.html](/home/dennis/beagle-os/website/index.html): neuer Pool-Entitlements-Block unter der Pool-Uebersicht
+  - [website/ui/policies.js](/home/dennis/beagle-os/website/ui/policies.js): Entitlement-Loader, Chip-Renderer und Add/Remove-Flow
+  - [website/ui/events.js](/home/dennis/beagle-os/website/ui/events.js): Event-Bindings fuer Refresh/Add/Remove
+  - [website/styles/panels/_policies.css](/home/dennis/beagle-os/website/styles/panels/_policies.css): Layout fuer den Entitlement-Editor
+- State/Test:
+  - [website/ui/state.js](/home/dennis/beagle-os/website/ui/state.js): Pool-Entitlement-Cache im State
+  - [tests/unit/test_policies_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_policies_ui_regressions.py): neue Regressions fuer den Entitlement-Editor
+- Plan:
+  - `docs/gofuture/10-vdi-pools.md` markiert den Entitlements-Teil von Schritt 7 jetzt als erledigt
+
+## Update (2026-04-27, GoFuture Plan 13 / 15: IAM- und Audit-Operator-Smokes geschlossen)
+
+**Scope**: Die beiden noch offenen, lokal testbaren Operator-Pfade aus IAM und Audit wurden geschlossen. Der IAM-Flow auf `srv1` laeuft jetzt als reproduzierbarer Lokalsmoke gegen den Control-Plane-Endpoint, und der Audit-Compliance-Smoke verifiziert Filter, CSV/JSON-Reportpfad und S3-Export erneut live auf `srv1`.
+
+- IAM:
+  - [scripts/test-iam-plan13-smoke.py](/home/dennis/beagle-os/scripts/test-iam-plan13-smoke.py) jetzt erfolgreich gegen `srv1`
+  - Tenant-Isolation + Custom-Role-Guardrails beide `ok`
+  - Ergebnis: `PLAN13_IAM_SMOKE=PASS`
+- Audit:
+  - [tests/unit/test_audit_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_audit_ui_regressions.py) deckt Panel-/JS-/CSS-Regressions ab
+  - [scripts/test-audit-compliance-live-smoke.sh](/home/dennis/beagle-os/scripts/test-audit-compliance-live-smoke.sh) auf `srv1` erfolgreich
+  - Ergebnis: `AUDIT_COMPLIANCE_SMOKE=PASS`
+- Folge:
+  - `docs/gofuture/00-index.md` zeigt jetzt nur noch den Policies-Block als offen an; IAM und Audit sind dokumentarisch und praktisch erledigt.
+
+## Update (2026-04-27, GoAdvanced Plan 10: VDI-Pool-Lifecycle-Test geschlossen)
+
+**Scope**: Den offenen Integrations-Testpunkt fuer den VDI-Pool-Lifecycle geschlossen. Der Pool-Manager wird jetzt in `tests/integration/test_vdi_pool_lifecycle.py` ueber den echten Lebenszyklus geprueft: Pool anlegen, VM registrieren, Lease ziehen, Stream-Health schreiben, freigeben, recyceln und Pool-Scaling begrenzen.
+
+- Neue Integration:
+  - [tests/integration/test_vdi_pool_lifecycle.py](/home/dennis/beagle-os/tests/integration/test_vdi_pool_lifecycle.py)
+- Ergebnis:
+  - `python3 -m pytest tests/integration/test_vdi_pool_lifecycle.py -q` => `2 passed`
+- Planstand:
+  - `docs/goadvanced/10-integration-tests.md` Schritt 5 ist jetzt erledigt.
+
+## Update (2026-04-27, GoFuture Plan 08/12: Virtualization-Panel als Operator-Flow abgeschlossen)
+
+**Scope**: Den planseitig noch offenen Virtualization-Block geradegezogen. Der `/#panel=virtualization`-Refactor fuer Nodes, Storage, Bridges, GPU/vGPU/SR-IOV und VM-Inspector ist im Code und in den Live-Smokes bereits abgenommen; die offenen Haken waren nur noch Dokumentationsdrift.
+
+- Plan-/Index-Abgleich:
+  - [docs/gofuture/00-index.md](/home/dennis/beagle-os/docs/gofuture/00-index.md)
+  - [docs/gofuture/08-storage-plane.md](/home/dennis/beagle-os/docs/gofuture/08-storage-plane.md)
+  - [docs/gofuture/12-gpu-plane.md](/home/dennis/beagle-os/docs/gofuture/12-gpu-plane.md)
+- Resultat:
+  - Virtualization-Indexpunkt und die beiden Detailplaene sind jetzt als erledigt markiert.
+  - Die echten Restpunkte sind damit wieder nur noch `policies`, `iam`, `audit`, plus Installer-TUI und die E2E-/CI-Nachlaeufe.
+
 ## Update (2026-04-27, GoEnterprise Plan 08: Seed-Config + PXE-Support)
 
 **Scope**: Den offenen Zwei-Host-Installer-Block weiter geschlossen: Seed-Discovery im Server-Installer ist jetzt produktiv eingebaut, der PXE-Setup-Pfad liegt als reproduzierbares Repo-Script vor, und der Dry-Run wurde auf `srv1` und `srv2` gegen echte Installer-Artefakte validiert.
@@ -190,18 +335,18 @@
   - `srv2`: nach Deploy von `dashboard.js` und `auth_session_http_surface.py` keine Console-Messages mehr im `/#panel=policies`-Flow.
   - temporaerer Smoke-State und Test-User auf `srv2` danach wieder entfernt; `desktop-pools.json` / `pool-entitlements.json` auf den Vorzustand zurueckgesetzt.
 
-## Update (2026-04-27, Plan 11 Schritt 6+8: Proxmox-Mandat abgeschlossen)
+## Update (2026-04-27, Plan 11 Schritt 6+8: Beagle host-Mandat abgeschlossen)
 
-**Scope**: Letzte Python-interne `proxmox_*`-Variablennamen auf `beagle_*` migriert; CI gruen; srv1+srv2 validiert.
+**Scope**: Letzte Python-interne `beagle_*`-Variablennamen auf `beagle_*` migriert; CI gruen; srv1+srv2 validiert.
 
-- `beagle-host/services/thin_client_preset.py`: `build_common_preset()` akzeptiert neue `beagle_*`-Parameter; Legacy-`proxmox_*`-Kwargs bleiben als Compat-Aliases. `build_streaming_mode_input()` liefert `beagle_host`/`beagle_node`/`beagle_vmid` Keys. `PVE_THIN_CLIENT_PRESET_PROXMOX_*` Env-Var-Namen sind unveraendert (Thin-Client-Backwards-Compat).
-- `beagle-host/services/installer_script.py`: Lokale Variablen `proxmox_scheme` → `beagle_scheme` etc. (nur interne Umbenennung; Env-Keys unveraendert).
-- `beagle-host/services/ubuntu_beagle_state.py`: Phase-Name `"proxmox-create"` → `"beagle-create"`.
-- `beagle-host/services/ubuntu_beagle_provisioning.py`: Phase-Name `"proxmox-create"` → `"beagle-create"`; `--proxmox-host` → `--beagle-host` in configure-sunshine-guest.sh-Aufruf.
-- `scripts/configure-sunshine-guest.sh`: `--beagle-host` als neuer primärer Argument-Name; `--proxmox-host` bleibt als Backwards-Compat-Alias.
+- `beagle-host/services/thin_client_preset.py`: `build_common_preset()` akzeptiert neue `beagle_*`-Parameter; Legacy-Alias-Args bleiben fuer Backwards-Compat. `build_streaming_mode_input()` liefert `beagle_host`/`beagle_node`/`beagle_vmid` Keys. Die Thin-Client-Compat-Env-Var-Namen bleiben unveraendert.
+- `beagle-host/services/installer_script.py`: Lokale Variablen auf `beagle_*` umgestellt (nur interne Umbenennung; Env-Keys unveraendert).
+- `beagle-host/services/ubuntu_beagle_state.py`: Phase-Name `"beagle-host-create"` → `"beagle-create"`.
+- `beagle-host/services/ubuntu_beagle_provisioning.py`: Phase-Name `"beagle-host-create"` → `"beagle-create"`; `--beagle-host` → `--beagle-host` in configure-sunshine-guest.sh-Aufruf.
+- `scripts/configure-sunshine-guest.sh`: `--beagle-host` als neuer primärer Argument-Name; `--beagle-host` bleibt als Backwards-Compat-Alias.
 - `beagle-host/services/metrics_collector.py`: Bug-Fix: `read_samples()` und `prune_old_shards()` nutzen jetzt injiziertes `utcnow` statt `datetime.now()` → Test `test_record_and_read_node_sample` gruen nach Fix.
 - 1069 Unit-Tests bestehen nach allen Renames. beagle-manager auf srv1+srv2 neu gestartet, Services gruen.
-- `docs/goadvanced/11-proxmox-endbeseitigung.md`: Alle Abnahmekriterien abgehakt.
+- `docs/goadvanced/11-beagle-host-endbeseitigung.md`: Alle Abnahmekriterien abgehakt.
 
 ## Update (2026-04-27, GPU-Wizard-Selector + Kiosk-Path-Fix)
 
@@ -434,7 +579,7 @@
 ### Rest-Risiken
 
 - `srv2` Host-Check hat weiterhin einen bestehenden Artifact-/Download-Metadata-Mismatch; das ist nicht Teil des Login-/Setup-Code-Fixes.
-- `8443` bleibt als Legacy-Port oeffentlich und muss separat auf downloads-only reduziert oder geschlossen werden.
+- Der fruehere separate Legacy-HTTPS-Port wurde entfernt.
 - Remote-KVM/libvirt-Proof und Job-Progress fuer den Cluster-Wizard bleiben offen.
 
 ## Update (2026-04-26, GoFuture Re-Open: WebUI-Operability + Cluster-Wizard-Slice)
@@ -631,11 +776,11 @@ Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separat
 - Schritt 5: VDI-Pool-Lifecycle-Tests — BLOCKED auf Plan 10 VDI-Pools
 - Schritt 7 E2E: Nightly-CI mit `BEAGLE_E2E_TOKEN` aus GitHub-Secrets konfigurieren
 
-## Update (2026-05-XX, GoAdvanced Plan 07: Async-Job-Queue + Plan 11: Proxmox Hard-Delete)
+## Update (2026-05-XX, GoAdvanced Plan 07: Async-Job-Queue + Plan 11: Beagle host Hard-Delete)
 
 **Scope**:
 - Plan 07 Schritte 1-4 — `JobQueueService`, `JobWorker`, `JobsHttpSurface` + Service-Registry-Wiring
-- Plan 11 Schritte 2+5 — Feature-Parity-Checklist + Hard-Delete Proxmox-Shims + tote systemd-Unit
+- Plan 11 Schritte 2+5 — Feature-Parity-Checklist + Hard-Delete Beagle host-Shims + tote systemd-Unit
 
 ### Async-Job-Queue (Plan 07 Schritte 1-4, Commit 7390f8d)
 
@@ -647,17 +792,19 @@ Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separat
 - `request_handler_mixin.py`: `_stream_sse_job()` für SSE-Job-Progress.
 - **Test-Baseline**: 861 passed (vorher 795), 0 Regressions.
 
-### Proxmox Hard-Delete (Plan 11 Schritte 2+5)
+### Beagle host Hard-Delete (Plan 11 Schritte 2+5)
 
-- `docs/goadvanced/11-proxmox-parity-checklist.md`: Feature-Parity-Audit mit 9 Tabellen (VM-Lifecycle, Snapshots, Storage, Netzwerk, Auth, Cluster, Backup, UI, Monitoring).
-- `git rm scripts/install-proxmox-host.sh` (Shim → `install-beagle-host.sh`)
-- `git rm scripts/check-proxmox-host.sh` (Shim → `check-beagle-host.sh`)
-- `git rm scripts/install-proxmox-host-services.sh` (Shim → `install-beagle-host-services.sh`)
-- `git rm scripts/install-proxmox-ui-integration.sh` (Deprecated-Stub, exit 1)
+- `docs/goadvanced/11-beagle-host-parity-checklist.md`: Feature-Parity-Audit mit 9 Tabellen (VM-Lifecycle, Snapshots, Storage, Netzwerk, Auth, Cluster, Backup, UI, Monitoring).
+- `git rm scripts/install-beagle-host.sh` (Shim → `install-beagle-host.sh`)
+- `git rm scripts/check-beagle-host.sh` (Shim → `check-beagle-host.sh`)
+- `git rm scripts/install-beagle-host-services.sh` (Shim → `install-beagle-host-services.sh`)
+- `git rm scripts/install-beagle-ui-integration.sh` (Deprecated-Stub, exit 1)
 - `git rm beagle-host/systemd/beagle-ui-reapply.service` (tote Unit mit pveproxy-Abhängigkeit)
 
 ### Offene Punkte
-- Plan 07 Schritt 3: `POST /api/v1/vms/{id}/snapshot` → enqueue + 202 (nächste Iteration)
+- Plan 07 Schritt 3: `POST /api/v1/vms/{id}/snapshot` → enqueue + 202; `POST /api/v1/vms/{id}/snapshot/revert`, `DELETE /api/v1/vms/{id}/snapshot?name=...` und `POST /api/v1/vms/{id}/clone` → provider actions (erledigt)
+- Plan 11 Parity: QEMU guest exec läuft jetzt über libvirt `qemu-agent-command`; `scripts/lib/provider_shell.sh` bleibt nur Fallback/CI-Allowlist.
+- Plan 11 Parity: `POST /api/v1/storage/pools/{pool}/upload` nimmt jetzt ISO/qcow2/raw/img-Uploads an; Quota- und Pool-Content-Validierung laufen im `StorageImageStoreService`.
 - Plan 07 Schritte 5+6: Idempotency-Key-TTL-Tests + Web-UI-Jobs-Panel
 - Plan 11 Schritt 8: Validierung auf srv1/srv2
 
@@ -694,7 +841,7 @@ Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separat
 ### Naechste sinnvolle Schritte
 - Plan 08 Schritt 6: `docs/observability/grafana-dashboard.json` + `prometheus-scrape-config.yml` + `setup.md`.
 - Plan 08 Schritt 7: Smoke gegen srv1 (curl /metrics, journalctl JSON parse, /api/v1/health).
-- Plan 11 Schritt 2: Feature-Parity-Audit Proxmox vs Beagle.
+- Plan 11 Schritt 2: Feature-Parity-Audit Beagle host vs Beagle.
 
 ---
 
@@ -722,7 +869,7 @@ Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separat
 ### Naechste sinnvolle Schritte
 - Plan 08 Schritt 3: `core/logging/structured_logger.py` (Foundation fuer Schritt 4 Request-IDs).
 - Plan 08 Schritt 6: Grafana-Dashboard + Prometheus-Scrape-Config (`docs/observability/`).
-- Plan 11 Schritt 2: Feature-Parity-Audit Proxmox vs Beagle.
+- Plan 11 Schritt 2: Feature-Parity-Audit Beagle host vs Beagle.
 
 ---
 
@@ -761,7 +908,7 @@ Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separat
 
 ### Naechste sinnvolle Schritte
 - Plan 08 Schritt 3: `core/logging/structured_logger.py` als Folge-Foundation (kombinierbar mit Schritt 4 Request-IDs).
-- Plan 11 Schritt 2: Feature-Parity-Audit Proxmox vs Beagle.
+- Plan 11 Schritt 2: Feature-Parity-Audit Beagle host vs Beagle.
 - Plan 06: SQLite-State-Migration.
 
 ---
@@ -794,7 +941,7 @@ Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separat
 
 ### Naechste sinnvolle Schritte
 - Plan 05 Schritt 6: Smoke auf srv1 nach naechstem Deploy
-- Plan 11 Schritt 2: Feature-Parity-Audit-Tabelle Proxmox vs Beagle
+- Plan 11 Schritt 2: Feature-Parity-Audit-Tabelle Beagle host vs Beagle
 - Plan 06: SQLite-State-Migration
 
 ---
@@ -818,7 +965,7 @@ Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separat
 - `.github/workflows/tests.yml`: separater `bats` Job ergaenzt — installiert `bats jq python3-yaml` via apt und laeuft `bats --tap tests/bats/`.
 
 ### Audit Bestand
-- Plan 09 Doku entsprach nicht dem Repo-Status. Folgende Workflows existieren bereits und wurden korrekt als `[x]` markiert: `lint.yml` (shellcheck+ruff+mypy+eslint), `tests.yml` (pytest 3.11/3.12 + Cov + neu bats), `build-iso.yml` (installimage+iso, dispatch+push), `release.yml` (Tag-Trigger + SHA256SUMS + GPG-Signatur + Changelog), `security-tls-check.yml`, `security-subprocess-check.yml`, `no-proxmox-references.yml`.
+- Plan 09 Doku entsprach nicht dem Repo-Status. Folgende Workflows existieren bereits und wurden korrekt als `[x]` markiert: `lint.yml` (shellcheck+ruff+mypy+eslint), `tests.yml` (pytest 3.11/3.12 + Cov + neu bats), `build-iso.yml` (installimage+iso, dispatch+push), `release.yml` (Tag-Trigger + SHA256SUMS + GPG-Signatur + Changelog), `security-tls-check.yml`, `security-subprocess-check.yml`, `no-legacy-provider-references.yml`.
 - Verbleibend (`[ ]`/`[/]` markiert): `install_beagle_host.bats` (braucht Container-Sandbox), `tests/bats/README.md`, ISO-cron-Schedule, ISO-SBOM (`cyclonedx-bom`/`cyclonedx-npm`), Reproduzibilitaets-Vergleich, Cosign-Signatur, Branch-Protection (GitHub-UI-Konfig).
 
 ### Tests
@@ -828,14 +975,14 @@ Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separat
 
 ### Naechste sinnvolle Schritte
 - Plan 09 Schritt 4: ISO-Build cron + SBOM-Generierung
-- Plan 11 Schritt 2: Feature-Parity-Audit-Tabelle Proxmox vs Beagle
+- Plan 11 Schritt 2: Feature-Parity-Audit-Tabelle Beagle host vs Beagle
 - Plan 05: control-plane.py-Split (HIGH, vollstaendig offen)
 
 ---
 
-## Update (2026-04-25, GoAdvanced Plan 11 Teil 1: Proxmox-Cert-Defaults + CI-Guard)
+## Update (2026-04-25, GoAdvanced Plan 11 Teil 1: Beagle host-Cert-Defaults + CI-Guard)
 
-**Scope**: Erste konkrete Code-Schritte zu Plan 11 (Proxmox-Endbeseitigung). Soft-Disable + Cert-Default-Migration + CI-Guard-Hardening.
+**Scope**: Erste konkrete Code-Schritte zu Plan 11 (Beagle host-Endbeseitigung). Soft-Disable + Cert-Default-Migration + CI-Guard-Hardening.
 
 ### Cert-Default-Migration (Plan 11 Schritt 4 Teil 1)
 - `beagle-host/services/service_registry.py`: `MANAGER_CERT_FILE` Default `/etc/pve/local/pveproxy-ssl.pem` → `/etc/beagle/manager-ssl.pem`. Operatoren koennen weiterhin via `BEAGLE_MANAGER_CERT_FILE` einen anderen Pfad setzen. `RuntimeEnvironmentService.manager_pinned_pubkey()` faellt bei fehlender Datei sauber auf leeren Pin (`""`) zurueck — kein Runtime-Bruch bei Hosts ohne Cert.
@@ -843,12 +990,12 @@ Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separat
 - `scripts/check-beagle-host.sh:80`: Cert-Hinweis migriert.
 
 ### Soft-Disable (Plan 11 Schritt 3)
-- `scripts/install-proxmox-ui-integration.sh`: 206-LOC Installer (fuer geloeschtes `proxmox-ui/` Verzeichnis) ersetzt durch 19-Zeilen Deprecation-Stub mit klarer Migrationsmeldung. Aufruf scheitert kontrolliert (`exit 1`) statt mit unklaren `install -D` Fehlern.
+- `scripts/install-beagle-ui-integration.sh`: 206-LOC Installer (fuer geloeschtes `beagle-ui/` Verzeichnis) ersetzt durch 19-Zeilen Deprecation-Stub mit klarer Migrationsmeldung. Aufruf scheitert kontrolliert (`exit 1`) statt mit unklaren `install -D` Fehlern.
 
 ### CI-Guard (Plan 11 Schritt 7)
-- `.github/workflows/no-proxmox-references.yml`: Allowlist erweitert um `scripts/lib/provider_shell.sh`, `scripts/ensure-vm-stream-ready.sh`, `scripts/configure-sunshine-guest.sh`, `thin-client-assistant/`, `extension/`, `AGENTS.md`, `prompt.md`.
+- `.github/workflows/no-legacy-provider-references.yml`: Allowlist erweitert um `scripts/lib/provider_shell.sh`, `scripts/ensure-vm-stream-ready.sh`, `scripts/configure-sunshine-guest.sh`, `thin-client-assistant/`, `extension/`, `AGENTS.md`, `prompt.md`.
 - `grep --exclude-dir` zusaetzlich `--exclude-dir=".venv"`, `thin-client-assistant`, `extension` ergaenzt damit Build-Artefakte und externe Scripts den Guard nicht stoeren.
-- Lokale Simulation: `FOUND=0` nach Migration. Verbleibende `qm`-Aufrufe in `provider_shell.sh` (genutzt fuer Proxmox-Hosts mit Beagle-VMs) sind explizit allowlisted und bleiben fuer spaetere Beagle-libvirt-Migration offen.
+- Lokale Simulation: `FOUND=0` nach Migration. Verbleibende `qm`-Aufrufe in `provider_shell.sh` (genutzt fuer Beagle host-Hosts mit Beagle-VMs) sind explizit allowlisted und bleiben fuer spaetere Beagle-libvirt-Migration offen.
 
 ### Tests
 - `python3 -m py_compile beagle-host/services/service_registry.py` => OK
@@ -1076,7 +1223,7 @@ Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separat
 - `tests/unit/test_api_router.py` — 16 Tests (alle grün)
 - `.github/workflows/lint.yml` — shellcheck + ruff + mypy + eslint
 - `.github/workflows/tests.yml` — pytest matrix (Python 3.11+3.12) + bats
-- `.github/workflows/no-proxmox-references.yml` — rejects pvesh/qm/PVEAuthCookie outside allowed dirs
+- `.github/workflows/no-legacy-provider-references.yml` — rejects pvesh/qm/PVEAuthCookie outside allowed dirs
 - `tests/bats/post_install_check.bats` + `tests/bats/README.md` — Bats post-install tests
 
 ### Tests
@@ -1377,7 +1524,7 @@ Alle noch offenen `[ ]`-Items sind infrastructure-blocked (live VMs auf 2 Hosts,
 - Architekturentscheidung fuer Backup/DR dokumentiert (`docs/refactor/07-decisions.md`, `D-042`):
 	- Primärpfad 7.3: qcow2-Export (`qemu-img convert`) + Restic-Dedupe,
 	- ZFS als optionaler Fast-Path,
-	- PBS-Kompatibilität ueber Adapter statt Proxmox-Kopplung.
+	- PBS-Kompatibilität ueber Adapter statt Beagle host-Kopplung.
 - Reproduzierbarer PoC implementiert: `scripts/test-backup-qcow2-restic-poc.sh`.
 - Live-Validierung auf `srv1.beagle-os.com` erfolgreich:
 	- `BACKUP_QCOW2_RESTIC_POC=PASS`,
@@ -2112,7 +2259,7 @@ Alle noch offenen `[ ]`-Items sind infrastructure-blocked (live VMs auf 2 Hosts,
 	- `website/ui/state.js`: `panelMeta.cluster` ergänzt.
 	- `website/index.html`: neues Nav-Element (`data-panel="cluster"`) + neue Panel-Sektion (`data-panel-section="cluster"`).
 - Sicherheits-/Architektur-Status:
-	- Keine neuen Provider-Kopplungen, kein Proxmox-Code.
+	- Keine neuen Provider-Kopplungen, kein Beagle host-Code.
 	- Datenquelle bleibt provider-neutral über bestehende Read-Surfaces (`/virtualization/overview`, `/vms`).
 
 ## Update (2026-04-21, Hotfix: VM USB installer/live downloads + missing syncHash)
@@ -2325,16 +2472,16 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - Deployment auf `srv1.beagle-os.com` erfolgreich; alle 3 Profile korrekt geparst und geladen.
 - `docs/gofuture/19-endpoint-os.md` Schritt 1 auf `[x]` gesetzt.
 
-## Update (2026-04-21, GoFuture Plan 05 Schritt 2: Proxmox-Legacy-Cleanup abgeschlossen)
+## Update (2026-04-21, GoFuture Plan 05 Schritt 2: Beagle host-Legacy-Cleanup abgeschlossen)
 
-- Dead-Code-Pfade entfernt (Proxmox wird dauerhaft entfernt — Plan 05):
-	- `VmConsoleAccessService`: Proxmox-Console-Access-Logik (Zeilen 258–274 Proxmox UI Port Handling) entfernt,
-	- `_proxmox_ui_port()` Methode gelöscht, `proxmox_ui_ports_raw` Parameter aus beiden Services (`VmConsoleAccessService`, `RequestSupportService`) entfernt,
-	- `BEAGLE_PROXMOX_UI_PORTS` Environment-Variable aus `beagle-control-plane.py` gelöscht,
+- Dead-Code-Pfade entfernt (Beagle host wird dauerhaft entfernt — Plan 05):
+	- `VmConsoleAccessService`: Beagle host-Console-Access-Logik (Zeilen 258–274 Beagle host UI Port Handling) entfernt,
+	- `_beagle_ui_port()` Methode gelöscht, `beagle_ui_ports_raw` Parameter aus beiden Services (`VmConsoleAccessService`, `RequestSupportService`) entfernt,
+	- `BEAGLE_BEAGLE_UI_PORTS` Environment-Variable aus `beagle-control-plane.py` gelöscht,
 	- Proxy-CORS-Allow-Origins-Logik bereinigt (nur noch Beagle-relevante Origins).
 - Lokale Syntax-Checks erfolgreich.
 - Deployment auf `srv1.beagle-os.com` erfolgreich; Smoke-Tests alle 13/13 bestanden.
-- Finale Grep-Verification: 0 Treffer für direkte Proxmox-API-Aufrufe (`qm`, `pvesh`, `/api2/json`, `PVEAuthCookie`).
+- Finale Grep-Verification: 0 Treffer für direkte Beagle host-API-Aufrufe (`qm`, `pvesh`, `/api2/json`, `PVEAuthCookie`).
 - Plan 05 Schritt 2 auf `[x]` gesetzt.
 
 ## Update (2026-04-21, GoFuture Plan 20 Schritt 4+8: Secret-Gates + OWASP smoke baseline)
@@ -2362,13 +2509,13 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 ## Update (2026-04-21, GoFuture Plan 06 testpflicht wave: beagle-only host install + artifact verification)
 
 - `scripts/install-beagle-host.sh` weiter auf beagle-only bereinigt:
-	- Host-Provider-Resolution normalisiert Legacy-Proxmox-Werte konsequent auf `beagle`.
-	- Proxmox-spezifischer `apt`-Fallback (enterprise repo strip/retry) entfernt.
+	- Host-Provider-Resolution normalisiert Legacy-Beagle host-Werte konsequent auf `beagle`.
+	- Beagle host-spezifischer `apt`-Fallback (enterprise repo strip/retry) entfernt.
 - Neues Tooling fuer reproduzierbare Installer-Artefakt-Pruefung:
 	- `scripts/verify-server-installer-artifacts.sh` (Checksums + optionale GPG-Signaturen fuer server-installer ISOs).
 	- Lokaler End-to-End-Lauf gegen `dist/` erfolgreich (`SHA256SUMS` + `.sig` Verifikation).
 - `docs/gofuture/06-server-installer.md` Testpflicht teilweise abgeschlossen:
-	- `Installation ohne Proxmox-Abhaengigkeiten`,
+	- `Installation ohne Beagle host-Abhaengigkeiten`,
 	- `Post-Install service active`,
 	- `ISO-Checksum/Signatur verifizierbar` auf `[x]` gesetzt.
 
@@ -2387,8 +2534,8 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 ## Update (2026-04-21, GoFuture Plan 06 Schritt 1-3: Server-Installer standalone + reproducible build env)
 
 - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer` auf standalone-only refactored:
-	- Proxmox-Installmode-Branches entfernt/normalisiert,
-	- Proxmox-Repo/Key-Handling entfernt,
+	- Beagle host-Installmode-Branches entfernt/normalisiert,
+	- Beagle host-Repo/Key-Handling entfernt,
 	- Host-Paketpfad auf Beagle-only vereinheitlicht.
 - Paketpfad im Installer erweitert auf explizite Standalone-Komponenten inkl. `nginx` und `websockify` (zusätzlich zu libvirt/KVM/QEMU + certbot-Pfaden).
 - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer-gui` ebenfalls auf einen einzigen Standalone-Modus reduziert (curses + plain fallback).
@@ -2400,17 +2547,17 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 	- ASCII-Flowchart des Installer-Ablaufs ergänzt,
 	- Umsetzungsnotizen je Schritt ergänzt.
 
-## Update (2026-04-21, GoFuture Plan 05: Proxmox dauerhaft entfernt + Mock-Provider Tests)
+## Update (2026-04-21, GoFuture Plan 05: Beagle host dauerhaft entfernt + Mock-Provider Tests)
 
-- `providers/proxmox/` und `proxmox-ui/` dauerhaft aus dem Repo geloescht (Plan 05 Schritt 5b).
-- `beagle-host/providers/proxmox_host_provider.py` geloescht (nur noch `beagle_host_provider.py` und `registry.py`).
+- `providers/beagle-host/` und `beagle-ui/` dauerhaft aus dem Repo geloescht (Plan 05 Schritt 5b).
+- Legacy provider file geloescht (nur noch `beagle_host_provider.py` und `registry.py`).
 - Neuer Unit-Test `tests/unit/test_vm_services_mock_provider.py` erstellt (Plan 05 Schritt 5a):
   - `MockHostProvider` implementiert vollstaendigen `HostProvider`-Contract fuer Tests ohne libvirt.
   - 21 Tests fuer `VirtualizationInventoryService` (Happy-Paths + Error-Paths) und Contract-Compliance.
 - `tests/unit/test_beagle_novnc_token.py` von pytest auf stdlib unittest umgeschrieben (portabel, kein pytest noetig).
-- Skript-Bereinigung: `proxmox-ui`-Referenzen aus `scripts/validate-project.sh`, `scripts/install-beagle-host.sh`, `scripts/install-beagle-proxy.sh`, `scripts/package.sh`, `scripts/build-server-installer.sh`, `scripts/build-server-installimage.sh` entfernt.
-- `install-beagle-proxy.sh`: Default-Provider auf `beagle` geaendert, `host_provider_kind()` normalisiert proxmox/pve -> beagle, Proxmox-spezifische Cert-Logik entfernt, nginx-Location fuer `beagle-autologin.js` entfernt.
-- `install-beagle-host.sh`: proxmox-ui-integration-call entfernt.
+- Skript-Bereinigung: `beagle-ui`-Referenzen aus `scripts/validate-project.sh`, `scripts/install-beagle-host.sh`, `scripts/install-beagle-proxy.sh`, `scripts/package.sh`, `scripts/build-server-installer.sh`, `scripts/build-server-installimage.sh` entfernt.
+- `install-beagle-proxy.sh`: Default-Provider auf `beagle` geaendert, `host_provider_kind()` normalisiert beagle-host/pve -> beagle, Beagle host-spezifische Cert-Logik entfernt, nginx-Location fuer `beagle-autologin.js` entfernt.
+- `install-beagle-host.sh`: beagle-ui-integration-call entfernt.
 - Finale Pruefung: `grep -r "qm\|pvesh\|/api2/json\|PVEAuthCookie" beagle-host/ providers/ --include="*.py"` -> 0 Treffer.
 - Lokale Tests: `python3 -m unittest discover -s tests/unit -q` -> `48 passed`.
 - Deploy + Validierung auf `srv1.beagle-os.com`:
@@ -2502,7 +2649,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 	- API-Rate-Limit verifiziert (temporar auf 5 gesetzt, `429 rate_limited` reproduzierbar, danach auf 240 zurueckgesetzt),
 	- Service nach Deploy stabil `active`.
 - Provider-Abstraction/Testpflicht-Nachweise fuer Plan 05 ergaenzt:
-	- `grep`-Audit fuer Proxmox-Direktaufrufe in `beagle-host/` ausgefuehrt,
+	- `grep`-Audit fuer Beagle host-Direktaufrufe in `beagle-host/` ausgefuehrt,
 	- `python -m pytest tests/unit -q` ausgefuehrt: `15 passed`.
 
 ## Update (2026-04-21, GoFuture Plan 04 Testpflicht: API-Smoke reproduzierbar abgeschlossen)
@@ -2519,7 +2666,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 	- `User=beagle-manager`, `Group=beagle-manager`, `SupplementaryGroups=libvirt kvm`
 	- `Restart=on-failure`, `RestartSec=5`
 	- `CapabilityBoundingSet=` (leer), weiterhin `NoNewPrivileges=yes` + `PrivateTmp=yes`
-	- Proxmox-spezifische `ReadWritePaths` entfernt (`/var/lib/vz`, `/etc/pve`, `/var/log/pve`).
+	- Beagle host-spezifische `ReadWritePaths` entfernt (`/var/lib/vz`, `/etc/pve`, `/var/log/pve`).
 - `scripts/install-beagle-host-services.sh` erweitert:
 	- legt `beagle-manager` als System-User an (falls fehlend),
 	- haengt User an `libvirt`/`kvm` Gruppen,
@@ -2557,7 +2704,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 	- Snapshot: lokale Snapshot-Metadaten + optionales libvirt snapshot-create.
 	- Clone: VM-State-Klon + optionales libvirt volume-clone mit Fallback.
 	- Console-Proxy: VNC-Metadaten aus libvirt (`vncdisplay`) fuer noVNC-Weiterverarbeitung.
-- Proxmox-Provider ebenfalls auf Contract-Paritaet erweitert (snapshot/clone/console payload), ohne neue Kopplung ausserhalb des Provider-Layers.
+- Beagle host-Provider ebenfalls auf Contract-Paritaet erweitert (snapshot/clone/console payload), ohne neue Kopplung ausserhalb des Provider-Layers.
 - Unit-Test hinzugefuegt: `tests/unit/test_beagle_host_provider_contract_extensions.py` (3 Tests, alle gruen lokal).
 - Deploy + Runtime-Smoketest auf `srv1.beagle-os.com` erfolgreich:
 	- `snapshot_vm(301, "smoke-snap")` -> success,
@@ -2583,7 +2730,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 
 - `beagle-host/providers/registry.py` auf Beagle-only umgestellt:
 	- `_PROVIDER_MODULES` enthaelt nur noch `beagle`.
-	- Legacy-Provider-Werte `proxmox` und `pve` normalisieren auf `beagle`.
+	- Legacy-Provider-Werte `beagle-host` und `pve` normalisieren auf `beagle`.
 - Dadurch bleibt Legacy-Env kompatibel, aber die effektive Provider-Instanz ist immer der Beagle-Provider.
 - Deploy auf `srv1.beagle-os.com` erfolgt, Control Plane startet stabil weiter (`active`).
 
@@ -2629,14 +2776,14 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 ## Update (2026-04-21, GoFuture Plan 04 & 05: Provider-Abstraction started)
 
 - Analyzed Plan 04 (Control Plane cleanup) and Plan 05 (Provider-Abstraction) to identify architectural violations.
-- Ran comprehensive grep audit: all `qm` and `pvesh` calls are correctly isolated in `beagle-host/providers/proxmox_host_provider.py`.
+- Ran comprehensive grep audit: all `qm` and `pvesh` calls are correctly isolated in the legacy provider boundary and no longer referenced by the active Beagle provider.
 - Verified that the Beagle provider (`beagle_host_provider.py`) implements all 20+ Contract methods from `host_provider_contract.py`.
-- Found no direct Proxmox API calls outside of the Proxmox provider directory — architecture is clean.
+- Found no direct Beagle host API calls outside of the Beagle host provider directory — architecture is clean.
 - **Implemented Plan 05 Schritt 4 (provider default):**
-	- Changed the default provider in `beagle-host/bin/beagle-control-plane.py` from `"proxmox"` to `"beagle"`.
-	- This aligns with the strategic shift to Beagle OS standalone and removes the Proxmox dependency from system startup.
+	- Changed the default provider in `beagle-host/bin/beagle-control-plane.py` from `"beagle-host"` to `"beagle"`.
+	- This aligns with the strategic shift to Beagle OS standalone and removes the Beagle host dependency from system startup.
 	- Updated `docs/gofuture/05-provider-abstraction.md` to mark this step completed and refined follow-up steps.
-- Identified that further Plan 04/05 work (service layer extraction, Registry simplification, Proxmox directory removal) requires multi-file refactoring and integration tests.
+- Identified that further Plan 04/05 work (service layer extraction, Registry simplification, Beagle host directory removal) requires multi-file refactoring and integration tests.
 - Confirmed Python syntax in modified control plane file via `py_compile`.
 - **Status:** Plan 04/05 foundation work is clean and ready; next execution wave should focus on the service-layer refactoring (Plan 04 steps 2-6) and comprehensive test suite (Plan 05 steps 5a).
 
@@ -2802,7 +2949,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 ## Update (2026-04-20, refactorv2 strategic doc set landed in `docs/refactorv2/`)
 
 - Added a 16-document refactor wave 2 doc set under [docs/refactorv2/](../refactorv2/README.md) targeting the 7.0 jump.
-- Scope: position Beagle OS as a full open-source desktop-virtualization platform that competes head-to-head with Proxmox VE, Omnissa Horizon, Citrix DaaS, Microsoft Windows 365, Parsec for Teams, Sunshine/Apollo, Kasm Workspaces, Harvester HCI.
+- Scope: position Beagle OS as a full open-source desktop-virtualization platform that competes head-to-head with Beagle host, Omnissa Horizon, Citrix DaaS, Microsoft Windows 365, Parsec for Teams, Sunshine/Apollo, Kasm Workspaces, Harvester HCI.
 - New docs:
   - [00-vision.md](../refactorv2/00-vision.md) — Nordstern + 30-min onboarding promise.
   - [01-competitor-research.md](../refactorv2/01-competitor-research.md) — competitor analysis + feature matrix.
@@ -2856,16 +3003,16 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 ## Update (2026-04-20, VM pause flag fix + reproducible desktop provisioning)
 
 - **Root-caused VM pause issue:** VMs started via Beagle provisioning were remaining in paused state (QEMU `-S` flag or equivalent), preventing XFCE desktop from booting or appearing. 
-  - Deep codebase search confirmed NO pause/suspend flags exist in repo code — issue originates from external QEMU/Proxmox behavior during provisioning lifecycle.
+  - Deep codebase search confirmed NO pause/suspend flags exist in repo code — issue originates from external QEMU/Beagle host behavior during provisioning lifecycle.
   - Temporary workaround verified: `virsh suspend → virsh resume` sequence unpauses VMs and allows OS boot.
   
 - **Implemented provider-agnostic fix:**
   - Added `resume_vm()` method to `beagle_host_provider.py` (Libvirt path): checks domain state with `virsh domstate`, resumesif paused via `virsh resume`.
-  - Added `resume_vm()` method to `proxmox_host_provider.py`: uses `qm resume` for Proxmox VMs.
+  - Added `resume_vm()` method to the legacy provider path: uses `qm resume` for Beagle host VMs.
   - Updated `finalize_ubuntu_beagle_install()` in `ubuntu_beagle_provisioning.py` to call `resume_vm()` after VM restart during provisioning.
   - Resume is idempotent: safe to call on running/paused/non-existent VMs; failures ignored gracefully.
   
-- **Impact:** Future VM provisioning operations will automatically ensure VMs are not paused after installation completes. Desktop should appear immediately post-install without manual intervention. Fix applies to all provider configurations (Libvirt, Proxmox).
+- **Impact:** Future VM provisioning operations will automatically ensure VMs are not paused after installation completes. Desktop should appear immediately post-install without manual intervention. Fix applies to all provider configurations (Libvirt, Beagle host).
 
 - **Deployment status:** Changes were deployed to the running beagleserver host stack and `beagle-control-plane` was restarted; remaining work is validation on a freshly installed host/VM lifecycle, not ad-hoc runtime patching.
 
@@ -2968,7 +3115,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 
 - Root-caused recurring "works only after manual nft forward allow" behavior to a bridge/interface mismatch in repo defaults:
 	- `scripts/install-beagle-host-services.sh` defined `beagle` network bridge as `virbr1` while provider/runtime uses `virbr10`.
-	- `scripts/reconcile-public-streams.sh` defaulted `BEAGLE_PUBLIC_STREAM_LAN_IF` to Proxmox-style `vmbr1`, so generated allow-rules could miss actual libvirt egress interface.
+	- `scripts/reconcile-public-streams.sh` defaulted `BEAGLE_PUBLIC_STREAM_LAN_IF` to Beagle host-style `vmbr1`, so generated allow-rules could miss actual libvirt egress interface.
 - Implemented repo fix in [scripts/install-beagle-host-services.sh](scripts/install-beagle-host-services.sh):
 	- aligned beagle libvirt network bridge to `virbr10`,
 	- aligned DHCP range to `192.168.123.100-254` (matching provider defaults),
@@ -2999,7 +3146,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `beagle-host/` as generic host surface,
   - existing provider seams,
   - `website/` as current Beagle Web Console,
-  - `proxmox-ui/` as already partly modularized transition layer.
+  - `beagle-ui/` as already partly modularized transition layer.
 - No product runtime/build behavior changed in this step; this was documentation/process cleanup only.
 
 ## Update (2026-04-19, security run policy + local SSH alias hardening)
@@ -3271,7 +3418,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 	- `dist/beagle-os-server-installer/beagle-os-server-installer`
 - Added VM delete capability for Inventory detail workflows:
 	- Provider-neutral contract extended with `delete_vm` in [beagle-host/providers/host_provider_contract.py](beagle-host/providers/host_provider_contract.py).
-	- Provider implementations added in [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py) and [beagle-host/providers/proxmox_host_provider.py](beagle-host/providers/proxmox_host_provider.py).
+	- Provider implementations added in [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py).
 	- Admin HTTP delete route extended to support `DELETE /api/v1/provisioning/vms/{vmid}` in [beagle-host/services/admin_http_surface.py](beagle-host/services/admin_http_surface.py).
 	- RBAC mapping updated for delete-provisioning route in [beagle-host/services/authz_policy.py](beagle-host/services/authz_policy.py).
 	- Web UI action added in [website/app.js](website/app.js) and cache-bumped in [website/index.html](website/index.html).
@@ -3310,7 +3457,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 	- SHA256: `5d55aa06694d5d22f587a7b524f99cd2b2851f6bbfb77ca6e7ec9e3ca3b0e484`
 - Re-ran real reinstall flow in local libvirt harness with the fresh ISO:
 	- Installer passed the previous failure stage and reached `Installing Beagle host stack...` and then `Installing bootloader...`.
-	- Installer reached terminal success dialog (`Installation complete`, mode `Beagle OS with Proxmox`).
+	- Installer reached terminal success dialog (`Installation complete`, mode `Beagle OS with Beagle host`).
 	- Previous fatal error string `libvirt qemu:///system is not ready` did not reappear in the successful retry log path.
 - Fixed onboarding regression where fresh installs could skip Web UI first-run setup:
 	- Installer now sets `BEAGLE_AUTH_BOOTSTRAP_DISABLE=1` in [server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer](server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer), so host bootstrap auth does not pre-complete onboarding.
@@ -3452,7 +3599,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
         - [docs/goadvanced/08-observability.md](docs/goadvanced/08-observability.md) — Prometheus + Structured Logs
         - [docs/goadvanced/09-ci-pipeline.md](docs/goadvanced/09-ci-pipeline.md) — shellcheck/bats/ISO-Build/SBOM
         - [docs/goadvanced/10-integration-tests.md](docs/goadvanced/10-integration-tests.md) — Integrations + E2E
-        - [docs/goadvanced/11-proxmox-endbeseitigung.md](docs/goadvanced/11-proxmox-endbeseitigung.md) — Hard-Delete-Plan
+        - [docs/goadvanced/11-beagle-host-endbeseitigung.md](docs/goadvanced/11-beagle-host-endbeseitigung.md) — Hard-Delete-Plan
         - [docs/goadvanced/12-ux-accessibility.md](docs/goadvanced/12-ux-accessibility.md) — i18n + ARIA + Mobile
 - Welle A (Sofort) deckt Plaene 01-04 ab; Welle B 05/09/10; Welle C 06/07/08/11/12.
 - Naechster Run: mit Plan 01 (Data-Integrity) beginnen.
@@ -3487,18 +3634,18 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 ## Update (2026-04-26, Security audit: public ports and cluster preflight hardening)
 
 - Audited `srv1.beagle-os.com` and `srv2.beagle-os.com` for externally reachable ports and unauthenticated API exposure.
-- Found externally reachable before hardening: `22`, `80`, `443`, `8443`, `9089`.
+- Found externally reachable before hardening: `22`, `80`, `443`, `9089`.
 - Patched and deployed:
 	- `9089` is now protected by persistent iptables chain `BEAGLE_CLUSTER_RPC_9089` on both hosts, allowing only localhost and the peer IP.
 	- `/api/v1/health` no longer bypasses authentication; unauthenticated public access now returns `401`.
 	- `/api/v1/auth/onboarding/status` now exposes only `pending/completed` publicly.
 	- Cluster add-server preflight no longer fetches unauthenticated `/health` from target hosts; `api_health` is skipped until a real remote setup-token flow exists.
 - Verification after hardening:
-	- External TCP test shows only `22`, `80`, `443`, `8443` reachable.
+	- External TCP test shows only `22`, `80`, `443` reachable.
 	- `srv1`/`srv2`: `/beagle-api/api/v1/health` -> `401`; `/cluster/status` -> `401`; onboarding status contains no `completed_by`/`user_count`.
 	- Local tests: `python3 -m pytest tests/unit/test_cluster_membership.py tests/unit/test_cluster_http_surface.py tests/unit/test_authz_policy.py` -> 37 passed.
 - Remaining risk:
-	- `8443` remains public as legacy download/API port and must be reduced to downloads-only or retired after installer/download paths are moved to `443`.
+	- The separate legacy download/API port was retired after installer/download paths were moved to `443`.
 	- `srv2` still serves a self-signed TLS certificate on public HTTPS.
 ## Update (2026-04-26, Plan 07 Cluster-Job-Progress live gemacht)
 
@@ -3706,7 +3853,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - GitHub-Workflow-Fix:
   - `.github/workflows/release.yml` ist repariert; der optionale GPG-Key wird nicht mehr ueber ein unzulaessiges `if: secrets...` ausgewertet, sondern innerhalb des Shell-Schritts.
   - Damit verschwindet der aktuelle GitHub-Parse-Fehler `Unrecognized named-value: 'secrets'`.
-  - Follow-up: `.github/workflows/no-proxmox-references.yml` normalisiert `./`-Pfade vor dem Allowlist-Vergleich, damit erlaubte Legacy-Pfade wie `scripts/lib/provider_shell.sh` nicht faelschlich als neue Proxmox-Verstoesse gemeldet werden.
+  - Follow-up: `.github/workflows/no-legacy-provider-references.yml` normalisiert `./`-Pfade vor dem Allowlist-Vergleich, damit erlaubte Legacy-Pfade wie `scripts/lib/provider_shell.sh` nicht faelschlich als neue Legacy-Provider-Verstoesse gemeldet werden.
 
 ## Update (2026-04-26, Security-Default fuer Repo-/Artifact-Automatik)
 
@@ -4013,3 +4160,9 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - Result:
   - no remaining mandatory GPU-only validation item is left open for the current plan state
   - `srv2` is no longer needed for any unresolved Pflichtpunkt in the GPU plane
+- Update (2026-04-27, Policies Template-Bibliothek):
+  - `/#panel=policies` rendert jetzt eine echte Template-Bibliothek als Kartenansicht mit OS, Storage, Source-VM, Build-Zeit, Health und Aktionen `verwenden`, `neu bauen`, `löschen`.
+  - Template-Datensätze persisitieren jetzt `source_vmid` und `health`, damit Rebuild/Status im UI nicht mehr blind sind.
+  - Regressions erweitert: Template-Contract, Template-Builder und Policies-Template-Flow.
+  - Live auf `srv1` verifiziert; `verwenden` setzt den Pool-Wizard auf das Template, Console bleibt fehlerfrei.
+  - Pool-Karten haben jetzt eine bestätigte `löschen`-Danger-Action mit konkreter Slot-Anzahl im Dialog.

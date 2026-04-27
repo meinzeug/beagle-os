@@ -9,7 +9,9 @@
 		- snapshot metadata persisted in VM config (`_snapshots`) + optional libvirt snapshot creation (`virsh snapshot-create-as`).
 		- clone path creates new provider-state VM and attempts libvirt disk clone (`virsh vol-clone`) with safe fallback.
 		- console proxy payload returns VNC endpoint metadata when libvirt vncdisplay is available.
-	- Proxmox implementation in [beagle-host/providers/proxmox_host_provider.py](beagle-host/providers/proxmox_host_provider.py) was extended for contract parity (`qm snapshot`, `qm clone`, console payload scaffold).
+		- guest exec now uses libvirt `qemu-agent-command` when libvirt is available; the shell helper remains a fallback only.
+	- Generic storage upload path added in [beagle-host/services/storage_image_store.py](beagle-host/services/storage_image_store.py) and [beagle-host/services/backups_http_surface.py](beagle-host/services/backups_http_surface.py): pool-path resolution stays provider-backed via inventory, HTTP/UI remain on `/api/v1/storage/*`.
+	- Beagle host implementation in [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py) was extended for contract parity (`qm snapshot`, `qm clone`, console payload scaffold).
 	- Unit tests added: [tests/unit/test_beagle_host_provider_contract_extensions.py](tests/unit/test_beagle_host_provider_contract_extensions.py).
 	- Live deploy validation on `srv1.beagle-os.com` executed by direct provider smoke-run (`snapshot_vm`, `clone_vm`, `get_console_proxy`) after control-plane restart.
 
@@ -19,70 +21,70 @@
 		- VM-Lookup/Cluster-Inventory,
 		- libvirt-Migrationskommando,
 		- Node-Persistenz/Cache-Invalidierung.
-	- Grund: Im aktuellen Repo existiert bereits nur im Beagle-Pfad die noetige libvirt-Seam; eine uebereilte Contract-Erweiterung haette entweder Schein-Paritaet oder neue tote Proxmox-Flaechen erzeugt.
+	- Grund: Im aktuellen Repo existiert bereits nur im Beagle-Pfad die noetige libvirt-Seam; eine uebereilte Contract-Erweiterung haette entweder Schein-Paritaet oder neue tote Beagle host-Flaechen erzeugt.
 	- Folge: HTTP/UI bleiben provider-neutral (`POST /api/v1/vms/{vmid}/migrate`), waehrend die konkrete libvirt-Migrationslogik lokal im Beagle-Hostpfad gekapselt bleibt.
 
 - 2026-04-20 VM pause-state fix follow-up:
 	- **Root cause:** VMs started via Beagle provisioning could remain in paused state (QEMU `-S` flag or equivalent), preventing OS boot and desktop startup.
-	- **Fix scope:** Issue is provider-independent, originating from external QEMU/Proxmox behavior during provisioning lifecycle (not from repo code).
+	- **Fix scope:** Issue is provider-independent, originating from external QEMU/Beagle host behavior during provisioning lifecycle (not from repo code).
 	- **Implementation:**
 		- Added `resume_vm()` contract method to [beagle-host/providers/host_provider_contract.py](beagle-host/providers/host_provider_contract.py).
 		- Beagle/Libvirt implementation in [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py): checks domain state with `virsh domstate`, resumes if paused via `virsh resume`.
-		- Proxmox implementation in [beagle-host/providers/proxmox_host_provider.py](beagle-host/providers/proxmox_host_provider.py): resumes via `qm resume`.
+		- Beagle host implementation in [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py): resumes via `virsh resume`.
 	- **Provisioning orchestration:** Updated [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py) `finalize_ubuntu_beagle_install()` to call `resume_vm()` after VM restart.
 	- **Safety:** Resume is idempotent; failures are ignored gracefully. Safe to call on running, paused, or non-existent VMs.
 	- **Result:** All future VM provisioning operations automatically ensure VMs are not paused after installation. Desktop appears immediately post-install without manual intervention.
-	- **No new Proxmox coupling:** Both `qm resume` and `virsh resume` are provider-internal implementation details; no HTTP/UI layer changes required.
+	- **No new Beagle host coupling:** Both `qm resume` and `virsh resume` are provider-internal implementation details; no HTTP/UI layer changes required.
 
 - Session/auth stability fixes were implemented in provider-neutral surfaces:
 	- [beagle-host/services/auth_session.py](beagle-host/services/auth_session.py)
 	- [website/app.js](website/app.js)
 	- [scripts/install-beagle-proxy.sh](scripts/install-beagle-proxy.sh)
-- No new direct coupling to Proxmox APIs (`qm`, `pvesh`, `/api2/json`, `PVE.*`) was introduced.
+- No new direct coupling to Beagle host APIs (`qm`, `pvesh`, `/api2/json`, `PVE.*`) was introduced.
 - VM create validation was executed through the generic provisioning API (`/beagle-api/api/v1/provisioning/*`) on the beagle provider.
 - Host runtime prerequisites (libvirt pool/network) remain provider implementation concerns and are correctly contained in host/provider layers.
 - VM delete was added provider-neutral first:
 	- Generic contract: `HostProvider.delete_vm(...)` in [beagle-host/providers/host_provider_contract.py](beagle-host/providers/host_provider_contract.py).
 	- Provider implementations:
 		- [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py)
-		- [beagle-host/providers/proxmox_host_provider.py](beagle-host/providers/proxmox_host_provider.py)
+		- [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py)
 	- Generic admin API path: `DELETE /api/v1/provisioning/vms/{vmid}` in [beagle-host/services/admin_http_surface.py](beagle-host/services/admin_http_surface.py).
 	- UI action in [website/app.js](website/app.js) targets the generic provisioning route, not provider-specific APIs.
-- Proxmox-specific command usage (`qm destroy`) remains isolated in `providers/proxmox/*` and is not called from HTTP/UI layers.
+- Beagle host-specific command usage (`qm destroy`) remains isolated in `providers/beagle-host/*` and is not called from HTTP/UI layers.
 - noVNC access was added through a dedicated host service, not inline in HTTP handlers:
 	- New service: [beagle-host/services/vm_console_access.py](beagle-host/services/vm_console_access.py).
 	- New generic read route: `GET /api/v1/vms/{vmid}/novnc-access` in [beagle-host/services/vm_http_surface.py](beagle-host/services/vm_http_surface.py).
 	- UI integration in [website/app.js](website/app.js) only calls the generic route.
 	- Provider-specific behavior is centralized in the service:
-		- `proxmox`: returns direct noVNC URL.
+		- `beagle-host`: returns direct noVNC URL.
 		- `beagle`: prefers guest-side `x11vnc` on port `5901` when the guest IP/port are reachable and otherwise falls back to libvirt/QEMU VNC through the same generic route.
 - Beagle-specific noVNC runtime integration remains isolated to beagle host/proxy layers:
 	- Tokenized websocket proxy unit: [beagle-host/systemd/beagle-novnc-proxy.service](beagle-host/systemd/beagle-novnc-proxy.service).
 	- Host-service bootstrap: [scripts/install-beagle-host-services.sh](scripts/install-beagle-host-services.sh).
 	- Proxy route wiring: [scripts/install-beagle-proxy.sh](scripts/install-beagle-proxy.sh).
 	- Guest desktop capture bootstrap: [beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl](beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl).
-	- No new Proxmox UI/ExtJS coupling introduced.
+	- No new Beagle host UI/ExtJS coupling introduced.
 - Installer artifact reliability hardening in [scripts/install-beagle-host.sh](scripts/install-beagle-host.sh) is provider-neutral and enforces generic host prerequisites before service startup.
 - Standalone host runtime prerequisite handling was tightened in provider-adjacent install glue ([scripts/install-beagle-host-services.sh](scripts/install-beagle-host-services.sh)) without introducing provider leaks into HTTP/UI layers:
 	- libvirt readiness wait,
 	- explicit beagle-network/local-pool verification,
-	- no new Proxmox coupling.
+	- no new Beagle host coupling.
 - Beagle-provider runtime inventory now resolves storage/network from live libvirt first in [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py), keeping API/catalog defaults aligned with real backend capabilities.
 - Beagle-provider `start_vm` now redefines libvirt XML from current provider config before start, so generic service-layer cleanups (boot order/media removal) are actually enforced in runtime domains.
 - Thinclient preset installer disk-selection hardening in [thin-client-assistant/usb/pve-thin-client-local-installer.sh](thin-client-assistant/usb/pve-thin-client-local-installer.sh) is endpoint-runtime logic only and does not add provider-specific coupling.
 
 - RTSP stream-fix work stayed provider-neutral in host/runtime layers:
 	- Runtime-side Moonlight host retarget/sync hardening was implemented in thinclient runtime modules, not in provider-specific APIs.
-	- Public stream firewall reconciliation changes were implemented in [scripts/reconcile-public-streams.sh](scripts/reconcile-public-streams.sh), which already operates on generic stream inventory/ports and not on Proxmox-only APIs.
+	- Public stream firewall reconciliation changes were implemented in [scripts/reconcile-public-streams.sh](scripts/reconcile-public-streams.sh), which already operates on generic stream inventory/ports and not on Beagle host-only APIs.
 	- No new direct coupling to `qm`, `pvesh`, `/api2/json`, or `PVE.*` was introduced by the RTSP fix path.
 
 - 2026-04-19 provider-neutral follow-up changes:
 	- Chroot/offline install behavior in [scripts/install-beagle-host-services.sh](scripts/install-beagle-host-services.sh) is now explicit:
 		- live libvirt readiness wait/provisioning only runs when a live libvirt system context is actually manageable,
 		- installer chroot mode skips those runtime-only operations instead of failing,
-		- no Proxmox-specific coupling was introduced in this fix path.
+		- no Beagle host-specific coupling was introduced in this fix path.
 	- Beagle Web Console now exposes existing generic live-USB endpoint actions from [website/app.js](website/app.js) (`/api/v1/vms/{vmid}/live-usb.sh`), without introducing any provider-specific UI API calls.
-	- Provisioning default bridge selection in [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py) now validates configured defaults against discovered bridge inventory, reducing implicit coupling to environment-specific defaults (for example `vmbr1` in non-Proxmox labs).
+	- Provisioning default bridge selection in [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py) now validates configured defaults against discovered bridge inventory, reducing implicit coupling to environment-specific defaults (for example `vmbr1` in non-Beagle host labs).
 	- ISO staging helper added in the same provider-neutral provisioning service to align generated media availability with provider-advertised storage pool paths while preserving graceful fallback when pool paths are not writable in local simulation contexts.
 
 - 2026-04-19 VM lifecycle/status follow-up:
@@ -91,7 +93,7 @@
 		- avoids duplicate-domain define failures while keeping start behavior behind the generic `HostProvider.start_vm(...)` contract.
 	- Inventory status projection (`installing` during autoinstall/firstboot) was implemented in provider-neutral read aggregation [beagle-host/services/fleet_inventory.py](beagle-host/services/fleet_inventory.py), based on provisioning-state contracts, not provider-specific API calls.
 	- Provisioning finalize restart hardening was implemented in provider-neutral orchestration [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py).
-	- No new direct Proxmox coupling (`qm`, `pvesh`, `/api2/json`, `PVE.*`) was introduced by these fixes.
+	- No new direct Beagle host coupling (`qm`, `pvesh`, `/api2/json`, `PVE.*`) was introduced by these fixes.
 
 - Current residual coupling risks discovered in local simulation harness (not production API coupling):
 	- `scripts/test-standalone-desktop-stream-sim.sh` still depends on local libvirt host permissions/ownership and kernel boot semantics that differ between developer hosts.
@@ -99,13 +101,13 @@
 
 - 2026-04-19 autoinstall callback follow-up:
 	- Callback robustness changes were applied only in generic ubuntu provisioning template [beagle-host/templates/ubuntu-beagle/user-data.tpl](beagle-host/templates/ubuntu-beagle/user-data.tpl).
-	- Added dual-context callback dispatch (`installer` and `curtin in-target`) without introducing any provider-specific API calls or Proxmox coupling.
+	- Added dual-context callback dispatch (`installer` and `curtin in-target`) without introducing any provider-specific API calls or Beagle host coupling.
 	- Provider boundary remains unchanged: callback endpoint is still served by generic control-plane HTTP surface, and provider implementations remain isolated in `providers/*`.
 
 - 2026-04-19 firstboot stall mitigation follow-up:
 	- Additional stale-state lifecycle fallback was added in [beagle-host/bin/beagle-control-plane.py](beagle-host/bin/beagle-control-plane.py) for `installing/firstboot` timeout handling.
 	- The fallback uses existing provider-neutral orchestration (`finalize_ubuntu_beagle_install(..., restart=False)` and state persistence helpers), not provider-specific direct API calls.
-	- No new direct Proxmox coupling (`qm`, `pvesh`, `/api2/json`, `PVE.*`) was introduced.
+	- No new direct Beagle host coupling (`qm`, `pvesh`, `/api2/json`, `PVE.*`) was introduced.
 	- Live VM100 validation confirmed automatic timeout transition to `completed` after stale threshold was reached, with persisted cleanup metadata (`restart=guest-reboot`).
 	- Residual risk remains functional (possible premature completion if timeout is set too low), not architectural/provider-boundary coupling.
 
@@ -117,9 +119,8 @@
 	- Fallback credential extraction for pre-fix VMs was added to generic stream-ready script:
 		- New function `latest_ubuntu_state_credential()` in [scripts/ensure-vm-stream-ready.sh](scripts/ensure-vm-stream-ready.sh) queries provisioning state files.
 		- Fallback gracefully handles VMs created before secret persistence fix without requiring provider-specific remediation paths.
-		- No new direct Proxmox coupling (`qm`, `pvesh`, `/api2/json`, `PVE.*`) was introduced.
+		- No new direct Beagle host coupling (`qm`, `pvesh`, `/api2/json`, `PVE.*`) was introduced.
 	- Validation on live beagleserver confirmed:
 		- VM102 (post-fix): guest_password persisted in generic vm-secrets JSON ✅
 		- VM100 (pre-fix): fallback successfully extracted guest_password from provisioning state ✅
 		- Stream-ready workflow progressed past credential retrieval barrier to Sunshine installation attempt ✅
-

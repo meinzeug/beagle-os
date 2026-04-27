@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -1146,7 +1147,7 @@ class BeagleHostProvider:
         record = self._find_vm(target_vmid)
         if record is None:
             raise RuntimeError(f"VM {target_vmid} not found in beagle provider state")
-        if self._libvirt_enabled() and self._libvirt_domain_exists(target_vmid):
+        if self._libvirt_enabled():
             domain_name = self._libvirt_domain_name(target_vmid)
             try:
                 self._run_virsh("destroy", domain_name)
@@ -1289,10 +1290,36 @@ class BeagleHostProvider:
         timeout_seconds: int | None = None,
         request_timeout: float | None = None,
     ) -> dict[str, Any]:
-        del timeout_seconds, request_timeout
-        if self._find_vm(vmid) is None:
-            raise RuntimeError(f"VM {int(vmid)} not found in beagle provider state")
-        pid = self._next_counter(f"guest-exec-{int(vmid)}")
+        del request_timeout
+        target_vmid = int(vmid)
+        if self._find_vm(target_vmid) is None:
+            raise RuntimeError(f"VM {target_vmid} not found in beagle provider state")
+
+        if self._libvirt_enabled():
+            request = {
+                "execute": "guest-exec",
+                "arguments": {
+                    "path": "/bin/bash",
+                    "arg": ["-lc", str(command or "")],
+                    "capture-output": True,
+                },
+            }
+            try:
+                response = self._run_virsh(
+                    "qemu-agent-command",
+                    self._libvirt_domain_name(target_vmid),
+                    json.dumps(request),
+                    input_data=None,
+                )
+                payload = json.loads(response or "{}")
+                result = payload.get("return") if isinstance(payload, dict) else None
+                if isinstance(result, dict) and result.get("pid") is not None:
+                    return {"pid": int(result.get("pid") or 0)}
+            except Exception:
+                pass
+
+        del timeout_seconds
+        pid = self._next_counter(f"guest-exec-{target_vmid}")
         status_payload = {
             "exited": True,
             "exitcode": 0,
@@ -1301,9 +1328,9 @@ class BeagleHostProvider:
             "provider": "beagle",
             "command": str(command or ""),
             "pid": pid,
-            "vmid": int(vmid),
+            "vmid": target_vmid,
         }
-        self._write_json_file(self._guest_exec_status_path(vmid, pid), status_payload)
+        self._write_json_file(self._guest_exec_status_path(target_vmid, pid), status_payload)
         return {"pid": pid}
 
     def guest_exec_status(
@@ -1313,8 +1340,28 @@ class BeagleHostProvider:
         *,
         timeout: float | None = None,
     ) -> dict[str, Any]:
+        target_vmid = int(vmid)
+        if self._libvirt_enabled() and self._libvirt_domain_exists(target_vmid):
+            request = {
+                "execute": "guest-exec-status",
+                "arguments": {"pid": int(pid)},
+            }
+            try:
+                response = self._run_virsh(
+                    "qemu-agent-command",
+                    self._libvirt_domain_name(target_vmid),
+                    json.dumps(request),
+                    input_data=None,
+                )
+                payload = json.loads(response or "{}")
+                result = payload.get("return") if isinstance(payload, dict) else None
+                if isinstance(result, dict):
+                    return result
+            except Exception:
+                pass
+
         del timeout
-        payload = self._read_json_file(self._guest_exec_status_path(vmid, pid), {})
+        payload = self._read_json_file(self._guest_exec_status_path(target_vmid, pid), {})
         return payload if isinstance(payload, dict) else {}
 
     def guest_exec_script_text(
@@ -1389,6 +1436,53 @@ class BeagleHostProvider:
             self._run_virsh(*args)
 
         return f"created snapshot {snap_name} for beagle vm {target_vmid}"
+
+    def delete_vm_snapshot(
+        self,
+        vmid: int,
+        snapshot_name: str,
+        *,
+        timeout: float | None | object = None,
+    ) -> str:
+        del timeout
+        target_vmid = int(vmid)
+        record = self._find_vm(target_vmid)
+        if record is None:
+            raise RuntimeError(f"VM {target_vmid} not found in beagle provider state")
+
+        snap_name = str(snapshot_name or "").strip()
+        if not snap_name:
+            raise RuntimeError("snapshot_name is required")
+
+        node = str(record.get("node") or self._default_node_name).strip() or self._default_node_name
+        config = self.get_vm_config(node, target_vmid)
+        snapshots = config.get("_snapshots")
+        updated_snapshots: list[dict[str, Any]] = []
+        found = False
+        if isinstance(snapshots, list):
+            for item in snapshots:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("name") or "").strip() == snap_name:
+                    found = True
+                    continue
+                updated_snapshots.append(dict(item))
+
+        if self._libvirt_enabled() and self._libvirt_domain_exists(target_vmid):
+            try:
+                self._run_virsh("snapshot-delete", self._libvirt_domain_name(target_vmid), snap_name, "--metadata")
+            except Exception:
+                try:
+                    self._run_virsh("snapshot-delete", self._libvirt_domain_name(target_vmid), snap_name)
+                except Exception:
+                    if not found:
+                        raise RuntimeError(f"snapshot {snap_name!r} not found for VM {target_vmid}")
+        elif not found:
+            raise RuntimeError(f"snapshot {snap_name!r} not found for VM {target_vmid}")
+
+        config["_snapshots"] = updated_snapshots
+        self._write_vm_config(node, target_vmid, config)
+        return f"deleted snapshot {snap_name} for beagle vm {target_vmid}"
 
     def reset_vm_to_snapshot(
         self,

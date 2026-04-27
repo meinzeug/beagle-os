@@ -934,6 +934,154 @@ class ClusterMembershipService:
             "remaining_member_count": len(kept),
         }
 
+    def reconcile_membership(self) -> dict[str, Any]:
+        state = self.cluster_state()
+        cluster_id = str(state.get("cluster_id") or "").strip()
+        if not cluster_id:
+            raise RuntimeError("cluster is not initialized")
+
+        raw_members = self.list_members()
+        normalized_members_by_name: dict[str, dict[str, Any]] = {}
+        ordered_names: list[str] = []
+        changes: list[dict[str, Any]] = []
+
+        def _entry_name(entry: dict[str, Any]) -> str:
+            return str(entry.get("name") or "").strip()
+
+        for item in raw_members:
+            if not isinstance(item, dict):
+                changes.append({
+                    "action": "drop_invalid_entry",
+                    "reason": "member entry is not an object",
+                })
+                continue
+            current = dict(item)
+            name = _entry_name(current)
+            if not name:
+                changes.append({
+                    "action": "drop_invalid_entry",
+                    "reason": "member entry is missing a name",
+                })
+                continue
+            existing = normalized_members_by_name.get(name)
+            if existing is None:
+                normalized_members_by_name[name] = current
+                ordered_names.append(name)
+                continue
+            merged = dict(existing)
+            if str(current.get("display_name") or "").strip() and not str(merged.get("display_name") or "").strip():
+                merged["display_name"] = str(current.get("display_name") or "").strip()
+            if str(current.get("api_url") or "").strip():
+                merged["api_url"] = str(current.get("api_url") or "").strip().rstrip("/")
+            if str(current.get("rpc_url") or "").strip():
+                merged["rpc_url"] = str(current.get("rpc_url") or "").strip().rstrip("/")
+            if str(current.get("status") or "").strip() and str(merged.get("status") or "").strip() in {"", "unknown", "offline", "unreachable"}:
+                merged["status"] = str(current.get("status") or "").strip()
+            if current.get("enabled") is not None:
+                merged["enabled"] = bool(current.get("enabled"))
+            if current.get("local") is True:
+                merged["local"] = True
+            normalized_members_by_name[name] = merged
+            changes.append({
+                "action": "merge_duplicate_member",
+                "node_name": name,
+            })
+
+        leader_node = str(state.get("leader_node") or "").strip()
+        local_member = None
+        normalized_members = [normalized_members_by_name[name] for name in ordered_names]
+        for item in normalized_members:
+            if bool(item.get("local")) is True:
+                local_member = item
+                break
+
+        if local_member is None and leader_node:
+            for item in normalized_members:
+                if _entry_name(item) == leader_node:
+                    item["local"] = True
+                    local_member = item
+                    changes.append({
+                        "action": "restore_local_flag",
+                        "node_name": leader_node,
+                    })
+                    break
+
+        if local_member is None and leader_node:
+            local_api_url = self._public_manager_url
+            local_rpc_url = self._build_rpc_url(host=self._host_from_url(local_api_url) or self._host_from_url(self._public_manager_url))
+            local_member = {
+                "name": leader_node,
+                "api_url": local_api_url,
+                "rpc_url": local_rpc_url,
+                "status": "online",
+                "local": True,
+            }
+            normalized_members.append(local_member)
+            normalized_members_by_name[leader_node] = local_member
+            changes.append({
+                "action": "restore_missing_local_member",
+                "node_name": leader_node,
+            })
+
+        local_name = _entry_name(local_member) if isinstance(local_member, dict) else ""
+        if local_name:
+            for item in normalized_members:
+                entry_name = _entry_name(item)
+                if entry_name == local_name:
+                    if item.get("local") is not True:
+                        item["local"] = True
+                        changes.append({
+                            "action": "normalize_local_member",
+                            "node_name": local_name,
+                        })
+                    if not str(item.get("api_url") or "").strip():
+                        item["api_url"] = self._public_manager_url
+                        changes.append({
+                            "action": "fill_missing_api_url",
+                            "node_name": local_name,
+                        })
+                    if not str(item.get("rpc_url") or "").strip():
+                        item["rpc_url"] = self._build_rpc_url(host=self._host_from_url(self._public_manager_url))
+                        changes.append({
+                            "action": "fill_missing_rpc_url",
+                            "node_name": local_name,
+                        })
+                    if str(item.get("status") or "").strip() != "online":
+                        item["status"] = "online"
+                        changes.append({
+                            "action": "normalize_status",
+                            "node_name": local_name,
+                            "status": "online",
+                        })
+                elif item.get("local") is True:
+                    item["local"] = False
+                    changes.append({
+                        "action": "clear_spurious_local_flag",
+                        "node_name": entry_name,
+                    })
+
+        normalized_members.sort(key=lambda item: (0 if item.get("local") is True else 1, str(item.get("name") or "").lower()))
+
+        before_signature = json.dumps(raw_members, sort_keys=True, separators=(",", ":"))
+        after_signature = json.dumps(normalized_members, sort_keys=True, separators=(",", ":"))
+        repaired = before_signature != after_signature
+        if repaired:
+            self._write_json(self.members_file(), normalized_members)
+            state["updated_at"] = self._utcnow()
+            self._write_json(self.state_file(), state)
+
+        return {
+            "ok": True,
+            "cluster_id": cluster_id,
+            "leader_node": leader_node,
+            "member_count_before": len([item for item in raw_members if isinstance(item, dict)]),
+            "member_count_after": len(normalized_members),
+            "drift_detected": repaired,
+            "repaired": repaired,
+            "changes": changes,
+            "members": normalized_members,
+        }
+
     def _cleanup_local_cluster_state(self, local_name: str) -> None:
         node_dir = self._ca_service.nodes_dir() / str(local_name or "").strip()
         if node_dir.exists():

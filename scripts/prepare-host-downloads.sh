@@ -15,10 +15,10 @@ fi
 # shellcheck disable=SC1090
 source "$HOSTED_DOWNLOAD_LAYOUT_HELPER"
 SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}"
-LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-8443}"
+LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-443}"
 DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/beagle-downloads}"
 HOST_ORIGIN_URL="$(beagle_host_origin_url "$SERVER_NAME" "$LISTEN_PORT")"
-DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-$(beagle_host_downloads_base_url "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH")}"
+DOWNLOADS_BASE_URL="$(beagle_host_downloads_base_url "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH")"
 PUBLIC_ARTIFACT_BASE_URL="$(beagle_public_artifact_base_url "$DOWNLOADS_BASE_URL" "${BEAGLE_PUBLIC_UPDATE_BASE_URL:-}")"
 HOST_INSTALLER_VERSIONED="$DIST_DIR/pve-thin-client-usb-installer-host-v${VERSION}.sh"
 HOST_INSTALLER_LATEST="$DIST_DIR/pve-thin-client-usb-installer-host-latest.sh"
@@ -58,7 +58,7 @@ BEAGLE_MANAGER_ENV_FILE="${PVE_DCV_BEAGLE_MANAGER_ENV_FILE:-/etc/beagle/beagle-m
 
 if [[ -f "$CREDENTIALS_ENV_FILE" ]]; then
   # Optional operator-managed defaults for VM installer preset generation.
-  # Expected keys: PVE_THIN_CLIENT_DEFAULT_PROXMOX_USERNAME / PASSWORD / TOKEN
+  # Expected keys: PVE_THIN_CLIENT_DEFAULT_BEAGLE_USERNAME / PASSWORD / TOKEN
   # shellcheck disable=SC1090
   source "$CREDENTIALS_ENV_FILE"
 fi
@@ -68,10 +68,10 @@ if [[ -f "$BEAGLE_MANAGER_ENV_FILE" ]]; then
   source "$BEAGLE_MANAGER_ENV_FILE"
 fi
 
-DEFAULT_PROXMOX_USERNAME="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_USERNAME:-${PVE_DCV_PROXMOX_USERNAME:-}}"
-DEFAULT_PROXMOX_PASSWORD="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_PASSWORD:-${PVE_DCV_PROXMOX_PASSWORD:-}}"
-DEFAULT_PROXMOX_TOKEN="${PVE_THIN_CLIENT_DEFAULT_PROXMOX_TOKEN:-${PVE_DCV_PROXMOX_TOKEN:-}}"
-BEAGLE_MANAGER_URL="${PVE_DCV_BEAGLE_MANAGER_URL:-https://${SERVER_NAME}:${LISTEN_PORT}/beagle-api}"
+DEFAULT_BEAGLE_USERNAME="${PVE_THIN_CLIENT_DEFAULT_BEAGLE_USERNAME:-${PVE_DCV_BEAGLE_USERNAME:-}}"
+DEFAULT_BEAGLE_PASSWORD="${PVE_THIN_CLIENT_DEFAULT_BEAGLE_PASSWORD:-${PVE_DCV_BEAGLE_PASSWORD:-}}"
+DEFAULT_BEAGLE_TOKEN="${PVE_THIN_CLIENT_DEFAULT_BEAGLE_TOKEN:-${PVE_DCV_BEAGLE_TOKEN:-}}"
+BEAGLE_MANAGER_URL="${PVE_DCV_BEAGLE_MANAGER_URL:-https://${SERVER_NAME}/beagle-api}"
 
 ensure_dist_permissions() {
   install -d -m 0755 "$DIST_DIR"
@@ -331,9 +331,9 @@ python3 "$PREPARE_HOST_DOWNLOADS_HELPER" generate-vm-installers-metadata \
   --metadata-path "$VM_INSTALLERS_METADATA_PATH" \
   --server-name "$SERVER_NAME" \
   --installer-iso-url "$INSTALLER_ISO_URL" \
-  --default-proxmox-username "$DEFAULT_PROXMOX_USERNAME" \
-  --default-proxmox-password "$DEFAULT_PROXMOX_PASSWORD" \
-  --default-proxmox-token "$DEFAULT_PROXMOX_TOKEN" \
+  --default-beagle-username "$DEFAULT_BEAGLE_USERNAME" \
+  --default-beagle-password "$DEFAULT_BEAGLE_PASSWORD" \
+  --default-beagle-token "$DEFAULT_BEAGLE_TOKEN" \
   --beagle-manager-url "$BEAGLE_MANAGER_URL"
 
 CHECKSUM_FILE="$DIST_DIR/SHA256SUMS"
@@ -439,7 +439,7 @@ cat > "$DIST_DIR/beagle-downloads-index.html" <<EOF
 </head>
 <body>
   <h1>Beagle OS Downloads</h1>
-  <p>Host-local thin-client media downloads for this Proxmox server.</p>
+  <p>Host-local thin-client media downloads for this Beagle server.</p>
   <ul>
     <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-usb-installer-host-latest.sh">Generic USB installer launcher (fallback)</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/pve-thin-client-live-usb-host-latest.sh">Generic live USB launcher</a></li>
@@ -458,7 +458,7 @@ cat > "$DIST_DIR/beagle-downloads-index.html" <<EOF
   <p>The hosted USB installers pull the Beagle installer ISO during USB creation, then embed the selected VM profile so the installed thin client boots directly into Moonlight for that target VM.</p>
   <table>
     <tr><th>Release version</th><td><code>${VERSION}</code></td></tr>
-    <tr><th>Server</th><td><code>${SERVER_NAME}:${LISTEN_PORT}</code></td></tr>
+    <tr><th>Server</th><td><code>${SERVER_NAME}</code></td></tr>
     <tr><th>VM installer template</th><td><code>${VM_INSTALLER_URL_TEMPLATE}</code></td></tr>
     <tr><th>VM Windows installer template</th><td><code>${VM_WINDOWS_INSTALLER_URL_TEMPLATE}</code></td></tr>
     <tr><th>VM Windows live USB template</th><td><code>${VM_WINDOWS_LIVE_USB_URL_TEMPLATE}</code></td></tr>

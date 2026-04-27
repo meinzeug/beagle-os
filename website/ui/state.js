@@ -153,6 +153,7 @@ export const state = {
   selectedPoolId: '',
   selectedTemplateId: '',
   poolVmStates: Object.create(null),
+  poolEntitlements: Object.create(null),
   authUsers: [],
   authRoles: [],
   permissionCatalog: [],

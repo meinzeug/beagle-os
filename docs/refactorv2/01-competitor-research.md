@@ -2,28 +2,28 @@
 
 Stand: 2026-04-20
 
-Quellen: offizielle Hersteller-Seiten und Doku (Proxmox, Omnissa, Citrix, Microsoft Learn, Parsec, LizardByte Sunshine, ClassicOldSong/Apollo, Kasm, Harvester, OpenStack, Wikipedia: Comparison of platform virtualization software).
+Quellen: offizielle Hersteller-Seiten und Doku (Beagle host, Omnissa, Citrix, Microsoft Learn, Parsec, LizardByte Sunshine, ClassicOldSong/Apollo, Kasm, Harvester, OpenStack, Wikipedia: Comparison of platform virtualization software).
 
 ## Marktsegmente
 
 Wir konkurrieren **nicht** in nur einem Markt. Beagle OS sitzt zwischen vier Segmenten:
 
-1. **Open-Source-Hypervisor-Plattformen**: Proxmox VE, XCP-ng/Citrix Hypervisor, Harvester HCI, OpenStack, OpenShift Virtualization (KubeVirt), oVirt.
+1. **Open-Source-Hypervisor-Plattformen**: Beagle host, XCP-ng/Citrix Hypervisor, Harvester HCI, OpenStack, OpenShift Virtualization (KubeVirt), oVirt.
 2. **Enterprise-VDI-Plattformen**: Omnissa Horizon (ex-VMware), Citrix DaaS / Virtual Apps and Desktops.
 3. **Cloud-PC-/DaaS-Anbieter**: Microsoft Windows 365, Azure Virtual Desktop, Amazon WorkSpaces, Shadow, Vagon, Cameyo.
 4. **Niedrig-Latenz-Streaming-Stacks**: Parsec / Parsec for Teams, Sunshine + Moonlight, Apollo (Sunshine-Fork) + Artemis, Wolf, NICE DCV.
 
 ## Konkurrenten im Detail
 
-### Proxmox VE
+### Beagle host
 
-- **Stark**: KVM + LXC, multi-master Cluster ueber pmxcfs/Corosync, integriertes HA, Live-Migration, Ceph-HCI, vzdump-Backups + Proxmox Backup Server (inkrementell, Live-Restore, Single-File-Restore), SDN-Stack mit VLAN/QinQ/VXLAN/EVPN, Distributed Firewall, mehrere Auth-Realms inkl. AD/LDAP/OIDC, AGPLv3.
+- **Stark**: KVM + LXC, multi-master Cluster ueber pmxcfs/Corosync, integriertes HA, Live-Migration, Ceph-HCI, vzdump-Backups + Beagle host Backup Server (inkrementell, Live-Restore, Single-File-Restore), SDN-Stack mit VLAN/QinQ/VXLAN/EVPN, Distributed Firewall, mehrere Auth-Realms inkl. AD/LDAP/OIDC, AGPLv3.
 - **Schwach**: Kein nativer Desktop-Streaming-Stack, kein Pool-/Template-Modell fuer VDI, kein Endpoint-OS, UI ist ExtJS-Operator-orientiert (kein User-Portal).
 
 ### XCP-ng / Citrix Hypervisor
 
 - **Stark**: Reifer Xen-Hypervisor, Live-Migration, Storage-XenMotion, ueber Xen Orchestra eigene Web-UI mit Backups und Replication.
-- **Schwach**: Wie Proxmox kein VDI-Brokering, kein Streaming-First, kein Endpoint-OS.
+- **Schwach**: Wie Beagle host kein VDI-Brokering, kein Streaming-First, kein Endpoint-OS.
 
 ### Harvester HCI (SUSE/Rancher)
 
@@ -84,7 +84,7 @@ Wir konkurrieren **nicht** in nur einem Markt. Beagle OS sitzt zwischen vier Seg
 
 Legende: V=Vorhanden, T=Teilweise, F=Fehlt.
 
-| Feature | Beagle 6.7 | Beagle 7.0 (Ziel) | Proxmox VE | XCP-ng | Harvester | Omnissa Horizon | Citrix DaaS | Win 365 | Parsec Teams | Sunshine/Apollo | Kasm |
+| Feature | Beagle 6.7 | Beagle 7.0 (Ziel) | Beagle host | XCP-ng | Harvester | Omnissa Horizon | Citrix DaaS | Win 365 | Parsec Teams | Sunshine/Apollo | Kasm |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | KVM/QEMU Hypervisor | V | V | V | (Xen) | V | F | F | F | F | F | T |
 | Multi-Node Cluster | F | V | V | V | V | n/a | n/a | n/a | n/a | F | T |
@@ -111,5 +111,5 @@ Legende: V=Vorhanden, T=Teilweise, F=Fehlt.
 ## Kerneinsicht
 
 - Niemand sonst liefert **alle vier Schichten in einem Produkt** (Hypervisor + VDI + Streaming + Endpoint-OS).
-- Proxmox + Sunshine + IGEL + Active Directory ist heute der naheliegendste DIY-Stack — Beagle OS 7.0 macht das zu einem einzigen integrierten Produkt.
+- Beagle host + Sunshine + IGEL + Active Directory ist heute der naheliegendste DIY-Stack — Beagle OS 7.0 macht das zu einem einzigen integrierten Produkt.
 - Der schnellste Weg zur Konkurrenzfaehigkeit ist **nicht**, alles selbst zu bauen, sondern bestehende reife OSS-Bausteine zu integrieren (libvirt, Corosync/Pacemaker, Longhorn/Ceph, Apollo/Sunshine, OpenID Connect, OpenTelemetry).

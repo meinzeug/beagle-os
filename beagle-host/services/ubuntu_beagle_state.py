@@ -4,7 +4,7 @@ This service owns the on-disk representation of in-progress and historical
 ubuntu-beagle provisioning runs and knows how to shape them into the HTTP
 summary the control plane exposes. Collaborators (data dir, json I/O, slug
 helper, default profile id) are injected through the constructor so the
-service stays agnostic of the Proxmox control plane's module layout.
+service stays agnostic of the Beagle control plane's module layout.
 """
 
 from __future__ import annotations

@@ -332,13 +332,18 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
                 return
             if not self._authorize_or_respond("POST", path):
                 return
-            if path == "/api/v1/backups/ingest":
+            if path == "/api/v1/backups/ingest" or re.match(r"^/api/v1/storage/pools/[A-Za-z0-9._-]+/upload$", path):
                 content_length = int(self.headers.get("Content-Length") or 0)
-                if content_length <= 0 or content_length > 10 * 1024 * 1024 * 1024:  # max 10 GB
+                max_bytes = 10 * 1024 * 1024 * 1024 if path == "/api/v1/backups/ingest" else 100 * 1024 * 1024 * 1024
+                if content_length <= 0 or content_length > max_bytes:
                     self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid Content-Length"})
                     return
                 raw_body = self.rfile.read(content_length)
-                raw_headers = {"X-Beagle-Backup-Meta": str(self.headers.get("X-Beagle-Backup-Meta") or "{}")}
+                raw_headers = {
+                    "X-Beagle-Backup-Meta": str(self.headers.get("X-Beagle-Backup-Meta") or "{}"),
+                    "X-Beagle-Upload-Filename": str(self.headers.get("X-Beagle-Upload-Filename") or ""),
+                    "X-Beagle-Upload-Overwrite": str(self.headers.get("X-Beagle-Upload-Overwrite") or ""),
+                }
                 response = self._backups_surface().route_post(path, raw_body=raw_body, raw_headers=raw_headers)
             else:
                 try:
@@ -940,6 +945,23 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             requester = self._requester_identity()
             response = jobs_http_surface().route_delete(path, requester=requester)
             self._write_json(response["status"], response["payload"])
+            return
+
+        if vm_mutation_surface_service().handles_delete(path):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("DELETE", path):
+                return
+            principal = self._auth_principal()
+            requester = str((principal or {}).get("username") or self._requester_identity())
+            response = vm_mutation_surface_service().route_delete(
+                path,
+                query=parse_qs(parsed.query or ""),
+                requester_identity=requester,
+            )
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
             return
 
         if not self._is_authenticated():

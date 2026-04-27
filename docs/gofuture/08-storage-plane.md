@@ -136,8 +136,8 @@ Administratoren können Quotas per API oder Web Console setzen und ändern.
 
 ### Schritt 7 — `/#panel=virtualization` UX- und Bedienbarkeits-Refactor: Nodes/Storage/Networking
 
-- [ ] Ist-Zustand von `/#panel=virtualization` dokumentieren: Welche Tabellen existieren, welche Aktionen fehlen, welche Operator-Fragen bleiben unbeantwortet.
-- [ ] Panel in klare Bereiche schneiden: `Nodes`, `Storage`, `Bridges/Networking`, `GPU`, `VM Inspector`, `Operations`.
+- [x] Ist-Zustand von `/#panel=virtualization` dokumentieren: Welche Tabellen existieren, welche Aktionen fehlen, welche Operator-Fragen bleiben unbeantwortet.
+- [x] Panel in klare Bereiche schneiden: `Nodes`, `Storage`, `Bridges/Networking`, `GPU`, `VM Inspector`, `Operations`.
 - [x] Node-Cards bauen: Hostname, Status, CPU/RAM, Storage-Druck, VM-Zahl, libvirt/KVM-Health, Actions `Details`, `Maintenance`, `Refresh`.
 - [x] Node-Detail-Drawer oder Detailseite ergänzen: Services, KVM/IOMMU, libvirt URI, SSH/RPC-Reachability, relevante Logs/Warnings.
 - [x] Storage-Bereich als editierbare Cards statt reiner Tabelle darstellen: Backend-Typ, Kapazität, aktiv/inaktiv, Quota, Mount/Pool-Health, Actions `Quota setzen`, `Health prüfen`.

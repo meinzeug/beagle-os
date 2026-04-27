@@ -3,7 +3,7 @@
 Stand: 2026-04-13
 
 ## D-001: Beagle-native ist Primarpfad
-- Entscheidung: Zielarchitektur ist eigenstaendig lauffaehig ohne Proxmox.
+- Entscheidung: Zielarchitektur ist eigenstaendig lauffaehig ohne Beagle host.
 - Grund: Produktstrategie verlangt Plattformautonomie.
 
 ## D-002: Thinclient-Streaming ist Kernfaehigkeit
@@ -32,8 +32,8 @@ Stand: 2026-04-13
 ## D-008: Refactor Wave 2 zielt auf 7.0 als Cluster + VDI + Streaming Plattform
 - Entscheidung: Naechster Versionssprung 7.0 erweitert Beagle OS um Cluster-Plane, VDI-Pools, Storage- und Network-Plane, GPU-Plane, IAM v2, Backup/DR, OpenAPI v2 und Terraform-Provider.
 - Detail: gesamter Plan in `docs/refactorv2/`, Roadmap in `docs/refactorv2/04-roadmap-v2.md`.
-- Grund: Heutiges Single-Node-Beagle ist konkurrenzfaehig fuer Single-Host-Streaming, aber strukturell nicht anschlussfaehig an Proxmox/Omnissa/Citrix/Win365/Parsec. Cluster + Pool + Identity sind die Tor-Features.
-- Provider-Neutralitaet bleibt verbindlich; Cluster-Plane lebt im `core/`-Layer und im Beagle-Provider, Proxmox-Adapter wird nachgezogen aber nicht zur Voraussetzung gemacht.
+- Grund: Heutiges Single-Node-Beagle ist konkurrenzfaehig fuer Single-Host-Streaming, aber strukturell nicht anschlussfaehig an Beagle host/Omnissa/Citrix/Win365/Parsec. Cluster + Pool + Identity sind die Tor-Features.
+- Provider-Neutralitaet bleibt verbindlich; Cluster-Plane lebt im `core/`-Layer und im Beagle-Provider, Beagle host-Adapter wird nachgezogen aber nicht zur Voraussetzung gemacht.
 
 ## D-009: /api/v2 wird additiv eingefuehrt, /api/v1 bleibt stabil bis 8.0
 - Entscheidung: Neue Cluster-/Pool-/Tenant-Konzepte erscheinen unter /api/v2; /api/v1 wird nicht gebrochen, sondern als Single-Node-Compatibility-Shim ueber denselben Cluster-Store abgebildet.
@@ -230,7 +230,7 @@ Stand: 2026-04-13
 ## D-042: Backup-Basis fuer 7.3 ist qcow2-export + Restic-Dedupe; ZFS bleibt optionales Backend
 - Entscheidung: Fuer 7.3 wird Backup auf Beagle-Hosts primär als `qemu-img convert`-Export von qcow2-Diskständen plus Restic-Repository-Deduplikation umgesetzt.
 - Entscheidung: ZFS-Snapshots bleiben ein optionaler Fast-Path auf Hosts mit ZFS, sind aber nicht mehr harte Voraussetzung der Backup-Architektur.
-- Entscheidung: PBS-Kompatibilität wird über Export-/Import-Adapter und Snapshot-Metadaten vorgesehen, nicht über direkte Proxmox-Abhängigkeiten.
+- Entscheidung: PBS-Kompatibilität wird über Export-/Import-Adapter und Snapshot-Metadaten vorgesehen, nicht über direkte Beagle host-Abhängigkeiten.
 - Grund: Der Ansatz funktioniert provider-neutral auf Nicht-ZFS-Hosts, nutzt existierende QEMU-Tools und reduziert Storage-Bedarf über content-addressed Dedupe.
 - Validierung: reproduzierbarer PoC `scripts/test-backup-qcow2-restic-poc.sh` zeigt auf Runtime deduplizierte zweite Sicherung (`BACKUP_QCOW2_RESTIC_POC=PASS`).
 - Entscheidung: Der Server-Installer schreibt Join-Wunsch und Join-Ziel fuer neue Cluster-Nodes in eine dedizierte Datei `/etc/beagle/cluster-join.env` mit Modus `0600`; allgemeine Runtime-Env-Dateien enthalten nur das Flag und den Dateipfad.

@@ -14,7 +14,7 @@ Der Fokus liegt auf:
 2. **Security-Haerte**: TLS, Secret-Rotation, Subprocess-Sandboxing, Rate-Limits
 3. **Testbarkeit**: Service-Basisklassen, Integration-Tests, CI-Pipelines
 4. **Skalierung**: Async-Jobs, Caching, JSON→SQLite
-5. **Code-Qualitaet**: Monolithen-Aufspaltung, Proxmox-Endbeseitigung
+5. **Code-Qualitaet**: Monolithen-Aufspaltung, Beagle host-Endbeseitigung
 6. **Beobachtbarkeit**: Prometheus-Metriken, strukturierte Logs, DR-Runbook
 7. **UX & Accessibility**: i18n, ARIA, mobile
 
@@ -32,7 +32,7 @@ Der Fokus liegt auf:
 | 08 | [08-observability.md](08-observability.md) | Prometheus `/metrics`, strukturierte Logs, Tracing | MEDIUM |
 | 09 | [09-ci-pipeline.md](09-ci-pipeline.md) | GitHub Actions: shellcheck, bats, ISO-Build, SBOM | **HIGH** |
 | 10 | [10-integration-tests.md](10-integration-tests.md) | Boot→Enrollment→Streaming, Backup→Restore E2E | **HIGH** |
-| 11 | [11-proxmox-endbeseitigung.md](11-proxmox-endbeseitigung.md) | `proxmox-ui/` + `providers/proxmox/` loeschen | MEDIUM |
+| 11 | [11-beagle-host-endbeseitigung.md](11-beagle-host-endbeseitigung.md) | `beagle-ui/` + `providers/beagle-host/` loeschen | MEDIUM |
 | 12 | [12-ux-accessibility.md](12-ux-accessibility.md) | i18n, ARIA, mobile, Error-Standardisierung | LOW |
 
 ## Roadmap
@@ -52,7 +52,7 @@ Der Fokus liegt auf:
 - Plan 06: SQLite-Migration
 - Plan 07: Async-Job-Queue
 - Plan 08: Observability
-- Plan 11: Proxmox-Endbeseitigung
+- Plan 11: Beagle host-Endbeseitigung
 - Plan 12: UX & Accessibility
 
 ## Audit-Quelle

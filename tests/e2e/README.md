@@ -14,7 +14,7 @@ Sie sind automatisch deaktiviert wenn `BEAGLE_E2E_TOKEN` nicht gesetzt ist.
 ## Voraussetzungen
 
 ```bash
-export BEAGLE_E2E_URL=https://srv1.beagle-os.com:8443
+export BEAGLE_E2E_URL=https://srv1.beagle-os.com
 export BEAGLE_E2E_TOKEN=<admin-bearer-token>
 
 # Optional: self-signed Zertifikat ignorieren
@@ -34,7 +34,7 @@ CI nutzt GitHub Secrets (`secrets.BEAGLE_E2E_TOKEN`).
 cd beagle-host/services
 
 BEAGLE_BEAGLE_PROVIDER_STATE_DIR=/tmp/beagle-test/providers \
-BEAGLE_E2E_URL=https://srv1.beagle-os.com:8443 \
+BEAGLE_E2E_URL=https://srv1.beagle-os.com \
 BEAGLE_E2E_TOKEN=<token> \
 PYTHONPATH=. \
 python3 -m pytest ../../tests/e2e/ -v
@@ -59,7 +59,7 @@ curl -H "Authorization: Bearer $BEAGLE_E2E_TOKEN" \
 ```yaml
 # .github/workflows/e2e-nightly.yml (Beispiel)
 env:
-  BEAGLE_E2E_URL: https://srv1.beagle-os.com:8443
+  BEAGLE_E2E_URL: https://srv1.beagle-os.com
   BEAGLE_E2E_TOKEN: ${{ secrets.BEAGLE_E2E_TOKEN }}
   BEAGLE_E2E_INSECURE: "1"
 ```

@@ -144,7 +144,7 @@
           </div>
           <button class="icon-button" id="close-provision-modal" type="button" aria-label="Schliessen">×</button>
         </div>
-        <div class="provision-grid" id="provision-modal-grid">
+        <form class="provision-grid" id="provision-modal-grid" novalidate>
           <label class="field"><span>Node</span><select id="prov-modal-node" class="input-select"></select></label>
           <label class="field"><span>VMID</span><input id="prov-modal-vmid" type="number" min="100" step="1" placeholder="auto"></label>
           <label class="field"><span>Name</span><input id="prov-modal-name" type="text" placeholder="ubuntu-beagle-123"></label>
@@ -155,10 +155,10 @@
           <label class="field"><span>Bridge</span><select id="prov-modal-bridge" class="input-select"></select></label>
           <label class="field"><span>Disk Storage</span><select id="prov-modal-disk-storage" class="input-select"></select></label>
           <label class="field"><span>ISO Storage</span><select id="prov-modal-iso-storage" class="input-select"></select></label>
-          <label class="field"><span>Guest User</span><input id="prov-modal-guest-user" type="text" placeholder="beagle"></label>
-          <label class="field"><span>Guest Passwort</span><input id="prov-modal-guest-password" type="password" minlength="8" required placeholder="Mind. 8 Zeichen"></label>
+          <label class="field"><span>Guest User</span><input id="prov-modal-guest-user" type="text" autocomplete="username" placeholder="beagle"></label>
+                  <label class="field"><span>Guest Passwort</span><input id="prov-modal-guest-password" type="password" autocomplete="new-password" minlength="8" required placeholder="Mind. 8 Zeichen"></label>
           <label class="field field-wide"><span>Extra Pakete (komma-separiert)</span><input id="prov-modal-extra-packages" type="text" placeholder="htop,vim,steam-devices"></label>
-        </div>
+        </form>
         <div class="button-row provision-modal-buttons">
           <button class="button ghost" id="provision-modal-reset" type="button">Defaults laden</button>
           <button class="button ghost" id="provision-modal-cancel" type="button">Abbrechen</button>
@@ -718,6 +718,11 @@
                     <span class="cluster-action-title">Nur Beitritts-Code erzeugen</span>
                     <span class="cluster-action-copy">Fuer erfahrene Betreiber, wenn die Vorpruefung nicht benoetigt wird.</span>
                   </button>
+                  <button class="cluster-action-card secondary" id="cluster-action-reconcile" type="button" data-cluster-reconcile>
+                    <span class="cluster-action-icon"><svg aria-hidden="true"><use href="#i-operations"/></svg></span>
+                    <span class="cluster-action-title">Leader-State-Reconcile</span>
+                    <span class="cluster-action-copy">Bereinigt doppelte oder defekte Cluster-Member und setzt den Leader als autoritative Referenz.</span>
+                  </button>
                 </div>
               </div>
             </article>
@@ -732,11 +737,11 @@
                   </div>
                   <button class="icon-button" type="button" data-close-cluster-modal aria-label="Schliessen">×</button>
                 </div>
-                <div class="settings-form">
+                <form class="settings-form" novalidate>
                   <label class="field"><span>Node Name</span><input id="cluster-init-node" type="text" placeholder="srv1"></label>
                   <label class="field"><span>API URL</span><input id="cluster-init-api-url" type="url" placeholder="https://srv1.example.com/beagle-api/api/v1"></label>
                   <label class="field"><span>Advertise Host</span><input id="cluster-init-advertise-host" type="text" placeholder="srv1.example.com"></label>
-                </div>
+                </form>
                 <div class="button-row provision-modal-buttons">
                   <button class="button ghost" type="button" data-close-cluster-modal>Abbrechen</button>
                   <button class="button primary" id="cluster-init-btn" type="button">Cluster erstellen</button>
@@ -754,7 +759,7 @@
                   </div>
                   <button class="icon-button" type="button" data-close-cluster-modal aria-label="Schliessen">×</button>
                 </div>
-                <div class="settings-form">
+                <form class="settings-form" novalidate>
                   <label class="field field-wide cluster-simple-field">
                     <span>Servername</span>
                     <input id="cluster-add-server-hostname" type="text" placeholder="srv2.beagle-os.com" autocomplete="off">
@@ -788,7 +793,7 @@
                     </div>
                   </div>
                   <label class="field field-wide"><span>Ergebnis</span><textarea id="cluster-add-server-token-output" rows="3" readonly placeholder="Auto-Join-Ergebnis erscheint hier"></textarea></label>
-                </div>
+                </form>
                 <div class="button-row provision-modal-buttons">
                   <button class="button ghost" type="button" data-close-cluster-modal>Schliessen</button>
                   <button class="button primary" id="cluster-add-server-preflight-btn" type="button">Server sicher verbinden</button>
@@ -1229,7 +1234,7 @@
                 <button class="button ghost small" id="refresh-catalog" type="button">Catalog refresh</button>
               </div>
 
-              <div class="provision-grid" id="provision-grid">
+              <form class="provision-grid" id="provision-grid" novalidate>
                 <label class="field"><span>Node</span><select id="prov-node" class="input-select"></select></label>
                 <label class="field"><span>VMID</span><input id="prov-vmid" type="number" min="100" step="1" placeholder="auto"></label>
                 <label class="field"><span>Name</span><input id="prov-name" type="text" placeholder="ubuntu-beagle-123"></label>
@@ -1240,10 +1245,10 @@
                 <label class="field"><span>Bridge</span><select id="prov-bridge" class="input-select"></select></label>
                 <label class="field"><span>Disk Storage</span><select id="prov-disk-storage" class="input-select"></select></label>
                 <label class="field"><span>ISO Storage</span><select id="prov-iso-storage" class="input-select"></select></label>
-                <label class="field"><span>Guest User</span><input id="prov-guest-user" type="text" placeholder="beagle"></label>
-                <label class="field"><span>Guest Passwort</span><input id="prov-guest-password" type="password" minlength="8" required placeholder="Mind. 8 Zeichen"></label>
+                <label class="field"><span>Guest User</span><input id="prov-guest-user" type="text" autocomplete="username" placeholder="beagle"></label>
+                <label class="field"><span>Guest Passwort</span><input id="prov-guest-password" type="password" autocomplete="new-password" minlength="8" required placeholder="Mind. 8 Zeichen"></label>
                 <label class="field field-wide"><span>Extra Pakete (komma-separiert)</span><input id="prov-extra-packages" type="text" placeholder="htop,vim,steam-devices"></label>
-              </div>
+              </form>
 
               <div class="button-row section-spaced">
                 <button class="button primary" id="provision-create" type="button">VM erstellen</button>
@@ -1266,7 +1271,30 @@
 
           <!-- ============ POLICIES ============ -->
           <section class="panel-section" id="policies-section" data-panel-section="policies">
-            <article class="card section-spaced-tight">
+            <div class="policies-hero">
+              <div>
+                <span class="eyebrow">Pools &amp; Policies</span>
+                <h1>Desktop Pools steuern</h1>
+                <p>Pool-Erstellung, Pool-Status, Entitlements und Policy-Regeln in einer geführten Oberfläche.</p>
+              </div>
+              <div class="policies-hero-badges" id="policies-hero-badges">
+                <span class="chip muted">Pools 0</span>
+                <span class="chip muted">Templates 0</span>
+                <span class="chip muted">Entitled 0</span>
+              </div>
+            </div>
+
+            <div class="policies-nav" aria-label="Pools und Policies Bereiche">
+              <a class="chip nav-chip" href="#policies-pools-card">Pools</a>
+              <a class="chip nav-chip" href="#policies-templates-card">Templates</a>
+              <a class="chip nav-chip" href="#policies-entitlements-card">Entitlements</a>
+              <a class="chip nav-chip" href="#policies-policy-editor-card">Policies</a>
+              <a class="chip nav-chip" href="#policies-sessions-card">Sessions</a>
+            </div>
+
+            <div class="policies-workspace">
+              <div class="policies-main">
+            <article class="card section-spaced-tight" id="policies-pools-card">
               <div class="card-head">
                 <div>
                   <span class="eyebrow">VDI Pools</span>
@@ -1288,7 +1316,7 @@
               <div class="pool-wizard-grid" id="pool-wizard-grid">
                 <div class="pool-wizard-step-panel" data-pool-step="1">
                   <label class="field"><span>Template</span><select id="pool-template" class="input-select"></select></label>
-                  <label class="field"><span>Pool ID</span><input id="pool-id" type="text" placeholder="pool-engineering"></label>
+                  <label class="field"><span>Pool ID</span><input id="pool-id" type="text" autocomplete="off" placeholder="pool-engineering"></label>
                 </div>
 
                 <div class="pool-wizard-step-panel" data-pool-step="2" hidden>
@@ -1314,7 +1342,7 @@
                     <select id="pool-gpu-class" class="input-select"></select>
                     <small id="pool-gpu-class-help" class="muted-text">Lade GPU-Inventar ...</small>
                   </label>
-                  <label class="field"><span>Storage Pool</span><input id="pool-storage" type="text" placeholder="local"></label>
+                  <label class="field"><span>Storage Pool</span><input id="pool-storage" type="text" autocomplete="off" placeholder="local"></label>
                   <label class="field"><span>Min Groesse</span><input id="pool-min-size" type="number" min="1" step="1" value="1"></label>
                   <label class="field"><span>Max Groesse</span><input id="pool-max-size" type="number" min="1" step="1" value="5"></label>
                   <label class="field"><span>Warm Pool</span><input id="pool-warm-size" type="number" min="0" step="1" value="2"></label>
@@ -1322,7 +1350,7 @@
                   <label class="field"><span>RAM MiB pro Desktop</span><input id="pool-memory" type="number" min="1024" step="256" value="4096"></label>
                   <label class="field"><span>Session-Limit (Minuten)</span><input id="pool-session-time-limit" type="number" min="0" step="1" value="0"></label>
                   <label class="field"><span>Kosten / Minute</span><input id="pool-session-cost" type="number" min="0" step="0.01" value="0"></label>
-                  <label class="field"><span>Verlaengerungsstufen (Minuten)</span><input id="pool-session-extensions" type="text" value="15,30,60" placeholder="15,30,60"></label>
+                  <label class="field"><span>Verlaengerungsstufen (Minuten)</span><input id="pool-session-extensions" type="text" autocomplete="off" value="15,30,60" placeholder="15,30,60"></label>
                   <label class="field"><span>Session Recording</span>
                     <select id="pool-session-recording" class="input-select">
                       <option value="disabled" selected>disabled</option>
@@ -1337,7 +1365,7 @@
                       <option value="true">enabled</option>
                     </select>
                   </label>
-                  <label class="field field-wide"><span>Watermark Text (optional)</span><input id="pool-recording-watermark-custom-text" type="text" maxlength="120" placeholder="z.B. Compliance"></label>
+                  <label class="field field-wide"><span>Watermark Text (optional)</span><input id="pool-recording-watermark-custom-text" type="text" autocomplete="off" maxlength="120" placeholder="z.B. Compliance"></label>
                   <div class="pool-streaming-group field-wide">
                     <div class="pool-streaming-group-head">
                       <span class="eyebrow">Streaming-Profil</span>
@@ -1362,7 +1390,7 @@
                       </label>
                       <label class="field"><span>Bitrate Kbps</span><input id="pool-stream-bitrate" type="number" min="2000" max="150000" step="500" value="20000"></label>
                       <label class="field"><span>FPS</span><input id="pool-stream-fps" type="number" min="24" max="240" step="1" value="60"></label>
-                      <label class="field"><span>Resolution</span><input id="pool-stream-resolution" type="text" value="1920x1080" placeholder="2560x1440"></label>
+                      <label class="field"><span>Resolution</span><input id="pool-stream-resolution" type="text" autocomplete="off" value="1920x1080" placeholder="2560x1440"></label>
                       <label class="field checkbox-field"><span>HDR</span><input id="pool-stream-hdr" type="checkbox"></label>
                       <label class="field checkbox-field"><span>Audio Input</span><input id="pool-stream-audio-input" type="checkbox"></label>
                       <label class="field checkbox-field"><span>Gamepad Redirect</span><input id="pool-stream-gamepad" type="checkbox"></label>
@@ -1373,8 +1401,8 @@
                 </div>
 
                 <div class="pool-wizard-step-panel" data-pool-step="3" hidden>
-                  <label class="field field-wide"><span>Entitlements Benutzer (komma)</span><input id="pool-users" type="text" placeholder="alice,bob"></label>
-                  <label class="field field-wide"><span>Entitlements Gruppen (komma)</span><input id="pool-groups" type="text" placeholder="ops,qa"></label>
+                  <label class="field field-wide"><span>Entitlements Benutzer (komma)</span><input id="pool-users" type="text" autocomplete="username" placeholder="alice,bob"></label>
+                  <label class="field field-wide"><span>Entitlements Gruppen (komma)</span><input id="pool-groups" type="text" autocomplete="off" placeholder="ops,qa"></label>
                 </div>
 
                 <div class="pool-wizard-step-panel" data-pool-step="4" hidden>
@@ -1405,11 +1433,21 @@
 
               <div class="table-wrap compact">
                 <table class="vm-table compact-table">
-                  <thead><tr><th>VMID</th><th>User</th><th>Status</th><th>Zugewiesen</th></tr></thead>
+                  <thead><tr><th>VMID</th><th>User</th><th>Status</th><th>Zugewiesen</th><th>Aktion</th></tr></thead>
                   <tbody id="pool-overview-body">
-                    <tr><td colspan="4" class="empty-cell">Kein Pool ausgewaehlt.</td></tr>
+                    <tr><td colspan="5" class="empty-cell">Kein Pool ausgewaehlt.</td></tr>
                   </tbody>
                 </table>
+              </div>
+
+              <div class="pool-scale-bar">
+                <label class="field pool-scale-field">
+                  <span>Warm-Pool Zielgroesse</span>
+                  <input id="pool-scale-target" type="number" min="1" step="1" placeholder="keine Auswahl">
+                </label>
+                <div class="button-row compact-row">
+                  <button class="button primary small" id="pool-scale-apply" type="button">Skalieren</button>
+                </div>
               </div>
 
               <div class="pool-overview-stats" id="pool-overview-stats">
@@ -1419,12 +1457,81 @@
                 <span class="chip muted">error 0</span>
               </div>
 
+              <div class="pool-catalog-summary" id="pool-catalog-summary">
+                <span class="chip muted">Pools 0</span>
+                <span class="chip muted">Gaming 0</span>
+                <span class="chip muted">Kiosk 0</span>
+                <span class="chip muted">Desktop 0</span>
+              </div>
+
               <div id="pools-list" class="policy-list section-spaced-tight">
                 <div class="empty-card">Keine Pools geladen.</div>
               </div>
             </article>
 
-            <article class="card section-spaced-tight">
+            <article class="card section-spaced-tight" id="policies-templates-card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">VDI Templates</span>
+                  <h2>Template-Bibliothek</h2>
+                </div>
+                <div class="button-row compact-row">
+                  <span class="chip muted" id="template-library-summary">Templates 0</span>
+                </div>
+              </div>
+              <div id="template-library-list" class="template-library-grid">
+                <div class="empty-card">Keine Templates geladen.</div>
+              </div>
+            </article>
+
+            <article class="card section-spaced-tight" id="policies-entitlements-card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Pool-Details</span>
+                  <h2>Entitlements</h2>
+                </div>
+                <div class="button-row compact-row">
+                  <span class="chip muted" id="pool-entitlement-pool">kein Pool ausgewählt</span>
+                  <button class="button ghost small" id="pool-entitlement-refresh" type="button">Refresh</button>
+                </div>
+              </div>
+              <div class="pool-entitlement-editor">
+                <section class="pool-entitlement-column">
+                  <div class="pool-entitlement-column-head">
+                    <span class="eyebrow">Users</span>
+                    <strong>Pool-Zugriff für Benutzer</strong>
+                  </div>
+                  <div id="pool-entitlement-users" class="pool-entitlement-chip-list">
+                    <div class="empty-card">Kein Pool ausgewaehlt.</div>
+                  </div>
+                  <div class="pool-entitlement-form">
+                    <input id="pool-entitlement-user-input" class="input-search" type="search" autocomplete="username" placeholder="User-ID">
+                    <div class="button-row compact-row">
+                      <button class="button primary small" id="pool-entitlement-user-add" type="button">Hinzufügen</button>
+                    </div>
+                  </div>
+                </section>
+                <section class="pool-entitlement-column">
+                  <div class="pool-entitlement-column-head">
+                    <span class="eyebrow">Groups</span>
+                    <strong>Pool-Zugriff für Gruppen</strong>
+                  </div>
+                  <div id="pool-entitlement-groups" class="pool-entitlement-chip-list">
+                    <div class="empty-card">Kein Pool ausgewaehlt.</div>
+                  </div>
+                  <div class="pool-entitlement-form">
+                    <input id="pool-entitlement-group-input" class="input-search" type="search" placeholder="Gruppen-ID">
+                    <div class="button-row compact-row">
+                      <button class="button primary small" id="pool-entitlement-group-add" type="button">Hinzufügen</button>
+                    </div>
+                  </div>
+                </section>
+              </div>
+              <div class="banner info" id="pool-entitlement-status">Wähle einen Pool, um Entitlements zu bearbeiten.</div>
+            </article>
+            </div>
+            <div class="policies-side">
+            <article class="card section-spaced-tight" id="policies-sessions-card">
               <div class="card-head">
                 <div>
                   <span class="eyebrow">Gaming &amp; Kiosk</span>
@@ -1466,7 +1573,7 @@
               </div>
             </article>
 
-            <article class="card">
+            <article class="card" id="policies-policy-editor-card">
               <div class="card-head">
                 <div>
                   <span class="eyebrow">Configuration</span>
@@ -1475,14 +1582,104 @@
               </div>
               <div class="policy-layout">
                 <div class="policy-form">
-                  <label class="field"><span>Name</span><input id="policy-name" type="text" placeholder="desktop-vm100"></label>
+                  <label class="field"><span>Name</span><input id="policy-name" type="text" autocomplete="off" placeholder="desktop-vm100"></label>
                   <label class="field field-narrow"><span>Priority</span><input id="policy-priority" type="number" value="100"></label>
                   <label class="check-label check-label-padded">
                     <input id="policy-enabled" type="checkbox" checked>
                     <span>Aktiv</span>
                   </label>
-                  <label class="field field-wide"><span>Selector JSON</span><textarea id="policy-selector" rows="4" placeholder='{"vmid": 100}'></textarea></label>
-                  <label class="field field-wide"><span>Profile JSON</span><textarea id="policy-profile" rows="6" placeholder='{"assigned_target":{"vmid":100},"beagle_role":"endpoint"}'></textarea></label>
+                  <div class="policy-structured-grid" id="policy-structured-grid">
+                    <div class="pool-streaming-group field-wide">
+                      <div class="pool-streaming-group-head">
+                        <span class="eyebrow">Basis</span>
+                        <strong>Rolle und Zuordnung</strong>
+                      </div>
+                      <div class="pool-streaming-grid">
+                        <label class="field"><span>Beagle Rolle</span>
+                          <select id="policy-beagle-role" class="input-select">
+                            <option value="">-</option>
+                            <option value="desktop">desktop</option>
+                            <option value="endpoint">endpoint</option>
+                            <option value="kiosk">kiosk</option>
+                          </select>
+                        </label>
+                        <label class="field"><span>Assigned VMID</span><input id="policy-assigned-vmid" type="number" min="1" step="1" placeholder="100"></label>
+                        <label class="field"><span>Assigned Node</span><input id="policy-assigned-node" type="text" autocomplete="off" placeholder="srv1"></label>
+                        <label class="field"><span>Network Mode</span>
+                          <select id="policy-network-mode" class="input-select">
+                            <option value="">-</option>
+                            <option value="dhcp">dhcp</option>
+                            <option value="static">static</option>
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="pool-streaming-group field-wide">
+                      <div class="pool-streaming-group-head">
+                        <span class="eyebrow">Endpoint</span>
+                        <strong>Streaming-Zuordnung</strong>
+                      </div>
+                      <div class="pool-streaming-grid">
+                        <label class="field"><span>Stream Host</span><input id="policy-stream-host" type="text" autocomplete="off" placeholder="srv1.example.com"></label>
+                        <label class="field"><span>Moonlight Port</span><input id="policy-moonlight-port" type="text" autocomplete="off" placeholder="50000"></label>
+                        <label class="field"><span>Moonlight App</span><input id="policy-moonlight-app" type="text" autocomplete="off" placeholder="Desktop"></label>
+                        <label class="field"><span>Expected Profile</span><input id="policy-expected-profile-name" type="text" autocomplete="off" placeholder="vm-100"></label>
+                      </div>
+                    </div>
+                    <div class="pool-streaming-group field-wide">
+                      <div class="pool-streaming-group-head">
+                        <span class="eyebrow">Updates &amp; Identity</span>
+                        <strong>Verhalten und Standardwerte</strong>
+                      </div>
+                      <div class="pool-streaming-grid">
+                        <label class="field checkbox-field"><span>Updates aktiv</span><input id="policy-update-enabled" type="checkbox" checked></label>
+                        <label class="field"><span>Update Channel</span>
+                          <select id="policy-update-channel" class="input-select">
+                            <option value="stable">stable</option>
+                            <option value="beta">beta</option>
+                            <option value="nightly">nightly</option>
+                          </select>
+                        </label>
+                        <label class="field"><span>Update Behavior</span>
+                          <select id="policy-update-behavior" class="input-select">
+                            <option value="prompt">prompt</option>
+                            <option value="auto">auto</option>
+                            <option value="manual">manual</option>
+                          </select>
+                        </label>
+                        <label class="field"><span>Update Feed URL</span><input id="policy-update-feed-url" type="url" autocomplete="off" placeholder="https://srv1.example.com/api/v1/endpoints/update-feed"></label>
+                        <label class="field"><span>Update Pin</span><input id="policy-update-version-pin" type="text" autocomplete="off" placeholder="optional"></label>
+                        <label class="field"><span>Timezone</span><input id="policy-identity-timezone" type="text" autocomplete="off" placeholder="Europe/Berlin"></label>
+                        <label class="field"><span>Locale</span><input id="policy-identity-locale" type="text" autocomplete="off" placeholder="de_DE.UTF-8"></label>
+                        <label class="field"><span>Keymap</span><input id="policy-identity-keymap" type="text" autocomplete="off" placeholder="de"></label>
+                        <label class="field"><span>Chrome Profile</span><input id="policy-identity-chrome-profile" type="text" autocomplete="off" placeholder="vm-100"></label>
+                        <label class="field"><span>Identity Hostname</span><input id="policy-identity-hostname" type="text" autocomplete="off" placeholder="endpoint-100"></label>
+                      </div>
+                    </div>
+                    <div class="pool-streaming-group field-wide">
+                      <div class="pool-streaming-group-head">
+                        <span class="eyebrow">Egress</span>
+                        <strong>Netzwerk- und DNS-Defaults</strong>
+                      </div>
+                      <div class="pool-streaming-grid">
+                        <label class="field"><span>Egress Mode</span>
+                          <select id="policy-egress-mode" class="input-select">
+                            <option value="">-</option>
+                            <option value="direct">direct</option>
+                            <option value="nat">nat</option>
+                            <option value="vpn">vpn</option>
+                          </select>
+                        </label>
+                        <label class="field"><span>Egress Type</span><input id="policy-egress-type" type="text" autocomplete="off" placeholder="wireguard"></label>
+                        <label class="field"><span>Egress Interface</span><input id="policy-egress-interface" type="text" autocomplete="off" placeholder="beagle-egress"></label>
+                        <label class="field field-wide"><span>Egress Domains (komma)</span><input id="policy-egress-domains" type="text" autocomplete="off" placeholder="example.com,api.example.com"></label>
+                        <label class="field field-wide"><span>Egress Resolvers (komma)</span><input id="policy-egress-resolvers" type="text" autocomplete="off" placeholder="1.1.1.1,8.8.8.8"></label>
+                        <label class="field field-wide"><span>Egress Allowed IPs (komma)</span><input id="policy-egress-allowed-ips" type="text" autocomplete="off" placeholder="10.0.0.0/8"></label>
+                      </div>
+                    </div>
+                  </div>
+                  <label class="field field-wide"><span>Selector JSON</span><textarea id="policy-selector" rows="4" autocomplete="off" placeholder='{"vmid": 100}'></textarea></label>
+                  <label class="field field-wide"><span>Profile JSON Preview</span><textarea id="policy-profile" rows="6" readonly placeholder='{"assigned_target":{"vmid":100},"beagle_role":"endpoint"}'></textarea></label>
                   <div class="button-row">
                     <button class="button primary" id="policy-save" type="button">Speichern</button>
                     <button class="button ghost" id="policy-new" type="button">Neu</button>
@@ -1494,6 +1691,8 @@
                 </div>
               </div>
             </article>
+              </div>
+            </div>
           </section>
 
           <!-- ============ SESSIONS ============ -->
@@ -1549,16 +1748,16 @@
                       <tbody id="iam-users-body"><tr><td colspan="3" class="empty-cell">Keine User.</td></tr></tbody>
                     </table>
                   </div>
-                  <div class="iam-editor-grid">
-                    <label class="field"><span>Username</span><input id="iam-user-username" type="text" placeholder="operator01"></label>
+                  <form class="iam-editor-grid" novalidate>
+                    <label class="field"><span>Username</span><input id="iam-user-username" type="text" autocomplete="username" placeholder="operator01"></label>
                     <label class="field"><span>Rolle</span><select id="iam-user-role" class="input-select"></select></label>
-                    <label class="field"><span>Passwort</span><input id="iam-user-password" type="password" placeholder="Neues Passwort"></label>
+                    <label class="field"><span>Passwort</span><input id="iam-user-password" type="password" autocomplete="new-password" placeholder="Neues Passwort"></label>
                     <label class="field"><span>Tenant-ID</span><input id="iam-user-tenant" type="text" placeholder="tenant-a"></label>
                     <label class="check-label check-label-padded">
                       <input id="iam-user-enabled" type="checkbox" checked>
                       <span>Aktiv</span>
                     </label>
-                  </div>
+                  </form>
                   <div class="button-row">
                     <button class="button primary" id="iam-user-save" type="button">Speichern</button>
                     <button class="button ghost" id="iam-user-new" type="button">Neu</button>
@@ -1606,7 +1805,7 @@
                 </div>
               </div>
               <div class="iam-filter-row">
-                <input id="iam-session-filter-user" class="input-search" type="search" placeholder="User filtern">
+                <input id="iam-session-filter-user" class="input-search" type="search" autocomplete="username" placeholder="User filtern">
                 <input id="iam-session-filter-tenant" class="input-search" type="search" placeholder="Tenant filtern">
                 <button class="button ghost small" id="iam-sessions-reload" type="button">Suchen</button>
               </div>
@@ -1680,7 +1879,7 @@
                 </select>
                 <input id="audit-filter-start" class="input-search" type="text" placeholder="Start ISO 8601">
                 <input id="audit-filter-end" class="input-search" type="text" placeholder="Ende ISO 8601">
-                <input id="audit-filter-user" class="input-search" type="search" placeholder="User">
+                <input id="audit-filter-user" class="input-search" type="search" autocomplete="username" placeholder="User">
                 <input id="audit-filter-tenant" class="input-search" type="search" placeholder="Tenant">
                 <select id="audit-filter-action" class="input-select">
                   <option value="">Alle Aktionen</option>
@@ -2006,6 +2205,7 @@
                 <div class="settings-update-unified-grid">
                 <section class="settings-update-unified-block">
                   <h3>System (APT)</h3>
+                  <div class="settings-update-status-banner subtle" id="upd-policy-message">APT-Updates werden bewusst manuell installiert. Die Automatik gilt nur fuer den GitHub-Repo-Update-Pfad.</div>
                   <div class="settings-update-status-banner" id="upd-summary-message">Die automatische Pruefung startet beim Oeffnen dieser Seite.</div>
                   <div class="settings-update-metrics">
                     <div class="settings-update-metric is-primary"><span>Offene Updates</span><strong id="upd-count">—</strong></div>
@@ -2182,14 +2382,14 @@
                 <div id="bak-target-nfs" class="hidden">
                   <label class="field field-wide"><span>NFS-Einhängepunkt</span><input id="bak-nfs-mount" type="text" placeholder="/mnt/beagle-backup"></label>
                 </div>
-                <div id="bak-target-s3" class="hidden">
+                <form id="bak-target-s3" class="hidden" novalidate>
                   <label class="field field-wide"><span>S3 Bucket</span><input id="bak-s3-bucket" type="text" placeholder="my-beagle-backups"></label>
                   <label class="field field-wide"><span>S3 Prefix</span><input id="bak-s3-prefix" type="text" placeholder="beagle-backup/"></label>
                   <label class="field field-wide"><span>S3 Endpoint-URL</span><input id="bak-s3-endpoint" type="text" placeholder="https://s3.amazonaws.com (leer = AWS)"></label>
                   <label class="field field-wide"><span>S3 Access Key</span><input id="bak-s3-key" type="text"></label>
                   <label class="field field-wide"><span>S3 Secret Key</span><input id="bak-s3-secret" type="password" autocomplete="new-password"></label>
                   <label class="field field-wide"><span>Verschlüsselungs-Key (64 Hex-Zeichen, AES-256)</span><input id="bak-s3-enc" type="password" autocomplete="new-password" placeholder="optional"></label>
-                </div>
+                </form>
                 <div class="settings-info-grid">
                   <div class="info-item"><span class="info-label">Letztes Backup</span><span class="info-value" id="bak-last-run">—</span></div>
                 </div>
@@ -2226,7 +2426,7 @@
                 </div>
                 <button class="button ghost small" id="settings-replication-refresh" type="button">Refresh</button>
               </div>
-              <div class="settings-form" id="settings-replication-form">
+              <form class="settings-form" id="settings-replication-form" novalidate>
                 <label class="check-label check-label-padded">
                   <input id="repl-enabled" type="checkbox">
                   <span>Replikation aktiviert</span>
@@ -2242,14 +2442,14 @@
                   <button class="button ghost" id="settings-replication-run" type="button">Letzten Job jetzt replizieren</button>
                 </div>
                 <div id="repl-status" class="info-item mt-2"></div>
-              </div>
+              </form>
             </article>
 
             <!-- Restore Modal -->
             <dialog id="bak-restore-modal" class="modal">
               <article class="card modal-card-sm">
                 <div class="card-head"><h3>Backup Wiederherstellen</h3></div>
-                <div class="settings-form">
+                <form class="settings-form" novalidate>
                   <input type="hidden" id="bak-restore-job-id">
                   <p class="hint">Job: <span id="bak-restore-job-label"></span></p>
                   <label class="field field-wide"><span>Zielpfad (leer = sicheres Temp-Verzeichnis)</span><input id="bak-restore-path" type="text" placeholder="/var/restores/beagle/..."></label>
@@ -2258,7 +2458,7 @@
                     <button class="button ghost" id="bak-restore-cancel" type="button">Abbrechen</button>
                   </div>
                   <div id="bak-restore-result" class="mt-2"></div>
-                </div>
+                </form>
               </article>
             </dialog>
 
@@ -2293,10 +2493,10 @@
 
               <div class="settings-section-group">
                 <h3>Neuer Webhook</h3>
-                <div class="settings-form">
+                <form class="settings-form" novalidate>
                   <label class="field field-wide"><span>Ziel-URL</span><input id="wh-url" type="url" placeholder="https://example.internal/hooks/beagle"></label>
                   <label class="field"><span>Events (kommagetrennt, z.B. vm.start)</span><input id="wh-events" type="text" placeholder="vm.start,vm.stop"></label>
-                  <label class="field"><span>HMAC Secret (nur bei Neuerstellung/Aenderung)</span><input id="wh-secret" type="password" placeholder="mindestens 12 Zeichen"></label>
+                  <label class="field"><span>HMAC Secret (nur bei Neuerstellung/Aenderung)</span><input id="wh-secret" type="password" autocomplete="new-password" placeholder="mindestens 12 Zeichen"></label>
                   <label class="check-label check-label-padded">
                     <input id="wh-enabled" type="checkbox" checked>
                     <span>Aktiv</span>
@@ -2306,7 +2506,7 @@
                     <button class="button ghost" id="wh-clear" type="button">Formular leeren</button>
                     <button class="button ghost" id="wh-save" type="button">Liste speichern</button>
                   </div>
-                </div>
+                </form>
               </div>
 
               <div class="settings-section-group">

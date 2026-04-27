@@ -7,7 +7,7 @@ Stand vom 30.03.2026:
 - lokale Festplatten-Installationen booten nicht als klassisches Debian-System, sondern als Live-Layout von der Zielplatte
 - geschrieben werden aktuell `vmlinuz`, `initrd.img` und `filesystem.squashfs` nach `/live`
 - persistente Client-Daten liegen separat unter `/pve-thin-client/state`
-- der Beagle Manager auf Proxmox existiert bereits und kann Endpoints periodisch sehen
+- der Beagle Manager auf Beagle host existiert bereits und kann Endpoints periodisch sehen
 - Endpoints melden sich bereits per `beagle-endpoint-report` beim Manager
 - Endpoints ziehen bereits Aktionen per `beagle-endpoint-dispatch` vom Manager
 
@@ -21,7 +21,7 @@ Installierte Thinclients sollen:
 - erkennen, dass eine neue Beagle-OS-Version verfügbar ist
 - Updates zuverlässig herunterladen und verifizieren
 - entweder automatisch oder nach Benutzerbestätigung umschalten
-- ihren Update-Status im Proxmox-Manager melden
+- ihren Update-Status im Beagle host-Manager melden
 - bei Problemen auf den vorherigen Stand zurückfallen können
 
 ## Vorschlag
@@ -29,7 +29,7 @@ Installierte Thinclients sollen:
 ### 1. Artefakt-Hosting trennen
 
 - `beagle-os.com` hostet die oeffentlichen Update-Payloads
-- der Proxmox-Host bleibt die autoritative Management- und Freigabeinstanz
+- der Beagle host-Host bleibt die autoritative Management- und Freigabeinstanz
 
 Implementiertes Modell:
 
@@ -51,7 +51,7 @@ Dieses Feed-Endpoint ist authentifiziert und liefert:
 - `sha256sums_url`
 - Policy-Informationen wie `behavior`, `channel`, `version_pin`
 
-Der Proxmox-Host kann dieselben Dateien weiterhin zusaetzlich unter `/beagle-downloads` anbieten.
+Der Beagle host-Host kann dieselben Dateien weiterhin zusaetzlich unter `/beagle-downloads` anbieten.
 Damit bleibt der Rollout auch ohne `beagle-os.com` funktionsfaehig.
 
 ### 2. Update-Kanal ueber die bestehende Control Plane steuern

@@ -11,7 +11,7 @@ Produkt fuer Desktop-Virtualisierung gegen die etablierten Plattformen anzutrete
 Es ersetzt nicht `docs/refactor/` (Welle 1), sondern setzt darauf auf:
 
 - Welle 1 (`docs/refactor/`) hat die Beagle-native Plattformbasis definiert (IAM, Streaming-Lifecycle, Provider-Neutralitaet, beagle-native Compute).
-- Welle 2 (`docs/refactorv2/`) macht daraus ein vollwertiges **Desktop-Virtualization-Produkt** mit Konkurrenzfaehigkeit zu Proxmox VE, Omnissa Horizon, Citrix DaaS, Windows 365, Parsec for Teams, Kasm Workspaces und Harvester HCI.
+- Welle 2 (`docs/refactorv2/`) macht daraus ein vollwertiges **Desktop-Virtualization-Produkt** mit Konkurrenzfaehigkeit zu Beagle host, Omnissa Horizon, Citrix DaaS, Windows 365, Parsec for Teams, Kasm Workspaces und Harvester HCI.
 
 ## Index
 
@@ -40,7 +40,7 @@ Beagle OS hat heute schon das, was 90 Prozent der Konkurrenz **nicht** hat:
 
 - voll integrierter **Streaming-Lifecycle pro VM** (Sunshine + Moonlight + thin client) als first-class-Feature
 - ein **eigenstaendiges Endpoint-OS** (`beagle-os/`, `thin-client-assistant/`) und Installer-Stack
-- ein **Bare-Metal-Server-Installer** mit Standalone- und Proxmox-Modus
+- ein **Bare-Metal-Server-Installer** mit Standalone- und Beagle host-Modus
 - ein **Provider-neutrales Service-Modell** (`core/`, `providers/`, `beagle-host/services/`)
 
 Was zur Allmacht im Desktop-Virtualization-Markt fehlt, ist im Wesentlichen:

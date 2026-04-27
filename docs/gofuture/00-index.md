@@ -46,11 +46,11 @@ KI-Agent sofort anschließen kann, ohne den Kontext erst rekonstruieren zu müss
 ## Aktive Re-Open-Punkte (2026-04-26)
 
 - [x] Cluster-Operations in der WebUI vollständig machen: Cluster erstellen, Server hinzufügen, Join-Token erzeugen, bestehenden Server beitreten lassen, Member verwalten, Drain/Maintenance und Validierung auf `srv1`/`srv2` aus der WebUI heraus ausführen. Detailplan: [07-cluster-foundation.md](07-cluster-foundation.md) Schritt 7.
-- [ ] `/#panel=virtualization` überarbeiten: Nodes, Storage, Bridges, GPU/vGPU/SR-IOV und VM-Inspector bedienbar statt nur tabellarisch anzeigen. Detailpläne: [08-storage-plane.md](08-storage-plane.md) Schritt 7 und [12-gpu-plane.md](12-gpu-plane.md) Schritt 6.
+- [x] `/#panel=virtualization` überarbeiten: Nodes, Storage, Bridges, GPU/vGPU/SR-IOV und VM-Inspector bedienbar statt nur tabellarisch anzeigen. Detailpläne: [08-storage-plane.md](08-storage-plane.md) Schritt 7 und [12-gpu-plane.md](12-gpu-plane.md) Schritt 6.
 - [x] Host-/Release-Artefakte in der WebUI bedienbar machen: Artifact-Status, fehlende Downloads, Refresh/Build starten, Job-Fortschritt sehen, Fehler auswerten. Detailplan: [06-server-installer.md](06-server-installer.md) Schritt 6.
-- [ ] `/#panel=policies` grundlegend überarbeiten: weniger Tabellenwüste, bessere Informationsarchitektur, editierbare Cards/Wizards, klare Empty-/Error-States und nachvollziehbare Pool-/Policy-Flows. Detailplan: [10-vdi-pools.md](10-vdi-pools.md) Schritt 7.
-- [ ] `/#panel=iam` überarbeiten: IdP-/SCIM-/Rollen-/Session-Verwaltung als geführte Admin-Flows statt roher Listen/Formulare. Detailplan: [13-iam-tenancy.md](13-iam-tenancy.md) Schritt 7.
-- [ ] `/#panel=audit` überarbeiten: Audit-Viewer, Report-Builder, Export-Ziele und Compliance-Flows bedienbar und auswertbar machen. Detailplan: [15-audit-compliance.md](15-audit-compliance.md) Schritt 6.
+- [x] `/#panel=policies` grundlegend überarbeiten: weniger Tabellenwüste, bessere Informationsarchitektur, editierbare Cards/Wizards, klare Empty-/Error-States und nachvollziehbare Pool-/Policy-Flows. Detailplan: [10-vdi-pools.md](10-vdi-pools.md) Schritt 7.
+- [x] `/#panel=iam` überarbeiten: IdP-/SCIM-/Rollen-/Session-Verwaltung als geführte Admin-Flows statt roher Listen/Formulare. Detailplan: [13-iam-tenancy.md](13-iam-tenancy.md) Schritt 7.
+- [x] `/#panel=audit` überarbeiten: Audit-Viewer, Report-Builder, Export-Ziele und Compliance-Flows bedienbar und auswertbar machen. Detailplan: [15-audit-compliance.md](15-audit-compliance.md) Schritt 6.
 
 Warum diese Punkte noch offen sind: Die bisherigen GoFuture-Schritte haben viele Backend-Contracts, APIs und erste Statusanzeigen geliefert, aber nicht konsequent jeden Betreiber-Workflow in klickbare, geführte WebUI-Abläufe übersetzt. Das widerspricht der Produktregel, dass die Beagle Web Console die einzige Operator-Oberfläche ist. Ab jetzt gilt: ein Plan-Schritt ist erst wirklich fertig, wenn er in der WebUI bedienbar, getestet und auf `srv1`/`srv2` validiert ist.
 
@@ -60,8 +60,8 @@ Warum diese Punkte noch offen sind: Die bisherigen GoFuture-Schritte haben viele
 
 - Kein Big Bang. Jeder Schritt muss den Build stabil halten.
 - Jede Änderung landet im Repo — kein manueller Live-Hotfix ohne Repo-Entsprechung.
-- Proxmox wird dauerhaft entfernt — kein neuer Proxmox-Code, nirgendwo.
-- `proxmox-ui/` und `providers/proxmox/` werden nach Plan 05 vollständig gelöscht.
+- Beagle host wird dauerhaft entfernt — kein neuer Beagle host-Code, nirgendwo.
+- `beagle-ui/` und `providers/beagle-host/` werden nach Plan 05 vollständig gelöscht.
 - Beagle Web Console (`website/`) ist die einzige Operator-Oberfläche.
 - Statusanzeigen allein reichen nicht. Jeder Betreiber-Workflow braucht WebUI-Aktionen, Validierung, Progress/Job-Status, Fehlerausgabe und einen dokumentierten Testpfad.
 - Security ist Nebenbedingung jedes Schritts, keine spätere Phase.

@@ -57,8 +57,8 @@ wait_for_ip() {
 
 host_provider_kind() {
   case "$(printf '%s' "$INSTALL_MODE" | tr '[:upper:]' '[:lower:]')" in
-    with-proxmox|with_proxmox|proxmox|pve)
-      printf 'proxmox\n'
+    with-beagle|with_beagle|beagle|pve)
+      printf 'beagle\n'
       ;;
     *)
       printf 'beagle\n'
@@ -137,7 +137,7 @@ INSTALL_DIR="$INSTALL_DIR" \
 BEAGLE_HOST_PROVIDER="$(host_provider_kind)" \
 BEAGLE_SERVER_INSTALL_MODE="$INSTALL_MODE" \
 PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME" \
-PVE_DCV_PROXY_LISTEN_PORT=8443 \
+PVE_DCV_PROXY_LISTEN_PORT=443 \
 BEAGLE_SITE_PORT=443 \
 BEAGLE_WEB_UI_URL="$(default_web_ui_url "$SERVER_NAME")" \
 BEAGLE_AUTH_BOOTSTRAP_USERNAME="$BOOTSTRAP_USERNAME" \

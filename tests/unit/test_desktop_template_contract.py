@@ -36,6 +36,7 @@ class DesktopTemplateContractTests(unittest.TestCase):
         info = DesktopTemplateInfo(
             template_id="tmpl-ubuntu-xfce-01",
             template_name="Ubuntu XFCE Gold",
+            source_vmid=150,
             os_family="ubuntu",
             storage_pool="local",
             snapshot_name="sealed-2026-04-22",
@@ -48,6 +49,7 @@ class DesktopTemplateContractTests(unittest.TestCase):
         )
         self.assertEqual(info.template_id, "tmpl-ubuntu-xfce-01")
         self.assertEqual(info.template_name, "Ubuntu XFCE Gold")
+        self.assertEqual(info.source_vmid, 150)
         self.assertEqual(info.os_family, "ubuntu")
         self.assertEqual(info.storage_pool, "local")
         self.assertEqual(info.snapshot_name, "sealed-2026-04-22")
@@ -57,6 +59,7 @@ class DesktopTemplateContractTests(unittest.TestCase):
         self.assertEqual(info.software_packages, ("sunshine",))
         self.assertEqual(info.created_at, "2026-04-22T08:00:00Z")
         self.assertTrue(info.sealed)
+        self.assertEqual(info.health, "unknown")
 
 
 if __name__ == "__main__":

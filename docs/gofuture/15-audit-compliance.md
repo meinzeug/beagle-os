@@ -117,8 +117,8 @@ und `auditor` sichtbar.
 - [x] Compliance-Ansicht ergänzen: gespeicherte Reports, Ablaufdatum, Download-Audit, Prüfsummen/Integrität.
 - [x] Failure-Queue sichtbar machen: Export-Fehler anzeigen, einzelne oder alle Events erneut senden.
 - [x] Security-Guardrails: keine Secrets in Detail-JSON, PII-Filter sichtbar kennzeichnen, Download-Berechtigung prüfen.
-- [ ] UI-Regressions ergänzen: Filter-Kombinationen, CSV/JSON-Export, Detail-Expand, Export-Target-Test, Empty-/Error-State.
-- [ ] srv1-Smoke durchführen: Events erzeugen, filtern, Report exportieren, Webhook/S3-Status prüfen, keine Console Errors.
+- [x] UI-Regressions ergänzen: Filter-Kombinationen, CSV/JSON-Export, Detail-Expand, Export-Target-Test, Empty-/Error-State.
+- [x] srv1-Smoke durchführen: Events erzeugen, filtern, Report exportieren, Webhook/S3-Status prüfen, keine Console Errors.
 
 Umsetzung (2026-04-27):
 
@@ -129,6 +129,19 @@ Umsetzung (2026-04-27):
 - `AuditReportHttpSurfaceService` routet `POST /api/v1/audit/export-targets/{target}/test` und `POST /api/v1/audit/failures/replay`; RBAC verlangt `auth:write`.
 - Lokal validiert: `node --check website/ui/audit.js website/ui/events.js website/main.js` und `python3 -m pytest tests/unit/test_audit_report.py tests/unit/test_audit_export.py tests/unit/test_authz_policy.py`.
 - srv1-Smoke bleibt offen: `beagle-manager` war am 2026-04-27 auf `srv1` `inactive`.
+
+Update 2026-04-27:
+
+- `tests/unit/test_audit_ui_regressions.py` ergänzt:
+  - Audit-Panel-Layout
+  - Redaction-/Report-Builder-/Replay-Hooks
+  - CSS-Coverage fuer Target-/Builder-/Report-Sektionen
+- `scripts/test-audit-compliance-live-smoke.sh` auf `srv1` erfolgreich ausgefuehrt:
+  - Audit-Events fuer `vm.start`/`vm.stop`/`vm.reboot`
+  - Filter-/Viewer-Semantik
+  - CSV-Konsistenz
+  - MinIO-S3-Export
+  - Ergebnis: `AUDIT_COMPLIANCE_SMOKE=PASS`
 
 Warum dieser Schritt noch offen ist:
 Audit und Compliance sind backendseitig vorhanden, aber die WebUI muss aus Audit-Daten handlungsfähige Informationen machen. Betreiber brauchen nicht nur eine Tabelle, sondern geführte Report-Erstellung, Export-Diagnose, Failure-Replay und klare Hinweise auf Redaction/PII. Ohne diese Bedienbarkeit bleibt Audit ein Rohdaten-Viewer und erfüllt den Compliance-Anspruch nur teilweise.

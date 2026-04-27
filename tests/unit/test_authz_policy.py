@@ -78,6 +78,10 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             AuthzPolicyService.required_permission("POST", "/api/v1/cluster/leave-local"),
             "cluster:write",
         )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/cluster/reconcile-membership"),
+            "cluster:write",
+        )
         self.assertIsNone(
             AuthzPolicyService.required_permission("POST", "/api/v1/cluster/join-with-setup-code"),
         )

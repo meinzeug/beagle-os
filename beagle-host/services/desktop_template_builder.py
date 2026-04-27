@@ -146,6 +146,7 @@ class DesktopTemplateBuilderService:
         entry: dict[str, Any] = {
             "template_id": template_id,
             "template_name": spec.template_name,
+            "source_vmid": int(spec.source_vmid),
             "os_family": spec.os_family,
             "storage_pool": spec.storage_pool,
             "snapshot_name": spec.snapshot_name,
@@ -156,6 +157,7 @@ class DesktopTemplateBuilderService:
             "notes": spec.notes,
             "created_at": created_at,
             "sealed": True,
+            "health": "ready",
         }
         state["templates"][template_id] = entry
         self._save(state)
@@ -198,6 +200,7 @@ class DesktopTemplateBuilderService:
         return {
             "template_id": info.template_id,
             "template_name": info.template_name,
+            "source_vmid": info.source_vmid,
             "os_family": info.os_family,
             "storage_pool": info.storage_pool,
             "snapshot_name": info.snapshot_name,
@@ -207,6 +210,7 @@ class DesktopTemplateBuilderService:
             "software_packages": list(info.software_packages),
             "created_at": info.created_at,
             "sealed": info.sealed,
+            "health": info.health,
         }
 
     # ------------------------------------------------------------------
@@ -279,6 +283,7 @@ class DesktopTemplateBuilderService:
         return DesktopTemplateInfo(
             template_id=entry["template_id"],
             template_name=entry["template_name"],
+            source_vmid=int(entry.get("source_vmid", 0)),
             os_family=entry.get("os_family", ""),
             storage_pool=entry.get("storage_pool", ""),
             snapshot_name=entry.get("snapshot_name", ""),
@@ -288,4 +293,5 @@ class DesktopTemplateBuilderService:
             software_packages=tuple(entry.get("software_packages", [])),
             created_at=entry.get("created_at", ""),
             sealed=bool(entry.get("sealed", False)),
+            health=str(entry.get("health") or ("ready" if entry.get("sealed") else "unknown")),
         )

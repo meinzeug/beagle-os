@@ -28,7 +28,7 @@ token = sys.argv[5]
 
 parsed = urlparse(url if "://" in url else f"dcv://{url}")
 host = parsed.hostname or ""
-port = parsed.port or 8443
+port = parsed.port or 443
 path = os.environ.get("PVE_THIN_CLIENT_DCV_WEB_URL_PATH", "").strip() or (parsed.path or "/")
 query = parse_qs(parsed.query, keep_blank_values=False)
 session_id = os.environ.get("PVE_THIN_CLIENT_DCV_SESSION_ID", "").strip() or parsed.fragment.strip()

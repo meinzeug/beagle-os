@@ -141,4 +141,4 @@ Akzeptanz: stuendliche Inkrementelle, Restore einer 80 GB Desktop-VM in <= 5 min
   - aktualisierte Tests in `scripts/test-*.sh` und `docs/refactor/04-latest-e2e-test-report.md`,
   - aktualisierte Provider-Abstraction-Notes in `docs/refactor/09-provider-abstraction.md`,
   - aktualisierte Security-Findings falls beruehrt (`docs/refactor/11-security-findings.md`).
-- Provider-Neutralitaet bleibt Pflicht: jede Welle erweitert zuerst `core/`-Contracts, dann den Beagle-Provider, dann optional Proxmox-Adapter.
+- Provider-Neutralitaet bleibt Pflicht: jede Welle erweitert zuerst `core/`-Contracts, dann den Beagle-Provider, dann optional Beagle host-Adapter.

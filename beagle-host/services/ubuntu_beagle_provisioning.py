@@ -202,7 +202,7 @@ class UbuntuBeagleProvisioningService:
     def _node_value_to_mib(value: Any) -> int:
         """Convert provider node memory value to MiB.
 
-        Proxmox-style providers report bytes, while some local providers may
+        Beagle-style providers report bytes, while some local providers may
         already report MiB-like values.
         """
         raw = int(value or 0)
@@ -362,7 +362,7 @@ class UbuntuBeagleProvisioningService:
                 candidate = str(entry.get("storage", "")).strip()
                 if candidate:
                     return candidate
-        raise RuntimeError(f"no Proxmox storage with content type '{content_type}' is available")
+        raise RuntimeError(f"no Beagle storage with content type '{content_type}' is available")
 
     def _storage_inventory_entry(self, storage_id: str) -> dict[str, Any] | None:
         target = str(storage_id or "").strip()
@@ -961,7 +961,7 @@ class UbuntuBeagleProvisioningService:
                 "public_stream": public_stream,
                 "status": "creating",
                 "phase": "beagle-create",
-                "message": "Proxmox-VM und Autoinstall-Medien werden vorbereitet.",
+                "message": "Beagle-VM und Autoinstall-Medien werden vorbereitet.",
                 "created_at": self._utcnow(),
                 "updated_at": self._utcnow(),
                 "expires_at": self._time_now_epoch() + self._ubuntu_beagle_autoinstall_url_ttl_seconds,

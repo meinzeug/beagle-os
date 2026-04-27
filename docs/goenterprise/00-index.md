@@ -12,7 +12,7 @@ Zielversion: **Beagle OS 8.x** (Enterprise Tier)
 
 | Produkt | Stärken | Schwächen |
 |---|---|---|
-| **Proxmox VE 8** | Open Source, KVM+LXC, Ceph, PBS, SDN, HA | Kein VDI-Broker, kein Streaming, kein Thin-Client-OS, kommerzielle Subscriptions teuer |
+| **Beagle host 8** | Open Source, KVM+LXC, Ceph, PBS, SDN, HA | Kein VDI-Broker, kein Streaming, kein Thin-Client-OS, kommerzielle Subscriptions teuer |
 | **Citrix DaaS** | Enterprise-Policies, Session Recording, Analytics, SSO | Vendor Lock-in, teuer ($15-$80/User/Monat), komplex, HDX-Protokoll veraltet |
 | **Omnissa Horizon 8** (ex-VMware) | BLAST-Protokoll, AppVolumes, DEM, Multi-Cloud | Braucht vSphere/Nutanix, Active Directory Pflicht, teuer, schwerfällig |
 | **Azure Virtual Desktop** | Windows Multi-Session, Pay-per-use, Azure-Integration | Cloud-only, kein On-Prem, DSGVO-Probleme, Kosten unkontrollierbar |
@@ -26,7 +26,7 @@ Zielversion: **Beagle OS 8.x** (Enterprise Tier)
 3. **Eigenes Thin-Client-OS** — Bootet auf beliebiger x86-Hardware, QR-Enrollment, A/B-Update, TPM, WireGuard-Key automatisch beim Enrollment
 4. **Vollständig Open Source + Self-Hosted** — DSGVO-konform, kein Vendor Lock-in, kein Cloud-Zwang
 5. **Gaming-Kiosk-Mode** — Kein Konkurrent bietet Gaming + VDI auf derselben Plattform
-6. **Eigener Hypervisor-Stack** — KVM/libvirt nativ, kein Proxmox, keine Lizenzkosten
+6. **Eigener Hypervisor-Stack** — KVM/libvirt nativ, kein Beagle host, keine Lizenzkosten
 
 ### Was die Konkurrenz NICHT hat — Beagle OS Enterprise Differenziatoren
 

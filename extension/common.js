@@ -1,7 +1,7 @@
 (function() {
   "use strict";
 
-  var API_TOKEN_STORAGE_KEY = "beagle.proxmoxUi.apiToken";
+  var API_TOKEN_STORAGE_KEY = "beagle.webUi.apiToken";
   var browserCommon = window.BeagleBrowserCommon;
 
   if (!browserCommon) {
@@ -9,19 +9,19 @@
   }
 
   function defaultUsbInstallerUrl() {
-    return "https://{host}:8443/beagle-api/api/v1/vms/{vmid}/installer.sh";
+    return "https://{host}/beagle-api/api/v1/vms/{vmid}/installer.sh";
   }
 
   function defaultPublicUsbInstallerUrl() {
-    return "https://{host}:8443/beagle-api/api/v1/public/vms/{vmid}/installer.sh";
+    return "https://{host}/beagle-api/api/v1/public/vms/{vmid}/installer.sh";
   }
 
   function defaultInstallerIsoUrl() {
-    return "https://{host}:8443/beagle-downloads/beagle-os-installer-amd64.iso";
+    return "https://{host}/beagle-downloads/beagle-os-installer-amd64.iso";
   }
 
   function defaultControlPlaneHealthUrl() {
-    return "https://{host}:8443/beagle-api/api/v1/health";
+    return "https://{host}/beagle-api/api/v1/health";
   }
 
   function defaultWebUiUrl() {

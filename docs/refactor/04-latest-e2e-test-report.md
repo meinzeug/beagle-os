@@ -13,7 +13,7 @@
 1. **Fresh Beagle OS Installation**
    - Deployed Beagle OS Server Installer ISO to baremetal KVM
    - OS fully installed and booted (Debian 12 + Beagle 6.6.7)
-   - Standalone provider mode (no Proxmox) successfully running
+   - Standalone provider mode (no Beagle host) successfully running
 
 2. **Critical Bug Fixes Identified & Committed**
    - Auth bootstrap: Fixed credential passing to enable admin user creation
@@ -193,7 +193,7 @@ beagle)
 ### Running Processes
 
 - **beagle-control-plane**: PID 794, memory 2.9GB, responding normally
-- **nginx**: Proxying :443 and :8443 to control plane
+- **nginx**: Proxying :443 to control plane
 - **libvirt/QEMU**: VM 101 running, autoinstall active; beaglethinclient booting
 - **Monitoring loop**: Terminal ID `6e1b49e0-6b7b-4b3c-8bb6-ccc4a77ffa41` (async)
 

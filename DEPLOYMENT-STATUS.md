@@ -10,7 +10,7 @@
 
 Beagle OS is **functionally complete** and **strategically ready** for production end-to-end flows:
 
-1. **Host Layer**: Beagle Server with Proxmox, systemd services, and beagle-host control plane running
+1. **Host Layer**: Beagle Server with Beagle, systemd services, and beagle-host control plane running
 2. **VM Layer**: Desktop VMs created, provisioned, Sunshine streaming configured
 3. **Installer Layer**: USB installer scripts ready for download (beagle-os-installer.sh)
 4. **Thin Client Layer**: beaglethinclient exists; Moonlight capable
@@ -24,7 +24,7 @@ Beagle OS is **functionally complete** and **strategically ready** for productio
 - **Kernel**: Linux 6.1.0-rpi-arm64
 - **Virtualization Engine**: QEMU/libvirt with KVM
 - **Beagle Services**: beagle-manager (port 9088), provisioner, inventory-reconciler active
-- **Proxmox**: ✓ Integrated + working
+- **Beagle**: ✓ Integrated + working
 - **SSH Access**: ✓ Reachable (auth: sshpass with beagle-debug)
 
 ### VMs Running
@@ -124,7 +124,7 @@ Beagle OS is **functionally complete** and **strategically ready** for productio
 
 2. **HA Setup** (Recommended)
    - Backup VMs to secondary host
-   - Configure Proxmox HA for auto-restart
+   - Configure Beagle HA for auto-restart
    - Set up monitoring + alerts (Prometheus/Grafana optional)
 
 3. **Documentation** (Required)
@@ -182,7 +182,7 @@ Beagle OS is **functionally complete** and **strategically ready** for productio
 ## Conclusion
 
 **Beagle OS is production-ready for**:
-- ✓ Single-host deployments (1 Proxmox host)
+- ✓ Single-host deployments (1 Beagle host)
 - ✓ Small-to-medium gaming labs (5–10 concurrent streams)
 - ✓ Lab/staging environments
 - ✓ Proof-of-concept deployments

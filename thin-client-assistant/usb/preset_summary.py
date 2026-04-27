@@ -23,11 +23,11 @@ def mode_available(name: str, preset: dict[str, Any]) -> bool:
         return bool(_string(preset.get("moonlight_host")))
     if mode == "SPICE":
         return bool(_string(preset.get("spice_url"))) or (
-            bool(_string(preset.get("proxmox_host")))
-            and bool(_string(preset.get("proxmox_node")))
-            and bool(_string(preset.get("proxmox_vmid")))
-            and bool(_string(preset.get("spice_username")) or _string(preset.get("proxmox_username")))
-            and bool(_string(preset.get("spice_password")) or _string(preset.get("proxmox_password")))
+            bool(_string(preset.get("beagle_host")))
+            and bool(_string(preset.get("beagle_node")))
+            and bool(_string(preset.get("beagle_vmid")))
+            and bool(_string(preset.get("spice_username")) or _string(preset.get("beagle_username")))
+            and bool(_string(preset.get("spice_password")) or _string(preset.get("beagle_password")))
         )
     if mode == "NOVNC":
         return bool(_string(preset.get("novnc_url")))
@@ -45,12 +45,12 @@ def build_preset_summary(
     preset_active: bool,
     vm_name: str,
     profile_name: str,
-    proxmox_host: str,
-    proxmox_node: str,
-    proxmox_vmid: str,
+    beagle_host: str,
+    beagle_node: str,
+    beagle_vmid: str,
     spice_url: str,
-    proxmox_username: str,
-    proxmox_password: str,
+    beagle_username: str,
+    beagle_password: str,
     spice_username: str,
     spice_password: str,
     novnc_url: str,
@@ -63,12 +63,12 @@ def build_preset_summary(
         "preset_active": bool(preset_active),
         "vm_name": _string(vm_name),
         "profile_name": _string(profile_name),
-        "proxmox_host": _string(proxmox_host),
-        "proxmox_node": _string(proxmox_node),
-        "proxmox_vmid": _string(proxmox_vmid),
+        "beagle_host": _string(beagle_host),
+        "beagle_node": _string(beagle_node),
+        "beagle_vmid": _string(beagle_vmid),
         "spice_url": _string(spice_url),
-        "proxmox_username": _string(proxmox_username),
-        "proxmox_password": _string(proxmox_password),
+        "beagle_username": _string(beagle_username),
+        "beagle_password": _string(beagle_password),
         "spice_username": _string(spice_username),
         "spice_password": _string(spice_password),
         "novnc_url": _string(novnc_url),
@@ -81,9 +81,9 @@ def build_preset_summary(
         "preset_active": raw["preset_active"],
         "vm_name": raw["vm_name"],
         "profile_name": raw["profile_name"],
-        "proxmox_host": raw["proxmox_host"],
-        "proxmox_node": raw["proxmox_node"],
-        "proxmox_vmid": raw["proxmox_vmid"],
+        "beagle_host": raw["beagle_host"],
+        "beagle_node": raw["beagle_node"],
+        "beagle_vmid": raw["beagle_vmid"],
         "moonlight_host": raw["moonlight_host"],
         "moonlight_app": raw["moonlight_app"],
         "default_mode": raw["default_mode"],
@@ -182,12 +182,12 @@ def _add_preset_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--preset-active", default="0")
     parser.add_argument("--vm-name", default="")
     parser.add_argument("--profile-name", default="")
-    parser.add_argument("--proxmox-host", default="")
-    parser.add_argument("--proxmox-node", default="")
-    parser.add_argument("--proxmox-vmid", default="")
+    parser.add_argument("--beagle-host", default="")
+    parser.add_argument("--beagle-node", default="")
+    parser.add_argument("--beagle-vmid", default="")
     parser.add_argument("--spice-url", default="")
-    parser.add_argument("--proxmox-username", default="")
-    parser.add_argument("--proxmox-password", default="")
+    parser.add_argument("--beagle-username", default="")
+    parser.add_argument("--beagle-password", default="")
     parser.add_argument("--spice-username", default="")
     parser.add_argument("--spice-password", default="")
     parser.add_argument("--novnc-url", default="")
@@ -202,12 +202,12 @@ def _summary_from_args(args: argparse.Namespace) -> dict[str, Any]:
         preset_active=_bool_arg(args.preset_active),
         vm_name=args.vm_name,
         profile_name=args.profile_name,
-        proxmox_host=args.proxmox_host,
-        proxmox_node=args.proxmox_node,
-        proxmox_vmid=args.proxmox_vmid,
+        beagle_host=args.beagle_host,
+        beagle_node=args.beagle_node,
+        beagle_vmid=args.beagle_vmid,
         spice_url=args.spice_url,
-        proxmox_username=args.proxmox_username,
-        proxmox_password=args.proxmox_password,
+        beagle_username=args.beagle_username,
+        beagle_password=args.beagle_password,
         spice_username=args.spice_username,
         spice_password=args.spice_password,
         novnc_url=args.novnc_url,

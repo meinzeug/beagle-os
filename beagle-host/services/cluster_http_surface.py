@@ -17,6 +17,7 @@ Handles:
   POST   /api/v1/cluster/leave-local
   POST   /api/v1/cluster/apply-join
   POST   /api/v1/cluster/join
+  POST   /api/v1/cluster/reconcile-membership
   POST   /api/v1/ha/reconcile-failed-node
   POST   /api/v1/ha/maintenance/preview
   POST   /api/v1/ha/maintenance/drain
@@ -54,6 +55,7 @@ class ClusterHttpSurfaceService:
         "/api/v1/cluster/join-with-setup-code",
         "/api/v1/cluster/join",
         "/api/v1/cluster/migrate",
+        "/api/v1/cluster/reconcile-membership",
         "/api/v1/ha/reconcile-failed-node",
         "/api/v1/ha/maintenance/preview",
         "/api/v1/ha/maintenance/drain",
@@ -429,6 +431,21 @@ class ClusterHttpSurfaceService:
             except Exception as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
             return self._json(HTTPStatus.OK, {"ok": True, **join_payload})
+
+        if path == "/api/v1/cluster/reconcile-membership":
+            try:
+                result = self._cluster_membership.reconcile_membership()
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._audit_event(
+                "cluster.membership.reconcile",
+                "success" if result.get("repaired") else "noop",
+                cluster_id=str(result.get("cluster_id") or ""),
+                member_count_before=int(result.get("member_count_before") or 0),
+                member_count_after=int(result.get("member_count_after") or 0),
+                username=requester,
+            )
+            return self._json(HTTPStatus.OK, {"ok": True, **result})
 
         if path == "/api/v1/ha/reconcile-failed-node":
             try:

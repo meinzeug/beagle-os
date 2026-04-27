@@ -42,17 +42,17 @@ PRINT_PRESET_SUMMARY="0"
 PRINT_DEBUG_JSON="0"
 PRINT_UI_STATE_JSON="0"
 CACHE_PRESET_ONLY="0"
-LIST_PROXMOX_VMS_JSON="0"
-CACHE_PROXMOX_VM_PRESET="0"
+LIST_BEAGLE_VMS_JSON="0"
+CACHE_BEAGLE_VM_PRESET="0"
 CLEAR_CACHED_PRESET="0"
-PROXMOX_API_HOST=""
-PROXMOX_API_SCHEME="https"
-PROXMOX_API_PORT="8006"
-PROXMOX_API_VERIFY_TLS="0"
-PROXMOX_API_USERNAME=""
-PROXMOX_API_PASSWORD=""
-PROXMOX_API_NODE=""
-PROXMOX_API_VMID=""
+BEAGLE_API_HOST=""
+BEAGLE_API_SCHEME="https"
+BEAGLE_API_PORT="8006"
+BEAGLE_API_VERIFY_TLS="0"
+BEAGLE_API_USERNAME=""
+BEAGLE_API_PASSWORD=""
+BEAGLE_API_NODE=""
+BEAGLE_API_VMID=""
 PRESET_LOAD_RETRIES="${PVE_THIN_CLIENT_PRESET_LOAD_RETRIES:-6}"
 PRESET_LOAD_RETRY_DELAY="${PVE_THIN_CLIENT_PRESET_LOAD_RETRY_DELAY:-1}"
 
@@ -94,13 +94,13 @@ MOONLIGHT_AUDIO_CONFIG="stereo"
 MOONLIGHT_ABSOLUTE_MOUSE="1"
 MOONLIGHT_QUIT_AFTER="0"
 SUNSHINE_API_URL=""
-PROXMOX_SCHEME="https"
-PROXMOX_HOST=""
-PROXMOX_PORT="8006"
-PROXMOX_NODE=""
-PROXMOX_VMID=""
-PROXMOX_REALM="pam"
-PROXMOX_VERIFY_TLS="1"
+BEAGLE_SCHEME="https"
+BEAGLE_HOST=""
+BEAGLE_PORT="8006"
+BEAGLE_NODE=""
+BEAGLE_VMID=""
+BEAGLE_REALM="pam"
+BEAGLE_VERIFY_TLS="1"
 BEAGLE_MANAGER_URL=""
 BEAGLE_MANAGER_PINNED_PUBKEY=""
 BEAGLE_ENROLLMENT_URL=""
@@ -141,7 +141,7 @@ SUNSHINE_SERVER_STREAM_PORT=""
 SUNSHINE_SERVER_UNIQUEID=""
 SUNSHINE_SERVER_CERT_B64=""
 THINCLIENT_PASSWORD=""
-PROXMOX_API_HELPER="$SCRIPT_DIR/pve-thin-client-proxmox-api.py"
+BEAGLE_API_HELPER="$SCRIPT_DIR/pve-thin-client-beagle-api.py"
 
 cleanup() {
   persist_logs_to_medium
@@ -893,48 +893,48 @@ parse_args() {
         CACHE_PRESET_ONLY="1"
         shift
         ;;
-      --list-proxmox-vms-json)
-        LIST_PROXMOX_VMS_JSON="1"
+      --list-beagle-vms-json)
+        LIST_BEAGLE_VMS_JSON="1"
         shift
         ;;
-      --cache-proxmox-vm-preset)
-        CACHE_PROXMOX_VM_PRESET="1"
+      --cache-beagle-vm-preset)
+        CACHE_BEAGLE_VM_PRESET="1"
         shift
         ;;
       --clear-cached-preset)
         CLEAR_CACHED_PRESET="1"
         shift
         ;;
-      --proxmox-api-host)
-        PROXMOX_API_HOST="$2"
+      --beagle-api-host)
+        BEAGLE_API_HOST="$2"
         shift 2
         ;;
-      --proxmox-api-scheme)
-        PROXMOX_API_SCHEME="$2"
+      --beagle-api-scheme)
+        BEAGLE_API_SCHEME="$2"
         shift 2
         ;;
-      --proxmox-api-port)
-        PROXMOX_API_PORT="$2"
+      --beagle-api-port)
+        BEAGLE_API_PORT="$2"
         shift 2
         ;;
-      --proxmox-api-verify-tls)
-        PROXMOX_API_VERIFY_TLS="$2"
+      --beagle-api-verify-tls)
+        BEAGLE_API_VERIFY_TLS="$2"
         shift 2
         ;;
-      --proxmox-api-username)
-        PROXMOX_API_USERNAME="$2"
+      --beagle-api-username)
+        BEAGLE_API_USERNAME="$2"
         shift 2
         ;;
-      --proxmox-api-password)
-        PROXMOX_API_PASSWORD="$2"
+      --beagle-api-password)
+        BEAGLE_API_PASSWORD="$2"
         shift 2
         ;;
-      --proxmox-api-node)
-        PROXMOX_API_NODE="$2"
+      --beagle-api-node)
+        BEAGLE_API_NODE="$2"
         shift 2
         ;;
-      --proxmox-api-vmid)
-        PROXMOX_API_VMID="$2"
+      --beagle-api-vmid)
+        BEAGLE_API_VMID="$2"
         shift 2
         ;;
       *)
@@ -945,24 +945,24 @@ parse_args() {
   done
 }
 
-require_proxmox_api_helper() {
-  if [[ ! -x "$PROXMOX_API_HELPER" ]]; then
-    echo "Missing Proxmox API helper: $PROXMOX_API_HELPER" >&2
+require_beagle_api_helper() {
+  if [[ ! -x "$BEAGLE_API_HELPER" ]]; then
+    echo "Missing Beagle API helper: $BEAGLE_API_HELPER" >&2
     exit 1
   fi
 }
 
-validate_proxmox_api_args() {
-  [[ -n "$PROXMOX_API_HOST" ]] || {
-    echo "Missing --proxmox-api-host" >&2
+validate_beagle_api_args() {
+  [[ -n "$BEAGLE_API_HOST" ]] || {
+    echo "Missing --beagle-api-host" >&2
     exit 1
   }
-  [[ -n "$PROXMOX_API_USERNAME" ]] || {
-    echo "Missing --proxmox-api-username" >&2
+  [[ -n "$BEAGLE_API_USERNAME" ]] || {
+    echo "Missing --beagle-api-username" >&2
     exit 1
   }
-  [[ -n "$PROXMOX_API_PASSWORD" ]] || {
-    echo "Missing --proxmox-api-password" >&2
+  [[ -n "$BEAGLE_API_PASSWORD" ]] || {
+    echo "Missing --beagle-api-password" >&2
     exit 1
   }
 }
@@ -972,57 +972,57 @@ clear_cached_preset() {
   log_msg "cleared cached preset state"
 }
 
-list_proxmox_vms_json() {
-  require_proxmox_api_helper
-  validate_proxmox_api_args
+list_beagle_vms_json() {
+  require_beagle_api_helper
+  validate_beagle_api_args
 
-  "$PROXMOX_API_HELPER" \
-    --host "$PROXMOX_API_HOST" \
-    --scheme "$PROXMOX_API_SCHEME" \
-    --port "$PROXMOX_API_PORT" \
-    --verify-tls "$PROXMOX_API_VERIFY_TLS" \
-    --username "$PROXMOX_API_USERNAME" \
-    --password "$PROXMOX_API_PASSWORD" \
+  "$BEAGLE_API_HELPER" \
+    --host "$BEAGLE_API_HOST" \
+    --scheme "$BEAGLE_API_SCHEME" \
+    --port "$BEAGLE_API_PORT" \
+    --verify-tls "$BEAGLE_API_VERIFY_TLS" \
+    --username "$BEAGLE_API_USERNAME" \
+    --password "$BEAGLE_API_PASSWORD" \
     list-vms-json
 }
 
-cache_proxmox_vm_preset() {
+cache_beagle_vm_preset() {
   local tmp_preset=""
   local helper_args=()
 
-  require_proxmox_api_helper
-  validate_proxmox_api_args
-  [[ -n "$PROXMOX_API_VMID" ]] || {
-    echo "Missing --proxmox-api-vmid" >&2
+  require_beagle_api_helper
+  validate_beagle_api_args
+  [[ -n "$BEAGLE_API_VMID" ]] || {
+    echo "Missing --beagle-api-vmid" >&2
     exit 1
   }
 
   mkdir -p "$CACHED_STATE_DIR"
-  tmp_preset="$(mktemp "$CACHED_STATE_DIR/proxmox-preset.XXXXXX")"
+  tmp_preset="$(mktemp "$CACHED_STATE_DIR/beagle-preset.XXXXXX")"
   helper_args=(
-    --host "$PROXMOX_API_HOST"
-    --scheme "$PROXMOX_API_SCHEME"
-    --port "$PROXMOX_API_PORT"
-    --verify-tls "$PROXMOX_API_VERIFY_TLS"
-    --username "$PROXMOX_API_USERNAME"
-    --password "$PROXMOX_API_PASSWORD"
+    --host "$BEAGLE_API_HOST"
+    --scheme "$BEAGLE_API_SCHEME"
+    --port "$BEAGLE_API_PORT"
+    --verify-tls "$BEAGLE_API_VERIFY_TLS"
+    --username "$BEAGLE_API_USERNAME"
+    --password "$BEAGLE_API_PASSWORD"
     build-preset-env
-    --vmid "$PROXMOX_API_VMID"
+    --vmid "$BEAGLE_API_VMID"
   )
-  if [[ -n "$PROXMOX_API_NODE" ]]; then
-    helper_args+=(--node "$PROXMOX_API_NODE")
+  if [[ -n "$BEAGLE_API_NODE" ]]; then
+    helper_args+=(--node "$BEAGLE_API_NODE")
   fi
-  "$PROXMOX_API_HELPER" \
+  "$BEAGLE_API_HELPER" \
     "${helper_args[@]}" >"$tmp_preset"
 
   install -m 0644 "$tmp_preset" "$CACHED_PRESET_FILE"
-  printf 'proxmox-api\n' >"$CACHED_PRESET_SOURCE_FILE"
+  printf 'beagle-api\n' >"$CACHED_PRESET_SOURCE_FILE"
   rm -f "$tmp_preset"
   PRESET_FILE="$CACHED_PRESET_FILE"
-  PRESET_SOURCE="proxmox-api"
+  PRESET_SOURCE="beagle-api"
   PRESET_ACTIVE="0"
   load_embedded_preset || true
-  log_msg "cached proxmox preset for vmid=$PROXMOX_API_VMID host=$PROXMOX_API_HOST source=$PRESET_SOURCE"
+  log_msg "cached beagle preset for vmid=$BEAGLE_API_VMID host=$BEAGLE_API_HOST source=$PRESET_SOURCE"
   persist_logs_to_medium
 }
 
@@ -1262,13 +1262,13 @@ load_profile() {
     MOONLIGHT_ABSOLUTE_MOUSE="$MOONLIGHT_ABSOLUTE_MOUSE" \
     MOONLIGHT_QUIT_AFTER="$MOONLIGHT_QUIT_AFTER" \
     SUNSHINE_API_URL="$SUNSHINE_API_URL" \
-    PROXMOX_SCHEME="$PROXMOX_SCHEME" \
-    PROXMOX_HOST="$PROXMOX_HOST" \
-    PROXMOX_PORT="$PROXMOX_PORT" \
-    PROXMOX_NODE="$PROXMOX_NODE" \
-    PROXMOX_VMID="$PROXMOX_VMID" \
-    PROXMOX_REALM="$PROXMOX_REALM" \
-    PROXMOX_VERIFY_TLS="$PROXMOX_VERIFY_TLS" \
+    BEAGLE_SCHEME="$BEAGLE_SCHEME" \
+    BEAGLE_HOST="$BEAGLE_HOST" \
+    BEAGLE_PORT="$BEAGLE_PORT" \
+    BEAGLE_NODE="$BEAGLE_NODE" \
+    BEAGLE_VMID="$BEAGLE_VMID" \
+    BEAGLE_REALM="$BEAGLE_REALM" \
+    BEAGLE_VERIFY_TLS="$BEAGLE_VERIFY_TLS" \
     CONNECTION_USERNAME="$CONNECTION_USERNAME" \
     CONNECTION_PASSWORD="$CONNECTION_PASSWORD" \
     CONNECTION_TOKEN="$CONNECTION_TOKEN" \
@@ -1296,7 +1296,7 @@ load_embedded_preset() {
       # shellcheck disable=SC1090
       source "$PRESET_FILE"
       PRESET_ACTIVE="1"
-      log_msg "preset active: profile=${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-} vmid=${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-} host=${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}"
+      log_msg "preset active: profile=${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-} vmid=${PVE_THIN_CLIENT_PRESET_BEAGLE_VMID:-} host=${PVE_THIN_CLIENT_PRESET_BEAGLE_HOST:-}"
       persist_logs_to_medium
       return 0
     fi
@@ -1359,11 +1359,11 @@ mode_is_available() {
   case "$mode" in
     SPICE)
       [[ -n "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" ]] || {
-        [[ -n "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" ]] && \
-        [[ -n "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" ]] && \
-        [[ -n "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" ]] && \
-        [[ -n "${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}}" ]] && \
-        [[ -n "${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}}" ]]
+        [[ -n "${PVE_THIN_CLIENT_PRESET_BEAGLE_HOST:-}" ]] && \
+        [[ -n "${PVE_THIN_CLIENT_PRESET_BEAGLE_NODE:-}" ]] && \
+        [[ -n "${PVE_THIN_CLIENT_PRESET_BEAGLE_VMID:-}" ]] && \
+        [[ -n "${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-${PVE_THIN_CLIENT_PRESET_BEAGLE_USERNAME:-}}" ]] && \
+        [[ -n "${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-${PVE_THIN_CLIENT_PRESET_BEAGLE_PASSWORD:-}}" ]]
       }
       ;;
     NOVNC)
@@ -1391,7 +1391,7 @@ mode_label() {
       if [[ -n "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" ]]; then
         printf 'SPICE direct launcher\n'
       else
-        printf 'SPICE via Proxmox ticket\n'
+        printf 'SPICE via Beagle ticket\n'
       fi
       ;;
     NOVNC)
@@ -1424,8 +1424,8 @@ print_preset_summary() {
   done
 
   printf 'Active VM preset: %s\n' "${PVE_THIN_CLIENT_PRESET_VM_NAME:-${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-unnamed}}"
-  printf 'VMID/Node: %s / %s\n' "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-n/a}" "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-n/a}"
-  printf 'Proxmox host: %s\n' "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-n/a}"
+  printf 'VMID/Node: %s / %s\n' "${PVE_THIN_CLIENT_PRESET_BEAGLE_VMID:-n/a}" "${PVE_THIN_CLIENT_PRESET_BEAGLE_NODE:-n/a}"
+  printf 'Beagle host: %s\n' "${PVE_THIN_CLIENT_PRESET_BEAGLE_HOST:-n/a}"
   if (( ${#available[@]} > 0 )); then
     printf 'Configured streaming modes: %s\n' "${available[*]}"
   else
@@ -1438,12 +1438,12 @@ print_preset_json() {
     --preset-active "$PRESET_ACTIVE" \
     --vm-name "${PVE_THIN_CLIENT_PRESET_VM_NAME:-}" \
     --profile-name "${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-}" \
-    --proxmox-host "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" \
-    --proxmox-node "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" \
-    --proxmox-vmid "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" \
+    --beagle-host "${PVE_THIN_CLIENT_PRESET_BEAGLE_HOST:-}" \
+    --beagle-node "${PVE_THIN_CLIENT_PRESET_BEAGLE_NODE:-}" \
+    --beagle-vmid "${PVE_THIN_CLIENT_PRESET_BEAGLE_VMID:-}" \
     --spice-url "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" \
-    --proxmox-username "${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}" \
-    --proxmox-password "${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}" \
+    --beagle-username "${PVE_THIN_CLIENT_PRESET_BEAGLE_USERNAME:-}" \
+    --beagle-password "${PVE_THIN_CLIENT_PRESET_BEAGLE_PASSWORD:-}" \
     --spice-username "${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-}" \
     --spice-password "${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-}" \
     --novnc-url "${PVE_THIN_CLIENT_PRESET_NOVNC_URL:-}" \
@@ -1504,12 +1504,12 @@ print_ui_state_json() {
     --preset-active "$PRESET_ACTIVE" \
     --vm-name "${PVE_THIN_CLIENT_PRESET_VM_NAME:-}" \
     --profile-name "${PVE_THIN_CLIENT_PRESET_PROFILE_NAME:-}" \
-    --proxmox-host "${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}" \
-    --proxmox-node "${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}" \
-    --proxmox-vmid "${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}" \
+    --beagle-host "${PVE_THIN_CLIENT_PRESET_BEAGLE_HOST:-}" \
+    --beagle-node "${PVE_THIN_CLIENT_PRESET_BEAGLE_NODE:-}" \
+    --beagle-vmid "${PVE_THIN_CLIENT_PRESET_BEAGLE_VMID:-}" \
     --spice-url "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" \
-    --proxmox-username "${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}" \
-    --proxmox-password "${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}" \
+    --beagle-username "${PVE_THIN_CLIENT_PRESET_BEAGLE_USERNAME:-}" \
+    --beagle-password "${PVE_THIN_CLIENT_PRESET_BEAGLE_PASSWORD:-}" \
     --spice-username "${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-}" \
     --spice-password "${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-}" \
     --novnc-url "${PVE_THIN_CLIENT_PRESET_NOVNC_URL:-}" \
@@ -1620,13 +1620,13 @@ apply_preset_defaults() {
   NETWORK_STATIC_PREFIX="${PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_PREFIX:-24}"
   NETWORK_GATEWAY="${PVE_THIN_CLIENT_PRESET_NETWORK_GATEWAY:-}"
   NETWORK_DNS_SERVERS="${PVE_THIN_CLIENT_PRESET_NETWORK_DNS_SERVERS:-1.1.1.1 8.8.8.8}"
-  PROXMOX_SCHEME="${PVE_THIN_CLIENT_PRESET_PROXMOX_SCHEME:-https}"
-  PROXMOX_HOST="${PVE_THIN_CLIENT_PRESET_PROXMOX_HOST:-}"
-  PROXMOX_PORT="${PVE_THIN_CLIENT_PRESET_PROXMOX_PORT:-8006}"
-  PROXMOX_NODE="${PVE_THIN_CLIENT_PRESET_PROXMOX_NODE:-}"
-  PROXMOX_VMID="${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}"
-  PROXMOX_REALM="${PVE_THIN_CLIENT_PRESET_PROXMOX_REALM:-pam}"
-  PROXMOX_VERIFY_TLS="${PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS:-1}"
+  BEAGLE_SCHEME="${PVE_THIN_CLIENT_PRESET_BEAGLE_SCHEME:-https}"
+  BEAGLE_HOST="${PVE_THIN_CLIENT_PRESET_BEAGLE_HOST:-}"
+  BEAGLE_PORT="${PVE_THIN_CLIENT_PRESET_BEAGLE_PORT:-8006}"
+  BEAGLE_NODE="${PVE_THIN_CLIENT_PRESET_BEAGLE_NODE:-}"
+  BEAGLE_VMID="${PVE_THIN_CLIENT_PRESET_BEAGLE_VMID:-}"
+  BEAGLE_REALM="${PVE_THIN_CLIENT_PRESET_BEAGLE_REALM:-pam}"
+  BEAGLE_VERIFY_TLS="${PVE_THIN_CLIENT_PRESET_BEAGLE_VERIFY_TLS:-1}"
   BEAGLE_MANAGER_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL:-}"
   BEAGLE_MANAGER_PINNED_PUBKEY="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
   BEAGLE_ENROLLMENT_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_URL:-}"
@@ -1717,21 +1717,21 @@ apply_preset_mode() {
       validate_moonlight_auto_pin_preset || exit 1
       ;;
     SPICE)
-      CONNECTION_USERNAME="${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}}"
-      CONNECTION_PASSWORD="${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}}"
-      CONNECTION_TOKEN="${PVE_THIN_CLIENT_PRESET_SPICE_TOKEN:-${PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN:-}}"
+      CONNECTION_USERNAME="${PVE_THIN_CLIENT_PRESET_SPICE_USERNAME:-${PVE_THIN_CLIENT_PRESET_BEAGLE_USERNAME:-}}"
+      CONNECTION_PASSWORD="${PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD:-${PVE_THIN_CLIENT_PRESET_BEAGLE_PASSWORD:-}}"
+      CONNECTION_TOKEN="${PVE_THIN_CLIENT_PRESET_SPICE_TOKEN:-${PVE_THIN_CLIENT_PRESET_BEAGLE_TOKEN:-}}"
       if [[ -n "${PVE_THIN_CLIENT_PRESET_SPICE_URL:-}" ]]; then
         CONNECTION_METHOD="${PVE_THIN_CLIENT_PRESET_SPICE_METHOD:-direct}"
         SPICE_URL="${PVE_THIN_CLIENT_PRESET_SPICE_URL}"
       else
-        CONNECTION_METHOD="proxmox-ticket"
+        CONNECTION_METHOD="beagle-ticket"
       fi
       ;;
     NOVNC)
       NOVNC_URL="${PVE_THIN_CLIENT_PRESET_NOVNC_URL:-}"
-      CONNECTION_USERNAME="${PVE_THIN_CLIENT_PRESET_NOVNC_USERNAME:-${PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME:-}}"
-      CONNECTION_PASSWORD="${PVE_THIN_CLIENT_PRESET_NOVNC_PASSWORD:-${PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD:-}}"
-      CONNECTION_TOKEN="${PVE_THIN_CLIENT_PRESET_NOVNC_TOKEN:-${PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN:-}}"
+      CONNECTION_USERNAME="${PVE_THIN_CLIENT_PRESET_NOVNC_USERNAME:-${PVE_THIN_CLIENT_PRESET_BEAGLE_USERNAME:-}}"
+      CONNECTION_PASSWORD="${PVE_THIN_CLIENT_PRESET_NOVNC_PASSWORD:-${PVE_THIN_CLIENT_PRESET_BEAGLE_PASSWORD:-}}"
+      CONNECTION_TOKEN="${PVE_THIN_CLIENT_PRESET_NOVNC_TOKEN:-${PVE_THIN_CLIENT_PRESET_BEAGLE_TOKEN:-}}"
       ;;
     DCV)
       DCV_URL="${PVE_THIN_CLIENT_PRESET_DCV_URL:-}"
@@ -1917,13 +1917,13 @@ copy_assets() {
   MOONLIGHT_ABSOLUTE_MOUSE="$MOONLIGHT_ABSOLUTE_MOUSE" \
   MOONLIGHT_QUIT_AFTER="$MOONLIGHT_QUIT_AFTER" \
   SUNSHINE_API_URL="$SUNSHINE_API_URL" \
-  PROXMOX_SCHEME="$PROXMOX_SCHEME" \
-  PROXMOX_HOST="$PROXMOX_HOST" \
-  PROXMOX_PORT="$PROXMOX_PORT" \
-  PROXMOX_NODE="$PROXMOX_NODE" \
-  PROXMOX_VMID="$PROXMOX_VMID" \
-  PROXMOX_REALM="$PROXMOX_REALM" \
-  PROXMOX_VERIFY_TLS="$PROXMOX_VERIFY_TLS" \
+  BEAGLE_SCHEME="$BEAGLE_SCHEME" \
+  BEAGLE_HOST="$BEAGLE_HOST" \
+  BEAGLE_PORT="$BEAGLE_PORT" \
+  BEAGLE_NODE="$BEAGLE_NODE" \
+  BEAGLE_VMID="$BEAGLE_VMID" \
+  BEAGLE_REALM="$BEAGLE_REALM" \
+  BEAGLE_VERIFY_TLS="$BEAGLE_VERIFY_TLS" \
   BEAGLE_MANAGER_URL="$BEAGLE_MANAGER_URL" \
   BEAGLE_MANAGER_PINNED_PUBKEY="$BEAGLE_MANAGER_PINNED_PUBKEY" \
   BEAGLE_ENROLLMENT_URL="$BEAGLE_ENROLLMENT_URL" \
@@ -2084,12 +2084,12 @@ main() {
     clear_cached_preset
     return 0
   fi
-  if [[ "$LIST_PROXMOX_VMS_JSON" == "1" ]]; then
-    list_proxmox_vms_json
+  if [[ "$LIST_BEAGLE_VMS_JSON" == "1" ]]; then
+    list_beagle_vms_json
     return 0
   fi
-  if [[ "$CACHE_PROXMOX_VM_PRESET" == "1" ]]; then
-    cache_proxmox_vm_preset
+  if [[ "$CACHE_BEAGLE_VM_PRESET" == "1" ]]; then
+    cache_beagle_vm_preset
     return 0
   fi
   initialize_live_medium

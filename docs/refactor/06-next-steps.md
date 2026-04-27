@@ -3,6 +3,16 @@
 ## Stand (2026-04-27, two-host follow-up)
 
 **Zuletzt erledigt**:
+- Plan 11 Parity bekam jetzt auch den fehlenden ISO/qcow2/raw/img-Upload-Endpunkt (`POST /api/v1/storage/pools/{pool}/upload`) inklusive Quota- und Content-Validierung.
+- Policies-Panel hat jetzt eine Subnavigation fuer die Hauptbereiche; der Ist-Zustand ist in Plan 10 dokumentiert.
+- Passwort-/Username-Felder in Hidden- und Modal-Flows sind in sauberere Form-Kontexte gezogen; die Browser-Warnungen sind deutlich reduziert.
+- Policies-UI wurde sichtbarer modernisiert: Hero-Band, Main/Side-Workspace, kompaktere Pool-Cards und Entitlement-Chips sind live auf `srv1`.
+- Policies Plan 10 bekam einen echten Entitlement-Operator-Flow: ausgewählter Pool zeigt User-/Group-Entitlements als Chips und kann direkt per UI gepflegt werden.
+- Policies Plan 10 bekam eine Template-Bibliothek als Kartenansicht: OS, Storage, Source-VM, Build-Zeit, Health sowie `verwenden`/`neu bauen`/`löschen` sind jetzt direkt im Panel bedienbar.
+- Policies Plan 10 bekam jetzt auch eine bestätigte Pool-Delete-Danger-Action mit Slot-Zähler; der verbleibende Rest liegt weiter beim strukturierten Policy-Editor und der Bulk-/Scale-/Recycle-Absicherung.
+- IAM Plan 13 Schritt 7 ist jetzt auch als E2E-Smoke auf `srv1` geschlossen (`PLAN13_IAM_SMOKE=PASS`).
+- Audit Plan 15 Schritt 6 ist jetzt mit UI-Regressions und Live-Smoke auf `srv1` geschlossen (`AUDIT_COMPLIANCE_SMOKE=PASS`).
+- GoFuture Virtualization-Panel ist im Plan-Stand jetzt sauber als erledigt markiert; Nodes, Storage, Bridges, GPU/vGPU/SR-IOV und VM-Inspector sind bereits live bedienbar.
 - GoEnterprise Plan 08 weiter geschlossen: Seed-Discovery im Server-Installer ist jetzt produktiv verdrahtet (`/media/beagle-seed.yaml`, `/run/live/medium/...`, `beagle.seed_url=...`), PXE-Setup-Script + Doku + Integrations-Smoke liegen im Repo.
 - PXE-Dry-Run gegen echte Installer-Artefakte auf `srv1` und `srv2` erfolgreich; beide Hosts erzeugen konsistente `dnsmasq`-/TFTP-Baeume im isolierten Temp-Root.
 - Cluster-Installer-Glue geschlossen: Auto-Join-Oneshot, Install-Check-API, Cluster-Banner in der WebUI.
@@ -15,9 +25,9 @@
 
 **Naechste konkrete Schritte**:
 
-1. **Repo-Auto-Update live final pruefen**: echter Commit nach `origin/main` -> Pull auf `srv1` und `srv2` -> Watchdog gesund.
-2. **Cluster-WebUI-Operations vervollstaendigen**: `docs/gofuture/00-index.md` Schritt "Cluster-Operations in der WebUI vollständig machen" bleibt als echter Zwei-Host-Operator-Block offen.
-3. **Installer-Restgrenze sauber schliessen**: Mehrdisk-RAID und echter PXE-Boot mit DHCP-seitiger Seed-Uebergabe bleiben als verbleibender Installer-Nachlauf offen.
+1. **Cluster-WebUI-Operations vervollstaendigen**: `docs/gofuture/00-index.md` Schritt "Cluster-Operations in der WebUI vollständig machen" bleibt als echter Zwei-Host-Operator-Block offen.
+2. **Installer-Restgrenze sauber schliessen**: Mehrdisk-RAID und echter PXE-Boot mit DHCP-seitiger Seed-Uebergabe bleiben als verbleibender Installer-Nachlauf offen.
+3. **Plan-11-Parity-Rest auf die großen Themen begrenzen**: offen bleiben jetzt nur noch SDN/Overlay, HA-Manager, LDAP-Bind, TOTP und zero-downtime Live-Migration.
 
 ## Stand (2026-04-26, GoFuture Re-Open: WebUI-Operability)
 
@@ -44,21 +54,11 @@
 
 1. **Repo-Auto-Update live fertig validieren**: nach Push auf `origin/main` `repo_auto_update_enabled=true` auf `srv1` und `srv2` setzen, manuellen GitHub-Check aus der WebUI/API anstoßen und bestaetigen, dass `/opt/beagle` auf den neuen Commit aktualisiert wird.
 2. **Long-Build-Status final abnehmen**: laufende Repo-Auto-Updates auf `srv1`/`srv2` bis `state=healthy` beobachten und bestaetigen, dass die neue Live-Statusanzeige bis zum Abschluss korrekt bleibt.
-3. **Watchdog mit Repo-Update zusammenspielen lassen**: auf einem Host absichtlich Artefakt-Drift nach erfolgreichem Repo-Update erzeugen und bestaetigen, dass der Watchdog `reaction=started_refresh` setzt und wieder `healthy/public_ready=true` erreicht.
-4. **GitHub Release-Workflow erneut gegen echten Push pruefen**: bestaetigen, dass `.github/workflows/release.yml` nach dem Parse-Fix wieder laeuft und auf Push nach `main` einen neuen Rolling-/Release-Lauf erzeugt.
-5. **APT-Automatik-Policy klaeren**: derzeit prueft die Karte automatisch und installiert APT manuell; falls OS-Paketupdates vollautomatisch installiert werden sollen, muss ein eigener sicherer unattended-upgrades-/Timer-Pfad gebaut werden.
-6. **Plan 12 Nachlauf nur optional**: voller NVIDIA-Treiber-/Streaming-Benchmark im Gast waere noch zusaetzliche Komfortvalidierung, ist aber kein Pflichtblocker mehr.
-7. **Thinclient-Hardware-Rerun auf echtem Stick**: neuen VM100-USB-Stick von `srv1` erzeugen und den bisher fehlgeschlagenen physischen `Preset Installation starten`-Pfad auf echter Hardware erneut abnehmen.
-8. **Thinclient-Runtime visuell abnehmen**: lokale installierte Ziel-Disk mit grafischem Capture/Screenshot bis zur sichtbaren Moonlight-Session gegen `vm100` pruefen.
-9. **Security vor Cluster-Komfort**: `8443` auf downloads-only reduzieren oder schließen; Installer-/Download-Pfade vorher sauber auf `443` migrieren.
-10. **Leader-State-Reconcile bauen**: Drift in `members.json` reproduzierbar erkennen und vom Leader aus sauber neu aufbauen oder gegen den Cluster-Store abgleichen.
-11. **Plan 10/13/15 Panels fortsetzen**: `/#panel=policies`, `/#panel=iam`, `/#panel=audit` von Statusansichten zu echten Operator-Flows umbauen.
-12. **GPU-Pool-Wizard UX abrunden**: Sichtlabel fuer live erkannte GPUs kuerzen/normalisieren, ohne den jetzt stabilen `gpu_class`-Value (`passthrough-nvidia-geforce-gtx-1080`) wieder aufzubrechen.
-13. **GoFuture Plan 13 Operator-Rollen-UX**: Navigation und Dashboard fuer eingeschraenkte Rollen weiter entkoppeln, damit Viewer/Kiosk-Operatoren nur die Panels und Daten laden, die sie wirklich nutzen duerfen.
-14. **GoFuture Plan 13 E2E-Smoke**: lokales IAM-Login auf `srv1` browserseitig abnehmen; UI-Regressions sind jetzt geschlossen, offen bleibt der echte Login-/Session-Smoketest.
-15. **GoFuture Plan 10 Policies-UX**: Pool-Wizard/Pool-Cards/Detailflow in `/#panel=policies` weiter von Tabellenwiese zu gefuehrtem Operator-Flow ausbauen, jetzt auf Basis der produktiven Gaming-/Kiosk-Felder.
-16. **A11y-Follow-up im Login-/Provisioning-Flow**: die restlichen DevTools-Warnungen `password field not contained in a form` fuer weitere Passwortfelder (u.a. Provisioning/Modal-Felder) beseitigen, nachdem der `aria-hidden`-Warnpfad am Login-Modal bereits geschlossen ist.
-
+3. **GitHub Release-Workflow erneut gegen echten Push pruefen**: bestaetigen, dass `.github/workflows/release.yml` nach dem Parse-Fix wieder laeuft und auf Push nach `main` einen neuen Rolling-/Release-Lauf erzeugt.
+4. **Plan 12 Nachlauf nur optional**: voller NVIDIA-Treiber-/Streaming-Benchmark im Gast waere noch zusaetzliche Komfortvalidierung, ist aber kein Pflichtblocker mehr.
+5. **Thinclient-Hardware-Rerun auf echtem Stick**: neuen VM100-USB-Stick von `srv1` erzeugen und den bisher fehlgeschlagenen physischen `Preset Installation starten`-Pfad auf echter Hardware erneut abnehmen.
+6. **Thinclient-Runtime visuell abnehmen**: lokale installierte Ziel-Disk mit grafischem Capture/Screenshot bis zur sichtbaren Moonlight-Session gegen `vm100` pruefen.
+7. **Security vor Cluster-Komfort**: separate legacy HTTPS listener abschalten; Installer-/Download-Pfade auf `443` migrieren.
 **Blocker/Risiken**:
 - `srv2` GPU: GTX 1080 ist an `vfio-pci`, aber IOMMU-Gruppe enthaelt weitere Geraete; Passthrough bleibt ohne ACS/BIOS/Hardware-Aenderung nicht sicher freigebbar.
 - Artifact-Refresh ist jetzt auf `srv1` und `srv2` gruen; offener Rest fuer Plan 06 ist jetzt das echte Zusammenspiel `GitHub-Repo-Update -> Host-Deploy -> Artifact-Watchdog`.

@@ -73,8 +73,8 @@ fi
 
 manager_url="${BEAGLE_ENDPOINT_MANAGER_URL:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}}"
 manager_token="${BEAGLE_ENDPOINT_MANAGER_TOKEN:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}}"
-vmid="${BEAGLE_ENDPOINT_PROXMOX_VMID:-${PVE_THIN_CLIENT_PROXMOX_VMID:-}}"
-node="${BEAGLE_ENDPOINT_PROXMOX_NODE:-${PVE_THIN_CLIENT_PROXMOX_NODE:-}}"
+vmid="${BEAGLE_ENDPOINT_BEAGLE_VMID:-${PVE_THIN_CLIENT_BEAGLE_VMID:-}}"
+node="${BEAGLE_ENDPOINT_BEAGLE_NODE:-${PVE_THIN_CLIENT_BEAGLE_NODE:-}}"
 
 if [[ -z "$manager_url" || -z "$manager_token" || -z "$vmid" || -z "$node" ]]; then
   write_status_file "" "skipped" "$(date -Iseconds)" "missing manager endpoint configuration" "" ""

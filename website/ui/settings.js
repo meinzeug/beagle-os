@@ -430,16 +430,21 @@ export function loadSettingsUpdates() {
     const packageCount = Number(data.upgradable_count || 0);
     text('upd-count', String(packageCount));
     text('upd-source', String(data.source || 'apt').toUpperCase());
+    const policyMessage = qs('upd-policy-message');
+    if (policyMessage) {
+      policyMessage.textContent = 'APT-Updates bleiben absichtlich manuell. Die Automatik gilt nur fuer den GitHub-Repo-Update-Pfad.';
+      policyMessage.className = 'settings-update-status-banner subtle';
+    }
     const updateSummary = qs('upd-summary-message');
     if (updateSummary) {
       if (packageCount <= 0) {
         updateSummary.textContent = 'Der Server ist aktuell. Momentan sind keine neuen Betriebssystem-Updates noetig.';
         updateSummary.className = 'banner info';
       } else if (packageCount === 1) {
-        updateSummary.textContent = 'Es ist 1 Betriebssystem-Update verfuegbar. Du kannst es direkt von hier installieren.';
+        updateSummary.textContent = 'Es ist 1 Betriebssystem-Update verfuegbar. Installation erfolgt bewusst erst nach Klick.';
         updateSummary.className = 'banner warn';
       } else {
-        updateSummary.textContent = 'Es sind ' + String(packageCount) + ' Betriebssystem-Updates verfuegbar. Du kannst sie direkt von hier installieren.';
+        updateSummary.textContent = 'Es sind ' + String(packageCount) + ' Betriebssystem-Updates verfuegbar. Installation erfolgt bewusst erst nach Klick.';
         updateSummary.className = 'banner warn';
       }
     }

@@ -21,7 +21,7 @@ IT-Abteilungen investieren in Beagle-Server, aber können den Abteilungen nicht 
 | Azure Virtual Desktop | Azure-Billing mit per-User-Reporting |
 | AWS WorkSpaces | Pay-per-Use, AWS Cost Explorer Integration |
 | Citrix DaaS | Citrix Analytics - nur in teurer Cloud-Version |
-| Proxmox | **Gar nichts** |
+| Beagle host | **Gar nichts** |
 | VMware Horizon | Optional mit vRealize Operations ($$$) |
 | **Beagle GoEnterprise** | **Integriert, On-Prem, Abteilungs-granular, kostenlos** |
 
@@ -87,5 +87,5 @@ IT-Abteilungen investieren in Beagle-Server, aber können den Abteilungen nicht 
 ## Einzigartigkeit
 
 **Kein On-Prem Open-Source VDI-Stack bietet integriertes Chargeback.**
-Proxmox: nichts. OpenStack: Ceilometer existiert, aber nicht VDI-integriert. XCP-ng: nichts.
+Beagle host: nichts. OpenStack: Ceilometer existiert, aber nicht VDI-integriert. XCP-ng: nichts.
 Beagle GoEnterprise: vollständig integriert, konfigurierbar, free of charge.

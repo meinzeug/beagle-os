@@ -6,6 +6,7 @@ import { chip, escapeHtml, fieldBlock, qs } from './dom.js';
 import { request, runSingleFlight } from './api.js';
 import { sanitizeIdentifier } from './auth.js';
 import { renderKioskController } from './kiosk_controller.js';
+import { openTemplateBuilderModal } from './template_builder.js';
 
 const policyHooks = {
   setBanner() {},
@@ -47,6 +48,33 @@ function parseMinuteList(rawValue) {
     .sort((a, b) => a - b);
 }
 
+function setValue(id, value) {
+  const node = qs(id);
+  if (!node) {
+    return;
+  }
+  if (node.type === 'checkbox') {
+    node.checked = !!value;
+    return;
+  }
+  if (node.tagName === 'SELECT') {
+    node.value = value == null ? '' : String(value);
+    return;
+  }
+  node.value = value == null ? '' : String(value);
+}
+
+function getValue(id) {
+  const node = qs(id);
+  if (!node) {
+    return '';
+  }
+  if (node.type === 'checkbox') {
+    return !!node.checked;
+  }
+  return String(node.value || '').trim();
+}
+
 function slugToken(rawValue) {
   return String(rawValue || '')
     .trim()
@@ -71,6 +99,29 @@ function normalizedGpuModelToken(rawValue) {
     text = bracketLabels[0];
   }
   return slugToken(text);
+}
+
+function humanizeGpuModelLabel(rawValue) {
+  let text = String(rawValue || '').trim();
+  if (!text) {
+    return '';
+  }
+  const bracketLabels = Array.from(text.matchAll(/\[([^\]]+)\]/g))
+    .map((match) => String(match[1] || '').trim())
+    .filter(Boolean);
+  if (bracketLabels.length) {
+    text = bracketLabels[0];
+  }
+  text = text
+    .replace(/^[0-9a-f:.]+\s+[^:]+:\s*/i, '')
+    .replace(/\[[0-9a-f]{4}:[0-9a-f]{4}\]/ig, '')
+    .replace(/\(rev[^)]*\)/ig, '')
+    .replace(/\bNVIDIA Corporation\b/ig, '')
+    .replace(/\bAdvanced Micro Devices, Inc\.\s*\[AMD\/ATI\]\b/ig, '')
+    .replace(/\bIntel Corporation\b/ig, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text || normalizedGpuModelToken(rawValue);
 }
 
 function buildPassthroughGpuClass(item) {
@@ -113,6 +164,9 @@ function summarizePoolGpuClassOptions() {
     if (item && item.model) {
       existing.models.add(String(item.model).trim());
     }
+    if (item && item.model) {
+      existing.label = humanizeGpuModelLabel(item.model);
+    }
     byClass.set(gpuClass, existing);
   });
   return Array.from(byClass.values()).sort((a, b) => a.value.localeCompare(b.value));
@@ -142,7 +196,7 @@ export function renderPoolGpuClassOptions() {
   }
   optionMarkup.push('<option value="">GPU-Klasse aus Live-Inventar waehlen</option>');
   options.forEach((item) => {
-    const modelLabel = Array.from(item.models).slice(0, 2).join(' / ') || item.value;
+    const modelLabel = String(item.label || '').trim() || Array.from(item.models).slice(0, 2).join(' / ') || item.value;
     const hostLabel = item.nodes.size ? (Array.from(item.nodes).join(', ')) : 'ohne Host';
     const statusLabel = item.ready > 0
       ? (String(item.ready) + '/' + String(item.total) + ' bereit')
@@ -321,6 +375,89 @@ function renderPoolWizardSummary() {
     '</div>';
 }
 
+function collectPolicyStructuredProfile() {
+  const assignedVmid = Number(getValue('policy-assigned-vmid'));
+  const assignedNode = getValue('policy-assigned-node');
+  const profile = {
+    beagle_role: getValue('policy-beagle-role'),
+    network_mode: getValue('policy-network-mode'),
+    stream_host: getValue('policy-stream-host'),
+    moonlight_port: getValue('policy-moonlight-port'),
+    moonlight_app: getValue('policy-moonlight-app'),
+    expected_profile_name: getValue('policy-expected-profile-name'),
+    update_enabled: getValue('policy-update-enabled'),
+    update_channel: getValue('policy-update-channel'),
+    update_behavior: getValue('policy-update-behavior'),
+    update_feed_url: getValue('policy-update-feed-url'),
+    update_version_pin: getValue('policy-update-version-pin'),
+    identity_hostname: getValue('policy-identity-hostname'),
+    identity_timezone: getValue('policy-identity-timezone'),
+    identity_locale: getValue('policy-identity-locale'),
+    identity_keymap: getValue('policy-identity-keymap'),
+    identity_chrome_profile: getValue('policy-identity-chrome-profile'),
+    egress_mode: getValue('policy-egress-mode'),
+    egress_type: getValue('policy-egress-type'),
+    egress_interface: getValue('policy-egress-interface'),
+    egress_domains: parseCommaList(getValue('policy-egress-domains')),
+    egress_resolvers: parseCommaList(getValue('policy-egress-resolvers')),
+    egress_allowed_ips: parseCommaList(getValue('policy-egress-allowed-ips'))
+  };
+  if (assignedVmid > 0 || assignedNode) {
+    profile.assigned_target = {};
+    if (assignedVmid > 0) {
+      profile.assigned_target.vmid = assignedVmid;
+    }
+    if (assignedNode) {
+      profile.assigned_target.node = assignedNode;
+    }
+  }
+  Object.keys(profile).forEach((key) => {
+    const value = profile[key];
+    if (value === '' || value == null || (Array.isArray(value) && !value.length)) {
+      delete profile[key];
+    }
+  });
+  return profile;
+}
+
+export function syncPolicyProfilePreview() {
+  const preview = qs('policy-profile');
+  if (!preview) {
+    return;
+  }
+  preview.value = JSON.stringify(collectPolicyStructuredProfile(), null, 2);
+}
+
+function populatePolicyStructuredProfile(profile) {
+  const data = profile && typeof profile === 'object' ? profile : {};
+  const assignedTarget = data.assigned_target && typeof data.assigned_target === 'object' ? data.assigned_target : {};
+  setValue('policy-beagle-role', data.beagle_role || '');
+  setValue('policy-assigned-vmid', assignedTarget.vmid != null ? assignedTarget.vmid : '');
+  setValue('policy-assigned-node', assignedTarget.node || '');
+  setValue('policy-network-mode', data.network_mode || '');
+  setValue('policy-stream-host', data.stream_host || '');
+  setValue('policy-moonlight-port', data.moonlight_port || '');
+  setValue('policy-moonlight-app', data.moonlight_app || '');
+  setValue('policy-expected-profile-name', data.expected_profile_name || '');
+  setValue('policy-update-enabled', data.update_enabled !== false);
+  setValue('policy-update-channel', data.update_channel || 'stable');
+  setValue('policy-update-behavior', data.update_behavior || 'prompt');
+  setValue('policy-update-feed-url', data.update_feed_url || '');
+  setValue('policy-update-version-pin', data.update_version_pin || '');
+  setValue('policy-identity-hostname', data.identity_hostname || '');
+  setValue('policy-identity-timezone', data.identity_timezone || '');
+  setValue('policy-identity-locale', data.identity_locale || '');
+  setValue('policy-identity-keymap', data.identity_keymap || '');
+  setValue('policy-identity-chrome-profile', data.identity_chrome_profile || '');
+  setValue('policy-egress-mode', data.egress_mode || '');
+  setValue('policy-egress-type', data.egress_type || '');
+  setValue('policy-egress-interface', data.egress_interface || '');
+  setValue('policy-egress-domains', Array.isArray(data.egress_domains) ? data.egress_domains.join(',') : '');
+  setValue('policy-egress-resolvers', Array.isArray(data.egress_resolvers) ? data.egress_resolvers.join(',') : '');
+  setValue('policy-egress-allowed-ips', Array.isArray(data.egress_allowed_ips) ? data.egress_allowed_ips.join(',') : '');
+  syncPolicyProfilePreview();
+}
+
 function renderPoolWizardStepUi() {
   const current = Number(poolWizardStep) || 1;
   const panels = document.querySelectorAll('[data-pool-step]');
@@ -415,6 +552,33 @@ function renderPoolOverviewSelect() {
     const selected = state.selectedPoolId === poolId ? ' selected' : '';
     return '<option value="' + escapeHtml(poolId) + '"' + selected + '>' + escapeHtml(poolId) + '</option>';
   }).join('');
+  renderPoolScaleInput();
+}
+
+function selectedPoolInfo() {
+  const poolId = String(state.selectedPoolId || '').trim();
+  if (!poolId) {
+    return null;
+  }
+  const pools = Array.isArray(state.desktopPools) ? state.desktopPools : [];
+  return pools.find((item) => String(item.pool_id || '').trim() === poolId) || null;
+}
+
+function renderPoolScaleInput() {
+  const input = qs('pool-scale-target');
+  if (!input) {
+    return;
+  }
+  const pool = selectedPoolInfo();
+  if (!pool) {
+    input.value = '';
+    input.placeholder = 'keine Auswahl';
+    input.disabled = true;
+    return;
+  }
+  input.disabled = false;
+  input.value = String(Number(pool.warm_pool_size || 0) || 0);
+  input.placeholder = String(Number(pool.max_pool_size || 0) || 0);
 }
 
 function renderPoolsList() {
@@ -432,6 +596,7 @@ function renderPoolsList() {
     const mode = String(pool.mode || 'unknown').trim();
     const poolType = String(pool.pool_type || 'desktop').trim();
     const stream = pool.streaming_profile && typeof pool.streaming_profile === 'object' ? pool.streaming_profile : null;
+    const entitlements = state.poolEntitlements && state.poolEntitlements[poolId] ? state.poolEntitlements[poolId] : null;
     const sessionRecording = String(pool.session_recording || 'disabled').trim() || 'disabled';
     const retentionDays = Number(pool.recording_retention_days || 30) || 30;
     const timeLimit = Number(pool.session_time_limit_minutes || 0) || 0;
@@ -440,6 +605,7 @@ function renderPoolsList() {
     const streamSummary = stream
       ? String(stream.encoder || 'auto') + ' / ' + String(stream.color || 'h265') + ' / ' + String(stream.resolution || '1920x1080')
       : 'default';
+    const vmCount = Array.isArray(state.poolVmStates && state.poolVmStates[poolId]) ? state.poolVmStates[poolId].length : 0;
     const selectedClass = state.selectedPoolId === poolId ? ' active' : '';
     return '<article class="policy-card' + selectedClass + '" data-pool-id="' + escapeHtml(poolId) + '">' +
       '<div class="policy-head"><strong>' + escapeHtml(poolId) + '</strong>' + chip(poolType, 'muted') + chip(mode, 'muted') + '</div>' +
@@ -448,10 +614,163 @@ function renderPoolsList() {
       fieldBlock('Warm/Max', String(pool.warm_pool_size || 0) + ' / ' + String(pool.max_pool_size || 0)) +
       fieldBlock('Session-Limit', timeLimit > 0 ? String(timeLimit) + ' Min' : 'unbegrenzt') +
       fieldBlock('Verlaengerungen', Array.isArray(pool.session_extension_options_minutes) && pool.session_extension_options_minutes.length ? pool.session_extension_options_minutes.join(', ') + ' Min' : '-') +
+      fieldBlock('Entitlements', entitlements ? ('u:' + String((entitlements.users || []).length) + ' / g:' + String((entitlements.groups || []).length)) : 'nicht geladen') +
       fieldBlock('Recording', sessionRecording) +
       fieldBlock('Retention', String(retentionDays) + ' Tage') +
       fieldBlock('Watermark', (watermarkEnabled ? 'enabled' : 'disabled') + (watermarkCustom ? ' / ' + watermarkCustom : '')) +
       fieldBlock('Streaming', streamSummary) +
+      '</div>' +
+      '<div class="button-row compact-row pool-card-actions">' +
+      chip(String(vmCount) + ' Slots', vmCount ? 'info' : 'muted') +
+      '<button class="button ghost small" type="button" data-pool-focus="' + escapeHtml(poolId) + '">Details</button>' +
+      '<button class="button danger small" type="button" data-pool-delete="' + escapeHtml(poolId) + '">löschen</button>' +
+      '</div>' +
+      '</article>';
+  }).join('');
+}
+
+function renderPoliciesHero() {
+  const node = qs('policies-hero-badges');
+  if (!node) {
+    return;
+  }
+  const pools = Array.isArray(state.desktopPools) ? state.desktopPools : [];
+  const templates = Array.isArray(state.poolTemplates) ? state.poolTemplates : [];
+  const selectedPoolId = String(state.selectedPoolId || '').trim();
+  const entitlements = selectedPoolId && state.poolEntitlements ? state.poolEntitlements[selectedPoolId] : null;
+  const poolCount = pools.length;
+  const entitledCount = entitlements ? ((entitlements.users || []).length + (entitlements.groups || []).length) : 0;
+  const gamingCount = pools.filter((pool) => String(pool.pool_type || '').trim() === 'gaming').length;
+  node.innerHTML =
+    chip('Pools ' + String(poolCount), poolCount ? 'ok' : 'muted') +
+    chip('Templates ' + String(templates.length), templates.length ? 'info' : 'muted') +
+    chip('Gaming ' + String(gamingCount), gamingCount ? 'warn' : 'muted') +
+    chip('Entitled ' + String(entitledCount), entitledCount ? 'ok' : 'muted');
+}
+
+function renderPolicySummary(policy) {
+  const selector = policy.selector || {};
+  const profile = policy.profile || {};
+  const assignedTarget = profile.assigned_target && typeof profile.assigned_target === 'object' ? profile.assigned_target : {};
+  const summary = [
+    fieldBlock('Selector', JSON.stringify(selector), 'mono'),
+    fieldBlock('Rolle', String(profile.beagle_role || '-')),
+    fieldBlock('Target', assignedTarget.vmid != null ? (String(assignedTarget.vmid) + (assignedTarget.node ? ' @ ' + assignedTarget.node : '')) : '-'),
+    fieldBlock('Streaming', [profile.stream_host, profile.moonlight_port, profile.moonlight_app].filter(Boolean).join(' / ') || '-'),
+    fieldBlock('Updates', [profile.update_enabled === false ? 'off' : 'on', profile.update_channel || '-', profile.update_behavior || '-'].join(' / ')),
+    fieldBlock('Egress', [profile.egress_mode || '-', profile.egress_interface || '-'].join(' / ')),
+    fieldBlock('Identity', [profile.identity_hostname || '-', profile.identity_timezone || '-', profile.identity_locale || '-'].join(' / '))
+  ];
+  return '<div class="policy-summary-grid">' + summary.join('') + '</div>';
+}
+
+function renderPoolCatalogSummary() {
+  const node = qs('pool-catalog-summary');
+  if (!node) {
+    return;
+  }
+  const pools = Array.isArray(state.desktopPools) ? state.desktopPools : [];
+  const counts = {
+    gaming: 0,
+    kiosk: 0,
+    desktop: 0,
+    gpu_passthrough: 0,
+    gpu_timeslice: 0,
+    gpu_vgpu: 0
+  };
+  pools.forEach((pool) => {
+    const key = String(pool.pool_type || 'desktop').trim();
+    if (Object.prototype.hasOwnProperty.call(counts, key)) {
+      counts[key] += 1;
+    }
+  });
+  node.innerHTML =
+    chip('Pools ' + String(pools.length), pools.length ? 'ok' : 'muted') +
+    chip('Gaming ' + String(counts.gaming), counts.gaming ? 'warn' : 'muted') +
+    chip('Kiosk ' + String(counts.kiosk), counts.kiosk ? 'info' : 'muted') +
+    chip('Desktop ' + String(counts.desktop), counts.desktop ? 'muted' : 'muted');
+}
+
+function templateHealthTone(value) {
+  const health = String(value || '').trim().toLowerCase();
+  if (health === 'ready') {
+    return 'ok';
+  }
+  if (health === 'warning' || health === 'degraded') {
+    return 'warn';
+  }
+  if (health === 'error' || health === 'broken') {
+    return 'danger';
+  }
+  return 'muted';
+}
+
+function renderTemplateLibrary() {
+  const node = qs('template-library-list');
+  const summary = qs('template-library-summary');
+  if (!node) {
+    return;
+  }
+  const templates = Array.isArray(state.poolTemplates) ? state.poolTemplates : [];
+  if (summary) {
+    summary.innerHTML =
+      chip('Templates ' + String(templates.length), templates.length ? 'ok' : 'muted') +
+      chip('Ready ' + String(templates.filter((item) => String(item.health || '').trim() === 'ready').length), templates.length ? 'info' : 'muted') +
+      chip('Sealed ' + String(templates.filter((item) => item.sealed !== false).length), templates.length ? 'muted' : 'muted');
+  }
+  if (!templates.length) {
+    node.innerHTML = '<div class="empty-card">Keine Templates geladen.</div>';
+    return;
+  }
+  node.innerHTML = templates.map((template) => {
+    const templateId = String(template.template_id || '').trim();
+    const selected = state.selectedTemplateId === templateId ? ' selected' : '';
+    const sourceVmid = Number(template.source_vmid || 0) || 0;
+    const canRebuild = sourceVmid > 0;
+    const software = Array.isArray(template.software_packages) && template.software_packages.length
+      ? template.software_packages.slice(0, 3).join(', ')
+      : '-';
+    const details = template.backing_image ? String(template.backing_image).split('/').pop() : '-';
+    const rebuildSeed = {
+      template_id: template.template_id,
+      template_name: template.template_name,
+      source_vmid: template.source_vmid,
+      os_family: template.os_family,
+      storage_pool: template.storage_pool,
+      snapshot_name: template.snapshot_name,
+      cpu_cores: template.cpu_cores,
+      memory_mib: template.memory_mib,
+      software_packages: template.software_packages,
+      notes: 'Rebuild von ' + String(template.template_id || '')
+    };
+    return '<article class="template-card' + selected + '" data-template-id="' + escapeHtml(templateId) + '">' +
+      '<div class="template-card-head">' +
+      '<div>' +
+      '<strong>' + escapeHtml(String(template.template_name || templateId || 'template')) + '</strong>' +
+      '<div class="template-card-meta">' +
+      chip(String(template.os_family || '-'), 'muted') +
+      chip(String(template.storage_pool || '-'), 'muted') +
+      chip(String(template.health || 'unknown'), templateHealthTone(template.health)) +
+      chip(template.sealed !== false ? 'sealed' : 'unsealed', template.sealed !== false ? 'ok' : 'warn') +
+      '</div>' +
+      '</div>' +
+      '<div class="button-row compact-row">' +
+      '<button class="button ghost small" type="button" data-template-use="' + escapeHtml(templateId) + '">verwenden</button>' +
+      '<button class="button ghost small" type="button" data-template-rebuild="' + escapeHtml(templateId) + '"' + (canRebuild ? '' : ' disabled') + '>neu bauen</button>' +
+      '<button class="button danger small" type="button" data-template-delete="' + escapeHtml(templateId) + '">löschen</button>' +
+      '</div>' +
+      '</div>' +
+      '<div class="template-card-grid">' +
+      fieldBlock('Source VM', String(template.source_vmid || '-'), 'mono') +
+      fieldBlock('Buildzeit', String(template.created_at || '-')) +
+      fieldBlock('Snapshot', String(template.snapshot_name || '-')) +
+      fieldBlock('Backing', details, 'mono') +
+      fieldBlock('CPU / RAM', String(template.cpu_cores || '-') + ' vCPU / ' + String(template.memory_mib || '-') + ' MiB') +
+      fieldBlock('Software', software) +
+      '</div>' +
+      '<div class="template-card-foot">' +
+      '<span class="chip muted">' + escapeHtml(templateId || '-') + '</span>' +
+      '<span class="chip muted">' + escapeHtml(String(template.health || 'unknown')) + '</span>' +
       '</div>' +
       '</article>';
   }).join('');
@@ -476,13 +795,13 @@ function renderPoolOverviewBody() {
     return;
   }
   if (!state.selectedPoolId) {
-    body.innerHTML = '<tr><td colspan="4" class="empty-cell">Kein Pool ausgewaehlt.</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" class="empty-cell">Kein Pool ausgewaehlt.</td></tr>';
     renderStats({ free: 0, in_use: 0, recycling: 0, error: 0 });
     return;
   }
   const vmRows = (state.poolVmStates && state.poolVmStates[state.selectedPoolId]) || [];
   if (!Array.isArray(vmRows) || !vmRows.length) {
-    body.innerHTML = '<tr><td colspan="4" class="empty-cell">Keine VM-Slots fuer diesen Pool.</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" class="empty-cell">Keine VM-Slots fuer diesen Pool.</td></tr>';
     renderStats({ free: 0, in_use: 0, recycling: 0, error: 0 });
     return;
   }
@@ -496,7 +815,7 @@ function renderPoolOverviewBody() {
       counts[status] += 1;
     }
     const tone = status === 'in_use' ? 'ok' : status === 'recycling' ? 'warn' : 'muted';
-    return '<tr class="pool-overview-row"><td>' + escapeHtml(String(vmid || '-')) + '</td><td>' + escapeHtml(userId) + '</td><td>' + chip(status, tone) + '</td><td>' + escapeHtml(assignedAt || '-') + '</td></tr>';
+    return '<tr class="pool-overview-row"><td>' + escapeHtml(String(vmid || '-')) + '</td><td>' + escapeHtml(userId) + '</td><td>' + chip(status, tone) + '</td><td>' + escapeHtml(assignedAt || '-') + '</td><td><button class="button ghost small" type="button" data-pool-vm-recycle="' + escapeHtml(String(vmid || '')) + '" ' + (status === 'free' ? 'disabled' : '') + '>Recyceln</button></td></tr>';
   }).join('');
   renderStats(counts);
 }
@@ -516,6 +835,143 @@ function refreshSelectedPoolOverview() {
     renderPoolOverviewBody();
     policyHooks.setBanner('Pool-Status konnte nicht geladen werden: ' + error.message, 'warn');
   });
+}
+
+function poolEntitlementsForSelectedPool() {
+  const poolId = String(state.selectedPoolId || '').trim();
+  if (!poolId) {
+    return null;
+  }
+  return state.poolEntitlements && state.poolEntitlements[poolId] ? state.poolEntitlements[poolId] : null;
+}
+
+function renderPoolEntitlementsPanel() {
+  const usersNode = qs('pool-entitlement-users');
+  const groupsNode = qs('pool-entitlement-groups');
+  const statusNode = qs('pool-entitlement-status');
+  const poolIdNode = qs('pool-entitlement-pool');
+  const poolId = String(state.selectedPoolId || '').trim();
+  if (poolIdNode) {
+    poolIdNode.textContent = poolId || 'kein Pool ausgewählt';
+  }
+  if (!usersNode || !groupsNode) {
+    return;
+  }
+  if (!poolId) {
+    usersNode.innerHTML = '<div class="empty-card">Kein Pool ausgewaehlt.</div>';
+    groupsNode.innerHTML = '<div class="empty-card">Kein Pool ausgewaehlt.</div>';
+    if (statusNode) statusNode.textContent = 'Wähle einen Pool, um Entitlements zu bearbeiten.';
+    return;
+  }
+  const entitlements = poolEntitlementsForSelectedPool();
+  if (!entitlements) {
+    usersNode.innerHTML = '<div class="empty-card">Entitlements werden geladen.</div>';
+    groupsNode.innerHTML = '<div class="empty-card">Entitlements werden geladen.</div>';
+    if (statusNode) statusNode.textContent = 'Entitlements laden ...';
+    return;
+  }
+  const users = Array.isArray(entitlements.users) ? entitlements.users : [];
+  const groups = Array.isArray(entitlements.groups) ? entitlements.groups : [];
+  usersNode.innerHTML = users.length
+    ? users.map((userId) => '<button class="chip chip-action" type="button" data-pool-entitlement-remove-user="' + escapeHtml(userId) + '">' + escapeHtml(userId) + ' ×</button>').join('')
+    : '<div class="empty-card">Keine User-Entitlements.</div>';
+  groupsNode.innerHTML = groups.length
+    ? groups.map((groupId) => '<button class="chip chip-action" type="button" data-pool-entitlement-remove-group="' + escapeHtml(groupId) + '">' + escapeHtml(groupId) + ' ×</button>').join('')
+    : '<div class="empty-card">Keine Gruppen-Entitlements.</div>';
+  if (statusNode) {
+    statusNode.textContent = 'User: ' + String(users.length) + ' / Gruppen: ' + String(groups.length);
+  }
+}
+
+function syncSelectedPoolEntitlements(payload) {
+  const poolId = String(state.selectedPoolId || '').trim();
+  if (!poolId) {
+    return Promise.resolve(null);
+  }
+  const data = payload && typeof payload === 'object' ? payload : poolEntitlementsForSelectedPool() || { users: [], groups: [] };
+  const users = Array.isArray(data.users) ? data.users : [];
+  const groups = Array.isArray(data.groups) ? data.groups : [];
+  return request('/pools/' + encodeURIComponent(poolId) + '/entitlements', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ users, groups })
+  }).then((result) => {
+    if (!state.poolEntitlements || typeof state.poolEntitlements !== 'object') {
+      state.poolEntitlements = Object.create(null);
+    }
+    state.poolEntitlements[poolId] = {
+      pool_id: poolId,
+      users: Array.isArray(result.users) ? result.users : users,
+      groups: Array.isArray(result.groups) ? result.groups : groups
+    };
+    renderPoliciesHero();
+    renderPoolCatalogSummary();
+    renderPoolEntitlementsPanel();
+    renderPoolsList();
+    return result;
+  });
+}
+
+export function refreshSelectedPoolEntitlements() {
+  const poolId = String(state.selectedPoolId || '').trim();
+  if (!poolId) {
+    renderPoolEntitlementsPanel();
+    return Promise.resolve();
+  }
+  if (!state.poolEntitlements || typeof state.poolEntitlements !== 'object') {
+    state.poolEntitlements = Object.create(null);
+  }
+  if (state.poolEntitlements[poolId]) {
+    renderPoolEntitlementsPanel();
+  }
+  return request('/pools/' + encodeURIComponent(poolId) + '/entitlements').then((payload) => {
+    state.poolEntitlements[poolId] = {
+      pool_id: poolId,
+      users: Array.isArray(payload.users) ? payload.users : [],
+      groups: Array.isArray(payload.groups) ? payload.groups : []
+    };
+    renderPoliciesHero();
+    renderPoolCatalogSummary();
+    renderPoolEntitlementsPanel();
+    renderPoolsList();
+  }).catch((error) => {
+    renderPoolEntitlementsPanel();
+    policyHooks.setBanner('Pool-Entitlements konnten nicht geladen werden: ' + error.message, 'warn');
+  });
+}
+
+export function mutateSelectedPoolEntitlements(kind, mode) {
+  const poolId = String(state.selectedPoolId || '').trim();
+  if (!poolId) {
+    policyHooks.setBanner('Kein Pool ausgewaehlt.', 'warn');
+    return Promise.resolve();
+  }
+  const input = qs(kind === 'user' ? 'pool-entitlement-user-input' : 'pool-entitlement-group-input');
+  const value = String(input ? input.value : '').trim();
+  if (!value) {
+    policyHooks.setBanner((kind === 'user' ? 'User' : 'Gruppe') + ' ist erforderlich.', 'warn');
+    return Promise.resolve();
+  }
+  const current = poolEntitlementsForSelectedPool() || { users: [], groups: [] };
+  const users = Array.isArray(current.users) ? current.users.slice() : [];
+  const groups = Array.isArray(current.groups) ? current.groups.slice() : [];
+  const list = kind === 'user' ? users : groups;
+  if (mode === 'remove') {
+    const filtered = list.filter((item) => item !== value);
+    if (kind === 'user') {
+      return syncSelectedPoolEntitlements({ users: filtered, groups });
+    }
+    return syncSelectedPoolEntitlements({ users, groups: filtered });
+  }
+  if (list.indexOf(value) === -1) {
+    list.push(value);
+  }
+  if (kind === 'user') {
+    input.value = '';
+    return syncSelectedPoolEntitlements({ users: list, groups });
+  }
+  input.value = '';
+  return syncSelectedPoolEntitlements({ users, groups: list });
 }
 
 function formatMetricNumber(value, digits) {
@@ -800,7 +1256,7 @@ export function refreshPoolData() {
     renderPoolTemplateOptions();
     renderPoolOverviewSelect();
     renderPoolsList();
-    return refreshSelectedPoolOverview();
+    return refreshSelectedPoolOverview().then(() => refreshSelectedPoolEntitlements());
   });
 }
 
@@ -809,6 +1265,122 @@ export function selectPool(poolId) {
   renderPoolOverviewSelect();
   renderPoolsList();
   refreshSelectedPoolOverview();
+  refreshSelectedPoolEntitlements();
+}
+
+export function scaleSelectedPool() {
+  const pool = selectedPoolInfo();
+  const poolId = String(state.selectedPoolId || '').trim();
+  const input = qs('pool-scale-target');
+  if (!poolId || !pool) {
+    policyHooks.setBanner('Kein Pool ausgewaehlt.', 'warn');
+    return Promise.resolve();
+  }
+  const targetValue = Number(input ? input.value : NaN);
+  if (!Number.isFinite(targetValue) || targetValue <= 0) {
+    policyHooks.setBanner('Zielgroesse muss > 0 sein.', 'warn');
+    return Promise.resolve();
+  }
+  const minSize = Number(pool.min_pool_size || 0) || 0;
+  const maxSize = Number(pool.max_pool_size || targetValue) || targetValue;
+  const safeTarget = Math.max(minSize, Math.min(maxSize, Math.round(targetValue)));
+  return policyHooks.requestConfirm({
+    title: 'Pool skalieren?',
+    message: 'Pool "' + poolId + '" auf Warm-Pool ' + String(safeTarget) + ' setzen? Maximal ' + String(maxSize) + ' Slots.',
+    confirmLabel: 'Skalieren',
+    danger: false
+  }).then((ok) => {
+    if (!ok) {
+      return null;
+    }
+    return runSingleFlight('pool-scale:' + poolId, () => {
+      policyHooks.setBanner('Pool ' + poolId + ' wird skaliert ...', 'info');
+      return request('/pools/' + encodeURIComponent(poolId) + '/scale', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_size: safeTarget })
+      }).then(() => Promise.all([policyHooks.loadDashboard(), refreshSelectedPoolOverview()])).then(() => {
+        renderPoolScaleInput();
+        policyHooks.setBanner('Pool ' + poolId + ' skaliert.', 'ok');
+      }).catch((error) => {
+        policyHooks.setBanner('Pool-Skalierung fehlgeschlagen: ' + error.message, 'warn');
+      });
+    });
+  });
+}
+
+export function recycleSelectedPoolVm(vmid) {
+  const poolId = String(state.selectedPoolId || '').trim();
+  const id = Number(vmid || 0) || 0;
+  if (!poolId || !id) {
+    return Promise.resolve();
+  }
+  const rows = (state.poolVmStates && state.poolVmStates[poolId]) || [];
+  const row = Array.isArray(rows) ? rows.find((item) => Number((item && item.vmid) || 0) === id) : null;
+  const status = String(row && row.state || '').trim() || 'unknown';
+  return policyHooks.requestConfirm({
+    title: 'VM recyceln?',
+    message: 'VM ' + String(id) + ' in Pool "' + poolId + '" wirklich recyceln? Status: ' + status + '.',
+    confirmLabel: 'Recyceln',
+    danger: true
+  }).then((ok) => {
+    if (!ok) {
+      return null;
+    }
+    return runSingleFlight('pool-recycle:' + poolId + ':' + String(id), () => {
+      policyHooks.setBanner('VM ' + String(id) + ' wird recycelt ...', 'info');
+      return request('/pools/' + encodeURIComponent(poolId) + '/recycle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vmid: id })
+      }).then(() => Promise.all([policyHooks.loadDashboard(), refreshSelectedPoolEntitlements()])).then(() => {
+        policyHooks.setBanner('VM ' + String(id) + ' recycelt.', 'ok');
+      }).catch((error) => {
+        policyHooks.setBanner('VM-Recycle fehlgeschlagen: ' + error.message, 'warn');
+      });
+    });
+  });
+}
+
+export function deleteSelectedPool(poolId) {
+  const id = String(poolId || state.selectedPoolId || '').trim();
+  if (!id) {
+    policyHooks.setBanner('Kein Pool ausgewaehlt.', 'warn');
+    return Promise.resolve();
+  }
+  const vmRows = (state.poolVmStates && state.poolVmStates[id]) || [];
+  const vmCount = Array.isArray(vmRows) ? vmRows.length : 0;
+  return policyHooks.requestConfirm({
+    title: 'Pool loeschen?',
+    message: 'Pool "' + id + '" wirklich loeschen? Betroffen: ' + String(vmCount) + ' VM-Slots.',
+    confirmLabel: 'Loeschen',
+    danger: true
+  }).then((ok) => {
+    if (!ok) {
+      return null;
+    }
+    return runSingleFlight('pool-delete:' + id, () => {
+      policyHooks.setBanner('Pool ' + id + ' wird geloescht ...', 'info');
+      return request('/pools/' + encodeURIComponent(id), {
+        method: 'DELETE'
+      }).then(() => {
+        if (state.selectedPoolId === id) {
+          state.selectedPoolId = '';
+        }
+        if (state.poolEntitlements && state.poolEntitlements[id]) {
+          delete state.poolEntitlements[id];
+        }
+        if (state.poolVmStates && state.poolVmStates[id]) {
+          delete state.poolVmStates[id];
+        }
+        return policyHooks.loadDashboard();
+      }).then(() => {
+        policyHooks.setBanner('Pool ' + id + ' geloescht.', 'ok');
+      }).catch((error) => {
+        policyHooks.setBanner('Pool-Loeschung fehlgeschlagen: ' + error.message, 'warn');
+      });
+    });
+  });
 }
 
 export function resetPoolWizard() {
@@ -939,7 +1511,11 @@ export function renderPolicies() {
   renderPoolGpuClassOptions();
   renderPoolOverviewSelect();
   renderPoolsList();
+  renderTemplateLibrary();
+  renderPoliciesHero();
+  renderPoolCatalogSummary();
   renderPoolOverviewBody();
+  renderPoolEntitlementsPanel();
   renderGamingMetricsDashboard();
   renderSessionHandoverDashboard();
   void renderKioskController();
@@ -953,6 +1529,9 @@ export function renderPolicies() {
   if (state.selectedPoolId && (!state.poolVmStates || !Array.isArray(state.poolVmStates[state.selectedPoolId]))) {
     refreshSelectedPoolOverview();
   }
+  if (state.selectedPoolId && (!state.poolEntitlements || !state.poolEntitlements[state.selectedPoolId])) {
+    refreshSelectedPoolEntitlements();
+  }
 
   const node = qs('policies-list');
   if (!node) {
@@ -963,14 +1542,9 @@ export function renderPolicies() {
     return;
   }
   node.innerHTML = state.policies.map((policy) => {
-    const selector = policy.selector || {};
-    const profile = policy.profile || {};
     return '<article class="policy-card' + (state.selectedPolicyName === policy.name ? ' active' : '') + '" data-policy-name="' + escapeHtml(policy.name || '') + '">' +
       '<div class="policy-head"><strong>' + escapeHtml(policy.name || 'policy') + '</strong>' + chip('prio ' + String(policy.priority || 0), 'muted') + '</div>' +
-      '<div class="policy-grid">' +
-      fieldBlock('Selector', JSON.stringify(selector), 'mono') +
-      fieldBlock('Profile', JSON.stringify(profile), 'mono') +
-      '</div>' +
+      renderPolicySummary(policy) +
       '</article>';
   }).join('');
 }
@@ -986,11 +1560,19 @@ export function resetPolicyEditor() {
   if (qs('policy-enabled')) {
     qs('policy-enabled').checked = true;
   }
+  populatePolicyStructuredProfile({
+    beagle_role: 'endpoint',
+    network_mode: 'dhcp',
+    update_enabled: true,
+    update_channel: 'stable',
+    update_behavior: 'prompt',
+    identity_timezone: 'UTC',
+    identity_locale: 'de_DE.UTF-8',
+    identity_keymap: 'de',
+    egress_interface: 'beagle-egress'
+  });
   if (qs('policy-selector')) {
     qs('policy-selector').value = '{\n  "vmid": 100\n}';
-  }
-  if (qs('policy-profile')) {
-    qs('policy-profile').value = '{\n  "assigned_target": {\n    "vmid": 100\n  },\n  "beagle_role": "endpoint"\n}';
   }
   renderPolicies();
 }
@@ -1016,6 +1598,7 @@ export function loadPolicyIntoEditor(name) {
   if (qs('policy-profile')) {
     qs('policy-profile').value = JSON.stringify(policy.profile || {}, null, 2);
   }
+  populatePolicyStructuredProfile(policy.profile || {});
   renderPolicies();
 }
 
@@ -1041,12 +1624,13 @@ export function savePolicy() {
     return;
   }
   try {
+    syncPolicyProfilePreview();
     payload = {
       name,
       priority: Number(qs('policy-priority') ? qs('policy-priority').value : '100') || 0,
       enabled: Boolean(qs('policy-enabled') && qs('policy-enabled').checked),
       selector: parseJsonField('policy-selector', 'Selector'),
-      profile: parseJsonField('policy-profile', 'Profile')
+      profile: collectPolicyStructuredProfile()
     };
   } catch (error) {
     policyHooks.setBanner(error.message, 'warn');
@@ -1101,6 +1685,61 @@ export function deleteSelectedPolicy() {
       }).catch((error) => {
         policyHooks.addToActivityLog('policy-delete', null, 'warn', error.message);
         policyHooks.setBanner('Failed to delete policy:' + error.message, 'warn');
+      });
+    });
+  });
+}
+
+export function useSelectedTemplate(templateId) {
+  const id = String(templateId || '').trim();
+  if (!id) {
+    return;
+  }
+  state.selectedTemplateId = id;
+  renderPoolTemplateOptions();
+  renderTemplateLibrary();
+  policyHooks.setBanner('Template ' + id + ' fuer den Pool-Wizard ausgewaehlt.', 'ok');
+}
+
+export function rebuildSelectedTemplate(templateId) {
+  const template = Array.isArray(state.poolTemplates)
+    ? state.poolTemplates.find((item) => String(item.template_id || '').trim() === String(templateId || '').trim())
+    : null;
+  if (!template) {
+    policyHooks.setBanner('Template nicht gefunden.', 'warn');
+    return;
+  }
+  openTemplateBuilderModal(template.source_vmid || 0, template);
+}
+
+export function deleteSelectedTemplate(templateId) {
+  const id = String(templateId || '').trim();
+  if (!id) {
+    policyHooks.setBanner('Template nicht ausgewaehlt.', 'warn');
+    return;
+  }
+  policyHooks.requestConfirm({
+    title: 'Template loeschen?',
+    message: 'Template "' + id + '" wirklich loeschen?',
+    confirmLabel: 'Loeschen',
+    danger: true
+  }).then((ok) => {
+    if (!ok) {
+      return;
+    }
+    runSingleFlight('template-delete:' + id, () => {
+      policyHooks.setBanner('Template ' + id + ' wird geloescht ...', 'info');
+      return request('/pool-templates/' + encodeURIComponent(id), {
+        method: 'DELETE'
+      }).then(() => {
+        if (state.selectedTemplateId === id) {
+          state.selectedTemplateId = '';
+        }
+        return policyHooks.loadDashboard();
+      }).then(() => {
+        policyHooks.setBanner('Template ' + id + ' geloescht.', 'ok');
+      }).catch((error) => {
+        policyHooks.setBanner('Template-Loeschung fehlgeschlagen: ' + error.message, 'warn');
       });
     });
   });

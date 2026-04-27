@@ -35,16 +35,16 @@ If you already built a kernel package once, you can skip kernel compilation:
   --kernel-deb /absolute/path/to/linux-image-*-beagle*_amd64.deb
 ```
 
-## 3. Import the image into Proxmox (example VM 101)
+## 3. Import the image into Beagle host (example VM 101)
 
-On the Proxmox host:
+On the Beagle host:
 
 ```bash
 # Example: copy qcow2 to host
-scp dist/beagle-os/*.qcow2 <proxmox-host>:/tmp/beagle-os.qcow2
+scp dist/beagle-os/*.qcow2 <beagle-host>:/tmp/beagle-os.qcow2
 
 # Create VM 101 (UEFI)
-ssh <proxmox-host> 'sudo qm create 101 \
+ssh <beagle-host> 'sudo qm create 101 \
   --name beagle-os-101 \
   --memory 4096 \
   --cores 4 \
@@ -55,16 +55,16 @@ ssh <proxmox-host> 'sudo qm create 101 \
   --agent enabled=1'
 
 # Import disk and wire boot
-ssh <proxmox-host> 'sudo qm importdisk 101 /tmp/beagle-os.qcow2 local'
-ssh <proxmox-host> 'sudo qm set 101 --scsihw virtio-scsi-single --scsi0 local:101/vm-101-disk-0.raw'
-ssh <proxmox-host> 'sudo qm set 101 --efidisk0 local:101/vm-101-disk-1.raw,efitype=4m,pre-enrolled-keys=1'
-ssh <proxmox-host> 'sudo qm set 101 --boot order=scsi0'
-ssh <proxmox-host> 'sudo qm start 101'
+ssh <beagle-host> 'sudo qm importdisk 101 /tmp/beagle-os.qcow2 local'
+ssh <beagle-host> 'sudo qm set 101 --scsihw virtio-scsi-single --scsi0 local:101/vm-101-disk-0.raw'
+ssh <beagle-host> 'sudo qm set 101 --efidisk0 local:101/vm-101-disk-1.raw,efitype=4m,pre-enrolled-keys=1'
+ssh <beagle-host> 'sudo qm set 101 --boot order=scsi0'
+ssh <beagle-host> 'sudo qm start 101'
 ```
 
 ## Notes
 
 - Current script targets `amd64` only.
-- The generated image is UEFI-first (`OVMF` in Proxmox).
+- The generated image is UEFI-first (`OVMF` in Beagle host).
 - Default runtime user inside the image is `thinclient` with initial password `thinclient`.
 - Root account is locked by default.

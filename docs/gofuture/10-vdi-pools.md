@@ -229,21 +229,27 @@ verwendet werden.
 
 ### Schritt 7 — `/#panel=policies` UX- und Bedienbarkeits-Refactor
 
-- [ ] Ist-Zustand von `/#panel=policies` dokumentieren: Screenshots/DOM-Struktur, Hauptprobleme, welche Nutzeraktion aktuell wo scheitert oder unklar ist.
-- [ ] Informationsarchitektur neu schneiden: getrennte Bereiche für `Pools`, `Templates`, `Entitlements`, `Policies`, `Sessions/Leases` statt einer überladenen Mischansicht.
-- [ ] Pool-Liste als Cards mit Status, Mode, Größe, freien/in-use/recycling/error VMs und primären Aktionen darstellen.
-- [ ] Pool-Detailansicht bauen: Overview, VM-Slots, Entitlements, Scaling, Recycling, Audit/Events als Tabs oder klare Sektionen.
-- [ ] Pool-Wizard optisch und funktional überarbeiten: Stepper, Pflichtfeldvalidierung inline, Zusammenfassung, Risiko-/Datenverlust-Hinweise bei Modus/Recycle-Aktionen.
-- [ ] Policy-Editor aus der Tabellenwüste lösen: strukturierte Formulare für HA, Placement, Streaming, Security, Update- und Recycling-Regeln.
-- [ ] Entitlements bedienbar machen: User-/Gruppen-Suche, Hinzufügen/Entfernen, sichtbare effektive Berechtigung und Empty-State.
-- [ ] Template-Bibliothek verbessern: Template-Cards mit OS, Source-VM, Storage, Build-Zeit, Health und Aktionen `verwenden`, `löschen`, `neu bauen`.
-- [ ] Bulk-/Danger-Aktionen absichern: Skalieren, Recycle, Pool löschen, Template löschen nur mit konkreter Bestätigung und betroffenen Ressourcen.
-- [ ] Responsive Layout prüfen: Desktop, Tablet und schmale Browserbreite ohne horizontale Tabellenhölle.
-- [ ] UI-Regressions ergänzen: Pool-Wizard, Pool-Card-Aktionen, Entitlement-Editor, Template-Aktionen und Empty-/Error-States.
-- [ ] srv1-Smoke durchführen: echte WebUI öffnen, Pool anzeigen/anlegen, Entitlement ändern, Status refreshen, keine Console Errors.
+- [x] Ist-Zustand von `/#panel=policies` dokumentieren: Screenshots/DOM-Struktur, Hauptprobleme, welche Nutzeraktion aktuell wo scheitert oder unklar ist.
+- [x] Informationsarchitektur neu schneiden: getrennte Bereiche für `Pools`, `Templates`, `Entitlements`, `Policies`, `Sessions/Leases` statt einer überladenen Mischansicht.
+- [x] Pool-Liste als Cards mit Status, Mode, Größe, freien/in-use/recycling/error VMs und primären Aktionen darstellen.
+- [x] Pool-Detailansicht bauen: Overview, VM-Slots, Entitlements, Scaling, Recycling, Audit/Events als Tabs oder klare Sektionen.
+- [x] Pool-Wizard optisch und funktional überarbeiten: Stepper, Pflichtfeldvalidierung inline, Zusammenfassung, Risiko-/Datenverlust-Hinweise bei Modus/Recycle-Aktionen.
+- [x] Policy-Editor aus der Tabellenwüste lösen: strukturierte Formulare für HA, Placement, Streaming, Security, Update- und Recycling-Regeln.
+- [x] Entitlements bedienbar machen: User-/Gruppen-Suche, Hinzufügen/Entfernen, sichtbare effektive Berechtigung und Empty-State.
+- [x] Template-Bibliothek verbessern: Template-Cards mit OS, Source-VM, Storage, Build-Zeit, Health und Aktionen `verwenden`, `löschen`, `neu bauen`.
+- [x] Bulk-/Danger-Aktionen absichern: Skalieren, Recycle, Pool löschen, Template löschen nur mit konkreter Bestätigung und betroffenen Ressourcen.
+- [x] Responsive Layout prüfen: Desktop, Tablet und schmale Browserbreite ohne horizontale Tabellenhölle.
+- [x] UI-Regressions ergänzen: Pool-Wizard, Pool-Card-Aktionen, Entitlement-Editor, Template-Aktionen und Empty-/Error-States.
+- [x] srv1-Smoke durchführen: echte WebUI öffnen, Pool anzeigen/anlegen, Entitlement ändern, Status refreshen, keine Console Errors.
 
-Warum dieser Schritt noch offen ist:
-Plan 10 hat Backend, Pool-Manager, Template-Builder und erste WebUI-Funktionen geliefert, aber das Panel ist visuell und operativ nicht auf Betreiber-Nutzung optimiert. Die Oberfläche zeigt zu viele Konzepte gleichzeitig, wirkt tabellarisch und macht nicht klar, welche Aktion als nächstes sinnvoll ist. Ein technisch vorhandener Wizard reicht nicht, wenn der Betreiber Pool-Status, Policies, Entitlements und Templates nicht schnell versteht und sicher bearbeiten kann. Dieser Refactor ist deshalb kein kosmetischer Schritt, sondern Voraussetzung dafür, dass VDI-Pools real über die Beagle Web Console betrieben werden können.
+Aktueller Ist-Zustand (2026-04-27):
+- Das Policies-Panel hat jetzt eine klare Subnavigation fuer `Pools`, `Templates`, `Entitlements`, `Policies` und `Sessions`.
+- Pool-Wizard, Pool-Overview, Template-Bibliothek, Entitlements-Editor, strukturierter Policy-Editor und Kiosk/Gaming-Sektion sind live sichtbar und bedienen die Hauptpfade direkt.
+- Auf schmaler Browserbreite stapeln die Bereiche sauber; der mobile Smoke zeigt keinen horizontalen Tabellenbruch.
+- Die WebUI meldet im laufenden Smoke keine Runtime-Fehler mehr; verbleibende Browser-Warnungen sind nur noch reduzierte DOM-/Autocomplete-Hinweise.
+
+Warum dieser Schritt abgeschlossen ist:
+Plan 10 hat Backend, Pool-Manager, Template-Builder und die WebUI nun auf Betreiber-Workflows ausgerichtet: Pool-Cards, klar getrennte Bereiche, gefuehrter Wizard, strukturierter Policy-Editor, Entitlements als Bedienfluss und eine klare Detail-/Statussicht fuer VMs und Sessions. Damit laesst sich der VDI-Betrieb in der Beagle Web Console direkt steuern, statt nur technisch vorhanden zu sein.
 
 ---
 

@@ -68,16 +68,16 @@
     <img src="assets/beagleos.png" alt="Beagle OS logo" />
     <div class="brand-copy">
       <h1>Beagle OS</h1>
-      <p>Configure how Proxmox VM pages should resolve the matching Beagle installer and host health endpoints.</p>
+      <p>Configure how VM pages should resolve the matching Beagle installer and host health endpoints.</p>
     </div>
   </div>
 
   <label for="usbInstallerUrl">USB installer download URL</label>
-  <input id="usbInstallerUrl" type="text" placeholder="https://{host}:8443/beagle-api/api/v1/public/vms/{vmid}/installer.sh" />
-  <div class="hint">Supported placeholders: {node}, {vmid}, {host}. By default the active VM page downloads its own preseeded USB installer from the local Proxmox host.</div>
+  <input id="usbInstallerUrl" type="text" placeholder="https://{host}/beagle-api/api/v1/public/vms/{vmid}/installer.sh" />
+  <div class="hint">Supported placeholders: {node}, {vmid}, {host}. By default the active VM page downloads its own preseeded USB installer from the local host.</div>
 
   <label for="controlPlaneHealthUrl">Control plane health URL</label>
-  <input id="controlPlaneHealthUrl" type="text" placeholder="https://{host}:8443/beagle-api/api/v1/health" />
+  <input id="controlPlaneHealthUrl" type="text" placeholder="https://{host}/beagle-api/api/v1/health" />
   <div class="hint">Used by the Beagle profile dialog to jump from a VM view into the host-side Beagle control plane status.</div>
 
   <button id="saveBtn">Save</button>

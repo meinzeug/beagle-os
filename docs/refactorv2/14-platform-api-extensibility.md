@@ -111,7 +111,7 @@ Repo-Lage: `terraform-provider-beagle/` Top-Level (eigener Go-Build, eigener Rel
 
 - Plug-in-Vertrag in `core/provider/`: erfuellt `HostProvider`, `StorageProvider`, `NetworkProvider`, `IdentityProvider`-Interfaces.
 - Plug-in-Loading ueber `entry_points`/Pythonsmodule, kein dynamic-eval.
-- Beagle-Provider und Proxmox-Provider sind Referenz-Implementierungen.
+- Beagle-Provider und Beagle host-Provider sind Referenz-Implementierungen.
 
 ## Backwards Compatibility
 

@@ -210,6 +210,51 @@ class ClusterMembershipServiceTests(unittest.TestCase):
         self.assertIsNotNone(local)
         self.assertEqual(local["name"], "node-b")
 
+    def test_reconcile_membership_repairs_duplicates_and_missing_local_flag(self):
+        service = self.make_service()
+        service.initialize_cluster(
+            node_name="leader-node",
+            api_url="https://leader.example.test/beagle-api",
+            advertise_host="leader.example.test",
+        )
+        service._write_json(
+            service.members_file(),
+            [
+                {
+                    "name": "leader-node",
+                    "api_url": "https://leader.example.test/beagle-api",
+                    "rpc_url": "https://leader.example.test:9089/rpc",
+                    "status": "online",
+                    "local": False,
+                },
+                {
+                    "name": "node-b",
+                    "api_url": "https://node-b.example.test/beagle-api",
+                    "rpc_url": "https://node-b.example.test:9089/rpc",
+                    "status": "online",
+                    "local": False,
+                },
+                {
+                    "name": "node-b",
+                    "api_url": "https://node-b.example.test/beagle-api",
+                    "rpc_url": "https://node-b.example.test:9089/rpc",
+                    "status": "offline",
+                    "local": False,
+                },
+                "broken-entry",
+            ],
+        )
+
+        result = service.reconcile_membership()
+
+        self.assertTrue(result["repaired"])
+        self.assertEqual(result["member_count_before"], 3)
+        self.assertEqual(result["member_count_after"], 2)
+        self.assertTrue(any(change["action"] == "merge_duplicate_member" for change in result["changes"]))
+        self.assertTrue(any(change["action"] == "drop_invalid_entry" for change in result["changes"]))
+        self.assertEqual(service.local_member()["name"], "leader-node")
+        self.assertEqual(len(service.list_members()), 2)
+
     def test_setup_code_is_hashed_one_time_and_rejects_initialized_nodes(self):
         service = self.make_service()
 

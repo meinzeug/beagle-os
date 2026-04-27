@@ -135,7 +135,7 @@
 
     const overlay = document.createElement("div");
     overlay.id = OVERLAY_ID;
-    overlay.innerHTML = `<div class="beagle-modal"><div class="beagle-header"><div><h2 class="beagle-title">Beagle Profil wird geladen</h2><p class="beagle-subtitle">VM ${String(ctx.vmid)} auf Node ${escapeHtml(ctx.node || "")}</p></div><button type="button" class="beagle-close" aria-label="Schliessen">×</button></div><div class="beagle-body"><div class="beagle-banner info">Proxmox-Konfiguration, Guest-Agent-Daten und Beagle-Metadaten werden aufgeloest.</div></div></div>`;
+    overlay.innerHTML = `<div class="beagle-modal"><div class="beagle-header"><div><h2 class="beagle-title">Beagle Profil wird geladen</h2><p class="beagle-subtitle">VM ${String(ctx.vmid)} auf Node ${escapeHtml(ctx.node || "")}</p></div><button type="button" class="beagle-close" aria-label="Schliessen">×</button></div><div class="beagle-body"><div class="beagle-banner info">Host-Konfiguration, Guest-Agent-Daten und Beagle-Metadaten werden aufgeloest.</div></div></div>`;
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay || event.target.closest(".beagle-close")) {
         removeOverlay();

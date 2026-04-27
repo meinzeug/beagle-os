@@ -5,7 +5,7 @@ Stand: 2026-04-20
 ## Stand heute
 
 - Single-Node Beagle-Host. `beagle-control-plane` laeuft pro Host. Kein Quorum, keine Inter-Host-Koordination.
-- Provider-Inventories sind pro Host (libvirt) bzw. pro Proxmox-Cluster.
+- Provider-Inventories sind pro Host (libvirt) bzw. pro Beagle host-Cluster.
 
 ## Ziel 7.0
 
@@ -27,7 +27,7 @@ Optionen (Entscheidung in `docs/refactor/07-decisions.md` zu fuehren):
 
 1. **etcd** (kubernetes-style, RAFT, mTLS) — reife Wahl, bringt jedoch eigenes Daemon mit.
 2. **Litestream + SQLite mit Lease-basierter Leader-Election** — leichter, aber eigenes Failover-Handling.
-3. **Corosync + pmxcfs-aequivalent** — Proxmox-Stil, gut erprobt, aber spezifischer Stack.
+3. **Corosync + pmxcfs-aequivalent** — Beagle host-Stil, gut erprobt, aber spezifischer Stack.
 
 Empfehlung Welle 7.0.0: **etcd** als pragmatische Wahl mit reichem Tooling.
 
@@ -81,8 +81,8 @@ Empfehlung Welle 7.0.0: **etcd** als pragmatische Wahl mit reichem Tooling.
 ### Provider-Neutralitaet
 
 - Cluster-Plane lebt im `core/cluster/` Contract und im Beagle-Provider.
-- Der Proxmox-Adapter mappt diese Operationen auf `pvesh`/`qm migrate` und Proxmox-Cluster, ist aber **optional**.
-- Keine Proxmox-Spezifika in `services/cluster_*` oder im API-Layer.
+- Der Beagle host-Adapter mappt diese Operationen auf `pvesh`/`qm migrate` und Beagle host-Cluster, ist aber **optional**.
+- Keine Beagle host-Spezifika in `services/cluster_*` oder im API-Layer.
 
 ### Akzeptanzkriterien fuer Welle 7.0.0 + 7.0.2
 

@@ -95,7 +95,7 @@ table inet filter {
     ip6 nexthdr icmpv6 accept
 
     tcp dport 22 ct state new limit rate 30/minute burst 30 packets accept
-    tcp dport { 80, 443, 8443 } ct state new limit rate 300/minute burst 300 packets accept
+    tcp dport { 80, 443 } ct state new limit rate 300/minute burst 300 packets accept
   }
 
   chain forward {
@@ -117,7 +117,7 @@ wait_for_proxy_health() {
   local url
   for url in \
     'https://127.0.0.1/beagle-api/api/v1/health' \
-    'https://127.0.0.1:8443/beagle-api/api/v1/health'; do
+    'https://127.0.0.1/beagle-api/api/v1/health'; do
     for _ in $(seq 1 30); do
       # tls-bypass-allowlist: live-bootstrap — proxy not yet provisioned with valid cert at this stage
       if curl --insecure -sS --max-time 5 "$url" | grep -q '"ok": true'; then
@@ -180,7 +180,7 @@ BEAGLE_SERVER_INSTALL_MODE=standalone \
 BEAGLE_AUTH_BOOTSTRAP_USERNAME="$LIVE_WEBUI_USERNAME" \
 BEAGLE_AUTH_BOOTSTRAP_PASSWORD="$LIVE_WEBUI_PASSWORD" \
 PVE_DCV_PROXY_SERVER_NAME="$SERVER_NAME" \
-PVE_DCV_PROXY_LISTEN_PORT=8443 \
+PVE_DCV_PROXY_LISTEN_PORT=443 \
 BEAGLE_SITE_PORT=443 \
 BEAGLE_WEB_UI_URL="$WEB_UI_URL" \
 "$INSTALL_SCRIPT" >>"$LOG_FILE" 2>&1

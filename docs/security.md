@@ -3,13 +3,13 @@
 ## Scope
 
 This repository does not provide a complete identity, secret-rotation or fleet-enrollment layer.
-It assumes infrastructure-provider access, Sunshine access and endpoint hardening are managed by the surrounding environment. At the moment, the main provider is Proxmox.
+It assumes infrastructure-provider access, Sunshine access and endpoint hardening are managed by the surrounding environment. At the moment, the main provider is Beagle host.
 
-## Proxmox operator surface
+## Beagle host operator surface
 
-- The browser extension only talks to the Proxmox origin the user is already authenticated against.
+- The browser extension only talks to the Beagle host origin the user is already authenticated against.
 - The browser extension now centralizes Beagle API token lookup and optional session-scoped token storage in shared extension helpers instead of duplicating that logic inside `content.js`.
-- The host-installed UI integration resolves Beagle profile data from Proxmox API state and VM metadata.
+- The host-installed UI integration resolves Beagle profile data from Beagle host API state and VM metadata.
 - VM description metadata is treated as administrator-controlled configuration.
 - Beagle profile exports can contain Sunshine credentials when the operator stores them in VM metadata.
 
@@ -17,8 +17,8 @@ Operational implications:
 
 - treat VM description metadata as sensitive administrative input
 - limit who may edit or inspect Beagle-enabled VM descriptions
-- prefer dedicated Proxmox roles for operators who manage Beagle endpoints
-- when adding future providers, apply equivalent least-privilege controls instead of copying Proxmox assumptions into business logic
+- prefer dedicated Beagle host roles for operators who manage Beagle endpoints
+- when adding future providers, apply equivalent least-privilege controls instead of copying Beagle host assumptions into business logic
 
 ## Thin-client endpoint assumptions
 
@@ -38,7 +38,7 @@ Recommended hardening:
 ## Control plane assumptions
 
 - The Beagle control plane is intended to run behind the current infrastructure-provider boundary.
-- Public health data may be exposed through the bundled `8443` endpoint.
+- Public health data may be exposed through the bundled HTTPS endpoint.
 - Inventory endpoints should be treated as management APIs, not end-user APIs.
 
 ## Known non-goals in this baseline

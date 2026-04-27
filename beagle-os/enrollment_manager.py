@@ -26,7 +26,7 @@ class EnrollmentToken:
     expires_at: str  # ISO 8601 timestamp (24 hours from creation)
     endpoint_hostname: Optional[str] = None  # Hostname endpoint reports after pairing
     paired_at: Optional[str] = None  # When endpoint successfully paired
-    cluster_endpoint: str = "https://beagle-server:8443"  # Cluster endpoint URL for QR
+    cluster_endpoint: str = "https://beagle-server"  # Cluster endpoint URL for QR
     
     
     def is_expired(self) -> bool:
@@ -86,7 +86,7 @@ class EnrollmentManager:
     
     def create_token(
         self,
-        cluster_endpoint: str = "https://beagle-server:8443"
+        cluster_endpoint: str = "https://beagle-server"
     ) -> EnrollmentToken:
         """Create new enrollment token for endpoint pairing.
         

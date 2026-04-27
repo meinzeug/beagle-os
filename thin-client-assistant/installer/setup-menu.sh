@@ -4,9 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env-defaults.sh"
 apply_installer_env_defaults
-PROXMOX_HOST="${PROXMOX_HOST:-proxmox.example.internal}"
-PROXMOX_NODE="${PROXMOX_NODE:-pve01}"
-PROXMOX_VMID="${PROXMOX_VMID:-100}"
+BEAGLE_HOST="${BEAGLE_HOST:-beagle.example.internal}"
+BEAGLE_NODE="${BEAGLE_NODE:-pve01}"
+BEAGLE_VMID="${BEAGLE_VMID:-100}"
 SUNSHINE_PIN="${SUNSHINE_PIN:-1234}"
 
 tty_printf() {
@@ -96,7 +96,7 @@ if [[ "$NETWORK_MODE" == "static" ]]; then
   NETWORK_DNS_SERVERS="$(prompt "DNS servers (space separated)" "$NETWORK_DNS_SERVERS")"
 fi
 
-MOONLIGHT_HOST="$(prompt "Moonlight target host" "${MOONLIGHT_HOST:-${PROXMOX_HOST:-moonlight.local}}")"
+MOONLIGHT_HOST="$(prompt "Moonlight target host" "${MOONLIGHT_HOST:-${BEAGLE_HOST:-moonlight.local}}")"
 MOONLIGHT_PORT="$(prompt "Moonlight stream port (leer = Standard)" "$MOONLIGHT_PORT")"
 MOONLIGHT_APP="$(prompt "Sunshine app name" "$MOONLIGHT_APP")"
 if [[ -z "$SUNSHINE_API_URL" && -n "$MOONLIGHT_PORT" ]]; then
@@ -138,13 +138,13 @@ emit_var MOONLIGHT_AUDIO_CONFIG "$MOONLIGHT_AUDIO_CONFIG"
 emit_var MOONLIGHT_ABSOLUTE_MOUSE "$MOONLIGHT_ABSOLUTE_MOUSE"
 emit_var MOONLIGHT_QUIT_AFTER "$MOONLIGHT_QUIT_AFTER"
 emit_var SUNSHINE_API_URL "$SUNSHINE_API_URL"
-emit_var PROXMOX_SCHEME "$PROXMOX_SCHEME"
-emit_var PROXMOX_HOST "$PROXMOX_HOST"
-emit_var PROXMOX_PORT "$PROXMOX_PORT"
-emit_var PROXMOX_NODE "$PROXMOX_NODE"
-emit_var PROXMOX_VMID "$PROXMOX_VMID"
-emit_var PROXMOX_REALM "$PROXMOX_REALM"
-emit_var PROXMOX_VERIFY_TLS "$PROXMOX_VERIFY_TLS"
+emit_var BEAGLE_SCHEME "$BEAGLE_SCHEME"
+emit_var BEAGLE_HOST "$BEAGLE_HOST"
+emit_var BEAGLE_PORT "$BEAGLE_PORT"
+emit_var BEAGLE_NODE "$BEAGLE_NODE"
+emit_var BEAGLE_VMID "$BEAGLE_VMID"
+emit_var BEAGLE_REALM "$BEAGLE_REALM"
+emit_var BEAGLE_VERIFY_TLS "$BEAGLE_VERIFY_TLS"
 emit_var CONNECTION_USERNAME "$CONNECTION_USERNAME"
 emit_var CONNECTION_PASSWORD "$CONNECTION_PASSWORD"
 emit_var CONNECTION_TOKEN "$CONNECTION_TOKEN"

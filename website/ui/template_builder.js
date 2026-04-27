@@ -197,8 +197,9 @@ export function configureTemplateBuilder(nextHooks) {
   Object.assign(templateBuilderHooks, nextHooks || {});
 }
 
-export function openTemplateBuilderModal(vmid) {
-  const numericVmid = Number(vmid || 0) || 0;
+export function openTemplateBuilderModal(vmid, seed) {
+  const template = seed && typeof seed === 'object' ? seed : null;
+  const numericVmid = Number((template && template.source_vmid) || vmid || 0) || 0;
   const modal = qs('template-builder-modal');
   if (!modal || !numericVmid) {
     return;
@@ -207,31 +208,35 @@ export function openTemplateBuilderModal(vmid) {
     qs('template-source-vmid').value = String(numericVmid);
   }
   if (qs('template-id')) {
-    qs('template-id').value = '';
+    qs('template-id').value = template && template.template_id ? String(template.template_id) : '';
   }
   if (qs('template-name')) {
-    qs('template-name').value = defaultTemplateName(numericVmid);
+    qs('template-name').value = template && template.template_name
+      ? String(template.template_name)
+      : defaultTemplateName(numericVmid);
   }
   if (qs('template-os-family')) {
-    qs('template-os-family').value = 'linux';
+    qs('template-os-family').value = template && template.os_family ? String(template.os_family) : 'linux';
   }
   if (qs('template-storage-pool')) {
-    qs('template-storage-pool').value = 'local';
+    qs('template-storage-pool').value = template && template.storage_pool ? String(template.storage_pool) : 'local';
   }
   if (qs('template-snapshot-name')) {
-    qs('template-snapshot-name').value = 'sealed';
+    qs('template-snapshot-name').value = template && template.snapshot_name ? String(template.snapshot_name) : 'sealed';
   }
   if (qs('template-cpu-cores')) {
-    qs('template-cpu-cores').value = '2';
+    qs('template-cpu-cores').value = template && Number.isFinite(Number(template.cpu_cores)) ? String(template.cpu_cores) : '2';
   }
   if (qs('template-memory-mib')) {
-    qs('template-memory-mib').value = '4096';
+    qs('template-memory-mib').value = template && Number.isFinite(Number(template.memory_mib)) ? String(template.memory_mib) : '4096';
   }
   if (qs('template-software-packages')) {
-    qs('template-software-packages').value = '';
+    qs('template-software-packages').value = template && Array.isArray(template.software_packages)
+      ? template.software_packages.join(',')
+      : '';
   }
   if (qs('template-notes')) {
-    qs('template-notes').value = '';
+    qs('template-notes').value = template && template.notes ? String(template.notes) : '';
   }
   modal.removeAttribute('hidden');
   document.body.classList.add('modal-open');

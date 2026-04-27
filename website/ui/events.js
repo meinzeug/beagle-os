@@ -59,7 +59,16 @@ import {
   refreshSessionHandoverDashboard,
   refreshPoolData,
   refreshPoolOverview,
+  refreshSelectedPoolEntitlements,
+  mutateSelectedPoolEntitlements,
+  useSelectedTemplate,
+  rebuildSelectedTemplate,
+  deleteSelectedTemplate,
+  deleteSelectedPool,
+  scaleSelectedPool,
+  recycleSelectedPoolVm,
   resetPolicyEditor,
+  syncPolicyProfilePreview,
   resetPoolWizard,
   setPoolWizardStep,
   selectPool,
@@ -674,6 +683,10 @@ export function bindEvents() {
   if (qs('policy-delete')) {
     qs('policy-delete').addEventListener('click', deleteSelectedPolicy);
   }
+  if (qs('policy-structured-grid')) {
+    qs('policy-structured-grid').addEventListener('input', syncPolicyProfilePreview);
+    qs('policy-structured-grid').addEventListener('change', syncPolicyProfilePreview);
+  }
   if (qs('pool-create')) {
     qs('pool-create').addEventListener('click', createPoolFromWizard);
   }
@@ -723,8 +736,95 @@ export function bindEvents() {
       selectPool(event.target.value);
     });
   }
+  if (qs('pool-scale-apply')) {
+    qs('pool-scale-apply').addEventListener('click', () => {
+      scaleSelectedPool().catch((error) => {
+        eventHooks.setBanner('Pool konnte nicht skaliert werden: ' + error.message, 'warn');
+      });
+    });
+  }
+  if (qs('pool-overview-body')) {
+    qs('pool-overview-body').addEventListener('click', (event) => {
+      const recycleButton = event.target.closest('[data-pool-vm-recycle]');
+      if (!recycleButton) {
+        return;
+      }
+      recycleSelectedPoolVm(recycleButton.getAttribute('data-pool-vm-recycle')).catch((error) => {
+        eventHooks.setBanner('VM konnte nicht recycelt werden: ' + error.message, 'warn');
+      });
+    });
+  }
+  if (qs('pool-entitlement-refresh')) {
+    qs('pool-entitlement-refresh').addEventListener('click', () => {
+      refreshSelectedPoolEntitlements().catch((error) => {
+        eventHooks.setBanner('Pool-Entitlements konnten nicht geladen werden: ' + error.message, 'warn');
+      });
+    });
+  }
+  if (qs('pool-entitlement-user-add')) {
+    qs('pool-entitlement-user-add').addEventListener('click', () => {
+      mutateSelectedPoolEntitlements('user', 'add').catch((error) => {
+        eventHooks.setBanner('Pool-Entitlement konnte nicht gespeichert werden: ' + error.message, 'warn');
+      });
+    });
+  }
+  if (qs('pool-entitlement-group-add')) {
+    qs('pool-entitlement-group-add').addEventListener('click', () => {
+      mutateSelectedPoolEntitlements('group', 'add').catch((error) => {
+        eventHooks.setBanner('Pool-Entitlement konnte nicht gespeichert werden: ' + error.message, 'warn');
+      });
+    });
+  }
+  if (qs('pool-entitlement-users')) {
+    qs('pool-entitlement-users').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-pool-entitlement-remove-user]');
+      if (!button) {
+        return;
+      }
+      const value = String(button.getAttribute('data-pool-entitlement-remove-user') || '').trim();
+      if (!value) {
+        return;
+      }
+      if (qs('pool-entitlement-user-input')) {
+        qs('pool-entitlement-user-input').value = value;
+      }
+      mutateSelectedPoolEntitlements('user', 'remove').catch((error) => {
+        eventHooks.setBanner('Pool-Entitlement konnte nicht entfernt werden: ' + error.message, 'warn');
+      });
+    });
+  }
+  if (qs('pool-entitlement-groups')) {
+    qs('pool-entitlement-groups').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-pool-entitlement-remove-group]');
+      if (!button) {
+        return;
+      }
+      const value = String(button.getAttribute('data-pool-entitlement-remove-group') || '').trim();
+      if (!value) {
+        return;
+      }
+      if (qs('pool-entitlement-group-input')) {
+        qs('pool-entitlement-group-input').value = value;
+      }
+      mutateSelectedPoolEntitlements('group', 'remove').catch((error) => {
+        eventHooks.setBanner('Pool-Entitlement konnte nicht entfernt werden: ' + error.message, 'warn');
+      });
+    });
+  }
   if (qs('pools-list')) {
     qs('pools-list').addEventListener('click', (event) => {
+      const focusButton = event.target.closest('[data-pool-focus]');
+      if (focusButton) {
+        selectPool(focusButton.getAttribute('data-pool-focus'));
+        return;
+      }
+      const deleteButton = event.target.closest('[data-pool-delete]');
+      if (deleteButton) {
+        deleteSelectedPool(deleteButton.getAttribute('data-pool-delete')).catch((error) => {
+          eventHooks.setBanner('Pool konnte nicht geloescht werden: ' + error.message, 'warn');
+        });
+        return;
+      }
       const card = event.target.closest('[data-pool-id]');
       if (!card) {
         return;
@@ -787,6 +887,25 @@ export function bindEvents() {
     qs('iam-role-permissions-grid').addEventListener('change', (event) => {
       if (event.target && event.target.classList && event.target.classList.contains('perm-tag-cb')) {
         renderIamRoleDiff();
+      }
+    });
+  }
+
+  if (qs('template-library-list')) {
+    qs('template-library-list').addEventListener('click', (event) => {
+      const useBtn = event.target.closest('[data-template-use]');
+      if (useBtn) {
+        useSelectedTemplate(useBtn.getAttribute('data-template-use'));
+        return;
+      }
+      const rebuildBtn = event.target.closest('[data-template-rebuild]');
+      if (rebuildBtn) {
+        rebuildSelectedTemplate(rebuildBtn.getAttribute('data-template-rebuild'));
+        return;
+      }
+      const deleteBtn = event.target.closest('[data-template-delete]');
+      if (deleteBtn) {
+        deleteSelectedTemplate(deleteBtn.getAttribute('data-template-delete'));
       }
     });
   }

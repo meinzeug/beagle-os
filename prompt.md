@@ -13,10 +13,10 @@ Zielbild:
 - eigener **Beagle Server Installer ISO**
 - Auswahl im Installer:
   - `Beagle OS standalone`
-  - `Beagle OS with Proxmox`
+  - `Beagle OS managed host`
 - eigener **Beagle Provider**
 - eigene **Beagle Web Console**
-- Proxmox bleibt kompatibel, aber nur als **optionaler Provider**
+- Legacy-Provider werden nur noch schrittweise abgebaut; neue Architektur ist Beagle-only.
 
 Wichtig:
 
@@ -61,13 +61,13 @@ Arbeite so:
   - Bare-Metal-Beagle
   - eigener Beagle Provider
   - eigene Beagle Web Console
-  - Proxmox nur optional
-- Neue Business-Logik darf nicht direkt an Proxmox hängen.
-- Proxmox-spezifische Logik gehört nur in klar markierte Provider-/Kompatibilitätsschichten.
-- Neue UI-Logik darf nicht dauerhaft in `proxmox-ui/` als Endarchitektur landen.
+  - keine dauerhafte Legacy-Provider-Abhängigkeit
+- Neue Business-Logik darf nicht direkt an einen Legacy-Provider hängen.
+- Legacy-spezifische Logik gehört nur in klar markierte Übergangs-/Kompatibilitätsschichten.
+- Neue UI-Logik darf nicht dauerhaft in alten Provider-UI-Schichten als Endarchitektur landen.
 - Wenn du an Installer-/Host-/Provider-Themen arbeitest, denke immer in beiden Modi:
   - `Beagle OS standalone`
-  - `Beagle OS with Proxmox`
+  - `Beagle OS with Beagle host`
 
 ## Woran du grundsätzlich weiterarbeiten darfst
 
@@ -77,7 +77,7 @@ Wenn `06-next-steps.md` nicht eindeutig genug ist, arbeite entlang dieser Priori
 2. Server-Installer auf dualen Modus vorbereiten
 3. Host-/Control-Plane weiter entkoppeln
 4. Beagle Web Console vorbereiten
-5. Proxmox-Abhängigkeiten aus Deploy-/Runtime-/Installer-Pfaden reduzieren
+5. Beagle host-Abhängigkeiten aus Deploy-/Runtime-/Installer-Pfaden reduzieren
 6. Thin-Client-/Runtime-/USB-/Packaging-Refactors fortsetzen
 
 ## Was du vermeiden musst
@@ -85,7 +85,7 @@ Wenn `06-next-steps.md` nicht eindeutig genug ist, arbeite entlang dieser Priori
 - Keine kosmetischen Änderungen ohne Strukturgewinn
 - Keine reinen TODO-Kommentare ohne Eintrag in die Refactor-Doku
 - Keine erneute Extraktion bereits ausgelagerter Blöcke
-- Keine neue direkte Proxmox-Kopplung außerhalb der vorgesehenen Provider-/Shim-Schichten
+- Keine neue direkte Legacy-Provider-Kopplung außerhalb der vorgesehenen Übergangs-/Shim-Schichten
 - Keine halbfertigen Module ohne Anschluss an echte Aufrufer
 - Keine stillen Architekturentscheidungen ohne Eintrag in `07-decisions.md`
 
@@ -112,7 +112,7 @@ Außerdem bei Bedarf:
   - wenn du eine Architektur-, Contract-, Installations- oder UI-Entscheidung triffst
 
 - [docs/refactor/09-provider-abstraction.md](/home/dennis/beagle-os/docs/refactor/09-provider-abstraction.md)
-  - wenn du Provider-Grenzen, direkte Proxmox-Kopplungen oder Beagle-Provider-Seams berührst
+  - wenn du Provider-Grenzen, direkte Legacy-Kopplungen oder Beagle-Provider-Seams berührst
 
 ## Validierung
 

@@ -327,7 +327,7 @@ HTML = """<!doctype html>
   <script>
     const MODE_META = {
       MOONLIGHT: "Sunshine-Streaming mit dem vorkonfigurierten Ziel.",
-      SPICE: "Klassische Proxmox- oder SPICE-Konsole.",
+      SPICE: "Klassische Beagle- oder SPICE-Konsole.",
       NOVNC: "Browserbasierte Konsole fuer Notfaelle.",
       DCV: "Low-latency Streaming mit DCV."
     };
@@ -365,9 +365,9 @@ HTML = """<!doctype html>
       const debug = state?.debug || {};
       return [
         `VM: ${preset.vm_name || preset.profile_name || "n/a"}`,
-        `Host: ${preset.proxmox_host || "n/a"}`,
-        `Node: ${preset.proxmox_node || "n/a"}`,
-        `VMID: ${preset.proxmox_vmid || "n/a"}`,
+        `Host: ${preset.beagle_host || "n/a"}`,
+        `Node: ${preset.beagle_node || "n/a"}`,
+        `VMID: ${preset.beagle_vmid || "n/a"}`,
         `Modi: ${(preset.available_modes || []).join(" ") || "keine"}`,
         `Default: ${preset.default_mode || "n/a"}`,
         `Moonlight Host: ${preset.moonlight_host || "n/a"}`,
@@ -429,9 +429,9 @@ HTML = """<!doctype html>
         ? "Dieses Medium ist an eine bestimmte VM gebunden. Waehle nur Modus und Zielplatte."
         : "Das gebuendelte VM-Preset wurde nicht gefunden. In diesem Fall ist das Textmenue der sichere Fallback.";
       document.getElementById("meta-preset").textContent = presetReady ? "bereit" : "fehlt";
-      document.getElementById("meta-host").textContent = preset.proxmox_host || "n/a";
+      document.getElementById("meta-host").textContent = preset.beagle_host || "n/a";
       document.getElementById("meta-node").textContent =
-        preset.proxmox_node && preset.proxmox_vmid ? `${preset.proxmox_node} / ${preset.proxmox_vmid}` : "n/a";
+        preset.beagle_node && preset.beagle_vmid ? `${preset.beagle_node} / ${preset.beagle_vmid}` : "n/a";
       document.getElementById("meta-modes").textContent = modes.length ? modes.join("  ") : "keine";
       document.getElementById("detail-preset-file").textContent = debug.preset_file || "n/a";
       document.getElementById("detail-preset-source").textContent = debug.preset_source || "n/a";

@@ -25,7 +25,7 @@ readonly BEAGLE_HOST_REMOTE="/opt/beagle/beagle-host"
 declare -a FILES=(
     "beagle-host/providers/host_provider_contract.py"
     "beagle-host/providers/beagle_host_provider.py"
-    "beagle-host/providers/proxmox_host_provider.py"
+    "beagle-host/providers/beagle_host_provider.py"
     "beagle-host/services/ubuntu_beagle_provisioning.py"
 )
 
@@ -57,7 +57,7 @@ ssh -o ConnectTimeout=10 root@"$HOST" bash -c "
   cd $BEAGLE_HOST_REMOTE
   BACKUP_TS=\$(date +%Y%m%d-%H%M%S)
   
-  for file in providers/host_provider_contract.py providers/beagle_host_provider.py providers/proxmox_host_provider.py services/ubuntu_beagle_provisioning.py; do
+  for file in providers/host_provider_contract.py providers/beagle_host_provider.py providers/beagle_host_provider.py services/ubuntu_beagle_provisioning.py; do
     if [[ -f \"\$file\" ]]; then
       cp \"\$file\" \"\$file.backup-\$BACKUP_TS\" 2>/dev/null && echo \"  ✓ \$file.backup-\$BACKUP_TS\" || true
     fi

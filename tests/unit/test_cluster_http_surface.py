@@ -14,6 +14,7 @@ from cluster_http_surface import ClusterHttpSurfaceService
 def _make_svc(**overrides):
     cm = MagicMock()
     cm.status_payload.return_value = {"state": "ok", "members": []}
+    cm.reconcile_membership.return_value = {"ok": True, "repaired": False, "member_count_before": 1, "member_count_after": 1}
     ha = MagicMock()
     ha.reconcile_failed_node.return_value = {"failed_node": "n1", "handled_vm_count": 2}
     maint = MagicMock()
@@ -292,6 +293,24 @@ class TestClusterPostRouting:
         )
         assert resp["status"] == HTTPStatus.OK
 
+    def test_cluster_reconcile_membership(self):
+        svc, cm, _, _ = _make_svc()
+        cm.reconcile_membership.return_value = {
+            "ok": True,
+            "cluster_id": "cluster-123",
+            "leader_node": "leader-node",
+            "member_count_before": 3,
+            "member_count_after": 2,
+            "drift_detected": True,
+            "repaired": True,
+            "changes": [{"action": "drop_duplicate_member"}],
+            "members": [],
+        }
+        resp = svc.route_post("/api/v1/cluster/reconcile-membership", json_payload={})
+        assert resp["status"] == HTTPStatus.OK
+        assert resp["payload"]["ok"] is True
+        cm.reconcile_membership.assert_called_once_with()
+
     def test_ha_reconcile(self):
         svc, _, ha, _ = _make_svc()
         resp = svc.route_post(
@@ -365,6 +384,7 @@ class TestClusterPostRouting:
         assert svc.handles_post("/api/v1/ha/maintenance/drain")
         assert svc.handles_post("/api/v1/ha/maintenance/preview")
         assert svc.handles_post("/api/v1/ha/maintenance/drain-async")
+        assert svc.handles_post("/api/v1/cluster/reconcile-membership")
         assert svc.handles_post("/api/v1/cluster/migrate")
         assert not svc.handles_post("/api/v1/vms")
 

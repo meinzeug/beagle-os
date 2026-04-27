@@ -22,8 +22,8 @@ scrape_configs:
 
     static_configs:
       - targets:
-          - srv1.beagle-os.com:8443
-          - srv2.beagle-os.com:8443
+          - srv1.beagle-os.com
+          - srv2.beagle-os.com
         labels:
           environment: production
 

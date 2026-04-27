@@ -448,7 +448,7 @@ PY
   else
     write_state running install 25 "Sunshine fehlt oder ist nicht aktiv. Installation wird gestartet." "$verify_extra_json"
     local -a configure_args=(
-      --proxmox-host localhost
+      --beagle-host localhost
       --vmid "$VMID"
       --guest-user "$guest_user"
       --sunshine-user "$sunshine_user"
@@ -503,7 +503,7 @@ PY
 )"
   fi
 
-  write_state running expose 75 "Aktiviere oeffentliche Stream-Ports auf dem Proxmox-Host." "$verify_extra_json"
+  write_state running expose 75 "Aktiviere oeffentliche Stream-Ports auf dem Beagle-Host." "$verify_extra_json"
   run_public_stream_reconcile >/dev/null
 
   guest_ip="$(meta_get sunshine-ip)"

@@ -70,7 +70,7 @@ Direct pushes to `main` are restricted. All changes go through pull requests.
 ### Branch Protection Rules (GitHub)
 
 - Require PR before merging
-- Require status checks: `pytest (3.11)`, `pytest (3.12)`, `lint`, `no-proxmox-references`
+- Require status checks: `pytest (3.11)`, `pytest (3.12)`, `lint`, `no-legacy-provider-references`
 - Require branches to be up to date before merging
 - No force pushes
 
@@ -108,7 +108,7 @@ All pipelines live in `.github/workflows/`:
 |----------|---------|---------|
 | `tests.yml` | push/PR to `main` | pytest (Python 3.11 + 3.12) |
 | `lint.yml` | push/PR to `main` | flake8 + shellcheck |
-| `no-proxmox-references.yml` | push/PR to `main` | Ensures no new Proxmox-specific code |
+| `no-legacy-provider-references.yml` | push/PR to `main` | Ensures no new legacy provider-specific code |
 | `security-audit.yml` | push/PR to `main` | Dependency vulnerability scan |
 | `security-tls-check.yml` | push/PR to `main` | TLS configuration checks |
 | `security-subprocess-check.yml` | push/PR to `main` | Subprocess safety checks |
@@ -148,7 +148,7 @@ Key directories:
 
 ## Security
 
-- No Proxmox code — see [`docs/gofuture/05-provider-abstraction.md`](gofuture/05-provider-abstraction.md)
+- No Beagle host code — see [`docs/gofuture/05-provider-abstraction.md`](gofuture/05-provider-abstraction.md)
 - All HTTP endpoints require authentication (`_is_authenticated()`) except `/healthz`, `/api/v1/health`, `/api/v1/auth/login`, `/api/v1/auth/onboarding/status`
 - Security findings are documented in [`docs/refactor/11-security-findings.md`](refactor/11-security-findings.md)
 - Report vulnerabilities privately to the maintainers before opening a public issue

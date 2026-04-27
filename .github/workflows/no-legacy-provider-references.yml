@@ -1,4 +1,4 @@
-name: no-proxmox-references
+name: no-legacy-provider-references
 
 on:
   push:
@@ -7,30 +7,29 @@ on:
     branches: [main]
 
 jobs:
-  check-no-proxmox:
-    name: Reject new Proxmox references outside proxmox dirs
+  check-no-beagle:
+    name: Reject new legacy provider references outside allowlisted paths
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check for Proxmox references outside allowed paths
+      - name: Check for Beagle references outside allowed paths
         run: |
-          echo "Scanning for Proxmox-specific identifiers in non-Proxmox files..."
+          echo "Scanning for legacy provider-specific identifiers in non-allowlisted files..."
           FOUND=0
 
-          # Patterns that are Proxmox-specific and must NOT appear in new code
+          # Patterns that belonged to the legacy provider stack and must NOT appear in new code
           PATTERNS=(
             'pvesh'
             '\bqm\b'
             'PVEAuthCookie'
             'api2/json'
             '/pve/'
-            'proxmoxlib'
+            'beaglelib'
           )
 
-          # Paths that are allowlisted (Proxmox code being actively removed
-          # or external integration scripts kept for legacy operator workflows;
-          # see docs/goadvanced/11-proxmox-endbeseitigung.md).
+          # Paths that are allowlisted (legacy integration scripts kept for operator workflows;
+          # see docs/goadvanced/11-beagle-endbeseitigung.md).
           ALLOWLIST_PATHS=(
             'scripts/lib/provider_shell.sh'
             'scripts/ensure-vm-stream-ready.sh'
@@ -79,9 +78,9 @@ jobs:
 
           if [ "$FOUND" -eq 1 ]; then
             echo ""
-            echo "ERROR: New Proxmox references detected outside allowed dirs."
-            echo "Proxmox is being removed from Beagle OS (see AGENTS.md + docs/goadvanced/11-proxmox-endbeseitigung.md)."
+            echo "ERROR: New legacy provider references detected outside allowed dirs."
+            echo "See AGENTS.md + docs/goadvanced/11-beagle-endbeseitigung.md for the migration history."
             echo "If this reference is in the process of being removed, add it to the allowlist in this workflow."
             exit 1
           fi
-          echo "OK: No undocumented Proxmox references found."
+          echo "OK: No undocumented legacy provider references found."

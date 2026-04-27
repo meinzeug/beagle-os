@@ -187,7 +187,7 @@ Umsetzung (2026-04-21):
 - [x] Session-Verwaltung integrieren: aktive Sessions nach User/Role/Tenant filtern und gezielt widerrufen.
 - [x] Security-Guardrails ergänzen: kein Token im Klartext anzeigen, Danger-Actions bestätigen, Audit-Events für alle IAM-Mutationen sichtbar verlinken.
 - [x] UI-Regressions ergänzen: User CRUD, Rollen-Permission-Auswahl, Session-Revoke, IdP-/SCIM-Empty-State, RBAC-Sichtbarkeit.
-- [ ] E2E-Smoke mit lokalem Login auf `srv1`; Keycloak/OIDC/SCIM-E2E bleibt separat blockiert, bis eine externe IdP-Testinstanz verfügbar ist.
+- [x] E2E-Smoke mit lokalem Login auf `srv1`; Keycloak/OIDC/SCIM-E2E bleibt separat blockiert, bis eine externe IdP-Testinstanz verfügbar ist.
 
 Umsetzung (2026-04-27):
 
@@ -201,6 +201,14 @@ Umsetzung (2026-04-27):
 
 Warum dieser Schritt noch offen ist:
 IAM v2 ist backendseitig breit angelegt, aber die WebUI bleibt noch zu sehr ein technischer Editor. Betreiber brauchen geführte Flows für User, Rollen, IdPs, SCIM und Sessions, weil Fehlkonfigurationen hier direkt Security-Auswirkungen haben. OIDC/SAML/SCIM dürfen nicht nur als Login-Buttons oder API-Endpunkte existieren; ihre Konfiguration, Diagnose und sichere Rotation müssen in der Web Console nachvollziehbar bedienbar sein.
+
+Update 2026-04-27:
+
+- Lokaler IAM-Smoke auf `srv1` lief erfolgreich gegen den laufenden Control-Plane-Endpoint:
+  - `scripts/test-iam-plan13-smoke.py --host 127.0.0.1 --port 9088`
+  - Tenant-Isolation und Custom-Role-Guardrails beide `ok`
+  - Ergebnis: `PLAN13_IAM_SMOKE=PASS`
+- Damit ist der letzte reine Lokalsmoke fuer Schritt 7 geschlossen; externe OIDC/SCIM-E2E bleibt weiterhin an eine reale IdP-Testinstanz gebunden.
 
 ---
 

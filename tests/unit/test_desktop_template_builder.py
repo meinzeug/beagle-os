@@ -50,6 +50,8 @@ class DesktopTemplateBuilderServiceTests(unittest.TestCase):
             )
             self.assertEqual(info.template_id, "tpl-1")
             self.assertTrue(info.sealed)
+            self.assertEqual(info.source_vmid, 100)
+            self.assertEqual(info.health, "ready")
             self.assertEqual(info.backing_image, str(Path(temp_dir) / "template-images" / "tpl-1.qcow2"))
             self.assertGreaterEqual(run_mock.call_count, 2)
 

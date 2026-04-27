@@ -8,7 +8,7 @@ Beagle OS is built for one endpoint model:
 - `Moonlight` runs on the endpoint
 - the current infrastructure provider supplies inventory, metadata and installer distribution
 
-Today that provider is Proxmox. The endpoint/runtime contract should remain stable even as provider-specific host integration is moved behind explicit provider seams.
+The active provider is Beagle host infrastructure. The endpoint/runtime contract should remain stable even as host integration is moved behind explicit provider seams.
 
 The repository ships both the Beagle endpoint runtime and the USB/local-disk installation path used to put that runtime onto real hardware or test VMs.
 
@@ -21,10 +21,10 @@ The repository ships both the Beagle endpoint runtime and the USB/local-disk ins
 
 ## Installation flow
 
-1. Install the Beagle integration on the Proxmox host.
+1. Install the Beagle integration on the active management host.
 2. Prepare the target VM with Sunshine.
-3. Store the Beagle metadata on that VM in Proxmox.
-4. Download the VM-specific Beagle installer from the Proxmox UI.
+3. Store the Beagle metadata on that VM in the management plane.
+4. Download the VM-specific Beagle installer from the Beagle UI.
 5. Write the installer to USB or install directly to a target disk.
 6. Boot the endpoint and verify that Moonlight starts against the intended VM.
 
@@ -38,7 +38,7 @@ A Beagle profile contains:
 - the Moonlight app name, usually `Desktop`
 - codec, decoder, bitrate, FPS and audio defaults
 - optional Sunshine credentials and pairing PIN
-- the current provider location/binding fields, today usually Proxmox node and VMID
+- the current provider location/binding fields, today usually host and VMID
 
 This means a Beagle endpoint does not need manual target entry during rollout.
 The endpoint simply boots with the profile that belongs to the streamed VM.
@@ -61,7 +61,7 @@ Provision an Ubuntu guest for the preferred Sunshine path:
 
 ```bash
 ./scripts/configure-sunshine-guest.sh \
-  --proxmox-host proxmox.local \
+  --beagle-host beagle.local \
   --vmid 100 \
   --guest-user dennis \
   --sunshine-user sunshine \
@@ -92,13 +92,13 @@ tar -xzf beagle-os.tar.gz
 
 The Beagle host publishes these operator-facing endpoints:
 
-- VM-specific installer: `https://<proxmox-host>:8443/beagle-downloads/pve-thin-client-usb-installer-vm-<vmid>.sh`
-- Beagle installer ISO: `https://<proxmox-host>:8443/beagle-downloads/beagle-os-installer-amd64.iso`
-- generic fallback installer: `https://<proxmox-host>:8443/beagle-downloads/pve-thin-client-usb-installer-host-latest.sh`
-- hosted status JSON: `https://<proxmox-host>:8443/beagle-downloads/beagle-downloads-status.json`
-- Beagle control-plane health: `https://<proxmox-host>:8443/beagle-api/api/v1/health`
+- VM-specific installer: `https://<host>/beagle-downloads/pve-thin-client-usb-installer-vm-<vmid>.sh`
+- Beagle installer ISO: `https://<host>/beagle-downloads/beagle-os-installer-amd64.iso`
+- generic fallback installer: `https://<host>/beagle-downloads/pve-thin-client-usb-installer-host-latest.sh`
+- hosted status JSON: `https://<host>/beagle-downloads/beagle-downloads-status.json`
+- Beagle control-plane health: `https://<host>/beagle-api/api/v1/health`
 
-In the current Proxmox UI path, the VM-specific download path is guarded by Beagle's installer preparation flow:
+In the current management UI path, the VM-specific download path is guarded by Beagle's installer preparation flow:
 
 - `USB Installer bereit`: the target VM is ready and the installer can be downloaded immediately
 - `Sunshine wird vorbereitet`: Beagle is still checking or configuring Sunshine for the selected VM
@@ -106,9 +106,9 @@ In the current Proxmox UI path, the VM-specific download path is guarded by Beag
 
 The intended VM-centric flow today is:
 
-1. Download the VM-specific `USB Installer Skript` in Proxmox.
+1. Download the VM-specific `USB Installer Skript` in the management UI.
 2. Run the script on the workstation that has the target USB stick attached.
-3. The script downloads the current Beagle installer ISO from the Proxmox host.
+3. The script downloads the current Beagle installer ISO from the management host.
 4. The script writes the bootable USB stick and embeds the selected VM profile.
 5. Install Beagle OS on the thin client.
 6. The installed endpoint boots with Moonlight defaults for that VM.
@@ -133,7 +133,7 @@ Build the Beagle OS image directly:
 ./scripts/build-beagle-os.sh
 ```
 
-Refresh hosted artifacts on an installed Proxmox host:
+Refresh hosted artifacts on an installed Beagle host:
 
 ```bash
 sudo /opt/beagle/scripts/refresh-host-artifacts.sh

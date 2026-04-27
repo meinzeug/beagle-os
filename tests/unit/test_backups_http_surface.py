@@ -32,9 +32,20 @@ def _make_svc(**overrides):
     quota_svc = MagicMock()
     quota_svc.get_pool_quota.return_value = {"quota_bytes": 1024}
     quota_svc.set_pool_quota.return_value = {"quota_bytes": 2048}
+    storage_image_svc = MagicMock()
+    storage_image_svc.upload_image.return_value = {
+        "pool": "local",
+        "filename": "ubuntu.iso",
+        "content_kind": "iso",
+        "size_bytes": 11,
+        "storage_ref": "local:iso/ubuntu.iso",
+        "path": "/var/lib/libvirt/images/ubuntu.iso",
+        "overwritten": False,
+    }
 
     defaults = dict(
         backup_service=backup_svc,
+        storage_image_store_service=storage_image_svc,
         storage_quota_service=quota_svc,
         audit_event=MagicMock(),
         requester_identity=lambda: "testuser",
@@ -43,12 +54,12 @@ def _make_svc(**overrides):
         version="test",
     )
     defaults.update(overrides)
-    return BackupsHttpSurfaceService(**defaults), backup_svc, quota_svc
+    return BackupsHttpSurfaceService(**defaults), backup_svc, quota_svc, storage_image_svc
 
 
 class TestBackupsGetRouting:
     def test_list_jobs(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         resp = svc.route_get("/api/v1/backups/jobs", query={"scope_type": ["pool"], "scope_id": ["p1"]})
         assert resp["status"] == HTTPStatus.OK
         assert resp["payload"]["ok"] is True
@@ -56,89 +67,89 @@ class TestBackupsGetRouting:
         bk.list_jobs.assert_called_once_with(scope_type="pool", scope_id="p1")
 
     def test_list_snapshots(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         resp = svc.route_get("/api/v1/backups/snapshots")
         assert resp["payload"]["ok"] is True
         bk.list_snapshots.assert_called_once()
 
     def test_replication_config(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         resp = svc.route_get("/api/v1/backups/replication/config")
         assert resp["status"] == HTTPStatus.OK
         bk.get_replication_config.assert_called_once()
 
     def test_snapshot_files_list(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         job_id = "12345678-1234-1234-1234-123456789abc"
         resp = svc.route_get(f"/api/v1/backups/{job_id}/files")
         assert resp["status"] == HTTPStatus.OK
         bk.list_snapshot_files.assert_called_once_with(job_id)
 
     def test_snapshot_files_download(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         job_id = "12345678-1234-1234-1234-123456789abc"
         resp = svc.route_get(f"/api/v1/backups/{job_id}/files", query={"path": ["/etc/hosts"]})
         assert resp["kind"] == "bytes"
         bk.read_snapshot_file.assert_called_once_with(job_id, "/etc/hosts")
 
     def test_pool_policy(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         resp = svc.route_get("/api/v1/backups/policies/pools/mypool")
         assert resp["status"] == HTTPStatus.OK
         bk.get_pool_policy.assert_called_once_with("mypool")
 
     def test_vm_policy(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         resp = svc.route_get("/api/v1/backups/policies/vms/101")
         assert resp["status"] == HTTPStatus.OK
         bk.get_vm_policy.assert_called_once_with(101)
 
     def test_storage_quota(self):
-        svc, _, qsvc = _make_svc()
+        svc, _, qsvc, _ = _make_svc()
         resp = svc.route_get("/api/v1/storage/pools/local/quota")
         assert resp["payload"]["quota_bytes"] == 1024
         qsvc.get_pool_quota.assert_called_once_with("local")
 
     def test_unknown_path_returns_none(self):
-        svc, _, _ = _make_svc()
+        svc, _, _, _ = _make_svc()
         assert svc.route_get("/api/v1/unknown") is None
 
     def test_handles_get(self):
-        svc, _, _ = _make_svc()
+        svc, _, _, _ = _make_svc()
         assert svc.handles_get("/api/v1/backups/jobs")
         assert not svc.handles_get("/api/v1/vms")
 
 
 class TestBackupsPostRouting:
     def test_run_backup(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         resp = svc.route_post("/api/v1/backups/run", json_payload={"scope_type": "pool", "scope_id": "p1"})
         assert resp["status"] == HTTPStatus.OK
         assert resp["payload"]["ok"] is True
         bk.run_backup_now.assert_called_once_with(scope_type="pool", scope_id="p1")
 
     def test_restore(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         job_id = "12345678-1234-1234-1234-123456789abc"
         resp = svc.route_post(f"/api/v1/backups/{job_id}/restore", json_payload={"restore_path": "/tmp"})
         assert resp["status"] == HTTPStatus.OK
         bk.restore_snapshot.assert_called_once_with(job_id, restore_path="/tmp")
 
     def test_replicate(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         job_id = "12345678-1234-1234-1234-123456789abc"
         resp = svc.route_post(f"/api/v1/backups/{job_id}/replicate")
         assert resp["status"] == HTTPStatus.OK
         bk.replicate_to_remote.assert_called_once_with(job_id)
 
     def test_prune(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         resp = svc.route_post("/api/v1/backups/prune", json_payload={"scope_type": "pool", "scope_id": "p1"})
         assert resp["status"] == HTTPStatus.OK
         assert resp["payload"]["pruned_count"] == 1
 
     def test_ingest(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         resp = svc.route_post(
             "/api/v1/backups/ingest",
             raw_body=b"archivedata",
@@ -148,18 +159,49 @@ class TestBackupsPostRouting:
         bk.ingest_replicated_backup.assert_called_once()
 
     def test_ingest_no_body_returns_error(self):
-        svc, _, _ = _make_svc()
+        svc, _, _, _ = _make_svc()
         resp = svc.route_post("/api/v1/backups/ingest")
         assert resp["status"] == HTTPStatus.BAD_REQUEST
 
     def test_unknown_post_returns_none(self):
-        svc, _, _ = _make_svc()
+        svc, _, _, _ = _make_svc()
+
+    def test_storage_upload(self):
+        svc, _, _, storage_svc = _make_svc()
+        resp = svc.route_post(
+            "/api/v1/storage/pools/local/upload",
+            raw_body=b"hello world",
+            raw_headers={"X-Beagle-Upload-Filename": "ubuntu.iso"},
+        )
+        assert resp["status"] == HTTPStatus.CREATED
+        assert resp["payload"]["storage_ref"] == "local:iso/ubuntu.iso"
+        storage_svc.upload_image.assert_called_once_with("local", "ubuntu.iso", b"hello world", overwrite=False)
+
+    def test_storage_upload_missing_filename_returns_400(self):
+        svc, _, _, storage_svc = _make_svc()
+        storage_svc.upload_image.side_effect = ValueError("missing filename")
+        resp = svc.route_post(
+            "/api/v1/storage/pools/local/upload",
+            raw_body=b"hello world",
+            raw_headers={},
+        )
+        assert resp["status"] == HTTPStatus.BAD_REQUEST
+
+    def test_storage_upload_quota_exceeded_returns_409(self):
+        svc, _, _, storage_svc = _make_svc()
+        storage_svc.upload_image.side_effect = ValueError("quota_exceeded: pool 'local' limit=10 used=9 requested=2")
+        resp = svc.route_post(
+            "/api/v1/storage/pools/local/upload",
+            raw_body=b"xx",
+            raw_headers={"X-Beagle-Upload-Filename": "disk.qcow2"},
+        )
+        assert resp["status"] == HTTPStatus.CONFLICT
         assert svc.route_post("/api/v1/unknown") is None
 
 
 class TestBackupsPutRouting:
     def test_update_pool_policy(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         resp = svc.route_put(
             "/api/v1/backups/policies/pools/mypool",
             json_payload={"retention_days": 14},
@@ -168,7 +210,7 @@ class TestBackupsPutRouting:
         bk.update_pool_policy.assert_called_once_with("mypool", {"retention_days": 14})
 
     def test_update_vm_policy(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         resp = svc.route_put(
             "/api/v1/backups/policies/vms/200",
             json_payload={"enabled": False},
@@ -177,7 +219,7 @@ class TestBackupsPutRouting:
         bk.update_vm_policy.assert_called_once_with(200, {"enabled": False})
 
     def test_update_replication_config(self):
-        svc, bk, _ = _make_svc()
+        svc, bk, _, _ = _make_svc()
         resp = svc.route_put(
             "/api/v1/backups/replication/config",
             json_payload={"remote": "https://backup.example.com"},
@@ -186,7 +228,7 @@ class TestBackupsPutRouting:
         bk.update_replication_config.assert_called_once()
 
     def test_set_storage_quota(self):
-        svc, _, qsvc = _make_svc()
+        svc, _, qsvc, _ = _make_svc()
         resp = svc.route_put(
             "/api/v1/storage/pools/local/quota",
             json_payload={"quota_bytes": 2048},
@@ -205,7 +247,7 @@ class TestBackupRunAsync:
     def test_run_backup_enqueues_job_and_returns_202(self):
         job = self._make_job("abc123")
         enqueue = MagicMock(return_value=job)
-        svc, bk, _ = _make_svc(enqueue_job=enqueue)
+        svc, bk, _, _ = _make_svc(enqueue_job=enqueue)
 
         resp = svc.route_post("/api/v1/backups/run", json_payload={"scope_type": "pool", "scope_id": "p1"})
 
@@ -224,7 +266,7 @@ class TestBackupRunAsync:
 
     def test_run_backup_enqueue_failure_returns_500(self):
         enqueue = MagicMock(side_effect=RuntimeError("queue full"))
-        svc, bk, _ = _make_svc(enqueue_job=enqueue)
+        svc, bk, _, _ = _make_svc(enqueue_job=enqueue)
 
         resp = svc.route_post("/api/v1/backups/run", json_payload={"scope_type": "pool", "scope_id": "p1"})
 
@@ -234,7 +276,7 @@ class TestBackupRunAsync:
         bk.run_backup_now.assert_not_called()
 
     def test_run_backup_sync_fallback_without_enqueue_job(self):
-        svc, bk, _ = _make_svc()  # no enqueue_job
+        svc, bk, _, _ = _make_svc()  # no enqueue_job
         resp = svc.route_post("/api/v1/backups/run", json_payload={"scope_type": "vm", "scope_id": "200"})
 
         assert resp["status"] == HTTPStatus.OK

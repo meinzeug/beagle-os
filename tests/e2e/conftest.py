@@ -3,7 +3,7 @@
 GoAdvanced Plan 10 Schritt 7.
 
 Environment variables (set in CI as secrets or locally — NEVER committed):
-    BEAGLE_E2E_URL    — e.g. https://srv1.beagle-os.com:8443
+    BEAGLE_E2E_URL    — e.g. https://srv1.beagle-os.com
     BEAGLE_E2E_TOKEN  — Bearer token for an admin account on the target host
 
 All E2E tests are automatically skipped when BEAGLE_E2E_TOKEN is not set.

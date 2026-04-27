@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 _TOKEN = os.environ.get("BEAGLE_E2E_TOKEN", "")
-_BASE_URL = os.environ.get("BEAGLE_E2E_URL", "https://srv1.beagle-os.com:8443").rstrip("/")
+_BASE_URL = os.environ.get("BEAGLE_E2E_URL", "https://srv1.beagle-os.com").rstrip("/")
 
 requires_e2e = pytest.mark.skipif(
     not _TOKEN,

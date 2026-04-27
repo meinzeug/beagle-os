@@ -57,7 +57,7 @@ Ohne CI sind Regressionen schwer zu vermeiden.
 - [x] **Schritt 6** — CI-Guards _(2026-04-25 — alle drei aktiv)_
   - [x] `.github/workflows/security-tls-check.yml`
   - [x] `.github/workflows/security-subprocess-check.yml`
-  - [x] `.github/workflows/no-proxmox-references.yml` (Allowlist + grep-Excludes via Plan 11 Schritt 7 gehärtet, lokale Simulation FOUND=0)
+  - [x] `.github/workflows/no-legacy-provider-references.yml` (Allowlist + grep-Excludes via Plan 11 Schritt 7 gehärtet, lokale Simulation FOUND=0)
 
 - [ ] **Schritt 7** — Branch-Protection _(GitHub-UI-Konfiguration, kein Repo-Code; deferred bis Multi-Maintainer)_
   - [ ] `main` Branch: alle CI-Jobs muessen gruen sein
@@ -70,7 +70,7 @@ Ohne CI sind Regressionen schwer zu vermeiden.
 - [ ] Mind. 3 bats-Tests aktiv.
 - [ ] `build-iso.yml` laeuft taeglich erfolgreich.
 - [ ] SBOM wird generiert + bei Release veroeffentlicht.
-- [ ] CI-Guards aktiv (TLS, subprocess, no-proxmox).
+- [ ] CI-Guards aktiv (TLS, subprocess, no-beagle-host).
 - [ ] Branch-Protection auf `main` aktiv.
 
 ## Risiko

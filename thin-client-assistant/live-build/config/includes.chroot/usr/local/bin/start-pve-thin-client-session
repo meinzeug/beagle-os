@@ -190,7 +190,7 @@ fi
 
 if command -v xterm >/dev/null 2>&1; then
   exec xterm -T "Thinclient Session Failed" -fa Monospace -fs 11 -fg white -bg black -hold \
-    -e /bin/sh -lc "echo 'Thinclient session start failed.'; echo 'Use the Beagle Manager or Proxmox UI to inspect device credentials.'; echo; tail -n 200 '$LOG_DIR/runtime-session.log' 2>/dev/null || true; echo; exec /bin/bash"
+    -e /bin/sh -lc "echo 'Thinclient session start failed.'; echo 'Use the Beagle Manager or Beagle UI to inspect device credentials.'; echo; tail -n 200 '$LOG_DIR/runtime-session.log' 2>/dev/null || true; echo; exec /bin/bash"
 fi
 
 exec /bin/bash

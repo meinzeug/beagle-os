@@ -87,7 +87,7 @@ def command_write_install_manifest(args: argparse.Namespace) -> int:
 
 def command_write_usb_manifest(args: argparse.Namespace) -> int:
     parsed = urlparse(args.payload_source) if args.payload_source else None
-    proxmox_host = parsed.hostname if parsed and parsed.hostname else ""
+    beagle_host = parsed.hostname if parsed and parsed.hostname else ""
     _write_json(
         Path(args.path),
         {
@@ -100,11 +100,11 @@ def command_write_usb_manifest(args: argparse.Namespace) -> int:
             "start_installer_menu_sha256": args.start_installer_menu_sha256,
             "filesystem_squashfs_sha256": args.filesystem_squashfs_sha256,
             "preset_name": args.preset_name,
-            "proxmox_api_scheme": "https",
-            "proxmox_api_host": proxmox_host,
-            "proxmox_api_host_ip": _resolve_first_ipv4(proxmox_host),
-            "proxmox_api_port": "8006",
-            "proxmox_api_verify_tls": "1",
+            "beagle_api_scheme": "https",
+            "beagle_api_host": beagle_host,
+            "beagle_api_host_ip": _resolve_first_ipv4(beagle_host),
+            "beagle_api_port": "8006",
+            "beagle_api_verify_tls": "1",
         },
     )
     return 0

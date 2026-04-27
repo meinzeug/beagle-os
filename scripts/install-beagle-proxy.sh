@@ -3,20 +3,19 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$ROOT_DIR/scripts/lib/beagle_provider.py}"
-# Legacy variable names from the Proxmox era; kept for backwards compatibility with existing deployments
+# Legacy variable names from the old host stack; kept for backwards compatibility with existing deployments
 ASSET_ROOT="${PVE_DCV_PROXY_ASSET_ROOT:-}"
 CONFIG_DIR="${PVE_DCV_PROXY_CONFIG_DIR:-/etc/beagle}"
 ENV_FILE="$CONFIG_DIR/beagle-proxy.env"
 HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-$CONFIG_DIR/host.env}"
 MANAGER_ENV_FILE="${PVE_DCV_BEAGLE_MANAGER_ENV_FILE:-$CONFIG_DIR/beagle-manager.env}"
-LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-8443}"
+LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-443}"
 BACKEND_HOST="${PVE_DCV_PROXY_BACKEND_HOST:-}"
-BACKEND_PORT="${PVE_DCV_PROXY_BACKEND_PORT:-8443}"
+BACKEND_PORT="${PVE_DCV_PROXY_BACKEND_PORT:-443}"
 BACKEND_VMID="${PVE_DCV_PROXY_VMID:-}"
 BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
 SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}"
 DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-/beagle-downloads}"
-DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-https://${SERVER_NAME}:${LISTEN_PORT}${DOWNLOADS_PATH}}"
 BEAGLE_API_UPSTREAM="${BEAGLE_API_UPSTREAM:-http://127.0.0.1:9088}"
 SITE_PORT="${BEAGLE_SITE_PORT:-443}"
 WEB_UI_TITLE="${BEAGLE_WEB_UI_TITLE:-Beagle OS Web UI}"
@@ -39,7 +38,16 @@ default_web_ui_url() {
   printf 'https://%s:%s\n' "$SERVER_NAME" "$SITE_PORT"
 }
 
+default_downloads_base_url() {
+  if [[ "$SITE_PORT" == "443" ]]; then
+    printf 'https://%s%s\n' "$SERVER_NAME" "$DOWNLOADS_PATH"
+    return 0
+  fi
+  printf 'https://%s:%s%s\n' "$SERVER_NAME" "$SITE_PORT" "$DOWNLOADS_PATH"
+}
+
 WEB_UI_URL="${BEAGLE_WEB_UI_URL:-$(default_web_ui_url)}"
+DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-$(default_downloads_base_url)}"
 
 host_provider_kind() {
   local kind
@@ -141,6 +149,20 @@ ensure_dependencies() {
 }
 
 load_env_file() {
+  local requested_listen_port="${PVE_DCV_PROXY_LISTEN_PORT:-}"
+  local requested_backend_host="${PVE_DCV_PROXY_BACKEND_HOST:-}"
+  local requested_backend_port="${PVE_DCV_PROXY_BACKEND_PORT:-}"
+  local requested_backend_vmid="${PVE_DCV_PROXY_VMID:-}"
+  local requested_server_name="${PVE_DCV_PROXY_SERVER_NAME:-}"
+  local requested_downloads_path="${PVE_DCV_DOWNLOADS_PATH:-}"
+  local requested_site_port="${BEAGLE_SITE_PORT:-}"
+  local requested_web_ui_url="${BEAGLE_WEB_UI_URL:-}"
+  local requested_web_ui_title="${BEAGLE_WEB_UI_TITLE:-}"
+  local requested_trusted_origins="${BEAGLE_WEB_UI_TRUSTED_API_ORIGINS:-}"
+  local requested_allow_hash_token="${BEAGLE_WEB_UI_ALLOW_HASH_TOKEN:-}"
+  local requested_allow_absolute_targets="${BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS:-}"
+  local requested_send_legacy_api_token_header="${BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER:-}"
+  local requested_allow_insecure_external_urls="${BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS:-}"
   if [[ -f "$HOST_ENV_FILE" ]]; then
     # shellcheck disable=SC1090
     source "$HOST_ENV_FILE"
@@ -154,23 +176,23 @@ load_env_file() {
     source "$ENV_FILE"
   fi
 
-  LISTEN_PORT="${PVE_DCV_PROXY_LISTEN_PORT:-${LISTEN_PORT}}"
-  BACKEND_HOST="${PVE_DCV_PROXY_BACKEND_HOST:-${BACKEND_HOST}}"
-  BACKEND_PORT="${PVE_DCV_PROXY_BACKEND_PORT:-${BACKEND_PORT}}"
-  BACKEND_VMID="${PVE_DCV_PROXY_VMID:-${BACKEND_VMID}}"
+  LISTEN_PORT="${requested_listen_port:-${PVE_DCV_PROXY_LISTEN_PORT:-${LISTEN_PORT}}}"
+  BACKEND_HOST="${requested_backend_host:-${PVE_DCV_PROXY_BACKEND_HOST:-${BACKEND_HOST}}}"
+  BACKEND_PORT="${requested_backend_port:-${PVE_DCV_PROXY_BACKEND_PORT:-${BACKEND_PORT}}}"
+  BACKEND_VMID="${requested_backend_vmid:-${PVE_DCV_PROXY_VMID:-${BACKEND_VMID}}}"
   BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-${BEAGLE_HOST_PROVIDER}}"
-  SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-${SERVER_NAME}}"
-  DOWNLOADS_PATH="${PVE_DCV_DOWNLOADS_PATH:-${DOWNLOADS_PATH}}"
-  DOWNLOADS_BASE_URL="${PVE_DCV_DOWNLOADS_BASE_URL:-${DOWNLOADS_BASE_URL}}"
+  SERVER_NAME="${requested_server_name:-${PVE_DCV_PROXY_SERVER_NAME:-${SERVER_NAME}}}"
+  DOWNLOADS_PATH="${requested_downloads_path:-${PVE_DCV_DOWNLOADS_PATH:-${DOWNLOADS_PATH}}}"
+  DOWNLOADS_BASE_URL="$(default_downloads_base_url)"
   BEAGLE_API_UPSTREAM="${BEAGLE_API_UPSTREAM:-${BEAGLE_API_UPSTREAM}}"
-  SITE_PORT="${BEAGLE_SITE_PORT:-${SITE_PORT}}"
-  WEB_UI_URL="${BEAGLE_WEB_UI_URL:-${WEB_UI_URL}}"
-  WEB_UI_TITLE="${BEAGLE_WEB_UI_TITLE:-${WEB_UI_TITLE}}"
-  WEB_UI_TRUSTED_API_ORIGINS_RAW="${BEAGLE_WEB_UI_TRUSTED_API_ORIGINS:-${WEB_UI_TRUSTED_API_ORIGINS_RAW}}"
-  WEB_UI_ALLOW_HASH_TOKEN="${BEAGLE_WEB_UI_ALLOW_HASH_TOKEN:-${WEB_UI_ALLOW_HASH_TOKEN}}"
-  WEB_UI_ALLOW_ABSOLUTE_API_TARGETS="${BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS:-${WEB_UI_ALLOW_ABSOLUTE_API_TARGETS}}"
-  WEB_UI_SEND_LEGACY_API_TOKEN_HEADER="${BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER:-${WEB_UI_SEND_LEGACY_API_TOKEN_HEADER}}"
-  WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS="${BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS:-${WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS}}"
+  SITE_PORT="${requested_site_port:-${BEAGLE_SITE_PORT:-${SITE_PORT}}}"
+  WEB_UI_URL="${requested_web_ui_url:-${BEAGLE_WEB_UI_URL:-${WEB_UI_URL}}}"
+  WEB_UI_TITLE="${requested_web_ui_title:-${BEAGLE_WEB_UI_TITLE:-${WEB_UI_TITLE}}}"
+  WEB_UI_TRUSTED_API_ORIGINS_RAW="${requested_trusted_origins:-${BEAGLE_WEB_UI_TRUSTED_API_ORIGINS:-${WEB_UI_TRUSTED_API_ORIGINS_RAW}}}"
+  WEB_UI_ALLOW_HASH_TOKEN="${requested_allow_hash_token:-${BEAGLE_WEB_UI_ALLOW_HASH_TOKEN:-${WEB_UI_ALLOW_HASH_TOKEN}}}"
+  WEB_UI_ALLOW_ABSOLUTE_API_TARGETS="${requested_allow_absolute_targets:-${BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS:-${WEB_UI_ALLOW_ABSOLUTE_API_TARGETS}}}"
+  WEB_UI_SEND_LEGACY_API_TOKEN_HEADER="${requested_send_legacy_api_token_header:-${BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER:-${WEB_UI_SEND_LEGACY_API_TOKEN_HEADER}}}"
+  WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS="${requested_allow_insecure_external_urls:-${BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS:-${WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS}}}"
   CERT_FILE="${PVE_DCV_PROXY_CERT_FILE:-${CERT_FILE}}"
   KEY_FILE="${PVE_DCV_PROXY_KEY_FILE:-${KEY_FILE}}"
   STANDALONE_TLS_DIR="${BEAGLE_PROXY_TLS_DIR:-${STANDALONE_TLS_DIR}}"
@@ -215,7 +237,7 @@ target_host = sys.argv[2].lower()
 target_port = int(sys.argv[3])
 parsed = urllib.parse.urlparse(url)
 host = (parsed.hostname or "").lower()
-port = parsed.port or 8443
+  port = parsed.port or 443
 if host == target_host and port == target_port:
     raise SystemExit(0)
 raise SystemExit(1)
@@ -563,127 +585,6 @@ server {
         try_files \$uri \$uri/ /index.html;
     }
 }
-
-server {
-  listen ${LISTEN_PORT} ssl default_server;
-  listen [::]:${LISTEN_PORT} ssl default_server;
-  server_name _;
-
-    ssl_certificate ${CERT_FILE};
-    ssl_certificate_key ${KEY_FILE};
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_prefer_server_ciphers on;
-    ssl_session_tickets off;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_session_timeout 1d;
-    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "no-referrer" always;
-    add_header X-Frame-Options "DENY" always;
-    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
-    add_header Cross-Origin-Opener-Policy "same-origin" always;
-    add_header Cross-Origin-Resource-Policy "same-origin" always;
-
-    location = ${DOWNLOADS_PATH} {
-        return 302 ${DOWNLOADS_PATH}/;
-    }
-
-    location ^~ ${DOWNLOADS_PATH}/ {
-        alias ${ASSET_ROOT}/dist/;
-        index beagle-downloads-index.html;
-        add_header Cache-Control "no-store";
-        autoindex on;
-        types {
-            application/x-sh sh;
-            text/plain txt;
-        }
-    }
-
-    location = /pve-dcv-downloads {
-        return 302 ${DOWNLOADS_PATH}/;
-    }
-
-    location ^~ /pve-dcv-downloads/ {
-        rewrite ^/pve-dcv-downloads/(.*)$ ${DOWNLOADS_PATH}/\$1 permanent;
-    }
-
-    location = /metrics {
-      limit_req zone=beagle_api burst=1200 nodelay;
-      proxy_pass ${BEAGLE_API_UPSTREAM}/metrics;
-      proxy_http_version 1.1;
-      proxy_set_header Host \$host;
-      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto https;
-      proxy_read_timeout 60;
-      proxy_send_timeout 60;
-    }
-
-    location ^~ /beagle-api/api/v1/auth/ {
-      limit_req zone=beagle_auth burst=120 nodelay;
-      proxy_pass ${BEAGLE_API_UPSTREAM}/api/v1/auth/;
-      proxy_http_version 1.1;
-      proxy_set_header Host \$host;
-      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto https;
-      proxy_read_timeout 900;
-      proxy_send_timeout 900;
-    }
-
-    location /beagle-api/ {
-      limit_req zone=beagle_api burst=1200 nodelay;
-        proxy_pass ${BEAGLE_API_UPSTREAM}/;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_read_timeout 900;
-        proxy_send_timeout 900;
-    }
-
-    # Legacy compatibility for older/cached WebUI clients still calling /api/* directly.
-    location ^~ /api/v1/auth/ {
-      limit_req zone=beagle_auth burst=120 nodelay;
-      proxy_pass ${BEAGLE_API_UPSTREAM}/api/v1/auth/;
-      proxy_http_version 1.1;
-      proxy_set_header Host \$host;
-      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto https;
-      proxy_read_timeout 900;
-      proxy_send_timeout 900;
-    }
-
-    location /api/ {
-      limit_req zone=beagle_api burst=1200 nodelay;
-      proxy_pass ${BEAGLE_API_UPSTREAM}/api/;
-      proxy_http_version 1.1;
-      proxy_set_header Host \$host;
-      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto https;
-      proxy_read_timeout 900;
-      proxy_send_timeout 900;
-    }
-
-EOF
-
-  if [[ -n "$BACKEND_HOST" ]]; then
-    cat >> "$NGINX_SITE" <<EOF
-    location / {
-        return 404;
-    }
-}
-EOF
-    return 0
-  fi
-
-  cat >> "$NGINX_SITE" <<EOF
-    location = / {
-        return 302 ${web_redirect_target};
-    }
-
-    location / {
-        return 404;
-    }
-}
 EOF
 }
 
@@ -728,7 +629,7 @@ ensure_tls_materials
 
 if [[ -z "$BACKEND_HOST" ]]; then
   if ! auto_detect_backend; then
-    log "No backend detected. Configuring downloads-only HTTPS endpoint on https://${SERVER_NAME}:${LISTEN_PORT}${DOWNLOADS_PATH}/."
+    log "No backend detected. Configuring downloads-only HTTPS endpoint on https://${SERVER_NAME}${DOWNLOADS_PATH}/."
   fi
 fi
 
@@ -757,8 +658,4 @@ beagle-manager ALL=(root) NOPASSWD: /usr/sbin/nginx -t, /bin/systemctl reload ng
 SUDOERS
 chmod 0440 /etc/sudoers.d/beagle-nginx-reload
 
-if [[ -n "$BACKEND_HOST" ]]; then
-  log "Configured Beagle proxy on https://${SERVER_NAME}:${LISTEN_PORT}/ -> https://${BACKEND_HOST}:${BACKEND_PORT}/"
-else
-  log "Configured host-local HTTPS downloads on ${DOWNLOADS_BASE_URL%/}/"
-fi
+log "Configured host-local HTTPS downloads on ${DOWNLOADS_BASE_URL%/}/"

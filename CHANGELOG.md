@@ -26,10 +26,10 @@
 
 ## v6.6.7 - 2026-04-10
 
-- Continued the provider-neutral refactor without breaking the active Proxmox deployment path. The host control plane now routes the remaining Ubuntu Beagle guest-exec flows and scheduled restart helper through `beagle-host/providers/proxmox_host_provider.py` instead of shaping `qm guest exec`, `qm guest exec-status`, `qm start` and `qm stop` calls directly in `beagle-control-plane.py`.
-- Finished the current host-provider lifecycle slice by giving `ProxmoxHostProvider` first-class helpers for guest bash execution, exec-status polling, script-text execution and delayed restart scheduling. This keeps the Proxmox-specific subprocess behavior in one provider file while the large control-plane HTTP entrypoint moves closer to orchestration-only behavior.
+- Continued the provider-neutral refactor without breaking the active Beagle host deployment path. The host control plane now routes the remaining Ubuntu Beagle guest-exec flows and scheduled restart helper through `beagle-host/providers/beagle_host_provider.py` instead of shaping `qm guest exec`, `qm guest exec-status`, `qm start` and `qm stop` calls directly in `beagle-control-plane.py`.
+- Finished the current host-provider lifecycle slice by giving `Beagle hostHostProvider` first-class helpers for guest bash execution, exec-status polling, script-text execution and delayed restart scheduling. This keeps the Beagle host-specific subprocess behavior in one provider file while the large control-plane HTTP entrypoint moves closer to orchestration-only behavior.
 - Fixed the public release surface so `website/` ships in the versioned source tarball and `website/app.js` is part of project validation. That keeps the published source bundle aligned with the repo and stops the website from drifting outside the checked browser surfaces.
-- Updated the mandatory refactor handoff set, provider-abstraction notes and architecture guidance so the next continuation step is clear: shrink `extension/content.js`, inventory direct script-side Proxmox couplings, and keep release/deploy verification explicit across `srv.thinover.net` and `beagle-os.com`.
+- Updated the mandatory refactor handoff set, provider-abstraction notes and architecture guidance so the next continuation step is clear: shrink `extension/content.js`, inventory direct script-side Beagle host couplings, and keep release/deploy verification explicit across `srv.thinover.net` and `beagle-os.com`.
 
 ## v6.6.6 - 2026-04-06
 
@@ -50,13 +50,13 @@
 
 - Rebased the public Beagle OS release line onto a fully MIT-licensed repository. The root license now uses MIT, the Gaming kiosk source tree lives directly in the public repo, and the old closed-source and affiliate-only constraints are removed from the active product surface.
 - Added the public `beagle-kiosk/` source tree to the release path and updated the repository packaging flow so the GitHub source tarball now includes the open kiosk, the endpoint image builder, and the new server-installer sources together.
-- Added a new bootable `beagle-os-server-installer-amd64.iso` workflow that installs Debian Bookworm, adds Proxmox VE from the official Proxmox repository, prompts for hostname, Linux username, password, and target disk, and then installs Beagle from the public GitHub release source on top.
+- Added a new bootable `beagle-os-server-installer-amd64.iso` workflow that installs Debian Bookworm, adds Beagle host from the official Beagle host repository, prompts for hostname, Linux username, password, and target disk, and then installs Beagle from the public GitHub release source on top.
 - Extended the packaging, host-download, GitHub release, and public artifact publication scripts so the server installer ISO is built on the dedicated release host, published alongside the endpoint ISO, exposed in `beagle-downloads-status.json`, and mirrored to `beagle-os.com`.
 - Reworked the public website content for the open-source direction: the Gaming page now describes the public kiosk codebase, the Download page exposes the new server installer ISO, and the old dashboard/login/register entry points are redirected away from the marketing site.
 
 ## v5.2.31 - 2026-04-06
 
-- Fixed the Beagle Fleet desktop cold-start regression on freshly installed thinclients. The Moonlight launcher no longer probes `PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST` first when that address is only reachable through an upstream gateway, so endpoints outside the Proxmox-side private subnet stop wasting startup time on dead `10.10.10.x` attempts before falling back to the real public Sunshine host.
+- Fixed the Beagle Fleet desktop cold-start regression on freshly installed thinclients. The Moonlight launcher no longer probes `PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST` first when that address is only reachable through an upstream gateway, so endpoints outside the Beagle-side private subnet stop wasting startup time on dead `10.10.10.x` attempts before falling back to the real public Sunshine host.
 - Verified the launcher fix live on the real VM100 thinclient at `192.168.178.92`: the desktop runtime dropped from the earlier `moonlight.start -> moonlight.exec` path of roughly 80 seconds down to about 6 seconds on the subsequent restart, while still connecting to the same public host `65.109.80.76:50100`.
 - Fixed runtime config regeneration so Beagle no longer discards Sunshine bootstrap metadata and pinning material when `/usr/local/sbin/beagle-render-config` rewrites `/etc/pve-thin-client/`. The renderer now preserves Sunshine pinned pubkeys plus server name, stream port, unique ID and certificate fields, which keeps fresh Desktop images from regressing into the slow first-run bootstrap path after config refreshes.
 
@@ -68,7 +68,7 @@
 - Verified the new handoff live on `192.168.178.92`: `pve-thin-client-runtime.service` stayed `active`, GeForce NOW continued running, and the runtime trace recorded `phase=streaming.kiosk-stop mode=graceful-close` instead of the earlier crash/restart sequence.
 - Fixed the Beagle Fleet desktop-stream provisioning path for Ubuntu guest VMs. Newly configured Sunshine guests now install a real user-audio stack (`pipewire`, `pipewire-pulse`, `wireplumber`) instead of only `pulseaudio-utils`, enable those user services after LightDM autologin, and keep the Pulse socket available for Sunshine audio capture.
 - Hardened the generated `beagle-sunshine.service` so Sunshine no longer starts before the guest desktop and audio session are actually ready. The unit now waits for the X11 display, X authority, user DBus runtime, Pulse socket and a connected XRandR output before launching Sunshine.
-- Verified the VM100 fix live on the Proxmox side: Sunshine stopped reproducing the old `Unable to initialize capture method` failure, accepted real desktop streaming sessions from the thinclient again, and initialized audio capture with `sink-sunshine-stereo` plus `Opus initialized` instead of `Couldn't connect to pulseaudio`.
+- Verified the VM100 fix live on the Beagle host side: Sunshine stopped reproducing the old `Unable to initialize capture method` failure, accepted real desktop streaming sessions from the thinclient again, and initialized audio capture with `sink-sunshine-stereo` plus `Opus initialized` instead of `Couldn't connect to pulseaudio`.
 - Fixed Moonlight audio routing on the thinclient runtime. Desktop sessions now prefer the local PipeWire/Pulse path instead of forcing SDL and ALSA straight onto a hard-coded hardware PCM, and the generated ALSA default now points back at PipeWire when the plugin is installed. This keeps Beagle Fleet desktop streams compatible with real output selection on fresh installs instead of silently sending audio to the wrong low-level device.
 
 ## v5.2.29 - 2026-04-05
@@ -127,7 +127,7 @@
 
 ## v5.2.20 - 2026-04-05
 
-- Fixed the Desktop Moonlight connect-host selection so `PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST` is only preferred when the endpoint can reach that host directly without routing through an upstream gateway. Real thinclients on external LANs now choose the public Sunshine/Moonlight host first instead of stalling on an internal Proxmox-only address like `10.10.10.x`.
+- Fixed the Desktop Moonlight connect-host selection so `PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST` is only preferred when the endpoint can reach that host directly without routing through an upstream gateway. Real thinclients on external LANs now choose the public Sunshine/Moonlight host first instead of stalling on an internal Beagle host-only address like `10.10.10.x`.
 - Verified the live VM100 endpoint on `192.168.178.92` against this fix: after clearing the stale local-only host override, the desktop runtime paired successfully and started a real `moonlight stream 65.109.80.76:50100 Desktop` session again.
 
 ## v5.2.19 - 2026-04-05
@@ -215,7 +215,7 @@
 - Hardened the gaming session wrappers and kiosk launcher so failed kiosk starts now leave a visible on-screen error terminal with the recent kiosk log instead of silently falling back to a wallpaper-only session.
 - Made the kiosk AppImage launcher more robust for VM and appliance boots by forcing extract-and-run mode, pinning Electron to X11, and adding virtualization-safe GPU-disable flags plus explicit launch/exit logging.
 - Fixed the kiosk installer and launcher permissions so the runtime user can always write kiosk logs, with an automatic fallback to a user-writable log directory if `/opt/beagle-kiosk/logs` is not writable.
-- Fixed the desktop runtime renderer so Proxmox-managed endpoints can carry a dedicated `MOONLIGHT_LOCAL_HOST`, allowing internal same-host test clients to prefer the guest-side Sunshine address instead of hairpinning through the public stream IP.
+- Fixed the desktop runtime renderer so Beagle host-managed endpoints can carry a dedicated `MOONLIGHT_LOCAL_HOST`, allowing internal same-host test clients to prefer the guest-side Sunshine address instead of hairpinning through the public stream IP.
 - Hardened the thinclient updater against low-space payload failures by pruning stale cached payloads before download and surfacing clearer disk-write errors when a large release tarball cannot be written locally.
 
 ## v5.2.5 - 2026-04-03
@@ -248,14 +248,14 @@
 
 ## v5.2.0 - 2026-04-02
 
-- Expanded the Proxmox-hosted Beagle Fleet Manager so new Beagle desktop VMs can be provisioned with a selectable desktop profile, including `XFCE`, `GNOME`, `KDE Plasma`, `MATE` and `LXQt`, instead of being hard-wired to a single desktop.
+- Expanded the Beagle host-hosted Beagle Fleet Manager so new Beagle desktop VMs can be provisioned with a selectable desktop profile, including `XFCE`, `GNOME`, `KDE Plasma`, `MATE` and `LXQt`, instead of being hard-wired to a single desktop.
 - Added software selection to the Fleet create and edit flows with named presets plus free-form extra APT packages, and carried those choices through the control-plane catalog, VM metadata, Ubuntu autoinstall seed and in-guest reconfiguration path.
 - Added an edit path for existing managed Beagle desktop VMs so operators can change desktop, locale, keyboard layout and package selections later from the Fleet Manager instead of rebuilding the VM from scratch.
-- Fixed the Proxmox control-plane provisioning sandbox so `qm create`, seed ISO generation, task logging, KVM startup and bridge activation all work reliably from the hardened systemd service context.
+- Fixed the Beagle host control-plane provisioning sandbox so `qm create`, seed ISO generation, task logging, KVM startup and bridge activation all work reliably from the hardened systemd service context.
 - Fixed the managed-desktop Sunshine startup order so guest reconfiguration now waits for a real X11 session before launching Sunshine, preventing broken post-edit streams on non-XFCE desktops.
 - Switched managed desktop defaults and metadata handling to German locale and keymap where requested, and verified the existing `VM100` desktop session now uses the German keyboard layout.
 - Rebooted and revalidated the local Beagle OS thinclient on `192.168.178.92`, confirming that Moonlight still starts and streams correctly after the surrounding host-side changes.
-- Verified the new Fleet workflow against a real test VM by provisioning `VM101` with `LXQt`, `Thunderbird`, `VLC` and `de_DE.UTF-8`/`de` settings through the live control-plane API that backs the Proxmox UI, then editing the same VM in place to `MATE` with `LibreOffice`, `FileZilla` and `GIMP` while keeping Sunshine streamable.
+- Verified the new Fleet workflow against a real test VM by provisioning `VM101` with `LXQt`, `Thunderbird`, `VLC` and `de_DE.UTF-8`/`de` settings through the live control-plane API that backs the Beagle host UI, then editing the same VM in place to `MATE` with `LibreOffice`, `FileZilla` and `GIMP` while keeping Sunshine streamable.
 
 ## v5.1.0 - 2026-04-01
 
@@ -271,7 +271,7 @@
 - Fixed the standalone and VM-rendered USB live writers so they no longer depend on the downloaded filename to decide between `live` and `installer` mode.
 - Fixed the hosted USB bootstrap so current runtime and installer helper scripts are always repacked into the published payload instead of leaking stale cached files into new USB media.
 - Fixed the published VM USB presets and EFI boot path so large per-VM presets stay off the kernel command line while runtime mode, Moonlight host/port and Sunshine secrets still land on the stick.
-- Rebuilt and verified the Internet-routed live USB flow end-to-end in a Proxmox test VM until Moonlight streamed the VM100 desktop successfully.
+- Rebuilt and verified the Internet-routed live USB flow end-to-end in a Beagle host test VM until Moonlight streamed the VM100 desktop successfully.
 
 ## v5.0.2 - 2026-03-28
 
@@ -295,7 +295,7 @@
 
 - Added production-facing endpoint egress controls with `direct`, `split` and `full` modes, including WireGuard-backed residential exit configuration, route application and runtime status reporting.
 - Added endpoint identity controls for hostname, timezone, locale, keymap and persistent Chrome-profile naming, applied during first boot and runtime preparation.
-- Extended the Beagle control plane policy model, VM profiles, enrollment payloads and installer presets so egress and identity settings flow end-to-end from Proxmox policy to endpoint check-in.
+- Extended the Beagle control plane policy model, VM profiles, enrollment payloads and installer presets so egress and identity settings flow end-to-end from Beagle host policy to endpoint check-in.
 - Added VM fingerprint risk assessment to the control plane inventory and compliance path so obviously server-like guest configurations can be surfaced before operators hit service trust issues.
 - Added a real Beagle OS product website served from the host installation on HTTPS port `443`, backed by live control-plane and downloads metadata instead of a placeholder page.
 
@@ -315,11 +315,11 @@
 
 ## v3.4.0 - 2026-03-22
 
-- Added a first-class Beagle VM profile dialog to both the host-installed Proxmox UI and the browser extension, so operators can inspect a fully resolved Moonlight/Sunshine endpoint profile per VM and export it directly from the Proxmox workflow.
-- Added installer, profile-export and control-plane health actions to the Beagle UI path, turning the Proxmox integration into an operator surface instead of a single download trigger.
-- Added a host-side `beagle-control-plane` service that publishes Beagle health and VM inventory data for installed Proxmox hosts.
+- Added a first-class Beagle VM profile dialog to both the host-installed Beagle host UI and the browser extension, so operators can inspect a fully resolved Moonlight/Sunshine endpoint profile per VM and export it directly from the Beagle host workflow.
+- Added installer, profile-export and control-plane health actions to the Beagle UI path, turning the Beagle host integration into an operator surface instead of a single download trigger.
+- Added a host-side `beagle-control-plane` service that publishes Beagle health and VM inventory data for installed Beagle hosts.
 - Narrowed Beagle preset generation to Moonlight/Sunshine-only profiles so new per-VM installers no longer publish legacy SPICE, noVNC or DCV fallbacks in Beagle profiles.
-- Updated the main architecture, installation and security documentation to describe Beagle as a Proxmox-native Moonlight/Sunshine endpoint and management stack.
+- Updated the main architecture, installation and security documentation to describe Beagle as a Beagle-native Moonlight/Sunshine endpoint and management stack.
 
 ## v3.3.1 - 2026-03-17
 
@@ -327,7 +327,7 @@
 - Locked Sunshine guest defaults to H.264-only software streaming by explicitly disabling HEVC and AV1 in the generated `sunshine.conf`, matching the low-latency CPU-only target profile for this host.
 - Tightened the Xfce autostart path so Sunshine starts only inside the intended Xfce session rather than relying on generic desktop autostart semantics.
 - Added a lightweight Xfce window-manager profile for provisioned guests that disables compositor overhead by default, leaving more CPU budget available for software capture and encoding.
-- Updated the Proxmox host installer to reuse packaged GitHub release assets for the USB installer and payload when they are available, so release-tarball installs no longer have to rebuild the live image locally on every host.
+- Updated the Beagle host installer to reuse packaged GitHub release assets for the USB installer and payload when they are available, so release-tarball installs no longer have to rebuild the live image locally on every host.
 
 ## v3.3.0 - 2026-03-17
 
@@ -353,13 +353,13 @@
 
 ## v3.1.0 - 2026-03-16
 
-- Reworked the USB deployment flow around backend-generated per-VM installer launchers named `pve-thin-client-usb-installer-vm-<vmid>.sh`, so the Proxmox toolbar can hand each VM its own preseeded thin-client installer download.
+- Reworked the USB deployment flow around backend-generated per-VM installer launchers named `pve-thin-client-usb-installer-vm-<vmid>.sh`, so the Beagle host toolbar can hand each VM its own preseeded thin-client installer download.
 - Embedded VM-specific connection presets directly into the hosted USB installer and wrote them onto the USB medium as `pve-thin-client/preset.env`, preserving those presets across the writer's `sudo` escalation boundary.
 - Simplified the USB local-install path so bundled media now asks only for the streaming mode and the target disk; the previous full questionnaire remains only as a fallback for non-preseeded media.
 - Added preset-aware mode validation for `SPICE`, `NOVNC` and `DCV`, including automatic single-mode selection when only one streaming target is configured for the chosen VM.
-- Updated the Proxmox host UI and browser extension so the `USB Installer` action resolves a VM-specific download URL template with `{host}`, `{node}` and `{vmid}` placeholders instead of always pointing to a generic host-wide launcher.
+- Updated the Beagle host UI and browser extension so the `USB Installer` action resolves a VM-specific download URL template with `{host}`, `{node}` and `{vmid}` placeholders instead of always pointing to a generic host-wide launcher.
 - Expanded hosted download metadata with a VM installer URL template and machine-readable VM installer inventory under `dist/pve-dcv-vm-installers.json` and the published downloads status JSON.
-- Added persistent Proxmox UI reapply units so package updates or replaced `/usr/share/pve-manager` assets automatically reinstall the integration on the next file change and again on subsequent boots.
+- Added persistent Beagle host UI reapply units so package updates or replaced `/usr/share/pve-manager` assets automatically reinstall the integration on the next file change and again on subsequent boots.
 
 ## v3.0.2 - 2026-03-16
 
@@ -371,8 +371,8 @@
 
 ## v3.0.0 - 2026-03-15
 
-- Expanded the Proxmox host UI from a single `DCV` action into a small operator toolset with dedicated toolbar buttons for `DCV`, `Copy DCV URL`, `DCV Info`, `USB Installer` and `Downloads Status`.
-- Added matching Proxmox console-menu actions for `Copy DCV URL`, `DCV Info` and `DCV Downloads` in the host-installed UI integration.
+- Expanded the Beagle host UI from a single `DCV` action into a small operator toolset with dedicated toolbar buttons for `DCV`, `Copy DCV URL`, `DCV Info`, `USB Installer` and `Downloads Status`.
+- Added matching Beagle host console-menu actions for `Copy DCV URL`, `DCV Info` and `DCV Downloads` in the host-installed UI integration.
 - Added resolved-launch introspection in the host UI so operators can see whether a DCV launch came from `dcv-url`, metadata fallbacks, guest-agent IP discovery or the configured fallback URL.
 - Added clipboard integration in the host UI for copying fully resolved DCV URLs without launching the session immediately.
 - Added a host-side `DCV Info` dialog that exposes VM, source, session, token presence, auto-submit state and the hosted download-status endpoint.
@@ -388,7 +388,7 @@
 - Expanded `/pve-dcv-downloads/pve-dcv-downloads-status.json` to include server identity, published paths, artifact filenames, sizes and SHA256 checksums for both the hosted installer and payload bundle.
 - Upgraded the hosted download index page so operators can inspect release version, host endpoint and checksums directly from the browser without opening raw JSON.
 - Added persistent refresh result logging under `/var/lib/pve-dcv-integration/refresh.status.json` so automated artifact rebuilds leave a machine-readable success/failure record behind.
-- Hardened `check-proxmox-host.sh` to verify service activity, hosted URL binding, status JSON consistency and on-disk SHA256 parity instead of only checking for file presence.
+- Hardened `check-beagle-host.sh` to verify service activity, hosted URL binding, status JSON consistency and on-disk SHA256 parity instead of only checking for file presence.
 - Carried forward the previous USB and DCV runtime hardening as the stable baseline for the 2.0 line.
 
 ## v0.5.1 - 2026-03-15
@@ -396,32 +396,32 @@
 - Hardened the USB writer so it refuses non-removable or system disks by default, enforces a minimum device size and waits for freshly created partitions before formatting them.
 - Added SHA256 verification for hosted USB payload downloads when `SHA256SUMS` is available and now validates live installer assets both before and after they are copied to the target media.
 - Hardened the DCV thin-client launch path by enforcing safer `.dcv` file permissions, validating token/session combinations and supporting browser fallback when `dcvviewer` is unavailable but a proxied HTTPS DCV endpoint exists.
-- Restored the Proxmox host UI asset in the working tree so host deployments remain reproducible after the local interrupted edit sequence.
+- Restored the Beagle host UI asset in the working tree so host deployments remain reproducible after the local interrupted edit sequence.
 
 ## v0.5.0 - 2026-03-15
 
 - Added production-oriented host operations tooling: a hosted-artifact refresh script, an installable systemd service/timer and a host healthcheck command.
 - Added release automation and project validation scripts so future GitHub releases can be built and published reproducibly without re-uploading the large USB payload artifact.
 - Added host-side download status metadata and a dedicated status JSON under `/pve-dcv-downloads/`.
-- Updated packaging and host deployment to include Proxmox host service templates and to install the recurring host artifact refresh timer.
+- Updated packaging and host deployment to include Beagle host service templates and to install the recurring host artifact refresh timer.
 
 ## v0.4.7 - 2026-03-15
 
 - Fixed the host-side `nginx` download location so `/pve-dcv-downloads/<file>` is served as a real prefix path instead of falling through to the DCV backend.
-- Revalidated the Proxmox-hosted USB installer endpoint after the hosted download routing fix.
+- Revalidated the Beagle host-hosted USB installer endpoint after the hosted download routing fix.
 
 ## v0.4.6 - 2026-03-15
 
-- Reworked the USB distribution path so the large thin-client payload is served by each installed Proxmox host under `/pve-dcv-downloads/` instead of being expected from GitHub releases.
-- Added host-local download preparation that generates a Proxmox-hosted USB installer script with the correct local payload URL baked in.
-- Extended the Proxmox-side `nginx` setup to always publish hosted download artifacts on `https://<proxmox-host>:8443/pve-dcv-downloads/`, even when no DCV backend proxy is configured.
-- Added a Proxmox UI runtime config asset so the `USB Installer` toolbar button opens the host-local installer endpoint by default.
+- Reworked the USB distribution path so the large thin-client payload is served by each installed Beagle host under `/pve-dcv-downloads/` instead of being expected from GitHub releases.
+- Added host-local download preparation that generates a Beagle host-hosted USB installer script with the correct local payload URL baked in.
+- Extended the Beagle-side `nginx` setup to always publish hosted download artifacts on the standard HTTPS endpoint, even when no DCV backend proxy is configured.
+- Added a Beagle host UI runtime config asset so the `USB Installer` toolbar button opens the host-local installer endpoint by default.
 
 ## v0.4.5 - 2026-03-15
 
 - Fixed DCV launch URL generation so `dcv-url` in VM metadata always overrides the internal guest IP template path.
 - Fixed metadata parsing for VM descriptions that contain literal `\\n` separators, preventing `dcv-user` and `dcv-password` from being merged into one query value.
-- Revalidated the server-installed Proxmox UI integration with the public DCV proxy URL on the control plane.
+- Revalidated the server-installed Beagle host UI integration with the public DCV proxy URL on the control plane.
 
 ## v0.4.4 - 2026-03-15
 
@@ -433,56 +433,56 @@
 ## v0.4.3 - 2026-03-15
 
 - Added DCV metadata support for `dcv-user`, `dcv-password`, `dcv-auth-token`, `dcv-session` and `dcv-auto-submit`.
-- Added browser-side and proxied-page DCV auto-login helpers so VM-specific credentials can be prefilled and submitted automatically when opening DCV from Proxmox.
-- Added host-side DCV proxy injection of `pve-dcv-autologin.js` so the server-installed Proxmox integration can auto-fill the DCV web login page without a browser extension.
+- Added browser-side and proxied-page DCV auto-login helpers so VM-specific credentials can be prefilled and submitted automatically when opening DCV from Beagle host.
+- Added host-side DCV proxy injection of `pve-dcv-autologin.js` so the server-installed Beagle host integration can auto-fill the DCV web login page without a browser extension.
 
 ## v0.4.2 - 2026-03-15
 
-- Added a Proxmox-host DCV TLS proxy installer that can publish a backend DCV service on `https://<proxmox-host>:8443/` with the already valid Proxmox certificate.
-- Integrated DCV proxy deployment into the standard Proxmox host installer so UI deployment can also fix invalid/self-signed DCV web certificates.
+- Added a Beagle host-host DCV TLS proxy installer that can publish a backend DCV service on the standard HTTPS endpoint with the already valid Beagle host certificate.
+- Integrated DCV proxy deployment into the standard Beagle host installer so UI deployment can also fix invalid/self-signed DCV web certificates.
 - Added backend auto-detection from VM metadata and guest-agent IPs, plus explicit `PVE_DCV_PROXY_VMID` and `PVE_DCV_PROXY_BACKEND_HOST` installation controls.
 - Added cleanup of legacy host-side `iptables` DNAT rules on the DCV port so the local TLS proxy can bind cleanly.
 
 ## v0.4.1 - 2026-03-15
 
-- Added a documented GitHub-release installation path for deploying the project onto arbitrary Proxmox hosts without a git checkout.
-- Updated the Proxmox host installers to self-escalate through `sudo` instead of requiring an explicit root invocation from the user.
+- Added a documented GitHub-release installation path for deploying the project onto arbitrary Beagle hosts without a git checkout.
+- Updated the Beagle host installers to self-escalate through `sudo` instead of requiring an explicit root invocation from the user.
 - Added automatic `rsync` dependency installation for the host deployment script so extracted release tarballs are directly installable on fresh hosts.
-- Fixed the release tarball contents so host deployments from GitHub releases include the Proxmox UI asset and extension sources needed for repackaging.
+- Fixed the release tarball contents so host deployments from GitHub releases include the Beagle host UI asset and extension sources needed for repackaging.
 
 ## v0.4.0 - 2026-03-15
 
 - Rebuilt the USB installer flow around a bootable live installer architecture inspired by the existing ThinOverNet approach.
 - Replaced the old root-only USB writer with a sudo-escalating writer that selects target devices interactively and can bootstrap the release payload automatically.
 - Added a live-build based thin-client installer environment, a live setup menu and a local disk installer that copies a bootable thin-client runtime to the target disk.
-- Expanded the thin-client configuration model with network, credentials, Proxmox SPICE ticket mode and generated DCV connection files.
-- Added runtime helpers for Proxmox-backed SPICE auto-connect and direct DCV connection-file generation.
+- Expanded the thin-client configuration model with network, credentials, Beagle host SPICE ticket mode and generated DCV connection files.
+- Added runtime helpers for Beagle host-backed SPICE auto-connect and direct DCV connection-file generation.
 - Fixed BIOS+UEFI USB and local-disk partition layouts by adding explicit `bios_grub` partitions for GRUB-on-GPT boot paths.
 - Added runtime hostname/network application through generated `systemd-networkd` config and enabled the live image to run that preparation path before launching the kiosk session.
 - Added NICE DCV Viewer installation to the live-build image so the DCV runtime path is usable from the generated installer media.
 
 ## v0.3.0 - 2026-03-15
 
-- Reworked the extension to inject `DCV` into the existing Proxmox console dropdown instead of using only a floating page button.
+- Reworked the extension to inject `DCV` into the existing Beagle host console dropdown instead of using only a floating page button.
 - Added a `USB Installer` toolbar button that downloads the thin-client USB writer script.
 - Added a first USB writer script and starter payload for building a deployable thin-client installer stick.
 
 ## v0.2.1 - 2026-03-15
 
 - Added explicit packaging dependency checks for `zip`, `tar` and `sha256sum`.
-- Hardened the Proxmox host deployment path after validating installation on a live Proxmox VE 8.4 host.
+- Hardened the Beagle host deployment path after validating installation on a live Beagle host 8.4 host.
 
 ## v0.2.0 - 2026-03-15
 
 - Added a production-oriented repository layout for the browser extension, thin-client assistant, docs and release scripts.
-- Expanded the Proxmox browser extension with stronger VM context detection, metadata fallbacks and configurable launch behavior.
+- Expanded the Beagle host browser extension with stronger VM context detection, metadata fallbacks and configurable launch behavior.
 - Added a first functional Linux thin-client assistant with installer, setup menu, runtime launchers, config templates and autostart assets.
 - Added architecture, security and installation documentation.
 - Added release packaging for extension and thin-client assistant artifacts with checksums.
 
 ## v0.1.0 - 2026-03-15
 
-- Initial third-party Proxmox web extension.
+- Initial third-party Beagle host web extension.
 - Adds `DCV` action button on VM pages.
 - Resolves VM IP via guest-agent API.
 - Supports URL-template and fallback parsing from VM description.

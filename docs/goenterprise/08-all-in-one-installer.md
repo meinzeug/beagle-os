@@ -28,8 +28,8 @@ Priorität: 8.1.1 (Q4 2026)
 
 | Produkt | Installer |
 |---|---|
-| Proxmox | Graphischer Installer, 10-15 Min, gut aber kein Zero-Touch |
-| XCP-ng | Graphischer Installer, ähnlich Proxmox |
+| Beagle host | Graphischer Installer, 10-15 Min, gut aber kein Zero-Touch |
+| XCP-ng | Graphischer Installer, ähnlich Beagle host |
 | Azure Stack HCI | Windows Admin Center, sehr komplex |
 | **Beagle GoEnterprise** | **Zero-Touch PXE + USB-Installer mit Seed-Config** |
 

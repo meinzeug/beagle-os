@@ -9,8 +9,8 @@ Basis: aktueller Repo-Stand (6.7.0) plus `docs/refactor/02-target-architecture.m
 - Bare-Metal-Server-Installer (`server-installer/live-build`, `scripts/build-server-installer.sh`).
 - Hetzner-`installimage`-Tarball (`scripts/build-server-installimage.sh`).
 - Beagle-Host Control Plane in Python (`beagle-host/bin/beagle-control-plane.py`) mit Services unter `beagle-host/services/`.
-- Provider-Neutralitaet ueber `core/provider`, `core/virtualization`, `providers/beagle`, `providers/proxmox`, `beagle-host/providers/`.
-- VM Lifecycle (create/start/stop/delete/resume) ueber `HostProvider`-Vertrag fuer Libvirt und Proxmox.
+- Provider-Neutralitaet ueber `core/provider`, `core/virtualization`, `providers/beagle`, `providers/beagle-host`, `beagle-host/providers/`.
+- VM Lifecycle (create/start/stop/delete/resume) ueber `HostProvider`-Vertrag fuer Libvirt und Beagle host.
 - Provisioning-Flow fuer Ubuntu Desktop + XFCE + Sunshine ueber `services/ubuntu_beagle_provisioning.py` und `templates/ubuntu-beagle/*`.
 - noVNC-Zugriff ueber `services/vm_console_access.py` mit guest-side `x11vnc`-Praeferenz.
 - Tokenisierter noVNC-Proxy ueber `beagle-host/systemd/beagle-novnc-proxy.service`.

@@ -38,8 +38,10 @@ def _make_backup_svc(**overrides):
     backup_svc = MagicMock()
     backup_svc.run_backup_now.return_value = {"ok": True, "job": {"job_id": "sync-j1"}}
     quota_svc = MagicMock()
+    storage_image_svc = MagicMock()
     defaults = dict(
         backup_service=backup_svc,
+        storage_image_store_service=storage_image_svc,
         storage_quota_service=quota_svc,
         audit_event=MagicMock(),
         requester_identity=lambda: "testuser",
@@ -73,6 +75,9 @@ def _make_vm_svc(**overrides):
         version="test",
         wait_for_action_result=lambda node, vmid, action_id: None,
         detach_usb_from_guest=lambda vm, port, busid: {},
+        delete_vm_snapshot=lambda vmid, snapshot_name: f"deleted {vmid} snapshot {snapshot_name}",
+        reset_vm_to_snapshot=lambda vmid, snapshot_name: f"reset {vmid} to {snapshot_name}",
+        clone_vm=lambda source_vmid, target_vmid, name="": f"cloned {source_vmid} to {target_vmid} as {name}",
     )
     kwargs.update(overrides)
     return VmMutationSurfaceService(**kwargs)

@@ -113,6 +113,7 @@ from vm_profile import VmProfileService
 from vm_console_access import VmConsoleAccessService
 from vm_http_surface import VmHttpSurfaceService
 from server_settings import ServerSettingsService
+from storage_image_store import StorageImageStoreService
 from storage_quota import StorageQuotaService
 from entitlement_service import EntitlementService
 from pool_manager import PoolManagerService
@@ -267,7 +268,7 @@ def _resolve_public_hostname(name: str) -> str:
 PUBLIC_SERVER_NAME = _resolve_public_hostname(
     os.environ.get("PVE_DCV_PROXY_SERVER_NAME", "").strip() or os.uname().nodename
 )
-PUBLIC_DOWNLOADS_PORT = int(os.environ.get("PVE_DCV_PROXY_LISTEN_PORT", "8443"))
+PUBLIC_DOWNLOADS_PORT = int(os.environ.get("PVE_DCV_PROXY_LISTEN_PORT", "443"))
 PUBLIC_DOWNLOADS_PATH = os.environ.get("PVE_DCV_DOWNLOADS_PATH", "/beagle-downloads").strip() or "/beagle-downloads"
 PUBLIC_UPDATE_BASE_URL = os.environ.get("BEAGLE_PUBLIC_UPDATE_BASE_URL", "").strip() or f"https://{PUBLIC_SERVER_NAME}:{PUBLIC_DOWNLOADS_PORT}{PUBLIC_DOWNLOADS_PATH}"
 PUBLIC_STREAM_HOST_RAW = os.environ.get("BEAGLE_PUBLIC_STREAM_HOST", "").strip() or PUBLIC_SERVER_NAME
@@ -501,6 +502,7 @@ AUDIT_REPORT_SERVICE: AuditReportService | None = None
 AUTHZ_POLICY_SERVICE: AuthzPolicyService | None = None
 SERVER_SETTINGS_SERVICE: ServerSettingsService | None = None
 STORAGE_QUOTA_SERVICE: StorageQuotaService | None = None
+STORAGE_IMAGE_STORE_SERVICE: StorageImageStoreService | None = None
 ENTITLEMENT_SERVICE: EntitlementService | None = None
 POOL_MANAGER_SERVICE: PoolManagerService | None = None
 DESKTOP_TEMPLATE_BUILDER_SERVICE: DesktopTemplateBuilderService | None = None
@@ -829,6 +831,16 @@ def storage_quota_service() -> StorageQuotaService:
             state_file=DATA_DIR / "storage-quotas.json",
         )
     return STORAGE_QUOTA_SERVICE
+
+
+def storage_image_store_service() -> StorageImageStoreService:
+    global STORAGE_IMAGE_STORE_SERVICE
+    if STORAGE_IMAGE_STORE_SERVICE is None:
+        STORAGE_IMAGE_STORE_SERVICE = StorageImageStoreService(
+            list_storage_inventory=lambda: list_storage_inventory(),
+            get_pool_quota=lambda pool_name: storage_quota_service().get_pool_quota(pool_name),
+        )
+    return STORAGE_IMAGE_STORE_SERVICE
 
 
 def entitlement_service() -> EntitlementService:
@@ -3255,6 +3267,22 @@ def vm_mutation_surface_service() -> VmMutationSurfaceService:
             ),
             detach_usb_from_guest=lambda vm, port, busid: detach_usb_from_guest(vm, port=port, busid=busid),
             enqueue_job=lambda name, payload, **kw: job_queue_service().enqueue(name, payload, **kw),
+            reset_vm_to_snapshot=lambda vmid, snapshot_name: HOST_PROVIDER.reset_vm_to_snapshot(
+                int(vmid),
+                str(snapshot_name or "").strip(),
+                timeout=None,
+            ),
+            delete_vm_snapshot=lambda vmid, snapshot_name: HOST_PROVIDER.delete_vm_snapshot(
+                int(vmid),
+                str(snapshot_name or "").strip(),
+                timeout=None,
+            ),
+            clone_vm=lambda source_vmid, target_vmid, name="": HOST_PROVIDER.clone_vm(
+                int(source_vmid),
+                int(target_vmid),
+                name=str(name or "").strip(),
+                timeout=None,
+            ),
         )
     return VM_MUTATION_SURFACE_SERVICE
 

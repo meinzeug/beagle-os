@@ -13,7 +13,6 @@ _PROVIDER_MODULES: dict[str, tuple[str, str]] = {
 
 _PROVIDER_ALIASES: dict[str, str] = {
     "pve": "beagle",
-    "proxmox": "beagle",
 }
 
 _PROVIDER_FACTORIES: dict[str, ProviderFactory] = {}

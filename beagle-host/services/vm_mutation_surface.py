@@ -29,6 +29,9 @@ class VmMutationSurfaceService:
         wait_for_action_result: Callable[[str, int, str], dict[str, Any] | None],
         detach_usb_from_guest: Callable[[Any, int | None, str], dict[str, Any]],
         enqueue_job: Callable[..., Any] | None = None,
+        delete_vm_snapshot: Callable[[int, str], str] | None = None,
+        reset_vm_to_snapshot: Callable[[int, str], str] | None = None,
+        clone_vm: Callable[[int, int, str], str] | None = None,
     ) -> None:
         self._attach_usb_to_guest = attach_usb_to_guest
         self._build_vm_usb_state = build_vm_usb_state
@@ -50,6 +53,9 @@ class VmMutationSurfaceService:
         self._wait_for_action_result = wait_for_action_result
         self._detach_usb_from_guest = detach_usb_from_guest
         self._enqueue_job = enqueue_job
+        self._delete_vm_snapshot = delete_vm_snapshot
+        self._reset_vm_to_snapshot = reset_vm_to_snapshot
+        self._clone_vm = clone_vm
 
     @staticmethod
     def _json_response(status: HTTPStatus, payload: dict[str, Any]) -> dict[str, Any]:
@@ -77,10 +83,16 @@ class VmMutationSurfaceService:
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/attach"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/detach"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/migrate"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/clone"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/snapshot"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/snapshot/revert"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/sunshine-access"))
             or (path.startswith("/api/v1/virtualization/vms/") and path.endswith("/power"))
         )
+
+    @staticmethod
+    def handles_delete(path: str) -> bool:
+        return bool(path.startswith("/api/v1/vms/") and path.endswith("/snapshot"))
 
     @staticmethod
     def requires_json_body(path: str) -> bool:
@@ -89,6 +101,8 @@ class VmMutationSurfaceService:
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/attach"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/detach"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/migrate"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/clone"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/snapshot/revert"))
             or (path.startswith("/api/v1/virtualization/vms/") and path.endswith("/power"))
         )
 
@@ -147,6 +161,99 @@ class VmMutationSurfaceService:
             return self._json_response(
                 HTTPStatus.SERVICE_UNAVAILABLE,
                 {"ok": False, "error": "job queue not available"},
+            )
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/snapshot/revert"):
+            vm, error = self._vm_from_segment(path, -3)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            if self._reset_vm_to_snapshot is None:
+                return self._json_response(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"ok": False, "error": "snapshot revert not available"},
+                )
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            snap_name = str(payload.get("snapshot_name") or payload.get("name") or "").strip()
+            if not snap_name:
+                return self._json_response(
+                    HTTPStatus.BAD_REQUEST,
+                    {"ok": False, "error": "invalid payload: missing snapshot_name"},
+                )
+            try:
+                provider_result = self._reset_vm_to_snapshot(int(vm.vmid), snap_name)
+            except Exception as exc:
+                return self._json_response(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "ok": False,
+                        "error": f"snapshot revert failed: {exc}",
+                        "vmid": int(vm.vmid),
+                        "snapshot_name": snap_name,
+                    },
+                )
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        snapshot_revert={
+                            "vmid": int(vm.vmid),
+                            "node": str(vm.node),
+                            "snapshot_name": snap_name,
+                            "requested_by": requester_identity,
+                            "provider_result": str(provider_result or ""),
+                        }
+                    ),
+                },
+            )
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/clone"):
+            vm, error = self._vm_from_segment(path, -2)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            if self._clone_vm is None:
+                return self._json_response(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"ok": False, "error": "vm clone not available"},
+                )
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            target_vmid_text = str(payload.get("target_vmid") or payload.get("newid") or "").strip()
+            if not target_vmid_text.isdigit() or int(target_vmid_text) <= 0:
+                return self._json_response(
+                    HTTPStatus.BAD_REQUEST,
+                    {"ok": False, "error": "invalid payload: missing target_vmid"},
+                )
+            target_vmid = int(target_vmid_text)
+            clone_name = str(payload.get("name") or "").strip()
+            try:
+                provider_result = self._clone_vm(int(vm.vmid), target_vmid, clone_name)
+            except Exception as exc:
+                return self._json_response(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "ok": False,
+                        "error": f"vm clone failed: {exc}",
+                        "vmid": int(vm.vmid),
+                        "target_vmid": target_vmid,
+                    },
+                )
+            return self._json_response(
+                HTTPStatus.ACCEPTED,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        vm_clone={
+                            "source_vmid": int(vm.vmid),
+                            "target_vmid": target_vmid,
+                            "node": str(vm.node),
+                            "name": clone_name,
+                            "requested_by": requester_identity,
+                            "provider_result": str(provider_result or ""),
+                        }
+                    ),
+                },
             )
 
         if path.startswith("/api/v1/vms/") and path.endswith("/migrate"):
@@ -464,3 +571,56 @@ class VmMutationSurfaceService:
             )
 
         return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
+
+    def route_delete(
+        self,
+        path: str,
+        *,
+        query: dict[str, list[str]] | None = None,
+        requester_identity: str,
+    ) -> dict[str, Any] | None:
+        if path.startswith("/api/v1/vms/") and path.endswith("/snapshot"):
+            vm, error = self._vm_from_segment(path, -2)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            if self._delete_vm_snapshot is None:
+                return self._json_response(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"ok": False, "error": "snapshot delete not available"},
+                )
+            q = query or {}
+            snap_name = str(q.get("name", [""])[0] or q.get("snapshot_name", [""])[0] or "").strip()
+            if not snap_name:
+                return self._json_response(
+                    HTTPStatus.BAD_REQUEST,
+                    {"ok": False, "error": "invalid payload: missing snapshot_name"},
+                )
+            try:
+                provider_result = self._delete_vm_snapshot(int(vm.vmid), snap_name)
+            except Exception as exc:
+                return self._json_response(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "ok": False,
+                        "error": f"snapshot delete failed: {exc}",
+                        "vmid": int(vm.vmid),
+                        "snapshot_name": snap_name,
+                    },
+                )
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        snapshot_delete={
+                            "vmid": int(vm.vmid),
+                            "node": str(vm.node),
+                            "snapshot_name": snap_name,
+                            "requested_by": requester_identity,
+                            "provider_result": str(provider_result or ""),
+                        }
+                    ),
+                },
+            )
+        return None

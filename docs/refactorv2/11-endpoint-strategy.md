@@ -64,7 +64,7 @@ Alle drei teilen denselben Beagle-Endpoint-Kern; Profile aktivieren spezifische 
 
 ### Provider-Neutralitaet
 
-- Endpoint-Pfad spricht nur mit der **Beagle Cluster API**, nie direkt mit Proxmox/Libvirt.
+- Endpoint-Pfad spricht nur mit der **Beagle Cluster API**, nie direkt mit Beagle host/Libvirt.
 - Pool-/Session-Auswahl ist Cluster-API-getrieben.
 
 ### Akzeptanzkriterien

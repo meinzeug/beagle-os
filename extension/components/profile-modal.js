@@ -63,7 +63,7 @@
         <div class="beagle-header">\
           <div>\
             <h2 class="beagle-title">Beagle Profil fuer VM ' + escapeHtml(profile.name) + " (#" + String(profile.vmid) + ')</h2>\
-            <p class="beagle-subtitle">Moonlight-Endpunkt, Sunshine-Ziel und Proxmox-Bereitstellung in einer Sicht.</p>\
+            <p class="beagle-subtitle">Moonlight-Endpunkt, Sunshine-Ziel und Beagle-Bereitstellung in einer Sicht.</p>\
           </div>\
           <button type="button" class="beagle-close" aria-label="Schliessen">×</button>\
         </div>\

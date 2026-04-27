@@ -20,7 +20,7 @@ Stand: 2026-04-13
 
 ### 4. Noch kein beagle-native Vollbild fuer "so maechtig wie Enterprise-Stacks"
 - Es fehlen klar priorisierte Capability-Matrizen fuer Compute, HA, Storage, Network, IAM, Backup, Operations.
-- Migrationsplan ist bislang nicht konsequent auf "ohne Proxmox" ausgerichtet.
+- Migrationsplan ist bislang nicht konsequent auf "ohne Beagle host" ausgerichtet.
 
 ## Auswirkungen
 - Operative Reibung bei Teambetrieb und Berechtigungen.

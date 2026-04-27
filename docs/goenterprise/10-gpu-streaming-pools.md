@@ -21,7 +21,7 @@ Heute: GPU wird einem VM-Slot fix zugewiesen (Passthrough) — auch wenn die VM 
 | Citrix | NVIDIA vGPU Support (teuer, proprietäre Treiber) |
 | VMware | NVIDIA vGPU + MxGPU (AMD) — teuer |
 | Azure | NV-series VMs (N-Series GPU), nur Cloud |
-| Proxmox | GPU-Passthrough manuell, kein Pool-Management |
+| Beagle host | GPU-Passthrough manuell, kein Pool-Management |
 | **Beagle GoEnterprise** | **Dynamische GPU-Pools: Passthrough + vGPU + Time-Slicing, integriert** |
 
 ---

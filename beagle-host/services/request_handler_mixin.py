@@ -284,6 +284,7 @@ class HandlerMixin:
     def _backups_surface(self) -> BackupsHttpSurfaceService:
         return BackupsHttpSurfaceService(
             backup_service=backup_service(),
+            storage_image_store_service=storage_image_store_service(),
             storage_quota_service=storage_quota_service(),
             audit_event=self._audit_event,
             requester_identity=self._requester_identity,

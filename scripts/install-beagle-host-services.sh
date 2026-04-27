@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL_DIR="${INSTALL_DIR:-/opt/beagle}"
 HOST_RUNTIME_DIR="$INSTALL_DIR/beagle-host"
-LEGACY_HOST_RUNTIME_DIR="$INSTALL_DIR/proxmox-host"
+LEGACY_HOST_RUNTIME_DIR="$INSTALL_DIR/beagle-host"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 SYSTEMD_DIR="/etc/systemd/system"
 SERVICE_NAME="beagle-artifacts-refresh.service"

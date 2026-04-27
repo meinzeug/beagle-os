@@ -45,6 +45,9 @@ def _service() -> tuple[VmMutationSurfaceService, list[tuple[int, str, bool, boo
         version="test",
         wait_for_action_result=lambda node, vmid, action_id: None,
         detach_usb_from_guest=lambda vm, port, busid: {},
+        delete_vm_snapshot=lambda vmid, snapshot_name: f"deleted {vmid} snapshot {snapshot_name}",
+        reset_vm_to_snapshot=lambda vmid, snapshot_name: f"reset {vmid} to {snapshot_name}",
+        clone_vm=lambda source_vmid, target_vmid, name="": f"cloned {source_vmid} to {target_vmid} as {name}",
     )
     return service, calls
 
@@ -56,8 +59,11 @@ def test_handles_migrate_path() -> None:
 
 def test_handles_snapshot_path() -> None:
     assert VmMutationSurfaceService.handles_path("/api/v1/vms/100/snapshot") is True
+    assert VmMutationSurfaceService.handles_path("/api/v1/vms/100/snapshot/revert") is True
+    assert VmMutationSurfaceService.handles_path("/api/v1/vms/100/clone") is True
     assert VmMutationSurfaceService.handles_path("/api/v1/vms/999/snapshot") is True
     assert VmMutationSurfaceService.handles_path("/api/v1/vms/100/migrate") is True
+    assert VmMutationSurfaceService.handles_delete("/api/v1/vms/100/snapshot") is True
 
 
 def _service_with_enqueue() -> tuple[VmMutationSurfaceService, list[tuple], list[tuple]]:
@@ -194,6 +200,9 @@ def test_snapshot_enqueue_failure_returns_500() -> None:
         wait_for_action_result=lambda node, vmid, action_id: None,
         detach_usb_from_guest=lambda vm, port, busid: {},
         enqueue_job=_enqueue_fail,
+        delete_vm_snapshot=lambda vmid, snapshot_name: f"deleted {vmid} snapshot {snapshot_name}",
+        reset_vm_to_snapshot=lambda vmid, snapshot_name: f"reset {vmid} to {snapshot_name}",
+        clone_vm=lambda source_vmid, target_vmid, name="": f"cloned {source_vmid} to {target_vmid} as {name}",
     )
 
     response = service.route_post(
@@ -219,6 +228,104 @@ def test_snapshot_no_enqueue_job_returns_503() -> None:
     assert int(response["status"]) == 503
     assert response["payload"]["ok"] is False
     assert "job queue not available" in response["payload"]["error"]
+
+
+def test_snapshot_revert_returns_200() -> None:
+    service, _ = _service()
+
+    response = service.route_post(
+        "/api/v1/vms/100/snapshot/revert",
+        json_payload={"snapshot_name": "sealed"},
+        requester_identity="admin",
+    )
+
+    assert int(response["status"]) == 200
+    assert response["payload"]["ok"] is True
+    assert response["payload"]["snapshot_revert"]["snapshot_name"] == "sealed"
+    assert response["payload"]["snapshot_revert"]["provider_result"] == "reset 100 to sealed"
+
+
+def test_snapshot_revert_missing_name_returns_400() -> None:
+    service, _ = _service()
+
+    response = service.route_post(
+        "/api/v1/vms/100/snapshot/revert",
+        json_payload={},
+        requester_identity="admin",
+    )
+
+    assert int(response["status"]) == 400
+    assert response["payload"]["ok"] is False
+
+
+def test_snapshot_revert_vm_not_found_returns_404() -> None:
+    service, _ = _service()
+
+    response = service.route_post(
+        "/api/v1/vms/999/snapshot/revert",
+        json_payload={"snapshot_name": "sealed"},
+        requester_identity="admin",
+    )
+
+    assert int(response["status"]) == 404
+    assert response["payload"]["ok"] is False
+
+
+def test_snapshot_delete_returns_200() -> None:
+    service, _ = _service()
+
+    response = service.route_delete(
+        "/api/v1/vms/100/snapshot",
+        query={"name": ["sealed"]},
+        requester_identity="admin",
+    )
+
+    assert int(response["status"]) == 200
+    assert response["payload"]["ok"] is True
+    assert response["payload"]["snapshot_delete"]["snapshot_name"] == "sealed"
+    assert response["payload"]["snapshot_delete"]["provider_result"] == "deleted 100 snapshot sealed"
+
+
+def test_snapshot_delete_missing_name_returns_400() -> None:
+    service, _ = _service()
+
+    response = service.route_delete(
+        "/api/v1/vms/100/snapshot",
+        query={},
+        requester_identity="admin",
+    )
+
+    assert int(response["status"]) == 400
+    assert response["payload"]["ok"] is False
+
+
+def test_clone_vm_returns_202() -> None:
+    service, _ = _service()
+
+    response = service.route_post(
+        "/api/v1/vms/100/clone",
+        json_payload={"target_vmid": 200, "name": "vm-200-clone"},
+        requester_identity="admin",
+    )
+
+    assert int(response["status"]) == 202
+    assert response["payload"]["ok"] is True
+    assert response["payload"]["vm_clone"]["source_vmid"] == 100
+    assert response["payload"]["vm_clone"]["target_vmid"] == 200
+    assert response["payload"]["vm_clone"]["name"] == "vm-200-clone"
+
+
+def test_clone_vm_missing_target_returns_400() -> None:
+    service, _ = _service()
+
+    response = service.route_post(
+        "/api/v1/vms/100/clone",
+        json_payload={},
+        requester_identity="admin",
+    )
+
+    assert int(response["status"]) == 400
+    assert response["payload"]["ok"] is False
 
 
 def test_migrate_route_dispatches_to_service() -> None:

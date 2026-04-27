@@ -10,8 +10,8 @@ Betroffene Verzeichnisse: `server-installer/`, `scripts/build-server-installer.s
 
 `server-installer/` enthält die Live-Build-Definition für das Beagle Server OS
 Installer-ISO. Ziel ist ein ISO das Beagle OS standalone installiert: Debian-Basis,
-KVM/QEMU, libvirt, beagle-host-services, nginx, noVNC-Proxy. Keine Proxmox-Option.
-Proxmox wird dauerhaft entfernt — es gibt keine "Beagle OS with Proxmox"-Variante mehr.
+KVM/QEMU, libvirt, beagle-host-services, nginx, noVNC-Proxy. Keine Beagle host-Option.
+Beagle host wird dauerhaft entfernt — es gibt keine "Beagle OS with Beagle host"-Variante mehr.
 
 ---
 
@@ -75,20 +75,20 @@ Umsetzung 2026-04-21 (Ist-Flow, vereinfachte Darstellung):
 
 ### Schritt 2 — Installer auf reinen Beagle-OS-standalone-Modus fokussieren
 
-- [x] Installer auf Beagle OS standalone (libvirt/KVM) fokussieren — kein Proxmox-Zweig.
+- [x] Installer auf Beagle OS standalone (libvirt/KVM) fokussieren — kein Beagle host-Zweig.
 - [x] Installer installiert: Debian base, KVM/QEMU, libvirt, beagle-host-services, nginx, noVNC-Proxy.
 
-Da Proxmox dauerhaft entfernt wird gibt es keinen Installer-Zweig mehr der zwischen
-Standalone und Proxmox wählt. Der Installer hat genau einen Pfad: Beagle OS standalone.
+Da Beagle host dauerhaft entfernt wird gibt es keinen Installer-Zweig mehr der zwischen
+Standalone und Beagle host wählt. Der Installer hat genau einen Pfad: Beagle OS standalone.
 Das vereinfacht den Dialog-Fluss erheblich — es entfällt die frühe Modus-Entscheidung.
-Der Installer-Code für den Proxmox-Zweig wird vollständig entfernt, nicht auskommentiert.
+Der Installer-Code für den Beagle host-Zweig wird vollständig entfernt, nicht auskommentiert.
 Gemeinsamkeiten (Netzwerk-Setup, Disk-Partitionierung, beagle-user-Anlage) bleiben als
 geteilte Shell-Funktionen erhalten. Nach dem Schritt muss ein frischer Install auf
-einer Test-VM ohne Proxmox-Abhängigkeiten abschließen.
+einer Test-VM ohne Beagle host-Abhängigkeiten abschließen.
 
 Umsetzung 2026-04-21:
 - `beagle-server-installer` auf standalone-only normalisiert (Legacy-Modi werden auf `standalone` gemappt).
-- Proxmox-APT-Repo-/Key-Handling und Proxmox-Branch-Logik aus Installer-Flow entfernt.
+- Beagle host-APT-Repo-/Key-Handling und Beagle host-Branch-Logik aus Installer-Flow entfernt.
 - Paketinstallation für den Host explizit auf Beagle-Standalone ausgerichtet, inkl. `nginx` und `websockify`.
 - `beagle-server-installer-gui` (curses + plain mode) auf einen einzigen Installmodus reduziert.
 
@@ -109,7 +109,7 @@ Build-Skript und in `docs/` festgehalten. Der CI/CD-Pfad (GitHub Actions oder
 Umsetzung 2026-04-21:
 - Neue Datei `server-installer/build.env` als zentrale Build-Source-of-Truth für Abhängigkeiten und Speicher-Guardrails.
 - `scripts/build-server-installer.sh` lädt `server-installer/build.env` automatisch.
-- Proxmox-spezifischer `apt-get update`-Fallback aus dem Build-Skript entfernt; Build-Pfad nutzt jetzt nur den Debian-Standalone-Fluss.
+- Beagle host-spezifischer `apt-get update`-Fallback aus dem Build-Skript entfernt; Build-Pfad nutzt jetzt nur den Debian-Standalone-Fluss.
 
 ---
 
@@ -218,12 +218,12 @@ Umsetzung 2026-04-26:
 ## Testpflicht nach Abschluss
 
 - [x] ISO bootet in QEMU-VM, Installer-Dialog erscheint.
-- [x] Installation schließt ohne Proxmox-Abhängigkeiten ab.
+- [x] Installation schließt ohne Beagle host-Abhängigkeiten ab.
 - [x] Post-Install: `systemctl is-active beagle-control-plane` → active.
 - [x] ISO-Checksum und Signatur korrekt verifizierbar.
 
 Validierung 2026-04-21:
-- Proxmox-Branches im Installer-Pfad entfernt/normalisiert; verbleibende `pve-*` Namen betreffen nur Thin-Client-Artefaktnamen, nicht Installer-Modi.
+- Beagle host-Branches im Installer-Pfad entfernt/normalisiert; verbleibende `pve-*` Namen betreffen nur Thin-Client-Artefaktnamen, nicht Installer-Modi.
 - Runtime-Smoke auf `srv1.beagle-os.com` erneut grün (`scripts/smoke-control-plane-api.sh`: 13/13), Services `beagle-control-plane`, `beagle-novnc-proxy`, `nginx` jeweils `active`.
 - Neues Verifikationsskript `scripts/verify-server-installer-artifacts.sh` prüft server-installer ISO Checksums (`SHA256SUMS`) und GPG-Signaturen (`*.sig`) reproduzierbar; Lauf lokal erfolgreich.
 - QEMU-Bootcheck reproduzierbar über `scripts/test-server-installer-live-smoke.sh` (screenshot-basierter Installer-Screen-Nachweis; lokal erfolgreich mit `BEAGLE_LIVE_SMOKE_SKIP_DHCP=1`).

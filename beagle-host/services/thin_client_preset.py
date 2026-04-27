@@ -8,20 +8,20 @@ def _string(value: Any) -> str:
 
 
 def build_streaming_mode_input(preset: Mapping[str, Any]) -> dict[str, str]:
-    # NOTE: PVE_THIN_CLIENT_PRESET_PROXMOX_* env var keys are kept for thin-client
+    # NOTE: PVE_THIN_CLIENT_PRESET_BEAGLE_* env var keys are kept for thin-client
     # backwards compatibility — renaming them would break deployed thin clients.
     # The returned dict keys use beagle_ prefixes for new internal consumers.
     return {
         "moonlight_host": _string(preset.get("PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST")),
         "spice_url": _string(preset.get("PVE_THIN_CLIENT_PRESET_SPICE_URL")),
-        # beagle_host/node/vmid are the current names; proxmox_* aliases kept for compat
-        "beagle_host": _string(preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_HOST")),
-        "beagle_node": _string(preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_NODE")),
-        "beagle_vmid": _string(preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_VMID")),
+        # beagle_host/node/vmid are the current names; beagle_* aliases kept for compat
+        "beagle_host": _string(preset.get("PVE_THIN_CLIENT_PRESET_BEAGLE_HOST")),
+        "beagle_node": _string(preset.get("PVE_THIN_CLIENT_PRESET_BEAGLE_NODE")),
+        "beagle_vmid": _string(preset.get("PVE_THIN_CLIENT_PRESET_BEAGLE_VMID")),
         "spice_username": _string(preset.get("PVE_THIN_CLIENT_PRESET_SPICE_USERNAME")),
         "spice_password": _string(preset.get("PVE_THIN_CLIENT_PRESET_SPICE_PASSWORD")),
-        "beagle_username": _string(preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME")),
-        "beagle_password": _string(preset.get("PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD")),
+        "beagle_username": _string(preset.get("PVE_THIN_CLIENT_PRESET_BEAGLE_USERNAME")),
+        "beagle_password": _string(preset.get("PVE_THIN_CLIENT_PRESET_BEAGLE_PASSWORD")),
         "novnc_url": _string(preset.get("PVE_THIN_CLIENT_PRESET_NOVNC_URL")),
         "dcv_url": _string(preset.get("PVE_THIN_CLIENT_PRESET_DCV_URL")),
     }
@@ -121,8 +121,7 @@ def build_common_preset(
     default_mode: str,
     network_mode: str,
     network_interface: str,
-    # Renamed from proxmox_* to beagle_*; PVE_THIN_CLIENT_PRESET_PROXMOX_* env var
-    # names are kept unchanged for thin-client backwards compatibility.
+    # Beagle-native host binding fields.
     beagle_scheme: str = "",
     beagle_host: str = "",
     beagle_port: str = "",
@@ -130,14 +129,6 @@ def build_common_preset(
     beagle_vmid: str = "",
     beagle_realm: str = "",
     beagle_verify_tls: str = "",
-    # Legacy aliases so existing callers that still pass proxmox_* kwargs work.
-    proxmox_scheme: str = "",
-    proxmox_host: str = "",
-    proxmox_port: str = "",
-    proxmox_node: str = "",
-    proxmox_vmid: str = "",
-    proxmox_realm: str = "",
-    proxmox_verify_tls: str = "",
     beagle_manager_url: str = "",
     moonlight_host: str,
     moonlight_local_host: str,
@@ -157,14 +148,6 @@ def build_common_preset(
     sunshine_pin: str,
     extra_fields: Mapping[str, Any] | None = None,
 ) -> dict[str, str]:
-    # Prefer new beagle_* param names; fall back to legacy proxmox_* kwargs.
-    _scheme = beagle_scheme or proxmox_scheme
-    _host = beagle_host or proxmox_host
-    _port = beagle_port or proxmox_port
-    _node = beagle_node or proxmox_node
-    _vmid = beagle_vmid or proxmox_vmid
-    _realm = beagle_realm or proxmox_realm
-    _verify_tls = beagle_verify_tls or proxmox_verify_tls
     preset = {
         "PVE_THIN_CLIENT_PRESET_PROFILE_NAME": _string(profile_name),
         "PVE_THIN_CLIENT_PRESET_VM_NAME": _string(vm_name),
@@ -173,17 +156,16 @@ def build_common_preset(
         "PVE_THIN_CLIENT_PRESET_DEFAULT_MODE": _string(default_mode),
         "PVE_THIN_CLIENT_PRESET_NETWORK_MODE": _string(network_mode),
         "PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE": _string(network_interface),
-        # PVE_THIN_CLIENT_PRESET_PROXMOX_* env var names kept for thin-client compat
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_SCHEME": _string(_scheme),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_HOST": _string(_host),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_PORT": _string(_port),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_NODE": _string(_node),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_VMID": _string(_vmid),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_REALM": _string(_realm),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS": _string(_verify_tls),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN": "",
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_SCHEME": _string(beagle_scheme),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_HOST": _string(beagle_host),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_PORT": _string(beagle_port),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_NODE": _string(beagle_node),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_VMID": _string(beagle_vmid),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_REALM": _string(beagle_realm),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_VERIFY_TLS": _string(beagle_verify_tls),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_TOKEN": "",
         "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL": _string(beagle_manager_url),
         "PVE_THIN_CLIENT_PRESET_SPICE_METHOD": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_URL": "",

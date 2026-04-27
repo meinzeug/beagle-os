@@ -31,7 +31,7 @@ _PROVIDER_INSTANCE = None
 
 
 def provider_kind() -> str:
-    return normalize_provider_kind(os.environ.get("BEAGLE_HOST_PROVIDER", "proxmox"))
+    return normalize_provider_kind(os.environ.get("BEAGLE_HOST_PROVIDER", "beagle"))
 
 
 def run_json(command: list[str], *, timeout: float | None = None) -> Any:

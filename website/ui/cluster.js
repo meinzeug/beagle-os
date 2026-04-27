@@ -57,6 +57,10 @@ export function bindClusterEvents() {
       joinExistingClusterFromWizard();
       return;
     }
+    if (event.target.closest('[data-cluster-reconcile]')) {
+      reconcileClusterMembership();
+      return;
+    }
 
     const memberEditTrigger = event.target.closest('[data-cluster-member-edit]');
     if (memberEditTrigger) {
@@ -259,10 +263,12 @@ function renderClusterSetupPanel() {
   setElementHidden('cluster-action-add-server', !localLeader);
   setElementHidden('cluster-action-token', !localLeader);
   setElementHidden('cluster-action-join-existing', initialized);
+  setElementHidden('cluster-action-reconcile', !localLeader);
   setActionDisabled('cluster-action-init', initialized);
   setActionDisabled('cluster-action-add-server', !localLeader);
   setActionDisabled('cluster-action-token', !localLeader);
   setActionDisabled('cluster-action-join-existing', initialized);
+  setActionDisabled('cluster-action-reconcile', !localLeader);
 
   setFieldIfEmpty('cluster-init-node', defaultNode);
   setFieldIfEmpty('cluster-init-api-url', defaultApiUrl);
@@ -487,6 +493,42 @@ function leaveLocalCluster() {
     return clusterHooks.loadDashboard({ force: true });
   }).catch((error) => {
     clusterHooks.setBanner('Cluster-Loesung fehlgeschlagen: ' + error.message, 'error');
+  }).finally(() => {
+    if (button) {
+      button.disabled = false;
+    }
+  });
+}
+
+function reconcileClusterMembership() {
+  const clusterStatus = state.clusterStatus || {};
+  const cluster = clusterStatus.cluster || {};
+  const localMember = clusterStatus.local_member || {};
+  if (!isLocalClusterLeader(clusterStatus, cluster, localMember)) {
+    clusterHooks.setBanner('Leader-State-Reconcile ist nur auf dem Cluster-Leader verfuegbar.', 'warn');
+    return;
+  }
+  if (!window.confirm('Cluster-Memberliste jetzt neu aufbauen? Ungueltige Eintraege und doppelte Namen werden bereinigt, der lokale Leader wird wieder als autoritative Referenz gesetzt.')) {
+    return;
+  }
+  const button = qs('cluster-action-reconcile');
+  if (button) {
+    button.disabled = true;
+  }
+  clusterHooks.setBanner('Cluster-Memberliste wird neu aufgebaut ...', 'info');
+  postJson('/cluster/reconcile-membership', {}, { __timeoutMs: 15000 }).then((result) => {
+    const repaired = Boolean(result && result.repaired);
+    const beforeCount = Number(result && result.member_count_before ? result.member_count_before : 0);
+    const afterCount = Number(result && result.member_count_after ? result.member_count_after : 0);
+    clusterHooks.setBanner(
+      repaired
+        ? ('Cluster-Memberliste bereinigt: ' + String(beforeCount) + ' → ' + String(afterCount) + ' Eintraege.')
+        : 'Cluster-Memberliste war bereits konsistent.',
+      'success'
+    );
+    return clusterHooks.loadDashboard({ force: true });
+  }).catch((error) => {
+    clusterHooks.setBanner('Leader-State-Reconcile fehlgeschlagen: ' + error.message, 'error');
   }).finally(() => {
     if (button) {
       button.disabled = false;

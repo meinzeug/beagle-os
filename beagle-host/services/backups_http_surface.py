@@ -27,6 +27,7 @@ class BackupsHttpSurfaceService:
     _BACKUP_POOL_POLICY = re.compile(r"^/api/v1/backups/policies/pools/(?P<pool_id>[A-Za-z0-9._-]+)$")
     _BACKUP_VM_POLICY = re.compile(r"^/api/v1/backups/policies/vms/(?P<vmid>\d+)$")
     _STORAGE_POOL_QUOTA = re.compile(r"^/api/v1/storage/pools/(?P<pool>[A-Za-z0-9._-]+)/quota$")
+    _STORAGE_POOL_UPLOAD = re.compile(r"^/api/v1/storage/pools/(?P<pool>[A-Za-z0-9._-]+)/upload$")
 
     # All static GET paths handled here.
     _GET_PATHS = {
@@ -45,6 +46,7 @@ class BackupsHttpSurfaceService:
         self,
         *,
         backup_service: Any,
+        storage_image_store_service: Any,
         storage_quota_service: Any,
         audit_event: Callable[..., None],
         requester_identity: Callable[[], str],
@@ -55,6 +57,7 @@ class BackupsHttpSurfaceService:
         enqueue_job: Callable[..., Any] | None = None,
     ) -> None:
         self._backup = backup_service
+        self._storage_images = storage_image_store_service
         self._storage_quota = storage_quota_service
         self._audit_event = audit_event
         self._requester_identity = requester_identity
@@ -90,6 +93,8 @@ class BackupsHttpSurfaceService:
         if self._BACKUP_VM_POLICY.match(path):
             return True
         if self._STORAGE_POOL_QUOTA.match(path):
+            return True
+        if self._STORAGE_POOL_UPLOAD.match(path):
             return True
         return False
 
@@ -171,6 +176,8 @@ class BackupsHttpSurfaceService:
         if self._BACKUP_RESTORE.match(path):
             return True
         if self._BACKUP_REPLICATE.match(path):
+            return True
+        if self._STORAGE_POOL_UPLOAD.match(path):
             return True
         return False
 
@@ -323,6 +330,37 @@ class BackupsHttpSurfaceService:
                 username=requester,
             )
             return self._json(HTTPStatus.OK, result)
+
+        m = self._STORAGE_POOL_UPLOAD.match(path)
+        if m:
+            pool_name = str(m.group("pool") or "").strip()
+            if raw_body is None:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "missing request body"})
+            headers = raw_headers or {}
+            filename = str(headers.get("X-Beagle-Upload-Filename") or "").strip()
+            overwrite_header = str(headers.get("X-Beagle-Upload-Overwrite") or "").strip().lower()
+            overwrite = overwrite_header in {"1", "true", "yes", "on"}
+            try:
+                result = self._storage_images.upload_image(
+                    pool_name,
+                    filename,
+                    raw_body,
+                    overwrite=overwrite,
+                )
+            except ValueError as exc:
+                error = str(exc)
+                status = HTTPStatus.CONFLICT if error.startswith("quota_exceeded:") or "already exists" in error else HTTPStatus.BAD_REQUEST
+                return self._json(status, {"ok": False, "error": error})
+            self._audit_event(
+                "storage.image.upload",
+                "success",
+                pool=pool_name,
+                filename=str(result.get("filename") or ""),
+                content_kind=str(result.get("content_kind") or ""),
+                size_bytes=int(result.get("size_bytes", 0) or 0),
+                username=requester,
+            )
+            return self._json(HTTPStatus.CREATED, {"ok": True, **result})
 
         return None
 

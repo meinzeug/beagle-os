@@ -12,8 +12,8 @@ Current scope:
 Host-side pairing:
 
 - the matching host provider lives in `beagle-host/providers/beagle_host_provider.py`
-- that provider is state-backed, not Proxmox-backed
+- that provider is state-backed, not Beagle-backed
 - default state root is `/var/lib/beagle/providers/beagle`
 - override with `BEAGLE_BEAGLE_PROVIDER_STATE_DIR`
 
-This is a skeleton, not a finished hypervisor backend. Its purpose is to prove that the repo now has a real second provider seam instead of only Proxmox-shaped abstractions.
+This is a skeleton, not a finished hypervisor backend. Its purpose is to prove that the repo now has a real second provider seam instead of only Beagle-shaped abstractions.

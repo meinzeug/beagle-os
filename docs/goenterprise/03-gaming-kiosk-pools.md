@@ -263,4 +263,4 @@ Beagle OS ist die einzige Virtualisierungsplattform die:
 
 - **Citrix/Omnissa**: Kein Gaming-Modus, RDP-Latenz für Gaming ungeeignet → Beagle: Moonlight, <5ms, Gaming-native
 - **GeForce NOW / Shadow PC**: Cloud-only, teuer, DSGVO-Probleme → Beagle: On-Prem, selbst gehostet
-- **Proxmox**: Kein Broker, kein Kiosk-UI, kein Time-Limit → Beagle: vollständiger Stack
+- **Beagle host**: Kein Broker, kein Kiosk-UI, kein Time-Limit → Beagle: vollständiger Stack

@@ -30,7 +30,7 @@ PY
 dns_wait_targets() {
   local host
   local -a raw_targets=(
-    "${PVE_THIN_CLIENT_PROXMOX_HOST:-}"
+    "${PVE_THIN_CLIENT_BEAGLE_HOST:-}"
     "${PVE_THIN_CLIENT_MOONLIGHT_HOST:-}"
     "$(extract_host_from_url "${PVE_THIN_CLIENT_SUNSHINE_API_URL:-}" 2>/dev/null || true)"
   )

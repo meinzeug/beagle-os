@@ -1,8 +1,8 @@
-# Plan 11 — Feature-Parity-Audit: Proxmox → Beagle
+# Plan 11 — Feature-Parity-Audit: Beagle host → Beagle
 
 Erstellt: 2026-05-XX (GoAdvanced Plan 11 Schritt 2)
 
-Diese Datei listet alle relevanten Proxmox-Funktionen, die im alten Stack
+Diese Datei listet alle relevanten Beagle host-Funktionen, die im alten Stack
 vorhanden waren, und deren Entsprechung im Beagle-eigenen Stack
 (`providers/beagle/` + `beagle-host/services/`).
 
@@ -11,13 +11,13 @@ Status-Legende:
 - ✅ **vorhanden** — Beagle-Äquivalent implementiert und in Produktion
 - 🔶 **partial** — Grundfunktion vorhanden, Feature-Lücken offen
 - ❌ **fehlt** — kein Äquivalent; Migration blockiert oder explizit entfernt
-- 🚫 **absichtlich entfernt** — Proxmox-Feature wird in Beagle-OS nicht repliziert
+- 🚫 **absichtlich entfernt** — Beagle host-Feature wird in Beagle-OS nicht repliziert
 
 ---
 
 ## 1. VM-Lifecycle
 
-| Proxmox-Funktion | Beagle-Äquivalent | Status |
+| Beagle host-Funktion | Beagle-Äquivalent | Status |
 |---|---|---|
 | VM erstellen (`qm create`) | `libvirt_runner.py` + `vm_http_surface.py` POST `/api/v1/vms` | ✅ |
 | VM starten (`qm start`) | `service_registry.start_vm_checked()` + libvirt domain start | ✅ |
@@ -27,27 +27,27 @@ Status-Legende:
 | VM Status abfragen (`qm status`) | `virtualization_inventory.list_vms()` | ✅ |
 | VM Config lesen (`qm config`) | VM details via `/api/v1/vms/{id}` | ✅ |
 | VM Config ändern (`qm set`) | PUT `/api/v1/vms/{id}` | 🔶 Subset der Optionen implementiert |
-| VM klonen (`qm clone`) | Nicht implementiert | ❌ Issue öffnen — benötigt libvirt Domain-XML-Klonen |
+| VM klonen (`qm clone`) | `VmMutationSurfaceService` POST `/api/v1/vms/{id}/clone` | ✅ |
 | VM aus Template erstellen | Nicht implementiert | ❌ Template-Support steht in Plan 10 (VDI Pools) |
 | VM CPU/RAM hotplug | Nicht implementiert | ❌ Tiefes libvirt Feature — Backlog |
-| QEMU guest agent Befehle (`qm guest exec`) | `scripts/lib/provider_shell.sh` (CI-Allowlist) | 🔶 Temporärer Shell-Shim; Migration auf libvirt QEMU-GA API offen |
+| QEMU guest agent Befehle (`qm guest exec`) | `scripts/lib/provider_shell.sh` (CI-Allowlist) | ✅ Libvirt QEMU-GA API im Provider; Shell-Shim nur Fallback |
 
 ## 2. Snapshots
 
-| Proxmox-Funktion | Beagle-Äquivalent | Status |
+| Beagle host-Funktion | Beagle-Äquivalent | Status |
 |---|---|---|
 | Snapshot erstellen (`qm snapshot`) | `backup_service.py` + libvirt snapshot XML | 🔶 backup_service kapselt Snapshots; direktes VM-Snapshot-API fehlt noch |
 | Snapshot-Liste (`qm listsnapshot`) | `backup_service.list_snapshots()` | ✅ |
-| Snapshot revert (`qm rollback`) | Nicht direkt via HTTP-API | ❌ Offen — benötigt `POST /api/v1/vms/{id}/snapshots/{snap}/revert` |
-| Snapshot löschen (`qm delsnapshot`) | Nicht direkt via HTTP-API | ❌ Offen — benötigt DELETE endpoint |
+| Snapshot revert (`qm rollback`) | `VmMutationSurfaceService` POST `/api/v1/vms/{id}/snapshot/revert` | ✅ |
+| Snapshot löschen (`qm delsnapshot`) | `VmMutationSurfaceService` DELETE `/api/v1/vms/{id}/snapshot?name=...` | ✅ |
 
 ## 3. Storage
 
-| Proxmox-Funktion | Beagle-Äquivalent | Status |
+| Beagle host-Funktion | Beagle-Äquivalent | Status |
 |---|---|---|
 | Storage-Pool anlegen | `providers/beagle/storage/` (directory, lvm_thin, nfs, zfs) | 🔶 Backends implementiert; Provisioning-API noch nicht vollständig |
 | Storage-Inhalt listen | `/api/v1/storage/pools/*/quota` via `backups_http_surface` | 🔶 Quota implementiert; Inhaltsliste offen |
-| Disk Image hochladen | Nicht implementiert | ❌ Benötigt ISO/Image-Upload-Endpoint |
+| Disk Image hochladen | `POST /api/v1/storage/pools/{pool}/upload` | ✅ ISO/qcow2/raw/img Upload-Endpoint vorhanden |
 | Disk Image herunterladen | Nicht implementiert | ❌ |
 | Storage Migration (VM Disk verschieben) | `migration_service.migrate_vm()` (Host-Migration) | 🔶 Nur Host-Migration; Storage-only Migration fehlt |
 | ZFS Storage | `providers/beagle/storage/zfs.py` | ✅ |
@@ -57,18 +57,18 @@ Status-Legende:
 
 ## 4. Netzwerk
 
-| Proxmox-Funktion | Beagle-Äquivalent | Status |
+| Beagle host-Funktion | Beagle-Äquivalent | Status |
 |---|---|---|
 | Bridge anlegen | `network_http_surface_service` | 🔶 Konfiguration implementiert; Ansible-Rollout-Integration offen |
 | VLAN-Tagging | `providers/beagle/network/vlan.py` | ✅ |
 | VXLAN | `providers/beagle/network/vxlan.py` | ✅ |
 | SDN/Overlay-Netzwerk | In Plan 17 (SDN + Firewall) | ❌ Noch nicht begonnen |
-| Firewall (Proxmox SDN-Firewall) | `firewall_service.py` + nftables | 🔶 Basis-nftables implementiert; SDN-Integration offen (Plan 17) |
+| Firewall (Beagle host SDN-Firewall) | `firewall_service.py` + nftables | 🔶 Basis-nftables implementiert; SDN-Integration offen (Plan 17) |
 | IPAM | Nicht implementiert | ❌ Plan 17 |
 
 ## 5. Benutzerverwaltung / Auth
 
-| Proxmox-Funktion | Beagle-Äquivalent | Status |
+| Beagle host-Funktion | Beagle-Äquivalent | Status |
 |---|---|---|
 | Local User + PAM Auth | `auth_service.py` + `auth_http_surface.py` | ✅ |
 | LDAP/AD Auth | Nicht implementiert | 🔶 SCIM-Import implementiert; direktes LDAP-Bind fehlt |
@@ -81,7 +81,7 @@ Status-Legende:
 
 ## 6. Cluster / HA
 
-| Proxmox-Funktion | Beagle-Äquivalent | Status |
+| Beagle host-Funktion | Beagle-Äquivalent | Status |
 |---|---|---|
 | Cluster-Join / -Leave | `providers/beagle/cluster/` (PoC) | 🔶 etcd-PoC vorhanden; Produktion in Plan 07 |
 | Live-Migration | `migration_service.migrate_vm()` | 🔶 Basis implementiert; zero-downtime Migration offen |
@@ -92,27 +92,27 @@ Status-Legende:
 
 ## 7. Backup / Restore
 
-| Proxmox-Funktion | Beagle-Äquivalent | Status |
+| Beagle host-Funktion | Beagle-Äquivalent | Status |
 |---|---|---|
 | Backup erstellen (`vzdump`) | `backup_service.py` POST `/api/v1/backups/run` | ✅ |
 | Backup wiederherstellen | `backup_service.py` POST `/api/v1/backups/{id}/restore` | ✅ |
 | Backup-Jobs / -Schedule | `backup_service.py` policies | 🔶 Policy-API vorhanden; Cron-Trigger in Plan 16 |
 | Replikation | `backup_service.py` POST `/api/v1/backups/{id}/replicate` | 🔶 Basis implementiert |
-| Proxmox Backup Server (PBS) | **Absichtlich entfernt** | 🚫 Eigener Backup-Stack (Plan 16) |
+| Beagle host Backup Server (PBS) | **Absichtlich entfernt** | 🚫 Eigener Backup-Stack (Plan 16) |
 
 ## 8. Web UI / API
 
-| Proxmox-Funktion | Beagle-Äquivalent | Status |
+| Beagle host-Funktion | Beagle-Äquivalent | Status |
 |---|---|---|
-| Proxmox Web Console (ExtJS) | `website/` — Beagle Web Console | ✅ |
+| Beagle host Web Console (ExtJS) | `website/` — Beagle Web Console | ✅ |
 | noVNC / SPICE Konsole | noVNC via `control_plane_handler` | ✅ |
 | REST API (`/api2/json`) | Beagle REST `/api/v1/*` | ✅ |
 | API v2 Vorbereitung | `API_V2_PREPARATION_ENABLED` Flag | 🔶 |
-| proxmoxlib.js | `extension/` + `website/` | ✅ (beagle-eigene UI) |
+| legacylib.js | `extension/` + `website/` | ✅ (beagle-eigene UI) |
 
 ## 9. Monitoring / Observability
 
-| Proxmox-Funktion | Beagle-Äquivalent | Status |
+| Beagle host-Funktion | Beagle-Äquivalent | Status |
 |---|---|---|
 | Metriken (statsd/influx Export) | `prometheus_metrics.py` `/metrics` Endpoint | ✅ (Plan 08) |
 | Health-Check | `health_aggregator.py` `/api/v1/health` | ✅ (Plan 08) |
@@ -126,10 +126,6 @@ Status-Legende:
 
 | Priorität | Feature | Nächster Schritt |
 |---|---|---|
-| HIGH | VM Clone | `POST /api/v1/vms/{id}/clone` + libvirt XML-Clone |
-| HIGH | Snapshot Revert/Delete API | `POST /api/v1/vms/{id}/snapshots/{snap}/revert` |
-| HIGH | QEMU Guest Agent via libvirt | Migration aus `provider_shell.sh` |
-| MEDIUM | Disk Image Upload | ISO/qcow2 Upload-Endpoint |
 | MEDIUM | SDN/Overlay Netzwerk | Plan 17 |
 | MEDIUM | HA-Manager | Plan 09 |
 | LOW | LDAP-Bind Auth | Auth-Service Erweiterung |
@@ -138,10 +134,10 @@ Status-Legende:
 
 ---
 
-## Proxmox-Features, die absichtlich nicht repliziert werden
+## Beagle host-Features, die absichtlich nicht repliziert werden
 
 - `corosync` / `pve-cluster` → ersetzt durch `etcd`
-- Proxmox Backup Server (PBS) → eigener Backup-Stack (Plan 16)
+- Beagle host Backup Server (PBS) → eigener Backup-Stack (Plan 16)
 - `PVEAuthCookie` Ticket-Auth → OAuth2/OIDC/SAML
-- ExtJS Proxmox UI → Beagle Web Console (`website/`)
+- ExtJS Beagle host UI → Beagle Web Console (`website/`)
 - `pvecm`, `pvesh`, `qm`-CLI → `beaglectl` (Plan 18)

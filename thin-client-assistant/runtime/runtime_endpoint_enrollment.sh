@@ -39,7 +39,7 @@ runtime_endpoint_hostname() {
 runtime_endpoint_id() {
   local hostname_value
   hostname_value="$(runtime_endpoint_hostname)"
-  printf '%s-%s\n' "$hostname_value" "${PVE_THIN_CLIENT_PROXMOX_VMID:-0}"
+  printf '%s-%s\n' "$hostname_value" "${PVE_THIN_CLIENT_BEAGLE_VMID:-0}"
 }
 
 reload_runtime_enrollment_config() {

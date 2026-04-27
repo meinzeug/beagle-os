@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 beagle_provider_target_is_local() {
-  local target="${PROXMOX_HOST:-${BEAGLE_PROVIDER_HOST:-}}"
+  local target="${BEAGLE_HOST:-${BEAGLE_PROVIDER_HOST:-}}"
   case "$target" in
     ""|localhost|127.0.0.1|::1|"$(hostname)"|"$(hostname -f 2>/dev/null || hostname)")
       return 0
@@ -13,7 +13,7 @@ beagle_provider_target_is_local() {
 }
 
 beagle_provider_ssh_host() {
-  local target="${PROXMOX_HOST:-${BEAGLE_PROVIDER_HOST:-}}"
+  local target="${BEAGLE_HOST:-${BEAGLE_PROVIDER_HOST:-}}"
   if beagle_provider_target_is_local; then
     bash -lc "$*"
     return 0

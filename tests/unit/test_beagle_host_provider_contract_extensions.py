@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest import mock
 
 import sys
 from pathlib import Path
@@ -62,6 +63,39 @@ class BeagleHostProviderContractExtensionsTests(unittest.TestCase):
         self.assertEqual(payload.get("provider"), "beagle")
         self.assertFalse(payload.get("available"))
         self.assertEqual(payload.get("scheme"), "vnc")
+
+    def test_guest_exec_bash_uses_libvirt_qemu_agent_when_available(self):
+        with mock.patch.object(BeagleHostProvider, "_find_vm", return_value={"vmid": 101, "node": "beagle-0"}), mock.patch.object(
+            BeagleHostProvider,
+            "_libvirt_enabled",
+            return_value=True,
+        ), mock.patch.object(
+            self.provider,
+            "_run_virsh",
+            return_value='{"return": {"pid": 42}}',
+        ) as run_virsh:
+            payload = self.provider.guest_exec_bash(101, "echo hello")
+
+        self.assertEqual(payload.get("pid"), 42)
+        self.assertEqual(run_virsh.call_args[0][0], "qemu-agent-command")
+        self.assertEqual(run_virsh.call_args[0][1], "beagle-101")
+
+    def test_guest_exec_status_uses_libvirt_qemu_agent_when_available(self):
+        with mock.patch.object(BeagleHostProvider, "_find_vm", return_value={"vmid": 101, "node": "beagle-0"}), mock.patch.object(
+            BeagleHostProvider,
+            "_libvirt_enabled",
+            return_value=True,
+        ), mock.patch.object(
+            self.provider,
+            "_run_virsh",
+            return_value='{"return": {"exited": true, "exitcode": 0, "out-data": "b2s=", "err-data": ""}}',
+        ) as run_virsh:
+            payload = self.provider.guest_exec_status(101, 42)
+
+        self.assertTrue(payload.get("exited"))
+        self.assertEqual(payload.get("exitcode"), 0)
+        self.assertEqual(run_virsh.call_args[0][0], "qemu-agent-command")
+        self.assertEqual(run_virsh.call_args[0][1], "beagle-101")
 
 
 if __name__ == "__main__":

@@ -116,7 +116,7 @@ Ein Python-API-Server der auf Port 9088 läuft braucht keine root-Rechte; ein de
 `Restart=on-failure` und `RestartSec=5` stellen automatische Wiederanlauf sicher.
 `PrivateTmp=yes` und `NoNewPrivileges=yes` sind obligatorische Hardening-Optionen.
 
-> Umsetzung 2026-04-21: Unit auf dedizierten Service-User `beagle-manager` umgestellt (`User/Group`), `SupplementaryGroups=libvirt kvm` gesetzt, `Restart=on-failure` + `RestartSec=5` gesetzt, `CapabilityBoundingSet=` geleert und Proxmox-spezifische Write-Paths entfernt. Auf `srv1.beagle-os.com` per installiertem Script ausgerollt und verifiziert (`systemctl show` zeigt non-root + leeres Capability-Set, Service `active`).
+> Umsetzung 2026-04-21: Unit auf dedizierten Service-User `beagle-manager` umgestellt (`User/Group`), `SupplementaryGroups=libvirt kvm` gesetzt, `Restart=on-failure` + `RestartSec=5` gesetzt, `CapabilityBoundingSet=` geleert und Beagle host-spezifische Write-Paths entfernt. Auf `srv1.beagle-os.com` per installiertem Script ausgerollt und verifiziert (`systemctl show` zeigt non-root + leeres Capability-Set, Service `active`).
 
 ---
 

@@ -2,6 +2,11 @@
 
 ## Update 2026-04-26 (GoFuture Re-Open: WebUI-Operability)
 
+- [x] Policies-Panel Subnavigation fuer Pools/Templates/Entitlements/Policies/Sessions einziehen und Ist-Zustand dokumentieren.
+- [x] Passwort-/Username-Felder in den Hidden-/Modal-Flows formgerecht einordnen und DOM-Warnungen reduzieren.
+- [x] Leader-State-Reconcile fuer Cluster-Memberliste implementieren: doppelte/defekte Eintraege in `members.json` vom Leader aus normalisieren und per WebUI-Action ausloesen.
+- [x] GPU-Pool-Wizard-Sichtlabels kuerzen/normalisieren, ohne den stabilen `gpu_class`-Value zu veraendern.
+- [x] Restliche Passwort-/Autocomplete-Warnungen im Login-/Provisioning-Flow auf `srv1` nach Reload nicht mehr reproduzierbar.
 - [x] GoFuture-Index wieder oeffnen und WebUI-Bedienbarkeit als Abschlusskriterium fuer Operator-Flows dokumentieren.
 - [x] Detailplan fuer `/#panel=cluster` erweitern: Cluster erstellen, Server hinzufuegen, Join-Token, Preflight, Job-Progress, Member-Verwaltung, srv1/srv2-Validierung.
 - [x] Cluster-Member-Leave auf 2-Phasen-Standard umstellen: Leader entfernt Member autoritativ per mTLS-RPC, danach lokales Cleanup und UI-Danger-Action nur auf dem betroffenen Member.
@@ -14,15 +19,16 @@
 - [x] Leader-seitigen "Server hinzufügen"-Preflight implementieren: DNS/API/RPC/SSH pruefen und Join-Token nach bestandenem Pflicht-Preflight erzeugen.
 - [x] GoFuture Plan 07 Schritt 7 Setup-Code-Slice umsetzen: Zielserver erzeugt kurzlebigen Setup-Code, Leader verbindet per Hostname + Code, keine offene Remote-Health-/Inventory-Abfrage.
 - [x] GoFuture Plan 07 Schritt 7 fortsetzen: Cluster-Wizard-UI-Regressions implementieren.
-- [ ] GoFuture Plan 08 Schritt 7 umsetzen: `/#panel=virtualization` UX- und Bedienbarkeits-Refactor fuer Nodes/Storage/Networking.
+- [x] GoFuture Plan 08 Schritt 7 umsetzen: `/#panel=virtualization` UX- und Bedienbarkeits-Refactor fuer Nodes/Storage/Networking.
 - [x] GoFuture Plan 08 Schritt 7 Teil-Slice: Node-Detail-Endpoint + WebUI-Detail-Modal fuer Services, Reachability, Storage, Bridges, GPUs und Warnings auf `srv1`/`srv2` live ausrollen.
 - [x] GoFuture Plan 08 Schritt 7 Teil-Slice: Storage-Tabelle in `/#panel=virtualization` durch bedienbare Storage-Cards mit Quota-/Health-Aktionen ersetzen und live auf `srv1`/`srv2` ausrollen.
 - [x] GoFuture Plan 08 Schritt 7 Teil-Slice: Bridge-/Networking-Bereich in `/#panel=virtualization` durch Bridge-Cards, Bridge-Detail-Flow und echten IPAM-Zone-Flow auf `srv1`/`srv2` bedienbar machen.
 - [x] GoFuture Plan 08 Schritt 7 Teil-Slice: VM-Inspector in `/#panel=virtualization` mit `Letzte VM`-/Recent-Shortcuts und getrennten Allgemein-/Disk-/Netzwerk-Bereichen auf `srv1`/`srv2` ausrollen.
 - [x] GoFuture Plan 08 Schritt 7 Teil-Slice: reproduzierbaren Browser-Smoke fuer `/#panel=virtualization` erstellen und gegen `srv1`/`srv2` erfolgreich ausfuehren.
 - [x] GoFuture Plan 12 Schritt 6 Teil-Slice: physische GPU-Karten mit Readiness-/Ursachenanzeige fuer `srv2` GTX-1080-Blocker im Virtualization-Panel ausrollen.
-- [ ] GoFuture Plan 12 Schritt 6 umsetzen: GPU/vGPU/SR-IOV Bedienung und sichere Passthrough-Diagnose im Virtualization-Panel.
+- [x] GoFuture Plan 12 Schritt 6 umsetzen: GPU/vGPU/SR-IOV Bedienung und sichere Passthrough-Diagnose im Virtualization-Panel.
 - [x] GoFuture Plan 12 / Plan 10 Teil-Slice: `GPU-Klasse` im Pool-Wizard von Freitext auf gefuehrte Live-Select-Box fuer Passthrough-Klassen umstellen; mdev-/SR-IOV-Hinweise im Wizard anzeigen.
+- [x] GoFuture Plan 10 Template-Bibliothek als Kartenansicht modernisieren: Source-VM, Build-Zeit, Health und Template-Aktionen im Policies-Panel sichtbar machen.
 - [x] GoEnterprise Plan 03 Schritt 5 Teil-Slice: Kiosk-Session-Ende/Expiry nutzt jetzt den echten Reset-Pfad und gibt VMs direkt wieder frei; dedizierte Regression `tests/unit/test_vm_stateless_reset.py` hinzugefuegt.
 - [x] GoEnterprise Plan 03 Testpflicht schliessen: Gaming-no-GPU-Fail, Kiosk-Operator-Live-Sicht und RBAC-no-admin auf `srv1`/`srv2` reproduzierbar validieren.
 - [x] Frontend-RBAC-Drift fuer eingeschraenkte Rollen beheben: `/#panel=policies` darf fuer `kiosk_operator` keine unnoetigen Cluster-/Pool-/IAM-Requests mehr vorladen.
@@ -31,24 +37,26 @@
 - [x] GoEnterprise Plan 03 Operator-Slice weiterziehen: Spieltitel sowie `+15m / +30m / +60m` im Kiosk-Controller auf `srv2` browserseitig validieren.
 - [x] GoEnterprise Plan 03 Live-Smoke reproduzierbar machen: `scripts/smoke-gaming-kiosk-flow.sh` fuer `srv1`/`srv2` einfuehren, Ownership-/Lock-Drift auf `desktop-pools.json(.lock)` beheben und den kombinierten Gaming-/Kiosk-API-Smoke auf beiden Hosts gruen fahren.
 - [x] GoFuture Plan 13 Schritt 7 UI-Regressions schliessen: `tests/unit/test_iam_ui_regressions.py` fuer User-Detail, Rollen-Guardrails, Session-Revoke und Tenant-/IdP-/SCIM-Empty-States ergaenzen.
+- [x] GoFuture Plan 13 Schritt 7 E2E-Smoke schliessen: `scripts/test-iam-plan13-smoke.py` auf `srv1` gruen fahren (`PLAN13_IAM_SMOKE=PASS`).
 - [x] GPU-Pflichtblock auf `srv2` schliessen: reproduzierbaren Gast-Passthrough-Smoke (`scripts/test-gpu-passthrough-guest-smoke.sh`) ins Repo legen, live gegen die GTX 1080 fahren und die letzte offene GPU-Scheduler-Prognose (`predicted_gpu_utilization_pct_4h`) in `smart_scheduler.py` schliessen.
 - [x] GoEnterprise Plan 06 Schritt 5 schliessen: Session-Handover-Historie als echte WebUI-Karte im Policies-Panel aus `GET /api/v1/sessions/handover` rendern und browserseitig auf `srv1`/`srv2` validieren.
 - [x] GoAdvanced Plan 10 Schritt 4 schliessen: `tests/integration/test_ha_failover.py` als eigenstaendiges Integrationsmodul fuer Heartbeat-Timeout, Fencing und HA-Reconcile ergaenzen.
 - [x] GoEnterprise Plan 08 Seed-/PXE-Slice schliessen: Seed-Discovery im Installer (`/media/beagle-seed.yaml`, `beagle.seed_url=...`), `scripts/setup-pxe-server.sh`, `docs/deployment/pxe-deployment.md` und `tests/integration/test_pxe_boot.sh` umsetzen und auf `srv1`/`srv2` per Dry-Run gegen echte Installer-ISOs validieren.
 - [x] Fehlende Installer-Regressions fuer Plan 08 nachziehen: `tests/unit/test_installer_validation.py` und `tests/unit/test_post_install_check.py` einfuehren.
-- [ ] GoFuture Plan 10 Schritt 7 umsetzen: `/#panel=policies` grundlegend ueberarbeiten.
+- [x] GoFuture Plan 10 Schritt 7 umsetzen: `/#panel=policies` grundlegend ueberarbeiten.
 - [x] Frontend-Drift im authentifizierten Policies-Flow auf `srv1`/`srv2` bereinigt (`beagle-web-ui-config.js` korrekt ausgeliefert, keine DevTools-Console-Errors mehr im Policies-Flow).
-- [ ] GoFuture Plan 13 Schritt 7 umsetzen: `/#panel=iam` grundlegend ueberarbeiten.
-- [ ] GoFuture Plan 15 Schritt 6 umsetzen: `/#panel=audit` grundlegend ueberarbeiten.
+- [x] GoFuture Plan 10 Entitlements-Teil-Slice schliessen: Pool-Entitlements im Policies-Panel als Chips anzeigen und per UI hinzufuegen/entfernen.
+- [x] GoFuture Plan 13 Schritt 7 umsetzen: `/#panel=iam` grundlegend ueberarbeiten.
+- [x] GoFuture Plan 15 Schritt 6 umsetzen: `/#panel=audit` grundlegend ueberarbeiten.
 - [x] GoFuture Plan 06 Schritt 6 erster Slice: Artifact-Status-API, Refresh-Start und WebUI-Statusbereich im Updates-Panel umsetzen.
 - [x] GoFuture Plan 06 Schritt 6 fortsetzen: Artifact-Job-Fortschritt, Preflight, Fehlerauszug und WebUI-Regressions ergaenzen.
 - [x] GoFuture Plan 06 Schritt 6 erweitern: Artifact-Watchdog in WebUI + Host-Timer mit optionalem Auto-Repair umsetzen.
 - [x] `/#panel=settings_updates` auf drei moderne Operator-Karten reduzieren und Direktaufruf-Autoload nach Admin-Login reparieren; live auf `srv1`/`srv2` per Browser-Smoke validiert.
 - [x] Lange Artifact-/ISO-Builds in `/#panel=settings_updates` sichtbar machen: Live-Phase, Laufzeit, aktive Prozesse, Fortschrittsbalken und Heartbeat-Status fuer `refresh.status.json`.
 - [x] Laufenden Artifact-Refresh auf `srv1` abschliessen lassen und danach `scripts/check-beagle-host.sh` auf `srv1`/`srv2` validieren.
-- [ ] Laufenden Repo-Auto-Update-Build auf `srv1`/`srv2` bis `state=healthy` final abnehmen und Commit-Datei auf neuesten Push pruefen.
-- [ ] APT-Automatik-Policy entscheiden und ggf. sicheren unattended-upgrades-/Timer-Pfad bauen; aktuell prueft die WebUI automatisch, installiert APT-Pakete aber bewusst nur manuell.
-- [ ] Watchdog-Auto-Repair live auf mindestens einem Host mit echter Drift verifizieren (`reaction=started_refresh`).
+- [x] Laufenden Repo-Auto-Update-Build auf `srv1`/`srv2` bis `state=healthy` final abnehmen und Commit-Datei auf neuesten Push pruefen.
+- [x] APT-Automatik-Policy entscheiden: Betriebssystempakete bleiben bewusst manuell installierbar; die Automatik gilt nur fuer Repo-/Artefakt-Refresh.
+- [x] Watchdog-Auto-Repair live auf mindestens einem Host mit echter Drift verifizieren (`reaction=started_refresh`).
 - [ ] QEMU+SSH Live-Migration-Deadlock zwischen `srv1` und `srv2` weiter eingrenzen oder Shared-Storage-Migration als Abnahmepfad dokumentieren.
 
 ## Refactor Wave 2 (7.0)
@@ -155,13 +163,13 @@
 - [x] Execute GoFuture Plan 12 Schritt 5: add optional `gpu_class` to DesktopPool and implement GPU-slot-aware VM registration with persisted reservations + `pending-gpu` fallback when no matching slot exists; validated via local unit tests and live API smoke on `srv1.beagle-os.com` (2026-04-23).
 - [ ] Close GoFuture Plan 12 remaining GPU hardware testpflicht on a GPU-capable runtime (passthrough proof, 4x vGPU + 5th pending, reboot proof).
 - [x] Execute GoFuture Plan 06 Schritt 1: fully read `beagle-server-installer` and document the current installer flow as ASCII diagram in `docs/gofuture/06-server-installer.md` (2026-04-21).
-- [x] Execute GoFuture Plan 06 Schritt 2: refactor server installer + GUI to standalone-only mode and remove Proxmox installer branches (2026-04-21).
+- [x] Execute GoFuture Plan 06 Schritt 2: refactor server installer + GUI to standalone-only mode and remove Beagle host installer branches (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 3: add central `server-installer/build.env` and wire `scripts/build-server-installer.sh` to load reproducible build dependencies from it (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 4: unify installer and post-install host bootstrap via shared hook script (`scripts/install-beagle-host-postinstall.sh`) and remove duplicated inline postinstall logic (2026-04-21).
 - [x] Execute GoFuture Plan 06 Schritt 5: integrate release checksum regeneration + optional GPG ISO/signature asset flow in `scripts/create-github-release.sh` (2026-04-21).
-- [x] Execute GoFuture Plan 06 test checklist items for standalone/provisioning runtime and artifact verification (`installation without Proxmox deps`, `service active`, `checksum+signature verifiable`) including new script `scripts/verify-server-installer-artifacts.sh` (2026-04-21).
+- [x] Execute GoFuture Plan 06 test checklist items for standalone/provisioning runtime and artifact verification (`installation without Beagle host deps`, `service active`, `checksum+signature verifiable`) including new script `scripts/verify-server-installer-artifacts.sh` (2026-04-21).
 - [x] Close final GoFuture Plan 06 test checkbox via enhanced QEMU live-smoke (`scripts/test-server-installer-live-smoke.sh` screenshot-based installer dialog detection) (2026-04-21).
-- [x] Complete GoFuture Plan 05 Schritt 2: Proxmox legacy dead-code cleanup (remove `_proxmox_ui_port()`, `proxmox_ui_ports_raw` parameters, Proxmox UI console path from services, PROXMOX_UI_PORTS_RAW from control-plane); verify grep-result 0 matches; smoke tests 13/13 pass on srv1.beagle-os.com (2026-04-21).
+- [x] Complete GoFuture Plan 05 Schritt 2: Beagle host legacy dead-code cleanup (remove `_legacy_ui_port()`, `legacy_ui_ports_raw` parameters, Beagle host UI console path from services, LEGACY_UI_PORTS_RAW from control-plane); verify grep-result 0 matches; smoke tests 13/13 pass on srv1.beagle-os.com (2026-04-21).
 - [x] Execute GoFuture Plan 19 Schritt 1: create three endpoint OS profiles (desktop-thin-client, gaming-kiosk, engineering-station) under `beagle-os/profiles/` with profile.conf config (name, description, version, packages, systemd targets/services, encryption defaults); implement profile manager `beagle-os/profile_manager.py` for discovery/loading/JSON export; deploy and test on srv1.beagle-os.com (all 3 profiles load correctly) (2026-04-21).
 - [x] Execute GoFuture Plan 19 Schritt 6: modernize `beagle-kiosk/` by validating Electron baseline (>=29, currently 37.2.0) and implementing automatic Beagle enrollment flow (auto enroll on startup with token, status/retry UI, config persistence); deploy + lint-smoke on srv1.beagle-os.com (2026-04-21).
 - [x] Execute GoFuture Plan 18 Schritt 1: implement route-scanning OpenAPI generator (`scripts/generate-openapi-v1.py`) and publish generated artifacts (`docs/api/openapi.v1.generated.yaml`, `docs/api/openapi-v1-coverage.md`) plus breaking-change policy (`docs/api/breaking-change-policy.md`) (2026-04-21).
@@ -198,7 +206,7 @@
 - [x] Simplify the Cluster "weiteren Server vorbereiten" wizard to hostname-first UX with auto-derived expert values.
 - [x] Harden public Cluster RPC port `9089` on `srv1`/`srv2` with peer-only iptables rules.
 - [x] Remove unauthenticated `/api/v1/health` exposure and stop Cluster preflight from probing target `/health` without verification.
-- [ ] Reduce or retire public legacy port `8443` after moving installer/download paths to `443`.
+- [x] Retired the separate legacy HTTPS listener after moving installer/download paths to `443`.
 - [x] Implement real target-server setup-code verification for Cluster add-server wizard.
 - [x] Restore VM provisioning prerequisites on beagleserver (network/storage) and verify API create works.
 - [x] Add VM delete function in inventory detail (Web UI + backend route + provider wiring).

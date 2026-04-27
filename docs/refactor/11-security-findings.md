@@ -105,7 +105,7 @@ Stand: 2026-04-27 (ergänzt: S-027 Seed-Config Klartext-Admin-Passwort als verbl
 - Fix:
   - Die Secret-Pruefung wurde in den Shell-Schritt verlegt.
   - Der Schritt importiert den GPG-Key jetzt nur noch, wenn `BEAGLE_RELEASE_GPG_KEY` in `env` gesetzt ist; sonst wird sauber ohne Signaturpfad weitergelaufen.
-  - Follow-up: der `no-proxmox-references`-Workflow normalisiert `./`-Pfade vor dem Allowlist-Vergleich, damit erlaubte Legacy-Dateien nicht faelschlich als neue Proxmox-Referenzen blockieren.
+  - Follow-up: der `no-legacy-provider-references`-Workflow normalisiert `./`-Pfade vor dem Allowlist-Vergleich, damit erlaubte Legacy-Dateien nicht faelschlich als neue Legacy-Provider-Referenzen blockieren.
 - Rest-Risiko:
   - Die eigentliche Release-Erzeugung auf GitHub muss nach Push erneut live bestaetigt werden.
 
@@ -130,11 +130,11 @@ Stand: 2026-04-27 (ergänzt: S-027 Seed-Config Klartext-Admin-Passwort als verbl
 
 ---
 
-## S-021 — Cluster-Preflight und RPC-Port waren zu offen (PATCHED, REST-RISIKO 8443)
+## S-021 — Cluster-Preflight und RPC-Port waren zu offen (PATCHED)
 
 - Status: **kritische Punkte gepatcht/live gehärtet** (2026-04-26)
 - Risiko vorher: **Hoch**
-- Risiko nach Fix: **Mittel** wegen weiter öffentlich erreichbarem Legacy-Port `8443`
+- Risiko nach Fix: **Niedrig**
 - Betroffene Server: `srv1.beagle-os.com`, `srv2.beagle-os.com`
 - Betroffene Dateien:
   - `beagle-host/services/request_handler_mixin.py`
@@ -143,7 +143,7 @@ Stand: 2026-04-27 (ergänzt: S-027 Seed-Config Klartext-Admin-Passwort als verbl
   - `scripts/harden-cluster-api-iptables.sh` (live erneut fuer `9089` genutzt)
   - `/etc/iptables/rules.v4` auf `srv1` und `srv2`
 - Gefundene Ist-Situation:
-  - Von extern erreichbar waren `22`, `80`, `443`, `8443`, `9089`.
+  - Von extern erreichbar waren `22`, `80`, `443`, `9089`.
   - `9088` war bereits peer-gefiltert, `9089` aber noch nicht.
   - `/beagle-api/api/v1/health` lieferte ohne Login detaillierte Betriebsinformationen.
   - `/beagle-api/api/v1/auth/onboarding/status` lieferte ohne Login interne Details wie `completed_by` und `user_count`.
@@ -158,15 +158,15 @@ Stand: 2026-04-27 (ergänzt: S-027 Seed-Config Klartext-Admin-Passwort als verbl
   - Join-Tokens pruefen jetzt serverseitig ihr Ablaufdatum und werden nach Ablauf verworfen.
   - Cluster-Member-Leave folgt jetzt einem Leader-bestaetigten 2-Phasen-Flow; ein normales Mitglied kann die Leader-Memberliste nicht mehr lokal still ueberschreiben.
 - Verifikation:
-  - Externer TCP-Test nach Fix: öffentlich erreichbar nur noch `22`, `80`, `443`, `8443`; `9088/9089` nicht mehr extern offen.
+  - Externer TCP-Test nach Fix: öffentlich erreichbar nur noch `22`, `80`, `443`; `9088/9089` nicht mehr extern offen.
   - Public API nach Fix: `/health` -> `401`, `/cluster/status` -> `401`, `/auth/onboarding/status` -> nur `{pending, completed}`.
   - `9089` ohne Client-Zertifikat gab vorher keine Daten heraus (`TLS alert certificate required`), ist jetzt zusaetzlich netzseitig begrenzt.
 - Rest-Risiken:
-  - `8443` ist weiterhin öffentlich erreichbar und spiegelt Legacy-Download/API-Funktionen. Auth schützt Management-Routen, aber der Port vergrößert die Angriffsfläche.
+  - Der separate Legacy-Download/API-Port wurde entfernt.
   - `22` ist öffentlich erreichbar; SSH-Key-Policy/Fail2ban/Allowlist muss separat bewertet werden.
-  - `srv2` nutzt derzeit ein self-signed TLS-Zertifikat auf `443/8443`.
+  - `srv2` nutzt derzeit ein self-signed TLS-Zertifikat auf `443`.
 - Naechster Schritt:
-  - `8443` entweder auf reine Downloads ohne `/beagle-api` reduzieren oder per Firewall schließen, sobald alle Installer-/Download-Pfade auf `443` umgestellt sind.
+  - Der separate legacy HTTPS listener sollte nicht wieder eingeführt werden.
   - Remote-KVM/libvirt-Preflight nur ueber den setup-code-geschuetzten Zielserverpfad ausfuehren, nicht ueber offene Detail-Endpunkte.
 
 ---

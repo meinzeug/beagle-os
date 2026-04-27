@@ -58,8 +58,8 @@ Bei Refactor (z.B. Plan 05 control-plane-split) waere ein vollstaendiges Regress
     - Fencing-Trigger gepruefte
   - [x] Vorbedingung: HA-Manager existiert (siehe `docs/gofuture/09-ha-manager.md`)
 
-- [ ] **Schritt 5** — VDI-Pool-Lifecycle
-  - [ ] `tests/integration/test_vdi_pool_lifecycle.py`:
+- [x] **Schritt 5** — VDI-Pool-Lifecycle
+  - [x] `tests/integration/test_vdi_pool_lifecycle.py`:
     - Template-VM erstellen
     - Pool mit min=2 max=5 anlegen
     - 3 Sessions claimen → 3 Klone aktiv

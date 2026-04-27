@@ -21,7 +21,7 @@ Ein IT-Admin mit 500 Thin-Clients und 20 Nodes sieht heute nur: "Alles grün" od
 
 | Produkt | Predictive Maintenance |
 |---|---|
-| Proxmox | SMART-Anzeige, aber kein Trending, kein Alert |
+| Beagle host | SMART-Anzeige, aber kein Trending, kein Alert |
 | Citrix | Director — reaktives Monitoring, kein Predictive |
 | VMware | vRealize Operations (teuer, komplex) |
 | Azure | Azure Monitor (nur Azure-Hardware) |

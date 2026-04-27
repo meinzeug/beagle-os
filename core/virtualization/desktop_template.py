@@ -23,6 +23,7 @@ class DesktopTemplateBuildSpec:
 class DesktopTemplateInfo:
     template_id: str
     template_name: str
+    source_vmid: int
     os_family: str
     storage_pool: str
     snapshot_name: str
@@ -32,6 +33,7 @@ class DesktopTemplateInfo:
     software_packages: tuple[str, ...] = field(default_factory=tuple)
     created_at: str = ""
     sealed: bool = False
+    health: str = "unknown"
 
 
 class DesktopTemplate(Protocol):

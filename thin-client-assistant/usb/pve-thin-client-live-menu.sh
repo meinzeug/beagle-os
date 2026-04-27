@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 INSTALLER="${PVE_THIN_CLIENT_INSTALLER_BIN:-$SCRIPT_DIR/pve-thin-client-local-installer.sh}"
-PROXMOX_API_HELPER="${PVE_THIN_CLIENT_PROXMOX_API_HELPER:-$SCRIPT_DIR/pve-thin-client-proxmox-api.py}"
+BEAGLE_API_HELPER="${PVE_THIN_CLIENT_BEAGLE_API_HELPER:-$SCRIPT_DIR/pve-thin-client-beagle-api.py}"
 LIVE_MEDIUM_HELPERS="$SCRIPT_DIR/live_medium_helpers.sh"
 LIVE_MEDIUM_DEFAULT="${LIVE_MEDIUM:-/run/live/medium}"
 TEMP_LIVE_MEDIUM_MOUNT=""
@@ -16,7 +16,7 @@ LOG_FILE="$LOG_DIR/live-menu.log"
 LOG_PERSIST_DIR=""
 TEMP_LOG_PERSIST_MOUNT=""
 LOG_SYNC_IN_PROGRESS=0
-LOGIN_STATE_FILE="/run/pve-thin-client/proxmox-login.env"
+LOGIN_STATE_FILE="/run/pve-thin-client/beagle-login.env"
 NETWORK_STATE_FILE="/run/pve-thin-client/installer-network.env"
 RUNTIME_NETWORK_DIR="/run/systemd/network"
 RUNTIME_NETWORK_FILE="$RUNTIME_NETWORK_DIR/10-pve-thin-client-installer.network"
@@ -691,7 +691,7 @@ configure_network_access() {
     return 1
   fi
 
-  choice="$(dialog_menu "Internet Connection" "Choose how this installer should reach the internet and Proxmox." "${items[@]}")" || return 1
+  choice="$(dialog_menu "Internet Connection" "Choose how this installer should reach the internet and Beagle." "${items[@]}")" || return 1
   case "$choice" in
     ethernet)
       prepare_ethernet_network
@@ -788,11 +788,11 @@ payload = {
 if manifest_file and Path(manifest_file).is_file():
     try:
         manifest = json.loads(Path(manifest_file).read_text(encoding="utf-8"))
-        payload["scheme"] = str(manifest.get("proxmox_api_scheme", payload["scheme"]) or payload["scheme"])
-        payload["host"] = str(manifest.get("proxmox_api_host", payload["host"]) or payload["host"])
-        payload["host_ip"] = str(manifest.get("proxmox_api_host_ip", payload["host_ip"]) or payload["host_ip"])
-        payload["port"] = str(manifest.get("proxmox_api_port", payload["port"]) or payload["port"])
-        payload["verify_tls"] = str(manifest.get("proxmox_api_verify_tls", payload["verify_tls"]) or payload["verify_tls"])
+        payload["scheme"] = str(manifest.get("beagle_api_scheme", payload["scheme"]) or payload["scheme"])
+        payload["host"] = str(manifest.get("beagle_api_host", payload["host"]) or payload["host"])
+        payload["host_ip"] = str(manifest.get("beagle_api_host_ip", payload["host_ip"]) or payload["host_ip"])
+        payload["port"] = str(manifest.get("beagle_api_port", payload["port"]) or payload["port"])
+        payload["verify_tls"] = str(manifest.get("beagle_api_verify_tls", payload["verify_tls"]) or payload["verify_tls"])
         source = manifest.get("payload_source", "")
         if source and not payload["host"]:
             parsed = urlparse(source)
@@ -866,11 +866,11 @@ run_installer_as_root() {
   return 1
 }
 
-list_proxmox_vms_json_direct() {
+list_beagle_vms_json_direct() {
   env \
     PVE_THIN_CLIENT_LOG_DIR="$LOG_DIR" \
     PVE_THIN_CLIENT_LOG_SESSION_ID="${PVE_THIN_CLIENT_LOG_SESSION_ID:-$(basename "$LOG_DIR")}" \
-    "$PROXMOX_API_HELPER" \
+    "$BEAGLE_API_HELPER" \
       --host "$1" \
       --scheme "$2" \
       --port "$3" \
@@ -1043,7 +1043,7 @@ for vm in payload.get("vms", []):
     print(label)
   ' "$vm_json"
   ); then
-    dialog_msgbox "Invalid Proxmox Response" "The installer received an invalid VM list from the Proxmox API helper."
+    dialog_msgbox "Invalid Beagle Response" "The installer received an invalid VM list from the Beagle API helper."
     return 2
   fi
 
@@ -1060,8 +1060,8 @@ prompt_manual_vm_selection() {
   local node=""
   local vmid=""
 
-  node="$(dialog_input "Proxmox Node" "Enter the Proxmox node name for the VM." "$default_node")" || return 1
-  vmid="$(dialog_input "Proxmox VMID" "Enter the VMID that should be installed onto this thin client." "100")" || return 1
+  node="$(dialog_input "Beagle Node" "Enter the Beagle node name for the VM." "$default_node")" || return 1
+  vmid="$(dialog_input "Beagle VMID" "Enter the VMID that should be installed onto this thin client." "100")" || return 1
   if [[ ! "$vmid" =~ ^[0-9]+$ ]]; then
     dialog_msgbox "Invalid VMID" "The VMID must be numeric."
     return 1
@@ -1069,7 +1069,7 @@ prompt_manual_vm_selection() {
   printf '%s@%s\n' "$vmid" "$node"
 }
 
-install_from_proxmox_vm() {
+install_from_beagle_vm() {
   local defaults_json=""
   local host=""
   local host_ip=""
@@ -1098,31 +1098,31 @@ install_from_proxmox_vm() {
   configure_network_access || return 1
 
   if [[ -z "$host" ]]; then
-    host="$(dialog_input "Proxmox Host" "Enter the Proxmox host name or IP address." "$host")" || return 1
+    host="$(dialog_input "Beagle Host" "Enter the Beagle host name or IP address." "$host")" || return 1
   fi
   if [[ -z "$host_ip" ]] && ! is_ip_literal "$host"; then
     host_ip="$(resolve_ipv4_address "$host" 2>/dev/null || true)"
   fi
-  username="$(dialog_input "Proxmox Login" "Log in to ${host} as user@realm." "$username")" || return 1
-  password="$(dialog_password "Proxmox Password" "Enter the Proxmox password for ${username} on ${host}.")" || return 1
+  username="$(dialog_input "Beagle Login" "Log in to ${host} as user@realm." "$username")" || return 1
+  password="$(dialog_password "Beagle Password" "Enter the Beagle password for ${username} on ${host}.")" || return 1
   effective_host="$(effective_api_host "$host" "$host_ip" || true)"
   if [[ -z "$effective_host" ]]; then
     log_network_snapshot "dns-resolution-failed"
-    dialog_msgbox "Proxmox Host Unreachable" "The installer has network connectivity, but DNS cannot resolve ${host}. Reconfigure the network or use an IP-based host entry."
+    dialog_msgbox "Beagle Host Unreachable" "The installer has network connectivity, but DNS cannot resolve ${host}. Reconfigure the network or use an IP-based host entry."
     NETWORK_SETUP_COMPLETE=0
     return 1
   fi
 
   save_login_defaults "$scheme" "$host" "$host_ip" "$port" "$verify_tls" "$username"
   err_file="$(mktemp)"
-  if ! vm_json="$(list_proxmox_vms_json_direct \
+  if ! vm_json="$(list_beagle_vms_json_direct \
       "$effective_host" \
       "$scheme" \
       "$port" \
       "$verify_tls" \
       "$username" \
       "$password" 2>"$err_file")"; then
-    dialog_msgbox "Proxmox Login Failed" "$(sed -n '1,30p' "$err_file" 2>/dev/null || printf 'Unable to contact Proxmox API.')"
+    dialog_msgbox "Beagle Login Failed" "$(sed -n '1,30p' "$err_file" 2>/dev/null || printf 'Unable to contact Beagle API.')"
     rm -f "$err_file"
     return 1
   fi
@@ -1150,16 +1150,16 @@ install_from_proxmox_vm() {
   run_installer_as_root --clear-cached-preset >/dev/null
   err_file="$(mktemp)"
   if ! run_installer_as_root \
-      --cache-proxmox-vm-preset \
-      --proxmox-api-host "$effective_host" \
-      --proxmox-api-scheme "$scheme" \
-      --proxmox-api-port "$port" \
-      --proxmox-api-verify-tls "$verify_tls" \
-      --proxmox-api-username "$username" \
-      --proxmox-api-password "$password" \
-      --proxmox-api-node "$node" \
-      --proxmox-api-vmid "$vmid" > /dev/null 2>"$err_file"; then
-    dialog_msgbox "Preset Build Failed" "$(sed -n '1,30p' "$err_file" 2>/dev/null || printf 'Unable to build VM preset from Proxmox.')"
+      --cache-beagle-vm-preset \
+      --beagle-api-host "$effective_host" \
+      --beagle-api-scheme "$scheme" \
+      --beagle-api-port "$port" \
+      --beagle-api-verify-tls "$verify_tls" \
+      --beagle-api-username "$username" \
+      --beagle-api-password "$password" \
+      --beagle-api-node "$node" \
+      --beagle-api-vmid "$vmid" > /dev/null 2>"$err_file"; then
+    dialog_msgbox "Preset Build Failed" "$(sed -n '1,30p' "$err_file" 2>/dev/null || printf 'Unable to build VM preset from Beagle.')"
     rm -f "$err_file"
     return 1
   fi

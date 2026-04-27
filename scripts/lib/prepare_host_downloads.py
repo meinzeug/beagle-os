@@ -148,9 +148,9 @@ def _build_vm_catalog_entry(
     metadata_support: MetadataSupportService,
     server_name: str,
     installer_iso_url: str,
-    default_proxmox_username: str,
-    default_proxmox_password: str,
-    default_proxmox_token: str,
+    default_beagle_username: str,
+    default_beagle_password: str,
+    default_beagle_token: str,
     beagle_manager_url: str,
 ) -> dict[str, Any]:
     meta = metadata_support.parse_description_meta(config.get("description", ""))
@@ -162,11 +162,11 @@ def _build_vm_catalog_entry(
     )
     vmid = int(vm["vmid"])
     vm_name = str(config.get("name") or vm.get("name") or f"vm-{vmid}")
-    proxmox_scheme = meta.get("proxmox-scheme", "https")
-    proxmox_host = meta.get("proxmox-host", server_name)
-    proxmox_port = meta.get("proxmox-port", "8006")
-    proxmox_realm = meta.get("proxmox-realm", "pam")
-    proxmox_verify_tls = meta.get("proxmox-verify-tls", "1")
+    beagle_scheme = meta.get("beagle-scheme", "https")
+    beagle_host = meta.get("beagle-host", server_name)
+    beagle_port = meta.get("beagle-port", "8006")
+    beagle_realm = meta.get("beagle-realm", "pam")
+    beagle_verify_tls = meta.get("beagle-verify-tls", "1")
     moonlight_host = (
         stream_meta.get("moonlight-host")
         or stream_meta.get("sunshine-host")
@@ -188,16 +188,16 @@ def _build_vm_catalog_entry(
         "PVE_THIN_CLIENT_PRESET_DEFAULT_MODE": "MOONLIGHT" if moonlight_host else "",
         "PVE_THIN_CLIENT_PRESET_NETWORK_MODE": meta.get("thinclient-network-mode", "dhcp"),
         "PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE": meta.get("thinclient-network-interface", "eth0"),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_SCHEME": proxmox_scheme,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_HOST": proxmox_host,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_PORT": proxmox_port,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_NODE": str(vm.get("node") or ""),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_VMID": str(vmid),
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_REALM": proxmox_realm,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_VERIFY_TLS": proxmox_verify_tls,
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_PROXMOX_TOKEN": "",
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_SCHEME": beagle_scheme,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_HOST": beagle_host,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_PORT": beagle_port,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_NODE": str(vm.get("node") or ""),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_VMID": str(vmid),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_REALM": beagle_realm,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_VERIFY_TLS": beagle_verify_tls,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_TOKEN": "",
         "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL": str(beagle_manager_url or ""),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_METHOD": "",
@@ -278,9 +278,9 @@ def generate_vm_installers_metadata(
     metadata_path: Path,
     server_name: str,
     installer_iso_url: str,
-    default_proxmox_username: str,
-    default_proxmox_password: str,
-    default_proxmox_token: str,
+    default_beagle_username: str,
+    default_beagle_password: str,
+    default_beagle_token: str,
     beagle_manager_url: str,
 ) -> None:
     provider_module = _load_provider_module(provider_module_path)
@@ -314,9 +314,9 @@ def generate_vm_installers_metadata(
                 metadata_support=metadata_support,
                 server_name=server_name,
                 installer_iso_url=installer_iso_url,
-                default_proxmox_username=default_proxmox_username,
-                default_proxmox_password=default_proxmox_password,
-                default_proxmox_token=default_proxmox_token,
+                default_beagle_username=default_beagle_username,
+                default_beagle_password=default_beagle_password,
+                default_beagle_token=default_beagle_token,
                 beagle_manager_url=beagle_manager_url,
             )
         )
@@ -439,9 +439,9 @@ def _build_parser() -> argparse.ArgumentParser:
     metadata_parser.add_argument("--metadata-path", required=True)
     metadata_parser.add_argument("--server-name", required=True)
     metadata_parser.add_argument("--installer-iso-url", required=True)
-    metadata_parser.add_argument("--default-proxmox-username", default="")
-    metadata_parser.add_argument("--default-proxmox-password", default="")
-    metadata_parser.add_argument("--default-proxmox-token", default="")
+    metadata_parser.add_argument("--default-beagle-username", default="")
+    metadata_parser.add_argument("--default-beagle-password", default="")
+    metadata_parser.add_argument("--default-beagle-token", default="")
     metadata_parser.add_argument("--beagle-manager-url", default="")
 
     status_parser = subparsers.add_parser("write-download-status")
@@ -513,9 +513,9 @@ def main(argv: list[str] | None = None) -> int:
             metadata_path=Path(args.metadata_path),
             server_name=args.server_name,
             installer_iso_url=args.installer_iso_url,
-            default_proxmox_username=args.default_proxmox_username,
-            default_proxmox_password=args.default_proxmox_password,
-            default_proxmox_token=args.default_proxmox_token,
+            default_beagle_username=args.default_beagle_username,
+            default_beagle_password=args.default_beagle_password,
+            default_beagle_token=args.default_beagle_token,
             beagle_manager_url=args.beagle_manager_url,
         )
         return 0

@@ -1,7 +1,7 @@
 # Thin-Client Assistant
 
 This directory contains the deployment-oriented endpoint path for Beagle OS.
-It turns a Linux device or installer image into a dedicated Moonlight thin client that is bound to a Proxmox-managed Sunshine VM.
+It turns a Linux device or installer image into a dedicated Moonlight thin client that is bound to a Beagle-managed Sunshine VM.
 
 ## Structure
 
@@ -17,7 +17,7 @@ It turns a Linux device or installer image into a dedicated Moonlight thin clien
 
 The assistant is intentionally single-purpose:
 
-- `Proxmox` supplies the VM binding and profile metadata
+- `Beagle` supplies the VM binding and profile metadata
 - `Sunshine` runs inside the streamed VM
 - `Moonlight` runs on the endpoint
 
@@ -39,11 +39,11 @@ The standalone writer script can be started as a normal user:
 
 It escalates to `sudo` only for partitioning and writing the selected USB device.
 
-When you download a VM-specific installer from the Proxmox UI, Beagle first verifies the selected VM as a valid streaming target, prepares Sunshine if needed, and only then releases the installer download.
+When you download a VM-specific installer from the Beagle UI, Beagle first verifies the selected VM as a valid streaming target, prepares Sunshine if needed, and only then releases the installer download.
 For operator rollouts, prefer the host-provided per-VM installer from:
 
 ```text
-https://<proxmox-host>:8443/beagle-downloads/pve-thin-client-usb-installer-vm-<vmid>.sh
+https://<beagle-host>/beagle-downloads/pve-thin-client-usb-installer-vm-<vmid>.sh
 ```
 
 That installer already knows the matching payload URL and embeds the VM-specific Beagle profile directly into the USB medium.
@@ -65,7 +65,7 @@ The installer writes:
 
 A profile typically includes:
 
-- Proxmox host, node and VMID
+- Beagle host, node and VMID
 - Sunshine host and API URL
 - Moonlight app, codec, decoder, bitrate and FPS
 - Sunshine credentials or pairing PIN when unattended startup is desired
@@ -73,4 +73,4 @@ A profile typically includes:
 ## Operational note
 
 A Beagle endpoint is not meant to behave like a generic workstation.
-It is expected to boot straight into the assigned Moonlight session and stay aligned with the Proxmox VM profile that generated it.
+It is expected to boot straight into the assigned Moonlight session and stay aligned with the Beagle VM profile that generated it.

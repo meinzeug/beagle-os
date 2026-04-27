@@ -11,7 +11,7 @@ Beagle OS 7.0 ist die **erste Open-Source-Plattform**, die in einer einzigen, ei
 3. eine **Streaming-Plane pro Desktop-VM** auf Sunshine/Apollo + Moonlight (HDR, multi-monitor, virtual display)
 4. ein **Endpoint-OS** fuer Thin Clients (Linux + Moonlight + Kiosk)
 5. eine **eigene Web Console** als einzige Operator-/User-Oberflaeche
-6. ein **Bare-Metal-Installer** fuer Standalone- und Hybrid-mit-Proxmox-Mode
+6. ein **Bare-Metal-Installer** fuer Standalone- und Hybrid-mit-Beagle host-Mode
 7. eine **API-/IaC-Schicht** mit Terraform-Provider, OpenAPI und Webhooks
 8. ein **Identity-/Mandanten-Modell** mit lokaler IdP, OIDC, SAML, SCIM und Directory-Sync
 
@@ -19,7 +19,7 @@ Beagle OS 7.0 ist die **erste Open-Source-Plattform**, die in einer einzigen, ei
 
 Beagle OS 7.0 ist **nicht**:
 
-- ein reines Hypervisor-Produkt (Proxmox VE, XCP-ng, Harvester) — es ist mehr.
+- ein reines Hypervisor-Produkt (Beagle host, XCP-ng, Harvester) — es ist mehr.
 - ein reines VDI-Brokering-Produkt (Omnissa Horizon, Citrix DaaS) — es bringt den Hypervisor mit.
 - ein reines Streaming-Produkt (Parsec, Sunshine, Moonlight) — Streaming ist Teil des VM-Lifecycles, nicht ein angeflanschter Daemon.
 - ein reines Cloud-PC-Produkt (Windows 365, Shadow, Vagon) — laeuft on-prem und edge ohne Cloud-Abhaengigkeit.
@@ -80,7 +80,7 @@ Ein User soll **per Browser** oder **per Beagle Endpoint OS** den eigenen Deskto
 ## Was sich nicht aendert
 
 - AGPL/MIT-konforme Open-Source-Strategie.
-- Provider-Neutralitaet (Proxmox bleibt **optionaler** Provider).
+- Provider-Neutralitaet (Beagle host bleibt **optionaler** Provider).
 - Bestehende Repo-Struktur bleibt; Welle 2 baut **innerhalb** der bestehenden Module aus.
 - Streaming bleibt **first-class** und ist nicht hinter Plug-in versteckt.
 - Bare-Metal-Installer bleibt single-source-of-truth fuer reproduzierbare Hosts.

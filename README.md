@@ -6,14 +6,14 @@
 
 > **Built to boot. If it still won't boot, the BIOS is being dramatic.**
 
-> **Open-source hypervisor OS, endpoint runtime, and gaming kiosk — batteries included, Proxmox optional.**
+> **Open-source hypervisor OS, endpoint runtime, and gaming kiosk — batteries included, Beagle host optional.**
 
 [![License: Source Available](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE)
 [Download Latest](https://beagle-os.com/download/)
 [![Shell](https://img.shields.io/badge/shell-54%25-green)]()
 [![Python](https://img.shields.io/badge/python-24%25-blue)]()
 
-Beagle OS is a source-available, standalone virtualization platform. Free for private use — commercial use requires a license (see [LICENSE](LICENSE) or visit [beagle-os.com](https://beagle-os.com)). It runs its own compute, storage, and network stack on bare metal and delivers streamed desktops and gaming sessions to thin clients — no Proxmox required.
+Beagle OS is a source-available, standalone virtualization platform. Free for private use — commercial use requires a license (see [LICENSE](LICENSE) or visit [beagle-os.com](https://beagle-os.com)). It runs its own compute, storage, and network stack on bare metal and delivers streamed desktops and gaming sessions to thin clients — no Beagle host required.
 
 ### Three modes, one ISO
 
@@ -24,20 +24,20 @@ Beagle OS is a source-available, standalone virtualization platform. Free for pr
 - `Beagle OS Server`
   Boots a bare server and installs the full Beagle hypervisor stack. During installation you choose:
   - **Beagle OS Standalone** — Beagle's own virtualization runtime, no third-party hypervisor needed.
-  - **Beagle OS with Proxmox** — installs Proxmox VE as an optional provider underneath Beagle.
+  - **Beagle OS with Beagle host** — installs Beagle host as an optional provider underneath Beagle.
 
-Beagle OS is not a Proxmox wrapper. It is a focused, self-contained platform for streamed desktops, gaming endpoints, and reproducible fleet management. Proxmox can be selected as a provider if you already operate it, but it is entirely optional.
+Beagle OS is not a Beagle host wrapper. It is a focused, self-contained platform for streamed desktops, gaming endpoints, and reproducible fleet management. Beagle host can be selected as a provider if you already operate it, but it is entirely optional.
 
 ## What Lives in This Repository
 
 - `beagle-host/`
   Host-side control plane, download publication, and installer rendering.
-- `proxmox-ui/`
-  Proxmox UI integration and Beagle Fleet controls.
+- `beagle-ui/`
+  Beagle host UI integration and Beagle Fleet controls.
 - `core/`
   Provider-neutral contracts and shared services for virtualization and platform behavior.
 - `providers/`
-  Concrete backend/provider implementations, currently starting with Proxmox.
+  Concrete backend/provider implementations, currently starting with Beagle host.
 - `thin-client-assistant/`
   Endpoint runtime, live-build inputs, USB installers, and endpoint installer logic.
 - `beagle-kiosk/`
@@ -89,7 +89,7 @@ You can use:
 
 - the public installer ISO
 - the public USB helper scripts
-- or the preferred VM-specific USB installer exposed by the Proxmox host
+- or the preferred VM-specific USB installer exposed by the Beagle host
 
 ## Architecture
 
@@ -98,17 +98,17 @@ Beagle OS is a layered platform with provider-neutral contracts at the core:
 1. `Beagle Virtualization Runtime`
    Beagle's own compute, storage, and network stack. Manages VMs, disks, and bridges natively on bare metal.
 2. `Provider Layer` *(optional)*
-   Concrete external hypervisor integration. Currently supports Proxmox VE as an optional provider. More providers can be added without changing core logic.
+   Concrete external hypervisor integration. Currently supports Beagle host as an optional provider. More providers can be added without changing core logic.
 3. `Beagle OS Endpoint Runtime`
    Dedicated endpoint OS for Moonlight desktop mode and Gaming kiosk mode.
 4. `Beagle Control Plane`
    Inventory, VM-aware artifact publication, host services, health checks, and fleet management.
 5. `Beagle Server Installer`
-   Bootable bare-metal installer with two modes: **Standalone** (Beagle only) and **with Proxmox** (Proxmox as optional provider).
+   Bootable bare-metal installer with two modes: **Standalone** (Beagle only) and **with Beagle host** (Beagle host as optional provider).
 
 In practice:
 
-- Beagle OS is the primary operator surface — not Proxmox.
+- Beagle OS is the primary operator surface — not Beagle host.
 - Sunshine inside a VM is the desktop streaming target.
 - Moonlight on the endpoint is the desktop client.
 - The Beagle kiosk is the gaming shell around GeForce NOW.
@@ -119,7 +119,7 @@ In practice:
 Typical Desktop flow:
 
 1. Boot a server with the Beagle Server Installer ISO.
-2. Choose **Beagle OS Standalone** (or **with Proxmox** if desired).
+2. Choose **Beagle OS Standalone** (or **with Beagle host** if desired).
 3. Create a Sunshine-capable VM via the Beagle Console.
 4. Download the VM-specific endpoint installer from the Beagle Console.
 5. Write a USB stick and install the endpoint.
@@ -138,7 +138,7 @@ Typical Host bootstrap flow:
 2. Select the install disk and set hostname/user/password.
 3. Choose installation mode:
    - **Beagle OS Standalone** — installs Debian + Beagle virtualization runtime only.
-   - **Beagle OS with Proxmox** — additionally installs Proxmox VE as an optional provider.
+   - **Beagle OS with Beagle host** — additionally installs Beagle host as an optional provider.
 4. After install, log into the Beagle Console and manage your fleet from there.
 
 ## Public Artifacts
