@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/disk_guardrails.sh"
+source "$ROOT_DIR/scripts/lib/artifact_lock.sh"
+beagle_artifact_lock_acquire "package"
 DIST_DIR="$ROOT_DIR/dist"
 INSTALLER_BUILD_DIR="${INSTALLER_BUILD_DIR:-${THINCLIENT_DIST_DIR:-$DIST_DIR/pve-thin-client-installer}}"
 SERVER_INSTALLER_DIST_DIR="${SERVER_INSTALLER_DIST_DIR:-$DIST_DIR/beagle-os-server-installer}"
@@ -131,6 +133,12 @@ rm -f "$DIST_DIR"/pve-thin-client-usb-installer-host-v*.sh
 rm -f "$DIST_DIR"/pve-thin-client-usb-installer-host-v*.ps1
 rm -f "$DIST_DIR"/pve-thin-client-live-usb-host-v*.sh
 rm -f "$DIST_DIR"/pve-thin-client-live-usb-host-v*.ps1
+rm -f "$DIST_DIR"/pve-thin-client-usb-installer-v*.sh
+rm -f "$DIST_DIR"/pve-thin-client-usb-installer-v*.ps1
+rm -f "$DIST_DIR"/pve-thin-client-live-usb-v*.sh
+rm -f "$DIST_DIR"/pve-thin-client-live-usb-v*.ps1
+rm -f "$DIST_DIR"/pve-thin-client-usb-payload-v*.tar.gz
+rm -f "$DIST_DIR"/pve-thin-client-usb-bootstrap-v*.tar.gz
 rm -f "$DIST_DIR"/pve-thin-client-usb-installer-vm-*.sh
 rm -f "$DIST_DIR"/pve-thin-client-usb-installer-vm-*.ps1
 rm -f "$DIST_DIR"/pve-thin-client-live-usb-vm-*.sh

@@ -295,6 +295,7 @@
 - [x] Fix `.github/workflows/release.yml` parse failure caused by `if: secrets...` so pushes to `main` can again create a valid release workflow run (2026-04-26).
 - [x] Make Repo-Auto-Update and Artifact-Watchdog secure-by-default for fresh Beagle server installs: GitHub check every 1 minute, watchdog auto-repair enabled, artifact max age 6 hours (2026-04-26).
 - [ ] Validate live on `srv1` and `srv2` that a pushed GitHub commit is pulled by the new repo auto-update path and followed by a healthy artifact watchdog state.
+- [ ] Re-run standalone `scripts/check-beagle-host.sh` after the active `srv1` repo-auto-update build is idle; it should pass without PVE service checks, stale `8443` references, or status checksum drift.
 - [x] Add IAM User-Detail-Drawer, protected built-in role metadata, Permission-Suche und Rollen-Diff in der Web Console (2026-04-27).
 - [x] Add Audit Report Builder, Export-Target-Test, redacted Failure-Payloads und Failure-Replay-Routen in der Web Console/API (2026-04-27).
 - [ ] Re-enable/repair `beagle-manager` on `srv1.beagle-os.com` and `srv2.beagle-os.com`; current SSH smoke on 2026-04-27 returned `inactive` on both hosts.

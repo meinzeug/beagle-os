@@ -4263,3 +4263,14 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - local: `5 passed`, `py_compile` and shell syntax checks green
   - live on `srv1`: rebuilt `pve-thin-client-usb-payload-latest.tar.gz` contains the updated USB installer files
   - live on `srv1`: VM-specific `installer.sh` still renders the correct hosted `RELEASE_*` URLs while the payload bundle contains the new local-resolution logic
+
+## 2026-04-27 - Installer log deploy and hosted artifact consistency
+
+- Added a shared artifact-writer lock for `scripts/package.sh` and `scripts/prepare-host-downloads.sh` so repo auto-update, manual refresh and packaging do not write ISO/payload/status files concurrently.
+- `prepare-host-downloads.sh` and `package.sh` now remove stale versioned thin-client launcher/bootstrap/payload artifacts before publishing current `VERSION` + `latest` files.
+- `scripts/check-beagle-host.sh` now validates the standalone Beagle Web Console instead of legacy PVE UI files/services, checks local `/healthz`, and fails on hosted `8443` references.
+- Live on `srv1`:
+  - public `/beagle-downloads/` is reachable
+  - host launcher downloads are `200`, contain installer-log hooks and no `8443`
+  - VM100 generated installer log smoke wrote `script_started`, `bootstrap_helpers_present`, `device_listing_started`, `device_listing_completed`, `script_completed`
+  - invalid installer-log token returns `401`

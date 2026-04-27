@@ -281,6 +281,14 @@ Stand: 2026-04-13
 - Konsequenz: Alte Hosted-Templates ohne Log-Defaults werden beim Patchen self-healing ergaenzt, damit Download-Drift keinen `500` erzeugt.
 - Dateien: `beagle-host/services/installer_log_service.py`, `beagle-host/services/installer_script.py`, `beagle-host/services/installer_template_patch.py`, `thin-client-assistant/usb/pve-thin-client-usb-installer.sh`, `thin-client-assistant/usb/pve-thin-client-usb-installer.ps1`.
 
+## D-047: Hosted Artifact-Veröffentlichung ist exklusiv gelockt
+
+- Entscheidung: Prozesse, die Host-Download-Artefakte schreiben (`package.sh`, `prepare-host-downloads.sh`), muessen denselben Lock halten.
+- Grund: Repo-Auto-Update, Artifact-Refresh und manuelle Refreshes koennen sonst ISO/Payload/Status-JSON parallel schreiben; dadurch entstehen kurzzeitig falsche Checksummen und stale Download-Indizes.
+- Konsequenz: `prepare-host-downloads.sh` haelt den Lock auch waehrend eines internen `package.sh`-Laufs. Direkte `package.sh`-Aufrufe nehmen denselben Lock selbst.
+- Konsequenz: Alte versionierte Thin-Client-Download-Artefakte werden beim Veroeffentlichen entfernt, damit oeffentliche Download-Indizes keine alten `v6.x`-Launcher mit veralteten URLs weiter anbieten.
+- Dateien: `scripts/lib/artifact_lock.sh`, `scripts/package.sh`, `scripts/prepare-host-downloads.sh`, `scripts/check-beagle-host.sh`.
+
 ## 2026-04-26 - Cluster Leave und Virtualization Overview bleiben leader-/cluster-autoritativ
 
 - Ein Cluster-Mitglied darf seinen lokalen Cluster-State loeschen, aber nicht den Leader-State still implizit veraendern.

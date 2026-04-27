@@ -182,6 +182,7 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 - Repo-/Artifact-Self-Heal weiter härten:
   - End-to-end smoke for VM installer/live-USB downloads after repo auto-update on `srv1`
   - verify that regenerated hosted artifacts and VM-specific scripts still stay on `443` after the next unattended update cycle
+  - after the currently running `srv1` repo-auto-update/artifact build is idle, re-run `scripts/check-beagle-host.sh` with the new standalone checks and confirm status JSON checksums are stable
 - Thin-client USB install path runtime-smoke:
   - boot a freshly written USB installer/live medium in a VM
   - verify from installer logs that local bundled payload assets are used after the target-disk selection step

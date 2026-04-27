@@ -25,12 +25,10 @@ BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
 USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-beagle-tunnel}"
 USB_TUNNEL_HOME="${BEAGLE_USB_TUNNEL_HOME:-}"
 USB_TUNNEL_AUTH_ROOT="${BEAGLE_USB_TUNNEL_AUTH_ROOT:-/var/lib/beagle/usb-tunnel/$USB_TUNNEL_USER}"
-PVE_UI_JS_FILE="${BEAGLE_PVE_UI_JS_FILE:-/usr/share/pve-manager/js/beagle-ui.js}"
-PVE_UI_CONFIG_FILE="${BEAGLE_PVE_UI_CONFIG_FILE:-/usr/share/pve-manager/js/beagle-ui-config.js}"
+WEB_UI_INDEX_FILE="${BEAGLE_WEB_UI_INDEX_FILE:-$INSTALL_DIR/website/index.html}"
+WEB_UI_CONFIG_FILE="${BEAGLE_WEB_UI_CONFIG_FILE:-$INSTALL_DIR/website/beagle-web-ui-config.js}"
 BEAGLE_PROXY_SITE_FILE="${BEAGLE_PROXY_SITE_FILE:-/etc/nginx/sites-available/beagle-proxy.conf}"
 BEAGLE_PROXY_TLS_DIR="${BEAGLE_PROXY_TLS_DIR:-$CONFIG_DIR/tls}"
-BEAGLE_UI_REAPPLY_SERVICE_FILE="${BEAGLE_UI_REAPPLY_SERVICE_FILE:-/etc/systemd/system/beagle-ui-reapply.service}"
-BEAGLE_UI_REAPPLY_PATH_FILE="${BEAGLE_UI_REAPPLY_PATH_FILE:-/etc/systemd/system/beagle-ui-reapply.path}"
 BEAGLE_CONTROL_SERVICE_FILE="${BEAGLE_CONTROL_SERVICE_FILE:-/etc/systemd/system/beagle-control-plane.service}"
 BEAGLE_USB_TUNNEL_SSHD_DROPIN="${BEAGLE_USB_TUNNEL_SSHD_DROPIN:-/etc/ssh/sshd_config.d/90-beagle-usb-tunnel.conf}"
 
@@ -362,6 +360,33 @@ check_hosted_installer_binding() {
   return 0
 }
 
+check_no_legacy_8443() {
+  local found=0
+
+  if ss -ltn 2>/dev/null | awk '{print $4}' | grep -Eq '(^|[^0-9])8443$'; then
+    echo "ERR port  legacy 8443 listener is active"
+    found=1
+  fi
+
+  if grep -RIl --exclude='*.tar.gz' --exclude='*.iso' '8443' \
+    "$INSTALL_DIR/dist/beagle-downloads-status.json" \
+    "$INSTALL_DIR/dist/beagle-downloads-index.html" \
+    "$INSTALL_DIR/dist"/pve-thin-client-*.sh \
+    "$INSTALL_DIR/dist"/pve-thin-client-*.ps1 \
+    2>/dev/null | grep -q .; then
+    echo "ERR cfg   legacy 8443 reference in hosted download artifacts"
+    found=1
+  fi
+
+  if [[ "$found" -eq 0 ]]; then
+    echo "OK  cfg   no legacy 8443 listener or hosted download reference"
+    return 0
+  fi
+
+  record_failure
+  return 1
+}
+
 load_host_env
 
 if [[ -z "$USB_TUNNEL_HOME" ]] && id "$USB_TUNNEL_USER" >/dev/null 2>&1; then
@@ -390,11 +415,9 @@ check_control_plane_runtime_imports
 check_internal_callback_host
 
 if [[ "$(host_provider_kind)" == "beagle" ]]; then
-  check_file "$PVE_UI_JS_FILE"
-  check_file "$PVE_UI_CONFIG_FILE"
   check_file "$BEAGLE_PROXY_SITE_FILE"
-  check_file "$BEAGLE_UI_REAPPLY_SERVICE_FILE"
-  check_file "$BEAGLE_UI_REAPPLY_PATH_FILE"
+  check_file "$WEB_UI_INDEX_FILE"
+  check_file "$WEB_UI_CONFIG_FILE"
 else
   check_file "$BEAGLE_PROXY_SITE_FILE"
   check_file "$(host_tls_cert_file)"
@@ -418,9 +441,8 @@ check_service_active "beagle-artifacts-refresh.timer"
 check_service_active "beagle-control-plane"
 
 if [[ "$(host_provider_kind)" == "beagle" ]]; then
-  check_service_active "pveproxy"
   check_service_active "nginx"
-  check_service_active "beagle-ui-reapply.path"
+  check_local_control_plane_health
   check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-installer-host-latest.sh")"
   check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-bootstrap-latest.tar.gz")"
   check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
@@ -434,7 +456,7 @@ if [[ "$(host_provider_kind)" == "beagle" ]]; then
   check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "beagle-os-installer-amd64.iso")"
   check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "beagle-os-server-installer-amd64.iso")"
   check_http "$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}")"
-  check_http "${HOST_ORIGIN_URL}/beagle-api/healthz" "Authorization: Bearer $BEAGLE_API_TOKEN" "GET"
+  check_http "${HOST_ORIGIN_URL}/beagle-api/healthz" "" "GET"
 else
   check_local_control_plane_health
   check_service_active "nginx"
@@ -448,6 +470,8 @@ else
   check_http "$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}")"
   check_http "$(site_origin_url)/" "" "GET"
 fi
+
+check_no_legacy_8443
 
 if check_status_json; then
   echo "OK  json  $STATUS_JSON_FILE"

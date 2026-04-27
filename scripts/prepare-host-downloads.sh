@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$ROOT_DIR/scripts/lib/beagle_provider.py}"
 PREPARE_HOST_DOWNLOADS_HELPER="$ROOT_DIR/scripts/lib/prepare_host_downloads.py"
 HOSTED_DOWNLOAD_LAYOUT_HELPER="$ROOT_DIR/scripts/lib/hosted_download_layout.sh"
+source "$ROOT_DIR/scripts/lib/artifact_lock.sh"
+beagle_artifact_lock_acquire "prepare-host-downloads"
 DIST_DIR="$ROOT_DIR/dist"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
@@ -261,6 +263,31 @@ ensure_current_packaged_artifacts() {
 # without triggering the expensive full thin-client live-build.
 ensure_bootstrap_from_deployed_iso
 ensure_current_packaged_artifacts
+
+cleanup_stale_versioned_thin_client_artifacts() {
+  local path name
+  while IFS= read -r path; do
+    name="$(basename "$path")"
+    case "$name" in
+      *"-v${VERSION}."*|*"-v${VERSION}.tar.gz")
+        ;;
+      *)
+        rm -f "$path"
+        ;;
+    esac
+  done < <(
+    find "$DIST_DIR" -maxdepth 1 -type f \( \
+      -name 'pve-thin-client-usb-installer-v*.sh' -o \
+      -name 'pve-thin-client-usb-installer-v*.ps1' -o \
+      -name 'pve-thin-client-live-usb-v*.sh' -o \
+      -name 'pve-thin-client-live-usb-v*.ps1' -o \
+      -name 'pve-thin-client-usb-payload-v*.tar.gz' -o \
+      -name 'pve-thin-client-usb-bootstrap-v*.tar.gz' \
+    \)
+  )
+}
+
+cleanup_stale_versioned_thin_client_artifacts
 
 [[ -f "$GENERIC_INSTALLER" ]] || {
   echo "Missing packaged USB installer: $GENERIC_INSTALLER" >&2
