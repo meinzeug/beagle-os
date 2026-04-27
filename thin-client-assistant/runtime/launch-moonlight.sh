@@ -42,6 +42,7 @@ have_binary() {
 
 main() {
   local bin host connect_host app resolved_app audio_driver port
+  local session_response_file=""
   local -a args=()
 
   bin="$(moonlight_bin)"
@@ -74,6 +75,17 @@ main() {
 
   configure_graphics_runtime
   record_decoder_choice "$(moonlight_video_decoder)"
+
+  session_response_file="$(mktemp)"
+  if fetch_moonlight_current_session_via_manager "$session_response_file"; then
+    if retarget_moonlight_host_from_session_broker_response "$session_response_file"; then
+      host="$(moonlight_host)"
+      connect_host="$(moonlight_connect_host)"
+      port="$(moonlight_port)"
+      beagle_log_event "moonlight.session-broker" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} current_node=${PVE_THIN_CLIENT_SESSION_CURRENT_NODE:-unknown}"
+    fi
+  fi
+  rm -f "$session_response_file"
 
   wait_for_stream_target || {
     beagle_log_event "moonlight.unreachable" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"

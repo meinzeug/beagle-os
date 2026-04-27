@@ -100,6 +100,14 @@ def test_get_current_node(tmp_path):
     assert svc.get_current_node("s-001") == "node-1"
 
 
+def test_find_active_session_by_vmid(tmp_path):
+    svc = make_svc(tmp_path)
+    register(svc)
+    session = svc.find_active_session(vm_id=100)
+    assert session is not None
+    assert session["session_id"] == "s-001"
+
+
 def test_end_session(tmp_path):
     svc = make_svc(tmp_path)
     register(svc)

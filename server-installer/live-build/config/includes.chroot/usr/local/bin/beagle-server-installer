@@ -14,7 +14,17 @@ INSTALL_PASSWORD=""
 INSTALL_DISK=""
 INSTALL_CLUSTER_JOIN="no"
 INSTALL_CLUSTER_JOIN_TARGET=""
+INSTALL_NETWORK_INTERFACE=""
+INSTALL_NETWORK_MODE="dhcp"
+INSTALL_NETWORK_IP=""
+INSTALL_NETWORK_GATEWAY=""
+INSTALL_NETWORK_DNS=""
 PRIMARY_IFACE=""
+SEED_CONFIG_FILE="${BEAGLE_SERVER_SEED_PATH:-}"
+SEED_CONFIG_URL="${BEAGLE_SERVER_SEED_URL:-}"
+SEED_CONFIG_RUNTIME_DIR="${BEAGLE_SERVER_SEED_RUNTIME_DIR:-/run/beagle-server-installer}"
+SEED_CONFIG_DOWNLOAD_FILE="$SEED_CONFIG_RUNTIME_DIR/seed-config.yaml"
+SEED_CONFIG_PARSER="${BEAGLE_SERVER_SEED_PARSER:-/usr/local/share/beagle/seed_config_parser.py}"
 
 DEBIAN_RELEASE="${BEAGLE_SERVER_DEBIAN_RELEASE:-bookworm}"
 DEBIAN_MIRROR="${BEAGLE_SERVER_DEBIAN_MIRROR:-https://deb.debian.org/debian}"
@@ -269,6 +279,131 @@ validate_username() {
   [[ "$1" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]
 }
 
+seed_cmdline_value() {
+  local key="$1"
+  local token=""
+  for token in $(cat /proc/cmdline 2>/dev/null); do
+    case "$token" in
+      "${key}="*)
+        printf '%s\n' "${token#*=}"
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+discover_seed_config() {
+  local candidate=""
+  if [[ -n "$SEED_CONFIG_FILE" && -f "$SEED_CONFIG_FILE" ]]; then
+    printf '%s\n' "$SEED_CONFIG_FILE"
+    return 0
+  fi
+
+  candidate="$(seed_cmdline_value "beagle.seed_path" 2>/dev/null || true)"
+  if [[ -n "$candidate" && -f "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  for candidate in \
+    /media/beagle-seed.yaml \
+    /run/live/medium/beagle-seed.yaml \
+    /run/live/medium/beagle/beagle-seed.yaml
+  do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  candidate="$(seed_cmdline_value "beagle.seed_url" 2>/dev/null || true)"
+  if [[ -n "$candidate" ]]; then
+    SEED_CONFIG_URL="$candidate"
+  fi
+  if [[ -n "$SEED_CONFIG_URL" ]]; then
+    mkdir -p "$SEED_CONFIG_RUNTIME_DIR"
+    step "Downloading seed config..."
+    run_with_retry "download seed config" curl -fsSL "$SEED_CONFIG_URL" -o "$SEED_CONFIG_DOWNLOAD_FILE"
+    printf '%s\n' "$SEED_CONFIG_DOWNLOAD_FILE"
+    return 0
+  fi
+
+  return 1
+}
+
+apply_seed_config() {
+  local seed_file="$1"
+  local exported=""
+  [[ -f "$seed_file" ]] || {
+    echo "Seed config not found: $seed_file" >&2
+    exit 1
+  }
+  [[ -f "$SEED_CONFIG_PARSER" ]] || {
+    echo "Seed config parser not found: $SEED_CONFIG_PARSER" >&2
+    exit 1
+  }
+  exported="$(
+    python3 - "$SEED_CONFIG_PARSER" "$seed_file" <<'PY'
+import importlib.util
+import pathlib
+import shlex
+import sys
+
+parser_path = pathlib.Path(sys.argv[1])
+seed_path = pathlib.Path(sys.argv[2])
+spec = importlib.util.spec_from_file_location("beagle_seed_config_parser", parser_path)
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+parser = module.SeedConfigParser()
+config = parser.parse_file(seed_path)
+errors = parser.validate(config)
+if errors:
+    raise SystemExit("\n".join(errors))
+
+def emit(name: str, value: str) -> None:
+    print(f"{name}={shlex.quote(value)}")
+
+emit("INSTALL_HOSTNAME", str(config.hostname or ""))
+emit("INSTALL_USERNAME", str(config.admin_username or "beagle"))
+emit("INSTALL_PASSWORD", str(config.admin_password or ""))
+emit("INSTALL_DISK", str(config.disk or ""))
+emit("INSTALL_CLUSTER_JOIN", "yes" if str(config.cluster.join or "").strip() else "no")
+emit("INSTALL_CLUSTER_JOIN_TARGET", str(config.cluster.token or config.cluster.join or ""))
+emit("INSTALL_NETWORK_INTERFACE", str(config.network.interface or "eth0"))
+emit("INSTALL_NETWORK_MODE", str(config.network.mode or "dhcp"))
+emit("INSTALL_NETWORK_IP", str(config.network.ip or ""))
+emit("INSTALL_NETWORK_GATEWAY", str(config.network.gateway or ""))
+emit("INSTALL_NETWORK_DNS", ",".join(str(item) for item in (config.network.dns or [])))
+emit("INSTALL_RAID_LEVEL", str(config.raid))
+PY
+  )" || {
+    echo "Seed config validation failed: $seed_file" >&2
+    exit 1
+  }
+  eval "$exported"
+  INSTALL_HOSTNAME="$(normalize_hostname "$INSTALL_HOSTNAME")"
+  validate_hostname "$INSTALL_HOSTNAME" || {
+    echo "Seed config hostname invalid: $INSTALL_HOSTNAME" >&2
+    exit 1
+  }
+  validate_username "$INSTALL_USERNAME" || {
+    echo "Seed config username invalid: $INSTALL_USERNAME" >&2
+    exit 1
+  }
+  [[ -n "$INSTALL_PASSWORD" ]] || {
+    echo "Seed config must provide admin_password for zero-touch install." >&2
+    exit 1
+  }
+  if [[ "${INSTALL_RAID_LEVEL:-0}" != "0" ]]; then
+    echo "Seed config raid=${INSTALL_RAID_LEVEL} is not supported by the current single-disk installer." >&2
+    exit 1
+  fi
+  log "loaded seed config from $seed_file"
+}
+
 current_live_disks() {
   findmnt -rn -o SOURCE /run/live/medium 2>/dev/null | while read -r source; do
     [[ -n "$source" ]] || continue
@@ -431,6 +566,34 @@ network_ready() {
   curl -sf -o /dev/null --connect-timeout 3 "https://deb.debian.org/debian/dists/${DEBIAN_RELEASE}/Release" 2>/dev/null
 }
 
+configure_live_network() {
+  local server=""
+  local -a dns_servers=()
+  if [[ "${INSTALL_NETWORK_MODE:-dhcp}" != "static" ]]; then
+    return 0
+  fi
+  [[ -n "${PRIMARY_IFACE:-}" ]] || return 1
+  [[ -n "${INSTALL_NETWORK_IP:-}" && -n "${INSTALL_NETWORK_GATEWAY:-}" ]] || return 1
+
+  log "configuring live static network on $PRIMARY_IFACE (${INSTALL_NETWORK_IP})"
+  ip link set "$PRIMARY_IFACE" up >>"$LOG_FILE" 2>&1 || true
+  ip addr flush dev "$PRIMARY_IFACE" >>"$LOG_FILE" 2>&1 || true
+  ip addr add "$INSTALL_NETWORK_IP" dev "$PRIMARY_IFACE" >>"$LOG_FILE" 2>&1
+  ip route del default >>"$LOG_FILE" 2>&1 || true
+  ip route add default via "$INSTALL_NETWORK_GATEWAY" dev "$PRIMARY_IFACE" >>"$LOG_FILE" 2>&1
+
+  IFS=',' read -r -a dns_servers <<<"${INSTALL_NETWORK_DNS:-}"
+  : > /etc/resolv.conf
+  if (( ${#dns_servers[@]} == 0 )); then
+    printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' >>/etc/resolv.conf
+    return 0
+  fi
+  for server in "${dns_servers[@]}"; do
+    [[ -n "$server" ]] || continue
+    printf 'nameserver %s\n' "$server" >>/etc/resolv.conf
+  done
+}
+
 run_with_retry() {
   local description="$1"
   shift
@@ -479,6 +642,29 @@ EOF
 
 write_network_config() {
   mkdir -p "$TARGET_MOUNT/etc/network"
+  if [[ "${INSTALL_NETWORK_MODE:-dhcp}" == "static" ]]; then
+    cat >"$TARGET_MOUNT/etc/network/interfaces" <<EOF
+auto lo
+iface lo inet loopback
+
+auto $PRIMARY_IFACE
+iface $PRIMARY_IFACE inet static
+    address ${INSTALL_NETWORK_IP%%/*}
+    netmask $(python3 - "${INSTALL_NETWORK_IP#*/}" <<'PY'
+import ipaddress
+import sys
+print(ipaddress.IPv4Network(f"0.0.0.0/{sys.argv[1]}", strict=False).netmask)
+PY
+)
+    gateway $INSTALL_NETWORK_GATEWAY
+EOF
+    if [[ -n "${INSTALL_NETWORK_DNS:-}" ]]; then
+      cat >>"$TARGET_MOUNT/etc/network/interfaces" <<EOF
+    dns-nameservers ${INSTALL_NETWORK_DNS//,/ }
+EOF
+    fi
+    return 0
+  fi
   cat >"$TARGET_MOUNT/etc/network/interfaces" <<EOF
 auto lo
 iface lo inet loopback
@@ -817,13 +1003,21 @@ main() {
   setup_logging
   enable_live_debug_ssh
 
+  local seed_file=""
+  seed_file="$(discover_seed_config || true)"
+  if [[ -n "$seed_file" ]]; then
+    apply_seed_config "$seed_file"
+  fi
+
   # ── Launch the Python curses TUI to collect all inputs ─────────────────────
   local gui_bin="/usr/local/bin/beagle-server-installer-gui"
   local gui_state_file
   gui_state_file="${BEAGLE_GUI_STATE_FILE:-$STATE_DIR/gui-state.env}"
   export BEAGLE_GUI_STATE_FILE="$gui_state_file"
 
-  if [[ -x "$gui_bin" && "${BEAGLE_SERVER_INSTALLER_FORCE_TEXT:-0}" != "1" ]]; then
+  if [[ -n "$seed_file" ]]; then
+    log "seed config active; skipping interactive installer UI"
+  elif [[ -x "$gui_bin" && "${BEAGLE_SERVER_INSTALLER_FORCE_TEXT:-0}" != "1" ]]; then
     # Run the curses UI directly so stdin/stdout remain attached to the active TTY.
     python3 "$gui_bin" || {
       echo "Installer GUI exited unexpectedly." >&2
@@ -881,6 +1075,9 @@ main() {
   log "cluster join requested: $INSTALL_CLUSTER_JOIN"
 
   PRIMARY_IFACE="$(detect_primary_iface)"
+  if [[ -n "${INSTALL_NETWORK_INTERFACE:-}" ]]; then
+    PRIMARY_IFACE="$INSTALL_NETWORK_INTERFACE"
+  fi
   [[ -n "$PRIMARY_IFACE" ]] || {
     echo "No primary network interface found." >&2
     exit 1
@@ -909,6 +1106,7 @@ main() {
   run_logged mount "$boot_part" "$EFI_MOUNT"
 
   step "Checking network..."
+  configure_live_network
   wait_for_network
   step "Installing base system (debootstrap) - this takes several minutes..."
   install_base_system

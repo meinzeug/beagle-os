@@ -49,14 +49,14 @@ Bei Refactor (z.B. Plan 05 control-plane-split) waere ein vollstaendiges Regress
     - Vergleiche Disk-Hash + VM-Config
   - [x] Edge-Cases: korruptes Archiv, fehlende Files, Disk-Full
 
-- [ ] **Schritt 4** — HA-Failover
-  - [ ] `tests/integration/test_ha_failover.py`:
+- [x] **Schritt 4** — HA-Failover
+  - [x] `tests/integration/test_ha_failover.py`:
     - 2-Node-Cluster (mock libvirt)
     - VM auf Node A
     - Simuliere Node-A-Ausfall (Heartbeat-Timeout)
     - Erwarte: VM startet auf Node B innerhalb T_max
     - Fencing-Trigger gepruefte
-  - [ ] Vorbedingung: HA-Manager existiert (siehe `docs/gofuture/09-ha-manager.md`)
+  - [x] Vorbedingung: HA-Manager existiert (siehe `docs/gofuture/09-ha-manager.md`)
 
 - [ ] **Schritt 5** — VDI-Pool-Lifecycle
   - [ ] `tests/integration/test_vdi_pool_lifecycle.py`:
@@ -87,7 +87,7 @@ Bei Refactor (z.B. Plan 05 control-plane-split) waere ein vollstaendiges Regress
 
 ## Abnahmekriterien
 
-- [ ] Mind. 6 Integrations-Test-Module produktiv.
+- [x] Mind. 6 Integrations-Test-Module produktiv.
 - [ ] Mind. 1 E2E-Test laeuft nightly gegen srv1.
 - [ ] Integrations-Tests laufen auf PR (in CI).
 - [ ] Test-Coverage fuer kritische Pfade dokumentiert.

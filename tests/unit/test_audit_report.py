@@ -16,6 +16,7 @@ if str(SERVICES_DIR) not in sys.path:
 
 from audit_log import AuditLogService
 from audit_report import AuditReportService
+from audit_report_http_surface import AuditReportHttpSurfaceService
 
 
 class AuditReportServiceTests(unittest.TestCase):
@@ -55,6 +56,42 @@ class AuditReportServiceTests(unittest.TestCase):
             self.assertEqual(rows[0][0], "timestamp")
             self.assertEqual(rows[1][1], "auth.user.create")
             self.assertEqual(json.loads(rows[1][11])["username"], "alice")
+
+    def test_http_surface_routes_export_target_test_and_replay(self):
+        class ExportStub:
+            def test_target(self, target):
+                return {"target": target, "event_id": "evt-test"}
+
+            def replay_failures(self, *, limit=100):
+                return {"replayed": 1, "skipped": 0, "errors": []}
+
+        surface = AuditReportHttpSurfaceService(
+            audit_report_service=object(),
+            audit_export_service=ExportStub(),
+            audit_event=lambda *args, **kwargs: None,
+            requester_identity=lambda: "admin",
+            accept_header=lambda: "application/json",
+        )
+
+        test_response = surface.route_post("/api/v1/audit/export-targets/webhook/test")
+        replay_response = surface.route_post("/api/v1/audit/failures/replay", {"limit": 5})
+
+        self.assertEqual(int(test_response["status"]), 200)
+        self.assertEqual(test_response["payload"]["target"], "webhook")
+        self.assertEqual(int(replay_response["status"]), 200)
+        self.assertEqual(replay_response["payload"]["replayed"], 1)
+
+    def test_http_surface_instance_handles_post_does_not_match_auth_login(self):
+        surface = AuditReportHttpSurfaceService(
+            audit_report_service=object(),
+            audit_export_service=object(),
+            audit_event=lambda *args, **kwargs: None,
+            requester_identity=lambda: "admin",
+            accept_header=lambda: "application/json",
+        )
+
+        self.assertTrue(surface.handles_post("/api/v1/audit/failures/replay"))
+        self.assertFalse(surface.handles_post("/api/v1/auth/login"))
 
 
 if __name__ == "__main__":

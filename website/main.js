@@ -71,10 +71,15 @@ import {
 import {
   configureAudit,
   exportAuditCsv,
+  loadAuditExportTargets,
+  loadAuditFailureQueue,
   loadAuditReport,
   onAuditRangeChanged,
+  replayAuditFailures,
   renderAudit,
-  resetAuditFilters
+  resetAuditFilters,
+  runAuditReportBuilder,
+  testAuditExportTarget
 } from './ui/audit.js';
 import {
   configureVirtualization,
@@ -516,12 +521,19 @@ export function bootstrapApp() {
     loadAuditReport,
     resetAuditFilters,
     exportAuditCsv,
-    onAuditRangeChanged
+    onAuditRangeChanged,
+    loadAuditExportTargets,
+    loadAuditFailureQueue,
+    replayAuditFailures,
+    runAuditReportBuilder,
+    testAuditExportTarget
   });
   configurePanels({
     loadSettingsForPanel,
     loadIdentityProviders,
-    loadAuditPanel: loadAuditReport
+    loadAuditPanel: loadAuditReport,
+    loadAuditExportTargets,
+    loadAuditFailureQueue
   });
   configureAuthUi({
     setAuthMode,

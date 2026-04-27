@@ -56,6 +56,37 @@ print(json.dumps({
 PY
 }
 
+fetch_moonlight_current_session_via_manager() {
+  local response_file="${1:-}"
+  local manager_url manager_token manager_pin manager_ca_cert curl_bin session_id vmid url http_status
+  local -a curl_args tls_args
+
+  [[ -n "$response_file" ]] || return 1
+  manager_url="${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}"
+  manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
+  manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
+  manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"
+  session_id="${PVE_THIN_CLIENT_SESSION_ID:-}"
+  vmid="${PVE_THIN_CLIENT_PROXMOX_VMID:-${PVE_THIN_CLIENT_PRESET_PROXMOX_VMID:-}}"
+  [[ -n "$manager_url" && -n "$manager_token" ]] || return 1
+  [[ -n "$session_id" || -n "$vmid" ]] || return 1
+
+  url="${manager_url%/}/api/v1/session/current"
+  if [[ -n "$session_id" ]]; then
+    url="${url}?session_id=${session_id}"
+  else
+    url="${url}?vmid=${vmid}"
+  fi
+
+  curl_bin="$(moonlight_curl_bin)"
+  curl_args=("$curl_bin" -fsS --connect-timeout 6 --max-time 20 --output "$response_file" --write-out '%{http_code}' \
+    -H "Authorization: Bearer ${manager_token}")
+  mapfile -t tls_args < <(beagle_curl_tls_args "$url" "$manager_pin" "$manager_ca_cert")
+  curl_args+=("${tls_args[@]}")
+  http_status="$(${curl_args[@]} "$url" || true)"
+  [[ "$http_status" == "200" ]]
+}
+
 parse_moonlight_pair_token_response() {
   local response_file="${1:-}"
 

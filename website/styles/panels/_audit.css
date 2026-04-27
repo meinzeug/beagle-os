@@ -1,0 +1,18 @@
+/* _audit.css — Audit & Compliance Panel */
+
+/* Timestamp column — smaller monospace */
+.ts-cell { font-size: 0.78rem; font-family: var(--font-mono, monospace); white-space: nowrap; }
+
+/* Export Targets */
+.audit-targets-list { display: flex; flex-wrap: wrap; gap: 12px; padding: 4px 0; }
+.audit-target-card { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; }
+.audit-target-label { font-weight: 700; font-size: 0.9rem; color: var(--text); min-width: 80px; }
+.audit-target-detail { font-size: 0.78rem; color: var(--text-muted); font-family: var(--font-mono, monospace); word-break: break-all; max-width: 260px; }
+.audit-target-error { flex-basis: 100%; color: var(--danger); font-size: 0.78rem; }
+.audit-builder-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.audit-builder-step, .audit-report-card { border: 1px solid var(--border); border-radius: 6px; background: var(--bg-elevated); padding: 10px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.audit-builder-step strong, .audit-report-card strong { font-size: 0.82rem; color: var(--text); }
+.audit-builder-step span, .audit-report-card span { color: var(--text-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+.audit-compliance-list { display: grid; gap: 8px; margin-top: 12px; }
+@media (max-width: 920px) { .audit-builder-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .audit-builder-grid { grid-template-columns: 1fr; } }

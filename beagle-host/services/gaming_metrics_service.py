@@ -59,6 +59,8 @@ class GamingSessionMetrics:
             "session_id": self.session_id,
             "pool_id": self.pool_id,
             "vmid": self.vmid,
+            "user_id": self.user_id,
+            "started_at": self.started_at,
             "avg_fps": round(self.avg_fps(), 1),
             "avg_rtt_ms": round(self.avg_rtt_ms(), 2),
             "max_gpu_temp_c": round(self.max_gpu_temp(), 1),
@@ -78,17 +80,37 @@ class GamingMetricsService:
         self._sessions: dict[str, GamingSessionMetrics] = {}
 
     def start_session(
-        self, session_id: str, vmid: int, pool_id: str, user_id: str
+        self, session_id: str, vmid: int, pool_id: str, user_id: str, *, started_at: str | None = None
     ) -> GamingSessionMetrics:
         m = GamingSessionMetrics(
             session_id=session_id,
             vmid=vmid,
             pool_id=pool_id,
             user_id=user_id,
-            started_at=self._utcnow(),
+            started_at=str(started_at or self._utcnow()),
         )
         self._sessions[session_id] = m
         return m
+
+    def ensure_session(
+        self,
+        session_id: str,
+        *,
+        vmid: int,
+        pool_id: str,
+        user_id: str,
+        started_at: str | None = None,
+    ) -> GamingSessionMetrics:
+        current = self._sessions.get(session_id)
+        if current is not None:
+            return current
+        return self.start_session(
+            session_id,
+            vmid=vmid,
+            pool_id=pool_id,
+            user_id=user_id,
+            started_at=started_at,
+        )
 
     def record_sample(
         self,
@@ -121,6 +143,133 @@ class GamingMetricsService:
 
     def get_active_sessions(self) -> list[dict[str, Any]]:
         return [m.summary() for m in self._sessions.values()]
+
+    def get_active_session_details(self) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        for metrics in self._sessions.values():
+            latest = dict(metrics.samples[-1]) if metrics.samples else {}
+            items.append(
+                {
+                    **metrics.summary(),
+                    "latest_sample": latest,
+                    "alerts": self.check_alerts(metrics.session_id),
+                }
+            )
+        items.sort(key=lambda item: str(item.get("started_at") or ""), reverse=True)
+        return items
+
+    def observe_session(self, session: dict[str, Any]) -> dict[str, Any]:
+        session_id = str(session.get("session_id") or "").strip()
+        pool_id = str(session.get("pool_id") or "").strip()
+        vmid = int(session.get("vmid") or 0)
+        user_id = str(session.get("user_id") or "").strip()
+        if not session_id or not pool_id or vmid <= 0:
+            raise ValueError("session_id, pool_id and vmid are required")
+        started_at = str(session.get("assigned_at") or session.get("started_at") or self._utcnow())
+        metrics = self.ensure_session(
+            session_id,
+            vmid=vmid,
+            pool_id=pool_id,
+            user_id=user_id,
+            started_at=started_at,
+        )
+        sample = session.get("stream_health") if isinstance(session.get("stream_health"), dict) else {}
+        sample_ts = str(sample.get("updated_at") or self._utcnow())
+        last_ts = str(metrics.samples[-1].get("ts") or "") if metrics.samples else ""
+        if sample and sample_ts != last_ts:
+            metrics.add_sample(
+                sample_ts,
+                float(sample.get("fps") or 0.0),
+                float(sample.get("rtt_ms") or 0.0),
+                int(sample.get("dropped_frames") or 0),
+                float(sample.get("gpu_util_pct") or 0.0),
+                float(sample.get("gpu_temp_c") or 0.0),
+                float(sample.get("encoder_util_pct") or sample.get("encoder_load") or 0.0),
+            )
+        return {
+            **metrics.summary(),
+            "latest_sample": dict(metrics.samples[-1]) if metrics.samples else {},
+            "alerts": self.check_alerts(session_id),
+        }
+
+    def finalize_missing_sessions(self, active_session_ids: list[str] | set[str]) -> list[dict[str, Any]]:
+        active = {str(value or "").strip() for value in active_session_ids if str(value or "").strip()}
+        finalized: list[dict[str, Any]] = []
+        for session_id in list(self._sessions.keys()):
+            if session_id in active:
+                continue
+            summary = self.end_session(session_id)
+            if summary:
+                finalized.append(summary)
+        return finalized
+
+    def list_recent_reports(self, limit: int = 24) -> list[dict[str, Any]]:
+        files = sorted(
+            self._state_dir.glob("*.json"),
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
+        )
+        items: list[dict[str, Any]] = []
+        for path in files:
+            try:
+                payload = json.loads(path.read_text())
+            except (OSError, json.JSONDecodeError):
+                continue
+            if isinstance(payload, dict):
+                items.append(payload)
+            if len(items) >= max(1, int(limit or 24)):
+                break
+        return items
+
+    def build_dashboard(
+        self,
+        *,
+        visible_pool_ids: list[str] | set[str] | None = None,
+        recent_limit: int = 24,
+    ) -> dict[str, Any]:
+        allowed = None
+        if visible_pool_ids is not None:
+            allowed = {str(value or "").strip() for value in visible_pool_ids if str(value or "").strip()}
+        active_sessions = [
+            item
+            for item in self.get_active_session_details()
+            if allowed is None or str(item.get("pool_id") or "") in allowed
+        ]
+        recent_reports = [
+            item
+            for item in self.list_recent_reports(limit=recent_limit)
+            if allowed is None or str(item.get("pool_id") or "") in allowed
+        ]
+        summary_source = recent_reports if recent_reports else active_sessions
+        fps_values = [float(item.get("avg_fps") or 0.0) for item in summary_source if item.get("avg_fps") is not None]
+        rtt_values = [float(item.get("avg_rtt_ms") or 0.0) for item in summary_source if item.get("avg_rtt_ms") is not None]
+        gpu_temp_values = [float(item.get("max_gpu_temp_c") or 0.0) for item in summary_source if item.get("max_gpu_temp_c") is not None]
+        trend = []
+        trend_source = recent_reports[:12] if recent_reports else active_sessions[:12]
+        for item in list(reversed(trend_source)):
+            label = str(item.get("ended_at") or item.get("started_at") or item.get("session_id") or "-")
+            trend.append(
+                {
+                    "label": label[-8:] if "T" in label else label,
+                    "avg_fps": float(item.get("avg_fps") or 0.0),
+                    "avg_rtt_ms": float(item.get("avg_rtt_ms") or 0.0),
+                    "max_gpu_temp_c": float(item.get("max_gpu_temp_c") or 0.0),
+                }
+            )
+        return {
+            "generated_at": self._utcnow(),
+            "overview": {
+                "active_sessions": len(active_sessions),
+                "recent_sessions": len(recent_reports),
+                "avg_fps_recent": round(sum(fps_values) / len(fps_values), 1) if fps_values else 0.0,
+                "avg_rtt_ms_recent": round(sum(rtt_values) / len(rtt_values), 2) if rtt_values else 0.0,
+                "max_gpu_temp_c_recent": round(max(gpu_temp_values), 1) if gpu_temp_values else 0.0,
+                "alert_count_active": sum(len(item.get("alerts") or []) for item in active_sessions),
+            },
+            "active_sessions": active_sessions,
+            "recent_reports": recent_reports,
+            "trend": trend,
+        }
 
     def check_alerts(
         self,

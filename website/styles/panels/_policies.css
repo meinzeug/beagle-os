@@ -25,3 +25,20 @@
 .pool-streaming-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
 .checkbox-field { justify-content: space-between; align-items: center; }
 .checkbox-field input[type="checkbox"] { width: 18px; height: 18px; margin-top: 10px; }
+.gaming-kpi-grid { margin-bottom: 12px; }
+.gaming-metrics-trends { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.gaming-metrics-trend-panel { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); padding: 12px; }
+.gaming-metrics-trend-panel h3 { margin: 0 0 8px; font-size: 0.9rem; }
+.gaming-trend-card { display: flex; flex-direction: column; gap: 8px; }
+.gaming-trend-svg { width: 100%; height: 120px; display: block; border-radius: 6px; background: rgba(255,255,255,0.02); }
+.gaming-trend-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.gaming-trend-line.tone-fps { stroke: #1fc17f; }
+.gaming-trend-line.tone-rtt { stroke: #f7b955; }
+.gaming-trend-line.tone-temp { stroke: #f17f7f; }
+.gaming-trend-labels { display: grid; grid-template-columns: repeat(auto-fit, minmax(36px, 1fr)); gap: 4px; font-size: 0.72rem; color: var(--text-muted); }
+.gaming-metrics-session-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.gaming-session-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); padding: 12px; }
+.gaming-alert-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.handover-alert-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+.handover-alert-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); padding: 12px; }
+.handover-alert-message { margin: 10px 0 0; color: var(--text-muted); font-size: 0.82rem; line-height: 1.45; }

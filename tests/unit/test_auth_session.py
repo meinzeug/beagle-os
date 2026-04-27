@@ -81,9 +81,73 @@ class AuthSessionOnboardingTests(unittest.TestCase):
     def test_default_roles_include_kiosk_operator(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             service = self.make_service(Path(temp_dir))
-            roles = {item["name"]: set(item.get("permissions", [])) for item in service.list_roles()}
+            roles = {item["name"]: item for item in service.list_roles()}
             self.assertIn("kiosk_operator", roles)
-            self.assertEqual(roles["kiosk_operator"], {"vm:read", "vm:power"})
+            self.assertEqual(set(roles["kiosk_operator"].get("permissions", [])), {"vm:read", "vm:power", "kiosk:operate"})
+            self.assertTrue(roles["kiosk_operator"]["protected"])
+
+    def test_create_and_update_user_with_session_geo_routing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = self.make_service(Path(temp_dir))
+
+            created = service.create_user(
+                username="alice",
+                password="secret123",
+                role="viewer",
+                enabled=True,
+                session_geo_routing={
+                    "enabled": True,
+                    "sites": {
+                        "berlin": {"target_node": "srv1", "cidrs": ["10.0.0.0/16"]},
+                        "munich": {"target_node": "srv2", "cidrs": ["10.2.0.0/16"]},
+                    },
+                },
+            )
+            self.assertTrue(created["session_geo_routing"]["enabled"])
+            self.assertEqual(created["session_geo_routing"]["sites"]["munich"]["target_node"], "srv2")
+
+            updated = service.update_user(
+                username="alice",
+                session_geo_routing={
+                    "enabled": True,
+                    "sites": {"berlin": {"target_node": "srv3", "cidrs": ["10.0.0.0/16"]}},
+                },
+            )
+            self.assertEqual(updated["session_geo_routing"]["sites"]["berlin"]["target_node"], "srv3")
+            self.assertEqual(service.get_user_session_geo_routing("alice")["sites"]["berlin"]["target_node"], "srv3")
+
+    def test_builtin_roles_cannot_be_modified_or_deleted(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = self.make_service(Path(temp_dir))
+
+            with self.assertRaises(ValueError):
+                service.save_role(name="admin", permissions=["auth:read"])
+
+            self.assertFalse(service.delete_role("viewer"))
+
+    def test_list_roles_backfills_missing_builtin_roles(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            roles_path = root / "auth" / "roles.json"
+            roles_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {"roles": [{"name": "viewer", "permissions": []}]}
+            roles_path.write_text(json.dumps(payload), encoding="utf-8")
+            writes: list[Path] = []
+
+            service = AuthSessionService(
+                data_dir=root,
+                load_json_file=load_json_file,
+                write_json_file=lambda path, doc: writes.append(path),
+                now=lambda: 1_700_000_000,
+                token_urlsafe=lambda length: "token",
+            )
+
+            roles = service.list_roles()
+
+            role_names = [item["name"] for item in roles]
+            self.assertIn("viewer", role_names)
+            self.assertIn("kiosk_operator", role_names)
+            self.assertEqual(writes, [roles_path])
 
 
 if __name__ == "__main__":

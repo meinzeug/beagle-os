@@ -18,6 +18,7 @@ VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 SERVER_INSTALLER_MIN_BUILD_FREE_GIB="${BEAGLE_SERVER_INSTALLER_MIN_BUILD_FREE_GIB:-14}"
 SERVER_INSTALLER_MIN_DIST_FREE_GIB="${BEAGLE_SERVER_INSTALLER_MIN_DIST_FREE_GIB:-4}"
 BUNDLED_SOURCE_ARCHIVE_PATH="config/includes.chroot/usr/local/share/beagle/beagle-os-source.tar.gz"
+SEED_CONFIG_PARSER_PATH="config/includes.chroot/usr/local/share/beagle/seed_config_parser.py"
 SERVER_INSTALLER_BUILD_DEPENDENCIES="${BEAGLE_SERVER_INSTALLER_BUILD_DEPENDENCIES:-live-build debootstrap squashfs-tools xorriso grub2-common grub-pc-bin grub-efi-amd64-bin dosfstools mtools syslinux-utils rsync curl ca-certificates}"
 
 ensure_root() {
@@ -57,6 +58,7 @@ rsync -a "$LB_TEMPLATE_DIR/" "$BUILD_DIR/"
 sed -i "s/__BEAGLE_RELEASE_VERSION__/${VERSION}/g" \
   "$BUILD_DIR/config/includes.chroot/usr/local/bin/beagle-server-installer"
 mkdir -p "$(dirname "$BUILD_DIR/$BUNDLED_SOURCE_ARCHIVE_PATH")"
+install -m 0644 "$ROOT_DIR/server-installer/seed_config_parser.py" "$BUILD_DIR/$SEED_CONFIG_PARSER_PATH"
 (
   cd "$ROOT_DIR"
   tar -czf "$BUILD_DIR/$BUNDLED_SOURCE_ARCHIVE_PATH" \

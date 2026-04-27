@@ -18,22 +18,25 @@
 set -uo pipefail
 
 # ── Config ─────────────────────────────────────────────────────────────────────
-BEAGLE_API_HOST="${BEAGLE_API_HOST:-localhost}"
-BEAGLE_API_PORT="${BEAGLE_API_PORT:-8420}"
+BEAGLE_API_HOST="${BEAGLE_API_HOST:-127.0.0.1}"
+BEAGLE_API_PORT="${BEAGLE_API_PORT:-9088}"
 BEAGLE_API_TIMEOUT="${BEAGLE_API_TIMEOUT:-10}"
+BEAGLE_API_URL="${BEAGLE_API_URL:-http://${BEAGLE_API_HOST}:${BEAGLE_API_PORT}/healthz}"
 BEAGLE_CONTROL_PLANE="${BEAGLE_CONTROL_PLANE:-}"
 BEAGLE_DEVICE_ID="${BEAGLE_DEVICE_ID:-$(hostname -f 2>/dev/null || hostname)}"
 BEAGLE_REPORT_TOKEN="${BEAGLE_REPORT_TOKEN:-}"
 
 REQUIRED_SERVICES=(
     "libvirtd"
-    "beagle-host"
-    "beagle-manager"
+    "beagle-control-plane"
+)
+OPTIONAL_SERVICES=(
     "systemd-resolved"
     "networkd-dispatcher"
 )
 DNS_CHECK_HOST="dns.google"
 VIRSH_TIMEOUT=10
+BEAGLE_KVM_DEVICE="${BEAGLE_KVM_DEVICE:-/dev/kvm}"
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 PASS=0
@@ -42,8 +45,9 @@ RESULTS=()
 
 pass()  { echo "[PASS] $*"; RESULTS+=("{\"check\":\"$1\",\"status\":\"pass\"}"); ((PASS++)) || true; }
 fail()  { echo "[FAIL] $*" >&2; RESULTS+=("{\"check\":\"$1\",\"status\":\"fail\",\"detail\":\"$2\"}"); ((FAIL++)) || true; }
+warn()  { echo "[WARN] $*" >&2; RESULTS+=("{\"check\":\"$1\",\"status\":\"warn\",\"detail\":\"$2\"}"); }
 
-check_service() {
+check_required_service() {
     local svc="$1"
     if systemctl is-active --quiet "$svc" 2>/dev/null; then
         pass "service:$svc"
@@ -52,12 +56,24 @@ check_service() {
     fi
 }
 
+check_optional_service() {
+    local svc="$1"
+    if systemctl is-active --quiet "$svc" 2>/dev/null; then
+        pass "service:$svc"
+    else
+        warn "service:$svc" "$svc is not active"
+    fi
+}
+
 # ── 1. Systemd services ────────────────────────────────────────────────────────
 echo "=== Beagle OS Post-Install Check ==="
 echo ""
 echo "--- 1. systemd services ---"
 for svc in "${REQUIRED_SERVICES[@]}"; do
-    check_service "$svc"
+    check_required_service "$svc"
+done
+for svc in "${OPTIONAL_SERVICES[@]}"; do
+    check_optional_service "$svc"
 done
 
 # ── 2. libvirt / KVM ──────────────────────────────────────────────────────────
@@ -70,10 +86,10 @@ if command -v virsh >/dev/null 2>&1; then
         fail "libvirt:virsh" "virsh list failed"
     fi
 
-    if [ -r /dev/kvm ]; then
+    if [ -r "$BEAGLE_KVM_DEVICE" ]; then
         pass "kvm:device"
     else
-        fail "kvm:device" "/dev/kvm not readable"
+        fail "kvm:device" "$BEAGLE_KVM_DEVICE not readable"
     fi
 else
     fail "libvirt:virsh" "virsh not found"
@@ -91,14 +107,13 @@ fi
 # ── 4. Beagle Host API ────────────────────────────────────────────────────────
 echo ""
 echo "--- 4. Beagle Host API ---"
-api_url="http://${BEAGLE_API_HOST}:${BEAGLE_API_PORT}/api/v1/health"
 if command -v curl >/dev/null 2>&1; then
     http_code=$(curl --silent --write-out "%{http_code}" --output /dev/null \
-        --max-time "$BEAGLE_API_TIMEOUT" "$api_url" 2>/dev/null || echo "000")
+        --max-time "$BEAGLE_API_TIMEOUT" "$BEAGLE_API_URL" 2>/dev/null || echo "000")
     if [ "$http_code" = "200" ]; then
         pass "beagle-host-api:health"
     else
-        fail "beagle-host-api:health" "HTTP $http_code from $api_url"
+        fail "beagle-host-api:health" "HTTP $http_code from $BEAGLE_API_URL"
     fi
 else
     fail "beagle-host-api:health" "curl not found"
@@ -119,13 +134,28 @@ if [ -n "$BEAGLE_CONTROL_PLANE" ] && [ -n "$BEAGLE_REPORT_TOKEN" ] && command -v
     results_json=$(printf '%s,' "${RESULTS[@]}")
     results_json="[${results_json%,}]"
 
-    payload=$(jq -nc \
-        --arg device_id "$BEAGLE_DEVICE_ID" \
-        --arg timestamp "$timestamp" \
-        --arg status "$overall_status" \
-        --argjson checks "$results_json" \
-        '{device_id: $device_id, timestamp: $timestamp, status: $status, checks: $checks}' 2>/dev/null || \
-        echo "{\"device_id\":\"$BEAGLE_DEVICE_ID\",\"timestamp\":\"$timestamp\",\"status\":\"$overall_status\"}")
+    payload=$(python3 - "$BEAGLE_DEVICE_ID" "$timestamp" "$overall_status" "$results_json" <<'PY'
+import json
+import sys
+
+device_id = sys.argv[1]
+timestamp = sys.argv[2]
+status = sys.argv[3]
+checks_raw = sys.argv[4]
+try:
+    checks = json.loads(checks_raw)
+    if not isinstance(checks, list):
+        checks = []
+except json.JSONDecodeError:
+    checks = []
+print(json.dumps({
+    "device_id": device_id,
+    "timestamp": timestamp,
+    "status": status,
+    "checks": checks,
+}))
+PY
+)
 
     curl --silent --show-error \
         --request POST \

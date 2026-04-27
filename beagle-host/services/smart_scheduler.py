@@ -18,6 +18,7 @@ class NodeCapacity:
     gpu_slots_free: int = 0
     predicted_cpu_pct_4h: float = 0.0   # predicted load over next 4 hours
     gpu_utilization_pct: float = 0.0    # current average GPU utilization (Plan 10)
+    predicted_gpu_utilization_pct_4h: float = 0.0  # predicted GPU load over next 4 hours
 
 
 @dataclass
@@ -65,6 +66,12 @@ class SmartSchedulerService:
     # Placement
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _effective_gpu_utilization(node: NodeCapacity) -> float:
+        current = float(node.gpu_utilization_pct or 0.0)
+        predicted = float(node.predicted_gpu_utilization_pct_4h or 0.0)
+        return max(current, predicted)
+
     def pick_node(
         self,
         *,
@@ -80,7 +87,8 @@ class SmartSchedulerService:
         Scoring:
         - Must have free_cpu_cores >= required and free_ram_mib >= required
         - GPU slot required if gpu_required=True
-        - For GPU-required VMs: prefer nodes with lower gpu_utilization_pct (Plan 10)
+        - For GPU-required VMs: prefer nodes with lower effective GPU utilization
+          (current vs. predicted 4h load, whichever is worse)
         - Prefer lower predicted_cpu_pct_4h (pre-warming aware)
         - Tie-break: most free RAM
         """
@@ -93,13 +101,14 @@ class SmartSchedulerService:
                 continue
             if gpu_required and node.gpu_slots_free < 1:
                 continue
+            effective_gpu_util = self._effective_gpu_utilization(node)
             # Exclude nodes whose GPU is already over the threshold (Plan 10)
-            if gpu_required and node.gpu_utilization_pct >= gpu_utilization_threshold:
+            if gpu_required and effective_gpu_util >= gpu_utilization_threshold:
                 continue
             score = 100.0 - node.predicted_cpu_pct_4h
             # GPU-aware scoring: penalise nodes with high GPU utilization
             if gpu_required:
-                score -= node.gpu_utilization_pct * 0.5
+                score -= effective_gpu_util * 0.5
             candidates.append((score, node.free_ram_mib, node))
 
         if not candidates:
@@ -118,7 +127,11 @@ class SmartSchedulerService:
             reason=(
                 f"best_score: free_cpu={best.free_cpu_cores},"
                 f" predicted_load={best.predicted_cpu_pct_4h:.1f}%"
-                + (f", gpu_util={best.gpu_utilization_pct:.1f}%" if gpu_required else "")
+                + (
+                    f", gpu_util={best.gpu_utilization_pct:.1f}%"
+                    f", predicted_gpu_util={best.predicted_gpu_utilization_pct_4h:.1f}%"
+                    if gpu_required else ""
+                )
             ),
             confidence=min(1.0, candidates[0][0] / 100.0),
             alternative_nodes=alternatives,

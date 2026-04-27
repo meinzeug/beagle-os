@@ -33,7 +33,13 @@ import time
 import threading
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+
+try:
+    from core.persistence.json_state_store import JsonStateStore
+except Exception:  # pragma: no cover - optional in isolated unit contexts
+    JsonStateStore = None
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +137,7 @@ class JobQueueService:
         job_retention: float = DEFAULT_JOB_RETENTION,
         stuck_threshold: float = 60 * 30,  # 30 min without heartbeat → stuck
         utcnow: callable = time.time,
+        state_file: str | Path | None = None,
     ) -> None:
         self._idempotency_ttl = float(idempotency_ttl)
         self._job_retention = float(job_retention)
@@ -143,6 +150,8 @@ class JobQueueService:
         self._jobs: dict[str, Job] = {}
         # idempotency key → (job_id, created_at)
         self._idem: dict[str, tuple[str, float]] = {}
+        self._store = JsonStateStore(Path(state_file), default_factory=lambda: {"jobs": [], "idempotency": {}}) if state_file and JsonStateStore is not None else None
+        self._load_persisted_state()
 
     # ------------------------------------------------------------------
     # Enqueue
@@ -187,6 +196,7 @@ class JobQueueService:
             self._queue.append(job_id)
             if idempotency_key:
                 self._idem[idempotency_key] = (job_id, now)
+            self._persist_locked()
 
         return job
 
@@ -209,6 +219,7 @@ class JobQueueService:
                     job.started_at = self._utcnow()
                     job.heartbeat_at = job.started_at
                     self._queue.pop(idx)
+                    self._persist_locked()
                     return job
         return None
 
@@ -216,6 +227,7 @@ class JobQueueService:
         with self._lock:
             job = self._require(job_id)
             job.heartbeat_at = self._utcnow()
+            self._persist_locked()
 
     # ------------------------------------------------------------------
     # State transitions
@@ -228,6 +240,7 @@ class JobQueueService:
             job.progress = max(0, min(100, int(percent)))
             job.message = str(message)
             job.heartbeat_at = self._utcnow()
+            self._persist_locked()
 
     def complete(self, job_id: str, result: Any = None) -> None:
         with self._lock:
@@ -237,6 +250,7 @@ class JobQueueService:
             job.progress = 100
             job.result = result
             job.finished_at = self._utcnow()
+            self._persist_locked()
 
     def fail(self, job_id: str, error: str = "") -> None:
         with self._lock:
@@ -246,6 +260,7 @@ class JobQueueService:
             job.status = STATUS_FAILED
             job.error = str(error or "")
             job.finished_at = self._utcnow()
+            self._persist_locked()
 
     def cancel(self, job_id: str) -> bool:
         """Request cancellation. Returns True if the cancel was accepted."""
@@ -261,9 +276,11 @@ class JobQueueService:
                     self._queue.remove(job_id)
                 except ValueError:
                     pass
+                self._persist_locked()
                 return True
             # Running — signal worker
             job.cancel_requested = True
+            self._persist_locked()
             return True
 
     # ------------------------------------------------------------------
@@ -331,6 +348,8 @@ class JobQueueService:
                     job.error = f"stuck: no heartbeat for {int(now - last_heartbeat)}s"
                     job.finished_at = now
                     reaped.append(job.job_id)
+            if reaped:
+                self._persist_locked()
         return reaped
 
     # ------------------------------------------------------------------
@@ -353,6 +372,13 @@ class JobQueueService:
                     to_delete.append(job_id)
             for job_id in to_delete:
                 del self._jobs[job_id]
+                self._idem = {
+                    key: value
+                    for key, value in self._idem.items()
+                    if value[0] != job_id
+                }
+            if to_delete:
+                self._persist_locked()
         return len(to_delete)
 
     # ------------------------------------------------------------------
@@ -371,3 +397,59 @@ class JobQueueService:
             raise JobAlreadyTerminalError(
                 f"job {job.job_id!r} is not running (status={job.status!r})"
             )
+
+    def _load_persisted_state(self) -> None:
+        if self._store is None:
+            return
+        data = self._store.load()
+        if not isinstance(data, dict):
+            return
+        jobs = data.get("jobs")
+        if isinstance(jobs, list):
+            for raw in jobs:
+                if not isinstance(raw, dict):
+                    continue
+                try:
+                    job = Job(
+                        job_id=str(raw.get("job_id") or ""),
+                        name=str(raw.get("name") or ""),
+                        payload=raw.get("payload") if isinstance(raw.get("payload"), dict) else {},
+                        status=str(raw.get("status") or STATUS_PENDING),
+                        progress=int(raw.get("progress") or 0),
+                        message=str(raw.get("message") or ""),
+                        result=raw.get("result"),
+                        error=str(raw.get("error") or ""),
+                        idempotency_key=str(raw.get("idempotency_key") or ""),
+                        created_at=float(raw.get("created_at") or self._utcnow()),
+                        started_at=float(raw["started_at"]) if raw.get("started_at") is not None else None,
+                        finished_at=float(raw["finished_at"]) if raw.get("finished_at") is not None else None,
+                        heartbeat_at=float(raw["heartbeat_at"]) if raw.get("heartbeat_at") is not None else None,
+                        cancel_requested=bool(raw.get("cancel_requested")),
+                        owner=str(raw.get("owner") or ""),
+                    )
+                except (TypeError, ValueError):
+                    continue
+                if not job.job_id or not job.name:
+                    continue
+                if job.status == STATUS_RUNNING:
+                    job.status = STATUS_FAILED
+                    job.error = "interrupted by control-plane restart"
+                    job.finished_at = self._utcnow()
+                self._jobs[job.job_id] = job
+                if job.status == STATUS_PENDING:
+                    self._queue.append(job.job_id)
+                if job.idempotency_key:
+                    self._idem[job.idempotency_key] = (job.job_id, job.created_at)
+
+    def _persist_locked(self) -> None:
+        if self._store is None:
+            return
+        self._store.save(
+            {
+                "jobs": [job.as_dict() for job in self._jobs.values()],
+                "idempotency": {
+                    key: {"job_id": value[0], "created_at": value[1]}
+                    for key, value in self._idem.items()
+                },
+            }
+        )

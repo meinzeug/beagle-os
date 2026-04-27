@@ -27,7 +27,7 @@ class AuthHttpSurfaceService:
 
     @staticmethod
     def handles_get(path: str) -> bool:
-        return path in {"/api/v1/auth/users", "/api/v1/auth/roles"}
+        return path in {"/api/v1/auth/users", "/api/v1/auth/roles", "/api/v1/auth/sessions", "/api/v1/auth/tenants"}
 
     @staticmethod
     def handles_post(path: str) -> bool:
@@ -48,6 +48,7 @@ class AuthHttpSurfaceService:
         return (
             AuthHttpSurfaceService._auth_user_match(path) is not None
             or AuthHttpSurfaceService._auth_role_match(path) is not None
+            or bool(re.fullmatch(r"^/api/v1/auth/sessions/[A-Za-z0-9_=-]{8,128}$", path))
         )
 
     @staticmethod
@@ -63,7 +64,7 @@ class AuthHttpSurfaceService:
             raise ValueError(f"invalid {label}")
         return text
 
-    def route_get(self, path: str, *, requester_tenant_id: str | None = None) -> dict[str, Any]:
+    def route_get(self, path: str, *, requester_tenant_id: str | None = None, query_params: dict | None = None) -> dict[str, Any]:
         if path == "/api/v1/auth/users":
             return self._json_response(
                 HTTPStatus.OK,
@@ -80,6 +81,28 @@ class AuthHttpSurfaceService:
                 {
                     "ok": True,
                     "roles": self._auth_session.list_roles(),
+                },
+            )
+        if path == "/api/v1/auth/sessions":
+            params = query_params or {}
+            username_filter = str(params.get("username") or "").strip() or None
+            tenant_filter = str(params.get("tenant_id") or "").strip() or None
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "sessions": self._auth_session.list_active_sessions(
+                        username=username_filter,
+                        tenant_id=tenant_filter,
+                    ),
+                },
+            )
+        if path == "/api/v1/auth/tenants":
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "tenants": self._auth_session.list_tenants(),
                 },
             )
         return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
@@ -117,6 +140,7 @@ class AuthHttpSurfaceService:
                     role=str(payload.get("role") or "viewer").strip().lower() or "viewer",
                     enabled=bool(payload.get("enabled", True)),
                     tenant_id=requested_tenant,
+                    session_geo_routing=payload.get("session_geo_routing") if isinstance(payload.get("session_geo_routing"), dict) else None,
                 )
             except Exception as exc:
                 return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
@@ -177,6 +201,8 @@ class AuthHttpSurfaceService:
                     role=str(payload.get("role")).strip().lower() if payload.get("role") is not None else None,
                     enabled=bool(payload.get("enabled")) if "enabled" in payload else None,
                     password=str(payload.get("password") or "") if payload.get("password") is not None else None,
+                    tenant_id=(str(payload.get("tenant_id")).strip() or None) if "tenant_id" in payload else ...,
+                    session_geo_routing=payload.get("session_geo_routing") if "session_geo_routing" in payload else ...,
                 )
             except Exception as exc:
                 status = HTTPStatus.NOT_FOUND if str(exc) == "user not found" else HTTPStatus.BAD_REQUEST
@@ -222,5 +248,13 @@ class AuthHttpSurfaceService:
             if not deleted:
                 return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "role not found or protected"})
             return self._json_response(HTTPStatus.OK, {"ok": True, "deleted": role_name})
+
+        session_jti_match = re.fullmatch(r"^/api/v1/auth/sessions/(?P<jti>[A-Za-z0-9_=-]{8,128})$", path)
+        if session_jti_match is not None:
+            jti = session_jti_match.group("jti")
+            revoked = self._auth_session.revoke_session_by_jti(jti)
+            if not revoked:
+                return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "session not found or already revoked"})
+            return self._json_response(HTTPStatus.OK, {"ok": True, "revoked_jti": jti})
 
         return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})

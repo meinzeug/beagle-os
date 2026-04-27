@@ -1,5 +1,24 @@
 # Next Steps
 
+## Stand (2026-04-27, two-host follow-up)
+
+**Zuletzt erledigt**:
+- GoEnterprise Plan 08 weiter geschlossen: Seed-Discovery im Server-Installer ist jetzt produktiv verdrahtet (`/media/beagle-seed.yaml`, `/run/live/medium/...`, `beagle.seed_url=...`), PXE-Setup-Script + Doku + Integrations-Smoke liegen im Repo.
+- PXE-Dry-Run gegen echte Installer-Artefakte auf `srv1` und `srv2` erfolgreich; beide Hosts erzeugen konsistente `dnsmasq`-/TFTP-Baeume im isolierten Temp-Root.
+- Cluster-Installer-Glue geschlossen: Auto-Join-Oneshot, Install-Check-API, Cluster-Banner in der WebUI.
+- Live-Drift im laufenden Zwei-Host-Cluster behoben: `srv1` und `srv2` verwenden wieder gueltige `/beagle-api`-Member-URLs und sehen sich gegenseitig als `online`.
+- `srv2` hat einen erfolgreichen Post-Install-Check an `srv1` gemeldet; der Report ist auf dem Leader abrufbar und in der WebUI sichtbar.
+- GoEnterprise Plan 06 Schritt 3 begonnen: endpoint-authenticated Session-Broker `GET /api/v1/session/current` und Thin-Client-Reconnect-Hook sind umgesetzt; live auf `srv1` mit echtem Endpoint-Token erfolgreich abgenommen.
+- GoEnterprise Plan 06 weiter geschlossen: Timing-Test `<5s`, Geo-Routing-Backend, Handover-History-API und Slow-Handover-Alerts sind implementiert; `scripts/smoke-session-handover-flow.sh` lieferte auf `srv1 -> srv2` live `PASS` in `0.29s`.
+- GoEnterprise Plan 06 abgeschlossen: die WebUI rendert die neue Session-Handover-Historie jetzt live im Policies-Panel; auf `srv1` ist der neue Operator-Block mit echten `srv1 -> srv2`-Events browserseitig verifiziert.
+- GoAdvanced Plan 10 Schritt 4 geschlossen: `tests/integration/test_ha_failover.py` ergänzt; gesamter Integrationssatz liegt jetzt bei `87 passed`.
+
+**Naechste konkrete Schritte**:
+
+1. **Repo-Auto-Update live final pruefen**: echter Commit nach `origin/main` -> Pull auf `srv1` und `srv2` -> Watchdog gesund.
+2. **Cluster-WebUI-Operations vervollstaendigen**: `docs/gofuture/00-index.md` Schritt "Cluster-Operations in der WebUI vollständig machen" bleibt als echter Zwei-Host-Operator-Block offen.
+3. **Installer-Restgrenze sauber schliessen**: Mehrdisk-RAID und echter PXE-Boot mit DHCP-seitiger Seed-Uebergabe bleiben als verbleibender Installer-Nachlauf offen.
+
 ## Stand (2026-04-26, GoFuture Re-Open: WebUI-Operability)
 
 **Zuletzt erledigt**:
@@ -28,17 +47,22 @@
 3. **Watchdog mit Repo-Update zusammenspielen lassen**: auf einem Host absichtlich Artefakt-Drift nach erfolgreichem Repo-Update erzeugen und bestaetigen, dass der Watchdog `reaction=started_refresh` setzt und wieder `healthy/public_ready=true` erreicht.
 4. **GitHub Release-Workflow erneut gegen echten Push pruefen**: bestaetigen, dass `.github/workflows/release.yml` nach dem Parse-Fix wieder laeuft und auf Push nach `main` einen neuen Rolling-/Release-Lauf erzeugt.
 5. **APT-Automatik-Policy klaeren**: derzeit prueft die Karte automatisch und installiert APT manuell; falls OS-Paketupdates vollautomatisch installiert werden sollen, muss ein eigener sicherer unattended-upgrades-/Timer-Pfad gebaut werden.
-6. **Plan 12 Schritt 6 fortsetzen**: GPU-Zuweisung und Release als gefuehrten Wizard/Danger-Flow bauen statt Prompt-Aktionen.
-7. **Plan 12 Schritt 6 fortsetzen**: vGPU-/mdev- und SR-IOV-Bereiche von Tabellen auf Cards/erklaerende Operator-Flows umstellen.
-8. **Thinclient-Hardware-Rerun auf echtem Stick**: neuen VM100-USB-Stick von `srv1` erzeugen und den bisher fehlgeschlagenen physischen `Preset Installation starten`-Pfad auf echter Hardware erneut abnehmen.
-9. **Thinclient-Runtime visuell abnehmen**: lokale installierte Ziel-Disk mit grafischem Capture/Screenshot bis zur sichtbaren Moonlight-Session gegen `vm100` pruefen.
-10. **Security vor Cluster-Komfort**: `8443` auf downloads-only reduzieren oder schließen; Installer-/Download-Pfade vorher sauber auf `443` migrieren.
-11. **Leader-State-Reconcile bauen**: Drift in `members.json` reproduzierbar erkennen und vom Leader aus sauber neu aufbauen oder gegen den Cluster-Store abgleichen.
-12. **Plan 10/13/15 Panels fortsetzen**: `/#panel=policies`, `/#panel=iam`, `/#panel=audit` von Statusansichten zu echten Operator-Flows umbauen.
+6. **Plan 12 Nachlauf nur optional**: voller NVIDIA-Treiber-/Streaming-Benchmark im Gast waere noch zusaetzliche Komfortvalidierung, ist aber kein Pflichtblocker mehr.
+7. **Thinclient-Hardware-Rerun auf echtem Stick**: neuen VM100-USB-Stick von `srv1` erzeugen und den bisher fehlgeschlagenen physischen `Preset Installation starten`-Pfad auf echter Hardware erneut abnehmen.
+8. **Thinclient-Runtime visuell abnehmen**: lokale installierte Ziel-Disk mit grafischem Capture/Screenshot bis zur sichtbaren Moonlight-Session gegen `vm100` pruefen.
+9. **Security vor Cluster-Komfort**: `8443` auf downloads-only reduzieren oder schließen; Installer-/Download-Pfade vorher sauber auf `443` migrieren.
+10. **Leader-State-Reconcile bauen**: Drift in `members.json` reproduzierbar erkennen und vom Leader aus sauber neu aufbauen oder gegen den Cluster-Store abgleichen.
+11. **Plan 10/13/15 Panels fortsetzen**: `/#panel=policies`, `/#panel=iam`, `/#panel=audit` von Statusansichten zu echten Operator-Flows umbauen.
+12. **GPU-Pool-Wizard UX abrunden**: Sichtlabel fuer live erkannte GPUs kuerzen/normalisieren, ohne den jetzt stabilen `gpu_class`-Value (`passthrough-nvidia-geforce-gtx-1080`) wieder aufzubrechen.
+13. **GoFuture Plan 13 Operator-Rollen-UX**: Navigation und Dashboard fuer eingeschraenkte Rollen weiter entkoppeln, damit Viewer/Kiosk-Operatoren nur die Panels und Daten laden, die sie wirklich nutzen duerfen.
+14. **GoFuture Plan 13 E2E-Smoke**: lokales IAM-Login auf `srv1` browserseitig abnehmen; UI-Regressions sind jetzt geschlossen, offen bleibt der echte Login-/Session-Smoketest.
+15. **GoFuture Plan 10 Policies-UX**: Pool-Wizard/Pool-Cards/Detailflow in `/#panel=policies` weiter von Tabellenwiese zu gefuehrtem Operator-Flow ausbauen, jetzt auf Basis der produktiven Gaming-/Kiosk-Felder.
+16. **A11y-Follow-up im Login-/Provisioning-Flow**: die restlichen DevTools-Warnungen `password field not contained in a form` fuer weitere Passwortfelder (u.a. Provisioning/Modal-Felder) beseitigen, nachdem der `aria-hidden`-Warnpfad am Login-Modal bereits geschlossen ist.
 
 **Blocker/Risiken**:
 - `srv2` GPU: GTX 1080 ist an `vfio-pci`, aber IOMMU-Gruppe enthaelt weitere Geraete; Passthrough bleibt ohne ACS/BIOS/Hardware-Aenderung nicht sicher freigebbar.
 - Artifact-Refresh ist jetzt auf `srv1` und `srv2` gruen; offener Rest fuer Plan 06 ist jetzt das echte Zusammenspiel `GitHub-Repo-Update -> Host-Deploy -> Artifact-Watchdog`.
+- `srv2` hat im aktuellen Browser-Smoke zwar keine Console-Errors mehr, nutzt aber weiterhin eine Zertifikatskette mit frueherem `ERR_CERT_AUTHORITY_INVALID`-Fund; TLS-Bereinigung bleibt separat offen.
 
 ---
 
@@ -128,12 +152,32 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 
 ### Verbleibende Punkte (nach Priorität)
 
-1. **Plan 09 Schritt 6**: Branch-Protection-Regeln in GitHub repository settings aktivieren.
+0. **GPU-Zeitfenster auf `srv2` nutzen, solange der Host noch verfuegbar ist**:
+   - Erledigt: `srv2` GPU-Passthrough-Smoke per transienter VM; Gast sah GTX 1080 (`10de:1b80`) und Audio (`10de:10f0`).
+   - Erledigt: GPU-Plane-WebUI mit Assign-/Release-Wizard, mdev-Cards, SR-IOV-Cards und UI-Regressions; Assets auf `srv1`/`srv2` ausgerollt.
+   - Optional: voller NVIDIA-Treiber-/Streaming-Benchmark im Gast, falls `srv2` noch lange genug verfuegbar bleibt.
+   - Danach: offene Nicht-GPU-WebUI-Smokes fuer IAM/Audit und die restlichen GoAdvanced/GoEnterprise-Punkte weiter abarbeiten.
+
+1. **Plan 07 Rest-Lasttest**:
+   - Optionalen 5GB-Backup-Lasttest auf `srv1` mit echter gross genug belegter VM/Disk ausfuehren.
+   - Funktional ist Plan 07 runtime-faehig: Worker-Handler, SSE, UI-Subscribe, Idempotency und persistierte Job-History sind validiert.
+
+2. **Plan 09 Schritt 6**: Branch-Protection-Regeln in GitHub repository settings aktivieren.
    _Manueller Schritt im GitHub UI; nicht Teil der technischen Untersetzung._
 
-2. **QEMU+SSH Migration-Protokoll debuggen** (optional, nicht auf kritischem Pfad):
+3. **QEMU+SSH Migration-Protokoll debuggen** (optional, nicht auf kritischem Pfad):
    - Untersuche Libvirt-Konfiguration, Firewall-Regeln, SSH-Agent-Issues
    - Alternativ: Shared Storage für Migration evaluieren
 - Echten Runtime-Test fuer den neuen Windows-Live-USB-Writer auf Windows/UEFI-Hardware oder Windows-VM durchziehen und Bootverhalten verifizieren.
 - Host-Downloads auf `srv1.beagle-os.com` und `srv2.beagle-os.com` mit den neuen `pve-thin-client-live-usb-*.ps1` Artefakten aktualisieren und per Download-Status gegenpruefen.
 - WebUI-VM-Detail live auf `srv1`/`srv2` gegen den neuen `live-usb.ps1`-Pfad smoke-testen.
+- `srv2` TLS-/Zertifikatskette pruefen: Chrome DevTools sah am 27.04.2026 initial `ERR_CERT_AUTHORITY_INVALID`, obwohl die WebUI nach Ausnahme-Proceed und der Login-POST selbst funktionierten.
+- Optional: Login-Modal/weitere Passwortfelder im HTML in echte `<form>`-Container ueberfuehren, damit die verbleibenden DevTools-DOM-Warnungen (`Password field is not contained in a form`) verschwinden.
+- GoEnterprise Plan 03 weiterziehen:
+  - Kiosk-Controller nicht nur im DOM, sondern mit echter Admin-Session auf `srv1`/`srv2` end-to-end testen
+  - Session-Verlaengerung/Reset-Aktion statt nur `end` produktiv machen
+  - pruefen, ob `kiosk_operator` fuer die gewuenschte Sichtbarkeit zusaetzlich Pool-Scoped Filter statt globaler Kiosk-Sicht braucht
+- GoEnterprise Plan 03 / Plan 10 weiterziehen:
+  - Pool-Wizard fuer GPU-Pooltypen weiterziehen: heute live Passthrough-Selektor + mdev/SR-IOV-Hints; als naechstes echte authentifizierte Slot-/Klassenvalidierung vervollstaendigen
+- authenticated Live-Smoke fuer Gaming-Pools auf `srv1`/`srv2`: Stream-Health fuer echte Gaming-Session einspeisen und Dashboard mit Live-Daten pruefen
+- `docs/goenterprise/03-gaming-kiosk-pools.md`: verbleibende Testpflicht fuer Gaming-Pool-Allocation ohne GPU sowie Kiosk-/RBAC-E2E sauber abschliessen

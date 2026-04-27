@@ -5,6 +5,7 @@ import {
 import { chip, escapeHtml, fieldBlock, qs } from './dom.js';
 import { request, runSingleFlight } from './api.js';
 import { sanitizeIdentifier } from './auth.js';
+import { renderKioskController } from './kiosk_controller.js';
 
 const policyHooks = {
   setBanner() {},
@@ -19,6 +20,13 @@ const policyHooks = {
 
 const POOL_WIZARD_STEPS = 4;
 let poolWizardStep = 1;
+let gamingMetricsLoadInFlight = null;
+let handoverHistoryLoadInFlight = null;
+const poolGpuInventoryHints = {
+  mdevTypes: null,
+  sriovDevices: null,
+  loading: null
+};
 
 export function configurePolicies(nextHooks) {
   Object.assign(policyHooks, nextHooks || {});
@@ -31,24 +39,191 @@ function parseCommaList(rawValue) {
     .filter((item, idx, all) => item && all.indexOf(item) === idx);
 }
 
+function parseMinuteList(rawValue) {
+  return String(rawValue || '')
+    .split(',')
+    .map((item) => Number(String(item || '').trim()))
+    .filter((item, idx, all) => Number.isFinite(item) && item > 0 && item <= 480 && all.indexOf(item) === idx)
+    .sort((a, b) => a - b);
+}
+
+function slugToken(rawValue) {
+  return String(rawValue || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function normalizedGpuModelToken(rawValue) {
+  let text = String(rawValue || '').trim();
+  if (!text) {
+    return '';
+  }
+  text = text.replace(/^[0-9a-f:.]+\s+[^:]+:\s*/i, '');
+  text = text.replace(/\[[0-9a-f]{4}:[0-9a-f]{4}\]/ig, '');
+  text = text.replace(/\(rev[^)]*\)/ig, '');
+  text = text.replace(/\bNVIDIA Corporation\b/ig, '');
+  text = text.replace(/\bAdvanced Micro Devices, Inc\.\s*\[AMD\/ATI\]\b/ig, '');
+  text = text.replace(/\bIntel Corporation\b/ig, '');
+  const bracketLabels = Array.from(text.matchAll(/\[([^\]]+)\]/g)).map((match) => String(match[1] || '').trim()).filter(Boolean);
+  if (bracketLabels.length) {
+    text = bracketLabels[0];
+  }
+  return slugToken(text);
+}
+
+function buildPassthroughGpuClass(item) {
+  const vendor = slugToken(item && item.vendor);
+  const model = normalizedGpuModelToken(item && item.model);
+  return ['passthrough', vendor, model].filter(Boolean).join('-');
+}
+
+function poolTypeRequiresGpuClass(poolType) {
+  return ['gaming', 'gpu_passthrough'].includes(String(poolType || '').trim());
+}
+
+function summarizePoolGpuClassOptions() {
+  const overview = state.virtualizationOverview || {};
+  const gpus = Array.isArray(overview.gpus) ? overview.gpus : [];
+  const byClass = new Map();
+  gpus.forEach((item) => {
+    const gpuClass = buildPassthroughGpuClass(item);
+    if (!gpuClass) {
+      return;
+    }
+    const existing = byClass.get(gpuClass) || {
+      value: gpuClass,
+      label: gpuClass,
+      total: 0,
+      ready: 0,
+      blocked: 0,
+      nodes: new Set(),
+      models: new Set(),
+    };
+    existing.total += 1;
+    if (item && item.passthrough_ready) {
+      existing.ready += 1;
+    } else {
+      existing.blocked += 1;
+    }
+    if (item && item.node) {
+      existing.nodes.add(String(item.node).trim());
+    }
+    if (item && item.model) {
+      existing.models.add(String(item.model).trim());
+    }
+    byClass.set(gpuClass, existing);
+  });
+  return Array.from(byClass.values()).sort((a, b) => a.value.localeCompare(b.value));
+}
+
+export function renderPoolGpuClassOptions() {
+  const select = qs('pool-gpu-class');
+  const help = qs('pool-gpu-class-help');
+  const poolType = String(qs('pool-type') ? qs('pool-type').value : 'desktop').trim() || 'desktop';
+  if (!select) {
+    return;
+  }
+  const options = summarizePoolGpuClassOptions();
+  const previousValue = String(select.value || '').trim();
+  const required = poolTypeRequiresGpuClass(poolType);
+  const optionMarkup = [];
+  if (!required) {
+    optionMarkup.push('<option value="" selected>Keine GPU-Klasse erforderlich</option>');
+    select.innerHTML = optionMarkup.join('');
+    select.disabled = true;
+    if (help) {
+      help.textContent = 'Live erkannt: ' + String(options.length) + ' Passthrough-Klassen, '
+        + String(Array.isArray(poolGpuInventoryHints.mdevTypes) ? poolGpuInventoryHints.mdevTypes.length : 0) + ' mdev-Typen, '
+        + String(Array.isArray(poolGpuInventoryHints.sriovDevices) ? poolGpuInventoryHints.sriovDevices.length : 0) + ' SR-IOV-Geraete.';
+    }
+    return;
+  }
+  optionMarkup.push('<option value="">GPU-Klasse aus Live-Inventar waehlen</option>');
+  options.forEach((item) => {
+    const modelLabel = Array.from(item.models).slice(0, 2).join(' / ') || item.value;
+    const hostLabel = item.nodes.size ? (Array.from(item.nodes).join(', ')) : 'ohne Host';
+    const statusLabel = item.ready > 0
+      ? (String(item.ready) + '/' + String(item.total) + ' bereit')
+      : ('aktuell blockiert (' + String(item.blocked) + ')');
+    optionMarkup.push(
+      '<option value="' + escapeHtml(item.value) + '">' +
+      escapeHtml(modelLabel + ' · ' + hostLabel + ' · ' + statusLabel) +
+      '</option>'
+    );
+  });
+  select.innerHTML = optionMarkup.join('');
+  select.disabled = false;
+  const validValues = new Set(options.map((item) => item.value));
+  if (previousValue && validValues.has(previousValue)) {
+    select.value = previousValue;
+  } else if (options.length === 1) {
+    select.value = options[0].value;
+  } else {
+    select.value = '';
+  }
+  if (help) {
+    if (!options.length) {
+      help.textContent = 'Keine live erkannte Passthrough-GPU-Klasse gefunden. Details und Ursachen stehen unter /#panel=virtualization.';
+      return;
+    }
+    help.textContent = 'Live erkannt: ' + String(options.length) + ' Passthrough-Klassen, '
+      + String(Array.isArray(poolGpuInventoryHints.mdevTypes) ? poolGpuInventoryHints.mdevTypes.length : 0) + ' mdev-Typen, '
+      + String(Array.isArray(poolGpuInventoryHints.sriovDevices) ? poolGpuInventoryHints.sriovDevices.length : 0) + ' SR-IOV-Geraete.';
+  }
+}
+
+function loadPoolGpuInventoryHints() {
+  if (!state.token) {
+    poolGpuInventoryHints.mdevTypes = null;
+    poolGpuInventoryHints.sriovDevices = null;
+    poolGpuInventoryHints.loading = null;
+    renderPoolGpuClassOptions();
+    return Promise.resolve();
+  }
+  if (poolGpuInventoryHints.loading) {
+    return poolGpuInventoryHints.loading;
+  }
+  poolGpuInventoryHints.loading = Promise.all([
+    request('/virtualization/mdev/types').catch(() => ({ mdev_types: [] })),
+    request('/virtualization/sriov').catch(() => ({ sriov_devices: [] }))
+  ]).then((results) => {
+    poolGpuInventoryHints.mdevTypes = Array.isArray(results[0] && results[0].mdev_types) ? results[0].mdev_types : [];
+    poolGpuInventoryHints.sriovDevices = Array.isArray(results[1] && results[1].sriov_devices) ? results[1].sriov_devices : [];
+    renderPoolGpuClassOptions();
+  }).finally(() => {
+    poolGpuInventoryHints.loading = null;
+  });
+  return poolGpuInventoryHints.loading;
+}
+
 function collectPoolWizardInput() {
   const poolIdRaw = String(qs('pool-id') ? qs('pool-id').value : '').trim();
   const poolId = poolIdRaw.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
   const templateId = String(qs('pool-template') ? qs('pool-template').value : '').trim();
+  const poolType = String(qs('pool-type') ? qs('pool-type').value : 'desktop').trim() || 'desktop';
   const mode = String(qs('pool-mode') ? qs('pool-mode').value : 'floating_non_persistent').trim();
   const storagePool = String(qs('pool-storage') ? qs('pool-storage').value : 'local').trim() || 'local';
+  const gpuClass = String(qs('pool-gpu-class') ? qs('pool-gpu-class').value : '').trim();
   const users = parseCommaList(qs('pool-users') ? qs('pool-users').value : '');
   const groups = parseCommaList(qs('pool-groups') ? qs('pool-groups').value : '');
+  const sessionExtensionOptions = parseMinuteList(qs('pool-session-extensions') ? qs('pool-session-extensions').value : '');
   const payload = {
     pool_id: poolId,
     template_id: templateId,
+    pool_type: poolType,
     mode,
     storage_pool: storagePool,
+    gpu_class: gpuClass,
     min_pool_size: Number(qs('pool-min-size') ? qs('pool-min-size').value : '1') || 1,
     max_pool_size: Number(qs('pool-max-size') ? qs('pool-max-size').value : '5') || 5,
     warm_pool_size: Number(qs('pool-warm-size') ? qs('pool-warm-size').value : '2') || 2,
     cpu_cores: Number(qs('pool-cpu') ? qs('pool-cpu').value : '2') || 2,
     memory_mib: Number(qs('pool-memory') ? qs('pool-memory').value : '4096') || 4096,
+    session_time_limit_minutes: Number(qs('pool-session-time-limit') ? qs('pool-session-time-limit').value : '0') || 0,
+    session_cost_per_minute: Number(qs('pool-session-cost') ? qs('pool-session-cost').value : '0') || 0,
+    session_extension_options_minutes: poolType === 'kiosk' ? sessionExtensionOptions : [],
     session_recording: String(qs('pool-session-recording') ? qs('pool-session-recording').value : 'disabled').trim() || 'disabled',
     recording_retention_days: Number(qs('pool-recording-retention-days') ? qs('pool-recording-retention-days').value : '30') || 30,
     recording_watermark_enabled: String(qs('pool-recording-watermark-enabled') ? qs('pool-recording-watermark-enabled').value : 'false').trim().toLowerCase() === 'true',
@@ -79,6 +254,15 @@ function validatePoolWizardStep(step, payload) {
     }
   }
   if (step >= 2) {
+    if (payload.pool_type === 'gaming' && !payload.gpu_class) {
+      return 'Gaming-Pools brauchen eine GPU-Klasse.';
+    }
+    if (payload.pool_type === 'kiosk' && Number(payload.session_time_limit_minutes) <= 0) {
+      return 'Kiosk-Pools brauchen ein Session-Limit > 0 Minuten.';
+    }
+    if (payload.pool_type === 'kiosk' && (!Array.isArray(payload.session_extension_options_minutes) || !payload.session_extension_options_minutes.length)) {
+      return 'Kiosk-Pools brauchen mindestens eine Verlaengerungsstufe.';
+    }
     if (payload.max_pool_size < payload.min_pool_size) {
       return 'Max-Groesse muss >= Min-Groesse sein.';
     }
@@ -116,10 +300,15 @@ function renderPoolWizardSummary() {
     '<div class="detail-grid">' +
     fieldBlock('Template', payload.template_id || '-') +
     fieldBlock('Pool ID', payload.pool_id || '-') +
+    fieldBlock('Pool-Typ', payload.pool_type || '-') +
     fieldBlock('Modus', payload.mode || '-') +
+    fieldBlock('GPU-Klasse', payload.gpu_class || '-') +
     fieldBlock('Storage', payload.storage_pool || '-') +
     fieldBlock('Min/Max/Warm', String(payload.min_pool_size) + ' / ' + String(payload.max_pool_size) + ' / ' + String(payload.warm_pool_size)) +
     fieldBlock('CPU / RAM', String(payload.cpu_cores) + ' vCPU / ' + String(payload.memory_mib) + ' MiB') +
+    fieldBlock('Session-Limit', payload.session_time_limit_minutes > 0 ? String(payload.session_time_limit_minutes) + ' Minuten' : 'unbegrenzt') +
+    fieldBlock('Kosten / Minute', Number(payload.session_cost_per_minute || 0).toFixed(2)) +
+    fieldBlock('Verlaengerungen', Array.isArray(payload.session_extension_options_minutes) && payload.session_extension_options_minutes.length ? payload.session_extension_options_minutes.join(', ') + ' Minuten' : '-') +
     fieldBlock('Session Recording', String(payload.session_recording || 'disabled')) +
     fieldBlock('Retention', String(payload.recording_retention_days || 30) + ' Tage') +
     fieldBlock('Watermark', (payload.recording_watermark_enabled ? 'enabled' : 'disabled') + (payload.recording_watermark_custom_text ? ' / ' + payload.recording_watermark_custom_text : '')) +
@@ -241,9 +430,11 @@ function renderPoolsList() {
   node.innerHTML = pools.map((pool) => {
     const poolId = String(pool.pool_id || '').trim();
     const mode = String(pool.mode || 'unknown').trim();
+    const poolType = String(pool.pool_type || 'desktop').trim();
     const stream = pool.streaming_profile && typeof pool.streaming_profile === 'object' ? pool.streaming_profile : null;
     const sessionRecording = String(pool.session_recording || 'disabled').trim() || 'disabled';
     const retentionDays = Number(pool.recording_retention_days || 30) || 30;
+    const timeLimit = Number(pool.session_time_limit_minutes || 0) || 0;
     const watermarkEnabled = !!pool.recording_watermark_enabled;
     const watermarkCustom = String(pool.recording_watermark_custom_text || '').trim();
     const streamSummary = stream
@@ -251,10 +442,12 @@ function renderPoolsList() {
       : 'default';
     const selectedClass = state.selectedPoolId === poolId ? ' active' : '';
     return '<article class="policy-card' + selectedClass + '" data-pool-id="' + escapeHtml(poolId) + '">' +
-      '<div class="policy-head"><strong>' + escapeHtml(poolId) + '</strong>' + chip(mode, 'muted') + '</div>' +
+      '<div class="policy-head"><strong>' + escapeHtml(poolId) + '</strong>' + chip(poolType, 'muted') + chip(mode, 'muted') + '</div>' +
       '<div class="pool-card-meta">' +
       fieldBlock('Template', String(pool.template_id || '-'), 'mono') +
       fieldBlock('Warm/Max', String(pool.warm_pool_size || 0) + ' / ' + String(pool.max_pool_size || 0)) +
+      fieldBlock('Session-Limit', timeLimit > 0 ? String(timeLimit) + ' Min' : 'unbegrenzt') +
+      fieldBlock('Verlaengerungen', Array.isArray(pool.session_extension_options_minutes) && pool.session_extension_options_minutes.length ? pool.session_extension_options_minutes.join(', ') + ' Min' : '-') +
       fieldBlock('Recording', sessionRecording) +
       fieldBlock('Retention', String(retentionDays) + ' Tage') +
       fieldBlock('Watermark', (watermarkEnabled ? 'enabled' : 'disabled') + (watermarkCustom ? ' / ' + watermarkCustom : '')) +
@@ -325,6 +518,274 @@ function refreshSelectedPoolOverview() {
   });
 }
 
+function formatMetricNumber(value, digits) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return '-';
+  }
+  return digits > 0 ? num.toFixed(digits) : String(Math.round(num));
+}
+
+function formatHandoverDuration(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return '-';
+  }
+  return num.toFixed(2) + ' s';
+}
+
+function formatHandoverTimestamp(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return '-';
+  }
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) {
+    return text;
+  }
+  return date.toLocaleString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+}
+
+function buildTrendSvg(points, valueKey, strokeClass) {
+  const items = Array.isArray(points) ? points : [];
+  if (!items.length) {
+    return '<div class="empty-card">Noch keine Trenddaten.</div>';
+  }
+  const values = items.map((item) => Number(item && item[valueKey])).filter((value) => Number.isFinite(value));
+  if (!values.length) {
+    return '<div class="empty-card">Noch keine Trenddaten.</div>';
+  }
+  const min = Math.min.apply(null, values);
+  const max = Math.max.apply(null, values);
+  const width = 360;
+  const height = 120;
+  const spread = Math.max(1, max - min);
+  const coords = items.map((item, idx) => {
+    const value = Number(item && item[valueKey]);
+    const x = items.length <= 1 ? width / 2 : (idx * (width - 16) / (items.length - 1)) + 8;
+    const y = Number.isFinite(value)
+      ? height - 10 - (((value - min) / spread) * (height - 28))
+      : height - 10;
+    return String(Math.round(x)) + ',' + String(Math.round(y));
+  }).join(' ');
+  const labels = items.map((item) => '<span>' + escapeHtml(String(item && item.label ? item.label : '-')) + '</span>').join('');
+  return '<div class="gaming-trend-card">' +
+    '<svg class="gaming-trend-svg" viewBox="0 0 ' + String(width) + ' ' + String(height) + '" role="img" aria-label="' + escapeHtml(valueKey) + ' trend">' +
+    '<polyline class="gaming-trend-line ' + escapeHtml(strokeClass) + '" points="' + escapeHtml(coords) + '"></polyline>' +
+    '</svg>' +
+    '<div class="gaming-trend-labels">' + labels + '</div>' +
+    '</div>';
+}
+
+export function renderGamingMetricsDashboard() {
+  const node = qs('gaming-metrics-dashboard');
+  if (!node) {
+    return;
+  }
+  if (!state.token) {
+    node.innerHTML = '<div class="empty-card">Anmeldung erforderlich.</div>';
+    return;
+  }
+  const payload = state.gamingMetrics;
+  if (!payload || typeof payload !== 'object') {
+    node.innerHTML = '<div class="empty-card">Noch keine Gaming-Metriken geladen.</div>';
+    return;
+  }
+  const overview = payload.overview && typeof payload.overview === 'object' ? payload.overview : {};
+  const activeSessions = Array.isArray(payload.active_sessions) ? payload.active_sessions : [];
+  const recentReports = Array.isArray(payload.recent_reports) ? payload.recent_reports : [];
+  const trend = Array.isArray(payload.trend) ? payload.trend : [];
+  const activeHtml = activeSessions.length
+    ? '<div class="gaming-metrics-session-list">' + activeSessions.map((item) => {
+      const latest = item.latest_sample && typeof item.latest_sample === 'object' ? item.latest_sample : {};
+      const alerts = Array.isArray(item.alerts) ? item.alerts : [];
+      return '<article class="gaming-session-card">' +
+        '<div class="policy-head"><strong>' + escapeHtml(String(item.pool_id || '-')) + ' / VM ' + escapeHtml(String(item.vmid || '-')) + '</strong>' +
+        chip(String(item.user_id || '-'), 'muted') + '</div>' +
+        '<div class="detail-grid">' +
+        fieldBlock('FPS', formatMetricNumber(latest.fps, 0)) +
+        fieldBlock('RTT', formatMetricNumber(latest.rtt_ms, 0) + ' ms') +
+        fieldBlock('GPU', formatMetricNumber(latest.gpu_util_pct, 0) + ' %') +
+        fieldBlock('GPU Temp', formatMetricNumber(latest.gpu_temp_c, 0) + ' C') +
+        fieldBlock('Encoder', formatMetricNumber(latest.encoder_util_pct, 0) + ' %') +
+        fieldBlock('Samples', formatMetricNumber(item.sample_count, 0)) +
+        '</div>' +
+        (alerts.length ? '<div class="gaming-alert-list">' + alerts.map((alert) => chip(alert, 'warn')).join('') + '</div>' : '') +
+        '</article>';
+    }).join('') + '</div>'
+    : '<div class="empty-card">Keine aktiven Gaming-Sessions.</div>';
+  const recentRows = recentReports.length
+    ? recentReports.slice(0, 8).map((item) => '<tr>' +
+      '<td class="mono">' + escapeHtml(String(item.session_id || '-')) + '</td>' +
+      '<td>' + escapeHtml(String(item.pool_id || '-')) + '</td>' +
+      '<td>' + escapeHtml(formatMetricNumber(item.avg_fps, 1)) + '</td>' +
+      '<td>' + escapeHtml(formatMetricNumber(item.avg_rtt_ms, 2)) + ' ms</td>' +
+      '<td>' + escapeHtml(formatMetricNumber(item.max_gpu_temp_c, 1)) + ' C</td>' +
+      '</tr>').join('')
+    : '';
+  node.innerHTML =
+    '<div class="detail-grid gaming-kpi-grid">' +
+    fieldBlock('Aktiv', formatMetricNumber(overview.active_sessions, 0)) +
+    fieldBlock('Alerts', formatMetricNumber(overview.alert_count_active, 0)) +
+    fieldBlock('Avg FPS', formatMetricNumber(overview.avg_fps_recent, 1)) +
+    fieldBlock('Avg RTT', formatMetricNumber(overview.avg_rtt_ms_recent, 2) + ' ms') +
+    fieldBlock('Peak GPU Temp', formatMetricNumber(overview.max_gpu_temp_c_recent, 1) + ' C') +
+    fieldBlock('Reports', formatMetricNumber(overview.recent_sessions, 0)) +
+    '</div>' +
+    '<div class="gaming-metrics-trends">' +
+    '<section class="gaming-metrics-trend-panel"><h3>FPS</h3>' + buildTrendSvg(trend, 'avg_fps', 'tone-fps') + '</section>' +
+    '<section class="gaming-metrics-trend-panel"><h3>RTT</h3>' + buildTrendSvg(trend, 'avg_rtt_ms', 'tone-rtt') + '</section>' +
+    '<section class="gaming-metrics-trend-panel"><h3>GPU Temp</h3>' + buildTrendSvg(trend, 'max_gpu_temp_c', 'tone-temp') + '</section>' +
+    '</div>' +
+    '<section class="panel-section section-spaced-tight"><h3>Aktive Gaming-Sessions</h3>' + activeHtml + '</section>' +
+    '<section class="panel-section section-spaced-tight"><h3>Letzte Session-Reports</h3>' +
+    (recentRows
+      ? '<div class="table-wrap compact"><table class="vm-table compact-table"><thead><tr><th>Session</th><th>Pool</th><th>Avg FPS</th><th>Avg RTT</th><th>Peak GPU Temp</th></tr></thead><tbody>' + recentRows + '</tbody></table></div>'
+      : '<div class="empty-card">Noch keine abgeschlossenen Gaming-Reports.</div>') +
+    '</section>';
+}
+
+export function renderSessionHandoverDashboard() {
+  const node = qs('session-handover-dashboard');
+  if (!node) {
+    return;
+  }
+  if (!state.token) {
+    node.innerHTML = '<div class="empty-card">Anmeldung erforderlich.</div>';
+    return;
+  }
+  const payload = state.handoverHistory;
+  if (!payload || typeof payload !== 'object') {
+    node.innerHTML = '<div class="empty-card">Noch keine Session-Handover-Daten geladen.</div>';
+    return;
+  }
+  const events = Array.isArray(payload.events) ? payload.events : [];
+  const alerts = Array.isArray(payload.alerts) ? payload.alerts : [];
+  const completed = events.filter((item) => String(item && item.status || '').trim() === 'completed');
+  const failed = events.filter((item) => String(item && item.status || '').trim() === 'failed');
+  const avgDuration = completed.length
+    ? (completed.reduce((sum, item) => sum + (Number(item && item.duration_seconds) || 0), 0) / completed.length)
+    : NaN;
+  const latestCompleted = completed.length ? completed[0] : null;
+  const eventRows = events.length
+    ? events.slice(0, 10).map((item) => {
+      const status = String(item && item.status || '-').trim() || '-';
+      const tone = status === 'completed' ? 'ok' : status === 'failed' ? 'danger' : 'muted';
+      const route = [String(item && item.source_node || '-').trim() || '-', String(item && item.target_node || '-').trim() || '-'].join(' -> ');
+      return '<tr>' +
+        '<td class="mono">' + escapeHtml(String(item && item.session_id || '-')) + '</td>' +
+        '<td>' + escapeHtml(String(item && item.user_id || '-')) + '</td>' +
+        '<td>' + chip(status, tone) + '</td>' +
+        '<td>' + escapeHtml(route) + '</td>' +
+        '<td>' + escapeHtml(formatHandoverDuration(item && item.duration_seconds)) + '</td>' +
+        '<td>' + escapeHtml(formatHandoverTimestamp(item && (item.completed_at || item.started_at))) + '</td>' +
+        '</tr>';
+    }).join('')
+    : '';
+  const alertCards = alerts.length
+    ? '<div class="handover-alert-list">' + alerts.slice(0, 6).map((item) => {
+      const threshold = Number(item && item.threshold);
+      const currentValue = Number(item && item.current_value);
+      return '<article class="handover-alert-card">' +
+        '<div class="policy-head"><strong>' + escapeHtml(String(item && item.session_id || '-')) + '</strong>' + chip(String(item && item.severity || 'warning'), 'warn') + '</div>' +
+        '<div class="detail-grid">' +
+        fieldBlock('User', String(item && item.user_id || '-')) +
+        fieldBlock('Metrik', String(item && item.metric || '-')) +
+        fieldBlock('Ist', Number.isFinite(currentValue) ? currentValue.toFixed(2) : '-') +
+        fieldBlock('Schwelle', Number.isFinite(threshold) ? threshold.toFixed(2) : '-') +
+        fieldBlock('Ausgeloest', formatHandoverTimestamp(item && item.fired_at)) +
+        '</div>' +
+        '<p class="handover-alert-message">' + escapeHtml(String(item && item.message || '-')) + '</p>' +
+        '</article>';
+      }).join('') + '</div>'
+    : '<div class="empty-card">Keine Slow-Handover-Alerts.</div>';
+  node.innerHTML =
+    '<div class="detail-grid gaming-kpi-grid">' +
+    fieldBlock('Events', String(events.length)) +
+    fieldBlock('Completed', String(completed.length)) +
+    fieldBlock('Failed', String(failed.length)) +
+    fieldBlock('Alerts', String(alerts.length)) +
+    fieldBlock('Avg Dauer', formatHandoverDuration(avgDuration)) +
+    fieldBlock('Letzte Route', latestCompleted ? (String(latestCompleted.source_node || '-') + ' -> ' + String(latestCompleted.target_node || '-')) : '-') +
+    '</div>' +
+    '<section class="panel-section section-spaced-tight"><h3>Slow-Handover-Alerts</h3>' + alertCards + '</section>' +
+    '<section class="panel-section section-spaced-tight"><h3>Letzte Handover-Events</h3>' +
+    (eventRows
+      ? '<div class="table-wrap compact"><table class="vm-table compact-table"><thead><tr><th>Session</th><th>User</th><th>Status</th><th>Route</th><th>Dauer</th><th>Zeit</th></tr></thead><tbody>' + eventRows + '</tbody></table></div>'
+      : '<div class="empty-card">Noch keine Handover-Events.</div>') +
+    '</section>';
+}
+
+export function refreshGamingMetricsDashboard(force) {
+  if (!state.token) {
+    state.gamingMetrics = null;
+    renderGamingMetricsDashboard();
+    return Promise.resolve();
+  }
+  if (gamingMetricsLoadInFlight && !force) {
+    return gamingMetricsLoadInFlight;
+  }
+  gamingMetricsLoadInFlight = request('/gaming/metrics', { __suppressAuthLock: true }).then((payload) => {
+    state.gamingMetrics = payload;
+    renderGamingMetricsDashboard();
+    return payload;
+  }).catch((error) => {
+    state.gamingMetrics = {
+      error: error.message,
+      overview: {},
+      active_sessions: [],
+      recent_reports: [],
+      trend: []
+    };
+    const node = qs('gaming-metrics-dashboard');
+    if (node) {
+      node.innerHTML = '<div class="empty-card">Gaming-Metriken konnten nicht geladen werden: ' + escapeHtml(error.message) + '</div>';
+    }
+    throw error;
+  }).finally(() => {
+    gamingMetricsLoadInFlight = null;
+  });
+  return gamingMetricsLoadInFlight;
+}
+
+export function refreshSessionHandoverDashboard(force) {
+  if (!state.token) {
+    state.handoverHistory = null;
+    renderSessionHandoverDashboard();
+    return Promise.resolve();
+  }
+  if (handoverHistoryLoadInFlight && !force) {
+    return handoverHistoryLoadInFlight;
+  }
+  handoverHistoryLoadInFlight = request('/sessions/handover', { __suppressAuthLock: true }).then((payload) => {
+    state.handoverHistory = payload;
+    renderSessionHandoverDashboard();
+    return payload;
+  }).catch((error) => {
+    state.handoverHistory = {
+      error: error.message,
+      events: [],
+      alerts: []
+    };
+    const node = qs('session-handover-dashboard');
+    if (node) {
+      node.innerHTML = '<div class="empty-card">Session-Handover-Daten konnten nicht geladen werden: ' + escapeHtml(error.message) + '</div>';
+    }
+    throw error;
+  }).finally(() => {
+    handoverHistoryLoadInFlight = null;
+  });
+  return handoverHistoryLoadInFlight;
+}
+
 export function refreshPoolOverview() {
   return refreshSelectedPoolOverview();
 }
@@ -357,6 +818,13 @@ export function resetPoolWizard() {
   if (qs('pool-mode')) {
     qs('pool-mode').value = 'floating_non_persistent';
   }
+  if (qs('pool-type')) {
+    qs('pool-type').value = 'desktop';
+  }
+  if (qs('pool-gpu-class')) {
+    qs('pool-gpu-class').innerHTML = '<option value="">Keine GPU-Klasse erforderlich</option>';
+    qs('pool-gpu-class').value = '';
+  }
   if (qs('pool-storage')) {
     qs('pool-storage').value = 'local';
   }
@@ -374,6 +842,15 @@ export function resetPoolWizard() {
   }
   if (qs('pool-memory')) {
     qs('pool-memory').value = '4096';
+  }
+  if (qs('pool-session-time-limit')) {
+    qs('pool-session-time-limit').value = '0';
+  }
+  if (qs('pool-session-cost')) {
+    qs('pool-session-cost').value = '0';
+  }
+  if (qs('pool-session-extensions')) {
+    qs('pool-session-extensions').value = '15,30,60';
   }
   if (qs('pool-users')) {
     qs('pool-users').value = '';
@@ -413,6 +890,7 @@ export function resetPoolWizard() {
   }
   poolWizardStep = 1;
   renderPoolTemplateOptions();
+  renderPoolGpuClassOptions();
   renderPoolWizardSummary();
   renderPoolWizardStepUi();
 }
@@ -458,9 +936,20 @@ export function createPoolFromWizard() {
 export function renderPolicies() {
   renderPoolWizardStepUi();
   renderPoolTemplateOptions();
+  renderPoolGpuClassOptions();
   renderPoolOverviewSelect();
   renderPoolsList();
   renderPoolOverviewBody();
+  renderGamingMetricsDashboard();
+  renderSessionHandoverDashboard();
+  void renderKioskController();
+  void loadPoolGpuInventoryHints();
+  if (state.token && !state.gamingMetrics) {
+    void refreshGamingMetricsDashboard(false);
+  }
+  if (state.token && !state.handoverHistory) {
+    void refreshSessionHandoverDashboard(false);
+  }
   if (state.selectedPoolId && (!state.poolVmStates || !Array.isArray(state.poolVmStates[state.selectedPoolId]))) {
     refreshSelectedPoolOverview();
   }

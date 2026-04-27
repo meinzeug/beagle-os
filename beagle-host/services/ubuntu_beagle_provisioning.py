@@ -960,7 +960,7 @@ class UbuntuBeagleProvisioningService:
                 "callback_url": callback_url,
                 "public_stream": public_stream,
                 "status": "creating",
-                "phase": "proxmox-create",
+                "phase": "beagle-create",
                 "message": "Proxmox-VM und Autoinstall-Medien werden vorbereitet.",
                 "created_at": self._utcnow(),
                 "updated_at": self._utcnow(),
@@ -1013,7 +1013,7 @@ class UbuntuBeagleProvisioningService:
         except Exception as exc:
             self._invalidate_vm_cache(vmid, node)
             state["status"] = "failed"
-            state["phase"] = "proxmox-create"
+            state["phase"] = "beagle-create"
             state["message"] = "Die VM konnte nicht vollstaendig angelegt werden."
             state["error"] = str(exc)
             state["failed_at"] = self._utcnow()
@@ -1148,7 +1148,7 @@ class UbuntuBeagleProvisioningService:
                 raise RuntimeError("sunshine credentials are missing for guest reconfiguration")
             configure_command = [
                 str(self._configure_sunshine_guest_script),
-                "--proxmox-host",
+                "--beagle-host",
                 "localhost",
                 "--vmid",
                 str(vmid),

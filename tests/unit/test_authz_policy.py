@@ -47,6 +47,10 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "cluster:read",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/nodes/install-checks"),
+            "cluster:read",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("POST", "/api/v1/ha/reconcile-failed-node"),
             "cluster:write",
         )
@@ -143,6 +147,37 @@ class AuthzPolicyServiceTests(unittest.TestCase):
     def test_vm_mutate_still_grants_vm_power_backwards_compat(self):
         allowed = AuthzPolicyService.is_allowed("ops", "vm:power", {"vm:mutate"})
         self.assertTrue(allowed)
+
+    def test_kiosk_controller_routes_use_kiosk_permission(self):
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/pools/kiosk/sessions"),
+            "kiosk:operate",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/pools/kiosk/sessions/101/end"),
+            "kiosk:operate",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/pools/kiosk/sessions/101/extend"),
+            "kiosk:operate",
+        )
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("kiosk_operator", "kiosk:operate", {"kiosk:operate"}),
+        )
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("viewer", "kiosk:operate", {"vm:read"}),
+        )
+
+    def test_kiosk_operator_does_not_gain_auth_admin_access(self):
+        permission = AuthzPolicyService.required_permission("GET", "/api/v1/auth/users")
+        self.assertEqual(permission, "auth:read")
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("kiosk_operator", permission, {"vm:read", "vm:power", "kiosk:operate"}),
+        )
+
+    def test_handover_history_route_uses_pool_read(self):
+        permission = AuthzPolicyService.required_permission("GET", "/api/v1/sessions/handover")
+        self.assertEqual(permission, "pool:read")
 
 
 if __name__ == "__main__":

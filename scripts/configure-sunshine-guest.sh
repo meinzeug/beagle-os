@@ -144,7 +144,7 @@ require_tool() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --proxmox-host) PROXMOX_HOST="$2"; shift 2 ;;
+      --beagle-host|--proxmox-host) PROXMOX_HOST="$2"; shift 2 ;; # --proxmox-host kept for backwards compat
       --vmid) VMID="$2"; shift 2 ;;
       --guest-user) GUEST_USER="$2"; shift 2 ;;
       --guest-password) GUEST_PASSWORD="$2"; shift 2 ;;

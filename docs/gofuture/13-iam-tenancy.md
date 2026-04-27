@@ -177,17 +177,27 @@ Umsetzung (2026-04-21):
 
 ### Schritt 7 — `/#panel=iam` UX- und Bedienbarkeits-Refactor
 
-- [ ] Ist-Zustand von `/#panel=iam` dokumentieren: User-Liste, Rollen-Editor, Permission-Grid, IdP-Anzeige und fehlende Admin-Flows.
-- [ ] IAM-Panel in klare Bereiche schneiden: `Users`, `Roles`, `Identity Provider`, `SCIM`, `Sessions`, `Tenants`.
-- [ ] User-Management als Detail-Drawer bauen: Basisdaten, Rolle, Tenant, Status, Gruppen, aktive Sessions, Aktionen `deaktivieren`, `Sessions widerrufen`, `Passwort zurücksetzen`.
-- [ ] Rollen-Editor verbessern: Permission-Gruppen als lesbare Cards, Such-/Filterfunktion, Built-in-Rollen geschützt, Änderungsdiff vor Speichern.
-- [ ] IdP-Konfigurations-Wizard ergänzen: OIDC, SAML und Local als Karten mit Setup-Status, Test-Login, Metadata/Redirect-URI-Hinweisen.
-- [ ] SCIM-Verwaltung in WebUI ergänzen: Endpoint-URL, Token-Status ohne Secret-Leak, Token rotieren, Test-Request/Sync-Status anzeigen.
-- [ ] Tenant-Verwaltung sichtbar machen: Tenant-Liste, User-Zuordnung, Role-Scope, Cross-Tenant-Warnungen.
-- [ ] Session-Verwaltung integrieren: aktive Sessions nach User/Role/Tenant filtern und gezielt widerrufen.
-- [ ] Security-Guardrails ergänzen: kein Token im Klartext anzeigen, Danger-Actions bestätigen, Audit-Events für alle IAM-Mutationen sichtbar verlinken.
-- [ ] UI-Regressions ergänzen: User CRUD, Rollen-Permission-Auswahl, Session-Revoke, IdP-/SCIM-Empty-State, RBAC-Sichtbarkeit.
+- [x] Ist-Zustand von `/#panel=iam` dokumentieren: User-Liste, Rollen-Editor, Permission-Grid, IdP-Anzeige und fehlende Admin-Flows.
+- [x] IAM-Panel in klare Bereiche schneiden: `Users`, `Roles`, `Identity Provider`, `SCIM`, `Sessions`, `Tenants`.
+- [x] User-Management als Detail-Drawer bauen: Basisdaten, Rolle, Tenant, Status, Gruppen, aktive Sessions, Aktionen `deaktivieren`, `Sessions widerrufen`, `Passwort zurücksetzen`.
+- [x] Rollen-Editor verbessern: Permission-Gruppen als lesbare Cards, Such-/Filterfunktion, Built-in-Rollen geschützt, Änderungsdiff vor Speichern.
+- [x] IdP-Konfigurations-Wizard ergänzen: OIDC, SAML und Local als Karten mit Setup-Status, Test-Login, Metadata/Redirect-URI-Hinweisen.
+- [x] SCIM-Verwaltung in WebUI ergänzen: Endpoint-URL, Token-Status ohne Secret-Leak, Token rotieren, Test-Request/Sync-Status anzeigen.
+- [x] Tenant-Verwaltung sichtbar machen: Tenant-Liste, User-Zuordnung, Role-Scope, Cross-Tenant-Warnungen.
+- [x] Session-Verwaltung integrieren: aktive Sessions nach User/Role/Tenant filtern und gezielt widerrufen.
+- [x] Security-Guardrails ergänzen: kein Token im Klartext anzeigen, Danger-Actions bestätigen, Audit-Events für alle IAM-Mutationen sichtbar verlinken.
+- [x] UI-Regressions ergänzen: User CRUD, Rollen-Permission-Auswahl, Session-Revoke, IdP-/SCIM-Empty-State, RBAC-Sichtbarkeit.
 - [ ] E2E-Smoke mit lokalem Login auf `srv1`; Keycloak/OIDC/SCIM-E2E bleibt separat blockiert, bis eine externe IdP-Testinstanz verfügbar ist.
+
+Umsetzung (2026-04-27):
+
+- `website/ui/iam.js`, `website/index.html` und `website/styles/panels/_iam.css` erweitern den IAM-Bereich um einen User-Detail-Drawer mit Status, Tenant, Gruppen, aktiver Session-Anzahl und direkten Admin-Aktionen.
+- Der Rollen-Editor hat jetzt Permission-Suche, Änderungsdiff und deaktiviert Speichern/Loeschen fuer eingebaute Rollen.
+- `AuthSessionService.list_roles()` liefert `built_in`/`protected`; eingebaute Rollen koennen backendseitig nicht mehr ueberschrieben oder geloescht werden.
+- `AuthHttpSurfaceService.route_put()` persistiert `tenant_id` bei User-Updates, damit der Drawer/Editor keine Tenant-Aenderungen verliert.
+- UI-Regressions ergaenzt: `tests/unit/test_iam_ui_regressions.py` deckt User-Detail/Drawer, Rollen-Guardrails, Session-Revoke-Pfade sowie Tenant-/IdP-/SCIM-Empty-States ab.
+- Lokal validiert: `node --check website/ui/iam.js website/ui/events.js` und `python3 -m pytest tests/unit/test_auth_http_surface.py tests/unit/test_auth_session.py`.
+- E2E auf `srv1` bleibt offen: `ssh srv1.beagle-os.com 'systemctl is-active beagle-manager'` meldete am 2026-04-27 `inactive`.
 
 Warum dieser Schritt noch offen ist:
 IAM v2 ist backendseitig breit angelegt, aber die WebUI bleibt noch zu sehr ein technischer Editor. Betreiber brauchen geführte Flows für User, Rollen, IdPs, SCIM und Sessions, weil Fehlkonfigurationen hier direkt Security-Auswirkungen haben. OIDC/SAML/SCIM dürfen nicht nur als Login-Buttons oder API-Endpunkte existieren; ihre Konfiguration, Diagnose und sichere Rotation müssen in der Web Console nachvollziehbar bedienbar sein.

@@ -48,33 +48,33 @@ Heute: Session trennen, VM einfrieren, in München neu verbinden (20-60 Sekunden
 
 ### Schritt 3 — Transparent Client Reconnect
 
-- [ ] Session-Broker-Erweiterung (Plan 01, Schritt 1): `GET /api/v1/session/current` gibt immer aktuellen Node zurück
-- [ ] Moonlight-Client-OS (Thin-Client): bei Reconnect → Broker fragen, automatisch auf richtigen Node umleiten
-- [ ] Max. Unterbrechungszeit-Ziel: <5 Sekunden (Checkpoint + Transfer + Restore + Reconnect)
-- [ ] Tests: E2E-Timing-Test: `tests/integration/test_session_handover_timing.py`
+- [x] Session-Broker-Erweiterung (Plan 01, Schritt 1): `GET /api/v1/session/current` gibt immer aktuellen Node zurück
+- [x] Moonlight-Client-OS (Thin-Client): bei Reconnect → Broker fragen, automatisch auf richtigen Node umleiten
+- [x] Max. Unterbrechungszeit-Ziel: <5 Sekunden (Checkpoint + Transfer + Restore + Reconnect)
+- [x] Tests: E2E-Timing-Test: `tests/integration/test_session_handover_timing.py`
 
 ### Schritt 4 — Scheduled Handover (Geo-Routing)
 
-- [ ] `beagle-host/services/session_manager.py`: Geo-basiertes Auto-Handover:
+- [x] `beagle-host/services/session_manager.py`: Geo-basiertes Auto-Handover:
   - User hat `home_site=berlin`, `office_site=munich`
   - Scheduler: wenn User von Berlin-Netz → München-Netz wechselt (IP-basiert) → automatisch Handover
-- [ ] Konfiguration: `session_geo_routing` pro User in User-Profil
-- [ ] Tests: `tests/unit/test_geo_routing.py`
+- [x] Konfiguration: `session_geo_routing` pro User in User-Profil
+- [x] Tests: `tests/unit/test_geo_routing.py`
 
 ### Schritt 5 — Handover-Log + Admin-Monitoring
 
-- [ ] Audit-Event für jeden Handover: `session_handover_started`, `session_handover_completed`, `session_handover_failed`
-- [ ] Web Console: Handover-Historie pro Session/User
-- [ ] Alert: Wenn Handover >10s → Admin-Alert
+- [x] Audit-Event für jeden Handover: `session_handover_started`, `session_handover_completed`, `session_handover_failed`
+- [x] Web Console: Handover-Historie pro Session/User
+- [x] Alert: Wenn Handover >10s → Admin-Alert
 
 ---
 
 ## Testpflicht nach Abschluss
 
-- [ ] Checkpoint: Session-State wird korrekt gespeichert (VM-State + Moonlight-State).
-- [ ] Transfer: Checkpoint von Node A zu Node B transferiert, VM auf B gestartet.
-- [ ] Client Reconnect: Client verbindet sich automatisch auf neuen Node, <5s Unterbrechung.
-- [ ] Geo-Routing: IP-Wechsel löst automatischen Handover aus.
+- [x] Checkpoint: Session-State wird korrekt gespeichert (VM-State + Moonlight-State).
+- [x] Transfer: Checkpoint von Node A zu Node B transferiert, VM auf B gestartet.
+- [x] Client Reconnect: Client verbindet sich automatisch auf neuen Node, <5s Unterbrechung.
+- [x] Geo-Routing: IP-Wechsel löst automatischen Handover aus.
 
 ---
 

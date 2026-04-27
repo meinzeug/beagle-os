@@ -843,7 +843,25 @@ function renderHaStatusPanel() {
   }).join('');
 }
 
+function renderInstallCheckBanner() {
+  const banner = qs('cluster-install-check-banner');
+  if (!banner) {
+    return;
+  }
+  const payload = state.installChecks || {};
+  const latest = payload.latest_ready_report || null;
+  if (!latest || !latest.device_id) {
+    banner.textContent = '';
+    banner.classList.add('hidden');
+    return;
+  }
+  const timestamp = String(latest.timestamp || latest.received_at || '').trim() || 'unbekannt';
+  banner.textContent = 'Neuer Node bereit: ' + String(latest.device_id) + ' meldete erfolgreichen Post-Install-Check um ' + timestamp + '.';
+  banner.classList.remove('hidden');
+}
+
 export function renderClusterPanel() {
+  renderInstallCheckBanner();
   renderClusterSetupPanel();
   const body = qs('cluster-nodes-body');
   if (!body) {

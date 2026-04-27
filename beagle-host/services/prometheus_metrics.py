@@ -33,15 +33,16 @@ The implementation is intentionally simple:
 from __future__ import annotations
 
 import math
-import sys
 import threading
 import time
+import logging
 from typing import Iterable
 
 
 _NAME_VALID = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_:"
 )
+_LOG = logging.getLogger("beagle.prometheus_metrics")
 
 
 def _validate_name(name: str) -> None:
@@ -185,13 +186,11 @@ class _BaseMetric:
             if len(self._values) >= self._max_combinations:
                 self._dropped += 1
                 if self._dropped == 1 or self._dropped % 1000 == 0:
-                    print(
+                    _LOG.warning(
                         f"[prometheus_metrics] WARN: dropping label "
                         f"combinations for metric {self._name!r} "
                         f"(cap {self._max_combinations}, total dropped "
                         f"{self._dropped})",
-                        file=sys.stderr,
-                        flush=True,
                     )
                 return False
             return True
@@ -230,8 +229,9 @@ class Counter(_BaseMetric):
         yield f"# TYPE {self._name} counter"
         with self._lock:
             items = list(self._values.items())
-        if not items and not self._labelnames:
-            yield f"{self._name} 0"
+        if not items:
+            labels_str = self._format_labels(tuple("" for _ in self._labelnames))
+            yield f"{self._name}{labels_str} 0"
             return
         for label_values, value in items:
             labels_str = self._format_labels(label_values)
@@ -325,12 +325,15 @@ class Histogram(_BaseMetric):
         yield f"# TYPE {self._name} histogram"
         with self._lock:
             items = list(self._values.items())
-        if not items and not self._labelnames:
+        if not items:
+            base_labels = self._format_labels(tuple("" for _ in self._labelnames))
+            base_inner = base_labels[1:-1] if base_labels else ""
+            sep = "," if base_inner else ""
             for upper in self._upper_bounds:
                 le = "+Inf" if math.isinf(upper) else _format_float(upper)
-                yield f'{self._name}_bucket{{le="{le}"}} 0'
-            yield f"{self._name}_sum 0"
-            yield f"{self._name}_count 0"
+                yield f'{self._name}_bucket{{{base_inner}{sep}le="{le}"}} 0'
+            yield f"{self._name}_sum{base_labels} 0"
+            yield f"{self._name}_count{base_labels} 0"
             return
         for label_values, (buckets, total_sum, total_count) in items:
             base_labels = self._format_labels(label_values)

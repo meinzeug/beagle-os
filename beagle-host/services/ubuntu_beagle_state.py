@@ -60,7 +60,7 @@ class UbuntuBeagleStateService:
         if not status:
             if state.get("failed_at") or state.get("error"):
                 status = "failed"
-                phase = phase or "proxmox-create"
+                phase = phase or "beagle-create"
                 message = message or "Historischer Provisioning-Lauf ist fehlgeschlagen."
             elif state.get("completed_at"):
                 status = "completed"

@@ -5,10 +5,13 @@ GoEnterprise Plan 07, Schritt 3
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+import logging
 from pathlib import Path
 from typing import Any, Callable
 
 from core.persistence.json_state_store import JsonStateStore
+
+_LOG = logging.getLogger("beagle.alerts")
 
 
 @dataclass
@@ -206,7 +209,7 @@ class AlertService:
     def _dispatch(self, event: AlertEvent, channels: list[str]) -> None:
         for channel in channels:
             if channel == "console":
-                print(f"[ALERT][{event.severity.upper()}] {event.message}")
+                _LOG.warning("[ALERT][%s] %s", event.severity.upper(), event.message)
             elif channel == "email" and self._email_fn:
                 try:
                     self._email_fn(f"[Beagle Alert] {event.severity}: {event.metric}", event.message)

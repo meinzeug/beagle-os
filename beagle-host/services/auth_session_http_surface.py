@@ -205,15 +205,18 @@ class AuthSessionHttpSurfaceService:
         principal = self._auth_principal()
         if principal is None:
             return self._json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+        role = str(principal.get("role") or "viewer")
+        permissions = sorted(self._auth_session.role_permissions(role))
         return self._json(
             HTTPStatus.OK,
             {
                 "ok": True,
                 "user": {
                     "username": str(principal.get("username") or ""),
-                    "role": str(principal.get("role") or "viewer"),
+                    "role": role,
                     "auth_type": str(principal.get("auth_type") or "session"),
                     "tenant_id": principal.get("tenant_id") or None,
+                    "permissions": permissions,
                 },
             },
         )

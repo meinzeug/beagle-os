@@ -15,7 +15,9 @@ from seed_config_parser import SeedConfigParser, SeedConfig
 MINIMAL_YAML = """\
 hostname: beagle-node-01
 disk: /dev/sda
-raid: 1
+raid: 0
+admin_username: beagle
+admin_password: test-secret
 network:
   interface: eth0
   mode: dhcp
@@ -38,6 +40,8 @@ network:
 cluster:
   join: 192.168.10.5
   token: abc123secret
+admin_username: operator
+admin_password: topsecret
 """
 
 
@@ -49,7 +53,7 @@ def test_parse_minimal_yaml():
     cfg = parse(MINIMAL_YAML)
     assert cfg.hostname == "beagle-node-01"
     assert cfg.disk == "/dev/sda"
-    assert cfg.raid == 1
+    assert cfg.raid == 0
     assert cfg.network.mode == "dhcp"
 
 
@@ -71,6 +75,12 @@ def test_parse_cluster_config():
     cfg = parse(STATIC_YAML)
     assert cfg.cluster.join == "192.168.10.5"
     assert cfg.cluster.token == "abc123secret"
+
+
+def test_parse_admin_credentials():
+    cfg = parse(STATIC_YAML)
+    assert cfg.admin_username == "operator"
+    assert cfg.admin_password == "topsecret"
 
 
 def test_parse_from_file(tmp_path):
@@ -124,6 +134,14 @@ def test_validate_static_invalid_cidr():
 def test_default_locale():
     cfg = parse(MINIMAL_YAML)
     assert cfg.locale == "en_US.UTF-8"
+
+
+def test_validate_requires_admin_secret():
+    cfg = parse(MINIMAL_YAML)
+    cfg.admin_password = ""
+    cfg.admin_password_hash = ""
+    errors = SeedConfigParser().validate(cfg)
+    assert any("admin_password" in e for e in errors)
 
 
 def test_comments_ignored():

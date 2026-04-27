@@ -22,7 +22,22 @@
 - [x] GoFuture Plan 08 Schritt 7 Teil-Slice: reproduzierbaren Browser-Smoke fuer `/#panel=virtualization` erstellen und gegen `srv1`/`srv2` erfolgreich ausfuehren.
 - [x] GoFuture Plan 12 Schritt 6 Teil-Slice: physische GPU-Karten mit Readiness-/Ursachenanzeige fuer `srv2` GTX-1080-Blocker im Virtualization-Panel ausrollen.
 - [ ] GoFuture Plan 12 Schritt 6 umsetzen: GPU/vGPU/SR-IOV Bedienung und sichere Passthrough-Diagnose im Virtualization-Panel.
+- [x] GoFuture Plan 12 / Plan 10 Teil-Slice: `GPU-Klasse` im Pool-Wizard von Freitext auf gefuehrte Live-Select-Box fuer Passthrough-Klassen umstellen; mdev-/SR-IOV-Hinweise im Wizard anzeigen.
+- [x] GoEnterprise Plan 03 Schritt 5 Teil-Slice: Kiosk-Session-Ende/Expiry nutzt jetzt den echten Reset-Pfad und gibt VMs direkt wieder frei; dedizierte Regression `tests/unit/test_vm_stateless_reset.py` hinzugefuegt.
+- [x] GoEnterprise Plan 03 Testpflicht schliessen: Gaming-no-GPU-Fail, Kiosk-Operator-Live-Sicht und RBAC-no-admin auf `srv1`/`srv2` reproduzierbar validieren.
+- [x] Frontend-RBAC-Drift fuer eingeschraenkte Rollen beheben: `/#panel=policies` darf fuer `kiosk_operator` keine unnoetigen Cluster-/Pool-/IAM-Requests mehr vorladen.
+- [x] GoEnterprise Plan 03 Operator-Slice: `+15m` Session-Verlaengerung und Live-FPS/RTT/GPU im Kiosk-Controller auf `srv2` browserseitig validieren.
+- [x] GoEnterprise Plan 03 / 11 Live-Slice: Gaming-Metrics-Dashboard fuer aktive Sessions ohne vorhandene Reports nutzbar machen und auf `srv2` mit Live-Telemetrie im Browser abnehmen.
+- [x] GoEnterprise Plan 03 Operator-Slice weiterziehen: Spieltitel sowie `+15m / +30m / +60m` im Kiosk-Controller auf `srv2` browserseitig validieren.
+- [x] GoEnterprise Plan 03 Live-Smoke reproduzierbar machen: `scripts/smoke-gaming-kiosk-flow.sh` fuer `srv1`/`srv2` einfuehren, Ownership-/Lock-Drift auf `desktop-pools.json(.lock)` beheben und den kombinierten Gaming-/Kiosk-API-Smoke auf beiden Hosts gruen fahren.
+- [x] GoFuture Plan 13 Schritt 7 UI-Regressions schliessen: `tests/unit/test_iam_ui_regressions.py` fuer User-Detail, Rollen-Guardrails, Session-Revoke und Tenant-/IdP-/SCIM-Empty-States ergaenzen.
+- [x] GPU-Pflichtblock auf `srv2` schliessen: reproduzierbaren Gast-Passthrough-Smoke (`scripts/test-gpu-passthrough-guest-smoke.sh`) ins Repo legen, live gegen die GTX 1080 fahren und die letzte offene GPU-Scheduler-Prognose (`predicted_gpu_utilization_pct_4h`) in `smart_scheduler.py` schliessen.
+- [x] GoEnterprise Plan 06 Schritt 5 schliessen: Session-Handover-Historie als echte WebUI-Karte im Policies-Panel aus `GET /api/v1/sessions/handover` rendern und browserseitig auf `srv1`/`srv2` validieren.
+- [x] GoAdvanced Plan 10 Schritt 4 schliessen: `tests/integration/test_ha_failover.py` als eigenstaendiges Integrationsmodul fuer Heartbeat-Timeout, Fencing und HA-Reconcile ergaenzen.
+- [x] GoEnterprise Plan 08 Seed-/PXE-Slice schliessen: Seed-Discovery im Installer (`/media/beagle-seed.yaml`, `beagle.seed_url=...`), `scripts/setup-pxe-server.sh`, `docs/deployment/pxe-deployment.md` und `tests/integration/test_pxe_boot.sh` umsetzen und auf `srv1`/`srv2` per Dry-Run gegen echte Installer-ISOs validieren.
+- [x] Fehlende Installer-Regressions fuer Plan 08 nachziehen: `tests/unit/test_installer_validation.py` und `tests/unit/test_post_install_check.py` einfuehren.
 - [ ] GoFuture Plan 10 Schritt 7 umsetzen: `/#panel=policies` grundlegend ueberarbeiten.
+- [x] Frontend-Drift im authentifizierten Policies-Flow auf `srv1`/`srv2` bereinigt (`beagle-web-ui-config.js` korrekt ausgeliefert, keine DevTools-Console-Errors mehr im Policies-Flow).
 - [ ] GoFuture Plan 13 Schritt 7 umsetzen: `/#panel=iam` grundlegend ueberarbeiten.
 - [ ] GoFuture Plan 15 Schritt 6 umsetzen: `/#panel=audit` grundlegend ueberarbeiten.
 - [x] GoFuture Plan 06 Schritt 6 erster Slice: Artifact-Status-API, Refresh-Start und WebUI-Statusbereich im Updates-Panel umsetzen.
@@ -269,3 +284,20 @@
 - [x] Fix `.github/workflows/release.yml` parse failure caused by `if: secrets...` so pushes to `main` can again create a valid release workflow run (2026-04-26).
 - [x] Make Repo-Auto-Update and Artifact-Watchdog secure-by-default for fresh Beagle server installs: GitHub check every 1 minute, watchdog auto-repair enabled, artifact max age 6 hours (2026-04-26).
 - [ ] Validate live on `srv1` and `srv2` that a pushed GitHub commit is pulled by the new repo auto-update path and followed by a healthy artifact watchdog state.
+- [x] Add IAM User-Detail-Drawer, protected built-in role metadata, Permission-Suche und Rollen-Diff in der Web Console (2026-04-27).
+- [x] Add Audit Report Builder, Export-Target-Test, redacted Failure-Payloads und Failure-Replay-Routen in der Web Console/API (2026-04-27).
+- [ ] Re-enable/repair `beagle-manager` on `srv1.beagle-os.com` and `srv2.beagle-os.com`; current SSH smoke on 2026-04-27 returned `inactive` on both hosts.
+- [x] Identify GPU-capable Beagle test host: `srv2` has NVIDIA GTX 1080 (`10de:1b80`) + audio function (`10de:10f0`) visible via PCI/libvirt and bound to `vfio-pci`; host-side `nvidia-smi` is not installed because the card is prepared for passthrough.
+- [x] Run VM-side GPU passthrough proof on `srv2` with equivalent guest validation: transient libvirt VM `beagle-gpu-smoke` saw GTX 1080 (`10de:1b80`) and NVIDIA audio (`10de:10f0`) in guest PCI sysfs; VM and temp files cleaned up.
+- [x] Complete GPU-Plane WebUI operator flows while `srv2` is available: Assign-/Release-Wizard, vGPU/mdev Cards, SR-IOV Cards, `virtualization-gpu-cards` event binding, `postJson` mutations, regression tests, live asset rollout to `srv1`/`srv2`.
+- [x] Make Async Job Queue runtime-complete for normal operation: owner-scoped Job HTTP access, EventSource `/stream` fix, three long-operation handlers (`vm.snapshot`, `vm.migrate`, `backup.run`), persisted job history, srv1 backup/SSE/restart smoke.
+- [x] Continue GoEnterprise Plan 03 while `srv2` is still available: Pool-Wizard um `pool_type`/GPU-/Kiosk-Felder erweitern, `kiosk:operate` RBAC + Kiosk-Session-API ergänzen und Browser/API-Smokes auf `srv1`/`srv2` fahren.
+- [x] Continue GoEnterprise Plan 03 after testpflicht close: Kiosk-Controller um Session-Verlaengerung und Live-GPU-/FPS-/RTT-Metriken erweitern.
+- [x] Continue GoEnterprise Plan 03 after `+15m` live-slice: variable Verlaengerungsdauer, Spieltitel/Window-Title und GPU-Auslastung pro Session anzeigen.
+- [x] Continue GoEnterprise Plan 03 after variable-extend/title slice: Pool-konfigurierbare Verlaengerungsstufen und Session-Alert-Chips fuer `encoder_load` / dropped frames.
+- [x] Close two-host installer/runtime glue: first-boot cluster auto-join service, node install-check API + WebUI banner, and live cluster URL drift repair on `srv1`/`srv2` so both members are `online` again (2026-04-27).
+- [x] GoEnterprise Plan 06 Schritt 3 Teil-Slice: endpoint-authenticated Session-Broker `GET /api/v1/session/current`, Pool-Session-Registration und Thin-Client-Reconnect-Hook auf `srv1`/`srv2` ausrollen; Live-Smoke auf `srv1` erfolgreich, `srv2` route/auth ok mit `404` mangels lokaler VM-Inventardaten.
+- [x] GoEnterprise Plan 06 Timing-/Geo-Slice: `tests/integration/test_session_handover_timing.py`, `tests/unit/test_geo_routing.py`, `GET /api/v1/sessions/handover` und `scripts/smoke-session-handover-flow.sh` fuer den Zwei-Host-Pfad `srv1 -> srv2` umsetzen; Live-Smoke `PASS` in `0.29s`.
+- [ ] Run explicit 5GB backup load test for Plan 07 if a sufficiently large disposable VM/disk is available.
+- [ ] Run IAM/Audit browser UI regressions and srv1 smoke after `beagle-manager` is active again.
+- [x] GoEnterprise Plan 03 Schritt 4 UI-Slice: Gaming-Metrics-Dashboard mit Graphen im Policies-Panel, inkl. API-Surface `GET /api/v1/gaming/metrics` und Regressionen in `tests/unit/test_gaming_metrics.py`.

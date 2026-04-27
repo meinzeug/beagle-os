@@ -24,7 +24,11 @@ from typing import Any, Callable
 
 
 class PoolsHttpSurfaceService:
+    _GAMING_METRICS = re.compile(r"^/api/v1/gaming/metrics$")
     _POOL = re.compile(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)$")
+    _KIOSK_SESSIONS = re.compile(r"^/api/v1/pools/kiosk/sessions$")
+    _KIOSK_SESSION_END = re.compile(r"^/api/v1/pools/kiosk/sessions/(?P<vmid>\d+)/end$")
+    _KIOSK_SESSION_EXTEND = re.compile(r"^/api/v1/pools/kiosk/sessions/(?P<vmid>\d+)/extend$")
     _POOL_VMS = re.compile(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/vms$")
     _POOL_ENTITLEMENTS = re.compile(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/entitlements$")
     _POOL_ALLOCATE = re.compile(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/allocate$")
@@ -37,9 +41,11 @@ class PoolsHttpSurfaceService:
         self,
         *,
         pool_manager_service: Any,
+        gaming_metrics_service: Any,
         entitlement_service: Any,
         desktop_template_builder_service: Any,
         recording_service: Any,
+        session_manager_service: Any,
         audit_event: Callable[..., None],
         requester_identity: Callable[[], str],
         requester_tenant_id: Callable[[], str],
@@ -53,9 +59,11 @@ class PoolsHttpSurfaceService:
         version: str = "",
     ) -> None:
         self._pool_mgr = pool_manager_service
+        self._gaming_metrics = gaming_metrics_service
         self._entitlement = entitlement_service
         self._template_builder = desktop_template_builder_service
         self._recording = recording_service
+        self._session_manager = session_manager_service
         self._audit_event = audit_event
         self._requester_identity = requester_identity
         self._requester_tenant_id = requester_tenant_id
@@ -82,12 +90,37 @@ class PoolsHttpSurfaceService:
     def _tmpl_dict(self, tmpl_info: Any) -> dict[str, Any]:
         return self._template_builder.template_info_to_dict(tmpl_info)
 
+    @staticmethod
+    def _pool_type_value(pool_info: Any) -> str:
+        raw = getattr(pool_info, "pool_type", "")
+        return str(raw.value if hasattr(raw, "value") else raw or "").strip().lower()
+
+    def _safe_audit_event(self, *args: Any, **kwargs: Any) -> None:
+        try:
+            self._audit_event(*args, **kwargs)
+        except Exception:
+            return
+
+    def _node_for_pool_vm(self, pool_id: str, vmid: int) -> str:
+        try:
+            desktops = self._pool_mgr.list_desktops(pool_id)
+        except Exception:
+            return ""
+        for desktop in desktops:
+            if int(desktop.get("vmid") or 0) == int(vmid):
+                return str(desktop.get("node") or "").strip()
+        return ""
+
     # ------------------------------------------------------------------
     # GET routing
     # ------------------------------------------------------------------
 
     def handles_get(self, path: str) -> bool:
-        if path in {"/api/v1/pools", "/api/v1/pool-templates", "/api/v1/sessions"}:
+        if path in {"/api/v1/pools", "/api/v1/pool-templates", "/api/v1/sessions", "/api/v1/sessions/handover"}:
+            return True
+        if self._GAMING_METRICS.match(path):
+            return True
+        if self._KIOSK_SESSIONS.match(path):
             return True
         if self._POOL.match(path):
             return True
@@ -100,6 +133,60 @@ class PoolsHttpSurfaceService:
         return False
 
     def route_get(self, path: str) -> dict[str, Any] | None:
+        if self._GAMING_METRICS.match(path):
+            all_gaming_session_ids: list[str] = []
+            visible_pool_ids: set[str] = set()
+            for pool in self._pool_mgr.list_pools():
+                pool_id = str(getattr(pool, "pool_id", "") or "").strip()
+                if not pool_id:
+                    continue
+                if self._pool_type_value(pool) != "gaming":
+                    continue
+                if self._can_view_pool(pool_id):
+                    visible_pool_ids.add(pool_id)
+            for session in self._pool_mgr.list_active_sessions():
+                pool_id = str(session.get("pool_id") or "").strip()
+                if not pool_id:
+                    continue
+                pool_info = self._pool_mgr.get_pool(pool_id)
+                if pool_info is None or self._pool_type_value(pool_info) != "gaming":
+                    continue
+                all_gaming_session_ids.append(str(session.get("session_id") or ""))
+                if not self._can_view_pool(pool_id):
+                    continue
+                visible_pool_ids.add(pool_id)
+                self._gaming_metrics.observe_session(session)
+            self._gaming_metrics.finalize_missing_sessions(all_gaming_session_ids)
+            payload = self._gaming_metrics.build_dashboard(
+                visible_pool_ids=visible_pool_ids,
+                recent_limit=24,
+            )
+            return self._json(HTTPStatus.OK, {"ok": True, **payload})
+
+        if self._KIOSK_SESSIONS.match(path):
+            sessions = []
+            for session in self._pool_mgr.list_active_sessions():
+                pool_id = str(session.get("pool_id") or "").strip()
+                if not pool_id:
+                    continue
+                pool_info = self._pool_mgr.get_pool(pool_id)
+                if pool_info is None or self._pool_type_value(pool_info) != "kiosk":
+                    continue
+                if not self._can_view_pool(pool_id):
+                    continue
+                vmid = int(session.get("vmid") or 0)
+                item = dict(session)
+                item["vm_id"] = vmid
+                item["session_extension_options_minutes"] = list(
+                    getattr(pool_info, "session_extension_options_minutes", ()) or ()
+                )
+                try:
+                    item["time_remaining_seconds"] = self._pool_mgr.time_remaining_seconds(pool_id, vmid)
+                except Exception:
+                    item["time_remaining_seconds"] = -1.0
+                sessions.append(item)
+            return self._json(HTTPStatus.OK, {"ok": True, "sessions": sessions})
+
         if path == "/api/v1/sessions":
             sessions = []
             for session in self._pool_mgr.list_active_sessions():
@@ -108,6 +195,22 @@ class PoolsHttpSurfaceService:
                     continue
                 sessions.append(session)
             return self._json(HTTPStatus.OK, {"ok": True, "sessions": sessions})
+
+        if path == "/api/v1/sessions/handover":
+            events = []
+            for item in self._session_manager.list_handover_events():
+                pool_id = str(item.get("pool_id") or "").strip()
+                if pool_id and not self._can_view_pool(pool_id):
+                    continue
+                events.append(item)
+            alerts = []
+            for item in self._session_manager.list_handover_alerts():
+                session = self._session_manager.get_session(str(item.get("session_id") or ""))
+                pool_id = str((session or {}).get("pool_id") or "").strip()
+                if pool_id and not self._can_view_pool(pool_id):
+                    continue
+                alerts.append(item)
+            return self._json(HTTPStatus.OK, {"ok": True, "events": events, "alerts": alerts})
 
         if path == "/api/v1/pools":
             requester_tid = self._requester_tenant_id() if not self._can_bypass_pool_visibility() else None
@@ -181,6 +284,10 @@ class PoolsHttpSurfaceService:
             "/api/v1/sessions/stream-health",
         }:
             return True
+        if self._KIOSK_SESSION_END.match(path):
+            return True
+        if self._KIOSK_SESSION_EXTEND.match(path):
+            return True
         if self._POOL_ENTITLEMENTS.match(path):
             return True
         if self._POOL_VMS.match(path):
@@ -222,6 +329,15 @@ class PoolsHttpSurfaceService:
                 )
             except (ValueError, TypeError) as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            try:
+                pool_info = self._pool_mgr.get_pool(pool_id)
+                if pool_info is not None and self._pool_type_value(pool_info) == "gaming":
+                    for session in self._pool_mgr.list_active_sessions():
+                        if str(session.get("pool_id") or "") == pool_id and int(session.get("vmid") or 0) == vmid:
+                            self._gaming_metrics.observe_session(session)
+                            break
+            except Exception:
+                pass
             self._audit_event(
                 "session.stream_health.update",
                 "success",
@@ -232,10 +348,11 @@ class PoolsHttpSurfaceService:
             return self._json(HTTPStatus.OK, {"ok": True, **self._pool_mgr.lease_to_dict(lease)})
 
         if path == "/api/v1/pools":
-            from core.virtualization.desktop_pool import DesktopPoolMode, DesktopPoolSpec, SessionRecordingPolicy
+            from core.virtualization.desktop_pool import DesktopPoolMode, DesktopPoolSpec, DesktopPoolType, SessionRecordingPolicy
             from core.virtualization.streaming_profile import streaming_profile_from_payload
             try:
                 mode = DesktopPoolMode(str(p.get("mode", "floating_non_persistent")))
+                pool_type = DesktopPoolType(str(p.get("pool_type", "desktop") or "desktop").strip().lower())
                 streaming_profile = None
                 if "streaming_profile" in p and p.get("streaming_profile") is not None:
                     if not isinstance(p.get("streaming_profile"), dict):
@@ -262,12 +379,88 @@ class PoolsHttpSurfaceService:
                     labels=tuple(str(lbl) for lbl in p.get("labels", [])),
                     streaming_profile=streaming_profile,
                     tenant_id=str(p.get("tenant_id", "") or self._requester_tenant_id()).strip(),
+                    pool_type=pool_type,
+                    session_time_limit_minutes=int(p.get("session_time_limit_minutes", 0) or 0),
+                    session_cost_per_minute=float(p.get("session_cost_per_minute", 0.0) or 0.0),
+                    session_extension_options_minutes=tuple(p.get("session_extension_options_minutes") or ()),
                 )
                 pool_info = self._pool_mgr.create_pool(spec)
             except (ValueError, TypeError) as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
             self._audit_event("pool.create", "success", pool_id=pool_info.pool_id, username=requester)
             return self._json(HTTPStatus.CREATED, {"ok": True, **self._pool_dict(pool_info)})
+
+        m = self._KIOSK_SESSION_END.match(path)
+        if m:
+            vmid = int(m.group("vmid") or 0)
+            target_session = None
+            for session in self._pool_mgr.list_active_sessions():
+                if int(session.get("vmid") or 0) != vmid:
+                    continue
+                pool_id = str(session.get("pool_id") or "").strip()
+                pool_info = self._pool_mgr.get_pool(pool_id)
+                if pool_info is None or self._pool_type_value(pool_info) != "kiosk":
+                    continue
+                if not self._can_view_pool(pool_id):
+                    return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "kiosk session not found"})
+                target_session = session
+                break
+            if target_session is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "kiosk session not found"})
+            pool_id = str(target_session.get("pool_id") or "").strip()
+            user_id = str(target_session.get("user_id") or "").strip() or requester
+            try:
+                lease = self._pool_mgr.release_desktop(pool_id, vmid, user_id)
+            except (ValueError, RuntimeError) as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            try:
+                self._session_manager.end_session(f"{pool_id}:{vmid}")
+            except Exception:
+                pass
+            self._safe_audit_event(
+                "kiosk.session.end",
+                "success",
+                pool_id=pool_id,
+                vmid=vmid,
+                user_id=user_id,
+                username=requester,
+            )
+            return self._json(HTTPStatus.OK, {"ok": True, **self._pool_mgr.lease_to_dict(lease)})
+
+        m = self._KIOSK_SESSION_EXTEND.match(path)
+        if m:
+            vmid = int(m.group("vmid") or 0)
+            extend_minutes = int(p.get("minutes") or 0)
+            target_session = None
+            for session in self._pool_mgr.list_active_sessions():
+                if int(session.get("vmid") or 0) != vmid:
+                    continue
+                pool_id = str(session.get("pool_id") or "").strip()
+                pool_info = self._pool_mgr.get_pool(pool_id)
+                if pool_info is None or self._pool_type_value(pool_info) != "kiosk":
+                    continue
+                if not self._can_view_pool(pool_id):
+                    return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "kiosk session not found"})
+                target_session = session
+                break
+            if target_session is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "kiosk session not found"})
+            pool_id = str(target_session.get("pool_id") or "").strip()
+            try:
+                lease = self._pool_mgr.extend_kiosk_session(pool_id, vmid, minutes=extend_minutes)
+                remaining = self._pool_mgr.time_remaining_seconds(pool_id, vmid)
+            except (ValueError, RuntimeError) as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._safe_audit_event(
+                "kiosk.session.extend",
+                "success",
+                pool_id=pool_id,
+                vmid=vmid,
+                minutes=extend_minutes,
+                username=requester,
+            )
+            payload = {"ok": True, **self._pool_mgr.lease_to_dict(lease), "time_remaining_seconds": remaining}
+            return self._json(HTTPStatus.OK, payload)
 
         m = self._POOL_ENTITLEMENTS.match(path)
         if m:
@@ -365,6 +558,17 @@ class PoolsHttpSurfaceService:
                         remote_addr=self._remote_addr(),
                     )
 
+            try:
+                self._session_manager.register_session(
+                    session_id=f"{pool_id}:{lease.vmid}",
+                    pool_id=pool_id,
+                    vm_id=int(lease.vmid),
+                    user_id=str(lease.user_id or user_id or requester).strip(),
+                    node_id=self._node_for_pool_vm(pool_id, int(lease.vmid)),
+                )
+            except Exception:
+                pass
+
             self._audit_event(
                 "pool.desktop.allocate",
                 "success",
@@ -384,6 +588,10 @@ class PoolsHttpSurfaceService:
                 lease = self._pool_mgr.release_desktop(pool_id, vmid, user_id)
             except (ValueError, RuntimeError) as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            try:
+                self._session_manager.end_session(f"{pool_id}:{vmid}")
+            except Exception:
+                pass
 
             policy = self._pool_recording_policy(pool_id)
             if policy == "always":

@@ -22,6 +22,7 @@
 
 import { request, apiBase, postJson } from './api.js';
 import { qs, escapeHtml, chip } from './dom.js';
+import { state } from './state.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -108,32 +109,35 @@ export function subscribeJob(jobId) {
     if (closed) {
       return;
     }
-    const url = apiBase() + '/jobs/' + encodeURIComponent(jobId) + '/events';
+    const streamUrl = new URL(apiBase() + '/jobs/' + encodeURIComponent(jobId) + '/stream', window.location.origin);
+    if (state.token) {
+      streamUrl.searchParams.set('access_token', state.token);
+    }
+    const url = streamUrl.toString();
     const es = new EventSource(url, { withCredentials: true });
 
-    es.addEventListener('job_update', (evt) => {
+    const handleMessage = (evt) => {
       let data = {};
       try {
         data = JSON.parse(evt.data);
       } catch (_) {
+        return;
+      }
+      const status = String(data.status || '').toLowerCase();
+      if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+        _handleJobDone(data);
+        es.close();
+        _sseByJobId.delete(jobId);
+        closed = true;
         return;
       }
       _handleJobUpdate(data);
       reconnects = 0;
-    });
+    };
 
-    es.addEventListener('job_done', (evt) => {
-      let data = {};
-      try {
-        data = JSON.parse(evt.data);
-      } catch (_) {
-        return;
-      }
-      _handleJobDone(data);
-      es.close();
-      _sseByJobId.delete(jobId);
-      closed = true;
-    });
+    es.addEventListener('message', handleMessage);
+    es.addEventListener('job_update', handleMessage);
+    es.addEventListener('job_done', handleMessage);
 
     es.onerror = () => {
       es.close();

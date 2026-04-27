@@ -10,7 +10,7 @@ if str(ROOT_DIR) not in sys.path:
 if str(ROOT_DIR / "beagle-host" / "services") not in sys.path:
     sys.path.insert(0, str(ROOT_DIR / "beagle-host" / "services"))
 
-from core.virtualization.desktop_pool import DesktopLease, DesktopPoolMode, DesktopPoolSpec
+from core.virtualization.desktop_pool import DesktopLease, DesktopPoolMode, DesktopPoolSpec, DesktopPoolType
 from core.virtualization.streaming_profile import StreamingColorCodec, StreamingEncoder, StreamingProfile
 from pool_manager import PoolManagerService
 
@@ -164,6 +164,168 @@ class PoolManagerServiceTests(unittest.TestCase):
         recycled = service.recycle_desktop("pool-a", 101)
         self.assertEqual(recycled.state, "free")
         self.assertEqual(recycled.user_id, "")
+
+    def test_kiosk_release_recycles_immediately(self) -> None:
+        reset_calls: list[tuple[int, str]] = []
+        stop_calls: list[int] = []
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        service = PoolManagerService(
+            state_file=Path(temp_dir.name) / "desktop-pools.json",
+            utcnow=lambda: "2026-04-22T12:00:00Z",
+            stop_vm=lambda vmid: stop_calls.append(vmid),
+            reset_vm_to_template=lambda vmid, template_id: reset_calls.append((vmid, template_id)),
+        )
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="kiosk-a",
+                template_id="tpl-kiosk",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+                pool_type=DesktopPoolType.KIOSK,
+                session_time_limit_minutes=30,
+            )
+        )
+        service.register_vm("kiosk-a", 111)
+        lease = service.allocate_desktop("kiosk-a", "alice")
+        self.assertEqual(lease.vmid, 111)
+
+        released = service.release_desktop("kiosk-a", 111, "alice")
+        self.assertEqual(released.state, "free")
+        self.assertEqual(stop_calls, [111])
+        self.assertEqual(reset_calls, [(111, "tpl-kiosk")])
+
+    def test_extend_kiosk_session_pushes_deadline_forward(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        clock = {"now": "2026-04-22T12:00:00Z"}
+        service = PoolManagerService(
+            state_file=Path(temp_dir.name) / "desktop-pools.json",
+            utcnow=lambda: clock["now"],
+        )
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="kiosk-a",
+                template_id="tpl-kiosk",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+                pool_type=DesktopPoolType.KIOSK,
+                session_time_limit_minutes=30,
+            )
+        )
+        service.register_vm("kiosk-a", 111)
+        service.allocate_desktop("kiosk-a", "alice")
+
+        clock["now"] = "2026-04-22T12:10:00Z"
+        before = service.time_remaining_seconds("kiosk-a", 111)
+        self.assertEqual(before, 1200.0)
+
+        service.extend_kiosk_session("kiosk-a", 111, minutes=15)
+        after = service.time_remaining_seconds("kiosk-a", 111)
+        self.assertEqual(after, 2100.0)
+
+    def test_extend_kiosk_session_rejects_non_configured_level(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        service = PoolManagerService(
+            state_file=Path(temp_dir.name) / "desktop-pools.json",
+            utcnow=lambda: "2026-04-22T12:00:00Z",
+        )
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="kiosk-a",
+                template_id="tpl-kiosk",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+                pool_type=DesktopPoolType.KIOSK,
+                session_time_limit_minutes=30,
+                session_extension_options_minutes=(30, 60),
+            )
+        )
+        service.register_vm("kiosk-a", 111)
+        service.allocate_desktop("kiosk-a", "alice")
+
+        with self.assertRaisesRegex(ValueError, "configured extension levels"):
+            service.extend_kiosk_session("kiosk-a", 111, minutes=15)
+
+    def test_create_pool_normalizes_kiosk_extension_options(self) -> None:
+        service = self._build_service()
+        info = service.create_pool(
+            DesktopPoolSpec(
+                pool_id="kiosk-a",
+                template_id="tpl-kiosk",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+                pool_type=DesktopPoolType.KIOSK,
+                session_time_limit_minutes=30,
+                session_extension_options_minutes=(60, 15, 15, 0, 999, 30),
+            )
+        )
+
+        self.assertEqual(info.session_extension_options_minutes, (15, 30, 60))
+        payload = service.pool_info_to_dict(info)
+        self.assertEqual(payload["session_extension_options_minutes"], [15, 30, 60])
+
+    def test_update_stream_health_persists_gpu_metrics(self) -> None:
+        service = self._build_service()
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="kiosk-a",
+                template_id="tpl-kiosk",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+                pool_type=DesktopPoolType.KIOSK,
+                session_time_limit_minutes=30,
+            )
+        )
+        service.register_vm("kiosk-a", 111)
+        service.allocate_desktop("kiosk-a", "alice")
+
+        lease = service.update_stream_health(
+            pool_id="kiosk-a",
+            vmid=111,
+            stream_health={
+                "fps": 120,
+                "rtt_ms": 8,
+                "gpu_util_pct": 91,
+                "gpu_temp_c": 72,
+                "window_title": "Steam - Hades",
+            },
+        )
+
+        assert lease.stream_health is not None
+        self.assertEqual(lease.stream_health["fps"], 120)
+        self.assertEqual(lease.stream_health["rtt_ms"], 8)
+        self.assertEqual(lease.stream_health["gpu_util_pct"], 91)
+        self.assertEqual(lease.stream_health["gpu_temp_c"], 72)
+        self.assertEqual(lease.stream_health["window_title"], "Steam - Hades")
+        self.assertIsNone(lease.stream_health["dropped_frames"])
+        self.assertIsNone(lease.stream_health["encoder_load"])
 
     def test_persistent_mode_reuses_same_vm(self) -> None:
         service = self._build_service()
@@ -494,6 +656,32 @@ class PoolManagerServiceTests(unittest.TestCase):
         self.assertEqual(first["state"], "free")
         self.assertEqual(second["state"], "pending-gpu")
         self.assertEqual(second["node"], "")
+
+    def test_gaming_pool_allocate_does_not_fallback_without_gpu_slot(self) -> None:
+        service = self._build_service(
+            list_nodes=lambda: [{"name": "node-a", "status": "online"}],
+            list_gpu_inventory=lambda: [],
+        )
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="gaming-a",
+                template_id="tpl-1",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=4,
+                memory_mib=8192,
+                storage_pool="local",
+                pool_type=DesktopPoolType.GAMING,
+                gpu_class="passthrough-nvidia-gtx-1080",
+            )
+        )
+
+        vm = service.register_vm("gaming-a", 901)
+        self.assertEqual(vm["state"], "pending-gpu")
+        with self.assertRaisesRegex(RuntimeError, "no free desktop available"):
+            service.allocate_desktop("gaming-a", "alice")
 
 
 if __name__ == "__main__":

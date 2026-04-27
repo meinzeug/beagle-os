@@ -210,6 +210,36 @@ def test_job_as_dict_contains_fields(q):
     assert "created_at" in d
 
 
+def test_state_file_preserves_completed_job_after_restart(tmp_path):
+    state_file = tmp_path / "jobs-state.json"
+    queue = JobQueueService(state_file=state_file)
+    job = queue.enqueue("vm.snapshot", {"vmid": 100}, owner="alice", idempotency_key="snap-100")
+    queue.claim_next_pending()
+    queue.complete(job.job_id, {"ok": True})
+
+    restored = JobQueueService(state_file=state_file)
+    loaded = restored.get(job.job_id)
+
+    assert loaded is not None
+    assert loaded.status == STATUS_COMPLETED
+    assert loaded.owner == "alice"
+    assert loaded.result == {"ok": True}
+
+
+def test_state_file_marks_running_job_failed_after_restart(tmp_path):
+    state_file = tmp_path / "jobs-state.json"
+    queue = JobQueueService(state_file=state_file)
+    job = queue.enqueue("backup.run", {"scope_type": "vm", "scope_id": "100"})
+    queue.claim_next_pending()
+
+    restored = JobQueueService(state_file=state_file)
+    loaded = restored.get(job.job_id)
+
+    assert loaded is not None
+    assert loaded.status == STATUS_FAILED
+    assert "restart" in loaded.error
+
+
 # ---------------------------------------------------------------------------
 # Idempotency
 # ---------------------------------------------------------------------------

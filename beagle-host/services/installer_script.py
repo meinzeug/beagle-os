@@ -89,11 +89,12 @@ class InstallerScriptService:
     ) -> dict[str, str]:
         meta = self._parse_description_meta(config.get("description", ""))
         vm_name = str(config.get("name") or vm.name or f"vm-{vm.vmid}")
-        proxmox_scheme = meta.get("proxmox-scheme", "https")
-        proxmox_host = meta.get("proxmox-host", self._public_server_name)
-        proxmox_port = meta.get("proxmox-port", "8006")
-        proxmox_realm = meta.get("proxmox-realm", "pam")
-        proxmox_verify_tls = meta.get("proxmox-verify-tls", "1")
+        # Legacy meta-keys kept for thin-client backwards compat; rename local vars to beagle_*
+        beagle_scheme = meta.get("proxmox-scheme", "https")
+        beagle_host = meta.get("proxmox-host", self._public_server_name)
+        beagle_port = meta.get("proxmox-port", "8006")
+        beagle_realm = meta.get("proxmox-realm", "pam")
+        beagle_verify_tls = meta.get("proxmox-verify-tls", "1")
         expected_profile_name = str(profile.get("expected_profile_name") or f"vm-{vm.vmid}")
         moonlight_host = str(profile.get("stream_host", "") or "")
         moonlight_local_host = str(profile.get("moonlight_local_host", "") or "")
@@ -140,13 +141,13 @@ class InstallerScriptService:
             default_mode="MOONLIGHT" if moonlight_host else "",
             network_mode=meta.get("thinclient-network-mode", "dhcp"),
             network_interface=meta.get("thinclient-network-interface", "eth0"),
-            proxmox_scheme=proxmox_scheme,
-            proxmox_host=proxmox_host,
-            proxmox_port=proxmox_port,
+            proxmox_scheme=beagle_scheme,
+            proxmox_host=beagle_host,
+            proxmox_port=beagle_port,
             proxmox_node=vm.node,
             proxmox_vmid=str(vm.vmid),
-            proxmox_realm=proxmox_realm,
-            proxmox_verify_tls=proxmox_verify_tls,
+            proxmox_realm=beagle_realm,
+            proxmox_verify_tls=beagle_verify_tls,
             beagle_manager_url=self._public_manager_url,
             moonlight_host=moonlight_host,
             moonlight_local_host=moonlight_local_host,

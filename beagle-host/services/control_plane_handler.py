@@ -10,12 +10,15 @@ boilerplate routing / auth / json-parse glue.
 from __future__ import annotations
 
 import hmac
+import logging
 import uuid
 
 # Pull every symbol used below (BaseHTTPRequestHandler, HTTPStatus, urlparse,
 # parse_qs, json, VERSION, all *_service() factories, …) from service_registry.
 from service_registry import *  # noqa: F401,F403
 from request_handler_mixin import HandlerMixin
+
+_LOG = logging.getLogger("beagle.control_plane")
 
 
 class Handler(HandlerMixin, BaseHTTPRequestHandler):
@@ -86,6 +89,18 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
+        if path == "/api/v1/session/current":
+            if not self._is_endpoint_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            response = endpoint_http_surface_service().route_get(
+                path,
+                endpoint_identity=self._endpoint_identity(),
+                query=query,
+            )
+            self._write_json(response["status"], response["payload"])
+            return
+
         if self._auth_session_surface().handles_get(path):
             response = self._auth_session_surface().route_get(path, query=query)
             if response["kind"] == "redirect":
@@ -109,10 +124,11 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             return
 
         if path == "/api/v1/jobs" or path.startswith("/api/v1/jobs/"):
-            if not self._is_authenticated():
+            principal = self._stream_principal(parsed) if path.endswith("/stream") else self._auth_principal()
+            if principal is None:
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
-            requester = self._requester_identity()
+            requester = str(principal.get("username") or self._requester_identity())
             flat_query = {k: v[0] for k, v in query.items() if v}
             response = jobs_http_surface().route_get(path, flat_query, requester=requester)
             if response["kind"] == "sse":
@@ -172,8 +188,9 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
                 return
             principal = self._auth_principal()
             requester_tenant = (principal or {}).get("tenant_id") or None
+            flat_query = {k: v[0] for k, v in query.items() if v}
             response = auth_http_surface_service().route_get(
-                path, requester_tenant_id=requester_tenant
+                path, requester_tenant_id=requester_tenant, query_params=flat_query
             )
             self._write_json(response["status"], response["payload"])
             return
@@ -266,6 +283,11 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             if response is not None:
                 self._write_json(response["status"], response["payload"])
             return
+        if path == "/api/v1/nodes/install-checks":
+            if not self._authorize_or_respond("GET", path):
+                return
+            self._write_json(HTTPStatus.OK, node_install_check_service().list_payload())
+            return
         if path.startswith("/api/v1/vms/"):
             response = vm_http_surface_service().route_get(path)
             if response["kind"] == "bytes":
@@ -349,6 +371,43 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             response = self._cluster_surface().route_post(path, json_payload=json_payload)
             if response is not None:
                 self._write_json(response["status"], response["payload"])
+            return
+
+        if path == "/api/v1/nodes/install-check":
+            if not node_install_check_service().is_authorized(self.headers.get("Authorization", "")):
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            try:
+                json_payload = self._read_json_body() if int(self.headers.get("Content-Length", "0") or "0") > 0 else {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            result = node_install_check_service().submit_report(
+                json_payload,
+                remote_addr=self.client_address[0] if self.client_address else "",
+            )
+            self._audit_event(
+                "node.install_check.report",
+                "success",
+                device_id=str((json_payload or {}).get("device_id") or ""),
+                status=str((json_payload or {}).get("status") or ""),
+            )
+            self._write_json(HTTPStatus.ACCEPTED, result)
+            return
+
+        if self._audit_report_surface().handles_post(path):
+            if not self._is_authenticated():
+                self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                json_payload = self._read_json_body() if int(self.headers.get("Content-Length", "0") or "0") > 0 else {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            response = self._audit_report_surface().route_post(path, json_payload=json_payload)
+            self._write_json(response["status"], response["payload"])
             return
 
         if self._auth_session_surface().handles_post(path):
@@ -669,7 +728,7 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             if not self._authorize_or_respond("POST", path):
                 return
             try:
-                json_payload = self._read_json_body()
+                json_payload = self._read_json_body() if int(self.headers.get("Content-Length", "0") or "0") > 0 else {}
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
@@ -922,7 +981,7 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
         try:
             structured_logger().log_message(fmt, *args)
         except Exception:
-            print(f"[{utcnow()}] {self.address_string()} {fmt % args}", flush=True)
+            _LOG.info("[%s] %s %s", utcnow(), self.address_string(), fmt % args)
 
     def handle_one_request(self) -> None:
         # GoAdvanced Plan 08 Schritt 4: Request-Id middleware.

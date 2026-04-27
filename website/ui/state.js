@@ -144,6 +144,8 @@ export const state = {
   inventory: [],
   endpointReports: [],
   sessions: [],
+  gamingMetrics: null,
+  handoverHistory: null,
   selectedSessionId: '',
   policies: [],
   desktopPools: [],
@@ -169,6 +171,7 @@ export const state = {
   virtualizationOverview: null,
   clusterStatus: null,
   haStatus: null,
+  installChecks: null,
   virtualizationNodeFilter: '',
   virtualizationInspector: {
     vmid: null,

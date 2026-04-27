@@ -54,6 +54,9 @@ import {
   loadPolicyIntoEditor,
   nextPoolWizardStep,
   prevPoolWizardStep,
+  renderPoolGpuClassOptions,
+  refreshGamingMetricsDashboard,
+  refreshSessionHandoverDashboard,
   refreshPoolData,
   refreshPoolOverview,
   resetPolicyEditor,
@@ -66,10 +69,13 @@ import {
   deleteIamRole,
   deleteIamUser,
   loadIamRoleIntoEditor,
+  loadIamSessions,
   loadIamUserIntoEditor,
   refreshIamData,
+  renderIamRoleDiff,
   renderIamRoles,
   renderIamUsers,
+  renderPermissionTagEditor,
   resetIamRoleEditor,
   resetIamUserEditor,
   revokeIamUserSessions,
@@ -91,6 +97,7 @@ import {
   assignMdevToVm,
   deleteMdevInstance,
   loadSriovDevices,
+  loadSriovVfs,
   setSriovVfCount
 } from './virtualization.js';
 import { loadDashboard } from './dashboard.js';
@@ -110,6 +117,21 @@ const eventHooks = {
     return Promise.resolve();
   },
   onAuditRangeChanged() {},
+  loadAuditExportTargets() {
+    return Promise.resolve();
+  },
+  loadAuditFailureQueue() {
+    return Promise.resolve();
+  },
+  replayAuditFailures() {
+    return Promise.resolve();
+  },
+  runAuditReportBuilder() {
+    return Promise.resolve();
+  },
+  testAuditExportTarget() {
+    return Promise.resolve();
+  },
   openProvisionModal() {
     openProvisioningWorkspace();
   }
@@ -425,6 +447,38 @@ export function bindEvents() {
       eventHooks.onAuditRangeChanged();
     });
   }
+  if (qs('audit-targets-refresh')) {
+    qs('audit-targets-refresh').addEventListener('click', () => {
+      markSessionActivity();
+      eventHooks.loadAuditExportTargets();
+    });
+  }
+  if (qs('audit-failures-refresh')) {
+    qs('audit-failures-refresh').addEventListener('click', () => {
+      markSessionActivity();
+      eventHooks.loadAuditFailureQueue();
+    });
+  }
+  if (qs('audit-failures-replay')) {
+    qs('audit-failures-replay').addEventListener('click', () => {
+      markSessionActivity();
+      eventHooks.replayAuditFailures();
+    });
+  }
+  if (qs('audit-builder-run')) {
+    qs('audit-builder-run').addEventListener('click', () => {
+      markSessionActivity();
+      eventHooks.runAuditReportBuilder();
+    });
+  }
+  if (qs('audit-export-targets')) {
+    qs('audit-export-targets').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-audit-target-test]');
+      if (!button) return;
+      markSessionActivity();
+      eventHooks.testAuditExportTarget(button.getAttribute('data-audit-target-test'));
+    });
+  }
   if (qs('open-provision-create')) {
     qs('open-provision-create').addEventListener('click', () => {
       markSessionActivity();
@@ -652,6 +706,11 @@ export function bindEvents() {
       });
     });
   }
+  if (qs('pool-type')) {
+    qs('pool-type').addEventListener('change', () => {
+      renderPoolGpuClassOptions();
+    });
+  }
   if (qs('pool-overview-refresh')) {
     qs('pool-overview-refresh').addEventListener('click', () => {
       refreshPoolOverview().catch((error) => {
@@ -671,6 +730,20 @@ export function bindEvents() {
         return;
       }
       selectPool(card.getAttribute('data-pool-id'));
+    });
+  }
+  if (qs('gaming-metrics-refresh')) {
+    qs('gaming-metrics-refresh').addEventListener('click', () => {
+      refreshGamingMetricsDashboard(true).catch((error) => {
+        eventHooks.setBanner('Gaming-Metriken konnten nicht geladen werden: ' + error.message, 'warn');
+      });
+    });
+  }
+  if (qs('session-handover-refresh')) {
+    qs('session-handover-refresh').addEventListener('click', () => {
+      refreshSessionHandoverDashboard(true).catch((error) => {
+        eventHooks.setBanner('Session-Handover-Daten konnten nicht geladen werden: ' + error.message, 'warn');
+      });
     });
   }
 
@@ -703,6 +776,23 @@ export function bindEvents() {
   }
   if (qs('iam-role-delete')) {
     qs('iam-role-delete').addEventListener('click', deleteIamRole);
+  }
+  if (qs('iam-role-permission-search')) {
+    qs('iam-role-permission-search').addEventListener('input', () => {
+      const role = state.authRoles.find((entry) => entry.name === state.selectedAuthRole);
+      renderPermissionTagEditor(role && Array.isArray(role.permissions) ? role.permissions : []);
+    });
+  }
+  if (qs('iam-role-permissions-grid')) {
+    qs('iam-role-permissions-grid').addEventListener('change', (event) => {
+      if (event.target && event.target.classList && event.target.classList.contains('perm-tag-cb')) {
+        renderIamRoleDiff();
+      }
+    });
+  }
+  const iamSessionsReload = document.getElementById('iam-sessions-reload');
+  if (iamSessionsReload) {
+    iamSessionsReload.addEventListener('click', loadIamSessions);
   }
   if (qs('iam-users-body')) {
     qs('iam-users-body').addEventListener('click', (event) => {
@@ -823,8 +913,8 @@ export function bindEvents() {
       }
     });
   }
-  if (qs('virtualization-gpus-body')) {
-    qs('virtualization-gpus-body').addEventListener('click', (event) => {
+  if (qs('virtualization-gpu-cards')) {
+    qs('virtualization-gpu-cards').addEventListener('click', (event) => {
       const assignBtn = event.target.closest('button[data-gpu-assign]');
       if (assignBtn) {
         assignGpuToVm(assignBtn.getAttribute('data-gpu-pci'));
@@ -835,9 +925,14 @@ export function bindEvents() {
         releaseGpuFromVm(releaseBtn.getAttribute('data-gpu-pci'));
         return;
       }
-      const row = event.target.closest('tr[data-node]');
-      if (row) {
-        setVirtualizationNodeFilter(row.getAttribute('data-node'));
+      const detailBtn = event.target.closest('button[data-virt-node-detail]');
+      if (detailBtn) {
+        openVirtualizationNodeDetail(String(detailBtn.getAttribute('data-virt-node-detail') || '').trim());
+        return;
+      }
+      const card = event.target.closest('[data-node]');
+      if (card) {
+        setVirtualizationNodeFilter(card.getAttribute('data-node'));
       }
     });
   }
@@ -910,6 +1005,11 @@ export function bindEvents() {
       const btn = event.target.closest('button[data-sriov-set]');
       if (btn) {
         setSriovVfCount(btn.getAttribute('data-sriov-pci'), btn.getAttribute('data-sriov-total'));
+        return;
+      }
+      const vfsBtn = event.target.closest('button[data-sriov-vfs]');
+      if (vfsBtn) {
+        loadSriovVfs(vfsBtn.getAttribute('data-sriov-pci'));
       }
     });
   }

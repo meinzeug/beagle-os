@@ -124,6 +124,7 @@ from vm_usb import VmUsbService
 from core.virtualization.desktop_pool import SessionRecordingPolicy
 from ipam_service import IpamService
 from firewall_service import FirewallService
+from gaming_metrics_service import GamingMetricsService
 from secret_store_service import SecretStoreService
 from backups_http_surface import BackupsHttpSurfaceService
 from pools_http_surface import PoolsHttpSurfaceService
@@ -132,6 +133,8 @@ from audit_report_http_surface import AuditReportHttpSurfaceService
 from auth_session_http_surface import AuthSessionHttpSurfaceService
 from recording_http_surface import RecordingHttpSurfaceService
 from network_http_surface import NetworkHttpSurfaceService
+from node_install_check_service import NodeInstallCheckService
+from session_manager import SessionManagerService
 
 def load_env_defaults(path: str) -> None:
     env_path = Path(path)
@@ -200,6 +203,7 @@ BACKUP_SCHEDULER_INTERVAL_SECONDS = int(os.environ.get("BEAGLE_BACKUP_SCHEDULER_
 AUTH_LOGIN_LOCKOUT_THRESHOLD = int(os.environ.get("BEAGLE_AUTH_LOGIN_LOCKOUT_THRESHOLD", "5"))
 AUTH_LOGIN_LOCKOUT_SECONDS = int(os.environ.get("BEAGLE_AUTH_LOGIN_LOCKOUT_SECONDS", "300"))
 AUTH_LOGIN_BACKOFF_MAX_SECONDS = int(os.environ.get("BEAGLE_AUTH_LOGIN_BACKOFF_MAX_SECONDS", "30"))
+INSTALL_CHECK_REPORT_TOKEN = os.environ.get("BEAGLE_INSTALL_CHECK_REPORT_TOKEN", "").strip()
 ALLOW_LOCALHOST_NOAUTH = os.environ.get("BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH", "0").strip().lower() in {"1", "true", "yes", "on"}
 STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECONDS", "600"))
 DOWNLOADS_STATUS_FILE = ROOT_DIR / "dist" / "beagle-downloads-status.json"
@@ -509,6 +513,9 @@ BACKUP_SERVICE: BackupService | None = None
 IPAM_SERVICE: IpamService | None = None
 FIREWALL_SERVICE: FirewallService | None = None
 SECRET_STORE_SERVICE: SecretStoreService | None = None
+GAMING_METRICS_SERVICE: GamingMetricsService | None = None
+NODE_INSTALL_CHECK_SERVICE: NodeInstallCheckService | None = None
+SESSION_MANAGER_SERVICE: SessionManagerService | None = None
 
 
 def _secret_store() -> SecretStoreService:
@@ -519,6 +526,30 @@ def _secret_store() -> SecretStoreService:
             secrets_dir=Path("/var/lib/beagle/secrets"),
         )
     return SECRET_STORE_SERVICE
+
+
+def node_install_check_service() -> NodeInstallCheckService:
+    global NODE_INSTALL_CHECK_SERVICE
+    if NODE_INSTALL_CHECK_SERVICE is None:
+        NODE_INSTALL_CHECK_SERVICE = NodeInstallCheckService(
+            state_file=DATA_DIR / "install-checks.json",
+            report_token=INSTALL_CHECK_REPORT_TOKEN,
+            now=lambda: datetime.now(timezone.utc),
+            persistence_support=PERSISTENCE_SUPPORT_SERVICE,
+        )
+    return NODE_INSTALL_CHECK_SERVICE
+
+
+def session_manager_service() -> SessionManagerService:
+    global SESSION_MANAGER_SERVICE
+    if SESSION_MANAGER_SERVICE is None:
+        SESSION_MANAGER_SERVICE = SessionManagerService(
+            state_file=DATA_DIR / "session-manager" / "sessions.json",
+            checkpoint_dir=DATA_DIR / "session-manager" / "checkpoints",
+            user_geo_resolver=auth_session_service().get_user_session_geo_routing,
+            audit_event=lambda event_type, outcome: audit_log_service().write_event(event_type, outcome, {}),
+        )
+    return SESSION_MANAGER_SERVICE
 
 
 def _bootstrap_secret(name: str, env_value: str, *, generate: bool = True) -> str:
@@ -779,6 +810,16 @@ def network_http_surface_service() -> NetworkHttpSurfaceService:
             version=VERSION,
         )
     return NETWORK_HTTP_SURFACE_SERVICE
+
+
+def gaming_metrics_service() -> GamingMetricsService:
+    global GAMING_METRICS_SERVICE
+    if GAMING_METRICS_SERVICE is None:
+        GAMING_METRICS_SERVICE = GamingMetricsService(
+            state_dir=DATA_DIR / "gaming-metrics",
+            utcnow=utcnow,
+        )
+    return GAMING_METRICS_SERVICE
 
 
 def storage_quota_service() -> StorageQuotaService:
@@ -1190,7 +1231,7 @@ def job_queue_service() -> JobQueueService:
     """Singleton async-job queue (GoAdvanced Plan 07 Schritt 1)."""
     global JOB_QUEUE_SERVICE
     if JOB_QUEUE_SERVICE is None:
-        JOB_QUEUE_SERVICE = JobQueueService()
+        JOB_QUEUE_SERVICE = JobQueueService(state_file=DATA_DIR / "jobs-state.json")
     return JOB_QUEUE_SERVICE
 
 
@@ -1226,6 +1267,58 @@ def initialize_job_worker_handlers() -> None:
             audit_event=audit_log_service().write_event,
         )
         worker.register("cluster.maintenance_drain", handler)
+
+    if "vm.snapshot" not in worker.registered_names():
+        def _snapshot_handler(job, current_worker):
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            vmid = int(payload.get("vmid") or 0)
+            snap_name = str(payload.get("name") or "").strip()
+            if vmid <= 0 or not snap_name:
+                raise ValueError("vm.snapshot requires vmid and name")
+            current_worker.update_progress(job.job_id, 10, "Snapshot wird vorbereitet")
+            result = getattr(HOST_PROVIDER, "_run_virsh")(
+                "snapshot-create-as",
+                f"beagle-{vmid}",
+                snap_name,
+                "--atomic",
+                "--no-metadata",
+            )
+            current_worker.update_progress(job.job_id, 95, "Snapshot abgeschlossen")
+            return {"ok": True, "vmid": vmid, "snapshot": snap_name, "provider_result": str(result or "").strip()}
+
+        worker.register("vm.snapshot", _snapshot_handler)
+
+    if "vm.migrate" not in worker.registered_names():
+        def _migrate_handler(job, current_worker):
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            vmid = int(payload.get("vmid") or payload.get("vm_id") or 0)
+            target_node = str(payload.get("target_node") or "").strip()
+            if vmid <= 0 or not target_node:
+                raise ValueError("vm.migrate requires vmid and target_node")
+            current_worker.update_progress(job.job_id, 10, "Migration wird vorbereitet")
+            result = migration_service().migrate_vm(
+                vmid,
+                target_node=target_node,
+                live=payload.get("live", True) is not False,
+                copy_storage=payload.get("copy_storage", False) is True,
+                requester_identity=str(job.owner or "job-worker"),
+            )
+            current_worker.update_progress(job.job_id, 95, "Migration abgeschlossen")
+            return result
+
+        worker.register("vm.migrate", _migrate_handler)
+
+    if "backup.run" not in worker.registered_names():
+        def _backup_run_handler(job, current_worker):
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            scope_type = str(payload.get("scope_type") or "").strip().lower()
+            scope_id = str(payload.get("scope_id") or "").strip()
+            current_worker.update_progress(job.job_id, 10, "Backup wird vorbereitet")
+            result = backup_service().run_backup_now(scope_type=scope_type, scope_id=scope_id)
+            current_worker.update_progress(job.job_id, 95, "Backup abgeschlossen")
+            return result
+
+        worker.register("backup.run", _backup_run_handler)
     
     # Start the worker if not already running
     if not worker.is_running:
@@ -2473,6 +2566,8 @@ def cluster_membership_service() -> ClusterMembershipService:
             public_manager_url=PUBLIC_MANAGER_URL,
             rpc_port=CLUSTER_RPC_PORT,
             utcnow=utcnow,
+            control_env_file=Path("/etc/beagle/beagle-manager.env"),
+            install_check_report_token=INSTALL_CHECK_REPORT_TOKEN,
             rpc_request=ClusterRpcService.request_json,
             rpc_credentials=_cluster_local_rpc_credentials,
         )
@@ -3055,6 +3150,7 @@ def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
     global ENDPOINT_HTTP_SURFACE_SERVICE
     if ENDPOINT_HTTP_SURFACE_SERVICE is None:
         ENDPOINT_HTTP_SURFACE_SERVICE = EndpointHttpSurfaceService(
+            build_vm_profile=build_profile,
             dequeue_vm_actions=dequeue_vm_actions,
             exchange_moonlight_pairing_token=exchange_moonlight_pairing_token,
             fetch_sunshine_server_identity=fetch_sunshine_server_identity,
@@ -3063,6 +3159,7 @@ def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
             prepare_virtual_display_on_vm=prepare_virtual_display_on_vm,
             register_moonlight_certificate_on_vm=register_moonlight_certificate_on_vm,
             service_name="beagle-control-plane",
+            session_manager_service=session_manager_service(),
             store_action_result=store_action_result,
             store_support_bundle=store_support_bundle,
             summarize_action_result=summarize_action_result,

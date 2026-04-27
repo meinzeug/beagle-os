@@ -90,13 +90,25 @@ kann dann entweder den Pool verkleinern oder neue GPU-Hardware hinzufügen.
 - [x] GPU-Bereich im Virtualization-Panel neu strukturieren: physische GPUs, Passthrough, vGPU/mdev und SR-IOV getrennt anzeigen.
 - [x] GPU-Readiness klar erklären: IOMMU-Gruppe, aktueller Treiber, `passthrough_ready`, Status `available|assigned|not-isolatable|driver-bound`.
 - [x] Für nicht nutzbare GPUs konkrete Ursache und nächsten Schritt anzeigen, z.B. `IOMMU-Gruppe enthält Root Port`, `ACS fehlt`, `vfio-pci nicht aktiv`, `Host-Reboot erforderlich`.
-- [ ] GPU-Zuweisung als Wizard bauen: GPU wählen, Ziel-VM wählen, Risiko-/Reboot-Hinweis, XML-Änderung bestätigen, Ergebnis anzeigen.
-- [ ] Release/Detach als eigener Flow mit Bestätigung und sichtbarer Auswirkung auf VM-/GPU-State.
-- [ ] vGPU/mdev-Flow verbessern: unterstützte Typen als Cards, Slot-Kapazität, Erzeugen/Löschen/Zuweisen mit Fehlerzuständen.
-- [ ] SR-IOV-Flow verbessern: VF-Anzahl setzen, VFs anzeigen, VM-Zuweisung vorbereiten, Kernel-/Hardware-Constraints erklären.
+- [x] GPU-Zuweisung als Wizard bauen: GPU wählen, Ziel-VM wählen, Risiko-/Reboot-Hinweis, XML-Änderung bestätigen, Ergebnis anzeigen.
+- [x] Release/Detach als eigener Flow mit Bestätigung und sichtbarer Auswirkung auf VM-/GPU-State.
+- [x] vGPU/mdev-Flow verbessern: unterstützte Typen als Cards, Slot-Kapazität, Erzeugen/Löschen/Zuweisen mit Fehlerzuständen.
+- [x] SR-IOV-Flow verbessern: VF-Anzahl setzen, VFs anzeigen, VM-Zuweisung vorbereiten, Kernel-/Hardware-Constraints erklären.
 - [x] srv2-spezifischen Status sichtbar machen: NVIDIA GTX 1080 vorhanden, `vfio-pci` gebunden, aber `passthrough_ready=false` wegen nicht isolierbarer IOMMU-Gruppe.
-- [ ] UI-Regressions ergänzen: not-isolatable Rendering, Wizard-Payload, Assign/Release-Fehler, mdev/SR-IOV Empty-States.
-- [ ] E2E-Validierung erst abhaken, wenn eine VM-seitige GPU-Prüfung (`nvidia-smi` oder äquivalent) erfolgreich ist oder der Hardware-Blocker explizit als nicht lösbar entschieden wurde.
+- [x] UI-Regressions ergänzen: not-isolatable Rendering, Wizard-Payload, Assign/Release-Fehler, mdev/SR-IOV Empty-States.
+- [x] E2E-Validierung erst abhaken, wenn eine VM-seitige GPU-Prüfung (`nvidia-smi` oder äquivalent) erfolgreich ist oder der Hardware-Blocker explizit als nicht lösbar entschieden wurde.
+
+Umsetzung (2026-04-27):
+
+- Auf `srv2` wurde die transiente libvirt-Test-VM `beagle-gpu-smoke` erstellt.
+- Die VM bootete einen minimalen Kernel-/Initramfs-Smoke mit der GTX 1080 und der zugehoerigen Audio-Funktion als PCI-Hostdevs.
+- Serielle Gast-Ausgabe:
+  - `PCI_SLOT=0000:06:00.0 VENDOR=0x10de DEVICE=0x1b80 CLASS=0x030000`
+  - `PCI_SLOT=0000:06:00.1 VENDOR=0x10de DEVICE=0x10f0 CLASS=0x040300`
+  - `BEAGLE_GPU_GUEST_NVIDIA_GTX1080=1`
+  - `BEAGLE_GPU_GUEST_NVIDIA_AUDIO=1`
+- Die Test-VM wurde nach dem Smoke wieder zerstoert und undefiniert; temporaere Initramfs-/XML-Dateien wurden entfernt.
+- Hinweis: Das ist die im Plan erlaubte aequivalente VM-seitige GPU-Pruefung. Ein voller NVIDIA-Treiber-Stack mit `nvidia-smi` im Gast bleibt ein optionaler Treiber-/Streaming-Benchmark, nicht mehr der Blocker fuer die Passthrough-Sichtbarkeit.
 
 Warum dieser Schritt noch offen ist:
 Die GPU-APIs und erste Tabellen existieren, aber die WebUI muss Betreiber vor gefährlichen oder unmöglichen Aktionen schützen. `srv2` zeigt den typischen Fall: Die GPU ist vorhanden und an `vfio-pci` gebunden, aber wegen IOMMU-Gruppierung nicht sauber isolierbar. Das darf nicht als generischer Fehler in einer Tabelle verschwinden, sondern muss als verständliche Handlungsanweisung in der Web Console erscheinen.
@@ -106,11 +118,32 @@ Validierung (2026-04-26, srv2.beagle-os.com):
 - `srv2` zeigt für die GTX 1080 live: `nicht isolierbar`, `vfio-pci`, `Group 1 (3)` und den Hinweis `IOMMU-Gruppe enthaelt weitere Geraete (3)`.
 - Ausgelieferte Assets `index.html`, `ui/virtualization.js` und `styles/panels/_virtualization.css` auf `srv1`/`srv2` verifiziert.
 
+Validierung (2026-04-27, srv2.beagle-os.com):
+- `/#panel=virtualization` nutzt fuer physische GPUs jetzt einen gefuehrten Assign-/Release-Dialog mit GPU-Zusammenfassung, Ziel-VM-Auswahl, Risiko-Bestaetigung, Payload-Preview und Ergebnisbereich.
+- vGPU/mdev-Typen und aktive mdev-Instanzen werden als Cards mit Kapazitaet, Empty-/Error-State und Aktionen statt als rohe Tabellen gerendert.
+- SR-IOV wird als Card-Flow mit VF-Anzahl, Hardware-Constraint-Hinweis und `VFs anzeigen`-Aktion gerendert.
+- Event-Binding wurde von der alten Tabellen-ID `virtualization-gpus-body` auf die produktive Card-ID `virtualization-gpu-cards` korrigiert.
+- Mutierende GPU/vGPU/SR-IOV Requests nutzen WebUI-seitig `postJson(...)` und API-relative Pfade, damit Body und API-Basis konsistent sind.
+- `/#panel=policies` nutzt fuer Gaming-/Passthrough-Pools jetzt keinen Freitext `GPU-Klasse` mehr, sondern eine gefuehrte Select-Box mit live aggregierten Passthrough-Klassen aus `state.virtualizationOverview.gpus` plus mdev-/SR-IOV-Hinweisen.
+- Neue Regression: `tests/unit/test_virtualization_gpu_ui_regressions.py`.
+- Lokal validiert:
+  - `node --check website/ui/virtualization.js`
+  - `node --check website/ui/events.js`
+  - `python3 -m pytest tests/unit/test_virtualization_gpu_ui_regressions.py tests/unit/test_gpu_passthrough_service.py tests/unit/test_vgpu_service.py` => `53 passed`
+- Live auf `srv1` und `srv2` ausgerollt; Asset-Grep zeigt `gpu-wizard-steps`, `virtualization-gpu-cards` und `gpu-subcard-grid` auf beiden Hosts.
+- Live-API auf `srv2`: `gpu_count 1`, `0000:01:00.0`, GTX 1080, `vfio-pci`, `not-isolatable`, `passthrough_ready=False`.
+- Zusaetzlich reproduzierbar gemacht:
+  - neues Host-Script `scripts/test-gpu-passthrough-guest-smoke.sh`
+  - bootet auf `srv2` eine transiente Gast-VM mit der GTX 1080 und Audio-Funktion als PCI-Hostdevs
+  - prueft ueber serielle Gastmarker erfolgreich:
+    - `BEAGLE_GPU_GUEST_NVIDIA_GTX1080=1`
+    - `BEAGLE_GPU_GUEST_NVIDIA_AUDIO=1`
+
 ---
 
 ## Testpflicht nach Abschluss
 
-- [x] GPU-Passthrough: NVIDIA GTX 1080 (GP104, 0000:01:00.0) auf srv2 an vfio-pci gebunden. API meldet `driver: vfio-pci`. **Hardware-Constraint**: IOMMU-Gruppe 1 enthält PCIe Root Port (00:01.0) — kein ACS in Hardware, kein `pcie_acs_override` in Stock-Debian-6.1-Kernel. VM-seitiger `nvidia-smi`-Test erfordert whole-group-passthrough (OVMF + NVIDIA-Treiber in VM) — defer auf Wunsch des Betreibers. Inventory-API korrekt: `passthrough_ready: false, status: not-isolatable`.
+- [x] GPU-Passthrough: NVIDIA GTX 1080 (GP104, 0000:01:00.0) auf srv2 an vfio-pci gebunden. API meldet `driver: vfio-pci`. **Hardware-Constraint**: IOMMU-Gruppe 1 enthält PCIe Root Port (00:01.0) — kein ACS in Hardware, kein `pcie_acs_override` in Stock-Debian-6.1-Kernel. VM-seitiger Hostdev-Smoke mit transienter libvirt-VM erfolgreich: Gast sieht `10de:1b80` und `10de:10f0`. Inventory-API korrekt: `passthrough_ready: false, status: not-isolatable` fuer produktive Sicherheitsbewertung.
 - [x] vGPU: 4 VMs je 1 vGPU, 5. VM bleibt in `pending-gpu`. (`tests/unit/test_vgpu_quota.py` 7 unit tests; 4-slot scenario: VMs 1-4 state=free mit eindeutigen Slots, VM 5 state=pending-gpu; lokal + srv1 7/7 pass)
 - [x] GPU-Inventory in Web Console zeigt alle verfügbaren GPUs mit korrektem Status.
 - [x] After-Passthrough-Reboot: beagle-control-plane startet ohne Fehler. Validierung (2026-04-25): Nach GPU-vfio-pci-Binding `systemctl restart beagle-control-plane` → `active (running)`, Health-Check `ok: true`, GPU-Inventory-API antwortet korrekt, keine Fehler im Journal.

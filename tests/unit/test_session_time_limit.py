@@ -71,6 +71,31 @@ def test_create_gaming_pool_stores_type(tmp_path):
     assert info.pool_type == DesktopPoolType.GAMING
 
 
+def test_gaming_pool_requires_gpu_class(tmp_path):
+    svc = make_svc(tmp_path)
+    with pytest.raises(ValueError, match="gpu_class"):
+        svc.create_pool(
+            DesktopPoolSpec(
+                pool_id="gaming-no-gpu",
+                template_id="tpl-gaming",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=4,
+                warm_pool_size=1,
+                cpu_cores=8,
+                memory_mib=16384,
+                storage_pool="local",
+                pool_type=DesktopPoolType.GAMING,
+            )
+        )
+
+
+def test_kiosk_pool_requires_positive_time_limit(tmp_path):
+    svc = make_svc(tmp_path)
+    with pytest.raises(ValueError, match="session_time_limit_minutes"):
+        svc.create_pool(make_kiosk_spec(time_limit=0))
+
+
 def test_time_remaining_unlimited_pool(tmp_path):
     svc = make_svc(tmp_path)
     spec = DesktopPoolSpec(
@@ -122,7 +147,12 @@ def test_time_remaining_limited_session(tmp_path):
 
 def test_expire_overdue_sessions(tmp_path):
     # Session started 31 minutes ago, limit 30 minutes → should expire
-    svc = make_svc(tmp_path, utcnow=lambda: "2026-04-25T12:31:00Z")
+    reset_calls = []
+    svc = PoolManagerService(
+        state_file=tmp_path / "pools.json",
+        utcnow=lambda: "2026-04-25T12:31:00Z",
+        reset_vm_to_template=lambda vmid, tpl: reset_calls.append((vmid, tpl)),
+    )
     svc.create_pool(make_kiosk_spec(time_limit=30))
 
     state = svc._load()
@@ -135,10 +165,36 @@ def test_expire_overdue_sessions(tmp_path):
     expired = svc.expire_overdue_sessions()
     assert len(expired) == 1
     assert expired[0]["vmid"] == 100
+    assert reset_calls == [(100, "tpl-kiosk")]
 
-    # VM should now be marked expired
+    # Kiosk VM should be reset immediately and become free again.
     state2 = svc._load()
-    assert state2["vms"]["100"]["state"] == "expired"
+    assert state2["vms"]["100"]["state"] == "free"
+    assert state2["vms"]["100"]["user_id"] is None
+
+
+def test_kiosk_release_resets_immediately(tmp_path):
+    reset_calls = []
+    stop_calls = []
+    svc = PoolManagerService(
+        state_file=tmp_path / "pools.json",
+        utcnow=lambda: "2026-04-25T12:31:00Z",
+        stop_vm=lambda vmid: stop_calls.append(vmid),
+        reset_vm_to_template=lambda vmid, tpl: reset_calls.append((vmid, tpl)),
+    )
+    svc.create_pool(make_kiosk_spec(time_limit=30))
+    state = svc._load()
+    state["vms"]["100"] = {
+        "vmid": 100, "pool_id": "kiosk-1", "state": "in_use",
+        "user_id": "user1", "assigned_at": "2026-04-25T12:00:00Z", "stream_health": None,
+    }
+    svc._save(state)
+
+    lease = svc.release_desktop("kiosk-1", 100, "user1")
+
+    assert lease.state == "free"
+    assert reset_calls == [(100, "tpl-kiosk")]
+    assert stop_calls == [100]
 
 
 def test_expire_does_not_touch_unlimited_sessions(tmp_path):

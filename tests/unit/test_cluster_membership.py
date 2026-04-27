@@ -44,6 +44,66 @@ class ClusterMembershipServiceTests(unittest.TestCase):
         )
         return service
 
+    def test_apply_join_response_persists_install_check_report_token(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+        env_file = root / "beagle-manager.env"
+        env_file.write_text('BEAGLE_MANAGER_API_TOKEN="local"\n', encoding="utf-8")
+        ca_service = ClusterCaService(data_dir=root)
+        service = ClusterMembershipService(
+            data_dir=root,
+            ca_service=ca_service,
+            public_manager_url="https://leader.example.test/beagle-api",
+            rpc_port=9089,
+            utcnow=lambda: "2026-04-23T12:00:00Z",
+            control_env_file=env_file,
+        )
+
+        applied = service.apply_join_response(
+            node_name="node-b",
+            payload={
+                "cluster": {
+                    "cluster_id": "cluster-123",
+                    "leader_node": "leader-node",
+                    "created_at": "2026-04-23T12:00:00Z",
+                    "updated_at": "2026-04-23T12:00:00Z",
+                },
+                "member": {
+                    "name": "node-b",
+                    "api_url": "https://node-b.example.test/beagle-api",
+                    "rpc_url": "https://node-b.example.test:9089/rpc",
+                    "status": "online",
+                    "local": False,
+                },
+                "members": [
+                    {
+                        "name": "leader-node",
+                        "api_url": "https://leader.example.test/beagle-api",
+                        "rpc_url": "https://leader.example.test:9089/rpc",
+                        "status": "online",
+                        "local": False,
+                    },
+                    {
+                        "name": "node-b",
+                        "api_url": "https://node-b.example.test/beagle-api",
+                        "rpc_url": "https://node-b.example.test:9089/rpc",
+                        "status": "online",
+                        "local": False,
+                    },
+                ],
+                "certificate": {
+                    "cert_pem": "node-cert",
+                    "key_pem": "node-key",
+                    "ca_cert_pem": "ca-cert",
+                },
+                "install_check_report_token": "shared-token",
+            },
+        )
+
+        self.assertEqual(applied["member"]["name"], "node-b")
+        self.assertIn('BEAGLE_INSTALL_CHECK_REPORT_TOKEN="shared-token"', env_file.read_text(encoding="utf-8"))
+
     def test_initialize_cluster_creates_local_member_and_ca(self):
         service = self.make_service()
 
@@ -65,6 +125,7 @@ class ClusterMembershipServiceTests(unittest.TestCase):
             api_url="https://leader.example.test/beagle-api",
             advertise_host="leader.example.test",
         )
+        leader._install_check_report_token = "shared-report-token"
         token_payload = leader.create_join_token()
 
         accepted = leader.accept_join_request(
@@ -84,6 +145,7 @@ class ClusterMembershipServiceTests(unittest.TestCase):
         local = follower.local_member()
         self.assertIsNotNone(local)
         self.assertEqual(local["name"], "node-b")
+        self.assertEqual(accepted["install_check_report_token"], "shared-report-token")
 
     def test_join_existing_cluster_posts_to_leader_and_applies_response(self):
         follower = self.make_service()
@@ -576,3 +638,22 @@ class ClusterMembershipServiceTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         checks = {c["name"]: c for c in result["checks"]}
         self.assertEqual(checks["kvm_device"]["status"], "fail")
+
+    def test_probe_member_health_uses_unverified_context_for_https(self):
+        service = self.make_service()
+
+        class _Resp:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        with patch("cluster_membership.urllib.request.urlopen", return_value=_Resp()) as urlopen:
+            healthy = service._probe_member_health({"api_url": "https://srv2.beagle-os.com/beagle-api/api/v1"})
+
+        self.assertTrue(healthy)
+        self.assertIn("context", urlopen.call_args.kwargs)
+        self.assertIsNotNone(urlopen.call_args.kwargs["context"])

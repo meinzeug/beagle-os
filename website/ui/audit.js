@@ -82,6 +82,40 @@ function formatJsonCell(value) {
   return JSON.stringify(value, null, 2);
 }
 
+function redactAuditDetail(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactAuditDetail(item));
+  }
+  if (value && typeof value === 'object') {
+    const output = {};
+    Object.keys(value).forEach((key) => {
+      if (/(password|token|secret|key)/i.test(key)) {
+        output[key] = '[REDACTED]';
+      } else {
+        output[key] = redactAuditDetail(value[key]);
+      }
+    });
+    return output;
+  }
+  return value;
+}
+
+function describeFilters(filters) {
+  const parts = [];
+  if (filters.user_id) parts.push('User ' + filters.user_id);
+  if (filters.action) parts.push('Action ' + filters.action);
+  if (filters.resource_type) parts.push('Resource ' + filters.resource_type);
+  if (filters.tenant_id) parts.push('Tenant ' + filters.tenant_id);
+  return parts.join(', ') || 'Keine Zusatzfilter';
+}
+
+function resultChip(result) {
+  const r = String(result || '').toLowerCase();
+  if (r === 'success' || r === 'ok') return '<span class="status-chip ok">' + escapeHtml(result) + '</span>';
+  if (r === 'failure' || r === 'error' || r === 'denied') return '<span class="status-chip err">' + escapeHtml(result) + '</span>';
+  return '<span class="status-chip">' + escapeHtml(result) + '</span>';
+}
+
 function renderAuditRows() {
   const body = qs('audit-table-body');
   if (!body) {
@@ -92,18 +126,80 @@ function renderAuditRows() {
     body.innerHTML = '<tr><td colspan="7" class="empty-cell">Keine Audit-Events fuer den aktuellen Filter.</td></tr>';
     return;
   }
-  body.innerHTML = events.map((event, index) => {
-    const details = escapeHtml(JSON.stringify(event, null, 2));
+  body.innerHTML = events.map((event) => {
+    const redacted = redactAuditDetail(event);
+    const details = escapeHtml(JSON.stringify(redacted, null, 2));
+    const hasRedaction = JSON.stringify(redacted).includes('[REDACTED]');
     return '<tr>' +
-      '<td>' + escapeHtml(String(event.timestamp || '')) + '</td>' +
+      '<td class="ts-cell">' + escapeHtml(String(event.timestamp || '')) + '</td>' +
       '<td>' + escapeHtml(String(event.action || '')) + '</td>' +
-      '<td>' + escapeHtml(String(event.result || '')) + '</td>' +
+      '<td>' + resultChip(event.result || '') + '</td>' +
       '<td>' + escapeHtml(String(event.user_id || '')) + '</td>' +
       '<td>' + escapeHtml(String(event.resource_type || '')) + '</td>' +
       '<td>' + escapeHtml(String(event.resource_id || '')) + '</td>' +
-      '<td><details><summary>JSON</summary><pre class="schema-code">' + details + '</pre></details></td>' +
+      '<td><details><summary>JSON' + (hasRedaction ? ' <span class="status-chip warn">redacted</span>' : '') + '</summary><pre class="schema-code">' + details + '</pre></details></td>' +
       '</tr>';
   }).join('');
+}
+
+export function renderAuditExportTargets(targets) {
+  const container = qs('audit-export-targets');
+  if (!container) return;
+  const list = Array.isArray(targets) ? targets : [];
+  if (!list.length) {
+    container.innerHTML = '<p class="empty-cell">Keine Export-Targets konfiguriert.</p>';
+    return;
+  }
+  container.innerHTML = list.map((t) => {
+    const enabled = t.enabled ? true : false;
+    const chip = enabled
+      ? '<span class="status-chip ok">aktiv</span>'
+      : '<span class="status-chip off">inaktiv</span>';
+    const detail = t.detail ? '<span class="audit-target-detail">' + escapeHtml(String(t.detail)) + '</span>' : '';
+    const lastError = t.last_error ? '<span class="audit-target-error">Letzter Fehler: ' + escapeHtml(String(t.last_error)) + '</span>' : '';
+    return '<div class="audit-target-card">' +
+      '<span class="audit-target-label">' + escapeHtml(String(t.label || t.type || '')) + '</span>' +
+      chip + detail + lastError +
+      '<button class="button ghost small" type="button" data-audit-target-test="' + escapeHtml(String(t.type || '')) + '">Test</button>' +
+      '</div>';
+  }).join('');
+}
+
+export function loadAuditExportTargets() {
+  return request('/audit/export-targets').then((payload) => {
+    const targets = Array.isArray(payload && payload.targets) ? payload.targets : [];
+    renderAuditExportTargets(targets);
+  }).catch(() => {
+    renderAuditExportTargets([]);
+  });
+}
+
+export function renderAuditFailureQueue(failures) {
+  const body = qs('audit-failures-body');
+  if (!body) return;
+  const list = Array.isArray(failures) ? failures : [];
+  if (!list.length) {
+    body.innerHTML = '<tr><td colspan="4" class="empty-cell">Keine Export-Fehler.</td></tr>';
+    return;
+  }
+  body.innerHTML = list.map((f) => {
+    const hasPayload = f.payload ? '<span class="status-chip ok">replay-ready</span>' : '<span class="status-chip off">legacy</span>';
+    return '<tr>' +
+      '<td>' + escapeHtml(String(f.timestamp || '')) + '</td>' +
+      '<td>' + escapeHtml(String(f.target || '')) + '</td>' +
+      '<td>' + escapeHtml(String(f.event_id || '')) + '</td>' +
+      '<td>' + hasPayload + ' ' + escapeHtml(String(f.error || '')) + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+export function loadAuditFailureQueue() {
+  return request('/audit/failures').then((payload) => {
+    const failures = Array.isArray(payload && payload.failures) ? payload.failures : [];
+    renderAuditFailureQueue(failures);
+  }).catch(() => {
+    renderAuditFailureQueue([]);
+  });
 }
 
 export function configureAudit(nextHooks) {
@@ -120,6 +216,8 @@ export function renderAudit() {
   if (qs('audit-filter-resource')) qs('audit-filter-resource').value = filters.resource_type;
   if (qs('audit-filter-user')) qs('audit-filter-user').value = filters.user_id;
   if (qs('audit-count')) qs('audit-count').textContent = String((state.auditReport || []).length);
+  if (qs('audit-builder-range')) qs('audit-builder-range').textContent = filters.range === 'custom' ? ((filters.start || '-') + ' bis ' + (filters.end || '-')) : filters.range;
+  if (qs('audit-builder-filters')) qs('audit-builder-filters').textContent = describeFilters(filters);
   syncCustomRangeVisibility();
   renderAuditRows();
 }
@@ -185,6 +283,67 @@ export function exportAuditCsv() {
   }).catch((error) => {
     auditHooks.setBanner('Audit-CSV Export fehlgeschlagen: ' + error.message, 'warn');
     throw error;
+  });
+}
+
+export function runAuditReportBuilder() {
+  const format = String(qs('audit-builder-format') ? qs('audit-builder-format').value : 'csv');
+  if (qs('audit-builder-status')) qs('audit-builder-status').textContent = 'Laeuft...';
+  const startedAt = new Date().toISOString();
+  const finish = (status) => {
+    if (qs('audit-builder-status')) qs('audit-builder-status').textContent = status;
+    const container = qs('audit-compliance-reports');
+    if (container) {
+      const filters = readAuditFiltersFromDom();
+      const item = '<div class="audit-report-card">' +
+        '<strong>' + escapeHtml(format.toUpperCase()) + ' Report</strong>' +
+        '<span>' + escapeHtml(startedAt) + '</span>' +
+        '<span>' + escapeHtml(describeFilters(filters)) + '</span>' +
+        '<span>Checksum: browser-download</span>' +
+        '</div>';
+      container.innerHTML = item + container.innerHTML.replace('<p class="empty-cell">Noch keine Reports in dieser Sitzung erzeugt.</p>', '');
+    }
+  };
+  if (format === 'json') {
+    return loadAuditReport().then(() => finish('JSON geladen')).catch(() => {
+      if (qs('audit-builder-status')) qs('audit-builder-status').textContent = 'Fehler';
+    });
+  }
+  return exportAuditCsv().then(() => finish('CSV exportiert')).catch(() => {
+    if (qs('audit-builder-status')) qs('audit-builder-status').textContent = 'Fehler';
+  });
+}
+
+export function testAuditExportTarget(target) {
+  const safeTarget = String(target || '').trim();
+  if (!safeTarget) return Promise.resolve();
+  return runSingleFlight('audit-target-test:' + safeTarget, () => {
+    return request('/audit/export-targets/' + encodeURIComponent(safeTarget) + '/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    }).then(() => {
+      auditHooks.setBanner('Audit-Exportziel getestet: ' + safeTarget, 'ok');
+      return loadAuditExportTargets();
+    }).catch((error) => {
+      auditHooks.setBanner('Exportziel-Test fehlgeschlagen: ' + error.message, 'warn');
+      return loadAuditExportTargets();
+    });
+  });
+}
+
+export function replayAuditFailures() {
+  return runSingleFlight('audit-failure-replay', () => {
+    return request('/audit/failures/replay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ limit: 100 })
+    }).then((payload) => {
+      auditHooks.setBanner('Audit-Replay abgeschlossen: ' + String(payload.replayed || 0) + ' erneut gesendet.', 'ok');
+      return loadAuditFailureQueue();
+    }).catch((error) => {
+      auditHooks.setBanner('Audit-Replay fehlgeschlagen: ' + error.message, 'warn');
+    });
   });
 }
 

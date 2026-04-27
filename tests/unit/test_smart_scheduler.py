@@ -29,6 +29,8 @@ def make_nodes_free(specs: list[dict]) -> list[NodeCapacity]:
             free_ram_mib=s["free_ram"],
             gpu_slots_free=s.get("gpu_free", 0),
             predicted_cpu_pct_4h=s.get("load_pct", 0.0),
+            gpu_utilization_pct=s.get("gpu_util_pct", 0.0),
+            predicted_gpu_utilization_pct_4h=s.get("gpu_pred_pct", 0.0),
         ))
     return nodes
 
@@ -75,6 +77,59 @@ def test_no_gpu_node_excluded_for_gpu_workload():
     svc = make_svc(nodes)
     result = svc.pick_node(required_cpu_cores=4, required_ram_mib=4096, gpu_required=True)
     assert result.node_id == ""
+
+
+def test_gpu_required_prefers_lower_predicted_gpu_load():
+    nodes = make_nodes_free([
+        {
+            "node_id": "gpu-node-hot-soon",
+            "free_cpu": 32,
+            "free_ram": 65536,
+            "load_pct": 10.0,
+            "gpu_free": 1,
+            "gpu_util_pct": 15.0,
+            "gpu_pred_pct": 92.0,
+        },
+        {
+            "node_id": "gpu-node-stable",
+            "free_cpu": 24,
+            "free_ram": 49152,
+            "load_pct": 15.0,
+            "gpu_free": 1,
+            "gpu_util_pct": 35.0,
+            "gpu_pred_pct": 40.0,
+        },
+    ])
+    svc = make_svc(nodes)
+    result = svc.pick_node(required_cpu_cores=4, required_ram_mib=4096, gpu_required=True)
+    assert result.node_id == "gpu-node-stable"
+    assert "predicted_gpu_util=40.0%" in result.reason
+
+
+def test_gpu_required_excludes_node_when_predicted_gpu_threshold_exceeded():
+    nodes = make_nodes_free([
+        {
+            "node_id": "gpu-node-predicted-overload",
+            "free_cpu": 32,
+            "free_ram": 65536,
+            "load_pct": 10.0,
+            "gpu_free": 1,
+            "gpu_util_pct": 20.0,
+            "gpu_pred_pct": 90.0,
+        },
+        {
+            "node_id": "gpu-node-ok",
+            "free_cpu": 16,
+            "free_ram": 32768,
+            "load_pct": 25.0,
+            "gpu_free": 1,
+            "gpu_util_pct": 45.0,
+            "gpu_pred_pct": 55.0,
+        },
+    ])
+    svc = make_svc(nodes)
+    result = svc.pick_node(required_cpu_cores=4, required_ram_mib=4096, gpu_required=True)
+    assert result.node_id == "gpu-node-ok"
 
 
 def test_rebalance_identifies_overloaded_node():

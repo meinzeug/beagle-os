@@ -462,6 +462,17 @@ server {
         }
     }
 
+    location = /metrics {
+      limit_req zone=beagle_api burst=1200 nodelay;
+      proxy_pass ${BEAGLE_API_UPSTREAM}/metrics;
+      proxy_http_version 1.1;
+      proxy_set_header Host \$host;
+      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto https;
+      proxy_read_timeout 60;
+      proxy_send_timeout 60;
+    }
+
     location ^~ /beagle-api/api/v1/auth/ {
       limit_req zone=beagle_auth burst=120 nodelay;
       proxy_pass ${BEAGLE_API_UPSTREAM}/api/v1/auth/;
@@ -535,8 +546,20 @@ server {
         add_header Cache-Control "no-store";
     }
 
+    location = /beagle-web-ui-config.js {
+        alias ${ASSET_ROOT}/website/beagle-web-ui-config.js;
+        add_header Cache-Control "no-store";
+    }
+
     location / {
       add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self' wss:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" always;
+      add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header Referrer-Policy "no-referrer" always;
+      add_header X-Frame-Options "DENY" always;
+      add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+      add_header Cross-Origin-Opener-Policy "same-origin" always;
+      add_header Cross-Origin-Resource-Policy "same-origin" always;
         try_files \$uri \$uri/ /index.html;
     }
 }
@@ -582,6 +605,17 @@ server {
 
     location ^~ /pve-dcv-downloads/ {
         rewrite ^/pve-dcv-downloads/(.*)$ ${DOWNLOADS_PATH}/\$1 permanent;
+    }
+
+    location = /metrics {
+      limit_req zone=beagle_api burst=1200 nodelay;
+      proxy_pass ${BEAGLE_API_UPSTREAM}/metrics;
+      proxy_http_version 1.1;
+      proxy_set_header Host \$host;
+      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto https;
+      proxy_read_timeout 60;
+      proxy_send_timeout 60;
     }
 
     location ^~ /beagle-api/api/v1/auth/ {

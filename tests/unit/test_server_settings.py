@@ -169,6 +169,71 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertEqual(int(response["status"]), 500)
         self.assertFalse(response["payload"]["ok"])
 
+    def test_enable_auto_maintenance_enables_repo_and_watchdog_and_triggers_checks(self):
+        service = self.make_service()
+
+        with mock.patch.object(service, "run_repo_auto_update", return_value={"ok": True}), \
+             mock.patch.object(service, "run_artifact_watchdog", return_value={"ok": True}), \
+             mock.patch.object(service, "get_repo_auto_update", return_value={"config": {"enabled": True}}), \
+             mock.patch.object(service, "get_artifact_watchdog", return_value={"config": {"enabled": True}}):
+            result = service.enable_auto_maintenance()
+
+        self.assertTrue(result["ok"])
+        settings = MODULE.json.loads(service._settings_path.read_text(encoding="utf-8"))
+        self.assertTrue(settings.get("repo_auto_update_enabled"))
+        self.assertTrue(settings.get("artifact_watchdog_enabled"))
+        self.assertTrue(settings.get("artifact_watchdog_auto_repair"))
+        self.assertEqual(settings.get("artifact_watchdog_max_age_hours"), 6)
+
+    def test_route_post_maintenance_auto_enable_returns_accepted(self):
+        service = self.make_service()
+
+        with mock.patch.object(service, "enable_auto_maintenance", return_value={"ok": True, "maintenance": {"auto_enabled": True}}):
+            response = service.route_post("/api/v1/settings/maintenance/auto-enable", {})
+
+        self.assertIsNotNone(response)
+        assert response is not None
+        self.assertEqual(int(response["status"]), 202)
+        self.assertTrue(response["payload"]["ok"])
+
+    def test_route_post_maintenance_run_returns_accepted(self):
+        service = self.make_service()
+
+        with mock.patch.object(service, "run_maintenance_now", return_value={"ok": True, "maintenance": {}}):
+            response = service.route_post("/api/v1/settings/maintenance/run", {})
+
+        self.assertIsNotNone(response)
+        assert response is not None
+        self.assertEqual(int(response["status"]), 202)
+        self.assertTrue(response["payload"]["ok"])
+
+    def test_enable_auto_maintenance_recovers_from_invalid_legacy_repo_values(self):
+        service = self.make_service()
+        service._settings_path.write_text(
+            MODULE.json.dumps(
+                {
+                    "repo_auto_update_enabled": False,
+                    "repo_auto_update_repo_url": "ssh://invalid-repo",
+                    "repo_auto_update_branch": "bad branch name",
+                    "repo_auto_update_interval_minutes": 0,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with mock.patch.object(service, "run_repo_auto_update", return_value={"ok": True}), \
+             mock.patch.object(service, "run_artifact_watchdog", return_value={"ok": True}), \
+             mock.patch.object(service, "get_repo_auto_update", wraps=service.get_repo_auto_update), \
+             mock.patch.object(service, "get_artifact_watchdog", wraps=service.get_artifact_watchdog):
+            result = service.enable_auto_maintenance()
+
+        self.assertTrue(result["ok"])
+        settings = MODULE.json.loads(service._settings_path.read_text(encoding="utf-8"))
+        self.assertTrue(settings["repo_auto_update_enabled"])
+        self.assertEqual(settings["repo_auto_update_repo_url"], "https://github.com/meinzeug/beagle-os.git")
+        self.assertEqual(settings["repo_auto_update_branch"], "main")
+        self.assertEqual(settings["repo_auto_update_interval_minutes"], 1)
+
     def test_get_artifacts_includes_watchdog_config_and_status(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             install_dir = Path(tmpdir) / "beagle"

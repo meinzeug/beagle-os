@@ -262,6 +262,15 @@ Stand: 2026-04-13
 - Grund: Ein Cluster-Wizard darf keine offen aus dem Internet auslesbaren Serverinformationen voraussetzen. Der Betreiber muss den Zielserver bewusst in dessen WebUI vorbereiten, bevor ein Leader ihn verbinden kann.
 - Konsequenz: `POST /api/v1/cluster/setup-code` ist authentifiziert, `POST /api/v1/cluster/join-with-setup-code` ist nur setup-code-geschuetzt und darf keine Secrets auditieren.
 - Dateien: `beagle-host/services/cluster_membership.py`, `beagle-host/services/cluster_http_surface.py`, `beagle-host/services/control_plane_handler.py`, `website/ui/cluster.js`, `website/index.html`.
+
+## D-045: Cluster-Liveness darf nicht an oeffentlicher TLS-Vertrauenskette haengen
+
+- Entscheidung: Der reine Peer-Liveness-Probe (`healthz`) fuer Cluster-Member validiert nicht die oeffentliche Browser-CA-Kette, wenn `api_url` auf eine HTTPS-WebUI-URL zeigt.
+- Grund: Der Cluster-Zustand darf nicht durch ein zeitweilig unvollstaendiges Public-Certificate-Setup auf `srv1`/`srv2` auf `unreachable` kippen, solange der Host selbst ueber die konfigurierte Peer-URL erreichbar ist.
+- Begrenzung:
+  1. Die Ausnahme gilt nur fuer den unauthentifizierten Liveness-Probe.
+  2. Privilegierte Cluster-RPCs bleiben weiter am mTLS-Cluster-CA-Modell haengen.
+- Dateien: `beagle-host/services/cluster_membership.py`.
 ## 2026-04-26 - Cluster Leave und Virtualization Overview bleiben leader-/cluster-autoritativ
 
 - Ein Cluster-Mitglied darf seinen lokalen Cluster-State loeschen, aber nicht den Leader-State still implizit veraendern.

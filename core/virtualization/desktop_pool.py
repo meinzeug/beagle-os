@@ -53,6 +53,7 @@ class DesktopPoolSpec:
     pool_type: DesktopPoolType = DesktopPoolType.DESKTOP
     session_time_limit_minutes: int = 0     # 0 = unlimited (kiosk: set >0)
     session_cost_per_minute: float = 0.0    # for kiosk billing
+    session_extension_options_minutes: tuple[int, ...] = (15, 30, 60)
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,8 @@ class DesktopPoolInfo:
     tenant_id: str = ""
     pool_type: DesktopPoolType = DesktopPoolType.DESKTOP
     session_time_limit_minutes: int = 0
+    session_cost_per_minute: float = 0.0
+    session_extension_options_minutes: tuple[int, ...] = (15, 30, 60)
 
 
 class DesktopPool(Protocol):

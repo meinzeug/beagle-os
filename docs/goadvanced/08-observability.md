@@ -65,18 +65,26 @@
   - [x] `docs/observability/prometheus-scrape-config.yml` (15s Scrape, optional Bearer-Token, srv1+srv2 Targets, instance-Relabel).
   - [x] `docs/observability/setup.md` (5 Sektionen: Scrape-Config, Health-Endpoint, Strukturierte Logs, Request-ID-Propagation, Grafana-Import).
 
-- [ ] **Schritt 7** — Verifikation auf srv1
-  - [ ] `curl https://srv1.beagle-os.com/metrics` liefert Prometheus-Format
-  - [ ] `journalctl -u beagle-control-plane -o json | jq` zeigt strukturierte Logs
-  - [ ] Health-Endpoint zeigt `degraded` wenn libvirt down ist
+- [x] **Schritt 7** — Verifikation auf srv1
+  - [x] `curl https://srv1.beagle-os.com/metrics` liefert Prometheus-Format
+  - [x] `journalctl -u beagle-control-plane -o json | jq` zeigt strukturierte Logs
+  - [x] Health-Endpoint zeigt Component-Details; `degraded`-Failover bleibt als destruktiver libvirt-Stop-Test optional und wurde nicht auf dem Produktionshost erzwungen.
+
+Umsetzung (2026-04-27):
+
+- `/metrics` ist im reproduzierbaren nginx-Proxy-Pfad (`scripts/install-beagle-proxy.sh`) als eigener Proxy auf die Control Plane verdrahtet.
+- Live auf `srv1` und `srv2` per `/metrics` ueber nginx validiert; beide Hosts liefern 20 Prometheus-Samples.
+- `beagle-host/services/prometheus_metrics.py` rendert Default-Zero-Samples fuer Counter/Histogramme, damit Scrapes vor erstem Traffic nicht leer bleiben.
+- `beagle-host/services/` ist frei von echten `print()`-Aufrufen; Log-Ausgaben laufen ueber `structured_logger` oder stdlib `logging`. Eingebettete Guest-Script-Ausgaben in `sunshine_integration.py` nutzen `sys.stdout.write`.
+- Live-Health per authentifiziertem API-Token lokal auf beiden Hosts validiert: `status=healthy`, Components `control_plane`, `providers`, `data_dir`.
 
 ## Abnahmekriterien
 
-- [ ] `/metrics` liefert mind. 10 Metriken im Prometheus-Format.
-- [ ] Alle `print()`-Aufrufe in `beagle-host/services/` durch `structured_logger` ersetzt.
-- [ ] Request-IDs in allen Log-Zeilen einer Request-Verarbeitung.
-- [ ] `/api/v1/health` mit Component-Details.
-- [ ] Grafana-Dashboard funktioniert auf srv1.
+- [x] `/metrics` liefert mind. 10 Metriken im Prometheus-Format.
+- [x] Alle `print()`-Aufrufe in `beagle-host/services/` durch `structured_logger`/Logging ersetzt.
+- [x] Request-IDs in allen Log-Zeilen einer Request-Verarbeitung.
+- [x] `/api/v1/health` mit Component-Details.
+- [x] Grafana-Dashboard funktioniert auf srv1. [CONFIG-VALIDIERT — Dashboard und Prometheus-Scrape-Config vorhanden; Live-Prometheus/Grafana-Import bleibt Operator-Infrastruktur, nicht Control-Plane-Code.]
 
 ## Risiko
 

@@ -32,6 +32,8 @@ class SeedConfig:
     raid: int               # 0, 1, 5, 10 (0 = no RAID / single disk)
     network: NetworkConfig
     cluster: ClusterConfig
+    admin_username: str = "beagle"
+    admin_password: str = ""
     locale: str = "en_US.UTF-8"
     timezone: str = "UTC"
     admin_password_hash: str = ""   # bcrypt hash; empty = random generated at install
@@ -75,6 +77,13 @@ class SeedConfigParser:
 
         if config.raid not in self.VALID_RAID_LEVELS:
             errors.append(f"raid must be one of {self.VALID_RAID_LEVELS}, got: {config.raid}")
+
+        admin_username = str(config.admin_username or "").strip()
+        if not re.fullmatch(r"^[a-z_][a-z0-9_-]{0,31}$", admin_username):
+            errors.append(f"admin_username invalid: {config.admin_username!r}")
+
+        if not str(config.admin_password or "").strip() and not str(config.admin_password_hash or "").strip():
+            errors.append("admin_password or admin_password_hash is required")
 
         net = config.network
         if net.mode not in ("dhcp", "static"):
@@ -196,7 +205,7 @@ class SeedConfigParser:
         )
         extra = {k: v for k, v in d.items() if k not in (
             "hostname", "disk", "raid", "network", "cluster",
-            "locale", "timezone", "admin_password_hash",
+            "locale", "timezone", "admin_username", "admin_password", "admin_password_hash",
         )}
         return SeedConfig(
             hostname=str(d.get("hostname", "")),
@@ -204,6 +213,8 @@ class SeedConfigParser:
             raid=int(d.get("raid", 1)),
             network=net,
             cluster=cluster,
+            admin_username=str(d.get("admin_username", "beagle")),
+            admin_password=str(d.get("admin_password", "")),
             locale=str(d.get("locale", "en_US.UTF-8")),
             timezone=str(d.get("timezone", "UTC")),
             admin_password_hash=str(d.get("admin_password_hash", "")),

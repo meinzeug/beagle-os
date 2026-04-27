@@ -54,23 +54,25 @@
             <p>Dieser Host wurde frisch installiert. Lege jetzt den ersten Administrator an, bevor die Konsole freigeschaltet wird.</p>
           </div>
         </div>
-        <div class="auth-form-grid">
-          <label class="field field-wide">
-            <span>Administrator</span>
-            <input id="onboarding-username" type="text" autocomplete="username" placeholder="admin">
-          </label>
-          <label class="field">
-            <span>Passwort</span>
-            <input id="onboarding-password" type="password" autocomplete="new-password" placeholder="Mind. 8 Zeichen" minlength="8" required>
-          </label>
-          <label class="field">
-            <span>Passwort bestaetigen</span>
-            <input id="onboarding-password-confirm" type="password" autocomplete="new-password" placeholder="Wiederholen">
-          </label>
-        </div>
-        <div class="button-row auth-button-row">
-          <button class="button primary" id="onboarding-complete" type="button">Onboarding abschliessen</button>
-        </div>
+        <form id="onboarding-form">
+          <div class="auth-form-grid">
+            <label class="field field-wide">
+              <span>Administrator</span>
+              <input id="onboarding-username" type="text" autocomplete="username" placeholder="admin">
+            </label>
+            <label class="field">
+              <span>Passwort</span>
+              <input id="onboarding-password" type="password" autocomplete="new-password" placeholder="Mind. 8 Zeichen" minlength="8" required>
+            </label>
+            <label class="field">
+              <span>Passwort bestaetigen</span>
+              <input id="onboarding-password-confirm" type="password" autocomplete="new-password" placeholder="Wiederholen">
+            </label>
+          </div>
+          <div class="button-row auth-button-row">
+            <button class="button primary" id="onboarding-complete" type="button">Onboarding abschliessen</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -85,36 +87,38 @@
           </div>
           <button class="icon-button" id="close-auth-modal" type="button" aria-label="Schliessen">×</button>
         </div>
-        <div class="auth-form-grid">
-          <label class="field">
-            <span>Benutzername</span>
-            <input id="auth-username" type="text" autocomplete="username" placeholder="admin">
-          </label>
-          <label class="field">
-            <span>Passwort</span>
-            <input id="auth-password" type="password" autocomplete="current-password" placeholder="Passwort">
-          </label>
-          <label class="field field-wide">
-            <span>Legacy API-Token (optional)</span>
-            <input id="api-token" type="password" autocomplete="off" placeholder="Nur fuer Automation">
-          </label>
-          <label class="field">
-            <span>Console URL</span>
-            <input id="web-ui-url" type="text" readonly>
-          </label>
-          <label class="field">
-            <span>API Basis</span>
-            <input id="api-base" type="text" readonly>
-          </label>
-        </div>
-        <div class="auth-methods" id="auth-methods" aria-live="polite">
-          <div class="auth-methods-title">Verfuegbare Login-Methoden</div>
-          <div class="auth-methods-list" id="auth-provider-methods"></div>
-        </div>
-        <div class="button-row auth-button-row">
-          <button class="button ghost" id="clear-token" type="button">Token loeschen</button>
-          <button class="button primary" id="connect-button" type="button">Verbinden</button>
-        </div>
+        <form id="auth-form">
+          <div class="auth-form-grid">
+            <label class="field">
+              <span>Benutzername</span>
+              <input id="auth-username" type="text" autocomplete="username" placeholder="admin">
+            </label>
+            <label class="field">
+              <span>Passwort</span>
+              <input id="auth-password" type="password" autocomplete="current-password" placeholder="Passwort">
+            </label>
+            <label class="field field-wide">
+              <span>Legacy API-Token (optional)</span>
+              <input id="api-token" type="password" autocomplete="off" placeholder="Nur fuer Automation">
+            </label>
+            <label class="field">
+              <span>Console URL</span>
+              <input id="web-ui-url" type="text" readonly>
+            </label>
+            <label class="field">
+              <span>API Basis</span>
+              <input id="api-base" type="text" readonly>
+            </label>
+          </div>
+          <div class="auth-methods" id="auth-methods" aria-live="polite">
+            <div class="auth-methods-title">Verfuegbare Login-Methoden</div>
+            <div class="auth-methods-list" id="auth-provider-methods"></div>
+          </div>
+          <div class="button-row auth-button-row">
+            <button class="button ghost" id="clear-token" type="button">Token loeschen</button>
+            <button class="button primary" id="connect-button" type="button">Verbinden</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -600,22 +604,14 @@
                     <button type="button" class="button ghost small" id="vgpu-refresh">Aktualisieren</button>
                   </div>
                 </div>
-                <div class="table-wrap compact">
-                  <table class="vm-table compact-table">
-                    <thead><tr><th>GPU PCI</th><th>Typ-ID</th><th>Name</th><th>Verfügbar</th><th>Max</th><th>Aktion</th></tr></thead>
-                    <tbody id="vgpu-types-body">
-                      <tr><td colspan="6" class="empty-cell">Noch keine vGPU-Typen.</td></tr>
-                    </tbody>
-                  </table>
+                <div class="gpu-subcard-grid" id="vgpu-types-body">
+                  <div class="empty-card">Noch keine vGPU-Typen.</div>
                 </div>
-                <div class="table-wrap compact mdev-instances-wrap">
+                <div class="mdev-instances-wrap">
                   <h4 class="mdev-section-label">Aktive mdev-Instanzen</h4>
-                  <table class="vm-table compact-table">
-                    <thead><tr><th>UUID</th><th>Typ-ID</th><th>GPU PCI</th><th>Aktion</th></tr></thead>
-                    <tbody id="vgpu-instances-body">
-                      <tr><td colspan="4" class="empty-cell">Keine aktiven mdev-Instanzen.</td></tr>
-                    </tbody>
-                  </table>
+                  <div class="gpu-subcard-grid" id="vgpu-instances-body">
+                    <div class="empty-card">Keine aktiven mdev-Instanzen.</div>
+                  </div>
                 </div>
               </article>
 
@@ -629,13 +625,8 @@
                     <button type="button" class="button ghost small" id="sriov-refresh">Aktualisieren</button>
                   </div>
                 </div>
-                <div class="table-wrap compact">
-                  <table class="vm-table compact-table">
-                    <thead><tr><th>PCI</th><th>Treiber</th><th>VFs gesamt</th><th>VFs aktiv</th><th>Aktion</th></tr></thead>
-                    <tbody id="sriov-devices-body">
-                      <tr><td colspan="5" class="empty-cell">Keine SR-IOV-fähigen GPUs.</td></tr>
-                    </tbody>
-                  </table>
+                <div class="gpu-subcard-grid" id="sriov-devices-body">
+                  <div class="empty-card">Keine SR-IOV-faehigen GPUs.</div>
                 </div>
               </article>
 
@@ -924,6 +915,7 @@
                   <h2>Knoten-Status</h2>
                 </div>
               </div>
+              <div id="cluster-install-check-banner" class="banner ok hidden">Kein neuer Node-Join gemeldet.</div>
               <div class="table-wrap compact">
                 <table class="vm-table compact-table">
                   <thead>
@@ -1300,6 +1292,16 @@
                 </div>
 
                 <div class="pool-wizard-step-panel" data-pool-step="2" hidden>
+                  <label class="field"><span>Pool-Typ</span>
+                    <select id="pool-type" class="input-select">
+                      <option value="desktop" selected>desktop</option>
+                      <option value="gaming">gaming</option>
+                      <option value="kiosk">kiosk</option>
+                      <option value="gpu_passthrough">gpu_passthrough</option>
+                      <option value="gpu_timeslice">gpu_timeslice</option>
+                      <option value="gpu_vgpu">gpu_vgpu</option>
+                    </select>
+                  </label>
                   <label class="field"><span>Modus</span>
                     <select id="pool-mode" class="input-select">
                       <option value="floating_non_persistent">floating_non_persistent</option>
@@ -1307,12 +1309,20 @@
                       <option value="dedicated">dedicated</option>
                     </select>
                   </label>
+                  <label class="field field-wide">
+                    <span>GPU-Klasse</span>
+                    <select id="pool-gpu-class" class="input-select"></select>
+                    <small id="pool-gpu-class-help" class="muted-text">Lade GPU-Inventar ...</small>
+                  </label>
                   <label class="field"><span>Storage Pool</span><input id="pool-storage" type="text" placeholder="local"></label>
                   <label class="field"><span>Min Groesse</span><input id="pool-min-size" type="number" min="1" step="1" value="1"></label>
                   <label class="field"><span>Max Groesse</span><input id="pool-max-size" type="number" min="1" step="1" value="5"></label>
                   <label class="field"><span>Warm Pool</span><input id="pool-warm-size" type="number" min="0" step="1" value="2"></label>
                   <label class="field"><span>vCPU pro Desktop</span><input id="pool-cpu" type="number" min="1" step="1" value="2"></label>
                   <label class="field"><span>RAM MiB pro Desktop</span><input id="pool-memory" type="number" min="1024" step="256" value="4096"></label>
+                  <label class="field"><span>Session-Limit (Minuten)</span><input id="pool-session-time-limit" type="number" min="0" step="1" value="0"></label>
+                  <label class="field"><span>Kosten / Minute</span><input id="pool-session-cost" type="number" min="0" step="0.01" value="0"></label>
+                  <label class="field"><span>Verlaengerungsstufen (Minuten)</span><input id="pool-session-extensions" type="text" value="15,30,60" placeholder="15,30,60"></label>
                   <label class="field"><span>Session Recording</span>
                     <select id="pool-session-recording" class="input-select">
                       <option value="disabled" selected>disabled</option>
@@ -1414,6 +1424,48 @@
               </div>
             </article>
 
+            <article class="card section-spaced-tight">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Gaming &amp; Kiosk</span>
+                  <h2>Kiosk-Controller</h2>
+                </div>
+              </div>
+              <div id="kiosk-controller-panel" class="section-spaced-tight">
+                <div class="empty-card">Keine aktiven Kiosk-Sessions.</div>
+              </div>
+            </article>
+
+            <article class="card section-spaced-tight">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Gaming Telemetrie</span>
+                  <h2>Gaming-Metrics</h2>
+                </div>
+                <div class="button-row compact-row">
+                  <button class="button ghost small" id="gaming-metrics-refresh" type="button">Refresh</button>
+                </div>
+              </div>
+              <div id="gaming-metrics-dashboard" class="section-spaced-tight">
+                <div class="empty-card">Noch keine Gaming-Metriken geladen.</div>
+              </div>
+            </article>
+
+            <article class="card section-spaced-tight">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Session Mobility</span>
+                  <h2>Session-Handover</h2>
+                </div>
+                <div class="button-row compact-row">
+                  <button class="button ghost small" id="session-handover-refresh" type="button">Refresh</button>
+                </div>
+              </div>
+              <div id="session-handover-dashboard" class="section-spaced-tight">
+                <div class="empty-card">Noch keine Session-Handover-Daten geladen.</div>
+              </div>
+            </article>
+
             <article class="card">
               <div class="card-head">
                 <div>
@@ -1501,6 +1553,7 @@
                     <label class="field"><span>Username</span><input id="iam-user-username" type="text" placeholder="operator01"></label>
                     <label class="field"><span>Rolle</span><select id="iam-user-role" class="input-select"></select></label>
                     <label class="field"><span>Passwort</span><input id="iam-user-password" type="password" placeholder="Neues Passwort"></label>
+                    <label class="field"><span>Tenant-ID</span><input id="iam-user-tenant" type="text" placeholder="tenant-a"></label>
                     <label class="check-label check-label-padded">
                       <input id="iam-user-enabled" type="checkbox" checked>
                       <span>Aktiv</span>
@@ -1512,6 +1565,9 @@
                     <button class="button ghost" id="iam-user-revoke" type="button">Sessions revoke</button>
                     <button class="button danger" id="iam-user-delete" type="button">Loeschen</button>
                   </div>
+                  <aside id="iam-user-detail" class="iam-detail-drawer" aria-live="polite">
+                    <div class="empty-card">Kein User ausgewaehlt.</div>
+                  </aside>
                 </section>
                 <section class="iam-column">
                   <h3>Rollen</h3>
@@ -1523,12 +1579,14 @@
                   </div>
                   <div class="iam-editor-grid iam-editor-stack">
                     <label class="field"><span>Rollenname</span><input id="iam-role-name" type="text" placeholder="ops-l2"></label>
+                    <label class="field"><span>Permission-Suche</span><input id="iam-role-permission-search" type="search" placeholder="cluster, pool, auth"></label>
                     <div class="field field-wide">
                       <span class="field-label">Berechtigungen</span>
                       <div id="iam-role-permissions-grid" class="permission-tag-grid">
                         <p class="perm-empty">Wird geladen…</p>
                       </div>
                     </div>
+                    <div id="iam-role-diff" class="iam-role-diff">Keine Rolle ausgewaehlt.</div>
                   </div>
                   <div class="button-row">
                     <button class="button primary" id="iam-role-save" type="button">Speichern</button>
@@ -1536,6 +1594,66 @@
                     <button class="button danger" id="iam-role-delete" type="button">Loeschen</button>
                   </div>
                 </section>
+              </div>
+            </article>
+
+            <!-- Sessions -->
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Sessions</span>
+                  <h2>Aktive Sessions</h2>
+                </div>
+              </div>
+              <div class="iam-filter-row">
+                <input id="iam-session-filter-user" class="input-search" type="search" placeholder="User filtern">
+                <input id="iam-session-filter-tenant" class="input-search" type="search" placeholder="Tenant filtern">
+                <button class="button ghost small" id="iam-sessions-reload" type="button">Suchen</button>
+              </div>
+              <div class="table-wrap compact">
+                <table class="vm-table compact-table">
+                  <thead><tr><th>Username</th><th>Rolle</th><th>Tenant</th><th>Laufzeit</th><th>Aktion</th></tr></thead>
+                  <tbody id="iam-sessions-body"><tr><td colspan="5" class="empty-cell">Wird geladen…</td></tr></tbody>
+                </table>
+              </div>
+            </article>
+
+            <!-- Tenants -->
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Mandanten</span>
+                  <h2>Tenants</h2>
+                </div>
+              </div>
+              <div id="iam-tenants-list" class="tenant-list">
+                <p class="empty-cell">Wird geladen…</p>
+              </div>
+            </article>
+
+            <!-- Identity Provider -->
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Authentifizierung</span>
+                  <h2>Identity Provider</h2>
+                </div>
+              </div>
+              <div id="iam-idp-cards" class="idp-cards-grid">
+                <p class="empty-cell">Wird geladen…</p>
+              </div>
+            </article>
+
+            <!-- SCIM -->
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">User-Sync</span>
+                  <h2>SCIM 2.0</h2>
+                </div>
+              </div>
+              <div id="iam-scim-status">
+                <p class="empty-cell">Wird geladen…</p>
               </div>
             </article>
           </section>
@@ -1591,6 +1709,62 @@
                     <tr><th>Zeit</th><th>Aktion</th><th>Result</th><th>User</th><th>Typ</th><th>Resource</th><th>Details</th></tr>
                   </thead>
                   <tbody id="audit-table-body"><tr><td colspan="7" class="empty-cell">Noch keine Daten geladen.</td></tr></tbody>
+                </table>
+              </div>
+            </article>
+
+            <!-- Export Targets -->
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Compliance</span>
+                  <h2>Export-Ziele</h2>
+                </div>
+                <button class="button ghost small" id="audit-targets-refresh" type="button">Refresh</button>
+              </div>
+              <div id="audit-export-targets" class="audit-targets-list">
+                <p class="empty-cell">Noch nicht geladen.</p>
+              </div>
+            </article>
+
+            <!-- Report Builder -->
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Compliance</span>
+                  <h2>Report Builder</h2>
+                </div>
+                <button class="button primary small" id="audit-builder-run" type="button">Report starten</button>
+              </div>
+              <div class="audit-builder-grid">
+                <div class="audit-builder-step"><strong>1 Zeitraum</strong><span id="audit-builder-range">Letzte 24h</span></div>
+                <div class="audit-builder-step"><strong>2 Filter</strong><span id="audit-builder-filters">Keine Zusatzfilter</span></div>
+                <label class="field"><span>Format</span><select id="audit-builder-format" class="input-select"><option value="csv">CSV</option><option value="json">JSON</option></select></label>
+                <div class="audit-builder-step"><strong>Status</strong><span id="audit-builder-status">Bereit</span></div>
+              </div>
+              <div id="audit-compliance-reports" class="audit-compliance-list">
+                <p class="empty-cell">Noch keine Reports in dieser Sitzung erzeugt.</p>
+              </div>
+            </article>
+
+            <!-- Failure Queue -->
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Compliance</span>
+                  <h2>Export-Fehler</h2>
+                </div>
+                <div class="button-row">
+                  <button class="button ghost small" id="audit-failures-refresh" type="button">Refresh</button>
+                  <button class="button primary small" id="audit-failures-replay" type="button">Replay</button>
+                </div>
+              </div>
+              <div class="table-wrap compact">
+                <table class="vm-table compact-table">
+                  <thead>
+                    <tr><th>Zeit</th><th>Ziel</th><th>Event-ID</th><th>Fehler</th></tr>
+                  </thead>
+                  <tbody id="audit-failures-body"><tr><td colspan="4" class="empty-cell">Noch nicht geladen.</td></tr></tbody>
                 </table>
               </div>
             </article>

@@ -981,6 +981,85 @@ class ServerSettingsService:
             return {"ok": False, "error": f"artifact watchdog start failed: {r.stderr.strip()[:300]}"}
         return {"ok": True, "watchdog": self.get_artifact_watchdog()}
 
+    def enable_auto_maintenance(self) -> dict[str, Any]:
+        """Enable and bootstrap full update/build maintenance automation.
+
+        This server-side orchestration avoids fragile client-side multi-request
+        chains and ensures the same behavior for API clients and UI buttons.
+        """
+        settings = self._load_settings()
+        repo_url = str(settings.get("repo_auto_update_repo_url") or _DEFAULT_REPO_AUTO_UPDATE_URL).strip() or _DEFAULT_REPO_AUTO_UPDATE_URL
+        if not repo_url.startswith("https://github.com/") or not repo_url.endswith(".git"):
+            repo_url = _DEFAULT_REPO_AUTO_UPDATE_URL
+
+        branch = str(settings.get("repo_auto_update_branch") or _DEFAULT_REPO_AUTO_UPDATE_BRANCH).strip() or _DEFAULT_REPO_AUTO_UPDATE_BRANCH
+        if not re.fullmatch(r"[A-Za-z0-9._/-]{1,120}", branch):
+            branch = _DEFAULT_REPO_AUTO_UPDATE_BRANCH
+
+        try:
+            interval = int(settings.get("repo_auto_update_interval_minutes", _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES) or _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES)
+        except (TypeError, ValueError):
+            interval = _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES
+        if interval < 1 or interval > 1440:
+            interval = _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES
+
+        repo_cfg = self.update_repo_auto_update(
+            {
+                "enabled": True,
+                "repo_url": repo_url,
+                "branch": branch,
+                "interval_minutes": interval,
+            }
+        )
+        if not repo_cfg.get("ok"):
+            errors = repo_cfg.get("errors") or [repo_cfg.get("error") or "repo automation update failed"]
+            return {"ok": False, "error": "repo automation setup failed", "errors": errors}
+
+        watchdog_cfg = self.update_artifact_watchdog(
+            {
+                "enabled": True,
+                "auto_repair": True,
+                "max_age_hours": 6,
+            }
+        )
+        if not watchdog_cfg.get("ok"):
+            errors = watchdog_cfg.get("errors") or [watchdog_cfg.get("error") or "watchdog setup failed"]
+            return {"ok": False, "error": "artifact watchdog setup failed", "errors": errors}
+
+        # Kick both automations once immediately to verify runtime paths.
+        repo_run = self.run_repo_auto_update()
+        watchdog_run = self.run_artifact_watchdog()
+
+        return {
+            "ok": bool(repo_run.get("ok") and watchdog_run.get("ok")),
+            "maintenance": {
+                "auto_enabled": True,
+                "repo_auto_update": self.get_repo_auto_update(),
+                "artifact_watchdog": self.get_artifact_watchdog(),
+                "trigger": {
+                    "repo_check": repo_run,
+                    "watchdog_check": watchdog_run,
+                },
+            },
+        }
+
+    def run_maintenance_now(self) -> dict[str, Any]:
+        """Trigger a full maintenance cycle (repo check + watchdog + artifact refresh)."""
+        repo_run = self.run_repo_auto_update()
+        watchdog_run = self.run_artifact_watchdog()
+        refresh_run = self.start_artifact_refresh()
+
+        return {
+            "ok": bool(repo_run.get("ok") and watchdog_run.get("ok") and refresh_run.get("ok")),
+            "maintenance": {
+                "repo_check": repo_run,
+                "watchdog_check": watchdog_run,
+                "artifact_refresh": refresh_run,
+                "repo_auto_update": self.get_repo_auto_update(),
+                "artifact_watchdog": self.get_artifact_watchdog(),
+            },
+        }
+
     def _artifact_preflight(self, *, dist_dir: Path, running_refresh: bool) -> dict[str, Any]:
         free_bytes = 0
         total_bytes = 0
@@ -1243,6 +1322,14 @@ class ServerSettingsService:
             return {"kind": "json", "status": status, "payload": result}
         if path == "/api/v1/settings/artifacts/watchdog/check":
             result = self.run_artifact_watchdog()
+            status = HTTPStatus.ACCEPTED if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
+            return {"kind": "json", "status": status, "payload": result}
+        if path == "/api/v1/settings/maintenance/auto-enable":
+            result = self.enable_auto_maintenance()
+            status = HTTPStatus.ACCEPTED if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
+            return {"kind": "json", "status": status, "payload": result}
+        if path == "/api/v1/settings/maintenance/run":
+            result = self.run_maintenance_now()
             status = HTTPStatus.ACCEPTED if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
             return {"kind": "json", "status": status, "payload": result}
         if path == "/api/v1/settings/backup/run":

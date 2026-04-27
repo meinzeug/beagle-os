@@ -14,6 +14,7 @@ from typing import Any, Callable
 MIN_PASSWORD_LENGTH = 8
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 ROLE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
+BUILT_IN_ROLE_NAMES = {"viewer", "kiosk_operator", "ops", "admin", "superadmin"}
 
 
 class AuthSessionService:
@@ -53,7 +54,7 @@ class AuthSessionService:
     def _default_roles() -> list[dict[str, Any]]:
         return [
             {"name": "viewer", "permissions": []},
-            {"name": "kiosk_operator", "permissions": ["vm:read", "vm:power"]},
+            {"name": "kiosk_operator", "permissions": ["vm:read", "vm:power", "kiosk:operate"]},
             {"name": "ops", "permissions": ["vm:mutate", "actions:bulk", "provisioning:write"]},
             {
                 "name": "admin",
@@ -137,6 +138,7 @@ class AuthSessionService:
                     "created_at": int(item.get("created_at") or 0),
                     "bootstrap_only": bool(item.get("bootstrap_only", False)),
                     "tenant_id": tid,
+                    "session_geo_routing": self._normalize_session_geo_routing(item.get("session_geo_routing")),
                 }
             )
         return sorted(result, key=lambda entry: entry["username"].lower())
@@ -149,6 +151,13 @@ class AuthSessionService:
         tid = user.get("tenant_id") or None
         return str(tid).strip() or None if tid is not None else None
 
+    def get_user_session_geo_routing(self, username: str) -> dict[str, Any] | None:
+        user = self._find_user(str(username or "").strip())
+        if user is None:
+            return None
+        geo = self._normalize_session_geo_routing(user.get("session_geo_routing"))
+        return geo if geo else None
+
     def create_user(
         self,
         *,
@@ -157,6 +166,7 @@ class AuthSessionService:
         role: str,
         enabled: bool = True,
         tenant_id: str | None = None,
+        session_geo_routing: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         user_name = self._validate_username(username)
         passwd = str(password or "")
@@ -181,6 +191,9 @@ class AuthSessionService:
         }
         if tid is not None:
             created["tenant_id"] = tid
+        geo_routing = self._normalize_session_geo_routing(session_geo_routing)
+        if geo_routing:
+            created["session_geo_routing"] = geo_routing
         users.append(created)
         self._write_json_file(self._users_path, users_doc)
         return {
@@ -189,6 +202,7 @@ class AuthSessionService:
             "enabled": bool(enabled),
             "created_at": int(created["created_at"]),
             "tenant_id": tid,
+            "session_geo_routing": geo_routing,
         }
 
     def update_user(
@@ -199,6 +213,7 @@ class AuthSessionService:
         enabled: bool | None = None,
         password: str | None = None,
         tenant_id: str | None = ...,  # type: ignore[assignment]  # sentinel: ... = no-op
+        session_geo_routing: dict[str, Any] | None = ...,  # type: ignore[assignment]
     ) -> dict[str, Any]:
         user_name = self._validate_username(username)
         users_doc = self._load_users_doc()
@@ -232,6 +247,12 @@ class AuthSessionService:
                 target.pop("tenant_id", None)
             else:
                 target["tenant_id"] = tid
+        if session_geo_routing is not ...:
+            geo = self._normalize_session_geo_routing(session_geo_routing)
+            if geo:
+                target["session_geo_routing"] = geo
+            else:
+                target.pop("session_geo_routing", None)
         target.pop("bootstrap_only", None)
         self._write_json_file(self._users_path, users_doc)
         stored_tid = target.get("tenant_id") or None
@@ -241,6 +262,7 @@ class AuthSessionService:
             "enabled": bool(target.get("enabled", True)),
             "created_at": int(target.get("created_at") or 0),
             "tenant_id": str(stored_tid).strip() or None if stored_tid is not None else None,
+            "session_geo_routing": self._normalize_session_geo_routing(target.get("session_geo_routing")),
         }
 
     def delete_user(self, username: str) -> bool:
@@ -271,11 +293,20 @@ class AuthSessionService:
             if not name:
                 continue
             perms = [str(value).strip() for value in (item.get("permissions") or []) if str(value).strip()]
-            output.append({"name": name, "permissions": sorted(set(perms))})
+            output.append(
+                {
+                    "name": name,
+                    "permissions": sorted(set(perms)),
+                    "built_in": name in BUILT_IN_ROLE_NAMES,
+                    "protected": name in BUILT_IN_ROLE_NAMES,
+                }
+            )
         return sorted(output, key=lambda role: role["name"])
 
     def save_role(self, *, name: str, permissions: list[str]) -> dict[str, Any]:
         role_name = self._validate_role_name(name)
+        if role_name in BUILT_IN_ROLE_NAMES:
+            raise ValueError("built-in role is protected")
         perms = sorted({str(item).strip() for item in permissions if str(item).strip()})
         roles_doc = self._load_roles_doc()
         roles = roles_doc.setdefault("roles", [])
@@ -296,7 +327,7 @@ class AuthSessionService:
 
     def delete_role(self, name: str) -> bool:
         role_name = str(name or "").strip().lower()
-        if not role_name or role_name == "superadmin":
+        if not role_name or role_name in BUILT_IN_ROLE_NAMES:
             return False
         roles_doc = self._load_roles_doc()
         roles = roles_doc.setdefault("roles", [])
@@ -574,6 +605,51 @@ class AuthSessionService:
                 self._write_json_file(self._sessions_path, sessions_doc)
             return changed
 
+    def list_active_sessions(
+        self,
+        *,
+        username: str | None = None,
+        tenant_id: str | None = None,
+    ) -> list[dict]:
+        """Return active (non-expired, non-revoked) sessions, optionally filtered."""
+        import time
+        now_ts = int(time.time())
+        with self._state_lock:
+            sessions_doc = self._load_sessions_doc()
+            result = []
+            for s in sessions_doc.get("sessions", []):
+                if not isinstance(s, dict):
+                    continue
+                if bool(s.get("revoked")):
+                    continue
+                if self._session_expired(s, now_ts, include_access_expiry=False):
+                    continue
+                if username and str(s.get("username") or "").strip().lower() != str(username).strip().lower():
+                    continue
+                if tenant_id and str(s.get("tenant_id") or "") != str(tenant_id):
+                    continue
+                result.append({
+                    "jti": s.get("jti", ""),
+                    "username": s.get("username", ""),
+                    "tenant_id": s.get("tenant_id") or None,
+                    "role": s.get("role", ""),
+                    "created_at": s.get("iat", 0),
+                    "expires_at": s.get("refresh_exp", s.get("exp", 0)),
+                    "ip": s.get("ip") or None,
+                })
+            return result
+
+    def list_tenants(self) -> list[str]:
+        """Return sorted list of distinct non-empty tenant_ids from user records."""
+        with self._state_lock:
+            users_doc = self._load_users_doc()
+            tenants: set[str] = set()
+            for u in users_doc.get("users", []):
+                tid = str(u.get("tenant_id") or "").strip()
+                if tid:
+                    tenants.add(tid)
+            return sorted(tenants)
+
     def revoke_user_sessions(self, username: str) -> int:
         with self._state_lock:
             user_name = str(username or "").strip().lower()
@@ -594,6 +670,25 @@ class AuthSessionService:
             if revoked_count > 0:
                 self._write_json_file(self._sessions_path, sessions_doc)
             return revoked_count
+
+    def revoke_session_by_jti(self, jti: str) -> bool:
+        """Revoke a single session by its JTI. Returns True if found and revoked."""
+        jti = str(jti or "").strip()
+        if not jti:
+            return False
+        with self._state_lock:
+            sessions_doc = self._load_sessions_doc()
+            sessions = sessions_doc.setdefault("sessions", [])
+            for session in sessions:
+                if not isinstance(session, dict):
+                    continue
+                if bool(session.get("revoked")):
+                    continue
+                if str(session.get("jti") or "") == jti:
+                    session["revoked"] = True
+                    self._write_json_file(self._sessions_path, sessions_doc)
+                    return True
+            return False
 
     def hash_password(self, password: str, *, iterations: int = 390000) -> str:
         salt = secrets.token_bytes(16)
@@ -661,6 +756,27 @@ class AuthSessionService:
                 },
             }
 
+    @staticmethod
+    def _normalize_session_geo_routing(value: Any) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            return {}
+        enabled = bool(value.get("enabled"))
+        raw_sites = value.get("sites") if isinstance(value.get("sites"), dict) else {}
+        sites: dict[str, dict[str, Any]] = {}
+        for raw_name, raw_site in raw_sites.items():
+            site_name = str(raw_name or "").strip()
+            if not site_name or not isinstance(raw_site, dict):
+                continue
+            target_node = str(raw_site.get("target_node") or "").strip()
+            cidrs_raw = raw_site.get("cidrs") if isinstance(raw_site.get("cidrs"), list) else []
+            cidrs = [str(item).strip() for item in cidrs_raw if str(item).strip()]
+            if not target_node or not cidrs:
+                continue
+            sites[site_name] = {"target_node": target_node, "cidrs": cidrs}
+        if not enabled and not sites:
+            return {}
+        return {"enabled": enabled, "sites": sites}
+
     def _enforce_session_limit(self, *, sessions: list[Any], username: str, now_ts: int) -> None:
         if self._max_sessions_per_user <= 0:
             return
@@ -716,11 +832,24 @@ class AuthSessionService:
 
     def _load_roles_doc(self) -> dict[str, Any]:
         payload = self._load_json_file(self._roles_path, {"roles": self._default_roles()})
+        persisted_payload = None
+        if isinstance(payload, dict):
+            persisted_payload = {
+                "roles": [
+                    {
+                        "name": str(item.get("name") or ""),
+                        "permissions": list(item.get("permissions") or []),
+                    }
+                    for item in payload.get("roles", [])
+                    if isinstance(item, dict)
+                ]
+            }
         if not isinstance(payload, dict):
             payload = {"roles": self._default_roles()}
         if not isinstance(payload.get("roles"), list):
             payload["roles"] = self._default_roles()
         normalized = []
+        seen_names: set[str] = set()
         for item in payload.get("roles", []):
             if not isinstance(item, dict):
                 continue
@@ -729,10 +858,19 @@ class AuthSessionService:
                 continue
             perms = [str(value).strip() for value in (item.get("permissions") or []) if str(value).strip()]
             normalized.append({"name": name, "permissions": sorted(set(perms))})
+            seen_names.add(name)
+        for built_in in self._default_roles():
+            name = str(built_in.get("name") or "").strip().lower()
+            if not name or name in seen_names:
+                continue
+            perms = [str(value).strip() for value in (built_in.get("permissions") or []) if str(value).strip()]
+            normalized.append({"name": name, "permissions": sorted(set(perms))})
+            seen_names.add(name)
         if not normalized:
             normalized = self._default_roles()
         payload["roles"] = normalized
-        self._write_json_file(self._roles_path, payload)
+        if persisted_payload != payload:
+            self._write_json_file(self._roles_path, payload)
         return payload
 
     def _role_exists(self, role_name: str) -> bool:

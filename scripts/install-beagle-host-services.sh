@@ -16,6 +16,7 @@ REPO_AUTO_UPDATE_TIMER_NAME="beagle-repo-auto-update.timer"
 UI_REAPPLY_SERVICE="beagle-ui-reapply.service"
 UI_REAPPLY_PATH="beagle-ui-reapply.path"
 BEAGLE_CONTROL_SERVICE="beagle-control-plane.service"
+BEAGLE_CLUSTER_AUTO_JOIN_SERVICE="beagle-cluster-auto-join.service"
 BEAGLE_PUBLIC_STREAM_SERVICE="beagle-public-streams.service"
 BEAGLE_PUBLIC_STREAM_TIMER="beagle-public-streams.timer"
 POLKIT_RULES_DIR="/etc/polkit-1/rules.d"
@@ -399,6 +400,7 @@ else
   rm -f "$SYSTEMD_DIR/$UI_REAPPLY_SERVICE" "$SYSTEMD_DIR/$UI_REAPPLY_PATH"
 fi
 install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_CONTROL_SERVICE" "$SYSTEMD_DIR/$BEAGLE_CONTROL_SERVICE"
+install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE" "$SYSTEMD_DIR/$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE"
 install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_PUBLIC_STREAM_SERVICE" "$SYSTEMD_DIR/$BEAGLE_PUBLIC_STREAM_SERVICE"
 install -m 0644 "$ROOT_DIR/beagle-host/systemd/$BEAGLE_PUBLIC_STREAM_TIMER" "$SYSTEMD_DIR/$BEAGLE_PUBLIC_STREAM_TIMER"
 install -m 0644 "$ROOT_DIR/beagle-host/systemd/$BEAGLE_NOVNC_PROXY_SERVICE" "$SYSTEMD_DIR/$BEAGLE_NOVNC_PROXY_SERVICE"
@@ -410,6 +412,9 @@ if [[ "$(readlink -f "$ROOT_DIR/beagle-host/bin/beagle-usb-tunnel-session")" != 
 fi
 if [[ "$(readlink -f "$ROOT_DIR/beagle-host/bin/endpoint_profile_contract.py")" != "$(readlink -f "$HOST_RUNTIME_DIR/bin/endpoint_profile_contract.py" 2>/dev/null || true)" ]]; then
   install -m 0644 "$ROOT_DIR/beagle-host/bin/endpoint_profile_contract.py" "$HOST_RUNTIME_DIR/bin/endpoint_profile_contract.py"
+fi
+if [[ "$(readlink -f "$ROOT_DIR/scripts/beagle-cluster-auto-join.sh")" != "$(readlink -f "$INSTALL_DIR/scripts/beagle-cluster-auto-join.sh" 2>/dev/null || true)" ]]; then
+  install -m 0755 "$ROOT_DIR/scripts/beagle-cluster-auto-join.sh" "$INSTALL_DIR/scripts/beagle-cluster-auto-join.sh"
 fi
 install_file_if_needed 0644 "$ROOT_DIR/beagle-host/providers/host_provider_contract.py" "$HOST_RUNTIME_DIR/providers/host_provider_contract.py"
 install_file_if_needed 0644 "$ROOT_DIR/beagle-host/providers/registry.py" "$HOST_RUNTIME_DIR/providers/registry.py"
@@ -551,6 +556,9 @@ set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_API_RATE_LIMIT_MAX_REQUESTS" '"
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_LOGIN_LOCKOUT_THRESHOLD" '"5"'
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_LOGIN_LOCKOUT_SECONDS" '"300"'
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_LOGIN_BACKOFF_MAX_SECONDS" '"30"'
+if ! grep -q '^BEAGLE_INSTALL_CHECK_REPORT_TOKEN=' "$BEAGLE_CONTROL_ENV_FILE"; then
+  set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_INSTALL_CHECK_REPORT_TOKEN" "\"$(generate_token)\""
+fi
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_CLUSTER_JOIN_REQUESTED" "\"$BEAGLE_CLUSTER_JOIN_REQUESTED\""
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_CLUSTER_JOIN_ENV_FILE" "\"$BEAGLE_CLUSTER_JOIN_ENV_FILE\""
 
@@ -813,6 +821,7 @@ else
   systemctl stop "$UI_REAPPLY_PATH" 2>/dev/null || true
 fi
 systemctl enable "$BEAGLE_CONTROL_SERVICE" 2>/dev/null || true
+systemctl enable "$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE" 2>/dev/null || true
 systemctl enable "$BEAGLE_PUBLIC_STREAM_TIMER" 2>/dev/null || true
 if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   systemctl enable "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
@@ -822,9 +831,9 @@ else
   systemctl stop "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
 fi
 if has_ui_reapply_units; then
-  systemctl start "$TIMER_NAME" "$WATCHDOG_TIMER_NAME" "$REPO_AUTO_UPDATE_TIMER_NAME" "$UI_REAPPLY_PATH" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
+  systemctl start "$TIMER_NAME" "$WATCHDOG_TIMER_NAME" "$REPO_AUTO_UPDATE_TIMER_NAME" "$UI_REAPPLY_PATH" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
 else
-  systemctl start "$TIMER_NAME" "$WATCHDOG_TIMER_NAME" "$REPO_AUTO_UPDATE_TIMER_NAME" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
+  systemctl start "$TIMER_NAME" "$WATCHDOG_TIMER_NAME" "$REPO_AUTO_UPDATE_TIMER_NAME" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
 fi
 
-echo "Installed host services: $SERVICE_NAME, $TIMER_NAME, $WATCHDOG_SERVICE_NAME, $WATCHDOG_TIMER_NAME, $REPO_AUTO_UPDATE_SERVICE_NAME, $REPO_AUTO_UPDATE_TIMER_NAME, $UI_REAPPLY_SERVICE, $UI_REAPPLY_PATH, $BEAGLE_CONTROL_SERVICE, $BEAGLE_PUBLIC_STREAM_SERVICE, $BEAGLE_PUBLIC_STREAM_TIMER, $BEAGLE_NOVNC_PROXY_SERVICE"
+echo "Installed host services: $SERVICE_NAME, $TIMER_NAME, $WATCHDOG_SERVICE_NAME, $WATCHDOG_TIMER_NAME, $REPO_AUTO_UPDATE_SERVICE_NAME, $REPO_AUTO_UPDATE_TIMER_NAME, $UI_REAPPLY_SERVICE, $UI_REAPPLY_PATH, $BEAGLE_CONTROL_SERVICE, $BEAGLE_CLUSTER_AUTO_JOIN_SERVICE, $BEAGLE_PUBLIC_STREAM_SERVICE, $BEAGLE_PUBLIC_STREAM_TIMER, $BEAGLE_NOVNC_PROXY_SERVICE"

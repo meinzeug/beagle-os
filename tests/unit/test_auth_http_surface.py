@@ -14,7 +14,7 @@ from auth_http_surface import AuthHttpSurfaceService
 class _AuthSessionStub:
     def __init__(self) -> None:
         self._users = [{"username": "admin", "role": "superadmin", "enabled": True}]
-        self._roles = [{"name": "viewer", "permissions": ["inventory:read"]}]
+        self._roles = [{"name": "viewer", "permissions": ["inventory:read"], "built_in": True, "protected": True}]
 
     def list_users(self, *, requester_tenant_id=None):
         return list(self._users)
@@ -22,10 +22,10 @@ class _AuthSessionStub:
     def list_roles(self):
         return list(self._roles)
 
-    def create_user(self, *, username: str, password: str, role: str, enabled: bool, tenant_id=None):
+    def create_user(self, *, username: str, password: str, role: str, enabled: bool, tenant_id=None, session_geo_routing=None):
         if not password:
             raise ValueError("password is required")
-        user = {"username": username, "role": role, "enabled": bool(enabled), "tenant_id": tenant_id}
+        user = {"username": username, "role": role, "enabled": bool(enabled), "tenant_id": tenant_id, "session_geo_routing": session_geo_routing}
         self._users.append(user)
         return user
 
@@ -44,7 +44,7 @@ class _AuthSessionStub:
     def revoke_user_sessions(self, username: str):
         return 2 if username == "admin" else 0
 
-    def update_user(self, *, username: str, role, enabled, password, tenant_id=...):
+    def update_user(self, *, username: str, role, enabled, password, tenant_id=..., session_geo_routing=...):
         for user in self._users:
             if user["username"] == username:
                 if role is not None:
@@ -53,6 +53,10 @@ class _AuthSessionStub:
                     user["enabled"] = bool(enabled)
                 if password is not None and not password:
                     raise ValueError("password cannot be empty")
+                if tenant_id is not ...:
+                    user["tenant_id"] = tenant_id
+                if session_geo_routing is not ...:
+                    user["session_geo_routing"] = session_geo_routing
                 return user
         raise ValueError("user not found")
 
@@ -85,6 +89,7 @@ def test_route_get_users_and_roles() -> None:
     assert int(roles_response["status"]) == 200
     assert roles_response["payload"]["ok"] is True
     assert roles_response["payload"]["roles"][0]["name"] == "viewer"
+    assert roles_response["payload"]["roles"][0]["protected"] is True
 
 
 def test_route_post_create_user_and_role() -> None:
@@ -131,6 +136,18 @@ def test_route_put_not_found_user_maps_to_404() -> None:
     assert response["payload"]["error"] == "user not found"
 
 
+def test_route_put_user_updates_tenant_id() -> None:
+    service = _service()
+
+    response = service.route_put(
+        "/api/v1/auth/users/admin",
+        json_payload={"tenant_id": "tenant-a"},
+    )
+
+    assert int(response["status"]) == 200
+    assert response["payload"]["user"]["tenant_id"] == "tenant-a"
+
+
 def test_route_delete_role_protected_maps_to_not_found_shape() -> None:
     service = _service()
 
@@ -138,3 +155,21 @@ def test_route_delete_role_protected_maps_to_not_found_shape() -> None:
 
     assert int(response["status"]) == 404
     assert response["payload"]["error"] == "role not found or protected"
+
+
+def test_route_put_user_updates_session_geo_routing() -> None:
+    service = _service()
+
+    response = service.route_put(
+        "/api/v1/auth/users/admin",
+        json_payload={
+            "session_geo_routing": {
+                "enabled": True,
+                "sites": {"berlin": {"target_node": "srv1", "cidrs": ["10.10.0.0/16"]}},
+            }
+        },
+    )
+
+    assert int(response["status"]) == 200
+    assert response["payload"]["user"]["session_geo_routing"]["enabled"] is True
+    assert response["payload"]["user"]["session_geo_routing"]["sites"]["berlin"]["target_node"] == "srv1"

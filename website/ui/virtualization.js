@@ -145,6 +145,30 @@ function currentSuggestedVmid() {
   return 0;
 }
 
+function findGpuByPci(pciAddress) {
+  const pci = String(pciAddress || '').trim();
+  const overview = state.virtualizationOverview || {};
+  const gpus = Array.isArray(overview.gpus) ? overview.gpus : [];
+  return gpus.find((item) => String(item.pci_address || '').trim() === pci) || null;
+}
+
+function vmOptionHtml(selectedVmid) {
+  const vmRows = Array.isArray(state.vms) ? state.vms : [];
+  const options = vmRows.map((vm) => {
+    const vmid = Number(vm.vmid || vm.id || 0);
+    if (!Number.isFinite(vmid) || vmid <= 0) {
+      return '';
+    }
+    const label = 'VM ' + vmid + (vm.name ? ' · ' + String(vm.name) : '') + (vm.status ? ' · ' + String(vm.status) : '');
+    return '<option value="' + escapeHtml(String(vmid)) + '"' + (Number(selectedVmid || 0) === vmid ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+  }).filter(Boolean).join('');
+  return '<option value="">VM auswaehlen oder ID eingeben</option>' + options;
+}
+
+function requestGpuMutation(path, payload) {
+  return postJson(path, payload);
+}
+
 function openGpuActionModal(pciAddress, mode) {
   const pci = String(pciAddress || '').trim();
   const action = String(mode || '').trim() === 'release' ? 'release' : 'assign';
@@ -152,6 +176,8 @@ function openGpuActionModal(pciAddress, mode) {
     virtualizationHooks.setBanner('PCI-Adresse fehlt.', 'warn');
     return;
   }
+  const gpu = findGpuByPci(pci);
+  const readiness = gpuReadiness(gpu || { status: '', driver: '' });
   const suggestedVmid = currentSuggestedVmid();
   const modal = document.createElement('div');
   modal.className = 'modal';
@@ -167,6 +193,22 @@ function openGpuActionModal(pciAddress, mode) {
         <button class="icon-button" type="button" aria-label="Schliessen" id="gpu-action-close">×</button>
       </div>
       <div class="settings-form">
+        <div class="gpu-wizard-steps" aria-label="GPU Wizard Schritte">
+          <span class="active">1 GPU</span>
+          <span class="active">2 VM</span>
+          <span class="active">3 Bestaetigung</span>
+          <span>4 Ergebnis</span>
+        </div>
+        <div class="field field-wide gpu-wizard-summary">
+          <span>Ausgewaehlte GPU</span>
+          <div class="settings-info-grid compact-grid">
+            <div class="info-item"><span class="info-label">PCI</span><span class="info-value mono">${escapeHtml(pci)}</span></div>
+            <div class="info-item"><span class="info-label">Modell</span><span class="info-value">${escapeHtml(String((gpu && gpu.model) || 'Unbekannt'))}</span></div>
+            <div class="info-item"><span class="info-label">Treiber</span><span class="info-value">${chip((gpu && gpu.driver) || 'kein Treiber', (gpu && gpu.driver) === 'vfio-pci' ? 'ok' : 'warn')}</span></div>
+            <div class="info-item"><span class="info-label">Readiness</span><span class="info-value">${chip(readiness.label, readiness.tone)}</span></div>
+          </div>
+          <p class="muted-text">${escapeHtml(readiness.reason + ' ' + readiness.nextStep)}</p>
+        </div>
         <div class="field field-wide cluster-security-note">
           <span>Wichtiger Hinweis</span>
           <p>${escapeHtml(action === 'assign'
@@ -174,9 +216,19 @@ function openGpuActionModal(pciAddress, mode) {
             : 'Das Loesen einer GPU kann Treiber- oder Boot-Folgen in der VM haben und sollte geplant erfolgen.')}</p>
         </div>
         <label class="field field-wide">
-          <span>VM-ID</span>
+          <span>Ziel-VM</span>
+          <select id="gpu-action-vm-select">${vmOptionHtml(suggestedVmid)}</select>
           <input id="gpu-action-vmid" type="number" min="1" step="1" value="${escapeHtml(suggestedVmid > 0 ? String(suggestedVmid) : '')}" placeholder="z.B. 100">
         </label>
+        <label class="field field-wide checkbox-field">
+          <input id="gpu-action-ack" type="checkbox">
+          <span>${escapeHtml(action === 'assign' ? 'Ich bestaetige, dass die Ziel-VM ausgeschaltet oder fuer Hostdev-Aenderungen vorbereitet ist.' : 'Ich bestaetige, dass die GPU aus der VM-Konfiguration entfernt werden soll.')}</span>
+        </label>
+        <div class="field field-wide">
+          <span>Payload</span>
+          <pre class="payload-preview" id="gpu-action-payload">${escapeHtml(JSON.stringify({ pci_address: pci, action, vmid: suggestedVmid || null }, null, 2))}</pre>
+        </div>
+        <div class="banner hidden" id="gpu-action-result"></div>
       </div>
       <div class="button-row provision-modal-buttons">
         <button class="button ghost" type="button" id="gpu-action-cancel">Abbrechen</button>
@@ -199,6 +251,16 @@ function openGpuActionModal(pciAddress, mode) {
   const cancelBtn = document.getElementById('gpu-action-cancel');
   const confirmBtn = document.getElementById('gpu-action-confirm');
   const vmidInput = document.getElementById('gpu-action-vmid');
+  const vmSelect = document.getElementById('gpu-action-vm-select');
+  const ackInput = document.getElementById('gpu-action-ack');
+  const payloadEl = document.getElementById('gpu-action-payload');
+  const resultEl = document.getElementById('gpu-action-result');
+  const syncPayload = () => {
+    const vmid = parseInt(String(vmidInput ? vmidInput.value : '').trim(), 10);
+    if (payloadEl) {
+      payloadEl.textContent = JSON.stringify({ pci_address: pci, action, vmid: Number.isFinite(vmid) && vmid > 0 ? vmid : null }, null, 2);
+    }
+  };
   if (closeBtn) {
     closeBtn.addEventListener('click', close);
   }
@@ -217,13 +279,15 @@ function openGpuActionModal(pciAddress, mode) {
         virtualizationHooks.setBanner('Ungueltige VM-ID.', 'warn');
         return;
       }
+      if (!ackInput || !ackInput.checked) {
+        virtualizationHooks.setBanner('Bestaetigung fehlt.', 'warn');
+        return;
+      }
       const path = action === 'assign'
-        ? '/api/v1/virtualization/gpus/' + encodeURIComponent(pci) + '/assign'
-        : '/api/v1/virtualization/gpus/' + encodeURIComponent(pci) + '/release';
-      request(path, {
-        method: 'POST',
-        body: JSON.stringify({ vmid })
-      }).then((res) => {
+        ? '/virtualization/gpus/' + encodeURIComponent(pci) + '/assign'
+        : '/virtualization/gpus/' + encodeURIComponent(pci) + '/release';
+      confirmBtn.disabled = true;
+      requestGpuMutation(path, { vmid }).then((res) => {
         if (res.ok) {
           virtualizationHooks.setBanner(
             action === 'assign'
@@ -231,15 +295,33 @@ function openGpuActionModal(pciAddress, mode) {
               : ('GPU ' + pci + ' wurde von VM ' + vmid + ' geloest.'),
             'ok'
           );
-          close();
+          if (resultEl) {
+            resultEl.className = 'banner banner-ok';
+            resultEl.textContent = action === 'assign'
+              ? ('Ergebnis: GPU ' + pci + ' ist fuer VM ' + vmid + ' eingetragen.')
+              : ('Ergebnis: GPU ' + pci + ' wurde aus VM ' + vmid + ' geloest.');
+          }
           virtualizationHooks.loadDashboard();
           return;
         }
         virtualizationHooks.setBanner('Fehler: ' + (res.error || JSON.stringify(res)), 'warn');
       }).catch((err) => {
         virtualizationHooks.setBanner('Fehler: ' + (err.message || String(err)), 'warn');
+      }).finally(() => {
+        confirmBtn.disabled = false;
       });
     });
+  }
+  if (vmSelect) {
+    vmSelect.addEventListener('change', () => {
+      if (vmidInput && vmSelect.value) {
+        vmidInput.value = vmSelect.value;
+      }
+      syncPayload();
+    });
+  }
+  if (vmidInput) {
+    vmidInput.addEventListener('input', syncPayload);
   }
   if (vmidInput) {
     window.setTimeout(() => vmidInput.focus(), 30);
@@ -986,48 +1068,50 @@ export function loadMdevTypes(gpuPci) {
     return;
   }
   const url = gpuPci
-    ? '/api/v1/virtualization/mdev/types?gpu_pci=' + encodeURIComponent(gpuPci)
-    : '/api/v1/virtualization/mdev/types';
+    ? '/virtualization/mdev/types?gpu_pci=' + encodeURIComponent(gpuPci)
+    : '/virtualization/mdev/types';
   request(url).then((res) => {
     const types = Array.isArray(res.mdev_types) ? res.mdev_types : [];
     if (!types.length) {
-      typesBody.innerHTML = '<tr><td colspan="6" class="empty-cell">Keine vGPU-Typen gefunden (kein NVIDIA-mdev-fähiges Gerät?).</td></tr>';
+      typesBody.innerHTML = '<div class="empty-card">Keine vGPU-Typen gefunden. Pruefe NVIDIA-vGPU-Treiber, Lizenz und mdev_supported_types auf dem Host.</div>';
     } else {
       typesBody.innerHTML = types.map((t) => {
         const pci = escapeHtml(t.gpu_pci || '');
         const tid = escapeHtml(t.type_id || '');
-        return '<tr>' +
-          '<td class="mono">' + pci + '</td>' +
-          '<td class="mono">' + tid + '</td>' +
-          '<td>' + escapeHtml(t.name || '-') + '</td>' +
-          '<td>' + escapeHtml(String(t.available_instances ?? '-')) + '</td>' +
-          '<td>' + escapeHtml(String(t.max_instances ?? '-')) + '</td>' +
-          '<td><button type="button" class="button ghost small" data-mdev-create="1" data-mdev-pci="' + pci + '" data-mdev-type="' + tid + '">Erstellen</button></td>' +
-          '</tr>';
+        const available = Number(t.available_instances ?? 0);
+        const max = Number(t.max_instances ?? 0);
+        const tone = available > 0 ? 'ok' : 'warn';
+        return '<article class="gpu-subcard ' + tone + '">' +
+          '<div class="gpu-card-head"><div><strong>' + escapeHtml(t.name || tid || 'mdev Typ') + '</strong><div class="gpu-card-meta">' + chip(pci || 'ohne PCI', 'muted') + chip(tid || 'ohne Typ', 'muted') + chip(String(available) + '/' + String(max || '-') + ' frei', tone) + '</div></div></div>' +
+          '<div class="settings-info-grid compact-grid">' +
+          '<div class="info-item"><span class="info-label">GPU PCI</span><span class="info-value mono">' + pci + '</span></div>' +
+          '<div class="info-item"><span class="info-label">Typ-ID</span><span class="info-value mono">' + tid + '</span></div>' +
+          '<div class="info-item"><span class="info-label">Kapazitaet</span><span class="info-value">' + escapeHtml(String(available) + ' verfuegbar von ' + String(max || '-')) + '</span></div>' +
+          '</div>' +
+          '<div class="gpu-card-actions"><button type="button" class="button ghost small" data-mdev-create="1" data-mdev-pci="' + pci + '" data-mdev-type="' + tid + '"' + (available <= 0 ? ' disabled' : '') + '>Instanz erzeugen</button></div>' +
+          '</article>';
       }).join('');
     }
   }).catch((err) => {
-    typesBody.innerHTML = '<tr><td colspan="6" class="empty-cell">Fehler: ' + escapeHtml(err.message) + '</td></tr>';
+    typesBody.innerHTML = '<div class="empty-card error">Fehler: ' + escapeHtml(err.message) + '</div>';
   });
-  request('/api/v1/virtualization/mdev/instances').then((res) => {
+  request('/virtualization/mdev/instances').then((res) => {
     const instances = Array.isArray(res.mdev_instances) ? res.mdev_instances : [];
     if (!instances.length) {
-      instancesBody.innerHTML = '<tr><td colspan="4" class="empty-cell">Keine aktiven mdev-Instanzen.</td></tr>';
+      instancesBody.innerHTML = '<div class="empty-card">Keine aktiven mdev-Instanzen.</div>';
     } else {
       instancesBody.innerHTML = instances.map((inst) => {
         const uid = escapeHtml(inst.uuid || '');
-        return '<tr>' +
-          '<td class="mono">' + uid + '</td>' +
-          '<td class="mono">' + escapeHtml(inst.type_id || '-') + '</td>' +
-          '<td class="mono">' + escapeHtml(inst.gpu_pci || '-') + '</td>' +
-          '<td>' +
+        return '<article class="gpu-subcard">' +
+          '<div class="gpu-card-head"><div><strong class="mono">' + uid + '</strong><div class="gpu-card-meta">' + chip(inst.type_id || '-', 'muted') + chip(inst.gpu_pci || '-', 'muted') + '</div></div></div>' +
+          '<div class="gpu-card-actions">' +
           '<button type="button" class="button ghost small" data-mdev-assign="1" data-mdev-uuid="' + uid + '" style="margin-right:4px">Zuweisen</button>' +
           '<button type="button" class="button ghost small danger" data-mdev-delete="1" data-mdev-uuid="' + uid + '">Löschen</button>' +
-          '</td></tr>';
+          '</div></article>';
       }).join('');
     }
   }).catch((err) => {
-    instancesBody.innerHTML = '<tr><td colspan="4" class="empty-cell">Fehler: ' + escapeHtml(err.message) + '</td></tr>';
+    instancesBody.innerHTML = '<div class="empty-card error">Fehler: ' + escapeHtml(err.message) + '</div>';
   });
 }
 
@@ -1038,10 +1122,7 @@ export function createMdevInstance(gpuPci, typeId) {
     virtualizationHooks.setBanner('GPU-PCI und Typ-ID sind erforderlich.', 'warn');
     return;
   }
-  request('/api/v1/virtualization/mdev/create', {
-    method: 'POST',
-    body: { gpu_pci: pci, type_id: tid }
-  }).then((res) => {
+  postJson('/virtualization/mdev/create', { gpu_pci: pci, type_id: tid }).then((res) => {
     if (res.ok) {
       virtualizationHooks.setBanner('mdev-Instanz erstellt: ' + (res.uuid || ''), 'ok');
       loadMdevTypes();
@@ -1068,10 +1149,7 @@ export function assignMdevToVm(mdevUuid) {
     virtualizationHooks.setBanner('Ungültige VM-ID.', 'warn');
     return;
   }
-  request('/api/v1/virtualization/mdev/' + encodeURIComponent(uid) + '/assign', {
-    method: 'POST',
-    body: { vmid }
-  }).then((res) => {
+  postJson('/virtualization/mdev/' + encodeURIComponent(uid) + '/assign', { vmid }).then((res) => {
     if (res.ok) {
       virtualizationHooks.setBanner('mdev ' + uid + ' VM ' + vmid + ' zugewiesen.', 'ok');
       loadMdevTypes();
@@ -1092,10 +1170,7 @@ export function deleteMdevInstance(mdevUuid) {
   if (!window.confirm('mdev-Instanz ' + uid + ' wirklich löschen?')) {
     return;
   }
-  request('/api/v1/virtualization/mdev/' + encodeURIComponent(uid) + '/delete', {
-    method: 'POST',
-    body: {}
-  }).then((res) => {
+  postJson('/virtualization/mdev/' + encodeURIComponent(uid) + '/delete', {}).then((res) => {
     if (res.ok) {
       virtualizationHooks.setBanner('mdev-Instanz ' + uid + ' gelöscht.', 'ok');
       loadMdevTypes();
@@ -1112,24 +1187,52 @@ export function loadSriovDevices() {
   if (!body) {
     return;
   }
-  request('/api/v1/virtualization/sriov').then((res) => {
+  request('/virtualization/sriov').then((res) => {
     const devices = Array.isArray(res.sriov_devices) ? res.sriov_devices : [];
     if (!devices.length) {
-      body.innerHTML = '<tr><td colspan="5" class="empty-cell">Keine SR-IOV-fähigen GPUs gefunden.</td></tr>';
+      body.innerHTML = '<div class="empty-card">Keine SR-IOV-faehigen GPUs gefunden. Intel Arc/Xe-LP, Kernel-Support und sriov_totalvfs pruefen.</div>';
     } else {
       body.innerHTML = devices.map((dev) => {
         const pci = escapeHtml(dev.pci || '');
-        return '<tr>' +
-          '<td class="mono">' + pci + '</td>' +
-          '<td>' + escapeHtml(dev.driver || '-') + '</td>' +
-          '<td>' + escapeHtml(String(dev.total_vfs ?? '-')) + '</td>' +
-          '<td>' + escapeHtml(String(dev.current_vfs ?? '-')) + '</td>' +
-          '<td><button type="button" class="button ghost small" data-sriov-set="1" data-sriov-pci="' + pci + '" data-sriov-total="' + escapeHtml(String(dev.total_vfs ?? '0')) + '">VFs setzen</button></td>' +
-          '</tr>';
+        return '<article class="gpu-subcard">' +
+          '<div class="gpu-card-head"><div><strong class="mono">' + pci + '</strong><div class="gpu-card-meta">' + chip(dev.driver || '-', 'muted') + chip(String(dev.current_vfs ?? '-') + '/' + String(dev.total_vfs ?? '-') + ' VFs', Number(dev.current_vfs || 0) > 0 ? 'ok' : 'warn') + '</div></div></div>' +
+          '<div class="gpu-readiness-note"><strong>Hardware-Constraints</strong><div>SR-IOV funktioniert nur mit passender Intel-GPU, Kernel-/Treiber-Support und aktivierbarem sriov_numvfs.</div></div>' +
+          '<div class="gpu-card-actions"><button type="button" class="button ghost small" data-sriov-set="1" data-sriov-pci="' + pci + '" data-sriov-total="' + escapeHtml(String(dev.total_vfs ?? '0')) + '">VF-Anzahl setzen</button><button type="button" class="button ghost small" data-sriov-vfs="1" data-sriov-pci="' + pci + '">VFs anzeigen</button></div>' +
+          '<div class="sriov-vf-list" id="sriov-vfs-' + pci.replace(/[^a-zA-Z0-9_-]/g, '-') + '"></div>' +
+          '</article>';
       }).join('');
     }
   }).catch((err) => {
-    body.innerHTML = '<tr><td colspan="5" class="empty-cell">Fehler: ' + escapeHtml(err.message) + '</td></tr>';
+    body.innerHTML = '<div class="empty-card error">Fehler: ' + escapeHtml(err.message) + '</div>';
+  });
+}
+
+export function loadSriovVfs(pciAddress) {
+  const pci = String(pciAddress || '').trim();
+  if (!pci) {
+    virtualizationHooks.setBanner('PCI-Adresse fehlt.', 'warn');
+    return;
+  }
+  const listId = 'sriov-vfs-' + pci.replace(/[^a-zA-Z0-9_-]/g, '-');
+  const target = qs(listId);
+  if (target) {
+    target.innerHTML = '<div class="muted-text">Lade VFs ...</div>';
+  }
+  request('/virtualization/sriov/' + encodeURIComponent(pci) + '/vfs').then((res) => {
+    const vfs = Array.isArray(res.vfs) ? res.vfs : [];
+    const html = vfs.length
+      ? vfs.map((vf) => '<span class="chip muted mono">' + escapeHtml(String(vf.pci || vf.address || vf.id || vf)) + '</span>').join(' ')
+      : '<span class="chip muted">Keine aktiven VFs.</span>';
+    if (target) {
+      target.innerHTML = html;
+    } else {
+      virtualizationHooks.setBanner('VFs: ' + vfs.length, 'info');
+    }
+  }).catch((err) => {
+    if (target) {
+      target.innerHTML = '<div class="muted-text">Fehler: ' + escapeHtml(err.message) + '</div>';
+    }
+    virtualizationHooks.setBanner('SR-IOV VFs konnten nicht geladen werden: ' + err.message, 'warn');
   });
 }
 
@@ -1149,10 +1252,7 @@ export function setSriovVfCount(pciAddress, totalVfs) {
     virtualizationHooks.setBanner('Ungültige VF-Anzahl (0–' + max + ').', 'warn');
     return;
   }
-  request('/api/v1/virtualization/sriov/' + encodeURIComponent(pci) + '/set-vfs', {
-    method: 'POST',
-    body: { count }
-  }).then((res) => {
+  postJson('/virtualization/sriov/' + encodeURIComponent(pci) + '/set-vfs', { count }).then((res) => {
     if (res.ok) {
       virtualizationHooks.setBanner('SR-IOV VFs für ' + pci + ' auf ' + count + ' gesetzt.', 'ok');
       loadSriovDevices();

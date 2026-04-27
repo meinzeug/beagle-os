@@ -144,9 +144,8 @@ class JobsHttpSurface:
             )
         name = q.get("name") or None
         owner = q.get("owner") or None
-        # Non-admin users can only see their own jobs; admin can filter freely.
-        # For now owner-filter is advisory — RBAC enforced by caller passing
-        # requester and letting the surface constrain automatically.
+        if requester and not self._is_privileged_requester(requester):
+            owner = requester
         since_str = q.get("since") or None
         since: float | None = None
         if since_str:
@@ -185,6 +184,8 @@ class JobsHttpSurface:
         job = self._queue.get(job_id)
         if job is None:
             return self._json(HTTPStatus.NOT_FOUND, {"error": f"job {job_id!r} not found"})
+        if not self._can_access_job(job, requester):
+            return self._json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
         return self._json(HTTPStatus.OK, job.as_dict())
 
     # ------------------------------------------------------------------
@@ -200,6 +201,8 @@ class JobsHttpSurface:
         job = self._queue.get(job_id)
         if job is None:
             return self._json(HTTPStatus.NOT_FOUND, {"error": f"job {job_id!r} not found"})
+        if not self._can_access_job(job, requester):
+            return self._json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
         return {
             "kind": "sse",
             "job_id": job_id,
@@ -247,6 +250,9 @@ class JobsHttpSurface:
 
     def _cancel_job(self, job_id: str, *, requester: str) -> dict[str, Any]:
         try:
+            job = self._queue.get(job_id)
+            if job is not None and not self._can_access_job(job, requester):
+                return self._json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
             accepted = self._queue.cancel(job_id)
         except JobNotFoundError:
             return self._json(HTTPStatus.NOT_FOUND, {"error": f"job {job_id!r} not found"})
@@ -264,3 +270,12 @@ class JobsHttpSurface:
     @staticmethod
     def _json(status: HTTPStatus, payload: dict[str, Any]) -> dict[str, Any]:
         return {"kind": "json", "status": status, "payload": payload}
+
+    @staticmethod
+    def _is_privileged_requester(requester: str) -> bool:
+        return str(requester or "") in {"", "legacy-api-token", "localhost"}
+
+    def _can_access_job(self, job: Any, requester: str) -> bool:
+        if self._is_privileged_requester(requester):
+            return True
+        return str(getattr(job, "owner", "") or "") == str(requester or "")

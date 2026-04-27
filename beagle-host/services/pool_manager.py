@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -96,6 +97,36 @@ class PoolManagerService:
     def _save(self, state: dict[str, Any]) -> None:
         self._store.save(state)
 
+    @staticmethod
+    def _parse_utc_timestamp(value: str) -> datetime:
+        text = str(value or "").strip()
+        if not text:
+            raise ValueError("empty timestamp")
+        try:
+            normalized = text.replace("Z", "+00:00") if text.endswith("Z") else text
+            parsed = datetime.fromisoformat(normalized)
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+        except ValueError:
+            pass
+        for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S"):
+            try:
+                return datetime.strptime(text, fmt).replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+        raise ValueError(f"Cannot parse: {text!r}")
+
+    @staticmethod
+    def _format_utc_timestamp(value: datetime) -> str:
+        return value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def _default_session_expires_at(self, assigned_at: str, limit_minutes: int) -> str:
+        if limit_minutes <= 0:
+            return ""
+        assigned_dt = self._parse_utc_timestamp(assigned_at)
+        return self._format_utc_timestamp(assigned_dt + timedelta(minutes=int(limit_minutes)))
+
     # ------------------------------------------------------------------
     # Pool CRUD
     # ------------------------------------------------------------------
@@ -105,6 +136,14 @@ class PoolManagerService:
         pool_id = str(spec.pool_id or "").strip()
         if not pool_id:
             raise ValueError("pool_id is required")
+        if spec.pool_type == DesktopPoolType.GAMING and not str(spec.gpu_class or "").strip():
+            raise ValueError("gaming pools require gpu_class")
+        if spec.pool_type == DesktopPoolType.KIOSK and int(spec.session_time_limit_minutes or 0) <= 0:
+            raise ValueError("kiosk pools require session_time_limit_minutes > 0")
+        extension_options = self._normalize_session_extension_options(
+            spec.session_extension_options_minutes,
+            default_for_kiosk=(spec.pool_type == DesktopPoolType.KIOSK),
+        )
         state = self._load()
         if pool_id in state["pools"]:
             raise ValueError(f"pool {pool_id!r} already exists")
@@ -129,6 +168,8 @@ class PoolManagerService:
             "tenant_id": str(spec.tenant_id or "").strip(),
             "pool_type": str(spec.pool_type.value if hasattr(spec.pool_type, "value") else (spec.pool_type or DesktopPoolType.DESKTOP.value)),
             "session_time_limit_minutes": int(spec.session_time_limit_minutes or 0),
+            "session_cost_per_minute": float(spec.session_cost_per_minute or 0.0),
+            "session_extension_options_minutes": extension_options,
             "created_at": self._utcnow(),
         }
         self._save(state)
@@ -180,6 +221,7 @@ class PoolManagerService:
             "recording_retention_days",
             "recording_watermark_enabled",
             "recording_watermark_custom_text",
+            "session_extension_options_minutes",
         }
         state = self._load()
         if pool_id not in state["pools"]:
@@ -200,6 +242,11 @@ class PoolManagerService:
                     pool_entry[key] = bool(value)
                 elif key == "recording_watermark_custom_text":
                     pool_entry[key] = self._normalize_watermark_text(value)
+                elif key == "session_extension_options_minutes":
+                    pool_entry[key] = self._normalize_session_extension_options(
+                        value,
+                        default_for_kiosk=(str(pool_entry.get("pool_type") or "").strip().lower() == DesktopPoolType.KIOSK.value),
+                    )
                 else:
                     pool_entry[key] = value
         self._save(state)
@@ -232,6 +279,31 @@ class PoolManagerService:
     def _normalize_watermark_text(value: Any) -> str:
         text = str(value or "").strip()
         return text[:120]
+
+    @staticmethod
+    def _normalize_session_extension_options(value: Any, *, default_for_kiosk: bool) -> list[int]:
+        if value is None or value == "":
+            return [15, 30, 60] if default_for_kiosk else []
+        raw_items = value if isinstance(value, (list, tuple, set)) else [value]
+        options: list[int] = []
+        for raw in raw_items:
+            if isinstance(raw, str) and "," in raw:
+                parts = raw.split(",")
+            else:
+                parts = [raw]
+            for part in parts:
+                try:
+                    minutes = int(str(part).strip())
+                except Exception:
+                    continue
+                if minutes <= 0 or minutes > 480:
+                    continue
+                if minutes not in options:
+                    options.append(minutes)
+        options.sort()
+        if not options and default_for_kiosk:
+            return [15, 30, 60]
+        return options[:6]
 
     def get_pool_recording_retention_days(self, pool_id: str) -> int:
         state = self._load()
@@ -539,6 +611,13 @@ class PoolManagerService:
             tenant_id=str(pool.get("tenant_id") or "").strip(),
             pool_type=pool_type,
             session_time_limit_minutes=int(pool.get("session_time_limit_minutes", 0)),
+            session_cost_per_minute=float(pool.get("session_cost_per_minute", 0.0) or 0.0),
+            session_extension_options_minutes=tuple(
+                self._normalize_session_extension_options(
+                    pool.get("session_extension_options_minutes"),
+                    default_for_kiosk=(pool_type == DesktopPoolType.KIOSK),
+                )
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -588,6 +667,8 @@ class PoolManagerService:
                 if vm.get("user_id") == user and vm.get("state") == _STATE_FREE:
                     vm["state"] = _STATE_IN_USE
                     vm["assigned_at"] = self._utcnow()
+                    limit = int(pool_cfg.get("session_time_limit_minutes", 0) or 0)
+                    vm["session_expires_at"] = self._default_session_expires_at(str(vm.get("assigned_at") or ""), limit)
                     self._save(state)
                     if self._start_vm is not None:
                         try:
@@ -602,6 +683,8 @@ class PoolManagerService:
                 vm["state"] = _STATE_IN_USE
                 vm["user_id"] = user
                 vm["assigned_at"] = self._utcnow()
+                limit = int(pool_cfg.get("session_time_limit_minutes", 0) or 0)
+                vm["session_expires_at"] = self._default_session_expires_at(str(vm.get("assigned_at") or ""), limit)
                 self._save(state)
                 if self._start_vm is not None:
                     try:
@@ -633,18 +716,77 @@ class PoolManagerService:
         vm = state["vms"].get(str(vmid))
         if vm is None:
             raise KeyError(f"vmid {vmid} not found")
+        expires_at = str(vm.get("session_expires_at") or "").strip()
+        if expires_at:
+            try:
+                now_dt = self._parse_utc_timestamp(self._utcnow())
+                expires_dt = self._parse_utc_timestamp(expires_at)
+                return max(0.0, (expires_dt - now_dt).total_seconds())
+            except ValueError:
+                pass
         assigned_at = str(vm.get("assigned_at") or "")
         elapsed = self._elapsed_seconds(assigned_at)
         return max(0.0, limit * 60.0 - elapsed)
 
+    def extend_kiosk_session(self, pool_id: str, vmid: int, *, minutes: int) -> DesktopLease:
+        state = self._load()
+        pool_cfg = state["pools"].get(pool_id)
+        if not isinstance(pool_cfg, dict):
+            raise ValueError(f"pool {pool_id!r} not found")
+        if str(pool_cfg.get("pool_type") or "").strip().lower() != DesktopPoolType.KIOSK.value:
+            raise ValueError("session extension is only supported for kiosk pools")
+        extend_minutes = int(minutes or 0)
+        if extend_minutes <= 0:
+            raise ValueError("minutes must be > 0")
+        if extend_minutes > 480:
+            raise ValueError("minutes must be <= 480")
+
+        vm = state["vms"].get(str(vmid))
+        if vm is None or str(vm.get("pool_id") or "") != pool_id:
+            raise ValueError(f"vmid {vmid} not found in pool {pool_id!r}")
+        if str(vm.get("state") or "") != _STATE_IN_USE:
+            raise RuntimeError("kiosk session is not active")
+
+        limit = int(pool_cfg.get("session_time_limit_minutes", 0) or 0)
+        if limit <= 0:
+            raise ValueError("pool has no session time limit")
+        allowed_options = self._normalize_session_extension_options(
+            pool_cfg.get("session_extension_options_minutes"),
+            default_for_kiosk=True,
+        )
+        if allowed_options and extend_minutes not in allowed_options:
+            raise ValueError(
+                "minutes must match one of the configured extension levels: "
+                + ", ".join(str(item) for item in allowed_options)
+            )
+
+        mode_raw = pool_cfg.get("mode", DesktopPoolMode.FLOATING_NON_PERSISTENT.value)
+        try:
+            mode = DesktopPoolMode(mode_raw)
+        except ValueError:
+            mode = DesktopPoolMode.FLOATING_NON_PERSISTENT
+
+        baseline = str(vm.get("session_expires_at") or "").strip()
+        if not baseline:
+            baseline = self._default_session_expires_at(str(vm.get("assigned_at") or ""), limit)
+        baseline_dt = self._parse_utc_timestamp(baseline)
+        now_dt = self._parse_utc_timestamp(self._utcnow())
+        if baseline_dt < now_dt:
+            baseline_dt = now_dt
+        vm["session_expires_at"] = self._format_utc_timestamp(baseline_dt + timedelta(minutes=extend_minutes))
+        self._save(state)
+        return self._make_lease(pool_id, vm, mode)
+
     def expire_overdue_sessions(self) -> list[dict[str, Any]]:
         """
         Scan all active sessions; expire those that exceeded their time limit.
-        For kiosk pools, triggers VM reset. Returns list of expired session dicts.
+        Overdue sessions are released through the normal pool lifecycle so kiosks
+        can reset immediately and non-persistent pools can recycle cleanly.
+        Returns list of expired session dicts.
         """
         state = self._load()
-        expired = []
-        for vm_key, vm in state["vms"].items():
+        expired: list[dict[str, Any]] = []
+        for vm in state["vms"].values():
             if str(vm.get("state") or "") != _STATE_IN_USE:
                 continue
             pid = str(vm.get("pool_id") or "")
@@ -656,32 +798,30 @@ class PoolManagerService:
                 continue
             elapsed = self._elapsed_seconds(str(vm.get("assigned_at") or ""))
             if elapsed >= limit * 60.0:
-                vm["state"] = "expired"
-                vm["ended_at"] = self._utcnow()
-                expired.append({"pool_id": pid, "vmid": vm.get("vmid"), "user_id": vm.get("user_id")})
-                pool_type_raw = pool_cfg.get("pool_type", DesktopPoolType.DESKTOP.value)
-                if pool_type_raw == DesktopPoolType.KIOSK.value and self._reset_vm_to_template:
-                    try:
-                        self._reset_vm_to_template(vm.get("vmid"), pool_cfg.get("template_id", ""))
-                    except Exception:
-                        pass
-        if expired:
-            self._save(state)
+                expired.append(
+                    {
+                        "pool_id": pid,
+                        "vmid": int(vm.get("vmid") or 0),
+                        "user_id": str(vm.get("user_id") or ""),
+                    }
+                )
+        for item in expired:
+            try:
+                self.release_desktop(item["pool_id"], int(item["vmid"]), str(item["user_id"] or ""))
+            except Exception:
+                fallback_state = self._load()
+                vm = fallback_state.get("vms", {}).get(str(item["vmid"]))
+                if isinstance(vm, dict):
+                    vm["state"] = "expired"
+                    vm["ended_at"] = self._utcnow()
+                    self._save(fallback_state)
         return expired
 
     def _elapsed_seconds(self, assigned_at: str) -> float:
         if not assigned_at:
             return 0.0
-        from datetime import datetime, timezone
         now_str = self._utcnow()
-        def parse(ts: str) -> datetime:
-            for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S"):
-                try:
-                    return datetime.strptime(ts, fmt).replace(tzinfo=timezone.utc)
-                except ValueError:
-                    continue
-            raise ValueError(f"Cannot parse: {ts!r}")
-        return max(0.0, (parse(now_str) - parse(assigned_at)).total_seconds())
+        return max(0.0, (self._parse_utc_timestamp(now_str) - self._parse_utc_timestamp(assigned_at)).total_seconds())
 
     def release_desktop(self, pool_id: str, vmid: int, user_id: str) -> DesktopLease:
         """
@@ -717,14 +857,17 @@ class PoolManagerService:
             vm["state"] = _STATE_RECYCLING
             vm["user_id"] = None
             vm["assigned_at"] = None
+            vm["session_expires_at"] = None
             vm["stream_health"] = None
         elif mode == DesktopPoolMode.FLOATING_PERSISTENT:
             vm["state"] = _STATE_FREE
             # keep user_id for next login
+            vm["session_expires_at"] = None
             vm["stream_health"] = None
         elif mode == DesktopPoolMode.DEDICATED:
             vm["state"] = _STATE_FREE
             # keep user_id permanently
+            vm["session_expires_at"] = None
             vm["stream_health"] = None
         self._save(state)
         if self._stop_vm is not None:
@@ -732,6 +875,8 @@ class PoolManagerService:
                 self._stop_vm(vmid)
             except Exception:
                 pass
+        if mode == DesktopPoolMode.FLOATING_NON_PERSISTENT and pool_type == DesktopPoolType.KIOSK:
+            return self.recycle_desktop(pool_id, vmid)
         return self._make_lease(pool_id, vm, mode)
 
     def recycle_desktop(self, pool_id: str, vmid: int) -> DesktopLease:
@@ -764,6 +909,7 @@ class PoolManagerService:
         vm["state"] = _STATE_FREE
         vm["user_id"] = None
         vm["assigned_at"] = None
+        vm["session_expires_at"] = None
         vm["stream_health"] = None
         self._save(state)
         return self._make_lease(pool_id, vm, mode)
@@ -829,6 +975,9 @@ class PoolManagerService:
             "fps": int(metrics["fps"]) if metrics.get("fps") is not None else None,
             "dropped_frames": int(metrics["dropped_frames"]) if metrics.get("dropped_frames") is not None else None,
             "encoder_load": int(metrics["encoder_load"]) if metrics.get("encoder_load") is not None else None,
+            "gpu_util_pct": int(metrics["gpu_util_pct"]) if metrics.get("gpu_util_pct") is not None else None,
+            "gpu_temp_c": int(metrics["gpu_temp_c"]) if metrics.get("gpu_temp_c") is not None else None,
+            "window_title": str(metrics.get("window_title") or "").strip(),
             "updated_at": str(metrics.get("updated_at") or self._utcnow()),
         }
         self._save(state)
@@ -899,6 +1048,10 @@ class PoolManagerService:
             "enabled": info.enabled,
             "streaming_profile": streaming_profile_to_dict(info.streaming_profile),
             "tenant_id": info.tenant_id,
+            "pool_type": info.pool_type.value if hasattr(info.pool_type, "value") else str(info.pool_type),
+            "session_time_limit_minutes": int(info.session_time_limit_minutes),
+            "session_cost_per_minute": float(info.session_cost_per_minute or 0.0),
+            "session_extension_options_minutes": [int(item) for item in (info.session_extension_options_minutes or ())],
         }
 
     def lease_to_dict(self, lease: DesktopLease) -> dict[str, Any]:

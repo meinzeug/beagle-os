@@ -159,7 +159,7 @@ for entry in named:
     if entry.get("cert") == cert:
         entry["name"] = device_name
         state_path.write_text(json.dumps(state, indent=4) + "\\n", encoding="utf-8")
-        print("updated-existing")
+        sys.stdout.write("updated-existing\\n")
         raise SystemExit(0)
 
 named.append({{
@@ -168,7 +168,7 @@ named.append({{
     "uuid": str(uuid.uuid4()).upper(),
 }})
 state_path.write_text(json.dumps(state, indent=4) + "\\n", encoding="utf-8")
-print("registered-new")
+sys.stdout.write("registered-new\\n")
 PY
 
 systemctl restart beagle-sunshine.service >/dev/null 2>&1 || true
@@ -252,7 +252,7 @@ if not payload["uniqueid"] and stream_port:
     except Exception:
         pass
 
-print(json.dumps(payload))
+sys.stdout.write(json.dumps(payload) + "\\n")
 PY
 """
         exitcode, stdout, stderr = self.guest_exec_text(vm.vmid, script)

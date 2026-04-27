@@ -4,6 +4,23 @@ import { text } from './dom.js';
 
 let dashboardLoadInFlight = null;
 
+function currentUserPermissions(me) {
+  const user = me && typeof me === 'object' ? me.user : null;
+  const raw = user && Array.isArray(user.permissions) ? user.permissions : [];
+  return new Set(raw.map((value) => String(value || '').trim()).filter(Boolean));
+}
+
+function canReadWithPermissions(permissions, permission) {
+  const needed = String(permission || '').trim();
+  if (!needed) {
+    return true;
+  }
+  if (permissions.has('*')) {
+    return true;
+  }
+  return permissions.has(needed);
+}
+
 const dashboardHooks = {
   filteredInventory() {
     return [];
@@ -82,6 +99,7 @@ export function loadDashboard(options) {
   }
   dashboardHooks.setBanner('Lade Beagle Manager...', 'info');
   dashboardLoadInFlight = request('/auth/me').then((me) => {
+    const permissions = currentUserPermissions(me);
     const shouldLoadIam = state.activePanel === 'iam';
     const endpointRequests = [
       request('/health'),
@@ -89,14 +107,31 @@ export function loadDashboard(options) {
       request('/endpoints'),
       request('/policies'),
       request('/virtualization/overview'),
-      request('/ha/status', { __suppressAuthLock: true }),
-      request('/cluster/status', { __suppressAuthLock: true }),
+      canReadWithPermissions(permissions, 'cluster:read')
+        ? request('/ha/status', { __suppressAuthLock: true })
+        : Promise.resolve(null),
+      canReadWithPermissions(permissions, 'cluster:read')
+        ? request('/cluster/status', { __suppressAuthLock: true })
+        : Promise.resolve(null),
+      canReadWithPermissions(permissions, 'cluster:read')
+        ? request('/nodes/install-checks', { __suppressAuthLock: true })
+        : Promise.resolve({ reports: [], recent_reports: [], latest_ready_report: null }),
       request('/provisioning/catalog', { __suppressAuthLock: true }),
-      shouldLoadIam ? request('/auth/users', { __suppressAuthLock: true }) : Promise.resolve(state.authUsers),
-      shouldLoadIam ? request('/auth/roles', { __suppressAuthLock: true }) : Promise.resolve(state.authRoles),
-      request('/pools', { __suppressAuthLock: true }),
-      request('/pool-templates', { __suppressAuthLock: true }),
-      request('/sessions', { __suppressAuthLock: true })
+      shouldLoadIam && canReadWithPermissions(permissions, 'auth:read')
+        ? request('/auth/users', { __suppressAuthLock: true })
+        : Promise.resolve(state.authUsers),
+      shouldLoadIam && canReadWithPermissions(permissions, 'auth:read')
+        ? request('/auth/roles', { __suppressAuthLock: true })
+        : Promise.resolve(state.authRoles),
+      canReadWithPermissions(permissions, 'pool:read')
+        ? request('/pools', { __suppressAuthLock: true })
+        : Promise.resolve({ pools: [] }),
+      canReadWithPermissions(permissions, 'pool:read')
+        ? request('/pool-templates', { __suppressAuthLock: true })
+        : Promise.resolve({ templates: [] }),
+      canReadWithPermissions(permissions, 'pool:read')
+        ? request('/sessions', { __suppressAuthLock: true })
+        : Promise.resolve({ sessions: [] })
     ];
     return Promise.allSettled(endpointRequests).then((results) => {
       const health = results[0].status === 'fulfilled' ? (results[0].value || {}) : {};
@@ -106,12 +141,13 @@ export function loadDashboard(options) {
       const virtualizationOverview = results[4].status === 'fulfilled' ? (results[4].value || null) : null;
       const haStatus = results[5].status === 'fulfilled' ? (results[5].value || null) : null;
       const clusterStatus = results[6].status === 'fulfilled' ? (results[6].value || null) : null;
-      const provisioningCatalog = results[7].status === 'fulfilled' ? (results[7].value || { catalog: null }) : { catalog: null };
-      const authUsers = results[8].status === 'fulfilled' && Array.isArray(results[8].value) ? results[8].value : [];
-      const authRoles = results[9].status === 'fulfilled' && Array.isArray(results[9].value) ? results[9].value : [];
-      const pools = results[10].status === 'fulfilled' ? (results[10].value || { pools: [] }) : { pools: [] };
-      const templates = results[11].status === 'fulfilled' ? (results[11].value || { templates: [] }) : { templates: [] };
-      const sessions = results[12].status === 'fulfilled' ? (results[12].value || { sessions: [] }) : { sessions: [] };
+      const installChecks = results[7].status === 'fulfilled' ? (results[7].value || { reports: [], recent_reports: [], latest_ready_report: null }) : { reports: [], recent_reports: [], latest_ready_report: null };
+      const provisioningCatalog = results[8].status === 'fulfilled' ? (results[8].value || { catalog: null }) : { catalog: null };
+      const authUsers = results[9].status === 'fulfilled' && Array.isArray(results[9].value) ? results[9].value : [];
+      const authRoles = results[10].status === 'fulfilled' && Array.isArray(results[10].value) ? results[10].value : [];
+      const pools = results[11].status === 'fulfilled' ? (results[11].value || { pools: [] }) : { pools: [] };
+      const templates = results[12].status === 'fulfilled' ? (results[12].value || { templates: [] }) : { templates: [] };
+      const sessions = results[13].status === 'fulfilled' ? (results[13].value || { sessions: [] }) : { sessions: [] };
       const failedRequests = results.filter((result) => result.status !== 'fulfilled').length;
 
       state.user = me.user || null;
@@ -121,6 +157,7 @@ export function loadDashboard(options) {
       state.virtualizationOverview = virtualizationOverview;
       state.clusterStatus = clusterStatus;
       state.haStatus = haStatus;
+      state.installChecks = installChecks;
       state.provisioningCatalog = provisioningCatalog.catalog || null;
       state.authUsers = authUsers;
       state.authRoles = authRoles;

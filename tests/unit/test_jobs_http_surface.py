@@ -76,6 +76,27 @@ def test_list_returns_jobs(q, surface):
     assert j2.job_id in ids
 
 
+def test_list_non_privileged_requester_sees_only_own_jobs(q, surface):
+    mine = q.enqueue("vm.snapshot", {"vm_id": 1}, owner="alice")
+    q.enqueue("vm.backup", {"vm_id": 2}, owner="bob")
+
+    resp = surface.route_get("/api/v1/jobs", requester="alice")
+
+    assert resp["status"] == HTTPStatus.OK
+    assert resp["payload"]["count"] == 1
+    assert resp["payload"]["jobs"][0]["job_id"] == mine.job_id
+
+
+def test_list_legacy_api_token_can_see_all_jobs(q, surface):
+    q.enqueue("vm.snapshot", {"vm_id": 1}, owner="alice")
+    q.enqueue("vm.backup", {"vm_id": 2}, owner="bob")
+
+    resp = surface.route_get("/api/v1/jobs", requester="legacy-api-token")
+
+    assert resp["status"] == HTTPStatus.OK
+    assert resp["payload"]["count"] == 2
+
+
 def test_list_filter_by_status(q, surface):
     j = q.enqueue("a")
     q.claim_next_pending()  # → running
@@ -118,6 +139,12 @@ def test_get_existing_job(q, surface):
     assert resp["payload"]["name"] == "vm.snapshot"
 
 
+def test_get_foreign_job_forbidden(q, surface):
+    j = q.enqueue("vm.snapshot", {"x": 1}, owner="alice")
+    resp = surface.route_get(f"/api/v1/jobs/{j.job_id}", requester="bob")
+    assert resp["status"] == HTTPStatus.FORBIDDEN
+
+
 def test_get_nonexistent_job(surface):
     resp = surface.route_get("/api/v1/jobs/" + "0" * 32)
     assert resp["status"] == HTTPStatus.NOT_FOUND
@@ -133,6 +160,13 @@ def test_cancel_pending_job(q, surface):
     assert resp["status"] == HTTPStatus.OK
     assert "accepted" in resp["payload"]["cancel"]
     assert q.get(j.job_id).status == STATUS_CANCELLED
+
+
+def test_cancel_foreign_job_forbidden(q, surface):
+    j = q.enqueue("a", owner="alice")
+    resp = surface.route_delete(f"/api/v1/jobs/{j.job_id}", requester="bob")
+    assert resp["status"] == HTTPStatus.FORBIDDEN
+    assert q.get(j.job_id).status != STATUS_CANCELLED
 
 
 def test_cancel_completed_job(q, surface):
@@ -162,6 +196,12 @@ def test_sse_stream_returns_sse_kind(q, surface):
     resp = surface.route_get(f"/api/v1/jobs/{j.job_id}/stream")
     assert resp["kind"] == "sse"
     assert "generator" in resp
+
+
+def test_sse_stream_foreign_job_forbidden(q, surface):
+    j = q.enqueue("a", owner="alice")
+    resp = surface.route_get(f"/api/v1/jobs/{j.job_id}/stream", requester="bob")
+    assert resp["status"] == HTTPStatus.FORBIDDEN
 
 
 def test_sse_generator_yields_terminal_event(q):

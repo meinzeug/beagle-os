@@ -10,7 +10,9 @@ import { clearPersistedTokens, setSessionTokens } from './auth.js';
 const panelHooks = {
   loadSettingsForPanel() {},
   loadIdentityProviders() {},
-  loadAuditPanel() {}
+  loadAuditPanel() {},
+  loadAuditExportTargets() {},
+  loadAuditFailureQueue() {}
 };
 
 export function configurePanels(nextHooks) {
@@ -118,16 +120,8 @@ export function setAuthMode(connected) {
   document.body.classList.toggle('auth-only', !connected);
   if (connected) {
     document.body.classList.remove('auth-modal-open');
-    const authModal = qs('auth-modal');
-    if (authModal) {
-      authModal.hidden = true;
-      authModal.setAttribute('aria-hidden', 'true');
-    }
-    const onboardingModal = qs('onboarding-modal');
-    if (onboardingModal) {
-      onboardingModal.hidden = true;
-      onboardingModal.setAttribute('aria-hidden', 'true');
-    }
+    setModalState(qs('auth-modal'), false);
+    setModalState(qs('onboarding-modal'), false);
   } else {
     document.body.classList.add('auth-modal-open');
   }
@@ -141,6 +135,27 @@ export function setBanner(message, tone) {
   }
   node.className = 'banner ' + String(tone || 'info');
   node.textContent = message;
+}
+
+function setModalState(modal, open) {
+  if (!modal) {
+    return;
+  }
+  if (!open) {
+    const active = document.activeElement;
+    if (active && modal.contains(active) && typeof active.blur === 'function') {
+      active.blur();
+    }
+  }
+  modal.hidden = !open;
+  modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+  if ('inert' in modal) {
+    modal.inert = !open;
+  } else if (open) {
+    modal.removeAttribute('inert');
+  } else {
+    modal.setAttribute('inert', '');
+  }
 }
 
 export function requestConfirm(opts) {
@@ -161,13 +176,11 @@ export function requestConfirm(opts) {
     cancelBtn.textContent = String(options.cancelLabel || 'Abbrechen');
     acceptBtn.classList.remove('danger', 'primary');
     acceptBtn.classList.add(options.danger ? 'danger' : 'primary');
-    modal.hidden = false;
-    modal.setAttribute('aria-hidden', 'false');
+    setModalState(modal, true);
     document.body.classList.add('modal-open');
 
     function close(result) {
-      modal.hidden = true;
-      modal.setAttribute('aria-hidden', 'true');
+      setModalState(modal, false);
       document.body.classList.remove('modal-open');
       acceptBtn.removeEventListener('click', onAccept);
       cancelBtn.removeEventListener('click', onCancel);
@@ -244,6 +257,12 @@ export function setActivePanel(panelName) {
     Promise.resolve(panelHooks.loadAuditPanel()).catch((error) => {
       void error;
     });
+    Promise.resolve(panelHooks.loadAuditExportTargets()).catch((error) => {
+      void error;
+    });
+    Promise.resolve(panelHooks.loadAuditFailureQueue()).catch((error) => {
+      void error;
+    });
   }
   syncHash();
 }
@@ -270,11 +289,7 @@ export function openAuthModal() {
     openOnboardingModal();
     return;
   }
-  const authModal = qs('auth-modal');
-  if (authModal) {
-    authModal.hidden = false;
-    authModal.setAttribute('aria-hidden', 'false');
-  }
+  setModalState(qs('auth-modal'), true);
   document.body.classList.add('auth-modal-open');
   Promise.resolve(panelHooks.loadIdentityProviders()).catch((error) => {
     void error;
@@ -303,11 +318,7 @@ export function closeAuthModal() {
   if (!document.body.classList.contains('auth-only')) {
     document.body.classList.remove('auth-modal-open');
   }
-  const authModal = qs('auth-modal');
-  if (authModal) {
-    authModal.hidden = true;
-    authModal.setAttribute('aria-hidden', 'true');
-  }
+  setModalState(qs('auth-modal'), false);
 }
 
 export function openOnboardingModal() {
@@ -315,13 +326,8 @@ export function openOnboardingModal() {
   if (!modal) {
     return;
   }
-  const authModal = qs('auth-modal');
-  if (authModal) {
-    authModal.hidden = true;
-    authModal.setAttribute('aria-hidden', 'true');
-  }
-  modal.hidden = false;
-  modal.setAttribute('aria-hidden', 'false');
+  setModalState(qs('auth-modal'), false);
+  setModalState(modal, true);
   document.body.classList.add('auth-modal-open');
   const username = qs('onboarding-username');
   if (username && !String(username.value || '').trim()) {
@@ -340,13 +346,8 @@ export function closeOnboardingModal() {
   if (!modal) {
     return;
   }
-  modal.hidden = true;
-  modal.setAttribute('aria-hidden', 'true');
-  const authModal = qs('auth-modal');
-  if (authModal) {
-    authModal.hidden = false;
-    authModal.setAttribute('aria-hidden', 'false');
-  }
+  setModalState(modal, false);
+  setModalState(qs('auth-modal'), true);
 }
 
 export function fetchOnboardingStatus() {

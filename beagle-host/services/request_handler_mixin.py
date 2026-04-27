@@ -11,6 +11,7 @@ import re
 import secrets
 import time
 import threading
+import traceback
 from http import HTTPStatus
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -53,6 +54,17 @@ class HandlerMixin:
             int(HTTPStatus.INTERNAL_SERVER_ERROR): "internal_error",
         }
         return mapping.get(int(status), "request_error")
+
+    @staticmethod
+    def _json_default(value: Any) -> Any:
+        if isinstance(value, (set, frozenset, tuple)):
+            return list(value)
+        if isinstance(value, bytes):
+            try:
+                return value.decode("utf-8")
+            except UnicodeDecodeError:
+                return value.hex()
+        return repr(value)
 
     def _client_addr(self) -> str:
         return self.client_address[0] if self.client_address else ""
@@ -142,29 +154,34 @@ class HandlerMixin:
             elif auth_role_match is not None:
                 resource_type = "role"
                 resource_id = auth_role_match.group(1)
-            print(
-                json.dumps(
-                    {
-                        "event": "api.response",
-                        "timestamp": utcnow(),
-                        "method": str(getattr(self, "command", "")),
-                        "path": path,
-                        "action": action,
-                        "status": int(status),
-                        "user": self._requester_identity(),
-                        "remote_addr": self._client_addr(),
-                        "resource_type": resource_type,
-                        "resource_id": resource_id,
-                    },
-                    ensure_ascii=True,
-                    separators=(",", ":"),
-                ),
-                flush=True,
+            structured_logger().info(
+                "api.response",
+                method=str(getattr(self, "command", "")),
+                path=path,
+                action=action,
+                status=int(status),
+                user=self._requester_identity(),
+                remote_addr=self._client_addr(),
+                resource_type=resource_type,
+                resource_id=resource_id,
             )
         except Exception:
             pass
 
     def _handle_unexpected_error(self, error: Exception) -> None:
+        try:
+            structured_logger().error(
+                "request.unhandled_exception.traceback",
+                method=str(getattr(self, "command", "")),
+                path=str(urlparse(getattr(self, "path", "") or "").path),
+                username=self._requester_identity(),
+                remote_addr=self._client_addr(),
+                error_type=type(error).__name__,
+                error_message=str(error),
+                traceback=traceback.format_exc(),
+            )
+        except Exception:
+            pass
         self._audit_event(
             "request.unhandled_exception",
             "error",
@@ -246,6 +263,7 @@ class HandlerMixin:
     def _audit_report_surface(self) -> AuditReportHttpSurfaceService:
         return AuditReportHttpSurfaceService(
             audit_report_service=audit_report_service(),
+            audit_export_service=audit_export_service(),
             audit_event=self._audit_event,
             requester_identity=self._requester_identity,
             accept_header=lambda: str(self.headers.get("Accept") or ""),
@@ -298,9 +316,11 @@ class HandlerMixin:
     def _pools_surface(self) -> PoolsHttpSurfaceService:
         return PoolsHttpSurfaceService(
             pool_manager_service=pool_manager_service(),
+            gaming_metrics_service=gaming_metrics_service(),
             entitlement_service=entitlement_service(),
             desktop_template_builder_service=desktop_template_builder_service(),
             recording_service=recording_service(),
+            session_manager_service=session_manager_service(),
             audit_event=self._audit_event,
             requester_identity=self._requester_identity,
             requester_tenant_id=self._requester_tenant_id,
@@ -380,6 +400,15 @@ class HandlerMixin:
                 "auth.role.delete",
                 outcome,
                 role=str(role_match.group("name") or ""),
+                requested_by=self._requester_identity(),
+            )
+            return
+        session_jti_match = re.fullmatch(r"^/api/v1/auth/sessions/(?P<jti>[A-Za-z0-9_=-]{8,128})$", path)
+        if method == "DELETE" and session_jti_match is not None:
+            self._audit_event(
+                "auth.session.revoke_by_jti",
+                outcome,
+                jti=session_jti_match.group("jti"),
                 requested_by=self._requester_identity(),
             )
 
@@ -614,7 +643,7 @@ class HandlerMixin:
         if isinstance(payload, dict) and payload.get("ok") is False and payload.get("error") and not payload.get("code"):
             payload = dict(payload)
             payload["code"] = self._error_code_for_status(int(status))
-        body = json.dumps(payload, indent=2).encode("utf-8") + b"\n"
+        body = json.dumps(payload, indent=2, default=self._json_default).encode("utf-8") + b"\n"
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")

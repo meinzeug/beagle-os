@@ -108,17 +108,27 @@ und `auditor` sichtbar.
 
 ### Schritt 6 — `/#panel=audit` UX- und Bedienbarkeits-Refactor
 
-- [ ] Ist-Zustand von `/#panel=audit` dokumentieren: Filter, Tabelle, Export-Buttons, fehlende Details, unklare Fehlerzustände.
-- [ ] Audit-Panel in klare Bereiche schneiden: `Live Events`, `Filter`, `Report Builder`, `Export Targets`, `Failures/Replay`.
-- [ ] Event-Tabelle verbessern: Severity/Result-Chips, Zeitachse, User/Resource-Spalten, expandierbare JSON-Details mit Redaction-Markern.
-- [ ] Filter UX verbessern: Zeitraum-Presets, Custom-Date-Range, User-/Action-/Resource-Suche, Tenant-Scope, Reset/Apply sichtbar.
-- [ ] Report-Builder als Wizard bauen: Zeitraum wählen, Filter bestätigen, Format wählen, Export starten, Download/Job-Status anzeigen.
-- [ ] Export-Ziele bedienbar machen: S3/Minio, Syslog, Webhook Status-Cards, Test-Button, letzter Fehler, Retry/Replay.
-- [ ] Compliance-Ansicht ergänzen: gespeicherte Reports, Ablaufdatum, Download-Audit, Prüfsummen/Integrität.
-- [ ] Failure-Queue sichtbar machen: Export-Fehler anzeigen, einzelne oder alle Events erneut senden.
-- [ ] Security-Guardrails: keine Secrets in Detail-JSON, PII-Filter sichtbar kennzeichnen, Download-Berechtigung prüfen.
+- [x] Ist-Zustand von `/#panel=audit` dokumentieren: Filter, Tabelle, Export-Buttons, fehlende Details, unklare Fehlerzustände.
+- [x] Audit-Panel in klare Bereiche schneiden: `Live Events`, `Filter`, `Report Builder`, `Export Targets`, `Failures/Replay`.
+- [x] Event-Tabelle verbessern: Severity/Result-Chips, Zeitachse, User/Resource-Spalten, expandierbare JSON-Details mit Redaction-Markern.
+- [x] Filter UX verbessern: Zeitraum-Presets, Custom-Date-Range, User-/Action-/Resource-Suche, Tenant-Scope, Reset/Apply sichtbar.
+- [x] Report-Builder als Wizard bauen: Zeitraum wählen, Filter bestätigen, Format wählen, Export starten, Download/Job-Status anzeigen.
+- [x] Export-Ziele bedienbar machen: S3/Minio, Syslog, Webhook Status-Cards, Test-Button, letzter Fehler, Retry/Replay.
+- [x] Compliance-Ansicht ergänzen: gespeicherte Reports, Ablaufdatum, Download-Audit, Prüfsummen/Integrität.
+- [x] Failure-Queue sichtbar machen: Export-Fehler anzeigen, einzelne oder alle Events erneut senden.
+- [x] Security-Guardrails: keine Secrets in Detail-JSON, PII-Filter sichtbar kennzeichnen, Download-Berechtigung prüfen.
 - [ ] UI-Regressions ergänzen: Filter-Kombinationen, CSV/JSON-Export, Detail-Expand, Export-Target-Test, Empty-/Error-State.
 - [ ] srv1-Smoke durchführen: Events erzeugen, filtern, Report exportieren, Webhook/S3-Status prüfen, keine Console Errors.
+
+Umsetzung (2026-04-27):
+
+- Ist-Zustand vor dem Refactor: `/#panel=audit` hatte Filter, CSV-Export, Event-Tabelle, Export-Targets und Failure-Queue, aber keinen Report-Builder, keinen bedienbaren Target-Test, keinen Replay-Flow und keine expliziten Redaction-Hinweise in den JSON-Details.
+- `website/ui/audit.js`, `website/index.html` und `website/styles/panels/_audit.css` schneiden den Bereich jetzt in Live-Events/Filter, Export-Ziele, Report Builder, Compliance-Reports und Failures/Replay.
+- Event-Details werden vor Anzeige rekursiv auf `password`, `token`, `secret` und `key` geschwaerzt und mit `redacted` markiert.
+- `AuditExportService` liefert `last_error`, speichert Failure-Payloads nur redacted und kann Export-Targets testen sowie replay-faehige Failures erneut senden.
+- `AuditReportHttpSurfaceService` routet `POST /api/v1/audit/export-targets/{target}/test` und `POST /api/v1/audit/failures/replay`; RBAC verlangt `auth:write`.
+- Lokal validiert: `node --check website/ui/audit.js website/ui/events.js website/main.js` und `python3 -m pytest tests/unit/test_audit_report.py tests/unit/test_audit_export.py tests/unit/test_authz_policy.py`.
+- srv1-Smoke bleibt offen: `beagle-manager` war am 2026-04-27 auf `srv1` `inactive`.
 
 Warum dieser Schritt noch offen ist:
 Audit und Compliance sind backendseitig vorhanden, aber die WebUI muss aus Audit-Daten handlungsfähige Informationen machen. Betreiber brauchen nicht nur eine Tabelle, sondern geführte Report-Erstellung, Export-Diagnose, Failure-Replay und klare Hinweise auf Redaction/PII. Ohne diese Bedienbarkeit bleibt Audit ein Rohdaten-Viewer und erfüllt den Compliance-Anspruch nur teilweise.

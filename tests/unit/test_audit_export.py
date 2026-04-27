@@ -80,6 +80,41 @@ class AuditExportServiceTests(unittest.TestCase):
             self.assertEqual(entry["target"], "webhook")
             self.assertEqual(entry["event_id"], "evt-2")
 
+    def test_failure_log_redacts_sensitive_payload_fields(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = AuditExportService(
+                config=AuditExportConfig(webhook_url="http://127.0.0.1:1/audit"),
+                data_dir=Path(tmpdir),
+                now_utc=lambda: "2026-04-21T11:00:00Z",
+            )
+
+            with patch("audit_export.urllib_request.urlopen", side_effect=RuntimeError("connection refused")):
+                service.export_event(
+                    {
+                        "id": "evt-3",
+                        "action": "auth.user.update",
+                        "new_value": {"password": "plain", "role": "viewer"},
+                    }
+                )
+
+            entry = json.loads((Path(tmpdir) / "audit" / "export-failures.log").read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(entry["payload"]["new_value"]["password"], "[REDACTED]")
+            self.assertEqual(entry["payload"]["new_value"]["role"], "viewer")
+
+    def test_targets_status_includes_last_error(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = AuditExportService(
+                config=AuditExportConfig(webhook_url="http://127.0.0.1:1/audit"),
+                data_dir=Path(tmpdir),
+                now_utc=lambda: "2026-04-21T11:00:00Z",
+            )
+
+            with patch("audit_export.urllib_request.urlopen", side_effect=RuntimeError("connection refused")):
+                service.export_event({"id": "evt-4", "action": "vm.stop"})
+
+            webhook = [item for item in service.get_targets_status() if item["type"] == "webhook"][0]
+            self.assertEqual(webhook["last_error"], "connection refused")
+
 
 if __name__ == "__main__":
     unittest.main()

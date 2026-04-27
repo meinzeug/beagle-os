@@ -43,12 +43,28 @@ class AuditExportService:
     def _failure_log_file(self) -> Path:
         return self._data_dir / "audit" / "export-failures.log"
 
+    @staticmethod
+    def _redact_failure_payload(value: Any) -> Any:
+        if isinstance(value, dict):
+            redacted: dict[str, Any] = {}
+            for key, item in value.items():
+                key_text = str(key)
+                if any(marker in key_text.lower() for marker in ("password", "token", "secret", "key")):
+                    redacted[key_text] = "[REDACTED]"
+                else:
+                    redacted[key_text] = AuditExportService._redact_failure_payload(item)
+            return redacted
+        if isinstance(value, list):
+            return [AuditExportService._redact_failure_payload(item) for item in value]
+        return value
+
     def _queue_failure(self, target: str, payload: dict[str, Any], error: Exception) -> None:
         entry = {
             "target": str(target or "unknown"),
             "timestamp": str(self._now_utc() or ""),
             "error": str(error),
             "event_id": str(payload.get("id") or ""),
+            "payload": self._redact_failure_payload(payload),
         }
         line = json.dumps(entry, separators=(",", ":"), ensure_ascii=True) + "\n"
         path = self._failure_log_file()
@@ -149,3 +165,114 @@ class AuditExportService:
                 fn(payload)
             except Exception as exc:
                 self._queue_failure(target, payload, exc)
+
+    def get_targets_status(self) -> list[dict]:
+        """Return configured export targets with their enabled status."""
+        failures = self.get_failure_queue(limit=100)
+
+        def last_error(target_type: str) -> str:
+            for entry in failures:
+                if str(entry.get("target") or "") == target_type:
+                    return str(entry.get("error") or "")
+            return ""
+
+        targets = []
+        if str(self._config.s3_bucket or "").strip():
+            endpoint = str(self._config.s3_endpoint or "").strip()
+            targets.append({
+                "type": "s3",
+                "label": "S3 / Minio",
+                "enabled": True,
+                "detail": endpoint if endpoint else f"s3://{self._config.s3_bucket}/{self._config.s3_prefix}",
+                "last_error": last_error("s3"),
+            })
+        else:
+            targets.append({"type": "s3", "label": "S3 / Minio", "enabled": False, "detail": "", "last_error": last_error("s3")})
+        if self._parse_syslog_address():
+            targets.append({
+                "type": "syslog",
+                "label": "Syslog",
+                "enabled": True,
+                "detail": str(self._config.syslog_address or ""),
+                "last_error": last_error("syslog"),
+            })
+        else:
+            targets.append({"type": "syslog", "label": "Syslog", "enabled": False, "detail": "", "last_error": last_error("syslog")})
+        if str(self._config.webhook_url or "").strip():
+            targets.append({
+                "type": "webhook",
+                "label": "Webhook",
+                "enabled": True,
+                "detail": str(self._config.webhook_url or ""),
+                "last_error": last_error("webhook"),
+            })
+        else:
+            targets.append({"type": "webhook", "label": "Webhook", "enabled": False, "detail": "", "last_error": last_error("webhook")})
+        return targets
+
+    def get_failure_queue(self, limit: int = 100) -> list[dict]:
+        """Return the most recent export failure entries."""
+        path = self._failure_log_file()
+        if not path.exists():
+            return []
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return []
+        entries = []
+        for line in reversed(lines):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+            if len(entries) >= limit:
+                break
+        return entries
+
+    def test_target(self, target: str) -> dict[str, Any]:
+        target_name = str(target or "").strip().lower()
+        payload = {
+            "id": f"test-{uuid.uuid4()}",
+            "timestamp": str(self._now_utc() or ""),
+            "action": "audit.export.test",
+            "result": "success",
+            "resource_type": "audit-export-target",
+            "resource_id": target_name,
+        }
+        if target_name == "s3":
+            self._export_s3(payload)
+        elif target_name == "syslog":
+            self._export_syslog(payload)
+        elif target_name == "webhook":
+            self._export_webhook(payload)
+        else:
+            raise ValueError("unknown audit export target")
+        return {"target": target_name, "event_id": payload["id"]}
+
+    def replay_failures(self, *, limit: int = 100) -> dict[str, Any]:
+        replayed = 0
+        skipped = 0
+        errors: list[str] = []
+        for entry in self.get_failure_queue(limit=limit):
+            payload = entry.get("payload")
+            target = str(entry.get("target") or "").strip().lower()
+            if not isinstance(payload, dict) or not target:
+                skipped += 1
+                continue
+            try:
+                if target == "s3":
+                    self._export_s3(payload)
+                elif target == "syslog":
+                    self._export_syslog(payload)
+                elif target == "webhook":
+                    self._export_webhook(payload)
+                else:
+                    skipped += 1
+                    continue
+                replayed += 1
+            except Exception as exc:
+                errors.append(f"{target}:{entry.get('event_id') or ''}:{exc}")
+        return {"replayed": replayed, "skipped": skipped, "errors": errors[:20]}

@@ -1,6 +1,71 @@
 # Security Findings
 
-Stand: 2026-04-26 (ergänzt: S-024 Security-Default fuer Repo-/Artifact-Automatik)
+Stand: 2026-04-27 (ergänzt: S-027 Seed-Config Klartext-Admin-Passwort als verbleibendes Zero-Touch-Risiko)
+
+## S-027 — Zero-Touch-Seed-Configs benoetigen aktuell ein Klartext-Admin-Passwort (DOCUMENTED)
+
+- Status: **dokumentiert, Rest-Follow-up offen** (2026-04-27)
+- Risiko: **Mittel**
+- Betroffene Dateien:
+  - `server-installer/seed_config_parser.py`
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+  - `docs/deployment/pxe-deployment.md`
+- Beschreibung:
+  - Der neue Zero-Touch-Pfad liest Seed-Dateien jetzt produktiv aus USB/PXE und verlangt fuer den vollautomatischen Lauf aktuell ein `admin_password`.
+  - `admin_password_hash` wird im Parser zwar weiter akzeptiert, der aktuelle Installer setzt fuer den eigentlichen Linux-User-/Root-Bootstrap aber noch den Klartextwert ein.
+  - Folge: Operatoren muessen Seed-Dateien mit Klartext-Passwort als sensibles Einweg-Material behandeln; liegen sie laenger auf USB-Sticks, HTTP-Seeds oder ungehärteten Shares, ist Credential-Leak moeglich.
+- Aktuelle Mitigation:
+  - Die Doku weist den Seed-/PXE-Pfad jetzt explizit als operator-sensibel aus.
+  - Seed-Dateien werden nicht im Repo versioniert; der Installer laedt/liest sie nur zur Laufzeit.
+  - PXE-Smokes wurden im Temp-Root ohne echte Secrets validiert.
+- Offener naechster Schritt:
+  - Installer-Bootstrap auf `admin_password_hash`-First umbauen, so dass Zero-Touch ohne Klartext-Admin-Passwort moeglich wird.
+  - Optional zeitlich eng begrenzte First-Boot-Enrollment-Secrets statt statischem Admin-Seed evaluieren.
+
+## S-026 — Neue Session-Handover-State-Dateien koennen durch Root-Debug/Smoke in Ownership-Drift laufen (MITIGATED)
+
+- Status: **mitigiert live, Repo-Follow-up offen** (2026-04-27)
+- Risiko: **Niedrig bis Mittel**
+- Betroffene Dateien/Pfade:
+  - `/var/lib/beagle/beagle-manager/session-manager/`
+  - `beagle-host/services/session_manager.py`
+  - `docs/goenterprise/06-session-handover.md`
+- Betroffene Hosts:
+  - `srv1.beagle-os.com` (live reproduziert)
+  - potentiell alle Hosts, wenn Root den Session-Manager ausserhalb des laufenden Dienstusers initialisiert
+- Beschreibung:
+  - Beim Live-Smoke fuer den neuen Endpoint-Session-Broker wurde `session-manager/sessions.json` einmal aus dem Root-Kontext erzeugt.
+  - Der produktive Dienst laeuft als `beagle-manager`; dadurch konnte derselbe Pfad spaeter mit `PermissionError` brechen.
+  - Das ist kein externer Remote-Angriffspfad, aber ein realer Betriebs-/Privilege-Drift fuer Root-gefuehrte Debug- oder Wartungsschritte.
+- Mitigation:
+  - Ownership auf `srv1` und vorsorglich `srv2` live auf `beagle-manager:beagle-manager` korrigiert.
+  - Weitere Live-Smokes fuer `GET /api/v1/session/current` wurden danach bewusst als `beagle-manager` ausgefuehrt.
+- Rest-Risiko:
+  - Root-gefuehrte Ad-hoc-Skripte koennen denselben Drift fuer neue State-Pfade erneut erzeugen, solange kein repo-eigener Guard oder fixer Ownership-Repair fuer den Session-Manager existiert.
+
+## S-025 — Root-gefuehrte Wartungs-/Smoke-Skripte konnten Pool-State-Locks unbenutzbar hinterlassen (PATCHED)
+
+- Status: **gepatcht** (2026-04-27)
+- Risiko: **Mittel**
+- Betroffene Dateien:
+  - `scripts/smoke-gaming-kiosk-flow.sh`
+  - `beagle-host/services/request_handler_mixin.py`
+- Betroffene Hosts:
+  - `srv1.beagle-os.com` (live reproduziert)
+  - potentiell alle Hosts mit root-gefuehrten State-Mutationen unter `/var/lib/beagle/beagle-manager`
+- Beschreibung:
+  - Ein Live-Smoke gegen `POST /api/v1/pools/kiosk/sessions/{vmid}/extend` schlug auf `srv1` mit `500 internal server error` fehl.
+  - Die Ursache war kein fachlicher API-Fehler, sondern eine von Root hinterlassene Dateirechte-Drift:
+    `/var/lib/beagle/beagle-manager/desktop-pools.json.lock` lag als `root:root` vor.
+  - Der produktive Dienst laeuft als `beagle-manager`; dadurch scheiterte `JsonStateStore.save()` beim Oeffnen der Lock-Datei mit `PermissionError`.
+  - Auswirkung: Mutierende Pool-/Session-Operationen konnten hostseitig in einen teilweisen Denial-of-Service laufen, obwohl API-Code und Unit-Tests gruen waren.
+- Fix:
+  - `scripts/smoke-gaming-kiosk-flow.sh` setzt `desktop-pools.json` nach dem Lauf wieder auf `beagle-manager:beagle-manager`, behaelt den Dateimodus bei und entfernt stale `.lock`-Dateien.
+  - `beagle-host/services/request_handler_mixin.py` loggt ungefangene Request-Exceptions jetzt mit strukturiertem Voll-Traceback, damit hostspezifische Rechte-/Runtime-Drifts sofort in `journalctl` sichtbar sind.
+  - Live-Drift auf `srv1` und `srv2` bereinigt: State-Dateien wieder `beagle-manager:beagle-manager`, keine Testzustandsreste mehr vorhanden.
+- Rest-Risiko:
+  - Andere manuelle Root-Eingriffe in State-Dateien koennen denselben Drift erneut erzeugen, solange sie nicht dieselbe Ownership-Disziplin einhalten.
+  - Der generelle Schutz gegen solche Operatorfehler liegt weiterhin in reproduzierbaren Repo-Skripten und nicht in einer kompletten Abschottung des Host-Dateisystems.
 
 ## S-024 — Beagle-Repo-Updates und Artifact-Reparatur waren nicht standardmaessig scharf genug (PATCHED)
 
@@ -576,3 +641,56 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
   - Operator-Runbooks und kritische Skripte so haerten, dass Secret-sourcende Abschnitte `set +x` erzwingen.
   - Optional einen Shellcheck-/grep-Smoke ergaenzen, der `bash -x`/`set -x` in Kombination mit `/etc/beagle/*.env` markiert.
   - WebUI-/Job-Logs duerfen Secret-Felder nur redacted anzeigen.
+
+## S-019 - Audit-Failure-Payloads duerfen keine Secrets persistieren
+
+- Status: geloest (2026-04-27)
+- Risiko: Mittel
+- Betroffene Dateien:
+  - `beagle-host/services/audit_export.py`
+  - `website/ui/audit.js`
+- Beschreibung:
+  - Fuer Failure-Replay muss der Audit-Exporter fehlerhafte Events mit Payload-Kontext puffern.
+  - Ohne Redaction koennten Felder wie `password`, `token`, `secret` oder `key` in `/var/lib/beagle/audit/export-failures.log` oder im WebUI-Detail landen.
+- Mitigation:
+  - Failure-Payloads werden vor Persistenz rekursiv redacted.
+  - WebUI-JSON-Details werden vor Anzeige rekursiv redacted und mit `redacted` markiert.
+  - Regression: `tests/unit/test_audit_export.py::AuditExportServiceTests::test_failure_log_redacts_sensitive_payload_fields`.
+
+## S-020 - Root-owned auth state kann Login-DoS ausloesen
+
+- Status: mitigiert in Repo, Live-Fix auf `srv1`/`srv2` ausgerollt (2026-04-27)
+- Risiko: Mittel
+- Betroffene Dateien:
+  - `beagle-host/services/auth_session.py`
+  - `beagle-host/services/control_plane_handler.py`
+- Beschreibung:
+  - Der Login-Pfad brach auf `srv1`/`srv2` zeitweise mit `500` ab.
+  - Ursache A: der Audit-POST-Dispatch konnte vor dem Auth-Handler mit `AttributeError` scheitern.
+  - Ursache B: `AuthSessionService._load_roles_doc()` schrieb `roles.json` selbst bei einem reinen Read jedes Mal zurueck; wenn die Datei zwischenzeitlich `root:root` gehoerte, fuehrte bereits ein ungueltiger Login zu `PermissionError` statt zu einer sauberen `401`.
+  - Effekt: partieller Auth-DoS fuer die WebUI.
+- Mitigation:
+  - Audit-POST-Dispatch nutzt jetzt die konkrete Surface-Instanz statt des fragilen Klassenaufrufs.
+  - Rollen-State wird nur noch geschrieben, wenn die Normalisierung den Payload wirklich aendert.
+  - `srv1`-Runtime-Datei `/var/lib/beagle/beagle-manager/auth/roles.json` wurde wieder auf `beagle-manager:beagle-manager` gesetzt.
+  - Regressionen:
+    - `tests/unit/test_audit_report.py`
+    - `tests/unit/test_auth_session.py`
+- Naechster Schritt:
+  - Pruefen, welcher Root-Pfad `roles.json` zuvor als `root:root` hinterlassen hat, und diesen Deploy-/Operator-Pfad zusaetzlich bereinigen.
+
+## S-021 - Cluster-Liveness war implizit an Public-TLS-Trust gekoppelt (mitigiert)
+
+- Status: mitigiert (2026-04-27)
+- Risiko: Mittel
+- Betroffene Dateien:
+  - `beagle-host/services/cluster_membership.py`
+- Beschreibung:
+  - Der Cluster-Member-Probe nutzte die konfigurierten `api_url`s und validierte bei HTTPS implizit die oeffentliche Zertifikatskette.
+  - Auf `srv2` fuehrte die bekannte unvollstaendige Public-CA-Kette dazu, dass `srv1` den Member trotz erreichbarer WebUI als `unreachable` markierte.
+  - Folge: Operatoren sahen einen falschen Cluster-Fehlerzustand; Auto-Join-/Install-Check-Folgeschritte waeren unnötig blockiert oder verwirrend gewesen.
+- Mitigation:
+  - Liveness-Probe entkoppelt von Browser-Trust und nutzt fuer HTTPS einen unverified SSL context.
+  - Die Ausnahme ist bewusst eng auf den unauthentifizierten `healthz`-Probe beschraenkt; privilegierte Cluster-RPCs bleiben an mTLS mit Cluster-CA gebunden.
+- Rest-Risiko:
+  - Die oeffentliche TLS-Kette auf `srv2` bleibt operativ trotzdem zu bereinigen; die Mitigation verhindert nur falsche Cluster-Offlines durch dieses Problem.

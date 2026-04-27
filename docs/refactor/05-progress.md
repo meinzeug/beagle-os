@@ -1,3 +1,249 @@
+## Update (2026-04-27, GoEnterprise Plan 08: Seed-Config + PXE-Support)
+
+**Scope**: Den offenen Zwei-Host-Installer-Block weiter geschlossen: Seed-Discovery im Server-Installer ist jetzt produktiv eingebaut, der PXE-Setup-Pfad liegt als reproduzierbares Repo-Script vor, und der Dry-Run wurde auf `srv1` und `srv2` gegen echte Installer-Artefakte validiert.
+
+- Seed-/Installer-Pfad erweitert:
+  - [server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer](/home/dennis/beagle-os/server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer)
+    - automatische Seed-Erkennung aus `/media/beagle-seed.yaml`, `/run/live/medium/...` und `beagle.seed_url=...`
+    - Seed-Parser-Hook vor dem UI
+    - statische Live-/Target-Netzwerkkonfiguration aus Seed-Daten
+  - [scripts/build-server-installer.sh](/home/dennis/beagle-os/scripts/build-server-installer.sh)
+    - kopiert `seed_config_parser.py` reproduzierbar ins Live-Image (`/usr/local/share/beagle/seed_config_parser.py`)
+- Neuer PXE-Pfad:
+  - [scripts/setup-pxe-server.sh](/home/dennis/beagle-os/scripts/setup-pxe-server.sh)
+    - extrahiert `vmlinuz`/`initrd` aus dem Installer-ISO
+    - erzeugt `grubnetx64.efi` und optional BIOS-PXE-Dateien
+    - schreibt `dnsmasq`-Config und rendert `beagle.seed_url=...` in GRUB-/PXELINUX-Menues
+  - [docs/deployment/pxe-deployment.md](/home/dennis/beagle-os/docs/deployment/pxe-deployment.md)
+- Testabdeckung ausgebaut:
+  - [tests/unit/test_seed_config_parser.py](/home/dennis/beagle-os/tests/unit/test_seed_config_parser.py)
+  - [tests/unit/test_installer_validation.py](/home/dennis/beagle-os/tests/unit/test_installer_validation.py)
+  - [tests/unit/test_post_install_check.py](/home/dennis/beagle-os/tests/unit/test_post_install_check.py)
+  - [tests/integration/test_pxe_boot.sh](/home/dennis/beagle-os/tests/integration/test_pxe_boot.sh)
+  - [server-installer/post-install-check.sh](/home/dennis/beagle-os/server-installer/post-install-check.sh): `BEAGLE_KVM_DEVICE` als testbarer Override fuer KVM-Smokes
+- Validierung:
+  - lokal:
+    - `21 passed` fuer Seed-/Installer-/Post-Install-Unit-Tests
+    - `bash tests/integration/test_pxe_boot.sh` -> `PXE_BOOT_TEST=PASS`
+    - `bash -n` fuer `setup-pxe-server.sh`, `beagle-server-installer`, `post-install-check.sh` gruen
+  - live:
+    - `srv1`: `/opt/beagle/scripts/setup-pxe-server.sh` Dry-Run gegen `/opt/beagle/dist/beagle-os-server-installer/beagle-os-server-installer.iso` erfolgreich
+    - `srv2`: derselbe Dry-Run erfolgreich
+    - beide Hosts schreiben im isolierten Temp-Root konsistente `dnsmasq`-/TFTP-Artefakte inkl. `beagle.seed_url=https://srv1.beagle-os.com/seeds/rack-a.yaml`
+- Restgrenze:
+  - Mehrdisk-RAID bleibt im Installer weiter offen; der aktuelle Zero-Touch-Pfad erzwingt deshalb reproduzierbar `raid: 0`.
+
+## Update (2026-04-27, GoEnterprise Plan 06 Schritt 5 + GoAdvanced Plan 10 Schritt 4)
+
+**Scope**: Den offenen Zwei-Host-Nachlauf aus Session-Handover und Integrationstests geschlossen: die WebUI zeigt Handover-Historie jetzt im produktiven Policies-Panel, und der fehlende HA-Failover-Integrationsblock liegt als eigenes Testmodul vor.
+
+- WebUI:
+  - [website/ui/policies.js](/home/dennis/beagle-os/website/ui/policies.js): neuer Session-Handover-Dashboard-Block mit KPIs, Alert-Liste und Event-Tabelle auf Basis von `GET /api/v1/sessions/handover`
+  - [website/ui/events.js](/home/dennis/beagle-os/website/ui/events.js): neuer Refresh-Hook `session-handover-refresh`
+  - [website/ui/state.js](/home/dennis/beagle-os/website/ui/state.js): `handoverHistory` State
+  - [website/index.html](/home/dennis/beagle-os/website/index.html), [website/styles/panels/_policies.css](/home/dennis/beagle-os/website/styles/panels/_policies.css): neue Session-Mobility-Karte im Policies-Panel
+- Tests:
+  - neuer UI-Regressionsblock in [tests/unit/test_policies_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_policies_ui_regressions.py)
+  - neuer Integrationsblock [tests/integration/test_ha_failover.py](/home/dennis/beagle-os/tests/integration/test_ha_failover.py)
+- Lokal validiert:
+  - `node --check website/ui/policies.js website/ui/events.js`
+  - `python3 -m pytest tests/unit/test_policies_ui_regressions.py -q` => `5 passed`
+  - `python3 -m pytest tests/integration/test_ha_failover.py -q` => `4 passed`
+  - `python3 -m pytest tests/integration -q` => `87 passed`
+- Live validiert:
+  - `srv1`: `scripts/smoke-session-handover-flow.sh 100 srv2` erneut `PASS` (`elapsed=0.31s`)
+  - `srv1`: `GET /beagle-api/api/v1/sessions/handover` mit Legacy-API-Token liefert echte `srv1 -> srv2` Events
+  - Browser-Smoke via Chrome DevTools:
+    - `srv1`: authentifizierter `/#panel=policies`-Flow zeigt Session-Handover-KPIs mit `Events=10`, `Completed=5`, `Avg Dauer=0.07 s`, `Letzte Route=beagle-0 -> srv2`
+    - `srv2`: derselbe Block rendert im authentifizierten Flow korrekt als Empty-State
+  - keine neuen Runtime-/JS-Fehler; in der Dev-Console verbleiben nur die schon bekannten Passwortfeld-DOM-Warnungen
+
+## Update (2026-04-27, GoEnterprise Plan 06 Schritt 3-5: Timing + Geo-Routing + Handover-History-Backend)
+
+**Scope**: Den verbleibenden Zwei-Host-Kern aus Session-Handover weiter geschlossen: Timing-Abnahme, Geo-Routing-Konfiguration und Handover-Historie/Slow-Alerting sind jetzt im Backend vorhanden und live gegen `srv1 -> srv2` geprueft.
+
+- [beagle-host/services/session_manager.py](/home/dennis/beagle-os/beagle-host/services/session_manager.py):
+  - State wird vor Reads/Transfers jetzt aus der JSON-Datei reloaded; damit sieht der laufende Control-Plane-Prozess out-of-process Handover-Updates sofort.
+  - neue Handover-Historie `handover_events`
+  - neue Slow-Handover-Alerts `handover_alerts`
+  - neue Geo-Routing-Funktionen `evaluate_geo_handover(...)`, `apply_geo_handover(...)`
+  - neue Session-Mutation `set_session_geo_routing(...)`
+- [beagle-host/services/auth_session.py](/home/dennis/beagle-os/beagle-host/services/auth_session.py), [auth_http_surface.py](/home/dennis/beagle-os/beagle-host/services/auth_http_surface.py):
+  - User koennen jetzt `session_geo_routing` im Auth-/User-Profil speichern und wieder lesen
+- [beagle-host/services/pools_http_surface.py](/home/dennis/beagle-os/beagle-host/services/pools_http_surface.py):
+  - neuer Admin-/Operator-Read-Pfad `GET /api/v1/sessions/handover`
+- [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py):
+  - Handover-History faellt unter `pool:read`
+- Tests:
+  - neuer Unit-Block [tests/unit/test_geo_routing.py](/home/dennis/beagle-os/tests/unit/test_geo_routing.py)
+  - neuer Integrationstest [tests/integration/test_session_handover_timing.py](/home/dennis/beagle-os/tests/integration/test_session_handover_timing.py)
+  - fokussierte Regressionen: `67 passed`
+- neuer Live-Smoke:
+  - [scripts/smoke-session-handover-flow.sh](/home/dennis/beagle-os/scripts/smoke-session-handover-flow.sh)
+  - legt temporaeren Endpoint-Token + Session an, fragt Broker vor/nach `transfer_session(...)` und prueft `<5s`
+- Live:
+  - `srv1`/`srv2` ausgerollt und `beagle-control-plane` neu gestartet
+  - `srv1`: `SESSION_HANDOVER_SMOKE=PASS elapsed=0.29s target_node=srv2`
+- echter Live-Fund und Fix:
+  - Der erste Smoke zeigte, dass `find_active_session()` noch auf gecachtem In-Memory-State lief.
+  - Folge: Broker gab nach out-of-process Transfer noch den alten `current_node` zurueck.
+  - Fix: `session_manager.py` reloadet jetzt auch im Lookup-Pfad; danach derselbe Smoke gruen.
+
+## Update (2026-04-27, GoEnterprise Plan 06 Schritt 3: Session-Broker + Thin-Client-Reconnect)
+
+**Scope**: Ersten echten Zwei-Host-Produktpfad aus `docs/goenterprise/06-session-handover.md` umgesetzt: Session-Broker ist jetzt endpoint-authenticated verfuegbar, und der Thin-Client fragt vor Moonlight-Start den aktuellen Session-Knoten ab.
+
+- Backend:
+  - [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py): `session_manager_service()` als Singleton verdrahtet.
+  - [beagle-host/services/session_manager.py](/home/dennis/beagle-os/beagle-host/services/session_manager.py): Lookup `find_active_session(...)` fuer `session_id`/`vm_id`.
+  - [beagle-host/services/pools_http_surface.py](/home/dennis/beagle-os/beagle-host/services/pools_http_surface.py): Pool-Allocate registriert Sessions jetzt im Session-Manager; Release/Kiosk-Ende beenden sie wieder.
+  - [beagle-host/services/endpoint_http_surface.py](/home/dennis/beagle-os/beagle-host/services/endpoint_http_surface.py): neuer endpoint-authenticated Broker `GET /api/v1/session/current`.
+  - [beagle-host/services/control_plane_handler.py](/home/dennis/beagle-os/beagle-host/services/control_plane_handler.py): `GET /api/v1/session/current` vor normalem Admin-Auth auf Endpoint-Auth verdrahtet.
+- Thin-Client:
+  - [thin-client-assistant/runtime/moonlight_manager_registration.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/moonlight_manager_registration.sh): Manager-Query fuer `GET /api/v1/session/current`.
+  - [thin-client-assistant/runtime/moonlight_host_sync.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/moonlight_host_sync.sh): Broker-Response retargetet jetzt Runtime-Host/Port.
+  - [thin-client-assistant/runtime/launch-moonlight.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/launch-moonlight.sh): fragt den Broker vor Reachability-/Pairing-Flow ab und loggt `moonlight.session-broker`.
+- Tests:
+  - `python3 -m pytest tests/unit/test_session_checkpoint.py tests/unit/test_endpoint_http_surface.py tests/unit/test_pools_http_surface.py -q` => `32 passed`
+  - `python3 -m py_compile ...` fuer geaenderte Python-Dateien => OK
+  - `bash -n thin-client-assistant/runtime/moonlight_manager_registration.sh thin-client-assistant/runtime/moonlight_host_sync.sh thin-client-assistant/runtime/launch-moonlight.sh` => OK
+- Live:
+  - `srv1` und `srv2`: neue Backend-/Runtime-Dateien ausgerollt, `beagle-control-plane.service` neu gestartet.
+  - `srv1`: echter endpoint-authenticated Smoke gegen `GET /api/v1/session/current?vmid=100` erfolgreich; Response liefert `current_node=srv2`, `stream_host=46.4.96.80`, `moonlight_port=50000`, `reconnect_required=true`.
+  - `srv2`: Route und Endpoint-Auth verifiziert; mangels lokaler VM-Inventardaten liefert derselbe Smoke korrekt `404 session not found` statt `401`/`500`.
+- Live-Fund:
+  - Das neue `session-manager/` State-Verzeichnis war auf `srv1` initial durch Root-Debug-Lauf als `root:root` angelegt und haette den Dienstpfad fuer `beagle-manager` gebrochen.
+  - Ownership auf `srv1`/`srv2` live auf `beagle-manager:beagle-manager` korrigiert; Follow-up in `11-security-findings.md`.
+
+## Update (2026-04-27, GoEnterprise Plan 03 Operator-Slice: Variable Extend + Spieltitel)
+
+**Scope**: Kiosk-Operator-Grid fuer `srv2` weiter verdichtet, damit Betreiber nicht nur Metrikzahlen, sondern auch Titel und unterschiedliche Verlaengerungsstufen direkt sehen und ausloesen koennen.
+
+- [website/ui/kiosk_controller.js](/home/dennis/beagle-os/website/ui/kiosk_controller.js):
+  - neue Aktionen `+15m`, `+30m`, `+60m`
+  - neue Spalte `Spiel`
+  - GPU-Anzeige kombiniert jetzt `gpu_util_pct` + `gpu_temp_c`
+- [beagle-host/services/pool_manager.py](/home/dennis/beagle-os/beagle-host/services/pool_manager.py):
+  - `stream_health` persistiert jetzt auch `window_title`
+- Lokal validiert:
+  - `python3 -m pytest tests/unit/test_pool_manager.py tests/unit/test_pools_http_surface.py tests/unit/test_policies_ui_regressions.py -q` => `30 passed`
+  - `node --check website/ui/kiosk_controller.js` => OK
+- Live validiert auf `srv2` via Chrome DevTools:
+  - Session-Zeile zeigt `Steam - Hades`, `88 % / 71 C`, `+15m`, `+30m`, `+60m`
+  - `+30m` verlaengert eine abgelaufene Session live auf `29m 59s`
+  - temporaerer Test-User/State danach wieder entfernt
+
+## Update (2026-04-27, GoEnterprise Plan 03 Operator-Slice: Session-Extend + Live-Metriken)
+
+**Scope**: Kiosk-Operator-Flow im Policies-Panel von "sehen + hart beenden" auf echten Session-Betrieb erweitert und das Gaming-Dashboard fuer laufende Sessions live brauchbar gemacht.
+
+- [beagle-host/services/pool_manager.py](/home/dennis/beagle-os/beagle-host/services/pool_manager.py):
+  - kompatibles `session_expires_at` fuer zeitlimitierte Sessions eingefuehrt
+  - neue Methode `extend_kiosk_session(...)`
+  - `update_stream_health(...)` speichert jetzt zusaetzlich `gpu_util_pct` und `gpu_temp_c`
+- [beagle-host/services/pools_http_surface.py](/home/dennis/beagle-os/beagle-host/services/pools_http_surface.py):
+  - neuer Endpunkt `POST /api/v1/pools/kiosk/sessions/{vmid}/extend`
+  - Kiosk-Sessions liefern die vorhandene `stream_health` direkt an die WebUI durch
+- [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py):
+  - Extend-Route faellt unter `kiosk:operate`
+- [website/ui/kiosk_controller.js](/home/dennis/beagle-os/website/ui/kiosk_controller.js):
+  - neue Spalten `FPS`, `RTT`, `GPU`
+  - neue Operator-Aktion `+15m`
+- [beagle-host/services/gaming_metrics_service.py](/home/dennis/beagle-os/beagle-host/services/gaming_metrics_service.py):
+  - Dashboard-KPIs und Trends ziehen Werte jetzt aus aktiven Sessions, wenn noch keine Report-Dateien vorliegen
+- Lokal validiert:
+  - `python3 -m pytest tests/unit/test_pool_manager.py tests/unit/test_pools_http_surface.py tests/unit/test_authz_policy.py tests/unit/test_policies_ui_regressions.py tests/unit/test_gaming_metrics.py` => `58 passed`
+  - `node --check website/ui/kiosk_controller.js` => OK
+- Live validiert auf `srv2` via Chrome DevTools:
+  - berechtigte Kiosk-Session sichtbar mit `117 FPS`, `9 ms RTT`, `71 C`
+  - `+15m` verlaengert eine abgelaufene Session live auf `14m 59s`
+  - Gaming-Metrics-Dashboard zeigt fuer eine laufende Session `121.0 FPS`, `7.00 ms`, `73.0 C` inklusive Trends
+  - keine Console-Messages im Policies-Flow
+- Deploy:
+  - aktualisierte Services/UI auf `srv1` und `srv2` ausgerollt
+  - `beagle-control-plane` auf beiden Hosts neu gestartet und `active`
+
+## Update (2026-04-27, GoEnterprise Plan 03 Testpflicht + RBAC-UI-Gating)
+
+**Scope**: GPU-/`srv2`-kritische Restabnahme fuer Gaming-/Kiosk-Pools geschlossen und der eingeschraenkte `kiosk_operator`-Browserflow saubergezogen.
+
+- Backend-/Auth-Fix:
+  - [beagle-host/services/auth_session.py](/home/dennis/beagle-os/beagle-host/services/auth_session.py) backfillt fehlende Built-in-Rollen jetzt auch dann, wenn auf dem Host schon eine alte `roles.json` existiert; dadurch wird `kiosk_operator` auf Drift-Hosts wie `srv2` wieder automatisch verfuegbar.
+  - [beagle-host/services/auth_session_http_surface.py](/home/dennis/beagle-os/beagle-host/services/auth_session_http_surface.py) liefert in `GET /api/v1/auth/me` jetzt die effektiven Role-Permissions mit aus.
+- Frontend-Fix:
+  - [website/ui/dashboard.js](/home/dennis/beagle-os/website/ui/dashboard.js) laedt fuer Rollen ohne `cluster:read`, `pool:read` oder `auth:read` diese Endpunkte nicht mehr vorab.
+  - Folge: `kiosk_operator` sieht in `/#panel=policies` keine falsche Sammelwarnung ueber "nicht verfuegbare" APIs mehr, und die DevTools-Konsole bleibt im Operator-Flow sauber.
+- Regressionen erweitert:
+  - [tests/unit/test_pool_manager.py](/home/dennis/beagle-os/tests/unit/test_pool_manager.py)
+  - [tests/unit/test_pools_http_surface.py](/home/dennis/beagle-os/tests/unit/test_pools_http_surface.py)
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
+  - [tests/unit/test_auth_session.py](/home/dennis/beagle-os/tests/unit/test_auth_session.py)
+  - [tests/unit/test_auth_session_http_surface.py](/home/dennis/beagle-os/tests/unit/test_auth_session_http_surface.py)
+  - [tests/unit/test_dashboard_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_dashboard_ui_regressions.py)
+- Lokal validiert:
+  - `python3 -m pytest tests/unit/test_auth_session_http_surface.py tests/unit/test_dashboard_ui_regressions.py tests/unit/test_auth_session.py tests/unit/test_authz_policy.py tests/unit/test_pool_manager.py tests/unit/test_pools_http_surface.py` => `45 passed`
+  - `node --check website/ui/dashboard.js` => OK
+- Live validiert:
+  - `srv1` + `srv2`: Gaming-Pool-Allocation ohne freie GPU scheitert reproduzierbar hart; VM bleibt `pending-gpu`, kein CPU-Fallback.
+  - `srv2`: echter `kiosk_operator`-Login im Browser erfolgreich; Policies-Panel zeigt nur die berechtigte Kiosk-Session (`kiosk-visible`, VM `9301`) samt `Beenden + Reset`.
+  - `srv2`: `GET /api/v1/auth/users` fuer denselben Operator bleibt `403 forbidden`.
+  - `srv2`: nach Deploy von `dashboard.js` und `auth_session_http_surface.py` keine Console-Messages mehr im `/#panel=policies`-Flow.
+  - temporaerer Smoke-State und Test-User auf `srv2` danach wieder entfernt; `desktop-pools.json` / `pool-entitlements.json` auf den Vorzustand zurueckgesetzt.
+
+## Update (2026-04-27, Plan 11 Schritt 6+8: Proxmox-Mandat abgeschlossen)
+
+**Scope**: Letzte Python-interne `proxmox_*`-Variablennamen auf `beagle_*` migriert; CI gruen; srv1+srv2 validiert.
+
+- `beagle-host/services/thin_client_preset.py`: `build_common_preset()` akzeptiert neue `beagle_*`-Parameter; Legacy-`proxmox_*`-Kwargs bleiben als Compat-Aliases. `build_streaming_mode_input()` liefert `beagle_host`/`beagle_node`/`beagle_vmid` Keys. `PVE_THIN_CLIENT_PRESET_PROXMOX_*` Env-Var-Namen sind unveraendert (Thin-Client-Backwards-Compat).
+- `beagle-host/services/installer_script.py`: Lokale Variablen `proxmox_scheme` → `beagle_scheme` etc. (nur interne Umbenennung; Env-Keys unveraendert).
+- `beagle-host/services/ubuntu_beagle_state.py`: Phase-Name `"proxmox-create"` → `"beagle-create"`.
+- `beagle-host/services/ubuntu_beagle_provisioning.py`: Phase-Name `"proxmox-create"` → `"beagle-create"`; `--proxmox-host` → `--beagle-host` in configure-sunshine-guest.sh-Aufruf.
+- `scripts/configure-sunshine-guest.sh`: `--beagle-host` als neuer primärer Argument-Name; `--proxmox-host` bleibt als Backwards-Compat-Alias.
+- `beagle-host/services/metrics_collector.py`: Bug-Fix: `read_samples()` und `prune_old_shards()` nutzen jetzt injiziertes `utcnow` statt `datetime.now()` → Test `test_record_and_read_node_sample` gruen nach Fix.
+- 1069 Unit-Tests bestehen nach allen Renames. beagle-manager auf srv1+srv2 neu gestartet, Services gruen.
+- `docs/goadvanced/11-proxmox-endbeseitigung.md`: Alle Abnahmekriterien abgehakt.
+
+## Update (2026-04-27, GPU-Wizard-Selector + Kiosk-Path-Fix)
+
+**Scope**: `/#panel=policies` fuer GPU-/srv2-nahe Workflows weiter abgesichert und Live-Asset-Drift auf `srv1`/`srv2` bereinigt.
+
+- `website/index.html`, `website/ui/policies.js`, `website/ui/events.js`:
+  - `GPU-Klasse` im Pool-Wizard ist jetzt eine Select-Box statt Freitext.
+  - Optionen werden aus `state.virtualizationOverview.gpus` zu live aggregierten Passthrough-Klassen aufgebaut.
+  - Zusatzhinweis zeigt erkannte Passthrough-Klassen sowie mdev-/SR-IOV-Counts an.
+- `website/ui/kiosk_controller.js`:
+  - API-Pfade auf `request('/pools/...')` korrigiert; der vorherige doppelte Prefix `.../api/v1/api/v1/...` ist entfernt.
+- `tests/unit/test_policies_ui_regressions.py` erweitert; lokal validiert mit:
+  - `node --check website/ui/policies.js`
+  - `node --check website/ui/events.js`
+  - `node --check website/ui/kiosk_controller.js`
+  - `python3 -m pytest tests/unit/test_policies_ui_regressions.py` => `3 passed`
+- Live:
+  - betroffene WebUI-Assets auf `srv1` und `srv2` neu nach `/opt/beagle/website/ui/` ausgerollt
+  - Browser-Smoke auf `srv2`: Pool-Wizard zeigt `GPU-Klasse` jetzt als Select und den neuen Live-Hinweistext statt Freitextfeld
+  - Folgefix: `website/ui/settings.js` nutzt fuer IPAM-Zonen wieder API-relative Pfade (`/network/ipam/...`) statt `/api/v1/...`
+  - Folgefix: `website/beagle-web-ui-config.js` auf `srv1`/`srv2` unter `/opt/beagle/website/` ausgeliefert; vorher fiel nginx auf `/index.html` zurueck und erzeugte in Chrome `Unexpected token '<'`
+  - finaler Chrome-DevTools-Smoke auf `srv2`: keine Console-Errors mehr; authentifizierter `/#panel=policies`-Flow zeigt live `passthrough-nvidia-geforce-gtx-1080` im GPU-Wizard und `Keine aktiven Kiosk-Sessions.`
+
+**Offen/Rest-Risiko**:
+- Die GPU-Select-Option ist jetzt technisch korrekt und live befuellt, aber das Sichtlabel nutzt noch den vollen Inventory-Modeltext; ein spaeterer UX-Slice kann die Anzeige kuerzer machen, ohne den stabilen `gpu_class`-Value anzutasten.
+
+## Update (2026-04-27, GoEnterprise Plan 03 Schritt 5: Stateless Kiosk Reset)
+
+**Scope**: Kiosk-Sessions verlassen nach End/Timeout keinen unbrauchbaren Zwischenzustand mehr.
+
+- [beagle-host/services/pool_manager.py](/home/dennis/beagle-os/beagle-host/services/pool_manager.py):
+  - `release_desktop(...)` triggert fuer `pool_type=kiosk` + `floating_non_persistent` jetzt sofort `recycle_desktop(...)`
+  - `expire_overdue_sessions()` laeuft ueber denselben Release-/Recycle-Pfad und setzt ueberfaellige Kiosk-VMs direkt wieder auf `free`
+- neue fokussierte Regression [test_vm_stateless_reset.py](/home/dennis/beagle-os/tests/unit/test_vm_stateless_reset.py)
+- `website/ui/kiosk_controller.js` kennzeichnet die Operator-Aktion jetzt als `Beenden + Reset`
+- Lokal validiert:
+  - `31 passed` ueber `test_vm_stateless_reset.py`, `test_session_time_limit.py`, `test_pool_manager.py`, `test_policies_ui_regressions.py`
+- Live:
+  - `pool_manager.py` und die fehlende aktuelle [desktop_pool.py](/home/dennis/beagle-os/core/virtualization/desktop_pool.py) auf `srv1` und `srv2` ausgerollt
+  - `beagle-control-plane` auf beiden Hosts neu gestartet und `active`
+  - Runtime-Smoke direkt auf beiden Hosts gegen die deployten Module: Kiosk-Release ergibt `lease_state=free`, Endzustand `free`, `stop_vm` + `reset_vm_to_template` beide aktiv
+
 ## Update (2026-04-26, Settings-Updates Drei-Karten-UX)
 
 **Scope**: `/#panel=settings_updates` von technischer Sammelansicht auf eine laienfreundliche Operator-Ansicht reduziert.
@@ -3480,3 +3726,290 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `python3 -m py_compile beagle-host/services/server_settings.py`
   - `node --check website/ui/settings.js`
   - `python3 -m pytest tests/unit/test_server_settings.py tests/unit/test_authz_policy.py -q` => `31 passed`
+
+## Update (2026-04-27, GoFuture IAM/Audit WebUI-Operability)
+
+- IAM:
+  - `/#panel=iam` hat jetzt einen User-Detail-Drawer mit Basisdaten, Tenant, Gruppen, Status, aktiver Session-Anzahl und direkten Aktionen fuer Deaktivieren/Aktivieren, Session-Revoke und Passwort-Reset-Hinweis.
+  - Rollen-Editor mit Permission-Suche, Diff vor dem Speichern und UI-Schutz fuer eingebaute Rollen.
+  - Backend liefert Rollen-Metadaten `built_in`/`protected`, verhindert Aendern/Loeschen eingebauter Rollen und persistiert `tenant_id` bei User-Updates.
+- Audit:
+  - `/#panel=audit` ist in Live-Events/Filter, Export-Ziele, Report Builder, Compliance-Reports und Failures/Replay geschnitten.
+  - Event-Details werden vor Anzeige redacted; Failure-Payloads werden nur redacted persistiert.
+  - Neue Audit-POST-Routen: `POST /api/v1/audit/export-targets/{target}/test` und `POST /api/v1/audit/failures/replay`.
+- Validierung lokal:
+  - `node --check website/ui/iam.js website/ui/audit.js website/ui/events.js website/main.js`
+  - `python3 -m pytest tests/unit/test_auth_http_surface.py tests/unit/test_auth_session.py tests/unit/test_audit_report.py tests/unit/test_audit_export.py tests/unit/test_authz_policy.py` => `30 passed`
+- Runtime-Blocker:
+  - `srv1.beagle-os.com` und `srv2.beagle-os.com` per SSH erreichbar, aber `beagle-manager` meldet auf beiden `inactive`.
+  - Korrektur zum GPU-Smoke: `srv2` hat eine NVIDIA GTX 1080 (`10de:1b80`) und Audio-Funktion (`10de:10f0`), beide an `vfio-pci`; `nvidia-smi` fehlt nur auf dem Host. GPU-E2E bleibt offen, bis eine VM-seitige Passthrough-Pruefung mit Treiber (`nvidia-smi` im Gast oder aequivalent) erfolgreich ist.
+
+## Update (2026-04-27, srv2 GPU-Passthrough-VM-Smoke)
+
+- Auf `srv2` wurde eine transiente libvirt-Test-VM `beagle-gpu-smoke` erstellt.
+- Die VM bootete direkt mit Host-Kernel + minimalem Initramfs und folgenden Hostdevs:
+  - GTX 1080: `0000:01:00.0` (`10de:1b80`)
+  - NVIDIA Audio: `0000:01:00.1` (`10de:10f0`)
+- Ergebnis aus der seriellen Gast-Ausgabe:
+  - `BEAGLE_GPU_GUEST_NVIDIA_GTX1080=1`
+  - `BEAGLE_GPU_GUEST_NVIDIA_AUDIO=1`
+- Damit ist die VM-seitige aequivalente GPU-Pruefung aus GoFuture Plan 12 erfolgreich.
+- Nachlauf:
+  - Test-VM zerstoert und undefiniert.
+  - temporaere Dateien `/tmp/beagle-gpu-smoke.xml` und `/tmp/beagle-gpu-smoke-initrd.img` entfernt.
+  - Host-GPU bleibt an `vfio-pci` gebunden.
+- Rest-Risiko:
+  - Die IOMMU-Gruppe enthaelt weiterhin den PCIe Root Port `0000:00:01.0`; deshalb bleibt die WebUI-Sicherheitsbewertung `not-isolatable` fuer produktive Passthrough-Freigabe korrekt.
+
+## Update (2026-04-27, GoAdvanced Plan 08 Observability live validiert)
+
+- Korrektur Runtime-Unit: Auf `srv1`/`srv2` heisst die aktive Unit `beagle-control-plane.service`, nicht `beagle-manager.service`.
+- `scripts/install-beagle-proxy.sh` erweitert nginx um `location = /metrics` auf `http://127.0.0.1:9088/metrics`.
+- Live auf `srv1` und `srv2` angewendet und validiert:
+  - `nginx -t` erfolgreich,
+  - `systemctl reload nginx` erfolgreich,
+  - `curl -sk https://127.0.0.1/metrics` liefert 20 Prometheus-Samples.
+- `prometheus_metrics.py` rendert Default-Zero-Samples fuer Counter/Histogramme, damit frische Scrapes vor erstem Traffic mind. 10 Samples enthalten.
+- `beagle-host/services/` ist nach `rg '\bprint\(' beagle-host/services` frei von direkten Print-Aufrufen.
+- Authentifizierter Health-Check lokal auf beiden Hosts: `status=healthy`, Components `control_plane`, `providers`, `data_dir`.
+- Validierung lokal:
+  - `python3 -m pytest tests/unit/test_prometheus_metrics.py tests/unit/test_structured_logger.py tests/integration/test_request_id_middleware.py` => `43 passed`
+  - `python3 -m py_compile` fuer geaenderte Observability-Module
+  - `bash -n scripts/install-beagle-proxy.sh`
+
+## Update (2026-04-27, GoAdvanced Plan 05 Control-Plane-Split abgeschlossen)
+
+- `beagle-host/bin/beagle-control-plane.py` ist 90 LOC und bleibt reiner Bootstrap/Server-Start.
+- 13 `*_http_surface.py` Module sind produktiv.
+- `tests/unit/test_vm_http_surface.py` ergaenzt fehlende VM-Surface-Abdeckung fuer Profil, Downloads, State, Actions, Endpoint und Fehlerfaelle.
+- Neues reproduzierbares Smoke-Script: `scripts/smoke-control-plane-endpoints.sh`.
+- Validierung:
+  - Surface-Testauswahl: 125 Tests gruen.
+  - Live auf `srv1`: Health, VMs, Cluster, Virtualization, Jobs und `/metrics` gruen.
+
+## Update (2026-04-27, GoFuture Plan 12 GPU-Plane WebUI abgeschlossen)
+
+- `/#panel=virtualization` hat jetzt gefuehrte GPU-Assign-/Release-Flows:
+  - GPU-Zusammenfassung mit PCI, Modell, Treiber, Readiness,
+  - Ziel-VM-Auswahl plus direkte VMID-Eingabe,
+  - Risiko-Bestaetigung,
+  - Payload-Preview,
+  - sichtbarer Ergebnisbereich nach Mutation.
+- vGPU/mdev und SR-IOV wurden aus rohen Tabellen in Card-Flows umgebaut:
+  - mdev-Typ-Cards mit freier/maximaler Slot-Kapazitaet,
+  - mdev-Instanz-Cards mit Zuweisen/Loeschen,
+  - SR-IOV-Cards mit VF-Anzahl, Hardware-Constraint-Hinweis und VF-Anzeige.
+- UI-Bug behoben: GPU-Karten-Aktionen waren noch an die alte Tabellen-ID `virtualization-gpus-body` gebunden; produktiv ist `virtualization-gpu-cards`.
+- WebUI-Mutationscalls fuer GPU/vGPU/SR-IOV nutzen `postJson(...)` und API-relative Pfade.
+- Neue Regression: `tests/unit/test_virtualization_gpu_ui_regressions.py`.
+- Validierung lokal:
+  - `node --check website/ui/virtualization.js`
+  - `node --check website/ui/events.js`
+  - `python3 -m pytest tests/unit/test_virtualization_gpu_ui_regressions.py tests/unit/test_gpu_passthrough_service.py tests/unit/test_vgpu_service.py` => `53 passed`
+- Live validiert:
+  - WebUI-Assets nach `srv1` und `srv2` ausgerollt.
+  - Asset-Grep zeigt `gpu-wizard-steps`, `virtualization-gpu-cards`, `gpu-subcard-grid` auf beiden Hosts.
+  - `srv2` API meldet weiterhin GTX 1080 `0000:01:00.0`, `vfio-pci`, `not-isolatable`, `passthrough_ready=False`.
+
+## Update (2026-04-27, GoAdvanced Plan 07 Async Job Queue runtime-faehig)
+
+- Job-HTTP-RBAC geschlossen:
+  - nicht privilegierte Requester sehen nur eigene Jobs,
+  - fremde Job-Details, SSE-Streams und Cancel liefern `403`,
+  - `legacy-api-token`/localhost bleiben fuer Operator-Smokes privilegiert.
+- `jobs_panel.js` nutzt jetzt den echten Stream-Endpunkt `/jobs/{job_id}/stream` mit `access_token` Query-Parameter fuer EventSource und verarbeitet generische `message`-Events sowie benannte Events.
+- Worker-Registry produktiv erweitert:
+  - `vm.snapshot`,
+  - `vm.migrate`,
+  - `backup.run`.
+- `JobQueueService` persistiert Jobs nach `/var/lib/beagle/beagle-manager/jobs-state.json`.
+  - Abgeschlossene Jobs bleiben nach Control-Plane-Restart sichtbar.
+  - Laufende Jobs werden nach Restart als `failed: interrupted by control-plane restart` markiert.
+- Live-Validierung:
+  - `srv1` Backup-Job fuer VM100 lief per `POST /api/v1/backups/run` ueber Queue bis `completed 100`.
+  - `GET /api/v1/jobs/{id}/stream?access_token=...` lieferte finalen SSE-Event mit `status=completed`, `progress=100`.
+  - Nach `systemctl restart beagle-control-plane.service` blieb der persistierte Job per `GET /api/v1/jobs/{id}` sichtbar.
+  - `srv1`/`srv2` melden Worker-Handler: `backup.run`, `cluster.auto_join`, `cluster.maintenance_drain`, `vm.migrate`, `vm.snapshot`.
+- Einschraenkung:
+  - Der srv1-Backup-Smoke nutzte VM100, erzeugte aber nur ein 4.1K-Testarchiv; der explizite 5GB-Backup-Lasttest ist weiterhin ein separater Performance-/Storage-Test.
+- Validierung lokal:
+  - `node --check website/ui/jobs_panel.js website/ui/events.js`
+  - `python3 -m py_compile beagle-host/services/job_queue_service.py beagle-host/services/jobs_http_surface.py beagle-host/services/control_plane_handler.py beagle-host/services/service_registry.py`
+  - `python3 -m pytest tests/unit/test_job_queue_service.py tests/unit/test_job_worker.py tests/unit/test_jobs_http_surface.py tests/unit/test_jobs_panel_ui_regressions.py tests/unit/test_job_worker_registration_regressions.py` => `76 passed`
+
+## Update (2026-04-27, Login-500 auf srv1/srv2 behoben)
+
+- WebUI-Login auf `srv1.beagle-os.com` und `srv2.beagle-os.com` lieferte reproduzierbar `POST /beagle-api/api/v1/auth/login -> 500`.
+- Root Cause 1 behoben:
+  - `beagle-host/services/control_plane_handler.py` dispatchte Audit-POSTs ueber `AuditReportHttpSurfaceService.handles_post(path)` und konnte dadurch vor dem Auth-Handler mit `AttributeError` abbrechen.
+  - Fix: Dispatch nutzt jetzt die konkrete Surface-Instanz (`self._audit_report_surface().handles_post(path)`).
+- Root Cause 2 behoben:
+  - `AuthSessionService._load_roles_doc()` schrieb `roles.json` auch bei reinem Read-Pfad immer zurueck.
+  - Auf `srv1` war `roles.json` zwischenzeitlich `root:root`; dadurch erzeugte selbst ein ungueltiger Login ein `PermissionError` statt `401`.
+  - Fix: `beagle-host/services/auth_session.py` schreibt Rollen nur noch, wenn die Normalisierung den Payload tatsaechlich aendert.
+- Neue Regressionen:
+  - `tests/unit/test_audit_report.py` deckt den Audit-POST-Dispatch ueber die Surface-Instanz ab.
+  - `tests/unit/test_auth_session.py` deckt ab, dass ein bereits normalisiertes `roles.json` beim Lesen nicht mehr unnötig neu geschrieben wird.
+- Live deployt:
+  - Backend-Files nach `srv1` und `srv2` ausgerollt, `beagle-control-plane.service` auf beiden Hosts neu gestartet.
+  - `srv1`: fehlerhafte Owner-Mutation an `/var/lib/beagle/beagle-manager/auth/roles.json` auf `beagle-manager:beagle-manager` korrigiert.
+- Verifikation:
+  - Lokal: `python3 -m pytest tests/unit/test_auth_session.py tests/unit/test_audit_report.py tests/unit/test_auth_http_surface.py` => `17 passed`
+  - API-Smoke auf `srv1` und `srv2`: ungueltiger Login liefert jetzt `401 unauthorized`, kein `500` mehr.
+- Browser-Smoke via Chrome DevTools auf `srv2`: `POST https://srv2.beagle-os.com/beagle-api/api/v1/auth/login` liefert `401` mit JSON `invalid credentials`, kein `500`.
+- Restbefund: Chromium meldet fuer `srv2` initial `ERR_CERT_AUTHORITY_INVALID`; nach manuellem Proceed laedt die WebUI und der Login-Request selbst ist gesund.
+
+## Update (2026-04-27, GoEnterprise Plan 03 Gaming/Kiosk-Pools weitergezogen)
+
+- Pool-Wizard in `website/index.html` und `website/ui/policies.js` erweitert:
+  - `Pool-Typ` (`desktop|gaming|kiosk|gpu_*`)
+  - `GPU-Klasse`
+  - `Session-Limit (Minuten)`
+  - `Kosten / Minute`
+- Wizard-Validierung ergänzt:
+  - Gaming-Pools brauchen `gpu_class`
+  - Kiosk-Pools brauchen `session_time_limit_minutes > 0`
+- Backend ergänzt:
+  - `PoolsHttpSurfaceService` akzeptiert `pool_type`, `session_time_limit_minutes`, `session_cost_per_minute`
+  - `PoolManagerService` validiert Gaming-/Kiosk-Pools serverseitig und serialisiert `pool_type`, `session_time_limit_minutes`, `session_cost_per_minute` an die WebUI
+- Kiosk-Operator-RBAC technisch geschlossen:
+  - neue Permission `kiosk:operate`
+  - Default-Rolle `kiosk_operator` erweitert auf `vm:read`, `vm:power`, `kiosk:operate`
+  - dedizierte Endpunkte `GET /api/v1/pools/kiosk/sessions` und `POST /api/v1/pools/kiosk/sessions/{vmid}/end`
+- Vorhandenes `website/ui/kiosk_controller.js` eingebunden; Policies-Panel rendert jetzt eine echte Kiosk-Controller-Karte statt totem Code.
+- Neue Regressionen:
+  - `tests/unit/test_pools_http_surface.py`
+  - `tests/unit/test_policies_ui_regressions.py`
+  - Erweiterungen in `tests/unit/test_auth_session.py`, `tests/unit/test_authz_policy.py`, `tests/unit/test_session_time_limit.py`
+- Validierung:
+  - lokal: `python3 -m pytest tests/unit/test_session_time_limit.py tests/unit/test_auth_session.py tests/unit/test_authz_policy.py tests/unit/test_pools_http_surface.py tests/unit/test_policies_ui_regressions.py` => `34 passed`
+  - lokal: `node --check website/ui/policies.js website/ui/kiosk_controller.js`
+  - live auf `srv1` und `srv2`: neue Backend-/WebUI-Dateien deployt, `beagle-control-plane.service` neu gestartet
+  - API-Smoke auf `srv1`/`srv2`: `GET /api/v1/pools/kiosk/sessions` via Legacy-Token => HTTP `200`, Payload `{ok: true, sessions: ...}`
+  - Browser-Smoke via Chrome DevTools auf `srv2`: `/#panel=policies` zeigt `Pool-Typ`, `GPU-Klasse`, `Session-Limit (Minuten)` und `Kiosk-Controller`
+## Update (2026-04-27, Gaming Metrics Dashboard)
+
+- `GamingMetricsService` haengt jetzt an der produktiven Stream-Health-Pipeline:
+  - neuer API-Read-Endpunkt `GET /api/v1/gaming/metrics`
+  - `POST /api/v1/sessions/stream-health` aktualisiert bei Gaming-Pools parallel den Metrics-Aggregator
+- `/#panel=policies` zeigt jetzt ein echtes Gaming-Metrics-Dashboard:
+  - KPI-Uebersicht
+  - SVG-Trends fuer FPS, RTT und GPU-Temperatur
+  - aktive Gaming-Sessions und letzte Reports
+- Ziel des Slices: den GPU-/Gaming-spezifischen Operator-Flow auf `srv2` vor Abschaltung noch browser- und hostseitig bedienbar machen.
+
+## Update (2026-04-27, GoEnterprise Plan 03 Kiosk-Operator Slice: Pool-Stufen + Alert-Chips)
+
+- Kiosk-Pools haben jetzt serverseitig konfigurierbare Verlaengerungsstufen:
+  - neues Pool-Feld `session_extension_options_minutes`
+  - `PoolManagerService` normalisiert Stufen, serialisiert sie an die WebUI und lehnt nicht konfigurierte Extend-Minuten ab
+  - `PoolsHttpSurfaceService` liefert die Stufen pro Kiosk-Session an den Controller aus
+- `website/ui/policies.js` erweitert den Pool-Wizard um `Verlaengerungsstufen (Minuten)` und zeigt die Stufen auch in den Pool-Cards an.
+- `website/ui/kiosk_controller.js` rendert Extend-Aktionen jetzt dynamisch pro Session statt mit festen `+15m/+30m/+60m`-Buttons.
+- Der Kiosk-Controller zeigt jetzt zusaetzliche Stream-Probleme frueh sichtbar als Chips:
+  - `Encoder ... %` bei hoher `encoder_load`
+  - `Drops ...` bei Dropped Frames
+- Validierung lokal:
+  - `node --check website/ui/policies.js`
+  - `node --check website/ui/kiosk_controller.js`
+  - `python3 -m py_compile beagle-host/services/pool_manager.py beagle-host/services/pools_http_surface.py core/virtualization/desktop_pool.py`
+  - `python3 -m pytest tests/unit/test_pool_manager.py tests/unit/test_pools_http_surface.py tests/unit/test_policies_ui_regressions.py -q` => `33 passed`
+- Live validiert:
+  - Deploy auf `srv1` und `srv2`, `beagle-control-plane` auf beiden Hosts `active`
+  - API-Smoke auf `srv1` und `srv2`: `GET /api/v1/pools/kiosk/sessions` liefert `200`
+  - Browser-Smoke auf `srv2` mit temporaerem Kiosk-State:
+    - Pool-Card zeigt `Verlaengerungen: 30, 60 Min`
+    - Kiosk-Grid zeigt nur `+30m` und `+60m`
+    - Alert-Chips `Encoder 95 %` und `Drops 12` sichtbar
+    - `+30m` verlaengert live weiter korrekt
+- Restbefund im Browser bleibt unveraendert:
+  - nur bestehende DOM-/Accessibility-Warnungen (`password field not contained in a form`, `aria-hidden` am Login-Modal), keine neue Runtime-JavaScript-Regression
+
+## Update (2026-04-27, Auth-Modal A11y-Follow-up)
+
+- `website/index.html` nutzt fuer Login und Onboarding jetzt echte `<form>`-Container statt lose Passwortfelder in nackten Dialogen.
+- `website/ui/panels.js` hat einen gemeinsamen `setModalState(...)`-Helper fuer `hidden`, `aria-hidden`, `inert` und Fokus-Bereinigung beim Schliessen von Modals.
+- Lokal validiert:
+  - `node --check website/ui/panels.js`
+  - `python3 -m pytest tests/unit/test_auth_ui_regressions.py -q` => `2 passed`
+- Live auf `srv1` und `srv2` ausgerollt.
+- Browser-Smoke auf `srv2`:
+  - der fruehere `aria-hidden`-Warnpfad am Login-Modal tritt nicht mehr auf
+  - die DevTools-`Password field is not contained in a form`-Warnungen sind reduziert, aber noch nicht vollstaendig weg, weil weitere Passwortfelder ausserhalb von Forms im DOM verbleiben
+# Progress
+
+## 2026-04-27 - Two-host installer/cluster glue closed
+
+- Added persistent node-ready reporting via `POST /api/v1/nodes/install-check` and `GET /api/v1/nodes/install-checks`.
+- Added [node_install_check_service.py](/home/dennis/beagle-os/beagle-host/services/node_install_check_service.py) to persist recent post-install reports and expose the latest successful node-ready event to the WebUI.
+- Added first-boot cluster auto-join glue:
+  - [beagle-cluster-auto-join.sh](/home/dennis/beagle-os/scripts/beagle-cluster-auto-join.sh)
+  - [beagle-cluster-auto-join.service](/home/dennis/beagle-os/beagle-host/systemd/beagle-cluster-auto-join.service)
+- `cluster_membership.py` now carries the shared install-check report token in the join response and persists it on the joining node, so future joined servers can report readiness back to the leader without a manual secret handoff.
+- `website/ui/dashboard.js`, `website/ui/cluster.js` and `website/index.html` now surface the latest successful node-ready report as a cluster banner.
+- `server-installer/post-install-check.sh` was aligned with the current runtime:
+  - required service set reduced to `libvirtd` + `beagle-control-plane`
+  - old auth-protected API probe replaced by unauthenticated `/healthz`
+  - report JSON no longer depends on `jq`
+- Closed a live two-host drift on the running cluster:
+  - both hosts still had stale member URLs (`http://<ip>:9088/api/v1`)
+  - member entries were normalized to `https://srv1.beagle-os.com/beagle-api/api/v1` and `https://srv2.beagle-os.com/beagle-api/api/v1`
+  - cluster peer health probes now ignore public-cert trust for liveness only, so `srv2`'s still-imperfect public certificate chain no longer flips cluster members to `unreachable`
+- Live validation:
+  - `srv1` cluster status: `srv1 online`, `srv2 online`
+  - `srv2` cluster status: `srv1 online`, `srv2 online`
+  - `srv2` post-install check reported `pass` to `srv1` with full checks payload
+  - local validation:
+    - `35 passed` across cluster membership / install-check / authz / dashboard regressions
+    - `bats tests/bats/cluster_auto_join.bats`
+    - `bats tests/bats/post_install_check.bats`
+
+## 2026-04-27 - Gaming/Kiosk two-host smoke hardened
+
+- Added repo-owned live smoke script `scripts/smoke-gaming-kiosk-flow.sh` for the combined Gaming/Kiosk flow on `srv1`/`srv2`.
+- Script now validates live:
+  - `GET /api/v1/gaming/metrics`
+  - `GET /api/v1/pools/kiosk/sessions`
+  - `POST /api/v1/pools/kiosk/sessions/{vmid}/extend`
+- Closed a real runtime defect on `srv1`:
+  - live `extend` returned `500`, while unit tests and isolated route calls were green
+  - root cause was file-ownership drift on `/var/lib/beagle/beagle-manager/desktop-pools.json.lock`, not the kiosk/session API logic itself
+- `beagle-host/services/request_handler_mixin.py` now logs full structured tracebacks for uncaught request exceptions, so host-only failures are diagnosable from `journalctl`.
+- `scripts/smoke-gaming-kiosk-flow.sh` now restores `desktop-pools.json` to `beagle-manager:beagle-manager`, preserves file mode, and removes stale `.lock` files after cleanup.
+- Live validation:
+  - `srv1` smoke now fully green
+  - `srv2` smoke remains fully green
+  - both hosts are left without `smoke-flow`/`debug-flow` test state after the run
+
+## 2026-04-27 - IAM UI regressions closed
+
+- Added `tests/unit/test_iam_ui_regressions.py` for the IAM panel UX refactor.
+- Coverage now includes:
+  - user detail drawer and tenant/session sections
+  - built-in role guardrails and permission-selection flow markers
+  - session revoke path
+  - tenant, IdP and SCIM empty-state rendering hooks
+- Local validation:
+  - `node --check website/ui/iam.js`
+  - `python3 -m pytest tests/unit/test_iam_ui_regressions.py -q` -> `3 passed`
+- `docs/gofuture/13-iam-tenancy.md` Step 7 checkbox for UI regressions is now closed.
+
+## 2026-04-27 - GPU window on srv2 closed
+
+- Added predictive GPU-pressure scoring to [smart_scheduler.py](/home/dennis/beagle-os/beagle-host/services/smart_scheduler.py):
+  - new `NodeCapacity.predicted_gpu_utilization_pct_4h`
+  - GPU placement now evaluates the worse of current vs. predicted GPU utilization
+- Extended [test_smart_scheduler.py](/home/dennis/beagle-os/tests/unit/test_smart_scheduler.py):
+  - nodes with imminent GPU overload are no longer preferred
+  - predicted GPU overload now trips the threshold guard for GPU workloads
+- Added reproducible host-level guest probe [test-gpu-passthrough-guest-smoke.sh](/home/dennis/beagle-os/scripts/test-gpu-passthrough-guest-smoke.sh):
+  - boots a transient KVM guest on `srv2`
+  - attaches GTX 1080 (`0000:01:00.0`) and NVIDIA audio (`0000:01:00.1`) as PCI hostdevs
+  - verifies guest-side detection through serial log markers
+- Validated:
+  - local: `python3 -m pytest tests/unit/test_smart_scheduler.py -q` -> `10 passed`
+  - `srv2`: `scripts/test-gpu-passthrough-guest-smoke.sh` -> guest detects GTX 1080 + audio
+  - `srv2`: `scripts/test-gpu-inventory-smoke.py` -> `PLAN12_GPU_SMOKE=PASS`
+- Result:
+  - no remaining mandatory GPU-only validation item is left open for the current plan state
+  - `srv2` is no longer needed for any unresolved Pflichtpunkt in the GPU plane

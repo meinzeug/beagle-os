@@ -312,7 +312,7 @@ export function loadSettingsNetwork() {
 }
 
 export function loadIpamZones() {
-  return request('/api/v1/network/ipam/zones').then((data) => {
+  return request('/network/ipam/zones').then((data) => {
     const select = document.getElementById('ipam-zone-select');
     if (!select) { return; }
     const zones = data.zones || {};
@@ -338,7 +338,7 @@ export function loadIpamZones() {
 
 export function loadIpamLeases(zoneId) {
   if (!zoneId) { return Promise.resolve(); }
-  return request('/api/v1/network/ipam/zones/' + encodeURIComponent(zoneId) + '/leases').then((data) => {
+  return request('/network/ipam/zones/' + encodeURIComponent(zoneId) + '/leases').then((data) => {
     const tbody = qs('ipam-leases-body');
     if (!tbody) { return; }
     const leases = data.leases || [];
@@ -822,15 +822,13 @@ export function runArtifactWatchdog() {
 }
 
 export function enableFullAutoMaintenance() {
-  if (qs('repo-update-enabled')) {
-    qs('repo-update-enabled').checked = true;
-  }
-  if (qs('artifact-watchdog-enabled')) {
-    qs('artifact-watchdog-enabled').checked = true;
-  }
   settingsHooks.setBanner('Vollautomatik wird aktiviert...', 'info');
-  return saveRepoAutoUpdate()
-    .then(() => saveArtifactWatchdog())
+  return request('/settings/maintenance/auto-enable', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+    __timeoutMs: 60000
+  })
     .then(() => Promise.all([loadSettingsUpdates(), loadArtifactStatus({ silent: true })]))
     .then(() => {
       settingsHooks.setBanner('Vollautomatik aktiv: Repo-Checks und Artefakt-Reparatur laufen jetzt automatisch.', 'info');
@@ -842,9 +840,12 @@ export function enableFullAutoMaintenance() {
 
 export function runFullMaintenanceNow() {
   settingsHooks.setBanner('Komplettpflege wird gestartet...', 'info');
-  return Promise.resolve()
-    .then(() => runRepoAutoUpdateCheck())
-    .then(() => runArtifactWatchdog())
+  return request('/settings/maintenance/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+    __timeoutMs: 120000
+  })
     .then(() => Promise.all([loadSettingsUpdates(), loadArtifactStatus({ silent: true })]))
     .then(() => {
       settingsHooks.setBanner('Komplettpflege gestartet. Status wird automatisch aktualisiert.', 'info');

@@ -181,6 +181,9 @@ export function request(path, options) {
   const finalOptions = Object.assign({ method: 'GET', credentials: 'same-origin' }, rawOptions);
   finalOptions.headers = Object.assign({}, finalOptions.headers || {}, authHooks.buildAuthHeaders());
   const method = String(finalOptions.method || 'GET').toUpperCase();
+  if ((method === 'GET' || method === 'HEAD') && !finalOptions.cache) {
+    finalOptions.cache = 'no-store';
+  }
   const startRequest = () => fetchWithTimeout(target, finalOptions, timeoutMs > 0 ? timeoutMs : undefined);
   const startWithBackoff = () => {
     const delayMs = rateLimitBackoffUntil - Date.now();

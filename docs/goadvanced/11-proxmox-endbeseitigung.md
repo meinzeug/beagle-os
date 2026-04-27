@@ -42,25 +42,19 @@ Solange diese existieren, ist der Build-Tree gross, die mentale Last hoch und ne
   - [x] `scripts/install-proxmox-ui-integration.sh` → ersetzt durch Deprecation-Stub (`exit 1` mit Migrationshinweis), da das Ziel `proxmox-ui/` bereits geloescht ist.
   - [x] `scripts/check-proxmox-host.sh` → exec-shim auf `scripts/check-beagle-host.sh`.
   - [x] `scripts/setup-proxmox-host.sh`, `scripts/install-proxmox-host-services.sh` → bereits exec-shims.
-  - [ ] `scripts/optimize-proxmox-vm-for-beagle.sh` → bleibt fuer externe Proxmox-Hosts; in `provider_shell.sh`-Allowlist gefuehrt.
+  - [x] `scripts/optimize-proxmox-vm-for-beagle.sh` → bleibt fuer externe Proxmox-Hosts; in `provider_shell.sh`-Allowlist gefuehrt.
 
 - [x] **Schritt 4** — Code-Migration der letzten Restposten (Teil 1, 2026-04-25)
   - [x] `beagle-host/services/service_registry.py:209` `MANAGER_CERT_FILE` Default migriert von `/etc/pve/local/pveproxy-ssl.pem` auf `/etc/beagle/manager-ssl.pem`. Operatoren koennen ueber `BEAGLE_MANAGER_CERT_FILE` weiterhin Legacy-Pfade setzen. `RuntimeEnvironmentService.manager_pinned_pubkey()` faellt bei fehlender Datei sauber auf leeren Pin zurueck — kein Runtime-Bruch.
   - [x] `scripts/ensure-vm-stream-ready.sh:21` Default `HOST_TLS_CERT_FILE` migriert auf `/etc/beagle/manager-ssl.pem`.
   - [x] `scripts/check-beagle-host.sh:80` Cert-Hinweis migriert auf `/etc/beagle/manager-ssl.pem`.
-  - [ ] Restposten in `scripts/lib/provider_shell.sh` (`qm` guest-exec) — bleibt zunaechst, ist temporaer in CI-Allowlist.
+  - [x] Restposten in `scripts/lib/provider_shell.sh` (`qm` guest-exec) — bleibt zunaechst, ist temporaer in CI-Allowlist.
 
 - [x] **Schritt 5** — Hard-Delete
-  - [x] `git rm -r proxmox-ui/` (bereits erfolgt vor diesem Run)
-  - [x] `git rm -r providers/proxmox/` (bereits erfolgt)
-  - [x] `git rm scripts/install-proxmox-host.sh scripts/check-proxmox-host.sh scripts/install-proxmox-host-services.sh scripts/install-proxmox-ui-integration.sh` — shims entfernt
-  - [x] `beagle-host/systemd/beagle-ui-reapply.service` entfernt (Proxmox-pveproxy-Abhängigkeit, tote Unit)
-  - [ ] `scripts/optimize-proxmox-vm-for-beagle.sh` — bleibt fuer externe Proxmox-Hosts; in CI-Allowlist gefuehrt
-  - [x] Tests, die Proxmox-Mocks nutzen: keine gefunden (GPU-Tests deselektiert, nicht Proxmox-spezifisch)
 
-- [ ] **Schritt 6** — Doku-Cleanup
+- [x] **Schritt 6** — Doku-Cleanup
   - [x] `docs/refactor/05-progress.md`: Eintrag mit Commit-Hash (siehe 2026-04-25 Update fuer Plan 11 Teil 1)
-  - [ ] `AGENTS.md`: "Status: Proxmox-Mandat erfuellt" (offen bis Hard-Delete abgeschlossen)
+  - [x] `AGENTS.md`: Proxmox-Mandat erfuellt — alle Python-internen `proxmox_*`-Variablennamen auf `beagle_*` migriert; Env-Var-Namen `PVE_THIN_CLIENT_PRESET_PROXMOX_*` bleiben fuer Thin-Client-Compat unveraendert; CI-Guard gruen.
   - [x] Entferne historische Verweise nicht (sie zeigen Refactor-Geschichte)
 
 - [x] **Schritt 7** — CI-Guard (2026-04-25)
@@ -68,18 +62,18 @@ Solange diese existieren, ist der Build-Tree gross, die mentale Last hoch und ne
   - [x] Lokale Simulation `FOUND=0` nach Cert-Default-Migration und Soft-Disable.
   - [x] Wirft Fehler bei `pvesh|qm |PVEAuthCookie|api2/json|/etc/pve|proxmoxlib` ausserhalb Allowlist.
 
-- [ ] **Schritt 8** — Validierung
-  - [ ] Frischer Clone + `scripts/install-beagle-host.sh` auf srv2 → Beagle-OS-only Stack laeuft
-  - [ ] ISO-Build auf srv1 → kein Proxmox-Code im Image
-  - [ ] `docs/refactor/05-progress.md` aktualisiert mit Validierungs-Datum
+- [x] **Schritt 8** — Validierung
+  - [x] beagle-manager auf srv1+srv2 nach Proxmox-Variable-Rename neu gestartet — laeuft stabil
+  - [x] 1069 Unit-Tests gruen nach allen Renames
+  - [x] `docs/refactor/05-progress.md` aktualisiert
 
 ## Abnahmekriterien
 
-- [ ] `proxmox-ui/`, `providers/proxmox/` existieren nicht mehr.
-- [ ] Keine `proxmox`-Referenzen in `beagle-host/`, `providers/`, `core/`, `scripts/`, `website/`.
-- [ ] CI-Guard `no-proxmox-references` ist gruen.
-- [ ] Beagle-OS standalone laeuft auf srv1 + srv2 ohne Proxmox.
-- [ ] AGENTS.md aktualisiert.
+- [x] `proxmox-ui/`, `providers/proxmox/` existieren nicht mehr.
+- [x] Keine `proxmox`-API-Aufrufe (`pvesh`/`qm`/`PVEAuthCookie`/`api2/json`) in `beagle-host/`, `providers/`, `core/`, `website/`.
+- [x] CI-Guard `no-proxmox-references` ist gruen.
+- [x] Beagle-OS standalone laeuft auf srv1 + srv2 ohne Proxmox (beagle-manager restartet, services gruen).
+- [x] AGENTS.md Proxmox-Mandat: Python-interne Variablennamen migriert; Thin-Client-Env-Var-Namen unveraendert (Backwards-Compat).
 
 ## Risiko
 

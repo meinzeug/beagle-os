@@ -7,6 +7,7 @@ import json
 import secrets
 import shutil
 import socket
+import ssl
 import time
 import urllib.error
 import urllib.request
@@ -26,6 +27,8 @@ class ClusterMembershipService:
         public_manager_url: str,
         rpc_port: int,
         utcnow,
+        control_env_file: Path | None = None,
+        install_check_report_token: str = "",
         rpc_request=None,
         rpc_credentials=None,
     ) -> None:
@@ -34,6 +37,8 @@ class ClusterMembershipService:
         self._public_manager_url = str(public_manager_url or "").strip().rstrip("/")
         self._rpc_port = int(rpc_port)
         self._utcnow = utcnow
+        self._control_env_file = Path(control_env_file) if control_env_file else None
+        self._install_check_report_token = str(install_check_report_token or "").strip()
         self._rpc_request = rpc_request
         self._rpc_credentials = rpc_credentials
 
@@ -392,7 +397,8 @@ class ClusterMembershipService:
         health_url = self._healthz_url(api_url)
         try:
             req = urllib.request.Request(health_url, method="GET", headers={"Accept": "application/json"})
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            ssl_context = ssl._create_unverified_context() if health_url.startswith("https://") else None
+            with urllib.request.urlopen(req, timeout=timeout, context=ssl_context) as resp:
                 return int(resp.status) == 200
         except Exception:
             return False
@@ -572,6 +578,7 @@ class ClusterMembershipService:
                 "key_pem": key_path.read_text(encoding="utf-8"),
                 "ca_cert_pem": ca_cert_path.read_text(encoding="utf-8"),
             },
+            "install_check_report_token": self._install_check_report_token,
         }
 
     def apply_join_response(self, *, node_name: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -603,11 +610,35 @@ class ClusterMembershipService:
             self._ca_service.ca_cert_path().chmod(0o644)
         except OSError:
             pass
+        self._persist_install_check_report_token(str(payload.get("install_check_report_token") or "").strip())
         return {
             "cluster": cluster,
             "member": member,
             "members": normalized_members,
         }
+
+    def _persist_install_check_report_token(self, token: str) -> None:
+        normalized = str(token or "").strip()
+        if not normalized or self._control_env_file is None:
+            return
+        path = self._control_env_file
+        lines: list[str] = []
+        if path.exists():
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                lines = []
+        updated = False
+        next_lines: list[str] = []
+        for raw in lines:
+            if raw.startswith("BEAGLE_INSTALL_CHECK_REPORT_TOKEN="):
+                next_lines.append(f'BEAGLE_INSTALL_CHECK_REPORT_TOKEN="{normalized}"')
+                updated = True
+            else:
+                next_lines.append(raw)
+        if not updated:
+            next_lines.append(f'BEAGLE_INSTALL_CHECK_REPORT_TOKEN="{normalized}"')
+        path.write_text("\n".join(next_lines) + "\n", encoding="utf-8")
 
     def join_existing_cluster(
         self,
