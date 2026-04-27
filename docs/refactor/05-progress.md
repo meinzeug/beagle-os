@@ -4274,3 +4274,5 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - host launcher downloads are `200`, contain installer-log hooks and no `8443`
   - VM100 generated installer log smoke wrote `script_started`, `bootstrap_helpers_present`, `device_listing_started`, `device_listing_completed`, `script_completed`
   - invalid installer-log token returns `401`
+- GitHub release workflow hardening:
+  - `release.yml` no longer uploads `dist/sbom/SHA256SUMS` as a second asset named `SHA256SUMS`; the root release checksum file remains authoritative.

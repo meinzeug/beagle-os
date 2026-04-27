@@ -310,7 +310,7 @@ jobs:
           # Bundle SBOM files
           while IFS= read -r -d '' f; do
             assets+=("$f")
-          done < <(find dist/sbom/ -type f -print0 | sort -z)
+          done < <(find dist/sbom/ -type f ! -name 'SHA256SUMS' -print0 | sort -z)
 
           # GitHub Release assets have a hard per-file size limit. Keep the
           # release green and publish a manifest for files that must stay as

@@ -289,6 +289,13 @@ Stand: 2026-04-13
 - Konsequenz: Alte versionierte Thin-Client-Download-Artefakte werden beim Veroeffentlichen entfernt, damit oeffentliche Download-Indizes keine alten `v6.x`-Launcher mit veralteten URLs weiter anbieten.
 - Dateien: `scripts/lib/artifact_lock.sh`, `scripts/package.sh`, `scripts/prepare-host-downloads.sh`, `scripts/check-beagle-host.sh`.
 
+## D-048: Release-Assets duerfen keine kollidierenden Basenames haben
+
+- Entscheidung: Das Release-Workflow-Assetset darf keine zwei Dateien mit demselben Basename hochladen.
+- Grund: GitHub Release Assets werden anhand des Asset-Namens verwaltet; `dist/SHA256SUMS` und `dist/sbom/SHA256SUMS` kollidieren als `SHA256SUMS` und koennen den finalen Release-Job fehlschlagen lassen.
+- Konsequenz: Die SBOM-interne `SHA256SUMS` bleibt im Workflow-Artefakt, wird aber nicht als separates Release-Asset hochgeladen. Die root `dist/SHA256SUMS` bleibt das veroeffentlichte Checksummen-Manifest.
+- Dateien: `.github/workflows/release.yml`.
+
 ## 2026-04-26 - Cluster Leave und Virtualization Overview bleiben leader-/cluster-autoritativ
 
 - Ein Cluster-Mitglied darf seinen lokalen Cluster-State loeschen, aber nicht den Leader-State still implizit veraendern.
