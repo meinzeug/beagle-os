@@ -81,6 +81,23 @@ class MDMPolicyService:
     def list_policies(self) -> list[MDMPolicy]:
         return [mdm_policy_from_dict(d) for d in self._state["policies"].values()]
 
+    def delete_policy(self, policy_id: str) -> bool:
+        if policy_id not in self._state["policies"]:
+            return False
+        del self._state["policies"][policy_id]
+        self._state["device_assignments"] = {
+            key: value
+            for key, value in self._state["device_assignments"].items()
+            if value != policy_id
+        }
+        self._state["group_assignments"] = {
+            key: value
+            for key, value in self._state["group_assignments"].items()
+            if value != policy_id
+        }
+        self._save()
+        return True
+
     # ------------------------------------------------------------------
     # Assignment
     # ------------------------------------------------------------------
@@ -97,17 +114,69 @@ class MDMPolicyService:
         self._state["group_assignments"][group] = policy_id
         self._save()
 
+    def assign_to_devices(self, device_ids: list[str], policy_id: str) -> list[str]:
+        if policy_id not in self._state["policies"]:
+            raise KeyError(f"Policy {policy_id!r} not found")
+        updated: list[str] = []
+        for device_id in device_ids:
+            normalized = str(device_id or "").strip()
+            if not normalized:
+                continue
+            self._state["device_assignments"][normalized] = policy_id
+            updated.append(normalized)
+        self._save()
+        return updated
+
+    def clear_device_assignment(self, device_id: str) -> bool:
+        removed = self._state["device_assignments"].pop(device_id, None)
+        if removed is None:
+            return False
+        self._save()
+        return True
+
+    def clear_device_assignments(self, device_ids: list[str]) -> list[str]:
+        cleared: list[str] = []
+        for device_id in device_ids:
+            normalized = str(device_id or "").strip()
+            if not normalized:
+                continue
+            if self._state["device_assignments"].pop(normalized, None) is not None:
+                cleared.append(normalized)
+        self._save()
+        return cleared
+
+    def clear_group_assignment(self, group: str) -> bool:
+        removed = self._state["group_assignments"].pop(group, None)
+        if removed is None:
+            return False
+        self._save()
+        return True
+
+    def list_assignments(self) -> dict[str, dict[str, str]]:
+        return {
+            "device_assignments": dict(self._state["device_assignments"]),
+            "group_assignments": dict(self._state["group_assignments"]),
+        }
+
     def resolve_policy(self, device_id: str, group: str = "") -> MDMPolicy:
         """Effective policy: device-level overrides group-level, group overrides default."""
+        return self.resolve_policy_with_source(device_id, group)[0]
+
+    def resolve_policy_with_source(self, device_id: str, group: str = "") -> tuple[MDMPolicy, str, str]:
+        """Return effective policy plus its source tuple (device|group|default, source_id)."""
         # Device-level assignment takes priority
         pid = self._state["device_assignments"].get(device_id)
+        if pid:
+            p = self.get_policy(pid)
+            if p:
+                return p, "device", str(device_id or "")
         if not pid and group:
             pid = self._state["group_assignments"].get(group)
         if pid:
             p = self.get_policy(pid)
             if p:
-                return p
-        return self.DEFAULT_POLICY
+                return p, "group", str(group or "")
+        return self.DEFAULT_POLICY, "default", "__default__"
 
     # ------------------------------------------------------------------
     # Enforcement helpers

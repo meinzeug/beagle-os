@@ -13,12 +13,14 @@ from typing import Any, Callable
 
 class FleetHttpSurfaceService:
     _DEVICE_DETAIL = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)$")
+    _DEVICE_EFFECTIVE_POLICY = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/effective-policy$")
     _DEVICE_ACTION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/(?P<action>heartbeat|lock|unlock|wipe|confirm-wiped)$")
 
     def __init__(
         self,
         *,
         device_registry_service: Any,
+        mdm_policy_service: Any | None = None,
         audit_event: Callable[..., None] | None = None,
         requester_identity: Callable[[], str] | None = None,
         service_name: str = "beagle-control-plane",
@@ -26,6 +28,7 @@ class FleetHttpSurfaceService:
         version: str = "",
     ) -> None:
         self._registry = device_registry_service
+        self._mdm_policy = mdm_policy_service
         self._audit_event = audit_event
         self._requester_identity = requester_identity or (lambda: "")
         self._service_name = str(service_name or "beagle-control-plane")
@@ -93,6 +96,8 @@ class FleetHttpSurfaceService:
             return True
         if path == "/api/v1/fleet/devices/groups":
             return True
+        if self._DEVICE_EFFECTIVE_POLICY.match(path):
+            return True
         return self._DEVICE_DETAIL.match(path) is not None
 
     def route_get(self, path: str, *, query: dict[str, list[str]] | None = None) -> dict[str, Any] | None:
@@ -118,6 +123,42 @@ class FleetHttpSurfaceService:
             return self._json(
                 HTTPStatus.OK,
                 {"ok": True, **self._envelope(groups=self._registry.list_groups())},
+            )
+
+        match = self._DEVICE_EFFECTIVE_POLICY.match(path)
+        if match is not None:
+            device = self._registry.get_device(match.group("device_id"))
+            if device is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "device not found"})
+            if self._mdm_policy is None:
+                return self._json(HTTPStatus.OK, {"ok": True, **self._envelope(policy=None, source_type="default", source_id="__default__")})
+            policy, source_type, source_id = self._mdm_policy.resolve_policy_with_source(
+                str(getattr(device, "device_id", "") or ""),
+                group=str(getattr(device, "group", "") or ""),
+            )
+            return self._json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        device_id=str(getattr(device, "device_id", "") or ""),
+                        group=str(getattr(device, "group", "") or ""),
+                        source_type=source_type,
+                        source_id=source_id,
+                        policy={
+                            "policy_id": str(getattr(policy, "policy_id", "") or ""),
+                            "name": str(getattr(policy, "name", "") or ""),
+                            "allowed_networks": list(getattr(policy, "allowed_networks", []) or []),
+                            "allowed_pools": list(getattr(policy, "allowed_pools", []) or []),
+                            "max_resolution": str(getattr(policy, "max_resolution", "") or ""),
+                            "allowed_codecs": list(getattr(policy, "allowed_codecs", []) or []),
+                            "auto_update": bool(getattr(policy, "auto_update", True)),
+                            "update_window_start_hour": int(getattr(policy, "update_window_start_hour", 2) or 2),
+                            "update_window_end_hour": int(getattr(policy, "update_window_end_hour", 4) or 4),
+                            "screen_lock_timeout_seconds": int(getattr(policy, "screen_lock_timeout_seconds", 0) or 0),
+                        },
+                    ),
+                },
             )
 
         match = self._DEVICE_DETAIL.match(path)

@@ -86,3 +86,43 @@ def test_delete_removes_assignments(tmp_path):
     svc.update_policy(MDMPolicy(policy_id="temp", name="Temp Updated"))
     got = svc.get_policy("temp")
     assert got.name == "Temp Updated"
+    assert svc.delete_policy("temp") is True
+    assert svc.get_policy("temp") is None
+    assert svc.resolve_policy("dev-001").policy_id == "__default__"
+
+
+def test_clear_assignment_and_list_assignments(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.create_policy(MDMPolicy(policy_id="corp", name="Corp"))
+    svc.assign_to_device("dev-001", "corp")
+    svc.assign_to_group("lab", "corp")
+    snapshot = svc.list_assignments()
+    assert snapshot["device_assignments"]["dev-001"] == "corp"
+    assert snapshot["group_assignments"]["lab"] == "corp"
+    assert svc.clear_device_assignment("dev-001") is True
+    assert svc.clear_group_assignment("lab") is True
+    cleared = svc.list_assignments()
+    assert cleared["device_assignments"] == {}
+    assert cleared["group_assignments"] == {}
+
+
+def test_bulk_device_assignment_and_clear(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.create_policy(MDMPolicy(policy_id="corp", name="Corp"))
+    updated = svc.assign_to_devices(["dev-001", "dev-002", ""], "corp")
+    assert updated == ["dev-001", "dev-002"]
+    assert svc.resolve_policy("dev-001").policy_id == "corp"
+    assert svc.resolve_policy("dev-002").policy_id == "corp"
+    cleared = svc.clear_device_assignments(["dev-001", "dev-003"])
+    assert cleared == ["dev-001"]
+    assert svc.resolve_policy("dev-001").policy_id == "__default__"
+
+
+def test_resolve_policy_with_source(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.create_policy(MDMPolicy(policy_id="lab", name="Lab"))
+    svc.assign_to_group("grp-a", "lab")
+    policy, source_type, source_id = svc.resolve_policy_with_source("dev-001", "grp-a")
+    assert policy.policy_id == "lab"
+    assert source_type == "group"
+    assert source_id == "grp-a"

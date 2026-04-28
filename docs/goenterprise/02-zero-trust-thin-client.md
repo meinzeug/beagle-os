@@ -94,7 +94,7 @@ Ergebnis: Ein Thin-Client ohne gültigen WireGuard-Key + Attestation bekommt **k
   - `auto_update` (ja/nein), `update_window` (Stunden-Fenster für Updates)
   - `screen_lock_timeout_seconds`
 - [x] Thin-Client-OS: liest Policy beim Boot + bei jeder Verbindung vom Control Plane
-- [ ] Web Console: MDM-Policy-Editor pro Gerät/Gerätegruppe
+- [x] Web Console: MDM-Policy-Editor pro Gerät/Gerätegruppe
 - [x] Tests: `tests/unit/test_mdm_policy.py`
 
 ### Schritt 4 — Remote-Wipe + Remote-Lock
@@ -180,6 +180,51 @@ Restluecke bewusst offen:
   TPM-Key-Reset. Fuer den Planpunkt "vollstaendig sicher" fehlt noch der echte Disk-/TPM-Wipe-Pfad.
 - `locked` blockiert heute den Session-Start hart; ein dedizierter grafischer Sperrbildschirm fuer bereits laufende
   lokale X-Sessions ist noch nicht separat umgesetzt.
+
+## Update 2026-04-28 (MDM-Policy-Editor + Assignment-Flow in der Fleet-WebUI)
+
+- Control Plane:
+  - `beagle-host/services/mdm_policy_http_surface.py` liefert jetzt echte Fleet-MDM-Endpunkte:
+    - `GET /api/v1/fleet/policies`
+    - `GET /api/v1/fleet/policies/assignments`
+    - `GET /api/v1/fleet/policies/{policy_id}`
+    - `POST /api/v1/fleet/policies`
+    - `POST /api/v1/fleet/policies/assignments`
+    - `PUT /api/v1/fleet/policies/{policy_id}`
+    - `DELETE /api/v1/fleet/policies/{policy_id}`
+  - `mdm_policy_service.py` kann Policies jetzt auch loeschen sowie Device-/Group-Assignments listen und gezielt entfernen.
+- WebUI:
+  - `website/ui/fleet_health.js` rendert jetzt im bestehenden `Thin-Client Registry`-Panel:
+    - MDM-Policy-Karten
+    - Editor fuer Pools/Networks/Codecs/Resolution/Update-Window/Lock-Timeout
+    - Device- und Group-Assignment-Flow
+    - sichtbare Policy-Badges pro Device in der Registry-Tabelle
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_mdm_policy_http_surface.py`
+  - `tests/unit/test_fleet_ui_regressions.py`
+- Validierung:
+  - `node --check website/ui/fleet_health.js`
+  - `python3 -m pytest tests/unit/test_mdm_policy.py tests/unit/test_mdm_policy_http_surface.py tests/unit/test_authz_policy.py tests/unit/test_fleet_ui_regressions.py -q`
+  - erweiterter Fleet-/Enterprise-Block: `66 passed`
+
+## Update 2026-04-28 (Effective-Policy-Preview + Bulk-Policy-Flow)
+
+- Fleet-Surface:
+  - `GET /api/v1/fleet/devices/{device_id}/effective-policy` zeigt jetzt die effektiv aufgeloeste MDM-Policy pro Device inklusive Quelle (`device`, `group`, `default`).
+- MDM-Surface:
+  - `POST /api/v1/fleet/policies/assignments/bulk` weist eine Policy jetzt in einem Schritt mehreren Devices zu oder entfernt deren direkte Device-Zuweisungen gesammelt.
+- WebUI:
+  - `website/ui/fleet_health.js` rendert jetzt eine `Effective Policy Preview` fuer das selektierte Device
+  - Bulk-Device-IDs koennen im Fleet-Panel direkt gesammelt zugewiesen oder gecleart werden
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_fleet_http_surface.py`
+  - `tests/unit/test_mdm_policy.py`
+  - `tests/unit/test_mdm_policy_http_surface.py`
+  - `tests/unit/test_fleet_ui_regressions.py`
+- Validierung:
+  - `node --check website/ui/fleet_health.js`
+  - `python3 -m pytest tests/unit/test_endpoint_http_surface.py tests/unit/test_device_registry.py tests/unit/test_device_sync_runtime.py tests/unit/test_device_state_enforcement.py tests/unit/test_mdm_policy.py tests/unit/test_mdm_policy_http_surface.py tests/unit/test_fleet_http_surface.py tests/unit/test_authz_policy.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_dashboard_ui_regressions.py -q`
+  - Ergebnis: `70 passed`
 
 ---
 

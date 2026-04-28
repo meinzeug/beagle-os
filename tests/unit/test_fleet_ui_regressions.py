@@ -26,12 +26,23 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     js = FLEET_JS.read_text(encoding="utf-8")
 
     assert "request('/fleet/devices')" in js
+    assert "request('/fleet/policies')" in js
+    assert "request('/fleet/policies/assignments')" in js
+    assert "/fleet/devices/${encodeURIComponent(deviceId)}/effective-policy" in js
     assert "request('/fleet/anomalies')" in js
     assert "request('/fleet/maintenance')" in js
     assert "data-fleet-action" in js
+    assert "data-mdm-action" in js
     assert "triggerDeviceAction" in js
+    assert "savePolicy" in js
+    assert "assignPolicy" in js
+    assert "assignBulkDevices" in js
     assert "requestConfirm" in js
     assert "Remote-Wipe anfordern" in js
+    assert "MDM Policies" in js
+    assert "Policy Editor" in js
+    assert "Effective Policy Preview" in js
+    assert "Bulk Device IDs" in js
     assert "Keine Geräte erfasst." in js
     assert "Standort / Gruppe" in js
     assert "Lade Fleet-Status" in js

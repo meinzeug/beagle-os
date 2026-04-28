@@ -8,7 +8,9 @@
 - [x] GoEnterprise Plan 02: Thin-Client-Runtime fuer Heartbeat-/Policy-Pull-/WireGuard-Glue produktiv an die Registry anbinden.
 - [x] GoEnterprise Plan 02: `locked` und `wipe_pending` im Thin-Client-OS im aktuellen Runtime-Pfad durchsetzen und `confirm-wiped` endpoint-authentifiziert zurückmelden.
 - [ ] GoEnterprise Plan 02: aus dem aktuellen Runtime-/Secret-Wipe einen echten Datentraeger-/TPM-Wipe machen.
-- [ ] GoEnterprise Plan 02: MDM-Policy-Editor und Assignment-Flow pro Gerät/Gerätegruppe in der WebUI nachziehen.
+- [x] GoEnterprise Plan 02: MDM-Policy-Editor und Assignment-Flow pro Gerät/Gerätegruppe in der WebUI nachziehen.
+- [x] GoEnterprise Plan 02: effective-policy-Preview und Bulk-Policy-Flows in der Fleet-WebUI nachziehen.
+- [ ] GoEnterprise Plan 02: staerkere Policy-Validierung, Conflict-/Diff-Hinweise und spaetere effective-policy-Diagnose nachziehen.
 - [ ] GoEnterprise Plan 02: grafischen Sperrbildschirm fuer bereits laufende lokale Sessions sowie Bulk-Device-Operator-Flows nachziehen.
 
 ## Update 2026-04-28 (GoEnterprise Plan 01)

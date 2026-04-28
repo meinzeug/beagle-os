@@ -1,3 +1,44 @@
+## Update (2026-04-28, GoEnterprise Plan 02: Effective Policy Preview + Bulk Assignment)
+
+**Scope**: Den MDM-Operator-Slice direkt weitergezogen: Policies koennen jetzt nicht nur einzeln bearbeitet, sondern fuer mehrere Devices gesammelt zugewiesen werden; ausserdem zeigt die Fleet-Surface die effektiv aufgeloeste Policy pro Device inklusive Herkunft aus Device-, Group- oder Default-Zuweisung.
+
+- Backend:
+  - [beagle-host/services/fleet_http_surface.py](/home/dennis/beagle-os/beagle-host/services/fleet_http_surface.py): `GET /api/v1/fleet/devices/{device_id}/effective-policy`
+  - [beagle-host/services/mdm_policy_service.py](/home/dennis/beagle-os/beagle-host/services/mdm_policy_service.py): `resolve_policy_with_source()`, Bulk-Device-Assignment/Clear-Helfer
+  - [beagle-host/services/mdm_policy_http_surface.py](/home/dennis/beagle-os/beagle-host/services/mdm_policy_http_surface.py): `POST /api/v1/fleet/policies/assignments/bulk`
+- WebUI:
+  - [website/ui/fleet_health.js](/home/dennis/beagle-os/website/ui/fleet_health.js): Effective-Policy-Preview und Bulk-Assignment ueber Device-Listen
+- Regressionen:
+  - [tests/unit/test_fleet_http_surface.py](/home/dennis/beagle-os/tests/unit/test_fleet_http_surface.py)
+  - [tests/unit/test_mdm_policy.py](/home/dennis/beagle-os/tests/unit/test_mdm_policy.py)
+  - [tests/unit/test_mdm_policy_http_surface.py](/home/dennis/beagle-os/tests/unit/test_mdm_policy_http_surface.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+- Validierung:
+  - `node --check website/ui/fleet_health.js`
+  - `python3 -m pytest tests/unit/test_endpoint_http_surface.py tests/unit/test_device_registry.py tests/unit/test_device_sync_runtime.py tests/unit/test_device_state_enforcement.py tests/unit/test_mdm_policy.py tests/unit/test_mdm_policy_http_surface.py tests/unit/test_fleet_http_surface.py tests/unit/test_authz_policy.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_dashboard_ui_regressions.py -q`
+  - Ergebnis: `70 passed`
+
+## Update (2026-04-28, GoEnterprise Plan 02: MDM Policy WebUI + Assignment Surface)
+
+**Scope**: Den naechsten echten Operator-Slice aus Plan 02 geschlossen: MDM ist nicht mehr nur Runtime-Policy im Hintergrund, sondern hat jetzt eine bedienbare Control-Plane-Surface und einen echten Editor-/Assignment-Flow in der Fleet-WebUI fuer Devices und Gruppen.
+
+- Backend:
+  - [beagle-host/services/mdm_policy_http_surface.py](/home/dennis/beagle-os/beagle-host/services/mdm_policy_http_surface.py): CRUD + Assignment-Surface fuer `/api/v1/fleet/policies*`
+  - [beagle-host/services/mdm_policy_service.py](/home/dennis/beagle-os/beagle-host/services/mdm_policy_service.py): Delete/Clear/List-Assignment-Helfer
+  - [beagle-host/services/control_plane_handler.py](/home/dennis/beagle-os/beagle-host/services/control_plane_handler.py): GET/POST/PUT/DELETE-Routing fuer die neue MDM-Surface
+  - [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py): Fleet-MDM-Routen auf `settings:read` / `settings:write`
+- WebUI:
+  - [website/ui/fleet_health.js](/home/dennis/beagle-os/website/ui/fleet_health.js): Policy-Karten, Editor, Device-/Group-Assignment und Policy-Badges pro Device
+- Regressionen:
+  - [tests/unit/test_mdm_policy.py](/home/dennis/beagle-os/tests/unit/test_mdm_policy.py)
+  - [tests/unit/test_mdm_policy_http_surface.py](/home/dennis/beagle-os/tests/unit/test_mdm_policy_http_surface.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
+- Validierung:
+  - `node --check website/ui/fleet_health.js`
+  - `python3 -m pytest tests/unit/test_mdm_policy.py tests/unit/test_mdm_policy_http_surface.py tests/unit/test_authz_policy.py tests/unit/test_fleet_ui_regressions.py -q`
+  - erweiterter Fleet-/Enterprise-Block: `66 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 01/02: VPN Enforcement + Runtime Lock/Wipe Enforcement)
 
 **Scope**: Zwei offene Enterprise-Sicherheitsluecken im aktuellen Beagle-Stack geschlossen: `vpn_required` ist im heutigen Session-Broker jetzt serverseitig hart erzwungen, und die Thin-Client-Runtime setzt `locked` / `wipe_pending` nicht mehr nur als Markerdatei, sondern blockiert den Session-Start bzw. fuehrt einen reproduzierbaren Runtime-Secret-Wipe mit endpoint-authentifizierter `confirm-wiped`-Rueckmeldung aus.

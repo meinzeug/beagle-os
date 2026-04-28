@@ -11,6 +11,13 @@ const fleetHooks = {
   }
 };
 
+const fleetState = {
+  devices: [],
+  policies: [],
+  assignments: { device_assignments: {}, group_assignments: {} },
+  effectivePolicy: null,
+};
+
 export function configureFleetHealth(nextHooks) {
   Object.assign(fleetHooks, nextHooks || {});
 }
@@ -36,10 +43,21 @@ function actionButton(label, action, tone, deviceId) {
   return `<button type="button" class="btn btn-${escapeHtml(tone)}" data-fleet-action="${escapeHtml(action)}" data-device-id="${escapeHtml(deviceId)}">${escapeHtml(label)}</button>`;
 }
 
+function policyBadge(device) {
+  const deviceAssignments = fleetState.assignments?.device_assignments || {};
+  const groupAssignments = fleetState.assignments?.group_assignments || {};
+  const deviceId = String(device.device_id ?? '');
+  const group = String(device.group ?? '');
+  const policyId = deviceAssignments[deviceId] || (group ? groupAssignments[group] : '') || '__default__';
+  const tone = policyId === '__default__' ? 'muted' : 'info';
+  return `<span class="badge tone-${tone}">${escapeHtml(policyId)}</span>`;
+}
+
 function deviceActionButtons(device) {
   const deviceId = String(device.device_id ?? '');
   const status = String(device.status ?? '').trim().toLowerCase();
   const buttons = [];
+  buttons.push(actionButton('Policy', 'policy-select', 'primary', deviceId));
   if (status === 'locked') {
     buttons.push(actionButton('Entsperren', 'unlock', 'primary', deviceId));
   } else if (status !== 'wiped') {
@@ -66,6 +84,7 @@ function deviceRow(device, anomalies, maintenance) {
     <td>${escapeHtml(device.status ?? '-')}</td>
     <td>${escapeHtml(device.location ?? device.group ?? '-')}</td>
     <td>${escapeHtml(hardwareSummary || '-')}</td>
+    <td>${policyBadge(device)}</td>
     <td>${escapeHtml(formatDate(device.last_seen ?? ''))}</td>
     <td>${anomalyBadges(deviceAnomalies)}</td>
     <td>${mEntry ? maintenanceLabel(mEntry) : '-'}</td>
@@ -99,7 +118,215 @@ function actionMeta(action) {
   };
 }
 
+function csvValue(value) {
+  return Array.isArray(value) ? value.join(', ') : '';
+}
+
+function selectedPolicyId() {
+  return String(qs('fleet-policy-id')?.value || '').trim();
+}
+
+function policyCards() {
+  if (!fleetState.policies.length) {
+    return '<div class="empty-card">Noch keine MDM-Policies vorhanden.</div>';
+  }
+  return fleetState.policies.map((policy) => {
+    const policyId = String(policy.policy_id || '');
+    const selected = policyId === selectedPolicyId();
+    const subtitle = [
+      policy.max_resolution ? String(policy.max_resolution) : 'unlimited',
+      Array.isArray(policy.allowed_pools) && policy.allowed_pools.length ? `${policy.allowed_pools.length} Pools` : 'alle Pools',
+      Array.isArray(policy.allowed_codecs) && policy.allowed_codecs.length ? policy.allowed_codecs.join('/') : 'alle Codecs'
+    ].join(' • ');
+    return `<button type="button" class="card compact-card fleet-policy-card${selected ? ' selected' : ''}" data-mdm-action="select-policy" data-policy-id="${escapeHtml(policyId)}">
+      <strong>${escapeHtml(policy.name || policyId)}</strong>
+      <div class="muted">${escapeHtml(policyId)}</div>
+      <div class="muted">${escapeHtml(subtitle)}</div>
+    </button>`;
+  }).join('');
+}
+
+function policyEditorSection() {
+  const effective = fleetState.effectivePolicy;
+  const effectiveSource = effective ? `${String(effective.source_type || 'default')} • ${String(effective.source_id || '__default__')}` : 'kein Device ausgewaehlt';
+  const effectiveSummary = effective?.policy ? [
+    effective.policy.max_resolution ? String(effective.policy.max_resolution) : 'unlimited',
+    Array.isArray(effective.policy.allowed_pools) && effective.policy.allowed_pools.length ? `${effective.policy.allowed_pools.length} Pools` : 'alle Pools',
+    Array.isArray(effective.policy.allowed_codecs) && effective.policy.allowed_codecs.length ? effective.policy.allowed_codecs.join('/') : 'alle Codecs'
+  ].join(' • ') : 'Keine effektive Policy geladen';
+  return `
+    <section class="section-spaced">
+      <div class="button-row compact-row section-spaced-tight">
+        ${chip(`${fleetState.policies.length} Policies`, fleetState.policies.length ? 'info' : 'muted')}
+        ${chip(`${Object.keys(fleetState.assignments?.device_assignments || {}).length} Device-Zuweisungen`, 'info')}
+        ${chip(`${Object.keys(fleetState.assignments?.group_assignments || {}).length} Gruppen-Zuweisungen`, 'info')}
+      </div>
+      <div class="grid two-col section-spaced-tight">
+        <div>
+          <h3>MDM Policies</h3>
+          <div class="grid auto-grid">${policyCards()}</div>
+        </div>
+        <div class="card">
+          <h3>Policy Editor</h3>
+          <div class="grid two-col section-spaced-tight">
+            <label class="field"><span>Policy ID</span><input id="fleet-policy-id" type="text" autocomplete="off" placeholder="corp"></label>
+            <label class="field"><span>Name</span><input id="fleet-policy-name" type="text" autocomplete="off" placeholder="Corporate"></label>
+            <label class="field field-wide"><span>Allowed Pools</span><input id="fleet-policy-pools" type="text" autocomplete="off" placeholder="pool-a, pool-b"></label>
+            <label class="field field-wide"><span>Allowed Networks</span><input id="fleet-policy-networks" type="text" autocomplete="off" placeholder="wg, office-vlan"></label>
+            <label class="field"><span>Max Resolution</span><input id="fleet-policy-resolution" type="text" autocomplete="off" placeholder="1920x1080"></label>
+            <label class="field"><span>Allowed Codecs</span><input id="fleet-policy-codecs" type="text" autocomplete="off" placeholder="h264, h265"></label>
+            <label class="field"><span>Update Start</span><input id="fleet-policy-update-start" type="number" min="0" max="23" value="2"></label>
+            <label class="field"><span>Update Ende</span><input id="fleet-policy-update-end" type="number" min="0" max="23" value="4"></label>
+            <label class="field"><span>Screen Lock Timeout</span><input id="fleet-policy-lock-timeout" type="number" min="0" step="1" value="0"></label>
+            <label class="field checkbox-field"><span>Auto Update</span><input id="fleet-policy-auto-update" type="checkbox" checked></label>
+          </div>
+          <div class="button-row compact-row section-spaced-tight">
+            <button type="button" class="button primary" data-mdm-action="save-policy">Speichern</button>
+            <button type="button" class="button ghost" data-mdm-action="new-policy">Neu</button>
+            <button type="button" class="button danger" data-mdm-action="delete-policy">Loeschen</button>
+          </div>
+          <h3>Assignment</h3>
+          <div class="grid two-col section-spaced-tight">
+            <label class="field"><span>Device ID</span><input id="fleet-assign-device-id" type="text" autocomplete="off" placeholder="dev-001"></label>
+            <label class="field"><span>Gruppe</span><input id="fleet-assign-group-id" type="text" autocomplete="off" placeholder="reception"></label>
+            <label class="field field-wide"><span>Bulk Device IDs (eine pro Zeile oder komma)</span><textarea id="fleet-assign-device-ids" rows="4" autocomplete="off" placeholder="dev-001&#10;dev-002"></textarea></label>
+          </div>
+          <div class="button-row compact-row section-spaced-tight">
+            <button type="button" class="button primary" data-mdm-action="assign-device">Policy dem Device zuweisen</button>
+            <button type="button" class="button ghost" data-mdm-action="assign-group">Policy der Gruppe zuweisen</button>
+            <button type="button" class="button ghost" data-mdm-action="assign-bulk-devices">Policy den gelisteten Devices zuweisen</button>
+            <button type="button" class="button ghost" data-mdm-action="clear-device-assignment">Device-Zuweisung loeschen</button>
+            <button type="button" class="button ghost" data-mdm-action="clear-group-assignment">Gruppen-Zuweisung loeschen</button>
+            <button type="button" class="button ghost" data-mdm-action="clear-bulk-devices">Bulk-Device-Zuweisungen loeschen</button>
+          </div>
+          <h3>Effective Policy Preview</h3>
+          <div class="card compact-card">
+            <strong>${escapeHtml(String(effective?.policy?.name || 'Policy Preview'))}</strong>
+            <div class="muted">${escapeHtml(effectiveSource)}</div>
+            <div class="muted">${escapeHtml(effectiveSummary)}</div>
+          </div>
+        </div>
+      </div>
+    </section>`;
+}
+
+function loadPolicyIntoForm(policy) {
+  qs('fleet-policy-id').value = String(policy?.policy_id || '');
+  qs('fleet-policy-name').value = String(policy?.name || '');
+  qs('fleet-policy-pools').value = csvValue(policy?.allowed_pools);
+  qs('fleet-policy-networks').value = csvValue(policy?.allowed_networks);
+  qs('fleet-policy-resolution').value = String(policy?.max_resolution || '');
+  qs('fleet-policy-codecs').value = csvValue(policy?.allowed_codecs);
+  qs('fleet-policy-update-start').value = String(policy?.update_window_start_hour ?? 2);
+  qs('fleet-policy-update-end').value = String(policy?.update_window_end_hour ?? 4);
+  qs('fleet-policy-lock-timeout').value = String(policy?.screen_lock_timeout_seconds ?? 0);
+  qs('fleet-policy-auto-update').checked = Boolean(policy?.auto_update ?? true);
+}
+
+function policyPayloadFromForm() {
+  return {
+    policy_id: String(qs('fleet-policy-id')?.value || '').trim(),
+    name: String(qs('fleet-policy-name')?.value || '').trim(),
+    allowed_pools: String(qs('fleet-policy-pools')?.value || '').trim(),
+    allowed_networks: String(qs('fleet-policy-networks')?.value || '').trim(),
+    max_resolution: String(qs('fleet-policy-resolution')?.value || '').trim(),
+    allowed_codecs: String(qs('fleet-policy-codecs')?.value || '').trim(),
+    update_window_start_hour: Number(qs('fleet-policy-update-start')?.value || 2),
+    update_window_end_hour: Number(qs('fleet-policy-update-end')?.value || 4),
+    screen_lock_timeout_seconds: Number(qs('fleet-policy-lock-timeout')?.value || 0),
+    auto_update: Boolean(qs('fleet-policy-auto-update')?.checked),
+  };
+}
+
+async function savePolicy() {
+  const payload = policyPayloadFromForm();
+  if (!payload.policy_id || !payload.name) {
+    throw new Error('Policy ID und Name sind erforderlich');
+  }
+  const existing = fleetState.policies.find((item) => String(item.policy_id || '') === payload.policy_id);
+  const path = existing ? `/fleet/policies/${encodeURIComponent(payload.policy_id)}` : '/fleet/policies';
+  const method = existing ? 'PUT' : 'POST';
+  await request(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  fleetHooks.setBanner('MDM-Policy gespeichert.', 'ok');
+  await fleetHooks.loadDashboard({ force: true });
+}
+
+async function deletePolicy() {
+  const policyId = selectedPolicyId();
+  if (!policyId) {
+    throw new Error('Keine Policy ausgewaehlt');
+  }
+  const confirmed = await fleetHooks.requestConfirm({
+    title: 'MDM-Policy loeschen',
+    message: `Policy ${policyId} wirklich loeschen?`,
+    confirmLabel: 'Loeschen',
+    danger: true,
+  });
+  if (!confirmed) return;
+  await request(`/fleet/policies/${encodeURIComponent(policyId)}`, { method: 'DELETE' });
+  fleetHooks.setBanner('MDM-Policy geloescht.', 'ok');
+  await fleetHooks.loadDashboard({ force: true });
+}
+
+async function assignPolicy(targetType, clearAssignment = false) {
+  const targetId = String(qs(targetType === 'device' ? 'fleet-assign-device-id' : 'fleet-assign-group-id')?.value || '').trim();
+  const policyId = clearAssignment ? '' : selectedPolicyId();
+  if (!targetId) {
+    throw new Error(targetType === 'device' ? 'Device ID fehlt' : 'Gruppe fehlt');
+  }
+  await request('/fleet/policies/assignments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_type: targetType, target_id: targetId, policy_id: policyId }),
+  });
+  fleetHooks.setBanner(clearAssignment ? 'Policy-Zuweisung geloescht.' : 'Policy zugewiesen.', 'ok');
+  await fleetHooks.loadDashboard({ force: true });
+}
+
+function bulkDeviceIdsFromForm() {
+  return String(qs('fleet-assign-device-ids')?.value || '')
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+async function assignBulkDevices(clearAssignment = false) {
+  const targetIds = bulkDeviceIdsFromForm();
+  const policyId = clearAssignment ? '' : selectedPolicyId();
+  if (!targetIds.length) {
+    throw new Error('Bulk Device IDs fehlen');
+  }
+  await request('/fleet/policies/assignments/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_type: 'device', target_ids: targetIds, policy_id: policyId }),
+  });
+  fleetHooks.setBanner(clearAssignment ? 'Bulk-Device-Zuweisungen geloescht.' : 'Policy bulk zugewiesen.', 'ok');
+  await fleetHooks.loadDashboard({ force: true });
+}
+
+async function loadEffectivePolicy(deviceId) {
+  const payload = await request(`/fleet/devices/${encodeURIComponent(deviceId)}/effective-policy`);
+  fleetState.effectivePolicy = payload;
+  qs('fleet-assign-device-id').value = deviceId;
+  await fleetHooks.loadDashboard({ force: true });
+}
+
 async function triggerDeviceAction(deviceId, action) {
+  if (action === 'policy-select') {
+    const policyId = (fleetState.assignments?.device_assignments || {})[deviceId] || '';
+    const policy = fleetState.policies.find((item) => String(item.policy_id || '') === String(policyId));
+    qs('fleet-assign-device-id').value = deviceId;
+    if (policy) {
+      loadPolicyIntoForm(policy);
+    }
+    await loadEffectivePolicy(deviceId);
+    return;
+  }
   const meta = actionMeta(action);
   const confirmed = await fleetHooks.requestConfirm({
     title: meta.title,
@@ -139,52 +366,120 @@ export async function renderFleetHealth() {
   let devices = [];
   let anomalies = [];
   let maintenance = [];
+  let policies = [];
+  let assignments = { device_assignments: {}, group_assignments: {} };
 
   try {
-    [devices, anomalies, maintenance] = await Promise.all([
+    [devices, anomalies, maintenance, policies, assignments] = await Promise.all([
       request('/fleet/devices').then((d) => Array.isArray(d) ? d : (d.devices ?? [])),
       request('/fleet/anomalies').catch(() => []),
-      request('/fleet/maintenance').catch(() => [])
+      request('/fleet/maintenance').catch(() => []),
+      request('/fleet/policies').then((d) => Array.isArray(d) ? d : (d.policies ?? [])),
+      request('/fleet/policies/assignments').catch(() => ({ device_assignments: {}, group_assignments: {} })),
     ]);
   } catch (err) {
     container.innerHTML = `<p class="error">Fehler: ${escapeHtml(String(err.message ?? err))}</p>`;
     return;
   }
 
-  if (devices.length === 0) {
-    container.innerHTML = '<div class="empty-card">Keine Geräte erfasst.</div>';
-    return;
-  }
+  fleetState.devices = devices;
+  fleetState.policies = policies;
+  fleetState.assignments = assignments;
 
   const rows = devices.map((d) => deviceRow(d, anomalies, maintenance)).join('');
   const anomalyCount = anomalies.length;
   const maintCount = maintenance.filter((m) => m.status === 'pending').length;
-
   const onlineCount = devices.filter((item) => String(item.status || '').trim() === 'online').length;
 
-  container.innerHTML = `
-    <div class="button-row compact-row section-spaced-tight">
-      ${chip(String(devices.length) + ' Geraete', devices.length ? 'info' : 'muted')}
-      ${chip('online ' + String(onlineCount), onlineCount ? 'ok' : 'muted')}
-      ${chip(String(anomalyCount) + ' Anomalien', anomalyCount > 0 ? 'warn' : 'ok')}
-      ${chip(String(maintCount) + ' Wartungen', maintCount > 0 ? 'warn' : 'muted')}
-    </div>
-    <div class="table-wrap compact">
-    <table class="vm-table compact-table">
-      <thead>
-        <tr>
-          <th>Gerät</th>
-          <th>Hostname</th>
-          <th>Status</th>
-          <th>Standort / Gruppe</th>
-          <th>Hardware</th>
-          <th>Last Seen</th>
-          <th>Anomalien</th>
-          <th>Wartung</th>
-          <th>Aktionen</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-    </div>`;
+  if (devices.length === 0) {
+    container.innerHTML = `${policyEditorSection()}<div class="empty-card">Keine Geräte erfasst.</div>`;
+  } else {
+    container.innerHTML = `
+      ${policyEditorSection()}
+      <div class="button-row compact-row section-spaced-tight">
+        ${chip(String(devices.length) + ' Geraete', devices.length ? 'info' : 'muted')}
+        ${chip('online ' + String(onlineCount), onlineCount ? 'ok' : 'muted')}
+        ${chip(String(anomalyCount) + ' Anomalien', anomalyCount > 0 ? 'warn' : 'ok')}
+        ${chip(String(maintCount) + ' Wartungen', maintCount > 0 ? 'warn' : 'muted')}
+      </div>
+      <div class="table-wrap compact">
+      <table class="vm-table compact-table">
+        <thead>
+          <tr>
+            <th>Gerät</th>
+            <th>Hostname</th>
+            <th>Status</th>
+            <th>Standort / Gruppe</th>
+            <th>Hardware</th>
+            <th>Policy</th>
+            <th>Last Seen</th>
+            <th>Anomalien</th>
+            <th>Wartung</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      </div>`;
+  }
+
+  container.querySelectorAll('[data-policy-id]').forEach((item) => {
+    item.addEventListener('click', () => {
+      const policyId = String(item.getAttribute('data-policy-id') || '').trim();
+      const policy = fleetState.policies.find((entry) => String(entry.policy_id || '') === policyId);
+      if (policy) {
+        loadPolicyIntoForm(policy);
+      }
+    });
+  });
+
+  const defaultPolicy = fleetState.policies[0];
+  if (defaultPolicy) {
+    loadPolicyIntoForm(defaultPolicy);
+  }
+
+  container.querySelectorAll('[data-mdm-action]').forEach((item) => {
+    item.addEventListener('click', async () => {
+      const action = String(item.getAttribute('data-mdm-action') || '').trim();
+      try {
+        if (action === 'new-policy') {
+          loadPolicyIntoForm({});
+          return;
+        }
+        if (action === 'save-policy') {
+          await savePolicy();
+          return;
+        }
+        if (action === 'delete-policy') {
+          await deletePolicy();
+          return;
+        }
+        if (action === 'assign-device') {
+          await assignPolicy('device', false);
+          return;
+        }
+        if (action === 'assign-group') {
+          await assignPolicy('group', false);
+          return;
+        }
+        if (action === 'assign-bulk-devices') {
+          await assignBulkDevices(false);
+          return;
+        }
+        if (action === 'clear-device-assignment') {
+          await assignPolicy('device', true);
+          return;
+        }
+        if (action === 'clear-group-assignment') {
+          await assignPolicy('group', true);
+          return;
+        }
+        if (action === 'clear-bulk-devices') {
+          await assignBulkDevices(true);
+        }
+      } catch (error) {
+        fleetHooks.setBanner('MDM-Policy-Aktion fehlgeschlagen: ' + String(error.message ?? error), 'warn');
+      }
+    });
+  });
 }

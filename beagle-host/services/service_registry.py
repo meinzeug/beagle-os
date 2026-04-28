@@ -59,6 +59,7 @@ from attestation_service import AttestationService
 from device_registry import DeviceRegistryService
 from fleet_inventory import FleetInventoryService
 from fleet_http_surface import FleetHttpSurfaceService
+from mdm_policy_http_surface import MDMPolicyHttpSurfaceService
 from health_payload import HealthPayloadService
 from ha_manager import HaManagerService
 from host_provider_contract import HostProvider
@@ -1132,6 +1133,7 @@ DEVICE_REGISTRY_SERVICE: DeviceRegistryService | None = None
 MDM_POLICY_SERVICE: MDMPolicyService | None = None
 ATTESTATION_SERVICE: AttestationService | None = None
 FLEET_HTTP_SURFACE_SERVICE: FleetHttpSurfaceService | None = None
+MDM_POLICY_HTTP_SURFACE_SERVICE: MDMPolicyHttpSurfaceService | None = None
 CLUSTER_INVENTORY_SERVICE: ClusterInventoryService | None = None
 HEALTH_PAYLOAD_SERVICE: HealthPayloadService | None = None
 INSTALLER_PREP_SERVICE: InstallerPrepService | None = None
@@ -3512,6 +3514,7 @@ def fleet_http_surface_service() -> FleetHttpSurfaceService:
     if FLEET_HTTP_SURFACE_SERVICE is None:
         FLEET_HTTP_SURFACE_SERVICE = FleetHttpSurfaceService(
             device_registry_service=device_registry_service(),
+            mdm_policy_service=mdm_policy_service(),
             audit_event=audit_log_service().write_event,
             requester_identity=lambda: "",
             service_name="beagle-control-plane",
@@ -3519,6 +3522,20 @@ def fleet_http_surface_service() -> FleetHttpSurfaceService:
             version=VERSION,
         )
     return FLEET_HTTP_SURFACE_SERVICE
+
+
+def mdm_policy_http_surface_service() -> MDMPolicyHttpSurfaceService:
+    global MDM_POLICY_HTTP_SURFACE_SERVICE
+    if MDM_POLICY_HTTP_SURFACE_SERVICE is None:
+        MDM_POLICY_HTTP_SURFACE_SERVICE = MDMPolicyHttpSurfaceService(
+            mdm_policy_service=mdm_policy_service(),
+            requester_identity=requester_identity,
+            audit_event=audit_log,
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return MDM_POLICY_HTTP_SURFACE_SERVICE
 
 
 def build_vm_inventory() -> dict[str, Any]:

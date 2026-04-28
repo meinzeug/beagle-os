@@ -15,6 +15,7 @@ if str(SERVICES_DIR) not in sys.path:
 
 from device_registry import DeviceRegistryService
 from fleet_http_surface import FleetHttpSurfaceService
+from mdm_policy_service import MDMPolicy, MDMPolicyService
 
 
 HW = {
@@ -27,24 +28,26 @@ HW = {
 }
 
 
-def make_services(tmp_path: Path) -> tuple[DeviceRegistryService, FleetHttpSurfaceService]:
+def make_services(tmp_path: Path) -> tuple[DeviceRegistryService, MDMPolicyService, FleetHttpSurfaceService]:
     audit_events: list[tuple[str, str, dict[str, object]]] = []
     registry = DeviceRegistryService(
         state_file=tmp_path / "device-registry.json",
         utcnow=lambda: "2026-04-28T06:00:00Z",
     )
+    mdm = MDMPolicyService(state_file=tmp_path / "mdm.json")
     service = FleetHttpSurfaceService(
         device_registry_service=registry,
+        mdm_policy_service=mdm,
         audit_event=lambda event_type, outcome, **details: audit_events.append((event_type, outcome, details)),
         requester_identity=lambda: "admin",
         utcnow=lambda: "2026-04-28T06:00:00Z",
         version="test",
     )
-    return registry, service
+    return registry, mdm, service
 
 
 def test_register_device_and_fetch_detail(tmp_path: Path) -> None:
-    _, service = make_services(tmp_path)
+    _, _, service = make_services(tmp_path)
 
     created = service.route_post(
         "/api/v1/fleet/devices/register",
@@ -70,7 +73,7 @@ def test_register_device_and_fetch_detail(tmp_path: Path) -> None:
 
 
 def test_list_devices_returns_groups_and_filters(tmp_path: Path) -> None:
-    registry, service = make_services(tmp_path)
+    registry, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
     registry.register_device("dev-002", "tc-002", HW)
     registry.set_group("dev-001", "berlin")
@@ -91,7 +94,7 @@ def test_list_devices_returns_groups_and_filters(tmp_path: Path) -> None:
 
 
 def test_put_updates_location_group_and_notes(tmp_path: Path) -> None:
-    registry, service = make_services(tmp_path)
+    registry, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
 
     response = service.route_put(
@@ -112,7 +115,7 @@ def test_put_updates_location_group_and_notes(tmp_path: Path) -> None:
 
 
 def test_post_actions_change_state(tmp_path: Path) -> None:
-    registry, service = make_services(tmp_path)
+    registry, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
 
     heartbeat = service.route_post(
@@ -166,7 +169,7 @@ def test_put_and_actions_emit_audit_events(tmp_path: Path) -> None:
 
 
 def test_register_requires_device_payload(tmp_path: Path) -> None:
-    _, service = make_services(tmp_path)
+    _, _, service = make_services(tmp_path)
 
     response = service.route_post(
         "/api/v1/fleet/devices/register",
@@ -178,7 +181,7 @@ def test_register_requires_device_payload(tmp_path: Path) -> None:
 
 
 def test_missing_device_returns_not_found(tmp_path: Path) -> None:
-    _, service = make_services(tmp_path)
+    _, _, service = make_services(tmp_path)
 
     detail = service.route_get("/api/v1/fleet/devices/missing")
     assert detail is not None
@@ -187,3 +190,19 @@ def test_missing_device_returns_not_found(tmp_path: Path) -> None:
     action = service.route_post("/api/v1/fleet/devices/missing/lock", json_payload={})
     assert action is not None
     assert action["status"] == HTTPStatus.NOT_FOUND
+
+
+def test_effective_policy_route_returns_group_resolved_policy(tmp_path: Path) -> None:
+    registry, mdm, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+    registry.set_group("dev-001", "berlin")
+    mdm.create_policy(MDMPolicy(policy_id="corp", name="Corporate", allowed_pools=["pool-a"]))
+    mdm.assign_to_group("berlin", "corp")
+
+    response = service.route_get("/api/v1/fleet/devices/dev-001/effective-policy")
+
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    assert response["payload"]["source_type"] == "group"
+    assert response["payload"]["source_id"] == "berlin"
+    assert response["payload"]["policy"]["policy_id"] == "corp"

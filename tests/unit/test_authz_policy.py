@@ -203,6 +203,18 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:read",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/fleet/policies"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/fleet/policies/assignments"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/fleet/policies/corp"),
+            "settings:read",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("GET", "/api/v1/fleet/devices/groups"),
             "settings:read",
         )
@@ -211,7 +223,23 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:read",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/fleet/devices/dev-001/effective-policy"),
+            "settings:read",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("POST", "/api/v1/fleet/devices/register"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/fleet/policies"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/fleet/policies/assignments"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/fleet/policies/assignments/bulk"),
             "settings:write",
         )
         self.assertEqual(
@@ -224,6 +252,14 @@ class AuthzPolicyServiceTests(unittest.TestCase):
         )
         self.assertEqual(
             AuthzPolicyService.required_permission("PUT", "/api/v1/fleet/devices/dev-001"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("PUT", "/api/v1/fleet/policies/corp"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("DELETE", "/api/v1/fleet/policies/corp"),
             "settings:write",
         )
 
