@@ -151,6 +151,7 @@ from smart_scheduler import NodeCapacity, SmartSchedulerService
 from cost_model_service import CostModelService
 from usage_tracking_service import UsageTrackingService
 from energy_service import EnergyService
+from energy_feed_import import collect_import_payload
 from metrics_collector import MetricsCollector
 from workload_pattern_analyzer import WorkloadPatternAnalyzer
 
@@ -363,6 +364,13 @@ ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_S
 SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_TOKEN_TTL_SECONDS", "600"))
 PAIRING_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_PAIRING_TOKEN_TTL_SECONDS", "60"))
 PAIRING_TOKEN_SECRET = os.environ.get("BEAGLE_PAIRING_TOKEN_SECRET", "").strip()
+ENERGY_FEED_IMPORT_TIMEOUT_SECONDS = float(
+    os.environ.get("BEAGLE_ENERGY_FEED_IMPORT_TIMEOUT_SECONDS", "5")
+)
+ENERGY_FEED_IMPORT_RETRIES = int(os.environ.get("BEAGLE_ENERGY_FEED_IMPORT_RETRIES", "3"))
+ENERGY_FEED_IMPORT_RETRY_BACKOFF_SECONDS = float(
+    os.environ.get("BEAGLE_ENERGY_FEED_IMPORT_RETRY_BACKOFF_SECONDS", "1")
+)
 INSTALLER_LOG_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_INSTALLER_LOG_TOKEN_TTL_SECONDS", "86400"))
 INSTALLER_LOG_TOKEN_SECRET = os.environ.get("BEAGLE_INSTALLER_LOG_TOKEN_SECRET", "").strip()
 USB_TUNNEL_SSH_USER = os.environ.get("BEAGLE_USB_TUNNEL_SSH_USER", "beagle-tunnel").strip() or "beagle-tunnel"
@@ -3542,31 +3550,20 @@ def update_energy_hourly_profile(payload: dict[str, Any]) -> dict[str, list[floa
 
 
 def import_energy_hourly_profile(payload: dict[str, Any]) -> dict[str, list[float]]:
-    profile_payload = payload.get("hourly_profile") if isinstance(payload.get("hourly_profile"), dict) else {}
-
-    def _parse_csv_series(value: Any) -> list[float]:
-        if not isinstance(value, str):
-            return []
-        values: list[float] = []
-        for item in value.split(","):
-            item = str(item).strip()
-            if not item:
-                continue
-            try:
-                values.append(float(item))
-            except ValueError:
-                continue
-        return values
-
-    imported: dict[str, Any] = {}
-    if "co2_csv" in payload:
-        imported["co2_grams_per_kwh"] = _parse_csv_series(payload.get("co2_csv"))
-    if "price_csv" in payload:
-        imported["electricity_price_per_kwh"] = _parse_csv_series(payload.get("price_csv"))
-    if "co2_grams_per_kwh" in profile_payload:
-        imported["co2_grams_per_kwh"] = profile_payload.get("co2_grams_per_kwh")
-    if "electricity_price_per_kwh" in profile_payload:
-        imported["electricity_price_per_kwh"] = profile_payload.get("electricity_price_per_kwh")
+    imported = collect_import_payload(
+        payload,
+        retries_default=ENERGY_FEED_IMPORT_RETRIES,
+        timeout_default=ENERGY_FEED_IMPORT_TIMEOUT_SECONDS,
+        retry_backoff_default=ENERGY_FEED_IMPORT_RETRY_BACKOFF_SECONDS,
+        node_id=CLUSTER_NODE_NAME,
+        alert_fn=lambda message: alert_service().fire_alert(
+            rule_id="energy_feed_import_failed",
+            device_id=CLUSTER_NODE_NAME,
+            metric="energy_feed_import",
+            current_value=float(ENERGY_FEED_IMPORT_RETRIES),
+            message=message,
+        ),
+    )
     return update_energy_hourly_profile(imported)
 
 

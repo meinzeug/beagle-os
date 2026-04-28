@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 09 external feed import completed)
+
+**Zuletzt erledigt**:
+- Plan-09-Restpunkt ist geschlossen: externer Carbon-/Strommix-Feed kann jetzt via Control-Plane-Importpfad mit Retry/Backoff eingespielt werden; bei Retry-Exhaustion wird ein Fleet-Alert erzeugt.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+2. **Plan 01 Fork-Rest**: echten `beagle-stream-server` auf VM starten und reale Register-/Pairing-/Event-Flows gegen die bestehende API fahren.
+3. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
+4. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+
 ## Stand (2026-04-28, GoEnterprise Plan 01 token pairing hardening completed)
 
 **Zuletzt erledigt**:
@@ -9,8 +21,8 @@
 
 1. **Plan 01 Fork-Rest**: echten `beagle-stream-server` auf VM starten und reale Register-/Pairing-/Event-Flows gegen die bestehende API fahren.
 2. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
-3. **Plan 09 Restpunkt**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob mit Retry/Alerting umsetzen.
-4. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+3. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+4. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
 
 ## Stand (2026-04-28, GoEnterprise Plan 01 stream-server contract tests completed)
 
@@ -20,9 +32,9 @@
 **Naechste konkrete Schritte**:
 
 1. **Plan 01 Fork-Rest**: den eigentlichen Sunshine-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen diese API anheben.
-2. **Plan 09 Restpunkt**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob mit Retry/Alerting umsetzen.
-3. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
-4. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+2. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+3. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+4. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
 
 ## Stand (2026-04-28, GoEnterprise Plan 01 policy/audit testpflicht slice completed)
 
@@ -32,9 +44,9 @@
 **Naechste konkrete Schritte**:
 
 1. **Plan 01 Fork-Rest**: den eigentlichen Sunshine-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen diese neue Control-Plane-API anheben.
-2. **Plan 09 Restpunkt**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob mit Retry/Alerting umsetzen.
-3. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
-4. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+2. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+3. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+4. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
 
 ## Stand (2026-04-28, GoEnterprise Plan 01 stream control-plane slice completed)
 
@@ -45,9 +57,9 @@
 **Naechste konkrete Schritte**:
 
 1. **Plan 01 Fork-Rest**: den eigentlichen Sunshine-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen diese neue Control-Plane-API anheben.
-2. **Plan 09 Restpunkt**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob mit Retry/Alerting umsetzen.
-3. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
-4. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+2. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+3. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+4. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
 
 ## Stand (2026-04-28, GoEnterprise Plan 08 Schritt 1 RAID closed)
 
@@ -57,10 +69,10 @@
 
 **Naechste konkrete Schritte**:
 
-1. **Plan 09 Restpunkt**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob mit Retry/Alerting umsetzen.
-2. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
-3. **Plan 01**: verbleibenden BeagleStream-Fork-/Client-Fork-Block priorisieren und in kleine implementierbare Slices schneiden.
-4. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+1. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+2. **Plan 01**: verbleibenden BeagleStream-Fork-/Client-Fork-Block priorisieren und in kleine implementierbare Slices schneiden.
+3. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+4. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
 
 ## Stand (2026-04-28, GoEnterprise Plan 02 testpflicht completed)
 
@@ -72,9 +84,9 @@
 **Naechste konkrete Schritte**:
 
 1. **Plan 08 Restblock Schritt 1**: eigentlichen RAID-/Disk-Mehrfachauswahlpfad im Installer (RAID0/1/5/10) von Doku-Status auf echte Runtime-Implementierung heben.
-2. **Plan 09 Restpunkt**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob mit Retry/Alerting umsetzen.
-3. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
-4. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+2. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+3. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+4. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
 
 ## Stand (2026-04-28, GoEnterprise Plan 08 testpflicht completed)
 
@@ -98,8 +110,8 @@
 
 **Naechste konkrete Schritte**:
 
-1. **Plan 09 Restpunkt schliessen**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob inklusive Retry/Alerting hinterlegen.
-2. **Plan 04 Restpunkt schliessen**: Warm-Pool-Empfehlungen optional automatisch anwenden (Auto-Apply mit Guardrails).
+1. **Plan 04 Restpunkt schliessen**: Warm-Pool-Empfehlungen optional automatisch anwenden (Auto-Apply mit Guardrails).
+2. **Plan 01 Fork-Rest**: den eigentlichen Sunshine-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen die bestehende API anheben.
 3. **Plan 08 angehen**: offenen TUI-Installer-Block (5-Schritt-Validierung + Seed-YAML Non-Interactive + PXE-Seed-Pfad) in `server-installer/` umsetzen.
 4. **Plan 02 Live-Restpunkte**: Enrollment-/WireGuard-/TPM-End-to-End-Abnahmen reproduzierbar auf Runtime-Hardware verankern.
 
@@ -111,8 +123,8 @@
 
 **Naechste konkrete Schritte**:
 
-1. **Plan 09 Restpunkt schliessen**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob (inkl. Retry/Alerting) implementieren.
-2. **Plan 04 Restpunkt schliessen**: Warm-Pool-Empfehlungen optional automatisch anwenden und mit Safety-Grenzen absichern.
+1. **Plan 04 Restpunkt schliessen**: Warm-Pool-Empfehlungen optional automatisch anwenden und mit Safety-Grenzen absichern.
+2. **Plan 01 Fork-Rest schliessen**: echten `beagle-stream-server` gegen die bestehende API in einer reproduzierbaren Runtime-Abnahme fahren.
 3. **Plan 07 Testpflicht angehen**: dedizierte Suite fuer SMART-Telemetrie, Disk-Trend-Anomalie, Predictive-Alert und Maintenance-Migration erstellen.
 4. **Plan 02 Live-Restpunkte**: Enrollment-/WireGuard-/TPM-Abnahmepfade reproduzierbar fuer echte Runtime-Hardware nachziehen.
 
@@ -125,7 +137,7 @@
 **Naechste konkrete Schritte**:
 
 1. **Plan 04 vertiefen**: Warm-Pool-Empfehlungen optional automatisch anwenden (`auto-apply`) mit klarer Safety-Grenze.
-2. **Plan 09 abschliessen**: offenen externen Carbon-/Strommix-Feed als reproduzierbaren Importjob implementieren.
+2. **Plan 01 Fork-Rest schliessen**: echten `beagle-stream-server` gegen die bestehende API in einer reproduzierbaren Runtime-Abnahme fahren.
 3. **Plan 07 testpflicht schliessen**: Fleet-Telemetrie-/Anomalie-/Maintenance-Abnahmesuite (`SMART`, Disk-Trend, Alert, Migration) aufbauen und live gegen `srv1` validieren.
 4. **Plan 02 live-rest abschliessen**: verbleibende End-to-End-Checks fuer Enrollment/TPM/WireGuard-Mesh und Gruppen-Policy reproduzierbar auf echter Runtime verankern.
 
@@ -140,7 +152,7 @@
 
 1. **Plan 05 vertiefen**: Chargeback-Drilldown um explizite Session-Zeilen im CSV/JSON erweitern (nicht nur Aggregation je Department/User).
 2. **Plan 04 vertiefen**: offene Automatisierung der Warm-Pool-Empfehlungen kontrolliert hinter Feature-Flag nachziehen.
-3. **Plan 09 vertiefen**: externen Carbon-/Strommix-Feed als reproduzierbaren Import-Job mit Retry/Alerting hinterlegen.
+3. **Plan 01 WireGuard-Rest schliessen**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope abnehmen.
 4. **Plan 02 live validieren**: grafischen Sperrbildschirm weiter auf echter Thin-Client-Hardware/X11-/Wayland-Setups abnehmen.
 
 ## Stand (2026-04-28, GoEnterprise Plan 04/05/09 analytics follow-up)

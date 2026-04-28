@@ -1,3 +1,27 @@
+## Update (2026-04-28, GoEnterprise Plan 09: externer Carbon-/Strommix-Feed mit Retry/Alerting geschlossen)
+
+**Scope**: Der letzte dokumentierte Plan-09-Restpunkt ist jetzt im Control-Plane-Scope reproduzierbar geschlossen.
+
+- Backend:
+  - `beagle-host/services/energy_feed_import.py` (neu)
+    - externer Feed-Fetch (`http/https`) fuer stündliche CO2-/Preisprofile
+    - Normalisierung mehrerer Feed-Formate (`hourly_profile`, `hours[]`)
+    - Retry/Backoff-Orchestrierung und Fehlerklassifizierung
+  - `beagle-host/services/service_registry.py`
+    - Importpfad nutzt jetzt den neuen Feed-Collector mit Runtime-Defaults fuer Timeout/Retry/Backoff
+    - bei Retry-Exhaustion wird `energy_feed_import_failed` als Alert emittiert
+  - `beagle-host/services/control_plane_read_surface.py`
+    - `POST /api/v1/energy/hourly-profile/import` mappt invalid payload auf `400` und Upstream-Importfehler auf `502`
+  - `beagle-host/services/alert_service.py`
+    - neue Default-Alert-Rule `energy_feed_import_failed` (console/webhook)
+- Tests:
+  - `tests/unit/test_energy_feed_import.py` (neu)
+  - `tests/unit/test_control_plane_read_surface.py` (erweitert)
+  - bestehender Fokus-Scope weiterhin gruen: `tests/unit/test_energy_service.py`, `tests/unit/test_authz_policy.py`, `tests/unit/test_fleet_alerts.py`
+- Validierung:
+  - Lokal: `50 passed`
+  - `srv1` (staged `/tmp/beagle-os-plan09-energy-feed`): `50 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 01: Token-Pairing 60s + Replay-Schutz geschlossen)
 
 **Scope**: Der offene Plan-01-Token-Pairing-Testpunkt wurde im Control-Plane-Scope geschlossen.

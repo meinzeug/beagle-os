@@ -78,8 +78,23 @@ Unternehmen mit >500 Mitarbeitern müssen Scope-2-Emissionen (IT-Infrastruktur) 
   - [x] "Grüne Stunden" Heatmap (wann ist der Strommix am saubersten)
   - [x] stündliches CO₂-/Strompreisprofil als editierbarer 24h-Feed
   - [x] Import-Pfad für stündliche Profile über die Control Plane
+  - [x] externer Feed-Import mit Retry/Backoff und Alerting bei Fehlschlag
 - [x] Control-Plane-Surface: `GET /api/v1/energy/nodes`, `GET /api/v1/energy/trend`, `GET /api/v1/energy/csrd?year=...&quarter=...`
 - [x] Tests: `tests/unit/test_csrd_export.py`
+
+## Update (2026-04-28, Plan-09-Restpunkt externer Feed-Importjob geschlossen)
+
+- Der bestehende Importpfad `POST /api/v1/energy/hourly-profile/import` unterstuetzt jetzt neben CSV/Profile-Input auch direkte externe JSON-Feeds via `feed_url`.
+- Der Feed-Fetch laeuft mit konfigurierbarem Timeout/Retry/Backoff (`timeout_seconds`, `retries`, `retry_backoff_seconds`; Defaults aus Runtime-Env).
+- Bei wiederholtem Fehlschlag wird ein Fleet-Alert `energy_feed_import_failed` mit Kontext erzeugt (Console/Webhook), damit Operatoren den Ausfall sofort sehen.
+- Fehlerpfade sind jetzt sauber als API-Status modelliert:
+  - ungültige Payload/URL -> `400`
+  - Upstream-Feed nach Retry weiterhin nicht erreichbar -> `502`
+- Neue Regressionen:
+  - `tests/unit/test_energy_feed_import.py`
+  - `tests/unit/test_control_plane_read_surface.py` (Error-Mapping Importpfad)
+- Validierung:
+  - lokal + `srv1` reproduzierbar im Fokus-Scope: `50 passed`
 
 ---
 

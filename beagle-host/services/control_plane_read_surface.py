@@ -367,11 +367,23 @@ class ControlPlaneReadSurfaceService:
             )
 
         if path == "/api/v1/energy/hourly-profile/import":
+            try:
+                imported = self._execute_energy_hourly_profile_import(payload)
+            except ValueError as exc:
+                return self._json_response(
+                    HTTPStatus.BAD_REQUEST,
+                    {"ok": False, "error": str(exc) or "invalid hourly profile import payload"},
+                )
+            except RuntimeError as exc:
+                return self._json_response(
+                    HTTPStatus.BAD_GATEWAY,
+                    {"ok": False, "error": str(exc) or "hourly profile import failed"},
+                )
             return self._json_response(
                 HTTPStatus.OK,
                 {
                     "ok": True,
-                    **self._envelope(hourly_profile=self._execute_energy_hourly_profile_import(payload)),
+                    **self._envelope(hourly_profile=imported),
                 },
             )
 

@@ -12,7 +12,12 @@ if str(SERVICES_DIR) not in sys.path:
 from control_plane_read_surface import ControlPlaneReadSurfaceService
 
 
-def make_service() -> ControlPlaneReadSurfaceService:
+def make_service(*, execute_energy_hourly_profile_import=None) -> ControlPlaneReadSurfaceService:
+    if execute_energy_hourly_profile_import is None:
+        execute_energy_hourly_profile_import = lambda payload: {
+            "co2_grams_per_kwh": [300.0] * 24,
+            "electricity_price_per_kwh": [0.2] * 24,
+        }
     return ControlPlaneReadSurfaceService(
         build_budget_alerts_payload=lambda month: [{"department": "eng", "current": 42.0, "budget": 50.0}],
         build_chargeback_payload=lambda month, department: {
@@ -89,10 +94,7 @@ def make_service() -> ControlPlaneReadSurfaceService:
             "green_window_active": True,
         },
         execute_cost_model_update=lambda payload: {"model": payload, "budgets": []},
-        execute_energy_hourly_profile_import=lambda payload: {
-            "co2_grams_per_kwh": [300.0] * 24,
-            "electricity_price_per_kwh": [0.2] * 24,
-        },
+        execute_energy_hourly_profile_import=execute_energy_hourly_profile_import,
         execute_scheduler_migration=lambda vmid, target_node, requester: {"vmid": vmid, "target_node": target_node, "requester": requester},
         execute_scheduler_rebalance=lambda requester: {"executed": [{"vmid": 101}], "requester": requester},
         execute_scheduler_warm_pool_apply=lambda payload: [{"pool_id": "pool-a", "applied_warm_pool_size": 2}],
@@ -187,6 +189,24 @@ def test_energy_hourly_profile_import_route_returns_profile() -> None:
     response = make_service().route_post("/api/v1/energy/hourly-profile/import", json_payload={"co2_csv": "300,300"})
     assert response is not None
     assert response["payload"]["hourly_profile"]["co2_grams_per_kwh"][0] == 300.0
+
+
+def test_energy_hourly_profile_import_route_maps_bad_request() -> None:
+    response = make_service(
+        execute_energy_hourly_profile_import=lambda _payload: (_ for _ in ()).throw(ValueError("invalid feed")),
+    ).route_post("/api/v1/energy/hourly-profile/import", json_payload={"feed_url": "ftp://invalid"})
+    assert response is not None
+    assert response["status"] == HTTPStatus.BAD_REQUEST
+    assert response["payload"]["ok"] is False
+
+
+def test_energy_hourly_profile_import_route_maps_bad_gateway() -> None:
+    response = make_service(
+        execute_energy_hourly_profile_import=lambda _payload: (_ for _ in ()).throw(RuntimeError("upstream failed")),
+    ).route_post("/api/v1/energy/hourly-profile/import", json_payload={"feed_url": "https://example.invalid"})
+    assert response is not None
+    assert response["status"] == HTTPStatus.BAD_GATEWAY
+    assert response["payload"]["ok"] is False
 
 
 def test_cost_model_and_scheduler_config_routes_support_get_and_put() -> None:

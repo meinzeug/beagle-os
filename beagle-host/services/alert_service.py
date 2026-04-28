@@ -137,6 +137,14 @@ class AlertService:
                 severity="critical",
                 channels=["console", "webhook"],
             ),
+            AlertRule(
+                rule_id="energy_feed_import_failed",
+                name="Energy feed import failed",
+                metric="energy_feed_import",
+                threshold=1.0,
+                severity="warning",
+                channels=["console", "webhook"],
+            ),
         ]
         created: list[AlertRule] = []
         for rule in defaults:
