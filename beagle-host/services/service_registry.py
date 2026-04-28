@@ -147,6 +147,7 @@ from recording_http_surface import RecordingHttpSurfaceService
 from network_http_surface import NetworkHttpSurfaceService
 from node_install_check_service import NodeInstallCheckService
 from session_manager import SessionManagerService
+from wireguard_mesh_service import WireguardMeshService
 from smart_scheduler import NodeCapacity, SmartSchedulerService
 from scheduler_warm_pool_auto_apply import (
     normalize_auto_apply_config,
@@ -1169,6 +1170,7 @@ COST_MODEL_SERVICE: CostModelService | None = None
 ENERGY_SERVICE: EnergyService | None = None
 METRICS_COLLECTOR_SERVICE: MetricsCollector | None = None
 WORKLOAD_PATTERN_ANALYZER_SERVICE: WorkloadPatternAnalyzer | None = None
+WIREGUARD_MESH_SERVICE: WireguardMeshService | None = None
 INSTALLER_PREP_SERVICE: InstallerPrepService | None = None
 INSTALLER_LOG_SERVICE: InstallerLogService | None = None
 INSTALLER_SCRIPT_SERVICE: InstallerScriptService | None = None
@@ -3317,11 +3319,57 @@ def stream_http_surface_service() -> StreamHttpSurfaceService:
             find_vm=find_vm,
             pool_manager_service=pool_manager_service(),
             stream_policy_service=stream_policy_service(),
+            build_wireguard_peer_config=build_stream_allocate_wireguard_profile,
+            issue_pairing_token=issue_stream_allocate_pairing_token,
             audit_event=audit_log_service().write_event,
             utcnow=utcnow,
             version=VERSION,
         )
     return STREAM_HTTP_SURFACE_SERVICE
+
+
+def wireguard_mesh_service() -> WireguardMeshService:
+    global WIREGUARD_MESH_SERVICE
+    if WIREGUARD_MESH_SERVICE is None:
+        WIREGUARD_MESH_SERVICE = WireguardMeshService(
+            server_public_key=os.environ.get("BEAGLE_WIREGUARD_SERVER_PUBLIC_KEY", "").strip(),
+            server_endpoint=os.environ.get("BEAGLE_WIREGUARD_SERVER_ENDPOINT", "").strip(),
+            state_dir=runtime_paths_service().data_dir / "wireguard-mesh",
+        )
+    return WIREGUARD_MESH_SERVICE
+
+
+def build_stream_allocate_wireguard_profile(device_id: str, pool_id: str, user_id: str) -> dict[str, Any]:
+    _ = pool_id
+    _ = user_id
+    config = wireguard_mesh_service().get_peer_config(str(device_id or "").strip())
+    if config is None:
+        return {}
+    return {
+        "interface_ip": str(config.interface_ip or "").strip(),
+        "server_public_key": str(config.server_public_key or "").strip(),
+        "server_endpoint": str(config.server_endpoint or "").strip(),
+        "preshared_key": str(config.preshared_key or "").strip(),
+        "allowed_ips": list(config.allowed_ips or []),
+        "dns": str(config.dns or "").strip(),
+    }
+
+
+def issue_stream_allocate_pairing_token(vm_id: int, user_id: str, device_id: str) -> str:
+    vm = find_vm(int(vm_id))
+    if vm is None:
+        return ""
+    result = issue_moonlight_pairing_token(
+        vm,
+        {
+            "endpoint_id": str(device_id or "").strip(),
+            "hostname": str(device_id or "").strip(),
+        },
+        f"{str(user_id or '').strip()}@{str(device_id or '').strip()}",
+    )
+    if not isinstance(result, dict):
+        return ""
+    return str(result.get("token") or "").strip()
 
 
 def admin_http_surface_service() -> AdminHttpSurfaceService:

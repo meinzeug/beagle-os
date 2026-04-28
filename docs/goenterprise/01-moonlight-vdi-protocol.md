@@ -285,6 +285,16 @@ Wichtig:
   - `tests/unit/test_beagle_stream_client_broker.py`
   - `tests/unit/test_stream_http_surface.py` (Route-Handling fuer `/allocate`)
 
+## Update (2026-04-28, Plan 01: Allocate-Runtime-Wiring an echte Pairing-/WireGuard-Quellen)
+
+- Der vorhandene Endpoint `POST /api/v1/streams/allocate` ist jetzt im Registry-Runtime-Pfad an echte Service-Quellen angebunden.
+- Pairing-Token-Ausstellung laeuft fuer Allocate ueber den vorhandenen Pairing-Flow (`issue_moonlight_pairing_token`).
+- `wg_peer_config` wird aus dem WireGuard-Mesh-Zustand (`wireguard_mesh_service`) befuellt.
+- Damit ist der Allocate-Contract im Runtime-Pfad nicht mehr nur testbar, sondern auch produktionsnah verdrahtet.
+- Validierung:
+  - Lokal: `python3 -m pytest -q tests/unit/test_beagle_stream_client_broker.py tests/unit/test_stream_http_surface.py tests/unit/test_authz_policy.py tests/unit/test_beagle_stream_server_api.py` -> `29 passed`
+  - `srv1`: gleicher Scope im `/tmp`-Stage -> `29 passed`
+
 ---
 
 ## Latenz-Garantie (gemessen auf srv1, 24.04.2026)

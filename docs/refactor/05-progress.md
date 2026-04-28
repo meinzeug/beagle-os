@@ -1,3 +1,16 @@
+## Update (2026-04-28, GoEnterprise Plan 01: stream allocate runtime wiring abgeschlossen)
+
+**Scope**: Der vorhandene Client-Broker-Contract `/api/v1/streams/allocate` ist jetzt im Runtime-Weg der Registry voll an echte Services angebunden.
+
+- Backend:
+  - `beagle-host/services/service_registry.py`
+    - `stream_http_surface_service()` verdrahtet jetzt Allocate-Callbacks auf echte Runtime-Funktionen
+    - WireGuard-Peer-Profil wird aus `wireguard_mesh_service` geladen und als `wg_peer_config` ausgegeben
+    - Pairing-Token wird ueber den bestehenden Pairing-Flow (`issue_moonlight_pairing_token`) fuer Allocate ausgestellt
+- Validierung:
+  - Lokal: `29 passed`
+  - `srv1` (staged `/tmp/beagle-os-snap-*`): `29 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 01: Stream-Client-Broker-Contract-Slice geschlossen)
 
 **Scope**: Der naechste in-repo realisierbare Plan-01-Teil fuer den spaeteren `beagle-stream-client` ist umgesetzt und validiert.
