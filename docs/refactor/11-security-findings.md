@@ -1,6 +1,24 @@
 # Security Findings
 
-Stand: 2026-04-28 (ergänzt: S-031 WebUI-CSP-Inline-Styles geschlossen)
+Stand: 2026-04-28 (ergänzt: S-032 Login-Rate-Limit hinter nginx korrigiert)
+
+## S-032 — Login-Guard und API-Rate-Limit nutzten hinter nginx nur die Proxy-IP (PATCHED)
+
+- Status: **gepatcht** (2026-04-28)
+- Risiko: **Mittel**
+- Betroffene Dateien:
+  - `beagle-host/services/request_handler_mixin.py`
+  - `website/ui/auth.js`
+  - `tests/unit/test_request_handler_mixin_client_addr.py`
+- Beschreibung:
+  - Die Control Plane laeuft auf `srv1` hinter nginx.
+  - nginx setzt `X-Forwarded-For`, aber `_client_addr()` nutzte bisher nur den direkten TCP-Peer.
+  - Dadurch teilten alle externen Browser den Login-Guard-/Rate-Limit-Key `127.0.0.1`; fehlgeschlagene Versuche aus einem Kontext konnten korrekte Logins anderer Kontexte mit `429 login temporarily blocked` blockieren.
+- Fix:
+  - `X-Forwarded-For`/`X-Real-IP` wird nur ausgewertet, wenn der direkte Peer ein lokaler Proxy ist.
+  - Direkte externe Requests koennen den Header nicht zum Rate-Limit-Spoofing verwenden.
+  - Auth-Session-Audit und Login-Guard nutzen dieselbe korrigierte Client-IP.
+  - Login-POSTs werden im Browser als Single-Flight behandelt und zeigen `retry_after_seconds` lesbar an.
 
 ## S-031 — WebUI erzeugte CSP-verbotene Inline-Style-Attribute (PATCHED)
 

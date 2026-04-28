@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-28, Login-429 hinter nginx behoben)
+
+**Zuletzt erledigt**:
+- Login-Rate-Limit/Guard nutzt hinter nginx wieder die echte Forwarded-For-Client-IP und nicht global `127.0.0.1`; Login-Doppel-Submits werden browserseitig zusammengefuehrt.
+
+**Naechste konkrete Schritte**:
+
+1. Fix auf `srv1` ausrollen, `beagle-control-plane` neu starten und Login mit `admin` verifizieren.
+2. Danach denselben Runtime-Stand auf `srv2` spiegeln, falls dort nginx ebenfalls als Reverse Proxy vor der Control Plane steht.
+3. Optional: Prometheus-/Audit-Auswertung fuer `beagle_rate_limit_drops_total` nach Host/Client-IP pruefen, um echte Brute-Force-Versuche von Proxy-Key-Drift zu unterscheiden.
+
 ## Stand (2026-04-28, WebUI CSP inline-style fix)
 
 **Zuletzt erledigt**:

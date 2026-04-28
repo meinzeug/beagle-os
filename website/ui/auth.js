@@ -14,6 +14,7 @@ import { fetchWithTimeout, resolveApiTarget } from './api.js';
 let tokenStore = null;
 let refreshTokenStore = null;
 let refreshInFlight = null;
+let loginInFlight = null;
 let authLockCountdownTimer = null;
 let sessionLastActivityAt = Date.now();
 
@@ -344,7 +345,10 @@ export function saveToken() {
 export function loginWithCredentials(username, password) {
   const safeUsername = sanitizeIdentifier(username, 'Benutzername', USERNAME_PATTERN, 1, MAX_USERNAME_LEN);
   const safePassword = sanitizePassword(password, 'Passwort');
-  return fetchWithTimeout(resolveApiTarget('/auth/login'), {
+  if (loginInFlight) {
+    return loginInFlight;
+  }
+  loginInFlight = fetchWithTimeout(resolveApiTarget('/auth/login'), {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
@@ -361,6 +365,13 @@ export function loginWithCredentials(username, password) {
         void error;
       }
       if (!response.ok) {
+        if (response.status === 429) {
+          const retryAfter = Number(payload.retry_after_seconds || response.headers.get('Retry-After') || 0);
+          const suffix = Number.isFinite(retryAfter) && retryAfter > 0
+            ? ' Bitte in ' + String(Math.ceil(retryAfter)) + 's erneut versuchen.'
+            : '';
+          throw new Error((payload.error || 'Login temporaer gesperrt.') + suffix);
+        }
         throw new Error(payload.error || ('HTTP ' + response.status));
       }
       state.token = String(payload.access_token || '').trim();
@@ -388,7 +399,10 @@ export function loginWithCredentials(username, password) {
       }
       throw error;
     });
+  }).finally(() => {
+    loginInFlight = null;
   });
+  return loginInFlight;
 }
 
 function renderIdentityProviderMethods() {

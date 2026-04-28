@@ -2,6 +2,11 @@
 
 Stand: 2026-04-13
 
+## D-050: Proxy-Forwarded-Client-IP nur von lokalem Reverse Proxy vertrauen
+- Entscheidung: Die Control Plane nutzt `X-Forwarded-For`/`X-Real-IP` fuer Audit, Login-Guard und API-Rate-Limit nur, wenn der direkte Peer ein lokaler Proxy ist.
+- Grund: nginx terminiert die oeffentliche WebUI und setzt Forwarded-For; ohne Auswertung werden alle Nutzer als `127.0.0.1` limitiert. Direkte externe Clients duerfen den Header aber nicht spoofend kontrollieren.
+- Dateien: `beagle-host/services/request_handler_mixin.py`, `tests/unit/test_request_handler_mixin_client_addr.py`.
+
 ## D-049: WebUI bleibt unter strikter CSP ohne Inline-Style-Ausnahmen
 - Entscheidung: Neue und bestehende WebUI-Renderer duerfen keine `style="..."`-Attribute in HTML-Strings erzeugen; dynamische Visualisierung nutzt CSS-Klassen, feste Buckets oder echte Stylesheets.
 - Grund: Die produktive CSP `style-src 'self'` soll nicht durch `unsafe-inline` aufgeweicht werden. Klassenbasierte Darstellung erhaelt die Sicherheitsgrenze und vermeidet Browser-Console-Fehler.

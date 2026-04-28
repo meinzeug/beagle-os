@@ -1,3 +1,22 @@
+## Update (2026-04-28, Login-429 hinter nginx behoben)
+
+**Scope**: `POST /api/v1/auth/login` lieferte auf `srv1` trotz korrekter Credentials `429 Too Many Requests`, weil der Login-Guard hinter nginx alle externen Browser als denselben Peer `127.0.0.1` behandelte.
+
+- Backend:
+  - `beagle-host/services/request_handler_mixin.py`
+    - `_client_addr()` wertet `X-Forwarded-For`/`X-Real-IP` nur dann aus, wenn der direkte Peer ein lokaler Proxy ist.
+    - API-Rate-Limit, Login-Guard, Audit-Remote-Addr und Auth-Session-Remote-Addr nutzen dadurch wieder die echte Client-IP statt global `127.0.0.1`.
+- Frontend:
+  - `website/ui/auth.js`
+    - Login-POSTs sind Single-Flight, um Enter/Klick-Doppel-Submits nicht mehrfach gegen `/auth/login` zu senden.
+    - `429` zeigt die vom Backend gelieferte Wartezeit im Login-Banner.
+- Tests:
+  - `tests/unit/test_request_handler_mixin_client_addr.py` deckt Forwarded-For hinter loopback proxy, Spoof-Abwehr bei direktem Peer und Login-Guard-Key-Scoping ab.
+- Verifikation:
+  - `python3 -m py_compile beagle-host/services/request_handler_mixin.py tests/unit/test_request_handler_mixin_client_addr.py` erfolgreich.
+  - Direkter Assertion-Smoke fuer die neuen Tests erfolgreich.
+  - `node --experimental-default-type=module --check website/ui/auth.js` erfolgreich.
+
 ## Update (2026-04-28, WebUI CSP inline-style fix fuer srv1)
 
 **Scope**: Nach dem Auth-Gating-Fix blieb in der Browser-Console ein realer Frontend-Restfehler: mehrere WebUI-Module erzeugten HTML mit `style="..."`-Attributen und verletzten damit die produktive CSP `style-src 'self'`.

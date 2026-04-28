@@ -7,6 +7,7 @@ main entry-point file stays focused on the HTTP dispatch logic.
 from __future__ import annotations
 
 import json
+import ipaddress
 import re
 import secrets
 import time
@@ -66,8 +67,39 @@ class HandlerMixin:
                 return value.hex()
         return repr(value)
 
+    @staticmethod
+    def _valid_ip_address(value: str) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            return ""
+        try:
+            return str(ipaddress.ip_address(raw))
+        except ValueError:
+            return ""
+
+    @classmethod
+    def _is_trusted_forwarding_peer(cls, value: str) -> bool:
+        addr = cls._valid_ip_address(value)
+        if not addr:
+            return False
+        parsed = ipaddress.ip_address(addr)
+        return parsed.is_loopback
+
+    def _forwarded_client_addr(self) -> str:
+        if not self._is_trusted_forwarding_peer(self.client_address[0] if self.client_address else ""):
+            return ""
+        forwarded_for = str(self.headers.get("X-Forwarded-For") or "")
+        for part in forwarded_for.split(","):
+            addr = self._valid_ip_address(part)
+            if addr:
+                return addr
+        return self._valid_ip_address(str(self.headers.get("X-Real-IP") or ""))
+
     def _client_addr(self) -> str:
-        return self.client_address[0] if self.client_address else ""
+        forwarded = self._forwarded_client_addr()
+        if forwarded:
+            return forwarded
+        return self._valid_ip_address(self.client_address[0] if self.client_address else "")
 
     def _login_guard_key(self, username: str) -> str:
         return f"{self._client_addr()}::{str(username or '').strip().lower()}"
@@ -245,7 +277,7 @@ class HandlerMixin:
             auth_bootstrap_username=AUTH_BOOTSTRAP_USERNAME,
             auth_bootstrap_disabled=AUTH_BOOTSTRAP_DISABLE,
             auth_principal=self._auth_principal,
-            remote_addr=lambda: self.client_address[0] if self.client_address else "",
+            remote_addr=self._client_addr,
             user_agent=lambda: str(self.headers.get("User-Agent") or "")[:256],
             read_json_body=self._read_json_body,
             has_body=lambda: int(self.headers.get("Content-Length", "0") or "0") > 0,
