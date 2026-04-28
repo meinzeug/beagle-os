@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 01 stream control-plane slice completed)
+
+**Zuletzt erledigt**:
+- Die repo-faehige Control-Plane-Seite fuer den spaeteren `beagle-stream-server` ist jetzt umgesetzt: Stream-Server-Register, dynamische Config und Session-Event-Audit laufen ueber echte `/api/v1/streams/*`-Routen.
+- `vpn_required` wird auf dem neuen Config-Pfad reproduzierbar mit `403` durchgesetzt; RBAC und Unit-Regressionen fuer die neue Surface sind vorhanden.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 01 Fork-Rest**: den eigentlichen Sunshine-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen diese neue Control-Plane-API anheben.
+2. **Plan 09 Restpunkt**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob mit Retry/Alerting umsetzen.
+3. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+4. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+
 ## Stand (2026-04-28, GoEnterprise Plan 08 Schritt 1 RAID closed)
 
 **Zuletzt erledigt**:

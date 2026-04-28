@@ -224,6 +224,27 @@ Wichtig:
 - [ ] Policy `vpn_preferred`: WireGuard-Fehler → direkter Fallback funktioniert.
 - [ ] Audit-Log: Session-Start/Stop erscheinen als Audit-Events im Control Plane.
 
+## Update (2026-04-28, Plan 01: Control-Plane-API fuer kuenftigen beagle-stream-server umgesetzt)
+
+- Der repo-realisierbare erste Fork-Slice ist jetzt im Control Plane verdrahtet, obwohl die eigentlichen Sunshine-/Moonlight-Forks noch nicht in diesem Workspace existieren.
+- Neue Control-Plane-Endpunkte:
+  - `POST /api/v1/streams/register`
+  - `GET /api/v1/streams/{vm_id}/config`
+  - `POST /api/v1/streams/{vm_id}/events`
+- Die Config-Surface liefert jetzt dynamische Stream-Konfiguration aus VM-/Pool-Daten plus effektiver Stream-Policy (`FPS`, `Bitrate`, `Codec`, Redirect-Flags, `network_mode`).
+- Der Config-Pfad erzwingt `vpn_required` auch fuer den kuenftigen Stream-Server-Handshake reproduzierbar mit `403`, wenn kein WireGuard-Tunnel aktiv ist.
+- Session-Events werden als Audit-Events in den Control-Plane-Audit-Log geschrieben; Register-/Event-Status wird zustandsbehaftet unter `data/streams/servers.json` persistiert.
+- Neue Regressionen:
+  - `tests/unit/test_stream_http_surface.py`
+  - `tests/unit/test_authz_policy.py`
+- Validierung:
+  - Lokal: `python3 -m pytest -q tests/unit/test_stream_http_surface.py tests/unit/test_stream_policy.py tests/unit/test_authz_policy.py`
+  - `srv1`: identischer Pytest-Scope in separatem `/tmp`-Bundle
+
+Wichtig:
+- Dieser Schritt schliesst bewusst die Control-Plane-Seite fuer den spaeteren `beagle-stream-server`.
+- Offen bleiben weiterhin der echte Sunshine-Fork, Token-Pairing im Fork, Paketbau und die Live-Abnahme gegen einen real gestarteten Stream-Server auf einer VM.
+
 ---
 
 ## Latenz-Garantie (gemessen auf srv1, 24.04.2026)

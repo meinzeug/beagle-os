@@ -1,3 +1,29 @@
+## Update (2026-04-28, GoEnterprise Plan 01: Stream-Control-Plane-API-Slice geschlossen)
+
+**Scope**: Der naechste repo-faehige BeagleStream-Slice ist umgesetzt: die Control-Plane-Seite fuer den spaeteren `beagle-stream-server` existiert jetzt als echte HTTP-Surface mit Register-/Config-/Event-API, Policy-Glue und Audit-Logging.
+
+- Backend:
+  - `beagle-host/services/stream_http_surface.py` (neu)
+    - `POST /api/v1/streams/register`
+    - `GET /api/v1/streams/{vm_id}/config`
+    - `POST /api/v1/streams/{vm_id}/events`
+    - Persistenz des Register-Status unter `data/streams/servers.json`
+    - dynamische Config aus VM-Profil, Pool-/Session-Zustand und `stream_policy_service`
+    - `vpn_required` wird im Config-Handshake reproduzierbar mit `403` durchgesetzt
+  - `beagle-host/services/control_plane_handler.py`: Routing der neuen Stream-Surface
+  - `beagle-host/services/service_registry.py`: Lazy-Wiring fuer Stream-Surface + Stream-Policy-Service
+  - `beagle-host/services/authz_policy.py`: RBAC-Mapping fuer neue Stream-Routen (`pool:read` / `pool:write`)
+- Tests:
+  - `tests/unit/test_stream_http_surface.py` (neu)
+  - `tests/unit/test_authz_policy.py` (erweitert)
+- Validierung:
+  - Lokal: `python3 -m pytest -q tests/unit/test_stream_http_surface.py tests/unit/test_stream_policy.py tests/unit/test_authz_policy.py` -> erwartet gruen
+  - `srv1`: identischer Pytest-Scope in separatem Temp-Bundle
+
+Wichtig:
+- Das schliesst bewusst den innerhalb dieses Repos umsetzbaren Control-Plane-Teil von Plan 01.
+- Offen bleiben weiterhin der echte Sunshine-Fork, HMAC-Token-Pairing im Fork, Paketierung und Live-Abnahme gegen einen real gestarteten Stream-Server.
+
 ## Update (2026-04-28, GoEnterprise Plan 08: Schritt-1-RAID-Mehrdisk geschlossen)
 
 **Scope**: Der letzte offene Plan-08-Schritt (`TUI-Installer ueberarbeiten`) ist im technischen Kern geschlossen: RAID-Mehrdisk (`0/1/5/10`) ist jetzt im Seed- und interaktiven Installer-Flow implementiert und getestet.

@@ -61,6 +61,7 @@
 - [x] GoEnterprise Plan 01: Pool-Streaming-Profil um `network_mode` (`vpn_required|vpn_preferred|direct_allowed`) erweitern und in Pool-API/UI persistieren.
 - [x] GoEnterprise Plan 01: Reproduzierbare Unit-Tests fuer `thin-client-assistant/runtime/protocol_selector.sh` einfuehren.
 - [x] GoEnterprise Plan 01: aktuellen Control-Plane-/Session-Broker-Pfad fuer `vpn_required` serverseitig konkret verdrahten.
+- [x] GoEnterprise Plan 01: Control-Plane-API fuer kuenftigen `beagle-stream-server` (`/api/v1/streams/register`, `/config`, `/events`) inkl. Audit-Log und RBAC verdrahten.
 - [ ] GoEnterprise Plan 01: denselben Enforcement-Pfad spaeter auch im separaten `beagle-stream-server`-Fork verankern.
 
 ## Update 2026-04-26 (GoFuture Re-Open: WebUI-Operability)

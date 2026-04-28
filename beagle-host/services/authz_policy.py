@@ -93,6 +93,8 @@ class AuthzPolicyService:
         verb = str(method or "").upper()
         route = str(path or "")
         if verb == "POST":
+            if route == "/api/v1/streams/register" or re.match(r"^/api/v1/streams/\d+/events$", route):
+                return "pool:write"
             if route == "/api/v1/audit/failures/replay" or re.match(r"^/api/v1/audit/export-targets/[A-Za-z0-9_-]+/test$", route):
                 return "auth:write"
             if route == "/api/v1/actions/bulk":
@@ -208,6 +210,8 @@ class AuthzPolicyService:
             if re.match(r"^/api/v1/pool-templates/[A-Za-z0-9._-]+$", route):
                 return "pool:write"
         if verb == "GET":
+            if re.match(r"^/api/v1/streams/\d+/config$", route):
+                return "pool:read"
             if route in {"/api/v1/fleet/policies", "/api/v1/fleet/policies/assignments", "/api/v1/fleet/remediation/drift", "/api/v1/fleet/remediation/config", "/api/v1/fleet/remediation/history", "/api/v1/fleet/anomalies", "/api/v1/fleet/maintenance", "/api/v1/fleet/alerts", "/api/v1/fleet/alerts/rules"}:
                 return "settings:read"
             if route in {"/api/v1/scheduler/insights", "/api/v1/scheduler/config", "/api/v1/costs/chargeback", "/api/v1/costs/chargeback.csv", "/api/v1/costs/budget-alerts", "/api/v1/costs/model", "/api/v1/energy/nodes", "/api/v1/energy/rankings", "/api/v1/energy/trend", "/api/v1/energy/csrd", "/api/v1/energy/config", "/api/v1/energy/green-hours"}:

@@ -101,6 +101,8 @@ from scim_service import ScimService
 from saml_service import SamlAssertionError, SamlService
 from sunshine_access_token_store import SunshineAccessTokenStoreService
 from sunshine_integration import SunshineIntegrationService
+from stream_http_surface import StreamHttpSurfaceService
+from stream_policy_service import StreamPolicyService
 from support_bundle_store import SupportBundleStoreService
 from time_support import TimeSupportService
 from ubuntu_beagle_inputs import UbuntuBeagleInputsService
@@ -1124,6 +1126,7 @@ VIRTUALIZATION_READ_SURFACE_SERVICE: VirtualizationReadSurfaceService | None = N
 PUBLIC_HTTP_SURFACE_SERVICE: PublicHttpSurfaceService | None = None
 PUBLIC_UBUNTU_INSTALL_SURFACE_SERVICE: PublicUbuntuInstallSurfaceService | None = None
 ENDPOINT_HTTP_SURFACE_SERVICE: EndpointHttpSurfaceService | None = None
+STREAM_HTTP_SURFACE_SERVICE: StreamHttpSurfaceService | None = None
 ADMIN_HTTP_SURFACE_SERVICE: AdminHttpSurfaceService | None = None
 AUTH_HTTP_SURFACE_SERVICE: AuthHttpSurfaceService | None = None
 ENDPOINT_LIFECYCLE_SURFACE_SERVICE: EndpointLifecycleSurfaceService | None = None
@@ -1163,6 +1166,7 @@ POLICY_NORMALIZATION_SERVICE: PolicyNormalizationService | None = None
 POLICY_STORE_SERVICE: PolicyStoreService | None = None
 PUBLIC_STREAM_SERVICE: PublicStreamService | None = None
 JOB_QUEUE_SERVICE: JobQueueService | None = None
+STREAM_POLICY_SERVICE: StreamPolicyService | None = None
 JOB_WORKER: JobWorker | None = None
 JOBS_HTTP_SURFACE: JobsHttpSurface | None = None
 PROMETHEUS_METRICS_SERVICE: PrometheusMetricsService | None = None
@@ -3280,6 +3284,31 @@ def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
             version=VERSION,
         )
     return ENDPOINT_HTTP_SURFACE_SERVICE
+
+
+def stream_policy_service() -> StreamPolicyService:
+    global STREAM_POLICY_SERVICE
+    if STREAM_POLICY_SERVICE is None:
+        STREAM_POLICY_SERVICE = StreamPolicyService(
+            state_file=runtime_paths_service().data_dir / "stream-policies.json",
+        )
+    return STREAM_POLICY_SERVICE
+
+
+def stream_http_surface_service() -> StreamHttpSurfaceService:
+    global STREAM_HTTP_SURFACE_SERVICE
+    if STREAM_HTTP_SURFACE_SERVICE is None:
+        STREAM_HTTP_SURFACE_SERVICE = StreamHttpSurfaceService(
+            state_file=runtime_paths_service().data_dir / "streams" / "servers.json",
+            build_vm_profile=build_profile,
+            find_vm=find_vm,
+            pool_manager_service=pool_manager_service(),
+            stream_policy_service=stream_policy_service(),
+            audit_event=audit_log_service().write_event,
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return STREAM_HTTP_SURFACE_SERVICE
 
 
 def admin_http_surface_service() -> AdminHttpSurfaceService:

@@ -197,6 +197,20 @@ class AuthzPolicyServiceTests(unittest.TestCase):
         permission = AuthzPolicyService.required_permission("GET", "/api/v1/sessions/handover")
         self.assertEqual(permission, "pool:read")
 
+    def test_stream_control_plane_routes_use_pool_permissions(self):
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/streams/303/config"),
+            "pool:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/streams/register"),
+            "pool:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/streams/303/events"),
+            "pool:write",
+        )
+
     def test_fleet_registry_routes_use_settings_permissions(self):
         self.assertEqual(
             AuthzPolicyService.required_permission("GET", "/api/v1/fleet/devices"),
