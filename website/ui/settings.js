@@ -305,7 +305,11 @@ export function loadSettingsFirewall() {
       return;
     }
     tbody.innerHTML = rules.map((rule) => {
-      return '<tr><td>' + escapeHtml(rule.number) + '</td><td>' + escapeHtml(rule.rule) + '</td><td><button class="button danger small fw-delete-rule" data-rule-num="' + escapeHtml(rule.number) + '">Loeschen</button></td></tr>';
+      const managed = Boolean(rule.managed);
+      const action = managed
+        ? '<span class="pill muted">Standard</span>'
+        : '<button class="button danger small fw-delete-rule" data-rule-num="' + escapeHtml(rule.number) + '">Loeschen</button>';
+      return '<tr><td>' + escapeHtml(rule.number) + '</td><td>' + escapeHtml(rule.rule) + '</td><td>' + action + '</td></tr>';
     }).join('');
   }).catch((error) => {
     settingsHooks.setBanner('Firewall laden fehlgeschlagen: ' + error.message, 'warn');

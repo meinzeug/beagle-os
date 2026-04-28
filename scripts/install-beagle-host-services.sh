@@ -803,6 +803,7 @@ cat > /etc/sudoers.d/beagle-artifacts-refresh <<'SUDOERS'
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-artifacts-refresh.service, /bin/systemctl show -p Id beagle-artifacts-refresh.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-artifacts-watchdog.service, /bin/systemctl show -p Id beagle-artifacts-watchdog.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-repo-auto-update.service, /bin/systemctl show -p Id beagle-repo-auto-update.service
+beagle-manager ALL=(root) NOPASSWD: /opt/beagle/scripts/apply-beagle-firewall.sh --enable, /opt/beagle/scripts/apply-beagle-firewall.sh --disable, /opt/beagle/scripts/apply-beagle-firewall.sh --status, /opt/beagle/scripts/apply-beagle-firewall.sh --add-extra-rule *, /opt/beagle/scripts/apply-beagle-firewall.sh --delete-extra-rule *
 SUDOERS
 chmod 0440 /etc/sudoers.d/beagle-artifacts-refresh
 

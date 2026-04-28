@@ -366,8 +366,13 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
                 return "table inet beagle_guard {\n chain input { policy drop; }\n}"
             return ""
 
+        status_proc = mock.Mock()
+        status_proc.returncode = 0
+        status_proc.stdout = "active\n"
+        status_proc.stderr = ""
         with tempfile.TemporaryDirectory() as tmpdir, \
              mock.patch.object(MODULE, "_BEAGLE_FIREWALL_EXTRA_RULES", Path(tmpdir) / "extra.rules"), \
+             mock.patch.object(service, "_run_firewall_script", return_value=status_proc), \
              mock.patch.object(MODULE, "_run_cmd", side_effect=fake_run):
             (Path(tmpdir) / "extra.rules").write_text("tcp dport 8443 drop\n", encoding="utf-8")
             result = service.get_firewall()
@@ -375,7 +380,9 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertTrue(result["active"])
         self.assertEqual(result["engine"], "nftables")
         self.assertTrue(result["service_active"])
-        self.assertEqual(result["rules"], [{"number": "1", "rule": "tcp dport 8443 drop"}])
+        self.assertGreaterEqual(len(result["rules"]), 5)
+        self.assertTrue(result["rules"][0]["managed"])
+        self.assertEqual(result["rules"][-1], {"number": "1", "rule": "tcp dport 8443 drop", "managed": False})
 
     def test_update_firewall_add_rule_persists_safe_nft_rule_and_reapplies(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -397,12 +404,12 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
 
             with mock.patch.object(MODULE, "_BEAGLE_FIREWALL_EXTRA_RULES", Path(tmpdir) / "extra.rules"), \
                  mock.patch.object(MODULE.subprocess, "run", side_effect=fake_run), \
+                 mock.patch.object(MODULE.os, "geteuid", return_value=0), \
                  mock.patch.object(service, "get_firewall", return_value={"active": True, "rules": []}):
                 result = service.update_firewall({"action": "add_rule", "rule": "allow 9443/tcp"})
 
             self.assertTrue(result["ok"], result)
-            self.assertIn("tcp dport 9443 accept", (Path(tmpdir) / "extra.rules").read_text(encoding="utf-8"))
-            self.assertEqual(calls[0], [str(script), "--enable"])
+            self.assertEqual(calls[0], [str(script), "--add-extra-rule", "tcp dport 9443 accept"])
 
     def test_get_updates_includes_repo_auto_update_state(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -393,11 +393,17 @@ class ServerSettingsService:
             pass
 
     def _run_firewall_script(self, action: str) -> subprocess.CompletedProcess[str] | None:
+        return self._run_firewall_script_args([action])
+
+    def _run_firewall_script_args(self, args: list[str]) -> subprocess.CompletedProcess[str] | None:
         script = self._firewall_script()
         if not script.exists():
-            return subprocess.CompletedProcess([str(script), action], 127, "", "firewall script not found")
+            return subprocess.CompletedProcess([str(script), *args], 127, "", "firewall script not found")
+        cmd = [str(script), *args]
+        if hasattr(os, "geteuid") and os.geteuid() != 0 and shutil.which("sudo"):
+            cmd = ["sudo", "-n", *cmd]
         return subprocess.run(
-            [str(script), action],
+            cmd,
             capture_output=True,
             text=True,
             timeout=30,
@@ -418,11 +424,20 @@ class ServerSettingsService:
     def get_firewall(self) -> dict[str, Any]:
         systemd_state = _run_cmd(["systemctl", "is-active", "nftables"])
         nft_status = _run_cmd(["nft", "list", "table", "inet", "beagle_guard"])
-        rules: list[dict[str, str]] = []
+        guard_status = self._run_firewall_script("--status")
+        rules: list[dict[str, Any]] = [
+            {"number": "std-host", "rule": "allow 22/tcp, 80/tcp, 443/tcp for SSH, WebUI, API and downloads", "managed": True},
+            {"number": "std-vm-services", "rule": "allow VM bridge DNS/DHCP and local Beagle API/RPC callbacks", "managed": True},
+            {"number": "std-vm-forward", "rule": "allow VM bridge egress and explicit DNAT stream forwards", "managed": True},
+            {"number": "std-cluster", "rule": "allow 9088/9089 only from localhost, VM bridges and cluster peers", "managed": True},
+        ]
 
-        active = bool(nft_status and "table inet beagle_guard" in nft_status)
+        active = bool(
+            (guard_status and guard_status.returncode == 0 and guard_status.stdout.strip() == "active")
+            or (nft_status and "table inet beagle_guard" in nft_status)
+        )
         for idx, line in enumerate(self._read_firewall_extra_rules(), start=1):
-            rules.append({"number": str(idx), "rule": line})
+            rules.append({"number": str(idx), "rule": line, "managed": False})
 
         raw_lines = []
         if nft_status:
@@ -462,11 +477,7 @@ class ServerSettingsService:
             else:
                 try:
                     nft_rule = self._format_firewall_rule(rule_str)
-                    rules = self._read_firewall_extra_rules()
-                    if nft_rule not in rules:
-                        rules.append(nft_rule)
-                    self._write_firewall_extra_rules(rules)
-                    r = self._run_firewall_script("--enable")
+                    r = self._run_firewall_script_args(["--add-extra-rule", nft_rule])
                     if r is None or r.returncode != 0:
                         errors.append(f"firewall rule failed: {((r.stderr if r else '') or '').strip()[:200]}")
                 except ValueError as exc:
@@ -482,9 +493,7 @@ class ServerSettingsService:
                 if idx < 0 or idx >= len(rules):
                     errors.append("unknown rule number")
                 else:
-                    del rules[idx]
-                    self._write_firewall_extra_rules(rules)
-                    r = self._run_firewall_script("--enable")
+                    r = self._run_firewall_script_args(["--delete-extra-rule", rule_num])
                     if r is None or r.returncode != 0:
                         errors.append(f"firewall delete failed: {((r.stderr if r else '') or '').strip()[:200]}")
 

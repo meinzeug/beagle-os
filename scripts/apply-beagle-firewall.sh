@@ -9,6 +9,7 @@ NFT_RULE_FILE="${BEAGLE_FIREWALL_RULE_FILE:-$CONFIG_DIR/beagle-firewall.nft}"
 EXTRA_RULE_FILE="${BEAGLE_FIREWALL_EXTRA_RULE_FILE:-$CONFIG_DIR/beagle-firewall-extra.rules}"
 TABLE_NAME="${BEAGLE_FIREWALL_TABLE:-beagle_guard}"
 ACTION="${1:---enable}"
+ACTION_ARG="${2:-}"
 
 source_env_file() {
   local file="$1"
@@ -74,6 +75,59 @@ detect_existing_cluster_peers() {
       awk '$1 == "-A" && $3 == "-s" && $5 == "-j" && $6 == "ACCEPT" {print $4}' |
       grep -Ev '^127\.|^::1(/|$)' || true
   fi
+}
+
+install_extra_rule_file() {
+  local source_file="$1"
+  local group_name="root"
+
+  if getent group beagle-manager >/dev/null 2>&1; then
+    group_name="beagle-manager"
+  fi
+  install -m 0640 -o root -g "$group_name" "$source_file" "$EXTRA_RULE_FILE"
+}
+
+read_extra_rules() {
+  [[ -f "$EXTRA_RULE_FILE" ]] || return 0
+  sed '/^[[:space:]]*$/d; /^[[:space:]]*#/d' "$EXTRA_RULE_FILE"
+}
+
+write_extra_rules() {
+  local tmp
+  tmp="$(mktemp)"
+  {
+    echo "# Managed by Beagle Web Console. Syntax is nft input-chain snippets."
+    cat
+  } >"$tmp"
+  install_extra_rule_file "$tmp"
+  rm -f "$tmp"
+}
+
+add_extra_rule() {
+  local rule="$1"
+  local tmp
+  if [[ -z "$rule" || "$rule" == *$'\n'* ]]; then
+    echo "invalid extra firewall rule" >&2
+    return 2
+  fi
+  tmp="$(mktemp)"
+  read_extra_rules | grep -Fxv "$rule" >"$tmp" || true
+  printf '%s\n' "$rule" >>"$tmp"
+  write_extra_rules <"$tmp"
+  rm -f "$tmp"
+}
+
+delete_extra_rule() {
+  local rule_number="$1"
+  local tmp
+  if [[ ! "$rule_number" =~ ^[0-9]+$ || "$rule_number" -lt 1 ]]; then
+    echo "invalid extra firewall rule number" >&2
+    return 2
+  fi
+  tmp="$(mktemp)"
+  read_extra_rules | awk -v n="$rule_number" 'NR != n {print}' >"$tmp"
+  write_extra_rules <"$tmp"
+  rm -f "$tmp"
 }
 
 write_nft_rules() {
@@ -217,6 +271,20 @@ case "$ACTION" in
       apply_rules
     fi
     ;;
+  --add-extra-rule|add-extra-rule)
+    add_extra_rule "$ACTION_ARG"
+    write_nft_rules
+    if [[ "${BEAGLE_FIREWALL_NO_APPLY:-0}" != "1" ]]; then
+      apply_rules
+    fi
+    ;;
+  --delete-extra-rule|delete-extra-rule)
+    delete_extra_rule "$ACTION_ARG"
+    write_nft_rules
+    if [[ "${BEAGLE_FIREWALL_NO_APPLY:-0}" != "1" ]]; then
+      apply_rules
+    fi
+    ;;
   --write-only|write-only)
     write_nft_rules
     ;;
@@ -231,7 +299,7 @@ case "$ACTION" in
     fi
     ;;
   *)
-    echo "Usage: $0 [--enable|--write-only|--disable|--status]" >&2
+    echo "Usage: $0 [--enable|--write-only|--disable|--status|--add-extra-rule RULE|--delete-extra-rule NUMBER]" >&2
     exit 2
     ;;
 esac
