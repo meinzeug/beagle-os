@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 01 policy/audit testpflicht slice completed)
+
+**Zuletzt erledigt**:
+- Plan-01-Testpflicht im aktuellen Repo-Scope weiter geschlossen: `vpn_required`-Ablehnung (`403`), `vpn_preferred`-Fallback (`200`) und Audit-Events fuer Stream-Session-Events sind jetzt reproduzierbar auf der neuen Stream-HTTP-Surface abgesichert.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 01 Fork-Rest**: den eigentlichen Sunshine-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen diese neue Control-Plane-API anheben.
+2. **Plan 09 Restpunkt**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob mit Retry/Alerting umsetzen.
+3. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+4. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+
 ## Stand (2026-04-28, GoEnterprise Plan 01 stream control-plane slice completed)
 
 **Zuletzt erledigt**:

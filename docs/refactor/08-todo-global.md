@@ -62,6 +62,7 @@
 - [x] GoEnterprise Plan 01: Reproduzierbare Unit-Tests fuer `thin-client-assistant/runtime/protocol_selector.sh` einfuehren.
 - [x] GoEnterprise Plan 01: aktuellen Control-Plane-/Session-Broker-Pfad fuer `vpn_required` serverseitig konkret verdrahten.
 - [x] GoEnterprise Plan 01: Control-Plane-API fuer kuenftigen `beagle-stream-server` (`/api/v1/streams/register`, `/config`, `/events`) inkl. Audit-Log und RBAC verdrahten.
+- [x] GoEnterprise Plan 01: Testpflicht-Punkte `vpn_required`-403, `vpn_preferred`-Fallback und Stream-Session-Audit auf der neuen `/api/v1/streams/*`-Surface reproduzierbar schliessen.
 - [ ] GoEnterprise Plan 01: denselben Enforcement-Pfad spaeter auch im separaten `beagle-stream-server`-Fork verankern.
 
 ## Update 2026-04-26 (GoFuture Re-Open: WebUI-Operability)

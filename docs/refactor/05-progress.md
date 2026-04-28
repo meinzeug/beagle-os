@@ -1,3 +1,20 @@
+## Update (2026-04-28, GoEnterprise Plan 01: Policy/Audit-Testpflichtpunkte im Control-Plane-Scope geschlossen)
+
+**Scope**: Die offenen Plan-01-Testpflichtpunkte fuer `vpn_required`, `vpn_preferred` und Audit-Events wurden auf dem neuen Stream-Control-Plane-Pfad reproduzierbar geschlossen.
+
+- Tests:
+  - `tests/unit/test_stream_http_surface.py`
+    - `vpn_required` ohne Tunnel -> `403`
+    - `vpn_preferred` ohne Tunnel -> direkter Fallback erlaubt (`200`)
+    - `POST /api/v1/streams/{vm_id}/events` erzeugt Audit-Event (`stream.session.start`)
+  - `tests/unit/test_stream_policy.py` bleibt Referenz fuer die reine Policy-Engine
+- Doku:
+  - `docs/goenterprise/01-moonlight-vdi-protocol.md`: drei Testpflicht-Checkboxen auf `[x]`
+
+Wichtig:
+- Diese Schliessung gilt bewusst fuer den aktuellen Repo-/Control-Plane-Scope.
+- Offen bleiben weiterhin die Fork-/Runtime-Punkte mit realem `beagle-stream-server`.
+
 ## Update (2026-04-28, GoEnterprise Plan 01: Stream-Control-Plane-API-Slice geschlossen)
 
 **Scope**: Der naechste repo-faehige BeagleStream-Slice ist umgesetzt: die Control-Plane-Seite fuer den spaeteren `beagle-stream-server` existiert jetzt als echte HTTP-Surface mit Register-/Config-/Event-API, Policy-Glue und Audit-Logging.

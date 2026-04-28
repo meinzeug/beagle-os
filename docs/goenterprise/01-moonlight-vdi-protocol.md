@@ -220,9 +220,9 @@ Wichtig:
 - [ ] Token-Pairing: Client verbindet ohne PIN-Dialog via HMAC-Token (60s gültig).
 - [ ] WireGuard-Mesh: Thin-Client und VM-Node im Mesh, Ping ≤ raw + 0.01ms.
 - [ ] WireGuard-Stream: Moonlight-Stream durch WireGuard-Tunnel, Latenz ≤ direct + 0.1ms.
-- [ ] Policy `vpn_required`: Direktverbindung ohne WireGuard vom Server abgelehnt (403).
-- [ ] Policy `vpn_preferred`: WireGuard-Fehler → direkter Fallback funktioniert.
-- [ ] Audit-Log: Session-Start/Stop erscheinen als Audit-Events im Control Plane.
+- [x] Policy `vpn_required`: Direktverbindung ohne WireGuard vom Server abgelehnt (403).
+- [x] Policy `vpn_preferred`: WireGuard-Fehler → direkter Fallback funktioniert.
+- [x] Audit-Log: Session-Start/Stop erscheinen als Audit-Events im Control Plane.
 
 ## Update (2026-04-28, Plan 01: Control-Plane-API fuer kuenftigen beagle-stream-server umgesetzt)
 
@@ -244,6 +244,17 @@ Wichtig:
 Wichtig:
 - Dieser Schritt schliesst bewusst die Control-Plane-Seite fuer den spaeteren `beagle-stream-server`.
 - Offen bleiben weiterhin der echte Sunshine-Fork, Token-Pairing im Fork, Paketbau und die Live-Abnahme gegen einen real gestarteten Stream-Server auf einer VM.
+
+## Update (2026-04-28, Plan 01: Testpflicht-Teil fuer Policy/Audit auf Control-Plane-Slice geschlossen)
+
+- Der neue `/api/v1/streams/{vm_id}/config`-Pfad deckt die Policy-Entscheidung jetzt reproduzierbar fuer beide Modi ab:
+  - `vpn_required` ohne WireGuard liefert `403`
+  - `vpn_preferred` ohne WireGuard erlaubt den direkten Fallback (`200`)
+- Session-Events auf `POST /api/v1/streams/{vm_id}/events` schreiben Audit-Events (`stream.session.start|stop|...`) im Control Plane.
+- Damit sind im Testpflicht-Block die drei Punkte `vpn_required`, `vpn_preferred` und `Audit-Log` fuer den aktuellen Repo-/Control-Plane-Scope geschlossen.
+- Neue/erweiterte Regressionen:
+  - `tests/unit/test_stream_http_surface.py`
+  - `tests/unit/test_stream_policy.py`
 
 ---
 

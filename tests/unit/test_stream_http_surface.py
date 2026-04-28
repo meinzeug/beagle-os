@@ -51,7 +51,11 @@ class _PoolManager:
         return [{"vmid": 303, "node": "srv2"}]
 
 
-def _service(tmp_path: Path) -> tuple[StreamHttpSurfaceService, list[tuple[str, str, dict]]]:
+def _service(
+    tmp_path: Path,
+    *,
+    network_mode: str = "vpn_required",
+) -> tuple[StreamHttpSurfaceService, list[tuple[str, str, dict]]]:
     vm = _Vm(303)
     audit_events: list[tuple[str, str, dict]] = []
     policy_service = StreamPolicyService(state_file=tmp_path / "stream-policies.json")
@@ -63,7 +67,7 @@ def _service(tmp_path: Path) -> tuple[StreamHttpSurfaceService, list[tuple[str, 
             max_bitrate_mbps=35,
             resolution="2560x1440",
             codec="h265",
-            network_mode="vpn_required",
+            network_mode=network_mode,
             usb_redirect=True,
         )
     )
@@ -148,6 +152,22 @@ def test_config_rejects_direct_access_when_vpn_required(tmp_path: Path) -> None:
     assert response["status"] == 403
     assert "vpn_required" in response["payload"]["error"]
     assert response["payload"]["config"]["connection_allowed"] is False
+
+
+def test_config_allows_direct_fallback_when_vpn_preferred(tmp_path: Path) -> None:
+    service, _audit_events = _service(tmp_path, network_mode="vpn_preferred")
+    service.route_post(
+        "/api/v1/streams/register",
+        json_payload={"vm_id": 303, "wireguard_active": False},
+    )
+
+    response = service.route_get("/api/v1/streams/303/config", query={})
+
+    assert response is not None
+    assert response["status"] == 200
+    assert response["payload"]["config"]["policy"]["network_mode"] == "vpn_preferred"
+    assert response["payload"]["config"]["wireguard_active"] is False
+    assert response["payload"]["config"]["connection_allowed"] is True
 
 
 def test_events_write_audit_records(tmp_path: Path) -> None:
