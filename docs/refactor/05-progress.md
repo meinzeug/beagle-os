@@ -1,3 +1,19 @@
+## Update (2026-04-28, GoEnterprise Plan 04: Testpflicht fuer Pattern/Prewarm/Rebalancing geschlossen)
+
+**Scope**: Die offenen Testpunkte in Plan 04 abgeschlossen und mit dedizierter Testdatei abgesichert. Der neue Abnahmesatz deckt exakt die drei verbleibenden Kriterien ab: 14-Tage-Peak-Erkennung, Prewarm 10 Minuten vor Peak und Rebalancing-Empfehlung bei >85% Last.
+
+- Tests:
+  - `tests/unit/test_cluster_rebalancing.py` (neu)
+  - Deckt ab:
+    - Muster-Erkennung mit 14 Tagen simulierter stündlicher Metriken
+    - Prädiktives Prewarming 10 Minuten vor Peak-Hour
+    - Rebalancing-Empfehlung von überlastetem Node auf freien Node
+- Doku:
+  - `docs/goenterprise/04-ai-smart-scheduler.md`: offene `Tests`-Checkbox und alle drei offenen `Testpflicht`-Checkboxen auf `[x]` gesetzt
+- Validierung:
+  - Lokal: `pytest -q tests/unit/test_cluster_rebalancing.py tests/unit/test_workload_pattern.py tests/unit/test_smart_scheduler.py` -> `20 passed`
+  - `srv1`: identischer Pytest-Lauf via `ssh srv1.beagle-os.com` in `/tmp/beagle-os-plan04-test` -> `20 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 05: Testpflicht geschlossen + RAM-Kosten im Chargeback)
 
 **Scope**: Die offenen Plan-05-Testpflichten (`Kosten-Kalkulation`, `5x Alice-Tracking`, `Chargeback-CSV-Summen`, `85%-Budget-Alert`) reproduzierbar geschlossen und dabei eine fachliche Luecke im Chargeback-Pfad gefixt: RAM-Kosten werden jetzt in `generate_chargeback_report()` mitgerechnet.

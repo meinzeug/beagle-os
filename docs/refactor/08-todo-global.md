@@ -10,6 +10,7 @@
 - [x] GoEnterprise Plan 04: Heatmap-Visualisierung im Scheduler-Dashboard nachziehen.
 - [x] GoEnterprise Plan 04: differenzierte Pool-/User-Analytics fuer Saved-CPU-Hours im Dashboard nachziehen.
 - [x] GoEnterprise Plan 04: echte Prewarm-Hit-/Miss-Telemetrie fuer Erfolgsquoten nachziehen.
+- [x] GoEnterprise Plan 04: offene Testpflicht fuer 14-Tage-Peak-Erkennung, 10-Minuten-Prewarm und Rebalancing >85% mit `tests/unit/test_cluster_rebalancing.py` schliessen.
 - [x] GoEnterprise Plan 04: Warm-Pool-Empfehlungen im Scheduler-Dashboard nachziehen.
 - [ ] GoEnterprise Plan 04: Warm-Pool-Empfehlungen optional automatisch anwenden.
 - [x] GoEnterprise Plan 05: Chargeback-Dashboard an echte `/api/v1/costs/*`-Surfaces hängen.

@@ -70,7 +70,7 @@ Der aktuelle Beagle-Scheduler platziert VMs nach simplen Regeln:
   - Automatic-Modus: führt Migration automatisch durch (wenn konfiguriert)
   - Conservative-Modus: nur Empfehlungen, Admin bestätigt
 - [x] Web Console: Rebalancing-Empfehlungen mit 1-Click-Ausführung
-- [ ] Tests: `tests/unit/test_cluster_rebalancing.py`
+- [x] Tests: `tests/unit/test_cluster_rebalancing.py`
 
 ### Schritt 5 — Scheduler-Insights Dashboard
 
@@ -88,7 +88,7 @@ Der aktuelle Beagle-Scheduler platziert VMs nach simplen Regeln:
 
 ## Testpflicht nach Abschluss
 
-- [ ] Muster-Erkennung: Nach 14 Tagen simulierter Metriken erkennt der Analyzer korrekte Peak-Stunden.
-- [ ] Prädiktiver Scheduler: VM-Start 10min vor Peak → Nutzer wartet 0s statt 30s.
-- [ ] Rebalancing: Überlasteter Node (>85%) → Scheduler empfiehlt VM-Migration auf freien Node.
+- [x] Muster-Erkennung: Nach 14 Tagen simulierter Metriken erkennt der Analyzer korrekte Peak-Stunden.
+- [x] Prädiktiver Scheduler: VM-Start 10min vor Peak → Nutzer wartet 0s statt 30s.
+- [x] Rebalancing: Überlasteter Node (>85%) → Scheduler empfiehlt VM-Migration auf freien Node.
 - [x] Dashboard: Heatmap zeigt korrekte historische Auslastung.

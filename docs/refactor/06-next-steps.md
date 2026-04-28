@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 04 testpflicht completed)
+
+**Zuletzt erledigt**:
+- Plan 04 Testpflicht ist jetzt geschlossen (14-Tage-Peak-Erkennung, 10-Minuten-Prewarm, Rebalancing >85%).
+- Neue dedizierte Abnahmetests laufen lokal und auf `srv1` stabil (`20 passed` auf beiden Laeufen).
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 04 vertiefen**: Warm-Pool-Empfehlungen optional automatisch anwenden (`auto-apply`) mit klarer Safety-Grenze.
+2. **Plan 09 abschliessen**: offenen externen Carbon-/Strommix-Feed als reproduzierbaren Importjob implementieren.
+3. **Plan 07 testpflicht schliessen**: Fleet-Telemetrie-/Anomalie-/Maintenance-Abnahmesuite (`SMART`, Disk-Trend, Alert, Migration) aufbauen und live gegen `srv1` validieren.
+4. **Plan 02 live-rest abschliessen**: verbleibende End-to-End-Checks fuer Enrollment/TPM/WireGuard-Mesh und Gruppen-Policy reproduzierbar auf echter Runtime verankern.
+
 ## Stand (2026-04-28, GoEnterprise Plan 05 testpflicht completed)
 
 **Zuletzt erledigt**:
