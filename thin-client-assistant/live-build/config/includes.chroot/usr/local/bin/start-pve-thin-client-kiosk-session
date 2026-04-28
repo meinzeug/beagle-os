@@ -6,6 +6,7 @@ LOG_ROOT="${PVE_THIN_CLIENT_LOG_ROOT:-}"
 LOG_DIR="${PVE_THIN_CLIENT_LOG_DIR:-}"
 BACKGROUND_IMAGE="/usr/local/share/beagle-os/beagleos-gaming.png"
 FONTCONFIG_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/fontconfig"
+LOCK_SCREEN_SCRIPT="${PVE_THIN_CLIENT_LOCK_SCREEN_SCRIPT:-/usr/local/lib/pve-thin-client/runtime/device_lock_screen.sh}"
 
 resolve_log_dir() {
   local candidate_root
@@ -75,6 +76,10 @@ fi
 
 if [ -x /usr/local/sbin/beagle-update-client ]; then
   /usr/local/sbin/beagle-update-client session-start >"$LOG_DIR/update-session.log" 2>&1 &
+fi
+
+if [ -r "$LOCK_SCREEN_SCRIPT" ]; then
+  /bin/bash -lc ". \"$LOCK_SCREEN_SCRIPT\" && run_device_lock_screen_watcher" >"$LOG_DIR/lock-screen.log" 2>&1 &
 fi
 
 STREAM_STATE_DIR="${XDG_RUNTIME_DIR:-/run/user/1000}/beagle-os"

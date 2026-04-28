@@ -14,7 +14,8 @@
 - [x] GoEnterprise Plan 02: Policy-Diff/erste erweiterte effective-policy-Diagnose fuer Operatoren nachziehen.
 - [x] GoEnterprise Plan 02: erste Drift-/Remediation-Hinweise aufbauend auf der Effective-Policy-Diagnose nachziehen.
 - [x] GoEnterprise Plan 02: Bulk-Device-Operator-Flows jenseits der Policy-Zuweisung nachziehen.
-- [ ] GoEnterprise Plan 02: grafischen Sperrbildschirm fuer bereits laufende lokale Sessions nachziehen.
+- [x] GoEnterprise Plan 02: grafischen Sperrbildschirm fuer bereits laufende lokale Sessions im Runtime-Pfad nachziehen.
+- [ ] GoEnterprise Plan 02: grafischen Sperrbildschirm live gegen echte Thin-Client-X11-Session abnehmen und bei Bedarf Wayland-/Multi-Display-Fallback ergaenzen.
 - [ ] GoEnterprise Plan 02: automatische Remediation-Vorschlaege und weitergehende Drift-Hinweise fuer Operatoren nachziehen.
 
 ## Update 2026-04-28 (GoEnterprise Plan 01)

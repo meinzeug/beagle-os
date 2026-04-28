@@ -26,6 +26,10 @@ device_wipe_file_path() {
   printf '%s/device.wipe-pending\n' "$(beagle_state_dir)"
 }
 
+device_wipe_report_file_path() {
+  printf '%s/device-wipe-report.json\n' "$(beagle_state_dir)"
+}
+
 device_lock_active() {
   [[ -f "$(device_lock_file_path)" ]]
 }
@@ -59,6 +63,38 @@ clear_device_runtime_secrets() {
     >/dev/null 2>&1 || true
 }
 
+write_device_wipe_report() {
+  local report_file
+  report_file="$(device_wipe_report_file_path)"
+  mkdir -p "$(dirname "$report_file")" >/dev/null 2>&1 || true
+  python3 - "$report_file" "$(runtime_device_id)" <<'PY'
+from __future__ import annotations
+
+import json
+import sys
+from datetime import datetime, timezone
+
+report_file = sys.argv[1]
+device_id = sys.argv[2]
+payload = {
+    "device_id": device_id,
+    "status": "completed",
+    "completed_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "cleared_artifacts": [
+        "credentials.env",
+        "thinclient.conf",
+        "enrollment.conf",
+        "wireguard-config",
+        "moonlight-config",
+        "runtime-heartbeat",
+        "device-policy",
+    ],
+}
+with open(report_file, "w", encoding="utf-8") as handle:
+    json.dump(payload, handle, indent=2)
+PY
+}
+
 stop_device_wireguard() {
   local wg_iface="${WG_IFACE:-wg-beagle}"
   if command -v wg-quick >/dev/null 2>&1; then
@@ -81,6 +117,7 @@ perform_device_wipe() {
   beagle_log_event "device.wipe.start" "device_id=${device_id}"
   stop_device_wireguard
   clear_device_runtime_secrets
+  write_device_wipe_report
   if declare -F confirm_device_wiped_runtime >/dev/null 2>&1; then
     confirm_device_wiped_runtime "$device_id" || true
   fi

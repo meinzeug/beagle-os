@@ -64,6 +64,7 @@ def test_perform_device_wipe_clears_runtime_state_and_confirms(tmp_path: Path) -
     assert not (state_dir / "device.wipe-pending").exists()
     assert not (state_dir / "device.locked").exists()
     assert not (state_dir / "device-policy.json").exists()
+    assert (state_dir / "device-wipe-report.json").exists()
     assert "/api/v1/endpoints/device/confirm-wiped" in curl_log.read_text(encoding="utf-8")
 
 

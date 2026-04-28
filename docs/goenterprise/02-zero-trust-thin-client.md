@@ -286,6 +286,23 @@ Restluecke bewusst offen:
   - `tests/unit/test_fleet_ui_regressions.py`
   - `tests/unit/test_authz_policy.py`
 
+## Update 2026-04-28 (Grafischer Runtime-Lock-Screen + Wipe-Report)
+
+- Thin-Client-Runtime:
+  - `thin-client-assistant/runtime/device_lock_screen.sh` fuehrt jetzt einen echten Session-Watcher fuer `device.locked` aus.
+  - In laufenden X11-Sessions startet der Watcher einen grafischen Sperrbildschirm ueber `zenity` und stuft das Fenster per `wmctrl` als fullscreen/above ein.
+  - Aktive Session-Prozesse wie Moonlight, Kiosk oder GeForce NOW werden beim Sperren aktiv beendet, damit die Sperre nicht nur optisch ist.
+- Session-Wrapper:
+  - `start-pve-thin-client-session`
+  - `start-pve-thin-client-kiosk-session`
+  - beide starten den Lock-Screen-Watcher jetzt als Hintergrundprozess und schreiben nach `lock-screen.log`
+- Wipe-Pfad:
+  - `device_state_enforcement.sh` schreibt jetzt zusaetzlich `device-wipe-report.json`, damit lokale Runtime-Wipes reproduzierbar nachvollziehbar bleiben
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_device_lock_screen.py`
+  - `tests/unit/test_runtime_session_wrappers.py`
+  - `tests/unit/test_device_state_enforcement.py`
+
 ---
 
 ## Unique Selling Point vs. Konkurrenz

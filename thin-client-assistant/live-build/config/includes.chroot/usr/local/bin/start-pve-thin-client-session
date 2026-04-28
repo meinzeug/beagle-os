@@ -10,6 +10,7 @@ BOOT_STAMP="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date +%Y%m%dT%H%M%SZ)"
 LOG_SESSION_ID="${PVE_THIN_CLIENT_LOG_SESSION_ID:-${BOOT_STAMP}-${BOOT_MODE}-${HOST_TAG}}"
 LOG_ROOT="${PVE_THIN_CLIENT_LOG_ROOT:-/tmp/pve-thin-client-logs}"
 LOG_DIR="${PVE_THIN_CLIENT_LOG_DIR:-$LOG_ROOT/$LOG_SESSION_ID}"
+LOCK_SCREEN_SCRIPT="${PVE_THIN_CLIENT_LOCK_SCREEN_SCRIPT:-/usr/local/lib/pve-thin-client/runtime/device_lock_screen.sh}"
 mkdir -p "$LOG_DIR"
 export PVE_THIN_CLIENT_LOG_DIR="$LOG_DIR"
 export PVE_THIN_CLIENT_LOG_SESSION_ID="$LOG_SESSION_ID"
@@ -172,6 +173,10 @@ fi
 if [ -x /usr/local/sbin/beagle-update-client ]; then
   /usr/local/sbin/beagle-update-client session-start >"$LOG_DIR/update-session.log" 2>&1 &
   /usr/local/sbin/beagle-update-client session-monitor >"$LOG_DIR/update-monitor.log" 2>&1 &
+fi
+
+if [ -r "$LOCK_SCREEN_SCRIPT" ]; then
+  /bin/bash -lc ". \"$LOCK_SCREEN_SCRIPT\" && run_device_lock_screen_watcher" >"$LOG_DIR/lock-screen.log" 2>&1 &
 fi
 
 # prepare-runtime already ran as root via systemd before the session starts.
