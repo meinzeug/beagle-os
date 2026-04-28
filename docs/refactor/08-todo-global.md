@@ -18,6 +18,7 @@
 - [ ] GoEnterprise Plan 02: grafischen Sperrbildschirm live gegen echte Thin-Client-X11-Session abnehmen und bei Bedarf Wayland-/Multi-Display-Fallback ergaenzen.
 - [x] GoEnterprise Plan 02: automatische Remediation-Vorschlaege und weitergehende Drift-Hinweise fuer Operatoren nachziehen.
 - [x] GoEnterprise Plan 02: aus den vorhandenen `remediation_actions` echte One-Click-Operator-Flows ableiten.
+- [x] GoEnterprise Plan 02: Drift-Report und erste serverseitige Safe-Auto-Remediation-Surface aufbauen.
 - [ ] GoEnterprise Plan 02: auf der serverseitigen Remediation-API spaetere Auto-Remediation bzw. Drift-Worker aufbauen.
 
 ## Update 2026-04-28 (GoEnterprise Plan 01)

@@ -12,6 +12,8 @@ from typing import Any, Callable
 
 
 class FleetHttpSurfaceService:
+    _FLEET_REMEDIATION_DRIFT = "/api/v1/fleet/remediation/drift"
+    _FLEET_REMEDIATION_RUN = "/api/v1/fleet/remediation/run"
     _DEVICE_DETAIL = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)$")
     _DEVICE_EFFECTIVE_POLICY = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/effective-policy$")
     _DEVICE_REMEDIATION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/remediation/execute$")
@@ -105,6 +107,62 @@ class FleetHttpSurfaceService:
             actions.append({"action": "await-wipe-confirmation", "label": "Wipe-Bestaetigung abwarten", "recommended": True})
         return actions
 
+    def _device_policy_bundle(self, device: Any) -> dict[str, Any]:
+        if self._mdm_policy is None:
+            return {
+                "source_type": "default",
+                "source_id": "__default__",
+                "conflicts": [],
+                "diagnostics": {},
+                "remediation_hints": [],
+                "remediation_actions": [],
+                "policy": None,
+            }
+        device_id = str(getattr(device, "device_id", "") or "")
+        group = str(getattr(device, "group", "") or "")
+        policy, source_type, source_id = self._mdm_policy.resolve_policy_with_source(device_id, group=group)
+        diagnostics = self._mdm_policy.build_effective_policy_diagnostics(device_id, group=group)
+        policy_validation = self._mdm_policy.validate_policy(policy)
+        conflicts = self._mdm_policy.describe_effective_policy_conflicts(device_id, group=group)
+        remediation_hints = self._build_remediation_hints(
+            device=device,
+            policy_validation=policy_validation,
+            conflicts=conflicts,
+            diagnostics=diagnostics,
+        )
+        remediation_actions = self._build_remediation_actions(
+            device=device,
+            policy_validation=policy_validation,
+            conflicts=conflicts,
+            diagnostics=diagnostics,
+        )
+        return {
+            "source_type": source_type,
+            "source_id": source_id,
+            "conflicts": conflicts,
+            "diagnostics": diagnostics,
+            "remediation_hints": remediation_hints,
+            "remediation_actions": remediation_actions,
+            "policy": {
+                "policy_id": str(getattr(policy, "policy_id", "") or ""),
+                "name": str(getattr(policy, "name", "") or ""),
+                "allowed_networks": list(getattr(policy, "allowed_networks", []) or []),
+                "allowed_pools": list(getattr(policy, "allowed_pools", []) or []),
+                "max_resolution": str(getattr(policy, "max_resolution", "") or ""),
+                "allowed_codecs": list(getattr(policy, "allowed_codecs", []) or []),
+                "auto_update": bool(getattr(policy, "auto_update", True)),
+                "update_window_start_hour": int(getattr(policy, "update_window_start_hour", 2) or 2),
+                "update_window_end_hour": int(getattr(policy, "update_window_end_hour", 4) or 4),
+                "screen_lock_timeout_seconds": int(getattr(policy, "screen_lock_timeout_seconds", 0) or 0),
+                "validation": policy_validation,
+            },
+        }
+
+    @staticmethod
+    def _safe_auto_remediation_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        allowed = {"clear-device-policy-assignment"}
+        return [item for item in actions if str(item.get("action") or "") in allowed]
+
     @staticmethod
     def _hardware_to_dict(hardware: Any) -> dict[str, Any]:
         return {
@@ -139,6 +197,8 @@ class FleetHttpSurfaceService:
         }
 
     def handles_get(self, path: str) -> bool:
+        if path == self._FLEET_REMEDIATION_DRIFT:
+            return True
         if path == "/api/v1/fleet/devices":
             return True
         if path == "/api/v1/fleet/devices/groups":
@@ -149,6 +209,36 @@ class FleetHttpSurfaceService:
 
     def route_get(self, path: str, *, query: dict[str, list[str]] | None = None) -> dict[str, Any] | None:
         params = query or {}
+        if path == self._FLEET_REMEDIATION_DRIFT:
+            devices = self._registry.list_devices()
+            entries: list[dict[str, Any]] = []
+            for device in devices:
+                bundle = self._device_policy_bundle(device)
+                actions = list(bundle.get("remediation_actions") or [])
+                safe_actions = self._safe_auto_remediation_actions(actions)
+                drifted = bool(bundle.get("conflicts")) or bool(bundle.get("remediation_hints")) or bool(safe_actions)
+                entries.append(
+                    {
+                        "device": self._device_to_dict(device),
+                        "drifted": drifted,
+                        "conflicts": list(bundle.get("conflicts") or []),
+                        "safe_actions": safe_actions,
+                        "remediation_actions": actions,
+                        "source_type": str(bundle.get("source_type") or "default"),
+                    }
+                )
+            drifted_entries = [item for item in entries if item["drifted"]]
+            return self._json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        devices=entries,
+                        drifted_count=len(drifted_entries),
+                        safe_candidate_count=sum(len(item["safe_actions"]) for item in drifted_entries),
+                    ),
+                },
+            )
         if path == "/api/v1/fleet/devices":
             location = str((params.get("location") or [""])[0] or "").strip() or None
             group = str((params.get("group") or [""])[0] or "").strip() or None
@@ -177,33 +267,7 @@ class FleetHttpSurfaceService:
             device = self._registry.get_device(match.group("device_id"))
             if device is None:
                 return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "device not found"})
-            if self._mdm_policy is None:
-                return self._json(HTTPStatus.OK, {"ok": True, **self._envelope(policy=None, source_type="default", source_id="__default__")})
-            policy, source_type, source_id = self._mdm_policy.resolve_policy_with_source(
-                str(getattr(device, "device_id", "") or ""),
-                group=str(getattr(device, "group", "") or ""),
-            )
-            diagnostics = self._mdm_policy.build_effective_policy_diagnostics(
-                str(getattr(device, "device_id", "") or ""),
-                group=str(getattr(device, "group", "") or ""),
-            )
-            policy_validation = self._mdm_policy.validate_policy(policy)
-            conflicts = self._mdm_policy.describe_effective_policy_conflicts(
-                str(getattr(device, "device_id", "") or ""),
-                group=str(getattr(device, "group", "") or ""),
-            )
-            remediation_hints = self._build_remediation_hints(
-                device=device,
-                policy_validation=policy_validation,
-                conflicts=conflicts,
-                diagnostics=diagnostics,
-            )
-            remediation_actions = self._build_remediation_actions(
-                device=device,
-                policy_validation=policy_validation,
-                conflicts=conflicts,
-                diagnostics=diagnostics,
-            )
+            bundle = self._device_policy_bundle(device)
             return self._json(
                 HTTPStatus.OK,
                 {
@@ -211,25 +275,13 @@ class FleetHttpSurfaceService:
                     **self._envelope(
                         device_id=str(getattr(device, "device_id", "") or ""),
                         group=str(getattr(device, "group", "") or ""),
-                        source_type=source_type,
-                        source_id=source_id,
-                        conflicts=conflicts,
-                        diagnostics=diagnostics,
-                        remediation_hints=remediation_hints,
-                        remediation_actions=remediation_actions,
-                        policy={
-                            "policy_id": str(getattr(policy, "policy_id", "") or ""),
-                            "name": str(getattr(policy, "name", "") or ""),
-                            "allowed_networks": list(getattr(policy, "allowed_networks", []) or []),
-                            "allowed_pools": list(getattr(policy, "allowed_pools", []) or []),
-                            "max_resolution": str(getattr(policy, "max_resolution", "") or ""),
-                            "allowed_codecs": list(getattr(policy, "allowed_codecs", []) or []),
-                            "auto_update": bool(getattr(policy, "auto_update", True)),
-                            "update_window_start_hour": int(getattr(policy, "update_window_start_hour", 2) or 2),
-                            "update_window_end_hour": int(getattr(policy, "update_window_end_hour", 4) or 4),
-                            "screen_lock_timeout_seconds": int(getattr(policy, "screen_lock_timeout_seconds", 0) or 0),
-                            "validation": policy_validation,
-                        },
+                        source_type=bundle["source_type"],
+                        source_id=bundle["source_id"],
+                        conflicts=bundle["conflicts"],
+                        diagnostics=bundle["diagnostics"],
+                        remediation_hints=bundle["remediation_hints"],
+                        remediation_actions=bundle["remediation_actions"],
+                        policy=bundle["policy"],
                     ),
                 },
             )
@@ -247,6 +299,8 @@ class FleetHttpSurfaceService:
 
     def handles_post(self, path: str) -> bool:
         if path == "/api/v1/fleet/devices/register":
+            return True
+        if path == self._FLEET_REMEDIATION_RUN:
             return True
         if path == self._DEVICE_BULK_ACTIONS:
             return True
@@ -320,6 +374,46 @@ class FleetHttpSurfaceService:
     ) -> dict[str, Any] | None:
         payload = json_payload or {}
         requester_name = str(requester or "").strip()
+        if path == self._FLEET_REMEDIATION_RUN:
+            device_ids_raw = payload.get("device_ids")
+            dry_run = bool(payload.get("dry_run", False))
+            if isinstance(device_ids_raw, list):
+                normalized_ids = [str(item or "").strip() for item in device_ids_raw if str(item or "").strip()]
+                devices = [self._registry.get_device(device_id) for device_id in normalized_ids]
+                devices = [item for item in devices if item is not None]
+            else:
+                devices = self._registry.list_devices()
+            applied: list[dict[str, Any]] = []
+            skipped: list[dict[str, Any]] = []
+            failed: list[dict[str, Any]] = []
+            for device in devices:
+                safe_actions = self._safe_auto_remediation_actions(list(self._device_policy_bundle(device).get("remediation_actions") or []))
+                if not safe_actions:
+                    skipped.append({"device_id": str(getattr(device, "device_id", "") or ""), "reason": "no safe actions"})
+                    continue
+                for action in safe_actions:
+                    action_name = str(action.get("action") or "")
+                    if dry_run:
+                        applied.append({"device_id": str(getattr(device, "device_id", "") or ""), "action": action_name, "dry_run": True})
+                        continue
+                    try:
+                        result, _ = self._execute_remediation_action(device=device, payload={"action": action_name})
+                        applied.append({"device_id": str(getattr(device, "device_id", "") or ""), "action": action_name, "result": result})
+                    except Exception as exc:
+                        failed.append({"device_id": str(getattr(device, "device_id", "") or ""), "action": action_name, "error": str(exc)})
+            self._safe_audit_event(
+                "fleet.remediation.run",
+                "success" if not failed else "partial",
+                username=requester_name or self._requester_identity(),
+                applied_count=len(applied),
+                skipped_count=len(skipped),
+                failed_count=len(failed),
+                dry_run=dry_run,
+            )
+            return self._json(
+                HTTPStatus.OK,
+                {"ok": True, **self._envelope(applied=applied, skipped=skipped, failed=failed, dry_run=dry_run)},
+            )
         remediation_match = self._DEVICE_REMEDIATION.match(path)
         if remediation_match is not None:
             device = self._registry.get_device(remediation_match.group("device_id"))

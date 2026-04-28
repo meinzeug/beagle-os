@@ -16,6 +16,7 @@ const fleetState = {
   policies: [],
   assignments: { device_assignments: {}, group_assignments: {} },
   effectivePolicy: null,
+  remediationDrift: { devices: [], drifted_count: 0, safe_candidate_count: 0 },
 };
 
 export function configureFleetHealth(nextHooks) {
@@ -251,6 +252,30 @@ function wipeStatusMarkup(device) {
     <div class="muted">angefordert ${escapeHtml(formatDate(device.wipe_requested_at || '')) || '-'}</div>
     <div class="muted">bestaetigt ${escapeHtml(formatDate(device.wipe_confirmed_at || '')) || '-'}</div>
     <div class="muted">letzter Lauf ${escapeHtml(formatDate(report.completed_at || '')) || '-'}</div>
+  `;
+}
+
+function remediationDriftMarkup() {
+  const drift = fleetState.remediationDrift || { devices: [], drifted_count: 0, safe_candidate_count: 0 };
+  const entries = Array.isArray(drift.devices) ? drift.devices.filter((item) => item && item.drifted) : [];
+  return `
+    <section class="section-spaced">
+      <div class="button-row compact-row section-spaced-tight">
+        ${chip(`Drift ${String(drift.drifted_count || 0)}`, drift.drifted_count ? 'warn' : 'ok')}
+        ${chip(`Safe Remediation ${String(drift.safe_candidate_count || 0)}`, drift.safe_candidate_count ? 'info' : 'muted')}
+        <button type="button" class="button ghost" data-mdm-action="refresh-remediation-drift">Drift neu laden</button>
+        <button type="button" class="button primary" data-mdm-action="run-safe-remediation">Sichere Remediation anwenden</button>
+        <button type="button" class="button ghost" data-mdm-action="preview-safe-remediation">Sichere Remediation simulieren</button>
+      </div>
+      <div class="grid auto-grid section-spaced-tight">
+        ${entries.map((entry) => `<div class="card compact-card">
+          <strong>${escapeHtml(String(entry?.device?.hostname || entry?.device?.device_id || '-'))}</strong>
+          <div class="muted">${escapeHtml(String(entry?.device?.device_id || '-'))}</div>
+          <div class="section-spaced-tight">${(entry.conflicts || []).map((item) => `<div class="badge tone-warn">${escapeHtml(String(item || ''))}</div>`).join(' ') || '<div class="muted">Keine Konflikte.</div>'}</div>
+          <div class="section-spaced-tight">${(entry.safe_actions || []).map((item) => `<span class="badge tone-info">${escapeHtml(String(item.label || item.action || '-'))}</span>`).join(' ') || '<div class="muted">Keine sicheren Aktionen.</div>'}</div>
+        </div>`).join('') || '<div class="empty-card">Keine driftenden Devices erkannt.</div>'}
+      </div>
+    </section>
   `;
 }
 
@@ -494,6 +519,23 @@ async function loadEffectivePolicy(deviceId) {
   await fleetHooks.loadDashboard({ force: true });
 }
 
+async function loadRemediationDrift() {
+  const payload = await request('/fleet/remediation/drift');
+  fleetState.remediationDrift = payload || { devices: [], drifted_count: 0, safe_candidate_count: 0 };
+}
+
+async function runSafeRemediation(dryRun = false) {
+  const payload = await request('/fleet/remediation/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dry_run: Boolean(dryRun) }),
+  });
+  const applied = Array.isArray(payload?.applied) ? payload.applied.length : 0;
+  const failed = Array.isArray(payload?.failed) ? payload.failed.length : 0;
+  fleetHooks.setBanner(dryRun ? `Safe Remediation simuliert: ${applied} geplant, ${failed} Fehler.` : `Safe Remediation ausgefuehrt: ${applied} Aktionen, ${failed} Fehler.`, failed ? 'warn' : 'ok');
+  await fleetHooks.loadDashboard({ force: true });
+}
+
 async function triggerDeviceAction(deviceId, action) {
   if (action === 'policy-select') {
     const policyId = (fleetState.assignments?.device_assignments || {})[deviceId] || '';
@@ -597,14 +639,16 @@ export async function renderFleetHealth() {
   let maintenance = [];
   let policies = [];
   let assignments = { device_assignments: {}, group_assignments: {} };
+  let remediationDrift = { devices: [], drifted_count: 0, safe_candidate_count: 0 };
 
   try {
-    [devices, anomalies, maintenance, policies, assignments] = await Promise.all([
+    [devices, anomalies, maintenance, policies, assignments, remediationDrift] = await Promise.all([
       request('/fleet/devices').then((d) => Array.isArray(d) ? d : (d.devices ?? [])),
       request('/fleet/anomalies').catch(() => []),
       request('/fleet/maintenance').catch(() => []),
       request('/fleet/policies').then((d) => Array.isArray(d) ? d : (d.policies ?? [])),
       request('/fleet/policies/assignments').catch(() => ({ device_assignments: {}, group_assignments: {} })),
+      request('/fleet/remediation/drift').catch(() => ({ devices: [], drifted_count: 0, safe_candidate_count: 0 })),
     ]);
   } catch (err) {
     container.innerHTML = `<p class="error">Fehler: ${escapeHtml(String(err.message ?? err))}</p>`;
@@ -614,6 +658,7 @@ export async function renderFleetHealth() {
   fleetState.devices = devices;
   fleetState.policies = policies;
   fleetState.assignments = assignments;
+  fleetState.remediationDrift = remediationDrift;
 
   const rows = devices.map((d) => deviceRow(d, anomalies, maintenance)).join('');
   const anomalyCount = anomalies.length;
@@ -625,6 +670,7 @@ export async function renderFleetHealth() {
   } else {
     container.innerHTML = `
       ${policyEditorSection()}
+      ${remediationDriftMarkup()}
       ${locationTreeSection()}
       <div class="button-row compact-row section-spaced-tight">
         ${chip(String(devices.length) + ' Geraete', devices.length ? 'info' : 'muted')}
@@ -678,6 +724,19 @@ export async function renderFleetHealth() {
         }
         if (action === 'save-policy') {
           await savePolicy();
+          return;
+        }
+        if (action === 'refresh-remediation-drift') {
+          await loadRemediationDrift();
+          await fleetHooks.loadDashboard({ force: true });
+          return;
+        }
+        if (action === 'run-safe-remediation') {
+          await runSafeRemediation(false);
+          return;
+        }
+        if (action === 'preview-safe-remediation') {
+          await runSafeRemediation(true);
           return;
         }
         if (action === 'delete-policy') {

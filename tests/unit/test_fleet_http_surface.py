@@ -305,3 +305,37 @@ def test_remediation_execute_route_can_restrict_policy_fields(tmp_path: Path) ->
     policy = mdm.get_policy("corp")
     assert policy is not None
     assert policy.allowed_pools == ["pool-a", "pool-b"]
+
+
+def test_remediation_drift_route_reports_safe_candidates(tmp_path: Path) -> None:
+    registry, mdm, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+    registry.set_group("dev-001", "berlin")
+    mdm.create_policy(MDMPolicy(policy_id="group-policy", name="Group", allowed_pools=["pool-a"]))
+    mdm.create_policy(MDMPolicy(policy_id="device-policy", name="Device", allowed_pools=["pool-b"]))
+    mdm.assign_to_group("berlin", "group-policy")
+    mdm.assign_to_device("dev-001", "device-policy")
+
+    response = service.route_get("/api/v1/fleet/remediation/drift")
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    assert response["payload"]["drifted_count"] == 1
+    assert response["payload"]["safe_candidate_count"] == 1
+    entry = response["payload"]["devices"][0]
+    assert entry["safe_actions"][0]["action"] == "clear-device-policy-assignment"
+
+
+def test_remediation_run_applies_safe_actions(tmp_path: Path) -> None:
+    registry, mdm, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+    registry.set_group("dev-001", "berlin")
+    mdm.create_policy(MDMPolicy(policy_id="group-policy", name="Group", allowed_pools=["pool-a"]))
+    mdm.create_policy(MDMPolicy(policy_id="device-policy", name="Device", allowed_pools=["pool-b"]))
+    mdm.assign_to_group("berlin", "group-policy")
+    mdm.assign_to_device("dev-001", "device-policy")
+
+    response = service.route_post("/api/v1/fleet/remediation/run", json_payload={"dry_run": False})
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    assert response["payload"]["applied"][0]["action"] == "clear-device-policy-assignment"
+    assert mdm.resolve_policy("dev-001", "berlin").policy_id == "group-policy"

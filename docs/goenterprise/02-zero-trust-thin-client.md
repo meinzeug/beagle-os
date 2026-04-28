@@ -363,6 +363,31 @@ Restluecke bewusst offen:
   - `tests/unit/test_fleet_ui_regressions.py`
   - `tests/unit/test_authz_policy.py`
 
+## Update 2026-04-28 (Drift-Report + Safe Auto-Remediation + Lock-Screen-Fallbacks)
+
+- Control Plane:
+  - `fleet_http_surface.py` liefert jetzt einen zentralen Drift-Report:
+    - `GET /api/v1/fleet/remediation/drift`
+  - erste serverseitige Safe-Auto-Remediation ist jetzt als Batch-Route vorhanden:
+    - `POST /api/v1/fleet/remediation/run`
+  - aktuell werden bewusst nur sichere Default-Aktionen gesammelt ausgefuehrt; der erste Batch-Pfad bereinigt Konflikte ueber `clear-device-policy-assignment`
+- WebUI:
+  - `website/ui/fleet_health.js` rendert jetzt eine sichtbare Drift-/Remediation-Sektion mit
+    - Drift-Zaehler
+    - Safe-Remediation-Zaehler
+    - `Sichere Remediation anwenden`
+    - `Sichere Remediation simulieren`
+- Thin-Client-Runtime:
+  - `device_lock_screen.sh` erkennt jetzt Session-Backends explizit:
+    - Wayland: `swaylock`, `gtklock`, `waylock`
+    - X11: `zenity`, `yad`, `xmessage`, `xterm`
+  - der Sperrpfad ist damit nicht mehr nur auf Zenity/Xterm beschraenkt
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_device_lock_screen.py`
+  - `tests/unit/test_fleet_http_surface.py`
+  - `tests/unit/test_fleet_ui_regressions.py`
+  - `tests/unit/test_authz_policy.py`
+
 ---
 
 ## Unique Selling Point vs. Konkurrenz

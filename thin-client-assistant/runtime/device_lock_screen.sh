@@ -37,6 +37,76 @@ Die lokale Session bleibt blockiert, bis die Sperre im Beagle Manager aufgehoben
 EOF
 }
 
+lock_screen_session_type() {
+  printf '%s\n' "${XDG_SESSION_TYPE:-x11}"
+}
+
+lock_screen_display() {
+  printf '%s\n' "${DISPLAY:-:0}"
+}
+
+lock_screen_runtime_dir() {
+  printf '%s\n' "${XDG_RUNTIME_DIR:-/run/user/$(id -u 2>/dev/null || echo 1000)}"
+}
+
+lock_screen_wayland_backend() {
+  if command -v swaylock >/dev/null 2>&1; then
+    printf '%s\n' "swaylock"
+    return 0
+  fi
+  if command -v gtklock >/dev/null 2>&1; then
+    printf '%s\n' "gtklock"
+    return 0
+  fi
+  if command -v waylock >/dev/null 2>&1; then
+    printf '%s\n' "waylock"
+    return 0
+  fi
+  return 1
+}
+
+lock_screen_x11_backend() {
+  if command -v zenity >/dev/null 2>&1; then
+    printf '%s\n' "zenity"
+    return 0
+  fi
+  if command -v yad >/dev/null 2>&1; then
+    printf '%s\n' "yad"
+    return 0
+  fi
+  if command -v xmessage >/dev/null 2>&1; then
+    printf '%s\n' "xmessage"
+    return 0
+  fi
+  if command -v xterm >/dev/null 2>&1; then
+    printf '%s\n' "xterm"
+    return 0
+  fi
+  return 1
+}
+
+lock_screen_backend() {
+  if [[ "${BEAGLE_LOCK_SCREEN_SIMULATE:-0}" == "1" ]]; then
+    printf '%s\n' "simulate"
+    return 0
+  fi
+  case "$(lock_screen_session_type)" in
+    wayland)
+      if lock_screen_wayland_backend >/dev/null 2>&1; then
+        printf '%s\n' "wayland"
+        return 0
+      fi
+      ;;
+    x11|*)
+      if lock_screen_x11_backend >/dev/null 2>&1; then
+        printf '%s\n' "x11"
+        return 0
+      fi
+      ;;
+  esac
+  printf '%s\n' "headless"
+}
+
 lock_screen_kill_active_clients() {
   pkill -f '/usr/local/lib/pve-thin-client/runtime/launch-moonlight.sh' >/dev/null 2>&1 || true
   pkill -f '/usr/local/sbin/beagle-kiosk-launch' >/dev/null 2>&1 || true
@@ -63,42 +133,62 @@ lock_screen_fullscreen_existing_window() {
 }
 
 lock_screen_spawn_ui() {
-  local title pid_file
+  local title pid_file backend session_type wayland_backend x11_backend
   title="$(lock_screen_title)"
   pid_file="$(lock_screen_pid_file_path)"
+  backend="$(lock_screen_backend)"
+  session_type="$(lock_screen_session_type)"
   mkdir -p "$(dirname "$pid_file")" >/dev/null 2>&1 || true
 
-  if [[ "${BEAGLE_LOCK_SCREEN_SIMULATE:-0}" == "1" ]]; then
+  if [[ "$backend" == "simulate" ]]; then
     lock_screen_write_marker "active"
     printf '%s\n' "$$" >"$pid_file"
     return 0
   fi
 
-  if command -v zenity >/dev/null 2>&1; then
+  if [[ "$backend" == "wayland" ]]; then
+    wayland_backend="$(lock_screen_wayland_backend || true)"
     (
-      export DISPLAY="${DISPLAY:-:0}"
-      export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u 2>/dev/null || echo 1000)}"
+      export XDG_RUNTIME_DIR="$(lock_screen_runtime_dir)"
       while device_lock_active; do
-        zenity --info \
-          --title="$title" \
-          --width=960 \
-          --height=420 \
-          --no-wrap \
-          --text="$(lock_screen_text)" >/dev/null 2>&1 || true
+        case "$wayland_backend" in
+          swaylock)
+            swaylock -f -c 111111 -s fill >/dev/null 2>&1 || true
+            ;;
+          gtklock)
+            gtklock >/dev/null 2>&1 || true
+            ;;
+          waylock)
+            waylock >/dev/null 2>&1 || true
+            ;;
+        esac
         sleep 1
       done
     ) &
     printf '%s\n' "$!" >"$pid_file"
-    sleep 1
-    lock_screen_fullscreen_existing_window "$title"
     return 0
   fi
 
-  if command -v xterm >/dev/null 2>&1; then
+  if [[ "$backend" == "x11" ]]; then
+    x11_backend="$(lock_screen_x11_backend || true)"
     (
-      export DISPLAY="${DISPLAY:-:0}"
+      export DISPLAY="$(lock_screen_display)"
+      export XDG_RUNTIME_DIR="$(lock_screen_runtime_dir)"
       while device_lock_active; do
-        xterm -geometry 120x26+0+0 -T "$title" -fa Monospace -fs 13 -fg white -bg black -e /bin/sh -lc "printf '%s\n' \"$(lock_screen_text)\"; while sleep 3600; do :; done" >/dev/null 2>&1 || true
+        case "$x11_backend" in
+          zenity)
+            zenity --info --title="$title" --width=960 --height=420 --no-wrap --text="$(lock_screen_text)" >/dev/null 2>&1 || true
+            ;;
+          yad)
+            yad --info --title="$title" --text="$(lock_screen_text)" --width=960 --height=420 --center >/dev/null 2>&1 || true
+            ;;
+          xmessage)
+            xmessage -center -title "$title" "$(lock_screen_text)" >/dev/null 2>&1 || true
+            ;;
+          xterm)
+            xterm -geometry 120x26+0+0 -T "$title" -fa Monospace -fs 13 -fg white -bg black -e /bin/sh -lc "printf '%s\n' \"$(lock_screen_text)\"; while sleep 3600; do :; done" >/dev/null 2>&1 || true
+            ;;
+        esac
         sleep 1
       done
     ) &

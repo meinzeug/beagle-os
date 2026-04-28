@@ -111,6 +111,23 @@
   - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
   - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
 
+## Update (2026-04-28, GoEnterprise Plan 02: Drift-Report + Safe Auto-Remediation + Lock-Screen-Fallbacks)
+
+**Scope**: Zwei weitere Enterprise-Fortsetzungen abgeschlossen. Die Fleet-Surface hat jetzt einen zentralen Drift-/Safe-Remediation-Report samt erster serverseitiger Batch-Auto-Remediation; parallel ist der grafische Lock-Pfad jetzt auf Wayland- und weitere X11-Fallbacks erweitert.
+
+- Backend:
+  - [beagle-host/services/fleet_http_surface.py](/home/dennis/beagle-os/beagle-host/services/fleet_http_surface.py): `GET /api/v1/fleet/remediation/drift` und `POST /api/v1/fleet/remediation/run`
+  - [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py): neue Drift-/Run-Routen auf `settings:read` bzw. `settings:write`
+- WebUI:
+  - [website/ui/fleet_health.js](/home/dennis/beagle-os/website/ui/fleet_health.js): Drift-Panel, Simulations-/Apply-Buttons fuer Safe-Remediation
+- Runtime:
+  - [thin-client-assistant/runtime/device_lock_screen.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/device_lock_screen.sh): Backend-Erkennung fuer Wayland (`swaylock`, `gtklock`, `waylock`) und breitere X11-Fallbacks (`zenity`, `yad`, `xmessage`, `xterm`)
+- Regressionen:
+  - [tests/unit/test_device_lock_screen.py](/home/dennis/beagle-os/tests/unit/test_device_lock_screen.py)
+  - [tests/unit/test_fleet_http_surface.py](/home/dennis/beagle-os/tests/unit/test_fleet_http_surface.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
+
 ## Update (2026-04-28, GoEnterprise Plan 02: Standort-Tree + Device-Group-Regressionen)
 
 **Scope**: Den offenen Device-UX-Slice aus Plan 02 weiter geschlossen. Die Fleet-WebUI zeigt jetzt nicht mehr nur eine flache Tabelle, sondern eine verdichtete Standort-/Gruppenansicht fuer Operatoren; ausserdem ist der gruppenbezogene Policy-Pfad mit einer eigenen Testdatei reproduzierbar abgesichert.

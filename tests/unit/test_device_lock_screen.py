@@ -43,3 +43,37 @@ def test_lock_screen_watcher_clears_marker_when_unlocked(tmp_path: Path) -> None
     subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), env=env, check=True)
 
     assert not marker_file.exists()
+
+
+def test_lock_screen_backend_prefers_wayland_lockers(tmp_path: Path) -> None:
+    bindir = tmp_path / "bin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    swaylock = bindir / "swaylock"
+    swaylock.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    swaylock.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    env["XDG_SESSION_TYPE"] = "wayland"
+
+    cmd = f"source {SCRIPT}\nlock_screen_backend\n"
+    result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), env=env, text=True, capture_output=True, check=True)
+
+    assert result.stdout.strip() == "wayland"
+
+
+def test_lock_screen_backend_falls_back_to_x11_tools(tmp_path: Path) -> None:
+    bindir = tmp_path / "bin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    zenity = bindir / "zenity"
+    zenity.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    zenity.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    env["XDG_SESSION_TYPE"] = "x11"
+
+    cmd = f"source {SCRIPT}\nlock_screen_backend\n"
+    result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), env=env, text=True, capture_output=True, check=True)
+
+    assert result.stdout.strip() == "x11"
