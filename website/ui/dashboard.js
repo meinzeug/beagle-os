@@ -40,6 +40,7 @@ const dashboardHooks = {
   renderVirtualizationPanel() {},
   renderClusterPanel() {},
   renderSessionsPanel() {},
+  renderFleetHealth() {},
   renderProvisioningWorkspace() {},
   updateFleetHealthAlert() {},
   setBanner() {},
@@ -176,6 +177,7 @@ export function loadDashboard(options) {
       dashboardHooks.renderVirtualizationPanel();
       dashboardHooks.renderClusterPanel();
       dashboardHooks.renderSessionsPanel();
+      dashboardHooks.renderFleetHealth();
       dashboardHooks.renderProvisioningWorkspace();
       dashboardHooks.updateFleetHealthAlert();
       if (failedRequests > 0) {

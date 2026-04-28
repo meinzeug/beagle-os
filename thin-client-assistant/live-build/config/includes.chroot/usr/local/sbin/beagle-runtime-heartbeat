@@ -6,6 +6,7 @@ STATUS_FILE="$STATE_DIR/runtime-heartbeat.status"
 TRACE_FILE="$STATE_DIR/runtime-trace.log"
 PREV_FILE="$STATE_DIR/runtime-heartbeat.prev"
 COMMON_SH="/usr/local/lib/pve-thin-client/runtime/common.sh"
+DEVICE_SYNC_SH="/usr/local/lib/pve-thin-client/runtime/device_sync.sh"
 
 install -d -m 0755 "$STATE_DIR"
 
@@ -14,10 +15,17 @@ if [[ -r "$COMMON_SH" ]]; then
   source "$COMMON_SH"
   load_runtime_config >/dev/null 2>&1 || true
 fi
+if [[ -r "$DEVICE_SYNC_SH" ]]; then
+  # shellcheck disable=SC1090
+  source "$DEVICE_SYNC_SH"
+fi
 
 timestamp="$(date -Iseconds 2>/dev/null || date)"
 
 if declare -F beagle_streaming_session_active >/dev/null 2>&1 && beagle_streaming_session_active; then
+  if declare -F sync_device_runtime_state >/dev/null 2>&1; then
+    sync_device_runtime_state >/dev/null 2>&1 || true
+  fi
   {
     printf 'timestamp=%q\n' "$timestamp"
     printf 'streaming=%q\n' "1"
@@ -45,6 +53,10 @@ last_trace="$(tail -n 1 "$TRACE_FILE" 2>/dev/null || true)"
   printf 'last_trace=%q\n' "$last_trace"
   printf 'kernel_tail=%q\n' "$drm_tail"
 } >"$STATUS_FILE"
+
+if declare -F sync_device_runtime_state >/dev/null 2>&1; then
+  sync_device_runtime_state >/dev/null 2>&1 || true
+fi
 
 state_signature="xorg=${xorg_state};moonlight=${moonlight_state};kiosk=${kiosk_state};openbox=${openbox_state};route=${route_state}"
 prev_signature="$(cat "$PREV_FILE" 2>/dev/null || true)"

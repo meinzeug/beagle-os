@@ -69,6 +69,10 @@ import {
   renderIam
 } from './ui/iam.js';
 import {
+  configureFleetHealth,
+  renderFleetHealth
+} from './ui/fleet_health.js';
+import {
   configureAudit,
   exportAuditCsv,
   loadAuditExportTargets,
@@ -499,6 +503,11 @@ export function bootstrapApp() {
     requestConfirm,
     setBanner
   });
+  configureFleetHealth({
+    setBanner,
+    requestConfirm,
+    loadDashboard
+  });
   configureAudit({
     setBanner
   });
@@ -573,6 +582,7 @@ export function bootstrapApp() {
     renderVirtualizationPanel,
     renderClusterPanel,
     renderSessionsPanel,
+    renderFleetHealth,
     renderProvisioningWorkspace,
     renderPolicies,
     renderIam,

@@ -544,6 +544,19 @@
                   </table>
                 </div>
               </article>
+
+              <article class="card">
+                <div class="card-head">
+                  <div>
+                    <span class="eyebrow">Zero Trust</span>
+                    <h2>Thin-Client Registry</h2>
+                    <p class="muted-text">Enrolled Geraete mit Hardware, Standort und aktuellem Registry-Status.</p>
+                  </div>
+                </div>
+                <div id="fleet-health-panel">
+                  <div class="empty-card">Noch keine Geraete geladen.</div>
+                </div>
+              </article>
             </div>
 
             <div class="virtualization-grid">
@@ -1386,6 +1399,13 @@
                           <option value="h264">h264</option>
                           <option value="h265" selected>h265</option>
                           <option value="av1">av1</option>
+                        </select>
+                      </label>
+                      <label class="field"><span>VPN-Modus</span>
+                        <select id="pool-stream-network-mode" class="input-select">
+                          <option value="vpn_required">vpn_required</option>
+                          <option value="vpn_preferred" selected>vpn_preferred</option>
+                          <option value="direct_allowed">direct_allowed</option>
                         </select>
                       </label>
                       <label class="field"><span>Bitrate Kbps</span><input id="pool-stream-bitrate" type="number" min="2000" max="150000" step="500" value="20000"></label>

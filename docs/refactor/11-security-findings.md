@@ -1,6 +1,31 @@
 # Security Findings
 
-Stand: 2026-04-27 (ergänzt: S-028 Installer-Skript-Logging mit scoped write-only Tokens)
+Stand: 2026-04-28 (ergänzt: S-029 VPN-Bypass im Session-Broker geschlossen, Lock/Wipe-Runtime erzwungen)
+
+## S-029 — `vpn_required` war bisher nur Policy-Metadatum und konnte im Session-Broker umgangen werden (PATCHED)
+
+- Status: **gepatcht** (2026-04-28)
+- Risiko: **Hoch**
+- Betroffene Dateien:
+  - `beagle-host/services/endpoint_http_surface.py`
+  - `beagle-host/services/device_registry.py`
+  - `beagle-host/services/fleet_http_surface.py`
+  - `thin-client-assistant/runtime/device_sync.sh`
+  - `thin-client-assistant/runtime/device_state_enforcement.sh`
+  - `thin-client-assistant/runtime/launch-session.sh`
+- Beschreibung:
+  - `streaming_profile.network_mode = vpn_required` war bereits im Pool-Contract, im UI und im Thin-Client-Protokoll-Selector vorhanden.
+  - Der aktuelle Session-Broker `GET /api/v1/session/current` pruefte diesen Zustand aber noch nicht hart. Ein Endpoint konnte daher trotz `vpn_required`
+    weiter Stream-Zieldaten bekommen, wenn er den lokalen VPN-Zustand ignorierte oder falsch meldete.
+  - Gleichzeitig setzte die Runtime `locked` / `wipe_pending` nur als lokale Markerdateien, ohne vor Session-Start wirklich zu blockieren oder einen Wipe zu bestaetigen.
+- Fix:
+  - `session/current` verweigert jetzt `403`, wenn der zugehoerige Pool `vpn_required` setzt und das Device laut Registry keinen aktiven WireGuard-Tunnel hat.
+  - Die Device-Registry persistiert den letzten VPN-Zustand (`vpn_active`, `vpn_interface`, `wg_assigned_ip`) aus dem endpoint-authentifizierten Device-Sync.
+  - Die Runtime blockiert den Session-Start jetzt hart bei `device.locked`.
+  - Bei `device.wipe-pending` fuehrt die Runtime einen reproduzierbaren Secret-/Config-Wipe aus und sendet danach endpoint-authentifiziert `confirm-wiped`.
+- Rest-Risiko:
+  - Der aktuelle Wipe ist noch kein vollstaendiger Datentraeger-Erase mit TPM-Key-Reset.
+  - Der separate spaetere `beagle-stream-server`-Fork muss denselben Enforcement-Gedanken spaeter nochmals auf Stream-Server-Ebene tragen, auch wenn der heutige Broker-Pfad bereits blockiert.
 
 ## S-028 — Installer-Skript-Laufprotokolle duerfen keine Operator-Credentials benoetigen (PATCHED)
 

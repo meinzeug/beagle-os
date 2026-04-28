@@ -197,6 +197,36 @@ class AuthzPolicyServiceTests(unittest.TestCase):
         permission = AuthzPolicyService.required_permission("GET", "/api/v1/sessions/handover")
         self.assertEqual(permission, "pool:read")
 
+    def test_fleet_registry_routes_use_settings_permissions(self):
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/fleet/devices"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/fleet/devices/groups"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/fleet/devices/dev-001"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/fleet/devices/register"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/fleet/devices/dev-001/heartbeat"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/fleet/devices/dev-001/lock"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("PUT", "/api/v1/fleet/devices/dev-001"),
+            "settings:write",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -116,7 +116,7 @@ class EndpointEnrollmentService:
             "version": self._version,
             "generated_at": self._utcnow(),
             "endpoint": endpoint_payload,
-            "config": self._build_endpoint_config(profile, secret, endpoint_token),
+            "config": self._build_endpoint_config(profile, secret, endpoint_token, endpoint_id=endpoint_id),
         }
 
     def _build_endpoint_config(
@@ -124,8 +124,11 @@ class EndpointEnrollmentService:
         profile: dict[str, Any],
         secret: dict[str, Any],
         endpoint_token: str,
+        *,
+        endpoint_id: str,
     ) -> dict[str, Any]:
         return {
+            "device_id": str(endpoint_id or ""),
             "beagle_manager_url": self._public_manager_url,
             "beagle_manager_token": endpoint_token,
             "beagle_manager_pinned_pubkey": self._manager_pinned_pubkey,

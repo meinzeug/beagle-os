@@ -1,5 +1,23 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 02 follow-up)
+
+**Zuletzt erledigt**:
+- GoEnterprise Plan 02 hat jetzt die erste echte Operator-Flaeche fuer die Thin-Client-Registry:
+  - Fleet-/Device-Registry-Endpunkte laufen ueber die Control Plane
+  - Dashboard rendert Hardware, Online-Status, `last_seen`, Standort und Gruppe
+  - Fleet-Routen sind per RBAC auf `settings:read` / `settings:write` gelegt, Lock/Wipe/Unlock sind im UI bedienbar und die Aktionen schreiben Audit-Events
+  - Thin-Client-Runtime synchronisiert Heartbeat, Hardware und VPN-Zustand jetzt per endpoint-authentifiziertem `device/sync` und zieht dabei MDM-Policy + Lock/Wipe-Status zurück
+  - `vpn_required` wird im aktuellen Session-Broker jetzt serverseitig gegen den persistierten WireGuard-Status des Devices erzwungen
+  - `locked` blockiert den Session-Start jetzt hart; `wipe_pending` fuehrt einen reproduzierbaren Runtime-Secret-Wipe aus und meldet `confirm-wiped` zurueck
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 02 Wipe vervollstaendigen**: aus dem jetzigen Runtime-/Secret-Wipe einen echten Datentraeger-/TPM-Wipe machen und den Erfolgs-/Fehlerpfad fuer Operatoren sichtbar nachziehen.
+2. **Plan 02 Policy-Plane erweitern**: MDM-Policy-Editor pro Gerät/Gerätegruppe plus Assignment-Flow in der WebUI nachziehen.
+3. **Plan 02 Device-UX schliessen**: grafischen Sperrbildschirm, Standort-Tree und Bulk-Policy/Bulk-Action-Flows ergaenzen.
+4. **Plan 01 Fork-Pfad weiterziehen**: den spaeteren `beagle-stream-server`-Enforcement-Pfad im Sunshine-Fork vorbereiten, obwohl der heutige Broker-Pfad bereits blockiert.
+
 ## Stand (2026-04-27, two-host follow-up)
 
 **Zuletzt erledigt**:

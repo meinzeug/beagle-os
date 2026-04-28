@@ -69,8 +69,8 @@ Ergebnis: Ein Thin-Client ohne gültigen WireGuard-Key + Attestation bekommt **k
   - `register_device(device_id, hardware_info) → device`
   - `update_heartbeat(device_id, metrics) → device`
   - `list_devices(filter) → [device]`
-- [ ] Web Console: Geräte-Übersicht mit Hardware-Details, Online-Status, letzter Verbindung
-- [ ] `beagle-host/bin/beagle-control-plane.py`: CRUD-Endpoints für Device Registry
+- [x] Web Console: Geräte-Übersicht mit Hardware-Details, Online-Status, letzter Verbindung
+- [x] `beagle-host/bin/beagle-control-plane.py`: CRUD-Endpoints für Device Registry
 - [x] Tests: `tests/unit/test_device_registry.py`
 
 ### Schritt 2 — Remote-Attestation via TPM
@@ -93,7 +93,7 @@ Ergebnis: Ein Thin-Client ohne gültigen WireGuard-Key + Attestation bekommt **k
   - `max_resolution`, `allowed_codecs`
   - `auto_update` (ja/nein), `update_window` (Stunden-Fenster für Updates)
   - `screen_lock_timeout_seconds`
-- [ ] Thin-Client-OS: liest Policy beim Boot + bei jeder Verbindung vom Control Plane
+- [x] Thin-Client-OS: liest Policy beim Boot + bei jeder Verbindung vom Control Plane
 - [ ] Web Console: MDM-Policy-Editor pro Gerät/Gerätegruppe
 - [x] Tests: `tests/unit/test_mdm_policy.py`
 
@@ -102,7 +102,7 @@ Ergebnis: Ein Thin-Client ohne gültigen WireGuard-Key + Attestation bekommt **k
 - [x] `beagle-host/services/device_registry.py`: `wipe_device(device_id)` + `lock_device(device_id)`
 - [ ] Thin-Client-OS: Bei nächstem Heartbeat-Poll: wenn `status=wipe_pending` → überschreibe alle Nutzdaten, setze TPM-Keys zurück, sende `wiped`-Bestätigung
 - [ ] Wenn `status=locked` → Sperrbildschirm, kein Login möglich bis `unlock`
-- [ ] Audit-Event für alle Wipe/Lock-Aktionen
+- [x] Audit-Event für alle Wipe/Lock-Aktionen
 - [ ] Tests: `tests/unit/test_device_wipe.py`
 
 ### Schritt 5 — Standort- und Gruppen-Management
@@ -122,6 +122,64 @@ Ergebnis: Ein Thin-Client ohne gültigen WireGuard-Key + Attestation bekommt **k
 - [ ] MDM Policy: Gerät erhält Policy, nur erlaubte Pools verfügbar.
 - [ ] Remote-Wipe: `wipe_device(id)` → Gerät löscht sich, sendet Bestätigung.
 - [ ] Gruppen-Policy: Alle Geräte einer Gruppe bekommen Policy-Update automatisch.
+
+---
+
+## Update 2026-04-28
+
+- Device-Registry-HTTP-Surface ist jetzt im Beagle-Stack verdrahtet:
+  - `GET /api/v1/fleet/devices`
+  - `GET /api/v1/fleet/devices/groups`
+  - `GET /api/v1/fleet/devices/{device_id}`
+  - `POST /api/v1/fleet/devices/register`
+  - `POST /api/v1/fleet/devices/{device_id}/heartbeat|lock|unlock|wipe|confirm-wiped`
+  - `PUT /api/v1/fleet/devices/{device_id}`
+- Dashboard/Web Console rendert jetzt eine echte `Thin-Client Registry` mit:
+  - Hardware-Zusammenfassung
+  - Online-Status
+  - `last_seen`
+  - Standort-/Gruppenanzeige
+- Operator-Flows in der Registry:
+  - `Lock`
+  - `Unlock`
+  - `Wipe`
+  - alle drei Aktionen schreiben Audit-Events ueber die Fleet-HTTP-Surface
+- Thin-Client-Runtime ist jetzt an die Registry angebunden:
+  - Enrollment schreibt `device_id` in die Runtime-Konfiguration
+  - `prepare-runtime.sh` macht einen initialen endpoint-authentifizierten Device-Sync
+  - `beagle-runtime-heartbeat` macht periodische Device-Syncs
+  - Device-Sync liefert Heartbeat, Registry-Update, MDM-Policy und Lock/Wipe-Status in einem Pfad
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_fleet_http_surface.py`
+  - `tests/unit/test_fleet_ui_regressions.py`
+  - `tests/unit/test_authz_policy.py`
+  - `tests/unit/test_endpoint_http_surface.py`
+  - `tests/unit/test_apply_enrollment_config.py`
+  - `tests/unit/test_device_sync_runtime.py`
+
+## Update 2026-04-28 (Runtime-Enforcement fuer Lock/Wipe weitergezogen)
+
+- Thin-Client-Runtime setzt den vom Control Plane gelieferten Geraetestatus jetzt nicht mehr nur als Markerdatei,
+  sondern zieht vor Session-Start echte Enforcement-Schritte:
+  - `thin-client-assistant/runtime/launch-session.sh` blockiert den Session-Start, solange `device.locked` aktiv ist
+  - `thin-client-assistant/runtime/device_state_enforcement.sh` fuehrt bei `device.wipe-pending` einen logischen Wipe
+    der lokalen Runtime-Secrets aus und sendet endpoint-authentifiziert `POST /api/v1/endpoints/device/confirm-wiped`
+  - `thin-client-assistant/runtime/device_sync.sh` hat dafuer einen eigenen `confirm-wiped`-API-Hook
+- Control Plane:
+  - `beagle-host/services/endpoint_http_surface.py` akzeptiert jetzt `POST /api/v1/endpoints/device/confirm-wiped`
+    direkt ueber den Endpoint-Token-Pfad
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_device_state_enforcement.py`
+  - `tests/unit/test_endpoint_http_surface.py`
+- Validierung:
+  - `bash -n thin-client-assistant/runtime/device_sync.sh thin-client-assistant/runtime/device_state_enforcement.sh thin-client-assistant/runtime/launch-session.sh thin-client-assistant/runtime/prepare-runtime.sh thin-client-assistant/live-build/config/includes.chroot/usr/local/sbin/beagle-runtime-heartbeat`
+  - zusammenhaengender Enterprise-Regression-Block: `121 passed`
+
+Restluecke bewusst offen:
+- Der aktuelle Wipe ist ein reproduzierbarer Runtime-/Secret-Wipe und kein vollstaendiger Datentraeger-Erase mit
+  TPM-Key-Reset. Fuer den Planpunkt "vollstaendig sicher" fehlt noch der echte Disk-/TPM-Wipe-Pfad.
+- `locked` blockiert heute den Session-Start hart; ein dedizierter grafischer Sperrbildschirm fuer bereits laufende
+  lokale X-Sessions ist noch nicht separat umgesetzt.
 
 ---
 

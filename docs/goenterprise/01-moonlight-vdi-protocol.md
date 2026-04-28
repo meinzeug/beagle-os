@@ -146,7 +146,7 @@ Hardware: AMD mit `aes` + `avx2` + `vaes` + `vpclmulqdq` — vollständig hardwa
     - `vpn_preferred` — WireGuard bevorzugt, direkter Fallback erlaubt (Kompatibilität)
     - `direct_allowed` — Legacy/LAN ohne VPN (nur für interne Netze)
 - [ ] `beagle-stream-server`: erzwingt Policy (verwirft Verbindung bei `vpn_required` ohne Tunnel)
-- [ ] Web Console: Policy-Editor im Pool-Detail mit VPN-Mode-Auswahl
+- [x] Web Console: Policy-Editor im Pool-Detail mit VPN-Mode-Auswahl
 - [x] Tests: `tests/unit/test_stream_policy.py`
 
 ### Schritt 5 — BeagleStream v2: Protokoll-Roadmap (Langfristig)
@@ -172,7 +172,45 @@ Das NVIDIA-GameStream-Protokoll (Basis von Sunshine/Moonlight) kann schrittweise
   2. Falls kein ACK in 2s → Fallback auf xRDP (TCP 3389) durch WireGuard-Tunnel
   3. Falls auch WireGuard nicht verfügbar → Fallback direkt (wenn Policy erlaubt)
   4. Fehlermeldung mit Diagnose-Info
-- [ ] Tests: `tests/unit/test_protocol_selector.py`
+- [x] Tests: `tests/unit/test_protocol_selector.py`
+
+## Update (2026-04-28, VPN-Modus im Pool-Streaming-Profil + Protocol-Selector-Tests)
+
+- `core/virtualization/streaming_profile.py` traegt jetzt den BeagleStream-Zero-Trust-Contract direkt im Pool:
+  - neues Feld `network_mode` mit `vpn_required`, `vpn_preferred`, `direct_allowed`
+  - API-/State-Persistenz ueber bestehende Pool-Create/Update-Flows
+- Web Console `/#panel=policies`:
+  - Pool-Wizard hat jetzt im Streaming-Profil eine echte `VPN-Modus`-Auswahl
+  - Summary und Pool-Karten zeigen den gewaehlten Modus sichtbar an
+- Reproduzierbare Tests ergaenzt:
+  - `tests/unit/test_protocol_selector.py`
+  - `tests/unit/test_pool_manager.py`
+  - `tests/unit/test_pools_http_surface.py`
+  - `tests/unit/test_policies_ui_regressions.py`
+- Validierung:
+  - `python3 -m pytest tests/unit/test_pool_manager.py tests/unit/test_pools_http_surface.py tests/unit/test_policies_ui_regressions.py tests/unit/test_protocol_selector.py tests/unit/test_stream_policy.py`
+  - Ergebnis: `58 passed`
+
+## Update (2026-04-28, Control-Plane erzwingt `vpn_required` im aktuellen Broker-Pfad)
+
+- Der aktuelle Beagle-Session-Broker verweigert `GET /api/v1/session/current` jetzt serverseitig mit `403`,
+  wenn ein Pool `streaming_profile.network_mode = vpn_required` setzt und der Thin Client laut Device-Registry
+  keinen aktiven WireGuard-Tunnel hat.
+- Die Device-Registry persistiert dafuer jetzt den letzten gemeldeten VPN-Zustand (`vpn_active`, `vpn_interface`,
+  `wg_assigned_ip`) aus dem endpoint-authentifizierten Runtime-Sync.
+- Der Response-Pfad liefert den effektiven `network_mode` und `wireguard_active` sichtbar mit, damit Runtime/UI
+  denselben Entscheid nachvollziehen koennen.
+- Neue Regressionen:
+  - `tests/unit/test_endpoint_http_surface.py`
+  - `tests/unit/test_device_registry.py`
+- Validierung:
+  - `python3 -m pytest tests/unit/test_endpoint_http_surface.py tests/unit/test_device_registry.py tests/unit/test_stream_policy.py tests/unit/test_pool_manager.py tests/unit/test_pools_http_surface.py -q`
+  - aktueller zusammenhaengender Enterprise-Block: `121 passed`
+
+Wichtig:
+- Das ist die harte Schranke im heutigen Beagle-Control-Plane-/Moonlight-Broker-Pfad.
+- Der spaetere Fork-Schritt `beagle-stream-server` aus Schritt 1/4 bleibt trotzdem offen; die Policy sitzt
+  heute noch nicht in einem separaten Sunshine-Fork, sondern im Beagle-Broker selbst.
 
 ---
 

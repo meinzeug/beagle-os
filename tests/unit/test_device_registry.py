@@ -116,3 +116,54 @@ def test_persistence(tmp_path):
     dev = svc2.get_device("dev-001")
     assert dev is not None
     assert dev.hostname == "kiosk-01"
+
+
+def test_register_or_update_device_preserves_record(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.register_device("dev-001", "kiosk-01", HW, os_version="1.0")
+    dev = svc.register_or_update_device(
+        "dev-001",
+        "kiosk-01-new",
+        {**HW, "cpu_cores": 8},
+        os_version="1.1",
+        vpn_active=True,
+        vpn_interface="wg-beagle",
+        wg_assigned_ip="10.88.0.10/32",
+    )
+    assert dev.hostname == "kiosk-01-new"
+    assert dev.hardware.cpu_cores == 8
+    assert dev.os_version == "1.1"
+    assert dev.vpn_active is True
+    assert dev.vpn_interface == "wg-beagle"
+    assert dev.wg_assigned_ip == "10.88.0.10/32"
+
+
+def test_heartbeat_keeps_locked_and_wipe_pending_status(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.register_device("dev-001", "k1", HW)
+    svc.lock_device("dev-001")
+    locked = svc.update_heartbeat("dev-001")
+    assert locked.status == "locked"
+    svc.wipe_device("dev-001")
+    wiped = svc.update_heartbeat("dev-001")
+    assert wiped.status == "wipe_pending"
+
+
+def test_confirm_wiped_clears_vpn_state(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.register_device(
+        "dev-001",
+        "k1",
+        HW,
+        vpn_active=True,
+        vpn_interface="wg-beagle",
+        wg_public_key="pub",
+        wg_assigned_ip="10.88.0.10/32",
+    )
+    svc.wipe_device("dev-001")
+    wiped = svc.confirm_wiped("dev-001")
+    assert wiped.status == "wiped"
+    assert wiped.vpn_active is False
+    assert wiped.vpn_interface == ""
+    assert wiped.wg_public_key == ""
+    assert wiped.wg_assigned_ip == ""

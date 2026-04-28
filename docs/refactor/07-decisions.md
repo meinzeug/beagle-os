@@ -2,6 +2,11 @@
 
 Stand: 2026-04-13
 
+## D-047: Stream-Zero-Trust-Modus lebt im Pool-Streaming-Profil
+- Entscheidung: Der BeagleStream-VPN-Modus (`vpn_required`, `vpn_preferred`, `direct_allowed`) wird im bestehenden `StreamingProfile` des Desktop-Pools persistiert, statt als separates ad-hoc UI-Flag oder nur im Thin-Client zu existieren.
+- Grund: Der Wert muss entlang derselben Kette verfuegbar sein, die auch Codec/FPS/Bitrate beschreibt: Pool-Wizard -> Pool-API -> Pool-State -> spaeterer Stream-Server-/Thin-Client-Consume.
+- Dateien: `core/virtualization/streaming_profile.py`, `website/ui/policies.js`, `website/index.html`.
+
 ## D-001: Beagle-native ist Primarpfad
 - Entscheidung: Zielarchitektur ist eigenstaendig lauffaehig ohne Beagle host.
 - Grund: Produktstrategie verlangt Plattformautonomie.

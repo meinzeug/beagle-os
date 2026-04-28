@@ -1,5 +1,23 @@
 # Global TODO
 
+## Update 2026-04-28 (GoEnterprise Plan 02)
+
+- [x] GoEnterprise Plan 02: Device-Registry-HTTP-Surface (`/api/v1/fleet/devices*`) im Control Plane verdrahten.
+- [x] GoEnterprise Plan 02: Web-Console-Geraeteansicht fuer Device Registry mit Hardware, `last_seen` und Online-Status bauen.
+- [x] GoEnterprise Plan 02: Bedienbare Lock-/Wipe-/Unlock-Operator-Flows samt Audit-Events in der WebUI nachziehen.
+- [x] GoEnterprise Plan 02: Thin-Client-Runtime fuer Heartbeat-/Policy-Pull-/WireGuard-Glue produktiv an die Registry anbinden.
+- [x] GoEnterprise Plan 02: `locked` und `wipe_pending` im Thin-Client-OS im aktuellen Runtime-Pfad durchsetzen und `confirm-wiped` endpoint-authentifiziert zurückmelden.
+- [ ] GoEnterprise Plan 02: aus dem aktuellen Runtime-/Secret-Wipe einen echten Datentraeger-/TPM-Wipe machen.
+- [ ] GoEnterprise Plan 02: MDM-Policy-Editor und Assignment-Flow pro Gerät/Gerätegruppe in der WebUI nachziehen.
+- [ ] GoEnterprise Plan 02: grafischen Sperrbildschirm fuer bereits laufende lokale Sessions sowie Bulk-Device-Operator-Flows nachziehen.
+
+## Update 2026-04-28 (GoEnterprise Plan 01)
+
+- [x] GoEnterprise Plan 01: Pool-Streaming-Profil um `network_mode` (`vpn_required|vpn_preferred|direct_allowed`) erweitern und in Pool-API/UI persistieren.
+- [x] GoEnterprise Plan 01: Reproduzierbare Unit-Tests fuer `thin-client-assistant/runtime/protocol_selector.sh` einfuehren.
+- [x] GoEnterprise Plan 01: aktuellen Control-Plane-/Session-Broker-Pfad fuer `vpn_required` serverseitig konkret verdrahten.
+- [ ] GoEnterprise Plan 01: denselben Enforcement-Pfad spaeter auch im separaten `beagle-stream-server`-Fork verankern.
+
 ## Update 2026-04-26 (GoFuture Re-Open: WebUI-Operability)
 
 - [x] Policies-Panel Subnavigation fuer Pools/Templates/Entitlements/Policies/Sessions einziehen und Ist-Zustand dokumentieren.

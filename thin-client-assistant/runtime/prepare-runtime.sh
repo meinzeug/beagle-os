@@ -12,6 +12,7 @@ RUNTIME_BOOTSTRAP_SERVICES_SH="${RUNTIME_BOOTSTRAP_SERVICES_SH:-$SCRIPT_DIR/runt
 RUNTIME_ENDPOINT_ENROLLMENT_SH="${RUNTIME_ENDPOINT_ENROLLMENT_SH:-$SCRIPT_DIR/runtime_endpoint_enrollment.sh}"
 RUNTIME_PREPARE_FLOW_SH="${RUNTIME_PREPARE_FLOW_SH:-$SCRIPT_DIR/runtime_prepare_flow.sh}"
 RUNTIME_PREPARE_STATUS_SH="${RUNTIME_PREPARE_STATUS_SH:-$SCRIPT_DIR/runtime_prepare_status.sh}"
+DEVICE_SYNC_SH="${DEVICE_SYNC_SH:-$SCRIPT_DIR/device_sync.sh}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
 # shellcheck disable=SC1090
@@ -26,6 +27,8 @@ source "$RUNTIME_ENDPOINT_ENROLLMENT_SH"
 source "$RUNTIME_PREPARE_FLOW_SH"
 # shellcheck disable=SC1090
 source "$RUNTIME_PREPARE_STATUS_SH"
+# shellcheck disable=SC1090
+source "$DEVICE_SYNC_SH"
 
 load_runtime_config_with_retry
 BOOT_MODE="${PVE_THIN_CLIENT_BOOT_MODE:-$(detect_runtime_boot_mode)}"
@@ -57,6 +60,7 @@ ensure_usb_tunnel_service
 ensure_kiosk_runtime || true
 run_optional_runtime_hook "/usr/local/sbin/beagle-identity-apply" "Applying system identity..."
 run_optional_runtime_hook "/usr/local/sbin/beagle-egress-apply" "Preparing secure connection..."
+sync_device_runtime_state || beagle_log_event "prepare-runtime.device-sync-error" "initial sync failed"
 beagle_log_event "prepare-runtime.system" "runtime_user=${PVE_THIN_CLIENT_RUNTIME_USER:-UNSET} hostname=${PVE_THIN_CLIENT_HOSTNAME:-UNSET}"
 
 required_binary="$(runtime_required_binary "$BOOT_MODE")"

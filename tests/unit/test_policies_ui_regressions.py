@@ -21,6 +21,12 @@ def test_pool_wizard_collects_pool_type_gpu_and_kiosk_fields() -> None:
     assert "Gaming-Pools brauchen eine GPU-Klasse." in js
     assert "Kiosk-Pools brauchen ein Session-Limit > 0 Minuten." in js
     assert "Kiosk-Pools brauchen mindestens eine Verlaengerungsstufe." in js
+    assert "streamNetworkModeLabel" in js
+    assert "policy-stream-network-mode" not in html
+    assert 'id="pool-stream-network-mode"' in html
+    assert "Streaming-VPN-Modus ist ungueltig." in js
+    assert "network_mode: String(qs('pool-stream-network-mode')" in js
+    assert "VPN-Modus" in js
     assert 'select id="pool-gpu-class"' in html
     assert 'id="pool-session-extensions"' in html
     assert "renderPoolGpuClassOptions" in js

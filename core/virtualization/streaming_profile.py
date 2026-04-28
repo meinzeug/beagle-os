@@ -19,6 +19,12 @@ class StreamingColorCodec(str, Enum):
     AV1 = "av1"
 
 
+class StreamingNetworkMode(str, Enum):
+    VPN_REQUIRED = "vpn_required"
+    VPN_PREFERRED = "vpn_preferred"
+    DIRECT_ALLOWED = "direct_allowed"
+
+
 @dataclass(frozen=True)
 class StreamingProfile:
     encoder: StreamingEncoder = StreamingEncoder.AUTO
@@ -26,6 +32,7 @@ class StreamingProfile:
     resolution: str = "1920x1080"
     fps: int = 60
     color: StreamingColorCodec = StreamingColorCodec.H265
+    network_mode: StreamingNetworkMode = StreamingNetworkMode.VPN_PREFERRED
     hdr: bool = False
     audio_input_enabled: bool = False
     gamepad_redirect_enabled: bool = False
@@ -57,6 +64,12 @@ def streaming_profile_from_payload(payload: dict[str, Any] | None) -> StreamingP
         color = StreamingColorCodec(str(body.get("color", StreamingColorCodec.H265.value) or StreamingColorCodec.H265.value).lower())
     except ValueError as exc:
         raise ValueError(f"invalid streaming color codec: {body.get('color')}") from exc
+    try:
+        network_mode = StreamingNetworkMode(
+            str(body.get("network_mode", StreamingNetworkMode.VPN_PREFERRED.value) or StreamingNetworkMode.VPN_PREFERRED.value).lower()
+        )
+    except ValueError as exc:
+        raise ValueError(f"invalid streaming network mode: {body.get('network_mode')}") from exc
 
     bitrate_kbps = int(body.get("bitrate_kbps", 20000) or 20000)
     if bitrate_kbps < 2000 or bitrate_kbps > 150000:
@@ -72,6 +85,7 @@ def streaming_profile_from_payload(payload: dict[str, Any] | None) -> StreamingP
         resolution=_normalize_resolution(body.get("resolution", "1920x1080")),
         fps=fps,
         color=color,
+        network_mode=network_mode,
         hdr=bool(body.get("hdr", False)),
         audio_input_enabled=bool(body.get("audio_input_enabled", False)),
         gamepad_redirect_enabled=bool(body.get("gamepad_redirect_enabled", False)),
@@ -89,6 +103,7 @@ def streaming_profile_to_dict(profile: StreamingProfile | None) -> dict[str, Any
         "resolution": str(profile.resolution),
         "fps": int(profile.fps),
         "color": profile.color.value,
+        "network_mode": profile.network_mode.value,
         "hdr": bool(profile.hdr),
         "audio_input_enabled": bool(profile.audio_input_enabled),
         "gamepad_redirect_enabled": bool(profile.gamepad_redirect_enabled),

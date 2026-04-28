@@ -51,6 +51,7 @@ def apply_enrollment_config(response_path: Path, config_path: Path, credentials_
 
     config_existing = _load_env_file(config_path)
     for key, value in (
+        ("PVE_THIN_CLIENT_BEAGLE_DEVICE_ID", config.get("device_id", "")),
         ("PVE_THIN_CLIENT_MOONLIGHT_HOST", config.get("moonlight_host", "")),
         ("PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST", config.get("moonlight_local_host", "")),
         ("PVE_THIN_CLIENT_MOONLIGHT_PORT", config.get("moonlight_port", "")),

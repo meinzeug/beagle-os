@@ -25,6 +25,7 @@ class _PoolInfo:
     pool_id: str
     pool_type: DesktopPoolType
     session_extension_options_minutes: tuple[int, ...] = (15, 30, 60)
+    streaming_profile: object | None = None
 
 
 class _PoolManagerStub:
@@ -41,11 +42,16 @@ class _PoolManagerStub:
         }
 
     def pool_info_to_dict(self, pool_info):
-        return {
+        payload = {
             "pool_id": pool_info.pool_id,
             "pool_type": pool_info.pool_type.value,
             "session_extension_options_minutes": list(pool_info.session_extension_options_minutes),
         }
+        if getattr(pool_info, "streaming_profile", None) is not None:
+            payload["streaming_profile"] = {
+                "network_mode": pool_info.streaming_profile.network_mode.value,
+            }
+        return payload
 
     def list_pools(self, tenant_id=None):
         return [
@@ -64,6 +70,7 @@ class _PoolManagerStub:
             pool_id=spec.pool_id,
             pool_type=spec.pool_type,
             session_extension_options_minutes=tuple(spec.session_extension_options_minutes),
+            streaming_profile=spec.streaming_profile,
         )
 
     def list_active_sessions(self):
@@ -320,6 +327,7 @@ def test_create_pool_accepts_gaming_and_kiosk_specific_fields() -> None:
     assert pool_mgr.created_spec.session_time_limit_minutes == 45
     assert pool_mgr.created_spec.session_cost_per_minute == 0.75
     assert pool_mgr.created_spec.session_extension_options_minutes == ()
+    assert pool_mgr.created_spec.streaming_profile is None
 
 
 def test_kiosk_sessions_route_filters_to_kiosk_pools_and_adds_remaining_time() -> None:
@@ -410,6 +418,40 @@ def test_create_pool_accepts_kiosk_extension_levels() -> None:
     assert response["status"] == HTTPStatus.CREATED
     assert pool_mgr.created_spec is not None
     assert pool_mgr.created_spec.session_extension_options_minutes == (30, 60)
+
+
+def test_create_pool_accepts_streaming_network_mode() -> None:
+    service, pool_mgr = _make_service()
+
+    response = service.route_post(
+        "/api/v1/pools",
+        json_payload={
+            "pool_id": "vpn-pool",
+            "template_id": "tpl-1",
+            "mode": "floating_non_persistent",
+            "storage_pool": "local",
+            "min_pool_size": 1,
+            "max_pool_size": 2,
+            "warm_pool_size": 1,
+            "cpu_cores": 4,
+            "memory_mib": 8192,
+            "streaming_profile": {
+                "encoder": "nvenc",
+                "color": "av1",
+                "network_mode": "vpn_required",
+                "bitrate_kbps": 45000,
+                "fps": 120,
+                "resolution": "2560x1440",
+            },
+        },
+    )
+
+    assert response is not None
+    assert response["status"] == HTTPStatus.CREATED
+    assert pool_mgr.created_spec is not None
+    assert pool_mgr.created_spec.streaming_profile is not None
+    assert pool_mgr.created_spec.streaming_profile.network_mode.value == "vpn_required"
+    assert response["payload"]["streaming_profile"]["network_mode"] == "vpn_required"
 
 
 def test_gaming_metrics_route_returns_active_dashboard_payload() -> None:

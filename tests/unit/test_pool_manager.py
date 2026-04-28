@@ -11,7 +11,7 @@ if str(ROOT_DIR / "beagle-host" / "services") not in sys.path:
     sys.path.insert(0, str(ROOT_DIR / "beagle-host" / "services"))
 
 from core.virtualization.desktop_pool import DesktopLease, DesktopPoolMode, DesktopPoolSpec, DesktopPoolType
-from core.virtualization.streaming_profile import StreamingColorCodec, StreamingEncoder, StreamingProfile
+from core.virtualization.streaming_profile import StreamingColorCodec, StreamingEncoder, StreamingNetworkMode, StreamingProfile
 from pool_manager import PoolManagerService
 
 
@@ -391,6 +391,7 @@ class PoolManagerServiceTests(unittest.TestCase):
                     resolution="2560x1440",
                     fps=120,
                     color=StreamingColorCodec.AV1,
+                    network_mode=StreamingNetworkMode.VPN_REQUIRED,
                     hdr=True,
                     audio_input_enabled=True,
                     gamepad_redirect_enabled=True,
@@ -402,6 +403,7 @@ class PoolManagerServiceTests(unittest.TestCase):
         self.assertIsNotNone(info.streaming_profile)
         self.assertEqual(info.streaming_profile.encoder, StreamingEncoder.NVENC)
         self.assertEqual(info.streaming_profile.resolution, "2560x1440")
+        self.assertEqual(info.streaming_profile.network_mode, StreamingNetworkMode.VPN_REQUIRED)
 
         updated = service.update_pool(
             "pool-stream",
@@ -412,6 +414,7 @@ class PoolManagerServiceTests(unittest.TestCase):
                     "resolution": "1920x1080",
                     "fps": 60,
                     "color": "h264",
+                    "network_mode": "direct_allowed",
                     "hdr": False,
                     "audio_input_enabled": False,
                     "gamepad_redirect_enabled": False,
@@ -423,12 +426,14 @@ class PoolManagerServiceTests(unittest.TestCase):
         self.assertIsNotNone(updated.streaming_profile)
         self.assertEqual(updated.streaming_profile.encoder, StreamingEncoder.SOFTWARE)
         self.assertEqual(updated.streaming_profile.color, StreamingColorCodec.H264)
+        self.assertEqual(updated.streaming_profile.network_mode, StreamingNetworkMode.DIRECT_ALLOWED)
         self.assertFalse(updated.streaming_profile.wacom_tablet_enabled)
         self.assertFalse(updated.streaming_profile.usb_redirect_enabled)
 
         payload = service.pool_info_to_dict(updated)
         self.assertIn("streaming_profile", payload)
         self.assertEqual(payload["streaming_profile"]["encoder"], "software")
+        self.assertEqual(payload["streaming_profile"]["network_mode"], "direct_allowed")
 
     def test_lease_to_dict_includes_stream_health(self) -> None:
         service = self._build_service()

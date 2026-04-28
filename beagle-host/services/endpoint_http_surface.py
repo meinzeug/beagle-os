@@ -3,6 +3,8 @@ from __future__ import annotations
 from http import HTTPStatus
 from typing import Any, Callable
 
+from core.virtualization.streaming_profile import StreamingNetworkMode
+
 
 class EndpointHttpSurfaceService:
     def __init__(
@@ -10,10 +12,14 @@ class EndpointHttpSurfaceService:
         *,
         build_vm_profile: Callable[[Any], dict[str, Any]],
         dequeue_vm_actions: Callable[[str, int], list[dict[str, Any]]],
+        device_registry_service: Any,
+        mdm_policy_service: Any,
+        attestation_service: Any,
         exchange_moonlight_pairing_token: Callable[[Any, dict[str, Any], str], dict[str, Any]],
         fetch_sunshine_server_identity: Callable[[Any, str], dict[str, Any]],
         find_vm: Callable[[int], Any | None],
         issue_moonlight_pairing_token: Callable[[Any, dict[str, Any], str], dict[str, Any]],
+        pool_manager_service: Any,
         register_moonlight_certificate_on_vm: Callable[[Any, str], dict[str, Any]],
         service_name: str,
         prepare_virtual_display_on_vm: Callable[[Any, str], dict[str, Any]],
@@ -26,10 +32,14 @@ class EndpointHttpSurfaceService:
     ) -> None:
         self._build_vm_profile = build_vm_profile
         self._dequeue_vm_actions = dequeue_vm_actions
+        self._device_registry = device_registry_service
+        self._mdm_policy = mdm_policy_service
+        self._attestation = attestation_service
         self._exchange_moonlight_pairing_token = exchange_moonlight_pairing_token
         self._fetch_sunshine_server_identity = fetch_sunshine_server_identity
         self._find_vm = find_vm
         self._issue_moonlight_pairing_token = issue_moonlight_pairing_token
+        self._pool_manager = pool_manager_service
         self._register_moonlight_certificate_on_vm = register_moonlight_certificate_on_vm
         self._prepare_virtual_display_on_vm = prepare_virtual_display_on_vm
         self._session_manager = session_manager_service
@@ -69,6 +79,8 @@ class EndpointHttpSurfaceService:
             "/api/v1/endpoints/actions/pull",
             "/api/v1/endpoints/actions/result",
             "/api/v1/endpoints/support-bundles/upload",
+            "/api/v1/endpoints/device/sync",
+            "/api/v1/endpoints/device/confirm-wiped",
         }
 
     @staticmethod
@@ -80,11 +92,42 @@ class EndpointHttpSurfaceService:
             "/api/v1/endpoints/moonlight/pair-exchange",
             "/api/v1/endpoints/actions/pull",
             "/api/v1/endpoints/actions/result",
+            "/api/v1/endpoints/device/sync",
+            "/api/v1/endpoints/device/confirm-wiped",
         }
 
     @staticmethod
     def requires_binary_body(path: str) -> bool:
         return path == "/api/v1/endpoints/support-bundles/upload"
+
+    def _resolve_device_record(self, identity: dict[str, Any]) -> Any | None:
+        device_id = str(identity.get("endpoint_id") or "").strip()
+        hostname = str(identity.get("hostname") or "").strip()
+        if device_id:
+            device = self._device_registry.get_device(device_id)
+            if device is not None:
+                return device
+        if hostname:
+            return self._device_registry.get_device(hostname)
+        return None
+
+    def _wireguard_active_for_identity(self, identity: dict[str, Any]) -> bool:
+        device = self._resolve_device_record(identity)
+        if device is None:
+            return False
+        if bool(getattr(device, "vpn_active", False)):
+            return True
+        return bool(str(getattr(device, "wg_assigned_ip", "") or "").strip())
+
+    def _network_mode_for_pool(self, pool_id: str) -> str:
+        if not pool_id or self._pool_manager is None:
+            return ""
+        pool = self._pool_manager.get_pool(pool_id)
+        profile = getattr(pool, "streaming_profile", None) if pool is not None else None
+        mode = getattr(profile, "network_mode", "") if profile is not None else ""
+        if hasattr(mode, "value"):
+            return str(mode.value or "").strip().lower()
+        return str(mode or "").strip().lower()
 
     def route_get(
         self,
@@ -129,6 +172,23 @@ class EndpointHttpSurfaceService:
             profile = self._build_vm_profile(vm) if callable(self._build_vm_profile) else {}
             stream_host = str(profile.get("stream_host", "") or "").strip()
             moonlight_port = str(profile.get("moonlight_port", "") or "").strip()
+            pool_id = str(session.get("pool_id") or "").strip()
+            network_mode = self._network_mode_for_pool(pool_id)
+            wireguard_active = self._wireguard_active_for_identity(identity)
+            if network_mode == StreamingNetworkMode.VPN_REQUIRED.value and not wireguard_active:
+                return self._json_response(
+                    HTTPStatus.FORBIDDEN,
+                    {
+                        "ok": False,
+                        "error": "vpn_required: WireGuard tunnel not active",
+                        **self._envelope(
+                            session_id=str(session.get("session_id") or session_id or ""),
+                            pool_id=pool_id,
+                            vmid=session_vmid,
+                            network_mode=network_mode,
+                        ),
+                    },
+                )
             current_node = str(session.get("current_node") or vm.node or "").strip()
             reconnect_required = bool(current_node and str(identity.get("node", "")).strip() and current_node != str(identity.get("node", "")).strip())
             return self._json_response(
@@ -137,12 +197,14 @@ class EndpointHttpSurfaceService:
                     "ok": True,
                     **self._envelope(
                         session_id=str(session.get("session_id") or session_id or ""),
-                        pool_id=str(session.get("pool_id") or ""),
+                        pool_id=pool_id,
                         vmid=session_vmid,
                         current_node=current_node,
                         stream_host=stream_host,
                         moonlight_port=moonlight_port,
                         reconnect_required=reconnect_required,
+                        network_mode=network_mode,
+                        wireguard_active=wireguard_active,
                     ),
                 },
             )
@@ -159,6 +221,102 @@ class EndpointHttpSurfaceService:
         binary_payload: bytes | None = None,
     ) -> dict[str, Any]:
         identity = endpoint_identity or {}
+
+        if path == "/api/v1/endpoints/device/confirm-wiped":
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            device_id = str(payload.get("device_id") or identity.get("endpoint_id") or identity.get("hostname") or "").strip()
+            if not device_id:
+                return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid payload: missing device_id"})
+            device = self._device_registry.get_device(device_id)
+            if device is None:
+                return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "device not found"})
+            device = self._device_registry.confirm_wiped(device_id)
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        device={
+                            "device_id": str(device.device_id),
+                            "hostname": str(device.hostname),
+                            "status": str(device.status),
+                            "last_seen": str(device.last_seen),
+                        }
+                    ),
+                },
+            )
+
+        if path == "/api/v1/endpoints/device/sync":
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            device_id = str(payload.get("device_id") or identity.get("endpoint_id") or identity.get("hostname") or "").strip()
+            hostname = str(payload.get("hostname") or identity.get("hostname") or device_id).strip()
+            if not device_id or not hostname:
+                return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid payload: missing device_id or hostname"})
+
+            hardware = payload.get("hardware") if isinstance(payload.get("hardware"), dict) else {}
+            os_version = str(payload.get("os_version") or "").strip()
+            vpn = payload.get("vpn") if isinstance(payload.get("vpn"), dict) else {}
+
+            device = self._device_registry.register_or_update_device(
+                device_id,
+                hostname,
+                hardware,
+                os_version=os_version,
+                vpn_active=bool(vpn.get("active")),
+                vpn_interface=str(vpn.get("interface") or "").strip(),
+                wg_public_key=str(vpn.get("public_key") or "").strip(),
+                wg_assigned_ip=str(vpn.get("assigned_ip") or "").strip(),
+            )
+            device = self._device_registry.update_heartbeat(device_id, metrics=payload.get("metrics"))
+
+            attestation_record = self._attestation.get_record(device_id)
+            allowed, reason = self._attestation.is_session_allowed(device_id)
+            policy = self._mdm_policy.resolve_policy(device_id, group=str(getattr(device, "group", "") or ""))
+
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        device={
+                            "device_id": str(device.device_id),
+                            "hostname": str(device.hostname),
+                            "status": str(device.status),
+                            "last_seen": str(device.last_seen),
+                            "location": str(device.location),
+                            "group": str(device.group),
+                        },
+                        policy={
+                            "policy_id": str(getattr(policy, "policy_id", "__default__") or "__default__"),
+                            "name": str(getattr(policy, "name", "Default") or "Default"),
+                            "allowed_networks": list(getattr(policy, "allowed_networks", []) or []),
+                            "allowed_pools": list(getattr(policy, "allowed_pools", []) or []),
+                            "max_resolution": str(getattr(policy, "max_resolution", "") or ""),
+                            "allowed_codecs": list(getattr(policy, "allowed_codecs", []) or []),
+                            "auto_update": bool(getattr(policy, "auto_update", True)),
+                            "update_window_start_hour": int(getattr(policy, "update_window_start_hour", 2) or 2),
+                            "update_window_end_hour": int(getattr(policy, "update_window_end_hour", 4) or 4),
+                            "screen_lock_timeout_seconds": int(getattr(policy, "screen_lock_timeout_seconds", 0) or 0),
+                        },
+                        attestation={
+                            "allowed": bool(allowed),
+                            "reason": str(reason or ""),
+                            "status": str(getattr(attestation_record, "status", "unknown") or "unknown"),
+                            "last_checked": str(getattr(attestation_record, "last_checked", "") or ""),
+                        },
+                        commands={
+                            "lock_screen": str(device.status) == "locked",
+                            "wipe_pending": str(device.status) == "wipe_pending",
+                            "device_status": str(device.status),
+                        },
+                        vpn={
+                            "active": bool(vpn.get("active")),
+                            "interface": str(vpn.get("interface") or ""),
+                            "assigned_ip": str(vpn.get("assigned_ip") or ""),
+                        },
+                    ),
+                },
+            )
 
         if path == "/api/v1/endpoints/moonlight/register":
             vmid = int(identity.get("vmid", 0) or 0)

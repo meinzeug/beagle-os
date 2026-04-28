@@ -285,6 +285,7 @@ function collectPoolWizardInput() {
     streaming_profile: {
       encoder: String(qs('pool-stream-encoder') ? qs('pool-stream-encoder').value : 'auto').trim() || 'auto',
       color: String(qs('pool-stream-color') ? qs('pool-stream-color').value : 'h265').trim() || 'h265',
+      network_mode: String(qs('pool-stream-network-mode') ? qs('pool-stream-network-mode').value : 'vpn_preferred').trim() || 'vpn_preferred',
       bitrate_kbps: Number(qs('pool-stream-bitrate') ? qs('pool-stream-bitrate').value : '20000') || 20000,
       fps: Number(qs('pool-stream-fps') ? qs('pool-stream-fps').value : '60') || 60,
       resolution: String(qs('pool-stream-resolution') ? qs('pool-stream-resolution').value : '1920x1080').trim() || '1920x1080',
@@ -332,8 +333,22 @@ function validatePoolWizardStep(step, payload) {
     if (Number(payload.streaming_profile && payload.streaming_profile.fps) < 24) {
       return 'Streaming-FPS muessen mindestens 24 betragen.';
     }
+    if (['vpn_required', 'vpn_preferred', 'direct_allowed'].indexOf(String(payload.streaming_profile && payload.streaming_profile.network_mode ? payload.streaming_profile.network_mode : '').trim()) === -1) {
+      return 'Streaming-VPN-Modus ist ungueltig.';
+    }
   }
   return '';
+}
+
+function streamNetworkModeLabel(value) {
+  const normalized = String(value || '').trim();
+  if (normalized === 'vpn_required') {
+    return 'VPN required';
+  }
+  if (normalized === 'direct_allowed') {
+    return 'Direct allowed';
+  }
+  return 'VPN preferred';
 }
 
 function renderPoolWizardSummary() {
@@ -367,6 +382,7 @@ function renderPoolWizardSummary() {
     fieldBlock('Retention', String(payload.recording_retention_days || 30) + ' Tage') +
     fieldBlock('Watermark', (payload.recording_watermark_enabled ? 'enabled' : 'disabled') + (payload.recording_watermark_custom_text ? ' / ' + payload.recording_watermark_custom_text : '')) +
     fieldBlock('Streaming', String(payload.streaming_profile.encoder || '-') + ' / ' + String(payload.streaming_profile.color || '-') + ' / ' + String(payload.streaming_profile.resolution || '-')) +
+    fieldBlock('VPN-Modus', streamNetworkModeLabel(payload.streaming_profile.network_mode || '-')) +
     fieldBlock('Bitrate / FPS / HDR', String(payload.streaming_profile.bitrate_kbps || '-') + ' Kbps / ' + String(payload.streaming_profile.fps || '-') + ' fps / ' + (payload.streaming_profile.hdr ? 'on' : 'off')) +
     fieldBlock('Audio / Gamepad', (payload.streaming_profile.audio_input_enabled ? 'audio' : '-') + ' / ' + (payload.streaming_profile.gamepad_redirect_enabled ? 'gamepad' : '-')) +
     fieldBlock('Wacom / USB', (payload.streaming_profile.wacom_tablet_enabled ? 'wacom' : '-') + ' / ' + (payload.streaming_profile.usb_redirect_enabled ? 'usb' : '-')) +
@@ -619,6 +635,7 @@ function renderPoolsList() {
       fieldBlock('Retention', String(retentionDays) + ' Tage') +
       fieldBlock('Watermark', (watermarkEnabled ? 'enabled' : 'disabled') + (watermarkCustom ? ' / ' + watermarkCustom : '')) +
       fieldBlock('Streaming', streamSummary) +
+      fieldBlock('VPN-Modus', streamNetworkModeLabel(stream && stream.network_mode ? stream.network_mode : 'vpn_preferred')) +
       '</div>' +
       '<div class="button-row compact-row pool-card-actions">' +
       chip(String(vmCount) + ' Slots', vmCount ? 'info' : 'muted') +
@@ -1435,6 +1452,9 @@ export function resetPoolWizard() {
   }
   if (qs('pool-stream-color')) {
     qs('pool-stream-color').value = 'h265';
+  }
+  if (qs('pool-stream-network-mode')) {
+    qs('pool-stream-network-mode').value = 'vpn_preferred';
   }
   if (qs('pool-stream-bitrate')) {
     qs('pool-stream-bitrate').value = '20000';

@@ -37,6 +37,8 @@ class Device:
     location: str = ""
     group: str = ""
     status: DeviceStatus = "offline"
+    vpn_active: bool = False
+    vpn_interface: str = ""
     wg_public_key: str = ""
     wg_assigned_ip: str = ""
     notes: str = ""
@@ -64,6 +66,8 @@ def device_from_dict(d: dict[str, Any]) -> Device:
         location=d.get("location", ""),
         group=d.get("group", ""),
         status=d.get("status", "offline"),
+        vpn_active=bool(d.get("vpn_active", False)),
+        vpn_interface=d.get("vpn_interface", ""),
         wg_public_key=d.get("wg_public_key", ""),
         wg_assigned_ip=d.get("wg_assigned_ip", ""),
         notes=d.get("notes", ""),
@@ -93,6 +97,8 @@ class DeviceRegistryService:
         hostname: str,
         hardware_info: dict[str, Any],
         os_version: str = "",
+        vpn_active: bool = False,
+        vpn_interface: str = "",
         wg_public_key: str = "",
         wg_assigned_ip: str = "",
     ) -> Device:
@@ -106,6 +112,8 @@ class DeviceRegistryService:
             enrolled_at=now,
             last_seen=now,
             status="offline",
+            vpn_active=bool(vpn_active),
+            vpn_interface=str(vpn_interface or ""),
             wg_public_key=wg_public_key,
             wg_assigned_ip=wg_assigned_ip,
         )
@@ -113,11 +121,50 @@ class DeviceRegistryService:
         self._save()
         return dev
 
+    def register_or_update_device(
+        self,
+        device_id: str,
+        hostname: str,
+        hardware_info: dict[str, Any],
+        *,
+        os_version: str = "",
+        vpn_active: bool = False,
+        vpn_interface: str = "",
+        wg_public_key: str = "",
+        wg_assigned_ip: str = "",
+    ) -> Device:
+        existing = self._state["devices"].get(device_id)
+        if existing is None:
+            return self.register_device(
+                device_id,
+                hostname,
+                hardware_info,
+                os_version=os_version,
+                vpn_active=vpn_active,
+                vpn_interface=vpn_interface,
+                wg_public_key=wg_public_key,
+                wg_assigned_ip=wg_assigned_ip,
+            )
+
+        existing["hostname"] = hostname or existing.get("hostname", "")
+        existing["hardware"] = asdict(device_hardware_from_dict(hardware_info or {}))
+        existing["os_version"] = os_version or existing.get("os_version", "")
+        existing["vpn_active"] = bool(vpn_active)
+        existing["vpn_interface"] = str(vpn_interface or "")
+        if wg_public_key:
+            existing["wg_public_key"] = wg_public_key
+        if wg_assigned_ip:
+            existing["wg_assigned_ip"] = wg_assigned_ip
+        self._save()
+        return device_from_dict(existing)
+
     def update_heartbeat(self, device_id: str, metrics: dict[str, Any] | None = None) -> Device:
         if device_id not in self._state["devices"]:
             raise KeyError(f"Device {device_id!r} not found")
         self._state["devices"][device_id]["last_seen"] = self._utcnow()
-        self._state["devices"][device_id]["status"] = "online"
+        current_status = str(self._state["devices"][device_id].get("status") or "offline")
+        if current_status not in {"locked", "wipe_pending", "wiped"}:
+            self._state["devices"][device_id]["status"] = "online"
         self._save()
         return device_from_dict(self._state["devices"][device_id])
 
@@ -168,6 +215,8 @@ class DeviceRegistryService:
         """Called by thin-client after successful wipe."""
         dev = self._require(device_id)
         dev["status"] = "wiped"
+        dev["vpn_active"] = False
+        dev["vpn_interface"] = ""
         dev["wg_public_key"] = ""
         dev["wg_assigned_ip"] = ""
         self._save()

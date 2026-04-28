@@ -131,6 +131,10 @@ class AuthzPolicyService:
                 return "settings:write"
             if re.match(r"^/api/v1/storage/pools/[A-Za-z0-9._-]+/upload$", route):
                 return "settings:write"
+            if route == "/api/v1/fleet/devices/register":
+                return "settings:write"
+            if re.match(r"^/api/v1/fleet/devices/[A-Za-z0-9._:-]+/(heartbeat|lock|unlock|wipe|confirm-wiped)$", route):
+                return "settings:write"
             if route in {"/api/v1/cluster/init", "/api/v1/cluster/setup-code", "/api/v1/cluster/add-server-preflight", "/api/v1/cluster/auto-join", "/api/v1/cluster/join-token", "/api/v1/cluster/join-existing", "/api/v1/cluster/leave-local", "/api/v1/cluster/apply-join", "/api/v1/cluster/reconcile-membership"}:
                 return "cluster:write"
             if route == "/api/v1/ha/reconcile-failed-node":
@@ -152,6 +156,8 @@ class AuthzPolicyService:
             if route == "/api/v1/sessions/stream-health":
                 return "pool:write"
         if verb == "PUT":
+            if re.match(r"^/api/v1/fleet/devices/[A-Za-z0-9._:-]+$", route):
+                return "settings:write"
             if re.match(r"^/api/v1/provisioning/vms/\d+$", route):
                 return "provisioning:write"
             if route.startswith("/api/v1/policies/"):
@@ -180,6 +186,10 @@ class AuthzPolicyService:
             if re.match(r"^/api/v1/pool-templates/[A-Za-z0-9._-]+$", route):
                 return "pool:write"
         if verb == "GET":
+            if route in {"/api/v1/fleet/devices", "/api/v1/fleet/devices/groups"}:
+                return "settings:read"
+            if re.match(r"^/api/v1/fleet/devices/[A-Za-z0-9._:-]+$", route):
+                return "settings:read"
             if route in {"/api/v1/audit/report", "/api/v1/audit/export-targets", "/api/v1/audit/failures"}:
                 return "auth:read"
             if route == "/api/v1/installer-logs" or re.match(r"^/api/v1/installer-logs/[A-Za-z0-9._-]{8,96}$", route):

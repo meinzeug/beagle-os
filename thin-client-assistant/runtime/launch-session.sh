@@ -4,10 +4,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATUS_WRITER_PY="$SCRIPT_DIR/status_writer.py"
 SESSION_LAUNCHER_SH="${SESSION_LAUNCHER_SH:-$SCRIPT_DIR/session_launcher.sh}"
+DEVICE_STATE_ENFORCEMENT_SH="${DEVICE_STATE_ENFORCEMENT_SH:-$SCRIPT_DIR/device_state_enforcement.sh}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
 # shellcheck disable=SC1090
 source "$SESSION_LAUNCHER_SH"
+if [[ -r "$DEVICE_STATE_ENFORCEMENT_SH" ]]; then
+  # shellcheck disable=SC1090
+  source "$DEVICE_STATE_ENFORCEMENT_SH"
+fi
 STATUS_DIR="${PVE_THIN_CLIENT_STATUS_DIR:-${XDG_RUNTIME_DIR:-/tmp}/pve-thin-client}"
 LAUNCH_STATUS_FILE="$STATUS_DIR/launch.status.json"
 
@@ -16,6 +21,16 @@ beagle_log_event "launch-session.start" "mode=${PVE_THIN_CLIENT_MODE:-MOONLIGHT}
 
 if [[ "${PVE_THIN_CLIENT_AUTOSTART:-1}" != "1" ]]; then
   exit 0
+fi
+
+if declare -F enforce_device_state_before_session >/dev/null 2>&1; then
+  enforce_device_state_before_session || status=$?
+  if [[ "${status:-0}" == "10" ]]; then
+    exit 0
+  fi
+  if [[ "${status:-0}" != "0" ]]; then
+    exit "${status}"
+  fi
 fi
 
 write_launch_status() {

@@ -57,13 +57,70 @@ def _make_surface(
         def find_active_session(self, *, session_id="", vm_id=0):
             return None
 
+    class _DeviceRegistry:
+        def register_or_update_device(self, device_id, hostname, hardware_info, **kwargs):
+            return type(
+                "Device",
+                (),
+                {
+                    "device_id": device_id,
+                    "hostname": hostname,
+                    "status": "online",
+                    "last_seen": "2026-04-24T10:00:00Z",
+                    "location": "",
+                    "group": "",
+                },
+            )()
+
+        def update_heartbeat(self, device_id, metrics=None):
+            return type(
+                "Device",
+                (),
+                {
+                    "device_id": device_id,
+                    "hostname": "endpoint",
+                    "status": "online",
+                    "last_seen": "2026-04-24T10:00:00Z",
+                    "location": "",
+                    "group": "",
+                },
+            )()
+
+        def get_device(self, device_id):
+            return None
+
+    class _Policy:
+        policy_id = "__default__"
+        name = "Default"
+        allowed_networks = []
+        allowed_pools = []
+        max_resolution = ""
+        allowed_codecs = []
+        auto_update = True
+        update_window_start_hour = 2
+        update_window_end_hour = 4
+        screen_lock_timeout_seconds = 0
+
+    class _AttestationService:
+        @staticmethod
+        def get_record(device_id):
+            return None
+
+        @staticmethod
+        def is_session_allowed(device_id):
+            return True, "no_attestation_record (pass)"
+
     return EndpointHttpSurfaceService(
         build_vm_profile=lambda item: {},
         dequeue_vm_actions=lambda node, vmid: [],
+        device_registry_service=_DeviceRegistry(),
+        mdm_policy_service=type("Mdm", (), {"resolve_policy": staticmethod(lambda device_id, group="": _Policy())})(),
+        attestation_service=_AttestationService(),
         exchange_moonlight_pairing_token=exchange_fn or _default_exchange,
         fetch_sunshine_server_identity=lambda vm, guest_user: {},
         find_vm=_find,
         issue_moonlight_pairing_token=issue_fn or _default_issue,
+        pool_manager_service=type("PoolManagerStub", (), {"get_pool": staticmethod(lambda pool_id: None)})(),
         prepare_virtual_display_on_vm=lambda vm, res: {"ok": True, "resolution": res, "exitcode": 0, "stdout": "", "stderr": ""},
         register_moonlight_certificate_on_vm=lambda vm, cert, device_name: {"ok": True},
         service_name="beagle-control-plane",

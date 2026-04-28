@@ -1,3 +1,93 @@
+## Update (2026-04-28, GoEnterprise Plan 01/02: VPN Enforcement + Runtime Lock/Wipe Enforcement)
+
+**Scope**: Zwei offene Enterprise-Sicherheitsluecken im aktuellen Beagle-Stack geschlossen: `vpn_required` ist im heutigen Session-Broker jetzt serverseitig hart erzwungen, und die Thin-Client-Runtime setzt `locked` / `wipe_pending` nicht mehr nur als Markerdatei, sondern blockiert den Session-Start bzw. fuehrt einen reproduzierbaren Runtime-Secret-Wipe mit endpoint-authentifizierter `confirm-wiped`-Rueckmeldung aus.
+
+- Backend:
+  - [beagle-host/services/endpoint_http_surface.py](/home/dennis/beagle-os/beagle-host/services/endpoint_http_surface.py): `session/current` prueft jetzt Pool-`network_mode` gegen den letzten Device-VPN-Status; neuer Endpoint `POST /api/v1/endpoints/device/confirm-wiped`
+  - [beagle-host/services/device_registry.py](/home/dennis/beagle-os/beagle-host/services/device_registry.py): persistiert `vpn_active` / `vpn_interface` / `wg_assigned_ip`
+  - [beagle-host/services/fleet_http_surface.py](/home/dennis/beagle-os/beagle-host/services/fleet_http_surface.py): Fleet-JSON zeigt den persistierten VPN-Zustand sichtbar an
+  - [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py): Pool-Manager in die Endpoint-Surface verdrahtet
+- Thin-Client-Runtime:
+  - [thin-client-assistant/runtime/device_sync.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/device_sync.sh): `confirm-wiped`-API-Hook und saubere Source-Wiring fuer Enrollment-/Curl-Helper
+  - [thin-client-assistant/runtime/device_state_enforcement.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/device_state_enforcement.sh): Lock-/Wipe-Enforcement vor Session-Start
+  - [thin-client-assistant/runtime/launch-session.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/launch-session.sh): Enforcement-Hook vor Moonlight/Kiosk/GFN-Launch
+- Regressionen:
+  - [tests/unit/test_endpoint_http_surface.py](/home/dennis/beagle-os/tests/unit/test_endpoint_http_surface.py)
+  - [tests/unit/test_device_registry.py](/home/dennis/beagle-os/tests/unit/test_device_registry.py)
+  - [tests/unit/test_device_state_enforcement.py](/home/dennis/beagle-os/tests/unit/test_device_state_enforcement.py)
+- Validierung:
+  - `bash -n thin-client-assistant/runtime/device_sync.sh thin-client-assistant/runtime/device_state_enforcement.sh thin-client-assistant/runtime/launch-session.sh thin-client-assistant/runtime/prepare-runtime.sh thin-client-assistant/live-build/config/includes.chroot/usr/local/sbin/beagle-runtime-heartbeat`
+  - `python3 -m pytest tests/unit/test_fleet_http_surface.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_dashboard_ui_regressions.py tests/unit/test_authz_policy.py tests/unit/test_device_registry.py tests/unit/test_endpoint_http_surface.py tests/unit/test_auto_pairing_flow.py tests/unit/test_apply_enrollment_config.py tests/unit/test_device_sync_runtime.py tests/unit/test_device_state_enforcement.py tests/unit/test_mdm_policy.py tests/unit/test_stream_policy.py tests/unit/test_pool_manager.py tests/unit/test_pools_http_surface.py -q`
+  - Ergebnis: `121 passed`
+
+## Update (2026-04-28, GoEnterprise Plan 02: Device Registry WebUI + HTTP Surface)
+
+**Scope**: Den naechsten realen Enterprise-Block aus Plan 02 geschlossen: die Thin-Client-Registry hat jetzt eine echte HTTP-Surface im Control Plane, ist an RBAC angebunden, wird im Dashboard als Geraeteuebersicht mit Hardware-/Statusdaten gerendert und bietet erste echte Operator-Aktionen fuer Lock/Wipe/Unlock inklusive Audit-Events.
+
+- Backend:
+  - [beagle-host/services/fleet_http_surface.py](/home/dennis/beagle-os/beagle-host/services/fleet_http_surface.py): CRUD-/Heartbeat-/Lock-/Wipe-Surface fuer `/api/v1/fleet/devices*`
+  - [beagle-host/services/control_plane_handler.py](/home/dennis/beagle-os/beagle-host/services/control_plane_handler.py): GET/POST/PUT-Routing fuer Fleet-Endpunkte
+  - [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py): Registry- und HTTP-Surface-Wiring
+  - [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py): Fleet-Routen auf `settings:read` / `settings:write`
+- WebUI:
+  - [website/index.html](/home/dennis/beagle-os/website/index.html): neue Dashboard-Karte `Thin-Client Registry`
+  - [website/ui/fleet_health.js](/home/dennis/beagle-os/website/ui/fleet_health.js): Render-Flow fuer Device Registry, Hardware, `last_seen`, Standort/Gruppe sowie Lock/Wipe/Unlock-Aktionen
+  - [website/ui/dashboard.js](/home/dennis/beagle-os/website/ui/dashboard.js): Fleet-Render-Hook im Dashboard-Load
+  - [website/main.js](/home/dennis/beagle-os/website/main.js): Fleet-Module konfiguriert und ans Dashboard verdrahtet
+- Regressionen:
+  - [tests/unit/test_fleet_http_surface.py](/home/dennis/beagle-os/tests/unit/test_fleet_http_surface.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
+- Validierung:
+  - `python3 -m pytest tests/unit/test_fleet_http_surface.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_authz_policy.py tests/unit/test_device_registry.py tests/unit/test_dashboard_ui_regressions.py -q`
+  - `node --check website/ui/fleet_health.js website/ui/dashboard.js website/main.js`
+  - Ergebnis: alles gruen
+
+## Update (2026-04-28, GoEnterprise Plan 02: Thin-Client Runtime Sync + Policy Pull)
+
+**Scope**: Den naechsten Runtime-Block aus Plan 02 geschlossen: enrolled Thin-Clients synchronisieren jetzt ihren Device-Zustand per endpoint-authentifiziertem Sync-Pfad zur Control Plane, aktualisieren dadurch Heartbeat und Hardware-Registry und bekommen MDM-Policy sowie Lock/Wipe-Status unmittelbar zurueck.
+
+- Backend:
+  - [beagle-host/services/endpoint_http_surface.py](/home/dennis/beagle-os/beagle-host/services/endpoint_http_surface.py): neuer `POST /api/v1/endpoints/device/sync`
+  - [beagle-host/services/device_registry.py](/home/dennis/beagle-os/beagle-host/services/device_registry.py): `register_or_update_device()` plus Heartbeat-Status-Schutz fuer `locked`/`wipe_pending`/`wiped`
+  - [beagle-host/services/endpoint_enrollment.py](/home/dennis/beagle-os/beagle-host/services/endpoint_enrollment.py): Enrollment-Konfig traegt jetzt `device_id`
+  - [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py): Wiring fuer Device Registry, MDM-Policy und Attestation in die Endpoint-Surface
+- Thin-Client-Runtime:
+  - [thin-client-assistant/runtime/device_sync.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/device_sync.sh): Hardware-/VPN-Snapshot, endpoint-authentifizierter Sync und lokale Anwendung von Lock/Wipe/Policy-Zustand
+  - [thin-client-assistant/runtime/prepare-runtime.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/prepare-runtime.sh): initialer Sync direkt nach Enrollment/Egress-Setup
+  - [thin-client-assistant/live-build/config/includes.chroot/usr/local/sbin/beagle-runtime-heartbeat](/home/dennis/beagle-os/thin-client-assistant/live-build/config/includes.chroot/usr/local/sbin/beagle-runtime-heartbeat): periodischer Sync im Heartbeat-Timer
+  - [thin-client-assistant/runtime/apply_enrollment_config.py](/home/dennis/beagle-os/thin-client-assistant/runtime/apply_enrollment_config.py): persistiert `PVE_THIN_CLIENT_BEAGLE_DEVICE_ID`
+- Regressionen:
+  - [tests/unit/test_endpoint_http_surface.py](/home/dennis/beagle-os/tests/unit/test_endpoint_http_surface.py)
+  - [tests/unit/test_auto_pairing_flow.py](/home/dennis/beagle-os/tests/unit/test_auto_pairing_flow.py)
+  - [tests/unit/test_device_registry.py](/home/dennis/beagle-os/tests/unit/test_device_registry.py)
+  - [tests/unit/test_apply_enrollment_config.py](/home/dennis/beagle-os/tests/unit/test_apply_enrollment_config.py)
+  - [tests/unit/test_device_sync_runtime.py](/home/dennis/beagle-os/tests/unit/test_device_sync_runtime.py)
+- Validierung:
+  - `python3 -m pytest tests/unit/test_endpoint_http_surface.py tests/unit/test_auto_pairing_flow.py tests/unit/test_device_registry.py tests/unit/test_apply_enrollment_config.py tests/unit/test_device_sync_runtime.py -q`
+  - `python3 -m pytest tests/unit/test_fleet_http_surface.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_authz_policy.py tests/unit/test_device_registry.py tests/unit/test_dashboard_ui_regressions.py tests/unit/test_endpoint_http_surface.py tests/unit/test_auto_pairing_flow.py tests/unit/test_apply_enrollment_config.py tests/unit/test_device_sync_runtime.py -q`
+  - `bash -n thin-client-assistant/runtime/device_sync.sh thin-client-assistant/runtime/prepare-runtime.sh thin-client-assistant/live-build/config/includes.chroot/usr/local/sbin/beagle-runtime-heartbeat`
+  - Ergebnis: alles gruen
+
+## Update (2026-04-28, GoEnterprise Plan 01: Stream-VPN-Contract + Fallback-Tests)
+
+**Scope**: Den naechsten realen Enterprise-Block aus Plan 01 im Beagle-eigenen Stack geschlossen: der Pool-Streaming-Contract traegt jetzt den Zero-Trust-VPN-Modus direkt mit, die Web Console kann ihn im Pool-Wizard setzen, und der Thin-Client-Protokoll-Fallback ist erstmals reproduzierbar getestet.
+
+- Backend/Core:
+  - [core/virtualization/streaming_profile.py](/home/dennis/beagle-os/core/virtualization/streaming_profile.py): neues `StreamingNetworkMode`-Enum und `network_mode` im `StreamingProfile` (`vpn_required`, `vpn_preferred`, `direct_allowed`)
+- WebUI:
+  - [website/index.html](/home/dennis/beagle-os/website/index.html): Streaming-Profil im Pool-Wizard hat jetzt eine sichtbare `VPN-Modus`-Auswahl
+  - [website/ui/policies.js](/home/dennis/beagle-os/website/ui/policies.js): sammelt, validiert und rendert `streaming_profile.network_mode` in Summary und Pool-Karten
+- Regressionen:
+  - [tests/unit/test_protocol_selector.py](/home/dennis/beagle-os/tests/unit/test_protocol_selector.py): WireGuard required, WireGuard preferred, direct fallback und xRDP fallback
+  - [tests/unit/test_pool_manager.py](/home/dennis/beagle-os/tests/unit/test_pool_manager.py)
+  - [tests/unit/test_pools_http_surface.py](/home/dennis/beagle-os/tests/unit/test_pools_http_surface.py)
+  - [tests/unit/test_policies_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_policies_ui_regressions.py)
+- Validierung:
+  - `python3 -m pytest tests/unit/test_pool_manager.py tests/unit/test_pools_http_surface.py tests/unit/test_policies_ui_regressions.py tests/unit/test_protocol_selector.py tests/unit/test_stream_policy.py`
+  - `node --check website/ui/policies.js`
+  - Ergebnis: alles gruen
+
 ## Update (2026-04-27, Installer-Skripte schreiben nachweisbare API-Logs)
 
 **Scope**: VM-spezifische USB-Installer-/Live-Skripte und die daraus veroeffentlichten Download-Skripte sind jetzt nachvollziehbar. Skripte schreiben Laufereignisse ueber einen kurzlebigen write-only Token an die Control Plane; es werden keine Admin-, Session- oder Manager-Tokens in Installer-Downloads eingebettet.

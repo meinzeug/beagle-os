@@ -55,7 +55,10 @@ from endpoint_profile_contract import installer_profile_surface, normalize_endpo
 from endpoint_report import EndpointReportService
 from endpoint_token_store import EndpointTokenStoreService
 from enrollment_token_store import EnrollmentTokenStoreService
+from attestation_service import AttestationService
+from device_registry import DeviceRegistryService
 from fleet_inventory import FleetInventoryService
+from fleet_http_surface import FleetHttpSurfaceService
 from health_payload import HealthPayloadService
 from ha_manager import HaManagerService
 from host_provider_contract import HostProvider
@@ -65,6 +68,7 @@ from installer_log_service import InstallerLogService
 from installer_script import InstallerScriptService
 from installer_template_patch import InstallerTemplatePatchService
 from maintenance_service import MaintenanceService
+from mdm_policy_service import MDMPolicyService
 from metadata_support import MetadataSupportService
 from migration_service import MigrationService
 from oidc_service import OidcService
@@ -1124,6 +1128,10 @@ DOWNLOAD_METADATA_SERVICE: DownloadMetadataService | None = None
 RUNTIME_ENVIRONMENT_SERVICE: RuntimeEnvironmentService | None = None
 UPDATE_FEED_SERVICE: UpdateFeedService | None = None
 FLEET_INVENTORY_SERVICE: FleetInventoryService | None = None
+DEVICE_REGISTRY_SERVICE: DeviceRegistryService | None = None
+MDM_POLICY_SERVICE: MDMPolicyService | None = None
+ATTESTATION_SERVICE: AttestationService | None = None
+FLEET_HTTP_SURFACE_SERVICE: FleetHttpSurfaceService | None = None
 CLUSTER_INVENTORY_SERVICE: ClusterInventoryService | None = None
 HEALTH_PAYLOAD_SERVICE: HealthPayloadService | None = None
 INSTALLER_PREP_SERVICE: InstallerPrepService | None = None
@@ -3214,10 +3222,14 @@ def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
         ENDPOINT_HTTP_SURFACE_SERVICE = EndpointHttpSurfaceService(
             build_vm_profile=build_profile,
             dequeue_vm_actions=dequeue_vm_actions,
+            device_registry_service=device_registry_service(),
+            mdm_policy_service=mdm_policy_service(),
+            attestation_service=attestation_service(),
             exchange_moonlight_pairing_token=exchange_moonlight_pairing_token,
             fetch_sunshine_server_identity=fetch_sunshine_server_identity,
             find_vm=find_vm,
             issue_moonlight_pairing_token=issue_moonlight_pairing_token,
+            pool_manager_service=pool_manager_service(),
             prepare_virtual_display_on_vm=prepare_virtual_display_on_vm,
             register_moonlight_certificate_on_vm=register_moonlight_certificate_on_vm,
             service_name="beagle-control-plane",
@@ -3470,6 +3482,43 @@ def fleet_inventory_service() -> FleetInventoryService:
             vm_installers_file=VM_INSTALLERS_FILE,
         )
     return FLEET_INVENTORY_SERVICE
+
+
+def device_registry_service() -> DeviceRegistryService:
+    global DEVICE_REGISTRY_SERVICE
+    if DEVICE_REGISTRY_SERVICE is None:
+        DEVICE_REGISTRY_SERVICE = DeviceRegistryService(
+            utcnow=utcnow,
+        )
+    return DEVICE_REGISTRY_SERVICE
+
+
+def mdm_policy_service() -> MDMPolicyService:
+    global MDM_POLICY_SERVICE
+    if MDM_POLICY_SERVICE is None:
+        MDM_POLICY_SERVICE = MDMPolicyService()
+    return MDM_POLICY_SERVICE
+
+
+def attestation_service() -> AttestationService:
+    global ATTESTATION_SERVICE
+    if ATTESTATION_SERVICE is None:
+        ATTESTATION_SERVICE = AttestationService(utcnow=utcnow)
+    return ATTESTATION_SERVICE
+
+
+def fleet_http_surface_service() -> FleetHttpSurfaceService:
+    global FLEET_HTTP_SURFACE_SERVICE
+    if FLEET_HTTP_SURFACE_SERVICE is None:
+        FLEET_HTTP_SURFACE_SERVICE = FleetHttpSurfaceService(
+            device_registry_service=device_registry_service(),
+            audit_event=audit_log_service().write_event,
+            requester_identity=lambda: "",
+            service_name="beagle-control-plane",
+            utcnow=utcnow,
+            version=VERSION,
+        )
+    return FLEET_HTTP_SURFACE_SERVICE
 
 
 def build_vm_inventory() -> dict[str, Any]:
