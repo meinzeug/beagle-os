@@ -1,5 +1,19 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 07 testpflicht completed)
+
+**Zuletzt erledigt**:
+- Plan 07 Testpflicht ist abgeschlossen (SMART-Telemetrie, Disk-Trend-Anomalie, Predictive-Disk-Alert mit Webhook, Maintenance inklusive automatischem VM-Drain).
+- Fleet-Telemetry-Maintenance kann jetzt optional VM-Migrationsaktionen direkt ausfuehren und im Schedule persistieren.
+- Neue Acceptance-Suite ist lokal und auf `srv1` gruen (`38 passed` pro Lauf).
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 09 Restpunkt schliessen**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob inklusive Retry/Alerting hinterlegen.
+2. **Plan 04 Restpunkt schliessen**: Warm-Pool-Empfehlungen optional automatisch anwenden (Auto-Apply mit Guardrails).
+3. **Plan 08 angehen**: offenen TUI-Installer-Block (5-Schritt-Validierung + Seed-YAML Non-Interactive + PXE-Seed-Pfad) in `server-installer/` umsetzen.
+4. **Plan 02 Live-Restpunkte**: Enrollment-/WireGuard-/TPM-End-to-End-Abnahmen reproduzierbar auf Runtime-Hardware verankern.
+
 ## Stand (2026-04-28, GoEnterprise Plan 09 testpflicht completed)
 
 **Zuletzt erledigt**:

@@ -1,3 +1,22 @@
+## Update (2026-04-28, GoEnterprise Plan 07: offene Testpflicht komplett geschlossen)
+
+**Scope**: Die verbleibenden Plan-07-Testpflichtpunkte (Telemetrie, Trend-Anomalie, Predictive-Alert, Maintenance+Migration) mit dedizierter Acceptance-Suite geschlossen. Zusaetzlich kann die Fleet-Telemetry-Maintenance jetzt optional direkt VM-Drain-Aktionen ausfuehren und als Ergebnis persistieren.
+
+- Backend:
+  - `beagle-host/services/fleet_telemetry_service.py`: optionaler `migrate_vms_fn`-Hook in `schedule_maintenance()`; Persistenz von `drain_status`, `vm_migration_count`, `vm_migrations`, optional `drain_error`
+- Tests:
+  - `tests/unit/test_goenterprise_fleet_intelligence_acceptance.py` (neu)
+  - Deckt ab:
+    - SMART-Telemetrie wird korrekt gespeichert/ausgelesen
+    - simulierter Disk-Trend wird als Anomalie mit Failure-Horizont <= 7 Tage erkannt
+    - `disk_failure_predicted`-Alert triggert inkl. Webhook-Notification
+    - Maintenance-Fenster erstellt und VM-Migrationsaktionen werden automatisch ausgefuehrt/persistiert
+- Doku:
+  - `docs/goenterprise/07-fleet-intelligence.md`: alle offenen `Testpflicht nach Abschluss`-Checkboxen auf `[x]` gesetzt
+- Validierung:
+  - Lokal: `pytest -q tests/unit/test_goenterprise_fleet_intelligence_acceptance.py tests/unit/test_fleet_telemetry.py tests/unit/test_anomaly_detection.py tests/unit/test_fleet_alerts.py tests/unit/test_maintenance_scheduling.py` -> `38 passed`
+  - `srv1`: identischer Lauf via `ssh srv1.beagle-os.com` in `/tmp/beagle-os-plan07-test` -> `38 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 09: offene Testpflicht komplett geschlossen)
 
 **Scope**: Die verbliebenen Plan-09-Testpflicht-Punkte abgeschlossen und in einer dedizierten Acceptance-Suite gebuendelt. Zusaetzlich wurde ein veralteter Integrations-Test auf die inzwischen RAM-inklusive Chargeback-Berechnung angehoben.

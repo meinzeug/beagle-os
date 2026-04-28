@@ -78,10 +78,10 @@ Ein IT-Admin mit 500 Thin-Clients und 20 Nodes sieht heute nur: "Alles grün" od
 
 ## Testpflicht nach Abschluss
 
-- [ ] Telemetrie: Node-SMART-Werte werden korrekt gesammelt und gespeichert.
-- [ ] Anomalie: Simulierter Disk-Fehler-Trend → Anomalie erkannt nach 7 Tagen.
-- [ ] Alert: Disk-Failure-Predicted Alert ausgelöst, Web-Notification erscheint.
-- [ ] Maintenance: Maintenance-Fenster angelegt, VMs automatisch migriert.
+- [x] Telemetrie: Node-SMART-Werte werden korrekt gesammelt und gespeichert.
+- [x] Anomalie: Simulierter Disk-Fehler-Trend → Anomalie erkannt nach 7 Tagen.
+- [x] Alert: Disk-Failure-Predicted Alert ausgelöst, Web-Notification erscheint.
+- [x] Maintenance: Maintenance-Fenster angelegt, VMs automatisch migriert.
 
 ## Update 2026-04-28 (Fleet-Telemetrie/Alerts in Control Plane und WebUI verdrahtet)
 

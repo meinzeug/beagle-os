@@ -30,6 +30,8 @@
 
 ## Update 2026-04-28 (GoEnterprise Plan 02)
 
+- [x] GoEnterprise Plan 07: offene Testpflicht (SMART-Telemetrie, Disk-Trend-Anomalie <=7d, disk_failure_predicted Webhook-Alert, Maintenance mit automatischer VM-Migration) mit Acceptance-Suite und `srv1`-Lauf schliessen.
+
 - [x] GoEnterprise Plan 02: Device-Registry-HTTP-Surface (`/api/v1/fleet/devices*`) im Control Plane verdrahten.
 - [x] GoEnterprise Plan 02: Web-Console-Geraeteansicht fuer Device Registry mit Hardware, `last_seen` und Online-Status bauen.
 - [x] GoEnterprise Plan 02: Bedienbare Lock-/Wipe-/Unlock-Operator-Flows samt Audit-Events in der WebUI nachziehen.

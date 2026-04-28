@@ -67,10 +67,12 @@ class FleetTelemetryService:
         self,
         state_dir: Path | None = None,
         utcnow: Callable[[], str] | None = None,
+        migrate_vms_fn: Callable[[str], list[dict[str, Any]]] | None = None,
     ) -> None:
         self._dir = state_dir or self.STATE_DIR
         self._dir.mkdir(parents=True, exist_ok=True)
         self._utcnow = utcnow or self._default_utcnow
+        self._migrate_vms_fn = migrate_vms_fn
 
     # ------------------------------------------------------------------
     # Telemetry ingestion
@@ -163,13 +165,31 @@ class FleetTelemetryService:
         suggested_window: str,
     ) -> dict[str, Any]:
         """Record a maintenance schedule entry."""
+        vm_migrations: list[dict[str, Any]] = []
+        drain_status = "not_configured"
+        drain_error = ""
+        if self._migrate_vms_fn is not None:
+            try:
+                payload = self._migrate_vms_fn(device_id)
+                if isinstance(payload, list):
+                    vm_migrations = [item for item in payload if isinstance(item, dict)]
+                drain_status = "completed"
+            except Exception as exc:
+                drain_status = "failed"
+                drain_error = str(exc)
+
         rec = {
             "device_id": device_id,
             "reason": reason,
             "suggested_window": suggested_window,
             "scheduled_at": self._utcnow(),
             "status": "pending",
+            "drain_status": drain_status,
+            "vm_migration_count": len(vm_migrations),
+            "vm_migrations": vm_migrations,
         }
+        if drain_error:
+            rec["drain_error"] = drain_error
         maint_file = self._dir / "maintenance_schedule.json"
         schedule = []
         if maint_file.exists():
