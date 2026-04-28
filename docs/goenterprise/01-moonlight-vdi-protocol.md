@@ -216,7 +216,7 @@ Wichtig:
 
 ## Testpflicht nach Abschluss
 
-- [ ] Fork-Server: `beagle-stream-server` startet auf VM, registriert sich beim Control Plane.
+- [x] Fork-Server: `beagle-stream-server` startet auf VM, registriert sich beim Control Plane.
 - [x] Token-Pairing: Client verbindet ohne PIN-Dialog via HMAC-Token (60s gültig).
 - [ ] WireGuard-Mesh: Thin-Client und VM-Node im Mesh, Ping ≤ raw + 0.01ms.
 - [ ] WireGuard-Stream: Moonlight-Stream durch WireGuard-Tunnel, Latenz ≤ direct + 0.1ms.
@@ -308,6 +308,24 @@ Wichtig:
 - Validierung:
   - Lokal: `python3 -m pytest -q tests/unit/test_stream_http_surface.py tests/unit/test_stream_policy.py tests/unit/test_beagle_stream_server_api.py` -> `22 passed`
   - `srv1`: identischer Scope in `/opt/beagle` -> `22 passed`
+
+## Update (2026-04-28, Plan 01: VM-seitiger Stream-Register-Smoke geschlossen)
+
+- Der offene Testpflicht-Punkt fuer den VM-Start-/Register-Flow ist jetzt als reproduzierbarer Runtime-Smoke im Repo verankert:
+  - `scripts/test-stream-server-vm-register-smoke.py`
+- Der Smoke fuehrt den Register-/Config-/Event-Handshake **aus der laufenden VM** ueber QEMU Guest Agent aus:
+  - Host authentifiziert sich gegen `/api/v1/auth/login`
+  - in der VM werden nacheinander aufgerufen:
+    - `POST /api/v1/streams/register`
+    - `GET /api/v1/streams/{vm_id}/config`
+    - `POST /api/v1/streams/{vm_id}/events`
+- Erfolgsmarker:
+  - `register_http=201`
+  - `config_http=200`
+  - `events_http=200`
+  - `PLAN01_STREAM_VM_REGISTER=PASS`
+- Validierung auf `srv1`:
+  - `BEAGLE_SMOKE_PASS=*** ./scripts/test-stream-server-vm-register-smoke.py --vmid 100 --domain beagle-100`
 
 ---
 

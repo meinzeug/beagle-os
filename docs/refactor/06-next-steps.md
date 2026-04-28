@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 01 VM-register smoke completed)
+
+**Zuletzt erledigt**:
+- Der offene Plan-01-Testpflichtpunkt fuer den VM-seitigen Stream-Register-Flow ist geschlossen: reproduzierbarer Guest-Agent-Smoke gegen `/api/v1/streams/register|config|events` laeuft auf `srv1` erfolgreich.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
+2. **Plan 01 Fork-Rest**: echten `beagle-stream-server`-Fork (Sunshine) mit Broker-/Auth-Komponenten in separatem Repo aufsetzen und gegen den vorhandenen Control-Plane-Slice verdrahten.
+3. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+4. **Plan 01 Fork-Enforcement**: denselben `vpn_required`-Enforcement-Pfad spaeter im separaten `beagle-stream-server`-Fork verankern.
+
 ## Stand (2026-04-28, GoEnterprise Plan 01 stream handshake enforcement completed)
 
 **Zuletzt erledigt**:

@@ -1,3 +1,17 @@
+## Update (2026-04-28, GoEnterprise Plan 01: VM-seitiger Stream-Register-Smoke abgeschlossen)
+
+**Scope**: Der offene Testpflicht-Punkt "Fork-Server startet auf VM und registriert sich" ist als reproduzierbarer VM-Runtime-Smoke umgesetzt.
+
+- Runtime-Smoke:
+  - `scripts/test-stream-server-vm-register-smoke.py` (neu)
+  - authentifiziert gegen `/api/v1/auth/login`
+  - fuehrt Register-/Config-/Event-Flow in der laufenden VM per QEMU Guest Agent aus
+- `srv1`-Validierung (VM `beagle-100`):
+  - `register_http=201`
+  - `config_http=200`
+  - `events_http=200`
+  - `PLAN01_STREAM_VM_REGISTER=PASS`
+
 ## Update (2026-04-28, GoEnterprise Plan 01: vpn_required-Enforcement im Stream-Handshake geschlossen)
 
 **Scope**: Der offene Plan-01-Enforcement-Punkt ist im aktuellen Repo-Slice abgeschlossen.

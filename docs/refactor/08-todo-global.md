@@ -68,6 +68,7 @@
 - [x] GoEnterprise Plan 01: dedizierten Stream-Client-Broker-Contract (`POST /api/v1/streams/allocate`) inkl. `tests/unit/test_beagle_stream_client_broker.py` absichern.
 - [x] GoEnterprise Plan 01: Allocate-Runtime-Wiring in `service_registry.py` auf echte Pairing-Token- und WireGuard-Peer-Config-Callbacks verdrahten.
 - [x] GoEnterprise Plan 01: `vpn_required`-Enforcement im Stream-Handshake (`/api/v1/streams/register`, `/api/v1/streams/{vm_id}/events`) serverseitig mit `403` bei fehlendem WireGuard-Tunnel durchsetzen.
+- [x] GoEnterprise Plan 01: VM-seitigen Register-/Config-/Event-Smoke fuer den Stream-Server per QEMU-Guest-Agent reproduzierbar absichern (`scripts/test-stream-server-vm-register-smoke.py`).
 - [ ] GoEnterprise Plan 01: denselben Enforcement-Pfad spaeter auch im separaten `beagle-stream-server`-Fork verankern.
 
 ## Update 2026-04-26 (GoFuture Re-Open: WebUI-Operability)
