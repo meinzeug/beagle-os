@@ -88,3 +88,41 @@ def test_runtime_device_sync_payload_includes_wipe_report(tmp_path: Path) -> Non
     payload = json.loads(result.stdout)
     assert payload["reports"]["wipe"]["status"] == "completed"
     assert payload["reports"]["wipe"]["artifacts_removed"] == 2
+
+
+def test_runtime_device_sync_payload_includes_runtime_report(tmp_path: Path) -> None:
+    bindir = tmp_path / "bin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    _write_stub(
+        bindir / "nproc",
+        "#!/usr/bin/env bash\nprintf '4\\n'\n",
+    )
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "device.locked").write_text("locked\n", encoding="utf-8")
+    (state_dir / "device-lock-screen.marker").write_text("active\n", encoding="utf-8")
+    (state_dir / "device-lock-screen.pid").write_text("1234\n", encoding="utf-8")
+    (state_dir / "device-lock-screen.env").write_text(
+        "BEAGLE_LOCK_SCREEN_RUNTIME_BACKEND=zenity\n"
+        "BEAGLE_LOCK_SCREEN_RUNTIME_SESSION_TYPE=x11\n"
+        "BEAGLE_LOCK_SCREEN_RUNTIME_DISPLAYS=:0,:1\n",
+        encoding="utf-8",
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    cmd = (
+        f"source {SCRIPT}\n"
+        f"export BEAGLE_STATE_DIR={state_dir}\n"
+        "runtime_device_sync_payload endpoint-001 thin-01 wg-beagle 0 ''\n"
+    )
+    result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), env=env, text=True, capture_output=True, check=True)
+    payload = json.loads(result.stdout)
+    runtime_report = payload["reports"]["runtime"]
+    assert runtime_report["lock_active"] is True
+    assert runtime_report["lock_marker_present"] is True
+    assert runtime_report["lock_watcher_pid_present"] is True
+    assert runtime_report["lock_screen_backend"] == "zenity"
+    assert runtime_report["session_type"] == "x11"
+    assert runtime_report["x11_displays"] == [":0", ":1"]

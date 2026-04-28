@@ -27,6 +27,28 @@ def test_lock_screen_watcher_creates_marker_when_locked(tmp_path: Path) -> None:
     assert marker_file.read_text(encoding="utf-8").strip() == "active"
 
 
+def test_lock_screen_watcher_writes_runtime_info_when_locked(tmp_path: Path) -> None:
+    state_dir = tmp_path / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "device.locked").write_text("locked\n", encoding="utf-8")
+    info_file = tmp_path / "lock.env"
+
+    env = os.environ.copy()
+    env["BEAGLE_STATE_DIR"] = str(state_dir)
+    env["BEAGLE_LOCK_SCREEN_SIMULATE"] = "1"
+    env["BEAGLE_LOCK_SCREEN_ONCE"] = "1"
+    env["BEAGLE_LOCK_SCREEN_RUNTIME_INFO_FILE"] = str(info_file)
+    env["BEAGLE_LOCK_SCREEN_X11_DISPLAYS"] = ":0,:1"
+
+    cmd = f"source {SCRIPT}\nrun_device_lock_screen_watcher\n"
+    subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), env=env, check=True)
+
+    content = info_file.read_text(encoding="utf-8")
+    assert "BEAGLE_LOCK_SCREEN_RUNTIME_BACKEND=simulate" in content
+    assert "BEAGLE_LOCK_SCREEN_RUNTIME_SESSION_TYPE=x11" in content
+    assert "BEAGLE_LOCK_SCREEN_RUNTIME_DISPLAYS=:0\\,:1" in content
+
+
 def test_lock_screen_watcher_clears_marker_when_unlocked(tmp_path: Path) -> None:
     state_dir = tmp_path / "state"
     state_dir.mkdir(parents=True, exist_ok=True)

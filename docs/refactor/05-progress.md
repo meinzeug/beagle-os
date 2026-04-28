@@ -4625,3 +4625,23 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - lokal: `bash -n` fuer geaenderte Shell-Skripte
   - lokal: `git diff --check`
   - `srv1`: Chrome DevTools WebUI-Smoke bis Login-Dialog ohne Console-Fehler
+
+## Update (2026-04-28, GoEnterprise Runtime-Telemetrie + persistente Remediation-Steuerung)
+
+- GoEnterprise Plan 02 wurde in zwei weiteren operativen Blöcken verdichtet:
+  - Fleet-Remediation hat jetzt persistente Konfiguration und History:
+    - `GET /api/v1/fleet/remediation/config`
+    - `PUT /api/v1/fleet/remediation/config`
+    - `GET /api/v1/fleet/remediation/history`
+    - ausgeschlossene Devices und `safe_actions` werden jetzt dauerhaft gespeichert, `run`-Durchlaeufe schreiben `last_run` + History
+  - Thin-Client-Runtime liefert jetzt echte Laufzeit-Telemetrie in die Device-Registry:
+    - `reports.runtime` im endpoint-authentifizierten `device/sync`
+    - persistiert als `last_runtime_report`
+    - Fleet-WebUI zeigt WireGuard-, Lock-, Backend-, Session- und Display-Zustand pro Device
+- Lock-Screen-Runtime:
+  - X11-Multi-Display ueber `BEAGLE_LOCK_SCREEN_X11_DISPLAYS`
+  - Runtime-Info-Datei fuer den aktiven Sperrpfad, damit Fleet nicht nur Soll-, sondern Ist-Zustand sieht
+- Validierung:
+  - `bash -n thin-client-assistant/runtime/device_lock_screen.sh thin-client-assistant/runtime/device_sync.sh`
+  - `node --check website/ui/fleet_health.js`
+  - Enterprise-Regression-Block: `97 passed`

@@ -258,6 +258,7 @@ class EndpointHttpSurfaceService:
             vpn = payload.get("vpn") if isinstance(payload.get("vpn"), dict) else {}
             reports = payload.get("reports") if isinstance(payload.get("reports"), dict) else {}
             wipe_report = reports.get("wipe") if isinstance(reports.get("wipe"), dict) else {}
+            runtime_report = reports.get("runtime") if isinstance(reports.get("runtime"), dict) else {}
 
             device = self._device_registry.register_or_update_device(
                 device_id,
@@ -272,6 +273,8 @@ class EndpointHttpSurfaceService:
             device = self._device_registry.update_heartbeat(device_id, metrics=payload.get("metrics"))
             if wipe_report:
                 device = self._device_registry.update_wipe_report(device_id, wipe_report)
+            if runtime_report:
+                device = self._device_registry.update_runtime_report(device_id, runtime_report)
 
             attestation_record = self._attestation.get_record(device_id)
             allowed, reason = self._attestation.is_session_allowed(device_id)
@@ -290,6 +293,7 @@ class EndpointHttpSurfaceService:
                             "location": str(device.location),
                             "group": str(device.group),
                             "last_wipe_report": dict(getattr(device, "last_wipe_report", {}) or {}),
+                            "last_runtime_report": dict(getattr(device, "last_runtime_report", {}) or {}),
                         },
                         policy={
                             "policy_id": str(getattr(policy, "policy_id", "__default__") or "__default__"),

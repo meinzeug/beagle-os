@@ -261,6 +261,7 @@ class FleetHttpSurfaceService:
             "wipe_requested_at": str(getattr(device, "wipe_requested_at", "") or ""),
             "wipe_confirmed_at": str(getattr(device, "wipe_confirmed_at", "") or ""),
             "last_wipe_report": dict(getattr(device, "last_wipe_report", {}) or {}),
+            "last_runtime_report": dict(getattr(device, "last_runtime_report", {}) or {}),
         }
 
     def handles_get(self, path: str) -> bool:

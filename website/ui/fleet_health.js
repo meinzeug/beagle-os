@@ -257,6 +257,28 @@ function wipeStatusMarkup(device) {
   `;
 }
 
+function runtimeTelemetryMarkup(device) {
+  if (!device || typeof device !== 'object') {
+    return '<div class="muted">Kein Device ausgewaehlt.</div>';
+  }
+  const report = device.last_runtime_report && typeof device.last_runtime_report === 'object' ? device.last_runtime_report : {};
+  const displays = Array.isArray(report.x11_displays) ? report.x11_displays : [];
+  const backend = String(report.lock_screen_backend || '').trim() || '-';
+  const sessionType = String(report.session_type || '').trim() || '-';
+  const wgState = device.vpn_active ? `${String(device.vpn_interface || 'wg')} • ${String(device.wg_assigned_ip || '-')}` : 'inaktiv';
+  return `
+    <div class="button-row compact-row">
+      ${chip(device.vpn_active ? 'WireGuard aktiv' : 'WireGuard inaktiv', device.vpn_active ? 'ok' : 'muted')}
+      ${chip(`Lock ${report.lock_active ? 'aktiv' : 'frei'}`, report.lock_active ? 'warn' : 'ok')}
+      ${chip(`Backend ${backend}`, backend === '-' ? 'muted' : 'info')}
+    </div>
+    <div class="muted">Session ${escapeHtml(sessionType)}</div>
+    <div class="muted">WG ${escapeHtml(wgState)}</div>
+    <div class="muted">Displays ${escapeHtml(displays.join(', ')) || '-'}</div>
+    <div class="muted">Marker ${report.lock_marker_present ? 'ja' : 'nein'} • Watcher PID ${report.lock_watcher_pid_present ? 'ja' : 'nein'}</div>
+  `;
+}
+
 function remediationDriftMarkup() {
   const drift = fleetState.remediationDrift || { devices: [], drifted_count: 0, safe_candidate_count: 0 };
   const entries = Array.isArray(drift.devices) ? drift.devices.filter((item) => item && item.drifted) : [];
@@ -404,6 +426,8 @@ function policyEditorSection() {
             <div class="section-spaced-tight">${policyDiffMarkup(effective?.diagnostics || null)}</div>
             <div class="section-spaced-tight">${remediationHints.map((item) => `<div class="badge tone-info">${escapeHtml(String(item || ''))}</div>`).join(' ') || '<div class="muted">Keine Remediation-Hinweise.</div>'}</div>
             <div class="section-spaced-tight">${remediationActionsMarkup(remediationActions)}</div>
+            <h3>Runtime Telemetrie</h3>
+            <div class="card compact-card">${runtimeTelemetryMarkup(selectedDevice)}</div>
             <h3>Wipe Status</h3>
             <div class="card compact-card">${wipeStatusMarkup(selectedDevice)}</div>
           </div>

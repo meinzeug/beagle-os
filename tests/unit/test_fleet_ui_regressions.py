@@ -62,6 +62,8 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "/fleet/remediation/run" in js
     assert "/fleet/remediation/config" in js
     assert "/fleet/remediation/history" in js
+    assert "Runtime Telemetrie" in js
+    assert "last_runtime_report" in js
     assert "Sichere Remediation anwenden" in js
     assert "Sichere Remediation simulieren" in js
     assert "Auto-Remediation" in js

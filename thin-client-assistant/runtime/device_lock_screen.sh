@@ -21,6 +21,10 @@ lock_screen_pid_file_path() {
   printf '%s\n' "${BEAGLE_LOCK_SCREEN_PID_FILE:-$(beagle_state_dir)/device-lock-screen.pid}"
 }
 
+lock_screen_runtime_info_file_path() {
+  printf '%s\n' "${BEAGLE_LOCK_SCREEN_RUNTIME_INFO_FILE:-$(beagle_state_dir)/device-lock-screen.env}"
+}
+
 lock_screen_poll_interval() {
   printf '%s\n' "${BEAGLE_LOCK_SCREEN_POLL_INTERVAL:-2}"
 }
@@ -132,6 +136,18 @@ lock_screen_write_marker() {
   printf '%s\n' "$state" >"$(lock_screen_marker_file_path)"
 }
 
+lock_screen_write_runtime_info() {
+  local backend="${1:-}" session_type="${2:-}" displays="${3:-}"
+  local info_file
+  info_file="$(lock_screen_runtime_info_file_path)"
+  mkdir -p "$(dirname "$info_file")" >/dev/null 2>&1 || true
+  {
+    printf 'BEAGLE_LOCK_SCREEN_RUNTIME_BACKEND=%q\n' "$backend"
+    printf 'BEAGLE_LOCK_SCREEN_RUNTIME_SESSION_TYPE=%q\n' "$session_type"
+    printf 'BEAGLE_LOCK_SCREEN_RUNTIME_DISPLAYS=%q\n' "$displays"
+  } >"$info_file"
+}
+
 lock_screen_clear_marker() {
   rm -f "$(lock_screen_marker_file_path)" >/dev/null 2>&1 || true
 }
@@ -144,11 +160,13 @@ lock_screen_fullscreen_existing_window() {
 }
 
 lock_screen_spawn_ui() {
-  local title pid_file backend wayland_backend x11_backend
+  local title pid_file backend wayland_backend x11_backend displays
   title="$(lock_screen_title)"
   pid_file="$(lock_screen_pid_file_path)"
   backend="$(lock_screen_backend)"
+  displays="$(lock_screen_x11_displays | paste -sd, -)"
   mkdir -p "$(dirname "$pid_file")" >/dev/null 2>&1 || true
+  lock_screen_write_runtime_info "$backend" "$(lock_screen_session_type)" "$displays"
 
   if [[ "$backend" == "simulate" ]]; then
     lock_screen_write_marker "active"
@@ -222,6 +240,7 @@ lock_screen_stop_ui() {
   if [[ "${BEAGLE_LOCK_SCREEN_SIMULATE:-0}" == "1" ]]; then
     lock_screen_clear_marker
     rm -f "$pid_file" >/dev/null 2>&1 || true
+    rm -f "$(lock_screen_runtime_info_file_path)" >/dev/null 2>&1 || true
     return 0
   fi
 
@@ -233,6 +252,7 @@ lock_screen_stop_ui() {
     rm -f "$pid_file" >/dev/null 2>&1 || true
   fi
   lock_screen_clear_marker
+  rm -f "$(lock_screen_runtime_info_file_path)" >/dev/null 2>&1 || true
 }
 
 device_lock_screen_watcher_running() {

@@ -416,6 +416,33 @@ Restluecke bewusst offen:
   - `tests/unit/test_authz_policy.py`
   - `tests/unit/test_device_lock_screen.py`
 
+## Update 2026-04-28 (Runtime-Telemetrie im Fleet-Panel)
+
+- Thin-Client-Runtime:
+  - `device_lock_screen.sh` schreibt jetzt beim Aktivieren des Sperrpfads eine kleine Runtime-Metadatei mit
+    Backend, Session-Typ und den effektiven X11-Displays
+  - `device_sync.sh` sendet diese Daten jetzt als `reports.runtime` ueber den bestehenden endpoint-authentifizierten
+    `POST /api/v1/endpoints/device/sync`-Pfad zurueck
+- Control Plane:
+  - `device_registry.py` persistiert jetzt `last_runtime_report` pro Device
+  - `endpoint_http_surface.py` verarbeitet `reports.runtime` und spiegelt den letzten Report direkt im Sync-Response
+  - `fleet_http_surface.py` liefert `last_runtime_report` jetzt in Fleet-Listen und Device-Details aus
+- WebUI:
+  - `website/ui/fleet_health.js` rendert im Fleet-/Policy-Panel jetzt einen separaten Block `Runtime Telemetrie`
+  - sichtbar sind damit fuer das selektierte Device u. a.:
+    - WireGuard aktiv/inaktiv
+    - Lock aktiv/frei
+    - Lock-Screen-Backend
+    - Session-Typ
+    - X11-Displays
+    - Marker-/Watcher-PID-Zustand
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_device_sync_runtime.py`
+  - `tests/unit/test_endpoint_http_surface.py`
+  - `tests/unit/test_device_registry.py`
+  - `tests/unit/test_fleet_http_surface.py`
+  - `tests/unit/test_fleet_ui_regressions.py`
+
 ---
 
 ## Unique Selling Point vs. Konkurrenz

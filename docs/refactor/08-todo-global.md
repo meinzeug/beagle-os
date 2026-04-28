@@ -343,3 +343,4 @@
 - [ ] Run explicit 5GB backup load test for Plan 07 if a sufficiently large disposable VM/disk is available.
 - [ ] Run IAM/Audit browser UI regressions and srv1 smoke after `beagle-manager` is active again.
 - [x] GoEnterprise Plan 03 Schritt 4 UI-Slice: Gaming-Metrics-Dashboard mit Graphen im Policies-Panel, inkl. API-Surface `GET /api/v1/gaming/metrics` und Regressionen in `tests/unit/test_gaming_metrics.py`.
+- [x] GoEnterprise Plan 02 weiterziehen: Fleet-Remediation-Konfiguration/History persistent machen und Thin-Client-Runtime-Telemetrie (`reports.runtime`, Lock-/Backend-/Display-Zustand) in Device-Registry + Fleet-WebUI sichtbar machen.

@@ -62,6 +62,7 @@ def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") ->
                 "wg_assigned_ip": kwargs.get("wg_assigned_ip", self.devices.get(device_id, {}).get("wg_assigned_ip", "")),
                 "last_seen": "",
                 "last_wipe_report": self.devices.get(device_id, {}).get("last_wipe_report", {}),
+                "last_runtime_report": self.devices.get(device_id, {}).get("last_runtime_report", {}),
             }
             return type("Device", (), self.devices[device_id])()
 
@@ -84,6 +85,10 @@ def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") ->
 
         def update_wipe_report(self, device_id, report):
             self.devices[device_id]["last_wipe_report"] = dict(report or {})
+            return type("Device", (), self.devices[device_id])()
+
+        def update_runtime_report(self, device_id, report):
+            self.devices[device_id]["last_runtime_report"] = dict(report or {})
             return type("Device", (), self.devices[device_id])()
 
     class _PoolManager:
@@ -348,6 +353,29 @@ def test_device_sync_route_persists_wipe_report() -> None:
     assert response["payload"]["device"]["last_wipe_report"]["artifacts_removed"] == 3
 
 
+def test_device_sync_route_persists_runtime_report() -> None:
+    service = _service()
+    response = service.route_post(
+        "/api/v1/endpoints/device/sync",
+        endpoint_identity={"endpoint_id": "endpoint-a", "vmid": 100, "node": "beagle-0", "hostname": "endpoint-a"},
+        query={},
+        json_payload={
+            "reports": {
+                "runtime": {
+                    "lock_active": True,
+                    "lock_screen_backend": "zenity",
+                    "session_type": "x11",
+                    "x11_displays": [":0", ":1"],
+                }
+            }
+        },
+    )
+
+    assert int(response["status"]) == 200
+    assert response["payload"]["device"]["last_runtime_report"]["lock_active"] is True
+    assert response["payload"]["device"]["last_runtime_report"]["lock_screen_backend"] == "zenity"
+
+
 def test_device_sync_route_returns_policy_and_commands() -> None:
     service = _service()
     response = service.route_post(
@@ -366,6 +394,7 @@ def test_device_sync_route_returns_policy_and_commands() -> None:
     assert response["payload"]["policy"]["policy_id"] == "corp"
     assert response["payload"]["attestation"]["allowed"] is True
     assert response["payload"]["vpn"]["active"] is True
+    assert response["payload"]["device"]["last_runtime_report"] == {}
 
 
 def test_device_confirm_wiped_route_marks_device_wiped() -> None:

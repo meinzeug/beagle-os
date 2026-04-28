@@ -180,3 +180,14 @@ def test_update_wipe_report_persists_report(tmp_path):
     reloaded = make_svc(tmp_path).get_device("dev-001")
     assert reloaded is not None
     assert reloaded.last_wipe_report == report
+
+
+def test_update_runtime_report_persists_report(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.register_device("dev-001", "k1", HW)
+    report = {"lock_active": True, "lock_screen_backend": "zenity", "x11_displays": [":0", ":1"]}
+    updated = svc.update_runtime_report("dev-001", report)
+    assert updated.last_runtime_report == report
+    reloaded = make_svc(tmp_path).get_device("dev-001")
+    assert reloaded is not None
+    assert reloaded.last_runtime_report == report

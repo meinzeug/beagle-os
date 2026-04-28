@@ -106,15 +106,112 @@ PY
   printf '{}\n'
 }
 
+runtime_lock_state_file_path() {
+  local state_dir
+  state_dir="$(beagle_state_dir)"
+  printf '%s/device.locked\n' "$state_dir"
+}
+
+runtime_lock_marker_file_path() {
+  local state_dir
+  state_dir="$(beagle_state_dir)"
+  printf '%s/device-lock-screen.marker\n' "$state_dir"
+}
+
+runtime_lock_pid_file_path() {
+  local state_dir
+  state_dir="$(beagle_state_dir)"
+  printf '%s/device-lock-screen.pid\n' "$state_dir"
+}
+
+runtime_lock_info_file_path() {
+  local state_dir
+  state_dir="$(beagle_state_dir)"
+  printf '%s/device-lock-screen.env\n' "$state_dir"
+}
+
+runtime_display_list_json() {
+  local configured primary
+  configured="${BEAGLE_LOCK_SCREEN_X11_DISPLAYS:-}"
+  primary="${DISPLAY:-:0}"
+  python3 - "$configured" "$primary" <<'PY'
+import json
+import sys
+
+configured = sys.argv[1].strip()
+primary = sys.argv[2].strip() or ":0"
+items = []
+if configured:
+    items = [part.strip() for part in configured.replace(",", "\n").splitlines() if part.strip()]
+if not items:
+    items = [primary]
+print(json.dumps(items))
+PY
+}
+
+runtime_report_json() {
+  local lock_active lock_marker lock_pid session_type backend displays_json info_file
+  if [[ -f "$(runtime_lock_state_file_path)" ]]; then
+    lock_active=1
+  else
+    lock_active=0
+  fi
+  if [[ -f "$(runtime_lock_marker_file_path)" ]]; then
+    lock_marker=1
+  else
+    lock_marker=0
+  fi
+  if [[ -f "$(runtime_lock_pid_file_path)" ]]; then
+    lock_pid=1
+  else
+    lock_pid=0
+  fi
+  session_type="${XDG_SESSION_TYPE:-x11}"
+  backend="unknown"
+  displays_json="$(runtime_display_list_json)"
+  info_file="$(runtime_lock_info_file_path)"
+  if [[ -r "$info_file" ]]; then
+    # shellcheck disable=SC1090
+    source "$info_file"
+    session_type="${BEAGLE_LOCK_SCREEN_RUNTIME_SESSION_TYPE:-$session_type}"
+    backend="${BEAGLE_LOCK_SCREEN_RUNTIME_BACKEND:-$backend}"
+    if [[ -n "${BEAGLE_LOCK_SCREEN_RUNTIME_DISPLAYS:-}" ]]; then
+      displays_json="$(python3 - "${BEAGLE_LOCK_SCREEN_RUNTIME_DISPLAYS}" <<'PY'
+import json
+import sys
+
+print(json.dumps([part.strip() for part in sys.argv[1].split(",") if part.strip()]))
+PY
+)"
+    fi
+  fi
+
+  python3 - "$lock_active" "$lock_marker" "$lock_pid" "$session_type" "$backend" "$displays_json" <<'PY'
+import json
+import sys
+
+payload = {
+    "lock_active": sys.argv[1] == "1",
+    "lock_marker_present": sys.argv[2] == "1",
+    "lock_watcher_pid_present": sys.argv[3] == "1",
+    "session_type": sys.argv[4],
+    "lock_screen_backend": sys.argv[5],
+    "x11_displays": json.loads(sys.argv[6] or "[]"),
+}
+print(json.dumps(payload))
+PY
+}
+
 runtime_device_sync_payload() {
   local device_id="${1:-}"
   local hostname_value="${2:-}"
   local wg_iface="${3:-wg-beagle}"
   local wg_active="${4:-0}"
   local wg_ip="${5:-}"
-  local wipe_report_json interfaces_json cpu_model cpu_cores ram_gb gpu_model os_version
+  local wipe_report_json runtime_report_json interfaces_json cpu_model cpu_cores ram_gb gpu_model os_version
 
   wipe_report_json="$(runtime_wipe_report_json)"
+  runtime_report_json="$(runtime_report_json)"
   interfaces_json="$(runtime_network_interfaces_json)"
   cpu_model="$(runtime_cpu_model)"
   cpu_cores="$(nproc 2>/dev/null || printf '0')"
@@ -122,7 +219,7 @@ runtime_device_sync_payload() {
   gpu_model="$(runtime_gpu_model)"
   os_version="$(runtime_os_version)"
 
-  python3 - "$device_id" "$hostname_value" "$os_version" "$cpu_model" "$cpu_cores" "$ram_gb" "$gpu_model" "$interfaces_json" "$wg_iface" "$wg_active" "$wg_ip" "$wipe_report_json" <<'PY'
+  python3 - "$device_id" "$hostname_value" "$os_version" "$cpu_model" "$cpu_cores" "$ram_gb" "$gpu_model" "$interfaces_json" "$wg_iface" "$wg_active" "$wg_ip" "$wipe_report_json" "$runtime_report_json" <<'PY'
 import json, sys
 
 payload = {
@@ -147,6 +244,7 @@ payload = {
     },
     "reports": {
         "wipe": json.loads(sys.argv[12] or "{}"),
+        "runtime": json.loads(sys.argv[13] or "{}"),
     },
 }
 print(json.dumps(payload))

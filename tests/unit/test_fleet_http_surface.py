@@ -74,6 +74,7 @@ def test_register_device_and_fetch_detail(tmp_path: Path) -> None:
     assert detail["payload"]["device"]["wipe_requested_at"] == ""
     assert detail["payload"]["device"]["wipe_confirmed_at"] == ""
     assert detail["payload"]["device"]["last_wipe_report"] == {}
+    assert detail["payload"]["device"]["last_runtime_report"] == {}
 
 
 def test_list_devices_returns_groups_and_filters(tmp_path: Path) -> None:
