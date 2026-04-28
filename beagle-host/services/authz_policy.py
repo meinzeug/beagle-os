@@ -93,7 +93,7 @@ class AuthzPolicyService:
         verb = str(method or "").upper()
         route = str(path or "")
         if verb == "POST":
-            if route == "/api/v1/streams/register" or re.match(r"^/api/v1/streams/\d+/events$", route):
+            if route in {"/api/v1/streams/register", "/api/v1/streams/allocate"} or re.match(r"^/api/v1/streams/\d+/events$", route):
                 return "pool:write"
             if route == "/api/v1/audit/failures/replay" or re.match(r"^/api/v1/audit/export-targets/[A-Za-z0-9_-]+/test$", route):
                 return "auth:write"

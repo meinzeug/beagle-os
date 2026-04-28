@@ -1,3 +1,24 @@
+## Update (2026-04-28, GoEnterprise Plan 01: Stream-Client-Broker-Contract-Slice geschlossen)
+
+**Scope**: Der naechste in-repo realisierbare Plan-01-Teil fuer den spaeteren `beagle-stream-client` ist umgesetzt und validiert.
+
+- Backend:
+  - `beagle-host/services/stream_http_surface.py`
+    - neuer Broker-Allocate-Contract: `POST /api/v1/streams/allocate`
+    - liefert Allocate-Payload fuer den Client (`vm_id`, `host_ip`, `port`, `token`, `wg_peer_config`, `links`)
+    - erzwingt bei `vpn_required` einen WireGuard-Peer-Config-Check (`403` ohne WG-Profil)
+  - `beagle-host/services/authz_policy.py`
+    - RBAC fuer `/api/v1/streams/allocate` auf `pool:write`
+- Tests:
+  - `tests/unit/test_beagle_stream_client_broker.py` (neu)
+  - `tests/unit/test_stream_http_surface.py` (Route-Handling erweitert)
+  - `tests/unit/test_authz_policy.py` (RBAC-Assertion fuer Allocate)
+- Doku:
+  - `docs/goenterprise/01-moonlight-vdi-protocol.md`: Checkbox `Tests: tests/unit/test_beagle_stream_client_broker.py` auf `[x]`
+- Validierung:
+  - Lokal: `29 passed`
+  - `srv1` (staged `/tmp/beagle-os-plan01-client-broker`): `29 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 04: Warm-Pool Auto-Apply mit Guardrails geschlossen)
 
 **Scope**: Der verbleibende Plan-04-Restpunkt ist jetzt im Scheduler-Scope umgesetzt und reproduzierbar getestet.

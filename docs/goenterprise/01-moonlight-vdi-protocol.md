@@ -121,7 +121,7 @@ Hardware: AMD mit `aes` + `avx2` + `vaes` + `vpclmulqdq` — vollständig hardwa
   - Fallback: wenn WireGuard-Setup fehlschlägt + Policy erlaubt → direkter Stream
 - [ ] Beagle-Branding: App-Name, Icons, About-Dialog
 - [ ] Build: Teil des Thin-Client-OS-Images (ersetzt vanilla `moonlight-qt`)
-- [ ] Tests: `tests/unit/test_beagle_stream_client_broker.py`
+- [x] Tests: `tests/unit/test_beagle_stream_client_broker.py`
 
 ### Schritt 3 — WireGuard Mesh für BeagleStream
 
@@ -274,6 +274,16 @@ Wichtig:
   - `tests/unit/test_pairing_service.py` (consume/replay)
   - `tests/unit/test_auto_pairing_flow.py` (60s expiry + replay rejection)
 - Damit ist die Testpflicht-Checkbox `Token-Pairing ... (60s gültig)` fuer den aktuellen Repo-/Control-Plane-Scope geschlossen.
+
+## Update (2026-04-28, Plan 01: dedizierter Stream-Client-Broker-Contract-Scope)
+
+- Die Stream-Surface bietet jetzt den expliziten Broker-Allocate-Contract fuer den spaeteren `beagle-stream-client`:
+  - `POST /api/v1/streams/allocate`
+- Der Endpoint liefert im aktuellen Control-Plane-Slice eine reproduzierbare Allocate-Antwort mit `pool_id`, `user_id`, `vm_id`, `host_ip`, `port`, `token`, `wg_peer_config` und API-Links.
+- Bei `network_mode=vpn_required` wird Allocate mit `403` abgelehnt, falls kein WireGuard-Peer-Profil verfuegbar ist.
+- Neue Regressionen:
+  - `tests/unit/test_beagle_stream_client_broker.py`
+  - `tests/unit/test_stream_http_surface.py` (Route-Handling fuer `/allocate`)
 
 ---
 

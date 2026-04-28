@@ -89,6 +89,7 @@ def _service(
 
 def test_handles_stream_routes() -> None:
     assert StreamHttpSurfaceService.handles_post("/api/v1/streams/register") is True
+    assert StreamHttpSurfaceService.handles_post("/api/v1/streams/allocate") is True
     assert StreamHttpSurfaceService.handles_post("/api/v1/streams/303/events") is True
     assert StreamHttpSurfaceService.handles_get("/api/v1/streams/303/config") is True
     assert StreamHttpSurfaceService.requires_json_body("/api/v1/streams/303/events") is True

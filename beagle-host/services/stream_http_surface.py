@@ -10,6 +10,7 @@ from typing import Any, Callable
 
 class StreamHttpSurfaceService:
     _REGISTER_ROUTE = "/api/v1/streams/register"
+    _ALLOCATE_ROUTE = "/api/v1/streams/allocate"
     _CONFIG_ROUTE = re.compile(r"^/api/v1/streams/(?P<vm_id>\d+)/config$")
     _EVENTS_ROUTE = re.compile(r"^/api/v1/streams/(?P<vm_id>\d+)/events$")
 
@@ -21,6 +22,8 @@ class StreamHttpSurfaceService:
         find_vm: Callable[[int], Any | None],
         pool_manager_service: Any,
         stream_policy_service: Any,
+        build_wireguard_peer_config: Callable[[str, str, str], dict[str, Any]] | None = None,
+        issue_pairing_token: Callable[[int, str, str], str] | None = None,
         requester_identity: Callable[[], str] | None = None,
         audit_event: Callable[..., None] | None = None,
         service_name: str = "beagle-control-plane",
@@ -32,6 +35,8 @@ class StreamHttpSurfaceService:
         self._find_vm = find_vm
         self._pool_manager = pool_manager_service
         self._stream_policy = stream_policy_service
+        self._build_wireguard_peer_config = build_wireguard_peer_config
+        self._issue_pairing_token = issue_pairing_token
         self._requester_identity = requester_identity or (lambda: "")
         self._audit_event = audit_event
         self._service_name = str(service_name or "beagle-control-plane")
@@ -46,7 +51,7 @@ class StreamHttpSurfaceService:
     @classmethod
     def handles_post(cls, path: str) -> bool:
         route = str(path or "")
-        return route == cls._REGISTER_ROUTE or cls._EVENTS_ROUTE.match(route) is not None
+        return route in {cls._REGISTER_ROUTE, cls._ALLOCATE_ROUTE} or cls._EVENTS_ROUTE.match(route) is not None
 
     @staticmethod
     def requires_json_body(path: str) -> bool:
@@ -184,6 +189,73 @@ class StreamHttpSurfaceService:
 
     def route_post(self, path: str, *, json_payload: dict[str, Any] | None = None) -> dict[str, Any] | None:
         payload = json_payload or {}
+        if path == self._ALLOCATE_ROUTE:
+            pool_id = str(payload.get("pool_id") or "").strip()
+            user_id = str(payload.get("user_id") or "").strip()
+            device_id = str(payload.get("device_id") or "").strip() or "unknown-device"
+            if not pool_id or not user_id:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "pool_id and user_id required"})
+
+            try:
+                lease = self._pool_manager.allocate_desktop(pool_id, user_id)
+            except Exception as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc) or "allocation failed"})
+
+            vm_id = int(getattr(lease, "vm_id", 0) or 0)
+            vm = self._find_vm(vm_id)
+            if vm is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "allocated vm not found"})
+
+            policy = self._stream_policy.resolve_policy(pool_id)
+            network_mode = str(getattr(policy, "network_mode", "vpn_preferred") or "vpn_preferred")
+            wg_peer_config = payload.get("wg_peer_config") if isinstance(payload.get("wg_peer_config"), dict) else {}
+            if not wg_peer_config and self._build_wireguard_peer_config is not None:
+                try:
+                    wg_peer_config = self._build_wireguard_peer_config(device_id, pool_id, user_id) or {}
+                except Exception:
+                    wg_peer_config = {}
+
+            if network_mode == "vpn_required" and not isinstance(wg_peer_config, dict):
+                wg_peer_config = {}
+            if network_mode == "vpn_required" and not wg_peer_config:
+                return self._json(
+                    HTTPStatus.FORBIDDEN,
+                    {"ok": False, "error": "vpn_required: wireguard peer config unavailable"},
+                )
+
+            pairing_token = ""
+            if self._issue_pairing_token is not None:
+                try:
+                    pairing_token = str(self._issue_pairing_token(vm_id, user_id, device_id) or "").strip()
+                except Exception:
+                    pairing_token = ""
+
+            vm_profile = self._build_vm_profile(vm)
+            allocation = {
+                "pool_id": pool_id,
+                "user_id": user_id,
+                "device_id": device_id,
+                "vm_id": vm_id,
+                "session_id": str(getattr(lease, "session_id", "") or ""),
+                "host_ip": str(vm_profile.get("stream_host") or "").strip(),
+                "port": int(vm_profile.get("moonlight_port") or 47984),
+                "token": pairing_token,
+                "network_mode": network_mode,
+                "wg_peer_config": wg_peer_config if isinstance(wg_peer_config, dict) else {},
+                "links": self._config_links(vm_id),
+            }
+            self._safe_audit(
+                "stream.client.allocate",
+                "success",
+                vm_id=vm_id,
+                pool_id=pool_id,
+                user_id=user_id,
+                device_id=device_id,
+                network_mode=network_mode,
+                wireguard_profile=bool(allocation["wg_peer_config"]),
+            )
+            return self._json(HTTPStatus.OK, {"ok": True, **self._envelope(allocation=allocation)})
+
         if path == self._REGISTER_ROUTE:
             try:
                 vm_id = int(payload.get("vm_id") or 0)

@@ -203,6 +203,10 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "pool:read",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/streams/allocate"),
+            "pool:write",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("POST", "/api/v1/streams/register"),
             "pool:write",
         )

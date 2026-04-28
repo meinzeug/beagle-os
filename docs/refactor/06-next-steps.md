@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 01 client broker contract completed)
+
+**Zuletzt erledigt**:
+- Plan-01-Checkbox `tests/unit/test_beagle_stream_client_broker.py` ist geschlossen: `POST /api/v1/streams/allocate` liefert den dedizierten Client-Broker-Contract und erzwingt `vpn_required` im aktuellen Control-Plane-Slice reproduzierbar.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 01 Fork-Rest**: echten `beagle-stream-server` auf VM starten und reale Register-/Pairing-/Event-Flows gegen die bestehende API fahren.
+2. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
+3. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+4. **Plan 01 Fork-Enforcement**: spaeteren Enforcement-Pfad fuer `vpn_required` im separaten Stream-Server-Fork reproduzierbar nachziehen.
+
 ## Stand (2026-04-28, GoEnterprise Plan 04 warm-pool auto-apply completed)
 
 **Zuletzt erledigt**:
