@@ -251,6 +251,22 @@ Restluecke bewusst offen:
   - `tests/unit/test_mdm_policy_http_surface.py`
   - `tests/unit/test_fleet_http_surface.py`
 
+## Update 2026-04-28 (Effective-Policy-Diagnose mit Feld-Diffs)
+
+- Control Plane:
+  - `mdm_policy_service.py` baut jetzt eine echte Diagnose fuer Effective Policies auf:
+    - Default-Policy-Snapshot
+    - Group-Policy-Snapshot
+    - Device-Policy-Snapshot
+    - Feld-Diffs fuer `group_vs_default`, `device_vs_group`, `effective_vs_default`
+  - `fleet_http_surface.py` liefert diese Diagnose jetzt direkt unter `diagnostics` im Effective-Policy-Endpoint aus.
+- WebUI:
+  - `website/ui/fleet_health.js` zeigt jetzt im Fleet-Panel konkrete Feldabweichungen statt nur allgemeiner Konflikt-Badges.
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_mdm_policy.py`
+  - `tests/unit/test_fleet_http_surface.py`
+  - `tests/unit/test_fleet_ui_regressions.py`
+
 ---
 
 ## Unique Selling Point vs. Konkurrenz

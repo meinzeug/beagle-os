@@ -53,6 +53,16 @@ class MDMPolicyService:
     DEFAULT_POLICY = MDMPolicy(policy_id="__default__", name="Default")
     _VALID_CODECS = {"h264", "h265", "av1", "vp9"}
     _RESOLUTION_RE = re.compile(r"^(?P<width>\d{3,5})x(?P<height>\d{3,5})$")
+    _POLICY_FIELDS = (
+        "allowed_networks",
+        "allowed_pools",
+        "max_resolution",
+        "allowed_codecs",
+        "auto_update",
+        "update_window_start_hour",
+        "update_window_end_hour",
+        "screen_lock_timeout_seconds",
+    )
 
     def __init__(self, state_file: Path | None = None) -> None:
         self._state_file = state_file or self.STATE_FILE
@@ -248,6 +258,26 @@ class MDMPolicyService:
             conflicts.append(f"device assignment overrides group policy {group_policy_id}")
         return conflicts
 
+    def build_effective_policy_diagnostics(self, device_id: str, group: str = "") -> dict[str, Any]:
+        device_policy_id = str(self._state["device_assignments"].get(device_id) or "").strip()
+        group_policy_id = str(self._state["group_assignments"].get(group) or "").strip() if group else ""
+        default_policy = self.DEFAULT_POLICY
+        group_policy = self.get_policy(group_policy_id) if group_policy_id else None
+        device_policy = self.get_policy(device_policy_id) if device_policy_id else None
+        effective_policy, effective_source_type, effective_source_id = self.resolve_policy_with_source(device_id, group)
+        return {
+            "effective_source_type": effective_source_type,
+            "effective_source_id": effective_source_id,
+            "default_policy": self._policy_snapshot(default_policy),
+            "group_policy": self._policy_snapshot(group_policy, policy_id=group_policy_id or "__default__", source_id=group or ""),
+            "device_policy": self._policy_snapshot(device_policy, policy_id=device_policy_id or "__default__", source_id=device_id or ""),
+            "diffs": {
+                "group_vs_default": self._policy_diff(default_policy, group_policy),
+                "device_vs_group": self._policy_diff(group_policy or default_policy, device_policy),
+                "effective_vs_default": self._policy_diff(default_policy, effective_policy),
+            },
+        }
+
     # ------------------------------------------------------------------
     # Enforcement helpers
     # ------------------------------------------------------------------
@@ -275,3 +305,31 @@ class MDMPolicyService:
 
     def _save(self) -> None:
         self._state_file.write_text(json.dumps(self._state, indent=2))
+
+    def _policy_snapshot(self, policy: MDMPolicy | None, *, policy_id: str = "", source_id: str = "") -> dict[str, Any] | None:
+        if policy is None:
+            return None
+        payload = asdict(policy)
+        payload["policy_id"] = str(policy.policy_id or policy_id or "")
+        payload["source_id"] = str(source_id or "")
+        payload["validation"] = self.validate_policy(policy)
+        return payload
+
+    def _policy_diff(self, baseline: MDMPolicy | None, overlay: MDMPolicy | None) -> list[dict[str, Any]]:
+        if overlay is None:
+            return []
+        diffs: list[dict[str, Any]] = []
+        baseline_data = asdict(baseline or self.DEFAULT_POLICY)
+        overlay_data = asdict(overlay)
+        for field_name in self._POLICY_FIELDS:
+            baseline_value = baseline_data.get(field_name)
+            overlay_value = overlay_data.get(field_name)
+            if baseline_value != overlay_value:
+                diffs.append(
+                    {
+                        "field": field_name,
+                        "baseline": baseline_value,
+                        "effective": overlay_value,
+                    }
+                )
+        return diffs

@@ -136,6 +136,10 @@ class FleetHttpSurfaceService:
                 str(getattr(device, "device_id", "") or ""),
                 group=str(getattr(device, "group", "") or ""),
             )
+            diagnostics = self._mdm_policy.build_effective_policy_diagnostics(
+                str(getattr(device, "device_id", "") or ""),
+                group=str(getattr(device, "group", "") or ""),
+            )
             return self._json(
                 HTTPStatus.OK,
                 {
@@ -149,6 +153,7 @@ class FleetHttpSurfaceService:
                             str(getattr(device, "device_id", "") or ""),
                             group=str(getattr(device, "group", "") or ""),
                         ),
+                        diagnostics=diagnostics,
                         policy={
                             "policy_id": str(getattr(policy, "policy_id", "") or ""),
                             "name": str(getattr(policy, "name", "") or ""),

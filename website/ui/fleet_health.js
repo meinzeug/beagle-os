@@ -187,6 +187,35 @@ function policyValidationMarkup(validation) {
   `;
 }
 
+function formatDiagnosticValue(value) {
+  if (Array.isArray(value)) {
+    return value.length ? value.join(', ') : 'alle';
+  }
+  if (value === '' || value === null || value === undefined) {
+    return 'default';
+  }
+  return String(value);
+}
+
+function policyDiffMarkup(diagnostics) {
+  const sections = [
+    ['group_vs_default', 'Gruppe vs Default'],
+    ['device_vs_group', 'Device vs Gruppe'],
+    ['effective_vs_default', 'Effektiv vs Default'],
+  ];
+  const content = sections.map(([key, label]) => {
+    const entries = Array.isArray(diagnostics?.diffs?.[key]) ? diagnostics.diffs[key] : [];
+    if (!entries.length) {
+      return `<div class="card compact-card"><strong>${escapeHtml(label)}</strong><div class="muted">Keine Abweichungen.</div></div>`;
+    }
+    return `<div class="card compact-card">
+      <strong>${escapeHtml(label)}</strong>
+      <div class="section-spaced-tight">${entries.map((entry) => `<div class="muted">${escapeHtml(String(entry.field || ''))}: ${escapeHtml(formatDiagnosticValue(entry.baseline))} → ${escapeHtml(formatDiagnosticValue(entry.effective))}</div>`).join('')}</div>
+    </div>`;
+  }).join('');
+  return `<div class="grid auto-grid section-spaced-tight">${content}</div>`;
+}
+
 function policyCards() {
   if (!fleetState.policies.length) {
     return '<div class="empty-card">Noch keine MDM-Policies vorhanden.</div>';
@@ -273,6 +302,7 @@ function policyEditorSection() {
             <div class="muted">${escapeHtml(effectiveSummary)}</div>
             <div class="section-spaced-tight">${policyValidationMarkup(effective?.policy?.validation || null)}</div>
             <div class="section-spaced-tight">${effectiveConflicts.map((item) => `<div class="badge tone-warn">${escapeHtml(String(item || ''))}</div>`).join(' ') || '<div class="muted">Keine Konflikte.</div>'}</div>
+            <div class="section-spaced-tight">${policyDiffMarkup(effective?.diagnostics || null)}</div>
           </div>
         </div>
       </div>

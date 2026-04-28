@@ -13,6 +13,20 @@
   - [tests/unit/test_mdm_policy_http_surface.py](/home/dennis/beagle-os/tests/unit/test_mdm_policy_http_surface.py)
   - [tests/unit/test_fleet_http_surface.py](/home/dennis/beagle-os/tests/unit/test_fleet_http_surface.py)
 
+## Update (2026-04-28, GoEnterprise Plan 02: Effective-Policy-Diagnose mit Feld-Diffs)
+
+**Scope**: Den naechsten Operator-Diagnose-Slice der Fleet-Surface geschlossen. Effective Policies zeigen jetzt nicht mehr nur Quelle und Konflikt-Hinweis, sondern auch die konkreten Feldabweichungen zwischen Default-, Gruppen- und Device-Policy.
+
+- Backend:
+  - [beagle-host/services/mdm_policy_service.py](/home/dennis/beagle-os/beagle-host/services/mdm_policy_service.py): `build_effective_policy_diagnostics()` mit Snapshot- und Feld-Diff-Logik
+  - [beagle-host/services/fleet_http_surface.py](/home/dennis/beagle-os/beagle-host/services/fleet_http_surface.py): `diagnostics` in `/api/v1/fleet/devices/{device_id}/effective-policy`
+- WebUI:
+  - [website/ui/fleet_health.js](/home/dennis/beagle-os/website/ui/fleet_health.js): rendert `Gruppe vs Default`, `Device vs Gruppe` und `Effektiv vs Default`
+- Regressionen:
+  - [tests/unit/test_mdm_policy.py](/home/dennis/beagle-os/tests/unit/test_mdm_policy.py)
+  - [tests/unit/test_fleet_http_surface.py](/home/dennis/beagle-os/tests/unit/test_fleet_http_surface.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+
 ## Update (2026-04-28, GoEnterprise Plan 02: Standort-Tree + Device-Group-Regressionen)
 
 **Scope**: Den offenen Device-UX-Slice aus Plan 02 weiter geschlossen. Die Fleet-WebUI zeigt jetzt nicht mehr nur eine flache Tabelle, sondern eine verdichtete Standort-/Gruppenansicht fuer Operatoren; ausserdem ist der gruppenbezogene Policy-Pfad mit einer eigenen Testdatei reproduzierbar abgesichert.

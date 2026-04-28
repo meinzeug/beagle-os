@@ -17,7 +17,7 @@
 
 1. **Plan 02 Wipe vervollstaendigen**: aus dem jetzigen Runtime-/Secret-Wipe einen echten Datentraeger-/TPM-Wipe machen und den Erfolgs-/Fehlerpfad fuer Operatoren sichtbar nachziehen.
 2. **Plan 02 Device-UX schliessen**: grafischen Sperrbildschirm sowie Bulk-Device-Operator-Aktionen jenseits der Policy-Zuweisung ergaenzen.
-3. **Plan 02 Policy-Plane haerten**: Policy-Diff-Hinweise und spaetere effective-policy-Diagnose fuer Operatoren erweitern.
+3. **Plan 02 Policy-Plane haerten**: erweiterte effective-policy-Diagnose fuer Operatoren weiter vertiefen und spaetere Drift-/Remediation-Hinweise nachziehen.
 4. **Plan 01 Fork-Pfad weiterziehen**: den spaeteren `beagle-stream-server`-Enforcement-Pfad im Sunshine-Fork vorbereiten, obwohl der heutige Broker-Pfad bereits blockiert.
 
 ## Stand (2026-04-27, two-host follow-up)

@@ -212,8 +212,8 @@ def test_effective_policy_route_reports_assignment_conflicts(tmp_path: Path) -> 
     registry, mdm, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
     registry.set_group("dev-001", "berlin")
-    mdm.create_policy(MDMPolicy(policy_id="group-policy", name="Group"))
-    mdm.create_policy(MDMPolicy(policy_id="device-policy", name="Device"))
+    mdm.create_policy(MDMPolicy(policy_id="group-policy", name="Group", allowed_pools=["pool-a"]))
+    mdm.create_policy(MDMPolicy(policy_id="device-policy", name="Device", allowed_pools=["pool-b"]))
     mdm.assign_to_group("berlin", "group-policy")
     mdm.assign_to_device("dev-001", "device-policy")
 
@@ -224,3 +224,7 @@ def test_effective_policy_route_reports_assignment_conflicts(tmp_path: Path) -> 
     assert response["payload"]["policy"]["policy_id"] == "device-policy"
     assert response["payload"]["conflicts"] == ["device assignment overrides group policy group-policy"]
     assert response["payload"]["policy"]["validation"]["ok"] is True
+    assert response["payload"]["diagnostics"]["effective_source_type"] == "device"
+    assert response["payload"]["diagnostics"]["group_policy"]["policy_id"] == "group-policy"
+    assert response["payload"]["diagnostics"]["device_policy"]["policy_id"] == "device-policy"
+    assert any(entry["field"] == "allowed_pools" for entry in response["payload"]["diagnostics"]["diffs"]["device_vs_group"])

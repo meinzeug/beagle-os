@@ -156,3 +156,18 @@ def test_describe_effective_policy_conflicts_reports_device_override(tmp_path):
     svc.assign_to_device("dev-001", "device-policy")
     conflicts = svc.describe_effective_policy_conflicts("dev-001", "grp-a")
     assert conflicts == ["device assignment overrides group policy group-policy"]
+
+
+def test_build_effective_policy_diagnostics_reports_diffs(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.create_policy(MDMPolicy(policy_id="group-policy", name="Group", allowed_pools=["pool-a"]))
+    svc.create_policy(MDMPolicy(policy_id="device-policy", name="Device", allowed_pools=["pool-b"], screen_lock_timeout_seconds=300))
+    svc.assign_to_group("grp-a", "group-policy")
+    svc.assign_to_device("dev-001", "device-policy")
+    diagnostics = svc.build_effective_policy_diagnostics("dev-001", "grp-a")
+    assert diagnostics["effective_source_type"] == "device"
+    assert diagnostics["group_policy"]["policy_id"] == "group-policy"
+    assert diagnostics["device_policy"]["policy_id"] == "device-policy"
+    fields = {entry["field"] for entry in diagnostics["diffs"]["device_vs_group"]}
+    assert "allowed_pools" in fields
+    assert "screen_lock_timeout_seconds" in fields
