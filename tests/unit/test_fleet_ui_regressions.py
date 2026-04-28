@@ -121,6 +121,9 @@ def test_enterprise_dashboard_modules_use_operator_routes() -> None:
     assert "mini-heat-tile" in scheduler_js
     assert "Saved CPU-Hours nach Pool" in scheduler_js
     assert "Saved CPU-Hours nach User" in scheduler_js
+    assert "Prewarm Hit Rate" in scheduler_js
+    assert "/scheduler/warm-pools/apply" in scheduler_js
+    assert "Warm-Pool Empfehlungen" in scheduler_js
     assert "Nächste 8 Stunden CPU-Prognose" in scheduler_js
     assert "/costs/model" in cost_js
     assert "Kostenmodell speichern" in cost_js
@@ -136,6 +139,8 @@ def test_enterprise_dashboard_modules_use_operator_routes() -> None:
     assert "Grüne Stunden Heatmap" in energy_js
     assert "CO₂ Stundenprofil CSV" in energy_js
     assert "Strompreis Stundenprofil CSV" in energy_js
+    assert "/energy/hourly-profile/import" in energy_js
+    assert "Stundenprofil importieren" in energy_js
     assert "Energieintensivste VMs" in energy_js
     assert "Effizienteste VMs" in energy_js
     assert "Konfiguration speichern" in energy_js

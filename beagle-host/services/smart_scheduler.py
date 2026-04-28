@@ -276,7 +276,11 @@ class SmartSchedulerService:
         import datetime
         now = datetime.datetime.now(datetime.timezone.utc)
         base_hour = int(current_hour) if current_hour is not None else now.hour
-        target_hour = (base_hour + max(0, int(minutes_ahead)) // 60) % 24 if minutes_ahead >= 60 else (now + datetime.timedelta(minutes=minutes_ahead)).hour
+        minute_offset = max(0, int(minutes_ahead))
+        hour_offset = minute_offset // 60
+        if minute_offset % 60:
+            hour_offset += 1
+        target_hour = (base_hour + hour_offset) % 24
         peak_hours = list(getattr(profile, "peak_hours", []) or [])
         if target_hour not in peak_hours:
             return False

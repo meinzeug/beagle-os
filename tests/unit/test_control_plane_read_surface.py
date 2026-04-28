@@ -74,6 +74,7 @@ def make_service() -> ControlPlaneReadSurfaceService:
         build_scheduler_insights_payload=lambda: {
             "heatmap": [{"node_id": "node-a", "vm_count": 2, "cpu_pct": 81.0, "mem_pct": 66.0}],
             "recommendations": [{"vm_id": 101, "current_node": "node-a", "recommended_node": "node-b", "reason": "rebalance"}],
+            "warm_pool_recommendations": [{"pool_id": "pool-a", "current_warm_pool_size": 1, "recommended_warm_pool_size": 2, "prewarm_hits": 1, "prewarm_misses": 2, "miss_rate": 0.66}],
             "prewarm_candidates": [{"vm_id": 101, "name": "vm-101", "node_id": "node-a", "green_window_active": True}],
             "historical_trend": [{"node_id": "node-a", "series": [{"day": "2026-04-27", "avg_cpu_pct": 70.0}]}],
             "historical_heatmap": [{"node_id": "node-a", "days": [{"day": "2026-04-27", "hours": [0.0, 10.0, 20.0]}]}],
@@ -82,11 +83,19 @@ def make_service() -> ControlPlaneReadSurfaceService:
             "saved_cpu_hours": 1.5,
             "saved_cpu_hours_by_pool": [{"pool_id": "pool-a", "candidate_count": 1, "saved_cpu_hours": 0.25}],
             "saved_cpu_hours_by_user": [{"user_id": "alice", "candidate_count": 1, "saved_cpu_hours": 0.25}],
+            "prewarm_hit_count": 3,
+            "prewarm_miss_count": 1,
+            "prewarm_hit_rate": 0.75,
             "green_window_active": True,
         },
         execute_cost_model_update=lambda payload: {"model": payload, "budgets": []},
+        execute_energy_hourly_profile_import=lambda payload: {
+            "co2_grams_per_kwh": [300.0] * 24,
+            "electricity_price_per_kwh": [0.2] * 24,
+        },
         execute_scheduler_migration=lambda vmid, target_node, requester: {"vmid": vmid, "target_node": target_node, "requester": requester},
         execute_scheduler_rebalance=lambda requester: {"executed": [{"vmid": 101}], "requester": requester},
+        execute_scheduler_warm_pool_apply=lambda payload: [{"pool_id": "pool-a", "applied_warm_pool_size": 2}],
         execute_energy_config_update=lambda payload: {
             "carbon_config": payload,
             "scheduler": payload.get("scheduler", {}),
@@ -119,6 +128,8 @@ def test_scheduler_insights_route_returns_payload() -> None:
     assert payload["config"]["green_scheduling_enabled"] is True
     assert payload["saved_cpu_hours_by_pool"][0]["pool_id"] == "pool-a"
     assert payload["saved_cpu_hours_by_user"][0]["user_id"] == "alice"
+    assert payload["warm_pool_recommendations"][0]["pool_id"] == "pool-a"
+    assert payload["prewarm_hit_rate"] == 0.75
     assert payload["green_window_active"] is True
 
 
@@ -163,10 +174,19 @@ def test_scheduler_post_routes_return_mutation_payloads() -> None:
         requester="admin",
     )
     rebalance = service.route_post("/api/v1/scheduler/rebalance", json_payload={}, requester="admin")
+    apply_warm = service.route_post("/api/v1/scheduler/warm-pools/apply", json_payload={}, requester="admin")
     assert migrate is not None and rebalance is not None
+    assert apply_warm is not None
     assert migrate["payload"]["migration"]["target_node"] == "node-b"
     assert migrate["payload"]["migration"]["requester"] == "admin"
     assert rebalance["payload"]["rebalance"]["executed"][0]["vmid"] == 101
+    assert apply_warm["payload"]["applied"][0]["applied_warm_pool_size"] == 2
+
+
+def test_energy_hourly_profile_import_route_returns_profile() -> None:
+    response = make_service().route_post("/api/v1/energy/hourly-profile/import", json_payload={"co2_csv": "300,300"})
+    assert response is not None
+    assert response["payload"]["hourly_profile"]["co2_grams_per_kwh"][0] == 300.0
 
 
 def test_cost_model_and_scheduler_config_routes_support_get_and_put() -> None:

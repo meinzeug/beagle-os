@@ -9,7 +9,9 @@
 - [x] GoEnterprise Plan 04: Green-Hours-Operatorik und aktiven Green-Window-Status im Scheduler-Dashboard nachziehen.
 - [x] GoEnterprise Plan 04: Heatmap-Visualisierung im Scheduler-Dashboard nachziehen.
 - [x] GoEnterprise Plan 04: differenzierte Pool-/User-Analytics fuer Saved-CPU-Hours im Dashboard nachziehen.
-- [ ] GoEnterprise Plan 04: echte Prewarm-Hit-/Miss-Telemetrie fuer Erfolgsquoten nachziehen.
+- [x] GoEnterprise Plan 04: echte Prewarm-Hit-/Miss-Telemetrie fuer Erfolgsquoten nachziehen.
+- [x] GoEnterprise Plan 04: Warm-Pool-Empfehlungen im Scheduler-Dashboard nachziehen.
+- [ ] GoEnterprise Plan 04: Warm-Pool-Empfehlungen optional automatisch anwenden.
 - [x] GoEnterprise Plan 05: Chargeback-Dashboard an echte `/api/v1/costs/*`-Surfaces hängen.
 - [x] GoEnterprise Plan 05: Preismodell-Editor und Budget-Verwaltung in der WebUI als echte Admin-Flows nachziehen.
 - [x] GoEnterprise Plan 05: Forecast pro Abteilung und Top-10 kostenintensive VMs im Cost-Dashboard nachziehen.
@@ -20,6 +22,7 @@
 - [x] GoEnterprise Plan 09: Effizienz-/Verbrauchs-Rankings im Energy-Dashboard nachziehen.
 - [x] GoEnterprise Plan 09: Grüne-Stunden-Heatmap im Energy-Dashboard nachziehen.
 - [x] GoEnterprise Plan 09: editierbares stündliches Carbon-/Strompreisprofil für Green-Hours hinterlegen.
+- [x] GoEnterprise Plan 09: Import-Pfad für stündliches Carbon-/Strompreisprofil hinterlegen.
 - [ ] GoEnterprise Plan 09: externen Feed-/Importjob für stündlichen Carbon-/Strommix hinterlegen.
 
 ## Update 2026-04-28 (GoEnterprise Plan 02)

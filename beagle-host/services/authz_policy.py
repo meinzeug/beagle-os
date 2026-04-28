@@ -165,6 +165,8 @@ class AuthzPolicyService:
                 return "pool:write"
             if route == "/api/v1/sessions/stream-health":
                 return "pool:write"
+            if route in {"/api/v1/scheduler/warm-pools/apply", "/api/v1/energy/hourly-profile/import"}:
+                return "settings:write"
         if verb == "PUT":
             if route in {"/api/v1/scheduler/config", "/api/v1/costs/model", "/api/v1/energy/config"}:
                 return "settings:write"

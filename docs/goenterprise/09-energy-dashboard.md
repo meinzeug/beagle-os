@@ -77,6 +77,7 @@ Unternehmen mit >500 Mitarbeitern müssen Scope-2-Emissionen (IT-Infrastruktur) 
   - [x] Ranking: effizienteste vs. energieintensivste VMs
   - [x] "Grüne Stunden" Heatmap (wann ist der Strommix am saubersten)
   - [x] stündliches CO₂-/Strompreisprofil als editierbarer 24h-Feed
+  - [x] Import-Pfad für stündliche Profile über die Control Plane
 - [x] Control-Plane-Surface: `GET /api/v1/energy/nodes`, `GET /api/v1/energy/trend`, `GET /api/v1/energy/csrd?year=...&quarter=...`
 - [x] Tests: `tests/unit/test_csrd_export.py`
 

@@ -82,6 +82,7 @@ Der aktuelle Beagle-Scheduler platziert VMs nach simplen Regeln:
   - [x] Green-Hours-Konfiguration und aktiver Green-Window-Status im Dashboard
   - [x] Stündliche Heatmap der letzten 7 Tage pro Node
   - [x] Saved-CPU-Hours-Auswertung nach Pool und User
+  - [x] Prewarm Hit-/Miss-Telemetrie und Warm-Pool-Empfehlungen im Dashboard
 
 ---
 

@@ -285,6 +285,14 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:read",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/energy/hourly-profile/import"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/scheduler/warm-pools/apply"),
+            "settings:write",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("PUT", "/api/v1/energy/config"),
             "settings:write",
         )

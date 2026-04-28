@@ -62,7 +62,7 @@ class PoolManagerService:
     ) -> None:
         self._store = JsonStateStore(
             Path(state_file),
-            default_factory=lambda: {"pools": {}, "vms": {}, "gpu_reservations": {}},
+            default_factory=lambda: {"pools": {}, "vms": {}, "gpu_reservations": {}, "prewarm_events": []},
             mode=0o644,
         )
         self._utcnow = utcnow or (lambda: __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
@@ -94,6 +94,8 @@ class PoolManagerService:
             data["vms"] = {}
         if not isinstance(data.get("gpu_reservations"), dict):
             data["gpu_reservations"] = {}
+        if not isinstance(data.get("prewarm_events"), list):
+            data["prewarm_events"] = []
         return data
 
     def _save(self, state: dict[str, Any]) -> None:
@@ -128,6 +130,38 @@ class PoolManagerService:
             return ""
         assigned_dt = self._parse_utc_timestamp(assigned_at)
         return self._format_utc_timestamp(assigned_dt + timedelta(minutes=int(limit_minutes)))
+
+    @staticmethod
+    def _prewarm_saved_wait_seconds() -> int:
+        return 30
+
+    def _record_prewarm_event(
+        self,
+        state: dict[str, Any],
+        *,
+        pool_id: str,
+        user_id: str,
+        outcome: str,
+        vmid: int | None = None,
+        saved_wait_seconds: int = 0,
+    ) -> None:
+        events = state.setdefault("prewarm_events", [])
+        if not isinstance(events, list):
+            events = []
+            state["prewarm_events"] = events
+        events.append(
+            {
+                "sequence": len(events) + 1,
+                "timestamp": self._utcnow(),
+                "pool_id": str(pool_id or "").strip(),
+                "user_id": str(user_id or "").strip(),
+                "vmid": int(vmid) if vmid is not None else 0,
+                "outcome": str(outcome or "").strip(),
+                "saved_wait_seconds": max(0, int(saved_wait_seconds or 0)),
+            }
+        )
+        if len(events) > 1000:
+            del events[:-1000]
 
     # ------------------------------------------------------------------
     # Pool CRUD
@@ -709,6 +743,14 @@ class PoolManagerService:
                 vm["assigned_at"] = self._utcnow()
                 limit = int(pool_cfg.get("session_time_limit_minutes", 0) or 0)
                 vm["session_expires_at"] = self._default_session_expires_at(str(vm.get("assigned_at") or ""), limit)
+                self._record_prewarm_event(
+                    state,
+                    pool_id=pool_id,
+                    user_id=user,
+                    outcome="hit",
+                    vmid=int(vm.get("vmid") or 0),
+                    saved_wait_seconds=self._prewarm_saved_wait_seconds(),
+                )
                 self._save(state)
                 if self._start_vm is not None:
                     try:
@@ -719,7 +761,15 @@ class PoolManagerService:
                 self._maybe_assign_gpu(pool_type, pool_cfg, vm, state)
                 return self._make_lease(pool_id, vm, mode)
 
-
+        self._record_prewarm_event(
+            state,
+            pool_id=pool_id,
+            user_id=user,
+            outcome="miss",
+            vmid=None,
+            saved_wait_seconds=0,
+        )
+        self._save(state)
         raise RuntimeError(f"no free desktop available in pool {pool_id!r}")
 
     # ------------------------------------------------------------------
@@ -1001,6 +1051,32 @@ class PoolManagerService:
             )
         items.sort(key=lambda item: (item["pool_id"], item["vmid"]))
         return items
+
+    def list_prewarm_events(self, *, pool_id: str | None = None, user_id: str | None = None) -> list[dict[str, Any]]:
+        state = self._load()
+        selected_pool = str(pool_id or "").strip()
+        selected_user = str(user_id or "").strip()
+        events: list[dict[str, Any]] = []
+        for item in state.get("prewarm_events", []):
+            if not isinstance(item, dict):
+                continue
+            if selected_pool and str(item.get("pool_id") or "").strip() != selected_pool:
+                continue
+            if selected_user and str(item.get("user_id") or "").strip() != selected_user:
+                continue
+            events.append(
+                {
+                    "timestamp": str(item.get("timestamp") or ""),
+                    "sequence": int(item.get("sequence") or 0),
+                    "pool_id": str(item.get("pool_id") or ""),
+                    "user_id": str(item.get("user_id") or ""),
+                    "vmid": int(item.get("vmid") or 0),
+                    "outcome": str(item.get("outcome") or ""),
+                    "saved_wait_seconds": int(item.get("saved_wait_seconds") or 0),
+                }
+            )
+        events.sort(key=lambda item: (item["timestamp"], item["sequence"]), reverse=True)
+        return events
 
     def update_stream_health(self, *, pool_id: str, vmid: int, stream_health: dict[str, Any] | None) -> DesktopLease:
         """Persist stream-health telemetry for one in-use desktop lease."""

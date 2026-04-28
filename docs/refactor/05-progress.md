@@ -4798,3 +4798,25 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `node --check website/ui/scheduler_insights.js website/ui/energy_dashboard.js`
   - `python3 -m pytest tests/unit/test_pool_manager.py tests/unit/test_smart_scheduler.py tests/unit/test_green_scheduling.py tests/unit/test_control_plane_read_surface.py tests/unit/test_authz_policy.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_energy_cost_integration.py tests/unit/test_chargeback_report.py -q`
   - Ergebnis: `71 passed`
+## Update (2026-04-28, GoEnterprise Plan 04/09: Prewarm-Hit-Metrik, Warm-Pool-Apply und Profil-Import)
+
+**Scope**: Drei weitere produktive Enterprise-Reste zusammengezogen. Der Scheduler bewertet Erfolg jetzt nicht mehr nur über Kandidatenlisten, sondern über echte Prewarm-Hit-/Miss-Events aus dem Pool-Manager; das Dashboard kann empfohlene Warm-Pool-Größen direkt anwenden; und das stündliche Energy-Profil hat jetzt einen eigenen Import-Endpunkt statt nur eines allgemeinen Config-Updates.
+
+- Backend:
+  - [beagle-host/services/pool_manager.py](/home/dennis/beagle-os/beagle-host/services/pool_manager.py): persistierte `prewarm_events` inklusive `hit|miss`, `saved_wait_seconds` und Filter-API `list_prewarm_events()`
+  - [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py): `build_warm_pool_recommendations()`, `apply_warm_pool_recommendations()`, `import_energy_hourly_profile()` sowie echte `prewarm_hit_rate`-/Hit-/Miss-Breakdowns in den Scheduler-Insights
+  - [beagle-host/services/control_plane_read_surface.py](/home/dennis/beagle-os/beagle-host/services/control_plane_read_surface.py): neue POST-Surfaces `POST /api/v1/scheduler/warm-pools/apply` und `POST /api/v1/energy/hourly-profile/import`
+  - [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py): neue Mutationsrouten auf `settings:write`
+- WebUI:
+  - [website/ui/scheduler_insights.js](/home/dennis/beagle-os/website/ui/scheduler_insights.js): `Prewarm Hit Rate` und `Warm-Pool Empfehlungen anwenden`
+  - [website/ui/energy_dashboard.js](/home/dennis/beagle-os/website/ui/energy_dashboard.js): `Stundenprofil importieren`
+- Regressionen:
+  - [tests/unit/test_pool_manager.py](/home/dennis/beagle-os/tests/unit/test_pool_manager.py)
+  - [tests/unit/test_control_plane_read_surface.py](/home/dennis/beagle-os/tests/unit/test_control_plane_read_surface.py)
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+- Validierung:
+  - `python3 -m py_compile beagle-host/services/pool_manager.py beagle-host/services/service_registry.py beagle-host/services/control_plane_read_surface.py beagle-host/services/authz_policy.py beagle-host/services/smart_scheduler.py`
+  - `node --check website/ui/scheduler_insights.js website/ui/energy_dashboard.js`
+  - `python3 -m pytest tests/unit/test_pool_manager.py tests/unit/test_control_plane_read_surface.py tests/unit/test_authz_policy.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_smart_scheduler.py tests/unit/test_green_scheduling.py tests/unit/test_energy_cost_integration.py tests/unit/test_chargeback_report.py -q`
+  - Ergebnis: `73 passed`

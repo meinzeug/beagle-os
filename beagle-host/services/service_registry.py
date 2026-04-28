@@ -3096,8 +3096,10 @@ def control_plane_read_surface_service() -> ControlPlaneReadSurfaceService:
             build_scheduler_config_payload=get_scheduler_config,
             build_scheduler_insights_payload=build_scheduler_insights_payload,
             execute_cost_model_update=update_cost_model_payload,
+            execute_energy_hourly_profile_import=import_energy_hourly_profile,
             execute_scheduler_migration=execute_scheduler_migration,
             execute_scheduler_rebalance=execute_scheduler_rebalance,
+            execute_scheduler_warm_pool_apply=apply_warm_pool_recommendations,
             execute_energy_config_update=update_energy_config_payload,
             execute_scheduler_config_update=update_scheduler_config,
             find_support_bundle_metadata=find_support_bundle_metadata,
@@ -3510,6 +3512,35 @@ def update_energy_hourly_profile(payload: dict[str, Any]) -> dict[str, list[floa
     return get_energy_hourly_profile()
 
 
+def import_energy_hourly_profile(payload: dict[str, Any]) -> dict[str, list[float]]:
+    profile_payload = payload.get("hourly_profile") if isinstance(payload.get("hourly_profile"), dict) else {}
+
+    def _parse_csv_series(value: Any) -> list[float]:
+        if not isinstance(value, str):
+            return []
+        values: list[float] = []
+        for item in value.split(","):
+            item = str(item).strip()
+            if not item:
+                continue
+            try:
+                values.append(float(item))
+            except ValueError:
+                continue
+        return values
+
+    imported: dict[str, Any] = {}
+    if "co2_csv" in payload:
+        imported["co2_grams_per_kwh"] = _parse_csv_series(payload.get("co2_csv"))
+    if "price_csv" in payload:
+        imported["electricity_price_per_kwh"] = _parse_csv_series(payload.get("price_csv"))
+    if "co2_grams_per_kwh" in profile_payload:
+        imported["co2_grams_per_kwh"] = profile_payload.get("co2_grams_per_kwh")
+    if "electricity_price_per_kwh" in profile_payload:
+        imported["electricity_price_per_kwh"] = profile_payload.get("electricity_price_per_kwh")
+    return update_energy_hourly_profile(imported)
+
+
 def _hourly_energy_signal(hour: int | None = None) -> tuple[float, float]:
     profile = get_energy_hourly_profile()
     selected_hour = datetime.now(timezone.utc).hour if hour is None else int(hour) % 24
@@ -3633,6 +3664,62 @@ def _smart_pick_pool_node(
         "confidence": result.confidence,
         "alternative_nodes": list(result.alternative_nodes or []),
     }
+
+
+def build_warm_pool_recommendations() -> list[dict[str, Any]]:
+    scheduler_config = get_scheduler_config()
+    minutes_ahead = int(scheduler_config.get("prewarm_minutes_ahead", 15) or 15)
+    recommendations: list[dict[str, Any]] = []
+    for pool in pool_manager_service().list_pools():
+        pool_id = str(pool.pool_id or "").strip()
+        desktops = pool_manager_service().list_pool_desktops(pool_id)
+        free_slots = sum(1 for item in desktops if str(item.get("state") or "") == "free")
+        active_slots = sum(1 for item in desktops if str(item.get("state") or "") == "in_use")
+        prewarm_events = pool_manager_service().list_prewarm_events(pool_id=pool_id)[:50]
+        hits = sum(1 for item in prewarm_events if str(item.get("outcome") or "") == "hit")
+        misses = sum(1 for item in prewarm_events if str(item.get("outcome") or "") == "miss")
+        miss_rate = round(misses / max(1, hits + misses), 4)
+        target = max(int(pool.min_pool_size), int(pool.warm_pool_size))
+        if misses > hits:
+            target = min(int(pool.max_pool_size), max(target, free_slots + misses))
+        elif free_slots > max(1, active_slots) and hits == 0:
+            target = max(int(pool.min_pool_size), min(target, free_slots - 1))
+        if target == int(pool.warm_pool_size):
+            continue
+        recommendations.append(
+            {
+                "pool_id": pool_id,
+                "current_warm_pool_size": int(pool.warm_pool_size),
+                "recommended_warm_pool_size": int(target),
+                "free_slots": int(free_slots),
+                "active_slots": int(active_slots),
+                "prewarm_hits": int(hits),
+                "prewarm_misses": int(misses),
+                "miss_rate": miss_rate,
+                "minutes_ahead": minutes_ahead,
+            }
+        )
+    recommendations.sort(key=lambda item: (item["miss_rate"], item["prewarm_misses"]), reverse=True)
+    return recommendations
+
+
+def apply_warm_pool_recommendations(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    requested = payload.get("recommendations")
+    items = requested if isinstance(requested, list) else build_warm_pool_recommendations()
+    applied: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        pool_id = str(item.get("pool_id") or "").strip()
+        if not pool_id:
+            continue
+        try:
+            target_size = int(item.get("recommended_warm_pool_size") or 0)
+        except (TypeError, ValueError):
+            continue
+        pool_info = pool_manager_service().scale_pool(pool_id, target_size)
+        applied.append({"pool_id": pool_id, "applied_warm_pool_size": int(pool_info.warm_pool_size)})
+    return applied
 
 
 def usage_tracking_service() -> UsageTrackingService:
@@ -3969,11 +4056,6 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
             }
         )
 
-    estimated_saved_cpu_hours = round(len(prewarm_candidates) * (minutes_ahead / 60.0), 2)
-    if estimated_saved_cpu_hours > scheduler_config.get("saved_cpu_hours", 0.0):
-        scheduler_config["saved_cpu_hours"] = estimated_saved_cpu_hours
-        write_json_file(_scheduler_config_file(), scheduler_config)
-
     recommendations = [
         {
             "vm_id": int(rec.vm_id),
@@ -3984,21 +4066,40 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
         }
         for rec in smart_scheduler_service().rebalance_cluster(assignments)[:5]
     ]
+    prewarm_events = pool_manager_service().list_prewarm_events()
     saved_cpu_hours_by_pool: dict[str, dict[str, Any]] = {}
     saved_cpu_hours_by_user: dict[str, dict[str, Any]] = {}
-    for candidate in prewarm_candidates:
-        pool_id = str(candidate.get("pool_id") or "").strip() or "unassigned"
-        user_id = str(candidate.get("user_id") or "").strip() or "ohne user"
-        contribution = round(minutes_ahead / 60.0, 2)
-        pool_bucket = saved_cpu_hours_by_pool.setdefault(pool_id, {"pool_id": pool_id, "candidate_count": 0, "saved_cpu_hours": 0.0})
-        pool_bucket["candidate_count"] += 1
-        pool_bucket["saved_cpu_hours"] = round(float(pool_bucket["saved_cpu_hours"]) + contribution, 2)
-        user_bucket = saved_cpu_hours_by_user.setdefault(user_id, {"user_id": user_id, "candidate_count": 0, "saved_cpu_hours": 0.0})
-        user_bucket["candidate_count"] += 1
-        user_bucket["saved_cpu_hours"] = round(float(user_bucket["saved_cpu_hours"]) + contribution, 2)
+    hit_count = 0
+    miss_count = 0
+    total_saved_wait_seconds = 0
+    for event in prewarm_events:
+        outcome = str(event.get("outcome") or "")
+        if outcome == "hit":
+            hit_count += 1
+        elif outcome == "miss":
+            miss_count += 1
+        saved_wait_seconds = int(event.get("saved_wait_seconds") or 0)
+        total_saved_wait_seconds += saved_wait_seconds
+        contribution = round(saved_wait_seconds / 3600.0, 4)
+        pool_id = str(event.get("pool_id") or "").strip() or "unassigned"
+        user_id = str(event.get("user_id") or "").strip() or "ohne user"
+        pool_bucket = saved_cpu_hours_by_pool.setdefault(pool_id, {"pool_id": pool_id, "hit_count": 0, "miss_count": 0, "saved_cpu_hours": 0.0})
+        user_bucket = saved_cpu_hours_by_user.setdefault(user_id, {"user_id": user_id, "hit_count": 0, "miss_count": 0, "saved_cpu_hours": 0.0})
+        if outcome == "hit":
+            pool_bucket["hit_count"] += 1
+            user_bucket["hit_count"] += 1
+        elif outcome == "miss":
+            pool_bucket["miss_count"] += 1
+            user_bucket["miss_count"] += 1
+        pool_bucket["saved_cpu_hours"] = round(float(pool_bucket["saved_cpu_hours"]) + contribution, 4)
+        user_bucket["saved_cpu_hours"] = round(float(user_bucket["saved_cpu_hours"]) + contribution, 4)
+    estimated_saved_cpu_hours = round(total_saved_wait_seconds / 3600.0, 2)
+    scheduler_config["saved_cpu_hours"] = estimated_saved_cpu_hours
+    write_json_file(_scheduler_config_file(), scheduler_config)
     return {
         "heatmap": heatmap,
         "recommendations": recommendations,
+        "warm_pool_recommendations": build_warm_pool_recommendations(),
         "prewarm_candidates": prewarm_candidates[:5],
         "historical_trend": historical_trend,
         "historical_heatmap": historical_heatmap,
@@ -4007,6 +4108,9 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
         "saved_cpu_hours": round(float(scheduler_config.get("saved_cpu_hours", 0.0) or 0.0), 2),
         "saved_cpu_hours_by_pool": sorted(saved_cpu_hours_by_pool.values(), key=lambda item: (-float(item["saved_cpu_hours"]), item["pool_id"])),
         "saved_cpu_hours_by_user": sorted(saved_cpu_hours_by_user.values(), key=lambda item: (-float(item["saved_cpu_hours"]), item["user_id"])),
+        "prewarm_hit_count": int(hit_count),
+        "prewarm_miss_count": int(miss_count),
+        "prewarm_hit_rate": round(hit_count / max(1, hit_count + miss_count), 4),
         "green_window_active": green_window_active,
     }
 

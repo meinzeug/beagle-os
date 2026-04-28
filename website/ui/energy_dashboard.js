@@ -147,6 +147,7 @@ export async function renderEnergyDashboard() {
       </div>
       <div class="panel-actions">
         <button class="btn btn-primary" id="energy-config-save-btn">Konfiguration speichern</button>
+        <button class="btn btn-secondary" id="energy-hourly-import-btn">Stundenprofil importieren</button>
       </div>
     </section>`;
 
@@ -201,6 +202,28 @@ export async function renderEnergyDashboard() {
       } catch (err) {
         energyHooks.setBanner(`Energy-Konfiguration Fehler: ${err.message ?? err}`);
         saveButton.disabled = false;
+      }
+    });
+  }
+
+  const importButton = container.querySelector('#energy-hourly-import-btn');
+  if (importButton) {
+    importButton.addEventListener('click', async () => {
+      importButton.disabled = true;
+      try {
+        await request('/energy/hourly-profile/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            co2_csv: String(container.querySelector('#energy-hourly-co2')?.value || ''),
+            price_csv: String(container.querySelector('#energy-hourly-price')?.value || ''),
+          }),
+        });
+        energyHooks.setBanner('Stundenprofil importiert.');
+        renderEnergyDashboard();
+      } catch (err) {
+        energyHooks.setBanner(`Import Fehler: ${err.message ?? err}`);
+        importButton.disabled = false;
       }
     });
   }

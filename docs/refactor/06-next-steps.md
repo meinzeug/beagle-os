@@ -277,6 +277,21 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 - `docs/goenterprise/03-gaming-kiosk-pools.md`: verbleibende Testpflicht fuer Gaming-Pool-Allocation ohne GPU sowie Kiosk-/RBAC-E2E sauber abschliessen
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 04/09 telemetry follow-up)
+
+**Zuletzt erledigt**:
+- Prewarm-Erfolg wird jetzt als echte Hit-/Miss-Telemetrie im Pool-Manager persistiert.
+- Warm-Pool-Empfehlungen lassen sich direkt aus dem Scheduler-Panel anwenden.
+- Das stündliche Energy-Profil hat jetzt einen eigenen Import-Endpunkt und eigenen UI-Flow.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 04 weiter operationalisieren**: Warm-Pool-Empfehlungen nicht nur manuell anwenden, sondern optional als sichere Auto-Scale-Policy ausführen.
+2. **Plan 04 Erfolgsmessung vertiefen**: echte Wait-Time-Metrik aus Session-/Provisioning-Pfaden statt pauschalem `saved_wait_seconds`-Default erfassen.
+3. **Plan 09 Feed vervollständigen**: externen Feed-/Importjob für das 24h-CO₂-/Preisprofil periodisch nachziehen.
+4. **Plan 02 live validieren**: Lock-Screen, Wipe und Runtime-Telemetrie weiter gegen echte Thin-Client-Hardware/X11-/Wayland-Sessions abnehmen.
+5. **Plan 07 live validieren**: Fleet-Alerts und Predictive-Maintenance gegen echte Runtime-Events provozieren und Webhook-/UI-Reaktion prüfen.
+
 ## Stand (2026-04-28, GoEnterprise Plan 04/09 productive follow-up)
 
 **Zuletzt erledigt**:

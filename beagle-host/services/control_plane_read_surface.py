@@ -24,8 +24,10 @@ class ControlPlaneReadSurfaceService:
         build_scheduler_config_payload: Callable[[], dict[str, Any]],
         build_scheduler_insights_payload: Callable[[], dict[str, Any]],
         execute_cost_model_update: Callable[[dict[str, Any]], dict[str, Any]],
+        execute_energy_hourly_profile_import: Callable[[dict[str, Any]], dict[str, Any]],
         execute_scheduler_migration: Callable[[int, str, str], dict[str, Any]],
         execute_scheduler_rebalance: Callable[[str], dict[str, Any]],
+        execute_scheduler_warm_pool_apply: Callable[[dict[str, Any]], list[dict[str, Any]]],
         execute_energy_config_update: Callable[[dict[str, Any]], dict[str, Any]],
         execute_scheduler_config_update: Callable[[dict[str, Any]], dict[str, Any]],
         find_support_bundle_metadata: Callable[[str], dict[str, Any] | None],
@@ -51,8 +53,10 @@ class ControlPlaneReadSurfaceService:
         self._build_scheduler_config_payload = build_scheduler_config_payload
         self._build_scheduler_insights_payload = build_scheduler_insights_payload
         self._execute_cost_model_update = execute_cost_model_update
+        self._execute_energy_hourly_profile_import = execute_energy_hourly_profile_import
         self._execute_scheduler_migration = execute_scheduler_migration
         self._execute_scheduler_rebalance = execute_scheduler_rebalance
+        self._execute_scheduler_warm_pool_apply = execute_scheduler_warm_pool_apply
         self._execute_energy_config_update = execute_energy_config_update
         self._execute_scheduler_config_update = execute_scheduler_config_update
         self._find_support_bundle_metadata = find_support_bundle_metadata
@@ -350,6 +354,24 @@ class ControlPlaneReadSurfaceService:
                     **self._envelope(
                         rebalance=self._execute_scheduler_rebalance(requester),
                     ),
+                },
+            )
+
+        if path == "/api/v1/scheduler/warm-pools/apply":
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(applied=self._execute_scheduler_warm_pool_apply(payload)),
+                },
+            )
+
+        if path == "/api/v1/energy/hourly-profile/import":
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(hourly_profile=self._execute_energy_hourly_profile_import(payload)),
                 },
             )
 

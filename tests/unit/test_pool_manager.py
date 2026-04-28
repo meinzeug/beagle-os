@@ -222,6 +222,29 @@ class PoolManagerServiceTests(unittest.TestCase):
         self.assertEqual(items[0]["pool_id"], "pool-list")
         self.assertEqual(items[0]["user_id"], "alice")
 
+    def test_prewarm_events_record_hit_and_miss(self) -> None:
+        service = self._build_service()
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="pool-telemetry",
+                template_id="tpl-1",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+            )
+        )
+        service.register_vm("pool-telemetry", 401)
+        service.allocate_desktop("pool-telemetry", "alice")
+        with self.assertRaises(RuntimeError):
+            service.allocate_desktop("pool-telemetry", "bob")
+        events = service.list_prewarm_events(pool_id="pool-telemetry")
+        self.assertEqual(events[0]["outcome"], "miss")
+        self.assertEqual(events[1]["outcome"], "hit")
+
     def test_kiosk_release_recycles_immediately(self) -> None:
         reset_calls: list[tuple[int, str]] = []
         stop_calls: list[int] = []

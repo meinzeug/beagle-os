@@ -95,6 +95,16 @@ function breakdownRow(item, key) {
   </tr>`;
 }
 
+function warmPoolRow(item) {
+  return `<tr>
+    <td>${escapeHtml(String(item.pool_id ?? '-'))}</td>
+    <td>${escapeHtml(String(item.current_warm_pool_size ?? 0))}</td>
+    <td>${escapeHtml(String(item.recommended_warm_pool_size ?? 0))}</td>
+    <td>${escapeHtml(String(item.prewarm_hits ?? 0))} / ${escapeHtml(String(item.prewarm_misses ?? 0))}</td>
+    <td>${escapeHtml(String(Math.round(Number(item.miss_rate ?? 0) * 100)))}%</td>
+  </tr>`;
+}
+
 export async function renderSchedulerInsights() {
   const container = qs('scheduler-insights-panel');
   if (!container) return;
@@ -111,6 +121,10 @@ export async function renderSchedulerInsights() {
   let savedCpuHours = 0;
   let savedCpuHoursByPool = [];
   let savedCpuHoursByUser = [];
+  let warmPoolRecommendations = [];
+  let prewarmHitCount = 0;
+  let prewarmMissCount = 0;
+  let prewarmHitRate = 0;
   let greenWindowActive = false;
   try {
     const data = await request('/scheduler/insights');
@@ -124,6 +138,10 @@ export async function renderSchedulerInsights() {
     savedCpuHours = Number(data.saved_cpu_hours || 0);
     savedCpuHoursByPool = Array.isArray(data.saved_cpu_hours_by_pool) ? data.saved_cpu_hours_by_pool : [];
     savedCpuHoursByUser = Array.isArray(data.saved_cpu_hours_by_user) ? data.saved_cpu_hours_by_user : [];
+    warmPoolRecommendations = Array.isArray(data.warm_pool_recommendations) ? data.warm_pool_recommendations : [];
+    prewarmHitCount = Number(data.prewarm_hit_count || 0);
+    prewarmMissCount = Number(data.prewarm_miss_count || 0);
+    prewarmHitRate = Number(data.prewarm_hit_rate || 0);
     greenWindowActive = Boolean(data.green_window_active);
   } catch (err) {
     container.innerHTML = `<p class="error">Fehler: ${escapeHtml(String(err.message ?? err))}</p>`;
@@ -198,6 +216,12 @@ export async function renderSchedulerInsights() {
         <tbody>${savedCpuHoursByUser.map((item) => breakdownRow(item, 'user_id')).join('')}</tbody>
       </table>`
     : '<div class="empty-card">Keine User-Auswertung verfügbar.</div>';
+  const warmPoolHtml = warmPoolRecommendations.length > 0
+    ? `<table class="data-table">
+        <thead><tr><th>Pool</th><th>Warm aktuell</th><th>Empfohlen</th><th>Hits / Misses</th><th>Miss-Rate</th></tr></thead>
+        <tbody>${warmPoolRecommendations.map(warmPoolRow).join('')}</tbody>
+      </table>`
+    : '<div class="empty-card">Keine Warm-Pool-Empfehlungen erforderlich.</div>';
 
   container.innerHTML = `
     <section class="panel-section">
@@ -217,6 +241,7 @@ export async function renderSchedulerInsights() {
       <h3>Prewarm und Green Scheduling</h3>
       <p class="muted-text">Geschätzte eingesparte CPU-Stunden: <strong>${escapeHtml(String(savedCpuHours.toFixed(2)))}</strong></p>
       <p class="muted-text">Green Window aktuell: <strong>${greenWindowActive ? 'aktiv' : 'inaktiv'}</strong></p>
+      <p class="muted-text">Prewarm Hit Rate: <strong>${escapeHtml(String(Math.round(prewarmHitRate * 100)))}%</strong> (${escapeHtml(String(prewarmHitCount))} Hits / ${escapeHtml(String(prewarmMissCount))} Misses)</p>
       ${prewarmHtml}
       ${trendHtml}
       ${forecastHtml}
@@ -227,6 +252,11 @@ export async function renderSchedulerInsights() {
       <div class="section-spaced-tight">
         <h4>Saved CPU-Hours nach User</h4>
         ${byUserHtml}
+      </div>
+      <div class="section-spaced-tight">
+        <h4>Warm-Pool Empfehlungen</h4>
+        ${warmPoolHtml}
+        <div class="panel-actions"><button class="btn btn-secondary" id="scheduler-apply-warm-pools-btn">Warm-Pool Empfehlungen anwenden</button></div>
       </div>
       <div class="detail-grid section-spaced-tight">
         <label>Prewarm Minuten<input id="scheduler-config-prewarm" type="number" min="5" max="180" step="1" value="${escapeHtml(String(config.prewarm_minutes_ahead ?? 15))}"></label>
@@ -302,6 +332,25 @@ export async function renderSchedulerInsights() {
       } catch (err) {
         schedulerHooks.setBanner(`Scheduler-Konfiguration Fehler: ${err.message ?? err}`);
         saveConfigButton.disabled = false;
+      }
+    });
+  }
+
+  const applyWarmPoolsButton = container.querySelector('#scheduler-apply-warm-pools-btn');
+  if (applyWarmPoolsButton) {
+    applyWarmPoolsButton.addEventListener('click', async () => {
+      applyWarmPoolsButton.disabled = true;
+      try {
+        await request('/scheduler/warm-pools/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recommendations: warmPoolRecommendations }),
+        });
+        schedulerHooks.setBanner('Warm-Pool Empfehlungen angewendet.');
+        renderSchedulerInsights();
+      } catch (err) {
+        schedulerHooks.setBanner(`Warm-Pool Fehler: ${err.message ?? err}`);
+        applyWarmPoolsButton.disabled = false;
       }
     });
   }
