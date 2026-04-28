@@ -12,6 +12,8 @@ INSTALL_HOSTNAME=""
 INSTALL_USERNAME=""
 INSTALL_PASSWORD=""
 INSTALL_DISK=""
+INSTALL_RAID_LEVEL="0"
+INSTALL_RAID_DISKS=""
 INSTALL_CLUSTER_JOIN="no"
 INSTALL_CLUSTER_JOIN_TARGET=""
 INSTALL_NETWORK_INTERFACE=""
@@ -378,6 +380,7 @@ emit("INSTALL_NETWORK_IP", str(config.network.ip or ""))
 emit("INSTALL_NETWORK_GATEWAY", str(config.network.gateway or ""))
 emit("INSTALL_NETWORK_DNS", ",".join(str(item) for item in (config.network.dns or [])))
 emit("INSTALL_RAID_LEVEL", str(config.raid))
+emit("INSTALL_RAID_DISKS", ",".join(str(item) for item in ((config.disks or []) or ([config.disk] if config.disk else []))))
 PY
   )" || {
     echo "Seed config validation failed: $seed_file" >&2
@@ -397,11 +400,61 @@ PY
     echo "Seed config must provide admin_password for zero-touch install." >&2
     exit 1
   }
-  if [[ "${INSTALL_RAID_LEVEL:-0}" != "0" ]]; then
-    echo "Seed config raid=${INSTALL_RAID_LEVEL} is not supported by the current single-disk installer." >&2
-    exit 1
-  fi
   log "loaded seed config from $seed_file"
+}
+
+raid_min_disks() {
+  case "${1:-0}" in
+    0) printf '1\n' ;;
+    1) printf '2\n' ;;
+    5) printf '3\n' ;;
+    10) printf '4\n' ;;
+    *) printf '999\n' ;;
+  esac
+}
+
+prompt_raid_level() {
+  local answer=""
+  while true; do
+    answer="$(prompt_value 'RAID level (0|1|5|10)' '${INSTALL_RAID_LEVEL:-0}')"
+    case "$answer" in
+      0|1|5|10)
+        printf '%s\n' "$answer"
+        return 0
+        ;;
+    esac
+    echo "Please select one of: 0, 1, 5, 10" >&2
+  done
+}
+
+prompt_raid_disks() {
+  local required="$1"
+  shift
+  local disks=("$@")
+  local answer="" idx="" selected=() token=""
+
+  printf '\nSelect %s disk(s) for RAID:\n' "$required" >&2
+  for idx in "${!disks[@]}"; do
+    printf '%s) %s\n' "$((idx + 1))" "${disks[$idx]}" >&2
+  done
+  printf 'Enter comma-separated numbers (e.g. 1,2): ' >&2
+  read -r answer
+  answer="${answer//$'\r'/}"
+  IFS=',' read -r -a selected <<<"$answer"
+  local -a out=()
+  for token in "${selected[@]}"; do
+    token="$(printf '%s' "$token" | xargs)"
+    [[ "$token" =~ ^[0-9]+$ ]] || continue
+    if (( token >= 1 && token <= ${#disks[@]} )); then
+      out+=("${disks[$((token - 1))]}")
+    fi
+  done
+  if (( ${#out[@]} < required )); then
+    echo "Not enough disks selected for RAID level. Required: $required" >&2
+    return 1
+  fi
+  out=("${out[@]:0:$required}")
+  (IFS=','; printf '%s\n' "${out[*]}")
 }
 
 current_live_disks() {
@@ -783,7 +836,16 @@ install_host_provider_packages() {
   fi
   chroot_run_with_retry \
     "install standalone host packages" \
-    "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server fail2ban unattended-upgrades apt-listchanges nftables git python3 rsync certbot python3-certbot-nginx nginx websockify linux-image-amd64 grub-pc grub-efi-amd64-bin efibootmgr dosfstools libvirt-daemon-system qemu-system-x86 qemu-utils"
+    "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server fail2ban unattended-upgrades apt-listchanges nftables git python3 rsync certbot python3-certbot-nginx nginx websockify linux-image-amd64 grub-pc grub-efi-amd64-bin efibootmgr dosfstools mdadm libvirt-daemon-system qemu-system-x86 qemu-utils"
+}
+
+configure_target_raid() {
+  if [[ "${INSTALL_RAID_LEVEL:-0}" == "0" ]]; then
+    return 0
+  fi
+  chroot_run "mkdir -p /etc/mdadm"
+  chroot_run "mdadm --detail --scan > /etc/mdadm/mdadm.conf"
+  chroot_run "update-initramfs -u"
 }
 
 install_beagle_host_stack() {
@@ -936,7 +998,16 @@ NFTEOF
 
 install_bootloader() {
   local disk="$1"
-  chroot_run "grub-install --target=i386-pc --recheck '$disk'"
+  local disk_item=""
+  local disks_csv="${INSTALL_RAID_DISKS:-$disk}"
+  local -a disks=()
+  IFS=',' read -r -a disks <<<"$disks_csv"
+  if (( ${#disks[@]} == 0 )); then
+    disks=("$disk")
+  fi
+  for disk_item in "${disks[@]}"; do
+    chroot_run "grub-install --target=i386-pc --recheck '$disk_item'"
+  done
   chroot_run "grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=debian --recheck --no-nvram --removable"
   chroot_run "update-grub"
 }
@@ -998,6 +1069,8 @@ load_gui_state() {
   INSTALL_USERNAME="${BEAGLE_GUI_USERNAME:-}"
   INSTALL_PASSWORD="${BEAGLE_GUI_PASSWORD:-}"
   INSTALL_DISK="${BEAGLE_GUI_TARGET_DISK:-}"
+  INSTALL_RAID_LEVEL="${BEAGLE_GUI_RAID_LEVEL:-0}"
+  INSTALL_RAID_DISKS="${BEAGLE_GUI_RAID_DISKS:-$INSTALL_DISK}"
   INSTALL_CLUSTER_JOIN="${BEAGLE_GUI_CLUSTER_JOIN:-no}"
   INSTALL_CLUSTER_JOIN_TARGET="${BEAGLE_GUI_CLUSTER_JOIN_TARGET:-}"
 }
@@ -1056,6 +1129,23 @@ main() {
     }
     INSTALL_PASSWORD="$(prompt_password)"
     INSTALL_DISK="$(choose_target_disk)"
+    INSTALL_RAID_LEVEL="$(prompt_raid_level)"
+    INSTALL_RAID_DISKS="$INSTALL_DISK"
+    if [[ "$INSTALL_RAID_LEVEL" != "0" ]]; then
+      local required_disks all_disks_csv
+      required_disks="$(raid_min_disks "$INSTALL_RAID_LEVEL")"
+      all_disks_csv="$({ lsblk -dn -o NAME,TYPE | awk '$2=="disk" {print "/dev/"$1}' | paste -sd, -; } 2>/dev/null || true)"
+      if [[ -n "$all_disks_csv" ]]; then
+        IFS=',' read -r -a all_disks <<<"$all_disks_csv"
+      else
+        all_disks=("$INSTALL_DISK")
+      fi
+      if (( ${#all_disks[@]} < required_disks )); then
+        echo "Not enough disks for RAID level $INSTALL_RAID_LEVEL (required: $required_disks)." >&2
+        exit 1
+      fi
+      INSTALL_RAID_DISKS="$(prompt_raid_disks "$required_disks" "${all_disks[@]}")" || exit 1
+    fi
     confirm_wipe "$INSTALL_DISK" || {
       echo "Installation cancelled."
       exit 1
@@ -1077,6 +1167,8 @@ main() {
   log "hostname: $INSTALL_HOSTNAME"
   log "username: $INSTALL_USERNAME"
   log "disk: $INSTALL_DISK"
+  log "raid level: $INSTALL_RAID_LEVEL"
+  log "raid disks: ${INSTALL_RAID_DISKS:-$INSTALL_DISK}"
   log "cluster join requested: $INSTALL_CLUSTER_JOIN"
 
   PRIMARY_IFACE="$(detect_primary_iface)"
@@ -1088,25 +1180,58 @@ main() {
     exit 1
   }
 
-  local bios_part boot_part root_part
-  bios_part="$(partition_suffix "$INSTALL_DISK" 1)"
-  boot_part="$(partition_suffix "$INSTALL_DISK" 2)"
-  root_part="$(partition_suffix "$INSTALL_DISK" 3)"
+  local boot_part root_device primary_install_disk required_disks
+  local -a raid_disks=() root_parts=()
+  local disk_item="" disk_csv=""
+
+  disk_csv="${INSTALL_RAID_DISKS:-$INSTALL_DISK}"
+  IFS=',' read -r -a raid_disks <<<"$disk_csv"
+  if (( ${#raid_disks[@]} == 0 )); then
+    raid_disks=("$INSTALL_DISK")
+  fi
+  primary_install_disk="${raid_disks[0]}"
+  INSTALL_DISK="$primary_install_disk"
+  required_disks="$(raid_min_disks "$INSTALL_RAID_LEVEL")"
+  if (( ${#raid_disks[@]} < required_disks )); then
+    echo "RAID level $INSTALL_RAID_LEVEL requires at least $required_disks disk(s)." >&2
+    exit 1
+  fi
 
   mkdir -p "$TARGET_MOUNT" "$EFI_MOUNT"
-  run_logged wipefs -a "$INSTALL_DISK"
-  run_logged parted -s "$INSTALL_DISK" mklabel gpt
-  run_logged parted -s "$INSTALL_DISK" mkpart BIOSBOOT 1MiB 3MiB
-  run_logged parted -s "$INSTALL_DISK" set 1 bios_grub on
-  run_logged parted -s "$INSTALL_DISK" mkpart ESP fat32 3MiB 1027MiB
-  run_logged parted -s "$INSTALL_DISK" set 2 esp on
-  run_logged parted -s "$INSTALL_DISK" set 2 boot on
-  run_logged parted -s "$INSTALL_DISK" mkpart primary ext4 1027MiB 100%
-  run_logged partprobe "$INSTALL_DISK"
+  for disk_item in "${raid_disks[@]}"; do
+    run_logged wipefs -a "$disk_item"
+    run_logged parted -s "$disk_item" mklabel gpt
+    run_logged parted -s "$disk_item" mkpart BIOSBOOT 1MiB 3MiB
+    run_logged parted -s "$disk_item" set 1 bios_grub on
+    run_logged parted -s "$disk_item" mkpart ESP fat32 3MiB 1027MiB
+    run_logged parted -s "$disk_item" set 2 esp on
+    run_logged parted -s "$disk_item" set 2 boot on
+    run_logged parted -s "$disk_item" mkpart primary ext4 1027MiB 100%
+    run_logged partprobe "$disk_item"
+  done
   run_logged udevadm settle
+
+  boot_part="$(partition_suffix "$primary_install_disk" 2)"
+  for disk_item in "${raid_disks[@]}"; do
+    root_parts+=("$(partition_suffix "$disk_item" 3)")
+  done
+
   run_logged mkfs.vfat -F 32 -n BEAGLEBOOT "$boot_part"
-  run_logged mkfs.ext4 -F -L BEAGLEROOT "$root_part"
-  run_logged mount "$root_part" "$TARGET_MOUNT"
+  if [[ "$INSTALL_RAID_LEVEL" == "0" ]]; then
+    root_device="${root_parts[0]}"
+    run_logged mkfs.ext4 -F -L BEAGLEROOT "$root_device"
+  else
+    command -v mdadm >/dev/null 2>&1 || {
+      echo "mdadm is required for RAID installations." >&2
+      exit 1
+    }
+    run_logged mdadm --stop /dev/md0 || true
+    run_logged mdadm --zero-superblock "${root_parts[@]}" || true
+    run_logged mdadm --create /dev/md0 --run --metadata=1.2 --level "$INSTALL_RAID_LEVEL" --raid-devices "${#root_parts[@]}" "${root_parts[@]}"
+    root_device="/dev/md0"
+    run_logged mkfs.ext4 -F -L BEAGLEROOT "$root_device"
+  fi
+  run_logged mount "$root_device" "$TARGET_MOUNT"
   mkdir -p "$EFI_MOUNT"
   run_logged mount "$boot_part" "$EFI_MOUNT"
 
@@ -1116,10 +1241,12 @@ main() {
   step "Installing base system (debootstrap) - this takes several minutes..."
   install_base_system
   step "Configuring base system..."
-  configure_base_system "$boot_part" "$root_part"
+  configure_base_system "$boot_part" "$root_device"
   mount_chroot_fs
   step "Installing packages (apt) - this takes several minutes..."
   install_target_packages
+  step "Configuring RAID in target system..."
+  configure_target_raid
   step "Hardening system..."
   harden_system
   step "Installing Beagle host stack..."

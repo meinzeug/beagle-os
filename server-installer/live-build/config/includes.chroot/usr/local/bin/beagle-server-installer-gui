@@ -476,6 +476,127 @@ def validate_cluster_join_target(v: str):
     return True, ""
 
 
+def raid_required_disks(level: int) -> int:
+    if level == 0:
+        return 1
+    if level == 1:
+        return 2
+    if level == 5:
+        return 3
+    if level == 10:
+        return 4
+    return 999
+
+
+def available_raid_levels(disk_count: int) -> list[int]:
+    levels = [0]
+    if disk_count >= 2:
+        levels.append(1)
+    if disk_count >= 3:
+        levels.append(5)
+    if disk_count >= 4:
+        levels.append(10)
+    return levels
+
+
+def choose_raid_member_disks_plain(disks: list[tuple[str, str, str]], required: int, default_disk: str) -> list[str]:
+    print()
+    print(f"Select {required} disk(s) for RAID:")
+    for index, (dev, size, model) in enumerate(disks, start=1):
+        print(f"  {index}) {dev:<12} {size:>8}  {model}")
+    while True:
+        raw = input("Enter comma-separated disk numbers: ").strip()
+        selected: list[str] = []
+        for token in raw.split(","):
+            token = token.strip()
+            if not token.isdigit():
+                continue
+            idx = int(token)
+            if 1 <= idx <= len(disks):
+                selected.append(disks[idx - 1][0])
+        # Keep order, remove duplicates.
+        deduped: list[str] = []
+        for dev in selected:
+            if dev not in deduped:
+                deduped.append(dev)
+        if default_disk and default_disk not in deduped:
+            deduped.insert(0, default_disk)
+        if len(deduped) >= required:
+            return deduped[:required]
+        print(f"Please select at least {required} valid disk(s).")
+
+
+def screen_select_raid_level(stdscr, levels: list[int]) -> int:
+    items = []
+    for level in levels:
+        if level == 0:
+            items.append(("RAID0", "single disk / striped mode"))
+        elif level == 1:
+            items.append(("RAID1", "mirroring"))
+        elif level == 5:
+            items.append(("RAID5", "striped with parity"))
+        elif level == 10:
+            items.append(("RAID10", "striped mirrors"))
+    selected = screen_menu(
+        stdscr,
+        title="RAID Level",
+        prompt="Select RAID level for root filesystem:",
+        items=items,
+        default_idx=0,
+    )
+    return levels[selected]
+
+
+def screen_select_raid_disks(stdscr, disks: list[tuple[str, str, str]], required: int, default_disk: str) -> list[str]:
+    curses.curs_set(0)
+    sh, sw = stdscr.getmaxyx()
+    cols = clamp(76, 62, sw - 4)
+    rows = clamp(len(disks) + 11, 14, sh - 4)
+    win = popup(stdscr, rows, cols)
+    index = 0
+    selected = {default_disk} if default_disk else set()
+    while True:
+        draw_box(win, "Select RAID Member Disks", C_CHROME)
+        _, ww = win.getmaxyx()
+        try:
+            win.addstr(2, 3, f"Select exactly {required} disk(s) for RAID.", curses.color_pair(C_ACCENT) | curses.A_BOLD)
+            win.addstr(3, 3, "SPACE toggle selection, ENTER confirm", curses.color_pair(C_DIM))
+        except curses.error:
+            pass
+        for i, (dev, size, model) in enumerate(disks):
+            row = 5 + i
+            if row >= rows - 2:
+                break
+            mark = "x" if dev in selected else " "
+            label = f"{'>' if i == index else ' '} [{mark}] {dev:<12} {size:>8}  {model}"
+            attr = curses.color_pair(C_SELECTED) | curses.A_BOLD if i == index else curses.color_pair(C_BODY)
+            try:
+                win.addstr(row, 2, label[:ww - 4].ljust(ww - 4), attr)
+            except curses.error:
+                pass
+        status = f"Selected: {len(selected)}/{required}"
+        try:
+            win.addstr(rows - 2, 3, status[: ww - 6], curses.color_pair(C_DIM) | curses.A_BOLD)
+        except curses.error:
+            pass
+        win.refresh()
+        key = win.getch()
+        if key in (curses.KEY_UP, ord("k")):
+            index = (index - 1) % len(disks)
+        elif key in (curses.KEY_DOWN, ord("j")):
+            index = (index + 1) % len(disks)
+        elif key == ord(" "):
+            dev = disks[index][0]
+            if dev in selected:
+                selected.remove(dev)
+            else:
+                selected.add(dev)
+        elif key in (curses.KEY_ENTER, ord("\n"), ord("\r")):
+            if len(selected) >= required:
+                ordered = [dev for dev, _, _ in disks if dev in selected]
+                return ordered[:required]
+
+
 def write_state(state: dict) -> None:
     os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
     with open(STATE_FILE, "w", encoding="utf-8") as file_handle:
@@ -594,6 +715,17 @@ def plain_main() -> dict:
         print("No suitable target disk found.", file=sys.stderr)
         sys.exit(1)
     target_disk = plain_select_disk(disks)
+    raid_levels = available_raid_levels(len(disks))
+    raid_default = "0"
+    raid_choice = plain_prompt(
+        "Select RAID level (" + "|".join(str(item) for item in raid_levels) + ")",
+        raid_default,
+        lambda v: ((True, "") if v.isdigit() and int(v) in raid_levels else (False, "unsupported RAID level for available disks")),
+    )
+    raid_level = int(raid_choice)
+    raid_disks = [target_disk]
+    if raid_level != 0:
+        raid_disks = choose_raid_member_disks_plain(disks, raid_required_disks(raid_level), target_disk)
     if not plain_confirm_wipe(target_disk):
         sys.exit(0)
     cluster_join = plain_confirm_cluster_join()
@@ -610,6 +742,8 @@ def plain_main() -> dict:
         "BEAGLE_GUI_USERNAME": username,
         "BEAGLE_GUI_PASSWORD": password,
         "BEAGLE_GUI_TARGET_DISK": target_disk,
+        "BEAGLE_GUI_RAID_LEVEL": str(raid_level),
+        "BEAGLE_GUI_RAID_DISKS": ",".join(raid_disks),
         "BEAGLE_GUI_CLUSTER_JOIN": "yes" if cluster_join else "no",
         "BEAGLE_GUI_CLUSTER_JOIN_TARGET": cluster_join_target,
     }
@@ -635,6 +769,10 @@ def tui_main(stdscr) -> dict:
         print("No suitable target disk found.", file=sys.stderr)
         sys.exit(1)
     target_disk = screen_disk_select(stdscr, disks)
+    raid_level = screen_select_raid_level(stdscr, available_raid_levels(len(disks)))
+    raid_disks = [target_disk]
+    if raid_level != 0:
+        raid_disks = screen_select_raid_disks(stdscr, disks, raid_required_disks(raid_level), target_disk)
     if not screen_confirm_wipe(stdscr, target_disk):
         sys.exit(0)
     join_index = screen_menu(
@@ -663,6 +801,8 @@ def tui_main(stdscr) -> dict:
         "BEAGLE_GUI_USERNAME": username,
         "BEAGLE_GUI_PASSWORD": password,
         "BEAGLE_GUI_TARGET_DISK": target_disk,
+        "BEAGLE_GUI_RAID_LEVEL": str(raid_level),
+        "BEAGLE_GUI_RAID_DISKS": ",".join(raid_disks),
         "BEAGLE_GUI_CLUSTER_JOIN": "yes" if cluster_join else "no",
         "BEAGLE_GUI_CLUSTER_JOIN_TARGET": cluster_join_target,
     }

@@ -53,6 +53,7 @@ def test_parse_minimal_yaml():
     cfg = parse(MINIMAL_YAML)
     assert cfg.hostname == "beagle-node-01"
     assert cfg.disk == "/dev/sda"
+    assert cfg.disks == ["/dev/sda"]
     assert cfg.raid == 0
     assert cfg.network.mode == "dhcp"
 
@@ -115,6 +116,32 @@ def test_validate_invalid_raid_level():
     cfg.raid = 3
     errors = SeedConfigParser().validate(cfg)
     assert any("raid" in e for e in errors)
+
+
+def test_validate_raid1_requires_two_disks():
+        cfg = parse(MINIMAL_YAML)
+        cfg.raid = 1
+        cfg.disks = ["/dev/sda"]
+        errors = SeedConfigParser().validate(cfg)
+        assert any("raid=1 requires at least two disks" in e for e in errors)
+
+
+def test_parse_explicit_disks_list_for_raid():
+        yaml = """\
+hostname: beagle-node-02
+disk: /dev/sda
+disks:
+    - /dev/sda
+    - /dev/sdb
+raid: 1
+admin_password: secret
+network:
+    mode: dhcp
+"""
+        cfg = parse(yaml)
+        assert cfg.raid == 1
+        assert cfg.disks == ["/dev/sda", "/dev/sdb"]
+        assert SeedConfigParser().validate(cfg) == []
 
 
 def test_validate_static_without_gateway():

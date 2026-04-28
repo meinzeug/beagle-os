@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 08 Schritt 1 RAID closed)
+
+**Zuletzt erledigt**:
+- Der offene Plan-08-Schritt-1-Rest wurde geschlossen: Installer unterstuetzt jetzt RAID `0/1/5/10` inkl. Multi-Disk-Flow (Seed + TUI/Plain).
+- Validierung lokal und auf `srv1` ist gruen (`24 passed`).
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 09 Restpunkt**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob mit Retry/Alerting umsetzen.
+2. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+3. **Plan 01**: verbleibenden BeagleStream-Fork-/Client-Fork-Block priorisieren und in kleine implementierbare Slices schneiden.
+4. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+
 ## Stand (2026-04-28, GoEnterprise Plan 02 testpflicht completed)
 
 **Zuletzt erledigt**:

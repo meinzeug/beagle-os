@@ -1,3 +1,27 @@
+## Update (2026-04-28, GoEnterprise Plan 08: Schritt-1-RAID-Mehrdisk geschlossen)
+
+**Scope**: Der letzte offene Plan-08-Schritt (`TUI-Installer ueberarbeiten`) ist im technischen Kern geschlossen: RAID-Mehrdisk (`0/1/5/10`) ist jetzt im Seed- und interaktiven Installer-Flow implementiert und getestet.
+
+- Installer:
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+    - verarbeitet `INSTALL_RAID_LEVEL` + `INSTALL_RAID_DISKS`
+    - erstellt bei RAID `1/5/10` ein `mdadm`-Root-Array und konfiguriert `mdadm.conf` + `initramfs`
+    - installiert GRUB-BIOS auf allen RAID-Member-Disks
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer-gui`
+    - RAID-Level-Auswahl anhand erkannter Disk-Anzahl
+    - Multi-Disk-Auswahl fuer RAID-Member im TUI-/Plain-Flow
+  - `server-installer/seed_config_parser.py`
+    - unterstuetzt `disks`-Liste im Seed-Format und validiert Mindestanzahl je RAID-Level
+- Tests:
+  - `tests/unit/test_seed_config_parser.py`
+  - `tests/unit/test_goenterprise_installer_acceptance.py`
+  - bestehende Validierungs-Suite: `tests/unit/test_installer_validation.py`
+- Doku:
+  - `docs/goenterprise/08-all-in-one-installer.md`: Schritt-1-Checkbox auf `[x]` gesetzt, RAID-Closure dokumentiert
+- Validierung:
+  - Lokal: `python3 -m pytest tests/unit/test_seed_config_parser.py tests/unit/test_installer_validation.py tests/unit/test_goenterprise_installer_acceptance.py -q` -> `24 passed`
+  - `srv1`: identischer Lauf in `/tmp/beagle-os-plan08-raid-test` -> `24 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 02: WireGuard-Enrollment + offene Testpflicht geschlossen)
 
 **Scope**: Die verbleibenden offenen Testpunkte in Plan 02 (`WireGuard nach Enrollment` + kompletter `Testpflicht nach Abschluss`-Block) mit dedizierter Regression geschlossen.

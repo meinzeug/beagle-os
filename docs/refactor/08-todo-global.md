@@ -31,6 +31,7 @@
 ## Update 2026-04-28 (GoEnterprise Plan 02)
 
 - [x] GoEnterprise Plan 08: offene Testpflicht (TUI-5-Schritte-Flow, Seed ohne Dialog, PXE+DHCP-Seed-Handover) mit Acceptance-Suite und `srv1`-Lauf schliessen.
+- [x] GoEnterprise Plan 08: Schritt-1-Rest `RAID0/1/5/10` im Installer als Multi-Disk-Flow (Seed + TUI/Plain + mdadm Root) umsetzen.
 
 - [x] GoEnterprise Plan 07: offene Testpflicht (SMART-Telemetrie, Disk-Trend-Anomalie <=7d, disk_failure_predicted Webhook-Alert, Maintenance mit automatischer VM-Migration) mit Acceptance-Suite und `srv1`-Lauf schliessen.
 

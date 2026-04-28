@@ -39,7 +39,7 @@ Priorität: 8.1.1 (Q4 2026)
 
 ### Schritt 1 — Interaktiver TUI-Installer (Verbesserung)
 
-- [ ] `server-installer/`: TUI-Installer (via `whiptail` oder `dialog`) überarbeiten:
+- [x] `server-installer/`: TUI-Installer (via `whiptail` oder `dialog`) überarbeiten:
   - Schritt 1: Sprache/Tastatur
   - Schritt 2: Disk-Auswahl + RAID-Level (RAID0/1/5/10) — automatisch erkannte Disks anzeigen
   - Schritt 3: Netzwerk (DHCP oder statisch, mit Test-Ping)
@@ -139,4 +139,19 @@ Priorität: 8.1.1 (Q4 2026)
 
 ### Bekannte Restgrenze
 
-- Der aktuelle Zero-Touch-Pfad akzeptiert nur `raid: 0`. Mehrdisk-RAID im Installer bleibt als eigener offener TUI-/Storage-Block bestehen.
+- Mehrdisk-RAID ist jetzt im Installer umgesetzt (`raid: 1/5/10` via Seed und interaktivem GUI-/Text-Flow).
+- Die verbleibende Restgrenze in Schritt 1 betrifft weiterhin explizit Sprache/Tastatur- sowie vollstaendige Netzwerk-TUI-Dialoge mit Live-Test-Ping als eigener UX-Verfeinerungsblock.
+
+### Update 2026-04-28 (RAID-Mehrdisk im Installer geschlossen)
+
+- `beagle-server-installer` unterstuetzt jetzt Root-RAID fuer `0/1/5/10`:
+  - Seed-Config ueber `raid` + `disks` Liste
+  - GUI-/Plain-Flow mit RAID-Level-Auswahl und Disk-Mitgliederauswahl
+  - mdadm-Array fuer Root-Dateisystem, `mdadm.conf` + `initramfs` im Zielsystem
+  - GRUB BIOS-Install auf allen RAID-Member-Disks
+- Reproduzierbare Tests erweitert:
+  - `tests/unit/test_seed_config_parser.py`
+  - `tests/unit/test_goenterprise_installer_acceptance.py`
+- Validierung:
+  - Lokal: `python3 -m pytest tests/unit/test_seed_config_parser.py tests/unit/test_installer_validation.py tests/unit/test_goenterprise_installer_acceptance.py -q` -> `24 passed`
+  - `srv1`: identischer Lauf in `/tmp/beagle-os-plan08-raid-test` -> `24 passed`

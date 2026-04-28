@@ -49,13 +49,15 @@ def test_plain_installer_flow_covers_all_steps_with_validation(monkeypatch):
     # 2) Username: invalid -> valid
     # 3) Password: mismatch -> valid
     # 4) Disk selection: invalid index -> valid index
-    # 5) Cluster-join: yes, then invalid target -> valid target
+    # 5) RAID-Level: choose single disk mode
+    # 6) Cluster-join: yes, then invalid target -> valid target
     answers = iter(
         [
             "Beagle Host", "beagle-host-01",  # hostname
             "Admin!", "beagle",               # username
             "secret-1", "secret-2", "secret-1", "secret-1",  # password + confirm
             "9", "1",                         # disk select
+            "0",                               # raid level
             "YES",                              # wipe confirmation
             "yes",                              # cluster join
             "   ", "10.10.0.15",              # cluster join target
@@ -76,6 +78,8 @@ def test_plain_installer_flow_covers_all_steps_with_validation(monkeypatch):
     assert state["BEAGLE_GUI_USERNAME"] == "beagle"
     assert state["BEAGLE_GUI_PASSWORD"] == "secret-1"
     assert state["BEAGLE_GUI_TARGET_DISK"] == "/dev/sda"
+    assert state["BEAGLE_GUI_RAID_LEVEL"] == "0"
+    assert state["BEAGLE_GUI_RAID_DISKS"] == "/dev/sda"
     assert state["BEAGLE_GUI_CLUSTER_JOIN"] == "yes"
     assert state["BEAGLE_GUI_CLUSTER_JOIN_TARGET"] == "10.10.0.15"
 

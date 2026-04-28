@@ -29,6 +29,7 @@ class ClusterConfig:
 class SeedConfig:
     hostname: str
     disk: str               # e.g. "/dev/sda"
+    disks: list[str]        # one or more target disks
     raid: int               # 0, 1, 5, 10 (0 = no RAID / single disk)
     network: NetworkConfig
     cluster: ClusterConfig
@@ -75,8 +76,23 @@ class SeedConfigParser:
         if not self.DISK_PATTERN.match(config.disk):
             errors.append(f"disk must be a /dev/... path, got: {config.disk!r}")
 
+        disks = list(config.disks or [])
+        if not disks:
+            errors.append("disks must contain at least one /dev/... path")
+        for item in disks:
+            if not self.DISK_PATTERN.match(str(item)):
+                errors.append(f"disk entry must be a /dev/... path, got: {item!r}")
+
         if config.raid not in self.VALID_RAID_LEVELS:
             errors.append(f"raid must be one of {self.VALID_RAID_LEVELS}, got: {config.raid}")
+        if config.raid == 0 and len(disks) < 1:
+            errors.append("raid=0 requires at least one disk")
+        if config.raid == 1 and len(disks) < 2:
+            errors.append("raid=1 requires at least two disks")
+        if config.raid == 5 and len(disks) < 3:
+            errors.append("raid=5 requires at least three disks")
+        if config.raid == 10 and len(disks) < 4:
+            errors.append("raid=10 requires at least four disks")
 
         admin_username = str(config.admin_username or "").strip()
         if not re.fullmatch(r"^[a-z_][a-z0-9_-]{0,31}$", admin_username):
@@ -189,6 +205,10 @@ class SeedConfigParser:
         return val
 
     def _build(self, d: dict[str, Any]) -> SeedConfig:
+        disk_value = str(d.get("disk", ""))
+        disks_value = [str(item) for item in (d.get("disks") or []) if str(item).strip()]
+        if not disks_value and disk_value:
+            disks_value = [disk_value]
         net_d = d.get("network", {})
         net = NetworkConfig(
             interface=str(net_d.get("interface", "eth0")),
@@ -209,7 +229,8 @@ class SeedConfigParser:
         )}
         return SeedConfig(
             hostname=str(d.get("hostname", "")),
-            disk=str(d.get("disk", "")),
+            disk=disk_value,
+            disks=disks_value,
             raid=int(d.get("raid", 1)),
             network=net,
             cluster=cluster,
