@@ -192,8 +192,11 @@ class CostModelService:
             entry.gpu_hours += rec.get("gpu_hours", 0.0)
             entry.storage_gb += rec.get("storage_gb", 0.0)
             entry.energy_cost += rec.get("energy_cost", 0.0)
+            duration_hours = float(rec.get("duration_seconds", 0.0) or 0.0) / 3600.0
+            ram_gb = float(rec.get("ram_gb", 0.0) or 0.0)
             entry.total_cost += (
                 rec.get("cpu_hours", 0.0) * m.cpu_hour_cost
+                + (duration_hours * ram_gb) * m.ram_gb_hour_cost
                 + rec.get("gpu_hours", 0.0) * m.gpu_hour_cost
                 + rec.get("storage_gb", 0.0) * m.storage_gb_month_cost / 720
                 + rec.get("energy_cost", 0.0)

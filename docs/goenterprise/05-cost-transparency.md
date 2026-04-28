@@ -78,10 +78,10 @@ IT-Abteilungen investieren in Beagle-Server, aber können den Abteilungen nicht 
 
 ## Testpflicht nach Abschluss
 
-- [ ] Kosten-Kalkulation: GPU-VM mit 2 CPU, 8GB RAM, 1 GPU kostet nach Preismodell korrekt.
-- [ ] Tracking: 5 Sessions für User "alice" aus "marketing" → Report zeigt korrekte Summe.
-- [ ] Chargeback-CSV: Export enthält alle Sessions, Kosten korrekt summiert.
-- [ ] Budget-Alert: Abteilung bei 85% Budget → Alert ausgelöst.
+- [x] Kosten-Kalkulation: GPU-VM mit 2 CPU, 8GB RAM, 1 GPU kostet nach Preismodell korrekt.
+- [x] Tracking: 5 Sessions für User "alice" aus "marketing" → Report zeigt korrekte Summe.
+- [x] Chargeback-CSV: Export enthält alle Sessions, Kosten korrekt summiert.
+- [x] Budget-Alert: Abteilung bei 85% Budget → Alert ausgelöst.
 
 ---
 

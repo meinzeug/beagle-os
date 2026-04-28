@@ -1,3 +1,18 @@
+## Update (2026-04-28, GoEnterprise Plan 05: Testpflicht geschlossen + RAM-Kosten im Chargeback)
+
+**Scope**: Die offenen Plan-05-Testpflichten (`Kosten-Kalkulation`, `5x Alice-Tracking`, `Chargeback-CSV-Summen`, `85%-Budget-Alert`) reproduzierbar geschlossen und dabei eine fachliche Luecke im Chargeback-Pfad gefixt: RAM-Kosten werden jetzt in `generate_chargeback_report()` mitgerechnet.
+
+- Backend:
+  - `beagle-host/services/cost_model_service.py`: Chargeback-Summen beinhalten jetzt `ram_gb_hour_cost` ueber `duration_seconds * ram_gb`
+- Tests:
+  - `tests/unit/test_goenterprise_cost_transparency_acceptance.py` (neu): 4 dedizierte Abnahmetests passend zur Plan-05-Testpflicht
+  - Regressionslauf: `tests/unit/test_cost_model.py`, `tests/unit/test_chargeback_report.py`, `tests/unit/test_budget_alert.py`, `tests/unit/test_usage_tracking.py`
+- Doku:
+  - `docs/goenterprise/05-cost-transparency.md`: Testpflicht-Checkboxen auf `[x]` gesetzt
+- Validierung:
+  - Lokal: `pytest -q tests/unit/test_goenterprise_cost_transparency_acceptance.py tests/unit/test_cost_model.py tests/unit/test_chargeback_report.py tests/unit/test_budget_alert.py tests/unit/test_usage_tracking.py` -> `37 passed`
+  - `srv1`: identischer Pytest-Lauf via `ssh srv1.beagle-os.com` in `/tmp/beagle-os-test-run` -> `37 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 04/05/09: Forecasts, Energy-Cost-Integration und Scheduler-Historie)
 
 **Scope**: Die naechsten offenen Analytics-/Reporting-Reste hinter den neuen Enterprise-Operator-Flows geschlossen. Chargeback zeigt jetzt Forecast und Top-VMs, Energiekosten sind als eigene Komponente im Cost-Pfad abgesichert, und die Scheduler-Sicht rendert erstmals historische 7-Tage-Daten plus 24h-Prognose aus den vorhandenen Metrics-/Workload-Samples.

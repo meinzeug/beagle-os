@@ -1,5 +1,19 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 05 testpflicht completed)
+
+**Zuletzt erledigt**:
+- Plan 05 Testpflicht ist vollstaendig geschlossen (GPU-Preismodell-Kalkulation, 5x-Alice-Tracking, Chargeback-CSV-Summierung, 85%-Budget-Alert).
+- Chargeback rechnet RAM-Kosten jetzt korrekt in `total_cost` ein.
+- Validierung lokal und auf `srv1` mit identischem Pytest-Scope (`37 passed` auf beiden).
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 05 vertiefen**: Chargeback-Drilldown um explizite Session-Zeilen im CSV/JSON erweitern (nicht nur Aggregation je Department/User).
+2. **Plan 04 vertiefen**: offene Automatisierung der Warm-Pool-Empfehlungen kontrolliert hinter Feature-Flag nachziehen.
+3. **Plan 09 vertiefen**: externen Carbon-/Strommix-Feed als reproduzierbaren Import-Job mit Retry/Alerting hinterlegen.
+4. **Plan 02 live validieren**: grafischen Sperrbildschirm weiter auf echter Thin-Client-Hardware/X11-/Wayland-Setups abnehmen.
+
 ## Stand (2026-04-28, GoEnterprise Plan 04/05/09 analytics follow-up)
 
 **Zuletzt erledigt**:

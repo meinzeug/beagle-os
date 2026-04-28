@@ -16,6 +16,7 @@
 - [x] GoEnterprise Plan 05: Preismodell-Editor und Budget-Verwaltung in der WebUI als echte Admin-Flows nachziehen.
 - [x] GoEnterprise Plan 05: Forecast pro Abteilung und Top-10 kostenintensive VMs im Cost-Dashboard nachziehen.
 - [x] GoEnterprise Plan 05: Drilldown Abteilung -> User -> Session im Dashboard nachziehen.
+- [x] GoEnterprise Plan 05: Testpflicht (GPU-Preismodell, 5x-Alice-Tracking, Chargeback-CSV-Summen, 85%-Budget-Alert) reproduzierbar mit Unit-Tests und `srv1`-Lauf schliessen.
 - [x] GoEnterprise Plan 09: Energy-/CSRD-Dashboard an echte `/api/v1/energy/*`-Surfaces hängen.
 - [x] GoEnterprise Plan 09: Admin-Konfiguration für CO2-/Strompreis-Faktoren und Green-Scheduling-Glue nachziehen.
 - [x] GoEnterprise Plan 09: Energy-Cost-Integration im Chargeback mit eigener Regression absichern.
