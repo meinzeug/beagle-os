@@ -59,7 +59,7 @@ Der aktuelle Beagle-Scheduler platziert VMs nach simplen Regeln:
   - Entscheidet Placement basierend auf: erwarteter Last der VM + aktueller Node-Auslastung + prognostizierter Node-Auslastung (nächste 4h)
   - Pre-warming: Wenn eine VM in 15min gebraucht wird (Pool-Schedule bekannt) → VM schon starten
   - `SmartPlacementResult`: `{node, reason, confidence, alternative_nodes}`
-- [ ] Integration mit `pool_manager.py`: `smart_scheduler` optional als Drop-In für `pick_node`
+- [x] Integration mit `pool_manager.py`: `smart_scheduler` optional als Drop-In für `pick_node`
 - [x] Tests: `tests/unit/test_smart_scheduler.py`
 
 ### Schritt 4 — Live-Rebalancing (DRS-ähnlich)
@@ -81,6 +81,7 @@ Der aktuelle Beagle-Scheduler platziert VMs nach simplen Regeln:
   - [x] "Saved CPU-Hours" durch Pre-warming (wie viele User haben sofort eine VM bekommen vs. gewartet)
   - [x] Green-Hours-Konfiguration und aktiver Green-Window-Status im Dashboard
   - [x] Stündliche Heatmap der letzten 7 Tage pro Node
+  - [x] Saved-CPU-Hours-Auswertung nach Pool und User
 
 ---
 

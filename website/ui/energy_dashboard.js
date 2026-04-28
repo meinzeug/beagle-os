@@ -110,6 +110,9 @@ export async function renderEnergyDashboard() {
   </button>`;
   const carbon = config?.carbon_config || {};
   const scheduler = config?.scheduler || {};
+  const hourlyProfile = config?.hourly_profile || {};
+  const co2Csv = Array.isArray(hourlyProfile?.co2_grams_per_kwh) ? hourlyProfile.co2_grams_per_kwh.join(',') : '';
+  const priceCsv = Array.isArray(hourlyProfile?.electricity_price_per_kwh) ? hourlyProfile.electricity_price_per_kwh.join(',') : '';
 
   container.innerHTML = `
     <section class="panel-section">
@@ -139,6 +142,8 @@ export async function renderEnergyDashboard() {
         <label>Strom €/kWh<input id="energy-price" type="number" step="0.0001" value="${escapeHtml(String(carbon.electricity_price_per_kwh ?? 0.3))}"></label>
         <label>Prewarm Minuten<input id="scheduler-prewarm-minutes" type="number" step="1" min="5" max="180" value="${escapeHtml(String(scheduler.prewarm_minutes_ahead ?? 15))}"></label>
         <label class="checkbox-row"><input id="scheduler-green-enabled" type="checkbox" ${scheduler.green_scheduling_enabled ? 'checked' : ''}> Green Scheduling aktiv</label>
+        <label style="grid-column:1 / -1;">CO₂ Stundenprofil CSV (24 Werte)<input id="energy-hourly-co2" type="text" value="${escapeHtml(co2Csv)}" placeholder="400,390,380,..."></label>
+        <label style="grid-column:1 / -1;">Strompreis Stundenprofil CSV (24 Werte)<input id="energy-hourly-price" type="text" value="${escapeHtml(priceCsv)}" placeholder="0.30,0.29,0.28,..."></label>
       </div>
       <div class="panel-actions">
         <button class="btn btn-primary" id="energy-config-save-btn">Konfiguration speichern</button>
@@ -181,6 +186,10 @@ export async function renderEnergyDashboard() {
           body: JSON.stringify({
             co2_grams_per_kwh: Number(container.querySelector('#energy-co2')?.value || 0),
             electricity_price_per_kwh: Number(container.querySelector('#energy-price')?.value || 0),
+            hourly_profile: {
+              co2_grams_per_kwh: String(container.querySelector('#energy-hourly-co2')?.value || '').split(',').map((value) => Number(String(value).trim())).filter((value) => Number.isFinite(value)),
+              electricity_price_per_kwh: String(container.querySelector('#energy-hourly-price')?.value || '').split(',').map((value) => Number(String(value).trim())).filter((value) => Number.isFinite(value)),
+            },
             scheduler: {
               prewarm_minutes_ahead: Number(container.querySelector('#scheduler-prewarm-minutes')?.value || 15),
               green_scheduling_enabled: Boolean(container.querySelector('#scheduler-green-enabled')?.checked),

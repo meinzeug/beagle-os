@@ -87,6 +87,14 @@ function forecastRow(item) {
   </tr>`;
 }
 
+function breakdownRow(item, key) {
+  return `<tr>
+    <td>${escapeHtml(String(item[key] ?? '-'))}</td>
+    <td>${escapeHtml(String(item.candidate_count ?? 0))}</td>
+    <td>${escapeHtml(Number(item.saved_cpu_hours ?? 0).toFixed(2))}</td>
+  </tr>`;
+}
+
 export async function renderSchedulerInsights() {
   const container = qs('scheduler-insights-panel');
   if (!container) return;
@@ -101,6 +109,8 @@ export async function renderSchedulerInsights() {
   let forecast24h = [];
   let config = {};
   let savedCpuHours = 0;
+  let savedCpuHoursByPool = [];
+  let savedCpuHoursByUser = [];
   let greenWindowActive = false;
   try {
     const data = await request('/scheduler/insights');
@@ -112,6 +122,8 @@ export async function renderSchedulerInsights() {
     forecast24h = Array.isArray(data.forecast_24h) ? data.forecast_24h : [];
     config = data.config || {};
     savedCpuHours = Number(data.saved_cpu_hours || 0);
+    savedCpuHoursByPool = Array.isArray(data.saved_cpu_hours_by_pool) ? data.saved_cpu_hours_by_pool : [];
+    savedCpuHoursByUser = Array.isArray(data.saved_cpu_hours_by_user) ? data.saved_cpu_hours_by_user : [];
     greenWindowActive = Boolean(data.green_window_active);
   } catch (err) {
     container.innerHTML = `<p class="error">Fehler: ${escapeHtml(String(err.message ?? err))}</p>`;
@@ -174,6 +186,18 @@ export async function renderSchedulerInsights() {
         <tbody>${forecast24h.map(forecastRow).join('')}</tbody>
       </table>`
     : '<div class="empty-card">Keine 24h-Prognose verfügbar.</div>';
+  const byPoolHtml = savedCpuHoursByPool.length > 0
+    ? `<table class="data-table">
+        <thead><tr><th>Pool</th><th>Kandidaten</th><th>Saved CPU-Hours</th></tr></thead>
+        <tbody>${savedCpuHoursByPool.map((item) => breakdownRow(item, 'pool_id')).join('')}</tbody>
+      </table>`
+    : '<div class="empty-card">Keine Pool-Auswertung verfügbar.</div>';
+  const byUserHtml = savedCpuHoursByUser.length > 0
+    ? `<table class="data-table">
+        <thead><tr><th>User</th><th>Kandidaten</th><th>Saved CPU-Hours</th></tr></thead>
+        <tbody>${savedCpuHoursByUser.map((item) => breakdownRow(item, 'user_id')).join('')}</tbody>
+      </table>`
+    : '<div class="empty-card">Keine User-Auswertung verfügbar.</div>';
 
   container.innerHTML = `
     <section class="panel-section">
@@ -196,6 +220,14 @@ export async function renderSchedulerInsights() {
       ${prewarmHtml}
       ${trendHtml}
       ${forecastHtml}
+      <div class="section-spaced-tight">
+        <h4>Saved CPU-Hours nach Pool</h4>
+        ${byPoolHtml}
+      </div>
+      <div class="section-spaced-tight">
+        <h4>Saved CPU-Hours nach User</h4>
+        ${byUserHtml}
+      </div>
       <div class="detail-grid section-spaced-tight">
         <label>Prewarm Minuten<input id="scheduler-config-prewarm" type="number" min="5" max="180" step="1" value="${escapeHtml(String(config.prewarm_minutes_ahead ?? 15))}"></label>
         <label class="checkbox-row"><input id="scheduler-config-green" type="checkbox" ${config.green_scheduling_enabled ? 'checked' : ''}> Green Scheduling aktiv</label>

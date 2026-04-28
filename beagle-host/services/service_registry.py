@@ -905,6 +905,7 @@ def pool_manager_service() -> PoolManagerService:
             list_nodes=_cluster_nodes_for_migration,
             vm_node_of=lambda vmid: str(getattr(find_vm(int(vmid), refresh=True), "node", "") or ""),
             list_gpu_inventory=lambda: gpu_inventory_service().list_gpus(),
+            smart_pick_node=_smart_pick_pool_node,
         )
     return POOL_MANAGER_SERVICE
 
@@ -3437,8 +3438,90 @@ def _normalize_node_cpu_pct(raw_value: Any) -> float:
 
 
 def _scheduler_node_capacities() -> list[NodeCapacity]:
-    capacities: list[NodeCapacity] = []
+    return _scheduler_node_capacities_for_hour(None)
+
+
+def _default_hourly_profile(config: Any) -> dict[str, list[float]]:
+    base_co2 = float(getattr(config, "co2_grams_per_kwh", 400.0) or 400.0)
+    base_price = float(getattr(config, "electricity_price_per_kwh", 0.30) or 0.30)
+    co2_values: list[float] = []
+    price_values: list[float] = []
+    for hour in range(24):
+        if 10 <= hour <= 15:
+            co2_values.append(round(base_co2 * 0.72, 2))
+            price_values.append(round(base_price * 0.84, 4))
+        elif 18 <= hour <= 21:
+            co2_values.append(round(base_co2 * 1.16, 2))
+            price_values.append(round(base_price * 1.11, 4))
+        else:
+            co2_values.append(round(base_co2, 2))
+            price_values.append(round(base_price, 4))
+    return {
+        "co2_grams_per_kwh": co2_values,
+        "electricity_price_per_kwh": price_values,
+    }
+
+
+def _energy_hourly_profile_file() -> Path:
+    return DATA_DIR / "energy-hourly-profile.json"
+
+
+def get_energy_hourly_profile() -> dict[str, list[float]]:
     carbon_config = energy_service().get_carbon_config()
+    defaults = _default_hourly_profile(carbon_config)
+    payload = load_json_file(_energy_hourly_profile_file(), {})
+    if not isinstance(payload, dict):
+        payload = {}
+
+    def _normalize_series(name: str, fallback: list[float]) -> list[float]:
+        raw = payload.get(name, fallback)
+        if not isinstance(raw, list):
+            raw = fallback
+        values: list[float] = []
+        for index in range(24):
+            try:
+                value = float(raw[index])
+            except (IndexError, TypeError, ValueError):
+                value = float(fallback[index])
+            values.append(round(value, 4 if "price" in name else 2))
+        return values
+
+    return {
+        "co2_grams_per_kwh": _normalize_series("co2_grams_per_kwh", defaults["co2_grams_per_kwh"]),
+        "electricity_price_per_kwh": _normalize_series("electricity_price_per_kwh", defaults["electricity_price_per_kwh"]),
+    }
+
+
+def update_energy_hourly_profile(payload: dict[str, Any]) -> dict[str, list[float]]:
+    current = get_energy_hourly_profile()
+    next_payload = dict(current)
+    for key in ("co2_grams_per_kwh", "electricity_price_per_kwh"):
+        raw = payload.get(key)
+        if isinstance(raw, list) and len(raw) >= 24:
+            values: list[float] = []
+            for index in range(24):
+                try:
+                    value = float(raw[index])
+                except (TypeError, ValueError):
+                    value = current[key][index]
+                values.append(round(value, 4 if "price" in key else 2))
+            next_payload[key] = values
+    write_json_file(_energy_hourly_profile_file(), next_payload)
+    return get_energy_hourly_profile()
+
+
+def _hourly_energy_signal(hour: int | None = None) -> tuple[float, float]:
+    profile = get_energy_hourly_profile()
+    selected_hour = datetime.now(timezone.utc).hour if hour is None else int(hour) % 24
+    return (
+        float(profile["electricity_price_per_kwh"][selected_hour]),
+        float(profile["co2_grams_per_kwh"][selected_hour]),
+    )
+
+
+def _scheduler_node_capacities_for_hour(hour: int | None) -> list[NodeCapacity]:
+    capacities: list[NodeCapacity] = []
+    price_per_kwh, co2_per_kwh = _hourly_energy_signal(hour)
     for item in _cluster_nodes_for_scheduler():
         node_id = str(item.get("name") or item.get("node") or "").strip()
         if not node_id:
@@ -3474,8 +3557,8 @@ def _scheduler_node_capacities() -> list[NodeCapacity]:
                 predicted_cpu_pct_4h=cpu_pct,
                 gpu_utilization_pct=float(item.get("gpu_utilization_pct", 0.0) or 0.0),
                 predicted_gpu_utilization_pct_4h=float(item.get("predicted_gpu_utilization_pct_4h", 0.0) or 0.0),
-                energy_price_per_kwh=float(carbon_config.electricity_price_per_kwh or 0.0),
-                carbon_intensity_g_per_kwh=float(carbon_config.co2_grams_per_kwh or 0.0),
+                energy_price_per_kwh=price_per_kwh,
+                carbon_intensity_g_per_kwh=co2_per_kwh,
             )
         )
     return capacities
@@ -3517,6 +3600,39 @@ def smart_scheduler_service() -> SmartSchedulerService:
             list_nodes=_scheduler_node_capacities,
         )
     return SMART_SCHEDULER_SERVICE
+
+
+def _smart_pick_pool_node(
+    *,
+    required_cpu_cores: int,
+    required_ram_mib: int,
+    gpu_required: bool,
+    preferred_hour: int | None = None,
+    green_hours: list[int] | None = None,
+    green_scheduling_enabled: bool = True,
+    allowed_nodes: list[str] | None = None,
+) -> dict[str, Any]:
+    scheduler_config = get_scheduler_config()
+    selected_hour = preferred_hour if preferred_hour is not None else datetime.now(timezone.utc).hour
+    capacities = _scheduler_node_capacities_for_hour(selected_hour)
+    allowed = {str(node).strip() for node in (allowed_nodes or []) if str(node).strip()}
+    if allowed:
+        capacities = [item for item in capacities if item.node_id in allowed]
+    scheduler = SmartSchedulerService(list_nodes=lambda: capacities)
+    result = scheduler.pick_node(
+        required_cpu_cores=int(required_cpu_cores or 1),
+        required_ram_mib=int(required_ram_mib or 1024),
+        gpu_required=bool(gpu_required),
+        preferred_hour=selected_hour,
+        green_hours=list(green_hours or scheduler_config.get("green_hours", [])),
+        green_scheduling_enabled=bool(scheduler_config.get("green_scheduling_enabled")) and bool(green_scheduling_enabled),
+    )
+    return {
+        "node_id": result.node_id,
+        "reason": result.reason,
+        "confidence": result.confidence,
+        "alternative_nodes": list(result.alternative_nodes or []),
+    }
 
 
 def usage_tracking_service() -> UsageTrackingService:
@@ -3679,26 +3795,26 @@ def build_energy_config_payload() -> dict[str, Any]:
             "electricity_price_per_kwh": float(config.electricity_price_per_kwh),
         },
         "scheduler": get_scheduler_config(),
+        "hourly_profile": get_energy_hourly_profile(),
     }
 
 
 def build_energy_green_hours_payload() -> dict[str, Any]:
     config = energy_service().get_carbon_config()
     scheduler = get_scheduler_config()
+    hourly_profile = get_energy_hourly_profile()
     green_hours = set(int(value) for value in scheduler.get("green_hours", []))
     current_hour = datetime.now(timezone.utc).hour
     hourly: list[dict[str, Any]] = []
     for hour in range(24):
         active = hour in green_hours
-        co2_factor = 0.75 if active else 1.0
-        price_factor = 0.85 if active else 1.0
         hourly.append(
             {
                 "hour": hour,
                 "is_green_hour": active,
                 "active_now": hour == current_hour and active,
-                "estimated_co2_grams_per_kwh": round(float(config.co2_grams_per_kwh or 0.0) * co2_factor, 2),
-                "estimated_electricity_price_per_kwh": round(float(config.electricity_price_per_kwh or 0.0) * price_factor, 4),
+                "estimated_co2_grams_per_kwh": round(float(hourly_profile["co2_grams_per_kwh"][hour]), 2),
+                "estimated_electricity_price_per_kwh": round(float(hourly_profile["electricity_price_per_kwh"][hour]), 4),
             }
         )
     return {
@@ -3718,6 +3834,9 @@ def update_energy_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
         electricity_price_per_kwh=float(payload.get("electricity_price_per_kwh", current.electricity_price_per_kwh) or current.electricity_price_per_kwh),
     )
     energy_service().set_carbon_config(config)
+    hourly_profile_payload = payload.get("hourly_profile")
+    if isinstance(hourly_profile_payload, dict):
+        update_energy_hourly_profile(hourly_profile_payload)
     model = cost_model_service().get_cost_model()
     model.electricity_price_per_kwh = config.electricity_price_per_kwh
     cost_model_service().set_cost_model(model)
@@ -3766,6 +3885,11 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
     historical_heatmap: list[dict[str, Any]] = []
     forecast_24h: list[dict[str, Any]] = []
     now = datetime.now(timezone.utc)
+    pool_desktops_by_vmid = {
+        int(item.get("vmid") or 0): item
+        for item in pool_manager_service().list_pool_desktops()
+        if int(item.get("vmid") or 0) > 0
+    }
     for item in nodes:
         node_id = str(item.get("name") or item.get("node") or "").strip()
         if not node_id:
@@ -3836,6 +3960,8 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
                 "vm_id": int(getattr(vm, "vmid", 0) or 0),
                 "name": str(getattr(vm, "name", "") or f"vm-{int(getattr(vm, 'vmid', 0) or 0)}"),
                 "node_id": node_id,
+                "pool_id": str(pool_desktops_by_vmid.get(int(getattr(vm, "vmid", 0) or 0), {}).get("pool_id") or ""),
+                "user_id": str(pool_desktops_by_vmid.get(int(getattr(vm, "vmid", 0) or 0), {}).get("user_id") or ""),
                 "peak_hours": list(profile.peak_hours),
                 "avg_cpu_pct": round(float(profile.avg_cpu_pct or 0.0), 2),
                 "samples_analyzed": int(profile.samples_analyzed or 0),
@@ -3858,6 +3984,18 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
         }
         for rec in smart_scheduler_service().rebalance_cluster(assignments)[:5]
     ]
+    saved_cpu_hours_by_pool: dict[str, dict[str, Any]] = {}
+    saved_cpu_hours_by_user: dict[str, dict[str, Any]] = {}
+    for candidate in prewarm_candidates:
+        pool_id = str(candidate.get("pool_id") or "").strip() or "unassigned"
+        user_id = str(candidate.get("user_id") or "").strip() or "ohne user"
+        contribution = round(minutes_ahead / 60.0, 2)
+        pool_bucket = saved_cpu_hours_by_pool.setdefault(pool_id, {"pool_id": pool_id, "candidate_count": 0, "saved_cpu_hours": 0.0})
+        pool_bucket["candidate_count"] += 1
+        pool_bucket["saved_cpu_hours"] = round(float(pool_bucket["saved_cpu_hours"]) + contribution, 2)
+        user_bucket = saved_cpu_hours_by_user.setdefault(user_id, {"user_id": user_id, "candidate_count": 0, "saved_cpu_hours": 0.0})
+        user_bucket["candidate_count"] += 1
+        user_bucket["saved_cpu_hours"] = round(float(user_bucket["saved_cpu_hours"]) + contribution, 2)
     return {
         "heatmap": heatmap,
         "recommendations": recommendations,
@@ -3867,6 +4005,8 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
         "forecast_24h": forecast_24h,
         "config": scheduler_config,
         "saved_cpu_hours": round(float(scheduler_config.get("saved_cpu_hours", 0.0) or 0.0), 2),
+        "saved_cpu_hours_by_pool": sorted(saved_cpu_hours_by_pool.values(), key=lambda item: (-float(item["saved_cpu_hours"]), item["pool_id"])),
+        "saved_cpu_hours_by_user": sorted(saved_cpu_hours_by_user.values(), key=lambda item: (-float(item["saved_cpu_hours"]), item["user_id"])),
         "green_window_active": green_window_active,
     }
 

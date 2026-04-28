@@ -4778,3 +4778,23 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `node --check website/ui/scheduler_insights.js website/ui/energy_dashboard.js`
   - `python3 -m pytest tests/unit/test_smart_scheduler.py tests/unit/test_green_scheduling.py tests/unit/test_control_plane_read_surface.py tests/unit/test_authz_policy.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_energy_cost_integration.py tests/unit/test_chargeback_report.py -q`
   - Ergebnis: `48 passed`
+## Update (2026-04-28, GoEnterprise Plan 04/09: produktiver Pool-Placement-Drop-in, Pool/User-Analytics und stündlicher Energy-Feed)
+
+**Scope**: Den nächsten produktiven Scheduler-/Energy-Restblock geschlossen. Der `smart_scheduler` hängt jetzt wirklich im Pool-Placement-Pfad für neue Desktop-Slots, Scheduler-Insights differenzieren `saved_cpu_hours` nach Pool und User, und das Energy-Panel arbeitet nicht mehr nur mit einer statischen Basiszahl, sondern mit einem echten editierbaren 24-Stunden-CO₂-/Preisprofil.
+
+- Backend:
+  - [beagle-host/services/pool_manager.py](/home/dennis/beagle-os/beagle-host/services/pool_manager.py): Smart-Scheduler-Drop-in für `register_vm()`/Node-Auswahl plus öffentliche Desktop-Inventarsicht `list_pool_desktops()`
+  - [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py): `_smart_pick_pool_node()`, stündliches Energy-Profil, Scheduler-Breakdowns `saved_cpu_hours_by_pool` / `saved_cpu_hours_by_user`, `hourly_profile` in `/energy/config`
+  - [beagle-host/services/control_plane_read_surface.py](/home/dennis/beagle-os/beagle-host/services/control_plane_read_surface.py): bestehende Energy-/Scheduler-Surfaces liefern jetzt stündliche Profil- und Breakdown-Daten mit aus
+- WebUI:
+  - [website/ui/scheduler_insights.js](/home/dennis/beagle-os/website/ui/scheduler_insights.js): Saved-CPU-Hours nach Pool/User
+  - [website/ui/energy_dashboard.js](/home/dennis/beagle-os/website/ui/energy_dashboard.js): editierbarer 24h-CO₂-/Strompreis-Feed im Energy-Panel
+- Regressionen:
+  - [tests/unit/test_pool_manager.py](/home/dennis/beagle-os/tests/unit/test_pool_manager.py)
+  - [tests/unit/test_control_plane_read_surface.py](/home/dennis/beagle-os/tests/unit/test_control_plane_read_surface.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+- Validierung:
+  - `python3 -m py_compile beagle-host/services/pool_manager.py beagle-host/services/service_registry.py beagle-host/services/control_plane_read_surface.py beagle-host/services/authz_policy.py beagle-host/services/smart_scheduler.py`
+  - `node --check website/ui/scheduler_insights.js website/ui/energy_dashboard.js`
+  - `python3 -m pytest tests/unit/test_pool_manager.py tests/unit/test_smart_scheduler.py tests/unit/test_green_scheduling.py tests/unit/test_control_plane_read_surface.py tests/unit/test_authz_policy.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_energy_cost_integration.py tests/unit/test_chargeback_report.py -q`
+  - Ergebnis: `71 passed`

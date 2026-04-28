@@ -277,6 +277,21 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 - `docs/goenterprise/03-gaming-kiosk-pools.md`: verbleibende Testpflicht fuer Gaming-Pool-Allocation ohne GPU sowie Kiosk-/RBAC-E2E sauber abschliessen
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 04/09 productive follow-up)
+
+**Zuletzt erledigt**:
+- `smart_scheduler` hängt jetzt im produktiven Pool-Placement-Pfad für neue Desktop-Slots.
+- Scheduler-Insights differenzieren `saved_cpu_hours` jetzt nach Pool und User.
+- Energy-Dashboard arbeitet jetzt mit einem editierbaren stündlichen CO₂-/Strompreisprofil statt nur einer globalen Basiskonfiguration.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 04 Placement weiter haerten**: den Smart-Scheduler nicht nur bei Slot-Registrierung, sondern auch bei Scale-/Warm-Pool-Entscheidungen tiefer einziehen.
+2. **Plan 04 Erfolgsmessung haerten**: echte Prewarm-Hit-/Miss-Telemetrie statt rein kandidatbasierter Saved-CPU-Hours-Auswertung aufbauen.
+3. **Plan 09 Feed operationalisieren**: stündliches CO₂-/Strompreisprofil optional aus externem Feed oder Importjob aktualisieren, statt nur manuell im Dashboard.
+4. **Plan 02 live validieren**: Lock-Screen, Wipe und Runtime-Telemetrie weiter gegen echte Thin-Client-Hardware/X11-/Wayland-Sessions abnehmen.
+5. **Plan 07 live validieren**: Fleet-Alerts und Predictive-Maintenance gegen echte Runtime-Events provozieren und Webhook-/UI-Reaktion prüfen.
+
 ## Stand (2026-04-28, GoEnterprise Plan 04/09 green-window follow-up)
 
 **Zuletzt erledigt**:

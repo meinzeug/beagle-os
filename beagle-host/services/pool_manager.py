@@ -58,6 +58,7 @@ class PoolManagerService:
         release_gpu_timeslice: Any = None,
         assign_gpu_vgpu: Any = None,
         release_gpu_vgpu: Any = None,
+        smart_pick_node: Any = None,
     ) -> None:
         self._store = JsonStateStore(
             Path(state_file),
@@ -79,6 +80,7 @@ class PoolManagerService:
         self._release_gpu_timeslice = release_gpu_timeslice      # callable(gpu_id, vmid) -> dict
         self._assign_gpu_vgpu = assign_gpu_vgpu                  # callable(mdev_uuid, vmid) -> dict
         self._release_gpu_vgpu = release_gpu_vgpu                # callable(mdev_uuid, vmid) -> dict
+        self._smart_pick_node = smart_pick_node                  # callable(...) -> dict | str | None
 
     # ------------------------------------------------------------------
     # State persistence helpers
@@ -464,6 +466,7 @@ class PoolManagerService:
         vmid: int,
         policy: SchedulerPolicy,
         placements: dict[int, str],
+        pool_cfg: dict[str, Any] | None = None,
     ) -> str:
         online_nodes = self._online_nodes()
         current = str(placements.get(int(vmid), "") or self._known_vm_node(int(vmid)) or "").strip()
@@ -486,6 +489,27 @@ class PoolManagerService:
             candidates = list(online_nodes)
 
         preferred_candidates = [node for node in sorted(preferred_nodes) if node in candidates]
+        profile = self._parse_streaming_profile((pool_cfg or {}).get("streaming_profile"))
+        smart_allowed = preferred_candidates if preferred_candidates else candidates
+        if self._smart_pick_node is not None and smart_allowed:
+            try:
+                smart_result = self._smart_pick_node(
+                    required_cpu_cores=int((pool_cfg or {}).get("cpu_cores", 1) or 1),
+                    required_ram_mib=int((pool_cfg or {}).get("memory_mib", 1024) or 1024),
+                    gpu_required=bool(str((pool_cfg or {}).get("gpu_class") or "").strip()),
+                    preferred_hour=self._parse_utc_timestamp(self._utcnow()).hour,
+                    green_hours=list((pool_cfg or {}).get("green_hours_override", []) or []),
+                    green_scheduling_enabled=True,
+                    allowed_nodes=list(smart_allowed),
+                )
+                if isinstance(smart_result, dict):
+                    selected = str(smart_result.get("node_id") or "").strip()
+                else:
+                    selected = str(smart_result or "").strip()
+                if selected and selected in smart_allowed:
+                    return selected
+            except Exception:
+                pass
         if preferred_candidates:
             return preferred_candidates[0]
         if current and current in candidates:
@@ -515,7 +539,7 @@ class PoolManagerService:
             if existing_node:
                 placements[existing_vmid] = existing_node
 
-        node = self._choose_node_for_vmid(vmid=int(vmid), policy=policy, placements=placements)
+        node = self._choose_node_for_vmid(vmid=int(vmid), policy=policy, placements=placements, pool_cfg=pool_cfg)
         vm_state = _STATE_FREE
         reserved_slot = ""
 
@@ -953,6 +977,30 @@ class PoolManagerService:
             )
         sessions.sort(key=lambda item: str(item.get("assigned_at") or ""), reverse=True)
         return sessions
+
+    def list_pool_desktops(self, pool_id: str | None = None) -> list[dict[str, Any]]:
+        """Return persisted desktop slots, optionally filtered by pool."""
+        state = self._load()
+        items: list[dict[str, Any]] = []
+        selected_pool = str(pool_id or "").strip()
+        for vm in state.get("vms", {}).values():
+            if not isinstance(vm, dict):
+                continue
+            vm_pool_id = str(vm.get("pool_id") or "").strip()
+            if selected_pool and vm_pool_id != selected_pool:
+                continue
+            items.append(
+                {
+                    "vmid": int(vm.get("vmid") or 0),
+                    "pool_id": vm_pool_id,
+                    "node": str(vm.get("node") or "").strip(),
+                    "state": str(vm.get("state") or ""),
+                    "user_id": str(vm.get("user_id") or ""),
+                    "assigned_at": str(vm.get("assigned_at") or ""),
+                }
+            )
+        items.sort(key=lambda item: (item["pool_id"], item["vmid"]))
+        return items
 
     def update_stream_health(self, *, pool_id: str, vmid: int, stream_health: dict[str, Any] | None) -> DesktopLease:
         """Persist stream-health telemetry for one in-use desktop lease."""

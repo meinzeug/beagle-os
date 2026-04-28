@@ -16,7 +16,7 @@ from pool_manager import PoolManagerService
 
 
 class PoolManagerServiceTests(unittest.TestCase):
-    def _build_service(self, *, list_nodes=None, vm_node_of=None, list_gpu_inventory=None) -> PoolManagerService:
+    def _build_service(self, *, list_nodes=None, vm_node_of=None, list_gpu_inventory=None, smart_pick_node=None) -> PoolManagerService:
         temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(temp_dir.cleanup)
         state_file = Path(temp_dir.name) / "desktop-pools.json"
@@ -26,6 +26,7 @@ class PoolManagerServiceTests(unittest.TestCase):
             list_nodes=list_nodes,
             vm_node_of=vm_node_of,
             list_gpu_inventory=list_gpu_inventory,
+            smart_pick_node=smart_pick_node,
         )
 
     def test_create_pool_and_list(self) -> None:
@@ -164,6 +165,62 @@ class PoolManagerServiceTests(unittest.TestCase):
         recycled = service.recycle_desktop("pool-a", 101)
         self.assertEqual(recycled.state, "free")
         self.assertEqual(recycled.user_id, "")
+
+    def test_register_vm_uses_smart_scheduler_drop_in_for_node_selection(self) -> None:
+        calls: list[dict[str, object]] = []
+
+        def smart_pick_node(**kwargs):
+            calls.append(kwargs)
+            return {"node_id": "node-b", "reason": "smart", "confidence": 0.88}
+
+        service = self._build_service(
+            list_nodes=lambda: [
+                {"name": "node-a", "status": "online"},
+                {"name": "node-b", "status": "online"},
+            ],
+            smart_pick_node=smart_pick_node,
+        )
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="pool-smart",
+                template_id="tpl-1",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=4,
+                memory_mib=8192,
+                storage_pool="local",
+                streaming_profile=StreamingProfile(),
+            )
+        )
+        vm = service.register_vm("pool-smart", 201)
+        self.assertEqual(vm["node"], "node-b")
+        self.assertTrue(calls)
+        self.assertEqual(calls[0]["required_cpu_cores"], 4)
+        self.assertEqual(calls[0]["required_ram_mib"], 8192)
+
+    def test_list_pool_desktops_returns_assignment_inventory(self) -> None:
+        service = self._build_service()
+        service.create_pool(
+            DesktopPoolSpec(
+                pool_id="pool-list",
+                template_id="tpl-1",
+                mode=DesktopPoolMode.FLOATING_NON_PERSISTENT,
+                min_pool_size=1,
+                max_pool_size=5,
+                warm_pool_size=1,
+                cpu_cores=2,
+                memory_mib=4096,
+                storage_pool="local",
+            )
+        )
+        service.register_vm("pool-list", 301)
+        service.allocate_desktop("pool-list", "alice")
+        items = service.list_pool_desktops("pool-list")
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["pool_id"], "pool-list")
+        self.assertEqual(items[0]["user_id"], "alice")
 
     def test_kiosk_release_recycles_immediately(self) -> None:
         reset_calls: list[tuple[int, str]] = []

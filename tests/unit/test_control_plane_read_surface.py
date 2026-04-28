@@ -49,6 +49,10 @@ def make_service() -> ControlPlaneReadSurfaceService:
         build_energy_config_payload=lambda: {
             "carbon_config": {"co2_grams_per_kwh": 400.0, "electricity_price_per_kwh": 0.3},
             "scheduler": {"green_scheduling_enabled": True, "prewarm_minutes_ahead": 15, "green_hours": [10, 11, 12]},
+            "hourly_profile": {
+                "co2_grams_per_kwh": [400.0] * 24,
+                "electricity_price_per_kwh": [0.3] * 24,
+            },
         },
         build_energy_green_hours_payload=lambda: {
             "co2_grams_per_kwh": 400.0,
@@ -76,6 +80,8 @@ def make_service() -> ControlPlaneReadSurfaceService:
             "forecast_24h": [{"node_id": "node-a", "hourly": [{"hour": 12, "cpu_pct": 72.0}]}],
             "config": {"green_scheduling_enabled": True, "prewarm_minutes_ahead": 15, "green_hours": [10, 11, 12]},
             "saved_cpu_hours": 1.5,
+            "saved_cpu_hours_by_pool": [{"pool_id": "pool-a", "candidate_count": 1, "saved_cpu_hours": 0.25}],
+            "saved_cpu_hours_by_user": [{"user_id": "alice", "candidate_count": 1, "saved_cpu_hours": 0.25}],
             "green_window_active": True,
         },
         execute_cost_model_update=lambda payload: {"model": payload, "budgets": []},
@@ -111,6 +117,8 @@ def test_scheduler_insights_route_returns_payload() -> None:
     assert payload["historical_heatmap"][0]["days"][0]["day"] == "2026-04-27"
     assert payload["forecast_24h"][0]["hourly"][0]["hour"] == 12
     assert payload["config"]["green_scheduling_enabled"] is True
+    assert payload["saved_cpu_hours_by_pool"][0]["pool_id"] == "pool-a"
+    assert payload["saved_cpu_hours_by_user"][0]["user_id"] == "alice"
     assert payload["green_window_active"] is True
 
 
@@ -144,6 +152,7 @@ def test_energy_nodes_and_trend_routes_return_enveloped_payloads() -> None:
     assert trend["payload"]["trend"][0]["month"] == "2026-04"
     assert config is not None
     assert config["payload"]["carbon_config"]["co2_grams_per_kwh"] == 400.0
+    assert len(config["payload"]["hourly_profile"]["co2_grams_per_kwh"]) == 24
 
 
 def test_scheduler_post_routes_return_mutation_payloads() -> None:
