@@ -1,5 +1,6 @@
 import { blobRequest, request } from './api.js';
 import { escapeHtml, qs } from './dom.js';
+import { hasPermission, state } from './state.js';
 
 const costHooks = {
   setBanner() {}
@@ -7,6 +8,18 @@ const costHooks = {
 
 export function configureCostDashboard(nextHooks) {
   Object.assign(costHooks, nextHooks || {});
+}
+
+function renderAccessState(container) {
+  if (!state.token) {
+    container.innerHTML = '<div class="empty-card">Anmeldung erforderlich, um Kosten-Daten zu laden.</div>';
+    return false;
+  }
+  if (!hasPermission('settings:read')) {
+    container.innerHTML = '<div class="empty-card">Keine Berechtigung fuer Kosten-Daten. Erforderlich: settings:read.</div>';
+    return false;
+  }
+  return true;
 }
 
 function formatEur(value) {
@@ -81,8 +94,10 @@ function drilldownSection(item) {
 export async function renderCostDashboard() {
   const container = qs('cost-dashboard-panel');
   if (!container) return;
+  if (!renderAccessState(container)) return;
 
   container.innerHTML = '<p class="loading">Lade Kostendaten…</p>';
+  const canWriteSettings = hasPermission('settings:write');
 
   let report = null;
   let budgetAlerts = [];
@@ -183,7 +198,7 @@ export async function renderCostDashboard() {
         <label>Strom €/kWh<input id="cost-model-electricity" type="number" step="0.0001" value="${escapeHtml(String(model.electricity_price_per_kwh ?? 0.3))}"></label>
       </div>
       <div class="panel-actions">
-        <button class="btn btn-primary" id="cost-model-save-btn">Kostenmodell speichern</button>
+        <button class="btn btn-primary" id="cost-model-save-btn" ${canWriteSettings ? '' : 'disabled'}>Kostenmodell speichern</button>
       </div>
     </section>
     <section class="panel-section">
@@ -195,7 +210,7 @@ export async function renderCostDashboard() {
         <label>Alert bei %<input id="cost-budget-threshold" type="number" step="1" min="1" max="100" value="80"></label>
       </div>
       <div class="panel-actions">
-        <button class="btn btn-secondary" id="cost-budget-save-btn">Budget-Regel speichern</button>
+        <button class="btn btn-secondary" id="cost-budget-save-btn" ${canWriteSettings ? '' : 'disabled'}>Budget-Regel speichern</button>
       </div>
     </section>`;
 

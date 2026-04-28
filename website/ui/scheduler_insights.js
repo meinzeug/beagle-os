@@ -1,5 +1,6 @@
 import { request } from './api.js';
 import { escapeHtml, qs } from './dom.js';
+import { hasPermission, state } from './state.js';
 
 const schedulerHooks = {
   setBanner() {}
@@ -7,6 +8,18 @@ const schedulerHooks = {
 
 export function configureSchedulerInsights(nextHooks) {
   Object.assign(schedulerHooks, nextHooks || {});
+}
+
+function renderAccessState(container) {
+  if (!state.token) {
+    container.innerHTML = '<div class="empty-card">Anmeldung erforderlich, um Scheduler-Insights zu laden.</div>';
+    return false;
+  }
+  if (!hasPermission('settings:read')) {
+    container.innerHTML = '<div class="empty-card">Keine Berechtigung fuer Scheduler-Insights. Erforderlich: settings:read.</div>';
+    return false;
+  }
+  return true;
 }
 
 function heatCell(value, max) {
@@ -53,6 +66,7 @@ function placementRow(rec) {
         data-action="scheduler-migrate"
         data-vmid="${escapeHtml(String(rec.vm_id ?? ''))}"
         data-target="${escapeHtml(String(rec.recommended_node ?? ''))}"
+        ${hasPermission('settings:write') ? '' : 'disabled '}
         title="Migration ausführen"
       >Migrieren</button>
     </td>
@@ -108,8 +122,10 @@ function warmPoolRow(item) {
 export async function renderSchedulerInsights() {
   const container = qs('scheduler-insights-panel');
   if (!container) return;
+  if (!renderAccessState(container)) return;
 
   container.innerHTML = '<p class="loading">Lade Scheduler-Daten…</p>';
+  const canWriteSettings = hasPermission('settings:write');
 
   let heatmap = [];
   let recommendations = [];
@@ -182,7 +198,7 @@ export async function renderSchedulerInsights() {
     </table>`;
   }
 
-  const rebalanceBtn = `<button class="btn btn-secondary" id="scheduler-rebalance-btn">
+  const rebalanceBtn = `<button class="btn btn-secondary" id="scheduler-rebalance-btn" ${canWriteSettings ? '' : 'disabled'}>
     Auto-Rebalance ausführen
   </button>`;
   const prewarmHtml = prewarmCandidates.length > 0
@@ -259,7 +275,7 @@ export async function renderSchedulerInsights() {
         <h4>Warm-Pool Empfehlungen</h4>
         ${warmPoolHtml}
         <p class="muted-text">Auto-Apply Status: <strong>${escapeHtml(String(warmPoolAutoApply.reason || 'disabled'))}</strong> · letzte Ausführung: <strong>${escapeHtml(String(warmPoolAutoApply.last_run_at || '—'))}</strong></p>
-        <div class="panel-actions"><button class="btn btn-secondary" id="scheduler-apply-warm-pools-btn">Warm-Pool Empfehlungen anwenden</button></div>
+        <div class="panel-actions"><button class="btn btn-secondary" id="scheduler-apply-warm-pools-btn" ${canWriteSettings ? '' : 'disabled'}>Warm-Pool Empfehlungen anwenden</button></div>
       </div>
       <div class="detail-grid section-spaced-tight">
         <label>Prewarm Minuten<input id="scheduler-config-prewarm" type="number" min="5" max="180" step="1" value="${escapeHtml(String(config.prewarm_minutes_ahead ?? 15))}"></label>
@@ -272,7 +288,7 @@ export async function renderSchedulerInsights() {
         <label>Auto-Apply Cooldown Minuten<input id="scheduler-config-warm-auto-cooldown" type="number" min="5" max="720" step="1" value="${escapeHtml(String(config.warm_pool_auto_apply_cooldown_minutes ?? 30))}"></label>
       </div>
       <div class="panel-actions">
-        <button class="btn btn-primary" id="scheduler-config-save-btn">Scheduler-Konfiguration speichern</button>
+        <button class="btn btn-primary" id="scheduler-config-save-btn" ${canWriteSettings ? '' : 'disabled'}>Scheduler-Konfiguration speichern</button>
       </div>
     </section>`;
 

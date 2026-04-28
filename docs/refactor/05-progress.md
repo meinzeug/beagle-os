@@ -1,3 +1,24 @@
+## Update (2026-04-28, WebUI auth gating fix fuer Scheduler/Kosten/Energie vorbereitet)
+
+**Scope**: Die WebUI hat geschuetzte Settings-/Telemetry-Endpunkte (`/scheduler/insights`, `/costs/*`, `/energy/*`) bereits vor erfolgreichem Login angefragt und dadurch auf `srv1` sofort sichtbare `401 Unauthorized`-Fehler erzeugt. Gleichzeitig wurden Schreibaktionen in diesen Panels browserseitig nicht an `settings:write` gespiegelt.
+
+- Frontend:
+  - `website/main.js`
+    - Bootstrap rendert Scheduler-/Kosten-/Energie-Panels nicht mehr blind vor dem ersten Auth-/Session-Load.
+  - `website/ui/state.js`
+    - zentrale Helper `currentUserPermissions()` und `hasPermission()` eingefuehrt, damit RBAC-Pruefungen nicht pro Modul erneut ad hoc implementiert werden.
+  - `website/ui/scheduler_insights.js`
+  - `website/ui/cost_dashboard.js`
+  - `website/ui/energy_dashboard.js`
+    - fruehe Auth-/RBAC-Gates eingebaut: ohne Session keine API-Requests, ohne `settings:read` nur klarer Empty-/Access-State.
+    - Schreib-Buttons fuer Settings-Aktionen werden ohne `settings:write` deaktiviert.
+  - `website/ui/dashboard.js`
+    - Banner-Handling nach Session-/Auth-Fehlern haertet: ein bereits erzwungener Session-Clear wird nicht sofort wieder durch einen irrefuehrenden "Teilweise Ladefehler"-Banner ueberdeckt.
+- Verifikation:
+  - lokaler Syntax-Check der geaenderten ES-Module mit `node --experimental-default-type=module --check ...` erfolgreich.
+  - Live-Befund auf `srv1` vor Rollout bestaetigt: WebUI wird aus `/opt/beagle/website` ueber nginx ausgeliefert; `beagle-control-plane` und nginx sind `active`.
+  - SSH-Zugriff auf `srv1.beagle-os.com` wurde mit den nachgereichten Keys wiederhergestellt; Deployment kann jetzt direkt gegen `/opt/beagle` erfolgen.
+
 ## Update (2026-04-28, GoEnterprise Plan 01: VM-seitiger Stream-Register-Smoke abgeschlossen)
 
 **Scope**: Der offene Testpflicht-Punkt "Fork-Server startet auf VM und registriert sich" ist als reproduzierbarer VM-Runtime-Smoke umgesetzt.

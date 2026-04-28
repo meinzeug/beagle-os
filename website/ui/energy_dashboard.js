@@ -1,5 +1,6 @@
 import { request } from './api.js';
 import { escapeHtml, qs } from './dom.js';
+import { hasPermission, state } from './state.js';
 
 const energyHooks = {
   setBanner() {}
@@ -7,6 +8,18 @@ const energyHooks = {
 
 export function configureEnergyDashboard(nextHooks) {
   Object.assign(energyHooks, nextHooks || {});
+}
+
+function renderAccessState(container) {
+  if (!state.token) {
+    container.innerHTML = '<div class="empty-card">Anmeldung erforderlich, um Energie-Daten zu laden.</div>';
+    return false;
+  }
+  if (!hasPermission('settings:read')) {
+    container.innerHTML = '<div class="empty-card">Keine Berechtigung fuer Energie-Daten. Erforderlich: settings:read.</div>';
+    return false;
+  }
+  return true;
 }
 
 function powerBar(node) {
@@ -59,8 +72,10 @@ function greenHourTile(item) {
 export async function renderEnergyDashboard() {
   const container = qs('energy-dashboard-panel');
   if (!container) return;
+  if (!renderAccessState(container)) return;
 
   container.innerHTML = '<p class="loading">Lade Energiedaten…</p>';
+  const canWriteSettings = hasPermission('settings:write');
 
   let nodes = [];
   let trend = [];
@@ -146,8 +161,8 @@ export async function renderEnergyDashboard() {
         <label style="grid-column:1 / -1;">Strompreis Stundenprofil CSV (24 Werte)<input id="energy-hourly-price" type="text" value="${escapeHtml(priceCsv)}" placeholder="0.30,0.29,0.28,..."></label>
       </div>
       <div class="panel-actions">
-        <button class="btn btn-primary" id="energy-config-save-btn">Konfiguration speichern</button>
-        <button class="btn btn-secondary" id="energy-hourly-import-btn">Stundenprofil importieren</button>
+        <button class="btn btn-primary" id="energy-config-save-btn" ${canWriteSettings ? '' : 'disabled'}>Konfiguration speichern</button>
+        <button class="btn btn-secondary" id="energy-hourly-import-btn" ${canWriteSettings ? '' : 'disabled'}>Stundenprofil importieren</button>
       </div>
     </section>`;
 

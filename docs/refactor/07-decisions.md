@@ -2,6 +2,11 @@
 
 Stand: 2026-04-13
 
+## D-048: Geschuetzte Settings-Panels duerfen ohne Session keine API-Reads ausloesen
+- Entscheidung: WebUI-Renderer fuer Settings-/Telemetry-Slices muessen vor jedem Fetch mindestens Session- und RBAC-Gates spiegeln; geschuetzte Panels duerfen beim Bootstrap nicht blind vorgerendert werden.
+- Grund: Backend-RBAC allein schuetzt zwar die Daten, aber unautorisierte Vorab-Requests erzeugen auf Live-Systemen irrefuehrende Fehlerfluten, erschweren Session-Debugging und verschlechtern die Operator-Erfahrung.
+- Dateien: `website/main.js`, `website/ui/state.js`, `website/ui/scheduler_insights.js`, `website/ui/cost_dashboard.js`, `website/ui/energy_dashboard.js`.
+
 ## D-047: Stream-Zero-Trust-Modus lebt im Pool-Streaming-Profil
 - Entscheidung: Der BeagleStream-VPN-Modus (`vpn_required`, `vpn_preferred`, `direct_allowed`) wird im bestehenden `StreamingProfile` des Desktop-Pools persistiert, statt als separates ad-hoc UI-Flag oder nur im Thin-Client zu existieren.
 - Grund: Der Wert muss entlang derselben Kette verfuegbar sein, die auch Codec/FPS/Bitrate beschreibt: Pool-Wizard -> Pool-API -> Pool-State -> spaeterer Stream-Server-/Thin-Client-Consume.

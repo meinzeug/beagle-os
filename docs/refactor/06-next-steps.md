@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-28, WebUI auth gating fix ready for rollout)
+
+**Zuletzt erledigt**:
+- WebUI-Auth-/RBAC-Gates fuer Scheduler-/Kosten-/Energie-Panels sind im Repo eingezogen; die bekannten `401 Unauthorized`-Burst-Requests ohne Login werden nicht mehr browserseitig provoziert.
+
+**Naechste konkrete Schritte**:
+
+1. `website/`-Aenderungen nach `/opt/beagle` auf `srv1` deployen und die ausgelieferten Assets (`/main.js`, `/ui/*.js`) gegen den neuen Stand verifizieren.
+2. Browser-/API-Smoke auf `srv1.beagle-os.com` fahren: ohne Login keine `401`-Burst-Requests mehr; danach echter Login-Flow erneut pruefen.
+3. Falls der Login trotz Frontend-Fix noch scheitert: `journalctl -u beagle-control-plane` waehrend eines echten Login-Versuchs mitlaufen lassen und verbleibenden Backend-Root-Cause isolieren.
+
 ## Stand (2026-04-28, GoEnterprise Plan 01 VM-register smoke completed)
 
 **Zuletzt erledigt**:

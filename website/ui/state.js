@@ -207,3 +207,21 @@ export function resetVirtualizationInspector() {
     error: ''
   };
 }
+
+export function currentUserPermissions(user = state.user) {
+  const source = user && typeof user === 'object' ? user : null;
+  const raw = source && Array.isArray(source.permissions) ? source.permissions : [];
+  return new Set(raw.map((value) => String(value || '').trim()).filter(Boolean));
+}
+
+export function hasPermission(permission, user = state.user) {
+  const needed = String(permission || '').trim();
+  if (!needed) {
+    return true;
+  }
+  const permissions = currentUserPermissions(user);
+  if (permissions.has('*')) {
+    return true;
+  }
+  return permissions.has(needed);
+}

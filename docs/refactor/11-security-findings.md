@@ -2,6 +2,25 @@
 
 Stand: 2026-04-28 (ergänzt: S-029 VPN-Bypass im Session-Broker geschlossen, Lock/Wipe-Runtime erzwungen)
 
+## S-030 — Geschuetzte Settings-Telemetrie wurde vor Login browserseitig vorab angefragt (PATCHED)
+
+- Status: **gepatcht** (2026-04-28)
+- Risiko: **Niedrig bis Mittel**
+- Betroffene Dateien:
+  - `website/main.js`
+  - `website/ui/state.js`
+  - `website/ui/scheduler_insights.js`
+  - `website/ui/cost_dashboard.js`
+  - `website/ui/energy_dashboard.js`
+- Beschreibung:
+  - Die WebUI hat beim Bootstrap mehrere Settings-/Telemetry-Slices bereits ohne aktive Session gerendert.
+  - Dadurch entstanden sofortige `401 Unauthorized`-Requests gegen geschuetzte Endpunkte wie `/api/v1/scheduler/insights`, `/api/v1/costs/*` und `/api/v1/energy/*`.
+  - Das war kein direkter Datenabfluss, aber vermeidbarer Auth-Layer-Laerm und ein Debugging-/UX-Problem: Operatoren sahen vor dem eigentlichen Login bereits Fehlerbilder, die wie ein kaputtes Backend wirkten.
+- Fix:
+  - Scheduler-/Kosten-/Energie-Renderer pruefen jetzt zuerst Session und `settings:read`, bevor ueberhaupt Requests gestartet werden.
+  - Schreibaktionen spiegeln zusaetzlich `settings:write` im UI.
+  - Der Bootstrap rendert diese Panels nicht mehr blind vor dem ersten Auth-/Session-Load.
+
 ## S-029 — `vpn_required` war bisher nur Policy-Metadatum und konnte im Session-Broker umgangen werden (PATCHED)
 
 - Status: **gepatcht** (2026-04-28)

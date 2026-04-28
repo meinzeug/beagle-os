@@ -1,14 +1,8 @@
-import { state } from './state.js';
+import { currentUserPermissions, state } from './state.js';
 import { request } from './api.js';
 import { text } from './dom.js';
 
 let dashboardLoadInFlight = null;
-
-function currentUserPermissions(me) {
-  const user = me && typeof me === 'object' ? me.user : null;
-  const raw = user && Array.isArray(user.permissions) ? user.permissions : [];
-  return new Set(raw.map((value) => String(value || '').trim()).filter(Boolean));
-}
 
 function canReadWithPermissions(permissions, permission) {
   const needed = String(permission || '').trim();
@@ -103,7 +97,7 @@ export function loadDashboard(options) {
   }
   dashboardHooks.setBanner('Lade Beagle Manager...', 'info');
   dashboardLoadInFlight = request('/auth/me').then((me) => {
-    const permissions = currentUserPermissions(me);
+    const permissions = currentUserPermissions(me && typeof me === 'object' ? me.user : null);
     const shouldLoadIam = state.activePanel === 'iam';
     const endpointRequests = [
       request('/health'),
@@ -208,7 +202,9 @@ export function loadDashboard(options) {
     dashboardHooks.recordAuthFailure();
     text('stat-manager', 'Error');
     text('stat-manager-meta', error.message);
-    dashboardHooks.setBanner('Teilweise Ladefehler: ' + error.message + ' (Session bleibt aktiv).', 'warn');
+    if (state.token) {
+      dashboardHooks.setBanner('Teilweise Ladefehler: ' + error.message + ' (Session bleibt aktiv).', 'warn');
+    }
   }).finally(() => {
     dashboardLoadInFlight = null;
   });

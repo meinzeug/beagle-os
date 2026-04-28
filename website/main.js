@@ -627,9 +627,6 @@ export function bootstrapApp() {
   renderVirtualizationPanel();
   renderClusterPanel();
   renderSessionsPanel();
-  renderSchedulerInsights();
-  renderCostDashboard();
-  renderEnergyDashboard();
   renderVirtualizationInspector();
   renderProvisioningWorkspace();
   renderPolicies();

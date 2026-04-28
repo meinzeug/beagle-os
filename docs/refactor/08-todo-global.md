@@ -1,5 +1,7 @@
 # Global TODO
 
+- [x] WebUI-Auth-/RBAC-Drift fuer Scheduler-/Kosten-/Energie-Panels beheben: keine unautorisierten Bootstrap-Requests ohne Login, Read-Gates auf `settings:read`, Write-Gates auf `settings:write`.
+
 ## Update 2026-04-28 (GoEnterprise Plan 04/05/09)
 
 - [x] GoEnterprise Plan 04: Scheduler-Insights-Panel und Rebalancing-Empfehlungen an echte Control-Plane-Routen hängen.
