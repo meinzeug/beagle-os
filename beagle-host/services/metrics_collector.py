@@ -94,9 +94,13 @@ class MetricsCollector:
     ) -> list[MetricSample]:
         """Read back samples for a node (optionally filtered by vmid)."""
         import datetime
-        ref_dt = datetime.datetime.strptime(self._utcnow(), "%Y-%m-%dT%H:%M:%SZ").replace(
-            tzinfo=datetime.timezone.utc
-        )
+        _ts = self._utcnow()
+        try:
+            ref_dt = datetime.datetime.fromisoformat(_ts.replace("Z", "+00:00"))
+        except ValueError:
+            ref_dt = datetime.datetime.strptime(_ts, "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=datetime.timezone.utc
+            )
         cutoff = (ref_dt - datetime.timedelta(days=days)).strftime("%Y-%m-%d")
 
         samples = []
@@ -116,9 +120,13 @@ class MetricsCollector:
     def prune_old_shards(self) -> int:
         """Remove shards older than RETENTION_DAYS. Returns count deleted."""
         import datetime
-        ref_dt = datetime.datetime.strptime(self._utcnow(), "%Y-%m-%dT%H:%M:%SZ").replace(
-            tzinfo=datetime.timezone.utc
-        )
+        _ts = self._utcnow()
+        try:
+            ref_dt = datetime.datetime.fromisoformat(_ts.replace("Z", "+00:00"))
+        except ValueError:
+            ref_dt = datetime.datetime.strptime(_ts, "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=datetime.timezone.utc
+            )
         cutoff = (ref_dt - datetime.timedelta(days=self.RETENTION_DAYS)).strftime("%Y-%m-%d")
         deleted = 0
         for shard in self._dir.glob("*.jsonl"):

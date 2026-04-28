@@ -578,6 +578,10 @@ set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_CLUSTER_JOIN_ENV_FILE" "\"$BEAG
 
 install -d -m 0755 /var/lib/beagle
 install -d -m 0750 /var/lib/beagle/beagle-manager
+install -d -m 0750 -o "$BEAGLE_CONTROL_USER" -g "$BEAGLE_CONTROL_USER" /var/lib/beagle/energy
+install -d -m 0750 -o "$BEAGLE_CONTROL_USER" -g "$BEAGLE_CONTROL_USER" /var/lib/beagle/fleet-telemetry
+install -d -m 0750 -o "$BEAGLE_CONTROL_USER" -g "$BEAGLE_CONTROL_USER" /var/lib/beagle/metrics
+install -d -m 0750 -o "$BEAGLE_CONTROL_USER" -g "$BEAGLE_CONTROL_USER" /var/lib/beagle/usage
 chown -R "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" /var/lib/beagle/beagle-manager
 python3 - /var/lib/beagle/beagle-manager/server-settings.json <<'PY'
 import json

@@ -3305,7 +3305,7 @@ def stream_policy_service() -> StreamPolicyService:
     global STREAM_POLICY_SERVICE
     if STREAM_POLICY_SERVICE is None:
         STREAM_POLICY_SERVICE = StreamPolicyService(
-            state_file=runtime_paths_service().data_dir / "stream-policies.json",
+            state_file=runtime_paths_service().data_dir() / "stream-policies.json",
         )
     return STREAM_POLICY_SERVICE
 
@@ -3314,7 +3314,7 @@ def stream_http_surface_service() -> StreamHttpSurfaceService:
     global STREAM_HTTP_SURFACE_SERVICE
     if STREAM_HTTP_SURFACE_SERVICE is None:
         STREAM_HTTP_SURFACE_SERVICE = StreamHttpSurfaceService(
-            state_file=runtime_paths_service().data_dir / "streams" / "servers.json",
+            state_file=runtime_paths_service().data_dir() / "streams" / "servers.json",
             build_vm_profile=build_profile,
             find_vm=find_vm,
             pool_manager_service=pool_manager_service(),
@@ -4760,8 +4760,8 @@ def mdm_policy_http_surface_service() -> MDMPolicyHttpSurfaceService:
     if MDM_POLICY_HTTP_SURFACE_SERVICE is None:
         MDM_POLICY_HTTP_SURFACE_SERVICE = MDMPolicyHttpSurfaceService(
             mdm_policy_service=mdm_policy_service(),
-            requester_identity=requester_identity,
-            audit_event=audit_log,
+            requester_identity=lambda: "",
+            audit_event=audit_log_service().write_event,
             service_name="beagle-control-plane",
             utcnow=utcnow,
             version=VERSION,
