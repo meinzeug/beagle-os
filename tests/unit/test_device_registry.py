@@ -75,8 +75,10 @@ def test_remote_wipe(tmp_path):
     svc.update_heartbeat("dev-001")
     dev = svc.wipe_device("dev-001")
     assert dev.status == "wipe_pending"
+    assert dev.wipe_requested_at == "2026-04-25T10:00:00Z"
     dev2 = svc.confirm_wiped("dev-001")
     assert dev2.status == "wiped"
+    assert dev2.wipe_confirmed_at == "2026-04-25T10:00:00Z"
     assert dev2.wg_public_key == ""
 
 

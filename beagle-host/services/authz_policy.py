@@ -137,6 +137,8 @@ class AuthzPolicyService:
                 return "settings:write"
             if re.match(r"^/api/v1/fleet/devices/[A-Za-z0-9._:-]+/(heartbeat|lock|unlock|wipe|confirm-wiped)$", route):
                 return "settings:write"
+            if re.match(r"^/api/v1/fleet/devices/[A-Za-z0-9._:-]+/remediation/execute$", route):
+                return "settings:write"
             if route in {"/api/v1/cluster/init", "/api/v1/cluster/setup-code", "/api/v1/cluster/add-server-preflight", "/api/v1/cluster/auto-join", "/api/v1/cluster/join-token", "/api/v1/cluster/join-existing", "/api/v1/cluster/leave-local", "/api/v1/cluster/apply-join", "/api/v1/cluster/reconcile-membership"}:
                 return "cluster:write"
             if route == "/api/v1/ha/reconcile-failed-node":

@@ -70,6 +70,8 @@ def test_register_device_and_fetch_detail(tmp_path: Path) -> None:
     assert detail["status"] == HTTPStatus.OK
     assert detail["payload"]["device"]["hostname"] == "tc-001"
     assert detail["payload"]["device"]["hardware"]["gpu_model"] == "Intel UHD 630"
+    assert detail["payload"]["device"]["wipe_requested_at"] == ""
+    assert detail["payload"]["device"]["wipe_confirmed_at"] == ""
     assert detail["payload"]["device"]["last_wipe_report"] == {}
 
 
@@ -263,3 +265,43 @@ def test_bulk_device_action_route_reports_missing_devices(tmp_path: Path) -> Non
     assert response["status"] == HTTPStatus.OK
     assert len(response["payload"]["affected"]) == 1
     assert response["payload"]["failed"] == [{"device_id": "missing", "error": "device not found"}]
+
+
+def test_remediation_execute_route_updates_assignments_and_device_state(tmp_path: Path) -> None:
+    registry, mdm, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+    registry.lock_device("dev-001")
+    mdm.create_policy(MDMPolicy(policy_id="corp", name="Corporate", allowed_pools=["pool-a"]))
+    mdm.assign_to_device("dev-001", "corp")
+
+    clear_response = service.route_post(
+        "/api/v1/fleet/devices/dev-001/remediation/execute",
+        json_payload={"action": "clear-device-policy-assignment"},
+    )
+    assert clear_response is not None
+    assert clear_response["status"] == HTTPStatus.OK
+    assert mdm.resolve_policy("dev-001").policy_id == "__default__"
+
+    unlock_response = service.route_post(
+        "/api/v1/fleet/devices/dev-001/remediation/execute",
+        json_payload={"action": "unlock-device"},
+    )
+    assert unlock_response is not None
+    assert unlock_response["status"] == HTTPStatus.OK
+    assert unlock_response["payload"]["device"]["status"] == "offline"
+
+
+def test_remediation_execute_route_can_restrict_policy_fields(tmp_path: Path) -> None:
+    registry, mdm, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+    mdm.create_policy(MDMPolicy(policy_id="corp", name="Corporate"))
+
+    response = service.route_post(
+        "/api/v1/fleet/devices/dev-001/remediation/execute",
+        json_payload={"action": "restrict-allowed-pools", "policy_id": "corp", "allowed_pools": "pool-a, pool-b"},
+    )
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    policy = mdm.get_policy("corp")
+    assert policy is not None
+    assert policy.allowed_pools == ["pool-a", "pool-b"]

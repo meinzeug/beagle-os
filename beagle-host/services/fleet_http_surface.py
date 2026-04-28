@@ -14,6 +14,7 @@ from typing import Any, Callable
 class FleetHttpSurfaceService:
     _DEVICE_DETAIL = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)$")
     _DEVICE_EFFECTIVE_POLICY = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/effective-policy$")
+    _DEVICE_REMEDIATION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/remediation/execute$")
     _DEVICE_ACTION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/(?P<action>heartbeat|lock|unlock|wipe|confirm-wiped)$")
     _DEVICE_BULK_ACTIONS = "/api/v1/fleet/devices/actions/bulk"
 
@@ -132,6 +133,8 @@ class FleetHttpSurfaceService:
             "wg_public_key": str(getattr(device, "wg_public_key", "") or ""),
             "wg_assigned_ip": str(getattr(device, "wg_assigned_ip", "") or ""),
             "notes": str(getattr(device, "notes", "") or ""),
+            "wipe_requested_at": str(getattr(device, "wipe_requested_at", "") or ""),
+            "wipe_confirmed_at": str(getattr(device, "wipe_confirmed_at", "") or ""),
             "last_wipe_report": dict(getattr(device, "last_wipe_report", {}) or {}),
         }
 
@@ -247,7 +250,66 @@ class FleetHttpSurfaceService:
             return True
         if path == self._DEVICE_BULK_ACTIONS:
             return True
+        if self._DEVICE_REMEDIATION.match(path):
+            return True
         return self._DEVICE_ACTION.match(path) is not None
+
+    @staticmethod
+    def _normalized_csv_values(value: Any) -> list[str]:
+        if isinstance(value, list):
+            return [str(item or "").strip() for item in value if str(item or "").strip()]
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return []
+
+    def _execute_remediation_action(self, *, device: Any, payload: dict[str, Any]) -> tuple[dict[str, Any], str]:
+        action = str(payload.get("action") or "").strip()
+        if not action:
+            raise ValueError("action required")
+        device_id = str(getattr(device, "device_id", "") or "")
+
+        if action == "clear-device-policy-assignment":
+            if self._mdm_policy is None:
+                raise ValueError("mdm policy service unavailable")
+            changed = bool(self._mdm_policy.clear_device_assignment(device_id))
+            return {"changed": changed}, action
+        if action == "assign-explicit-policy":
+            if self._mdm_policy is None:
+                raise ValueError("mdm policy service unavailable")
+            policy_id = str(payload.get("policy_id") or "").strip()
+            if not policy_id:
+                raise ValueError("policy_id required")
+            self._mdm_policy.assign_to_device(device_id, policy_id)
+            return {"policy_id": policy_id, "changed": True}, action
+        if action == "assign-group":
+            group = str(payload.get("group") or payload.get("value") or "").strip()
+            if not group:
+                raise ValueError("group required")
+            updated = self._registry.set_group(device_id, group)
+            return {"group": str(updated.group), "changed": True}, action
+        if action == "unlock-device":
+            updated = self._registry.unlock_device(device_id)
+            return {"status": str(updated.status), "changed": True}, action
+        if action == "await-wipe-confirmation":
+            return {"changed": False, "status": str(getattr(device, "status", "") or "")}, action
+        if action in {"restrict-allowed-pools", "restrict-allowed-networks", "restrict-allowed-codecs"}:
+            if self._mdm_policy is None:
+                raise ValueError("mdm policy service unavailable")
+            policy_id = str(payload.get("policy_id") or "").strip()
+            if not policy_id:
+                raise ValueError("policy_id required")
+            policy = self._mdm_policy.get_policy(policy_id)
+            if policy is None:
+                raise KeyError(f"Policy {policy_id!r} not found")
+            if action == "restrict-allowed-pools":
+                policy.allowed_pools = self._normalized_csv_values(payload.get("allowed_pools"))
+            elif action == "restrict-allowed-networks":
+                policy.allowed_networks = self._normalized_csv_values(payload.get("allowed_networks"))
+            else:
+                policy.allowed_codecs = self._normalized_csv_values(payload.get("allowed_codecs"))
+            self._mdm_policy.update_policy(policy)
+            return {"policy_id": policy_id, "changed": True}, action
+        raise ValueError(f"unsupported remediation action: {action}")
 
     def route_post(
         self,
@@ -258,6 +320,29 @@ class FleetHttpSurfaceService:
     ) -> dict[str, Any] | None:
         payload = json_payload or {}
         requester_name = str(requester or "").strip()
+        remediation_match = self._DEVICE_REMEDIATION.match(path)
+        if remediation_match is not None:
+            device = self._registry.get_device(remediation_match.group("device_id"))
+            if device is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "device not found"})
+            try:
+                result, action = self._execute_remediation_action(device=device, payload=payload)
+            except KeyError as exc:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": str(exc)})
+            except ValueError as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            updated_device = self._registry.get_device(remediation_match.group("device_id")) or device
+            self._safe_audit_event(
+                "fleet.device.remediation",
+                "success",
+                device_id=str(getattr(updated_device, "device_id", "") or ""),
+                action=action,
+                requester=requester_name,
+            )
+            return self._json(
+                HTTPStatus.OK,
+                {"ok": True, **self._envelope(action=action, result=result, device=self._device_to_dict(updated_device))},
+            )
         if path == "/api/v1/fleet/devices/register":
             device_id = str(payload.get("device_id") or "").strip()
             hostname = str(payload.get("hostname") or "").strip()

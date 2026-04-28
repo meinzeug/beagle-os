@@ -42,6 +42,8 @@ class Device:
     wg_public_key: str = ""
     wg_assigned_ip: str = ""
     notes: str = ""
+    wipe_requested_at: str = ""
+    wipe_confirmed_at: str = ""
     last_wipe_report: dict[str, Any] = field(default_factory=dict)
 
 
@@ -72,6 +74,8 @@ def device_from_dict(d: dict[str, Any]) -> Device:
         wg_public_key=d.get("wg_public_key", ""),
         wg_assigned_ip=d.get("wg_assigned_ip", ""),
         notes=d.get("notes", ""),
+        wipe_requested_at=d.get("wipe_requested_at", ""),
+        wipe_confirmed_at=d.get("wipe_confirmed_at", ""),
         last_wipe_report=d.get("last_wipe_report", {}) if isinstance(d.get("last_wipe_report", {}), dict) else {},
     )
 
@@ -210,6 +214,8 @@ class DeviceRegistryService:
         """Mark device for wipe — thin-client will act on next heartbeat."""
         dev = self._require(device_id)
         dev["status"] = "wipe_pending"
+        dev["wipe_requested_at"] = self._utcnow()
+        dev["wipe_confirmed_at"] = ""
         self._save()
         return device_from_dict(dev)
 
@@ -217,6 +223,7 @@ class DeviceRegistryService:
         """Called by thin-client after successful wipe."""
         dev = self._require(device_id)
         dev["status"] = "wiped"
+        dev["wipe_confirmed_at"] = self._utcnow()
         dev["vpn_active"] = False
         dev["vpn_interface"] = ""
         dev["wg_public_key"] = ""

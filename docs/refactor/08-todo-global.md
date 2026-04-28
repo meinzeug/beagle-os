@@ -7,7 +7,7 @@
 - [x] GoEnterprise Plan 02: Bedienbare Lock-/Wipe-/Unlock-Operator-Flows samt Audit-Events in der WebUI nachziehen.
 - [x] GoEnterprise Plan 02: Thin-Client-Runtime fuer Heartbeat-/Policy-Pull-/WireGuard-Glue produktiv an die Registry anbinden.
 - [x] GoEnterprise Plan 02: `locked` und `wipe_pending` im Thin-Client-OS im aktuellen Runtime-Pfad durchsetzen und `confirm-wiped` endpoint-authentifiziert zurückmelden.
-- [ ] GoEnterprise Plan 02: aus dem aktuellen Runtime-/Secret-Wipe einen echten Datentraeger-/TPM-Wipe machen.
+- [x] GoEnterprise Plan 02: aus dem aktuellen Runtime-/Secret-Wipe einen echten Datentraeger-/TPM-Wipe machen.
 - [x] GoEnterprise Plan 02: MDM-Policy-Editor und Assignment-Flow pro Gerät/Gerätegruppe in der WebUI nachziehen.
 - [x] GoEnterprise Plan 02: effective-policy-Preview und Bulk-Policy-Flows in der Fleet-WebUI nachziehen.
 - [x] GoEnterprise Plan 02: staerkere Policy-Validierung und erste Conflict-Hinweise in Fleet-/Policy-Surface nachziehen.
@@ -18,7 +18,7 @@
 - [ ] GoEnterprise Plan 02: grafischen Sperrbildschirm live gegen echte Thin-Client-X11-Session abnehmen und bei Bedarf Wayland-/Multi-Display-Fallback ergaenzen.
 - [x] GoEnterprise Plan 02: automatische Remediation-Vorschlaege und weitergehende Drift-Hinweise fuer Operatoren nachziehen.
 - [x] GoEnterprise Plan 02: aus den vorhandenen `remediation_actions` echte One-Click-Operator-Flows ableiten.
-- [ ] GoEnterprise Plan 02: auf den One-Click-Remediation-Flows spaetere Auto-Remediation bzw. Drift-Worker aufbauen.
+- [ ] GoEnterprise Plan 02: auf der serverseitigen Remediation-API spaetere Auto-Remediation bzw. Drift-Worker aufbauen.
 
 ## Update 2026-04-28 (GoEnterprise Plan 01)
 

@@ -92,6 +92,25 @@
   - `python3 -m pytest tests/unit/test_fleet_ui_regressions.py tests/unit/test_fleet_http_surface.py tests/unit/test_endpoint_http_surface.py tests/unit/test_device_sync_runtime.py tests/unit/test_device_registry.py -q`
   - Ergebnis: `43 passed`
 
+## Update (2026-04-28, GoEnterprise Plan 02: Wipe-Orchestrierung + serverseitige Remediation-API)
+
+**Scope**: Zwei weitere Enterprise-Restblaecke zusammengezogen. Der Runtime-Wipe ist jetzt ein echter orchestrierter Storage-/TPM-Pfad mit strukturiertem Report statt nur Secret-Cleanup, und die Fleet-Surface hat fuer die vorhandenen Remediation-Actions jetzt eine zentrale serverseitige Execute-API statt verteilter UI-Sonderlogik.
+
+- Runtime:
+  - [thin-client-assistant/runtime/device_state_enforcement.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/device_state_enforcement.sh): Install-Device-Erkennung, Storage-Wipe (`blkdiscard` bzw. `wipefs` + `dd`), TPM-Clear, strukturierte Action-Reports mit `completed|partial|failed`
+- Backend:
+  - [beagle-host/services/device_registry.py](/home/dennis/beagle-os/beagle-host/services/device_registry.py): `wipe_requested_at` / `wipe_confirmed_at`
+  - [beagle-host/services/fleet_http_surface.py](/home/dennis/beagle-os/beagle-host/services/fleet_http_surface.py): `POST /api/v1/fleet/devices/{device_id}/remediation/execute`
+  - [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py): Remediation-Route auf `settings:write`
+- WebUI:
+  - [website/ui/fleet_health.js](/home/dennis/beagle-os/website/ui/fleet_health.js): Fleet-Panel nutzt fuer direkte Vorschlaege jetzt die serverseitige Remediation-API und zeigt zusaetzlich einen `Wipe Status`-Block
+- Regressionen:
+  - [tests/unit/test_device_registry.py](/home/dennis/beagle-os/tests/unit/test_device_registry.py)
+  - [tests/unit/test_device_state_enforcement.py](/home/dennis/beagle-os/tests/unit/test_device_state_enforcement.py)
+  - [tests/unit/test_fleet_http_surface.py](/home/dennis/beagle-os/tests/unit/test_fleet_http_surface.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
+
 ## Update (2026-04-28, GoEnterprise Plan 02: Standort-Tree + Device-Group-Regressionen)
 
 **Scope**: Den offenen Device-UX-Slice aus Plan 02 weiter geschlossen. Die Fleet-WebUI zeigt jetzt nicht mehr nur eine flache Tabelle, sondern eine verdichtete Standort-/Gruppenansicht fuer Operatoren; ausserdem ist der gruppenbezogene Policy-Pfad mit einer eigenen Testdatei reproduzierbar abgesichert.

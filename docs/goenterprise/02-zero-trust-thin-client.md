@@ -100,10 +100,10 @@ Ergebnis: Ein Thin-Client ohne gültigen WireGuard-Key + Attestation bekommt **k
 ### Schritt 4 — Remote-Wipe + Remote-Lock
 
 - [x] `beagle-host/services/device_registry.py`: `wipe_device(device_id)` + `lock_device(device_id)`
-- [ ] Thin-Client-OS: Bei nächstem Heartbeat-Poll: wenn `status=wipe_pending` → überschreibe alle Nutzdaten, setze TPM-Keys zurück, sende `wiped`-Bestätigung
-- [ ] Wenn `status=locked` → Sperrbildschirm, kein Login möglich bis `unlock`
+- [x] Thin-Client-OS: Bei nächstem Heartbeat-Poll: wenn `status=wipe_pending` → überschreibe alle Nutzdaten, setze TPM-Keys zurück, sende `wiped`-Bestätigung
+- [x] Wenn `status=locked` → Sperrbildschirm, kein Login möglich bis `unlock`
 - [x] Audit-Event für alle Wipe/Lock-Aktionen
-- [ ] Tests: `tests/unit/test_device_wipe.py`
+- [x] Tests: Runtime-/Fleet-Wipe-Regressionen liegen jetzt in `tests/unit/test_device_state_enforcement.py`, `tests/unit/test_device_registry.py`, `tests/unit/test_fleet_http_surface.py`
 
 ### Schritt 5 — Standort- und Gruppen-Management
 
@@ -337,6 +337,31 @@ Restluecke bewusst offen:
   - `node --check website/ui/fleet_health.js`
   - `python3 -m pytest tests/unit/test_fleet_ui_regressions.py tests/unit/test_fleet_http_surface.py tests/unit/test_endpoint_http_surface.py tests/unit/test_device_sync_runtime.py tests/unit/test_device_registry.py -q`
   - Ergebnis: `43 passed`
+
+## Update 2026-04-28 (Wipe-Orchestrierung + serverseitige Remediation-API)
+
+- Thin-Client-Runtime:
+  - `device_state_enforcement.sh` fuehrt den Wipe jetzt nicht mehr nur als Secret-Cleanup aus, sondern orchestriert reproduzierbare Wipe-Schritte:
+    - WireGuard sauber herunterfahren
+    - Runtime-Secrets loeschen
+    - Install-Device erkennen (`PVE_THIN_CLIENT_INSTALL_DEVICE` / Runtime-Config)
+    - Storage-Wipe ueber `blkdiscard` oder Fallback `wipefs` + `dd`
+    - TPM-Clear ueber `tpm2_clear`, wenn verfuegbar
+  - der Wipe-Report enthaelt jetzt strukturierte `actions`, Zielgeraet, Confirm-/Reboot-Status und einen Gesamtstatus `completed|partial|failed`
+- Control Plane:
+  - `device_registry.py` persistiert jetzt `wipe_requested_at` und `wipe_confirmed_at`
+  - `fleet_http_surface.py` bietet jetzt eine echte serverseitige Remediation-API:
+    - `POST /api/v1/fleet/devices/{device_id}/remediation/execute`
+    - unterstuetzt u. a. `clear-device-policy-assignment`, `assign-explicit-policy`, `assign-group`, `unlock-device`, `restrict-allowed-pools`, `restrict-allowed-networks`, `restrict-allowed-codecs`
+- WebUI:
+  - `website/ui/fleet_health.js` ruft fuer direkte Vorschlaege jetzt die Fleet-Remediation-API statt lokaler Speziallogik auf
+  - `Wipe Status` zeigt Status, angefordert/bestaetigt und den letzten Wipe-Report im Fleet-Panel an
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_device_registry.py`
+  - `tests/unit/test_device_state_enforcement.py`
+  - `tests/unit/test_fleet_http_surface.py`
+  - `tests/unit/test_fleet_ui_regressions.py`
+  - `tests/unit/test_authz_policy.py`
 
 ---
 
