@@ -145,6 +145,10 @@ from recording_http_surface import RecordingHttpSurfaceService
 from network_http_surface import NetworkHttpSurfaceService
 from node_install_check_service import NodeInstallCheckService
 from session_manager import SessionManagerService
+from smart_scheduler import NodeCapacity, SmartSchedulerService
+from cost_model_service import CostModelService
+from usage_tracking_service import UsageTrackingService
+from energy_service import EnergyService
 
 def load_env_defaults(path: str, *, override: bool = False) -> None:
     env_path = Path(path)
@@ -1140,6 +1144,10 @@ ALERT_SERVICE: AlertService | None = None
 MDM_POLICY_HTTP_SURFACE_SERVICE: MDMPolicyHttpSurfaceService | None = None
 CLUSTER_INVENTORY_SERVICE: ClusterInventoryService | None = None
 HEALTH_PAYLOAD_SERVICE: HealthPayloadService | None = None
+SMART_SCHEDULER_SERVICE: SmartSchedulerService | None = None
+USAGE_TRACKING_SERVICE: UsageTrackingService | None = None
+COST_MODEL_SERVICE: CostModelService | None = None
+ENERGY_SERVICE: EnergyService | None = None
 INSTALLER_PREP_SERVICE: InstallerPrepService | None = None
 INSTALLER_LOG_SERVICE: InstallerLogService | None = None
 INSTALLER_SCRIPT_SERVICE: InstallerScriptService | None = None
@@ -3070,7 +3078,15 @@ def control_plane_read_surface_service() -> ControlPlaneReadSurfaceService:
     global CONTROL_PLANE_READ_SURFACE_SERVICE
     if CONTROL_PLANE_READ_SURFACE_SERVICE is None:
         CONTROL_PLANE_READ_SURFACE_SERVICE = ControlPlaneReadSurfaceService(
+            build_budget_alerts_payload=build_budget_alerts_payload,
+            build_chargeback_payload=build_chargeback_payload,
+            build_energy_csrd_payload=build_energy_csrd_payload,
+            build_energy_nodes_payload=build_energy_nodes_payload,
+            build_energy_trend_payload=build_energy_trend_payload,
             build_provisioning_catalog=build_provisioning_catalog,
+            build_scheduler_insights_payload=build_scheduler_insights_payload,
+            execute_scheduler_migration=execute_scheduler_migration,
+            execute_scheduler_rebalance=execute_scheduler_rebalance,
             find_support_bundle_metadata=find_support_bundle_metadata,
             latest_ubuntu_beagle_state_for_vmid=latest_ubuntu_beagle_state_for_vmid,
             list_endpoint_reports=list_endpoint_reports,
@@ -3382,6 +3398,356 @@ def evaluate_endpoint_compliance(profile: dict[str, Any], report: dict[str, Any]
 
 def build_vm_state(vm: VmSummary) -> dict[str, Any]:
     return vm_state_service().build_vm_state(vm)
+
+
+def _cluster_nodes_for_scheduler() -> list[dict[str, Any]]:
+    try:
+        inventory = build_cluster_inventory()
+    except Exception:
+        inventory = {}
+    nodes = inventory.get("nodes") if isinstance(inventory, dict) else []
+    if isinstance(nodes, list) and nodes:
+        return [item for item in nodes if isinstance(item, dict)]
+    try:
+        return [item for item in list_nodes_inventory() if isinstance(item, dict)]
+    except Exception:
+        return []
+
+
+def _normalize_node_cpu_pct(raw_value: Any) -> float:
+    try:
+        value = float(raw_value or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    if value <= 1.0:
+        value *= 100.0
+    return max(0.0, min(100.0, value))
+
+
+def _scheduler_node_capacities() -> list[NodeCapacity]:
+    capacities: list[NodeCapacity] = []
+    for item in _cluster_nodes_for_scheduler():
+        node_id = str(item.get("name") or item.get("node") or "").strip()
+        if not node_id:
+            continue
+        status = str(item.get("status") or "unknown").strip().lower()
+        max_cpu = int(item.get("maxcpu", 0) or 0)
+        max_mem = int(item.get("maxmem", 0) or 0)
+        used_mem = int(item.get("mem", 0) or 0)
+        cpu_pct = _normalize_node_cpu_pct(item.get("cpu", 0))
+        total_ram_mib = max(0, max_mem // (1024 * 1024))
+        free_ram_mib = max(0, (max_mem - used_mem) // (1024 * 1024))
+        free_cpu_cores = max(0, int(round(max_cpu * (100.0 - cpu_pct) / 100.0)))
+        gpu_slots_free = int(
+            item.get("gpu_slots_free")
+            or item.get("free_gpu_slots")
+            or item.get("gpu_free")
+            or item.get("gpu_count")
+            or 0
+        )
+        if status not in {"online", "ready", "ok"}:
+            cpu_pct = 100.0
+            free_cpu_cores = 0
+            free_ram_mib = 0
+            gpu_slots_free = 0
+        capacities.append(
+            NodeCapacity(
+                node_id=node_id,
+                total_cpu_cores=max_cpu,
+                total_ram_mib=total_ram_mib,
+                free_cpu_cores=free_cpu_cores,
+                free_ram_mib=free_ram_mib,
+                gpu_slots_free=max(0, gpu_slots_free),
+                predicted_cpu_pct_4h=cpu_pct,
+                gpu_utilization_pct=float(item.get("gpu_utilization_pct", 0.0) or 0.0),
+                predicted_gpu_utilization_pct_4h=float(item.get("predicted_gpu_utilization_pct_4h", 0.0) or 0.0),
+            )
+        )
+    return capacities
+
+
+def _scheduler_vm_assignments() -> list[dict[str, Any]]:
+    capacities = {node.node_id: node for node in _scheduler_node_capacities()}
+    running_by_node: dict[str, list[VmSummary]] = {}
+    for vm in list_vms(refresh=True):
+        status = str(getattr(vm, "status", "") or "").strip().lower()
+        if status not in {"running", "paused"}:
+            continue
+        node_id = str(getattr(vm, "node", "") or "").strip()
+        if not node_id:
+            continue
+        running_by_node.setdefault(node_id, []).append(vm)
+
+    assignments: list[dict[str, Any]] = []
+    for node_id, items in running_by_node.items():
+        node_capacity = capacities.get(node_id)
+        cpu_pct_per_vm = 0.0
+        if node_capacity is not None and items:
+            cpu_pct_per_vm = round(node_capacity.predicted_cpu_pct_4h / len(items), 2)
+        for vm in items:
+            assignments.append(
+                {
+                    "vmid": int(getattr(vm, "vmid", 0) or 0),
+                    "node_id": node_id,
+                    "cpu_pct": cpu_pct_per_vm,
+                }
+            )
+    return assignments
+
+
+def smart_scheduler_service() -> SmartSchedulerService:
+    global SMART_SCHEDULER_SERVICE
+    if SMART_SCHEDULER_SERVICE is None:
+        SMART_SCHEDULER_SERVICE = SmartSchedulerService(
+            list_nodes=_scheduler_node_capacities,
+        )
+    return SMART_SCHEDULER_SERVICE
+
+
+def usage_tracking_service() -> UsageTrackingService:
+    global USAGE_TRACKING_SERVICE
+    if USAGE_TRACKING_SERVICE is None:
+        USAGE_TRACKING_SERVICE = UsageTrackingService()
+    return USAGE_TRACKING_SERVICE
+
+
+def cost_model_service() -> CostModelService:
+    global COST_MODEL_SERVICE
+    if COST_MODEL_SERVICE is None:
+        COST_MODEL_SERVICE = CostModelService()
+    return COST_MODEL_SERVICE
+
+
+def energy_service() -> EnergyService:
+    global ENERGY_SERVICE
+    if ENERGY_SERVICE is None:
+        ENERGY_SERVICE = EnergyService(utcnow=utcnow)
+    return ENERGY_SERVICE
+
+
+def build_scheduler_insights_payload() -> dict[str, Any]:
+    nodes = _cluster_nodes_for_scheduler()
+    capacities = {node.node_id: node for node in _scheduler_node_capacities()}
+    assignments = _scheduler_vm_assignments()
+    vm_counts: dict[str, int] = {}
+    for item in assignments:
+        node_id = str(item.get("node_id") or "").strip()
+        if node_id:
+            vm_counts[node_id] = vm_counts.get(node_id, 0) + 1
+
+    heatmap: list[dict[str, Any]] = []
+    for item in nodes:
+        node_id = str(item.get("name") or item.get("node") or "").strip()
+        if not node_id:
+            continue
+        cpu_pct = _normalize_node_cpu_pct(item.get("cpu", 0))
+        max_mem = int(item.get("maxmem", 0) or 0)
+        used_mem = int(item.get("mem", 0) or 0)
+        mem_pct = round((used_mem / max_mem) * 100.0, 2) if max_mem > 0 else 0.0
+        capacity = capacities.get(node_id)
+        heatmap.append(
+            {
+                "node_id": node_id,
+                "status": str(item.get("status") or "unknown").strip() or "unknown",
+                "vm_count": vm_counts.get(node_id, 0),
+                "cpu_pct": round(cpu_pct, 2),
+                "mem_pct": mem_pct,
+                "predicted_cpu_pct_4h": round(float(getattr(capacity, "predicted_cpu_pct_4h", cpu_pct) or cpu_pct), 2),
+            }
+        )
+
+    recommendations = [
+        {
+            "vm_id": int(rec.vm_id),
+            "current_node": rec.from_node,
+            "recommended_node": rec.to_node,
+            "reason": rec.reason,
+            "auto_execute": bool(rec.auto_execute),
+        }
+        for rec in smart_scheduler_service().rebalance_cluster(assignments)[:5]
+    ]
+    return {"heatmap": heatmap, "recommendations": recommendations}
+
+
+def execute_scheduler_migration(vmid: int, target_node: str, requester_identity: str = "") -> dict[str, Any]:
+    result = migration_service().migrate_vm(
+        int(vmid),
+        target_node=str(target_node or "").strip(),
+        live=True,
+        copy_storage=False,
+        requester_identity=str(requester_identity or "").strip(),
+    )
+    return result if isinstance(result, dict) else {"result": result}
+
+
+def execute_scheduler_rebalance(requester_identity: str = "") -> dict[str, Any]:
+    recommendations = smart_scheduler_service().rebalance_cluster(_scheduler_vm_assignments())
+    executed: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for rec in recommendations[:5]:
+        try:
+            executed.append(
+                execute_scheduler_migration(
+                    int(rec.vm_id),
+                    rec.to_node,
+                    requester_identity=requester_identity,
+                )
+            )
+        except Exception as exc:
+            errors.append(
+                {
+                    "vm_id": int(rec.vm_id),
+                    "from_node": rec.from_node,
+                    "to_node": rec.to_node,
+                    "error": str(exc),
+                }
+            )
+    return {
+        "recommendations": [
+            {
+                "vm_id": int(rec.vm_id),
+                "from_node": rec.from_node,
+                "to_node": rec.to_node,
+                "reason": rec.reason,
+            }
+            for rec in recommendations[:5]
+        ],
+        "executed": executed,
+        "errors": errors,
+    }
+
+
+def build_chargeback_payload(month: str, department: str | None = None) -> dict[str, Any]:
+    target_month = str(month or "").strip() or datetime.now(timezone.utc).strftime("%Y-%m")
+    selected_department = str(department or "").strip() or None
+    usage_records = usage_tracking_service().get_usage(month=target_month, department=selected_department)
+    report = cost_model_service().generate_chargeback_report(usage_records, target_month, selected_department)
+    model = cost_model_service().get_cost_model()
+    departments: dict[str, dict[str, Any]] = {}
+    for entry in report.get("entries", []):
+        if not isinstance(entry, dict):
+            continue
+        department_name = str(entry.get("department") or "unassigned").strip() or "unassigned"
+        item = departments.setdefault(
+            department_name,
+            {
+                "department": department_name,
+                "session_count": 0,
+                "cpu_hours": 0.0,
+                "gpu_hours": 0.0,
+                "energy_cost_eur": 0.0,
+                "cpu_cost_eur": 0.0,
+                "gpu_cost_eur": 0.0,
+                "total_cost_eur": 0.0,
+            },
+        )
+        cpu_hours = float(entry.get("cpu_hours", 0.0) or 0.0)
+        gpu_hours = float(entry.get("gpu_hours", 0.0) or 0.0)
+        energy_cost = float(entry.get("energy_cost", 0.0) or 0.0)
+        item["session_count"] += int(entry.get("sessions", 0) or 0)
+        item["cpu_hours"] += cpu_hours
+        item["gpu_hours"] += gpu_hours
+        item["energy_cost_eur"] += energy_cost
+        item["cpu_cost_eur"] += cpu_hours * float(model.cpu_hour_cost or 0.0)
+        item["gpu_cost_eur"] += gpu_hours * float(model.gpu_hour_cost or 0.0)
+        item["total_cost_eur"] += float(entry.get("total_cost", 0.0) or 0.0)
+
+    sorted_departments = sorted(departments.values(), key=lambda item: item["total_cost_eur"], reverse=True)
+    for item in sorted_departments:
+        for key in ("cpu_hours", "gpu_hours", "energy_cost_eur", "cpu_cost_eur", "gpu_cost_eur", "total_cost_eur"):
+            item[key] = round(float(item.get(key, 0.0) or 0.0), 4)
+
+    return {
+        "month": target_month,
+        "department": selected_department,
+        "departments": sorted_departments,
+        "entries": report.get("entries", []),
+        "csv": str(report.get("csv") or ""),
+        "total_cost_eur": round(float(report.get("total_cost", 0.0) or 0.0), 4),
+    }
+
+
+def build_budget_alerts_payload(month: str) -> list[dict[str, Any]]:
+    target_month = str(month or "").strip() or datetime.now(timezone.utc).strftime("%Y-%m")
+    chargeback = build_chargeback_payload(target_month)
+    totals = {
+        str(item.get("department") or "").strip(): float(item.get("total_cost_eur", 0.0) or 0.0)
+        for item in chargeback.get("departments", [])
+        if str(item.get("department") or "").strip()
+    }
+    alerts = cost_model_service().check_budget_alerts(totals, utcnow())
+    normalized: list[dict[str, Any]] = []
+    for alert in alerts:
+        if not isinstance(alert, dict):
+            continue
+        current = float(alert.get("spent", 0.0) or 0.0)
+        budget = float(alert.get("budget", 0.0) or 0.0)
+        normalized.append(
+            {
+                "department": str(alert.get("department") or "").strip(),
+                "current": round(current, 4),
+                "budget": round(budget, 4),
+                "percent": round(float(alert.get("percent", 0.0) or 0.0), 1),
+                "threshold": int(alert.get("threshold", 0) or 0),
+                "exceeded": current > budget if budget > 0 else False,
+            }
+        )
+    return normalized
+
+
+def build_energy_nodes_payload() -> list[dict[str, Any]]:
+    target_month = datetime.now(timezone.utc).strftime("%Y-%m")
+    payload: list[dict[str, Any]] = []
+    for item in _cluster_nodes_for_scheduler():
+        node_id = str(item.get("name") or item.get("node") or "").strip()
+        if not node_id:
+            continue
+        samples = energy_service().get_samples(node_id, days=32)
+        current_power = float(samples[-1].node_power_w) if samples else 0.0
+        observed_max = max((float(sample.node_power_w or 0.0) for sample in samples), default=0.0)
+        fallback_max = max(current_power * 1.25, 250.0 if current_power <= 0 else current_power)
+        payload.append(
+            {
+                "node_id": node_id,
+                "status": str(item.get("status") or "unknown").strip() or "unknown",
+                "current_power_w": round(current_power, 2),
+                "max_power_w": round(max(observed_max, fallback_max), 2),
+                "month_kwh": round(energy_service().compute_energy_kwh(node_id, month=target_month, days=62), 4),
+            }
+        )
+    return payload
+
+
+def build_energy_trend_payload(months: int = 6) -> list[dict[str, Any]]:
+    months_back = max(1, min(24, int(months or 6)))
+    now = datetime.now(timezone.utc)
+    node_ids = [str(item.get("name") or item.get("node") or "").strip() for item in _cluster_nodes_for_scheduler()]
+    node_ids = [node_id for node_id in node_ids if node_id]
+    trend: list[dict[str, Any]] = []
+    for offset in range(months_back - 1, -1, -1):
+        year = now.year
+        month_index = now.month - offset
+        while month_index <= 0:
+            month_index += 12
+            year -= 1
+        month_label = f"{year}-{month_index:02d}"
+        total_kwh = 0.0
+        for node_id in node_ids:
+            total_kwh += energy_service().compute_energy_kwh(node_id, month=month_label, days=400)
+        trend.append(
+            {
+                "month": month_label,
+                "total_kwh": round(total_kwh, 4),
+                "total_co2_kg": round(energy_service().compute_co2(total_kwh) / 1000.0, 4),
+                "total_cost_eur": round(energy_service().compute_energy_cost(total_kwh), 4),
+            }
+        )
+    return trend
+
+
+def build_energy_csrd_payload(year: int, quarter: int) -> dict[str, Any]:
+    node_ids = [str(item.get("name") or item.get("node") or "").strip() for item in _cluster_nodes_for_scheduler()]
+    return energy_service().generate_csrd_report([node_id for node_id in node_ids if node_id], int(year), int(quarter))
 
 
 def update_ubuntu_beagle_vm(vmid: int, payload: dict[str, Any]) -> dict[str, Any]:

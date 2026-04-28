@@ -53,7 +53,7 @@ IT-Abteilungen investieren in Beagle-Server, aber können den Abteilungen nicht 
   - Ausgabe: CSV + JSON
   - Felder: `department`, `user`, `sessions`, `cpu_hours`, `gpu_hours`, `storage_gb`, `total_cost`
   - Drill-down: von Abteilung → User → einzelne Session
-- [x] `beagle-host/bin/beagle-control-plane.py`: `GET /api/v1/reports/chargeback?month=2025-04&department=marketing`
+- [x] Control-Plane-Surface: `GET /api/v1/costs/chargeback?month=2025-04&department=marketing`, `GET /api/v1/costs/chargeback.csv`, `GET /api/v1/costs/budget-alerts`
 - [x] Tests: `tests/unit/test_chargeback_report.py`
 
 ### Schritt 4 — Budget-Alerts

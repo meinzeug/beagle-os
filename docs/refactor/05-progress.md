@@ -1,3 +1,27 @@
+## Update (2026-04-28, GoEnterprise Plan 04/05/09: Scheduler-, Chargeback- und Energy-Dashboard live verdrahtet)
+
+**Scope**: Drei bislang nur vorbereitete Enterprise-Flächen in den echten Control-Plane-/Dashboard-Stack gezogen. Die vorhandenen JS-Module für Scheduler, Chargeback und Energy/CSRD hängen jetzt an realen Beagle-APIs, sind im Hauptdashboard eingebunden und per RBAC abgesichert.
+
+- Backend:
+  - [beagle-host/services/control_plane_read_surface.py](/home/dennis/beagle-os/beagle-host/services/control_plane_read_surface.py): neue GET-Surfaces für `/api/v1/scheduler/insights`, `/api/v1/costs/chargeback`, `/api/v1/costs/chargeback.csv`, `/api/v1/costs/budget-alerts`, `/api/v1/energy/nodes`, `/api/v1/energy/trend`, `/api/v1/energy/csrd` sowie POST-Surfaces für `/api/v1/scheduler/migrate` und `/api/v1/scheduler/rebalance`
+  - [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py): Scheduler-/Usage-/Cost-/Energy-Wiring, Cluster-Heatmap-Aufbereitung, Chargeback-Aggregation und CSRD-/Trend-Helfer
+  - [beagle-host/services/control_plane_handler.py](/home/dennis/beagle-os/beagle-host/services/control_plane_handler.py): AuthZ-geschütztes Routing der neuen Scheduler-Mutationen
+  - [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py): neue Enterprise-Routen auf `settings:read` / `settings:write`
+- WebUI:
+  - [website/index.html](/home/dennis/beagle-os/website/index.html): echte Dashboard-Karten für `Placement Insights`, `Kosten pro Abteilung` und `Energie und CO2`
+  - [website/main.js](/home/dennis/beagle-os/website/main.js) und [website/ui/dashboard.js](/home/dennis/beagle-os/website/ui/dashboard.js): Dashboard-Wiring für die drei neuen Panels
+  - [website/ui/scheduler_insights.js](/home/dennis/beagle-os/website/ui/scheduler_insights.js), [website/ui/cost_dashboard.js](/home/dennis/beagle-os/website/ui/cost_dashboard.js), [website/ui/energy_dashboard.js](/home/dennis/beagle-os/website/ui/energy_dashboard.js): auf die echte API-Signatur umgestellt
+- Regressionen:
+  - [tests/unit/test_control_plane_read_surface.py](/home/dennis/beagle-os/tests/unit/test_control_plane_read_surface.py)
+  - [tests/unit/test_dashboard_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_dashboard_ui_regressions.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
+- Validierung:
+  - `python3 -m py_compile beagle-host/services/control_plane_read_surface.py beagle-host/services/control_plane_handler.py beagle-host/services/service_registry.py beagle-host/services/authz_policy.py`
+  - `node --check website/main.js website/ui/dashboard.js website/ui/scheduler_insights.js website/ui/cost_dashboard.js website/ui/energy_dashboard.js`
+  - `python3 -m pytest tests/unit/test_smart_scheduler.py tests/unit/test_chargeback_report.py tests/unit/test_cost_model.py tests/unit/test_budget_alert.py tests/unit/test_usage_tracking.py tests/unit/test_energy_service.py tests/unit/test_carbon_calculation.py tests/unit/test_csrd_export.py tests/unit/test_control_plane_read_surface.py tests/unit/test_dashboard_ui_regressions.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_authz_policy.py -q`
+  - Ergebnis: `92 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 02: Policy-Validierung + Conflict-Hinweise)
 
 **Scope**: Den offenen Haertungs-Slice der MDM-Policy-Plane weitergezogen. Policies werden jetzt serverseitig auf Codec-/Resolution-/Window-Fehler validiert; die Fleet-Surface zeigt die Validation sowie Device-vs-Group-Konflikte direkt im Operator-Flow an.

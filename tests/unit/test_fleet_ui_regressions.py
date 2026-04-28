@@ -16,10 +16,25 @@ def test_dashboard_wires_fleet_health_panel() -> None:
     main = MAIN_JS.read_text(encoding="utf-8")
 
     assert 'id="fleet-health-panel"' in html
+    assert 'id="scheduler-insights-panel"' in html
+    assert 'id="cost-dashboard-panel"' in html
+    assert 'id="energy-dashboard-panel"' in html
     assert "renderFleetHealth() {}" in dashboard
+    assert "renderSchedulerInsights() {}" in dashboard
+    assert "renderCostDashboard() {}" in dashboard
+    assert "renderEnergyDashboard() {}" in dashboard
     assert "dashboardHooks.renderFleetHealth();" in dashboard
+    assert "dashboardHooks.renderSchedulerInsights();" in dashboard
+    assert "dashboardHooks.renderCostDashboard();" in dashboard
+    assert "dashboardHooks.renderEnergyDashboard();" in dashboard
     assert "configureFleetHealth" in main
     assert "renderFleetHealth" in main
+    assert "configureSchedulerInsights" in main
+    assert "renderSchedulerInsights" in main
+    assert "configureCostDashboard" in main
+    assert "renderCostDashboard" in main
+    assert "configureEnergyDashboard" in main
+    assert "renderEnergyDashboard" in main
 
 
 def test_fleet_health_uses_fleet_registry_api_surface() -> None:

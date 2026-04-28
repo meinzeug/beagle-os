@@ -1,6 +1,5 @@
 import { request } from './api.js';
 import { escapeHtml, qs } from './dom.js';
-import { state } from './state.js';
 
 const energyHooks = {
   setBanner() {}
@@ -43,8 +42,8 @@ export async function renderEnergyDashboard() {
 
   try {
     [nodes, trend] = await Promise.all([
-      request('GET', '/api/v1/energy/nodes').then((d) => Array.isArray(d) ? d : (d.nodes ?? [])),
-      request('GET', '/api/v1/energy/trend').catch(() => [])
+      request('/energy/nodes').then((d) => Array.isArray(d) ? d : (d.nodes ?? [])),
+      request('/energy/trend').then((d) => Array.isArray(d) ? d : (d.trend ?? [])).catch(() => [])
     ]);
   } catch (err) {
     container.innerHTML = `<p class="error">Fehler: ${escapeHtml(String(err.message ?? err))}</p>`;
@@ -86,7 +85,8 @@ export async function renderEnergyDashboard() {
       const year = now.getUTCFullYear();
       const quarter = Math.ceil((now.getUTCMonth() + 1) / 3);
       try {
-        const report = await request('GET', `/api/v1/energy/csrd?year=${year}&quarter=${quarter}`);
+        const response = await request(`/energy/csrd?year=${year}&quarter=${quarter}`);
+        const report = response?.csrd ?? response;
         const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');

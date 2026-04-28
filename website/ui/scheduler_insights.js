@@ -1,6 +1,5 @@
 import { request } from './api.js';
 import { escapeHtml, qs } from './dom.js';
-import { state } from './state.js';
 
 const schedulerHooks = {
   setBanner() {}
@@ -45,7 +44,7 @@ export async function renderSchedulerInsights() {
   let heatmap = [];
   let recommendations = [];
   try {
-    const data = await request('GET', '/api/v1/scheduler/insights');
+    const data = await request('/scheduler/insights');
     heatmap = Array.isArray(data.heatmap) ? data.heatmap : [];
     recommendations = Array.isArray(data.recommendations) ? data.recommendations : [];
   } catch (err) {
@@ -108,7 +107,11 @@ export async function renderSchedulerInsights() {
       if (!confirm(`VM ${vmId} zu ${target} migrieren?`)) return;
       btn.disabled = true;
       try {
-        await request('POST', '/api/v1/scheduler/migrate', { vm_id: vmId, target_node: target });
+        await request('/scheduler/migrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vm_id: vmId, target_node: target })
+        });
         schedulerHooks.setBanner(`Migration von VM ${vmId} zu ${target} gestartet.`);
         renderSchedulerInsights();
       } catch (err) {
@@ -124,7 +127,11 @@ export async function renderSchedulerInsights() {
     rebalBtn.addEventListener('click', async () => {
       rebalBtn.disabled = true;
       try {
-        await request('POST', '/api/v1/scheduler/rebalance');
+        await request('/scheduler/rebalance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
         schedulerHooks.setBanner('Auto-Rebalance wurde angestoßen.');
         renderSchedulerInsights();
       } catch (err) {

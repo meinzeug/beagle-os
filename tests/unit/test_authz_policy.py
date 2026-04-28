@@ -218,6 +218,44 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             AuthzPolicyService.required_permission("GET", "/api/v1/fleet/devices/groups"),
             "settings:read",
         )
+
+    def test_enterprise_scheduler_cost_and_energy_routes_use_settings_permissions(self):
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/scheduler/insights"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/scheduler/migrate"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/scheduler/rebalance"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/costs/chargeback"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/costs/chargeback.csv"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/costs/budget-alerts"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/energy/nodes"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/energy/trend"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/energy/csrd"),
+            "settings:read",
+        )
         self.assertEqual(
             AuthzPolicyService.required_permission("GET", "/api/v1/fleet/devices/dev-001"),
             "settings:read",

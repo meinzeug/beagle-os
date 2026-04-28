@@ -1,6 +1,5 @@
-import { request } from './api.js';
+import { blobRequest, request } from './api.js';
 import { escapeHtml, qs } from './dom.js';
-import { state } from './state.js';
 
 const costHooks = {
   setBanner() {}
@@ -43,8 +42,8 @@ export async function renderCostDashboard() {
 
   try {
     [report, budgetAlerts] = await Promise.all([
-      request('GET', `/api/v1/costs/chargeback?month=${month}`),
-      request('GET', '/api/v1/costs/budget-alerts').catch(() => [])
+      request(`/costs/chargeback?month=${month}`),
+      request(`/costs/budget-alerts?month=${month}`).catch(() => ({ alerts: [] }))
     ]);
   } catch (err) {
     container.innerHTML = `<p class="error">Fehler: ${escapeHtml(String(err.message ?? err))}</p>`;
@@ -52,7 +51,7 @@ export async function renderCostDashboard() {
   }
 
   const departments = Array.isArray(report?.departments) ? report.departments : [];
-  const alerts = Array.isArray(budgetAlerts) ? budgetAlerts : [];
+  const alerts = Array.isArray(budgetAlerts?.alerts) ? budgetAlerts.alerts : [];
 
   const alertsHtml = alerts.length > 0
     ? `<div class="alert-strip">${alerts.map(alertBadge).join(' ')}</div>`
@@ -99,14 +98,7 @@ export async function renderCostDashboard() {
     csvButton.addEventListener('click', async () => {
       csvButton.disabled = true;
       try {
-        const csv = await request('GET', `/api/v1/costs/chargeback.csv?month=${month}`, null, { responseType: 'text' });
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `chargeback_${month}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+        await blobRequest(`/costs/chargeback.csv?month=${month}`, `chargeback_${month}.csv`);
       } catch (err) {
         costHooks.setBanner(`CSV-Export Fehler: ${err.message ?? err}`);
       } finally {

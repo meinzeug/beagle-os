@@ -137,6 +137,8 @@ class AuthzPolicyService:
                 return "settings:write"
             if route == "/api/v1/fleet/remediation/config":
                 return "settings:write"
+            if route in {"/api/v1/scheduler/migrate", "/api/v1/scheduler/rebalance"}:
+                return "settings:write"
             if re.match(r"^/api/v1/fleet/alerts/[^/]+/resolve$", route):
                 return "settings:write"
             if re.match(r"^/api/v1/fleet/devices/[A-Za-z0-9._:-]+/(heartbeat|lock|unlock|wipe|confirm-wiped)$", route):
@@ -203,6 +205,8 @@ class AuthzPolicyService:
                 return "pool:write"
         if verb == "GET":
             if route in {"/api/v1/fleet/policies", "/api/v1/fleet/policies/assignments", "/api/v1/fleet/remediation/drift", "/api/v1/fleet/remediation/config", "/api/v1/fleet/remediation/history", "/api/v1/fleet/anomalies", "/api/v1/fleet/maintenance", "/api/v1/fleet/alerts", "/api/v1/fleet/alerts/rules"}:
+                return "settings:read"
+            if route in {"/api/v1/scheduler/insights", "/api/v1/costs/chargeback", "/api/v1/costs/chargeback.csv", "/api/v1/costs/budget-alerts", "/api/v1/energy/nodes", "/api/v1/energy/trend", "/api/v1/energy/csrd"}:
                 return "settings:read"
             if re.match(r"^/api/v1/fleet/policies/[A-Za-z0-9._:-]+$", route):
                 return "settings:read"

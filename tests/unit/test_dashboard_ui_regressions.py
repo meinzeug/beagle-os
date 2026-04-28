@@ -20,3 +20,9 @@ def test_dashboard_skips_unauthorized_cluster_pool_and_iam_fetches() -> None:
     assert ": Promise.resolve({ pools: [] })" in js
     assert "? request('/sessions', { __suppressAuthLock: true })" in js
     assert ": Promise.resolve({ sessions: [] })" in js
+    assert "renderSchedulerInsights() {}" in js
+    assert "renderCostDashboard() {}" in js
+    assert "renderEnergyDashboard() {}" in js
+    assert "dashboardHooks.renderSchedulerInsights();" in js
+    assert "dashboardHooks.renderCostDashboard();" in js
+    assert "dashboardHooks.renderEnergyDashboard();" in js

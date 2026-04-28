@@ -238,8 +238,10 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
         if path == "/healthz":
             self._write_json(HTTPStatus.OK, {"ok": True, "service": "beagle-control-plane", "version": VERSION})
             return
-        response = control_plane_read_surface_service().route_get(path)
+        response = control_plane_read_surface_service().route_get(path, query=query)
         if response is not None:
+            if not self._authorize_or_respond("GET", path):
+                return
             if response["kind"] == "bytes":
                 self._write_bytes(
                     response["status"],
@@ -398,6 +400,23 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             if response is not None:
                 self._write_json(response["status"], response["payload"])
             return
+
+        if path.startswith("/api/v1/scheduler/"):
+            if not self._authorize_or_respond("POST", path):
+                return
+            try:
+                json_payload = self._read_json_body() if int(self.headers.get("Content-Length", "0") or "0") > 0 else {}
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            response = control_plane_read_surface_service().route_post(
+                path,
+                json_payload=json_payload,
+                requester=self._requester_identity(),
+            )
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
+                return
 
         if self._cluster_surface().handles_post(path):
             if path not in {"/api/v1/cluster/join", "/api/v1/cluster/join-with-setup-code"}:

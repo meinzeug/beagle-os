@@ -41,6 +41,9 @@ const dashboardHooks = {
   renderClusterPanel() {},
   renderSessionsPanel() {},
   renderFleetHealth() {},
+  renderSchedulerInsights() {},
+  renderCostDashboard() {},
+  renderEnergyDashboard() {},
   renderProvisioningWorkspace() {},
   updateFleetHealthAlert() {},
   setBanner() {},
@@ -178,6 +181,9 @@ export function loadDashboard(options) {
       dashboardHooks.renderClusterPanel();
       dashboardHooks.renderSessionsPanel();
       dashboardHooks.renderFleetHealth();
+      dashboardHooks.renderSchedulerInsights();
+      dashboardHooks.renderCostDashboard();
+      dashboardHooks.renderEnergyDashboard();
       dashboardHooks.renderProvisioningWorkspace();
       dashboardHooks.updateFleetHealthAlert();
       if (failedRequests > 0) {

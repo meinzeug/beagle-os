@@ -1,5 +1,21 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 04/05/09 follow-up)
+
+**Zuletzt erledigt**:
+- Scheduler-, Chargeback- und Energy-/CSRD-Panels sind jetzt keine toten UI-Module mehr, sondern laufen über echte Control-Plane-Routen im Hauptdashboard.
+- Rebalancing-Empfehlungen lassen sich jetzt aus der WebUI direkt ausführen; Kosten-CSV und CSRD-Export sind am Dashboard verdrahtet.
+- Die neuen Enterprise-Surfaces sind per RBAC auf `settings:read` / `settings:write` gelegt und mit gezielten Read-Surface-/UI-Regressions abgesichert.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 04 weiter vertiefen**: historische Scheduler-Heatmap und echte Prewarming-/Saved-CPU-Hours-Metrik nachziehen, damit das Dashboard nicht nur den Ist-Zustand zeigt.
+2. **Plan 05 vervollstaendigen**: Preismodell-Editor und Budget-Verwaltung im Settings-/Enterprise-Flow sichtbar machen, statt nur die Read-Surface zu liefern.
+3. **Plan 09 vertiefen**: Energy-Admin-Konfiguration und echte Green-Scheduling-Integration mit Plan 04 schließen.
+4. **Plan 02 live validieren**: Lock-Screen, Wipe und Runtime-Telemetrie weiter gegen echte Thin-Client-Hardware/X11-/Wayland-Sessions abnehmen.
+5. **Plan 07 live validieren**: Fleet-Alerts und Predictive-Maintenance gegen echte Runtime-Events provozieren und Webhook-/UI-Reaktion prüfen.
+6. **Plan 01 Fork-Pfad weiterziehen**: VPN-Enforcement nach dem aktuellen Broker-Pfad auch im späteren `beagle-stream-server`-Fork vorbereiten.
+
 ## Stand (2026-04-28, GoEnterprise Plan 02 follow-up)
 
 **Zuletzt erledigt**:

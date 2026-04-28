@@ -73,6 +73,18 @@ import {
   renderFleetHealth
 } from './ui/fleet_health.js';
 import {
+  configureSchedulerInsights,
+  renderSchedulerInsights
+} from './ui/scheduler_insights.js';
+import {
+  configureCostDashboard,
+  renderCostDashboard
+} from './ui/cost_dashboard.js';
+import {
+  configureEnergyDashboard,
+  renderEnergyDashboard
+} from './ui/energy_dashboard.js';
+import {
   configureAudit,
   exportAuditCsv,
   loadAuditExportTargets,
@@ -583,12 +595,18 @@ export function bootstrapApp() {
     renderClusterPanel,
     renderSessionsPanel,
     renderFleetHealth,
+    renderSchedulerInsights,
+    renderCostDashboard,
+    renderEnergyDashboard,
     renderProvisioningWorkspace,
     renderPolicies,
     renderIam,
     setBanner,
     loadDetail
   });
+  configureSchedulerInsights({ setBanner });
+  configureCostDashboard({ setBanner });
+  configureEnergyDashboard({ setBanner });
 
   applyTitle();
   loadDarkModePreference();
@@ -609,6 +627,9 @@ export function bootstrapApp() {
   renderVirtualizationPanel();
   renderClusterPanel();
   renderSessionsPanel();
+  renderSchedulerInsights();
+  renderCostDashboard();
+  renderEnergyDashboard();
   renderVirtualizationInspector();
   renderProvisioningWorkspace();
   renderPolicies();

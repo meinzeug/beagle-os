@@ -69,12 +69,12 @@ Der aktuelle Beagle-Scheduler platziert VMs nach simplen Regeln:
   - Empfehlung: "Migriere VM X von Node A nach Node B (Node A bei 90%, Node B bei 30%)"
   - Automatic-Modus: führt Migration automatisch durch (wenn konfiguriert)
   - Conservative-Modus: nur Empfehlungen, Admin bestätigt
-- [ ] Web Console: Rebalancing-Empfehlungen mit 1-Click-Ausführung
+- [x] Web Console: Rebalancing-Empfehlungen mit 1-Click-Ausführung
 - [ ] Tests: `tests/unit/test_cluster_rebalancing.py`
 
 ### Schritt 5 — Scheduler-Insights Dashboard
 
-- [ ] `website/ui/scheduler_insights.js`:
+- [x] `website/ui/scheduler_insights.js`:
   - Heatmap: Node-Auslastung über Zeit (letzte 7 Tage)
   - Top-5 empfohlene Migrations
   - Prognostizierte Last (nächste 24h) per Node
