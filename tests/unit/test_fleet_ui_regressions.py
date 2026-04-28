@@ -124,6 +124,16 @@ def test_enterprise_dashboard_modules_use_operator_routes() -> None:
     assert "Prewarm Hit Rate" in scheduler_js
     assert "/scheduler/warm-pools/apply" in scheduler_js
     assert "Warm-Pool Empfehlungen" in scheduler_js
+    assert "Warm-Pool Auto-Apply aktiv" in scheduler_js
+    assert "Auto-Apply max Pools / Run" in scheduler_js
+    assert "Auto-Apply max Warm-Increase" in scheduler_js
+    assert "Auto-Apply min Miss-Rate" in scheduler_js
+    assert "Auto-Apply Cooldown Minuten" in scheduler_js
+    assert "warm_pool_auto_apply_enabled" in scheduler_js
+    assert "warm_pool_auto_apply_max_pools_per_run" in scheduler_js
+    assert "warm_pool_auto_apply_max_increase" in scheduler_js
+    assert "warm_pool_auto_apply_min_miss_rate" in scheduler_js
+    assert "warm_pool_auto_apply_cooldown_minutes" in scheduler_js
     assert "Nächste 8 Stunden CPU-Prognose" in scheduler_js
     assert "/costs/model" in cost_js
     assert "Kostenmodell speichern" in cost_js

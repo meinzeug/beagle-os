@@ -12,7 +12,7 @@
 - [x] GoEnterprise Plan 04: echte Prewarm-Hit-/Miss-Telemetrie fuer Erfolgsquoten nachziehen.
 - [x] GoEnterprise Plan 04: offene Testpflicht fuer 14-Tage-Peak-Erkennung, 10-Minuten-Prewarm und Rebalancing >85% mit `tests/unit/test_cluster_rebalancing.py` schliessen.
 - [x] GoEnterprise Plan 04: Warm-Pool-Empfehlungen im Scheduler-Dashboard nachziehen.
-- [ ] GoEnterprise Plan 04: Warm-Pool-Empfehlungen optional automatisch anwenden.
+- [x] GoEnterprise Plan 04: Warm-Pool-Empfehlungen optional automatisch anwenden.
 - [x] GoEnterprise Plan 05: Chargeback-Dashboard an echte `/api/v1/costs/*`-Surfaces hängen.
 - [x] GoEnterprise Plan 05: Preismodell-Editor und Budget-Verwaltung in der WebUI als echte Admin-Flows nachziehen.
 - [x] GoEnterprise Plan 05: Forecast pro Abteilung und Top-10 kostenintensive VMs im Cost-Dashboard nachziehen.

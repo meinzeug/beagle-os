@@ -126,6 +126,7 @@ export async function renderSchedulerInsights() {
   let prewarmMissCount = 0;
   let prewarmHitRate = 0;
   let greenWindowActive = false;
+  let warmPoolAutoApply = {};
   try {
     const data = await request('/scheduler/insights');
     heatmap = Array.isArray(data.heatmap) ? data.heatmap : [];
@@ -143,6 +144,7 @@ export async function renderSchedulerInsights() {
     prewarmMissCount = Number(data.prewarm_miss_count || 0);
     prewarmHitRate = Number(data.prewarm_hit_rate || 0);
     greenWindowActive = Boolean(data.green_window_active);
+    warmPoolAutoApply = data.warm_pool_auto_apply || {};
   } catch (err) {
     container.innerHTML = `<p class="error">Fehler: ${escapeHtml(String(err.message ?? err))}</p>`;
     return;
@@ -256,12 +258,18 @@ export async function renderSchedulerInsights() {
       <div class="section-spaced-tight">
         <h4>Warm-Pool Empfehlungen</h4>
         ${warmPoolHtml}
+        <p class="muted-text">Auto-Apply Status: <strong>${escapeHtml(String(warmPoolAutoApply.reason || 'disabled'))}</strong> · letzte Ausführung: <strong>${escapeHtml(String(warmPoolAutoApply.last_run_at || '—'))}</strong></p>
         <div class="panel-actions"><button class="btn btn-secondary" id="scheduler-apply-warm-pools-btn">Warm-Pool Empfehlungen anwenden</button></div>
       </div>
       <div class="detail-grid section-spaced-tight">
         <label>Prewarm Minuten<input id="scheduler-config-prewarm" type="number" min="5" max="180" step="1" value="${escapeHtml(String(config.prewarm_minutes_ahead ?? 15))}"></label>
         <label class="checkbox-row"><input id="scheduler-config-green" type="checkbox" ${config.green_scheduling_enabled ? 'checked' : ''}> Green Scheduling aktiv</label>
+        <label class="checkbox-row"><input id="scheduler-config-warm-auto-apply" type="checkbox" ${config.warm_pool_auto_apply_enabled ? 'checked' : ''}> Warm-Pool Auto-Apply aktiv</label>
         <label>Green Hours CSV<input id="scheduler-config-green-hours" type="text" value="${escapeHtml(Array.isArray(config.green_hours) ? config.green_hours.join(',') : '')}" placeholder="10,11,12,13"></label>
+        <label>Auto-Apply max Pools / Run<input id="scheduler-config-warm-auto-max-pools" type="number" min="1" max="20" step="1" value="${escapeHtml(String(config.warm_pool_auto_apply_max_pools_per_run ?? 3))}"></label>
+        <label>Auto-Apply max Warm-Increase<input id="scheduler-config-warm-auto-max-increase" type="number" min="1" max="10" step="1" value="${escapeHtml(String(config.warm_pool_auto_apply_max_increase ?? 2))}"></label>
+        <label>Auto-Apply min Miss-Rate<input id="scheduler-config-warm-auto-min-miss" type="number" min="0" max="1" step="0.05" value="${escapeHtml(String(config.warm_pool_auto_apply_min_miss_rate ?? 0.35))}"></label>
+        <label>Auto-Apply Cooldown Minuten<input id="scheduler-config-warm-auto-cooldown" type="number" min="5" max="720" step="1" value="${escapeHtml(String(config.warm_pool_auto_apply_cooldown_minutes ?? 30))}"></label>
       </div>
       <div class="panel-actions">
         <button class="btn btn-primary" id="scheduler-config-save-btn">Scheduler-Konfiguration speichern</button>
@@ -321,6 +329,11 @@ export async function renderSchedulerInsights() {
           body: JSON.stringify({
             prewarm_minutes_ahead: Number(container.querySelector('#scheduler-config-prewarm')?.value || 15),
             green_scheduling_enabled: Boolean(container.querySelector('#scheduler-config-green')?.checked),
+            warm_pool_auto_apply_enabled: Boolean(container.querySelector('#scheduler-config-warm-auto-apply')?.checked),
+            warm_pool_auto_apply_max_pools_per_run: Number(container.querySelector('#scheduler-config-warm-auto-max-pools')?.value || 3),
+            warm_pool_auto_apply_max_increase: Number(container.querySelector('#scheduler-config-warm-auto-max-increase')?.value || 2),
+            warm_pool_auto_apply_min_miss_rate: Number(container.querySelector('#scheduler-config-warm-auto-min-miss')?.value || 0.35),
+            warm_pool_auto_apply_cooldown_minutes: Number(container.querySelector('#scheduler-config-warm-auto-cooldown')?.value || 30),
             green_hours: String(container.querySelector('#scheduler-config-green-hours')?.value || '')
               .split(',')
               .map((value) => Number(String(value || '').trim()))

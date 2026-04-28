@@ -83,6 +83,7 @@ Der aktuelle Beagle-Scheduler platziert VMs nach simplen Regeln:
   - [x] Stündliche Heatmap der letzten 7 Tage pro Node
   - [x] Saved-CPU-Hours-Auswertung nach Pool und User
   - [x] Prewarm Hit-/Miss-Telemetrie und Warm-Pool-Empfehlungen im Dashboard
+  - [x] optionales Warm-Pool Auto-Apply mit Guardrails (max Pools/Run, max Increase, min Miss-Rate, Cooldown)
 
 ---
 
@@ -92,3 +93,19 @@ Der aktuelle Beagle-Scheduler platziert VMs nach simplen Regeln:
 - [x] Prädiktiver Scheduler: VM-Start 10min vor Peak → Nutzer wartet 0s statt 30s.
 - [x] Rebalancing: Überlasteter Node (>85%) → Scheduler empfiehlt VM-Migration auf freien Node.
 - [x] Dashboard: Heatmap zeigt korrekte historische Auslastung.
+
+## Update (2026-04-28, Plan-04-Restpunkt Warm-Pool Auto-Apply geschlossen)
+
+- Der Scheduler kann Warm-Pool-Empfehlungen jetzt optional automatisch anwenden (`warm_pool_auto_apply_enabled`), statt nur manuell per Button.
+- Guardrails sind konfigurierbar und standardmaessig konservativ:
+  - `warm_pool_auto_apply_max_pools_per_run`
+  - `warm_pool_auto_apply_max_increase`
+  - `warm_pool_auto_apply_min_miss_rate`
+  - `warm_pool_auto_apply_cooldown_minutes`
+- Auto-Apply wirkt nur auf Last-Spikes (Empfehlungen mit positiver Differenz, Miss-Rate ueber Schwellwert, Misses > Hits).
+- Der Scheduler-Insights-Response liefert den Auto-Apply-Status (`disabled`, `cooldown-active`, `no-eligible-recommendations`, `applied`) plus `last_run_at`.
+- Die Web Console zeigt diese Optionen im Scheduler-Panel und speichert sie ueber `PUT /api/v1/scheduler/config`.
+- Neue Regressionen:
+  - `tests/unit/test_scheduler_warm_pool_auto_apply.py`
+  - `tests/unit/test_fleet_ui_regressions.py` (UI-Controls/Bindings)
+- Validierung: lokaler und `srv1`-Fokuslauf gruen (`33 passed`).

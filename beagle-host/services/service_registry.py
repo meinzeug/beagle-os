@@ -148,6 +148,11 @@ from network_http_surface import NetworkHttpSurfaceService
 from node_install_check_service import NodeInstallCheckService
 from session_manager import SessionManagerService
 from smart_scheduler import NodeCapacity, SmartSchedulerService
+from scheduler_warm_pool_auto_apply import (
+    normalize_auto_apply_config,
+    select_recommendations_for_auto_apply,
+    should_run_auto_apply,
+)
 from cost_model_service import CostModelService
 from usage_tracking_service import UsageTrackingService
 from energy_service import EnergyService
@@ -3793,6 +3798,12 @@ def get_scheduler_config() -> dict[str, Any]:
         "prewarm_minutes_ahead": 15,
         "saved_cpu_hours": 0.0,
         "green_hours": [],
+        "warm_pool_auto_apply_enabled": False,
+        "warm_pool_auto_apply_max_pools_per_run": 3,
+        "warm_pool_auto_apply_max_increase": 2,
+        "warm_pool_auto_apply_min_miss_rate": 0.35,
+        "warm_pool_auto_apply_cooldown_minutes": 30,
+        "warm_pool_auto_apply_last_run_at": "",
     }
     data = load_json_file(_scheduler_config_file(), {})
     if not isinstance(data, dict):
@@ -3819,6 +3830,7 @@ def get_scheduler_config() -> dict[str, Any]:
         if 0 <= hour <= 23 and hour not in normalized_hours:
             normalized_hours.append(hour)
     config["green_hours"] = sorted(normalized_hours)
+    config.update(normalize_auto_apply_config(config))
     return config
 
 
@@ -3843,6 +3855,16 @@ def update_scheduler_config(payload: dict[str, Any]) -> dict[str, Any]:
                 if 0 <= hour <= 23 and hour not in values:
                     values.append(hour)
             config["green_hours"] = sorted(values)
+    for key in (
+        "warm_pool_auto_apply_enabled",
+        "warm_pool_auto_apply_max_pools_per_run",
+        "warm_pool_auto_apply_max_increase",
+        "warm_pool_auto_apply_min_miss_rate",
+        "warm_pool_auto_apply_cooldown_minutes",
+    ):
+        if key in payload:
+            config[key] = payload.get(key)
+    config.update(normalize_auto_apply_config(config))
     write_json_file(_scheduler_config_file(), config)
     return get_scheduler_config()
 
@@ -4092,6 +4114,43 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
         }
         for rec in smart_scheduler_service().rebalance_cluster(assignments)[:5]
     ]
+    warm_pool_recommendations = build_warm_pool_recommendations()
+    auto_apply_cfg = normalize_auto_apply_config(scheduler_config)
+    scheduler_config.update(auto_apply_cfg)
+    auto_apply_status: dict[str, Any] = {
+        "enabled": bool(auto_apply_cfg.get("warm_pool_auto_apply_enabled")),
+        "ran": False,
+        "reason": "disabled",
+        "selected_count": 0,
+        "applied": [],
+        "last_run_at": str(auto_apply_cfg.get("warm_pool_auto_apply_last_run_at") or ""),
+    }
+    if auto_apply_status["enabled"]:
+        now_utc = datetime.now(timezone.utc)
+        can_run = should_run_auto_apply(
+            last_run_at=str(auto_apply_cfg.get("warm_pool_auto_apply_last_run_at") or ""),
+            cooldown_minutes=int(auto_apply_cfg.get("warm_pool_auto_apply_cooldown_minutes") or 30),
+            now=now_utc,
+        )
+        if can_run:
+            selected = select_recommendations_for_auto_apply(
+                warm_pool_recommendations,
+                max_pools_per_run=int(auto_apply_cfg.get("warm_pool_auto_apply_max_pools_per_run") or 3),
+                max_increase=int(auto_apply_cfg.get("warm_pool_auto_apply_max_increase") or 2),
+                min_miss_rate=float(auto_apply_cfg.get("warm_pool_auto_apply_min_miss_rate") or 0.35),
+            )
+            auto_apply_status["selected_count"] = int(len(selected))
+            scheduler_config["warm_pool_auto_apply_last_run_at"] = utcnow()
+            auto_apply_status["last_run_at"] = str(scheduler_config.get("warm_pool_auto_apply_last_run_at") or "")
+            if selected:
+                auto_apply_status["applied"] = apply_warm_pool_recommendations({"recommendations": selected})
+                auto_apply_status["ran"] = True
+                auto_apply_status["reason"] = "applied"
+                warm_pool_recommendations = build_warm_pool_recommendations()
+            else:
+                auto_apply_status["reason"] = "no-eligible-recommendations"
+        else:
+            auto_apply_status["reason"] = "cooldown-active"
     prewarm_events = pool_manager_service().list_prewarm_events()
     saved_cpu_hours_by_pool: dict[str, dict[str, Any]] = {}
     saved_cpu_hours_by_user: dict[str, dict[str, Any]] = {}
@@ -4125,7 +4184,8 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
     return {
         "heatmap": heatmap,
         "recommendations": recommendations,
-        "warm_pool_recommendations": build_warm_pool_recommendations(),
+        "warm_pool_recommendations": warm_pool_recommendations,
+        "warm_pool_auto_apply": auto_apply_status,
         "prewarm_candidates": prewarm_candidates[:5],
         "historical_trend": historical_trend,
         "historical_heatmap": historical_heatmap,

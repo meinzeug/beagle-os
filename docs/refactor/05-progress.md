@@ -1,3 +1,25 @@
+## Update (2026-04-28, GoEnterprise Plan 04: Warm-Pool Auto-Apply mit Guardrails geschlossen)
+
+**Scope**: Der verbleibende Plan-04-Restpunkt ist jetzt im Scheduler-Scope umgesetzt und reproduzierbar getestet.
+
+- Backend:
+  - `beagle-host/services/scheduler_warm_pool_auto_apply.py` (neu)
+    - Guardrail-Normalisierung (max pools/run, max increase, min miss-rate, cooldown)
+    - Auswahllogik fuer sichere Auto-Apply-Kandidaten
+    - Cooldown-Entscheidung fuer periodische Ausfuehrung
+  - `beagle-host/services/service_registry.py`
+    - Scheduler-Config um Auto-Apply-Felder erweitert
+    - `build_scheduler_insights_payload()` fuehrt optionales Auto-Apply mit Guardrails aus und liefert Status zurueck
+- UI:
+  - `website/ui/scheduler_insights.js`
+    - neue Scheduler-Controls fuer Auto-Apply + Statusanzeige (`reason`, `last_run_at`)
+- Tests:
+  - `tests/unit/test_scheduler_warm_pool_auto_apply.py` (neu)
+  - `tests/unit/test_fleet_ui_regressions.py` (erweitert)
+- Validierung:
+  - Lokal: `33 passed`
+  - `srv1` (staged `/tmp/beagle-os-plan04-warm-autoapply`): `33 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 09: externer Carbon-/Strommix-Feed mit Retry/Alerting geschlossen)
 
 **Scope**: Der letzte dokumentierte Plan-09-Restpunkt ist jetzt im Control-Plane-Scope reproduzierbar geschlossen.
