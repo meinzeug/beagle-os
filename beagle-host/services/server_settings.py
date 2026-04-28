@@ -1040,10 +1040,12 @@ class ServerSettingsService:
     def update_artifact_watchdog(self, payload: dict[str, Any]) -> dict[str, Any]:
         settings = self._load_settings()
         errors: list[str] = []
+        requested_enabled: bool | None = None
 
         enabled = payload.get("enabled")
         if enabled is not None:
-            settings["artifact_watchdog_enabled"] = bool(enabled)
+            requested_enabled = bool(enabled)
+            settings["artifact_watchdog_enabled"] = requested_enabled
 
         max_age_hours = payload.get("max_age_hours")
         if max_age_hours is not None:
@@ -1064,7 +1066,25 @@ class ServerSettingsService:
             return {"ok": False, "errors": errors}
 
         self._save_settings(settings)
+        if requested_enabled is not None:
+            timer_result = self._set_artifact_watchdog_timer(requested_enabled)
+            if timer_result.returncode != 0:
+                return {
+                    "ok": False,
+                    "errors": [f"artifact-watchdog timer update failed: {(timer_result.stderr or timer_result.stdout).strip()[:240]}"],
+                    "watchdog": self.get_artifact_watchdog(),
+                }
         return {"ok": True, "watchdog": self.get_artifact_watchdog()}
+
+    def _set_artifact_watchdog_timer(self, enabled: bool) -> subprocess.CompletedProcess[str]:
+        if enabled:
+            return _run_systemctl_privileged(["enable", "--now", "beagle-artifacts-watchdog.timer"], timeout=30)
+        stop_service = _run_systemctl_privileged(["stop", "beagle-artifacts-watchdog.service"], timeout=30)
+        timer = _run_systemctl_privileged(["disable", "--now", "beagle-artifacts-watchdog.timer"], timeout=30)
+        _run_systemctl_privileged(["reset-failed", "beagle-artifacts-watchdog.service"], timeout=30)
+        if timer.returncode != 0:
+            return timer
+        return stop_service if stop_service.returncode != 0 else timer
 
     def run_artifact_watchdog(self) -> dict[str, Any]:
         r = _run_systemctl_privileged(["--no-block", "start", "beagle-artifacts-watchdog.service"], timeout=30)
@@ -1474,8 +1494,15 @@ def _which(name: str) -> str | None:
         return None
 
 
+def _systemctl_path() -> str:
+    for path in ("/bin/systemctl", "/usr/bin/systemctl"):
+        if Path(path).exists():
+            return path
+    return "systemctl"
+
+
 def _run_systemctl_privileged(args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess[str]:
-    command = ["systemctl", *args]
+    command = [_systemctl_path(), *args]
     direct = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
     if direct.returncode == 0 or os.geteuid() == 0:
         return direct

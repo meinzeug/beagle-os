@@ -804,6 +804,12 @@ beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-artifacts-refres
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-artifacts-watchdog.service, /bin/systemctl show -p Id beagle-artifacts-watchdog.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-repo-auto-update.service, /bin/systemctl show -p Id beagle-repo-auto-update.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl enable --now beagle-repo-auto-update.timer, /bin/systemctl disable --now beagle-repo-auto-update.timer, /bin/systemctl stop beagle-repo-auto-update.service, /bin/systemctl reset-failed beagle-repo-auto-update.service
+beagle-manager ALL=(root) NOPASSWD: /bin/systemctl enable --now beagle-artifacts-watchdog.timer, /bin/systemctl disable --now beagle-artifacts-watchdog.timer, /bin/systemctl stop beagle-artifacts-watchdog.service, /bin/systemctl reset-failed beagle-artifacts-watchdog.service
+beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl start beagle-artifacts-refresh.service, /usr/bin/systemctl show -p Id beagle-artifacts-refresh.service
+beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl start beagle-artifacts-watchdog.service, /usr/bin/systemctl show -p Id beagle-artifacts-watchdog.service
+beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl start beagle-repo-auto-update.service, /usr/bin/systemctl show -p Id beagle-repo-auto-update.service
+beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl enable --now beagle-repo-auto-update.timer, /usr/bin/systemctl disable --now beagle-repo-auto-update.timer, /usr/bin/systemctl stop beagle-repo-auto-update.service, /usr/bin/systemctl reset-failed beagle-repo-auto-update.service
+beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl enable --now beagle-artifacts-watchdog.timer, /usr/bin/systemctl disable --now beagle-artifacts-watchdog.timer, /usr/bin/systemctl stop beagle-artifacts-watchdog.service, /usr/bin/systemctl reset-failed beagle-artifacts-watchdog.service
 beagle-manager ALL=(root) NOPASSWD: /opt/beagle/scripts/apply-beagle-firewall.sh --enable, /opt/beagle/scripts/apply-beagle-firewall.sh --disable, /opt/beagle/scripts/apply-beagle-firewall.sh --status, /opt/beagle/scripts/apply-beagle-firewall.sh --add-extra-rule *, /opt/beagle/scripts/apply-beagle-firewall.sh --delete-extra-rule *
 SUDOERS
 chmod 0440 /etc/sudoers.d/beagle-artifacts-refresh

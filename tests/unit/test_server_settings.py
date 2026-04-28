@@ -114,7 +114,8 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         run.assert_called_once()
-        self.assertEqual(run.call_args.args[0], ["systemctl", "--no-block", "start", "beagle-artifacts-refresh.service"])
+        self.assertEqual(run.call_args.args[0][1:], ["--no-block", "start", "beagle-artifacts-refresh.service"])
+        self.assertTrue(run.call_args.args[0][0].endswith("systemctl"))
 
     def test_start_artifact_refresh_returns_error_and_failed_status_when_systemd_start_fails(self):
         service = self.make_service()
@@ -176,7 +177,8 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
              mock.patch.object(service, "run_artifact_watchdog", return_value={"ok": True}), \
              mock.patch.object(service, "get_repo_auto_update", return_value={"config": {"enabled": True}}), \
              mock.patch.object(service, "get_artifact_watchdog", return_value={"config": {"enabled": True}}), \
-             mock.patch.object(service, "_set_repo_auto_update_timer", return_value=mock.Mock(returncode=0, stderr="")):
+             mock.patch.object(service, "_set_repo_auto_update_timer", return_value=mock.Mock(returncode=0, stderr="")), \
+             mock.patch.object(service, "_set_artifact_watchdog_timer", return_value=mock.Mock(returncode=0, stderr="")):
             result = service.enable_auto_maintenance()
 
         self.assertTrue(result["ok"])
@@ -226,7 +228,8 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
              mock.patch.object(service, "run_artifact_watchdog", return_value={"ok": True}), \
              mock.patch.object(service, "get_repo_auto_update", wraps=service.get_repo_auto_update), \
              mock.patch.object(service, "get_artifact_watchdog", wraps=service.get_artifact_watchdog), \
-             mock.patch.object(service, "_set_repo_auto_update_timer", return_value=mock.Mock(returncode=0, stderr="")):
+             mock.patch.object(service, "_set_repo_auto_update_timer", return_value=mock.Mock(returncode=0, stderr="")), \
+             mock.patch.object(service, "_set_artifact_watchdog_timer", return_value=mock.Mock(returncode=0, stderr="")):
             result = service.enable_auto_maintenance()
 
         self.assertTrue(result["ok"])
@@ -301,7 +304,8 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
     def test_update_artifact_watchdog_persists_values(self):
         service = self.make_service()
 
-        with mock.patch.object(service, "get_artifact_watchdog", return_value={"config": {"enabled": True}}):
+        with mock.patch.object(service, "get_artifact_watchdog", return_value={"config": {"enabled": True}}), \
+             mock.patch.object(service, "_set_artifact_watchdog_timer", return_value=mock.Mock(returncode=0, stderr="")):
             result = service.update_artifact_watchdog({"enabled": True, "max_age_hours": 18, "auto_repair": False})
 
         self.assertTrue(result["ok"])
@@ -309,6 +313,27 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertTrue(settings["artifact_watchdog_enabled"])
         self.assertEqual(settings["artifact_watchdog_max_age_hours"], 18)
         self.assertFalse(settings["artifact_watchdog_auto_repair"])
+
+    def test_update_artifact_watchdog_disable_stops_and_disables_timer(self):
+        service = self.make_service()
+        proc = mock.Mock()
+        proc.returncode = 0
+        proc.stderr = ""
+        calls = []
+
+        def fake_systemctl(args, *, timeout=30):
+            calls.append(args)
+            return proc
+
+        with mock.patch.object(MODULE, "_run_systemctl_privileged", side_effect=fake_systemctl), \
+             mock.patch.object(service, "get_artifact_watchdog", return_value={"config": {"enabled": False}}):
+            result = service.update_artifact_watchdog({"enabled": False})
+
+        self.assertTrue(result["ok"], result)
+        settings = MODULE.json.loads(service._settings_path.read_text(encoding="utf-8"))
+        self.assertFalse(settings["artifact_watchdog_enabled"])
+        self.assertIn(["stop", "beagle-artifacts-watchdog.service"], calls)
+        self.assertIn(["disable", "--now", "beagle-artifacts-watchdog.timer"], calls)
 
     def test_run_artifact_watchdog_returns_accepted_payload(self):
         service = self.make_service()
