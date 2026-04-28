@@ -77,3 +77,13 @@ def test_lock_screen_backend_falls_back_to_x11_tools(tmp_path: Path) -> None:
     result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), env=env, text=True, capture_output=True, check=True)
 
     assert result.stdout.strip() == "x11"
+
+
+def test_lock_screen_x11_displays_supports_multiple_values(tmp_path: Path) -> None:
+    env = os.environ.copy()
+    env["BEAGLE_LOCK_SCREEN_X11_DISPLAYS"] = ":0,:1,:2"
+
+    cmd = f"source {SCRIPT}\nlock_screen_x11_displays\n"
+    result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), env=env, text=True, capture_output=True, check=True)
+
+    assert result.stdout.strip().splitlines() == [":0", ":1", ":2"]

@@ -231,6 +231,14 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:read",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/fleet/remediation/config"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/fleet/remediation/history"),
+            "settings:read",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("POST", "/api/v1/fleet/devices/register"),
             "settings:write",
         )
@@ -248,6 +256,10 @@ class AuthzPolicyServiceTests(unittest.TestCase):
         )
         self.assertEqual(
             AuthzPolicyService.required_permission("POST", "/api/v1/fleet/remediation/run"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("PUT", "/api/v1/fleet/remediation/config"),
             "settings:write",
         )
         self.assertEqual(

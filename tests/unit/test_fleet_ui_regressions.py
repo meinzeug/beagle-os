@@ -45,6 +45,8 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "remediationDriftMarkup" in js
     assert "applyRemediationAction" in js
     assert "wipeStatusMarkup" in js
+    assert "loadRemediationControlState" in js
+    assert "saveRemediationConfig" in js
     assert "requestConfirm" in js
     assert "Remote-Wipe anfordern" in js
     assert "MDM Policies" in js
@@ -58,8 +60,12 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "/remediation/execute" in js
     assert "/fleet/remediation/drift" in js
     assert "/fleet/remediation/run" in js
+    assert "/fleet/remediation/config" in js
+    assert "/fleet/remediation/history" in js
     assert "Sichere Remediation anwenden" in js
     assert "Sichere Remediation simulieren" in js
+    assert "Auto-Remediation" in js
+    assert "Remediation History" in js
     assert "Wipe Status" in js
     assert "Effektiv vs Default" in js
     assert "Bulk Device IDs" in js

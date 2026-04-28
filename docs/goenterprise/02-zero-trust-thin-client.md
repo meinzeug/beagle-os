@@ -388,6 +388,34 @@ Restluecke bewusst offen:
   - `tests/unit/test_fleet_ui_regressions.py`
   - `tests/unit/test_authz_policy.py`
 
+## Update 2026-04-28 (Persistente Remediation-Konfiguration + History + X11-Multi-Display)
+
+- Control Plane:
+  - `fleet_http_surface.py` persistiert jetzt eine echte Remediation-Konfiguration:
+    - `GET /api/v1/fleet/remediation/config`
+    - `PUT /api/v1/fleet/remediation/config`
+    - `GET /api/v1/fleet/remediation/history`
+  - gespeichert werden aktuell:
+    - `enabled`
+    - `safe_actions`
+    - `excluded_device_ids`
+    - `last_run`
+    - `history`
+  - `POST /api/v1/fleet/remediation/run` schreibt jetzt eine Run-History mit und respektiert ausgeschlossene Devices
+- WebUI:
+  - `website/ui/fleet_health.js` hat jetzt im Drift-Bereich eine echte Operator-Steuerung fuer Auto-Remediation:
+    - Toggle fuer `Auto Safe Remediation`
+    - Pflege ausgeschlossener Devices
+    - History-Vorschau der letzten Remediation-Runs
+- Thin-Client-Runtime:
+  - `device_lock_screen.sh` unterstuetzt fuer X11 jetzt mehrere Displays ueber `BEAGLE_LOCK_SCREEN_X11_DISPLAYS`
+  - der Sperrpfad kann damit denselben Lock-Hinweis gezielt auf mehreren X11-Displays starten
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_fleet_http_surface.py`
+  - `tests/unit/test_fleet_ui_regressions.py`
+  - `tests/unit/test_authz_policy.py`
+  - `tests/unit/test_device_lock_screen.py`
+
 ---
 
 ## Unique Selling Point vs. Konkurrenz

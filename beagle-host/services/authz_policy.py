@@ -135,6 +135,8 @@ class AuthzPolicyService:
                 return "settings:write"
             if route in {"/api/v1/fleet/policies", "/api/v1/fleet/policies/assignments", "/api/v1/fleet/policies/assignments/bulk", "/api/v1/fleet/devices/actions/bulk", "/api/v1/fleet/remediation/run"}:
                 return "settings:write"
+            if route == "/api/v1/fleet/remediation/config":
+                return "settings:write"
             if re.match(r"^/api/v1/fleet/devices/[A-Za-z0-9._:-]+/(heartbeat|lock|unlock|wipe|confirm-wiped)$", route):
                 return "settings:write"
             if re.match(r"^/api/v1/fleet/devices/[A-Za-z0-9._:-]+/remediation/execute$", route):
@@ -160,6 +162,8 @@ class AuthzPolicyService:
             if route == "/api/v1/sessions/stream-health":
                 return "pool:write"
         if verb == "PUT":
+            if route == "/api/v1/fleet/remediation/config":
+                return "settings:write"
             if re.match(r"^/api/v1/fleet/policies/[A-Za-z0-9._:-]+$", route):
                 return "settings:write"
             if re.match(r"^/api/v1/fleet/devices/[A-Za-z0-9._:-]+$", route):
@@ -194,7 +198,7 @@ class AuthzPolicyService:
             if re.match(r"^/api/v1/pool-templates/[A-Za-z0-9._-]+$", route):
                 return "pool:write"
         if verb == "GET":
-            if route in {"/api/v1/fleet/policies", "/api/v1/fleet/policies/assignments", "/api/v1/fleet/remediation/drift"}:
+            if route in {"/api/v1/fleet/policies", "/api/v1/fleet/policies/assignments", "/api/v1/fleet/remediation/drift", "/api/v1/fleet/remediation/config", "/api/v1/fleet/remediation/history"}:
                 return "settings:read"
             if re.match(r"^/api/v1/fleet/policies/[A-Za-z0-9._:-]+$", route):
                 return "settings:read"

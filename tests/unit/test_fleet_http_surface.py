@@ -40,6 +40,7 @@ def make_services(tmp_path: Path) -> tuple[DeviceRegistryService, MDMPolicyServi
         mdm_policy_service=mdm,
         audit_event=lambda event_type, outcome, **details: audit_events.append((event_type, outcome, details)),
         requester_identity=lambda: "admin",
+        remediation_state_file=tmp_path / "fleet-remediation.json",
         utcnow=lambda: "2026-04-28T06:00:00Z",
         version="test",
     )
@@ -339,3 +340,51 @@ def test_remediation_run_applies_safe_actions(tmp_path: Path) -> None:
     assert response["status"] == HTTPStatus.OK
     assert response["payload"]["applied"][0]["action"] == "clear-device-policy-assignment"
     assert mdm.resolve_policy("dev-001", "berlin").policy_id == "group-policy"
+
+
+def test_remediation_config_and_history_routes_persist_state(tmp_path: Path) -> None:
+    registry, mdm, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+    registry.set_group("dev-001", "berlin")
+    mdm.create_policy(MDMPolicy(policy_id="group-policy", name="Group", allowed_pools=["pool-a"]))
+    mdm.create_policy(MDMPolicy(policy_id="device-policy", name="Device", allowed_pools=["pool-b"]))
+    mdm.assign_to_group("berlin", "group-policy")
+    mdm.assign_to_device("dev-001", "device-policy")
+
+    config_response = service.route_put(
+        "/api/v1/fleet/remediation/config",
+        json_payload={"enabled": True, "safe_actions": ["clear-device-policy-assignment"], "excluded_device_ids": ["dev-999"]},
+    )
+    assert config_response is not None
+    assert config_response["status"] == HTTPStatus.OK
+    assert config_response["payload"]["config"]["enabled"] is True
+
+    run_response = service.route_post("/api/v1/fleet/remediation/run", json_payload={"dry_run": True})
+    assert run_response is not None
+    assert run_response["status"] == HTTPStatus.OK
+    assert run_response["payload"]["last_run"]["dry_run"] is True
+
+    history_response = service.route_get("/api/v1/fleet/remediation/history")
+    assert history_response is not None
+    assert history_response["status"] == HTTPStatus.OK
+    assert history_response["payload"]["history"][0]["dry_run"] is True
+
+
+def test_remediation_run_skips_excluded_devices(tmp_path: Path) -> None:
+    registry, mdm, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+    registry.set_group("dev-001", "berlin")
+    mdm.create_policy(MDMPolicy(policy_id="group-policy", name="Group"))
+    mdm.create_policy(MDMPolicy(policy_id="device-policy", name="Device"))
+    mdm.assign_to_group("berlin", "group-policy")
+    mdm.assign_to_device("dev-001", "device-policy")
+    service.route_put(
+        "/api/v1/fleet/remediation/config",
+        json_payload={"excluded_device_ids": ["dev-001"]},
+    )
+
+    response = service.route_post("/api/v1/fleet/remediation/run", json_payload={"dry_run": False})
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    assert response["payload"]["applied"] == []
+    assert response["payload"]["skipped"][0]["reason"] == "excluded"

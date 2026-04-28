@@ -128,6 +128,23 @@
   - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
   - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
 
+## Update (2026-04-28, GoEnterprise Plan 02: Persistente Remediation-Konfiguration + History + X11-Multi-Display)
+
+**Scope**: Den naechsten Automatisierungs-Slice von Plan 02 umgesetzt. Safe-Remediation ist jetzt nicht mehr nur ein ad-hoc Run, sondern hat persistente Operator-Konfiguration und History; parallel kann der Lock-Screen unter X11 mehrere Displays explizit abdecken.
+
+- Backend:
+  - [beagle-host/services/fleet_http_surface.py](/home/dennis/beagle-os/beagle-host/services/fleet_http_surface.py): `GET/PUT /api/v1/fleet/remediation/config`, `GET /api/v1/fleet/remediation/history`, persistierte History/Last-Run-Daten
+  - [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py): neue Config-/History-Routen auf `settings:read` bzw. `settings:write`
+- WebUI:
+  - [website/ui/fleet_health.js](/home/dennis/beagle-os/website/ui/fleet_health.js): Auto-Remediation-Toggle, Exclude-Device-Liste, History-Vorschau im Drift-Panel
+- Runtime:
+  - [thin-client-assistant/runtime/device_lock_screen.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/device_lock_screen.sh): `BEAGLE_LOCK_SCREEN_X11_DISPLAYS` fuer mehrere X11-Displays
+- Regressionen:
+  - [tests/unit/test_fleet_http_surface.py](/home/dennis/beagle-os/tests/unit/test_fleet_http_surface.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
+  - [tests/unit/test_device_lock_screen.py](/home/dennis/beagle-os/tests/unit/test_device_lock_screen.py)
+
 ## Update (2026-04-28, GoEnterprise Plan 02: Standort-Tree + Device-Group-Regressionen)
 
 **Scope**: Den offenen Device-UX-Slice aus Plan 02 weiter geschlossen. Die Fleet-WebUI zeigt jetzt nicht mehr nur eine flache Tabelle, sondern eine verdichtete Standort-/Gruppenansicht fuer Operatoren; ausserdem ist der gruppenbezogene Policy-Pfad mit einer eigenen Testdatei reproduzierbar abgesichert.

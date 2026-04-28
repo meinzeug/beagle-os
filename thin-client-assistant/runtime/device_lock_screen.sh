@@ -45,6 +45,17 @@ lock_screen_display() {
   printf '%s\n' "${DISPLAY:-:0}"
 }
 
+lock_screen_x11_displays() {
+  local configured primary
+  configured="${BEAGLE_LOCK_SCREEN_X11_DISPLAYS:-}"
+  if [[ -n "$configured" ]]; then
+    printf '%s\n' "$configured" | tr ',' '\n' | awk 'NF {print $0}'
+    return 0
+  fi
+  primary="$(lock_screen_display)"
+  printf '%s\n' "$primary"
+}
+
 lock_screen_runtime_dir() {
   printf '%s\n' "${XDG_RUNTIME_DIR:-/run/user/$(id -u 2>/dev/null || echo 1000)}"
 }
@@ -133,11 +144,10 @@ lock_screen_fullscreen_existing_window() {
 }
 
 lock_screen_spawn_ui() {
-  local title pid_file backend session_type wayland_backend x11_backend
+  local title pid_file backend wayland_backend x11_backend
   title="$(lock_screen_title)"
   pid_file="$(lock_screen_pid_file_path)"
   backend="$(lock_screen_backend)"
-  session_type="$(lock_screen_session_type)"
   mkdir -p "$(dirname "$pid_file")" >/dev/null 2>&1 || true
 
   if [[ "$backend" == "simulate" ]]; then
@@ -172,23 +182,26 @@ lock_screen_spawn_ui() {
   if [[ "$backend" == "x11" ]]; then
     x11_backend="$(lock_screen_x11_backend || true)"
     (
-      export DISPLAY="$(lock_screen_display)"
       export XDG_RUNTIME_DIR="$(lock_screen_runtime_dir)"
       while device_lock_active; do
-        case "$x11_backend" in
-          zenity)
-            zenity --info --title="$title" --width=960 --height=420 --no-wrap --text="$(lock_screen_text)" >/dev/null 2>&1 || true
-            ;;
-          yad)
-            yad --info --title="$title" --text="$(lock_screen_text)" --width=960 --height=420 --center >/dev/null 2>&1 || true
-            ;;
-          xmessage)
-            xmessage -center -title "$title" "$(lock_screen_text)" >/dev/null 2>&1 || true
-            ;;
-          xterm)
-            xterm -geometry 120x26+0+0 -T "$title" -fa Monospace -fs 13 -fg white -bg black -e /bin/sh -lc "printf '%s\n' \"$(lock_screen_text)\"; while sleep 3600; do :; done" >/dev/null 2>&1 || true
-            ;;
-        esac
+        while IFS= read -r display_value; do
+          [[ -n "$display_value" ]] || continue
+          export DISPLAY="$display_value"
+          case "$x11_backend" in
+            zenity)
+              zenity --info --title="$title" --width=960 --height=420 --no-wrap --text="$(lock_screen_text)" >/dev/null 2>&1 || true
+              ;;
+            yad)
+              yad --info --title="$title" --text="$(lock_screen_text)" --width=960 --height=420 --center >/dev/null 2>&1 || true
+              ;;
+            xmessage)
+              xmessage -center -title "$title" "$(lock_screen_text)" >/dev/null 2>&1 || true
+              ;;
+            xterm)
+              xterm -geometry 120x26+0+0 -T "$title" -fa Monospace -fs 13 -fg white -bg black -e /bin/sh -lc "printf '%s\n' \"$(lock_screen_text)\"; while sleep 3600; do :; done" >/dev/null 2>&1 || true
+              ;;
+          esac
+        done < <(lock_screen_x11_displays)
         sleep 1
       done
     ) &

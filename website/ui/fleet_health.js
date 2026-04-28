@@ -17,6 +17,8 @@ const fleetState = {
   assignments: { device_assignments: {}, group_assignments: {} },
   effectivePolicy: null,
   remediationDrift: { devices: [], drifted_count: 0, safe_candidate_count: 0 },
+  remediationConfig: { enabled: false, safe_actions: [], excluded_device_ids: [], last_run: {} },
+  remediationHistory: [],
 };
 
 export function configureFleetHealth(nextHooks) {
@@ -258,6 +260,8 @@ function wipeStatusMarkup(device) {
 function remediationDriftMarkup() {
   const drift = fleetState.remediationDrift || { devices: [], drifted_count: 0, safe_candidate_count: 0 };
   const entries = Array.isArray(drift.devices) ? drift.devices.filter((item) => item && item.drifted) : [];
+  const config = fleetState.remediationConfig || { enabled: false, safe_actions: [], excluded_device_ids: [], last_run: {} };
+  const history = Array.isArray(fleetState.remediationHistory) ? fleetState.remediationHistory : [];
   return `
     <section class="section-spaced">
       <div class="button-row compact-row section-spaced-tight">
@@ -267,10 +271,33 @@ function remediationDriftMarkup() {
         <button type="button" class="button primary" data-mdm-action="run-safe-remediation">Sichere Remediation anwenden</button>
         <button type="button" class="button ghost" data-mdm-action="preview-safe-remediation">Sichere Remediation simulieren</button>
       </div>
+      <div class="grid two-col section-spaced-tight">
+        <div class="card compact-card">
+          <strong>Auto-Remediation</strong>
+          <div class="button-row compact-row section-spaced-tight">
+            ${chip(config.enabled ? 'aktiv' : 'inaktiv', config.enabled ? 'ok' : 'muted')}
+            ${chip(`Safe Actions ${String((config.safe_actions || []).length)}`, (config.safe_actions || []).length ? 'info' : 'muted')}
+            ${chip(`Exclude ${String((config.excluded_device_ids || []).length)}`, (config.excluded_device_ids || []).length ? 'warn' : 'muted')}
+          </div>
+          <div class="grid two-col section-spaced-tight">
+            <label class="field checkbox-field"><span>Auto Safe Remediation</span><input id="fleet-remediation-enabled" type="checkbox" ${config.enabled ? 'checked' : ''}></label>
+            <label class="field field-wide"><span>Excluded Device IDs</span><textarea id="fleet-remediation-excluded" rows="3" autocomplete="off" placeholder="dev-001&#10;dev-002">${escapeHtml((config.excluded_device_ids || []).join('\n'))}</textarea></label>
+          </div>
+          <div class="button-row compact-row section-spaced-tight">
+            <button type="button" class="button ghost" data-mdm-action="save-remediation-config">Remediation-Konfiguration speichern</button>
+          </div>
+          <div class="muted">letzter Lauf ${escapeHtml(formatDate(config?.last_run?.ran_at || '')) || '-'}</div>
+        </div>
+        <div class="card compact-card">
+          <strong>Remediation History</strong>
+          <div class="section-spaced-tight">${history.slice(0, 5).map((entry) => `<div class="muted">${escapeHtml(formatDate(entry.ran_at || ''))}: applied ${escapeHtml(String(entry.applied_count || 0))}, failed ${escapeHtml(String(entry.failed_count || 0))}${entry.dry_run ? ' (dry-run)' : ''}</div>`).join('') || '<div class="muted">Noch keine Runs.</div>'}</div>
+        </div>
+      </div>
       <div class="grid auto-grid section-spaced-tight">
         ${entries.map((entry) => `<div class="card compact-card">
           <strong>${escapeHtml(String(entry?.device?.hostname || entry?.device?.device_id || '-'))}</strong>
           <div class="muted">${escapeHtml(String(entry?.device?.device_id || '-'))}</div>
+          <div class="muted">${entry.excluded ? 'von Auto-Remediation ausgeschlossen' : 'im Scope'}</div>
           <div class="section-spaced-tight">${(entry.conflicts || []).map((item) => `<div class="badge tone-warn">${escapeHtml(String(item || ''))}</div>`).join(' ') || '<div class="muted">Keine Konflikte.</div>'}</div>
           <div class="section-spaced-tight">${(entry.safe_actions || []).map((item) => `<span class="badge tone-info">${escapeHtml(String(item.label || item.action || '-'))}</span>`).join(' ') || '<div class="muted">Keine sicheren Aktionen.</div>'}</div>
         </div>`).join('') || '<div class="empty-card">Keine driftenden Devices erkannt.</div>'}
@@ -524,6 +551,37 @@ async function loadRemediationDrift() {
   fleetState.remediationDrift = payload || { devices: [], drifted_count: 0, safe_candidate_count: 0 };
 }
 
+async function loadRemediationControlState() {
+  const [config, history] = await Promise.all([
+    request('/fleet/remediation/config').catch(() => ({ config: { enabled: false, safe_actions: [], excluded_device_ids: [], last_run: {} } })),
+    request('/fleet/remediation/history').catch(() => ({ history: [] })),
+  ]);
+  fleetState.remediationConfig = config?.config || { enabled: false, safe_actions: [], excluded_device_ids: [], last_run: {} };
+  fleetState.remediationHistory = Array.isArray(history?.history) ? history.history : [];
+}
+
+function remediationConfigPayload() {
+  const excluded = String(qs('fleet-remediation-excluded')?.value || '')
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return {
+    enabled: Boolean(qs('fleet-remediation-enabled')?.checked),
+    safe_actions: ['clear-device-policy-assignment'],
+    excluded_device_ids: excluded,
+  };
+}
+
+async function saveRemediationConfig() {
+  await request('/fleet/remediation/config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(remediationConfigPayload()),
+  });
+  fleetHooks.setBanner('Remediation-Konfiguration gespeichert.', 'ok');
+  await fleetHooks.loadDashboard({ force: true });
+}
+
 async function runSafeRemediation(dryRun = false) {
   const payload = await request('/fleet/remediation/run', {
     method: 'POST',
@@ -640,15 +698,19 @@ export async function renderFleetHealth() {
   let policies = [];
   let assignments = { device_assignments: {}, group_assignments: {} };
   let remediationDrift = { devices: [], drifted_count: 0, safe_candidate_count: 0 };
+  let remediationConfig = { enabled: false, safe_actions: [], excluded_device_ids: [], last_run: {} };
+  let remediationHistory = [];
 
   try {
-    [devices, anomalies, maintenance, policies, assignments, remediationDrift] = await Promise.all([
+    [devices, anomalies, maintenance, policies, assignments, remediationDrift, remediationConfig, remediationHistory] = await Promise.all([
       request('/fleet/devices').then((d) => Array.isArray(d) ? d : (d.devices ?? [])),
       request('/fleet/anomalies').catch(() => []),
       request('/fleet/maintenance').catch(() => []),
       request('/fleet/policies').then((d) => Array.isArray(d) ? d : (d.policies ?? [])),
       request('/fleet/policies/assignments').catch(() => ({ device_assignments: {}, group_assignments: {} })),
       request('/fleet/remediation/drift').catch(() => ({ devices: [], drifted_count: 0, safe_candidate_count: 0 })),
+      request('/fleet/remediation/config').catch(() => ({ config: { enabled: false, safe_actions: [], excluded_device_ids: [], last_run: {} } })),
+      request('/fleet/remediation/history').catch(() => ({ history: [] })),
     ]);
   } catch (err) {
     container.innerHTML = `<p class="error">Fehler: ${escapeHtml(String(err.message ?? err))}</p>`;
@@ -659,6 +721,8 @@ export async function renderFleetHealth() {
   fleetState.policies = policies;
   fleetState.assignments = assignments;
   fleetState.remediationDrift = remediationDrift;
+  fleetState.remediationConfig = remediationConfig?.config || { enabled: false, safe_actions: [], excluded_device_ids: [], last_run: {} };
+  fleetState.remediationHistory = Array.isArray(remediationHistory?.history) ? remediationHistory.history : [];
 
   const rows = devices.map((d) => deviceRow(d, anomalies, maintenance)).join('');
   const anomalyCount = anomalies.length;
@@ -727,7 +791,7 @@ export async function renderFleetHealth() {
           return;
         }
         if (action === 'refresh-remediation-drift') {
-          await loadRemediationDrift();
+          await Promise.all([loadRemediationDrift(), loadRemediationControlState()]);
           await fleetHooks.loadDashboard({ force: true });
           return;
         }
@@ -737,6 +801,10 @@ export async function renderFleetHealth() {
         }
         if (action === 'preview-safe-remediation') {
           await runSafeRemediation(true);
+          return;
+        }
+        if (action === 'save-remediation-config') {
+          await saveRemediationConfig();
           return;
         }
         if (action === 'delete-policy') {
