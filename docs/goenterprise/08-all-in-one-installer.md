@@ -96,9 +96,9 @@ Priorität: 8.1.1 (Q4 2026)
 
 ## Testpflicht nach Abschluss
 
-- [ ] TUI: Installer läuft durch alle 5 Schritte mit korrekter Validierung.
-- [ ] Seed-Config: Vollautomatische Installation ohne Dialog aus YAML-Datei.
-- [ ] PXE: Installer via PXE bootbar, Seed-Config via DHCP übergeben.
+- [x] TUI: Installer läuft durch alle 5 Schritte mit korrekter Validierung.
+- [x] Seed-Config: Vollautomatische Installation ohne Dialog aus YAML-Datei.
+- [x] PXE: Installer via PXE bootbar, Seed-Config via DHCP übergeben.
 - [x] Cluster-Join: Neuer Node joined automatisch Cluster mit einmal-Token.
 - [x] Post-Install: Health-Check meldet grünen Status, Web-Console zeigt neuen Node.
 

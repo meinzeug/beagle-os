@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 08 testpflicht completed)
+
+**Zuletzt erledigt**:
+- Plan 08 Testpflicht ist geschlossen (TUI-Flow mit 5 Schritten inkl. Validierung, Seed ohne Dialog, PXE + DHCP-Seed-Handover).
+- Neue Acceptance-Tests plus bestehende Installer-Regressionen und PXE-Integrationstest sind lokal und auf `srv1` gruen.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 08 Restblock Schritt 1**: eigentlichen RAID-/Disk-Mehrfachauswahlpfad im Installer (RAID0/1/5/10) von Doku-Status auf echte Runtime-Implementierung heben.
+2. **Plan 09 Restpunkt**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob mit Retry/Alerting umsetzen.
+3. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+4. **Plan 02 Live-Restpunkte**: Enrollment-/WireGuard-/TPM-End-to-End auf echter Runtime-Hardware reproduzierbar verankern.
+
 ## Stand (2026-04-28, GoEnterprise Plan 07 testpflicht completed)
 
 **Zuletzt erledigt**:

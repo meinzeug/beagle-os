@@ -1,3 +1,28 @@
+## Update (2026-04-28, GoEnterprise Plan 08: offene Testpflicht komplett geschlossen)
+
+**Scope**: Die verbleibenden Plan-08-Testpflichtpunkte (`TUI 5 Schritte`, `Seed ohne Dialog`, `PXE + DHCP Seed`) mit dediziertem Acceptance-Satz reproduzierbar geschlossen.
+
+- Tests:
+  - `tests/unit/test_goenterprise_installer_acceptance.py` (neu)
+  - Deckt ab:
+    - Plain/TUI-Installer-Flow mit 5 Schritten inklusive Validierungs-Loops
+    - expliziter Non-Interactive-Seed-Pfad im Installer (`seed_file` -> `apply_seed_config` -> UI-Skip)
+    - PXE-Skript-Hooks fuer DHCP-/Seed-URL-Rendering
+  - Bestehende Installer-Regressionen weiter im Scope:
+    - `tests/unit/test_installer_validation.py`
+    - `tests/unit/test_seed_config_parser.py`
+    - `tests/unit/test_post_install_check.py`
+  - Integration:
+    - `tests/integration/test_pxe_boot.sh`
+- Doku:
+  - `docs/goenterprise/08-all-in-one-installer.md`: offene Testpflicht-Checkboxen auf `[x]` gesetzt
+- Validierung:
+  - Lokal:
+    - `pytest -q tests/unit/test_goenterprise_installer_acceptance.py tests/unit/test_installer_validation.py tests/unit/test_seed_config_parser.py tests/unit/test_post_install_check.py` -> `24 passed`
+    - `bash tests/integration/test_pxe_boot.sh` -> `PXE_BOOT_TEST=PASS`
+  - `srv1`:
+    - identischer Unit- + Integrationslauf in `/tmp/beagle-os-plan08-test` -> `24 passed`, `PXE_BOOT_TEST=PASS`
+
 ## Update (2026-04-28, GoEnterprise Plan 07: offene Testpflicht komplett geschlossen)
 
 **Scope**: Die verbleibenden Plan-07-Testpflichtpunkte (Telemetrie, Trend-Anomalie, Predictive-Alert, Maintenance+Migration) mit dedizierter Acceptance-Suite geschlossen. Zusaetzlich kann die Fleet-Telemetry-Maintenance jetzt optional direkt VM-Drain-Aktionen ausfuehren und als Ergebnis persistieren.
