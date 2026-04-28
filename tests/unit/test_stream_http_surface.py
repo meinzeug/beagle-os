@@ -120,6 +120,25 @@ def test_register_returns_links_and_persists_state(tmp_path: Path) -> None:
     assert audit_events[0][0] == "stream.server.register"
 
 
+def test_register_rejects_when_vpn_required_without_wireguard(tmp_path: Path) -> None:
+    service, audit_events = _service(tmp_path, network_mode="vpn_required")
+
+    response = service.route_post(
+        "/api/v1/streams/register",
+        json_payload={
+            "vm_id": 303,
+            "stream_server_id": "streamd-303",
+            "wireguard_active": False,
+        },
+    )
+
+    assert response is not None
+    assert response["status"] == 403
+    assert "vpn_required" in response["payload"]["error"]
+    assert audit_events[-1][0] == "stream.server.register"
+    assert audit_events[-1][1] == "forbidden"
+
+
 def test_config_returns_dynamic_policy_and_vm_profile(tmp_path: Path) -> None:
     service, _audit_events = _service(tmp_path)
     service.route_post(
@@ -192,3 +211,25 @@ def test_events_write_audit_records(tmp_path: Path) -> None:
     assert audit_events[-1][1] == "success"
     assert audit_events[-1][2]["vm_id"] == 303
     assert audit_events[-1][2]["details"]["transport"] == "wireguard"
+
+
+def test_events_reject_session_start_when_vpn_required_without_wireguard(tmp_path: Path) -> None:
+    service, audit_events = _service(tmp_path, network_mode="vpn_required")
+    service.route_post(
+        "/api/v1/streams/register",
+        json_payload={"vm_id": 303, "wireguard_active": True},
+    )
+
+    response = service.route_post(
+        "/api/v1/streams/303/events",
+        json_payload={
+            "event_type": "session.start",
+            "details": {"user_id": "carol", "wireguard_active": False},
+        },
+    )
+
+    assert response is not None
+    assert response["status"] == 403
+    assert "vpn_required" in response["payload"]["error"]
+    assert audit_events[-1][0] == "stream.session.start"
+    assert audit_events[-1][1] == "forbidden"

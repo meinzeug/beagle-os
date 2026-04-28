@@ -1,3 +1,20 @@
+## Update (2026-04-28, GoEnterprise Plan 01: vpn_required-Enforcement im Stream-Handshake geschlossen)
+
+**Scope**: Der offene Plan-01-Enforcement-Punkt ist im aktuellen Repo-Slice abgeschlossen.
+
+- Backend:
+  - `beagle-host/services/stream_http_surface.py`
+    - `POST /api/v1/streams/register` liefert bei `vpn_required` + fehlendem Tunnel jetzt reproduzierbar `403`
+    - `POST /api/v1/streams/{vm_id}/events` blockiert `session.start|session.resume|connection.start` ohne WireGuard bei `vpn_required` mit `403`
+  - bestehender Config-Enforcement-Pfad (`GET /api/v1/streams/{vm_id}/config`) bleibt erhalten
+- Tests:
+  - `tests/unit/test_stream_http_surface.py`
+    - `test_register_rejects_when_vpn_required_without_wireguard`
+    - `test_events_reject_session_start_when_vpn_required_without_wireguard`
+- Validierung:
+  - Lokal: `22 passed`
+  - `srv1` (`/opt/beagle`): `22 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 01: stream allocate runtime wiring abgeschlossen)
 
 **Scope**: Der vorhandene Client-Broker-Contract `/api/v1/streams/allocate` ist jetzt im Runtime-Weg der Registry voll an echte Services angebunden.

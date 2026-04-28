@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 01 stream handshake enforcement completed)
+
+**Zuletzt erledigt**:
+- Plan-01-Enforcement im aktuellen Stream-Slice ist jetzt auf Register- und Session-Start-Pfaden geschlossen (`403` bei `vpn_required` ohne WireGuard), lokal und auf `srv1` mit `22 passed` validiert.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 01 Fork-Rest**: echten `beagle-stream-server` auf VM starten und realen Register-/Config-/Event-Handshake gegen die vorhandene API fahren.
+2. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
+3. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+4. **Plan 01 Fork-Enforcement**: denselben Enforcement-Pfad spaeter im separaten `beagle-stream-server`-Fork verankern.
+
 ## Stand (2026-04-28, GoEnterprise Plan 01 allocate runtime wiring completed)
 
 **Zuletzt erledigt**:

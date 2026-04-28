@@ -145,7 +145,7 @@ Hardware: AMD mit `aes` + `avx2` + `vaes` + `vpclmulqdq` — vollständig hardwa
     - `vpn_required` — Stream wird nur aufgebaut wenn WireGuard-Tunnel aktiv (Zero-Trust)
     - `vpn_preferred` — WireGuard bevorzugt, direkter Fallback erlaubt (Kompatibilität)
     - `direct_allowed` — Legacy/LAN ohne VPN (nur für interne Netze)
-- [ ] `beagle-stream-server`: erzwingt Policy (verwirft Verbindung bei `vpn_required` ohne Tunnel)
+- [x] `beagle-stream-server`: erzwingt Policy (verwirft Verbindung bei `vpn_required` ohne Tunnel)
 - [x] Web Console: Policy-Editor im Pool-Detail mit VPN-Mode-Auswahl
 - [x] Tests: `tests/unit/test_stream_policy.py`
 
@@ -294,6 +294,20 @@ Wichtig:
 - Validierung:
   - Lokal: `python3 -m pytest -q tests/unit/test_beagle_stream_client_broker.py tests/unit/test_stream_http_surface.py tests/unit/test_authz_policy.py tests/unit/test_beagle_stream_server_api.py` -> `29 passed`
   - `srv1`: gleicher Scope im `/tmp`-Stage -> `29 passed`
+
+## Update (2026-04-28, Plan 01: vpn_required-Policy auch im Stream-Server-Handshake hart verdrahtet)
+
+- Der Stream-Slice erzwingt `vpn_required` jetzt nicht nur bei `GET /api/v1/streams/{vm_id}/config`, sondern auch auf den servernahen Handshake-Pfaden:
+  - `POST /api/v1/streams/register` liefert `403`, wenn `wireguard_active=false` und die effektive Policy `vpn_required` ist.
+  - `POST /api/v1/streams/{vm_id}/events` blockiert `session.start|session.resume|connection.start` mit `403`, wenn laut Payload/Registration kein aktiver WireGuard-Tunnel vorliegt.
+- Damit ist die offene Schritt-4-Checkbox fuer Policy-Enforcement im aktuellen Repo-/Control-Plane-Scope geschlossen.
+- Neue Regressionen:
+  - `tests/unit/test_stream_http_surface.py`
+    - `test_register_rejects_when_vpn_required_without_wireguard`
+    - `test_events_reject_session_start_when_vpn_required_without_wireguard`
+- Validierung:
+  - Lokal: `python3 -m pytest -q tests/unit/test_stream_http_surface.py tests/unit/test_stream_policy.py tests/unit/test_beagle_stream_server_api.py` -> `22 passed`
+  - `srv1`: identischer Scope in `/opt/beagle` -> `22 passed`
 
 ---
 

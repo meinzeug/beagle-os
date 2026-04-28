@@ -187,6 +187,30 @@ class StreamHttpSurfaceService:
             return self._coerce_bool(registration.get("wireguard_active"))
         return False
 
+    def _resolve_policy_for_vm(self, vm_id: int, *, wireguard_active: bool) -> tuple[str, bool, str, str]:
+        pool_id = self._find_pool_id(vm_id)
+        policy_target = pool_id or str(int(vm_id))
+        policy = self._stream_policy.resolve_policy(policy_target)
+        network_mode = str(getattr(policy, "network_mode", "vpn_preferred") or "vpn_preferred")
+        allowed, reason = self._stream_policy.check_connection_allowed(
+            policy_target,
+            wireguard_active=bool(wireguard_active),
+        )
+        return pool_id, allowed, reason, network_mode
+
+    @staticmethod
+    def _is_session_connect_event(event_type: str) -> bool:
+        normalized = str(event_type or "").strip().lower()
+        return normalized in {"session.start", "session.resume", "connection.start"}
+
+    def _resolve_event_wireguard_state(self, payload: dict[str, Any], registration: dict[str, Any]) -> bool:
+        if "wireguard_active" in payload:
+            return self._coerce_bool(payload.get("wireguard_active"))
+        details = payload.get("details")
+        if isinstance(details, dict) and "wireguard_active" in details:
+            return self._coerce_bool(details.get("wireguard_active"))
+        return self._coerce_bool(registration.get("wireguard_active"))
+
     def route_post(self, path: str, *, json_payload: dict[str, Any] | None = None) -> dict[str, Any] | None:
         payload = json_payload or {}
         if path == self._ALLOCATE_ROUTE:
@@ -267,6 +291,29 @@ class StreamHttpSurfaceService:
             if vm is None:
                 return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
             registration = self._store_registration(vm_id, self._build_registration_payload(vm_id, payload))
+            _pool_id, allowed, reason, network_mode = self._resolve_policy_for_vm(
+                vm_id,
+                wireguard_active=self._coerce_bool(registration.get("wireguard_active")),
+            )
+            if not allowed:
+                self._safe_audit(
+                    "stream.server.register",
+                    "forbidden",
+                    vm_id=vm_id,
+                    pool_id=registration.get("pool_id", ""),
+                    stream_server_id=registration.get("stream_server_id", ""),
+                    wireguard_active=bool(registration.get("wireguard_active")),
+                    network_mode=network_mode,
+                    reason=reason,
+                )
+                return self._json(
+                    HTTPStatus.FORBIDDEN,
+                    {
+                        "ok": False,
+                        "error": reason,
+                        **self._envelope(registration=registration),
+                    },
+                )
             self._safe_audit(
                 "stream.server.register",
                 "success",
@@ -294,6 +341,32 @@ class StreamHttpSurfaceService:
         if not event_type:
             return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "event_type required"})
         registration = self._build_registration_payload(vm_id, {})
+        if self._is_session_connect_event(event_type):
+            wireguard_active = self._resolve_event_wireguard_state(payload, registration)
+            _pool_id, allowed, reason, network_mode = self._resolve_policy_for_vm(
+                vm_id,
+                wireguard_active=wireguard_active,
+            )
+            if not allowed:
+                self._safe_audit(
+                    "stream.session.start",
+                    "forbidden",
+                    vm_id=vm_id,
+                    pool_id=registration.get("pool_id", ""),
+                    details=dict(payload.get("details") or {}),
+                    stream_server_id=registration.get("stream_server_id", ""),
+                    network_mode=network_mode,
+                    wireguard_active=wireguard_active,
+                    reason=reason,
+                )
+                return self._json(
+                    HTTPStatus.FORBIDDEN,
+                    {
+                        "ok": False,
+                        "error": reason,
+                        **self._envelope(vm_id=vm_id),
+                    },
+                )
         registration["last_event"] = {
             "event_type": event_type,
             "recorded_at": self._utcnow(),
