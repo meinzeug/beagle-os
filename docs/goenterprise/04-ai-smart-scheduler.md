@@ -80,6 +80,7 @@ Der aktuelle Beagle-Scheduler platziert VMs nach simplen Regeln:
   - [x] Prognostizierte Last (nächste 24h) per Node
   - [x] "Saved CPU-Hours" durch Pre-warming (wie viele User haben sofort eine VM bekommen vs. gewartet)
   - [x] Green-Hours-Konfiguration und aktiver Green-Window-Status im Dashboard
+  - [x] Stündliche Heatmap der letzten 7 Tage pro Node
 
 ---
 
@@ -88,4 +89,4 @@ Der aktuelle Beagle-Scheduler platziert VMs nach simplen Regeln:
 - [ ] Muster-Erkennung: Nach 14 Tagen simulierter Metriken erkennt der Analyzer korrekte Peak-Stunden.
 - [ ] Prädiktiver Scheduler: VM-Start 10min vor Peak → Nutzer wartet 0s statt 30s.
 - [ ] Rebalancing: Überlasteter Node (>85%) → Scheduler empfiehlt VM-Migration auf freien Node.
-- [ ] Dashboard: Heatmap zeigt korrekte historische Auslastung.
+- [x] Dashboard: Heatmap zeigt korrekte historische Auslastung.

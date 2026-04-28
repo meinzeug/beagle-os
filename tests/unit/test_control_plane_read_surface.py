@@ -48,7 +48,14 @@ def make_service() -> ControlPlaneReadSurfaceService:
         build_energy_csrd_payload=lambda year, quarter: {"year": year, "quarter": quarter, "total_kwh": 12.5},
         build_energy_config_payload=lambda: {
             "carbon_config": {"co2_grams_per_kwh": 400.0, "electricity_price_per_kwh": 0.3},
-            "scheduler": {"green_scheduling_enabled": True, "prewarm_minutes_ahead": 15},
+            "scheduler": {"green_scheduling_enabled": True, "prewarm_minutes_ahead": 15, "green_hours": [10, 11, 12]},
+        },
+        build_energy_green_hours_payload=lambda: {
+            "co2_grams_per_kwh": 400.0,
+            "electricity_price_per_kwh": 0.3,
+            "configured_green_hours": [10, 11, 12],
+            "current_hour": 11,
+            "hourly": [{"hour": 11, "is_green_hour": True, "active_now": True, "estimated_co2_grams_per_kwh": 300.0, "estimated_electricity_price_per_kwh": 0.255}],
         },
         build_energy_nodes_payload=lambda: [{"node_id": "node-a", "current_power_w": 200.0, "max_power_w": 300.0, "month_kwh": 14.2}],
         build_energy_rankings_payload=lambda: {
@@ -65,6 +72,7 @@ def make_service() -> ControlPlaneReadSurfaceService:
             "recommendations": [{"vm_id": 101, "current_node": "node-a", "recommended_node": "node-b", "reason": "rebalance"}],
             "prewarm_candidates": [{"vm_id": 101, "name": "vm-101", "node_id": "node-a", "green_window_active": True}],
             "historical_trend": [{"node_id": "node-a", "series": [{"day": "2026-04-27", "avg_cpu_pct": 70.0}]}],
+            "historical_heatmap": [{"node_id": "node-a", "days": [{"day": "2026-04-27", "hours": [0.0, 10.0, 20.0]}]}],
             "forecast_24h": [{"node_id": "node-a", "hourly": [{"hour": 12, "cpu_pct": 72.0}]}],
             "config": {"green_scheduling_enabled": True, "prewarm_minutes_ahead": 15, "green_hours": [10, 11, 12]},
             "saved_cpu_hours": 1.5,
@@ -100,6 +108,7 @@ def test_scheduler_insights_route_returns_payload() -> None:
     assert payload["recommendations"][0]["recommended_node"] == "node-b"
     assert payload["prewarm_candidates"][0]["name"] == "vm-101"
     assert payload["historical_trend"][0]["node_id"] == "node-a"
+    assert payload["historical_heatmap"][0]["days"][0]["day"] == "2026-04-27"
     assert payload["forecast_24h"][0]["hourly"][0]["hour"] == 12
     assert payload["config"]["green_scheduling_enabled"] is True
     assert payload["green_window_active"] is True
@@ -124,11 +133,13 @@ def test_energy_csrd_requires_year_and_quarter() -> None:
 def test_energy_nodes_and_trend_routes_return_enveloped_payloads() -> None:
     service = make_service()
     nodes = service.route_get("/api/v1/energy/nodes")
+    green_hours = service.route_get("/api/v1/energy/green-hours")
     rankings = service.route_get("/api/v1/energy/rankings")
     trend = service.route_get("/api/v1/energy/trend?months=3")
     config = service.route_get("/api/v1/energy/config")
-    assert nodes is not None and rankings is not None and trend is not None
+    assert nodes is not None and green_hours is not None and rankings is not None and trend is not None
     assert nodes["payload"]["nodes"][0]["node_id"] == "node-a"
+    assert green_hours["payload"]["green_hours"]["configured_green_hours"] == [10, 11, 12]
     assert rankings["payload"]["rankings"]["most_intensive_vms"][0]["vm_id"] == 101
     assert trend["payload"]["trend"][0]["month"] == "2026-04"
     assert config is not None

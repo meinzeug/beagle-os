@@ -62,9 +62,9 @@ Unternehmen mit >500 Mitarbeitern müssen Scope-2-Emissionen (IT-Infrastruktur) 
 
 - [x] Integration mit Plan 04 (AI-Scheduler):
   - `green_scheduling_enabled`: wenn aktiviert → bevorzuge Scheduling zu Zeiten mit niedrigem CO₂-Faktor (z.B. Mittagsspitze Solar)
-  - "Green Hours": konfigurierbare Zeiten mit bevorzugtem Batch-Scheduling
+  - [x] "Green Hours": konfigurierbare Zeiten mit bevorzugtem Batch-Scheduling
   - VM-Starts für nicht-dringende Workloads auf "Green Hours" verschieben
-- [ ] Tests: `tests/unit/test_green_scheduling.py`
+- [x] Tests: `tests/unit/test_green_scheduling.py`
 
 ### Schritt 5 — CSRD-Export + Energie-Dashboard
 
@@ -75,7 +75,7 @@ Unternehmen mit >500 Mitarbeitern müssen Scope-2-Emissionen (IT-Infrastruktur) 
   - Echtzeit-Energie-Verbrauch (kW aktuell)
   - CO₂-Footprint: heute, diese Woche, dieses Jahr
   - [x] Ranking: effizienteste vs. energieintensivste VMs
-  - "Grüne Stunden" Heatmap (wann ist der Strommix am saubersten)
+  - [x] "Grüne Stunden" Heatmap (wann ist der Strommix am saubersten)
 - [x] Control-Plane-Surface: `GET /api/v1/energy/nodes`, `GET /api/v1/energy/trend`, `GET /api/v1/energy/csrd?year=...&quarter=...`
 - [x] Tests: `tests/unit/test_csrd_export.py`
 

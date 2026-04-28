@@ -17,6 +17,30 @@ function heatCell(value, max) {
   </td>`;
 }
 
+function hourlyHeatTile(value) {
+  const pct = Math.max(0, Math.min(100, Math.round(Number(value || 0))));
+  const tone = pct > 80 ? 'critical' : pct > 60 ? 'warn' : pct > 30 ? 'ok' : 'muted';
+  const background = tone === 'critical'
+    ? `rgba(239, 68, 68, ${Math.max(0.18, pct / 120)})`
+    : tone === 'warn'
+    ? `rgba(245, 158, 11, ${Math.max(0.15, pct / 140)})`
+    : tone === 'ok'
+    ? `rgba(34, 197, 94, ${Math.max(0.12, pct / 180)})`
+    : 'rgba(148, 163, 184, 0.12)';
+  return `<div class="mini-heat-tile" title="${pct}% CPU" style="background:${background};border-radius:6px;padding:6px 4px;text-align:center;font-size:0.72rem;">${pct}</div>`;
+}
+
+function heatmapMatrix(nodeHeatmap) {
+  const days = Array.isArray(nodeHeatmap?.days) ? nodeHeatmap.days : [];
+  if (!days.length) return '<div class="empty-card">Keine stündlichen Heatmap-Daten vorhanden.</div>';
+  return `<div class="section-spaced-tight">
+    ${days.map((day) => `<div style="display:grid;grid-template-columns:90px repeat(24,minmax(22px,1fr));gap:4px;align-items:center;margin-bottom:4px;">
+      <div class="muted-text">${escapeHtml(day.day ?? '-')}</div>
+      ${Array.isArray(day.hours) ? day.hours.map((value) => hourlyHeatTile(value)).join('') : ''}
+    </div>`).join('')}
+  </div>`;
+}
+
 function placementRow(rec) {
   return `<tr>
     <td>${escapeHtml(rec.vm_id ?? '-')}</td>
@@ -73,6 +97,7 @@ export async function renderSchedulerInsights() {
   let recommendations = [];
   let prewarmCandidates = [];
   let historicalTrend = [];
+  let historicalHeatmap = [];
   let forecast24h = [];
   let config = {};
   let savedCpuHours = 0;
@@ -83,6 +108,7 @@ export async function renderSchedulerInsights() {
     recommendations = Array.isArray(data.recommendations) ? data.recommendations : [];
     prewarmCandidates = Array.isArray(data.prewarm_candidates) ? data.prewarm_candidates : [];
     historicalTrend = Array.isArray(data.historical_trend) ? data.historical_trend : [];
+    historicalHeatmap = Array.isArray(data.historical_heatmap) ? data.historical_heatmap : [];
     forecast24h = Array.isArray(data.forecast_24h) ? data.forecast_24h : [];
     config = data.config || {};
     savedCpuHours = Number(data.saved_cpu_hours || 0);
@@ -139,6 +165,9 @@ export async function renderSchedulerInsights() {
         <tbody>${historicalTrend.map(trendRow).join('')}</tbody>
       </table>`
     : '<div class="empty-card">Keine historischen Scheduler-Metriken vorhanden.</div>';
+  const historicalHeatmapHtml = historicalHeatmap.length > 0
+    ? historicalHeatmap.map((item) => `<section class="section-spaced-tight"><h4>${escapeHtml(item.node_id ?? '-')}</h4>${heatmapMatrix(item)}</section>`).join('')
+    : '<div class="empty-card">Keine stündlichen Heatmap-Daten vorhanden.</div>';
   const forecastHtml = forecast24h.length > 0
     ? `<table class="data-table">
         <thead><tr><th>Node</th><th>Nächste 8 Stunden CPU-Prognose</th></tr></thead>
@@ -150,6 +179,10 @@ export async function renderSchedulerInsights() {
     <section class="panel-section">
       <h3>Node-Auslastung (Heatmap)</h3>
       ${heatHtml}
+      <div class="section-spaced-tight">
+        <h4>Stündliche Heatmap der letzten 7 Tage</h4>
+        ${historicalHeatmapHtml}
+      </div>
     </section>
     <section class="panel-section">
       <h3>Placement-Empfehlungen</h3>

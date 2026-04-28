@@ -3087,6 +3087,7 @@ def control_plane_read_surface_service() -> ControlPlaneReadSurfaceService:
             build_cost_model_payload=build_cost_model_payload,
             build_energy_csrd_payload=build_energy_csrd_payload,
             build_energy_config_payload=build_energy_config_payload,
+            build_energy_green_hours_payload=build_energy_green_hours_payload,
             build_energy_nodes_payload=build_energy_nodes_payload,
             build_energy_rankings_payload=build_energy_rankings_payload,
             build_energy_trend_payload=build_energy_trend_payload,
@@ -3681,6 +3682,34 @@ def build_energy_config_payload() -> dict[str, Any]:
     }
 
 
+def build_energy_green_hours_payload() -> dict[str, Any]:
+    config = energy_service().get_carbon_config()
+    scheduler = get_scheduler_config()
+    green_hours = set(int(value) for value in scheduler.get("green_hours", []))
+    current_hour = datetime.now(timezone.utc).hour
+    hourly: list[dict[str, Any]] = []
+    for hour in range(24):
+        active = hour in green_hours
+        co2_factor = 0.75 if active else 1.0
+        price_factor = 0.85 if active else 1.0
+        hourly.append(
+            {
+                "hour": hour,
+                "is_green_hour": active,
+                "active_now": hour == current_hour and active,
+                "estimated_co2_grams_per_kwh": round(float(config.co2_grams_per_kwh or 0.0) * co2_factor, 2),
+                "estimated_electricity_price_per_kwh": round(float(config.electricity_price_per_kwh or 0.0) * price_factor, 4),
+            }
+        )
+    return {
+        "co2_grams_per_kwh": round(float(config.co2_grams_per_kwh or 0.0), 2),
+        "electricity_price_per_kwh": round(float(config.electricity_price_per_kwh or 0.0), 4),
+        "configured_green_hours": sorted(green_hours),
+        "current_hour": current_hour,
+        "hourly": hourly,
+    }
+
+
 def update_energy_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
     current = energy_service().get_carbon_config()
     from energy_service import CarbonConfig
@@ -3734,6 +3763,7 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
     analyzer = workload_pattern_analyzer_service()
     minutes_ahead = int(scheduler_config.get("prewarm_minutes_ahead", 15) or 15)
     historical_trend: list[dict[str, Any]] = []
+    historical_heatmap: list[dict[str, Any]] = []
     forecast_24h: list[dict[str, Any]] = []
     now = datetime.now(timezone.utc)
     for item in nodes:
@@ -3742,17 +3772,33 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
             continue
         samples = metrics_collector_service().read_samples(node_id, days=7, vmid=None)
         daily_buckets: dict[str, list[float]] = {}
+        hourly_buckets: dict[str, dict[int, list[float]]] = {}
         for sample in samples:
             day = str(getattr(sample, "timestamp", "")[:10] or "")
             if not day:
                 continue
-            daily_buckets.setdefault(day, []).append(float(getattr(sample, "cpu_pct", 0.0) or 0.0))
+            value = float(getattr(sample, "cpu_pct", 0.0) or 0.0)
+            daily_buckets.setdefault(day, []).append(value)
+            try:
+                hour = int(str(getattr(sample, "timestamp", "") or "")[11:13])
+            except (TypeError, ValueError):
+                continue
+            hourly_buckets.setdefault(day, {}).setdefault(hour, []).append(value)
         series = [
             {"day": day, "avg_cpu_pct": round(sum(values) / len(values), 2)}
             for day, values in sorted(daily_buckets.items())[-7:]
             if values
         ]
         historical_trend.append({"node_id": node_id, "series": series})
+        heatmap_days = []
+        for day in sorted(hourly_buckets.keys())[-7:]:
+            hour_values = []
+            for hour in range(24):
+                samples_for_hour = hourly_buckets.get(day, {}).get(hour, [])
+                avg_value = round(sum(samples_for_hour) / len(samples_for_hour), 2) if samples_for_hour else 0.0
+                hour_values.append(avg_value)
+            heatmap_days.append({"day": day, "hours": hour_values})
+        historical_heatmap.append({"node_id": node_id, "days": heatmap_days})
         if samples:
             profile = analyzer.analyze(node_id, samples)
             hourly = []
@@ -3777,7 +3823,13 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
         if not samples:
             continue
         profile = analyzer.analyze(f"vm-{int(getattr(vm, 'vmid', 0) or 0)}", samples)
-        if not smart_scheduler_service().should_prewarm(profile, minutes_ahead=minutes_ahead):
+        if not smart_scheduler_service().should_prewarm(
+            profile,
+            minutes_ahead=minutes_ahead,
+            green_scheduling_enabled=bool(scheduler_config.get("green_scheduling_enabled")),
+            green_hours=list(green_hours),
+            current_hour=current_hour,
+        ):
             continue
         prewarm_candidates.append(
             {
@@ -3811,6 +3863,7 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
         "recommendations": recommendations,
         "prewarm_candidates": prewarm_candidates[:5],
         "historical_trend": historical_trend,
+        "historical_heatmap": historical_heatmap,
         "forecast_24h": forecast_24h,
         "config": scheduler_config,
         "saved_cpu_hours": round(float(scheduler_config.get("saved_cpu_hours", 0.0) or 0.0), 2),

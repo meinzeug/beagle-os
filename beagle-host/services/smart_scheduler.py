@@ -74,6 +74,52 @@ class SmartSchedulerService:
         predicted = float(node.predicted_gpu_utilization_pct_4h or 0.0)
         return max(current, predicted)
 
+    @staticmethod
+    def _normalize_green_hours(green_hours: list[int] | None) -> list[int]:
+        values: list[int] = []
+        for item in list(green_hours or []):
+            try:
+                hour = int(item)
+            except (TypeError, ValueError):
+                continue
+            if 0 <= hour <= 23 and hour not in values:
+                values.append(hour)
+        return sorted(values)
+
+    @classmethod
+    def is_green_hour(cls, hour: int | None, green_hours: list[int] | None) -> bool:
+        if hour is None:
+            return False
+        return int(hour) in cls._normalize_green_hours(green_hours)
+
+    @classmethod
+    def _green_window_multiplier(cls, preferred_hour: int | None, green_hours: list[int] | None) -> float:
+        hours = cls._normalize_green_hours(green_hours)
+        if preferred_hour is None or not hours:
+            return 1.0
+        if cls.is_green_hour(preferred_hour, hours):
+            return 1.6
+        return 0.45
+
+    @classmethod
+    def _has_nearby_green_peak(
+        cls,
+        *,
+        target_hour: int,
+        peak_hours: list[int] | None,
+        green_hours: list[int] | None,
+        lookahead_hours: int,
+    ) -> bool:
+        peaks = cls._normalize_green_hours(peak_hours)
+        greens = cls._normalize_green_hours(green_hours)
+        if not peaks or not greens:
+            return False
+        for offset in range(1, max(1, int(lookahead_hours)) + 1):
+            candidate_hour = (int(target_hour) + offset) % 24
+            if candidate_hour in peaks and candidate_hour in greens:
+                return True
+        return False
+
     def pick_node(
         self,
         *,
@@ -81,6 +127,7 @@ class SmartSchedulerService:
         required_ram_mib: int,
         gpu_required: bool = False,
         preferred_hour: int | None = None,
+        green_hours: list[int] | None = None,
         gpu_utilization_threshold: float = 85.0,
         green_scheduling_enabled: bool = False,
     ) -> SmartPlacementResult:
@@ -97,6 +144,14 @@ class SmartSchedulerService:
         """
         nodes = self._list_nodes()
         candidates = []
+        green_multiplier = self._green_window_multiplier(preferred_hour, green_hours) if green_scheduling_enabled else 1.0
+        green_window_state = (
+            "match"
+            if green_scheduling_enabled and self.is_green_hour(preferred_hour, green_hours)
+            else "outside"
+            if green_scheduling_enabled and preferred_hour is not None
+            else "disabled"
+        )
         for node in nodes:
             if node.free_cpu_cores < required_cpu_cores:
                 continue
@@ -113,8 +168,10 @@ class SmartSchedulerService:
             if gpu_required:
                 score -= effective_gpu_util * 0.5
             if green_scheduling_enabled:
-                score -= float(node.energy_price_per_kwh or 0.0) * 20.0
-                score -= float(node.carbon_intensity_g_per_kwh or 0.0) / 100.0
+                score -= float(node.energy_price_per_kwh or 0.0) * 20.0 * green_multiplier
+                score -= float(node.carbon_intensity_g_per_kwh or 0.0) / 100.0 * green_multiplier
+                if preferred_hour is not None and not self.is_green_hour(preferred_hour, green_hours):
+                    score -= 2.5
             candidates.append((score, node.free_ram_mib, node))
 
         if not candidates:
@@ -141,6 +198,8 @@ class SmartSchedulerService:
                 + (
                     f", green_cost={best.energy_price_per_kwh:.3f}eur/kWh"
                     f", green_co2={best.carbon_intensity_g_per_kwh:.1f}g/kWh"
+                    f", green_window={green_window_state}"
+                    f", green_multiplier={green_multiplier:.2f}"
                     if green_scheduling_enabled else ""
                 )
             ),
@@ -198,7 +257,16 @@ class SmartSchedulerService:
     # Pre-warming helper
     # ------------------------------------------------------------------
 
-    def should_prewarm(self, profile: Any, minutes_ahead: int = 15) -> bool:
+    def should_prewarm(
+        self,
+        profile: Any,
+        minutes_ahead: int = 15,
+        *,
+        green_scheduling_enabled: bool = False,
+        green_hours: list[int] | None = None,
+        current_hour: int | None = None,
+        lookahead_hours: int = 4,
+    ) -> bool:
         """
         Return True if a VM should be pre-started N minutes before predicted peak.
         profile: WorkloadProfile from WorkloadPatternAnalyzer
@@ -207,5 +275,21 @@ class SmartSchedulerService:
             return False
         import datetime
         now = datetime.datetime.now(datetime.timezone.utc)
-        target_hour = (now + datetime.timedelta(minutes=minutes_ahead)).hour
-        return target_hour in getattr(profile, "peak_hours", [])
+        base_hour = int(current_hour) if current_hour is not None else now.hour
+        target_hour = (base_hour + max(0, int(minutes_ahead)) // 60) % 24 if minutes_ahead >= 60 else (now + datetime.timedelta(minutes=minutes_ahead)).hour
+        peak_hours = list(getattr(profile, "peak_hours", []) or [])
+        if target_hour not in peak_hours:
+            return False
+        if not green_scheduling_enabled:
+            return True
+        normalized_green_hours = self._normalize_green_hours(green_hours)
+        if not normalized_green_hours:
+            return True
+        if self.is_green_hour(target_hour, normalized_green_hours):
+            return True
+        return not self._has_nearby_green_peak(
+            target_hour=target_hour,
+            peak_hours=peak_hours,
+            green_hours=normalized_green_hours,
+            lookahead_hours=lookahead_hours,
+        )

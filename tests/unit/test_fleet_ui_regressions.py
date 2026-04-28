@@ -117,6 +117,8 @@ def test_enterprise_dashboard_modules_use_operator_routes() -> None:
     assert "Prewarm und Green Scheduling" in scheduler_js
     assert "Scheduler-Konfiguration speichern" in scheduler_js
     assert "Keine historischen Scheduler-Metriken vorhanden." in scheduler_js
+    assert "Stündliche Heatmap der letzten 7 Tage" in scheduler_js
+    assert "mini-heat-tile" in scheduler_js
     assert "Nächste 8 Stunden CPU-Prognose" in scheduler_js
     assert "/costs/model" in cost_js
     assert "Kostenmodell speichern" in cost_js
@@ -127,7 +129,9 @@ def test_enterprise_dashboard_modules_use_operator_routes() -> None:
     assert "Drilldown Abteilung → User → Session" in cost_js
     assert "/energy/config" in energy_js
     assert "/energy/rankings" in energy_js
+    assert "/energy/green-hours" in energy_js
     assert "Carbon- und Green-Scheduling-Konfiguration" in energy_js
+    assert "Grüne Stunden Heatmap" in energy_js
     assert "Energieintensivste VMs" in energy_js
     assert "Effizienteste VMs" in energy_js
     assert "Konfiguration speichern" in energy_js

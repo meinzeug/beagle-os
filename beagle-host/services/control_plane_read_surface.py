@@ -16,6 +16,7 @@ class ControlPlaneReadSurfaceService:
         build_cost_model_payload: Callable[[], dict[str, Any]],
         build_energy_csrd_payload: Callable[[int, int], dict[str, Any]],
         build_energy_config_payload: Callable[[], dict[str, Any]],
+        build_energy_green_hours_payload: Callable[[], dict[str, Any]],
         build_energy_nodes_payload: Callable[[], list[dict[str, Any]]],
         build_energy_rankings_payload: Callable[[], dict[str, list[dict[str, Any]]]],
         build_energy_trend_payload: Callable[[int], list[dict[str, Any]]],
@@ -42,6 +43,7 @@ class ControlPlaneReadSurfaceService:
         self._build_cost_model_payload = build_cost_model_payload
         self._build_energy_csrd_payload = build_energy_csrd_payload
         self._build_energy_config_payload = build_energy_config_payload
+        self._build_energy_green_hours_payload = build_energy_green_hours_payload
         self._build_energy_nodes_payload = build_energy_nodes_payload
         self._build_energy_rankings_payload = build_energy_rankings_payload
         self._build_energy_trend_payload = build_energy_trend_payload
@@ -234,6 +236,15 @@ class ControlPlaneReadSurfaceService:
                 {
                     "ok": True,
                     **self._envelope(nodes=self._build_energy_nodes_payload()),
+                },
+            )
+
+        if path == "/api/v1/energy/green-hours":
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(green_hours=self._build_energy_green_hours_payload()),
                 },
             )
 

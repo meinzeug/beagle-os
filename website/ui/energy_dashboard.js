@@ -42,6 +42,20 @@ function rankingRow(item, unitLabel = 'kWh') {
   </tr>`;
 }
 
+function greenHourTile(item) {
+  const hour = String(item.hour ?? 0).padStart(2, '0');
+  const intensity = Number(item.estimated_co2_grams_per_kwh ?? 0);
+  const price = Number(item.estimated_electricity_price_per_kwh ?? 0);
+  const active = Boolean(item.is_green_hour);
+  const background = active ? 'rgba(16, 185, 129, 0.24)' : 'rgba(148, 163, 184, 0.12)';
+  const border = item.active_now ? '2px solid rgba(16, 185, 129, 0.8)' : '1px solid rgba(148, 163, 184, 0.2)';
+  return `<div title="${hour}:00 · ${intensity.toFixed(1)} g/kWh · ${price.toFixed(4)} €/kWh" style="background:${background};border:${border};border-radius:8px;padding:10px 6px;text-align:center;">
+    <div style="font-weight:700">${hour}</div>
+    <div class="muted-text">${intensity.toFixed(0)} g</div>
+    <div class="muted-text">${price.toFixed(2)} €</div>
+  </div>`;
+}
+
 export async function renderEnergyDashboard() {
   const container = qs('energy-dashboard-panel');
   if (!container) return;
@@ -51,13 +65,15 @@ export async function renderEnergyDashboard() {
   let nodes = [];
   let trend = [];
   let rankings = {};
+  let greenHours = {};
   let config = {};
 
   try {
-    [nodes, trend, rankings, config] = await Promise.all([
+    [nodes, trend, rankings, greenHours, config] = await Promise.all([
       request('/energy/nodes').then((d) => Array.isArray(d) ? d : (d.nodes ?? [])),
       request('/energy/trend').then((d) => Array.isArray(d) ? d : (d.trend ?? [])).catch(() => []),
       request('/energy/rankings').then((d) => d?.rankings ?? {}).catch(() => ({})),
+      request('/energy/green-hours').then((d) => d?.green_hours ?? {}).catch(() => ({})),
       request('/energy/config').catch(() => ({ carbon_config: {}, scheduler: {} }))
     ]);
   } catch (err) {
@@ -80,6 +96,7 @@ export async function renderEnergyDashboard() {
   const lowestNodes = Array.isArray(rankings?.lowest_nodes) ? rankings.lowest_nodes : [];
   const mostIntensiveVms = Array.isArray(rankings?.most_intensive_vms) ? rankings.most_intensive_vms : [];
   const mostEfficientVms = Array.isArray(rankings?.most_efficient_vms) ? rankings.most_efficient_vms : [];
+  const greenHourRows = Array.isArray(greenHours?.hourly) ? greenHours.hourly : [];
   const rankingTable = (title, rows, unitLabel) => `<section class="panel-section">
       <h3>${title}</h3>
       ${rows.length > 0 ? `<table class="data-table">
@@ -103,6 +120,13 @@ export async function renderEnergyDashboard() {
       <h3>CO₂-Verlauf</h3>
       ${trendHtml}
       <div class="panel-actions">${csrdBtn}</div>
+    </section>
+    <section class="panel-section">
+      <h3>Grüne Stunden Heatmap</h3>
+      <div class="muted-text">Konfigurierter Green-Window-Fokus auf Basis aktueller Carbon- und Strompreis-Konfiguration.</div>
+      <div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px;margin-top:12px;">
+        ${greenHourRows.map((item) => greenHourTile(item)).join('')}
+      </div>
     </section>
     ${rankingTable('Höchster Node-Verbrauch', highestNodes, 'kWh')}
     ${rankingTable('Niedrigster Node-Verbrauch', lowestNodes, 'kWh')}

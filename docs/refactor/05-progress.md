@@ -4755,3 +4755,26 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `python3 -m py_compile beagle-host/services/service_registry.py beagle-host/services/control_plane_read_surface.py beagle-host/services/authz_policy.py`
   - `node --check website/ui/cost_dashboard.js website/ui/energy_dashboard.js website/ui/scheduler_insights.js`
   - `python3 -m pytest tests/unit/test_control_plane_read_surface.py tests/unit/test_authz_policy.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_energy_cost_integration.py tests/unit/test_chargeback_report.py -q`
+## Update (2026-04-28, GoEnterprise Plan 04/09: stündliche Heatmap, zeitfensterbasierte Green-Hours-Logik und Energy-Heatmap)
+
+**Scope**: Drei weitere Enterprise-Reste in einem Zug geschlossen. Der Scheduler rendert nicht mehr nur Tagesdurchschnitte, sondern eine stündliche 7-Tage-Heatmap pro Node; Green Scheduling ist jetzt im produktiven Scheduler-Pfad zeitfensterbasiert statt nur global gewichtet; und das Energy-Panel hat eine eigene Green-Hours-Heatmap auf Basis der aktiven Carbon-/Preis-Konfiguration plus Scheduler-Fenster.
+
+- Backend:
+  - [beagle-host/services/smart_scheduler.py](/home/dennis/beagle-os/beagle-host/services/smart_scheduler.py): `pick_node()` nutzt jetzt `preferred_hour` + `green_hours` mit zeitfensterabhängigem Green-Multiplikator; `should_prewarm()` verschiebt Nicht-Green-Peaks, wenn kurz darauf ein Green-Peak folgt
+  - [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py): `historical_heatmap` aus Metrics-Samples, Green-Hours-Payload und Green-Scheduling-Glue im Scheduler-Insights-/Energy-Pfad
+  - [beagle-host/services/control_plane_read_surface.py](/home/dennis/beagle-os/beagle-host/services/control_plane_read_surface.py): neue Surface `GET /api/v1/energy/green-hours`
+  - [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py): `GET /api/v1/energy/green-hours` auf `settings:read`
+- WebUI:
+  - [website/ui/scheduler_insights.js](/home/dennis/beagle-os/website/ui/scheduler_insights.js): stündliche 7-Tage-Heatmap pro Node als visuelle Grid-Sicht
+  - [website/ui/energy_dashboard.js](/home/dennis/beagle-os/website/ui/energy_dashboard.js): `Grüne Stunden Heatmap` aus `/api/v1/energy/green-hours`
+- Regressionen:
+  - [tests/unit/test_green_scheduling.py](/home/dennis/beagle-os/tests/unit/test_green_scheduling.py)
+  - [tests/unit/test_smart_scheduler.py](/home/dennis/beagle-os/tests/unit/test_smart_scheduler.py)
+  - [tests/unit/test_control_plane_read_surface.py](/home/dennis/beagle-os/tests/unit/test_control_plane_read_surface.py)
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+- Validierung:
+  - `python3 -m py_compile beagle-host/services/smart_scheduler.py beagle-host/services/service_registry.py beagle-host/services/control_plane_read_surface.py beagle-host/services/authz_policy.py`
+  - `node --check website/ui/scheduler_insights.js website/ui/energy_dashboard.js`
+  - `python3 -m pytest tests/unit/test_smart_scheduler.py tests/unit/test_green_scheduling.py tests/unit/test_control_plane_read_surface.py tests/unit/test_authz_policy.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_energy_cost_integration.py tests/unit/test_chargeback_report.py -q`
+  - Ergebnis: `48 passed`
