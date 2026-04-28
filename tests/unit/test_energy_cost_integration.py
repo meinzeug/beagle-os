@@ -44,5 +44,6 @@ def test_chargeback_keeps_energy_cost_as_separate_component(tmp_path: Path) -> N
     assert len(report["entries"]) == 1
     entry = report["entries"][0]
     assert entry["energy_cost"] == 0.45
-    expected_total = (4.0 * 0.01) + (2.0 * 0.50) + 0.45
+    # Includes RAM component: 2h * 4GB * 0.001 €/GBh = 0.008
+    expected_total = (4.0 * 0.01) + (8.0 * 0.001) + (2.0 * 0.50) + 0.45
     assert round(entry["total_cost"], 4) == round(expected_total, 4)

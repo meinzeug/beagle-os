@@ -85,10 +85,10 @@ Unternehmen mit >500 Mitarbeitern müssen Scope-2-Emissionen (IT-Infrastruktur) 
 
 ## Testpflicht nach Abschluss
 
-- [ ] RAPL-Metriken: CPU-Power wird korrekt gelesen und pro VM anteilig berechnet.
-- [ ] CO₂: Bei 100W über 1h mit 400g/kWh → 40g CO₂ korrekt kalkuliert.
-- [ ] Chargeback: Energie-Kosten in Report korrekt aufgeschlüsselt.
-- [ ] CSRD-Export: Export enthält korrekten Scope-2-Wert für Quartal.
+- [x] RAPL-Metriken: CPU-Power wird korrekt gelesen und pro VM anteilig berechnet.
+- [x] CO₂: Bei 100W über 1h mit 400g/kWh → 40g CO₂ korrekt kalkuliert.
+- [x] Chargeback: Energie-Kosten in Report korrekt aufgeschlüsselt.
+- [x] CSRD-Export: Export enthält korrekten Scope-2-Wert für Quartal.
 
 ---
 

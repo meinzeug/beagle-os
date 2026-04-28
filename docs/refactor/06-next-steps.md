@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 09 testpflicht completed)
+
+**Zuletzt erledigt**:
+- Plan 09 Testpflicht ist abgeschlossen (RAPL-/VM-Anteil, 100W->40g CO2, Chargeback-Energiekosten, CSRD Scope-2 Quartal).
+- Neue Acceptance-Suite plus aktualisierter Integrations-Test laufen lokal und auf `srv1` gruen (`29 passed` jeweils).
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 09 Restpunkt schliessen**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob (inkl. Retry/Alerting) implementieren.
+2. **Plan 04 Restpunkt schliessen**: Warm-Pool-Empfehlungen optional automatisch anwenden und mit Safety-Grenzen absichern.
+3. **Plan 07 Testpflicht angehen**: dedizierte Suite fuer SMART-Telemetrie, Disk-Trend-Anomalie, Predictive-Alert und Maintenance-Migration erstellen.
+4. **Plan 02 Live-Restpunkte**: Enrollment-/WireGuard-/TPM-Abnahmepfade reproduzierbar fuer echte Runtime-Hardware nachziehen.
+
 ## Stand (2026-04-28, GoEnterprise Plan 04 testpflicht completed)
 
 **Zuletzt erledigt**:

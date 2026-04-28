@@ -25,6 +25,7 @@
 - [x] GoEnterprise Plan 09: Grüne-Stunden-Heatmap im Energy-Dashboard nachziehen.
 - [x] GoEnterprise Plan 09: editierbares stündliches Carbon-/Strompreisprofil für Green-Hours hinterlegen.
 - [x] GoEnterprise Plan 09: Import-Pfad für stündliches Carbon-/Strompreisprofil hinterlegen.
+- [x] GoEnterprise Plan 09: offene Testpflicht (RAPL/VM-Anteil, 100W->40g CO2, Chargeback-Energiekosten, CSRD Scope-2 Quartal) mit Acceptance-Suite und srv1-Lauf schliessen.
 - [ ] GoEnterprise Plan 09: externen Feed-/Importjob für stündlichen Carbon-/Strommix hinterlegen.
 
 ## Update 2026-04-28 (GoEnterprise Plan 02)

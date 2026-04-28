@@ -1,3 +1,21 @@
+## Update (2026-04-28, GoEnterprise Plan 09: offene Testpflicht komplett geschlossen)
+
+**Scope**: Die verbliebenen Plan-09-Testpflicht-Punkte abgeschlossen und in einer dedizierten Acceptance-Suite gebuendelt. Zusaetzlich wurde ein veralteter Integrations-Test auf die inzwischen RAM-inklusive Chargeback-Berechnung angehoben.
+
+- Tests:
+  - `tests/unit/test_goenterprise_energy_dashboard_acceptance.py` (neu)
+  - Deckt ab:
+    - RAPL-Power-Lesepfad + VM-Anteilsverteilung via CPU-Shares
+    - CO2-Referenzfall: `100W * 1h` bei `400g/kWh` -> `40g`
+    - Chargeback-Energiekosten separat ausgewiesen
+    - CSRD-Scope-2-Quartalswert korrekt
+  - `tests/unit/test_energy_cost_integration.py`: Erwartungswert auf RAM-inklusive Chargeback-Summe korrigiert
+- Doku:
+  - `docs/goenterprise/09-energy-dashboard.md`: alle offenen `Testpflicht nach Abschluss`-Checkboxen auf `[x]` gesetzt
+- Validierung:
+  - Lokal: `pytest -q tests/unit/test_goenterprise_energy_dashboard_acceptance.py tests/unit/test_energy_service.py tests/unit/test_carbon_calculation.py tests/unit/test_energy_cost_integration.py tests/unit/test_csrd_export.py` -> `29 passed`
+  - `srv1`: identischer Lauf via `ssh srv1.beagle-os.com` in `/tmp/beagle-os-plan09-test` -> `29 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 04: Testpflicht fuer Pattern/Prewarm/Rebalancing geschlossen)
 
 **Scope**: Die offenen Testpunkte in Plan 04 abgeschlossen und mit dedizierter Testdatei abgesichert. Der neue Abnahmesatz deckt exakt die drei verbleibenden Kriterien ab: 14-Tage-Peak-Erkennung, Prewarm 10 Minuten vor Peak und Rebalancing-Empfehlung bei >85% Last.
