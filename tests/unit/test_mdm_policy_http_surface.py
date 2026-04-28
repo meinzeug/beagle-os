@@ -105,3 +105,34 @@ def test_bulk_assignment_flow(tmp_path: Path) -> None:
     )
     assert int(cleared["status"]) == 200
     assert cleared["payload"]["assignment_status"] == "cleared"
+
+
+def test_policy_create_rejects_invalid_payload(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    response = service.route_post(
+        "/api/v1/fleet/policies",
+        json_payload={
+            "policy_id": "corp",
+            "name": "Corporate",
+            "allowed_codecs": ["badcodec"],
+            "update_window_start_hour": 2,
+            "update_window_end_hour": 2,
+        },
+        requester="admin",
+    )
+    assert int(response["status"]) == 400
+    assert "invalid codecs" in response["payload"]["error"]
+
+
+def test_policy_list_includes_validation_metadata(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    service.route_post(
+        "/api/v1/fleet/policies",
+        json_payload={"policy_id": "corp", "name": "Corporate", "screen_lock_timeout_seconds": 600},
+        requester="admin",
+    )
+    listing = service.route_get("/api/v1/fleet/policies")
+    assert int(listing["status"]) == 200
+    validation = listing["payload"]["policies"][0]["validation"]
+    assert validation["ok"] is True
+    assert "policy allows all pools" in validation["warnings"]

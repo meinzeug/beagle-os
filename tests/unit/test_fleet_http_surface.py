@@ -206,3 +206,21 @@ def test_effective_policy_route_returns_group_resolved_policy(tmp_path: Path) ->
     assert response["payload"]["source_type"] == "group"
     assert response["payload"]["source_id"] == "berlin"
     assert response["payload"]["policy"]["policy_id"] == "corp"
+
+
+def test_effective_policy_route_reports_assignment_conflicts(tmp_path: Path) -> None:
+    registry, mdm, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+    registry.set_group("dev-001", "berlin")
+    mdm.create_policy(MDMPolicy(policy_id="group-policy", name="Group"))
+    mdm.create_policy(MDMPolicy(policy_id="device-policy", name="Device"))
+    mdm.assign_to_group("berlin", "group-policy")
+    mdm.assign_to_device("dev-001", "device-policy")
+
+    response = service.route_get("/api/v1/fleet/devices/dev-001/effective-policy")
+
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    assert response["payload"]["policy"]["policy_id"] == "device-policy"
+    assert response["payload"]["conflicts"] == ["device assignment overrides group policy group-policy"]
+    assert response["payload"]["policy"]["validation"]["ok"] is True

@@ -145,6 +145,10 @@ class FleetHttpSurfaceService:
                         group=str(getattr(device, "group", "") or ""),
                         source_type=source_type,
                         source_id=source_id,
+                        conflicts=self._mdm_policy.describe_effective_policy_conflicts(
+                            str(getattr(device, "device_id", "") or ""),
+                            group=str(getattr(device, "group", "") or ""),
+                        ),
                         policy={
                             "policy_id": str(getattr(policy, "policy_id", "") or ""),
                             "name": str(getattr(policy, "name", "") or ""),
@@ -156,6 +160,7 @@ class FleetHttpSurfaceService:
                             "update_window_start_hour": int(getattr(policy, "update_window_start_hour", 2) or 2),
                             "update_window_end_hour": int(getattr(policy, "update_window_end_hour", 4) or 4),
                             "screen_lock_timeout_seconds": int(getattr(policy, "screen_lock_timeout_seconds", 0) or 0),
+                            "validation": self._mdm_policy.validate_policy(policy),
                         },
                     ),
                 },

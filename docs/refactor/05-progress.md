@@ -1,3 +1,18 @@
+## Update (2026-04-28, GoEnterprise Plan 02: Policy-Validierung + Conflict-Hinweise)
+
+**Scope**: Den offenen Haertungs-Slice der MDM-Policy-Plane weitergezogen. Policies werden jetzt serverseitig auf Codec-/Resolution-/Window-Fehler validiert; die Fleet-Surface zeigt die Validation sowie Device-vs-Group-Konflikte direkt im Operator-Flow an.
+
+- Backend:
+  - [beagle-host/services/mdm_policy_service.py](/home/dennis/beagle-os/beagle-host/services/mdm_policy_service.py): `validate_policy()` und `describe_effective_policy_conflicts()`
+  - [beagle-host/services/mdm_policy_http_surface.py](/home/dennis/beagle-os/beagle-host/services/mdm_policy_http_surface.py): Validation-Metadaten in Policy-Responses
+  - [beagle-host/services/fleet_http_surface.py](/home/dennis/beagle-os/beagle-host/services/fleet_http_surface.py): Effective-Policy-Preview mit `conflicts`
+- WebUI:
+  - [website/ui/fleet_health.js](/home/dennis/beagle-os/website/ui/fleet_health.js): `Policy Validierung` und Konflikt-Badges im Fleet-Panel
+- Regressionen:
+  - [tests/unit/test_mdm_policy.py](/home/dennis/beagle-os/tests/unit/test_mdm_policy.py)
+  - [tests/unit/test_mdm_policy_http_surface.py](/home/dennis/beagle-os/tests/unit/test_mdm_policy_http_surface.py)
+  - [tests/unit/test_fleet_http_surface.py](/home/dennis/beagle-os/tests/unit/test_fleet_http_surface.py)
+
 ## Update (2026-04-28, GoEnterprise Plan 02: Standort-Tree + Device-Group-Regressionen)
 
 **Scope**: Den offenen Device-UX-Slice aus Plan 02 weiter geschlossen. Die Fleet-WebUI zeigt jetzt nicht mehr nur eine flache Tabelle, sondern eine verdichtete Standort-/Gruppenansicht fuer Operatoren; ausserdem ist der gruppenbezogene Policy-Pfad mit einer eigenen Testdatei reproduzierbar abgesichert.

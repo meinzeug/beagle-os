@@ -238,6 +238,19 @@ Restluecke bewusst offen:
   - `tests/unit/test_device_groups.py`
   - `tests/unit/test_fleet_ui_regressions.py`
 
+## Update 2026-04-28 (Policy-Validierung + Conflict-Hinweise)
+
+- Control Plane:
+  - `mdm_policy_service.py` validiert jetzt Codecs, Aufloesungsformat, Update-Fenster und Screen-Lock-Timeout serverseitig vor Create/Update.
+  - `mdm_policy_http_surface.py` liefert Validation-Metadaten jetzt direkt mit jeder Policy aus.
+  - `fleet_http_surface.py` erweitert die Effective-Policy-Antwort um `conflicts` und Validation-Daten der aufgeloesten Policy.
+- WebUI:
+  - `website/ui/fleet_health.js` rendert jetzt `Policy Validierung` direkt im Editor sowie Konflikt-/Diagnose-Hinweise in der Effective-Policy-Preview.
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_mdm_policy.py`
+  - `tests/unit/test_mdm_policy_http_surface.py`
+  - `tests/unit/test_fleet_http_surface.py`
+
 ---
 
 ## Unique Selling Point vs. Konkurrenz

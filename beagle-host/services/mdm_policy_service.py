@@ -5,6 +5,7 @@ GoEnterprise Plan 02, Schritt 3
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -50,6 +51,8 @@ class MDMPolicyService:
     STATE_FILE = Path("/var/lib/beagle/beagle-manager/mdm-policies.json")
 
     DEFAULT_POLICY = MDMPolicy(policy_id="__default__", name="Default")
+    _VALID_CODECS = {"h264", "h265", "av1", "vp9"}
+    _RESOLUTION_RE = re.compile(r"^(?P<width>\d{3,5})x(?P<height>\d{3,5})$")
 
     def __init__(self, state_file: Path | None = None) -> None:
         self._state_file = state_file or self.STATE_FILE
@@ -60,7 +63,63 @@ class MDMPolicyService:
     # CRUD
     # ------------------------------------------------------------------
 
+    def validate_policy(self, policy: MDMPolicy) -> dict[str, Any]:
+        errors: list[str] = []
+        warnings: list[str] = []
+
+        if not str(policy.policy_id or "").strip():
+            errors.append("policy_id required")
+        if not str(policy.name or "").strip():
+            errors.append("name required")
+
+        codecs = [str(item or "").strip().lower() for item in policy.allowed_codecs if str(item or "").strip()]
+        invalid_codecs = sorted({codec for codec in codecs if codec not in self._VALID_CODECS})
+        if invalid_codecs:
+            errors.append("invalid codecs: " + ", ".join(invalid_codecs))
+
+        for hour_name, value in {
+            "update_window_start_hour": policy.update_window_start_hour,
+            "update_window_end_hour": policy.update_window_end_hour,
+        }.items():
+            if int(value) < 0 or int(value) > 23:
+                errors.append(f"{hour_name} must be between 0 and 23")
+
+        if int(policy.update_window_start_hour) == int(policy.update_window_end_hour):
+            errors.append("update window must not be zero-length")
+
+        if int(policy.screen_lock_timeout_seconds) < 0:
+            errors.append("screen_lock_timeout_seconds must be >= 0")
+        elif int(policy.screen_lock_timeout_seconds) == 0:
+            warnings.append("screen lock timeout disabled")
+
+        max_resolution = str(policy.max_resolution or "").strip()
+        if max_resolution:
+            match = self._RESOLUTION_RE.match(max_resolution)
+            if match is None:
+                errors.append("max_resolution must match WIDTHxHEIGHT")
+            else:
+                width = int(match.group("width"))
+                height = int(match.group("height"))
+                if width < 640 or height < 480:
+                    errors.append("max_resolution must be at least 640x480")
+                if width > 7680 or height > 4320:
+                    warnings.append("max_resolution exceeds typical 8K boundary")
+
+        if not policy.allowed_pools:
+            warnings.append("policy allows all pools")
+        if not policy.allowed_networks:
+            warnings.append("policy allows all networks")
+        if not codecs:
+            warnings.append("policy allows all codecs")
+        if policy.auto_update and int(policy.update_window_start_hour) > int(policy.update_window_end_hour):
+            warnings.append("update window crosses midnight")
+
+        return {"ok": not errors, "errors": errors, "warnings": warnings}
+
     def create_policy(self, policy: MDMPolicy) -> MDMPolicy:
+        validation = self.validate_policy(policy)
+        if not validation["ok"]:
+            raise ValueError("; ".join(validation["errors"]))
         if policy.policy_id in self._state["policies"]:
             raise ValueError(f"Policy {policy.policy_id!r} already exists")
         self._state["policies"][policy.policy_id] = asdict(policy)
@@ -68,6 +127,9 @@ class MDMPolicyService:
         return policy
 
     def update_policy(self, policy: MDMPolicy) -> MDMPolicy:
+        validation = self.validate_policy(policy)
+        if not validation["ok"]:
+            raise ValueError("; ".join(validation["errors"]))
         if policy.policy_id not in self._state["policies"]:
             raise KeyError(f"Policy {policy.policy_id!r} not found")
         self._state["policies"][policy.policy_id] = asdict(policy)
@@ -177,6 +239,14 @@ class MDMPolicyService:
             if p:
                 return p, "group", str(group or "")
         return self.DEFAULT_POLICY, "default", "__default__"
+
+    def describe_effective_policy_conflicts(self, device_id: str, group: str = "") -> list[str]:
+        conflicts: list[str] = []
+        device_policy_id = str(self._state["device_assignments"].get(device_id) or "").strip()
+        group_policy_id = str(self._state["group_assignments"].get(group) or "").strip() if group else ""
+        if device_policy_id and group_policy_id and device_policy_id != group_policy_id:
+            conflicts.append(f"device assignment overrides group policy {group_policy_id}")
+        return conflicts
 
     # ------------------------------------------------------------------
     # Enforcement helpers

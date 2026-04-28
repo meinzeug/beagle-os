@@ -41,7 +41,7 @@ class MDMPolicyHttpSurfaceService:
         }
 
     def _policy_to_dict(self, policy: Any) -> dict[str, Any]:
-        return asdict(policy) if isinstance(policy, MDMPolicy) else {
+        payload = asdict(policy) if isinstance(policy, MDMPolicy) else {
             "policy_id": str(getattr(policy, "policy_id", "") or ""),
             "name": str(getattr(policy, "name", "") or ""),
             "allowed_networks": list(getattr(policy, "allowed_networks", []) or []),
@@ -53,6 +53,8 @@ class MDMPolicyHttpSurfaceService:
             "update_window_end_hour": int(getattr(policy, "update_window_end_hour", 4) or 4),
             "screen_lock_timeout_seconds": int(getattr(policy, "screen_lock_timeout_seconds", 0) or 0),
         }
+        payload["validation"] = self._service.validate_policy(MDMPolicy(**payload))
+        return payload
 
     def _safe_audit(self, event_type: str, outcome: str, **details: Any) -> None:
         if self._audit_event is None:

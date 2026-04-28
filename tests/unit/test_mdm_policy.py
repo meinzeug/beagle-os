@@ -126,3 +126,33 @@ def test_resolve_policy_with_source(tmp_path):
     assert policy.policy_id == "lab"
     assert source_type == "group"
     assert source_id == "grp-a"
+
+
+def test_validate_policy_rejects_invalid_ranges_and_codecs(tmp_path):
+    svc = make_svc(tmp_path)
+    validation = svc.validate_policy(
+        MDMPolicy(
+            policy_id="corp",
+            name="Corp",
+            allowed_codecs=["h264", "badcodec"],
+            max_resolution="320x200",
+            update_window_start_hour=24,
+            update_window_end_hour=24,
+            screen_lock_timeout_seconds=-1,
+        )
+    )
+    assert validation["ok"] is False
+    assert any("invalid codecs" in item for item in validation["errors"])
+    assert any("max_resolution" in item for item in validation["errors"])
+    assert any("update_window_start_hour" in item for item in validation["errors"])
+    assert any("screen_lock_timeout_seconds" in item for item in validation["errors"])
+
+
+def test_describe_effective_policy_conflicts_reports_device_override(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.create_policy(MDMPolicy(policy_id="group-policy", name="Group"))
+    svc.create_policy(MDMPolicy(policy_id="device-policy", name="Device"))
+    svc.assign_to_group("grp-a", "group-policy")
+    svc.assign_to_device("dev-001", "device-policy")
+    conflicts = svc.describe_effective_policy_conflicts("dev-001", "grp-a")
+    assert conflicts == ["device assignment overrides group policy group-policy"]

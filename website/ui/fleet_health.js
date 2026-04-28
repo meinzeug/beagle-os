@@ -175,6 +175,18 @@ function selectedPolicyId() {
   return String(qs('fleet-policy-id')?.value || '').trim();
 }
 
+function policyValidationMarkup(validation) {
+  const errors = Array.isArray(validation?.errors) ? validation.errors : [];
+  const warnings = Array.isArray(validation?.warnings) ? validation.warnings : [];
+  if (!errors.length && !warnings.length) {
+    return '<div class="muted">Keine Hinweise.</div>';
+  }
+  return `
+    ${errors.map((item) => `<div class="badge tone-critical">${escapeHtml(String(item || ''))}</div>`).join(' ')}
+    ${warnings.map((item) => `<div class="badge tone-warn">${escapeHtml(String(item || ''))}</div>`).join(' ')}
+  `;
+}
+
 function policyCards() {
   if (!fleetState.policies.length) {
     return '<div class="empty-card">Noch keine MDM-Policies vorhanden.</div>';
@@ -203,6 +215,8 @@ function policyEditorSection() {
     Array.isArray(effective.policy.allowed_pools) && effective.policy.allowed_pools.length ? `${effective.policy.allowed_pools.length} Pools` : 'alle Pools',
     Array.isArray(effective.policy.allowed_codecs) && effective.policy.allowed_codecs.length ? effective.policy.allowed_codecs.join('/') : 'alle Codecs'
   ].join(' • ') : 'Keine effektive Policy geladen';
+  const selected = fleetState.policies.find((policy) => String(policy.policy_id || '') === selectedPolicyId()) || null;
+  const effectiveConflicts = Array.isArray(effective?.conflicts) ? effective.conflicts : [];
   return `
     <section class="section-spaced">
       <div class="button-row compact-row section-spaced-tight">
@@ -234,6 +248,10 @@ function policyEditorSection() {
             <button type="button" class="button ghost" data-mdm-action="new-policy">Neu</button>
             <button type="button" class="button danger" data-mdm-action="delete-policy">Loeschen</button>
           </div>
+          <h3>Policy Validierung</h3>
+          <div class="card compact-card">
+            ${policyValidationMarkup(selected?.validation || null)}
+          </div>
           <h3>Assignment</h3>
           <div class="grid two-col section-spaced-tight">
             <label class="field"><span>Device ID</span><input id="fleet-assign-device-id" type="text" autocomplete="off" placeholder="dev-001"></label>
@@ -253,6 +271,8 @@ function policyEditorSection() {
             <strong>${escapeHtml(String(effective?.policy?.name || 'Policy Preview'))}</strong>
             <div class="muted">${escapeHtml(effectiveSource)}</div>
             <div class="muted">${escapeHtml(effectiveSummary)}</div>
+            <div class="section-spaced-tight">${policyValidationMarkup(effective?.policy?.validation || null)}</div>
+            <div class="section-spaced-tight">${effectiveConflicts.map((item) => `<div class="badge tone-warn">${escapeHtml(String(item || ''))}</div>`).join(' ') || '<div class="muted">Keine Konflikte.</div>'}</div>
           </div>
         </div>
       </div>
