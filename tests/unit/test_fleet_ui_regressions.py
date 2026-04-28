@@ -37,6 +37,7 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "savePolicy" in js
     assert "assignPolicy" in js
     assert "assignBulkDevices" in js
+    assert "submitBulkDeviceAction" in js
     assert "locationTreeSection" in js
     assert "policyValidationMarkup" in js
     assert "policyDiffMarkup" in js
@@ -47,8 +48,15 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "Policy Validierung" in js
     assert "Effective Policy Preview" in js
     assert "Keine Konflikte." in js
+    assert "Keine Remediation-Hinweise." in js
     assert "Effektiv vs Default" in js
     assert "Bulk Device IDs" in js
+    assert "Bulk Standort" in js
+    assert "Bulk sperren" in js
+    assert "Bulk entsperren" in js
+    assert "Bulk wipe" in js
+    assert "Bulk Gruppe setzen" in js
+    assert "Bulk Standort setzen" in js
     assert "Standort- und Gruppenansicht" in js
     assert "Unbekannter Standort" in js
     assert "ohne Gruppe" in js

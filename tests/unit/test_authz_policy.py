@@ -243,6 +243,10 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:write",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/fleet/devices/actions/bulk"),
+            "settings:write",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("POST", "/api/v1/fleet/devices/dev-001/heartbeat"),
             "settings:write",
         )

@@ -12,8 +12,10 @@
 - [x] GoEnterprise Plan 02: effective-policy-Preview und Bulk-Policy-Flows in der Fleet-WebUI nachziehen.
 - [x] GoEnterprise Plan 02: staerkere Policy-Validierung und erste Conflict-Hinweise in Fleet-/Policy-Surface nachziehen.
 - [x] GoEnterprise Plan 02: Policy-Diff/erste erweiterte effective-policy-Diagnose fuer Operatoren nachziehen.
-- [ ] GoEnterprise Plan 02: Drift-/Remediation-Hinweise aufbauend auf der Effective-Policy-Diagnose nachziehen.
-- [ ] GoEnterprise Plan 02: grafischen Sperrbildschirm fuer bereits laufende lokale Sessions sowie Bulk-Device-Operator-Flows jenseits der Policy-Zuweisung nachziehen.
+- [x] GoEnterprise Plan 02: erste Drift-/Remediation-Hinweise aufbauend auf der Effective-Policy-Diagnose nachziehen.
+- [x] GoEnterprise Plan 02: Bulk-Device-Operator-Flows jenseits der Policy-Zuweisung nachziehen.
+- [ ] GoEnterprise Plan 02: grafischen Sperrbildschirm fuer bereits laufende lokale Sessions nachziehen.
+- [ ] GoEnterprise Plan 02: automatische Remediation-Vorschlaege und weitergehende Drift-Hinweise fuer Operatoren nachziehen.
 
 ## Update 2026-04-28 (GoEnterprise Plan 01)
 

@@ -246,6 +246,7 @@ function policyEditorSection() {
   ].join(' • ') : 'Keine effektive Policy geladen';
   const selected = fleetState.policies.find((policy) => String(policy.policy_id || '') === selectedPolicyId()) || null;
   const effectiveConflicts = Array.isArray(effective?.conflicts) ? effective.conflicts : [];
+  const remediationHints = Array.isArray(effective?.remediation_hints) ? effective.remediation_hints : [];
   return `
     <section class="section-spaced">
       <div class="button-row compact-row section-spaced-tight">
@@ -285,6 +286,7 @@ function policyEditorSection() {
           <div class="grid two-col section-spaced-tight">
             <label class="field"><span>Device ID</span><input id="fleet-assign-device-id" type="text" autocomplete="off" placeholder="dev-001"></label>
             <label class="field"><span>Gruppe</span><input id="fleet-assign-group-id" type="text" autocomplete="off" placeholder="reception"></label>
+            <label class="field"><span>Bulk Standort</span><input id="fleet-bulk-location" type="text" autocomplete="off" placeholder="Berlin-Office-1"></label>
             <label class="field field-wide"><span>Bulk Device IDs (eine pro Zeile oder komma)</span><textarea id="fleet-assign-device-ids" rows="4" autocomplete="off" placeholder="dev-001&#10;dev-002"></textarea></label>
           </div>
           <div class="button-row compact-row section-spaced-tight">
@@ -294,6 +296,11 @@ function policyEditorSection() {
             <button type="button" class="button ghost" data-mdm-action="clear-device-assignment">Device-Zuweisung loeschen</button>
             <button type="button" class="button ghost" data-mdm-action="clear-group-assignment">Gruppen-Zuweisung loeschen</button>
             <button type="button" class="button ghost" data-mdm-action="clear-bulk-devices">Bulk-Device-Zuweisungen loeschen</button>
+            <button type="button" class="button ghost" data-mdm-action="bulk-lock">Bulk sperren</button>
+            <button type="button" class="button ghost" data-mdm-action="bulk-unlock">Bulk entsperren</button>
+            <button type="button" class="button danger" data-mdm-action="bulk-wipe">Bulk wipe</button>
+            <button type="button" class="button ghost" data-mdm-action="bulk-set-group">Bulk Gruppe setzen</button>
+            <button type="button" class="button ghost" data-mdm-action="bulk-set-location">Bulk Standort setzen</button>
           </div>
           <h3>Effective Policy Preview</h3>
           <div class="card compact-card">
@@ -303,6 +310,7 @@ function policyEditorSection() {
             <div class="section-spaced-tight">${policyValidationMarkup(effective?.policy?.validation || null)}</div>
             <div class="section-spaced-tight">${effectiveConflicts.map((item) => `<div class="badge tone-warn">${escapeHtml(String(item || ''))}</div>`).join(' ') || '<div class="muted">Keine Konflikte.</div>'}</div>
             <div class="section-spaced-tight">${policyDiffMarkup(effective?.diagnostics || null)}</div>
+            <div class="section-spaced-tight">${remediationHints.map((item) => `<div class="badge tone-info">${escapeHtml(String(item || ''))}</div>`).join(' ') || '<div class="muted">Keine Remediation-Hinweise.</div>'}</div>
           </div>
         </div>
       </div>
@@ -393,6 +401,16 @@ function bulkDeviceIdsFromForm() {
     .filter(Boolean);
 }
 
+function bulkActionValue(action) {
+  if (action === 'set-group') {
+    return String(qs('fleet-assign-group-id')?.value || '').trim();
+  }
+  if (action === 'set-location') {
+    return String(qs('fleet-bulk-location')?.value || '').trim();
+  }
+  return '';
+}
+
 async function assignBulkDevices(clearAssignment = false) {
   const targetIds = bulkDeviceIdsFromForm();
   const policyId = clearAssignment ? '' : selectedPolicyId();
@@ -405,6 +423,24 @@ async function assignBulkDevices(clearAssignment = false) {
     body: JSON.stringify({ target_type: 'device', target_ids: targetIds, policy_id: policyId }),
   });
   fleetHooks.setBanner(clearAssignment ? 'Bulk-Device-Zuweisungen geloescht.' : 'Policy bulk zugewiesen.', 'ok');
+  await fleetHooks.loadDashboard({ force: true });
+}
+
+async function submitBulkDeviceAction(action) {
+  const targetIds = bulkDeviceIdsFromForm();
+  if (!targetIds.length) {
+    throw new Error('Bulk Device IDs fehlen');
+  }
+  const value = bulkActionValue(action);
+  if ((action === 'set-group' || action === 'set-location') && !value) {
+    throw new Error(action === 'set-group' ? 'Bulk-Gruppe fehlt' : 'Bulk-Standort fehlt');
+  }
+  await request('/fleet/devices/actions/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, target_ids: targetIds, value }),
+  });
+  fleetHooks.setBanner(`Bulk-Aktion ${action} ausgefuehrt.`, 'ok');
   await fleetHooks.loadDashboard({ force: true });
 }
 
@@ -576,6 +612,26 @@ export async function renderFleetHealth() {
         }
         if (action === 'clear-bulk-devices') {
           await assignBulkDevices(true);
+          return;
+        }
+        if (action === 'bulk-lock') {
+          await submitBulkDeviceAction('lock');
+          return;
+        }
+        if (action === 'bulk-unlock') {
+          await submitBulkDeviceAction('unlock');
+          return;
+        }
+        if (action === 'bulk-wipe') {
+          await submitBulkDeviceAction('wipe');
+          return;
+        }
+        if (action === 'bulk-set-group') {
+          await submitBulkDeviceAction('set-group');
+          return;
+        }
+        if (action === 'bulk-set-location') {
+          await submitBulkDeviceAction('set-location');
         }
       } catch (error) {
         fleetHooks.setBanner('MDM-Policy-Aktion fehlgeschlagen: ' + String(error.message ?? error), 'warn');

@@ -15,6 +15,7 @@ class FleetHttpSurfaceService:
     _DEVICE_DETAIL = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)$")
     _DEVICE_EFFECTIVE_POLICY = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/effective-policy$")
     _DEVICE_ACTION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/(?P<action>heartbeat|lock|unlock|wipe|confirm-wiped)$")
+    _DEVICE_BULK_ACTIONS = "/api/v1/fleet/devices/actions/bulk"
 
     def __init__(
         self,
@@ -60,6 +61,27 @@ class FleetHttpSurfaceService:
             )
         except Exception:
             return
+
+    def _build_remediation_hints(self, *, device: Any, policy_validation: dict[str, Any], conflicts: list[str], diagnostics: dict[str, Any]) -> list[str]:
+        hints: list[str] = []
+        if conflicts:
+            hints.append("Pruefe die Device-Zuweisung und entferne sie, wenn wieder die Gruppenpolicy gelten soll.")
+        if str(getattr(device, "group", "") or "").strip() == "":
+            hints.append("Ordne das Geraet einer Gruppe zu, damit Gruppenpolicies und Bulk-Operationen greifen.")
+        if str(diagnostics.get("effective_source_type") or "") == "default":
+            hints.append("Weise eine explizite Device- oder Gruppenpolicy zu, statt auf der Default-Policy zu bleiben.")
+        warnings = list(policy_validation.get("warnings") or [])
+        if any("allows all pools" in str(item) for item in warnings):
+            hints.append("Begrenze allowed_pools, wenn das Geraet nicht auf alle Pools zugreifen soll.")
+        if any("allows all networks" in str(item) for item in warnings):
+            hints.append("Begrenze allowed_networks auf vertrauenswuerdige Netze oder WireGuard.")
+        if any("allows all codecs" in str(item) for item in warnings):
+            hints.append("Reduziere allowed_codecs auf die wirklich freigegebenen Stream-Codecs.")
+        if str(getattr(device, "status", "") or "") == "locked":
+            hints.append("Entsperre das Geraet erst nach Abschluss der Operator-Pruefung wieder.")
+        if str(getattr(device, "status", "") or "") == "wipe_pending":
+            hints.append("Halte das Geraet online, bis der naechste Sync den Wipe bestaetigt.")
+        return hints
 
     @staticmethod
     def _hardware_to_dict(hardware: Any) -> dict[str, Any]:
@@ -140,6 +162,17 @@ class FleetHttpSurfaceService:
                 str(getattr(device, "device_id", "") or ""),
                 group=str(getattr(device, "group", "") or ""),
             )
+            policy_validation = self._mdm_policy.validate_policy(policy)
+            conflicts = self._mdm_policy.describe_effective_policy_conflicts(
+                str(getattr(device, "device_id", "") or ""),
+                group=str(getattr(device, "group", "") or ""),
+            )
+            remediation_hints = self._build_remediation_hints(
+                device=device,
+                policy_validation=policy_validation,
+                conflicts=conflicts,
+                diagnostics=diagnostics,
+            )
             return self._json(
                 HTTPStatus.OK,
                 {
@@ -149,11 +182,9 @@ class FleetHttpSurfaceService:
                         group=str(getattr(device, "group", "") or ""),
                         source_type=source_type,
                         source_id=source_id,
-                        conflicts=self._mdm_policy.describe_effective_policy_conflicts(
-                            str(getattr(device, "device_id", "") or ""),
-                            group=str(getattr(device, "group", "") or ""),
-                        ),
+                        conflicts=conflicts,
                         diagnostics=diagnostics,
+                        remediation_hints=remediation_hints,
                         policy={
                             "policy_id": str(getattr(policy, "policy_id", "") or ""),
                             "name": str(getattr(policy, "name", "") or ""),
@@ -165,7 +196,7 @@ class FleetHttpSurfaceService:
                             "update_window_start_hour": int(getattr(policy, "update_window_start_hour", 2) or 2),
                             "update_window_end_hour": int(getattr(policy, "update_window_end_hour", 4) or 4),
                             "screen_lock_timeout_seconds": int(getattr(policy, "screen_lock_timeout_seconds", 0) or 0),
-                            "validation": self._mdm_policy.validate_policy(policy),
+                            "validation": policy_validation,
                         },
                     ),
                 },
@@ -184,6 +215,8 @@ class FleetHttpSurfaceService:
 
     def handles_post(self, path: str) -> bool:
         if path == "/api/v1/fleet/devices/register":
+            return True
+        if path == self._DEVICE_BULK_ACTIONS:
             return True
         return self._DEVICE_ACTION.match(path) is not None
 
@@ -222,6 +255,58 @@ class FleetHttpSurfaceService:
             return self._json(
                 HTTPStatus.CREATED,
                 {"ok": True, **self._envelope(device=self._device_to_dict(device))},
+            )
+        if path == self._DEVICE_BULK_ACTIONS:
+            action = str(payload.get("action") or "").strip().lower()
+            target_ids = payload.get("target_ids")
+            value = str(payload.get("value") or "").strip()
+            if action not in {"lock", "unlock", "wipe", "set-group", "set-location"}:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "unsupported bulk action"})
+            if not isinstance(target_ids, list):
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "target_ids list required"})
+            normalized_ids = [str(item or "").strip() for item in target_ids if str(item or "").strip()]
+            if not normalized_ids:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "at least one target_id required"})
+            if action in {"set-group", "set-location"} and not value:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "value required for set-group or set-location"})
+            affected: list[dict[str, Any]] = []
+            failed: list[dict[str, Any]] = []
+            for device_id in normalized_ids:
+                try:
+                    if action == "lock":
+                        device = self._registry.lock_device(device_id)
+                    elif action == "unlock":
+                        device = self._registry.unlock_device(device_id)
+                    elif action == "wipe":
+                        device = self._registry.wipe_device(device_id)
+                    elif action == "set-group":
+                        device = self._registry.set_group(device_id, value)
+                    else:
+                        device = self._registry.set_location(device_id, value)
+                    affected.append(self._device_to_dict(device))
+                except KeyError:
+                    failed.append({"device_id": device_id, "error": "device not found"})
+            self._safe_audit_event(
+                "fleet.device.bulk_action",
+                "success" if not failed else "partial",
+                username=requester_name or self._requester_identity(),
+                action=action,
+                target_count=len(normalized_ids),
+                affected_count=len(affected),
+                failed_count=len(failed),
+                value=value or None,
+            )
+            return self._json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        action=action,
+                        affected=affected,
+                        failed=failed,
+                        value=value,
+                    ),
+                },
             )
 
         match = self._DEVICE_ACTION.match(path)

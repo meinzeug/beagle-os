@@ -228,3 +228,36 @@ def test_effective_policy_route_reports_assignment_conflicts(tmp_path: Path) -> 
     assert response["payload"]["diagnostics"]["group_policy"]["policy_id"] == "group-policy"
     assert response["payload"]["diagnostics"]["device_policy"]["policy_id"] == "device-policy"
     assert any(entry["field"] == "allowed_pools" for entry in response["payload"]["diagnostics"]["diffs"]["device_vs_group"])
+    assert response["payload"]["remediation_hints"]
+
+
+def test_bulk_device_action_route_updates_multiple_devices(tmp_path: Path) -> None:
+    registry, _, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+    registry.register_device("dev-002", "tc-002", HW)
+
+    response = service.route_post(
+        "/api/v1/fleet/devices/actions/bulk",
+        json_payload={"action": "set-group", "target_ids": ["dev-001", "dev-002"], "value": "berlin"},
+    )
+
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    assert len(response["payload"]["affected"]) == 2
+    assert registry.get_device("dev-001").group == "berlin"
+    assert registry.get_device("dev-002").group == "berlin"
+
+
+def test_bulk_device_action_route_reports_missing_devices(tmp_path: Path) -> None:
+    registry, _, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+
+    response = service.route_post(
+        "/api/v1/fleet/devices/actions/bulk",
+        json_payload={"action": "lock", "target_ids": ["dev-001", "missing"]},
+    )
+
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    assert len(response["payload"]["affected"]) == 1
+    assert response["payload"]["failed"] == [{"device_id": "missing", "error": "device not found"}]

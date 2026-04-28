@@ -27,6 +27,20 @@
   - [tests/unit/test_fleet_http_surface.py](/home/dennis/beagle-os/tests/unit/test_fleet_http_surface.py)
   - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
 
+## Update (2026-04-28, GoEnterprise Plan 02: Bulk-Device-Operator-Flows + Remediation-Hinweise)
+
+**Scope**: Zwei offene Operator-Luecken aus Plan 02 weiter geschlossen. Das Fleet-Panel kann jetzt Thin-Clients gesammelt sperren, entsperren, fuer Wipe markieren sowie Gruppe und Standort gesammelt setzen; ausserdem erklaert die Effective-Policy-Surface jetzt per Remediation-Hinweisen direkt, welche naechsten Schritte aus Konflikten oder zu weiten Policies folgen.
+
+- Backend:
+  - [beagle-host/services/fleet_http_surface.py](/home/dennis/beagle-os/beagle-host/services/fleet_http_surface.py): `POST /api/v1/fleet/devices/actions/bulk` plus `remediation_hints` im Effective-Policy-Response
+  - [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py): neue Fleet-Bulk-Route auf `settings:write`
+- WebUI:
+  - [website/ui/fleet_health.js](/home/dennis/beagle-os/website/ui/fleet_health.js): Bulk-Geraeteoperationen und Remediation-Hinweise im Fleet-Panel
+- Regressionen:
+  - [tests/unit/test_fleet_http_surface.py](/home/dennis/beagle-os/tests/unit/test_fleet_http_surface.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
+
 ## Update (2026-04-28, GoEnterprise Plan 02: Standort-Tree + Device-Group-Regressionen)
 
 **Scope**: Den offenen Device-UX-Slice aus Plan 02 weiter geschlossen. Die Fleet-WebUI zeigt jetzt nicht mehr nur eine flache Tabelle, sondern eine verdichtete Standort-/Gruppenansicht fuer Operatoren; ausserdem ist der gruppenbezogene Policy-Pfad mit einer eigenen Testdatei reproduzierbar abgesichert.

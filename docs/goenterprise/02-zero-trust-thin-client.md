@@ -267,6 +267,25 @@ Restluecke bewusst offen:
   - `tests/unit/test_fleet_http_surface.py`
   - `tests/unit/test_fleet_ui_regressions.py`
 
+## Update 2026-04-28 (Bulk-Device-Operator-Flows + Remediation-Hinweise)
+
+- Fleet-Surface:
+  - `POST /api/v1/fleet/devices/actions/bulk` fuehrt jetzt echte Bulk-Aktionen fuer Thin-Clients aus:
+    - `lock`
+    - `unlock`
+    - `wipe`
+    - `set-group`
+    - `set-location`
+- Effective-Policy-Diagnose:
+  - die Fleet-Antwort liefert jetzt zusaetzlich `remediation_hints`, damit Operatoren aus Konflikten und zu weiten Policies direkt naechste Schritte sehen
+- WebUI:
+  - `website/ui/fleet_health.js` bietet jetzt Bulk-Sperren, Bulk-Entsperren, Bulk-Wipe, Bulk-Gruppen-Setzen und Bulk-Standort-Setzen direkt im Fleet-Panel
+  - die Effective-Policy-Preview rendert jetzt auch Remediation-Hinweise
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_fleet_http_surface.py`
+  - `tests/unit/test_fleet_ui_regressions.py`
+  - `tests/unit/test_authz_policy.py`
+
 ---
 
 ## Unique Selling Point vs. Konkurrenz

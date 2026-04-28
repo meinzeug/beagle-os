@@ -133,7 +133,7 @@ class AuthzPolicyService:
                 return "settings:write"
             if route == "/api/v1/fleet/devices/register":
                 return "settings:write"
-            if route in {"/api/v1/fleet/policies", "/api/v1/fleet/policies/assignments", "/api/v1/fleet/policies/assignments/bulk"}:
+            if route in {"/api/v1/fleet/policies", "/api/v1/fleet/policies/assignments", "/api/v1/fleet/policies/assignments/bulk", "/api/v1/fleet/devices/actions/bulk"}:
                 return "settings:write"
             if re.match(r"^/api/v1/fleet/devices/[A-Za-z0-9._:-]+/(heartbeat|lock|unlock|wipe|confirm-wiped)$", route):
                 return "settings:write"
