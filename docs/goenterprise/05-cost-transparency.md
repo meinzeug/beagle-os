@@ -35,7 +35,7 @@ IT-Abteilungen investieren in Beagle-Server, aber können den Abteilungen nicht 
   - Konfigurierbares Preismodell: `cpu_hour_cost`, `ram_gb_hour_cost`, `gpu_hour_cost`, `storage_gb_month_cost`
   - Eingabe: tatsächliche Hardware-Anschaffungskosten + Abschreibungszeitraum + Stromkosten
   - Kalkuliert `hourly_rate_per_vm(vmid)` basierend auf zugewiesenen Ressourcen
-- [ ] Admin-Konfiguration in Web Console: Preismodell-Editor
+- [x] Admin-Konfiguration in Web Console: Preismodell-Editor
 - [x] Tests: `tests/unit/test_cost_model.py`
 
 ### Schritt 2 — Nutzungs-Tracking per Nutzer/Abteilung

@@ -132,6 +132,39 @@ def test_gpu_required_excludes_node_when_predicted_gpu_threshold_exceeded():
     assert result.node_id == "gpu-node-ok"
 
 
+def test_green_scheduling_prefers_lower_cost_and_carbon_node():
+    nodes = [
+        NodeCapacity(
+            node_id="expensive-hot-power",
+            total_cpu_cores=32,
+            total_ram_mib=65536,
+            free_cpu_cores=28,
+            free_ram_mib=60000,
+            predicted_cpu_pct_4h=5.0,
+            energy_price_per_kwh=0.50,
+            carbon_intensity_g_per_kwh=650.0,
+        ),
+        NodeCapacity(
+            node_id="green-cheap",
+            total_cpu_cores=24,
+            total_ram_mib=65536,
+            free_cpu_cores=20,
+            free_ram_mib=52000,
+            predicted_cpu_pct_4h=15.0,
+            energy_price_per_kwh=0.20,
+            carbon_intensity_g_per_kwh=80.0,
+        ),
+    ]
+    svc = make_svc(nodes)
+    result = svc.pick_node(
+        required_cpu_cores=4,
+        required_ram_mib=4096,
+        green_scheduling_enabled=True,
+    )
+    assert result.node_id == "green-cheap"
+    assert "green_cost=0.200eur/kWh" in result.reason
+
+
 def test_rebalance_identifies_overloaded_node():
     nodes = make_nodes_free([
         {"node_id": "node-1", "free_cpu": 24, "free_ram": 49152, "load_pct": 25.0},

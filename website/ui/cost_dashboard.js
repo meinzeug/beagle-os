@@ -29,6 +29,15 @@ function departmentRow(dept) {
   </tr>`;
 }
 
+function budgetRow(item) {
+  return `<tr>
+    <td>${escapeHtml(item.department ?? '-')}</td>
+    <td>${formatEur(item.monthly_budget)}</td>
+    <td>${escapeHtml(String(item.alert_at_percent ?? 80))}%</td>
+    <td>${escapeHtml(item.last_alerted_at || '—')}</td>
+  </tr>`;
+}
+
 export async function renderCostDashboard() {
   const container = qs('cost-dashboard-panel');
   if (!container) return;
@@ -37,13 +46,15 @@ export async function renderCostDashboard() {
 
   let report = null;
   let budgetAlerts = [];
+  let modelPayload = null;
   const now = new Date();
   const month = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 
   try {
-    [report, budgetAlerts] = await Promise.all([
+    [report, budgetAlerts, modelPayload] = await Promise.all([
       request(`/costs/chargeback?month=${month}`),
-      request(`/costs/budget-alerts?month=${month}`).catch(() => ({ alerts: [] }))
+      request(`/costs/budget-alerts?month=${month}`).catch(() => ({ alerts: [] })),
+      request('/costs/model').catch(() => ({ model: {}, budgets: [] }))
     ]);
   } catch (err) {
     container.innerHTML = `<p class="error">Fehler: ${escapeHtml(String(err.message ?? err))}</p>`;
@@ -52,6 +63,8 @@ export async function renderCostDashboard() {
 
   const departments = Array.isArray(report?.departments) ? report.departments : [];
   const alerts = Array.isArray(budgetAlerts?.alerts) ? budgetAlerts.alerts : [];
+  const model = modelPayload?.model || {};
+  const budgets = Array.isArray(modelPayload?.budgets) ? modelPayload.budgets : [];
 
   const alertsHtml = alerts.length > 0
     ? `<div class="alert-strip">${alerts.map(alertBadge).join(' ')}</div>`
@@ -84,6 +97,12 @@ export async function renderCostDashboard() {
   const csvBtn = `<button class="btn btn-secondary" id="cost-csv-export-btn">
     Chargeback CSV exportieren
   </button>`;
+  const budgetsHtml = budgets.length
+    ? `<table class="data-table">
+        <thead><tr><th>Abteilung</th><th>Budget</th><th>Alert bei</th><th>Letzter Alert</th></tr></thead>
+        <tbody>${budgets.map(budgetRow).join('')}</tbody>
+      </table>`
+    : '<div class="empty-card">Keine Budget-Regeln hinterlegt.</div>';
 
   container.innerHTML = `
     ${alertsHtml}
@@ -91,6 +110,31 @@ export async function renderCostDashboard() {
       <h3>Kosten nach Abteilung — ${escapeHtml(month)}</h3>
       ${tableHtml}
       <div class="panel-actions">${csvBtn}</div>
+    </section>
+    <section class="panel-section">
+      <h3>Kostenmodell</h3>
+      <div class="detail-grid">
+        <label>CPU €/h<input id="cost-model-cpu" type="number" step="0.0001" value="${escapeHtml(String(model.cpu_hour_cost ?? 0.002))}"></label>
+        <label>RAM GB €/h<input id="cost-model-ram" type="number" step="0.0001" value="${escapeHtml(String(model.ram_gb_hour_cost ?? 0.0005))}"></label>
+        <label>GPU €/h<input id="cost-model-gpu" type="number" step="0.0001" value="${escapeHtml(String(model.gpu_hour_cost ?? 0.1))}"></label>
+        <label>Storage GB €/Monat<input id="cost-model-storage" type="number" step="0.0001" value="${escapeHtml(String(model.storage_gb_month_cost ?? 0.05))}"></label>
+        <label>Strom €/kWh<input id="cost-model-electricity" type="number" step="0.0001" value="${escapeHtml(String(model.electricity_price_per_kwh ?? 0.3))}"></label>
+      </div>
+      <div class="panel-actions">
+        <button class="btn btn-primary" id="cost-model-save-btn">Kostenmodell speichern</button>
+      </div>
+    </section>
+    <section class="panel-section">
+      <h3>Budget-Regeln</h3>
+      ${budgetsHtml}
+      <div class="detail-grid section-spaced-tight">
+        <label>Abteilung<input id="cost-budget-department" type="text" placeholder="marketing"></label>
+        <label>Monatsbudget €<input id="cost-budget-value" type="number" step="0.01" placeholder="1000"></label>
+        <label>Alert bei %<input id="cost-budget-threshold" type="number" step="1" min="1" max="100" value="80"></label>
+      </div>
+      <div class="panel-actions">
+        <button class="btn btn-secondary" id="cost-budget-save-btn">Budget-Regel speichern</button>
+      </div>
     </section>`;
 
   const csvButton = container.querySelector('#cost-csv-export-btn');
@@ -103,6 +147,61 @@ export async function renderCostDashboard() {
         costHooks.setBanner(`CSV-Export Fehler: ${err.message ?? err}`);
       } finally {
         csvButton.disabled = false;
+      }
+    });
+  }
+
+  const saveModelButton = container.querySelector('#cost-model-save-btn');
+  if (saveModelButton) {
+    saveModelButton.addEventListener('click', async () => {
+      saveModelButton.disabled = true;
+      try {
+        await request('/costs/model', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cpu_hour_cost: Number(container.querySelector('#cost-model-cpu')?.value || 0),
+            ram_gb_hour_cost: Number(container.querySelector('#cost-model-ram')?.value || 0),
+            gpu_hour_cost: Number(container.querySelector('#cost-model-gpu')?.value || 0),
+            storage_gb_month_cost: Number(container.querySelector('#cost-model-storage')?.value || 0),
+            electricity_price_per_kwh: Number(container.querySelector('#cost-model-electricity')?.value || 0),
+          }),
+        });
+        costHooks.setBanner('Kostenmodell gespeichert.');
+        renderCostDashboard();
+      } catch (err) {
+        costHooks.setBanner(`Kostenmodell Fehler: ${err.message ?? err}`);
+        saveModelButton.disabled = false;
+      }
+    });
+  }
+
+  const saveBudgetButton = container.querySelector('#cost-budget-save-btn');
+  if (saveBudgetButton) {
+    saveBudgetButton.addEventListener('click', async () => {
+      const department = String(container.querySelector('#cost-budget-department')?.value || '').trim();
+      if (!department) {
+        costHooks.setBanner('Abteilung ist erforderlich.');
+        return;
+      }
+      saveBudgetButton.disabled = true;
+      try {
+        await request('/costs/model', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            budget_alert: {
+              department,
+              monthly_budget: Number(container.querySelector('#cost-budget-value')?.value || 0),
+              alert_at_percent: Number(container.querySelector('#cost-budget-threshold')?.value || 80),
+            },
+          }),
+        });
+        costHooks.setBanner(`Budget-Regel für ${department} gespeichert.`);
+        renderCostDashboard();
+      } catch (err) {
+        costHooks.setBanner(`Budget-Regel Fehler: ${err.message ?? err}`);
+        saveBudgetButton.disabled = false;
       }
     });
   }

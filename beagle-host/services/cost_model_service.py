@@ -113,6 +113,17 @@ class CostModelService:
             return None
         return BudgetAlert(**d)
 
+    def list_budget_alerts(self) -> list[BudgetAlert]:
+        alerts: list[BudgetAlert] = []
+        for payload in self._state.get("budgets", {}).values():
+            if isinstance(payload, dict):
+                try:
+                    alerts.append(BudgetAlert(**payload))
+                except TypeError:
+                    continue
+        alerts.sort(key=lambda item: item.department.lower())
+        return alerts
+
     def check_budget_alerts(
         self,
         usage_by_department: dict[str, float],

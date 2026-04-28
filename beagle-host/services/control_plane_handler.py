@@ -934,6 +934,17 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
                 self._write_json(response["status"], response["payload"])
             return
 
+        if path.startswith("/api/v1/scheduler/") or path == "/api/v1/costs/model" or path == "/api/v1/energy/config":
+            try:
+                json_payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            response = control_plane_read_surface_service().route_put(path, json_payload=json_payload)
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
+                return
+
         if path.startswith("/api/v1/settings/"):
             try:
                 json_payload = self._read_json_body()

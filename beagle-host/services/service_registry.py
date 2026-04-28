@@ -149,6 +149,8 @@ from smart_scheduler import NodeCapacity, SmartSchedulerService
 from cost_model_service import CostModelService
 from usage_tracking_service import UsageTrackingService
 from energy_service import EnergyService
+from metrics_collector import MetricsCollector
+from workload_pattern_analyzer import WorkloadPatternAnalyzer
 
 def load_env_defaults(path: str, *, override: bool = False) -> None:
     env_path = Path(path)
@@ -1148,6 +1150,8 @@ SMART_SCHEDULER_SERVICE: SmartSchedulerService | None = None
 USAGE_TRACKING_SERVICE: UsageTrackingService | None = None
 COST_MODEL_SERVICE: CostModelService | None = None
 ENERGY_SERVICE: EnergyService | None = None
+METRICS_COLLECTOR_SERVICE: MetricsCollector | None = None
+WORKLOAD_PATTERN_ANALYZER_SERVICE: WorkloadPatternAnalyzer | None = None
 INSTALLER_PREP_SERVICE: InstallerPrepService | None = None
 INSTALLER_LOG_SERVICE: InstallerLogService | None = None
 INSTALLER_SCRIPT_SERVICE: InstallerScriptService | None = None
@@ -3080,13 +3084,19 @@ def control_plane_read_surface_service() -> ControlPlaneReadSurfaceService:
         CONTROL_PLANE_READ_SURFACE_SERVICE = ControlPlaneReadSurfaceService(
             build_budget_alerts_payload=build_budget_alerts_payload,
             build_chargeback_payload=build_chargeback_payload,
+            build_cost_model_payload=build_cost_model_payload,
             build_energy_csrd_payload=build_energy_csrd_payload,
+            build_energy_config_payload=build_energy_config_payload,
             build_energy_nodes_payload=build_energy_nodes_payload,
             build_energy_trend_payload=build_energy_trend_payload,
             build_provisioning_catalog=build_provisioning_catalog,
+            build_scheduler_config_payload=get_scheduler_config,
             build_scheduler_insights_payload=build_scheduler_insights_payload,
+            execute_cost_model_update=update_cost_model_payload,
             execute_scheduler_migration=execute_scheduler_migration,
             execute_scheduler_rebalance=execute_scheduler_rebalance,
+            execute_energy_config_update=update_energy_config_payload,
+            execute_scheduler_config_update=update_scheduler_config,
             find_support_bundle_metadata=find_support_bundle_metadata,
             latest_ubuntu_beagle_state_for_vmid=latest_ubuntu_beagle_state_for_vmid,
             list_endpoint_reports=list_endpoint_reports,
@@ -3426,6 +3436,7 @@ def _normalize_node_cpu_pct(raw_value: Any) -> float:
 
 def _scheduler_node_capacities() -> list[NodeCapacity]:
     capacities: list[NodeCapacity] = []
+    carbon_config = energy_service().get_carbon_config()
     for item in _cluster_nodes_for_scheduler():
         node_id = str(item.get("name") or item.get("node") or "").strip()
         if not node_id:
@@ -3461,6 +3472,8 @@ def _scheduler_node_capacities() -> list[NodeCapacity]:
                 predicted_cpu_pct_4h=cpu_pct,
                 gpu_utilization_pct=float(item.get("gpu_utilization_pct", 0.0) or 0.0),
                 predicted_gpu_utilization_pct_4h=float(item.get("predicted_gpu_utilization_pct_4h", 0.0) or 0.0),
+                energy_price_per_kwh=float(carbon_config.electricity_price_per_kwh or 0.0),
+                carbon_intensity_g_per_kwh=float(carbon_config.co2_grams_per_kwh or 0.0),
             )
         )
     return capacities
@@ -3525,10 +3538,144 @@ def energy_service() -> EnergyService:
     return ENERGY_SERVICE
 
 
+def metrics_collector_service() -> MetricsCollector:
+    global METRICS_COLLECTOR_SERVICE
+    if METRICS_COLLECTOR_SERVICE is None:
+        METRICS_COLLECTOR_SERVICE = MetricsCollector(utcnow=utcnow)
+    return METRICS_COLLECTOR_SERVICE
+
+
+def workload_pattern_analyzer_service() -> WorkloadPatternAnalyzer:
+    global WORKLOAD_PATTERN_ANALYZER_SERVICE
+    if WORKLOAD_PATTERN_ANALYZER_SERVICE is None:
+        WORKLOAD_PATTERN_ANALYZER_SERVICE = WorkloadPatternAnalyzer()
+    return WORKLOAD_PATTERN_ANALYZER_SERVICE
+
+
+def _scheduler_config_file() -> Path:
+    return DATA_DIR / "scheduler-config.json"
+
+
+def get_scheduler_config() -> dict[str, Any]:
+    defaults = {
+        "green_scheduling_enabled": False,
+        "prewarm_minutes_ahead": 15,
+        "saved_cpu_hours": 0.0,
+    }
+    data = load_json_file(_scheduler_config_file(), {})
+    if not isinstance(data, dict):
+        data = {}
+    config = {**defaults, **data}
+    config["green_scheduling_enabled"] = bool(config.get("green_scheduling_enabled"))
+    try:
+        config["prewarm_minutes_ahead"] = max(5, min(180, int(config.get("prewarm_minutes_ahead", 15) or 15)))
+    except (TypeError, ValueError):
+        config["prewarm_minutes_ahead"] = 15
+    try:
+        config["saved_cpu_hours"] = round(float(config.get("saved_cpu_hours", 0.0) or 0.0), 4)
+    except (TypeError, ValueError):
+        config["saved_cpu_hours"] = 0.0
+    return config
+
+
+def update_scheduler_config(payload: dict[str, Any]) -> dict[str, Any]:
+    config = get_scheduler_config()
+    if "green_scheduling_enabled" in payload:
+        config["green_scheduling_enabled"] = bool(payload.get("green_scheduling_enabled"))
+    if "prewarm_minutes_ahead" in payload:
+        try:
+            config["prewarm_minutes_ahead"] = max(5, min(180, int(payload.get("prewarm_minutes_ahead") or 15)))
+        except (TypeError, ValueError):
+            pass
+    write_json_file(_scheduler_config_file(), config)
+    return get_scheduler_config()
+
+
+def build_cost_model_payload() -> dict[str, Any]:
+    model = cost_model_service().get_cost_model()
+    budgets = [
+        {
+            "department": item.department,
+            "monthly_budget": float(item.monthly_budget),
+            "alert_at_percent": int(item.alert_at_percent),
+            "last_alerted_at": str(item.last_alerted_at or ""),
+        }
+        for item in cost_model_service().list_budget_alerts()
+    ]
+    return {
+        "model": {
+            "cpu_hour_cost": float(model.cpu_hour_cost),
+            "ram_gb_hour_cost": float(model.ram_gb_hour_cost),
+            "gpu_hour_cost": float(model.gpu_hour_cost),
+            "storage_gb_month_cost": float(model.storage_gb_month_cost),
+            "electricity_price_per_kwh": float(model.electricity_price_per_kwh),
+        },
+        "budgets": budgets,
+    }
+
+
+def update_cost_model_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    current = cost_model_service().get_cost_model()
+    model_payload = payload if isinstance(payload, dict) else {}
+    from cost_model_service import CostModel, BudgetAlert
+    model = CostModel(
+        cpu_hour_cost=float(model_payload.get("cpu_hour_cost", current.cpu_hour_cost) or current.cpu_hour_cost),
+        ram_gb_hour_cost=float(model_payload.get("ram_gb_hour_cost", current.ram_gb_hour_cost) or current.ram_gb_hour_cost),
+        gpu_hour_cost=float(model_payload.get("gpu_hour_cost", current.gpu_hour_cost) or current.gpu_hour_cost),
+        storage_gb_month_cost=float(model_payload.get("storage_gb_month_cost", current.storage_gb_month_cost) or current.storage_gb_month_cost),
+        electricity_price_per_kwh=float(model_payload.get("electricity_price_per_kwh", current.electricity_price_per_kwh) or current.electricity_price_per_kwh),
+    )
+    cost_model_service().set_cost_model(model)
+    carbon = energy_service().get_carbon_config()
+    carbon.electricity_price_per_kwh = model.electricity_price_per_kwh
+    energy_service().set_carbon_config(carbon)
+    budget_payload = payload.get("budget_alert") if isinstance(payload.get("budget_alert"), dict) else None
+    if budget_payload:
+        department = str(budget_payload.get("department") or "").strip()
+        if department:
+            cost_model_service().set_budget_alert(
+                BudgetAlert(
+                    department=department,
+                    monthly_budget=float(budget_payload.get("monthly_budget", 0.0) or 0.0),
+                    alert_at_percent=int(budget_payload.get("alert_at_percent", 80) or 80),
+                    last_alerted_at=str(budget_payload.get("last_alerted_at") or ""),
+                )
+            )
+    return build_cost_model_payload()
+
+
+def build_energy_config_payload() -> dict[str, Any]:
+    config = energy_service().get_carbon_config()
+    return {
+        "carbon_config": {
+            "co2_grams_per_kwh": float(config.co2_grams_per_kwh),
+            "electricity_price_per_kwh": float(config.electricity_price_per_kwh),
+        },
+        "scheduler": get_scheduler_config(),
+    }
+
+
+def update_energy_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    current = energy_service().get_carbon_config()
+    from energy_service import CarbonConfig
+    config = CarbonConfig(
+        co2_grams_per_kwh=float(payload.get("co2_grams_per_kwh", current.co2_grams_per_kwh) or current.co2_grams_per_kwh),
+        electricity_price_per_kwh=float(payload.get("electricity_price_per_kwh", current.electricity_price_per_kwh) or current.electricity_price_per_kwh),
+    )
+    energy_service().set_carbon_config(config)
+    model = cost_model_service().get_cost_model()
+    model.electricity_price_per_kwh = config.electricity_price_per_kwh
+    cost_model_service().set_cost_model(model)
+    if isinstance(payload.get("scheduler"), dict):
+        update_scheduler_config(payload["scheduler"])
+    return build_energy_config_payload()
+
+
 def build_scheduler_insights_payload() -> dict[str, Any]:
     nodes = _cluster_nodes_for_scheduler()
     capacities = {node.node_id: node for node in _scheduler_node_capacities()}
     assignments = _scheduler_vm_assignments()
+    scheduler_config = get_scheduler_config()
     vm_counts: dict[str, int] = {}
     for item in assignments:
         node_id = str(item.get("node_id") or "").strip()
@@ -3553,8 +3700,38 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
                 "cpu_pct": round(cpu_pct, 2),
                 "mem_pct": mem_pct,
                 "predicted_cpu_pct_4h": round(float(getattr(capacity, "predicted_cpu_pct_4h", cpu_pct) or cpu_pct), 2),
+                "green_scheduling_enabled": bool(scheduler_config.get("green_scheduling_enabled")),
             }
         )
+
+    prewarm_candidates: list[dict[str, Any]] = []
+    analyzer = workload_pattern_analyzer_service()
+    minutes_ahead = int(scheduler_config.get("prewarm_minutes_ahead", 15) or 15)
+    for vm in list_vms(refresh=True):
+        node_id = str(getattr(vm, "node", "") or "").strip()
+        if not node_id:
+            continue
+        samples = metrics_collector_service().read_samples(node_id, days=14, vmid=int(getattr(vm, "vmid", 0) or 0))
+        if not samples:
+            continue
+        profile = analyzer.analyze(f"vm-{int(getattr(vm, 'vmid', 0) or 0)}", samples)
+        if not smart_scheduler_service().should_prewarm(profile, minutes_ahead=minutes_ahead):
+            continue
+        prewarm_candidates.append(
+            {
+                "vm_id": int(getattr(vm, "vmid", 0) or 0),
+                "name": str(getattr(vm, "name", "") or f"vm-{int(getattr(vm, 'vmid', 0) or 0)}"),
+                "node_id": node_id,
+                "peak_hours": list(profile.peak_hours),
+                "avg_cpu_pct": round(float(profile.avg_cpu_pct or 0.0), 2),
+                "samples_analyzed": int(profile.samples_analyzed or 0),
+            }
+        )
+
+    estimated_saved_cpu_hours = round(len(prewarm_candidates) * (minutes_ahead / 60.0), 2)
+    if estimated_saved_cpu_hours > scheduler_config.get("saved_cpu_hours", 0.0):
+        scheduler_config["saved_cpu_hours"] = estimated_saved_cpu_hours
+        write_json_file(_scheduler_config_file(), scheduler_config)
 
     recommendations = [
         {
@@ -3566,7 +3743,13 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
         }
         for rec in smart_scheduler_service().rebalance_cluster(assignments)[:5]
     ]
-    return {"heatmap": heatmap, "recommendations": recommendations}
+    return {
+        "heatmap": heatmap,
+        "recommendations": recommendations,
+        "prewarm_candidates": prewarm_candidates[:5],
+        "config": scheduler_config,
+        "saved_cpu_hours": round(float(scheduler_config.get("saved_cpu_hours", 0.0) or 0.0), 2),
+    }
 
 
 def execute_scheduler_migration(vmid: int, target_node: str, requester_identity: str = "") -> dict[str, Any]:

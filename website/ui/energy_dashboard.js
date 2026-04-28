@@ -39,11 +39,13 @@ export async function renderEnergyDashboard() {
 
   let nodes = [];
   let trend = [];
+  let config = {};
 
   try {
-    [nodes, trend] = await Promise.all([
+    [nodes, trend, config] = await Promise.all([
       request('/energy/nodes').then((d) => Array.isArray(d) ? d : (d.nodes ?? [])),
-      request('/energy/trend').then((d) => Array.isArray(d) ? d : (d.trend ?? [])).catch(() => [])
+      request('/energy/trend').then((d) => Array.isArray(d) ? d : (d.trend ?? [])).catch(() => []),
+      request('/energy/config').catch(() => ({ carbon_config: {}, scheduler: {} }))
     ]);
   } catch (err) {
     container.innerHTML = `<p class="error">Fehler: ${escapeHtml(String(err.message ?? err))}</p>`;
@@ -65,6 +67,8 @@ export async function renderEnergyDashboard() {
   const csrdBtn = `<button class="btn btn-secondary" id="csrd-export-btn">
     CSRD-Report exportieren
   </button>`;
+  const carbon = config?.carbon_config || {};
+  const scheduler = config?.scheduler || {};
 
   container.innerHTML = `
     <section class="panel-section">
@@ -75,6 +79,18 @@ export async function renderEnergyDashboard() {
       <h3>CO₂-Verlauf</h3>
       ${trendHtml}
       <div class="panel-actions">${csrdBtn}</div>
+    </section>
+    <section class="panel-section">
+      <h3>Carbon- und Green-Scheduling-Konfiguration</h3>
+      <div class="detail-grid">
+        <label>CO₂ g/kWh<input id="energy-co2" type="number" step="0.1" value="${escapeHtml(String(carbon.co2_grams_per_kwh ?? 400))}"></label>
+        <label>Strom €/kWh<input id="energy-price" type="number" step="0.0001" value="${escapeHtml(String(carbon.electricity_price_per_kwh ?? 0.3))}"></label>
+        <label>Prewarm Minuten<input id="scheduler-prewarm-minutes" type="number" step="1" min="5" max="180" value="${escapeHtml(String(scheduler.prewarm_minutes_ahead ?? 15))}"></label>
+        <label class="checkbox-row"><input id="scheduler-green-enabled" type="checkbox" ${scheduler.green_scheduling_enabled ? 'checked' : ''}> Green Scheduling aktiv</label>
+      </div>
+      <div class="panel-actions">
+        <button class="btn btn-primary" id="energy-config-save-btn">Konfiguration speichern</button>
+      </div>
     </section>`;
 
   const csrdButton = container.querySelector('#csrd-export-btn');
@@ -98,6 +114,32 @@ export async function renderEnergyDashboard() {
         energyHooks.setBanner(`CSRD-Export Fehler: ${err.message ?? err}`);
       } finally {
         csrdButton.disabled = false;
+      }
+    });
+  }
+
+  const saveButton = container.querySelector('#energy-config-save-btn');
+  if (saveButton) {
+    saveButton.addEventListener('click', async () => {
+      saveButton.disabled = true;
+      try {
+        await request('/energy/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            co2_grams_per_kwh: Number(container.querySelector('#energy-co2')?.value || 0),
+            electricity_price_per_kwh: Number(container.querySelector('#energy-price')?.value || 0),
+            scheduler: {
+              prewarm_minutes_ahead: Number(container.querySelector('#scheduler-prewarm-minutes')?.value || 15),
+              green_scheduling_enabled: Boolean(container.querySelector('#scheduler-green-enabled')?.checked),
+            },
+          }),
+        });
+        energyHooks.setBanner('Carbon- und Scheduler-Konfiguration gespeichert.');
+        renderEnergyDashboard();
+      } catch (err) {
+        energyHooks.setBanner(`Energy-Konfiguration Fehler: ${err.message ?? err}`);
+        saveButton.disabled = false;
       }
     });
   }

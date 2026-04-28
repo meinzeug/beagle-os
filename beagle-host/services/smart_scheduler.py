@@ -19,6 +19,8 @@ class NodeCapacity:
     predicted_cpu_pct_4h: float = 0.0   # predicted load over next 4 hours
     gpu_utilization_pct: float = 0.0    # current average GPU utilization (Plan 10)
     predicted_gpu_utilization_pct_4h: float = 0.0  # predicted GPU load over next 4 hours
+    energy_price_per_kwh: float = 0.0
+    carbon_intensity_g_per_kwh: float = 0.0
 
 
 @dataclass
@@ -80,6 +82,7 @@ class SmartSchedulerService:
         gpu_required: bool = False,
         preferred_hour: int | None = None,
         gpu_utilization_threshold: float = 85.0,
+        green_scheduling_enabled: bool = False,
     ) -> SmartPlacementResult:
         """
         Pick best node for a new VM.
@@ -109,6 +112,9 @@ class SmartSchedulerService:
             # GPU-aware scoring: penalise nodes with high GPU utilization
             if gpu_required:
                 score -= effective_gpu_util * 0.5
+            if green_scheduling_enabled:
+                score -= float(node.energy_price_per_kwh or 0.0) * 20.0
+                score -= float(node.carbon_intensity_g_per_kwh or 0.0) / 100.0
             candidates.append((score, node.free_ram_mib, node))
 
         if not candidates:
@@ -131,6 +137,11 @@ class SmartSchedulerService:
                     f", gpu_util={best.gpu_utilization_pct:.1f}%"
                     f", predicted_gpu_util={best.predicted_gpu_utilization_pct_4h:.1f}%"
                     if gpu_required else ""
+                )
+                + (
+                    f", green_cost={best.energy_price_per_kwh:.3f}eur/kWh"
+                    f", green_co2={best.carbon_intensity_g_per_kwh:.1f}g/kWh"
+                    if green_scheduling_enabled else ""
                 )
             ),
             confidence=min(1.0, candidates[0][0] / 100.0),

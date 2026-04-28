@@ -23,16 +23,34 @@ def make_service() -> ControlPlaneReadSurfaceService:
             "csv": "department,total_cost\neng,1.7\n",
             "total_cost_eur": 1.7,
         },
+        build_cost_model_payload=lambda: {
+            "model": {"cpu_hour_cost": 0.01, "electricity_price_per_kwh": 0.3},
+            "budgets": [{"department": "eng", "monthly_budget": 100.0, "alert_at_percent": 80}],
+        },
         build_energy_csrd_payload=lambda year, quarter: {"year": year, "quarter": quarter, "total_kwh": 12.5},
+        build_energy_config_payload=lambda: {
+            "carbon_config": {"co2_grams_per_kwh": 400.0, "electricity_price_per_kwh": 0.3},
+            "scheduler": {"green_scheduling_enabled": True, "prewarm_minutes_ahead": 15},
+        },
         build_energy_nodes_payload=lambda: [{"node_id": "node-a", "current_power_w": 200.0, "max_power_w": 300.0, "month_kwh": 14.2}],
         build_energy_trend_payload=lambda months: [{"month": "2026-04", "total_kwh": 14.2, "total_co2_kg": 5.68, "total_cost_eur": 4.26}],
         build_provisioning_catalog=lambda: {"items": []},
+        build_scheduler_config_payload=lambda: {"green_scheduling_enabled": True, "prewarm_minutes_ahead": 15},
         build_scheduler_insights_payload=lambda: {
             "heatmap": [{"node_id": "node-a", "vm_count": 2, "cpu_pct": 81.0, "mem_pct": 66.0}],
             "recommendations": [{"vm_id": 101, "current_node": "node-a", "recommended_node": "node-b", "reason": "rebalance"}],
+            "prewarm_candidates": [{"vm_id": 101, "name": "vm-101", "node_id": "node-a"}],
+            "config": {"green_scheduling_enabled": True, "prewarm_minutes_ahead": 15},
+            "saved_cpu_hours": 1.5,
         },
+        execute_cost_model_update=lambda payload: {"model": payload, "budgets": []},
         execute_scheduler_migration=lambda vmid, target_node, requester: {"vmid": vmid, "target_node": target_node, "requester": requester},
         execute_scheduler_rebalance=lambda requester: {"executed": [{"vmid": 101}], "requester": requester},
+        execute_energy_config_update=lambda payload: {
+            "carbon_config": payload,
+            "scheduler": payload.get("scheduler", {}),
+        },
+        execute_scheduler_config_update=lambda payload: payload,
         find_support_bundle_metadata=lambda _bundle_id: None,
         latest_ubuntu_beagle_state_for_vmid=lambda *args, **kwargs: None,
         list_endpoint_reports=lambda: [],
@@ -53,6 +71,8 @@ def test_scheduler_insights_route_returns_payload() -> None:
     assert payload["ok"] is True
     assert payload["heatmap"][0]["node_id"] == "node-a"
     assert payload["recommendations"][0]["recommended_node"] == "node-b"
+    assert payload["prewarm_candidates"][0]["name"] == "vm-101"
+    assert payload["config"]["green_scheduling_enabled"] is True
 
 
 def test_chargeback_csv_route_returns_bytes_download() -> None:
@@ -75,9 +95,12 @@ def test_energy_nodes_and_trend_routes_return_enveloped_payloads() -> None:
     service = make_service()
     nodes = service.route_get("/api/v1/energy/nodes")
     trend = service.route_get("/api/v1/energy/trend?months=3")
+    config = service.route_get("/api/v1/energy/config")
     assert nodes is not None and trend is not None
     assert nodes["payload"]["nodes"][0]["node_id"] == "node-a"
     assert trend["payload"]["trend"][0]["month"] == "2026-04"
+    assert config is not None
+    assert config["payload"]["carbon_config"]["co2_grams_per_kwh"] == 400.0
 
 
 def test_scheduler_post_routes_return_mutation_payloads() -> None:
@@ -92,3 +115,16 @@ def test_scheduler_post_routes_return_mutation_payloads() -> None:
     assert migrate["payload"]["migration"]["target_node"] == "node-b"
     assert migrate["payload"]["migration"]["requester"] == "admin"
     assert rebalance["payload"]["rebalance"]["executed"][0]["vmid"] == 101
+
+
+def test_cost_model_and_scheduler_config_routes_support_get_and_put() -> None:
+    service = make_service()
+    model = service.route_get("/api/v1/costs/model")
+    scheduler = service.route_get("/api/v1/scheduler/config")
+    model_put = service.route_put("/api/v1/costs/model", json_payload={"cpu_hour_cost": 0.02})
+    scheduler_put = service.route_put("/api/v1/scheduler/config", json_payload={"green_scheduling_enabled": False})
+    assert model is not None and scheduler is not None and model_put is not None and scheduler_put is not None
+    assert model["payload"]["model"]["cpu_hour_cost"] == 0.01
+    assert scheduler["payload"]["config"]["prewarm_minutes_ahead"] == 15
+    assert model_put["payload"]["model"]["cpu_hour_cost"] == 0.02
+    assert scheduler_put["payload"]["config"]["green_scheduling_enabled"] is False

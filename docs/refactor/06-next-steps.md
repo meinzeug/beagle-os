@@ -1,5 +1,21 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 04/05/09 operator follow-up)
+
+**Zuletzt erledigt**:
+- Scheduler-, Cost- und Energy-Panels sind jetzt nicht mehr read-only, sondern haben echte Operator-Konfiguration im Dashboard.
+- Cost- und Energy-Settings synchronisieren jetzt `electricity_price_per_kwh` kontrolliert zwischen beiden Planes.
+- Scheduler-Insights zeigen jetzt Prewarm-Kandidaten und eine erste `saved_cpu_hours`-Schätzung auf Basis der vorhandenen Metrics-/Workload-Historie.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 04 vertiefen**: echte historische Heatmap und 24h-Prognose aus persistierten Metrics ableiten, statt aktuell nur den Cluster-Istzustand zu zeigen.
+2. **Plan 05 abschliessen**: Forecast pro Abteilung und Top-10 kostenintensive VMs direkt im neuen Cost-Panel nachziehen.
+3. **Plan 09 vertiefen**: Energy-Cost-Integration mit echten Session-/Chargeback-Daten nachziehen und `tests/unit/test_energy_cost_integration.py` einführen.
+4. **Plan 09 Green-Scheduling härten**: Green-Hours explizit modellieren und im Scheduler nicht nur per globalem Faktor, sondern per Zeitfenster anwenden.
+5. **Plan 02 live validieren**: Lock-Screen, Wipe und Runtime-Telemetrie weiter gegen echte Thin-Client-Hardware/X11-/Wayland-Sessions abnehmen.
+6. **Plan 07 live validieren**: Fleet-Alerts und Predictive-Maintenance gegen echte Runtime-Events provozieren und Webhook-/UI-Reaktion prüfen.
+
 ## Stand (2026-04-28, GoEnterprise Plan 04/05/09 follow-up)
 
 **Zuletzt erledigt**:

@@ -105,3 +105,20 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "Keine Geräte erfasst." in js
     assert "Standort / Gruppe" in js
     assert "Lade Fleet-Status" in js
+
+
+def test_enterprise_dashboard_modules_use_operator_routes() -> None:
+    scheduler_js = (ROOT / "website" / "ui" / "scheduler_insights.js").read_text(encoding="utf-8")
+    cost_js = (ROOT / "website" / "ui" / "cost_dashboard.js").read_text(encoding="utf-8")
+    energy_js = (ROOT / "website" / "ui" / "energy_dashboard.js").read_text(encoding="utf-8")
+
+    assert "/scheduler/insights" in scheduler_js
+    assert "/scheduler/config" in scheduler_js
+    assert "Prewarm und Green Scheduling" in scheduler_js
+    assert "Scheduler-Konfiguration speichern" in scheduler_js
+    assert "/costs/model" in cost_js
+    assert "Kostenmodell speichern" in cost_js
+    assert "Budget-Regel speichern" in cost_js
+    assert "/energy/config" in energy_js
+    assert "Carbon- und Green-Scheduling-Konfiguration" in energy_js
+    assert "Konfiguration speichern" in energy_js

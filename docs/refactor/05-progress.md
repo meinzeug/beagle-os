@@ -1,3 +1,27 @@
+## Update (2026-04-28, GoEnterprise Plan 04/05/09: Operator-Konfiguration + Prewarm-/Green-Scheduling)
+
+**Scope**: Den naechsten Enterprise-Operator-Slice direkt auf die neuen Scheduler-/Cost-/Energy-Panels gesetzt. Aus den zuvor read-only verdrahteten Dashboards wurden jetzt echte Operator-Flows mit persistenter Konfiguration fuer Kostenmodell, Budget-Regeln, Carbon-/Stromfaktoren und Scheduler-Verhalten.
+
+- Backend:
+  - [beagle-host/services/control_plane_read_surface.py](/home/dennis/beagle-os/beagle-host/services/control_plane_read_surface.py): neue GET/PUT-Routen fuer `/api/v1/scheduler/config`, `/api/v1/costs/model`, `/api/v1/energy/config`
+  - [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py): Scheduler-Config-Persistenz, Cost-Model-/Budget-Update-Helfer, Energy-/Carbon-Konfig-Glue, Sync von `electricity_price_per_kwh` zwischen Cost und Energy, Prewarm-Kandidaten aus Metrics-/Workload-Analyse
+  - [beagle-host/services/smart_scheduler.py](/home/dennis/beagle-os/beagle-host/services/smart_scheduler.py): Green-Scheduling-Gewichtung via Energiepreis und CO2-Intensitaet
+  - [beagle-host/services/cost_model_service.py](/home/dennis/beagle-os/beagle-host/services/cost_model_service.py): `list_budget_alerts()`
+- WebUI:
+  - [website/ui/scheduler_insights.js](/home/dennis/beagle-os/website/ui/scheduler_insights.js): Prewarm-Kandidaten, `saved_cpu_hours`, Scheduler-Konfig-Editor
+  - [website/ui/cost_dashboard.js](/home/dennis/beagle-os/website/ui/cost_dashboard.js): Kostenmodell-Editor und Budget-Regel-Editor direkt im Panel
+  - [website/ui/energy_dashboard.js](/home/dennis/beagle-os/website/ui/energy_dashboard.js): Carbon-/Strompreis-Editor plus Scheduler-Green-/Prewarm-Konfiguration
+- Regressionen:
+  - [tests/unit/test_control_plane_read_surface.py](/home/dennis/beagle-os/tests/unit/test_control_plane_read_surface.py)
+  - [tests/unit/test_smart_scheduler.py](/home/dennis/beagle-os/tests/unit/test_smart_scheduler.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
+- Validierung:
+  - `python3 -m py_compile beagle-host/services/control_plane_read_surface.py beagle-host/services/control_plane_handler.py beagle-host/services/service_registry.py beagle-host/services/authz_policy.py beagle-host/services/smart_scheduler.py beagle-host/services/cost_model_service.py`
+  - `node --check website/main.js website/ui/dashboard.js website/ui/scheduler_insights.js website/ui/cost_dashboard.js website/ui/energy_dashboard.js`
+  - `python3 -m pytest tests/unit/test_smart_scheduler.py tests/unit/test_chargeback_report.py tests/unit/test_cost_model.py tests/unit/test_budget_alert.py tests/unit/test_usage_tracking.py tests/unit/test_energy_service.py tests/unit/test_carbon_calculation.py tests/unit/test_csrd_export.py tests/unit/test_control_plane_read_surface.py tests/unit/test_dashboard_ui_regressions.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_authz_policy.py -q`
+  - Ergebnis: `95 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 04/05/09: Scheduler-, Chargeback- und Energy-Dashboard live verdrahtet)
 
 **Scope**: Drei bislang nur vorbereitete Enterprise-Flächen in den echten Control-Plane-/Dashboard-Stack gezogen. Die vorhandenen JS-Module für Scheduler, Chargeback und Energy/CSRD hängen jetzt an realen Beagle-APIs, sind im Hauptdashboard eingebunden und per RBAC abgesichert.

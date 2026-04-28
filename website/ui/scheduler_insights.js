@@ -35,6 +35,16 @@ function placementRow(rec) {
   </tr>`;
 }
 
+function prewarmRow(item) {
+  return `<tr>
+    <td>${escapeHtml(String(item.vm_id ?? '-'))}</td>
+    <td>${escapeHtml(item.name ?? '-')}</td>
+    <td>${escapeHtml(item.node_id ?? '-')}</td>
+    <td>${escapeHtml(String(item.avg_cpu_pct ?? 0))}%</td>
+    <td>${escapeHtml(Array.isArray(item.peak_hours) ? item.peak_hours.join(', ') : '-')}</td>
+  </tr>`;
+}
+
 export async function renderSchedulerInsights() {
   const container = qs('scheduler-insights-panel');
   if (!container) return;
@@ -43,10 +53,16 @@ export async function renderSchedulerInsights() {
 
   let heatmap = [];
   let recommendations = [];
+  let prewarmCandidates = [];
+  let config = {};
+  let savedCpuHours = 0;
   try {
     const data = await request('/scheduler/insights');
     heatmap = Array.isArray(data.heatmap) ? data.heatmap : [];
     recommendations = Array.isArray(data.recommendations) ? data.recommendations : [];
+    prewarmCandidates = Array.isArray(data.prewarm_candidates) ? data.prewarm_candidates : [];
+    config = data.config || {};
+    savedCpuHours = Number(data.saved_cpu_hours || 0);
   } catch (err) {
     container.innerHTML = `<p class="error">Fehler: ${escapeHtml(String(err.message ?? err))}</p>`;
     return;
@@ -87,6 +103,12 @@ export async function renderSchedulerInsights() {
   const rebalanceBtn = `<button class="btn btn-secondary" id="scheduler-rebalance-btn">
     Auto-Rebalance ausführen
   </button>`;
+  const prewarmHtml = prewarmCandidates.length > 0
+    ? `<table class="data-table">
+        <thead><tr><th>VM</th><th>Name</th><th>Node</th><th>Ø CPU</th><th>Peak-Stunden</th></tr></thead>
+        <tbody>${prewarmCandidates.map(prewarmRow).join('')}</tbody>
+      </table>`
+    : '<div class="empty-card">Keine Prewarm-Kandidaten aus den letzten 14 Tagen erkannt.</div>';
 
   container.innerHTML = `
     <section class="panel-section">
@@ -97,6 +119,18 @@ export async function renderSchedulerInsights() {
       <h3>Placement-Empfehlungen</h3>
       ${recHtml}
       <div class="panel-actions">${rebalanceBtn}</div>
+    </section>
+    <section class="panel-section">
+      <h3>Prewarm und Green Scheduling</h3>
+      <p class="muted-text">Geschätzte eingesparte CPU-Stunden: <strong>${escapeHtml(String(savedCpuHours.toFixed(2)))}</strong></p>
+      ${prewarmHtml}
+      <div class="detail-grid section-spaced-tight">
+        <label>Prewarm Minuten<input id="scheduler-config-prewarm" type="number" min="5" max="180" step="1" value="${escapeHtml(String(config.prewarm_minutes_ahead ?? 15))}"></label>
+        <label class="checkbox-row"><input id="scheduler-config-green" type="checkbox" ${config.green_scheduling_enabled ? 'checked' : ''}> Green Scheduling aktiv</label>
+      </div>
+      <div class="panel-actions">
+        <button class="btn btn-primary" id="scheduler-config-save-btn">Scheduler-Konfiguration speichern</button>
+      </div>
     </section>`;
 
   // Wire migration buttons
@@ -137,6 +171,28 @@ export async function renderSchedulerInsights() {
       } catch (err) {
         schedulerHooks.setBanner(`Fehler: ${err.message ?? err}`);
         rebalBtn.disabled = false;
+      }
+    });
+  }
+
+  const saveConfigButton = container.querySelector('#scheduler-config-save-btn');
+  if (saveConfigButton) {
+    saveConfigButton.addEventListener('click', async () => {
+      saveConfigButton.disabled = true;
+      try {
+        await request('/scheduler/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prewarm_minutes_ahead: Number(container.querySelector('#scheduler-config-prewarm')?.value || 15),
+            green_scheduling_enabled: Boolean(container.querySelector('#scheduler-config-green')?.checked),
+          })
+        });
+        schedulerHooks.setBanner('Scheduler-Konfiguration gespeichert.');
+        renderSchedulerInsights();
+      } catch (err) {
+        schedulerHooks.setBanner(`Scheduler-Konfiguration Fehler: ${err.message ?? err}`);
+        saveConfigButton.disabled = false;
       }
     });
   }

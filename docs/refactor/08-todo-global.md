@@ -4,11 +4,14 @@
 
 - [x] GoEnterprise Plan 04: Scheduler-Insights-Panel und Rebalancing-Empfehlungen an echte Control-Plane-Routen hängen.
 - [x] GoEnterprise Plan 04: WebUI-One-Click-Migration und Auto-Rebalance aus dem Dashboard bedienbar machen.
-- [ ] GoEnterprise Plan 04: historische Heatmap, Saved-CPU-Hours und Prewarming-Auswertung im Scheduler-Dashboard nachziehen.
+- [x] GoEnterprise Plan 04: erste Saved-CPU-Hours- und Prewarming-Auswertung im Scheduler-Dashboard nachziehen.
+- [ ] GoEnterprise Plan 04: historische Heatmap und echte 24h-Prognose aus persistierten Metrics nachziehen.
 - [x] GoEnterprise Plan 05: Chargeback-Dashboard an echte `/api/v1/costs/*`-Surfaces hängen.
-- [ ] GoEnterprise Plan 05: Preismodell-Editor und Budget-Verwaltung in der WebUI als echte Admin-Flows nachziehen.
+- [x] GoEnterprise Plan 05: Preismodell-Editor und Budget-Verwaltung in der WebUI als echte Admin-Flows nachziehen.
+- [ ] GoEnterprise Plan 05: Forecast pro Abteilung und Top-10 kostenintensive VMs im Cost-Dashboard nachziehen.
 - [x] GoEnterprise Plan 09: Energy-/CSRD-Dashboard an echte `/api/v1/energy/*`-Surfaces hängen.
-- [ ] GoEnterprise Plan 09: Admin-Konfiguration für CO2-/Strompreis-Faktoren und Green-Scheduling-Glue nachziehen.
+- [x] GoEnterprise Plan 09: Admin-Konfiguration für CO2-/Strompreis-Faktoren und Green-Scheduling-Glue nachziehen.
+- [ ] GoEnterprise Plan 09: Energy-Cost-Integration im Chargeback mit eigener Regression absichern.
 
 ## Update 2026-04-28 (GoEnterprise Plan 02)
 

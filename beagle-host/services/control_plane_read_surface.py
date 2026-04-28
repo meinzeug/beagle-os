@@ -13,13 +13,19 @@ class ControlPlaneReadSurfaceService:
         *,
         build_budget_alerts_payload: Callable[[str], list[dict[str, Any]]],
         build_chargeback_payload: Callable[[str, str | None], dict[str, Any]],
+        build_cost_model_payload: Callable[[], dict[str, Any]],
         build_energy_csrd_payload: Callable[[int, int], dict[str, Any]],
+        build_energy_config_payload: Callable[[], dict[str, Any]],
         build_energy_nodes_payload: Callable[[], list[dict[str, Any]]],
         build_energy_trend_payload: Callable[[int], list[dict[str, Any]]],
         build_provisioning_catalog: Callable[[], dict[str, Any]],
+        build_scheduler_config_payload: Callable[[], dict[str, Any]],
         build_scheduler_insights_payload: Callable[[], dict[str, Any]],
+        execute_cost_model_update: Callable[[dict[str, Any]], dict[str, Any]],
         execute_scheduler_migration: Callable[[int, str, str], dict[str, Any]],
         execute_scheduler_rebalance: Callable[[str], dict[str, Any]],
+        execute_energy_config_update: Callable[[dict[str, Any]], dict[str, Any]],
+        execute_scheduler_config_update: Callable[[dict[str, Any]], dict[str, Any]],
         find_support_bundle_metadata: Callable[[str], dict[str, Any] | None],
         latest_ubuntu_beagle_state_for_vmid: Callable[..., dict[str, Any] | None],
         list_endpoint_reports: Callable[[], list[dict[str, Any]]],
@@ -32,13 +38,19 @@ class ControlPlaneReadSurfaceService:
     ) -> None:
         self._build_budget_alerts_payload = build_budget_alerts_payload
         self._build_chargeback_payload = build_chargeback_payload
+        self._build_cost_model_payload = build_cost_model_payload
         self._build_energy_csrd_payload = build_energy_csrd_payload
+        self._build_energy_config_payload = build_energy_config_payload
         self._build_energy_nodes_payload = build_energy_nodes_payload
         self._build_energy_trend_payload = build_energy_trend_payload
         self._build_provisioning_catalog = build_provisioning_catalog
+        self._build_scheduler_config_payload = build_scheduler_config_payload
         self._build_scheduler_insights_payload = build_scheduler_insights_payload
+        self._execute_cost_model_update = execute_cost_model_update
         self._execute_scheduler_migration = execute_scheduler_migration
         self._execute_scheduler_rebalance = execute_scheduler_rebalance
+        self._execute_energy_config_update = execute_energy_config_update
+        self._execute_scheduler_config_update = execute_scheduler_config_update
         self._find_support_bundle_metadata = find_support_bundle_metadata
         self._latest_ubuntu_beagle_state_for_vmid = latest_ubuntu_beagle_state_for_vmid
         self._list_endpoint_reports = list_endpoint_reports
@@ -161,6 +173,15 @@ class ControlPlaneReadSurfaceService:
                 },
             )
 
+        if path == "/api/v1/scheduler/config":
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(config=self._build_scheduler_config_payload()),
+                },
+            )
+
         if path == "/api/v1/costs/chargeback":
             month = self._query_value(query, "month")
             department = self._query_value(query, "department") or None
@@ -169,6 +190,15 @@ class ControlPlaneReadSurfaceService:
                 {
                     "ok": True,
                     **self._envelope(**self._build_chargeback_payload(month, department)),
+                },
+            )
+
+        if path == "/api/v1/costs/model":
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(**self._build_cost_model_payload()),
                 },
             )
 
@@ -231,6 +261,15 @@ class ControlPlaneReadSurfaceService:
                 },
             )
 
+        if path == "/api/v1/energy/config":
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(**self._build_energy_config_payload()),
+                },
+            )
+
         if path.startswith("/api/v1/support-bundles/") and path.endswith("/download"):
             bundle_id = path.split("/")[-2]
             metadata = self._find_support_bundle_metadata(bundle_id)
@@ -289,6 +328,43 @@ class ControlPlaneReadSurfaceService:
                     **self._envelope(
                         rebalance=self._execute_scheduler_rebalance(requester),
                     ),
+                },
+            )
+
+        return None
+
+    def route_put(
+        self,
+        path: str,
+        *,
+        json_payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        payload = json_payload if isinstance(json_payload, dict) else {}
+
+        if path == "/api/v1/scheduler/config":
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(config=self._execute_scheduler_config_update(payload)),
+                },
+            )
+
+        if path == "/api/v1/costs/model":
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(**self._execute_cost_model_update(payload)),
+                },
+            )
+
+        if path == "/api/v1/energy/config":
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(**self._execute_energy_config_update(payload)),
                 },
             )
 

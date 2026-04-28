@@ -225,6 +225,10 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:read",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/scheduler/config"),
+            "settings:read",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("POST", "/api/v1/scheduler/migrate"),
             "settings:write",
         )
@@ -233,8 +237,20 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:write",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("PUT", "/api/v1/scheduler/config"),
+            "settings:write",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("GET", "/api/v1/costs/chargeback"),
             "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/costs/model"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("PUT", "/api/v1/costs/model"),
+            "settings:write",
         )
         self.assertEqual(
             AuthzPolicyService.required_permission("GET", "/api/v1/costs/chargeback.csv"),
@@ -255,6 +271,14 @@ class AuthzPolicyServiceTests(unittest.TestCase):
         self.assertEqual(
             AuthzPolicyService.required_permission("GET", "/api/v1/energy/csrd"),
             "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/energy/config"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("PUT", "/api/v1/energy/config"),
+            "settings:write",
         )
         self.assertEqual(
             AuthzPolicyService.required_permission("GET", "/api/v1/fleet/devices/dev-001"),

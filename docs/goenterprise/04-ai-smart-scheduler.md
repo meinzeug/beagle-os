@@ -78,7 +78,7 @@ Der aktuelle Beagle-Scheduler platziert VMs nach simplen Regeln:
   - Heatmap: Node-Auslastung über Zeit (letzte 7 Tage)
   - Top-5 empfohlene Migrations
   - Prognostizierte Last (nächste 24h) per Node
-  - "Saved CPU-Hours" durch Pre-warming (wie viele User haben sofort eine VM bekommen vs. gewartet)
+  - [x] "Saved CPU-Hours" durch Pre-warming (wie viele User haben sofort eine VM bekommen vs. gewartet)
 
 ---
 

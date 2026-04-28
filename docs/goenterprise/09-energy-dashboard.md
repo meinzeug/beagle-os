@@ -47,7 +47,7 @@ Unternehmen mit >500 Mitarbeitern müssen Scope-2-Emissionen (IT-Infrastruktur) 
   - `co2_grams_per_kwh` — konfigurierbar (z.B. Deutscher Strommix 2024: ~400g/kWh, Norwegen: ~30g/kWh)
   - Stündlich aktualisierbar (für Echtzeit-Spotmarkt-Strommix per API)
   - Kalkuliert: `co2_grams = energy_kwh * co2_grams_per_kwh`
-- [ ] Admin-Konfiguration in Web Console
+- [x] Admin-Konfiguration in Web Console
 - [x] Tests: `tests/unit/test_carbon_calculation.py`
 
 ### Schritt 3 — Energie-Kostenintegration
@@ -60,7 +60,7 @@ Unternehmen mit >500 Mitarbeitern müssen Scope-2-Emissionen (IT-Infrastruktur) 
 
 ### Schritt 4 — Green-Scheduling
 
-- [ ] Integration mit Plan 04 (AI-Scheduler):
+- [x] Integration mit Plan 04 (AI-Scheduler):
   - `green_scheduling_enabled`: wenn aktiviert → bevorzuge Scheduling zu Zeiten mit niedrigem CO₂-Faktor (z.B. Mittagsspitze Solar)
   - "Green Hours": konfigurierbare Zeiten mit bevorzugtem Batch-Scheduling
   - VM-Starts für nicht-dringende Workloads auf "Green Hours" verschieben
