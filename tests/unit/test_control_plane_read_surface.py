@@ -20,8 +20,11 @@ def make_service() -> ControlPlaneReadSurfaceService:
             "department": department,
             "departments": [{"department": "eng", "session_count": 2, "cpu_cost_eur": 1.2, "gpu_cost_eur": 0.5, "total_cost_eur": 1.7}],
             "entries": [],
+            "top_vms": [{"vm_id": 101, "department": "eng", "user_id": "alice", "session_count": 2, "energy_cost_eur": 0.2, "total_cost_eur": 1.0}],
             "csv": "department,total_cost\neng,1.7\n",
             "total_cost_eur": 1.7,
+            "total_energy_cost_eur": 0.2,
+            "forecast_total_cost_eur": 2.8,
         },
         build_cost_model_payload=lambda: {
             "model": {"cpu_hour_cost": 0.01, "electricity_price_per_kwh": 0.3},
@@ -40,6 +43,8 @@ def make_service() -> ControlPlaneReadSurfaceService:
             "heatmap": [{"node_id": "node-a", "vm_count": 2, "cpu_pct": 81.0, "mem_pct": 66.0}],
             "recommendations": [{"vm_id": 101, "current_node": "node-a", "recommended_node": "node-b", "reason": "rebalance"}],
             "prewarm_candidates": [{"vm_id": 101, "name": "vm-101", "node_id": "node-a"}],
+            "historical_trend": [{"node_id": "node-a", "series": [{"day": "2026-04-27", "avg_cpu_pct": 70.0}]}],
+            "forecast_24h": [{"node_id": "node-a", "hourly": [{"hour": 12, "cpu_pct": 72.0}]}],
             "config": {"green_scheduling_enabled": True, "prewarm_minutes_ahead": 15},
             "saved_cpu_hours": 1.5,
         },
@@ -72,6 +77,8 @@ def test_scheduler_insights_route_returns_payload() -> None:
     assert payload["heatmap"][0]["node_id"] == "node-a"
     assert payload["recommendations"][0]["recommended_node"] == "node-b"
     assert payload["prewarm_candidates"][0]["name"] == "vm-101"
+    assert payload["historical_trend"][0]["node_id"] == "node-a"
+    assert payload["forecast_24h"][0]["hourly"][0]["hour"] == 12
     assert payload["config"]["green_scheduling_enabled"] is True
 
 
@@ -119,12 +126,14 @@ def test_scheduler_post_routes_return_mutation_payloads() -> None:
 
 def test_cost_model_and_scheduler_config_routes_support_get_and_put() -> None:
     service = make_service()
+    chargeback = service.route_get("/api/v1/costs/chargeback?month=2026-04")
     model = service.route_get("/api/v1/costs/model")
     scheduler = service.route_get("/api/v1/scheduler/config")
     model_put = service.route_put("/api/v1/costs/model", json_payload={"cpu_hour_cost": 0.02})
     scheduler_put = service.route_put("/api/v1/scheduler/config", json_payload={"green_scheduling_enabled": False})
-    assert model is not None and scheduler is not None and model_put is not None and scheduler_put is not None
+    assert chargeback is not None and model is not None and scheduler is not None and model_put is not None and scheduler_put is not None
     assert model["payload"]["model"]["cpu_hour_cost"] == 0.01
+    assert chargeback["payload"]["top_vms"][0]["vm_id"] == 101
     assert scheduler["payload"]["config"]["prewarm_minutes_ahead"] == 15
     assert model_put["payload"]["model"]["cpu_hour_cost"] == 0.02
     assert scheduler_put["payload"]["config"]["green_scheduling_enabled"] is False

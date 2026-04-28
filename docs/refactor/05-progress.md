@@ -1,3 +1,23 @@
+## Update (2026-04-28, GoEnterprise Plan 04/05/09: Forecasts, Energy-Cost-Integration und Scheduler-Historie)
+
+**Scope**: Die naechsten offenen Analytics-/Reporting-Reste hinter den neuen Enterprise-Operator-Flows geschlossen. Chargeback zeigt jetzt Forecast und Top-VMs, Energiekosten sind als eigene Komponente im Cost-Pfad abgesichert, und die Scheduler-Sicht rendert erstmals historische 7-Tage-Daten plus 24h-Prognose aus den vorhandenen Metrics-/Workload-Samples.
+
+- Backend:
+  - [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py): `build_chargeback_payload()` mit `top_vms`, `forecast_total_cost_eur`, `total_energy_cost_eur`; `build_scheduler_insights_payload()` mit `historical_trend` und `forecast_24h`
+- WebUI:
+  - [website/ui/cost_dashboard.js](/home/dennis/beagle-os/website/ui/cost_dashboard.js): Forecast Monatsende, Energiekosten gesamt und Top-10 kostenintensive VMs
+  - [website/ui/scheduler_insights.js](/home/dennis/beagle-os/website/ui/scheduler_insights.js): historische Scheduler-Metriken und nächste 8 Stunden CPU-Prognose pro Node
+- Regressionen:
+  - [tests/unit/test_energy_cost_integration.py](/home/dennis/beagle-os/tests/unit/test_energy_cost_integration.py)
+  - [tests/unit/test_control_plane_read_surface.py](/home/dennis/beagle-os/tests/unit/test_control_plane_read_surface.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+  - [tests/unit/test_smart_scheduler.py](/home/dennis/beagle-os/tests/unit/test_smart_scheduler.py)
+- Validierung:
+  - `python3 -m py_compile beagle-host/services/service_registry.py beagle-host/services/control_plane_read_surface.py beagle-host/services/smart_scheduler.py`
+  - `node --check website/ui/cost_dashboard.js website/ui/scheduler_insights.js`
+  - `python3 -m pytest tests/unit/test_control_plane_read_surface.py tests/unit/test_cost_model.py tests/unit/test_chargeback_report.py tests/unit/test_energy_cost_integration.py tests/unit/test_smart_scheduler.py tests/unit/test_fleet_ui_regressions.py -q`
+  - Ergebnis: `39 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 04/05/09: Operator-Konfiguration + Prewarm-/Green-Scheduling)
 
 **Scope**: Den naechsten Enterprise-Operator-Slice direkt auf die neuen Scheduler-/Cost-/Energy-Panels gesetzt. Aus den zuvor read-only verdrahteten Dashboards wurden jetzt echte Operator-Flows mit persistenter Konfiguration fuer Kostenmodell, Budget-Regeln, Carbon-/Stromfaktoren und Scheduler-Verhalten.

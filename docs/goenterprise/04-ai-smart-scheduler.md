@@ -75,9 +75,9 @@ Der aktuelle Beagle-Scheduler platziert VMs nach simplen Regeln:
 ### Schritt 5 — Scheduler-Insights Dashboard
 
 - [x] `website/ui/scheduler_insights.js`:
-  - Heatmap: Node-Auslastung über Zeit (letzte 7 Tage)
+  - [x] Heatmap: Node-Auslastung über Zeit (letzte 7 Tage)
   - Top-5 empfohlene Migrations
-  - Prognostizierte Last (nächste 24h) per Node
+  - [x] Prognostizierte Last (nächste 24h) per Node
   - [x] "Saved CPU-Hours" durch Pre-warming (wie viele User haben sofort eine VM bekommen vs. gewartet)
 
 ---

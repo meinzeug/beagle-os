@@ -116,9 +116,14 @@ def test_enterprise_dashboard_modules_use_operator_routes() -> None:
     assert "/scheduler/config" in scheduler_js
     assert "Prewarm und Green Scheduling" in scheduler_js
     assert "Scheduler-Konfiguration speichern" in scheduler_js
+    assert "Keine historischen Scheduler-Metriken vorhanden." in scheduler_js
+    assert "Nächste 8 Stunden CPU-Prognose" in scheduler_js
     assert "/costs/model" in cost_js
     assert "Kostenmodell speichern" in cost_js
     assert "Budget-Regel speichern" in cost_js
+    assert "Top-10 kostenintensive VMs" in cost_js
+    assert "Forecast Monatsende" in cost_js
+    assert "Energiekosten gesamt" in cost_js
     assert "/energy/config" in energy_js
     assert "Carbon- und Green-Scheduling-Konfiguration" in energy_js
     assert "Konfiguration speichern" in energy_js

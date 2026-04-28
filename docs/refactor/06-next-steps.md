@@ -1,5 +1,21 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 04/05/09 analytics follow-up)
+
+**Zuletzt erledigt**:
+- Chargeback zeigt jetzt Forecast Monatsende, Energiekosten gesamt und Top-10 kostenintensive VMs.
+- Energiekosten sind im Cost-/Chargeback-Pfad jetzt mit eigener Regression abgesichert.
+- Scheduler-Insights zeigen jetzt neben Prewarm-Kandidaten auch eine erste 7-Tage-Historie und 24h-Prognose auf Basis der Metrics-/Workload-Historie.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 04 vertiefen**: echte Heatmap-Visualisierung statt Tabellen-Listing und später Pool-/User-bezogene Saved-CPU-Hours differenzieren.
+2. **Plan 05 vertiefen**: Department- und Pool-Drilldown bis auf Session-Ebene im Dashboard nachziehen.
+3. **Plan 09 vertiefen**: Ranking effizienteste vs. energieintensivste VMs/Nodes im Energy-Panel nachziehen.
+4. **Plan 09 Green-Scheduling härten**: Green-Hours explizit modellieren und die Prognose-/Placement-Entscheidung zeitfensterbasiert statt nur global gewichtet machen.
+5. **Plan 02 live validieren**: Lock-Screen, Wipe und Runtime-Telemetrie weiter gegen echte Thin-Client-Hardware/X11-/Wayland-Sessions abnehmen.
+6. **Plan 07 live validieren**: Fleet-Alerts und Predictive-Maintenance gegen echte Runtime-Events provozieren und Webhook-/UI-Reaktion prüfen.
+
 ## Stand (2026-04-28, GoEnterprise Plan 04/05/09 operator follow-up)
 
 **Zuletzt erledigt**:

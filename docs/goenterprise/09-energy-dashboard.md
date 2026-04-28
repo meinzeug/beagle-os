@@ -52,11 +52,11 @@ Unternehmen mit >500 Mitarbeitern müssen Scope-2-Emissionen (IT-Infrastruktur) 
 
 ### Schritt 3 — Energie-Kostenintegration
 
-- [ ] Integration mit Plan 05 (Cost-Transparency):
+- [x] Integration mit Plan 05 (Cost-Transparency):
   - Energiekosten als separate Kostenkomponente: `energy_cost = energy_kwh * electricity_price_per_kwh`
   - `electricity_price_per_kwh` konfigurierbar (z.B. 0.30 €/kWh)
   - Chargeback-Report enthält Energiekosten separat ausgewiesen
-- [ ] Tests: `tests/unit/test_energy_cost_integration.py`
+- [x] Tests: `tests/unit/test_energy_cost_integration.py`
 
 ### Schritt 4 — Green-Scheduling
 

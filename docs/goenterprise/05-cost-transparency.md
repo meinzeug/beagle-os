@@ -68,9 +68,9 @@ IT-Abteilungen investieren in Beagle-Server, aber können den Abteilungen nicht 
 
 - [x] `website/ui/cost_dashboard.js`:
   - Monatskosten nach Abteilung (Balkendiagramm)
-  - Top-10 kostenintensivste VMs
+  - [x] Top-10 kostenintensivste VMs
   - GPU-Cost vs CPU-Cost Aufteilung
-  - Forecast: "Wenn aktuelles Nutzungsmuster anhält, Monatskosten = €X"
+  - [x] Forecast: "Wenn aktuelles Nutzungsmuster anhält, Monatskosten = €X"
   - Export als PDF/CSV
 
 ---

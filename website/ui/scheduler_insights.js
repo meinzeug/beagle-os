@@ -45,6 +45,24 @@ function prewarmRow(item) {
   </tr>`;
 }
 
+function trendRow(item) {
+  const points = Array.isArray(item.series) ? item.series.map((entry) => `${escapeHtml(entry.day ?? '-')}: ${escapeHtml(String(entry.avg_cpu_pct ?? 0))}%`).join('<br>') : '';
+  return `<tr>
+    <td>${escapeHtml(item.node_id ?? '-')}</td>
+    <td>${points || '—'}</td>
+  </tr>`;
+}
+
+function forecastRow(item) {
+  const points = Array.isArray(item.hourly)
+    ? item.hourly.slice(0, 8).map((entry) => `${String(entry.hour).padStart(2, '0')}:00 ${escapeHtml(String(entry.cpu_pct ?? 0))}%`).join('<br>')
+    : '';
+  return `<tr>
+    <td>${escapeHtml(item.node_id ?? '-')}</td>
+    <td>${points || '—'}</td>
+  </tr>`;
+}
+
 export async function renderSchedulerInsights() {
   const container = qs('scheduler-insights-panel');
   if (!container) return;
@@ -54,6 +72,8 @@ export async function renderSchedulerInsights() {
   let heatmap = [];
   let recommendations = [];
   let prewarmCandidates = [];
+  let historicalTrend = [];
+  let forecast24h = [];
   let config = {};
   let savedCpuHours = 0;
   try {
@@ -61,6 +81,8 @@ export async function renderSchedulerInsights() {
     heatmap = Array.isArray(data.heatmap) ? data.heatmap : [];
     recommendations = Array.isArray(data.recommendations) ? data.recommendations : [];
     prewarmCandidates = Array.isArray(data.prewarm_candidates) ? data.prewarm_candidates : [];
+    historicalTrend = Array.isArray(data.historical_trend) ? data.historical_trend : [];
+    forecast24h = Array.isArray(data.forecast_24h) ? data.forecast_24h : [];
     config = data.config || {};
     savedCpuHours = Number(data.saved_cpu_hours || 0);
   } catch (err) {
@@ -109,6 +131,18 @@ export async function renderSchedulerInsights() {
         <tbody>${prewarmCandidates.map(prewarmRow).join('')}</tbody>
       </table>`
     : '<div class="empty-card">Keine Prewarm-Kandidaten aus den letzten 14 Tagen erkannt.</div>';
+  const trendHtml = historicalTrend.length > 0
+    ? `<table class="data-table">
+        <thead><tr><th>Node</th><th>Letzte 7 Tage Ø CPU</th></tr></thead>
+        <tbody>${historicalTrend.map(trendRow).join('')}</tbody>
+      </table>`
+    : '<div class="empty-card">Keine historischen Scheduler-Metriken vorhanden.</div>';
+  const forecastHtml = forecast24h.length > 0
+    ? `<table class="data-table">
+        <thead><tr><th>Node</th><th>Nächste 8 Stunden CPU-Prognose</th></tr></thead>
+        <tbody>${forecast24h.map(forecastRow).join('')}</tbody>
+      </table>`
+    : '<div class="empty-card">Keine 24h-Prognose verfügbar.</div>';
 
   container.innerHTML = `
     <section class="panel-section">
@@ -124,6 +158,8 @@ export async function renderSchedulerInsights() {
       <h3>Prewarm und Green Scheduling</h3>
       <p class="muted-text">Geschätzte eingesparte CPU-Stunden: <strong>${escapeHtml(String(savedCpuHours.toFixed(2)))}</strong></p>
       ${prewarmHtml}
+      ${trendHtml}
+      ${forecastHtml}
       <div class="detail-grid section-spaced-tight">
         <label>Prewarm Minuten<input id="scheduler-config-prewarm" type="number" min="5" max="180" step="1" value="${escapeHtml(String(config.prewarm_minutes_ahead ?? 15))}"></label>
         <label class="checkbox-row"><input id="scheduler-config-green" type="checkbox" ${config.green_scheduling_enabled ? 'checked' : ''}> Green Scheduling aktiv</label>

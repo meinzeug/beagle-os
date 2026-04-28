@@ -3707,6 +3707,39 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
     prewarm_candidates: list[dict[str, Any]] = []
     analyzer = workload_pattern_analyzer_service()
     minutes_ahead = int(scheduler_config.get("prewarm_minutes_ahead", 15) or 15)
+    historical_trend: list[dict[str, Any]] = []
+    forecast_24h: list[dict[str, Any]] = []
+    now = datetime.now(timezone.utc)
+    for item in nodes:
+        node_id = str(item.get("name") or item.get("node") or "").strip()
+        if not node_id:
+            continue
+        samples = metrics_collector_service().read_samples(node_id, days=7, vmid=None)
+        daily_buckets: dict[str, list[float]] = {}
+        for sample in samples:
+            day = str(getattr(sample, "timestamp", "")[:10] or "")
+            if not day:
+                continue
+            daily_buckets.setdefault(day, []).append(float(getattr(sample, "cpu_pct", 0.0) or 0.0))
+        series = [
+            {"day": day, "avg_cpu_pct": round(sum(values) / len(values), 2)}
+            for day, values in sorted(daily_buckets.items())[-7:]
+            if values
+        ]
+        historical_trend.append({"node_id": node_id, "series": series})
+        if samples:
+            profile = analyzer.analyze(node_id, samples)
+            hourly = []
+            for offset in range(24):
+                hour = (now.hour + offset) % 24
+                hourly.append(
+                    {
+                        "hour": hour,
+                        "cpu_pct": round(float(analyzer.predict_load_at_hour(profile, hour) or 0.0), 2),
+                    }
+                )
+            forecast_24h.append({"node_id": node_id, "hourly": hourly})
+
     for vm in list_vms(refresh=True):
         node_id = str(getattr(vm, "node", "") or "").strip()
         if not node_id:
@@ -3747,6 +3780,8 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
         "heatmap": heatmap,
         "recommendations": recommendations,
         "prewarm_candidates": prewarm_candidates[:5],
+        "historical_trend": historical_trend,
+        "forecast_24h": forecast_24h,
         "config": scheduler_config,
         "saved_cpu_hours": round(float(scheduler_config.get("saved_cpu_hours", 0.0) or 0.0), 2),
     }
@@ -3807,6 +3842,7 @@ def build_chargeback_payload(month: str, department: str | None = None) -> dict[
     report = cost_model_service().generate_chargeback_report(usage_records, target_month, selected_department)
     model = cost_model_service().get_cost_model()
     departments: dict[str, dict[str, Any]] = {}
+    top_vms: dict[int, dict[str, Any]] = {}
     for entry in report.get("entries", []):
         if not isinstance(entry, dict):
             continue
@@ -3835,18 +3871,67 @@ def build_chargeback_payload(month: str, department: str | None = None) -> dict[
         item["gpu_cost_eur"] += gpu_hours * float(model.gpu_hour_cost or 0.0)
         item["total_cost_eur"] += float(entry.get("total_cost", 0.0) or 0.0)
 
+    for record in usage_records:
+        if not isinstance(record, dict):
+            continue
+        vm_id = int(record.get("vm_id", 0) or 0)
+        if vm_id <= 0:
+            continue
+        item = top_vms.setdefault(
+            vm_id,
+            {
+                "vm_id": vm_id,
+                "department": str(record.get("department") or "").strip() or "unassigned",
+                "user_id": str(record.get("user_id") or "").strip() or "unknown",
+                "session_count": 0,
+                "cpu_hours": 0.0,
+                "gpu_hours": 0.0,
+                "energy_cost_eur": 0.0,
+                "total_cost_eur": 0.0,
+            },
+        )
+        item["session_count"] += 1
+        item["cpu_hours"] += float(record.get("cpu_hours", 0.0) or 0.0)
+        item["gpu_hours"] += float(record.get("gpu_hours", 0.0) or 0.0)
+        item["energy_cost_eur"] += float(record.get("energy_cost", 0.0) or 0.0)
+        storage_gb = float(record.get("storage_gb", 0.0) or 0.0)
+        item["total_cost_eur"] += (
+            float(record.get("cpu_hours", 0.0) or 0.0) * float(model.cpu_hour_cost or 0.0)
+            + float(record.get("gpu_hours", 0.0) or 0.0) * float(model.gpu_hour_cost or 0.0)
+            + storage_gb * float(model.storage_gb_month_cost or 0.0) / 720.0
+            + float(record.get("energy_cost", 0.0) or 0.0)
+        )
+
     sorted_departments = sorted(departments.values(), key=lambda item: item["total_cost_eur"], reverse=True)
     for item in sorted_departments:
         for key in ("cpu_hours", "gpu_hours", "energy_cost_eur", "cpu_cost_eur", "gpu_cost_eur", "total_cost_eur"):
             item[key] = round(float(item.get(key, 0.0) or 0.0), 4)
+
+    top_vm_rows = sorted(top_vms.values(), key=lambda item: float(item.get("total_cost_eur", 0.0) or 0.0), reverse=True)[:10]
+    for item in top_vm_rows:
+        for key in ("cpu_hours", "gpu_hours", "energy_cost_eur", "total_cost_eur"):
+            item[key] = round(float(item.get(key, 0.0) or 0.0), 4)
+
+    now = datetime.now(timezone.utc)
+    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+    month_end = datetime(now.year + (1 if now.month == 12 else 0), 1 if now.month == 12 else now.month + 1, 1, tzinfo=timezone.utc)
+    elapsed_days = max(1.0, (now - month_start).total_seconds() / 86400.0)
+    total_days = max(1.0, (month_end - month_start).total_seconds() / 86400.0)
+    forecast_multiplier = max(1.0, total_days / elapsed_days)
+    total_cost_eur = round(float(report.get("total_cost", 0.0) or 0.0), 4)
+    total_energy_cost_eur = round(sum(float(item.get("energy_cost_eur", 0.0) or 0.0) for item in sorted_departments), 4)
 
     return {
         "month": target_month,
         "department": selected_department,
         "departments": sorted_departments,
         "entries": report.get("entries", []),
+        "top_vms": top_vm_rows,
         "csv": str(report.get("csv") or ""),
-        "total_cost_eur": round(float(report.get("total_cost", 0.0) or 0.0), 4),
+        "total_cost_eur": total_cost_eur,
+        "total_energy_cost_eur": total_energy_cost_eur,
+        "forecast_total_cost_eur": round(total_cost_eur * forecast_multiplier, 4),
+        "forecast_multiplier": round(forecast_multiplier, 3),
     }
 
 

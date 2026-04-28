@@ -38,6 +38,17 @@ function budgetRow(item) {
   </tr>`;
 }
 
+function topVmRow(item) {
+  return `<tr>
+    <td>${escapeHtml(String(item.vm_id ?? '-'))}</td>
+    <td>${escapeHtml(item.department ?? '-')}</td>
+    <td>${escapeHtml(item.user_id ?? '-')}</td>
+    <td>${escapeHtml(String(item.session_count ?? 0))}</td>
+    <td>${formatEur(item.energy_cost_eur)}</td>
+    <td><strong>${formatEur(item.total_cost_eur)}</strong></td>
+  </tr>`;
+}
+
 export async function renderCostDashboard() {
   const container = qs('cost-dashboard-panel');
   if (!container) return;
@@ -65,6 +76,9 @@ export async function renderCostDashboard() {
   const alerts = Array.isArray(budgetAlerts?.alerts) ? budgetAlerts.alerts : [];
   const model = modelPayload?.model || {};
   const budgets = Array.isArray(modelPayload?.budgets) ? modelPayload.budgets : [];
+  const topVms = Array.isArray(report?.top_vms) ? report.top_vms : [];
+  const forecastTotal = Number(report?.forecast_total_cost_eur || 0);
+  const totalEnergyCost = Number(report?.total_energy_cost_eur || 0);
 
   const alertsHtml = alerts.length > 0
     ? `<div class="alert-strip">${alerts.map(alertBadge).join(' ')}</div>`
@@ -103,13 +117,27 @@ export async function renderCostDashboard() {
         <tbody>${budgets.map(budgetRow).join('')}</tbody>
       </table>`
     : '<div class="empty-card">Keine Budget-Regeln hinterlegt.</div>';
+  const topVmHtml = topVms.length
+    ? `<table class="data-table">
+        <thead><tr><th>VM</th><th>Abteilung</th><th>User</th><th>Sessions</th><th>Energie</th><th>Gesamt</th></tr></thead>
+        <tbody>${topVms.map(topVmRow).join('')}</tbody>
+      </table>`
+    : '<div class="empty-card">Keine VM-Kostendaten für diesen Monat.</div>';
 
   container.innerHTML = `
     ${alertsHtml}
     <section class="panel-section">
       <h3>Kosten nach Abteilung — ${escapeHtml(month)}</h3>
+      <div class="detail-grid section-spaced-tight">
+        <div><strong>Forecast Monatsende</strong><div>${formatEur(forecastTotal)}</div></div>
+        <div><strong>Energiekosten gesamt</strong><div>${formatEur(totalEnergyCost)}</div></div>
+      </div>
       ${tableHtml}
       <div class="panel-actions">${csvBtn}</div>
+    </section>
+    <section class="panel-section">
+      <h3>Top-10 kostenintensive VMs</h3>
+      ${topVmHtml}
     </section>
     <section class="panel-section">
       <h3>Kostenmodell</h3>
