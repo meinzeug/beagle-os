@@ -37,12 +37,16 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "savePolicy" in js
     assert "assignPolicy" in js
     assert "assignBulkDevices" in js
+    assert "locationTreeSection" in js
     assert "requestConfirm" in js
     assert "Remote-Wipe anfordern" in js
     assert "MDM Policies" in js
     assert "Policy Editor" in js
     assert "Effective Policy Preview" in js
     assert "Bulk Device IDs" in js
+    assert "Standort- und Gruppenansicht" in js
+    assert "Unbekannter Standort" in js
+    assert "ohne Gruppe" in js
     assert "Keine Geräte erfasst." in js
     assert "Standort / Gruppe" in js
     assert "Lade Fleet-Status" in js

@@ -11,7 +11,7 @@
 - [x] GoEnterprise Plan 02: MDM-Policy-Editor und Assignment-Flow pro Gerät/Gerätegruppe in der WebUI nachziehen.
 - [x] GoEnterprise Plan 02: effective-policy-Preview und Bulk-Policy-Flows in der Fleet-WebUI nachziehen.
 - [ ] GoEnterprise Plan 02: staerkere Policy-Validierung, Conflict-/Diff-Hinweise und spaetere effective-policy-Diagnose nachziehen.
-- [ ] GoEnterprise Plan 02: grafischen Sperrbildschirm fuer bereits laufende lokale Sessions sowie Bulk-Device-Operator-Flows nachziehen.
+- [ ] GoEnterprise Plan 02: grafischen Sperrbildschirm fuer bereits laufende lokale Sessions sowie Bulk-Device-Operator-Flows jenseits der Policy-Zuweisung nachziehen.
 
 ## Update 2026-04-28 (GoEnterprise Plan 01)
 

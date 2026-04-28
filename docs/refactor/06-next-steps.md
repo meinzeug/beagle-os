@@ -16,7 +16,7 @@
 **Naechste konkrete Schritte**:
 
 1. **Plan 02 Wipe vervollstaendigen**: aus dem jetzigen Runtime-/Secret-Wipe einen echten Datentraeger-/TPM-Wipe machen und den Erfolgs-/Fehlerpfad fuer Operatoren sichtbar nachziehen.
-2. **Plan 02 Device-UX schliessen**: grafischen Sperrbildschirm, Standort-Tree und Bulk-Policy/Bulk-Action-Flows ergaenzen.
+2. **Plan 02 Device-UX schliessen**: grafischen Sperrbildschirm sowie Bulk-Device-Operator-Aktionen jenseits der Policy-Zuweisung ergaenzen.
 3. **Plan 02 Policy-Plane haerten**: Policy-Validierung/Constraints, Policy-Diff/Conflict-Hinweise und spaetere effective-policy-Diagnose weiter vertiefen.
 4. **Plan 01 Fork-Pfad weiterziehen**: den spaeteren `beagle-stream-server`-Enforcement-Pfad im Sunshine-Fork vorbereiten, obwohl der heutige Broker-Pfad bereits blockiert.
 

@@ -1,3 +1,16 @@
+## Update (2026-04-28, GoEnterprise Plan 02: Standort-Tree + Device-Group-Regressionen)
+
+**Scope**: Den offenen Device-UX-Slice aus Plan 02 weiter geschlossen. Die Fleet-WebUI zeigt jetzt nicht mehr nur eine flache Tabelle, sondern eine verdichtete Standort-/Gruppenansicht fuer Operatoren; ausserdem ist der gruppenbezogene Policy-Pfad mit einer eigenen Testdatei reproduzierbar abgesichert.
+
+- WebUI:
+  - [website/ui/fleet_health.js](/home/dennis/beagle-os/website/ui/fleet_health.js): neue `Standort- und Gruppenansicht` mit Verdichtung `location -> group -> devices`
+- Regressionen:
+  - [tests/unit/test_device_groups.py](/home/dennis/beagle-os/tests/unit/test_device_groups.py): kombinierte Filter, Bulk-Gruppenzuweisung und gruppenbezogene effektive Policy-Aufloesung
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py): Tree-/Fallback-Strings und Fleet-UI-Hooks abgesichert
+- Validierung:
+  - `node --check website/ui/fleet_health.js`
+  - `python3 -m pytest tests/unit/test_device_groups.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_fleet_http_surface.py tests/unit/test_mdm_policy.py tests/unit/test_mdm_policy_http_surface.py tests/unit/test_authz_policy.py -q`
+
 ## Update (2026-04-28, GoEnterprise Plan 02: Effective Policy Preview + Bulk Assignment)
 
 **Scope**: Den MDM-Operator-Slice direkt weitergezogen: Policies koennen jetzt nicht nur einzeln bearbeitet, sondern fuer mehrere Devices gesammelt zugewiesen werden; ausserdem zeigt die Fleet-Surface die effektiv aufgeloeste Policy pro Device inklusive Herkunft aus Device-, Group- oder Default-Zuweisung.

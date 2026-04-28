@@ -92,6 +92,55 @@ function deviceRow(device, anomalies, maintenance) {
   </tr>`;
 }
 
+function locationTreeSection() {
+  if (!fleetState.devices.length) {
+    return '';
+  }
+  const locations = new Map();
+  for (const device of fleetState.devices) {
+    const location = String(device.location || 'Unbekannter Standort').trim() || 'Unbekannter Standort';
+    const group = String(device.group || 'ohne Gruppe').trim() || 'ohne Gruppe';
+    if (!locations.has(location)) {
+      locations.set(location, new Map());
+    }
+    const groups = locations.get(location);
+    if (!groups.has(group)) {
+      groups.set(group, []);
+    }
+    groups.get(group).push(device);
+  }
+  const cards = Array.from(locations.entries())
+    .sort((left, right) => left[0].localeCompare(right[0], 'de'))
+    .map(([location, groups]) => {
+      const groupCards = Array.from(groups.entries())
+        .sort((left, right) => left[0].localeCompare(right[0], 'de'))
+        .map(([group, devices]) => {
+          const online = devices.filter((item) => String(item.status || '').trim() === 'online').length;
+          const assigned = devices
+            .map((item) => String(item.device_id || ''))
+            .filter(Boolean)
+            .filter((deviceId) => Boolean((fleetState.assignments?.device_assignments || {})[deviceId])).length;
+          return `<div class="card compact-card">
+            <strong>${escapeHtml(group)}</strong>
+            <div class="muted">${escapeHtml(String(devices.length))} Geraete • online ${escapeHtml(String(online))}</div>
+            <div class="muted">direkte Policies ${escapeHtml(String(assigned))}</div>
+            <div class="section-spaced-tight">${devices.map((device) => `<span class="badge tone-${String(device.status || '').trim() === 'online' ? 'ok' : 'muted'}">${escapeHtml(String(device.hostname || device.device_id || '-'))}</span>`).join(' ')}</div>
+          </div>`;
+        })
+        .join('');
+      return `<div class="card">
+        <h3>${escapeHtml(location)}</h3>
+        <div class="grid auto-grid section-spaced-tight">${groupCards}</div>
+      </div>`;
+    })
+    .join('');
+  return `
+    <section class="section-spaced">
+      <h3>Standort- und Gruppenansicht</h3>
+      <div class="grid auto-grid section-spaced-tight">${cards}</div>
+    </section>`;
+}
+
 function actionMeta(action) {
   if (action === 'unlock') {
     return {
@@ -396,6 +445,7 @@ export async function renderFleetHealth() {
   } else {
     container.innerHTML = `
       ${policyEditorSection()}
+      ${locationTreeSection()}
       <div class="button-row compact-row section-spaced-tight">
         ${chip(String(devices.length) + ' Geraete', devices.length ? 'info' : 'muted')}
         ${chip('online ' + String(onlineCount), onlineCount ? 'ok' : 'muted')}

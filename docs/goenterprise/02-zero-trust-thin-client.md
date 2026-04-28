@@ -109,9 +109,9 @@ Ergebnis: Ein Thin-Client ohne gültigen WireGuard-Key + Attestation bekommt **k
 
 - [x] `beagle-host/services/device_registry.py`: `location` und `group` Felder für Geräte
   - Beispiel: `location=Berlin-Office-1`, `group=reception-pool`
-- [ ] Web Console: Karten-Ansicht (oder Standort-Tree) aller Geräte
-- [ ] Bulk-Policies: "Alle Geräte in Berlin bekommen Policy X"
-- [ ] Tests: `tests/unit/test_device_groups.py`
+- [x] Web Console: Karten-Ansicht (oder Standort-Tree) aller Geräte
+- [x] Bulk-Policies: "Alle Geräte in Berlin bekommen Policy X"
+- [x] Tests: `tests/unit/test_device_groups.py`
 
 ---
 
@@ -225,6 +225,18 @@ Restluecke bewusst offen:
   - `node --check website/ui/fleet_health.js`
   - `python3 -m pytest tests/unit/test_endpoint_http_surface.py tests/unit/test_device_registry.py tests/unit/test_device_sync_runtime.py tests/unit/test_device_state_enforcement.py tests/unit/test_mdm_policy.py tests/unit/test_mdm_policy_http_surface.py tests/unit/test_fleet_http_surface.py tests/unit/test_authz_policy.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_dashboard_ui_regressions.py -q`
   - Ergebnis: `70 passed`
+
+## Update 2026-04-28 (Standort-Tree + Gruppen-Regressionen)
+
+- WebUI:
+  - `website/ui/fleet_health.js` rendert jetzt eine echte `Standort- und Gruppenansicht` ueber der Fleet-Tabelle.
+  - Devices werden dort nach `location -> group` verdichtet; unbekannte Werte fallen sichtbar auf `Unbekannter Standort` und `ohne Gruppe`.
+- Gruppen- und Bulk-Policy-Flows:
+  - der bereits vorhandene Bulk-Assignment-Pfad ist damit auch in der Dokumentation als Schritt-5-Ergebnis geschlossen
+  - `tests/unit/test_device_groups.py` prueft jetzt kombinierte Standort-/Gruppenfilter, Bulk-Gruppenzuweisung und gruppenbasierte effektive Policy-Aufloesung
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_device_groups.py`
+  - `tests/unit/test_fleet_ui_regressions.py`
 
 ---
 
