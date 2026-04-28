@@ -13,6 +13,8 @@ const fleetHooks = {
 
 const fleetState = {
   devices: [],
+  alerts: [],
+  alertRules: [],
   policies: [],
   assignments: { device_assignments: {}, group_assignments: {} },
   effectivePolicy: null,
@@ -276,6 +278,89 @@ function runtimeTelemetryMarkup(device) {
     <div class="muted">WG ${escapeHtml(wgState)}</div>
     <div class="muted">Displays ${escapeHtml(displays.join(', ')) || '-'}</div>
     <div class="muted">Marker ${report.lock_marker_present ? 'ja' : 'nein'} • Watcher PID ${report.lock_watcher_pid_present ? 'ja' : 'nein'}</div>
+  `;
+}
+
+function alertRuleFormPayload() {
+  return {
+    rule_id: String(qs('fleet-alert-rule-id')?.value || '').trim(),
+    name: String(qs('fleet-alert-rule-name')?.value || '').trim(),
+    metric: String(qs('fleet-alert-rule-metric')?.value || '').trim(),
+    threshold: Number(qs('fleet-alert-rule-threshold')?.value || 0),
+    severity: String(qs('fleet-alert-rule-severity')?.value || 'warning').trim(),
+    enabled: Boolean(qs('fleet-alert-rule-enabled')?.checked),
+    channels: String(qs('fleet-alert-rule-channels')?.value || '')
+      .split(/[,\n]+/)
+      .map((item) => item.trim())
+      .filter(Boolean),
+  };
+}
+
+function loadAlertRuleIntoForm(rule) {
+  qs('fleet-alert-rule-id').value = String(rule?.rule_id || '');
+  qs('fleet-alert-rule-name').value = String(rule?.name || '');
+  qs('fleet-alert-rule-metric').value = String(rule?.metric || '');
+  qs('fleet-alert-rule-threshold').value = String(rule?.threshold ?? 0);
+  qs('fleet-alert-rule-severity').value = String(rule?.severity || 'warning');
+  qs('fleet-alert-rule-enabled').checked = Boolean(rule?.enabled ?? true);
+  qs('fleet-alert-rule-channels').value = Array.isArray(rule?.channels) ? rule.channels.join(', ') : '';
+}
+
+function predictiveAlertsMarkup(anomalies) {
+  const alerts = Array.isArray(fleetState.alerts) ? fleetState.alerts : [];
+  const rules = Array.isArray(fleetState.alertRules) ? fleetState.alertRules : [];
+  const anomalyList = Array.isArray(anomalies) ? anomalies : [];
+  return `
+    <section class="section-spaced">
+      <div class="button-row compact-row section-spaced-tight">
+        ${chip(`${String(alerts.length)} offene Alerts`, alerts.length ? 'warn' : 'ok')}
+        ${chip(`${String(anomalyList.length)} Anomalien`, anomalyList.length ? 'warn' : 'ok')}
+        ${chip(`${String(rules.length)} Alert-Regeln`, rules.length ? 'info' : 'muted')}
+      </div>
+      <div class="grid two-col section-spaced-tight">
+        <div class="card">
+          <h3>Predictive Alerts</h3>
+          <div class="section-spaced-tight">
+            ${alerts.length ? alerts.slice(0, 8).map((alert) => `<div class="card compact-card">
+              <strong>${escapeHtml(String(alert.device_id || '-'))}</strong>
+              ${severityBadge(alert.severity)}
+              <div class="muted">${escapeHtml(String(alert.metric || '-'))}: ${escapeHtml(String(alert.current_value ?? '-'))} / ${escapeHtml(String(alert.threshold ?? '-'))}</div>
+              <div class="muted">${escapeHtml(String(alert.message || ''))}</div>
+              <div class="muted">${escapeHtml(formatDate(alert.fired_at || '')) || '-'}</div>
+              <div class="button-row compact-row section-spaced-tight">
+                <button type="button" class="button ghost" data-fleet-alert-action="resolve-alert" data-alert-id="${escapeHtml(String(alert.alert_id || ''))}">Alert quittieren</button>
+              </div>
+            </div>`).join('') : '<div class="empty-card">Keine offenen Predictive Alerts.</div>'}
+          </div>
+        </div>
+        <div class="card">
+          <h3>Alert-Regeln</h3>
+          <div class="grid two-col section-spaced-tight">
+            <label class="field"><span>Rule ID</span><input id="fleet-alert-rule-id" type="text" autocomplete="off" placeholder="disk_failure_predicted"></label>
+            <label class="field"><span>Name</span><input id="fleet-alert-rule-name" type="text" autocomplete="off" placeholder="Disk failure predicted"></label>
+            <label class="field"><span>Metric</span><input id="fleet-alert-rule-metric" type="text" autocomplete="off" placeholder="disk_reallocated_sectors"></label>
+            <label class="field"><span>Threshold</span><input id="fleet-alert-rule-threshold" type="number" min="0" step="0.1" value="0"></label>
+            <label class="field"><span>Severity</span><select id="fleet-alert-rule-severity"><option value="warning">warning</option><option value="critical">critical</option></select></label>
+            <label class="field checkbox-field"><span>Enabled</span><input id="fleet-alert-rule-enabled" type="checkbox" checked></label>
+            <label class="field field-wide"><span>Channels</span><input id="fleet-alert-rule-channels" type="text" autocomplete="off" placeholder="console, webhook"></label>
+          </div>
+          <div class="button-row compact-row section-spaced-tight">
+            <button type="button" class="button primary" data-fleet-alert-action="save-rule">Regel speichern</button>
+            <button type="button" class="button ghost" data-fleet-alert-action="new-rule">Neu</button>
+          </div>
+          <div class="grid auto-grid section-spaced-tight">
+            ${rules.map((rule) => `<button type="button" class="card compact-card" data-fleet-alert-action="select-rule" data-rule-id="${escapeHtml(String(rule.rule_id || ''))}">
+              <strong>${escapeHtml(String(rule.name || rule.rule_id || '-'))}</strong>
+              <div class="muted">${escapeHtml(String(rule.metric || '-'))} • ${escapeHtml(String(rule.threshold ?? '-'))}</div>
+              <div class="button-row compact-row section-spaced-tight">
+                ${severityBadge(rule.severity)}
+                ${chip(rule.enabled ? 'aktiv' : 'inaktiv', rule.enabled ? 'ok' : 'muted')}
+              </div>
+            </button>`).join('') || '<div class="empty-card">Keine Alert-Regeln vorhanden.</div>'}
+          </div>
+        </div>
+      </div>
+    </section>
   `;
 }
 
@@ -618,6 +703,31 @@ async function runSafeRemediation(dryRun = false) {
   await fleetHooks.loadDashboard({ force: true });
 }
 
+async function saveAlertRule() {
+  const payload = alertRuleFormPayload();
+  if (!payload.rule_id || !payload.name || !payload.metric) {
+    throw new Error('Rule ID, Name und Metric sind erforderlich');
+  }
+  const exists = fleetState.alertRules.find((item) => String(item.rule_id || '') === payload.rule_id);
+  await request(exists ? `/fleet/alerts/rules/${encodeURIComponent(payload.rule_id)}` : '/fleet/alerts/rules', {
+    method: exists ? 'PUT' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  fleetHooks.setBanner('Alert-Regel gespeichert.', 'ok');
+  await fleetHooks.loadDashboard({ force: true });
+}
+
+async function resolveAlert(alertId) {
+  await request(`/fleet/alerts/${encodeURIComponent(alertId)}/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  fleetHooks.setBanner('Alert quittiert.', 'ok');
+  await fleetHooks.loadDashboard({ force: true });
+}
+
 async function triggerDeviceAction(deviceId, action) {
   if (action === 'policy-select') {
     const policyId = (fleetState.assignments?.device_assignments || {})[deviceId] || '';
@@ -719,6 +829,8 @@ export async function renderFleetHealth() {
   let devices = [];
   let anomalies = [];
   let maintenance = [];
+  let alerts = [];
+  let alertRules = [];
   let policies = [];
   let assignments = { device_assignments: {}, group_assignments: {} };
   let remediationDrift = { devices: [], drifted_count: 0, safe_candidate_count: 0 };
@@ -726,10 +838,12 @@ export async function renderFleetHealth() {
   let remediationHistory = [];
 
   try {
-    [devices, anomalies, maintenance, policies, assignments, remediationDrift, remediationConfig, remediationHistory] = await Promise.all([
+    [devices, anomalies, maintenance, alerts, alertRules, policies, assignments, remediationDrift, remediationConfig, remediationHistory] = await Promise.all([
       request('/fleet/devices').then((d) => Array.isArray(d) ? d : (d.devices ?? [])),
-      request('/fleet/anomalies').catch(() => []),
-      request('/fleet/maintenance').catch(() => []),
+      request('/fleet/anomalies').then((d) => Array.isArray(d) ? d : (d.anomalies ?? [])).catch(() => []),
+      request('/fleet/maintenance').then((d) => Array.isArray(d) ? d : (d.maintenance ?? [])).catch(() => []),
+      request('/fleet/alerts').then((d) => Array.isArray(d) ? d : (d.alerts ?? [])).catch(() => []),
+      request('/fleet/alerts/rules').then((d) => Array.isArray(d) ? d : (d.rules ?? [])).catch(() => []),
       request('/fleet/policies').then((d) => Array.isArray(d) ? d : (d.policies ?? [])),
       request('/fleet/policies/assignments').catch(() => ({ device_assignments: {}, group_assignments: {} })),
       request('/fleet/remediation/drift').catch(() => ({ devices: [], drifted_count: 0, safe_candidate_count: 0 })),
@@ -742,6 +856,8 @@ export async function renderFleetHealth() {
   }
 
   fleetState.devices = devices;
+  fleetState.alerts = alerts;
+  fleetState.alertRules = alertRules;
   fleetState.policies = policies;
   fleetState.assignments = assignments;
   fleetState.remediationDrift = remediationDrift;
@@ -758,6 +874,7 @@ export async function renderFleetHealth() {
   } else {
     container.innerHTML = `
       ${policyEditorSection()}
+      ${predictiveAlertsMarkup(anomalies)}
       ${remediationDriftMarkup()}
       ${locationTreeSection()}
       <div class="button-row compact-row section-spaced-tight">
@@ -877,6 +994,7 @@ export async function renderFleetHealth() {
         }
         if (action === 'bulk-set-location') {
           await submitBulkDeviceAction('set-location');
+          return;
         }
       } catch (error) {
         fleetHooks.setBanner('MDM-Policy-Aktion fehlgeschlagen: ' + String(error.message ?? error), 'warn');
@@ -892,6 +1010,39 @@ export async function renderFleetHealth() {
         await applyRemediationAction(action, targetId);
       } catch (error) {
         fleetHooks.setBanner('Remediation fehlgeschlagen: ' + String(error.message ?? error), 'warn');
+      }
+    });
+  });
+
+  container.querySelectorAll('[data-fleet-alert-action]').forEach((item) => {
+    item.addEventListener('click', async () => {
+      const action = String(item.getAttribute('data-fleet-alert-action') || '').trim();
+      try {
+        if (action === 'new-rule') {
+          loadAlertRuleIntoForm({});
+          return;
+        }
+        if (action === 'save-rule') {
+          await saveAlertRule();
+          return;
+        }
+        if (action === 'select-rule') {
+          const ruleId = String(item.getAttribute('data-rule-id') || '').trim();
+          const rule = fleetState.alertRules.find((entry) => String(entry.rule_id || '') === ruleId);
+          if (rule) {
+            loadAlertRuleIntoForm(rule);
+          }
+          return;
+        }
+        if (action === 'resolve-alert') {
+          const alertId = String(item.getAttribute('data-alert-id') || '').trim();
+          if (!alertId) {
+            throw new Error('alert_id fehlt');
+          }
+          await resolveAlert(alertId);
+        }
+      } catch (error) {
+        fleetHooks.setBanner('Alert-Aktion fehlgeschlagen: ' + String(error.message ?? error), 'warn');
       }
     });
   });

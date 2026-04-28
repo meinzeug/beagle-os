@@ -78,6 +78,133 @@ runtime_wireguard_ip() {
   ip -o -4 addr show dev "$iface" 2>/dev/null | awk '{print $4; exit}' || true
 }
 
+runtime_boot_id() {
+  cat /proc/sys/kernel/random/boot_id 2>/dev/null || true
+}
+
+runtime_boot_history_file_path() {
+  local state_dir
+  state_dir="$(beagle_state_dir)"
+  printf '%s/runtime-boot-history.json\n' "$state_dir"
+}
+
+runtime_record_boot_occurrence() {
+  local history_file boot_id now_value
+  history_file="$(runtime_boot_history_file_path)"
+  boot_id="$(runtime_boot_id)"
+  now_value="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)"
+  [[ -n "$boot_id" && -n "$now_value" ]] || return 0
+  mkdir -p "$(dirname "$history_file")" >/dev/null 2>&1 || true
+  python3 - "$history_file" "$boot_id" "$now_value" <<'PY'
+import json
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+path = Path(sys.argv[1])
+boot_id = sys.argv[2].strip()
+now_value = datetime.fromisoformat(sys.argv[3].replace("Z", "+00:00"))
+payload = {"entries": []}
+if path.exists():
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(loaded, dict):
+            payload = loaded
+    except Exception:
+        payload = {"entries": []}
+entries = payload.get("entries")
+if not isinstance(entries, list):
+    entries = []
+cutoff = now_value - timedelta(days=7)
+filtered = []
+seen = False
+for item in entries:
+    if not isinstance(item, dict):
+        continue
+    item_boot_id = str(item.get("boot_id") or "").strip()
+    item_seen_at = str(item.get("seen_at") or "").strip()
+    try:
+        seen_at = datetime.fromisoformat(item_seen_at.replace("Z", "+00:00"))
+    except ValueError:
+        continue
+    if seen_at < cutoff:
+        continue
+    if item_boot_id == boot_id:
+        filtered.append({"boot_id": boot_id, "seen_at": now_value.strftime("%Y-%m-%dT%H:%M:%SZ")})
+        seen = True
+    else:
+        filtered.append({"boot_id": item_boot_id, "seen_at": seen_at.strftime("%Y-%m-%dT%H:%M:%SZ")})
+if not seen:
+    filtered.append({"boot_id": boot_id, "seen_at": now_value.strftime("%Y-%m-%dT%H:%M:%SZ")})
+payload["entries"] = filtered[-32:]
+path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+PY
+}
+
+runtime_boot_count_7d() {
+  local history_file
+  history_file="$(runtime_boot_history_file_path)"
+  [[ -r "$history_file" ]] || {
+    printf '1\n'
+    return 0
+  }
+  python3 - "$history_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    payload = {}
+entries = payload.get("entries")
+if not isinstance(entries, list):
+    entries = []
+print(max(1, len(entries)))
+PY
+}
+
+runtime_uptime_hours() {
+  awk '{printf "%.2f\n", $1 / 3600.0}' /proc/uptime 2>/dev/null || printf '0\n'
+}
+
+runtime_cpu_temp_c() {
+  python3 - <<'PY'
+from pathlib import Path
+
+values = []
+for path in Path("/sys/class/thermal").glob("thermal_zone*/temp"):
+    try:
+        raw = path.read_text(encoding="utf-8").strip()
+        value = float(raw)
+        if value > 1000:
+            value /= 1000.0
+        if value > 0:
+            values.append(value)
+    except Exception:
+        pass
+print(f"{max(values) if values else 0.0:.1f}")
+PY
+}
+
+runtime_network_errors() {
+  python3 - <<'PY'
+from pathlib import Path
+
+total = 0
+for base in Path("/sys/class/net").iterdir():
+    if base.name == "lo":
+        continue
+    for field in ("rx_errors", "tx_errors"):
+        try:
+            total += int((base / "statistics" / field).read_text(encoding="utf-8").strip())
+        except Exception:
+            pass
+print(total)
+PY
+}
+
 runtime_wipe_report_file_path() {
   local state_dir
   state_dir="$(beagle_state_dir)"
@@ -209,6 +336,7 @@ runtime_device_sync_payload() {
   local wg_active="${4:-0}"
   local wg_ip="${5:-}"
   local wipe_report_json runtime_report_json interfaces_json cpu_model cpu_cores ram_gb gpu_model os_version
+  local uptime_hours reboot_count_7d cpu_temp_c network_errors
 
   wipe_report_json="$(runtime_wipe_report_json)"
   runtime_report_json="$(runtime_report_json)"
@@ -218,8 +346,12 @@ runtime_device_sync_payload() {
   ram_gb="$(runtime_ram_gb)"
   gpu_model="$(runtime_gpu_model)"
   os_version="$(runtime_os_version)"
+  uptime_hours="$(runtime_uptime_hours)"
+  reboot_count_7d="$(runtime_boot_count_7d)"
+  cpu_temp_c="$(runtime_cpu_temp_c)"
+  network_errors="$(runtime_network_errors)"
 
-  python3 - "$device_id" "$hostname_value" "$os_version" "$cpu_model" "$cpu_cores" "$ram_gb" "$gpu_model" "$interfaces_json" "$wg_iface" "$wg_active" "$wg_ip" "$wipe_report_json" "$runtime_report_json" <<'PY'
+  python3 - "$device_id" "$hostname_value" "$os_version" "$cpu_model" "$cpu_cores" "$ram_gb" "$gpu_model" "$interfaces_json" "$wg_iface" "$wg_active" "$wg_ip" "$wipe_report_json" "$runtime_report_json" "$uptime_hours" "$reboot_count_7d" "$cpu_temp_c" "$network_errors" <<'PY'
 import json, sys
 
 payload = {
@@ -241,6 +373,15 @@ payload = {
     },
     "metrics": {
         "streaming_active": False,
+        "uptime_hours": float(sys.argv[14] or "0"),
+        "reboot_count_7d": int(float(sys.argv[15] or "0")),
+        "cpu_temp_c": float(sys.argv[16] or "0"),
+        "gpu_temp_c": 0.0,
+        "network_errors": int(float(sys.argv[17] or "0")),
+        "ram_ecc_errors": 0,
+        "disk_reallocated_sectors": 0,
+        "disk_pending_sectors": 0,
+        "disk_smart_ok": True,
     },
     "reports": {
         "wipe": json.loads(sys.argv[12] or "{}"),
@@ -300,6 +441,7 @@ sync_device_runtime_state() {
   device_id="$(runtime_device_id)"
   hostname_value="$(runtime_endpoint_hostname)"
   wg_iface="${WG_IFACE:-wg-beagle}"
+  runtime_record_boot_occurrence
   if runtime_wireguard_active "$wg_iface"; then
     wg_active=1
     wg_ip="$(runtime_wireguard_ip "$wg_iface")"

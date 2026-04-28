@@ -15,7 +15,9 @@ if str(SERVICES_DIR) not in sys.path:
 
 from device_registry import DeviceRegistryService
 from fleet_http_surface import FleetHttpSurfaceService
+from fleet_telemetry_service import DeviceTelemetry, FleetTelemetryService
 from mdm_policy_service import MDMPolicy, MDMPolicyService
+from alert_service import AlertRule, AlertService
 
 
 HW = {
@@ -28,27 +30,32 @@ HW = {
 }
 
 
-def make_services(tmp_path: Path) -> tuple[DeviceRegistryService, MDMPolicyService, FleetHttpSurfaceService]:
+def make_services(tmp_path: Path) -> tuple[DeviceRegistryService, MDMPolicyService, FleetTelemetryService, AlertService, FleetHttpSurfaceService]:
     audit_events: list[tuple[str, str, dict[str, object]]] = []
     registry = DeviceRegistryService(
         state_file=tmp_path / "device-registry.json",
         utcnow=lambda: "2026-04-28T06:00:00Z",
     )
     mdm = MDMPolicyService(state_file=tmp_path / "mdm.json")
+    telemetry = FleetTelemetryService(state_dir=tmp_path / "fleet-telemetry", utcnow=lambda: "2026-04-28T06:00:00Z")
+    alerts = AlertService(state_file=tmp_path / "alerts.json", utcnow=lambda: "2026-04-28T06:00:00Z")
+    alerts.ensure_default_rules()
     service = FleetHttpSurfaceService(
         device_registry_service=registry,
         mdm_policy_service=mdm,
+        fleet_telemetry_service=telemetry,
+        alert_service=alerts,
         audit_event=lambda event_type, outcome, **details: audit_events.append((event_type, outcome, details)),
         requester_identity=lambda: "admin",
         remediation_state_file=tmp_path / "fleet-remediation.json",
         utcnow=lambda: "2026-04-28T06:00:00Z",
         version="test",
     )
-    return registry, mdm, service
+    return registry, mdm, telemetry, alerts, service
 
 
 def test_register_device_and_fetch_detail(tmp_path: Path) -> None:
-    _, _, service = make_services(tmp_path)
+    _, _, _, _, service = make_services(tmp_path)
 
     created = service.route_post(
         "/api/v1/fleet/devices/register",
@@ -78,7 +85,7 @@ def test_register_device_and_fetch_detail(tmp_path: Path) -> None:
 
 
 def test_list_devices_returns_groups_and_filters(tmp_path: Path) -> None:
-    registry, _, service = make_services(tmp_path)
+    registry, _, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
     registry.register_device("dev-002", "tc-002", HW)
     registry.set_group("dev-001", "berlin")
@@ -99,7 +106,7 @@ def test_list_devices_returns_groups_and_filters(tmp_path: Path) -> None:
 
 
 def test_put_updates_location_group_and_notes(tmp_path: Path) -> None:
-    registry, _, service = make_services(tmp_path)
+    registry, _, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
 
     response = service.route_put(
@@ -120,7 +127,7 @@ def test_put_updates_location_group_and_notes(tmp_path: Path) -> None:
 
 
 def test_post_actions_change_state(tmp_path: Path) -> None:
-    registry, _, service = make_services(tmp_path)
+    registry, _, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
 
     heartbeat = service.route_post(
@@ -174,7 +181,7 @@ def test_put_and_actions_emit_audit_events(tmp_path: Path) -> None:
 
 
 def test_register_requires_device_payload(tmp_path: Path) -> None:
-    _, _, service = make_services(tmp_path)
+    _, _, _, _, service = make_services(tmp_path)
 
     response = service.route_post(
         "/api/v1/fleet/devices/register",
@@ -186,7 +193,7 @@ def test_register_requires_device_payload(tmp_path: Path) -> None:
 
 
 def test_missing_device_returns_not_found(tmp_path: Path) -> None:
-    _, _, service = make_services(tmp_path)
+    _, _, _, _, service = make_services(tmp_path)
 
     detail = service.route_get("/api/v1/fleet/devices/missing")
     assert detail is not None
@@ -198,7 +205,7 @@ def test_missing_device_returns_not_found(tmp_path: Path) -> None:
 
 
 def test_effective_policy_route_returns_group_resolved_policy(tmp_path: Path) -> None:
-    registry, mdm, service = make_services(tmp_path)
+    registry, mdm, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
     registry.set_group("dev-001", "berlin")
     mdm.create_policy(MDMPolicy(policy_id="corp", name="Corporate", allowed_pools=["pool-a"]))
@@ -214,7 +221,7 @@ def test_effective_policy_route_returns_group_resolved_policy(tmp_path: Path) ->
 
 
 def test_effective_policy_route_reports_assignment_conflicts(tmp_path: Path) -> None:
-    registry, mdm, service = make_services(tmp_path)
+    registry, mdm, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
     registry.set_group("dev-001", "berlin")
     mdm.create_policy(MDMPolicy(policy_id="group-policy", name="Group", allowed_pools=["pool-a"]))
@@ -238,7 +245,7 @@ def test_effective_policy_route_reports_assignment_conflicts(tmp_path: Path) -> 
 
 
 def test_bulk_device_action_route_updates_multiple_devices(tmp_path: Path) -> None:
-    registry, _, service = make_services(tmp_path)
+    registry, _, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
     registry.register_device("dev-002", "tc-002", HW)
 
@@ -255,7 +262,7 @@ def test_bulk_device_action_route_updates_multiple_devices(tmp_path: Path) -> No
 
 
 def test_bulk_device_action_route_reports_missing_devices(tmp_path: Path) -> None:
-    registry, _, service = make_services(tmp_path)
+    registry, _, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
 
     response = service.route_post(
@@ -270,7 +277,7 @@ def test_bulk_device_action_route_reports_missing_devices(tmp_path: Path) -> Non
 
 
 def test_remediation_execute_route_updates_assignments_and_device_state(tmp_path: Path) -> None:
-    registry, mdm, service = make_services(tmp_path)
+    registry, mdm, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
     registry.lock_device("dev-001")
     mdm.create_policy(MDMPolicy(policy_id="corp", name="Corporate", allowed_pools=["pool-a"]))
@@ -294,7 +301,7 @@ def test_remediation_execute_route_updates_assignments_and_device_state(tmp_path
 
 
 def test_remediation_execute_route_can_restrict_policy_fields(tmp_path: Path) -> None:
-    registry, mdm, service = make_services(tmp_path)
+    registry, mdm, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
     mdm.create_policy(MDMPolicy(policy_id="corp", name="Corporate"))
 
@@ -310,7 +317,7 @@ def test_remediation_execute_route_can_restrict_policy_fields(tmp_path: Path) ->
 
 
 def test_remediation_drift_route_reports_safe_candidates(tmp_path: Path) -> None:
-    registry, mdm, service = make_services(tmp_path)
+    registry, mdm, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
     registry.set_group("dev-001", "berlin")
     mdm.create_policy(MDMPolicy(policy_id="group-policy", name="Group", allowed_pools=["pool-a"]))
@@ -328,7 +335,7 @@ def test_remediation_drift_route_reports_safe_candidates(tmp_path: Path) -> None
 
 
 def test_remediation_run_applies_safe_actions(tmp_path: Path) -> None:
-    registry, mdm, service = make_services(tmp_path)
+    registry, mdm, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
     registry.set_group("dev-001", "berlin")
     mdm.create_policy(MDMPolicy(policy_id="group-policy", name="Group", allowed_pools=["pool-a"]))
@@ -344,7 +351,7 @@ def test_remediation_run_applies_safe_actions(tmp_path: Path) -> None:
 
 
 def test_remediation_config_and_history_routes_persist_state(tmp_path: Path) -> None:
-    registry, mdm, service = make_services(tmp_path)
+    registry, mdm, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
     registry.set_group("dev-001", "berlin")
     mdm.create_policy(MDMPolicy(policy_id="group-policy", name="Group", allowed_pools=["pool-a"]))
@@ -372,7 +379,7 @@ def test_remediation_config_and_history_routes_persist_state(tmp_path: Path) -> 
 
 
 def test_remediation_run_skips_excluded_devices(tmp_path: Path) -> None:
-    registry, mdm, service = make_services(tmp_path)
+    registry, mdm, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
     registry.set_group("dev-001", "berlin")
     mdm.create_policy(MDMPolicy(policy_id="group-policy", name="Group"))
@@ -389,3 +396,82 @@ def test_remediation_run_skips_excluded_devices(tmp_path: Path) -> None:
     assert response["status"] == HTTPStatus.OK
     assert response["payload"]["applied"] == []
     assert response["payload"]["skipped"][0]["reason"] == "excluded"
+
+
+def test_fleet_anomalies_and_maintenance_routes_return_telemetry_data(tmp_path: Path) -> None:
+    registry, _, telemetry, _, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+    for idx in range(10):
+        telemetry.ingest(
+            DeviceTelemetry(
+                device_id="dev-001",
+                timestamp=f"2026-04-28T06:{idx:02}:00Z",
+                device_type="thin_client",
+                disk_reallocated_sectors=1,
+                uptime_hours=float(idx),
+            )
+        )
+    telemetry.ingest(
+        DeviceTelemetry(
+            device_id="dev-001",
+            timestamp="2026-04-28T06:15:00Z",
+            device_type="thin_client",
+            disk_reallocated_sectors=5000,
+            uptime_hours=9.0,
+        )
+    )
+    telemetry.schedule_maintenance("dev-001", "cpu temperature anomaly", "2026-05-01T08:00:00Z")
+
+    anomalies = service.route_get("/api/v1/fleet/anomalies")
+    maintenance = service.route_get("/api/v1/fleet/maintenance")
+
+    assert anomalies is not None
+    assert anomalies["status"] == HTTPStatus.OK
+    assert anomalies["payload"]["count"] >= 1
+    assert anomalies["payload"]["anomalies"][0]["device_id"] == "dev-001"
+    assert maintenance is not None
+    assert maintenance["status"] == HTTPStatus.OK
+    assert maintenance["payload"]["maintenance"][0]["device_id"] == "dev-001"
+
+
+def test_fleet_alert_routes_create_list_update_and_resolve_rules(tmp_path: Path) -> None:
+    _, _, _, alerts, service = make_services(tmp_path)
+    create_response = service.route_post(
+        "/api/v1/fleet/alerts/rules",
+        json_payload={
+            "rule_id": "custom-temp",
+            "name": "Custom Temp",
+            "metric": "cpu_temp_c",
+            "threshold": 80,
+            "severity": "warning",
+            "channels": ["console", "webhook"],
+            "enabled": True,
+        },
+    )
+    assert create_response is not None
+    assert create_response["status"] == HTTPStatus.CREATED
+
+    rules_response = service.route_get("/api/v1/fleet/alerts/rules")
+    assert rules_response is not None
+    assert rules_response["status"] == HTTPStatus.OK
+    assert any(item["rule_id"] == "custom-temp" for item in rules_response["payload"]["rules"])
+
+    update_response = service.route_put(
+        "/api/v1/fleet/alerts/rules/custom-temp",
+        json_payload={"threshold": 85, "enabled": False},
+    )
+    assert update_response is not None
+    assert update_response["status"] == HTTPStatus.OK
+    assert update_response["payload"]["rule"]["threshold"] == 85.0
+    assert update_response["payload"]["rule"]["enabled"] is False
+
+    fired = alerts.fire_alert(rule_id="custom-temp", device_id="dev-001", metric="cpu_temp_c", current_value=99.0, message="too hot")
+    alerts_response = service.route_get("/api/v1/fleet/alerts")
+    assert alerts_response is not None
+    assert alerts_response["status"] == HTTPStatus.OK
+    assert alerts_response["payload"]["count"] >= 1
+
+    resolve_response = service.route_post(f"/api/v1/fleet/alerts/{fired.alert_id}/resolve", json_payload={})
+    assert resolve_response is not None
+    assert resolve_response["status"] == HTTPStatus.OK
+    assert resolve_response["payload"]["alert"]["resolved"] is True

@@ -31,7 +31,10 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "/fleet/devices/${encodeURIComponent(deviceId)}/effective-policy" in js
     assert "request('/fleet/anomalies')" in js
     assert "request('/fleet/maintenance')" in js
+    assert "request('/fleet/alerts')" in js
+    assert "request('/fleet/alerts/rules')" in js
     assert "data-fleet-action" in js
+    assert "data-fleet-alert-action" in js
     assert "data-mdm-action" in js
     assert "triggerDeviceAction" in js
     assert "savePolicy" in js
@@ -63,6 +66,10 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "/fleet/remediation/config" in js
     assert "/fleet/remediation/history" in js
     assert "Runtime Telemetrie" in js
+    assert "Predictive Alerts" in js
+    assert "Alert-Regeln" in js
+    assert "Alert quittieren" in js
+    assert "Alert-Regel gespeichert." in js
     assert "last_runtime_report" in js
     assert "Sichere Remediation anwenden" in js
     assert "Sichere Remediation simulieren" in js

@@ -103,6 +103,48 @@ class AlertService:
         self._save()
         return AlertRule(**self._state["rules"][rule_id])
 
+    def ensure_default_rules(self) -> list[AlertRule]:
+        defaults = [
+            AlertRule(
+                rule_id="disk_failure_predicted",
+                name="Disk failure predicted",
+                metric="disk_reallocated_sectors",
+                threshold=5.0,
+                severity="critical",
+                channels=["console", "webhook"],
+            ),
+            AlertRule(
+                rule_id="gpu_thermal_limit_approaching",
+                name="GPU thermal limit approaching",
+                metric="gpu_temp_c",
+                threshold=85.0,
+                severity="warning",
+                channels=["console", "webhook"],
+            ),
+            AlertRule(
+                rule_id="thin_client_hardware_degradation",
+                name="Thin-client hardware degradation",
+                metric="reboot_count_7d",
+                threshold=5.0,
+                severity="warning",
+                channels=["console", "webhook"],
+            ),
+            AlertRule(
+                rule_id="node_memory_ecc_errors",
+                name="Node memory ECC errors",
+                metric="ram_ecc_errors",
+                threshold=10.0,
+                severity="critical",
+                channels=["console", "webhook"],
+            ),
+        ]
+        created: list[AlertRule] = []
+        for rule in defaults:
+            if self.get_rule(rule.rule_id) is None:
+                self.add_rule(rule)
+                created.append(rule)
+        return created
+
     # ------------------------------------------------------------------
     # Alert firing
     # ------------------------------------------------------------------

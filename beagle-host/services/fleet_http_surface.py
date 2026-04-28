@@ -12,9 +12,14 @@ from pathlib import Path
 from typing import Any, Callable
 
 from core.persistence.json_state_store import JsonStateStore
+from alert_service import AlertRule
 
 
 class FleetHttpSurfaceService:
+    _FLEET_ANOMALIES = "/api/v1/fleet/anomalies"
+    _FLEET_MAINTENANCE = "/api/v1/fleet/maintenance"
+    _FLEET_ALERTS = "/api/v1/fleet/alerts"
+    _FLEET_ALERT_RULES = "/api/v1/fleet/alerts/rules"
     _FLEET_REMEDIATION_DRIFT = "/api/v1/fleet/remediation/drift"
     _FLEET_REMEDIATION_CONFIG = "/api/v1/fleet/remediation/config"
     _FLEET_REMEDIATION_HISTORY = "/api/v1/fleet/remediation/history"
@@ -24,12 +29,16 @@ class FleetHttpSurfaceService:
     _DEVICE_REMEDIATION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/remediation/execute$")
     _DEVICE_ACTION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/(?P<action>heartbeat|lock|unlock|wipe|confirm-wiped)$")
     _DEVICE_BULK_ACTIONS = "/api/v1/fleet/devices/actions/bulk"
+    _FLEET_ALERT_RULE = re.compile(r"^/api/v1/fleet/alerts/rules/(?P<rule_id>[A-Za-z0-9._:-]+)$")
+    _FLEET_ALERT_RESOLVE = re.compile(r"^/api/v1/fleet/alerts/(?P<alert_id>[^/]+)/resolve$")
 
     def __init__(
         self,
         *,
         device_registry_service: Any,
         mdm_policy_service: Any | None = None,
+        fleet_telemetry_service: Any | None = None,
+        alert_service: Any | None = None,
         audit_event: Callable[..., None] | None = None,
         requester_identity: Callable[[], str] | None = None,
         remediation_state_file: Path | None = None,
@@ -39,6 +48,8 @@ class FleetHttpSurfaceService:
     ) -> None:
         self._registry = device_registry_service
         self._mdm_policy = mdm_policy_service
+        self._telemetry = fleet_telemetry_service
+        self._alerts = alert_service
         self._audit_event = audit_event
         self._requester_identity = requester_identity or (lambda: "")
         self._service_name = str(service_name or "beagle-control-plane")
@@ -265,6 +276,14 @@ class FleetHttpSurfaceService:
         }
 
     def handles_get(self, path: str) -> bool:
+        if path == self._FLEET_ANOMALIES:
+            return True
+        if path == self._FLEET_MAINTENANCE:
+            return True
+        if path == self._FLEET_ALERTS:
+            return True
+        if path == self._FLEET_ALERT_RULES:
+            return True
         if path == self._FLEET_REMEDIATION_DRIFT:
             return True
         if path == self._FLEET_REMEDIATION_CONFIG:
@@ -281,6 +300,67 @@ class FleetHttpSurfaceService:
 
     def route_get(self, path: str, *, query: dict[str, list[str]] | None = None) -> dict[str, Any] | None:
         params = query or {}
+        if path == self._FLEET_ANOMALIES:
+            entries: list[dict[str, Any]] = []
+            if self._telemetry is not None:
+                for device_id, reports in (self._telemetry.detect_all_anomalies() or {}).items():
+                    for report in reports:
+                        entries.append(
+                            {
+                                "device_id": str(device_id),
+                                "metric": str(getattr(report, "metric", "") or ""),
+                                "current_value": float(getattr(report, "current_value", 0.0) or 0.0),
+                                "baseline_mean": float(getattr(report, "baseline_mean", 0.0) or 0.0),
+                                "baseline_std": float(getattr(report, "baseline_std", 0.0) or 0.0),
+                                "trend_slope": float(getattr(report, "trend_slope", 0.0) or 0.0),
+                                "estimated_failure_days": int(getattr(report, "estimated_failure_days", -1) or -1),
+                                "severity": str(getattr(report, "severity", "warning") or "warning"),
+                            }
+                        )
+            return self._json(HTTPStatus.OK, {"ok": True, **self._envelope(anomalies=entries, count=len(entries))})
+        if path == self._FLEET_MAINTENANCE:
+            items = self._telemetry.get_maintenance_schedule() if self._telemetry is not None else []
+            return self._json(HTTPStatus.OK, {"ok": True, **self._envelope(maintenance=items, count=len(items))})
+        if path == self._FLEET_ALERTS:
+            include_resolved = str((params.get("include_resolved") or [""])[0] or "").strip().lower() in {"1", "true", "yes"}
+            if self._alerts is None:
+                items = []
+            elif include_resolved:
+                items = self._alerts.get_all_alerts()
+            else:
+                items = self._alerts.get_open_alerts()
+            alerts_payload = [
+                {
+                    "alert_id": str(getattr(item, "alert_id", "") or ""),
+                    "rule_id": str(getattr(item, "rule_id", "") or ""),
+                    "device_id": str(getattr(item, "device_id", "") or ""),
+                    "metric": str(getattr(item, "metric", "") or ""),
+                    "current_value": float(getattr(item, "current_value", 0.0) or 0.0),
+                    "threshold": float(getattr(item, "threshold", 0.0) or 0.0),
+                    "severity": str(getattr(item, "severity", "warning") or "warning"),
+                    "message": str(getattr(item, "message", "") or ""),
+                    "fired_at": str(getattr(item, "fired_at", "") or ""),
+                    "resolved": bool(getattr(item, "resolved", False)),
+                    "resolved_at": str(getattr(item, "resolved_at", "") or ""),
+                }
+                for item in (items or [])
+            ]
+            return self._json(HTTPStatus.OK, {"ok": True, **self._envelope(alerts=alerts_payload, count=len(alerts_payload))})
+        if path == self._FLEET_ALERT_RULES:
+            rules = self._alerts.list_rules() if self._alerts is not None else []
+            payload_rules = [
+                {
+                    "rule_id": str(getattr(rule, "rule_id", "") or ""),
+                    "name": str(getattr(rule, "name", "") or ""),
+                    "metric": str(getattr(rule, "metric", "") or ""),
+                    "threshold": float(getattr(rule, "threshold", 0.0) or 0.0),
+                    "severity": str(getattr(rule, "severity", "warning") or "warning"),
+                    "channels": list(getattr(rule, "channels", []) or []),
+                    "enabled": bool(getattr(rule, "enabled", True)),
+                }
+                for rule in rules
+            ]
+            return self._json(HTTPStatus.OK, {"ok": True, **self._envelope(rules=payload_rules, count=len(payload_rules))})
         if path == self._FLEET_REMEDIATION_CONFIG:
             return self._json(HTTPStatus.OK, {"ok": True, **self._envelope(config=self._remediation_config())})
         if path == self._FLEET_REMEDIATION_HISTORY:
@@ -379,9 +459,13 @@ class FleetHttpSurfaceService:
     def handles_post(self, path: str) -> bool:
         if path == "/api/v1/fleet/devices/register":
             return True
+        if path == self._FLEET_ALERT_RULES:
+            return True
         if path == self._FLEET_REMEDIATION_RUN:
             return True
         if path == self._DEVICE_BULK_ACTIONS:
+            return True
+        if self._FLEET_ALERT_RESOLVE.match(path):
             return True
         if self._DEVICE_REMEDIATION.match(path):
             return True
@@ -453,6 +537,70 @@ class FleetHttpSurfaceService:
     ) -> dict[str, Any] | None:
         payload = json_payload or {}
         requester_name = str(requester or "").strip()
+        if path == self._FLEET_ALERT_RULES:
+            if self._alerts is None:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "alert service unavailable"})
+            rule_id = str(payload.get("rule_id") or "").strip()
+            metric = str(payload.get("metric") or "").strip()
+            name = str(payload.get("name") or "").strip()
+            severity = str(payload.get("severity") or "warning").strip().lower() or "warning"
+            if not rule_id or not metric or not name:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "rule_id, name, metric required"})
+            if severity not in {"warning", "critical"}:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "severity must be warning or critical"})
+            channels = payload.get("channels")
+            if not isinstance(channels, list):
+                channels = []
+            rule = self._alerts.add_rule(
+                AlertRule(
+                    rule_id=rule_id,
+                    name=name,
+                    metric=metric,
+                    threshold=float(payload.get("threshold") or 0.0),
+                    severity=severity,
+                    channels=[str(item or "").strip() for item in channels if str(item or "").strip()],
+                    enabled=bool(payload.get("enabled", True)),
+                )
+            )
+            self._safe_audit_event("fleet.alert.rule.create", "success", username=requester_name or self._requester_identity(), rule_id=rule_id, metric=metric)
+            return self._json(
+                HTTPStatus.CREATED,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        rule={
+                            "rule_id": str(getattr(rule, "rule_id", "") or ""),
+                            "name": str(getattr(rule, "name", "") or ""),
+                            "metric": str(getattr(rule, "metric", "") or ""),
+                            "threshold": float(getattr(rule, "threshold", 0.0) or 0.0),
+                            "severity": str(getattr(rule, "severity", "warning") or "warning"),
+                            "channels": list(getattr(rule, "channels", []) or []),
+                            "enabled": bool(getattr(rule, "enabled", True)),
+                        }
+                    ),
+                },
+            )
+        resolve_match = self._FLEET_ALERT_RESOLVE.match(path)
+        if resolve_match is not None:
+            if self._alerts is None:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "alert service unavailable"})
+            alert = self._alerts.resolve_alert(resolve_match.group("alert_id"))
+            if alert is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "alert not found"})
+            self._safe_audit_event("fleet.alert.resolve", "success", username=requester_name or self._requester_identity(), alert_id=str(getattr(alert, "alert_id", "") or ""))
+            return self._json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        alert={
+                            "alert_id": str(getattr(alert, "alert_id", "") or ""),
+                            "resolved": bool(getattr(alert, "resolved", False)),
+                            "resolved_at": str(getattr(alert, "resolved_at", "") or ""),
+                        }
+                    ),
+                },
+            )
         if path == self._FLEET_REMEDIATION_RUN:
             device_ids_raw = payload.get("device_ids")
             dry_run = bool(payload.get("dry_run", False))
@@ -635,6 +783,8 @@ class FleetHttpSurfaceService:
         )
 
     def handles_put(self, path: str) -> bool:
+        if self._FLEET_ALERT_RULE.match(path):
+            return True
         if path == self._FLEET_REMEDIATION_CONFIG:
             return True
         return self._DEVICE_DETAIL.match(path) is not None
@@ -648,6 +798,51 @@ class FleetHttpSurfaceService:
     ) -> dict[str, Any] | None:
         payload = json_payload or {}
         requester_name = str(requester or "").strip()
+        alert_rule_match = self._FLEET_ALERT_RULE.match(path)
+        if alert_rule_match is not None:
+            if self._alerts is None:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "alert service unavailable"})
+            updates: dict[str, Any] = {}
+            if "name" in payload:
+                updates["name"] = str(payload.get("name") or "").strip()
+            if "metric" in payload:
+                updates["metric"] = str(payload.get("metric") or "").strip()
+            if "threshold" in payload:
+                updates["threshold"] = float(payload.get("threshold") or 0.0)
+            if "severity" in payload:
+                severity = str(payload.get("severity") or "warning").strip().lower() or "warning"
+                if severity not in {"warning", "critical"}:
+                    return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "severity must be warning or critical"})
+                updates["severity"] = severity
+            if "channels" in payload:
+                raw_channels = payload.get("channels")
+                if not isinstance(raw_channels, list):
+                    return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "channels must be a list"})
+                updates["channels"] = [str(item or "").strip() for item in raw_channels if str(item or "").strip()]
+            if "enabled" in payload:
+                updates["enabled"] = bool(payload.get("enabled"))
+            try:
+                rule = self._alerts.update_rule(alert_rule_match.group("rule_id"), updates)
+            except KeyError:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "rule not found"})
+            self._safe_audit_event("fleet.alert.rule.update", "success", username=requester_name or self._requester_identity(), rule_id=alert_rule_match.group("rule_id"))
+            return self._json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        rule={
+                            "rule_id": str(getattr(rule, "rule_id", "") or ""),
+                            "name": str(getattr(rule, "name", "") or ""),
+                            "metric": str(getattr(rule, "metric", "") or ""),
+                            "threshold": float(getattr(rule, "threshold", 0.0) or 0.0),
+                            "severity": str(getattr(rule, "severity", "warning") or "warning"),
+                            "channels": list(getattr(rule, "channels", []) or []),
+                            "enabled": bool(getattr(rule, "enabled", True)),
+                        }
+                    ),
+                },
+            )
         if path == self._FLEET_REMEDIATION_CONFIG:
             try:
                 config = self._update_remediation_config(payload)

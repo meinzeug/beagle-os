@@ -60,6 +60,10 @@ def test_runtime_device_sync_payload_marks_wireguard_state(tmp_path: Path) -> No
     assert payload["device_id"] == "endpoint-001"
     assert payload["vpn"]["active"] is True
     assert payload["vpn"]["assigned_ip"] == "10.88.0.10/32"
+    assert "uptime_hours" in payload["metrics"]
+    assert "reboot_count_7d" in payload["metrics"]
+    assert "cpu_temp_c" in payload["metrics"]
+    assert "network_errors" in payload["metrics"]
 
 
 def test_runtime_device_sync_payload_includes_wipe_report(tmp_path: Path) -> None:

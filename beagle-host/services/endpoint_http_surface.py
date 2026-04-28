@@ -15,6 +15,8 @@ class EndpointHttpSurfaceService:
         device_registry_service: Any,
         mdm_policy_service: Any,
         attestation_service: Any,
+        fleet_telemetry_service: Any | None,
+        alert_service: Any | None,
         exchange_moonlight_pairing_token: Callable[[Any, dict[str, Any], str], dict[str, Any]],
         fetch_sunshine_server_identity: Callable[[Any, str], dict[str, Any]],
         find_vm: Callable[[int], Any | None],
@@ -35,6 +37,8 @@ class EndpointHttpSurfaceService:
         self._device_registry = device_registry_service
         self._mdm_policy = mdm_policy_service
         self._attestation = attestation_service
+        self._fleet_telemetry = fleet_telemetry_service
+        self._alert_service = alert_service
         self._exchange_moonlight_pairing_token = exchange_moonlight_pairing_token
         self._fetch_sunshine_server_identity = fetch_sunshine_server_identity
         self._find_vm = find_vm
@@ -259,6 +263,7 @@ class EndpointHttpSurfaceService:
             reports = payload.get("reports") if isinstance(payload.get("reports"), dict) else {}
             wipe_report = reports.get("wipe") if isinstance(reports.get("wipe"), dict) else {}
             runtime_report = reports.get("runtime") if isinstance(reports.get("runtime"), dict) else {}
+            metrics = payload.get("metrics") if isinstance(payload.get("metrics"), dict) else {}
 
             device = self._device_registry.register_or_update_device(
                 device_id,
@@ -270,11 +275,35 @@ class EndpointHttpSurfaceService:
                 wg_public_key=str(vpn.get("public_key") or "").strip(),
                 wg_assigned_ip=str(vpn.get("assigned_ip") or "").strip(),
             )
-            device = self._device_registry.update_heartbeat(device_id, metrics=payload.get("metrics"))
+            device = self._device_registry.update_heartbeat(device_id, metrics=metrics)
             if wipe_report:
                 device = self._device_registry.update_wipe_report(device_id, wipe_report)
             if runtime_report:
                 device = self._device_registry.update_runtime_report(device_id, runtime_report)
+
+            anomaly_reports = []
+            fired_alerts = []
+            if self._fleet_telemetry is not None:
+                from fleet_telemetry_service import DeviceTelemetry
+
+                telemetry = DeviceTelemetry(
+                    device_id=device_id,
+                    timestamp=self._utcnow(),
+                    device_type="thin_client",
+                    disk_smart_ok=bool(metrics.get("disk_smart_ok", True)),
+                    disk_reallocated_sectors=int(metrics.get("disk_reallocated_sectors", 0) or 0),
+                    disk_pending_sectors=int(metrics.get("disk_pending_sectors", 0) or 0),
+                    cpu_temp_c=float(metrics.get("cpu_temp_c", 0.0) or 0.0),
+                    gpu_temp_c=float(metrics.get("gpu_temp_c", 0.0) or 0.0),
+                    ram_ecc_errors=int(metrics.get("ram_ecc_errors", 0) or 0),
+                    network_errors=int(metrics.get("network_errors", 0) or 0),
+                    reboot_count_7d=int(metrics.get("reboot_count_7d", 0) or 0),
+                    uptime_hours=float(metrics.get("uptime_hours", 0.0) or 0.0),
+                )
+                self._fleet_telemetry.ingest(telemetry)
+                anomaly_reports = list(self._fleet_telemetry.detect_anomalies(device_id) or [])
+                if self._alert_service is not None and anomaly_reports:
+                    fired_alerts = list(self._alert_service.check_anomalies(device_id, anomaly_reports) or [])
 
             attestation_record = self._attestation.get_record(device_id)
             allowed, reason = self._attestation.is_session_allowed(device_id)
@@ -322,6 +351,11 @@ class EndpointHttpSurfaceService:
                             "active": bool(vpn.get("active")),
                             "interface": str(vpn.get("interface") or ""),
                             "assigned_ip": str(vpn.get("assigned_ip") or ""),
+                        },
+                        health={
+                            "anomaly_count": len(anomaly_reports),
+                            "alert_count": len(self._alert_service.get_open_alerts(device_id) if self._alert_service is not None else []),
+                            "new_alert_count": len(fired_alerts),
                         },
                     ),
                 },

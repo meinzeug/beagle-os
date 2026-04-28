@@ -54,7 +54,7 @@ Ein IT-Admin mit 500 Thin-Clients und 20 Nodes sieht heute nur: "Alles grün" od
   - `gpu_thermal_limit_approaching` — GPU-Temp trendend auf >85°C
   - `thin_client_hardware_degradation` — >5 Reboots/Woche
   - `node_memory_ecc_errors` — ECC-Fehlerrate steigt
-- [ ] Alerts via: Web Console Notification, E-Mail, Webhook (Slack/Teams)
+- [x] Alerts via: Web Console Notification, E-Mail, Webhook (Slack/Teams)
 - [x] Tests: `tests/unit/test_fleet_alerts.py`
 
 ### Schritt 4 — Maintenance-Scheduling
@@ -82,3 +82,38 @@ Ein IT-Admin mit 500 Thin-Clients und 20 Nodes sieht heute nur: "Alles grün" od
 - [ ] Anomalie: Simulierter Disk-Fehler-Trend → Anomalie erkannt nach 7 Tagen.
 - [ ] Alert: Disk-Failure-Predicted Alert ausgelöst, Web-Notification erscheint.
 - [ ] Maintenance: Maintenance-Fenster angelegt, VMs automatisch migriert.
+
+## Update 2026-04-28 (Fleet-Telemetrie/Alerts in Control Plane und WebUI verdrahtet)
+
+- Control Plane:
+  - `fleet_http_surface.py` liefert jetzt echte Fleet-Health-Routen statt nur UI-Platzhaltern:
+    - `GET /api/v1/fleet/anomalies`
+    - `GET /api/v1/fleet/maintenance`
+    - `GET /api/v1/fleet/alerts`
+    - `GET /api/v1/fleet/alerts/rules`
+    - `POST /api/v1/fleet/alerts/rules`
+    - `PUT /api/v1/fleet/alerts/rules/{rule_id}`
+    - `POST /api/v1/fleet/alerts/{alert_id}/resolve`
+  - `alert_service.py` seeded jetzt reproduzierbare Default-Regeln fuer Disk-/GPU-/Reboot-/ECC-Alerts
+  - `service_registry.py` verdrahtet Fleet-Telemetry und Alert-Service jetzt produktiv inklusive Webhook-Dispatch ueber den bestehenden `webhook_service`
+- Thin-Client-Runtime:
+  - `device_sync.sh` liefert jetzt neben WireGuard-/Runtime-Status auch Health-Metriken:
+    - `uptime_hours`
+    - `reboot_count_7d`
+    - `cpu_temp_c`
+    - `network_errors`
+  - Boot-History wird lokal persistiert, damit Reboot-Trends ueber den Runtime-Sync sichtbar werden
+- Endpoint-Sync:
+  - `endpoint_http_surface.py` ingestet die Runtime-Metriken jetzt direkt in `fleet_telemetry_service`
+  - Anomalien werden beim Device-Sync sofort gegen `alert_service` geprueft
+  - der Sync-Response liefert `health.anomaly_count`, `health.alert_count` und `health.new_alert_count`
+- WebUI:
+  - `website/ui/fleet_health.js` zeigt jetzt eine echte `Predictive Alerts`-Flaeche
+  - offene Alerts koennen im Fleet-Panel quittiert werden
+  - Alert-Regeln koennen direkt in der WebUI angelegt, angepasst und aktiviert/deaktiviert werden
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_fleet_http_surface.py`
+  - `tests/unit/test_endpoint_http_surface.py`
+  - `tests/unit/test_device_sync_runtime.py`
+  - `tests/unit/test_fleet_ui_regressions.py`
+  - `tests/unit/test_authz_policy.py`

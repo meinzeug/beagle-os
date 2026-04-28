@@ -116,6 +116,8 @@ def _make_surface(
         device_registry_service=_DeviceRegistry(),
         mdm_policy_service=type("Mdm", (), {"resolve_policy": staticmethod(lambda device_id, group="": _Policy())})(),
         attestation_service=_AttestationService(),
+        fleet_telemetry_service=None,
+        alert_service=None,
         exchange_moonlight_pairing_token=exchange_fn or _default_exchange,
         fetch_sunshine_server_identity=lambda vm, guest_user: {},
         find_vm=_find,

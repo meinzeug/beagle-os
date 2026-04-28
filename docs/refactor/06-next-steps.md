@@ -17,9 +17,10 @@
 
 1. **Plan 02 Wipe live abnehmen**: den neuen Storage-/TPM-Wipe auf echter Thin-Client- oder VM-Hardware verifizieren und den Umgang mit `partial`/`failed`-Reports operationalisieren.
 2. **Plan 02 Device-UX live abnehmen**: den jetzt erweiterten Sperrbildschirm und die neue Runtime-Telemetrie auf echter X11-/Wayland-Session und echter Multi-Display-Hardware pruefen.
-3. **Plan 02 Policy-Plane weiter automatisieren**: auf der neuen Drift-/Run-/Config-Surface weitere sichere Batch-Aktionen und spaetere echte Auto-Remediation-Worker aufbauen.
-4. **Plan 02 Fleet-Operatorik nachziehen**: Runtime-Telemetrie um Session-/Health-/Streaming-Signale erweitern, damit Lock/WG/Display nicht die letzten sichtbaren Ist-Daten bleiben.
-5. **Plan 01 Fork-Pfad weiterziehen**: den spaeteren `beagle-stream-server`-Enforcement-Pfad im Sunshine-Fork vorbereiten, obwohl der heutige Broker-Pfad bereits blockiert.
+3. **Plan 07 live abnehmen**: Fleet-Alerts gegen echte Thin-Client-Hardware oder VM-Runtime provozieren und verifizieren, dass WebUI + Webhook-Dispatch wie erwartet reagieren.
+4. **Plan 02/07 Fleet-Operatorik nachziehen**: Runtime-Telemetrie um Session-/Health-/Streaming-Signale erweitern, damit Lock/WG/Display nicht die letzten sichtbaren Ist-Daten bleiben.
+5. **Plan 02 Policy-Plane weiter automatisieren**: auf der neuen Drift-/Run-/Config-Surface weitere sichere Batch-Aktionen und spaetere echte Auto-Remediation-Worker aufbauen.
+6. **Plan 01 Fork-Pfad weiterziehen**: den spaeteren `beagle-stream-server`-Enforcement-Pfad im Sunshine-Fork vorbereiten, obwohl der heutige Broker-Pfad bereits blockiert.
 
 ## Stand (2026-04-27, two-host follow-up)
 

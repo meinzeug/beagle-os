@@ -239,6 +239,22 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:read",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/fleet/anomalies"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/fleet/maintenance"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/fleet/alerts"),
+            "settings:read",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/fleet/alerts/rules"),
+            "settings:read",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("POST", "/api/v1/fleet/devices/register"),
             "settings:write",
         )
@@ -259,7 +275,19 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:write",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/fleet/alerts/rules"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/fleet/alerts/dev-001:cpu/resolve"),
+            "settings:write",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("PUT", "/api/v1/fleet/remediation/config"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("PUT", "/api/v1/fleet/alerts/rules/custom-temp"),
             "settings:write",
         )
         self.assertEqual(

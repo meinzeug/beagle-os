@@ -4645,3 +4645,25 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `bash -n thin-client-assistant/runtime/device_lock_screen.sh thin-client-assistant/runtime/device_sync.sh`
   - `node --check website/ui/fleet_health.js`
   - Enterprise-Regression-Block: `97 passed`
+
+## Update (2026-04-28, GoEnterprise Fleet-Alerts + Runtime-Health-Telemetrie)
+
+- GoEnterprise Plan 07 wurde im echten Stack verdrahtet:
+  - Fleet-UI-Platzhalter `anomalies` / `maintenance` haben jetzt echte Control-Plane-Endpunkte
+  - Predictive-Alerts sind jetzt als eigene Fleet-Surface bedienbar:
+    - offene Alerts lesen/quittieren
+    - Alert-Regeln lesen/anlegen/aktualisieren
+  - Default-Regeln fuer Disk/GPU/Reboot/ECC werden reproduzierbar im Alert-Service geseedet
+  - Webhook-Dispatch laeuft ueber den bestehenden `webhook_service`
+- Thin-Client-Runtime liefert jetzt echte Health-Metriken in den Device-Sync:
+  - `uptime_hours`
+  - `reboot_count_7d`
+  - `cpu_temp_c`
+  - `network_errors`
+  - lokale Boot-History sorgt dafuer, dass Reboot-Trends nicht pro Sync verloren gehen
+- Endpoint-Sync ingestet diese Metriken jetzt direkt in `fleet_telemetry_service`, prueft Anomalien und feuert Alerts noch im Sync-Pfad.
+- Fleet-WebUI zeigt jetzt eine eigene `Predictive Alerts`-Operatorflaeche mit offenen Alerts und editierbaren Alert-Regeln.
+- Validierung:
+  - `bash -n thin-client-assistant/runtime/device_sync.sh`
+  - `node --check website/ui/fleet_health.js`
+  - zusammenhaengender Fleet-/Endpoint-/Telemetry-Block: `137 passed`

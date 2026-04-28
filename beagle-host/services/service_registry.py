@@ -33,6 +33,7 @@ if str(SERVICES_DIR) not in sys.path:
 
 from action_queue import ActionQueueService
 from admin_http_surface import AdminHttpSurfaceService
+from alert_service import AlertService
 from auth_http_surface import AuthHttpSurfaceService
 from audit_helpers import build_vm_power_audit_event
 from audit_export import AuditExportConfig, AuditExportService
@@ -59,6 +60,7 @@ from attestation_service import AttestationService
 from device_registry import DeviceRegistryService
 from fleet_inventory import FleetInventoryService
 from fleet_http_surface import FleetHttpSurfaceService
+from fleet_telemetry_service import FleetTelemetryService
 from mdm_policy_http_surface import MDMPolicyHttpSurfaceService
 from health_payload import HealthPayloadService
 from ha_manager import HaManagerService
@@ -1133,6 +1135,8 @@ DEVICE_REGISTRY_SERVICE: DeviceRegistryService | None = None
 MDM_POLICY_SERVICE: MDMPolicyService | None = None
 ATTESTATION_SERVICE: AttestationService | None = None
 FLEET_HTTP_SURFACE_SERVICE: FleetHttpSurfaceService | None = None
+FLEET_TELEMETRY_SERVICE: FleetTelemetryService | None = None
+ALERT_SERVICE: AlertService | None = None
 MDM_POLICY_HTTP_SURFACE_SERVICE: MDMPolicyHttpSurfaceService | None = None
 CLUSTER_INVENTORY_SERVICE: ClusterInventoryService | None = None
 HEALTH_PAYLOAD_SERVICE: HealthPayloadService | None = None
@@ -3227,6 +3231,8 @@ def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
             device_registry_service=device_registry_service(),
             mdm_policy_service=mdm_policy_service(),
             attestation_service=attestation_service(),
+            fleet_telemetry_service=fleet_telemetry_service(),
+            alert_service=alert_service(),
             exchange_moonlight_pairing_token=exchange_moonlight_pairing_token,
             fetch_sunshine_server_identity=fetch_sunshine_server_identity,
             find_vm=find_vm,
@@ -3509,12 +3515,35 @@ def attestation_service() -> AttestationService:
     return ATTESTATION_SERVICE
 
 
+def fleet_telemetry_service() -> FleetTelemetryService:
+    global FLEET_TELEMETRY_SERVICE
+    if FLEET_TELEMETRY_SERVICE is None:
+        FLEET_TELEMETRY_SERVICE = FleetTelemetryService(utcnow=utcnow)
+    return FLEET_TELEMETRY_SERVICE
+
+
+def alert_service() -> AlertService:
+    global ALERT_SERVICE
+    if ALERT_SERVICE is None:
+        ALERT_SERVICE = AlertService(
+            utcnow=utcnow,
+            webhook_fn=lambda payload: webhook_service().dispatch_event(
+                event_type="beagle.fleet.alert",
+                event_payload=payload,
+            ),
+        )
+        ALERT_SERVICE.ensure_default_rules()
+    return ALERT_SERVICE
+
+
 def fleet_http_surface_service() -> FleetHttpSurfaceService:
     global FLEET_HTTP_SURFACE_SERVICE
     if FLEET_HTTP_SURFACE_SERVICE is None:
         FLEET_HTTP_SURFACE_SERVICE = FleetHttpSurfaceService(
             device_registry_service=device_registry_service(),
             mdm_policy_service=mdm_policy_service(),
+            fleet_telemetry_service=fleet_telemetry_service(),
+            alert_service=alert_service(),
             audit_event=audit_log_service().write_event,
             requester_identity=lambda: "",
             service_name="beagle-control-plane",

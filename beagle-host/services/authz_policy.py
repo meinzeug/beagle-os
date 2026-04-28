@@ -133,9 +133,11 @@ class AuthzPolicyService:
                 return "settings:write"
             if route == "/api/v1/fleet/devices/register":
                 return "settings:write"
-            if route in {"/api/v1/fleet/policies", "/api/v1/fleet/policies/assignments", "/api/v1/fleet/policies/assignments/bulk", "/api/v1/fleet/devices/actions/bulk", "/api/v1/fleet/remediation/run"}:
+            if route in {"/api/v1/fleet/policies", "/api/v1/fleet/policies/assignments", "/api/v1/fleet/policies/assignments/bulk", "/api/v1/fleet/devices/actions/bulk", "/api/v1/fleet/remediation/run", "/api/v1/fleet/alerts/rules"}:
                 return "settings:write"
             if route == "/api/v1/fleet/remediation/config":
+                return "settings:write"
+            if re.match(r"^/api/v1/fleet/alerts/[^/]+/resolve$", route):
                 return "settings:write"
             if re.match(r"^/api/v1/fleet/devices/[A-Za-z0-9._:-]+/(heartbeat|lock|unlock|wipe|confirm-wiped)$", route):
                 return "settings:write"
@@ -163,6 +165,8 @@ class AuthzPolicyService:
                 return "pool:write"
         if verb == "PUT":
             if route == "/api/v1/fleet/remediation/config":
+                return "settings:write"
+            if re.match(r"^/api/v1/fleet/alerts/rules/[A-Za-z0-9._:-]+$", route):
                 return "settings:write"
             if re.match(r"^/api/v1/fleet/policies/[A-Za-z0-9._:-]+$", route):
                 return "settings:write"
@@ -198,7 +202,7 @@ class AuthzPolicyService:
             if re.match(r"^/api/v1/pool-templates/[A-Za-z0-9._-]+$", route):
                 return "pool:write"
         if verb == "GET":
-            if route in {"/api/v1/fleet/policies", "/api/v1/fleet/policies/assignments", "/api/v1/fleet/remediation/drift", "/api/v1/fleet/remediation/config", "/api/v1/fleet/remediation/history"}:
+            if route in {"/api/v1/fleet/policies", "/api/v1/fleet/policies/assignments", "/api/v1/fleet/remediation/drift", "/api/v1/fleet/remediation/config", "/api/v1/fleet/remediation/history", "/api/v1/fleet/anomalies", "/api/v1/fleet/maintenance", "/api/v1/fleet/alerts", "/api/v1/fleet/alerts/rules"}:
                 return "settings:read"
             if re.match(r"^/api/v1/fleet/policies/[A-Za-z0-9._:-]+$", route):
                 return "settings:read"

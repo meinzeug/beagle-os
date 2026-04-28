@@ -141,12 +141,37 @@ def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") ->
         def is_session_allowed(device_id):
             return True, "status=attested"
 
+    class _FleetTelemetry:
+        def __init__(self) -> None:
+            self.records = []
+
+        def ingest(self, telemetry):
+            self.records.append(telemetry)
+
+        def detect_anomalies(self, device_id):
+            if device_id != "endpoint-hot":
+                return []
+            return [type("Anomaly", (), {"metric": "cpu_temp_c", "current_value": 95.0, "baseline_mean": 55.0, "baseline_std": 3.0, "trend_slope": 2.5, "estimated_failure_days": 2, "severity": "critical"})()]
+
+    class _AlertService:
+        def __init__(self) -> None:
+            self.events = []
+
+        def check_anomalies(self, device_id, reports):
+            self.events.extend(reports)
+            return [type("Alert", (), {"alert_id": f"{device_id}:cpu", "resolved": False})()]
+
+        def get_open_alerts(self, device_id=None):
+            return self.events
+
     return EndpointHttpSurfaceService(
         build_vm_profile=lambda found_vm: profiles.get(int(found_vm.vmid), {}),
         dequeue_vm_actions=lambda node, vmid: [],
         device_registry_service=_DeviceRegistry(),
         mdm_policy_service=type("Mdm", (), {"resolve_policy": staticmethod(lambda device_id, group="": _Policy())})(),
         attestation_service=_AttestationService(),
+        fleet_telemetry_service=_FleetTelemetry(),
+        alert_service=_AlertService(),
         exchange_moonlight_pairing_token=lambda vm, endpoint_identity, pairing_token: {"ok": pairing_token == "valid-token"},
         fetch_sunshine_server_identity=lambda vm, guest_user: {},
         find_vm=_find,
@@ -395,6 +420,28 @@ def test_device_sync_route_returns_policy_and_commands() -> None:
     assert response["payload"]["attestation"]["allowed"] is True
     assert response["payload"]["vpn"]["active"] is True
     assert response["payload"]["device"]["last_runtime_report"] == {}
+    assert response["payload"]["health"]["anomaly_count"] == 0
+
+
+def test_device_sync_route_ingests_metrics_and_emits_alert_counts() -> None:
+    service = _service()
+    response = service.route_post(
+        "/api/v1/endpoints/device/sync",
+        endpoint_identity={"endpoint_id": "endpoint-hot", "vmid": 100, "node": "beagle-0", "hostname": "thin-02"},
+        query={},
+        json_payload={
+            "metrics": {
+                "cpu_temp_c": 95.0,
+                "uptime_hours": 4.5,
+                "reboot_count_7d": 6,
+                "network_errors": 3,
+            }
+        },
+    )
+
+    assert int(response["status"]) == 200
+    assert response["payload"]["health"]["anomaly_count"] == 1
+    assert response["payload"]["health"]["new_alert_count"] == 1
 
 
 def test_device_confirm_wiped_route_marks_device_wiped() -> None:
