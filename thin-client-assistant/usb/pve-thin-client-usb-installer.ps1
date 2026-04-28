@@ -177,6 +177,14 @@ function Download-Iso {
         [string]$TargetPath
     )
     $script:BeagleInstallerStage = "iso_download"
+    if (Test-Path -LiteralPath $TargetPath) {
+        $existingFile = Get-Item -LiteralPath $TargetPath -ErrorAction SilentlyContinue
+        if ($existingFile -and $existingFile.Length -gt 0) {
+            Write-Step ("Verwende bereits heruntergeladenes ISO: {0}" -f $TargetPath)
+            Send-InstallerLog -Event "iso_download_cached" -Stage $script:BeagleInstallerStage -Status "ok" -Message $TargetPath
+            return
+        }
+    }
     Write-Step ("Lade Beagle OS Installer ISO von {0} ..." -f $Url)
     Send-InstallerLog -Event "iso_download_started" -Stage $script:BeagleInstallerStage -Status "running" -Message $Url
     try {
