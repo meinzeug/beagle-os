@@ -368,23 +368,71 @@ check_no_legacy_8443() {
     found=1
   fi
 
-  if grep -RIl --exclude='*.tar.gz' --exclude='*.iso' '8443' \
+  if grep -RIlE --exclude='*.tar.gz' --exclude='*.iso' '(:8443|https?://[^[:space:]"'\''<>]+8443|PVE_DCV_.*8443|BEAGLE_.*8443)' \
     "$INSTALL_DIR/dist/beagle-downloads-status.json" \
     "$INSTALL_DIR/dist/beagle-downloads-index.html" \
     "$INSTALL_DIR/dist"/pve-thin-client-*.sh \
     "$INSTALL_DIR/dist"/pve-thin-client-*.ps1 \
+    "$HOST_ENV_FILE" \
+    "$PROXY_ENV_FILE" \
     2>/dev/null | grep -q .; then
-    echo "ERR cfg   legacy 8443 reference in hosted download artifacts"
+    echo "ERR cfg   legacy 8443 reference in hosted download artifacts or runtime env"
     found=1
   fi
 
   if [[ "$found" -eq 0 ]]; then
-    echo "OK  cfg   no legacy 8443 listener or hosted download reference"
+    echo "OK  cfg   no legacy 8443 listener, hosted download or runtime env reference"
     return 0
   fi
 
   record_failure
   return 1
+}
+
+check_beagle_firewall() {
+  local rules=""
+  local nft_service=""
+
+  if ! command -v nft >/dev/null 2>&1; then
+    echo "ERR fw    nft command missing"
+    record_failure
+    return 1
+  fi
+
+  if ! nft list table inet beagle_guard >/dev/null 2>&1; then
+    echo "ERR fw    Beagle firewall table inet beagle_guard missing"
+    record_failure
+    return 1
+  fi
+
+  rules="$(nft list table inet beagle_guard 2>/dev/null || true)"
+  nft_service="$(systemctl is-active nftables 2>/dev/null || true)"
+  if [[ "$nft_service" != "active" ]]; then
+    echo "ERR fw    nftables service is not active"
+    record_failure
+    return 1
+  fi
+
+  if ! grep -Eq 'chain input \{' <<<"$rules" || ! grep -Eq 'policy drop;' <<<"$rules"; then
+    echo "ERR fw    Beagle firewall input policy is not drop"
+    record_failure
+    return 1
+  fi
+
+  if ! grep -Eq 'tcp dport (22|\{ 22|22,)' <<<"$rules" || ! grep -Eq 'tcp dport \{ 80, 443 \}|tcp dport \{ 443, 80 \}' <<<"$rules"; then
+    echo "ERR fw    Beagle firewall does not allow ssh/http/tls baseline"
+    record_failure
+    return 1
+  fi
+
+  if ! grep -Fq 'ct status dnat' <<<"$rules"; then
+    echo "ERR fw    Beagle firewall does not allow explicit DNAT stream forwards"
+    record_failure
+    return 1
+  fi
+
+  echo "OK  fw    Beagle nftables guard is active"
+  return 0
 }
 
 load_host_env
@@ -472,6 +520,7 @@ else
 fi
 
 check_no_legacy_8443
+check_beagle_firewall
 
 if check_status_json; then
   echo "OK  json  $STATUS_JSON_FILE"

@@ -80,11 +80,10 @@ configure_live_firewall() {
   fi
   cat >/etc/nftables.conf <<'EOF'
 #!/usr/sbin/nft -f
-flush ruleset
 
-table inet filter {
+table inet beagle_guard {
   chain input {
-    type filter hook input priority 0;
+    type filter hook input priority -20;
     policy drop;
 
     iif lo accept
@@ -96,15 +95,22 @@ table inet filter {
 
     tcp dport 22 ct state new limit rate 30/minute burst 30 packets accept
     tcp dport { 80, 443 } ct state new limit rate 300/minute burst 300 packets accept
+    iifname { "virbr10", "virbr0" } udp dport { 53, 67 } accept
+    iifname { "virbr10", "virbr0" } tcp dport 53 accept
+    iifname { "virbr10", "virbr0" } tcp dport { 9088, 9089 } accept
   }
 
   chain forward {
-    type filter hook forward priority 0;
+    type filter hook forward priority -20;
     policy drop;
+    ct state invalid drop
+    ct state established,related accept
+    iifname { "virbr10", "virbr0" } accept
+    ct status dnat oifname { "virbr10", "virbr0" } accept
   }
 
   chain output {
-    type filter hook output priority 0;
+    type filter hook output priority -20;
     policy accept;
   }
 }

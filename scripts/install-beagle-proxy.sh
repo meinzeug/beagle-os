@@ -179,6 +179,9 @@ load_env_file() {
   LISTEN_PORT="${requested_listen_port:-${PVE_DCV_PROXY_LISTEN_PORT:-${LISTEN_PORT}}}"
   BACKEND_HOST="${requested_backend_host:-${PVE_DCV_PROXY_BACKEND_HOST:-${BACKEND_HOST}}}"
   BACKEND_PORT="${requested_backend_port:-${PVE_DCV_PROXY_BACKEND_PORT:-${BACKEND_PORT}}}"
+  if [[ -z "$BACKEND_HOST" && "$BACKEND_PORT" == "8443" ]]; then
+    BACKEND_PORT="443"
+  fi
   BACKEND_VMID="${requested_backend_vmid:-${PVE_DCV_PROXY_VMID:-${BACKEND_VMID}}}"
   BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-${BEAGLE_HOST_PROVIDER}}"
   SERVER_NAME="${requested_server_name:-${PVE_DCV_PROXY_SERVER_NAME:-${SERVER_NAME}}}"
@@ -360,6 +363,7 @@ updates = {
     "PVE_DCV_DOWNLOADS_PATH": sys.argv[5],
     "PVE_DCV_DOWNLOADS_BASE_URL": sys.argv[6],
     "BEAGLE_WEB_UI_URL": sys.argv[7],
+    "PVE_DCV_USB_INSTALLER_URL": "https://{host}/beagle-api/api/v1/vms/{vmid}/installer.sh",
 }
 
 lines: list[str] = []

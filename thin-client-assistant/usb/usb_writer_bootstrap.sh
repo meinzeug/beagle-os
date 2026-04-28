@@ -130,6 +130,9 @@ bootstrap_repo_root() {
     if [[ "$download_target" != "$tarball" ]]; then
       cp -f "$download_target" "$tarball"
     fi
+    if [[ -n "$cached_tarball" ]]; then
+      cp -f "$tarball" "$cached_tarball"
+    fi
 
     if [[ "$checksum_entry_found" == "1" ]]; then
       (

@@ -248,12 +248,58 @@ export function requestLetsEncrypt() {
 
 export function loadSettingsFirewall() {
   return request('/settings/firewall').then((data) => {
-    text('fw-status', data.active ? 'Aktiv' : 'Inaktiv');
+    const active = Boolean(data.active);
+    const serviceActive = Boolean(data.service_active);
+    text('fw-status', active ? 'AKTIV' : 'INAKTIV');
+    text('fw-console-title', active ? 'Beagle Guard aktiv' : 'Beagle Guard inaktiv');
+    text('fw-console-subtitle', active
+      ? 'Host-Ingress und VM-Forwarding laufen ueber die nftables-Baseline.'
+      : 'Die Baseline ist nicht aktiv. Anwenden aktiviert nftables und schreibt die Guard-Regeln.');
+    text('fw-guard-state', active ? 'aktiv' : 'aus');
+    text('fw-engine', data.engine || 'nftables');
+    text('fw-service-state', serviceActive ? 'active' : 'inactive');
+    text('fw-host-state', active ? '22/80/443' : 'offen');
+    text('fw-cluster-state', active ? 'peer-only' : 'ungefiltert');
+    text('fw-vm-state', active ? 'egress + DNAT' : 'ungefiltert');
+    text('fw-raw-status', data.raw_status || 'Keine nftables-Ausgabe vorhanden.');
+
+    const statusEl = qs('fw-status');
+    if (statusEl) {
+      statusEl.classList.toggle('is-on', active);
+      statusEl.classList.toggle('is-off', !active);
+    }
+    const consoleEl = qs('settings-firewall-console');
+    if (consoleEl) {
+      consoleEl.classList.toggle('is-good', active);
+      consoleEl.classList.toggle('is-warn', !active);
+      consoleEl.classList.remove('is-error', 'is-checking');
+    }
+    const pulse = qs('settings-firewall-pulse');
+    if (pulse) {
+      pulse.classList.toggle('is-good', active);
+      pulse.classList.toggle('is-warn', !active);
+      pulse.classList.remove('is-running', 'is-error');
+      const small = pulse.querySelector('small');
+      if (small) { small.textContent = active ? 'Geschuetzt' : 'Aus'; }
+    }
+    [
+      ['fw-flow-host', active],
+      ['fw-flow-cluster', active],
+      ['fw-flow-vm', active]
+    ].forEach(([id, ok]) => {
+      const node = qs(id);
+      if (!node) { return; }
+      node.classList.toggle('is-good', Boolean(ok));
+      node.classList.toggle('is-warn', !ok);
+      node.classList.remove('is-idle', 'is-running', 'is-error');
+    });
+
     const tbody = qs('fw-rules-body');
     if (!tbody) {
       return;
     }
-    const rules = data.rules || [];
+    const rules = Array.isArray(data.rules) ? data.rules : [];
+    text('fw-rule-count', String(rules.length));
     if (!rules.length) {
       tbody.innerHTML = '<tr><td colspan="3" class="empty-cell">Keine Regeln vorhanden.</td></tr>';
       return;

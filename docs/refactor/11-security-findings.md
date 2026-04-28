@@ -718,3 +718,30 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
   - Die Ausnahme ist bewusst eng auf den unauthentifizierten `healthz`-Probe beschraenkt; privilegierte Cluster-RPCs bleiben an mTLS mit Cluster-CA gebunden.
 - Rest-Risiko:
   - Die oeffentliche TLS-Kette auf `srv2` bleibt operativ trotzdem zu bereinigen; die Mitigation verhindert nur falsche Cluster-Offlines durch dieses Problem.
+
+## S-022 - Host-Firewall war auf srv1 nicht als Default-Drop-Baseline aktiv
+
+- Status: mitigiert in Repo und live auf `srv1` (2026-04-27)
+- Risiko: Hoch
+- Betroffene Dateien:
+  - `scripts/apply-beagle-firewall.sh`
+  - `scripts/install-beagle-host-services.sh`
+  - `scripts/check-beagle-host.sh`
+  - `beagle-host/services/server_settings.py`
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-live-server-bootstrap`
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+- Beschreibung:
+  - Auf `srv1` war `nftables` zwar enabled, aber inaktiv; die vorhandenen INPUT/FORWARD-Policies waren effektiv accept.
+  - Public Cluster-RPC/API waren nur durch separate iptables-Allowlist-Hotfixes begrenzt, nicht durch eine reproduzierbare Beagle-Install-Baseline.
+  - Frische Server-Installationen konnten dadurch vor dem ersten Operator-Hardening zu offen starten.
+- Mitigation:
+  - Neue Beagle nftables Guard-Baseline mit Default-Drop fuer Host-Input und Forward.
+  - Erlaubt nur `22/80/443`, VM-Bridge-DNS/DHCP, lokale/peer-allowlisted Cluster-Ports und explizit DNAT-getriggerte VM-Stream-Forwards.
+  - Installer und Host-Service-Install wenden die Baseline automatisch an.
+  - WebUI/API nutzt nun Beagle nftables statt UFW.
+  - Live `srv1`: `nftables` aktiv, `table inet beagle_guard` aktiv, externe Probe sieht `9088/9089` geschlossen.
+- Regression/Abnahme:
+  - `scripts/check-beagle-host.sh` prueft die Beagle-Guard-Baseline.
+  - `pytest -q tests/unit` -> 1222 passed, 4 subtests passed.
+- Rest-Risiko:
+  - Stream-Persistenz ueber kompletten Host-Reboot ist noch separat zu validieren, damit DNAT-Reconciler, libvirt und Beagle-Guard nach Boot-Reihenfolge zusammenspielen.

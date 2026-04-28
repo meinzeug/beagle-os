@@ -19,10 +19,13 @@ download_install_payload_from_server() {
   local payload_name=""
   local tmp_dir=""
   local tarball=""
+  local cached_tarball=""
   local checksum_url=""
   local checksum_file=""
   local asset_dir=""
   local remote_root_dir=""
+  local use_cached_tarball="0"
+  local bootstrap_cache_dir="${PVE_DCV_BOOTSTRAP_CACHE_DIR:-${BOOTSTRAP_CACHE_DIR:-}}"
 
   payload_url="${PVE_THIN_CLIENT_INSTALL_PAYLOAD_URL:-}"
   if [[ -z "$payload_url" ]]; then
@@ -39,13 +42,25 @@ download_install_payload_from_server() {
     return 1
   }
 
+  if [[ -n "$bootstrap_cache_dir" ]]; then
+    cached_tarball="$bootstrap_cache_dir/$payload_name"
+    if [[ -f "$cached_tarball" ]]; then
+      use_cached_tarball="1"
+    fi
+  fi
+
   tmp_dir="$(mktemp -d /tmp/pve-thin-client-install-payload.XXXXXX)"
   tarball="$tmp_dir/$payload_name"
-  log_msg "download_install_payload_from_server: downloading $payload_url"
-  if ! curl --fail --show-error --location --retry 3 --retry-delay 2 "$payload_url" -o "$tarball"; then
-    log_msg "download_install_payload_from_server: payload download failed from $payload_url"
-    rm -rf "$tmp_dir" >/dev/null 2>&1 || true
-    return 1
+  if [[ "$use_cached_tarball" == "1" ]]; then
+    log_msg "download_install_payload_from_server: reusing cached payload tarball $cached_tarball"
+    cp -f "$cached_tarball" "$tarball"
+  else
+    log_msg "download_install_payload_from_server: downloading $payload_url"
+    if ! curl --fail --show-error --location --retry 3 --retry-delay 2 "$payload_url" -o "$tarball"; then
+      log_msg "download_install_payload_from_server: payload download failed from $payload_url"
+      rm -rf "$tmp_dir" >/dev/null 2>&1 || true
+      return 1
+    fi
   fi
 
   checksum_url="${payload_url%/*}/SHA256SUMS"

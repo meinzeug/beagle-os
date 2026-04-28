@@ -850,4 +850,12 @@ else
   systemctl start "$TIMER_NAME" "$WATCHDOG_TIMER_NAME" "$REPO_AUTO_UPDATE_TIMER_NAME" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
 fi
 
+if [[ -x "$INSTALL_DIR/scripts/apply-beagle-firewall.sh" ]]; then
+  if can_manage_libvirt_system; then
+    "$INSTALL_DIR/scripts/apply-beagle-firewall.sh" --enable || echo "Warning: Beagle firewall baseline could not be applied" >&2
+  else
+    BEAGLE_FIREWALL_NO_APPLY=1 "$INSTALL_DIR/scripts/apply-beagle-firewall.sh" --write-only || echo "Warning: Beagle firewall baseline could not be written" >&2
+  fi
+fi
+
 echo "Installed host services: $SERVICE_NAME, $TIMER_NAME, $WATCHDOG_SERVICE_NAME, $WATCHDOG_TIMER_NAME, $REPO_AUTO_UPDATE_SERVICE_NAME, $REPO_AUTO_UPDATE_TIMER_NAME, $UI_REAPPLY_SERVICE, $UI_REAPPLY_PATH, $BEAGLE_CONTROL_SERVICE, $BEAGLE_CLUSTER_AUTO_JOIN_SERVICE, $BEAGLE_PUBLIC_STREAM_SERVICE, $BEAGLE_PUBLIC_STREAM_TIMER, $BEAGLE_NOVNC_PROXY_SERVICE"

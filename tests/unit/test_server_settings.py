@@ -356,6 +356,54 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertEqual(result["publish_gate"]["missing_versioned"], [])
         self.assertEqual(result["links"]["status_json"], "https://srv1/beagle-downloads/beagle-downloads-status.json")
 
+    def test_get_firewall_reports_beagle_nftables_guard(self):
+        service = self.make_service()
+
+        def fake_run(cmd):
+            if cmd == ["systemctl", "is-active", "nftables"]:
+                return "active"
+            if cmd == ["nft", "list", "table", "inet", "beagle_guard"]:
+                return "table inet beagle_guard {\n chain input { policy drop; }\n}"
+            return ""
+
+        with tempfile.TemporaryDirectory() as tmpdir, \
+             mock.patch.object(MODULE, "_BEAGLE_FIREWALL_EXTRA_RULES", Path(tmpdir) / "extra.rules"), \
+             mock.patch.object(MODULE, "_run_cmd", side_effect=fake_run):
+            (Path(tmpdir) / "extra.rules").write_text("tcp dport 8443 drop\n", encoding="utf-8")
+            result = service.get_firewall()
+
+        self.assertTrue(result["active"])
+        self.assertEqual(result["engine"], "nftables")
+        self.assertTrue(result["service_active"])
+        self.assertEqual(result["rules"], [{"number": "1", "rule": "tcp dport 8443 drop"}])
+
+    def test_update_firewall_add_rule_persists_safe_nft_rule_and_reapplies(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = Path(tmpdir) / "data"
+            install_dir = Path(tmpdir) / "install"
+            script = install_dir / "scripts" / "apply-beagle-firewall.sh"
+            script.parent.mkdir(parents=True)
+            script.write_text("#!/bin/sh\n", encoding="utf-8")
+            service = ServerSettingsService(data_dir=data_dir, install_dir=install_dir)
+            calls = []
+
+            def fake_run(cmd, **_kwargs):
+                calls.append(cmd)
+                proc = mock.Mock()
+                proc.returncode = 0
+                proc.stdout = ""
+                proc.stderr = ""
+                return proc
+
+            with mock.patch.object(MODULE, "_BEAGLE_FIREWALL_EXTRA_RULES", Path(tmpdir) / "extra.rules"), \
+                 mock.patch.object(MODULE.subprocess, "run", side_effect=fake_run), \
+                 mock.patch.object(service, "get_firewall", return_value={"active": True, "rules": []}):
+                result = service.update_firewall({"action": "add_rule", "rule": "allow 9443/tcp"})
+
+            self.assertTrue(result["ok"], result)
+            self.assertIn("tcp dport 9443 accept", (Path(tmpdir) / "extra.rules").read_text(encoding="utf-8"))
+            self.assertEqual(calls[0], [str(script), "--enable"])
+
     def test_get_updates_includes_repo_auto_update_state(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             data_dir = Path(tmpdir) / "data"

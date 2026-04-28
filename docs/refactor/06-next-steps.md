@@ -180,9 +180,17 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 - Host-Downloads auf `srv1.beagle-os.com` und `srv2.beagle-os.com` mit den neuen `pve-thin-client-live-usb-*.ps1` Artefakten aktualisieren und per Download-Status gegenpruefen.
 - WebUI-VM-Detail live auf `srv1`/`srv2` gegen den neuen `live-usb.ps1`-Pfad smoke-testen.
 - Repo-/Artifact-Self-Heal weiter härten:
-  - End-to-end smoke for VM installer/live-USB downloads after repo auto-update on `srv1`
-  - verify that regenerated hosted artifacts and VM-specific scripts still stay on `443` after the next unattended update cycle
-  - after the currently running `srv1` repo-auto-update/artifact build is idle, re-run `scripts/check-beagle-host.sh` with the new standalone checks and confirm status JSON checksums are stable
+  - End-to-end smoke for VM installer/live-USB downloads after the next unattended repo auto-update on `srv1`
+  - verify that regenerated hosted artifacts and VM-specific scripts still stay on `443` after that unattended update cycle
+  - watch for repeated kiosk `npm` rename failures; `scripts/package.sh` now self-heals `ENOTEMPTY` once, but Node 18 engine warnings remain technical debt for the kiosk build chain
+- GoRelease als neue Freigabeebene nutzen:
+  - `docs/gorelease/00-index.md` vor Firmen-/Pilot-Entscheidungen lesen
+  - zuerst R2/R3-Gates abarbeiten, nicht neue GoEnterprise-Features als "fertig fuer Firmen" interpretieren
+  - Hardware nach `docs/gorelease/02-hardware-test-matrix.md` buchen: kleine Hetzner VMs fuer guenstige Dauer-Smokes, dedizierte KVM-Hosts nur fuer echte VM-/Install-Abnahme, GPU-Server nur im kurzen Testfenster
+- Lokale GoRelease-Validierung ist bereits gruen:
+  - Download-URLs normalisieren `443` weg
+  - Installer-Downloads schreiben scoped Log-Events via API
+  - naechster Schritt sind die verbleibenden Host-/Live-Gates auf `srv1`; `srv2` ist gekuendigt
 - Thin-client USB install path runtime-smoke:
   - boot a freshly written USB installer/live medium in a VM
   - verify from installer logs that local bundled payload assets are used after the target-disk selection step

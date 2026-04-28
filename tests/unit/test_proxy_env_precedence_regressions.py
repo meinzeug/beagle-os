@@ -38,4 +38,15 @@ def test_install_beagle_proxy_self_heals_stale_host_env_proxy_settings() -> None
     assert "sync_host_env_proxy_defaults()" in script
     assert 'PVE_DCV_PROXY_LISTEN_PORT' in script
     assert 'PVE_DCV_DOWNLOADS_BASE_URL' in script
+    assert '"PVE_DCV_USB_INSTALLER_URL": "https://{host}/beagle-api/api/v1/vms/{vmid}/installer.sh"' in script
+    assert 'if [[ -z "$BACKEND_HOST" && "$BACKEND_PORT" == "8443" ]]; then' in script
     assert 'sync_host_env_proxy_defaults' in script.split("write_env_file", 1)[1]
+
+
+def test_check_beagle_host_scans_runtime_env_for_real_8443_urls_without_size_false_positive() -> None:
+    script = CHECK_BEAGLE_HOST.read_text(encoding="utf-8")
+
+    assert '"$HOST_ENV_FILE"' in script
+    assert '"$PROXY_ENV_FILE"' in script
+    assert "legacy 8443 reference in hosted download artifacts or runtime env" in script
+    assert "grep -RIlE" in script

@@ -119,6 +119,14 @@ class AuthSessionHttpSurfaceService:
         return text
 
     @staticmethod
+    def _safe_side_effect(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
+        try:
+            fn(*args, **kwargs)
+        except Exception:
+            # Authentication must not fail just because telemetry/audit storage is degraded.
+            pass
+
+    @staticmethod
     def _validate_whitelist(
         payload: dict[str, Any],
         *,
@@ -341,8 +349,9 @@ class AuthSessionHttpSurfaceService:
                 user_agent=self._user_agent(),
             )
         except PermissionError as exc:
-            self._record_login_failure(username)
-            self._audit_event(
+            self._safe_side_effect(self._record_login_failure, username)
+            self._safe_side_effect(
+                self._audit_event,
                 "auth.login",
                 "denied",
                 username=username,
@@ -354,16 +363,18 @@ class AuthSessionHttpSurfaceService:
                 {"ok": False, "error": str(exc), "code": "invalid_totp"},
             )
         if session_payload is None:
-            self._record_login_failure(username)
-            self._audit_event(
+            self._safe_side_effect(self._record_login_failure, username)
+            self._safe_side_effect(
+                self._audit_event,
                 "auth.login",
                 "denied",
                 username=username,
                 remote_addr=self._remote_addr(),
             )
             return self._json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "invalid credentials"})
-        self._record_login_success(username)
-        self._audit_event(
+        self._safe_side_effect(self._record_login_success, username)
+        self._safe_side_effect(
+            self._audit_event,
             "auth.login",
             "success",
             username=str(session_payload.get("user", {}).get("username") or username),

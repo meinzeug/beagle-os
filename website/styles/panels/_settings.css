@@ -84,6 +84,38 @@
 .settings-update-card-unified {
   min-height: 0;
 }
+.settings-firewall-card {
+  min-height: 0;
+  border-color: rgba(125, 224, 255, 0.24);
+  background:
+    radial-gradient(circle at 16% 0%, rgba(125, 224, 255, 0.18), transparent 32%),
+    radial-gradient(circle at 100% 18%, rgba(140, 226, 109, 0.13), transparent 30%),
+    linear-gradient(145deg, rgba(16, 25, 27, 0.97), rgba(8, 10, 12, 0.98));
+}
+.settings-firewall-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.settings-firewall-grid {
+  grid-template-columns: minmax(0, 1.25fr) minmax(240px, 0.75fr) minmax(260px, 1fr);
+}
+.settings-firewall-form {
+  grid-template-columns: 1fr;
+}
+.settings-firewall-form .button {
+  justify-content: center;
+}
+.settings-firewall-table {
+  max-height: 260px;
+  overflow: auto;
+}
+#fw-raw-status {
+  min-height: 148px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+}
 .settings-update-unified-actions {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -349,6 +381,12 @@ body.light-mode .settings-update-card {
     linear-gradient(145deg, rgba(255, 251, 241, 0.96), rgba(245, 238, 222, 0.98));
   box-shadow: 0 22px 48px rgba(82, 59, 20, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.80);
 }
+body.light-mode .settings-firewall-card {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(31, 126, 155, 0.16), transparent 32%),
+    radial-gradient(circle at 100% 18%, rgba(41, 135, 83, 0.12), transparent 30%),
+    linear-gradient(145deg, rgba(243, 249, 249, 0.96), rgba(236, 242, 239, 0.98));
+}
 body.light-mode .settings-update-metric,
 body.light-mode .settings-update-switch,
 body.light-mode .settings-update-details,
@@ -567,6 +605,7 @@ body.light-mode .settings-build-activity {
   .settings-update-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .settings-update-unified-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .settings-update-unified-grid { grid-template-columns: 1fr; }
+  .settings-firewall-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
   .settings-update-card { padding: 16px; }
@@ -575,8 +614,10 @@ body.light-mode .settings-build-activity {
   .settings-update-metrics { grid-template-columns: 1fr 1fr; }
   .settings-update-card .settings-update-actions .button { flex-basis: 100%; }
   .settings-update-unified-actions { grid-template-columns: 1fr; }
+  .settings-firewall-metrics { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 520px) {
   .settings-update-metrics { grid-template-columns: 1fr; }
   .settings-update-card-head { grid-template-columns: 1fr; }
+  .settings-firewall-metrics { grid-template-columns: 1fr; }
 }

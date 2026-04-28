@@ -83,6 +83,32 @@ require_tool() {
   fi
 }
 
+clean_stale_npm_rename_dirs() {
+  local modules_dir="$1"
+  [[ -d "$modules_dir" ]] || return 0
+  find "$modules_dir" -mindepth 1 -maxdepth 1 -type d -name '.*-*' -exec rm -rf {} + 2>/dev/null || true
+}
+
+install_kiosk_node_modules() {
+  local npm_log
+  npm_log="$(mktemp)"
+  clean_stale_npm_rename_dirs "$ROOT_DIR/beagle-kiosk/node_modules"
+  if npm install 2> >(tee "$npm_log" >&2); then
+    rm -f "$npm_log"
+    return 0
+  fi
+  if grep -Eq 'ENOTEMPTY|directory not empty|syscall rename' "$npm_log"; then
+    echo "npm install hit stale node_modules rename state; pruning node_modules and retrying once" >&2
+    rm -rf "$ROOT_DIR/beagle-kiosk/node_modules"
+    npm cache verify >/dev/null 2>&1 || true
+    rm -f "$npm_log"
+    npm install
+    return 0
+  fi
+  rm -f "$npm_log"
+  return 1
+}
+
 require_tool zip
 require_tool tar
 require_tool sha256sum
@@ -211,7 +237,7 @@ if [[ "$SKIP_KIOSK_BUILD" != "1" ]]; then
   rm -rf "$KIOSK_DIST_DIR"
   (
     cd "$ROOT_DIR/beagle-kiosk"
-    npm install
+    install_kiosk_node_modules
     npm run dist
     npm run release-metadata -- "dist/$KIOSK_APPIMAGE_NAME" "$PUBLIC_UPDATE_BASE_URL/$KIOSK_APPIMAGE_NAME"
   )

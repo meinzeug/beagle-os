@@ -4276,3 +4276,61 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - invalid installer-log token returns `401`
 - GitHub release workflow hardening:
   - `release.yml` no longer uploads `dist/sbom/SHA256SUMS` as a second asset named `SHA256SUMS`; the root release checksum file remains authoritative.
+
+## 2026-04-27 - GoRelease freigabeplan angelegt
+
+- `docs/goenterprise/` bleibt unveraendert als Feature-/Architekturquelle.
+- Neues Verzeichnis `docs/gorelease/` angelegt fuer Enterprise-GA, Security-Freigabe und Hardware-Abnahme.
+
+## Update (2026-04-27, GoRelease lokale Validierung der Download-/Installer-Gates)
+
+- Lokale Regressionstests fuer die GoRelease-Download- und Installer-Gates sind gruen:
+  - `tests/unit/test_public_download_url_regressions.py`
+  - `tests/unit/test_installer_script.py`
+  - `tests/unit/test_installer_log_service.py`
+- Bestätigt wurden dabei:
+  - default-hosted URLs ohne explizites `:443`
+  - installer-scoped Log-Token / Session / Endpoint-Injektion
+  - installer log intake mit Redaction und Token-Validation
+- Die zugehoerigen GoRelease-Checkboxen in `docs/gorelease/01-security-gates.md`, `03-end-to-end-validation.md` und `04-release-pipeline.md` wurden auf `[x]` gesetzt.
+
+## Update (2026-04-27, GoRelease E3/S1 konkrete Fixes)
+
+- USB-Installer: `thin-client-assistant/usb/usb_writer_bootstrap.sh` speichert den geladenen Bootstrap-/Payload-Tarball im Cache; `thin-client-assistant/usb/install_payload_assets.sh` verwendet denselben Tarball im Installpfad wieder, bevor ein Remote-Download versucht wird.
+- Damit ist der doppelte Download derselben Payload zwischen USB-Erstellung und Installationsmenue repo-seitig behoben und per `tests/unit/test_usb_payload_resolution_regressions.py` abgesichert.
+- Auth/Login: `beagle-host/services/auth_session_http_surface.py` kapselt Audit-/Login-Tracking-Side-Effects, damit ein defekter Audit-/Telemetry-Store den Login nicht mehr als `500` abbrechen kann.
+- Regressions:
+  - `tests/unit/test_auth_session_http_surface.py`
+  - `tests/unit/test_usb_payload_resolution_regressions.py`
+- Validiert lokal:
+  - `pytest -q tests/unit/test_auth_session_http_surface.py tests/unit/test_usb_payload_resolution_regressions.py tests/unit/test_public_download_url_regressions.py tests/unit/test_installer_script.py tests/unit/test_installer_log_service.py` -> 13 passed
+  - `bash -n thin-client-assistant/usb/usb_writer_bootstrap.sh thin-client-assistant/usb/install_payload_assets.sh`
+  - `git diff --check`
+- GoRelease definiert Release-Stufen `R0` bis `R4`, harte Security-Gates, End-to-End-Gates, Release-Pipeline-Gates und Betriebs-/Compliance-Gates.
+- Hardware-Matrix ergaenzt:
+  - kleine 2-4 Core Hetzner VMs fuer Control Plane, WebUI, Auth, Update und Zwei-Node-Smokes ohne echte KVM-Abnahme
+  - dedizierte CPU-Server fuer Bare-Metal/KVM/VM/Backup/Restore
+  - kurzzeitig gemietete GPU-Server fuer Passthrough, NVENC, Gaming-Pools und vGPU/MDEV-Abnahmen
+
+## Update (2026-04-27, srv1 Firewall-/Download-Gate)
+
+- Neue reproduzierbare Host-Firewall-Baseline:
+  - `scripts/apply-beagle-firewall.sh` schreibt und aktiviert `table inet beagle_guard` ohne fremde libvirt-/Stream-Tabellen zu flushen.
+  - Erlaubt Host-Ingress `22/80/443`, Cluster `9088/9089` nur lokal, von VM-Bridges und von erkannten Peer-Allowlists, VM-Forwarding nur fuer Bridge-Egress oder explizite DNAT-Stream-Regeln.
+  - `scripts/install-beagle-host-services.sh` wendet die Baseline bei Host-Install/Repo-Update automatisch an.
+  - Server-Live- und Server-Installer-nftables-Defaults wurden auf dieselbe Beagle-Guard-Policy angepasst.
+- WebUI Firewall modernisiert:
+  - Settings-Firewall nutzt jetzt das animierte Updates-Karten-/Flow-Layout.
+  - Settings-API liest/schreibt Beagle nftables statt UFW und akzeptiert nur validierte Port-Regeln.
+- Live `srv1`:
+  - `scripts/apply-beagle-firewall.sh --enable` aktiv, `systemctl is-active nftables` = `active`.
+  - Externe Portprobe: `22/80/443` offen, `9088/9089` geschlossen.
+  - `scripts/check-beagle-host.sh` erfolgreich, inklusive `no legacy 8443`, `Beagle nftables guard is active`, Download-HTTP-Smokes und Status-JSON.
+  - Hosted Installer/Live-USB-Skripte enthalten `BOOTSTRAP_CACHE_DIR` und `443`-URLs ohne `8443`.
+- Build-Self-Heal:
+  - `scripts/package.sh` bereinigt stale npm-Rename-Verzeichnisse und retryt bei `ENOTEMPTY` einmal mit frisch aufgebautem `node_modules`.
+- Validiert:
+  - lokal: `pytest -q tests/unit` -> 1222 passed, 4 subtests passed
+  - lokal: `bash -n` fuer geaenderte Shell-Skripte
+  - lokal: `git diff --check`
+  - `srv1`: Chrome DevTools WebUI-Smoke bis Login-Dialog ohne Console-Fehler

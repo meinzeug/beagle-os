@@ -25,6 +25,13 @@ def test_usb_writer_manifest_records_bundled_payload_relpath() -> None:
     assert '--payload-source-kind bundled-usb' in script
 
 
+def test_install_payload_assets_reuses_bootstrap_cache_before_redownloading() -> None:
+    script = (ROOT_DIR / "thin-client-assistant" / "usb" / "install_payload_assets.sh").read_text(encoding="utf-8")
+
+    assert "PVE_DCV_BOOTSTRAP_CACHE_DIR" in script
+    assert "reusing cached payload tarball" in script
+
+
 def test_live_menu_prefers_payload_source_url_for_api_defaults() -> None:
     script = LIVE_MENU.read_text(encoding="utf-8")
 

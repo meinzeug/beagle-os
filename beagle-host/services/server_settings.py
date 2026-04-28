@@ -3,7 +3,7 @@
 Provides read/write access to server configuration:
 - General (hostname, timezone, server name)
 - Security (TLS/Let's Encrypt, password policy, session settings)
-- Firewall (UFW rules)
+- Firewall (Beagle nftables baseline)
 - Network (interfaces, DNS)
 - Services (systemd service status/restart)
 - Updates (apt update check / apply + repo auto-update)
@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shlex
 import shutil
 import signal
 import socket
@@ -89,6 +88,11 @@ _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES = 1
 _DEFAULT_ARTIFACT_WATCHDOG_ENABLED = True
 _DEFAULT_ARTIFACT_WATCHDOG_MAX_AGE_HOURS = 6
 _DEFAULT_ARTIFACT_WATCHDOG_AUTO_REPAIR = True
+_BEAGLE_FIREWALL_EXTRA_RULES = Path("/etc/beagle/beagle-firewall-extra.rules")
+_SAFE_FIREWALL_PORT_RULE = re.compile(
+    r"^(?P<action>allow|deny|drop)\s+(?P<port>[0-9]{1,5})(?:/(?P<proto>tcp|udp))?$",
+    re.IGNORECASE,
+)
 
 
 
@@ -361,25 +365,80 @@ class ServerSettingsService:
     # Firewall
     # ------------------------------------------------------------------
 
+    def _firewall_script(self) -> Path:
+        return self._install_dir / "scripts" / "apply-beagle-firewall.sh"
+
+    def _read_firewall_extra_rules(self) -> list[str]:
+        try:
+            return [
+                line.strip()
+                for line in _BEAGLE_FIREWALL_EXTRA_RULES.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.strip().startswith("#")
+            ]
+        except OSError:
+            return []
+
+    def _write_firewall_extra_rules(self, rules: list[str]) -> None:
+        _BEAGLE_FIREWALL_EXTRA_RULES.parent.mkdir(parents=True, exist_ok=True)
+        content = "# Managed by Beagle Web Console. Syntax is nft input-chain snippets.\n"
+        content += "\n".join(rules)
+        if rules:
+            content += "\n"
+        tmp = _BEAGLE_FIREWALL_EXTRA_RULES.with_suffix(".tmp")
+        tmp.write_text(content, encoding="utf-8")
+        os.replace(str(tmp), str(_BEAGLE_FIREWALL_EXTRA_RULES))
+        try:
+            os.chmod(str(_BEAGLE_FIREWALL_EXTRA_RULES), 0o600)
+        except OSError:
+            pass
+
+    def _run_firewall_script(self, action: str) -> subprocess.CompletedProcess[str] | None:
+        script = self._firewall_script()
+        if not script.exists():
+            return subprocess.CompletedProcess([str(script), action], 127, "", "firewall script not found")
+        return subprocess.run(
+            [str(script), action],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    def _format_firewall_rule(self, rule: str) -> str:
+        m = _SAFE_FIREWALL_PORT_RULE.match(rule.strip())
+        if not m:
+            raise ValueError("rule must use: allow 443/tcp, allow 53/udp, deny 25/tcp")
+        port = int(m.group("port"))
+        if port < 1 or port > 65535:
+            raise ValueError("port must be between 1 and 65535")
+        proto = (m.group("proto") or "tcp").lower()
+        action = m.group("action").lower()
+        nft_action = "accept" if action == "allow" else "drop"
+        return f"{proto} dport {port} {nft_action}"
+
     def get_firewall(self) -> dict[str, Any]:
-        status = _run_cmd(["ufw", "status"])
+        systemd_state = _run_cmd(["systemctl", "is-active", "nftables"])
+        nft_status = _run_cmd(["nft", "list", "table", "inet", "beagle_guard"])
         rules: list[dict[str, str]] = []
 
-        if status and "Status: active" in status:
-            active = True
-            numbered = _run_cmd(["ufw", "status", "numbered"])
-            if numbered:
-                for line in numbered.splitlines():
-                    m = re.match(r"\[\s*(\d+)\]\s+(.+)", line)
-                    if m:
-                        rules.append({"number": m.group(1), "rule": m.group(2).strip()})
-        else:
-            active = False
+        active = bool(nft_status and "table inet beagle_guard" in nft_status)
+        for idx, line in enumerate(self._read_firewall_extra_rules(), start=1):
+            rules.append({"number": str(idx), "rule": line})
+
+        raw_lines = []
+        if nft_status:
+            for line in nft_status.splitlines():
+                line = line.strip()
+                if not line or line in {"{", "}"}:
+                    continue
+                raw_lines.append(line)
 
         return {
             "active": active,
+            "engine": "nftables",
+            "service_active": systemd_state == "active",
+            "guard_table": active,
             "rules": rules,
-            "raw_status": (status or "")[:2000],
+            "raw_status": "\n".join(raw_lines)[:4000],
         }
 
     def update_firewall(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -387,49 +446,47 @@ class ServerSettingsService:
         errors: list[str] = []
 
         if action == "enable":
-            r = subprocess.run(
-                ["ufw", "--force", "enable"],
-                capture_output=True, text=True, timeout=30
-            )
-            if r.returncode != 0:
-                errors.append(f"ufw enable failed: {r.stderr.strip()[:200]}")
+            r = self._run_firewall_script("--enable")
+            if r is None or r.returncode != 0:
+                errors.append(f"firewall enable failed: {((r.stderr if r else '') or '').strip()[:200]}")
 
         elif action == "disable":
-            r = subprocess.run(
-                ["ufw", "disable"],
-                capture_output=True, text=True, timeout=30
-            )
-            if r.returncode != 0:
-                errors.append(f"ufw disable failed: {r.stderr.strip()[:200]}")
+            r = self._run_firewall_script("--disable")
+            if r is None or r.returncode != 0:
+                errors.append(f"firewall disable failed: {((r.stderr if r else '') or '').strip()[:200]}")
 
         elif action == "add_rule":
             rule_str = str(payload.get("rule", "")).strip()
             if not rule_str or len(rule_str) > 200:
                 errors.append("invalid rule")
             else:
-                # Parse simple allow/deny port rules
-                parts = shlex.split(rule_str)
-                if not parts:
-                    errors.append("empty rule")
-                else:
-                    cmd = ["ufw"] + parts
-                    r = subprocess.run(
-                        cmd, capture_output=True, text=True, timeout=30
-                    )
-                    if r.returncode != 0:
-                        errors.append(f"ufw rule failed: {r.stderr.strip()[:200]}")
+                try:
+                    nft_rule = self._format_firewall_rule(rule_str)
+                    rules = self._read_firewall_extra_rules()
+                    if nft_rule not in rules:
+                        rules.append(nft_rule)
+                    self._write_firewall_extra_rules(rules)
+                    r = self._run_firewall_script("--enable")
+                    if r is None or r.returncode != 0:
+                        errors.append(f"firewall rule failed: {((r.stderr if r else '') or '').strip()[:200]}")
+                except ValueError as exc:
+                    errors.append(str(exc))
 
         elif action == "delete_rule":
             rule_num = str(payload.get("rule_number", "")).strip()
             if not rule_num.isdigit():
                 errors.append("invalid rule number")
             else:
-                r = subprocess.run(
-                    ["ufw", "--force", "delete", rule_num],
-                    capture_output=True, text=True, timeout=30
-                )
-                if r.returncode != 0:
-                    errors.append(f"ufw delete failed: {r.stderr.strip()[:200]}")
+                idx = int(rule_num) - 1
+                rules = self._read_firewall_extra_rules()
+                if idx < 0 or idx >= len(rules):
+                    errors.append("unknown rule number")
+                else:
+                    del rules[idx]
+                    self._write_firewall_extra_rules(rules)
+                    r = self._run_firewall_script("--enable")
+                    if r is None or r.returncode != 0:
+                        errors.append(f"firewall delete failed: {((r.stderr if r else '') or '').strip()[:200]}")
 
         else:
             errors.append(f"unknown action: {action}")

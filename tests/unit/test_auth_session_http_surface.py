@@ -36,6 +36,11 @@ class _AuthSessionStub:
         }
 
 
+class _FailingAuditHooksStub:
+    def __call__(self, *args, **kwargs):
+        raise RuntimeError("audit store unavailable")
+
+
 class _IdpRegistryStub:
     def payload(self):
         return {"ok": True, "providers": []}
@@ -98,3 +103,17 @@ def test_auth_login_returns_invalid_totp_when_code_missing() -> None:
 
     assert int(response["status"]) == 401
     assert response["payload"]["code"] == "invalid_totp"
+
+
+def test_auth_login_ignores_audit_side_effect_failures() -> None:
+    service = _service(
+        None,
+        read_json_body=lambda: {"username": "alice", "password": "secret123"},
+    )
+    service._audit_event = _FailingAuditHooksStub()  # noqa: SLF001
+    service._record_login_success = _FailingAuditHooksStub()  # noqa: SLF001
+
+    response = service.route_post("/api/v1/auth/login")
+
+    assert int(response["status"]) == 200
+    assert response["payload"]["ok"] is True

@@ -2040,41 +2040,81 @@
           </section>
 
           <!-- ============ SETTINGS: FIREWALL ============ -->
-          <section class="panel-section" id="settings-firewall-section" data-panel-section="settings_firewall">
-            <article class="card">
-              <div class="card-head">
+          <section class="panel-section settings-update-grid" id="settings-firewall-section" data-panel-section="settings_firewall">
+            <article class="card settings-update-card settings-firewall-card" id="settings-firewall-card">
+              <div class="settings-update-card-glow" aria-hidden="true"></div>
+              <div class="settings-update-card-head">
+                <div class="settings-update-card-icon">FW</div>
                 <div>
                   <span class="eyebrow">Server-Einstellungen</span>
                   <h2>Firewall</h2>
+                  <p>Nftables-Guard, Host-Ingress und VM-Forwarding werden als Beagle-Baseline verwaltet.</p>
                 </div>
-                <button class="button ghost small" id="settings-firewall-refresh" type="button">Refresh</button>
+                <div class="settings-update-card-pulse is-running" id="settings-firewall-pulse"><span></span><small>Pruefung</small></div>
               </div>
-              <div class="settings-section-group">
-                <div class="settings-info-grid">
-                  <div class="info-item"><span class="info-label">Status</span><span class="info-value" id="fw-status">—</span></div>
+
+              <div class="settings-update-console is-checking" id="settings-firewall-console">
+                <div class="settings-update-scanline" aria-hidden="true"></div>
+                <div class="settings-update-console-head">
+                  <div>
+                    <h3 id="fw-console-title">Firewall wird geladen</h3>
+                    <p id="fw-console-subtitle">Die Host-Regeln werden beim Oeffnen der Seite abgefragt.</p>
+                  </div>
+                  <span class="settings-update-mode is-off" id="fw-status">—</span>
                 </div>
-                <div class="button-row">
-                  <button class="button primary" id="fw-enable" type="button">Firewall aktivieren</button>
-                  <button class="button danger" id="fw-disable" type="button">Firewall deaktivieren</button>
-                </div>
-              </div>
-              <div class="settings-section-group">
-                <h3>Regeln</h3>
-                <div class="table-wrap compact">
-                  <table class="vm-table compact-table">
-                    <thead><tr><th>#</th><th>Regel</th><th>Aktion</th></tr></thead>
-                    <tbody id="fw-rules-body"><tr><td colspan="3" class="empty-cell">Keine Regeln geladen.</td></tr></tbody>
-                  </table>
-                </div>
-              </div>
-              <div class="settings-section-group">
-                <h3>Regel hinzufuegen</h3>
-                <div class="settings-form">
-                  <label class="field field-wide"><span>Regel (z.B. "allow 443/tcp")</span><input id="fw-new-rule" type="text" placeholder="allow 443/tcp"></label>
-                  <div class="button-row">
-                    <button class="button primary" id="fw-add-rule" type="button">Regel hinzufuegen</button>
+                <div class="settings-update-flow">
+                  <div class="settings-update-flow-node is-idle" id="fw-flow-host">
+                    <span class="settings-update-flow-dot" aria-hidden="true"></span>
+                    <span class="settings-update-flow-label">Host</span>
+                    <strong id="fw-host-state">wartet</strong>
+                  </div>
+                  <div class="settings-update-flow-node is-idle" id="fw-flow-cluster">
+                    <span class="settings-update-flow-dot" aria-hidden="true"></span>
+                    <span class="settings-update-flow-label">Cluster</span>
+                    <strong id="fw-cluster-state">wartet</strong>
+                  </div>
+                  <div class="settings-update-flow-node is-idle" id="fw-flow-vm">
+                    <span class="settings-update-flow-dot" aria-hidden="true"></span>
+                    <span class="settings-update-flow-label">VMs</span>
+                    <strong id="fw-vm-state">wartet</strong>
                   </div>
                 </div>
+              </div>
+
+              <div class="settings-update-metrics settings-firewall-metrics">
+                <div class="settings-update-metric is-primary"><span>Guard</span><strong id="fw-guard-state">—</strong></div>
+                <div class="settings-update-metric"><span>Engine</span><strong id="fw-engine">—</strong></div>
+                <div class="settings-update-metric"><span>Service</span><strong id="fw-service-state">—</strong></div>
+                <div class="settings-update-metric"><span>Custom Rules</span><strong id="fw-rule-count">—</strong></div>
+              </div>
+
+              <div class="settings-update-unified-actions settings-firewall-actions">
+                <button class="button ghost" id="settings-firewall-refresh" type="button">Alles neu laden</button>
+                <button class="button primary" id="fw-enable" type="button">Baseline anwenden</button>
+                <button class="button danger" id="fw-disable" type="button">Guard deaktivieren</button>
+              </div>
+
+              <div class="settings-update-unified-grid settings-firewall-grid">
+                <section class="settings-update-unified-block">
+                  <h3>Regeln</h3>
+                  <div class="table-wrap compact settings-firewall-table">
+                    <table class="vm-table compact-table">
+                      <thead><tr><th>#</th><th>Regel</th><th>Aktion</th></tr></thead>
+                      <tbody id="fw-rules-body"><tr><td colspan="3" class="empty-cell">Keine Regeln geladen.</td></tr></tbody>
+                    </table>
+                  </div>
+                </section>
+                <section class="settings-update-unified-block">
+                  <h3>Regel hinzufuegen</h3>
+                  <div class="settings-form settings-firewall-form">
+                    <label class="field field-wide"><span>Regel</span><input id="fw-new-rule" type="text" placeholder="allow 443/tcp"></label>
+                    <button class="button primary" id="fw-add-rule" type="button">Hinzufuegen</button>
+                  </div>
+                </section>
+                <section class="settings-update-unified-block">
+                  <h3>Status</h3>
+                  <div class="settings-update-status-banner" id="fw-raw-status">Noch kein Status geladen.</div>
+                </section>
               </div>
             </article>
           </section>

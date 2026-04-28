@@ -900,11 +900,10 @@ SYSCTLEOF
   # nftables: basic stateful firewall
   cat >"$TARGET_MOUNT/etc/nftables.conf" <<NFTEOF
 #!/usr/sbin/nft -f
-flush ruleset
 
-table inet filter {
+table inet beagle_guard {
   chain input {
-    type filter hook input priority 0; policy drop;
+    type filter hook input priority -20; policy drop;
     ct state invalid drop
     ct state { established, related } accept
     iifname lo accept
@@ -912,14 +911,20 @@ table inet filter {
     ip6 nexthdr icmpv6 accept
     # SSH (hardened), Beagle Web UI and API/download ingress
     tcp dport 22 ct state new limit rate 30/minute burst 30 packets accept
-    tcp dport 443 ct state new limit rate 300/minute burst 300 packets accept
+    tcp dport { 80, 443 } ct state new limit rate 300/minute burst 300 packets accept
+    iifname { "virbr10", "virbr0" } udp dport { 53, 67 } accept
+    iifname { "virbr10", "virbr0" } tcp dport 53 accept
+    iifname { "virbr10", "virbr0" } tcp dport { 9088, 9089 } accept
   }
   chain forward {
-    type filter hook forward priority 0; policy drop;
+    type filter hook forward priority -20; policy drop;
+    ct state invalid drop
     ct state { established, related } accept
+    iifname { "virbr10", "virbr0" } accept
+    ct status dnat oifname { "virbr10", "virbr0" } accept
   }
   chain output {
-    type filter hook output priority 0; policy accept;
+    type filter hook output priority -20; policy accept;
   }
 }
 NFTEOF

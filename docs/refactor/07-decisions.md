@@ -296,6 +296,24 @@ Stand: 2026-04-13
 - Konsequenz: Die SBOM-interne `SHA256SUMS` bleibt im Workflow-Artefakt, wird aber nicht als separates Release-Asset hochgeladen. Die root `dist/SHA256SUMS` bleibt das veroeffentlichte Checksummen-Manifest.
 - Dateien: `.github/workflows/release.yml`.
 
+## D-049: GoRelease ist Freigabe-Gate, GoEnterprise bleibt Architekturquelle
+
+- Entscheidung: `docs/goenterprise/` wird nicht durch Security-/Release-Gates ersetzt, weil dort weiterhin beschrieben ist, wie Enterprise-Funktionen gebaut sind.
+- Entscheidung: Firmenfreigabe, Security-GA, Hardware-Abnahme und Release-Prozess liegen ab sofort in `docs/gorelease/`.
+- Grund: Feature-Fertigstellung und Unternehmensfreigabe sind unterschiedliche Ebenen. Eine Funktion kann gebaut sein, ohne fuer produktive Firmenumgebungen freigegeben zu sein.
+- Konsequenz: Vor jeder Aussage wie "firmentauglich", "Enterprise Candidate" oder "Enterprise GA" muessen die passenden GoRelease-Gates geprueft werden.
+- Konsequenz: Hardware wird kostenbewusst gebucht: kleine 2-4 Core Hetzner VMs fuer Dauer-Smokes, dedizierte CPU-Hosts fuer KVM/Bare-Metal und kurzzeitig gemietete GPU-Server nur fuer GPU-Gates.
+- Dateien: `docs/gorelease/00-index.md`, `docs/gorelease/01-security-gates.md`, `docs/gorelease/02-hardware-test-matrix.md`, `docs/gorelease/03-end-to-end-validation.md`, `docs/gorelease/04-release-pipeline.md`, `docs/gorelease/05-operations-compliance.md`.
+
+## D-050: Host-Firewall ist Beagle-Guard-Baseline, nicht UFW
+
+- Entscheidung: Frische und aktualisierte Beagle-Server aktivieren eine eigene nftables-Tabelle `inet beagle_guard` als Default-Drop-Baseline.
+- Entscheidung: Die Baseline wird additiv geladen und darf libvirt-/Stream-Reconciler-Tabellen nicht per `flush ruleset` entfernen.
+- Entscheidung: WebUI-Settings fuer Firewall sprechen die Beagle-nftables-Baseline an; UFW ist kein Runtime-Backend mehr.
+- Grund: Der Server muss von Beginn an geschuetzt sein und VM-Regeln duerfen dynamisch erweitert werden, ohne SSH/WebUI, libvirt NAT oder explizite Stream-DNATs zu zerstoeren.
+- Konsequenz: `22/80/443` sind die einzigen allgemeinen Public-Host-Ports. `9088/9089` sind nur lokal, von VM-Bridges oder konfigurierten/erkannten Cluster-Peers erlaubt. VM-Forwarding ist Bridge-Egress oder explizit DNAT-getriggert.
+- Dateien: `scripts/apply-beagle-firewall.sh`, `scripts/install-beagle-host-services.sh`, `scripts/check-beagle-host.sh`, `beagle-host/services/server_settings.py`, `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-live-server-bootstrap`, `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`.
+
 ## 2026-04-26 - Cluster Leave und Virtualization Overview bleiben leader-/cluster-autoritativ
 
 - Ein Cluster-Mitglied darf seinen lokalen Cluster-State loeschen, aber nicht den Leader-State still implizit veraendern.
