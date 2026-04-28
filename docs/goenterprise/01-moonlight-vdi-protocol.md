@@ -106,7 +106,7 @@ Hardware: AMD mit `aes` + `avx2` + `vaes` + `vpclmulqdq` — vollständig hardwa
   - Akzeptiert HMAC-Token statt PIN (Token vom Broker, 60s gültig, einmal-verwendbar)
   - Verwirft Verbindung wenn `network_mode=vpn_required` und kein WireGuard-Interface aktiv
 - [ ] Build: `.deb`-Paket `beagle-stream-server` (ersetzt `sunshine.deb` in VM-Images)
-- [ ] Tests: `tests/unit/test_beagle_stream_server_api.py`
+- [x] Tests: `tests/unit/test_beagle_stream_server_api.py`
 
 ### Schritt 2 — Fork: beagle-stream-client (Moonlight-Fork)
 
@@ -255,6 +255,16 @@ Wichtig:
 - Neue/erweiterte Regressionen:
   - `tests/unit/test_stream_http_surface.py`
   - `tests/unit/test_stream_policy.py`
+
+## Update (2026-04-28, Plan 01: dedizierte Beagle-Stream-Server-API-Contract-Tests hinzugefuegt)
+
+- Die offene Schritt-1-Test-Checkbox ist jetzt als dedizierter Contract-Scope hinterlegt:
+  - `tests/unit/test_beagle_stream_server_api.py`
+- Die Suite prueft aus Sicht des spaeteren Stream-Servers die drei Kernfluesse gegen den aktuellen Control-Plane-Slice:
+  - `POST /api/v1/streams/register` (inkl. Rueckgabe der API-Links)
+  - `GET /api/v1/streams/{vm_id}/config` (Policy- und Runtime-Config)
+  - `POST /api/v1/streams/{vm_id}/events` (Audit-Event-Erzeugung)
+- `vpn_required` wird dabei auch im Contract-Scope gegen einen simulierten Direktzugriff reproduzierbar mit `403` validiert.
 
 ---
 

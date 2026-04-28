@@ -1,3 +1,20 @@
+## Update (2026-04-28, GoEnterprise Plan 01: dedizierte Stream-Server-Contract-Suite)
+
+**Scope**: Die offene Schritt-1-Testpflicht aus Plan 01 wurde als eigene Contract-Suite umgesetzt.
+
+- Tests:
+  - `tests/unit/test_beagle_stream_server_api.py` (neu)
+    - Register-Contract (`POST /api/v1/streams/register`)
+    - Config-Contract (`GET /api/v1/streams/{vm_id}/config`)
+    - Event-/Audit-Contract (`POST /api/v1/streams/{vm_id}/events`)
+    - `vpn_required`-Ablehnung (`403`) im dedizierten Stream-Server-Scope
+- Doku:
+  - `docs/goenterprise/01-moonlight-vdi-protocol.md`: Checkbox `Tests: tests/unit/test_beagle_stream_server_api.py` auf `[x]`
+
+Wichtig:
+- Das schliesst die Testpflicht im Control-Plane-/Contract-Scope.
+- Offen bleiben weiterhin die Fork-/Build-/Runtime-Punkte fuer den echten `beagle-stream-server`.
+
 ## Update (2026-04-28, GoEnterprise Plan 01: Policy/Audit-Testpflichtpunkte im Control-Plane-Scope geschlossen)
 
 **Scope**: Die offenen Plan-01-Testpflichtpunkte fuer `vpn_required`, `vpn_preferred` und Audit-Events wurden auf dem neuen Stream-Control-Plane-Pfad reproduzierbar geschlossen.
