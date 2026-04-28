@@ -60,3 +60,31 @@ def test_runtime_device_sync_payload_marks_wireguard_state(tmp_path: Path) -> No
     assert payload["device_id"] == "endpoint-001"
     assert payload["vpn"]["active"] is True
     assert payload["vpn"]["assigned_ip"] == "10.88.0.10/32"
+
+
+def test_runtime_device_sync_payload_includes_wipe_report(tmp_path: Path) -> None:
+    bindir = tmp_path / "bin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    _write_stub(
+        bindir / "nproc",
+        "#!/usr/bin/env bash\nprintf '4\\n'\n",
+    )
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "device-wipe-report.json").write_text(
+        json.dumps({"status": "completed", "artifacts_removed": 2}),
+        encoding="utf-8",
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    cmd = (
+        f"source {SCRIPT}\n"
+        f"export BEAGLE_STATE_DIR={state_dir}\n"
+        "runtime_device_sync_payload endpoint-001 thin-01 wg-beagle 0 ''\n"
+    )
+    result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), env=env, text=True, capture_output=True, check=True)
+    payload = json.loads(result.stdout)
+    assert payload["reports"]["wipe"]["status"] == "completed"
+    assert payload["reports"]["wipe"]["artifacts_removed"] == 2

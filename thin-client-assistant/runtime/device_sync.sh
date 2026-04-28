@@ -78,14 +78,43 @@ runtime_wireguard_ip() {
   ip -o -4 addr show dev "$iface" 2>/dev/null | awk '{print $4; exit}' || true
 }
 
+runtime_wipe_report_file_path() {
+  local state_dir
+  state_dir="$(beagle_state_dir)"
+  printf '%s/device-wipe-report.json\n' "$state_dir"
+}
+
+runtime_wipe_report_json() {
+  local wipe_report_file
+  wipe_report_file="${1:-$(runtime_wipe_report_file_path)}"
+  if [[ -r "$wipe_report_file" ]]; then
+    python3 - "$wipe_report_file" <<'PY'
+import json, sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    payload = {}
+if not isinstance(payload, dict):
+    payload = {}
+print(json.dumps(payload))
+PY
+    return 0
+  fi
+  printf '{}\n'
+}
+
 runtime_device_sync_payload() {
   local device_id="${1:-}"
   local hostname_value="${2:-}"
   local wg_iface="${3:-wg-beagle}"
   local wg_active="${4:-0}"
   local wg_ip="${5:-}"
-  local interfaces_json cpu_model cpu_cores ram_gb gpu_model os_version
+  local wipe_report_json interfaces_json cpu_model cpu_cores ram_gb gpu_model os_version
 
+  wipe_report_json="$(runtime_wipe_report_json)"
   interfaces_json="$(runtime_network_interfaces_json)"
   cpu_model="$(runtime_cpu_model)"
   cpu_cores="$(nproc 2>/dev/null || printf '0')"
@@ -93,7 +122,7 @@ runtime_device_sync_payload() {
   gpu_model="$(runtime_gpu_model)"
   os_version="$(runtime_os_version)"
 
-  python3 - "$device_id" "$hostname_value" "$os_version" "$cpu_model" "$cpu_cores" "$ram_gb" "$gpu_model" "$interfaces_json" "$wg_iface" "$wg_active" "$wg_ip" <<'PY'
+  python3 - "$device_id" "$hostname_value" "$os_version" "$cpu_model" "$cpu_cores" "$ram_gb" "$gpu_model" "$interfaces_json" "$wg_iface" "$wg_active" "$wg_ip" "$wipe_report_json" <<'PY'
 import json, sys
 
 payload = {
@@ -115,6 +144,9 @@ payload = {
     },
     "metrics": {
         "streaming_active": False,
+    },
+    "reports": {
+        "wipe": json.loads(sys.argv[12] or "{}"),
     },
 }
 print(json.dumps(payload))

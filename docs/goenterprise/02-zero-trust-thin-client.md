@@ -303,6 +303,41 @@ Restluecke bewusst offen:
   - `tests/unit/test_runtime_session_wrappers.py`
   - `tests/unit/test_device_state_enforcement.py`
 
+## Update 2026-04-28 (Serverseitige Wipe-Reports + automatische Remediation-Actions)
+
+- Control Plane:
+  - `endpoint_http_surface.py` akzeptiert im endpoint-authentifizierten `device/sync` jetzt strukturierte Runtime-Reports unter `reports.*`.
+  - Wipe-Reports werden aus `reports.wipe` direkt in der Device-Registry persistiert und im Device-Payload zurueckgegeben.
+  - `fleet_http_surface.py` liefert in der Effective-Policy-Antwort jetzt neben `remediation_hints` auch maschinenlesbare `remediation_actions`.
+- Thin-Client-Runtime:
+  - `device_sync.sh` liest `device-wipe-report.json` jetzt aktiv ein und sendet den Wipe-Report beim regulaeren Device-Sync mit.
+- WebUI:
+  - `website/ui/fleet_health.js` rendert im Effective-Policy-Panel jetzt auch die automatischen Remediation-Vorschlaege sichtbar.
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_device_registry.py`
+  - `tests/unit/test_endpoint_http_surface.py`
+  - `tests/unit/test_device_sync_runtime.py`
+  - `tests/unit/test_fleet_http_surface.py`
+  - `tests/unit/test_fleet_ui_regressions.py`
+- Validierung:
+  - `bash -n thin-client-assistant/runtime/device_sync.sh`
+  - `node --check website/ui/fleet_health.js`
+  - `python3 -m pytest tests/unit/test_device_registry.py tests/unit/test_endpoint_http_surface.py tests/unit/test_device_sync_runtime.py tests/unit/test_fleet_http_surface.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_mdm_policy.py tests/unit/test_mdm_policy_http_surface.py tests/unit/test_authz_policy.py tests/unit/test_device_lock_screen.py tests/unit/test_runtime_session_wrappers.py tests/unit/test_device_state_enforcement.py tests/unit/test_device_groups.py -q`
+  - Ergebnis: `87 passed`
+
+## Update 2026-04-28 (Remediation-Actions direkt im Fleet-Panel anwendbar)
+
+- WebUI:
+  - `website/ui/fleet_health.js` fuehrt die maschinenlesbaren `remediation_actions` jetzt nicht mehr nur als Hinweise, sondern als direkte Operator-Aktionen.
+  - sofort anwendbare Pfade wie `clear-device-policy-assignment` und `unlock-device` werden direkt aus dem Fleet-Panel ausgefuehrt.
+  - vorbereitende Pfade wie `assign-group` oder `restrict-allowed-*` springen den Operator in den passenden Editor-/Assignment-Flow und geben klare Banner-Hinweise.
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_fleet_ui_regressions.py`
+- Validierung:
+  - `node --check website/ui/fleet_health.js`
+  - `python3 -m pytest tests/unit/test_fleet_ui_regressions.py tests/unit/test_fleet_http_surface.py tests/unit/test_endpoint_http_surface.py tests/unit/test_device_sync_runtime.py tests/unit/test_device_registry.py -q`
+  - Ergebnis: `43 passed`
+
 ---
 
 ## Unique Selling Point vs. Konkurrenz

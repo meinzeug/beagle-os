@@ -42,6 +42,7 @@ class Device:
     wg_public_key: str = ""
     wg_assigned_ip: str = ""
     notes: str = ""
+    last_wipe_report: dict[str, Any] = field(default_factory=dict)
 
 
 def device_hardware_from_dict(d: dict[str, Any]) -> DeviceHardware:
@@ -71,6 +72,7 @@ def device_from_dict(d: dict[str, Any]) -> Device:
         wg_public_key=d.get("wg_public_key", ""),
         wg_assigned_ip=d.get("wg_assigned_ip", ""),
         notes=d.get("notes", ""),
+        last_wipe_report=d.get("last_wipe_report", {}) if isinstance(d.get("last_wipe_report", {}), dict) else {},
     )
 
 
@@ -219,6 +221,12 @@ class DeviceRegistryService:
         dev["vpn_interface"] = ""
         dev["wg_public_key"] = ""
         dev["wg_assigned_ip"] = ""
+        self._save()
+        return device_from_dict(dev)
+
+    def update_wipe_report(self, device_id: str, report: dict[str, Any]) -> Device:
+        dev = self._require(device_id)
+        dev["last_wipe_report"] = dict(report or {})
         self._save()
         return device_from_dict(dev)
 

@@ -70,6 +70,7 @@ def test_register_device_and_fetch_detail(tmp_path: Path) -> None:
     assert detail["status"] == HTTPStatus.OK
     assert detail["payload"]["device"]["hostname"] == "tc-001"
     assert detail["payload"]["device"]["hardware"]["gpu_model"] == "Intel UHD 630"
+    assert detail["payload"]["device"]["last_wipe_report"] == {}
 
 
 def test_list_devices_returns_groups_and_filters(tmp_path: Path) -> None:
@@ -229,6 +230,7 @@ def test_effective_policy_route_reports_assignment_conflicts(tmp_path: Path) -> 
     assert response["payload"]["diagnostics"]["device_policy"]["policy_id"] == "device-policy"
     assert any(entry["field"] == "allowed_pools" for entry in response["payload"]["diagnostics"]["diffs"]["device_vs_group"])
     assert response["payload"]["remediation_hints"]
+    assert response["payload"]["remediation_actions"]
 
 
 def test_bulk_device_action_route_updates_multiple_devices(tmp_path: Path) -> None:

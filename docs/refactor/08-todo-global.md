@@ -16,7 +16,9 @@
 - [x] GoEnterprise Plan 02: Bulk-Device-Operator-Flows jenseits der Policy-Zuweisung nachziehen.
 - [x] GoEnterprise Plan 02: grafischen Sperrbildschirm fuer bereits laufende lokale Sessions im Runtime-Pfad nachziehen.
 - [ ] GoEnterprise Plan 02: grafischen Sperrbildschirm live gegen echte Thin-Client-X11-Session abnehmen und bei Bedarf Wayland-/Multi-Display-Fallback ergaenzen.
-- [ ] GoEnterprise Plan 02: automatische Remediation-Vorschlaege und weitergehende Drift-Hinweise fuer Operatoren nachziehen.
+- [x] GoEnterprise Plan 02: automatische Remediation-Vorschlaege und weitergehende Drift-Hinweise fuer Operatoren nachziehen.
+- [x] GoEnterprise Plan 02: aus den vorhandenen `remediation_actions` echte One-Click-Operator-Flows ableiten.
+- [ ] GoEnterprise Plan 02: auf den One-Click-Remediation-Flows spaetere Auto-Remediation bzw. Drift-Worker aufbauen.
 
 ## Update 2026-04-28 (GoEnterprise Plan 01)
 

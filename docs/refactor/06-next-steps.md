@@ -17,7 +17,7 @@
 
 1. **Plan 02 Wipe vervollstaendigen**: aus dem jetzigen Runtime-/Secret-Wipe einen echten Datentraeger-/TPM-Wipe machen und den Erfolgs-/Fehlerpfad fuer Operatoren sichtbar nachziehen.
 2. **Plan 02 Device-UX nachhaerten**: den neuen grafischen Sperrbildschirm live auf echter Thin-Client-Session abnehmen und bei Bedarf auf mehrere Displays/Wayland-Fallback erweitern.
-3. **Plan 02 Policy-Plane haerten**: automatische Remediation-Vorschlaege und weitergehende Drift-Hinweise fuer Operatoren nachziehen.
+3. **Plan 02 Policy-Plane automatisieren**: auf den neuen One-Click-Remediation-Flows aufbauen und daraus spaetere echte Auto-Remediation bzw. Drift-Worker ableiten.
 4. **Plan 01 Fork-Pfad weiterziehen**: den spaeteren `beagle-stream-server`-Enforcement-Pfad im Sunshine-Fork vorbereiten, obwohl der heutige Broker-Pfad bereits blockiert.
 
 ## Stand (2026-04-27, two-host follow-up)

@@ -56,6 +56,42 @@
   - [tests/unit/test_runtime_session_wrappers.py](/home/dennis/beagle-os/tests/unit/test_runtime_session_wrappers.py)
   - [tests/unit/test_device_state_enforcement.py](/home/dennis/beagle-os/tests/unit/test_device_state_enforcement.py)
 
+## Update (2026-04-28, GoEnterprise Plan 02: Wipe-Reports im Sync-Pfad + automatische Remediation-Actions)
+
+**Scope**: Den naechsten Operator-/Runtime-Slice geschlossen. Runtime-Wipes bleiben nicht mehr nur lokal sichtbar, sondern werden beim regulaeren endpoint-authentifizierten Device-Sync an die Control Plane zurueckgespiegelt; parallel liefert die Effective-Policy-Surface jetzt maschinenlesbare automatische Remediation-Actions fuer UI und spaetere One-Click-Operator-Flows.
+
+- Backend:
+  - [beagle-host/services/device_registry.py](/home/dennis/beagle-os/beagle-host/services/device_registry.py): persistiert `last_wipe_report` pro Device
+  - [beagle-host/services/endpoint_http_surface.py](/home/dennis/beagle-os/beagle-host/services/endpoint_http_surface.py): `device/sync` verarbeitet jetzt `reports.wipe` und gibt `last_wipe_report` im Device-Payload zurueck
+  - [beagle-host/services/fleet_http_surface.py](/home/dennis/beagle-os/beagle-host/services/fleet_http_surface.py): Effective-Policy-Response enthaelt jetzt `remediation_actions`
+- Runtime/WebUI:
+  - [thin-client-assistant/runtime/device_sync.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/device_sync.sh): sendet `device-wipe-report.json` aktiv im Sync-JSON mit
+  - [website/ui/fleet_health.js](/home/dennis/beagle-os/website/ui/fleet_health.js): rendert automatische Remediation-Vorschlaege im Fleet-Panel
+- Regressionen:
+  - [tests/unit/test_device_registry.py](/home/dennis/beagle-os/tests/unit/test_device_registry.py)
+  - [tests/unit/test_endpoint_http_surface.py](/home/dennis/beagle-os/tests/unit/test_endpoint_http_surface.py)
+  - [tests/unit/test_device_sync_runtime.py](/home/dennis/beagle-os/tests/unit/test_device_sync_runtime.py)
+  - [tests/unit/test_fleet_http_surface.py](/home/dennis/beagle-os/tests/unit/test_fleet_http_surface.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+- Validierung:
+  - `bash -n thin-client-assistant/runtime/device_sync.sh`
+  - `node --check website/ui/fleet_health.js`
+  - `python3 -m pytest tests/unit/test_device_registry.py tests/unit/test_endpoint_http_surface.py tests/unit/test_device_sync_runtime.py tests/unit/test_fleet_http_surface.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_mdm_policy.py tests/unit/test_mdm_policy_http_surface.py tests/unit/test_authz_policy.py tests/unit/test_device_lock_screen.py tests/unit/test_runtime_session_wrappers.py tests/unit/test_device_state_enforcement.py tests/unit/test_device_groups.py -q`
+  - Ergebnis: `87 passed`
+
+## Update (2026-04-28, GoEnterprise Plan 02: Remediation-Actions als direkte Operator-Flows)
+
+**Scope**: Den naechsten Operator-Block auf die vorhandenen `remediation_actions` gesetzt. Empfehlungen im Effective-Policy-Panel sind jetzt nicht mehr rein passiv, sondern koennen im Fleet-Panel direkt ausgefuehrt oder in den passenden Policy-/Assignment-Flow ueberfuehrt werden.
+
+- WebUI:
+  - [website/ui/fleet_health.js](/home/dennis/beagle-os/website/ui/fleet_health.js): `Vorschlag anwenden` fuer `clear-device-policy-assignment`, `unlock-device` und vorbereitete Editor-/Assignment-Spruenge fuer die restlichen Remediation-Actions
+- Regressionen:
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+- Validierung:
+  - `node --check website/ui/fleet_health.js`
+  - `python3 -m pytest tests/unit/test_fleet_ui_regressions.py tests/unit/test_fleet_http_surface.py tests/unit/test_endpoint_http_surface.py tests/unit/test_device_sync_runtime.py tests/unit/test_device_registry.py -q`
+  - Ergebnis: `43 passed`
+
 ## Update (2026-04-28, GoEnterprise Plan 02: Standort-Tree + Device-Group-Regressionen)
 
 **Scope**: Den offenen Device-UX-Slice aus Plan 02 weiter geschlossen. Die Fleet-WebUI zeigt jetzt nicht mehr nur eine flache Tabelle, sondern eine verdichtete Standort-/Gruppenansicht fuer Operatoren; ausserdem ist der gruppenbezogene Policy-Pfad mit einer eigenen Testdatei reproduzierbar abgesichert.

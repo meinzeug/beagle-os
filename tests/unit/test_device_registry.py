@@ -167,3 +167,14 @@ def test_confirm_wiped_clears_vpn_state(tmp_path):
     assert wiped.vpn_interface == ""
     assert wiped.wg_public_key == ""
     assert wiped.wg_assigned_ip == ""
+
+
+def test_update_wipe_report_persists_report(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.register_device("dev-001", "k1", HW)
+    report = {"status": "completed", "artifacts_removed": 4}
+    updated = svc.update_wipe_report("dev-001", report)
+    assert updated.last_wipe_report == report
+    reloaded = make_svc(tmp_path).get_device("dev-001")
+    assert reloaded is not None
+    assert reloaded.last_wipe_report == report

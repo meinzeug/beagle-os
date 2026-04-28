@@ -216,6 +216,26 @@ function policyDiffMarkup(diagnostics) {
   return `<div class="grid auto-grid section-spaced-tight">${content}</div>`;
 }
 
+function remediationActionsMarkup(actions) {
+  if (!Array.isArray(actions) || actions.length === 0) {
+    return '<div class="muted">Keine automatischen Vorschlaege.</div>';
+  }
+  return actions.map((item) => {
+    const label = String(item?.label || item?.action || '').trim() || '-';
+    const recommended = item?.recommended ? '<span class="badge tone-ok">empfohlen</span>' : '<span class="badge tone-muted">optional</span>';
+    const target = item?.target_id ? ` <span class="badge tone-info">${escapeHtml(String(item.target_id))}</span>` : '';
+    const action = String(item?.action || '').trim();
+    const targetId = String(item?.target_id || '').trim();
+    return `<div class="card compact-card">
+      <strong>${escapeHtml(label)}</strong> ${recommended}${target}
+      <div class="muted">${escapeHtml(String(item?.action || ''))}</div>
+      <div class="button-row compact-row section-spaced-tight">
+        <button type="button" class="button ghost" data-remediation-action="${escapeHtml(action)}" data-remediation-target-id="${escapeHtml(targetId)}">Vorschlag anwenden</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function policyCards() {
   if (!fleetState.policies.length) {
     return '<div class="empty-card">Noch keine MDM-Policies vorhanden.</div>';
@@ -247,6 +267,7 @@ function policyEditorSection() {
   const selected = fleetState.policies.find((policy) => String(policy.policy_id || '') === selectedPolicyId()) || null;
   const effectiveConflicts = Array.isArray(effective?.conflicts) ? effective.conflicts : [];
   const remediationHints = Array.isArray(effective?.remediation_hints) ? effective.remediation_hints : [];
+  const remediationActions = Array.isArray(effective?.remediation_actions) ? effective.remediation_actions : [];
   return `
     <section class="section-spaced">
       <div class="button-row compact-row section-spaced-tight">
@@ -311,6 +332,7 @@ function policyEditorSection() {
             <div class="section-spaced-tight">${effectiveConflicts.map((item) => `<div class="badge tone-warn">${escapeHtml(String(item || ''))}</div>`).join(' ') || '<div class="muted">Keine Konflikte.</div>'}</div>
             <div class="section-spaced-tight">${policyDiffMarkup(effective?.diagnostics || null)}</div>
             <div class="section-spaced-tight">${remediationHints.map((item) => `<div class="badge tone-info">${escapeHtml(String(item || ''))}</div>`).join(' ') || '<div class="muted">Keine Remediation-Hinweise.</div>'}</div>
+            <div class="section-spaced-tight">${remediationActionsMarkup(remediationActions)}</div>
           </div>
         </div>
       </div>
@@ -481,6 +503,52 @@ async function triggerDeviceAction(deviceId, action) {
   await fleetHooks.loadDashboard({ force: true });
 }
 
+async function applyRemediationAction(action, targetId) {
+  const normalizedAction = String(action || '').trim();
+  const normalizedTargetId = String(targetId || '').trim();
+  if (normalizedTargetId) {
+    const deviceField = qs('fleet-assign-device-id');
+    if (deviceField) {
+      deviceField.value = normalizedTargetId;
+    }
+  }
+
+  if (normalizedAction === 'clear-device-policy-assignment') {
+    await assignPolicy('device', true);
+    return;
+  }
+  if (normalizedAction === 'unlock-device') {
+    await request(`/fleet/devices/${encodeURIComponent(normalizedTargetId)}/unlock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    fleetHooks.setBanner('Remediation ausgefuehrt: Geraet entsperrt.', 'ok');
+    await fleetHooks.loadDashboard({ force: true });
+    return;
+  }
+  if (normalizedAction === 'assign-explicit-policy') {
+    if (!selectedPolicyId()) {
+      throw new Error('Waehle zuerst eine Policy aus');
+    }
+    await assignPolicy('device', false);
+    return;
+  }
+  if (normalizedAction === 'restrict-allowed-pools' || normalizedAction === 'restrict-allowed-networks' || normalizedAction === 'restrict-allowed-codecs') {
+    fleetHooks.setBanner('Remediation vorbereitet: bearbeite die aktuell ausgewaehlte Policy im Editor und speichere sie.', 'info');
+    return;
+  }
+  if (normalizedAction === 'assign-group') {
+    fleetHooks.setBanner('Remediation vorbereitet: trage eine Zielgruppe ein und fuehre "Policy der Gruppe zuweisen" oder "Bulk Gruppe setzen" aus.', 'info');
+    return;
+  }
+  if (normalizedAction === 'await-wipe-confirmation') {
+    fleetHooks.setBanner('Kein API-Schritt noetig: halte das Geraet online, bis der naechste Device-Sync den Wipe bestaetigt.', 'info');
+    return;
+  }
+  throw new Error(`Unbekannte Remediation-Aktion: ${normalizedAction}`);
+}
+
 export async function renderFleetHealth() {
   const container = qs('fleet-health-panel');
   if (!container) return;
@@ -635,6 +703,18 @@ export async function renderFleetHealth() {
         }
       } catch (error) {
         fleetHooks.setBanner('MDM-Policy-Aktion fehlgeschlagen: ' + String(error.message ?? error), 'warn');
+      }
+    });
+  });
+
+  container.querySelectorAll('[data-remediation-action]').forEach((item) => {
+    item.addEventListener('click', async () => {
+      const action = String(item.getAttribute('data-remediation-action') || '').trim();
+      const targetId = String(item.getAttribute('data-remediation-target-id') || '').trim();
+      try {
+        await applyRemediationAction(action, targetId);
+      } catch (error) {
+        fleetHooks.setBanner('Remediation fehlgeschlagen: ' + String(error.message ?? error), 'warn');
       }
     });
   });

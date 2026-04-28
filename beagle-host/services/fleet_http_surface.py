@@ -83,6 +83,27 @@ class FleetHttpSurfaceService:
             hints.append("Halte das Geraet online, bis der naechste Sync den Wipe bestaetigt.")
         return hints
 
+    def _build_remediation_actions(self, *, device: Any, policy_validation: dict[str, Any], conflicts: list[str], diagnostics: dict[str, Any]) -> list[dict[str, Any]]:
+        actions: list[dict[str, Any]] = []
+        if conflicts:
+            actions.append({"action": "clear-device-policy-assignment", "label": "Device-Policy-Zuweisung loeschen", "target_type": "device", "target_id": str(getattr(device, "device_id", "") or ""), "recommended": True})
+        if str(getattr(device, "group", "") or "").strip() == "":
+            actions.append({"action": "assign-group", "label": "Geraet einer Gruppe zuordnen", "target_type": "device", "target_id": str(getattr(device, "device_id", "") or ""), "recommended": True})
+        if str(diagnostics.get("effective_source_type") or "") == "default":
+            actions.append({"action": "assign-explicit-policy", "label": "Explizite Policy zuweisen", "target_type": "device", "target_id": str(getattr(device, "device_id", "") or ""), "recommended": True})
+        warnings = list(policy_validation.get("warnings") or [])
+        if any("allows all pools" in str(item) for item in warnings):
+            actions.append({"action": "restrict-allowed-pools", "label": "Allowed Pools eingrenzen", "recommended": False})
+        if any("allows all networks" in str(item) for item in warnings):
+            actions.append({"action": "restrict-allowed-networks", "label": "Allowed Networks eingrenzen", "recommended": False})
+        if any("allows all codecs" in str(item) for item in warnings):
+            actions.append({"action": "restrict-allowed-codecs", "label": "Allowed Codecs eingrenzen", "recommended": False})
+        if str(getattr(device, "status", "") or "") == "locked":
+            actions.append({"action": "unlock-device", "label": "Geraet entsperren", "target_type": "device", "target_id": str(getattr(device, "device_id", "") or ""), "recommended": False})
+        if str(getattr(device, "status", "") or "") == "wipe_pending":
+            actions.append({"action": "await-wipe-confirmation", "label": "Wipe-Bestaetigung abwarten", "recommended": True})
+        return actions
+
     @staticmethod
     def _hardware_to_dict(hardware: Any) -> dict[str, Any]:
         return {
@@ -111,6 +132,7 @@ class FleetHttpSurfaceService:
             "wg_public_key": str(getattr(device, "wg_public_key", "") or ""),
             "wg_assigned_ip": str(getattr(device, "wg_assigned_ip", "") or ""),
             "notes": str(getattr(device, "notes", "") or ""),
+            "last_wipe_report": dict(getattr(device, "last_wipe_report", {}) or {}),
         }
 
     def handles_get(self, path: str) -> bool:
@@ -173,6 +195,12 @@ class FleetHttpSurfaceService:
                 conflicts=conflicts,
                 diagnostics=diagnostics,
             )
+            remediation_actions = self._build_remediation_actions(
+                device=device,
+                policy_validation=policy_validation,
+                conflicts=conflicts,
+                diagnostics=diagnostics,
+            )
             return self._json(
                 HTTPStatus.OK,
                 {
@@ -185,6 +213,7 @@ class FleetHttpSurfaceService:
                         conflicts=conflicts,
                         diagnostics=diagnostics,
                         remediation_hints=remediation_hints,
+                        remediation_actions=remediation_actions,
                         policy={
                             "policy_id": str(getattr(policy, "policy_id", "") or ""),
                             "name": str(getattr(policy, "name", "") or ""),

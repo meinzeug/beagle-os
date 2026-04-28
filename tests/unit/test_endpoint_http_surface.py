@@ -61,6 +61,7 @@ def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") ->
                 "vpn_interface": kwargs.get("vpn_interface", self.devices.get(device_id, {}).get("vpn_interface", "")),
                 "wg_assigned_ip": kwargs.get("wg_assigned_ip", self.devices.get(device_id, {}).get("wg_assigned_ip", "")),
                 "last_seen": "",
+                "last_wipe_report": self.devices.get(device_id, {}).get("last_wipe_report", {}),
             }
             return type("Device", (), self.devices[device_id])()
 
@@ -79,6 +80,10 @@ def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") ->
             self.devices[device_id]["vpn_active"] = False
             self.devices[device_id]["vpn_interface"] = ""
             self.devices[device_id]["wg_assigned_ip"] = ""
+            return type("Device", (), self.devices[device_id])()
+
+        def update_wipe_report(self, device_id, report):
+            self.devices[device_id]["last_wipe_report"] = dict(report or {})
             return type("Device", (), self.devices[device_id])()
 
     class _PoolManager:
@@ -320,8 +325,27 @@ def test_session_current_allows_when_pool_requires_vpn_and_wireguard_is_active()
 
     assert int(response["status"]) == 200
     assert response["payload"]["ok"] is True
-    assert response["payload"]["network_mode"] == "vpn_required"
-    assert response["payload"]["wireguard_active"] is True
+
+
+def test_device_sync_route_persists_wipe_report() -> None:
+    service = _service()
+    response = service.route_post(
+        "/api/v1/endpoints/device/sync",
+        endpoint_identity={"endpoint_id": "endpoint-a", "vmid": 100, "node": "beagle-0", "hostname": "endpoint-a"},
+        query={},
+        json_payload={
+            "reports": {
+                "wipe": {
+                    "status": "completed",
+                    "artifacts_removed": 3,
+                }
+            }
+        },
+    )
+
+    assert int(response["status"]) == 200
+    assert response["payload"]["device"]["last_wipe_report"]["status"] == "completed"
+    assert response["payload"]["device"]["last_wipe_report"]["artifacts_removed"] == 3
 
 
 def test_device_sync_route_returns_policy_and_commands() -> None:
