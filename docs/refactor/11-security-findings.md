@@ -1,6 +1,30 @@
 # Security Findings
 
-Stand: 2026-04-28 (ergänzt: S-029 VPN-Bypass im Session-Broker geschlossen, Lock/Wipe-Runtime erzwungen)
+Stand: 2026-04-28 (ergänzt: S-031 WebUI-CSP-Inline-Styles geschlossen)
+
+## S-031 — WebUI erzeugte CSP-verbotene Inline-Style-Attribute (PATCHED)
+
+- Status: **gepatcht** (2026-04-28)
+- Risiko: **Niedrig bis Mittel**
+- Betroffene Dateien:
+  - `website/ui/scheduler_insights.js`
+  - `website/ui/energy_dashboard.js`
+  - `website/ui/gpu_dashboard.js`
+  - `website/ui/settings.js`
+  - `website/ui/cluster.js`
+  - `website/ui/virtualization.js`
+  - `website/styles/_helpers.css`
+  - `website/styles/panels/_cluster.css`
+  - `website/styles/panels/_settings.css`
+  - `website/styles/panels/_virtualization.css`
+- Beschreibung:
+  - Die produktive CSP erlaubt Styles nur aus `self`.
+  - Mehrere WebUI-Renderer erzeugten dennoch HTML-Strings mit `style="..."` fuer Heatmaps, Balken, Grid-Layouts und Statusmeldungen.
+  - Das fuehrte zu Browser-Console-Fehlern und untergrub die Absicht der strikten CSP, Inline-Style-Ausnahmen nicht still wieder einzufuehren.
+- Fix:
+  - Inline-Style-Attribute wurden durch CSS-Klassen und feste Prozent-/Heatmap-Buckets ersetzt.
+  - Die CSP bleibt strikt; es wurde kein `unsafe-inline` ergaenzt.
+  - Repo-Check `rg -n "style=|setAttribute\\(['\"]style|cssText|<style" website ...` liefert keine Treffer mehr.
 
 ## S-030 — Geschuetzte Settings-Telemetrie wurde vor Login browserseitig vorab angefragt (PATCHED)
 

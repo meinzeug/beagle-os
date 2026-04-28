@@ -1,5 +1,6 @@
 # Global TODO
 
+- [x] WebUI-CSP-Drift beheben: keine `style="..."`-Attribute mehr in generierten Frontend-HTML-Strings fuer Scheduler-/Energy-/GPU-/Settings-/Cluster-/Virtualization-UI.
 - [x] WebUI-Auth-/RBAC-Drift fuer Scheduler-/Kosten-/Energie-Panels beheben: keine unautorisierten Bootstrap-Requests ohne Login, Read-Gates auf `settings:read`, Write-Gates auf `settings:write`.
 
 ## Update 2026-04-28 (GoEnterprise Plan 04/05/09)

@@ -1,3 +1,18 @@
+## Update (2026-04-28, WebUI CSP inline-style fix fuer srv1)
+
+**Scope**: Nach dem Auth-Gating-Fix blieb in der Browser-Console ein realer Frontend-Restfehler: mehrere WebUI-Module erzeugten HTML mit `style="..."`-Attributen und verletzten damit die produktive CSP `style-src 'self'`.
+
+- Frontend:
+  - `website/ui/scheduler_insights.js`, `website/ui/energy_dashboard.js`, `website/ui/gpu_dashboard.js`
+    - dynamische Inline-Styles fuer Heatmaps und Auslastungsbalken durch feste CSS-Klassen/Buckets ersetzt.
+  - `website/ui/settings.js`, `website/ui/cluster.js`, `website/ui/virtualization.js`
+    - verbliebene Inline-Style-Attribute fuer Restore-Meldungen, Job-Progress-Initialzustand und mdev-Aktionsbuttons entfernt.
+  - `website/styles/_helpers.css`, `website/styles/panels/_cluster.css`, `website/styles/panels/_settings.css`, `website/styles/panels/_virtualization.css`
+    - CSP-konforme Klassen fuer Balken, Heatmap-Level, Green-Hours-Kacheln, Wide-Grid-Labels und Statusfarben ergaenzt.
+- Verifikation:
+  - `rg -n "style=|setAttribute\\(['\"]style|cssText|<style" website ...` liefert keine Treffer mehr.
+  - Syntax-Checks der geaenderten ES-Module mit `node --experimental-default-type=module --check ...` erfolgreich.
+
 ## Update (2026-04-28, WebUI auth gating fix fuer Scheduler/Kosten/Energie live auf `srv1`)
 
 **Scope**: Die WebUI hat geschuetzte Settings-/Telemetry-Endpunkte (`/scheduler/insights`, `/costs/*`, `/energy/*`) bereits vor erfolgreichem Login angefragt und dadurch auf `srv1` sofort sichtbare `401 Unauthorized`-Fehler erzeugt. Gleichzeitig wurden Schreibaktionen in diesen Panels browserseitig nicht an `settings:write` gespiegelt.

@@ -13,6 +13,7 @@
 .gpu-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .gpu-card-meta { display: flex; flex-wrap: wrap; gap: 6px; color: var(--text-muted); font-size: 0.78rem; }
 .gpu-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border); }
+.mdev-assign-button { margin-right: 4px; }
 .gpu-readiness-note { padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--bg-elevated) 82%, transparent); border: 1px solid var(--border); }
 .gpu-readiness-note strong { display: block; margin-bottom: 4px; }
 .gpu-subcard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }

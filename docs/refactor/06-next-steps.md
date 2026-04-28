@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-28, WebUI CSP inline-style fix)
+
+**Zuletzt erledigt**:
+- Die verbliebenen WebUI-CSP-Fehler durch `style="..."`-Attribute wurden im Repo entfernt; Heatmaps, Green-Hours-Kacheln, Bars und Statusmeldungen nutzen jetzt Klassen statt Inline-Styles.
+
+**Naechste konkrete Schritte**:
+
+1. Fix auf `srv1` ausrollen und mit Chrome DevTools MCP nach Login gegen die Console verifizieren.
+2. Danach denselben Asset-Stand auf `srv2` spiegeln, falls der Host die WebUI ebenfalls live ausliefert.
+3. Bei kuenftigen WebUI-Slices `style-src 'self'` als harte Vorgabe behandeln: keine neuen Inline-Style-Attribute in HTML-Strings.
+
 ## Stand (2026-04-28, WebUI auth gating fix deployed on srv1)
 
 **Zuletzt erledigt**:

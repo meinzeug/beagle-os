@@ -1216,7 +1216,7 @@ export function loadMdevTypes(gpuPci) {
         return '<article class="gpu-subcard">' +
           '<div class="gpu-card-head"><div><strong class="mono">' + uid + '</strong><div class="gpu-card-meta">' + chip(inst.type_id || '-', 'muted') + chip(inst.gpu_pci || '-', 'muted') + '</div></div></div>' +
           '<div class="gpu-card-actions">' +
-          '<button type="button" class="button ghost small" data-mdev-assign="1" data-mdev-uuid="' + uid + '" style="margin-right:4px">Zuweisen</button>' +
+          '<button type="button" class="button ghost small mdev-assign-button" data-mdev-assign="1" data-mdev-uuid="' + uid + '">Zuweisen</button>' +
           '<button type="button" class="button ghost small danger" data-mdev-delete="1" data-mdev-uuid="' + uid + '">Löschen</button>' +
           '</div></article>';
       }).join('');

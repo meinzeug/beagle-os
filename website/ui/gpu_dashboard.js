@@ -12,8 +12,9 @@ export function configureGpuDashboard(nextHooks) {
 
 function utilizationBar(pct) {
   const tone = pct > 85 ? 'critical' : pct > 65 ? 'warn' : 'ok';
+  const bucket = Math.max(0, Math.min(10, Math.ceil(Number(pct || 0) / 10)));
   return `<div class="bar-track" title="${pct}%">
-    <div class="bar-fill tone-${tone}" style="width:${Math.min(100, pct)}%"></div>
+    <div class="bar-fill tone-${tone} fill-pct-${bucket}"></div>
   </div>`;
 }
 
@@ -215,4 +216,3 @@ export async function renderGpuDashboard() {
     });
   });
 }
-

@@ -2,6 +2,11 @@
 
 Stand: 2026-04-13
 
+## D-049: WebUI bleibt unter strikter CSP ohne Inline-Style-Ausnahmen
+- Entscheidung: Neue und bestehende WebUI-Renderer duerfen keine `style="..."`-Attribute in HTML-Strings erzeugen; dynamische Visualisierung nutzt CSS-Klassen, feste Buckets oder echte Stylesheets.
+- Grund: Die produktive CSP `style-src 'self'` soll nicht durch `unsafe-inline` aufgeweicht werden. Klassenbasierte Darstellung erhaelt die Sicherheitsgrenze und vermeidet Browser-Console-Fehler.
+- Dateien: `website/ui/scheduler_insights.js`, `website/ui/energy_dashboard.js`, `website/ui/gpu_dashboard.js`, `website/ui/settings.js`, `website/ui/cluster.js`, `website/ui/virtualization.js`, `website/styles/_helpers.css`.
+
 ## D-048: Geschuetzte Settings-Panels duerfen ohne Session keine API-Reads ausloesen
 - Entscheidung: WebUI-Renderer fuer Settings-/Telemetry-Slices muessen vor jedem Fetch mindestens Session- und RBAC-Gates spiegeln; geschuetzte Panels duerfen beim Bootstrap nicht blind vorgerendert werden.
 - Grund: Backend-RBAC allein schuetzt zwar die Daten, aber unautorisierte Vorab-Requests erzeugen auf Live-Systemen irrefuehrende Fehlerfluten, erschweren Session-Debugging und verschlechtern die Operator-Erfahrung.

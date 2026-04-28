@@ -1107,7 +1107,7 @@ function openJobProgressModal(jobId, title, onCompleteResult) {
       <div class="modal-body">
         <div class="progress-container">
           <div class="progress-bar-wrapper">
-            <div class="progress-bar" id="job-progress-bar-${jobId}" style="width: 0%"></div>
+            <div class="progress-bar progress-bar-empty" id="job-progress-bar-${jobId}"></div>
           </div>
           <div class="progress-percent" id="job-progress-percent-${jobId}">0%</div>
         </div>

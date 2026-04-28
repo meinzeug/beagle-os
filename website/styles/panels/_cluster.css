@@ -196,6 +196,10 @@
   min-width: 0;
 }
 
+.progress-bar-empty {
+  width: 0%;
+}
+
 .progress-percent {
   min-width: 50px;
   text-align: right;

@@ -1222,11 +1222,11 @@ function initRestoreModal() {
         body: JSON.stringify(restorePath ? { restore_path: restorePath } : {})
       }).then((data) => {
         if (data.ok) {
-          resultDiv.innerHTML = '<span style="color:green">Fertig: ' + escapeHtml(String(data.restored_to || '')) + ' (' + (data.files_count || 0) + ' Dateien)</span>';
+          resultDiv.innerHTML = '<span class="settings-restore-result-ok">Fertig: ' + escapeHtml(String(data.restored_to || '')) + ' (' + (data.files_count || 0) + ' Dateien)</span>';
         } else {
-          resultDiv.innerHTML = '<span style="color:red">Fehler: ' + escapeHtml(String(data.error || 'Unbekannt')) + '</span>';
+          resultDiv.innerHTML = '<span class="settings-restore-result-error">Fehler: ' + escapeHtml(String(data.error || 'Unbekannt')) + '</span>';
         }
-      }).catch((err) => { resultDiv.innerHTML = '<span style="color:red">Fehler: ' + escapeHtml(err.message) + '</span>'; });
+      }).catch((err) => { resultDiv.innerHTML = '<span class="settings-restore-result-error">Fehler: ' + escapeHtml(err.message) + '</span>'; });
     });
   }
 }

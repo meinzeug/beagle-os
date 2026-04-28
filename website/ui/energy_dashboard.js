@@ -25,14 +25,19 @@ function renderAccessState(container) {
 function powerBar(node) {
   const pct = Math.min(100, Math.round((node.current_power_w / (node.max_power_w || 1)) * 100));
   const tone = pct > 85 ? 'critical' : pct > 65 ? 'warn' : 'ok';
+  const bucket = percentBucket(pct);
   return `<div class="power-bar-row">
     <span class="power-label">${escapeHtml(node.node_id ?? '-')}</span>
     <div class="bar-track">
-      <div class="bar-fill tone-${tone}" style="width:${pct}%"></div>
+      <div class="bar-fill tone-${tone} fill-pct-${bucket}"></div>
     </div>
     <span class="power-value">${escapeHtml(String(Math.round(node.current_power_w ?? 0)))} W</span>
     <span class="kwh-value">${escapeHtml((node.month_kwh ?? 0).toFixed(2))} kWh</span>
   </div>`;
+}
+
+function percentBucket(pct) {
+  return Math.max(0, Math.min(10, Math.ceil(Number(pct || 0) / 10)));
 }
 
 function co2TrendRow(entry) {
@@ -60,10 +65,9 @@ function greenHourTile(item) {
   const intensity = Number(item.estimated_co2_grams_per_kwh ?? 0);
   const price = Number(item.estimated_electricity_price_per_kwh ?? 0);
   const active = Boolean(item.is_green_hour);
-  const background = active ? 'rgba(16, 185, 129, 0.24)' : 'rgba(148, 163, 184, 0.12)';
-  const border = item.active_now ? '2px solid rgba(16, 185, 129, 0.8)' : '1px solid rgba(148, 163, 184, 0.2)';
-  return `<div title="${hour}:00 · ${intensity.toFixed(1)} g/kWh · ${price.toFixed(4)} €/kWh" style="background:${background};border:${border};border-radius:8px;padding:10px 6px;text-align:center;">
-    <div style="font-weight:700">${hour}</div>
+  const classes = ['green-hour-tile', active ? 'is-green' : 'is-neutral', item.active_now ? 'is-current' : ''].filter(Boolean).join(' ');
+  return `<div class="${classes}" title="${hour}:00 · ${intensity.toFixed(1)} g/kWh · ${price.toFixed(4)} €/kWh">
+    <div class="green-hour-hour">${hour}</div>
     <div class="muted-text">${intensity.toFixed(0)} g</div>
     <div class="muted-text">${price.toFixed(2)} €</div>
   </div>`;
@@ -142,7 +146,7 @@ export async function renderEnergyDashboard() {
     <section class="panel-section">
       <h3>Grüne Stunden Heatmap</h3>
       <div class="muted-text">Konfigurierter Green-Window-Fokus auf Basis aktueller Carbon- und Strompreis-Konfiguration.</div>
-      <div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px;margin-top:12px;">
+      <div class="green-hours-grid">
         ${greenHourRows.map((item) => greenHourTile(item)).join('')}
       </div>
     </section>
@@ -157,8 +161,8 @@ export async function renderEnergyDashboard() {
         <label>Strom €/kWh<input id="energy-price" type="number" step="0.0001" value="${escapeHtml(String(carbon.electricity_price_per_kwh ?? 0.3))}"></label>
         <label>Prewarm Minuten<input id="scheduler-prewarm-minutes" type="number" step="1" min="5" max="180" value="${escapeHtml(String(scheduler.prewarm_minutes_ahead ?? 15))}"></label>
         <label class="checkbox-row"><input id="scheduler-green-enabled" type="checkbox" ${scheduler.green_scheduling_enabled ? 'checked' : ''}> Green Scheduling aktiv</label>
-        <label style="grid-column:1 / -1;">CO₂ Stundenprofil CSV (24 Werte)<input id="energy-hourly-co2" type="text" value="${escapeHtml(co2Csv)}" placeholder="400,390,380,..."></label>
-        <label style="grid-column:1 / -1;">Strompreis Stundenprofil CSV (24 Werte)<input id="energy-hourly-price" type="text" value="${escapeHtml(priceCsv)}" placeholder="0.30,0.29,0.28,..."></label>
+        <label class="detail-grid-wide">CO₂ Stundenprofil CSV (24 Werte)<input id="energy-hourly-co2" type="text" value="${escapeHtml(co2Csv)}" placeholder="400,390,380,..."></label>
+        <label class="detail-grid-wide">Strompreis Stundenprofil CSV (24 Werte)<input id="energy-hourly-price" type="text" value="${escapeHtml(priceCsv)}" placeholder="0.30,0.29,0.28,..."></label>
       </div>
       <div class="panel-actions">
         <button class="btn btn-primary" id="energy-config-save-btn" ${canWriteSettings ? '' : 'disabled'}>Konfiguration speichern</button>

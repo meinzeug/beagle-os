@@ -25,29 +25,28 @@ function renderAccessState(container) {
 function heatCell(value, max) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
   const tone = pct > 80 ? 'critical' : pct > 60 ? 'warn' : 'ok';
-  return `<td class="heat-cell tone-${tone}" title="${value}/${max}" style="--heat:${pct}%">
+  const bucket = heatBucket(pct);
+  return `<td class="heat-cell tone-${tone} heat-level-${bucket}" title="${value}/${max}">
     <span>${pct}%</span>
   </td>`;
+}
+
+function heatBucket(pct) {
+  return Math.max(0, Math.min(10, Math.ceil(Number(pct || 0) / 10)));
 }
 
 function hourlyHeatTile(value) {
   const pct = Math.max(0, Math.min(100, Math.round(Number(value || 0))));
   const tone = pct > 80 ? 'critical' : pct > 60 ? 'warn' : pct > 30 ? 'ok' : 'muted';
-  const background = tone === 'critical'
-    ? `rgba(239, 68, 68, ${Math.max(0.18, pct / 120)})`
-    : tone === 'warn'
-    ? `rgba(245, 158, 11, ${Math.max(0.15, pct / 140)})`
-    : tone === 'ok'
-    ? `rgba(34, 197, 94, ${Math.max(0.12, pct / 180)})`
-    : 'rgba(148, 163, 184, 0.12)';
-  return `<div class="mini-heat-tile" title="${pct}% CPU" style="background:${background};border-radius:6px;padding:6px 4px;text-align:center;font-size:0.72rem;">${pct}</div>`;
+  const bucket = heatBucket(pct);
+  return `<div class="mini-heat-tile tone-${tone} heat-level-${bucket}" title="${pct}% CPU">${pct}</div>`;
 }
 
 function heatmapMatrix(nodeHeatmap) {
   const days = Array.isArray(nodeHeatmap?.days) ? nodeHeatmap.days : [];
   if (!days.length) return '<div class="empty-card">Keine stündlichen Heatmap-Daten vorhanden.</div>';
   return `<div class="section-spaced-tight">
-    ${days.map((day) => `<div style="display:grid;grid-template-columns:90px repeat(24,minmax(22px,1fr));gap:4px;align-items:center;margin-bottom:4px;">
+    ${days.map((day) => `<div class="mini-heat-row">
       <div class="muted-text">${escapeHtml(day.day ?? '-')}</div>
       ${Array.isArray(day.hours) ? day.hours.map((value) => hourlyHeatTile(value)).join('') : ''}
     </div>`).join('')}

@@ -10,6 +10,8 @@
 .settings-inline-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
 .settings-inline-meta a { color: var(--amber); text-decoration: none; font-size: 0.84rem; }
 .settings-inline-meta a[aria-disabled="true"] { color: var(--text-muted); pointer-events: none; }
+.settings-restore-result-ok { color: var(--ok); }
+.settings-restore-result-error { color: var(--danger); }
 .settings-form .check-label { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255, 255, 255, 0.02); }
 .settings-toggle-wide { grid-column: 1 / -1; }
 .settings-disclosure { margin-top: 12px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255, 255, 255, 0.02); overflow: hidden; }
