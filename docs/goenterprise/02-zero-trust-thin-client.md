@@ -59,8 +59,8 @@ Ergebnis: Ein Thin-Client ohne gültigen WireGuard-Key + Attestation bekommt **k
   - Schickt Public-Key an Control Plane: `POST /api/v1/vpn/register`
   - Empfängt WireGuard-Peer-Config (Control-Plane-Endpoint + erlaubte IPs)
   - Schreibt `/etc/wireguard/wg-beagle.conf` und startet `wg-quick up wg-beagle`
-- [ ] Nach Enrollment: Gerät ist im Mesh, alle weiteren Heartbeats + Streams laufen durch WireGuard
-- [ ] Tests: `tests/unit/test_enrollment_wireguard.py`
+- [x] Nach Enrollment: Gerät ist im Mesh, alle weiteren Heartbeats + Streams laufen durch WireGuard
+- [x] Tests: `tests/unit/test_enrollment_wireguard.py`
 
 ### Schritt 1 — Device Registry + Hardware Inventory
 
@@ -117,11 +117,26 @@ Ergebnis: Ein Thin-Client ohne gültigen WireGuard-Key + Attestation bekommt **k
 
 ## Testpflicht nach Abschluss
 
-- [ ] Enrollment: Thin-Client enrollt mit QR-Code, erscheint in Device Registry mit korrekter Hardware.
-- [ ] TPM-Attestation: Kompromittiertes Gerät (manipulierte PCRs) wird abgelehnt, keine Session.
-- [ ] MDM Policy: Gerät erhält Policy, nur erlaubte Pools verfügbar.
-- [ ] Remote-Wipe: `wipe_device(id)` → Gerät löscht sich, sendet Bestätigung.
-- [ ] Gruppen-Policy: Alle Geräte einer Gruppe bekommen Policy-Update automatisch.
+- [x] Enrollment: Thin-Client enrollt mit QR-Code, erscheint in Device Registry mit korrekter Hardware.
+- [x] TPM-Attestation: Kompromittiertes Gerät (manipulierte PCRs) wird abgelehnt, keine Session.
+- [x] MDM Policy: Gerät erhält Policy, nur erlaubte Pools verfügbar.
+- [x] Remote-Wipe: `wipe_device(id)` → Gerät löscht sich, sendet Bestätigung.
+- [x] Gruppen-Policy: Alle Geräte einer Gruppe bekommen Policy-Update automatisch.
+
+## Update 2026-04-28 (Plan-02-Testpflicht + WireGuard-Enrollment-Acceptance geschlossen)
+
+- Neue dedizierte Regressionen:
+  - `tests/unit/test_enrollment_wireguard.py`
+    - WireGuard-Enrollment schreibt Peer-Config und startet Interface
+    - unvollstaendige `/api/v1/vpn/register`-Antwort wird sauber abgelehnt
+    - Heartbeat-/Streaming-Runtime bleibt im `wireguard`-Pfad (`vpn_required`)
+  - `tests/unit/test_goenterprise_zero_trust_acceptance.py`
+    - Enrollment-Token/QR-Flow bis Device-Registry-Hardwareeintrag
+    - TPM-Compromise-Block (`is_session_allowed=False`)
+    - MDM-Pool-Restriktion, Remote-Wipe-Confirm und Gruppen-Policy-Rollout
+- Validierung:
+  - Lokal: `python3 -m pytest tests/unit/test_enrollment_wireguard.py tests/unit/test_goenterprise_zero_trust_acceptance.py -q` -> `8 passed`
+  - `srv1`: identischer Lauf in `/tmp/beagle-os-plan02-wireguard-test` -> `6 passed, 2 skipped` (Skip-Grund: `jq` nicht installiert, scriptnahe Enrollment-Checks bleiben lokal reproduzierbar)
 
 ---
 

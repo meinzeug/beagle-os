@@ -1,5 +1,19 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 02 testpflicht completed)
+
+**Zuletzt erledigt**:
+- Plan 02 offene Testpflicht ist geschlossen (Enrollment/Registry-Hardware, TPM-Compromise-Block, MDM-Pool-Restriktion, Remote-Wipe-Confirm, Gruppen-Policy-Rollout).
+- Der fehlende WireGuard-Enrollment-Regressionstest liegt jetzt als `tests/unit/test_enrollment_wireguard.py` vor.
+- Fokuslauf lokal und auf `srv1` ist reproduzierbar dokumentiert (`8 passed` lokal, `6 passed + 2 skipped` auf `srv1` wegen fehlendem `jq`).
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 08 Restblock Schritt 1**: eigentlichen RAID-/Disk-Mehrfachauswahlpfad im Installer (RAID0/1/5/10) von Doku-Status auf echte Runtime-Implementierung heben.
+2. **Plan 09 Restpunkt**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob mit Retry/Alerting umsetzen.
+3. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+4. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
+
 ## Stand (2026-04-28, GoEnterprise Plan 08 testpflicht completed)
 
 **Zuletzt erledigt**:

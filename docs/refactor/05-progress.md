@@ -1,3 +1,23 @@
+## Update (2026-04-28, GoEnterprise Plan 02: WireGuard-Enrollment + offene Testpflicht geschlossen)
+
+**Scope**: Die verbleibenden offenen Testpunkte in Plan 02 (`WireGuard nach Enrollment` + kompletter `Testpflicht nach Abschluss`-Block) mit dedizierter Regression geschlossen.
+
+- Tests:
+  - `tests/unit/test_enrollment_wireguard.py` (neu)
+    - WireGuard-Enrollment schreibt Config, startet Interface und faengt unvollstaendige Register-Antworten ab
+    - Runtime-Pfad prueft Heartbeat-/Streaming-Bevorzugung via WireGuard (`vpn_required`)
+  - `tests/unit/test_goenterprise_zero_trust_acceptance.py` (neu)
+    - Enrollment/QR-Token bis Device-Registry-Hardwareeintrag
+    - TPM-Compromise-Block (`is_session_allowed=False`)
+    - MDM-Pool-Restriktion
+    - Remote-Wipe-Confirm
+    - Gruppen-Policy-Rollout fuer mehrere Devices
+- Doku:
+  - `docs/goenterprise/02-zero-trust-thin-client.md`: offene Checkboxen in Schritt 0 und kompletter `Testpflicht nach Abschluss`-Block auf `[x]` gesetzt
+- Validierung:
+  - Lokal: `python3 -m pytest tests/unit/test_enrollment_wireguard.py tests/unit/test_goenterprise_zero_trust_acceptance.py -q` -> `8 passed`
+  - `srv1`: identischer Lauf in `/tmp/beagle-os-plan02-wireguard-test` -> `6 passed, 2 skipped` (`jq` fehlt auf Host fuer zwei scriptnahe Enrollment-Checks)
+
 ## Update (2026-04-28, GoEnterprise Plan 08: offene Testpflicht komplett geschlossen)
 
 **Scope**: Die verbleibenden Plan-08-Testpflichtpunkte (`TUI 5 Schritte`, `Seed ohne Dialog`, `PXE + DHCP Seed`) mit dediziertem Acceptance-Satz reproduzierbar geschlossen.
