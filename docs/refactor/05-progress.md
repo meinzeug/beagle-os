@@ -1,4 +1,4 @@
-## Update (2026-04-28, WebUI auth gating fix fuer Scheduler/Kosten/Energie vorbereitet)
+## Update (2026-04-28, WebUI auth gating fix fuer Scheduler/Kosten/Energie live auf `srv1`)
 
 **Scope**: Die WebUI hat geschuetzte Settings-/Telemetry-Endpunkte (`/scheduler/insights`, `/costs/*`, `/energy/*`) bereits vor erfolgreichem Login angefragt und dadurch auf `srv1` sofort sichtbare `401 Unauthorized`-Fehler erzeugt. Gleichzeitig wurden Schreibaktionen in diesen Panels browserseitig nicht an `settings:write` gespiegelt.
 
@@ -16,8 +16,16 @@
     - Banner-Handling nach Session-/Auth-Fehlern haertet: ein bereits erzwungener Session-Clear wird nicht sofort wieder durch einen irrefuehrenden "Teilweise Ladefehler"-Banner ueberdeckt.
 - Verifikation:
   - lokaler Syntax-Check der geaenderten ES-Module mit `node --experimental-default-type=module --check ...` erfolgreich.
-  - Live-Befund auf `srv1` vor Rollout bestaetigt: WebUI wird aus `/opt/beagle/website` ueber nginx ausgeliefert; `beagle-control-plane` und nginx sind `active`.
-  - SSH-Zugriff auf `srv1.beagle-os.com` wurde mit den nachgereichten Keys wiederhergestellt; Deployment kann jetzt direkt gegen `/opt/beagle` erfolgen.
+  - Live-Befund vor Rollout bestaetigt: WebUI wird aus `/opt/beagle/website` ueber nginx ausgeliefert; `beagle-control-plane` und nginx sind `active`.
+  - Deployment erfolgt: geaenderte Dateien nach `/opt/beagle/website/...` und Refactor-Doku auf `srv1` synchronisiert, `.beagle-installed-commit` auf `6fb39ef` gesetzt.
+  - Ausgelieferte Assets verifiziert:
+    - `/main.js` rendert Scheduler-/Kosten-/Energie-Panels nicht mehr blind im Bootstrap.
+    - `/ui/scheduler_insights.js`, `/ui/cost_dashboard.js`, `/ui/energy_dashboard.js` enthalten die neuen Auth-/RBAC-Gates.
+  - Live-API-Smoke nach echtem Login auf `srv1` erfolgreich:
+    - `POST /api/v1/auth/login` => `200`, Access-/Refresh-Token vorhanden.
+    - `GET /api/v1/auth/me` => `200`.
+    - `GET /api/v1/scheduler/insights`, `GET /api/v1/costs/*`, `GET /api/v1/energy/*` => jeweils `200` mit gueltigem Bearer-Token.
+  - Browser-E2E via Playwright auf `srv1` konnte nicht gefahren werden, weil `python3-playwright` dort aktuell nicht installiert ist.
 
 ## Update (2026-04-28, GoEnterprise Plan 01: VM-seitiger Stream-Register-Smoke abgeschlossen)
 

@@ -1,15 +1,16 @@
 # Next Steps
 
-## Stand (2026-04-28, WebUI auth gating fix ready for rollout)
+## Stand (2026-04-28, WebUI auth gating fix deployed on srv1)
 
 **Zuletzt erledigt**:
-- WebUI-Auth-/RBAC-Gates fuer Scheduler-/Kosten-/Energie-Panels sind im Repo eingezogen; die bekannten `401 Unauthorized`-Burst-Requests ohne Login werden nicht mehr browserseitig provoziert.
+- WebUI-Auth-/RBAC-Gates fuer Scheduler-/Kosten-/Energie-Panels sind im Repo eingezogen und nach `srv1` ausgerollt; die bekannten `401 Unauthorized`-Burst-Requests ohne Login werden browserseitig nicht mehr provoziert.
+- Live-Login gegen `srv1` liefert wieder sauber Access-/Refresh-Token; die zuvor betroffenen Settings-Endpunkte antworten nach Authentifizierung mit `200`.
 
 **Naechste konkrete Schritte**:
 
-1. `website/`-Aenderungen nach `/opt/beagle` auf `srv1` deployen und die ausgelieferten Assets (`/main.js`, `/ui/*.js`) gegen den neuen Stand verifizieren.
-2. Browser-/API-Smoke auf `srv1.beagle-os.com` fahren: ohne Login keine `401`-Burst-Requests mehr; danach echter Login-Flow erneut pruefen.
-3. Falls der Login trotz Frontend-Fix noch scheitert: `journalctl -u beagle-control-plane` waehrend eines echten Login-Versuchs mitlaufen lassen und verbleibenden Backend-Root-Cause isolieren.
+1. Browser-E2E-Smoke auf `srv1.beagle-os.com` nachziehen, sobald Playwright auf dem Host oder lokal verfuegbar ist, um die DevTools-Console explizit gegen den neuen Bootstrap zu pruefen.
+2. Falls Nutzer noch den alten Fehler sehen: Browser-Cache fuer `/main.js?v=8.0` / `/ui/*.js` hart invalidieren und denselben Ablauf auf `srv2` gespiegelt ausrollen.
+3. Den weiterhin dokumentierten Host-Befund `beagle-manager` = `inactive` separat bewerten; fuer den aktuellen WebUI-/Control-Plane-Fix war nur `beagle-control-plane` relevant und dieser laeuft auf `srv1`.
 
 ## Stand (2026-04-28, GoEnterprise Plan 01 VM-register smoke completed)
 
