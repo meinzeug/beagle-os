@@ -208,7 +208,7 @@ class AuthzPolicyService:
         if verb == "GET":
             if route in {"/api/v1/fleet/policies", "/api/v1/fleet/policies/assignments", "/api/v1/fleet/remediation/drift", "/api/v1/fleet/remediation/config", "/api/v1/fleet/remediation/history", "/api/v1/fleet/anomalies", "/api/v1/fleet/maintenance", "/api/v1/fleet/alerts", "/api/v1/fleet/alerts/rules"}:
                 return "settings:read"
-            if route in {"/api/v1/scheduler/insights", "/api/v1/scheduler/config", "/api/v1/costs/chargeback", "/api/v1/costs/chargeback.csv", "/api/v1/costs/budget-alerts", "/api/v1/costs/model", "/api/v1/energy/nodes", "/api/v1/energy/trend", "/api/v1/energy/csrd", "/api/v1/energy/config"}:
+            if route in {"/api/v1/scheduler/insights", "/api/v1/scheduler/config", "/api/v1/costs/chargeback", "/api/v1/costs/chargeback.csv", "/api/v1/costs/budget-alerts", "/api/v1/costs/model", "/api/v1/energy/nodes", "/api/v1/energy/rankings", "/api/v1/energy/trend", "/api/v1/energy/csrd", "/api/v1/energy/config"}:
                 return "settings:read"
             if re.match(r"^/api/v1/fleet/policies/[A-Za-z0-9._:-]+$", route):
                 return "settings:read"

@@ -49,6 +49,35 @@ function topVmRow(item) {
   </tr>`;
 }
 
+function drilldownSection(item) {
+  const users = Array.isArray(item?.users) ? item.users : [];
+  const userMarkup = users.length > 0
+    ? users.map((user) => {
+        const sessions = Array.isArray(user.sessions) ? user.sessions : [];
+        const sessionRows = sessions.length > 0
+          ? sessions.map((session) => `<tr>
+              <td>${escapeHtml(session.session_id ?? '-')}</td>
+              <td>${escapeHtml(session.pool_id ?? '-')}</td>
+              <td>${escapeHtml(String(session.vm_id ?? '-'))}</td>
+              <td>${escapeHtml(session.start_time ?? '-')}</td>
+              <td>${formatEur(session.total_cost_eur)}</td>
+            </tr>`).join('')
+          : '<tr><td colspan="5" class="empty-cell">Keine Sessions.</td></tr>';
+        return `<details class="detail-block">
+          <summary>${escapeHtml(user.user_id ?? '-')} · ${escapeHtml(String(user.session_count ?? 0))} Sessions · ${formatEur(user.total_cost_eur)}</summary>
+          <table class="data-table">
+            <thead><tr><th>Session</th><th>Pool</th><th>VM</th><th>Start</th><th>Kosten</th></tr></thead>
+            <tbody>${sessionRows}</tbody>
+          </table>
+        </details>`;
+      }).join('')
+    : '<div class="empty-card">Keine Benutzerdaten.</div>';
+  return `<details class="detail-block">
+    <summary>${escapeHtml(item.department ?? '-')}</summary>
+    ${userMarkup}
+  </details>`;
+}
+
 export async function renderCostDashboard() {
   const container = qs('cost-dashboard-panel');
   if (!container) return;
@@ -77,6 +106,7 @@ export async function renderCostDashboard() {
   const model = modelPayload?.model || {};
   const budgets = Array.isArray(modelPayload?.budgets) ? modelPayload.budgets : [];
   const topVms = Array.isArray(report?.top_vms) ? report.top_vms : [];
+  const drilldown = Array.isArray(report?.drilldown) ? report.drilldown : [];
   const forecastTotal = Number(report?.forecast_total_cost_eur || 0);
   const totalEnergyCost = Number(report?.total_energy_cost_eur || 0);
 
@@ -138,6 +168,10 @@ export async function renderCostDashboard() {
     <section class="panel-section">
       <h3>Top-10 kostenintensive VMs</h3>
       ${topVmHtml}
+    </section>
+    <section class="panel-section">
+      <h3>Drilldown Abteilung → User → Session</h3>
+      ${drilldown.length > 0 ? drilldown.map(drilldownSection).join('') : '<div class="empty-card">Keine Drilldown-Daten vorhanden.</div>'}
     </section>
     <section class="panel-section">
       <h3>Kostenmodell</h3>

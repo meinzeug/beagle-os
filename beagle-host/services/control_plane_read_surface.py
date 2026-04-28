@@ -17,6 +17,7 @@ class ControlPlaneReadSurfaceService:
         build_energy_csrd_payload: Callable[[int, int], dict[str, Any]],
         build_energy_config_payload: Callable[[], dict[str, Any]],
         build_energy_nodes_payload: Callable[[], list[dict[str, Any]]],
+        build_energy_rankings_payload: Callable[[], dict[str, list[dict[str, Any]]]],
         build_energy_trend_payload: Callable[[int], list[dict[str, Any]]],
         build_provisioning_catalog: Callable[[], dict[str, Any]],
         build_scheduler_config_payload: Callable[[], dict[str, Any]],
@@ -42,6 +43,7 @@ class ControlPlaneReadSurfaceService:
         self._build_energy_csrd_payload = build_energy_csrd_payload
         self._build_energy_config_payload = build_energy_config_payload
         self._build_energy_nodes_payload = build_energy_nodes_payload
+        self._build_energy_rankings_payload = build_energy_rankings_payload
         self._build_energy_trend_payload = build_energy_trend_payload
         self._build_provisioning_catalog = build_provisioning_catalog
         self._build_scheduler_config_payload = build_scheduler_config_payload
@@ -232,6 +234,15 @@ class ControlPlaneReadSurfaceService:
                 {
                     "ok": True,
                     **self._envelope(nodes=self._build_energy_nodes_payload()),
+                },
+            )
+
+        if path == "/api/v1/energy/rankings":
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(rankings=self._build_energy_rankings_payload()),
                 },
             )
 

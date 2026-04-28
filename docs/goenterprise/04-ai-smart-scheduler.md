@@ -79,6 +79,7 @@ Der aktuelle Beagle-Scheduler platziert VMs nach simplen Regeln:
   - Top-5 empfohlene Migrations
   - [x] Prognostizierte Last (nächste 24h) per Node
   - [x] "Saved CPU-Hours" durch Pre-warming (wie viele User haben sofort eine VM bekommen vs. gewartet)
+  - [x] Green-Hours-Konfiguration und aktiver Green-Window-Status im Dashboard
 
 ---
 

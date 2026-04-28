@@ -31,6 +31,17 @@ function co2TrendRow(entry) {
   </tr>`;
 }
 
+function rankingRow(item, unitLabel = 'kWh') {
+  const amount = Number(item.energy_kwh ?? item.month_kwh ?? 0);
+  const cost = Number(item.energy_cost_eur ?? 0);
+  return `<tr>
+    <td>${escapeHtml(String(item.vm_id ?? item.node_id ?? '-'))}</td>
+    <td>${escapeHtml(item.department ?? item.status ?? '-')}</td>
+    <td>${escapeHtml((amount || 0).toFixed(3))} ${unitLabel}</td>
+    <td>${cost > 0 ? escapeHtml(cost.toFixed(2) + ' €') : '—'}</td>
+  </tr>`;
+}
+
 export async function renderEnergyDashboard() {
   const container = qs('energy-dashboard-panel');
   if (!container) return;
@@ -39,12 +50,14 @@ export async function renderEnergyDashboard() {
 
   let nodes = [];
   let trend = [];
+  let rankings = {};
   let config = {};
 
   try {
-    [nodes, trend, config] = await Promise.all([
+    [nodes, trend, rankings, config] = await Promise.all([
       request('/energy/nodes').then((d) => Array.isArray(d) ? d : (d.nodes ?? [])),
       request('/energy/trend').then((d) => Array.isArray(d) ? d : (d.trend ?? [])).catch(() => []),
+      request('/energy/rankings').then((d) => d?.rankings ?? {}).catch(() => ({})),
       request('/energy/config').catch(() => ({ carbon_config: {}, scheduler: {} }))
     ]);
   } catch (err) {
@@ -63,6 +76,17 @@ export async function renderEnergyDashboard() {
         <tbody>${trendRows}</tbody>
       </table>`
     : '<div class="empty-card">Kein CO₂-Verlauf verfügbar.</div>';
+  const highestNodes = Array.isArray(rankings?.highest_nodes) ? rankings.highest_nodes : [];
+  const lowestNodes = Array.isArray(rankings?.lowest_nodes) ? rankings.lowest_nodes : [];
+  const mostIntensiveVms = Array.isArray(rankings?.most_intensive_vms) ? rankings.most_intensive_vms : [];
+  const mostEfficientVms = Array.isArray(rankings?.most_efficient_vms) ? rankings.most_efficient_vms : [];
+  const rankingTable = (title, rows, unitLabel) => `<section class="panel-section">
+      <h3>${title}</h3>
+      ${rows.length > 0 ? `<table class="data-table">
+        <thead><tr><th>Objekt</th><th>Kontext</th><th>Verbrauch</th><th>Kosten</th></tr></thead>
+        <tbody>${rows.map((row) => rankingRow(row, unitLabel)).join('')}</tbody>
+      </table>` : '<div class="empty-card">Keine Ranking-Daten.</div>'}
+    </section>`;
 
   const csrdBtn = `<button class="btn btn-secondary" id="csrd-export-btn">
     CSRD-Report exportieren
@@ -80,6 +104,10 @@ export async function renderEnergyDashboard() {
       ${trendHtml}
       <div class="panel-actions">${csrdBtn}</div>
     </section>
+    ${rankingTable('Höchster Node-Verbrauch', highestNodes, 'kWh')}
+    ${rankingTable('Niedrigster Node-Verbrauch', lowestNodes, 'kWh')}
+    ${rankingTable('Energieintensivste VMs', mostIntensiveVms, 'kWh')}
+    ${rankingTable('Effizienteste VMs', mostEfficientVms, 'kWh')}
     <section class="panel-section">
       <h3>Carbon- und Green-Scheduling-Konfiguration</h3>
       <div class="detail-grid">

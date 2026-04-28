@@ -74,7 +74,7 @@ Unternehmen mit >500 Mitarbeitern müssen Scope-2-Emissionen (IT-Infrastruktur) 
 - [x] `website/ui/energy_dashboard.js`:
   - Echtzeit-Energie-Verbrauch (kW aktuell)
   - CO₂-Footprint: heute, diese Woche, dieses Jahr
-  - Ranking: effizienteste vs. energieintensivste VMs
+  - [x] Ranking: effizienteste vs. energieintensivste VMs
   - "Grüne Stunden" Heatmap (wann ist der Strommix am saubersten)
 - [x] Control-Plane-Surface: `GET /api/v1/energy/nodes`, `GET /api/v1/energy/trend`, `GET /api/v1/energy/csrd?year=...&quarter=...`
 - [x] Tests: `tests/unit/test_csrd_export.py`

@@ -265,6 +265,10 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:read",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("GET", "/api/v1/energy/rankings"),
+            "settings:read",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("GET", "/api/v1/energy/trend"),
             "settings:read",
         )

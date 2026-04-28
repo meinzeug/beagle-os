@@ -124,6 +124,12 @@ def test_enterprise_dashboard_modules_use_operator_routes() -> None:
     assert "Top-10 kostenintensive VMs" in cost_js
     assert "Forecast Monatsende" in cost_js
     assert "Energiekosten gesamt" in cost_js
+    assert "Drilldown Abteilung → User → Session" in cost_js
     assert "/energy/config" in energy_js
+    assert "/energy/rankings" in energy_js
     assert "Carbon- und Green-Scheduling-Konfiguration" in energy_js
+    assert "Energieintensivste VMs" in energy_js
+    assert "Effizienteste VMs" in energy_js
     assert "Konfiguration speichern" in energy_js
+    assert "Green Window aktuell" in scheduler_js
+    assert "Green Hours CSV" in scheduler_js

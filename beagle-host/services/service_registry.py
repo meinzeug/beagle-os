@@ -3088,6 +3088,7 @@ def control_plane_read_surface_service() -> ControlPlaneReadSurfaceService:
             build_energy_csrd_payload=build_energy_csrd_payload,
             build_energy_config_payload=build_energy_config_payload,
             build_energy_nodes_payload=build_energy_nodes_payload,
+            build_energy_rankings_payload=build_energy_rankings_payload,
             build_energy_trend_payload=build_energy_trend_payload,
             build_provisioning_catalog=build_provisioning_catalog,
             build_scheduler_config_payload=get_scheduler_config,
@@ -3561,6 +3562,7 @@ def get_scheduler_config() -> dict[str, Any]:
         "green_scheduling_enabled": False,
         "prewarm_minutes_ahead": 15,
         "saved_cpu_hours": 0.0,
+        "green_hours": [],
     }
     data = load_json_file(_scheduler_config_file(), {})
     if not isinstance(data, dict):
@@ -3575,6 +3577,18 @@ def get_scheduler_config() -> dict[str, Any]:
         config["saved_cpu_hours"] = round(float(config.get("saved_cpu_hours", 0.0) or 0.0), 4)
     except (TypeError, ValueError):
         config["saved_cpu_hours"] = 0.0
+    raw_green_hours = config.get("green_hours", [])
+    if not isinstance(raw_green_hours, list):
+        raw_green_hours = []
+    normalized_hours: list[int] = []
+    for value in raw_green_hours:
+        try:
+            hour = int(value)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= hour <= 23 and hour not in normalized_hours:
+            normalized_hours.append(hour)
+    config["green_hours"] = sorted(normalized_hours)
     return config
 
 
@@ -3587,6 +3601,18 @@ def update_scheduler_config(payload: dict[str, Any]) -> dict[str, Any]:
             config["prewarm_minutes_ahead"] = max(5, min(180, int(payload.get("prewarm_minutes_ahead") or 15)))
         except (TypeError, ValueError):
             pass
+    if "green_hours" in payload:
+        raw_green_hours = payload.get("green_hours")
+        if isinstance(raw_green_hours, list):
+            values = []
+            for item in raw_green_hours:
+                try:
+                    hour = int(item)
+                except (TypeError, ValueError):
+                    continue
+                if 0 <= hour <= 23 and hour not in values:
+                    values.append(hour)
+            config["green_hours"] = sorted(values)
     write_json_file(_scheduler_config_file(), config)
     return get_scheduler_config()
 
@@ -3740,6 +3766,9 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
                 )
             forecast_24h.append({"node_id": node_id, "hourly": hourly})
 
+    current_hour = now.hour
+    green_hours = set(int(value) for value in scheduler_config.get("green_hours", []))
+    green_window_active = current_hour in green_hours if green_hours else False
     for vm in list_vms(refresh=True):
         node_id = str(getattr(vm, "node", "") or "").strip()
         if not node_id:
@@ -3758,6 +3787,7 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
                 "peak_hours": list(profile.peak_hours),
                 "avg_cpu_pct": round(float(profile.avg_cpu_pct or 0.0), 2),
                 "samples_analyzed": int(profile.samples_analyzed or 0),
+                "green_window_active": green_window_active,
             }
         )
 
@@ -3784,6 +3814,7 @@ def build_scheduler_insights_payload() -> dict[str, Any]:
         "forecast_24h": forecast_24h,
         "config": scheduler_config,
         "saved_cpu_hours": round(float(scheduler_config.get("saved_cpu_hours", 0.0) or 0.0), 2),
+        "green_window_active": green_window_active,
     }
 
 
@@ -3920,6 +3951,71 @@ def build_chargeback_payload(month: str, department: str | None = None) -> dict[
     forecast_multiplier = max(1.0, total_days / elapsed_days)
     total_cost_eur = round(float(report.get("total_cost", 0.0) or 0.0), 4)
     total_energy_cost_eur = round(sum(float(item.get("energy_cost_eur", 0.0) or 0.0) for item in sorted_departments), 4)
+    by_department_user: dict[str, dict[str, dict[str, Any]]] = {}
+    for record in usage_records:
+        if not isinstance(record, dict):
+            continue
+        dept = str(record.get("department") or "unassigned").strip() or "unassigned"
+        user_id = str(record.get("user_id") or "unknown").strip() or "unknown"
+        dept_bucket = by_department_user.setdefault(dept, {})
+        user_bucket = dept_bucket.setdefault(
+            user_id,
+            {
+                "user_id": user_id,
+                "session_count": 0,
+                "cpu_hours": 0.0,
+                "gpu_hours": 0.0,
+                "energy_cost_eur": 0.0,
+                "total_cost_eur": 0.0,
+                "sessions": [],
+            },
+        )
+        user_bucket["session_count"] += 1
+        cpu_hours = float(record.get("cpu_hours", 0.0) or 0.0)
+        gpu_hours = float(record.get("gpu_hours", 0.0) or 0.0)
+        storage_gb = float(record.get("storage_gb", 0.0) or 0.0)
+        energy_cost = float(record.get("energy_cost", 0.0) or 0.0)
+        total_cost = (
+            cpu_hours * float(model.cpu_hour_cost or 0.0)
+            + gpu_hours * float(model.gpu_hour_cost or 0.0)
+            + storage_gb * float(model.storage_gb_month_cost or 0.0) / 720.0
+            + energy_cost
+        )
+        user_bucket["cpu_hours"] += cpu_hours
+        user_bucket["gpu_hours"] += gpu_hours
+        user_bucket["energy_cost_eur"] += energy_cost
+        user_bucket["total_cost_eur"] += total_cost
+        user_bucket["sessions"].append(
+            {
+                "session_id": str(record.get("session_id") or "").strip(),
+                "pool_id": str(record.get("pool_id") or "").strip(),
+                "vm_id": int(record.get("vm_id", 0) or 0),
+                "start_time": str(record.get("start_time") or "").strip(),
+                "end_time": str(record.get("end_time") or "").strip(),
+                "cpu_hours": round(cpu_hours, 4),
+                "gpu_hours": round(gpu_hours, 4),
+                "energy_cost_eur": round(energy_cost, 4),
+                "total_cost_eur": round(total_cost, 4),
+            }
+        )
+    drilldown: list[dict[str, Any]] = []
+    for department_name, users in sorted(by_department_user.items()):
+        drilldown.append(
+            {
+                "department": department_name,
+                "users": [
+                    {
+                        **{
+                            key: round(float(value), 4) if key in {"cpu_hours", "gpu_hours", "energy_cost_eur", "total_cost_eur"} else value
+                            for key, value in user_bucket.items()
+                            if key != "sessions"
+                        },
+                        "sessions": sorted(user_bucket["sessions"], key=lambda item: item.get("start_time") or ""),
+                    }
+                    for _user_id, user_bucket in sorted(users.items())
+                ],
+            }
+        )
 
     return {
         "month": target_month,
@@ -3932,6 +4028,7 @@ def build_chargeback_payload(month: str, department: str | None = None) -> dict[
         "total_energy_cost_eur": total_energy_cost_eur,
         "forecast_total_cost_eur": round(total_cost_eur * forecast_multiplier, 4),
         "forecast_multiplier": round(forecast_multiplier, 3),
+        "drilldown": drilldown,
     }
 
 
@@ -3984,6 +4081,46 @@ def build_energy_nodes_payload() -> list[dict[str, Any]]:
             }
         )
     return payload
+
+
+def build_energy_rankings_payload() -> dict[str, list[dict[str, Any]]]:
+    target_month = datetime.now(timezone.utc).strftime("%Y-%m")
+    nodes = build_energy_nodes_payload()
+    highest = sorted(nodes, key=lambda item: float(item.get("month_kwh", 0.0) or 0.0), reverse=True)[:5]
+    lowest = sorted(nodes, key=lambda item: float(item.get("month_kwh", 0.0) or 0.0))[:5]
+    vm_usage: dict[int, dict[str, Any]] = {}
+    for record in usage_tracking_service().get_usage(month=target_month):
+        if not isinstance(record, dict):
+            continue
+        vm_id = int(record.get("vm_id", 0) or 0)
+        if vm_id <= 0:
+            continue
+        bucket = vm_usage.setdefault(
+            vm_id,
+            {
+                "vm_id": vm_id,
+                "department": str(record.get("department") or "unassigned").strip() or "unassigned",
+                "user_id": str(record.get("user_id") or "unknown").strip() or "unknown",
+                "energy_kwh": 0.0,
+                "energy_cost_eur": 0.0,
+                "session_count": 0,
+            },
+        )
+        bucket["energy_kwh"] += float(record.get("energy_kwh", 0.0) or 0.0)
+        bucket["energy_cost_eur"] += float(record.get("energy_cost", 0.0) or 0.0)
+        bucket["session_count"] += 1
+    vm_rows = list(vm_usage.values())
+    for row in vm_rows:
+        row["energy_kwh"] = round(float(row.get("energy_kwh", 0.0) or 0.0), 4)
+        row["energy_cost_eur"] = round(float(row.get("energy_cost_eur", 0.0) or 0.0), 4)
+    most_intensive_vms = sorted(vm_rows, key=lambda item: float(item.get("energy_kwh", 0.0) or 0.0), reverse=True)[:5]
+    most_efficient_vms = [item for item in sorted(vm_rows, key=lambda item: float(item.get("energy_kwh", 0.0) or 0.0)) if float(item.get("energy_kwh", 0.0) or 0.0) > 0][:5]
+    return {
+        "highest_nodes": highest,
+        "lowest_nodes": lowest,
+        "most_intensive_vms": most_intensive_vms,
+        "most_efficient_vms": most_efficient_vms,
+    }
 
 
 def build_energy_trend_payload(months: int = 6) -> list[dict[str, Any]]:

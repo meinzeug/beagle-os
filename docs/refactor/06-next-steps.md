@@ -275,3 +275,19 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
   - Pool-Wizard fuer GPU-Pooltypen weiterziehen: heute live Passthrough-Selektor + mdev/SR-IOV-Hints; als naechstes echte authentifizierte Slot-/Klassenvalidierung vervollstaendigen
 - authenticated Live-Smoke fuer Gaming-Pools auf `srv1`/`srv2`: Stream-Health fuer echte Gaming-Session einspeisen und Dashboard mit Live-Daten pruefen
 - `docs/goenterprise/03-gaming-kiosk-pools.md`: verbleibende Testpflicht fuer Gaming-Pool-Allocation ohne GPU sowie Kiosk-/RBAC-E2E sauber abschliessen
+# Next Steps
+
+## Stand (2026-04-28, GoEnterprise Plan 04/05/09 drilldown follow-up)
+
+**Zuletzt erledigt**:
+- Chargeback-Dashboard zeigt jetzt den Drilldown Abteilung -> User -> Session direkt aus der Control Plane.
+- Energy-Dashboard hat jetzt echte Rankings fuer hoechsten/niedrigsten Node-Verbrauch sowie energieintensivste/effizienteste VMs.
+- Scheduler-Operatorik modelliert Green Hours jetzt explizit und zeigt den aktiven Green-Window-Status direkt im Dashboard.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 04 vertiefen**: Heatmap-Visualisierung und differenzierte Saved-CPU-Hours pro Pool/User statt nur Gesamtwert nachziehen.
+2. **Plan 04 haerten**: Green-Hours nicht nur anzeigen, sondern die zeitfensterbasierte Placement-/Prewarm-Entscheidung tiefer in den produktiven Scheduler-Pfad ziehen und mit eigener Regression absichern.
+3. **Plan 09 vervollstaendigen**: Gruene-Stunden-Heatmap im Energy-Panel aus echten Carbon-/Strommix-Daten rendern.
+4. **Plan 02 live validieren**: Lock-Screen, Wipe und Runtime-Telemetrie weiter gegen echte Thin-Client-Hardware/X11-/Wayland-Sessions abnehmen.
+5. **Plan 07 live validieren**: Fleet-Alerts und Predictive-Maintenance gegen echte Runtime-Events provozieren und Webhook-/UI-Reaktion pruefen.

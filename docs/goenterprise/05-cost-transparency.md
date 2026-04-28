@@ -52,7 +52,7 @@ IT-Abteilungen investieren in Beagle-Server, aber können den Abteilungen nicht 
 - [x] `beagle-host/services/cost_model_service.py`: `generate_chargeback_report(month, department=None)`:
   - Ausgabe: CSV + JSON
   - Felder: `department`, `user`, `sessions`, `cpu_hours`, `gpu_hours`, `storage_gb`, `total_cost`
-  - Drill-down: von Abteilung → User → einzelne Session
+  - [x] Drill-down: von Abteilung → User → einzelne Session
 - [x] Control-Plane-Surface: `GET /api/v1/costs/chargeback?month=2025-04&department=marketing`, `GET /api/v1/costs/chargeback.csv`, `GET /api/v1/costs/budget-alerts`
 - [x] Tests: `tests/unit/test_chargeback_report.py`
 
@@ -71,6 +71,7 @@ IT-Abteilungen investieren in Beagle-Server, aber können den Abteilungen nicht 
   - [x] Top-10 kostenintensivste VMs
   - GPU-Cost vs CPU-Cost Aufteilung
   - [x] Forecast: "Wenn aktuelles Nutzungsmuster anhält, Monatskosten = €X"
+  - [x] Drilldown Abteilung → User → Session
   - Export als PDF/CSV
 
 ---

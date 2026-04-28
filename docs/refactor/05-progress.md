@@ -4735,3 +4735,23 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `bash -n thin-client-assistant/runtime/device_sync.sh`
   - `node --check website/ui/fleet_health.js`
   - zusammenhaengender Fleet-/Endpoint-/Telemetry-Block: `137 passed`
+## Update (2026-04-28, GoEnterprise Plan 04/05/09: Drilldown, Energy-Rankings und Green-Hours-Operatorik)
+
+**Scope**: Den naechsten Analytics-/Operator-Slice hinter den bereits live verdrahteten Scheduler-/Cost-/Energy-Panels geschlossen. Chargeback zeigt jetzt den versprochenen Drilldown bis auf Session-Ebene direkt im Dashboard, das Energy-Panel hat echte Verbrauchs-/Effizienz-Rankings aus der Control Plane, und Green Scheduling ist fuer Operatoren jetzt mit expliziten `green_hours` plus aktivem Green-Window-Status sichtbar und konfigurierbar.
+
+- Backend:
+  - [beagle-host/services/control_plane_read_surface.py](/home/dennis/beagle-os/beagle-host/services/control_plane_read_surface.py): neue Read-Surface `GET /api/v1/energy/rankings`
+  - [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py): Chargeback-`drilldown`, Energy-Rankings sowie `green_hours`-/`green_window_active`-Ableitung in den Scheduler-Insights
+  - [beagle-host/services/authz_policy.py](/home/dennis/beagle-os/beagle-host/services/authz_policy.py): `GET /api/v1/energy/rankings` auf `settings:read`
+- WebUI:
+  - [website/ui/cost_dashboard.js](/home/dennis/beagle-os/website/ui/cost_dashboard.js): Drilldown Abteilung -> User -> Session im Cost-Panel
+  - [website/ui/energy_dashboard.js](/home/dennis/beagle-os/website/ui/energy_dashboard.js): Rankings fuer hoechsten/niedrigsten Node-Verbrauch sowie energieintensivste/effizienteste VMs
+  - [website/ui/scheduler_insights.js](/home/dennis/beagle-os/website/ui/scheduler_insights.js): `Green Window aktuell` und `Green Hours CSV` als Operator-Flow
+- Regressionen:
+  - [tests/unit/test_control_plane_read_surface.py](/home/dennis/beagle-os/tests/unit/test_control_plane_read_surface.py)
+  - [tests/unit/test_authz_policy.py](/home/dennis/beagle-os/tests/unit/test_authz_policy.py)
+  - [tests/unit/test_fleet_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_fleet_ui_regressions.py)
+- Validierung:
+  - `python3 -m py_compile beagle-host/services/service_registry.py beagle-host/services/control_plane_read_surface.py beagle-host/services/authz_policy.py`
+  - `node --check website/ui/cost_dashboard.js website/ui/energy_dashboard.js website/ui/scheduler_insights.js`
+  - `python3 -m pytest tests/unit/test_control_plane_read_surface.py tests/unit/test_authz_policy.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_energy_cost_integration.py tests/unit/test_chargeback_report.py -q`

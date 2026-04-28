@@ -76,6 +76,7 @@ export async function renderSchedulerInsights() {
   let forecast24h = [];
   let config = {};
   let savedCpuHours = 0;
+  let greenWindowActive = false;
   try {
     const data = await request('/scheduler/insights');
     heatmap = Array.isArray(data.heatmap) ? data.heatmap : [];
@@ -85,6 +86,7 @@ export async function renderSchedulerInsights() {
     forecast24h = Array.isArray(data.forecast_24h) ? data.forecast_24h : [];
     config = data.config || {};
     savedCpuHours = Number(data.saved_cpu_hours || 0);
+    greenWindowActive = Boolean(data.green_window_active);
   } catch (err) {
     container.innerHTML = `<p class="error">Fehler: ${escapeHtml(String(err.message ?? err))}</p>`;
     return;
@@ -157,12 +159,14 @@ export async function renderSchedulerInsights() {
     <section class="panel-section">
       <h3>Prewarm und Green Scheduling</h3>
       <p class="muted-text">Geschätzte eingesparte CPU-Stunden: <strong>${escapeHtml(String(savedCpuHours.toFixed(2)))}</strong></p>
+      <p class="muted-text">Green Window aktuell: <strong>${greenWindowActive ? 'aktiv' : 'inaktiv'}</strong></p>
       ${prewarmHtml}
       ${trendHtml}
       ${forecastHtml}
       <div class="detail-grid section-spaced-tight">
         <label>Prewarm Minuten<input id="scheduler-config-prewarm" type="number" min="5" max="180" step="1" value="${escapeHtml(String(config.prewarm_minutes_ahead ?? 15))}"></label>
         <label class="checkbox-row"><input id="scheduler-config-green" type="checkbox" ${config.green_scheduling_enabled ? 'checked' : ''}> Green Scheduling aktiv</label>
+        <label>Green Hours CSV<input id="scheduler-config-green-hours" type="text" value="${escapeHtml(Array.isArray(config.green_hours) ? config.green_hours.join(',') : '')}" placeholder="10,11,12,13"></label>
       </div>
       <div class="panel-actions">
         <button class="btn btn-primary" id="scheduler-config-save-btn">Scheduler-Konfiguration speichern</button>
@@ -222,6 +226,10 @@ export async function renderSchedulerInsights() {
           body: JSON.stringify({
             prewarm_minutes_ahead: Number(container.querySelector('#scheduler-config-prewarm')?.value || 15),
             green_scheduling_enabled: Boolean(container.querySelector('#scheduler-config-green')?.checked),
+            green_hours: String(container.querySelector('#scheduler-config-green-hours')?.value || '')
+              .split(',')
+              .map((value) => Number(String(value || '').trim()))
+              .filter((value) => Number.isInteger(value)),
           })
         });
         schedulerHooks.setBanner('Scheduler-Konfiguration gespeichert.');
