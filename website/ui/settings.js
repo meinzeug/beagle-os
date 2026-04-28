@@ -893,6 +893,51 @@ export function enableFullAutoMaintenance() {
     });
 }
 
+export function disableFullAutoMaintenance() {
+  settingsHooks.setBanner('Vollautomatik wird deaktiviert...', 'info');
+  const repoPayload = {
+    enabled: false,
+    repo_url: String(qs('repo-update-url') ? qs('repo-update-url').value : 'https://github.com/meinzeug/beagle-os.git').trim(),
+    branch: String(qs('repo-update-branch') ? qs('repo-update-branch').value : 'main').trim(),
+    interval_minutes: Number(qs('repo-update-interval') ? qs('repo-update-interval').value : 1) || 1
+  };
+  const watchdogPayload = {
+    enabled: false,
+    auto_repair: false,
+    max_age_hours: 6
+  };
+  return request('/settings/updates/repo-auto', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(repoPayload),
+    __timeoutMs: 30000
+  }).then((repoData) => {
+    if (!repoData.ok) {
+      throw new Error((repoData.errors || []).join(', ') || repoData.error || 'Repo-Auto-Update konnte nicht deaktiviert werden');
+    }
+    return request('/settings/artifacts/watchdog', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(watchdogPayload),
+      __timeoutMs: 30000
+    });
+  }).then((watchdogData) => {
+    if (!watchdogData.ok) {
+      throw new Error((watchdogData.errors || []).join(', ') || watchdogData.error || 'Artifact-Watchdog konnte nicht deaktiviert werden');
+    }
+    if (qs('repo-update-enabled')) {
+      qs('repo-update-enabled').checked = false;
+    }
+    if (qs('artifact-watchdog-enabled')) {
+      qs('artifact-watchdog-enabled').checked = false;
+    }
+    settingsHooks.setBanner('Vollautomatik deaktiviert. Repo-Updates und Download-Reparaturen laufen nicht mehr automatisch.', 'info');
+    return Promise.all([loadSettingsUpdates(), loadArtifactStatus({ silent: true })]);
+  }).catch((error) => {
+    settingsHooks.setBanner('Vollautomatik konnte nicht deaktiviert werden: ' + error.message, 'warn');
+  });
+}
+
 export function runFullMaintenanceNow() {
   settingsHooks.setBanner('Komplettpflege wird gestartet...', 'info');
   return request('/settings/maintenance/run', {
@@ -1584,6 +1629,9 @@ export function bindSettingsEvents() {
   }
   if (qs('updates-auto-enable')) {
     qs('updates-auto-enable').addEventListener('click', enableFullAutoMaintenance);
+  }
+  if (qs('updates-auto-disable')) {
+    qs('updates-auto-disable').addEventListener('click', disableFullAutoMaintenance);
   }
   if (qs('updates-maintenance-run')) {
     qs('updates-maintenance-run').addEventListener('click', runFullMaintenanceNow);

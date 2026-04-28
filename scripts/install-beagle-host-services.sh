@@ -803,6 +803,7 @@ cat > /etc/sudoers.d/beagle-artifacts-refresh <<'SUDOERS'
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-artifacts-refresh.service, /bin/systemctl show -p Id beagle-artifacts-refresh.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-artifacts-watchdog.service, /bin/systemctl show -p Id beagle-artifacts-watchdog.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-repo-auto-update.service, /bin/systemctl show -p Id beagle-repo-auto-update.service
+beagle-manager ALL=(root) NOPASSWD: /bin/systemctl enable --now beagle-repo-auto-update.timer, /bin/systemctl disable --now beagle-repo-auto-update.timer, /bin/systemctl stop beagle-repo-auto-update.service, /bin/systemctl reset-failed beagle-repo-auto-update.service
 beagle-manager ALL=(root) NOPASSWD: /opt/beagle/scripts/apply-beagle-firewall.sh --enable, /opt/beagle/scripts/apply-beagle-firewall.sh --disable, /opt/beagle/scripts/apply-beagle-firewall.sh --status, /opt/beagle/scripts/apply-beagle-firewall.sh --add-extra-rule *, /opt/beagle/scripts/apply-beagle-firewall.sh --delete-extra-rule *
 SUDOERS
 chmod 0440 /etc/sudoers.d/beagle-artifacts-refresh
@@ -825,8 +826,44 @@ if [[ -f /var/lib/beagle/repo-auto-update-status.json ]]; then
 fi
 
 systemctl enable "$TIMER_NAME" 2>/dev/null || true
-systemctl enable "$WATCHDOG_TIMER_NAME" 2>/dev/null || true
-systemctl enable "$REPO_AUTO_UPDATE_TIMER_NAME" 2>/dev/null || true
+repo_auto_update_enabled="$(python3 - /var/lib/beagle/beagle-manager/server-settings.json repo_auto_update_enabled <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+key = sys.argv[2]
+try:
+    data = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+except Exception:
+    data = {}
+print("1" if data.get(key, True) else "0")
+PY
+)"
+artifact_watchdog_enabled="$(python3 - /var/lib/beagle/beagle-manager/server-settings.json artifact_watchdog_enabled <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+key = sys.argv[2]
+try:
+    data = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+except Exception:
+    data = {}
+print("1" if data.get(key, True) else "0")
+PY
+)"
+if [[ "$artifact_watchdog_enabled" == "1" ]]; then
+  systemctl enable "$WATCHDOG_TIMER_NAME" 2>/dev/null || true
+else
+  systemctl disable "$WATCHDOG_TIMER_NAME" 2>/dev/null || true
+  systemctl stop "$WATCHDOG_TIMER_NAME" "$WATCHDOG_SERVICE_NAME" 2>/dev/null || true
+fi
+if [[ "$repo_auto_update_enabled" == "1" ]]; then
+  systemctl enable "$REPO_AUTO_UPDATE_TIMER_NAME" 2>/dev/null || true
+else
+  systemctl disable "$REPO_AUTO_UPDATE_TIMER_NAME" 2>/dev/null || true
+  systemctl stop "$REPO_AUTO_UPDATE_TIMER_NAME" "$REPO_AUTO_UPDATE_SERVICE_NAME" 2>/dev/null || true
+fi
 if has_ui_reapply_units; then
   systemctl enable "$UI_REAPPLY_SERVICE" 2>/dev/null || true
   systemctl enable "$UI_REAPPLY_PATH" 2>/dev/null || true
@@ -845,10 +882,18 @@ else
   systemctl disable "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
   systemctl stop "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
 fi
+start_units=("$TIMER_NAME" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE")
+if [[ "$artifact_watchdog_enabled" == "1" ]]; then
+  start_units+=("$WATCHDOG_TIMER_NAME")
+fi
+if [[ "$repo_auto_update_enabled" == "1" ]]; then
+  start_units+=("$REPO_AUTO_UPDATE_TIMER_NAME")
+fi
 if has_ui_reapply_units; then
-  systemctl start "$TIMER_NAME" "$WATCHDOG_TIMER_NAME" "$REPO_AUTO_UPDATE_TIMER_NAME" "$UI_REAPPLY_PATH" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
+  start_units+=("$UI_REAPPLY_PATH")
+  systemctl start "${start_units[@]}" 2>/dev/null || true
 else
-  systemctl start "$TIMER_NAME" "$WATCHDOG_TIMER_NAME" "$REPO_AUTO_UPDATE_TIMER_NAME" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
+  systemctl start "${start_units[@]}" 2>/dev/null || true
 fi
 
 if [[ -x "$INSTALL_DIR/scripts/apply-beagle-firewall.sh" ]]; then

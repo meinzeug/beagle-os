@@ -175,7 +175,8 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         with mock.patch.object(service, "run_repo_auto_update", return_value={"ok": True}), \
              mock.patch.object(service, "run_artifact_watchdog", return_value={"ok": True}), \
              mock.patch.object(service, "get_repo_auto_update", return_value={"config": {"enabled": True}}), \
-             mock.patch.object(service, "get_artifact_watchdog", return_value={"config": {"enabled": True}}):
+             mock.patch.object(service, "get_artifact_watchdog", return_value={"config": {"enabled": True}}), \
+             mock.patch.object(service, "_set_repo_auto_update_timer", return_value=mock.Mock(returncode=0, stderr="")):
             result = service.enable_auto_maintenance()
 
         self.assertTrue(result["ok"])
@@ -224,7 +225,8 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         with mock.patch.object(service, "run_repo_auto_update", return_value={"ok": True}), \
              mock.patch.object(service, "run_artifact_watchdog", return_value={"ok": True}), \
              mock.patch.object(service, "get_repo_auto_update", wraps=service.get_repo_auto_update), \
-             mock.patch.object(service, "get_artifact_watchdog", wraps=service.get_artifact_watchdog):
+             mock.patch.object(service, "get_artifact_watchdog", wraps=service.get_artifact_watchdog), \
+             mock.patch.object(service, "_set_repo_auto_update_timer", return_value=mock.Mock(returncode=0, stderr="")):
             result = service.enable_auto_maintenance()
 
         self.assertTrue(result["ok"])
@@ -471,8 +473,12 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
 
     def test_update_repo_auto_update_persists_values(self):
         service = self.make_service()
+        proc = mock.Mock()
+        proc.returncode = 0
+        proc.stderr = ""
 
-        with mock.patch.object(service, "get_repo_auto_update", return_value={"config": {"enabled": True}}):
+        with mock.patch.object(service, "get_repo_auto_update", return_value={"config": {"enabled": True}}), \
+             mock.patch.object(MODULE, "_run_systemctl_privileged", return_value=proc):
             result = service.update_repo_auto_update({
                 "enabled": True,
                 "repo_url": "https://github.com/meinzeug/beagle-os.git",
@@ -485,6 +491,27 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertTrue(settings["repo_auto_update_enabled"])
         self.assertEqual(settings["repo_auto_update_branch"], "main")
         self.assertEqual(settings["repo_auto_update_interval_minutes"], 1)
+
+    def test_update_repo_auto_update_disable_stops_and_disables_timer(self):
+        service = self.make_service()
+        proc = mock.Mock()
+        proc.returncode = 0
+        proc.stderr = ""
+        calls = []
+
+        def fake_systemctl(args, *, timeout=30):
+            calls.append(args)
+            return proc
+
+        with mock.patch.object(MODULE, "_run_systemctl_privileged", side_effect=fake_systemctl), \
+             mock.patch.object(service, "get_repo_auto_update", return_value={"config": {"enabled": False}}):
+            result = service.update_repo_auto_update({"enabled": False})
+
+        self.assertTrue(result["ok"], result)
+        settings = MODULE.json.loads(service._settings_path.read_text(encoding="utf-8"))
+        self.assertFalse(settings["repo_auto_update_enabled"])
+        self.assertIn(["stop", "beagle-repo-auto-update.service"], calls)
+        self.assertIn(["disable", "--now", "beagle-repo-auto-update.timer"], calls)
 
     def test_run_repo_auto_update_returns_accepted_payload(self):
         service = self.make_service()

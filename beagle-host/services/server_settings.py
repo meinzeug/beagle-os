@@ -658,13 +658,18 @@ class ServerSettingsService:
         except (OSError, json.JSONDecodeError):
             status = {"error": "unreadable"}
 
-        status.setdefault("state", "disabled" if not config["enabled"] else "unknown")
+        if not config["enabled"]:
+            status["enabled"] = False
+            status["state"] = "disabled"
+            status["update_available"] = False
+            status["message"] = "Repo-Auto-Update ist deaktiviert."
+        status.setdefault("state", "unknown")
         status.setdefault("checked_at", "")
         status.setdefault("last_update_at", "")
         status.setdefault("current_commit", "")
         status.setdefault("remote_commit", "")
         status.setdefault("update_available", False)
-        status.setdefault("message", "Repo-Auto-Update ist deaktiviert." if not config["enabled"] else "Noch nicht geprueft.")
+        status.setdefault("message", "Noch nicht geprueft.")
 
         return {
             "config": config,
@@ -679,10 +684,12 @@ class ServerSettingsService:
     def update_repo_auto_update(self, payload: dict[str, Any]) -> dict[str, Any]:
         settings = self._load_settings()
         errors: list[str] = []
+        requested_enabled: bool | None = None
 
         enabled = payload.get("enabled")
         if enabled is not None:
-            settings["repo_auto_update_enabled"] = bool(enabled)
+            requested_enabled = bool(enabled)
+            settings["repo_auto_update_enabled"] = requested_enabled
 
         repo_url = payload.get("repo_url")
         if repo_url is not None:
@@ -715,7 +722,25 @@ class ServerSettingsService:
             return {"ok": False, "errors": errors}
 
         self._save_settings(settings)
+        if requested_enabled is not None:
+            timer_result = self._set_repo_auto_update_timer(requested_enabled)
+            if timer_result.returncode != 0:
+                return {
+                    "ok": False,
+                    "errors": [f"repo-auto-update timer update failed: {(timer_result.stderr or timer_result.stdout).strip()[:240]}"],
+                    "repo_auto_update": self.get_repo_auto_update(),
+                }
         return {"ok": True, "repo_auto_update": self.get_repo_auto_update()}
+
+    def _set_repo_auto_update_timer(self, enabled: bool) -> subprocess.CompletedProcess[str]:
+        if enabled:
+            return _run_systemctl_privileged(["enable", "--now", "beagle-repo-auto-update.timer"], timeout=30)
+        stop_service = _run_systemctl_privileged(["stop", "beagle-repo-auto-update.service"], timeout=30)
+        timer = _run_systemctl_privileged(["disable", "--now", "beagle-repo-auto-update.timer"], timeout=30)
+        _run_systemctl_privileged(["reset-failed", "beagle-repo-auto-update.service"], timeout=30)
+        if timer.returncode != 0:
+            return timer
+        return stop_service if stop_service.returncode != 0 else timer
 
     def run_repo_auto_update(self) -> dict[str, Any]:
         try:
