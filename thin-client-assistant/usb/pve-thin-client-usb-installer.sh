@@ -156,6 +156,14 @@ bootstrap_usb_writer_helpers() {
   local checksum_url=""
   local checksum_file=""
   local checksum_entry=""
+  local checksum_log=""
+  local cache_dir=""
+  local cached_tarball=""
+  local download_target=""
+  local used_cached="0"
+  local checksum_entry_found="0"
+  local checksum_ok="0"
+  local -a checksum_curl_args download_curl_args
 
   if have_usb_writer_helpers; then
     beagle_installer_log_event "bootstrap_helpers_present" "bootstrap" "ok" "USB writer helpers are bundled"
@@ -187,27 +195,84 @@ bootstrap_usb_writer_helpers() {
   payload_name="$(basename "${bootstrap_url%%\?*}")"
   [[ -n "$payload_name" ]] || payload_name="pve-thin-client-usb-bootstrap.tar.gz"
   tarball="$BOOTSTRAP_DIR/$payload_name"
+  cache_dir="$BOOTSTRAP_CACHE_DIR"
+
+  checksum_curl_args=(--fail --silent --location --retry 2 --retry-delay 1)
+  download_curl_args=(--fail --show-error --location --retry 3 --retry-delay 2)
+  if [[ "$BOOTSTRAP_DISABLE_CACHE" == "1" ]]; then
+    cache_dir=""
+    checksum_curl_args+=(-H 'Cache-Control: no-cache' -H 'Pragma: no-cache')
+    download_curl_args+=(-H 'Cache-Control: no-cache' -H 'Pragma: no-cache')
+  else
+    download_curl_args+=(--continue-at -)
+  fi
+
+  if [[ -n "$cache_dir" ]] && mkdir -p "$cache_dir" 2>/dev/null; then
+    cached_tarball="$cache_dir/$payload_name"
+  fi
+
+  if [[ -n "$cached_tarball" && -f "$cached_tarball" ]]; then
+    cp -f "$cached_tarball" "$tarball"
+    used_cached="1"
+  fi
 
   echo "Bootstrapping USB installer helpers from $bootstrap_url ..." >&2
   beagle_installer_log_event "bootstrap_download_started" "bootstrap" "running" "$bootstrap_url"
-  curl --fail --show-error --location --retry 3 --retry-delay 2 "$bootstrap_url" -o "$tarball"
 
   checksum_url="${bootstrap_url%/*}/SHA256SUMS"
   checksum_file="$BOOTSTRAP_DIR/SHA256SUMS"
-  if curl --fail --silent --location --retry 2 --retry-delay 1 "$checksum_url" -o "$checksum_file" 2>/dev/null; then
+  checksum_log="$BOOTSTRAP_DIR/checksum-download.log"
+  if curl "${checksum_curl_args[@]}" "$checksum_url" -o "$checksum_file" 2>"$checksum_log"; then
     checksum_entry="$BOOTSTRAP_DIR/payload.sha256"
     if grep -F " ${payload_name}" "$checksum_file" >"$checksum_entry"; then
-      (
-        cd "$BOOTSTRAP_DIR"
-        sha256sum -c "$(basename "$checksum_entry")" >/dev/null
-      )
+      checksum_entry_found="1"
+      if [[ "$used_cached" == "1" ]]; then
+        if (
+          cd "$BOOTSTRAP_DIR"
+          sha256sum -c "$(basename "$checksum_entry")" >/dev/null
+        ); then
+          checksum_ok="1"
+        fi
+      fi
     elif [[ "$REQUIRE_CHECKSUMS" == "1" ]]; then
       echo "Checksum verification is required but SHA256SUMS has no entry for $payload_name." >&2
       exit 1
     fi
   elif [[ "$REQUIRE_CHECKSUMS" == "1" ]]; then
     echo "Checksum verification is required but SHA256SUMS could not be downloaded from $checksum_url." >&2
+    if [[ -s "$checksum_log" ]]; then
+      cat "$checksum_log" >&2
+    fi
     exit 1
+  fi
+
+  if [[ "$used_cached" == "1" ]]; then
+    if [[ "$checksum_entry_found" == "1" && "$checksum_ok" == "1" ]]; then
+      beagle_installer_log_event "bootstrap_cache_hit" "bootstrap" "ok" "$cached_tarball"
+    elif [[ "$checksum_entry_found" == "1" ]]; then
+      used_cached="0"
+    fi
+  fi
+
+  if [[ "$used_cached" != "1" ]]; then
+    download_target="$tarball"
+    if [[ -n "$cached_tarball" ]]; then
+      download_target="$cached_tarball"
+    fi
+    curl "${download_curl_args[@]}" "$bootstrap_url" -o "$download_target"
+    if [[ "$download_target" != "$tarball" ]]; then
+      cp -f "$download_target" "$tarball"
+    fi
+    if [[ -n "$cached_tarball" ]]; then
+      cp -f "$tarball" "$cached_tarball"
+    fi
+
+    if [[ "$checksum_entry_found" == "1" ]]; then
+      (
+        cd "$BOOTSTRAP_DIR"
+        sha256sum -c "$(basename "$checksum_entry")" >/dev/null
+      )
+    fi
   fi
 
   tar -xzf "$tarball" -C "$extracted"

@@ -44,7 +44,7 @@ bootstrap_repo_root() {
     exit 1
   }
 
-  payload_name="$(basename "$bootstrap_url")"
+  payload_name="$(basename "${bootstrap_url%%\?*}")"
   tarball="$BOOTSTRAP_DIR/$payload_name"
   cache_dir="$BOOTSTRAP_CACHE_DIR"
   cached_tarball=""
