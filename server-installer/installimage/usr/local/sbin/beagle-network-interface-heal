@@ -79,6 +79,35 @@ rewrite_interface_name() {
   mv "$IFACES_FILE.tmp" "$IFACES_FILE"
 }
 
+normalize_route_commands() {
+  python3 - "$IFACES_FILE" <<'PY'
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+
+def repl(match: re.Match[str]) -> str:
+    network = match.group("network")
+    netmask = match.group("netmask")
+    gateway = match.group("gateway")
+    iface = match.group("iface")
+    return f"  up ip route replace {network}/{netmask} via {gateway} dev {iface} || true"
+
+updated = re.sub(
+    r"^\s*up\s+route\s+add\s+-net\s+(?P<network>\S+)\s+netmask\s+(?P<netmask>\S+)\s+gw\s+(?P<gateway>\S+)\s+dev\s+(?P<iface>\S+)\s*$",
+    repl,
+    text,
+    flags=re.MULTILINE,
+)
+if updated != text:
+    path.write_text(updated, encoding="utf-8")
+PY
+}
+
 main() {
   log "network heal start"
 
@@ -86,6 +115,8 @@ main() {
     log "interfaces file missing: $IFACES_FILE"
     exit 0
   fi
+
+  normalize_route_commands
 
   local ifaces
   ifaces="$(configured_ifaces || true)"

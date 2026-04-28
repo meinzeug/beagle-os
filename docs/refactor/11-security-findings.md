@@ -1,6 +1,26 @@
 # Security Findings
 
-Stand: 2026-04-28 (ergänzt: S-032 Login-Rate-Limit hinter nginx korrigiert)
+Stand: 2026-04-28 (ergänzt: S-033 Service-Sandbox-/Runtime-Drift korrigiert)
+
+## S-033 — Public-Streams-Service entzog sich fuer eigene Root-Aufgabe alle Capabilities (PATCHED)
+
+- Status: **gepatcht** (2026-04-28)
+- Risiko: **Niedrig bis Mittel**
+- Betroffene Dateien:
+  - `beagle-host/systemd/beagle-public-streams.service`
+  - `scripts/beagle-cluster-auto-join.sh`
+  - `scripts/repo-auto-update.sh`
+  - `server-installer/installimage/usr/local/sbin/beagle-network-interface-heal`
+- Beschreibung:
+  - `beagle-public-streams.service` soll nftables-Regeln und persistenten Beagle-State reconciliieren.
+  - Die Unit setzte aber `CapabilityBoundingSet=` leer; dadurch konnte das Root-Skript bestehende State-Verzeichnisse nicht chmod/chownen und waere spaeter auch fuer Netfilter-Aenderungen unzureichend privilegiert.
+  - Parallel war `beagle-cluster-auto-join.sh` nicht executable, wodurch ein enabled oneshot beim Boot/Install als failed stehen blieb.
+  - Der Repo-Auto-Update-Status konnte durch Short-vs-Full-Hash-Vergleich unnoetige Update-/Repair-Laeufe ausloesen.
+- Fix:
+  - Public-Streams bekommt nur die fuer diesen Job notwendigen Capabilities (`CAP_DAC_OVERRIDE`, `CAP_FOWNER`, `CAP_NET_ADMIN`, `CAP_NET_RAW`) und explizite Schreibpfade.
+  - Cluster-Auto-Join-Skript ist executable.
+  - Repo-Auto-Update vergleicht Short-/Full-Hashes robust.
+  - Network-Heal normalisiert nicht-idempotente Route-Hooks, damit Netzwerkkonfiguration nicht wegen bereits vorhandener Route failed bleibt.
 
 ## S-032 — Login-Guard und API-Rate-Limit nutzten hinter nginx nur die Proxy-IP (PATCHED)
 

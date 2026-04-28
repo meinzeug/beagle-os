@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-28, srv1 Systemd-/Update-Drift gepatcht)
+
+**Zuletzt erledigt**:
+- Die failed-unit-Befunde auf `srv1` sind auf konkrete Ursachen zurueckgefuehrt und im Repo gepatcht: fehlendes Execute-Bit, zu harte Public-Streams-Sandbox, nicht-idempotenter ifupdown-Route-Hook und Short-vs-Full-Hash im Repo-Auto-Update.
+
+**Naechste konkrete Schritte**:
+
+1. Fixes auf `srv1` ausrollen, `systemctl daemon-reload` fahren und `beagle-cluster-auto-join.service` / `beagle-public-streams.service` erneut testen.
+2. `/etc/network/interfaces` auf `srv1` live auf idempotenten Route-Hook umstellen und `networking.service` ohne Interface-Ausfall neu bewerten.
+3. Nach Ende des aktuell laufenden Artifact-Builds `repo-auto-update-status.json` erneut pruefen; erwarteter Zielzustand ist `state=healthy`, `update_available=false`.
+
 ## Stand (2026-04-28, Login-429 hinter nginx behoben)
 
 **Zuletzt erledigt**:

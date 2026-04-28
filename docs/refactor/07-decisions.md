@@ -2,6 +2,11 @@
 
 Stand: 2026-04-13
 
+## D-051: Host-Oneshots muessen ihre Sandbox an die Aufgabe koppeln
+- Entscheidung: Systemd-Oneshots, die Host-State oder nftables aktiv reparieren, duerfen nicht pauschal alle Capabilities verlieren; sie bekommen eng begrenzte Capabilities und explizite `ReadWritePaths`.
+- Grund: Eine zu harte Sandbox kann Self-Heal- und Reconcile-Jobs in eine permanente failed-Schleife bringen. Minimal notwendige Privilegien sind sicherer als ein formal harter, aber funktionsloser Dienst.
+- Dateien: `beagle-host/systemd/beagle-public-streams.service`, `scripts/beagle-cluster-auto-join.sh`, `scripts/repo-auto-update.sh`.
+
 ## D-050: Proxy-Forwarded-Client-IP nur von lokalem Reverse Proxy vertrauen
 - Entscheidung: Die Control Plane nutzt `X-Forwarded-For`/`X-Real-IP` fuer Audit, Login-Guard und API-Rate-Limit nur, wenn der direkte Peer ein lokaler Proxy ist.
 - Grund: nginx terminiert die oeffentliche WebUI und setzt Forwarded-For; ohne Auswertung werden alle Nutzer als `127.0.0.1` limitiert. Direkte externe Clients duerfen den Header aber nicht spoofend kontrollieren.

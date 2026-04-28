@@ -9,6 +9,8 @@ EnvironmentFile=-/etc/beagle/host.env
 EnvironmentFile=-/etc/beagle/beagle-manager.env
 ExecStart=__INSTALL_DIR__/scripts/reconcile-public-streams.sh
 WorkingDirectory=__INSTALL_DIR__
+User=root
+Group=root
 UMask=0077
 NoNewPrivileges=yes
 PrivateTmp=yes
@@ -24,8 +26,10 @@ RestrictNamespaces=yes
 RestrictRealtime=yes
 RestrictSUIDSGID=yes
 SystemCallArchitectures=native
-CapabilityBoundingSet=
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_FOWNER CAP_NET_ADMIN CAP_NET_RAW
+AmbientCapabilities=CAP_DAC_OVERRIDE CAP_FOWNER CAP_NET_ADMIN CAP_NET_RAW
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+ReadWritePaths=/etc/beagle /var/lib/beagle
 
 [Install]
 WantedBy=multi-user.target

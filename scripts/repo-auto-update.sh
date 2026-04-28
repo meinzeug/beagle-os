@@ -117,6 +117,21 @@ def run(cmd: list[str], *, cwd: Path | None = None, timeout: int = 1800) -> subp
     )
 
 
+def same_commit(installed: str, remote: str) -> bool:
+    left = str(installed or "").strip()
+    right = str(remote or "").strip()
+    if not left or not right:
+        return False
+    if left == right:
+        return True
+    # Older live hotfixes wrote short hashes to .beagle-installed-commit.
+    if len(left) < len(right) and len(left) >= 7 and right.startswith(left):
+        return True
+    if len(right) < len(left) and len(right) >= 7 and left.startswith(right):
+        return True
+    return False
+
+
 settings = load_json(settings_path)
 status = load_json(status_path)
 config = {
@@ -183,7 +198,7 @@ if (
     and config_matches_status
     and not force_check
     and has_installed_commit
-    and status_current_commit == current_commit
+    and same_commit(status_current_commit, current_commit)
     and status_state not in {"error", "updating"}
     and not status_update_available
     and now - last_checked < timedelta(minutes=max(1, config["interval_minutes"]))
@@ -233,11 +248,13 @@ if remote_commit_proc.returncode != 0:
 remote_commit = (remote_commit_proc.stdout or "").strip()
 payload["remote_commit"] = remote_commit
 
-if current_commit and current_commit == remote_commit:
+if current_commit and same_commit(current_commit, remote_commit):
     payload["state"] = "healthy"
     payload["reaction"] = "no_update"
     payload["message"] = "Installierter Repo-Stand ist aktuell."
     payload["update_available"] = False
+    payload["current_commit"] = remote_commit
+    commit_file.write_text(remote_commit + "\n", encoding="utf-8")
     write_status(payload)
     raise SystemExit(0)
 

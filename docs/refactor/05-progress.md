@@ -1,3 +1,21 @@
+## Update (2026-04-28, srv1 Auffaelligkeiten analysiert und Systemd-/Update-Drift gepatcht)
+
+**Scope**: Die Live-Pruefung auf `srv1` zeigte drei failed units und einen Auto-Update-Status, der trotz installiertem Commit `dba99c2` weiter `updating` meldete.
+
+- Befunde:
+  - `beagle-cluster-auto-join.service` scheiterte mit `203/EXEC`, weil `scripts/beagle-cluster-auto-join.sh` im Repo und live nicht executable war.
+  - `beagle-public-streams.service` scheiterte alle zwei Minuten durch `install: cannot change permissions of /var/lib/beagle/beagle-manager: Operation not permitted`; die Unit entzog dem Root-Prozess alle Capabilities, obwohl das Skript nftables und Beagle-State schreiben muss.
+  - `networking.service` war seit 2026-04-21 failed, obwohl `enp35s0` und Default-Route aktiv sind; Ursache ist ein nicht-idempotenter Hetzner-ifupdown-Route-Hook (`route add ...` -> `File exists`).
+  - `repo-auto-update-status.json` verglich einen Short-Commit (`dba99c2`) mit dem Full-Hash (`dba99c247...`) und konnte dadurch faelschlich `update_available=true` melden.
+- Fixes:
+  - `scripts/beagle-cluster-auto-join.sh` ist jetzt executable.
+  - `beagle-host/systemd/beagle-public-streams.service` setzt explizit Root-Kontext, notwendige Capabilities und `ReadWritePaths=/etc/beagle /var/lib/beagle`.
+  - `scripts/repo-auto-update.sh` normalisiert Short-/Full-Commit-Vergleiche mit `same_commit(...)` und schreibt bei No-Update den Full-Hash zurueck.
+  - `server-installer/installimage/usr/local/sbin/beagle-network-interface-heal` normalisiert legacy `route add -net ...` Hooks auf idempotentes `ip route replace ... || true`.
+- Verifikation:
+  - `bash -n` fuer betroffene Shell-Skripte erfolgreich.
+  - Repo-Auto-Update-Regression um Short-Hash-Assertion erweitert und direkt ausgefuehrt.
+
 ## Update (2026-04-28, Login-429 hinter nginx behoben)
 
 **Scope**: `POST /api/v1/auth/login` lieferte auf `srv1` trotz korrekter Credentials `429 Too Many Requests`, weil der Login-Guard hinter nginx alle externen Browser als denselben Peer `127.0.0.1` behandelte.

@@ -16,3 +16,11 @@ def test_repo_auto_update_repairs_runtime_tree_before_rsync_and_install() -> Non
     assert 'legacy_alias.symlink_to("beagle-host")' in script
     assert "repair_runtime_tree(install_dir)" in script
     assert '"reaction"] = "repair_runtime_tree_failed"' in script
+
+
+def test_repo_auto_update_accepts_short_installed_commit_hash() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert "def same_commit(installed: str, remote: str) -> bool:" in script
+    assert "right.startswith(left)" in script
+    assert "same_commit(current_commit, remote_commit)" in script
