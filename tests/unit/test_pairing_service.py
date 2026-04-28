@@ -54,3 +54,18 @@ def test_rejects_expired_pairing_token() -> None:
     )
 
     assert validate_service.validate_token(token) is None
+
+
+def test_consume_token_allows_once_then_rejects_replay() -> None:
+    service = PairingService(
+        signing_secret="secret-4",
+        token_ttl_seconds=60,
+        utcnow=lambda: "2026-04-22T12:00:00+00:00",
+    )
+    token = service.issue_token({"vmid": 100, "node": "beagle-0", "pairing_pin": "1234"})
+
+    first = service.consume_token(token)
+    second = service.consume_token(token)
+
+    assert isinstance(first, dict)
+    assert second is None

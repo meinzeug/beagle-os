@@ -361,7 +361,7 @@ NOVNC_TOKEN_FILE = os.environ.get("BEAGLE_NOVNC_TOKEN_FILE", "/etc/beagle/novnc/
 BEAGLE_HOST_PROVIDER_KIND = normalize_provider_kind(os.environ.get("BEAGLE_HOST_PROVIDER", "beagle"))
 ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_SECONDS", "86400"))
 SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_TOKEN_TTL_SECONDS", "600"))
-PAIRING_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_PAIRING_TOKEN_TTL_SECONDS", "120"))
+PAIRING_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_PAIRING_TOKEN_TTL_SECONDS", "60"))
 PAIRING_TOKEN_SECRET = os.environ.get("BEAGLE_PAIRING_TOKEN_SECRET", "").strip()
 INSTALLER_LOG_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_INSTALLER_LOG_TOKEN_TTL_SECONDS", "86400"))
 INSTALLER_LOG_TOKEN_SECRET = os.environ.get("BEAGLE_INSTALLER_LOG_TOKEN_SECRET", "").strip()
@@ -2141,7 +2141,7 @@ def issue_moonlight_pairing_token(vm: VmSummary, endpoint_identity: dict[str, An
 
 
 def exchange_moonlight_pairing_token(vm: VmSummary, endpoint_identity: dict[str, Any], pairing_token: str) -> dict[str, Any]:
-    payload = pairing_service().validate_token(pairing_token)
+    payload = pairing_service().consume_token(pairing_token)
     if not isinstance(payload, dict):
         return {"ok": False, "error": "invalid or expired pairing token"}
 

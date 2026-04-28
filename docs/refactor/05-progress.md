@@ -1,3 +1,21 @@
+## Update (2026-04-28, GoEnterprise Plan 01: Token-Pairing 60s + Replay-Schutz geschlossen)
+
+**Scope**: Der offene Plan-01-Token-Pairing-Testpunkt wurde im Control-Plane-Scope geschlossen.
+
+- Backend:
+  - `beagle-host/services/service_registry.py`
+    - `BEAGLE_PAIRING_TOKEN_TTL_SECONDS` Default auf `60`
+    - Pair-Exchange nutzt jetzt `consume_token()` statt `validate_token()`
+  - `beagle-host/services/pairing_service.py`
+    - `consume_token()` eingefuehrt (einmal-verwendbar + Replay-Schutz)
+- Tests:
+  - `tests/unit/test_pairing_service.py`
+  - `tests/unit/test_auto_pairing_flow.py`
+
+Wichtig:
+- Diese Schliessung gilt fuer den aktuellen Control-Plane-/Endpoint-Pfad.
+- Offen bleiben weiterhin die echten Fork-/VM-Laufzeitthemen (`beagle-stream-server`-Runtime auf VM, WireGuard-Mesh/Latenz).
+
 ## Update (2026-04-28, GoEnterprise Plan 01: dedizierte Stream-Server-Contract-Suite)
 
 **Scope**: Die offene Schritt-1-Testpflicht aus Plan 01 wurde als eigene Contract-Suite umgesetzt.

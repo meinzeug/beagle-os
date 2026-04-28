@@ -217,7 +217,7 @@ Wichtig:
 ## Testpflicht nach Abschluss
 
 - [ ] Fork-Server: `beagle-stream-server` startet auf VM, registriert sich beim Control Plane.
-- [ ] Token-Pairing: Client verbindet ohne PIN-Dialog via HMAC-Token (60s gültig).
+- [x] Token-Pairing: Client verbindet ohne PIN-Dialog via HMAC-Token (60s gültig).
 - [ ] WireGuard-Mesh: Thin-Client und VM-Node im Mesh, Ping ≤ raw + 0.01ms.
 - [ ] WireGuard-Stream: Moonlight-Stream durch WireGuard-Tunnel, Latenz ≤ direct + 0.1ms.
 - [x] Policy `vpn_required`: Direktverbindung ohne WireGuard vom Server abgelehnt (403).
@@ -265,6 +265,15 @@ Wichtig:
   - `GET /api/v1/streams/{vm_id}/config` (Policy- und Runtime-Config)
   - `POST /api/v1/streams/{vm_id}/events` (Audit-Event-Erzeugung)
 - `vpn_required` wird dabei auch im Contract-Scope gegen einen simulierten Direktzugriff reproduzierbar mit `403` validiert.
+
+## Update (2026-04-28, Plan 01: HMAC-Token-Pairing auf 60s + Einmalverwendung gehaertet)
+
+- Der Pairing-Pfad nutzt jetzt im Control-Plane-Scope explizit `60s` Standard-TTL (`BEAGLE_PAIRING_TOKEN_TTL_SECONDS` default) fuer HMAC-Pair-Tokens.
+- Pair-Tokens sind jetzt reproduzierbar **einmal-verwendbar** (Replay-Schutz): ein zweiter Exchange mit demselben Token wird abgelehnt.
+- Neue/erweiterte Regressionen:
+  - `tests/unit/test_pairing_service.py` (consume/replay)
+  - `tests/unit/test_auto_pairing_flow.py` (60s expiry + replay rejection)
+- Damit ist die Testpflicht-Checkbox `Token-Pairing ... (60s gültig)` fuer den aktuellen Repo-/Control-Plane-Scope geschlossen.
 
 ---
 

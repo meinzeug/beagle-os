@@ -291,6 +291,35 @@ class TestPairingServiceTokenSecurity(unittest.TestCase):
         self.assertIsNotNone(payload)
         self.assertEqual(payload["pairing_pin"], "7777")
 
+    def test_token_with_60_second_ttl_expires_after_61_seconds(self):
+        svc_issue = PairingService(
+            signing_secret="test-secret",
+            token_ttl_seconds=60,
+            utcnow=lambda: "2026-04-24T10:00:00+00:00",
+        )
+        token = svc_issue.issue_token({"vmid": 100, "node": "beagle-0", "pairing_pin": "9999"})
+
+        svc_late = PairingService(
+            signing_secret="test-secret",
+            token_ttl_seconds=60,
+            utcnow=lambda: "2026-04-24T10:01:01+00:00",
+        )
+        self.assertIsNone(svc_late.validate_token(token))
+
+    def test_consume_token_rejects_replay(self):
+        svc = PairingService(
+            signing_secret="test-secret",
+            token_ttl_seconds=60,
+            utcnow=lambda: "2026-04-24T10:00:00+00:00",
+        )
+        token = svc.issue_token({"vmid": 100, "node": "beagle-0", "pairing_pin": "1010"})
+
+        first = svc.consume_token(token)
+        second = svc.consume_token(token)
+
+        self.assertIsNotNone(first)
+        self.assertIsNone(second)
+
 
 if __name__ == "__main__":
     unittest.main()

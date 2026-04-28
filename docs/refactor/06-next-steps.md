@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-04-28, GoEnterprise Plan 01 token pairing hardening completed)
+
+**Zuletzt erledigt**:
+- Plan-01-Token-Pairing-Testpunkt ist im Control-Plane-Scope geschlossen: HMAC-Pair-Tokens laufen jetzt standardmaessig mit 60s TTL und sind einmal-verwendbar (Replay wird blockiert), mit dedizierten Tests abgesichert.
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 01 Fork-Rest**: echten `beagle-stream-server` auf VM starten und reale Register-/Pairing-/Event-Flows gegen die bestehende API fahren.
+2. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
+3. **Plan 09 Restpunkt**: externen Carbon-/Strommix-Feed als reproduzierbaren Importjob mit Retry/Alerting umsetzen.
+4. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
+
 ## Stand (2026-04-28, GoEnterprise Plan 01 stream-server contract tests completed)
 
 **Zuletzt erledigt**:

@@ -64,6 +64,7 @@
 - [x] GoEnterprise Plan 01: Control-Plane-API fuer kuenftigen `beagle-stream-server` (`/api/v1/streams/register`, `/config`, `/events`) inkl. Audit-Log und RBAC verdrahten.
 - [x] GoEnterprise Plan 01: Testpflicht-Punkte `vpn_required`-403, `vpn_preferred`-Fallback und Stream-Session-Audit auf der neuen `/api/v1/streams/*`-Surface reproduzierbar schliessen.
 - [x] GoEnterprise Plan 01: dedizierte Stream-Server-Contract-Suite `tests/unit/test_beagle_stream_server_api.py` fuer Register/Config/Events inkl. `vpn_required`-403 anlegen.
+- [x] GoEnterprise Plan 01: Token-Pairing im Control-Plane-Scope auf 60s TTL + Einmalverwendung (Replay-Schutz) haerten und testen.
 - [ ] GoEnterprise Plan 01: denselben Enforcement-Pfad spaeter auch im separaten `beagle-stream-server`-Fork verankern.
 
 ## Update 2026-04-26 (GoFuture Re-Open: WebUI-Operability)

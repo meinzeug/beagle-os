@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
@@ -22,6 +23,8 @@ class PairingService:
         self._secret = secret
         self._token_ttl_seconds = max(15, int(token_ttl_seconds))
         self._utcnow = utcnow
+        self._consumed_token_hashes: dict[str, str] = {}
+        self._consume_lock = threading.RLock()
 
     @staticmethod
     def _b64url_encode(raw: bytes) -> str:
@@ -49,6 +52,21 @@ class PairingService:
 
     def _now(self) -> datetime:
         return self._parse_timestamp(self._utcnow())
+
+    @staticmethod
+    def _token_hash(token: str) -> str:
+        return hashlib.sha256(str(token or "").encode("utf-8")).hexdigest()
+
+    def _purge_consumed(self, now: datetime) -> None:
+        stale: list[str] = []
+        for digest, expires_at in self._consumed_token_hashes.items():
+            try:
+                if self._parse_timestamp(expires_at) <= now:
+                    stale.append(digest)
+            except Exception:
+                stale.append(digest)
+        for digest in stale:
+            self._consumed_token_hashes.pop(digest, None)
 
     def issue_token(self, payload: dict[str, Any]) -> str:
         body = dict(payload)
@@ -90,3 +108,19 @@ class PairingService:
             return payload
         except Exception:
             return None
+
+    def consume_token(self, token: str) -> dict[str, Any] | None:
+        payload = self.validate_token(token)
+        if not isinstance(payload, dict):
+            return None
+        expires_at = str(payload.get("expires_at") or "").strip()
+        if not expires_at:
+            return None
+        digest = self._token_hash(token)
+        now = self._now()
+        with self._consume_lock:
+            self._purge_consumed(now)
+            if digest in self._consumed_token_hashes:
+                return None
+            self._consumed_token_hashes[digest] = expires_at
+        return payload
