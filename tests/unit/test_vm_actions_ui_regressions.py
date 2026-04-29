@@ -26,6 +26,20 @@ def test_novnc_actions_are_available_in_inventory_and_detail() -> None:
     assert "actionButton('novnc-ui', 'noVNC', 'ghost')" in main
 
 
+def test_novnc_action_launch_and_error_guards_are_wired() -> None:
+    actions = _read(ACTIONS_JS)
+
+    assert "const access = payload && payload.novnc_access ? payload.novnc_access : {};" in actions
+    assert "if (!access.available) {" in actions
+    assert "noVNC ist fuer diese VM nicht verfuegbar." in actions
+    assert "if (!url) {" in actions
+    assert "Keine noVNC URL erhalten." in actions
+    assert "if (!isSafeExternalUrl(url)) {" in actions
+    assert "Unsichere noVNC URL blockiert." in actions
+    assert "window.open(url, '_blank', 'noopener');" in actions
+    assert "actionHooks.setBanner('noVNC Zugriff fehlgeschlagen: ' + error.message, 'warn');" in actions
+
+
 def test_vm_delete_action_clears_selection_and_refreshes_dashboard() -> None:
     actions = _read(ACTIONS_JS)
     main = _read(MAIN_JS)
@@ -37,3 +51,22 @@ def test_vm_delete_action_clears_selection_and_refreshes_dashboard() -> None:
     assert "state.selectedVmid = null" in actions
     assert "actionHooks.loadDashboard({ force: true })" in actions
     assert "actionButton('vm-delete', 'VM loeschen', 'danger')" in main
+
+
+def test_vm_delete_action_is_unconditionally_visible_in_detail_actions() -> None:
+    main = _read(MAIN_JS)
+
+    install_block = main.index("if (status === 'installing') {")
+    delete_button = main.index("html += actionButton('vm-delete', 'VM loeschen', 'danger');")
+    return_line = main.index("return html;", delete_button)
+
+    assert install_block < delete_button < return_line
+
+
+def test_vm_delete_action_logs_success_and_failure_paths() -> None:
+    actions = _read(ACTIONS_JS)
+
+    assert "actionHooks.addToActivityLog('vm-delete', vmid, 'ok', 'VM geloescht');" in actions
+    assert "actionHooks.setBanner('VM ' + vmid + ' geloescht.', 'ok');" in actions
+    assert "actionHooks.addToActivityLog('vm-delete', vmid, 'warn', error.message);" in actions
+    assert "actionHooks.setBanner('VM konnte nicht geloescht werden: ' + error.message, 'warn');" in actions

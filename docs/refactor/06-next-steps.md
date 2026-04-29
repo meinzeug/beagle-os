@@ -24,6 +24,18 @@
 2. Danach die offenen GoRelease-R2/R3-Checks priorisieren, beginnend mit frischem Install/Boot-Pfad und Artefakt-/Signaturkette.
 3. Parallel den `beagle-manager`-Runtime-Status auf `srv1`/`srv2` als Vorbedingung fuer weitere Live-Smokes stabil gruen halten.
 
+## Stand (2026-04-29, VM-Delete/noVNC UI-Regressions geschlossen)
+
+**Zuletzt erledigt**:
+- `tests/unit/test_vm_actions_ui_regressions.py` deckt jetzt die offenen Delete-/noVNC-UI-Regressionspunkte ab.
+- Lokaler Testlauf ist gruen, und auf `srv1` wurde ein gezielter Smoke gegen die kopierten Repo-Dateien erfolgreich bestaetigt.
+
+**Naechste konkrete Schritte**:
+
+1. Den verbleibenden offenen Punkt `UI-level provisioning smoke test in CI` aus `docs/refactor/08-todo-global.md` schliessen.
+2. Danach den Installer-/Host-Restblock weiterziehen: frischer ISO-Installpfad inklusive noVNC/API/Downloads nachinstall validieren.
+3. Den Multi-Node-HA-Live-Smoke wieder aufnehmen, sobald `srv2` netzseitig wieder erreichbar ist.
+
 ## Stand (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 3 abgeschlossen)
 
 **Zuletzt erledigt**:

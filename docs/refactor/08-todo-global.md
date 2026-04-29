@@ -380,8 +380,10 @@
 - [x] Add outer-host disk guardrails/cleanup routine for local validation harness (prevent repeated `beagleserver` pause on 100% root).
 - [x] Add automated API regression test for `DELETE /api/v1/provisioning/vms/{vmid}`.
 - [x] Add automated API regression test for `GET /api/v1/vms/{vmid}/novnc-access` (beagle success payloads and failure handling).
-- [ ] Add UI regression test for VM delete action visibility and post-delete inventory refresh.
-- [ ] Add UI regression test for noVNC action buttons in inventory/detail and launch/error behavior.
+- [x] Add UI regression test for VM delete action visibility and post-delete inventory refresh.
+- [x] Add UI regression test for noVNC action buttons in inventory/detail and launch/error behavior.
+	- Umsetzung 2026-04-29: `tests/unit/test_vm_actions_ui_regressions.py` deckt jetzt noVNC-Inventory/Detail-Buttons, Launch-/Error-Guards sowie VM-Delete-Sichtbarkeit, Success/Failure-Logging und Dashboard-Refresh nach Delete ab.
+	- Validierung: lokal `5 passed`; srv1 Smoke gegen kopierte Repo-Dateien `VM_ACTIONS_UI_REGRESSION_SMOKE=PASS`.
 - [x] Add regression tests for concurrent auth refresh + dashboard polling.
 - [ ] Add UI-level provisioning smoke test in CI.
 - [x] Backport VM-side noVNC/XFCE hotfixes into repo-owned host install path and freshly rebuilt server-installer ISO.

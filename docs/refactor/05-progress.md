@@ -1,3 +1,21 @@
+## Update (2026-04-29, VM-Delete/noVNC UI-Regressions geschlossen)
+
+**Scope**: Zwei offene UI-Regressionspunkte fuer VM-Aktionen geschlossen: Delete-Sichtbarkeit + Inventory-Refresh sowie noVNC-Buttons/Launch-/Error-Guards.
+
+- Tests:
+  - `tests/unit/test_vm_actions_ui_regressions.py`
+    - noVNC Inventory-/Detail-Verfuegbarkeit
+    - noVNC Launch-/Unavailable-/Missing-URL-/Unsafe-URL-Guards
+    - VM-Delete-Sichtbarkeit in Detail-Actions
+    - VM-Delete Success/Failure-Logging
+    - Post-Delete Dashboard-Refresh (`loadDashboard({ force: true })`)
+  - lokal: `python3 -m pytest tests/unit/test_vm_actions_ui_regressions.py -q` => `5 passed`
+- Syntax-Check:
+  - `node --check website/ui/actions.js website/ui/inventory.js website/main.js` => OK
+- srv1-Validierung:
+  - kopierte Repo-Dateien auf `srv1` gegen stabile Marker geprueft
+  - Ergebnis: `VM_ACTIONS_UI_REGRESSION_SMOKE=PASS`
+
 ## Update (2026-04-29, QEMU+SSH Live-Migration-Deadlock eingegrenzt + Shared-Storage-Abnahmepfad dokumentiert)
 
 **Scope**: Offenen Global-TODO-Punkt zur Live-Migration zwischen `srv1` und `srv2` geschlossen. Migration-Fehlerpfad liefert jetzt reproduzierbar eine klare Operator-Empfehlung fuer Shared-Storage-Migration oder cold/offline Fallback.
