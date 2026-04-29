@@ -241,6 +241,82 @@ class FleetHttpSurfaceService:
         self._remediation_state["last_run"] = run_summary
         self._save_remediation_state()
 
+    def auto_remediation_enabled(self) -> bool:
+        return bool(self._remediation_state.get("enabled", False))
+
+    def run_safe_auto_remediation(
+        self,
+        *,
+        dry_run: bool = False,
+        device_ids: list[str] | None = None,
+        requester: str = "",
+        require_enabled: bool = False,
+    ) -> dict[str, Any]:
+        if require_enabled and not self.auto_remediation_enabled():
+            return {
+                "ok": True,
+                **self._envelope(
+                    applied=[],
+                    skipped=[{"reason": "disabled"}],
+                    failed=[],
+                    dry_run=bool(dry_run),
+                    last_run=dict(self._remediation_state.get("last_run", {}) or {}),
+                ),
+            }
+
+        excluded = set(self._remediation_config().get("excluded_device_ids") or [])
+        if isinstance(device_ids, list):
+            normalized_ids = [str(item or "").strip() for item in device_ids if str(item or "").strip()]
+            devices = [self._registry.get_device(device_id) for device_id in normalized_ids]
+            devices = [item for item in devices if item is not None]
+        else:
+            devices = self._registry.list_devices()
+
+        applied: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        failed: list[dict[str, Any]] = []
+        for device in devices:
+            device_id = str(getattr(device, "device_id", "") or "")
+            if device_id in excluded:
+                skipped.append({"device_id": device_id, "reason": "excluded"})
+                continue
+            safe_actions = self._configured_safe_auto_remediation_actions(list(self._device_policy_bundle(device).get("remediation_actions") or []))
+            if not safe_actions:
+                skipped.append({"device_id": device_id, "reason": "no safe actions"})
+                continue
+            for action in safe_actions:
+                action_name = str(action.get("action") or "")
+                if dry_run:
+                    applied.append({"device_id": device_id, "action": action_name, "dry_run": True})
+                    continue
+                try:
+                    result, _ = self._execute_remediation_action(device=device, payload={"action": action_name})
+                    applied.append({"device_id": device_id, "action": action_name, "result": result})
+                except Exception as exc:
+                    failed.append({"device_id": device_id, "action": action_name, "error": str(exc)})
+
+        self._record_remediation_run(dry_run=dry_run, applied=applied, skipped=skipped, failed=failed)
+        self._safe_audit_event(
+            "fleet.remediation.run",
+            "success" if not failed else "partial",
+            username=str(requester or "").strip() or self._requester_identity(),
+            applied_count=len(applied),
+            skipped_count=len(skipped),
+            failed_count=len(failed),
+            dry_run=dry_run,
+            automatic=require_enabled,
+        )
+        return {
+            "ok": True,
+            **self._envelope(
+                applied=applied,
+                skipped=skipped,
+                failed=failed,
+                dry_run=bool(dry_run),
+                last_run=dict(self._remediation_state.get("last_run", {}) or {}),
+            ),
+        }
+
     @staticmethod
     def _hardware_to_dict(hardware: Any) -> dict[str, Any]:
         return {
@@ -602,51 +678,12 @@ class FleetHttpSurfaceService:
                 },
             )
         if path == self._FLEET_REMEDIATION_RUN:
-            device_ids_raw = payload.get("device_ids")
-            dry_run = bool(payload.get("dry_run", False))
-            excluded = set(self._remediation_config().get("excluded_device_ids") or [])
-            if isinstance(device_ids_raw, list):
-                normalized_ids = [str(item or "").strip() for item in device_ids_raw if str(item or "").strip()]
-                devices = [self._registry.get_device(device_id) for device_id in normalized_ids]
-                devices = [item for item in devices if item is not None]
-            else:
-                devices = self._registry.list_devices()
-            applied: list[dict[str, Any]] = []
-            skipped: list[dict[str, Any]] = []
-            failed: list[dict[str, Any]] = []
-            for device in devices:
-                device_id = str(getattr(device, "device_id", "") or "")
-                if device_id in excluded:
-                    skipped.append({"device_id": device_id, "reason": "excluded"})
-                    continue
-                safe_actions = self._configured_safe_auto_remediation_actions(list(self._device_policy_bundle(device).get("remediation_actions") or []))
-                if not safe_actions:
-                    skipped.append({"device_id": device_id, "reason": "no safe actions"})
-                    continue
-                for action in safe_actions:
-                    action_name = str(action.get("action") or "")
-                    if dry_run:
-                        applied.append({"device_id": device_id, "action": action_name, "dry_run": True})
-                        continue
-                    try:
-                        result, _ = self._execute_remediation_action(device=device, payload={"action": action_name})
-                        applied.append({"device_id": device_id, "action": action_name, "result": result})
-                    except Exception as exc:
-                        failed.append({"device_id": device_id, "action": action_name, "error": str(exc)})
-            self._record_remediation_run(dry_run=dry_run, applied=applied, skipped=skipped, failed=failed)
-            self._safe_audit_event(
-                "fleet.remediation.run",
-                "success" if not failed else "partial",
-                username=requester_name or self._requester_identity(),
-                applied_count=len(applied),
-                skipped_count=len(skipped),
-                failed_count=len(failed),
-                dry_run=dry_run,
+            result = self.run_safe_auto_remediation(
+                dry_run=bool(payload.get("dry_run", False)),
+                device_ids=payload.get("device_ids") if isinstance(payload.get("device_ids"), list) else None,
+                requester=requester_name,
             )
-            return self._json(
-                HTTPStatus.OK,
-                {"ok": True, **self._envelope(applied=applied, skipped=skipped, failed=failed, dry_run=dry_run, last_run=self._remediation_state.get("last_run", {}))},
-            )
+            return self._json(HTTPStatus.OK, result)
         remediation_match = self._DEVICE_REMEDIATION.match(path)
         if remediation_match is not None:
             device = self._registry.get_device(remediation_match.group("device_id"))

@@ -123,6 +123,21 @@ Ergebnis: Ein Thin-Client ohne gültigen WireGuard-Key + Attestation bekommt **k
 - [x] Remote-Wipe: `wipe_device(id)` → Gerät löscht sich, sendet Bestätigung.
 - [x] Gruppen-Policy: Alle Geräte einer Gruppe bekommen Policy-Update automatisch.
 
+## Update 2026-04-29 (Serverseitiger Auto-Remediation-/Drift-Worker)
+
+- Control Plane:
+  - `beagle-host/services/fleet_http_surface.py` kapselt Safe-Auto-Remediation jetzt in `run_safe_auto_remediation(...)`, inklusive Enable-Gate fuer echte Worker-Laeufe.
+  - `beagle-host/services/service_registry.py` startet einen periodischen Fleet-Remediation-Thread (`BEAGLE_FLEET_REMEDIATION_INTERVAL_SECONDS`), der nur bei aktivierter Remediation-Konfiguration arbeitet.
+  - `beagle-host/bin/beagle-control-plane.py` startet und beendet den Worker sauber mit dem Control-Plane-Prozess.
+- Reproduzierbare Regressionen ergänzt:
+  - `tests/unit/test_fleet_http_surface.py`
+    - Worker-Laeufe respektieren `enabled=false` ohne History-/State-Drift
+    - aktivierte Worker-Laeufe fuehren die konfigurierten Safe-Aktionen weiter ueber denselben Server-Pfad aus
+- Validierung:
+  - Lokal: `pytest -q tests/unit/test_fleet_http_surface.py` -> `20 passed`
+  - Lokal: `python3 -m py_compile beagle-host/services/fleet_http_surface.py beagle-host/services/service_registry.py beagle-host/bin/beagle-control-plane.py`
+  - `srv1`: drei Runtime-Dateien nach `/opt/beagle` ausgerollt, `beagle-control-plane.service` erfolgreich neu gestartet, `http://127.0.0.1:9088/metrics` nach dem Restart erreichbar
+
 ## Update 2026-04-28 (Plan-02-Testpflicht + WireGuard-Enrollment-Acceptance geschlossen)
 
 - Neue dedizierte Regressionen:

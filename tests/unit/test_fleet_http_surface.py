@@ -398,6 +398,29 @@ def test_remediation_run_skips_excluded_devices(tmp_path: Path) -> None:
     assert response["payload"]["skipped"][0]["reason"] == "excluded"
 
 
+def test_safe_auto_remediation_requires_enabled_flag_for_worker_runs(tmp_path: Path) -> None:
+    registry, mdm, _, _, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+    registry.set_group("dev-001", "berlin")
+    mdm.create_policy(MDMPolicy(policy_id="group-policy", name="Group"))
+    mdm.create_policy(MDMPolicy(policy_id="device-policy", name="Device"))
+    mdm.assign_to_group("berlin", "group-policy")
+    mdm.assign_to_device("dev-001", "device-policy")
+
+    disabled = service.run_safe_auto_remediation(require_enabled=True, requester="worker")
+    assert disabled["applied"] == []
+    assert disabled["skipped"] == [{"reason": "disabled"}]
+    assert service.route_get("/api/v1/fleet/remediation/history")["payload"]["history"] == []
+
+    service.route_put(
+        "/api/v1/fleet/remediation/config",
+        json_payload={"enabled": True, "safe_actions": ["clear-device-policy-assignment"]},
+    )
+    enabled = service.run_safe_auto_remediation(require_enabled=True, requester="worker")
+    assert enabled["applied"][0]["action"] == "clear-device-policy-assignment"
+    assert mdm.resolve_policy("dev-001", "berlin").policy_id == "group-policy"
+
+
 def test_fleet_anomalies_and_maintenance_routes_return_telemetry_data(tmp_path: Path) -> None:
     registry, _, telemetry, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)

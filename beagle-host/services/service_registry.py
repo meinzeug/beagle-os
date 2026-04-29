@@ -230,6 +230,7 @@ RECORDING_S3_SECRET_KEY = os.environ.get("BEAGLE_RECORDING_S3_SECRET_KEY", "").s
 RECORDING_RETENTION_DEFAULT_DAYS = int(os.environ.get("BEAGLE_RECORDING_RETENTION_DEFAULT_DAYS", "30"))
 RECORDING_RETENTION_CRON_SECONDS = int(os.environ.get("BEAGLE_RECORDING_RETENTION_CRON_SECONDS", "3600"))
 BACKUP_SCHEDULER_INTERVAL_SECONDS = int(os.environ.get("BEAGLE_BACKUP_SCHEDULER_INTERVAL_SECONDS", "300"))
+FLEET_REMEDIATION_INTERVAL_SECONDS = int(os.environ.get("BEAGLE_FLEET_REMEDIATION_INTERVAL_SECONDS", "300"))
 AUTH_LOGIN_LOCKOUT_THRESHOLD = int(os.environ.get("BEAGLE_AUTH_LOGIN_LOCKOUT_THRESHOLD", "5"))
 AUTH_LOGIN_LOCKOUT_SECONDS = int(os.environ.get("BEAGLE_AUTH_LOGIN_LOCKOUT_SECONDS", "300"))
 AUTH_LOGIN_BACKOFF_MAX_SECONDS = int(os.environ.get("BEAGLE_AUTH_LOGIN_BACKOFF_MAX_SECONDS", "30"))
@@ -1210,6 +1211,8 @@ RECORDING_RETENTION_THREAD: threading.Thread | None = None
 RECORDING_RETENTION_STOP_EVENT: threading.Event | None = None
 BACKUP_SCHEDULER_THREAD: threading.Thread | None = None
 BACKUP_SCHEDULER_STOP_EVENT: threading.Event | None = None
+FLEET_REMEDIATION_THREAD: threading.Thread | None = None
+FLEET_REMEDIATION_STOP_EVENT: threading.Event | None = None
 
 
 def endpoints_dir() -> Path:
@@ -1944,6 +1947,42 @@ def _start_backup_scheduler_thread() -> None:
     thread.start()
     BACKUP_SCHEDULER_STOP_EVENT = stop_event
     BACKUP_SCHEDULER_THREAD = thread
+
+
+def _start_fleet_remediation_thread() -> None:
+    global FLEET_REMEDIATION_THREAD, FLEET_REMEDIATION_STOP_EVENT
+    if FLEET_REMEDIATION_THREAD is not None and FLEET_REMEDIATION_THREAD.is_alive():
+        return
+    stop_event = threading.Event()
+    interval_seconds = max(60, int(FLEET_REMEDIATION_INTERVAL_SECONDS))
+
+    def _worker() -> None:
+        while not stop_event.is_set():
+            try:
+                result = fleet_http_surface_service().run_safe_auto_remediation(
+                    requester="fleet-auto-remediation",
+                    require_enabled=True,
+                )
+                applied = list(result.get("applied") or []) if isinstance(result, dict) else []
+                failed = list(result.get("failed") or []) if isinstance(result, dict) else []
+                if applied or failed:
+                    structured_logger().info(
+                        "fleet.remediation.worker_cycle",
+                        applied_count=len(applied),
+                        failed_count=len(failed),
+                        dry_run=bool(result.get("dry_run", False)) if isinstance(result, dict) else False,
+                    )
+            except Exception as exc:
+                structured_logger().error(
+                    "fleet.remediation.worker_failed",
+                    error=str(exc),
+                )
+            stop_event.wait(interval_seconds)
+
+    thread = threading.Thread(target=_worker, name="fleet-remediation-worker", daemon=True)
+    thread.start()
+    FLEET_REMEDIATION_STOP_EVENT = stop_event
+    FLEET_REMEDIATION_THREAD = thread
 
 
 def ubuntu_beagle_inputs_service() -> UbuntuBeagleInputsService:

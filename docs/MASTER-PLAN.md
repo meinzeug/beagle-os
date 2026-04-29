@@ -160,7 +160,7 @@ sekundaere Plan ist als Hintergrund/Recherche zu lesen, nicht als Auftrag.
   Stream-Roadmap; WireGuard-Mesh-Latenz-Live-Test (vorheriger Namespace-Sim
   erreichte das +0.01 ms-Threshold nicht); `vpn_required`-Enforcement im Fork.
 - **GoEnterprise Plan 02 — Restpunkte**: grafischen Sperrbildschirm live an X11-/
-  Wayland-Session abnehmen; serverseitiger Auto-Remediation-/Drift-Worker.
+  Wayland-Session abnehmen.
 - **GoEnterprise Plan 03 — Gaming Kiosk Pools**: Pool-Wizard, Esports-/Schul-/
   Militaer-Profile in der WebUI bedienbar.
 - **GoEnterprise Plan 06 — Live Session Handover**: Stream-Uebergabe zwischen Nodes.

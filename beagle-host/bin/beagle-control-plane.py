@@ -20,6 +20,7 @@ from service_registry import (  # private helpers used in main()
     _secret_store,
     _start_recording_retention_thread,
     _start_backup_scheduler_thread,
+    _start_fleet_remediation_thread,
     initialize_job_worker_handlers,
 )
 import service_registry as _svc_registry  # needed to update module-level secrets in main()
@@ -50,6 +51,7 @@ def main() -> int:
     initialize_job_worker_handlers()
     _start_recording_retention_thread()
     _start_backup_scheduler_thread()
+    _start_fleet_remediation_thread()
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
     print(
         json.dumps(
@@ -78,6 +80,10 @@ def main() -> int:
             _svc_registry.BACKUP_SCHEDULER_STOP_EVENT.set()
         if _svc_registry.BACKUP_SCHEDULER_THREAD is not None:
             _svc_registry.BACKUP_SCHEDULER_THREAD.join(timeout=5)
+        if _svc_registry.FLEET_REMEDIATION_STOP_EVENT is not None:
+            _svc_registry.FLEET_REMEDIATION_STOP_EVENT.set()
+        if _svc_registry.FLEET_REMEDIATION_THREAD is not None:
+            _svc_registry.FLEET_REMEDIATION_THREAD.join(timeout=5)
         if _svc_registry.CLUSTER_RPC_SERVER is not None:
             _svc_registry.CLUSTER_RPC_SERVER.shutdown()
             _svc_registry.CLUSTER_RPC_SERVER.server_close()

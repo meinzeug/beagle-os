@@ -1,3 +1,31 @@
+## Update (2026-04-29, GoEnterprise Plan 02 Auto-Remediation-Worker auf `srv1` geschlossen)
+
+**Scope**: Im Plan-02-Fleet-Slice gab es bereits Drift-Report, Remediation-API, Operator-Buttons und persistente Konfiguration, aber noch keinen echten serverseitigen Hintergrundlauf. Ziel dieses Runs war, den offenen Restpunkt `Auto-Remediation-/Drift-Worker` reproduzierbar im Control-Plane-Prozess zu schliessen und auf `srv1` ohne Seiteneffekte zu validieren.
+
+- Backend:
+  - `beagle-host/services/fleet_http_surface.py`
+    - neue gemeinsame Server-Routine `run_safe_auto_remediation(...)` eingefuehrt.
+    - manueller `POST /api/v1/fleet/remediation/run` nutzt jetzt denselben Codepfad wie der Hintergrundworker.
+    - Worker-Laeufe koennen ueber `require_enabled=True` hart auf die persistierte Remediation-Konfiguration gated werden.
+  - `beagle-host/services/service_registry.py`
+    - periodischen Fleet-Remediation-Thread eingefuehrt (`BEAGLE_FLEET_REMEDIATION_INTERVAL_SECONDS`, Default 300 s).
+    - Worker startet als daemon thread nur einmal, fuehrt Safe-Aktionen nur bei aktivierter Konfiguration aus und schreibt Fehler/aktive Zyklen strukturiert ins Log.
+  - `beagle-host/bin/beagle-control-plane.py`
+    - Worker in Startup/Shutdown der Control Plane eingebunden.
+- Tests:
+  - `tests/unit/test_fleet_http_surface.py`
+    - Enable-Gate fuer Worker-Laeufe abgesichert.
+    - bestehende Fleet-Remediation-Suite erneut gruen.
+- Lokale Validierung:
+  - `pytest -q tests/unit/test_fleet_http_surface.py` -> `20 passed`
+  - `python3 -m py_compile beagle-host/services/fleet_http_surface.py beagle-host/services/service_registry.py beagle-host/bin/beagle-control-plane.py` -> erfolgreich
+- `srv1`-Validierung:
+  - Runtime-Dateien nach `/opt/beagle/` kopiert, vorherige Stände mit `.bak.20260429T061942Z` gesichert.
+  - `python3 -m py_compile` direkt auf `srv1` erfolgreich.
+  - `beagle-control-plane.service` erfolgreich neu gestartet, `systemctl is-active` = `active`.
+  - `journalctl -u beagle-control-plane.service -n 80` ohne Traceback oder Worker-Startfehler.
+  - `curl -fsS http://127.0.0.1:9088/metrics | head` erfolgreich.
+
 ## Update (2026-04-29, Thinclient-WireGuard-Full-Tunnel + srv1 Peer-Reconcile/FW-Default geschlossen)
 
 **Scope**: Der lokale Thinclient (`192.168.178.92`, VM100) lief noch direkt ueber das Heimnetz statt ueber das Beagle-WireGuard-Mesh. Gleichzeitig hatte `srv1` zwar bereits `wg-beagle` und eine Default-Firewall-Basis, uebernahm neu registrierte Thinclient-Peers aber noch nicht automatisch in die laufende WireGuard-Konfiguration.

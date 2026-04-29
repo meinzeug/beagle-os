@@ -62,7 +62,7 @@
 - [x] GoEnterprise Plan 02: Drift-Report und erste serverseitige Safe-Auto-Remediation-Surface aufbauen.
 - [x] GoEnterprise Plan 02: persistente Auto-Remediation-Konfiguration und Run-History fuer Operatoren nachziehen.
 - [x] GoEnterprise Plan 02: offene Schritt-0-/Testpflicht-Checks (WireGuard nach Enrollment, Enrollment+Registry-Hardware, TPM-Compromise-Block, MDM-Pool-Restriktion, Remote-Wipe-Confirm, Gruppen-Policy-Rollout) mit dediziertem Acceptance-Scope schliessen.
-- [ ] GoEnterprise Plan 02: auf der serverseitigen Remediation-API spaetere Auto-Remediation bzw. Drift-Worker aufbauen.
+- [x] GoEnterprise Plan 02: auf der serverseitigen Remediation-API spaetere Auto-Remediation bzw. Drift-Worker aufbauen.
 
 ## Update 2026-04-28 (GoEnterprise Plan 01)
 

@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, Plan 02 Auto-Remediation-Worker auf `srv1` geschlossen)
+
+**Zuletzt erledigt**:
+- Der offene Plan-02-Restpunkt `serverseitiger Auto-Remediation-/Drift-Worker` ist geschlossen: Fleet-Remediation laeuft jetzt periodisch im Control-Plane-Prozess, teilt sich denselben sicheren Server-Codepfad mit dem manuellen Run und ist auf `srv1` erfolgreich deployt und neu gestartet.
+
+**Naechste konkrete Schritte**:
+
+1. Den verbleibenden Plan-02-Restpunkt schliessen: grafischen Sperrbildschirm live gegen eine echte Thin-Client-X11-Session abnehmen.
+2. Falls der Live-Test X11-spezifische Luecken zeigt, denselben Sperrpfad direkt gegen Wayland-/Multi-Display-Sessions nachhaerten.
+3. Optional einen kleinen Canary-Lauf mit `enabled=true` auf einer unkritischen Testgruppe fahren und die Remediation-History gegen reale Drift-Eintraege pruefen.
+
 ## Stand (2026-04-29, Thinclient-WireGuard-Full-Tunnel live auf VM100 + srv1 Reconcile/FW-Default)
 
 **Zuletzt erledigt**:
