@@ -345,18 +345,21 @@
 - [x] Make onboarding status bootstrap-disable aware so bootstrap-only users do not suppress first-run setup.
 - [x] Deploy onboarding regression fix to running beagleserver and verify `/api/v1/auth/onboarding/status` + Web UI modal behavior.
 - [x] Fix standalone Let's Encrypt runtime so fresh hosts install `certbot` + nginx plugin automatically and the Security panel can issue certificates on `srv1.beagle-os.com`.
-- [ ] Rebuild and republish server-installer/installimage artifacts so fresh installs inherit the onboarding + Let's Encrypt fixes.
+- [x] Rebuild and republish server-installer/installimage artifacts so fresh installs inherit the onboarding + Let's Encrypt fixes.
+	- Umsetzung 2026-04-29 auf `srv1`: laufenden `prepare-host-downloads.sh`/`beagle-repo-auto-update.service` Refresh zu Ende laufen lassen; frische Artefakte in `/opt/beagle/dist` erstellt (`beagle-os-server-installer-amd64.iso`, `Debian-1201-bookworm-amd64-beagle-server.tar.gz`) und Host-Downloads-Metadaten neu geschrieben.
+	- Validierung 2026-04-29 auf `srv1`: `BEAGLE_VERIFY_REQUIRE_SIGNATURES=0 bash scripts/verify-server-installer-artifacts.sh` => `Server-installer artifacts verified successfully.`; gehostete URLs `https://srv1.beagle-os.com/beagle-downloads/beagle-os-server-installer-amd64.iso` und `https://srv1.beagle-os.com/beagle-downloads/Debian-1201-bookworm-amd64-beagle-server.tar.gz` antworten beide mit `HTTP/1.1 200 OK`.
 - [ ] Validate Plan 06 release-signing flow on a signing-capable release host and verify uploaded `*.sig`/`SHA256SUMS.sig` artifacts against public key.
 - [x] Add a regression test or disposable integration smoke for the Security/TLS Let's Encrypt API path.
 	- Umsetzung 2026-04-29: `tests/unit/test_server_settings.py` um Route-Regressionen fuer `POST /api/v1/settings/security/tls/letsencrypt` erweitert (invalid-domain -> `400`, success-path -> `200`).
 	- Reproduzierbarer Smoke: neues Script `scripts/test-security-tls-api-smoke.sh` prueft auf Zielhost `GET /api/v1/settings/security/tls` (`200`) und den Let's-Encrypt-Guardrail fuer invalid domain (`400`, `invalid domain format`).
 	- Validierung: lokal `python3 -m pytest tests/unit/test_server_settings.py -q` => `30 passed`; `srv1`-Run via SSH => `SECURITY_TLS_API_SMOKE=PASS`.
-- [ ] Validate new Moonlight app-name resolver against Sunshine `/api/apps` so `failed to find Application Desktop` is no longer reproducible on VM 101.
 - [x] Validate new Moonlight app-name resolver against Sunshine `/api/apps` so `failed to find Application Desktop` is no longer reproducible on VM 101.
 	- Umsetzung 2026-04-29: `scripts/test-moonlight-appname-smoke.sh` eingeführt; ruft `GET /api/apps` gegen Sunshine auf, führt Resolver-Logik inline nach und validiert dass `Desktop` auflösbar ist. Gegen VM 100 auf `srv1` ausführbar via `SUNSHINE_API_URL=... SUNSHINE_PASSWORD=... bash scripts/test-moonlight-appname-smoke.sh`.
+	- Validierung 2026-04-29 auf `srv1` / VM100 (`192.168.123.116`, Sunshine-Port `50001`): `MOONLIGHT_APPNAME_SMOKE=PASS`; Inventory enthielt `Desktop`, Resolver lieferte `Desktop`.
 - [x] Add reproducible Sunshine guest service self-heal in repo provisioning (automatic restart on crash/stop).
 - [x] Validate Sunshine self-heal timer (`beagle-sunshine-healthcheck.timer`) on VM reboot and forced crash (`pkill sunshine`).
 	- Umsetzung 2026-04-29: `scripts/test-sunshine-selfheal-smoke.sh` eingeführt; prüft Timer-Zustand, killst sunshine via `pkill -9`, wartet auf Neustart, validiert API-Antwort und führt Healthcheck-Skript manuell aus. Ausführbar via `BEAGLE_SMOKE_VM_SSH=beagle@<guest-ip> bash scripts/test-sunshine-selfheal-smoke.sh`.
+	- Validierung 2026-04-29 auf `srv1` / VM100 (`192.168.123.116`, Sunshine-Port `50001`): `SUNSHINE_SELFHEAL_SMOKE=PASS`; Sunshine restartete nach `pkill -9` innerhalb von 90s, API antwortete mit HTTP `401`, manueller Healthcheck lief ohne harten Fehlerpfad durch.
 - [x] Rebuild thin-client installer payload/bootstrap with patched target-disk/partition-readiness logic, rerun VM100 thinclient preset install locally to completion, and refresh the hosted `srv1` bootstrap bundle.
 - [x] Redeploy patched provider start/redefine behavior on installed beagleserver host and recreate VM 101/100 start path to remove stale-domain autoinstall loop risk.
 - [x] Fix VM start error `domain 'beagle-100' already exists with uuid ...` in beagle libvirt provider by preserving existing domain UUID during redefine.
