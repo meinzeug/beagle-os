@@ -1,3 +1,22 @@
+## Update (2026-04-29, lokaler Thinclient-KVM-Smoke fuer `beagle-thinclient` reproduzierbar gemacht)
+
+**Scope**: Fuer den verbleibenden Plan-02-Live-Restpunkt wird ein lokaler Thinclient-Test-Guest benoetigt. Auf diesem Host existierte bereits eine libvirt-Domain `beagle-thinclient`, aber es gab keinen reproduzierbaren Repo-Smoke dafuer und wegen nur noch ~280 MiB freiem Platz war ein zweiter Throwaway-Guest unpraktikabel.
+
+- Lokaler Befund:
+  - `virsh -c qemu:///system list --all` funktioniert lokal.
+  - `beagle-thinclient` existiert bereits als persistente Domain und laeuft lokal mit SPICE-Display.
+  - freier Platz auf `/var/lib/libvirt/images` und dem Workspace war zu knapp fuer einen zusaetzlichen frischen Test-Guest.
+- Repo-Aenderung:
+  - `scripts/test-thinclient-vm-smoke.sh` neu angelegt.
+  - der Smoke wiederverwendet standardmaessig die bestehende Domain `beagle-thinclient`, startet sie bei Bedarf, prueft `running`, liest `domdisplay`, erstellt einen Screenshot und kann optional auch eine Domain aus dem Thinclient-ISO anlegen, falls spaeter wieder genug Platz vorhanden ist.
+- Validierung:
+  - `bash -n scripts/test-thinclient-vm-smoke.sh` erfolgreich.
+  - lokaler Lauf erfolgreich:
+    - `VM=beagle-thinclient`
+    - `STATE=running`
+    - `DISPLAY=spice://127.0.0.1:5902`
+    - Screenshot `/tmp/beagle-thinclient-smoke.ppm` erfolgreich.
+
 ## Update (2026-04-29, GoEnterprise Plan 02 Auto-Remediation-Worker auf `srv1` geschlossen)
 
 **Scope**: Im Plan-02-Fleet-Slice gab es bereits Drift-Report, Remediation-API, Operator-Buttons und persistente Konfiguration, aber noch keinen echten serverseitigen Hintergrundlauf. Ziel dieses Runs war, den offenen Restpunkt `Auto-Remediation-/Drift-Worker` reproduzierbar im Control-Plane-Prozess zu schliessen und auf `srv1` ohne Seiteneffekte zu validieren.

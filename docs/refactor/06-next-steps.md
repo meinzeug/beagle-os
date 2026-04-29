@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, lokaler Thinclient-KVM-Smoke vorbereitet)
+
+**Zuletzt erledigt**:
+- Ein reproduzierbarer lokaler Smoke fuer die vorhandene libvirt-Domain `beagle-thinclient` liegt jetzt im Repo (`scripts/test-thinclient-vm-smoke.sh`) und wurde erfolgreich gegen den lokalen Guest gefahren.
+
+**Naechste konkrete Schritte**:
+
+1. Den neuen lokalen Guest gezielt fuer den offenen Plan-02-X11-Lockscreen-Test nutzen und den grafischen Sperrbildschirm live abnehmen.
+2. Wenn fuer einen frischen Throwaway-Guest wieder genug Platz vorhanden ist, denselben Smoke optional mit `BEAGLE_THINCLIENT_CREATE_IF_MISSING=1` gegen ein Thinclient-ISO fahren.
+3. Falls der Lockscreen-Test mehr Display-Details braucht, auf Basis desselben Guests noch einen kleinen Screenshot-/Console-/QEMU-Log-Smoke nachziehen.
+
 ## Stand (2026-04-29, Plan 02 Auto-Remediation-Worker auf `srv1` geschlossen)
 
 **Zuletzt erledigt**:
