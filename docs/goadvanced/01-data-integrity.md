@@ -56,7 +56,7 @@ Zusaetzlich existiert keine gemeinsame Basisklasse fuer State-Persistenz — jed
   - [x] Audit-Pfad abgesichert: Persistenz-Write-Callback geht ueber `PersistenceSupportService` + `JsonStateStore`
 
 - [ ] **Schritt 3** — Migration restliche Services (in 4 Wellen je ~10 Services)
-  - [ ] Welle 3a: `pool_manager.py`, `gpu_streaming_service.py`, `cost_model_service.py`, `usage_tracking_service.py`, `energy_service.py` (Teil abgeschlossen: `pool_manager.py`, `gpu_streaming_service.py`, `cost_model_service.py`)
+  - [x] Welle 3a: `pool_manager.py`, `gpu_streaming_service.py`, `cost_model_service.py`, `usage_tracking_service.py`, `energy_service.py`
   - [ ] Welle 3b: `device_registry.py`, `attestation_service.py`, `mdm_policy_service.py`, `cluster_service.py`, `alert_service.py` (Teil abgeschlossen: `attestation_service.py`)
   - [ ] Welle 3c: `session_manager.py`, `fleet_telemetry_service.py`, `metrics_collector.py`, `workload_pattern_analyzer.py`, `smart_scheduler.py`
   - [ ] Welle 3d: alle restlichen Services unter `beagle-host/services/`

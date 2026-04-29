@@ -1,5 +1,6 @@
 # Global TODO
 
+- [x] GoAdvanced Plan 01 Welle 3a schliessen: `usage_tracking_service.py` und `energy_service.py` auf `JsonStateStore` migrieren und den Runtime-Smoke auf `srv1` reproduzierbar gruen fahren.
 - [x] GoAdvanced Plan 01 Datenintegritaet weiterziehen: weitere Service-State-Pfade auf `JsonStateStore` migrieren (`action_queue`, `cost_model`, `gpu_streaming`, `attestation`, `storage_quota`, `vm_console_access`, `beagle_novnc_token`) und 1000er-Stresstest lokal + auf `srv1` reproduzierbar gruen fahren.
 - [x] Thinclient-/Host-WireGuard-End-to-End schliessen: endpoint-authentifiziertes `vpn/register`, robuster Thinclient-Full-Tunnel ohne `wg-quick`-Haenger, Host-Firewall-Default fuer UDP `51820` und automatischer Server-Peer-Reconcile auf `srv1`.
 - [x] srv1 failed-unit Drift beheben: `beagle-cluster-auto-join`, `beagle-public-streams`, ifupdown-Route-Hook und Repo-Auto-Update-Short-Hash-Vergleich korrigieren.

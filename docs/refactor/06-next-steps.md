@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, GoAdvanced Plan 01 Welle 3a abgeschlossen)
+
+**Zuletzt erledigt**:
+- `usage_tracking_service.py` und `energy_service.py` auf `JsonStateStore` migriert; lokale Unit-Tests sowie `srv1`-Runtime-Smoke erfolgreich.
+
+**Naechste konkrete Schritte**:
+
+1. Welle 3b im selben Plan abschliessen: `device_registry.py`, `mdm_policy_service.py`, `cluster_service.py`, `alert_service.py` auf `JsonStateStore` migrieren (`attestation_service.py` ist bereits erledigt).
+2. Danach Welle 3c starten (`session_manager.py`, `fleet_telemetry_service.py`, `metrics_collector.py`, `workload_pattern_analyzer.py`, `smart_scheduler.py`).
+3. Nach jeder Welle dieselbe Validierung fahren: betroffene Unit-Suite lokal + kurzer Runtime-Smoke auf `srv1`.
+
 ## Stand (2026-04-29, GoAdvanced Plan 01 Datenintegritaet: naechste Migrationswelle)
 
 **Zuletzt erledigt**:

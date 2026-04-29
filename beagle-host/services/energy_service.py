@@ -9,6 +9,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from core.persistence.json_state_store import JsonStateStore
+
 
 @dataclass
 class EnergySample:
@@ -66,16 +68,14 @@ class EnergyService:
     # ------------------------------------------------------------------
 
     def set_carbon_config(self, config: CarbonConfig) -> None:
-        self._cfg_file.write_text(json.dumps(asdict(config), indent=2))
+        JsonStateStore(self._cfg_file, default_factory=dict).save(asdict(config))
 
     def get_carbon_config(self) -> CarbonConfig:
-        if self._cfg_file.exists():
-            d = json.loads(self._cfg_file.read_text())
-            return CarbonConfig(
-                co2_grams_per_kwh=d.get("co2_grams_per_kwh", 400.0),
-                electricity_price_per_kwh=d.get("electricity_price_per_kwh", 0.30),
-            )
-        return CarbonConfig()
+        d = JsonStateStore(self._cfg_file, default_factory=dict).load()
+        return CarbonConfig(
+            co2_grams_per_kwh=d.get("co2_grams_per_kwh", 400.0),
+            electricity_price_per_kwh=d.get("electricity_price_per_kwh", 0.30),
+        )
 
     # ------------------------------------------------------------------
     # Ingestion

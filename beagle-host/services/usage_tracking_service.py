@@ -4,10 +4,11 @@ GoEnterprise Plan 05, Schritt 2
 """
 from __future__ import annotations
 
-import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 @dataclass
@@ -133,9 +134,7 @@ class UsageTrackingService:
     # ------------------------------------------------------------------
 
     def _load(self) -> list[dict[str, Any]]:
-        if self._db_file.exists():
-            return json.loads(self._db_file.read_text())
-        return []
+        return JsonStateStore(self._db_file, default_factory=list).load()
 
     def _save(self) -> None:
-        self._db_file.write_text(json.dumps(self._db, indent=2))
+        JsonStateStore(self._db_file, default_factory=list).save(self._db)

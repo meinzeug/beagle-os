@@ -1,3 +1,20 @@
+## Update (2026-04-29, GoAdvanced Plan 01 Welle 3a geschlossen: Usage/Energy auf JsonStateStore)
+
+**Scope**: Die verbleibenden Welle-3a-Services fuer Datenintegritaet wurden auf `JsonStateStore` migriert und auf `srv1` mit Runtime-Smoke validiert.
+
+- Backend:
+  - `beagle-host/services/usage_tracking_service.py`
+    - `_load()` und `_save()` auf `JsonStateStore` umgestellt (kein direktes `read_text()/write_text(json.dumps(...))` mehr).
+  - `beagle-host/services/energy_service.py`
+    - Carbon-Config-Persistenz (`set_carbon_config`/`get_carbon_config`) auf `JsonStateStore` umgestellt.
+- Lokale Tests:
+  - `python3 -m pytest tests/unit/test_usage_tracking.py tests/unit/test_energy_service.py tests/unit/test_energy_cost_integration.py -q` -> `15 passed`
+- `srv1`-Validierung:
+  - geaenderte Dateien nach `/tmp/beagle-verify/` kopiert und mit `PYTHONPATH=/tmp/beagle-verify:/opt/beagle` als Runtime-Smoke ausgefuehrt.
+  - Ergebnis: `SRV1_USAGE_ENERGY_SMOKE=PASS`.
+- Plan-Status:
+  - `docs/goadvanced/01-data-integrity.md`: Welle 3a jetzt vollstaendig `[x]`.
+
 ## Update (2026-04-29, GoAdvanced Plan 01 Datenintegritaet weitergezogen + Disk-Pressure behoben)
 
 **Scope**: Nach Save-Fehlern durch vollen Datentraeger wurde zuerst lokaler Speicherplatz bereinigt und danach die naechste Welle der JsonStateStore-Migration inkl. srv1-Stresstest abgeschlossen.
