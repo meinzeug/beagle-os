@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, GoAdvanced Plan 06 Schritt 2 abgeschlossen)
+
+**Zuletzt erledigt**:
+- `core/persistence/migrations/001_init.sql` mit den ersten SQLite-Tabellen, Indizes und Foreign-Keys eingefuehrt; lokale Tests + `srv1`-Smoke erfolgreich.
+
+**Naechste konkrete Schritte**:
+
+1. GoAdvanced Plan 06 Schritt 3 umsetzen: erstes echtes Repository (`vm_repository.py` oder `device_repository.py`) auf Basis von `BeagleDb` einfuehren.
+2. Den ersten Repository-Slice mit In-Memory-SQLite fokussiert testen und ein kleines `srv1`-Smoke fuer CRUD + Filterung nachziehen.
+3. Danach entscheiden, welcher JSON-State als erster produktiver Import-/Migrationskandidat fuer Schritt 4 und 5a am wenigsten Risiko hat.
+
 ## Stand (2026-04-29, GoAdvanced Plan 06 Schritt 1 abgeschlossen)
 
 **Zuletzt erledigt**:

@@ -1,5 +1,6 @@
 # Global TODO
 
+- [x] GoAdvanced Plan 06 Schritt 2 schliessen: `core/persistence/migrations/001_init.sql` mit Tabellen, Pflicht-Indizes und ersten Foreign-Keys einfuehren; lokal + auf `srv1` validieren.
 - [x] GoAdvanced Plan 06 Schritt 1 schliessen: `core/persistence/sqlite_db.py` mit WAL-/Foreign-Key-Setup, Migration-Runner und fokussierten Tests einfuehren; lokal + auf `srv1` validieren.
 - [x] GoAdvanced Plan 01 Welle 3d Teil 4 schliessen: `webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `sunshine_integration.py`, `gaming_metrics_service.py` auf `JsonStateStore`/atomare Helper migrieren und lokal + auf `srv1` validieren.
 - [x] GoAdvanced Plan 01 Restpunkt schliessen: `Repo-Grep` fuer direkte `path.write_text(json.dumps(`-Writes in `beagle-host/services` auf Null bringen.

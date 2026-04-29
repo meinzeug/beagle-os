@@ -2,6 +2,11 @@
 
 Stand: 2026-04-13
 
+## D-053: Erstes SQLite-Schema startet als Hybrid aus Schluesselspalten und `payload_json`
+- Entscheidung: `001_init.sql` modelliert die zentralen Entitaeten (`vms`, `pools`, `sessions`, `devices`, `gpus`, `audit_events`, `secrets_meta`) zunaechst mit stabilen Lookup-/Beziehungsfeldern plus einer generischen `payload_json`-Spalte statt sofort alle bisherigen JSON-Felder relational auszunormalisieren.
+- Grund: Fuer den ersten SQLite-Einstieg brauchen die naechsten Repository- und Importer-Slices verlässliche Identitaeten, Indizes und Foreign-Keys, aber noch keinen Big-Bang auf das volle Feldmodell aller heutigen JSON-States.
+- Dateien: `core/persistence/migrations/001_init.sql`, `tests/unit/test_sqlite_db.py`.
+
 ## D-052: SQLite-State-Layer nutzt pro Thread eine gecachte Verbindung mit WAL + zentralem Migrationslog
 - Entscheidung: Der neue SQLite-Unterbau kapselt DB-Zugriffe in `core/persistence/sqlite_db.py` als `BeagleDb`, aktiviert auf jeder Verbindung `journal_mode=WAL`, `foreign_keys=ON`, setzt `busy_timeout` und verfolgt angewendete SQL-Dateien in `schema_migrations`.
 - Grund: Die spaetere JSON->SQLite-Migration braucht einen kleinen, testbaren Basiskern, der Schreibkonkurrenz, referenzielle Integritaet und wiederholbare Schema-Upgrades standardisiert, bevor einzelne Services oder Repositories umgestellt werden.

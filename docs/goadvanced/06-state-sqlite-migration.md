@@ -30,12 +30,12 @@ Bei 100+ VMs/Endpoints wird Latenz spuerbar. Bei 1000+ wird es untragbar.
     - `migrate(schema_dir)` — applies SQL files in order
     - Tests: `tests/unit/test_sqlite_db.py`
 
-- [ ] **Schritt 2** — Schema
-  - [ ] `core/persistence/migrations/001_init.sql`:
+- [x] **Schritt 2** — Schema
+  - [x] `core/persistence/migrations/001_init.sql`:
     - Tabellen: `vms`, `pools`, `sessions`, `devices`, `gpus`, `audit_events`, `secrets_meta`
     - Indizes: `vms.node_id`, `sessions.user_id`, `devices.fingerprint`
-  - [ ] Foreign Keys + ON DELETE CASCADE wo sinnvoll
-  - [ ] Wiederholbar: `IF NOT EXISTS`
+  - [x] Foreign Keys + ON DELETE CASCADE wo sinnvoll
+  - [x] Wiederholbar: `IF NOT EXISTS`
 
 - [ ] **Schritt 3** — Repository-Pattern
   - [ ] `core/repository/vm_repository.py`:

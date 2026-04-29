@@ -1,3 +1,22 @@
+## Update (2026-04-29, GoAdvanced Plan 06 Schritt 2: Initiales SQLite-Schema)
+
+**Scope**: Erstes produktives SQLite-Schema fuer den spaeteren Repository- und Importer-Pfad angelegt und validiert.
+
+- Backend:
+  - `core/persistence/migrations/001_init.sql`
+    - Tabellen fuer `vms`, `pools`, `sessions`, `devices`, `gpus`, `audit_events`, `secrets_meta` angelegt.
+    - Pflicht-Indizes `idx_vms_node_id`, `idx_sessions_user_id`, `idx_devices_fingerprint` sowie eindeutiger GPU-PCI-Index hinterlegt.
+    - Foreign-Keys mit `ON DELETE CASCADE`/`SET NULL` fuer die ersten relationalen Kanten verdrahtet.
+  - `tests/unit/test_sqlite_db.py`
+    - Regressionen auf echte Repo-Migration erweitert: Tabellen-/Index-Erzeugung sowie FK-Verhalten gegen `001_init.sql` abgesichert.
+- Lokale Tests:
+  - `python3 -m pytest tests/unit/test_sqlite_db.py -q` -> `6 passed`
+- `srv1`-Validierung:
+  - non-invasiver Smoke mit temporaer hochgeladener `sqlite_db.py` + `001_init.sql`.
+  - Ergebnis: `SRV1_PLAN06_SCHEMA_SMOKE=PASS`.
+- Plan-Status:
+  - `docs/goadvanced/06-state-sqlite-migration.md`: Schritt 2 auf `[x]` gesetzt.
+
 ## Update (2026-04-29, GoAdvanced Plan 06 Schritt 1: SQLite-DB-Layer)
 
 **Scope**: Erster SQLite-Migrations-Slice umgesetzt; gemeinsame DB-Basis fuer spaetere Repository- und Importer-Schritte liegt jetzt im Repo.
