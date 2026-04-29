@@ -71,3 +71,36 @@ jobs:
       - name: Run bats tests
         run: |
           bats --tap tests/bats/
+
+  webui-provisioning-smoke:
+    name: WebUI provisioning smoke (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Run provisioning UI smoke
+        run: |
+          mkdir -p website/core/platform
+          cp core/platform/browser-common.js website/core/platform/browser-common.js
+          python -m http.server 4173 --directory website >/tmp/beagle-webui-http.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" >/dev/null 2>&1 || true
+            rm -rf website/core
+          }
+          trap cleanup EXIT
+          curl -fsS http://127.0.0.1:4173/ >/dev/null
+          python3 scripts/test-provisioning-ui-smoke.py \
+            --base-url http://127.0.0.1:4173 \
+            --username admin \
+            --password test1234

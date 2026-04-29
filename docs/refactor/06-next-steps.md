@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-04-29, UI-Provisioning-Smoke in CI geschlossen)
+
+**Zuletzt erledigt**:
+- `scripts/test-provisioning-ui-smoke.py` prueft jetzt den echten WebUI-Provisioning-Modal-Flow per Playwright gegen gemockte API-Routen.
+- `.github/workflows/tests.yml` fuehrt dafuer einen eigenen CI-Job aus und staged den benoetigten `browser-common.js`-Asset temporaer in den statischen `website/`-Serve-Baum.
+
+**Naechste konkrete Schritte**:
+
+1. Den offenen Installer-/Host-Restblock weiterziehen: frischen Host aus der neuen Server-Installer-ISO aufsetzen und noVNC/API/Download-Hotfixes dort end-to-end abnehmen.
+2. Danach den verbliebenen Plan-09-Multi-Node-Live-Block wieder aufnehmen, sobald `srv2` netzseitig verlässlich erreichbar ist.
+3. Fuer spaetere UI-Smokes prüfen, ob ein gemeinsamer statischer Test-Serve-Pfad statt temporaerer Asset-Staging-Schritte sinnvoll ist.
+
 ## Stand (2026-04-29, Sunshine/Desktop-Guest-Smoke im Provisioning-Ready-Flow geschlossen)
 
 **Zuletzt erledigt**:

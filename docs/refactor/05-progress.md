@@ -1,3 +1,20 @@
+## Update (2026-04-29, UI-Provisioning-Smoke in CI geschlossen)
+
+**Scope**: Der offene Refactor-Punkt fuer einen UI-seitigen Provisioning-Smoke in CI ist geschlossen. Die WebUI wird jetzt in einem dedizierten GitHub-Actions-Job mit Playwright gegen gemockte API-Routen durch den echten Token-Login- und Provisioning-Modal-Flow geprueft.
+
+- Code:
+  - `scripts/test-provisioning-ui-smoke.py`
+    - mockt die benoetigten `/api/v1`- und `/beagle-api/api/v1`-Surfaces fuer Dashboard und Provisioning.
+    - shimt `window.BeagleBrowserCommon`, damit die modulare WebUI auch im statischen CI-Serve-Setup bootstrappt.
+    - verifiziert Token-Login, geoeffneten Provisioning-Modal, erfolgreichen Create-Flow, Progress-Dialog und Recent-Requests-Tabelle.
+  - `.github/workflows/tests.yml`
+    - neuer Job `webui-provisioning-smoke` installiert Playwright/Chromium, staged temporaer `core/platform/browser-common.js` in den statisch servierten `website/`-Baum und fuehrt den Smoke aus.
+- Lokale Validierung:
+  - `python3 -m py_compile scripts/test-provisioning-ui-smoke.py` => OK
+  - `python3 scripts/test-provisioning-ui-smoke.py --base-url http://127.0.0.1:4173 --timeout-ms 15000` => `PROVISIONING_UI_SMOKE=PASS`
+- `srv1`-Hinweis:
+  - SSH-Erreichbarkeit geprueft, aber kein Playwright-Paket auf `srv1` vorhanden; deshalb fuer diesen CI-zentrierten Slice keine vollwertige Browser-Live-Abnahme auf `srv1` gefahren.
+
 ## Update (2026-04-29, VM-Delete/noVNC UI-Regressions geschlossen)
 
 **Scope**: Zwei offene UI-Regressionspunkte fuer VM-Aktionen geschlossen: Delete-Sichtbarkeit + Inventory-Refresh sowie noVNC-Buttons/Launch-/Error-Guards.

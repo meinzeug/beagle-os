@@ -385,7 +385,9 @@
 	- Umsetzung 2026-04-29: `tests/unit/test_vm_actions_ui_regressions.py` deckt jetzt noVNC-Inventory/Detail-Buttons, Launch-/Error-Guards sowie VM-Delete-Sichtbarkeit, Success/Failure-Logging und Dashboard-Refresh nach Delete ab.
 	- Validierung: lokal `5 passed`; srv1 Smoke gegen kopierte Repo-Dateien `VM_ACTIONS_UI_REGRESSION_SMOKE=PASS`.
 - [x] Add regression tests for concurrent auth refresh + dashboard polling.
-- [ ] Add UI-level provisioning smoke test in CI.
+- [x] Add UI-level provisioning smoke test in CI.
+	- Umsetzung 2026-04-29: `scripts/test-provisioning-ui-smoke.py` deckt den WebUI-Token-Login, den echten Provisioning-Modal-Flow, den Progress-Dialog und den Recent-Requests-Refresh gegen gemockte API-Antworten per Playwright ab; `.github/workflows/tests.yml` fuehrt den Smoke als eigenen Job aus.
+	- Validierung: lokal `PROVISIONING_UI_SMOKE=PASS`; CI-Serve-Setup stellt vor dem Smoke temporaer `core/platform/browser-common.js` unter `website/core/platform/browser-common.js` bereit.
 - [x] Backport VM-side noVNC/XFCE hotfixes into repo-owned host install path and freshly rebuilt server-installer ISO.
 - [ ] Prove the same noVNC/XFCE hotfixes on a clean host installed from the rebuilt server-installer ISO.
 - [x] Execute GoFuture Plan 19 Schritt 7: bring the Windows USB writer to installer/live parity, add `GET /api/v1/vms/{vmid}/live-usb.ps1`, expose a dedicated `Live USB Windows` WebUI action, and extend packaging/host-download publication for `pve-thin-client-live-usb-*.ps1` artifacts (2026-04-26).
