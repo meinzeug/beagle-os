@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 2 abgeschlossen)
+
+**Zuletzt erledigt**:
+- zweites SQLite-Repository (`core/repository/device_repository.py`) mit CRUD + Status/Fingerprint-Filterung eingefuehrt und auf `srv1` validiert.
+
+**Naechste konkrete Schritte**:
+
+1. Plan 06 Schritt 3 weiterziehen: `session_repository.py` als naechsten Slice aufsetzen (inkl. FK-Kanten zu `pools`/`vms`).
+2. Danach `pool_repository.py` und `gpu_repository.py` nachziehen, damit der Schritt-3-Block komplett wird.
+3. Anschliessend Schritt 4 starten: JSON->SQLite-Importer mit Dry-Run fuer zuerst `vms` und `devices` aufbauen.
+
 ## Stand (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 1 abgeschlossen)
 
 **Zuletzt erledigt**:

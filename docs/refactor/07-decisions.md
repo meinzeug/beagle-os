@@ -2,6 +2,11 @@
 
 Stand: 2026-04-13
 
+## D-055: Device-Repository nutzt Status/Fingerprint als erste native Query-Spalten
+- Entscheidung: Der zweite SQLite-Repository-Slice (`device_repository.py`) fuehrt neben `payload_json` explizit `status` und `fingerprint` als filterbare Spalten, um die haeufigsten Registry-Abfragen frueh ohne JSON-Scan abzubilden.
+- Grund: Device-Fleet-Operatorik arbeitet regelmaessig nach Zustand und Hardware-Fingerprint; diese beiden Felder liefern sofort messbaren Nutzen fuer die spaetere Service-Migration bei minimalem Schema-Risiko.
+- Dateien: `core/repository/device_repository.py`, `core/persistence/migrations/001_init.sql`, `tests/unit/test_device_repository.py`.
+
 ## D-054: VM-Repository startet als Hybrid-Store (Filterspalten + volle JSON-Payload)
 - Entscheidung: Das erste produktive SQLite-Repository (`vm_repository.py`) persistiert die komplette VM-Struktur in `payload_json`, fuehrt aber `vmid`, `node_id`, `status`, `name`, `pool_id` als dedizierte Spalten fuer gezielte Filter und spaetere Indizes.
 - Grund: Damit bleibt der Einstieg migrationsarm und kompatibel zu bestehenden JSON-Strukturen, waehrend die wichtigsten Read-Pfade schon jetzt effizient und typisiert auf SQLite laufen.

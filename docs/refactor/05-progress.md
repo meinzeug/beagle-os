@@ -1,3 +1,23 @@
+## Update (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 2: Device-Repository)
+
+**Scope**: Zweiter produktiver Repository-Slice auf SQLite-Basis umgesetzt.
+
+- Backend:
+  - `core/repository/device_repository.py`
+    - CRUD-Basis fuer Devices: `get(device_id)`, `list(status=None, fingerprint=None)`, `save(device)` (UPSERT), `delete(device_id)`.
+    - Device-Payload bleibt als JSON erhalten, waehrend `device_id`, `fingerprint`, `hostname`, `status`, `assigned_pool_id`, `last_seen_at` fuer Filter/Indexe in Spalten gefuehrt werden.
+  - `core/persistence/migrations/001_init.sql`
+    - Devices um `status`-Spalte und Index `idx_devices_status` erweitert.
+  - `tests/unit/test_device_repository.py`
+    - neue Tests fuer Roundtrip, UPSERT-Update, Status-/Fingerprint-Filter, Delete-Semantik und Pflichtfeld-Validierung.
+- Lokale Tests:
+  - `python3 -m pytest tests/unit/test_device_repository.py tests/unit/test_vm_repository.py tests/unit/test_sqlite_db.py -q` -> `16 passed`
+- `srv1`-Validierung:
+  - non-invasiver Repo-Smoke mit temporaer hochgeladenen Dateien (`sqlite_db.py`, `001_init.sql`, `vm_repository.py`, `device_repository.py`).
+  - Ergebnis: `SRV1_PLAN06_DEVICE_REPO_SMOKE=PASS`.
+- Plan-Status:
+  - `device_repository.py` als Teil von Plan 06 Schritt 3 umgesetzt.
+
 ## Update (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 1: VM-Repository)
 
 **Scope**: Erster produktiver Repository-Slice auf SQLite-Basis umgesetzt.
