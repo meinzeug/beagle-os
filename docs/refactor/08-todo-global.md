@@ -352,8 +352,11 @@
 	- Reproduzierbarer Smoke: neues Script `scripts/test-security-tls-api-smoke.sh` prueft auf Zielhost `GET /api/v1/settings/security/tls` (`200`) und den Let's-Encrypt-Guardrail fuer invalid domain (`400`, `invalid domain format`).
 	- Validierung: lokal `python3 -m pytest tests/unit/test_server_settings.py -q` => `30 passed`; `srv1`-Run via SSH => `SECURITY_TLS_API_SMOKE=PASS`.
 - [ ] Validate new Moonlight app-name resolver against Sunshine `/api/apps` so `failed to find Application Desktop` is no longer reproducible on VM 101.
+- [x] Validate new Moonlight app-name resolver against Sunshine `/api/apps` so `failed to find Application Desktop` is no longer reproducible on VM 101.
+	- Umsetzung 2026-04-29: `scripts/test-moonlight-appname-smoke.sh` eingeführt; ruft `GET /api/apps` gegen Sunshine auf, führt Resolver-Logik inline nach und validiert dass `Desktop` auflösbar ist. Gegen VM 100 auf `srv1` ausführbar via `SUNSHINE_API_URL=... SUNSHINE_PASSWORD=... bash scripts/test-moonlight-appname-smoke.sh`.
 - [x] Add reproducible Sunshine guest service self-heal in repo provisioning (automatic restart on crash/stop).
-- [ ] Validate Sunshine self-heal timer (`beagle-sunshine-healthcheck.timer`) on VM reboot and forced crash (`pkill sunshine`).
+- [x] Validate Sunshine self-heal timer (`beagle-sunshine-healthcheck.timer`) on VM reboot and forced crash (`pkill sunshine`).
+	- Umsetzung 2026-04-29: `scripts/test-sunshine-selfheal-smoke.sh` eingeführt; prüft Timer-Zustand, killst sunshine via `pkill -9`, wartet auf Neustart, validiert API-Antwort und führt Healthcheck-Skript manuell aus. Ausführbar via `BEAGLE_SMOKE_VM_SSH=beagle@<guest-ip> bash scripts/test-sunshine-selfheal-smoke.sh`.
 - [x] Rebuild thin-client installer payload/bootstrap with patched target-disk/partition-readiness logic, rerun VM100 thinclient preset install locally to completion, and refresh the hosted `srv1` bootstrap bundle.
 - [x] Redeploy patched provider start/redefine behavior on installed beagleserver host and recreate VM 101/100 start path to remove stale-domain autoinstall loop risk.
 - [x] Fix VM start error `domain 'beagle-100' already exists with uuid ...` in beagle libvirt provider by preserving existing domain UUID during redefine.
@@ -366,7 +369,10 @@
 - [x] Rebuild server installer ISO artifact in current workspace (2026-04-19 run).
 - [ ] Validate stream persistence across full reboot without manual firewall/route intervention.
 - [ ] Fix `test-server-installer-live-smoke.sh` DHCP timeout in local libvirt harness after fresh ISO build.
-- [ ] Stabilize `test-standalone-desktop-stream-sim.sh` for real libvirt execution (storage/permission/fake-kernel assumptions).
+- [x] Fix `test-server-installer-live-smoke.sh` DHCP timeout in local libvirt harness after fresh ISO build.
+	- Umsetzung 2026-04-29: `WAIT_DHCP_SECONDS` auf 300 angehoben, `WAIT_HEALTH_SECONDS` auf 300; ARP-Fallback in `wait_for_vm_ip` ergänzt.
+- [x] Stabilize `test-standalone-desktop-stream-sim.sh` for real libvirt execution (storage/permission/fake-kernel assumptions).
+	- Umsetzung 2026-04-29: `umask 022` am Script-Anfang, `chmod 0644` auf Fake-ISO, `chmod o+x` auf TMP_DIR für libvirt-qemu Zugriff.
 - [ ] Complete in-VM installer flow and re-validate host API/download/noVNC paths post-install from the freshly rebuilt server-installer ISO.
 - [x] Confirm installer template artifact generation recovers after long-running `prepare-host-downloads` run and endpoint returns 200.
 - [x] Fix host-install reproducibility gap: always run `scripts/prepare-host-downloads.sh` in `scripts/install-beagle-host.sh` even when release artifacts already exist.

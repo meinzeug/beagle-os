@@ -1,4 +1,22 @@
 # Next Steps
+# Next Steps
+
+## Stand (2026-04-29, Smoke-Scripts stabilisiert + Sunshine/Moonlight Validierungspfad eingeführt)
+
+**Zuletzt erledigt**:
+- `test-server-installer-live-smoke.sh`: DHCP-Timeout auf 300s angehoben, ARP-Fallback in `wait_for_vm_ip` ergänzt.
+- `test-standalone-desktop-stream-sim.sh`: libvirt-Permissions stabilisiert (umask 022, chmod 0644 auf Fake-ISO, chmod o+x auf TMP_DIR).
+- `scripts/test-sunshine-selfheal-smoke.sh` (neu): validiert beagle-sunshine-healthcheck.timer + pkill-Szenario auf VM-Gast.
+- `scripts/test-moonlight-appname-smoke.sh` (neu): ruft Sunshine /api/apps auf, führt Resolver-Logik nach, gibt PASS/WARN aus.
+
+**Naechste konkrete Schritte**:
+
+1. Neuen Scripts über Repo-Auto-Update auf `srv1` deployen (nach Push auf GitHub automatisch).
+2. Sunshine-/Moonlight-Smokes gegen VM 100 auf `srv1` ausführen:
+  - `BEAGLE_SMOKE_VM_SSH=beagle@<vm100-ip> bash scripts/test-sunshine-selfheal-smoke.sh`
+  - `SUNSHINE_API_URL=https://<vm100-ip>:47990 SUNSHINE_PASSWORD=... bash scripts/test-moonlight-appname-smoke.sh`
+3. Danach Installer-Rebuild-/Publish-Punkt weiterziehen: Server-Installer-/Installimage-Artefakte neu bauen damit Onboarding/LetsEncrypt-Fixes in frischen Installationen enthalten sind.
+
 
 ## Stand (2026-04-29, prepare-host-downloads Import-Fix auf srv1 geschlossen)
 

@@ -1,3 +1,34 @@
+## Update (2026-04-29, Smoke-Scripts stabilisiert + Sunshine/Moonlight Validierungspfad eingeführt)
+
+**Scope**: Drei offene TODO-Punkte aus `08-todo-global.md` geschlossen:
+  1. `test-server-installer-live-smoke.sh` DHCP-Timeout bei frisch gebauter ISO erhöht + ARP-Fallback ergänzt.
+  2. `test-standalone-desktop-stream-sim.sh` für echte libvirt-Ausführung stabilisiert (umask 0022, chmod 0644 auf Fake-ISO, chmod o+x auf TMP_DIR).
+  3. Zwei neue Smoke-Skripte für Sunshine-Self-Heal und Moonlight-App-Name-Resolver eingeführt.
+
+- Code:
+  - `scripts/test-server-installer-live-smoke.sh`
+    - `WAIT_DHCP_SECONDS` von 120 auf 300 angehoben.
+    - `WAIT_HEALTH_SECONDS` von 240 auf 300 angehoben.
+    - `wait_for_vm_ip` ergänzt um ARP-Fallback (`arp -n | awk ...`) wenn virsh kein DHCP-Lease liefert.
+  - `scripts/test-standalone-desktop-stream-sim.sh`
+    - `umask 022` am Script-Anfang gesetzt, damit ISO-Cache-Verzeichnis und Dateien von libvirt-qemu gelesen werden können.
+    - `chmod 0644 "${FAKE_ISO_PATH}"` und `chmod o+x "${TMP_DIR}"` nach ISO-Erstellung.
+  - `scripts/test-sunshine-selfheal-smoke.sh` (neu)
+    - Prüft `beagle-sunshine-healthcheck.timer` aktiv.
+    - Killst sunshine via `pkill -9`, wartet bis zu `BEAGLE_SMOKE_WAIT_SEC` (default 90s) auf Neustart.
+    - Prüft Sunshine API Antwort nach Neustart.
+    - Führt `beagle-sunshine-healthcheck --repair-only` manuell aus.
+  - `scripts/test-moonlight-appname-smoke.sh` (neu)
+    - Ruft `GET /api/apps` gegen die Sunshine-API auf.
+    - Führt die Resolver-Logik aus `moonlight_remote_api.sh` inline nach.
+    - Validiert, dass `Desktop` (case-insensitive) auflösbar ist.
+    - Gibt `MOONLIGHT_APPNAME_SMOKE=PASS` oder `WARN` aus.
+- Validierung:
+  - `bash -n` Syntax-Prüfung aller vier Skripte: OK
+  - srv1-Smoke-Runs für `test-sunshine-selfheal-smoke.sh` und `test-moonlight-appname-smoke.sh` stehen an, sobald die neuen Scripts über den Repo-Auto-Update auf srv1 sind.
+
+---
+
 ## Update (2026-04-29, prepare-host-downloads ModuleNotFoundError auf srv1 geschlossen)
 
 **Scope**: Der Host-Downloads-/Publish-Pfad auf `srv1` lief in `scripts/prepare-host-downloads.sh` in ein `ModuleNotFoundError: No module named 'core'`, sobald der Provider-Helper geladen wurde. Ursache war ein fehlender `PYTHONPATH`-Export fuer Repo-Top-Level-Module im Shell-Einstieg.

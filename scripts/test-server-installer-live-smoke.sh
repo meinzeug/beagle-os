@@ -13,8 +13,8 @@ NETWORK_NAME="${BEAGLE_LIVE_SMOKE_NETWORK:-default}"
 ISO_STAGING_PATH="${BEAGLE_LIVE_SMOKE_ISO_STAGING:-/tmp/${VM_NAME}.iso}"
 GRAPHICS_MODE="${BEAGLE_LIVE_SMOKE_GRAPHICS:-vnc,listen=127.0.0.1}"
 WAIT_VM_SECONDS="${BEAGLE_LIVE_SMOKE_WAIT_VM_SECONDS:-45}"
-WAIT_DHCP_SECONDS="${BEAGLE_LIVE_SMOKE_WAIT_DHCP_SECONDS:-120}"
-WAIT_HEALTH_SECONDS="${BEAGLE_LIVE_SMOKE_WAIT_HEALTH_SECONDS:-240}"
+WAIT_DHCP_SECONDS="${BEAGLE_LIVE_SMOKE_WAIT_DHCP_SECONDS:-300}"
+WAIT_HEALTH_SECONDS="${BEAGLE_LIVE_SMOKE_WAIT_HEALTH_SECONDS:-300}"
 REQUIRE_HEALTH="${BEAGLE_LIVE_SMOKE_REQUIRE_HEALTH:-0}"
 REQUIRE_INSTALLER_BANNER="${BEAGLE_LIVE_SMOKE_REQUIRE_INSTALLER_BANNER:-0}"
 REQUIRE_INSTALLER_SCREENSHOT="${BEAGLE_LIVE_SMOKE_REQUIRE_INSTALLER_SCREENSHOT:-1}"
@@ -98,11 +98,22 @@ wait_for_vm_ip() {
   mac="$1"
   deadline=$((SECONDS + WAIT_DHCP_SECONDS))
   while (( SECONDS < deadline )); do
+    # Primary: virsh DHCP lease table (most reliable with libvirt DHCP)
     ip="$(virsh --connect qemu:///system net-dhcp-leases "$NETWORK_NAME" \
       | awk -v m="$mac" 'tolower($0) ~ tolower(m) {split($5,a,"/"); print a[1]; exit}')"
     if [[ -n "$ip" ]]; then
       printf '%s\n' "$ip"
       return 0
+    fi
+    # Fallback: ARP table lookup by MAC (works with bridged/routed networks even
+    # when the DHCP lease has not yet appeared in virsh's view after a fresh ISO boot)
+    if command -v arp >/dev/null 2>&1; then
+      ip="$(arp -n 2>/dev/null | awk -v m="$mac" \
+        'tolower($3) == tolower(m) && $1 !~ /incomplete/ {print $1; exit}')"
+      if [[ -n "$ip" ]]; then
+        printf '%s\n' "$ip"
+        return 0
+      fi
     fi
     sleep 3
   done

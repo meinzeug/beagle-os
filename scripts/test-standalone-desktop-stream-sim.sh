@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Use a permissive umask so all files/dirs created by this process (and the
+# control-plane subprocess) are world-readable — required for libvirt-qemu access
+# when running against a real beagle provider on a libvirt host.
+umask 022
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Use a world-accessible directory so that libvirt-qemu can read the fake ISO
+# when the control plane is started with a real beagle provider.
 TMP_DIR="$(mktemp -d /tmp/beagle-standalone-e2e.XXXXXX)"
 chmod 0755 "${TMP_DIR}"
 PORT="${BEAGLE_TEST_PORT:-19088}"
@@ -84,6 +90,10 @@ xorriso -as mkisofs -volid UBUNTU_FAKE -joliet -rock -output "${FAKE_ISO_PATH}" 
   -graft-points \
   /casper/vmlinuz="${FAKE_ISO_DIR}/casper/vmlinuz" \
   /casper/initrd="${FAKE_ISO_DIR}/casper/initrd" >/dev/null 2>&1
+# Make the fake ISO world-readable so that libvirt-qemu can access it when the
+# control plane runs against a real beagle provider with libvirt storage pools.
+chmod 0644 "${FAKE_ISO_PATH}"
+chmod o+x  "${TMP_DIR}"
 
 env \
   BEAGLE_HOST_PROVIDER=beagle \
