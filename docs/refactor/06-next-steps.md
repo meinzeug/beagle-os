@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-04-29, prepare-host-downloads Import-Fix auf srv1 geschlossen)
+
+**Zuletzt erledigt**:
+- `scripts/prepare-host-downloads.sh` exportiert jetzt den Repo-Root in `PYTHONPATH`, sodass der Host-Downloads-Pfad auf `srv1` nicht mehr an `ModuleNotFoundError: No module named 'core'` scheitert.
+- Die gefixte Script-Version ist auf `srv1` eingespielt und der Lauf erzeugt wieder Host-Downloads unter `/opt/beagle/dist`.
+
+**Naechste konkrete Schritte**:
+
+1. Den jetzt entblockten Installer-Restpunkt weiterziehen: Server-Installer-/Installimage-Artefakte neu bauen und publizieren, damit Onboarding- und Let's-Encrypt-Fixes in frischen Installationen enthalten sind.
+2. Danach den offenen Clean-Install-Host-Validierungspunkt nachziehen (noVNC/XFCE/API/Downloads end-to-end auf frischem Host).
+3. `srv2`-abhaengige Zwei-Host-Slices weiter blockiert lassen, bis SSH-Reachability wiederhergestellt ist.
+
 ## Stand (2026-04-29, Security/TLS Let's-Encrypt-API Regression geschlossen)
 
 **Zuletzt erledigt**:

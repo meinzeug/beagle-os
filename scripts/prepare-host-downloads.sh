@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$ROOT_DIR/scripts/lib/beagle_provider.py}"
 PREPARE_HOST_DOWNLOADS_HELPER="$ROOT_DIR/scripts/lib/prepare_host_downloads.py"
 HOSTED_DOWNLOAD_LAYOUT_HELPER="$ROOT_DIR/scripts/lib/hosted_download_layout.sh"

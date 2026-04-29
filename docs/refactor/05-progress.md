@@ -1,3 +1,16 @@
+## Update (2026-04-29, prepare-host-downloads ModuleNotFoundError auf srv1 geschlossen)
+
+**Scope**: Der Host-Downloads-/Publish-Pfad auf `srv1` lief in `scripts/prepare-host-downloads.sh` in ein `ModuleNotFoundError: No module named 'core'`, sobald der Provider-Helper geladen wurde. Ursache war ein fehlender `PYTHONPATH`-Export fuer Repo-Top-Level-Module im Shell-Einstieg.
+
+- Code:
+  - `scripts/prepare-host-downloads.sh`
+    - exportiert jetzt `PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"`, bevor der Python-Helper `scripts/lib/prepare_host_downloads.py` und der Provider-Helper geladen werden.
+  - `tests/unit/test_proxy_env_precedence_regressions.py`
+    - neue Regression stellt sicher, dass der `prepare-host-downloads`-Einstieg diesen `PYTHONPATH`-Export enthaelt.
+- Validierung:
+  - lokal: `python3 -m pytest tests/unit/test_proxy_env_precedence_regressions.py -q` => `4 passed`
+  - `srv1`: `bash scripts/prepare-host-downloads.sh` laeuft wieder erfolgreich durch und erzeugt die Host-Downloads unter `/opt/beagle/dist`.
+
 ## Update (2026-04-29, Security/TLS Let's-Encrypt-API Regression + srv1-Smoke geschlossen)
 
 **Scope**: Der offene TODO-Punkt fuer den Security/TLS-API-Pfad ist geschlossen. Die Let's-Encrypt-Route hat jetzt explizite Regressionen auf Route-Ebene, und ein reproduzierbarer Host-Smoke validiert denselben Pfad auf `srv1`.

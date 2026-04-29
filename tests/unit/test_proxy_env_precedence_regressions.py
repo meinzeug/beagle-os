@@ -24,6 +24,7 @@ def test_host_download_scripts_load_proxy_env_after_host_env() -> None:
     refresh = REFRESH_HOST_ARTIFACTS.read_text(encoding="utf-8")
     check = CHECK_BEAGLE_HOST.read_text(encoding="utf-8")
 
+    assert 'export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"' in prepare
     assert 'PROXY_ENV_FILE="${PVE_DCV_PROXY_ENV_FILE:-$CONFIG_DIR/beagle-proxy.env}"' in prepare
     assert 'source "$PROXY_ENV_FILE"' in prepare
     assert 'PROXY_ENV_FILE="${PVE_DCV_PROXY_ENV_FILE:-$CONFIG_DIR/beagle-proxy.env}"' in refresh
