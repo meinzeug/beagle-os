@@ -15,6 +15,7 @@ import {
   usageBar
 } from './dom.js';
 import { blobRequest, postJson, request } from './api.js';
+import { t } from './i18n.js';
 
 const virtualizationHooks = {
   openInventoryWithNodeFilter() {},
@@ -124,7 +125,7 @@ function renderInspectorRecentVmids() {
   const inspector = state.virtualizationInspector || {};
   const recent = Array.isArray(inspector.recentVmids) ? inspector.recentVmids : [];
   if (!recent.length) {
-    recentEl.innerHTML = '<span class="chip muted">Noch keine zuletzt geladenen VMs.</span>';
+    recentEl.innerHTML = '<span class="chip muted">' + escapeHtml(t('vm.recent_empty')) + '</span>';
     return;
   }
   recentEl.innerHTML = recent.map((vmid) => {
@@ -341,7 +342,7 @@ export function renderVirtualizationPanel() {
     return;
   }
   if (!overview || !state.token) {
-    nodesGrid.innerHTML = '<div class="empty-card">Keine Daten. Verbinde dich zuerst mit dem API-Token.</div>';
+    nodesGrid.innerHTML = '<div class="empty-card">' + escapeHtml(t('vm.connect_first')) + '</div>';
     storageBody.innerHTML = '<tr><td colspan="8" class="empty-cell">Keine Daten verfuegbar.</td></tr>';
     return;
   }

@@ -76,5 +76,14 @@
   "empty.no_pools": "No pools yet — Create your first pool",
   "empty.no_sessions": "No active sessions",
   "empty.no_jobs": "No running jobs",
-  "empty.no_data": "No data available"
+  "empty.no_data": "No data available",
+
+  "auth.locked_button": "Locked ({seconds}s)",
+  "auth.lock_lifted": "Connection lock lifted.",
+  "auth.locked_temporary": "Login temporarily locked.",
+  "auth.retry_in": " Please retry in {seconds}s.",
+  "auth.too_many_failures": "Auth locked: too many failures",
+  "auth.local_only": "Local login only.",
+  "vm.recent_empty": "No recently loaded VMs yet.",
+  "vm.connect_first": "No data. Connect with your API token first."
 }

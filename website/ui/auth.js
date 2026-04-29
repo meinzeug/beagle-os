@@ -10,6 +10,7 @@ import {
 } from './state.js';
 import { qs } from './dom.js';
 import { fetchWithTimeout, resolveApiTarget } from './api.js';
+import { t } from './i18n.js';
 
 let tokenStore = null;
 let refreshTokenStore = null;
@@ -291,10 +292,10 @@ export function updateConnectButton() {
   if (isAuthLocked()) {
     const remaining = Math.max(0, Math.ceil((state.authLockUntil - Date.now()) / 1000));
     btn.disabled = true;
-    btn.textContent = 'Gesperrt (' + String(remaining) + 's)';
+    btn.textContent = t('auth.locked_button', { seconds: remaining });
   } else {
     btn.disabled = false;
-    btn.textContent = 'Verbinden';
+    btn.textContent = t('action.connect');
   }
 }
 
@@ -307,7 +308,7 @@ export function startAuthLockCountdown() {
     if (!isAuthLocked()) {
       window.clearInterval(authLockCountdownTimer);
       authLockCountdownTimer = null;
-      uiHooks.setBanner('Verbindungssperre aufgehoben.', 'info');
+      uiHooks.setBanner(t('auth.lock_lifted'), 'info');
     }
   }, 1000);
 }
@@ -322,7 +323,7 @@ export function recordAuthFailure() {
   state.authFailCount += 1;
   if (state.authFailCount >= 5) {
     state.authLockUntil = Date.now() + 60000;
-    uiHooks.addToActivityLog('connect', null, 'warn', 'Auth locked: zu viele Fehlversuche');
+    uiHooks.addToActivityLog('connect', null, 'warn', t('auth.too_many_failures'));
     startAuthLockCountdown();
   }
   updateConnectButton();
@@ -368,9 +369,9 @@ export function loginWithCredentials(username, password) {
         if (response.status === 429) {
           const retryAfter = Number(payload.retry_after_seconds || response.headers.get('Retry-After') || 0);
           const suffix = Number.isFinite(retryAfter) && retryAfter > 0
-            ? ' Bitte in ' + String(Math.ceil(retryAfter)) + 's erneut versuchen.'
+            ? t('auth.retry_in', { seconds: Math.ceil(retryAfter) })
             : '';
-          throw new Error((payload.error || 'Login temporaer gesperrt.') + suffix);
+          throw new Error((payload.error || t('auth.locked_temporary')) + suffix);
         }
         throw new Error(payload.error || ('HTTP ' + response.status));
       }
@@ -412,7 +413,7 @@ function renderIdentityProviderMethods() {
   }
   const providers = Array.isArray(state.identityProviders) ? state.identityProviders : [];
   if (!providers.length) {
-    listNode.innerHTML = '<div class="auth-method-item is-muted">Nur lokaler Login verfuegbar.</div>';
+    listNode.innerHTML = '<div class="auth-method-item is-muted">' + t('auth.local_only') + '</div>';
     return;
   }
 

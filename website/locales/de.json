@@ -76,5 +76,14 @@
   "empty.no_pools": "Noch keine Pools — Ersten Pool erstellen",
   "empty.no_sessions": "Keine aktiven Sessions",
   "empty.no_jobs": "Keine laufenden Jobs",
-  "empty.no_data": "Keine Daten verfügbar"
+  "empty.no_data": "Keine Daten verfügbar",
+
+  "auth.locked_button": "Gesperrt ({seconds}s)",
+  "auth.lock_lifted": "Verbindungssperre aufgehoben.",
+  "auth.locked_temporary": "Login temporär gesperrt.",
+  "auth.retry_in": " Bitte in {seconds}s erneut versuchen.",
+  "auth.too_many_failures": "Auth gesperrt: zu viele Fehlversuche",
+  "auth.local_only": "Nur lokaler Login verfügbar.",
+  "vm.recent_empty": "Noch keine zuletzt geladenen VMs.",
+  "vm.connect_first": "Keine Daten. Verbinde dich zuerst mit dem API-Token."
 }
