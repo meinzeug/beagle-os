@@ -1,3 +1,25 @@
+## Update (2026-04-29, Enterprise-Readiness Docs-Konsolidierung)
+
+**Scope**: Komplette Aufraeumung der Doku auf 5 thematische Checklisten + zentrale Navigation. Live-Fix der CI fuer Integration-Tests.
+
+- Doku-Struktur:
+  - `docs/refactorv2/`, `docs/gofuture/`, `docs/goenterprise/`, `docs/goadvanced/`, `docs/gorelease/` per `git mv` nach `docs/archive/` verschoben (History erhalten).
+  - Neu: `docs/checklists/01-platform.md`, `02-streaming-endpoint.md`, `03-security.md`, `04-quality-ci.md`, `05-release-operations.md`. Jedes Item gegen das Repo verifiziert.
+  - Neu: `docs/README.md` (zentrale Navigation), `docs/STATUS.md` (Enterprise-Readiness Snapshot mit Ampel + Release-Gates).
+  - Doppelte Dateinummern aufgeloest (`docs/refactor/04-latest-e2e-test-report.md` → `12-...`, `docs/archive/goadvanced/11-beagle-parity-checklist.md` → `13-...`).
+  - Top-Level-Doks in Subfolder einsortiert (`HETZNER-INSTALLIMAGE-DEPLOYMENT.md` → `deployment/hetzner-installimage.md`, `architecture.md` → `architecture/overview.md`, `security.md` → `security/overview.md` u.a.).
+  - `MASTER-PLAN.md` Section 2 auf neue Checklist-Struktur umgebaut; alle Pfade in Section 3 (Themen-Zuordnung) auf `docs/archive/...` umgebogen.
+  - `scripts/check-gofuture-complete.sh` → `scripts/check-checklists-complete.sh` (generisch, optional `CHECKLIST_GATE_LIST` einschraenkbar).
+  - `docs/contributing.md` + `.github/workflows/no-legacy-provider-references.yml` Doc-Links aktualisiert.
+
+- CI-Live-Fix:
+  - `.github/workflows/tests.yml`: neuer Job `integration` zwischen `bats` und `webui-provisioning-smoke`. Faehrt `python -m pytest tests/integration/ -q -p no:warnings` mit `PYTHONPATH=$workspace`. Lokal verifiziert: **89 passed in 1.41s**.
+
+- Regel:
+  - Es gibt nur noch 5 aktive Checklisten. Neue Aufgaben kommen ausschliesslich dort hin. Die archivierten Plan-Verzeichnisse sind kein Auftragsbacklog mehr.
+
+---
+
 ## Update (2026-04-30, Plan 12 Schritt 1+2: i18n + error-handler implementiert)
 
 **Scope**: i18n-Infrastruktur und standardisierter Error-Handler fuer die Beagle Web Console.

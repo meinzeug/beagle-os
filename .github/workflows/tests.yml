@@ -72,6 +72,33 @@ jobs:
         run: |
           bats --tap tests/bats/
 
+  integration:
+    name: integration (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install \
+            pytest \
+            cryptography \
+            aiohttp \
+            requests \
+            boto3
+
+      - name: Run integration tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python -m pytest tests/integration/ -q -p no:warnings
+
   webui-provisioning-smoke:
     name: WebUI provisioning smoke (Playwright)
     runs-on: ubuntu-latest

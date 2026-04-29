@@ -2,6 +2,23 @@
 
 Stand: 2026-04-13
 
+## D-061: Doku auf 5 thematische Checklisten konsolidiert (2026-04-29)
+
+Kontext: Sechs parallele Plan-Verzeichnisse (`refactor/`, `refactorv2/`, `gofuture/`, `goenterprise/`, `goadvanced/`, `gorelease/`) mit 60+ Plan-Dateien hatten sich ueberschnitten und widersprachen sich teilweise. Onboarding-Aufwand fuer neue Agents zu hoch.
+
+Entscheidung:
+
+- Es gibt genau **5** aktive Checklisten unter `docs/checklists/01..05-*.md` (Platform, Streaming/Endpoint, Security, Quality/CI, Release/Operations).
+- Alle anderen Plan-Verzeichnisse sind nach `docs/archive/` verschoben (History via `git mv` erhalten) und gelten ausschliesslich als Hintergrundmaterial.
+- Neue Aufgaben kommen ausschliesslich in eine der 5 Checklisten. Es entstehen keine neuen Plan-Dateien mehr.
+- `docs/MASTER-PLAN.md` bleibt die kanonische Vision; `docs/STATUS.md` ist der Enterprise-Readiness-Snapshot mit Ampel; `docs/README.md` ist die zentrale Navigation.
+- `scripts/check-gofuture-complete.sh` wurde zu `scripts/check-checklists-complete.sh` generalisiert (optional `CHECKLIST_GATE_LIST` zur Selektion).
+- Logbuecher (`05-progress.md`, `06-next-steps.md`, `07-decisions.md`, `08-todo-global.md`, `11-security-findings.md`) bleiben als chronologische Run-Logs erhalten.
+
+Nebenwirkung Live-Fix: `tests.yml` faehrt nun auch Integration-Tests in CI (Job `integration` zwischen `bats` und `webui-provisioning-smoke`); 89 Tests lokal verifiziert.
+
+---
+
 ## D-058: qemu+ssh-Migrations-Deadlocks werden mit expliziter Shared-Storage-Guidance behandelt
 - Entscheidung: Der Migrationsservice erkennt qemu+ssh-nahe Timeout-/Connection-Deadlock-Indikatoren und erweitert den Fehlerpfad um eine klare Operator-Empfehlung: bevorzugter Abnahmepfad ist shared-storage live migration; fallback ist `copy_storage=true` als cold/offline copy path.
 - Grund: Der Runtime-Fehler war bisher zu unscharf und fuehrte zu wiederholten, schwer unterscheidbaren Fehlversuchen. Die explizite Guidance macht den naechsten reproduzierbaren Operator-Schritt direkt sichtbar und reduziert Trial-and-Error im HA-/Cluster-Betrieb.

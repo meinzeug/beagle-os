@@ -1,20 +1,29 @@
 # Next Steps
 
-## Stand (2026-04-30, Plan 12 Schritt 1+2 abgeschlossen)
+## Stand (2026-04-29, Enterprise-Readiness Doku-Konsolidierung abgeschlossen)
 
 **Zuletzt erledigt**:
-- `website/locales/de.json` + `en.json` erstellt (60+ Schluessel, identische Key-Sets).
-- `website/ui/i18n.js` implementiert: `t()`, `setLanguage()`, `getLanguage()`, Fallback-Kette de→en→key, localStorage-Persistenz, `beagle:langchange`-Event.
-- `website/ui/error-handler.js` implementiert: `showError`, `showWarning`, `showSuccess`, `showInfo`, `handleFetchError`, `withErrorHandling`.
-- Alle 5 verbliebenen `alert()`/`console.error`-Aufrufe in `cluster.js`, `events.js`, `secrets_admin.js` migriert.
-- 21 Unit-Tests, alle PASS (`tests/unit/test_i18n_and_error_handler.py`).
+- Doku auf 5 thematische Checklisten konsolidiert: `docs/checklists/01..05-*.md`. Jede Aufgabe gegen Repo verifiziert.
+- 5 alte Plan-Verzeichnisse (`refactorv2`, `gofuture`, `goenterprise`, `goadvanced`, `gorelease`) per `git mv` nach `docs/archive/` verschoben.
+- `docs/README.md` (zentrale Navigation) + `docs/STATUS.md` (Ampel + Release-Gates).
+- `MASTER-PLAN.md` Section 2 + 3 auf neue Struktur umgebaut, alle Pfade auf `docs/archive/...` aktualisiert.
+- Top-Level-Doks in Subordner einsortiert (`deployment/`, `architecture/`, `security/`).
+- `scripts/check-gofuture-complete.sh` → `scripts/check-checklists-complete.sh` (generisch).
+- **CI-Live-Fix**: `tests.yml` faehrt jetzt Integration-Tests (`tests/integration/`, 89 Tests, lokal verifiziert).
 
-**Naechste konkrete Schritte**:
+**Naechste konkrete Schritte (Reihenfolge)**:
 
-1. **Plan 12 Schritt 1 Migration**: `auth_admin.js`, `vms_panel.js` schrittweise auf `t()` umstellen (sichtbare deutsche Strings zuerst).
-2. **Plan 12 Schritt 3 ARIA**: `axe-core` CLI gegen `https://srv1.beagle-os.com` ausfuehren, Ergebnis dokumentieren.
-3. **VM102 Provider-State**: auf `srv1` VM102-Inventar-Diskrepanz beheben, Rerun `ensure-vm-stream-ready.sh --vmid 102`.
-4. Dann: Plan-09 Abnahmekriterien (CI pipeline verification) und Plan-10 Integration-Tests.
+1. **Runbook-Skelette**: `docs/runbooks/{installation,update,rollback,backup-restore,incident-response,pilot}.md` anlegen — entsperrt R4.
+2. **Frische ISO-Installation**: auf leerem Hetzner-Host live durchfuehren, `scripts/check-beagle-host.sh` gruen — entsperrt R1.
+3. **Cluster-Smoke** auf `srv1`+`srv2`: Join + Drain + Failover + Live-Migration mit echter Latenz — entsperrt R2.
+4. **GPU-Server** bei Hetzner buchen, IOMMU/VFIO/libvirt verifizieren — entsperrt R3.
+5. **Externes Pen-Test-Engagement** vorbereiten (Scope, Termin, Vertrag) — entsperrt R4.
+6. **Plan 12 i18n-Migration weiter**: `auth_admin.js`, `vms_panel.js` auf `t()` umstellen (Item in [`docs/checklists/04-quality-ci.md`](04-quality-ci.md) erfasst).
+7. **VM102 Provider-State** auf `srv1` reparieren, dann `ensure-vm-stream-ready.sh --vmid 102` fahren.
+
+---
+
+## Historische Stand-Eintraege (vorher)
 
 
 

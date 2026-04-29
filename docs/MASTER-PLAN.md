@@ -4,13 +4,14 @@ Stand: 2026-04-29
 Aktuelle Version (`VERSION`): **8.0**
 Quelle der Wahrheit: **dieses Dokument**.
 
-Dieses Dokument konsolidiert alle bisherigen Teilplaene (`docs/refactor/`,
-`docs/refactorv2/`, `docs/gofuture/`, `docs/goenterprise/`, `docs/goadvanced/`,
-`docs/gorelease/`) zu einer einzigen, widerspruchsfreien Sicht.
+Dieses Dokument konsolidiert alle bisherigen Teilplaene zu einer einzigen,
+widerspruchsfreien Sicht. Die historischen Plan-Verzeichnisse
+(`docs/archive/refactorv2/`, `docs/archive/gofuture/`, `docs/archive/goenterprise/`, `docs/archive/goadvanced/`,
+`docs/archive/gorelease/`) sind nach `docs/archive/` verschoben und dienen nur noch als
+Hintergrundmaterial. Aktive Auftraege leben ausschliesslich in den fuenf
+Checklisten unter [`docs/checklists/`](checklists/) (siehe Abschnitt 2).
 
-Wenn ein Teilplan diesem Dokument widerspricht, gilt dieses Dokument.
-Teilplaene bleiben als Detailausarbeitung gueltig, aber Status, Reihenfolge
-und Abgrenzungen werden hier kanonisch festgelegt.
+Wenn ein archivierter Teilplan diesem Dokument widerspricht, gilt dieses Dokument.
 
 ---
 
@@ -38,19 +39,24 @@ existieren nicht mehr im Repo (verifiziert 2026-04-29).
 
 ---
 
-## 2. Layer-Modell der Plaene (kanonische Reihenfolge)
+## 2. Operatives Backlog — 5 Checklisten
 
-Die sechs bestehenden Plan-Verzeichnisse stehen **nicht** in Konkurrenz,
-sondern bauen aufeinander auf. Die Reihenfolge ist:
+**Stand 2026-04-29:** Saemtliche aktive Arbeit lebt in genau **fuenf** Checklisten
+unter [`docs/checklists/`](checklists/). Die historischen Mehrfach-Plaene
+(`refactorv2`, `gofuture`, `goenterprise`, `goadvanced`, `gorelease`) sind als
+Hintergrundmaterial nach [`docs/archive/`](archive/) verschoben — sie sind
+**keine Auftragslisten mehr**.
 
-| Layer | Verzeichnis | Zweck | Status |
-|---|---|---|---|
-| L1 | `docs/refactor/` | Welle 1 — Identity/Session/RBAC/Provider-Seam | weitgehend abgeschlossen, dient als Fortschritts-Logbuch |
-| L2 | `docs/refactorv2/` | Vision 7.0 — vollwertige Desktop-Virtualisierung | Vision/Architekturreferenz, kein eigenstaendiger Ausfuehrungsplan |
-| L3 | `docs/gofuture/` | 20 operative Schritte, WebUI + Plattform 7.x | aktiv, dient als WebUI-/Plattform-Backlog |
-| L4 | `docs/goenterprise/` | 10 Enterprise-Features 8.x | **aktive Hauptarbeitslinie** (8.x in Auslieferung) |
-| L5 | `docs/goadvanced/` | 12 Hardening-/Skalierungs-Tickets | aktiv, parallel zur Enterprise-Linie |
-| L6 | `docs/gorelease/` | 5 Release-Gates R0..R4 | aktiv, blockiert R3/R4-Freigabe |
+| # | Datei | Thema |
+|---|---|---|
+| 01 | [checklists/01-platform.md](checklists/01-platform.md) | Cluster, Storage, HA, VDI, GPU, SDN |
+| 02 | [checklists/02-streaming-endpoint.md](checklists/02-streaming-endpoint.md) | BeagleStream, WireGuard, Endpoint, Kiosk, Session-Mgmt |
+| 03 | [checklists/03-security.md](checklists/03-security.md) | Auth, RBAC, Secrets, Audit, TLS, IAM/Tenancy |
+| 04 | [checklists/04-quality-ci.md](checklists/04-quality-ci.md) | CI, Tests, Datenintegritaet, Observability, UX/i18n |
+| 05 | [checklists/05-release-operations.md](checklists/05-release-operations.md) | Release-Gates R0..R4, Runbooks, Operations |
+
+Pro Aufgabe gilt: **eine** Checkliste, **ein** `[ ]`/`[x]`-Eintrag. Keine neuen
+Plan-Dateien anlegen.
 
 Logbuecher:
 
@@ -71,40 +77,40 @@ genau **ein** kanonischer Detailplan. Andere Vorkommen sind Hintergrund.
 
 | Thema | Kanonischer Plan | Sekundaer / Hintergrund |
 |---|---|---|
-| Streaming-Protokoll (BeagleStream) | `goenterprise/01-moonlight-vdi-protocol.md` | `gofuture/11-streaming-v2.md`, `refactorv2/05-streaming-protocol-strategy.md` |
-| Zero-Trust Thin Client + WireGuard | `goenterprise/02-zero-trust-thin-client.md` | `gofuture/19-endpoint-os.md`, `refactorv2/11-endpoint-strategy.md` |
-| Gaming Kiosk Pools | `goenterprise/03-gaming-kiosk-pools.md` | — |
-| Smart Scheduler / Placement | `goenterprise/04-ai-smart-scheduler.md` | `refactorv2/08-ha-cluster.md` |
-| Cost Transparency / Chargeback | `goenterprise/05-cost-transparency.md` | — |
-| Live Session Handover | `goenterprise/06-session-handover.md` | `gofuture/07-cluster-foundation.md` |
-| Fleet Intelligence / Predictive Maintenance | `goenterprise/07-fleet-intelligence.md` | `refactorv2/13-observability-operations.md` |
-| All-in-One Bare-Metal Installer + PXE | `goenterprise/08-all-in-one-installer.md` | `gofuture/06-server-installer.md` |
-| Energy + CO2 Dashboard / CSRD | `goenterprise/09-energy-dashboard.md` | — |
-| GPU Pool / Streaming Routing | `goenterprise/10-gpu-streaming-pools.md` | `gofuture/12-gpu-plane.md`, `refactorv2/10-gpu-device-passthrough.md` |
-| Cluster Foundation / Live-Migration | `gofuture/07-cluster-foundation.md` | `refactorv2/08-ha-cluster.md` |
-| Storage Plane (StorageClass, ZFS, Ceph) | `gofuture/08-storage-plane.md` | `refactorv2/07-storage-network-plane.md` |
-| HA Manager / Fencing | `gofuture/09-ha-manager.md` | `refactorv2/08-ha-cluster.md` |
-| VDI Pools + Templates | `gofuture/10-vdi-pools.md` | — |
-| IAM v2 + SSO + SCIM + Tenancy | `gofuture/13-iam-tenancy.md` | `refactorv2/06-iam-multitenancy.md` |
-| Session Recording + Watermark | `gofuture/14-session-recording.md` | `refactorv2/12-security-compliance.md` |
-| Audit + Compliance Export | `gofuture/15-audit-compliance.md` | `refactorv2/12-security-compliance.md` |
-| Backup + Disaster Recovery | `gofuture/16-backup-dr.md` | `refactorv2/09-backup-dr.md` |
-| SDN + Distributed Firewall | `gofuture/17-sdn-firewall.md` | `refactorv2/07-storage-network-plane.md` |
-| OpenAPI + Terraform + `beaglectl` | `gofuture/18-api-iac-cli.md` | `refactorv2/14-platform-api-extensibility.md` |
-| Provider-Abstraction (Proxmox-Endbeseitigung) | `gofuture/05-provider-abstraction.md` | `refactor/09-provider-abstraction.md`, `goadvanced/11-beagle-endbeseitigung.md` |
-| Control-Plane Aufspaltung | `goadvanced/05-control-plane-split.md` | `gofuture/04-control-plane.md` |
-| Datenintegritaet (atomic writes, locking, SQLite) | `goadvanced/01-data-integrity.md`, `goadvanced/06-state-sqlite-migration.md` | — |
-| TLS-Haerte + Cert-Pinning | `goadvanced/02-tls-hardening.md` | — |
-| Secret-Rotation + Vault | `goadvanced/03-secret-management.md` | — |
-| Subprocess Sandboxing | `goadvanced/04-subprocess-sandboxing.md` | — |
-| Async Job Queue | `goadvanced/07-async-job-queue.md` | — |
-| Observability (Prometheus, OTel, Logs) | `goadvanced/08-observability.md` | `refactorv2/13-observability-operations.md` |
-| CI Pipeline (shellcheck/bats/SBOM) | `goadvanced/09-ci-pipeline.md` | — |
-| Integration-/E2E-Tests | `goadvanced/10-integration-tests.md` | `gorelease/03-end-to-end-validation.md` |
-| WebUI Modularisierung (JS/CSS/index) | `gofuture/01..03-webui-*.md` | — |
-| Release Gates (R0..R4) | `gorelease/00-index.md` + `01..05-*.md` | — |
-| Security-Hardening (kontinuierlich) | `gofuture/20-security-hardening.md`, `goadvanced/02..04`, `gorelease/01-security-gates.md` | `refactor/11-security-findings.md` |
-| UX/Accessibility/i18n | `goadvanced/12-ux-accessibility.md` | — |
+| Streaming-Protokoll (BeagleStream) | `archive/goenterprise/01-moonlight-vdi-protocol.md` | `archive/gofuture/11-streaming-v2.md`, `archive/refactorv2/05-streaming-protocol-strategy.md` |
+| Zero-Trust Thin Client + WireGuard | `archive/goenterprise/02-zero-trust-thin-client.md` | `archive/gofuture/19-endpoint-os.md`, `archive/refactorv2/11-endpoint-strategy.md` |
+| Gaming Kiosk Pools | `archive/goenterprise/03-gaming-kiosk-pools.md` | — |
+| Smart Scheduler / Placement | `archive/goenterprise/04-ai-smart-scheduler.md` | `archive/refactorv2/08-ha-cluster.md` |
+| Cost Transparency / Chargeback | `archive/goenterprise/05-cost-transparency.md` | — |
+| Live Session Handover | `archive/goenterprise/06-session-handover.md` | `archive/gofuture/07-cluster-foundation.md` |
+| Fleet Intelligence / Predictive Maintenance | `archive/goenterprise/07-fleet-intelligence.md` | `archive/refactorv2/13-observability-operations.md` |
+| All-in-One Bare-Metal Installer + PXE | `archive/goenterprise/08-all-in-one-installer.md` | `archive/gofuture/06-server-installer.md` |
+| Energy + CO2 Dashboard / CSRD | `archive/goenterprise/09-energy-dashboard.md` | — |
+| GPU Pool / Streaming Routing | `archive/goenterprise/10-gpu-streaming-pools.md` | `archive/gofuture/12-gpu-plane.md`, `archive/refactorv2/10-gpu-device-passthrough.md` |
+| Cluster Foundation / Live-Migration | `archive/gofuture/07-cluster-foundation.md` | `archive/refactorv2/08-ha-cluster.md` |
+| Storage Plane (StorageClass, ZFS, Ceph) | `archive/gofuture/08-storage-plane.md` | `archive/refactorv2/07-storage-network-plane.md` |
+| HA Manager / Fencing | `archive/gofuture/09-ha-manager.md` | `archive/refactorv2/08-ha-cluster.md` |
+| VDI Pools + Templates | `archive/gofuture/10-vdi-pools.md` | — |
+| IAM v2 + SSO + SCIM + Tenancy | `archive/gofuture/13-iam-tenancy.md` | `archive/refactorv2/06-iam-multitenancy.md` |
+| Session Recording + Watermark | `archive/gofuture/14-session-recording.md` | `archive/refactorv2/12-security-compliance.md` |
+| Audit + Compliance Export | `archive/gofuture/15-audit-compliance.md` | `archive/refactorv2/12-security-compliance.md` |
+| Backup + Disaster Recovery | `archive/gofuture/16-backup-dr.md` | `archive/refactorv2/09-backup-dr.md` |
+| SDN + Distributed Firewall | `archive/gofuture/17-sdn-firewall.md` | `archive/refactorv2/07-storage-network-plane.md` |
+| OpenAPI + Terraform + `beaglectl` | `archive/gofuture/18-api-iac-cli.md` | `archive/refactorv2/14-platform-api-extensibility.md` |
+| Provider-Abstraction (Proxmox-Endbeseitigung) | `archive/gofuture/05-provider-abstraction.md` | `refactor/09-provider-abstraction.md`, `archive/goadvanced/11-beagle-endbeseitigung.md` |
+| Control-Plane Aufspaltung | `archive/goadvanced/05-control-plane-split.md` | `archive/gofuture/04-control-plane.md` |
+| Datenintegritaet (atomic writes, locking, SQLite) | `archive/goadvanced/01-data-integrity.md`, `archive/goadvanced/06-state-sqlite-migration.md` | — |
+| TLS-Haerte + Cert-Pinning | `archive/goadvanced/02-tls-hardening.md` | — |
+| Secret-Rotation + Vault | `archive/goadvanced/03-secret-management.md` | — |
+| Subprocess Sandboxing | `archive/goadvanced/04-subprocess-sandboxing.md` | — |
+| Async Job Queue | `archive/goadvanced/07-async-job-queue.md` | — |
+| Observability (Prometheus, OTel, Logs) | `archive/goadvanced/08-observability.md` | `archive/refactorv2/13-observability-operations.md` |
+| CI Pipeline (shellcheck/bats/SBOM) | `archive/goadvanced/09-ci-pipeline.md` | — |
+| Integration-/E2E-Tests | `archive/goadvanced/10-integration-tests.md` | `archive/gorelease/03-end-to-end-validation.md` |
+| WebUI Modularisierung (JS/CSS/index) | `archive/gofuture/01..03-webui-*.md` | — |
+| Release Gates (R0..R4) | `archive/gorelease/00-index.md` + `01..05-*.md` | — |
+| Security-Hardening (kontinuierlich) | `archive/gofuture/20-security-hardening.md`, `archive/goadvanced/02..04`, `archive/gorelease/01-security-gates.md` | `refactor/11-security-findings.md` |
+| UX/Accessibility/i18n | `archive/goadvanced/12-ux-accessibility.md` | — |
 
 Regel: Wenn zwei Plaene sich widersprechen, gilt der kanonische. Der
 sekundaere Plan ist als Hintergrund/Recherche zu lesen, nicht als Auftrag.
@@ -122,11 +128,11 @@ sekundaere Plan ist als Hintergrund/Recherche zu lesen, nicht als Auftrag.
 - **Provider-Abstraction (Proxmox-Endbeseitigung)**: erledigt. Es gibt nur noch
   `providers/beagle/`. Grep nach `qm|pvesh|/api2/json|PVEAuthCookie` = 0 Treffer.
   `proxmox-ui/` und `providers/proxmox/` existieren nicht mehr.
-- **WebUI Modularisierung** (`gofuture/01..03`): erledigt; `app.js` ist in ES-Module
+- **WebUI Modularisierung** (`archive/gofuture/01..03`): erledigt; `app.js` ist in ES-Module
   zerlegt, `styles.css` in Teilmodule, `index.html` verweist auf `main.js`.
-- **Server-Installer / Bare-Metal ISO** (`gofuture/06`, `goenterprise/08`):
+- **Server-Installer / Bare-Metal ISO** (`archive/gofuture/06`, `archive/goenterprise/08`):
   ISO + Hetzner installimage reproduzierbar bauen, TUI-/Seed-/PXE-Flows abgenommen.
-- **Cluster Foundation 7.0.0** (`gofuture/07`): WebUI-Cluster-Operations, Join/Drain,
+- **Cluster Foundation 7.0.0** (`archive/gofuture/07`): WebUI-Cluster-Operations, Join/Drain,
   Member-Verwaltung verfuegbar; live-Migration in Single-Host getestet.
 - **GoEnterprise Plan 02 — Zero-Trust Thin Client + MDM**: vollständig erledigt.
   Device-Registry, Lock/Wipe, Policy-Editor, Effective-Policy-Diff, Drift-/
@@ -165,27 +171,27 @@ sekundaere Plan ist als Hintergrund/Recherche zu lesen, nicht als Auftrag.
   Militaer-Profile in der WebUI bedienbar.
 - **GoEnterprise Plan 06 — Live Session Handover**: Stream-Uebergabe zwischen Nodes.
 - **GoEnterprise Plan 10 — GPU Streaming Pools**: Pool-Routing + Stream-Routing.
-- **GoFuture 7.0.1 Storage Plane** (`gofuture/08`): StorageClass-Backends
+- **GoFuture 7.0.1 Storage Plane** (`archive/gofuture/08`): StorageClass-Backends
   (lvm-thin, zfs, nfs, optional Ceph/Longhorn); Quotas pro Tenant.
-- **GoFuture 7.0.2 HA Manager** (`gofuture/09`): Watchdog-Fencing, Restart-Policies,
+- **GoFuture 7.0.2 HA Manager** (`archive/gofuture/09`): Watchdog-Fencing, Restart-Policies,
   Anti-/Affinity, 60-s-Recovery-Akzeptanz.
-- **GoFuture 7.1.0 VDI Pools** (`gofuture/10`): Pool-Wizard, Template-Builder,
+- **GoFuture 7.1.0 VDI Pools** (`archive/gofuture/10`): Pool-Wizard, Template-Builder,
   Floating-/Persistent-/Dedicated-Modi.
-- **GoFuture 7.1.1 Streaming v2** (`gofuture/11`): Apollo + Virtual Display,
+- **GoFuture 7.1.1 Streaming v2** (`archive/gofuture/11`): Apollo + Virtual Display,
   Auto-Pairing per signiertem Token, HDR + Multi-Monitor + 4:4:4, Audio-In/Mikro/
   Wacom/Gamepad-Redirect E2E.
-- **GoFuture 7.1.2 GPU Plane** (`gofuture/12`): vGPU (Mediated Devices, SR-IOV),
+- **GoFuture 7.1.2 GPU Plane** (`archive/gofuture/12`): vGPU (Mediated Devices, SR-IOV),
   Pool-Constraint `gpu_class`, Scheduler-GPU-Reservation.
-- **GoFuture 7.2.0 IAM v2 + Tenancy** (`gofuture/13`): OIDC, SAML, SCIM 2.0,
+- **GoFuture 7.2.0 IAM v2 + Tenancy** (`archive/gofuture/13`): OIDC, SAML, SCIM 2.0,
   Tenant-Scope flaechendeckend, Policy-Engine.
-- **GoFuture 7.2.1 Session Recording + Watermark** (`gofuture/14`).
-- **GoFuture 7.2.2 Audit + Compliance Export** (`gofuture/15`): Schema-Vereinheitlichung,
+- **GoFuture 7.2.1 Session Recording + Watermark** (`archive/gofuture/14`).
+- **GoFuture 7.2.2 Audit + Compliance Export** (`archive/gofuture/15`): Schema-Vereinheitlichung,
   S3/Syslog/Webhook, PII-Schwaerzung, Reportgenerator.
-- **GoFuture 7.3.0 Backup + DR** (`gofuture/16`): inkrementelle Backups, S3/NFS/Restic,
+- **GoFuture 7.3.0 Backup + DR** (`archive/gofuture/16`): inkrementelle Backups, S3/NFS/Restic,
   Live-Restore, Single-File-Restore, Cross-Site Replication.
-- **GoFuture 7.3.1 SDN + Firewall** (`gofuture/17`): VLAN/VXLAN, Distributed Firewall,
+- **GoFuture 7.3.1 SDN + Firewall** (`archive/gofuture/17`): VLAN/VXLAN, Distributed Firewall,
   IPAM, Public-Stream-Reconciliation.
-- **GoFuture 7.4.0 OpenAPI v2 + Terraform + `beaglectl`** (`gofuture/18`): Stabilisierung.
+- **GoFuture 7.4.0 OpenAPI v2 + Terraform + `beaglectl`** (`archive/gofuture/18`): Stabilisierung.
 - **GoAdvanced 01 / 06 — Datenintegritaet + SQLite-Migration**: atomic writes,
   file locking, JSON->SQLite-Backend.
 - **GoAdvanced 02 / 03 — TLS-Haerte + Secret-Rotation**: `curl -k` entfernen,
@@ -197,7 +203,7 @@ sekundaere Plan ist als Hintergrund/Recherche zu lesen, nicht als Auftrag.
 - **GoAdvanced 10 — Integration-Tests**: Boot->Enrollment->Streaming, Backup->Restore E2E.
 - **GoAdvanced 12 — UX/Accessibility**: i18n, ARIA, mobile.
 - **GoRelease R3/R4-Gates**: alle "Nicht-verhandelbaren-Gates" aus
-  `gorelease/00-index.md` muessen reproduzierbar gruen sein, externer
+  `archive/gorelease/00-index.md` muessen reproduzierbar gruen sein, externer
   Security-Review/Pentest steht aus.
 
 ### Bekannte Doku-/Repo-Hygiene-Schulden
@@ -208,7 +214,7 @@ sekundaere Plan ist als Hintergrund/Recherche zu lesen, nicht als Auftrag.
   dauerhaft entfernt"). Faktisch gemeint und faktisch bereits umgesetzt
   ist die Entfernung von **Proxmox**. Beagle Host (`beagle-host/`) ist die
   aktive Control-Plane und bleibt. Betroffene Dateien werden im Rahmen von
-  Plan `gofuture/05-provider-abstraction.md` schrittweise textuell korrigiert.
+  Plan `archive/gofuture/05-provider-abstraction.md` schrittweise textuell korrigiert.
 
 ---
 

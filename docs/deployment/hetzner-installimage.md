@@ -176,4 +176,4 @@ Refer to the main Beagle OS repository for latest changes and updates.
 
 - [Hetzner Installimage Documentation](https://docs.hetzner.cloud/en/dedicated-server/linux-images/custom-images#use-a-custom-image-partition-table)
 - [Beagle OS Repository](https://github.com/meinzeug/beagle-os)
-- [Build Documentation](../beagle-os-build.md)
+- [Build Documentation](beagle-os-build.md)

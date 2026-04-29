@@ -1,0 +1,46 @@
+# 02 — Streaming, Endpoint OS, Thin Client, Kiosk
+
+**Scope**: BeagleStream-Protokoll, Endpoint/Thin-Client-OS, Gaming-Kiosk, Pairing-/Enrollment-Lifecycle.
+**Quelle**: konsolidiert aus `docs/archive/goenterprise/01,02,03,07,08` und `docs/archive/gofuture/11,19`.
+
+---
+
+## BeagleStream Protocol (Sunshine/Moonlight Fork)
+
+- [ ] **Phase A 8.0.x** — Fork `LizardByte/Sunshine` → `beagle-os/beagle-stream-server`
+  - [ ] `src/beagle/BeagleBrokerClient.cpp` (Broker-getriebenes Pairing)
+  - [ ] `src/beagle/BeagleAuth.cpp` (Token-basiert)
+  - [ ] `.deb`-Paket `beagle-stream-server` ersetzt `sunshine.deb` in VM-Images
+- [ ] **Phase A 8.0.x** — Fork `moonlight-stream/moonlight-qt` → `beagle-os/beagle-stream-client`
+  - [ ] `src/beagle/BeagleBroker.cpp` (Broker-Discovery)
+  - [ ] `src/beagle/BeagleVPN.cpp` (WireGuard-Integration)
+  - [ ] Beagle-Branding (Name, Icons, About)
+  - [ ] In Thin-Client-OS-Image gebundelt
+- [ ] **Phase B 8.1.x** — NVENC/VAAPI/QSV Tuning, AV1 default
+- [ ] **Phase C 8.2.x** — WebRTC-Modus (Browser-Stream ohne Client-Install)
+- [ ] **Phase D 9.0.x** — BeagleStream Native Protocol (eigener Codec/Transport)
+
+## WireGuard Mesh
+
+- [ ] WireGuard-Mesh: Thin-Client + VM-Node, Ping ≤ raw + 0.01 ms
+- [ ] WireGuard-Stream: Moonlight-Stream durch Tunnel, Latenz ≤ direct + 0.1 ms
+
+## Endpoint OS / Thin Client
+
+- [x] Thin Client Install / Enrollment / QR-Pairing live
+- [x] Streaming-Stream-Persistenz ueber Voll-Reboot (srv1 PASS)
+- [x] Sunshine Stream-Prep unattended (`ensure-vm-stream-ready.sh`) — VM100 PASS
+- [ ] VM102 Provider-State unblocken + Rerun (externe Inventar-Diskrepanz)
+- [ ] Endpoint-Update-Architektur live in Hardware-Test-Matrix
+
+## Gaming Kiosk
+
+- [x] Kiosk Pools + Library-Sync (Welle 7.1.0)
+- [ ] Pool blockiert sauber wenn keine GPU verfuegbar (R3)
+
+## Session Lifecycle
+
+- [x] Pairing-Token-Generation, Rotation, Revocation (Integration-Test gruen)
+- [x] Session Recording + Watermark (Welle 7.2.1)
+- [ ] Stream Reconnect nach Host-/VM-Reboot in WebUI sichtbar (R3)
+- [ ] Stream-Health-Reporting + Audit-Eintrag bei Abbruch/Timeout (R3)

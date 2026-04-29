@@ -129,7 +129,7 @@ The `release.yml` workflow will automatically build artifacts and create a GitHu
 
 ## Architecture
 
-See [`docs/architecture.md`](architecture.md) for the overall system design.
+See [`docs/architecture/overview.md`](architecture/overview.md) for the overall system design.
 
 Key directories:
 
@@ -142,13 +142,15 @@ Key directories:
 | `core/` | Shared types and platform abstractions |
 | `tests/unit/` | Unit tests (pytest) |
 | `scripts/` | Build, install, and smoke test scripts |
-| `docs/gofuture/` | Feature development plans (Plans 01–20) |
+| `docs/checklists/` | Operational checklists (5 files, single source of open work) |
+| `docs/MASTER-PLAN.md` | Canonical strategy + layered overview |
+| `docs/archive/` | Historical multi-track plans (gofuture, goenterprise, goadvanced, gorelease, refactorv2) |
 
 ---
 
 ## Security
 
-- No Beagle host code — see [`docs/gofuture/05-provider-abstraction.md`](gofuture/05-provider-abstraction.md)
+- No legacy provider code (Proxmox/`qm`/`pvesh`) — enforced by `.github/workflows/no-legacy-provider-references.yml`
 - All HTTP endpoints require authentication (`_is_authenticated()`) except `/healthz`, `/api/v1/health`, `/api/v1/auth/login`, `/api/v1/auth/onboarding/status`
 - Security findings are documented in [`docs/refactor/11-security-findings.md`](refactor/11-security-findings.md)
 - Report vulnerabilities privately to the maintainers before opening a public issue

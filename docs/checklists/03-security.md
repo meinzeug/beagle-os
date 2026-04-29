@@ -1,0 +1,60 @@
+# 03 — Sicherheit, Auth, Audit, Compliance
+
+**Scope**: Auth/Session, RBAC, Secrets, Audit, TLS, IAM/Tenancy, Compliance-Export.
+**Quelle**: konsolidiert aus `docs/archive/goadvanced/02-04`, `docs/archive/gofuture/13-15,20`, `docs/archive/gorelease/01,05`, `docs/refactor/11-security-findings.md`.
+
+---
+
+## Auth + Session + RBAC
+
+- [x] Refactor Welle 1: Login, Refresh, Logout, RBAC-Middleware fuer mutierende Endpoints (services: `auth_session.py`, `authz_policy.py`)
+- [x] LDAP-Auth + SCIM-Provisioning (`ldap_auth.py`)
+- [x] Auth-Bootstrap auto-generiert (Plan 03 Schritt 3)
+- [x] Brute-Force-Schutz inkl. Rate-Limit-Test in pytest
+- [ ] Session-Cookies: `Secure`, `HttpOnly`, `SameSite`, kurze TTL durchgaengig validieren (R3)
+- [ ] Login-Smoke per Chrome-DevTools auf Zielhost ohne Console-Fehler (R3)
+
+## RBAC + Tenancy
+
+- [x] IAM v2 + Mandanten + SCIM/OIDC/SAML (`docs/archive/gofuture/13-iam-tenancy.md`)
+- [x] Tenant-Sichtbarkeit fuer VMs/Pools/Sessions/Audit
+- [ ] RBAC-Regression fuer alle Built-in-Rollen: admin, operator, kiosk_operator, read-only, tenant-scoped (R3)
+- [ ] Browser-Smoke mit Nicht-Admin-Rolle zeigt keine Admin-Aktionen (R3)
+
+## Secret-Management
+
+- [x] `SecretStoreService` mit JSON-Backend (mode 0o600, Audit-Events)
+- [x] CLI: `beaglectl secret list/rotate/revoke`
+- [x] WebUI: `secrets_admin.js` (RBAC: `security_admin`)
+- [x] Audit-Filter prueft, dass Klartext-Werte nie in Logs landen
+- [ ] Phase 2 — Vault-/AWS-Adapter (Backlog, optional)
+
+## TLS + Hardening
+
+- [x] HSTS, CSP, COOP, CORP, X-Frame-Options, X-Content-Type-Options, Permissions-Policy live auf srv1 (verifiziert 2026-04-29)
+- [x] mTLS fuer interne Cluster-Kommunikation (`harden-cluster-api-iptables.sh`)
+- [x] CI-Guard `security-tls-check.yml` aktiv
+- [ ] TLS-Cert-Erneuerung auf frischem Host getestet (R3)
+
+## Audit + Compliance
+
+- [x] `AuditLogService` + PII-Filter + Export
+- [x] Audit-Report-Builder + Export-Ziele (`audit_report*.py`)
+- [ ] Audit-Export mit Redaction fuer Secrets in CSV/JSON validieren (R3)
+- [ ] Datenschutz-Doku fuer Pilotkunden (DSGVO/Auftragsverarbeitung) (R4)
+
+## Console + noVNC Tokens
+
+- [x] Console-Tokens TTL + Scope + Audit-Trail
+- [ ] Browser-Smoke: noVNC-Token verfaellt nach TTL und ist scope-gebunden (R3)
+
+## Subprocess Sandboxing
+
+- [x] `core/exec/` Wrapper mit allowlist + timeout (`docs/archive/goadvanced/04-subprocess-sandboxing.md`)
+- [x] CI-Guard `security-subprocess-check.yml` aktiv
+- [ ] Smoke: VM-Start ueber API + Netzwerk-Operationen ueber CLI ohne sandbox-bypass (R3)
+
+## Security-Findings Backlog
+
+- [ ] Alle offenen Findings in `docs/refactor/11-security-findings.md` auf `PATCHED` oder akzeptiertes Restrisiko (R3)
+- [ ] Externer Security-Review / Penetrationstest ohne kritische Findings (R4)

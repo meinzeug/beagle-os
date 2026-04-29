@@ -29,7 +29,7 @@ jobs:
           )
 
           # Paths that are allowlisted (legacy integration scripts kept for operator workflows;
-          # see docs/goadvanced/11-beagle-endbeseitigung.md).
+          # see docs/archive/goadvanced/11-beagle-endbeseitigung.md).
           ALLOWLIST_PATHS=(
             'scripts/lib/provider_shell.sh'
             'scripts/ensure-vm-stream-ready.sh'
@@ -79,7 +79,7 @@ jobs:
           if [ "$FOUND" -eq 1 ]; then
             echo ""
             echo "ERROR: New legacy provider references detected outside allowed dirs."
-            echo "See AGENTS.md + docs/goadvanced/11-beagle-endbeseitigung.md for the migration history."
+            echo "See AGENTS.md + docs/archive/goadvanced/11-beagle-endbeseitigung.md for the migration history."
             echo "If this reference is in the process of being removed, add it to the allowlist in this workflow."
             exit 1
           fi
