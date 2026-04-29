@@ -24,8 +24,8 @@ Bei 100+ VMs/Endpoints wird Latenz spuerbar. Bei 1000+ wird es untragbar.
 
 ## Schritte
 
-- [ ] **Schritt 1** — DB-Layer
-  - [ ] `core/persistence/sqlite_db.py`:
+- [x] **Schritt 1** — DB-Layer
+  - [x] `core/persistence/sqlite_db.py`:
     - `BeagleDb(path)` mit Connection-Pool, WAL-Mode, `PRAGMA foreign_keys=ON`
     - `migrate(schema_dir)` — applies SQL files in order
     - Tests: `tests/unit/test_sqlite_db.py`

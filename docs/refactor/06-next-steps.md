@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, GoAdvanced Plan 06 Schritt 1 abgeschlossen)
+
+**Zuletzt erledigt**:
+- `core/persistence/sqlite_db.py` als gemeinsame SQLite-Basis mit WAL/Foreign-Keys/Migrationslog eingefuehrt; lokale Tests + `srv1`-Smoke erfolgreich.
+
+**Naechste konkrete Schritte**:
+
+1. GoAdvanced Plan 06 Schritt 2 umsetzen: `core/persistence/migrations/001_init.sql` mit den ersten Tabellen und Indizes anlegen.
+2. Direkt danach Plan 06 Schritt 3 vorbereiten: ersten produktiven Repository-Slice (`vm_repository.py` oder `device_repository.py`) gegen In-Memory-SQLite testbar machen.
+3. Fuer Schritt 2/3 dieselbe Validierung beibehalten: fokussierte Unit-Tests lokal + kurzer non-invasiver `srv1`-Smoke.
+
 ## Stand (2026-04-29, GoAdvanced Plan 01 abgeschlossen)
 
 **Zuletzt erledigt**:

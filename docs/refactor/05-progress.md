@@ -1,3 +1,20 @@
+## Update (2026-04-29, GoAdvanced Plan 06 Schritt 1: SQLite-DB-Layer)
+
+**Scope**: Erster SQLite-Migrations-Slice umgesetzt; gemeinsame DB-Basis fuer spaetere Repository- und Importer-Schritte liegt jetzt im Repo.
+
+- Backend:
+  - `core/persistence/sqlite_db.py`
+    - `BeagleDb(path)` mit per-Thread Connection-Reuse, WAL-Mode, `PRAGMA foreign_keys=ON`, `busy_timeout` und idempotentem `migrate(schema_dir)` ueber `schema_migrations`.
+  - `tests/unit/test_sqlite_db.py`
+    - neue fokussierte Regressionen fuer WAL-/Foreign-Key-Setup, Connection-Reuse, geordnete idempotente Migrationen und Stop-Verhalten bei defekten SQL-Dateien.
+- Lokale Tests:
+  - `python3 -m pytest tests/unit/test_sqlite_db.py -q` -> `4 passed`
+- `srv1`-Validierung:
+  - non-invasiver Smoke mit temporaer hochgeladener `sqlite_db.py`.
+  - Ergebnis: `SRV1_PLAN06_DB_SMOKE=PASS`.
+- Plan-Status:
+  - `docs/goadvanced/06-state-sqlite-migration.md`: Schritt 1 auf `[x]` gesetzt.
+
 ## Update (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 4: Webhook/Stream/Settings/Sunshine/Gaming-Metrics)
 
 **Scope**: Vierter 3d-Batch umgesetzt; verbleibende direkte Service-JSON-Write-Pfade auf `JsonStateStore`/atomare Helper migriert.

@@ -2,6 +2,11 @@
 
 Stand: 2026-04-13
 
+## D-052: SQLite-State-Layer nutzt pro Thread eine gecachte Verbindung mit WAL + zentralem Migrationslog
+- Entscheidung: Der neue SQLite-Unterbau kapselt DB-Zugriffe in `core/persistence/sqlite_db.py` als `BeagleDb`, aktiviert auf jeder Verbindung `journal_mode=WAL`, `foreign_keys=ON`, setzt `busy_timeout` und verfolgt angewendete SQL-Dateien in `schema_migrations`.
+- Grund: Die spaetere JSON->SQLite-Migration braucht einen kleinen, testbaren Basiskern, der Schreibkonkurrenz, referenzielle Integritaet und wiederholbare Schema-Upgrades standardisiert, bevor einzelne Services oder Repositories umgestellt werden.
+- Dateien: `core/persistence/sqlite_db.py`, `tests/unit/test_sqlite_db.py`.
+
 ## D-051: Host-Oneshots muessen ihre Sandbox an die Aufgabe koppeln
 - Entscheidung: Systemd-Oneshots, die Host-State oder nftables aktiv reparieren, duerfen nicht pauschal alle Capabilities verlieren; sie bekommen eng begrenzte Capabilities und explizite `ReadWritePaths`.
 - Grund: Eine zu harte Sandbox kann Self-Heal- und Reconcile-Jobs in eine permanente failed-Schleife bringen. Minimal notwendige Privilegien sind sicherer als ein formal harter, aber funktionsloser Dienst.
