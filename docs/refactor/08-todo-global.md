@@ -347,7 +347,10 @@
 - [x] Fix standalone Let's Encrypt runtime so fresh hosts install `certbot` + nginx plugin automatically and the Security panel can issue certificates on `srv1.beagle-os.com`.
 - [ ] Rebuild and republish server-installer/installimage artifacts so fresh installs inherit the onboarding + Let's Encrypt fixes.
 - [ ] Validate Plan 06 release-signing flow on a signing-capable release host and verify uploaded `*.sig`/`SHA256SUMS.sig` artifacts against public key.
-- [ ] Add a regression test or disposable integration smoke for the Security/TLS Let's Encrypt API path.
+- [x] Add a regression test or disposable integration smoke for the Security/TLS Let's Encrypt API path.
+	- Umsetzung 2026-04-29: `tests/unit/test_server_settings.py` um Route-Regressionen fuer `POST /api/v1/settings/security/tls/letsencrypt` erweitert (invalid-domain -> `400`, success-path -> `200`).
+	- Reproduzierbarer Smoke: neues Script `scripts/test-security-tls-api-smoke.sh` prueft auf Zielhost `GET /api/v1/settings/security/tls` (`200`) und den Let's-Encrypt-Guardrail fuer invalid domain (`400`, `invalid domain format`).
+	- Validierung: lokal `python3 -m pytest tests/unit/test_server_settings.py -q` => `30 passed`; `srv1`-Run via SSH => `SECURITY_TLS_API_SMOKE=PASS`.
 - [ ] Validate new Moonlight app-name resolver against Sunshine `/api/apps` so `failed to find Application Desktop` is no longer reproducible on VM 101.
 - [x] Add reproducible Sunshine guest service self-heal in repo provisioning (automatic restart on crash/stop).
 - [ ] Validate Sunshine self-heal timer (`beagle-sunshine-healthcheck.timer`) on VM reboot and forced crash (`pkill sunshine`).

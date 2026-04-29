@@ -79,6 +79,39 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("AAAA/IPv6 DNS record", result["error"])
 
+    def test_route_post_tls_letsencrypt_returns_bad_request_for_invalid_domain(self):
+        service = self.make_service()
+
+        response = service.route_post(
+            "/api/v1/settings/security/tls/letsencrypt",
+            {"domain": "invalid_domain", "email": "ops@beagle-os.com"},
+        )
+
+        self.assertIsNotNone(response)
+        assert response is not None
+        self.assertEqual(int(response["status"]), 400)
+        self.assertFalse(response["payload"]["ok"])
+        self.assertEqual(response["payload"]["error"], "invalid domain format")
+
+    def test_route_post_tls_letsencrypt_returns_ok_for_successful_request(self):
+        service = self.make_service()
+
+        with mock.patch.object(
+            service,
+            "request_letsencrypt",
+            return_value={"ok": True, "message": "Certificate issued for srv1.beagle-os.com"},
+        ):
+            response = service.route_post(
+                "/api/v1/settings/security/tls/letsencrypt",
+                {"domain": "srv1.beagle-os.com", "email": "ops@beagle-os.com"},
+            )
+
+        self.assertIsNotNone(response)
+        assert response is not None
+        self.assertEqual(int(response["status"]), 200)
+        self.assertTrue(response["payload"]["ok"])
+
+
     def test_get_artifacts_reports_missing_and_present_files(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             install_dir = Path(tmpdir) / "beagle"

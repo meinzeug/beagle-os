@@ -1,3 +1,20 @@
+## Update (2026-04-29, Security/TLS Let's-Encrypt-API Regression + srv1-Smoke geschlossen)
+
+**Scope**: Der offene TODO-Punkt fuer den Security/TLS-API-Pfad ist geschlossen. Die Let's-Encrypt-Route hat jetzt explizite Regressionen auf Route-Ebene, und ein reproduzierbarer Host-Smoke validiert denselben Pfad auf `srv1`.
+
+- Code:
+  - `tests/unit/test_server_settings.py`
+    - neue Regressionen fuer `POST /api/v1/settings/security/tls/letsencrypt`:
+      - invalid domain liefert `400` + `invalid domain format`
+      - erfolgreicher Service-Pfad liefert `200`
+  - `scripts/test-security-tls-api-smoke.sh`
+    - liest API-Token aus `/etc/beagle/beagle-manager.env`
+    - prueft `GET /api/v1/settings/security/tls` (`200` + Basisschema)
+    - prueft Guardrail auf Let's-Encrypt-Request mit invalid domain (`400`)
+- Validierung:
+  - lokal: `python3 -m pytest tests/unit/test_server_settings.py -q` => `30 passed`
+  - `srv1`: `SECURITY_TLS_API_SMOKE=PASS`
+
 ## Update (2026-04-29, srv1 Control-Plane-Runtime und IAM/Audit-Smokes nachgezogen)
 
 **Scope**: Der offene Refactor-Block um den vermeintlich inaktiven `beagle-manager` wurde auf den realen Runtime-Zustand korrigiert. Die produktive Unit auf `srv1` ist `beagle-control-plane.service`; darauf aufbauend sind die offenen IAM-/Audit-Smokes jetzt ebenfalls reproduzierbar gruen.

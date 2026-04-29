@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-04-29, Security/TLS Let's-Encrypt-API Regression geschlossen)
+
+**Zuletzt erledigt**:
+- Route-Regressionen fuer den Let's-Encrypt-Pfad in `tests/unit/test_server_settings.py` ergaenzt.
+- Neuer Host-Smoke `scripts/test-security-tls-api-smoke.sh` auf `srv1` erfolgreich ausgefuehrt (`SECURITY_TLS_API_SMOKE=PASS`).
+
+**Naechste konkrete Schritte**:
+
+1. Den verbleibenden Installer-Restpunkt schliessen: Server-Installer-/Installimage-Artefakte neu bauen und publizieren, damit Onboarding- und Let's-Encrypt-Fixes in frischen Installationen enthalten sind.
+2. Danach den offenen Host-Validierungspunkt fuer clean install nachziehen (noVNC/XFCE/API/Downloads end-to-end auf frischem Host).
+3. `srv2`-abhaengige Zwei-Host-Slices erst wieder aufnehmen, sobald SSH-Reachability stabil zurueck ist.
+
 ## Stand (2026-04-29, srv1 Control-Plane-Runtime und IAM/Audit-Smokes geschlossen)
 
 **Zuletzt erledigt**:
