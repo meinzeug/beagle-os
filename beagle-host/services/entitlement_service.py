@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 class EntitlementService:
@@ -10,14 +11,11 @@ class EntitlementService:
 
     def __init__(self, *, state_file: Path) -> None:
         self._state_file = Path(state_file)
+        self._store = JsonStateStore(self._state_file, default_factory=lambda: {"pools": {}})
 
     def _load_state(self) -> dict[str, Any]:
-        path = self._state_file
-        if not path.exists():
-            return {"pools": {}}
-        try:
-            data = json.loads(path.read_text(encoding="utf-8") or "{}")
-        except (json.JSONDecodeError, OSError):
+        data = self._store.load()
+        if not isinstance(data, dict):
             return {"pools": {}}
         pools = data.get("pools")
         if not isinstance(pools, dict):
@@ -25,8 +23,7 @@ class EntitlementService:
         return {"pools": pools}
 
     def _save_state(self, state: dict[str, Any]) -> dict[str, Any]:
-        self._state_file.parent.mkdir(parents=True, exist_ok=True)
-        self._state_file.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+        self._store.save(state)
         return state
 
     @staticmethod

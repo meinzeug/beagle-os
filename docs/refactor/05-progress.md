@@ -1,3 +1,20 @@
+## Update (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 1: Backup/Entitlements/Stream-Policy)
+
+**Scope**: Erste Teilwelle aus 3d umgesetzt, um verbleibende direkte JSON-State-Writes weiter abzubauen.
+
+- Backend:
+  - `beagle-host/services/backup_service.py`
+  - `beagle-host/services/entitlement_service.py`
+  - `beagle-host/services/stream_policy_service.py`
+  - alle drei Services nutzen jetzt `JsonStateStore` statt direktem `write_text(json.dumps(...))`.
+- Lokale Tests:
+  - `python3 -m pytest tests/unit/test_backup_service.py tests/unit/test_entitlement_service.py tests/unit/test_stream_policy.py -q` -> `29 passed`
+- `srv1`-Validierung:
+  - non-invasiver Batch-Smoke via `PYTHONPATH=/tmp:/opt/beagle` mit den drei geaenderten Dateien.
+  - Ergebnis: `SRV1_WAVE3D_BATCH_SMOKE=PASS`.
+- Plan-Status:
+  - `docs/goadvanced/01-data-integrity.md`: Welle 3d als Teilfortschritt ergaenzt.
+
 ## Update (2026-04-29, GoAdvanced Plan 01 Welle 3c geschlossen: Fleet Telemetry gehaertet)
 
 **Scope**: Die naechste Datenintegritaets-Welle (3c) ist abgeschlossen; verbleibender direkter JSON-Schedule-Write in der Fleet-Telemetrie wurde auf `JsonStateStore` migriert und der gesamte Welle-3c-Satz erneut validiert.

@@ -59,7 +59,7 @@ Zusaetzlich existiert keine gemeinsame Basisklasse fuer State-Persistenz — jed
   - [x] Welle 3a: `pool_manager.py`, `gpu_streaming_service.py`, `cost_model_service.py`, `usage_tracking_service.py`, `energy_service.py`
   - [x] Welle 3b: `device_registry.py`, `attestation_service.py`, `mdm_policy_service.py`, `cluster_service.py`, `alert_service.py`
   - [x] Welle 3c: `session_manager.py`, `fleet_telemetry_service.py`, `metrics_collector.py`, `workload_pattern_analyzer.py`, `smart_scheduler.py`
-  - [ ] Welle 3d: alle restlichen Services unter `beagle-host/services/`
+  - [ ] Welle 3d: alle restlichen Services unter `beagle-host/services/` (Teil abgeschlossen: `backup_service.py`, `entitlement_service.py`, `stream_policy_service.py`)
 
 - [x] **Schritt 4** — Verifikation
   - [x] Stress-Test-Skript: `scripts/test-json-state-stress.sh` (1000 parallele Writes auf testfile.json, kein Korruptions-Fehler)

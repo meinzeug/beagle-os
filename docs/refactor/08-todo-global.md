@@ -1,5 +1,6 @@
 # Global TODO
 
+- [x] GoAdvanced Plan 01 Welle 3d Teil 1 schliessen: `backup_service.py`, `entitlement_service.py`, `stream_policy_service.py` auf `JsonStateStore` migrieren und lokal + auf `srv1` validieren.
 - [x] GoAdvanced Plan 01 Welle 3c schliessen: `fleet_telemetry_service.py` Maintenance-Schedule auf `JsonStateStore` migrieren und Welle-3c-Services (`session_manager`, `metrics_collector`, `workload_pattern_analyzer`, `smart_scheduler`) lokal + auf `srv1` validieren.
 - [x] GoAdvanced Plan 01 Welle 3b schliessen: `mdm_policy_service.py` auf `JsonStateStore` migrieren und Persistenzpfade fuer `device_registry.py`, `cluster_service.py`, `alert_service.py` inkl. lokalen Tests + `srv1`-Smoke verifizieren.
 - [x] GoAdvanced Plan 01 Welle 3a schliessen: `usage_tracking_service.py` und `energy_service.py` auf `JsonStateStore` migrieren und den Runtime-Smoke auf `srv1` reproduzierbar gruen fahren.

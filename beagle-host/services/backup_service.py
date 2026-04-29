@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
 
+from core.persistence.json_state_store import JsonStateStore
+
 
 class BackupService:
     def __init__(
@@ -30,6 +32,10 @@ class BackupService:
     ) -> None:
         self._state_file = Path(state_file)
         self._utcnow = utcnow
+        self._store = JsonStateStore(
+            self._state_file,
+            default_factory=lambda: {"pool_policies": {}, "vm_policies": {}, "jobs": [], "replication": {}},
+        )
 
     def _default_policy(self) -> dict[str, Any]:
         return {
@@ -55,12 +61,7 @@ class BackupService:
         }
 
     def _load(self) -> dict[str, Any]:
-        if not self._state_file.exists():
-            return {"pool_policies": {}, "vm_policies": {}, "jobs": [], "replication": {}}
-        try:
-            raw = json.loads(self._state_file.read_text(encoding="utf-8") or "{}")
-        except (json.JSONDecodeError, OSError):
-            raw = {}
+        raw = self._store.load()
         if not isinstance(raw, dict):
             raw = {}
         if not isinstance(raw.get("pool_policies"), dict):
@@ -74,8 +75,7 @@ class BackupService:
         return raw
 
     def _save(self, state: dict[str, Any]) -> None:
-        self._state_file.parent.mkdir(parents=True, exist_ok=True)
-        self._state_file.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+        self._store.save(state)
 
     @staticmethod
     def _normalize_schedule(value: Any) -> str:

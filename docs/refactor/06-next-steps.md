@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 1 abgeschlossen)
+
+**Zuletzt erledigt**:
+- `backup_service.py`, `entitlement_service.py` und `stream_policy_service.py` auf `JsonStateStore` migriert; lokale Tests + `srv1`-Batch-Smoke erfolgreich.
+
+**Naechste konkrete Schritte**:
+
+1. Welle 3d Teil 2: `webhook_service.py`, `maintenance_service.py`, `installer_log_service.py` auf `JsonStateStore`/atomare Writes ziehen.
+2. Welle 3d Teil 3: `endpoint_report.py`, `firewall_service.py`, `cluster_membership.py` (wenn sinnvoll lock-basiert) nachziehen.
+3. Danach den Plan-01-Restpunkt `Repo-Grep` fuer direkte `path.write_text(json.dumps(` ausserhalb von Tests erneut messen und auf Null bringen.
+
 ## Stand (2026-04-29, GoAdvanced Plan 01 Welle 3c abgeschlossen)
 
 **Zuletzt erledigt**:
