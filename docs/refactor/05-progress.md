@@ -1,3 +1,24 @@
+## Update (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 1: VM-Repository)
+
+**Scope**: Erster produktiver Repository-Slice auf SQLite-Basis umgesetzt.
+
+- Backend:
+  - `core/repository/vm_repository.py`
+    - CRUD-Basis fuer VMs: `get(vmid)`, `list(node_id=None, status=None)`, `save(vm)` (UPSERT), `delete(vmid)`.
+    - VM-Payload wird als JSON persistiert; zentrale Lookup-Spalten (`vmid`, `node_id`, `status`, `name`, `pool_id`) werden fuer Filter/Index-Nutzung mitgefuehrt.
+  - `core/repository/__init__.py`
+  - `core/persistence/migrations/001_init.sql`
+    - `vms.pool_id` auf nullable + `ON DELETE SET NULL` angepasst, damit VMs ohne Pool-Zuordnung sauber persistierbar bleiben.
+  - `tests/unit/test_vm_repository.py`
+    - neue Tests fuer Roundtrip, UPSERT-Update, Filter (`node_id`/`status`), Delete-Semantik und VMID-Validierung.
+- Lokale Tests:
+  - `python3 -m pytest tests/unit/test_vm_repository.py tests/unit/test_sqlite_db.py -q` -> `11 passed`
+- `srv1`-Validierung:
+  - non-invasiver Repo-Smoke mit temporaer hochgeladenen Dateien (`sqlite_db.py`, `001_init.sql`, `vm_repository.py`).
+  - Ergebnis: `SRV1_PLAN06_VM_REPO_SMOKE=PASS`.
+- Plan-Status:
+  - `docs/goadvanced/06-state-sqlite-migration.md`: Schritt 3 Teilpunkt `vm_repository.py` auf `[x]` gesetzt.
+
 ## Update (2026-04-29, GoAdvanced Plan 06 Schritt 2: Initiales SQLite-Schema)
 
 **Scope**: Erstes produktives SQLite-Schema fuer den spaeteren Repository- und Importer-Pfad angelegt und validiert.

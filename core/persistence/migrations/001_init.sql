@@ -3,11 +3,11 @@ CREATE TABLE IF NOT EXISTS vms (
     node_id TEXT NOT NULL DEFAULT '',
     name TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT '',
-    pool_id TEXT NOT NULL DEFAULT '',
+    pool_id TEXT,
     payload_json TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (pool_id) REFERENCES pools(pool_id) ON DELETE SET DEFAULT
+    FOREIGN KEY (pool_id) REFERENCES pools(pool_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS pools (

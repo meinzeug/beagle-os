@@ -2,6 +2,11 @@
 
 Stand: 2026-04-13
 
+## D-054: VM-Repository startet als Hybrid-Store (Filterspalten + volle JSON-Payload)
+- Entscheidung: Das erste produktive SQLite-Repository (`vm_repository.py`) persistiert die komplette VM-Struktur in `payload_json`, fuehrt aber `vmid`, `node_id`, `status`, `name`, `pool_id` als dedizierte Spalten fuer gezielte Filter und spaetere Indizes.
+- Grund: Damit bleibt der Einstieg migrationsarm und kompatibel zu bestehenden JSON-Strukturen, waehrend die wichtigsten Read-Pfade schon jetzt effizient und typisiert auf SQLite laufen.
+- Dateien: `core/repository/vm_repository.py`, `tests/unit/test_vm_repository.py`, `core/persistence/migrations/001_init.sql`.
+
 ## D-053: Erstes SQLite-Schema startet als Hybrid aus Schluesselspalten und `payload_json`
 - Entscheidung: `001_init.sql` modelliert die zentralen Entitaeten (`vms`, `pools`, `sessions`, `devices`, `gpus`, `audit_events`, `secrets_meta`) zunaechst mit stabilen Lookup-/Beziehungsfeldern plus einer generischen `payload_json`-Spalte statt sofort alle bisherigen JSON-Felder relational auszunormalisieren.
 - Grund: Fuer den ersten SQLite-Einstieg brauchen die naechsten Repository- und Importer-Slices verlässliche Identitaeten, Indizes und Foreign-Keys, aber noch keinen Big-Bang auf das volle Feldmodell aller heutigen JSON-States.

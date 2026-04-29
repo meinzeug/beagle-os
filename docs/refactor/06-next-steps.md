@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 1 abgeschlossen)
+
+**Zuletzt erledigt**:
+- erstes SQLite-Repository (`core/repository/vm_repository.py`) mit CRUD + Filterung eingefuehrt und auf `srv1` validiert.
+
+**Naechste konkrete Schritte**:
+
+1. Plan 06 Schritt 3 weiterziehen: `device_repository.py` als naechsten kleinen Slice einfuehren, weil Device-Registry bereits klare Identifier (`device_id`, `fingerprint`) hat.
+2. Danach `session_repository.py` aufsetzen und mit FK-Checks gegen `pools`/`vms` absichern.
+3. Erst wenn mindestens zwei weitere Repositories stabil sind, Schritt 4 (JSON->SQLite-Importer) mit den zuerst migrierten Entitaeten starten.
+
 ## Stand (2026-04-29, GoAdvanced Plan 06 Schritt 2 abgeschlossen)
 
 **Zuletzt erledigt**:

@@ -38,7 +38,7 @@ Bei 100+ VMs/Endpoints wird Latenz spuerbar. Bei 1000+ wird es untragbar.
   - [x] Wiederholbar: `IF NOT EXISTS`
 
 - [ ] **Schritt 3** — Repository-Pattern
-  - [ ] `core/repository/vm_repository.py`:
+  - [x] `core/repository/vm_repository.py`:
     - `get(vmid)`, `list(node_id=None, status=None)`, `save(vm)`, `delete(vmid)`
   - [ ] Analog: `pool_repository.py`, `session_repository.py`, `device_repository.py`, `gpu_repository.py`
   - [ ] Tests pro Repository (in-memory SQLite)
