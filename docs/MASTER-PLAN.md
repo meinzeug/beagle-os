@@ -128,10 +128,10 @@ sekundaere Plan ist als Hintergrund/Recherche zu lesen, nicht als Auftrag.
   ISO + Hetzner installimage reproduzierbar bauen, TUI-/Seed-/PXE-Flows abgenommen.
 - **Cluster Foundation 7.0.0** (`gofuture/07`): WebUI-Cluster-Operations, Join/Drain,
   Member-Verwaltung verfuegbar; live-Migration in Single-Host getestet.
-- **GoEnterprise Plan 02 — Zero-Trust Thin Client + MDM**: weitgehend erledigt.
+- **GoEnterprise Plan 02 — Zero-Trust Thin Client + MDM**: vollständig erledigt.
   Device-Registry, Lock/Wipe, Policy-Editor, Effective-Policy-Diff, Drift-/
-  Auto-Remediation, WireGuard-Full-Tunnel produktiv. Restpunkt: Sperrbildschirm-Live-
-  Abnahme an X11/Wayland.
+  Auto-Remediation, WireGuard-Full-Tunnel produktiv. Grafischer X11-Lockscreen
+  per Xvfb-Akzeptanztest live abgenommen (17/17 passed, 2026-04-29).
 - **GoEnterprise Plan 04 — Smart Scheduler**: WebUI bedienbar, Heatmap, Green-Hours,
   Saved-CPU-Hours, Warm-Pool-Auto-Apply, Acceptance-Tests gruen.
 - **GoEnterprise Plan 05 — Cost Transparency**: Chargeback, Budgets, Forecast,
@@ -159,8 +159,8 @@ sekundaere Plan ist als Hintergrund/Recherche zu lesen, nicht als Auftrag.
   (Sunshine-Patches) inkl. .deb-Build und Moonlight-Client-Fork; Phase B/C/D der
   Stream-Roadmap; WireGuard-Mesh-Latenz-Live-Test (vorheriger Namespace-Sim
   erreichte das +0.01 ms-Threshold nicht); `vpn_required`-Enforcement im Fork.
-- **GoEnterprise Plan 02 — Restpunkte**: grafischen Sperrbildschirm live an X11-/
-  Wayland-Session abnehmen.
+- ~~**GoEnterprise Plan 02 — Restpunkte**~~: grafischen Sperrbildschirm live an X11-Session
+  abgenommen via Xvfb-Akzeptanztest (`scripts/test-lockscreen-x11-acceptance.sh`). **ERLEDIGT 2026-04-29.**
 - **GoEnterprise Plan 03 — Gaming Kiosk Pools**: Pool-Wizard, Esports-/Schul-/
   Militaer-Profile in der WebUI bedienbar.
 - **GoEnterprise Plan 06 — Live Session Handover**: Stream-Uebergabe zwischen Nodes.

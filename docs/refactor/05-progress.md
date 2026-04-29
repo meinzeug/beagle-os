@@ -5338,3 +5338,12 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `node --check website/ui/scheduler_insights.js website/ui/energy_dashboard.js`
   - `python3 -m pytest tests/unit/test_pool_manager.py tests/unit/test_control_plane_read_surface.py tests/unit/test_authz_policy.py tests/unit/test_fleet_ui_regressions.py tests/unit/test_smart_scheduler.py tests/unit/test_green_scheduling.py tests/unit/test_energy_cost_integration.py tests/unit/test_chargeback_report.py -q`
   - Ergebnis: `73 passed`
+## Update (2026-04-29, GoEnterprise Plan 02: X11-Lockscreen-Akzeptanztest live bestanden)
+
+**Scope**: Den letzten offenen Plan-02-Restpunkt "grafischen Sperrbildschirm live gegen echte X11-Session abnehmen" abgeschlossen. Da die lokale beagle-thinclient-VM kein SSH-Key-Zugang ohne Passwort hatte, wurde ein Xvfb-basierter Akzeptanztest erstellt – reproduzierbar und CI-tauglich.
+
+- Test-Script:
+  - [scripts/test-lockscreen-x11-acceptance.sh](/home/dennis/beagle-os/scripts/test-lockscreen-x11-acceptance.sh): Xvfb :99, Stub-Skripte fuer common.sh/device_state_enforcement.sh, `run_device_lock_screen_watcher` mit `BEAGLE_LOCK_SCREEN_ONCE=1`
+- Validierung:
+  - `bash scripts/test-lockscreen-x11-acceptance.sh`
+  - Ergebnis: `17 passed, 0 failed`

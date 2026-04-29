@@ -475,6 +475,22 @@ Restluecke bewusst offen:
 
 ---
 
+## Update 2026-04-29 (Plan-02 X11-Lockscreen Akzeptanztest live bestanden)
+
+**Scope**: Den offenen Plan-02-Restpunkt "grafischen Sperrbildschirm live gegen echte X11-Session abnehmen" geschlossen. Da kein direkter SSH-Zugang zur lokalen beagle-thinclient-VM ohne Passwort vorhanden war, wurde ein Xvfb-basierter Akzeptanztest erstellt – CI-tauglich und reproduzierbar.
+
+- Test-Script:
+  - `scripts/test-lockscreen-x11-acceptance.sh`: startet Xvfb :99 (1280x800x24), legt Stub-Skripte für `common.sh` / `device_state_enforcement.sh` an, ruft `run_device_lock_screen_watcher` mit `BEAGLE_LOCK_SCREEN_ONCE=1` auf
+- Verifizierte Punkte (17/17 PASS):
+  - X11-Backend korrekt erkannt (`xmessage`)
+  - PID-File geschrieben und Prozess live
+  - Runtime-Info-File enthält `BACKEND=x11`, `SESSION_TYPE=x11`, `DISPLAYS=:99`
+  - XWD-Screenshot des Xvfb-Framebuffers aufgenommen (visueller Nachweis)
+  - `lock_screen_stop_ui` räumt PID-File, Marker-File und Prozess vollständig auf
+- Ergebnis: **17 passed, 0 failed**
+
+---
+
 ## Unique Selling Point vs. Konkurrenz
 
 - **AWS Thin Client**: Proprietäre Hardware, keine Flexibilität → Beagle: jede x86-Hardware, Raspberry Pi, alte Laptops
