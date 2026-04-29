@@ -18,8 +18,10 @@ file (renamed to beagle_novnc_token.py at deployment) in the systemd unit.
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -56,18 +58,47 @@ class BeagleTokenFile(BasePlugin):
         if not self._store_path.exists():
             return {}
         try:
-            raw = self._store_path.read_text(encoding="utf-8", errors="ignore")
-            loaded = json.loads(raw)
+            with self._store_path.open("r", encoding="utf-8", errors="ignore") as fh:
+                fcntl.flock(fh, fcntl.LOCK_SH)
+                try:
+                    loaded = json.load(fh)
+                finally:
+                    fcntl.flock(fh, fcntl.LOCK_UN)
             return loaded if isinstance(loaded, dict) else {}
         except Exception:
             return {}
 
     def _save_store(self, store: dict[str, Any]) -> None:
         self._store_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._store_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(store, indent=2), encoding="utf-8")
-        os.chmod(tmp, 0o600)
-        tmp.replace(self._store_path)
+        dir_fd = os.open(str(self._store_path.parent), os.O_RDONLY)
+        try:
+            fd, tmp_path = tempfile.mkstemp(
+                dir=self._store_path.parent, suffix=".tmp"
+            )
+            try:
+                os.fchmod(fd, 0o600)
+                with os.fdopen(fd, "w", encoding="utf-8", closefd=False) as fh:
+                    fcntl.flock(fh, fcntl.LOCK_EX)
+                    try:
+                        json.dump(store, fh, indent=2)
+                        fh.flush()
+                        os.fsync(fd)
+                    finally:
+                        fcntl.flock(fh, fcntl.LOCK_UN)
+                os.close(fd)
+                fd = -1
+                os.replace(tmp_path, self._store_path)
+                os.fsync(dir_fd)
+            except Exception:
+                if fd >= 0:
+                    os.close(fd)
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
+        finally:
+            os.close(dir_fd)
 
     @staticmethod
     def _is_expired(entry: dict[str, Any]) -> bool:

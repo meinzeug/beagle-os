@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, GoAdvanced Plan 01 Datenintegritaet: naechste Migrationswelle)
+
+**Zuletzt erledigt**:
+- JsonStateStore-Migration fuer mehrere Hochrisiko-/Service-Dateien abgeschlossen, lokaler + `srv1` Stress-Test (`1000` parallele Updates) erfolgreich.
+
+**Naechste konkrete Schritte**:
+
+1. Plan-01-Welle 3 vervollstaendigen: `usage_tracking_service.py`, `energy_service.py`, danach restliche Service-Wellen 3b/3c/3d auf `JsonStateStore` ziehen.
+2. Repo-Grep-Restschuld fuer direkte `path.write_text(json.dumps(`-Schreibpfade systematisch abbauen (ausserhalb von Tests).
+3. Nach jeder Welle: betroffene Unit-Suiten + Stress-Skript lokal und auf `srv1` erneut laufen lassen.
+
 ## Stand (2026-04-29, lokaler Thinclient-KVM-Smoke vorbereitet)
 
 **Zuletzt erledigt**:

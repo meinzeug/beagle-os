@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 from typing import Any
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 class StorageQuotaService:
@@ -13,22 +14,15 @@ class StorageQuotaService:
         self._state_file = Path(str(state_file)).expanduser()
 
     def _read_state(self) -> dict[str, Any]:
-        if not self._state_file.is_file():
-            return {"pools": {}}
-        try:
-            payload = json.loads(self._state_file.read_text(encoding="utf-8"))
-        except (OSError, ValueError, TypeError):
-            return {"pools": {}}
+        payload = JsonStateStore(self._state_file, default_factory=lambda: {"pools": {}}).load()
         if not isinstance(payload, dict):
             return {"pools": {}}
-        pools = payload.get("pools")
-        if not isinstance(pools, dict):
+        if not isinstance(payload.get("pools"), dict):
             payload["pools"] = {}
         return payload
 
     def _write_state(self, payload: dict[str, Any]) -> None:
-        self._state_file.parent.mkdir(parents=True, exist_ok=True)
-        self._state_file.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        JsonStateStore(self._state_file, default_factory=lambda: {"pools": {}}).save(payload)
 
     def _normalize_pool(self, pool_name: str) -> str:
         pool = str(pool_name or "").strip()

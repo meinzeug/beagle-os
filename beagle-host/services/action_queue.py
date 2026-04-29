@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
 from typing import Any, Callable
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 class ActionQueueService:
@@ -41,7 +42,7 @@ class ActionQueueService:
         return payload if isinstance(payload, list) else []
 
     def save_queue(self, node: str, vmid: int, queue: list[dict[str, Any]]) -> None:
-        self.queue_path(node, vmid).write_text(json.dumps(queue, indent=2) + "\n", encoding="utf-8")
+        JsonStateStore(self.queue_path(node, vmid), default_factory=list).save(queue)
 
     def queue_action(
         self,
@@ -110,7 +111,7 @@ class ActionQueueService:
         return None
 
     def store_result(self, node: str, vmid: int, payload: dict[str, Any]) -> None:
-        self.result_path(node, vmid).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        JsonStateStore(self.result_path(node, vmid), default_factory=dict).save(payload)
 
     def summarize_result(self, payload: dict[str, Any] | None) -> dict[str, Any]:
         if not isinstance(payload, dict):

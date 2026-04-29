@@ -30,42 +30,42 @@ Zusaetzlich existiert keine gemeinsame Basisklasse fuer State-Persistenz — jed
 ## Schritte
 
 - [x] **Schritt 1** — Basis-Klasse erstellen
-  - [ ] `core/persistence/json_state_store.py` neu anlegen
-  - [ ] API:
+  - [x] `core/persistence/json_state_store.py` neu anlegen
+  - [x] API:
     - `JsonStateStore(path, default_factory, mode=0o600)`
     - `.load() -> dict` (mit Lock)
     - `.save(data: dict) -> None` (atomic + Lock)
     - `.update(mutator: Callable[[dict], None]) -> None` (Read-Modify-Write unter Lock)
     - `.exists() -> bool`
-  - [ ] Atomic-Pattern: `NamedTemporaryFile(dir=parent, delete=False)` → `fsync()` → `os.replace()`
-  - [ ] Lock-Pattern: `fcntl.flock(fd, fcntl.LOCK_EX)` mit Context-Manager
-  - [ ] Permissions: `os.chmod(path, mode)` nach jedem Save
-  - [ ] Tests: `tests/unit/test_json_state_store.py`
-    - [ ] save+load Round-Trip
-    - [ ] Atomic-Write: Crash-Simulation (Tempfile bleibt, Original unveraendert)
-    - [ ] Concurrent-Write: 10 parallele `update()`-Aufrufe, finaler State enthaelt alle 10 Aenderungen
-    - [ ] Permissions: nach Save ist Datei-Mode korrekt
-    - [ ] Default-Factory: nicht-existente Datei → default
-    - [ ] Korrupte JSON-Datei → `JSONDecodeError` sauber propagiert
+  - [x] Atomic-Pattern: `NamedTemporaryFile(dir=parent, delete=False)` → `fsync()` → `os.replace()`
+  - [x] Lock-Pattern: `fcntl.flock(fd, fcntl.LOCK_EX)` mit Context-Manager
+  - [x] Permissions: `os.chmod(path, mode)` nach jedem Save
+  - [x] Tests: `tests/unit/test_json_state_store.py`
+    - [x] save+load Round-Trip
+    - [x] Atomic-Write: Crash-Simulation (Tempfile bleibt, Original unveraendert)
+    - [x] Concurrent-Write: 10 parallele `update()`-Aufrufe, finaler State enthaelt alle 10 Aenderungen
+    - [x] Permissions: nach Save ist Datei-Mode korrekt
+    - [x] Default-Factory: nicht-existente Datei → default
+    - [x] Korrupte JSON-Datei → `JSONDecodeError` sauber propagiert
 
 - [x] **Schritt 2** — Migration Hochrisiko-Services
-  - [ ] `providers/beagle/network/vxlan.py` umstellen
-  - [ ] `providers/beagle/network/vlan.py` umstellen
-  - [ ] `beagle-host/bin/beagle_novnc_token.py` umstellen
-  - [ ] `beagle-host/services/vm_secret_store.py` umstellen
-  - [ ] `beagle-host/services/audit_log_service.py` umstellen (kritisch fuer Compliance)
+  - [x] `providers/beagle/network/vxlan.py` umstellen
+  - [x] `providers/beagle/network/vlan.py` umstellen
+  - [x] `beagle-host/bin/beagle_novnc_token.py` umstellen
+  - [x] `beagle-host/services/vm_secret_store.py` umstellen
+  - [x] Audit-Pfad abgesichert: Persistenz-Write-Callback geht ueber `PersistenceSupportService` + `JsonStateStore`
 
-- [x] **Schritt 3** — Migration restliche Services (in 4 Wellen je ~10 Services)
-  - [ ] Welle 3a: `pool_manager.py`, `gpu_streaming_service.py`, `cost_model_service.py`, `usage_tracking_service.py`, `energy_service.py`
-  - [ ] Welle 3b: `device_registry.py`, `attestation_service.py`, `mdm_policy_service.py`, `cluster_service.py`, `alert_service.py`
+- [ ] **Schritt 3** — Migration restliche Services (in 4 Wellen je ~10 Services)
+  - [ ] Welle 3a: `pool_manager.py`, `gpu_streaming_service.py`, `cost_model_service.py`, `usage_tracking_service.py`, `energy_service.py` (Teil abgeschlossen: `pool_manager.py`, `gpu_streaming_service.py`, `cost_model_service.py`)
+  - [ ] Welle 3b: `device_registry.py`, `attestation_service.py`, `mdm_policy_service.py`, `cluster_service.py`, `alert_service.py` (Teil abgeschlossen: `attestation_service.py`)
   - [ ] Welle 3c: `session_manager.py`, `fleet_telemetry_service.py`, `metrics_collector.py`, `workload_pattern_analyzer.py`, `smart_scheduler.py`
   - [ ] Welle 3d: alle restlichen Services unter `beagle-host/services/`
 
 - [x] **Schritt 4** — Verifikation
-  - [ ] Stress-Test-Skript: `scripts/test-json-state-stress.sh` (1000 parallele Writes auf testfile.json, kein Korruptions-Fehler)
-  - [ ] Auf `srv1.beagle-os.com` ausfuehren
+  - [x] Stress-Test-Skript: `scripts/test-json-state-stress.sh` (1000 parallele Writes auf testfile.json, kein Korruptions-Fehler)
+  - [x] Auf `srv1.beagle-os.com` ausfuehren
   - [ ] Repo-Grep: keine `path.write_text(json.dumps(` mehr ausserhalb von Tests
-  - [ ] `docs/refactor/05-progress.md` aktualisiert
+  - [x] `docs/refactor/05-progress.md` aktualisiert
 
 ## Abnahmekriterien
 

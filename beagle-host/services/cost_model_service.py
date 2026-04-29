@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import csv
 import io
-import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 @dataclass
@@ -221,9 +222,8 @@ class CostModelService:
     # ------------------------------------------------------------------
 
     def _load(self) -> dict[str, Any]:
-        if self._state_file.exists():
-            return json.loads(self._state_file.read_text())
-        return {"model": {}, "budgets": {}}
+        store = JsonStateStore(self._state_file, default_factory=lambda: {"model": {}, "budgets": {}})
+        return store.load()
 
     def _save(self) -> None:
-        self._state_file.write_text(json.dumps(self._state, indent=2))
+        JsonStateStore(self._state_file, default_factory=dict).save(self._state)

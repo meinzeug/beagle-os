@@ -1,3 +1,24 @@
+## Update (2026-04-29, GoAdvanced Plan 01 Datenintegritaet weitergezogen + Disk-Pressure behoben)
+
+**Scope**: Nach Save-Fehlern durch vollen Datentraeger wurde zuerst lokaler Speicherplatz bereinigt und danach die naechste Welle der JsonStateStore-Migration inkl. srv1-Stresstest abgeschlossen.
+
+- Betriebsstabilisierung:
+  - Lokale Disk-Pressure auf dem Dev-Host behoben (PM2-Log-Wachstum + Cache-Bereinigung), damit Editor/Tests wieder reproduzierbar laufen.
+- Persistenz-Migration (Code):
+  - `beagle-host/services/action_queue.py`
+  - `beagle-host/services/cost_model_service.py`
+  - `beagle-host/services/gpu_streaming_service.py`
+  - `beagle-host/services/attestation_service.py`
+  - `beagle-host/services/storage_quota.py`
+  - `beagle-host/services/vm_console_access.py`
+  - `beagle-host/bin/beagle_novnc_token.py` (File-Locking + fsync + atomic replace)
+  - alle genannten Services nutzen nun `JsonStateStore` oder ein gleichwertig gehaertetes Atomic-Pattern.
+- Verifikation:
+  - Lokal: `python3 -m pytest tests/unit/test_json_state_store.py tests/unit/test_attestation_service.py tests/unit/test_cost_model.py tests/unit/test_gpu_streaming.py tests/unit/test_storage_quota_service.py tests/unit/test_beagle_novnc_token.py` -> `57 passed`
+  - Neu: `scripts/test-json-state-stress.sh` im Repo (1000 parallele Updates)
+  - Lokal: Stress-Test `OK counter=1000 expected=1000`
+  - `srv1`: Stress-Test mit `PYTHONPATH=/opt/beagle` ebenfalls `OK counter=1000 expected=1000`
+
 ## Update (2026-04-29, lokaler Thinclient-KVM-Smoke fuer `beagle-thinclient` reproduzierbar gemacht)
 
 **Scope**: Fuer den verbleibenden Plan-02-Live-Restpunkt wird ein lokaler Thinclient-Test-Guest benoetigt. Auf diesem Host existierte bereits eine libvirt-Domain `beagle-thinclient`, aber es gab keinen reproduzierbaren Repo-Smoke dafuer und wegen nur noch ~280 MiB freiem Platz war ein zweiter Throwaway-Guest unpraktikabel.
