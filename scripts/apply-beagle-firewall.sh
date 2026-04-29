@@ -139,6 +139,9 @@ write_nft_rules() {
   local ipv4_peer_set=""
   local ipv6_peer_set=""
   local peer
+  local wg_enabled=0
+  local wg_iface=""
+  local wg_port=""
 
   mapfile -t bridges < <(detect_vm_bridges | sed '/^$/d' | sort -u)
   if [[ "${#bridges[@]}" -eq 0 ]]; then
@@ -165,6 +168,11 @@ write_nft_rules() {
   done
   ipv4_peer_set="$(nft_addr_list "${ipv4_peers[@]}")"
   ipv6_peer_set="$(nft_addr_list "${ipv6_peers[@]}")"
+  if [[ "${BEAGLE_WIREGUARD_ENABLED:-0}" =~ ^(1|true|yes|on)$ ]]; then
+    wg_enabled=1
+    wg_iface="${BEAGLE_WIREGUARD_INTERFACE:-wg-beagle}"
+    wg_port="${BEAGLE_WIREGUARD_PORT:-51820}"
+  fi
 
   install -d -m 0755 "$CONFIG_DIR"
   {
@@ -182,7 +190,11 @@ table inet $TABLE_NAME {
 
     tcp dport 22 ct state new limit rate 30/minute burst 30 packets accept
     tcp dport { 80, 443 } ct state new limit rate 300/minute burst 300 packets accept
-
+EOF
+    if [[ "$wg_enabled" -eq 1 ]]; then
+      printf '    udp dport %s ct state new limit rate 300/minute burst 300 packets accept\n' "$wg_port"
+    fi
+    cat <<EOF
     iifname { $bridge_set } udp dport { 53, 67 } accept
     iifname { $bridge_set } tcp dport 53 accept
     iifname { $bridge_set } tcp dport { 9088, 9089 } accept
@@ -207,6 +219,11 @@ EOF
 
     ct state invalid drop
     ct state { established, related } accept
+EOF
+    if [[ "$wg_enabled" -eq 1 ]]; then
+      printf '    iifname "%s" accept\n' "$wg_iface"
+    fi
+    cat <<EOF
     iifname { $bridge_set } accept
     ct status dnat oifname { $bridge_set } accept
   }

@@ -44,14 +44,10 @@ def _build_wireguard_stubs(tmp_path: Path) -> Path:
         "    exit 0\n"
         "  fi\n"
         "fi\n"
-        "exit 0\n",
-    )
-
-    _write_stub(
-        bindir / "wg-quick",
-        "#!/usr/bin/env bash\n"
-        "set -euo pipefail\n"
-        "printf '%s\\n' \"$*\" >>\"${WG_QUICK_LOG:?}\"\n"
+        "if [[ \"${1:-}\" == \"setconf\" && -n \"${WG_SETCONF_LOG:-}\" ]]; then\n"
+        "  printf '%s\\n' \"$*\" >>\"${WG_SETCONF_LOG}\"\n"
+        "  exit 0\n"
+        "fi\n"
         "exit 0\n",
     )
 
@@ -59,6 +55,9 @@ def _build_wireguard_stubs(tmp_path: Path) -> Path:
         bindir / "ip",
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
+        "if [[ -n \"${IP_LOG:-}\" ]]; then\n"
+        "  printf '%s\\n' \"$*\" >>\"${IP_LOG}\"\n"
+        "fi\n"
         "if [[ \"${1:-}\" == \"link\" && \"${2:-}\" == \"show\" ]]; then\n"
         "  exit \"${IP_LINK_SHOW_EXIT:-1}\"\n"
         "fi\n"
@@ -124,15 +123,19 @@ def test_enrollment_wireguard_writes_config_and_brings_interface_up(tmp_path: Pa
     bindir = _build_wireguard_stubs(tmp_path)
     wg_conf = tmp_path / "wireguard" / "wg-beagle.conf"
     wg_keys = tmp_path / "keys"
-    wg_log = tmp_path / "wg-quick.log"
     curl_data_log = tmp_path / "curl-data.json"
+    ip_log = tmp_path / "ip.log"
+    wg_setconf_log = tmp_path / "wg-setconf.log"
+    resolv_conf = tmp_path / "resolv.conf"
 
     env = os.environ.copy()
     env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
     env["WG_CONF"] = str(wg_conf)
     env["WG_KEYS_DIR"] = str(wg_keys)
-    env["WG_QUICK_LOG"] = str(wg_log)
     env["CURL_DATA_LOG"] = str(curl_data_log)
+    env["IP_LOG"] = str(ip_log)
+    env["WG_SETCONF_LOG"] = str(wg_setconf_log)
+    env["WG_RESOLV_CONF"] = str(resolv_conf)
     env["BEAGLE_CONTROL_PLANE"] = "https://control.example"
     env["BEAGLE_DEVICE_ID"] = "endpoint-001"
     env["BEAGLE_ENROLLMENT_TOKEN"] = "enroll-token"
@@ -158,8 +161,14 @@ def test_enrollment_wireguard_writes_config_and_brings_interface_up(tmp_path: Pa
     assert payload["public_key"] == "public-key-xyz"
     assert payload["token"] == "enroll-token"
 
-    wg_quick_text = wg_log.read_text(encoding="utf-8")
-    assert "up wg-beagle" in wg_quick_text
+    wg_setconf_text = wg_setconf_log.read_text(encoding="utf-8")
+    assert "setconf wg-beagle " in wg_setconf_text
+
+    ip_text = ip_log.read_text(encoding="utf-8")
+    assert "link add wg-beagle type wireguard" in ip_text
+    assert "address add 10.88.10.5/32 dev wg-beagle" in ip_text
+    assert "route replace 10.88.0.0/16 dev wg-beagle" in ip_text
+    assert resolv_conf.read_text(encoding="utf-8") == "nameserver 10.88.0.1\n"
 
 
 def test_enrollment_wireguard_fails_on_incomplete_control_plane_response(tmp_path: Path) -> None:
@@ -169,7 +178,6 @@ def test_enrollment_wireguard_fails_on_incomplete_control_plane_response(tmp_pat
     env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
     env["WG_CONF"] = str(tmp_path / "wireguard" / "wg-beagle.conf")
     env["WG_KEYS_DIR"] = str(tmp_path / "keys")
-    env["WG_QUICK_LOG"] = str(tmp_path / "wg-quick.log")
     env["BEAGLE_CONTROL_PLANE"] = "https://control.example"
     env["BEAGLE_DEVICE_ID"] = "endpoint-001"
     env["CURL_HTTP_CODE"] = "200"
@@ -180,6 +188,46 @@ def test_enrollment_wireguard_fails_on_incomplete_control_plane_response(tmp_pat
 
     assert result.returncode == 3
     assert "Incomplete peer config" in result.stderr
+
+
+def test_enrollment_wireguard_supports_manager_bearer_registration(tmp_path: Path) -> None:
+    _require_jq()
+    bindir = _build_wireguard_stubs(tmp_path)
+    curl_path = bindir / "curl"
+    curl_path.write_text(
+        curl_path.read_text(encoding="utf-8").replace(
+            "done\\n"
+            "if [[ -n \"${CURL_DATA_LOG:-}\" ]]; then\\n",
+            "done\\n"
+            "printf '%s\\n' \"$*\" >\"${CURL_ARGS_LOG:?}\"\\n"
+            "if [[ -n \"${CURL_DATA_LOG:-}\" ]]; then\\n",
+        ),
+        encoding="utf-8",
+    )
+    curl_path.chmod(0o755)
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    env["WG_CONF"] = str(tmp_path / "wireguard" / "wg-beagle.conf")
+    env["WG_KEYS_DIR"] = str(tmp_path / "keys")
+    env["CURL_ARGS_LOG"] = str(tmp_path / "curl-args.log")
+    env["CURL_DATA_LOG"] = str(tmp_path / "curl-data.json")
+    env["WG_SETCONF_LOG"] = str(tmp_path / "wg-setconf.log")
+    env["IP_LOG"] = str(tmp_path / "ip.log")
+    env["WG_RESOLV_CONF"] = str(tmp_path / "resolv.conf")
+    env["BEAGLE_CONTROL_PLANE"] = "https://control.example"
+    env["BEAGLE_DEVICE_ID"] = "endpoint-001"
+    env["BEAGLE_MANAGER_TOKEN"] = "endpoint-bearer"
+    env["CURL_HTTP_CODE"] = "200"
+    env["CURL_SERVER_PUBLIC_KEY"] = "server-pub-key"
+    env["CURL_SERVER_ENDPOINT"] = "vpn.beagle-os.com:51820"
+    env["CURL_ALLOWED_IPS"] = "0.0.0.0/0"
+    env["CURL_CLIENT_IP"] = "10.88.10.5/32"
+    env["CURL_DNS"] = "1.1.1.1"
+
+    subprocess.run(["bash", str(ENROLL_SCRIPT)], cwd=str(ROOT_DIR), env=env, check=True)
+
+    curl_args = (tmp_path / "curl-args.log").read_text(encoding="utf-8")
+    assert "Authorization: Bearer endpoint-bearer" in curl_args
 
 
 def test_post_enrollment_runtime_prefers_wireguard_for_heartbeat_and_streaming(tmp_path: Path) -> None:

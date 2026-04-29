@@ -88,10 +88,22 @@ class WireguardMeshService:
         public_key: str,
         endpoint: str | None = None,
         preshared_key: str = "",
+        *,
+        allowed_ips: list[str] | None = None,
+        dns: str | None = None,
     ) -> WireguardMeshConfig:
         """Register a device in the mesh and return its peer config."""
+        effective_allowed_ips = list(allowed_ips or []) or [str(self.MESH_SUBNET)]
+        effective_dns = str(dns or "10.88.0.1").strip() or "10.88.0.1"
         if device_id in self._state["peers"]:
-            ip = self._state["peers"][device_id]["assigned_ip"]
+            peer_state = self._state["peers"][device_id]
+            ip = peer_state["assigned_ip"]
+            peer_state["public_key"] = public_key
+            peer_state["endpoint"] = endpoint
+            peer_state["preshared_key"] = preshared_key
+            peer_state["allowed_ips"] = list(effective_allowed_ips)
+            peer_state["dns"] = effective_dns
+            self._save_state()
         else:
             ip = self._allocate_ip()
             self._state["peers"][device_id] = {
@@ -99,6 +111,8 @@ class WireguardMeshService:
                 "endpoint": endpoint,
                 "assigned_ip": ip,
                 "preshared_key": preshared_key,
+                "allowed_ips": list(effective_allowed_ips),
+                "dns": effective_dns,
             }
             self._save_state()
 
@@ -113,7 +127,8 @@ class WireguardMeshService:
             server_public_key=self._server_public_key,
             server_endpoint=self._server_endpoint,
             preshared_key=preshared_key,
-            allowed_ips=[str(self.MESH_SUBNET)],
+            allowed_ips=list(effective_allowed_ips),
+            dns=effective_dns,
         )
 
     def remove_peer(self, device_id: str) -> bool:
@@ -153,7 +168,8 @@ class WireguardMeshService:
             server_public_key=self._server_public_key,
             server_endpoint=self._server_endpoint,
             preshared_key=info.get("preshared_key", ""),
-            allowed_ips=[str(self.MESH_SUBNET)],
+            allowed_ips=list(info.get("allowed_ips") or [str(self.MESH_SUBNET)]),
+            dns=str(info.get("dns") or "10.88.0.1"),
         )
 
     # ------------------------------------------------------------------

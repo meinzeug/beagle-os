@@ -1,5 +1,6 @@
 # Global TODO
 
+- [x] Thinclient-/Host-WireGuard-End-to-End schliessen: endpoint-authentifiziertes `vpn/register`, robuster Thinclient-Full-Tunnel ohne `wg-quick`-Haenger, Host-Firewall-Default fuer UDP `51820` und automatischer Server-Peer-Reconcile auf `srv1`.
 - [x] srv1 failed-unit Drift beheben: `beagle-cluster-auto-join`, `beagle-public-streams`, ifupdown-Route-Hook und Repo-Auto-Update-Short-Hash-Vergleich korrigieren.
 - [x] Login-429 hinter nginx beheben: API-Rate-Limit und Login-Guard duerfen nicht alle externen WebUI-Nutzer unter `127.0.0.1` zusammenfassen.
 - [x] WebUI-CSP-Drift beheben: keine `style="..."`-Attribute mehr in generierten Frontend-HTML-Strings fuer Scheduler-/Energy-/GPU-/Settings-/Cluster-/Virtualization-UI.

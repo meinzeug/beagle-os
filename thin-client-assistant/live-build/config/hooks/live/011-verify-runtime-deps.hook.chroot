@@ -14,6 +14,7 @@ feh
 flatpak
 xdg-desktop-portal
 xdg-desktop-portal-gtk
+jq
 mesa-vulkan-drivers
 mesa-va-drivers
 mesa-vdpau-drivers
@@ -23,6 +24,7 @@ pciutils
 firmware-linux-free
 firmware-amd-graphics
 firmware-sof-signed
+wireguard-tools
 xserver-xorg-video-amdgpu
 xserver-xorg-video-intel
 xserver-xorg-video-vesa
@@ -43,3 +45,10 @@ if [ ! -d /lib/firmware/amdgpu ] || [ -z "$(ls -A /lib/firmware/amdgpu 2>/dev/nu
   echo "Missing AMD firmware payload (/lib/firmware/amdgpu) in thin-client image." >&2
   exit 1
 fi
+
+for command_name in jq wg ip; do
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    echo "Missing required runtime command in thin-client image: $command_name" >&2
+    exit 1
+  fi
+done

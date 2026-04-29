@@ -30,6 +30,8 @@ chromium-sandbox
 feh
 curl
 ca-certificates
+jq
+wireguard-tools
 flatpak
 xdg-desktop-portal
 xdg-desktop-portal-gtk

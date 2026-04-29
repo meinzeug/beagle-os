@@ -322,6 +322,7 @@ run_in_chroot apt-get install -y \
   os-prober \
   openssl \
   nftables \
+  wireguard-tools \
   python3 \
   mdadm
 # Ensure /boot/grub/grub.cfg exists with valid entries for the kernel that

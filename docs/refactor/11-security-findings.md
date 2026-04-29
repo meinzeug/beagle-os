@@ -1,6 +1,42 @@
 # Security Findings
 
-Stand: 2026-04-28 (ergänzt: S-033 Service-Sandbox-/Runtime-Drift korrigiert)
+Stand: 2026-04-29 (ergänzt: S-034 Thinclient-WireGuard-/Firewall-Default-Drift korrigiert)
+
+## S-034 — Thinclients konnten trotz `vpn_required`/WireGuard-Bausteinen weiterhin direkt ins Internet streamen (PATCHED)
+
+- Status: **gepatcht** (2026-04-29)
+- Risiko: **Hoch**
+- Betroffene Dateien:
+  - `beagle-host/services/service_registry.py`
+  - `beagle-host/services/endpoint_lifecycle_surface.py`
+  - `beagle-host/services/wireguard_mesh_service.py`
+  - `thin-client-assistant/runtime/enrollment_wireguard.sh`
+  - `thin-client-assistant/runtime/runtime_endpoint_enrollment.sh`
+  - `thin-client-assistant/runtime/prepare-runtime.sh`
+  - `scripts/apply-beagle-wireguard.sh`
+  - `scripts/apply-beagle-firewall.sh`
+  - `scripts/install-beagle-host-services.sh`
+  - `thin-client-assistant/live-build/config/package-lists/pve-thin-client.list.chroot`
+  - `thin-client-assistant/live-build/config/hooks/live/011-verify-runtime-deps.hook.chroot`
+  - `beagle-host/systemd/beagle-wireguard-reconcile.service`
+  - `beagle-host/systemd/beagle-wireguard-reconcile.path`
+- Beschreibung:
+  - Ein echter Thinclient lief live noch mit `connection_method=direct` bzw. spaeter trotz umgestellter Config ohne funktionierenden Tunnel weiter ueber das lokale Default-Gateway.
+  - Ursachen waren kombiniert:
+    - kein vollstaendiger endpoint-authentifizierter `vpn/register`-Pfad im produktiven Control-Plane-Slice,
+    - Thinclient-Image ohne garantierte WireGuard-/`jq`-Runtime-Abhaengigkeiten,
+    - fragiler `wg-quick`-/DNS-Helfer-Pfad auf Debian-Live-Systemen,
+    - Server uebernahm neu registrierte Peers nicht automatisch in die laufende `wg-beagle`-Konfiguration,
+    - Host-Firewall/WireGuard-Port mussten im aktuellen Repo-Slice noch explizit nachgezogen werden.
+- Fix:
+  - Control Plane liefert jetzt WireGuard-Bootstrap und endpoint-authentifizierte Peer-Registrierung.
+  - Thinclient-Enroll setzt den Tunnel ohne `wg-quick` direkt mit `wg`/`ip` auf und faellt bei DNS-Helfer-Problemen deterministisch zurueck.
+  - Thinclient-Live-Images enthalten WireGuard-/`jq`-Abhaengigkeiten reproduzierbar; der Build prueft diese Abhaengigkeiten hart.
+  - `srv1` rendert registrierte Mesh-Peers jetzt automatisiert per Root-Reconcile in `wg-beagle`.
+  - Host-Firewall erlaubt UDP `51820` und Forwarding fuer das WireGuard-Interface standardmaessig.
+- Live-Verifikation:
+  - Thinclient `192.168.178.92`: `wg show beagle-egress` meldet `latest handshake`, Traffic-Zaehler und Route zu `1.1.1.1` ueber `beagle-egress`.
+  - `srv1`: `wg show wg-beagle` enthaelt den Thinclient-Peer mit `latest handshake`; nftables-Basis ist aktiv.
 
 ## S-033 — Public-Streams-Service entzog sich fuer eigene Root-Aufgabe alle Capabilities (PATCHED)
 

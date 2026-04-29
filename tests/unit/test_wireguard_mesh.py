@@ -77,6 +77,17 @@ def test_state_persisted(tmp_path):
     assert c2.interface_ip == c1.interface_ip
 
 
+def test_add_peer_can_override_allowed_ips_and_dns(tmp_path):
+    svc = make_svc(tmp_path)
+    cfg = svc.add_peer("dev-custom", "PK-CUSTOM==", allowed_ips=["0.0.0.0/0"], dns="1.1.1.1")
+    reloaded = svc.get_peer_config("dev-custom")
+    assert cfg.allowed_ips == ["0.0.0.0/0"]
+    assert cfg.dns == "1.1.1.1"
+    assert reloaded is not None
+    assert reloaded.allowed_ips == ["0.0.0.0/0"]
+    assert reloaded.dns == "1.1.1.1"
+
+
 def test_ip_pool_exhaustion_raises(tmp_path):
     svc = make_svc(tmp_path)
     # Override range to tiny subnet to trigger exhaustion quickly

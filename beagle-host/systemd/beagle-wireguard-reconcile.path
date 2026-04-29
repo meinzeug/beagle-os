@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch Beagle WireGuard mesh state for peer changes
+
+[Path]
+PathChanged=/var/lib/beagle/beagle-manager/wireguard-mesh/mesh-state.json
+Unit=beagle-wireguard-reconcile.service
+
+[Install]
+WantedBy=multi-user.target

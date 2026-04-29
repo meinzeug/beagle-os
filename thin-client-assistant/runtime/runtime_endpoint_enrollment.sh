@@ -20,6 +20,10 @@ runtime_thinclient_config_file() {
   printf '%s\n' "${CONFIG_FILE:-${CONFIG_DIR:-${PVE_THIN_CLIENT_SYSTEM_CONFIG_DIR:-/etc/pve-thin-client}}/thinclient.conf}"
 }
 
+runtime_wireguard_enrollment_script() {
+  printf '%s\n' "${RUNTIME_WIREGUARD_ENROLLMENT_SH:-$SCRIPT_DIR/enrollment_wireguard.sh}"
+}
+
 runtime_enrollment_url() {
   printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_ENROLLMENT_URL:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}/api/v1/endpoints/enroll}"
 }
@@ -97,4 +101,28 @@ enroll_endpoint_if_needed() {
   rm -f "$response_file"
 
   reload_runtime_enrollment_config
+}
+
+enroll_wireguard_if_needed() {
+  local manager_url manager_token mode egress_type interface_name endpoint_id script_path
+
+  mode="${PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE:-direct}"
+  egress_type="${PVE_THIN_CLIENT_BEAGLE_EGRESS_TYPE:-}"
+  [[ "$mode" != "direct" ]] || return 0
+  [[ "$egress_type" == "wireguard" ]] || return 0
+
+  manager_url="${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}"
+  manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
+  [[ -n "$manager_url" && -n "$manager_token" ]] || return 1
+
+  script_path="$(runtime_wireguard_enrollment_script)"
+  [[ -x "$script_path" ]] || return 1
+
+  interface_name="${PVE_THIN_CLIENT_BEAGLE_EGRESS_INTERFACE:-wg-beagle}"
+  endpoint_id="${PVE_THIN_CLIENT_BEAGLE_DEVICE_ID:-$(runtime_endpoint_id)}"
+  BEAGLE_CONTROL_PLANE="$manager_url" \
+  BEAGLE_DEVICE_ID="$endpoint_id" \
+  BEAGLE_MANAGER_TOKEN="$manager_token" \
+  WG_IFACE="$interface_name" \
+  "$script_path"
 }

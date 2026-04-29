@@ -29,6 +29,7 @@ ENROLLMENT_CONF="${ENROLLMENT_CONF:-/etc/beagle/enrollment.conf}"
 WG_IFACE="${WG_IFACE:-wg-beagle}"
 WG_CONF="${WG_CONF:-/etc/wireguard/${WG_IFACE}.conf}"
 WG_KEYS_DIR="${WG_KEYS_DIR:-/etc/beagle/wireguard}"
+WG_RESOLV_CONF="${WG_RESOLV_CONF:-/etc/resolv.conf}"
 TIMEOUT="${TIMEOUT:-15}"
 
 # ---------------------------------------------------------------------------
@@ -39,6 +40,7 @@ if [[ -f "${ENROLLMENT_CONF}" ]]; then
     BEAGLE_ENROLLMENT_TOKEN="${BEAGLE_ENROLLMENT_TOKEN:-$(grep -E '^enrollment_token=' "${ENROLLMENT_CONF}" | cut -d= -f2- | tr -d '[:space:]')}"
     BEAGLE_DEVICE_ID="${BEAGLE_DEVICE_ID:-$(grep -E '^device_id=' "${ENROLLMENT_CONF}" | cut -d= -f2- | tr -d '[:space:]')}"
 fi
+BEAGLE_CONTROL_PLANE="${BEAGLE_CONTROL_PLANE:-${BEAGLE_MANAGER_URL:-}}"
 
 if [[ -z "${BEAGLE_CONTROL_PLANE:-}" ]]; then
     echo "[wg-enroll] ERROR: BEAGLE_CONTROL_PLANE is not set and not found in ${ENROLLMENT_CONF}" >&2
@@ -52,12 +54,146 @@ fi
 # ---------------------------------------------------------------------------
 # Check dependencies
 # ---------------------------------------------------------------------------
-for cmd in wg wg-quick curl jq; do
+for cmd in wg ip curl jq; do
     if ! command -v "${cmd}" &>/dev/null; then
         echo "[wg-enroll] ERROR: Required command not found: ${cmd}" >&2
         exit 1
     fi
 done
+
+endpoint_host() {
+    local endpoint="${SERVER_ENDPOINT:-}"
+
+    endpoint="${endpoint#[}"
+    endpoint="${endpoint%]}"
+    if [[ "$endpoint" == *:* ]]; then
+        printf '%s\n' "${endpoint%:*}"
+        return 0
+    fi
+    printf '%s\n' "$endpoint"
+}
+
+default_route_state() {
+    ip -4 route show default 2>/dev/null | head -n1
+}
+
+resolve_endpoint_ip() {
+    local host="$1"
+    if [[ "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        printf '%s\n' "$host"
+        return 0
+    fi
+    getent ahostsv4 "$host" 2>/dev/null | awk 'NR==1 { print $1 }'
+}
+
+apply_dns_settings() {
+    local raw_dns="$1"
+    local -a dns_servers=()
+    local dns_value
+
+    raw_dns="${raw_dns//,/ }"
+    for dns_value in $raw_dns; do
+        [[ -n "$dns_value" ]] || continue
+        dns_servers+=("$dns_value")
+    done
+    [[ ${#dns_servers[@]} -gt 0 ]] || return 0
+
+    if command -v resolvectl >/dev/null 2>&1; then
+        if command -v timeout >/dev/null 2>&1 &&
+           timeout 5 resolvectl dns "$WG_IFACE" "${dns_servers[@]}" &&
+           timeout 5 resolvectl domain "$WG_IFACE" "~."; then
+            return 0
+        fi
+    fi
+
+    if command -v resolvconf >/dev/null 2>&1; then
+        if command -v timeout >/dev/null 2>&1 &&
+           {
+               local server
+               for server in "${dns_servers[@]}"; do
+                   printf 'nameserver %s\n' "$server"
+               done
+           } | timeout 5 resolvconf -a "$WG_IFACE" -m 0 -x; then
+            return 0
+        fi
+    fi
+
+    {
+        local server
+        for server in "${dns_servers[@]}"; do
+            printf 'nameserver %s\n' "$server"
+        done
+    } >"$WG_RESOLV_CONF"
+}
+
+apply_wireguard_routes() {
+    local raw_allowed_ips="$1"
+    local route_line endpoint_ip endpoint_value default_gateway default_dev
+    local -a allowed_ip_entries=()
+    local cidr
+
+    raw_allowed_ips="${raw_allowed_ips//,/ }"
+    for cidr in $raw_allowed_ips; do
+        [[ -n "$cidr" ]] || continue
+        allowed_ip_entries+=("$cidr")
+    done
+    [[ ${#allowed_ip_entries[@]} -gt 0 ]] || return 0
+
+    route_line="$(default_route_state)"
+    default_gateway="$(awk '{for (idx=1; idx<=NF; idx++) if ($idx == "via") { print $(idx+1); exit }}' <<<"$route_line")"
+    default_dev="$(awk '{for (idx=1; idx<=NF; idx++) if ($idx == "dev") { print $(idx+1); exit }}' <<<"$route_line")"
+    endpoint_value="$(endpoint_host)"
+    endpoint_ip="$(resolve_endpoint_ip "$endpoint_value")"
+
+    if [[ -n "$endpoint_ip" && -n "$default_dev" ]]; then
+        if [[ -n "$default_gateway" ]]; then
+            ip route replace "${endpoint_ip}/32" via "$default_gateway" dev "$default_dev"
+        else
+            ip route replace "${endpoint_ip}/32" dev "$default_dev"
+        fi
+    fi
+
+    for cidr in "${allowed_ip_entries[@]}"; do
+        case "$cidr" in
+            0.0.0.0/0)
+                ip route replace 0.0.0.0/1 dev "$WG_IFACE"
+                ip route replace 128.0.0.0/1 dev "$WG_IFACE"
+                ;;
+            ::/0)
+                ip -6 route replace ::/1 dev "$WG_IFACE"
+                ip -6 route replace 8000::/1 dev "$WG_IFACE"
+                ;;
+            *:*)
+                ip -6 route replace "$cidr" dev "$WG_IFACE"
+                ;;
+            *)
+                ip route replace "$cidr" dev "$WG_IFACE"
+                ;;
+        esac
+    done
+}
+
+apply_wireguard_peer_config() {
+    local runtime_conf
+    runtime_conf="$(mktemp)"
+    trap 'rm -f "$runtime_conf"' RETURN
+
+    {
+        echo "[Interface]"
+        echo "PrivateKey = ${PRIVATE_KEY}"
+        echo ""
+        echo "[Peer]"
+        echo "PublicKey = ${SERVER_PUBKEY}"
+        if [[ -n "${PRESHARED_KEY}" ]]; then
+            echo "PresharedKey = ${PRESHARED_KEY}"
+        fi
+        echo "Endpoint = ${SERVER_ENDPOINT}"
+        echo "AllowedIPs = ${ALLOWED_IPS}"
+        echo "PersistentKeepalive = 25"
+    } >"$runtime_conf"
+
+    wg setconf "${WG_IFACE}" "$runtime_conf"
+}
 
 # ---------------------------------------------------------------------------
 # Generate keypair (only if private key does not already exist)
@@ -95,14 +231,20 @@ REGISTER_PAYLOAD="$(jq -n \
     --arg token "${BEAGLE_ENROLLMENT_TOKEN:-}" \
     '{device_id: $device_id, public_key: $public_key, token: $token}')"
 
-HTTP_CODE="$(curl \
-    --silent \
-    --show-error \
-    --max-time "${TIMEOUT}" \
-    --connect-timeout 5 \
-    --output /tmp/wg-register-response.json \
-    --write-out "%{http_code}" \
-    --header "Content-Type: application/json" \
+curl_args=(
+    curl
+    --silent
+    --show-error
+    --max-time "${TIMEOUT}"
+    --connect-timeout 5
+    --output /tmp/wg-register-response.json
+    --write-out "%{http_code}"
+    --header "Content-Type: application/json"
+)
+if [[ -n "${BEAGLE_MANAGER_TOKEN:-}" ]]; then
+    curl_args+=(--header "Authorization: Bearer ${BEAGLE_MANAGER_TOKEN}")
+fi
+HTTP_CODE="$("${curl_args[@]}" \
     --data "${REGISTER_PAYLOAD}" \
     "${BEAGLE_CONTROL_PLANE}/api/v1/vpn/register" || true)"
 
@@ -119,9 +261,9 @@ RESPONSE="$(cat /tmp/wg-register-response.json)"
 
 SERVER_PUBKEY="$(echo "${RESPONSE}" | jq -r '.server_public_key // empty')"
 SERVER_ENDPOINT="$(echo "${RESPONSE}" | jq -r '.server_endpoint // empty')"
-ALLOWED_IPS="$(echo "${RESPONSE}" | jq -r '.allowed_ips // "10.88.0.0/16"')"
+ALLOWED_IPS="$(echo "${RESPONSE}" | jq -r 'if (.allowed_ips | type) == "array" then (.allowed_ips | join(", ")) else (.allowed_ips // "10.88.0.0/16") end')"
 CLIENT_IP="$(echo "${RESPONSE}" | jq -r '.client_ip // empty')"
-DNS="$(echo "${RESPONSE}" | jq -r '.dns // "10.88.0.1"')"
+DNS="$(echo "${RESPONSE}" | jq -r 'if (.dns | type) == "array" then (.dns | join(", ")) else (.dns // "10.88.0.1") end')"
 PRESHARED_KEY="$(echo "${RESPONSE}" | jq -r '.preshared_key // empty')"
 
 if [[ -z "${SERVER_PUBKEY}" || -z "${SERVER_ENDPOINT}" || -z "${CLIENT_IP}" ]]; then
@@ -156,16 +298,21 @@ mkdir -p "$(dirname "${WG_CONF}")"
 chmod 600 "${WG_CONF}"
 
 # ---------------------------------------------------------------------------
-# Bring up the WireGuard interface
+# Bring up the WireGuard interface without wg-quick so live images do not
+# depend on additional DNS helpers or policy-routing side effects.
 # ---------------------------------------------------------------------------
 echo "[wg-enroll] Starting WireGuard interface ${WG_IFACE}..."
 
-# Down first if already running (e.g. re-enrollment)
 if ip link show "${WG_IFACE}" &>/dev/null; then
-    wg-quick down "${WG_IFACE}" 2>/dev/null || true
+    ip link delete "${WG_IFACE}" 2>/dev/null || true
 fi
 
-wg-quick up "${WG_IFACE}"
+ip link add "${WG_IFACE}" type wireguard
+apply_wireguard_peer_config
+ip address add "${CLIENT_IP}" dev "${WG_IFACE}"
+ip link set mtu 1420 up dev "${WG_IFACE}"
+apply_dns_settings "${DNS}"
+apply_wireguard_routes "${ALLOWED_IPS}"
 
 echo "[wg-enroll] WireGuard interface ${WG_IFACE} is up. Client IP: ${CLIENT_IP}"
 echo "[wg-enroll] Mesh enrollment complete. All subsequent streams will run through the secure tunnel."

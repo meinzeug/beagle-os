@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, Thinclient-WireGuard-Full-Tunnel live auf VM100 + srv1 Reconcile/FW-Default)
+
+**Zuletzt erledigt**:
+- Der laufende Thinclient fuer VM100 wurde live von Direct-Egress auf echten WireGuard-Full-Tunnel umgestellt; `srv1` uebernimmt neue Peers jetzt automatisch ueber einen Root-Reconcile-Pfad in `wg-beagle`, und Host-Firewall/WireGuard-Basis sind standardmaessig im Repo verdrahtet.
+
+**Naechste konkrete Schritte**:
+
+1. Den aktuell laufenden Thinclient-Artefakt-Build auf `srv1` bis zum neuen `filesystem.squashfs`/ISO durchlaufen lassen und den Build-Output gegen `wireguard-tools`/`jq` im Image verifizieren.
+2. Den neuen Stand auf `srv2` spiegeln, falls dort ebenfalls Thinclients oder WireGuard-geschuetzte Stream-VMs angebunden werden.
+3. Einen echten USB-/Live-Stick aus dem frisch gebauten Thinclient-Artefakt booten und denselben WireGuard-Enroll-/Handshake-Pfad ohne manuelle Paketnachinstallation erneut abnehmen.
+
 ## Stand (2026-04-29, VM100 Display-Idle/Locker-Fix auf `srv1`)
 
 **Zuletzt erledigt**:

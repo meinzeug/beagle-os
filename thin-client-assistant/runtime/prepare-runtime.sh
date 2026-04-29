@@ -52,6 +52,7 @@ fi
 
 plymouth_status "Connecting device to Beagle Manager..."
 enroll_endpoint_if_needed || beagle_log_event "prepare-runtime.enroll-error" "endpoint enrollment failed"
+enroll_wireguard_if_needed || beagle_log_event "prepare-runtime.wireguard-error" "wireguard enrollment failed"
 adjust_secret_permissions
 ensure_runtime_ssh_host_keys
 persist_runtime_config_to_live_state

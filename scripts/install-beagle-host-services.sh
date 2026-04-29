@@ -19,6 +19,8 @@ BEAGLE_CONTROL_SERVICE="beagle-control-plane.service"
 BEAGLE_CLUSTER_AUTO_JOIN_SERVICE="beagle-cluster-auto-join.service"
 BEAGLE_PUBLIC_STREAM_SERVICE="beagle-public-streams.service"
 BEAGLE_PUBLIC_STREAM_TIMER="beagle-public-streams.timer"
+BEAGLE_WIREGUARD_RECONCILE_SERVICE="beagle-wireguard-reconcile.service"
+BEAGLE_WIREGUARD_RECONCILE_PATH="beagle-wireguard-reconcile.path"
 POLKIT_RULES_DIR="/etc/polkit-1/rules.d"
 ARTIFACT_POLKIT_RULE_NAME="49-beagle-artifacts-refresh.rules"
 ARTIFACT_WATCHDOG_POLKIT_RULE_NAME="49-beagle-artifacts-watchdog.rules"
@@ -420,6 +422,8 @@ install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_CONTROL_SERVICE" "$SYSTEMD_D
 install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE" "$SYSTEMD_DIR/$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE"
 install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_PUBLIC_STREAM_SERVICE" "$SYSTEMD_DIR/$BEAGLE_PUBLIC_STREAM_SERVICE"
 install -m 0644 "$ROOT_DIR/beagle-host/systemd/$BEAGLE_PUBLIC_STREAM_TIMER" "$SYSTEMD_DIR/$BEAGLE_PUBLIC_STREAM_TIMER"
+install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_WIREGUARD_RECONCILE_SERVICE" "$SYSTEMD_DIR/$BEAGLE_WIREGUARD_RECONCILE_SERVICE"
+install -m 0644 "$ROOT_DIR/beagle-host/systemd/$BEAGLE_WIREGUARD_RECONCILE_PATH" "$SYSTEMD_DIR/$BEAGLE_WIREGUARD_RECONCILE_PATH"
 install -m 0644 "$ROOT_DIR/beagle-host/systemd/$BEAGLE_NOVNC_PROXY_SERVICE" "$SYSTEMD_DIR/$BEAGLE_NOVNC_PROXY_SERVICE"
 if [[ "$(readlink -f "$ROOT_DIR/beagle-host/bin/beagle-control-plane.py")" != "$(readlink -f "$HOST_RUNTIME_DIR/bin/beagle-control-plane.py" 2>/dev/null || true)" ]]; then
   install -m 0755 "$ROOT_DIR/beagle-host/bin/beagle-control-plane.py" "$HOST_RUNTIME_DIR/bin/beagle-control-plane.py"
@@ -648,7 +652,7 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   if ! standalone_runtime_tools_ready; then
     qemu_system_package="$(resolve_qemu_system_package)"
     install_runtime_packages \
-      libvirt-daemon-system libvirt-clients "$qemu_system_package" qemu-utils ovmf xorriso zip nodejs npm novnc websockify
+      libvirt-daemon-system libvirt-clients "$qemu_system_package" qemu-utils ovmf xorriso zip nodejs npm novnc websockify wireguard-tools
   fi
   if ! command -v websockify >/dev/null 2>&1 || [[ ! -f /usr/share/novnc/vnc.html ]]; then
     install_runtime_packages novnc websockify
@@ -885,6 +889,7 @@ fi
 systemctl enable "$BEAGLE_CONTROL_SERVICE" 2>/dev/null || true
 systemctl enable "$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE" 2>/dev/null || true
 systemctl enable "$BEAGLE_PUBLIC_STREAM_TIMER" 2>/dev/null || true
+systemctl enable "$BEAGLE_WIREGUARD_RECONCILE_PATH" 2>/dev/null || true
 if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   systemctl enable "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
   systemctl start "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
@@ -904,6 +909,14 @@ if has_ui_reapply_units; then
   systemctl start "${start_units[@]}" 2>/dev/null || true
 else
   systemctl start "${start_units[@]}" 2>/dev/null || true
+fi
+
+if [[ -x "$INSTALL_DIR/scripts/apply-beagle-wireguard.sh" ]]; then
+  if can_manage_libvirt_system; then
+    "$INSTALL_DIR/scripts/apply-beagle-wireguard.sh" --enable || echo "Warning: Beagle WireGuard gateway could not be applied" >&2
+  else
+    echo "Warning: Beagle WireGuard gateway was not applied because root networking privileges are unavailable" >&2
+  fi
 fi
 
 if [[ -x "$INSTALL_DIR/scripts/apply-beagle-firewall.sh" ]]; then

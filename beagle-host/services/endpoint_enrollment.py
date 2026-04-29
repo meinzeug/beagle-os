@@ -37,6 +37,7 @@ class EndpointEnrollmentService:
         usb_tunnel_user: str,
         utcnow: Callable[[], str],
         version: str,
+        wireguard_bootstrap_defaults: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self._build_profile = build_profile
         self._ensure_vm_secret = ensure_vm_secret
@@ -59,6 +60,7 @@ class EndpointEnrollmentService:
         self._usb_tunnel_user = str(usb_tunnel_user or "")
         self._utcnow = utcnow
         self._version = str(version or "")
+        self._wireguard_bootstrap_defaults = wireguard_bootstrap_defaults
 
     def issue_enrollment_token(self, vm: Any) -> tuple[str, dict[str, Any]]:
         record = self._ensure_vm_secret(vm)
@@ -127,6 +129,21 @@ class EndpointEnrollmentService:
         *,
         endpoint_id: str,
     ) -> dict[str, Any]:
+        wg_defaults = (
+            self._wireguard_bootstrap_defaults()
+            if callable(self._wireguard_bootstrap_defaults)
+            else {}
+        )
+        if not isinstance(wg_defaults, dict):
+            wg_defaults = {}
+        profile_egress_mode = str(profile.get("egress_mode", "direct") or "direct")
+        profile_egress_type = str(profile.get("egress_type", "") or "")
+        if wg_defaults and profile_egress_mode == "direct" and not profile_egress_type:
+            profile_egress_mode = str(wg_defaults.get("egress_mode", "") or profile_egress_mode)
+            profile_egress_type = str(wg_defaults.get("egress_type", "") or profile_egress_type)
+        profile_egress_interface = str(profile.get("egress_interface", "") or "")
+        if not profile_egress_interface and wg_defaults:
+            profile_egress_interface = str(wg_defaults.get("egress_interface", "") or "")
         return {
             "device_id": str(endpoint_id or ""),
             "beagle_manager_url": self._public_manager_url,
@@ -153,9 +170,9 @@ class EndpointEnrollmentService:
             "moonlight_local_host": str(profile.get("moonlight_local_host", "") or ""),
             "moonlight_port": str(profile.get("moonlight_port", "") or ""),
             "moonlight_app": str(profile.get("moonlight_app", "Desktop") or "Desktop"),
-            "egress_mode": str(profile.get("egress_mode", "direct") or "direct"),
-            "egress_type": str(profile.get("egress_type", "") or ""),
-            "egress_interface": str(profile.get("egress_interface", "beagle-egress") or "beagle-egress"),
+            "egress_mode": profile_egress_mode,
+            "egress_type": profile_egress_type,
+            "egress_interface": profile_egress_interface or "beagle-egress",
             "egress_domains": list(profile.get("egress_domains", []) or []),
             "egress_resolvers": list(profile.get("egress_resolvers", []) or []),
             "egress_allowed_ips": list(profile.get("egress_allowed_ips", []) or []),

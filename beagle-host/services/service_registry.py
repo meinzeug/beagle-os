@@ -1570,6 +1570,7 @@ def endpoint_enrollment_service() -> EndpointEnrollmentService:
             usb_tunnel_user=USB_TUNNEL_SSH_USER,
             utcnow=utcnow,
             version=VERSION,
+            wireguard_bootstrap_defaults=wireguard_bootstrap_defaults,
         )
     return ENDPOINT_ENROLLMENT_SERVICE
 
@@ -3334,9 +3335,61 @@ def wireguard_mesh_service() -> WireguardMeshService:
         WIREGUARD_MESH_SERVICE = WireguardMeshService(
             server_public_key=os.environ.get("BEAGLE_WIREGUARD_SERVER_PUBLIC_KEY", "").strip(),
             server_endpoint=os.environ.get("BEAGLE_WIREGUARD_SERVER_ENDPOINT", "").strip(),
-            state_dir=runtime_paths_service().data_dir / "wireguard-mesh",
+            state_dir=runtime_paths_service().data_dir() / "wireguard-mesh",
         )
     return WIREGUARD_MESH_SERVICE
+
+
+def wireguard_bootstrap_defaults() -> dict[str, Any]:
+    if os.environ.get("BEAGLE_WIREGUARD_ENABLED", "").strip() not in {"1", "true", "yes", "on"}:
+        return {}
+    if not os.environ.get("BEAGLE_WIREGUARD_SERVER_PUBLIC_KEY", "").strip():
+        return {}
+    if not os.environ.get("BEAGLE_WIREGUARD_SERVER_ENDPOINT", "").strip():
+        return {}
+    return {
+        "egress_mode": os.environ.get("BEAGLE_WIREGUARD_EGRESS_MODE", "full").strip() or "full",
+        "egress_type": "wireguard",
+        "egress_interface": os.environ.get("BEAGLE_WIREGUARD_INTERFACE", "wg-beagle").strip() or "wg-beagle",
+    }
+
+
+def register_wireguard_peer(endpoint_identity: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    identity = endpoint_identity if isinstance(endpoint_identity, dict) else {}
+    request = payload if isinstance(payload, dict) else {}
+    configured_defaults = wireguard_bootstrap_defaults()
+    if not configured_defaults:
+        raise PermissionError("wireguard mesh is not enabled on this server")
+
+    endpoint_id = str(identity.get("endpoint_id") or identity.get("hostname") or "").strip()
+    if not endpoint_id:
+        raise PermissionError("missing endpoint identity")
+    requested_device_id = str(request.get("device_id", "") or "").strip()
+    if requested_device_id and requested_device_id != endpoint_id:
+        raise PermissionError("endpoint scope mismatch")
+    public_key = str(request.get("public_key", "") or "").strip()
+    if not public_key:
+        raise ValueError("missing public_key")
+
+    dns_value = os.environ.get("BEAGLE_WIREGUARD_CLIENT_DNS", "").strip() or "1.1.1.1"
+    allowed_ips_raw = os.environ.get("BEAGLE_WIREGUARD_ALLOWED_IPS", "").strip() or "0.0.0.0/0"
+    allowed_ips = [item.strip() for item in re.split(r"[\s,]+", allowed_ips_raw) if item.strip()]
+    cfg = wireguard_mesh_service().add_peer(
+        endpoint_id,
+        public_key,
+        allowed_ips=allowed_ips,
+        dns=dns_value,
+    )
+    return {
+        "ok": True,
+        "device_id": endpoint_id,
+        "server_public_key": str(cfg.server_public_key or "").strip(),
+        "server_endpoint": str(cfg.server_endpoint or "").strip(),
+        "allowed_ips": ", ".join(cfg.allowed_ips or []),
+        "client_ip": str(cfg.interface_ip or "").strip(),
+        "dns": str(cfg.dns or "").strip(),
+        "preshared_key": str(cfg.preshared_key or "").strip(),
+    }
 
 
 def build_stream_allocate_wireguard_profile(device_id: str, pool_id: str, user_id: str) -> dict[str, Any]:
@@ -3404,6 +3457,7 @@ def endpoint_lifecycle_surface_service() -> EndpointLifecycleSurfaceService:
     if ENDPOINT_LIFECYCLE_SURFACE_SERVICE is None:
         ENDPOINT_LIFECYCLE_SURFACE_SERVICE = EndpointLifecycleSurfaceService(
             enroll_endpoint=endpoint_enrollment_service().enroll_endpoint,
+            register_wireguard_peer=register_wireguard_peer,
             service_name="beagle-control-plane",
             store_endpoint_report=endpoint_report_service().store,
             summarize_endpoint_report=summarize_endpoint_report,
@@ -4728,6 +4782,7 @@ def alert_service() -> AlertService:
     global ALERT_SERVICE
     if ALERT_SERVICE is None:
         ALERT_SERVICE = AlertService(
+            state_file=ensure_data_dir() / "alert-service" / "state.json",
             utcnow=utcnow,
             webhook_fn=lambda payload: webhook_service().dispatch_event(
                 event_type="beagle.fleet.alert",

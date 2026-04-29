@@ -585,19 +585,19 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             self._write_json(response["status"], response["payload"])
             return
 
-        if endpoint_http_surface_service().handles_path(path):
+        if EndpointHttpSurfaceService.handles_path(path):
             if not self._is_endpoint_authenticated():
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
             json_payload: dict[str, Any] | None = None
             binary_payload: bytes | None = None
-            if endpoint_http_surface_service().requires_json_body(path):
+            if EndpointHttpSurfaceService.requires_json_body(path):
                 try:
                     json_payload = self._read_json_body()
                 except Exception as exc:
                     self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                     return
-            if endpoint_http_surface_service().requires_binary_body(path):
+            if EndpointHttpSurfaceService.requires_binary_body(path):
                 try:
                     binary_payload = self._read_binary_body(max_bytes=128 * 1024 * 1024)
                 except Exception as exc:

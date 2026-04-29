@@ -1,3 +1,46 @@
+## Update (2026-04-29, Thinclient-WireGuard-Full-Tunnel + srv1 Peer-Reconcile/FW-Default geschlossen)
+
+**Scope**: Der lokale Thinclient (`192.168.178.92`, VM100) lief noch direkt ueber das Heimnetz statt ueber das Beagle-WireGuard-Mesh. Gleichzeitig hatte `srv1` zwar bereits `wg-beagle` und eine Default-Firewall-Basis, uebernahm neu registrierte Thinclient-Peers aber noch nicht automatisch in die laufende WireGuard-Konfiguration.
+
+- Backend / Runtime:
+  - `beagle-host/services/service_registry.py`
+    - WireGuard-Bootstrap-Defaults und endpoint-authentifizierte Route `POST /api/v1/vpn/register` verdrahtet.
+  - `beagle-host/services/endpoint_lifecycle_surface.py`
+    - `vpn/register` als echte Endpoint-Surface aufgenommen.
+  - `beagle-host/services/wireguard_mesh_service.py`
+    - Peer-Updates persistieren jetzt `allowed_ips`/`dns` stabil fuer Re-Enrollments.
+  - `thin-client-assistant/runtime/runtime_endpoint_enrollment.sh`
+  - `thin-client-assistant/runtime/prepare-runtime.sh`
+    - WireGuard-Enrollment wird nach dem Endpoint-Enrollment automatisch angestossen, sobald das Profil `egress_type=wireguard` setzt.
+  - `thin-client-assistant/runtime/enrollment_wireguard.sh`
+    - robust auf manuellen Interface-Setup umgestellt: kein harter `wg-quick`-Pfad mehr.
+    - DNS-Helfer (`resolvectl`/`resolvconf`) laufen jetzt mit Timeout und fallbacken notfalls auf direkte Resolver-Konfiguration statt zu haengen.
+- Host / Security:
+  - `scripts/apply-beagle-wireguard.sh`
+    - richtet `wg-beagle`, NAT und Manager-Env-Defaults ein.
+    - rendert registrierte Mesh-Peers aus `wireguard-mesh/mesh-state.json` jetzt in die Server-Konfiguration.
+  - `beagle-host/systemd/beagle-wireguard-reconcile.service` + `.path` (neu)
+    - Root-seitiger Reconcile-Pfad: Aenderungen am Mesh-State triggern sofort ein neues Rendern/Anwenden der Server-Peers.
+  - `scripts/apply-beagle-firewall.sh`
+    - Host-Firewall erlaubt standardmaessig UDP `51820` und Forwarding vom WireGuard-Interface.
+  - `scripts/install-beagle-host-services.sh`
+  - `scripts/build-server-installimage.sh`
+    - WireGuard-Tooling wird bei Host-Install und Server-Image reproduzierbar mit ausgeliefert.
+  - `thin-client-assistant/live-build/config/package-lists/pve-thin-client.list.chroot`
+  - `thin-client-assistant/live-build/config/hooks/live/011-verify-runtime-deps.hook.chroot`
+    - Thinclient-Live-Image enthaelt WireGuard-/`jq`-Abhaengigkeiten jetzt reproduzierbar; Build-Hook bricht bei fehlendem `wg`/`ip`/`jq` hart ab.
+- Tests:
+  - `tests/unit/test_endpoint_lifecycle_surface.py` (neu)
+  - `tests/unit/test_apply_beagle_firewall_script.py` (neu)
+  - `tests/unit/test_apply_beagle_wireguard_script.py` (neu)
+  - `tests/unit/test_thin_client_live_build_regressions.py` (neu)
+  - `tests/unit/test_wireguard_mesh.py`, `tests/unit/test_enrollment_wireguard.py`, `tests/unit/test_install_beagle_host_services_regressions.py`
+- Live-Verifikation:
+  - `srv1`: `wg-beagle` aktiv, nftables-Firewall aktiv, UDP `51820` offen, NAT fuer `10.88.0.0/16` aktiv.
+  - `srv1`: neuer Root-Reconcile-Pfad aktiv (`beagle-wireguard-reconcile.path`), registrierter Thinclient-Peer live in `wg show wg-beagle`.
+  - Thinclient `192.168.178.92`: `beagle-egress` aktiv, `latest handshake` gegen `46.4.96.80:51820`, Route zu `1.1.1.1` laeuft ueber `beagle-egress`.
+  - Ergebnis: der laufende Moonlight-/Sunshine-Pfad fuer VM100 ist jetzt real ueber WireGuard getunnelt statt direkt ueber das lokale Netz.
+
 ## Update (2026-04-29, VM100 Black-Screen durch XFCE-Idle/Locker auf `srv1` behoben)
 
 **Scope**: VM100 zeigte beim Connect auf `srv1` einen schwarzen Bildschirm; die Guest-Inspektion ergab aktives `light-locker`, `xfce4-power-manager`, X11-Screensaver-Timeout `600` und aktiviertes DPMS mit `Monitor is Off`.
