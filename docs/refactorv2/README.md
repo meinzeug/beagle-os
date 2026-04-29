@@ -1,5 +1,7 @@
 # Beagle OS Refactor v2 — "Allmaechtig in Desktop-Virtualisierung"
 
+> Kanonische Gesamtübersicht: [`docs/MASTER-PLAN.md`](../MASTER-PLAN.md). Refactor v2 ist Vision/Architekturreferenz, kein eigenständiger Ausführungsplan.
+
 Stand: 2026-04-20
 Zielversion: **7.0** (naechster grosser Versionssprung).
 

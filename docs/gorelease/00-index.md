@@ -1,5 +1,7 @@
 # GoRelease - Enterprise-GA und Security-Freigabe
 
+> Kanonische Gesamtübersicht: [`docs/MASTER-PLAN.md`](../MASTER-PLAN.md). Bei Widerspruch gilt der Master-Plan.
+
 Stand: 2026-04-27  
 Status: neuer Freigabeplan, ersetzt **nicht** `docs/goenterprise/`  
 Ziel: Beagle OS erst dann als firmentauglich anbieten, wenn Security, Betrieb, Release-Artefakte und Hardware-Abnahmen reproduzierbar gruen sind.

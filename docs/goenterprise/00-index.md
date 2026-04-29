@@ -1,5 +1,7 @@
 # GoEnterprise — Beagle OS Enterprise Roadmap
 
+> Kanonische Gesamtübersicht: [`docs/MASTER-PLAN.md`](../MASTER-PLAN.md). Bei Widerspruch gilt der Master-Plan.
+
 Stand: 2026-04-24 (überarbeitet: BeagleStream-Fork-Strategie + WireGuard-Latenztest)  
 Folgt auf: `docs/gofuture/` (Grundlagenausbau 7.x)  
 Zielversion: **Beagle OS 8.x** (Enterprise Tier)

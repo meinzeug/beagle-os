@@ -1,5 +1,7 @@
 # Beagle OS — Go Future: Vollständiger Entwicklungsplan
 
+> Kanonische Gesamtübersicht: [`docs/MASTER-PLAN.md`](../MASTER-PLAN.md). Bei Widerspruch gilt der Master-Plan.
+
 Stand: 2026-04-26
 **Status: Re-opened — WebUI-Operability-Gap erkannt. Die Plattform-Funktionen existieren teilweise als API/CLI, muessen aber fuer Betreiber vollständig ueber die Beagle Web Console bedienbar werden.**
 Sprache: Deutsch  
@@ -60,8 +62,8 @@ Warum diese Punkte noch offen sind: Die bisherigen GoFuture-Schritte haben viele
 
 - Kein Big Bang. Jeder Schritt muss den Build stabil halten.
 - Jede Änderung landet im Repo — kein manueller Live-Hotfix ohne Repo-Entsprechung.
-- Beagle host wird dauerhaft entfernt — kein neuer Beagle host-Code, nirgendwo.
-- `beagle-ui/` und `providers/beagle-host/` werden nach Plan 05 vollständig gelöscht.
+- Proxmox wird dauerhaft entfernt — kein neuer Proxmox-Code, nirgendwo.
+- `proxmox-ui/` und `providers/proxmox/` werden nach Plan 05 vollständig gelöscht (bereits erfolgt 2026-04, siehe `docs/MASTER-PLAN.md` Abschnitt 4).
 - Beagle Web Console (`website/`) ist die einzige Operator-Oberfläche.
 - Statusanzeigen allein reichen nicht. Jeder Betreiber-Workflow braucht WebUI-Aktionen, Validierung, Progress/Job-Status, Fehlerausgabe und einen dokumentierten Testpfad.
 - Security ist Nebenbedingung jedes Schritts, keine spätere Phase.

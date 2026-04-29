@@ -1,5 +1,7 @@
 # Beagle OS — GoAdvanced Plan
 
+> Kanonische Gesamtübersicht: [`docs/MASTER-PLAN.md`](../MASTER-PLAN.md). Bei Widerspruch gilt der Master-Plan.
+
 **Stand**: 2026-04-25
 **Vorgaenger**: `docs/gofuture/` (20 Plaene), `docs/goenterprise/` (10 Plaene)
 **Status**: Naechste Ausbaustufe nach GoFuture + GoEnterprise

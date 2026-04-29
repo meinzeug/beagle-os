@@ -1,5 +1,7 @@
 # Beagle OS Refactor - Umsetzungfahrplan
 
+> Kanonische Gesamtübersicht: [`docs/MASTER-PLAN.md`](../MASTER-PLAN.md). Welle 1–2 sind weitgehend abgeschlossen; aktuelle Hauptarbeitslinie ist GoEnterprise 8.x (siehe Master-Plan Abschnitt 5).
+
 Stand: 2026-04-13
 
 ## Strategisches Ziel
