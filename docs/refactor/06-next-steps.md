@@ -1,7 +1,22 @@
 # Next Steps
-# Next Steps
 
-## Stand (2026-04-29, Sunshine stream-prep dual-VM rerun noch offen)
+## Stand (2026-04-30, Plan 12 Schritt 1+2 abgeschlossen)
+
+**Zuletzt erledigt**:
+- `website/locales/de.json` + `en.json` erstellt (60+ Schluessel, identische Key-Sets).
+- `website/ui/i18n.js` implementiert: `t()`, `setLanguage()`, `getLanguage()`, Fallback-Kette de→en→key, localStorage-Persistenz, `beagle:langchange`-Event.
+- `website/ui/error-handler.js` implementiert: `showError`, `showWarning`, `showSuccess`, `showInfo`, `handleFetchError`, `withErrorHandling`.
+- Alle 5 verbliebenen `alert()`/`console.error`-Aufrufe in `cluster.js`, `events.js`, `secrets_admin.js` migriert.
+- 21 Unit-Tests, alle PASS (`tests/unit/test_i18n_and_error_handler.py`).
+
+**Naechste konkrete Schritte**:
+
+1. **Plan 12 Schritt 1 Migration**: `auth_admin.js`, `vms_panel.js` schrittweise auf `t()` umstellen (sichtbare deutsche Strings zuerst).
+2. **Plan 12 Schritt 3 ARIA**: `axe-core` CLI gegen `https://srv1.beagle-os.com` ausfuehren, Ergebnis dokumentieren.
+3. **VM102 Provider-State**: auf `srv1` VM102-Inventar-Diskrepanz beheben, Rerun `ensure-vm-stream-ready.sh --vmid 102`.
+4. Dann: Plan-09 Abnahmekriterien (CI pipeline verification) und Plan-10 Integration-Tests.
+
+
 
 **Zuletzt erledigt**:
 - Laufzeitfixes fuer den Stream-Ready-Pfad deployed (`PYTHONPATH`-Bootstrap in `ensure-vm-stream-ready.sh` + `configure-sunshine-guest.sh`, SCP-Zielpfad weg von `/tmp`).

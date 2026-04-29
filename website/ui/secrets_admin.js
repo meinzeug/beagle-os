@@ -147,7 +147,7 @@ export async function mountSecretsAdmin(container) {
           await rotateSecret(name);
           await refresh();
         } catch (err) {
-          alert(`Rotation failed: ${err?.message || err}`);
+          import('./error-handler.js').then(({ showError }) => showError(err, { context: 'Rotation failed' }));
           btn.disabled = false;
         }
       });
@@ -163,7 +163,7 @@ export async function mountSecretsAdmin(container) {
           await revokeSecret(name, version);
           await refresh();
         } catch (err) {
-          alert(`Revocation failed: ${err?.message || err}`);
+          import('./error-handler.js').then(({ showError }) => showError(err, { context: 'Revocation failed' }));
           btn.disabled = false;
         }
       });

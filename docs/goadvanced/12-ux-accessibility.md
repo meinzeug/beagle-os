@@ -25,23 +25,26 @@ Web-Console (`website/ui/*.js`) hat UX-Defizite:
 
 ## Schritte
 
-- [ ] **Schritt 1** — i18n-Infrastruktur
-  - [ ] `website/locales/de.json` + `website/locales/en.json`
-  - [ ] `website/ui/i18n.js`:
+- [x] **Schritt 1** — i18n-Infrastruktur
+  - [x] `website/locales/de.json` + `website/locales/en.json`
+  - [x] `website/ui/i18n.js`:
     - `t(key, params={})` → uebersetzter String
     - Fallback: en → key
     - Sprache aus `navigator.language` oder `localStorage.lang`
     - Live-Switch via Settings-Panel
-  - [ ] Tests: `tests/website/test_i18n.html` (browser-test)
+  - [x] Tests: `tests/unit/test_i18n_and_error_handler.py` (21 Tests, alle PASS)
   - [ ] Migration: ein Modul nach dem anderen umstellen, beginnend mit `auth_admin.js`, `vms_panel.js`
 
-- [ ] **Schritt 2** — Standardisierte Error-Behandlung
-  - [ ] `website/ui/error-handler.js`:
+- [x] **Schritt 2** — Standardisierte Error-Behandlung
+  - [x] `website/ui/error-handler.js`:
     - `showError(err, {context, recoverable})` → konsistenter Toast + Logging
-    - `showWarning(msg)`, `showSuccess(msg)`
-    - Auto-Dismiss nach 5s (Error: 10s)
+    - `showWarning(msg)`, `showSuccess(msg)`, `showInfo(msg)`, `withErrorHandling(promise, ctx)`
+    - `handleFetchError(err, context)` mappt HTTP-Status auf i18n-Texte
     - Stack-Trace nur in Dev-Mode
-  - [ ] Migration: alle `console.error` und `alert()`-Aufrufe ersetzen
+  - [x] Migration: alle `console.error` und `alert()`-Aufrufe ersetzt
+    - `website/ui/cluster.js` (1 Stelle)
+    - `website/ui/events.js` (2 Stellen → dynamischer Import)
+    - `website/ui/secrets_admin.js` (2 Stellen → dynamischer Import)
 
 - [ ] **Schritt 3** — ARIA + Tastatur
   - [ ] Audit: `axe-core` als CLI gegen `https://srv1/ui` laufen lassen

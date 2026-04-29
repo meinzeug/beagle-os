@@ -1,6 +1,7 @@
 import { qs, escapeHtml, text } from './dom.js';
 import { apiBase, postJson, patchJson, deleteJson, request } from './api.js';
 import { state } from './state.js';
+import { showError } from './error-handler.js';
 
 const clusterHooks = {
   openInventoryWithNodeFilter() {},
@@ -1069,7 +1070,7 @@ function streamJobProgress(jobId, onProgress, onComplete, onError) {
         const data = JSON.parse(event.data);
         emitFromPayload(data || {});
       } catch (error) {
-        console.error('Failed to parse job event:', error);
+        showError(error, { context: 'Job-Event parsen' });
       }
     };
     eventSource.onerror = () => {

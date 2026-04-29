@@ -1080,9 +1080,9 @@ export function bindEvents() {
         import('./api.js').then(({ request: req }) => req('/cluster/local-preflight')).then((data) => {
           const checks = Array.isArray(data && data.checks) ? data.checks : [];
           const lines = checks.map((c) => String(c.status || '?').toUpperCase() + ' ' + String(c.name || '') + ': ' + String(c.message || '')).join('\n');
-          window.alert('Preflight fuer ' + nodeName + ':\n\n' + (lines || 'Keine Daten.'));
+          import('./error-handler.js').then(({ showInfo }) => showInfo('Preflight ' + nodeName + ': ' + (lines || 'Keine Daten.')));
         }).catch((err) => {
-          window.alert('Preflight fehlgeschlagen: ' + String(err && err.message ? err.message : err));
+          import('./error-handler.js').then(({ showError }) => showError(err, { context: 'Preflight fehlgeschlagen' }));
         }).finally(() => {
           preflightBtn.disabled = false;
         });

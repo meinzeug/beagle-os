@@ -1,3 +1,23 @@
+## Update (2026-04-30, Plan 12 Schritt 1+2: i18n + error-handler implementiert)
+
+**Scope**: i18n-Infrastruktur und standardisierter Error-Handler fuer die Beagle Web Console.
+
+- Code:
+  - `website/locales/de.json` — 60+ Uebersetzungsschluesseln (Deutsch)
+  - `website/locales/en.json` — Spiegelstruktur (Englisch)
+  - `website/ui/i18n.js` — Lightweight-i18n: `t(key, params)`, `setLanguage`, `getLanguage`, `getSupportedLanguages`, XHR-basiertes synchrones Laden, `beagle:langchange`-Event
+  - `website/ui/error-handler.js` — `showError`, `showWarning`, `showSuccess`, `showInfo`, `handleFetchError`, `withErrorHandling`; baut auf `showJobToast` aus `jobs_panel.js` auf; Maps HTTP-Status auf i18n-Texte; Stack-Trace nur in Dev-Mode
+  - `website/ui/cluster.js` — `console.error` auf `showError` migriert
+  - `website/ui/events.js` — 2x `window.alert` auf `showInfo`/`showError` migriert (dynamic import)
+  - `website/ui/secrets_admin.js` — 2x `alert()` auf `showError` migriert (dynamic import)
+- Tests:
+  - `tests/unit/test_i18n_and_error_handler.py` — 21 Tests, alle PASS
+- Validierung:
+  - `node --check` alle modifizierten Module: OK
+  - pytest `test_i18n_and_error_handler.py`: 21/21 PASS
+
+---
+
 ## Update (2026-04-29, Sunshine stream-prep runtime fix on srv1 partially validated)
 
 **Scope**: Der offene Sunshine/Moonlight-Rerun fuer `ensure-vm-stream-ready.sh` wurde technisch entblockt (Import-/SCP-Fix), live auf `srv1` neu gefahren und als teil-erledigt dokumentiert.
