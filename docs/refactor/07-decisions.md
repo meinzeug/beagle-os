@@ -2,6 +2,11 @@
 
 Stand: 2026-04-13
 
+## D-056: Session-Repository erzwingt referenzierbare Pool-Zuordnung als Pflichtfeld
+- Entscheidung: `session_repository.py` behandelt `pool_id` als Pflichtfeld und persistiert Sessions nur FK-kompatibel gegen die `pools`-Tabelle; `vmid` bleibt optional (nullable) fuer laufende oder entkoppelte Session-Phasen.
+- Grund: Der Session-Lifecycle ist fachlich pool-gebunden, waehrend die VM-Referenz je nach Zustand fehlen kann; diese Regel reduziert inkonsistente Session-Daten frueh im SQLite-Pfad.
+- Dateien: `core/repository/session_repository.py`, `tests/unit/test_session_repository.py`.
+
 ## D-055: Device-Repository nutzt Status/Fingerprint als erste native Query-Spalten
 - Entscheidung: Der zweite SQLite-Repository-Slice (`device_repository.py`) fuehrt neben `payload_json` explizit `status` und `fingerprint` als filterbare Spalten, um die haeufigsten Registry-Abfragen frueh ohne JSON-Scan abzubilden.
 - Grund: Device-Fleet-Operatorik arbeitet regelmaessig nach Zustand und Hardware-Fingerprint; diese beiden Felder liefern sofort messbaren Nutzen fuer die spaetere Service-Migration bei minimalem Schema-Risiko.

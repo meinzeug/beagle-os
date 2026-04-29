@@ -1,5 +1,6 @@
 # Global TODO
 
+- [x] GoAdvanced Plan 06 Schritt 3 Teil 3 schliessen: `core/repository/session_repository.py` inkl. Tests und `srv1`-Smoke einfuehren.
 - [x] GoAdvanced Plan 06 Schritt 3 Teil 2 schliessen: `core/repository/device_repository.py` inkl. Tests und `srv1`-Smoke einfuehren.
 - [x] GoAdvanced Plan 06 Schritt 3 Teil 1 schliessen: erstes produktives SQLite-Repository `core/repository/vm_repository.py` inkl. Tests und `srv1`-Smoke einfuehren.
 - [x] GoAdvanced Plan 06 Schritt 2 schliessen: `core/persistence/migrations/001_init.sql` mit Tabellen, Pflicht-Indizes und ersten Foreign-Keys einfuehren; lokal + auf `srv1` validieren.

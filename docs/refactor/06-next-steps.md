@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 3 abgeschlossen)
+
+**Zuletzt erledigt**:
+- drittes SQLite-Repository (`core/repository/session_repository.py`) mit CRUD + Pool/User/Status-Filterung eingefuehrt und auf `srv1` validiert.
+
+**Naechste konkrete Schritte**:
+
+1. Plan 06 Schritt 3 weiterziehen: `pool_repository.py` als naechsten Slice umsetzen.
+2. Danach `gpu_repository.py` nachziehen und den Schritt-3-Block komplett auf `[x]` schliessen.
+3. Direkt im Anschluss Schritt 4 starten: JSON->SQLite-Importer (Dry-Run zuerst) fuer die bereits vorhandenen Repositories (`vms`, `devices`, `sessions`).
+
 ## Stand (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 2 abgeschlossen)
 
 **Zuletzt erledigt**:

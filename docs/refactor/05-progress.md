@@ -1,3 +1,21 @@
+## Update (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 3: Session-Repository)
+
+**Scope**: Dritter produktiver Repository-Slice auf SQLite-Basis umgesetzt.
+
+- Backend:
+  - `core/repository/session_repository.py`
+    - CRUD-Basis fuer Sessions: `get(session_id)`, `list(pool_id=None, user_id=None, status=None)`, `save(session)` (UPSERT), `delete(session_id)`.
+    - FK-kompatible Speicherung gegen `pools`/`vms` bei gleichzeitigem Beibehalten der Session-Payload als JSON.
+  - `tests/unit/test_session_repository.py`
+    - neue Tests fuer Roundtrip, UPSERT-Update, Filter (pool/user/status), Delete-Semantik und Pflichtfeld-Validierung (`session_id`, `pool_id`).
+- Lokale Tests:
+  - `python3 -m pytest tests/unit/test_session_repository.py tests/unit/test_device_repository.py tests/unit/test_vm_repository.py tests/unit/test_sqlite_db.py -q` -> `21 passed`
+- `srv1`-Validierung:
+  - non-invasiver Repo-Smoke mit temporaer hochgeladenen Dateien (`sqlite_db.py`, `001_init.sql`, `session_repository.py`).
+  - Ergebnis: `SRV1_PLAN06_SESSION_REPO_SMOKE=PASS`.
+- Plan-Status:
+  - `session_repository.py` als Teil von Plan 06 Schritt 3 umgesetzt.
+
 ## Update (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 2: Device-Repository)
 
 **Scope**: Zweiter produktiver Repository-Slice auf SQLite-Basis umgesetzt.
