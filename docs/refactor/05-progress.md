@@ -1,3 +1,40 @@
+## Update (2026-04-29, VPN als Standardpfad fuer VM-Streaming durchgezogen)
+
+**Scope**: Der globale Standardpfad fuer VM-Streaming ist auf WireGuard/VPN umgestellt (statt `direct`) und sowohl auf `srv1` als auch in der lokalen Thinclient-VM verifiziert.
+
+- Code:
+  - `beagle-host/services/vm_profile.py`
+    - Default-Egress fuer VM-Profile von `direct` auf `full` + `wireguard` + `wg-beagle` umgestellt.
+  - `beagle-host/services/installer_script.py`
+    - Installer-Preset-Fallbacks fuer Egress auf `full`/`wireguard`/`wg-beagle` umgestellt.
+  - `beagle-host/services/endpoint_enrollment.py`
+    - Enrollment-Config defaultet jetzt auf `full`; WireGuard-Bootstrap-Defaults greifen auch bei unvollstaendigen Profilfeldern.
+  - `beagle-host/services/thin_client_preset.py`
+    - Runtime-Extension-Defaults fuer Egress auf WireGuard-Standard gesetzt.
+  - `beagle-host/services/fleet_inventory.py`
+    - Inventory-Fallback fuer `egress_mode` von `direct` auf `full` angepasst.
+  - Thinclient-Stack:
+    - `thin-client-assistant/installer/env-defaults.json`
+    - `thin-client-assistant/runtime/apply_enrollment_config.py`
+    - `thin-client-assistant/runtime/runtime_endpoint_enrollment.sh`
+    - `thin-client-assistant/usb/pve-thin-client-local-installer.sh`
+    - `thin-client-assistant/usb/usb_writer_write_stage.sh`
+    - `thin-client-assistant/usb/pve-thin-client-usb-installer.ps1`
+    - Alle relevanten Default-/Fallback-Pfade von `direct` auf `full` + `wireguard` + `wg-beagle` gezogen.
+- Tests/Validierung:
+  - lokal: `python3 -m pytest -q tests/integration/test_endpoint_boot_to_streaming.py` => `18 passed`.
+  - lokal: Python-Compile + `bash -n` fuer geaenderte Service-/Runtime-Dateien => OK.
+  - `srv1` live:
+    - `beagle-control-plane.service` nach Patch-Neuladung aktiv.
+    - `GET /api/v1/vms/100` liefert `egress_mode=full`, `egress_type=wireguard`, `egress_interface=wg-beagle`.
+    - `/api/v1/vms/100/installer.sh` enthaelt im eingebetteten Preset `PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_MODE=full`, `...TYPE=wireguard`, `...INTERFACE=wg-beagle`.
+  - lokale Thinclient-VM live:
+    - WireGuard-Enrollment gegen `https://srv1.beagle-os.com/beagle-api` erfolgreich (`wg-beagle` up, Client-IP `10.88.1.1/32`).
+    - Route zur privaten VM100-IP `192.168.123.116` geht ueber `wg-beagle`.
+    - WG-Transferzaehler steigt bei Zugriff auf die private Sunshine-Ziel-IP an (VPN-Datenpfad aktiv).
+
+---
+
 ## Update (2026-04-29, Smoke-Scripts stabilisiert + Sunshine/Moonlight Validierungspfad eingeführt)
 
 **Scope**: Drei offene TODO-Punkte aus `08-todo-global.md` geschlossen:

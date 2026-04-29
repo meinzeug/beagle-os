@@ -183,9 +183,9 @@ class InstallerScriptService:
                     profile.get("update_feed_url", f"{self._public_manager_url}/api/v1/endpoints/update-feed") or ""
                 ),
                 beagle_update_version_pin=str(profile.get("update_version_pin", "") or ""),
-                beagle_egress_mode=str(profile.get("egress_mode", "direct") or "direct"),
-                beagle_egress_type=str(profile.get("egress_type", "") or ""),
-                beagle_egress_interface=str(profile.get("egress_interface", "beagle-egress") or "beagle-egress"),
+                beagle_egress_mode=str(profile.get("egress_mode", "full") or "full"),
+                beagle_egress_type=str(profile.get("egress_type", "wireguard") or "wireguard"),
+                beagle_egress_interface=str(profile.get("egress_interface", "wg-beagle") or "wg-beagle"),
                 beagle_egress_domains=" ".join(profile.get("egress_domains", []) or []),
                 beagle_egress_resolvers=" ".join(profile.get("egress_resolvers", []) or []),
                 beagle_egress_allowed_ips=" ".join(profile.get("egress_allowed_ips", []) or []),

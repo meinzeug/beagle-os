@@ -1,6 +1,19 @@
 # Next Steps
 # Next Steps
 
+## Stand (2026-04-29, VPN-Default fuer VM-Streaming live)
+
+**Zuletzt erledigt**:
+- Egress-Defaults in Host-Profil, Installer-Generator und Thinclient-Runtime/Installer von `direct` auf `full` + `wireguard` + `wg-beagle` umgestellt.
+- `srv1` liefert fuer VM100 jetzt API-/Installer-seitig konsistent WireGuard-Defaults.
+- Lokale Thinclient-VM konnte `wg-beagle` erfolgreich gegen `srv1` enrollen; private Zielroute `192.168.123.116` laeuft ueber das VPN-Interface.
+
+**Naechste konkrete Schritte**:
+
+1. Frische VM100-Installer-Neuinstallation in der lokalen Thinclient-VM fahren (statt Legacy-Image-Fixups) und den gleichen WG-Nachweis ohne manuelle Script-Nachinstallation wiederholen.
+2. End-to-End-Streamstart im VPN-Pfad finalisieren (Moonlight-Launch auf private Ziel-IP/Policy-Pfad) und als reproduzierbaren Smoke in `scripts/` festhalten.
+3. Danach den verbleibenden offenen Host-Restblock aus `08-todo-global.md` (clean-install Host-Validierung post server-installer ISO) weiterziehen.
+
 ## Stand (2026-04-29, Smoke-Scripts stabilisiert + Sunshine/Moonlight Validierungspfad eingeführt)
 
 **Zuletzt erledigt**:

@@ -118,7 +118,7 @@ class FleetInventoryService:
                     "sunshine_api_url": profile.get("sunshine_api_url", ""),
                     "moonlight_app": profile.get("moonlight_app", ""),
                     "network_mode": profile.get("network_mode", ""),
-                    "egress_mode": profile.get("egress_mode", "direct"),
+                    "egress_mode": profile.get("egress_mode", "full"),
                     "beagle_role": profile.get("beagle_role", ""),
                     "guest_user": profile.get("guest_user", ""),
                     "identity_timezone": profile.get("identity_timezone", ""),

@@ -136,9 +136,9 @@ class EndpointEnrollmentService:
         )
         if not isinstance(wg_defaults, dict):
             wg_defaults = {}
-        profile_egress_mode = str(profile.get("egress_mode", "direct") or "direct")
+        profile_egress_mode = str(profile.get("egress_mode", "full") or "full")
         profile_egress_type = str(profile.get("egress_type", "") or "")
-        if wg_defaults and profile_egress_mode == "direct" and not profile_egress_type:
+        if wg_defaults and (not profile_egress_type or profile_egress_mode == "direct"):
             profile_egress_mode = str(wg_defaults.get("egress_mode", "") or profile_egress_mode)
             profile_egress_type = str(wg_defaults.get("egress_type", "") or profile_egress_type)
         profile_egress_interface = str(profile.get("egress_interface", "") or "")
@@ -172,7 +172,7 @@ class EndpointEnrollmentService:
             "moonlight_app": str(profile.get("moonlight_app", "Desktop") or "Desktop"),
             "egress_mode": profile_egress_mode,
             "egress_type": profile_egress_type,
-            "egress_interface": profile_egress_interface or "beagle-egress",
+            "egress_interface": profile_egress_interface or "wg-beagle",
             "egress_domains": list(profile.get("egress_domains", []) or []),
             "egress_resolvers": list(profile.get("egress_resolvers", []) or []),
             "egress_allowed_ips": list(profile.get("egress_allowed_ips", []) or []),

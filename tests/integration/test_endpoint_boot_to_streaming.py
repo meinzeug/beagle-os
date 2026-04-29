@@ -135,7 +135,9 @@ def _make_enrollment_service(
             "moonlight_local_host": f"192.168.100.{vm.vmid}",
             "moonlight_port": "47984",
             "moonlight_app": "Desktop",
-            "egress_mode": "direct",
+            "egress_mode": "full",
+            "egress_type": "wireguard",
+            "egress_interface": "wg-beagle",
         }
 
     def _ensure_vm_secret(vm):
@@ -444,6 +446,6 @@ class TestStreamingConfigFields:
     def test_config_has_egress_fields(self, enrollment_store, endpoint_store):
         result = self._enroll(403, enrollment_store, endpoint_store)
         cfg = result["config"]
-        assert cfg["egress_mode"] == "direct"
+        assert cfg["egress_mode"] == "full"
         assert isinstance(cfg["egress_domains"], list)
         assert isinstance(cfg["egress_resolvers"], list)

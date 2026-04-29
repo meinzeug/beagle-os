@@ -360,6 +360,10 @@
 - [x] Validate Sunshine self-heal timer (`beagle-sunshine-healthcheck.timer`) on VM reboot and forced crash (`pkill sunshine`).
 	- Umsetzung 2026-04-29: `scripts/test-sunshine-selfheal-smoke.sh` eingeführt; prüft Timer-Zustand, killst sunshine via `pkill -9`, wartet auf Neustart, validiert API-Antwort und führt Healthcheck-Skript manuell aus. Ausführbar via `BEAGLE_SMOKE_VM_SSH=beagle@<guest-ip> bash scripts/test-sunshine-selfheal-smoke.sh`.
 	- Validierung 2026-04-29 auf `srv1` / VM100 (`192.168.123.116`, Sunshine-Port `50001`): `SUNSHINE_SELFHEAL_SMOKE=PASS`; Sunshine restartete nach `pkill -9` innerhalb von 90s, API antwortete mit HTTP `401`, manueller Healthcheck lief ohne harten Fehlerpfad durch.
+- [x] Set VPN/WireGuard as default transport for VM Sunshine/Moonlight endpoints (no direct default fallback).
+	- Umsetzung 2026-04-29: Host-/Installer-/Runtime-Defaults auf `egress_mode=full`, `egress_type=wireguard`, `egress_interface=wg-beagle` umgestellt (`vm_profile.py`, `installer_script.py`, `endpoint_enrollment.py`, `thin_client_preset.py`, Thinclient-Installer/Runtime inkl. PowerShell writer).
+	- Validierung 2026-04-29 auf `srv1`: `GET /api/v1/vms/100` liefert `full/wireguard/wg-beagle`; VM100-Installer enthaelt dieselben Werte im eingebetteten Preset.
+	- Lokale Thinclient-VM-Validierung: `wg-beagle` erfolgreich enrolled gegen `srv1`, Route zur privaten VM100-IP (`192.168.123.116`) geht ueber WG, WG-Transferzaehler steigen bei Zielzugriff.
 - [x] Rebuild thin-client installer payload/bootstrap with patched target-disk/partition-readiness logic, rerun VM100 thinclient preset install locally to completion, and refresh the hosted `srv1` bootstrap bundle.
 - [x] Redeploy patched provider start/redefine behavior on installed beagleserver host and recreate VM 101/100 start path to remove stale-domain autoinstall loop risk.
 - [x] Fix VM start error `domain 'beagle-100' already exists with uuid ...` in beagle libvirt provider by preserving existing domain UUID during redefine.

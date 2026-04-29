@@ -106,7 +106,7 @@ enroll_endpoint_if_needed() {
 enroll_wireguard_if_needed() {
   local manager_url manager_token mode egress_type interface_name endpoint_id script_path
 
-  mode="${PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE:-direct}"
+  mode="${PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE:-full}"
   egress_type="${PVE_THIN_CLIENT_BEAGLE_EGRESS_TYPE:-}"
   [[ "$mode" != "direct" ]] || return 0
   [[ "$egress_type" == "wireguard" ]] || return 0
