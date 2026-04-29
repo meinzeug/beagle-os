@@ -48,7 +48,9 @@
 - [x] GoEnterprise Plan 09: offene Testpflicht (RAPL/VM-Anteil, 100W->40g CO2, Chargeback-Energiekosten, CSRD Scope-2 Quartal) mit Acceptance-Suite und srv1-Lauf schliessen.
 - [x] GoEnterprise Plan 09: externen Feed-/Importjob für stündlichen Carbon-/Strommix hinterlegen.
 
-- [ ] Sunshine-/Desktop-Gast-Smoke fuer neue WebUI-VMs erweitern: nach Provisioning live `xset q` sowie Abwesenheit von `light-locker` und `xfce4-power-manager` pruefen.
+- [x] Sunshine-/Desktop-Gast-Smoke fuer neue WebUI-VMs erweitern: nach Provisioning live `xset q` sowie Abwesenheit von `light-locker` und `xfce4-power-manager` pruefen.
+	- Umsetzung 2026-04-29: `scripts/ensure-vm-stream-ready.sh` fuehrt nach erfolgreichem Sunshine-API-Check zusaetzlich einen Guest-Desktop-Smoke aus (`xset q`, `light-locker`/`xfce4-power-manager` Prozess-Check) und persistiert einen Warnstatus ohne den Ready-Flow hart abzubrechen.
+
 
 ## Update 2026-04-28 (GoEnterprise Plan 02)
 

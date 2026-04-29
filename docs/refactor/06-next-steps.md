@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-04-29, Sunshine/Desktop-Guest-Smoke im Provisioning-Ready-Flow geschlossen)
+
+**Zuletzt erledigt**:
+- `scripts/ensure-vm-stream-ready.sh` prueft nach Provisioning jetzt live `xset q` plus Abwesenheit von `light-locker` und `xfce4-power-manager`.
+- Der neue Desktop-Guard ist im Runtime-Pfad auf `srv1` gegen VM100 validiert; Warnungen bleiben sichtbar, ohne den Ready-Flow hart abzubrechen.
+
+**Naechste konkrete Schritte**:
+
+1. Offenen Top-Punkt aus `docs/refactor/08-todo-global.md` weiterziehen: QEMU+SSH-Live-Migration-Deadlock zwischen `srv1`/`srv2` reproduzierbar eingrenzen oder Shared-Storage-Migrationspfad als Abnahmeweg dokumentieren.
+2. Danach den offenen Plan-09-Restpunkt (`node-failure<=60s`, fencing start-block, maintenance drain live, anti-affinity multi-node runtime) auf echter 2-Node-Laufzeit final abnehmen.
+3. Anschliessend die verbleibenden GoRelease-R2/R3-Gates in `docs/gorelease/` mit dem gleichen Muster schliessen: erst reproduzierbarer Code-/Testpfad, dann `srv1`/`srv2`-Live-Validierung.
+
 ## Stand (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 3 abgeschlossen)
 
 **Zuletzt erledigt**:

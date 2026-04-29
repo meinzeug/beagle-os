@@ -2,6 +2,11 @@
 
 Stand: 2026-04-13
 
+## D-057: Desktop-Streaming-Guards im Ready-Flow sind sichtbar, aber nicht hart blockierend
+- Entscheidung: `scripts/ensure-vm-stream-ready.sh` prueft nach erfolgreichem Sunshine-API-Check zusaetzlich `xset q` und die Abwesenheit von `light-locker`/`xfce4-power-manager`; ein fehlschlagender Guard setzt einen Warnhinweis im Ready-Ergebnis statt den gesamten Provisioning-Flow auf `error` zu brechen.
+- Grund: Der Guard macht Live-Desktop-Drift fuer Operatoren sichtbar, ohne bestehende Bereitstellungspfade unnoetig hart zu unterbrechen (z.B. bei temporaerer Display-/Session-Unsauberkeit waehrend des First-Login-Fensters).
+- Dateien: `scripts/ensure-vm-stream-ready.sh`, `tests/unit/test_ensure_vm_stream_ready_regressions.py`.
+
 ## D-056: Session-Repository erzwingt referenzierbare Pool-Zuordnung als Pflichtfeld
 - Entscheidung: `session_repository.py` behandelt `pool_id` als Pflichtfeld und persistiert Sessions nur FK-kompatibel gegen die `pools`-Tabelle; `vmid` bleibt optional (nullable) fuer laufende oder entkoppelte Session-Phasen.
 - Grund: Der Session-Lifecycle ist fachlich pool-gebunden, waehrend die VM-Referenz je nach Zustand fehlen kann; diese Regel reduziert inkonsistente Session-Daten frueh im SQLite-Pfad.

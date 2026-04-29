@@ -1,3 +1,21 @@
+## Update (2026-04-29, Sunshine/Desktop-Guest-Smoke im Provisioning-Ready-Flow erweitert)
+
+**Scope**: Offenen Global-TODO-Punkt fuer neue WebUI-Desktop-VMs geschlossen: Nach dem Provisioning wird im Stream-Ready-Flow jetzt zusaetzlich geprueft, ob `xset q` auf `DISPLAY=:0` erfolgreich ist und ob `light-locker`/`xfce4-power-manager` nicht laufen.
+
+- Code:
+  - `scripts/ensure-vm-stream-ready.sh`
+    - neue Guest-Check-Funktion `sunshine_guest_desktop_smoke_json`
+    - neuer Verify-Schritt nach erfolgreichem Sunshine-API-Check
+    - nicht-blockierender Warnpfad (`ready` bleibt erhalten), wenn Desktop-Guard fehlschlaegt
+- Tests:
+  - neu `tests/unit/test_ensure_vm_stream_ready_regressions.py`
+  - erweitert `tests/unit/test_configure_sunshine_guest_regressions.py`
+  - lokal: `python3 -m pytest tests/unit/test_ensure_vm_stream_ready_regressions.py tests/unit/test_configure_sunshine_guest_regressions.py -q` => `2 passed`
+- Live-Validierung auf `srv1`:
+  - Lauf gegen VM 100 (`beagle-0`) mit der geaenderten Script-Version
+  - Ergebnis im Installer-Prep-State: `status=ready`, `phase=complete`, Message enthaelt den neuen Desktop-Guard-Warnhinweis
+  - Damit ist der geforderte Live-Smoke im echten Runtime-Pfad nachgezogen, ohne bestehende Provisioning-Ready-Flows hart zu brechen.
+
 ## Update (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 3: Session-Repository)
 
 **Scope**: Dritter produktiver Repository-Slice auf SQLite-Basis umgesetzt.

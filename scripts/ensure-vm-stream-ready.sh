@@ -201,6 +201,32 @@ sunshine_guest_status_json() {
   beagle_provider_guest_exec_sync_bash "$VMID" "$command"
 }
 
+sunshine_guest_desktop_smoke_json() {
+  local guest_user="$1"
+  local command
+  command="$(cat <<'EOF'
+guest_user="__GUEST_USER__"
+xauth="/home/${guest_user}/.Xauthority"
+xset_ok=0
+light_locker_running=0
+xfce_power_running=0
+
+if command -v xset >/dev/null 2>&1; then
+  if DISPLAY=:0 XAUTHORITY="$xauth" xset q >/dev/null 2>&1; then
+    xset_ok=1
+  fi
+fi
+
+pgrep -x light-locker >/dev/null 2>&1 && light_locker_running=1
+pgrep -x xfce4-power-manager >/dev/null 2>&1 && xfce_power_running=1
+
+printf '{"xset_ok":%s,"light_locker_running":%s,"xfce4_power_manager_running":%s}\n' "$xset_ok" "$light_locker_running" "$xfce_power_running"
+EOF
+)"
+  command="${command//__GUEST_USER__/$guest_user}"
+  beagle_provider_guest_exec_sync_bash "$VMID" "$command"
+}
+
 repair_sunshine_guest_runtime() {
   local command
   command='if command -v /usr/local/bin/beagle-sunshine-healthcheck >/dev/null 2>&1; then /usr/local/bin/beagle-sunshine-healthcheck --repair-only >/dev/null 2>&1 || true; else systemctl daemon-reload >/dev/null 2>&1 || true; systemctl enable --now beagle-sunshine.service >/dev/null 2>&1 || true; systemctl restart beagle-sunshine.service >/dev/null 2>&1 || true; fi; binary=0; service=0; process=0; command -v sunshine >/dev/null 2>&1 && binary=1; (systemctl is-active sunshine >/dev/null 2>&1 || systemctl is-active beagle-sunshine.service >/dev/null 2>&1) && service=1; pgrep -x sunshine >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
@@ -302,7 +328,7 @@ run_public_stream_reconcile() {
 }
 
 main() {
-  local stream_port sunshine_user sunshine_password sunshine_pin sunshine_pinned_pubkey guest_user guest_password sunshine_status_raw sunshine_status_json public_api_url direct_api_url guest_ip installer_guest_ip extra_json verify_extra_json
+  local stream_port sunshine_user sunshine_password sunshine_pin sunshine_pinned_pubkey guest_user guest_password sunshine_status_raw sunshine_status_json desktop_smoke_raw desktop_smoke_json public_api_url direct_api_url guest_ip installer_guest_ip extra_json verify_extra_json
 
   parse_args "$@"
   [[ -n "$VMID" && -n "$NODE" ]] || { usage; exit 1; }
@@ -522,10 +548,89 @@ base["installer_target_status"] = "ready"
 print(json.dumps(base))
 PY
 )"
+      write_state running verify 95 "Sunshine ist bereit. Pruefe Desktop-Streaming-Guards in der VM." "$verify_extra_json"
+      desktop_smoke_raw="$(sunshine_guest_desktop_smoke_json "$guest_user")"
+      desktop_smoke_json="$(python3 - "$desktop_smoke_raw" <<'PY'
+import json
+import sys
+
+raw = sys.argv[1].strip()
+if not raw:
+    print('{"xset_ok":0,"light_locker_running":0,"xfce4_power_manager_running":0}')
+    raise SystemExit(0)
+try:
+    payload = json.loads(raw)
+except Exception:
+    payload = {"xset_ok": 0, "light_locker_running": 0, "xfce4_power_manager_running": 0}
+if isinstance(payload, dict):
+  out = payload.get('out-data') or payload.get('stdout') or payload.get('output') or ''
+else:
+  out = ''
+try:
+    if out:
+        inner = json.loads(out.strip().splitlines()[-1])
+    else:
+        inner = {"xset_ok": 0, "light_locker_running": 0, "xfce4_power_manager_running": 0}
+except Exception:
+    inner = {"xset_ok": 0, "light_locker_running": 0, "xfce4_power_manager_running": 0}
+print(json.dumps(inner))
+PY
+)"
+      verify_extra_json="$(python3 - "$verify_extra_json" "$desktop_smoke_json" <<'PY'
+import json
+import sys
+
+base = json.loads(sys.argv[1])
+desktop = json.loads(sys.argv[2])
+base["desktop_smoke"] = {
+    "xset_ok": bool(desktop.get("xset_ok")),
+    "light_locker_running": bool(desktop.get("light_locker_running")),
+    "xfce4_power_manager_running": bool(desktop.get("xfce4_power_manager_running")),
+}
+print(json.dumps(base))
+PY
+)"
+
+      if ! python3 - "$desktop_smoke_json" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+ok = bool(payload.get("xset_ok")) and not bool(payload.get("light_locker_running")) and not bool(payload.get("xfce4_power_manager_running"))
+raise SystemExit(0 if ok else 1)
+PY
+      then
+        verify_extra_json="$(python3 - "$verify_extra_json" <<'PY'
+import json
+import sys
+
+base = json.loads(sys.argv[1])
+base["desktop_smoke_ok"] = False
+base["desktop_smoke_warning"] = "xset q oder Locker/Power-Manager-Pruefung fehlgeschlagen"
+print(json.dumps(base))
+PY
+)"
+        if verify_public_api "$public_api_url" "$sunshine_user" "$sunshine_password" "$sunshine_pinned_pubkey"; then
+          write_state ready complete 100 "Sunshine ist bereit, aber Desktop-Streaming-Guards melden Warnungen (xset q oder Locker/Power-Manager)." "$verify_extra_json"
+        else
+          write_state ready complete 100 "Sunshine ist bereit (direkter API-Check), aber Desktop-Streaming-Guards melden Warnungen (xset q oder Locker/Power-Manager)." "$verify_extra_json"
+        fi
+        exit 0
+      fi
+
+      verify_extra_json="$(python3 - "$verify_extra_json" <<'PY'
+import json
+import sys
+
+base = json.loads(sys.argv[1])
+base["desktop_smoke_ok"] = True
+print(json.dumps(base))
+PY
+)"
+
       if verify_public_api "$public_api_url" "$sunshine_user" "$sunshine_password" "$sunshine_pinned_pubkey"; then
-        write_state ready complete 100 "Sunshine ist bereit. Oeffentlicher API-Check war erfolgreich." "$verify_extra_json"
+        write_state ready complete 100 "Sunshine ist bereit. Oeffentlicher API-Check und Desktop-Streaming-Guards waren erfolgreich." "$verify_extra_json"
       else
-        write_state ready complete 100 "Sunshine ist bereit. Direkter API-Check in der VM war erfolgreich; oeffentlicher Self-Check wurde auf dem Host uebersprungen." "$verify_extra_json"
+        write_state ready complete 100 "Sunshine ist bereit. Direkter API-Check und Desktop-Streaming-Guards in der VM waren erfolgreich; oeffentlicher Self-Check wurde auf dem Host uebersprungen." "$verify_extra_json"
       fi
       exit 0
     fi
