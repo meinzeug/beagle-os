@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 from typing import Any, Callable
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 class EndpointReportService:
@@ -28,7 +29,7 @@ class EndpointReportService:
 
     def store(self, node: str, vmid: int, payload: dict[str, Any]) -> Path:
         path = self.report_path(node, vmid)
-        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        JsonStateStore(path, default_factory=dict).save(payload)
         return path
 
     def list_all(self) -> list[dict[str, Any]]:

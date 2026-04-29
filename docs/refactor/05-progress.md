@@ -1,3 +1,20 @@
+## Update (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 3: Endpoint/Firewall/Cluster-Membership)
+
+**Scope**: Dritter 3d-Batch umgesetzt, um direkte JSON-Write-Pfade weiter zu reduzieren.
+
+- Backend:
+  - `beagle-host/services/endpoint_report.py`
+  - `beagle-host/services/firewall_service.py`
+  - `beagle-host/services/cluster_membership.py`
+  - Persistenz in allen drei Services auf `JsonStateStore`/atomare Store-Helper umgestellt.
+- Lokale Tests:
+  - `python3 -m pytest tests/unit/test_cluster_membership.py tests/unit/test_endpoint_http_surface.py tests/unit/test_endpoint_lifecycle_surface.py -q` -> `38 passed`
+- `srv1`-Validierung:
+  - non-invasiver Batch-Smoke via `PYTHONPATH=/tmp:/opt/beagle:/opt/beagle/beagle-host/services` mit den drei geaenderten Dateien.
+  - Ergebnis: `SRV1_WAVE3D_PART3_SMOKE=PASS`.
+- Rest-Grep nach diesem Batch:
+  - Verbleibende direkte `write_text(json.dumps(`-Pfade in `beagle-host/services`: `webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `sunshine_integration.py`, `gaming_metrics_service.py`.
+
 ## Update (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 2: Maintenance/Installer-Logs/HA-Watchdog)
 
 **Scope**: Zweiter 3d-Batch umgesetzt, um verbleibende direkte JSON-Write-Pfade weiter zu reduzieren.

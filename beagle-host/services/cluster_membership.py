@@ -16,6 +16,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from ca_manager import ClusterCaService
+from core.persistence.json_state_store import JsonStateStore
 
 
 class ClusterMembershipService:
@@ -68,14 +69,7 @@ class ClusterMembershipService:
         return default
 
     def _write_json(self, path: Path, payload: Any, *, mode: int = 0o600) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = path.with_suffix(path.suffix + ".tmp")
-        temp_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        temp_path.replace(path)
-        try:
-            path.chmod(mode)
-        except OSError:
-            pass
+        JsonStateStore(path, default_factory=dict, mode=mode).save(payload)
 
     @staticmethod
     def _host_from_url(url: str) -> str:

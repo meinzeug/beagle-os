@@ -1,11 +1,12 @@
 """Firewall service using nftables for VM traffic filtering."""
 from __future__ import annotations
 
-import json
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 @dataclass
@@ -47,21 +48,28 @@ class FirewallService:
             self.BACKUP_FILE = backup_file
         self.STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
         self.BACKUP_FILE.parent.mkdir(parents=True, exist_ok=True)
+        self._state_store = JsonStateStore(self.STATE_FILE, default_factory=lambda: {"profiles": {}, "vm_profiles": {}})
+        self._backup_store = JsonStateStore(self.BACKUP_FILE, default_factory=lambda: {"profiles": {}, "vm_profiles": {}})
         self._state = self._load_state()
 
     def _load_state(self) -> dict[str, Any]:
         """Load persisted firewall state."""
-        if self.STATE_FILE.exists():
-            return json.loads(self.STATE_FILE.read_text())
-        return {"profiles": {}, "vm_profiles": {}}
+        payload = self._state_store.load()
+        if not isinstance(payload, dict):
+            return {"profiles": {}, "vm_profiles": {}}
+        if not isinstance(payload.get("profiles"), dict):
+            payload["profiles"] = {}
+        if not isinstance(payload.get("vm_profiles"), dict):
+            payload["vm_profiles"] = {}
+        return payload
 
     def _save_state(self) -> None:
         """Save firewall state to disk."""
-        self.STATE_FILE.write_text(json.dumps(self._state, indent=2))
+        self._state_store.save(self._state)
 
     def _backup_state(self) -> None:
         """Backup current state before applying changes."""
-        self.BACKUP_FILE.write_text(self.STATE_FILE.read_text())
+        self._backup_store.save(self._state)
 
     def _run_nft_cmd(self, cmd: list[str], test_only: bool = False) -> bool:
         """Run nft command. If test_only, run in dry-run mode."""
@@ -198,9 +206,8 @@ class FirewallService:
     def rollback(self) -> None:
         """Rollback to previous firewall state."""
         if self.BACKUP_FILE.exists():
-            backup_content = self.BACKUP_FILE.read_text()
-            self.STATE_FILE.write_text(backup_content)
-            self._state = json.loads(backup_content)
+            self._state = self._backup_store.load()
+            self._save_state()
 
     def list_profiles(self) -> list[dict[str, Any]]:
         """List all firewall profiles."""

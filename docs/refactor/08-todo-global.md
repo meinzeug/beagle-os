@@ -1,5 +1,6 @@
 # Global TODO
 
+- [x] GoAdvanced Plan 01 Welle 3d Teil 3 schliessen: `endpoint_report.py`, `firewall_service.py`, `cluster_membership.py` auf `JsonStateStore`/atomare Store-Helper migrieren und lokal + auf `srv1` validieren.
 - [x] GoAdvanced Plan 01 Welle 3d Teil 2 schliessen: `maintenance_service.py`, `installer_log_service.py`, `ha_watchdog.py` auf `JsonStateStore` migrieren und lokal + auf `srv1` validieren.
 - [x] GoAdvanced Plan 01 Welle 3d Teil 1 schliessen: `backup_service.py`, `entitlement_service.py`, `stream_policy_service.py` auf `JsonStateStore` migrieren und lokal + auf `srv1` validieren.
 - [x] GoAdvanced Plan 01 Welle 3c schliessen: `fleet_telemetry_service.py` Maintenance-Schedule auf `JsonStateStore` migrieren und Welle-3c-Services (`session_manager`, `metrics_collector`, `workload_pattern_analyzer`, `smart_scheduler`) lokal + auf `srv1` validieren.

@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 3 abgeschlossen)
+
+**Zuletzt erledigt**:
+- `endpoint_report.py`, `firewall_service.py` und `cluster_membership.py` auf `JsonStateStore`/atomare JSON-Store-Helper migriert; lokale Tests + `srv1`-Batch-Smoke erfolgreich.
+
+**Naechste konkrete Schritte**:
+
+1. Welle 3d Teil 4: verbleibende Service-Pfade `webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `sunshine_integration.py`, `gaming_metrics_service.py` migrieren.
+2. Danach Plan-01-Restpunkt `Repo-Grep` fuer direkte `path.write_text(json.dumps(` ausserhalb von Tests final auf Null bringen.
+3. Nach Abschluss von Welle 3d den Gesamtstatus in `docs/goadvanced/01-data-integrity.md` und `docs/refactor/08-todo-global.md` als komplett markieren.
+
 ## Stand (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 2 abgeschlossen)
 
 **Zuletzt erledigt**:
