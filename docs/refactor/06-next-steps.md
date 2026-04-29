@@ -1,6 +1,19 @@
 # Next Steps
 # Next Steps
 
+## Stand (2026-04-29, Sunshine stream-prep dual-VM rerun noch offen)
+
+**Zuletzt erledigt**:
+- Laufzeitfixes fuer den Stream-Ready-Pfad deployed (`PYTHONPATH`-Bootstrap in `ensure-vm-stream-ready.sh` + `configure-sunshine-guest.sh`, SCP-Zielpfad weg von `/tmp`).
+- `srv1`-Rerun gegen VM100 war erfolgreich.
+- VM102 bleibt als externer Runtime-Blocker offen (`VM 102 not found in beagle provider state`, keine Guest-IP).
+
+**Naechste konkrete Schritte**:
+
+1. Auf `srv1` die VM102-Inventar-/Provider-State-Diskrepanz beheben (VM neu registrieren oder neu provisionieren), bis `beagle_provider` wieder `guest-exec`/`guest-ipv4` liefern kann.
+2. Danach den offenen Pflicht-Run erneut fahren: `scripts/ensure-vm-stream-ready.sh --vmid 100 --node beagle-0` und `--vmid 102 --node beagle-0`.
+3. Erst nach dualem PASS den offenen Sunshine/Moonlight-TODO in `08-todo-global.md` auf `[x]` setzen und die restliche first-boot readiness gate Validierung (`clean VM100/101`) weiterziehen.
+
 ## Stand (2026-04-29, Plan-07 5GB Backup-Lasttest auf srv1 geschlossen)
 
 **Zuletzt erledigt**:

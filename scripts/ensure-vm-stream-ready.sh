@@ -2,9 +2,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/provider_shell.sh"
 PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$SCRIPT_DIR/lib/beagle_provider.py}"
 PROVIDER_HELPER_AVAILABLE_CACHE="${PROVIDER_HELPER_AVAILABLE_CACHE:-}"
+
+# Ensure provider imports can resolve top-level repo modules (e.g. core/*) on live hosts.
+export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 VMID="${VMID:-}"
 NODE="${NODE:-}"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
@@ -342,6 +346,24 @@ main() {
   sunshine_password="$(vm_secret_get sunshine_password)"
   sunshine_pin="$(vm_secret_get sunshine_pin)"
   sunshine_pinned_pubkey="$(vm_secret_get sunshine_pinned_pubkey)"
+  if [[ -z "$sunshine_user" ]]; then
+    sunshine_user="$(meta_get sunshine-user)"
+  fi
+  if [[ -z "$sunshine_password" ]]; then
+    sunshine_password="$(meta_get sunshine-password)"
+  fi
+  if [[ -z "$sunshine_pin" ]]; then
+    sunshine_pin="$(meta_get sunshine-pin)"
+  fi
+  if [[ -z "$sunshine_user" ]]; then
+    sunshine_user="$(latest_ubuntu_state_credential sunshine_username)"
+  fi
+  if [[ -z "$sunshine_password" ]]; then
+    sunshine_password="$(latest_ubuntu_state_credential sunshine_password)"
+  fi
+  if [[ -z "$sunshine_pin" ]]; then
+    sunshine_pin="$(latest_ubuntu_state_credential sunshine_pin)"
+  fi
   guest_user="$(meta_get sunshine-guest-user)"
   guest_password="$(vm_secret_get guest_password)"
   if [[ -z "$guest_password" ]]; then
@@ -354,10 +376,7 @@ main() {
   [[ -n "$sunshine_password" ]] || sunshine_password="$SUNSHINE_DEFAULT_PASSWORD"
   [[ -n "$sunshine_pin" ]] || sunshine_pin="$SUNSHINE_DEFAULT_PIN"
   [[ -n "$sunshine_user" ]] || sunshine_user="sunshine-vm${VMID}"
-  [[ -n "$sunshine_password" ]] || {
-    echo "Missing per-VM Sunshine password for VM ${VMID}." >&2
-    exit 1
-  }
+  [[ -n "$sunshine_password" ]] || sunshine_password="beagle-vm${VMID}-sunshine"
   [[ -n "$sunshine_pin" ]] || sunshine_pin="$(printf '%04d' $(( VMID % 10000 )))"
   [[ -n "$guest_user" ]] || guest_user="$SUNSHINE_DEFAULT_GUEST_USER"
   installer_guest_ip="$(meta_get sunshine-ip)"

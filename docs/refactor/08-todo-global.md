@@ -395,6 +395,8 @@
 		- Remaining blocker: VMs have not yet obtained DHCP IPs (environmental, not code) ⏸️
 - [ ] Wait for VM installation completion and QEMU-guest-agent initialization so `virsh guestinfo` can read IPv4 addresses.
 - [ ] Re-run `ensure-vm-stream-ready.sh` on VMs 100 and 102 once IPs are available to prove full unattended stream-prep flow (credential persistence + Sunshine install + ready state).
+	- Update 2026-04-29 (`srv1`): VM100 re-run succeeded with unattended path (`Configured Sunshine guest VM 100 ...`), including the SCP-path fix and provider import bootstrap in the script runtime.
+	- Update 2026-04-29 (`srv1`): VM102 remains blocked by runtime inventory/provider state (`RuntimeError: VM 102 not found in beagle provider state`, no guest IPv4), therefore full dual-VM proof is still open.
 - [ ] Fix post-install beagleserver disk boot path after installer success (currently no-bootable-device after ISO eject/reset).
 - [x] Add outer-host disk guardrails/cleanup routine for local validation harness (prevent repeated `beagleserver` pause on 100% root).
 - [x] Add automated API regression test for `DELETE /api/v1/provisioning/vms/{vmid}`.

@@ -1,3 +1,22 @@
+## Update (2026-04-29, Sunshine stream-prep runtime fix on srv1 partially validated)
+
+**Scope**: Der offene Sunshine/Moonlight-Rerun fuer `ensure-vm-stream-ready.sh` wurde technisch entblockt (Import-/SCP-Fix), live auf `srv1` neu gefahren und als teil-erledigt dokumentiert.
+
+- Code:
+  - `scripts/ensure-vm-stream-ready.sh`
+    - exportiert jetzt den Repo-Root in `PYTHONPATH`, damit Provider-Helper-Imports (`core/*`) in Live-Host-Kontexten nicht mehr mit `ModuleNotFoundError` brechen.
+    - credential-Fallback fuer Sunshine erweitert (VM-Description + installer-state), damit legacy-/teilmigrierte VMs nicht frueh am Secret-Lookup scheitern.
+  - `scripts/configure-sunshine-guest.sh`
+    - exportiert ebenfalls `PYTHONPATH` fuer Provider-Importe.
+    - SSH/SCP-Transferpfad fuer Guest-Setup von `/tmp/pve-sunshine-setup.sh` auf `/home/<guest>/pve-sunshine-setup.sh` umgestellt, um VM-seitige `/tmp`-Permission-Probleme zu umgehen.
+- Validierung:
+  - lokal: `bash -n scripts/ensure-vm-stream-ready.sh scripts/configure-sunshine-guest.sh` => OK
+  - `srv1`: Patch nach `/opt/beagle/scripts` deployed und Rerun gestartet.
+    - VM100: erfolgreicher unattended Run (`Configured Sunshine guest VM 100 ...`).
+    - VM102: externer Runtime-Blocker, da VM im beagle-provider State nicht gefunden wird (`RuntimeError: VM 102 not found in beagle provider state`, danach keine IPv4-Ermittlung moeglich).
+
+---
+
 ## Update (2026-04-29, Plan-07 5GB Backup-Lasttest auf srv1 geschlossen)
 
 **Scope**: Der offene Plan-07-Lasttest fuer ein explizites 5GB-Backup ist geschlossen und live auf `srv1` reproduzierbar validiert.

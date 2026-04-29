@@ -2,11 +2,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/provider_shell.sh"
 LOCAL_PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$SCRIPT_DIR/lib/beagle_provider.py}"
 REMOTE_INSTALL_DIR="${BEAGLE_REMOTE_INSTALL_DIR:-/opt/beagle}"
 REMOTE_PROVIDER_MODULE_PATH="${BEAGLE_REMOTE_PROVIDER_MODULE_PATH:-${REMOTE_INSTALL_DIR%/}/scripts/lib/beagle_provider.py}"
 PROVIDER_HELPER_AVAILABLE_CACHE="${PROVIDER_HELPER_AVAILABLE_CACHE:-}"
+
+# Ensure provider imports can resolve top-level repo modules (e.g. core/*) on live hosts.
+export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 BEAGLE_HOST="${BEAGLE_HOST:-beagle.local}"
 VMID="${VMID:-}"
@@ -201,6 +205,7 @@ guest_exec_script() {
   if [[ -n "$GUEST_PASSWORD" && -n "$guest_ip" ]] && command -v sshpass >/dev/null 2>&1; then
     local ssh_target="${GUEST_USER}@${guest_ip}"
     local tmp_script
+    local remote_script_path="/home/${GUEST_USER}/pve-sunshine-setup.sh"
     tmp_script="$(mktemp)"
     printf '%s' "$script" >"$tmp_script"
     SSHPASS="$GUEST_PASSWORD" sshpass -e scp \
@@ -209,14 +214,14 @@ guest_exec_script() {
       -o PreferredAuthentications=password \
       -o PubkeyAuthentication=no \
       -o ConnectTimeout=10 \
-      "$tmp_script" "${ssh_target}:/tmp/pve-sunshine-setup.sh" >/dev/null
+      "$tmp_script" "${ssh_target}:${remote_script_path}" >/dev/null
     printf '%s\n' "$GUEST_PASSWORD" | SSHPASS="$GUEST_PASSWORD" sshpass -e ssh \
       -o StrictHostKeyChecking=no \
       -o UserKnownHostsFile=/dev/null \
       -o PreferredAuthentications=password \
       -o PubkeyAuthentication=no \
       -o ConnectTimeout=10 \
-      "$ssh_target" "sudo -S -p '' bash /tmp/pve-sunshine-setup.sh && rm -f /tmp/pve-sunshine-setup.sh" >/dev/null
+      "$ssh_target" "sudo -S -p '' bash ${remote_script_path} && rm -f ${remote_script_path}" >/dev/null
     rm -f "$tmp_script"
     return 0
   fi
