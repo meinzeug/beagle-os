@@ -84,4 +84,5 @@ CREATE INDEX IF NOT EXISTS idx_vms_node_id ON vms(node_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_devices_fingerprint ON devices(fingerprint);
 CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_gpus_pci_address ON gpus(pci_address);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_gpus_node_pci ON gpus(node_id, pci_address);
+CREATE INDEX IF NOT EXISTS idx_gpus_pci_address ON gpus(pci_address);

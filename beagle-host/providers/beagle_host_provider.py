@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
+from core.repository.vm_repository import VmRepository
+
 
 class BeagleHostProvider:
     def __init__(
@@ -21,6 +23,7 @@ class BeagleHostProvider:
         cache_get: Callable[[str, float], Any] | None = None,
         cache_put: Callable[[str, Any], Any] | None = None,
         state_dir: str | os.PathLike[str] | None = None,
+        vm_repository: VmRepository | None = None,
     ) -> None:
         del run_json, run_text, run_checked
         self._cache_get = cache_get
@@ -31,6 +34,7 @@ class BeagleHostProvider:
         ).expanduser()
         self._default_node_name = str(os.environ.get("BEAGLE_BEAGLE_PROVIDER_DEFAULT_NODE", "beagle-0")).strip() or "beagle-0"
         self._cpu_stat_prev: tuple[float, float] | None = None  # (idle_time, total_time)
+        self._vm_repo: VmRepository | None = vm_repository
         self._ensure_layout()
 
     def _ensure_layout(self) -> None:
@@ -473,7 +477,14 @@ class BeagleHostProvider:
     def _load_vms(self) -> list[dict[str, Any]]:
         payload = self._read_json_file(self._vms_path(), [])
         if not isinstance(payload, list):
-            return []
+            payload = []
+        # Overlay with SQLite repository when available
+        if self._vm_repo is not None:
+            repo_vms = {v["vmid"]: v for v in self._vm_repo.list() if isinstance(v.get("vmid"), int)}
+            for item in payload:
+                if isinstance(item, dict) and int(item.get("vmid") or 0) > 0:
+                    repo_vms[int(item["vmid"])] = item
+            payload = list(repo_vms.values())
         vms: list[dict[str, Any]] = []
         needs_write = False
         for item in payload:
@@ -500,7 +511,14 @@ class BeagleHostProvider:
 
     def _write_vms(self, vms: list[dict[str, Any]]) -> list[dict[str, Any]]:
         normalized = [self._normalize_vm_record(item) for item in vms if isinstance(item, dict)]
-        return self._write_json_file(self._vms_path(), sorted(normalized, key=lambda item: item["vmid"]))
+        normalized = sorted(normalized, key=lambda item: item["vmid"])
+        if self._vm_repo is not None:
+            for vm_dict in normalized:
+                try:
+                    self._vm_repo.save(vm_dict)
+                except Exception:  # pragma: no cover
+                    pass
+        return self._write_json_file(self._vms_path(), normalized)
 
     @staticmethod
     def _option_dict(options: Mapping[str, Any] | Iterable[tuple[str, Any]]) -> dict[str, Any]:

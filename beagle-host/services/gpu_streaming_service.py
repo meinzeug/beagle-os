@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Literal
 
 from core.persistence.json_state_store import JsonStateStore
+from core.repository.gpu_repository import GpuRepository
 
 GpuClass = Literal["gaming", "workstation", "compute", "unknown"]
 GpuMode = Literal["passthrough", "timeslice", "vgpu", "unassigned"]
@@ -61,10 +62,12 @@ class GpuInventoryService:
         self,
         state_file: Path | None = None,
         run_cmd: Callable[[list[str]], str] | None = None,
+        gpu_repository: GpuRepository | None = None,
     ) -> None:
         self._state_file = state_file or self.STATE_FILE
         self._state_file.parent.mkdir(parents=True, exist_ok=True)
         self._run_cmd = run_cmd or self._default_run
+        self._gpu_repo: GpuRepository | None = gpu_repository
         self._state = self._load()
 
     # ------------------------------------------------------------------
@@ -164,9 +167,23 @@ class GpuInventoryService:
             return ""
 
     def _load(self) -> dict[str, Any]:
-        return JsonStateStore(self._state_file, default_factory=dict).load()
+        data = JsonStateStore(self._state_file, default_factory=dict).load()
+        if self._gpu_repo is not None:
+            # Overlay from repository (authoritative when repo is set)
+            for g in self._gpu_repo.list():
+                gid = g.get("gpu_id")
+                if gid:
+                    data.setdefault(gid, g)
+        return data
 
     def _save(self) -> None:
+        if self._gpu_repo is not None:
+            for gpu_dict in self._state.values():
+                if isinstance(gpu_dict, dict) and gpu_dict.get("gpu_id"):
+                    try:
+                        self._gpu_repo.save(gpu_dict)
+                    except Exception:  # pragma: no cover
+                        pass
         JsonStateStore(self._state_file, default_factory=dict).save(self._state)
 
     @staticmethod

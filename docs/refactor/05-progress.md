@@ -5584,3 +5584,26 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - Validierung:
   - `bash scripts/test-lockscreen-x11-acceptance.sh`
   - Ergebnis: `17 passed, 0 failed`
+
+## Update (2026-04-29, GoAdvanced Plan 06: SQLite-State-Migration vollstaendig)
+
+**Scope**: Plan 06 Steps 3–7 abgeschlossen. Alle 5 SQLite-Repositories implementiert, Service-Migration via backward-kompatiblem DI-Pattern in allen relevanten Services, One-Shot-JSON-Importer, Backup-Service + Systemd-Timer, Performance-Benchmark bestanden.
+
+- Neue Dateien:
+  - `core/repository/pool_repository.py` + `tests/unit/test_pool_repository.py`
+  - `core/repository/gpu_repository.py` + `tests/unit/test_gpu_repository.py`
+  - `scripts/migrate-json-to-sqlite.py` + `tests/unit/test_json_to_sqlite_migration.py`
+  - `beagle-host/services/db_backup_service.py` + `tests/unit/test_db_backup_service.py`
+  - `beagle-host/systemd/beagle-db-backup.service` + `beagle-db-backup.timer`
+  - `scripts/bench-fleet-state.py`
+- Geaenderte Services (DI fuer Repository):
+  - `beagle-host/services/device_registry.py` (Phase 5a: DeviceRepository optional)
+  - `beagle-host/services/pool_manager.py` (Phase 5b: PoolRepository optional)
+  - `beagle-host/services/session_manager.py` (Phase 5c: SessionRepository optional)
+  - `beagle-host/services/gpu_streaming_service.py` (Phase 5d: GpuRepository optional)
+  - `beagle-host/providers/beagle_host_provider.py` (Phase 5e: VmRepository optional)
+- Schema-Fix: `core/persistence/migrations/001_init.sql` — `idx_gpus_pci_address` → composite `idx_gpus_node_pci ON gpus(node_id, pci_address)`
+- Validierung:
+  - `python3 -m pytest tests/unit/` — `1422 passed` (3 pre-existing unrelated failures)
+  - srv1 Dry-Run: 1 VM + 1 Pool + 1 Device erkannt, 0 Fehler
+  - Benchmark srv1: SQLite P99 < 1ms, JSON P99 ~2ms, **165x Speedup**, Target PASS

@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily Beagle SQLite State DB Backup
+
+[Timer]
+# Run daily at 03:17 (off-peak)
+OnCalendar=*-*-* 03:17:00
+# Also run once shortly after boot / service start
+OnActiveSec=5min
+# Catch up missed runs (e.g. after host was off)
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

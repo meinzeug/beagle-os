@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from core.persistence.json_state_store import JsonStateStore
+from core.repository.session_repository import SessionRepository
 
 
 @dataclass
@@ -67,6 +68,7 @@ class SessionManagerService:
         user_geo_resolver: Callable[[str], dict[str, Any] | None] | None = None,
         audit_event: Callable[[str, str], None] | None = None,
         slow_handover_threshold_seconds: float = 10.0,
+        session_repository: SessionRepository | None = None,
     ) -> None:
         self._store = JsonStateStore(
             state_file or self.STATE_FILE,
@@ -82,6 +84,7 @@ class SessionManagerService:
         self._user_geo_resolver = user_geo_resolver
         self._audit_event = audit_event
         self._slow_handover_threshold_seconds = max(0.0, float(slow_handover_threshold_seconds or 0.0))
+        self._session_repo: SessionRepository | None = session_repository
         self._state = {}
         self._refresh_state()
 
@@ -460,6 +463,20 @@ class SessionManagerService:
     # ------------------------------------------------------------------
 
     def _save(self) -> None:
+        if self._session_repo is not None:
+            for session_dict in self._state.get("sessions", {}).values():
+                try:
+                    self._session_repo.save(session_dict)
+                except Exception:  # pragma: no cover
+                    pass
+            # Remove sessions deleted from in-memory state from the repository
+            repo_ids = {s["session_id"] for s in self._session_repo.list()}
+            mem_ids = set(self._state.get("sessions", {}).keys())
+            for stale_id in repo_ids - mem_ids:
+                try:
+                    self._session_repo.delete(stale_id)
+                except Exception:  # pragma: no cover
+                    pass
         self._store.save(self._state)
 
     def _refresh_state(self) -> None:
@@ -467,6 +484,12 @@ class SessionManagerService:
         self._state.setdefault("sessions", {})
         self._state.setdefault("handover_events", [])
         self._state.setdefault("handover_alerts", [])
+        if self._session_repo is not None:
+            # Overlay sessions from SQLite repository (authoritative when repo is set)
+            for session_dict in self._session_repo.list():
+                sid = session_dict.get("session_id")
+                if sid:
+                    self._state["sessions"].setdefault(sid, session_dict)
 
     def _record_handover_event(self, event: dict[str, Any]) -> None:
         self._state.setdefault("handover_events", [])

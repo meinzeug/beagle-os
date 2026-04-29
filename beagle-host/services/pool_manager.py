@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from core.persistence.json_state_store import JsonStateStore
+from core.repository.pool_repository import PoolRepository
 from core.virtualization.desktop_pool import (
     DesktopLease,
     DesktopPoolInfo,
@@ -59,6 +60,7 @@ class PoolManagerService:
         assign_gpu_vgpu: Any = None,
         release_gpu_vgpu: Any = None,
         smart_pick_node: Any = None,
+        pool_repository: PoolRepository | None = None,
     ) -> None:
         self._store = JsonStateStore(
             Path(state_file),
@@ -81,6 +83,7 @@ class PoolManagerService:
         self._assign_gpu_vgpu = assign_gpu_vgpu                  # callable(mdev_uuid, vmid) -> dict
         self._release_gpu_vgpu = release_gpu_vgpu                # callable(mdev_uuid, vmid) -> dict
         self._smart_pick_node = smart_pick_node                  # callable(...) -> dict | str | None
+        self._pool_repo: PoolRepository | None = pool_repository
 
     # ------------------------------------------------------------------
     # State persistence helpers
@@ -96,9 +99,29 @@ class PoolManagerService:
             data["gpu_reservations"] = {}
         if not isinstance(data.get("prewarm_events"), list):
             data["prewarm_events"] = []
+        if self._pool_repo is not None:
+            # Overlay pools from SQLite repository (authoritative when repo is set)
+            data["pools"] = {
+                p["pool_id"]: p for p in self._pool_repo.list()
+                if isinstance(p.get("pool_id"), str)
+            }
         return data
 
     def _save(self, state: dict[str, Any]) -> None:
+        if self._pool_repo is not None:
+            for pool_dict in state.get("pools", {}).values():
+                try:
+                    self._pool_repo.save(pool_dict)
+                except Exception:  # pragma: no cover
+                    pass
+            # Remove pools deleted from in-memory state from the repository
+            repo_ids = {p["pool_id"] for p in self._pool_repo.list()}
+            mem_ids = set(state.get("pools", {}).keys())
+            for stale_id in repo_ids - mem_ids:
+                try:
+                    self._pool_repo.delete(stale_id)
+                except Exception:  # pragma: no cover
+                    pass
         self._store.save(state)
 
     @staticmethod

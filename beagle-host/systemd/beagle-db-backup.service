@@ -1,0 +1,18 @@
+[Unit]
+Description=Beagle SQLite State DB Backup
+After=beagle-manager.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 -c "\
+from pathlib import Path; \
+import sys; \
+sys.path.insert(0, '/opt/beagle'); \
+from beagle_host.services.db_backup_service import DbBackupService; \
+svc = DbBackupService(db_path=Path('/var/lib/beagle/state.db')); \
+result = svc.snapshot(); \
+print(f'Backup OK: {result[\"path\"]} ({result[\"size_bytes\"]} bytes)')"
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=beagle-db-backup

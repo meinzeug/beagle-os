@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from core.persistence.json_state_store import JsonStateStore
+from core.repository.device_repository import DeviceRepository
 
 DeviceStatus = Literal["online", "offline", "locked", "wipe_pending", "wiped"]
 
@@ -87,13 +88,24 @@ class DeviceRegistryService:
 
     STATE_FILE = Path("/var/lib/beagle/beagle-manager/device-registry.json")
 
-    def __init__(self, state_file: Path | None = None, utcnow: Any = None) -> None:
+    def __init__(
+        self,
+        state_file: Path | None = None,
+        utcnow: Any = None,
+        device_repository: DeviceRepository | None = None,
+    ) -> None:
         self._store = JsonStateStore(
             state_file or self.STATE_FILE,
             default_factory=lambda: {"devices": {}},
         )
         self._utcnow = utcnow or self._default_utcnow
-        self._state = self._store.load()
+        self._repo: DeviceRepository | None = device_repository
+        if device_repository is not None:
+            # Load initial state from SQLite repository
+            db_devices = {d["device_id"]: d for d in device_repository.list()}
+            self._state: dict[str, Any] = {"devices": db_devices}
+        else:
+            self._state = self._store.load()
 
     # ------------------------------------------------------------------
     # CRUD
@@ -284,6 +296,21 @@ class DeviceRegistryService:
         return self._state["devices"][device_id]
 
     def _save(self) -> None:
+        if self._repo is not None:
+            # Persist each device to SQLite; also write to JSON for backward compat
+            for dev_dict in self._state["devices"].values():
+                try:
+                    self._repo.save(dev_dict)
+                except Exception:  # pragma: no cover
+                    pass
+            # Remove devices deleted from in-memory state from the repository
+            repo_ids = {d["device_id"] for d in self._repo.list()}
+            mem_ids = set(self._state["devices"].keys())
+            for stale_id in repo_ids - mem_ids:
+                try:
+                    self._repo.delete(stale_id)
+                except Exception:  # pragma: no cover
+                    pass
         self._store.save(self._state)
 
     @staticmethod
