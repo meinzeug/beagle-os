@@ -571,6 +571,7 @@ GUESTCFG
 
 install -d -m 0700 -o "\$GUEST_USER" -g "\$GUEST_USER" \
   "/home/\$GUEST_USER/.config" \
+  "/home/\$GUEST_USER/.config/autostart" \
   "/home/\$GUEST_USER/.config/sunshine" \
   "/home/\$GUEST_USER/.config/xfce4/xfconf/xfce-perchannel-xml"
 install -d -m 0755 /etc/X11/xorg.conf.d
@@ -589,6 +590,26 @@ Section "InputClass"
     Option "Ignore" "on"
 EndSection
 XORGCONF
+
+cat > /etc/X11/Xsession.d/90-beagle-disable-display-idle <<'XSESSIONIDLE'
+#!/bin/sh
+if command -v xset >/dev/null 2>&1; then
+  xset -dpms >/dev/null 2>&1 || true
+  xset s off >/dev/null 2>&1 || true
+  xset s noblank >/dev/null 2>&1 || true
+fi
+XSESSIONIDLE
+chmod 0755 /etc/X11/Xsession.d/90-beagle-disable-display-idle
+
+cat > "/home/\$GUEST_USER/.xprofile" <<'XPROFILE'
+#!/bin/sh
+if command -v xset >/dev/null 2>&1; then
+  xset -dpms >/dev/null 2>&1 || true
+  xset s off >/dev/null 2>&1 || true
+  xset s noblank >/dev/null 2>&1 || true
+fi
+XPROFILE
+chmod 0755 "/home/\$GUEST_USER/.xprofile"
 
 cat > "/home/\$GUEST_USER/.config/sunshine/sunshine.conf" <<SUNCONF
 sunshine_name = ${GUEST_USER}-sunshine
@@ -628,9 +649,31 @@ cat > "/home/\$GUEST_USER/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" <<
   </property>
 </channel>
 XFWM4
+
+cat > "/home/\$GUEST_USER/.config/autostart/light-locker.desktop" <<'AUTOSTARTLOCK'
+[Desktop Entry]
+Type=Application
+Name=Light Locker
+Hidden=true
+AUTOSTARTLOCK
+
+cat > "/home/\$GUEST_USER/.config/autostart/xfce4-power-manager.desktop" <<'AUTOSTARTPOWER'
+[Desktop Entry]
+Type=Application
+Name=XFCE Power Manager
+Hidden=true
+AUTOSTARTPOWER
+
+cat > "/home/\$GUEST_USER/.config/autostart/xfce4-screensaver.desktop" <<'AUTOSTARTSCREENSAVER'
+[Desktop Entry]
+Type=Application
+Name=XFCE Screensaver
+Hidden=true
+AUTOSTARTSCREENSAVER
 fi
 
 chown -R "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.config"
+chown "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.xprofile"
 configure_default_browser
 
 cat > /etc/systemd/system/beagle-sunshine.service <<SUNSHINESVC

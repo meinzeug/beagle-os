@@ -1,3 +1,24 @@
+## Update (2026-04-29, VM100 Black-Screen durch XFCE-Idle/Locker auf `srv1` behoben)
+
+**Scope**: VM100 zeigte beim Connect auf `srv1` einen schwarzen Bildschirm; die Guest-Inspektion ergab aktives `light-locker`, `xfce4-power-manager`, X11-Screensaver-Timeout `600` und aktiviertes DPMS mit `Monitor is Off`.
+
+- Befunde in der laufenden VM (`beagle-100` via QEMU Guest Agent):
+  - Prozesse: `xfce4-session`, `light-locker`, `xfce4-power-manager`, `sunshine`.
+  - `xset q`: `Screen Saver timeout=600`, `DPMS is Enabled`, `Monitor is Off`.
+- Repo-Fix:
+  - `scripts/configure-sunshine-guest.sh`
+    - legt jetzt `/etc/X11/Xsession.d/90-beagle-disable-display-idle` an und schaltet dort `xset -dpms`, `xset s off`, `xset s noblank`.
+    - legt fuer den Gastbenutzer zusaetzlich `~/.xprofile` mit denselben X11-Guards an.
+    - legt fuer XFCE User-Autostart-Overrides mit `Hidden=true` fuer `light-locker`, `xfce4-power-manager` und `xfce4-screensaver` an.
+  - `tests/unit/test_configure_sunshine_guest_regressions.py` prueft die Guardrails als Repo-Regression.
+- Live-Rollout:
+  - aktualisiertes `configure-sunshine-guest.sh` nach `srv1:/opt/beagle/scripts/` kopiert.
+  - VM100 ueber denselben Provisioning-Pfad live neu konfiguriert (`--no-reboot`), inkl. Display-Manager-Restart.
+- Verifikation nach Rollout:
+  - Prozesse: `xfce4-session` + `sunshine`; `light-locker` und `xfce4-power-manager` laufen nicht mehr.
+  - `xset q`: `Screen Saver timeout=0`, `prefer blanking: no`, `DPMS is Disabled`.
+  - Autostart-Overrides auf dem Gast vorhanden, Xsession-Hook und `~/.xprofile` vorhanden.
+
 ## Update (2026-04-28, srv1 Auffaelligkeiten analysiert und Systemd-/Update-Drift gepatcht)
 
 **Scope**: Die Live-Pruefung auf `srv1` zeigte drei failed units und einen Auto-Update-Status, der trotz installiertem Commit `dba99c2` weiter `updating` meldete.

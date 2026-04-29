@@ -33,6 +33,8 @@
 - [x] GoEnterprise Plan 09: offene Testpflicht (RAPL/VM-Anteil, 100W->40g CO2, Chargeback-Energiekosten, CSRD Scope-2 Quartal) mit Acceptance-Suite und srv1-Lauf schliessen.
 - [x] GoEnterprise Plan 09: externen Feed-/Importjob für stündlichen Carbon-/Strommix hinterlegen.
 
+- [ ] Sunshine-/Desktop-Gast-Smoke fuer neue WebUI-VMs erweitern: nach Provisioning live `xset q` sowie Abwesenheit von `light-locker` und `xfce4-power-manager` pruefen.
+
 ## Update 2026-04-28 (GoEnterprise Plan 02)
 
 - [x] GoEnterprise Plan 08: offene Testpflicht (TUI-5-Schritte-Flow, Seed ohne Dialog, PXE+DHCP-Seed-Handover) mit Acceptance-Suite und `srv1`-Lauf schliessen.

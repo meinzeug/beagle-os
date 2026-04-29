@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, VM100 Display-Idle/Locker-Fix auf `srv1`)
+
+**Zuletzt erledigt**:
+- Der Black-Screen-Befund von VM100 wurde auf aktives XFCE-Idle/Locker-Verhalten zurueckgefuehrt und sowohl live in der VM als auch reproduzierbar im Provisioning-Skript behoben.
+
+**Naechste konkrete Schritte**:
+
+1. Den neuen Guest-Provisioning-Stand per normalem Repo-Deploy auch auf `srv2` spiegeln, falls dort Sunshine-/Desktop-VMs erstellt werden.
+2. Den naechsten neu erstellten WebUI-Desktop-Guest einmal als Smoke bauen und direkt nach erstem Login `xset q` + Prozessliste validieren.
+3. Optional einen kleinen Host-/Guest-Smoke fuer `configure-sunshine-guest.sh` ergaenzen, der `light-locker`/`xfce4-power-manager` nach der Konfiguration live auf einer Test-VM prueft.
+
 ## Stand (2026-04-28, srv1 Systemd-/Update-Drift gepatcht)
 
 **Zuletzt erledigt**:
