@@ -9,6 +9,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from core.persistence.json_state_store import JsonStateStore
+
 
 @dataclass
 class GamingSessionMetrics:
@@ -138,7 +140,7 @@ class GamingMetricsService:
         summary = m.summary()
         summary["ended_at"] = self._utcnow()
         out = self._state_dir / f"{session_id}.json"
-        out.write_text(json.dumps(summary, indent=2))
+        JsonStateStore(out, default_factory=dict).save(summary)
         return summary
 
     def get_active_sessions(self) -> list[dict[str, Any]]:

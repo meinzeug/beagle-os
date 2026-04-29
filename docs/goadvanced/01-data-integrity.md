@@ -55,16 +55,16 @@ Zusaetzlich existiert keine gemeinsame Basisklasse fuer State-Persistenz — jed
   - [x] `beagle-host/services/vm_secret_store.py` umstellen
   - [x] Audit-Pfad abgesichert: Persistenz-Write-Callback geht ueber `PersistenceSupportService` + `JsonStateStore`
 
-- [ ] **Schritt 3** — Migration restliche Services (in 4 Wellen je ~10 Services)
+- [x] **Schritt 3** — Migration restliche Services (in 4 Wellen je ~10 Services)
   - [x] Welle 3a: `pool_manager.py`, `gpu_streaming_service.py`, `cost_model_service.py`, `usage_tracking_service.py`, `energy_service.py`
   - [x] Welle 3b: `device_registry.py`, `attestation_service.py`, `mdm_policy_service.py`, `cluster_service.py`, `alert_service.py`
   - [x] Welle 3c: `session_manager.py`, `fleet_telemetry_service.py`, `metrics_collector.py`, `workload_pattern_analyzer.py`, `smart_scheduler.py`
-  - [ ] Welle 3d: alle restlichen Services unter `beagle-host/services/` (Teil abgeschlossen: `backup_service.py`, `entitlement_service.py`, `stream_policy_service.py`, `maintenance_service.py`, `installer_log_service.py`, `ha_watchdog.py`, `endpoint_report.py`, `firewall_service.py`, `cluster_membership.py`)
+  - [x] Welle 3d: alle restlichen Services unter `beagle-host/services/` (abgeschlossen: `backup_service.py`, `entitlement_service.py`, `stream_policy_service.py`, `maintenance_service.py`, `installer_log_service.py`, `ha_watchdog.py`, `endpoint_report.py`, `firewall_service.py`, `cluster_membership.py`, `webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `sunshine_integration.py`, `gaming_metrics_service.py`)
 
 - [x] **Schritt 4** — Verifikation
   - [x] Stress-Test-Skript: `scripts/test-json-state-stress.sh` (1000 parallele Writes auf testfile.json, kein Korruptions-Fehler)
   - [x] Auf `srv1.beagle-os.com` ausfuehren
-  - [ ] Repo-Grep: keine `path.write_text(json.dumps(` mehr ausserhalb von Tests
+  - [x] Repo-Grep: keine `path.write_text(json.dumps(` mehr ausserhalb von Tests
   - [x] `docs/refactor/05-progress.md` aktualisiert
 
 ## Abnahmekriterien

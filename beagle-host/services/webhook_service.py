@@ -3,13 +3,14 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-import os
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable
 from urllib import error as urlerror
 from urllib import request as urlrequest
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 _ALLOWED_EVENT_CHARS = set("abcdefghijklmnopqrstuvwxyz0123456789._:-")
@@ -25,26 +26,19 @@ class WebhookService:
         self._data_dir = data_dir
         self._utcnow = utcnow
         self._store_path = self._data_dir / "webhooks.json"
+        self._store = JsonStateStore(self._store_path, default_factory=lambda: {"webhooks": []}, mode=0o600)
 
     def _load(self) -> dict[str, Any]:
         try:
-            if self._store_path.exists():
-                data = json.loads(self._store_path.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    return data
-        except (OSError, json.JSONDecodeError):
+            data = self._store.load()
+            if isinstance(data, dict):
+                return data
+        except OSError:
             pass
         return {"webhooks": []}
 
     def _save(self, data: dict[str, Any]) -> None:
-        self._store_path.parent.mkdir(parents=True, exist_ok=True)
-        temp = self._store_path.with_suffix(".tmp")
-        temp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        os.replace(str(temp), str(self._store_path))
-        try:
-            os.chmod(str(self._store_path), 0o600)
-        except OSError:
-            pass
+        self._store.save(data)
 
     @staticmethod
     def _normalize_event_name(value: Any) -> str:

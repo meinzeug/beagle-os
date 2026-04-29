@@ -7,6 +7,8 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Callable
 
+from core.persistence.json_state_store import JsonStateStore
+
 
 class StreamHttpSurfaceService:
     _REGISTER_ROUTE = "/api/v1/streams/register"
@@ -43,6 +45,7 @@ class StreamHttpSurfaceService:
         self._utcnow = utcnow
         self._version = str(version or "")
         self._lock = threading.RLock()
+        self._state_store = JsonStateStore(self._state_file, default_factory=lambda: {"registrations": {}})
 
     @classmethod
     def handles_get(cls, path: str) -> bool:
@@ -94,13 +97,7 @@ class StreamHttpSurfaceService:
 
     def _load_state(self) -> dict[str, Any]:
         with self._lock:
-            if self._state_file.exists():
-                try:
-                    payload = json.loads(self._state_file.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError):
-                    payload = {}
-            else:
-                payload = {}
+            payload = self._state_store.load()
             registrations = payload.get("registrations")
             if not isinstance(registrations, dict):
                 registrations = {}
@@ -108,8 +105,7 @@ class StreamHttpSurfaceService:
 
     def _save_state(self, state: dict[str, Any]) -> None:
         with self._lock:
-            self._state_file.parent.mkdir(parents=True, exist_ok=True)
-            self._state_file.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+            self._state_store.save(state)
 
     def _get_registration(self, vm_id: int) -> dict[str, Any] | None:
         state = self._load_state()

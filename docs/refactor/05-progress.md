@@ -1,3 +1,22 @@
+## Update (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 4: Webhook/Stream/Settings/Sunshine/Gaming-Metrics)
+
+**Scope**: Vierter 3d-Batch umgesetzt; verbleibende direkte Service-JSON-Write-Pfade auf `JsonStateStore`/atomare Helper migriert.
+
+- Backend:
+  - `beagle-host/services/webhook_service.py`
+  - `beagle-host/services/stream_http_surface.py`
+  - `beagle-host/services/server_settings.py`
+  - `beagle-host/services/sunshine_integration.py`
+  - `beagle-host/services/gaming_metrics_service.py`
+- Lokale Tests:
+  - `python3 -m pytest tests/unit/test_stream_http_surface.py tests/unit/test_beagle_stream_server_api.py tests/unit/test_beagle_stream_client_broker.py tests/unit/test_server_settings.py tests/unit/test_gaming_metrics.py tests/unit/test_gaming_pool.py tests/unit/test_pools_http_surface.py -q` -> `67 passed`
+- `srv1`-Validierung:
+  - non-invasiver Batch-Smoke via `PYTHONPATH=/tmp/beagle-wave3d-part4:/opt/beagle:/opt/beagle/beagle-host/services` mit den fuenf geaenderten Dateien.
+  - Ergebnis: `SRV1_WAVE3D_PART4_SMOKE=PASS`.
+- Plan-01-Abschlussstatus:
+  - `rg -n "write_text\\(json\\.dumps\\(" beagle-host/services --glob '*.py'` -> keine Treffer.
+  - Welle 3d und Plan-01-Restpunkt (`Repo-Grep`) geschlossen.
+
 ## Update (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 3: Endpoint/Firewall/Cluster-Membership)
 
 **Scope**: Dritter 3d-Batch umgesetzt, um direkte JSON-Write-Pfade weiter zu reduzieren.

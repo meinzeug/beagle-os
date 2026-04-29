@@ -139,6 +139,7 @@ rm -f "$cert_file.b64"
 
 python3 - "$state_file" "$device_name" "$cert_file" <<'PY'
 import json
+import tempfile
 import sys
 import uuid
 from pathlib import Path
@@ -146,6 +147,14 @@ from pathlib import Path
 state_path = Path(sys.argv[1])
 device_name = sys.argv[2]
 cert_path = Path(sys.argv[3])
+
+
+def _atomic_write_state(target: Path, payload: dict) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", delete=False, dir=str(target.parent), encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, indent=4) + "\\n")
+        tmp_name = handle.name
+    Path(tmp_name).replace(target)
 
 if not state_path.exists():
     raise SystemExit(f"sunshine state file missing: {{state_path}}")
@@ -158,7 +167,7 @@ named = root.setdefault("named_devices", [])
 for entry in named:
     if entry.get("cert") == cert:
         entry["name"] = device_name
-        state_path.write_text(json.dumps(state, indent=4) + "\\n", encoding="utf-8")
+        _atomic_write_state(state_path, state)
         sys.stdout.write("updated-existing\\n")
         raise SystemExit(0)
 
@@ -167,7 +176,7 @@ named.append({{
     "cert": cert,
     "uuid": str(uuid.uuid4()).upper(),
 }})
-state_path.write_text(json.dumps(state, indent=4) + "\\n", encoding="utf-8")
+_atomic_write_state(state_path, state)
 sys.stdout.write("registered-new\\n")
 PY
 

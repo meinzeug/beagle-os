@@ -23,6 +23,7 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Callable
 
+from core.persistence.json_state_store import JsonStateStore
 from webhook_service import WebhookService
 
 _SETTINGS_FILE = "/etc/beagle/server-settings.json"
@@ -111,6 +112,7 @@ class ServerSettingsService:
         self._install_dir = install_dir or Path(os.environ.get("BEAGLE_INSTALL_DIR", "/opt/beagle"))
         self._utcnow = utcnow or (lambda: "")
         self._settings_path = self._data_dir / "server-settings.json"
+        self._settings_store = JsonStateStore(self._settings_path, default_factory=dict, mode=0o600)
         self._webhook_service = webhook_service or WebhookService(
             data_dir=self._data_dir,
             utcnow=self._utcnow,
@@ -122,21 +124,15 @@ class ServerSettingsService:
 
     def _load_settings(self) -> dict[str, Any]:
         try:
-            if self._settings_path.exists():
-                return json.loads(self._settings_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+            payload = self._settings_store.load()
+            if isinstance(payload, dict):
+                return payload
+        except OSError:
             pass
         return {}
 
     def _save_settings(self, data: dict[str, Any]) -> None:
-        self._settings_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._settings_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        os.replace(str(tmp), str(self._settings_path))
-        try:
-            os.chmod(str(self._settings_path), 0o600)
-        except OSError:
-            pass
+        self._settings_store.save(data)
 
     # ------------------------------------------------------------------
     # General settings
@@ -1234,20 +1230,19 @@ class ServerSettingsService:
 
     def _write_refresh_status(self, payload: dict[str, Any]) -> None:
         path = Path("/var/lib/beagle/refresh.status.json")
+        store = JsonStateStore(path, default_factory=dict)
         existing: dict[str, Any] = {}
         try:
-            if path.is_file():
-                loaded = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(loaded, dict):
-                    existing.update(loaded)
-        except (OSError, json.JSONDecodeError):
+            loaded = store.load()
+            if isinstance(loaded, dict):
+                existing.update(loaded)
+        except OSError:
             existing = {}
 
         merged = dict(existing)
         merged.update(payload)
         try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+            store.save(merged)
         except OSError:
             return
 

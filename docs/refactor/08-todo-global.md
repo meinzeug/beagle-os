@@ -1,5 +1,7 @@
 # Global TODO
 
+- [x] GoAdvanced Plan 01 Welle 3d Teil 4 schliessen: `webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `sunshine_integration.py`, `gaming_metrics_service.py` auf `JsonStateStore`/atomare Helper migrieren und lokal + auf `srv1` validieren.
+- [x] GoAdvanced Plan 01 Restpunkt schliessen: `Repo-Grep` fuer direkte `path.write_text(json.dumps(`-Writes in `beagle-host/services` auf Null bringen.
 - [x] GoAdvanced Plan 01 Welle 3d Teil 3 schliessen: `endpoint_report.py`, `firewall_service.py`, `cluster_membership.py` auf `JsonStateStore`/atomare Store-Helper migrieren und lokal + auf `srv1` validieren.
 - [x] GoAdvanced Plan 01 Welle 3d Teil 2 schliessen: `maintenance_service.py`, `installer_log_service.py`, `ha_watchdog.py` auf `JsonStateStore` migrieren und lokal + auf `srv1` validieren.
 - [x] GoAdvanced Plan 01 Welle 3d Teil 1 schliessen: `backup_service.py`, `entitlement_service.py`, `stream_policy_service.py` auf `JsonStateStore` migrieren und lokal + auf `srv1` validieren.

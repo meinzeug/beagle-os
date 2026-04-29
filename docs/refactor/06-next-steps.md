@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-04-29, GoAdvanced Plan 01 abgeschlossen)
+
+**Zuletzt erledigt**:
+- Welle 3d Teil 4 (`webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `sunshine_integration.py`, `gaming_metrics_service.py`) auf `JsonStateStore`/atomare Helper migriert; lokale Tests + `srv1`-Batch-Smoke erfolgreich.
+- Plan-01-Restpunkt `Repo-Grep` fuer direkte `path.write_text(json.dumps(`-Writes in `beagle-host/services` auf Null gebracht.
+
+**Naechste konkrete Schritte**:
+
+1. GoAdvanced Plan 06 (`docs/goadvanced/06-state-sqlite-migration.md`) starten: State-Kandidaten fuer SQLite priorisieren und ersten Service-Slice mit Migrationspfad umsetzen.
+2. Fuer den ersten Plan-06-Slice denselben Validierungsstandard fahren: fokussierte Unit-Tests lokal + non-invasiver `srv1`-Smoke.
+3. Nach dem ersten Plan-06-Commit die Refactor-Dokumente (`05-progress.md`, `08-todo-global.md`) auf den neuen Fortschritt synchronisieren.
+
 ## Stand (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 3 abgeschlossen)
 
 **Zuletzt erledigt**:
