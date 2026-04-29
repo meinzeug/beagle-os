@@ -400,7 +400,10 @@
 - [ ] Work through `docs/gorelease/` R2/R3 gates before offering Beagle OS as Enterprise Candidate; book hardware according to `docs/gorelease/02-hardware-test-matrix.md`.
 - [x] Add IAM User-Detail-Drawer, protected built-in role metadata, Permission-Suche und Rollen-Diff in der Web Console (2026-04-27).
 - [x] Add Audit Report Builder, Export-Target-Test, redacted Failure-Payloads und Failure-Replay-Routen in der Web Console/API (2026-04-27).
-- [ ] Re-enable/repair `beagle-manager` on `srv1.beagle-os.com` and `srv2.beagle-os.com`; current SSH smoke on 2026-04-27 returned `inactive` on both hosts.
+- [x] Correct stale `beagle-manager` runtime check and verify the real control-plane unit on `srv1`.
+	- Umsetzung 2026-04-29: neuer Repo-Smoke `scripts/test-control-plane-runtime-smoke.sh` prueft per SSH die echte Runtime-Unit `beagle-control-plane` sowie `GET /api/v1/health` mit Host-Token statt des veralteten `systemctl is-active beagle-manager`-Einzeilers.
+	- Validierung: `srv1` liefert `HOST=srv1 SERVICE=beagle-control-plane STATE=active`, `HOST=srv1 API_HEALTH=200` und `CONTROL_PLANE_RUNTIME_SMOKE=PASS`.
+	- Restblocker: `srv2` ist derzeit per SSH nicht erreichbar; Zwei-Host-Bestaetigung bleibt deshalb als externer Runtime-Blocker offen.
 - [x] Identify GPU-capable Beagle test host: `srv2` has NVIDIA GTX 1080 (`10de:1b80`) + audio function (`10de:10f0`) visible via PCI/libvirt and bound to `vfio-pci`; host-side `nvidia-smi` is not installed because the card is prepared for passthrough.
 - [x] Run VM-side GPU passthrough proof on `srv2` with equivalent guest validation: transient libvirt VM `beagle-gpu-smoke` saw GTX 1080 (`10de:1b80`) and NVIDIA audio (`10de:10f0`) in guest PCI sysfs; VM and temp files cleaned up.
 - [x] Complete GPU-Plane WebUI operator flows while `srv2` is available: Assign-/Release-Wizard, vGPU/mdev Cards, SR-IOV Cards, `virtualization-gpu-cards` event binding, `postJson` mutations, regression tests, live asset rollout to `srv1`/`srv2`.
@@ -413,7 +416,9 @@
 - [x] GoEnterprise Plan 06 Schritt 3 Teil-Slice: endpoint-authenticated Session-Broker `GET /api/v1/session/current`, Pool-Session-Registration und Thin-Client-Reconnect-Hook auf `srv1`/`srv2` ausrollen; Live-Smoke auf `srv1` erfolgreich, `srv2` route/auth ok mit `404` mangels lokaler VM-Inventardaten.
 - [x] GoEnterprise Plan 06 Timing-/Geo-Slice: `tests/integration/test_session_handover_timing.py`, `tests/unit/test_geo_routing.py`, `GET /api/v1/sessions/handover` und `scripts/smoke-session-handover-flow.sh` fuer den Zwei-Host-Pfad `srv1 -> srv2` umsetzen; Live-Smoke `PASS` in `0.29s`.
 - [ ] Run explicit 5GB backup load test for Plan 07 if a sufficiently large disposable VM/disk is available.
-- [ ] Run IAM/Audit browser UI regressions and srv1 smoke after `beagle-manager` is active again.
+- [x] Run IAM/Audit browser UI regressions and srv1 smoke after control-plane runtime validation.
+	- Validierung 2026-04-29: lokal `python3 -m pytest tests/unit/test_iam_ui_regressions.py tests/unit/test_audit_ui_regressions.py -q` => `6 passed`.
+	- `srv1`: `PLAN13_IAM_SMOKE=PASS` und `AUDIT_COMPLIANCE_SMOKE=PASS` gegen den laufenden `beagle-control-plane`.
 - [x] GoEnterprise Plan 03 Schritt 4 UI-Slice: Gaming-Metrics-Dashboard mit Graphen im Policies-Panel, inkl. API-Surface `GET /api/v1/gaming/metrics` und Regressionen in `tests/unit/test_gaming_metrics.py`.
 - [x] GoEnterprise Plan 02 weiterziehen: Fleet-Remediation-Konfiguration/History persistent machen und Thin-Client-Runtime-Telemetrie (`reports.runtime`, Lock-/Backend-/Display-Zustand) in Device-Registry + Fleet-WebUI sichtbar machen.
 - [x] GoEnterprise Plan 07 weiterziehen: Fleet-Telemetrie-/Maintenance-Routen, Predictive-Alerts-Regeln/Resolve im Control Plane und Runtime-Health-Metriken (`uptime_hours`, `reboot_count_7d`, `cpu_temp_c`, `network_errors`) ueber `device/sync` produktiv verdrahten.

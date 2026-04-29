@@ -197,7 +197,7 @@ Umsetzung (2026-04-27):
 - `AuthHttpSurfaceService.route_put()` persistiert `tenant_id` bei User-Updates, damit der Drawer/Editor keine Tenant-Aenderungen verliert.
 - UI-Regressions ergaenzt: `tests/unit/test_iam_ui_regressions.py` deckt User-Detail/Drawer, Rollen-Guardrails, Session-Revoke-Pfade sowie Tenant-/IdP-/SCIM-Empty-States ab.
 - Lokal validiert: `node --check website/ui/iam.js website/ui/events.js` und `python3 -m pytest tests/unit/test_auth_http_surface.py tests/unit/test_auth_session.py`.
-- E2E auf `srv1` bleibt offen: `ssh srv1.beagle-os.com 'systemctl is-active beagle-manager'` meldete am 2026-04-27 `inactive`.
+- E2E-Blocker vom 2026-04-27 ist aufgeloest: die produktive Runtime-Unit heisst `beagle-control-plane.service`, nicht `beagle-manager.service`; `srv1`-Smoke erneut erfolgreich (`PLAN13_IAM_SMOKE=PASS`, 2026-04-29). `srv2` bleibt fuer weitere Zwei-Host-Checks aktuell netzseitig blockiert.
 
 Warum dieser Schritt noch offen ist:
 IAM v2 ist backendseitig breit angelegt, aber die WebUI bleibt noch zu sehr ein technischer Editor. Betreiber brauchen geführte Flows für User, Rollen, IdPs, SCIM und Sessions, weil Fehlkonfigurationen hier direkt Security-Auswirkungen haben. OIDC/SAML/SCIM dürfen nicht nur als Login-Buttons oder API-Endpunkte existieren; ihre Konfiguration, Diagnose und sichere Rotation müssen in der Web Console nachvollziehbar bedienbar sein.

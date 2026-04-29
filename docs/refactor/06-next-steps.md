@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-04-29, srv1 Control-Plane-Runtime und IAM/Audit-Smokes geschlossen)
+
+**Zuletzt erledigt**:
+- Der veraltete `beagle-manager`-SSH-Check ist durch `scripts/test-control-plane-runtime-smoke.sh` ersetzt; auf `srv1` ist die echte Runtime-Unit `beagle-control-plane` aktiv und die lokale Health-Surface antwortet `200`.
+- IAM-/Audit-UI-Regressionen laufen lokal gruen, und die vorhandenen `srv1`-Smokes fuer Plan 13 und Audit-Compliance sind erfolgreich durchgelaufen.
+
+**Naechste konkrete Schritte**:
+
+1. Den verbliebenen Host-Restblock auf frischem Installer-System weiterziehen: noVNC/XFCE-Hotfixes, API- und Download-Pfade auf sauberem Host aus der aktuellen Server-Installer-ISO end-to-end abnehmen.
+2. Sobald `srv2` wieder per SSH erreichbar ist, denselben Control-Plane-Runtime-Smoke dort nachziehen und die Zwei-Host-Live-Validierung wieder aufnehmen.
+3. Danach die offenen GoRelease-R2/R3-Gates priorisieren, statt weitere `srv2`-abhaengige Multi-Node-Slices anzuschneiden.
+
 ## Stand (2026-04-29, UI-Provisioning-Smoke in CI geschlossen)
 
 **Zuletzt erledigt**:

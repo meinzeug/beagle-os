@@ -1,3 +1,20 @@
+## Update (2026-04-29, srv1 Control-Plane-Runtime und IAM/Audit-Smokes nachgezogen)
+
+**Scope**: Der offene Refactor-Block um den vermeintlich inaktiven `beagle-manager` wurde auf den realen Runtime-Zustand korrigiert. Die produktive Unit auf `srv1` ist `beagle-control-plane.service`; darauf aufbauend sind die offenen IAM-/Audit-Smokes jetzt ebenfalls reproduzierbar gruen.
+
+- Code:
+  - `scripts/test-control-plane-runtime-smoke.sh`
+    - prueft per SSH `systemctl is-active beagle-control-plane`.
+    - liest den Host-Token aus `/etc/beagle/beagle-manager.env` und verifiziert `GET /api/v1/health` lokal auf dem Zielhost.
+- Lokale Validierung:
+  - `python3 -m pytest tests/unit/test_iam_ui_regressions.py tests/unit/test_audit_ui_regressions.py -q` => `6 passed`
+- `srv1`-Validierung:
+  - `scripts/test-control-plane-runtime-smoke.sh srv1.beagle-os.com` => `CONTROL_PLANE_RUNTIME_SMOKE=PASS`
+  - `python3 scripts/test-iam-plan13-smoke.py --host 127.0.0.1 --port 9088` => `PLAN13_IAM_SMOKE=PASS`
+  - `bash scripts/test-audit-compliance-live-smoke.sh` => `AUDIT_COMPLIANCE_SMOKE=PASS`
+- Blocker:
+  - `srv2` ist aktuell per SSH nicht erreichbar (`Connection timed out`); deshalb konnte die gleiche Runtime-Bestaetigung dort noch nicht erneut gefahren werden.
+
 ## Update (2026-04-29, UI-Provisioning-Smoke in CI geschlossen)
 
 **Scope**: Der offene Refactor-Punkt fuer einen UI-seitigen Provisioning-Smoke in CI ist geschlossen. Die WebUI wird jetzt in einem dedizierten GitHub-Actions-Job mit Playwright gegen gemockte API-Routen durch den echten Token-Login- und Provisioning-Modal-Flow geprueft.
