@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
 from typing import Any, Callable
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 class HaWatchdogService:
@@ -23,6 +24,7 @@ class HaWatchdogService:
         missed_heartbeats_before_fencing: int = 3,
     ) -> None:
         self._state_file = Path(state_file)
+        self._store = JsonStateStore(self._state_file, default_factory=lambda: {"nodes": {}, "sent_seq": 0})
         self._node_name = str(node_name or "").strip()
         self._list_nodes = list_nodes
         self._send_heartbeat = send_heartbeat
@@ -45,24 +47,13 @@ class HaWatchdogService:
         ]
 
     def _read_state(self) -> dict[str, Any]:
-        try:
-            if self._state_file.is_file():
-                payload = json.loads(self._state_file.read_text(encoding="utf-8"))
-                if isinstance(payload, dict):
-                    return payload
-        except (OSError, json.JSONDecodeError):
-            pass
+        payload = self._store.load()
+        if isinstance(payload, dict):
+            return payload
         return {"nodes": {}, "sent_seq": 0}
 
     def _write_state(self, payload: dict[str, Any]) -> None:
-        self._state_file.parent.mkdir(parents=True, exist_ok=True)
-        temp = self._state_file.with_suffix(self._state_file.suffix + ".tmp")
-        temp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        temp.replace(self._state_file)
-        try:
-            self._state_file.chmod(0o600)
-        except OSError:
-            pass
+        self._store.save(payload)
 
     def record_heartbeat(self, source_node: str, *, received_at: float | None = None) -> None:
         node = str(source_node or "").strip()

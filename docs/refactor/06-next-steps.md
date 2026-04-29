@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 2 abgeschlossen)
+
+**Zuletzt erledigt**:
+- `maintenance_service.py`, `installer_log_service.py` und `ha_watchdog.py` auf `JsonStateStore` migriert; lokale Tests + `srv1`-Batch-Smoke erfolgreich.
+
+**Naechste konkrete Schritte**:
+
+1. Welle 3d Teil 3: `endpoint_report.py`, `firewall_service.py`, `cluster_membership.py` auf `JsonStateStore`/atomare Writes migrieren.
+2. Welle 3d Teil 4: verbleibende Service-Pfade (`server_settings.py`, `stream_http_surface.py`, `sunshine_integration.py`, ggf. `gaming_metrics_service.py`) in kleinen Batches nachziehen.
+3. Danach Plan-01-Restpunkt `Repo-Grep` fuer direkte `path.write_text(json.dumps(` ausserhalb von Tests final auf Null bringen.
+
 ## Stand (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 1 abgeschlossen)
 
 **Zuletzt erledigt**:

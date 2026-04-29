@@ -1,3 +1,20 @@
+## Update (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 2: Maintenance/Installer-Logs/HA-Watchdog)
+
+**Scope**: Zweiter 3d-Batch umgesetzt, um verbleibende direkte JSON-Write-Pfade weiter zu reduzieren.
+
+- Backend:
+  - `beagle-host/services/maintenance_service.py`
+  - `beagle-host/services/installer_log_service.py`
+  - `beagle-host/services/ha_watchdog.py`
+  - Persistenz in allen drei Services auf `JsonStateStore` umgestellt (kein direkter `write_text(json.dumps(...))`-Write mehr).
+- Lokale Tests:
+  - `python3 -m pytest tests/unit/test_maintenance_service.py tests/unit/test_installer_log_service.py tests/unit/test_ha_watchdog.py -q` -> `8 passed`
+- `srv1`-Validierung:
+  - non-invasiver Batch-Smoke via `PYTHONPATH=/tmp:/opt/beagle` mit den drei geaenderten Dateien.
+  - Ergebnis: `SRV1_WAVE3D_PART2_SMOKE=PASS`.
+- Plan-Status:
+  - `docs/goadvanced/01-data-integrity.md`: Welle 3d-Teilfortschritt erweitert.
+
 ## Update (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 1: Backup/Entitlements/Stream-Policy)
 
 **Scope**: Erste Teilwelle aus 3d umgesetzt, um verbleibende direkte JSON-State-Writes weiter abzubauen.

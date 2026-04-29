@@ -12,6 +12,8 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Callable
 
+from core.persistence.json_state_store import JsonStateStore
+
 
 class InstallerLogService:
     """Scoped append-only log intake for generated USB installer scripts."""
@@ -36,6 +38,10 @@ class InstallerLogService:
         self._token_ttl_seconds = max(300, int(token_ttl_seconds))
         self._utcnow = utcnow
         self._lock = threading.RLock()
+        self._sessions_store = JsonStateStore(
+            self._sessions_file,
+            default_factory=lambda: {"sessions": []},
+        )
 
     @staticmethod
     def _json_response(status: HTTPStatus, payload: dict[str, Any]) -> dict[str, Any]:
@@ -173,21 +179,13 @@ class InstallerLogService:
         return self._events_dir / f"{session_id}.jsonl"
 
     def _load_sessions_locked(self) -> dict[str, Any]:
-        if not self._sessions_file.is_file():
-            return {"sessions": []}
-        try:
-            data = json.loads(self._sessions_file.read_text(encoding="utf-8"))
-            if isinstance(data, dict) and isinstance(data.get("sessions"), list):
-                return data
-        except Exception:
-            pass
+        data = self._sessions_store.load()
+        if isinstance(data, dict) and isinstance(data.get("sessions"), list):
+            return data
         return {"sessions": []}
 
     def _write_sessions_locked(self, data: dict[str, Any]) -> None:
-        self._log_dir.mkdir(parents=True, exist_ok=True)
-        tmp_file = self._sessions_file.with_suffix(".tmp")
-        tmp_file.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
-        tmp_file.replace(self._sessions_file)
+        self._sessions_store.save(data)
 
     def _upsert_session_locked(self, token_payload: dict[str, Any], event: dict[str, Any]) -> None:
         data = self._load_sessions_locked()

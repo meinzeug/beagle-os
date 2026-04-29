@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any, Callable
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 class MaintenanceService:
@@ -20,6 +21,7 @@ class MaintenanceService:
         version: str,
     ) -> None:
         self._state_file = Path(state_file)
+        self._store = JsonStateStore(self._state_file, default_factory=lambda: {"maintenance_nodes": []})
         self._list_nodes = list_nodes
         self._list_vms = list_vms
         self._get_vm_config = get_vm_config
@@ -45,24 +47,13 @@ class MaintenanceService:
         return "disabled"
 
     def _read_state(self) -> dict[str, Any]:
-        try:
-            if self._state_file.is_file():
-                payload = json.loads(self._state_file.read_text(encoding="utf-8"))
-                if isinstance(payload, dict):
-                    return payload
-        except (OSError, json.JSONDecodeError):
-            pass
+        payload = self._store.load()
+        if isinstance(payload, dict):
+            return payload
         return {"maintenance_nodes": []}
 
     def _write_state(self, payload: dict[str, Any]) -> None:
-        self._state_file.parent.mkdir(parents=True, exist_ok=True)
-        temp = self._state_file.with_suffix(self._state_file.suffix + ".tmp")
-        temp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        temp.replace(self._state_file)
-        try:
-            self._state_file.chmod(0o600)
-        except OSError:
-            pass
+        self._store.save(payload)
 
     def maintenance_nodes(self) -> list[str]:
         state = self._read_state()
