@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, GoAdvanced Plan 01 Welle 3c abgeschlossen)
+
+**Zuletzt erledigt**:
+- `fleet_telemetry_service.py` Maintenance-Schedule auf `JsonStateStore` migriert; kompletter Welle-3c-Testblock lokal und auf `srv1` erfolgreich.
+
+**Naechste konkrete Schritte**:
+
+1. Welle 3d in kleinen Batches schliessen (3-5 Services pro Run), beginnend mit den verbleibenden direkten JSON-Write-Pfaden in `beagle-host/services/`.
+2. Danach Plan-01-Schritt-4-Restpunkt abschliessen: Repo-Grep fuer direkte `path.write_text(json.dumps(`-Schreibpfade ausserhalb von Tests auf Null bringen.
+3. Als Folgearbeit die SQLite-Migration (`goadvanced/06-state-sqlite-migration.md`) vorbereiten, sobald Welle 3d abgeschlossen ist.
+
 ## Stand (2026-04-29, GoAdvanced Plan 01 Welle 3b abgeschlossen)
 
 **Zuletzt erledigt**:

@@ -10,6 +10,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from core.persistence.json_state_store import JsonStateStore
+
 
 @dataclass
 class DeviceTelemetry:
@@ -73,6 +75,10 @@ class FleetTelemetryService:
         self._dir.mkdir(parents=True, exist_ok=True)
         self._utcnow = utcnow or self._default_utcnow
         self._migrate_vms_fn = migrate_vms_fn
+        self._maintenance_store = JsonStateStore(
+            self._dir / "maintenance_schedule.json",
+            default_factory=list,
+        )
 
     # ------------------------------------------------------------------
     # Telemetry ingestion
@@ -190,19 +196,13 @@ class FleetTelemetryService:
         }
         if drain_error:
             rec["drain_error"] = drain_error
-        maint_file = self._dir / "maintenance_schedule.json"
-        schedule = []
-        if maint_file.exists():
-            schedule = json.loads(maint_file.read_text())
+        schedule = self._maintenance_store.load()
         schedule.append(rec)
-        maint_file.write_text(json.dumps(schedule, indent=2))
+        self._maintenance_store.save(schedule)
         return rec
 
     def get_maintenance_schedule(self) -> list[dict[str, Any]]:
-        maint_file = self._dir / "maintenance_schedule.json"
-        if not maint_file.exists():
-            return []
-        return json.loads(maint_file.read_text())
+        return self._maintenance_store.load()
 
     # ------------------------------------------------------------------
     # Internals

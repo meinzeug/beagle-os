@@ -1,3 +1,20 @@
+## Update (2026-04-29, GoAdvanced Plan 01 Welle 3c geschlossen: Fleet Telemetry gehaertet)
+
+**Scope**: Die naechste Datenintegritaets-Welle (3c) ist abgeschlossen; verbleibender direkter JSON-Schedule-Write in der Fleet-Telemetrie wurde auf `JsonStateStore` migriert und der gesamte Welle-3c-Satz erneut validiert.
+
+- Backend:
+  - `beagle-host/services/fleet_telemetry_service.py`
+    - Maintenance-Schedule-Persistenz (`schedule_maintenance`/`get_maintenance_schedule`) von direktem JSON-Dateizugriff auf `JsonStateStore` migriert.
+  - `session_manager.py`, `metrics_collector.py`, `workload_pattern_analyzer.py`, `smart_scheduler.py`
+    - verifiziert als Welle-3c-Zielset ohne direkte `write_text(json.dumps(...))`-Persistenzpfade.
+- Lokale Tests:
+  - `python3 -m pytest tests/unit/test_fleet_telemetry.py tests/unit/test_maintenance_scheduling.py tests/unit/test_anomaly_detection.py tests/unit/test_metrics_collector.py tests/unit/test_workload_pattern.py tests/unit/test_smart_scheduler.py -q` -> `45 passed`
+- `srv1`-Validierung:
+  - non-invasiver Smoke mit kopierter `fleet_telemetry_service.py` via `PYTHONPATH=/tmp:/opt/beagle`.
+  - Ergebnis: `SRV1_FLEET_TELEMETRY_SMOKE=PASS`.
+- Plan-Status:
+  - `docs/goadvanced/01-data-integrity.md`: Welle 3c auf `[x]` gesetzt.
+
 ## Update (2026-04-29, GoAdvanced Plan 01 Welle 3b geschlossen: MDM + Registry/Cluster/Alerts validiert)
 
 **Scope**: Der naechste offene Datenintegritaets-Slice wurde geschlossen: Welle 3b ist jetzt vollstaendig auf `JsonStateStore` bzw. bereits gehaertete Persistenz gebracht.
