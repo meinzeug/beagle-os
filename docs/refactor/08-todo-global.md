@@ -1,5 +1,6 @@
 # Global TODO
 
+- [x] GoAdvanced Plan 01 Welle 3b schliessen: `mdm_policy_service.py` auf `JsonStateStore` migrieren und Persistenzpfade fuer `device_registry.py`, `cluster_service.py`, `alert_service.py` inkl. lokalen Tests + `srv1`-Smoke verifizieren.
 - [x] GoAdvanced Plan 01 Welle 3a schliessen: `usage_tracking_service.py` und `energy_service.py` auf `JsonStateStore` migrieren und den Runtime-Smoke auf `srv1` reproduzierbar gruen fahren.
 - [x] GoAdvanced Plan 01 Datenintegritaet weiterziehen: weitere Service-State-Pfade auf `JsonStateStore` migrieren (`action_queue`, `cost_model`, `gpu_streaming`, `attestation`, `storage_quota`, `vm_console_access`, `beagle_novnc_token`) und 1000er-Stresstest lokal + auf `srv1` reproduzierbar gruen fahren.
 - [x] Thinclient-/Host-WireGuard-End-to-End schliessen: endpoint-authentifiziertes `vpn/register`, robuster Thinclient-Full-Tunnel ohne `wg-quick`-Haenger, Host-Firewall-Default fuer UDP `51820` und automatischer Server-Peer-Reconcile auf `srv1`.

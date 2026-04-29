@@ -1,3 +1,20 @@
+## Update (2026-04-29, GoAdvanced Plan 01 Welle 3b geschlossen: MDM + Registry/Cluster/Alerts validiert)
+
+**Scope**: Der naechste offene Datenintegritaets-Slice wurde geschlossen: Welle 3b ist jetzt vollstaendig auf `JsonStateStore` bzw. bereits gehaertete Persistenz gebracht.
+
+- Backend:
+  - `beagle-host/services/mdm_policy_service.py`
+    - Persistenz von direktem JSON-Dateizugriff auf `JsonStateStore` migriert (`_load()`/`_save()`).
+  - `beagle-host/services/device_registry.py`, `cluster_service.py`, `alert_service.py`
+    - verifiziert: bereits `JsonStateStore`-basiert, kein direkter `write_text(json.dumps(...))`-Pfad mehr.
+- Lokale Tests:
+  - `python3 -m pytest tests/unit/test_mdm_policy.py tests/unit/test_device_registry.py tests/unit/test_cluster_enrollment_token.py tests/unit/test_fleet_alerts.py -q` -> `56 passed`
+- `srv1`-Validierung:
+  - non-invasiver Smoke mit kopierter `mdm_policy_service.py` via `PYTHONPATH=/tmp:/opt/beagle`.
+  - Ergebnis: `SRV1_MDM_POLICY_SMOKE=PASS`.
+- Plan-Status:
+  - `docs/goadvanced/01-data-integrity.md`: Welle 3b auf `[x]` gesetzt.
+
 ## Update (2026-04-29, GoAdvanced Plan 01 Welle 3a geschlossen: Usage/Energy auf JsonStateStore)
 
 **Scope**: Die verbleibenden Welle-3a-Services fuer Datenintegritaet wurden auf `JsonStateStore` migriert und auf `srv1` mit Runtime-Smoke validiert.

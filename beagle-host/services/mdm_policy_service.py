@@ -4,11 +4,12 @@ GoEnterprise Plan 02, Schritt 3
 """
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+
+from core.persistence.json_state_store import JsonStateStore
 
 
 @dataclass
@@ -65,8 +66,10 @@ class MDMPolicyService:
     )
 
     def __init__(self, state_file: Path | None = None) -> None:
-        self._state_file = state_file or self.STATE_FILE
-        self._state_file.parent.mkdir(parents=True, exist_ok=True)
+        self._store = JsonStateStore(
+            state_file or self.STATE_FILE,
+            default_factory=lambda: {"policies": {}, "device_assignments": {}, "group_assignments": {}},
+        )
         self._state = self._load()
 
     # ------------------------------------------------------------------
@@ -299,12 +302,10 @@ class MDMPolicyService:
     # ------------------------------------------------------------------
 
     def _load(self) -> dict[str, Any]:
-        if self._state_file.exists():
-            return json.loads(self._state_file.read_text())
-        return {"policies": {}, "device_assignments": {}, "group_assignments": {}}
+        return self._store.load()
 
     def _save(self) -> None:
-        self._state_file.write_text(json.dumps(self._state, indent=2))
+        self._store.save(self._state)
 
     def _policy_snapshot(self, policy: MDMPolicy | None, *, policy_id: str = "", source_id: str = "") -> dict[str, Any] | None:
         if policy is None:

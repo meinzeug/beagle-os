@@ -1,5 +1,16 @@
 # Next Steps
 
+## Stand (2026-04-29, GoAdvanced Plan 01 Welle 3b abgeschlossen)
+
+**Zuletzt erledigt**:
+- `mdm_policy_service.py` auf `JsonStateStore` migriert; `device_registry.py`, `cluster_service.py`, `alert_service.py` als bereits gehaertete `JsonStateStore`-Pfade verifiziert; lokale Tests + `srv1`-Smoke gruen.
+
+**Naechste konkrete Schritte**:
+
+1. Welle 3c umsetzen: `session_manager.py`, `fleet_telemetry_service.py`, `metrics_collector.py`, `workload_pattern_analyzer.py`, `smart_scheduler.py` auf `JsonStateStore`/atomic writes ziehen.
+2. Welle 3d fuer verbleibende Services planbar schneiden (Batches mit je 3-5 Services) und jeweils mit lokalen Tests + `srv1`-Smoke absichern.
+3. Danach den Restpunkt in Plan 01 schliessen: Repo-Grep fuer direkte `path.write_text(json.dumps(`-Writes ausserhalb von Tests auf Null bringen.
+
 ## Stand (2026-04-29, GoAdvanced Plan 01 Welle 3a abgeschlossen)
 
 **Zuletzt erledigt**:
