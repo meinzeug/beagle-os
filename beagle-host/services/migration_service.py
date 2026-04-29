@@ -57,6 +57,55 @@ class MigrationService:
             or "copy-storage-inc" in text and "invalid" in text
         )
 
+    @staticmethod
+    def _looks_like_qemu_ssh_deadlock_error(message: str) -> bool:
+        text = str(message or "").lower()
+        indicators = (
+            "qemu+ssh",
+            "timed out",
+            "timeout",
+            "end of file",
+            "connection reset",
+            "connection closed",
+            "failed to connect",
+            "unable to read from monitor",
+            "migrate",
+        )
+        hit_count = sum(1 for token in indicators if token in text)
+        # Require multiple weak indicators so normal provider errors are not mislabeled.
+        return hit_count >= 2 and ("qemu+ssh" in text or "migrate" in text)
+
+    @staticmethod
+    def _deadlock_guidance(*, source_node: str, target_node: str, copy_storage: bool) -> str:
+        storage_hint = (
+            "copy_storage=true (offline/cold path with disk copy)"
+            if not copy_storage
+            else "shared storage on source/target and copy_storage=false (live/shared path)"
+        )
+        return (
+            "qemu+ssh live-migration appears stalled between "
+            f"{source_node} and {target_node}; "
+            "acceptance path: use shared-storage migration when both nodes see the same VM disks, "
+            f"or fallback to {storage_hint}."
+        )
+
+    def _run_virsh_with_deadlock_hint(
+        self,
+        command: list[str],
+        *,
+        source_node: str,
+        target_node: str,
+        copy_storage: bool,
+    ) -> str:
+        try:
+            return self._run_virsh_command(command)
+        except RuntimeError as exc:
+            if self._looks_like_qemu_ssh_deadlock_error(str(exc)):
+                raise RuntimeError(
+                    f"{exc}; {self._deadlock_guidance(source_node=source_node, target_node=target_node, copy_storage=copy_storage)}"
+                ) from exc
+            raise
+
     def list_target_nodes(self, vmid: int) -> list[dict[str, Any]]:
         vm = self._find_vm(int(vmid))
         if vm is None:
@@ -122,7 +171,12 @@ class MigrationService:
             incremental_command.append("--copy-storage-inc")
             incremental_command.extend([domain_name, destination_uri])
             try:
-                provider_result = self._run_virsh_command(incremental_command)
+                provider_result = self._run_virsh_with_deadlock_hint(
+                    incremental_command,
+                    source_node=source_node,
+                    target_node=normalized_target,
+                    copy_storage=True,
+                )
                 storage_copy_mode = "incremental"
             except RuntimeError as exc:
                 if not self._supports_incremental_storage_copy_error(str(exc)):
@@ -130,11 +184,21 @@ class MigrationService:
                 fallback_command = list(command)
                 fallback_command.append("--copy-storage-all")
                 fallback_command.extend([domain_name, destination_uri])
-                provider_result = self._run_virsh_command(fallback_command)
+                provider_result = self._run_virsh_with_deadlock_hint(
+                    fallback_command,
+                    source_node=source_node,
+                    target_node=normalized_target,
+                    copy_storage=True,
+                )
                 storage_copy_mode = "all"
         else:
             command.extend([domain_name, destination_uri])
-            provider_result = self._run_virsh_command(command)
+            provider_result = self._run_virsh_with_deadlock_hint(
+                command,
+                source_node=source_node,
+                target_node=normalized_target,
+                copy_storage=False,
+            )
         self._persist_vm_node(int(vmid), source_node, normalized_target)
         self._invalidate_vm_cache(int(vmid), source_node)
         self._invalidate_vm_cache(int(vmid), normalized_target)

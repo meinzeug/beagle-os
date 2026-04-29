@@ -150,3 +150,33 @@ def test_migrate_vm_copy_storage_falls_back_to_all_when_inc_unsupported() -> Non
     assert "--copy-storage-inc" in calls[0]
     assert "--copy-storage-all" in calls[1]
     assert payload["migration"]["copy_storage_mode"] == "all"
+
+
+def test_migrate_vm_live_deadlock_error_adds_shared_storage_guidance() -> None:
+    def _run(_command: list[str]) -> str:
+        raise RuntimeError("virsh migrate failed: qemu+ssh timeout after handshake")
+
+    service = _service_with_virsh_calls(_run)
+    try:
+        service.migrate_vm(101, target_node="node-b", live=True, copy_storage=False)
+    except RuntimeError as exc:
+        text = str(exc)
+        assert "acceptance path: use shared-storage migration" in text
+        assert "copy_storage=true" in text
+        assert "node-a" in text and "node-b" in text
+    else:
+        raise AssertionError("expected deadlock guidance error")
+
+
+def test_migrate_vm_non_deadlock_error_is_preserved() -> None:
+    def _run(_command: list[str]) -> str:
+        raise RuntimeError("permission denied")
+
+    service = _service_with_virsh_calls(_run)
+    try:
+        service.migrate_vm(101, target_node="node-b", live=True, copy_storage=False)
+    except RuntimeError as exc:
+        text = str(exc)
+        assert text == "permission denied"
+    else:
+        raise AssertionError("expected provider error")

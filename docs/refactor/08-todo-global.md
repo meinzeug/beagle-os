@@ -154,7 +154,9 @@
 - [x] Watchdog-Auto-Repair live auf mindestens einem Host mit echter Drift verifizieren (`reaction=started_refresh`).
 - [x] Downloadbare USB-Installer-/Live-Skripte mit nachweisbaren API-Logs ausstatten: scoped write-only Token, Public-Intake, Operator-Read-API, Shell/PowerShell-Hooks, Live-Smoke auf `srv1` und neue `/beagle-downloads`-Skripte.
 - [x] Release-Linie im Repo auf `8.0` anheben: `VERSION`, Extension-Manifest, Kiosk-Package, Changelog und WebUI-Cache-Buster aktualisiert.
-- [ ] QEMU+SSH Live-Migration-Deadlock zwischen `srv1` und `srv2` weiter eingrenzen oder Shared-Storage-Migration als Abnahmepfad dokumentieren.
+- [x] QEMU+SSH Live-Migration-Deadlock zwischen `srv1` und `srv2` weiter eingrenzen oder Shared-Storage-Migration als Abnahmepfad dokumentieren.
+	- Umsetzung 2026-04-29: `beagle-host/services/migration_service.py` erkennt qemu+ssh-Deadlock-/Timeout-Indikatoren und liefert eine explizite Abnahmeempfehlung (`shared-storage migration` bzw. Fallback `copy_storage=true` fuer cold/offline copy).
+	- Absicherung: `tests/unit/test_migration_service.py` um Deadlock-Hinweis-/Nicht-Deadlock-Regressions erweitert; srv1-smoke bestaetigt den neuen Hinweistext fuer `srv1 -> srv2`.
 
 ## Refactor Wave 2 (7.0)
 

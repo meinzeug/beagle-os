@@ -12,6 +12,18 @@
 2. Danach den offenen Plan-09-Restpunkt (`node-failure<=60s`, fencing start-block, maintenance drain live, anti-affinity multi-node runtime) auf echter 2-Node-Laufzeit final abnehmen.
 3. Anschliessend die verbleibenden GoRelease-R2/R3-Gates in `docs/gorelease/` mit dem gleichen Muster schliessen: erst reproduzierbarer Code-/Testpfad, dann `srv1`/`srv2`-Live-Validierung.
 
+## Stand (2026-04-29, QEMU+SSH Live-Migration-Deadlock eingegrenzt)
+
+**Zuletzt erledigt**:
+- `migration_service.py` liefert bei qemu+ssh-Deadlock-/Timeout-Indikatoren jetzt explizite Guidance fuer den Abnahmepfad (shared storage live) bzw. fallback (`copy_storage=true` cold/offline).
+- Der offene Global-TODO-Punkt zur Deadlock-Eingrenzung ist geschlossen und auf `srv1` via Runtime-Smoke validiert.
+
+**Naechste konkrete Schritte**:
+
+1. Den verbleibenden offenen Plan-09-Testpflichtpunkt auf echter Multi-Node-Laufzeit final abnehmen (`node-failure<=60s`, fencing start-block, maintenance drain live, anti-affinity).
+2. Danach die offenen GoRelease-R2/R3-Checks priorisieren, beginnend mit frischem Install/Boot-Pfad und Artefakt-/Signaturkette.
+3. Parallel den `beagle-manager`-Runtime-Status auf `srv1`/`srv2` als Vorbedingung fuer weitere Live-Smokes stabil gruen halten.
+
 ## Stand (2026-04-29, GoAdvanced Plan 06 Schritt 3 Teil 3 abgeschlossen)
 
 **Zuletzt erledigt**:

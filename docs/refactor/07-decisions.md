@@ -2,6 +2,11 @@
 
 Stand: 2026-04-13
 
+## D-058: qemu+ssh-Migrations-Deadlocks werden mit expliziter Shared-Storage-Guidance behandelt
+- Entscheidung: Der Migrationsservice erkennt qemu+ssh-nahe Timeout-/Connection-Deadlock-Indikatoren und erweitert den Fehlerpfad um eine klare Operator-Empfehlung: bevorzugter Abnahmepfad ist shared-storage live migration; fallback ist `copy_storage=true` als cold/offline copy path.
+- Grund: Der Runtime-Fehler war bisher zu unscharf und fuehrte zu wiederholten, schwer unterscheidbaren Fehlversuchen. Die explizite Guidance macht den naechsten reproduzierbaren Operator-Schritt direkt sichtbar und reduziert Trial-and-Error im HA-/Cluster-Betrieb.
+- Dateien: `beagle-host/services/migration_service.py`, `tests/unit/test_migration_service.py`.
+
 ## D-057: Desktop-Streaming-Guards im Ready-Flow sind sichtbar, aber nicht hart blockierend
 - Entscheidung: `scripts/ensure-vm-stream-ready.sh` prueft nach erfolgreichem Sunshine-API-Check zusaetzlich `xset q` und die Abwesenheit von `light-locker`/`xfce4-power-manager`; ein fehlschlagender Guard setzt einen Warnhinweis im Ready-Ergebnis statt den gesamten Provisioning-Flow auf `error` zu brechen.
 - Grund: Der Guard macht Live-Desktop-Drift fuer Operatoren sichtbar, ohne bestehende Bereitstellungspfade unnoetig hart zu unterbrechen (z.B. bei temporaerer Display-/Session-Unsauberkeit waehrend des First-Login-Fensters).

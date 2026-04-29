@@ -1,3 +1,23 @@
+## Update (2026-04-29, QEMU+SSH Live-Migration-Deadlock eingegrenzt + Shared-Storage-Abnahmepfad dokumentiert)
+
+**Scope**: Offenen Global-TODO-Punkt zur Live-Migration zwischen `srv1` und `srv2` geschlossen. Migration-Fehlerpfad liefert jetzt reproduzierbar eine klare Operator-Empfehlung fuer Shared-Storage-Migration oder cold/offline Fallback.
+
+- Code:
+  - `beagle-host/services/migration_service.py`
+    - neue Deadlock-Heuristik fuer qemu+ssh-bezogene Timeout-/Connection-/Migrate-Fehler
+    - virsh-Execution-Wrap mit explizitem Guidance-Text bei erkanntem Deadlock-Pfad
+    - dokumentierter Abnahmepfad im Runtime-Error: shared storage (live) oder `copy_storage=true` (cold/offline)
+- Tests:
+  - `tests/unit/test_migration_service.py`
+    - neuer Test fuer Deadlock-Hinweistext inkl. Shared-Storage-/Fallback-Empfehlung
+    - neuer Test, dass Nicht-Deadlock-Providerfehler unveraendert bleiben
+  - lokal: `python3 -m pytest tests/unit/test_migration_service.py -q` => `8 passed`
+- Smoke:
+  - lokal: `python3 scripts/test-vm-migration-smoke.py` => `VM_MIGRATION_SMOKE=PASS`
+  - `srv1`: gezielter Runtime-Smoke mit qemu+ssh-timeout-Fehler simuliert den Live-Fehlerpfad und bestaetigt Guidance:
+    - `DEADLOCK_HINT_PRESENT True`
+    - `COPY_STORAGE_FALLBACK_HINT True`
+
 ## Update (2026-04-29, Sunshine/Desktop-Guest-Smoke im Provisioning-Ready-Flow erweitert)
 
 **Scope**: Offenen Global-TODO-Punkt fuer neue WebUI-Desktop-VMs geschlossen: Nach dem Provisioning wird im Stream-Ready-Flow jetzt zusaetzlich geprueft, ob `xset q` auf `DISPLAY=:0` erfolgreich ist und ob `light-locker`/`xfce4-power-manager` nicht laufen.
