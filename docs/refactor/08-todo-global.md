@@ -434,7 +434,10 @@
 - [x] Close two-host installer/runtime glue: first-boot cluster auto-join service, node install-check API + WebUI banner, and live cluster URL drift repair on `srv1`/`srv2` so both members are `online` again (2026-04-27).
 - [x] GoEnterprise Plan 06 Schritt 3 Teil-Slice: endpoint-authenticated Session-Broker `GET /api/v1/session/current`, Pool-Session-Registration und Thin-Client-Reconnect-Hook auf `srv1`/`srv2` ausrollen; Live-Smoke auf `srv1` erfolgreich, `srv2` route/auth ok mit `404` mangels lokaler VM-Inventardaten.
 - [x] GoEnterprise Plan 06 Timing-/Geo-Slice: `tests/integration/test_session_handover_timing.py`, `tests/unit/test_geo_routing.py`, `GET /api/v1/sessions/handover` und `scripts/smoke-session-handover-flow.sh` fuer den Zwei-Host-Pfad `srv1 -> srv2` umsetzen; Live-Smoke `PASS` in `0.29s`.
-- [ ] Run explicit 5GB backup load test for Plan 07 if a sufficiently large disposable VM/disk is available.
+- [x] Run explicit 5GB backup load test for Plan 07 if a sufficiently large disposable VM/disk is available.
+	- Umsetzung 2026-04-29: neues Smoke-Skript `scripts/test-backup-load-5gb-smoke.sh` eingefuehrt (5GB-Payload unter `/etc/beagle`, Backup-Run via `/api/v1/backups/run`, Async-Job-Polling, Snapshot/File-List-Validierung, Policy-Restore, Cleanup-Guards).
+	- Service-Hardening 2026-04-29: `beagle-host/services/backup_service.py` fuer Live-Host-Runs robust gemacht (lesbare Manifest-Liste fuer tar, tolerante Behandlung nicht-fataler tar-Warnungen bei vorhandenem Archiv), damit Backup-Jobs nicht mehr an Permission-Warnings im `/etc/beagle`-Baum scheitern.
+	- Validierung 2026-04-29 auf `srv1`: `BACKUP_LOAD_5GB_SMOKE=PASS` mit generierter Payload `5368709120` Bytes und erfolgreichem Backup-Job ueber die Async-Queue.
 - [x] Run IAM/Audit browser UI regressions and srv1 smoke after control-plane runtime validation.
 	- Validierung 2026-04-29: lokal `python3 -m pytest tests/unit/test_iam_ui_regressions.py tests/unit/test_audit_ui_regressions.py -q` => `6 passed`.
 	- `srv1`: `PLAN13_IAM_SMOKE=PASS` und `AUDIT_COMPLIANCE_SMOKE=PASS` gegen den laufenden `beagle-control-plane`.

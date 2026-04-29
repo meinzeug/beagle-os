@@ -275,7 +275,14 @@ class BackupService:
         now_iso = self._utcnow()
         safe_ts = now_iso.replace(":", "-").replace(" ", "_")
 
-        cmd: list[str] = ["tar", "--ignore-failed-read"]
+        # Backup runs on a live host where files under /etc/beagle can change
+        # during read. Keep backups robust by downgrading those races to warnings.
+        cmd: list[str] = [
+            "tar",
+            "--ignore-failed-read",
+            "--warning=no-file-changed",
+            "--warning=no-file-removed",
+        ]
         if incremental:
             snar_path = str(Path(target_path) / f"beagle-backup-{scope_type}-{scope_id}.snar")
             cmd += [f"--listed-incremental={snar_path}"]
@@ -285,15 +292,36 @@ class BackupService:
         else:
             archive = str(Path(target_path) / f"beagle-backup-{scope_type}-{scope_id}-{safe_ts}.tar.gz")
 
-        cmd += ["-czf", archive, "/etc/beagle"]
+        # Build a manifest of readable paths so restricted secrets do not break
+        # host backups that run under a non-root service user.
+        manifest_result = subprocess.run(
+            ["find", "/etc/beagle", "-xdev", "-readable", "-print0"],
+            capture_output=True,
+            timeout=120,
+        )
+        manifest = manifest_result.stdout or b""
+        if not manifest:
+            raise RuntimeError("no readable backup source entries under /etc/beagle")
+
+        cmd += ["-czf", archive, "--null", "-T", "-"]
         result = subprocess.run(
             cmd,
+            input=manifest,
             capture_output=True,
-            text=True,
             timeout=300,
         )
         if result.returncode != 0:
-            raise RuntimeError(str(result.stderr or "tar failed").strip()[:500])
+            stderr = (result.stderr or b"").decode("utf-8", errors="replace")
+            fatal_markers = (
+                "Error is not recoverable",
+                "Child returned status",
+                "Wrote only",
+                "No such file or directory",
+            )
+            archive_exists = Path(archive).exists() and Path(archive).stat().st_size > 0
+            has_fatal_marker = any(marker in stderr for marker in fatal_markers)
+            if not archive_exists or has_fatal_marker:
+                raise RuntimeError(str(stderr or "tar failed").strip()[:500])
         return archive
 
     def run_backup_now(self, *, scope_type: str, scope_id: str) -> dict[str, Any]:

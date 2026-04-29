@@ -1,3 +1,26 @@
+## Update (2026-04-29, Plan-07 5GB Backup-Lasttest auf srv1 geschlossen)
+
+**Scope**: Der offene Plan-07-Lasttest fuer ein explizites 5GB-Backup ist geschlossen und live auf `srv1` reproduzierbar validiert.
+
+- Code:
+  - `scripts/test-backup-load-5gb-smoke.sh` (neu)
+    - erzeugt eine 5GB-Testpayload unter `/etc/beagle/backup-loadtest`.
+    - startet Backup via `POST /api/v1/backups/run` mit eindeutigem `Idempotency-Key`.
+    - pollt Async-Jobstatus ueber `GET /api/v1/jobs/{job_id}`.
+    - prueft Snapshot/File-List-Nachweis und Job-History-Eintrag.
+    - setzt die geaenderte Backup-Policy (`target_path`) nach dem Lauf zurueck.
+  - `beagle-host/services/backup_service.py`
+    - tar-Eingabe wird aus einer lesbaren Manifest-Liste erzeugt (`find ... -readable -print0` + `tar --null -T -`), damit unreadable Host-Dateien den Lauf nicht brechen.
+    - nicht-fatale tar-Warnungen werden toleriert, solange ein Archiv geschrieben wurde und keine fatalen Marker vorliegen.
+- Validierung:
+  - lokal: `python3 -m py_compile beagle-host/services/backup_service.py` => OK
+  - lokal: `python3 -m pytest -q tests/unit/test_backup_service.py tests/unit/test_backups_http_surface.py` => `42 passed`
+  - `srv1`: `scripts/test-backup-load-5gb-smoke.sh` => `BACKUP_LOAD_5GB_SMOKE=PASS`
+    - Payload groesse: `5368709120` Bytes
+    - Backup-Run ueber Async-Queue erfolgreich abgeschlossen
+
+---
+
 ## Update (2026-04-29, Stream-Persistenz ueber Voll-Reboot auf srv1 validiert)
 
 **Scope**: Offener Master-Plan-Punkt "Stream-Persistenz ohne manuelle Firewall-/Route-Intervention" ist geschlossen.

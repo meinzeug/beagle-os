@@ -1,6 +1,19 @@
 # Next Steps
 # Next Steps
 
+## Stand (2026-04-29, Plan-07 5GB Backup-Lasttest auf srv1 geschlossen)
+
+**Zuletzt erledigt**:
+- Neuer Lasttest `scripts/test-backup-load-5gb-smoke.sh` fuehrt einen expliziten 5GB-Backup-Run ueber die Async-Queue aus und validiert den Snapshot-/Job-Nachweis.
+- `backup_service.py` ist fuer Live-Hosts gehaertet: lesbare Manifest-Liste fuer tar, tolerante Behandlung nicht-fataler tar-Warnungen.
+- Live auf `srv1`: `BACKUP_LOAD_5GB_SMOKE=PASS`.
+
+**Naechste konkrete Schritte**:
+
+1. Den verbleibenden clean-install Host-Validierungspunkt schliessen: noVNC/XFCE/API/Downloads end-to-end auf frisch installiertem Server-Installer-Host abnehmen.
+2. Danach den offenen Windows-Live-USB-Writer-Punkt mit echtem Windows/UEFI-Boottest validieren und dokumentieren.
+3. Parallel den doppelt gefuehrten DHCP-Timeout-Restpunkt in `08-todo-global.md` aufraeumen (offener Duplicate zur bereits erledigten Fix-Checkbox).
+
 ## Stand (2026-04-29, Stream-Persistenz ueber Voll-Reboot auf srv1 geschlossen)
 
 **Zuletzt erledigt**:
