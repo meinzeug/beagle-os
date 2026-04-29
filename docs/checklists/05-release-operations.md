@@ -56,12 +56,13 @@
 
 ## Operations + Runbooks
 
-- [ ] `docs/runbooks/installation.md` — Installations-Runbook
-- [ ] `docs/runbooks/update.md` — Update-Runbook
-- [ ] `docs/runbooks/rollback.md` — Rollback-Runbook
-- [ ] `docs/runbooks/backup-restore.md` — Backup-/Restore-Runbook
-- [ ] `docs/runbooks/incident-response.md` — Incident-Response-Runbook
-- [ ] `docs/runbooks/pilot.md` — Pilot-Runbook fuer Kunden
+- [x] [`../runbooks/installation.md`](../runbooks/installation.md) — Installations-Runbook (Skelett, ungetestet)
+- [x] [`../runbooks/update.md`](../runbooks/update.md) — Update-Runbook (Skelett, ungetestet)
+- [x] [`../runbooks/rollback.md`](../runbooks/rollback.md) — Rollback-Runbook (Skelett, ungetestet)
+- [x] [`../runbooks/backup-restore.md`](../runbooks/backup-restore.md) — Backup-/Restore-Runbook (Skelett, ungetestet)
+- [x] [`../runbooks/incident-response.md`](../runbooks/incident-response.md) — Incident-Response-Runbook (Skelett, ungetestet)
+- [x] [`../runbooks/pilot.md`](../runbooks/pilot.md) — Pilot-Runbook fuer Kunden (Skelett, ungetestet)
+- [ ] Mind. 1 Runbook auf realer Hardware validiert (Befund eingetragen)
 - [ ] Notfallzugriff ohne Klartext-Secrets in Dokumenten
 - [ ] Wartungsfenster + Supportzeiten definiert
 

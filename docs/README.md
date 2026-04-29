@@ -53,6 +53,7 @@ Hinweis: `refactor/00-09-*.md` sind historisch und werden nicht mehr aktiv gepfl
 | Contributing | [contributing.md](contributing.md) |
 | API | [api/openapi-v1-coverage.md](api/openapi-v1-coverage.md), [api/breaking-change-policy.md](api/breaking-change-policy.md) |
 | Deployment | [deployment/](deployment/) (Hetzner installimage, beagle-os build, thin client, PXE) |
+| Runbooks | [runbooks/](runbooks/) (Installation, Update, Rollback, Backup, Incident, Pilot) |
 | Security | [security/](security/) (overview, secret-inventory, secret-lifecycle, tls-bypass-allowlist) |
 | Observability | [observability/setup.md](observability/setup.md) |
 

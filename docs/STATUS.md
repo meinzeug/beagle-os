@@ -29,7 +29,7 @@ firmentauglichen, Enterprise-Niveau Produkt?*
 | SDN + Distributed Firewall | gelb | [`checklists/01-platform.md`](checklists/01-platform.md) |
 | Audit-Export + Compliance | gelb | [`checklists/03-security.md`](checklists/03-security.md) |
 | Backup/DR auf 2 Hosts validiert | gelb | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
-| Operations-Runbooks | rot (`docs/runbooks/` fehlt) | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
+| Operations-Runbooks | gelb (Skelette vorhanden, ungetestet) | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
 | Hardware-Abnahme R3 | rot (kein GPU-Server gebucht) | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
 | Externer Pen-Test R4 | rot | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
 
@@ -50,7 +50,7 @@ Live-/Hardware-Validation offen · **rot** = blockiert, externe Voraussetzung.
 
 Aktuell blockierend fuer Pilot/Production:
 
-1. Keine `docs/runbooks/*` (Installation, Update, Rollback, Backup, Incident, Pilot)
+1. Runbooks sind Skelette — mind. 1 Validierung auf realer Hardware noch offen
 2. Kein GPU-Server gebucht → R3 nicht startbar
 3. Externer Security-Review nicht beauftragt → R4 nicht abschliessbar
 
@@ -58,8 +58,8 @@ Aktuell blockierend fuer Pilot/Production:
 
 ## Naechste konkrete Schritte (top 5)
 
-1. Runbook-Skelette anlegen unter `docs/runbooks/` (Installation, Update, Rollback, Backup, Incident, Pilot)
-2. Frische ISO-Installation auf leerem Hetzner-Host live durchfuehren + Befund in [`checklists/05-release-operations.md`](checklists/05-release-operations.md) eintragen
-3. Cluster-Smoke auf `srv1`+`srv2` (Join + Drain + Failover) abnehmen
+1. Frische ISO-Installation auf leerem Hetzner-Host live durchfuehren + [`runbooks/installation.md`](runbooks/installation.md) auf **Validiert** heben
+2. Cluster-Smoke auf `srv1`+`srv2` (Join + Drain + Failover) abnehmen
+3. Backup/Restore auf realer 2-Node-Konstellation testen, [`runbooks/backup-restore.md`](runbooks/backup-restore.md) validieren
 4. GPU-Server bei Hetzner buchen, R3-Block freischalten
 5. Externes Pen-Test-Engagement vorbereiten (Scope, Termin, Vertrag)
