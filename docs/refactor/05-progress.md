@@ -1,3 +1,25 @@
+## Update (2026-04-29, Stream-Persistenz ueber Voll-Reboot auf srv1 validiert)
+
+**Scope**: Offener Master-Plan-Punkt "Stream-Persistenz ohne manuelle Firewall-/Route-Intervention" ist geschlossen.
+
+- Code:
+  - `scripts/test-stream-persistence-reboot-smoke.sh` (neu)
+    - laedt Live-Profil aus der Host-API und prueft `egress_mode`/`egress_type`.
+    - validiert Sunshine-API vor und nach VM-Reboot.
+    - rebootet VM via Provider-Flow und wartet auf `running`.
+    - vergleicht Profilfelder nach Reboot auf Unveraendertheit.
+    - enthaelt Sunshine-Check-Fallback (public URL -> private Guest-URL via `moonlight_local_host`) fuer stabile Host-seitige Reachability-Pruefung.
+    - exportiert `PYTHONPATH` fuer Provider-Importe (`core`-Module).
+- Validierung:
+  - lokal: `bash -n scripts/test-stream-persistence-reboot-smoke.sh` => OK
+  - `srv1`: `scripts/test-stream-persistence-reboot-smoke.sh --vmid 100 --node beagle-0`
+    - `STREAM_REBOOT_PERSISTENCE_SMOKE=PASS`
+    - Sunshine API vor/nach Reboot erreichbar (`HTTP 401` via `https://192.168.123.116:50001/api/apps`)
+    - VM100 nach Reboot wieder `running`
+    - Stream-Profil nach Reboot unveraendert
+
+---
+
 ## Update (2026-04-29, VPN als Standardpfad fuer VM-Streaming durchgezogen)
 
 **Scope**: Der globale Standardpfad fuer VM-Streaming ist auf WireGuard/VPN umgestellt (statt `direct`) und sowohl auf `srv1` als auch in der lokalen Thinclient-VM verifiziert.

@@ -374,7 +374,10 @@
 - [x] Expose Live-USB creator download action in Beagle Web Console endpoint detail flow.
 - [x] Harden provisioning catalog bridge default fallback to discovered bridge inventory.
 - [x] Rebuild server installer ISO artifact in current workspace (2026-04-19 run).
-- [ ] Validate stream persistence across full reboot without manual firewall/route intervention.
+- [x] Validate stream persistence across full reboot without manual firewall/route intervention.
+	- Umsetzung 2026-04-29: neues Smoke-Skript `scripts/test-stream-persistence-reboot-smoke.sh` erstellt; prueft VM-Profilkonsistenz (`egress_mode`/`egress_type`), Sunshine-API-Erreichbarkeit vor und nach Reboot, fuehrt VM-Reboot ueber Provider-Pfad aus und validiert Recovery ohne manuelle Firewall-/Route-Operationen.
+	- Robustheit: Skript exportiert `PYTHONPATH` fuer Provider-Helper und nutzt fuer Sunshine-Checks einen Fallback von Public-URL auf private Guest-URL (`moonlight_local_host`) fuer Host-interne Validierung.
+	- Validierung 2026-04-29 auf `srv1` / VM100: `STREAM_REBOOT_PERSISTENCE_SMOKE=PASS` (Sunshine API vor/nach Reboot `HTTP 401`, VM wieder `running`, Stream-Profil unveraendert).
 - [ ] Fix `test-server-installer-live-smoke.sh` DHCP timeout in local libvirt harness after fresh ISO build.
 - [x] Fix `test-server-installer-live-smoke.sh` DHCP timeout in local libvirt harness after fresh ISO build.
 	- Umsetzung 2026-04-29: `WAIT_DHCP_SECONDS` auf 300 angehoben, `WAIT_HEALTH_SECONDS` auf 300; ARP-Fallback in `wait_for_vm_ip` ergänzt.

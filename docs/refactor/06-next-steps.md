@@ -1,6 +1,19 @@
 # Next Steps
 # Next Steps
 
+## Stand (2026-04-29, Stream-Persistenz ueber Voll-Reboot auf srv1 geschlossen)
+
+**Zuletzt erledigt**:
+- `scripts/test-stream-persistence-reboot-smoke.sh` eingefuehrt und auf `srv1` gegen VM100 erfolgreich ausgefuehrt.
+- Der Lauf validiert Profilkonsistenz + Sunshine-API-Recovery vor/nach Reboot ohne manuelle Firewall-/Routing-Eingriffe.
+- Globales TODO wurde auf erledigt gesetzt.
+
+**Naechste konkrete Schritte**:
+
+1. Den verbleibenden offenen Installer-Live-Slice schliessen: `test-server-installer-live-smoke.sh` DHCP-Timeout in der lokalen libvirt-Harness final robust machen (offener, doppelter Restpunkt in `08-todo-global.md`).
+2. Danach den offenen clean-install Host-Validierungspunkt auf frisch installiertem Server-Installer-Host end-to-end abnehmen (noVNC/XFCE/API/Downloads).
+3. Anschliessend den Windows-Live-USB-Writer mit echtem Windows/UEFI-Boottest validieren und dokumentieren.
+
 ## Stand (2026-04-29, VPN-Default fuer VM-Streaming live)
 
 **Zuletzt erledigt**:
