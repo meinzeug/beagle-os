@@ -59,7 +59,7 @@
 - [x] `website/ui/error-handler.js` standardisiert (showError/Warning/Success/Info, handleFetchError)
 - [x] 5 `alert()`/`console.error()`-Calls migriert
 - [ ] Migration aller hard-coded Strings in UI-Modulen auf `t()` (beginnend `auth_admin.js`, `vms_panel.js`)
-- [ ] axe-core CLI gegen `https://srv1.beagle-os.com` — 0 Critical/Serious
+- [x] axe-core CLI gegen `https://srv1.beagle-os.com` — 0 Critical/Serious (`npx -y @axe-core/cli ... --tags wcag2a,wcag2aa`: 0 violations, 2026-04-30)
 - [ ] Lighthouse Mobile-Score > 90, Accessibility > 90
 - [ ] Mobile-Responsive (Breakpoints 360/600/900/1200, Touch-Targets >= 44px)
 - [ ] Dark-Mode persistiert + `prefers-color-scheme`-Default

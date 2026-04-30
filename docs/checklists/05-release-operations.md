@@ -20,7 +20,7 @@
 - [x] Sunshine Stream-Prep unattended PASS auf VM100 (srv1)
 - [ ] **Frische ISO-Installation auf leerem Host:** Erst-Boot erreicht WebUI ohne manuelle Hotfixes
 - [ ] `scripts/check-beagle-host.sh` gruen nach Clean-Install
-- [ ] Dashboard, Settings, Updates, Downloads, Pools, Policies, IAM, Audit, Virtualization laden ohne `500`
+- [x] Dashboard, Settings, Updates, Downloads, Pools, Policies, IAM, Audit, Virtualization laden ohne `500` — `scripts/test-r1-dashboard-smoke.py` gegen `https://srv1.beagle-os.com/beagle-api` (8 Endpunkte, alle 200, 2026-04-30)
 - [ ] VM-Lifecycle aus WebUI + API: create, start, snapshot, reboot, delete
 - [ ] Autoinstall + Firstboot-Service melden Completion selbststaendig
 - [ ] Backup einer echten VM-Disk → Restore auf zweitem Host → Hash-Match

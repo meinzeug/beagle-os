@@ -1,3 +1,20 @@
+## Update (2026-04-30, Monitoring + Accessibility + R1-API-Smoke)
+
+**Scope**: Weitere offene Punkte aus Operations-/Quality-Checklisten direkt auf `srv1` geschlossen.
+
+- Monitoring-Script `scripts/check-beagle-health.sh` hinzugefuegt und auf `srv1` validiert:
+  - `nginx` aktiv,
+  - TLS-Zertifikat gueltig (89 Tage Restlaufzeit),
+  - Disk-Checks `PASS` (`/var/lib/beagle=1%`, `/var/lib/libvirt/images=33%`, `/=33%`),
+  - Control-Plane-Health via `/healthz` = 200.
+- Accessibility-SMOKE via axe-core abgeschlossen:
+  - `npx -y @axe-core/cli https://srv1.beagle-os.com --tags wcag2a,wcag2aa` => `0 violations`.
+- Reproduzierbarer R1-Endpoint-Smoke hinzugefuegt: `scripts/test-r1-dashboard-smoke.py`
+  - gegen `https://srv1.beagle-os.com/beagle-api` ausgefuehrt,
+  - 8/8 Endpunkte `200` (kein `500`).
+
+---
+
 ## Update (2026-04-30, Repository-Pattern Schritt 3 live)
 
 **Scope**: `BeagleDb`-Singleton + Repository-Verdrahtung in `service_registry.py`; Live-Validierung auf `srv1`.
