@@ -2,7 +2,12 @@
 set -euo pipefail
 
 TARGET="${1:-root@srv1.beagle-os.com}"
-NEW_PASSWORD="${2:-KjseT_2%Lop}"
+NEW_PASSWORD="${2:-}"
+
+if [[ -z "$NEW_PASSWORD" ]]; then
+  echo "usage: $0 [user@host] <new-password>" >&2
+  exit 2
+fi
 
 ssh -4 -o BatchMode=yes "$TARGET" "NEW_PASSWORD='$NEW_PASSWORD' bash -s" <<'REMOTE'
 set -euo pipefail
