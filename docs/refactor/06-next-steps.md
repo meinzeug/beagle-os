@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-04-30, R1 VM-Lifecycle + Accessibility + Ops-Health abgeschlossen)
+
+**Zuletzt erledigt**:
+- R1-VM-Lifecycle reproduzierbar geschlossen: neues Smoke-Skript `scripts/test-vm-lifecycle-r1-smoke.py` (create/start/snapshot/reboot/delete inkl. Cleanup) gegen `srv1` erfolgreich (`ok=true`, `checked=7`, `failed=0`).
+- Accessibility-Gate geschlossen: `axe-core`-CLI gegen `https://srv1.beagle-os.com` mit `wcag2a,wcag2aa` liefert `0 violations`.
+- Ops-Health-Slice geschlossen: `scripts/check-beagle-health.sh` auf `srv1` mit `overall=PASS` (nginx/TLS/disk/healthz).
+
+**Naechste konkrete Schritte**:
+
+1. R1-Restpunkt `Frische ISO-Installation auf leerem Host` mit reproduzierbarem Install-Smoke + `scripts/check-beagle-host.sh`-Nachweis schliessen.
+2. R3-Punkt `Backup -> Restore einer echten VM-Disk auf zweitem Host + Hash-Match` als reproduzierbares Script mit PASS-Protokoll umsetzen.
+3. Compliance-Restpunkt `Audit-Export fuer Administratoren produktiv` auf `srv1` aktivieren und per End-to-End-Smoke (Export + Redaction + Zustellung) abnehmen.
+
+---
+
 ## Stand (2026-04-30, VM102 unblock + SQLite-Migration + mypy-CI-Hardfail abgeschlossen)
 
 **Zuletzt erledigt**:

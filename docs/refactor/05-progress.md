@@ -1,3 +1,25 @@
+## Update (2026-04-30, R1-VM-Lifecycle geschlossen + Final-Smoke PASS)
+
+**Scope**: Offenen R1-Lifecycle-Punkt reproduzierbar per API schliessen und finalen PASS-Nachweis fahren.
+
+- Neues Smoke-Skript: `scripts/test-vm-lifecycle-r1-smoke.py`
+  - Login -> Node-Pick -> `create` (`POST /api/v1/vms`) -> `start` -> `snapshot` -> `reboot` -> `delete` (`DELETE /api/v1/provisioning/vms/{vmid}`)
+  - Cleanup ist immer aktiv (Delete in `finally`).
+- Live-Validierung gegen `srv1` erfolgreich:
+  - Extern: `https://srv1.beagle-os.com/beagle-api` => `R1_VM_LIFECYCLE PASS checked=7 failed=0`
+  - On-host: `http://127.0.0.1:9088` => `VM_LIFECYCLE_ON_SRV1=PASS checked=7 failed=0`
+- Checklist-/Refactor-Dokumente aktualisiert:
+  - `docs/checklists/05-release-operations.md`: VM-Lifecycle auf `[x]`
+  - `docs/checklists/04-quality-ci.md`: doppelten offenen Schritt-3-Eintrag bereinigt
+  - `docs/refactor/06-next-steps.md` + `docs/refactor/08-todo-global.md` auf neuen Ist-Stand angehoben
+- Finaler Smoke-Nachweis (erneut gefahren):
+  - `R1_ENDPOINTS PASS checked=8 failed=0`
+  - `R1_VM_LIFECYCLE PASS checked=7 failed=0`
+  - `OPS_HEALTH PASS pass=6 fail=0`
+  - `axe-core`: `0 violations` (`wcag2a,wcag2aa`)
+
+---
+
 ## Update (2026-04-30, Monitoring + Accessibility + R1-API-Smoke)
 
 **Scope**: Weitere offene Punkte aus Operations-/Quality-Checklisten direkt auf `srv1` geschlossen.

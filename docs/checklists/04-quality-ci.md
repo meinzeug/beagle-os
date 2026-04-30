@@ -34,7 +34,6 @@
 
 - [x] `JsonStateStore` mit atomic writes + file-locking (`docs/archive/goadvanced/01-data-integrity.md`)
 - [x] `core/persistence/` Modul: write-temp + fsync + rename
-- [ ] **Schritt 3** — Repository-Pattern fuer alle State-Konsumenten
 - [x] **Schritt 3** — `BeagleDb`-Singleton + `PoolRepository` + `DeviceRepository` + `VmRepository` in `service_registry.py` verdrahtet; DB-Pfad `DATA_DIR/state.db` (`/var/lib/beagle/beagle-manager/state.db`); live auf `srv1` deployt, alle v1-Endpunkte 200, WAL aktiv (2026-04-30)
 - [x] **Schritt 4** — One-Shot-Importer `scripts/migrate-json-to-sqlite.py` (live auf `srv1` ausgefuehrt; Backup unter `/var/lib/beagle/.bak/20260430T160508Z/`, SQLite-Rows: `vms=2`, `pools=1`)
 - [x] SQLite-DB unter `/var/lib/beagle/beagle-manager/state.db` produktiv (WAL aktiv, owned by beagle-manager)
