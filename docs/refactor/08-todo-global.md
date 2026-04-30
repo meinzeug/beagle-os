@@ -95,6 +95,8 @@
 - [x] GoEnterprise Plan 01: VM-seitigen Register-/Config-/Event-Smoke fuer den Stream-Server per QEMU-Guest-Agent reproduzierbar absichern (`scripts/test-stream-server-vm-register-smoke.py`).
 - [ ] GoEnterprise Plan 01: denselben Enforcement-Pfad spaeter auch im separaten `beagle-stream-server`-Fork verankern.
 
+- [x] Reinstall-/Onboarding-Drift auf `srv1` schliessen: Secret-Store-Dir fuer `beagle-control-plane` reproduzierbar vorbereiten, Auth-State bei frischer Server-Installation explizit resetten und Bootstrap-/Onboarding-Modus bei spaeteren Service-Re-Runs erhalten.
+
 ## Update 2026-04-26 (GoFuture Re-Open: WebUI-Operability)
 
 - [x] Policies-Panel Subnavigation fuer Pools/Templates/Entitlements/Policies/Sessions einziehen und Ist-Zustand dokumentieren.

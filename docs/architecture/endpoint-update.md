@@ -7,9 +7,9 @@ Stand vom 30.03.2026:
 - lokale Festplatten-Installationen booten nicht als klassisches Debian-System, sondern als Live-Layout von der Zielplatte
 - geschrieben werden aktuell `vmlinuz`, `initrd.img` und `filesystem.squashfs` nach `/live`
 - persistente Client-Daten liegen separat unter `/pve-thin-client/state`
-- der Beagle Manager auf Beagle host existiert bereits und kann Endpoints periodisch sehen
-- Endpoints melden sich bereits per `beagle-endpoint-report` beim Manager
-- Endpoints ziehen bereits Aktionen per `beagle-endpoint-dispatch` vom Manager
+- die Beagle Control Plane auf dem Beagle-Host existiert bereits und kann Endpoints periodisch sehen
+- Endpoints melden sich bereits per `beagle-endpoint-report` bei der Control Plane
+- Endpoints ziehen bereits Aktionen per `beagle-endpoint-dispatch` von der Control Plane
 
 Auf dem dedizierten Control-Plane-Host werden die Release-Artefakte bereits veröffentlicht.
 Zum Zeitpunkt der Analyse liefert `beagle-downloads-status.json` Version `5.0.10` mit einem Payload von `1228401208` Bytes.
@@ -38,7 +38,7 @@ Implementiertes Modell:
 - `SHA256SUMS` fuer die oeffentlichen Artefakte
 - optional ein schlankes oeffentliches `beagle-downloads-status.json`
 
-Der Endpoint zieht die Freigabe nicht direkt aus einer oeffentlichen JSON-Datei, sondern ueber den Beagle Manager:
+Der Endpoint zieht die Freigabe nicht direkt aus einer oeffentlichen JSON-Datei, sondern ueber die Beagle Control Plane:
 
 - `GET /api/v1/endpoints/update-feed`
 
@@ -57,7 +57,7 @@ Damit bleibt der Rollout auch ohne `beagle-os.com` funktionsfaehig.
 ### 2. Update-Kanal ueber die bestehende Control Plane steuern
 
 Keine zweite Management-Strecke bauen.
-Der vorhandene Beagle-Manager ist bereits die richtige Stelle fuer:
+Die vorhandene Beagle Control Plane ist bereits die richtige Stelle fuer:
 
 - Update-Policy pro VM oder Client
 - Freigabe von `stable`, `pilot`, `pinned`

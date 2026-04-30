@@ -30,9 +30,13 @@ BEAGLE_CONTROL_ENV_FILE="$CONFIG_DIR/beagle-manager.env"
 IDENTITY_PROVIDER_REGISTRY_FILE="${BEAGLE_IDENTITY_PROVIDER_REGISTRY_FILE:-$CONFIG_DIR/identity-providers.json}"
 BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
 BEAGLE_CONTROL_USER="${BEAGLE_CONTROL_USER:-beagle-manager}"
+BEAGLE_AUTH_BOOTSTRAP_USERNAME_WAS_SET="${BEAGLE_AUTH_BOOTSTRAP_USERNAME+x}"
+BEAGLE_AUTH_BOOTSTRAP_PASSWORD_WAS_SET="${BEAGLE_AUTH_BOOTSTRAP_PASSWORD+x}"
+BEAGLE_AUTH_BOOTSTRAP_DISABLE_WAS_SET="${BEAGLE_AUTH_BOOTSTRAP_DISABLE+x}"
 BEAGLE_AUTH_BOOTSTRAP_USERNAME="${BEAGLE_AUTH_BOOTSTRAP_USERNAME:-admin}"
 BEAGLE_AUTH_BOOTSTRAP_PASSWORD="${BEAGLE_AUTH_BOOTSTRAP_PASSWORD:-}"
 BEAGLE_AUTH_BOOTSTRAP_DISABLE="${BEAGLE_AUTH_BOOTSTRAP_DISABLE:-0}"
+BEAGLE_AUTH_RESET_ON_INSTALL="${BEAGLE_AUTH_RESET_ON_INSTALL:-0}"
 BEAGLE_CLUSTER_JOIN_REQUESTED="${BEAGLE_CLUSTER_JOIN_REQUESTED:-no}"
 BEAGLE_CLUSTER_JOIN_ENV_FILE="${BEAGLE_CLUSTER_JOIN_ENV_FILE:-$CONFIG_DIR/cluster-join.env}"
 USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-beagle-tunnel}"
@@ -232,6 +236,38 @@ set_env_value() {
     return 0
   fi
   printf '%s=%s\n' "$key" "$value" >>"$env_file"
+}
+
+read_env_value() {
+  local env_file="$1"
+  local key="$2"
+
+  [[ -f "$env_file" ]] || return 1
+  awk -F= -v key="$key" '$1 == key {print substr($0, index($0, "=") + 1); exit}' "$env_file"
+}
+
+strip_env_quotes() {
+  local value="${1:-}"
+
+  if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+    value="${value:1:${#value}-2}"
+  elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+    value="${value:1:${#value}-2}"
+  fi
+  printf '%s\n' "$value"
+}
+
+normalize_bool_flag() {
+  local value
+  value="$(printf '%s' "${1:-0}" | tr '[:upper:]' '[:lower:]')"
+  case "$value" in
+    1|true|yes|on)
+      printf '1\n'
+      ;;
+    *)
+      printf '0\n'
+      ;;
+  esac
 }
 
 is_loopback_host() {
@@ -580,13 +616,26 @@ fi
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_CLUSTER_JOIN_REQUESTED" "\"$BEAGLE_CLUSTER_JOIN_REQUESTED\""
 set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_CLUSTER_JOIN_ENV_FILE" "\"$BEAGLE_CLUSTER_JOIN_ENV_FILE\""
 
+existing_bootstrap_disable="$(strip_env_quotes "$(read_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_BOOTSTRAP_DISABLE" 2>/dev/null || true)")"
+if [[ "$BEAGLE_AUTH_BOOTSTRAP_DISABLE_WAS_SET" == "x" ]]; then
+  bootstrap_disable_normalized="$(normalize_bool_flag "$BEAGLE_AUTH_BOOTSTRAP_DISABLE")"
+elif [[ -n "$existing_bootstrap_disable" ]]; then
+  bootstrap_disable_normalized="$(normalize_bool_flag "$existing_bootstrap_disable")"
+else
+  bootstrap_disable_normalized="$(normalize_bool_flag "$BEAGLE_AUTH_BOOTSTRAP_DISABLE")"
+fi
+
 install -d -m 0755 /var/lib/beagle
 install -d -m 0750 /var/lib/beagle/beagle-manager
+install -d -m 0700 -o "$BEAGLE_CONTROL_USER" -g "$BEAGLE_CONTROL_USER" /var/lib/beagle/secrets
 install -d -m 0750 -o "$BEAGLE_CONTROL_USER" -g "$BEAGLE_CONTROL_USER" /var/lib/beagle/energy
 install -d -m 0750 -o "$BEAGLE_CONTROL_USER" -g "$BEAGLE_CONTROL_USER" /var/lib/beagle/fleet-telemetry
 install -d -m 0750 -o "$BEAGLE_CONTROL_USER" -g "$BEAGLE_CONTROL_USER" /var/lib/beagle/metrics
 install -d -m 0750 -o "$BEAGLE_CONTROL_USER" -g "$BEAGLE_CONTROL_USER" /var/lib/beagle/usage
 chown -R "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" /var/lib/beagle/beagle-manager
+if [[ "$(normalize_bool_flag "$BEAGLE_AUTH_RESET_ON_INSTALL")" == "1" ]]; then
+  rm -rf /var/lib/beagle/beagle-manager/auth
+fi
 python3 - /var/lib/beagle/beagle-manager/server-settings.json <<'PY'
 import json
 import sys
@@ -783,11 +832,12 @@ elif [[ -n "$configured_internal_callback_host" ]]; then
 fi
 
 if [[ -n "$BEAGLE_AUTH_BOOTSTRAP_USERNAME" ]]; then
-  set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_BOOTSTRAP_USERNAME" "\"$BEAGLE_AUTH_BOOTSTRAP_USERNAME\""
+  if [[ "$BEAGLE_AUTH_BOOTSTRAP_USERNAME_WAS_SET" == "x" ]] || ! grep -q '^BEAGLE_AUTH_BOOTSTRAP_USERNAME=' "$BEAGLE_CONTROL_ENV_FILE"; then
+    set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_BOOTSTRAP_USERNAME" "\"$BEAGLE_AUTH_BOOTSTRAP_USERNAME\""
+  fi
 fi
-bootstrap_disable_normalized="$(printf '%s' "$BEAGLE_AUTH_BOOTSTRAP_DISABLE" | tr '[:upper:]' '[:lower:]')"
 case "$bootstrap_disable_normalized" in
-  1|true|yes|on)
+  1)
     set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_BOOTSTRAP_DISABLE" '"1"'
     sed -i '/^BEAGLE_AUTH_BOOTSTRAP_PASSWORD=/d' "$BEAGLE_CONTROL_ENV_FILE"
     ;;
@@ -795,7 +845,7 @@ case "$bootstrap_disable_normalized" in
     set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_BOOTSTRAP_DISABLE" '"0"'
     ;;
 esac
-if [[ "$bootstrap_disable_normalized" != "1" && "$bootstrap_disable_normalized" != "true" && "$bootstrap_disable_normalized" != "yes" && "$bootstrap_disable_normalized" != "on" && -n "$BEAGLE_AUTH_BOOTSTRAP_PASSWORD" ]]; then
+if [[ "$bootstrap_disable_normalized" != "1" && "$BEAGLE_AUTH_BOOTSTRAP_PASSWORD_WAS_SET" == "x" && -n "$BEAGLE_AUTH_BOOTSTRAP_PASSWORD" ]]; then
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_BOOTSTRAP_PASSWORD" "\"$BEAGLE_AUTH_BOOTSTRAP_PASSWORD\""
 fi
 

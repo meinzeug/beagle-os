@@ -32,3 +32,18 @@ def test_wireguard_reconcile_units_are_installed_and_enabled() -> None:
     assert 'install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_WIREGUARD_RECONCILE_SERVICE"' in script
     assert 'install -m 0644 "$ROOT_DIR/beagle-host/systemd/$BEAGLE_WIREGUARD_RECONCILE_PATH"' in script
     assert 'systemctl enable "$BEAGLE_WIREGUARD_RECONCILE_PATH" 2>/dev/null || true' in script
+
+
+def test_secret_store_dir_is_bootstrapped_for_control_plane_user() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'install -d -m 0700 -o "$BEAGLE_CONTROL_USER" -g "$BEAGLE_CONTROL_USER" /var/lib/beagle/secrets' in script
+
+
+def test_auth_reset_and_bootstrap_disable_state_are_install_time_aware() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'BEAGLE_AUTH_RESET_ON_INSTALL="${BEAGLE_AUTH_RESET_ON_INSTALL:-0}"' in script
+    assert 'existing_bootstrap_disable="$(strip_env_quotes "$(read_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_BOOTSTRAP_DISABLE" 2>/dev/null || true)")"' in script
+    assert 'if [[ "$(normalize_bool_flag "$BEAGLE_AUTH_RESET_ON_INSTALL")" == "1" ]]; then' in script
+    assert 'rm -rf /var/lib/beagle/beagle-manager/auth' in script

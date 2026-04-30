@@ -1,3 +1,32 @@
+## Update (2026-04-30, srv1 Reinstall-/Onboarding-Drift und Secret-Store-Startcrash behoben)
+
+**Scope**: Nach der Neuinstallation von `srv1` erschien das WebUI-Onboarding nicht mehr. Die Live-Ursache war zweistufig: erst crashte `beagle-control-plane` beim Start, weil `/var/lib/beagle/secrets` im Reinstall-Pfad nicht fuer den Service-User vorbereitet wurde; danach blieb der Host bei weiteren Re-Runs im falschen Auth-Zustand, weil der Installer den Bootstrap-/Onboarding-Modus nicht stabil konservierte und frische Installationen alten Auth-State nicht explizit verwarfen.
+
+- Repo-Fixes:
+  - `scripts/install-beagle-host-services.sh`
+    - legt `/var/lib/beagle/secrets` jetzt reproduzierbar mit `0700` fuer `beagle-manager` an.
+    - kann bei frischen Installationen Auth-State mit `BEAGLE_AUTH_RESET_ON_INSTALL=1` gezielt verwerfen.
+    - konserviert einen vorhandenen `BEAGLE_AUTH_BOOTSTRAP_DISABLE`-Zustand bei spaeteren Service-Re-Runs, statt ihn still auf `0` zurueckzusetzen.
+    - loescht ein altes `BEAGLE_AUTH_BOOTSTRAP_PASSWORD` aus der Runtime-Env, sobald Onboarding-Modus aktiv bleibt.
+  - `scripts/install-beagle-host.sh`
+  - `scripts/install-beagle-host-postinstall.sh`
+    - reichen den neuen Reset-Flag an den Host-Service-Installer durch.
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+  - `server-installer/installimage/usr/local/bin/beagle-installimage-bootstrap`
+    - setzen fuer frische Server-Installationen jetzt explizit `BEAGLE_AUTH_RESET_ON_INSTALL=1`, damit alte `users.json`/`onboarding.json`-Reste keinen Neuinstallationszustand ueberdecken.
+  - `tests/unit/test_install_beagle_host_services_regressions.py`
+    - Regression fuer Secret-Store-Dir und install-time-aware Auth-Reset/Bootstrap-Handling ergaenzt.
+- Live-Fix auf `srv1`:
+  - neuen Installpfad nach `/opt/beagle` ausgerollt.
+  - `beagle-control-plane` kam nach Secret-Store-Fix wieder hoch.
+  - Auth-State absichtlich in Fresh-Install-Zustand zurueckgesetzt (`BEAGLE_AUTH_BOOTSTRAP_DISABLE=1`, kein `BEAGLE_AUTH_BOOTSTRAP_PASSWORD`, Auth-Dir verworfen).
+- Verifikation:
+  - `curl https://srv1.beagle-os.com/beagle-api/api/v1/auth/onboarding/status` -> `200` mit `pending: true`, `completed: false`.
+  - Browser-Smoke via Chrome DevTools: Onboarding-Modal `Beagle Server Onboarding` ist wieder sichtbar und fokussiert.
+  - `beagle-control-plane`, `nginx`, `beagle-novnc-proxy` auf `srv1` aktiv.
+
+---
+
 ## Update (2026-04-29, Enterprise-Readiness Docs-Konsolidierung)
 
 **Scope**: Komplette Aufraeumung der Doku auf 5 thematische Checklisten + zentrale Navigation. Live-Fix der CI fuer Integration-Tests.
@@ -1813,7 +1842,7 @@ Wichtig:
 - `beagle-host/services/ubuntu_beagle_provisioning.py`: Phase-Name `"beagle-host-create"` → `"beagle-create"`; `--beagle-host` → `--beagle-host` in configure-sunshine-guest.sh-Aufruf.
 - `scripts/configure-sunshine-guest.sh`: `--beagle-host` als neuer primärer Argument-Name; `--beagle-host` bleibt als Backwards-Compat-Alias.
 - `beagle-host/services/metrics_collector.py`: Bug-Fix: `read_samples()` und `prune_old_shards()` nutzen jetzt injiziertes `utcnow` statt `datetime.now()` → Test `test_record_and_read_node_sample` gruen nach Fix.
-- 1069 Unit-Tests bestehen nach allen Renames. beagle-manager auf srv1+srv2 neu gestartet, Services gruen.
+- 1069 Unit-Tests bestehen nach allen Renames. `beagle-control-plane` wurde auf `srv1`/`srv2` neu gestartet, Services gruen.
 - `docs/goadvanced/11-beagle-host-endbeseitigung.md`: Alle Abnahmekriterien abgehakt.
 
 ## Update (2026-04-27, GPU-Wizard-Selector + Kiosk-Path-Fix)
@@ -5357,7 +5386,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `node --check website/ui/iam.js website/ui/audit.js website/ui/events.js website/main.js`
   - `python3 -m pytest tests/unit/test_auth_http_surface.py tests/unit/test_auth_session.py tests/unit/test_audit_report.py tests/unit/test_audit_export.py tests/unit/test_authz_policy.py` => `30 passed`
 - Runtime-Blocker:
-  - `srv1.beagle-os.com` und `srv2.beagle-os.com` per SSH erreichbar, aber `beagle-manager` meldet auf beiden `inactive`.
+  - `srv1.beagle-os.com` und `srv2.beagle-os.com` per SSH erreichbar, aber der damals verwendete alte `beagle-manager`-Check war falsch; die reale Runtime-Unit ist `beagle-control-plane.service`.
   - Korrektur zum GPU-Smoke: `srv2` hat eine NVIDIA GTX 1080 (`10de:1b80`) und Audio-Funktion (`10de:10f0`), beide an `vfio-pci`; `nvidia-smi` fehlt nur auf dem Host. GPU-E2E bleibt offen, bis eine VM-seitige Passthrough-Pruefung mit Treiber (`nvidia-smi` im Gast oder aequivalent) erfolgreich ist.
 
 ## Update (2026-04-27, srv2 GPU-Passthrough-VM-Smoke)

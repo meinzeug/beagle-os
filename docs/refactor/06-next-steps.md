@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-04-30, srv1 Neuinstallations-Onboarding wiederhergestellt)
+
+**Zuletzt erledigt**:
+- Der Reinstall-/Onboarding-Drift auf `srv1` ist geschlossen: Secret-Store-Startcrash behoben, Auth-State gezielt in Pending-Onboarding zurueckgesetzt und der Installer konserviert den Bootstrap-/Onboarding-Modus jetzt reproduzierbar.
+
+**Naechste konkrete Schritte**:
+
+1. Den neuen Reinstall-Pfad einmal mit einem echten frischen Server-Installer-Artefakt in einer Test-VM durchspielen und verifizieren, dass `users.json`/`onboarding.json` nicht vorzeitig entstehen.
+2. Dieselbe Reset-/Bootstrap-Logik auf `srv2` spiegeln, falls dort ebenfalls frische Host-Rebuilds oder Test-Neuinstallationen anstehen.
+3. Fuer den Server-Installer einen reproduzierbaren Smoke ergaenzen, der nach dem ersten WebUI-Load explizit `pending: true` plus sichtbares Onboarding-Modal prueft.
+
+---
+
 ## Stand (2026-04-29, Enterprise-Readiness Doku-Konsolidierung abgeschlossen)
 
 **Zuletzt erledigt**:
@@ -164,7 +177,7 @@
 
 1. Den verbleibenden offenen Plan-09-Testpflichtpunkt auf echter Multi-Node-Laufzeit final abnehmen (`node-failure<=60s`, fencing start-block, maintenance drain live, anti-affinity).
 2. Danach die offenen GoRelease-R2/R3-Checks priorisieren, beginnend mit frischem Install/Boot-Pfad und Artefakt-/Signaturkette.
-3. Parallel den `beagle-manager`-Runtime-Status auf `srv1`/`srv2` als Vorbedingung fuer weitere Live-Smokes stabil gruen halten.
+3. Parallel den `beagle-control-plane`-Runtime-Status auf `srv1`/`srv2` als Vorbedingung fuer weitere Live-Smokes stabil gruen halten.
 
 ## Stand (2026-04-29, VM-Delete/noVNC UI-Regressions geschlossen)
 
@@ -409,7 +422,7 @@
 
 1. Browser-E2E-Smoke auf `srv1.beagle-os.com` nachziehen, sobald Playwright auf dem Host oder lokal verfuegbar ist, um die DevTools-Console explizit gegen den neuen Bootstrap zu pruefen.
 2. Falls Nutzer noch den alten Fehler sehen: Browser-Cache fuer `/main.js?v=8.0` / `/ui/*.js` hart invalidieren und denselben Ablauf auf `srv2` gespiegelt ausrollen.
-3. Den weiterhin dokumentierten Host-Befund `beagle-manager` = `inactive` separat bewerten; fuer den aktuellen WebUI-/Control-Plane-Fix war nur `beagle-control-plane` relevant und dieser laeuft auf `srv1`.
+3. Den historischen Alt-Befund eines `beagle-manager = inactive` nicht weiter als Runtime-Signal verwenden; fuer den aktuellen WebUI-/Control-Plane-Fix ist die relevante Unit `beagle-control-plane`, und diese laeuft auf `srv1`.
 
 ## Stand (2026-04-28, GoEnterprise Plan 01 VM-register smoke completed)
 

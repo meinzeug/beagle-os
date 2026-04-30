@@ -1,6 +1,31 @@
 # Security Findings
 
-Stand: 2026-04-29 (ergänzt: S-034 Thinclient-WireGuard-/Firewall-Default-Drift korrigiert)
+Stand: 2026-04-30 (ergänzt: S-035 Reinstall-Auth-/Onboarding-Drift korrigiert)
+
+## S-035 — Frische Server-Neuinstallationen konnten alten Auth-State und Bootstrap-Drift weitertragen (PATCHED)
+
+- Status: **gepatcht** (2026-04-30)
+- Risiko: **Hoch**
+- Betroffene Dateien:
+  - `scripts/install-beagle-host-services.sh`
+  - `scripts/install-beagle-host.sh`
+  - `scripts/install-beagle-host-postinstall.sh`
+  - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`
+  - `server-installer/installimage/usr/local/bin/beagle-installimage-bootstrap`
+  - `tests/unit/test_install_beagle_host_services_regressions.py`
+- Beschreibung:
+  - Nach einer Neuinstallation konnte ein Host in zwei fehlerhafte Sicherheitszustaende geraten:
+    - `beagle-control-plane` startete nicht, weil der neue Secret-Store-Pfad `/var/lib/beagle/secrets` fuer den non-root-Service-User nicht vorbereitet war.
+    - frische Installationen bzw. spaetere Service-Re-Runs konnten alten Auth-State oder einen falschen Bootstrap-Modus weitertragen; dadurch erschien das WebUI-Onboarding nicht mehr, obwohl ein frischer Setup-Zustand erwartet wurde.
+  - Besonders kritisch war der zweite Teil: ein alter `admin`-State oder ein erneut aktivierter Bootstrap-Login konterkariert die Erwartung einer sauberen Ersteinrichtung.
+- Fix:
+  - Host-Service-Installer legt den Secret-Store-Pfad jetzt reproduzierbar mit restriktiven Rechten fuer `beagle-manager` an.
+  - Frische Server-Installationen setzen `BEAGLE_AUTH_RESET_ON_INSTALL=1` und verwerfen alten Auth-State explizit.
+  - Spaetere Re-Runs des Host-Service-Installers konservieren einen vorhandenen `BEAGLE_AUTH_BOOTSTRAP_DISABLE`-Zustand und loeschen stale Bootstrap-Passwoerter, statt den Host still in einen anderen Auth-Modus zu drehen.
+- Live-Verifikation:
+  - `srv1`: `beagle-control-plane` startet wieder stabil.
+  - Public API: `/beagle-api/api/v1/auth/onboarding/status` -> `200` mit `{pending: true, completed: false}`.
+  - Browser-Smoke: sichtbares Onboarding-Modal `Beagle Server Onboarding`.
 
 ## S-034 — Thinclients konnten trotz `vpn_required`/WireGuard-Bausteinen weiterhin direkt ins Internet streamen (PATCHED)
 
