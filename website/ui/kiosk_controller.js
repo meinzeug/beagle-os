@@ -1,6 +1,6 @@
 import { request } from './api.js';
 import { escapeHtml, qs } from './dom.js';
-import { state } from './state.js';
+import { hasPermission, state } from './state.js';
 
 const kioskHooks = {
   setBanner() {}
@@ -112,6 +112,11 @@ export async function renderKioskController() {
 
   if (!state.token) {
     container.innerHTML = '<div class="empty-card">Anmeldung erforderlich.</div>';
+    return;
+  }
+
+  if (!hasPermission('kiosk:operate')) {
+    container.innerHTML = '<div class="empty-card">Keine Berechtigung fuer Kiosk-Sessions. Erforderlich: kiosk:operate.</div>';
     return;
   }
 

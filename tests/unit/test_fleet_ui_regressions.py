@@ -40,6 +40,8 @@ def test_dashboard_wires_fleet_health_panel() -> None:
 def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     js = FLEET_JS.read_text(encoding="utf-8")
 
+    assert "hasPermission('settings:read')" in js
+    assert "Keine Berechtigung fuer Fleet-Status. Erforderlich: settings:read." in js
     assert "request('/fleet/devices')" in js
     assert "request('/fleet/policies')" in js
     assert "request('/fleet/policies/assignments')" in js

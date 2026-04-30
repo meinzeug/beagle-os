@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-04-30, echter WebUI-RBAC-Browser-Smoke auf srv1 abgeschlossen)
+
+**Zuletzt erledigt**:
+- Neuer echter Browser-Smoke `scripts/test-webui-rbac-browser-smoke.py` schliesst die Nachweisluecke zwischen API-RBAC und realer WebUI.
+- Live auf `srv1`: Viewer-Login ohne Console-/Page-Errors und ohne sichtbare Admin-Aktionen (`WEBUI_RBAC_BROWSER_SMOKE=PASS`).
+- `docs/checklists/03-security.md` verweist fuer Login-/Nicht-Admin-Browser-Smoke jetzt auf den echten Browser-Nachweis.
+
+**Naechste konkrete Schritte**:
+
+1. `VM102` im Provider-State auf `srv1` reparieren und den verbliebenen Dual-VM-Streaming-Nachweis neu fahren.
+2. Den Ubuntu-Desktop-Firstboot-Pfad mit einer frisch provisionierten VM end-to-end gegen `srv1` abnehmen.
+3. Den gleichen echten Browser-RBAC-Smoke bei Bedarf auf `srv2` spiegeln, sobald dort die gleiche Runtime synchronisiert ist.
+
+---
+
 ## Stand (2026-04-30, Session-Cookie-Fix + RBAC-Regression abgeschlossen)
 
 **Zuletzt erledigt**:

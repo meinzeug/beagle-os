@@ -1,6 +1,28 @@
 # Security Findings
 
-Stand: 2026-04-30 (ergaenzt: S-039 Stream-Session-Audit-Silent-Failure repariert, S-038 Ubuntu-Desktop-Firstboot-Drift repariert, S-037 TLS-Reload-Disconnect-Drift repariert, S-036 TLS-Switch-Permission-Drift repariert, S-035 Reinstall-Auth-/Onboarding-Drift korrigiert)
+Stand: 2026-04-30 (ergaenzt: S-040 Viewer-WebUI-403-Drift repariert, S-039 Stream-Session-Audit-Silent-Failure repariert, S-038 Ubuntu-Desktop-Firstboot-Drift repariert, S-037 TLS-Reload-Disconnect-Drift repariert, S-036 TLS-Switch-Permission-Drift repariert, S-035 Reinstall-Auth-/Onboarding-Drift korrigiert)
+
+## S-040 — Viewer-WebUI konnte beim Login unnoetige 403-Operator-Reads ausloesen und RBAC-Browser-Smokes rot machen (PATCHED)
+
+- Status: **gepatcht** (2026-04-30)
+- Risiko: **Mittel**
+- Betroffene Dateien:
+  - `website/ui/kiosk_controller.js`
+  - `website/ui/policies.js`
+  - `website/ui/fleet_health.js`
+  - `tests/unit/test_policies_ui_regressions.py`
+  - `tests/unit/test_fleet_ui_regressions.py`
+  - `scripts/test-webui-rbac-browser-smoke.py`
+- Beschreibung:
+  - Ein echter Browser-Login mit einem `viewer` auf `srv1` zeigte, dass die WebUI beim Bootstrap weiterhin Operator-Endpunkte wie `/pools/kiosk/sessions`, `/gaming/metrics`, `/sessions/handover` und Fleet-Reads anfragte.
+  - Die Requests wurden serverseitig korrekt mit `403` abgewiesen, erzeugten aber vermeidbare Browser-Console-Fehler und machten den RBAC-Nachweis fuer Nicht-Admin-Logins unzuverlaessig.
+- Fix:
+  - Die betroffenen Panels fuehren ihre Operator-Reads jetzt nur noch aus, wenn die jeweils erforderliche Berechtigung vorhanden ist (`kiosk:operate`, `vm:read`, `pool:read`, `settings:read`).
+  - Fuer unberechtigte Nutzer rendert die UI stattdessen einen expliziten Leerzustand statt Fetch-Fehlern.
+  - Ein echter Browser-Smoke gegen `srv1` deckt den Pfad reproduzierbar ab.
+- Live-Verifikation:
+  - Browser-Smoke gegen `https://srv1.beagle-os.com`: `WEBUI_RBAC_BROWSER_SMOKE=PASS`.
+  - Nachweis: `visible_admin_panels=0`, `console_errors=0`, `page_errors=0`, `failed_api_calls=0`.
 
 ## S-039 — Stream-Session-Audits konnten in der Runtime still verworfen werden (PATCHED)
 

@@ -51,6 +51,7 @@ def test_policies_panel_renders_gaming_metrics_dashboard() -> None:
 
     assert "renderGamingMetricsDashboard" in js
     assert "refreshGamingMetricsDashboard" in js
+    assert "hasPermission('vm:read')" in js
     assert "request('/gaming/metrics'" in js
     assert "gaming-metrics-dashboard" in html
     assert "gaming-metrics-refresh" in html
@@ -62,6 +63,7 @@ def test_policies_panel_renders_session_handover_dashboard() -> None:
 
     assert "renderSessionHandoverDashboard" in js
     assert "refreshSessionHandoverDashboard" in js
+    assert "hasPermission('pool:read')" in js
     assert "request('/sessions/handover'" in js
     assert "Session-Handover-Daten konnten nicht geladen werden" in js
     assert "session-handover-dashboard" in html
@@ -154,6 +156,8 @@ def test_kiosk_controller_uses_request_api_signature() -> None:
     js = KIOSK_JS.read_text(encoding="utf-8")
 
     assert "request('/pools/kiosk/sessions')" in js
+    assert "hasPermission('kiosk:operate')" in js
+    assert "Keine Berechtigung fuer Kiosk-Sessions. Erforderlich: kiosk:operate." in js
     assert "request(`/pools/kiosk/sessions/${vmId}/extend`" in js
     assert "request(`/pools/kiosk/sessions/${vmId}/end`, { method: 'POST' })" in js
     assert "if (!state.token)" in js

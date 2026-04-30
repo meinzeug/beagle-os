@@ -1,3 +1,27 @@
+## Update (2026-04-30, echter WebUI-RBAC-Browser-Smoke auf srv1 geschlossen)
+
+**Scope**: Den bisher nur indirekt belegten R3-Browser-Nachweis fuer Login ohne Console-Fehler und Nicht-Admin-RBAC gegen die echte WebUI auf `srv1` reproduzierbar schliessen.
+
+- Neuer Smoke: `scripts/test-webui-rbac-browser-smoke.py`
+  - legt per Admin-API einen temporären `viewer`-User an,
+  - loggt sich per Playwright in `https://srv1.beagle-os.com` ein,
+  - prueft `0` Console-/Page-Errors,
+  - validiert, dass `.sidebar-admin-item` und `#settings-section-label` fuer `viewer` unsichtbar bleiben,
+  - loescht den temporären User am Ende wieder.
+- Root-Cause-Fix fuer echte Viewer-403-Drift in der WebUI:
+  - `website/ui/kiosk_controller.js` gate’t `GET /pools/kiosk/sessions` jetzt auf `kiosk:operate`.
+  - `website/ui/policies.js` gate’t `gaming/metrics` auf `vm:read` und `sessions/handover` auf `pool:read`.
+  - `website/ui/fleet_health.js` laedt Fleet-/MDM-Operatordaten nur noch mit `settings:read`.
+  - begleitende UI-Regressionen in `tests/unit/test_policies_ui_regressions.py` und `tests/unit/test_fleet_ui_regressions.py` erweitert.
+- Live-Validierung gegen die aktualisierte Runtime auf `srv1`: `WEBUI_RBAC_BROWSER_SMOKE=PASS`
+  - `visible_admin_panels=0`
+  - `console_errors=0`
+  - `page_errors=0`
+  - `failed_api_calls=0`
+- Doku-Fix: `docs/checklists/03-security.md` referenziert fuer Login-/Nicht-Admin-Browser-Smoke jetzt den echten Browser- statt nur den API-Nachweis.
+
+---
+
 ## Update (2026-04-30, Unit-Test-Fixes: 3 von 5 Failures behoben)
 
 **Scope**: Quick-win Code-Quality-Verbesserungen — 3 schnell behebbare Unit-Test-Fehler gefixt.

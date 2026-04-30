@@ -1,5 +1,6 @@
 import {
   POLICY_NAME_PATTERN,
+  hasPermission,
   state
 } from './state.js';
 import { chip, escapeHtml, fieldBlock, qs } from './dom.js';
@@ -1203,6 +1204,11 @@ export function refreshGamingMetricsDashboard(force) {
     renderGamingMetricsDashboard();
     return Promise.resolve();
   }
+  if (!hasPermission('vm:read')) {
+    state.gamingMetrics = null;
+    renderGamingMetricsDashboard();
+    return Promise.resolve();
+  }
   if (gamingMetricsLoadInFlight && !force) {
     return gamingMetricsLoadInFlight;
   }
@@ -1231,6 +1237,11 @@ export function refreshGamingMetricsDashboard(force) {
 
 export function refreshSessionHandoverDashboard(force) {
   if (!state.token) {
+    state.handoverHistory = null;
+    renderSessionHandoverDashboard();
+    return Promise.resolve();
+  }
+  if (!hasPermission('pool:read')) {
     state.handoverHistory = null;
     renderSessionHandoverDashboard();
     return Promise.resolve();
@@ -1540,10 +1551,10 @@ export function renderPolicies() {
   renderSessionHandoverDashboard();
   void renderKioskController();
   void loadPoolGpuInventoryHints();
-  if (state.token && !state.gamingMetrics) {
+  if (state.token && hasPermission('vm:read') && !state.gamingMetrics) {
     void refreshGamingMetricsDashboard(false);
   }
-  if (state.token && !state.handoverHistory) {
+  if (state.token && hasPermission('pool:read') && !state.handoverHistory) {
     void refreshSessionHandoverDashboard(false);
   }
   if (state.selectedPoolId && (!state.poolVmStates || !Array.isArray(state.poolVmStates[state.selectedPoolId]))) {

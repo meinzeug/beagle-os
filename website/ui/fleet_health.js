@@ -1,5 +1,6 @@
 import { request } from './api.js';
 import { chip, escapeHtml, formatDate, qs } from './dom.js';
+import { hasPermission, state } from './state.js';
 
 const fleetHooks = {
   setBanner() {},
@@ -812,6 +813,16 @@ async function applyRemediationAction(action, targetId) {
 export async function renderFleetHealth() {
   const container = qs('fleet-health-panel');
   if (!container) return;
+
+  if (!state.token) {
+    container.innerHTML = '<div class="empty-card">Anmeldung erforderlich, um Fleet-Status zu laden.</div>';
+    return;
+  }
+
+  if (!hasPermission('settings:read')) {
+    container.innerHTML = '<div class="empty-card">Keine Berechtigung fuer Fleet-Status. Erforderlich: settings:read.</div>';
+    return;
+  }
 
   container.onclick = (event) => {
     const button = event.target.closest('[data-fleet-action]');
