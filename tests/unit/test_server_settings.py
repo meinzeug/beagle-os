@@ -105,12 +105,12 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
                  mock.patch.object(MODULE.os, "kill") as kill:
                 ok, message = MODULE._switch_nginx_tls_to_letsencrypt(domain)
 
-        self.assertTrue(ok, message)
-        self.assertEqual(message, "ok")
-        self.assertEqual((target_dir / "beagle-proxy.crt").read_text(encoding="utf-8"), "new-cert")
-        self.assertEqual((target_dir / "beagle-proxy.key").read_text(encoding="utf-8"), "new-key")
-        self.assertFalse(any(path.name.startswith(".beagle-proxy.") for path in target_dir.iterdir()))
-        kill.assert_called_once_with(4242, MODULE.signal.SIGHUP)
+                self.assertTrue(ok, message)
+                self.assertEqual(message, "ok")
+                self.assertEqual((target_dir / "beagle-proxy.crt").read_text(encoding="utf-8"), "new-cert")
+                self.assertEqual((target_dir / "beagle-proxy.key").read_text(encoding="utf-8"), "new-key")
+                self.assertFalse(any(path.name.startswith(".beagle-proxy.") for path in target_dir.iterdir()))
+                kill.assert_called_once_with(4242, MODULE.signal.SIGHUP)
 
     def test_route_post_tls_letsencrypt_returns_bad_request_for_invalid_domain(self):
         service = self.make_service()

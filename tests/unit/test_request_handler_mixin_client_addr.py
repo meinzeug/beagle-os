@@ -11,7 +11,14 @@ sys.path.insert(0, str(SERVICES_DIR))
 sys.path.insert(0, str(BEAGLE_HOST_DIR / "bin"))
 
 service_registry_stub = types.ModuleType("service_registry")
-service_registry_stub.__all__ = []
+service_registry_stub.__all__ = ["API_V1_DEPRECATED_ENDPOINTS", "API_V1_DEPRECATION_SUNSET", "AUTH_REFRESH_TTL_SECONDS", "API_TOKEN", "SCIM_BEARER_TOKEN"]
+service_registry_stub.normalized_origin = lambda v: v
+service_registry_stub.cors_allowed_origins = lambda: []
+service_registry_stub.API_TOKEN = None
+service_registry_stub.SCIM_BEARER_TOKEN = None
+service_registry_stub.API_V1_DEPRECATED_ENDPOINTS = set()
+service_registry_stub.API_V1_DEPRECATION_SUNSET = ""
+service_registry_stub.AUTH_REFRESH_TTL_SECONDS = 300
 sys.modules.setdefault("service_registry", service_registry_stub)
 
 for module_name, class_name in {

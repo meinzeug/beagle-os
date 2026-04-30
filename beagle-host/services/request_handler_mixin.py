@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, urlparse
 
 import service_registry as _svc_registry  # for mutable bootstrapped values
 from service_registry import *  # noqa: F401,F403
+from request_support import RequestSupportService
 from audit_report_http_surface import AuditReportHttpSurfaceService
 from auth_session_http_surface import AuthSessionHttpSurfaceService
 from recording_http_surface import RecordingHttpSurfaceService
@@ -638,8 +639,9 @@ class HandlerMixin:
             return
 
     def _cors_origin(self) -> str:
-        origin = normalized_origin(self.headers.get("Origin", ""))
-        if origin and origin in cors_allowed_origins():
+        # Use service_registry wrapper functions for origin normalization and CORS validation
+        origin = _svc_registry.normalized_origin(self.headers.get("Origin", ""))
+        if origin and origin in _svc_registry.cors_allowed_origins():
             return origin
         return ""
 
