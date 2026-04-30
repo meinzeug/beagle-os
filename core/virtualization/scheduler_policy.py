@@ -19,7 +19,8 @@ class SchedulerPolicy:
 def _normalize_group(raw: Any, *, prefix: str, index: int) -> SchedulerGroup | None:
     if not isinstance(raw, dict):
         return None
-    vmids_raw = raw.get("vmids") if isinstance(raw.get("vmids"), list) else []
+    _vmids_candidate = raw.get("vmids")
+    vmids_raw: list[Any] = _vmids_candidate if isinstance(_vmids_candidate, list) else []
     vmids: list[int] = []
     for item in vmids_raw:
         try:
@@ -40,8 +41,10 @@ def scheduler_policy_from_payload(payload: Any) -> SchedulerPolicy:
     if not isinstance(payload, dict):
         return SchedulerPolicy()
 
-    affinity_raw = payload.get("affinity_groups") if isinstance(payload.get("affinity_groups"), list) else []
-    anti_raw = payload.get("anti_affinity_groups") if isinstance(payload.get("anti_affinity_groups"), list) else []
+    _affinity_candidate = payload.get("affinity_groups")
+    affinity_raw: list[Any] = _affinity_candidate if isinstance(_affinity_candidate, list) else []
+    _anti_candidate = payload.get("anti_affinity_groups")
+    anti_raw: list[Any] = _anti_candidate if isinstance(_anti_candidate, list) else []
 
     affinity_groups: list[SchedulerGroup] = []
     anti_affinity_groups: list[SchedulerGroup] = []

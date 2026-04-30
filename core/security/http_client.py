@@ -19,8 +19,8 @@ import logging
 import os
 from typing import Any
 
-import requests
-from requests import Response, Session
+import requests  # type: ignore[import-untyped]
+from requests import Response, Session  # type: ignore[import-untyped]
 
 _log = logging.getLogger(__name__)
 
