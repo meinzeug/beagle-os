@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-04-30, Ubuntu-Desktop-Firstboot-/Login-Drift auf srv1 geschlossen)
+
+**Zuletzt erledigt**:
+- Der Ubuntu-Desktop-Firstboot fuer WebUI-provisionierte VMs heilt jetzt unterbrochene `apt/dpkg`-Zustaende reproduzierbar, sodass der Abschluss-Callback, der finale Gast-Reboot und das LightDM-/Desktop-Setup fuer den angelegten Benutzer nicht mehr in halbfertigen Paketketten haengenbleiben.
+
+**Naechste konkrete Schritte**:
+
+1. Einen frischen Ubuntu-Desktop-VM-Create auf `srv1` komplett durchspielen und verifizieren, dass der Gast nach der Installation ohne manuellen Eingriff neu startet und direkt mit vollstaendigem Desktop-Login-Setup hochkommt.
+2. Fuer denselben Pfad einen reproduzierbaren End-to-End-Smoke ergaenzen, der `ubuntu-firstboot.done`, LightDM-Config und Guest-Reboot fuer eine frisch provisionierte VM explizit prueft.
+3. Den gleichen Firstboot-Template-Stand auf `srv2` spiegeln, bevor dort weitere Ubuntu-Desktop-Test-VMs ueber die WebUI erzeugt werden.
+
+---
+
 ## Stand (2026-04-30, WebUI-Timeout-Drift nach TLS-Reload auf srv1 geschlossen)
 
 **Zuletzt erledigt**:

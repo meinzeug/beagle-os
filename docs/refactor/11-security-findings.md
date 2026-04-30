@@ -1,6 +1,22 @@
 # Security Findings
 
-Stand: 2026-04-30 (ergänzt: S-037 TLS-Reload-Disconnect-Drift repariert, S-036 TLS-Switch-Permission-Drift repariert, S-035 Reinstall-Auth-/Onboarding-Drift korrigiert)
+Stand: 2026-04-30 (ergänzt: S-038 Ubuntu-Desktop-Firstboot-Drift repariert, S-037 TLS-Reload-Disconnect-Drift repariert, S-036 TLS-Switch-Permission-Drift repariert, S-035 Reinstall-Auth-/Onboarding-Drift korrigiert)
+
+## S-038 — Unterbrochene Ubuntu-Firstboot-Paketketten konnten Desktop-VMs ohne finalen Reboot und ohne vollständiges Session-Setup hinterlassen (PATCHED)
+
+- Status: **gepatcht** (2026-04-30)
+- Risiko: **Mittel**
+- Betroffene Dateien:
+  - `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`
+  - `tests/unit/test_ubuntu_beagle_firstboot_regressions.py`
+- Beschreibung:
+  - Frisch per WebUI provisionierte Ubuntu-Desktop-VMs konnten im Guest-Firstboot in einem halbfertigen `apt/dpkg`-Zustand steckenbleiben, insbesondere in der X11-/LightDM-Kette.
+  - Dadurch liefen nicht nur Guest-Reboot und Desktop-Login kaputt; es blieben auch nachgelagerte Guest-Initialisierungsschritte aus, die fuer einen konsistenten, gehärteten Desktop-Zielzustand vorgesehen sind.
+- Fix:
+  - Das Firstboot-Template heilt unterbrochene Paketzustände jetzt vor jedem `apt`-Versuch, nach erfolgreichen Läufen und nach jeder kritischen Desktop-Installationsphase explizit über `dpkg --audit`, `dpkg --configure -a` und `apt-get install -f -y`.
+  - Regressionen fixieren diese Heilungslogik am Template.
+- Live-Verifikation:
+  - `srv1`/VM100: der festhängende `libxklavier16`-/`lightdm-gtk-greeter`-Pfad wurde identifiziert; der Repo-Fix ist auf dem Host ausgerollt und der laufende Gast wurde gegen denselben Fehlerpfad repariert.
 
 ## S-037 — nginx/TLS-Reloads konnten in-flight API-Requests als 500/Broken-Pipe-Fehler eskalieren lassen (PATCHED)
 

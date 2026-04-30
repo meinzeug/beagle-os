@@ -308,19 +308,36 @@ resolve_desktop_session() {
 
 apt_retry() {
   local attempt
-  for attempt in $(seq 1 3); do
+  for attempt in $(seq 1 4); do
+    repair_interrupted_dpkg || true
     if "$@"; then
-      return 0
+      if repair_interrupted_dpkg; then
+        return 0
+      fi
     fi
     sleep $((attempt * 5))
     ensure_dns_resolution || true
   done
-  return 1
+  repair_interrupted_dpkg
 }
 
 repair_interrupted_dpkg() {
-  dpkg --configure -a >/dev/null 2>&1 || true
-  apt-get install -f -y >/dev/null 2>&1 || true
+  local attempt
+  local audit_output=""
+
+  for attempt in $(seq 1 5); do
+    audit_output="$(dpkg --audit 2>&1 || true)"
+    if [[ -z "${audit_output//[[:space:]]/}" ]]; then
+      return 0
+    fi
+    printf '%s\n' "$audit_output" >&2
+    dpkg --configure -a || true
+    apt-get install -f -y || true
+    sleep $((attempt * 2))
+  done
+
+  audit_output="$(dpkg --audit 2>&1 || true)"
+  [[ -z "${audit_output//[[:space:]]/}" ]]
 }
 
 configure_system_locale() {
@@ -573,17 +590,21 @@ if [[ ! -f "$DONE_FILE" ]]; then
     usbutils \
     xdg-utils \
     x11vnc
+  repair_interrupted_dpkg
   if [[ -n "$DESKTOP_PACKAGES" ]]; then
     apt_retry apt-get install -y --fix-missing ${DESKTOP_PACKAGES}
+    repair_interrupted_dpkg
   fi
   if [[ -n "$SOFTWARE_PACKAGES" ]]; then
     apt_retry apt-get install -y --fix-missing ${SOFTWARE_PACKAGES}
+    repair_interrupted_dpkg
   fi
   resolve_desktop_session
 
   TMPDIR_WORK="$(mktemp -d)"
   curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$SUNSHINE_URL"
   apt_retry apt-get install -y "$TMPDIR_WORK/sunshine.deb"
+  repair_interrupted_dpkg
   configure_system_locale
   configure_keyboard_layout
   configure_virtual_display_vkms

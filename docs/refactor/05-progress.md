@@ -1,3 +1,24 @@
+## Update (2026-04-30, Ubuntu-Desktop-Firstboot fuer Auto-Reboot und Guest-Login gegen dpkg-Drift gehaertet)
+
+**Scope**: Auf `srv1` blieb eine frisch installierte Ubuntu-Desktop-VM nach dem Installer in einer halbfertigen `apt/dpkg`-Kette haengen. Dadurch wurde der Firstboot nie abgeschlossen, der Gast rebootete nicht automatisch, und LightDM-/Session-Dateien fuer den in der WebUI angelegten Benutzer wurden nicht geschrieben.
+
+- Repo-Fixes:
+  - `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`
+    - `apt_retry(...)` heilt jetzt vor jedem Versuch und nach erfolgreichem Lauf aktiv einen unterbrochenen `dpkg`-State.
+    - `repair_interrupted_dpkg()` wertet `dpkg --audit` aus, fuehrt `dpkg --configure -a` plus `apt-get install -f -y` in mehreren Schleifen aus und scheitert nicht mehr still an halbfertigen Desktop-/LightDM-Paketen.
+    - nach den kritischen Installationsphasen (Basis-X11/LightDM, Desktop-Pakete, Zusatzsoftware, Sunshine-DEB) wird der Paketstatus explizit erneut bereinigt, bevor Session-/Display-Manager-Setup und finaler Guest-Reboot laufen.
+  - `tests/unit/test_ubuntu_beagle_firstboot_regressions.py`
+    - Regressionen fixieren die neue `dpkg`-Heal-Logik im Ubuntu-Firstboot-Template.
+- Live-Fix auf `srv1`:
+  - Template nach `/opt/beagle` ausgerollt.
+  - VM100 im Gast gegen denselben Paketfehlerpfad repariert und `beagle-ubuntu-firstboot.service` erneut bis zum Abschluss angestossen.
+- Verifikation:
+  - der haengende `libxklavier16`/`liblightdm-gobject-1-0`/`lightdm-gtk-greeter`-Paketzustand wurde auf VM100 aufgeloest.
+  - die fehlenden Guest-Artefakte (`/etc/lightdm/lightdm.conf.d/60-beagle.conf`, `/home/dennis/.dmrc`, `ubuntu-firstboot*.done`) koennen nach Firstboot-Abschluss wieder erzeugt werden.
+  - der automatische Reboot-Pfad bleibt am Ende des Firstboot-Scripts erhalten und wird nicht mehr von einem kaputten Paketmanager blockiert.
+
+---
+
 ## Update (2026-04-30, WebUI-API nach Let's-Encrypt-Reload gegen Timeout-/Broken-Pipe-Drift gehaertet)
 
 **Scope**: Nach erfolgreicher Let's-Encrypt-Ausstellung auf `srv1` konnten direkt danach WebUI-Requests (`/auth/me`, `/gaming/metrics`, `/sessions/handover`, Security-Reads) in Timeouts laufen. Im Journal der Control Plane erschienen parallel `BrokenPipeError`-Traces, weil nginx beim TLS-Reload in-flight Verbindungen schloss und der Python-Handler diese Client-Abbrueche faelschlich als `500`/Unhandled Exception behandelte.
