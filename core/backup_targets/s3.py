@@ -12,7 +12,7 @@ from typing import Any
 _NONCE_SIZE = 12  # AES-GCM standard nonce length in bytes
 
 try:
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM as _AESGCM  # type: ignore[import]
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM as _AESGCM
 
     _CRYPTO_AVAILABLE = True
 except ImportError:
@@ -54,7 +54,7 @@ class S3BackupTarget:
         encryption_key: str | None = None,
     ) -> None:
         try:
-            import boto3  # type: ignore[import]
+            import boto3
         except ImportError as exc:
             raise ImportError(
                 "S3BackupTarget requires 'boto3'. Install with: pip install boto3"

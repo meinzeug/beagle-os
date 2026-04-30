@@ -29,7 +29,7 @@ class BeagleDb:
 
     def connect(self) -> sqlite3.Connection:
         """Return a cached connection for the current thread."""
-        cached = getattr(self._local, "connection", None)
+        cached: sqlite3.Connection | None = getattr(self._local, "connection", None)
         if cached is not None:
             return cached
 

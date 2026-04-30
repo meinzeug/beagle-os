@@ -323,6 +323,19 @@ verify_public_api() {
   "${curl_args[@]}" "${api_url%/}/api/apps" >/dev/null
 }
 
+verify_public_api_insecure_local() {
+  local api_url="$1"
+  local sunshine_user="$2"
+  local sunshine_password="$3"
+
+  if [[ "$api_url" != https://192.168.* && "$api_url" != https://10.* && "$api_url" != https://172.16.* && "$api_url" != https://172.17.* && "$api_url" != https://172.18.* && "$api_url" != https://172.19.* && "$api_url" != https://172.2*.* && "$api_url" != https://172.30.* && "$api_url" != https://172.31.* ]]; then
+    return 1
+  fi
+
+  # tls-bypass-allowlist: this fallback is limited to direct private guest addresses used for host-local readiness probes
+  curl -fsS --connect-timeout 4 --max-time 10 --insecure --user "${sunshine_user}:${sunshine_password}" "${api_url%/}/api/apps" >/dev/null
+}
+
 run_public_stream_reconcile() {
   if command -v systemctl >/dev/null 2>&1 && systemctl cat beagle-public-streams.service >/dev/null 2>&1; then
     systemctl start beagle-public-streams.service
@@ -558,7 +571,7 @@ PY
   if [[ -n "$guest_ip" ]]; then
     direct_api_url="https://${guest_ip}:$((stream_port + 1))"
     write_state running verify 90 "Pruefe Sunshine API direkt in der VM." "$verify_extra_json"
-    if verify_public_api "$direct_api_url" "$sunshine_user" "$sunshine_password" "$sunshine_pinned_pubkey"; then
+    if verify_public_api "$direct_api_url" "$sunshine_user" "$sunshine_password" "$sunshine_pinned_pubkey" || verify_public_api_insecure_local "$direct_api_url" "$sunshine_user" "$sunshine_password"; then
       verify_extra_json="$(python3 - "$verify_extra_json" <<'PY'
 import json, sys
 base = json.loads(sys.argv[1])

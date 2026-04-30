@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-04-30, VM102 unblock + SQLite-Migration + mypy-CI-Hardfail abgeschlossen)
+
+**Zuletzt erledigt**:
+- VM102 auf `srv1` als echte zweite VM aufgebaut und im Provider-State stabilisiert; `ensure-vm-stream-ready.sh --vmid 102 --node beagle-0` laeuft mit `RC=0`.
+- `scripts/migrate-json-to-sqlite.py` auf `srv1` produktiv gefahren (Backup unter `/var/lib/beagle/.bak/20260430T160508Z/`, SQLite Rows: `vms=2`, `pools=1`).
+- `mypy` in `.github/workflows/lint.yml` von warn-only auf hard-fail umgestellt (`--explicit-package-bases`).
+
+**Naechste konkrete Schritte**:
+
+1. Den Ubuntu-Desktop-Firstboot-Pfad mit einer frisch provisionierten VM end-to-end gegen `srv1` abnehmen.
+2. TLS-Cert-Erneuerung auf frischem Host als offenen R3-Security-Punkt reproduzierbar fahren.
+3. Verbleibende Quality-Backlogs priorisieren (`Repository-Pattern Schritt 3`, `eslint hard-fail`, `axe-core`-Gate).
+
+---
+
 ## Stand (2026-04-30, echter WebUI-RBAC-Browser-Smoke auf srv1 abgeschlossen)
 
 **Zuletzt erledigt**:

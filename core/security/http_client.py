@@ -20,7 +20,7 @@ import os
 from typing import Any
 
 import requests  # type: ignore[import-untyped]
-from requests import Response, Session  # type: ignore[import-untyped]
+from requests import Response, Session
 
 _log = logging.getLogger(__name__)
 

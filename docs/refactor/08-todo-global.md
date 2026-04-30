@@ -1,5 +1,7 @@
 # Global TODO
 
+- [x] VM102-Provider-State auf `srv1` repariert und Dual-VM-Readiness neu gefahren: `beagle-102` als zweite VM aufgebaut, eigene Guest-IP `192.168.123.116` gesetzt, `ensure-vm-stream-ready.sh --vmid 102 --node beagle-0` auf `RC=0` stabilisiert.
+
 - [x] Echter WebUI-RBAC-Browser-Smoke auf `srv1` geschlossen: `scripts/test-webui-rbac-browser-smoke.py` validiert Viewer-Login, 0 Console-/Page-Errors und keine sichtbaren `.sidebar-admin-item`/Settings-Labels (`WEBUI_RBAC_BROWSER_SMOKE=PASS`).
 - [x] R3 Smoke-Welle (2026-04-30): GPU_POOL_NO_GPU_SMOKE=PASS, METRICS_FAMILIES_SMOKE=PASS, AUDIT_EXPORT_REDACTION_SMOKE=PASS, NOVNC_TOKEN_TTL_SMOKE=PASS, SUBPROCESS_SANDBOX_SMOKE=PASS, ASYNC_JOB_QUEUE_SMOKE=PASS, SSE_RECONNECT_SMOKE=PASS — alle 7 Smokes auf `srv1` gruen, 8 live.js-Regressionstests gruen.
 - [x] Stream-Timeout-Audit-Pfad schliessen: `/api/v1/streams/{vmid}/events` muss `stream.session.timeout` reproduzierbar ins Audit schreiben und live auf `srv1` per Smoke nachgewiesen sein (`STREAM_TIMEOUT_AUDIT_SMOKE=PASS`).

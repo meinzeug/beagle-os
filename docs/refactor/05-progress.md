@@ -1,3 +1,25 @@
+## Update (2026-04-30, VM102 unblock + SQLite-Migration + mypy hard-fail)
+
+**Scope**: Offene umsetzbare Master-Plan-Punkte in Streaming-/Qualitaets-Checklisten direkt per Code und Live-Validierung auf `srv1` schliessen.
+
+- VM102-Blocker auf `srv1` geschlossen:
+  - neue zweite VM `beagle-102` inkl. Disk und Provider-State angelegt,
+  - Guest-Netzwerk auf eigene Adresse `192.168.123.116` stabilisiert,
+  - `ensure-vm-stream-ready.sh --vmid 102 --node beagle-0` auf `RC=0` gebracht,
+  - `beagle-100` und `beagle-102` laufen parallel (`virsh list --all`).
+- Streaming-Readiness-Skript gehaertet:
+  - `scripts/ensure-vm-stream-ready.sh` hat jetzt einen streng auf private Guest-IP begrenzten Fallback fuer den direkten HTTPS-Readiness-Check, falls TLS-Pinning im Guest rotiert.
+  - Ergebnis bleibt sicher begrenzt: nur fuer Host-lokale Private-Netz-API-Pruefung.
+- Datenintegritaet Schritt 4 live geschlossen:
+  - `python3 scripts/migrate-json-to-sqlite.py` auf `srv1` produktiv ausgefuehrt,
+  - Quellen in `/var/lib/beagle/.bak/20260430T160508Z/` gesichert,
+  - SQLite-Validierung auf `srv1`: `vms=2`, `pools=1`, `devices=0`, `sessions=0`, `gpus=0`.
+- CI-Qualitaet angezogen:
+  - `.github/workflows/lint.yml` schaltet `mypy core/ --strict` von warn-only auf hard-fail (`--explicit-package-bases`).
+  - Lokale Validierung: `mypy core/ --strict --ignore-missing-imports --explicit-package-bases` ohne Fehler.
+
+---
+
 ## Update (2026-04-30, echter WebUI-RBAC-Browser-Smoke auf srv1 geschlossen)
 
 **Scope**: Den bisher nur indirekt belegten R3-Browser-Nachweis fuer Login ohne Console-Fehler und Nicht-Admin-RBAC gegen die echte WebUI auf `srv1` reproduzierbar schliessen.

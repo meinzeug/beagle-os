@@ -82,8 +82,8 @@ jobs:
           mypy core/ \
             --strict \
             --ignore-missing-imports \
-            --no-error-summary \
-            || true   # warn only — upgrade to hard fail after stub coverage improves
+            --explicit-package-bases \
+            --no-error-summary
 
   eslint:
     name: eslint (JS lint)

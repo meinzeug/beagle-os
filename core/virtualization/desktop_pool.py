@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Protocol
+from typing import Any, Protocol
 
 from core.virtualization.streaming_profile import StreamingProfile
 
@@ -64,7 +64,7 @@ class DesktopLease:
     mode: DesktopPoolMode
     state: str
     assigned_at: str = ""
-    stream_health: dict | None = None
+    stream_health: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

@@ -7,9 +7,9 @@
 
 ## Lint + Static Analysis (CI)
 
-- [x] `lint.yml`: shellcheck + ruff hard-fail; mypy + eslint warn-only
+- [x] `lint.yml`: shellcheck + ruff + mypy hard-fail; eslint warn-only
 - [x] CI-Guard `no-legacy-provider-references.yml` (Allowlist gehaertet, FOUND=0)
-- [ ] mypy strict auf `core/` von warn-only auf hard-fail umstellen (Backlog: type-Backlog reduzieren)
+- [x] mypy strict auf `core/` von warn-only auf hard-fail umstellen — Workflow nutzt `--explicit-package-bases`, lokale Validierung: `Success: no issues found in 27 source files`.
 - [ ] eslint hart auf `website/ui/*.js` schalten (Backlog)
 
 ## Unit + Integration + E2E
@@ -35,7 +35,7 @@
 - [x] `JsonStateStore` mit atomic writes + file-locking (`docs/archive/goadvanced/01-data-integrity.md`)
 - [x] `core/persistence/` Modul: write-temp + fsync + rename
 - [ ] **Schritt 3** — Repository-Pattern fuer alle State-Konsumenten
-- [ ] **Schritt 4** — One-Shot-Importer `scripts/migrate-json-to-sqlite.py`
+- [x] **Schritt 4** — One-Shot-Importer `scripts/migrate-json-to-sqlite.py` (live auf `srv1` ausgefuehrt; Backup unter `/var/lib/beagle/.bak/20260430T160508Z/`, SQLite-Rows: `vms=2`, `pools=1`)
 - [ ] SQLite-DB unter `/var/lib/beagle/state.db` produktiv (Phase 2 — Backlog, JSON-Backend bleibt vorerst)
 
 ## Async Job Queue
