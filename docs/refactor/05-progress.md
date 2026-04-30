@@ -1,3 +1,23 @@
+## Update (2026-04-30, Repository-Pattern Schritt 3 live)
+
+**Scope**: `BeagleDb`-Singleton + Repository-Verdrahtung in `service_registry.py`; Live-Validierung auf `srv1`.
+
+- `beagle-host/services/service_registry.py` erweitert:
+  - Import: `BeagleDb`, `PoolRepository`, `DeviceRepository`, `VmRepository`
+  - `BEAGLE_STATE_DB_PATH` Konstante (defaults auf `DATA_DIR / "state.db"` = `/var/lib/beagle/beagle-manager/state.db`)
+  - `_BEAGLE_DB` Singleton + `_beagle_db()`, `_pool_repository()`, `_device_repository()`, `_vm_repository()` Factories
+  - `pool_manager_service()` erhaelt `pool_repository=_pool_repository()` Parameter
+  - `device_registry_service()` erhaelt `device_repository=_device_repository()` Parameter
+- DB-Pfad-Korrrektur: `/var/lib/beagle/state.db` → `/var/lib/beagle/beagle-manager/state.db` (owned by `beagle-manager`, WAL-schreibbar)
+- 7 neue Unit-Tests in `tests/unit/test_repository_wiring.py` — alle PASS lokal
+- Live-Deploy auf `srv1.beagle-os.com`:
+  - `systemctl restart beagle-control-plane` — active
+  - Smoke: `v1/health=200`, `v1/vms=200`, `v1/pools=200`, `v1/audit/report=200`, `v1/cluster/nodes=200`, `v1/virtualization/nodes=200`, `v1/policies=200`
+  - WAL-Datei aktiv: `/var/lib/beagle/beagle-manager/state.db-wal` existiert
+  - Keine `unhandled_exception`-Fehler im Journal
+
+---
+
 ## Update (2026-04-30, VM102 unblock + SQLite-Migration + mypy hard-fail)
 
 **Scope**: Offene umsetzbare Master-Plan-Punkte in Streaming-/Qualitaets-Checklisten direkt per Code und Live-Validierung auf `srv1` schliessen.

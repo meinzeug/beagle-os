@@ -134,6 +134,10 @@ from vm_secret_store import VmSecretStoreService
 from vm_state import VmStateService
 from vm_usb import VmUsbService
 from core.virtualization.desktop_pool import SessionRecordingPolicy
+from core.persistence.sqlite_db import BeagleDb
+from core.repository.pool_repository import PoolRepository
+from core.repository.device_repository import DeviceRepository
+from core.repository.vm_repository import VmRepository
 from ipam_service import IpamService
 from firewall_service import FirewallService
 from gaming_metrics_service import GamingMetricsService
@@ -239,6 +243,11 @@ ALLOW_LOCALHOST_NOAUTH = os.environ.get("BEAGLE_MANAGER_ALLOW_LOCALHOST_NOAUTH",
 STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECONDS", "600"))
 DOWNLOADS_STATUS_FILE = ROOT_DIR / "dist" / "beagle-downloads-status.json"
 DIST_SHA256SUMS_FILE = ROOT_DIR / "dist" / "SHA256SUMS"
+BEAGLE_STATE_DB_PATH = (
+    Path(os.environ["BEAGLE_STATE_DB_PATH"])
+    if os.environ.get("BEAGLE_STATE_DB_PATH")
+    else DATA_DIR / "state.db"
+)
 VM_INSTALLERS_FILE = ROOT_DIR / "dist" / "beagle-vm-installers.json"
 HOSTED_INSTALLER_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-usb-installer-host-latest.sh"
 HOSTED_LIVE_USB_TEMPLATE_FILE = ROOT_DIR / "dist" / "pve-thin-client-live-usb-host-latest.sh"
@@ -548,6 +557,7 @@ SERVER_SETTINGS_SERVICE: ServerSettingsService | None = None
 STORAGE_QUOTA_SERVICE: StorageQuotaService | None = None
 STORAGE_IMAGE_STORE_SERVICE: StorageImageStoreService | None = None
 ENTITLEMENT_SERVICE: EntitlementService | None = None
+_BEAGLE_DB: BeagleDb | None = None
 POOL_MANAGER_SERVICE: PoolManagerService | None = None
 DESKTOP_TEMPLATE_BUILDER_SERVICE: DesktopTemplateBuilderService | None = None
 WEBHOOK_SERVICE: WebhookService | None = None
@@ -910,6 +920,37 @@ def entitlement_service() -> EntitlementService:
     return ENTITLEMENT_SERVICE
 
 
+def _beagle_db() -> BeagleDb:
+    """Singleton BeagleDb instance backed by BEAGLE_STATE_DB_PATH.
+
+    Applies SQL migrations on first access so the schema is always current.
+    Errors are silently suppressed to preserve startup resilience — the JSON
+    backend remains the authoritative store during this transitional phase.
+    """
+    global _BEAGLE_DB
+    if _BEAGLE_DB is None:
+        db = BeagleDb(BEAGLE_STATE_DB_PATH)
+        try:
+            schema_dir = ROOT_DIR / "core" / "persistence" / "migrations"
+            db.migrate(schema_dir)
+        except Exception:  # pragma: no cover
+            pass
+        _BEAGLE_DB = db
+    return _BEAGLE_DB
+
+
+def _pool_repository() -> PoolRepository:
+    return PoolRepository(_beagle_db())
+
+
+def _device_repository() -> DeviceRepository:
+    return DeviceRepository(_beagle_db())
+
+
+def _vm_repository() -> VmRepository:
+    return VmRepository(_beagle_db())
+
+
 def pool_manager_service() -> PoolManagerService:
     global POOL_MANAGER_SERVICE
     if POOL_MANAGER_SERVICE is None:
@@ -923,6 +964,7 @@ def pool_manager_service() -> PoolManagerService:
             vm_node_of=lambda vmid: str(getattr(find_vm(int(vmid), refresh=True), "node", "") or ""),
             list_gpu_inventory=lambda: gpu_inventory_service().list_gpus(),
             smart_pick_node=_smart_pick_pool_node,
+            pool_repository=_pool_repository(),
         )
     return POOL_MANAGER_SERVICE
 
@@ -4792,6 +4834,7 @@ def device_registry_service() -> DeviceRegistryService:
     if DEVICE_REGISTRY_SERVICE is None:
         DEVICE_REGISTRY_SERVICE = DeviceRegistryService(
             utcnow=utcnow,
+            device_repository=_device_repository(),
         )
     return DEVICE_REGISTRY_SERVICE
 
