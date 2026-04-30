@@ -1,3 +1,26 @@
+## Update (2026-04-30, Stream-Health-Audit-Smoke + sichtbares SSE-Reconnect-Feedback)
+
+**Scope**: Den verbleibenden repo-seitig realisierbaren Streaming-Slice fuer Telemetrie/Audit und WebUI-Reconnect weitergezogen.
+
+- Repo-Fixes:
+  - `website/ui/live.js`
+    - zeigt bei SSE-Abbruch jetzt sofort ein sichtbares Warn-Banner (`Live-Updates getrennt. Neuer Verbindungsversuch laeuft ...`) statt still nur im Hintergrund zu reconnecten.
+    - schreibt zusaetzlich einen Activity-Log-Eintrag `live-reconnect` fuer den geplanten Reconnect.
+  - `tests/unit/test_live_js_regressions.py`
+    - Regression fixiert Banner- und Activity-Log-Verhalten des Live-Reconnect-Pfads.
+  - `scripts/test-stream-health-audit-smoke.py`
+    - neuer reproduzierbarer Smoke: fuehrt den bestehenden Active-Session-Stream-Health-Lauf aus und verifiziert anschliessend live einen `session.stream_health.update`-Audit-Eintrag.
+- Validierung:
+  - lokal: `python3 -m py_compile scripts/test-stream-health-audit-smoke.py` => OK
+  - lokal: `python3 -m pytest -q tests/unit/test_live_js_regressions.py` => `1 passed`
+  - `srv1`: `python3 /opt/beagle/scripts/test-stream-health-audit-smoke.py --base http://127.0.0.1:9088 --token ...` => `STREAM_HEALTH_AUDIT_SMOKE=PASS`
+  - Live-Nachweis: `AUDIT_STREAM_HEALTH_COUNT=10`, letzter Audit-Event `action=session.stream_health.update`, `result=success`
+- Einordnung:
+  - Damit ist der Teil `Stream-Health-Reporting + Audit-Update` belegbar geschlossen.
+  - Offen bleibt weiterhin nur der separate R3-Rest fuer echten Stream-Abbruch/Timeout sowie die WebUI-Sichtbarkeit nach Host-/VM-Reboot.
+
+---
+
 ## Update (2026-04-30, Sunshine/Moonlight-Smoke-Suite auf srv1 mit PASS-Nachweisen aktualisiert)
 
 **Scope**: Die offenen, live-ausfuehrbaren Sunshine/Moonlight-Punkte wurden auf `srv1` erneut durchgefahren, inklusive belastbarer PASS-Marker je Smoke sowie Runtime-Haertung der Smoke-Skripte fuer den aktuellen Guest-User-/Headless-Betrieb.

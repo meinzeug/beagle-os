@@ -28,6 +28,8 @@ function scheduleReconnect() {
   if (reconnectTimer || !state.token) {
     return;
   }
+  liveHooks.setBanner('Live-Updates getrennt. Neuer Verbindungsversuch laeuft ...', 'warn');
+  liveHooks.addToActivityLog('live-reconnect', null, 'warn', 'SSE getrennt, Reconnect geplant');
   reconnectTimer = window.setTimeout(() => {
     reconnectTimer = null;
     connectLiveUpdates();

@@ -43,4 +43,5 @@
 - [x] Pairing-Token-Generation, Rotation, Revocation (Integration-Test gruen)
 - [x] Session Recording + Watermark (Welle 7.2.1)
 - [ ] Stream Reconnect nach Host-/VM-Reboot in WebUI sichtbar (R3)
-- [ ] Stream-Health-Reporting + Audit-Eintrag bei Abbruch/Timeout (R3)
+- [x] Stream-Health-Reporting + Audit-Update live validiert (`STREAM_HEALTH_AUDIT_SMOKE=PASS` auf `srv1`, 2026-04-30)
+- [ ] Audit-Eintrag bei echtem Stream-Abbruch/Timeout (R3)

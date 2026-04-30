@@ -1,5 +1,19 @@
 # Next Steps
 
+## Stand (2026-04-30, Streaming-R3-Rest nach Audit-Smoke weiter eingegrenzt)
+
+**Zuletzt erledigt**:
+- `STREAM_HEALTH_AUDIT_SMOKE=PASS` auf `srv1`; damit sind Stream-Health-Persistenz und Audit-Update-Pfad jetzt auch live zusammen nachgewiesen.
+- Der WebUI-Live-Feed zeigt bei SSE-Abbruch jetzt ein sichtbares Reconnect-Warnbanner und protokolliert den Reconnect-Versuch im Activity-Log.
+
+**Naechste konkrete Schritte**:
+
+1. Einen echten Stream-Abbruch-/Timeout-Fall reproduzierbar erzeugen und den dazugehoerigen Audit-Nachweis als eigenen Smoke ablegen, um den letzten R3-Audit-Rest zu schliessen.
+2. Den sichtbaren WebUI-Reconnect nach Host-/VM-Reboot browserseitig gegen `srv1` abnehmen und erst dann den offenen R3-WebUI-Punkt schliessen.
+3. Parallel VM102 im Provider-State reparieren; erst danach ist der verbliebene Dual-VM-Readiness-Nachweis komplett schliessbar.
+
+---
+
 ## Stand (2026-04-30, Sunshine/Moonlight-Smokes auf srv1 mit VM102-Blocker)
 
 **Zuletzt erledigt**:
