@@ -4,12 +4,15 @@ set -euo pipefail
 LOG_FILE="/var/log/beagle-installimage-bootstrap.log"
 STATE_DIR="/var/lib/beagle/installimage-bootstrap"
 DONE_FILE="$STATE_DIR/done"
+PASSWORD_FILE="$STATE_DIR/bootstrap-password"
+AUTH_RESET_MARKER="$STATE_DIR/auth-reset-applied"
 SOURCE_ARCHIVE="/usr/local/share/beagle/beagle-os-source.tar.gz"
 WORK_DIR="/opt/beagle-installimage-src"
 INSTALL_DIR="/opt/beagle"
 BEAGLE_ENV_FILE="/etc/beagle/beagle-manager.env"
 CREDENTIALS_FILE="/root/beagle-firstboot-credentials.txt"
 BOOTSTRAP_USERNAME="${BEAGLE_INSTALLIMAGE_BOOTSTRAP_USERNAME:-admin}"
+BOOTSTRAP_PASSWORD_OVERRIDE="${BEAGLE_INSTALLIMAGE_BOOTSTRAP_PASSWORD:-}"
 BOOTSTRAP_DISABLE="${BEAGLE_INSTALLIMAGE_BOOTSTRAP_DISABLE:-0}"
 INSTALL_MODE="${BEAGLE_INSTALLIMAGE_MODE:-standalone}"
 
@@ -112,14 +115,30 @@ if [[ -z "$PRIMARY_IP" ]]; then
 fi
 
 BOOTSTRAP_PASSWORD=""
+AUTH_RESET_ON_INSTALL="0"
 case "$(printf '%s' "$BOOTSTRAP_DISABLE" | tr '[:upper:]' '[:lower:]')" in
   1|true|yes|on)
     log "bootstrap admin user generation disabled"
     ;;
   *)
-    BOOTSTRAP_PASSWORD="$(generate_secret)"
+    if [[ -n "$BOOTSTRAP_PASSWORD_OVERRIDE" ]]; then
+      BOOTSTRAP_PASSWORD="$BOOTSTRAP_PASSWORD_OVERRIDE"
+      printf '%s\n' "$BOOTSTRAP_PASSWORD" > "$PASSWORD_FILE"
+      chmod 0600 "$PASSWORD_FILE"
+    elif [[ -s "$PASSWORD_FILE" ]]; then
+      BOOTSTRAP_PASSWORD="$(cat "$PASSWORD_FILE")"
+    else
+      BOOTSTRAP_PASSWORD="$(generate_secret)"
+      printf '%s\n' "$BOOTSTRAP_PASSWORD" > "$PASSWORD_FILE"
+      chmod 0600 "$PASSWORD_FILE"
+    fi
     ;;
 esac
+
+if [[ ! -f "$AUTH_RESET_MARKER" ]]; then
+  AUTH_RESET_ON_INSTALL="1"
+  touch "$AUTH_RESET_MARKER"
+fi
 
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
@@ -143,7 +162,7 @@ BEAGLE_WEB_UI_URL="$(default_web_ui_url "$SERVER_NAME")" \
 BEAGLE_AUTH_BOOTSTRAP_USERNAME="$BOOTSTRAP_USERNAME" \
 BEAGLE_AUTH_BOOTSTRAP_PASSWORD="$BOOTSTRAP_PASSWORD" \
 BEAGLE_AUTH_BOOTSTRAP_DISABLE="$BOOTSTRAP_DISABLE" \
-BEAGLE_AUTH_RESET_ON_INSTALL="1" \
+BEAGLE_AUTH_RESET_ON_INSTALL="$AUTH_RESET_ON_INSTALL" \
 "$INSTALL_SCRIPT"
 
 if [[ -n "$PRIMARY_IP" && -f "$BEAGLE_ENV_FILE" ]]; then
