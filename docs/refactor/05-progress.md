@@ -1,3 +1,25 @@
+## Update (2026-04-30, Unit-Test-Fixes: 3 von 5 Failures behoben)
+
+**Scope**: Quick-win Code-Quality-Verbesserungen — 3 schnell behebbare Unit-Test-Fehler gefixt.
+
+- Test-Fixes (alle PASS nach Fixes):
+  - `test_dashboard_ui_regressions.py::test_dashboard_skips_unauthorized_cluster_pool_and_iam_fetches` — Assertion aktualisiert: prüft jetzt korrekten Import statt alter Funktionsdefinition
+  - `test_request_handler_mixin_client_addr.py::test_write_json_treats_broken_pipe_as_client_disconnect` — `normalized_origin` Import/Aufruf korrigiert, verwendet jetzt `_svc_registry.normalized_origin()` mit explizitem Modul-Lookup
+  - `test_server_settings.py::ServerSettingsLetsEncryptTests::test_switch_nginx_tls_to_letsencrypt_replaces_beagle_tls_files_atomically` — Assertions in den `with mock.patch` Block verschoben (zuvor außerhalb)
+- Testergebnis nach Fixes:
+  - Vorher: 5 failures, 1514 passed
+  - Nachher: 2 failures (nur WireGuard-Systemtests), **1517 passed**
+  - Verbleibend: 2 nicht-behebbare Fehler (`test_enrollment_wireguard_*.py`) erfordern echte WireGuard-Interface-Erstellung (Systemlevel-Zugriff)
+- Commit: `f875705` — "Fix 3 failing unit tests: dashboard assertion, normalized_origin import, TLS mock context"
+
+**Status Ende 2026-04-30 (Gesamt)**:
+- R3 Gate: VOLLSTÄNDIG (Smoke-Welle + Unit-Test-Verbesserungen)
+- Unit-Tests: 1517/1519 passed (99.9%)
+- Commits heute: 1 neue Verbesserung, alle auf GitHub gepusht
+- Nächste: R4 oder weitere Feature-Vertiefung
+
+---
+
 ## Update (2026-04-30, R3 Final Smoke-Welle: 4 neue Smokes alle PASS auf srv1)
 
 **Scope**: Verbleibende R3 Smoke-Tests für Control-Plane-Health, Cleanup-Hooks, Login-Flow und RBAC-Enforcement.
