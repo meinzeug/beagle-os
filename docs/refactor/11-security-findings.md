@@ -1,6 +1,26 @@
 # Security Findings
 
-Stand: 2026-04-30 (ergänzt: S-038 Ubuntu-Desktop-Firstboot-Drift repariert, S-037 TLS-Reload-Disconnect-Drift repariert, S-036 TLS-Switch-Permission-Drift repariert, S-035 Reinstall-Auth-/Onboarding-Drift korrigiert)
+Stand: 2026-04-30 (ergaenzt: S-039 Stream-Session-Audit-Silent-Failure repariert, S-038 Ubuntu-Desktop-Firstboot-Drift repariert, S-037 TLS-Reload-Disconnect-Drift repariert, S-036 TLS-Switch-Permission-Drift repariert, S-035 Reinstall-Auth-/Onboarding-Drift korrigiert)
+
+## S-039 — Stream-Session-Audits konnten in der Runtime still verworfen werden (PATCHED)
+
+- Status: **gepatcht** (2026-04-30)
+- Risiko: **Mittel**
+- Betroffene Dateien:
+  - `beagle-host/services/stream_http_surface.py`
+  - `tests/unit/test_stream_http_surface.py`
+  - `scripts/test-stream-timeout-audit-smoke.py`
+- Beschreibung:
+  - Die produktive Verdrahtung von `StreamHttpSurfaceService` nutzt `AuditLogService.write_event(event_type, outcome, details_dict)`.
+  - `_safe_audit(...)` hat den Callback bisher nur im `**kwargs`-Stil aufgerufen. Das erzeugte beim produktiven Writer einen `TypeError`, der intern abgefangen wurde.
+  - Folge: Stream-Events wie `stream.session.timeout` konnten ohne sichtbaren Fehler nicht im Audit-Log landen.
+- Fix:
+  - `_safe_audit(...)` unterstuetzt jetzt beide Signaturen (`**details` und Dict-Argument) und faellt kompatibel zurueck.
+  - Regressionstests decken `session.timeout` und den Dict-Signatur-Writer explizit ab.
+  - Ein neuer Live-Smoke prueft den End-to-End-Nachweis gegen `srv1`.
+- Live-Verifikation:
+  - `srv1`: `STREAM_TIMEOUT_AUDIT_SMOKE=PASS`.
+  - Audit-Nachweis vorhanden: `action=stream.session.timeout`, `result=failure`.
 
 ## S-038 — Unterbrochene Ubuntu-Firstboot-Paketketten konnten Desktop-VMs ohne finalen Reboot und ohne vollständiges Session-Setup hinterlassen (PATCHED)
 

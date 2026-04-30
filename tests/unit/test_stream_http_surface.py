@@ -233,3 +233,74 @@ def test_events_reject_session_start_when_vpn_required_without_wireguard(tmp_pat
     assert "vpn_required" in response["payload"]["error"]
     assert audit_events[-1][0] == "stream.session.start"
     assert audit_events[-1][1] == "forbidden"
+
+
+def test_events_timeout_writes_error_audit(tmp_path: Path) -> None:
+    service, audit_events = _service(tmp_path)
+    service.route_post(
+        "/api/v1/streams/register",
+        json_payload={"vm_id": 303, "wireguard_active": True},
+    )
+
+    response = service.route_post(
+        "/api/v1/streams/303/events",
+        json_payload={
+            "event_type": "session.timeout",
+            "outcome": "error",
+            "details": {"reason": "simulated-timeout"},
+        },
+    )
+
+    assert response is not None
+    assert response["status"] == 200
+    assert response["payload"]["ok"] is True
+    assert audit_events[-1][0] == "stream.session.timeout"
+    assert audit_events[-1][1] == "error"
+
+
+def test_events_timeout_audit_supports_dict_signature_writer(tmp_path: Path) -> None:
+    vm = _Vm(303)
+    audit_events: list[tuple[str, str, dict]] = []
+    policy_service = StreamPolicyService(state_file=tmp_path / "stream-policies.json")
+    policy_service.create_policy(StreamPolicy(policy_id="p1", name="P1"))
+    policy_service.assign_policy("gaming-1", "p1")
+
+    class _Pm:
+        def list_active_sessions(self):
+            return []
+
+        def list_pools(self):
+            return [_Pool("gaming-1")]
+
+        def list_desktops(self, pool_id: str):
+            return [{"vmid": 303, "node": "srv2"}] if pool_id == "gaming-1" else []
+
+    def dict_writer(event_type: str, outcome: str, details: dict[str, Any] | None = None) -> None:
+        audit_events.append((event_type, outcome, details if isinstance(details, dict) else {}))
+
+    service = StreamHttpSurfaceService(
+        state_file=tmp_path / "streams" / "servers.json",
+        build_vm_profile=lambda found_vm: {"stream_host": "srv2.beagle-os.com", "moonlight_port": 47984},
+        find_vm=lambda vmid: vm if int(vmid) == 303 else None,
+        pool_manager_service=_Pm(),
+        stream_policy_service=policy_service,
+        requester_identity=lambda: "alice",
+        audit_event=dict_writer,
+        utcnow=lambda: "2026-04-28T12:00:00Z",
+        version="test",
+    )
+
+    response = service.route_post(
+        "/api/v1/streams/303/events",
+        json_payload={
+            "event_type": "session.timeout",
+            "outcome": "error",
+            "details": {"reason": "dict-signature"},
+        },
+    )
+
+    assert response is not None
+    assert response["status"] == 200
+    assert audit_events[-1][0] == "stream.session.timeout"
+    assert audit_events[-1][1] == "error"
+    assert audit_events[-1][2]["username"] == "alice"

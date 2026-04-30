@@ -1,3 +1,29 @@
+## Update (2026-04-30, Stream-Timeout-Audit live geschlossen)
+
+**Scope**: Letzten offenen R3-Audit-Rest fuer echten Stream-Abbruch/Timeout code-first geschlossen, inklusive Runtime-Fix in der Stream-HTTP-Audit-Verdrahtung und reproduzierbarem `srv1`-Smoke.
+
+- Repo-Fixes:
+  - `beagle-host/services/stream_http_surface.py`
+    - `_safe_audit(...)` auf Signatur-Kompatibilitaet gehaertet: unterstuetzt jetzt sowohl `audit_event(event, outcome, **details)` als auch Writer mit Dict-Signatur `audit_event(event, outcome, details)`.
+    - behebt den Live-Bug, bei dem Stream-Event-Audits auf `srv1` still verworfen wurden, weil `AuditLogService.write_event(...)` keine freien Keyword-Args akzeptiert.
+  - `tests/unit/test_stream_http_surface.py`
+    - neue Regression fuer `session.timeout` -> `stream.session.timeout` + `outcome`-Mapping.
+    - neue Regression fuer Dict-Signatur-Writer (Production-Wiring) gegen erneute Audit-Silent-Failures.
+  - `scripts/test-stream-timeout-audit-smoke.py` (neu)
+    - fuehrt Register + Timeout-Event (`session.timeout`) ueber `/api/v1/streams/{vmid}/events` aus.
+    - validiert `last_event` in `/api/v1/streams/{vmid}/config`.
+    - verifiziert Audit-Nachweis in `/api/v1/audit/report` fuer `action=stream.session.timeout` und `result in {failure,error}`.
+- Validierung:
+  - lokal: `python3 -m pytest -q tests/unit/test_stream_http_surface.py` => `10 passed`
+  - lokal: `python3 -m py_compile scripts/test-stream-timeout-audit-smoke.py` => OK
+  - `srv1`: `python3 /opt/beagle/scripts/test-stream-timeout-audit-smoke.py --base http://127.0.0.1:9088 --token ... --vmid 100` => `STREAM_TIMEOUT_AUDIT_SMOKE=PASS`
+  - Live-Nachweis: `action=stream.session.timeout`, `result=failure`, inkl. Detail-Metadaten aus dem Timeout-Smoke.
+- Einordnung:
+  - Der offene Checklist-Punkt "Audit-Eintrag bei echtem Stream-Abbruch/Timeout (R3)" ist damit belegbar geschlossen.
+  - Offener R3-Rest im Streaming-Scope: nur noch WebUI-Reconnect-Sichtbarkeit nach Host-/VM-Reboot.
+
+---
+
 ## Update (2026-04-30, Stream-Health-Audit-Smoke + sichtbares SSE-Reconnect-Feedback)
 
 **Scope**: Den verbleibenden repo-seitig realisierbaren Streaming-Slice fuer Telemetrie/Audit und WebUI-Reconnect weitergezogen.

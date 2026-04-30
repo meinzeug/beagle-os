@@ -44,4 +44,4 @@
 - [x] Session Recording + Watermark (Welle 7.2.1)
 - [ ] Stream Reconnect nach Host-/VM-Reboot in WebUI sichtbar (R3)
 - [x] Stream-Health-Reporting + Audit-Update live validiert (`STREAM_HEALTH_AUDIT_SMOKE=PASS` auf `srv1`, 2026-04-30)
-- [ ] Audit-Eintrag bei echtem Stream-Abbruch/Timeout (R3)
+- [x] Audit-Eintrag bei echtem Stream-Abbruch/Timeout (R3) — `STREAM_TIMEOUT_AUDIT_SMOKE=PASS` auf `srv1` (2026-04-30, `action=stream.session.timeout`, `result=failure`)

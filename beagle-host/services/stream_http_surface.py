@@ -75,10 +75,18 @@ class StreamHttpSurfaceService:
     def _safe_audit(self, event_type: str, outcome: str, **details: Any) -> None:
         if self._audit_event is None:
             return
+        payload = dict(details)
+        payload.setdefault("username", self._requester_identity())
         try:
-            payload = dict(details)
-            payload.setdefault("username", self._requester_identity())
             self._audit_event(event_type, outcome, **payload)
+            return
+        except TypeError:
+            # Backward-compatibility for writers that expect a details dict as third arg.
+            pass
+        except Exception:
+            return
+        try:
+            self._audit_event(event_type, outcome, payload)
         except Exception:
             return
 

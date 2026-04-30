@@ -8,9 +8,9 @@
 
 **Naechste konkrete Schritte**:
 
-1. Einen echten Stream-Abbruch-/Timeout-Fall reproduzierbar erzeugen und den dazugehoerigen Audit-Nachweis als eigenen Smoke ablegen, um den letzten R3-Audit-Rest zu schliessen.
-2. Den sichtbaren WebUI-Reconnect nach Host-/VM-Reboot browserseitig gegen `srv1` abnehmen und erst dann den offenen R3-WebUI-Punkt schliessen.
-3. Parallel VM102 im Provider-State reparieren; erst danach ist der verbliebene Dual-VM-Readiness-Nachweis komplett schliessbar.
+1. Den sichtbaren WebUI-Reconnect nach Host-/VM-Reboot browserseitig gegen `srv1` abnehmen und erst dann den offenen R3-WebUI-Punkt schliessen.
+2. Parallel VM102 im Provider-State reparieren; erst danach ist der verbliebene Dual-VM-Readiness-Nachweis komplett schliessbar.
+3. Den neuen Timeout-Audit-Smoke (`scripts/test-stream-timeout-audit-smoke.py`) in den kombinierten Streaming-Regression-Run aufnehmen, damit der Nachweis bei kuenftigen Deployments automatisch mitlaeuft.
 
 ---
 
