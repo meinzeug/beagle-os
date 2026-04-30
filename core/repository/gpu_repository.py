@@ -45,7 +45,10 @@ class GpuRepository:
             assignment = str(gpu.get("current_assignment") or "").strip()
             status = "assigned" if assignment else "available"
         vmid_raw = gpu.get("vmid")
-        vmid: int | None = int(vmid_raw) if vmid_raw not in (None, "", 0) else None
+        try:
+            vmid: int | None = int(vmid_raw) if vmid_raw not in (None, "", 0) else None
+        except (TypeError, ValueError):
+            vmid = None
         payload_json = json.dumps(gpu, sort_keys=True)
         return gpu_id, pci_address, node_id, status, vmid, payload_json
 

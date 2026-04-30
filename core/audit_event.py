@@ -115,7 +115,7 @@ class AuditEvent:
                 result=_RESULT_MAP.get(str(record.get("result") or "failure").strip().lower(), "failure"),
                 source_ip=_clean_text(record.get("source_ip")),
                 user_agent=_clean_text(record.get("user_agent")),
-                metadata={str(key): _clean_json_value(value) for key, value in metadata.items()},
+                metadata={str(key): _clean_json_value(value) for key, value in (metadata or {}).items()},
                 schema_version=str(record.get("schema_version") or "1"),
             )
         legacy_details = record.get("details") if isinstance(record, dict) else {}
