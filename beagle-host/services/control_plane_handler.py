@@ -1238,4 +1238,7 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             self.close_connection = True
             return
         except Exception as error:
+            if self._is_client_disconnect_error(error):
+                self.close_connection = True
+                return
             self._handle_unexpected_error(error)

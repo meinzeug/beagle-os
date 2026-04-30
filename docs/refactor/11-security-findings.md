@@ -1,6 +1,29 @@
 # Security Findings
 
-Stand: 2026-04-30 (ergänzt: S-036 TLS-Switch-Permission-Drift repariert, S-035 Reinstall-Auth-/Onboarding-Drift korrigiert)
+Stand: 2026-04-30 (ergänzt: S-037 TLS-Reload-Disconnect-Drift repariert, S-036 TLS-Switch-Permission-Drift repariert, S-035 Reinstall-Auth-/Onboarding-Drift korrigiert)
+
+## S-037 — nginx/TLS-Reloads konnten in-flight API-Requests als 500/Broken-Pipe-Fehler eskalieren lassen (PATCHED)
+
+- Status: **gepatcht** (2026-04-30)
+- Risiko: **Mittel bis Hoch**
+- Betroffene Dateien:
+  - `beagle-host/services/request_handler_mixin.py`
+  - `beagle-host/services/control_plane_handler.py`
+  - `website/ui/api.js`
+  - `website/ui/settings.js`
+  - `tests/unit/test_request_handler_mixin_client_addr.py`
+  - `tests/unit/test_api_js_regressions.py`
+- Beschreibung:
+  - Nach erfolgreichem Let's-Encrypt-POST schloss nginx beim TLS-Reload einzelne in-flight Upstream-Verbindungen. Die Control Plane behandelte diese normalen Client-Disconnects als unhandled Fehler (`BrokenPipeError`) und produzierte dafuer 500-Logpfade.
+  - Parallel hatte die WebUI fuer idempotente GET-Reads keinen gezielten Kurz-Retry gegen genau diesen Reload-Moment; dadurch konnten Panels und Session-Refreshes in vermeidbare Timeouts laufen.
+- Fix:
+  - Client-Disconnects (`BrokenPipeError`, `ConnectionResetError`, `EPIPE`, `ECONNRESET`) werden serverseitig jetzt explizit als normale Verbindungsabbrueche behandelt.
+  - Der WebUI-Request-Layer retryt idempotente `GET`/`HEAD`-Requests einmal fuer transiente Netzwerk-/Abort-Fehler.
+  - Der Security-UI-Flow wartet nach erfolgreichem LE-POST kurz vor dem ersten TLS-Status-Refresh.
+- Live-Verifikation:
+  - `srv1`: frueh abgebrochener Request gegen `GET /api/v1/auth/providers` erzeugt keinen neuen `BrokenPipeError`-/500-Trace mehr.
+  - Externer Read `GET /beagle-api/api/v1/auth/providers` antwortet wieder stabil mit `HTTP 200`.
+  - die vormals betroffenen Dashboard-/Auth-Endpunkte erscheinen danach im Journal wieder mit `api.response status=200`.
 
 ## S-036 — WebUI-Let's-Encrypt konnte Zertifikate ausstellen, aber den aktiven TLS-Pfad nicht umschalten (PATCHED)
 

@@ -6,6 +6,7 @@ main entry-point file stays focused on the HTTP dispatch logic.
 """
 from __future__ import annotations
 
+import errno
 import json
 import ipaddress
 import re
@@ -642,6 +643,14 @@ class HandlerMixin:
             return origin
         return ""
 
+    @staticmethod
+    def _is_client_disconnect_error(error: BaseException) -> bool:
+        if isinstance(error, (BrokenPipeError, ConnectionResetError)):
+            return True
+        if isinstance(error, OSError):
+            return getattr(error, "errno", None) in {errno.EPIPE, errno.ECONNRESET}
+        return False
+
     def _write_common_security_headers(self) -> None:
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
@@ -685,8 +694,14 @@ class HandlerMixin:
         for header_name, header_value in merged_headers:
             self.send_header(header_name, header_value)
         self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as error:
+            if self._is_client_disconnect_error(error):
+                self.close_connection = True
+                return
+            raise
         self._log_response_event(int(status))
 
     def _refresh_cookie_header(self, refresh_token: str) -> tuple[str, str]:

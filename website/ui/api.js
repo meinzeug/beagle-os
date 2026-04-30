@@ -167,6 +167,24 @@ function wait(ms) {
   });
 }
 
+export function isTransientNetworkError(error) {
+  if (!error) {
+    return false;
+  }
+  if (error.name === 'AbortError') {
+    return true;
+  }
+  const message = String(error.message || '').trim().toLowerCase();
+  if (!message) {
+    return false;
+  }
+  return message.includes('aborted')
+    || message.includes('request timeout')
+    || message.includes('failed to fetch')
+    || message.includes('networkerror')
+    || message.includes('network error');
+}
+
 export function request(path, options) {
   const target = resolveApiTarget(path);
   const rawOptions = Object.assign({}, options || {});
@@ -174,10 +192,12 @@ export function request(path, options) {
   const noRateLimitRetry = Boolean(rawOptions.__noRateLimitRetry);
   const suppressAuthLock = Boolean(rawOptions.__suppressAuthLock);
   const timeoutMs = Number(rawOptions.__timeoutMs || 0);
+  const networkRetryCount = Number(rawOptions.__networkRetryCount || 0);
   delete rawOptions.__noRefreshRetry;
   delete rawOptions.__noRateLimitRetry;
   delete rawOptions.__suppressAuthLock;
   delete rawOptions.__timeoutMs;
+  delete rawOptions.__networkRetryCount;
   const finalOptions = Object.assign({ method: 'GET', credentials: 'same-origin' }, rawOptions);
   finalOptions.headers = Object.assign({}, finalOptions.headers || {}, authHooks.buildAuthHeaders());
   const method = String(finalOptions.method || 'GET').toUpperCase();
@@ -245,7 +265,17 @@ export function request(path, options) {
       return response.json();
     })
     .catch((error) => {
-      if (error && (error.name === 'AbortError' || /aborted/i.test(String(error.message || '')))) {
+      if ((method === 'GET' || method === 'HEAD') && networkRetryCount < 1 && isTransientNetworkError(error)) {
+        const retriedOptions = Object.assign({}, rawOptions, {
+          __noRefreshRetry: noRefreshRetry,
+          __noRateLimitRetry: noRateLimitRetry,
+          __suppressAuthLock: suppressAuthLock,
+          __timeoutMs: timeoutMs > 0 ? timeoutMs : undefined,
+          __networkRetryCount: networkRetryCount + 1
+        });
+        return wait(1200).then(() => request(path, retriedOptions));
+      }
+      if (isTransientNetworkError(error)) {
         throw new Error('Request timeout');
       }
       throw error;

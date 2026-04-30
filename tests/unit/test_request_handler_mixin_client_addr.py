@@ -40,6 +40,24 @@ class DummyHandler(module.HandlerMixin):
     def __init__(self, peer_addr: str, headers: dict[str, str] | None = None) -> None:
         self.client_address = (peer_addr, 12345)
         self.headers = headers or {}
+        self.path = "/api/v1/health"
+        self.response_status = None
+        self.response_headers = []
+        self.logged_status = None
+        self.close_connection = False
+        self.wfile = types.SimpleNamespace(write=lambda _body: None)
+
+    def send_response(self, status):
+        self.response_status = int(status)
+
+    def send_header(self, name, value):
+        self.response_headers.append((name, value))
+
+    def end_headers(self):
+        return None
+
+    def _log_response_event(self, status: int):
+        self.logged_status = int(status)
 
 
 def test_client_addr_uses_forwarded_for_from_loopback_proxy() -> None:
@@ -67,3 +85,18 @@ def test_login_guard_keys_are_scoped_to_forwarded_client_addr() -> None:
     assert first._login_guard_key("admin") == "203.0.113.10::admin"
     assert second._login_guard_key("admin") == "203.0.113.11::admin"
     assert first._login_guard_key("admin") != second._login_guard_key("admin")
+
+
+def test_write_json_treats_broken_pipe_as_client_disconnect() -> None:
+    handler = DummyHandler("127.0.0.1")
+
+    def raise_broken_pipe(_body):
+        raise BrokenPipeError(32, "broken pipe")
+
+    handler.wfile = types.SimpleNamespace(write=raise_broken_pipe)
+
+    handler._write_json(module.HTTPStatus.OK, {"ok": True})
+
+    assert handler.response_status == 200
+    assert handler.close_connection is True
+    assert handler.logged_status is None

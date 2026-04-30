@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-04-30, WebUI-Timeout-Drift nach TLS-Reload auf srv1 geschlossen)
+
+**Zuletzt erledigt**:
+- Der Post-Let's-Encrypt-Folgebug ist geschlossen: Control-Plane-Responses behandeln nginx-seitig abgebrochene Reload-Verbindungen jetzt sauber als Disconnect statt als 500, und idempotente WebUI-Reads retryen transiente Netzwerkabbrueche einmal automatisch.
+
+**Naechste konkrete Schritte**:
+
+1. Den kompletten Security-Flow in der echten WebUI noch einmal interaktiv gegen `srv1` abnehmen: neues Let's-Encrypt anstossen, danach direkt Login + `/#panel=policies` + `/#panel=settings_security` ohne Timeout-Console-Fehler pruefen.
+2. Den gleichen Handler-/Retry-Stand bei der naechsten Runtime-Synchronisation auch auf `srv2` spiegeln.
+3. Optional einen kleinen Browser-Smoke fuer den Reload-Moment ergaenzen, der nach erfolgreichem TLS-POST explizit einen `auth/me`-/Panel-Refresh gegen den umgeschalteten Host prueft.
+
+---
+
 ## Stand (2026-04-30, WebUI-Let's-Encrypt-TLS-Switch auf srv1 wieder funktionsfaehig)
 
 **Zuletzt erledigt**:

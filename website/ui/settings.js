@@ -237,7 +237,11 @@ export function requestLetsEncrypt() {
   }).then((data) => {
     if (data.ok) {
       settingsHooks.setBanner('Zertifikat erfolgreich erstellt fuer ' + escapeHtml(domain), 'info');
-      loadSettingsSecurity();
+      window.setTimeout(() => {
+        loadSettingsSecurity().catch((error) => {
+          settingsHooks.setBanner('TLS-Status-Refresh nach Zertifikatswechsel fehlgeschlagen: ' + error.message, 'warn');
+        });
+      }, 1500);
     } else {
       settingsHooks.setBanner('Let\'s Encrypt fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannter Fehler'), 'warn');
     }

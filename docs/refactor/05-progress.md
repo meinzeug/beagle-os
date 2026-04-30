@@ -1,3 +1,31 @@
+## Update (2026-04-30, WebUI-API nach Let's-Encrypt-Reload gegen Timeout-/Broken-Pipe-Drift gehaertet)
+
+**Scope**: Nach erfolgreicher Let's-Encrypt-Ausstellung auf `srv1` konnten direkt danach WebUI-Requests (`/auth/me`, `/gaming/metrics`, `/sessions/handover`, Security-Reads) in Timeouts laufen. Im Journal der Control Plane erschienen parallel `BrokenPipeError`-Traces, weil nginx beim TLS-Reload in-flight Verbindungen schloss und der Python-Handler diese Client-Abbrueche faelschlich als `500`/Unhandled Exception behandelte.
+
+- Repo-Fixes:
+  - `beagle-host/services/request_handler_mixin.py`
+    - erkennt jetzt `BrokenPipeError`/`ConnectionResetError`/`EPIPE`/`ECONNRESET` explizit als Client-Disconnect.
+    - `_write_json(...)` behandelt diese Faelle still, setzt `close_connection` und schreibt keinen falschen 500-Fehlerpfad mehr ins Log.
+  - `beagle-host/services/control_plane_handler.py`
+    - behandelt denselben Disconnect-Typ auf `handle_one_request()`-Ebene defensiv statt ueber den globalen Unhandled-Error-Pfad.
+  - `website/ui/api.js`
+    - idempotente `GET`/`HEAD`-Requests bekommen einen einmaligen Kurz-Retry fuer transiente Netz-/Abort-/`Failed to fetch`-Fehler, wie sie waehrend eines nginx/TLS-Reconnects auftreten koennen.
+  - `website/ui/settings.js`
+    - der Security-Flow wartet nach erfolgreichem Let's-Encrypt-POST kurz, bevor der TLS-Status erneut gelesen wird; damit laeuft der erste Refresh nicht genau in den Reload-Fensterwechsel.
+  - Tests:
+    - `tests/unit/test_request_handler_mixin_client_addr.py`
+    - `tests/unit/test_api_js_regressions.py`
+    - neue Regressionen fuer Broken-Pipe-Handling und transienten Frontend-Retry.
+- Live-Fix auf `srv1`:
+  - neue Runtime-Dateien nach `/opt/beagle` ausgerollt.
+  - `beagle-control-plane.service` neu gestartet; neuer MainPID seit `2026-04-30 05:36:37 CEST`.
+- Verifikation:
+  - absichtlich frueh abgebrochener Request gegen `GET /api/v1/auth/providers` erzeugt keinen `BrokenPipeError`-/500-Trace mehr im Control-Plane-Journal.
+  - `https://srv1.beagle-os.com/beagle-api/api/v1/auth/providers` antwortet extern wieder sauber mit `HTTP 200` in ca. `0.318s`.
+  - direkt nach dem Fix liefern die vormals betroffenen Dashboard-Endpunkte in den Live-Journalen wieder `api.response status=200`.
+
+---
+
 ## Update (2026-04-30, WebUI-Let's-Encrypt TLS-Switch-Write-Pfad auf srv1 repariert)
 
 **Scope**: Die Security-WebUI konnte zwar ein Let's-Encrypt-Zertifikat ausstellen, scheiterte danach aber beim Umschalten des aktiven nginx-/Beagle-TLS-Materials mit `Permission denied: /etc/beagle/tls/beagle-proxy.crt`.
