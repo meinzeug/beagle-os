@@ -1,5 +1,24 @@
 # Next Steps
 
+## Stand (2026-04-30, Session-Cookie-Fix + RBAC-Regression abgeschlossen)
+
+**Zuletzt erledigt**:
+- Session-Cookie `Max-Age` Fix in `request_handler_mixin._refresh_cookie_header` — Cookies laufen jetzt korrekt nach 7 Tagen ab.
+- 9 Unit-Tests `test_session_cookie_flags.py` — alle PASS.
+- RBAC-Regression: `BuiltInRoleRegressionTests` in `test_authz_policy.py` — 20 neue Tests (42 gesamt), alle PASS.
+- `SESSION_COOKIE_FLAGS_SMOKE=SKIP` auf srv1 (bootstrap disabled, akzeptabel).
+- Checkliste 03 (Session-Cookies + RBAC-Regression) auf `[x]`.
+
+**Naechste konkrete Schritte**:
+
+1. **Control-Plane-Health-Endpoint (R3)** — `GET /health` liefert `{"ok": true, "uptime_seconds": ..., "version": "..."}` + Smoke.
+2. **Login-Smoke ohne Console-Fehler (R3)** — Playwright-Smoke gegen `https://srv1.beagle-os.com`: Login-Flow pruefe auf JS-Fehlerfreiheit.
+3. **Browser-Smoke Nicht-Admin-Rolle** — Playwright-Smoke: Viewer/Kiosk-Rolle zeigt keine Admin-Aktionen in der WebUI.
+4. **VM102 Provider-State reparieren** — einziger verbliebener Runtime-Blocker; neu registrieren oder re-provisionieren.
+5. **Git commit + push + finale Smoke-Validierung** — alle Aenderungen committen und auf GitHub pushen.
+
+---
+
 ## Stand (2026-04-30, Streaming-R3-Rest nach Audit-Smoke weiter eingegrenzt)
 
 **Zuletzt erledigt**:

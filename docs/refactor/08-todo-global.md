@@ -1,5 +1,6 @@
 # Global TODO
 
+- [x] R3 Smoke-Welle (2026-04-30): GPU_POOL_NO_GPU_SMOKE=PASS, METRICS_FAMILIES_SMOKE=PASS, AUDIT_EXPORT_REDACTION_SMOKE=PASS, NOVNC_TOKEN_TTL_SMOKE=PASS, SUBPROCESS_SANDBOX_SMOKE=PASS, ASYNC_JOB_QUEUE_SMOKE=PASS, SSE_RECONNECT_SMOKE=PASS — alle 7 Smokes auf `srv1` gruen, 8 live.js-Regressionstests gruen.
 - [x] Stream-Timeout-Audit-Pfad schliessen: `/api/v1/streams/{vmid}/events` muss `stream.session.timeout` reproduzierbar ins Audit schreiben und live auf `srv1` per Smoke nachgewiesen sein (`STREAM_TIMEOUT_AUDIT_SMOKE=PASS`).
 - [x] Ubuntu-Desktop-Firstboot fuer WebUI-VMs gegen `dpkg`-/LightDM-Drift haerten, damit der Gast den Abschluss-Callback und den automatischen Reboot nach der Installation reproduzierbar erreicht und der angelegte Desktop-Benutzer eine startfaehige Session bekommt.
 - [x] WebUI-Post-Let's-Encrypt-Timeout-Drift schliessen: Client-Disconnects im Control-Plane-Handler nicht als 500 behandeln und idempotente Frontend-Reads fuer den nginx/TLS-Reload-Moment einmalig retryen.

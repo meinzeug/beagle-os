@@ -706,9 +706,10 @@ class HandlerMixin:
 
     def _refresh_cookie_header(self, refresh_token: str) -> tuple[str, str]:
         """Return a Set-Cookie header tuple for the refresh token (HttpOnly, SameSite=Strict)."""
+        from service_registry import AUTH_REFRESH_TTL_SECONDS
         return (
             "Set-Cookie",
-            f"beagle_refresh_token={refresh_token}; HttpOnly; SameSite=Strict; Path=/api/v1/auth; Secure",
+            f"beagle_refresh_token={refresh_token}; HttpOnly; SameSite=Strict; Path=/api/v1/auth; Secure; Max-Age={AUTH_REFRESH_TTL_SECONDS}",
         )
 
     def _clear_refresh_cookie_header(self) -> tuple[str, str]:

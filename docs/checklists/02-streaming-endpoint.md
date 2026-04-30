@@ -36,12 +36,12 @@
 ## Gaming Kiosk
 
 - [x] Kiosk Pools + Library-Sync (Welle 7.1.0)
-- [ ] Pool blockiert sauber wenn keine GPU verfuegbar (R3)
+- [x] Pool blockiert sauber wenn keine GPU verfuegbar (R3) — `GPU_POOL_NO_GPU_SMOKE=PASS` auf `srv1` (2026-04-30, state=pending-gpu, allocation blocked)
 
 ## Session Lifecycle
 
 - [x] Pairing-Token-Generation, Rotation, Revocation (Integration-Test gruen)
 - [x] Session Recording + Watermark (Welle 7.2.1)
-- [ ] Stream Reconnect nach Host-/VM-Reboot in WebUI sichtbar (R3)
+- [x] Stream Reconnect nach Host-/VM-Reboot in WebUI sichtbar (R3) — `SSE_RECONNECT_SMOKE=PASS` auf `srv1` (2026-04-30, events=[hello,tick], 8 Regressionstests gruen)
 - [x] Stream-Health-Reporting + Audit-Update live validiert (`STREAM_HEALTH_AUDIT_SMOKE=PASS` auf `srv1`, 2026-04-30)
 - [x] Audit-Eintrag bei echtem Stream-Abbruch/Timeout (R3) — `STREAM_TIMEOUT_AUDIT_SMOKE=PASS` auf `srv1` (2026-04-30, `action=stream.session.timeout`, `result=failure`)

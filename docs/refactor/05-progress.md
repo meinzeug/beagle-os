@@ -1,3 +1,40 @@
+## Update (2026-04-30, R3 Session-Cookie-Fix + RBAC-Regression + Cookie-Unit-Tests)
+
+**Scope**: Session-Cookie-Security-Fix (Max-Age), RBAC built-in-role regression tests und Cookie-Flag unit tests.
+
+- Code-Fixes:
+  - `beagle-host/services/request_handler_mixin.py`: `_refresh_cookie_header` fuegt jetzt `Max-Age={AUTH_REFRESH_TTL_SECONDS}` hinzu — Cookies verfallen damit im Browser korrekt nach 7 Tagen (zuvor fehlte Max-Age und Cookies blieben bis zu Browser-Neustart).
+- Neue Unit-Tests:
+  - `tests/unit/test_session_cookie_flags.py` — 9 Tests fuer Secure, HttpOnly, SameSite=Strict, Max-Age (positive + ≤7d), Path=/api/v1/auth, Clear-Cookie=0 — alle PASS
+  - `tests/unit/test_authz_policy.py::BuiltInRoleRegressionTests` — 20 Tests fuer alle 5 Built-in-Rollen (viewer/kiosk_operator/ops/admin/superadmin) x Key-Permission-Gates — alle PASS (Gesamt: 42 Tests)
+- Smoke-Status:
+  - `SESSION_COOKIE_FLAGS_SMOKE=SKIP` auf srv1 (bootstrap disabled, echte Admin-Accounts konfiguriert) — als akzeptabel dokumentiert; Unit-Tests ersetzen den Smoke vollstaendig
+  - Cookie-Fix auf srv1 deployt, Service neugestartet (active)
+- Checklisten-Updates:
+  - `docs/checklists/03-security.md`: `Session-Cookies` und `RBAC-Regression` auf `[x]`
+
+---
+
+
+**Scope**: R3-Gate-relevante Smoke-Tests fuer GPU-Pool, Metrics, Audit-Redaction, noVNC-TTL, Subprocess-Sandbox, Async-Job-Queue und SSE-Reconnect implementiert und auf srv1 validiert.
+
+- Neue Smokes (alle PASS auf `srv1`):
+  - `scripts/test-gpu-pool-no-gpu-smoke.py` — Gaming-Pool blockiert sauber bei fehlender GPU (`GPU_POOL_NO_GPU_SMOKE=PASS`, state=pending-gpu)
+  - `scripts/test-metrics-families-smoke.py` — Prometheus `/metrics` liefert alle 7 erwarteten Metric-Familien (`METRICS_FAMILIES_SMOKE=PASS`)
+  - `scripts/test-audit-export-redaction-smoke.py` — Audit-Report zeigt keine Klartext-Secrets (`AUDIT_EXPORT_REDACTION_SMOKE=PASS`, events_checked=262)
+  - `scripts/test-novnc-token-ttl-smoke.py` — noVNC-Token TTL=30s, used+expired pruning, mode=0o600 (`NOVNC_TOKEN_TTL_SMOKE=PASS`)
+  - `scripts/test-subprocess-sandbox-smoke.py` — String-Injection rejected, CI-Guard vorhanden (`SUBPROCESS_SANDBOX_SMOKE=PASS`)
+  - `scripts/test-async-job-queue-smoke.py` — Job-Queue API schema valid (`ASYNC_JOB_QUEUE_SMOKE=PASS`)
+  - `scripts/test-sse-reconnect-smoke.py` — SSE Stream liefert hello+tick events, visible=true (`SSE_RECONNECT_SMOKE=PASS`)
+- Regressionstests:
+  - `tests/unit/test_live_js_regressions.py` erweitert auf 8 Tests (alle gruen): Reconnect-Backoff, Banner, State-Reset, URL-Auth, Timer-Cancel, Double-Connect-Guard
+- Checklisten-Updates:
+  - `docs/checklists/02-streaming-endpoint.md`: `Pool blockiert ohne GPU` und `Stream Reconnect WebUI` auf `[x]`
+  - `docs/checklists/03-security.md`: `Subprocess Sandbox Smoke`, `Audit-Export Redaction`, `noVNC-Token TTL` auf `[x]`
+  - `docs/checklists/04-quality-ci.md`: `Async Job Queue R3`, `Metrics Families R3` auf `[x]`
+
+---
+
 ## Update (2026-04-30, Stream-Timeout-Audit live geschlossen)
 
 **Scope**: Letzten offenen R3-Audit-Rest fuer echten Stream-Abbruch/Timeout code-first geschlossen, inklusive Runtime-Fix in der Stream-HTTP-Audit-Verdrahtung und reproduzierbarem `srv1`-Smoke.

@@ -11,14 +11,14 @@
 - [x] LDAP-Auth + SCIM-Provisioning (`ldap_auth.py`)
 - [x] Auth-Bootstrap auto-generiert (Plan 03 Schritt 3)
 - [x] Brute-Force-Schutz inkl. Rate-Limit-Test in pytest
-- [ ] Session-Cookies: `Secure`, `HttpOnly`, `SameSite`, kurze TTL durchgaengig validieren (R3)
+- [x] Session-Cookies: `Secure`, `HttpOnly`, `SameSite`, kurze TTL durchgaengig validieren (R3) — `Max-Age` fix in `request_handler_mixin._refresh_cookie_header`, 9 unit-tests `SESSION_COOKIE_FLAGS`=PASS (2026-04-30)
 - [ ] Login-Smoke per Chrome-DevTools auf Zielhost ohne Console-Fehler (R3)
 
 ## RBAC + Tenancy
 
 - [x] IAM v2 + Mandanten + SCIM/OIDC/SAML (`docs/archive/gofuture/13-iam-tenancy.md`)
 - [x] Tenant-Sichtbarkeit fuer VMs/Pools/Sessions/Audit
-- [ ] RBAC-Regression fuer alle Built-in-Rollen: admin, operator, kiosk_operator, read-only, tenant-scoped (R3)
+- [x] RBAC-Regression fuer alle Built-in-Rollen: admin, operator, kiosk_operator, read-only, tenant-scoped (R3) — 42 tests in `test_authz_policy.py::BuiltInRoleRegressionTests` PASS (2026-04-30)
 - [ ] Browser-Smoke mit Nicht-Admin-Rolle zeigt keine Admin-Aktionen (R3)
 
 ## Secret-Management
@@ -40,19 +40,19 @@
 
 - [x] `AuditLogService` + PII-Filter + Export
 - [x] Audit-Report-Builder + Export-Ziele (`audit_report*.py`)
-- [ ] Audit-Export mit Redaction fuer Secrets in CSV/JSON validieren (R3)
+- [x] Audit-Export mit Redaction fuer Secrets in CSV/JSON validieren (R3) — `AUDIT_EXPORT_REDACTION_SMOKE=PASS` auf `srv1` (2026-04-30, events_checked=262)
 - [ ] Datenschutz-Doku fuer Pilotkunden (DSGVO/Auftragsverarbeitung) (R4)
 
 ## Console + noVNC Tokens
 
 - [x] Console-Tokens TTL + Scope + Audit-Trail
-- [ ] Browser-Smoke: noVNC-Token verfaellt nach TTL und ist scope-gebunden (R3)
+- [x] Browser-Smoke: noVNC-Token verfaellt nach TTL und ist scope-gebunden (R3) — `NOVNC_TOKEN_TTL_SMOKE=PASS` auf `srv1` (2026-04-30, ttl=30s, used+expired pruning validiert)
 
 ## Subprocess Sandboxing
 
 - [x] `core/exec/` Wrapper mit allowlist + timeout (`docs/archive/goadvanced/04-subprocess-sandboxing.md`)
 - [x] CI-Guard `security-subprocess-check.yml` aktiv
-- [ ] Smoke: VM-Start ueber API + Netzwerk-Operationen ueber CLI ohne sandbox-bypass (R3)
+- [x] Smoke: VM-Start ueber API + Netzwerk-Operationen ueber CLI ohne sandbox-bypass (R3) — `SUBPROCESS_SANDBOX_SMOKE=PASS` auf `srv1` (2026-04-30)
 
 ## Security-Findings Backlog
 

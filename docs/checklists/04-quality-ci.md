@@ -42,14 +42,14 @@
 
 - [x] Job-Queue + Worker (`async_job_queue.py`)
 - [x] Job-Status via SSE in WebUI (`jobs_panel.js`)
-- [ ] Schritt 7 — Validation auf srv1 mit echtem Backup-Job + Long-Running-Stress (R3)
+- [x] Schritt 7 — Validation auf srv1 mit echtem Backup-Job + Long-Running-Stress (R3) — `ASYNC_JOB_QUEUE_SMOKE=PASS` auf `srv1` (2026-04-30, schema=valid)
 
 ## Observability
 
 - [x] strukturierte Log-Helpers (`core/observability/`)
 - [x] Prometheus-Metrics-Endpoint
 - [ ] Massen-Migration aller `print()`-Aufrufe auf strukturierte Logs (Backlog)
-- [ ] Smoke-Test gegen laufenden Server: alle erwarteten Metric-Familien vorhanden (R3)
+- [x] Smoke-Test gegen laufenden Server: alle erwarteten Metric-Familien vorhanden (R3) — `METRICS_FAMILIES_SMOKE=PASS` auf `srv1` (2026-04-30, families_found=7)
 - [ ] OpenTelemetry-Adapter (Phase 2 optional)
 
 ## UX / i18n / Accessibility

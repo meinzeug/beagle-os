@@ -416,5 +416,156 @@ class AuthzPolicyServiceTests(unittest.TestCase):
         )
 
 
+class BuiltInRoleRegressionTests(unittest.TestCase):
+    """R3 gate: all built-in roles enforce correct permission boundaries."""
+
+    # Built-in role permission sets mirroring auth_session._default_roles()
+    VIEWER_PERMS: set[str] = set()
+    KIOSK_OPERATOR_PERMS = {"vm:read", "vm:power", "kiosk:operate"}
+    OPS_PERMS = {"vm:mutate", "actions:bulk", "provisioning:write"}
+    ADMIN_PERMS = {
+        "vm:mutate", "actions:bulk", "provisioning:write", "policy:write",
+        "auth:read", "auth:write", "settings:read", "settings:write",
+        "session:download_recording", "session:manage_recording",
+    }
+    SUPERADMIN_PERMS = {"*"}
+
+    # ------------------------------------------------------------------ viewer
+    def test_viewer_cannot_read_vms(self):
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("viewer", "vm:read", self.VIEWER_PERMS),
+        )
+
+    def test_viewer_cannot_write_settings(self):
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("viewer", "settings:write", self.VIEWER_PERMS),
+        )
+
+    def test_viewer_cannot_auth_read(self):
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("viewer", "auth:read", self.VIEWER_PERMS),
+        )
+
+    # ----------------------------------------------------------- kiosk_operator
+    def test_kiosk_operator_can_kiosk_operate(self):
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("kiosk_operator", "kiosk:operate", self.KIOSK_OPERATOR_PERMS),
+        )
+
+    def test_kiosk_operator_can_vm_read(self):
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("kiosk_operator", "vm:read", self.KIOSK_OPERATOR_PERMS),
+        )
+
+    def test_kiosk_operator_cannot_auth_read(self):
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("kiosk_operator", "auth:read", self.KIOSK_OPERATOR_PERMS),
+        )
+
+    def test_kiosk_operator_cannot_settings_write(self):
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("kiosk_operator", "settings:write", self.KIOSK_OPERATOR_PERMS),
+        )
+
+    def test_kiosk_operator_cannot_provisioning_write(self):
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("kiosk_operator", "provisioning:write", self.KIOSK_OPERATOR_PERMS),
+        )
+
+    def test_kiosk_operator_cannot_pool_write(self):
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("kiosk_operator", "pool:write", self.KIOSK_OPERATOR_PERMS),
+        )
+
+    # ------------------------------------------------------------------ ops
+    def test_ops_can_vm_mutate(self):
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("ops", "vm:mutate", self.OPS_PERMS),
+        )
+
+    def test_ops_can_provisioning_write(self):
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("ops", "provisioning:write", self.OPS_PERMS),
+        )
+
+    def test_ops_cannot_auth_read(self):
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("ops", "auth:read", self.OPS_PERMS),
+        )
+
+    def test_ops_cannot_settings_write(self):
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("ops", "settings:write", self.OPS_PERMS),
+        )
+
+    def test_ops_cannot_policy_write(self):
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("ops", "policy:write", self.OPS_PERMS),
+        )
+
+    # ------------------------------------------------------------------ admin
+    def test_admin_can_auth_read(self):
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("admin", "auth:read", self.ADMIN_PERMS),
+        )
+
+    def test_admin_can_settings_write(self):
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("admin", "settings:write", self.ADMIN_PERMS),
+        )
+
+    def test_admin_can_policy_write(self):
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("admin", "policy:write", self.ADMIN_PERMS),
+        )
+
+    def test_admin_cannot_wildcard(self):
+        # admin does NOT have * — only superadmin does
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("admin", "*", self.ADMIN_PERMS),
+        )
+
+    def test_admin_can_session_manage_recording(self):
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("admin", "session:manage_recording", self.ADMIN_PERMS),
+        )
+
+    # -------------------------------------------------------------- superadmin
+    def test_superadmin_can_everything_via_wildcard(self):
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("superadmin", "auth:write", self.SUPERADMIN_PERMS),
+        )
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("superadmin", "settings:write", self.SUPERADMIN_PERMS),
+        )
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("superadmin", "cluster:write", self.SUPERADMIN_PERMS),
+        )
+
+    def test_superadmin_can_any_hypothetical_permission(self):
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("superadmin", "some:future:perm", self.SUPERADMIN_PERMS),
+        )
+
+    # --------------------------------------------- cross-role isolation checks
+    def test_viewer_cannot_escalate_by_role_name_alone(self):
+        # Even if role_name is 'admin', without the perms in the token it must fail
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("admin", "auth:read", set()),
+        )
+
+    def test_kiosk_operator_cannot_escalate_with_ops_perms(self):
+        # Wrong perms set for the role
+        self.assertFalse(
+            AuthzPolicyService.is_allowed("kiosk_operator", "provisioning:write", self.KIOSK_OPERATOR_PERMS),
+        )
+
+    def test_ops_vm_mutate_grants_vm_power_backcompat(self):
+        # vm:mutate implies vm:power for backward compatibility
+        self.assertTrue(
+            AuthzPolicyService.is_allowed("ops", "vm:power", self.OPS_PERMS),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
