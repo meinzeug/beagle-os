@@ -133,5 +133,5 @@ jobs:
           node /tmp/eslint-runner/node_modules/.bin/eslint \
             --config /tmp/eslint-runner/eslint.config.mjs \
             website/ui/*.js \
-            extension/*.js \
-            || true   # warn only — upgrade to hard fail once all files clean
+            extension/*.js
+          # Hard fail on errors (warnings are acceptable)

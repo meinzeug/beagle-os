@@ -29,12 +29,13 @@ jobs:
           pip install \
             pytest \
             pytest-timeout \
+            pytest-cov \
             cryptography \
             aiohttp \
             requests \
             boto3
 
-      - name: Run pytest
+      - name: Run pytest with coverage
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
@@ -43,6 +44,11 @@ jobs:
             -q \
             --timeout=180 \
             -p no:warnings \
+            --cov=core \
+            --cov=beagle-host \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:coverage-html \
+            --cov-report=term-missing \
             2>&1 | tee /tmp/beagle-pytest.log
           rc=${PIPESTATUS[0]}
           if [ "$rc" -ne 0 ]; then
@@ -56,6 +62,16 @@ jobs:
           PY
             exit "$rc"
           fi
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-py${{ matrix.python-version }}
+          path: |
+            coverage.xml
+            coverage-html/
+          retention-days: 14
 
   bats:
     name: bats (shell tests)
@@ -88,16 +104,30 @@ jobs:
         run: |
           pip install \
             pytest \
+            pytest-cov \
             cryptography \
             aiohttp \
             requests \
             boto3
 
-      - name: Run integration tests
+      - name: Run integration tests with coverage
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          python -m pytest tests/integration/ -q -p no:warnings
+          python -m pytest tests/integration/ -q -p no:warnings \
+            --cov=core \
+            --cov-report=xml:integration-coverage.xml \
+            --cov-report=html:integration-coverage-html
+
+      - name: Upload integration coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-coverage-report
+          path: |
+            integration-coverage.xml
+            integration-coverage-html/
+          retention-days: 14
 
   webui-provisioning-smoke:
     name: WebUI provisioning smoke (Playwright)

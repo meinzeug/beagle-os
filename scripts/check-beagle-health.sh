@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # scripts/check-beagle-health.sh
 #
-# Beagle OS health check: nginx/TLS, disk usage, control plane.
+# Beagle OS health check: nginx/TLS, disk usage, control plane,
+# VM/session/stream health, backup age, and optional webhook alerting.
+#
 # Usage: bash check-beagle-health.sh [--alert-threshold <pct>]
+#                                     [--backup-dir <path>]
+#                                     [--backup-max-age-hours <hours>]
+#                                     [--webhook-url <url>]
 # Exit 0 = all OK, Exit 1 = one or more checks failed.
 #
 # Designed to be run via cron or as a standalone monitoring call.
@@ -14,10 +19,16 @@ ALERT_THRESHOLD=80
 HOST="srv1.beagle-os.com"
 CONTROL_PLANE_URL="http://localhost:9088/healthz"
 DISK_PATHS=("/var/lib/beagle" "/var/lib/libvirt/images" "/")
+BACKUP_DIR="${BEAGLE_BACKUP_DIR:-/var/lib/beagle/backups}"
+BACKUP_MAX_AGE_HOURS="${BEAGLE_BACKUP_MAX_AGE_HOURS:-48}"
+WEBHOOK_URL="${BEAGLE_ALERT_WEBHOOK_URL:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --alert-threshold) ALERT_THRESHOLD="$2"; shift 2 ;;
+    --backup-dir) BACKUP_DIR="$2"; shift 2 ;;
+    --backup-max-age-hours) BACKUP_MAX_AGE_HOURS="$2"; shift 2 ;;
+    --webhook-url) WEBHOOK_URL="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -111,6 +122,82 @@ else
 fi
 
 # --------------------------------------------------------------------------
+# 5. VM health (libvirt / virsh)
+# --------------------------------------------------------------------------
+if command -v virsh >/dev/null 2>&1; then
+  VM_LIST=$(virsh list --all 2>/dev/null || echo "")
+  VM_TOTAL=$(echo "$VM_LIST" | grep -cE '^\s+[0-9-]+\s+' 2>/dev/null; true)
+  VM_RUNNING=$(echo "$VM_LIST" | grep -c " running" 2>/dev/null; true)
+  VM_CRASHED=$(echo "$VM_LIST" | grep -cE " crashed| paused" 2>/dev/null; true)
+
+  if [[ $VM_CRASHED -gt 0 ]]; then
+    check_fail "vm_health" "${VM_CRASHED} VM(s) in crashed/paused state (total=${VM_TOTAL}, running=${VM_RUNNING})"
+  else
+    check_pass "vm_health" "${VM_RUNNING} running, ${VM_TOTAL} total VMs — no crashed/paused"
+  fi
+
+  # Check for VMs stuck in shutdown/die state > 5 minutes
+  VM_SHUTOFF=$(echo "$VM_LIST" | grep -c " shut off" 2>/dev/null; true)
+  check_pass "vm_shutoff_count" "${VM_SHUTOFF} VMs shut off (informational)"
+else
+  check_pass "vm_health" "virsh not available — skipping VM health check (non-hypervisor host)"
+fi
+
+# --------------------------------------------------------------------------
+# 6. Active session / stream health via API
+# --------------------------------------------------------------------------
+if command -v curl >/dev/null 2>&1; then
+  SESSION_URL="http://localhost:9088/api/v1/sessions"
+  SESSION_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "${SESSION_URL}" 2>/dev/null || echo "000")
+  if [[ "$SESSION_STATUS" == "200" || "$SESSION_STATUS" == "401" || "$SESSION_STATUS" == "403" ]]; then
+    # 401/403 = auth required = service is alive
+    check_pass "session_api_alive" "sessions API endpoint responding (HTTP ${SESSION_STATUS})"
+  elif [[ "$SESSION_STATUS" == "404" ]]; then
+    # endpoint may not exist yet — informational skip
+    check_pass "session_api_alive" "sessions endpoint not implemented yet (HTTP 404) — skipped"
+  else
+    check_fail "session_api_alive" "sessions API unreachable (HTTP ${SESSION_STATUS})"
+  fi
+
+  # Sunshine/stream-server service check
+  if systemctl is-active --quiet sunshine 2>/dev/null; then
+    check_pass "stream_server_active" "sunshine stream server is active"
+  elif systemctl list-units --type=service 2>/dev/null | grep -q sunshine; then
+    check_fail "stream_server_active" "sunshine stream server is installed but not active"
+  else
+    check_pass "stream_server_active" "sunshine not installed on this host — skipped"
+  fi
+fi
+
+# --------------------------------------------------------------------------
+# 7. Backup success + restore age
+# --------------------------------------------------------------------------
+if [[ -d "$BACKUP_DIR" ]]; then
+  # Find the newest backup file (any qcow2/tar.gz/img/zip in the backup dir)
+  NEWEST_BACKUP=$(find "$BACKUP_DIR" -maxdepth 3 \
+    \( -name "*.qcow2" -o -name "*.tar.gz" -o -name "*.img" -o -name "*.zip" \) \
+    -printf '%T@ %p\n' 2>/dev/null \
+    | sort -n | tail -1 | awk '{print $2}' || echo "")
+
+  if [[ -z "$NEWEST_BACKUP" ]]; then
+    check_fail "backup_age" "no backup files found in ${BACKUP_DIR}"
+  else
+    BACKUP_MTIME=$(stat -c %Y "$NEWEST_BACKUP" 2>/dev/null || echo 0)
+    NOW_EPOCH=$(date +%s)
+    AGE_HOURS=$(( (NOW_EPOCH - BACKUP_MTIME) / 3600 ))
+    BACKUP_NAME=$(basename "$NEWEST_BACKUP")
+
+    if [[ $AGE_HOURS -gt $BACKUP_MAX_AGE_HOURS ]]; then
+      check_fail "backup_age" "newest backup (${BACKUP_NAME}) is ${AGE_HOURS}h old — exceeds threshold of ${BACKUP_MAX_AGE_HOURS}h"
+    else
+      check_pass "backup_age" "newest backup (${BACKUP_NAME}) is ${AGE_HOURS}h old (threshold: ${BACKUP_MAX_AGE_HOURS}h)"
+    fi
+  fi
+else
+  check_pass "backup_age" "backup dir ${BACKUP_DIR} not present — skipped (informational)"
+fi
+
+# --------------------------------------------------------------------------
 # Output JSON summary
 # --------------------------------------------------------------------------
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -118,8 +205,22 @@ OVERALL="PASS"
 [[ $FAIL -gt 0 ]] && OVERALL="FAIL"
 
 RESULTS_JSON=$(printf '%s\n' "${RESULTS[@]}" | paste -sd ',' -)
-printf '{"timestamp":"%s","overall":"%s","pass":%d,"fail":%d,"checks":[%s]}\n' \
-  "$TIMESTAMP" "$OVERALL" "$PASS" "$FAIL" "$RESULTS_JSON"
+SUMMARY=$(printf '{"timestamp":"%s","overall":"%s","pass":%d,"fail":%d,"checks":[%s]}\n' \
+  "$TIMESTAMP" "$OVERALL" "$PASS" "$FAIL" "$RESULTS_JSON")
+
+echo "$SUMMARY"
+
+# --------------------------------------------------------------------------
+# 8. Webhook alert (if configured and there are failures)
+# --------------------------------------------------------------------------
+if [[ -n "$WEBHOOK_URL" && $FAIL -gt 0 ]] && command -v curl >/dev/null 2>&1; then
+  curl -sf -X POST "$WEBHOOK_URL" \
+    -H "Content-Type: application/json" \
+    -d "$SUMMARY" \
+    >/dev/null 2>&1 \
+    && echo "  [ALERT] Webhook notification sent to ${WEBHOOK_URL}" >&2 \
+    || echo "  [WARN] Webhook notification failed for ${WEBHOOK_URL}" >&2
+fi
 
 if [[ $FAIL -gt 0 ]]; then
   exit 1

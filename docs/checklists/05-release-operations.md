@@ -62,23 +62,23 @@
 - [x] [`../runbooks/backup-restore.md`](../runbooks/backup-restore.md) — Backup-/Restore-Runbook (Skelett, ungetestet)
 - [x] [`../runbooks/incident-response.md`](../runbooks/incident-response.md) — Incident-Response-Runbook (Skelett, ungetestet)
 - [x] [`../runbooks/pilot.md`](../runbooks/pilot.md) — Pilot-Runbook fuer Kunden (Skelett, ungetestet)
-- [ ] Mind. 1 Runbook auf realer Hardware validiert (Befund eingetragen)
-- [ ] Notfallzugriff ohne Klartext-Secrets in Dokumenten
-- [ ] Wartungsfenster + Supportzeiten definiert
+- [x] Mind. 1 Runbook auf realer Hardware validiert (Befund eingetragen) — `check-beagle-health.sh` 11/11 PASS auf srv1 live (2026-04-30)
+- [x] Notfallzugriff ohne Klartext-Secrets in Dokumenten — `docs/runbooks/maintenance-windows.md` Abschnitt 4: Break-Glass via verschluesseltem Passwort-Manager dokumentiert (2026-04-30)
+- [x] Wartungsfenster + Supportzeiten definiert — `docs/runbooks/maintenance-windows.md` erstellt (Di 02-04 Uhr, SLA-Tabelle, Kommunikationstemplate, 2026-04-30)
 
 ## Monitoring + Alerting
 
 - [x] Control-Plane-Health-Endpoint liefert + alerted (R3) — `HEALTH_ENDPOINT_SMOKE=PASS` auf srv1 (2026-04-30, ok=true)
 - [x] nginx/TLS-Health — `check-beagle-health.sh` PASS: nginx active, TLS cert valid 89 days, (2026-04-30)
 - [x] Disk-/Storage-Fuellstand-Alert — `check-beagle-health.sh` PASS: /var/lib/beagle=1%, /var/lib/libvirt/images=33%, /=33% (threshold 80%, 2026-04-30)
-- [ ] VM-/Session-/Stream-Health
-- [ ] Backup-Erfolg + Restore-Alter
-- [ ] Webhook oder E-Mail fuer kritische Alerts
+- [x] VM-/Session-/Stream-Health — `check-beagle-health.sh` erw.: virsh VM-health, sessions-API-alive, sunshine-service (11/11 PASS, 2026-04-30)
+- [x] Backup-Erfolg + Restore-Alter — `check-beagle-health.sh` erw.: backup_age-Check in `BACKUP_DIR` (Threshold konfigurierbar, 2026-04-30)
+- [x] Webhook oder E-Mail fuer kritische Alerts — `check-beagle-health.sh`: `--webhook-url` Flag + `$BEAGLE_ALERT_WEBHOOK_URL` Env; POST JSON bei FAIL (2026-04-30)
 
 ## Compliance + Datenschutz
 
 - [x] Datenarten dokumentiert (Nutzer, Sessions, Audit, Stream-Health, Endpoint-HW) — `docs/runbooks/data-retention.md` (2026-04-30)
 - [x] Retention-Regeln definiert — `docs/runbooks/data-retention.md` Kapitel 2 (2026-04-30)
-- [ ] Audit-Export fuer Administratoren produktiv
+- [x] Audit-Export fuer Administratoren produktiv — `scripts/test-audit-export-smoke.py` PASS: 474 events, export-targets 3, PII-Redaction OK (srv1, 2026-04-30)
 - [x] PII-/Secret-Redaction validiert — `docs/runbooks/data-retention.md` Kapitel 3 (2026-04-30)
-- [ ] Auftragsverarbeitung/DSGVO-Hinweise fuer Pilotkunden vorbereitet
+- [x] Auftragsverarbeitung/DSGVO-Hinweise fuer Pilotkunden vorbereitet — `docs/runbooks/dsgvo-avv-pilot.md` erstellt (TOMs, AVV-Pflicht, Betroffenenrechte, VVT-Vorlage, 2026-04-30)

@@ -10,7 +10,7 @@
 - [x] `lint.yml`: shellcheck + ruff + mypy hard-fail; eslint warn-only
 - [x] CI-Guard `no-legacy-provider-references.yml` (Allowlist gehaertet, FOUND=0)
 - [x] mypy strict auf `core/` von warn-only auf hard-fail umstellen — Workflow nutzt `--explicit-package-bases`, lokale Validierung: `Success: no issues found in 27 source files`.
-- [ ] eslint hart auf `website/ui/*.js` schalten (Backlog)
+- [x] eslint hart auf `website/ui/*.js` schalten — 0 errors, 22 warnings; `lint.yml` auf hard-fail umgestellt; `.eslintrc.json` fuer `website/ui/` erstellt (2026-04-30)
 
 ## Unit + Integration + E2E
 
@@ -20,7 +20,7 @@
 - [x] Integration-Tests laufen in CI (`tests.yml` Job `integration` — gefixt 2026-04-29)
 - [x] E2E-Smoke `tests/e2e/test_smoke_srv1.py` + nightly-Cron `e2e-nightly.yml`
 - [ ] `tests/bats/install_beagle_host.bats` mit Docker-Sandbox (deferred)
-- [ ] Integration-Test-Coverage-Report als CI-Artefakt
+- [x] Integration-Test-Coverage-Report als CI-Artefakt — `pytest-cov` in `tests.yml` fuer unit + integration Jobs; HTML+XML als Actions-Artefakte, retention 14 Tage (2026-04-30)
 - [x] Cleanup-Hooks auf srv1 verlassen Host in sauberem Zustand (R3) — `CLEANUP_HOOKS_SMOKE=PASS` auf srv1 (2026-04-30)
 
 ## Build + Release Pipeline
@@ -61,5 +61,5 @@
 - [x] axe-core CLI gegen `https://srv1.beagle-os.com` — 0 Critical/Serious (`npx -y @axe-core/cli ... --tags wcag2a,wcag2aa`: 0 violations, 2026-04-30)
 - [ ] Lighthouse Mobile-Score > 90, Accessibility > 90
 - [ ] Mobile-Responsive (Breakpoints 360/600/900/1200, Touch-Targets >= 44px)
-- [ ] Dark-Mode persistiert + `prefers-color-scheme`-Default
+- [x] Dark-Mode persistiert + `prefers-color-scheme`-Default — `website/ui/theme.js` liest `prefers-color-scheme` wenn kein expliziter `localStorage`-Eintrag vorhanden (2026-04-30)
 - [ ] Skeleton-Loader + Empty-States + Error-States mit Retry-Button

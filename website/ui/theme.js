@@ -6,10 +6,22 @@ function isDarkModeActive() {
 
 export function loadDarkModePreference() {
   try {
-    if (localStorage.getItem('beagle.darkMode') === '0') {
-      document.body.classList.add('light-mode');
+    const stored = localStorage.getItem('beagle.darkMode');
+    if (stored !== null) {
+      // Explicit stored preference wins
+      if (stored === '0') {
+        document.body.classList.add('light-mode');
+      } else {
+        document.body.classList.remove('light-mode');
+      }
     } else {
-      document.body.classList.remove('light-mode');
+      // No stored preference — respect OS/browser prefers-color-scheme
+      const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+      if (prefersLight) {
+        document.body.classList.add('light-mode');
+      } else {
+        document.body.classList.remove('light-mode');
+      }
     }
   } catch (error) {
     void error;
