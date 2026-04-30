@@ -324,7 +324,12 @@ run_in_chroot apt-get install -y \
   nftables \
   wireguard-tools \
   python3 \
-  mdadm
+  mdadm \
+  git \
+  zip \
+  unzip \
+  nodejs \
+  npm
 # Ensure /boot/grub/grub.cfg exists with valid entries for the kernel that
 # was just installed. Hetzner installimage's grub stage rewrites
 # /etc/default/grub, runs `grub-install $TARGET`, and re-runs update-grub
