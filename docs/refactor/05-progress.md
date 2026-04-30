@@ -1,3 +1,29 @@
+## Update (2026-04-30, WebUI-Let's-Encrypt TLS-Switch-Write-Pfad auf srv1 repariert)
+
+**Scope**: Die Security-WebUI konnte zwar ein Let's-Encrypt-Zertifikat ausstellen, scheiterte danach aber beim Umschalten des aktiven nginx-/Beagle-TLS-Materials mit `Permission denied: /etc/beagle/tls/beagle-proxy.crt`.
+
+- Repo-Fixes:
+  - `scripts/install-beagle-proxy.sh`
+    - heilt das TLS-Verzeichnis jetzt bei jedem Lauf reproduzierbar auf `beagle-manager:beagle-manager` mit Modus `0750`.
+    - nutzt dafuer einen expliziten `BEAGLE_CONTROL_USER`-Pfad statt impliziter Root-Defaults.
+  - `beagle-host/services/server_settings.py`
+    - ersetzt die aktiven Beagle-TLS-Dateien jetzt atomar ueber Temp-Datei + `os.replace`, statt bestehende Dateien direkt zu ueberschreiben.
+    - macht den nginx-PID-/TLS-Zielpfad ueber Konstanten testbar.
+  - `tests/unit/test_server_settings.py`
+    - Regression fuer den atomaren Let's-Encrypt-TLS-Switch ergaenzt.
+  - `tests/unit/test_proxy_env_precedence_regressions.py`
+    - Regression fuer die TLS-Dir-Self-Heal-Logik im Proxy-Installer ergaenzt.
+- Live-Fix auf `srv1`:
+  - gepatchte Runtime-Dateien nach `/opt/beagle` ausgerollt.
+  - `/opt/beagle/scripts/install-beagle-proxy.sh` erneut ausgefuehrt; `/etc/beagle/tls` ist jetzt `beagle-manager:beagle-manager 0750`.
+  - `_switch_nginx_tls_to_letsencrypt("srv1.beagle-os.com")` direkt auf dem Host erfolgreich gegen das bereits ausgestellte LE-Zertifikat ausgefuehrt.
+- Verifikation:
+  - `stat /etc/beagle/tls` -> `beagle-manager beagle-manager 750`.
+  - Host-Test: `ok=True msg=ok` fuer den realen TLS-Switch-Pfad.
+  - `beagle-control-plane` und `nginx` auf `srv1` weiterhin `active`.
+
+---
+
 ## Update (2026-04-30, srv1 Reinstall-/Onboarding-Drift und Secret-Store-Startcrash behoben)
 
 **Scope**: Nach der Neuinstallation von `srv1` erschien das WebUI-Onboarding nicht mehr. Die Live-Ursache war zweistufig: erst crashte `beagle-control-plane` beim Start, weil `/var/lib/beagle/secrets` im Reinstall-Pfad nicht fuer den Service-User vorbereitet wurde; danach blieb der Host bei weiteren Re-Runs im falschen Auth-Zustand, weil der Installer den Bootstrap-/Onboarding-Modus nicht stabil konservierte und frische Installationen alten Auth-State nicht explizit verwarfen.

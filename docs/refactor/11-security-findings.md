@@ -1,6 +1,28 @@
 # Security Findings
 
-Stand: 2026-04-30 (ergänzt: S-035 Reinstall-Auth-/Onboarding-Drift korrigiert)
+Stand: 2026-04-30 (ergänzt: S-036 TLS-Switch-Permission-Drift repariert, S-035 Reinstall-Auth-/Onboarding-Drift korrigiert)
+
+## S-036 — WebUI-Let's-Encrypt konnte Zertifikate ausstellen, aber den aktiven TLS-Pfad nicht umschalten (PATCHED)
+
+- Status: **gepatcht** (2026-04-30)
+- Risiko: **Hoch**
+- Betroffene Dateien:
+  - `scripts/install-beagle-proxy.sh`
+  - `beagle-host/services/server_settings.py`
+  - `tests/unit/test_server_settings.py`
+  - `tests/unit/test_proxy_env_precedence_regressions.py`
+- Beschreibung:
+  - Die Security-WebUI konnte ueber Certbot bereits ein gueltiges Zertifikat ausstellen, scheiterte aber beim anschliessenden Umschalten der aktiven nginx-/Beagle-TLS-Dateien unter `/etc/beagle/tls`.
+  - Root Cause 1: `scripts/install-beagle-proxy.sh` legte das Verzeichnis implizit als `root:root 0700` an; der produktive non-root-Dienst `beagle-control-plane` konnte den Zielpfad deshalb nicht traversieren oder beschreiben.
+  - Root Cause 2: der Switch-Pfad in `server_settings.py` ueberschrieb bestehende PEM-Dateien direkt, statt sie atomar zu ersetzen; damit blieb der Pfad zusaetzlich fragil gegen Legacy-Datei-Owner-Drift.
+- Fix:
+  - Proxy-Installer heilt `/etc/beagle/tls` jetzt bei jedem Lauf reproduzierbar auf `beagle-manager:beagle-manager` mit Modus `0750`.
+  - Der Let's-Encrypt-Switch ersetzt Zertifikat und Key jetzt atomar per Temp-Datei + `os.replace`.
+  - Regressionen decken sowohl die TLS-Dir-Permissions als auch den atomaren Switch-Pfad ab.
+- Live-Verifikation:
+  - `srv1`: `/etc/beagle/tls` -> `beagle-manager:beagle-manager 0750`.
+  - Direkter Host-Test von `_switch_nginx_tls_to_letsencrypt("srv1.beagle-os.com")` -> `ok=True`.
+  - `nginx` und `beagle-control-plane` bleiben dabei `active`.
 
 ## S-035 — Frische Server-Neuinstallationen konnten alten Auth-State und Bootstrap-Drift weitertragen (PATCHED)
 

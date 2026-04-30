@@ -44,6 +44,16 @@ def test_install_beagle_proxy_self_heals_stale_host_env_proxy_settings() -> None
     assert 'sync_host_env_proxy_defaults' in script.split("write_env_file", 1)[1]
 
 
+def test_install_beagle_proxy_heals_tls_dir_permissions_for_control_plane_writes() -> None:
+    script = INSTALL_BEAGLE_PROXY.read_text(encoding="utf-8")
+
+    assert 'BEAGLE_CONTROL_USER="${BEAGLE_CONTROL_USER:-beagle-manager}"' in script
+    assert "ensure_tls_directory_permissions()" in script
+    assert 'chown "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" "$STANDALONE_TLS_DIR"' in script
+    assert 'chmod 0750 "$STANDALONE_TLS_DIR"' in script
+    assert "ensure_tls_directory_permissions" in script.split("ensure_tls_materials()", 1)[1]
+
+
 def test_check_beagle_host_scans_runtime_env_for_real_8443_urls_without_size_false_positive() -> None:
     script = CHECK_BEAGLE_HOST.read_text(encoding="utf-8")
 

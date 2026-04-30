@@ -79,6 +79,39 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("AAAA/IPv6 DNS record", result["error"])
 
+    def test_switch_nginx_tls_to_letsencrypt_replaces_beagle_tls_files_atomically(self):
+        domain = "srv1.beagle-os.com"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_root = Path(tmpdir)
+            live_dir = tmp_root / "certbot" / "config" / "live" / domain
+            live_dir.mkdir(parents=True)
+            (live_dir / "fullchain.pem").write_text("new-cert", encoding="utf-8")
+            (live_dir / "privkey.pem").write_text("new-key", encoding="utf-8")
+
+            target_dir = tmp_root / "beagle-tls"
+            target_dir.mkdir()
+            (target_dir / "beagle-proxy.crt").write_text("old-cert", encoding="utf-8")
+            (target_dir / "beagle-proxy.key").write_text("old-key", encoding="utf-8")
+
+            pid_file = tmp_root / "nginx.pid"
+            pid_file.write_text("4242\n", encoding="utf-8")
+
+            with mock.patch.object(MODULE, "_CERTBOT_CONFIG_DIR", tmp_root / "certbot" / "config"), \
+                 mock.patch.object(MODULE, "_BEAGLE_TLS_DIR", target_dir), \
+                 mock.patch.object(MODULE, "_BEAGLE_TLS_CERT_PATH", target_dir / "beagle-proxy.crt"), \
+                 mock.patch.object(MODULE, "_BEAGLE_TLS_KEY_PATH", target_dir / "beagle-proxy.key"), \
+                 mock.patch.object(MODULE, "_NGINX_PID_CANDIDATES", [pid_file]), \
+                 mock.patch.object(MODULE.os, "kill") as kill:
+                ok, message = MODULE._switch_nginx_tls_to_letsencrypt(domain)
+
+        self.assertTrue(ok, message)
+        self.assertEqual(message, "ok")
+        self.assertEqual((target_dir / "beagle-proxy.crt").read_text(encoding="utf-8"), "new-cert")
+        self.assertEqual((target_dir / "beagle-proxy.key").read_text(encoding="utf-8"), "new-key")
+        self.assertFalse(any(path.name.startswith(".beagle-proxy.") for path in target_dir.iterdir()))
+        kill.assert_called_once_with(4242, MODULE.signal.SIGHUP)
+
     def test_route_post_tls_letsencrypt_returns_bad_request_for_invalid_domain(self):
         service = self.make_service()
 

@@ -77,6 +77,10 @@ _CERTBOT_BASE_DIR = Path("/var/lib/beagle/beagle-manager/letsencrypt")
 _CERTBOT_CONFIG_DIR = _CERTBOT_BASE_DIR / "config"
 _CERTBOT_WORK_DIR = _CERTBOT_BASE_DIR / "work"
 _CERTBOT_LOGS_DIR = _CERTBOT_BASE_DIR / "logs"
+_BEAGLE_TLS_DIR = Path("/etc/beagle/tls")
+_BEAGLE_TLS_CERT_PATH = _BEAGLE_TLS_DIR / "beagle-proxy.crt"
+_BEAGLE_TLS_KEY_PATH = _BEAGLE_TLS_DIR / "beagle-proxy.key"
+_NGINX_PID_CANDIDATES = [Path("/run/nginx.pid"), Path("/var/run/nginx.pid")]
 _ARTIFACT_WATCHDOG_STATUS_FILE = Path("/var/lib/beagle/artifact-watchdog-status.json")
 _ARTIFACT_WATCHDOG_RULE_FILE = Path("/etc/polkit-1/rules.d/49-beagle-artifacts-watchdog.rules")
 _REPO_AUTO_UPDATE_STATUS_FILE = Path("/var/lib/beagle/repo-auto-update-status.json")
@@ -1588,6 +1592,20 @@ def _run_certbot_command(cmd: list[str], *, timeout: int) -> subprocess.Complete
     )
 
 
+def _replace_file_bytes(path: Path, data: bytes, *, mode: int) -> None:
+    tmp_path = path.with_name(f".{path.name}.tmp-{os.getpid()}")
+    try:
+        tmp_path.write_bytes(data)
+        os.chmod(tmp_path, mode)
+        os.replace(tmp_path, path)
+    except OSError:
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass
+        raise
+
+
 def _switch_nginx_tls_to_letsencrypt(domain: str) -> tuple[bool, str]:
     live_candidates = [
         Path(f"/etc/letsencrypt/live/{domain}"),
@@ -1607,22 +1625,19 @@ def _switch_nginx_tls_to_letsencrypt(domain: str) -> tuple[bool, str]:
 
     source_cert = live_dir / "fullchain.pem"
     source_key = live_dir / "privkey.pem"
-    target_dir = Path("/etc/beagle/tls")
-    target_cert = target_dir / "beagle-proxy.crt"
-    target_key = target_dir / "beagle-proxy.key"
+    target_dir = _BEAGLE_TLS_DIR
+    target_cert = _BEAGLE_TLS_CERT_PATH
+    target_key = _BEAGLE_TLS_KEY_PATH
 
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
-        target_cert.write_bytes(source_cert.read_bytes())
-        target_key.write_bytes(source_key.read_bytes())
-        os.chmod(target_cert, 0o644)
-        os.chmod(target_key, 0o600)
+        _replace_file_bytes(target_cert, source_cert.read_bytes(), mode=0o644)
+        _replace_file_bytes(target_key, source_key.read_bytes(), mode=0o600)
     except OSError as exc:
         return False, f"failed updating Beagle TLS files: {exc}"
 
-    pid_candidates = [Path("/run/nginx.pid"), Path("/var/run/nginx.pid")]
     nginx_pid: int | None = None
-    for pid_path in pid_candidates:
+    for pid_path in _NGINX_PID_CANDIDATES:
         try:
             if pid_path.exists():
                 nginx_pid = int((pid_path.read_text(encoding="utf-8") or "").strip())

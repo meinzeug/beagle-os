@@ -1,5 +1,6 @@
 # Global TODO
 
+- [x] WebUI-Let's-Encrypt-Regression schliessen: aktiven TLS-Switch-Pfad fuer `beagle-control-plane` reparieren, `/etc/beagle/tls` reproduzierbar beschreibbar machen und den Host-Switch gegen ein reales LE-Zertifikat auf `srv1` validieren.
 - [x] GoAdvanced Plan 06 Schritt 3 Teil 3 schliessen: `core/repository/session_repository.py` inkl. Tests und `srv1`-Smoke einfuehren.
 - [x] GoAdvanced Plan 06 Schritt 3 Teil 2 schliessen: `core/repository/device_repository.py` inkl. Tests und `srv1`-Smoke einfuehren.
 - [x] GoAdvanced Plan 06 Schritt 3 Teil 1 schliessen: erstes produktives SQLite-Repository `core/repository/vm_repository.py` inkl. Tests und `srv1`-Smoke einfuehren.

@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-04-30, WebUI-Let's-Encrypt-TLS-Switch auf srv1 wieder funktionsfaehig)
+
+**Zuletzt erledigt**:
+- Der WebUI-Fehler `certificate issued but nginx switch failed` ist geschlossen: der aktive TLS-Write-Pfad ist jetzt fuer `beagle-control-plane` beschreibbar, und der Let's-Encrypt-Switch ersetzt die PEM-Dateien atomar.
+
+**Naechste konkrete Schritte**:
+
+1. Den echten WebUI-Flow unter `/#panel=settings_security` einmal mit einem frischen Operator-Run gegen `srv1` nachziehen und die Success-Meldung plus aktives LE-Zertifikat im Browser abnehmen.
+2. Diesen TLS-Permissions-/Switch-Smoke fuer frische Host-Installationen reproduzierbar ergaenzen, damit `certificate issued but nginx switch failed` nicht wieder unbemerkt zurueckkommt.
+3. Den gleichen Proxy-Installer-Stand auf `srv2` spiegeln, sobald dort erneut Security-/TLS-Settings live bedient werden.
+
+---
+
 ## Stand (2026-04-30, srv1 Neuinstallations-Onboarding wiederhergestellt)
 
 **Zuletzt erledigt**:

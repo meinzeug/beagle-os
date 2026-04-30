@@ -24,6 +24,7 @@ WEB_UI_ALLOW_HASH_TOKEN="${BEAGLE_WEB_UI_ALLOW_HASH_TOKEN:-0}"
 WEB_UI_ALLOW_ABSOLUTE_API_TARGETS="${BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS:-0}"
 WEB_UI_SEND_LEGACY_API_TOKEN_HEADER="${BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER:-0}"
 WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS="${BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS:-0}"
+BEAGLE_CONTROL_USER="${BEAGLE_CONTROL_USER:-beagle-manager}"
 CERT_FILE="${PVE_DCV_PROXY_CERT_FILE:-}"
 KEY_FILE="${PVE_DCV_PROXY_KEY_FILE:-}"
 STANDALONE_TLS_DIR="${BEAGLE_PROXY_TLS_DIR:-$CONFIG_DIR/tls}"
@@ -396,12 +397,19 @@ tls_subject_alt_name() {
   printf 'DNS:%s,IP:127.0.0.1\n' "$SERVER_NAME"
 }
 
+ensure_tls_directory_permissions() {
+  mkdir -p "$STANDALONE_TLS_DIR"
+  chown "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" "$STANDALONE_TLS_DIR"
+  chmod 0750 "$STANDALONE_TLS_DIR"
+}
+
 ensure_tls_materials() {
+  ensure_tls_directory_permissions
+
   if [[ -r "$CERT_FILE" && -r "$KEY_FILE" ]]; then
     return 0
   fi
 
-  install -d -m 0700 "$STANDALONE_TLS_DIR"
   openssl req \
     -x509 \
     -nodes \
@@ -411,7 +419,7 @@ ensure_tls_materials() {
     -out "$CERT_FILE" \
     -subj "/CN=${SERVER_NAME}" \
     -addext "subjectAltName=$(tls_subject_alt_name)" >/dev/null 2>&1
-  chown beagle-manager:beagle-manager "$KEY_FILE" "$CERT_FILE"
+  chown "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" "$KEY_FILE" "$CERT_FILE"
   chmod 0600 "$KEY_FILE"
   chmod 0644 "$CERT_FILE"
   log "Generated standalone TLS certificate at $CERT_FILE"
