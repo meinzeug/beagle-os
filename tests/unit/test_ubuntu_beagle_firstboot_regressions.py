@@ -24,3 +24,16 @@ def test_firstboot_repairs_dpkg_after_each_desktop_install_phase() -> None:
     assert "apt_retry apt-get install -y --fix-missing ${DESKTOP_PACKAGES}\n    repair_interrupted_dpkg" in script
     assert "apt_retry apt-get install -y --fix-missing ${SOFTWARE_PACKAGES}\n    repair_interrupted_dpkg" in script
     assert "apt_retry apt-get install -y \"$TMPDIR_WORK/sunshine.deb\"\n  repair_interrupted_dpkg" in script
+
+
+def test_firstboot_disables_display_idle_and_lockers_for_streaming() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "/etc/X11/Xsession.d/90-beagle-disable-display-idle" in script
+    assert "xset -dpms >/dev/null 2>&1 || true" in script
+    assert "xset s off >/dev/null 2>&1 || true" in script
+    assert "xset s noblank >/dev/null 2>&1 || true" in script
+    assert '"/home/$GUEST_USER/.config/autostart/light-locker.desktop"' in script
+    assert '"/home/$GUEST_USER/.config/autostart/xfce4-power-manager.desktop"' in script
+    assert '"/home/$GUEST_USER/.config/autostart/xfce4-screensaver.desktop"' in script
+    assert '"/home/$GUEST_USER/.xprofile"' in script

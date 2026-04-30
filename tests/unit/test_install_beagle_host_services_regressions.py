@@ -47,3 +47,15 @@ def test_auth_reset_and_bootstrap_disable_state_are_install_time_aware() -> None
     assert 'existing_bootstrap_disable="$(strip_env_quotes "$(read_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_AUTH_BOOTSTRAP_DISABLE" 2>/dev/null || true)")"' in script
     assert 'if [[ "$(normalize_bool_flag "$BEAGLE_AUTH_RESET_ON_INSTALL")" == "1" ]]; then' in script
     assert 'rm -rf /var/lib/beagle/beagle-manager/auth' in script
+
+
+def test_kvm_device_permissions_are_persisted_via_udev_rule() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'KVM_UDEV_RULE_FILE="/etc/udev/rules.d/65-beagle-kvm.rules"' in script
+    assert "ensure_kvm_device_permissions()" in script
+    assert 'KERNEL=="kvm", GROUP="kvm", MODE="0660"' in script
+    assert 'udevadm trigger --name-match=/dev/kvm >/dev/null 2>&1 || true' in script
+    assert 'chgrp kvm /dev/kvm >/dev/null 2>&1 || true' in script
+    assert 'chmod 0660 /dev/kvm >/dev/null 2>&1 || true' in script
+    assert "ensure_kvm_device_permissions" in script

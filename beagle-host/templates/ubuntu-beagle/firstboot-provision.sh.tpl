@@ -621,6 +621,7 @@ EOF
 
   install -d -m 0700 -o "$GUEST_USER" -g "$GUEST_USER" \
     "/home/$GUEST_USER/.config" \
+    "/home/$GUEST_USER/.config/autostart" \
     "/home/$GUEST_USER/.config/sunshine" \
     "/home/$GUEST_USER/.config/xfce4/xfconf/xfce-perchannel-xml"
   install -d -m 0755 /etc/X11/xorg.conf.d
@@ -639,6 +640,26 @@ Section "InputClass"
     Option "Ignore" "on"
 EndSection
 EOF
+
+  cat > /etc/X11/Xsession.d/90-beagle-disable-display-idle <<'EOF'
+#!/bin/sh
+if command -v xset >/dev/null 2>&1; then
+  xset -dpms >/dev/null 2>&1 || true
+  xset s off >/dev/null 2>&1 || true
+  xset s noblank >/dev/null 2>&1 || true
+fi
+EOF
+  chmod 0755 /etc/X11/Xsession.d/90-beagle-disable-display-idle
+
+  cat > "/home/$GUEST_USER/.xprofile" <<'EOF'
+#!/bin/sh
+if command -v xset >/dev/null 2>&1; then
+  xset -dpms >/dev/null 2>&1 || true
+  xset s off >/dev/null 2>&1 || true
+  xset s noblank >/dev/null 2>&1 || true
+fi
+EOF
+  chmod 0755 "/home/$GUEST_USER/.xprofile"
 
   cat > "/home/$GUEST_USER/.config/sunshine/sunshine.conf" <<EOF
 sunshine_name = ${GUEST_USER}-sunshine
@@ -678,9 +699,31 @@ EOF
   </property>
 </channel>
 EOF
+
+  cat > "/home/$GUEST_USER/.config/autostart/light-locker.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Light Locker
+Hidden=true
+EOF
+
+  cat > "/home/$GUEST_USER/.config/autostart/xfce4-power-manager.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=XFCE Power Manager
+Hidden=true
+EOF
+
+  cat > "/home/$GUEST_USER/.config/autostart/xfce4-screensaver.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=XFCE Screensaver
+Hidden=true
+EOF
   fi
 
   chown -R "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.config"
+  chown "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.xprofile"
   configure_default_browser
 
   cat > /etc/systemd/system/beagle-sunshine.service <<EOF

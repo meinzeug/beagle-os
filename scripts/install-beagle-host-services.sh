@@ -46,6 +46,7 @@ USB_TUNNEL_ATTACH_HOST="${BEAGLE_USB_TUNNEL_ATTACH_HOST:-10.10.10.1}"
 USB_TUNNEL_SSHD_DROPIN="/etc/ssh/sshd_config.d/90-beagle-usb-tunnel.conf"
 USB_TUNNEL_TEST_DROPIN="/etc/ssh/sshd_config.d/91-beagle-tunnel-test.conf"
 USB_TUNNEL_AUTH_COMMAND="/usr/local/libexec/beagle-usb-authorized-keys"
+KVM_UDEV_RULE_FILE="/etc/udev/rules.d/65-beagle-kvm.rules"
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -226,6 +227,30 @@ can_manage_libvirt_system() {
   return 0
 }
 
+ensure_kvm_device_permissions() {
+  if ! getent group kvm >/dev/null 2>&1; then
+    return 0
+  fi
+
+  install -d -m 0755 /etc/udev/rules.d
+  cat > "$KVM_UDEV_RULE_FILE" <<'EOF'
+KERNEL=="kvm", GROUP="kvm", MODE="0660"
+EOF
+  chmod 0644 "$KVM_UDEV_RULE_FILE"
+
+  udevadm control --reload-rules >/dev/null 2>&1 || true
+  udevadm trigger --name-match=/dev/kvm >/dev/null 2>&1 || true
+  udevadm settle >/dev/null 2>&1 || true
+
+  if [[ -e /dev/kvm ]]; then
+    chgrp kvm /dev/kvm >/dev/null 2>&1 || true
+    chmod 0660 /dev/kvm >/dev/null 2>&1 || true
+    if command -v setfacl >/dev/null 2>&1; then
+      setfacl -b /dev/kvm >/dev/null 2>&1 || true
+    fi
+  fi
+}
+
 set_env_value() {
   local env_file="$1"
   local key="$2"
@@ -397,6 +422,8 @@ for runtime_group in libvirt kvm; do
     fi
   fi
 done
+
+ensure_kvm_device_permissions
 
 if ! id "$USB_TUNNEL_USER" >/dev/null 2>&1; then
   if [[ -z "$USB_TUNNEL_HOME" ]]; then
