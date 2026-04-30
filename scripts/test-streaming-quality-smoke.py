@@ -109,6 +109,15 @@ def _xrandr_has_virtual_output(xrandr_out: str) -> bool:
     return False
 
 
+def _extract_kv(out: str, key: str) -> str:
+    prefix = f"{key}="
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith(prefix):
+            return line[len(prefix):].strip()
+    return ""
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="srv1.beagle-os.com")
@@ -125,19 +134,47 @@ def main() -> int:
     prereq = _guest_exec(
         args.host,
         args.domain,
-        "id beagle; ls -l /home/beagle/.Xauthority; ls -l /tmp/.X11-unix/X0",
+        (
+            "set -e; "
+            "guest_user=''; "
+            "if [[ -r /etc/beagle/sunshine-healthcheck.env ]]; then "
+            "  source /etc/beagle/sunshine-healthcheck.env >/dev/null 2>&1 || true; "
+            "fi; "
+            "for c in \"${SUNSHINE_GUEST_USER:-}\" beagle ubuntu; do "
+            "  [[ -n \"$c\" ]] || continue; "
+            "  if id \"$c\" >/dev/null 2>&1; then guest_user=\"$c\"; break; fi; "
+            "done; "
+            "if [[ -z \"$guest_user\" ]]; then "
+            "  guest_user=$(awk -F: '($3>=1000 && $3<65534){print $1; exit}' /etc/passwd); "
+            "fi; "
+            "[[ -n \"$guest_user\" ]] || { echo 'guest_user='; exit 1; }; "
+            "xauth=\"/home/$guest_user/.Xauthority\"; "
+            "if [[ ! -f \"$xauth\" ]]; then "
+            "  xauth=$(find \"/home/$guest_user\" -maxdepth 3 -name .Xauthority 2>/dev/null | head -n1 || true); "
+            "fi; "
+            "echo \"guest_user=$guest_user\"; "
+            "echo \"xauth=$xauth\"; "
+            "id \"$guest_user\"; "
+            "ls -l /tmp/.X11-unix/X0; "
+            "[[ -n \"$xauth\" ]] && ls -l \"$xauth\" || true"
+        ),
     )
+    guest_user = _extract_kv(prereq.out, "guest_user")
+    xauth = _extract_kv(prereq.out, "xauth")
     summary["checks"]["x11_prereq"] = {
-        "ok": prereq.exitcode == 0,
+        "ok": prereq.exitcode == 0 and bool(guest_user),
         "exitcode": prereq.exitcode,
+        "guest_user": guest_user,
+        "xauthority": xauth,
         "out": prereq.out,
         "err": prereq.err,
     }
 
+    xauth_ref = xauth or f"/home/{guest_user}/.Xauthority"
     xrandr = _guest_exec(
         args.host,
         args.domain,
-        "DISPLAY=:0 XAUTHORITY=/home/beagle/.Xauthority xrandr --query",
+        f"DISPLAY=:0 XAUTHORITY={shlex.quote(xauth_ref)} xrandr --query",
     )
     xrandr_out = xrandr.out
     output_name = ""
@@ -158,9 +195,9 @@ def main() -> int:
         args.host,
         args.domain,
         (
-            "DISPLAY=:0 XAUTHORITY=/home/beagle/.Xauthority "
+            f"DISPLAY=:0 XAUTHORITY={shlex.quote(xauth_ref)} "
             "xrandr --output Virtual-1 --mode 3840x2160_60.00; "
-            "DISPLAY=:0 XAUTHORITY=/home/beagle/.Xauthority xrandr --query"
+            f"DISPLAY=:0 XAUTHORITY={shlex.quote(xauth_ref)} xrandr --query"
         ),
     )
     summary["checks"]["xrandr_set_4k"] = {

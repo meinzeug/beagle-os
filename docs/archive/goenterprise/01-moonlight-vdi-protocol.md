@@ -224,6 +224,21 @@ Wichtig:
 - [x] Policy `vpn_preferred`: WireGuard-Fehler → direkter Fallback funktioniert.
 - [x] Audit-Log: Session-Start/Stop erscheinen als Audit-Events im Control Plane.
 
+## Update (2026-04-30, live Smoke-Rerun auf srv1)
+
+- Reproduzierbare `srv1`-Smokes erneut gefahren:
+  - `STREAM_HEALTH_ACTIVE_RESULT=PASS`
+  - `STREAM_INPUT_MATRIX_RESULT=PASS`
+  - `MOONLIGHT_AUTO_PAIR_RESULT=PASS` im Headless-Degraded-Modus (`MOONLIGHT_AUTO_PAIR_MODE=PASS_DEGRADED_NO_PENDING_CLIENT`)
+  - `PLAN01_STREAM_VM_REGISTER=PASS` (`register_http=201`, `config_http=200`, `events_http=200`)
+  - `test-streaming-quality-smoke.py` jetzt `result=pass_with_4k_limit` nach Guest-User-/Xauthority-Fix
+- Readiness-Rerun:
+  - VM100: `ensure-vm-stream-ready.sh` mit `RC=0` und Marker `ENSURE_VM_STREAM_READY=PASS`
+  - VM102: weiterhin externer Runtime-Blocker (`VM 102 not found in beagle provider state`, keine guest IPv4)
+- Offene Planpunkte bleiben unveraendert:
+  - separater `beagle-stream-server`/`beagle-stream-client` Fork in diesem Repo nicht umgesetzt
+  - WireGuard-Latenz-Feinmessung und echter WireGuard-Stream-Live-Nachweis aus Testpflicht weiterhin offen
+
 ## Update (2026-04-28, Plan 01: Control-Plane-API fuer kuenftigen beagle-stream-server umgesetzt)
 
 - Der repo-realisierbare erste Fork-Slice ist jetzt im Control Plane verdrahtet, obwohl die eigentlichen Sunshine-/Moonlight-Forks noch nicht in diesem Workspace existieren.

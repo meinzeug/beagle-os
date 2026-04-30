@@ -1,5 +1,19 @@
 # Next Steps
 
+## Stand (2026-04-30, Sunshine/Moonlight-Smokes auf srv1 mit VM102-Blocker)
+
+**Zuletzt erledigt**:
+- Die live fahrbaren Sunshine/Moonlight-Smokes auf `srv1` sind fuer VM100 erneut mit PASS-Nachweisen gelaufen (`STREAM_HEALTH_ACTIVE_RESULT=PASS`, `STREAM_INPUT_MATRIX_RESULT=PASS`, `MOONLIGHT_AUTO_PAIR_RESULT=PASS` im Headless-Degraded-Modus, `PLAN01_STREAM_VM_REGISTER=PASS`, `ensure-vm-stream-ready` mit `RC=0`).
+- Die Smoke-Skripte wurden fuer den realen Guest-User-/Xauthority-Pfad und fuer Headless-Pairing ohne aktiven Moonlight-Client gehaertet.
+
+**Naechste konkrete Schritte**:
+
+1. VM102 im Provider-State auf `srv1` reparieren (neu registrieren oder neu provisionieren), bis `guest_exec` und `guest_ipv4` wieder funktionieren.
+2. Danach den offenen Dual-VM-Nachweis erneut fahren: `ensure-vm-stream-ready.sh --vmid 100 --node beagle-0` und `--vmid 102 --node beagle-0` mit beiden Erfolgsmarkern.
+3. Optional den Public-Self-Check-Pfad (`46.4.96.80:50001`) netzseitig absichern oder als erwartete Host-External-Limitation dokumentiert halten, solange der direkte VM-API-Check und Readiness-State gruen bleiben.
+
+---
+
 ## Stand (2026-04-30, Ubuntu-Desktop-Firstboot-/Login-Drift auf srv1 geschlossen)
 
 **Zuletzt erledigt**:

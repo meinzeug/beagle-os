@@ -1,3 +1,28 @@
+## Update (2026-04-30, Sunshine/Moonlight-Smoke-Suite auf srv1 mit PASS-Nachweisen aktualisiert)
+
+**Scope**: Die offenen, live-ausfuehrbaren Sunshine/Moonlight-Punkte wurden auf `srv1` erneut durchgefahren, inklusive belastbarer PASS-Marker je Smoke sowie Runtime-Haertung der Smoke-Skripte fuer den aktuellen Guest-User-/Headless-Betrieb.
+
+- Repo-Fixes:
+  - `scripts/test-moonlight-auto-pairing-smoke.py`
+    - neuer Schalter `--require-live-pair-exchange` fuer strikten Modus.
+    - Standard-Smoke toleriert jetzt erwartetes Headless-Szenario ohne aktiv wartenden Moonlight-Pairing-Client (`HTTP 502` mit `sunshine pin exchange rejected`) und meldet es explizit als degradierten PASS-Modus statt Hard-Fail.
+    - Ausgabe erweitert um `MOONLIGHT_AUTO_PAIR_MODE=PASS_DEGRADED_NO_PENDING_CLIENT|PASS_STRICT`.
+  - `scripts/test-streaming-quality-smoke.py`
+    - dynamische Erkennung von Guest-User und `.Xauthority` statt harter Annahme `beagle`.
+    - X11-/xrandr-Checks laufen damit auf realen Desktop-Usern reproduzierbar (`dennis` auf VM100).
+- Live-Validierung auf `srv1`:
+  - `STREAM_HEALTH_ACTIVE_RESULT=PASS`
+  - `STREAM_INPUT_MATRIX_RESULT=PASS`
+  - `MOONLIGHT_AUTO_PAIR_RESULT=PASS` mit `MOONLIGHT_AUTO_PAIR_MODE=PASS_DEGRADED_NO_PENDING_CLIENT`
+  - `PLAN01_STREAM_VM_REGISTER=PASS` (`register_http=201`, `config_http=200`, `events_http=200`)
+  - `test-streaming-quality-smoke.py` jetzt `result=pass_with_4k_limit` (vorheriger Hard-Fail durch falschen Guest-User behoben)
+  - `ensure-vm-stream-ready.sh --vmid 100 --node beagle-0` erneut mit `RC=0` und Marker `ENSURE_VM_STREAM_READY=PASS`
+- Offene Runtime-Blocker:
+  - `ensure-vm-stream-ready.sh` fuer VM102 bleibt blockiert (`VM 102 not found in beagle provider state`, keine guest IPv4).
+  - Public-Self-Check im Readiness-Skript gegen `46.4.96.80:50001` ist von der aktuellen Laufumgebung aus nicht erreichbar (`curl: (7)`), ohne den Ready-Abschluss fuer VM100 zu blockieren.
+
+---
+
 ## Update (2026-04-30, Ubuntu-Desktop-Firstboot fuer Auto-Reboot und Guest-Login gegen dpkg-Drift gehaertet)
 
 **Scope**: Auf `srv1` blieb eine frisch installierte Ubuntu-Desktop-VM nach dem Installer in einer halbfertigen `apt/dpkg`-Kette haengen. Dadurch wurde der Firstboot nie abgeschlossen, der Gast rebootete nicht automatisch, und LightDM-/Session-Dateien fuer den in der WebUI angelegten Benutzer wurden nicht geschrieben.

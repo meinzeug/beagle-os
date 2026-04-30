@@ -402,6 +402,8 @@
 - [ ] Re-run `ensure-vm-stream-ready.sh` on VMs 100 and 102 once IPs are available to prove full unattended stream-prep flow (credential persistence + Sunshine install + ready state).
 	- Update 2026-04-29 (`srv1`): VM100 re-run succeeded with unattended path (`Configured Sunshine guest VM 100 ...`), including the SCP-path fix and provider import bootstrap in the script runtime.
 	- Update 2026-04-29 (`srv1`): VM102 remains blocked by runtime inventory/provider state (`RuntimeError: VM 102 not found in beagle provider state`, no guest IPv4), therefore full dual-VM proof is still open.
+	- Update 2026-04-30 (`srv1`): VM100 readiness gate re-run returned `RC=0` and reached `Configured Sunshine guest VM 100 on localhost (guest IP: 192.168.123.114)`; host-external self-check to `46.4.96.80:50001` remained unreachable (`curl: (7)`), but script still completed with success marker (`ENSURE_VM_STREAM_READY=PASS`).
+	- Update 2026-04-30 (`srv1`): VM102 re-run still blocked unchanged (`VM 102 not found in beagle provider state`, `Unable to determine guest IPv4 address for VM 102`, `VM102_RC=1`).
 - [ ] Fix post-install beagleserver disk boot path after installer success (currently no-bootable-device after ISO eject/reset).
 - [x] Add outer-host disk guardrails/cleanup routine for local validation harness (prevent repeated `beagleserver` pause on 100% root).
 - [x] Add automated API regression test for `DELETE /api/v1/provisioning/vms/{vmid}`.
