@@ -69,16 +69,16 @@
 ## Monitoring + Alerting
 
 - [x] Control-Plane-Health-Endpoint liefert + alerted (R3) — `HEALTH_ENDPOINT_SMOKE=PASS` auf srv1 (2026-04-30, ok=true)
-- [ ] nginx/TLS-Health
-- [ ] Disk-/Storage-Fuellstand-Alert
+- [x] nginx/TLS-Health — `check-beagle-health.sh` PASS: nginx active, TLS cert valid 89 days, (2026-04-30)
+- [x] Disk-/Storage-Fuellstand-Alert — `check-beagle-health.sh` PASS: /var/lib/beagle=1%, /var/lib/libvirt/images=33%, /=33% (threshold 80%, 2026-04-30)
 - [ ] VM-/Session-/Stream-Health
 - [ ] Backup-Erfolg + Restore-Alter
 - [ ] Webhook oder E-Mail fuer kritische Alerts
 
 ## Compliance + Datenschutz
 
-- [ ] Datenarten dokumentiert (Nutzer, Sessions, Audit, Stream-Health, Endpoint-HW)
-- [ ] Retention-Regeln definiert
+- [x] Datenarten dokumentiert (Nutzer, Sessions, Audit, Stream-Health, Endpoint-HW) — `docs/runbooks/data-retention.md` (2026-04-30)
+- [x] Retention-Regeln definiert — `docs/runbooks/data-retention.md` Kapitel 2 (2026-04-30)
 - [ ] Audit-Export fuer Administratoren produktiv
-- [ ] PII-/Secret-Redaction validiert
+- [x] PII-/Secret-Redaction validiert — `docs/runbooks/data-retention.md` Kapitel 3 (2026-04-30)
 - [ ] Auftragsverarbeitung/DSGVO-Hinweise fuer Pilotkunden vorbereitet
