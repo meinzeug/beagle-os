@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import urllib.request
 from typing import Any
 
@@ -38,12 +39,21 @@ def main() -> int:
         print("error=missing token")
         return 2
 
-    smoke = subprocess.run(
-        [sys.executable, str(args.smoke_script), "--base", str(args.base), "--token", token],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    smoke = None
+    for attempt in range(2):
+        smoke = subprocess.run(
+            [sys.executable, str(args.smoke_script), "--base", str(args.base), "--token", token],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        combined = ((smoke.stdout or "") + "\n" + (smoke.stderr or "")).lower()
+        timed_out = "timed out" in combined
+        if smoke.returncode == 0 or not timed_out or attempt == 1:
+            break
+        time.sleep(1.0)
+
+    assert smoke is not None
     if smoke.stdout:
         print(smoke.stdout.rstrip())
     if smoke.stderr:
