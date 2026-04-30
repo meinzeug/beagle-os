@@ -21,7 +21,7 @@
 - [x] E2E-Smoke `tests/e2e/test_smoke_srv1.py` + nightly-Cron `e2e-nightly.yml`
 - [ ] `tests/bats/install_beagle_host.bats` mit Docker-Sandbox (deferred)
 - [ ] Integration-Test-Coverage-Report als CI-Artefakt
-- [ ] Cleanup-Hooks auf srv1 verlassen Host in sauberem Zustand (R3)
+- [x] Cleanup-Hooks auf srv1 verlassen Host in sauberem Zustand (R3) — `CLEANUP_HOOKS_SMOKE=PASS` auf srv1 (2026-04-30)
 
 ## Build + Release Pipeline
 

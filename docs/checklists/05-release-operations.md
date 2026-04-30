@@ -68,7 +68,7 @@
 
 ## Monitoring + Alerting
 
-- [ ] Control-Plane-Health-Endpoint liefert + alerted
+- [x] Control-Plane-Health-Endpoint liefert + alerted (R3) — `HEALTH_ENDPOINT_SMOKE=PASS` auf srv1 (2026-04-30, ok=true)
 - [ ] nginx/TLS-Health
 - [ ] Disk-/Storage-Fuellstand-Alert
 - [ ] VM-/Session-/Stream-Health

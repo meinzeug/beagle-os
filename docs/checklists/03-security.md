@@ -12,14 +12,14 @@
 - [x] Auth-Bootstrap auto-generiert (Plan 03 Schritt 3)
 - [x] Brute-Force-Schutz inkl. Rate-Limit-Test in pytest
 - [x] Session-Cookies: `Secure`, `HttpOnly`, `SameSite`, kurze TTL durchgaengig validieren (R3) — `Max-Age` fix in `request_handler_mixin._refresh_cookie_header`, 9 unit-tests `SESSION_COOKIE_FLAGS`=PASS (2026-04-30)
-- [ ] Login-Smoke per Chrome-DevTools auf Zielhost ohne Console-Fehler (R3)
+- [x] Login-Smoke per Chrome-DevTools auf Zielhost ohne Console-Fehler (R3) — `LOGIN_SMOKE=PASS` auf srv1 (2026-04-30, access_token valid, security headers OK)
 
 ## RBAC + Tenancy
 
 - [x] IAM v2 + Mandanten + SCIM/OIDC/SAML (`docs/archive/gofuture/13-iam-tenancy.md`)
 - [x] Tenant-Sichtbarkeit fuer VMs/Pools/Sessions/Audit
 - [x] RBAC-Regression fuer alle Built-in-Rollen: admin, operator, kiosk_operator, read-only, tenant-scoped (R3) — 42 tests in `test_authz_policy.py::BuiltInRoleRegressionTests` PASS (2026-04-30)
-- [ ] Browser-Smoke mit Nicht-Admin-Rolle zeigt keine Admin-Aktionen (R3)
+- [x] Browser-Smoke mit Nicht-Admin-Rolle zeigt keine Admin-Aktionen (R3) — `RBAC_ENFORCEMENT_SMOKE=PASS` auf srv1 (2026-04-30, tests_passed=8/8)
 
 ## Secret-Management
 
@@ -56,5 +56,5 @@
 
 ## Security-Findings Backlog
 
-- [ ] Alle offenen Findings in `docs/refactor/11-security-findings.md` auf `PATCHED` oder akzeptiertes Restrisiko (R3)
+- [x] Alle offenen Findings in `docs/refactor/11-security-findings.md` auf `PATCHED` oder akzeptiertes Restrisiko (R3) — alle 39 Findings PATCHED oder accepted (S-001..S-039)
 - [ ] Externer Security-Review / Penetrationstest ohne kritische Findings (R4)

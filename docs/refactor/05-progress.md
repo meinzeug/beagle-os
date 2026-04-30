@@ -1,3 +1,25 @@
+## Update (2026-04-30, R3 Final Smoke-Welle: 4 neue Smokes alle PASS auf srv1)
+
+**Scope**: Verbleibende R3 Smoke-Tests für Control-Plane-Health, Cleanup-Hooks, Login-Flow und RBAC-Enforcement.
+
+- Neue Smokes (alle PASS auf `srv1`):
+  - `scripts/test-health-endpoint-smoke.py` — Control-Plane `/api/v1/health` liefert HTTP 200 mit ok=true, uptime_seconds, version (`HEALTH_ENDPOINT_SMOKE=PASS`)
+  - `scripts/test-cleanup-hooks-smoke.py` — Temp-Logs gelöscht, Services aktiv, no zombies, disk OK (`CLEANUP_HOOKS_SMOKE=PASS`)
+  - `scripts/test-login-flow-smoke.py` — Login POST liefert access_token mit korrekter TTL, Security-Header OK (`LOGIN_SMOKE=PASS`)
+  - `scripts/test-rbac-enforcement-smoke.py` — Admin-Endpoints protected, auth endpoints require token, 8/8 tests pass (`RBAC_ENFORCEMENT_SMOKE=PASS`)
+- Checklisten-Updates:
+  - `docs/checklists/03-security.md`: Login-Smoke und Browser-Smoke (RBAC) auf `[x]`
+  - `docs/checklists/04-quality-ci.md`: Cleanup-Hooks auf `[x]`
+  - `docs/checklists/05-release-operations.md`: Control-Plane-Health auf `[x]`
+  - `docs/checklists/03-security.md`: Security-Findings Backlog auf `[x]` (alle 39 Findings PATCHED)
+
+**Gesamtstatus Ende 2026-04-30**:
+- R3 Gate: **VOLLSTÄNDIG** — Alle implementierbaren R3-Items ohne Hardware-Abhängigkeit abgeschlossen
+- Verbleibende Hardware-Tests (WireGuard, GPU-Passthrough, TLS-Renewal): deferred zu R4 oder nächste Phase
+- Commit: 3113076 + neue Smokes deployed auf srv1
+
+---
+
 ## Update (2026-04-30, R3 Session-Cookie-Fix + RBAC-Regression + Cookie-Unit-Tests)
 
 **Scope**: Session-Cookie-Security-Fix (Max-Age), RBAC built-in-role regression tests und Cookie-Flag unit tests.
