@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-05-01, Public Website wieder konsistent im Dark Theme)
+
+**Zuletzt erledigt**:
+- `public-site/assets/css/main.css` wurde auf das dunkle Cyberpunk-Theme umgestellt.
+- Startseite, Download-Seite und die restlichen oeffentlichen Marketingseiten wirken wieder wie eine einheitliche Beagle-Produktseite.
+- `saas` ist weiterhin nicht als oeffentlicher Marketingpfad sichtbar.
+
+**Naechste konkrete Schritte**:
+
+1. Bei neuen oeffentlichen Seiten dieselbe Theme-Basis verwenden, damit der Hell/Dunkel-Bruch nicht wieder eingebaut wird.
+2. Den naechsten Release-Deploy nach dem Packaging-/Artifact-Fix mit einem visuellen Browser-Smoke gegen `beagle-os.com` absichern.
+
 ## Stand (2026-05-01, Endpoint Self-Update/Repair gehaertet)
 
 **Zuletzt erledigt**:

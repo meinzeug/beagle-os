@@ -1,3 +1,12 @@
+## Update (2026-05-01, Public Website wieder im Cyberpunk-Theme)
+
+**Scope**: Die oeffentliche Website auf `beagle-os.com` wurde optisch wieder an die dunkle Startseiten-Optik angeglichen; `/download/`, `/about/`, `/docs/` und der private Lizenzpfad folgen jetzt derselben Produktfamilie.
+
+- `public-site/assets/css/main.css` wurde von der hellen Legacy-Palette auf eine dunkle Cyan/Magenta/Cyberpunk-Palette umgestellt.
+- `public-site/index.html` bleibt im dunklen Hero-Stil; die restlichen Marketingseiten nutzen jetzt dieselbe visuelle Sprache.
+- `public-site/saas/index.html` bleibt als private Lizenz-/Kontaktseite ohne oeffentliche SaaS-Vermarktung und ohne `noindex`-Verweis in den sichtbaren Menues.
+- Live-Validierung auf `beagle-os.com` zeigt wieder einen konsistenten dunklen Look auf Start- und Download-Seite.
+
 ## Update (2026-05-01, VM100 Thinclient WireGuard/Moonlight Live-Stick repariert)
 
 **Scope**: Lokal gebooteten VM100-Live-USB-Thinclient (`192.168.178.92`) gegen `srv1` untersuchen und Moonlight-Start ueber WireGuard/VPN wiederherstellen.
