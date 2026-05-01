@@ -156,6 +156,12 @@ jobs:
             rm -rf website/core
           }
           trap cleanup EXIT
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
           curl -fsS http://127.0.0.1:4173/ >/dev/null
           python3 scripts/test-provisioning-ui-smoke.py \
             --base-url http://127.0.0.1:4173 \
