@@ -491,8 +491,8 @@ jobs:
           from pathlib import Path
 
           data = json.loads(Path('/tmp/beagle-downloads-status.json').read_text())
-          if data.get('version') != '8.0':
-              raise SystemExit(f"expected public mirror version 8.0, got {data.get('version')!r}")
+          if data.get('version') != '8.0.0':
+              raise SystemExit(f"expected public mirror version 8.0.0, got {data.get('version')!r}")
           for key in ('payload_url', 'bootstrap_url', 'installer_iso_url', 'server_installer_iso_url', 'server_installimage_url'):
               value = str(data.get(key) or '')
               if '8.0' not in value and key != 'server_installimage_url':
