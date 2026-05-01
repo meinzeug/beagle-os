@@ -156,7 +156,7 @@ jobs:
             rm -rf website/core
           }
           trap cleanup EXIT
-          curl -fsS http://127.0.0.1:4173/ >/dev/null
+          curl -fsS --retry 10 --retry-delay 1 --retry-connrefused http://127.0.0.1:4173/ >/dev/null
           python3 scripts/test-provisioning-ui-smoke.py \
             --base-url http://127.0.0.1:4173 \
             --username admin \
