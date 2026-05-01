@@ -143,6 +143,8 @@ def test_enrollment_wireguard_writes_config_and_brings_interface_up(tmp_path: Pa
     env["BEAGLE_CONTROL_PLANE"] = "https://control.example"
     env["BEAGLE_DEVICE_ID"] = "endpoint-001"
     env["BEAGLE_ENROLLMENT_TOKEN"] = "enroll-token"
+    env["CONFIG_FILE"] = str(tmp_path / "thinclient.conf")
+    env["CREDENTIALS_FILE"] = str(tmp_path / "credentials.env")
     env["CURL_HTTP_CODE"] = "200"
     env["CURL_SERVER_PUBLIC_KEY"] = "server-pub-key"
     env["CURL_SERVER_ENDPOINT"] = "vpn.beagle-os.com:51820"
@@ -209,6 +211,8 @@ def test_enrollment_wireguard_supports_manager_bearer_registration(tmp_path: Pat
     env["BEAGLE_CONTROL_PLANE"] = "https://control.example"
     env["BEAGLE_DEVICE_ID"] = "endpoint-001"
     env["BEAGLE_MANAGER_TOKEN"] = "endpoint-bearer"
+    env["CONFIG_FILE"] = str(tmp_path / "thinclient.conf")
+    env["CREDENTIALS_FILE"] = str(tmp_path / "credentials.env")
     env["CURL_HTTP_CODE"] = "200"
     env["CURL_SERVER_PUBLIC_KEY"] = "server-pub-key"
     env["CURL_SERVER_ENDPOINT"] = "vpn.beagle-os.com:51820"
