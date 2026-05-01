@@ -391,6 +391,14 @@ Nebenwirkung Live-Fix: `tests.yml` faehrt nun auch Integration-Tests in CI (Job 
 - Konsequenz: `22/80/443` sind die einzigen allgemeinen Public-Host-Ports. `9088/9089` sind nur lokal, von VM-Bridges oder konfigurierten/erkannten Cluster-Peers erlaubt. VM-Forwarding ist Bridge-Egress oder explizit DNAT-getriggert.
 - Dateien: `scripts/apply-beagle-firewall.sh`, `scripts/install-beagle-host-services.sh`, `scripts/check-beagle-host.sh`, `beagle-host/services/server_settings.py`, `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-live-server-bootstrap`, `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`.
 
+## D-051: Produktive Beagle-Hosts hosten nur Endpoint-Artefakte lokal
+
+- Entscheidung: Produktive Beagle-Hosts (`srv1`/`srv2`) bauen und validieren unter `/beagle-downloads` nur endpoint-/thin-client-bezogene Artefakte.
+- Entscheidung: `beagle-os-server-installer-amd64.iso` und `Debian-1201-bookworm-amd64-beagle-server.tar.gz` bleiben Public-Release-Artefakte und sind nicht Teil des lokalen Host-Refresh-/Watchdog-/Health-Pfads.
+- Grund: Die beiden Server-Release-Dateien sind gross, fuer die Runtime des Beagle-Hosts selbst nicht notwendig und verlaengern lokale Artefakt-Refreshes unnoetig. Die getrennte Bereitstellung auf der Public-Website reicht fuer Server-Installationsfaelle aus.
+- Konsequenz: `prepare-host-downloads.sh`, `artifact-watchdog.sh`, `check-beagle-host.sh`, `install-beagle-host.sh` und die WebUI-Artefaktpruefung behandeln diese Dateien auf laufenden Hosts nicht mehr als Pflicht. Fuer echte Release-/Public-Publish-Laeufe bleibt der Buildpfad weiter ueber `package.sh` mit aktivierten Server-Release-Artefakten verfuegbar.
+- Dateien: `scripts/package.sh`, `scripts/prepare-host-downloads.sh`, `scripts/check-beagle-host.sh`, `scripts/artifact-watchdog.sh`, `scripts/install-beagle-host.sh`, `scripts/lib/prepare_host_downloads.py`, `beagle-host/services/server_settings.py`.
+
 ## 2026-04-26 - Cluster Leave und Virtualization Overview bleiben leader-/cluster-autoritativ
 
 - Ein Cluster-Mitglied darf seinen lokalen Cluster-State loeschen, aber nicht den Leader-State still implizit veraendern.

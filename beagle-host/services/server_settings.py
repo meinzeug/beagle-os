@@ -50,8 +50,6 @@ _REQUIRED_ARTIFACTS = [
     "pve-thin-client-usb-payload-latest.tar.gz",
     "pve-thin-client-usb-bootstrap-latest.tar.gz",
     "beagle-os-installer-amd64.iso",
-    "beagle-os-server-installer-amd64.iso",
-    "Debian-1201-bookworm-amd64-beagle-server.tar.gz",
 ]
 
 _PUBLIC_THIN_CLIENT_LATEST_ARTIFACTS = [

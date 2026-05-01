@@ -209,7 +209,6 @@ ensure_dependencies() {
 }
 
 have_packaged_assets() {
-  local server_installimage_filename="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
   [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-installer-v${VERSION}.sh" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-installer-latest.sh" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-live-usb-v${VERSION}.sh" ]] &&
@@ -223,16 +222,12 @@ have_packaged_assets() {
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-latest.tar.gz" ]] &&
     [[ -f "$INSTALL_DIR/dist/beagle-os-installer-amd64.iso" ]] &&
-    [[ -f "$INSTALL_DIR/dist/beagle-os-installer.iso" ]] &&
-    [[ -f "$INSTALL_DIR/dist/beagle-os-server-installer-amd64.iso" ]] &&
-    [[ -f "$INSTALL_DIR/dist/beagle-os-server-installer.iso" ]] &&
-    [[ -f "$INSTALL_DIR/dist/$server_installimage_filename" ]]
+    [[ -f "$INSTALL_DIR/dist/beagle-os-installer.iso" ]]
 }
 
 download_release_assets() {
   local base_url="$1"
   local dist_dir="$INSTALL_DIR/dist"
-  local server_installimage_filename="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
 
   command -v curl >/dev/null 2>&1 || return 1
 
@@ -283,11 +278,6 @@ download_release_assets() {
     curl -fsSLo "$dist_dir/beagle-os-installer-amd64.iso" \
       "$base_url/beagle-os-installer-amd64.iso" &&
     install -m 0644 "$dist_dir/beagle-os-installer-amd64.iso" "$dist_dir/beagle-os-installer.iso" &&
-    curl -fsSLo "$dist_dir/beagle-os-server-installer-amd64.iso" \
-      "$base_url/beagle-os-server-installer-amd64.iso" &&
-    install -m 0644 "$dist_dir/beagle-os-server-installer-amd64.iso" "$dist_dir/beagle-os-server-installer.iso" &&
-    curl -fsSLo "$dist_dir/$server_installimage_filename" \
-      "$base_url/$server_installimage_filename" &&
     curl -fsSLo "$dist_dir/SHA256SUMS" "$base_url/SHA256SUMS"
 }
 
@@ -298,7 +288,7 @@ ensure_release_assets_or_die() {
     echo "Required release assets are missing in $INSTALL_DIR/dist; trying public artifact download..." >&2
     if ! download_release_assets "$release_base_url"; then
       echo "Public artifact download failed; trying local packaging..." >&2
-      "$INSTALL_DIR/scripts/package.sh" || true
+      BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS=0 "$INSTALL_DIR/scripts/package.sh" || true
     fi
 
     if ! have_packaged_assets; then

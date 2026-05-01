@@ -6307,3 +6307,23 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `bash -n thin-client-assistant/usb/pve-thin-client-usb-installer.sh`
   - `python3 tests/unit/test_usb_installer_shell_regressions.py`
   - `pytest` war lokal weiterhin nicht installiert
+
+## Update (2026-05-01, Host-Artefakte: Server-Release-Builds auf Beagle-Hosts abgeschaltet)
+
+**Scope**: `srv1`/`srv2` sollen fuer ihre lokalen `/beagle-downloads` nur Endpoint-/Thin-Client-Artefakte erzeugen und hosten. Die grossen Server-Release-Artefakte `beagle-os-server-installer-amd64.iso` und `Debian-1201-bookworm-amd64-beagle-server.tar.gz` bleiben auf der separaten Public-Release-Seite und werden nicht mehr als Pflicht fuer Host-Refresh, Host-Install oder Host-Health behandelt.
+
+- Host-Refresh-/Packaging-Fix:
+  - [scripts/package.sh](/home/dennis/beagle-os/scripts/package.sh): neuer Schalter `BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS`, damit Host-Refreshes Server-Release-Artefakte sauber auslassen koennen
+  - [scripts/prepare-host-downloads.sh](/home/dennis/beagle-os/scripts/prepare-host-downloads.sh): defaultet jetzt auf host-lokale Thin-Client-/Endpoint-Artefakte, schreibt keine lokalen Server-ISO-/installimage-Links mehr in `beagle-downloads-index.html` oder `beagle-downloads-status.json`
+  - [scripts/lib/prepare_host_downloads.py](/home/dennis/beagle-os/scripts/lib/prepare_host_downloads.py): `write_download_status()` behandelt Server-Release-Felder jetzt optional statt Pflicht
+- Host-Policy-/Health-Fix:
+  - [scripts/check-beagle-host.sh](/home/dennis/beagle-os/scripts/check-beagle-host.sh), [scripts/artifact-watchdog.sh](/home/dennis/beagle-os/scripts/artifact-watchdog.sh), [scripts/install-beagle-host.sh](/home/dennis/beagle-os/scripts/install-beagle-host.sh) und [beagle-host/services/server_settings.py](/home/dennis/beagle-os/beagle-host/services/server_settings.py) verlangen die beiden Server-Release-Artefakte auf produktiven Beagle-Hosts nicht mehr
+- Regressionen:
+  - [tests/unit/test_package_sh_regressions.py](/home/dennis/beagle-os/tests/unit/test_package_sh_regressions.py)
+  - [tests/unit/test_host_artifact_server_release_regressions.py](/home/dennis/beagle-os/tests/unit/test_host_artifact_server_release_regressions.py)
+  - [tests/unit/test_prepare_host_downloads_status_regressions.py](/home/dennis/beagle-os/tests/unit/test_prepare_host_downloads_status_regressions.py)
+- Validierung:
+  - `bash -n scripts/package.sh scripts/prepare-host-downloads.sh scripts/check-beagle-host.sh scripts/install-beagle-host.sh scripts/artifact-watchdog.sh`
+  - `python3 -m py_compile scripts/lib/prepare_host_downloads.py beagle-host/services/server_settings.py`
+  - `python3 -m unittest tests.unit.test_server_settings -q`
+  - ad-hoc Python-Runner fuer die neuen Regressionen

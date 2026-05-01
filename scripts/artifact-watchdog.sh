@@ -45,8 +45,6 @@ required = [
     "pve-thin-client-usb-payload-latest.tar.gz",
     "pve-thin-client-usb-bootstrap-latest.tar.gz",
     "beagle-os-installer-amd64.iso",
-    "beagle-os-server-installer-amd64.iso",
-    "Debian-1201-bookworm-amd64-beagle-server.tar.gz",
 ]
 latest_public = [
     "pve-thin-client-usb-installer-latest.sh",
