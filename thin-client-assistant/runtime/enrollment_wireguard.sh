@@ -21,6 +21,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "${SCRIPT_DIR}/common.sh" 2>/dev/null || true
+PERSIST_WIREGUARD_CONFIG_PY="${PERSIST_WIREGUARD_CONFIG_PY:-$SCRIPT_DIR/persist_wireguard_runtime_config.py}"
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -200,6 +201,28 @@ apply_wireguard_peer_config() {
     wg setconf "${WG_IFACE}" "$runtime_conf"
 }
 
+persist_runtime_wireguard_config() {
+    local config_dir config_file credentials_file keepalive
+    [[ -f "${PERSIST_WIREGUARD_CONFIG_PY}" ]] || return 0
+
+    config_dir="${CONFIG_DIR:-${PVE_THIN_CLIENT_SYSTEM_CONFIG_DIR:-/etc/pve-thin-client}}"
+    config_file="${CONFIG_FILE:-${config_dir}/thinclient.conf}"
+    credentials_file="${CREDENTIALS_FILE:-${config_dir}/credentials.env}"
+    keepalive="${PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE:-25}"
+
+    python3 "${PERSIST_WIREGUARD_CONFIG_PY}" \
+        "${config_file}" \
+        "${credentials_file}" \
+        "${CLIENT_IP}" \
+        "${DNS}" \
+        "${SERVER_PUBKEY}" \
+        "${SERVER_ENDPOINT}" \
+        "${ALLOWED_IPS}" \
+        "${PRIVATE_KEY}" \
+        "${PRESHARED_KEY}" \
+        "${keepalive}"
+}
+
 # ---------------------------------------------------------------------------
 # Generate keypair (only if private key does not already exist)
 # ---------------------------------------------------------------------------
@@ -276,6 +299,8 @@ if [[ -z "${SERVER_PUBKEY}" || -z "${SERVER_ENDPOINT}" || -z "${CLIENT_IP}" ]]; 
     echo "${RESPONSE}" >&2
     exit 3
 fi
+
+persist_runtime_wireguard_config
 
 # ---------------------------------------------------------------------------
 # Write /etc/wireguard/wg-beagle.conf

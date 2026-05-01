@@ -57,7 +57,7 @@ launch_moonlight() {
   app="$(render_template "${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}")"
   write_launch_status "MOONLIGHT" "sunshine" "${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}" "${host}:${app}"
   beagle_log_event "launch-session.exec" "binary=${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight} target=${host}:${app}"
-  exec "$SCRIPT_DIR/launch-moonlight.sh"
+  beagle_launch_moonlight_session
 }
 
 launch_kiosk() {

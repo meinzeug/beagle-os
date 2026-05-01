@@ -6,6 +6,9 @@ source "$ROOT_DIR/scripts/lib/disk_guardrails.sh"
 source "$ROOT_DIR/scripts/lib/artifact_lock.sh"
 beagle_artifact_lock_acquire "package"
 DIST_DIR="$ROOT_DIR/dist"
+PACKAGE_RUNTIME_DIR="${BEAGLE_PACKAGE_RUNTIME_DIR:-$ROOT_DIR/.build/package-runtime}"
+PACKAGE_HOME_DIR="${BEAGLE_PACKAGE_HOME_DIR:-$PACKAGE_RUNTIME_DIR/home}"
+PACKAGE_NPM_CACHE_DIR="${BEAGLE_PACKAGE_NPM_CACHE_DIR:-$PACKAGE_RUNTIME_DIR/npm-cache}"
 INSTALLER_BUILD_DIR="${INSTALLER_BUILD_DIR:-${THINCLIENT_DIST_DIR:-$DIST_DIR/pve-thin-client-installer}}"
 SERVER_INSTALLER_DIST_DIR="${SERVER_INSTALLER_DIST_DIR:-$DIST_DIR/beagle-os-server-installer}"
 SERVER_INSTALLIMAGE_DIST_DIR="${SERVER_INSTALLIMAGE_DIST_DIR:-$DIST_DIR/beagle-os-server-installimage}"
@@ -131,6 +134,11 @@ require_tool sha256sum
 require_tool python3
 require_tool node
 require_tool npm
+
+install -d -m 0755 "$PACKAGE_HOME_DIR" "$PACKAGE_NPM_CACHE_DIR"
+export HOME="$PACKAGE_HOME_DIR"
+export npm_config_cache="$PACKAGE_NPM_CACHE_DIR"
+export NPM_CONFIG_CACHE="$PACKAGE_NPM_CACHE_DIR"
 
 sync_web_ui_asset_versions
 
