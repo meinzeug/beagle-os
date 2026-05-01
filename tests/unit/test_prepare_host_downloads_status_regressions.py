@@ -78,3 +78,13 @@ def test_write_download_status_omits_server_release_artifacts_when_not_hosted_lo
         assert "server_installer_iso_url" not in payload_json
         assert "server_installimage_url" not in payload_json
         assert payload_json["installer_iso_url"].endswith("beagle-os-installer-amd64.iso")
+
+
+def test_prepare_host_downloads_rebuilds_usb_payload_when_thinclient_runtime_changes() -> None:
+    script = (ROOT / "scripts" / "prepare-host-downloads.sh").read_text(encoding="utf-8")
+
+    assert "any_source_newer_than()" in script
+    assert '"$ROOT_DIR/thin-client-assistant/runtime"' in script
+    assert '"$ROOT_DIR/thin-client-assistant/live-build"' in script
+    assert 'any_source_newer_than "$packaged_payload" "${thin_client_package_sources[@]}"' in script
+    assert 'any_source_newer_than "$packaged_bootstrap" "${thin_client_package_sources[@]}"' in script

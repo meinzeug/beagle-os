@@ -104,6 +104,25 @@ copy_if_missing_or_older() {
   fi
 }
 
+any_source_newer_than() {
+  local target_path="$1"
+  shift
+
+  [[ -f "$target_path" ]] || return 0
+  while [[ "$#" -gt 0 ]]; do
+    local source_path="$1"
+    shift
+    [[ -e "$source_path" ]] || continue
+    if [[ -f "$source_path" && "$source_path" -nt "$target_path" ]]; then
+      return 0
+    fi
+    if [[ -d "$source_path" ]] && find "$source_path" -type f -newer "$target_path" -print -quit | grep -q .; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 # Build bootstrap + payload tarballs from an already-present installer ISO
 # (e.g. deployed via rsync without running the full thin-client live-build).
 # Called automatically when the bootstrap tarball is missing but the ISO exists.
@@ -113,7 +132,13 @@ ensure_bootstrap_from_deployed_iso() {
   local packaged_payload="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
 
   # Nothing to do if the bootstrap is already present and up-to-date
-  [[ -f "$packaged_bootstrap" ]] && [[ "$packaged_bootstrap" -nt "$iso" ]] && return 0
+  if [[ -f "$packaged_bootstrap" ]] && [[ "$packaged_bootstrap" -nt "$iso" ]] && \
+     ! any_source_newer_than "$packaged_bootstrap" \
+       "$ROOT_DIR/thin-client-assistant" \
+       "$ROOT_DIR/scripts/prepare-host-downloads.sh" \
+       "$ROOT_DIR/scripts/package.sh"; then
+    return 0
+  fi
   # Nothing to do if the ISO is missing
   [[ -f "$iso" ]] || return 0
 
@@ -203,6 +228,17 @@ ensure_current_packaged_artifacts() {
   local packaged_windows_live_usb="$DIST_DIR/pve-thin-client-live-usb-latest.ps1"
   local source_installer="$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.sh"
   local source_windows_installer="$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.ps1"
+  local -a thin_client_package_sources=(
+    "$ROOT_DIR/thin-client-assistant/runtime"
+    "$ROOT_DIR/thin-client-assistant/live-build"
+    "$ROOT_DIR/thin-client-assistant/systemd"
+    "$ROOT_DIR/thin-client-assistant/installer"
+    "$ROOT_DIR/thin-client-assistant/templates"
+    "$ROOT_DIR/thin-client-assistant/usb"
+    "$ROOT_DIR/scripts/build-thin-client-installer.sh"
+    "$ROOT_DIR/scripts/package.sh"
+    "$ROOT_DIR/scripts/prepare-host-downloads.sh"
+  )
 
   recover_packaged_artifacts_from_existing_builds
 
@@ -223,6 +259,14 @@ ensure_current_packaged_artifacts() {
   fi
 
   if [[ "$needs_package" -eq 0 && -f "$source_windows_installer" && "$source_windows_installer" -nt "$packaged_windows_installer" ]]; then
+    needs_package=1
+  fi
+
+  if [[ "$needs_package" -eq 0 ]] && any_source_newer_than "$packaged_payload" "${thin_client_package_sources[@]}"; then
+    needs_package=1
+  fi
+
+  if [[ "$needs_package" -eq 0 ]] && any_source_newer_than "$packaged_bootstrap" "${thin_client_package_sources[@]}"; then
     needs_package=1
   fi
 
