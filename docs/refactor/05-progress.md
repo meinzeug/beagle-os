@@ -30,6 +30,14 @@
   - aktiviert sonst GitHub Auto-Merge als Fallback
 - Das neue Verhalten reduziert manuelle Zwischenstufen nach Copilot-Fixes ohne normale PRs zu beeinflussen.
 
+## Update (2026-05-01, Release-/Website-Deploy-Drift eingegrenzt)
+
+**Scope**: Warum `beagle-os.com` und die GitHub-Release-Anzeige noch hinter dem Repo standen, wurde auf den konkreten Release-Packaging-Fehler und den veralteten Public-Mirror-Zustand eingegrenzt.
+
+- `scripts/package.sh` hat im Release-Pfad zu spaet eine temporäre `dist/SHA256SUMS` erzeugt; `verify-server-installer-artifacts.sh` brach dadurch im `v8.0`-Release vorzeitig ab.
+- Der öffentliche Webroot auf `beagle-os.com` lief noch auf einem alten Stand und wurde jetzt direkt aus `public-site/` synchronisiert.
+- Der Public-Mirror-Stand der Artefakte ist auf `srv1` aktuell, die Veröffentlichung auf den externen Webroot haengt aber am erfolgreichen Release-Workflow.
+
 ---
 
 ## Update (2026-04-30, R1-VM-Lifecycle geschlossen + Final-Smoke PASS)

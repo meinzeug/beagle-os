@@ -16,6 +16,21 @@
 
 ---
 
+## Stand (2026-05-01, Release/Website-Deploy nachgezogen)
+
+**Zuletzt erledigt**:
+- `beagle-os.com`-Webroot wurde direkt aus `public-site/` synchronisiert, damit die sichtbare Website nicht mehr hinter dem Repo steht.
+- Der `v8.0`-Release-Blocker ist auf das zu spaet erzeugte `dist/SHA256SUMS` im Packaging-Pfad eingegrenzt.
+- Der Public-Deploy fuer Artefakte bleibt an den erfolgreichen Release-Workflow gebunden; nach dem Fix kann `v8.0` sauber neu ausgerollt werden.
+
+**Naechste konkrete Schritte**:
+
+1. Den `v8.0`-Release-Workflow nach dem Packaging-Fix neu ausrollen, damit GitHub `Latest` und die öffentlichen Artefakte wieder auf 8.0 ziehen.
+2. Den Public-Mirror danach gegen `beagle-os.com/beagle-updates` validieren und die JSON/Checksummen auf dem externen Host pruefen.
+3. Optional die Website-/Download-Smokes als post-deploy Check in den Release-Workflow aufnehmen, damit eine falsche Webroot-/Mirror-Zuordnung nicht mehr gruen durchrutscht.
+
+---
+
 ## Stand (2026-05-01, Live-USB Netzwerk-TUI persistent umgesetzt)
 
 **Zuletzt erledigt**:

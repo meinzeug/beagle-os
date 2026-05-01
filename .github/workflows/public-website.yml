@@ -44,3 +44,16 @@ jobs:
         env:
           BEAGLE_PUBLIC_SITE_TARGET: ${{ secrets.BEAGLE_PUBLIC_SITE_TARGET }}
         run: bash scripts/deploy-public-website.sh
+
+      - name: Verify live website content
+        run: |
+          curl -fsSL https://beagle-os.com/ >/tmp/beagle-homepage.html
+          curl -fsSL https://beagle-os.com/download/ >/tmp/beagle-download.html
+          grep -q 'Standalone virtualization' /tmp/beagle-homepage.html
+          grep -q 'Release v8.0' /tmp/beagle-homepage.html
+          grep -q 'Current release: v8.0' /tmp/beagle-download.html
+          grep -q 'v8.0' /tmp/beagle-download.html
+          if grep -qi 'Proxmox optional' /tmp/beagle-homepage.html; then
+            echo "Live website still contains legacy Proxmox copy" >&2
+            exit 1
+          fi

@@ -449,7 +449,7 @@ jobs:
 
   deploy-public-artifacts:
     name: Deploy public artifacts to beagle-os.com
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' || github.ref == 'refs/heads/main'
     needs: [create-release]
     runs-on: ubuntu-latest
 
@@ -482,3 +482,19 @@ jobs:
         env:
           BEAGLE_PUBLIC_UPDATE_TARGET: ${{ secrets.BEAGLE_PUBLIC_UPDATE_TARGET }}
         run: bash scripts/publish-public-update-artifacts.sh
+
+      - name: Verify public update mirror
+        run: |
+          curl -fsSL https://beagle-os.com/beagle-updates/beagle-downloads-status.json >/tmp/beagle-downloads-status.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path('/tmp/beagle-downloads-status.json').read_text())
+          if data.get('version') != '8.0':
+              raise SystemExit(f"expected public mirror version 8.0, got {data.get('version')!r}")
+          for key in ('payload_url', 'bootstrap_url', 'installer_iso_url', 'server_installer_iso_url', 'server_installimage_url'):
+              value = str(data.get(key) or '')
+              if '8.0' not in value and key != 'server_installimage_url':
+                  raise SystemExit(f"expected {key} to point at 8.0 artifacts, got {value!r}")
+          PY

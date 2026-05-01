@@ -194,6 +194,17 @@ if [[ "$BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS" == "1" ]]; then
 
   install -m 0644 "$SERVER_INSTALLIMAGE_DIST_DIR/$SERVER_INSTALLIMAGE_NAME" "$DIST_DIR/$SERVER_INSTALLIMAGE_NAME"
 
+  # The server-installer verifier expects a checksum manifest to exist already.
+  # Seed a temporary checksum file here so the verifier can validate the current
+  # ISO set before the final release bundle checksum is regenerated below.
+  (
+    cd "$DIST_DIR"
+    sha256sum \
+      "$SERVER_INSTALLER_ISO_NAME" \
+      "$SERVER_INSTALLER_ISO_ARCH_NAME" \
+      > "$CHECKSUM_FILE"
+  )
+
   BEAGLE_VERIFY_REQUIRE_SIGNATURES=0 \
   BEAGLE_VERIFY_SERVER_INSTALLER_DIR="$DIST_DIR" \
   BEAGLE_VERIFY_SERVER_INSTALLIMAGE_DIR="$DIST_DIR" \
