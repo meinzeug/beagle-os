@@ -17,7 +17,18 @@
 - Live-Validierung:
   - Thinclient `wg-beagle` handshaket mit `srv1`.
   - Thinclient erreicht `192.168.123.114:50000` und `192.168.123.114:50001`.
-  - Moonlight-Prozess laeuft gegen `192.168.123.114:50000`.
+- Moonlight-Prozess laeuft gegen `192.168.123.114:50000`.
+
+## Update (2026-05-01, Copilot Autofix + Auto-Merge)
+
+**Scope**: Copilot-zugewiesene Autofix-PRs nicht nur erzeugen, sondern bei gruenem CI automatisch in `main` mergen.
+
+- Neuer Merge-Workflow `copilot-automerge` eingefuegt:
+  - laeuft nach den relevanten CI-Workflows per `workflow_run`
+  - findet PRs von `copilot-swe-agent[bot]`
+  - merged sofort bei `mergeStateStatus=CLEAN`
+  - aktiviert sonst GitHub Auto-Merge als Fallback
+- Das neue Verhalten reduziert manuelle Zwischenstufen nach Copilot-Fixes ohne normale PRs zu beeinflussen.
 
 ---
 

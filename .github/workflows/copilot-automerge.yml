@@ -1,0 +1,44 @@
+name: copilot-automerge
+
+on:
+  workflow_run:
+    workflows:
+      - build-iso
+      - e2e-nightly
+      - lint
+      - no-legacy-provider-references
+      - public-website
+      - release
+      - security-audit
+      - security-secrets-check
+      - security-subprocess-check
+      - security-tls-check
+      - tests
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: read
+
+jobs:
+  merge-copilot-pr:
+    name: Merge Copilot PR when checks pass
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Merge Copilot pull request
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          WORKFLOW_URL: ${{ github.event.workflow_run.html_url }}
+          WORKFLOW_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: bash scripts/merge-copilot-autofix-pr.sh
