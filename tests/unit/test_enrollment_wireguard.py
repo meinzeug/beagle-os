@@ -196,11 +196,11 @@ def test_enrollment_wireguard_supports_manager_bearer_registration(tmp_path: Pat
     curl_path = bindir / "curl"
     curl_path.write_text(
         curl_path.read_text(encoding="utf-8").replace(
-            "done\\n"
-            "if [[ -n \"${CURL_DATA_LOG:-}\" ]]; then\\n",
-            "done\\n"
-            "printf '%s\\n' \"$*\" >\"${CURL_ARGS_LOG:?}\"\\n"
-            "if [[ -n \"${CURL_DATA_LOG:-}\" ]]; then\\n",
+            "while [[ $# -gt 0 ]]; do\n",
+            "if [[ -n \"${CURL_ARGS_LOG:-}\" ]]; then\n"
+            "  printf '%s\\n' \"$*\" >\"${CURL_ARGS_LOG}\"\n"
+            "fi\n"
+            "while [[ $# -gt 0 ]]; do\n",
         ),
         encoding="utf-8",
     )
