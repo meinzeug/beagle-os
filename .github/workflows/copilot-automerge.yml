@@ -24,6 +24,25 @@ permissions:
   actions: write
 
 jobs:
+  close-resolved-autofix-issues:
+    name: Close resolved Copilot autofix issues
+    if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'main' || startsWith(github.event.workflow_run.head_branch, 'v')) }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Close matching resolved autofix issues
+        env:
+          COPILOT_ASSIGNMENT_TOKEN: ${{ secrets.COPILOT_ASSIGNMENT_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          WORKFLOW_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+          WORKFLOW_URL: ${{ github.event.workflow_run.html_url }}
+        run: bash scripts/close-resolved-copilot-autofix-issues.sh
+
   approve-copilot-pr-run:
     name: Approve Copilot PR checks when GitHub pauses them
     if: ${{ github.event.workflow_run.conclusion == 'action_required' }}

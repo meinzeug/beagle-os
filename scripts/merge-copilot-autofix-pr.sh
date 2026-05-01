@@ -142,6 +142,7 @@ if [[ "$merge_state" == "CLEAN" ]]; then
     --squash \
     --delete-branch \
     --match-head-commit "$WORKFLOW_SHA"
+  echo "[copilot-automerge] merged PR #${pr_number}; matching autofix issues will close after main checks pass" >&2
   exit 0
 fi
 

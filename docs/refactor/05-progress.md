@@ -6486,6 +6486,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - [scripts/approve-copilot-pr-workflow-run.sh](/home/dennis/beagle-os/scripts/approve-copilot-pr-workflow-run.sh): markiert Copilot-PRs ready-for-review und approved pausierte Workflow-Runs.
   - [scripts/merge-copilot-autofix-pr.sh](/home/dennis/beagle-os/scripts/merge-copilot-autofix-pr.sh): Draft-PRs werden nicht mehr ignoriert, sondern automatisch ready gesetzt.
   - [scripts/create-copilot-autofix-issue.sh](/home/dennis/beagle-os/scripts/create-copilot-autofix-issue.sh): offene Autofix-Issues werden pro Workflow/Branch wiederverwendet statt gespammt.
+  - [scripts/close-resolved-copilot-autofix-issues.sh](/home/dennis/beagle-os/scripts/close-resolved-copilot-autofix-issues.sh): sobald ein Workflow auf `main` oder Release-Tag wieder gruen ist, werden passende offene `[autofix]`-Issues automatisch kommentiert und geschlossen.
 - Validierung:
   - `bash -n` fuer betroffene Shell-Skripte
   - `python3 -m py_compile scripts/render-site-templates.py`

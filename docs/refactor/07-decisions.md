@@ -422,6 +422,7 @@ Nebenwirkung Live-Fix: `tests.yml` faehrt nun auch Integration-Tests in CI (Job 
 
 - Entscheidung: Copilot-Autofix-PRs sind technische CI-Fix-PRs und duerfen durch den Automerge-Workflow aus Draft geholt, fuer pausierte Workflow-Runs approved und nach gruenen Checks automatisch gemerged werden.
 - Entscheidung: Neue Autofix-Issues werden pro Workflow/Branch dedupliziert; Folgefehler kommentieren das bestehende Issue statt neue parallele Copilot-Aufgaben zu erzeugen.
+- Entscheidung: Autofix-Issues werden automatisch geschlossen, wenn der betroffene Workflow auf `main` oder einem Release-Tag wieder erfolgreich laeuft.
 - Grund: GitHub erzeugt Copilot-Coding-Agent-PRs haeufig als Draft und PR-Workflow-Runs koennen auf `action_required` stehen. Ohne automatisches Ready/Approval koennen auch mergebare PRs nicht in den Merge-Pfad gelangen.
 - Konsequenz: Der Automerge-Workflow nutzt bevorzugt `COPILOT_ASSIGNMENT_TOKEN`, faellt aber auf `GITHUB_TOKEN` zurueck. Branch-Protection oder fehlende Token-Rechte bleiben harte externe Blocker.
-- Dateien: `.github/workflows/copilot-automerge.yml`, `scripts/approve-copilot-pr-workflow-run.sh`, `scripts/create-copilot-autofix-issue.sh`, `scripts/merge-copilot-autofix-pr.sh`.
+- Dateien: `.github/workflows/copilot-automerge.yml`, `scripts/approve-copilot-pr-workflow-run.sh`, `scripts/close-resolved-copilot-autofix-issues.sh`, `scripts/create-copilot-autofix-issue.sh`, `scripts/merge-copilot-autofix-pr.sh`.
