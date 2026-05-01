@@ -88,3 +88,11 @@ def test_prepare_host_downloads_rebuilds_usb_payload_when_thinclient_runtime_cha
     assert '"$ROOT_DIR/thin-client-assistant/live-build"' in script
     assert 'any_source_newer_than "$packaged_payload" "${thin_client_package_sources[@]}"' in script
     assert 'any_source_newer_than "$packaged_bootstrap" "${thin_client_package_sources[@]}"' in script
+
+
+def test_iso_bootstrap_fast_path_does_not_mask_thinclient_source_rebuild() -> None:
+    script = (ROOT / "scripts" / "prepare-host-downloads.sh").read_text(encoding="utf-8")
+    fast_path = script.split("ensure_bootstrap_from_deployed_iso()", 1)[1].split("recover_packaged_artifacts_from_existing_builds()", 1)[0]
+
+    assert '[[ "$packaged_bootstrap" -nt "$iso" ]]' in fast_path
+    assert "any_source_newer_than" not in fast_path

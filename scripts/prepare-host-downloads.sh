@@ -132,11 +132,7 @@ ensure_bootstrap_from_deployed_iso() {
   local packaged_payload="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
 
   # Nothing to do if the bootstrap is already present and up-to-date
-  if [[ -f "$packaged_bootstrap" ]] && [[ "$packaged_bootstrap" -nt "$iso" ]] && \
-     ! any_source_newer_than "$packaged_bootstrap" \
-       "$ROOT_DIR/thin-client-assistant" \
-       "$ROOT_DIR/scripts/prepare-host-downloads.sh" \
-       "$ROOT_DIR/scripts/package.sh"; then
+  if [[ -f "$packaged_bootstrap" ]] && [[ "$packaged_bootstrap" -nt "$iso" ]]; then
     return 0
   fi
   # Nothing to do if the ISO is missing
