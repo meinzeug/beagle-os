@@ -83,7 +83,7 @@ resolve_endpoint_ip() {
         printf '%s\n' "$host"
         return 0
     fi
-    getent ahostsv4 "$host" 2>/dev/null | awk 'NR==1 { print $1 }'
+    getent ahostsv4 "$host" 2>/dev/null | awk 'NR==1 { print $1 }' || true
 }
 
 apply_dns_settings() {

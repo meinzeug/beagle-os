@@ -333,7 +333,7 @@ verify_public_api_insecure_local() {
   fi
 
   # tls-bypass-allowlist: this fallback is limited to direct private guest addresses used for host-local readiness probes
-  curl -fsS --connect-timeout 4 --max-time 10 --insecure --user "${sunshine_user}:${sunshine_password}" "${api_url%/}/api/apps" >/dev/null
+  curl -fsS --connect-timeout 4 --max-time 10 --insecure --user "${sunshine_user}:${sunshine_password}" "${api_url%/}/api/apps" >/dev/null # tls-bypass-allowlist: host-local readiness probe against self-signed Sunshine TLS
 }
 
 run_public_stream_reconcile() {

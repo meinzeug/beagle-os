@@ -69,8 +69,5 @@ PY
 systemctl restart beagle-control-plane.service
 sleep 2
 
-curl -sk -w "\nHTTP:%{http_code}\n" \
-  -H "content-type: application/json" \
-  -X POST https://localhost/beagle-api/api/v1/auth/login \
-  --data "{\"username\":\"admin\",\"password\":\"$NEW_PASSWORD\"}" | head -c 700
+curl -sk -w "\nHTTP:%{http_code}\n" -H "content-type: application/json" -X POST https://localhost/beagle-api/api/v1/auth/login --data "{\"username\":\"admin\",\"password\":\"$NEW_PASSWORD\"}" | head -c 700 # tls-bypass-allowlist: local admin reset runs against self-signed control plane
 REMOTE

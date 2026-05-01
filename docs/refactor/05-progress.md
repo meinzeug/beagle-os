@@ -6411,3 +6411,15 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `python3 -m py_compile` fuer Updater und betroffene Backend-Services
   - `bash -n` fuer Healthcheck/Endpoint-Report/Dispatch/Prepare-Runtime
   - direkter Python-Runner fuer die betroffenen Regressionen
+
+## Stand (2026-05-01, CI failure -> Copilot autofix handoff)
+
+**Zuletzt erledigt**:
+- Ein neuer `workflow_run`-Workflow erstellt bei fehlgeschlagenen GitHub Actions automatisch ein Issue mit Log-Auszug und weist es Copilot coding agent zu.
+- Der WireGuard-Enrollment-Pfad im Thin-Client wurde gegen den fehlschlagenden DNS-Resolve-Zweig gehärtet, so dass der CI-Stublauf wieder grün ist.
+- Die `security-tls-check`-Regel bleibt aktiv; alle aktuell legitimen TLS-Ausnahmen sind nun inline mit `tls-bypass-allowlist` markiert und dokumentiert.
+
+**Naechste konkrete Schritte**:
+1. GitHub Actions nach dem Push beobachten und den ersten automatisch erzeugten Copilot-Fix-Task verifizieren.
+2. Falls Copilot coding agent bei einem Run nicht verfügbar ist, Secret-/Policy-Konfiguration auf GitHub korrigieren.
+3. Die bestehenden Release-/Build-Workflows auf weitere echte CI-Fehler prüfen, sobald die neuen Autofix-Issues laufen.

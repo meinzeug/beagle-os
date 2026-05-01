@@ -130,7 +130,7 @@ check_sunshine_api() {
   local url_in_use="$sunshine_api_url"
 
   while (( SECONDS < deadline )); do
-    code="$(curl -sk --max-time 6 -o /dev/null -w '%{http_code}' "${url_in_use%/}/api/apps" 2>/dev/null || echo '000')"
+    code="$(curl -sk --max-time 6 -o /dev/null -w '%{http_code}' "${url_in_use%/}/api/apps" 2>/dev/null || echo '000')" # tls-bypass-allowlist: persistence smoke probes local Sunshine API over self-signed TLS
     if [[ "$code" == "200" || "$code" == "401" ]]; then
       echo "[OK]  Sunshine API reachable after check (HTTP $code, url=${url_in_use%/}/api/apps)"
       return 0

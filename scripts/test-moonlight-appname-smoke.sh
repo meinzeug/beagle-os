@@ -33,10 +33,7 @@ echo ""
 
 # 1. Call Sunshine /api/apps
 echo "[1] Fetching Sunshine app list from ${SUNSHINE_API_URL}/api/apps ..."
-HTTP_CODE="$(curl -sk --max-time 8 -o /tmp/beagle-sunshine-apps.json \
-  -w '%{http_code}' \
-  -u "${SUNSHINE_USER}:${SUNSHINE_PASSWORD}" \
-  "${SUNSHINE_API_URL%/}/api/apps" 2>/dev/null || echo "000")"
+HTTP_CODE="$(curl -sk --max-time 8 -o /tmp/beagle-sunshine-apps.json -w '%{http_code}' -u "${SUNSHINE_USER}:${SUNSHINE_PASSWORD}" "${SUNSHINE_API_URL%/}/api/apps" 2>/dev/null || echo "000")" # tls-bypass-allowlist: Sunshine API smoke runs against local self-signed endpoint
 
 if [[ "$HTTP_CODE" != "200" ]]; then
   echo "[ERROR] Sunshine /api/apps returned HTTP $HTTP_CODE (expected 200)" >&2

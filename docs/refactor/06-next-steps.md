@@ -1203,3 +1203,9 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 3. **Plan 09 vervollstaendigen**: Gruene-Stunden-Heatmap im Energy-Panel aus echten Carbon-/Strommix-Daten rendern.
 4. **Plan 02 live validieren**: Lock-Screen, Wipe und Runtime-Telemetrie weiter gegen echte Thin-Client-Hardware/X11-/Wayland-Sessions abnehmen.
 5. **Plan 07 live validieren**: Fleet-Alerts und Predictive-Maintenance gegen echte Runtime-Events provozieren und Webhook-/UI-Reaktion pruefen.
+
+## Naechster Schritt (2026-05-01)
+
+1. Den neuen Copilot-Autofix-Workflow nach dem Push im GitHub-UI bzw. per `gh run list` beobachten.
+2. Verifizieren, dass fehlgeschlagene Runs automatisch Issues erzeugen und an `copilot-swe-agent` zugewiesen werden.
+3. Falls ein Workflow weiter fehlschlaegt, den vom Autofix-Workflow erzeugten Issue-Body als naechste Arbeitsgrundlage nutzen.

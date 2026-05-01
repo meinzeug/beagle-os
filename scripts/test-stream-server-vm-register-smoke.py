@@ -121,21 +121,11 @@ API='{api_base}'
 TOK='{token}'
 VMID='{int(args.vmid)}'
 
-code_reg=$(curl -k -sS -o /tmp/beagle-stream-register.json -w '%{{http_code}}' \
-  -X POST "$API/streams/register" \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $TOK" \
-  --data '{{"vm_id":'"$VMID"',"stream_server_id":"vm-stream-smoke","host":"127.0.0.1","port":47984,"wireguard_active":true}}')
+code_reg=$(curl -k -sS -o /tmp/beagle-stream-register.json -w '%{{http_code}}' -X POST "$API/streams/register" -H 'Content-Type: application/json' -H "Authorization: Bearer $TOK" --data '{{"vm_id":'"$VMID"',"stream_server_id":"vm-stream-smoke","host":"127.0.0.1","port":47984,"wireguard_active":true}}') # tls-bypass-allowlist: local guest loopback smoke against self-signed stream API
 
-code_cfg=$(curl -k -sS -o /tmp/beagle-stream-config.json -w '%{{http_code}}' \
-  -H "Authorization: Bearer $TOK" \
-  "$API/streams/$VMID/config?wireguard_active=true")
+code_cfg=$(curl -k -sS -o /tmp/beagle-stream-config.json -w '%{{http_code}}' -H "Authorization: Bearer $TOK" "$API/streams/$VMID/config?wireguard_active=true") # tls-bypass-allowlist: local guest loopback smoke against self-signed stream API
 
-code_evt=$(curl -k -sS -o /tmp/beagle-stream-event.json -w '%{{http_code}}' \
-  -X POST "$API/streams/$VMID/events" \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $TOK" \
-  --data '{{"event_type":"session.start","details":{{"source":"vm-smoke","wireguard_active":true}}}}')
+code_evt=$(curl -k -sS -o /tmp/beagle-stream-event.json -w '%{{http_code}}' -X POST "$API/streams/$VMID/events" -H 'Content-Type: application/json' -H "Authorization: Bearer $TOK" --data '{{"event_type":"session.start","details":{{"source":"vm-smoke","wireguard_active":true}}}}') # tls-bypass-allowlist: local guest loopback smoke against self-signed stream API
 
 echo "register_http=$code_reg"
 echo "config_http=$code_cfg"

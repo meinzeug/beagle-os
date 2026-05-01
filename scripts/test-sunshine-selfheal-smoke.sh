@@ -98,7 +98,7 @@ API_URL="https://${GUEST_IP}:${SUNSHINE_PORT}/api/apps"
 API_OK=0
 DEADLINE=$(( SECONDS + 30 ))
 while (( SECONDS < DEADLINE )); do
-  HTTP_CODE="$(curl -sk --max-time 5 -o /dev/null -w '%{http_code}' "$API_URL" 2>/dev/null || echo '000')"
+  HTTP_CODE="$(curl -sk --max-time 5 -o /dev/null -w '%{http_code}' "$API_URL" 2>/dev/null || echo '000')" # tls-bypass-allowlist: Sunshine API smoke runs against self-signed local endpoint
   if [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "401" ]]; then
     API_OK=1
     break

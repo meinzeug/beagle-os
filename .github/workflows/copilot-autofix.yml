@@ -1,0 +1,43 @@
+name: copilot-autofix
+
+on:
+  workflow_run:
+    workflows:
+      - build-iso
+      - e2e-nightly
+      - lint
+      - no-legacy-provider-references
+      - public-website
+      - release
+      - security-audit
+      - security-secrets-check
+      - security-subprocess-check
+      - security-tls-check
+      - tests
+    types:
+      - completed
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  assign-copilot:
+    name: Create Copilot autofix issue
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create and assign Copilot issue
+        env:
+          COPILOT_ASSIGNMENT_TOKEN: ${{ secrets.COPILOT_ASSIGNMENT_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          WORKFLOW_URL: ${{ github.event.workflow_run.html_url }}
+          WORKFLOW_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+          WORKFLOW_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: bash scripts/create-copilot-autofix-issue.sh
