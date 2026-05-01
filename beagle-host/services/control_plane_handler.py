@@ -20,7 +20,7 @@ from service_registry import *  # noqa: F401,F403
 from request_handler_mixin import HandlerMixin
 
 _LOG = logging.getLogger("beagle.control_plane")
-_SENSITIVE_QUERY_RE = re.compile(r"(?i)([?&](?:access_token|token|refresh_token)=)([^&\\s]+)")
+_SENSITIVE_QUERY_RE = re.compile(r"(?i)([?&](?:access_token|token|refresh_token)=)([^&\s]+)")
 
 
 def _redact_request_target(value: Any) -> str:

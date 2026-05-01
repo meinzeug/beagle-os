@@ -49,6 +49,6 @@ def test_update_sse_access_token_is_redacted_from_control_plane_logs() -> None:
     handler = CONTROL_PLANE_HANDLER.read_text(encoding="utf-8")
 
     assert "_redact_request_target" in handler
-    assert "access_token|token|refresh_token" in handler
+    assert r"access_token|token|refresh_token)=)([^&\s]+)" in handler
     assert "path=_redact_request_target" in handler
     assert "structured_logger().log_message(fmt, *safe_args)" in handler
