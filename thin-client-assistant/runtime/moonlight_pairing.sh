@@ -31,6 +31,12 @@ ensure_paired() {
 
   [[ -n "$pin" ]] || return 1
 
+  # Pre-submit the PIN to Sunshine before starting moonlight pair (timing fix:
+  # Sunshine requires the PIN to be submitted before the pairing handshake
+  # completes, so submitting upfront avoids a race condition where the PIN
+  # arrives too late and pairing times out.)
+  submit_sunshine_pin || true
+
   if command -v timeout >/dev/null 2>&1; then
     timeout --preserve-status "$(moonlight_pairing_timeout)" "$bin" pair "$target" --pin "$pin" >"${MOONLIGHT_PAIR_LOG:-/dev/null}" 2>&1 &
   else
