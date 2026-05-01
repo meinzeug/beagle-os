@@ -6294,3 +6294,16 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - alter Build entfernte `beagle-downloads-status.json` tatsaechlich waehrend des Refreshs
   - neuer Deploy trennt Repo-Status bereits korrekt von Artefakt-Build (`repo_auto_update=healthy`), und der Packaging-Fix verhindert zusaetzlich die temporären Download-404s waehrend des laufenden Refreshs
   - `refresh-host-artifacts.sh` seedet bei bereits fehlender Statusdatei jetzt sofort einen Platzhalter, damit `/beagle-downloads/beagle-downloads-status.json` schon waehrend des ersten reparierten Runs wieder `200` liefert
+
+## Update (2026-05-01, Thin-Client USB: doppelten Bootstrap-Download im Shell-Writer entfernt)
+
+**Scope**: Die generierten Linux-Writer `pve-thin-client-usb-installer-*.sh` und `pve-thin-client-live-usb-*.sh` luden den Bootstrap-Tarball bei Standalone-Ausfuehrung doppelt herunter: einmal vor der interaktiven Geraeteauswahl und ein zweites Mal nach dem `sudo`-Reexec. Ursache war, dass der erste Bootstrap-Baum nicht an den Root-Reexec weitergereicht wurde.
+
+- Fix:
+  - [thin-client-assistant/usb/pve-thin-client-usb-installer.sh](/home/dennis/beagle-os/thin-client-assistant/usb/pve-thin-client-usb-installer.sh): uebergibt den bereits entpackten `BOOTSTRAP_DIR` jetzt via `PVE_DCV_BOOTSTRAP_DIR` an den `sudo`-Reexec und reused den extrahierten Helper-Baum statt denselben Download erneut zu starten
+- Regression:
+  - [tests/unit/test_usb_installer_shell_regressions.py](/home/dennis/beagle-os/tests/unit/test_usb_installer_shell_regressions.py)
+- Validierung:
+  - `bash -n thin-client-assistant/usb/pve-thin-client-usb-installer.sh`
+  - `python3 tests/unit/test_usb_installer_shell_regressions.py`
+  - `pytest` war lokal weiterhin nicht installiert

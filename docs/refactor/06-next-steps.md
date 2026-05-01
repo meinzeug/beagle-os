@@ -817,6 +817,17 @@
 4. **Plan 02 live validieren**: Lock-Screen, Wipe und Runtime-Telemetrie weiter gegen echte Thin-Client-Hardware/X11-/Wayland-Sessions abnehmen.
 5. **Plan 07 live validieren**: Fleet-Alerts und Predictive-Maintenance gegen echte Runtime-Events provozieren und Webhook-/UI-Reaktion prüfen.
 
+## Stand (2026-05-01, USB-Writer follow-up)
+
+**Zuletzt erledigt**:
+- Linux-USB-Writer (`installer` + `live`) reichen ihren bereits heruntergeladenen Bootstrap-Baum jetzt an den `sudo`-Reexec weiter und laden den grossen Bootstrap-Tarball nicht mehr doppelt.
+
+**Naechste konkrete Schritte**:
+
+1. **USB-Writer live pruefen**: den aktualisierten `pve-thin-client-usb-installer-host-latest.sh` und `pve-thin-client-live-usb-host-latest.sh` Flow auf `srv1` bzw. auf einer lokalen Linux-Workstation einmal end-to-end gegen einen echten USB-Stick laufen lassen.
+2. **Windows-Writer angleichen**: den Windows-USB-Writer weiter auf denselben Cache-/Reuse-Ansatz trimmen, falls dort spaeter ebenfalls ein mehrstufiger Bootstrap eingefuehrt wird.
+3. **Plan 04 live validieren**: Lock-Screen, Wipe und Runtime-Telemetrie weiter gegen echte Thin-Client-Hardware/X11-/Wayland-Sessions abnehmen.
+
 ## Stand (2026-05-01, Host-Ops follow-up)
 
 **Zuletzt erledigt**:

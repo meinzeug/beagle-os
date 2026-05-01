@@ -48,7 +48,7 @@ INSTALLER_LOG_URL="${BEAGLE_INSTALLER_LOG_URL:-}"
 INSTALLER_LOG_TOKEN="${BEAGLE_INSTALLER_LOG_TOKEN:-}"
 INSTALLER_LOG_SESSION_ID="${BEAGLE_INSTALLER_LOG_SESSION_ID:-}"
 BOOTSTRAP_CACHE_DIR="${PVE_DCV_BOOTSTRAP_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME:-/root}/.cache}/pve-dcv-usb}"
-BOOTSTRAP_DIR=""
+BOOTSTRAP_DIR="${PVE_DCV_BOOTSTRAP_DIR:-}"
 BOOTSTRAPPED_STANDALONE="0"
 SKIP_CONFIRMATION="${PVE_DCV_SKIP_CONFIRMATION:-0}"
 MIN_DEVICE_BYTES="${MIN_DEVICE_BYTES:-4294967296}"
@@ -168,6 +168,18 @@ bootstrap_usb_writer_helpers() {
   if have_usb_writer_helpers; then
     beagle_installer_log_event "bootstrap_helpers_present" "bootstrap" "ok" "USB writer helpers are bundled"
     return 0
+  fi
+
+  if [[ -n "$BOOTSTRAP_DIR" && -d "$BOOTSTRAP_DIR/extracted" ]]; then
+    REPO_ROOT="$BOOTSTRAP_DIR/extracted"
+    DIST_DIR="$REPO_ROOT/dist/pve-thin-client-installer"
+    ASSET_DIR="$DIST_DIR/live"
+    BOOTSTRAPPED_STANDALONE="1"
+    GRUB_BACKGROUND_SRC="$REPO_ROOT/thin-client-assistant/usb/assets/grub-background.jpg"
+    if have_usb_writer_helpers; then
+      beagle_installer_log_event "bootstrap_reused" "bootstrap" "ok" "$BOOTSTRAP_DIR"
+      return 0
+    fi
   fi
 
   CURRENT_STAGE="bootstrap"
@@ -372,6 +384,7 @@ rerun_as_root() {
     BEAGLE_INSTALLER_LOG_TOKEN="$INSTALLER_LOG_TOKEN" \
     BEAGLE_INSTALLER_LOG_SESSION_ID="$INSTALLER_LOG_SESSION_ID" \
     PVE_DCV_SKIP_CONFIRMATION="$SKIP_CONFIRMATION" \
+    PVE_DCV_BOOTSTRAP_DIR="$BOOTSTRAP_DIR" \
     PVE_DCV_BOOTSTRAP_CACHE_DIR="$BOOTSTRAP_CACHE_DIR" \
     PVE_DCV_BOOTSTRAP_BASE="${PVE_DCV_BOOTSTRAP_BASE:-}" \
     MIN_DEVICE_BYTES="$MIN_DEVICE_BYTES" \
