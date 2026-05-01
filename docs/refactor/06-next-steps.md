@@ -19,7 +19,7 @@
 ## Stand (2026-05-01, Release/Website-Deploy nachgezogen)
 
 **Zuletzt erledigt**:
-- `beagle-os.com`-Webroot wurde direkt aus `public-site/` synchronisiert, damit die sichtbare Website nicht mehr hinter dem Repo steht.
+- `beagle-os.com`-Website wird jetzt ueber den PM2-Serve-Tree `beagle-saas` unter `/opt/beagle-os-saas/src/public` aktualisiert; der Deploy spiegelt denselben Render weiterhin auch in den Plesk-Mirror.
 - Der `v8.0`-Release-Blocker ist auf das zu spaet erzeugte `dist/SHA256SUMS` im Packaging-Pfad eingegrenzt.
 - Der Public-Deploy fuer Artefakte bleibt an den erfolgreichen Release-Workflow gebunden; nach dem Fix kann `v8.0` sauber neu ausgerollt werden.
 

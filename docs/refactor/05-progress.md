@@ -35,8 +35,8 @@
 **Scope**: Warum `beagle-os.com` und die GitHub-Release-Anzeige noch hinter dem Repo standen, wurde auf den konkreten Release-Packaging-Fehler und den veralteten Public-Mirror-Zustand eingegrenzt.
 
 - `scripts/package.sh` hat im Release-Pfad zu spaet eine temporäre `dist/SHA256SUMS` erzeugt; `verify-server-installer-artifacts.sh` brach dadurch im `v8.0`-Release vorzeitig ab.
-- Der öffentliche Webroot auf `beagle-os.com` lief noch auf einem alten Stand und wurde jetzt direkt aus `public-site/` synchronisiert.
-- Der Public-Mirror-Stand der Artefakte ist auf `srv1` aktuell, die Veröffentlichung auf den externen Webroot haengt aber am erfolgreichen Release-Workflow.
+- Die sichtbare Website auf `beagle-os.com` wurde ueber den echten PM2-Serve-Tree `beagle-saas` unter `/opt/beagle-os-saas/src/public` aktualisiert; der Deploy-Skript spiegelt jetzt sowohl den Plesk-Mirror als auch die live ausgelieferte App.
+- Der Public-Mirror-Stand der Artefakte ist auf `srv1` aktuell, und der Website-Smoke prueft jetzt aktiv gegen den ausgelieferten Endzustand statt nur gegen den Repo-Tree.
 
 ---
 
