@@ -1159,6 +1159,19 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 - `docs/goenterprise/03-gaming-kiosk-pools.md`: verbleibende Testpflicht fuer Gaming-Pool-Allocation ohne GPU sowie Kiosk-/RBAC-E2E sauber abschliessen
 # Next Steps
 
+## Stand (2026-05-01, BeagleStream-Forks angelegt)
+
+**Zuletzt erledigt**:
+- Die externen Fork-Repositories fuer Phase A existieren jetzt real unter `meinzeug/beagle-stream-server` und `meinzeug/beagle-stream-client`.
+- Beide Fork-Workspaces sind lokal vorhanden und auf `beagle/phase-a` vorbereitet.
+- Die Repo-Doku zeigt nicht mehr auf die tote `beagle-os`-Org.
+
+**Naechste konkrete Schritte**:
+1. Im Fork [beagle-stream-server](</home/dennis/beagle-stream-server>) `src/beagle/` mit `beagle_config.*`, `BeagleBrokerClient.*` und `BeagleAuth.*` anlegen.
+2. Im Fork [beagle-stream-server](</home/dennis/beagle-stream-server>) `src/main.cpp` und `cmake/prep/options.cmake` gemaess `fork.md` auf `BEAGLE_INTEGRATION` verdrahten.
+3. Im Fork [beagle-stream-client](</home/dennis/beagle-stream-client>) `app/beagle/` mit `BeagleConfig.*`, `BeagleBroker.*` und `BeagleVPN.*` anlegen.
+4. Danach im aktuellen `beagle-os`-Repo die Packaging-/Runtime-Pfade von den Upstream-Binaries auf die neuen Fork-Artefakte umstellen.
+
 ## Stand (2026-05-01, Updates-WebUI SSE Follow-up)
 
 **Zuletzt erledigt**:

@@ -17,7 +17,7 @@ Priorität: 8.0.0 (SOFORT)
 | **Moonlight-qt** (Client) | GPL v3 | ✅ | ✅ | ✅ |
 | Beagle Control Plane (Python) | MIT/proprietär möglich | — | — | Beagle-Entscheidung |
 
-**Plan**: Sunshine forken → `beagle-stream-server`. Moonlight-qt forken → `beagle-stream-client`.  
+**Plan**: Sunshine forken → `meinzeug/beagle-stream-server`. Moonlight-qt forken → `meinzeug/beagle-stream-client`.
 Beides bleibt GPL v3. Der Python-Broker/Management-Layer ist separat und kann kommerziell lizenziert werden.
 
 ---
@@ -97,7 +97,7 @@ Hardware: AMD mit `aes` + `avx2` + `vaes` + `vpclmulqdq` — vollständig hardwa
 
 ### Schritt 1 — Fork: beagle-stream-server (Sunshine-Fork)
 
-- [ ] GitHub: Fork von `LizardByte/Sunshine` → `beagle-os/beagle-stream-server`
+- [x] GitHub: Fork von `LizardByte/Sunshine` → `meinzeug/beagle-stream-server`
 - [ ] `src/beagle/BeagleBrokerClient.cpp`: Neue Komponente:
   - Beim Start: registriert sich beim Beagle Control Plane (`POST /api/v1/streams/register`)
   - Holt Config dynamisch: `GET /api/v1/streams/{vm_id}/config` (FPS, Bitrate, Codec, Policy)
@@ -110,7 +110,7 @@ Hardware: AMD mit `aes` + `avx2` + `vaes` + `vpclmulqdq` — vollständig hardwa
 
 ### Schritt 2 — Fork: beagle-stream-client (Moonlight-Fork)
 
-- [ ] GitHub: Fork von `moonlight-stream/moonlight-qt` → `beagle-os/beagle-stream-client`
+- [x] GitHub: Fork von `moonlight-stream/moonlight-qt` → `meinzeug/beagle-stream-client`
 - [ ] `src/beagle/BeagleBroker.cpp`: Broker-Discovery statt manuellem Host-Eingabe:
   - Liest Broker-URL aus Enrollment-Config (`/etc/beagle/enrollment.conf`)
   - `POST /api/v1/streams/allocate` → bekommt `{host_ip, port, token, wg_peer_config}`

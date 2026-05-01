@@ -101,7 +101,7 @@ den HMAC-Token aus dem Broker — vollständig protokollkompatibel, kein Breakin
 
 **Voraussetzung (einmalig manuell vom Operator):**
 ```bash
-gh repo fork LizardByte/Sunshine --org beagle-os --fork-name beagle-stream-server --clone
+gh repo fork LizardByte/Sunshine --fork-name beagle-stream-server --clone
 cd beagle-stream-server && git checkout -b beagle/phase-a
 ```
 
@@ -327,7 +327,7 @@ WantedBy=graphical.target
 
 **Voraussetzung (einmalig manuell):**
 ```bash
-gh repo fork moonlight-stream/moonlight-qt --org beagle-os --fork-name beagle-stream-client --clone
+gh repo fork moonlight-stream/moonlight-qt --fork-name beagle-stream-client --clone
 cd beagle-stream-client && git checkout -b beagle/phase-a
 ```
 
@@ -463,11 +463,11 @@ Nach vollständiger Implementierung der Forks:
 ### `docs/checklists/02-streaming-endpoint.md` — Phase-A-Checkboxen auf `[x]` setzen:
 
 ```
-- [x] Fork LizardByte/Sunshine → beagle-os/beagle-stream-server
+- [x] Fork LizardByte/Sunshine → meinzeug/beagle-stream-server
   - [x] src/beagle/BeagleBrokerClient.cpp
   - [x] src/beagle/BeagleAuth.cpp
   - [x] .deb-Paket beagle-stream-server (Conflicts: sunshine)
-- [x] Fork moonlight-stream/moonlight-qt → beagle-os/beagle-stream-client
+- [x] Fork moonlight-stream/moonlight-qt → meinzeug/beagle-stream-client
   - [x] app/beagle/BeagleBroker.cpp
   - [x] app/beagle/BeagleVPN.cpp
   - [x] Beagle-Branding

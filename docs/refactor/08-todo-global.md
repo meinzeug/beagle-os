@@ -468,3 +468,6 @@
 - [x] GoEnterprise Plan 03 Schritt 4 UI-Slice: Gaming-Metrics-Dashboard mit Graphen im Policies-Panel, inkl. API-Surface `GET /api/v1/gaming/metrics` und Regressionen in `tests/unit/test_gaming_metrics.py`.
 - [x] GoEnterprise Plan 02 weiterziehen: Fleet-Remediation-Konfiguration/History persistent machen und Thin-Client-Runtime-Telemetrie (`reports.runtime`, Lock-/Backend-/Display-Zustand) in Device-Registry + Fleet-WebUI sichtbar machen.
 - [x] GoEnterprise Plan 07 weiterziehen: Fleet-Telemetrie-/Maintenance-Routen, Predictive-Alerts-Regeln/Resolve im Control Plane und Runtime-Health-Metriken (`uptime_hours`, `reboot_count_7d`, `cpu_temp_c`, `network_errors`) ueber `device/sync` produktiv verdrahten.
+- [x] GoEnterprise Plan 01: GitHub-Forks real anlegen (`meinzeug/beagle-stream-server`, `meinzeug/beagle-stream-client`) und lokale Arbeitsbranches `beagle/phase-a` vorbereiten.
+- [ ] GoEnterprise Plan 01: `beagle-stream-server` Phase A im separaten Fork implementieren (`src/beagle/*`, `BEAGLE_INTEGRATION`, Debian-Paket).
+- [ ] GoEnterprise Plan 01: `beagle-stream-client` Phase A im separaten Fork implementieren (`app/beagle/*`, Broker-Allocate, WireGuard-Peer-Aktivierung, Branding).

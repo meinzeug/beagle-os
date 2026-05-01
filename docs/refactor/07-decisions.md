@@ -426,3 +426,11 @@ Nebenwirkung Live-Fix: `tests.yml` faehrt nun auch Integration-Tests in CI (Job 
 - Grund: GitHub erzeugt Copilot-Coding-Agent-PRs haeufig als Draft und PR-Workflow-Runs koennen auf `action_required` stehen. Ohne automatisches Ready/Approval koennen auch mergebare PRs nicht in den Merge-Pfad gelangen.
 - Konsequenz: Der Automerge-Workflow nutzt bevorzugt `COPILOT_ASSIGNMENT_TOKEN`, faellt aber auf `GITHUB_TOKEN` zurueck. Branch-Protection oder fehlende Token-Rechte bleiben harte externe Blocker.
 - Dateien: `.github/workflows/copilot-automerge.yml`, `scripts/approve-copilot-pr-workflow-run.sh`, `scripts/close-resolved-copilot-autofix-issues.sh`, `scripts/create-copilot-autofix-issue.sh`, `scripts/merge-copilot-autofix-pr.sh`.
+## BeagleStream-Forks unter `meinzeug/*` statt `beagle-os/*` (2026-05-01)
+
+Die Plan-Dokumente referenzierten eine GitHub-Organisation `beagle-os`, die real nicht existiert. Die echten Fork-Repositories fuer Phase A wurden deshalb unter dem real verfuegbaren Owner `meinzeug` angelegt:
+
+- `meinzeug/beagle-stream-server`
+- `meinzeug/beagle-stream-client`
+
+Die Fork-Implementierung arbeitet ab jetzt gegen diese beiden Repositories. Doku und Checklisten muessen denselben Zielort verwenden, damit Folge-Runs keine tote Remote referenzieren.

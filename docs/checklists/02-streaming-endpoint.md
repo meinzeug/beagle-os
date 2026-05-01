@@ -7,11 +7,11 @@
 
 ## BeagleStream Protocol (Sunshine/Moonlight Fork)
 
-- [ ] **Phase A 8.0.x** — Fork `LizardByte/Sunshine` → `beagle-os/beagle-stream-server`
+- [ ] **Phase A 8.0.x** — Fork `LizardByte/Sunshine` → `meinzeug/beagle-stream-server`
   - [ ] `src/beagle/BeagleBrokerClient.cpp` (Broker-getriebenes Pairing)
   - [ ] `src/beagle/BeagleAuth.cpp` (Token-basiert)
   - [ ] `.deb`-Paket `beagle-stream-server` ersetzt `sunshine.deb` in VM-Images
-- [ ] **Phase A 8.0.x** — Fork `moonlight-stream/moonlight-qt` → `beagle-os/beagle-stream-client`
+- [ ] **Phase A 8.0.x** — Fork `moonlight-stream/moonlight-qt` → `meinzeug/beagle-stream-client`
   - [ ] `src/beagle/BeagleBroker.cpp` (Broker-Discovery)
   - [ ] `src/beagle/BeagleVPN.cpp` (WireGuard-Integration)
   - [ ] Beagle-Branding (Name, Icons, About)

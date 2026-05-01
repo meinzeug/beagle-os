@@ -6417,6 +6417,26 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - direkter Python-Runner fuer `tests/unit/test_thin_client_live_network_tui.py`, `tests/unit/test_usb_payload_resolution_regressions.py`, `tests/unit/test_thin_client_live_build_regressions.py`
   - `pytest` war lokal nicht installiert
 
+## Update (2026-05-01, BeagleStream-Forks real auf GitHub angelegt)
+
+**Scope**: Der in `fork.md` und Plan 01 geforderte Fork-Grundzustand ist nicht mehr nur Doku. Die beiden externen Upstream-Projekte existieren jetzt als echte Fork-Repositories unter dem realen GitHub-Owner `meinzeug`, inklusive lokaler Klone und Arbeitsbranch `beagle/phase-a`.
+
+- GitHub / lokale Workspaces:
+  - `https://github.com/meinzeug/beagle-stream-server` als Fork von `LizardByte/Sunshine`
+  - `https://github.com/meinzeug/beagle-stream-client` als Fork von `moonlight-stream/moonlight-qt`
+  - lokale Arbeitskopien: `/home/dennis/beagle-stream-server`, `/home/dennis/beagle-stream-client`
+  - beide auf Branch `beagle/phase-a`
+- Repo-Doku bereinigt:
+  - [fork.md](/home/dennis/beagle-os/fork.md)
+  - [docs/archive/goenterprise/01-moonlight-vdi-protocol.md](/home/dennis/beagle-os/docs/archive/goenterprise/01-moonlight-vdi-protocol.md)
+  - [docs/checklists/02-streaming-endpoint.md](/home/dennis/beagle-os/docs/checklists/02-streaming-endpoint.md)
+  - harte Verweise auf die nicht existente Org `beagle-os` auf den realen Owner `meinzeug` korrigiert
+- Validierung:
+  - `gh auth status`
+  - `gh repo view meinzeug/beagle-stream-server`
+  - `gh repo view meinzeug/beagle-stream-client`
+  - lokale `git remote -v`-Pruefung in beiden Fork-Workspaces
+
 ## Update (2026-05-01, Endpoint Self-Update/Repair: Live-USB und installierte Thinclients gehaertet)
 
 **Scope**: Live-USB-Sticks und per USB-Installer installierte Thinclients sollen Updates, Health-/Repair-Status und Reboot-Persistenz reproduzierbar behalten. Die WebUI zeigt pro VM/Endpoint, ob Self-Update erlaubt ist oder ob Thinclient/Live-USB neu gebaut werden muss.
