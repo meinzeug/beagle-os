@@ -1,3 +1,26 @@
+## Update (2026-05-01, VM100 Thinclient WireGuard/Moonlight Live-Stick repariert)
+
+**Scope**: Lokal gebooteten VM100-Live-USB-Thinclient (`192.168.178.92`) gegen `srv1` untersuchen und Moonlight-Start ueber WireGuard/VPN wiederherstellen.
+
+- Root Cause geschlossen:
+  - `prepare-runtime` brach auf Live-USBs vor Enrollment/WireGuard ab, weil nicht-kritische systemd-getty-Drop-in-Rechte (`Operation not permitted`) fatal waren.
+  - `enrollment_wireguard.sh` war im Repo nicht ausfuehrbar und scheiterte zusaetzlich an nicht-fatalen chmod-Operationen auf Live-Dateisystemen.
+  - WireGuard nutzte `0.0.0.0/0` als Default und konnte dadurch DNS/Control-Plane-Pfade selbst blockieren.
+  - `srv1` startete den WireGuard-Reconcile-Path nicht aktiv und libvirt-/iptables-nft-Forwarding/NAT fehlten fuer `wg-beagle` -> `virbr10`.
+- Repo-Fixes:
+  - Thinclient-Prepare ist gegen nicht-kritische Getty-/Route-Altlasten gehaertet.
+  - WireGuard-Enrollment ist ausfuehrbar, Live-FS-tolerant und bereinigt alte Full-Tunnel-Routen.
+  - WireGuard-AllowedIPs defaulten auf `10.88.0.0/16,192.168.123.0/24`.
+  - `apply-beagle-firewall.sh` setzt libvirt-kompatible Forward-Regeln fuer `wg-beagle`.
+  - `apply-beagle-wireguard.sh` maskiert VPN-Traffic Richtung VM-Bridges.
+  - Host-Service-Installer startet den WireGuard-Reconcile-Path.
+- Live-Validierung:
+  - Thinclient `wg-beagle` handshaket mit `srv1`.
+  - Thinclient erreicht `192.168.123.114:50000` und `192.168.123.114:50001`.
+  - Moonlight-Prozess laeuft gegen `192.168.123.114:50000`.
+
+---
+
 ## Update (2026-04-30, R1-VM-Lifecycle geschlossen + Final-Smoke PASS)
 
 **Scope**: Offenen R1-Lifecycle-Punkt reproduzierbar per API schliessen und finalen PASS-Nachweis fahren.

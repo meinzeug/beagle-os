@@ -1,6 +1,31 @@
 # Security Findings
 
-Stand: 2026-04-30 (ergaenzt: S-040 Viewer-WebUI-403-Drift repariert, S-039 Stream-Session-Audit-Silent-Failure repariert, S-038 Ubuntu-Desktop-Firstboot-Drift repariert, S-037 TLS-Reload-Disconnect-Drift repariert, S-036 TLS-Switch-Permission-Drift repariert, S-035 Reinstall-Auth-/Onboarding-Drift korrigiert)
+Stand: 2026-05-01 (ergaenzt: S-041 Thinclient-WireGuard/Moonlight-Drift repariert)
+
+## S-041 — Thinclient-Live-USB konnte WireGuard nicht zuverlaessig enrollen und fiel auf Public-Streaming zurueck (PATCHED)
+
+- Status: **gepatcht** (2026-05-01)
+- Risiko: **Hoch**
+- Betroffene Dateien:
+  - `thin-client-assistant/runtime/prepare-runtime.sh`
+  - `thin-client-assistant/runtime/runtime_systemd_bootstrap.sh`
+  - `thin-client-assistant/runtime/enrollment_wireguard.sh`
+  - `scripts/apply-beagle-firewall.sh`
+  - `scripts/apply-beagle-wireguard.sh`
+  - `scripts/install-beagle-host-services.sh`
+  - `beagle-host/services/service_registry.py`
+- Beschreibung:
+  - Auf dem VM100-Live-USB brach `prepare-runtime` vor Endpoint-/WireGuard-Enrollment ab, weil nicht-kritische Live-Dateisystem-Permissions fatal waren.
+  - Das WireGuard-Enrollment-Skript war nicht ausfuehrbar und nutzte Full-Tunnel-Defaults, die DNS/Control-Plane-Pfade blockieren konnten.
+  - Auf `srv1` wurden neue WireGuard-Peers nicht automatisch in die laufende Server-Konfiguration reconciled; zusaetzlich fehlten Forwarding-/NAT-Regeln von `wg-beagle` zur VM-Bridge.
+- Fix:
+  - Prepare- und Enrollment-Pfad sind jetzt Live-FS-tolerant und bereinigen alte Full-Tunnel-Routen vor Netzwerk-/Enrollment-Schritten.
+  - WireGuard-AllowedIPs sind auf Beagle-Mesh + VM-Subnetz begrenzt.
+  - `srv1`-Firewall/WireGuard-Skripte setzen libvirt-kompatibles Forwarding und VM-Bridge-Masquerading; der Reconcile-Path wird gestartet.
+- Live-Verifikation:
+  - VM100-Thinclient `192.168.178.92`: `wg-beagle` handshaket.
+  - VM100-Private-Ports `192.168.123.114:50000` und `192.168.123.114:50001` sind vom Thinclient erreichbar.
+  - Laufender Moonlight-Prozess nutzt `192.168.123.114:50000`.
 
 ## S-040 — Viewer-WebUI konnte beim Login unnoetige 403-Operator-Reads ausloesen und RBAC-Browser-Smokes rot machen (PATCHED)
 

@@ -272,6 +272,40 @@ apply_rules() {
   nft -f "$NFT_RULE_FILE"
 }
 
+ensure_libvirt_wireguard_forward_rules() {
+  local bridges=()
+  local bridge
+  local wg_iface="${BEAGLE_WIREGUARD_INTERFACE:-wg-beagle}"
+
+  [[ "${BEAGLE_WIREGUARD_ENABLED:-0}" =~ ^(1|true|yes|on)$ ]] || return 0
+  command -v nft >/dev/null 2>&1 || return 0
+  nft list table ip filter >/dev/null 2>&1 || return 0
+
+  mapfile -t bridges < <(detect_vm_bridges | sed '/^$/d' | sort -u)
+  if [[ "${#bridges[@]}" -eq 0 ]]; then
+    bridges=("virbr10" "virbr0")
+  fi
+
+  for bridge in "${bridges[@]}"; do
+    if nft list chain ip filter FORWARD >/dev/null 2>&1 &&
+       ! nft list chain ip filter FORWARD 2>/dev/null | grep -Fq "beagle-wireguard-forward-to-${bridge}"; then
+      nft insert rule ip filter FORWARD iifname "$wg_iface" oifname "$bridge" accept comment "beagle-wireguard-forward-to-${bridge}" >/dev/null 2>&1 || true
+    fi
+    if nft list chain ip filter FORWARD >/dev/null 2>&1 &&
+       ! nft list chain ip filter FORWARD 2>/dev/null | grep -Fq "beagle-wireguard-forward-from-${bridge}"; then
+      nft insert rule ip filter FORWARD iifname "$bridge" oifname "$wg_iface" accept comment "beagle-wireguard-forward-from-${bridge}" >/dev/null 2>&1 || true
+    fi
+    if nft list chain ip filter LIBVIRT_FWI >/dev/null 2>&1 &&
+       ! nft list chain ip filter LIBVIRT_FWI 2>/dev/null | grep -Fq "beagle-wireguard-to-${bridge}"; then
+      nft insert rule ip filter LIBVIRT_FWI iifname "$wg_iface" oifname "$bridge" accept comment "beagle-wireguard-to-${bridge}" >/dev/null 2>&1 || true
+    fi
+    if nft list chain ip filter LIBVIRT_FWO >/dev/null 2>&1 &&
+       ! nft list chain ip filter LIBVIRT_FWO 2>/dev/null | grep -Fq "beagle-wireguard-from-${bridge}"; then
+      nft insert rule ip filter LIBVIRT_FWO iifname "$bridge" oifname "$wg_iface" accept comment "beagle-wireguard-from-${bridge}" >/dev/null 2>&1 || true
+    fi
+  done
+}
+
 disable_rules() {
   if command -v nft >/dev/null 2>&1; then
     nft delete table inet "$TABLE_NAME" >/dev/null 2>&1 || true
@@ -286,6 +320,7 @@ case "$ACTION" in
     write_nft_rules
     if [[ "${BEAGLE_FIREWALL_NO_APPLY:-0}" != "1" ]]; then
       apply_rules
+      ensure_libvirt_wireguard_forward_rules
     fi
     ;;
   --add-extra-rule|add-extra-rule)
@@ -293,6 +328,7 @@ case "$ACTION" in
     write_nft_rules
     if [[ "${BEAGLE_FIREWALL_NO_APPLY:-0}" != "1" ]]; then
       apply_rules
+      ensure_libvirt_wireguard_forward_rules
     fi
     ;;
   --delete-extra-rule|delete-extra-rule)
@@ -300,6 +336,7 @@ case "$ACTION" in
     write_nft_rules
     if [[ "${BEAGLE_FIREWALL_NO_APPLY:-0}" != "1" ]]; then
       apply_rules
+      ensure_libvirt_wireguard_forward_rules
     fi
     ;;
   --write-only|write-only)

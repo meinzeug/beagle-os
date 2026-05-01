@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-05-01, VM100 Thinclient WireGuard/Moonlight repariert)
+
+**Zuletzt erledigt**:
+- VM100-Live-USB-Thinclient bootet mit repariertem Prepare-Pfad, enrollt WireGuard und erreicht VM100 ueber `192.168.123.114:50000/50001`.
+- `srv1` ist fuer WireGuard-Reconcile, libvirt-Forwarding und VM-Bridge-NAT reproduzierbar gehaertet.
+- Moonlight startet auf dem Thinclient gegen den VPN/private VM-Zielpfad.
+
+**Naechste konkrete Schritte**:
+
+1. VM100-Live-USB-Artefakt nach Deploy neu erzeugen und den Stick neu schreiben, damit die Hotfixes nicht nur live gepatcht sind.
+2. Einen Reboot-Smoke fuer Thinclient-Prepare -> WireGuard -> Moonlight in `tests/integration/test_endpoint_boot_to_streaming.py` vertiefen.
+3. Den gleichen WireGuard-Reconcile-/Forwarding-Stand auf `srv2` spiegeln, falls dort Thinclients validiert werden.
+
+---
+
 ## Stand (2026-04-30, R1 VM-Lifecycle + Accessibility + Ops-Health abgeschlossen)
 
 **Zuletzt erledigt**:

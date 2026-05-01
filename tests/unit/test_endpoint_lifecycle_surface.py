@@ -21,7 +21,7 @@ def _service() -> EndpointLifecycleSurfaceService:
             "device_id": identity.get("endpoint_id", ""),
             "server_endpoint": "srv1.beagle-os.com:51820",
             "client_ip": "10.88.1.10/32",
-            "allowed_ips": "0.0.0.0/0",
+            "allowed_ips": "10.88.0.0/16, 192.168.123.0/24",
         },
         service_name="beagle-control-plane",
         store_endpoint_report=lambda _node, _vmid, _payload: Path("/tmp/report.json"),
@@ -47,4 +47,4 @@ def test_vpn_register_returns_mesh_payload() -> None:
     assert int(response["status"]) == int(HTTPStatus.OK)
     assert response["payload"]["ok"] is True
     assert response["payload"]["device_id"] == "thin-01"
-    assert response["payload"]["allowed_ips"] == "0.0.0.0/0"
+    assert response["payload"]["allowed_ips"] == "10.88.0.0/16, 192.168.123.0/24"

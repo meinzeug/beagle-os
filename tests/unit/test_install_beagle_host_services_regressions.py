@@ -32,6 +32,7 @@ def test_wireguard_reconcile_units_are_installed_and_enabled() -> None:
     assert 'install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_WIREGUARD_RECONCILE_SERVICE"' in script
     assert 'install -m 0644 "$ROOT_DIR/beagle-host/systemd/$BEAGLE_WIREGUARD_RECONCILE_PATH"' in script
     assert 'systemctl enable "$BEAGLE_WIREGUARD_RECONCILE_PATH" 2>/dev/null || true' in script
+    assert '"$BEAGLE_WIREGUARD_RECONCILE_PATH")' in script
 
 
 def test_secret_store_dir_is_bootstrapped_for_control_plane_user() -> None:

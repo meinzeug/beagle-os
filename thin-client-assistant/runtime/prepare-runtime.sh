@@ -41,8 +41,15 @@ adjust_secret_permissions
 persist_runtime_config_to_live_state
 sync_local_hostname
 apply_runtime_ssh_config
-ensure_getty_overrides
-normalize_boot_services
+ensure_getty_overrides || beagle_log_event "prepare-runtime.getty-overrides-error" "getty override setup failed"
+normalize_boot_services || beagle_log_event "prepare-runtime.boot-services-error" "boot service normalization failed"
+if command -v ip >/dev/null 2>&1; then
+  stale_wg_iface="${PVE_THIN_CLIENT_BEAGLE_EGRESS_INTERFACE:-wg-beagle}"
+  ip route delete 0.0.0.0/1 dev "$stale_wg_iface" 2>/dev/null || true
+  ip route delete 128.0.0.0/1 dev "$stale_wg_iface" 2>/dev/null || true
+  ip -6 route delete ::/1 dev "$stale_wg_iface" 2>/dev/null || true
+  ip -6 route delete 8000::/1 dev "$stale_wg_iface" 2>/dev/null || true
+fi
 
 if [[ -x "$SCRIPT_DIR/apply-network-config.sh" ]]; then
   plymouth_status "Configuring network..."

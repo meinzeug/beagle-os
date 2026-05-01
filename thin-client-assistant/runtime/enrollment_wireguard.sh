@@ -127,12 +127,17 @@ apply_dns_settings() {
 }
 
 apply_wireguard_routes() {
-    local raw_allowed_ips="$1"
-    local route_line endpoint_ip endpoint_value default_gateway default_dev
-    local -a allowed_ip_entries=()
-    local cidr
+  local raw_allowed_ips="$1"
+  local route_line endpoint_ip endpoint_value default_gateway default_dev
+  local -a allowed_ip_entries=()
+  local cidr
 
-    raw_allowed_ips="${raw_allowed_ips//,/ }"
+  ip route delete 0.0.0.0/1 dev "$WG_IFACE" 2>/dev/null || true
+  ip route delete 128.0.0.0/1 dev "$WG_IFACE" 2>/dev/null || true
+  ip -6 route delete ::/1 dev "$WG_IFACE" 2>/dev/null || true
+  ip -6 route delete 8000::/1 dev "$WG_IFACE" 2>/dev/null || true
+
+  raw_allowed_ips="${raw_allowed_ips//,/ }"
     for cidr in $raw_allowed_ips; do
         [[ -n "$cidr" ]] || continue
         allowed_ip_entries+=("$cidr")
@@ -199,7 +204,7 @@ apply_wireguard_peer_config() {
 # Generate keypair (only if private key does not already exist)
 # ---------------------------------------------------------------------------
 mkdir -p "${WG_KEYS_DIR}"
-chmod 700 "${WG_KEYS_DIR}"
+chmod 700 "${WG_KEYS_DIR}" 2>/dev/null || true
 
 PRIVKEY_FILE="${WG_KEYS_DIR}/private.key"
 PUBKEY_FILE="${WG_KEYS_DIR}/public.key"
@@ -215,8 +220,8 @@ else
     # Write with restricted permissions — private key NEVER leaves the device
     (umask 077; echo "${PRIVATE_KEY}" > "${PRIVKEY_FILE}")
     echo "${PUBLIC_KEY}" > "${PUBKEY_FILE}"
-    chmod 600 "${PRIVKEY_FILE}"
-    chmod 644 "${PUBKEY_FILE}"
+    chmod 600 "${PRIVKEY_FILE}" 2>/dev/null || true
+    chmod 644 "${PUBKEY_FILE}" 2>/dev/null || true
     echo "[wg-enroll] Keypair written to ${WG_KEYS_DIR}/"
 fi
 
@@ -261,7 +266,7 @@ RESPONSE="$(cat /tmp/wg-register-response.json)"
 
 SERVER_PUBKEY="$(echo "${RESPONSE}" | jq -r '.server_public_key // empty')"
 SERVER_ENDPOINT="$(echo "${RESPONSE}" | jq -r '.server_endpoint // empty')"
-ALLOWED_IPS="$(echo "${RESPONSE}" | jq -r 'if (.allowed_ips | type) == "array" then (.allowed_ips | join(", ")) else (.allowed_ips // "10.88.0.0/16") end')"
+ALLOWED_IPS="$(echo "${RESPONSE}" | jq -r 'if (.allowed_ips | type) == "array" then (.allowed_ips | join(", ")) else (.allowed_ips // "10.88.0.0/16, 192.168.123.0/24") end')"
 CLIENT_IP="$(echo "${RESPONSE}" | jq -r '.client_ip // empty')"
 DNS="$(echo "${RESPONSE}" | jq -r 'if (.dns | type) == "array" then (.dns | join(", ")) else (.dns // "10.88.0.1") end')"
 PRESHARED_KEY="$(echo "${RESPONSE}" | jq -r '.preshared_key // empty')"

@@ -13,7 +13,7 @@ WG_CONF="${BEAGLE_WIREGUARD_CONF:-/etc/wireguard/${WG_IFACE}.conf}"
 WG_NFT_FILE="${BEAGLE_WIREGUARD_NFT_FILE:-$CONFIG_DIR/beagle-wireguard.nft}"
 WG_NFT_TABLE="${BEAGLE_WIREGUARD_NFT_TABLE:-beagle_wireguard_nat}"
 WG_CLIENT_DNS="${BEAGLE_WIREGUARD_CLIENT_DNS:-1.1.1.1}"
-WG_ALLOWED_IPS="${BEAGLE_WIREGUARD_ALLOWED_IPS:-0.0.0.0/0}"
+WG_ALLOWED_IPS="${BEAGLE_WIREGUARD_ALLOWED_IPS:-10.88.0.0/16,192.168.123.0/24}"
 WG_MESH_STATE_FILE="${BEAGLE_WIREGUARD_MESH_STATE_FILE:-/var/lib/beagle/beagle-manager/wireguard-mesh/mesh-state.json}"
 WG_UPLINK_IFACE="${BEAGLE_WIREGUARD_UPLINK_IFACE:-}"
 WG_PUBLIC_HOST="${BEAGLE_WIREGUARD_PUBLIC_HOST:-}"
@@ -47,6 +47,31 @@ detect_uplink_iface() {
     return 0
   fi
   ip route show default 2>/dev/null | awk '/default/ {print $5; exit}'
+}
+
+normalize_csv() {
+  printf '%s\n' "$*" | tr ',;' '  ' | xargs -n1 2>/dev/null | sed '/^$/d' | sort -u
+}
+
+nft_quote_list() {
+  local item
+  local first=1
+  for item in "$@"; do
+    [[ -z "$item" ]] && continue
+    if [[ "$first" -eq 0 ]]; then
+      printf ', '
+    fi
+    printf '"%s"' "$item"
+    first=0
+  done
+}
+
+detect_vm_bridges() {
+  local configured="${BEAGLE_PUBLIC_STREAM_LAN_IF:-virbr10}"
+  normalize_csv "$configured virbr10 virbr0"
+  if command -v ip >/dev/null 2>&1; then
+    ip -o link show 2>/dev/null | awk -F': ' '/: virbr[0-9]+:/{print $2}' | cut -d@ -f1 | sort -u
+  fi
 }
 
 detect_public_host() {
@@ -134,16 +159,24 @@ EOF
 
 write_nat_rules() {
   local uplink
+  local bridges=()
+  local bridge_set=""
   uplink="$(detect_uplink_iface)"
   [[ -n "$uplink" ]] || {
     echo "unable to detect WireGuard uplink interface" >&2
     return 1
   }
+  mapfile -t bridges < <(detect_vm_bridges | sed '/^$/d' | sort -u)
+  if [[ "${#bridges[@]}" -eq 0 ]]; then
+    bridges=("virbr10" "virbr0")
+  fi
+  bridge_set="$(nft_quote_list "${bridges[@]}")"
   install -d -m 0755 "$CONFIG_DIR"
   cat >"$WG_NFT_FILE" <<EOF
 table ip ${WG_NFT_TABLE} {
   chain postrouting {
     type nat hook postrouting priority srcnat; policy accept;
+    ip saddr ${WG_SUBNET} oifname { ${bridge_set} } masquerade
     ip saddr ${WG_SUBNET} oifname "${uplink}" masquerade
   }
 }

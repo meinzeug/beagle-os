@@ -36,3 +36,13 @@ def test_firewall_includes_wireguard_rules_when_enabled(tmp_path: Path) -> None:
     rendered = nft_rules.read_text(encoding="utf-8")
     assert 'udp dport 51820' in rendered
     assert 'iifname "wg-beagle" accept' in rendered
+
+
+def test_firewall_script_adds_libvirt_forward_compatibility_for_wireguard() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert "ensure_libvirt_wireguard_forward_rules()" in script
+    assert 'nft insert rule ip filter FORWARD iifname "$wg_iface" oifname "$bridge" accept comment "beagle-wireguard-forward-to-${bridge}"' in script
+    assert 'nft insert rule ip filter FORWARD iifname "$bridge" oifname "$wg_iface" accept comment "beagle-wireguard-forward-from-${bridge}"' in script
+    assert 'nft insert rule ip filter LIBVIRT_FWI iifname "$wg_iface" oifname "$bridge" accept comment "beagle-wireguard-to-${bridge}"' in script
+    assert 'nft insert rule ip filter LIBVIRT_FWO iifname "$bridge" oifname "$wg_iface" accept comment "beagle-wireguard-from-${bridge}"' in script

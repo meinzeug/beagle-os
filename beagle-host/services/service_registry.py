@@ -3453,7 +3453,7 @@ def register_wireguard_peer(endpoint_identity: dict[str, Any], payload: dict[str
         raise ValueError("missing public_key")
 
     dns_value = os.environ.get("BEAGLE_WIREGUARD_CLIENT_DNS", "").strip() or "1.1.1.1"
-    allowed_ips_raw = os.environ.get("BEAGLE_WIREGUARD_ALLOWED_IPS", "").strip() or "0.0.0.0/0"
+    allowed_ips_raw = os.environ.get("BEAGLE_WIREGUARD_ALLOWED_IPS", "").strip() or "10.88.0.0/16,192.168.123.0/24"
     allowed_ips = [item.strip() for item in re.split(r"[\s,]+", allowed_ips_raw) if item.strip()]
     cfg = wireguard_mesh_service().add_peer(
         endpoint_id,

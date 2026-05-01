@@ -24,7 +24,8 @@ ensure_getty_overrides() {
   default_dir="$(runtime_getty_default_override_dir)"
   systemctl_bin="$(runtime_systemctl_bin)"
 
-  install -d -m 0755 "$tty1_dir" "$default_dir"
+  mkdir -p "$tty1_dir" "$default_dir"
+  chmod 0755 "$tty1_dir" "$default_dir" >/dev/null 2>&1 || true
 
   cat >"$default_dir/zz-beagle-default.conf" <<'EOF'
 [Service]
