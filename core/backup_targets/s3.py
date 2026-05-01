@@ -7,7 +7,7 @@ AES-256-GCM before upload. Credentials are never logged.
 from __future__ import annotations
 
 import secrets
-from typing import Any
+from typing import Any, cast
 
 _NONCE_SIZE = 12  # AES-GCM standard nonce length in bytes
 
@@ -93,7 +93,7 @@ class S3BackupTarget:
         if not self._enc_key:
             return data
         nonce = secrets.token_bytes(_NONCE_SIZE)
-        ciphertext = _AESGCM(self._enc_key).encrypt(nonce, data, None)
+        ciphertext = cast(bytes, _AESGCM(self._enc_key).encrypt(nonce, data, None))
         return nonce + ciphertext
 
     def _decrypt(self, data: bytes) -> bytes:
@@ -102,7 +102,7 @@ class S3BackupTarget:
         if len(data) < _NONCE_SIZE:
             raise ValueError("Encrypted data is too short (missing AES-GCM nonce)")
         nonce, ciphertext = data[:_NONCE_SIZE], data[_NONCE_SIZE:]
-        return _AESGCM(self._enc_key).decrypt(nonce, ciphertext, None)
+        return cast(bytes, _AESGCM(self._enc_key).decrypt(nonce, ciphertext, None))
 
     def _object_key(self, chunk_id: str) -> str:
         return f"{self._prefix}{_safe_id(chunk_id)}"
