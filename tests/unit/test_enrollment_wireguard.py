@@ -68,6 +68,9 @@ def _build_wireguard_stubs(tmp_path: Path) -> Path:
         bindir / "curl",
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
+        "if [[ -n \"${CURL_ARGS_LOG:-}\" ]]; then\n"
+        "  printf '%s\\n' \"$*\" >\"${CURL_ARGS_LOG}\"\n"
+        "fi\n"
         "out=''\n"
         "data=''\n"
         "while [[ $# -gt 0 ]]; do\n"
@@ -193,18 +196,6 @@ def test_enrollment_wireguard_fails_on_incomplete_control_plane_response(tmp_pat
 def test_enrollment_wireguard_supports_manager_bearer_registration(tmp_path: Path) -> None:
     _require_jq()
     bindir = _build_wireguard_stubs(tmp_path)
-    curl_path = bindir / "curl"
-    curl_path.write_text(
-        curl_path.read_text(encoding="utf-8").replace(
-            "done\\n"
-            "if [[ -n \"${CURL_DATA_LOG:-}\" ]]; then\\n",
-            "done\\n"
-            "printf '%s\\n' \"$*\" >\"${CURL_ARGS_LOG:?}\"\\n"
-            "if [[ -n \"${CURL_DATA_LOG:-}\" ]]; then\\n",
-        ),
-        encoding="utf-8",
-    )
-    curl_path.chmod(0o755)
     env = os.environ.copy()
     env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
     env["WG_CONF"] = str(tmp_path / "wireguard" / "wg-beagle.conf")
