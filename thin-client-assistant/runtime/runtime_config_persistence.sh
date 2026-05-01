@@ -32,7 +32,11 @@ runtime_relax_config_permissions() {
   [[ -n "$target_dir" ]] || return 1
   for file in thinclient.conf network.env install-manifest.json; do
     [[ -f "$target_dir/$file" ]] || continue
-    chmod 0644 "$target_dir/$file" >/dev/null 2>&1 || true
+    if [[ "$file" == "network.env" ]] && grep -q '^PVE_THIN_CLIENT_WIFI_PSK=' "$target_dir/$file" 2>/dev/null; then
+      chmod 0600 "$target_dir/$file" >/dev/null 2>&1 || true
+    else
+      chmod 0644 "$target_dir/$file" >/dev/null 2>&1 || true
+    fi
   done
 }
 

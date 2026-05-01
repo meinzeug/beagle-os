@@ -24,6 +24,14 @@ runtime_resolv_conf_path() {
   printf '%s\n' "${RESOLV_CONF:-/etc/resolv.conf}"
 }
 
+runtime_wpa_supplicant_conf_path() {
+  printf '%s\n' "${PVE_THIN_CLIENT_WPA_SUPPLICANT_CONF:-/run/pve-thin-client/wpa_supplicant-runtime.conf}"
+}
+
+runtime_wpa_supplicant_pid_path() {
+  printf '%s\n' "${PVE_THIN_CLIENT_WPA_SUPPLICANT_PID:-/run/pve-thin-client/wpa_supplicant-runtime.pid}"
+}
+
 resolve_dns_servers() {
   if [[ -n "${PVE_THIN_CLIENT_NETWORK_DNS_SERVERS:-}" ]]; then
     printf '%s\n' "${PVE_THIN_CLIENT_NETWORK_DNS_SERVERS}"
@@ -74,6 +82,60 @@ write_network_file() {
   } >"$network_file"
 }
 
+write_wifi_wpa_supplicant_config() {
+  local target_path ssid psk
+
+  [[ "${PVE_THIN_CLIENT_NETWORK_TYPE:-ethernet}" == "wifi" ]] || return 0
+  ssid="${PVE_THIN_CLIENT_WIFI_SSID:-}"
+  psk="${PVE_THIN_CLIENT_WIFI_PSK:-}"
+  [[ -n "$ssid" ]] || return 1
+
+  target_path="$(runtime_wpa_supplicant_conf_path)"
+  install -d -m 0700 "$(dirname "$target_path")"
+  if [[ -n "$psk" ]]; then
+    wpa_passphrase "$ssid" "$psk" >"$target_path"
+  else
+    python3 - "$target_path" "$ssid" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+target = Path(sys.argv[1])
+ssid = sys.argv[2]
+target.write_text(
+    "ctrl_interface=/run/wpa_supplicant\n"
+    "update_config=0\n"
+    "network={\n"
+    f"    ssid={json.dumps(ssid)}\n"
+    "    key_mgmt=NONE\n"
+    "    scan_ssid=1\n"
+    "}\n",
+    encoding="utf-8",
+)
+PY
+  fi
+  chmod 0600 "$target_path"
+}
+
+start_wifi_wpa_supplicant() {
+  local iface="$1"
+  local conf_path pid_path
+
+  [[ "${PVE_THIN_CLIENT_NETWORK_TYPE:-ethernet}" == "wifi" ]] || return 0
+  command -v wpa_supplicant >/dev/null 2>&1 || return 1
+  conf_path="$(runtime_wpa_supplicant_conf_path)"
+  pid_path="$(runtime_wpa_supplicant_pid_path)"
+  [[ -f "$conf_path" ]] || write_wifi_wpa_supplicant_config
+
+  if [[ -f "$pid_path" ]]; then
+    kill "$(cat "$pid_path" 2>/dev/null || printf '')" >/dev/null 2>&1 || true
+    rm -f "$pid_path"
+  fi
+  command -v rfkill >/dev/null 2>&1 && rfkill unblock wifi >/dev/null 2>&1 || true
+  ip link set "$iface" up >/dev/null 2>&1 || true
+  wpa_supplicant -B -P "$pid_path" -i "$iface" -c "$conf_path" >/dev/null 2>&1
+}
+
 write_nmconnection() {
   local iface="$1"
   local connection_dir connection_file dns_servers dns_csv address_line
@@ -88,11 +150,29 @@ write_nmconnection() {
     echo "[connection]"
     echo "id=beagle-thinclient"
     echo "uuid=3f5f30fe-1b98-45e1-a7ef-79f3f0cdfb27"
-    echo "type=ethernet"
+    if [[ "${PVE_THIN_CLIENT_NETWORK_TYPE:-ethernet}" == "wifi" ]]; then
+      echo "type=wifi"
+    else
+      echo "type=ethernet"
+    fi
     echo "autoconnect=true"
     [[ -n "$iface" ]] && echo "interface-name=$iface"
     echo
-    echo "[ethernet]"
+    if [[ "${PVE_THIN_CLIENT_NETWORK_TYPE:-ethernet}" == "wifi" ]]; then
+      echo "[wifi]"
+      echo "mode=infrastructure"
+      echo "ssid=${PVE_THIN_CLIENT_WIFI_SSID:-}"
+      echo
+      echo "[wifi-security]"
+      if [[ -n "${PVE_THIN_CLIENT_WIFI_PSK:-}" ]]; then
+        echo "key-mgmt=wpa-psk"
+        echo "psk=${PVE_THIN_CLIENT_WIFI_PSK}"
+      else
+        echo "key-mgmt=none"
+      fi
+    else
+      echo "[ethernet]"
+    fi
     echo
     echo "[ipv4]"
     if [[ "${PVE_THIN_CLIENT_NETWORK_MODE:-dhcp}" == "static" ]]; then

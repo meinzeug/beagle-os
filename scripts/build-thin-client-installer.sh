@@ -188,6 +188,9 @@ prepare_rootfs_stage() {
   install -D -m 0644 \
     "$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-prepare.service" \
     "$ROOTFS_STAGE_DIR/etc/systemd/system/pve-thin-client-prepare.service"
+  install -D -m 0644 \
+    "$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-network-menu.service" \
+    "$ROOTFS_STAGE_DIR/etc/systemd/system/pve-thin-client-network-menu.service"
   install -d -m 0755 "$ROOTFS_STAGE_DIR/etc/beagle-os"
   cat >"$ROOTFS_STAGE_DIR/etc/beagle-os/build-info" <<EOF
 PROJECT=beagle-os
@@ -259,6 +262,7 @@ EOF
     beagle-update-confirm.service \
     beagle-runtime-heartbeat.timer \
     beagle-usb-tunnel.service \
+    pve-thin-client-network-menu.service \
     pve-thin-client-prepare.service \
     pve-thin-client-runtime.service \
     pve-thin-client-installer-menu.service \

@@ -6366,3 +6366,24 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `python3 -m unittest tests.unit.test_server_settings`
   - direkter Python-Runner fuer `tests/unit/test_settings_ui_regressions.py`
   - `pytest` war lokal nicht installiert
+
+## Update (2026-05-01, Thin-Client Live-USB: persistente Netzwerk-TUI vor Desktop/Moonlight)
+
+**Scope**: Live-USB-Boots erzwingen vor dem Desktop/Moonlight-Start einmalig eine lokale Netzwerkauswahl fuer Ethernet oder WLAN. Die Auswahl wird auf dem USB-State persistiert; spaetere Boots zeigen fuer 3 Sekunden ein grosses Override-Banner, bei `N` wird die TUI erneut geoeffnet, sonst startet der Runtime-Pfad mit der gespeicherten Konfiguration.
+
+- Runtime-Fix:
+  - [thin-client-assistant/runtime/runtime-network-menu.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/runtime-network-menu.sh): neue TUI mit Ethernet-/WLAN-Auswahl, WLAN-Scan, Passwortabfrage, Persistenz und 3-Sekunden-Reconfigure-Banner
+  - [thin-client-assistant/runtime/runtime_network_config_files.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/runtime_network_config_files.sh) und [thin-client-assistant/runtime/apply-network-config.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/apply-network-config.sh): WLAN via `wpa_supplicant` vor `systemd-networkd`/NetworkManager konfigurieren
+  - [thin-client-assistant/systemd/pve-thin-client-network-menu.service](/home/dennis/beagle-os/thin-client-assistant/systemd/pve-thin-client-network-menu.service): neue Runtime-Unit, bewusst nur fuer Live-USB-Boots mit `pve_thin_client.network_tui=1`
+- USB-/Installer-Fix:
+  - [thin-client-assistant/usb/usb_writer_write_stage.sh](/home/dennis/beagle-os/thin-client-assistant/usb/usb_writer_write_stage.sh): Live-GRUB-Eintraege setzen `pve_thin_client.network_tui=1`; Installer-Boots bleiben davon getrennt
+  - [thin-client-assistant/usb/pve-thin-client-live-menu.sh](/home/dennis/beagle-os/thin-client-assistant/usb/pve-thin-client-live-menu.sh): Preset-Installationen fragen Netzwerk vor der Zielplattenauswahl ab
+- Security:
+  - [thin-client-assistant/runtime/runtime_config_persistence.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/runtime_config_persistence.sh): `network.env` bleibt bei gespeicherten WLAN-PSKs auf `0600`
+- Regression:
+  - [tests/unit/test_thin_client_live_network_tui.py](/home/dennis/beagle-os/tests/unit/test_thin_client_live_network_tui.py)
+- Validierung:
+  - `bash -n` fuer alle betroffenen Shell-Skripte
+  - `git diff --check`
+  - direkter Python-Runner fuer `tests/unit/test_thin_client_live_network_tui.py`, `tests/unit/test_usb_payload_resolution_regressions.py`, `tests/unit/test_thin_client_live_build_regressions.py`
+  - `pytest` war lokal nicht installiert

@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-05-01, Live-USB Netzwerk-TUI persistent umgesetzt)
+
+**Zuletzt erledigt**:
+- Live-USB-Boots erhalten eine TUI fuer Ethernet/WLAN vor Desktop/Moonlight.
+- Die Auswahl wird in den USB-State geschrieben und beim naechsten Boot automatisch genutzt.
+- Ein 3-Sekunden-Banner erlaubt per `N` das erneute Oeffnen der Netzwerkauswahl.
+
+**Naechste konkrete Schritte**:
+
+1. Nach dem srv1-Deploy die Thin-Client-Artefakte komplett neu bauen lassen, damit `pve-thin-client-usb-payload-*` und `pve-thin-client-usb-bootstrap-*` den neuen Runtime-Service enthalten.
+2. Mit einem echten Live-USB-Boot pruefen: erster Boot WLAN/Ethernet-Auswahl, zweiter Boot Auto-Weiterlauf ohne Eingabe, dritter Boot mit `N` Reconfigure.
+3. Danach VM100-Thinclient erneut mit Moonlight/WireGuard abnehmen.
+
+---
+
 ## Stand (2026-05-01, VM100 Thinclient WireGuard/Moonlight repariert)
 
 **Zuletzt erledigt**:

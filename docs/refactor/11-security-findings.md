@@ -1068,3 +1068,18 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
   - Der Handler validiert den Token ueber die bestehende Session/API-Token-Logik und prueft zusaetzlich die gleiche RBAC-Permission wie `GET /api/v1/settings/updates`.
   - Der Stream liefert keine Secrets, sondern nur Statusdaten fuer Repo-/Artefakt-/Service-/Watchdog-Zustand.
   - Control-Plane-Access-Logs redigieren `access_token`, `token` und `refresh_token` in Request-Targets, bevor sie an den strukturierten Logger gehen.
+
+## Security Note (2026-05-01) - Live-USB WLAN-Persistenz speichert lokale PSKs nur auf dem Medium
+
+- Status: umgesetzt, bewusstes lokales Restrisiko
+- Betroffene Dateien:
+  - `thin-client-assistant/runtime/runtime-network-menu.sh`
+  - `thin-client-assistant/runtime/runtime_config_persistence.sh`
+  - `thin-client-assistant/runtime/runtime_network_config_files.sh`
+- Beschreibung:
+  - Die Live-USB-Netzwerkauswahl muss WLAN-Zugangsdaten auf dem USB-State persistieren, damit spaetere Boots ohne erneute PIN-/Passwort-Eingabe automatisch online gehen.
+  - Das ist ein physisches Medium-Risiko: wer den USB-Stick lesen kann, kann bei WLAN-Nutzung grundsaetzlich die gespeicherte Netzwerk-Konfiguration erhalten.
+- Mitigation:
+  - WLAN-PSKs werden nicht ins Repo, nicht in generierte Defaults und nicht in Server-Logs geschrieben.
+  - `network.env` bleibt bei vorhandener `PVE_THIN_CLIENT_WIFI_PSK` auf `0600`, auch nach der Live-State-Synchronisierung.
+  - Das Live-USB-Boot-Menue laeuft nur bei explizitem Kernel-Flag `pve_thin_client.network_tui=1`, nicht bei normalen installierten Runtime-Boots.

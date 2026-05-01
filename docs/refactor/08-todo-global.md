@@ -437,6 +437,7 @@
 - [x] Remove the duplicate standalone bootstrap download from the Linux USB writers by reusing the first extracted helper tree across the `sudo` re-exec for both `pve-thin-client-usb-installer-*.sh` and `pve-thin-client-live-usb-*.sh`.
 - [x] Stop building/expecting `beagle-os-server-installer-amd64.iso` and `Debian-1201-bookworm-amd64-beagle-server.tar.gz` on Beagle hosts; keep host-local `/beagle-downloads` limited to endpoint/thin-client artifacts while public server-release artifacts stay on the separate website.
 - [x] Add SSE live status for the complete Settings -> Updates page and normalize artifact-build messages so running builds do not show missing payload/bootstrap as the primary error.
+- [x] Add persistent Live-USB network selection before Desktop/Moonlight, including Ethernet/WLAN TUI, USB-state persistence, 3-second `N` override banner, and private permissions for persisted WLAN PSKs.
 - [x] Re-run standalone `scripts/check-beagle-host.sh` after the active `srv1` artifact build is idle; it passes without PVE service checks, stale `8443` references, or status checksum drift.
 - [ ] Work through `docs/gorelease/` R2/R3 gates before offering Beagle OS as Enterprise Candidate; book hardware according to `docs/gorelease/02-hardware-test-matrix.md`.
 - [x] Add IAM User-Detail-Drawer, protected built-in role metadata, Permission-Suche und Rollen-Diff in der Web Console (2026-04-27).

@@ -995,6 +995,11 @@ install_from_bundled_preset() {
   fi
 
   log_msg "bundled preset detected, starting non-interactive preset-based install"
+  configure_network_access || {
+    LAST_INSTALL_EXIT_CODE=1
+    sync_logs_to_medium
+    return 1
+  }
   AUTO_INSTALL_ACTIVE=1
   run_installer_as_root --cache-bundled-preset >/dev/null 2>&1 || true
 

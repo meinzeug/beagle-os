@@ -27,6 +27,10 @@ main() {
     write_nmconnection "$iface"
     restart_networkmanager
   else
+    if [[ "${PVE_THIN_CLIENT_NETWORK_TYPE:-ethernet}" == "wifi" ]]; then
+      write_wifi_wpa_supplicant_config
+      start_wifi_wpa_supplicant "$iface" || beagle_log_event "network.wifi-error" "wpa_supplicant failed for $iface"
+    fi
     write_network_file "$iface"
     restart_networkd
   fi
