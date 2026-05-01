@@ -23,7 +23,13 @@ jobs:
 
       - name: Read VERSION
         id: version
-        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION="$(tr -d ' \n\r' < VERSION)"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must use SemVer core format, for example 8.0.0. Got: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Install build dependencies
         run: |
@@ -112,7 +118,13 @@ jobs:
 
       - name: Read VERSION
         id: version
-        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION="$(tr -d ' \n\r' < VERSION)"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must use SemVer core format, for example 8.0.0. Got: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Install build dependencies
         run: |
@@ -287,7 +299,13 @@ jobs:
 
       - name: Read VERSION
         id: version
-        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION="$(tr -d ' \n\r' < VERSION)"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must use SemVer core format, for example 8.0.0. Got: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Download release package artifacts
         uses: actions/download-artifact@v4
@@ -344,17 +362,20 @@ jobs:
         run: |
           REF_TYPE="${{ github.ref_type }}"
           REF_NAME="${{ github.ref_name }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION_TAG="v${VERSION}"
           if [[ "$REF_TYPE" == "tag" ]]; then
             TAG="$REF_NAME"
-            RELEASE_TITLE="Beagle OS ${{ steps.version.outputs.version }}"
-            PRERELEASE_FLAG=""
+            if [[ "$TAG" != "$VERSION_TAG" ]]; then
+              echo "Tag $TAG does not match VERSION $VERSION_TAG" >&2
+              exit 1
+            fi
           else
-            TAG="rolling-main"
-            RELEASE_TITLE="Beagle OS rolling main (${{ github.sha }})"
-            PRERELEASE_FLAG="--prerelease"
-            gh release delete "$TAG" --yes --cleanup-tag >/dev/null 2>&1 || true
+            TAG="$VERSION_TAG"
+            git tag -f "$TAG" "${{ github.sha }}"
+            git push --force origin "refs/tags/$TAG"
           fi
-          VERSION="${{ steps.version.outputs.version }}"
+          RELEASE_TITLE="Beagle OS ${VERSION}"
 
           # Collect all release assets
           assets=()
@@ -423,14 +444,14 @@ jobs:
             if [ "$rc" -eq 0 ]; then
               gh release edit "$TAG" \
                 --title "$RELEASE_TITLE" \
-                ${PRERELEASE_FLAG:-} \
+                --latest \
                 "${notes_args[@]}" 2>&1 | tee -a /tmp/beagle-release-create.log
               rc=${PIPESTATUS[0]}
             fi
           else
             gh release create "$TAG" \
               --title "$RELEASE_TITLE" \
-              ${PRERELEASE_FLAG:-} \
+              --latest \
               "${notes_args[@]}" \
               "${assets[@]}" 2>&1 | tee /tmp/beagle-release-create.log
             rc=${PIPESTATUS[0]}
@@ -485,16 +506,36 @@ jobs:
 
       - name: Verify public update mirror
         run: |
+          VERSION="$(tr -d ' \n\r' < VERSION)"
           curl -fsSL https://beagle-os.com/beagle-updates/beagle-downloads-status.json >/tmp/beagle-downloads-status.json
-          python3 - <<'PY'
+          python3 - "$VERSION" <<'PY'
           import json
+          import sys
           from pathlib import Path
 
+          expected_version = sys.argv[1]
           data = json.loads(Path('/tmp/beagle-downloads-status.json').read_text())
-          if data.get('version') != '8.0':
-              raise SystemExit(f"expected public mirror version 8.0, got {data.get('version')!r}")
+          if data.get('version') != expected_version:
+              raise SystemExit(f"expected public mirror version {expected_version}, got {data.get('version')!r}")
           for key in ('payload_url', 'bootstrap_url', 'installer_iso_url', 'server_installer_iso_url', 'server_installimage_url'):
               value = str(data.get(key) or '')
-              if '8.0' not in value and key != 'server_installimage_url':
-                  raise SystemExit(f"expected {key} to point at 8.0 artifacts, got {value!r}")
+              if expected_version not in value and key != 'server_installimage_url':
+                  raise SystemExit(f"expected {key} to point at {expected_version} artifacts, got {value!r}")
           PY
+
+      - name: Publish public website
+        env:
+          BEAGLE_PUBLIC_SITE_TARGET: ${{ secrets.BEAGLE_PUBLIC_SITE_TARGET }}
+        run: bash scripts/deploy-public-website.sh
+
+      - name: Verify live website content
+        run: |
+          VERSION="$(tr -d ' \n\r' < VERSION)"
+          RELEASE_TAG="v${VERSION}"
+          curl -fsSL https://beagle-os.com/ >/tmp/beagle-homepage.html
+          curl -fsSL https://beagle-os.com/download/ >/tmp/beagle-download.html
+          curl -fsSL https://beagle-os.com/styles.css >/tmp/beagle-styles.css
+          curl -fsSI https://beagle-os.com/assets/img/beagleos-gaming.png >/tmp/beagle-wallpaper.headers
+          grep -q "Release ${RELEASE_TAG}" /tmp/beagle-homepage.html
+          grep -q "Current release: ${RELEASE_TAG}" /tmp/beagle-download.html
+          grep -qi 'beagleos-gaming.png' /tmp/beagle-styles.css

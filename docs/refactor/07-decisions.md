@@ -407,3 +407,13 @@ Nebenwirkung Live-Fix: `tests.yml` faehrt nun auch Integration-Tests in CI (Job 
   2. Der Leader entfernt den Member autoritativ ueber den mTLS-RPC-Pfad `cluster.member.leave`.
   3. Erst danach wird lokal aufgeraeumt.
 - `GET /api/v1/virtualization/overview` bleibt die Datenquelle fuer die Virtualization-WebUI, wird aber nicht mehr host-lokal interpretiert. Der Endpoint liest bevorzugt die clusterweit aggregierte Inventory, damit die WebUI auf jedem Host denselben Clusterstand zeigt.
+
+## D-052: Public Website folgt SemVer-Release und verwendet Beagle-eigene Wallpapers
+
+- Entscheidung: Die oeffentliche Website zeigt Release-Versionen als SemVer-Tag wie `v8.0.0`; harte `v8.0`-/`8.0`-Checks werden durch `VERSION`-basierte Workflow-Pruefungen ersetzt.
+- Entscheidung: Das GTA-/Cyberpunk-inspirierte Website-Design nutzt ausschliesslich eigene Beagle-OS-Assets, konkret das vorhandene `beagleos-gaming.png` aus dem Kiosk-/Runtime-Bestand.
+- Entscheidung: Der Release-Workflow veroeffentlicht nach Artefakt-Mirror-Pruefung auch die Public-Website und validiert live HTML, CSS und Wallpaper-Asset.
+- Entscheidung: Alte Public-Site-Dokumentationspfade fuer entfernte Provider-Varianten werden nicht mehr als statische Seiten ausgeliefert.
+- Grund: GitHub, Website und Release-Artefakte muessen dieselbe aktuelle Version zeigen, ohne manuelle Nacharbeit auf dem Plesk-/SaaS-Server.
+- Konsequenz: Website-Smokes duerfen Wallpaper-Referenzen nicht im HTML erwarten, wenn sie korrekt aus CSS geladen werden; die Workflows pruefen daher `/styles.css` und die direkte Bild-URL.
+- Dateien: `VERSION`, `.github/workflows/release.yml`, `.github/workflows/public-website.yml`, `public-site/index.html`, `public-site/styles.css`, `public-site/assets/img/beagleos-gaming.png`.

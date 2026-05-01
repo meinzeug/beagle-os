@@ -6452,3 +6452,23 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 1. GitHub Actions nach dem Push beobachten und den ersten automatisch erzeugten Copilot-Fix-Task verifizieren.
 2. Falls Copilot coding agent bei einem Run nicht verfügbar ist, Secret-/Policy-Konfiguration auf GitHub korrigieren.
 3. Die bestehenden Release-/Build-Workflows auf weitere echte CI-Fehler prüfen, sobald die neuen Autofix-Issues laufen.
+
+## Update (2026-05-01, Public Website Release v8.0.0 und Beagle-Wallpaper-Design)
+
+**Scope**: Die oeffentliche Website nutzt wieder ein eigenstaendiges dunkles Beagle-OS-Design mit dem vorhandenen Gaming-/Cyberpunk-Wallpaper aus der Runtime. Release-Workflows validieren SemVer `8.0.0`, aktualisieren die Website automatisch und pruefen live HTML, CSS und Wallpaper-Asset.
+
+- Website:
+  - [public-site/index.html](/home/dennis/beagle-os/public-site/index.html): Hero auf Beagle-OS-Marke, Open-Source-/Lizenztext und Download `v8.0.0` aktualisiert.
+  - [public-site/styles.css](/home/dennis/beagle-os/public-site/styles.css): neon/cyberpunk Hero mit `beagleos-gaming.png`, Rajdhani/Space-Mono-Typografie und staerkeren Cyan-/Magenta-/Orange-Akzenten.
+  - [public-site/assets/img/beagleos-gaming.png](/home/dennis/beagle-os/public-site/assets/img/beagleos-gaming.png): Public-Site-Asset aus dem vorhandenen Beagle-OS-Wallpaperbestand.
+  - [public-site/download/index.html](/home/dennis/beagle-os/public-site/download/index.html): Release-Tag Platzhalter statt hartem `8.0` in Metadaten.
+  - Alte statische `public-site/docs/proxmox-setup/`-Seite entfernt; Live-Pfad liefert nach Deploy `404`.
+- Release/Automation:
+  - [VERSION](/home/dennis/beagle-os/VERSION): SemVer-Core `8.0.0`.
+  - [.github/workflows/release.yml](/home/dennis/beagle-os/.github/workflows/release.yml): VERSION-Format validiert, GitHub-Release `v8.0.0` als latest gepflegt, Public-Website nach Release-Publish deployed und live geprueft.
+  - [.github/workflows/public-website.yml](/home/dennis/beagle-os/.github/workflows/public-website.yml): Website-Smoke liest VERSION dynamisch und prueft Homepage, Download-Seite, CSS und Wallpaper-Asset.
+- Validierung:
+  - `git diff --check`
+  - YAML-Syntaxcheck fuer Release- und Public-Website-Workflow
+  - Live-Smoke gegen `https://beagle-os.com/`, `/download/`, `/styles.css` und `/assets/img/beagleos-gaming.png`
+  - Chrome DevTools: keine Console-Messages, alle Homepage-Requests `200`

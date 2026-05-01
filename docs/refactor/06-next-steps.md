@@ -1234,7 +1234,7 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 
 ## Naechster Schritt (2026-05-01)
 
-1. Den neuen Copilot-Autofix-Workflow nach dem Push im GitHub-UI bzw. per `gh run list` beobachten.
-2. Verifizieren, dass fehlgeschlagene Runs automatisch Issues erzeugen und an `copilot-swe-agent` zugewiesen werden.
-3. Verifizieren, dass Copilot-PRs bei gruenem CI automatisch gemerged werden oder mindestens Auto-Merge aktivieren.
-4. Falls ein Workflow weiter fehlschlaegt, den vom Autofix-Workflow erzeugten Issue-Body als naechste Arbeitsgrundlage nutzen.
+1. Nach dem Push die Release- und Public-Website-Workflows per `gh run list` beobachten.
+2. Verifizieren, dass der Main-Run den `v8.0.0`-Tag aktualisiert, den GitHub-Release als latest setzt und die Website nicht ueberschreibt.
+3. Falls der Tag-Run durch den Main-Run doppelt ausloest und zu teuer wird, Release-Publish auf einen expliziten Dispatch-/Workflow-Run-Pfad aufteilen.
+4. Den neuen Copilot-Autofix-Workflow weiter beobachten und sicherstellen, dass fehlgeschlagene Runs automatisch Issues/PRs erzeugen.
