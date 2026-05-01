@@ -20,6 +20,7 @@
 
 **Zuletzt erledigt**:
 - `beagle-os.com`-Website wird jetzt ueber den PM2-Serve-Tree `beagle-saas` unter `/opt/beagle-os-saas/src/public` aktualisiert; der Deploy spiegelt denselben Render weiterhin auch in den Plesk-Mirror.
+- Oeffentliche Preisgestaltung wurde aus Homepage und SaaS-Seite entfernt; private Nutzung bleibt frei, kommerzielle Nutzer gehen ueber `Contact Us`/GitHub-Lizenzpfad.
 - Der `v8.0`-Release-Blocker ist auf das zu spaet erzeugte `dist/SHA256SUMS` im Packaging-Pfad eingegrenzt.
 - Der Public-Deploy fuer Artefakte bleibt an den erfolgreichen Release-Workflow gebunden; nach dem Fix kann `v8.0` sauber neu ausgerollt werden.
 

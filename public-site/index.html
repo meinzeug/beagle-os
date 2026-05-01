@@ -22,9 +22,9 @@
         <div class="nav-links">
             <a href="#features">Features</a>
             <a href="#how-it-works">How It Works</a>
-            <a href="#pricing">Pricing</a>
+            <a href="#license">License</a>
             <a href="https://github.com/meinzeug/beagle-os" target="_blank">GitHub</a>
-            <a href="#pricing" class="btn btn-nav">Get Started</a>
+            <a href="/download/" class="btn btn-nav">Download</a>
         </div>
         <button class="nav-toggle" aria-label="Menu">
             <span></span><span></span><span></span>
@@ -40,7 +40,8 @@
         <p class="hero-sub">
             Beagle OS ships its own control plane, host installer, endpoint runtime, and USB media
             pipeline. Run virtual desktops on your Beagle host and stream them to dedicated
-            Moonlight endpoints with Sunshine.
+            Moonlight endpoints with Sunshine. Private use is free; companies should request a
+            commercial license on GitHub.
         </p>
         <div class="hero-actions">
             <a href="/download/" class="btn btn-primary btn-lg">Download __BEAGLE_RELEASE_TAG__</a>
@@ -164,63 +165,34 @@
     </div>
 </section>
 
-<!-- Pricing -->
-<section id="pricing" class="section">
+<!-- License -->
+<section id="license" class="section">
     <div class="container">
         <div class="section-header">
-            <h2>Simple, transparent pricing</h2>
-            <p>Free for personal use. Affordable plans for businesses.</p>
+            <h2>Free for private use. Commercial use by request.</h2>
+            <p>Beagle OS is source available on GitHub. Private and non-commercial use stays free; commercial users should request a license before deployment.</p>
         </div>
-        <div class="pricing-grid">
-            <div class="pricing-card">
-                <div class="pricing-tier">Personal</div>
-                <div class="pricing-price">
-                    <span class="price-amount">Free</span>
-                    <span class="price-period">forever</span>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                 </div>
-                <ul class="pricing-features">
-                    <li>Full Beagle OS endpoint</li>
-                    <li>Beagle Control Plane</li>
-                    <li>Moonlight/Sunshine streaming</li>
-                    <li>USB passthrough</li>
-                    <li>Community support</li>
-                    <li>Non-commercial use only</li>
-                </ul>
-                <a href="__BEAGLE_GITHUB_RELEASE_URL__" class="btn btn-outline btn-block">Download __BEAGLE_RELEASE_TAG__ from GitHub</a>
+                <h3>Private use</h3>
+                <p>Free to use for private and non-commercial deployments. The full Beagle OS endpoint stack stays available without subscription pricing.</p>
             </div>
-            <div class="pricing-card pricing-card-featured">
-                <div class="pricing-badge">Most Popular</div>
-                <div class="pricing-tier">Business</div>
-                <div class="pricing-price">
-                    <span class="price-currency">&euro;</span>
-                    <span class="price-amount">9</span>
-                    <span class="price-period">/ endpoint / month</span>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 </div>
-                <ul class="pricing-features">
-                    <li>Everything in Personal</li>
-                    <li>Commercial use license</li>
-                    <li>Fleet management dashboard</li>
-                    <li>Priority support</li>
-                    <li>Endpoint policies</li>
-                    <li>Residential egress routing</li>
-                </ul>
-                <a href="mailto:sales@beagle-os.com?subject=Beagle%20OS%20Business" class="btn btn-primary btn-block">Contact Sales</a>
+                <h3>Commercial use</h3>
+                <p>Companies and organizations should request a commercial license before rollout. The repository LICENSE on GitHub is the source of truth for the terms.</p>
             </div>
-            <div class="pricing-card">
-                <div class="pricing-tier">Enterprise</div>
-                <div class="pricing-price">
-                    <span class="price-amount">Custom</span>
-                    <span class="price-period">tailored to your needs</span>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12.79A9 9 0 1 1 11.2 3.05"/><path d="M21 3v7h-7"/></svg>
                 </div>
-                <ul class="pricing-features">
-                    <li>Everything in Business</li>
-                    <li>Dedicated infrastructure</li>
-                    <li>Custom integrations</li>
-                    <li>SLA guarantees</li>
-                    <li>On-premise deployment</li>
-                    <li>Dedicated support engineer</li>
-                </ul>
-                <a href="mailto:enterprise@beagle-os.com?subject=Beagle%20OS%20Enterprise" class="btn btn-outline btn-block">Contact Us</a>
+                <h3>License source</h3>
+                <p>Always verify the current terms on GitHub before redistributing, bundling, or embedding Beagle OS in a commercial service.</p>
             </div>
         </div>
     </div>
@@ -229,11 +201,12 @@
 <!-- CTA -->
 <section class="section section-cta">
     <div class="container">
-        <h2>Ready to simplify your virtual desktops?</h2>
-        <p>Get the current release, public artifacts, and install media from one place.</p>
+        <h2>Ready to use Beagle OS?</h2>
+        <p>Private users can download the current release. Companies should request a commercial license first.</p>
         <div class="hero-actions">
             <a href="/download/" class="btn btn-primary btn-lg">Open Downloads</a>
-            <a href="mailto:sales@beagle-os.com?subject=Beagle%20OS%20Demo" class="btn btn-outline-light btn-lg">Request a Demo</a>
+            <a href="https://github.com/meinzeug/beagle-os/blob/main/LICENSE" target="_blank" class="btn btn-outline-light btn-lg">View License</a>
+            <a href="/contact/" class="btn btn-outline-light btn-lg">Contact Us</a>
         </div>
     </div>
 </section>
@@ -250,7 +223,7 @@
                 <h4>Product</h4>
                 <a href="#features">Features</a>
                 <a href="#how-it-works">How It Works</a>
-                <a href="#pricing">Pricing</a>
+                <a href="#license">License</a>
             </div>
             <div class="footer-links">
                 <h4>Resources</h4>
