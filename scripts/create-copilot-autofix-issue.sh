@@ -27,6 +27,7 @@ require_var "$GH_TOKEN" "COPILOT_ASSIGNMENT_TOKEN"
 export GH_TOKEN
 
 owner="${REPO%%/*}"
+repo_name="${REPO#*/}"
 base_branch="${WORKFLOW_BRANCH:-main}"
 short_sha="${WORKFLOW_SHA:0:8}"
 issue_title="[autofix] ${WORKFLOW_NAME} failed on ${base_branch} ${short_sha}"
@@ -63,7 +64,7 @@ repo_json="$(gh api graphql \
   -H 'GraphQL-Features: issues_copilot_assignment_api_support,coding_agent_model_selection' \
   -f query="$query_repo" \
   -F owner="$owner" \
-  -F name="$name")"
+  -F name="$repo_name")"
 
 repo_id="$(python3 - "$repo_json" <<'PY'
 import json, sys
