@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beagle OS — Standalone Virtualization, Thin Clients, Streaming</title>
+    <meta name="description" content="Beagle OS is a standalone virtualization and thin-client platform with Beagle Control Plane, Moonlight endpoints, Sunshine streaming and reproducible release artifacts.">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav">
+    <div class="nav-inner">
+        <a href="#" class="nav-logo">
+            <img src="logo.svg" alt="Beagle OS" class="nav-logo-img">
+            <span>Beagle OS</span>
+        </a>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#how-it-works">How It Works</a>
+            <a href="#pricing">Pricing</a>
+            <a href="https://github.com/meinzeug/beagle-os" target="_blank">GitHub</a>
+            <a href="#pricing" class="btn btn-nav">Get Started</a>
+        </div>
+        <button class="nav-toggle" aria-label="Menu">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+</nav>
+
+<!-- Hero -->
+<header class="hero">
+    <div class="hero-inner">
+        <div class="hero-badge">Release __BEAGLE_RELEASE_TAG__ &middot; Open Source</div>
+        <h1>Standalone virtualization,<br>streaming, and thin clients.</h1>
+        <p class="hero-sub">
+            Beagle OS ships its own control plane, host installer, endpoint runtime, and USB media
+            pipeline. Run virtual desktops on your Beagle host and stream them to dedicated
+            Moonlight endpoints with Sunshine.
+        </p>
+        <div class="hero-actions">
+            <a href="/download/" class="btn btn-primary btn-lg">Download __BEAGLE_RELEASE_TAG__</a>
+            <a href="#how-it-works" class="btn btn-outline btn-lg">See How It Works</a>
+        </div>
+        <div class="hero-stats">
+            <div class="stat">
+                <span class="stat-value">&lt;5ms</span>
+                <span class="stat-label">Streaming Latency</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value">4K60</span>
+                <span class="stat-label">Max Resolution</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value">H.265/AV1</span>
+                <span class="stat-label">Video Codecs</span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- Features -->
+<section id="features" class="section">
+    <div class="container">
+        <div class="section-header">
+            <h2>Everything you need for managed virtual desktops</h2>
+            <p>One platform. Host install, fleet control, endpoint runtime, and release automation.</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                </div>
+                <h3>Dedicated Endpoint OS</h3>
+                <p>Purpose-built Debian-based thin client OS. Boots directly into Moonlight &mdash; no desktop, no distractions, no attack surface.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                </div>
+                <h3>Beagle Control Plane</h3>
+                <p>Manage virtualization, endpoints, updates, policies, and downloads from one Beagle-native control plane.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                </div>
+                <h3>GPU-Accelerated Streaming</h3>
+                <p>Moonlight + Sunshine deliver sub-5ms latency with H.264, HEVC, or AV1. Supports up to 4K@120fps.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
+                </div>
+                <h3>Fleet Management</h3>
+                <p>Control plane with health checks, endpoint reporting, bulk actions, and policy management for your entire fleet.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <h3>Secure by Design</h3>
+                <p>Per-VM SSH tunnel keys, scoped endpoint tokens, enrollment-based onboarding. No open ports, no shared secrets.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M7.5 4.21l4.5 2.6 4.5-2.6"/><path d="M7.5 19.79V14.6L3 12"/><path d="M21 12l-4.5 2.6v5.19"/><path d="M3.27 6.96L12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
+                </div>
+                <h3>USB Passthrough</h3>
+                <p>Securely tunnel local USB devices into your VM through encrypted SSH reverse tunnels. Webcams, printers, security keys.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- How it works -->
+<section id="how-it-works" class="section section-alt">
+    <div class="container">
+        <div class="section-header">
+            <h2>Up and running in minutes</h2>
+            <p>From bare metal or lab VM to streamed desktop in five steps.</p>
+        </div>
+        <div class="steps">
+            <div class="step">
+                <div class="step-num">1</div>
+                <div class="step-content">
+                    <h3>Install the host</h3>
+                    <p>Boot the server installer ISO or run the host installer to provision the Beagle host and control plane.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <div class="step-content">
+                    <h3>Prepare your VM</h3>
+                    <p>Configure Sunshine on your Windows or Linux VM. Beagle auto-detects GPU capabilities and optimizes settings.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <div class="step-content">
+                    <h3>Download the Installer</h3>
+                    <p>Generate a VM-specific USB live or installer script. The endpoint profile is embedded automatically.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">4</div>
+                <div class="step-content">
+                    <h3>Boot the Endpoint</h3>
+                    <p>Flash to USB, boot your thin client. Beagle OS starts, pairs with Sunshine, and launches the stream.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">5</div>
+                <div class="step-content">
+                    <h3>Manage from Beagle Control Plane</h3>
+                    <p>Monitor health, push policies, rebuild media, and manage your fleet from the Beagle WebUI.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Pricing -->
+<section id="pricing" class="section">
+    <div class="container">
+        <div class="section-header">
+            <h2>Simple, transparent pricing</h2>
+            <p>Free for personal use. Affordable plans for businesses.</p>
+        </div>
+        <div class="pricing-grid">
+            <div class="pricing-card">
+                <div class="pricing-tier">Personal</div>
+                <div class="pricing-price">
+                    <span class="price-amount">Free</span>
+                    <span class="price-period">forever</span>
+                </div>
+                <ul class="pricing-features">
+                    <li>Full Beagle OS endpoint</li>
+                    <li>Beagle Control Plane</li>
+                    <li>Moonlight/Sunshine streaming</li>
+                    <li>USB passthrough</li>
+                    <li>Community support</li>
+                    <li>Non-commercial use only</li>
+                </ul>
+                <a href="__BEAGLE_GITHUB_RELEASE_URL__" class="btn btn-outline btn-block">Download __BEAGLE_RELEASE_TAG__ from GitHub</a>
+            </div>
+            <div class="pricing-card pricing-card-featured">
+                <div class="pricing-badge">Most Popular</div>
+                <div class="pricing-tier">Business</div>
+                <div class="pricing-price">
+                    <span class="price-currency">&euro;</span>
+                    <span class="price-amount">9</span>
+                    <span class="price-period">/ endpoint / month</span>
+                </div>
+                <ul class="pricing-features">
+                    <li>Everything in Personal</li>
+                    <li>Commercial use license</li>
+                    <li>Fleet management dashboard</li>
+                    <li>Priority support</li>
+                    <li>Endpoint policies</li>
+                    <li>Residential egress routing</li>
+                </ul>
+                <a href="mailto:sales@beagle-os.com?subject=Beagle%20OS%20Business" class="btn btn-primary btn-block">Contact Sales</a>
+            </div>
+            <div class="pricing-card">
+                <div class="pricing-tier">Enterprise</div>
+                <div class="pricing-price">
+                    <span class="price-amount">Custom</span>
+                    <span class="price-period">tailored to your needs</span>
+                </div>
+                <ul class="pricing-features">
+                    <li>Everything in Business</li>
+                    <li>Dedicated infrastructure</li>
+                    <li>Custom integrations</li>
+                    <li>SLA guarantees</li>
+                    <li>On-premise deployment</li>
+                    <li>Dedicated support engineer</li>
+                </ul>
+                <a href="mailto:enterprise@beagle-os.com?subject=Beagle%20OS%20Enterprise" class="btn btn-outline btn-block">Contact Us</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA -->
+<section class="section section-cta">
+    <div class="container">
+        <h2>Ready to simplify your virtual desktops?</h2>
+        <p>Get the current release, public artifacts, and install media from one place.</p>
+        <div class="hero-actions">
+            <a href="/download/" class="btn btn-primary btn-lg">Open Downloads</a>
+            <a href="mailto:sales@beagle-os.com?subject=Beagle%20OS%20Demo" class="btn btn-outline-light btn-lg">Request a Demo</a>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+    <div class="container">
+        <div class="footer-grid">
+            <div class="footer-brand">
+                <img src="logo.svg" alt="Beagle OS" class="footer-logo">
+                <p>Standalone virtualization, endpoints, and streaming control.</p>
+            </div>
+            <div class="footer-links">
+                <h4>Product</h4>
+                <a href="#features">Features</a>
+                <a href="#how-it-works">How It Works</a>
+                <a href="#pricing">Pricing</a>
+            </div>
+            <div class="footer-links">
+                <h4>Resources</h4>
+                <a href="https://github.com/meinzeug/beagle-os" target="_blank">GitHub</a>
+                <a href="https://github.com/meinzeug/beagle-os/blob/main/docs/architecture.md" target="_blank">Documentation</a>
+                <a href="https://github.com/meinzeug/beagle-os/blob/main/CHANGELOG.md" target="_blank">Changelog</a>
+            </div>
+            <div class="footer-links">
+                <h4>Legal</h4>
+                <a href="https://github.com/meinzeug/beagle-os/blob/main/LICENSE" target="_blank">License</a>
+                <a href="#">Privacy Policy</a>
+                <a href="#">Imprint</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Dennis Wicht. All rights reserved.</p>
+        </div>
+    </div>
+</footer>
+
+<script>
+document.querySelector('.nav-toggle').addEventListener('click', function() {
+    document.querySelector('.nav-links').classList.toggle('open');
+    this.classList.toggle('open');
+});
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+        const target = document.querySelector(a.getAttribute('href'));
+        if (target) {
+            e.preventDefault();
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            document.querySelector('.nav-links').classList.remove('open');
+            document.querySelector('.nav-toggle').classList.remove('open');
+        }
+    });
+});
+window.addEventListener('scroll', () => {
+    document.querySelector('.nav').classList.toggle('scrolled', window.scrollY > 40);
+});
+</script>
+</body>
+</html>

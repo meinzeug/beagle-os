@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-en="Beagle OS | Download" data-de="Beagle OS | Download">Beagle OS | Download</title>
+    <meta name="description" data-en="Download overview for Beagle OS 8.0 server installer, endpoint ISO, USB payloads, checksums, and Beagle Control Plane setup." data-de="Download-Uebersicht fuer Beagle OS 8.0 Server-Installer, Endpoint-ISO, USB-Payloads, Checksummen und Beagle-Control-Plane-Setup." content="Download overview for Beagle OS 8.0 server installer, endpoint ISO, USB payloads, checksums, and Beagle Control Plane setup.">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <script defer src="/assets/js/lang.js"></script>
+</head>
+<body>
+    <header class="site-header">
+        <div class="container nav-shell">
+            <a class="brand" href="/"><img src="/logo.svg" alt="Beagle OS"><span>Beagle OS</span></a>
+            <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" data-nav-toggle><span></span><span></span><span></span></button>
+            <div class="nav-panel" data-nav-panel>
+                <nav class="nav-links">
+                    <a href="/#features" data-en="Features" data-de="Funktionen">Features</a>
+                    <a href="/#how-it-works" data-en="How It Works" data-de="So funktioniert es">How It Works</a>
+                    <a href="/#pricing" data-en="Pricing" data-de="Preise">Pricing</a>
+                    <a href="/download/" data-en="Download" data-de="Herunterladen">Download</a>
+                    <a href="/docs/" data-en="Documentation" data-de="Dokumentation">Documentation</a>
+                    <a href="/about/" data-en="About" data-de="Ueber uns">About</a>
+                    <a href="/saas/" data-en="SaaS" data-de="SaaS">SaaS</a>
+                    <a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noreferrer">GitHub</a>
+                </nav>
+                <div class="nav-actions">
+                    <a class="btn btn-outline" href="https://beagle.meinzeug.cloud/auth/login" data-en="Login" data-de="Login">Login</a>
+                    <a class="btn btn-primary" href="https://beagle.meinzeug.cloud/auth/register" data-en="Create Account" data-de="Konto erstellen">Create Account</a>
+                    <div class="lang-switcher"><button type="button" data-lang-button="en">EN</button><button type="button" data-lang-button="de">DE</button></div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <main>
+        <section class="section">
+            <div class="container">
+                <div class="page-hero">
+                    <div class="eyebrow" data-en="Download" data-de="Herunterladen">Download</div>
+                    <h1 data-en="Get the right image for your endpoint or lab workflow" data-de="Das passende Image fuer deinen Endpoint- oder Lab-Workflow holen">Get the right image for your endpoint or lab workflow</h1>
+                    <p data-en="Public release artifacts for __BEAGLE_RELEASE_TAG__ are mirrored on beagle-os.com. Your Beagle server also generates VM-specific USB scripts and host-local downloads for the exact VM you want to assign." data-de="Oeffentliche Release-Artefakte fuer __BEAGLE_RELEASE_TAG__ werden auf beagle-os.com gespiegelt. Dein Beagle-Server erzeugt zusaetzlich VM-spezifische USB-Skripte und host-lokale Downloads fuer genau die VM, die du zuweisen willst.">Public release artifacts for __BEAGLE_RELEASE_TAG__ are mirrored on beagle-os.com. Your Beagle server also generates VM-specific USB scripts and host-local downloads for the exact VM you want to assign.</p>
+                    <div class="hero-actions">
+                        <a class="btn btn-primary" href="/docs/getting-started/" data-en="Getting Started" data-de="Erste Schritte">Getting Started</a>
+                        <a class="btn btn-outline" href="/docs/architecture/" data-en="Architecture" data-de="Architektur">Architecture</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <div class="section-header">
+                    <h2 data-en="Image formats" data-de="Image-Formate">Image formats</h2>
+                    <p data-en="Choose the image that matches how you want to test, install, or mass-provision endpoints." data-de="Waehle das Image passend dazu, wie du Endpoints testen, installieren oder massenhaft ausrollen willst.">Choose the image that matches how you want to test, install, or mass-provision endpoints.</p>
+                </div>
+                <div class="download-grid">
+                    <article class="download-card"><div class="icon-badge">ISO</div><h3 data-en="ISO installer" data-de="ISO-Installer">ISO installer</h3><p data-en="Use when you want to boot a machine or VM into the installer and deploy Beagle OS onto local storage." data-de="Verwenden, wenn du einen Rechner oder eine VM in den Installer booten und Beagle OS auf lokalen Speicher installieren willst.">Use when you want to boot a machine or VM into the installer and deploy Beagle OS onto local storage.</p><ul class="stack-list"><li data-en="Best for bare-metal rollout" data-de="Ideal fuer Bare-Metal-Rollout">Best for bare-metal rollout</li><li data-en="Carries the installer flow" data-de="Enthaelt den Installer-Flow">Carries the installer flow</li><li data-en="Pairs with VM-specific preset data" data-de="Kombiniert sich mit VM-spezifischen Presets">Pairs with VM-specific preset data</li></ul></article>
+                    <article class="download-card"><div class="icon-badge">IMG</div><h3 data-en="IMG direct flash" data-de="IMG fuer direktes Flashen">IMG direct flash</h3><p data-en="Use when you want a direct-flash artifact for repeatable endpoint media creation without a separate installer session." data-de="Verwenden, wenn du ein Direct-Flash-Artefakt fuer reproduzierbare Endpoint-Medien ohne separate Installer-Session brauchst.">Use when you want a direct-flash artifact for repeatable endpoint media creation without a separate installer session.</p><ul class="stack-list"><li data-en="Useful for appliance-style deployments" data-de="Praktisch fuer Appliance-aehnliche Deployments">Useful for appliance-style deployments</li><li data-en="Fastest path to a prepared medium" data-de="Schnellster Weg zu einem vorbereiteten Medium">Fastest path to a prepared medium</li><li data-en="Keeps the same runtime model" data-de="Behaelt dasselbe Runtime-Modell">Keeps the same runtime model</li></ul></article>
+                    <article class="download-card"><div class="icon-badge">USB</div><h3 data-en="USB live and installer payloads" data-de="USB-Live- und Installer-Payloads">USB live and installer payloads</h3><p data-en="Use the published payload, bootstrap, and helper scripts to create reproducible endpoint media or to rebuild sticks from automation." data-de="Nutze die veroeffentlichten Payload-, Bootstrap- und Helper-Skripte, um reproduzierbare Endpoint-Medien zu erstellen oder USB-Sticks automatisiert neu zu bauen.">Use the published payload, bootstrap, and helper scripts to create reproducible endpoint media or to rebuild sticks from automation.</p><ul class="stack-list"><li data-en="Published with checksums" data-de="Mit Checksummen veroeffentlicht">Published with checksums</li><li data-en="Supports live USB and installed thin clients" data-de="Unterstuetzt Live-USB und installierte Thinclients">Supports live USB and installed thin clients</li><li data-en="Feeds self-update and repair flows" data-de="Versorgt Self-Update- und Repair-Flows">Feeds self-update and repair flows</li></ul></article>
+                </div>
+            </div>
+        </section>
+
+        <section class="section section-alt">
+            <div class="container">
+                <div class="section-header">
+                    <h2 data-en="Beagle host setup" data-de="Beagle-Host-Setup">Beagle host setup</h2>
+                    <p data-en="Clone the repository and run the host installer on the machine that should become your Beagle control plane and virtualization host." data-de="Clone das Repository und fuehre den Host-Installer auf dem System aus, das deine Beagle-Control-Plane und dein Virtualisierungshost werden soll.">Clone the repository and run the host installer on the machine that should become your Beagle control plane and virtualization host.</p>
+                </div>
+                <div class="grid-2">
+                    <div class="info-card">
+                        <h3 data-en="Core setup command" data-de="Zentraler Setup-Befehl">Core setup command</h3>
+                        <pre><code>git clone https://github.com/meinzeug/beagle-os.git
+cd beagle-os
+./scripts/install-beagle-host.sh</code></pre>
+                    </div>
+                    <div class="info-card">
+                        <h3 data-en="Optional variables" data-de="Optionale Variablen">Optional variables</h3>
+                        <pre><code>INSTALL_DIR=/opt/beagle
+BEAGLE_PUBLIC_UPDATE_BASE_URL=https://beagle-os.com/beagle-updates
+PVE_DCV_PROXY_SERVER_NAME=srv.example.net
+BEAGLE_SITE_PORT=443</code></pre>
+                    </div>
+                </div>
+                <div class="section-actions" style="margin-top:20px">
+                    <a class="btn btn-dark" href="/docs/getting-started/" data-en="Read the setup guide" data-de="Setup-Anleitung lesen">Read the setup guide</a>
+                    <a class="btn btn-outline" href="/docs/getting-started/" data-en="Follow the quick start" data-de="Quick Start folgen">Follow the quick start</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="section section-alt">
+            <div class="container">
+                <div class="section-header">
+                    <h2 data-en="Server Installer ISO" data-de="Server-Installer-ISO">Server Installer ISO</h2>
+                    <p data-en="For a fresh server setup, download the server installer ISO. It boots into an interactive installer that prepares the Beagle host, runtime dependencies, and control plane on bare metal or in a VM." data-de="Fuer ein frisches Server-Setup die Server-Installer-ISO herunterladen. Sie startet einen interaktiven Installer, der den Beagle-Host, Runtime-Abhaengigkeiten und die Control Plane auf Bare Metal oder in einer VM vorbereitet.">For a fresh server setup, download the server installer ISO. It boots into an interactive installer that prepares the Beagle host, runtime dependencies, and control plane on bare metal or in a VM.</p>
+                </div>
+                <div class="grid-2">
+                    <div class="info-card">
+                        <h3 data-en="Download" data-de="Herunterladen">Download</h3>
+                        <p data-en="Current release: __BEAGLE_RELEASE_TAG__" data-de="Aktuelle Version: __BEAGLE_RELEASE_TAG__">Current release: __BEAGLE_RELEASE_TAG__</p>
+                        <div class="section-actions">
+                            <a class="btn btn-primary" href="__BEAGLE_PUBLIC_UPDATE_BASE_URL__/beagle-os-server-installer-amd64.iso" data-en="Server Installer ISO (amd64)" data-de="Server-Installer-ISO (amd64)">Server Installer ISO (amd64)</a>
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <h3 data-en="Features" data-de="Funktionen">Features</h3>
+                        <ul class="stack-list">
+                            <li data-en="Interactive text-mode installer" data-de="Interaktiver Textmodus-Installer">Interactive text-mode installer</li>
+                            <li data-en="Serial console support (ttyS0, 115200 baud)" data-de="Serielle Konsole (ttyS0, 115200 Baud)">Serial console support (ttyS0, 115200 baud)</li>
+                            <li data-en="Installs the Beagle host stack and control plane" data-de="Installiert den Beagle-Host-Stack und die Control Plane">Installs the Beagle host stack and control plane</li>
+                            <li data-en="UEFI and legacy BIOS boot" data-de="UEFI- und Legacy-BIOS-Boot">UEFI and legacy BIOS boot</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <div class="section-header">
+                    <h2 data-en="VM-specific USB installer flow" data-de="VM-spezifischer USB-Installer-Flow">VM-specific USB installer flow</h2>
+                    <p data-en="Beagle keeps provisioning VM-centric. Public artifacts cover the generic media, and your own Beagle host generates the final VM-specific USB scripts." data-de="Beagle haelt das Provisioning VM-zentriert. Oeffentliche Artefakte decken die generischen Medien ab, und dein eigener Beagle-Host erzeugt die finalen VM-spezifischen USB-Skripte.">Beagle keeps provisioning VM-centric. Public artifacts cover the generic media, and your own Beagle host generates the final VM-specific USB scripts.</p>
+                </div>
+                <ol class="number-list">
+                    <li data-step="1" data-en="Install the Beagle control plane on your Beagle host." data-de="Installiere die Beagle-Control-Plane auf deinem Beagle-Host.">Install the Beagle control plane on your Beagle host.</li>
+                    <li data-step="2" data-en="Prepare the target VM with Sunshine using the guest helper script." data-de="Bereite die Ziel-VM mit Sunshine ueber das Guest-Helferskript vor.">Prepare the target VM with Sunshine using the guest helper script.</li>
+                    <li data-step="3" data-en="Open the VM in the Beagle WebUI and download the generated USB live or installer script for exactly that VM." data-de="Oeffne die VM in der Beagle-WebUI und lade das generierte USB-Live- oder Installer-Skript genau fuer diese VM herunter.">Open the VM in the Beagle WebUI and download the generated USB live or installer script for exactly that VM.</li>
+                    <li data-step="4" data-en="Write the USB stick. The script downloads the host-served image payload and embeds the VM profile automatically." data-de="Schreibe den USB-Stick. Das Skript laedt das hostseitig bereitgestellte Image-Payload und bettet das VM-Profil automatisch ein.">Write the USB stick. The script downloads the host-served image payload and embeds the VM profile automatically.</li>
+                    <li data-step="5" data-en="Boot the endpoint. Beagle OS comes up in runtime mode and connects to the assigned VM." data-de="Boote den Endpoint. Beagle OS startet im Runtime-Modus und verbindet sich mit der zugewiesenen VM.">Boot the endpoint. Beagle OS comes up in runtime mode and connects to the assigned VM.</li>
+                </ol>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <div class="grid-2">
+                    <div class="table-card">
+                        <h3 data-en="System requirements" data-de="Systemanforderungen">System requirements</h3>
+                        <table>
+                            <thead><tr><th data-en="Component" data-de="Komponente">Component</th><th data-en="Requirement" data-de="Anforderung">Requirement</th></tr></thead>
+                            <tbody>
+                                <tr><td data-en="Beagle host" data-de="Beagle-Host">Beagle host</td><td data-en="64-bit CPU with virtualization support" data-de="64-Bit-CPU mit Virtualisierungsunterstuetzung">64-bit CPU with virtualization support</td></tr>
+                                <tr><td data-en="Endpoint memory" data-de="Endpoint-Arbeitsspeicher">Endpoint memory</td><td data-en="2 GB minimum, 4 GB recommended" data-de="Mindestens 2 GB, empfohlen 4 GB">2 GB minimum, 4 GB recommended</td></tr>
+                                <tr><td data-en="Endpoint storage" data-de="Endpoint-Speicher">Endpoint storage</td><td data-en="8 GB USB minimum, 16 GB SSD recommended" data-de="Mindestens 8 GB USB, empfohlen 16 GB SSD">8 GB USB minimum, 16 GB SSD recommended</td></tr>
+                                <tr><td data-en="Network" data-de="Netzwerk">Network</td><td data-en="100 Mbit LAN minimum, Gigabit recommended" data-de="Mindestens 100 Mbit LAN, empfohlen Gigabit">100 Mbit LAN minimum, Gigabit recommended</td></tr>
+                                <tr><td data-en="VM GPU" data-de="VM-GPU">VM GPU</td><td data-en="Any GPU, NVIDIA with NVENC recommended" data-de="Beliebige GPU, NVIDIA mit NVENC empfohlen">Any GPU, NVIDIA with NVENC recommended</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="table-card">
+                        <h3 data-en="Checksum verification" data-de="Checksummenpruefung">Checksum verification</h3>
+                        <p data-en="Artifacts are published on beagle-os.com and can also be mirrored by your own Beagle host. Verify checksums before you distribute images." data-de="Artefakte werden auf beagle-os.com veroeffentlicht und koennen zusaetzlich von deinem eigenen Beagle-Host gespiegelt werden. Pruefe Checksummen, bevor du Images verteilst.">Artifacts are published on beagle-os.com and can also be mirrored by your own Beagle host. Verify checksums before you distribute images.</p>
+                        <pre><code>cd ${INSTALL_DIR:-/opt/beagle}/dist
+sha256sum beagle-os-installer-amd64.iso
+sha256sum pve-thin-client-usb-bootstrap-latest.tar.gz</code></pre>
+                        <p class="muted" data-en="The public `SHA256SUMS` file and hosted status JSON are published together with the release so workflows and operators validate the same payload set." data-de="Die oeffentliche `SHA256SUMS`-Datei und das gehostete Status-JSON werden zusammen mit dem Release veroeffentlicht, damit Workflows und Operatoren denselben Payload-Satz validieren.">The public `SHA256SUMS` file and hosted status JSON are published together with the release so workflows and operators validate the same payload set.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+    <footer class="footer"><div class="container"><div class="footer-grid"><div><h3>Beagle OS</h3><p data-en="Official product website for the Beagle control plane, host installer, endpoint runtime, and public release artifacts." data-de="Offizielle Produktwebsite fuer die Beagle-Control-Plane, den Host-Installer, die Endpoint-Runtime und die oeffentlichen Release-Artefakte.">Official product website for the Beagle control plane, host installer, endpoint runtime, and public release artifacts.</p></div><div class="footer-links"><h4 data-en="Product" data-de="Produkt">Product</h4><a href="/download/" data-en="Download" data-de="Herunterladen">Download</a><a href="/docs/" data-en="Documentation" data-de="Dokumentation">Documentation</a><a href="/saas/" data-en="SaaS" data-de="SaaS">SaaS</a></div><div class="footer-links"><h4 data-en="Docs" data-de="Docs">Docs</h4><a href="/docs/getting-started/" data-en="Getting Started" data-de="Erste Schritte">Getting Started</a><a href="/docs/architecture/" data-en="Architecture" data-de="Architektur">Architecture</a><a href="/docs/security/" data-en="Security" data-de="Sicherheit">Security</a></div><div class="footer-links"><h4 data-en="Access" data-de="Zugang">Access</h4><a href="https://beagle.meinzeug.cloud/auth/login">Login</a><a href="https://beagle.meinzeug.cloud/auth/register" data-en="Register" data-de="Registrieren">Register</a><a href="https://beagle.meinzeug.cloud/dashboard">Dashboard</a></div><div class="footer-links"><h4 data-en="Resources" data-de="Ressourcen">Resources</h4><a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noreferrer">GitHub</a><a href="/about/" data-en="About" data-de="Ueber uns">About</a><a href="__BEAGLE_GITHUB_RELEASE_URL__" target="_blank" rel="noreferrer" data-en="Current release" data-de="Aktuelles Release">Current release</a></div></div><div class="footer-bottom">© 2026 Dennis Wicht</div></div></footer>
+</body>
+</html>

@@ -209,17 +209,36 @@ jobs:
           retention-days: 1
           if-no-files-found: warn
 
-  create-release:
-    name: Create GitHub Release
-    needs: [build-installimage, build-iso, build-thin-client, sbom]
+  assemble-release-package:
+    name: Assemble public release package
+    needs: [build-installimage, build-iso, build-thin-client]
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read VERSION
-        id: version
-        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install packaging dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            zip \
+            rsync \
+            curl \
+            ca-certificates \
+            squashfs-tools \
+            xorriso \
+            grub2-common \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            dosfstools \
+            mtools \
+            debootstrap \
+            live-build
 
       - name: Download installimage artifacts
         uses: actions/download-artifact@v4
@@ -233,22 +252,61 @@ jobs:
           name: iso-dist
           path: dist/iso/
 
-      - name: Download SBOM artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: release-sbom
-          path: dist/sbom/
-
       - name: Download thin-client artifacts
         uses: actions/download-artifact@v4
         with:
           name: thin-client-dist
           path: dist/thin-client/
 
+      - name: Assemble release dist
+        run: |
+          INSTALLER_BUILD_DIR="${{ github.workspace }}/dist/thin-client" \
+          SERVER_INSTALLER_DIST_DIR="${{ github.workspace }}/dist/iso" \
+          SERVER_INSTALLIMAGE_DIST_DIR="${{ github.workspace }}/dist/installimage" \
+          SKIP_THIN_CLIENT_BUILD=1 \
+          SKIP_SERVER_INSTALLER_BUILD=1 \
+          SKIP_SERVER_INSTALLIMAGE_BUILD=1 \
+          BUILD_BEAGLE_OS=0 \
+          bash scripts/package.sh
+
+      - name: Upload release package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-package-dist
+          path: dist/
+          retention-days: 1
+          if-no-files-found: error
+
+  create-release:
+    name: Create GitHub Release
+    needs: [assemble-release-package, sbom]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read VERSION
+        id: version
+        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Download release package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-package-dist
+          path: dist/
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-sbom
+          path: dist/sbom/
+
       - name: Generate SHA256SUMS
         run: |
-          mkdir -p dist
-          find dist/installimage/ dist/iso/ dist/thin-client/ dist/sbom/ -type f ! -name 'SHA256SUMS*' | sort | xargs sha256sum > dist/SHA256SUMS
+          find dist -maxdepth 1 -type f ! -name 'SHA256SUMS*' ! -name 'RELEASE_ASSETS.md' | sort | xargs sha256sum > dist/SHA256SUMS
+          if compgen -G "dist/sbom/*.json" > /dev/null; then
+            (cd dist/sbom && sha256sum *.json > SHA256SUMS)
+          fi
           cat dist/SHA256SUMS
 
       - name: Import GPG key (optional)
@@ -284,8 +342,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            TAG="${{ github.ref_name }}"
+          REF_TYPE="${{ github.ref_type }}"
+          REF_NAME="${{ github.ref_name }}"
+          if [[ "$REF_TYPE" == "tag" ]]; then
+            TAG="$REF_NAME"
             RELEASE_TITLE="Beagle OS ${{ steps.version.outputs.version }}"
             PRERELEASE_FLAG=""
           else
@@ -300,13 +360,10 @@ jobs:
           assets=()
           while IFS= read -r -d '' f; do
             assets+=("$f")
-          done < <(find dist/installimage/ dist/iso/ -type f -print0 | sort -z)
+          done < <(find dist -maxdepth 1 -type f ! -name 'SHA256SUMS*' ! -name 'RELEASE_ASSETS.md' -print0 | sort -z)
           assets+=("dist/SHA256SUMS")
           [[ -f dist/SHA256SUMS.sig ]] && assets+=("dist/SHA256SUMS.sig")
           [[ -f dist/SHA256SUMS.cosign.bundle ]] && assets+=("dist/SHA256SUMS.cosign.bundle")
-          while IFS= read -r -d '' f; do
-            assets+=("$f")
-          done < <(find dist/thin-client/ -type f -print0 | sort -z)
           # Bundle SBOM files
           while IFS= read -r -d '' f; do
             assets+=("$f")
@@ -360,12 +417,24 @@ jobs:
           fi
 
           set +e
-          gh release create "$TAG" \
-            --title "$RELEASE_TITLE" \
-            ${PRERELEASE_FLAG:-} \
-            "${notes_args[@]}" \
-            "${assets[@]}" 2>&1 | tee /tmp/beagle-release-create.log
-          rc=${PIPESTATUS[0]}
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" --clobber "${assets[@]}" 2>&1 | tee /tmp/beagle-release-create.log
+            rc=${PIPESTATUS[0]}
+            if [ "$rc" -eq 0 ]; then
+              gh release edit "$TAG" \
+                --title "$RELEASE_TITLE" \
+                ${PRERELEASE_FLAG:-} \
+                "${notes_args[@]}" 2>&1 | tee -a /tmp/beagle-release-create.log
+              rc=${PIPESTATUS[0]}
+            fi
+          else
+            gh release create "$TAG" \
+              --title "$RELEASE_TITLE" \
+              ${PRERELEASE_FLAG:-} \
+              "${notes_args[@]}" \
+              "${assets[@]}" 2>&1 | tee /tmp/beagle-release-create.log
+            rc=${PIPESTATUS[0]}
+          fi
           if [ "$rc" -ne 0 ]; then
             python - <<'PY'
           from pathlib import Path
@@ -377,3 +446,39 @@ jobs:
           PY
             exit "$rc"
           fi
+
+  deploy-public-artifacts:
+    name: Deploy public artifacts to beagle-os.com
+    if: github.ref_type == 'tag'
+    needs: [create-release]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download release package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-package-dist
+          path: dist/
+
+      - name: Setup SSH
+        env:
+          BEAGLE_PUBLIC_DEPLOY_SSH_KEY: ${{ secrets.BEAGLE_PUBLIC_DEPLOY_SSH_KEY }}
+          BEAGLE_PUBLIC_DEPLOY_KNOWN_HOSTS: ${{ secrets.BEAGLE_PUBLIC_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$BEAGLE_PUBLIC_DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 0600 ~/.ssh/id_ed25519
+          printf '%s\n' "$BEAGLE_PUBLIC_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 0644 ~/.ssh/known_hosts
+
+      - name: Install rsync
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends rsync openssh-client
+
+      - name: Publish public artifacts
+        env:
+          BEAGLE_PUBLIC_UPDATE_TARGET: ${{ secrets.BEAGLE_PUBLIC_UPDATE_TARGET }}
+        run: bash scripts/publish-public-update-artifacts.sh

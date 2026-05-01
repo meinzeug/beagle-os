@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-en="Beagle OS | Documentation" data-de="Beagle OS | Dokumentation">Beagle OS | Documentation</title>
+    <meta name="description" data-en="Documentation hub for Beagle OS covering getting started, architecture, host setup, endpoint OS, USB passthrough, security, and release notes." data-de="Dokumentations-Hub fuer Beagle OS mit Erste Schritte, Architektur, Host-Setup, Endpoint-OS, USB-Passthrough, Sicherheit und Versionshinweisen." content="Documentation hub for Beagle OS covering getting started, architecture, host setup, endpoint OS, USB passthrough, security, and release notes.">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <script defer src="/assets/js/lang.js"></script>
+    <script defer src="/assets/js/docs-search.js"></script>
+</head>
+<body>
+    <header class="site-header">
+        <div class="container nav-shell">
+            <a class="brand" href="/"><img src="/logo.svg" alt="Beagle OS"><span>Beagle OS</span></a>
+            <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" data-nav-toggle><span></span><span></span><span></span></button>
+            <div class="nav-panel" data-nav-panel>
+                <nav class="nav-links">
+                    <a href="/#features" data-en="Features" data-de="Funktionen">Features</a>
+                    <a href="/download/" data-en="Download" data-de="Herunterladen">Download</a>
+                    <a href="/docs/" data-en="Documentation" data-de="Dokumentation">Documentation</a>
+                    <a href="/about/" data-en="About" data-de="Ueber uns">About</a>
+                    <a href="/saas/" data-en="SaaS" data-de="SaaS">SaaS</a>
+                    <a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noreferrer">GitHub</a>
+                </nav>
+                <div class="nav-actions"><a class="btn btn-outline" href="https://beagle.meinzeug.cloud/auth/login" data-en="Login" data-de="Login">Login</a><a class="btn btn-primary" href="https://beagle.meinzeug.cloud/auth/register" data-en="Create Account" data-de="Konto erstellen">Create Account</a><div class="lang-switcher"><button type="button" data-lang-button="en">EN</button><button type="button" data-lang-button="de">DE</button></div></div>
+            </div>
+        </div>
+    </header>
+    <main>
+        <section class="section">
+            <div class="container">
+                <div class="page-hero">
+                    <div class="eyebrow" data-en="Documentation" data-de="Dokumentation">Documentation</div>
+                    <h1 data-en="Official product and operations reference" data-de="Offizielle Produkt- und Betriebsreferenz">Official product and operations reference</h1>
+                    <p data-en="The docs stay focused on the actual Beagle product path: Beagle control plane, Sunshine in the target VM, and Moonlight on the Beagle OS endpoint." data-de="Die Doku bleibt auf den tatsaechlichen Beagle-Produktpfad fokussiert: Beagle-Control-Plane, Sunshine in der Ziel-VM und Moonlight auf dem Beagle-OS-Endpoint.">The docs stay focused on the actual Beagle product path: Beagle control plane, Sunshine in the target VM, and Moonlight on the Beagle OS endpoint.</p>
+                </div>
+                <div class="docs-search">
+                    <input type="search" data-doc-search data-en-placeholder="Search docs" data-de-placeholder="Dokumentation durchsuchen" placeholder="Search docs">
+                </div>
+                <div class="docs-search-status" data-doc-search-status>7 documentation page(s) visible</div>
+                <div class="docs-grid" style="margin-top:20px">
+                    <article class="doc-card" data-doc-card data-search-en="getting started quick start host setup vm sunshine usb installer first boot moonlight preregistration troubleshooting" data-search-de="erste schritte quick start host setup vm sunshine usb installer erster boot moonlight troubleshooting">
+                        <div class="icon-badge">01</div><h3 data-en="Getting Started" data-de="Erste Schritte">Getting Started</h3><p data-en="Five-step quick start from fresh host setup to first endpoint boot, plus the most common operational issues." data-de="Fuenfstufiger Quick Start vom frischen Host-Setup bis zum ersten Endpoint-Boot plus die haeufigsten Betriebsprobleme.">Five-step quick start from fresh host setup to first endpoint boot, plus the most common operational issues.</p><a class="btn btn-link" href="/docs/getting-started/" data-en="Open page" data-de="Seite oeffnen">Open page</a>
+                    </article>
+                    <article class="doc-card" data-doc-card data-search-en="architecture control plane endpoint os host setup moonlight sunshine api vm centric single protocol" data-search-de="architektur control plane endpoint os host setup moonlight sunshine api vm zentriert ein protokoll">
+                        <div class="icon-badge">AR</div><h3 data-en="Architecture" data-de="Architektur">Architecture</h3><p data-en="Two-layer model, VM-centric provisioning, single-protocol decision, and the control plane REST API." data-de="Zwei-Schichten-Modell, VM-zentriertes Provisioning, Single-Protocol-Entscheidung und die REST-API der Control Plane.">Two-layer model, VM-centric provisioning, single-protocol decision, and the control plane REST API.</p><a class="btn btn-link" href="/docs/architecture/" data-en="Open page" data-de="Seite oeffnen">Open page</a>
+                    </article>
+                    <article class="doc-card" data-doc-card data-search-en="host setup install scripts install configure update uninstall create beagle vm health check" data-search-de="host setup install scripts konfigurieren update uninstall erstelle beagle vm health check">
+                        <div class="icon-badge">PX</div><h3 data-en="Host Setup" data-de="Host-Setup">Host Setup</h3><p data-en="Full script reference, variables, installed components, Create Beagle VM workflow, update path, and clean removal." data-de="Vollstaendige Skript-Referenz, Variablen, installierte Komponenten, Create-Beagle-VM-Workflow, Update-Pfad und saubere Entfernung.">Full script reference, variables, installed components, Create Beagle VM workflow, update path, and clean removal.</p><a class="btn btn-link" href="/docs/getting-started/" data-en="Open page" data-de="Seite oeffnen">Open page</a>
+                    </article>
+                    <article class="doc-card" data-doc-card data-search-en="endpoint os debian kernel runtime moonlight image types identity locale keymap browser profile egress" data-search-de="endpoint os debian kernel runtime moonlight image typen identitaet locale keymap browser profil egress">
+                        <div class="icon-badge">OS</div><h3 data-en="Endpoint OS" data-de="Endpoint-OS">Endpoint OS</h3><p data-en="What the thin-client OS is, what it is not, how it boots, and how identity and egress settings fit into the runtime." data-de="Was das Thin-Client-OS ist, was es nicht ist, wie es bootet und wie Identitaet und Egress-Einstellungen in die Runtime passen.">What the thin-client OS is, what it is not, how it boots, and how identity and egress settings fit into the runtime.</p><a class="btn btn-link" href="/docs/endpoint-os/" data-en="Open page" data-de="Seite oeffnen">Open page</a>
+                    </article>
+                    <article class="doc-card" data-doc-card data-search-en="usb passthrough reverse ssh tunnel usbip attach detach webcam printer security key storage" data-search-de="usb passthrough reverse ssh tunnel attach detach webcam drucker security key storage">
+                        <div class="icon-badge">USB</div><h3 data-en="USB Passthrough" data-de="USB-Passthrough">USB Passthrough</h3><p data-en="Hardened reverse-SSH USB flow from endpoint to host to VM, including attach and detach operations." data-de="Gehaerteter USB-Flow ueber Reverse-SSH vom Endpoint zum Host bis in die VM inklusive Attach- und Detach-Vorgaenge.">Hardened reverse-SSH USB flow from endpoint to host to VM, including attach and detach operations.</p><a class="btn btn-link" href="/docs/usb-passthrough/" data-en="Open page" data-de="Seite oeffnen">Open page</a>
+                    </article>
+                    <article class="doc-card" data-doc-card data-search-en="security tunnel keys tokens onboarding no public ports fingerprint awareness wireguard exit" data-search-de="sicherheit tunnel keys tokens onboarding keine offenen ports fingerprint awareness wireguard exit">
+                        <div class="icon-badge">SEC</div><h3 data-en="Security" data-de="Sicherheit">Security</h3><p data-en="Security model, per-VM keys, scoped tokens, fingerprint awareness, and egress routing for sensitive targets." data-de="Sicherheitsmodell, pro-VM-Keys, begrenzte Tokens, Fingerprint Awareness und Egress-Routing fuer sensible Ziele.">Security model, per-VM keys, scoped tokens, fingerprint awareness, and egress routing for sensitive targets.</p><a class="btn btn-link" href="/docs/security/" data-en="Open page" data-de="Seite oeffnen">Open page</a>
+                    </article>
+                    <article class="doc-card" data-doc-card data-search-en="release notes version 5.0 residential egress endpoint identity fingerprint awareness milestones changelog" data-search-de="versionshinweise version 5.0 residential egress endpoint identity fingerprint awareness meilensteine changelog">
+                        <div class="icon-badge">5.0</div><h3 data-en="Release Notes" data-de="Versionshinweise">Release Notes</h3><p data-en="The 5.0 highlights, project trajectory, and the link to the full GitHub changelog." data-de="Die 5.0-Highlights, der Projektverlauf und der Link zum vollstaendigen GitHub-Changelog.">The 5.0 highlights, project trajectory, and the link to the full GitHub changelog.</p><a class="btn btn-link" href="/docs/release-notes/" data-en="Open page" data-de="Seite oeffnen">Open page</a>
+                    </article>
+                </div>
+            </div>
+        </section>
+    </main>
+    <footer class="footer"><div class="container"><div class="footer-grid"><div><h3>Beagle OS</h3><p data-en="Focused documentation for the Beagle-native streaming stack." data-de="Fokussierte Dokumentation fuer den Beagle-nativen Streaming-Stack.">Focused documentation for the Beagle-native streaming stack.</p></div><div class="footer-links"><h4 data-en="Product" data-de="Produkt">Product</h4><a href="/download/" data-en="Download" data-de="Herunterladen">Download</a><a href="/saas/" data-en="SaaS" data-de="SaaS">SaaS</a><a href="/about/" data-en="About" data-de="Ueber uns">About</a></div><div class="footer-links"><h4 data-en="Docs" data-de="Docs">Docs</h4><a href="/docs/getting-started/" data-en="Getting Started" data-de="Erste Schritte">Getting Started</a><a href="/docs/architecture/" data-en="Architecture" data-de="Architektur">Architecture</a><a href="/docs/release-notes/" data-en="Release Notes" data-de="Versionshinweise">Release Notes</a></div><div class="footer-links"><h4 data-en="Access" data-de="Zugang">Access</h4><a href="https://beagle.meinzeug.cloud/auth/login">Login</a><a href="https://beagle.meinzeug.cloud/auth/register" data-en="Register" data-de="Registrieren">Register</a><a href="https://beagle.meinzeug.cloud/dashboard">Dashboard</a></div><div class="footer-links"><h4 data-en="Resources" data-de="Ressourcen">Resources</h4><a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noreferrer">GitHub</a><a href="https://github.com/meinzeug/beagle-os/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer" data-en="Changelog" data-de="Changelog">Changelog</a><a href="/download/" data-en="Download" data-de="Herunterladen">Download</a></div></div><div class="footer-bottom">© 2026 Dennis Wicht</div></div></footer>
+</body>
+</html>

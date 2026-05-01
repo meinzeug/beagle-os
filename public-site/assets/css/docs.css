@@ -1,0 +1,109 @@
+.doc-layout {
+    display: grid;
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.doc-sidebar {
+    position: sticky;
+    top: calc(var(--nav-height) + 20px);
+    padding: 20px;
+}
+
+.doc-sidebar h3 {
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-size: 1rem;
+}
+
+.doc-sidebar nav {
+    display: grid;
+    gap: 10px;
+}
+
+.doc-sidebar a {
+    text-decoration: none;
+    color: var(--muted-strong);
+    font-weight: 600;
+}
+
+.doc-sidebar a:hover,
+.doc-sidebar a.active {
+    color: var(--orange);
+}
+
+.doc-content {
+    display: grid;
+    gap: 20px;
+}
+
+.doc-section {
+    padding: 28px;
+}
+
+.doc-section h2 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 1.5rem;
+    letter-spacing: -0.03em;
+}
+
+.doc-section h3 {
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-size: 1.1rem;
+}
+
+.doc-section p {
+    margin: 0 0 14px;
+    color: var(--muted);
+}
+
+.doc-section ul {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--muted-strong);
+}
+
+.doc-section li + li {
+    margin-top: 8px;
+}
+
+.api-table td:first-child,
+.api-table th:first-child {
+    white-space: nowrap;
+}
+
+.release-timeline {
+    display: grid;
+    gap: 14px;
+}
+
+.release-entry {
+    position: relative;
+    padding: 18px 20px 18px 28px;
+    border-radius: 18px;
+    background: var(--panel-alt);
+}
+
+.release-entry::before {
+    content: "";
+    position: absolute;
+    left: 12px;
+    top: 22px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--orange);
+}
+
+@media (max-width: 960px) {
+    .doc-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .doc-sidebar {
+        position: static;
+    }
+}

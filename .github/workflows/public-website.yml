@@ -1,0 +1,46 @@
+name: public-website
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+    paths:
+      - 'public-site/**'
+      - 'scripts/deploy-public-website.sh'
+      - 'VERSION'
+      - '.github/workflows/public-website.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-public-website:
+    name: Deploy beagle-os.com website
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        env:
+          BEAGLE_PUBLIC_DEPLOY_SSH_KEY: ${{ secrets.BEAGLE_PUBLIC_DEPLOY_SSH_KEY }}
+          BEAGLE_PUBLIC_DEPLOY_KNOWN_HOSTS: ${{ secrets.BEAGLE_PUBLIC_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$BEAGLE_PUBLIC_DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 0600 ~/.ssh/id_ed25519
+          printf '%s\n' "$BEAGLE_PUBLIC_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 0644 ~/.ssh/known_hosts
+
+      - name: Install rsync
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends rsync openssh-client
+
+      - name: Publish website
+        env:
+          BEAGLE_PUBLIC_SITE_TARGET: ${{ secrets.BEAGLE_PUBLIC_SITE_TARGET }}
+        run: bash scripts/deploy-public-website.sh
