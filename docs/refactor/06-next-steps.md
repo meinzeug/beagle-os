@@ -1,5 +1,21 @@
 # Next Steps
 
+## Stand (2026-05-01, Endpoint Self-Update/Repair gehaertet)
+
+**Zuletzt erledigt**:
+- Live-USB und installierter Thinclient persistieren Update-State/Cache auf dem Medium.
+- A/B-Updates erhalten beim GRUB-Rewrite Live-USB-Bootflags wie die Netzwerk-TUI.
+- Health-Failure wird als Rollback-/Repair-Empfehlung an die Control Plane gemeldet.
+- VM-Update-Panel zeigt, wenn ein Thinclient/Live-USB neu gebaut werden muss.
+
+**Naechste konkrete Schritte**:
+
+1. Nach Deploy auf `srv1` die Thinclient-Artefakte neu bauen, damit neue Live-/Installer-Medien den Self-Heal-Updater enthalten.
+2. Einen echten Live-USB-Reboot-Test fahren: Update-State bleibt nach Reboot unter `pve-thin-client/state/update` erhalten.
+3. Einen installierten Thinclient-A/B-Test fahren: Staging in inaktiven Slot, GRUB-Switch, Confirm-Boot und Rollback-Pfad.
+
+---
+
 ## Stand (2026-05-01, Live-USB Netzwerk-TUI persistent umgesetzt)
 
 **Zuletzt erledigt**:

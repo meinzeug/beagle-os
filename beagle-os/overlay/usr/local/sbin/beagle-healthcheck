@@ -110,3 +110,22 @@ monitor_summary=${monitor_summary:-UNSET}
 EOF
 
 cp "$HEALTH_FILE" "$LOG_DIR/health.status"
+
+health_failure_reasons=()
+if [[ "$moonlight_binary" != "1" ]]; then
+  health_failure_reasons+=("moonlight binary missing")
+fi
+if [[ -n "$moonlight_host" && "$moonlight_target_reachable" != "1" ]]; then
+  health_failure_reasons+=("moonlight target unreachable")
+fi
+if [[ -n "$sunshine_api_url" && "$sunshine_api_reachable" != "1" ]]; then
+  health_failure_reasons+=("sunshine api unreachable")
+fi
+if [[ "${egress_mode:-direct}" != "direct" && "${egress_state:-unknown}" != "ready" && "${egress_state:-unknown}" != "ok" && "${egress_state:-unknown}" != "active" ]]; then
+  health_failure_reasons+=("secure egress not ready")
+fi
+
+if (( ${#health_failure_reasons[@]} > 0 )) && [[ -x /usr/local/sbin/beagle-update-client ]]; then
+  reason="$(IFS='; '; printf '%s' "${health_failure_reasons[*]}")"
+  /usr/local/sbin/beagle-update-client mark-health-failed --reason "$reason" >/dev/null 2>&1 || true
+fi

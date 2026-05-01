@@ -63,12 +63,12 @@ enroll_wireguard_if_needed || beagle_log_event "prepare-runtime.wireguard-error"
 adjust_secret_permissions
 ensure_runtime_ssh_host_keys
 persist_runtime_config_to_live_state
-ensure_beagle_management_units
 ensure_usb_tunnel_service
 ensure_kiosk_runtime || true
 run_optional_runtime_hook "/usr/local/sbin/beagle-identity-apply" "Applying system identity..."
 run_optional_runtime_hook "/usr/local/sbin/beagle-egress-apply" "Preparing secure connection..."
 sync_device_runtime_state || beagle_log_event "prepare-runtime.device-sync-error" "initial sync failed"
+ensure_beagle_management_units
 beagle_log_event "prepare-runtime.system" "runtime_user=${PVE_THIN_CLIENT_RUNTIME_USER:-UNSET} hostname=${PVE_THIN_CLIENT_HOSTNAME:-UNSET}"
 
 required_binary="$(runtime_required_binary "$BOOT_MODE")"

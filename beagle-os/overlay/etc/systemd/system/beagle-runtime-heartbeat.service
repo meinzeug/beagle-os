@@ -1,6 +1,7 @@
 [Unit]
 Description=Beagle OS runtime heartbeat
-After=network-online.target
+After=pve-thin-client-prepare.service network-online.target
+Wants=pve-thin-client-prepare.service network-online.target
 
 [Service]
 Type=oneshot

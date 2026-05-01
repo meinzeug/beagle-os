@@ -56,8 +56,47 @@ def log(message: str) -> None:
 
 
 def ensure_dirs() -> None:
+    ensure_persistent_update_paths()
     STATE_ROOT.mkdir(parents=True, exist_ok=True)
     CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+
+
+def replace_with_symlink(path: Path, target: Path) -> None:
+    if path.is_symlink():
+        if path.resolve() == target.resolve():
+            return
+        path.unlink()
+    if path.exists():
+        if target.exists():
+            for child in path.iterdir():
+                destination = target / child.name
+                if destination.exists():
+                    continue
+                try:
+                    shutil.move(str(child), str(destination))
+                except Exception:
+                    pass
+        shutil.rmtree(path, ignore_errors=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    os.symlink(str(target), str(path))
+
+
+def ensure_persistent_update_paths() -> None:
+    """Keep update state/cache across Live-USB and installed live-layout reboots."""
+    try:
+        medium = live_medium()
+        state_dir = persistent_state_dir(medium)
+        ensure_medium_writable(medium)
+    except Exception as exc:
+        log(f"persistent update state unavailable, using volatile paths: {exc}")
+        return
+
+    persistent_state = state_dir / "update"
+    persistent_cache = state_dir / "update-cache"
+    persistent_state.mkdir(parents=True, exist_ok=True)
+    persistent_cache.mkdir(parents=True, exist_ok=True)
+    replace_with_symlink(STATE_ROOT, persistent_state)
+    replace_with_symlink(CACHE_ROOT, persistent_cache)
 
 
 def read_env_file(path: Path) -> dict[str, str]:
@@ -246,6 +285,7 @@ def root_uuid_for_medium(medium: Path) -> str:
 def write_grub_cfg(medium: Path, hostname: str) -> None:
     root_uuid = root_uuid_for_medium(medium)
     grub_cfg = medium / "boot" / "grub" / "grub.cfg"
+    extra_args = preserved_runtime_kernel_args()
     grub_cfg.parent.mkdir(parents=True, exist_ok=True)
     content = f"""insmod part_gpt
 insmod ext2
@@ -255,35 +295,56 @@ set timeout=4
 
 menuentry 'Beagle OS Desktop' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop{extra_args}
   initrd /live/current/initrd.img
 }}
 
 menuentry 'Beagle OS Gaming' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming{extra_args}
   initrd /live/current/initrd.img
 }}
 
 menuentry 'Beagle OS Desktop (safe mode)' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/current live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop nomodeset irqpoll pci=nomsi noapic
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/current live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop{extra_args} nomodeset irqpoll pci=nomsi noapic
   initrd /live/current/initrd.img
 }}
 
 menuentry 'Beagle OS (Slot A fallback)' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
-  linux /live/a/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/a live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop nomodeset irqpoll pci=nomsi noapic
+  linux /live/a/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/a live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop{extra_args} nomodeset irqpoll pci=nomsi noapic
   initrd /live/a/initrd.img
 }}
 
 menuentry 'Beagle OS (Slot B fallback)' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
-  linux /live/b/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/b live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop nomodeset irqpoll pci=nomsi noapic
+  linux /live/b/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/b live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop{extra_args} nomodeset irqpoll pci=nomsi noapic
   initrd /live/b/initrd.img
 }}
 """
     grub_cfg.write_text(content, encoding="utf-8")
+
+
+def preserved_runtime_kernel_args() -> str:
+    """Preserve non-default runtime boot flags when rewriting GRUB after updates."""
+    try:
+        cmdline = Path("/proc/cmdline").read_text(encoding="utf-8")
+    except OSError:
+        cmdline = ""
+    keep_exact = {
+        "pve_thin_client.network_tui=1",
+    }
+    keep_prefixes = (
+        "pve_thin_client.live_usb=",
+        "pve_thin_client.update_persistence=",
+    )
+    preserved: list[str] = []
+    for token in cmdline.split():
+        if token in keep_exact or any(token.startswith(prefix) for prefix in keep_prefixes):
+            if token not in preserved:
+                preserved.append(token)
+    return (" " + " ".join(preserved)) if preserved else ""
 
 
 def ensure_slot_layout(config: dict[str, str], *, writable: bool = False) -> tuple[Path, str]:
@@ -889,6 +950,17 @@ def confirm_boot(config: dict[str, str]) -> dict:
     return status
 
 
+def mark_health_failure(reason: str) -> dict:
+    status = update_status(
+        state="health-failed",
+        last_health_failure_at=utcnow(),
+        last_error=str(reason or "healthcheck failed"),
+        health_failure=True,
+        rollback_recommended=True,
+    )
+    return status
+
+
 def rollback_update(config: dict[str, str], *, reboot: bool = False) -> dict:
     if boot_mode() != "runtime":
         raise RuntimeError("updates can only be rolled back in runtime mode")
@@ -1020,6 +1092,8 @@ def main() -> int:
     rollback_parser.add_argument("--reboot", action="store_true")
 
     subparsers.add_parser("confirm-boot")
+    health_failed_parser = subparsers.add_parser("mark-health-failed")
+    health_failed_parser.add_argument("--reason", default="healthcheck failed")
     subparsers.add_parser("status")
     subparsers.add_parser("session-start")
     monitor_parser = subparsers.add_parser("session-monitor")
@@ -1046,6 +1120,8 @@ def main() -> int:
             payload = rollback_update(config, reboot=args.reboot)
         elif args.command == "confirm-boot":
             payload = confirm_boot(config)
+        elif args.command == "mark-health-failed":
+            payload = mark_health_failure(args.reason)
         else:
             raise RuntimeError(f"unsupported command {args.command}")
     except Exception as exc:

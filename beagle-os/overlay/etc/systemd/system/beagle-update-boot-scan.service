@@ -1,7 +1,7 @@
 [Unit]
 Description=Run a Beagle OS update scan on every boot
-After=network-online.target pve-thin-client-prepare.service
-Wants=network-online.target pve-thin-client-prepare.service
+After=pve-thin-client-prepare.service beagle-healthcheck.service network-online.target
+Wants=pve-thin-client-prepare.service beagle-healthcheck.service network-online.target
 
 [Service]
 Type=oneshot

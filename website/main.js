@@ -227,7 +227,29 @@ function buildUpdatesPanelHtml(update) {
     return '<div class="banner info">Keine Update-Informationen verfuegbar.</div>';
   }
   const policy = update.policy || {};
+  const endpoint = update.endpoint || {};
+  const compatibility = update.compatibility || {};
+  const reinstallReasons = Array.isArray(compatibility.reinstall_reasons) ? compatibility.reinstall_reasons : [];
+  const migrationReasons = Array.isArray(compatibility.migration_reasons) ? compatibility.migration_reasons : [];
+  const rebuildRequired = Boolean(compatibility.rebuild_recommended || compatibility.reinstall_required || compatibility.migration_required);
+  const healthFailure = Boolean(endpoint.health_failure || endpoint.rollback_recommended);
+  const compatibilityBanner = rebuildRequired
+    ? '<div class="banner warn"><strong>Thinclient/Live-USB neu bauen empfohlen.</strong><br>' +
+      (compatibility.reinstall_required
+        ? 'Diese Endpoint-Version kann nicht sicher per Self-Update migriert werden.'
+        : 'Diese Endpoint-Version braucht zuerst eine Migrationsstufe.') +
+      (reinstallReasons.length || migrationReasons.length
+        ? '<ul>' + reinstallReasons.concat(migrationReasons).map((item) => '<li>' + escapeHtml(String(item)) + '</li>').join('') + '</ul>'
+        : '') +
+      '</div>'
+    : '<div class="banner ok">Self-Update ist fuer diesen Endpoint-Pfad freigegeben.</div>';
+  const healthBanner = healthFailure
+    ? '<div class="banner warn"><strong>Runtime-Health fehlgeschlagen.</strong><br>Rollback oder Repair ist empfohlen. Letzter Fehler: ' +
+      escapeHtml(endpoint.last_error || 'n/a') + '</div>'
+    : '';
   return (
+    compatibilityBanner +
+    healthBanner +
     '<div class="detail-section">' +
     '<h3>Update Policy</h3>' +
     '<div class="detail-grid">' +
@@ -235,6 +257,12 @@ function buildUpdatesPanelHtml(update) {
     fieldBlock('Kanal', policy.channel || 'stable') +
     fieldBlock('Verhalten', policy.behavior || 'prompt') +
     fieldBlock('Version Pin', policy.version_pin || 'n/a') +
+    fieldBlock('Update-Pfad', compatibility.update_path || 'self_update') +
+    fieldBlock('Min. Self-Update', compatibility.minimum_self_update_version || 'n/a') +
+    fieldBlock('Installiert', endpoint.current_version || 'n/a') +
+    fieldBlock('Publiziert', update.published_latest_version || 'n/a') +
+    fieldBlock('Status', endpoint.state || 'n/a') +
+    fieldBlock('Pending Reboot', endpoint.pending_reboot ? 'Ja' : 'Nein') +
     '</div>' +
     '</div>' +
     '<div class="button-row section-spaced-tight">' +

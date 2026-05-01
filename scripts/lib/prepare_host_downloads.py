@@ -369,6 +369,14 @@ def write_download_status(
     vm_installers = json.loads(vm_installers_path.read_text(encoding="utf-8")) if vm_installers_path.exists() else []
     payload = {
         "version": version,
+        "endpoint_compatibility": {
+            "foundation_generation": "2",
+            "minimum_self_update_version": "8.0",
+            "reinstall_required": False,
+            "migration_required": False,
+            "reinstall_reasons": [],
+            "migration_reasons": [],
+        },
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "server_name": server_name,
         "listen_port": int(listen_port),

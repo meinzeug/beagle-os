@@ -5,6 +5,8 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Callable
 
+from update_feed import _version_lt
+
 
 class VmHttpSurfaceService:
     def __init__(
@@ -145,9 +147,36 @@ class VmHttpSurfaceService:
     def _update_payload(self, vm: Any) -> dict[str, Any]:
         profile = self._build_profile(vm)
         endpoint = self._summarize_endpoint_report(self._load_endpoint_report(vm.node, vm.vmid) or {})
-        published_latest_version = str(
-            self._load_json_file(self._downloads_status_file, {}).get("version", "")
+        downloads_status = self._load_json_file(self._downloads_status_file, {})
+        if not isinstance(downloads_status, dict):
+            downloads_status = {}
+        published_latest_version = str(downloads_status.get("version", "")).strip()
+        endpoint_compatibility = (
+            downloads_status.get("endpoint_compatibility")
+            if isinstance(downloads_status.get("endpoint_compatibility"), dict)
+            else {}
+        )
+        current_version = str(endpoint.get("update_current_version", "") or "").strip()
+        minimum_self_update_version = str(
+            endpoint_compatibility.get("minimum_self_update_version")
+            or downloads_status.get("minimum_self_update_version")
+            or "8.0"
         ).strip()
+        reinstall_required = bool(endpoint_compatibility.get("reinstall_required", False))
+        migration_required = bool(endpoint_compatibility.get("migration_required", False))
+        reinstall_reasons = endpoint_compatibility.get("reinstall_reasons", [])
+        if not isinstance(reinstall_reasons, list):
+            reinstall_reasons = []
+        migration_reasons = endpoint_compatibility.get("migration_reasons", [])
+        if not isinstance(migration_reasons, list):
+            migration_reasons = []
+        if current_version and minimum_self_update_version and _version_lt(current_version, minimum_self_update_version):
+            reinstall_required = True
+            reinstall_reasons = [
+                *[str(item) for item in reinstall_reasons],
+                f"Installierte Version ist aelter als die minimale Self-Update-Version {minimum_self_update_version}.",
+            ]
+        update_path = "reinstall_required" if reinstall_required else ("migration_required" if migration_required else "self_update")
         return self._envelope(
             update={
                 "policy": {
@@ -162,7 +191,7 @@ class VmHttpSurfaceService:
                 },
                 "endpoint": {
                     "state": endpoint.get("update_state", ""),
-                    "current_version": endpoint.get("update_current_version", ""),
+                    "current_version": current_version,
                     "latest_version": endpoint.get("update_latest_version", ""),
                     "staged_version": endpoint.get("update_staged_version", ""),
                     "current_slot": endpoint.get("update_current_slot", ""),
@@ -171,8 +200,26 @@ class VmHttpSurfaceService:
                     "pending_reboot": endpoint.get("update_pending_reboot", False),
                     "last_scan_at": endpoint.get("update_last_scan_at", ""),
                     "last_error": endpoint.get("update_last_error", ""),
+                    "health_failure": endpoint.get("update_health_failure", False),
+                    "rollback_recommended": endpoint.get("update_rollback_recommended", False),
+                    "last_health_failure_at": endpoint.get("update_last_health_failure_at", ""),
                 },
                 "published_latest_version": published_latest_version,
+                "compatibility": {
+                    "update_path": update_path,
+                    "self_update_supported": update_path == "self_update",
+                    "migration_required": update_path == "migration_required",
+                    "reinstall_required": update_path == "reinstall_required",
+                    "rebuild_recommended": update_path != "self_update",
+                    "minimum_self_update_version": minimum_self_update_version,
+                    "reinstall_reasons": [str(item) for item in reinstall_reasons],
+                    "migration_reasons": [str(item) for item in migration_reasons],
+                    "foundation_generation": str(
+                        endpoint_compatibility.get("foundation_generation")
+                        or downloads_status.get("foundation_generation")
+                        or "1"
+                    ),
+                },
             }
         )
 

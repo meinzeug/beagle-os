@@ -6387,3 +6387,27 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `git diff --check`
   - direkter Python-Runner fuer `tests/unit/test_thin_client_live_network_tui.py`, `tests/unit/test_usb_payload_resolution_regressions.py`, `tests/unit/test_thin_client_live_build_regressions.py`
   - `pytest` war lokal nicht installiert
+
+## Update (2026-05-01, Endpoint Self-Update/Repair: Live-USB und installierte Thinclients gehaertet)
+
+**Scope**: Live-USB-Sticks und per USB-Installer installierte Thinclients sollen Updates, Health-/Repair-Status und Reboot-Persistenz reproduzierbar behalten. Die WebUI zeigt pro VM/Endpoint, ob Self-Update erlaubt ist oder ob Thinclient/Live-USB neu gebaut werden muss.
+
+- Runtime-/Updater-Fix:
+  - [beagle-os/overlay/usr/local/sbin/beagle-update-client](/home/dennis/beagle-os/beagle-os/overlay/usr/local/sbin/beagle-update-client): Update-State und Cache werden auf dem Live-/Install-Medium unter `pve-thin-client/state/update*` persistiert; A/B-Slot-Updatepfad bleibt fuer installierte Thinclients erhalten
+  - [beagle-os/overlay/usr/local/sbin/beagle-update-client](/home/dennis/beagle-os/beagle-os/overlay/usr/local/sbin/beagle-update-client): GRUB-Rewrite erhaelt nicht-default Runtime-Bootflags wie `pve_thin_client.network_tui=1`
+  - [thin-client-assistant/runtime/prepare-runtime.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/prepare-runtime.sh): Management-/Update-/Heal-Timer starten erst nach Netzwerk, Enrollment, WireGuard/Egress und initialem Device-Sync
+  - `beagle-update-*`, `beagle-healthcheck`, `beagle-endpoint-*`, `beagle-runtime-heartbeat`: systemd-Abhaengigkeiten auf `pve-thin-client-prepare.service`/`network-online.target` gesetzt
+- Repair-/Control-Plane-Fix:
+  - [beagle-os/overlay/usr/local/sbin/beagle-healthcheck](/home/dennis/beagle-os/beagle-os/overlay/usr/local/sbin/beagle-healthcheck): Health-Failure markiert Update-Status als `health-failed` mit `rollback_recommended`
+  - [beagle-host/services/endpoint_report.py](/home/dennis/beagle-os/beagle-host/services/endpoint_report.py): Endpoint-Reports transportieren Health-Failure-/Rollback-Flags zur Control Plane
+- Compatibility-/WebUI-Fix:
+  - [beagle-host/services/update_feed.py](/home/dennis/beagle-os/beagle-host/services/update_feed.py): Update-Feed unterscheidet `self_update`, `migration_required` und `reinstall_required`
+  - [beagle-host/services/vm_http_surface.py](/home/dennis/beagle-os/beagle-host/services/vm_http_surface.py) und [website/main.js](/home/dennis/beagle-os/website/main.js): VM-Update-Panel zeigt Rebuild-/Reinstall-Hinweise und Runtime-Health-Failure an
+  - [scripts/lib/prepare_host_downloads.py](/home/dennis/beagle-os/scripts/lib/prepare_host_downloads.py): `beagle-downloads-status.json` enthaelt Endpoint-Kompatibilitaetsmetadaten
+- Regression:
+  - [tests/unit/test_endpoint_update_self_heal_regressions.py](/home/dennis/beagle-os/tests/unit/test_endpoint_update_self_heal_regressions.py)
+  - [tests/unit/test_prepare_host_downloads_status_regressions.py](/home/dennis/beagle-os/tests/unit/test_prepare_host_downloads_status_regressions.py)
+- Validierung:
+  - `python3 -m py_compile` fuer Updater und betroffene Backend-Services
+  - `bash -n` fuer Healthcheck/Endpoint-Report/Dispatch/Prepare-Runtime
+  - direkter Python-Runner fuer die betroffenen Regressionen
