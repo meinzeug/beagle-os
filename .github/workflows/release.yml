@@ -14,8 +14,63 @@ permissions:
   id-token: write
 
 jobs:
+  detect-artifact-changes:
+    name: Detect artifact rebuild scope
+    runs-on: ubuntu-latest
+    outputs:
+      rebuild_server_release: ${{ steps.resolve.outputs.rebuild_server_release }}
+      rebuild_thin_client: ${{ steps.resolve.outputs.rebuild_thin_client }}
+
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event_name == 'push' }}
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed paths
+        id: filter
+        if: ${{ github.event_name == 'push' }}
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            server_release:
+              - 'server-installer/**'
+              - 'beagle-host/**'
+              - 'core/**'
+              - 'providers/**'
+              - 'website/**'
+              - 'extension/**'
+              - 'scripts/build-server-installer.sh'
+              - 'scripts/build-server-installimage.sh'
+              - 'scripts/install-beagle-host.sh'
+              - 'scripts/install-beagle-host-postinstall.sh'
+              - 'scripts/check-beagle-host.sh'
+              - 'scripts/prepare-host-downloads.sh'
+              - 'scripts/lib/**'
+              - 'VERSION'
+            thin_client:
+              - 'thin-client-assistant/**'
+              - 'beagle-os/**'
+              - 'scripts/build-thin-client-installer.sh'
+              - 'scripts/package.sh'
+              - 'scripts/lib/**'
+              - 'VERSION'
+
+      - name: Resolve rebuild policy
+        id: resolve
+        run: |
+          rebuild_server="true"
+          rebuild_thin="true"
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            rebuild_server="${{ steps.filter.outputs.server_release }}"
+            rebuild_thin="${{ steps.filter.outputs.thin_client }}"
+          fi
+          echo "rebuild_server_release=${rebuild_server}" >> "$GITHUB_OUTPUT"
+          echo "rebuild_thin_client=${rebuild_thin}" >> "$GITHUB_OUTPUT"
+
   build-installimage:
     name: Build server installimage tarball
+    needs: [detect-artifact-changes]
     runs-on: ubuntu-latest
 
     steps:
@@ -31,7 +86,22 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Reuse published installimage tarball
+        id: reuse_installimage
+        if: ${{ needs.detect-artifact-changes.outputs.rebuild_server_release != 'true' }}
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist/installimage
+          TARBALL_NAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
+          gh release download "v${{ steps.version.outputs.version }}" \
+            --pattern "$TARBALL_NAME" \
+            --dir dist/installimage
+          test -f "dist/installimage/$TARBALL_NAME"
+
       - name: Install build dependencies
+        if: ${{ needs.detect-artifact-changes.outputs.rebuild_server_release == 'true' || steps.reuse_installimage.outcome != 'success' }}
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
@@ -49,6 +119,7 @@ jobs:
             ca-certificates
 
       - name: Build installimage tarball
+        if: ${{ needs.detect-artifact-changes.outputs.rebuild_server_release == 'true' || steps.reuse_installimage.outcome != 'success' }}
         run: |
           sudo --preserve-env=BEAGLE_SERVER_INSTALLIMAGE_BUILD_DIR,BEAGLE_SERVER_INSTALLIMAGE_DIST_DIR,BEAGLE_SERVER_INSTALLIMAGE_MIN_BUILD_FREE_GIB,BEAGLE_SERVER_INSTALLIMAGE_MIN_DIST_FREE_GIB \
             bash scripts/build-server-installimage.sh
@@ -68,12 +139,39 @@ jobs:
 
   build-iso:
     name: Build live-build ISO
+    needs: [detect-artifact-changes]
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
+      - name: Read VERSION
+        id: version
+        run: |
+          VERSION="$(tr -d ' \n\r' < VERSION)"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must use SemVer core format, for example 8.0.0. Got: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Reuse published server installer ISO
+        id: reuse_server_iso
+        if: ${{ needs.detect-artifact-changes.outputs.rebuild_server_release != 'true' }}
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist/iso
+          gh release download "v${{ steps.version.outputs.version }}" \
+            --pattern "beagle-os-server-installer-amd64.iso" \
+            --pattern "beagle-os-server-installer.iso" \
+            --dir dist/iso
+          test -f dist/iso/beagle-os-server-installer-amd64.iso
+          test -f dist/iso/beagle-os-server-installer.iso
+
       - name: Install build dependencies
+        if: ${{ needs.detect-artifact-changes.outputs.rebuild_server_release == 'true' || steps.reuse_server_iso.outcome != 'success' }}
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
@@ -92,6 +190,7 @@ jobs:
             ca-certificates
 
       - name: Build server installer ISO
+        if: ${{ needs.detect-artifact-changes.outputs.rebuild_server_release == 'true' || steps.reuse_server_iso.outcome != 'success' }}
         run: |
           sudo --preserve-env=SERVER_INSTALLER_BUILD_DIR,SERVER_INSTALLER_DIST_DIR,BEAGLE_SERVER_INSTALLER_MIN_BUILD_FREE_GIB,BEAGLE_SERVER_INSTALLER_MIN_DIST_FREE_GIB \
             bash scripts/build-server-installer.sh
@@ -111,6 +210,7 @@ jobs:
 
   build-thin-client:
     name: Build thin-client installer
+    needs: [detect-artifact-changes]
     runs-on: ubuntu-latest
 
     steps:
@@ -125,6 +225,23 @@ jobs:
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Reuse published thin-client installer ISO
+        id: reuse_thin_client
+        if: ${{ needs.detect-artifact-changes.outputs.rebuild_thin_client != 'true' }}
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist/thin-client/live
+          gh release download "v${{ steps.version.outputs.version }}" \
+            --pattern "beagle-os-installer-amd64.iso" \
+            --pattern "beagle-os-installer.iso" \
+            --dir dist/thin-client
+          test -f dist/thin-client/beagle-os-installer-amd64.iso
+          if [[ ! -f dist/thin-client/beagle-os-installer.iso ]]; then
+            install -m 0644 dist/thin-client/beagle-os-installer-amd64.iso dist/thin-client/beagle-os-installer.iso
+          fi
 
       - name: Install build dependencies
         run: |
@@ -143,7 +260,19 @@ jobs:
             curl \
             ca-certificates
 
+      - name: Extract live filesystem from published ISO
+        if: ${{ needs.detect-artifact-changes.outputs.rebuild_thin_client != 'true' && steps.reuse_thin_client.outcome == 'success' }}
+        run: |
+          xorriso -osirrox on -indev dist/thin-client/beagle-os-installer-amd64.iso \
+            -extract /live/vmlinuz dist/thin-client/live/vmlinuz \
+            -extract /live/initrd.img dist/thin-client/live/initrd.img \
+            -extract /live/filesystem.squashfs dist/thin-client/live/filesystem.squashfs \
+            -extract /live/SHA256SUMS dist/thin-client/live/SHA256SUMS \
+            >/dev/null 2>&1
+          test -f dist/thin-client/live/filesystem.squashfs
+
       - name: Build thin-client installer
+        if: ${{ needs.detect-artifact-changes.outputs.rebuild_thin_client == 'true' || steps.reuse_thin_client.outcome != 'success' }}
         run: |
           sudo --preserve-env=THINCLIENT_BUILD_DIR,THINCLIENT_DIST_DIR,BEAGLE_THINCLIENT_MIN_BUILD_FREE_GIB,BEAGLE_THINCLIENT_MIN_DIST_FREE_GIB \
             bash scripts/build-thin-client-installer.sh
