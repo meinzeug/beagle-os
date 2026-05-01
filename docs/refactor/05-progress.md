@@ -6281,3 +6281,16 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `python3 -m unittest tests/unit/test_server_settings.py -q`
   - ad-hoc Python-Runner für `tests/unit/test_repo_auto_update_regressions.py` und `tests/unit/test_install_beagle_host_services_regressions.py`
   - Ergebnis: alle betroffenen lokalen Regressionen grün; `pytest` war auf diesem Host weiterhin nicht installiert
+
+## Update (2026-05-01, Host-Ops: Download-404 waehrend Artefakt-Refresh beseitigt)
+
+**Scope**: Den Live-404 auf `https://srv1.beagle-os.com/beagle-downloads/beagle-downloads-status.json` während eines laufenden Artefakt-Refresh reproduzierbar geschlossen. Ursache war kein nginx-Problem, sondern `scripts/package.sh`, das die publizierten Download-Dateien am Build-Anfang wegloeschte und erst spaeter neu erzeugte.
+
+- Packaging-Fix:
+  - [scripts/package.sh](/home/dennis/beagle-os/scripts/package.sh): bestehende `/beagle-downloads`-Artefakte bleiben waehrend des Rebuilds sichtbar; die publizierten Status-/Launcher-/ISO-Dateien werden nicht mehr vorab entfernt
+- Regression:
+  - [tests/unit/test_package_sh_regressions.py](/home/dennis/beagle-os/tests/unit/test_package_sh_regressions.py)
+- Live-Befund auf `srv1`:
+  - alter Build entfernte `beagle-downloads-status.json` tatsaechlich waehrend des Refreshs
+  - neuer Deploy trennt Repo-Status bereits korrekt von Artefakt-Build (`repo_auto_update=healthy`), und der Packaging-Fix verhindert zusaetzlich die temporären Download-404s waehrend des laufenden Refreshs
+  - `refresh-host-artifacts.sh` seedet bei bereits fehlender Statusdatei jetzt sofort einen Platzhalter, damit `/beagle-downloads/beagle-downloads-status.json` schon waehrend des ersten reparierten Runs wieder `200` liefert

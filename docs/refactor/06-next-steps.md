@@ -830,6 +830,18 @@
 2. **Repo-/Artifact-Status neu verifizieren**: `/#panel=settings_updates` und `/#panel=settings_artifacts` gegen die reale `srv1`-Runtime prüfen, bis `repo_auto_update.status.state=healthy` und der Build separat sichtbar ist.
 3. **Host-Artefaktlauf einmal neu abnehmen**: bestätigen, dass `beagle-artifacts-refresh.service` nach dem entkoppelten Repo-Update sauber bis `ok` durchläuft.
 4. **Zwei-Host-Follow-up**: denselben Update-/Artifact-Pfad später auch auf `srv2` gegen echte Runtime validieren, sobald der Host wieder verfügbar ist.
+
+## Stand (2026-05-01, Download publish continuity)
+
+**Zuletzt erledigt**:
+- `package.sh` loescht publizierte `/beagle-downloads`-Artefakte nicht mehr zu Beginn eines langen Rebuilds.
+- Der konkrete `404` auf `beagle-downloads-status.json` waehrend des Refreshs wurde auf `srv1` auf den Packaging-Pfad zurückgeführt.
+
+**Naechste konkrete Schritte**:
+
+1. **Packaging-Fix auf `srv1` live anwenden**: den laufenden Refresh mit dem gepatchten `package.sh` neu starten und `beagle-downloads-status.json` waehrend des Builds wiederholt extern pruefen.
+2. **Optionaler Haertungsschritt**: Download-Publish spaeter vollstaendig atomisch auf ein Staging-Verzeichnis umstellen, damit auch teilweise ueberschriebene große Dateien waehrend eines Releases ausgeschlossen werden.
+3. **Placeholder wieder ablösen**: nach Build-Ende bestätigen, dass der echte `beagle-downloads-status.json`-Payload den temporären `refreshing`-Platzhalter ersetzt hat.
 6. **Plan 01 Fork-Pfad weiterziehen**: VPN-Enforcement nach dem aktuellen Broker-Pfad auch im späteren `beagle-stream-server`-Fork vorbereiten.
 
 ## Stand (2026-04-28, GoEnterprise Plan 02 follow-up)

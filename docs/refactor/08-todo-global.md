@@ -433,6 +433,7 @@
 - [ ] Validate live on `srv1` and `srv2` that a pushed GitHub commit is pulled by the new repo auto-update path and followed by a healthy artifact watchdog state.
 - [x] Decouple `repo-auto-update` completion from long-running artifact builds so Settings->Updates does not stay stuck on `updating` for the whole ISO/package runtime.
 - [x] Recover missing host commit stamps for repo auto-update via status/Git fallback and auto-write `.beagle-installed-commit` during Git-based host installs.
+- [x] Keep published `/beagle-downloads` artifacts visible during long `package.sh` rebuilds instead of deleting `beagle-downloads-status.json` and launcher files at build start.
 - [x] Re-run standalone `scripts/check-beagle-host.sh` after the active `srv1` artifact build is idle; it passes without PVE service checks, stale `8443` references, or status checksum drift.
 - [ ] Work through `docs/gorelease/` R2/R3 gates before offering Beagle OS as Enterprise Candidate; book hardware according to `docs/gorelease/02-hardware-test-matrix.md`.
 - [x] Add IAM User-Detail-Drawer, protected built-in role metadata, Permission-Suche und Rollen-Diff in der Web Console (2026-04-27).

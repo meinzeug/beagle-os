@@ -7,6 +7,7 @@ HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-$CONFIG_DIR/host.env}"
 PROXY_ENV_FILE="${PVE_DCV_PROXY_ENV_FILE:-$CONFIG_DIR/beagle-proxy.env}"
 STATUS_DIR="${PVE_DCV_STATUS_DIR:-/var/lib/beagle}"
 REFRESH_STATUS_FILE="$STATUS_DIR/refresh.status.json"
+DOWNLOAD_STATUS_FILE="$ROOT_DIR/dist/beagle-downloads-status.json"
 BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
 REFRESH_STATUS_GROUP="${BEAGLE_CONTROL_USER:-beagle-manager}"
 
@@ -181,6 +182,39 @@ stop_refresh_heartbeat() {
   STATUS_HEARTBEAT_PID=""
 }
 
+write_download_status_placeholder() {
+  local version status_url
+  [[ -f "$DOWNLOAD_STATUS_FILE" ]] && return 0
+
+  version="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION" 2>/dev/null || echo unknown)"
+  status_url="${PVE_DCV_DOWNLOADS_BASE_URL%/}/beagle-downloads-status.json"
+
+  python3 - "$DOWNLOAD_STATUS_FILE" "$version" "$PVE_DCV_PROXY_SERVER_NAME" "$PVE_DCV_PROXY_LISTEN_PORT" "$PVE_DCV_DOWNLOADS_PATH" "$status_url" "$CURRENT_MESSAGE" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+path = Path(sys.argv[1])
+path.parent.mkdir(parents=True, exist_ok=True)
+payload = {
+    "version": sys.argv[2],
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "server_name": sys.argv[3],
+    "listen_port": int(sys.argv[4]),
+    "downloads_path": sys.argv[5],
+    "status_url": sys.argv[6],
+    "status": "refreshing",
+    "message": sys.argv[7],
+}
+path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+  if getent group "$REFRESH_STATUS_GROUP" >/dev/null 2>&1; then
+    chgrp "$REFRESH_STATUS_GROUP" "$DOWNLOAD_STATUS_FILE" || true
+  fi
+  chmod 0644 "$DOWNLOAD_STATUS_FILE" || true
+}
+
 capture_refresh_error() {
   local failed_command
   failed_command="${BASH_COMMAND:-unknown command}"
@@ -238,6 +272,7 @@ export PVE_DCV_DOWNLOADS_BASE_URL="$(
 export BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
 
 update_refresh_step "prepare-host-downloads" 20 "Host-Downloads, Statusdateien und Installer-Launcher werden abgeglichen ..."
+write_download_status_placeholder
 start_refresh_heartbeat
 "$ROOT_DIR/scripts/prepare-host-downloads.sh"
 stop_refresh_heartbeat

@@ -155,52 +155,9 @@ ensure_free_space_with_cleanup \
 
 mkdir -p "$DIST_DIR"
 BEAGLE_OS_ASSETS=()
-rm -f "$DIST_DIR"/pve-thin-client-usb-installer-host-v*.sh
-rm -f "$DIST_DIR"/pve-thin-client-usb-installer-host-v*.ps1
-rm -f "$DIST_DIR"/pve-thin-client-live-usb-host-v*.sh
-rm -f "$DIST_DIR"/pve-thin-client-live-usb-host-v*.ps1
-rm -f "$DIST_DIR"/pve-thin-client-usb-installer-v*.sh
-rm -f "$DIST_DIR"/pve-thin-client-usb-installer-v*.ps1
-rm -f "$DIST_DIR"/pve-thin-client-live-usb-v*.sh
-rm -f "$DIST_DIR"/pve-thin-client-live-usb-v*.ps1
-rm -f "$DIST_DIR"/pve-thin-client-usb-payload-v*.tar.gz
-rm -f "$DIST_DIR"/pve-thin-client-usb-bootstrap-v*.tar.gz
-rm -f "$DIST_DIR"/pve-thin-client-usb-installer-vm-*.sh
-rm -f "$DIST_DIR"/pve-thin-client-usb-installer-vm-*.ps1
-rm -f "$DIST_DIR"/pve-thin-client-live-usb-vm-*.sh
-rm -f "$DIST_DIR"/pve-thin-client-live-usb-vm-*.ps1
-rm -f \
-  "$DIST_DIR/$ZIP_NAME" \
-  "$DIST_DIR/$TARBALL_NAME" \
-  "$DIST_DIR/$TARBALL_LATEST_NAME" \
-  "$DIST_DIR/$USB_PAYLOAD_NAME" \
-  "$DIST_DIR/$USB_PAYLOAD_LATEST_NAME" \
-  "$DIST_DIR/$USB_BOOTSTRAP_NAME" \
-  "$DIST_DIR/$USB_BOOTSTRAP_LATEST_NAME" \
-  "$DIST_DIR/$USB_INSTALLER_NAME" \
-  "$DIST_DIR/$USB_INSTALLER_LATEST_NAME" \
-  "$DIST_DIR/$LIVE_USB_INSTALLER_NAME" \
-  "$DIST_DIR/$LIVE_USB_INSTALLER_LATEST_NAME" \
-  "$DIST_DIR/$WINDOWS_USB_INSTALLER_NAME" \
-  "$DIST_DIR/$WINDOWS_USB_INSTALLER_LATEST_NAME" \
-  "$DIST_DIR/$WINDOWS_LIVE_USB_INSTALLER_NAME" \
-  "$DIST_DIR/$WINDOWS_LIVE_USB_INSTALLER_LATEST_NAME" \
-  "$DIST_DIR/$INSTALLER_ISO_NAME" \
-  "$DIST_DIR/$INSTALLER_ISO_ARCH_NAME" \
-  "$DIST_DIR/$SERVER_INSTALLER_ISO_NAME" \
-  "$DIST_DIR/$SERVER_INSTALLER_ISO_ARCH_NAME" \
-  "$DIST_DIR/$SERVER_INSTALLIMAGE_NAME" \
-  "$DIST_DIR/$KIOSK_APPIMAGE_NAME" \
-  "$DIST_DIR/$KIOSK_RELEASE_MANIFEST_NAME" \
-  "$DIST_DIR/$KIOSK_RELEASE_HASH_NAME" \
-  "$DIST_DIR/pve-thin-client-usb-installer-host-latest.sh" \
-  "$DIST_DIR/pve-thin-client-usb-installer-host-latest.ps1" \
-  "$DIST_DIR/pve-thin-client-live-usb-host-latest.sh" \
-  "$DIST_DIR/pve-thin-client-live-usb-host-latest.ps1" \
-  "$DIST_DIR/beagle-vm-installers.json" \
-  "$DIST_DIR/beagle-downloads-index.html" \
-  "$DIST_DIR/beagle-downloads-status.json" \
-  "$DIST_DIR/$CHECKSUM_FILE"
+# Keep the currently published download set in place until replacements are
+# ready. Removing host-facing files at build start causes temporary 404s on
+# /beagle-downloads/* during long ISO/package rebuilds.
 
 if [[ "$SKIP_THIN_CLIENT_BUILD" != "1" ]]; then
   # The live payload is usually rebuilt for every package run so runtime/script
