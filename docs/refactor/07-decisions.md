@@ -434,3 +434,11 @@ Die Plan-Dokumente referenzierten eine GitHub-Organisation `beagle-os`, die real
 - `meinzeug/beagle-stream-client`
 
 Die Fork-Implementierung arbeitet ab jetzt gegen diese beiden Repositories. Doku und Checklisten muessen denselben Zielort verwenden, damit Folge-Runs keine tote Remote referenzieren.
+
+## BeagleStream Phase A: Token-als-PIN (2026-05-01)
+
+- Entscheidung: `BeagleAuth` nutzt `nvhttp::pin()` aus Sunshine unveraendert.
+- Entscheidung: Der HMAC-Pairing-Token aus dem Broker wird als PIN-String uebergeben.
+- Grund: Das Moonlight-/GFE-Protokoll bleibt unveraendert; es gibt keinen neuen Pairing-Handshake und keinen Breaking Change.
+- Konsequenz: Vanilla-Moonlight-Clients bleiben kompatibel, waehrend BeagleStream-Clients den Broker-Token vorausgefuellt an den bestehenden Pairing-Pfad senden.
+- Repos: `meinzeug/beagle-stream-server`, `meinzeug/beagle-stream-client`, jeweils Branch `beagle/phase-a`.

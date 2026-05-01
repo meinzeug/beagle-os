@@ -469,5 +469,8 @@
 - [x] GoEnterprise Plan 02 weiterziehen: Fleet-Remediation-Konfiguration/History persistent machen und Thin-Client-Runtime-Telemetrie (`reports.runtime`, Lock-/Backend-/Display-Zustand) in Device-Registry + Fleet-WebUI sichtbar machen.
 - [x] GoEnterprise Plan 07 weiterziehen: Fleet-Telemetrie-/Maintenance-Routen, Predictive-Alerts-Regeln/Resolve im Control Plane und Runtime-Health-Metriken (`uptime_hours`, `reboot_count_7d`, `cpu_temp_c`, `network_errors`) ueber `device/sync` produktiv verdrahten.
 - [x] GoEnterprise Plan 01: GitHub-Forks real anlegen (`meinzeug/beagle-stream-server`, `meinzeug/beagle-stream-client`) und lokale Arbeitsbranches `beagle/phase-a` vorbereiten.
-- [ ] GoEnterprise Plan 01: `beagle-stream-server` Phase A im separaten Fork implementieren (`src/beagle/*`, `BEAGLE_INTEGRATION`, Debian-Paket).
-- [ ] GoEnterprise Plan 01: `beagle-stream-client` Phase A im separaten Fork implementieren (`app/beagle/*`, Broker-Allocate, WireGuard-Peer-Aktivierung, Branding).
+- [x] GoEnterprise Plan 01: `beagle-stream-server` Phase A im separaten Fork implementieren (`src/beagle/*`, `BEAGLE_INTEGRATION`, Debian-Paket).
+- [x] GoEnterprise Plan 01: `beagle-stream-client` Phase A im separaten Fork implementieren (`app/beagle/*`, Broker-Allocate, WireGuard-Peer-Aktivierung, Branding).
+- [x] BeagleStream Phase A Forks unter `meinzeug/*` umsetzen: Sunshine-Server mit Broker-Integration/Token-als-PIN und Moonlight-Qt-Client mit Broker-Allocate/WireGuard/Branding auf Branch `beagle/phase-a`.
+- [ ] BeagleStream Phase A Runtime-Abnahme auf `srv1`: Server-Fork registriert VM, Client-Fork alloziert Session, aktiviert WireGuard-Peer und paired per HMAC-Token-als-PIN.
+- [ ] BeagleStream Phase A Packaging-Abschluss: `beagle-stream-server` in VM-Image-/Guest-Prep-Pipeline und `beagle-stream-client` ins Thin-Client-OS-Image aufnehmen.

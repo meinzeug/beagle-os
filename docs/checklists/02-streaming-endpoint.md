@@ -7,14 +7,14 @@
 
 ## BeagleStream Protocol (Sunshine/Moonlight Fork)
 
-- [ ] **Phase A 8.0.x** — Fork `LizardByte/Sunshine` → `meinzeug/beagle-stream-server`
-  - [ ] `src/beagle/BeagleBrokerClient.cpp` (Broker-getriebenes Pairing)
-  - [ ] `src/beagle/BeagleAuth.cpp` (Token-basiert)
-  - [ ] `.deb`-Paket `beagle-stream-server` ersetzt `sunshine.deb` in VM-Images
-- [ ] **Phase A 8.0.x** — Fork `moonlight-stream/moonlight-qt` → `meinzeug/beagle-stream-client`
-  - [ ] `src/beagle/BeagleBroker.cpp` (Broker-Discovery)
-  - [ ] `src/beagle/BeagleVPN.cpp` (WireGuard-Integration)
-  - [ ] Beagle-Branding (Name, Icons, About)
+- [x] **Phase A 8.0.x** — Fork `LizardByte/Sunshine` → `meinzeug/beagle-stream-server`
+  - [x] `src/beagle/BeagleBrokerClient.cpp` (Broker-getriebenes Pairing)
+  - [x] `src/beagle/BeagleAuth.cpp` (Token-basiert)
+  - [x] `.deb`-Paket `beagle-stream-server` ersetzt `sunshine.deb` in VM-Images
+- [x] **Phase A 8.0.x** — Fork `moonlight-stream/moonlight-qt` → `meinzeug/beagle-stream-client`
+  - [x] `app/beagle/BeagleBroker.cpp` (Broker-Discovery)
+  - [x] `app/beagle/BeagleVPN.cpp` (WireGuard-Integration)
+  - [x] Beagle-Branding (Name, Icons, About)
   - [ ] In Thin-Client-OS-Image gebundelt
 - [ ] **Phase B 8.1.x** — NVENC/VAAPI/QSV Tuning, AV1 default
 - [ ] **Phase C 8.2.x** — WebRTC-Modus (Browser-Stream ohne Client-Install)

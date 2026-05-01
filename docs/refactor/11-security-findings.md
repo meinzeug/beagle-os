@@ -1083,3 +1083,18 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
   - WLAN-PSKs werden nicht ins Repo, nicht in generierte Defaults und nicht in Server-Logs geschrieben.
   - `network.env` bleibt bei vorhandener `PVE_THIN_CLIENT_WIFI_PSK` auf `0600`, auch nach der Live-State-Synchronisierung.
   - Das Live-USB-Boot-Menue laeuft nur bei explizitem Kernel-Flag `pve_thin_client.network_tui=1`, nicht bei normalen installierten Runtime-Boots.
+
+## Security Note (2026-05-01) - BeagleStream Phase A Token-Handling
+
+- Status: umgesetzt, kein neuer offener Finding
+- Betroffene Repos:
+  - `meinzeug/beagle-stream-server`
+  - `meinzeug/beagle-stream-client`
+- Beschreibung:
+  - Der Server-Fork liest `BEAGLE_STREAM_TOKEN` aus `/etc/beagle/stream-server.env` oder Environment, sendet ihn nur als `X-Beagle-Token` und loggt den Wert nicht.
+  - Der Client-Fork liest `enrollment_token` aus `/etc/beagle/enrollment.conf` und sendet ihn nur als `X-Beagle-Token` an `/api/v1/streams/allocate`.
+  - Der HMAC-Pairing-Token aus dem Broker wird als PIN-String in den bestehenden Moonlight/Sunshine-Pairing-Pfad gegeben; das Protokoll wird nicht erweitert.
+- Mitigation:
+  - Keine Beispiel- oder Klartext-Tokens wurden in versionierte Dateien geschrieben.
+  - Sunshine-TLS-Verifikation bleibt standardmaessig aktiv; `BEAGLE_TLS_INSECURE=1` ist nur ein expliziter lokaler Test-Opt-out.
+  - Beagle-Erweiterungen sind nicht-fatal: fehlende Config faellt auf Vanilla-Verhalten zurueck statt Credentials oder unsichere Defaults zu erraten.

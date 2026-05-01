@@ -6513,3 +6513,13 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - YAML-Syntaxcheck fuer `copilot-automerge` und `public-website`
   - direkter Python-Runner fuer `tests/unit/test_package_sh_regressions.py`
   - lokaler Enrollment-Test konnte nicht laufen, weil `pytest` lokal nicht installiert ist
+
+## Update (2026-05-01, BeagleStream Phase A Forks)
+
+**Scope**: Sunshine- und Moonlight-Qt-Forks fuer BeagleStream Phase A wurden unter `meinzeug/*` angelegt und auf Branch `beagle/phase-a` umgesetzt. Alle lokalen Build-Prerequisites sind in den Fork-Repos dokumentiert, damit die lokale Toolchain nicht zum impliziten Wissen wird.
+
+- `meinzeug/beagle-stream-server`: `src/beagle/` mit Config-Loader, Broker-Client und Token-Auth, CMake-Option `BEAGLE_INTEGRATION`, Token-als-PIN-Hook im bestehenden Sunshine-Pairing und `.deb`-Skeleton `beagle-stream-server`.
+- `meinzeug/beagle-stream-client`: `app/beagle/` mit Enrollment-Config, Broker-Allocate und WireGuard-Peer-Aktivierung, Session-Start-Integration, Token-als-PIN-Pairing und BeagleStream-Branding.
+- Reproduzierbarkeit: beide Forks enthalten `docs/beagle-phase-a-build.md` mit Build-Host-Paketen, Submodule- und Build-Kommandos.
+- Checkliste: `docs/checklists/02-streaming-endpoint.md` Phase-A-Forkpunkte abgehakt; Thin-Client-OS-Image-Bundling bleibt als separater Packaging-Schritt offen.
+- Validierung: lokaler Client-Build ueber `qmake ../moonlight-qt.pro && make -j2` gruen; lokaler Server-Build mit `-DBEAGLE_INTEGRATION=ON` und `cmake --build ... --target sunshine -j2` gruen. Live-Control-Plane-Smoke gegen `srv1` ist der naechste Integrationsschritt.

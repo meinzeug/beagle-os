@@ -1251,3 +1251,10 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 2. Verifizieren, dass der Main-Run den `v8.0.0`-Tag aktualisiert, den GitHub-Release als latest setzt und die Website nicht ueberschreibt.
 3. Falls der Tag-Run durch den Main-Run doppelt ausloest und zu teuer wird, Release-Publish auf einen expliziten Dispatch-/Workflow-Run-Pfad aufteilen.
 4. Nach dem Automerge-Fix die bestehenden Copilot-PRs schliessen, sobald der konsolidierte Main-Fix gruen ist; neue Copilot-PRs muessen automatisch ready gesetzt, approved und bei gruenem CI gemerged werden.
+
+## Naechster Schritt (2026-05-01, BeagleStream Phase A)
+
+1. Branches `beagle/phase-a` in `meinzeug/beagle-stream-server` und `meinzeug/beagle-stream-client` pushen und GitHub-Checks beobachten.
+2. Auf einer VM mit `/etc/beagle/stream-server.env` den Sunshine-Fork mit `BEAGLE_INTEGRATION=ON` starten und `Beagle broker active for VM ...` plus Registrierung gegen `srv1.beagle-os.com:9088` pruefen.
+3. Auf einem Thin-Client mit `/etc/beagle/enrollment.conf` den Client-Fork starten, Broker-Allocate ausfuehren, WireGuard-Peer-Aktivierung pruefen und Token-als-PIN-Pairing gegen die VM verifizieren.
+4. Danach Packaging-Schritt nachziehen: `beagle-stream-client` ins Thin-Client-OS-Image und `beagle-stream-server` in die VM-Image-/Guest-Prep-Pipeline aufnehmen.
