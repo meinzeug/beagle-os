@@ -63,6 +63,21 @@ path.write_text(content)
 PY
 }
 
+sync_kiosk_version() {
+  python3 - "$ROOT_DIR/beagle-kiosk/package.json" "$VERSION" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+version = sys.argv[2]
+data = json.loads(path.read_text())
+if data.get("version") != version:
+    data["version"] = version
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+PY
+}
+
 collect_beagle_os_assets() {
   local path
   [[ -d "$BEAGLE_OS_DIST_DIR" ]] || return 0
@@ -212,6 +227,7 @@ if [[ "$BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS" == "1" ]]; then
 fi
 
 if [[ "$SKIP_KIOSK_BUILD" != "1" ]]; then
+  sync_kiosk_version
   rm -rf "$KIOSK_DIST_DIR"
   (
     cd "$ROOT_DIR/beagle-kiosk"
